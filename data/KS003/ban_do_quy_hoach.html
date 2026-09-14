@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bản Đồ Công Trình & Quy Hoạch Đô Thị TP.HCM</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+        body, html {
+            height: 100%;
+            width: 100%;
+            overflow: hidden;
+            background: #0f172a;
+        }
+        #map {
+            height: 100%;
+            width: 100%;
+            z-index: 1;
+        }
+        .control-panel {
+            position: absolute;
+            top: 16px;
+            left: 16px;
+            z-index: 1000;
+            background: rgba(15, 23, 42, 0.92);
+            backdrop-filter: blur(14px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 12px;
+            padding: 16px 20px;
+            color: #f8fafc;
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.6);
+            max-width: 360px;
+        }
+        .control-panel h1 {
+            font-size: 15px;
+            font-weight: 700;
+            color: #38bdf8;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 5px;
+            margin: 10px 0;
+        }
+        .stat-card {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 7px 5px;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            text-align: center;
+        }
+        .stat-label {
+            font-size: 9.5px;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .stat-val {
+            font-size: 15px;
+            font-weight: 700;
+            color: #f1f5f9;
+            margin-top: 2px;
+        }
+        .legend {
+            margin-top: 12px;
+            font-size: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #cbd5e1;
+        }
+        .legend-color {
+            width: 14px;
+            height: 14px;
+            border-radius: 3px;
+        }
+        .btn-live {
+            margin-top: 12px;
+            width: 100%;
+            background: #0284c7;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 6px;
+            transition: background 0.2s;
+        }
+        .btn-live:hover {
+            background: #0369a1;
+        }
+
+        /* POPUP GIAO DIỆN QUY HOẠCH CHUẨN SỞ QUY HOẠCH */
+        .planning-popup {
+            min-width: 320px;
+            max-width: 360px;
+            font-size: 12px;
+            color: #1e293b;
+            padding: 4px;
+        }
+        .planning-popup .pop-header {
+            background: #ea580c;
+            color: white;
+            padding: 8px 12px;
+            border-radius: 6px 6px 0 0;
+            font-weight: 700;
+            font-size: 13.5px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .planning-popup .pop-body {
+            padding: 10px 12px;
+            background: #ffffff;
+            border-radius: 0 0 6px 6px;
+        }
+        .pop-section-title {
+            font-weight: 700;
+            color: #ea580c;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 2px solid #fed7aa;
+            padding-bottom: 3px;
+            margin: 10px 0 6px 0;
+        }
+        .pop-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 3px 0;
+            border-bottom: 1px dashed #f1f5f9;
+        }
+        .pop-row .label {
+            color: #64748b;
+        }
+        .pop-row .val {
+            font-weight: 600;
+            color: #0f172a;
+            text-align: right;
+        }
+        .pop-doan {
+            background: #fff7ed;
+            border-left: 3px solid #f97316;
+            padding: 6px 8px;
+            font-size: 11px;
+            color: #9a3412;
+            line-height: 1.4;
+            border-radius: 0 4px 4px 0;
+            margin: 4px 0;
+        }
+        .function-card {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 6px 8px;
+            margin: 4px 0;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        .func-title {
+            font-weight: 700;
+            color: #ea580c;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .func-badge {
+            background: #ea580c;
+            color: white;
+            padding: 1px 6px;
+            border-radius: 4px;
+            font-size: 10px;
+        }
+        .logioi-box {
+            background: #f1f5f9;
+            padding: 5px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            color: #334155;
+            margin-top: 4px;
+        }
+        .leaflet-popup-content-wrapper {
+            border-radius: 10px;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.4);
+            padding: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    
+    <div class="control-panel">
+        <h1>🏢 Bản Đồ Quy Hoạch & Thửa Đất</h1>
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-label">Lưới quét</div>
+                <div class="stat-val" id="total-grid-count">331268</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Đã quét</div>
+                <div class="stat-val" style="color: #38bdf8;" id="scanned-grid-count">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Thửa đất</div>
+                <div class="stat-val" style="color: #f97316;" id="parcels-count">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Đã xoá</div>
+                <div class="stat-val" style="color: #ef4444;" id="deleted-count">0</div>
+            </div>
+        </div>
+        
+        <div class="legend">
+            <div class="legend-item">
+                <div class="legend-color" style="background: #ea580c; border: 1px solid #c2410c;"></div>
+                <span><strong>Ô Thửa đất / Công trình (Click để xem)</strong></span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #22c55e; border: 1px solid #15803d; border-radius: 50%;"></div>
+                <span>Đã quét: Có thửa đất (Tô màu cam)</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #fef08a; border: 1px solid #f59e0b; border-radius: 50%;"></div>
+                <span>Đã quét: Không có số thửa (Giao thông/công)</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #94a3b8; border-radius: 50%;"></div>
+                <span>Điểm lưới chưa quét tới</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: rgba(56, 189, 248, 0.25); border: 1px solid #0284c7;"></div>
+                <span>Vùng ranh khảo sát (Boundary / Buffer)</span>
+            </div>
+        </div>
+        
+        <div style="display: flex; gap: 8px; margin-top: 12px;">
+            <button class="btn-live" style="flex: 1;" onclick="reloadLiveData(true)">
+                🔄 Cập nhật
+            </button>
+            <button class="btn-live" id="btn-toggle-grid" style="flex: 1.2; background: #0284c7;" onclick="toggleGridPoints()">
+                👁️ Ẩn chấm
+            </button>
+        </div>
+    </div>
+
+    <!-- Tải ban_do_data.js lần đầu -->
+    <script src="ban_do_data.js"></script>
+    <script>
+        // Sử dụng Canvas renderer để tối ưu hoá hiệu năng tuyệt đối (Zero DOM-leak)
+        const map = L.map('map', {
+            preferCanvas: true,
+            zoomControl: true
+        }).setView([10.7943205840845, 106.6570827168254], 17);
+
+        // Tạo Custom Map Panes chuyên dụng để Bật/Tắt tức thì 100% không giật lag
+        map.createPane('gridPointsPane');
+        map.getPane('gridPointsPane').style.zIndex = '350';
+
+        map.createPane('parcelsPane');
+        map.getPane('parcelsPane').style.zIndex = '450';
+
+        const canvasRenderer = L.canvas({ padding: 0.5, pane: 'parcelsPane' });
+        const gridCanvasRenderer = L.canvas({ padding: 0.5, pane: 'gridPointsPane' });
+
+        // Lớp bản đồ nền
+        const streetLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 20,
+            attribution: '© OpenStreetMap'
+        });
+
+        const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            maxZoom: 20,
+            attribution: '© Esri World Imagery'
+        });
+
+        satelliteLayer.addTo(map);
+
+        let bufferLayer = null;
+        let routeLayer = null;
+        const parcelsGroup = L.featureGroup().addTo(map);
+        const gridPointsGroup = L.featureGroup().addTo(map);
+
+        L.control.layers({
+            "Bản đồ vệ tinh": satelliteLayer,
+            "Bản đồ đường phố": streetLayer
+        }, {
+            "🏢 Thửa đất quy hoạch": parcelsGroup,
+            "🟢 Chấm toạ độ lưới": gridPointsGroup
+        }, { position: 'topright' }).addTo(map);
+        
+        let parcelLayers = {};
+        let gridMarkers = {};
+        let initializedStaticLayers = false;
+        let lastTimestamp = 0;
+        let showGridMarkers = true;
+
+        window.toggleGridPoints = function() {
+            showGridMarkers = !showGridMarkers;
+            const btn = document.getElementById('btn-toggle-grid');
+            const pane = map.getPane('gridPointsPane');
+            
+            if (showGridMarkers) {
+                if (pane) pane.style.display = 'block';
+                if (btn) {
+                    btn.style.background = '#0284c7';
+                    btn.innerHTML = '👁️ Ẩn chấm';
+                }
+            } else {
+                if (pane) pane.style.display = 'none';
+                if (btn) {
+                    btn.style.background = '#475569';
+                    btn.innerHTML = '👁️ Hiện chấm';
+                }
+            }
+        };
+
+        map.on('overlayadd', function(e) {
+            if (e.name && e.name.includes("Chấm")) {
+                const pane = map.getPane('gridPointsPane');
+                if (pane) pane.style.display = 'block';
+                showGridMarkers = true;
+                const btn = document.getElementById('btn-toggle-grid');
+                if (btn) { btn.style.background = '#0284c7'; btn.innerHTML = '👁️ Ẩn chấm'; }
+            }
+        });
+
+        map.on('overlayremove', function(e) {
+            if (e.name && e.name.includes("Chấm")) {
+                const pane = map.getPane('gridPointsPane');
+                if (pane) pane.style.display = 'none';
+                showGridMarkers = false;
+                const btn = document.getElementById('btn-toggle-grid');
+                if (btn) { btn.style.background = '#475569'; btn.innerHTML = '👁️ Hiện chấm'; }
+            }
+        });
+
+        function renderStaticLayers(data) {
+            if (initializedStaticLayers || !data) return;
+            
+            // Vẽ Vùng đệm
+            if (data.buffer && data.buffer.length > 0) {
+                bufferLayer = L.polygon(data.buffer, {
+                    color: '#38bdf8',
+                    weight: 2,
+                    fillColor: '#0284c7',
+                    fillOpacity: 0.2,
+                    dashArray: '4',
+                    renderer: canvasRenderer
+                }).addTo(map);
+                bufferLayer.bindTooltip("Vùng đệm quét", { sticky: true });
+                map.fitBounds(bufferLayer.getBounds());
+            }
+
+            // Vẽ Tuyến đường gốc
+            if (data.route && data.route.length > 0) {
+                if (Array.isArray(data.route[0]) && Array.isArray(data.route[0][0])) {
+                    data.route.forEach(line => {
+                        L.polyline(line, {
+                            color: '#ef4444',
+                            weight: 3.5,
+                            opacity: 0.85,
+                            renderer: canvasRenderer
+                        }).addTo(map);
+                    });
+                } else {
+                    routeLayer = L.polyline(data.route, {
+                        color: '#ef4444',
+                        weight: 4.5,
+                        opacity: 0.95,
+                        renderer: canvasRenderer
+                    }).addTo(map);
+                    routeLayer.bindTooltip("Tuyến đường KML", { sticky: true });
+                }
+            }
+
+            initializedStaticLayers = true;
+        }
+
+        function renderGridPoints(points, scannedMap) {
+            if (!points && !scannedMap) return;
+            if (points) {
+                const totalCount = points.length;
+                document.getElementById('total-grid-count').innerText = totalCount.toLocaleString();
+            }
+
+            const scannedEntries = Object.entries(scannedMap || {});
+            const scannedCount = scannedEntries.length;
+            document.getElementById('scanned-grid-count').innerText = scannedCount.toLocaleString();
+
+            const ptsList = points || [];
+            if (ptsList.length > 0) {
+                ptsList.forEach(p => {
+                    const pLon = p.lon !== undefined ? p.lon : p[0];
+                    const pLat = p.lat !== undefined ? p.lat : p[1];
+                    const pKey = (pLon.toFixed(6) + ',' + pLat.toFixed(6));
+                    
+                    if (gridMarkers[pKey]) return; // Đã vẽ trên Canvas rồi
+
+                    const status = scannedMap ? scannedMap[pKey] : undefined;
+                    let color, fillColor, tipText;
+                    if (status === true) {
+                        color = '#15803d';
+                        fillColor = '#22c55e';
+                        tipText = `Toạ độ: ${pLat.toFixed(6)}, ${pLon.toFixed(6)}<br><b style="color:#16a34a">✅ Đã quét: Có thửa đất</b>`;
+                    } else if (status === false) {
+                        color = '#f59e0b';
+                        fillColor = '#fef08a';
+                        tipText = `Toạ độ: ${pLat.toFixed(6)}, ${pLon.toFixed(6)}<br><b style="color:#d97706">ℹ️ Cổng SQHKT không có số thửa<br>(Đất giao thông / Đất công)</b>`;
+                    } else {
+                        color = '#64748b';
+                        fillColor = '#94a3b8';
+                        tipText = `Toạ độ: ${pLat.toFixed(6)}, ${pLon.toFixed(6)}<br><span style="color:#64748b">Điểm lưới khoảng cách</span>`;
+                    }
+
+                    const m = L.circleMarker([pLat, pLon], {
+                        radius: 2,
+                        color: color,
+                        weight: 0.8,
+                        fillColor: fillColor,
+                        fillOpacity: 0.75,
+                        renderer: gridCanvasRenderer
+                    }).addTo(gridPointsGroup);
+                    m.bindTooltip(tipText);
+                    gridMarkers[pKey] = m;
+                });
+            } else if (scannedEntries.length > 0) {
+                scannedEntries.forEach(([pKey, status]) => {
+                    if (gridMarkers[pKey]) return;
+
+                    const parts = pKey.split(',');
+                    if (parts.length < 2) return;
+                    const pLon = parseFloat(parts[0]);
+                    const pLat = parseFloat(parts[1]);
+
+                    let color, fillColor, tipText;
+                    if (status === true) {
+                        color = '#15803d';
+                        fillColor = '#22c55e';
+                        tipText = `Toạ độ: ${pLat.toFixed(6)}, ${pLon.toFixed(6)}<br><b style="color:#16a34a">✅ Đã quét: Có thửa đất</b>`;
+                    } else {
+                        color = '#f59e0b';
+                        fillColor = '#fef08a';
+                        tipText = `Toạ độ: ${pLat.toFixed(6)}, ${pLon.toFixed(6)}<br><b style="color:#d97706">ℹ️ Cổng SQHKT không có số thửa</b>`;
+                    }
+
+                    const m = L.circleMarker([pLat, pLon], {
+                        radius: 2,
+                        color: color,
+                        weight: 0.8,
+                        fillColor: fillColor,
+                        fillOpacity: 0.75,
+                        renderer: gridCanvasRenderer
+                    }).addTo(gridPointsGroup);
+                    m.bindTooltip(tipText);
+                    gridMarkers[pKey] = m;
+                });
+            }
+        }
+
+        function renderParcels(parcels) {
+            if (!parcels) return;
+            Object.values(parcels).forEach(p => {
+                if (!p.ranh_coords || p.ranh_coords.length === 0) return;
+                if (window.EXCLUDED_PARCELS && window.EXCLUDED_PARCELS.has(p.mathuadat)) return;
+                
+                // Chỉ vẽ nếu thửa đất chưa được render
+                if (!parcelLayers[p.mathuadat]) {
+                    const poly = L.polygon(p.ranh_coords, {
+                        color: '#ea580c',
+                        weight: 2.5,
+                        fillColor: '#fb923c',
+                        fillOpacity: 0.45,
+                        renderer: canvasRenderer
+                    }).addTo(parcelsGroup);
+
+                    poly.bindTooltip(`Thửa: ${p.sothua} | Tờ: ${p.soto} (${p.dientich_formatted || p.dientich} m²)`, {
+                        sticky: true,
+                        direction: 'top'
+                    });
+
+                    poly.on('mouseover', () => {
+                        poly.setStyle({ weight: 4, fillOpacity: 0.65, color: '#c2410c' });
+                    });
+                    poly.on('mouseout', () => {
+                        poly.setStyle({ weight: 2.5, fillOpacity: 0.45, color: '#ea580c' });
+                    });
+
+                    let popupHtml = `
+                        <div class="planning-popup">
+                            <div class="pop-header">
+                                <span>Thửa số: ${p.sothua}</span>
+                                <span>Tờ số: ${p.soto}</span>
+                            </div>
+                            
+                            <div class="pop-section-title">THÔNG TIN THỬA ĐẤT</div>
+                            <div class="pop-row"><span class="label">Tỉnh / Thành:</span><span class="val">TP. Hồ Chí Minh</span></div>
+                            <div class="pop-row"><span class="label">Quận / Huyện:</span><span class="val">${p.tenquanhuyen}</span></div>
+                            <div class="pop-row"><span class="label">Phường / Xã:</span><span class="val">${p.tenphuongxa}</span></div>
+                            <div class="pop-row"><span class="label">Diện tích:</span><span class="val" style="color: #ea580c; font-weight: 700;">${p.dientich_formatted || p.dientich} m²</span></div>
+                            <div class="pop-row"><span class="label">Mã thửa SQHKT:</span><span class="val" style="font-family: monospace;">${p.mathuadat}</span></div>
+
+                            <div class="pop-section-title">ĐỒ ÁN QUY HOẠCH 1/2000</div>
+                            <div class="pop-doan">${p.tendoan || 'Chưa có thông tin đồ án'}</div>
+
+                            <div class="pop-section-title">Ô CHỨC NĂNG SỬ DỤNG ĐẤT & CHỈ TIÊU KT</div>
+                    `;
+
+                    if (p.qhpk_details && p.qhpk_details.length > 0) {
+                        p.qhpk_details.forEach(o => {
+                            popupHtml += `
+                                <div class="function-card">
+                                    <div class="func-title">
+                                        <span class="func-badge">${o.maopho || 'Ô phố'}</span>
+                                        <span>${o.chucnang || 'Chưa phân định'}</span>
+                                    </div>
+                                    <div style="font-size: 11px; color: #475569; margin: 2px 0;">
+                                        Diện tích ô: <b>${o.dientich_formatted || o.dientich} m²</b> (Chiếm <b>${o.tldientich_formatted || o.tldientich}%</b>)
+                                    </div>
+                                    <div style="font-size: 11px; color: #0284c7; background: #f0f9ff; padding: 4px; border-radius: 4px; margin-top: 3px;">
+                                        Tầng cao: <b>${o.tangcao || '-'}</b> | Cao: <b>${o.chieucao ? o.chieucao + 'm' : '-'}</b> | Mật độ: <b>${o.matdo ? o.matdo + '%' : '-'}</b> | HSSDĐ: <b>${o.hesosdd || '-'}</b>
+                                    </div>
+                                </div>
+                            `;
+                        });
+                    } else {
+                        popupHtml += `<div style="color: #64748b; font-size: 11px; margin: 4px 0;">${p.chucnang_summary || 'Chưa phân định'}</div>`;
+                    }
+
+                    popupHtml += `
+                            <div class="pop-section-title">LỘ GIỚI TIẾP GIÁP</div>
+                            <div class="logioi-box">${p.logioi_summary || 'Không có lộ giới'}</div>
+                            <button class="btn-delete-thua" onclick="deleteParcel('${p.mathuadat}', '${p.sothua}', '${p.soto}')" style="margin-top: 12px; width: 100%; background: #fef2f2; color: #dc2626; border: 1px solid #fca5a5; padding: 7px 10px; border-radius: 6px; font-size: 11.5px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 5px; transition: all 0.2s;" onmouseover="this.style.background='#fee2e2'" onmouseout="this.style.background='#fef2f2'">
+                                🗑️ Xoá thửa này khỏi bản đồ
+                            </button>
+                        </div>
+                    `;
+
+                    poly.bindPopup(popupHtml, { maxWidth: 380 });
+                    parcelLayers[p.mathuadat] = poly;
+                }
+            });
+
+            const parcelCount = Object.keys(parcelLayers).length;
+            document.getElementById('parcels-count').innerText = parcelCount;
+        }
+
+        window.EXCLUDED_PARCELS = new Set();
+        window.deleteParcel = async function(mathua, sothua, soto) {
+            if (!confirm(`Bạn có chắc chắn muốn xoá Thửa ${sothua} / Tờ ${soto} (Mã: ${mathua})?\n\nThao tác này sẽ xoá thửa khỏi bản đồ VÀ xoá trực tiếp khỏi file Excel!`)) return;
+            
+            let syncedWithExcel = false;
+            try {
+                let resp = await fetch('/api/delete_parcel', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ mathua: mathua, sothua: sothua, soto: soto })
+                });
+                let result = await resp.json();
+                if (result && result.success) {
+                    syncedWithExcel = true;
+                }
+            } catch(e) {
+                syncedWithExcel = false;
+            }
+
+            window.EXCLUDED_PARCELS.add(mathua);
+            if (parcelLayers[mathua]) {
+                parcelsGroup.removeLayer(parcelLayers[mathua]);
+                delete parcelLayers[mathua];
+            }
+            
+            document.getElementById('parcels-count').innerText = Object.keys(parcelLayers).length;
+            const delCountEl = document.getElementById('deleted-count');
+            if (delCountEl) delCountEl.innerText = window.EXCLUDED_PARCELS.size;
+            
+            map.closePopup();
+
+            const toast = document.createElement('div');
+            toast.style.cssText = 'position: fixed; bottom: 25px; right: 25px; background: #0f172a; color: white; padding: 12px 18px; border-radius: 8px; box-shadow: 0 10px 25px rgba(0,0,0,0.3); font-size: 13px; z-index: 99999; display: flex; align-items: center; gap: 8px; border-left: 4px solid #ef4444; font-family: sans-serif;';
+            if (syncedWithExcel) {
+                toast.innerHTML = `✅ <b>Thửa ${sothua} / Tờ ${soto}</b> đã được xoá vĩnh viễn khỏi cả 4 Sheet của file Excel!`;
+            } else {
+                toast.innerHTML = `🗑️ <b>Thửa ${sothua} / Tờ ${soto}</b> đã ẩn khỏi bản đồ (Mở bằng <code>python main.py --view</code> để tự động cập nhật Excel).`;
+            }
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 4000);
+        };
+
+        function applyData(data) {
+            if (!data) return;
+            if (data.route || data.buffer) renderStaticLayers(data);
+            if (data.total_points && !data.points) {
+                const el = document.getElementById('total-grid-count');
+                if (el) el.innerText = data.total_points.toLocaleString();
+            }
+            if (data.points || data.scanned_points) {
+                renderGridPoints(data.points, data.scanned_points);
+            }
+            if (data.parcels) renderParcels(data.parcels);
+        }
+
+        // Render ban đầu nếu có dữ liệu từ ban_do_data.js
+        if (window.LIVE_PLANNING_DATA) {
+            applyData(window.LIVE_PLANNING_DATA);
+        }
+
+        // Cơ chế cập nhật Live không rò rỉ bộ nhớ (Garbage collection friendly)
+        let isFetching = false;
+        async function reloadLiveData(force = false) {
+            if (isFetching) return;
+            isFetching = true;
+            try {
+                if (window.location.protocol.startsWith('http')) {
+                    const res = await fetch('ban_do_data.json?t=' + Date.now(), { cache: 'no-store' });
+                    if (res.ok) {
+                        const data = await res.json();
+                        applyData(data);
+                    }
+                } else {
+                    // Dành cho giao thức file:// : Nạp qua thẻ script và dọn dẹp biến bộ đệm ngay sau khi nạp
+                    const oldScript = document.getElementById('live-data-script');
+                    if (oldScript) oldScript.remove();
+
+                    const script = document.createElement('script');
+                    script.id = 'live-data-script';
+                    script.src = 'ban_do_data.js?t=' + Date.now();
+                    script.onload = () => {
+                        if (window.LIVE_PLANNING_DATA) {
+                            applyData(window.LIVE_PLANNING_DATA);
+                        }
+                    };
+                    document.head.appendChild(script);
+                }
+            } catch(err) {
+                // Bỏ qua lỗi kết nối tạm thời
+            } finally {
+                isFetching = false;
+            }
+        }
+
+        // Tự động kiểm tra cập nhật mỗi 3.5 giây
+        setInterval(() => reloadLiveData(false), 3500);
+    </script>
+</body>
+</html>

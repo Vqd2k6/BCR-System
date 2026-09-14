@@ -1,0 +1,24 @@
+{
+  "name": "ksqh-metro2-backend",
+  "version": "1.0.0",
+  "description": "Backend REST API cho Hệ thống Khảo sát Hiện trạng Công trình Metro Số 2 (KSQH)",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "seed": "node src/scripts/seed.js"
+  },
+  "keywords": ["metro", "survey", "gis", "postgis", "cloudflare-r2", "building-condition-assessment"],
+  "author": "KSQH IT Team",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.540.0",
+    "@aws-sdk/s3-request-presigner": "^3.540.0",
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "jsonwebtoken": "^9.0.2",
+    "pg": "^8.11.5"
+  }
+}
