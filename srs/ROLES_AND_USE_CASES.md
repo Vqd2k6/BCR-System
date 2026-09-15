@@ -14,7 +14,7 @@ Hệ thống áp dụng mô hình kiểm soát truy cập dựa trên vai trò *
 | :---: | :--- | :---: | :--- |
 | **`SUPER_ADMIN`** | Quản trị viên Cấp cao | Web Admin | Quản lý hệ thống, quản lý tài khoản, cấu hình lớp GIS Metro 2, xem Executive Master Dashboard toàn tuyến. (*Lưu ý: Quy tắc ma trận ECS, VI, Burland Grade được cố định theo chuẩn mẫu dự án gốc*). |
 | **`ZONE_ADMIN`** | Quản lý Phân khu | Web Admin | Quản lý Phân khu/Ga. Phân công task, xem Dashboard thống kê công việc (Báo cáo đã xong, duyệt, chờ duyệt) & thống kê ngày làm việc/chấm công của Surveyor; thẩm định hồ sơ Split-Pane, phê duyệt/trả về và thực hiện quyền Kỹ sư. |
-| **`SURVEYOR`** | Cán bộ Khảo sát Hiện trường | Mobile PWA / App | Check-in chấm công hiện trường (GPS + khai báo người đi cùng), thực hiện thu thập dữ liệu 9 bước hợp nhất để lập Báo cáo Hiện trạng, thả ghim khuyết tật $D-xx$, lấy chữ ký chủ hộ, đồng bộ offline. |
+| **`SURVEYOR`** | Cán bộ Khảo sát Hiện trường | Mobile PWA / App | Check-in chấm công hiện trường (GPS + khai báo người đi cùng), thực hiện thu thập dữ liệu 9 bước hợp nhất để lập Báo cáo Hiện trạng, thả ghim khuyết tật $D-xx$, chụp ảnh chữ ký xác nhận của cán bộ/chủ hộ, đồng bộ offline. |
 | **`CONTRACTOR`** | Khách vãng lai / Đơn vị quan sát | Web Viewer (Public/Private Link) | Truy cập dưới dạng Khách (Guest) qua link chia sẻ (có passcode/token). Xem bản đồ GIS quy hoạch các lô đất dự án Metro 2, theo dõi tiến độ công trình (lô nào đã xong), xem thông tin chi tiết và báo cáo đã duyệt của các lô. |
 
 ---
@@ -30,7 +30,7 @@ Hệ thống áp dụng mô hình kiểm soát truy cập dựa trên vai trò *
 | **Check-in Chấm công Hiện trường (Kèm Người đi cùng)** | Không | Xem | Full | Không |
 | **Lập Báo cáo Khảo sát Hiện trạng (9 Bước)** | Không | Không | Full | Không |
 | **Thả Ghim Khuyết tật $D-xx$ trên Ảnh bối cảnh** | Không | Không | Full | Không |
-| **Lấy Chữ ký Điện tử Chủ hộ (Mobile E-Sign)** | Không | Không | Full | Không |
+| **Chụp Ảnh Chữ ký / Ảnh Cán bộ & Chủ hộ Xác nhận** | Không | Không | Full | Không |
 | **Thẩm định Hồ sơ Split-Pane (Kính lúp 400%)** | Full | Full | Không | Xem |
 | **Phê duyệt (Approve) / Trả về (Reject) Báo cáo** | Full | Full | Không | Không |
 | **Quyền Can thiệp Kỹ sư (Engineering Judgement)** | Full | Full | Không | Không |
@@ -72,7 +72,7 @@ Hệ thống áp dụng mô hình kiểm soát truy cập dựa trên vai trò *
   - **Chụp ảnh Bối cảnh & Thả ghim Real-Time:** 1 Ảnh bối cảnh (`Photo CTX`) = 1 Vùng `Z-01`. Chạm tay thả ghim $D-01, D-02\dots$ trực tiếp trên hình.
   - **Chụp Cận cảnh có thước:** Tiến lại gần ghim $D-xx$ đặt thước đo áp sát khe nứt và chụp Ảnh Cận cảnh (`Photo CU`), nhập bề rộng max $w_{\max}$, chiều dài $L$.
   - **Đo lún nghiêng:** Nhập chỉ số nghiêng X/Y%, nghiêng sàn, võng dầm.
-- **Lấy Chữ ký Điện tử Chủ hộ:** Mở bảng ký cảm ứng toàn màn hình xoay ngang để Chủ hộ và Surveyor ký xác nhận hoàn thành báo cáo.
+- **Chụp Ảnh Chữ ký / Ảnh Xác nhận:** Chụp ảnh chữ ký giấy hoặc chụp ảnh cán bộ khảo sát / người kiểm tra tại hiện trường để đính kèm vào báo cáo (không yêu cầu ký số cảm ứng phức tạp).
 
 ### 2.4. Khách vãng lai / Đơn vị quan sát (`CONTRACTOR / GUEST`)
 - **Chế độ Truy cập Khách (Guest Mode & Link Sharing):**
@@ -81,7 +81,7 @@ Hệ thống áp dụng mô hình kiểm soát truy cập dựa trên vai trò *
 - **Xem Bản đồ Quy hoạch GIS & Trạng thái Lô đất:**
   - Trực quan hóa bản đồ quy hoạch dự án Metro 2 với các lô đất/thửa đất được mã hóa màu theo trạng thái: 🟢 *Đã khảo sát & duyệt*, 🟡 *Đang khảo sát*, ⚪ *Chưa khảo sát*.
 - **Tra cứu Thông tin & Xem Báo cáo Lô đất:**
-  - Nhấp vào từng lô đất/công trình trên bản đồ để xem thông tin tổng quan hiện trạng (Loại kết cấu, số tầng, phân hạng ECS/VI).
+  - Nhấp vào từng lô đất bất kỳ trên bản đồ để xem thông tin tổng quan hiện trạng (Loại kết cấu, số tầng, phân hạng ECS/VI).
   - Tải về hoặc xem trực tuyến file Báo cáo Khảo sát Hiện trạng đã được duyệt (Read-only format).
 
 ---
@@ -119,7 +119,7 @@ Hệ thống áp dụng mô hình kiểm soát truy cập dựa trên vai trò *
   4. **Bước 4: Chụp bối cảnh & Thả ghim $D-xx$:** Chụp 1 ảnh bối cảnh mảng tường (`Photo CTX`) ➔ Tự động tạo Vùng `Z-01` ➔ Chạm thả ghim $D-01, D-02\dots$ ➔ Tiến lại gần chụp ảnh Cận cảnh (`Photo CU`) có thước đo khe nứt.
   5. **Bước 5: Đo lún nghiêng:** Nhập chỉ số nghiêng X/Y%, nghiêng sàn, võng dầm.
   6. **Bước 6: Auto Calculation & Slider:** Hệ thống tự động quy đổi điểm ECS ($E1 \to E5$) và điểm VI ($V3, V5$). `SURVEYOR` kéo thanh trượt Slider 1-4 có Note mô tả cho các tiêu chí VI còn lại.
-  7. **Bước 7: Ký xác nhận Báo cáo:** `SURVEYOR` ký tên và cho Chủ hộ ký ngón tay trên bảng ký xoay ngang. Báo cáo hoàn chỉnh được tự động gửi về hệ thống (hoặc lưu nháp đồng bộ khi có mạng).
+  7. **Bước 7: Chụp ảnh chữ ký / Ảnh xác nhận:** `SURVEYOR` chụp ảnh chữ ký trên tờ khai hoặc chụp ảnh cán bộ khảo sát / người kiểm tra tại hiện trường. Báo cáo hoàn chỉnh được tự động gửi về hệ thống (hoặc lưu nháp đồng bộ khi có mạng).
 
 ---
 
