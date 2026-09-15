@@ -1,6 +1,6 @@
 # Bộ câu hỏi & Biểu mẫu Khảo sát Hiện trạng Công trình (KSQH - Metro 2)
 
-Dưới đây là toàn bộ danh sách các câu hỏi, trường thông tin và thao tác cần thu thập tại hiện trường. **Trình tự khảo sát được thiết kế tối ưu theo Thực địa Thực tế (1 Ảnh Bối cảnh ➔ Tạo Vùng Z-xx & Chốt Grade tại chỗ ➔ Ghim D-xx ➔ Chụp Cận cảnh & Nhập chỉ số)** giúp tiết kiệm 70% thời gian chụp ảnh và hoàn thành 100% dữ liệu ngay lúc chụp.
+Dưới đây là toàn bộ danh sách các câu hỏi, trường thông tin và thao tác cần thu thập tại hiện trường. **Trình tự khảo sát và các Chuẩn Enum được tối ưu khớp 100% giữa Lúc Thu Thập ➔ Bảng Tính Điểm Kỹ Thuật (ECS / Burland / BRA)** giúp tự động hóa toàn bộ quá trình tính điểm mà không bị lệch chuẩn.
 
 ---
 
@@ -39,13 +39,13 @@ Dưới đây là toàn bộ danh sách các câu hỏi, trường thông tin v�
   - Điểm CAT móng: (Nhập từ 1 đến 5 /5)
   - Nguồn thông tin (Source): (Multi-select: Drawing - Bản vẽ thiết kế / Owner - Chủ nhà cung cấp / Site - Khảo sát thực địa)
 
-### Bước 3: Phỏng vấn Lịch sử, Sử dụng & Yếu tố Nhạy cảm
-*Hỏi chuyện người đại diện hoặc chủ nhà để nắm lịch sử toà nhà và các đặc điểm đặc biệt.*
-- [ ] **Cơi nới / Thay đổi tải trọng:** (Chọn: Không / Có / Chưa rõ)
-- [ ] **Sửa chữa lớn / Cải tạo kết cấu:** (Chọn: Không / Có / Chưa rõ)
-- [ ] **Lún / Nghiêng ghi nhận trước đây:** (Chọn: Không / Có / Chưa rõ)
-- [ ] **Hư hỏng do công trình lân cận gây ra:** (Chọn: Không / Có / Chưa rõ)
-- [ ] **Sự cố nghiêm trọng (Hỏa hoạn / Ngập lụt / Sự cố khác):** (Chọn: Không / Có / Chưa rõ)
+### Bước 3: Phỏng vấn Lịch sử, Sử dụng & Yếu tố Nhạy cảm (Đã điều chỉnh chuẩn Enum cho E5)
+*Hỏi chuyện người đại diện hoặc chủ nhà để nắm lịch sử toà nhà (các Enum được chuẩn hóa để tự động tính điểm E5 trong bảng ECS).*
+- [ ] **Cơi nới / Thay đổi tải trọng:** (Chọn: `Không` [0đ] / `Nhẹ / Đã xử lý` [1đ] / `Nhiều / Chưa rõ` [2đ] / `Thay đổi lớn` [3-4đ])
+- [ ] **Sửa chữa lớn / Cải tạo kết cấu:** (Chọn: `Không` [0đ] / `Nhẹ / Đã xử lý` [1đ] / `Nhiều / Chưa rõ` [2đ] / `Thay đổi lớn` [3-4đ])
+- [ ] **Lún / Nghiêng ghi nhận trước đây:** (Chọn: `Không` [0đ] / `Nhẹ / Đã xử lý` [1đ] / `Nhiều / Chưa rõ` [2đ] / `Nghiêm trọng` [3-4đ])
+- [ ] **Hư hỏng do công trình lân cận gây ra:** (Chọn: `Không` [0đ] / `Nhẹ / Đã xử lý` [1đ] / `Nhiều / Chưa rõ` [2đ] / `Nghiêm trọng` [3-4đ])
+- [ ] **Sự cố nghiêm trọng (Hỏa hoạn / Ngập lụt / Sự cố khác):** (Chọn: `Không` [0đ] / `Nhẹ / Đã xử lý` [1đ] / `Nhiều / Chưa rõ` [2đ] / `Sự cố lớn` [3-4đ])
 - [ ] **Thiết bị / Hoạt động nhạy cảm (VD: Phòng thí nghiệm, máy y tế, đồ cổ...):** (Chọn: Không / Có - Nhập mô tả chi tiết: ________)
 - [ ] **Tình trạng sử dụng hiện tại:** (Chọn: Đầy đủ / Một phần / Không sử dụng)
 - [ ] **Vận hành liên tục 24/7:** (Chọn: Không / Có)
@@ -73,12 +73,10 @@ Dưới đây là toàn bộ danh sách các câu hỏi, trường thông tin v�
 ---
 ---
 
-## PHẦN B: KHẢO SÁT GIAI ĐOẠN 2 & HỢP NHẤT SỔ KHUYẾT TẬT (PHASE 2 - QUY TRÌNH TẠO VÙNG Z-xx & GHIM D-xx REAL-TIME)
+## PHẦN B: KHẢO SÁT GIAI ĐOẠN 2 & HỢP NHẤT SỔ KHUYẾT TẬT (PHASE 2 - CHUẨN HÓA ENUM MAPPING 100% VỚI ECS)
 
-> **THIẾT KẾ ĐỘT PHÁ TỰ ĐỘNG HÓA BẢNG 8 (REAL-TIME DAMAGE ZONE CREATION):**
-> Mỗi bức ảnh Bối cảnh (`Photo CTX`) chụp một mảng tường/cấu kiện **chính là một Vùng Hư Hỏng (`Zone Z-xx`)**.
-> Khảo sát viên chụp Ảnh Bối cảnh ➔ App tự động tạo Vùng `Z-01` ➔ Nhập luôn 2 thông số của Bảng 8 ngay lúc chụp ➔ Thả ghim `D-01`, `D-02`... ➔ Chụp cận cảnh. 
-> Bảng 8 (Damage-Zone Summary) được **hoàn thành 100% ngay tại chỗ**, không cần bước tổng hợp lại ở cuối buổi!
+> **THIẾT KẾ ĐỘT PHÁ TỰ ĐỘNG HÓA BẢNG 8 & BẢNG 11 (ECS AUTOMATION):**
+> Các Enum thu thập tại Bước 2 (Khuyết tật $D-xx$) và Bước 3 (Lún nghiêng) được **chuẩn hóa khớp 100% với các tiêu chí E1–E6 trong Bảng ECS (Mục 11)**. Khảo sát viên chọn đúng thực tế hiện trường ➔ Hệ thống tự động quy đổi ra điểm ECS chính xác tuyệt đối mà không cần tính toán thủ công.
 
 ### Bước 1: Khởi tạo Buổi khảo sát Chi tiết
 - [ ] **Mức độ tiếp cận hôm nay:** (Đầy đủ / Một phần / Bị hạn chế / Bị từ chối/vắng mặt)
@@ -103,7 +101,7 @@ Dưới đây là toàn bộ danh sách các câu hỏi, trường thông tin v�
 - [ ] **Chạm lên vết nứt 2:** Thả ghim mã `D-02`.
 - [ ] **Chạm lên vết nứt 3:** Thả ghim mã `D-03`.
 
-#### 2.4. Nhập Chi tiết & Chụp Cận Cảnh cho từng Ghim D-xx:
+#### 2.4. Nhập Chi tiết & Chụp Cận Cảnh cho từng Ghim D-xx (Enum đã chuẩn hóa cho E2 & E4):
 *Bấm vào từng ghim (`D-01`, `D-02`...) trên hình Vùng Z-xx để nhập:*
 
 ##### Khuyết tật `D-xx`:
@@ -112,8 +110,41 @@ Dưới đây là toàn bộ danh sách các câu hỏi, trường thông tin v�
 - [ ] **Dạng nứt:** (Xiên / Ziczac / Dọc / Ngang / Chân chim / Phồng rộp...)
 - [ ] **Kích thước:** Max Width (mm) & Length (mm) & Hướng nứt.
 - [ ] **Trạng thái Hoạt động:** `U` (Chưa rõ) / `S` (Ổn định/cũ) / `A` (Đang phát triển)
-- [ ] **Ý nghĩa Kết cấu:** `N/A` / `Low` / `Moderate` / `High` / `Critical` (Cảnh báo sập)
+- [ ] **Mức độ Suy giảm Vật liệu / Bong tróc / Rỉ thép (Chuẩn hóa tự động map điểm E4 trong ECS):**
+  - `Không / Nhẹ` [0đ] (Vết nứt sạch, không bong tróc)
+  - `Cục bộ` [1đ] (Bong tróc rữa vữa nhẹ cục bộ)
+  - `Đáng kể` [2đ] (Bong tróc mảng rộng, rỉ rác cốt thép)
+  - `Nặng` [3đ] (Bong tróc diện rộng, cốt thép rỉ mảng lớn)
+  - `Ảnh hưởng khả năng chịu lực` [4đ] (Rỉ đứt cốt thép, mất tiết diện bê tông nghiêm trọng)
+- [ ] **Ý nghĩa Kết cấu (Structural Significance - Chuẩn hóa tự động map điểm E2 trong ECS):**
+  - `N/A` [0đ] (Không ảnh hưởng kết cấu)
+  - `Low` [1đ] (Ảnh hưởng thấp)
+  - `Moderate` [2đ] (Ảnh hưởng trung bình)
+  - `High` [3đ] (Ảnh hưởng cao)
+  - `Critical` [4đ] (Rất nguy hiểm / Cảnh báo sập)
 - [ ] **Chụp Ảnh Cận Cảnh (Photo CU):** Tiến lại gần vết nứt `D-xx` đặt thước đo và chụp.
+
+---
+
+### Bước 3: Đánh giá Lún - Nghiêng - Biến dạng (Mục 6 - Chuẩn hóa Enum khớp 100% với điểm E3 trong ECS)
+*Thực hiện đánh giá các hiện tượng biến dạng hình học của công trình (Enum được chuẩn hóa trùng khớp với tiêu chí điểm E3):*
+
+- [ ] **1. Lún chênh (Differential Settlement):**
+  - Trạng thái: (Chọn: `Không` [0đ] / `Nghi ngờ / Nhẹ` [1đ] / `Rõ nhưng ổn định` [2đ] / `Tiến triển / Nghiêm trọng` [3đ] / `Mất ổn định` [4đ])
+  - Vị trí lún chênh (nếu Có): (Nhập text vị trí)
+- [ ] **2. Nghiêng công trình (Overall Building Tilt):**
+  - Trạng thái: (Chọn: `Không` [0đ] / `Nghi ngờ / Nhẹ` [1đ] / `Rõ nhưng ổn định` [2đ] / `Tiến triển / Nghiêm trọng` [3đ] / `Mất ổn định` [4đ])
+  - Độ nghiêng mặt trước (X): (Nhập số %)
+  - Độ nghiêng mặt bên hông (Y): (Nhập số %)
+- [ ] **3. Nghiêng sàn (Floor Tilt):**
+  - Trạng thái: (Chọn: `Không` [0đ] / `Nghi ngờ / Nhẹ` [1đ] / `Rõ nhưng ổn định` [2đ] / `Tiến triển / Nghiêm trọng` [3đ] / `Mất ổn định` [4đ])
+  - Độ nghiêng sàn: (Nhập số %)
+- [ ] **4. Võng dầm / Sàn (Beam / Slab Deflection):**
+  - Trạng thái: (Chọn: `Không` [0đ] / `Nghi ngờ / Nhẹ` [1đ] / `Rõ nhưng ổn định` [2đ] / `Tiến triển / Nghiêm trọng` [3đ] / `Mất ổn định` [4đ])
+  - Vị trí võng (nếu Có): (Nhập text vị trí)
+- [ ] **5. Nguồn xác định dữ liệu:** (Quan sát mắt thường / Đo nhanh / Bản vẽ thiết kế / Chủ nhà)
+- [ ] **6. Độ tin cậy dữ liệu:** (Cao / Trung bình / Thấp)
+- [ ] **7. Yêu cầu Đo đạc / Quan trắc bổ sung:** (Không / Có | Nhận xét: ______)
 
 ---
 
@@ -130,47 +161,32 @@ Dưới đây là toàn bộ danh sách các câu hỏi, trường thông tin v�
 
 ---
 
-### Bước 3: Đánh giá Lún - Nghiêng - Biến dạng (Settlement - Tilt - Deformation)
-- [ ] **1. Lún chênh:** (Không thấy / Nghi ngờ / Có | Vị trí: ______)
-- [ ] **2. Nghiêng công trình:** (Không thấy / Nghi ngờ / Có | X trước: ____%, Y hông: ____%)
-- [ ] **3. Nghiêng sàn:** (Không thấy / Nghi ngờ / Có | ____%)
-- [ ] **4. Võng dầm / Sàn:** (Không thấy / Nghi ngờ / Có | Vị trí: ______)
-- [ ] **5. Nguồn xác định dữ liệu:** (Quan sát mắt thường / Đo nhanh / Bản vẽ thiết kế / Chủ nhà)
-- [ ] **6. Độ tin cậy dữ liệu:** (Cao / Trung bình / Thấp)
-- [ ] **7. Yêu cầu Đo đạc / Quan trắc bổ sung:** (Không / Có | Nhận xét: ______)
-
----
-
 ### Bước 4: Kiểm soát Chất lượng Dữ liệu Ảnh & Sơ đồ (Mục 10 Phiếu gốc - Data Quality Gate)
 - [ ] **Sơ đồ phác thảo vị trí khuyết tật (Damage Map / Sketch):** (Tự động kiểm tra: `Có` / `Không` / `N/A`)
 - [ ] **Liên kết Mã Ảnh - Khuyết tật (Defect - Photo Integrity Link):** (Tự động quét: `ĐỦ` / `THIẾU` - Cảnh báo nếu ghim D-xx thiếu ảnh cận cảnh)
 
 ---
 
-### Bước 5: Bảng ECS - Đánh giá Tình trạng Hiện hữu (Mục 11 Phiếu gốc - Auto-Calculated)
+### Bước 5: Bảng ECS - Đánh giá Tình trạng Hiện hữu (Mục 11 Phiếu gốc - Auto-Calculated 100%)
 
-> **CƠ CHẾ TỰ ĐỘNG MAPPING (SYSTEM AUTOMATION):**
-> Ứng dụng tự động tính điểm E1-E5, tổng ECS /24 và Phân hạng ECS Class dựa trên dữ liệu đã nhập từ Bước 1 đến Bước 4.
+> **BẢNG CHUYỂN ĐỔI TỰ ĐỘNG KHỚP 100% VỚI CÁC ENUM TRÊN:**
 
-- [ ] **Bảng chỉ số ECS (Tự động tính điểm 0–4 cho từng mục):**
-  - `E1` (Hư hỏng tường/khối xây): (Tự động map từ Burland Grade)
-  - `E2` (Khuyết tật kết cấu cột/dầm/sàn): (Tự động map từ Ý nghĩa kết cấu D-xx)
-  - `E3` (Lún/nghiêng/võng): (Tự động map từ Bước 3 Lún nghiêng)
-  - `E4` (Suy giảm vật liệu/độ bền): (Tự động map từ chỉ số bong tróc/rỉ thép)
-  - `E5` (Lịch sử/cơi nới/sự cố): (Tự động map từ Bước 3 Lịch sử)
+- [ ] **Bảng chỉ số ECS (Tự động tính điểm 0–4 dựa vào các Enum đã chuẩn hóa):**
+  - `E1` (Hư hỏng tường/khối xây): (Tự động map từ Burland Grade: Grade 0-1 ➔ 0đ, Grade 2 ➔ 1đ, Grade 3 ➔ 2đ, Grade 4 ➔ 3đ, Grade 5 ➔ 4đ)
+  - `E2` (Khuyết tật kết cấu cột/dầm/sàn): (Tự động map từ Ý nghĩa kết cấu D-xx: N/A ➔ 0đ, Low ➔ 1đ, Moderate ➔ 2đ, High ➔ 3đ, Critical ➔ 4đ)
+  - `E3` (Lún/nghiêng/võng): (Tự động map từ Mục 3 Lún nghiêng: Không ➔ 0đ, Nghi ngờ/Nhẹ ➔ 1đ, Rõ nhưng ổn định ➔ 2đ, Tiến triển/Nghiêm trọng ➔ 3đ, Mất ổn định ➔ 4đ)
+  - `E4` (Suy giảm vật liệu/độ bền): (Tự động map từ Mức độ suy giảm D-xx: Không/Nhẹ ➔ 0đ, Cục bộ ➔ 1đ, Đáng kể ➔ 2đ, Nặng ➔ 3đ, Ảnh hưởng chịu lực ➔ 4đ)
+  - `E5` (Lịch sử/cơi nới/sự cố): (Tự động map từ Phỏng vấn Mục 3: Không ➔ 0đ, Nhẹ/Đã xử lý ➔ 1đ, Nhiều/Chưa rõ ➔ 2đ, Thay đổi lớn/Sự cố ➔ 3-4đ)
   - **`E6` Tình trạng chức năng / Tổng thể:** (Khảo sát viên chọn: `0` - Tốt / `1` - TB / `2` - Kém / `3-4` - Nguy cấp)
-- [ ] **Tổng ECS:** $\Sigma E = \_\_\_/24$ *(Tự động cộng)*
+- [ ] **Tổng ECS:** $\Sigma E = \_\_\_/24$ *(Tự động cộng sum E1..E6)*
 - [ ] **Phân hạng ECS Class:** (Tự động quy đổi: `0-5`: Good / `6-10`: Medium / `11-16`: Deficient / `17-24`: Critical)
 - [ ] **Engineering Judgement (Nhận định Can thiệp của Kỹ sư):**
   - Hành động: (Chọn: `Giữ nguyên` / `Nâng hạng` / `Hạ hạng`)
-  - Lý do can thiệp: (Nhập text - *Quy tắc hệ thống: Nếu có Cờ kết cấu Critical ➔ Khoá không cho Hạ hạng ECS!*)
+  - Lý do can thiệp: (Nhập text - *Ràng buộc khoá: Nếu có Cờ kết cấu Critical ➔ Khoá không cho Hạ hạng ECS!*)
 
 ---
 
 ### Bước 6: Kiểm tra Đủ Dữ liệu (Mục 12 Phiếu gốc - Data Completeness Gate)
-
-*Hệ thống tự động kiểm tra và mở Cổng phê duyệt:*
-
 - [ ] **Thông tin móng:** (Tự động: Cat ___/5 | `Đủ` / `Chưa đủ`)
 - [ ] **Khảo sát bên trong:** (Tự động: `Đã khảo sát` / `Hạn chế`)
 - [ ] **Hồ sơ / Bản vẽ:** (Tự chọn: `Có` / `Một phần` / `Không`)
