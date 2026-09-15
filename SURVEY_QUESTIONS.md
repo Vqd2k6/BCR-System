@@ -1,6 +1,6 @@
 # Bộ câu hỏi & Biểu mẫu Khảo sát Hiện trạng Công trình (KSQH - Metro 2)
 
-Dưới đây là toàn bộ danh sách các câu hỏi, trường thông tin và thao tác cần thu thập tại hiện trường. **Trình tự khảo sát và các Chuẩn Enum được tối ưu khớp 100% giữa Lúc Thu Thập ➔ Bảng Tính Điểm Kỹ Thuật (ECS / Burland / BRA)** giúp tự động hóa toàn bộ quá trình tính điểm mà không bị lệch chuẩn.
+Dưới đây là toàn bộ danh sách các câu hỏi, trường thông tin và thao tác cần thu thập tại hiện trường. **Trình tự khảo sát và các Chuẩn Enum được tối ưu khớp 100% giữa Lúc Thu Thập ➔ Bảng Tính Điểm Kỹ Thuật (ECS / Burland / VI / BRA)** giúp tự động hóa toàn bộ quá trình tính điểm mà không bị lệch chuẩn.
 
 ---
 
@@ -39,7 +39,7 @@ Dưới đây là toàn bộ danh sách các câu hỏi, trường thông tin v�
   - Điểm CAT móng: (Nhập từ 1 đến 5 /5)
   - Nguồn thông tin (Source): (Multi-select: Drawing - Bản vẽ thiết kế / Owner - Chủ nhà cung cấp / Site - Khảo sát thực địa)
 
-### Bước 3: Phỏng vấn Lịch sử, Sử dụng & Yếu tố Nhạy cảm (Đã điều chỉnh chuẩn Enum cho E5)
+### Bước 3: Phỏng vấn Lịch sử, Sử dụng & Yếu tố Nhạy cảm
 *Hỏi chuyện người đại diện hoặc chủ nhà để nắm lịch sử toà nhà (các Enum được chuẩn hóa để tự động tính điểm E5 trong bảng ECS).*
 - [ ] **Cơi nới / Thay đổi tải trọng:** (Chọn: `Không` [0đ] / `Nhẹ / Đã xử lý` [1đ] / `Nhiều / Chưa rõ` [2đ] / `Thay đổi lớn` [3-4đ])
 - [ ] **Sửa chữa lớn / Cải tạo kết cấu:** (Chọn: `Không` [0đ] / `Nhẹ / Đã xử lý` [1đ] / `Nhiều / Chưa rõ` [2đ] / `Thay đổi lớn` [3-4đ])
@@ -66,7 +66,48 @@ Dưới đây là toàn bộ danh sách các câu hỏi, trường thông tin v�
 - [ ] **Phạm vi đã khảo sát (Survey Scope):** (Multi-select: Ngoài / Trong / Mái / Hầm / Khu phụ)
 - [ ] **Hạn chế tiếp cận (Access Limitations):** (Chọn: Không / Có - Ghi chú cụ thể lý do)
 
-### Bước 7: Kết luận & Chữ ký Phase 1
+### Bước 7: Bảng VI – Mức Độ Dễ Tổn Thương (Mục 13 Phiếu gốc - Vulnerability Index)
+
+> **THIẾT KẾ GIAO DIỆN THANH TRƯỢT & HIỂN THỊ NOTE GIÁ TRỊ (SLIDER UX DESIGN):**
+> Các mục **V3, V5** được hệ thống tự động trích xuất điểm từ CAT Móng và ECS Class. 
+> Các mục còn lại (**V1, V2, V4, V6**) được kéo bằng **Thanh trượt điểm (Slider 1 đến 4)**. Khi kéo đến điểm nào, giao diện tự động hiển thị **Dòng Ghi Chú Mô Tả (Note Value)** của điểm đó để khảo sát viên đối chiếu thực tế.
+
+- [ ] **V1. Công năng / Hậu quả:** (Thanh trượt 1-4 | *Tự động đề xuất từ Nhóm đối tượng Bước 1*)
+  - `1đ`: General (Công trình thông thường, nhà ở)
+  - `2đ`: Important (Công trình quan trọng, trường học, bệnh viện nhẹ)
+  - `3đ`: (Dự phòng)
+  - `4đ`: Critical (Công trình rất quan trọng, di tích, hạ tầng thiết yếu)
+- [ ] **V2. Hệ kết cấu / Tính dễ hư hỏng:** (Thanh trượt 1-4 điểm)
+  - `1đ`: Robust / regular (Khung BTCT đúc nguyên khối, kết cấu chắc chắn, đều đặn)
+  - `2đ`: Moderate (Kết cấu độ bền trung bình)
+  - `3đ`: Masonry / mixed / irregular (Tường gạch chịu lực / Khung hỗn hợp / Kết cấu không đều)
+  - `4đ`: Fragile / poor integrity (Kết cấu yếu, rệu rã, độ toàn vẹn kém)
+- [ ] **V3. Móng / Mức chắc chắn thông tin:** `[TỰ ĐỘNG MAP TỪ CAT MÓNG MỤC 1]` (Tự động gán 1 đến 4đ theo điểm CAT Móng)
+- [ ] **V4. Tuổi đời / Cơi nới / Thay đổi tải:** (Thanh trượt 1-4 điểm)
+  - `1đ`: Mới / không thay đổi tải trọng
+  - `2đ`: Tuổi đời trung bình
+  - `3đ`: Nhà cũ / đã từng có thay đổi kết cấu
+  - `4đ`: Rất cũ / cơi nới thay đổi tải trọng lớn
+- [ ] **V5. Tình trạng hiện hữu – ECS:** `[TỰ ĐỘNG MAP TỪ ECS CLASS MỤC 11]`
+  - `1đ`: Good (ECS 0-5)
+  - `2đ`: Medium (ECS 6-10)
+  - `3đ`: Deficient (ECS 11-16)
+  - `4đ`: Critical (ECS 17-24)
+- [ ] **V6. Thiết bị nhạy cảm / Hậu quả gián đoạn:** (Thanh trượt 1-4 điểm)
+  - `1đ`: Không có thiết bị nhạy cảm
+  - `2đ`: Thấp (Thiết bị gia dụng thông thường)
+  - `3đ`: Cao (Thiết bị y tế, phòng lab, máy móc nhạy cảm)
+  - `4đ`: Rất cao (Hệ thống điều khiển trung tâm, dây chuyền sản xuất 24/7)
+
+#### Tổng hợp Chỉ số VI:
+- [ ] **Tổng điểm VI:** $\Sigma V = \_\_\_/24$ *(Tự động cộng sum V1..V6)*
+- [ ] **Điểm trung bình $V_{\text{avg}}$:** $V_{\text{avg}} = \Sigma V / 6 = \dots$ *(Tự động chia trung bình)*
+- [ ] **Phân loại VI Class:** (Tự động quy đổi: $V_{\text{avg}} \le 1.5$: `Low` | $> 1.5–2.5$: `Medium` | $> 2.5–3.25$: `High` | $> 3.25$: `Very High`)
+- [ ] **Engineering Judgement (Can thiệp Kỹ sư):** (Chọn: `Giữ` / `Nâng` / `Hạ` | Lý do: ________)
+
+---
+
+### Bước 8: Kết luận & Chữ ký Phase 1
 - [ ] **Kết luận:** Có cần thực hiện Phase 2 (Khảo sát đo vẽ chi tiết khuyết tật từng tầng) hay không? (Có / Không)
 - [ ] **Chữ ký xác nhận của Surveyor.**
 
@@ -127,21 +168,10 @@ Dưới đây là toàn bộ danh sách các câu hỏi, trường thông tin v�
 ---
 
 ### Bước 3: Đánh giá Lún - Nghiêng - Biến dạng (Mục 6 - Chuẩn hóa Enum khớp 100% với điểm E3 trong ECS)
-*Thực hiện đánh giá các hiện tượng biến dạng hình học của công trình (Enum được chuẩn hóa trùng khớp với tiêu chí điểm E3):*
-
-- [ ] **1. Lún chênh (Differential Settlement):**
-  - Trạng thái: (Chọn: `Không` [0đ] / `Nghi ngờ / Nhẹ` [1đ] / `Rõ nhưng ổn định` [2đ] / `Tiến triển / Nghiêm trọng` [3đ] / `Mất ổn định` [4đ])
-  - Vị trí lún chênh (nếu Có): (Nhập text vị trí)
-- [ ] **2. Nghiêng công trình (Overall Building Tilt):**
-  - Trạng thái: (Chọn: `Không` [0đ] / `Nghi ngờ / Nhẹ` [1đ] / `Rõ nhưng ổn định` [2đ] / `Tiến triển / Nghiêm trọng` [3đ] / `Mất ổn định` [4đ])
-  - Độ nghiêng mặt trước (X): (Nhập số %)
-  - Độ nghiêng mặt bên hông (Y): (Nhập số %)
-- [ ] **3. Nghiêng sàn (Floor Tilt):**
-  - Trạng thái: (Chọn: `Không` [0đ] / `Nghi ngờ / Nhẹ` [1đ] / `Rõ nhưng ổn định` [2đ] / `Tiến triển / Nghiêm trọng` [3đ] / `Mất ổn định` [4đ])
-  - Độ nghiêng sàn: (Nhập số %)
-- [ ] **4. Võng dầm / Sàn (Beam / Slab Deflection):**
-  - Trạng thái: (Chọn: `Không` [0đ] / `Nghi ngờ / Nhẹ` [1đ] / `Rõ nhưng ổn định` [2đ] / `Tiến triển / Nghiêm trọng` [3đ] / `Mất ổn định` [4đ])
-  - Vị trí võng (nếu Có): (Nhập text vị trí)
+- [ ] **1. Lún chênh (Differential Settlement):** (`Không` [0đ] / `Nghi ngờ / Nhẹ` [1đ] / `Rõ nhưng ổn định` [2đ] / `Tiến triển / Nghiêm trọng` [3đ] / `Mất ổn định` [4đ] | Vị trí: ______)
+- [ ] **2. Nghiêng công trình (Overall Building Tilt):** (`Không` [0đ] / `Nghi ngờ / Nhẹ` [1đ] / `Rõ nhưng ổn định` [2đ] / `Tiến triển / Nghiêm trọng` [3đ] / `Mất ổn định` [4đ] | X trước: ____%, Y hông: ____%)
+- [ ] **3. Nghiêng sàn (Floor Tilt):** (`Không` [0đ] / `Nghi ngờ / Nhẹ` [1đ] / `Rõ nhưng ổn định` [2đ] / `Tiến triển / Nghiêm trọng` [3đ] / `Mất ổn định` [4đ] | ____%)
+- [ ] **4. Võng dầm / Sàn (Beam / Slab Deflection):** (`Không` [0đ] / `Nghi ngờ / Nhẹ` [1đ] / `Rõ nhưng ổn định` [2đ] / `Tiến triển / Nghiêm trọng` [3đ] / `Mất ổn định` [4đ] | Vị trí: ______)
 - [ ] **5. Nguồn xác định dữ liệu:** (Quan sát mắt thường / Đo nhanh / Bản vẽ thiết kế / Chủ nhà)
 - [ ] **6. Độ tin cậy dữ liệu:** (Cao / Trung bình / Thấp)
 - [ ] **7. Yêu cầu Đo đạc / Quan trắc bổ sung:** (Không / Có | Nhận xét: ______)
@@ -168,21 +198,16 @@ Dưới đây là toàn bộ danh sách các câu hỏi, trường thông tin v�
 ---
 
 ### Bước 5: Bảng ECS - Đánh giá Tình trạng Hiện hữu (Mục 11 Phiếu gốc - Auto-Calculated 100%)
-
-> **BẢNG CHUYỂN ĐỔI TỰ ĐỘNG KHỚP 100% VỚI CÁC ENUM TRÊN:**
-
 - [ ] **Bảng chỉ số ECS (Tự động tính điểm 0–4 dựa vào các Enum đã chuẩn hóa):**
-  - `E1` (Hư hỏng tường/khối xây): (Tự động map từ Burland Grade: Grade 0-1 ➔ 0đ, Grade 2 ➔ 1đ, Grade 3 ➔ 2đ, Grade 4 ➔ 3đ, Grade 5 ➔ 4đ)
-  - `E2` (Khuyết tật kết cấu cột/dầm/sàn): (Tự động map từ Ý nghĩa kết cấu D-xx: N/A ➔ 0đ, Low ➔ 1đ, Moderate ➔ 2đ, High ➔ 3đ, Critical ➔ 4đ)
-  - `E3` (Lún/nghiêng/võng): (Tự động map từ Mục 3 Lún nghiêng: Không ➔ 0đ, Nghi ngờ/Nhẹ ➔ 1đ, Rõ nhưng ổn định ➔ 2đ, Tiến triển/Nghiêm trọng ➔ 3đ, Mất ổn định ➔ 4đ)
-  - `E4` (Suy giảm vật liệu/độ bền): (Tự động map từ Mức độ suy giảm D-xx: Không/Nhẹ ➔ 0đ, Cục bộ ➔ 1đ, Đáng kể ➔ 2đ, Nặng ➔ 3đ, Ảnh hưởng chịu lực ➔ 4đ)
-  - `E5` (Lịch sử/cơi nới/sự cố): (Tự động map từ Phỏng vấn Mục 3: Không ➔ 0đ, Nhẹ/Đã xử lý ➔ 1đ, Nhiều/Chưa rõ ➔ 2đ, Thay đổi lớn/Sự cố ➔ 3-4đ)
+  - `E1` (Hư hỏng tường/khối xây): (Tự động map từ Burland Grade)
+  - `E2` (Khuyết tật kết cấu cột/dầm/sàn): (Tự động map từ Ý nghĩa kết cấu D-xx)
+  - `E3` (Lún/nghiêng/võng): (Tự động map từ Mục 3 Lún nghiêng)
+  - `E4` (Suy giảm vật liệu/độ bền): (Tự động map từ Mức độ suy giảm D-xx)
+  - `E5` (Lịch sử/cơi nới/sự cố): (Tự động map từ Phỏng vấn Mục 3)
   - **`E6` Tình trạng chức năng / Tổng thể:** (Khảo sát viên chọn: `0` - Tốt / `1` - TB / `2` - Kém / `3-4` - Nguy cấp)
 - [ ] **Tổng ECS:** $\Sigma E = \_\_\_/24$ *(Tự động cộng sum E1..E6)*
 - [ ] **Phân hạng ECS Class:** (Tự động quy đổi: `0-5`: Good / `6-10`: Medium / `11-16`: Deficient / `17-24`: Critical)
-- [ ] **Engineering Judgement (Nhận định Can thiệp của Kỹ sư):**
-  - Hành động: (Chọn: `Giữ nguyên` / `Nâng hạng` / `Hạ hạng`)
-  - Lý do can thiệp: (Nhập text - *Ràng buộc khoá: Nếu có Cờ kết cấu Critical ➔ Khoá không cho Hạ hạng ECS!*)
+- [ ] **Engineering Judgement (Nhận định Can thiệp của Kỹ sư):** (Chọn: `Giữ nguyên` / `Nâng hạng` / `Hạ hạng` | Lý do: ________)
 
 ---
 
