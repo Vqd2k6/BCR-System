@@ -142,37 +142,43 @@ Dưới đây là toàn bộ danh sách các câu hỏi, trường thông tin v�
 ---
 
 ### Bước 4: Kiểm soát Chất lượng Dữ liệu Ảnh & Sơ đồ (Mục 10 Phiếu gốc - Data Quality Gate)
-
-*Hệ thống tự động kiểm tra trước khi chuyển sang bước chốt biên bản:*
-
-- [ ] **Sơ đồ phác thảo vị trí khuyết tật (Damage Map / Sketch):**
-  - Trạng thái: (Tự động kiểm tra: `Có` - Đã upload bản vẽ CAD/Sơ đồ | `Không` | `N/A` - Không bắt buộc nếu không có vết nứt)
-- [ ] **Liên kết Mã Ảnh - Khuyết tật (Defect - Photo Integrity Link):**
-  - Trạng thái: (Tự động quét: `ĐỦ` - Tất cả mã D-xx đều đã có đủ Ảnh Bối cảnh & Ảnh Cận cảnh có thước | `THIẾU` - Nếu phát hiện ghim D-xx nào chưa có ảnh cận cảnh, cảnh báo rõ mã D-xx để bổ sung).
+- [ ] **Sơ đồ phác thảo vị trí khuyết tật (Damage Map / Sketch):** (Tự động kiểm tra: `Có` / `Không` / `N/A`)
+- [ ] **Liên kết Mã Ảnh - Khuyết tật (Defect - Photo Integrity Link):** (Tự động quét: `ĐỦ` / `THIẾU` - Cảnh báo nếu ghim D-xx thiếu ảnh cận cảnh)
 
 ---
 
-### Bước 5: Tổng hợp Bảng 8 & Kết luận Cờ Kết cấu (Bảng 8 & Bảng 9 tự động 100%)
+### Bước 5: Bảng ECS - Đánh giá Tình trạng Hiện hữu (Mục 11 Phiếu gốc - Auto-Calculated)
 
-*(Bảng 8 đã hoàn thành tự động nhờ thao tác điền ngay lúc chụp Ảnh Bối Cảnh ở Bước 2.2)*
+> **CƠ CHẾ TỰ ĐỘNG MAPPING (SYSTEM AUTOMATION):**
+> Ứng dụng tự động tính điểm E1-E5, tổng ECS /24 và Phân hạng ECS Class dựa trên dữ liệu đã nhập từ Bước 1 đến Bước 4.
 
-- [ ] **Bảng 8 (Tự động xuất danh sách Vùng Hư hỏng):**
-  - `Z-01`: Vị trí, Wmax lớn nhất, Số cụm nứt, Ảnh hưởng chức năng (Có/Không), Grade Burland.
-  - `Z-02`: Vị trí, Wmax lớn nhất, Số cụm nứt, Ảnh hưởng chức năng (Có/Không), Grade Burland.
-  - ...
-
-- [ ] **Bảng 9 (Kết luận Burland & Cờ Cảnh báo Kết cấu):**
-  - **Burland Chủ đạo (Predominant Grade):** Grade ____ (Mức Burland chiếm ưu thế trên toàn công trình).
-  - **Vùng chi phối (Dominant Zone):** Vùng Z-____ / Mô tả nhóm vết nứt đồng dạng nhất.
-  - **Burland Cục bộ Lớn nhất (Local Max Grade):** Grade ____ (Tự động lấy Grade cao nhất từ danh sách Vùng Z ở Bảng 8).
-  - **Tính đại diện:** (Chọn: Toàn công trình / Cục bộ).
-  - **Structural Defect Flag (Cờ cảnh báo kết cấu):** (Chọn: `None` / `Low` / `Moderate` / `High` / `Critical`).
-  - **Cần Structural Engineer review (Kỹ sư kết cấu thẩm định):** (Chọn: Không / Có).
+- [ ] **Bảng chỉ số ECS (Tự động tính điểm 0–4 cho từng mục):**
+  - `E1` (Hư hỏng tường/khối xây): (Tự động map từ Burland Grade)
+  - `E2` (Khuyết tật kết cấu cột/dầm/sàn): (Tự động map từ Ý nghĩa kết cấu D-xx)
+  - `E3` (Lún/nghiêng/võng): (Tự động map từ Bước 3 Lún nghiêng)
+  - `E4` (Suy giảm vật liệu/độ bền): (Tự động map từ chỉ số bong tróc/rỉ thép)
+  - `E5` (Lịch sử/cơi nới/sự cố): (Tự động map từ Bước 3 Lịch sử)
+  - **`E6` Tình trạng chức năng / Tổng thể:** (Khảo sát viên chọn: `0` - Tốt / `1` - TB / `2` - Kém / `3-4` - Nguy cấp)
+- [ ] **Tổng ECS:** $\Sigma E = \_\_\_/24$ *(Tự động cộng)*
+- [ ] **Phân hạng ECS Class:** (Tự động quy đổi: `0-5`: Good / `6-10`: Medium / `11-16`: Deficient / `17-24`: Critical)
+- [ ] **Engineering Judgement (Nhận định Can thiệp của Kỹ sư):**
+  - Hành động: (Chọn: `Giữ nguyên` / `Nâng hạng` / `Hạ hạng`)
+  - Lý do can thiệp: (Nhập text - *Quy tắc hệ thống: Nếu có Cờ kết cấu Critical ➔ Khoá không cho Hạ hạng ECS!*)
 
 ---
 
-### Bước 6: Đưa ảnh Bối cảnh & Ghim vào Sơ đồ Mặt bằng (Sketch Plan Integration)
-- [ ] **Sơ đồ mặt bằng (CAD / Phác thảo):** Gán các Vùng `Z-01`, `Z-02` (kèm các ghim `D-01`, `D-02`...) lên vị trí mặt bằng tổng thể của tầng.
+### Bước 6: Kiểm tra Đủ Dữ liệu (Mục 12 Phiếu gốc - Data Completeness Gate)
+
+*Hệ thống tự động kiểm tra và mở Cổng phê duyệt:*
+
+- [ ] **Thông tin móng:** (Tự động: Cat ___/5 | `Đủ` / `Chưa đủ`)
+- [ ] **Khảo sát bên trong:** (Tự động: `Đã khảo sát` / `Hạn chế`)
+- [ ] **Hồ sơ / Bản vẽ:** (Tự chọn: `Có` / `Một phần` / `Không`)
+- [ ] **Ảnh & Damage Mapping:** (Tự động: `Đủ` / `Thiếu`)
+- [ ] **Dữ liệu lún / nghiêng:** (Tự động: `Đủ` / `Cần đo`)
+- [ ] **Structural Review (Thẩm định kết cấu):** (Chọn: `N/A` / `Đủ` / `Pending`)
+- [ ] **Cho phép sang BRA (Phê duyệt chốt hồ sơ):** (Chọn: `Có` / `Có điều kiện` / `Chưa`)
+- [ ] **Lý do / Điều kiện phê duyệt:** (Nhập text)
 
 ---
 
