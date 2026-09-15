@@ -1,6 +1,6 @@
 # Bộ câu hỏi & Biểu mẫu Khảo sát Hiện trạng Công trình (KSQH - Metro 2)
 
-Dưới đây là toàn bộ danh sách các câu hỏi, trường thông tin và thao tác cần thu thập tại hiện trường. **Trình tự khảo sát được thiết kế tối ưu theo Thực địa Thực tế (1 Ảnh Bối cảnh ➔ Ghim nhiều Mã Khuyết tật D-xx ➔ Chụp Ảnh Cận cảnh & Nhập chỉ số)** giúp tiết kiệm 70% thời gian chụp ảnh và chống bỏ sót.
+Dưới đây là toàn bộ danh sách các câu hỏi, trường thông tin và thao tác cần thu thập tại hiện trường. **Trình tự khảo sát được thiết kế tối ưu theo Thực địa Thực tế (1 Ảnh Bối cảnh ➔ Tạo Vùng Z-xx & Chốt Grade tại chỗ ➔ Ghim D-xx ➔ Chụp Cận cảnh & Nhập chỉ số)** giúp tiết kiệm 70% thời gian chụp ảnh và hoàn thành 100% dữ liệu ngay lúc chụp.
 
 ---
 
@@ -73,65 +73,51 @@ Dưới đây là toàn bộ danh sách các câu hỏi, trường thông tin v�
 ---
 ---
 
-## PHẦN B: KHẢO SÁT GIAI ĐOẠN 2 & HỢP NHẤT SỔ KHUYẾT TẬT (PHASE 2 - QUY TRÌNH 1 BỐI CẢNH ➔ NHIỀU CẬN CẢNH)
+## PHẦN B: KHẢO SÁT GIAI ĐOẠN 2 & HỢP NHẤT SỔ KHUYẾT TẬT (PHASE 2 - QUY TRÌNH TẠO VÙNG Z-xx & GHIM D-xx REAL-TIME)
 
-> **THIẾT KẾ ĐỘT PHÁ UI/UX (1 CONTEXT PHOTO ➔ MULTIPLE PINS ➔ CLOSE-UPS):**
-> Trong thực tế, 1 bức tường/mảng trần có thể chứa 3-5 vết nứt khác nhau. 
-> Khảo sát viên **chỉ cần đứng lùi lại chụp 1 tấm ảnh Bối cảnh (CTX)** duy nhất cho cả bức tường. Sau đó chạm trực tiếp lên bức ảnh vừa chụp để ghim các mã `D-01`, `D-02`, `D-03`... vào từng vết nứt. Cuối cùng tiến lại gần chụp ảnh Cận cảnh (`CU`) & điền thông số cho từng ghim.
+> **THIẾT KẾ ĐỘT PHÁ TỰ ĐỘNG HÓA BẢNG 8 (REAL-TIME DAMAGE ZONE CREATION):**
+> Mỗi bức ảnh Bối cảnh (`Photo CTX`) chụp một mảng tường/cấu kiện **chính là một Vùng Hư Hỏng (`Zone Z-xx`)**.
+> Khảo sát viên chụp Ảnh Bối cảnh ➔ App tự động tạo Vùng `Z-01` ➔ Nhập luôn 2 thông số của Bảng 8 ngay lúc chụp ➔ Thả ghim `D-01`, `D-02`... ➔ Chụp cận cảnh. 
+> Bảng 8 (Damage-Zone Summary) được **hoàn thành 100% ngay tại chỗ**, không cần bước tổng hợp lại ở cuối buổi!
 
 ### Bước 1: Khởi tạo Buổi khảo sát Chi tiết
 - [ ] **Mức độ tiếp cận hôm nay:** (Đầy đủ / Một phần / Bị hạn chế / Bị từ chối/vắng mặt)
 - [ ] **Chụp ảnh kiểm chứng hôm nay:** `P-01` (Biển số nhà) và `P-02` (Mặt đứng chính).
 
-### Bước 2: Quy trình Khảo sát Mảng tường / Khu vực (Wall/Area Workflow)
+### Bước 2: Quy trình Khảo sát Vùng Hư Hỏng Z-xx (Damage Zone Workflow)
 
-#### 2.1. Chọn Tầng & Khu vực đang đứng:
-- [ ] **Tầng:** (Chọn: Tầng hầm / Tầng trệt / Tầng 1 / Tầng 2 / Tầng mái...)
-- [ ] **Tên Phòng / Không gian:** (VD: Phòng khách, Phòng ngủ 1, Hành lang...)
-- [ ] **Mảng cấu kiện / Vị trí mảng tường:** (VD: Vách tường phía Trước, Vách tường Bên hông, Mảng trệt...)
+#### 2.1. Chọn Tầng & Không gian:
+- [ ] **Tầng:** (Tầng hầm / Tầng trệt / Tầng 1 / Tầng 2 / Tầng mái...)
+- [ ] **Phòng / Vị trí cụ thể:** (Phòng khách, Phòng ngủ 1, Bếp...)
+- [ ] **Tường / Vật liệu mảng vách:** (BTCT, Tường gạch chịu lực, Khung thép...)
 
-#### 2.2. Chụp Ảnh Bối Cảnh Mảng Tường (Photo CTX):
-- [ ] **Chụp 1 Ảnh Bối cảnh (Photo CTX):** Đứng lùi lại chụp bao quát mảng tường/cấu kiện đang khảo sát.
+#### 2.2. Chụp Ảnh Bối Cảnh ➔ Tự động Tạo Vùng Z-xx & Nhập thông số Bảng 8 ngay tại chỗ:
+- [ ] **Chụp 1 Ảnh Bối cảnh (Photo CTX):** Đứng lùi lại chụp bao quát mảng tường/cấu kiện.
+  - *(App tự động gắn Mã Vùng: `Z-01`, `Z-02`... tương ứng với bức ảnh bối cảnh này)*
+- [ ] **Điền thông số Bảng 8 ngay dưới bức ảnh vừa chụp:**
+  - **Ảnh hưởng chức năng / Cần sửa chữa:** (Chọn: Có / Không)
+  - **Đánh giá Grade Burland cho Vùng này:** (Chọn từ Grade 0 đến Grade 5 - *Có nút (?) trợ giúp tra cứu quy chuẩn Burland*)
 
-#### 2.3. Chạm để Thả Ghim Khuyết tật (Pinning D-xx directly on Photo CTX):
-*Trên giao diện bức ảnh Bối cảnh vừa chụp, khảo sát viên chạm tay vào từng vết nứt để thả ghim:*
-- [ ] **Chạm lần 1:** Thả ghim mã `D-01` vào vị trí vết nứt thứ nhất.
-- [ ] **Chạm lần 2:** Thả ghim mã `D-02` vào vị trí vết nứt thứ hai.
-- [ ] **Chạm lần 3:** Thả ghim mã `D-03` vào vị trí vết nứt thứ ba.
-*(Có thể kéo/thả điều chỉnh lại vị trí ghim nếu bị lệch).*
+#### 2.3. Thả Ghim Khuyết tật trực tiếp lên Ảnh Bối cảnh Vùng Z-xx:
+- [ ] **Chạm lên vết nứt 1:** Thả ghim mã `D-01`.
+- [ ] **Chạm lên vết nứt 2:** Thả ghim mã `D-02`.
+- [ ] **Chạm lên vết nứt 3:** Thả ghim mã `D-03`.
 
-#### 2.4. Nhập Chi tiết & Chụp Cận Cảnh cho từng Ghim (Detail per Pin D-xx):
-*Bấm vào từng ghim (`D-01`, `D-02`...) trên hình để mở Form thông số tương ứng:*
+#### 2.4. Nhập Chi tiết & Chụp Cận Cảnh cho từng Ghim D-xx:
+*Bấm vào từng ghim (`D-01`, `D-02`...) trên hình Vùng Z-xx để nhập:*
 
 ##### Khuyết tật `D-xx`:
-- [ ] **Chỉ số sàng lọc (Section 4 Indicator):** (Chọn: Nứt tường hoàn thiện / Nứt kết cấu cột-dầm / Lún võng / Thấm dột / Bong tróc lộ thép / Mất tiết diện / Kẹt cửa / Tái nứt)
+- [ ] **Chỉ số sàng lọc (Section 4 Indicator):** (Nứt tường hoàn thiện / Nứt kết cấu cột-dầm / Lún võng / Thấm dột / Bong tróc lộ thép / Mất tiết diện / Kẹt cửa / Tái nứt)
 - [ ] **Cấu kiện / Vật liệu:** (BTCT / Tường gạch / Khung thép / Gỗ / Khác)
-- [ ] **Loại / Dạng nứt:** (Xiên / Ziczac / Dọc / Ngang / Chân chim / Phồng rộp...)
-- [ ] **Kích thước vết nứt:**
-  - Bề rộng lớn nhất (Max Width): (Nhập số mm - VD: `1.5` mm)
-  - Chiều dài vết nứt (Length): (Nhập số mm hoặc m - VD: `1200` mm)
-  - Hướng vết nứt (Orientation): (Nhập góc/hướng - VD: `45°`, Dọc, Ngang)
-- [ ] **Trạng thái Hoạt động (Activity Status):** `U` (Chưa rõ) / `S` (Ổn định/cũ) / `A` (Đang phát triển)
-- [ ] **Ý nghĩa Kết cấu (Structural Significance):** `N/A` / `Low` / `Moderate` / `High` / `Critical` (Cảnh báo sập)
-- [ ] **Chụp Ảnh Cận Cảnh (Photo CU):** Tiến lại gần vết nứt `D-xx` này, đặt thước đo (Crack ruler) và bấm chụp 1 tấm cận cảnh.
+- [ ] **Dạng nứt:** (Xiên / Ziczac / Dọc / Ngang / Chân chim / Phồng rộp...)
+- [ ] **Kích thước:** Max Width (mm) & Length (mm) & Hướng nứt.
+- [ ] **Trạng thái Hoạt động:** `U` (Chưa rõ) / `S` (Ổn định/cũ) / `A` (Đang phát triển)
+- [ ] **Ý nghĩa Kết cấu:** `N/A` / `Low` / `Moderate` / `High` / `Critical` (Cảnh báo sập)
+- [ ] **Chụp Ảnh Cận Cảnh (Photo CU):** Tiến lại gần vết nứt `D-xx` đặt thước đo và chụp.
 
 ---
 
-### Bước 3: Đánh giá Lún - Nghiêng - Biến dạng (Settlement - Tilt - Deformation)
-*Thực hiện đánh giá hoặc đo đạc các hiện tượng biến dạng hình học của công trình.*
-
-- [ ] **1. Lún chênh (Differential Settlement):** (Không thấy / Nghi ngờ / Có | Vị trí: ______)
-- [ ] **2. Nghiêng công trình (Overall Building Tilt):** (Không thấy / Nghi ngờ / Có | X trước: ____%, Y hông: ____%)
-- [ ] **3. Nghiêng sàn (Floor Tilt):** (Không thấy / Nghi ngờ / Có | ____%)
-- [ ] **4. Võng dầm / Sàn (Beam / Slab Deflection):** (Không thấy / Nghi ngờ / Có | Vị trí: ______)
-- [ ] **5. Nguồn xác định dữ liệu:** (Quan sát mắt thường / Đo nhanh / Bản vẽ thiết kế / Chủ nhà)
-- [ ] **6. Độ tin cậy dữ liệu:** (Cao / Trung bình / Thấp)
-- [ ] **7. Yêu cầu Đo đạc / Quan trắc bổ sung:** (Không / Có | Nhận xét: ______)
-
----
-
-### BẢNG TRA CỨU: HƯ HỎNG NHÌN THẤY THEO BURLAND (Cheat Sheet Tooltip trên App)
-*(Dạng Popup Trợ giúp (?) để Surveyor bấm vào xem lại bất kỳ lúc nào)*
+### BẢNG TRA CỨU QUY CHUẨN BURLAND (Cheat Sheet Tooltip trên App)
 
 | Grade | Mức độ | Mô tả / Mức sửa chữa điển hình | Bề rộng nứt xấp xỉ |
 | :---: | :---: | :--- | :---: |
@@ -144,39 +130,43 @@ Dưới đây là toàn bộ danh sách các câu hỏi, trường thông tin v�
 
 ---
 
-### Bước 4: Tự động Tổng hợp Burland theo Vùng Hư hỏng (Damage-Zone Summary)
-*(Hệ thống tự động gom các khuyết tật D-xx đã ghi nhận ở Bước 2 thành danh sách các Vùng Z-01, Z-02... Surveyor kiểm tra và xác nhận điểm)*
-
-- [ ] **Vùng Z-01:**
-  - Vị trí & Vật liệu: (Tự động trích xuất từ Bước 2)
-  - Ảnh đại diện Vùng: (Hiển thị thumbnail Foto CTX để xem lại)
-  - Wmax lớn nhất: (Tự động trích xuất Wmax lớn nhất từ các ghim D-xx)
-  - Số/Cụm nứt: (Tự động đếm tổng số ghim D-xx)
-  - Ảnh hưởng chức năng / Sửa chữa: (Chọn: Có / Không)
-  - Grade Burland đề xuất: (Chọn Grade từ 0 đến 5 dựa trên Wmax)
-
-- [ ] **Vùng Z-02, Z-03...** (Tự động sinh ra tương tự cho các khu vực khác)
+### Bước 3: Đánh giá Lún - Nghiêng - Biến dạng (Settlement - Tilt - Deformation)
+- [ ] **1. Lún chênh:** (Không thấy / Nghi ngờ / Có | Vị trí: ______)
+- [ ] **2. Nghiêng công trình:** (Không thấy / Nghi ngờ / Có | X trước: ____%, Y hông: ____%)
+- [ ] **3. Nghiêng sàn:** (Không thấy / Nghi ngờ / Có | ____%)
+- [ ] **4. Võng dầm / Sàn:** (Không thấy / Nghi ngờ / Có | Vị trí: ______)
+- [ ] **5. Nguồn xác định dữ liệu:** (Quan sát mắt thường / Đo nhanh / Bản vẽ thiết kế / Chủ nhà)
+- [ ] **6. Độ tin cậy dữ liệu:** (Cao / Trung bình / Thấp)
+- [ ] **7. Yêu cầu Đo đạc / Quan trắc bổ sung:** (Không / Có | Nhận xét: ______)
 
 ---
 
-### Bước 5: Kết luận Burland & Cờ Cảnh báo Kết cấu (Burland Summary & Structural Flag)
+### Bước 4: Tổng hợp Bảng 8 & Kết luận Cờ Kết cấu (Bảng 8 & Bảng 9 tự động 100%)
 
-- [ ] **Burland Chủ đạo (Predominant Grade):** Grade ____ (Mức Burland chiếm ưu thế/xuất hiện nhiều nhất trên toàn công trình).
-- [ ] **Vùng chi phối (Dominant Zone):** Vùng Z-____ / Mô tả nhóm vết nứt đồng dạng nhất.
-- [ ] **Burland Cục bộ Lớn nhất (Local Max Grade):** Grade ____ (Tự động lấy Grade cao nhất từ danh sách Vùng Z ở Bước 4 - *Quy tắc: Không lấy trung bình số học, phải báo riêng Grade cục bộ lớn nhất*).
-- [ ] **Tính đại diện:** (Chọn: Toàn công trình / Cục bộ).
-- [ ] **Structural Defect Flag (Cờ cảnh báo kết cấu):** (Chọn: `None` - Không có / `Low` - Thấp / `Moderate` - Trung bình / `High` - Cao / `Critical` - Nguy cơ sập khẩn cấp).
-- [ ] **Cần Structural Engineer review (Yêu cầu kỹ sư kết cấu thẩm định):** (Chọn: Không / Có).
+*(Bảng 8 đã hoàn thành tự động nhờ thao tác điền ngay lúc chụp Ảnh Bối Cảnh ở Bước 2.2)*
+
+- [ ] **Bảng 8 (Tự động xuất danh sách Vùng Hư hỏng):**
+  - `Z-01`: Vị trí, Wmax lớn nhất, Số cụm nứt, Ảnh hưởng chức năng (Có/Không), Grade Burland.
+  - `Z-02`: Vị trí, Wmax lớn nhất, Số cụm nứt, Ảnh hưởng chức năng (Có/Không), Grade Burland.
+  - ...
+
+- [ ] **Bảng 9 (Kết luận Burland & Cờ Cảnh báo Kết cấu):**
+  - **Burland Chủ đạo (Predominant Grade):** Grade ____ (Mức Burland chiếm ưu thế trên toàn công trình).
+  - **Vùng chi phối (Dominant Zone):** Vùng Z-____ / Mô tả nhóm vết nứt đồng dạng nhất.
+  - **Burland Cục bộ Lớn nhất (Local Max Grade):** Grade ____ (Tự động lấy Grade cao nhất từ danh sách Vùng Z ở Bảng 8).
+  - **Tính đại diện:** (Chọn: Toàn công trình / Cục bộ).
+  - **Structural Defect Flag (Cờ cảnh báo kết cấu):** (Chọn: `None` / `Low` / `Moderate` / `High` / `Critical`).
+  - **Cần Structural Engineer review (Kỹ sư kết cấu thẩm định):** (Chọn: Không / Có).
 
 ---
 
-### Bước 6: Đưa ảnh Bối cảnh & Ghim vào Sơ đồ Mặt bằng (Sketch Plan Integration)
-- [ ] **Sơ đồ mặt bằng (CAD / Phác thảo):** Gán toàn bộ mảng tường vừa khảo sát (kèm các ghim `D-01`, `D-02`...) lên sơ đồ mặt bằng tổng thể của tầng.
+### Bước 5: Đưa ảnh Bối cảnh & Ghim vào Sơ đồ Mặt bằng (Sketch Plan Integration)
+- [ ] **Sơ đồ mặt bằng (CAD / Phác thảo):** Gán các Vùng `Z-01`, `Z-02` (kèm các ghim `D-01`, `D-02`...) lên vị trí mặt bằng tổng thể của tầng.
 
 ---
 
-### Bước 7: Chốt Biên bản & Lấy Chữ ký Điện tử
-- [ ] **Tổng số khuyết tật đã ghi nhận:** (Hệ thống tự đếm)
+### Bước 6: Chốt Biên bản & Lấy Chữ ký Điện tử
+- [ ] **Tổng số Vùng & Khuyết tật đã ghi nhận:** (Hệ thống tự đếm)
 - [ ] **Các khu vực bị hạn chế / Không thể tiếp cận:** (Nhập text)
 - [ ] **Mô tả khuyết tật đáng chú ý nhất:** (Nhập text)
 - [ ] **Ý kiến / Phản hồi của Chủ hộ:** (Nhập text)
