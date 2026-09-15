@@ -116,16 +116,34 @@ Dưới đây là toàn bộ danh sách các câu hỏi, trường thông tin v�
 
 ---
 
-### Bước 3: Đưa ảnh Bối cảnh & Ghim vào Sơ đồ Mặt bằng (Sketch Plan Integration)
-- [ ] **Sơ đồ mặt bằng (CAD / Phác thảo):** Gán toàn bộ mảng tường vừa khảo sát (kèm các ghim `D-01`, `D-02`...) lên sơ đồ mặt bằng tổng thể của tầng.
+### Bước 3: Đánh giá Lún - Nghiêng - Biến dạng (Settlement - Tilt - Deformation)
+*Thực hiện đánh giá hoặc đo đạc các hiện tượng biến dạng hình học của công trình.*
+
+- [ ] **1. Lún chênh (Differential Settlement):**
+  - Trạng thái: (Chọn: Không thấy / Nghi ngờ / Có)
+  - Vị trí lún chênh (nếu Có): (Nhập text vị trí)
+- [ ] **2. Nghiêng công trình (Overall Building Tilt):**
+  - Trạng thái: (Chọn: Không thấy / Nghi ngờ / Có)
+  - Độ nghiêng mặt trước (X): (Nhập số %)
+  - Độ nghiêng mặt bên hông (Y): (Nhập số %)
+- [ ] **3. Nghiêng sàn (Floor Tilt):**
+  - Trạng thái: (Chọn: Không thấy / Nghi ngờ / Có)
+  - Độ nghiêng sàn: (Nhập số %)
+- [ ] **4. Võng dầm / Sàn (Beam / Slab Deflection):**
+  - Trạng thái: (Chọn: Không thấy / Nghi ngờ / Có)
+  - Vị trí võng (nếu Có): (Nhập text vị trí)
+- [ ] **5. Nguồn xác định dữ liệu (Source of Determination):**
+  - (Multi-select: Quan sát mắt thường / Đo nhanh bằng dụng cụ / Bản vẽ thiết kế / Thông tin từ chủ nhà)
+- [ ] **6. Độ tin cậy của dữ liệu (Confidence Level):**
+  - (Chọn: Cao / Trung bình / Thấp)
+- [ ] **7. Yêu cầu Đo đạc / Quan trắc bổ sung (Additional Monitoring):**
+  - Cần quan trắc thêm không? (Chọn: Không / Có)
+  - Nhận xét đánh giá chuyên môn: (Nhập text tự do)
 
 ---
 
-### Bước 4: Đo đạc Lún / Nghiêng bằng Thiết bị (Tuỳ chọn)
-- [ ] **Vị trí đo:** (VD: Góc Tây Nam toà nhà)
-- [ ] **Đối tượng đo:** (Cột trụ / Vách chịu lực)
-- [ ] **Giá trị đo được:** (Độ lún mm / Góc nghiêng)
-- [ ] **Phương pháp đo:** (Máy thuỷ bình / Dây dọi / Toàn đạc điện tử)
+### Bước 4: Đưa ảnh Bối cảnh & Ghim vào Sơ đồ Mặt bằng (Sketch Plan Integration)
+- [ ] **Sơ đồ mặt bằng (CAD / Phác thảo):** Gán toàn bộ mảng tường vừa khảo sát (kèm các ghim `D-01`, `D-02`...) lên sơ đồ mặt bằng tổng thể của tầng.
 
 ---
 
