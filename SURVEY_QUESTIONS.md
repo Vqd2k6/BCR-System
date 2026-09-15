@@ -141,7 +141,18 @@ Dưới đây là toàn bộ danh sách các câu hỏi, trường thông tin v�
 
 ---
 
-### Bước 4: Tổng hợp Bảng 8 & Kết luận Cờ Kết cấu (Bảng 8 & Bảng 9 tự động 100%)
+### Bước 4: Kiểm soát Chất lượng Dữ liệu Ảnh & Sơ đồ (Mục 10 Phiếu gốc - Data Quality Gate)
+
+*Hệ thống tự động kiểm tra trước khi chuyển sang bước chốt biên bản:*
+
+- [ ] **Sơ đồ phác thảo vị trí khuyết tật (Damage Map / Sketch):**
+  - Trạng thái: (Tự động kiểm tra: `Có` - Đã upload bản vẽ CAD/Sơ đồ | `Không` | `N/A` - Không bắt buộc nếu không có vết nứt)
+- [ ] **Liên kết Mã Ảnh - Khuyết tật (Defect - Photo Integrity Link):**
+  - Trạng thái: (Tự động quét: `ĐỦ` - Tất cả mã D-xx đều đã có đủ Ảnh Bối cảnh & Ảnh Cận cảnh có thước | `THIẾU` - Nếu phát hiện ghim D-xx nào chưa có ảnh cận cảnh, cảnh báo rõ mã D-xx để bổ sung).
+
+---
+
+### Bước 5: Tổng hợp Bảng 8 & Kết luận Cờ Kết cấu (Bảng 8 & Bảng 9 tự động 100%)
 
 *(Bảng 8 đã hoàn thành tự động nhờ thao tác điền ngay lúc chụp Ảnh Bối Cảnh ở Bước 2.2)*
 
@@ -160,12 +171,12 @@ Dưới đây là toàn bộ danh sách các câu hỏi, trường thông tin v�
 
 ---
 
-### Bước 5: Đưa ảnh Bối cảnh & Ghim vào Sơ đồ Mặt bằng (Sketch Plan Integration)
+### Bước 6: Đưa ảnh Bối cảnh & Ghim vào Sơ đồ Mặt bằng (Sketch Plan Integration)
 - [ ] **Sơ đồ mặt bằng (CAD / Phác thảo):** Gán các Vùng `Z-01`, `Z-02` (kèm các ghim `D-01`, `D-02`...) lên vị trí mặt bằng tổng thể của tầng.
 
 ---
 
-### Bước 6: Chốt Biên bản & Lấy Chữ ký Điện tử
+### Bước 7: Chốt Biên bản & Lấy Chữ ký Điện tử
 - [ ] **Tổng số Vùng & Khuyết tật đã ghi nhận:** (Hệ thống tự đếm)
 - [ ] **Các khu vực bị hạn chế / Không thể tiếp cận:** (Nhập text)
 - [ ] **Mô tả khuyết tật đáng chú ý nhất:** (Nhập text)
