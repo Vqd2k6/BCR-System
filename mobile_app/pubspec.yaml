@@ -29,6 +29,11 @@ dependencies:
   # Mạng & REST API
   dio: ^5.4.1
   shared_preferences: ^2.2.2
+  connectivity_plus: ^5.0.2
+
+  # Cơ sở dữ liệu Offline & Sync
+  sqflite: ^2.3.0
+  path_provider: ^2.1.2
 
 dev_dependencies:
   flutter_test:

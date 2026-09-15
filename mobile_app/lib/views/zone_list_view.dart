@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/user_model.dart';
 import '../models/zone_model.dart';
 import '../services/api_service.dart';
-import 'survey_wizard_view.dart';
+import 'building_list_view.dart';
 
 class ZoneListView extends StatefulWidget {
   final UserModel user;
@@ -146,13 +146,13 @@ class _ZoneListViewState extends State<ZoneListView> {
                               SizedBox(
                                 width: double.infinity,
                                 child: ElevatedButton.icon(
-                                  icon: const Icon(Icons.location_searching, size: 18),
-                                  label: const Text('BẮT ĐẦU KHẢO SÁT QUÉT CẠN'),
+                                  icon: const Icon(Icons.list, size: 18),
+                                  label: const Text('DANH SÁCH CÔNG TRÌNH'),
                                   onPressed: () {
                                     Navigator.push(
                                       context,
                                       MaterialPageRoute(
-                                        builder: (context) => SurveyWizardView(
+                                        builder: (context) => BuildingListView(
                                           zone: zone,
                                           user: widget.user,
                                           apiService: widget.apiService,

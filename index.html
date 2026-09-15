@@ -3,521 +3,268 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>KSQH METRO 2 - Hệ Thống Khảo Sát Hiện Trạng Công Trình</title>
+  <title>KSQH Metro 2 — Web Portal | Hệ Thống Kiểm Duyệt Hồ Sơ Khảo Sát</title>
+  <meta name="description" content="Web Portal kiểm duyệt hồ sơ khảo sát hiện trạng kiến trúc-kết cấu tuyến Metro Số 2 HCMC (Bến Thành – Tham Lương)">
 
-  <!-- Google Fonts: Inter, Outfit, JetBrains Mono -->
+  <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&family=Outfit:wght@600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&family=Outfit:wght@700;800&display=swap" rel="stylesheet">
 
-  <!-- Leaflet CSS -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  
-  <!-- App Styles -->
-  <link rel="stylesheet" href="css/main.css" />
-  <link rel="stylesheet" href="css/admin.css" />
-  <link rel="stylesheet" href="css/mobile.css" />
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+
+  <!-- Portal CSS -->
+  <link rel="stylesheet" href="css/portal.css">
 </head>
 <body>
 
-  <div id="app-container">
-    <!-- TOP GLOBAL NAVBAR -->
-    <header class="top-navbar">
-      <div class="brand-section">
-        <div class="brand-logo">🚇</div>
-        <div class="brand-info">
-          <h1>KSQH METRO 2 <span class="brand-badge">BCA PLATFORM</span></h1>
-          <p>Hệ thống Khảo sát Hiện trạng Kiến trúc - Kết cấu Tuyến Metro Số 2 (Bến Thành – Tham Lương)</p>
-        </div>
-      </div>
-
-      <!-- VIEW MODE SWITCHER -->
-      <div class="view-switcher">
-        <button class="view-btn" data-view="admin">🖥️ Web Admin</button>
-        <button class="view-btn active" data-view="split">⚡ Xem Song Song (Split View)</button>
-        <button class="view-btn" data-view="mobile">📱 Mobile App</button>
-      </div>
-    </header>
-
-    <!-- MAIN VIEWPORT CONTAINER -->
-    <main id="main-viewport" class="main-viewport mode-split">
-      
-      <!-- ================= LEFT: WEB ADMIN PORTAL PANE ================= -->
-      <section id="admin-pane">
-
-        <!-- 1. COLLAPSIBLE LEFT SIDEBAR MENU -->
-        <aside class="admin-left-sidebar" id="admin-left-sidebar">
-          
-          <!-- Sidebar Header -->
-          <div class="sidebar-header">
-            <div class="sidebar-title">
-              <span>🏢 Điều Phối Tuyến Metro 2</span>
-            </div>
-            <span class="sidebar-badge" id="parcels-load-status">Đang tải...</span>
-          </div>
-
-          <!-- Sidebar Scrollable Content -->
-          <div class="sidebar-content">
-            
-            <!-- Section 1: KPI Statistics -->
-            <div>
-              <div class="sidebar-section-title">
-                <span>📊 Thống Kê Tiến Độ</span>
-                <span id="current-filter-count" style="font-size:10px; color:#0284c7; font-weight:700;">6,431 thửa</span>
-              </div>
-              <div class="stats-grid-compact" style="margin-top:6px;">
-                <div class="stat-card-compact">
-                  <div class="num" id="stat-total-houses">0</div>
-                  <div class="lbl">Tổng căn</div>
-                </div>
-                <div class="stat-card-compact">
-                  <div class="num" style="color: #0284c7;" id="stat-pending-houses">0</div>
-                  <div class="lbl">Chờ duyệt</div>
-                </div>
-                <div class="stat-card-compact">
-                  <div class="num" style="color: #10b981;" id="stat-approved-houses">0</div>
-                  <div class="lbl">Đã duyệt</div>
-                </div>
-                <div class="stat-card-compact">
-                  <div class="num" style="color: #ef4444;" id="stat-flagged-houses">0</div>
-                  <div class="lbl">Lệch GPS</div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Section 2: Spatial Search -->
-            <div>
-              <div class="sidebar-section-title">🔍 Tìm Kiếm Không Gian</div>
-              <div class="sidebar-search-box" style="margin-top:6px;">
-                <input type="text" id="map-search-input" class="sidebar-search-input" placeholder="Nhập Số thửa (vd: 328), Tên ga..." onkeydown="if(event.key==='Enter') searchMapLocation(this.value)"/>
-                <button class="sidebar-search-btn" onclick="searchMapLocation(document.getElementById('map-search-input').value)">Tìm</button>
-              </div>
-            </div>
-
-            <!-- Section 3: Land-Use Category Filter Pills -->
-            <div>
-              <div class="sidebar-section-title">📌 Phân Loại Thửa Đất</div>
-              <div class="filter-pills-row" style="margin-top:6px;">
-                <button class="filter-pill active" onclick="filterParcelsByCategory('ALL', this)">🔘 Tất Cả (6.431)</button>
-                <button class="filter-pill" onclick="filterParcelsByCategory('RESIDENTIAL', this)">🏠 Nhà Ở (4.884)</button>
-                <button class="filter-pill" onclick="filterParcelsByCategory('BUILDING', this)">🏢 Công Trình (1.151)</button>
-                <button class="filter-pill" onclick="filterParcelsByCategory('TRANSPORT', this)">🛣️ Lộ Giới (4.350)</button>
-              </div>
-            </div>
-
-            <!-- Section 4: Multi-level Layer Visibility Toggles -->
-            <div>
-              <div class="sidebar-section-title">👁️ Quản Lý Lớp Bản Đồ</div>
-              <div class="layer-toggle-group" style="margin-top:6px;">
-                <label class="layer-toggle-row">
-                  <div class="layer-row-left">
-                    <div class="layer-icon-badge" style="background:#fee2e2; color:#ef4444;">🚇</div>
-                    <span><b>Ranh GPMB Tuyến Metro (CAD Tả/Hữu)</b></span>
-                  </div>
-                  <input type="checkbox" id="chk-toggle-metro-boundaries" checked onchange="window.toggleMetroBoundaries(this.checked)"/>
-                </label>
-
-                <label class="layer-toggle-row">
-                  <div class="layer-row-left">
-                    <div class="layer-icon-badge" style="background:#e0f2fe; color:#0284c7;">🚉</div>
-                    <span><b>11 Nhà Ga Metro & Ranh Ga (ST01 – ST11)</b></span>
-                  </div>
-                  <input type="checkbox" id="chk-toggle-metro-stations" checked onchange="window.toggleMetroStationBoxes(this.checked)"/>
-                </label>
-
-                <label class="layer-toggle-row">
-                  <div class="layer-row-left">
-                    <div class="layer-icon-badge" style="background:#fef3c7; color:#d97706;">🏢</div>
-                    <span><b>6.431 Thửa Đất Quy Hoạch (KS003)</b></span>
-                  </div>
-                  <input type="checkbox" id="chk-toggle-parcels" checked onchange="window.toggleKS003Parcels(this.checked)"/>
-                </label>
-
-                <label class="layer-toggle-row">
-                  <div class="layer-row-left">
-                    <div class="layer-icon-badge" style="background:#e0e7ff; color:#4f46e5;">📍</div>
-                    <span><b>Phân Vùng Khảo Sát (Survey Zones)</b></span>
-                  </div>
-                  <input type="checkbox" id="chk-toggle-zones" checked onchange="window.toggleSurveyZones(this.checked)"/>
-                </label>
-
-                <label class="layer-toggle-row">
-                  <div class="layer-row-left">
-                    <div class="layer-icon-badge" style="background:#dcfce7; color:#15803d;">🏠</div>
-                    <span><b>Công Trình Khảo Sát (Footprints)</b></span>
-                  </div>
-                  <input type="checkbox" id="chk-toggle-buildings" checked onchange="window.toggleSurveyedBuildings(this.checked)"/>
-                </label>
-              </div>
-            </div>
-
-            <!-- Section 5: Layer Opacity Slider -->
-            <div class="opacity-slider-box">
-              <div class="opacity-header">
-                <span>🎚️ Độ Trong Suốt Lớp Thửa Đất:</span>
-                <b id="opacity-val-label" style="color:#0284c7;">45%</b>
-              </div>
-              <input type="range" class="opacity-slider" min="0.1" max="1.0" step="0.05" value="0.45" oninput="setParcelsOpacity(this.value)"/>
-            </div>
-
-            <!-- Section 6: Base Map Switcher -->
-            <div>
-              <div class="sidebar-section-title">🗺️ Bản Đồ Nền</div>
-              <div class="basemap-chips-row" style="margin-top:6px;">
-                <button class="basemap-chip active" id="btn-base-esri" onclick="switchAdminBasemap('esri'); document.querySelectorAll('.basemap-chip').forEach(c=>c.classList.remove('active')); this.classList.add('active');">🛰️ Vệ Tinh Esri</button>
-                <button class="basemap-chip" id="btn-base-google" onclick="switchAdminBasemap('google'); document.querySelectorAll('.basemap-chip').forEach(c=>c.classList.remove('active')); this.classList.add('active');">🛰️ Google</button>
-                <button class="basemap-chip" id="btn-base-osm" onclick="switchAdminBasemap('osm'); document.querySelectorAll('.basemap-chip').forEach(c=>c.classList.remove('active')); this.classList.add('active');">🗺️ Phố OSM</button>
-              </div>
-            </div>
-
-            <!-- Section 7: Quick Station Shortcuts (Equal for all 11 stations) -->
-            <div>
-              <div class="sidebar-section-title">🎯 Định Vị Nhanh 11 Nhà Ga</div>
-              <div style="display:grid; grid-template-columns: repeat(2, 1fr); gap:4px; margin-top:6px;">
-                <button class="btn btn-secondary btn-sm" style="padding:4px 6px; font-size:10px; text-align:left; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" onclick="if(adminMap) adminMap.flyTo([10.770876, 106.696946], 18);" title="ST01: Ga Bến Thành">🚉 01. Bến Thành</button>
-                <button class="btn btn-secondary btn-sm" style="padding:4px 6px; font-size:10px; text-align:left; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" onclick="if(adminMap) adminMap.flyTo([10.773237, 106.690138], 18);" title="ST02: Ga Tao Đàn">🚉 02. Tao Đàn</button>
-                <button class="btn btn-secondary btn-sm" style="padding:4px 6px; font-size:10px; text-align:left; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" onclick="if(adminMap) adminMap.flyTo([10.780053, 106.677596], 18);" title="ST03: Ga Dân Chủ">🚉 03. Dân Chủ</button>
-                <button class="btn btn-secondary btn-sm" style="padding:4px 6px; font-size:10px; text-align:left; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" onclick="if(adminMap) adminMap.flyTo([10.782072, 106.673679], 18);" title="ST04: Ga Hòa Hưng">🚉 04. Hòa Hưng</button>
-                <button class="btn btn-secondary btn-sm" style="padding:4px 6px; font-size:10px; text-align:left; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" onclick="if(adminMap) adminMap.flyTo([10.786163, 106.665623], 18);" title="ST05: Ga Lê Thị Riêng">🚉 05. Lê Thị Riêng</button>
-                <button class="btn btn-secondary btn-sm" style="padding:4px 6px; font-size:10px; text-align:left; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" onclick="if(adminMap) adminMap.flyTo([10.789654, 106.659742], 18);" title="ST06: Ga Phạm Văn Hai">🚉 06. Phạm Văn Hai</button>
-                <button class="btn btn-secondary btn-sm" style="padding:4px 6px; font-size:10px; text-align:left; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" onclick="if(adminMap) adminMap.flyTo([10.798691, 106.643181], 18);" title="ST07: Ga Bảy Hiền">🚉 07. Bảy Hiền</button>
-                <button class="btn btn-secondary btn-sm" style="padding:4px 6px; font-size:10px; text-align:left; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" onclick="if(adminMap) adminMap.flyTo([10.806360, 106.634988], 18);" title="ST08: Ga Nguyễn Hồng Đào">🚉 08. N.Hồng Đào</button>
-                <button class="btn btn-secondary btn-sm" style="padding:4px 6px; font-size:10px; text-align:left; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" onclick="if(adminMap) adminMap.flyTo([10.810154, 106.633891], 18);" title="ST09: Ga Bà Quẹo">🚉 09. Bà Quẹo</button>
-                <button class="btn btn-secondary btn-sm" style="padding:4px 6px; font-size:10px; text-align:left; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" onclick="if(adminMap) adminMap.flyTo([10.822124, 106.630160], 18);" title="ST10: Ga Phạm Văn Bạch">🚉 10. P.Văn Bạch</button>
-                <button class="btn btn-secondary btn-sm" style="padding:4px 6px; font-size:10px; text-align:left; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; grid-column: span 2;" onclick="if(adminMap) adminMap.flyTo([10.822111, 106.626127], 17);" title="ST11: Ga Tân Bình - Tham Lương">🚉 11. Ga Tân Bình (Tham Lương)</button>
-              </div>
-            </div>
-
-          </div>
-
-          <!-- Sidebar Footer with Live Coordinates -->
-          <div class="sidebar-footer">
-            <span>📍 Tọa độ chuột:</span>
-            <span id="map-cursor-coords">10.7965, 106.6540</span>
-          </div>
-
-        </aside>
-
-        <!-- 2. FULL GIS MAP WRAPPER -->
-        <div class="admin-map-wrapper">
-          <!-- Floating Toggle Button for Left Sidebar -->
-          <button class="btn-toggle-sidebar" id="btn-toggle-sidebar" onclick="toggleLeftSidebar()" title="Ẩn/Hiện Menu Quản Trị">
-            <span>◀</span> <span>Menu Điều Khiển</span>
-          </button>
-
-          <!-- Leaflet Map Element -->
-          <div id="admin-map"></div>
-        </div>
-
-        <!-- 3. REVIEW & APPROVAL DRAWER -->
-        <aside id="approval-drawer" class="approval-drawer">
-          <div class="drawer-header">
-            <h3>📑 Hồ Sơ Khảo Sát: <span id="drawer-house-code" style="color:#0284c7;">TB-BH-001</span></h3>
-            <button class="close-btn" id="btn-close-drawer">✕</button>
-          </div>
-
-          <div class="drawer-body">
-            <!-- General Info -->
-            <div style="display:flex; justify-content:space-between; align-items:flex-start;">
-              <div>
-                <h4 id="drawer-owner-name" style="font-size:15px; color:#0f172a;">Trần Văn Phúc</h4>
-                <p id="drawer-address" style="font-size:12px; color:var(--text-muted);">142 Trường Chinh, P.12, Q. Tân Bình</p>
-                <p style="font-size:11px; color:var(--text-dim); margin-top:3px;">Khảo sát bởi: <b id="drawer-surveyor-name" style="color:#0f172a;">Nguyễn Văn Hùng</b> • <span id="drawer-survey-date">2026-09-12</span></p>
-              </div>
-              <span id="drawer-status-chip" class="status-chip approved">Đã duyệt</span>
-            </div>
-
-            <!-- Anti-cheat Dual-GPS Inspection -->
-            <div class="gps-comparison-card" id="drawer-gps-card">
-              <div class="gps-header">
-                <span class="title">🛡️ Đối Soát Vị Trí Hiện Trường (Anti-Cheat)</span>
-              </div>
-              <div style="font-size:11.5px; line-height:1.6;">
-                <div>• <b>GPS Ngầm Phần Cứng (Thực tế):</b> <span id="drawer-gps-hardware" style="font-family:'JetBrains Mono'; color:#15803d;">10.796510, 106.653120</span></div>
-                <div>• <b>GPS Ghim Tâm Nhà:</b> <span id="drawer-gps-pin" style="font-family:'JetBrains Mono'; color:#0284c7;">10.796515, 106.653125</span></div>
-              </div>
-
-              <div class="gps-meter" id="drawer-gps-meter">
-                <span style="font-size:11.5px; color:var(--text-muted);">Khoảng cách sai lệch:</span>
-                <span class="val" id="drawer-gps-deviation-val">0.8 mét</span>
-              </div>
-
-              <div id="drawer-gps-warning-alert" style="display:none; margin-top:8px; font-size:11px; color:#dc2626; background:#fee2e2; padding:6px 10px; border-radius:4px; border:1px solid #fecaca;">
-                ⚠️ <b>CẢNH BÁO:</b> Vị trí người khảo sát đứng lệch quá 50m so với tâm nhà. Cần kiểm tra lại trước khi phê duyệt!
-              </div>
-            </div>
-
-            <!-- Structure Tree Inspection -->
-            <div>
-              <div style="font-size:12px; font-weight:700; text-transform:uppercase; color:var(--text-muted); margin-bottom:8px;">
-                🏢 Cây Cấu Trúc Khảo Sát Chi Tiết
-              </div>
-              <div id="drawer-structure-tree"></div>
-            </div>
-
-            <!-- Photo Gallery with Watermark -->
-            <div>
-              <div style="font-size:12px; font-weight:700; text-transform:uppercase; color:var(--text-muted); margin-bottom:8px;">
-                📸 Bằng Chứng Hình Ảnh & Bản Vẽ Vết Nứt
-              </div>
-              <div class="photo-review-grid" id="drawer-photo-grid"></div>
-            </div>
-          </div>
-
-          <!-- Drawer Action Footer -->
-          <div class="drawer-footer">
-            <button class="btn btn-danger" id="btn-reject-survey">❌ Yêu Cầu Khảo Sát Lại</button>
-            <button class="btn btn-success" id="btn-approve-survey">✅ Phê Duyệt & Đồng Bộ GIS</button>
-          </div>
-        </aside>
-      </section>
-
-      <!-- ================= RIGHT: MOBILE SURVEYOR SIMULATOR PANE ================= -->
-      <section id="mobile-pane">
-        <div class="phone-mockup">
-          
-          <!-- Phone Dynamic Island & Status Bar -->
-          <div class="phone-status-bar">
-            <span>09:41</span>
-            <div class="dynamic-island">
-              <div class="sensor-dot"></div>
-              <div class="camera-lens"></div>
-            </div>
-            <span>5G 📶 100% 🔋</span>
-          </div>
-
-          <!-- Phone Inner Screen -->
-          <div class="phone-screen">
-            
-            <!-- Mobile Header -->
-            <div class="mobile-app-header">
-              <div>
-                <h4>KSQH Mobile</h4>
-                <div style="font-size:10px; color:var(--text-muted); display:flex; align-items:center; gap:6px;">
-                  <span>NV: Nguyễn Văn Hùng (NV-08)</span>
-                  <span id="mobile-draft-status" style="color:#10b981; font-weight:600; font-size:9.5px;">💾 Đã lưu nháp</span>
-                </div>
-              </div>
-              <span class="surveyor-badge" id="mobile-network-badge">Trực tuyến 5G</span>
-            </div>
-
-            <!-- Step Wizard Indicator -->
-            <div style="padding: 10px 14px 0;">
-              <div class="wizard-steps">
-                <div class="wizard-step-item active" id="wiz-step-1" onclick="goToStep(1)">
-                  <div class="step-circle">1</div>
-                  <div class="step-title">Định vị</div>
-                </div>
-                <div class="wizard-step-item" id="wiz-step-2" onclick="goToStep(2)">
-                  <div class="step-circle">2</div>
-                  <div class="step-title">Cấu trúc</div>
-                </div>
-                <div class="wizard-step-item" id="wiz-step-3" onclick="goToStep(3)">
-                  <div class="step-circle">3</div>
-                  <div class="step-title">Máy ảnh</div>
-                </div>
-                <div class="wizard-step-item" id="wiz-step-4" onclick="goToStep(4)">
-                  <div class="step-circle">4</div>
-                  <div class="step-title">Vết nứt</div>
-                </div>
-                <div class="wizard-step-item" id="wiz-step-5" onclick="goToStep(5)">
-                  <div class="step-circle">5</div>
-                  <div class="step-title">Ranh giới</div>
-                </div>
-                <div class="wizard-step-item" id="wiz-step-6" onclick="goToStep(6)">
-                  <div class="step-circle">6</div>
-                  <div class="step-title">Nộp hồ sơ</div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Scrollable Step Contents -->
-            <div class="mobile-view-container">
-
-              <!-- STEP 1: GENERAL INFO & DUAL GPS -->
-              <div class="mobile-step-section" id="mobile-step-1" style="display:flex; flex-direction:column; gap:10px;">
-                <div class="form-card">
-                  <div class="form-group">
-                    <label class="form-label">Mã Căn Khảo Sát:</label>
-                    <input type="text" class="form-input" id="input-house-code" value="TB-BH-003"/>
-                  </div>
-                  <div class="form-group">
-                    <label class="form-label">Tên Chủ Hộ / Người Đại Diện:</label>
-                    <input type="text" class="form-input" id="input-owner-name" value="Hoàng Minh Tâm"/>
-                  </div>
-                  <div class="form-group">
-                    <label class="form-label">Địa Chỉ Thực Tế:</label>
-                    <input type="text" class="form-input" id="input-address" value="156 Trường Chinh, P.12, Q. Tân Bình"/>
-                  </div>
-                </div>
-
-                <div class="form-card">
-                  <div style="font-size:12px; font-weight:700; color:var(--primary); display:flex; justify-content:space-between;">
-                    <span>📍 Bản Đồ Hiện Trường & Dual-GPS</span>
-                    <span style="font-size:10px; color:#15803d;">Đang bắt GPS...</span>
-                  </div>
-                  <p style="font-size:10px; color:var(--text-muted);">
-                    Kéo ghim xanh <b style="color:#0284c7;">[Pin]</b> vào tâm nhà. Nhấp vào thửa đất bất kỳ trên bản đồ để tự động điền số thửa.
-                  </p>
-
-                  <!-- Map Wrapper with Floating Quick Layer Buttons -->
-                  <div class="mobile-map-wrapper">
-                    <div id="mobile-gps-map"></div>
-                    
-                    <div class="mobile-map-toolbar">
-                      <button class="mobile-tool-btn" onclick="toggleMobileBasemap()" title="Chuyển Vệ tinh / Phố">🗺️ Nền</button>
-                      <button class="mobile-tool-btn" onclick="toggleMobileParcels()" title="Ẩn / Hiện Thửa đất">🏢 Thửa</button>
-                      <button class="mobile-tool-btn" onclick="toggleMobileMetro()" title="Ẩn / Hiện Ranh Metro">🚇 Metro</button>
-                      <button class="mobile-tool-btn" onclick="centerMobileGps()" title="Về vị trí GPS">🎯 GPS</button>
-                    </div>
-                  </div>
-
-                  <button class="btn btn-secondary btn-sm" style="margin-top:6px;width:100%;font-size:11.5px;display:flex;align-items:center;justify-content:center;gap:6px;" onclick="window.useRealDeviceLocation()">
-                    <span>🎯</span> <span>Lấy Tọa Độ GPS Thực Tế Của Máy Bạn</span>
-                  </button>
-
-                  <div class="dual-gps-stats" style="margin-top:6px;">
-                    <div class="gps-badge hardware">● GPS Ngầm: Bật</div>
-                    <div class="gps-badge pin">● Sai lệch: <b id="mobile-gps-deviation-meter" style="color:#0284c7;">0.7m</b></div>
-                  </div>
-
-                  <div id="mobile-gps-warning" style="display:none; font-size:10px; color:#dc2626; background:#fee2e2; padding:4px 8px; border-radius:4px; border:1px solid #fecaca;">
-                    ⚠️ Cảnh báo: Vị trí ghim lệch > 50m so với bạn!
-                  </div>
-                </div>
-              </div>
-
-              <!-- STEP 2: DYNAMIC COMPONENT TREE -->
-              <div class="mobile-step-section" id="mobile-step-2" style="display:none; flex-direction:column; gap:10px;">
-                <div style="display:flex; justify-content:space-between; align-items:center;">
-                  <span style="font-size:12px; font-weight:700; color:#0f172a;">🏢 Cây Khảo Sát Động</span>
-                  <button class="btn btn-primary btn-sm" id="btn-add-floor">+ Thêm Tầng</button>
-                </div>
-                <p style="font-size:10.5px; color:var(--text-muted);">
-                  Bấm vào từng cấu kiện để đánh dấu nứt hoặc thêm phòng/cấu kiện tùy biến theo thực tế ngôi nhà.
-                </p>
-
-                <div id="dynamic-tree-container" class="dynamic-tree-list"></div>
-              </div>
-
-              <!-- STEP 3: CAMERA & AUTO WATERMARK -->
-              <div class="mobile-step-section" id="mobile-step-3" style="display:none; flex-direction:column; gap:10px;">
-                <div style="font-size:12px; font-weight:700; color:var(--primary);">📸 Chụp Ảnh Hiện Trạng & Dập Watermark</div>
-                
-                <div class="camera-preview-box">
-                  <div class="camera-crosshair"></div>
-                  <!-- Camera Watermark Overlay -->
-                  <div class="watermark-overlay-layer" id="camera-watermark-text">
-                    📍 GPS: 10.797120, 106.653850<br/>
-                    🕒 2026-09-14 09:42:15 | MÃ CĂN: TB-BH-003
-                  </div>
-                </div>
-
-                <button class="btn btn-primary" style="width:100%;" onclick="capturePhotoSimulation()">
-                  📷 Bấm Chụp Ảnh & Đóng Dấu Pháp Lý
-                </button>
-              </div>
-
-              <!-- STEP 4: INTERACTIVE CRACK DRAWING CANVAS -->
-              <div class="mobile-step-section" id="mobile-step-4" style="display:none; flex-direction:column; gap:10px;">
-                <div style="display:flex; justify-content:space-between; align-items:center;">
-                  <span style="font-size:12px; font-weight:700; color:#dc2626;">✏️ Vẽ Đánh Dấu Vết Nứt Trên Ảnh</span>
-                  <button class="btn btn-secondary btn-sm" onclick="if(crackCanvasManager) crackCanvasManager.clear();">Xóa Nét</button>
-                </div>
-
-                <div class="crack-canvas-container">
-                  <canvas id="crack-draw-canvas"></canvas>
-                </div>
-
-                <div class="crack-toolbar">
-                  <div style="flex:1;">
-                    <label style="font-size:10px; color:var(--text-muted); font-weight:600;">Chiều Dài (cm):</label>
-                    <input type="number" id="crack-length" class="form-input" style="padding:4px 6px; font-size:11px;" value="35"/>
-                  </div>
-                  <div style="flex:1;">
-                    <label style="font-size:10px; color:var(--text-muted); font-weight:600;">Độ Rộng (mm):</label>
-                    <input type="number" id="crack-width" class="form-input" style="padding:4px 6px; font-size:11px;" value="1.5" step="0.1"/>
-                  </div>
-                  <div style="flex:1;">
-                    <label style="font-size:10px; color:var(--text-muted); font-weight:600;">Hướng Nứt:</label>
-                    <select id="crack-direction" class="form-input" style="padding:4px 6px; font-size:11px;">
-                      <option value="Xiên 45°">Xiên 45°</option>
-                      <option value="Thẳng đứng">Thẳng đứng</option>
-                      <option value="Ngang">Ngang</option>
-                      <option value="Chân chim">Chân chim</option>
-                    </select>
-                  </div>
-                </div>
-
-                <button class="btn btn-primary btn-sm" style="width:100%;" onclick="saveCrackDataFromCanvas()">
-                  💾 Lưu Vết Nứt Vào Cấu Kiện Này
-                </button>
-              </div>
-
-              <!-- STEP 5: BUILDING FOOTPRINT SWEEP DRAWER -->
-              <div class="mobile-step-section" id="mobile-step-5" style="display:none; flex-direction:column; gap:10px;">
-                <div style="display:flex; justify-content:space-between; align-items:center;">
-                  <span style="font-size:12px; font-weight:700; color:var(--primary);">📐 Vẽ Dấu Chân Nhà (Footprint)</span>
-                  <span id="footprint-point-count" style="font-size:10px; color:#10b981; font-weight:700;">4 điểm (Mẫu)</span>
-                </div>
-                <p style="font-size:10.5px; color:var(--text-muted);">
-                  Chấm các góc tường để vẽ đa giác dấu chân nhà thực tế (khép góc tối thiểu 3 điểm).
-                </p>
-
-                <div id="mobile-footprint-map"></div>
-
-                <div style="display:flex; gap:6px;">
-                  <button class="btn btn-secondary btn-sm" style="flex:1;" onclick="clearFootprintDrawing()">Xóa Nét</button>
-                  <button class="btn btn-primary btn-sm" style="flex:1;" onclick="loadSampleFootprint()">Vẽ Mẫu Nhanh</button>
-                </div>
-              </div>
-
-              <!-- STEP 6: SUMMARY & SUBMIT -->
-              <div class="mobile-step-section" id="mobile-step-6" style="display:none; flex-direction:column; gap:10px;">
-                <div style="font-size:13px; font-weight:700; color:#10b981; display:flex; align-items:center; gap:6px;">
-                  <span>📋</span> <span>Tổng Kết Hồ Sơ Khảo Sát</span>
-                </div>
-
-                <div class="form-card" style="font-size:11.5px; line-height:1.7;">
-                  <div>• <b>Mã Hồ Sơ:</b> <span id="summary-house-code" style="color:#0284c7; font-weight:700;">TB-BH-003</span></div>
-                  <div>• <b>Chủ Hộ:</b> Hoàng Minh Tâm</div>
-                  <div>• <b>Địa Chỉ:</b> 156 Trường Chinh, P.12, Tân Bình</div>
-                  <div>• <b>Định Vị:</b> Dual-GPS hợp lệ (&lt; 1m sai lệch)</div>
-                  <div>• <b>Cấu Trúc:</b> Đã khảo sát Ngoại thất, Trệt, Lầu 1</div>
-                  <div>• <b>Hình Ảnh & Đo Đạc:</b> Đã đóng dấu watermark pháp lý</div>
-                  <div>• <b>Footprint:</b> Đã khép góc đa giác đường bao</div>
-                </div>
-              </div>
-
-            </div>
-
-            <!-- Phone Bottom Action Bar -->
-            <div class="phone-bottom-bar">
-              <button class="btn btn-secondary btn-sm" id="btn-mobile-prev" style="display:none;">← Quay Lại</button>
-              <div style="flex:1;"></div>
-              <button class="btn btn-primary btn-sm" id="btn-mobile-next">Tiếp Theo →</button>
-              <button class="btn btn-success btn-sm" id="btn-mobile-submit" style="display:none;">🚀 Nộp Hồ Sơ Ngay</button>
-            </div>
-
-          </div>
-        </div>
-      </section>
-
-    </main>
-
-    <!-- TOAST NOTIFICATION CONTAINER -->
-    <div id="toast-container"></div>
+<!-- ══════════════════════════════════════════════════════════════════════
+     TOP NAVIGATION BAR
+══════════════════════════════════════════════════════════════════════ -->
+<header id="topbar">
+  <!-- Brand -->
+  <div class="brand">
+    <div class="brand-icon">🚇</div>
+    <div class="brand-text">
+      <h1>KSQH METRO 2</h1>
+      <p>Bến Thành – Tham Lương · BCA Survey Platform</p>
+    </div>
   </div>
 
-  <!-- Leaflet JS -->
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <div class="topbar-divider"></div>
 
-  <!-- App Scripts & Datasets -->
-  <script src="js/mock_data.js"></script>
-  <script src="js/metro_boundary_data.js"></script>
-  <script src="js/crack_canvas.js"></script>
-  <script src="js/map.js"></script>
-  <script src="js/surveyor.js"></script>
-  <script src="js/app.js"></script>
+  <!-- Nav Tabs -->
+  <nav class="nav-tabs" role="navigation">
+    <button class="nav-tab active" data-tab="map">
+      🗺️ Bản Đồ GIS
+    </button>
+    <button class="nav-tab" data-tab="list">
+      📋 Danh Sách Duyệt
+      <span class="tab-badge">0</span>
+    </button>
+    <button class="nav-tab" data-tab="analytics">
+      📊 Phân Tích
+    </button>
+  </nav>
+
+  <div class="topbar-spacer"></div>
+
+  <!-- Connection status -->
+  <div class="conn-status">
+    <div class="conn-dot"></div>
+    <span id="conn-text">Demo</span>
+  </div>
+
+  <div class="topbar-divider"></div>
+
+  <!-- User info -->
+  <div class="user-info">
+    <div class="user-avatar" id="user-avatar">QD</div>
+    <div class="user-name" id="user-name">...</div>
+    <span class="user-role" id="user-role-badge">...</span>
+  </div>
+</header>
+
+<!-- ══════════════════════════════════════════════════════════════════════
+     APP BODY
+══════════════════════════════════════════════════════════════════════ -->
+<div id="app">
+
+  <!-- ════════════ LEFT SIDEBAR ════════════ -->
+  <aside id="sidebar">
+
+    <!-- Search -->
+    <div class="sidebar-search">
+      <div class="search-box">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="search-input" placeholder="Tìm mã căn, chủ hộ, địa chỉ...">
+      </div>
+    </div>
+
+    <!-- KPI Cards -->
+    <div class="kpi-section">
+      <div class="kpi-grid">
+        <div class="kpi-card">
+          <div class="kpi-num" id="kpi-total">0</div>
+          <div class="kpi-lbl">Tổng căn</div>
+        </div>
+        <div class="kpi-card success">
+          <div class="kpi-num" id="kpi-approved">0</div>
+          <div class="kpi-lbl">Đã duyệt</div>
+        </div>
+        <div class="kpi-card warning">
+          <div class="kpi-num" id="kpi-pending">0</div>
+          <div class="kpi-lbl">Chờ duyệt</div>
+        </div>
+        <div class="kpi-card danger">
+          <div class="kpi-num" id="kpi-flagged">0</div>
+          <div class="kpi-lbl">GPS Flag</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Progress -->
+    <div class="progress-section">
+      <div class="progress-label">
+        <span id="progress-val">0/0 công trình</span>
+        <span id="progress-pct">0%</span>
+      </div>
+      <div class="progress-bar">
+        <div class="progress-fill" id="progress-fill" style="width:0%"></div>
+      </div>
+    </div>
+
+    <!-- Building list header + filters -->
+    <div class="building-list-header">
+      <span class="building-list-title">Công Trình</span>
+      <div class="filter-tabs-mini">
+        <button class="filter-tab-mini active" data-filter="all">Tất cả</button>
+        <button class="filter-tab-mini" data-filter="p1_pending">P1⏳</button>
+        <button class="filter-tab-mini" data-filter="p2_pending">P2⏳</button>
+        <button class="filter-tab-mini" data-filter="flagged">⚠️</button>
+      </div>
+    </div>
+
+    <!-- Building list -->
+    <div id="building-list">
+      <div class="empty-state"><div class="spinner" style="border-top-color:var(--primary)"></div></div>
+    </div>
+  </aside>
+
+  <!-- ════════════ MAIN CONTENT ════════════ -->
+  <main id="main-content">
+
+    <!-- ── MAP VIEW ── -->
+    <div class="page-panel active" id="panel-map">
+      <div id="map-view">
+        <div id="leaflet-map"></div>
+
+        <!-- Map controls -->
+        <div class="map-controls">
+          <button class="map-ctrl-btn" id="map-zoom-in" title="Phóng to">+</button>
+          <button class="map-ctrl-btn" id="map-zoom-out" title="Thu nhỏ">−</button>
+          <button class="map-ctrl-btn" id="map-reset" title="Về vị trí ban đầu">⌂</button>
+        </div>
+
+        <!-- Map legend -->
+        <div class="map-legend">
+          <div class="legend-title">Trạng Thái Hồ Sơ</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#10B981"></div>Phase 2 Đã duyệt</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#7C3AED"></div>Phase 2 Chờ duyệt</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#0284C7"></div>Phase 1 Đã duyệt</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#3B82F6"></div>Phase 1 Chờ duyệt</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#EF4444"></div>Từ chối</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#F59E0B"></div>⚠️ GPS Flag</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#475569"></div>Chưa khảo sát</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── LIST VIEW ── -->
+    <div class="page-panel" id="panel-list">
+      <div id="list-view">
+        <div class="review-table-wrap">
+          <table class="review-table" data-table="review">
+            <thead>
+              <tr>
+                <th class="sort-btn">Mã Căn ↕</th>
+                <th>Chủ hộ</th>
+                <th>Địa chỉ</th>
+                <th class="sort-btn">Chainage ↕</th>
+                <th class="sort-btn">Khoảng cách ↕</th>
+                <th>Phase 1</th>
+                <th>Phase 2</th>
+                <th class="sort-btn">GPS Lệch ↕</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td colspan="8" style="text-align:center;color:var(--text-3);padding:40px">Đang tải...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── ANALYTICS VIEW ── -->
+    <div class="page-panel" id="panel-analytics">
+      <div class="empty-state" style="height:100%">
+        <div class="empty-state-icon">📊</div>
+        <div class="empty-state-title">Phân Tích & Báo Cáo</div>
+        <div class="empty-state-msg">Biểu đồ ECS distribution, BRA heatmap, và báo cáo tiến độ theo Zone sẽ có trong phiên bản tiếp theo.</div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════════
+     DETAIL PANEL (SLIDE-IN RIGHT)
+══════════════════════════════════════════════════════════════════════ -->
+<div id="detail-panel" role="dialog" aria-label="Chi tiết công trình">
+
+  <!-- Panel Header -->
+  <div class="panel-header">
+    <div class="panel-header-info">
+      <div class="panel-building-code" id="panel-building-code">—</div>
+      <div class="panel-owner" id="panel-owner">—</div>
+      <div class="panel-address" id="panel-address">—</div>
+      <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap" id="panel-badges"></div>
+    </div>
+    <button class="panel-close-btn" id="panel-close-btn" title="Đóng">✕</button>
+  </div>
+
+  <!-- Panel Tabs -->
+  <nav class="panel-tabs" role="tablist">
+    <button class="panel-tab active" data-tab="phase1" role="tab">📊 Phase 1</button>
+    <button class="panel-tab" data-tab="phase2" role="tab">🔍 Phase 2</button>
+    <button class="panel-tab" data-tab="defects" role="tab">📋 Sổ D-xx</button>
+    <button class="panel-tab" data-tab="photos" role="tab">📷 Ảnh</button>
+    <button class="panel-tab" data-tab="gps" role="tab">📍 GPS</button>
+    <button class="panel-tab" data-tab="sign" role="tab">✍️ Chữ ký</button>
+    <button class="panel-tab" data-tab="audit" role="tab">📝 Lịch sử</button>
+    <button class="panel-tab" data-tab="building" role="tab">🏢 Công trình</button>
+  </nav>
+
+  <!-- Panel Content -->
+  <div class="panel-body fade-in" id="panel-body">
+    <div class="empty-state">
+      <div class="empty-state-icon">🏗️</div>
+      <div class="empty-state-title">Chọn một công trình</div>
+      <div class="empty-state-msg">Nhấp vào marker trên bản đồ hoặc công trình trong danh sách để xem chi tiết</div>
+    </div>
+  </div>
+
+  <!-- Action Bar -->
+  <div class="action-bar">
+    <button class="btn btn-success" id="btn-approve">✅ Phê Duyệt</button>
+    <button class="btn btn-danger"  id="btn-reject">❌ Từ Chối</button>
+    <button class="btn btn-ghost btn-sm" onclick="window.print()" title="In hồ sơ">🖨️</button>
+    <div style="flex:1"></div>
+    <button class="btn btn-ghost btn-sm" onclick="DetailPanel.switchTab('audit')">📝 Lịch sử</button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════════
+     MODAL OVERLAY
+══════════════════════════════════════════════════════════════════════ -->
+<div id="modal-overlay" role="dialog" aria-modal="true">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div class="modal-title" id="modal-title">Modal</div>
+      <button class="modal-close" id="modal-close-btn">✕</button>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+    <div class="modal-footer" id="modal-footer"></div>
+  </div>
+</div>
+
+<!-- Toast container -->
+<div id="toast-container"></div>
+
+<!-- Scripts -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="js/portal.js"></script>
+
 </body>
 </html>
