@@ -14,10 +14,15 @@ Dưới đây là toàn bộ danh sách các câu hỏi, trường thông tin v�
 - [ ] **Chủ sở hữu / Người sử dụng (Owner / User):** (Nhập text tên chủ nhà hoặc người đại diện)
 - [ ] **Nhóm đối tượng (Importance Group):** (Chọn: General - Thông thường / Important - Quan trọng / Critical - Rất quan trọng)
 - [ ] **Công trình liền kề (Adjacent Structures):** (Chọn: Nhà phố / Cao tầng / Công cộng / Đất trống / Khác)
+- [ ] **Thông tin tuyến Metro & GIS (Hệ thống tự động tính từ GPS):**
+  - Lý trình (Chainage): (Tự động)
+  - Khoảng cách tới tim tuyến Metro: (Tự động)
+  - Khoảng cách tới ranh giải phóng mặt bằng: (Tự động)
+  - Tọa độ GPS / GIS: (Tự động bắt khi check-in)
 - [ ] **Chụp ảnh định danh:**
-  - `P-01`: Chụp biển số nhà / Biển tên cơ quan (Có Watermark GPS).
-  - `P-02`: Chụp mặt đứng chính (Có Watermark GPS).
-  - `P-03`: Chụp mặt bên hoặc mặt sau (Tuỳ chọn).
+  - `P-01`: Chụp biển số nhà / Biển tên cơ quan (Có Watermark GPS & Thời gian).
+  - `P-02`: Chụp mặt đứng chính (Có Watermark GPS, cho phép ghi chú / vẽ kích thước trực tiếp lên ảnh).
+  - `P-03`: Chụp mặt bên hoặc mặt sau tiếp cận (Có Watermark GPS, cho phép ghi chú / vẽ kích thước).
   - `P-04`: Chụp bối cảnh tổng thể lấy cả đường/ngõ.
 
 ### Bước 2: Đánh giá Kiến trúc & Kết cấu cơ bản
@@ -34,12 +39,16 @@ Dưới đây là toàn bộ danh sách các câu hỏi, trường thông tin v�
   - Điểm CAT móng: (Nhập từ 1 đến 5 /5)
   - Nguồn thông tin (Source): (Multi-select: Drawing - Bản vẽ thiết kế / Owner - Chủ nhà cung cấp / Site - Khảo sát thực địa)
 
-### Bước 3: Tìm hiểu Lịch sử (Phỏng vấn chủ hộ)
-*Hỏi chuyện người đại diện hoặc chủ nhà để nắm lịch sử toà nhà.*
-- [ ] **Có cơi nới / Thay đổi tải trọng không?** (Có / Không)
-- [ ] **Có từng sửa chữa lớn / Cải tạo kết cấu không?** (Có / Không)
-- [ ] **Có từng ghi nhận hư hỏng kết cấu từ trước không?** (Có / Không)
-- [ ] **Lịch sử ngập lụt / Vấn đề môi trường?** (Có / Không)
+### Bước 3: Phỏng vấn Lịch sử, Sử dụng & Yếu tố Nhạy cảm
+*Hỏi chuyện người đại diện hoặc chủ nhà để nắm lịch sử toà nhà và các đặc điểm đặc biệt.*
+- [ ] **Cơi nới / Thay đổi tải trọng:** (Chọn: Không / Có / Chưa rõ)
+- [ ] **Sửa chữa lớn / Cải tạo kết cấu:** (Chọn: Không / Có / Chưa rõ)
+- [ ] **Lún / Nghiêng ghi nhận trước đây:** (Chọn: Không / Có / Chưa rõ)
+- [ ] **Hư hỏng do công trình lân cận gây ra:** (Chọn: Không / Có / Chưa rõ)
+- [ ] **Sự cố nghiêm trọng (Hỏa hoạn / Ngập lụt / Sự cố khác):** (Chọn: Không / Có / Chưa rõ)
+- [ ] **Thiết bị / Hoạt động nhạy cảm (VD: Phòng thí nghiệm, máy y tế, đồ cổ...):** (Chọn: Không / Có - Nhập mô tả chi tiết: ________)
+- [ ] **Tình trạng sử dụng hiện tại:** (Chọn: Đầy đủ / Một phần / Không sử dụng)
+- [ ] **Vận hành liên tục 24/7:** (Chọn: Không / Có)
 
 ### Bước 4: Đánh giá Tình trạng Hiện hữu (ECS - Cán bộ đi 1 vòng quan sát)
 *Cán bộ bắt đầu đi dạo 1 vòng quanh các tầng/phòng để đánh giá mắt thường (Thang điểm từ 0: Rất tốt -> 5: Rất kém)*
@@ -54,10 +63,10 @@ Dưới đây là toàn bộ danh sách các câu hỏi, trường thông tin v�
 - [ ] **Điểm Burland:** (Chọn 0: Không đáng kể / 1: Rất nhẹ / 2: Nhẹ / 3: Trung bình / 4: Nghiêm trọng / 5: Rất nghiêm trọng).
 - [ ] **Dấu hiệu cảnh báo kết cấu (Structural Flag):** (Chọn: Không có / Nứt >3mm / Võng sàn / Nghiêng lún / Khác)
 
-### Bước 6: Xác nhận Phạm vi & Mức độ Tiếp cận Khảo sát
-*Chốt lại thực tế xem cán bộ đã tiếp cận được những khu vực nào của toà nhà.*
-- [ ] **Mức độ tiếp cận khảo sát (Survey Access):** (Chọn: Đầy đủ / Một phần / Chỉ ngoài / Từ chối hoặc vắng mặt)
-- [ ] **Phạm vi chi tiết đã khảo sát:** (Multi-select: Bên ngoài, Tầng trệt, Các tầng lầu, Mái, Tầng hầm, Kết cấu phụ trợ).
+### Bước 6: Xác nhận Phạm vi & Hạn chế Tiếp cận Khảo sát
+*Chốt lại thực tế xem cán bộ đã tiếp cận được những khu vực nào của toà nhà sau khi kết thúc đi kiểm tra.*
+- [ ] **Phạm vi đã khảo sát (Survey Scope):** (Multi-select: Ngoài / Trong / Mái / Hầm / Khu phụ)
+- [ ] **Hạn chế tiếp cận (Access Limitations):** (Chọn: Không / Có - Ghi chú cụ thể: VD chỉ cho xem trệt, phòng dâu khoá cửa...)
 
 ### Bước 7: Tổng hợp Chỉ số & Tác động (Dành cho Cán bộ kỹ thuật)
 - [ ] **Độ hoàn thiện dữ liệu (Data Completeness Gate):** (Multi-select: Hồ sơ thiết kế, Hồ sơ sửa chữa, Lịch sử hư hỏng, Dữ liệu nền đất).
