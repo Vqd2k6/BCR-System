@@ -1,6 +1,6 @@
 # Bộ câu hỏi & Biểu mẫu Khảo sát Hiện trạng Công trình (KSQH - Metro 2)
 
-Dưới đây là toàn bộ danh sách các câu hỏi, trường thông tin và thao tác cần thu thập tại hiện trường. **Trình tự khảo sát đã được sắp xếp lại theo logic không gian thực tế** (Từ lúc đứng trước nhà, nhận diện, phỏng vấn, kiểm tra kết cấu, đến khi hoàn thành chốt biên bản).
+Dưới đây là toàn bộ danh sách các câu hỏi, trường thông tin và thao tác cần thu thập tại hiện trường. **Trình tự khảo sát được thiết kế hợp nhất theo Quy trình Khảo sát Từng Tầng (Floor-by-Floor Workflow)** giúp khảo sát viên vừa đi vừa kiểm tra không bị sót và không bị nhập trùng lặp dữ liệu.
 
 ---
 
@@ -50,81 +50,102 @@ Dưới đây là toàn bộ danh sách các câu hỏi, trường thông tin v�
 - [ ] **Tình trạng sử dụng hiện tại:** (Chọn: Đầy đủ / Một phần / Không sử dụng)
 - [ ] **Vận hành liên tục 24/7:** (Chọn: Không / Có)
 
-### Bước 4: Đánh giá Tình trạng Hiện hữu (ECS - Cán bộ đi 1 vòng quan sát)
-*Cán bộ bắt đầu đi dạo 1 vòng quanh các tầng/phòng để đánh giá mắt thường (Thang điểm từ 0: Rất tốt -> 5: Rất kém)*
-- [ ] **E1. Tường / Vách:** Có nứt, đổ ngã không? (Chọn điểm 0-5)
-- [ ] **E2. Kết cấu chịu lực (Cột/Vách):** Có khuyết tật không? (Chọn điểm 0-5)
-- [ ] **E3. Dầm / Sàn:** Có võng, nứt không? (Chọn điểm 0-5)
-- [ ] **E4. Bê tông / Cốt thép:** Có bong tróc, lộ thép rỉ sét không? (Chọn điểm 0-5)
-- [ ] **E5. Thấm dột / Ăn mòn:** Có rêu mốc, thấm nước nghiêm trọng không? (Chọn điểm 0-5)
+### Bước 4: Đánh giá Tình trạng Hiện hữu Sơ bộ (ECS - Nhìn nhanh 1 vòng)
+- [ ] **E1. Tường / Vách:** (Chọn điểm 0-5)
+- [ ] **E2. Kết cấu chịu lực (Cột/Vách):** (Chọn điểm 0-5)
+- [ ] **E3. Dầm / Sàn:** (Chọn điểm 0-5)
+- [ ] **E4. Bê tông / Cốt thép:** (Chọn điểm 0-5)
+- [ ] **E5. Thấm dột / Ăn mòn:** (Chọn điểm 0-5)
 
-### Bước 5: Chấm điểm Hư hỏng Tổng thể (Thang đo Burland)
-*Sau khi xem xét các hư hỏng ở Bước 4, chốt lại điểm Burland cho toàn bộ công trình.*
+### Bước 5: Chấm điểm Hư hỏng Tổng thể (Burland Scale)
 - [ ] **Điểm Burland:** (Chọn 0: Không đáng kể / 1: Rất nhẹ / 2: Nhẹ / 3: Trung bình / 4: Nghiêm trọng / 5: Rất nghiêm trọng).
 - [ ] **Dấu hiệu cảnh báo kết cấu (Structural Flag):** (Chọn: Không có / Nứt >3mm / Võng sàn / Nghiêng lún / Khác)
 
 ### Bước 6: Xác nhận Phạm vi & Hạn chế Tiếp cận Khảo sát
-*Chốt lại thực tế xem cán bộ đã tiếp cận được những khu vực nào của toà nhà sau khi kết thúc đi kiểm tra.*
 - [ ] **Phạm vi đã khảo sát (Survey Scope):** (Multi-select: Ngoài / Trong / Mái / Hầm / Khu phụ)
-- [ ] **Hạn chế tiếp cận (Access Limitations):** (Chọn: Không / Có - Ghi chú cụ thể: VD chỉ cho xem trệt, phòng dâu khoá cửa...)
+- [ ] **Hạn chế tiếp cận (Access Limitations):** (Chọn: Không / Có - Ghi chú cụ thể lý do)
 
-### Bước 7: Tổng hợp Chỉ số & Tác động (Dành cho Cán bộ kỹ thuật)
-- [ ] **Độ hoàn thiện dữ liệu (Data Completeness Gate):** (Multi-select: Hồ sơ thiết kế, Hồ sơ sửa chữa, Lịch sử hư hỏng, Dữ liệu nền đất).
-- [ ] *(Chỉ số Dễ tổn thương VI - Hệ thống tự tính toán dựa vào kết cấu, năm XD và ECS)*.
-- [ ] **Phân loại tác động dự kiến từ Metro (Impact Class):** (Chọn: Thấp / Trung bình / Cao / Rất cao)
-
-### Bước 8: Kết luận & Chữ ký
-- [ ] **Kết luận:** Có cần thực hiện Phase 2 (Đo vẽ chi tiết) hay không? (Có / Không)
-- [ ] **Yêu cầu quan trắc (Monitoring):** Có cần gắn máy đo độ lún/rung chấn không? (Có / Không)
-- [ ] **Ghi chú tổng hợp:** (Nhập text tự do).
+### Bước 7: Kết luận & Chữ ký Phase 1
+- [ ] **Kết luận:** Có cần thực hiện Phase 2 (Khảo sát đo vẽ chi tiết khuyết tật từng tầng) hay không? (Có / Không)
 - [ ] **Chữ ký xác nhận của Surveyor.**
 
 ---
 ---
 
-## PHẦN B: KHẢO SÁT GIAI ĐOẠN 2 (PHASE 2 - Khảo sát chi tiết Khuyết tật)
+## PHẦN B: KHẢO SÁT GIAI ĐOẠN 2 & HỢP NHẤT SỔ KHUYẾT TẬT (PHASE 2 - THỰC ĐỊA TỪNG TẦNG)
 
-*Phase 2 thường được thực hiện nếu Phase 1 đánh giá là "Cần khảo sát chi tiết", hoặc công trình nằm sát vách nhà ga (vùng lõi).*
+> **THIẾT KẾ HỢP NHẤT (UI/UX DESIGN):** 
+> Thay vì tách rời Mục 4 (Checklist sàng lọc) và Mục 5 (Sổ khuyết tật), ứng dụng sẽ triển khai luồng **Khảo sát theo Tầng / Phòng**. Khảo sát viên đi đến đâu (Tầng 1 -> Tầng 2 -> Tầng 3...), chọn Tầng/Phòng đó. Với mỗi dấu hiệu ghi nhận ("CÓ"), hệ thống sẽ tự động mở Form điền Khuyết tật tương ứng và gán mã duy nhất (`D-01`, `D-02`...) ngay lập tức.
 
-### Bước 1: Khởi tạo & Đánh giá tiếp cận hôm nay
-- [ ] **Mức độ tiếp cận:** (Chọn: Đầy đủ / Một phần / Bị hạn chế / Bị từ chối/vắng mặt).
-- [ ] **Chụp ảnh P-01 (Số nhà / Mặt đứng)** (Để chứng minh hôm nay có đến hiện trường).
-- [ ] **Chụp ảnh P-02 (Toàn cảnh đường/tuyến)**.
+### Bước 1: Khởi tạo Buổi khảo sát Chi tiết
+- [ ] **Mức độ tiếp cận hôm nay:** (Đầy đủ / Một phần / Bị hạn chế / Bị từ chối/vắng mặt)
+- [ ] **Chụp ảnh kiểm chứng hôm nay:** `P-01` (Biển số nhà) và `P-02` (Mặt đứng chính).
 
-### Bước 2: Lập danh sách phòng / Không gian (Room Grid)
-- [ ] Khai báo nhanh danh sách các phòng sẽ đi vào khảo sát. (VD: Phòng Khách - T1, Phòng Ngủ - T2, Bếp, Sân thượng...).
+### Bước 2: Luồng Khảo sát Từng Tầng (Loop từng Tầng / Khu vực)
+*Thực hiện lặp lại cho Tầng Hầm -> Tầng Trệt -> Tầng 1 -> Tầng 2 -> Mái...*
 
-### Bước 3: Ghi nhận Khuyết tật chi tiết (Defect Logging)
-*Bước này sẽ LẶP LẠI nhiều lần, cứ thấy 1 vết nứt/lỗi là tạo 1 Record mới (Đánh mã D-01, D-02...)*
-- [ ] **Tầng:** (Chọn/Nhập tên tầng)
-- [ ] **Khu vực / Phòng:** (Chọn từ danh sách Bước 2)
-- [ ] **Cấu kiện bị lỗi:** (Chọn: Cột, Dầm, Sàn, Tường, Trần, Cầu thang, Móng, Khác)
-- [ ] **Loại khuyết tật:** (Chọn: Nứt, Thấm dột, Bong tróc, Lún nghiêng, Phồng rộp, Khác)
-- [ ] *Nếu là vết Nứt, hiển thị thêm:*
-  - Bề rộng vết nứt lớn nhất (mm).
-  - Chiều dài vết nứt (m).
-- [ ] **Chụp ảnh Bối cảnh (CTX):** Đứng xa chụp rộng để thấy vết nứt nằm ở đâu trên mảng tường.
-- [ ] **Chụp ảnh Cận cảnh (CU):** Đưa thước đo / thước nứt (Crack ruler) vào sát vết nứt và chụp cận.
+#### 2.1. Chọn Tầng & Khu vực đang đứng:
+- [ ] **Tầng:** (Chọn: Tầng hầm / Tầng trệt / Tầng 1 / Tầng 2 / Tầng mái / Khu phụ...)
+- [ ] **Tên Phòng / Không gian cụ thể:** (Nhập text - VD: Phòng khách, Phòng ngủ 1, Hành lang, Bếp...)
 
-### Bước 4: Sơ đồ phác thảo & Ghim vị trí (Sketch Pinning)
-*Giúp định vị lại các mã D-01, D-02... nằm ở đâu trên mặt bằng không gian.*
-- [ ] **Tải lên / Chụp bản vẽ CAD hoặc bản vẽ phác tay.**
-- [ ] **Ghim toạ độ lỗi:** Chạm vào ảnh bản vẽ để thả các điểm ghim tương ứng với các Khuyết tật vừa tạo ở Bước 3.
-- [ ] **Ghi chú sơ đồ:** (Nhập text).
+#### 2.2. Danh mục Sàng lọc Chỉ số Hư hỏng (Screening Checklist per Floor):
+*(Bật/Tắt "Có" hoặc "Không" cho các nhóm chỉ số hư hỏng tại Tầng/Phòng này)*
 
-### Bước 5: Đo đạc Lún / Nghiêng (Tuỳ chọn)
-*Áp dụng nếu cán bộ có mang theo máy toàn đạc hoặc quả dọi.*
-- [ ] **Vị trí đo:** (VD: Góc Tây Bắc toà nhà)
-- [ ] **Đối tượng đo:** (VD: Cột trụ chính)
-- [ ] **Giá trị đo được:** (Nhập độ lún mm, hoặc góc nghiêng).
-- [ ] **Phương pháp đo:** (Máy thuỷ bình / Dây dọi / Toàn đạc điện tử...).
+1. **[ ] Nứt tường / Khối xây / Hoàn thiện** (Non-structural wall cracks)
+2. **[ ] Nứt cấu kiện kết cấu** (Cột / Dầm / Sàn / Tường chịu lực)
+3. **[ ] Biến dạng / Lún chênh / Nghiêng / Võng cục bộ**
+4. **[ ] Thấm / Rò rỉ nước / Rêu mốc**
+5. **[ ] Bong tróc / Ăn mòn / Lộ thép rỉ / Mục gỗ**
+6. **[ ] Mất tiết diện / Hư gối đỡ / Hư liên kết cấu kiện**
+7. **[ ] Kẹt cửa / Nứt quanh khuôn cửa / Mất kín nước**
+8. **[ ] Dấu hiệu khuyết tật đang phát triển / Đã sửa chữa nhưng bị tái nứt**
 
-### Bước 6: Tổng kết & Ký biên bản (Kết thúc quy trình)
-- [ ] **Số lượng ảnh gốc / Bản vẽ thu thập:** (Hệ thống tự đếm hoặc nhập tay).
-- [ ] **Các khu vực không thể vào được (Inaccessible Areas):** (VD: Kho chứa đồ khoá cửa, Tầng mái tôn mục...).
-- [ ] **Mô tả hư hỏng đáng chú ý nhất:** (Text).
-- [ ] **Cảnh báo khẩn cấp (Critical Signs):** Nguy cơ sập đổ cục bộ? (Có / Không).
-- [ ] **So sánh với kỳ trước (Delta Comparison - Nếu có):** (Chọn: Không đổi / Nứt rộng hơn / Dài hơn / Đã sửa chữa / Lỗi mới).
-- [ ] **Ý kiến của Chủ hộ:** (Nhập text ghi nhận phản hồi của dân).
+#### 2.3. Nhập Sổ Khuyết tật Chi tiết (Khi chọn "CÓ" ở bất kỳ mục nào trên):
+*Hệ thống tự động sinh Mã Khuyết tật duy nhất: `D-01`, `D-02`, `D-03`... và yêu cầu điền:*
+
+- [ ] **Mã khuyết tật (Defect ID):** (Tự động tạo: D-01, D-02...)
+- [ ] **Vị trí chi tiết:** (Chọn/Nhập: Vách trước / Vách sau / Bên hông / Trần / Góc sàn...)
+- [ ] **Cấu kiện / Vật liệu:** (Chọn: BTCT / Tường gạch / Khung thép / Gỗ / Khác)
+- [ ] **Loại / Dạng nứt:** (Chọn: Xiên / Ziczac / Dọc / Ngang / Chân chim / Phồng rộp / Khác)
+- [ ] **Bề rộng lớn nhất (Max Width):** (Nhập số mm - VD: `1.5` mm)
+- [ ] **Chiều dài vết nứt (Length):** (Nhập số mm hoặc m - VD: `1200` mm)
+- [ ] **Hướng vết nứt (Orientation):** (Nhập góc hoặc hướng - VD: `45°`, `50°`, Ngang, Dọc)
+- [ ] **Trạng thái Hoạt động (Activity Status):**
+  - `U` - Unknown (Chưa rõ)
+  - `S` - Stable / Old (Ổn định / Vết nứt cũ)
+  - `A` - Active / Suspected Active (Đang phát triển / Nghi ngờ đang phát triển)
+- [ ] **Ý nghĩa Kết cấu (Structural Significance):**
+  - `N/A` - Không ảnh hưởng kết cấu
+  - `Low` - Mức độ Thấp
+  - `Moderate` - Mức độ Trung bình
+  - `High` - Mức độ Cao
+  - `Critical` - Nguy hiểm / Cần xử lý khẩn cấp
+- [ ] **Chụp ảnh minh chứng khuyết tật:**
+  - `Photo CTX` (Context): Ảnh bối cảnh chụp xa để biết vị trí vết nứt ở đâu trên mảng tường.
+  - `Photo CU` (Close-Up): Ảnh chụp cận cảnh kèm thước đo bề rộng nứt (Crack ruler).
+
+---
+
+### Bước 3: Sơ đồ Phác thảo & Ghim Vị trí Lỗi (Sketch Pinning)
+*Sau khi thu thập xong danh sách vết nứt D-01, D-02... của toàn nhà:*
+- [ ] **Tải lên / Chụp ảnh bản vẽ mặt bằng hoặc sơ đồ phác tay.**
+- [ ] **Ghim vị trí:** Chạm lên bản vẽ để thả các ghim mã `D-01`, `D-02`... đúng vị trí thực tế trên sơ đồ.
+
+---
+
+### Bước 4: Đo đạc Lún / Nghiêng bằng Thiết bị (Tuỳ chọn)
+- [ ] **Vị trí đo:** (VD: Góc Tây Nam toà nhà)
+- [ ] **Đối tượng đo:** (Cột trụ / Vách chịu lực)
+- [ ] **Giá trị đo được:** (Độ lún mm / Góc nghiêng)
+- [ ] **Phương pháp đo:** (Máy thuỷ bình / Dây dọi / Toàn đạc điện tử)
+
+---
+
+### Bước 5: Tổng kết & Chốt Biên bản Hiện trường
+- [ ] **Tổng số khuyết tật đã ghi nhận:** (Hệ thống tự đếm)
+- [ ] **Các khu vực bị hạn chế / Không thể tiếp cận:** (Nhập text)
+- [ ] **Mô tả khuyết tật đáng chú ý nhất:** (Nhập text)
+- [ ] **Cảnh báo khẩn cấp (Critical Flag):** Có nguy cơ sập đổ / Nguy hiểm ngay không? (Có / Không)
+- [ ] **Ý kiến / Phản hồi của Chủ hộ:** (Nhập text)
 - [ ] **Chữ ký điện tử của Cán bộ khảo sát (Surveyor).**
 - [ ] **Chữ ký điện tử của Chủ hộ / Người đại diện.**
