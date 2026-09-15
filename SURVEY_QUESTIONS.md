@@ -1,30 +1,38 @@
 # Bộ câu hỏi & Biểu mẫu Khảo sát Hiện trạng Công trình (KSQH - Metro 2)
 
-Dưới đây là toàn bộ danh sách các câu hỏi, trường thông tin và thao tác cần thu thập tại hiện trường. **Trình tự khảo sát đã được sắp xếp lại theo logic không gian thực tế** (Từ lúc đứng trước nhà, gặp chủ nhà, đi vòng quanh đánh giá, đến lúc chốt sổ và ký tên).
+Dưới đây là toàn bộ danh sách các câu hỏi, trường thông tin và thao tác cần thu thập tại hiện trường. **Trình tự khảo sát đã được sắp xếp lại theo logic không gian thực tế** (Từ lúc đứng trước nhà, nhận diện, phỏng vấn, kiểm tra kết cấu, đến khi hoàn thành chốt biên bản).
 
 ---
 
 ## PHẦN A: KHẢO SÁT GIAI ĐOẠN 1 (PHASE 1 - Sơ bộ & Rủi ro)
 
 ### Bước 1: Đến nơi và Nhận diện (Ngoài công trình)
-*Lúc này cán bộ đang đứng trước công trình để đối chiếu địa chỉ.*
-- [ ] **Mã công trình:** (Kế thừa từ hệ thống phân công)
-- [ ] **Tên chủ hộ / Người đại diện thực tế:** (Nhập text)
-- [ ] **Địa chỉ thực tế:** (Nhập text - để đối chiếu xem có khớp với quy hoạch)
-- [ ] **Năm xây dựng ước tính:** (Nhập số)
+*Lúc này cán bộ đang đứng trước công trình để đối chiếu địa chỉ và thông tin định danh.*
+- [ ] **Mã công trình (Building ID):** (Kế thừa từ hệ thống phân công)
+- [ ] **Tên công trình (Building Name):** (Nhập text - VD: Nhà ở gia đình, Trụ sở Cty A, Trường học...)
+- [ ] **Địa chỉ (Address):** (Nhập text - Đối chiếu thực tế với sơ đồ quy hoạch)
+- [ ] **Chủ sở hữu / Người sử dụng (Owner / User):** (Nhập text tên chủ nhà hoặc người đại diện)
+- [ ] **Nhóm đối tượng (Importance Group):** (Chọn: General - Thông thường / Important - Quan trọng / Critical - Rất quan trọng)
+- [ ] **Công trình liền kề (Adjacent Structures):** (Chọn: Nhà phố / Cao tầng / Công cộng / Đất trống / Khác)
 - [ ] **Chụp ảnh định danh:**
   - `P-01`: Chụp biển số nhà / Biển tên cơ quan (Có Watermark GPS).
   - `P-02`: Chụp mặt đứng chính (Có Watermark GPS).
   - `P-03`: Chụp mặt bên hoặc mặt sau (Tuỳ chọn).
   - `P-04`: Chụp bối cảnh tổng thể lấy cả đường/ngõ.
 
-### Bước 2: Đánh giá Ngoại quan & Kết cấu cơ bản
-*Đứng từ ngoài nhìn vào hoặc bước vào sân/phòng khách để đánh giá sơ bộ kiến trúc.*
-- [ ] **Đặc điểm sử dụng (Building Use):** (Chọn: Nhà ở / Thương mại / Công nghiệp / Trường học / Bệnh viện / Công cộng / Tôn giáo / Khác)
-- [ ] **Số tầng nổi:** (Nhập số)
-- [ ] **Số tầng hầm:** (Nhập số)
-- [ ] **Hệ kết cấu chịu lực chính:** (Chọn: Khung BTCT / Tường gạch chịu lực / Khung thép / Gỗ / Hỗn hợp / Khác)
-- [ ] **Loại móng (Dự đoán/Hỏi chủ nhà):** (Chọn: Móng nông / Móng cọc / Móng bè / Không xác định)
+### Bước 2: Đánh giá Kiến trúc & Kết cấu cơ bản
+*Quan sát ngoại quan và bước vào trong để ghi nhận các thông số kết cấu chính.*
+- [ ] **Công năng sử dụng (Use):** (Chọn: Nhà ở / Cửa hàng / Văn phòng / Khách sạn / Công cộng / Khác)
+- [ ] **Số tầng:**
+  - Số tầng nổi: (Nhập số)
+  - Số tầng hầm: (Nhập số)
+- [ ] **Năm xây dựng / Tuổi thọ (Age):** (Nhập số năm - Tick chọn "Ước tính" nếu chủ nhà không nhớ chính xác)
+- [ ] **Hệ kết cấu chịu lực (Structural System):** (Chọn: RC - Bê tông cốt thép / Steel - Khung thép / Masonry - Tường gạch chịu lực / Mixed - Hỗn hợp / Other - Khác)
+- [ ] **Dạng chịu lực (Form):** (Chọn: Frame - Hệ khung chịu lực / Wall - Tường chịu lực / Mixed - Hỗn hợp / Other - Khác)
+- [ ] **Loại móng (Foundation):** (Chọn: Shallow - Móng nông / Wood - Cọc gỗ/cừ tràm / PC - Cọc BTCT đúc sẵn / CIP - Cọc nhồi đổ tại chỗ / Unknown - Không rõ)
+- [ ] **Đánh giá Nguồn thông tin móng (CAT Foundation):**
+  - Điểm CAT móng: (Nhập từ 1 đến 5 /5)
+  - Nguồn thông tin (Source): (Multi-select: Drawing - Bản vẽ thiết kế / Owner - Chủ nhà cung cấp / Site - Khảo sát thực địa)
 
 ### Bước 3: Tìm hiểu Lịch sử (Phỏng vấn chủ hộ)
 *Hỏi chuyện người đại diện hoặc chủ nhà để nắm lịch sử toà nhà.*
@@ -46,9 +54,10 @@ Dưới đây là toàn bộ danh sách các câu hỏi, trường thông tin v�
 - [ ] **Điểm Burland:** (Chọn 0: Không đáng kể / 1: Rất nhẹ / 2: Nhẹ / 3: Trung bình / 4: Nghiêm trọng / 5: Rất nghiêm trọng).
 - [ ] **Dấu hiệu cảnh báo kết cấu (Structural Flag):** (Chọn: Không có / Nứt >3mm / Võng sàn / Nghiêng lún / Khác)
 
-### Bước 6: Xác nhận Phạm vi ĐÃ khảo sát (Làm cuối quá trình quan sát)
-*Vì đã đi xong 1 vòng, giờ mới tick chọn được mình đã đi được những đâu.*
-- [ ] **Phạm vi tiếp cận được:** (Multi-select: Bên ngoài, Tầng trệt, Các tầng lầu, Mái, Tầng hầm, Kết cấu phụ trợ).
+### Bước 6: Xác nhận Phạm vi & Mức độ Tiếp cận Khảo sát
+*Chốt lại thực tế xem cán bộ đã tiếp cận được những khu vực nào của toà nhà.*
+- [ ] **Mức độ tiếp cận khảo sát (Survey Access):** (Chọn: Đầy đủ / Một phần / Chỉ ngoài / Từ chối hoặc vắng mặt)
+- [ ] **Phạm vi chi tiết đã khảo sát:** (Multi-select: Bên ngoài, Tầng trệt, Các tầng lầu, Mái, Tầng hầm, Kết cấu phụ trợ).
 
 ### Bước 7: Tổng hợp Chỉ số & Tác động (Dành cho Cán bộ kỹ thuật)
 - [ ] **Độ hoàn thiện dữ liệu (Data Completeness Gate):** (Multi-select: Hồ sơ thiết kế, Hồ sơ sửa chữa, Lịch sử hư hỏng, Dữ liệu nền đất).
@@ -109,4 +118,4 @@ Dưới đây là toàn bộ danh sách các câu hỏi, trường thông tin v�
 - [ ] **So sánh với kỳ trước (Delta Comparison - Nếu có):** (Chọn: Không đổi / Nứt rộng hơn / Dài hơn / Đã sửa chữa / Lỗi mới).
 - [ ] **Ý kiến của Chủ hộ:** (Nhập text ghi nhận phản hồi của dân).
 - [ ] **Chữ ký điện tử của Cán bộ khảo sát (Surveyor).**
-- [ ] **Chữ ký điện tử của Chủ hộ / Người đại diện.** 
+- [ ] **Chữ ký điện tử của Chủ hộ / Người đại diện.**
