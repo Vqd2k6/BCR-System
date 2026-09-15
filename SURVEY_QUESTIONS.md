@@ -1,6 +1,6 @@
 # Bộ câu hỏi & Biểu mẫu Khảo sát Hiện trạng Công trình (KSQH - Metro 2)
 
-Dưới đây là toàn bộ danh sách các câu hỏi, trường thông tin và thao tác cần thu thập tại hiện trường. **Trình tự khảo sát được thiết kế hợp nhất theo Quy trình Khảo sát Từng Tầng (Floor-by-Floor Workflow)** giúp khảo sát viên vừa đi vừa kiểm tra không bị sót và không bị nhập trùng lặp dữ liệu.
+Dưới đây là toàn bộ danh sách các câu hỏi, trường thông tin và thao tác cần thu thập tại hiện trường. **Trình tự khảo sát được thiết kế tối ưu theo Thực địa Thực tế (1 Ảnh Bối cảnh ➔ Ghim nhiều Mã Khuyết tật D-xx ➔ Chụp Ảnh Cận cảnh & Nhập chỉ số)** giúp tiết kiệm 70% thời gian chụp ảnh và chống bỏ sót.
 
 ---
 
@@ -72,64 +72,52 @@ Dưới đây là toàn bộ danh sách các câu hỏi, trường thông tin v�
 ---
 ---
 
-## PHẦN B: KHẢO SÁT GIAI ĐOẠN 2 & HỢP NHẤT SỔ KHUYẾT TẬT (PHASE 2 - THỰC ĐỊA TỪNG TẦNG)
+## PHẦN B: KHẢO SÁT GIAI ĐOẠN 2 & HỢP NHẤT SỔ KHUYẾT TẬT (PHASE 2 - QUY TRÌNH 1 BỐI CẢNH ➔ NHIỀU CẬN CẢNH)
 
-> **THIẾT KẾ HỢP NHẤT (UI/UX DESIGN):** 
-> Thay vì tách rời Mục 4 (Checklist sàng lọc) và Mục 5 (Sổ khuyết tật), ứng dụng sẽ triển khai luồng **Khảo sát theo Tầng / Phòng**. Khảo sát viên đi đến đâu (Tầng 1 -> Tầng 2 -> Tầng 3...), chọn Tầng/Phòng đó. Với mỗi dấu hiệu ghi nhận ("CÓ"), hệ thống sẽ tự động mở Form điền Khuyết tật tương ứng và gán mã duy nhất (`D-01`, `D-02`...) ngay lập tức.
+> **THIẾT KẾ ĐỘT PHÁ UI/UX (1 CONTEXT PHOTO ➔ MULTIPLE PINS ➔ CLOSE-UPS):**
+> Trong thực tế, 1 bức tường/mảng trần có thể chứa 3-5 vết nứt khác nhau. 
+> Khảo sát viên **chỉ cần đứng lùi lại chụp 1 tấm ảnh Bối cảnh (CTX)** duy nhất cho cả bức tường. Sau đó chạm trực tiếp lên bức ảnh vừa chụp để ghim các mã `D-01`, `D-02`, `D-03`... vào từng vết nứt. Cuối cùng tiến lại gần chụp ảnh Cận cảnh (`CU`) & điền thông số cho từng ghim.
 
 ### Bước 1: Khởi tạo Buổi khảo sát Chi tiết
 - [ ] **Mức độ tiếp cận hôm nay:** (Đầy đủ / Một phần / Bị hạn chế / Bị từ chối/vắng mặt)
 - [ ] **Chụp ảnh kiểm chứng hôm nay:** `P-01` (Biển số nhà) và `P-02` (Mặt đứng chính).
 
-### Bước 2: Luồng Khảo sát Từng Tầng (Loop từng Tầng / Khu vực)
-*Thực hiện lặp lại cho Tầng Hầm -> Tầng Trệt -> Tầng 1 -> Tầng 2 -> Mái...*
+### Bước 2: Quy trình Khảo sát Mảng tường / Khu vực (Wall/Area Workflow)
 
 #### 2.1. Chọn Tầng & Khu vực đang đứng:
-- [ ] **Tầng:** (Chọn: Tầng hầm / Tầng trệt / Tầng 1 / Tầng 2 / Tầng mái / Khu phụ...)
-- [ ] **Tên Phòng / Không gian cụ thể:** (Nhập text - VD: Phòng khách, Phòng ngủ 1, Hành lang, Bếp...)
+- [ ] **Tầng:** (Chọn: Tầng hầm / Tầng trệt / Tầng 1 / Tầng 2 / Tầng mái...)
+- [ ] **Tên Phòng / Không gian:** (VD: Phòng khách, Phòng ngủ 1, Hành lang...)
+- [ ] **Mảng cấu kiện / Vị trí mảng tường:** (VD: Vách tường phía Trước, Vách tường Bên hông, Mảng trệt...)
 
-#### 2.2. Danh mục Sàng lọc Chỉ số Hư hỏng (Screening Checklist per Floor):
-*(Bật/Tắt "Có" hoặc "Không" cho các nhóm chỉ số hư hỏng tại Tầng/Phòng này)*
+#### 2.2. Chụp Ảnh Bối Cảnh Mảng Tường (Photo CTX):
+- [ ] **Chụp 1 Ảnh Bối cảnh (Photo CTX):** Đứng lùi lại chụp bao quát mảng tường/cấu kiện đang khảo sát.
 
-1. **[ ] Nứt tường / Khối xây / Hoàn thiện** (Non-structural wall cracks)
-2. **[ ] Nứt cấu kiện kết cấu** (Cột / Dầm / Sàn / Tường chịu lực)
-3. **[ ] Biến dạng / Lún chênh / Nghiêng / Võng cục bộ**
-4. **[ ] Thấm / Rò rỉ nước / Rêu mốc**
-5. **[ ] Bong tróc / Ăn mòn / Lộ thép rỉ / Mục gỗ**
-6. **[ ] Mất tiết diện / Hư gối đỡ / Hư liên kết cấu kiện**
-7. **[ ] Kẹt cửa / Nứt quanh khuôn cửa / Mất kín nước**
-8. **[ ] Dấu hiệu khuyết tật đang phát triển / Đã sửa chữa nhưng bị tái nứt**
+#### 2.3. Chạm để Thả Ghim Khuyết tật (Pinning D-xx directly on Photo CTX):
+*Trên giao diện bức ảnh Bối cảnh vừa chụp, khảo sát viên chạm tay vào từng vết nứt để thả ghim:*
+- [ ] **Chạm lần 1:** Thả ghim mã `D-01` vào vị trí vết nứt thứ nhất.
+- [ ] **Chạm lần 2:** Thả ghim mã `D-02` vào vị trí vết nứt thứ hai.
+- [ ] **Chạm lần 3:** Thả ghim mã `D-03` vào vị trí vết nứt thứ ba.
+*(Có thể kéo/thả điều chỉnh lại vị trí ghim nếu bị lệch).*
 
-#### 2.3. Nhập Sổ Khuyết tật Chi tiết (Khi chọn "CÓ" ở bất kỳ mục nào trên):
-*Hệ thống tự động sinh Mã Khuyết tật duy nhất: `D-01`, `D-02`, `D-03`... và yêu cầu điền:*
+#### 2.4. Nhập Chi tiết & Chụp Cận Cảnh cho từng Ghim (Detail per Pin D-xx):
+*Bấm vào từng ghim (`D-01`, `D-02`...) trên hình để mở Form thông số tương ứng:*
 
-- [ ] **Mã khuyết tật (Defect ID):** (Tự động tạo: D-01, D-02...)
-- [ ] **Vị trí chi tiết:** (Chọn/Nhập: Vách trước / Vách sau / Bên hông / Trần / Góc sàn...)
-- [ ] **Cấu kiện / Vật liệu:** (Chọn: BTCT / Tường gạch / Khung thép / Gỗ / Khác)
-- [ ] **Loại / Dạng nứt:** (Chọn: Xiên / Ziczac / Dọc / Ngang / Chân chim / Phồng rộp / Khác)
-- [ ] **Bề rộng lớn nhất (Max Width):** (Nhập số mm - VD: `1.5` mm)
-- [ ] **Chiều dài vết nứt (Length):** (Nhập số mm hoặc m - VD: `1200` mm)
-- [ ] **Hướng vết nứt (Orientation):** (Nhập góc hoặc hướng - VD: `45°`, `50°`, Ngang, Dọc)
-- [ ] **Trạng thái Hoạt động (Activity Status):**
-  - `U` - Unknown (Chưa rõ)
-  - `S` - Stable / Old (Ổn định / Vết nứt cũ)
-  - `A` - Active / Suspected Active (Đang phát triển / Nghi ngờ đang phát triển)
-- [ ] **Ý nghĩa Kết cấu (Structural Significance):**
-  - `N/A` - Không ảnh hưởng kết cấu
-  - `Low` - Mức độ Thấp
-  - `Moderate` - Mức độ Trung bình
-  - `High` - Mức độ Cao
-  - `Critical` - Nguy hiểm / Cần xử lý khẩn cấp
-- [ ] **Chụp ảnh minh chứng khuyết tật:**
-  - `Photo CTX` (Context): Ảnh bối cảnh chụp xa để biết vị trí vết nứt ở đâu trên mảng tường.
-  - `Photo CU` (Close-Up): Ảnh chụp cận cảnh kèm thước đo bề rộng nứt (Crack ruler).
+##### Khuyết tật `D-xx`:
+- [ ] **Chỉ số sàng lọc (Section 4 Indicator):** (Chọn: Nứt tường hoàn thiện / Nứt kết cấu cột-dầm / Lún võng / Thấm dột / Bong tróc lộ thép / Mất tiết diện / Kẹt cửa / Tái nứt)
+- [ ] **Cấu kiện / Vật liệu:** (BTCT / Tường gạch / Khung thép / Gỗ / Khác)
+- [ ] **Loại / Dạng nứt:** (Xiên / Ziczac / Dọc / Ngang / Chân chim / Phồng rộp...)
+- [ ] **Kích thước vết nứt:**
+  - Bề rộng lớn nhất (Max Width): (Nhập số mm - VD: `1.5` mm)
+  - Chiều dài vết nứt (Length): (Nhập số mm hoặc m - VD: `1200` mm)
+  - Hướng vết nứt (Orientation): (Nhập góc/hướng - VD: `45°`, Dọc, Ngang)
+- [ ] **Trạng thái Hoạt động (Activity Status):** `U` (Chưa rõ) / `S` (Ổn định/cũ) / `A` (Đang phát triển)
+- [ ] **Ý nghĩa Kết cấu (Structural Significance):** `N/A` / `Low` / `Moderate` / `High` / `Critical` (Cảnh báo sập)
+- [ ] **Chụp Ảnh Cận Cảnh (Photo CU):** Tiến lại gần vết nứt `D-xx` này, đặt thước đo (Crack ruler) và bấm chụp 1 tấm cận cảnh.
 
 ---
 
-### Bước 3: Sơ đồ Phác thảo & Ghim Vị trí Lỗi (Sketch Pinning)
-*Sau khi thu thập xong danh sách vết nứt D-01, D-02... của toàn nhà:*
-- [ ] **Tải lên / Chụp ảnh bản vẽ mặt bằng hoặc sơ đồ phác tay.**
-- [ ] **Ghim vị trí:** Chạm lên bản vẽ để thả các ghim mã `D-01`, `D-02`... đúng vị trí thực tế trên sơ đồ.
+### Bước 3: Đưa ảnh Bối cảnh & Ghim vào Sơ đồ Mặt bằng (Sketch Plan Integration)
+- [ ] **Sơ đồ mặt bằng (CAD / Phác thảo):** Gán toàn bộ mảng tường vừa khảo sát (kèm các ghim `D-01`, `D-02`...) lên sơ đồ mặt bằng tổng thể của tầng.
 
 ---
 
@@ -142,7 +130,7 @@ Dưới đây là toàn bộ danh sách các câu hỏi, trường thông tin v�
 ---
 
 ### Bước 5: Tổng kết & Chốt Biên bản Hiện trường
-- [ ] **Tổng số khuyết tật đã ghi nhận:** (Hệ thống tự đếm)
+- [ ] **Tổng số khuyết tật đã ghi nhận:** (Hệ thống tự đếm tổng số ghim D-xx)
 - [ ] **Các khu vực bị hạn chế / Không thể tiếp cận:** (Nhập text)
 - [ ] **Mô tả khuyết tật đáng chú ý nhất:** (Nhập text)
 - [ ] **Cảnh báo khẩn cấp (Critical Flag):** Có nguy cơ sập đổ / Nguy hiểm ngay không? (Có / Không)
