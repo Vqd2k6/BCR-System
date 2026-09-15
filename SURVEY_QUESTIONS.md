@@ -58,7 +58,8 @@ Dưới đây là toàn bộ danh sách các câu hỏi, trường thông tin v�
 - [ ] **E5. Thấm dột / Ăn mòn:** (Chọn điểm 0-5)
 
 ### Bước 5: Chấm điểm Hư hỏng Tổng thể (Burland Scale)
-- [ ] **Điểm Burland:** (Chọn 0: Không đáng kể / 1: Rất nhẹ / 2: Nhẹ / 3: Trung bình / 4: Nghiêm trọng / 5: Rất nghiêm trọng).
+*(Có nút trợ giúp (?) hiển thị bảng tra cứu quy chuẩn Burland Grade 0-5 tại Mục 7 bên dưới)*
+- [ ] **Điểm Burland sơ bộ:** (Chọn 0: Không đáng kể / 1: Rất nhẹ / 2: Nhẹ / 3: Trung bình / 4: Nghiêm trọng / 5: Rất nghiêm trọng).
 - [ ] **Dấu hiệu cảnh báo kết cấu (Structural Flag):** (Chọn: Không có / Nứt >3mm / Võng sàn / Nghiêng lún / Khác)
 
 ### Bước 6: Xác nhận Phạm vi & Hạn chế Tiếp cận Khảo sát
@@ -119,39 +120,65 @@ Dưới đây là toàn bộ danh sách các câu hỏi, trường thông tin v�
 ### Bước 3: Đánh giá Lún - Nghiêng - Biến dạng (Settlement - Tilt - Deformation)
 *Thực hiện đánh giá hoặc đo đạc các hiện tượng biến dạng hình học của công trình.*
 
-- [ ] **1. Lún chênh (Differential Settlement):**
-  - Trạng thái: (Chọn: Không thấy / Nghi ngờ / Có)
-  - Vị trí lún chênh (nếu Có): (Nhập text vị trí)
-- [ ] **2. Nghiêng công trình (Overall Building Tilt):**
-  - Trạng thái: (Chọn: Không thấy / Nghi ngờ / Có)
-  - Độ nghiêng mặt trước (X): (Nhập số %)
-  - Độ nghiêng mặt bên hông (Y): (Nhập số %)
-- [ ] **3. Nghiêng sàn (Floor Tilt):**
-  - Trạng thái: (Chọn: Không thấy / Nghi ngờ / Có)
-  - Độ nghiêng sàn: (Nhập số %)
-- [ ] **4. Võng dầm / Sàn (Beam / Slab Deflection):**
-  - Trạng thái: (Chọn: Không thấy / Nghi ngờ / Có)
-  - Vị trí võng (nếu Có): (Nhập text vị trí)
-- [ ] **5. Nguồn xác định dữ liệu (Source of Determination):**
-  - (Multi-select: Quan sát mắt thường / Đo nhanh bằng dụng cụ / Bản vẽ thiết kế / Thông tin từ chủ nhà)
-- [ ] **6. Độ tin cậy của dữ liệu (Confidence Level):**
-  - (Chọn: Cao / Trung bình / Thấp)
-- [ ] **7. Yêu cầu Đo đạc / Quan trắc bổ sung (Additional Monitoring):**
-  - Cần quan trắc thêm không? (Chọn: Không / Có)
-  - Nhận xét đánh giá chuyên môn: (Nhập text tự do)
+- [ ] **1. Lún chênh (Differential Settlement):** (Không thấy / Nghi ngờ / Có | Vị trí: ______)
+- [ ] **2. Nghiêng công trình (Overall Building Tilt):** (Không thấy / Nghi ngờ / Có | X trước: ____%, Y hông: ____%)
+- [ ] **3. Nghiêng sàn (Floor Tilt):** (Không thấy / Nghi ngờ / Có | ____%)
+- [ ] **4. Võng dầm / Sàn (Beam / Slab Deflection):** (Không thấy / Nghi ngờ / Có | Vị trí: ______)
+- [ ] **5. Nguồn xác định dữ liệu:** (Quan sát mắt thường / Đo nhanh / Bản vẽ thiết kế / Chủ nhà)
+- [ ] **6. Độ tin cậy dữ liệu:** (Cao / Trung bình / Thấp)
+- [ ] **7. Yêu cầu Đo đạc / Quan trắc bổ sung:** (Không / Có | Nhận xét: ______)
 
 ---
 
-### Bước 4: Đưa ảnh Bối cảnh & Ghim vào Sơ đồ Mặt bằng (Sketch Plan Integration)
+### BẢNG TRA CỨU: HƯ HỎNG NHÌN THẤY THEO BURLAND (Cheat Sheet Tooltip trên App)
+*(Dạng Popup Trợ giúp (?) để Surveyor bấm vào xem lại bất kỳ lúc nào)*
+
+| Grade | Mức độ | Mô tả / Mức sửa chữa điển hình | Bề rộng nứt xấp xỉ |
+| :---: | :---: | :--- | :---: |
+| **0** | Negligible | Nứt tóc; thực tế không cần sửa chữa. | $\le 0.1$ mm |
+| **1** | Very slight | Nứt mảnh, dễ xử lý trong trang trí/bảo trì thông thường. | $\sim 0.1 - 1$ mm |
+| **2** | Slight | Nứt dễ trám; có thể cần trang trí lại/miết mạch; cửa có thể hơi kẹt. | $\sim 1 - 5$ mm |
+| **3** | Moderate | Cần mở rộng/vá nứt, sửa cục bộ khối xây; nhiều vết $>3$mm, kẹt cửa/ảnh hưởng chức năng. | $\sim 5 - 15$ mm |
+| **4** | Severe | Sửa chữa lớn/thay thế cục bộ; tường biến dạng; có thể ảnh hưởng gối tựa/liên kết. | $\sim 15 - 25$ mm |
+| **5** | Very severe | Hư hỏng rất nặng; có thể cần chống đỡ/xây lại một phần hoặc toàn bộ. | $\ge 25$ mm |
+
+---
+
+### Bước 4: Tự động Tổng hợp Burland theo Vùng Hư hỏng (Damage-Zone Summary)
+*(Hệ thống tự động gom các khuyết tật D-xx đã ghi nhận ở Bước 2 thành danh sách các Vùng Z-01, Z-02... Surveyor kiểm tra và xác nhận điểm)*
+
+- [ ] **Vùng Z-01:**
+  - Vị trí & Vật liệu: (Tự động trích xuất từ Bước 2)
+  - Ảnh đại diện Vùng: (Hiển thị thumbnail Foto CTX để xem lại)
+  - Wmax lớn nhất: (Tự động trích xuất Wmax lớn nhất từ các ghim D-xx)
+  - Số/Cụm nứt: (Tự động đếm tổng số ghim D-xx)
+  - Ảnh hưởng chức năng / Sửa chữa: (Chọn: Có / Không)
+  - Grade Burland đề xuất: (Chọn Grade từ 0 đến 5 dựa trên Wmax)
+
+- [ ] **Vùng Z-02, Z-03...** (Tự động sinh ra tương tự cho các khu vực khác)
+
+---
+
+### Bước 5: Kết luận Burland & Cờ Cảnh báo Kết cấu (Burland Summary & Structural Flag)
+
+- [ ] **Burland Chủ đạo (Predominant Grade):** Grade ____ (Mức Burland chiếm ưu thế/xuất hiện nhiều nhất trên toàn công trình).
+- [ ] **Vùng chi phối (Dominant Zone):** Vùng Z-____ / Mô tả nhóm vết nứt đồng dạng nhất.
+- [ ] **Burland Cục bộ Lớn nhất (Local Max Grade):** Grade ____ (Tự động lấy Grade cao nhất từ danh sách Vùng Z ở Bước 4 - *Quy tắc: Không lấy trung bình số học, phải báo riêng Grade cục bộ lớn nhất*).
+- [ ] **Tính đại diện:** (Chọn: Toàn công trình / Cục bộ).
+- [ ] **Structural Defect Flag (Cờ cảnh báo kết cấu):** (Chọn: `None` - Không có / `Low` - Thấp / `Moderate` - Trung bình / `High` - Cao / `Critical` - Nguy cơ sập khẩn cấp).
+- [ ] **Cần Structural Engineer review (Yêu cầu kỹ sư kết cấu thẩm định):** (Chọn: Không / Có).
+
+---
+
+### Bước 6: Đưa ảnh Bối cảnh & Ghim vào Sơ đồ Mặt bằng (Sketch Plan Integration)
 - [ ] **Sơ đồ mặt bằng (CAD / Phác thảo):** Gán toàn bộ mảng tường vừa khảo sát (kèm các ghim `D-01`, `D-02`...) lên sơ đồ mặt bằng tổng thể của tầng.
 
 ---
 
-### Bước 5: Tổng kết & Chốt Biên bản Hiện trường
-- [ ] **Tổng số khuyết tật đã ghi nhận:** (Hệ thống tự đếm tổng số ghim D-xx)
+### Bước 7: Chốt Biên bản & Lấy Chữ ký Điện tử
+- [ ] **Tổng số khuyết tật đã ghi nhận:** (Hệ thống tự đếm)
 - [ ] **Các khu vực bị hạn chế / Không thể tiếp cận:** (Nhập text)
 - [ ] **Mô tả khuyết tật đáng chú ý nhất:** (Nhập text)
-- [ ] **Cảnh báo khẩn cấp (Critical Flag):** Có nguy cơ sập đổ / Nguy hiểm ngay không? (Có / Không)
 - [ ] **Ý kiến / Phản hồi của Chủ hộ:** (Nhập text)
 - [ ] **Chữ ký điện tử của Cán bộ khảo sát (Surveyor).**
 - [ ] **Chữ ký điện tử của Chủ hộ / Người đại diện.**
