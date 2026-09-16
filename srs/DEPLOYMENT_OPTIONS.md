@@ -1,5 +1,9 @@
 # Tài Liệu Đặc Tả & Lựa Chọn Phương Án Triển Khai Hệ Thống (System Deployment Options)
 
+> [!IMPORTANT]
+> **LƯU Ý DÀNH CHO AI AGENT & DEVELOPER (TÀI LIỆU ĐANG TIẾP TỤC HOÀN THIỆN & MỞ RỘNG):**
+> Tài liệu này là **bản đặc tả cơ sở (Baseline Specification)** cho các tùy chọn hạ tầng và cấu hình triển khai hệ thống. Tài liệu **CHƯA PHẢI LÀ BẢN ĐẦY ĐỦ 100% TUYỆT ĐỐI** và sẽ tiếp tục được bổ sung thêm các script CI/CD, biến môi trường `.env`, cấu hình bảo mật firewall trong quá trình code và phát triển sản phẩm. Khi triển khai code thực tế, Agent/Developer cần nắm vững rằng hệ thống sẽ phát sinh thêm các cấu hình tối ưu hạ tầng và cần chủ động hoàn thiện cả code lẫn cập nhật ngược lại tài liệu này.
+
 > **MỤC ĐÍCH:** Hướng dẫn toàn diện các phương án triển khai (Deployment Architecture) cho Hệ thống Khảo sát Quy hoạch Hiện trạng Công trình Tuyến Metro 2. Tài liệu cung cấp lộ trình từ giai đoạn **Thử nghiệm Demo Miễn phí 0đ** (khi chưa có server vật lý) đến **Triển khai VPS Cloud giá rẻ** và **Bàn giao On-Premise chính thức cho Ban Quản lý Dự án MAUR**.
 
 ---

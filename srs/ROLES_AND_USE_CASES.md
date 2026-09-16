@@ -1,5 +1,9 @@
 # Đặc tả Phân quyền & Kịch bản Sử dụng (SRS - Roles, Permissions & Use Cases)
 
+> [!IMPORTANT]
+> **LƯU Ý DÀNH CHO AI AGENT & DEVELOPER (TÀI LIỆU ĐANG TIẾP TỤC HOÀN THIỆN & MỞ RỘNG):**
+> Tài liệu này là **bản đặc tả cơ sở (Baseline Specification)** cho các kịch bản sử dụng (Use Cases) và ma trận phân quyền người dùng. Tài liệu **CHƯA PHẢI LÀ BẢN ĐẦY ĐỦ 100% TUYỆT ĐỐI** và sẽ tiếp tục được mở rộng chi tiết trong quá trình code và phát triển sản phẩm. Khi triển khai code thực tế, Agent/Developer cần nắm vững rằng hệ thống sẽ phát sinh thêm các quyền hạn chi tiết, use case phụ và cần chủ động hoàn thiện cả code lẫn cập nhật ngược lại tài liệu này.
+
 > Tài liệu đặc tả chuẩn hóa Ma trận Phân quyền (RBAC) 4 Vai trò cốt lõi và Chi tiết các Kịch bản Sử dụng (Use Cases) cho Hệ thống Khảo sát Hiện trạng Công trình Metro 2.
 
 ---

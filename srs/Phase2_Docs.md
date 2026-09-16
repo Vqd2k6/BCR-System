@@ -1,5 +1,9 @@
 # Bộ Câu Hỏi & Biểu Mẫu Khảo Sát Hiện Trạng Đợt 2 (Phase 2 - Pre-Construction BCS Form)
 
+> [!IMPORTANT]
+> **LƯU Ý DÀNH CHO AI AGENT & DEVELOPER (TÀI LIỆU ĐANG TIẾP TỤC HOÀN THIỆN & MỞ RỘNG):**
+> Tài liệu này là **bản đặc tả cơ sở (Baseline Specification)** cho biểu mẫu và quy trình khảo sát Đợt 2 (Phiếu 02). Tài liệu **CHƯA PHẢI LÀ BẢN ĐẦY ĐỦ 100% TUYỆT ĐỐI** và sẽ tiếp tục được mở rộng chi tiết trong quá trình code và phát triển sản phẩm. Khi triển khai code thực tế, Agent/Developer cần nắm vững rằng hệ thống sẽ phát sinh thêm các trường dữ liệu thực địa, tùy chọn phụ và cần chủ động hoàn thiện cả code lẫn cập nhật ngược lại tài liệu này.
+
 > **MỤC ĐÍCH:** Xác lập và xác nhận hiện trạng gần nhất của công trình ngay trước khi thi công ngầm / đào hầm TBM; kế thừa hồ sơ Giai đoạn 1 và ghi nhận có hệ thống các hư hỏng/khuyết tật biến động hoặc mới phát sinh bằng mô tả, đo đạc, ảnh và sơ đồ vị trí; làm hồ sơ cơ sở để đối chiếu khi có phản ánh/hư hỏng trong quá trình hoặc sau thi công, phục vụ đánh giá trách nhiệm, khiếu nại, bồi thường/bảo hiểm theo hợp đồng, đơn bảo hiểm và quy định áp dụng.
 >
 > *(Chuẩn hóa **100% đầy đủ dữ liệu gốc** từ `docs/Phase 2_Pre Constuction BCS.docx` (Phiếu 02) và được thiết kế, trình bày đồng bộ theo **9 Bước thực địa tuần tự của Cán bộ Khảo sát** giống Phase 1, đánh dấu rõ ràng các trường dữ liệu **[KẾ THỪA TỪ GĐ1]** và **[MỚI GĐ2]** để tối ưu hóa trải nghiệm khảo sát thực tế trên Mobile PWA).*

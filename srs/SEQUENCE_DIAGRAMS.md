@@ -1,5 +1,9 @@
 # Đặc Tả Chi Tiết Sơ Đồ Tuần Tự Theo Từng Đối Tượng (Sequence Diagrams Specification)
 
+> [!IMPORTANT]
+> **LƯU Ý DÀNH CHO AI AGENT & DEVELOPER (TÀI LIỆU ĐANG TIẾP TỤC HOÀN THIỆN & MỞ RỘNG):**
+> Tài liệu này là **bản đặc tả cơ sở (Baseline Specification)** nhằm định hướng luồng tương tác API và vòng đời dữ liệu ban đầu. Tài liệu **CHƯA PHẢI LÀ BẢN ĐẦY ĐỦ 100% TUYỆT ĐỐI** và sẽ tiếp tục được bổ sung, đào sâu chi tiết trong quá trình code và phát triển sản phẩm. Khi triển khai code thực tế, Agent/Developer cần nắm vững rằng hệ thống sẽ phát sinh thêm các nhánh xử lý biên (Edge cases), tính năng mở rộng và cần chủ động hoàn thiện cả code lẫn cập nhật ngược lại tài liệu này.
+
 > **MỤC ĐÍCH:** Tài liệu đặc tả chi tiết toàn bộ luồng tương tác tuần tự (**UML Sequence Diagrams**) giữa các Đối tượng người dùng (**Actors**), Giao diện (**Frontend Web/PWA**), Cổng giao tiếp (**API Gateway**), Dịch vụ nghiệp vụ (**Backend Services**), Hàng đợi xử lý nền (**Background AI Workers**), Kho lưu trữ file (**S3 Object Storage**), và Cơ sở dữ liệu (**PostgreSQL 16 + PostGIS**). Bám sát 100% các kịch bản sử dụng (Use Cases) trong `srs/ROLES_AND_USE_CASES.md`.
 
 ---

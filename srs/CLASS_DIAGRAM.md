@@ -1,5 +1,9 @@
 # Đặc Tả Sơ Đồ Lớp Hệ Thống (SRS - OOP Class Diagram & Domain Data Model)
 
+> [!IMPORTANT]
+> **LƯU Ý DÀNH CHO AI AGENT & DEVELOPER (TÀI LIỆU ĐANG TIẾP TỤC HOÀN THIỆN & MỞ RỘNG):**
+> Tài liệu này là **bản đặc tả cơ sở (Baseline Specification)** cho mô hình dữ liệu OOP và kiến trúc quan hệ thực thể. Tài liệu **CHƯA PHẢI LÀ BẢN ĐẦY ĐỦ 100% TUYỆT ĐỐI** và sẽ tiếp tục được bổ sung thêm các thuộc tính, phương thức và lớp hỗ trợ trong quá trình lập trình (Implementation). Khi phát triển code, Agent/Developer cần chủ động nhận diện các trường dữ liệu phát sinh, tối ưu hóa cấu trúc lớp và đồng bộ cập nhật ngược lại file này.
+
 > Tài liệu đặc tả chuẩn hóa Toàn bộ Mô hình Lớp Hướng Đối Tượng (OOP Class Diagram), Kiến trúc Mã Kép (Dual-ID), Cơ chế Biến động Thửa đất (Cadastral Lineage), và Phân hệ Xuất Báo cáo Hàng loạt cho Hệ thống Khảo sát Quy hoạch Hiện trạng Tuyến Metro 2.
 
 ---

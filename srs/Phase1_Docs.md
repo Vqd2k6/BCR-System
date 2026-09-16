@@ -1,5 +1,9 @@
 # Bộ câu hỏi & Biểu mẫu Khảo sát Hiện trạng Công trình (KSQH - Metro 2)
 
+> [!IMPORTANT]
+> **LƯU Ý DÀNH CHO AI AGENT & DEVELOPER (TÀI LIỆU ĐANG TIẾP TỤC HOÀN THIỆN & MỞ RỘNG):**
+> Tài liệu này là **bản đặc tả cơ sở (Baseline Specification)** cho biểu mẫu và quy trình khảo sát Đợt 1. Tài liệu **CHƯA PHẢI LÀ BẢN ĐẦY ĐỦ 100% TUYỆT ĐỐI** và sẽ tiếp tục được mở rộng chi tiết trong quá trình code và phát triển sản phẩm. Khi triển khai code thực tế, Agent/Developer cần nắm vững rằng hệ thống sẽ phát sinh thêm các trường dữ liệu thực địa, tùy chọn phụ và cần chủ động hoàn thiện cả code lẫn cập nhật ngược lại tài liệu này.
+
 Dưới đây là **BỘ BIỂU MẪU KHẢO SÁT HỢP NHẤT DUY NHẤT** được sắp xếp theo đúng **trình tự thời gian thực địa của Cán bộ Khảo sát** (Từ lúc đứng ngoài nhà ➔ Phỏng vấn chủ hộ ➔ Khảo sát từng phòng ➔ Đo đạc lún nghiêng ➔ Tự động tính điểm ECS/VI ➔ Chốt biên bản & Ký tên).
 
 ---
