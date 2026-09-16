@@ -226,12 +226,23 @@ classDiagram
         +UUID id
         +UUID reportId
         +PhotoIdentTypeEnum photoType
-        +String photoUrl
+        +String rawPhotoUrl
+        +String annotatedPhotoUrl
+        +String aiEnhancedPhotoUrl
+        +String annotationsJson
+        +Int floorCountEstimated
+        +String floorHeightsJson
+        +Float facadeWidthM
+        +Float totalHeightM
+        +AIProcessingStatusEnum aiProcessingStatus
+        +String aiPerspectiveMatrixJson
         +Float watermarkLat
         +Float watermarkLng
         +DateTime watermarkTimestamp
         +String metadataJson
         +verifyWatermarkIntegrity() Boolean
+        +processAIEnhancement() Boolean
+        +renderCompositeImage() FileStream
     }
 
     %% ==========================================
@@ -499,6 +510,7 @@ classDiagram
 - ParcelLifecycleEnum: ACTIVE, PENDING_MUTATION_APPROVAL, SPLIT_DEPRECATED, MERGED_DEPRECATED, MUTATION_VOID
 - MutationTypeEnum: ORIGINAL, SPLIT, MERGE, REDRAW
 - MutationStatusEnum: PROPOSED_BY_SURVEYOR, APPROVED, REJECTED
+- AIProcessingStatusEnum: PENDING, PROCESSING, COMPLETED, FAILED
 - ExportFormatEnum: PDF_BOOK_COMPILATION, ZIP_ARCHIVE, EXCEL_GEOJSON
 - ReportStatusEnum: DRAFT, SUBMITTED, UNDER_REVIEW, APPROVED, REJECTED
 - ImportanceGroupEnum: GENERAL, IMPORTANT, CRITICAL
