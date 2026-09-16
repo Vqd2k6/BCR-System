@@ -191,7 +191,12 @@ export const App: React.FC = () => {
             parcels={parcels}
             isCheckedInToday={isCheckedInToday}
             checkInDetails={checkInDetails}
-            onNavigateToMap={() => setActiveTab('map')}
+            onNavigateToMap={(parcelToFocus) => {
+              if (parcelToFocus) {
+                setSelectedParcelForSurvey(parcelToFocus);
+              }
+              setActiveTab('map');
+            }}
             onNavigateToCheckIn={() => setActiveTab('attendance')}
             onStartPhase1={handleStartPhase1}
             onStartPhase2={handleStartPhase2}
