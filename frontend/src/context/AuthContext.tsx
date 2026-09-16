@@ -112,6 +112,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setToken(null);
     localStorage.removeItem('metro2_access_token');
     localStorage.removeItem('metro2_user_profile');
+    localStorage.removeItem('metro2_absence_log');
+    // Clear all today check-in keys
+    Object.keys(localStorage).forEach((k) => {
+      if (k.startsWith('metro2_today_checkin_') || k.startsWith('metro2_attendance_')) {
+        localStorage.removeItem(k);
+      }
+    });
   };
 
   return (
