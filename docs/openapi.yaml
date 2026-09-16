@@ -1,0 +1,617 @@
+openapi: 3.1.0
+info:
+  title: Metro 2 Building Condition Assessment & Planning Survey API
+  description: |
+    API Contract chuẩn hóa cho Hệ thống Khảo sát Hiện trạng & Đánh giá Rủi ro Công trình Tuyến Metro 2 (Bến Thành - Tham Lương).
+    Bao gồm 12 phân hệ nghiệp vụ, kiến trúc Dual-ID bất biến, xử lý PostGIS GeoJSON WGS84, đường ống AI nắn phẳng hình học và động cơ đối soát Delta Phase 2.
+  version: 1.0.0
+  contact:
+    name: Ban Quản lý Đường sắt Đô thị TP.HCM (MAUR) / Đội Kỹ thuật
+    email: technical@metro2-survey.hcmc.gov.vn
+
+servers:
+  - url: http://localhost:5000/api/v1
+    description: Máy chủ Phát triển Cục bộ (Local Development)
+  - url: https://api.metro2-survey.hcmc.gov.vn/api/v1
+    description: Máy chủ Chính thức (Production API Gateway)
+
+tags:
+  - name: Auth & IAM
+    description: Xác thực JWT, Refresh Token & Phân quyền RBAC 4 cấp
+  - name: Attendance & GPS
+    description: Chấm công GPS thực địa (<= 20m) & Chụp ảnh selfie
+  - name: Metro Zones & GIS
+    description: 11 Ga Metro 2, Ranh phân khu & Tim tuyến đường sắt
+  - name: Parcels & Dual-ID
+    description: Quản lý Thửa đất & Kiến trúc Mã kép (B-xxxxx & KSxxx)
+  - name: Task Dispatching
+    description: Phân công nhiệm vụ khảo sát trên bản đồ GIS
+  - name: Phase 1 Survey
+    description: Khảo sát Hiện trạng Nền 9 bước: P01-P04, Kết cấu, Vùng Z-xx, Khuyết tật D-xx
+  - name: AI Photo Pipeline
+    description: Nắn thẳng phối cảnh mặt đứng P-02 chuẩn CAD & Lớp đồ họa kỹ thuật
+  - name: Phase 2 Delta Engine
+    description: Khảo sát theo vị trí đứng, Đối soát biến động vết nứt & Phán quyết bồi thường
+  - name: Parcel Mutation Engine
+    description: Sự kiện biến động Tách/Gộp thửa đất & Cấp dải mã mới > 07000
+  - name: Audit & Approval
+    description: Thẩm định Split-Pane kính lúp 400%, Phê duyệt/Trả về & Xuất bản PDF/A
+  - name: Batch Dossier Export
+    description: Đóng gói tập hồ sơ phân khu hàng loạt (PDF Book) & Checksum SHA-256
+  - name: Public Guest Access
+    description: Tra cứu GIS công khai cho Nhà thầu xây lắp qua Share Token
+
+paths:
+  /auth/login:
+    post:
+      tags: [Auth & IAM]
+      summary: Đăng nhập hệ thống & Cấp phát JWT Access Token
+      operationId: loginUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Đăng nhập thành công
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /auth/me:
+    get:
+      tags: [Auth & IAM]
+      summary: Lấy thông tin tài khoản hiện tại
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Thông tin người dùng hiện tại
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfileResponse'
+
+  /attendance/check-in:
+    post:
+      tags: [Attendance & GPS]
+      summary: Chấm công GPS hiện trường kèm ảnh Selfie xác thực
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [zoneId, gpsLat, gpsLng, accuracy, selfieFile]
+              properties:
+                zoneId:
+                  type: string
+                  example: "ZONE_S9"
+                gpsLat:
+                  type: number
+                  format: float
+                  example: 10.798123
+                gpsLng:
+                  type: number
+                  format: float
+                  example: 106.645678
+                accuracy:
+                  type: number
+                  format: float
+                  description: Sai số GPS tính bằng mét (yêu cầu <= 20m)
+                  example: 8.5
+                selfieFile:
+                  type: string
+                  format: binary
+                accompanyingMembers:
+                  type: string
+                  description: JSON array string cán bộ đi cùng
+                  example: '["Trần Văn A", "Lê Văn B"]'
+                notes:
+                  type: string
+                  example: "Thời tiết nhiều mây, điều kiện ánh sáng tốt"
+      responses:
+        '201':
+          description: Chấm công thành công & Mở quyền khảo sát
+        '422':
+          $ref: '#/components/responses/UnprocessableEntityError'
+
+  /zones:
+    get:
+      tags: [Metro Zones & GIS]
+      summary: Lấy danh sách 11 Ga Metro số 2 kèm tiến độ
+      responses:
+        '200':
+          description: Danh sách phân khu Ga Metro 2
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  total: { type: integer, example: 11 }
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/MetroZoneSummary'
+
+  /parcels:
+    get:
+      tags: [Parcels & Dual-ID]
+      summary: Tra cứu danh sách thửa đất theo Phân khu, trạng thái hoặc BBOX GIS
+      parameters:
+        - name: zoneId
+          in: query
+          schema: { type: string }
+        - name: surveyStatus
+          in: query
+          schema:
+            type: string
+            enum: [NOT_SURVEYED, IN_PROGRESS, SUBMITTED, APPROVED, REJECTED]
+        - name: search
+          in: query
+          description: Tìm theo mã dự án B-xxxxx hoặc mã hiện trường KSxxx
+          schema: { type: string }
+        - name: bbox
+          in: query
+          description: minLng,minLat,maxLng,maxLat
+          schema: { type: string }
+      responses:
+        '200':
+          description: Danh sách thửa đất phù hợp
+
+  /parcels/{parcelId}:
+    get:
+      tags: [Parcels & Dual-ID]
+      summary: Lấy chi tiết thửa đất & Đa giác ranh giới GeoJSON
+      parameters:
+        - name: parcelId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Chi tiết thửa đất
+
+  /reports/phase1:
+    post:
+      tags: [Phase 1 Survey]
+      summary: Khởi tạo hồ sơ khảo sát Giai đoạn 1 (Phase 1 Baseline)
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [parcelId]
+              properties:
+                parcelId: { type: string, example: "p-00105" }
+      responses:
+        '201':
+          description: Đã tạo hồ sơ khảo sát Phase 1
+
+  /reports/phase1/{reportId}/identification-photos:
+    post:
+      tags: [Phase 1 Survey]
+      summary: Bước 1 - Upload bộ 4 ảnh định danh P01-P04 kèm Vector Annotations
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: reportId
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [p01File, p02File, p03File, p04File]
+              properties:
+                p01File: { type: string, format: binary }
+                p02File: { type: string, format: binary }
+                p03File: { type: string, format: binary }
+                p04File: { type: string, format: binary }
+                p02PointsJson:
+                  type: string
+                  description: 4 điểm góc đa giác nhà trên ảnh P-02
+                p02FloorSplitJson:
+                  type: string
+                  description: Tọa độ dầm sàn phân tầng
+                p02CanvasTextJson:
+                  type: string
+                  description: Chữ viết tay kích thước
+      responses:
+        '201':
+          description: Đã lưu ảnh định danh & đẩy Job AI nắn phẳng P-02
+
+  /reports/phase1/{reportId}/specs:
+    put:
+      tags: [Phase 1 Survey]
+      summary: Bước 2 - Lưu trữ thông số kết cấu chịu lực, Móng CAT 1-5 và Nhạy cảm E5
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: reportId
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BuildingSpecsRequest'
+      responses:
+        '200':
+          description: Đã cập nhật thông số kết cấu
+
+  /reports/phase1/{reportId}/zones:
+    post:
+      tags: [Phase 1 Survey]
+      summary: Bước 3 - Tạo Vùng hư hại Z-xx & Upload ảnh bối cảnh góc rộng CTX
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: reportId
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [floorName, roomName, burlandGrade, ctxPhotoFile]
+              properties:
+                floorName: { type: string, example: "Tầng 1 (Trệt)" }
+                roomName: { type: string, example: "Phòng khách" }
+                burlandGrade: { type: integer, minimum: 0, maximum: 5, example: 2 }
+                ctxPhotoFile: { type: string, format: binary }
+      responses:
+        '201':
+          description: Đã tạo Vùng hư hại Z-xx
+
+  /reports/phase1/zones/{zoneId}/defects:
+    post:
+      tags: [Phase 1 Survey]
+      summary: Bước 3 (Chi tiết) - Thả ghim D-xx trên ảnh Z-xx & Upload ảnh cận cảnh CU có thước
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: zoneId
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [pinX, pinY, defectType, widthMaxMm, lengthMm, cuPhotoFile]
+              properties:
+                pinX: { type: number, example: 42.5 }
+                pinY: { type: number, example: 68.2 }
+                defectType:
+                  type: string
+                  enum: [DIAGONAL_SHEAR_CRACK, VERTICAL_CRACK, HORIZONTAL_CRACK, WATER_SEEPAGE, SPALLING]
+                widthMaxMm: { type: number, example: 0.85 }
+                lengthMm: { type: number, example: 650.0 }
+                hasScaleCardInPhoto: { type: boolean, example: true }
+                cuPhotoFile: { type: string, format: binary }
+      responses:
+        '201':
+          description: Đã lưu ghim khuyết tật D-xx
+
+  /reports/phase1/{reportId}/calculate-scores:
+    post:
+      tags: [Phase 1 Survey]
+      summary: Tự động tính điểm ECS (0-24) và Xếp hạng Chỉ số tổn thương VI
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: reportId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Điểm số ECS & Xếp hạng VI
+
+  /reports/phase1/{reportId}/submit:
+    post:
+      tags: [Phase 1 Survey]
+      summary: Nộp chính thức Báo cáo Phase 1 kèm chữ ký số/biên bản xác nhận
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: reportId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Báo cáo đã chuyển trạng thái SUBMITTED
+
+  /parcels/{parcelId}/phase2/zones:
+    get:
+      tags: [Phase 2 Delta Engine]
+      summary: Tự động tải ảnh bối cảnh và ghim Phase 1 theo vị trí đứng (Tầng/Phòng)
+      parameters:
+        - name: parcelId
+          in: path
+          required: true
+          schema: { type: string }
+        - name: floor
+          in: query
+          required: true
+          schema: { type: string }
+        - name: room
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Danh sách Vùng và Ghim Phase 1 tương ứng
+
+  /phase2/defects/{defectId}/verify:
+    put:
+      tags: [Phase 2 Delta Engine]
+      summary: Đối soát khuyết tật Phase 1 vs Phase 2 & Tự động tính Delta (Δw, ΔL)
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: defectId
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [phase2WidthMm, phase2LengthMm, phase2CuPhotoFile]
+              properties:
+                phase2WidthMm: { type: number, example: 1.20 }
+                phase2LengthMm: { type: number, example: 800.0 }
+                phase2CuPhotoFile: { type: string, format: binary }
+      responses:
+        '200':
+          description: Kết quả đối soát Delta và trạng thái tiến hóa
+
+  /mutations/propose:
+    post:
+      tags: [Parcel Mutation Engine]
+      summary: Đề xuất Tách/Gộp thửa đất & Tự động cấp mã từ Kho số Mở rộng (> 07000)
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MutationProposeRequest'
+      responses:
+        '201':
+          description: Đã tạo đề xuất biến động & Cấp mã mới
+
+  /admin/reports/{reportId}/audit-view:
+    get:
+      tags: [Audit & Approval]
+      summary: Lấy dữ liệu thẩm định Split-Pane phục vụ soi Kính lúp 400%
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: reportId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Dữ liệu Split-Pane hoàn chỉnh
+
+  /admin/reports/{reportId}/approve:
+    post:
+      tags: [Audit & Approval]
+      summary: Phê duyệt Báo cáo khảo sát & Sinh tài liệu PDF/A chính thức
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: reportId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Phê duyệt thành công
+
+  /admin/reports/{reportId}/reject:
+    post:
+      tags: [Audit & Approval]
+      summary: Trả về Báo cáo kèm lý do & Rollback biến động ranh thửa
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: reportId
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [rejectionReason]
+              properties:
+                rejectionReason: { type: string, example: "Ảnh CU D-01 thiếu thước đo vạch mm" }
+      responses:
+        '200':
+          description: Trả về thành công
+
+  /reports/batch-export:
+    post:
+      tags: [Batch Dossier Export]
+      summary: Khởi chạy tiến trình đóng gói Tập hồ sơ phân khu Ga (PDF Book)
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [zoneId]
+              properties:
+                zoneId: { type: string, example: "ZONE_S9" }
+                format: { type: string, enum: [PDF_BOOK_COMPILATION, ZIP_ARCHIVE], default: PDF_BOOK_COMPILATION }
+      responses:
+        '202':
+          description: Đã tiếp nhận và xếp vào hàng đợi xử lý nền
+
+  /guest/gis-map:
+    get:
+      tags: [Public Guest Access]
+      summary: Tra cứu bản đồ GIS quy hoạch công khai qua Share Token
+      parameters:
+        - name: shareToken
+          in: query
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Lớp dữ liệu bản đồ GeoJSON đã công bố
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    LoginRequest:
+      type: object
+      required: [username, password]
+      properties:
+        username: { type: string, example: "surveyor_01" }
+        password: { type: string, example: "Survey@123" }
+
+    LoginResponse:
+      type: object
+      properties:
+        success: { type: boolean, example: true }
+        data:
+          type: object
+          properties:
+            accessToken: { type: string }
+            refreshToken: { type: string }
+            expiresIn: { type: integer, example: 604800 }
+            user:
+              type: object
+              properties:
+                id: { type: string, example: "u-001" }
+                username: { type: string, example: "surveyor_01" }
+                fullName: { type: string, example: "Nguyễn Văn Khảo Sát" }
+                role: { type: string, enum: [SUPER_ADMIN, ZONE_ADMIN, SURVEYOR, CONTRACTOR_GUEST], example: "SURVEYOR" }
+                assignedZoneId: { type: string, example: "ZONE_S9" }
+
+    UserProfileResponse:
+      type: object
+      properties:
+        success: { type: boolean, example: true }
+        data:
+          type: object
+          properties:
+            id: { type: string }
+            username: { type: string }
+            fullName: { type: string }
+            role: { type: string }
+
+    MetroZoneSummary:
+      type: object
+      properties:
+        id: { type: string, example: "ZONE_S9" }
+        code: { type: string, example: "S9" }
+        name: { type: string, example: "Ga S9 - Bà Quẹo" }
+        district: { type: string, example: "Tân Bình" }
+        totalParcels: { type: integer, example: 650 }
+        surveyedCount: { type: integer, example: 420 }
+        progressPercent: { type: number, example: 64.6 }
+
+    BuildingSpecsRequest:
+      type: object
+      required: [useType, numberOfFloors, structuralSystem, foundationType]
+      properties:
+        useType: { type: string, example: "RESIDENTIAL_COMMERCIAL" }
+        numberOfFloors: { type: integer, example: 3 }
+        hasBasement: { type: boolean, default: false }
+        yearOfConstruction: { type: integer, example: 2012 }
+        structuralSystem: { type: string, example: "RC_FRAME" }
+        foundationType: { type: string, example: "CAT_3_SHALLOW_STRIP_FOOTING" }
+        foundationDepthMeters: { type: number, example: 2.5 }
+        historicalSensitivityE5: { type: string, example: "STANDARD_NOT_SENSITIVE" }
+
+    MutationProposeRequest:
+      type: object
+      required: [mutationType, sourceParcelId, reason, childPolygons]
+      properties:
+        mutationType: { type: string, enum: [SPLIT, MERGE] }
+        sourceParcelId: { type: string, example: "p-00002" }
+        reason: { type: string, example: "Nhà gốc B-00002 thực tế đã chia thành 2 căn hộ riêng biệt" }
+        childPolygons:
+          type: array
+          items:
+            type: object
+            properties:
+              tempLabel: { type: string, example: "Căn phía trước (A)" }
+              polygonGeoJson: { type: object }
+
+    ProblemDetails:
+      type: object
+      properties:
+        type: { type: string, example: "https://api.metro2-survey.hcmc.gov.vn/errors/INVALID_INPUT" }
+        title: { type: string, example: "Dữ liệu đầu vào không hợp lệ" }
+        status: { type: integer, example: 400 }
+        detail: { type: string, example: "Chi tiết lỗi" }
+        code: { type: string, example: "ERR_INVALID_DATA" }
+        timestamp: { type: string, example: "2026-09-16T10:50:00.000Z" }
+
+  responses:
+    UnauthorizedError:
+      description: Chưa xác thực hoặc Token không hợp lệ
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+    ForbiddenError:
+      description: Không có quyền truy cập tài nguyên
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+    NotFoundError:
+      description: Không tìm thấy tài nguyên
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+    UnprocessableEntityError:
+      description: Dữ liệu không thỏa mãn điều kiện logic nghiệp vụ
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
