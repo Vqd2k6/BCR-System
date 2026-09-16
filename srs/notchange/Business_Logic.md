@@ -145,3 +145,60 @@ graph TD
 - **Phân tích theo chu kỳ:** Cho phép lọc theo Ngày (`DAILY`), Tuần (`WEEKLY`), Tháng (`MONTHLY`), hoặc Khoảng ngày tùy biến.
 - **Thống kê 6 trạng thái:** Hoàn tất (`APPROVED`), Chờ duyệt (`SUBMITTED`), Đang làm (`IN_PROGRESS`), Vắng nhà (`POSTPONED_ABSENT`), Bị trả về (`REJECTED`), Chưa khảo sát (`NOT_SURVEYED`).
 - **Năng suất Cán bộ (Surveyor Productivity):** Đo lường số lượng hồ sơ hoàn thành và thời gian khảo sát trung bình của từng cán bộ để điều phối nhân sự hợp lý.
+
+---
+
+## 9. QUY TRÌNH GIÁM SÁT & XÁC NHẬN CHẤM CÔNG THỰC ĐỊA (ATTENDANCE VERIFICATION WORKFLOW)
+
+Để đảm bảo kỷ luật hiện trường và chống gian lận chấm công, hệ thống thiết lập cơ chế **Chấm công & Phê duyệt 2 chiều**:
+
+```mermaid
+graph TD
+    A["Surveyor Check-in GPS<br><code>POST /api/v1/attendance/check-in</code>"] --> B["Hệ thống tính toán khoảng cách:<br><code>distance = ST_Distance(GPS_Surveyor, Center_Zone)</code>"]
+    
+    B --> C{"Khoảng cách <= 500m?"}
+    C -- "Hợp Lệ (Trong ranh Ga)" --> D["Trạng thái: PENDING_VERIFICATION<br>Cờ: Normal"]
+    C -- "Bất Thường (> 500m)" --> E["Trạng thái: FLAGGED_WARNING<br>Cờ: Sai lệch tọa độ Ga"]
+    
+    D --> F["Zone Admin Thẩm Định Chấm Công<br><code>GET /api/v1/admin/attendance</code>"]
+    E --> F
+    
+    F --> G{"Zone Admin Quyết Định"}
+    G -- "Phê Duyệt (Approve)" --> H["Ghi nhận 1 Ngày công Hợp lệ"]
+    G -- "Cảnh Báo / Từ Chối (Reject)" --> I["Hủy ngày công + Tự động gửi cảnh báo"]
+    
+    style A fill:#e0f2fe,stroke:#0284c7
+    style B fill:#fef3c7,stroke:#f59e0b
+    style D fill:#dcfce7,stroke:#16a34a
+    style E fill:#fee2e2,stroke:#ef4444
+    style H fill:#dcfce7,stroke:#16a34a,stroke-width:2px
+    style I fill:#fee2e2,stroke:#ef4444,stroke-width:2px
+```
+
+1. **Thu thập dữ liệu:** Surveyor gửi tọa độ GPS thực tế (`gpsLat`, `gpsLng`), mã Ga (`zoneId`), và ảnh selfie hiện trường.
+2. **Đối soát tự động:** Hệ thống PostGIS tự động tính khoảng cách từ vị trí check-in đến tâm phân khu Ga. Nếu khoảng cách $> 500m$, hệ thống tự động gán cờ cảnh báo `FLAGGED_WARNING`.
+3. **Phê duyệt quản trị (`POST /api/v1/admin/attendance/{id}/verify`):** Zone Admin xem danh sách chấm công toàn Ga, xem ảnh selfie và nhấn xác nhận ngày công hoặc từ chối.
+4. **Báo cáo chuyên cần (`GET /api/v1/admin/attendance/summary`):** Thống kê tỷ lệ chuyên cần theo từng tháng để phục vụ đánh giá năng suất và tính lương.
+
+---
+
+## 10. QUY TRÌNH QUẢN TRỊ NGƯỜI DÙNG & PHÂN QUYỀN TOÀN HỆ THỐNG (USER LIFECYCLE MANAGEMENT)
+
+Super Admin là cấp quản trị cao nhất toàn tuyến Metro 2, nắm toàn quyền điều hành vòng đời tài khoản nhân sự:
+
+1. **Cấp phát tài khoản (`POST /api/v1/admin/users`):** Tạo mới tài khoản cho `ZONE_ADMIN`, `SURVEYOR`, `GUEST` kèm phân công Ga cụ thể.
+2. **Điều chuyển & Cập nhật (`PUT /api/v1/admin/users/{id}`):** Chuyển giao Surveyor giữa các Ga Metro (ví dụ điều chuyển từ Ga S9 sang Ga S10), cập nhật chức danh, email, số điện thoại.
+3. **Khóa & Mở khóa an toàn (`PUT /api/v1/admin/users/{id}/status`):** Khóa tài khoản tạm thời (`SUSPENDED`) khi phát hiện vi phạm quy chế hoặc nhân sự tạm nghỉ; khóa vĩnh viễn (`LOCKED`); kích hoạt lại (`ACTIVE`).
+4. **Đặt lại mật khẩu (`POST /api/v1/admin/users/{id}/reset-password`):** Cấp lại mật khẩu bảo mật và yêu cầu đổi mật khẩu ở lần đăng nhập tiếp theo.
+5. **Vô hiệu hóa an toàn (`DELETE /api/v1/admin/users/{id}`):** Áp dụng cơ chế Soft-delete, bảo toàn toàn bộ chữ ký điện tử và hồ sơ mà nhân sự này đã lập trong quá khứ.
+
+---
+
+## 11. TRUNG TÂM QUẢN TRỊ XUẤT BÁO CÁO TOÀN TUYẾN (GLOBAL EXPORT MANAGEMENT HUB)
+
+Hệ thống cung cấp cho Super Admin quyền kiểm soát toàn bộ dữ liệu đầu ra:
+
+1. **Xuất báo cáo toàn tuyến 11 Ga (`POST /api/v1/admin/reports/batch-export`):** Cho phép xuất tập hồ sơ tổng hợp toàn tuyến hoặc cụm liên Ga phục vụ báo cáo UBND TP.HCM, Ban Quản lý Đường sắt Đô thị (MAUR) và Ngân hàng Tái thiết Đức (KfW).
+2. **Giám sát lịch sử xuất (`GET /api/v1/admin/reports/exports`):** Theo dõi ai đã xuất file gì, vào thời điểm nào, mã băm Checksum SHA-256 là gì, trạng thái xử lý nền (Queued $\to$ Processing $\to$ Completed $\to$ Failed).
+3. **Thu hồi & Hủy file xuất (`DELETE /api/v1/admin/reports/exports/{batchId}`):** Thu hồi quyền tải file và xóa dữ liệu tạm trên Cloud Storage S3 khi phát hiện dữ liệu cần cập nhật lại.
+

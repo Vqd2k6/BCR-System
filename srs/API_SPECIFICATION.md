@@ -2,8 +2,11 @@
 ## HỆ THỐNG KHẢO SÁT HIỆN TRẠNG CÔNG TRÌNH - METRO SỐ 2 (BẾN THÀNH – THAM LƯƠNG)
 
 > [!IMPORTANT]
-> **TÀI LIỆU QUY CHUẨN ĐẶC TẢ CHI TIẾT 100% ĐẦY ĐỦ TẤT CẢ REQUEST / RESPONSE PAYLOADS:**
-> Toàn bộ hệ thống API được phân cấp theo **4 Nhóm Vai trò Người dùng** (`SURVEYOR`, `ZONE_ADMIN`, `SUPER_ADMIN`, `CONTRACTOR_GUEST`) và phân cụm theo các phương thức HTTP (`POST`, `GET`, `PUT`, `DELETE`). Mỗi endpoint đều có đầy đủ mô tả nghiệp vụ, Headers, Form Fields, Request Body JSON, Response Success JSON (200/201/202) và Response Error JSON theo chuẩn RFC 7807 (`application/problem+json`).
+> **TÀI LIỆU QUY CHUẨN ĐẶC TẢ CHI TIẾT 100% ĐẦY ĐỦ TẤT CẢ REQUEST / RESPONSE PAYLOADS & QUY TRÌNH NGHIỆP VỤ:**
+> Toàn bộ hệ thống API được phân cấp theo **4 Nhóm Vai trò Người dùng** (`SURVEYOR`, `ZONE_ADMIN`, `SUPER_ADMIN`, `CONTRACTOR_GUEST`) và phân cụm theo các phương thức HTTP (`POST`, `GET`, `PUT`, `DELETE`). Hệ thống loại bỏ hoàn toàn các "hố đen" chức năng:
+> - **Chấm công 2 chiều:** Surveyor chấm công GPS $\rightarrow$ Zone Admin / Super Admin kiểm tra, đối soát vị trí GPS thực tế và phê duyệt chấm công.
+> - **Quản trị Người dùng Toàn diện:** Super Admin tạo, sửa thông tin, đổi Ga, đổi Role, khóa/mở khóa tài khoản, reset mật khẩu và xóa tài khoản.
+> - **Trung tâm Xuất Báo cáo Toàn tuyến:** Super Admin và Zone Admin có đầy đủ công cụ xuất theo chỉ định, xuất theo thời gian, theo dõi tiến độ, lịch sử toàn bộ các lượt export toàn hệ thống và thu hồi/xóa file.
 
 ---
 
@@ -46,7 +49,8 @@
 │   │   ├── 1.2.6. GET /api/v1/parcels/{id}/phase2/zones                 # Phase 2: Lọc ảnh CTX và ghim cũ theo Tầng & Phòng
 │   │   ├── 1.2.7. GET /api/v1/reports/phase2/{id}                       # Lấy chi tiết toàn bộ hồ sơ Phase 2
 │   │   ├── 1.2.8. GET /api/v1/reports/phase2/{id}/quality-gate          # Phase 2 Bước 6: Checklist 10 tiêu chí Phụ lục A
-│   │   └── 1.2.9. GET /api/v1/photos/{id}/ai-status                     # Kiểm tra tiến độ AI nắn thẳng mặt đứng P-02
+│   │   ├── 1.2.9. GET /api/v1/photos/{id}/ai-status                     # Kiểm tra tiến độ AI nắn thẳng mặt đứng P-02
+│   │   └── 1.2.10. GET /api/v1/attendance/my-history                    # Xem lịch sử chấm công của chính mình
 │   │
 │   ├── [PUT] Nhóm Cập Nhật Thông Số, Đo Đạc & Đối Soát Delta
 │   │   ├── 1.3.1. PUT /api/v1/reports/phase1/{id}/general-info          # Bước 1: Tên CT, Chủ hộ, Cấp CT, Liền kề
@@ -64,21 +68,25 @@
 │       └── 1.4.1. DELETE /api/v1/reports/phase1/zones/{zId}/defects/{dId} # Xóa ghim khuyết tật nháp
 │
 ├── 2. VAI TRÒ 2: TỔ TRƯỞNG & QUẢN TRỊ PHÂN KHU (ZONE ADMIN)
-│   ├── [GET] Nhóm Thống Kê Tiến Độ, Cảnh Báo Bất Thường & Thẩm Định Split-Pane
+│   ├── [GET] Nhóm Thống Kê Tiến Độ, Cảnh Báo Bất Thường, Chấm Công & Thẩm Định Split-Pane
 │   │   ├── 2.1.1. GET /api/v1/admin/analytics/progress                  # Thống kê tiến độ Ngày/Tuần/Tháng (Xong, Chưa xong, Vắng...)
 │   │   ├── 2.1.2. GET /api/v1/admin/reports/audit-alerts                # Động cơ cảnh báo gian lận & bất thường GPS/Kết cấu
 │   │   ├── 2.1.3. GET /api/v1/admin/reports/{id}/audit-flags            # Chi tiết các cờ cảnh báo của 1 hồ sơ cụ thể
 │   │   ├── 2.1.4. GET /api/v1/admin/reports/{id}/audit-view             # Payload Split-Pane (Kính lúp 400%) kèm cờ cảnh báo
 │   │   ├── 2.1.5. GET /api/v1/admin/reports                             # Danh sách hồ sơ lọc theo ngày/tuần, trạng thái, rủi ro VI
 │   │   ├── 2.1.6. GET /api/v1/admin/parcels/unassigned                  # Danh sách thửa đất chưa phân công
-│   │   └── 2.1.7. GET /api/v1/reports/batch-export/{batchId}/status     # Tiến độ đóng gói và link tải File kèm Checksum SHA
+│   │   ├── 2.1.7. GET /api/v1/reports/batch-export/{batchId}/status     # Tiến độ đóng gói và link tải File kèm Checksum SHA
+│   │   ├── 2.1.8. GET /api/v1/admin/attendance                         # Giám sát & Kiểm tra danh sách chấm công Surveyor trong Ga
+│   │   ├── 2.1.9. GET /api/v1/admin/attendance/{id}                     # Chi tiết 1 lượt chấm công (GPS, Selfie, Khoảng cách Ga)
+│   │   └── 2.1.10. GET /api/v1/admin/attendance/summary                 # Báo cáo chuyên cần chấm công theo tháng/tuần
 │   │
-│   ├── [POST] Nhóm Giao Việc, Phê Duyệt/Trả Về & Đóng Gói Xuất Báo Cáo Chọn Lọc
+│   ├── [POST] Nhóm Giao Việc, Phê Duyệt/Trả Về, Xác Nhận Chấm Công & Đóng Gói Báo Cáo
 │   │   ├── 2.2.1. POST /api/v1/reports/batch-export                     # Xuất Báo cáo Chọn lọc: Theo ID chỉ định / Theo Ngày, Tuần
 │   │   ├── 2.2.2. POST /api/v1/admin/tasks/assign                       # Giao việc trên bản đồ số GIS
 │   │   ├── 2.2.3. POST /api/v1/admin/reports/{id}/approve               # Duyệt Báo cáo (Phím 'A') & Sinh PDF/A ký số
 │   │   ├── 2.2.4. POST /api/v1/admin/reports/{id}/reject                # Trả về Báo cáo (Phím 'R') & Rollback biến động
-│   │   └── 2.2.5. POST /api/v1/admin/mutations/{id}/approve              # Phê duyệt biến động Tách/Gộp thửa đất
+│   │   ├── 2.2.5. POST /api/v1/admin/mutations/{id}/approve              # Phê duyệt biến động Tách/Gộp thửa đất
+│   │   └── 2.2.6. POST /api/v1/admin/attendance/{id}/verify             # Phê duyệt / Cảnh báo / Từ chối lượt chấm công
 │   │
 │   ├── [PUT] Nhóm Điều Chỉnh Phân Công
 │   │   └── 2.3.1. PUT /api/v1/admin/tasks/{taskId}/reassign             # Chuyển giao nhiệm vụ khảo sát sang Surveyor khác
@@ -87,10 +95,29 @@
 │       └── 2.4.1. DELETE /api/v1/admin/tasks/{taskId}                   # Hủy nhiệm vụ khảo sát
 │
 ├── 3. VAI TRÒ 3: TỔNG QUẢN TRỊ TOÀN TUYẾN (SUPER ADMIN)
-│   ├── [GET]  GET /api/v1/zones, GET /api/v1/admin/users, GET /api/v1/admin/audit-logs
-│   ├── [POST] POST /api/v1/admin/users, POST /api/v1/admin/gis/import-parcels
-│   ├── [PUT]  PUT /api/v1/admin/gis/layers/metro-alignment, PUT /api/v1/admin/users/{id}/status
-│   └── [DELETE] DELETE /api/v1/admin/users/{id}
+│   ├── [GET] Nhóm Toàn Cảnh Tuyến, Quản Trị Nhân Sự, Chấm Công & Lịch Sử Export
+│   │   ├── 3.1. GET /api/v1/zones                                       # Danh sách 11 Ga Metro 2 & % tiến độ toàn tuyến
+│   │   ├── 3.2. GET /api/v1/admin/analytics/global-overview             # Dashboard KPI toàn tuyến (Tiến độ, Rủi ro, Chuyên cần)
+│   │   ├── 3.3. GET /api/v1/admin/users                                 # Danh sách tài khoản người dùng toàn hệ thống
+│   │   ├── 3.4. GET /api/v1/admin/users/{id}                            # Xem chi tiết thông tin và quyền hạn 1 tài khoản
+│   │   ├── 3.5. GET /api/v1/admin/attendance                            # Giám sát chấm công toàn tuyến 11 Ga
+│   │   ├── 3.6. GET /api/v1/admin/reports/exports                       # Lịch sử & Quản lý toàn bộ các đợt xuất báo cáo hệ thống
+│   │   └── 3.7. GET /api/v1/admin/reports/exports/{batchId}             # Chi tiết 1 mẻ xuất báo cáo và link tải
+│   │
+│   ├── [POST] Nhóm Cấp Tài Khoản, Import GIS, Xuất Báo Cáo Toàn Tuyến
+│   │   ├── 3.8. POST /api/v1/admin/users                                # Cấp mới tài khoản nội bộ (Zone Admin, Surveyor...)
+│   │   ├── 3.9. POST /api/v1/admin/users/{id}/reset-password            # Đặt lại mật khẩu tài khoản
+│   │   ├── 3.10. POST /api/v1/admin/gis/import-parcels                  # Import hàng loạt thửa đất từ GeoJSON / Shapefile
+│   │   └── 3.11. POST /api/v1/admin/reports/batch-export                # Xuất báo cáo toàn tuyến (11 Ga) hoặc chọn lọc liên ga
+│   │
+│   ├── [PUT] Nhóm Cập Nhật Thông Tin, Khóa Tài Khoản & Bản Đồ GIS
+│   │   ├── 3.12. PUT /api/v1/admin/users/{id}                           # Cập nhật thông tin người dùng (Họ tên, SĐT, Role, Ga)
+│   │   ├── 3.13. PUT /api/v1/admin/users/{id}/status                    # Khóa / Mở khóa tài khoản (ACTIVE, SUSPENDED, LOCKED)
+│   │   └── 3.14. PUT /api/v1/admin/gis/layers/metro-alignment           # Cập nhật Tim tuyến Metro 2 & Vùng ảnh hưởng ZOI 50m
+│   │
+│   └── [DELETE] Nhóm Xóa Tài Khoản & Thu Hồi Mẻ Xuất
+│       ├── 3.15. DELETE /api/v1/admin/users/{id}                        # Xóa / Vô hiệu hóa tài khoản người dùng
+│       └── 3.16. DELETE /api/v1/admin/reports/exports/{batchId}         # Thu hồi / Xóa mẻ xuất báo cáo khỏi hệ thống
 │
 └── 4. VAI TRÒ 4: NHÀ THẦU XÂY LẮP & KHÁCH TRA CỨU (CONTRACTOR & GUEST)
     └── [GET]  GET /api/v1/guest/gis-map, GET /api/v1/guest/parcels/{id}/summary, GET /api/v1/guest/dossiers/{id}/download
@@ -205,14 +232,14 @@
 ## 1.1. NHÓM PHƯƠNG THỨC POST (Tạo mới, Upload, Khởi tạo, Tự nhận thửa, Nộp hồ sơ)
 
 ### 1.1.1. `POST /api/v1/attendance/check-in`
-* **Mô tả:** Chấm công GPS đầu ngày tại hiện trường. Tinh gọn: Chỉ cần gửi tọa độ GPS thực tế (`gpsLat`, `gpsLng`), mã Ga (`zoneId`), ảnh selfie và ghi chú tùy chọn.
+* **Mô tả:** Chấm công GPS đầu ngày tại hiện trường. Tinh gọn: Chỉ cần gửi tọa độ GPS thực tế (`gpsLat`, `gpsLng`), mã Ga (`zoneId`), ảnh selfie và ghi chú tùy chọn. Lượt chấm công được chuyển đến Zone Admin để đối soát.
 * **Quyền truy cập:** `SURVEYOR`
 * **Request Headers:** `Content-Type: multipart/form-data`
 * **Form Fields:**
   * `zoneId` (string, required): Mã Ga, ví dụ `"ZONE_S9"`
   * `gpsLat` (number, required): `10.798123`
   * `gpsLng` (number, required): `106.645678`
-  * `selfieFile` (file binary, optional): Ảnh chụp xác thực
+  * `selfieFile` (file binary, optional): Ảnh chụp selfie tại hiện trường
   * `notes` (string, optional): Ghi chú ca khảo sát
 * **Response `201 Created`:**
 ```json
@@ -224,7 +251,9 @@
     "checkinTime": "2026-09-16T07:45:12.000Z",
     "gpsLat": 10.798123,
     "gpsLng": 106.645678,
-    "zoneId": "ZONE_S9"
+    "zoneId": "ZONE_S9",
+    "verificationStatus": "PENDING_VERIFICATION",
+    "distanceToZoneCenterMeters": 35.4
   }
 }
 ```
@@ -333,16 +362,6 @@
     "currentStep": 1,
     "createdAt": "2026-09-16T08:00:00.000Z"
   }
-}
-```
-* **Response `409 Conflict`:**
-```json
-{
-  "type": "https://metro2.vn/errors/ERR_REPORT_ALREADY_EXISTS",
-  "title": "Conflict",
-  "status": 409,
-  "detail": "Thửa đất B-00105 đã có hồ sơ Phase 1 đang hoạt động (rep-p1-00105).",
-  "instance": "/api/v1/reports/phase1"
 }
 ```
 
@@ -1156,6 +1175,38 @@
 
 ---
 
+### 1.2.10. `GET /api/v1/attendance/my-history` *(Xem Lịch Sử Chấm Công Cá Nhân)*
+* **Mô tả:** Surveyor xem lại lịch sử chấm công GPS thực địa của chính mình theo tuần/tháng, kèm trạng thái phê duyệt của Zone Admin.
+* **Quyền truy cập:** `SURVEYOR`
+* **Query Parameters:** `startDate="2026-09-01"`, `endDate="2026-09-16"`, `page=1`, `limit=30`
+* **Response `200 OK`:**
+```json
+{
+  "success": true,
+  "data": {
+    "totalCheckins": 14,
+    "items": [
+      {
+        "checkinId": "chk-20260916-0001",
+        "checkinTime": "2026-09-16T07:45:12.000Z",
+        "zoneId": "ZONE_S9",
+        "zoneName": "Ga S9 - Bà Quẹo",
+        "gpsLat": 10.798123,
+        "gpsLng": 106.645678,
+        "selfiePhotoUrl": "https://s3.metro2.vn/selfies/u001_20260916.jpg",
+        "distanceToZoneCenterMeters": 35.4,
+        "verificationStatus": "APPROVED",
+        "verifiedBy": "Trần Văn Tổ Trưởng",
+        "verifiedAt": "2026-09-16T08:00:00.000Z",
+        "verificationNotes": "Tọa độ chuẩn xác trong ranh Ga S9"
+      }
+    ]
+  }
+}
+```
+
+---
+
 ## 1.3. NHÓM PHƯƠNG THỨC PUT (Cập Nhật, Đo Đạc & Đối Soát Delta)
 
 ### 1.3.1. `PUT /api/v1/reports/phase1/{reportId}/general-info`
@@ -1468,7 +1519,7 @@
 
 ---
 
-## 2.1. NHÓM PHƯƠNG THỨC GET (Thống Kê Tiến Độ, Cảnh Báo Bất Thường & Thẩm Định)
+## 2.1. NHÓM PHƯƠNG THỨC GET (Thống Kê Tiến Độ, Cảnh Báo Bất Thường, Chấm Công & Thẩm Định)
 
 ### 2.1.1. `GET /api/v1/admin/analytics/progress` *(Thống Kê Tiến Độ Khảo Sát Thời Gian Thực)*
 * **Mô tả:** Thống kê tổng hợp số lượng hồ sơ đã hoàn tất, đang làm, vắng nhà, bị trả về theo khoảng thời gian ngày/tuần/tháng trong phân khu Ga.
@@ -1698,20 +1749,6 @@
         "hasAuditAlerts": true,
         "alertCount": 1,
         "submittedAt": "2026-09-16T08:30:00.000Z"
-      },
-      {
-        "reportId": "rep-p1-00105",
-        "parcelCode": "B-00105",
-        "fieldSurveyCode": "KS004",
-        "ownerName": "Nguyễn Văn Hùng",
-        "address": "854 Đường Trường Chinh, P.15, Tân Bình",
-        "surveyorName": "Nguyễn Văn Khảo Sát",
-        "status": "APPROVED",
-        "ecsScore": 6,
-        "viClass": "MEDIUM",
-        "hasAuditAlerts": false,
-        "alertCount": 0,
-        "submittedAt": "2026-09-16T09:30:00.000Z"
       }
     ]
   }
@@ -1737,15 +1774,6 @@
       "address": "880 Đường Trường Chinh",
       "ownerName": "Đặng Văn Lâm",
       "landAreaM2": 75.0,
-      "surveyStatus": "NOT_SURVEYED"
-    },
-    {
-      "parcelId": "p-00121",
-      "projectParcelCode": "B-00121",
-      "fieldSurveyCode": "KS013",
-      "address": "882 Đường Trường Chinh",
-      "ownerName": "Vũ Minh Tuấn",
-      "landAreaM2": 82.5,
       "surveyStatus": "NOT_SURVEYED"
     }
   ]
@@ -1774,17 +1802,133 @@
 
 ---
 
-## 2.2. NHÓM PHƯƠNG THỨC POST (Phê Duyệt, Trả Về, Giao Việc, Đóng Gói Xuất Báo Cáo Chọn Lọc)
+### 2.1.8. `GET /api/v1/admin/attendance` *(Giám Sát Chấm Công Surveyor Toàn Ga)*
+* **Mô tả:** Zone Admin kiểm tra toàn bộ danh sách chấm công của cán bộ khảo sát trong phân khu Ga theo ngày/tuần, đối soát vị trí GPS thực tế và phát hiện các trường hợp chấm công cách xa tâm Ga.
+* **Quyền truy cập:** `ZONE_ADMIN`, `SUPER_ADMIN`
+* **Query Parameters:**
+  * `zoneId` (string, required): `"ZONE_S9"`
+  * `date` (string, optional): `"2026-09-16"`
+  * `verificationStatus` (string, optional): `"ALL"` | `"PENDING_VERIFICATION"` | `"APPROVED"` | `"FLAGGED_WARNING"` | `"REJECTED"`
+  * `page` (integer, optional, default: 1): `1`
+  * `limit` (integer, optional, default: 20): `20`
+* **Response `200 OK`:**
+```json
+{
+  "success": true,
+  "data": {
+    "totalCheckins": 8,
+    "pendingVerificationCount": 2,
+    "flaggedCount": 1,
+    "items": [
+      {
+        "checkinId": "chk-20260916-0001",
+        "surveyorId": "u-001-surveyor",
+        "surveyorName": "Nguyễn Văn Khảo Sát",
+        "checkinTime": "2026-09-16T07:45:12.000Z",
+        "gpsLat": 10.798123,
+        "gpsLng": 106.645678,
+        "distanceToZoneCenterMeters": 35.4,
+        "isWithinZoneBoundary": true,
+        "selfiePhotoUrl": "https://s3.metro2.vn/selfies/u001_20260916.jpg",
+        "verificationStatus": "PENDING_VERIFICATION",
+        "hasAnomalyFlag": false
+      },
+      {
+        "checkinId": "chk-20260916-0002",
+        "surveyorId": "u-002-surveyor",
+        "surveyorName": "Trần Văn B",
+        "checkinTime": "2026-09-16T08:10:00.000Z",
+        "gpsLat": 10.812450,
+        "gpsLng": 106.661200,
+        "distanceToZoneCenterMeters": 1850.0,
+        "isWithinZoneBoundary": false,
+        "selfiePhotoUrl": "https://s3.metro2.vn/selfies/u002_20260916.jpg",
+        "verificationStatus": "FLAGGED_WARNING",
+        "hasAnomalyFlag": true,
+        "anomalyReason": "Vị trí chấm công cách tâm Ga S9 1.85 km (vượt ngưỡng cho phép 500m)"
+      }
+    ]
+  }
+}
+```
+
+---
+
+### 2.1.9. `GET /api/v1/admin/attendance/{id}` *(Chi Tiết 1 Lượt Chấm Công)*
+* **Mô tả:** Lấy chi tiết thông tin lượt chấm công: Tọa độ bản đồ, ảnh selfie phóng to, lịch sử hành trình trong ngày của Surveyor.
+* **Quyền truy cập:** `ZONE_ADMIN`, `SUPER_ADMIN`
+* **Response `200 OK`:**
+```json
+{
+  "success": true,
+  "data": {
+    "checkinId": "chk-20260916-0002",
+    "surveyor": {
+      "id": "u-002-surveyor",
+      "fullName": "Trần Văn B",
+      "phone": "0912345678"
+    },
+    "zoneId": "ZONE_S9",
+    "zoneName": "Ga S9 - Bà Quẹo",
+    "checkinTime": "2026-09-16T08:10:00.000Z",
+    "gpsLat": 10.812450,
+    "gpsLng": 106.661200,
+    "distanceToZoneCenterMeters": 1850.0,
+    "selfiePhotoUrl": "https://s3.metro2.vn/selfies/u002_20260916.jpg",
+    "verificationStatus": "FLAGGED_WARNING",
+    "verifiedBy": null,
+    "verifiedAt": null,
+    "notes": "Chấm công từ nhà riêng"
+  }
+}
+```
+
+---
+
+### 2.1.10. `GET /api/v1/admin/attendance/summary` *(Báo Cáo Chuyên Cần Chấm Công)*
+* **Mô tả:** Thống kê tổng hợp số ngày công, giờ đi làm trung bình, số lượt cảnh báo sai GPS của từng Surveyor trong tháng.
+* **Quyền truy cập:** `ZONE_ADMIN`, `SUPER_ADMIN`
+* **Query Parameters:** `zoneId="ZONE_S9"`, `month="2026-09"`
+* **Response `200 OK`:**
+```json
+{
+  "success": true,
+  "data": {
+    "zoneId": "ZONE_S9",
+    "month": "2026-09",
+    "totalSurveyors": 4,
+    "items": [
+      {
+        "surveyorId": "u-001-surveyor",
+        "surveyorName": "Nguyễn Văn Khảo Sát",
+        "totalWorkingDays": 14,
+        "validCheckins": 14,
+        "flaggedCheckins": 0,
+        "attendanceRatePercent": 100.0
+      },
+      {
+        "surveyorId": "u-002-surveyor",
+        "surveyorName": "Trần Văn B",
+        "totalWorkingDays": 13,
+        "validCheckins": 11,
+        "flaggedCheckins": 2,
+        "attendanceRatePercent": 84.6
+      }
+    ]
+  }
+}
+```
+
+---
+
+## 2.2. NHÓM PHƯƠNG THỨC POST (Phê Duyệt, Trả Về, Giao Việc, Xác Nhận Chấm Công & Xuất Báo Cáo)
 
 ### 2.2.1. `POST /api/v1/reports/batch-export` *(Xuất Báo Cáo Có Chọn Lọc & Theo Tiêu Chí)*
 * **Mô tả:** Đóng gói và xuất báo cáo linh hoạt theo 2 chế độ:
   1. **Chế độ 1 (Theo chỉ định):** Chọn trực tiếp danh sách các `reportIds` hoặc `parcelIds` cụ thể.
   2. **Chế độ 2 (Theo tiêu chí tổng hợp):** Xuất theo Phân khu Ga, khoảng thời gian ngày/tuần/tháng (`startDate` $\to$ `endDate`), trạng thái duyệt, hoặc phân loại rủi ro VI.
 * **Quyền truy cập:** `ZONE_ADMIN`, `SUPER_ADMIN`
-* **Định dạng xuất:**
-  * `PDF_BOOK_COMPILATION`: 1 File PDF Tập hồ sơ duy nhất có bìa pháp lý, mục lục điện tử tự động, bản đồ GIS tổng hợp và mã băm SHA-256.
-  * `ZIP_INDIVIDUAL_PDFS`: 1 File ZIP chứa từng file PDF/A đơn lẻ của từng căn nhà.
-  * `EXCEL_SUMMARY`: Bảng thống kê Excel tổng hợp toàn bộ thông số kỹ thuật và điểm số ECS/VI.
+* **Định dạng xuất:** `PDF_BOOK_COMPILATION` (File PDF gộp có bìa + mục lục + SHA-256), `ZIP_INDIVIDUAL_PDFS`, `EXCEL_SUMMARY`.
 * **Request Body (Chế độ 1 - Theo Danh Sách Chỉ Định):**
 ```json
 {
@@ -1920,6 +2064,33 @@
 
 ---
 
+### 2.2.6. `POST /api/v1/admin/attendance/{id}/verify` *(Xác Nhận & Duyệt Chấm Công)*
+* **Mô tả:** Zone Admin xác nhận tính hợp lệ của lượt chấm công, phê duyệt ngày công, hoặc gắn cờ cảnh báo / từ chối khi tọa độ GPS không đúng vị trí Ga.
+* **Quyền truy cập:** `ZONE_ADMIN`, `SUPER_ADMIN`
+* **Request Body:**
+```json
+{
+  "action": "APPROVE",
+  "notes": "Đã xác nhận có mặt tại công trường Ga S9 lúc 07:45"
+}
+```
+*(Hoặc Action từ chối: `{"action": "REJECT", "notes": "Chấm công sai vị trí cách Ga 1.8km"}`)*
+* **Response `200 OK`:**
+```json
+{
+  "success": true,
+  "message": "Đã phê duyệt lượt chấm công thành công.",
+  "data": {
+    "checkinId": "chk-20260916-0001",
+    "verificationStatus": "APPROVED",
+    "verifiedBy": "Trần Văn Tổ Trưởng",
+    "verifiedAt": "2026-09-16T08:00:00.000Z"
+  }
+}
+```
+
+---
+
 ## 2.3. NHÓM PHƯƠNG THỨC PUT (Điều Chỉnh Phân Công)
 
 ### 2.3.1. `PUT /api/v1/admin/tasks/{taskId}/reassign`
@@ -1965,7 +2136,9 @@
 
 ---
 
-### 3.1. [GET] `GET /api/v1/zones`
+## 3.1. NHÓM PHƯƠNG THỨC GET (Toàn Cảnh Tuyến, Quản Trị Nhân Sự, Chấm Công & Quản Lý Xuất Dữ Liệu)
+
+### 3.1.1. `GET /api/v1/zones`
 * **Mô tả:** Lấy danh sách toàn bộ 11 Ga Metro 2 kèm thống kê tổng số thửa, số lượng đã khảo sát, số lượng đã duyệt và tỷ lệ hoàn thành (%).
 * **Quyền truy cập:** `SUPER_ADMIN`, `ZONE_ADMIN`
 * **Response `200 OK`:**
@@ -2000,32 +2173,76 @@
 
 ---
 
-### 3.2. [GET] `GET /api/v1/admin/users`
-* **Mô tả:** Quản lý danh sách nhân sự toàn hệ thống.
+### 3.1.2. `GET /api/v1/admin/analytics/global-overview` *(Dashboard KPI Toàn Tuyến Metro 2)*
+* **Mô tả:** Tổng chỉ huy toàn tuyến: Thống kê tổng số căn toàn bộ 11 Ga, tỷ lệ hoàn thành %, biểu đồ phân bổ mức độ rủi ro $VI$ toàn tuyến, và hiệu suất chuyên cần.
 * **Quyền truy cập:** `SUPER_ADMIN`
-* **Query Parameters:** `role`, `zoneId`, `status`, `page`, `limit`
 * **Response `200 OK`:**
 ```json
 {
   "success": true,
   "data": {
-    "total": 45,
+    "totalParcelsAllZones": 6850,
+    "totalApprovedCount": 4210,
+    "overallCompletionPercent": 61.4,
+    "riskDistribution": {
+      "LOW": 2450,
+      "MEDIUM": 1380,
+      "HIGH": 320,
+      "VERY_HIGH": 60
+    },
+    "activeSurveyorsCount": 45,
+    "todayCheckinCount": 42,
+    "unresolvedAlertsCount": 8
+  }
+}
+```
+
+---
+
+### 3.1.3. `GET /api/v1/admin/users` *(Danh Sách Quản Trị Nhân Sự Toàn Hệ Thống)*
+* **Mô tả:** Super Admin tra cứu danh sách nhân sự toàn hệ thống với bộ lọc đa chiều (Role, Ga phụ trách, Trạng thái hoạt động, Từ khóa tìm kiếm họ tên/username).
+* **Quyền truy cập:** `SUPER_ADMIN`
+* **Query Parameters:**
+  * `role` (string, optional): `"ALL"` | `"SURVEYOR"` | `"ZONE_ADMIN"` | `"SUPER_ADMIN"`
+  * `zoneId` (string, optional): `"ZONE_S9"`
+  * `status` (string, optional): `"ALL"` | `"ACTIVE"` | `"SUSPENDED"` | `"LOCKED"`
+  * `search` (string, optional): `"Nguyễn Văn"`
+  * `page` (integer, optional, default: 1): `1`
+  * `limit` (integer, optional, default: 20): `20`
+* **Response `200 OK`:**
+```json
+{
+  "success": true,
+  "data": {
+    "totalUsers": 48,
+    "totalPages": 3,
+    "currentPage": 1,
     "items": [
       {
         "id": "u-001-surveyor",
         "username": "surveyor_s9_01",
         "fullName": "Nguyễn Văn Khảo Sát",
+        "email": "surveyor_s9_01@metro2.vn",
+        "phone": "0908123456",
         "role": "SURVEYOR",
         "assignedZoneId": "ZONE_S9",
-        "status": "ACTIVE"
+        "assignedZoneName": "Ga S9 - Bà Quẹo",
+        "status": "ACTIVE",
+        "createdAt": "2026-08-01T00:00:00.000Z",
+        "lastLoginAt": "2026-09-16T07:45:00.000Z"
       },
       {
         "id": "u-002-zoneadmin",
         "username": "zoneadmin_s9",
         "fullName": "Trần Văn Tổ Trưởng",
+        "email": "zoneadmin_s9@metro2.vn",
+        "phone": "0909988776",
         "role": "ZONE_ADMIN",
         "assignedZoneId": "ZONE_S9",
-        "status": "ACTIVE"
+        "assignedZoneName": "Ga S9 - Bà Quẹo",
+        "status": "ACTIVE",
+        "createdAt": "2026-08-01T00:00:00.000Z",
+        "lastLoginAt": "2026-09-16T08:00:00.000Z"
       }
     ]
   }
@@ -2034,15 +2251,106 @@
 
 ---
 
-### 3.3. [POST] `POST /api/v1/admin/users`
-* **Mô tả:** Cấp tài khoản nội bộ mới (Zone Admin, Surveyor).
+### 3.1.4. `GET /api/v1/admin/users/{userId}` *(Chi Tiết 1 Tài Khoản Người Dùng)*
+* **Mô tả:** Lấy toàn bộ thông tin chi tiết của 1 tài khoản: Phân quyền, Lịch sử khảo sát/phê duyệt, Nhật ký đăng nhập.
+* **Quyền truy cập:** `SUPER_ADMIN`
+* **Response `200 OK`:**
+```json
+{
+  "success": true,
+  "data": {
+    "id": "u-001-surveyor",
+    "username": "surveyor_s9_01",
+    "fullName": "Nguyễn Văn Khảo Sát",
+    "email": "surveyor_s9_01@metro2.vn",
+    "phone": "0908123456",
+    "role": "SURVEYOR",
+    "assignedZoneId": "ZONE_S9",
+    "assignedZoneName": "Ga S9 - Bà Quẹo",
+    "status": "ACTIVE",
+    "statusReason": "",
+    "avatarUrl": "https://s3.metro2.vn/avatars/u-001.jpg",
+    "surveyStats": {
+      "completedReportsCount": 42,
+      "inProgressCount": 1,
+      "absentRecordedCount": 6
+    },
+    "createdAt": "2026-08-01T00:00:00.000Z",
+    "updatedAt": "2026-09-15T10:00:00.000Z"
+  }
+}
+```
+
+---
+
+### 3.1.5. `GET /api/v1/admin/reports/exports` *(Lịch Sử & Quản Lý Xuất Báo Cáo Toàn Hệ Thống)*
+* **Mô tả:** Super Admin xem và quản lý danh sách toàn bộ các đợt đóng gói xuất báo cáo của toàn tuyến và của từng Zone Admin (ai xuất, thời gian, thuộc Ga nào, dung lượng, Checksum SHA-256, link tải, trạng thái).
+* **Quyền truy cập:** `SUPER_ADMIN`
+* **Query Parameters:** `zoneId`, `status`, `startDate`, `endDate`, `page`, `limit`
+* **Response `200 OK`:**
+```json
+{
+  "success": true,
+  "data": {
+    "totalExports": 24,
+    "items": [
+      {
+        "batchId": "batch-s9-20260916-001",
+        "zoneId": "ZONE_S9",
+        "zoneName": "Ga S9 - Bà Quẹo",
+        "exportedBy": "Trần Văn Tổ Trưởng (ZONE_ADMIN)",
+        "exportScope": "FILTER_CRITERIA",
+        "format": "PDF_BOOK_COMPILATION",
+        "totalReportsCompiled": 35,
+        "status": "COMPLETED",
+        "fileSizeBytes": 48234900,
+        "downloadUrl": "https://s3.metro2.vn/dossiers/Dossier_Zone_S9_20260916.pdf",
+        "checksumSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "createdAt": "2026-09-16T10:00:00.000Z",
+        "expiresAt": "2026-09-30T23:59:59.000Z"
+      },
+      {
+        "batchId": "batch-global-20260915-002",
+        "zoneId": "ALL_ZONES",
+        "zoneName": "Toàn tuyến Metro 2",
+        "exportedBy": "Super Admin Tuyến 2",
+        "exportScope": "GLOBAL_SUMMARY",
+        "format": "EXCEL_SUMMARY",
+        "totalReportsCompiled": 4210,
+        "status": "COMPLETED",
+        "fileSizeBytes": 12450800,
+        "downloadUrl": "https://s3.metro2.vn/dossiers/Metro2_Global_Summary_20260915.xlsx",
+        "checksumSha256": "a7b8c9...456f",
+        "createdAt": "2026-09-15T17:00:00.000Z",
+        "expiresAt": "2026-10-15T23:59:59.000Z"
+      }
+    ]
+  }
+}
+```
+
+---
+
+### 3.1.6. `GET /api/v1/admin/reports/exports/{batchId}` *(Chi Tiết 1 Mẻ Xuất Báo Cáo)*
+* **Mô tả:** Lấy thông tin chi tiết của 1 mẻ xuất file (danh sách các mã nhà nằm trong file gộp, logs đóng gói, link tải trực tiếp).
+* **Quyền truy cập:** `SUPER_ADMIN`, `ZONE_ADMIN`
+* **Response `200 OK`:** Trả về chi tiết mẻ xuất kèm danh sách mã nhà đã đóng gói.
+
+---
+
+## 3.2. NHÓM PHƯƠNG THỨC POST (Cấp Tài Khoản, Reset Mật Khẩu, Import GIS & Xuất Toàn Tuyến)
+
+### 3.2.1. `POST /api/v1/admin/users` *(Tạo Mới Tài Khoản Nhân Sự)*
+* **Mô tả:** Super Admin tạo mới tài khoản cho Zone Admin, Surveyor, Nhà thầu hoặc Chuyên gia thẩm định.
 * **Quyền truy cập:** `SUPER_ADMIN`
 * **Request Body:**
 ```json
 {
   "username": "zoneadmin_s10",
-  "password": "Admin@123",
-  "fullName": "Trần Văn Điều Phối",
+  "password": "InitialPassword@123",
+  "fullName": "Phạm Quốc Hùng",
+  "email": "hung.pq@metro2.vn",
+  "phone": "0918889999",
   "role": "ZONE_ADMIN",
   "assignedZoneId": "ZONE_S10"
 }
@@ -2051,19 +2359,42 @@
 ```json
 {
   "success": true,
-  "message": "Tạo tài khoản thành công.",
+  "message": "Đã tạo tài khoản người dùng thành công.",
   "data": {
-    "id": "u-003-zoneadmin",
+    "id": "u-004-zoneadmin",
     "username": "zoneadmin_s10",
+    "fullName": "Phạm Quốc Hùng",
     "role": "ZONE_ADMIN",
-    "assignedZoneId": "ZONE_S10"
+    "assignedZoneId": "ZONE_S10",
+    "status": "ACTIVE",
+    "createdAt": "2026-09-16T11:00:00.000Z"
   }
 }
 ```
 
 ---
 
-### 3.4. [POST] `POST /api/v1/admin/gis/import-parcels`
+### 3.2.2. `POST /api/v1/admin/users/{userId}/reset-password` *(Đặt Lại Mật Khẩu)*
+* **Mô tả:** Super Admin đặt lại mật khẩu cho tài khoản người dùng khi bị quên hoặc có yêu cầu bảo mật.
+* **Quyền truy cập:** `SUPER_ADMIN`
+* **Request Body:**
+```json
+{
+  "newPassword": "NewSecurePassword@456",
+  "requirePasswordChangeOnNextLogin": true
+}
+```
+* **Response `200 OK`:**
+```json
+{
+  "success": true,
+  "message": "Đã đặt lại mật khẩu thành công. Người dùng sẽ phải đổi mật khẩu ở lần đăng nhập tiếp theo."
+}
+```
+
+---
+
+### 3.2.3. `POST /api/v1/admin/gis/import-parcels` *(Import Hàng Loạt Thửa Đất)*
 * **Mô tả:** Import hàng loạt thửa đất địa chính ban đầu từ file GeoJSON / Shapefile của Sở TN&MT.
 * **Quyền truy cập:** `SUPER_ADMIN`
 * **Request Headers:** `Content-Type: multipart/form-data`
@@ -2084,8 +2415,92 @@
 
 ---
 
-### 3.5. [PUT] `PUT /api/v1/admin/gis/layers/metro-alignment`
-* **Mô tả:** Cập nhật Tim tuyến Metro 2 GeoJSON và Vùng ảnh hưởng trực tiếp (Zone of Influence - ZOI).
+### 3.2.4. `POST /api/v1/admin/reports/batch-export` *(Super Admin Xuất Báo Cáo Toàn Tuyến / Đa Ga)*
+* **Mô tả:** Super Admin đóng gói và xuất báo cáo toàn bộ 11 Ga Metro 2 hoặc chọn lọc liên ga.
+* **Quyền truy cập:** `SUPER_ADMIN`
+* **Request Body:**
+```json
+{
+  "exportScope": "GLOBAL_ALL_ZONES",
+  "selectedZoneIds": ["ZONE_S1", "ZONE_S2", "ZONE_S9", "ZONE_S10", "ZONE_S11"],
+  "format": "PDF_BOOK_COMPILATION",
+  "includeGisOverviewMap": true,
+  "includeEcsSummaryTable": true,
+  "notes": "Xuất tập hồ sơ hiện trạng bàn giao Ban Quản lý Đường sắt Đô thị (MAUR)"
+}
+```
+* **Response `202 Accepted`:**
+```json
+{
+  "success": true,
+  "batchId": "batch-global-20260916-001",
+  "status": "QUEUED",
+  "totalReportsSelected": 4210,
+  "message": "Tiến trình xuất báo cáo toàn tuyến đã được khởi động."
+}
+```
+
+---
+
+## 3.3. NHÓM PHƯƠNG THỨC PUT (Cập Nhật Thông Tin, Khóa Tài Khoản & Bản Đồ GIS)
+
+### 3.3.1. `PUT /api/v1/admin/users/{userId}` *(Cập Nhật Thông Tin Tài Khoản)*
+* **Mô tả:** Super Admin cập nhật thông tin cá nhân, chức vụ, vai trò (`role`), điều chuyển nhân sự sang Ga khác (`assignedZoneId`), số điện thoại, email.
+* **Quyền truy cập:** `SUPER_ADMIN`
+* **Request Body:**
+```json
+{
+  "fullName": "Nguyễn Văn Khảo Sát Trưởng",
+  "email": "surveyor_s9_lead@metro2.vn",
+  "phone": "0908123999",
+  "role": "SURVEYOR",
+  "assignedZoneId": "ZONE_S10"
+}
+```
+* **Response `200 OK`:**
+```json
+{
+  "success": true,
+  "message": "Đã cập nhật thông tin người dùng và điều chuyển sang Ga S10 thành công.",
+  "data": {
+    "id": "u-001-surveyor",
+    "fullName": "Nguyễn Văn Khảo Sát Trưởng",
+    "assignedZoneId": "ZONE_S10",
+    "updatedAt": "2026-09-16T11:15:00.000Z"
+  }
+}
+```
+
+---
+
+### 3.3.2. `PUT /api/v1/admin/users/{userId}/status` *(Khóa / Mở Khóa Tài Khoản)*
+* **Mô tả:** Super Admin tạm khóa, khóa vĩnh viễn hoặc kích hoạt lại tài khoản người dùng (`ACTIVE`, `SUSPENDED`, `LOCKED`) kèm lý do hành chính.
+* **Quyền truy cập:** `SUPER_ADMIN`
+* **Request Body:**
+```json
+{
+  "status": "SUSPENDED",
+  "reason": "Tạm dừng quyền khảo sát do vi phạm quy chế chấm công sai vị trí GPS"
+}
+```
+* **Response `200 OK`:**
+```json
+{
+  "success": true,
+  "message": "Đã chuyển trạng thái tài khoản sang SUSPENDED.",
+  "data": {
+    "id": "u-002-surveyor",
+    "status": "SUSPENDED",
+    "statusReason": "Tạm dừng quyền khảo sát do vi phạm quy chế chấm công sai vị trí GPS",
+    "updatedAt": "2026-09-16T11:20:00.000Z"
+  }
+}
+```
+
+---
+
+### 3.3.3. `PUT /api/v1/admin/gis/layers/metro-alignment` *(Cập Nhật Tim Tuyến & Vùng Ảnh Hưởng ZOI)*
+* **Mô tả:** Cập nhật Tim tuyến Metro 2 GeoJSON và Vùng ảnh hưởng trực tiếp (Zone of Influence - ZOI 50m).
 * **Quyền truy cập:** `SUPER_ADMIN`
 * **Request Body:**
 ```json
@@ -2107,34 +2522,29 @@
 
 ---
 
-### 3.6. [PUT] `PUT /api/v1/admin/users/{userId}/status`
-* **Mô tả:** Khóa hoặc kích hoạt lại tài khoản nhân sự (`ACTIVE` / `SUSPENDED`).
+## 3.4. NHÓM PHƯƠNG THỨC DELETE (Xóa Tài Khoản & Thu Hồi Mẻ Xuất)
+
+### 3.4.1. `DELETE /api/v1/admin/users/{userId}` *(Xóa / Vô Hiệu Hóa Tài Khoản)*
+* **Mô tả:** Super Admin xóa tài khoản người dùng (Soft-delete để bảo toàn tính toàn vẹn các biên bản đã ký số trong quá khứ).
 * **Quyền truy cập:** `SUPER_ADMIN`
-* **Request Body:**
-```json
-{
-  "status": "SUSPENDED",
-  "reason": "Nhân viên nghỉ việc"
-}
-```
 * **Response `200 OK`:**
 ```json
 {
   "success": true,
-  "message": "Đã cập nhật trạng thái tài khoản sang SUSPENDED."
+  "message": "Đã vô hiệu hóa và xóa tài khoản người dùng thành công."
 }
 ```
 
 ---
 
-### 3.7. [DELETE] `DELETE /api/v1/admin/users/{userId}`
-* **Mô tả:** Vô hiệu hóa và xóa tài khoản nhân sự.
+### 3.4.2. `DELETE /api/v1/admin/reports/exports/{batchId}` *(Thu Hồi & Xóa Mẻ Xuất Báo Cáo)*
+* **Mô tả:** Super Admin thu hồi và xóa một mẻ xuất báo cáo, hủy liên kết tải file trên S3 để bảo mật thông tin khi phát hiện sai sót dữ liệu.
 * **Quyền truy cập:** `SUPER_ADMIN`
 * **Response `200 OK`:**
 ```json
 {
   "success": true,
-  "message": "Đã xóa tài khoản."
+  "message": "Đã thu hồi và xóa mẻ xuất báo cáo batch-s9-20260916-001 thành công."
 }
 ```
 
