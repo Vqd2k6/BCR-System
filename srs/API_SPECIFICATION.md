@@ -3,7 +3,7 @@
 
 > [!IMPORTANT]
 > **CẤU TRÚC ĐẶC TẢ THEO VAI TRÒ NGƯỜI DÙNG & PHƯƠNG THỨC HTTP (ROLE-FIRST & METHOD-GROUPED):**
-> Tài liệu này phân chia toàn bộ hệ thống API theo 4 nhóm đối tượng người dùng chính (`SURVEYOR`, `ZONE_ADMIN`, `SUPER_ADMIN`, `CONTRACTOR_GUEST`), trong mỗi vai trò được phân cụm chi tiết theo các phương thức HTTP (`POST`, `GET`, `PUT`, `DELETE`).
+> Tài liệu này chuẩn hóa toàn bộ 100% các trường dữ liệu và quy trình nghiệp vụ thực địa theo 9 Bước Phase 1 và 9 Bước Phase 2, phân chia theo 4 nhóm đối tượng người dùng (`SURVEYOR`, `ZONE_ADMIN`, `SUPER_ADMIN`, `CONTRACTOR_GUEST`) và phân cụm theo các phương thức HTTP (`POST`, `GET`, `PUT`, `DELETE`).
 
 ---
 
@@ -17,190 +17,164 @@
 │   └── POST /api/v1/auth/logout
 │
 ├── 1. VAI TRÒ 1: CÁN BỘ KHẢO SÁT HIỆN TRƯỜNG (FIELD SURVEYOR)
-│   ├── [POST] Endpoints: Check-in, Khởi tạo hồ sơ, Upload ảnh P01-P04, Vùng Z-xx, Ghim D-xx, Đề xuất tách thửa, Nộp hồ sơ
-│   ├── [GET]  Endpoints: Xem việc được giao, Tra cứu thửa đất, Lấy ảnh/ghim GĐ1 theo Tầng/Phòng, Trạng thái AI Homography
-│   ├── [PUT]  Endpoints: Lưu đặc tính kết cấu, Đo lún nghiêng, Đối soát Delta Phase 2 (w2, L2), Cập nhật ranh Footprint
-│   └── [DELETE] Endpoints: Xóa ghim khuyết tật nháp, Xóa ảnh chụp thử
+│   ├── [POST] Endpoints (Tạo mới, Upload, Khởi tạo, Nộp hồ sơ Phase 1 & 2):
+│   │   ├── /api/v1/attendance/check-in                      # Chấm công GPS thực địa
+│   │   ├── /api/v1/reports/phase1                           # Khởi tạo hồ sơ Phase 1
+│   │   ├── /api/v1/reports/phase1/{id}/identification-photos# Bước 1: 4 Ảnh P01-P04 + Polygon N điểm + Phân tầng
+│   │   ├── /api/v1/reports/phase1/{id}/zones                # Bước 3: Tạo Vùng Z-xx + Ảnh CTX + Burland Grade
+│   │   ├── /api/v1/reports/phase1/zones/{id}/defects        # Bước 3: Ghim D-xx + Ảnh CU có thước + E2/E4
+│   │   ├── /api/v1/reports/phase1/{id}/sketch               # Bước 6: Upload sơ đồ phác thảo Damage Sketch
+│   │   ├── /api/v1/reports/phase1/{id}/calculate-scores     # Bước 7: Auto tính điểm ECS (0-24) & VI
+│   │   ├── /api/v1/reports/phase1/{id}/submit               # Bước 9: Nộp Phase 1 kèm chữ ký & ý kiến chủ hộ
+│   │   ├── /api/v1/mutations/propose                        # Bước 5: Đề xuất Tách/Gộp thửa, cấp mã > 07000
+│   │   ├── /api/v1/reports/phase2                           # Khởi tạo hồ sơ Phase 2 (kế thừa Phase 1)
+│   │   ├── /api/v1/reports/phase2/{id}/identification-photos# Phase 2 Bước 1: 2 Ảnh P01-P02 mới
+│   │   ├── /api/v1/phase2/zones/{id}/defects                # Phase 2 Bước 3: Thả ghim D-new trên Vùng cũ
+│   │   ├── /api/v1/phase2/reports/{id}/zones                # Phase 2 Bước 3: Tạo Vùng Z-new mới phát sinh
+│   │   ├── /api/v1/reports/phase2/{id}/sketch               # Phase 2 Bước 6: Sơ đồ phác thảo Damage Sketch
+│   │   ├── /api/v1/phase2/reports/{id}/summarize            # Phase 2 Bước 7: Tổng kết biến động, ΔECS, Quan trắc & NDT
+│   │   └── /api/v1/reports/phase2/{id}/submit               # Phase 2 Bước 9: Nộp Phase 2 kèm chữ ký 4 bên
+│   │
+│   ├── [GET] Endpoints (Tra cứu, Lọc dữ liệu theo vị trí, Tiến độ):
+│   │   ├── /api/v1/tasks/my-tasks                           # Danh sách công trình được giao
+│   │   ├── /api/v1/parcels/{id}                             # Chi tiết thửa đất & Đa giác ranh nhà Footprint
+│   │   ├── /api/v1/reports/phase1/{id}                      # Lấy chi tiết hồ sơ Phase 1
+│   │   ├── /api/v1/parcels/{id}/phase2/zones                # Phase 2: Lọc ảnh CTX và ghim cũ theo Tầng & Phòng
+│   │   ├── /api/v1/reports/phase2/{id}                      # Lấy chi tiết hồ sơ Phase 2
+│   │   ├── /api/v1/reports/phase2/{id}/quality-gate         # Phase 2 Bước 6: Checklist 10 tiêu chí Phụ lục A
+│   │   └── /api/v1/photos/{id}/ai-status                    # Kiểm tra tiến độ AI nắn thẳng mặt đứng P-02
+│   │
+│   ├── [PUT] Endpoints (Cập nhật dữ liệu, Đo đạc, Đối soát Delta):
+│   │   ├── /api/v1/reports/phase1/{id}/general-info         # Bước 1: Tên CT, Chủ hộ, Cấp CT, Liền kề
+│   │   ├── /api/v1/reports/phase1/{id}/specs                # Bước 2: Kết cấu, Móng CAT 1-5, E5 Lịch sử
+│   │   ├── /api/v1/reports/phase1/{id}/deformation          # Bước 4: Đo lún nghiêng X/Y, nghiêng sàn, võng dầm
+│   │   ├── /api/v1/reports/phase1/{id}/scope                # Bước 5: Phạm vi khảo sát & Hạn chế tiếp cận
+│   │   ├── /api/v1/reports/phase1/{id}/conclusions          # Bước 8: Kết luận, Rủi ro chính & Kiến nghị
+│   │   ├── /api/v1/parcels/{id}/footprint                   # Bước 5: Cập nhật Đa giác ranh nhà thực địa
+│   │   ├── /api/v1/reports/phase2/{id}/confirm-changes      # Phase 2 Bước 2: Xác nhận biến động sau GĐ1
+│   │   ├── /api/v1/phase2/defects/{id}/verify               # Phase 2 Bước 3: Đối soát ghim cũ (w2, L2, Δw, ΔL)
+│   │   ├── /api/v1/reports/phase2/{id}/deformation          # Phase 2 Bước 4: Đo lún nghiêng & Tính Delta nghiêng
+│   │   └── /api/v1/reports/phase2/{id}/scope                # Phase 2 Bước 5: Phạm vi tiếp cận thực tế GĐ2
+│   │
+│   └── [DELETE] Endpoints (Xóa dữ liệu nháp):
+│       └── /api/v1/reports/phase1/zones/{zId}/defects/{dId} # Xóa ghim khuyết tật nháp
 │
 ├── 2. VAI TRÒ 2: TỔ TRƯỞNG & QUẢN TRỊ PHÂN KHU (ZONE ADMIN)
-│   ├── [GET]  Endpoints: Danh sách thửa chưa phân công, Payload Split-Pane (Kính lúp 400%), Danh sách hồ sơ chờ duyệt, Thống kê Ga
-│   ├── [POST] Endpoints: Giao việc bản đồ GIS, Phê duyệt Báo cáo & Ký số PDF/A, Trả về & Rollback, Duyệt biến động tách thửa, Đóng gói Batch PDF
-│   ├── [PUT]  Endpoints: Điều chỉnh phân công, Cập nhật ghi chú thẩm định kỹ thuật
-│   └── [DELETE] Endpoints: Hủy nhiệm vụ đã giao
+│   ├── [GET]  Endpoints: Thửa chưa phân công, Payload Split-Pane (Kính lúp 400%), Hồ sơ chờ duyệt, Thống kê Ga
+│   ├── [POST] Endpoints: Giao việc bản đồ GIS, Duyệt Báo cáo & Ký số PDF/A, Trả về & Rollback, Duyệt Tách thửa, Batch PDF
+│   ├── [PUT]  Endpoints: Điều chỉnh phân công
+│   └── [DELETE] Endpoints: Hủy giao việc
 │
 ├── 3. VAI TRÒ 3: TỔNG QUẢN TRỊ TOÀN TUYẾN (SUPER ADMIN)
-│   ├── [GET]  Endpoints: Bản đồ GIS 11 Ga Metro 2, Danh sách người dùng, Nhật ký hệ thống Audit Logs
-│   ├── [POST] Endpoints: Tạo tài khoản cán bộ, Import ranh địa chính/thửa đất quy hoạch, Cấp quyền Zone Admin
-│   ├── [PUT]  Endpoints: Cập nhật Tim tuyến Metro 2 GeoJSON, Cập nhật Polygon ranh Ga, Khóa/Mở tài khoản
-│   └── [DELETE] Endpoints: Hủy tài khoản người dùng
+│   ├── [GET]  Endpoints: Bản đồ GIS 11 Ga Metro 2, Danh sách nhân sự, Nhật ký Audit Logs
+│   ├── [POST] Endpoints: Tạo tài khoản nhân sự, Import ranh địa chính/thửa đất GeoJSON
+│   ├── [PUT]  Endpoints: Cập nhật Tim tuyến Metro 2 GeoJSON & Vùng ảnh hưởng (ZOI), Khóa/Mở tài khoản
+│   └── [DELETE] Endpoints: Xóa tài khoản
 │
 └── 4. VAI TRÒ 4: NHÀ THẦU XÂY LẮP & KHÁCH TRA CỨU (CONTRACTOR & GUEST)
-    └── [GET]  Endpoints: Tra cứu Bản đồ GIS công khai qua Share Token, Xem tóm tắt rủi ro VI, Tải Tập hồ sơ PDF có mã SHA-256
+    └── [GET]  Endpoints: Tra cứu Bản đồ GIS qua ShareToken, Xem tóm tắt rủi ro VI, Tải Tập hồ sơ PDF kèm SHA-256
 ```
 
 ---
 
 # 0. PHÂN HỆ XÁC THỰC CHUNG (COMMON AUTHENTICATION)
 
-Toàn bộ người dùng đăng nhập qua JWT Bearer Token có thời hạn 7 ngày, giải mã trả về quyền hạn (`role`) và phân khu quản lý (`assignedZoneId`).
-
 ### 0.1. [POST] `/api/v1/auth/login`
 * **Mô tả:** Đăng nhập hệ thống bằng Tên đăng nhập và Mật khẩu.
 * **Quyền truy cập:** Public
-* **Request Body:**
-```json
-{
-  "username": "surveyor_01",
-  "password": "Survey@123"
-}
-```
-* **Response `200 OK`:**
-```json
-{
-  "success": true,
-  "message": "Đăng nhập thành công",
-  "data": {
-    "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-    "refreshToken": "d8f93b2a-81a1-432a-bc91-2384a9e21820",
-    "expiresIn": 604800,
-    "user": {
-      "id": "u-001-surveyor",
-      "username": "surveyor_01",
-      "fullName": "Nguyễn Văn Khảo Sát",
-      "role": "SURVEYOR",
-      "assignedZoneId": "ZONE_S9",
-      "assignedZoneName": "Ga S9 - Bà Quẹo",
-      "avatarUrl": "https://s3.metro2.vn/avatars/u-001.jpg"
-    }
-  }
-}
-```
-* **Response `401 Unauthorized`:**
-```json
-{
-  "code": "ERR_AUTH_INVALID_CREDENTIALS",
-  "message": "Tên đăng nhập hoặc mật khẩu không chính xác."
-}
-```
+* **Request Body:** `{ "username": "surveyor_01", "password": "Survey@123" }`
+* **Response `200 OK`:** Trả về `accessToken` (7 ngày), `refreshToken`, thông tin User và `assignedZoneId`.
 
 ### 0.2. [POST] `/api/v1/auth/refresh-token`
-* **Mô tả:** Cấp lại Access Token mới khi token cũ hết hạn thông qua Refresh Token.
-* **Request Body:** `{ "refreshToken": "d8f93b2a-81a1-432a-bc91-2384a9e21820" }`
-* **Response `200 OK`:** `{ "success": true, "accessToken": "eyJhbGciOi..." }`
+* **Mô tả:** Cấp lại Access Token mới qua Refresh Token.
 
 ### 0.3. [GET] `/api/v1/auth/me`
-* **Mô tả:** Lấy thông tin tài khoản hiện tại từ JWT token trong Header.
-* **Response `200 OK`:**
-```json
-{
-  "success": true,
-  "data": {
-    "id": "u-001-surveyor",
-    "username": "surveyor_01",
-    "fullName": "Nguyễn Văn Khảo Sát",
-    "role": "SURVEYOR",
-    "assignedZone": {
-      "id": "ZONE_S9",
-      "name": "Ga S9 - Bà Quẹo"
-    }
-  }
-}
-```
+* **Mô tả:** Lấy thông tin tài khoản hiện tại từ JWT token.
 
 ### 0.4. [POST] `/api/v1/auth/logout`
-* **Mô tả:** Đăng xuất và thu hồi Refresh Token trong cơ sở dữ liệu.
-* **Response `200 OK`:** `{ "success": true, "message": "Đã đăng xuất thành công." }`
+* **Mô tả:** Đăng xuất và thu hồi Refresh Token.
 
 ---
 
 # 1. VAI TRÒ 1: CÁN BỘ KHẢO SÁT HIỆN TRƯỜNG (`SURVEYOR`)
-> **Nền tảng sử dụng:** Mobile PWA trên điện thoại / Tablet ngoài thực địa.  
-> **Nhiệm vụ:** Chấm công GPS, tiếp cận công trình, chụp ảnh đa lớp, lập hồ sơ 9 bước Phase 1 & đối soát Delta Phase 2.
 
 ---
 
 ## 1.1. NHÓM PHƯƠNG THỨC POST (Tạo mới, Upload, Khởi tạo, Nộp hồ sơ)
 
 ### 1.1.1. `POST /api/v1/attendance/check-in`
-* **Mô tả:** Chấm công GPS đầu ngày tại hiện trường kèm ảnh chụp Selfie có Watermark thời gian thực. Bắt buộc sai số $accuracy \le 20.0m$.
+* **Mô tả:** Chấm công GPS đầu ngày tại hiện trường. Chỉ cần lấy tọa độ GPS thực tế (`gpsLat`, `gpsLng`), mã phân khu Ga (`zoneId`), ảnh selfie và ghi chú tùy chọn.
 * **Request Headers:** `Content-Type: multipart/form-data`
 * **Form Fields:**
   * `zoneId` (string, required): Mã Ga, ví dụ `"ZONE_S9"`
-  * `gpsLat` (number, required): `10.798123`
-  * `gpsLng` (number, required): `106.645678`
-  * `accuracy` (number, required): `8.5` *(mét, $\le 20m$)*
-  * `selfieFile` (file binary, required): File ảnh chụp trực tiếp từ camera
-  * `accompanyingMembers` (string, optional): JSON array `["Trần Văn A", "Lê Văn B"]`
-  * `notes` (string, optional): `"Bắt đầu ca sáng tại khu vực hẻm 854 Trường Chinh"`
+  * `gpsLat` (number, required): Vĩ độ thực tế, ví dụ `10.798123`
+  * `gpsLng` (number, required): Kinh độ thực tế, ví dụ `106.645678`
+  * `selfieFile` (file binary, optional): Ảnh chụp xác thực tại hiện trường
+  * `notes` (string, optional): Ghi chú ca khảo sát
 * **Response `201 Created`:**
 ```json
 {
   "success": true,
-  "message": "Chấm công thành công. Đã mở quyền khảo sát hiện trường.",
+  "message": "Chấm công GPS thành công. Đã mở quyền khảo sát hiện trường.",
   "data": {
     "checkinId": "chk-20260916-0001",
     "checkinTime": "2026-09-16T07:45:12.000Z",
-    "selfiePhotoUrl": "https://s3.metro2.vn/attendance/selfie_001.jpg",
-    "isWithinAssignedZone": true
+    "gpsLat": 10.798123,
+    "gpsLng": 106.645678,
+    "zoneId": "ZONE_S9"
   }
 }
 ```
-* **Response `422 Unprocessable Entity` (GPS sai số lớn):**
-```json
-{
-  "code": "ERR_GPS_ACCURACY_EXCEEDED",
-  "message": "Độ chính xác GPS hiện tại là 35m (vượt quá giới hạn cho phép <= 20m). Vui lòng ra vị trí thoáng để bắt lại GPS."
-}
-```
+
+---
 
 ### 1.1.2. `POST /api/v1/reports/phase1`
 * **Mô tả:** Khởi tạo hồ sơ khảo sát Giai đoạn 1 (Phase 1 Baseline) cho một thửa đất.
 * **Request Body:** `{ "parcelId": "p-00105" }`
-* **Response `201 Created`:**
-```json
-{
-  "success": true,
-  "data": {
-    "reportId": "rep-p1-00105",
-    "parcelId": "p-00105",
-    "projectParcelCode": "B-00105",
-    "status": "DRAFT",
-    "createdAt": "2026-09-16T08:00:00.000Z"
-  }
-}
-```
+* **Response `201 Created`:** Trả về `reportId: "rep-p1-00105"`, `status: "DRAFT"`.
+
+---
 
 ### 1.1.3. `POST /api/v1/reports/phase1/{reportId}/identification-photos`
-* **Mô tả:** Bước 1 - Upload bộ 4 ảnh định danh mặt ngoài ($P-01$ Biển số nhà, $P-02$ Toàn cảnh mặt đứng, $P-03$ Hông trái, $P-04$ Hông phải) kèm JSON vector chấm 4 góc và phân tầng.
+* **Mô tả:** Bước 1 - Upload bộ 4 ảnh định danh mặt ngoài ($P-01$ Biển số nhà, $P-02$ Toàn cảnh mặt đứng, $P-03$ Hông trái/sau, $P-04$ Bối cảnh ngõ/đường). Hỗ trợ nút chọn **Không tồn tại (N/A)** cho từng ảnh kèm lý do, và hỗ trợ đa giác mặt đứng với **số đỉnh $N$ bất kỳ** ($N \ge 3$).
 * **Request Headers:** `Content-Type: multipart/form-data`
 * **Form Fields:**
-  * `p01File`, `p02File`, `p03File`, `p04File` (files binary, required)
-  * `p02PointsJson` (string JSON): `[{"x": 120, "y": 850}, {"x": 890, "y": 830}, {"x": 870, "y": 150}, {"x": 140, "y": 180}]`
-  * `p02FloorSplitJson` (string JSON): `[{"floor": 1, "y": 620}, {"floor": 2, "y": 390}]`
-  * `p02CanvasTextJson` (string JSON): `[{"text": "3.8m", "x": 920, "y": 700}]`
+  * `p01File` (file binary, optional): Ảnh biển số nhà
+  * `p01IsNA` (boolean, default: false), `p01NAReason` (string, optional): `"Nhà không gắn biển số"`
+  * `p02File` (file binary, optional): Ảnh toàn cảnh mặt đứng chính
+  * `p02IsNA` (boolean, default: false), `p02NAReason` (string, optional): `"Mặt tiền bị công trình trước che khuất"`
+  * `p02PolygonPoints` (string JSON, optional): Mảng $N$ điểm góc đa giác bao quanh khung nhà `[{"x": 120, "y": 850}, {"x": 890, "y": 830}, {"x": 870, "y": 150}, {"x": 500, "y": 50}, {"x": 140, "y": 180}]` (Hỗ trợ nhà mái xéo, chữ L, giật cấp $N$ đỉnh)
+  * `p02FloorSplitLines` (string JSON, optional): Mảng đường phân tầng ngang `[{"floor": 1, "y": 620}, {"floor": 2, "y": 390}]`
+  * `p02Dimensions` (string JSON, optional): Kích thước ghi chú `{"h1": "3.8m", "h2": "3.4m", "totalHeight": "11.5m", "facadeWidth": "4.2m"}`
+  * `p03File` (file binary, optional), `p03IsNA` (boolean), `p03NAReason` (string): `"Nhà phố 2 bên sát vách"`
+  * `p04File` (file binary, optional), `p04IsNA` (boolean), `p04NAReason` (string)
 * **Response `201 Created`:**
 ```json
 {
   "success": true,
   "message": "Đã lưu bộ ảnh định danh P01-P04. Ảnh P-02 đã được gửi vào hàng đợi AI nắn thẳng.",
   "data": {
-    "p01Url": "https://s3.metro2.vn/photos/rep-p1-00105/P01_raw.jpg",
-    "p02Url": "https://s3.metro2.vn/photos/rep-p1-00105/P02_raw.jpg",
+    "p01Url": "https://s3.metro2.vn/photos/P01_raw.jpg",
+    "p02Url": "https://s3.metro2.vn/photos/P02_raw.jpg",
     "p02AiJobId": "ai-job-p02-99812",
-    "p03Url": "https://s3.metro2.vn/photos/rep-p1-00105/P03_raw.jpg",
-    "p04Url": "https://s3.metro2.vn/photos/rep-p1-00105/P04_raw.jpg"
+    "p03Url": null,
+    "p04Url": "https://s3.metro2.vn/photos/P04_raw.jpg"
   }
 }
 ```
 
+---
+
 ### 1.1.4. `POST /api/v1/reports/phase1/{reportId}/zones`
-* **Mô tả:** Bước 3 - Tạo Vùng khảo sát hư hỏng $Z-xx$ cho từng Tầng/Phòng, upload ảnh bối cảnh góc rộng $CTX$ và gán cấp độ Burland (0-5).
+* **Mô tả:** Bước 3 - Tạo Vùng khảo sát hư hỏng $Z-xx$ cho từng Tầng/Phòng, upload ảnh bối cảnh góc rộng $CTX$, đánh giá ảnh hưởng chức năng và chốt cấp độ Burland (0-5) tại chỗ.
 * **Request Headers:** `Content-Type: multipart/form-data`
 * **Form Fields:**
-  * `floorName` (string, required): `"Tầng 1 (Trệt)"`
-  * `roomName` (string, required): `"Phòng khách phía trước"`
-  * `componentType` (string, required): `"WALL"` | `"BEAM"` | `"COLUMN"` | `"SLAB"` | `"FLOOR"`
-  * `burlandGrade` (integer, required): `2`
+  * `floorName` (string, required): `"Tầng 1 (Trệt)"` (hoặc Tầng hầm, Lầu 1, Lầu 2, Mái...)
+  * `roomName` (string, required): `"Phòng khách phía trước"` (hoặc Phòng ngủ 1, Bếp, Hành lang...)
+  * `componentType` (string, required): `"WALL"` | `"BEAM"` | `"COLUMN"` | `"SLAB"` | `"FLOOR"` | `"STAIRS"`
+  * `wallMaterial` (string, optional): `"Tường gạch 200mm"` | `"BTCT"` | `"Vách thạch cao"`
+  * `functionalImpactRepairNeeded` (boolean, required): `true` / `false`
+  * `burlandGrade` (integer, required, 0-5): `2`
   * `ctxPhotoFile` (file binary, required): File ảnh bối cảnh góc rộng
   * `notes` (string, optional): `"Mảng tường giáp nhà số 856"`
 * **Response `201 Created`:**
@@ -213,21 +187,30 @@ Toàn bộ người dùng đăng nhập qua JWT Bearer Token có thời hạn 7 
     "floorName": "Tầng 1 (Trệt)",
     "roomName": "Phòng khách phía trước",
     "burlandGrade": 2,
-    "ctxPhotoUrl": "https://s3.metro2.vn/photos/rep-p1-00105/Z01_CTX_raw.jpg"
+    "ctxPhotoUrl": "https://s3.metro2.vn/photos/Z01_CTX_raw.jpg"
   }
 }
 ```
 
+---
+
 ### 1.1.5. `POST /api/v1/reports/phase1/zones/{zoneId}/defects`
-* **Mô tả:** Bước 3 (Chi tiết) - Thả ghim khuyết tật $D-xx$ trên ảnh bối cảnh $Z-xx$, upload ảnh cận cảnh $CU$ có thước đo vạch mm (Scale Card), đo bề rộng $w_{max}$ và chiều dài $L$.
+* **Mô tả:** Bước 3 (Chi tiết) - Thả ghim khuyết tật $D-xx$ trực tiếp lên ảnh bối cảnh $Z-xx$, upload ảnh cận cảnh $CU$ có thước đo vạch mm (Scale Card), đo đạc $w_{max}$, $L$, và tự động map các điểm thành phần $E2$ (Ý nghĩa kết cấu) và $E4$ (Suy giảm vật liệu).
 * **Request Headers:** `Content-Type: multipart/form-data`
 * **Form Fields:**
-  * `pinX`, `pinY` (number, required): Tọa độ ghim trên ảnh CTX (0.0 - 100.0 %)
-  * `defectType` (string, required): `"DIAGONAL_SHEAR_CRACK"` | `"VERTICAL_CRACK"` | `"HORIZONTAL_CRACK"` | `"WATER_SEEPAGE"` | `"SPALLING"`
+  * `pinX` (number, required): Tọa độ X trên ảnh CTX (0.0 - 100.0 %)
+  * `pinY` (number, required): Tọa độ Y trên ảnh CTX (0.0 - 100.0 %)
+  * `screeningCategory` (string, required): `"NỨT_TƯỜNG_HOÀN_THIỆN"` | `"NỨT_KẾT_CẤU_CỘT_DẦM"` | `"LÚN_VÕNG"` | `"THẤM_DỘT"` | `"BONG_TRÓC_LỘ_THÉP"` | `"MẤT_TIẾT_DIỆN"` | `"KẸT_CỬA"` | `"TÁI_NỨT"`
+  * `defectType` (string, required): `"DIAGONAL_SHEAR_CRACK"` | `"VERTICAL_CRACK"` | `"HORIZONTAL_CRACK"` | `"SPALLING"` | `"WATER_SEEPAGE"`
+  * `crackDirection` (string, optional): `"Xiên 45 độ góc cửa sổ"`
   * `widthMaxMm` (number, required): `0.85`
   * `lengthMm` (number, required): `650.0`
-  * `hasScaleCardInPhoto` (boolean, required): `true` *(Bắt buộc phải có thước mm)*
-  * `cuPhotoFile` (file binary, required): Ảnh chụp cận cảnh sắc nét
+  * `activityState` (string, required): `"U"` (Chưa rõ) | `"S"` (Ổn định) | `"A"` (Đang phát triển)
+  * `materialDegradationE4` (integer, required, 0-4): `1` (0: Không/Nhẹ, 1: Cục bộ, 2: Đáng kể, 3: Nặng, 4: Ảnh hưởng chịu lực)
+  * `structuralSignificanceE2` (integer, required, 0-4): `1` (0: N/A, 1: Low, 2: Moderate, 3: High, 4: Critical)
+  * `hasScaleCard` (boolean, required): `true`
+  * `cuPhotoFile` (file binary, required): Ảnh cận cảnh có thước đo
+  * `extraPhotoFile` (file binary, optional): Ảnh góc chụp bổ sung (nếu có)
 * **Response `201 Created`:**
 ```json
 {
@@ -237,17 +220,32 @@ Toàn bộ người dùng đăng nhập qua JWT Bearer Token có thời hạn 7 
     "defectCode": "D-01",
     "pinX": 42.5,
     "pinY": 68.2,
-    "defectType": "DIAGONAL_SHEAR_CRACK",
     "widthMaxMm": 0.85,
     "lengthMm": 650.0,
-    "hasScaleCardInPhoto": true,
-    "cuPhotoUrl": "https://s3.metro2.vn/photos/rep-p1-00105/Z01_D01_CU_raw.jpg"
+    "cuPhotoUrl": "https://s3.metro2.vn/photos/Z01_D01_CU_raw.jpg"
   }
 }
 ```
 
-### 1.1.6. `POST /api/v1/reports/phase1/{reportId}/calculate-scores`
-* **Mô tả:** Bước 5 - Động cơ tự động tổng hợp số liệu, tính điểm suy giảm kết cấu ECS (0-24) và Xếp hạng Chỉ số tổn thương VI (*Low / Medium / High / Very High*).
+---
+
+### 1.1.6. `POST /api/v1/reports/phase1/{reportId}/sketch`
+* **Mô tả:** Bước 6 - Upload ảnh chụp bản vẽ phác thảo tay vị trí khuyết tật trên mặt bằng/mặt đứng (Damage Location Sketch) hoặc nhập số hiệu bản vẽ CAD.
+* **Request Headers:** `Content-Type: multipart/form-data`
+* **Form Fields:** `sketchPhotoFile` (file binary, optional), `cadDrawingRef` (string, optional)
+* **Response `201 Created`:** `{ "success": true, "sketchPhotoUrl": "https://s3.metro2.vn/photos/sketch_001.jpg" }`
+
+---
+
+### 1.1.7. `POST /api/v1/reports/phase1/{reportId}/calculate-scores`
+* **Mô tả:** Bước 7 - Tự động tổng hợp điểm $E1..E6 \rightarrow \Sigma E / 24$ (ECS Class: `Good` [0-5], `Medium` [6-10], `Deficient` [11-16], `Critical` [17-24]) và Chỉ số tổn thương $V1..V6 \rightarrow VI Class$ (`Low`, `Medium`, `High`, `Very High`). Hỗ trợ Engineering Judgement ghi đè có điều kiện.
+* **Request Body (Tùy chọn ghi đè):**
+```json
+{
+  "engineeringJudgementAction": "KEEP",
+  "engineeringJudgementReason": ""
+}
+```
 * **Response `200 OK`:**
 ```json
 {
@@ -255,37 +253,38 @@ Toàn bộ người dùng đăng nhập qua JWT Bearer Token có thời hạn 7 
   "data": {
     "ecsScore": 6,
     "ecsMaxScore": 24,
-    "ecsRating": "FAIR",
-    "viScore": 0.38,
+    "ecsClass": "MEDIUM",
+    "viAverageScore": 2.15,
     "viClass": "MEDIUM",
-    "scoreBreakdown": {
-      "structuralSystemScore": 2,
-      "foundationCategoryScore": 2,
-      "defectSeverityScore": 1,
-      "deformationScore": 1
-    }
+    "breakdownE": { "E1_burland": 2, "E2_structure": 1, "E3_deformation": 1, "E4_materials": 1, "E5_history": 1, "E6_overall": 0 },
+    "breakdownV": { "V1_importance": 2, "V2_structure": 2, "V3_foundation": 2, "V4_age": 2, "V5_ecs": 2, "V6_sensitivity": 1 }
   }
 }
 ```
 
-### 1.1.7. `POST /api/v1/reports/phase1/{reportId}/submit`
-* **Mô tả:** Bước 6 - Nộp chính thức Báo cáo Phase 1 kèm ảnh chữ ký xác nhận của Chủ hộ và Cán bộ khảo sát $\rightarrow$ Chuyển trạng thái sang `SUBMITTED`.
+---
+
+### 1.1.8. `POST /api/v1/reports/phase1/{reportId}/submit`
+* **Mô tả:** Bước 9 - Nộp chính thức Báo cáo Phase 1 kèm ý kiến phản hồi nguyên văn của Chủ hộ, ảnh chữ ký của Cán bộ KS và Chủ hộ (hoặc ghi nhận trường hợp vắng mặt/từ chối ký).
 * **Request Headers:** `Content-Type: multipart/form-data`
-* **Form Fields:** `homeownerSignaturePhoto`, `surveyorSignaturePhoto`, `homeownerPresent: true`, `notes`
+* **Form Fields:**
+  * `ownerRemarks` (string, optional): `"Chủ hộ đồng ý với toàn bộ các vết nứt hiện trạng ghi nhận trong biên bản."`
+  * `surveyorSignatureFile` (file binary, required): Ảnh chữ ký cán bộ khảo sát
+  * `ownerSignatureFile` (file binary, optional): Ảnh chữ ký chủ hộ hoặc biên bản giấy
+  * `isRefusedOrAbsent` (boolean, default: false): `true` nếu chủ nhà vắng mặt hoặc từ chối hợp tác
+  * `refusalDocRef` (string, optional): Số biên bản từ chối/vắng mặt
 * **Response `200 OK`:**
 ```json
 {
   "success": true,
-  "message": "Báo cáo Phase 1 đã nộp thành công. Chờ Zone Admin thẩm định.",
-  "data": {
-    "reportId": "rep-p1-00105",
-    "status": "SUBMITTED",
-    "submittedAt": "2026-09-16T09:30:00.000Z"
-  }
+  "message": "Báo cáo Phase 1 đã được nộp thành công (Status: SUBMITTED).",
+  "data": { "reportId": "rep-p1-00105", "status": "SUBMITTED", "submittedAt": "2026-09-16T09:30:00.000Z" }
 }
 ```
 
-### 1.1.8. `POST /api/v1/mutations/propose`
+---
+
+### 1.1.9. `POST /api/v1/mutations/propose`
 * **Mô tả:** Bước 5 (Ranh GIS) - Phát hiện nhà thực tế chia nhỏ (sổ chung/cơi nới), gửi Đề xuất Tách thửa. Hệ thống tự động cấp mã mới từ Kho số Mở rộng bất biến (> 07000).
 * **Request Body:**
 ```json
@@ -299,167 +298,179 @@ Toàn bộ người dùng đăng nhập qua JWT Bearer Token có thời hạn 7 
   ]
 }
 ```
-* **Response `201 Created`:**
+* **Response `201 Created`:** Cấp mã mới `B-07001`, `B-07002`.
+
+---
+
+### 1.1.10. `POST /api/v1/reports/phase2`
+* **Mô tả:** Khởi tạo hồ sơ khảo sát Giai đoạn 2 (Phiếu 02 - Pre-Construction BCS), tự động kế thừa toàn bộ dữ liệu gốc từ Báo cáo Phase 1 đã duyệt.
+* **Request Body:**
 ```json
 {
-  "success": true,
-  "message": "Đã ghi nhận Đề xuất Tách thửa. Đã cấp mã mới từ Kho số Mở rộng (> 07000). Các thửa lân cận giữ nguyên 100%.",
-  "data": {
-    "mutationId": "mut-20260916-0001",
-    "sourceParcelCode": "B-00002",
-    "allocatedNewCodes": ["B-07001", "B-07002"],
-    "status": "PENDING_APPROVAL"
-  }
+  "parcelId": "p-00105",
+  "phase1ReportId": "rep-p1-00105",
+  "workSection": "Đoạn tuyến Ga S9 Bà Quẹo ➔ Ga S10 Phạm Văn Bạch",
+  "surveyPurpose": "BASELINE_PRE_CONSTRUCTION",
+  "surveyLevel": "L2_B_STANDARD",
+  "witnessMembers": "Nguyễn Văn A (Cán bộ KS), Lê Văn B (Chủ nhà)",
+  "specialConditions": "Thời tiết nắng ráo, tiếp cận thuận lợi"
 }
 ```
+* **Response `201 Created`:** Trả về `reportId: "rep-p2-00105"`, `status: "DRAFT"`.
 
-### 1.1.9. `POST /api/v1/phase2/reports/{reportId}/summarize-delta`
-* **Mô tả:** Tổng kết biến động vết nứt Phase 2 vs Phase 1, tính toán $\Delta ECS$ và đưa ra Phán quyết tác động bồi thường (*NO_IMPACT | COSMETIC_DEFECT | STRUCTURAL_IMPACT*).
+---
+
+### 1.1.11. `POST /api/v1/reports/phase2/{reportId}/identification-photos`
+* **Mô tả:** Phase 2 Bước 1 - Chụp 2 ảnh nhận dạng Giai đoạn 2 ($P-01$ Biển số nhà & mặt đứng, $P-02$ Bối cảnh đường/tuyến Metro). Hỗ trợ nút N/A và vẽ đa giác $N$ đỉnh.
+* **Request Headers:** `Content-Type: multipart/form-data`
+* **Form Fields:** `p01File`, `p01IsNA`, `p01NAReason`, `p01PolygonPoints`, `p01FloorSplitLines`, `p02File`, `p02IsNA`, `p02NAReason`
+* **Response `201 Created`:** `{ "success": true, "p01Url": "...", "p02Url": "..." }`
+
+---
+
+### 1.1.12. `POST /api/v1/phase2/zones/{zoneId}/defects`
+* **Mô tả:** Phase 2 Bước 3 (Cơ chế A) - Chấm thêm vết nứt mới phát sinh sau GĐ1 lên ảnh bối cảnh $CTX$ của Vùng cũ $Z-xx$. Tự động gán mã `D-04 (MỚI)` màu Đỏ.
+* **Request Headers:** `Content-Type: multipart/form-data`
+* **Form Fields:** `pinX`, `pinY`, `screeningCategory`, `defectType`, `crackDirection`, `widthMaxMm: 0.6`, `lengthMm: 500.0`, `cuPhotoFile: <binary>`
+* **Response `201 Created`:** Trả về `defectCode: "D-04"`, `evolutionStatus: "NEW_RECORDED"`, `isNewInPhase2: true`.
+
+---
+
+### 1.1.13. `POST /api/v1/phase2/reports/{reportId}/zones`
+* **Mô tả:** Phase 2 Bước 3 (Cơ chế B) - Tạo Vùng mới $Z-new$ khi xuất hiện khu vực mới (gác lửng cơi nới, phòng kho mở khóa...), upload ảnh $CTX$ mới và đánh giá ma trận cấu kiện.
+* **Request Headers:** `Content-Type: multipart/form-data`
+* **Form Fields:** `floorName`, `roomName`, `slabCondition`, `wallCondition`, `beamColumnCondition`, `seepageSpallingCondition`, `deformationCondition`, `ctxPhotoFile: <binary>`
+* **Response `201 Created`:** Trả về `zoneCode: "Z-04 (MỚI)"`, `isNewInPhase2: true`.
+
+---
+
+### 1.1.14. `POST /api/v1/reports/phase2/{reportId}/sketch`
+* **Mô tả:** Phase 2 Bước 6 - Upload sơ đồ vị trí khuyết tật Phase 2 hoặc số hiệu bản vẽ Damage Mapping CAD.
+
+---
+
+### 1.1.15. `POST /api/v1/phase2/reports/{reportId}/summarize`
+* **Mô tả:** Phase 2 Bước 7 - Tự động tổng hợp biến động so với GĐ1, tính $\Delta ECS$, phát hiện cảnh báo nguy cấp (Critical Alert), đề xuất nhu cầu quan trắc bổ sung (Lún, Nghiêng, Nứt, Rung) và thí nghiệm không phá hủy NDT.
+* **Request Body:**
+```json
+{
+  "dataLimitations": "Góc tủ phòng ngủ 1 bị che khuất",
+  "notableDamageSummary": "Vết nứt uốn dầm D-02 phát triển rộng thêm 0.3mm",
+  "isCriticalAlert": false,
+  "monitoringNeeds": ["CRACK", "SETTLEMENT"],
+  "ndtTestingNeeded": true,
+  "ndtTestingType": "Siêu âm cường độ bê tông dầm",
+  "phase2Conclusion": "CO_HU_HONG_CAN_THEO_DOI"
+}
+```
 * **Response `200 OK`:**
 ```json
 {
   "success": true,
   "data": {
-    "phase1EcsScore": 6,
-    "phase2EcsScore": 9,
+    "totalDefectsCount": 5,
+    "phase1DefectsCount": 3,
+    "phase2NewDefectsCount": 2,
     "deltaEcs": 3,
-    "totalOldDefectsVerified": 4,
-    "widenedDefectsCount": 2,
-    "compensationVerdict": "STRUCTURAL_IMPACT",
-    "summaryConclusion": "Vết nứt phát triển lớn hơn 0.3mm do tác động đào hầm."
+    "widenedDefectsCount": 1,
+    "stableDefectsCount": 1,
+    "repairedDefectsCount": 1,
+    "compensationVerdict": "STRUCTURAL_IMPACT"
   }
 }
 ```
 
 ---
 
-## 1.2. NHÓM PHƯƠNG THỨC GET (Tra cứu, Tải dữ liệu, Theo dõi tiến độ)
+### 1.1.16. `POST /api/v1/reports/phase2/{reportId}/submit`
+* **Mô tả:** Phase 2 Bước 9 - Nộp chính thức Báo cáo Phase 2 kèm cam kết pháp lý chuẩn Phiếu 02, ý kiến chủ hộ và chữ ký xác nhận 4 bên (Chủ hộ, Đại diện Liên danh, Đại diện Nhà thầu/Khách, Người làm chứng).
+* **Request Headers:** `Content-Type: multipart/form-data`
+* **Form Fields:**
+  * `ownerRemarks` (string, optional): Ý kiến chủ nhà
+  * `ownerSignatureFile` (file binary, optional)
+  * `contractorRepSignatureFile` (file binary, required): Đại diện Liên danh CRLG-CRSRI-TT
+  * `thirdPartyRepSignatureFile` (file binary, optional): Đại diện Nhà thầu/Khách hàng
+  * `witnessSignatureFile` (file binary, optional): Người làm chứng/Địa phương
+  * `isRefusedOrAbsent` (boolean, default: false), `refusalDocRef` (string, optional)
+* **Response `200 OK`:** `{ "success": true, "status": "SUBMITTED" }`
+
+---
+
+## 1.2. NHÓM PHƯƠNG THỨC GET (Tra cứu & Lọc dữ liệu theo vị trí)
 
 ### 1.2.1. `GET /api/v1/tasks/my-tasks`
-* **Mô tả:** Lấy danh sách toàn bộ thửa đất được Zone Admin phân công cho Surveyor hiện tại.
+* **Mô tả:** Lấy danh sách công trình được giao việc cho Surveyor hiện tại.
+
+### 1.2.2. `GET /api/v1/parcels/{parcelId}`
+* **Mô tả:** Lấy chi tiết thông tin thửa đất, mã kép `B-xxxxx` và `KSxxx`, đa giác ranh nhà footprint.
+
+### 1.2.3. `GET /api/v1/reports/phase1/{reportId}`
+* **Mô tả:** Lấy toàn bộ payload 9 bước của hồ sơ Phase 1.
+
+### 1.2.4. `GET /api/v1/parcels/{parcelId}/phase2/zones`
+* **Mô tả:** Phase 2 Bước 3.1 - Tự động lọc và tải về ảnh bối cảnh $CTX$ và toàn bộ ghim $D-xx$ cũ của đúng Tầng & Phòng mà Surveyor đang đứng.
+* **Query Parameters:** `floor="Tầng 1 (Trệt)"`, `room="Phòng khách phía trước"`
+* **Response `200 OK`:** Trả về danh sách Vùng `Z-xx` kèm ảnh `CTX` và mảng ghim `defects` ($D-01, D-02...$) có thông số $w_1, L_1$.
+
+### 1.2.5. `GET /api/v1/reports/phase2/{reportId}`
+* **Mô tả:** Lấy chi tiết toàn bộ hồ sơ Phase 2 (kế thừa Phase 1 + biến động mới).
+
+### 1.2.6. `GET /api/v1/reports/phase2/{reportId}/quality-gate`
+* **Mô tả:** Phase 2 Bước 6.2 - Tự động quét kiểm tra 10 tiêu chí chất lượng hồ sơ theo Phụ lục A (Đạt / Thiếu / N/A).
 * **Response `200 OK`:**
 ```json
 {
   "success": true,
-  "total": 5,
-  "data": [
-    {
-      "taskId": "tsk-001",
-      "parcelId": "p-00105",
-      "projectParcelCode": "B-00105",
-      "fieldSurveyCode": "KS003",
-      "address": "854 Đường Trường Chinh, P.15, Tân Bình",
-      "deadline": "2026-09-20T17:00:00.000Z",
-      "taskStatus": "PENDING",
-      "gpsTarget": { "lat": 10.79852, "lng": 106.64316 }
-    }
+  "isAllPassed": true,
+  "checklist": [
+    { "item": 1, "name": "Mã công trình & Tham chiếu GĐ1", "status": "PASSED" },
+    { "item": 2, "name": "Phạm vi tiếp cận", "status": "PASSED" },
+    { "item": 3, "name": "Ảnh P-01, P-02", "status": "PASSED" },
+    { "item": 6, "name": "Mỗi khuyết tật có đủ ảnh CTX + CU kèm thước", "status": "PASSED" },
+    { "item": 10, "name": "Chữ ký 4 bên / Biên bản từ chối", "status": "PASSED" }
   ]
 }
 ```
 
-### 1.2.2. `GET /api/v1/parcels/{parcelId}`
-* **Mô tả:** Lấy chi tiết thông tin chủ hộ, địa chỉ, đa giác ranh nhà footprint của một thửa đất.
-* **Response `200 OK`:**
-```json
-{
-  "success": true,
-  "data": {
-    "id": "p-00105",
-    "projectParcelCode": "B-00105",
-    "fieldSurveyCode": "KS003",
-    "ownerName": "Nguyễn Văn An",
-    "addressFull": "854 Đường Trường Chinh, P.15, Tân Bình",
-    "surveyStatus": "NOT_SURVEYED",
-    "footprintGeoJson": { "type": "Polygon", "coordinates": [...] }
-  }
-}
-```
-
-### 1.2.3. `GET /api/v1/parcels/{parcelId}/phase2/zones`
-* **Mô tả:** Động cơ Phase 2 theo vị trí đứng: Tự động tải về ảnh bối cảnh $CTX$ và toàn bộ ghim $D-xx$ cũ của đúng Tầng & Phòng mà Surveyor đang đứng.
-* **Query Parameters:** `floor="Tầng 1 (Trệt)"`, `room="Phòng khách phía trước"`
-* **Response `200 OK`:**
-```json
-{
-  "success": true,
-  "data": {
-    "phase1ReportId": "rep-p1-00105",
-    "zones": [
-      {
-        "zoneId": "z-01-p1-00105",
-        "zoneCode": "Z-01",
-        "ctxPhotoUrl": "https://s3.metro2.vn/photos/rep-p1-00105/Z01_CTX_raw.jpg",
-        "defects": [
-          {
-            "defectId": "def-01-z01",
-            "defectCode": "D-01",
-            "pinX": 42.5,
-            "pinY": 68.2,
-            "phase1WidthMm": 0.85,
-            "phase1LengthMm": 650.0,
-            "phase1CuPhotoUrl": "https://s3.metro2.vn/photos/rep-p1-00105/Z01_D01_CU_raw.jpg"
-          }
-        ]
-      }
-    ]
-  }
-}
-```
-
-### 1.2.4. `GET /api/v1/photos/{photoId}/ai-status`
-* **Mô tả:** Kiểm tra tiến độ đường ống AI nắn thẳng phối cảnh mặt đứng $P-02$.
-* **Response `200 OK`:**
-```json
-{
-  "success": true,
-  "data": {
-    "photoId": "pho-p02-00105",
-    "aiStatus": "COMPLETED",
-    "rawPhotoUrl": "https://s3.metro2.vn/photos/P02_raw.jpg",
-    "aiEnhancedPhotoUrl": "https://s3.metro2.vn/photos/P02_ai_rectified.png"
-  }
-}
-```
+### 1.2.7. `GET /api/v1/photos/{photoId}/ai-status`
+* **Mô tả:** Kiểm tra tiến độ nắn thẳng mặt đứng $P-02$ chuẩn CAD.
 
 ---
 
-## 1.3. NHÓM PHƯƠNG THỨC PUT (Cập nhật, Đo đạc, Đối soát Delta)
+## 1.3. NHÓM PHƯƠNG THỨC PUT (Cập nhật, Đo đạc & Đối soát Delta)
 
-### 1.3.1. `PUT /api/v1/reports/phase1/{reportId}/specs`
-* **Mô tả:** Bước 2 - Lưu trữ thông số kết cấu chịu lực, loại móng CAT 1-5, và độ nhạy cảm lịch sử E5.
-* **Request Body:**
-```json
-{
-  "useType": "RESIDENTIAL_COMMERCIAL",
-  "numberOfFloors": 3,
-  "hasBasement": false,
-  "yearOfConstruction": 2012,
-  "structuralSystem": "RC_FRAME",
-  "foundationType": "CAT_3_SHALLOW_STRIP_FOOTING",
-  "foundationDepthMeters": 2.5,
-  "historicalSensitivityE5": "STANDARD_NOT_SENSITIVE"
-}
-```
-* **Response `200 OK`:** `{ "success": true, "message": "Đã lưu đặc tính kết cấu công trình." }`
+### 1.3.1. `PUT /api/v1/reports/phase1/{reportId}/general-info`
+* **Mô tả:** Bước 1 - Cập nhật thông tin hành chính: Tên công trình, Tên chủ hộ, Số điện thoại, Nhóm đối tượng (`General | Important | Critical`), Công trình liền kề (`Nhà phố | Cao tầng | Công cộng | Đất trống | Khác`).
 
-### 1.3.2. `PUT /api/v1/reports/phase1/{reportId}/deformation`
-* **Mô tả:** Bước 4 - Lưu số liệu đo đạc biến dạng lún nghiêng (Tilt X/Y, nghiêng sàn, võng dầm).
-* **Request Body:**
-```json
-{
-  "tiltRatioX": "1/450",
-  "tiltRatioY": "1/600",
-  "tiltDirection": "TOWARD_METRO_ALIGNMENT",
-  "maxFloorTiltPercent": 0.25,
-  "maxBeamDeflectionMm": 4.5
-}
-```
-* **Response `200 OK`:** `{ "success": true, "message": "Đã lưu số liệu đo biến dạng hình học." }`
+### 1.3.2. `PUT /api/v1/reports/phase1/{reportId}/specs`
+* **Mô tả:** Bước 2 - Lưu trữ thông số phỏng vấn chủ hộ:
+  * **2.1 Kết cấu:** `useType`, `numberOfFloorsAboveGround`, `numberOfBasements`, `yearOfConstruction`, `isEstimatedYear`, `structuralSystem` (`RC | Steel | Masonry | Mixed`), `structuralForm` (`Frame | Wall | Mixed`), `foundationType` (`Shallow | Wood | PC | CIP | Unknown`), `catFoundationScore` (1-5), `catSources` (`Drawing | Owner | Site`).
+  * **2.2 Yếu tố nhạy cảm E5:** `coiNoiTaiTrongE5` (0-4), `suaChuaKetCauE5` (0-4), `lunNghiengTruocDayE5` (0-4), `huHongLanCanE5` (0-4), `suCoHoaHoanE5` (0-4), `thietBiNhayCam` (bool + desc), `tinhTrangSuDung` (`Đầy đủ | Một phần | Không sử dụng`), `vanHanh247` (bool).
 
-### 1.3.3. `PUT /api/v1/phase2/defects/{defectId}/verify`
-* **Mô tả:** Đối soát ghim cũ trong Phase 2: Nhập số đo mới $w_2, L_2$, upload ảnh CU mới. Động cơ tự động tính $\Delta w = w_2 - w_1, \Delta L = L_2 - L_1$.
+### 1.3.3. `PUT /api/v1/reports/phase1/{reportId}/deformation`
+* **Mô tả:** Bước 4 - Đánh giá Lún - Nghiêng - Biến dạng:
+  * `settlementState` (0-4), `settlementLocation` (text)
+  * `overallTiltState` (0-4), `tiltRatioX` (text, vd: "1/450"), `tiltRatioY` (text, vd: "1/600")
+  * `floorTiltState` (0-4), `floorTiltPercent` (number, vd: 0.25)
+  * `beamDeflectionState` (0-4), `deflectionLocation` (text), `maxDeflectionMm` (number)
+  * `dataSources` (`Visual | RapidDevice | DesignDrawing | Owner`), `confidenceLevel` (`Cao | Trung bình | Thấp`), `needMonitoring` (bool + notes).
+
+### 1.3.4. `PUT /api/v1/reports/phase1/{reportId}/scope`
+* **Mô tả:** Bước 5 - Lưu trữ phạm vi đã khảo sát (`Bên ngoài, Tầng trệt, Các tầng lầu, Mái, Tầng hầm, Khu phụ`) và Hạn chế tiếp cận (`Không` / `Có` kèm lý do).
+
+### 1.3.5. `PUT /api/v1/reports/phase1/{reportId}/conclusions`
+* **Mô tả:** Bước 8 - Lưu trữ Khuyết tật/Rủi ro chính, Kiến nghị cụ thể, Tác động thi công dự tính ($I$), và Đánh giá rủi ro cơ sở ($BRA$).
+
+### 1.3.6. `PUT /api/v1/parcels/{parcelId}/footprint`
+* **Mô tả:** Bước 5 - Cập nhật Đa giác ranh nhà thực tế (Building Footprint Polygon) sau khi đo quét cạn ngoài thực địa.
+
+### 1.3.7. `PUT /api/v1/reports/phase2/{reportId}/confirm-changes`
+* **Mô tả:** Phase 2 Bước 2 - Xác nhận biến động phát sinh sau GĐ1 (`coiNoiSauGĐ1` bool + text, `suaChuaSauGĐ1` bool + text, `thayDoiTaiTrongSauGĐ1` bool + text, `thayDoiKhac` text, `hasSignificantChange` bool).
+
+### 1.3.8. `PUT /api/v1/phase2/defects/{defectId}/verify`
+* **Mô tả:** Phase 2 Bước 3 (Cơ chế A) - Đối soát ghim cũ: Nhập số đo mới $w_2, L_2$, upload ảnh CU Phase 2 có thước đo. Động cơ tự động tính $\Delta w = w_2 - w_1, \Delta L = L_2 - L_1$, gán trạng thái (`Không đổi`, `Phát triển`, `Đã sửa`) và đổi màu ghim tương ứng.
 * **Request Headers:** `Content-Type: multipart/form-data`
-* **Form Fields:** `phase2WidthMm: 1.20`, `phase2LengthMm: 800.0`, `phase2CuPhotoFile: <binary>`, `notes`
+* **Form Fields:** `phase2WidthMm: 1.20`, `phase2LengthMm: 800.0`, `evolutionStatus: "WIDENED"`, `phase2CuPhotoFile: <binary>`, `notes`
 * **Response `200 OK`:**
 ```json
 {
@@ -469,16 +480,22 @@ Toàn bộ người dùng đăng nhập qua JWT Bearer Token có thời hạn 7 
     "phase1WidthMm": 0.85,
     "phase2WidthMm": 1.20,
     "deltaWidthMm": 0.35,
-    "evolutionStatus": "WIDENED_AND_LENGTHENED",
-    "pinColorCode": "#FF9800"
+    "evolutionStatus": "WIDENED",
+    "pinColor": "#FF9800"
   }
 }
 ```
 
-### 1.3.4. `PUT /api/v1/parcels/{parcelId}/footprint`
-* **Mô tả:** Cập nhật Đa giác ranh nhà thực tế (Building Footprint Polygon) sau khi đo quét cạn ngoài thực địa.
-* **Request Body:** `{ "footprintGeoJson": { "type": "Polygon", "coordinates": [...] }, "areaSquareMeters": 98.5 }`
-* **Response `200 OK`:** `{ "success": true, "message": "Đã cập nhật ranh nhà Footprint." }`
+### 1.3.9. `PUT /api/v1/reports/phase2/{reportId}/deformation`
+* **Mô tả:** Phase 2 Bước 4 - Lưu trữ số đo lún nghiêng Phase 2 và tự động tính độ biến thiên $\Delta$ so với Phase 1:
+  * Điểm 1: Nghiêng mặt trước $X_2 = 0.35\% \rightarrow \Delta X = +0.05\%$
+  * Điểm 2: Nghiêng mặt hông $Y_2 = 0.20\% \rightarrow \Delta Y = 0.00\%$
+  * Điểm 3: Nghiêng sàn $0.15\%$
+  * Điểm 4: Võng dầm $f = 6.0\text{mm}$
+  * Phương pháp đo, ID thiết bị, Mã ảnh đo đạc.
+
+### 1.3.10. `PUT /api/v1/reports/phase2/{reportId}/scope`
+* **Mô tả:** Phase 2 Bước 5 - Lưu trữ phạm vi tiếp cận thực tế GĐ2 (`Toàn bộ` / `Một phần` kèm lý do khu vực không tiếp cận).
 
 ---
 
@@ -486,330 +503,54 @@ Toàn bộ người dùng đăng nhập qua JWT Bearer Token có thời hạn 7 
 
 ### 1.4.1. `DELETE /api/v1/reports/phase1/zones/{zoneId}/defects/{defectId}`
 * **Mô tả:** Xóa một ghim khuyết tật nháp bị thả nhầm trước khi nộp hồ sơ.
-* **Response `200 OK`:** `{ "success": true, "message": "Đã xóa ghim khuyết tật." }`
 
 ---
 
 # 2. VAI TRÒ 2: TỔ TRƯỞNG & QUẢN TRỊ PHÂN KHU (`ZONE_ADMIN`)
-> **Nền tảng sử dụng:** Web Admin Portal trên màn hình lớn.  
-> **Nhiệm vụ:** Phân công nhiệm vụ, thẩm định hồ sơ Split-Pane (Kính lúp 400%), duyệt/trả về báo cáo, duyệt biến động tách thửa, đóng gói Batch PDF Book.
 
----
+### 2.1. [GET] Nhóm Giám Sát & Thẩm Định:
+* `GET /api/v1/admin/parcels/unassigned`: Danh sách thửa đất chưa phân công để hiển thị lên bản đồ GIS.
+* `GET /api/v1/admin/reports/{id}/audit-view`: Payload thẩm định Split-Pane hoàn chỉnh (Cây cấu kiện & điểm số ECS/VI bên trái, cặp ảnh $CTX / CU$ bên phải phục vụ soi kính lúp 400%).
+* `GET /api/v1/admin/reports`: Danh sách hồ sơ khảo sát theo trạng thái (`SUBMITTED`, `APPROVED`, `REJECTED`).
+* `GET /api/v1/reports/batch-export/{batchId}/status`: Kiểm tra tiến độ đóng gói Tập hồ sơ phân khu (PDF Book) & link tải kèm Checksum SHA-256.
 
-## 2.1. NHÓM PHƯƠNG THỨC GET (Giám sát, Thẩm định, Báo cáo)
+### 2.2. [POST] Nhóm Phê Duyệt & Giao Việc:
+* `POST /api/v1/admin/tasks/assign`: Chọn danh sách thửa đất trên bản đồ GIS và giao cho Surveyor kèm deadline.
+* `POST /api/v1/admin/reports/{id}/approve`: Duyệt Báo cáo (Phím tắt `A`) $\rightarrow$ Tự động sinh PDF/A chính thức & ký số điện tử.
+* `POST /api/v1/admin/reports/{id}/reject`: Trả về Báo cáo (Phím tắt `R`) kèm lý do $\rightarrow$ Tự động rollback biến động tách thửa.
+* `POST /api/v1/admin/mutations/{id}/approve`: Duyệt sự kiện Tách thửa trong Transaction: Chuyển thửa cũ sang `SPLIT_DEPRECATED`, kích hoạt các thửa mới `B-07001, B-07002` lên GIS Master.
+* `POST /api/v1/reports/batch-export`: Khởi chạy đóng gói 100-200 báo cáo trong Ga thành 1 Tập Hồ sơ duy nhất (PDF Book Compilation).
 
-### 2.1.1. `GET /api/v1/admin/parcels/unassigned`
-* **Mô tả:** Lấy danh sách các thửa đất trong Ga chưa được giao việc để hiển thị lên bản đồ GIS.
-* **Query Parameters:** `zoneId="ZONE_S9"`
-* **Response `200 OK`:** `{ "success": true, "total": 45, "data": [...] }`
+### 2.3. [PUT] Nhóm Điều Chỉnh Phân Công:
+* `PUT /api/v1/admin/tasks/{taskId}/reassign`: Chuyển giao nhiệm vụ khảo sát sang Surveyor khác.
 
-### 2.1.2. `GET /api/v1/admin/reports/{reportId}/audit-view`
-* **Mô tả:** Trả về payload thẩm định Split-Pane hoàn chỉnh: Cây cấu kiện & điểm số ECS/VI bên trái, cặp ảnh bối cảnh $CTX$ và cận cảnh $CU$ có thước đo vạch mm bên phải phục vụ soi kính lúp 400%.
-* **Response `200 OK`:**
-```json
-{
-  "success": true,
-  "data": {
-    "reportId": "rep-p1-00105",
-    "parcel": { "projectParcelCode": "B-00105", "ownerName": "Nguyễn Văn An", "address": "854 Trường Chinh" },
-    "surveyor": { "name": "Nguyễn Văn Khảo Sát", "gpsAccuracyAtCheckin": 8.5 },
-    "scores": { "ecsScore": 6, "viClass": "MEDIUM" },
-    "zones": [
-      {
-        "zoneCode": "Z-01",
-        "floor": "Tầng 1 (Trệt)",
-        "ctxPhotoUrl": "https://s3.metro2.vn/photos/rep-p1-00105/Z01_CTX_raw.jpg",
-        "defects": [
-          {
-            "defectCode": "D-01",
-            "pinX": 42.5,
-            "pinY": 68.2,
-            "widthMaxMm": 0.85,
-            "lengthMm": 650.0,
-            "hasScaleCard": true,
-            "cuPhotoUrl": "https://s3.metro2.vn/photos/rep-p1-00105/Z01_D01_CU_raw.jpg"
-          }
-        ]
-      }
-    ]
-  }
-}
-```
-
-### 2.1.3. `GET /api/v1/admin/reports`
-* **Mô tả:** Tra cứu danh sách hồ sơ khảo sát theo Phân khu Ga, trạng thái (`SUBMITTED`, `APPROVED`, `REJECTED`), phân loại rủi ro VI.
-* **Response `200 OK`:** `{ "success": true, "total": 120, "data": [...] }`
-
-### 2.1.4. `GET /api/v1/reports/batch-export/{batchId}/status`
-* **Mô tả:** Kiểm tra tiến độ đóng gói Tập hồ sơ phân khu Ga (PDF Book) và lấy link tải có kèm Checksum SHA-256.
-* **Response `200 OK`:**
-```json
-{
-  "success": true,
-  "data": {
-    "batchId": "batch-s9-202609-001",
-    "status": "COMPLETED",
-    "totalReportsCompiled": 150,
-    "downloadUrl": "https://s3.metro2.vn/dossiers/Dossier_Zone_S9_202609.pdf",
-    "checksumSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-  }
-}
-```
-
----
-
-## 2.2. NHÓM PHƯƠNG THỨC POST (Phê duyệt, Trả về, Phân công, Đóng gói)
-
-### 2.2.1. `POST /api/v1/admin/tasks/assign`
-* **Mô tả:** Chọn danh sách thửa đất trên bản đồ GIS và giao cho một Surveyor kèm thời hạn hoàn thành.
-* **Request Body:**
-```json
-{
-  "parcelIds": ["p-00105", "p-00106", "p-00107"],
-  "surveyorId": "u-001-surveyor",
-  "deadline": "2026-09-20T17:00:00.000Z",
-  "notes": "Khảo sát ưu tiên các căn mặt tiền trước."
-}
-```
-* **Response `201 Created`:** `{ "success": true, "message": "Đã giao thành công 3 thửa đất." }`
-
-### 2.2.2. `POST /api/v1/admin/reports/{reportId}/approve`
-* **Mô tả:** Zone Admin phê duyệt Báo cáo (Phím tắt `A`). Tự động sinh file PDF/A chuẩn lưu trữ quốc tế, đóng dấu chữ ký số điện tử và lưu trữ S3.
-* **Request Body:** `{ "engineeringJudgementNotes": "Hồ sơ ảnh CU đầy đủ thước đo mm hợp lệ." }`
-* **Response `200 OK`:**
-```json
-{
-  "success": true,
-  "message": "Đã phê duyệt Báo cáo khảo sát thành công. File PDF/A chính thức đã được xuất bản.",
-  "data": {
-    "reportId": "rep-p1-00105",
-    "status": "APPROVED",
-    "officialPdfUrl": "https://s3.metro2.vn/official_reports/REPORT_B00105_PHASE1_OFFICIAL.pdf",
-    "approvedAt": "2026-09-16T10:15:00.000Z"
-  }
-}
-```
-
-### 2.2.3. `POST /api/v1/admin/reports/{reportId}/reject`
-* **Mô tả:** Zone Admin trả về Báo cáo kèm lý do (Phím tắt `R`). Tự động rollback các biến động ranh đất liên quan và gửi cảnh báo đỏ cho Surveyor.
-* **Request Body:** `{ "rejectionReason": "Ảnh CU D-01 thiếu thước đo vạch mm (Scale Card)." }`
-* **Response `200 OK`:**
-```json
-{
-  "success": true,
-  "message": "Đã trả về báo cáo khảo sát.",
-  "data": { "reportId": "rep-p1-00105", "status": "REJECTED" }
-}
-```
-
-### 2.2.4. `POST /api/v1/admin/mutations/{mutationId}/approve`
-* **Mô tả:** Phê duyệt sự kiện Tách thửa trong PostgreSQL Transaction: Lưu trữ thửa cũ sang `SPLIT_DEPRECATED`, kích hoạt chính thức các thửa mới `B-07001`, `B-07002` lên GIS Master.
-* **Response `200 OK`:**
-```json
-{
-  "success": true,
-  "message": "Đã kích hoạt chính thức các thửa đất mới lên GIS Master.",
-  "data": { "mutationId": "mut-20260916-0001", "status": "APPROVED", "activatedParcelCodes": ["B-07001", "B-07002"] }
-}
-```
-
-### 2.2.5. `POST /api/v1/reports/batch-export`
-* **Mô tả:** Khởi chạy tiến trình đóng gói toàn bộ 100-200 báo cáo đơn lẻ trong phân khu Ga thành 1 Tập Hồ sơ duy nhất (PDF Book Compilation) có bìa pháp lý, mục lục tự động, bản đồ GIS và mã SHA-256.
-* **Request Body:** `{ "zoneId": "ZONE_S9", "format": "PDF_BOOK_COMPILATION" }`
-* **Response `202 Accepted`:** `{ "success": true, "batchId": "batch-s9-202609-001", "status": "QUEUED" }`
-
----
-
-## 2.3. NHÓM PHƯƠNG THỨC PUT (Điều chỉnh phân công)
-
-### 2.3.1. `PUT /api/v1/admin/tasks/{taskId}/reassign`
-* **Mô tả:** Chuyển giao nhiệm vụ khảo sát thửa đất sang một Cán bộ Khảo sát khác.
-* **Request Body:** `{ "newSurveyorId": "u-002-surveyor", "reason": "Cán bộ u-001 chuyển công tác" }`
-* **Response `200 OK`:** `{ "success": true, "message": "Đã chuyển giao nhiệm vụ thành công." }`
-
----
-
-## 2.4. NHÓM PHƯƠNG THỨC DELETE (Hủy giao việc)
-
-### 2.4.1. `DELETE /api/v1/admin/tasks/{taskId}`
-* **Mô tả:** Hủy phân công nhiệm vụ khảo sát nếu chưa thực hiện.
-* **Response `200 OK`:** `{ "success": true, "message": "Đã hủy phân công nhiệm vụ." }`
+### 2.4. [DELETE] Nhóm Hủy Nhiệm Vụ:
+* `DELETE /api/v1/admin/tasks/{taskId}`: Hủy phân công nhiệm vụ khảo sát.
 
 ---
 
 # 3. VAI TRÒ 3: TỔNG QUẢN TRỊ TOÀN TUYẾN (`SUPER_ADMIN`)
-> **Nền tảng sử dụng:** Web Admin Master Portal (Ban Quản lý Đường sắt Đô thị - MAUR).  
-> **Nhiệm vụ:** Quản lý toàn bộ 11 Ga, quản trị người dùng, cập nhật lớp GIS Tim tuyến và Ranh mặt bằng Metro 2.
 
----
+### 3.1. [GET] Nhóm Toàn Cảnh Tuyến & Nhân Sự:
+* `GET /api/v1/zones`: Danh sách 11 Ga Metro 2 kèm thống kê tiến độ toàn tuyến (%).
+* `GET /api/v1/admin/users`: Quản lý danh sách nhân sự toàn hệ thống.
 
-## 3.1. NHÓM PHƯƠNG THỨC GET (Toàn cảnh & Quản trị)
+### 3.2. [POST] Nhóm Khởi Tạo & Import:
+* `POST /api/v1/admin/users`: Tạo tài khoản nội bộ mới (Zone Admin, Surveyor).
+* `POST /api/v1/admin/gis/import-parcels`: Import hàng loạt thửa đất địa chính ban đầu từ GeoJSON/Shapefile.
 
-### 3.1.1. `GET /api/v1/zones`
-* **Mô tả:** Lấy danh sách toàn bộ 11 Ga Metro 2 kèm thống kê tổng số thửa, số lượng đã khảo sát, số lượng đã duyệt và tỷ lệ hoàn thành (%).
-* **Response `200 OK`:**
-```json
-{
-  "success": true,
-  "total": 11,
-  "data": [
-    { "id": "ZONE_S1", "name": "Ga S1 - Bến Thành", "totalParcels": 420, "progressPercent": 92.8 },
-    { "id": "ZONE_S9", "name": "Ga S9 - Bà Quẹo", "totalParcels": 650, "progressPercent": 64.6 }
-  ]
-}
-```
+### 3.3. [PUT] Nhóm Cập Nhật Lớp GIS:
+* `PUT /api/v1/admin/gis/layers/metro-alignment`: Cập nhật Tim tuyến Metro 2 GeoJSON và Vùng ảnh hưởng trực tiếp (ZOI).
+* `PUT /api/v1/admin/users/{userId}/status`: Khóa hoặc kích hoạt lại tài khoản nhân sự (`ACTIVE` / `SUSPENDED`).
 
-### 3.1.2. `GET /api/v1/admin/users`
-* **Mô tả:** Danh sách toàn bộ nhân sự (Zone Admin, Surveyor, Contractor) kèm phân khu và trạng thái hoạt động.
-* **Response `200 OK`:** `{ "success": true, "total": 35, "data": [...] }`
-
----
-
-## 3.2. NHÓM PHƯƠNG THỨC POST (Khởi tạo tài khoản & Import dữ liệu)
-
-### 3.2.1. `POST /api/v1/admin/users`
-* **Mô tả:** Cấp tài khoản nội bộ mới cho Zone Admin hoặc Surveyor.
-* **Request Body:**
-```json
-{
-  "username": "zoneadmin_s10",
-  "password": "Admin@123",
-  "fullName": "Trần Văn Điều Phối",
-  "role": "ZONE_ADMIN",
-  "assignedZoneId": "ZONE_S10"
-}
-```
-* **Response `201 Created`:** `{ "success": true, "message": "Tạo tài khoản thành công." }`
-
-### 3.2.2. `POST /api/v1/admin/gis/import-parcels`
-* **Mô tả:** Import hàng loạt thửa đất địa chính ban đầu từ file GeoJSON / Shapefile của Sở TN&MT.
-* **Request Headers:** `Content-Type: multipart/form-data`
-* **Form Fields:** `zoneId: "ZONE_S9"`, `geoJsonFile: <binary>`
-* **Response `201 Created`:** `{ "success": true, "importedParcelsCount": 650 }`
-
----
-
-## 3.3. NHÓM PHƯƠNG THỨC PUT (Cập nhật lớp GIS & Trạng thái tài khoản)
-
-### 3.3.1. `PUT /api/v1/admin/gis/layers/metro-alignment`
-* **Mô tả:** Cập nhật lớp GIS Tim tuyến Metro 2 và Vùng ảnh hưởng trực tiếp (Zone of Influence - ZOI).
-* **Request Body:** `{ "centerlineGeoJson": { "type": "LineString", "coordinates": [...] }, "zoiBufferMeters": 50.0 }`
-* **Response `200 OK`:** `{ "success": true, "message": "Đã cập nhật Tim tuyến Metro 2." }`
-
-### 3.3.2. `PUT /api/v1/admin/users/{userId}/status`
-* **Mô tả:** Khóa hoặc kích hoạt lại tài khoản người dùng (`ACTIVE` | `SUSPENDED`).
-* **Request Body:** `{ "status": "SUSPENDED", "reason": "Nghỉ việc" }`
-* **Response `200 OK`:** `{ "success": true, "message": "Đã cập nhật trạng thái tài khoản." }`
-
----
-
-## 3.4. NHÓM PHƯƠNG THỨC DELETE (Vô hiệu hóa tài khoản)
-
-### 3.4.1. `DELETE /api/v1/admin/users/{userId}`
-* **Mô tả:** Thu hồi và xóa tài khoản nhân sự.
-* **Response `200 OK`:** `{ "success": true, "message": "Đã xóa tài khoản." }`
+### 3.4. [DELETE] Nhóm Vô Hiệu Hóa:
+* `DELETE /api/v1/admin/users/{userId}`: Xóa tài khoản nhân sự.
 
 ---
 
 # 4. VAI TRÒ 4: NHÀ THẦU XÂY LẮP & KHÁCH TRA CỨU (`CONTRACTOR_GUEST`)
-> **Nền tảng sử dụng:** Web Portal / API Gateway Read-Only.  
-> **Nhiệm vụ:** Tra cứu dữ liệu hiện trạng công trình trước khi thi công ngầm, tải Tập hồ sơ PDF chính thức có mã băm SHA-256.
 
----
-
-## 4.1. NHÓM PHƯƠNG THỨC GET (Tra cứu & Tải dữ liệu công bố)
-
-### 4.1.1. `GET /api/v1/guest/gis-map`
-* **Mô tả:** Tra cứu bản đồ GIS quy hoạch và ranh giới các công trình đã được thẩm định duyệt thông qua Share Token an toàn.
-* **Query Parameters:** `shareToken="SECURE_TOKEN_ABC"`, `passcode="123456"`
-* **Response `200 OK`:**
-```json
-{
-  "success": true,
-  "data": {
-    "zoneName": "Ga S9 - Bà Quẹo",
-    "metroCenterlineGeoJson": { "type": "LineString", "coordinates": [...] },
-    "parcelsGeoJson": {
-      "type": "FeatureCollection",
-      "features": [
-        {
-          "type": "Feature",
-          "properties": {
-            "parcelCode": "B-00105",
-            "ownerName": "Nguyễn Văn An",
-            "viClass": "MEDIUM",
-            "surveyStatus": "APPROVED"
-          },
-          "geometry": { "type": "Polygon", "coordinates": [...] }
-        }
-      ]
-    }
-  }
-}
-```
-
-### 4.1.2. `GET /api/v1/guest/parcels/{parcelId}/summary`
-* **Mô tả:** Xem tóm tắt thông số kỹ thuật và cấp độ rủi ro tổn thương VI của một công trình đã được công bố.
-* **Response `200 OK`:**
-```json
-{
-  "success": true,
-  "data": {
-    "projectParcelCode": "B-00105",
-    "address": "854 Đường Trường Chinh, P.15, Tân Bình",
-    "numberOfFloors": 3,
-    "structuralSystem": "Khung BTCT chịu lực",
-    "foundationType": "Móng băng nông (CAT 3)",
-    "ecsScore": "6/24 (Tình trạng Khá)",
-    "viClass": "MEDIUM (Rủi ro Trung bình)",
-    "officialReportPdfUrl": "https://s3.metro2.vn/official_reports/REPORT_B00105_PHASE1_OFFICIAL.pdf"
-  }
-}
-```
-
-### 4.1.3. `GET /api/v1/guest/dossiers/{batchId}/download`
-* **Mô tả:** Tải Tập Hồ Sơ Đóng Gói Toàn Phân Khu (PDF Book Compilation) kèm mã băm Checksum SHA-256 để đối chiếu tính toàn vẹn pháp lý.
-* **Response `200 OK`:** Trả về Stream tải file PDF và Header `X-Checksum-SHA256: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`.
-
----
-
-## 5. BẢNG MA TRẬN PHÂN QUYỀN TOÀN BỘ 28 ENDPOINTS (RBAC MATRIX)
-
-| STT | Phương thức | Endpoint URL | Vai trò được phép truy cập |
-| :---: | :---: | :--- | :--- |
-| **I** | **XÁC THỰC** | | |
-| 1 | `POST` | `/api/v1/auth/login` | `Public` |
-| 2 | `POST` | `/api/v1/auth/refresh-token` | `Public` |
-| 3 | `GET` | `/api/v1/auth/me` | `All Authenticated Roles` |
-| 4 | `POST` | `/api/v1/auth/logout` | `All Authenticated Roles` |
-| **II** | **SURVEYOR** | | |
-| 5 | `POST` | `/api/v1/attendance/check-in` | `SURVEYOR` |
-| 6 | `GET` | `/api/v1/tasks/my-tasks` | `SURVEYOR` |
-| 7 | `GET` | `/api/v1/parcels/{id}` | `SURVEYOR`, `ZONE_ADMIN`, `SUPER_ADMIN` |
-| 8 | `POST` | `/api/v1/reports/phase1` | `SURVEYOR` |
-| 9 | `POST` | `/api/v1/reports/phase1/{id}/identification-photos` | `SURVEYOR` |
-| 10 | `PUT` | `/api/v1/reports/phase1/{id}/specs` | `SURVEYOR` |
-| 11 | `POST` | `/api/v1/reports/phase1/{id}/zones` | `SURVEYOR` |
-| 12 | `POST` | `/api/v1/reports/phase1/zones/{id}/defects` | `SURVEYOR` |
-| 13 | `PUT` | `/api/v1/reports/phase1/{id}/deformation` | `SURVEYOR` |
-| 14 | `POST` | `/api/v1/reports/phase1/{id}/calculate-scores` | `SURVEYOR`, `ZONE_ADMIN` |
-| 15 | `POST` | `/api/v1/reports/phase1/{id}/submit` | `SURVEYOR` |
-| 16 | `GET` | `/api/v1/parcels/{id}/phase2/zones` | `SURVEYOR`, `ZONE_ADMIN` |
-| 17 | `PUT` | `/api/v1/phase2/defects/{id}/verify` | `SURVEYOR` |
-| 18 | `POST` | `/api/v1/phase2/reports/{id}/summarize-delta` | `SURVEYOR`, `ZONE_ADMIN` |
-| 19 | `POST` | `/api/v1/mutations/propose` | `SURVEYOR` |
-| 20 | `PUT` | `/api/v1/parcels/{id}/footprint` | `SURVEYOR`, `ZONE_ADMIN` |
-| **III**| **ZONE ADMIN** | | |
-| 21 | `GET` | `/api/v1/admin/parcels/unassigned` | `ZONE_ADMIN`, `SUPER_ADMIN` |
-| 22 | `POST` | `/api/v1/admin/tasks/assign` | `ZONE_ADMIN`, `SUPER_ADMIN` |
-| 23 | `GET` | `/api/v1/admin/reports/{id}/audit-view` | `ZONE_ADMIN`, `SUPER_ADMIN` |
-| 24 | `POST` | `/api/v1/admin/reports/{id}/approve` | `ZONE_ADMIN` |
-| 25 | `POST` | `/api/v1/admin/reports/{id}/reject` | `ZONE_ADMIN` |
-| 26 | `POST` | `/api/v1/admin/mutations/{id}/approve` | `ZONE_ADMIN`, `SUPER_ADMIN` |
-| 27 | `POST` | `/api/v1/reports/batch-export` | `ZONE_ADMIN`, `SUPER_ADMIN` |
-| **IV** | **SUPER ADMIN**| | |
-| 28 | `POST` | `/api/v1/admin/users` | `SUPER_ADMIN` |
-| 29 | `PUT` | `/api/v1/admin/gis/layers/metro-alignment` | `SUPER_ADMIN` |
-| **V**  | **GUEST** | | |
-| 30 | `GET` | `/api/v1/guest/gis-map` | `CONTRACTOR_GUEST`, `Public (ShareToken)` |
-| 31 | `GET` | `/api/v1/guest/dossiers/{id}/download` | `CONTRACTOR_GUEST` |
+### 4.1. [GET] Nhóm Tra Cứu & Tải Tài Liệu Công Bố:
+* `GET /api/v1/guest/gis-map`: Tra cứu bản đồ GIS quy hoạch các công trình đã duyệt qua `shareToken` an toàn.
+* `GET /api/v1/guest/parcels/{id}/summary`: Xem tóm tắt kết cấu, điểm ECS và xếp hạng rủi ro VI của công trình.
+* `GET /api/v1/guest/dossiers/{batchId}/download`: Tải file Tập hồ sơ phân khu hoàn chỉnh (PDF Book) kèm Checksum SHA-256.
