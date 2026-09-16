@@ -99,32 +99,71 @@
 ---
 
 ### BƯỚC 3: Khảo Sát Hiện Trạng Từng Tầng, Cấu Kiện & Sổ Ghi Nhận Khuyết Tật $D-xx$
-*Cán bộ đi dạo kiểm tra lần lượt qua từng Tầng/Phòng. Thực hiện theo quy trình chuẩn: 1 Bối Cảnh (CTX) ➔ Đối Soát Vết Nứt Cũ GĐ1 ➔ Thêm Vết Nứt Mới GĐ2 ➔ Chụp Cận Cảnh kèm thước (CU).*
+*Cán bộ đi dạo kiểm tra lần lượt qua từng Tầng/Phòng theo vị trí đứng thực tế. Ứng dụng tự động truy xuất dữ liệu khuyết tật GĐ1 tương ứng với vị trí đứng để cán bộ đối chiếu trực tiếp trên màn hình, hỗ trợ chấm thêm điểm khuyết tật trên Vùng cũ hoặc tạo Vùng mới nếu xuất hiện khu vực mới.*
 
-*(Lặp lại cho từng Tầng: Tầng hầm ➔ Tầng trệt ➔ Tầng 1 ➔ Tầng 2 ➔ Tầng mái... phát sinh động mảng `DamageZone[]`)*
+*(Thực hiện lặp lại cho từng Tầng: Tầng hầm ➔ Tầng trệt ➔ Tầng 1 ➔ Tầng 2 ➔ Tầng mái... phát sinh động mảng `DamageZone[]`)*
 
-#### 3.1. Ghi nhận hiện trạng theo Khu vực / Cấu kiện (Ma trận Mục 4 Docs gốc):
-*Chỉ ghi nội dung quan sát được. Khu vực không tiếp cận hoặc bị che khuất phải ghi rõ.*
+---
 
-| Tầng / Khu vực | Tình trạng Sàn / Trần | Tình trạng Tường | Tình trạng Cột / Dầm | Thấm / Bong tróc | Biến dạng / Lún–Nghiêng | Nhận xét / ID Ảnh Bối cảnh |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **Tầng trệt / P.Khách** | `Ổn định` / `Nứt vỡ` | `Nứt xiên` / `Ổn định` | `Ổn định` / `Nứt dầm` | `Không` / `Thấm nhẹ` | `Không` / `Nghi ngờ lún` | Ghi chú & gắn `Z-01` |
-| **Lầu 1 / P.Ngủ 1** | `Ổn định` / `Võng sàn` | `Nứt chân chim` | `Ổn định` | `Thấm trần WC` | `Không` | Ghi chú & gắn `Z-02` |
-| **Lầu 2 / Ban công** | `Nứt gạch lát` | `Bong tróc vữa` | `Ổn định` | `Bong tróc mảng` | `Nghiêng lan can` | Ghi chú & gắn `Z-03` |
-| **... (Thêm tầng/KV)** | ... | ... | ... | ... | ... | ... |
+#### 3.1. Định vị & Tự động Lọc Vùng Khảo sát theo Vị trí đứng (Location-Based Filter):
+- [ ] **Chọn Vị trí đứng hiện tại:** (Chọn Tầng: `Tầng trệt` / `Lầu 1` / `Lầu 2`... ➔ Chọn Phòng/Khu vực: `Phòng khách`, `Phòng ngủ 1`, `Hành lang`, `Bếp`...)
+- [ ] **Hệ thống tự động GET dữ liệu GĐ1 tại vị trí này:**
+  - Ứng dụng tự động tải và hiển thị danh sách các Vùng `Z-xx` đã ghi nhận tại GĐ1 ở phòng này, kèm ảnh bối cảnh (`Photo CTX`) và toàn bộ các điểm ghim khuyết tật $D-xx$ cũ trên hình.
+  - Trên màn hình luôn có sẵn nút hành động nổi bật: **`[+ Thêm Vùng Khảo Sát Mới (Z-new)]`** (dành cho khu vực mới cơi nới hoặc Phase 1 chưa vào được).
 
-- [ ] **Chụp 1 Ảnh Bối Cảnh (`Photo CTX`):** Tự động tạo Vùng `Z-01`, `Z-02`... gắn liền với mảng tường/khu vực này.
+---
 
-#### 3.2. Sổ Ghi Nhận Khuyết Tật (Damage Register - Chuỗi phát sinh động $D-01 \to D-xx$):
-*Hệ thống tự động hiển thị lại các ghim khuyết tật cũ từ Phase 1 trên ảnh bối cảnh để đối soát, đồng thời cho phép chạm thả thêm ghim mới:*
+#### 3.2. CƠ CHẾ A: Đối Soát & Chấm Thêm Điểm Trên VÙNG HIỆN HỮU (`Z-xx` Kế Thừa Từ GĐ1):
+*Cán bộ chọn Vùng hiện hữu (VD: `Vùng Z-01 - Tường gạch phòng khách`) ➔ Màn hình hiển thị ảnh bối cảnh `Photo CTX` của Phase 1 với các chấm ghim màu vàng ($D-01, D-02...$):*
 
-| ID Khuyết tật | Tầng / KV | Vị trí – Cấu kiện | Loại khuyết tật | Bề rộng $w$ (mm) | Chiều dài $L$ (mm) | Hướng / Dạng nứt | Mã Ảnh liên kết | Trạng thái / Ghi chú biến động |
+1. **Đối soát khuyết tật cũ ($D-01, D-02...$):**
+   - Chạm vào từng ghim cũ để xem thông số GĐ1 ($w_1, L_1$).
+   - Đo lại kích thước thực tế ngoài hiện trường: Bề rộng $w_2 = \_\_\_\text{mm}$ | Chiều dài $L_2 = \_\_\_\text{mm}$.
+   - Hệ thống tự động tính độ biến thiên: $\Delta w = w_2 - w_1$ (mm) | $\Delta L = L_2 - L_1$ (mm).
+   - Chọn đánh giá trạng thái biến động:
+     - [ ] `Không đổi` (Ổn định: $w_2 = w_1, L_2 = L_1$ ➔ Ghim đổi sang màu **Xanh lá**).
+     - [ ] `Phát triển` (Rộng thêm $\Delta w > 0$ hoặc Dài thêm $\Delta L > 0$ ➔ Ghim đổi sang màu **Cam cảnh báo**).
+     - [ ] `Đã sửa` (Chủ nhà đã tự trám trét / sơn bả lại sau GĐ1 ➔ Ghim đổi sang màu **Xám**).
+   - Chụp ảnh cận cảnh Phase 2 (`B-XXXX-Fxx-Rxx-Dxx-CU`) áp sát **Thước đo khe nứt (Crack Scale Card)**.
+
+2. **Chấm thêm điểm khuyết tật mới lên Vùng cũ (`Z-xx`):**
+   - Nếu quan sát thấy trên mảng tường `Z-xx` này xuất hiện thêm vết nứt mới sau GĐ1: Cán bộ chỉ cần **chạm tay trực tiếp lên ảnh bối cảnh `Photo CTX`** tại vị trí vết nứt mới.
+   - Hệ thống tự động thả ghim mới màu **Đỏ**: **`D-04 (MỚI)`**, **`D-05 (MỚI)`**...
+   - Nhập chỉ số: Loại khuyết tật, Bề rộng $w_2$ (mm), Chiều dài $L_2$ (mm), Hướng nứt, Cấu kiện.
+   - Chụp ảnh cận cảnh Phase 2 (`Photo CU`) kèm thước đo khe nứt.
+   - Hệ thống tự động gán trạng thái: `MỚI GHI NHẬN`.
+
+---
+
+#### 3.3. CƠ CHẾ B: Thêm KHU VỰC / VÙNG MỚI XUẤT HIỆN (`Z-xx` Mới Phát Sinh Tại GĐ2):
+*Áp dụng khi cán bộ phát hiện khu vực mới xuất hiện (Chủ nhà mới xây thêm phòng sau nhà, cơi nới thêm gác lửng/ban công, hoặc phòng kho Phase 1 bị khóa nay mở cửa cho vào):*
+
+1. **Khởi tạo Vùng mới:**
+   - Cán bộ bấm nút **`[+ Thêm Vùng Khảo Sát Mới (Z-new)]`**.
+   - Hệ thống tự động cấp mã Vùng tiếp theo: **`Z-04 (MỚI)`**, **`Z-05 (MỚI)`**... gắn nhãn `[MỚI GĐ2]`.
+2. **Chụp Ảnh Bối Cảnh Mới (`Photo CTX`):**
+   - Cán bộ lùi lại chụp 1 ảnh bối cảnh bao quát mảng tường/cấu kiện của khu vực mới này.
+3. **Đánh giá nhanh tình trạng Cấu kiện Vùng mới (Ma trận Mục 4 Docs gốc):**
+   - Tình trạng Sàn/Trần: (Ổn định / Nứt vỡ / Võng...)
+   - Tình trạng Tường: (Ổn định / Nứt xiên / Nứt chân chim / Thấm...)
+   - Tình trạng Cột/Dầm: (Ổn định / Nứt dầm / Lộ cốt thép...)
+   - Thấm / Bong tróc: (Không / Thấm ẩm / Bong tróc vữa...)
+   - Biến dạng / Lún–Nghiêng: (Không / Nghi ngờ lún chênh / Nghiêng sàn...)
+4. **Chấm thả các điểm khuyết tật mới lên Vùng mới:**
+   - Chạm tay lên ảnh bối cảnh vừa chụp để thả các ghim: **`D-06 (MỚI)`**, **`D-07 (MỚI)`**...
+   - Nhập thông số đo đạc ($w, L$, dạng nứt) và chụp ảnh cận cảnh kèm thước (`Photo CU`) cho từng ghim mới.
+
+---
+
+#### 3.4. Bảng Sổ Ghi Nhận Khuyết Tật Hợp Nhất (Damage Register - Chuỗi phát sinh $D-01 \to D-xx$):
+
+| ID Khuyết tật | Vùng / Tầng / KV | Vị trí – Cấu kiện | Loại khuyết tật | Bề rộng $w$ (mm) | Chiều dài $L$ (mm) | Hướng / Dạng nứt | Mã Ảnh liên kết | Nguồn gốc & Trạng thái Biến động |
 | :---: | :--- | :--- | :--- | :---: | :---: | :--- | :--- | :--- |
-| **`D-01`** `[GĐ1]` | Trệt - P.Khách | Tường gạch trục 2 | Nứt xiên hoàn thiện | $w_2 = 0.5$ | $L_2 = 300$ | Xiên $45^\circ$ góc cửa | `B-XXXX-F01-R01-D01-CU` | `Không đổi` (Ổn định so với GĐ1) |
-| **`D-02`** `[GĐ1]` | Lầu 1 - P.Ngủ | Dầm BTCT trục B | Nứt uốn dầm | $w_2 = 0.8$ | $L_2 = 650$ | Thẳng đứng đáy dầm | `B-XXXX-F02-R01-D02-CU` | `Phát triển` (Rộng thêm $+0.3\text{mm}$) |
-| **`D-03`** `[GĐ1]` | Trệt - Bếp | Tường ngăn WC | Nứt chân chim | -- | -- | Mạng nhện | `B-XXXX-F01-R02-D03-CU` | `Đã sửa` (Chủ nhà đã trám/sơn) |
-| **`D-04`** `[MỚI]` | Lầu 2 - Ban công | Mép sàn ban công | Bong tróc lộ thép | $w = 1.2$ | $L = 400$ | Dọc mép sàn | `B-XXXX-F03-R01-D04-CU` | `MỚI GHI NHẬN` (Phát sinh sau GĐ1) |
-| **`D-05`** `[MỚI]` | Trệt - Cửa chính | Khung bao cửa đi | Kẹt cửa / Biến dạng | -- | -- | Xô lệch góc mở | `B-XXXX-F01-R01-D05-CU` | `MỚI GHI NHẬN` (Phát sinh sau GĐ1) |
+| **`D-01`** | `Z-01` (Trệt - P.Khách) | Tường gạch trục 2 | Nứt xiên hoàn thiện | $w_2 = 0.5$ | $L_2 = 300$ | Xiên $45^\circ$ góc cửa | `B-XXXX-F01-R01-D01-CU` | `[GĐ1 Kế thừa]` ➔ **Không đổi** |
+| **`D-02`** | `Z-02` (Lầu 1 - P.Ngủ) | Dầm BTCT trục B | Nứt uốn dầm | $w_2 = 0.8$ | $L_2 = 650$ | Thẳng đứng đáy dầm | `B-XXXX-F02-R01-D02-CU` | `[GĐ1 Kế thừa]` ➔ **Phát triển (+0.3mm)** |
+| **`D-03`** | `Z-01` (Trệt - P.Khách) | Tường ngăn WC | Nứt chân chim | -- | -- | Mạng nhện | `B-XXXX-F01-R02-D03-CU` | `[GĐ1 Kế thừa]` ➔ **Đã sửa (Trám bả)** |
+| **`D-04`** | `Z-01` (Trệt - P.Khách) | Mép chân tường trục 1 | Nứt ngang chân tường | $w_2 = 0.6$ | $L_2 = 500$ | Nằm ngang | `B-XXXX-F01-R01-D04-CU` | `[GĐ2 Chấm thêm trên Z cũ]` ➔ **MỚI GHI NHẬN** |
+| **`D-05`** | `Z-04 (MỚI)` (Gác lửng mới) | Tường cơi nới mới | Nứt mối nối tường | $w_2 = 1.2$ | $L_2 = 800$ | Dọc khe tiếp giáp | `B-XXXX-F02-R02-D05-CU` | `[GĐ2 Tạo Z mới & D mới]` ➔ **MỚI GHI NHẬN** |
 
 - **Phân loại khuyết tật điển hình (Theo Docs gốc):** Nứt, Lún/Nghiêng, Võng/Biến dạng, Bong tróc, Tách lớp, Ăn mòn, Thấm/Ẩm, Hư hỏng hoàn thiện, Cửa đi/Cửa sổ hoạt động bất thường.
 - **Hồ sơ ảnh khuyết tật đa lớp:** Mỗi khuyết tật bắt buộc gồm:

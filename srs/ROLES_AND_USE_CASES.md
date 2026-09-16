@@ -98,15 +98,23 @@ Hệ thống áp dụng mô hình kiểm soát truy cập dựa trên vai trò *
 
 ### USE CASE 02: CHECK-IN CHẤM CÔNG & LẬP BÁO CÁO KHẢO SÁT HỆN TRƯỜNG (FIELD TIMEKEEPING & SURVEY REPORTING)
 - **Tác nhân:** `SURVEYOR`, Chủ sở hữu công trình.
-- **Mục tiêu:** Check-in chấm công ngày làm việc và tiến hành khảo sát 9 bước lập Báo cáo Hiện trạng.
-- **Luồng thực hiện:**
+- **Mục tiêu:** Check-in chấm công ngày làm việc và tiến hành khảo sát thực địa (Phase 1 Baseline hoặc Phase 2 Pre-construction Delta).
+- **Luồng thực hiện Khảo sát Giai đoạn 1 (Phase 1 Baseline):**
   1. **Check-in Chấm công:** Bắt GPS, chụp ảnh selfie/hiện trường, điền danh sách người đi cùng.
-  2. **Chụp 4 ảnh định danh ($P-01 \to P-04$):** Chụp có Watermark GPS & Thời gian.
+  2. **Chụp 4 ảnh định danh ($P-01 \to P-04$):** Chụp có Watermark GPS & Thời gian (Hỗ trợ AI đa giác đứng và phân tầng).
   3. **Phỏng vấn chủ hộ:** Thu thập thông tin móng (CAT 1-5), kết cấu, lịch sử sự cố.
   4. **Khảo sát từng tầng & Thả ghim $D-xx$:** Chụp ảnh bối cảnh `Photo CTX` (tự tạo Vùng `Z-xx`) ➔ Chạm thả ghim $D-xx$ ➔ Chụp cận cảnh `Photo CU` có thước đo khe nứt.
   5. **Đo lún nghiêng:** Nhập tỉ lệ nghiêng X/Y%, nghiêng sàn, võng dầm.
   6. **Xác nhận phạm vi & Vẽ lại ranh thửa GIS (Bước 5):** Sau khi đã đi hết các tầng, nếu phát hiện thửa bị tách làm 2 căn hoặc gộp thửa, dùng công cụ **Polygon Split/Edit Tool** vẽ lại ranh. Hệ thống tự động cấp mã mới từ dải số mở rộng (không làm xô lệch các thửa khác).
   7. **Auto Scoring & Chụp ảnh xác nhận:** Hệ thống tự động tính điểm ECS/VI. Cán bộ chụp ảnh chữ ký trên giấy hoặc ảnh cán bộ khảo sát / người kiểm tra tại hiện trường. Báo cáo hoàn chỉnh gửi về hệ thống.
+
+- **Luồng thực hiện Khảo sát Giai đoạn 2 (Phase 2 Pre-Construction Delta Verification):**
+  1. **Tự động Kế thừa & Đối soát theo Vị trí đứng:** Khi cán bộ chọn Tầng & Phòng đang đứng, PWA tự động `GET` danh sách các Vùng `Z-xx` của GĐ1 kèm ảnh `Photo CTX` và vị trí ghim $D-xx$ cũ.
+  2. **Xử lý trên Vùng Hiện hữu (`Z-xx` cũ):**
+     - Chạm ghim cũ $D-xx$: Đo lại $w_2, L_2$ ➔ Hệ thống tự tính biến thiên $\Delta w, \Delta L$ ➔ Chọn trạng thái (`Không đổi`, `Phát triển`, `Đã sửa`) ➔ Chụp ảnh $CU$ mới có thước đo.
+     - Chấm thêm vết nứt mới: Chạm trực tiếp lên `Photo CTX` cũ để thả ghim mới màu đỏ $D-new$, nhập kích thước và chụp $CU$ có thước đo.
+  3. **Mở rộng Khu vực / Vùng Mới Xuất Hiện (`Z-xx` mới):** Bấm `[+ Thêm Vùng Mới]` ➔ Hệ thống tạo `Z-new` ➔ Chụp `Photo CTX` mới ➔ Chấm các ghim $D-new$ mới và chụp $CU$ có thước đo.
+  4. **Kiểm tra Checklist 10 Mục Phụ lục A, Tổng hợp Biến động & Ký tên 4 Bên:** Hệ thống tự động kiểm tra tính đầy đủ của hồ sơ, đối chiếu dữ liệu với GĐ1 và hỗ trợ ký số/chụp ảnh xác nhận 4 bên.
 
 ---
 

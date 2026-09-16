@@ -235,21 +235,51 @@ Cả 2 đợt khảo sát (Phase 1 & Phase 2) đều được thiết kế theo 
 
 ---
 
-### 6.2. Cơ Chế Kế Thừa & Động Cơ Đối Soát Delta Phase 1 vs Phase 2
+### 6.2. Cơ Chế Truy Xuất Theo Vị Trí Đứng & Mở Rộng Khuyết Tật Trong Phase 2
+
+```
+                           [ Vị trí đứng của Surveyor: Tầng & Phòng ]
+                                              │
+                    ┌─────────────────────────┴─────────────────────────┐
+                    ▼                                                   ▼
+       [ 1. VÙNG HIỆN HỮU (Z-xx Cũ) ]                        [ 2. KHU VỰC MỚI XUẤT HIỆN ]
+                    │                                                   │
+     ┌──────────────┴──────────────┐                                    │
+     ▼                             ▼                                    ▼
+[ Đối soát Ghim Cũ ]     [ Chấm thêm Ghim Mới ]                [ Bấm "+ Thêm Vùng Mới" ]
+(Đo w2, L2 ➔ Δw, ΔL)     (Chạm lên Photo CTX cũ)               (Tạo Z-new ➔ Chụp CTX mới)
+     │                             │                                    │
+     ▼                             ▼                                    ▼
+(Stable / Widened / Repaired)  (D-new trên Z cũ: MỚI)          (D-new trên Z-new: MỚI)
+```
+
+1. **Truy xuất Khuyết tật Tự động theo Vị trí đứng (Location-Based Defect Querying):**
+   - Khi cán bộ chọn vị trí đứng thực tế (VD: `Lầu 1 ➔ Phòng ngủ 1`), Mobile PWA tự động thực hiện truy vấn:
+     `GET /api/v1/parcels/{parcelId}/phase1/zones?floor=Lầu 1&room=Phòng ngủ 1`
+   - Giao diện lập tức hiển thị toàn bộ các Vùng `Z-xx` đã lập tại GĐ1, bao gồm ảnh bối cảnh `Photo CTX` và vị trí tọa độ các ghim khuyết tật cũ ($D-01, D-02\dots$).
+
+2. **Cơ chế Xử lý trên Vùng Hiện Hữu (`Z-xx` Kế thừa):**
+   - **Đối soát khuyết tật cũ:** Cán bộ chạm vào ghim cũ $D-xx$ trên màn hình. App hiển thị thông số GĐ1 ($w_1, L_1$). Cán bộ đo lại ngoài thực địa ($w_2, L_2$). Hệ thống tự động tính $\Delta w = w_2 - w_1, \Delta L = L_2 - L_1$ và cập nhật trạng thái (`STABLE`, `WIDENED_LENGTHENED`, `REPAIRED_PATCHED`). Chụp ảnh cận cảnh $D-xx\text{-CU}$ mới có thước đo.
+   - **Chấm thêm khuyết tật mới trên Vùng cũ:** Nếu phát hiện vết nứt mới xuất hiện trên mảng tường này sau GĐ1, cán bộ **chạm tay trực tiếp lên ảnh bối cảnh `Photo CTX` cũ** tại tọa độ vết nứt mới. Hệ thống tự động sinh ghim đỏ `D-new`, gán cờ `isNewInPhase2 = true`, nhập kích thước và chụp ảnh cận cảnh kèm thước đo.
+
+3. **Cơ chế Mở Rộng Khu Vực / Vùng Mới Phát Sinh (`Z-xx` Mới):**
+   - Áp dụng khi xuất hiện không gian mới (chủ nhà mới xây phòng sau nhà, cơi nới gác lửng/ban công, hoặc phòng kho trước đây bị khóa nay mở cửa).
+   - Cán bộ bấm **`[+ Thêm Vùng Khảo Sát Mới]`** ➔ Hệ thống cấp mã `Z-new` (gắn cờ `isNewInPhase2 = true`).
+   - Cán bộ lùi lại chụp `Photo CTX` mới cho mảng tường này, sau đó chạm tay chấm thả các điểm khuyết tật `D-new` mới và chụp ảnh cận cảnh kèm thước `CU`.
+
+---
+
+### 6.3. Động Cơ Đối Soát Delta & Phán Quyết Bồi Thường ($\Delta$ Engine)
 
 ```
 [ Phase 1 (Baseline Gốc) ] ──(Đào hầm TBM)──> [ Phase 2 (Đối Soát Check-Var) ] ──> [ Δ Delta Engine ]
 ```
 
-1. **Khởi tạo Khảo sát Phase 2:**
-   - Hệ thống tự động liên kết `SurveyReport.baselinePhase1ReportId = Phase1_ID`.
-   - Toàn bộ danh sách Vùng $Z-xx$ và Ghim khuyết tật $D-xx$ cũ được tải sẵn lên màn hình PWA của Surveyor.
-2. **Đối soát Biến động từng Vết nứt cũ ($D-xx$ cũ):**
-   - Đo lại kích thước: $\Delta w = w_2 - w_1$ và $\Delta L = L_2 - L_1$.
-   - Phân loại tiến triển `CrackEvolutionEnum`: `STABLE` (ổn định), `WIDENED` (nứt rộng hơn), `LENGTHENED` (nứt dài thêm), `REPAIRED` (đã trám).
-3. **Thêm Vết nứt MỚI PHÁT SINH (`isNewInPhase2 = true`):**
-   - Ghim mới tạo (VD: `D-04 (MỚI)`) được đánh dấu cờ phát sinh sau khi thi công Metro.
-4. **Tự động Tính Toán Biến Động $\Delta ECS$ & Kết Luận Đền Bù (`CompensationVerdictEnum`):**
+1. **Tổng hợp Biến động Định lượng:**
+   - Số lượng vết nứt: $\text{Total } D_2 = D_{\text{stable}} + D_{\text{widened}} + D_{\text{repaired}} + D_{\text{new}}$.
+   - Biến thiên độ mở rộng khe nứt: $\Delta w = w_2 - w_1$.
+   - Biến thiên biến dạng hình học: $\Delta \text{Tilt} = \text{Tilt}_2 - \text{Tilt}_1$.
+2. **Tự động Tính Toán Biến Động $\Delta ECS$ & Kết Luận Đền Bù (`CompensationVerdictEnum`):**
    - Tính toán $\Delta ECS = ECS_2 - ECS_1$.
    - **`NO_IMPACT`:** $\Delta ECS = 0$, không có vết nứt mới ➔ **Khước từ đền bù (Có căn cứ pháp lý vững chắc)**.
    - **`NEGLIGIBLE_COSMETIC`:** Nứt tóc bề mặt $\le 1$mm ➔ **Hỗ trợ kinh phí sơn bả hoàn thiện**.

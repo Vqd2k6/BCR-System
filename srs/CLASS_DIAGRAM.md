@@ -342,6 +342,8 @@ classDiagram
         +UUID id
         +UUID reportId
         +UUID phase1DamageZoneId
+        +Boolean isInheritedFromPhase1
+        +Boolean isNewInPhase2
         +String zoneCode
         +Int floorIndex
         +String floorName
