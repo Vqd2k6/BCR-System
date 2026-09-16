@@ -1,5 +1,5 @@
 import React from 'react';
-import { Home, Map, Clock, FileText, CheckSquare } from 'lucide-react';
+import { Home, Map, Clock } from 'lucide-react';
 
 export type NavTab = 'home' | 'map' | 'attendance' | 'phase1' | 'phase2';
 
@@ -10,11 +10,9 @@ interface Props {
 
 export const SurveyorBottomNav: React.FC<Props> = ({ activeTab, onChangeTab }) => {
   const tabs = [
-    { id: 'home' as NavTab, label: 'Tổng quan', icon: Home },
-    { id: 'map' as NavTab, label: 'Bản đồ GIS', icon: Map },
-    { id: 'attendance' as NavTab, label: 'Điểm danh', icon: Clock },
-    { id: 'phase1' as NavTab, label: 'Phase 1', icon: FileText },
-    { id: 'phase2' as NavTab, label: 'Phase 2', icon: CheckSquare },
+    { id: 'home' as NavTab, title: 'Tổng quan danh sách thửa đất', icon: Home },
+    { id: 'map' as NavTab, title: 'Bản đồ số GIS tuyến Metro 2', icon: Map },
+    { id: 'attendance' as NavTab, title: 'Điểm danh GPS thực địa', icon: Clock },
   ];
 
   return (
@@ -30,8 +28,10 @@ export const SurveyorBottomNav: React.FC<Props> = ({ activeTab, onChangeTab }) =
         display: 'flex',
         justifyContent: 'space-around',
         alignItems: 'center',
-        padding: '0.4rem 0.5rem',
-        boxShadow: '0 -2px 10px rgba(0, 0, 0, 0.05)',
+        padding: '0.5rem 1rem calc(0.5rem + env(safe-area-inset-bottom)) 1rem',
+        boxShadow: '0 -2px 12px rgba(0, 0, 0, 0.06)',
+        backdropFilter: 'blur(8px)',
+        height: '52px',
       }}
     >
       {tabs.map((tab) => {
@@ -42,33 +42,26 @@ export const SurveyorBottomNav: React.FC<Props> = ({ activeTab, onChangeTab }) =
           <button
             key={tab.id}
             type="button"
+            title={tab.title}
+            aria-label={tab.title}
             onClick={() => onChangeTab(tab.id)}
             style={{
-              background: isActive ? '#e0f2fe' : 'transparent',
-              border: 'none',
+              background: isActive
+                ? 'linear-gradient(135deg, #e0f2fe 0%, #dbeafe 100%)'
+                : 'transparent',
+              border: isActive ? '1px solid #7dd3fc' : 'none',
               display: 'flex',
-              flexDirection: 'column',
               alignItems: 'center',
               justifyContent: 'center',
-              gap: '0.2rem',
               color: isActive ? '#0284c7' : '#64748b',
               cursor: 'pointer',
-              padding: '0.4rem 0.75rem',
-              borderRadius: '0.65rem',
-              transition: 'all 0.15s ease',
-              minWidth: '60px',
+              padding: '0.55rem 1.75rem',
+              borderRadius: '9999px',
+              transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+              boxShadow: isActive ? '0 2px 6px rgba(2, 132, 199, 0.15)' : 'none',
             }}
           >
-            <Icon size={20} strokeWidth={isActive ? 2.5 : 1.8} />
-            <span
-              style={{
-                fontSize: '0.725rem',
-                fontWeight: isActive ? 700 : 500,
-                letterSpacing: '0.01em',
-              }}
-            >
-              {tab.label}
-            </span>
+            <Icon size={22} strokeWidth={isActive ? 2.5 : 1.8} />
           </button>
         );
       })}

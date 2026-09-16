@@ -17,9 +17,26 @@ export const App: React.FC = () => {
   const [parcels, setParcels] = useState<GisParcel[]>([]);
   const [selectedParcelForSurvey, setSelectedParcelForSurvey] = useState<GisParcel | null>(null);
 
-  // Dynamic Check-In state for surveyor
-  const [isCheckedInToday, setIsCheckedInToday] = useState<boolean>(false);
-  const [checkInDetails, setCheckInDetails] = useState<{ time: string; distance: number; status: string } | null>(null);
+  // Dynamic Check-In state for surveyor with localStorage persistence (Requirement 5)
+  const [isCheckedInToday, setIsCheckedInToday] = useState<boolean>(() => {
+    try {
+      const todayStr = new Date().toISOString().split('T')[0];
+      const saved = localStorage.getItem(`metro2_today_checkin_${todayStr}`);
+      return !!saved;
+    } catch {
+      return false;
+    }
+  });
+
+  const [checkInDetails, setCheckInDetails] = useState<{ time: string; distance: number; status: string } | null>(() => {
+    try {
+      const todayStr = new Date().toISOString().split('T')[0];
+      const saved = localStorage.getItem(`metro2_today_checkin_${todayStr}`);
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
 
   const initialParcels: GisParcel[] = [
     {
@@ -117,9 +134,41 @@ export const App: React.FC = () => {
     }
   };
 
+  // Sync attendance history from backend API on mount / authentication
   useEffect(() => {
+    if (!isAuthenticated || !user) return;
+
+    const syncTodayAttendance = async () => {
+      try {
+        const todayStr = new Date().toISOString().split('T')[0];
+        const res = await api.get('/attendance/my-history');
+        if (res.data && res.data.data && Array.isArray(res.data.data)) {
+          const todayRecord = res.data.data.find((item: any) => {
+            const itemDate = new Date(item.checkin_time).toISOString().split('T')[0];
+            return itemDate === todayStr;
+          });
+
+          if (todayRecord) {
+            const details = {
+              time: new Date(todayRecord.checkin_time).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
+              distance: Math.round(todayRecord.distance_to_zone_center_meters ?? todayRecord.distance_meters ?? 0),
+              status: todayRecord.verification_status || 'APPROVED',
+            };
+            setIsCheckedInToday(true);
+            setCheckInDetails(details);
+            try {
+              localStorage.setItem(`metro2_today_checkin_${todayStr}`, JSON.stringify(details));
+            } catch (_e) {}
+          }
+        }
+      } catch (err) {
+        console.warn('Sync attendance error:', err);
+      }
+    };
+
+    syncTodayAttendance();
     loadParcels();
-  }, [selectedZone]);
+  }, [isAuthenticated, user, selectedZone]);
 
   // If loading session
   if (isLoading) {
@@ -219,7 +268,10 @@ export const App: React.FC = () => {
         )}
 
         {activeTab === 'attendance' && (
-          <TimekeepingCheckInView onCheckInSuccess={handleCheckInSuccess} />
+          <TimekeepingCheckInView
+            isCheckedInToday={isCheckedInToday}
+            onCheckInSuccess={handleCheckInSuccess}
+          />
         )}
 
         {activeTab === 'phase1' && (
@@ -232,7 +284,7 @@ export const App: React.FC = () => {
         {activeTab === 'phase2' && <SurveyPhase2View />}
       </main>
 
-      {/* Bottom Navigation for Mobile PWA */}
+      {/* Bottom Navigation for Mobile PWA (3 Tabs: Home, Map, Attendance) */}
       <SurveyorBottomNav activeTab={activeTab} onChangeTab={setActiveTab} />
     </div>
   );

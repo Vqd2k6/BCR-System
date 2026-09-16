@@ -122,7 +122,7 @@ export const SurveyorHomeView: React.FC<Props> = ({
   };
 
   return (
-    <div style={{ padding: '1rem', maxWidth: '780px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '1.15rem' }}>
+    <div style={{ padding: '1rem 1rem 6.5rem 1rem', maxWidth: '780px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '1.15rem' }}>
       {/* 1. Refined Attendance Widget (Requirement 2) */}
       <div
         className="card"
