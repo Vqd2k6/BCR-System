@@ -1,13 +1,10 @@
-version: '3.8'
-
 services:
   # 1. Reverse Proxy & Tự động cấp SSL HTTPS
   caddy_gateway:
     image: caddy:2-alpine
     restart: always
     ports:
-      - "80:80"
-      - "443:443"
+      - "8080:80"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile
       - ./frontend:/srv/frontend:ro
@@ -23,7 +20,7 @@ services:
       dockerfile: Dockerfile
     restart: always
     ports:
-      - "5000:5000"
+      - "5050:5000"
     environment:
       - PORT=5000
       - NODE_ENV=production
@@ -42,7 +39,7 @@ services:
     image: postgis/postgis:16-3.4-alpine
     restart: always
     ports:
-      - "5432:5432"
+      - "5433:5432"
     environment:
       - POSTGRES_DB=metro2_survey
       - POSTGRES_USER=metro_user
@@ -54,7 +51,7 @@ services:
 
   # 4. Object Storage MinIO (S3 Nội bộ lưu trữ ảnh bằng chứng phi hủy diệt)
   minio_storage:
-    image: minio/minio:latest
+    image: quay.io/minio/minio:latest
     restart: always
     ports:
       - "9000:9000"

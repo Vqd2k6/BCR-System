@@ -42,11 +42,11 @@
    ```
 
 2. **Truy cập các phân hệ ứng dụng:**
-   - **Cổng Web Admin Portal:** [http://localhost/admin](http://localhost/admin) *(hoặc [http://localhost](http://localhost))*
-   - **Ứng dụng Mobile PWA Surveyor:** [http://localhost/pwa](http://localhost/pwa)
-   - **Backend REST API Health:** [http://localhost:5000/health](http://localhost:5000/health)
+   - **Cổng Web Admin Portal:** [http://localhost:8080/admin](http://localhost:8080/admin) *(hoặc [http://localhost:8080](http://localhost:8080))*
+   - **Ứng dụng Mobile PWA Surveyor:** [http://localhost:8080/pwa](http://localhost:8080/pwa)
+   - **Backend REST API Health:** [http://localhost:5050/health](http://localhost:5050/health) *(hoặc qua proxy [http://localhost:8080/health](http://localhost:8080/health))*
    - **MinIO S3 Storage Console:** [http://localhost:9001](http://localhost:9001) *(User: `metro_minio_admin` / Pass: `metro_minio_secret_key`)*
-   - **PostgreSQL PostGIS Database:** `localhost:5432` *(Database: `metro2_survey`, User: `metro_user`, Pass: `metro_pass`)*
+   - **PostgreSQL PostGIS Database:** `localhost:5433` *(Database: `metro2_survey`, User: `metro_user`, Pass: `metro_pass`)*
 
 3. **Dừng hệ thống:**
    ```bash
