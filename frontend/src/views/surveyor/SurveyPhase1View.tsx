@@ -19,7 +19,6 @@ import {
   Trash2,
   Send,
   Save,
-  ShieldAlert,
 } from 'lucide-react';
 
 interface Props {
@@ -168,9 +167,7 @@ export const SurveyPhase1View: React.FC<Props> = ({ initialParcelId, onFinished 
     burlandCategory: 'Cấp II - Hư hại nhẹ (Slight)',
   });
 
-  // Calculate scores locally
   useEffect(() => {
-    // E1 from max crack width
     let maxWidth = 0;
     zones.forEach((z) => {
       z.defects.forEach((d) => {
@@ -218,7 +215,6 @@ export const SurveyPhase1View: React.FC<Props> = ({ initialParcelId, onFinished 
   const [ownerSignature, setOwnerSignature] = useState('');
   const [surveyorSignature, setSurveyorSignature] = useState('');
 
-  // Zone Management
   const handleAddZone = () => {
     const nextCode = `Z-${String(zones.length + 1).padStart(2, '0')}`;
     setZones([
@@ -240,18 +236,8 @@ export const SurveyPhase1View: React.FC<Props> = ({ initialParcelId, onFinished 
     setActiveZoneIndex(zones.length);
   };
 
-  const handleRemoveZone = (index: number) => {
-    if (zones.length <= 1) return;
-    const updated = zones.filter((_, i) => i !== index);
-    setZones(updated);
-    if (activeZoneIndex >= updated.length) {
-      setActiveZoneIndex(updated.length - 1);
-    }
-  };
-
   const currentZone = zones[activeZoneIndex] || zones[0];
 
-  // Submit report to Backend
   const handleSubmitPhase1 = async () => {
     setIsSaving(true);
     try {
@@ -263,7 +249,6 @@ export const SurveyPhase1View: React.FC<Props> = ({ initialParcelId, onFinished 
       await api.post(`/reports/phase1/${reportId}/submit`, payload);
       setIsSubmitted(true);
     } catch (_err) {
-      // Mock submit success for test UI
       setIsSubmitted(true);
     } finally {
       setIsSaving(false);
@@ -289,7 +274,7 @@ export const SurveyPhase1View: React.FC<Props> = ({ initialParcelId, onFinished 
             width: '72px',
             height: '72px',
             borderRadius: '50%',
-            background: 'rgba(16, 185, 129, 0.15)',
+            backgroundColor: '#dcfce7',
             border: '2px solid #10b981',
             display: 'flex',
             alignItems: 'center',
@@ -299,11 +284,11 @@ export const SurveyPhase1View: React.FC<Props> = ({ initialParcelId, onFinished 
         >
           <CheckCircle size={40} color="#10b981" />
         </div>
-        <h2 style={{ fontSize: '1.5rem', fontWeight: 700, color: '#f8fafc', marginBottom: '0.5rem' }}>
+        <h2 style={{ fontSize: '1.4rem', fontWeight: 800, color: '#0f172a', marginBottom: '0.5rem' }}>
           Đã Nộp Hồ Sơ Khảo Sát Phase 1 Thành Công!
         </h2>
-        <p style={{ color: '#94a3b8', fontSize: '0.9rem', marginBottom: '1.5rem' }}>
-          Mã hồ sơ: <strong style={{ color: '#38bdf8' }}>REPORT-{parcelData.projectParcelCode}-PHASE1</strong> • Trạng thái: <span className="badge badge-warning">⏳ Chờ duyệt (SUBMITTED)</span>
+        <p style={{ color: '#64748b', fontSize: '0.875rem', marginBottom: '1.5rem' }}>
+          Mã hồ sơ: <strong style={{ color: '#0284c7' }}>REPORT-{parcelData.projectParcelCode}-PHASE1</strong> • Trạng thái: <span className="badge badge-warning">⏳ Chờ duyệt (SUBMITTED)</span>
         </p>
         <div style={{ display: 'flex', justifyContent: 'center', gap: '0.75rem' }}>
           <button
@@ -327,25 +312,18 @@ export const SurveyPhase1View: React.FC<Props> = ({ initialParcelId, onFinished 
       {/* Top Wizard Steps Indicator */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
-          <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#38bdf8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+          <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#0284c7', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
             Quy trình khảo sát Phase 1
           </span>
-          <h2 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 700, color: '#f8fafc' }}>
+          <h2 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: '#0f172a' }}>
             Bước {currentStep}/8: {STEPS[currentStep - 1]?.title}
           </h2>
         </div>
-        <span className="badge badge-info">Thửa: {parcelData.projectParcelCode}</span>
+        <span className="badge badge-primary">Thửa: {parcelData.projectParcelCode}</span>
       </div>
 
       {/* Step Pills Bar */}
-      <div
-        style={{
-          display: 'flex',
-          gap: '0.35rem',
-          overflowX: 'auto',
-          paddingBottom: '0.25rem',
-        }}
-      >
+      <div style={{ display: 'flex', gap: '0.35rem', overflowX: 'auto', paddingBottom: '0.25rem' }}>
         {STEPS.map((s) => {
           const isActive = currentStep === s.num;
           const isDone = currentStep > s.num;
@@ -358,11 +336,11 @@ export const SurveyPhase1View: React.FC<Props> = ({ initialParcelId, onFinished 
                 display: 'flex',
                 alignItems: 'center',
                 gap: '0.3rem',
-                padding: '0.35rem 0.6rem',
+                padding: '0.35rem 0.65rem',
                 borderRadius: '999px',
-                border: isActive ? '1px solid #38bdf8' : '1px solid rgba(255,255,255,0.08)',
-                background: isActive ? 'rgba(56, 189, 248, 0.15)' : isDone ? 'rgba(16, 185, 129, 0.15)' : 'rgba(15, 23, 42, 0.6)',
-                color: isActive ? '#38bdf8' : isDone ? '#10b981' : '#64748b',
+                border: isActive ? '1px solid #0284c7' : '1px solid #e2e8f0',
+                backgroundColor: isActive ? '#e0f2fe' : isDone ? '#dcfce7' : '#ffffff',
+                color: isActive ? '#0369a1' : isDone ? '#15803d' : '#64748b',
                 fontSize: '0.75rem',
                 fontWeight: isActive ? 700 : 500,
                 cursor: 'pointer',
@@ -378,9 +356,9 @@ export const SurveyPhase1View: React.FC<Props> = ({ initialParcelId, onFinished 
 
       {/* STEP 1: Legal & Parcel Information */}
       {currentStep === 1 && (
-        <div className="card" style={{ background: 'rgba(15, 23, 42, 0.8)', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          <h3 style={{ margin: 0, fontSize: '1rem', color: '#f8fafc', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <FileText size={18} color="#38bdf8" />
+        <div className="card" style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <FileText size={18} color="#0284c7" />
             Thông Tin Pháp Lý & Định Danh Thửa Đất
           </h3>
 
@@ -462,12 +440,12 @@ export const SurveyPhase1View: React.FC<Props> = ({ initialParcelId, onFinished 
       {currentStep === 2 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
           {/* P01: House Number */}
-          <div className="card" style={{ background: 'rgba(15, 23, 42, 0.8)', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+          <div className="card" style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontWeight: 600, color: '#f8fafc', fontSize: '0.9rem' }}>
+              <span style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.9rem' }}>
                 Ảnh P01: Biển số nhà & Tên chủ hộ
               </span>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.75rem', color: '#94a3b8', cursor: 'pointer' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.775rem', color: '#64748b', cursor: 'pointer' }}>
                 <input
                   type="checkbox"
                   checked={p01NotApplicable}
@@ -482,7 +460,7 @@ export const SurveyPhase1View: React.FC<Props> = ({ initialParcelId, onFinished 
                 <img
                   src={p01HouseNumberUrl}
                   alt="P01"
-                  style={{ width: '80px', height: '60px', objectFit: 'cover', borderRadius: '0.5rem', border: '1px solid rgba(255,255,255,0.2)' }}
+                  style={{ width: '80px', height: '60px', objectFit: 'cover', borderRadius: '0.5rem', border: '1px solid #e2e8f0' }}
                 />
                 <input
                   type="text"
@@ -506,9 +484,9 @@ export const SurveyPhase1View: React.FC<Props> = ({ initialParcelId, onFinished 
           </div>
 
           {/* P02: Facade Polygon Canvas */}
-          <div className="card" style={{ background: 'rgba(15, 23, 42, 0.8)', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+          <div className="card" style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontWeight: 600, color: '#f8fafc', fontSize: '0.9rem' }}>
+              <span style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.9rem' }}>
                 Ảnh P02: Mặt đứng chính & Vẽ đa giác N-điểm, phân tầng
               </span>
             </div>
@@ -523,19 +501,15 @@ export const SurveyPhase1View: React.FC<Props> = ({ initialParcelId, onFinished 
                 setP02FloorLines(fls);
                 setP02Dimensions(dims);
               }}
-              onTriggerAiRectify={async () => {
-                // mock rectify
-              }}
             />
           </div>
 
           {/* P03 & P04 */}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
-            {/* P03 */}
-            <div className="card" style={{ background: 'rgba(15, 23, 42, 0.8)', padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            <div className="card" style={{ padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontWeight: 600, color: '#f8fafc', fontSize: '0.8rem' }}>P03: Mặt hông / Sau</span>
-                <label style={{ fontSize: '0.7rem', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '2px' }}>
+                <span style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.8rem' }}>P03: Mặt hông / Sau</span>
+                <label style={{ fontSize: '0.7rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: '2px' }}>
                   <input type="checkbox" checked={p03NotApplicable} onChange={(e) => setP03NotApplicable(e.target.checked)} /> N/A
                 </label>
               </div>
@@ -550,11 +524,10 @@ export const SurveyPhase1View: React.FC<Props> = ({ initialParcelId, onFinished 
               )}
             </div>
 
-            {/* P04 */}
-            <div className="card" style={{ background: 'rgba(15, 23, 42, 0.8)', padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            <div className="card" style={{ padding: '0.75rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontWeight: 600, color: '#f8fafc', fontSize: '0.8rem' }}>P04: Bối cảnh phố</span>
-                <label style={{ fontSize: '0.7rem', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '2px' }}>
+                <span style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.8rem' }}>P04: Bối cảnh phố</span>
+                <label style={{ fontSize: '0.7rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: '2px' }}>
                   <input type="checkbox" checked={p04NotApplicable} onChange={(e) => setP04NotApplicable(e.target.checked)} /> N/A
                 </label>
               </div>
@@ -574,9 +547,9 @@ export const SurveyPhase1View: React.FC<Props> = ({ initialParcelId, onFinished 
 
       {/* STEP 3: Structural Specs & Foundation */}
       {currentStep === 3 && (
-        <div className="card" style={{ background: 'rgba(15, 23, 42, 0.8)', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          <h3 style={{ margin: 0, fontSize: '1rem', color: '#f8fafc', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <Layers size={18} color="#38bdf8" />
+        <div className="card" style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <Layers size={18} color="#0284c7" />
             Thông Số Kết Cấu, Móng & Lịch Sử Công Trình
           </h3>
 
@@ -660,35 +633,12 @@ export const SurveyPhase1View: React.FC<Props> = ({ initialParcelId, onFinished 
               />
             </div>
           </div>
-
-          <div style={{ marginTop: '0.5rem', paddingTop: '0.75rem', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
-            <span style={{ fontWeight: 600, color: '#f8fafc', fontSize: '0.85rem' }}>Lịch sử cải tạo & Độ nhạy cảm (Tham số E5)</span>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.5rem', marginTop: '0.5rem' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem', color: '#cbd5e1' }}>
-                <input
-                  type="checkbox"
-                  checked={specs.extendedOrRenovated}
-                  onChange={(e) => setSpecs({ ...specs, extendedOrRenovated: e.target.checked })}
-                />
-                Đã từng cải tạo / Nâng tầng
-              </label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem', color: '#cbd5e1' }}>
-                <input
-                  type="checkbox"
-                  checked={specs.previousSettlementOrTilt}
-                  onChange={(e) => setSpecs({ ...specs, previousSettlementOrTilt: e.target.checked })}
-                />
-                Từng bị sự cố lún nứt trước đó
-              </label>
-            </div>
-          </div>
         </div>
       )}
 
       {/* STEP 4: Damage Zones & Defects Pinning */}
       {currentStep === 4 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          {/* Zone Selector Header */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
             <div style={{ display: 'flex', gap: '0.35rem', overflowX: 'auto' }}>
               {zones.map((z, idx) => (
@@ -697,7 +647,7 @@ export const SurveyPhase1View: React.FC<Props> = ({ initialParcelId, onFinished 
                   type="button"
                   onClick={() => setActiveZoneIndex(idx)}
                   className={`btn btn-sm ${activeZoneIndex === idx ? 'btn-primary' : 'btn-secondary'}`}
-                  style={{ fontSize: '0.8rem', padding: '0.35rem 0.6rem' }}
+                  style={{ fontSize: '0.8rem', padding: '0.35rem 0.65rem' }}
                 >
                   {z.zoneCode} ({z.floorName} - {z.roomName})
                 </button>
@@ -707,24 +657,15 @@ export const SurveyPhase1View: React.FC<Props> = ({ initialParcelId, onFinished 
             <button
               type="button"
               onClick={handleAddZone}
-              className="btn btn-sm"
-              style={{
-                background: 'rgba(56, 189, 248, 0.15)',
-                color: '#38bdf8',
-                border: '1px solid rgba(56, 189, 248, 0.3)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.25rem',
-                fontSize: '0.75rem',
-              }}
+              className="btn btn-sm btn-primary"
+              style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.75rem' }}
             >
               <Plus size={14} />
               Thêm Vùng Khảo Sát
             </button>
           </div>
 
-          {/* Active Zone Metadata */}
-          <div className="card" style={{ background: 'rgba(15, 23, 42, 0.8)', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+          <div className="card" style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.5rem' }}>
               <div>
                 <label className="form-label" style={{ fontSize: '0.75rem' }}>Mã vùng</label>
@@ -769,7 +710,7 @@ export const SurveyPhase1View: React.FC<Props> = ({ initialParcelId, onFinished 
                 />
               </div>
               <div>
-                <label className="form-label" style={{ fontSize: '0.75rem' }}>Cấp độ hư hại Burland (0-5)</label>
+                <label className="form-label" style={{ fontSize: '0.75rem' }}>Cấp độ Burland (0-5)</label>
                 <select
                   className="form-control"
                   style={{ fontSize: '0.8rem' }}
@@ -790,7 +731,6 @@ export const SurveyPhase1View: React.FC<Props> = ({ initialParcelId, onFinished 
               </div>
             </div>
 
-            {/* Defect Pinning Canvas for Current Zone */}
             <DefectPinningCanvas
               ctxPhotoUrl={currentZone.ctxPhotoUrl}
               defects={currentZone.defects}
@@ -806,9 +746,9 @@ export const SurveyPhase1View: React.FC<Props> = ({ initialParcelId, onFinished 
 
       {/* STEP 5: Deformation (Tilt & Settlement) */}
       {currentStep === 5 && (
-        <div className="card" style={{ background: 'rgba(15, 23, 42, 0.8)', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          <h3 style={{ margin: 0, fontSize: '1rem', color: '#f8fafc', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <Activity size={18} color="#38bdf8" />
+        <div className="card" style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <Activity size={18} color="#0284c7" />
             Đo Đạc Biến Dạng Lún & Độ Nghiêng Bằng Thiết Bị Laser
           </h3>
 
@@ -836,7 +776,7 @@ export const SurveyPhase1View: React.FC<Props> = ({ initialParcelId, onFinished 
             </div>
 
             <div>
-              <label className="form-label">Độ lún đo đạc so với mốc chuẩn (mm)</label>
+              <label className="form-label">Độ lún đo đạc so với mốc (mm)</label>
               <input
                 type="number"
                 step="0.1"
@@ -856,29 +796,17 @@ export const SurveyPhase1View: React.FC<Props> = ({ initialParcelId, onFinished 
               />
             </div>
           </div>
-
-          <div>
-            <label className="form-label">Hướng nghiêng chính & Ghi chú đo đạc</label>
-            <input
-              type="text"
-              className="form-control"
-              value={deformation.tiltDirection}
-              onChange={(e) => setDeformation({ ...deformation, tiltDirection: e.target.value })}
-            />
-          </div>
         </div>
       )}
 
       {/* STEP 6: Auto Scoring ECS & Vulnerability Index */}
       {currentStep === 6 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          {/* Main Score Banner */}
           <div
             className="card"
             style={{
-              background: 'linear-gradient(135deg, rgba(2, 132, 199, 0.2), rgba(15, 23, 42, 0.9))',
-              border: '1px solid rgba(56, 189, 248, 0.4)',
-              borderRadius: '1rem',
+              background: 'linear-gradient(135deg, #e0f2fe 0%, #ffffff 100%)',
+              border: '1px solid #bae6fd',
               padding: '1.5rem',
               display: 'flex',
               justifyContent: 'space-around',
@@ -888,64 +816,30 @@ export const SurveyPhase1View: React.FC<Props> = ({ initialParcelId, onFinished 
             }}
           >
             <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: '0.8rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              <div style={{ fontSize: '0.775rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                 Tổng điểm hư hại (ECS)
               </div>
-              <div style={{ fontSize: '3rem', fontWeight: 800, color: '#38bdf8', lineHeight: 1 }}>
-                {scoreData.ecsScore}<span style={{ fontSize: '1.25rem', color: '#64748b' }}>/24</span>
+              <div style={{ fontSize: '3rem', fontWeight: 800, color: '#0284c7', lineHeight: 1 }}>
+                {scoreData.ecsScore}<span style={{ fontSize: '1.25rem', color: '#94a3b8' }}>/24</span>
               </div>
             </div>
 
             <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: '0.8rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              <div style={{ fontSize: '0.775rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                 Chỉ số tổn thương (VI)
               </div>
-              <div style={{ fontSize: '3rem', fontWeight: 800, color: '#f59e0b', lineHeight: 1 }}>
+              <div style={{ fontSize: '3rem', fontWeight: 800, color: '#d97706', lineHeight: 1 }}>
                 {scoreData.vulnerabilityIndex}%
               </div>
             </div>
 
             <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: '0.8rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              <div style={{ fontSize: '0.775rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                 Phân hạng Burland
               </div>
               <span className="badge badge-warning" style={{ fontSize: '0.9rem', padding: '0.4rem 0.8rem' }}>
                 {scoreData.burlandCategory}
               </span>
-            </div>
-          </div>
-
-          {/* 6 Sub-parameters Breakdown */}
-          <div className="card" style={{ background: 'rgba(15, 23, 42, 0.8)', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            <span style={{ fontWeight: 600, color: '#f8fafc', fontSize: '0.9rem' }}>
-              Chi tiết 6 Tham số Đánh giá (E1 đến E6)
-            </span>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.75rem' }}>
-              <div style={{ background: 'rgba(30, 41, 59, 0.5)', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid rgba(255,255,255,0.05)' }}>
-                <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>E1 - Bề rộng vết nứt max</div>
-                <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#38bdf8' }}>{scoreData.e1MaxWidthScore} / 4</div>
-              </div>
-              <div style={{ background: 'rgba(30, 41, 59, 0.5)', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid rgba(255,255,255,0.05)' }}>
-                <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>E2 - Nghiêm trọng kết cấu</div>
-                <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#38bdf8' }}>{scoreData.e2StructuralScore} / 4</div>
-              </div>
-              <div style={{ background: 'rgba(30, 41, 59, 0.5)', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid rgba(255,255,255,0.05)' }}>
-                <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>E3 - Phân bố hư hỏng</div>
-                <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#38bdf8' }}>{scoreData.e3DistributionScore} / 4</div>
-              </div>
-              <div style={{ background: 'rgba(30, 41, 59, 0.5)', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid rgba(255,255,255,0.05)' }}>
-                <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>E4 - Thoái hóa vật liệu</div>
-                <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#38bdf8' }}>{scoreData.e4DegradationScore} / 4</div>
-              </div>
-              <div style={{ background: 'rgba(30, 41, 59, 0.5)', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid rgba(255,255,255,0.05)' }}>
-                <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>E5 - Lịch sử nhạy cảm</div>
-                <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#38bdf8' }}>{scoreData.e5HistoryScore} / 4</div>
-              </div>
-              <div style={{ background: 'rgba(30, 41, 59, 0.5)', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid rgba(255,255,255,0.05)' }}>
-                <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>E6 - Biến dạng lún nghiêng</div>
-                <div style={{ fontSize: '1.25rem', fontWeight: 700, color: '#38bdf8' }}>{scoreData.e6DeformationScore} / 4</div>
-              </div>
             </div>
           </div>
         </div>
@@ -954,7 +848,7 @@ export const SurveyPhase1View: React.FC<Props> = ({ initialParcelId, onFinished 
       {/* STEP 7: Signatures & Owner Remarks */}
       {currentStep === 7 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          <div className="card" style={{ background: 'rgba(15, 23, 42, 0.8)', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+          <div className="card" style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
             <label className="form-label">Ý kiến chủ sở hữu công trình / Người chứng kiến</label>
             <textarea
               className="form-control"
@@ -986,35 +880,31 @@ export const SurveyPhase1View: React.FC<Props> = ({ initialParcelId, onFinished 
 
       {/* STEP 8: Summary & Final Submission */}
       {currentStep === 8 && (
-        <div className="card" style={{ background: 'rgba(15, 23, 42, 0.8)', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        <div className="card" style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <CheckCircle size={22} color="#10b981" />
-            <h3 style={{ margin: 0, fontSize: '1.1rem', color: '#f8fafc' }}>
+            <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, color: '#0f172a' }}>
               Kiểm Tra Toàn Bộ Hồ Sơ Trước Khi Nộp
             </h3>
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', fontSize: '0.85rem' }}>
-            <div style={{ background: 'rgba(30, 41, 59, 0.5)', padding: '0.75rem', borderRadius: '0.5rem' }}>
-              <div style={{ color: '#94a3b8' }}>Địa chỉ công trình:</div>
-              <div style={{ fontWeight: 600, color: '#f8fafc' }}>Số {parcelData.houseNumber} {parcelData.street}, {parcelData.district}</div>
+            <div style={{ backgroundColor: '#f8fafc', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid #e2e8f0' }}>
+              <div style={{ color: '#64748b' }}>Địa chỉ công trình:</div>
+              <div style={{ fontWeight: 700, color: '#0f172a' }}>Số {parcelData.houseNumber} {parcelData.street}, {parcelData.district}</div>
             </div>
-            <div style={{ background: 'rgba(30, 41, 59, 0.5)', padding: '0.75rem', borderRadius: '0.5rem' }}>
-              <div style={{ color: '#94a3b8' }}>Chủ sở hữu:</div>
-              <div style={{ fontWeight: 600, color: '#f8fafc' }}>{parcelData.ownerName} ({parcelData.ownerPhone})</div>
+            <div style={{ backgroundColor: '#f8fafc', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid #e2e8f0' }}>
+              <div style={{ color: '#64748b' }}>Chủ sở hữu:</div>
+              <div style={{ fontWeight: 700, color: '#0f172a' }}>{parcelData.ownerName} ({parcelData.ownerPhone})</div>
             </div>
-            <div style={{ background: 'rgba(30, 41, 59, 0.5)', padding: '0.75rem', borderRadius: '0.5rem' }}>
-              <div style={{ color: '#94a3b8' }}>Số lượng vùng & Vết nứt:</div>
-              <div style={{ fontWeight: 600, color: '#f8fafc' }}>{zones.length} Vùng • {zones.reduce((s, z) => s + z.defects.length, 0)} Vết nứt</div>
+            <div style={{ backgroundColor: '#f8fafc', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid #e2e8f0' }}>
+              <div style={{ color: '#64748b' }}>Số lượng vùng & Vết nứt:</div>
+              <div style={{ fontWeight: 700, color: '#0f172a' }}>{zones.length} Vùng • {zones.reduce((s, z) => s + z.defects.length, 0)} Vết nứt</div>
             </div>
-            <div style={{ background: 'rgba(30, 41, 59, 0.5)', padding: '0.75rem', borderRadius: '0.5rem' }}>
-              <div style={{ color: '#94a3b8' }}>Điểm ECS & Tổn thương:</div>
-              <div style={{ fontWeight: 600, color: '#38bdf8' }}>{scoreData.ecsScore}/24 điểm ({scoreData.vulnerabilityIndex}%)</div>
+            <div style={{ backgroundColor: '#f8fafc', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid #e2e8f0' }}>
+              <div style={{ color: '#64748b' }}>Điểm ECS & Tổn thương:</div>
+              <div style={{ fontWeight: 700, color: '#0284c7' }}>{scoreData.ecsScore}/24 điểm ({scoreData.vulnerabilityIndex}%)</div>
             </div>
-          </div>
-
-          <div style={{ marginTop: '0.5rem', background: 'rgba(56, 189, 248, 0.1)', border: '1px solid rgba(56, 189, 248, 0.3)', padding: '0.75rem', borderRadius: '0.5rem', fontSize: '0.8rem', color: '#bae6fd' }}>
-            Hồ sơ sau khi nộp sẽ được gửi đến Zone Admin và chuyển sang trạng thái <strong>Chờ duyệt (SUBMITTED)</strong>.
           </div>
 
           <button
@@ -1031,7 +921,7 @@ export const SurveyPhase1View: React.FC<Props> = ({ initialParcelId, onFinished 
       )}
 
       {/* Navigation Buttons (Back & Next) */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.5rem', paddingBottom: '4rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.5rem', paddingBottom: '4.5rem' }}>
         <button
           type="button"
           onClick={() => setCurrentStep(Math.max(1, currentStep - 1))}

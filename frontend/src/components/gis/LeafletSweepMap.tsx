@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { MapContainer, TileLayer, Polygon, Marker, Popup, Circle, useMap } from 'react-leaflet';
 import L from 'leaflet';
-import { Navigation, MapPin, UserX, PlusCircle, CheckCircle, Clock, AlertCircle, Layers } from 'lucide-react';
+import { MapPin, UserX, PlusCircle, Layers, X } from 'lucide-react';
 
-// Custom Map Centering Hook
 function ChangeView({ center, zoom }: { center: [number, number]; zoom: number }) {
   const map = useMap();
   useEffect(() => {
@@ -60,7 +59,7 @@ export const LeafletSweepMap: React.FC<Props> = ({
   onProposeSplit,
   userGps,
 }) => {
-  const currentStation = STATIONS.find((s) => s.code === selectedZone) || STATIONS[8]; // default Ga S9
+  const currentStation = STATIONS.find((s) => s.code === selectedZone) || STATIONS[8];
   const [activeParcel, setActiveParcel] = useState<GisParcel | null>(null);
 
   const getStatusColor = (status: GisParcel['surveyStatus']) => {
@@ -71,12 +70,12 @@ export const LeafletSweepMap: React.FC<Props> = ({
       case 'IN_PROGRESS':
         return '#f59e0b'; // Amber
       case 'POSTPONED_ABSENT':
-        return '#a855f7'; // Purple
+        return '#8b5cf6'; // Purple
       case 'REJECTED':
         return '#ef4444'; // Red
       case 'NOT_SURVEYED':
       default:
-        return '#64748b'; // Slate Gray
+        return '#64748b'; // Slate
     }
   };
 
@@ -89,42 +88,41 @@ export const LeafletSweepMap: React.FC<Props> = ({
       case 'IN_PROGRESS':
         return <span className="badge badge-warning">🔄 Đang khảo sát</span>;
       case 'POSTPONED_ABSENT':
-        return <span className="badge" style={{ background: '#a855f7', color: '#fff' }}>🏠 Vắng mặt</span>;
+        return <span className="badge" style={{ backgroundColor: '#f3e8ff', color: '#7e22ce' }}>🏠 Vắng mặt</span>;
       case 'REJECTED':
         return <span className="badge badge-danger">✕ Cần bổ sung</span>;
       case 'NOT_SURVEYED':
       default:
-        return <span className="badge" style={{ background: '#334155', color: '#94a3b8' }}>Chưa khảo sát</span>;
+        return <span className="badge badge-info">Chưa khảo sát</span>;
     }
   };
 
-  // Custom User GPS Pin Icon
   const userGpsIcon = L.divIcon({
     className: 'custom-gps-pin',
     html: `
       <div style="
         position: relative;
-        width: 20px;
-        height: 20px;
-        background: #3b82f6;
+        width: 18px;
+        height: 18px;
+        background: #0284c7;
         border: 3px solid #ffffff;
         border-radius: 50%;
-        box-shadow: 0 0 12px #3b82f6;
+        box-shadow: 0 0 10px rgba(2, 132, 199, 0.8);
       ">
         <div style="
           position: absolute;
-          width: 36px;
-          height: 36px;
-          top: -11px;
-          left: -11px;
+          width: 32px;
+          height: 32px;
+          top: -10px;
+          left: -10px;
           border-radius: 50%;
-          background: rgba(59, 130, 246, 0.35);
+          background: rgba(2, 132, 199, 0.25);
           animation: pulse 1.8s infinite ease-out;
         "></div>
       </div>
     `,
-    iconSize: [20, 20],
-    iconAnchor: [10, 10],
+    iconSize: [18, 18],
+    iconAnchor: [9, 9],
   });
 
   return (
@@ -141,17 +139,16 @@ export const LeafletSweepMap: React.FC<Props> = ({
           gap: '0.5rem',
           flexWrap: 'wrap',
           alignItems: 'center',
-          background: 'rgba(15, 23, 42, 0.92)',
-          backdropFilter: 'blur(12px)',
-          padding: '0.6rem 0.8rem',
+          backgroundColor: '#ffffff',
+          padding: '0.65rem 0.85rem',
           borderRadius: '0.75rem',
-          border: '1px solid rgba(255, 255, 255, 0.12)',
-          boxShadow: '0 8px 24px rgba(0, 0, 0, 0.5)',
+          border: '1px solid #cbd5e1',
+          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08)',
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-          <MapPin size={16} color="#38bdf8" />
-          <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#f8fafc' }}>Ga Metro:</span>
+          <MapPin size={16} color="#0284c7" />
+          <span style={{ fontSize: '0.85rem', fontWeight: 700, color: '#0f172a' }}>Ga Metro:</span>
         </div>
 
         <select
@@ -160,12 +157,12 @@ export const LeafletSweepMap: React.FC<Props> = ({
           className="form-control"
           style={{
             flex: 1,
-            minWidth: '180px',
+            minWidth: '170px',
             fontSize: '0.85rem',
             padding: '0.35rem 0.6rem',
-            backgroundColor: '#1e293b',
-            color: '#f8fafc',
-            border: '1px solid rgba(255, 255, 255, 0.2)',
+            backgroundColor: '#f8fafc',
+            color: '#0f172a',
+            border: '1px solid #cbd5e1',
           }}
         >
           {STATIONS.map((s) => (
@@ -177,19 +174,19 @@ export const LeafletSweepMap: React.FC<Props> = ({
 
         {/* Legend pills */}
         <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', fontSize: '0.75rem' }}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: '3px', color: '#10b981' }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: '3px', color: '#15803d', fontWeight: 600 }}>
             <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#10b981' }} />
             Đã duyệt
           </span>
-          <span style={{ display: 'flex', alignItems: 'center', gap: '3px', color: '#f59e0b' }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: '3px', color: '#b45309', fontWeight: 600 }}>
             <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#f59e0b' }} />
-            Đang xử lý
+            Đang làm
           </span>
-          <span style={{ display: 'flex', alignItems: 'center', gap: '3px', color: '#a855f7' }}>
-            <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#a855f7' }} />
+          <span style={{ display: 'flex', alignItems: 'center', gap: '3px', color: '#7e22ce', fontWeight: 600 }}>
+            <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#8b5cf6' }} />
             Vắng mặt
           </span>
-          <span style={{ display: 'flex', alignItems: 'center', gap: '3px', color: '#94a3b8' }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: '3px', color: '#64748b', fontWeight: 600 }}>
             <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#64748b' }} />
             Chưa KS
           </span>
@@ -197,7 +194,7 @@ export const LeafletSweepMap: React.FC<Props> = ({
       </div>
 
       {/* Leaflet Map Container */}
-      <div style={{ flex: 1, minHeight: '520px', borderRadius: '0.75rem', overflow: 'hidden' }}>
+      <div style={{ flex: 1, minHeight: '520px', borderRadius: '0.75rem', overflow: 'hidden', border: '1px solid #cbd5e1' }}>
         <MapContainer
           center={currentStation.center}
           zoom={18}
@@ -206,26 +203,23 @@ export const LeafletSweepMap: React.FC<Props> = ({
         >
           <ChangeView center={currentStation.center} zoom={18} />
 
-          {/* Base Map Tiles */}
           <TileLayer
             attribution='&copy; <a href="https://carto.com/">CARTO</a>'
             url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
           />
 
-          {/* Metro Station Buffer Radius Circle (500m) */}
           <Circle
             center={currentStation.center}
             radius={500}
             pathOptions={{
-              color: '#3b82f6',
-              fillColor: '#3b82f6',
-              fillOpacity: 0.05,
+              color: '#0284c7',
+              fillColor: '#0284c7',
+              fillOpacity: 0.04,
               dashArray: '6, 6',
               weight: 1.5,
             }}
           />
 
-          {/* User Live GPS Marker */}
           {userGps && (
             <>
               <Marker position={[userGps.lat, userGps.lng]} icon={userGpsIcon}>
@@ -236,17 +230,9 @@ export const LeafletSweepMap: React.FC<Props> = ({
                   </div>
                 </Popup>
               </Marker>
-              {userGps.accuracy && (
-                <Circle
-                  center={[userGps.lat, userGps.lng]}
-                  radius={userGps.accuracy}
-                  pathOptions={{ color: '#3b82f6', fillColor: '#3b82f6', fillOpacity: 0.1, weight: 1 }}
-                />
-              )}
             </>
           )}
 
-          {/* Parcel Polygons */}
           {parcels.map((parcel) => {
             const isSelected = activeParcel?.id === parcel.id;
             const color = getStatusColor(parcel.surveyStatus);
@@ -256,7 +242,7 @@ export const LeafletSweepMap: React.FC<Props> = ({
                 key={parcel.id}
                 positions={parcel.coordinates}
                 pathOptions={{
-                  color: isSelected ? '#38bdf8' : color,
+                  color: isSelected ? '#0284c7' : color,
                   fillColor: color,
                   fillOpacity: isSelected ? 0.75 : 0.45,
                   weight: isSelected ? 3 : 1.5,
@@ -270,10 +256,10 @@ export const LeafletSweepMap: React.FC<Props> = ({
               >
                 <Popup>
                   <div style={{ color: '#0f172a' }}>
-                    <div style={{ fontWeight: 700, fontSize: '0.9rem', color: '#0284c7' }}>
+                    <div style={{ fontWeight: 800, fontSize: '0.9rem', color: '#0284c7' }}>
                       {parcel.projectParcelCode}
                     </div>
-                    <div style={{ fontSize: '0.8rem', fontWeight: 500 }}>
+                    <div style={{ fontSize: '0.8rem', fontWeight: 600 }}>
                       Số {parcel.houseNumber} {parcel.street}
                     </div>
                     <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '2px' }}>
@@ -288,7 +274,7 @@ export const LeafletSweepMap: React.FC<Props> = ({
         </MapContainer>
       </div>
 
-      {/* Selected Parcel Quick Action Bottom Sheet */}
+      {/* Selected Parcel Bottom Drawer */}
       {activeParcel && (
         <div
           style={{
@@ -297,18 +283,17 @@ export const LeafletSweepMap: React.FC<Props> = ({
             left: '16px',
             right: '16px',
             zIndex: 1000,
-            background: 'rgba(15, 23, 42, 0.95)',
-            backdropFilter: 'blur(16px)',
+            backgroundColor: '#ffffff',
             borderRadius: '1rem',
-            border: '1px solid rgba(56, 189, 248, 0.3)',
-            boxShadow: '0 12px 32px rgba(0, 0, 0, 0.6)',
+            border: '1px solid #cbd5e1',
+            boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.15)',
             padding: '1rem',
           }}
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <span style={{ fontSize: '1.1rem', fontWeight: 700, color: '#38bdf8' }}>
+                <span style={{ fontSize: '1.1rem', fontWeight: 800, color: '#0284c7' }}>
                   {activeParcel.projectParcelCode}
                 </span>
                 {getStatusBadge(activeParcel.surveyStatus)}
@@ -316,11 +301,11 @@ export const LeafletSweepMap: React.FC<Props> = ({
                   <span className="badge badge-danger">Vắng {activeParcel.absenceAttemptCount} lần</span>
                 ) : null}
               </div>
-              <div style={{ fontSize: '0.9rem', color: '#f8fafc', marginTop: '2px', fontWeight: 500 }}>
+              <div style={{ fontSize: '0.925rem', color: '#0f172a', marginTop: '2px', fontWeight: 600 }}>
                 Số {activeParcel.houseNumber} {activeParcel.street}
               </div>
-              <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
-                Mã địa chính: <strong style={{ color: '#cbd5e1' }}>{activeParcel.officialCadastralCode}</strong> • Chủ hộ: {activeParcel.ownerName || 'Chưa cập nhật'}
+              <div style={{ fontSize: '0.775rem', color: '#64748b' }}>
+                Mã địa chính: <strong style={{ color: '#334155' }}>{activeParcel.officialCadastralCode}</strong> • Chủ hộ: {activeParcel.ownerName || 'Chưa cập nhật'}
               </div>
             </div>
 
@@ -334,11 +319,10 @@ export const LeafletSweepMap: React.FC<Props> = ({
                 cursor: 'pointer',
               }}
             >
-              ✕
+              <X size={20} />
             </button>
           </div>
 
-          {/* Quick Action Buttons */}
           <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
             <button
               type="button"
@@ -362,16 +346,9 @@ export const LeafletSweepMap: React.FC<Props> = ({
 
             <button
               type="button"
-              className="btn btn-sm"
+              className="btn btn-secondary btn-sm"
               onClick={() => onProposeSplit && onProposeSplit(activeParcel)}
-              style={{
-                background: 'rgba(168, 85, 247, 0.15)',
-                color: '#c084fc',
-                border: '1px solid rgba(168, 85, 247, 0.3)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.35rem',
-              }}
+              style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}
             >
               <Layers size={14} />
               Tách thửa

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from './context/AuthContext';
 import { api } from './services/api';
+import { LoginView } from './views/auth/LoginView';
 import { SurveyorNavbar } from './components/layout/SurveyorNavbar';
 import { SurveyorBottomNav, NavTab } from './components/layout/SurveyorBottomNav';
 import { LeafletSweepMap, GisParcel } from './components/gis/LeafletSweepMap';
@@ -8,17 +9,18 @@ import { SurveyorHomeView } from './views/surveyor/SurveyorHomeView';
 import { TimekeepingCheckInView } from './views/surveyor/TimekeepingCheckInView';
 import { SurveyPhase1View } from './views/surveyor/SurveyPhase1View';
 import { SurveyPhase2View } from './views/surveyor/SurveyPhase2View';
-import { ParcelMutationModal } from './views/surveyor/ParcelMutationModal';
 
 export const App: React.FC = () => {
-  const { user, role } = useAuth();
+  const { user, isAuthenticated, isLoading } = useAuth();
   const [activeTab, setActiveTab] = useState<NavTab>('home');
   const [selectedZone, setSelectedZone] = useState<string>('ZONE_S9');
   const [parcels, setParcels] = useState<GisParcel[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
   const [selectedParcelForSurvey, setSelectedParcelForSurvey] = useState<GisParcel | null>(null);
 
-  // Mock Parcels Dataset for Ga S9 with PostGIS Polygon Coordinates
+  // Dynamic Check-In state for surveyor
+  const [isCheckedInToday, setIsCheckedInToday] = useState<boolean>(false);
+  const [checkInDetails, setCheckInDetails] = useState<{ time: string; distance: number; status: string } | null>(null);
+
   const initialParcels: GisParcel[] = [
     {
       id: 'c0000000-0000-0000-0000-000000000001',
@@ -103,7 +105,6 @@ export const App: React.FC = () => {
   ];
 
   const loadParcels = async () => {
-    setLoading(true);
     try {
       const res = await api.get('/parcels/zone-map', { params: { zoneId: selectedZone } });
       if (res.data && res.data.data && res.data.data.length > 0) {
@@ -113,8 +114,6 @@ export const App: React.FC = () => {
       }
     } catch (_err) {
       setParcels(initialParcels);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -122,7 +121,20 @@ export const App: React.FC = () => {
     loadParcels();
   }, [selectedZone]);
 
-  // Handlers
+  // If loading session
+  if (isLoading) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8fafc' }}>
+        <div style={{ color: '#0284c7', fontWeight: 700 }}>Đang tải hệ thống khảo sát Metro 2...</div>
+      </div>
+    );
+  }
+
+  // If not logged in, render the login page first!
+  if (!isAuthenticated || !user) {
+    return <LoginView />;
+  }
+
   const handleStartPhase1 = (parcel: GisParcel) => {
     setSelectedParcelForSurvey(parcel);
     setActiveTab('phase1');
@@ -140,7 +152,6 @@ export const App: React.FC = () => {
         evidencePhotoUrl: 'https://images.unsplash.com/photo-1580587771525-78b9dba3b914?w=600',
       });
     } catch (_err) {
-      // Local state update
       setParcels(
         parcels.map((p) =>
           p.id === parcel.id
@@ -151,8 +162,13 @@ export const App: React.FC = () => {
     }
   };
 
+  const handleCheckInSuccess = (details: { time: string; distance: number; status: string }) => {
+    setIsCheckedInToday(true);
+    setCheckInDetails(details);
+  };
+
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: '#090d16', color: '#f8fafc' }}>
+    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: '#f8fafc', color: '#0f172a' }}>
       {/* Top Mobile Navbar */}
       <SurveyorNavbar
         title={
@@ -173,6 +189,8 @@ export const App: React.FC = () => {
         {activeTab === 'home' && (
           <SurveyorHomeView
             parcels={parcels}
+            isCheckedInToday={isCheckedInToday}
+            checkInDetails={checkInDetails}
             onNavigateToMap={() => setActiveTab('map')}
             onNavigateToCheckIn={() => setActiveTab('attendance')}
             onStartPhase1={handleStartPhase1}
@@ -195,7 +213,9 @@ export const App: React.FC = () => {
           </div>
         )}
 
-        {activeTab === 'attendance' && <TimekeepingCheckInView />}
+        {activeTab === 'attendance' && (
+          <TimekeepingCheckInView onCheckInSuccess={handleCheckInSuccess} />
+        )}
 
         {activeTab === 'phase1' && (
           <SurveyPhase1View

@@ -1,21 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { api } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { SignaturePad } from '../../components/canvas/SignaturePad';
 import {
-  CheckSquare,
-  Search,
-  Filter,
-  AlertCircle,
-  CheckCircle,
-  TrendingUp,
   FileCheck,
+  CheckCircle,
+  ShieldCheck,
   Send,
   ChevronRight,
   ChevronLeft,
   PenTool,
-  ShieldCheck,
-  Activity,
 } from 'lucide-react';
 
 interface DefectVerification {
@@ -38,8 +32,6 @@ interface DefectVerification {
 export const SurveyPhase2View: React.FC = () => {
   const { user } = useAuth();
   const [currentStep, setCurrentStep] = useState<number>(1);
-  const [selectedFloor, setSelectedFloor] = useState<string>('Tất cả');
-  const [selectedRoom, setSelectedRoom] = useState<string>('Tất cả');
   const [isSubmitted, setIsSubmitted] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
@@ -157,7 +149,7 @@ export const SurveyPhase2View: React.FC = () => {
             width: '72px',
             height: '72px',
             borderRadius: '50%',
-            background: 'rgba(16, 185, 129, 0.15)',
+            backgroundColor: '#dcfce7',
             border: '2px solid #10b981',
             display: 'flex',
             alignItems: 'center',
@@ -167,10 +159,10 @@ export const SurveyPhase2View: React.FC = () => {
         >
           <CheckCircle size={40} color="#10b981" />
         </div>
-        <h2 style={{ fontSize: '1.5rem', fontWeight: 700, color: '#f8fafc', marginBottom: '0.5rem' }}>
-          Đã Hoàn Tất Báo Cáo Đối Soát Phase 2 (Pre-Construction)!
+        <h2 style={{ fontSize: '1.4rem', fontWeight: 800, color: '#0f172a', marginBottom: '0.5rem' }}>
+          Đã Hoàn Tất Báo Cáo Đối Soát Phase 2!
         </h2>
-        <p style={{ color: '#94a3b8', fontSize: '0.9rem', marginBottom: '1.5rem' }}>
+        <p style={{ color: '#64748b', fontSize: '0.875rem', marginBottom: '1.5rem' }}>
           Biên bản đối chứng 4 bên đã được lập kèm chữ ký điện tử. Toàn bộ dữ liệu đã được lưu trữ vĩnh viễn với mã SHA-256 Checksum.
         </p>
         <button
@@ -192,10 +184,10 @@ export const SurveyPhase2View: React.FC = () => {
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
-          <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#a855f7', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+          <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#7e22ce', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
             Phase 2: Đối Soát Trước Thi Công
           </span>
-          <h2 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 700, color: '#f8fafc' }}>
+          <h2 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: '#0f172a' }}>
             Bước {currentStep}/4: {currentStep === 1 ? 'Kế thừa Phase 1' : currentStep === 2 ? 'Đo đạc biến động Δ' : currentStep === 3 ? 'Cổng chất lượng Phụ lục A' : 'Ký số 4 Bên'}
           </h2>
         </div>
@@ -219,8 +211,9 @@ export const SurveyPhase2View: React.FC = () => {
               flex: 1,
               fontSize: '0.75rem',
               padding: '0.4rem 0.2rem',
-              background: currentStep === s.num ? '#7c3aed' : 'rgba(15, 23, 42, 0.6)',
-              borderColor: currentStep === s.num ? '#a855f7' : 'rgba(255, 255, 255, 0.08)',
+              backgroundColor: currentStep === s.num ? '#0284c7' : '#ffffff',
+              borderColor: currentStep === s.num ? '#0284c7' : '#e2e8f0',
+              color: currentStep === s.num ? '#ffffff' : '#475569',
             }}
           >
             {s.title}
@@ -230,63 +223,44 @@ export const SurveyPhase2View: React.FC = () => {
 
       {/* STEP 1: Inherit Phase 1 Baseline */}
       {currentStep === 1 && (
-        <div className="card" style={{ background: 'rgba(15, 23, 42, 0.8)', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          <h3 style={{ margin: 0, fontSize: '1rem', color: '#f8fafc', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <FileCheck size={18} color="#a855f7" />
+        <div className="card" style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <FileCheck size={18} color="#0284c7" />
             Hồ Sơ Nền Phase 1 Được Kế Thừa (Approved Baseline)
           </h3>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', fontSize: '0.85rem' }}>
-            <div style={{ background: 'rgba(30, 41, 59, 0.5)', padding: '0.75rem', borderRadius: '0.5rem' }}>
-              <div style={{ color: '#94a3b8' }}>Mã dự án & Địa chỉ:</div>
-              <div style={{ fontWeight: 600, color: '#f8fafc' }}>{baselineInfo.parcelCode} - {baselineInfo.houseNumber}</div>
+            <div style={{ backgroundColor: '#f8fafc', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid #e2e8f0' }}>
+              <div style={{ color: '#64748b' }}>Mã dự án & Địa chỉ:</div>
+              <div style={{ fontWeight: 700, color: '#0f172a' }}>{baselineInfo.parcelCode} - {baselineInfo.houseNumber}</div>
             </div>
-            <div style={{ background: 'rgba(30, 41, 59, 0.5)', padding: '0.75rem', borderRadius: '0.5rem' }}>
-              <div style={{ color: '#94a3b8' }}>Chủ sở hữu công trình:</div>
-              <div style={{ fontWeight: 600, color: '#f8fafc' }}>{baselineInfo.ownerName}</div>
+            <div style={{ backgroundColor: '#f8fafc', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid #e2e8f0' }}>
+              <div style={{ color: '#64748b' }}>Chủ sở hữu công trình:</div>
+              <div style={{ fontWeight: 700, color: '#0f172a' }}>{baselineInfo.ownerName}</div>
             </div>
-            <div style={{ background: 'rgba(30, 41, 59, 0.5)', padding: '0.75rem', borderRadius: '0.5rem' }}>
-              <div style={{ color: '#94a3b8' }}>Mã hồ sơ Baseline Phase 1:</div>
-              <div style={{ fontWeight: 600, color: '#38bdf8' }}>{baselineInfo.phase1ReportCode}</div>
+            <div style={{ backgroundColor: '#f8fafc', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid #e2e8f0' }}>
+              <div style={{ color: '#64748b' }}>Mã hồ sơ Baseline Phase 1:</div>
+              <div style={{ fontWeight: 700, color: '#0284c7' }}>{baselineInfo.phase1ReportCode}</div>
             </div>
-            <div style={{ background: 'rgba(30, 41, 59, 0.5)', padding: '0.75rem', borderRadius: '0.5rem' }}>
-              <div style={{ color: '#94a3b8' }}>Điểm ECS & Tổn thương P1:</div>
-              <div style={{ fontWeight: 600, color: '#f59e0b' }}>{baselineInfo.phase1Ecs}/24 ({baselineInfo.phase1Vi}%)</div>
+            <div style={{ backgroundColor: '#f8fafc', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid #e2e8f0' }}>
+              <div style={{ color: '#64748b' }}>Điểm ECS & Tổn thương P1:</div>
+              <div style={{ fontWeight: 700, color: '#d97706' }}>{baselineInfo.phase1Ecs}/24 ({baselineInfo.phase1Vi}%)</div>
             </div>
-          </div>
-
-          <div
-            style={{
-              background: 'rgba(168, 85, 247, 0.1)',
-              border: '1px solid rgba(168, 85, 247, 0.3)',
-              padding: '0.75rem',
-              borderRadius: '0.5rem',
-              fontSize: '0.8rem',
-              color: '#e9d5ff',
-            }}
-          >
-            Hệ thống đã nạp sẵn toàn bộ danh sách {defects.length} vết nứt từ hồ sơ Phase 1. Bạn sẽ tiến hành đo lại từng vết nứt tại hiện trường để tính toán độ biến thiên trước khi máy đào TBM đi qua.
           </div>
         </div>
       )}
 
-      {/* STEP 2: Delta Measurement (w2, L2 -> delta w, delta L) */}
+      {/* STEP 2: Delta Measurement */}
       {currentStep === 2 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontWeight: 600, color: '#f8fafc', fontSize: '0.9rem' }}>
-              Đối soát biến động từng vết nứt ({defects.length})
-            </span>
-          </div>
-
           {defects.map((d, idx) => (
             <div
               key={d.id}
               className="card"
               style={{
-                background: 'rgba(15, 23, 42, 0.8)',
-                border: d.deltaW > 0 ? '1px solid rgba(239, 68, 68, 0.4)' : '1px solid rgba(255, 255, 255, 0.1)',
                 padding: '1rem',
+                border: d.deltaW > 0 ? '1px solid #fecaca' : '1px solid #e2e8f0',
+                backgroundColor: d.deltaW > 0 ? '#fff5f5' : '#ffffff',
                 display: 'flex',
                 flexDirection: 'column',
                 gap: '0.75rem',
@@ -295,7 +269,7 @@ export const SurveyPhase2View: React.FC = () => {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                   <span className="badge badge-primary">{d.defectCode}</span>
-                  <span style={{ fontWeight: 600, color: '#f8fafc', fontSize: '0.85rem' }}>{d.defectType}</span>
+                  <span style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.85rem' }}>{d.defectType}</span>
                 </div>
                 <span className={`badge ${d.deltaW > 0 ? 'badge-danger' : 'badge-success'}`}>
                   {d.deltaW > 0 ? `Δw: +${d.deltaW}mm (Tiến triển)` : 'Δw: 0mm (Ổn định)'}
@@ -307,26 +281,26 @@ export const SurveyPhase2View: React.FC = () => {
                 <img
                   src={d.cuPhotoUrl}
                   alt="Defect CU"
-                  style={{ width: '100px', height: '80px', objectFit: 'cover', borderRadius: '0.5rem', border: '1px solid rgba(255,255,255,0.2)' }}
+                  style={{ width: '100px', height: '80px', objectFit: 'cover', borderRadius: '0.5rem', border: '1px solid #e2e8f0' }}
                 />
 
                 {/* Phase 1 Baseline Values */}
-                <div style={{ background: 'rgba(30, 41, 59, 0.6)', padding: '0.5rem 0.75rem', borderRadius: '0.5rem', fontSize: '0.75rem' }}>
-                  <div style={{ color: '#94a3b8', fontWeight: 600, marginBottom: '2px' }}>Giai đoạn Phase 1</div>
-                  <div>Rộng: <strong style={{ color: '#38bdf8' }}>{d.phase1WidthMm} mm</strong></div>
-                  <div>Dài: <strong style={{ color: '#38bdf8' }}>{d.phase1LengthMm} mm</strong></div>
+                <div style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', padding: '0.5rem 0.75rem', borderRadius: '0.5rem', fontSize: '0.75rem' }}>
+                  <div style={{ color: '#64748b', fontWeight: 600, marginBottom: '2px' }}>Giai đoạn Phase 1</div>
+                  <div>Rộng: <strong style={{ color: '#0284c7' }}>{d.phase1WidthMm} mm</strong></div>
+                  <div>Dài: <strong style={{ color: '#0284c7' }}>{d.phase1LengthMm} mm</strong></div>
                 </div>
 
                 {/* Phase 2 Measured Inputs */}
-                <div style={{ background: 'rgba(30, 41, 59, 0.6)', padding: '0.5rem 0.75rem', borderRadius: '0.5rem', fontSize: '0.75rem' }}>
-                  <div style={{ color: '#c084fc', fontWeight: 600, marginBottom: '2px' }}>Đo lại Phase 2</div>
+                <div style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', padding: '0.5rem 0.75rem', borderRadius: '0.5rem', fontSize: '0.75rem' }}>
+                  <div style={{ color: '#7e22ce', fontWeight: 600, marginBottom: '2px' }}>Đo lại Phase 2</div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '2px' }}>
                     <span>Rộng (w₂):</span>
                     <input
                       type="number"
                       step="0.05"
                       className="form-control"
-                      style={{ fontSize: '0.75rem', padding: '1px 4px', width: '65px' }}
+                      style={{ fontSize: '0.75rem', padding: '2px 4px', width: '65px' }}
                       value={d.phase2WidthMm}
                       onChange={(e) => updateDefectP2(idx, parseFloat(e.target.value) || 0, d.phase2LengthMm)}
                     />
@@ -338,7 +312,7 @@ export const SurveyPhase2View: React.FC = () => {
                       type="number"
                       step="10"
                       className="form-control"
-                      style={{ fontSize: '0.75rem', padding: '1px 4px', width: '65px' }}
+                      style={{ fontSize: '0.75rem', padding: '2px 4px', width: '65px' }}
                       value={d.phase2LengthMm}
                       onChange={(e) => updateDefectP2(idx, d.phase2WidthMm, parseFloat(e.target.value) || 0)}
                     />
@@ -353,10 +327,10 @@ export const SurveyPhase2View: React.FC = () => {
 
       {/* STEP 3: Quality Gate Phụ lục A Checklist */}
       {currentStep === 3 && (
-        <div className="card" style={{ background: 'rgba(15, 23, 42, 0.8)', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        <div className="card" style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h3 style={{ margin: 0, fontSize: '1rem', color: '#f8fafc', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <ShieldCheck size={18} color="#10b981" />
+            <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <ShieldCheck size={18} color="#16a34a" />
               Cổng Kiểm Soát Chất Lượng Phụ Lục A (10 Tiêu Chí)
             </h3>
             <span className={`badge ${allGatePassed ? 'badge-success' : 'badge-warning'}`}>
@@ -373,13 +347,13 @@ export const SurveyPhase2View: React.FC = () => {
                   display: 'flex',
                   alignItems: 'center',
                   gap: '0.75rem',
-                  padding: '0.6rem 0.75rem',
+                  padding: '0.65rem 0.75rem',
                   borderRadius: '0.5rem',
-                  background: q.passed ? 'rgba(16, 185, 129, 0.08)' : 'rgba(30, 41, 59, 0.6)',
-                  border: q.passed ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid rgba(255, 255, 255, 0.06)',
+                  backgroundColor: q.passed ? '#f0fdf4' : '#f8fafc',
+                  border: q.passed ? '1px solid #bbf7d0' : '1px solid #e2e8f0',
                   cursor: 'pointer',
                   fontSize: '0.8rem',
-                  color: q.passed ? '#6ee7b7' : '#94a3b8',
+                  color: q.passed ? '#15803d' : '#475569',
                 }}
               >
                 <input
@@ -388,18 +362,18 @@ export const SurveyPhase2View: React.FC = () => {
                   onChange={() => {}}
                   style={{ width: '16px', height: '16px', accentColor: '#10b981' }}
                 />
-                <span style={{ fontWeight: q.passed ? 600 : 400 }}>{q.title}</span>
+                <span style={{ fontWeight: q.passed ? 700 : 500 }}>{q.title}</span>
               </label>
             ))}
           </div>
         </div>
       )}
 
-      {/* STEP 4: 4-Party Digital Signatures & Submission */}
+      {/* STEP 4: 4-Party Digital Signatures */}
       {currentStep === 4 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          <h3 style={{ margin: 0, fontSize: '1rem', color: '#f8fafc', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <PenTool size={18} color="#a855f7" />
+          <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <PenTool size={18} color="#0284c7" />
             Ký Xác Nhận 4 Bên (Phụ Lục 12 Biên Bản Đối Soát)
           </h3>
 
@@ -447,7 +421,6 @@ export const SurveyPhase2View: React.FC = () => {
               padding: '0.85rem',
               fontSize: '1rem',
               fontWeight: 700,
-              background: 'linear-gradient(135deg, #7c3aed, #a855f7)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -460,8 +433,8 @@ export const SurveyPhase2View: React.FC = () => {
         </div>
       )}
 
-      {/* Wizard Footer Nav */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.5rem', paddingBottom: '4rem' }}>
+      {/* Footer Nav */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.5rem', paddingBottom: '4.5rem' }}>
         <button
           type="button"
           onClick={() => setCurrentStep(Math.max(1, currentStep - 1))}
@@ -478,7 +451,7 @@ export const SurveyPhase2View: React.FC = () => {
             type="button"
             onClick={() => setCurrentStep(Math.min(4, currentStep + 1))}
             className="btn btn-primary btn-sm"
-            style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', background: '#7c3aed', borderColor: '#a855f7' }}
+            style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}
           >
             Tiếp tục
             <ChevronRight size={16} />

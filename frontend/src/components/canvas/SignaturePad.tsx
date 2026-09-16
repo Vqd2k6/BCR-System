@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { Eraser, Check, RotateCcw, PenTool } from 'lucide-react';
+import { Eraser, PenTool } from 'lucide-react';
 
 interface Props {
   label: string;
@@ -29,13 +29,12 @@ export const SignaturePad: React.FC<Props> = ({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Set canvas dimensions based on CSS display size for sharp rendering
     const rect = canvas.getBoundingClientRect();
     canvas.width = rect.width * window.devicePixelRatio || 400;
     canvas.height = rect.height * window.devicePixelRatio || 180;
     ctx.scale(window.devicePixelRatio || 1, window.devicePixelRatio || 1);
 
-    ctx.strokeStyle = '#38bdf8';
+    ctx.strokeStyle = '#0284c7';
     ctx.lineWidth = 2.5;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
@@ -118,9 +117,8 @@ export const SignaturePad: React.FC<Props> = ({
     <div
       className="card"
       style={{
-        background: 'rgba(15, 23, 42, 0.75)',
-        border: '1px solid rgba(255, 255, 255, 0.1)',
-        borderRadius: '0.75rem',
+        backgroundColor: '#ffffff',
+        border: '1px solid #e2e8f0',
         padding: '1rem',
         display: 'flex',
         flexDirection: 'column',
@@ -129,9 +127,9 @@ export const SignaturePad: React.FC<Props> = ({
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
-          <span style={{ fontWeight: 600, color: '#f8fafc', fontSize: '0.9rem' }}>{label}</span>
-          <div style={{ fontSize: '0.75rem', color: '#94a3b8' }}>
-            Họ và tên: <strong style={{ color: '#e2e8f0' }}>{signerName || 'Chưa nhập'}</strong> ({role})
+          <span style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.9rem' }}>{label}</span>
+          <div style={{ fontSize: '0.75rem', color: '#64748b' }}>
+            Họ tên: <strong style={{ color: '#0f172a' }}>{signerName || 'Chưa nhập'}</strong> ({role})
           </div>
         </div>
 
@@ -139,11 +137,8 @@ export const SignaturePad: React.FC<Props> = ({
           <button
             type="button"
             onClick={clearCanvas}
-            className="btn btn-sm"
+            className="btn btn-sm btn-secondary"
             style={{
-              background: 'rgba(239, 68, 68, 0.15)',
-              color: '#f87171',
-              border: '1px solid rgba(239, 68, 68, 0.3)',
               display: 'flex',
               alignItems: 'center',
               gap: '0.25rem',
@@ -162,9 +157,9 @@ export const SignaturePad: React.FC<Props> = ({
           position: 'relative',
           width: '100%',
           height: '140px',
-          backgroundColor: '#090d16',
+          backgroundColor: '#f8fafc',
           borderRadius: '0.5rem',
-          border: '1px dashed rgba(56, 189, 248, 0.4)',
+          border: '1px dashed #cbd5e1',
           overflow: 'hidden',
           touchAction: 'none',
         }}
@@ -193,7 +188,7 @@ export const SignaturePad: React.FC<Props> = ({
               left: '50%',
               transform: 'translate(-50%, -50%)',
               pointerEvents: 'none',
-              color: 'rgba(148, 163, 184, 0.4)',
+              color: '#94a3b8',
               display: 'flex',
               alignItems: 'center',
               gap: '0.4rem',
@@ -208,7 +203,7 @@ export const SignaturePad: React.FC<Props> = ({
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem', color: '#64748b' }}>
         <span>Cam kết nội dung phản ánh trung thực hiện trạng công trình</span>
-        {hasDrawn && <span style={{ color: '#10b981', fontWeight: 600 }}>✓ Đã có chữ ký</span>}
+        {hasDrawn && <span style={{ color: '#15803d', fontWeight: 700 }}>✓ Đã có chữ ký</span>}
       </div>
     </div>
   );

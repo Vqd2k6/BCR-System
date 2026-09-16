@@ -25,14 +25,13 @@ export const SurveyorBottomNav: React.FC<Props> = ({ activeTab, onChangeTab }) =
         left: 0,
         right: 0,
         zIndex: 50,
-        background: 'rgba(15, 23, 42, 0.95)',
-        backdropFilter: 'blur(16px)',
-        borderTop: '1px solid rgba(255, 255, 255, 0.1)',
+        backgroundColor: '#ffffff',
+        borderTop: '1px solid #e2e8f0',
         display: 'flex',
         justifyContent: 'space-around',
         alignItems: 'center',
         padding: '0.4rem 0.5rem',
-        boxShadow: '0 -4px 20px rgba(0, 0, 0, 0.4)',
+        boxShadow: '0 -2px 10px rgba(0, 0, 0, 0.05)',
       }}
     >
       {tabs.map((tab) => {
@@ -45,25 +44,25 @@ export const SurveyorBottomNav: React.FC<Props> = ({ activeTab, onChangeTab }) =
             type="button"
             onClick={() => onChangeTab(tab.id)}
             style={{
-              background: 'transparent',
+              background: isActive ? '#e0f2fe' : 'transparent',
               border: 'none',
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
               justifyContent: 'center',
               gap: '0.2rem',
-              color: isActive ? '#38bdf8' : '#94a3b8',
+              color: isActive ? '#0284c7' : '#64748b',
               cursor: 'pointer',
-              padding: '0.35rem 0.75rem',
-              borderRadius: '0.5rem',
+              padding: '0.4rem 0.75rem',
+              borderRadius: '0.65rem',
               transition: 'all 0.15s ease',
-              minWidth: '58px',
+              minWidth: '60px',
             }}
           >
             <Icon size={20} strokeWidth={isActive ? 2.5 : 1.8} />
             <span
               style={{
-                fontSize: '0.7rem',
+                fontSize: '0.725rem',
                 fontWeight: isActive ? 700 : 500,
                 letterSpacing: '0.01em',
               }}

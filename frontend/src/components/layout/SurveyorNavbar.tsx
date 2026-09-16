@@ -1,6 +1,6 @@
 import React from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { Shield, User, LogOut, Radio, RefreshCw } from 'lucide-react';
+import { Train, LogOut, UserCheck } from 'lucide-react';
 
 interface Props {
   title?: string;
@@ -8,7 +8,21 @@ interface Props {
 }
 
 export const SurveyorNavbar: React.FC<Props> = ({ title = 'Khảo Sát Hiện Trạng Metro 2', subtitle }) => {
-  const { user, role, setRole, logout } = useAuth();
+  const { user, logout } = useAuth();
+
+  const getRoleLabel = (role?: string) => {
+    switch (role) {
+      case 'ZONE_ADMIN':
+        return 'Tổ Trưởng Zone Admin';
+      case 'SUPER_ADMIN':
+        return 'Lãnh Đạo MAUR';
+      case 'CONTRACTOR':
+        return 'Đại diện Nhà Thầu';
+      case 'SURVEYOR':
+      default:
+        return 'Điều Tra Viên Hiện Trường';
+    }
+  };
 
   return (
     <header
@@ -16,86 +30,101 @@ export const SurveyorNavbar: React.FC<Props> = ({ title = 'Khảo Sát Hiện Tr
         position: 'sticky',
         top: 0,
         zIndex: 50,
-        background: 'rgba(15, 23, 42, 0.88)',
-        backdropFilter: 'blur(16px)',
-        borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+        backgroundColor: '#ffffff',
+        borderBottom: '1px solid #e2e8f0',
         padding: '0.75rem 1rem',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
+        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
       }}
     >
+      {/* Brand & Station */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
         <div
           style={{
-            width: '38px',
-            height: '38px',
-            borderRadius: '0.6rem',
-            background: 'linear-gradient(135deg, #0284c7 0%, #3b82f6 100%)',
+            width: '40px',
+            height: '40px',
+            borderRadius: '0.65rem',
+            background: 'linear-gradient(135deg, #0284c7 0%, #2563eb 100%)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            boxShadow: '0 4px 12px rgba(2, 132, 199, 0.35)',
+            boxShadow: '0 4px 10px rgba(2, 132, 199, 0.25)',
           }}
         >
-          <Radio size={20} color="#ffffff" className="animate-pulse" />
+          <Train size={22} color="#ffffff" />
         </div>
         <div>
-          <h1 style={{ fontSize: '1rem', fontWeight: 700, color: '#f8fafc', margin: 0, lineHeight: 1.2 }}>
+          <h1 style={{ fontSize: '1rem', fontWeight: 800, color: '#0f172a', margin: 0, lineHeight: 1.2 }}>
             {title}
           </h1>
-          <p style={{ fontSize: '0.75rem', color: '#94a3b8', margin: 0, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+          <p style={{ fontSize: '0.775rem', color: '#64748b', margin: 0, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
             {subtitle || (
               <>
                 <span>Khu vực: </span>
-                <strong style={{ color: '#38bdf8' }}>{user?.assignedZoneId || 'Ga S9 - Bà Quẹo'}</strong>
+                <strong style={{ color: '#0284c7' }}>{user?.assignedZoneId || 'Ga S9 - Bà Quẹo'}</strong>
               </>
             )}
           </p>
         </div>
       </div>
 
+      {/* User Profile & Logout */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-        {/* Role Quick Switcher for Demo & Testing */}
-        <select
-          value={role}
-          onChange={(e) => setRole(e.target.value as any)}
+        <div
           style={{
-            background: 'rgba(30, 41, 59, 0.8)',
-            color: '#38bdf8',
-            border: '1px solid rgba(56, 189, 248, 0.3)',
-            borderRadius: '0.5rem',
-            padding: '0.3rem 0.6rem',
-            fontSize: '0.75rem',
-            fontWeight: 600,
-            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            padding: '0.35rem 0.65rem',
+            backgroundColor: '#f8fafc',
+            border: '1px solid #e2e8f0',
+            borderRadius: '0.65rem',
           }}
-          title="Chuyển đổi vai trò để thử nghiệm"
         >
-          <option value="SURVEYOR">👷 Surveyor</option>
-          <option value="ZONE_ADMIN">🛡️ Zone Admin</option>
-          <option value="SUPER_ADMIN">👑 Super Admin</option>
-          <option value="CONTRACTOR">🏢 Nhà thầu</option>
-          <option value="GUEST">👁️ Khách vãng lai</option>
-        </select>
-
-        {/* User Info & Avatar */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
           <div
             style={{
-              width: '32px',
-              height: '32px',
+              width: '28px',
+              height: '28px',
               borderRadius: '50%',
-              background: '#334155',
+              backgroundColor: '#e0f2fe',
+              color: '#0284c7',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              border: '1px solid rgba(255, 255, 255, 0.2)',
+              fontWeight: 700,
+              fontSize: '0.8rem',
             }}
           >
-            <User size={16} color="#94a3b8" />
+            {user?.fullName?.charAt(0) || 'K'}
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#0f172a', lineHeight: 1.1 }}>
+              {user?.fullName || 'Điều Tra Viên'}
+            </span>
+            <span style={{ fontSize: '0.7rem', color: '#64748b' }}>
+              {getRoleLabel(user?.role)}
+            </span>
           </div>
         </div>
+
+        {/* Logout button */}
+        <button
+          type="button"
+          onClick={logout}
+          className="btn btn-sm btn-secondary"
+          title="Đăng xuất tài khoản"
+          style={{
+            padding: '0.45rem',
+            color: '#ef4444',
+            backgroundColor: '#fee2e2',
+            borderColor: '#fecaca',
+          }}
+        >
+          <LogOut size={16} />
+        </button>
       </div>
     </header>
   );

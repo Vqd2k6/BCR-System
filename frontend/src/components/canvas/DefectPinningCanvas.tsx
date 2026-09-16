@@ -37,7 +37,6 @@ export const DefectPinningCanvas: React.FC<Props> = ({
   const [selectedDefectIndex, setSelectedDefectIndex] = useState<number | null>(null);
   const [isAddingPin, setIsAddingPin] = useState<boolean>(false);
 
-  // New defect draft defaults
   const draftDefect: Partial<DefectItem> = {
     screeningCategory: 'Nứt tường / Vữa trát',
     defectType: 'Nứt chân chim (Hairline crack)',
@@ -111,10 +110,10 @@ export const DefectPinningCanvas: React.FC<Props> = ({
       {/* Header Toolbar */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <span style={{ fontWeight: 600, fontSize: '0.95rem', color: '#f8fafc' }}>
+          <span style={{ fontWeight: 700, fontSize: '0.9rem', color: '#0f172a' }}>
             Ảnh bối cảnh & Ghim vết nứt D-xx ({defects.length})
           </span>
-          <span className="badge badge-info">{defects.length} khuyết tật</span>
+          <span className="badge badge-primary">{defects.length} khuyết tật</span>
         </div>
 
         <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -135,15 +134,16 @@ export const DefectPinningCanvas: React.FC<Props> = ({
       {isAddingPin && (
         <div
           style={{
-            background: 'rgba(59, 130, 246, 0.15)',
-            border: '1px dashed #3b82f6',
+            backgroundColor: '#e0f2fe',
+            border: '1px dashed #0284c7',
             padding: '0.5rem 0.75rem',
             borderRadius: '0.5rem',
             display: 'flex',
             alignItems: 'center',
             gap: '0.5rem',
-            color: '#93c5fd',
-            fontSize: '0.85rem',
+            color: '#0369a1',
+            fontSize: '0.8rem',
+            fontWeight: 600,
           }}
         >
           <Crosshair size={16} />
@@ -160,10 +160,10 @@ export const DefectPinningCanvas: React.FC<Props> = ({
           width: '100%',
           minHeight: '280px',
           maxHeight: '460px',
-          backgroundColor: '#0f172a',
+          backgroundColor: '#f1f5f9',
           borderRadius: '0.75rem',
           overflow: 'hidden',
-          border: isAddingPin ? '2px solid #3b82f6' : '1px solid rgba(255, 255, 255, 0.1)',
+          border: isAddingPin ? '2px solid #0284c7' : '1px solid #cbd5e1',
           cursor: isAddingPin ? 'crosshair' : 'default',
           display: 'flex',
           justifyContent: 'center',
@@ -210,14 +210,14 @@ export const DefectPinningCanvas: React.FC<Props> = ({
               {/* Badge Label */}
               <div
                 style={{
-                  background: isCritical ? '#ef4444' : isSelected ? '#3b82f6' : '#10b981',
+                  backgroundColor: isCritical ? '#ef4444' : isSelected ? '#0284c7' : '#10b981',
                   color: '#ffffff',
                   fontSize: '0.75rem',
-                  fontWeight: 700,
+                  fontWeight: 800,
                   padding: '2px 6px',
                   borderRadius: '12px',
-                  boxShadow: isSelected ? '0 0 12px rgba(59, 130, 246, 0.8)' : '0 2px 6px rgba(0,0,0,0.5)',
-                  border: isSelected ? '2px solid #ffffff' : '1px solid rgba(255,255,255,0.3)',
+                  boxShadow: isSelected ? '0 0 10px rgba(2, 132, 199, 0.8)' : '0 2px 4px rgba(0,0,0,0.3)',
+                  border: isSelected ? '2px solid #ffffff' : '1px solid rgba(255,255,255,0.4)',
                   whiteSpace: 'nowrap',
                   display: 'flex',
                   alignItems: 'center',
@@ -235,7 +235,7 @@ export const DefectPinningCanvas: React.FC<Props> = ({
                   height: 0,
                   borderLeft: '5px solid transparent',
                   borderRight: '5px solid transparent',
-                  borderTop: `6px solid ${isCritical ? '#ef4444' : isSelected ? '#3b82f6' : '#10b981'}`,
+                  borderTop: `6px solid ${isCritical ? '#ef4444' : isSelected ? '#0284c7' : '#10b981'}`,
                 }}
               />
 
@@ -247,7 +247,6 @@ export const DefectPinningCanvas: React.FC<Props> = ({
                   borderRadius: '50%',
                   backgroundColor: '#ffffff',
                   border: `2px solid ${isCritical ? '#ef4444' : '#10b981'}`,
-                  boxShadow: '0 0 4px rgba(0,0,0,0.8)',
                 }}
               />
             </div>
@@ -255,14 +254,13 @@ export const DefectPinningCanvas: React.FC<Props> = ({
         })}
       </div>
 
-      {/* Selected Defect Edit / Inspector Drawer */}
+      {/* Selected Defect Edit Drawer */}
       {selectedDefect && (
         <div
           className="card"
           style={{
-            background: 'rgba(30, 41, 59, 0.85)',
-            border: '1px solid rgba(59, 130, 246, 0.3)',
-            borderRadius: '0.75rem',
+            backgroundColor: '#ffffff',
+            border: '1px solid #cbd5e1',
             padding: '1rem',
           }}
         >
@@ -270,9 +268,9 @@ export const DefectPinningCanvas: React.FC<Props> = ({
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <span
                 style={{
-                  backgroundColor: selectedDefect.isStructuralCritical ? '#ef4444' : '#3b82f6',
-                  color: '#fff',
-                  fontWeight: 700,
+                  backgroundColor: selectedDefect.isStructuralCritical ? '#ef4444' : '#0284c7',
+                  color: '#ffffff',
+                  fontWeight: 800,
                   padding: '3px 8px',
                   borderRadius: '6px',
                   fontSize: '0.85rem',
@@ -280,8 +278,8 @@ export const DefectPinningCanvas: React.FC<Props> = ({
               >
                 {selectedDefect.defectCode}
               </span>
-              <span style={{ fontWeight: 600, color: '#f8fafc', fontSize: '0.9rem' }}>
-                Chi tiết khuyết tật tại tọa độ ({selectedDefect.pinX}%, {selectedDefect.pinY}%)
+              <span style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.9rem' }}>
+                Chi tiết vết nứt ({selectedDefect.pinX}%, {selectedDefect.pinY}%)
               </span>
             </div>
 
@@ -299,9 +297,8 @@ export const DefectPinningCanvas: React.FC<Props> = ({
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.75rem' }}>
-            {/* Defect Category */}
             <div>
-              <label className="form-label" style={{ fontSize: '0.8rem' }}>Phân loại cấu kiện nứt</label>
+              <label className="form-label">Phân loại cấu kiện nứt</label>
               <select
                 className="form-control"
                 value={selectedDefect.screeningCategory}
@@ -316,9 +313,8 @@ export const DefectPinningCanvas: React.FC<Props> = ({
               </select>
             </div>
 
-            {/* Crack Type */}
             <div>
-              <label className="form-label" style={{ fontSize: '0.8rem' }}>Dạng vết nứt</label>
+              <label className="form-label">Dạng vết nứt</label>
               <select
                 className="form-control"
                 value={selectedDefect.defectType}
@@ -333,9 +329,8 @@ export const DefectPinningCanvas: React.FC<Props> = ({
               </select>
             </div>
 
-            {/* Max Width */}
             <div>
-              <label className="form-label" style={{ fontSize: '0.8rem' }}>Độ rộng lớn nhất (w mm)</label>
+              <label className="form-label">Độ rộng lớn nhất (w mm)</label>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                 <input
                   type="number"
@@ -347,13 +342,12 @@ export const DefectPinningCanvas: React.FC<Props> = ({
                   disabled={readOnly}
                   onChange={(e) => updateSelectedDefect('widthMaxMm', parseFloat(e.target.value) || 0)}
                 />
-                <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>mm</span>
+                <span style={{ fontSize: '0.8rem', color: '#64748b' }}>mm</span>
               </div>
             </div>
 
-            {/* Length */}
             <div>
-              <label className="form-label" style={{ fontSize: '0.8rem' }}>Chiều dài vết nứt (L mm)</label>
+              <label className="form-label">Chiều dài vết nứt (L mm)</label>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                 <input
                   type="number"
@@ -365,13 +359,12 @@ export const DefectPinningCanvas: React.FC<Props> = ({
                   disabled={readOnly}
                   onChange={(e) => updateSelectedDefect('lengthMm', parseFloat(e.target.value) || 0)}
                 />
-                <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>mm</span>
+                <span style={{ fontSize: '0.8rem', color: '#64748b' }}>mm</span>
               </div>
             </div>
 
-            {/* Activity State */}
             <div>
-              <label className="form-label" style={{ fontSize: '0.8rem' }}>Trạng thái hoạt động</label>
+              <label className="form-label">Trạng thái hoạt động</label>
               <select
                 className="form-control"
                 value={selectedDefect.activityState}
@@ -384,51 +377,30 @@ export const DefectPinningCanvas: React.FC<Props> = ({
               </select>
             </div>
 
-            {/* Scale Card & Critical Toggle */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', justifyContent: 'center' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.85rem' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.825rem' }}>
                 <input
                   type="checkbox"
                   checked={selectedDefect.hasScaleCard}
                   disabled={readOnly}
                   onChange={(e) => updateSelectedDefect('hasScaleCard', e.target.checked)}
                 />
-                <span style={{ color: selectedDefect.hasScaleCard ? '#10b981' : '#f59e0b' }}>
+                <span style={{ color: selectedDefect.hasScaleCard ? '#15803d' : '#b45309', fontWeight: 600 }}>
                   Có thước đo chuẩn (Scale Card)
                 </span>
               </label>
 
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.85rem' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.825rem' }}>
                 <input
                   type="checkbox"
                   checked={selectedDefect.isStructuralCritical}
                   disabled={readOnly}
                   onChange={(e) => updateSelectedDefect('isStructuralCritical', e.target.checked)}
                 />
-                <span style={{ color: selectedDefect.isStructuralCritical ? '#ef4444' : '#94a3b8', fontWeight: selectedDefect.isStructuralCritical ? 600 : 400 }}>
+                <span style={{ color: selectedDefect.isStructuralCritical ? '#ef4444' : '#64748b', fontWeight: selectedDefect.isStructuralCritical ? 700 : 500 }}>
                   Vết nứt nguy hiểm kết cấu
                 </span>
               </label>
-            </div>
-          </div>
-
-          {/* Photo CU Preview & URL */}
-          <div style={{ marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid rgba(255,255,255,0.08)', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            <img
-              src={selectedDefect.cuPhotoUrl}
-              alt="Photo CU"
-              style={{ width: '64px', height: '64px', objectFit: 'cover', borderRadius: '0.5rem', border: '1px solid rgba(255,255,255,0.2)' }}
-            />
-            <div style={{ flex: 1 }}>
-              <label className="form-label" style={{ fontSize: '0.75rem' }}>URL Ảnh Cận Cảnh (Photo CU)</label>
-              <input
-                type="text"
-                className="form-control"
-                style={{ fontSize: '0.8rem' }}
-                value={selectedDefect.cuPhotoUrl}
-                disabled={readOnly}
-                onChange={(e) => updateSelectedDefect('cuPhotoUrl', e.target.value)}
-              />
             </div>
           </div>
         </div>

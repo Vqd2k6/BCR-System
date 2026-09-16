@@ -16,7 +16,6 @@ export const ParcelMutationModal: React.FC<Props> = ({ parcel, isOpen, onClose, 
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  // Sub parcels
   const [subParcels, setSubParcels] = useState<Array<{ code: string; houseNo: string; area: number; owner: string }>>([
     { code: `${parcel.projectParcelCode}.1`, houseNo: `${parcel.houseNumber}A`, area: 45.5, owner: 'Hộ gia đình nhánh A' },
     { code: `${parcel.projectParcelCode}.2`, houseNo: `${parcel.houseNumber}B`, area: 42.0, owner: 'Hộ gia đình nhánh B' },
@@ -79,8 +78,8 @@ export const ParcelMutationModal: React.FC<Props> = ({ parcel, isOpen, onClose, 
         right: 0,
         bottom: 0,
         zIndex: 1050,
-        background: 'rgba(0, 0, 0, 0.75)',
-        backdropFilter: 'blur(8px)',
+        backgroundColor: 'rgba(15, 23, 42, 0.6)',
+        backdropFilter: 'blur(4px)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -94,23 +93,23 @@ export const ParcelMutationModal: React.FC<Props> = ({ parcel, isOpen, onClose, 
           maxWidth: '560px',
           maxHeight: '90vh',
           overflowY: 'auto',
-          background: 'rgba(15, 23, 42, 0.95)',
-          border: '1px solid rgba(168, 85, 247, 0.4)',
+          backgroundColor: '#ffffff',
           borderRadius: '1rem',
-          padding: '1.25rem',
+          padding: '1.5rem',
+          boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
         }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <div style={{ width: 32, height: 32, borderRadius: 8, background: 'rgba(168, 85, 247, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Layers size={18} color="#c084fc" />
+            <div style={{ width: 34, height: 34, borderRadius: 8, backgroundColor: '#f3e8ff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Layers size={18} color="#7e22ce" />
             </div>
             <div>
-              <h3 style={{ margin: 0, fontSize: '1rem', color: '#f8fafc' }}>
+              <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>
                 Đề xuất Biến động Thửa đất (Tách/Gộp)
               </h3>
-              <p style={{ margin: 0, fontSize: '0.75rem', color: '#94a3b8' }}>
-                Thửa gốc: <strong style={{ color: '#38bdf8' }}>{parcel.projectParcelCode}</strong> ({parcel.officialCadastralCode}) - Số {parcel.houseNumber} {parcel.street}
+              <p style={{ margin: 0, fontSize: '0.775rem', color: '#64748b' }}>
+                Thửa gốc: <strong style={{ color: '#0284c7' }}>{parcel.projectParcelCode}</strong> ({parcel.officialCadastralCode}) - Số {parcel.houseNumber} {parcel.street}
               </p>
             </div>
           </div>
@@ -125,9 +124,9 @@ export const ParcelMutationModal: React.FC<Props> = ({ parcel, isOpen, onClose, 
 
         {successMessage ? (
           <div style={{ padding: '2rem 1rem', textAlign: 'center' }}>
-            <CheckCircle size={48} color="#10b981" style={{ margin: '0 auto 1rem' }} />
-            <h4 style={{ color: '#10b981', margin: '0 0 0.5rem' }}>Đề xuất thành công!</h4>
-            <p style={{ color: '#94a3b8', fontSize: '0.85rem' }}>{successMessage}</p>
+            <CheckCircle size={48} color="#16a34a" style={{ margin: '0 auto 1rem' }} />
+            <h4 style={{ color: '#16a34a', margin: '0 0 0.5rem' }}>Đề xuất thành công!</h4>
+            <p style={{ color: '#64748b', fontSize: '0.85rem' }}>{successMessage}</p>
           </div>
         ) : (
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -137,26 +136,16 @@ export const ParcelMutationModal: React.FC<Props> = ({ parcel, isOpen, onClose, 
                 <button
                   type="button"
                   onClick={() => setMutationType('SPLIT')}
-                  className={`btn btn-sm ${mutationType === 'SPLIT' ? 'btn-primary' : ''}`}
-                  style={{
-                    flex: 1,
-                    background: mutationType === 'SPLIT' ? '#7c3aed' : 'rgba(255,255,255,0.05)',
-                    border: '1px solid rgba(168, 85, 247, 0.3)',
-                    color: '#fff',
-                  }}
+                  className={`btn btn-sm ${mutationType === 'SPLIT' ? 'btn-primary' : 'btn-secondary'}`}
+                  style={{ flex: 1 }}
                 >
                   Tách thửa (1 thành nhiều thửa con)
                 </button>
                 <button
                   type="button"
                   onClick={() => setMutationType('MERGE')}
-                  className={`btn btn-sm ${mutationType === 'MERGE' ? 'btn-primary' : ''}`}
-                  style={{
-                    flex: 1,
-                    background: mutationType === 'MERGE' ? '#7c3aed' : 'rgba(255,255,255,0.05)',
-                    border: '1px solid rgba(168, 85, 247, 0.3)',
-                    color: '#fff',
-                  }}
+                  className={`btn btn-sm ${mutationType === 'MERGE' ? 'btn-primary' : 'btn-secondary'}`}
+                  style={{ flex: 1 }}
                 >
                   Gộp thửa (Nhiều thửa thành 1)
                 </button>
@@ -182,17 +171,8 @@ export const ParcelMutationModal: React.FC<Props> = ({ parcel, isOpen, onClose, 
                 <button
                   type="button"
                   onClick={handleAddSubParcel}
-                  className="btn btn-sm"
-                  style={{
-                    background: 'rgba(168, 85, 247, 0.2)',
-                    color: '#c084fc',
-                    border: '1px solid rgba(168, 85, 247, 0.4)',
-                    padding: '0.2rem 0.5rem',
-                    fontSize: '0.75rem',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.25rem',
-                  }}
+                  className="btn btn-sm btn-secondary"
+                  style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
                 >
                   <Plus size={12} />
                   Thêm thửa con
@@ -204,8 +184,8 @@ export const ParcelMutationModal: React.FC<Props> = ({ parcel, isOpen, onClose, 
                   <div
                     key={idx}
                     style={{
-                      background: 'rgba(30, 41, 59, 0.6)',
-                      border: '1px solid rgba(255, 255, 255, 0.08)',
+                      backgroundColor: '#f8fafc',
+                      border: '1px solid #e2e8f0',
                       borderRadius: '0.5rem',
                       padding: '0.75rem',
                       display: 'grid',
@@ -215,7 +195,7 @@ export const ParcelMutationModal: React.FC<Props> = ({ parcel, isOpen, onClose, 
                     }}
                   >
                     <div>
-                      <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Mã dự án mới</span>
+                      <span style={{ fontSize: '0.7rem', color: '#64748b' }}>Mã dự án mới</span>
                       <input
                         type="text"
                         className="form-control"
@@ -225,7 +205,7 @@ export const ParcelMutationModal: React.FC<Props> = ({ parcel, isOpen, onClose, 
                       />
                     </div>
                     <div>
-                      <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Số nhà thực tế</span>
+                      <span style={{ fontSize: '0.7rem', color: '#64748b' }}>Số nhà thực tế</span>
                       <input
                         type="text"
                         className="form-control"
@@ -235,7 +215,7 @@ export const ParcelMutationModal: React.FC<Props> = ({ parcel, isOpen, onClose, 
                       />
                     </div>
                     <div>
-                      <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Diện tích (m²)</span>
+                      <span style={{ fontSize: '0.7rem', color: '#64748b' }}>Diện tích (m²)</span>
                       <input
                         type="number"
                         step="0.1"
@@ -253,7 +233,7 @@ export const ParcelMutationModal: React.FC<Props> = ({ parcel, isOpen, onClose, 
                         style={{
                           background: 'transparent',
                           border: 'none',
-                          color: subParcels.length <= 1 ? '#475569' : '#f87171',
+                          color: subParcels.length <= 1 ? '#cbd5e1' : '#ef4444',
                           cursor: subParcels.length <= 1 ? 'not-allowed' : 'pointer',
                           padding: '0.4rem',
                         }}
@@ -268,15 +248,15 @@ export const ParcelMutationModal: React.FC<Props> = ({ parcel, isOpen, onClose, 
 
             <div
               style={{
-                background: 'rgba(234, 179, 8, 0.1)',
-                border: '1px solid rgba(234, 179, 8, 0.3)',
+                backgroundColor: '#fffbeb',
+                border: '1px solid #fde68a',
                 padding: '0.75rem',
                 borderRadius: '0.5rem',
                 display: 'flex',
                 alignItems: 'flex-start',
                 gap: '0.5rem',
-                color: '#fef08a',
-                fontSize: '0.75rem',
+                color: '#92400e',
+                fontSize: '0.775rem',
               }}
             >
               <AlertTriangle size={18} style={{ flexShrink: 0, marginTop: '2px' }} />
@@ -298,7 +278,7 @@ export const ParcelMutationModal: React.FC<Props> = ({ parcel, isOpen, onClose, 
               <button
                 type="submit"
                 className="btn btn-primary"
-                style={{ flex: 2, background: 'linear-gradient(135deg, #7c3aed, #a855f7)' }}
+                style={{ flex: 2 }}
                 disabled={isSubmitting}
               >
                 {isSubmitting ? 'Đang gửi đề xuất...' : 'Gửi Đề Xuất Biến Động'}
