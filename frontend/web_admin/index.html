@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cổng Quản Trị & Thẩm Định Hiện Trạng - Metro 2</title>
+    <!-- Google Fonts & FontAwesome -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Leaflet CSS for GIS Map -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+    <style>
+        :root {
+            --primary: #1a73e8;
+            --primary-dark: #1557b0;
+            --success: #1e8e3e;
+            --warning: #f9ab00;
+            --danger: #d93025;
+            --dark: #202124;
+            --gray: #5f6368;
+            --light-bg: #f8f9fa;
+            --border: #dadce0;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Inter', sans-serif; }
+        body { background: var(--light-bg); color: var(--dark); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+        /* Top Navbar */
+        .navbar { background: #fff; border-bottom: 1px solid var(--border); height: 56px; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; z-index: 100; }
+        .nav-brand { font-size: 16px; font-weight: 700; color: var(--primary); display: flex; align-items: center; gap: 10px; }
+        .nav-actions { display: flex; align-items: center; gap: 12px; }
+        .user-info { font-size: 13px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+
+        /* Main Workspace: Split-Pane */
+        .workspace { display: flex; flex: 1; overflow: hidden; }
+
+        /* Left Sidebar: Navigation & Tasks */
+        .sidebar { width: 260px; background: #fff; border-right: 1px solid var(--border); display: flex; flex-direction: column; }
+        .sidebar-menu { list-style: none; padding: 12px 8px; }
+        .menu-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 8px; font-size: 13px; font-weight: 600; color: var(--gray); cursor: pointer; text-decoration: none; margin-bottom: 4px; }
+        .menu-item.active, .menu-item:hover { background: #e8f0fe; color: var(--primary); }
+
+        /* Content Area / Split-Pane View */
+        .main-content { flex: 1; display: flex; flex-direction: column; overflow: hidden; background: #fff; }
+
+        /* Split-Pane Container */
+        .split-pane-wrapper { display: flex; flex: 1; overflow: hidden; }
+        .pane-left { flex: 1; border-right: 1px solid var(--border); padding: 20px; overflow-y: auto; }
+        .pane-right { flex: 1; padding: 20px; overflow-y: auto; background: #fafafa; display: flex; flex-direction: column; }
+
+        /* Cards & Details */
+        .section-title { font-size: 14px; font-weight: 700; margin-bottom: 12px; color: var(--dark); display: flex; align-items: center; gap: 8px; }
+        .info-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 16px; font-size: 13px; }
+        .info-item { background: #f8f9fa; border: 1px solid var(--border); padding: 10px 12px; border-radius: 8px; }
+        .info-label { font-size: 11px; color: var(--gray); font-weight: 600; }
+        .info-val { font-size: 13px; font-weight: 700; margin-top: 2px; }
+
+        /* Magnifier Photo Preview */
+        .photo-viewer-box { border: 1px solid var(--border); border-radius: 8px; background: #000; overflow: hidden; position: relative; margin-bottom: 16px; }
+        .photo-viewer-box img { width: 100%; display: block; }
+        .magnifier-hint { position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.7); color: #fff; padding: 4px 8px; border-radius: 4px; font-size: 11px; }
+
+        /* Action Buttons */
+        .audit-actions-bar { border-top: 1px solid var(--border); padding: 12px 20px; background: #fff; display: flex; justify-content: space-between; align-items: center; }
+        .btn { display: inline-flex; align-items: center; gap: 8px; padding: 8px 16px; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; border: none; }
+        .btn-success { background: var(--success); color: #fff; }
+        .btn-danger { background: var(--danger); color: #fff; }
+        .btn-primary { background: var(--primary); color: #fff; }
+        .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--dark); }
+    </style>
+</head>
+<body>
+
+    <!-- Navbar -->
+    <nav class="navbar">
+        <div class="nav-brand">
+            <i class="fa-solid fa-train-subway fa-lg"></i>
+            <span>HỆ THỐNG QUẢN TRỊ & THẨM ĐỊNH HIỆN TRẠNG METRO 2 (GA S9 - BÀ QUẸO)</span>
+        </div>
+        <div class="nav-actions">
+            <button class="btn btn-outline" onclick="openBatchExportModal()"><i class="fa-solid fa-file-zipper"></i> Xuất Báo Cáo Hàng Loạt</button>
+            <div class="user-info">
+                <i class="fa-solid fa-circle-user fa-lg text-primary"></i>
+                <span>Trần Thị Trưởng Phân Khu (Zone Admin)</span>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Workspace -->
+    <div class="workspace">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <ul class="sidebar-menu">
+                <li><a class="menu-item active"><i class="fa-solid fa-clipboard-check"></i><span>Thẩm Định Split-Pane</span></a></li>
+                <li><a class="menu-item"><i class="fa-solid fa-map-location-dot"></i><span>Bản Đồ GIS Toàn Phân Khu</span></a></li>
+                <li><a class="menu-item"><i class="fa-solid fa-user-check"></i><span>Chấm Công Surveyor</span></a></li>
+                <li><a class="menu-item"><i class="fa-solid fa-chart-pie"></i><span>Thống Kê Tiến Độ</span></a></li>
+                <li><a class="menu-item"><i class="fa-solid fa-layer-group"></i><span>Duyệt Biến Động Thửa</span></a></li>
+            </ul>
+        </aside>
+
+        <!-- Main Split-Pane Workspace -->
+        <main class="main-content">
+            <div class="split-pane-wrapper">
+                <!-- Left Pane: Report Data & Defect Mapping -->
+                <div class="pane-left">
+                    <div class="section-title">
+                        <i class="fa-solid fa-file-lines text-primary"></i>
+                        <span>Báo Cáo Khảo Sát Thửa B-00002 (Lý Trình Km 9+135)</span>
+                        <span style="font-size: 11px; background: #feefe3; color: var(--warning); padding: 2px 8px; border-radius: 12px; font-weight: 700; margin-left: auto;">CHỜ DUYỆT (PENDING_REVIEW)</span>
+                    </div>
+
+                    <div class="info-grid">
+                        <div class="info-item">
+                            <div class="info-label">MÃ QUẢN LÝ DỰ ÁN</div>
+                            <div class="info-val">B-00002</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label">MÃ ĐỊA CHÍNH GỐC (KS003)</div>
+                            <div class="info-val">KS003-00002 (Tờ 15 - Thửa 89)</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label">ĐỊA CHỈ THỰC TẾ</div>
+                            <div class="info-val">104 Trường Chinh, P.13, Tân Bình</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label">CHỦ SỞ HỮU / ĐIỆN THOẠI</div>
+                            <div class="info-val">Trần Văn Bình (0913 222 333)</div>
+                        </div>
+                    </div>
+
+                    <div class="section-title"><i class="fa-solid fa-shield-halved text-primary"></i> Đánh Giá Kỹ Thuật & Tự Động Tính Điểm</div>
+                    <div class="info-grid">
+                        <div class="info-item">
+                            <div class="info-label">ĐIỂM HIỆN TRẠNG (ECS SCORE)</div>
+                            <div class="info-val" style="color: var(--success);">5/24 (HẠNG TỐT - GOOD)</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label">CHỈ SỐ RỦI RO (VULNERABILITY)</div>
+                            <div class="info-val" style="color: var(--primary);">VI: LOW (THẤP)</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label">KẾT CẤU & MÓNG</div>
+                            <div class="info-val">Khung BTCT | Cọc ép (CAT 4/5)</div>
+                        </div>
+                        <div class="info-item">
+                            <div class="info-label">BIẾN DẠNG LÚN NGHIÊNG</div>
+                            <div class="info-val">Nghiêng X: 0.15% | Y: 0.08% (Ổn định)</div>
+                        </div>
+                    </div>
+
+                    <div class="section-title"><i class="fa-solid fa-triangle-exclamation text-primary"></i> Sổ Ghi Nhận Khuyết Tật D-xx</div>
+                    <div style="border: 1px solid var(--border); border-radius: 8px; padding: 10px; font-size: 12px;">
+                        <p><strong>• Ghim D-01:</strong> Nứt xiên tường gạch P.Khách ($w=0.5\text{mm}, L=300\text{mm}$) - Ổn định</p>
+                        <p style="margin-top: 4px; color: var(--danger);"><strong>• Ghim D-02:</strong> Nứt uốn đáy dầm BTCT Lầu 1 ($w=0.8\text{mm}, L=650\text{mm}$) - Rộng thêm $+0.3\text{mm}$</p>
+                    </div>
+                </div>
+
+                <!-- Right Pane: Photo Evidence & 400% Magnifier Lens -->
+                <div class="pane-right">
+                    <div class="section-title">
+                        <i class="fa-solid fa-camera text-primary"></i>
+                        <span>Soi Bằng Chứng Ảnh Cận Cảnh (Kính Lúp 400%)</span>
+                    </div>
+
+                    <!-- Photo CTX -->
+                    <div class="photo-viewer-box">
+                        <div class="magnifier-hint"><i class="fa-solid fa-layer-group"></i> Ảnh Bối Cảnh Vùng Z-02 (Lầu 1)</div>
+                        <img src="https://images.unsplash.com/photo-1513694203232-719a280e022f?w=800&auto=format&fit=crop" alt="CTX">
+                    </div>
+
+                    <!-- Photo CU with Scale Card -->
+                    <div class="photo-viewer-box">
+                        <div class="magnifier-hint"><i class="fa-solid fa-magnifying-glass-plus"></i> Kính Lúp 400% Thước Đo mm (Ghim D-02)</div>
+                        <img src="https://images.unsplash.com/photo-1590381105924-c72589b9ef3f?w=800&auto=format&fit=crop" alt="CU with Crack Scale Card">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bottom Audit Actions Bar -->
+            <div class="audit-actions-bar">
+                <div style="font-size: 12px; color: var(--gray);">
+                    <span>Phím tắt: <strong>[A]</strong> Phê duyệt | <strong>[R]</strong> Trả về khảo sát lại | <strong>[M]</strong> Xem biến động ranh GIS</span>
+                </div>
+                <div style="display: flex; gap: 10px;">
+                    <button class="btn btn-danger" onclick="handleReject()"><i class="fa-solid fa-xmark"></i> [R] Trả Về Yêu Cầu Khảo Sát Lại</button>
+                    <button class="btn btn-success" onclick="handleApprove()"><i class="fa-solid fa-check"></i> [A] Phê Duyệt Báo Cáo & Xuất Bản PDF/A</button>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        function handleApprove() {
+            if (confirm('Xác nhận Phê duyệt Báo cáo Hiện trạng Thửa B-00002 và xuất bản tài liệu pháp lý PDF/A?')) {
+                alert('✅ Báo cáo Thửa B-00002 đã được phê duyệt thành công!');
+            }
+        }
+        function handleReject() {
+            const reason = prompt('Nhập lý do trả về yêu cầu Surveyor khảo sát lại:', 'Ảnh cận cảnh CU D-02 thiếu thước đo vạch mm áp sát khe nứt.');
+            if (reason) {
+                alert('❌ Đã trả về báo cáo kèm lý do: ' + reason);
+            }
+        }
+        function openBatchExportModal() {
+            alert('📦 Đang khởi tạo tiến trình đóng gói Hồ sơ Báo cáo Hàng loạt cho Phân khu Ga S9 (150 thửa đất)...');
+        }
+    </script>
+</body>
+</html>

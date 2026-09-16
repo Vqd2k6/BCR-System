@@ -1,59 +1,52 @@
-// Node 16 Crypto Polyfill for AWS SDK v3
-const crypto = require('crypto');
-if (!global.crypto) {
-  global.crypto = crypto.webcrypto || {
-    getRandomValues: (arr) => crypto.randomFillSync(arr),
-  };
-}
-
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
+const morgan = require('morgan');
 require('dotenv').config();
 
-const authRoutes = require('./routes/auth.routes');
-const zonesRoutes = require('./routes/zones.routes');
-const buildingsRoutes = require('./routes/buildings.routes');
-const mediaRoutes = require('./routes/media.routes');
-const errorHandler = require('./middlewares/error.middleware');
+const apiRouter = require('./routes/api');
 
 const app = express();
-const PORT = process.env.PORT || 5050;
+const PORT = process.env.PORT || 5000;
 
-// Middlewares
+// Security & Utility Middlewares
+app.use(helmet());
 app.use(cors({
-  origin: '*',
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+    origin: '*',
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
 }));
-
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+app.use(morgan('dev'));
 
-// Health Check API
-app.get('/api/health', (req, res) => {
-  res.json({
-    status: 'ONLINE',
-    project: 'KSQH Metro 2 - Building Condition Assessment Backend',
-    timestamp: new Date().toISOString(),
-    version: '1.0.0',
-  });
+// Root Health Check
+app.get('/health', (req, res) => {
+    res.json({
+        status: 'UP',
+        service: 'Metro 2 Survey & Planning Backend API',
+        timestamp: new Date().toISOString(),
+        version: '1.0.0'
+    });
 });
 
-// API Routes
-app.use('/api/auth', authRoutes);
-app.use('/api/zones', zonesRoutes);
-app.use('/api/buildings', buildingsRoutes);
-app.use('/api/media', mediaRoutes);
+// Mount API v1 Routes
+app.use('/api/v1', apiRouter);
 
 // Global Error Handler
-app.use(errorHandler);
+app.use((err, req, res, next) => {
+    console.error('Unhandled Error:', err.stack);
+    res.status(500).json({
+        success: false,
+        message: 'Lỗi máy chủ nội bộ.',
+        error: process.env.NODE_ENV === 'development' ? err.message : undefined
+    });
+});
 
-// Start Server
+// Start HTTP Server
 app.listen(PORT, () => {
-  console.log(`====================================================`);
-  console.log(`🚀 KSQH Metro 2 Backend API đang chạy tại: http://localhost:${PORT}`);
-  console.log(`📡 Health Check: http://localhost:${PORT}/api/health`);
-  console.log(`====================================================`);
+    console.log(`🚀 [Metro 2 Server] Backend API đang chạy tại: http://localhost:${PORT}`);
+    console.log(`📡 [API Endpoints]: http://localhost:${PORT}/api/v1`);
 });
 
 module.exports = app;
