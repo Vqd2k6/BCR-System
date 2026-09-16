@@ -9,7 +9,8 @@ Dưới đây là **BỘ BIỂU MẪU KHẢO SÁT HỢP NHẤT DUY NHẤT** đư
 ### BƯỚC 1: Tiếp cận ngoài nhà & Nhận diện Công trình
 *Thực hiện ngay khi cán bộ vừa đến vị trí công trình.*
 
-- [ ] **Mã công trình / Mã thửa (Building / Parcel ID):** `B-XXXXX` (Kế thừa từ hệ thống phân công)
+- [ ] **Mã Quản lý Dự án (Project Parcel Code):** `B-XXXXX` (Được sắp xếp quản lý theo lý trình tuyến Metro 2)
+- [ ] **Mã Địa chính Gốc (Official Cadastral Code / KS003):** `KS003-XXXX` (Số tờ - Số thửa bản đồ địa chính nhà nước)
 - [ ] **Tên công trình (Building Name):** (Nhập text - VD: Nhà ở gia đình, Trụ sở Cty A, Trường học...)
 - [ ] **Địa chỉ (Address):** (Nhập text - Đối chiếu thực tế với sơ đồ quy hoạch)
 - [ ] **Chủ sở hữu / Người sử dụng (Owner / User):** (Nhập text tên chủ nhà hoặc người đại diện)

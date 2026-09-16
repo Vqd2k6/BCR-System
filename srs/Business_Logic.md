@@ -1,12 +1,25 @@
 # Quy Tắc Nghiệp Vụ Hệ Thống (Business Logic Specification)
 
-> Tài liệu đặc tả các Quy tắc Nghiệp vụ cốt lõi, Cơ chế Quản lý Biến động Thửa đất, Bộ máy Tính điểm Kỹ thuật (ECS/VI) và Quy trình Xuất Báo cáo Hàng loạt cho Dự án Khảo sát Hiện trạng Tuyến Metro 2.
+> Tài liệu đặc tả các Quy tắc Nghiệp vụ cốt lõi, Kiến trúc Mã kép Dual-ID, Cơ chế Quản lý Biến động Thửa đất, Bộ máy Tính điểm Kỹ thuật (ECS/VI) và Quy trình Xuất Báo cáo Hàng loạt cho Dự án Khảo sát Hiện trạng Tuyến Metro 2.
 
 ---
 
-## 1. CƠ CHẾ CẤP MÃ THỬA `B-XXXXX` & QUẢN LÝ BIẾN ĐỘNG BẤT BIẾN (IMMUTABLE CADASTRAL NUMBERING)
+## 1. KIẾN TRÚC MÃ KÉP (DUAL-ID ARCHITECTURE) & CƠ CHẾ CẤP MÃ BẤT BIẾN `B-XXXXX`
 
-### 1.1. Nguyên tắc Bất biến của Mã Thửa (Immutability Principle)
+### 1.1. Kiến trúc Định danh Kép cho Thửa Đất (Dual-ID System)
+Mỗi thửa đất trong hệ thống được định danh đồng thời bởi **2 Mã (Dual-ID)** phục vụ 2 mục đích riêng biệt:
+
+1. **`officialCadastralCode` (Mã Địa chính Gốc / Dữ liệu KS003):**
+   - Mã định danh địa chính nhà nước thu thập từ dữ liệu cào ban đầu (`data/KS003`) hoặc thông tin Số tờ - Số thửa bản đồ địa chính của Bộ TN&MT (VD: `KS003-P1024`, `Tờ 15 - Thửa 89`).
+   - Giúp đối soát và bảo đảm giá trị pháp lý với cơ sở dữ liệu đất đai của Nhà nước khi bàn giao đền bù giải phóng mặt bằng.
+
+2. **`projectParcelCode` (Mã Quản lý Dự án Tuyến Metro 2 - `B-XXXXX`):**
+   - Mã số được hệ thống sắp xếp (sort) tuần tự theo lý trình tim tuyến Metro 2 từ Ga S1 đến Ga S11 (từ `B-00001` đến `B-07000`) để phục vụ quản lý dự án, phân công task cho Surveyor và kiểm soát tiến độ khảo sát.
+   - Kiểm soát biến động thực địa (Tách / Gộp thửa) theo cơ chế Dải số Phát sinh Mở rộng.
+
+---
+
+### 1.2. Nguyên tắc Bất biến của Mã Dự Án `B-XXXXX` (Immutability Principle)
 - **Định dạng chuẩn:** Mã công trình/thửa đất cố định theo quy chuẩn **`B-XXXXX`** (Tiền tố `B-` và đúng 5 chữ số từ `B-00001` đến `B-99999`).
 - **Nguyên tắc cốt lõi:** Khi một mã `B-XXXXX` đã được cấp phát và xuất Báo cáo Khảo sát gửi đi, mã này là **MÃ BẤT BIẾN (IMMUTABLE)**.
 - **Quy tắc cấm:** Tuyệt đối **KHÔNG ĐƯỢC PHÉP chèn số vào giữa (Insert In-between)** làm tịnh tiến đẩy số $+1$ các thửa phía sau.
@@ -14,7 +27,7 @@
 
 ---
 
-### 1.2. Cơ chế Dải số Phát sinh Mở rộng (High-Range Sequential Extension Pool)
+### 1.3. Cơ chế Dải số Phát sinh Mở rộng (High-Range Sequential Extension Pool)
 
 Dữ liệu ban đầu cào về có $N$ thửa đất (Ví dụ: Tuyến Metro 2 có $N = 7.000$ thửa ban đầu, từ `B-00001` đến `B-07000`).
 
