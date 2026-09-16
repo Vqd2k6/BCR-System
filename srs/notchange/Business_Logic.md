@@ -4,7 +4,7 @@
 > **LƯU Ý DÀNH CHO AI AGENT & DEVELOPER (TÀI LIỆU ĐANG TIẾP TỤC HOÀN THIỆN & MỞ RỘNG):**
 > Tài liệu này là **bản đặc tả cơ sở (Baseline Specification)** cho các thuật toán và logic nghiệp vụ cốt lõi. Tài liệu **CHƯA PHẢI LÀ BẢN ĐẦY ĐỦ 100% TUYỆT ĐỐI** và sẽ tiếp tục được mở rộng chi tiết trong quá trình code và phát triển sản phẩm. Khi triển khai code thực tế, Agent/Developer cần nắm vững rằng hệ thống sẽ phát sinh thêm các quy tắc nghiệp vụ biên, công thức hiệu chỉnh và cần chủ động hoàn thiện cả code lẫn cập nhật ngược lại tài liệu này.
 
-> Tài liệu đặc tả các Quy tắc Nghiệp vụ cốt lõi, Kiến trúc Mã kép Dual-ID, Cơ chế Quản lý Biến động Thửa đất, Bộ máy Tính điểm Kỹ thuật (ECS/VI), Quy trình Xuất Báo cáo Hàng loạt, và **Kiến trúc Lưu trữ Ảnh Phân lớp Tích hợp AI Nắn thẳng Phối cảnh & Chuẩn hóa Kích thước Mặt đứng**.
+> Tài liệu đặc tả các Quy tắc Nghiệp vụ cốt lõi, Kiến trúc Mã kép Dual-ID, Cơ chế Quản lý Biến động Thửa đất, Bộ máy Tính điểm Kỹ thuật (ECS/VI), Quy trình Xuất Báo cáo Hàng loạt, Kiến trúc Lưu trữ Ảnh Phân lớp Tích hợp AI, và **Quy trình Quét cạn linh hoạt trên Bản đồ GIS & Xử lý Vắng nhà (Ad-hoc Sweep Survey)**.
 
 ---
 
@@ -34,7 +34,7 @@ Mỗi thửa đất trong hệ thống được định danh đồng thời bở
 
 Dữ liệu ban đầu cào về có $N$ thửa đất (Ví dụ: Tuyến Metro 2 có $N = 7.000$ thửa ban đầu, từ `B-00001` đến `B-07000`).
 
-```
+```text
 [ Dải số Ban đầu: B-00001 -> B-07000 ] ──> [ Dải số Phát sinh Thực địa: B-07001 -> B-99999 ]
 ```
 
@@ -92,7 +92,7 @@ Cán bộ khảo sát **phải đi hết toàn bộ các tầng và không gian 
 
 ---
 
-## 5. KIẾN TRÚC LƯU TRỮ ẢNH PHÂN LỚP & ĐỘNG CƠ AI NẮN THẲNG PHỐI CẢNH (LAYERED PHOTO STORAGE & AI FACADE RECTIFICATION)
+## 5. KIẾN TRÚC LƯU TRỮ ẢNH PHÂN LỚP & ĐỘNG CƠ AI NẮN THẲNG PHỐI CẢNH
 
 ### 5.1. Vấn đề Thực tế tại Hiện trường
 Khi cán bộ khảo sát chụp ảnh mặt đứng chính ($P-02$) hoặc mặt bên ($P-03$):
@@ -108,183 +108,95 @@ Khi cán bộ khảo sát chụp ảnh mặt đứng chính ($P-02$) hoặc mặ
 ### 5.2. Mô hình Lưu trữ Phân Lớp Phi Hủy Diệt (Non-Destructive Layered Storage)
 
 Mỗi bức ảnh định danh ($P-01 \to P-04$) được lưu trữ độc lập thành **3 Lớp Dữ liệu**:
+1. **Lớp 1: Ảnh Gốc HD (Raw Clean Photo):** Không chứa nét vẽ, giữ nguyên độ phân giải cảm biến camera.
+2. **Lớp 2: Tọa độ Vector Đa giác Đa đỉnh $N$ góc ($N \ge 3$) & Đường phân tầng:** Lưu trong trường JSON `facadePolygonPointsJson`, `floorSplitLinesJson`, `dimensionsJson`.
+3. **Lớp 3: Ảnh Kỹ thuật Hoàn thiện (AI Enhanced CAD-Style Photo):** Render từ ma trận biến đổi phối cảnh 3x3 Homography và đường dóng dimension chuẩn CAD.
+
+---
+
+## 6. CHUỖI PHÁT SINH ĐỘNG HỌC & ĐỘNG CƠ ĐỐI SOÁT DELTA (PHASE 1 VS PHASE 2)
+
+### 6.1. Cơ Chế Truy Xuất Theo Vị Trí Đứng Trong Phase 2
+Khi cán bộ chọn vị trí đứng thực tế (VD: `Lầu 1 ➔ Phòng ngủ 1`), Mobile PWA tự động thực hiện truy vấn:
+`GET /api/v1/parcels/{parcelId}/phase2/zones?floor=Lầu 1&room=Phòng ngủ 1`
+Giao diện lập tức hiển thị toàn bộ các Vùng `Z-xx` đã lập tại GĐ1, bao gồm ảnh bối cảnh `Photo CTX` và vị trí tọa độ các ghim khuyết tật cũ ($D-01, D-02\dots$).
+
+---
+
+### 6.2. Động Cơ Đối Soát Delta & Phán Quyết Bồi Thường ($\Delta$ Engine)
+1. **Tổng hợp Biến động Định lượng:** $\Delta w = w_2 - w_1$, $\Delta L = L_2 - L_1$, $\Delta \text{Tilt} = \text{Tilt}_2 - \text{Tilt}_1$.
+2. **Phán quyết Tác động (`CompensationVerdictEnum`):**
+   - **`NO_IMPACT`:** $\Delta ECS = 0$, không có vết nứt mới $\rightarrow$ Khước từ đền bù (Có chứng cứ pháp lý vững chắc).
+   - **`NEGLIGIBLE_COSMETIC`:** Nứt vữa trát hoàn thiện $\le 1$mm $\rightarrow$ Hỗ trợ kinh phí sơn bả hoàn thiện.
+   - **`STRUCTURAL_IMPACT`:** Xuất hiện nứt kết cấu dầm/cột hoặc lún nghiêng $\Delta > 0.5\%$ $\rightarrow$ Lập hồ sơ bồi thường thiệt hại theo quy định.
+
+---
+
+## 7. QUY TRÌNH QUÉT CẠN LINH HOẠT TRÊN BẢN ĐỒ GIS & XỬ LÝ VẮNG NHÀ (AD-HOC SWEEP SURVEY & ABSENCE WORKFLOW)
 
 ```mermaid
-graph LR
-    subgraph INPUT["1. TẠI HIỆN TRƯỜNG (MOBILE PWA)"]
-        RAW["Ảnh Gốc HD (Raw Clean Photo)<br/><i>Không chứa nét vẽ, độ phân giải gốc</i>"]
-        VECTOR["Lớp Nét Vẽ Vector (annotationsJson)<br/><i>Tọa độ các đường kẻ, text kích thước</i>"]
-    end
-
-    subgraph SERVER_AI["2. TẠI SERVER (AI ENHANCEMENT PIPELINE)"]
-        AI_RECTIFY["Bước 1: AI Perspective Rectification<br/>(Nắn thẳng đứng góc mặt tiền)"]
-        AI_OCR["Bước 2: AI OCR & Feature Snapping<br/>(Nhận diện text & Bắt dính đường phân tầng vào sàn/dầm)"]
-        AI_CAD["Bước 3: CAD-Style Auto-Beautifier<br/>(Render đường dóng dimension & font chữ kỹ thuật số)"]
-    end
-
-    subgraph OUTPUT["3. XUẤT BẢO CÁO PHÁP LÝ"]
-        FINAL_IMG["Ảnh Kỹ thuật Hoàn thiện (aiEnhancedPhotoUrl)<br/><i>Mặt nhà thẳng tắp, đường phân tầng chuẩn CAD</i>"]
-    end
-
-    RAW --> AI_RECTIFY
-    VECTOR --> AI_OCR
-    AI_RECTIFY --> AI_CAD
-    AI_OCR --> AI_CAD
-    AI_CAD --> FINAL_IMG
-
-    style RAW fill:#f1f5f9,stroke:#64748b
-    style VECTOR fill:#fef3c7,stroke:#f59e0b
-    style FINAL_IMG fill:#dcfce7,stroke:#16a34a,stroke-width:2px
+graph TD
+    A["1. Surveyor đến hiện trường theo danh sách phân công<br><i>Ví dụ: Thửa B-00105</i>"] --> B{"Chủ hộ có mặt<br>để khảo sát?"}
+    
+    B -- "CÓ MẶT" --> C["Thực hiện Khảo sát bình thường<br>9 Bước Phase 1 hoặc Phase 2"]
+    
+    B -- "VẮNG NHÀ / KHÓA CỬA" --> D["2. Ghi nhận Nhật ký Vắng mặt<br><code>POST /api/v1/parcels/{id}/record-absence</code>"]
+    D --> E["Cập nhật trạng thái sang <b>POSTPONED_ABSENT</b> (Màu Tím)<br>Tăng bộ đếm attemptCount, lưu ảnh chụp cửa khóa"]
+    
+    E --> F["3. Mở Bản đồ GIS Quét cạn toàn Ga<br><code>GET /api/v1/parcels/zone-map</code> hoặc <code>GET /parcels/nearby</code>"]
+    F --> G["4. Thấy nhà bên cạnh B-00106 (Màu Xám - Chưa khảo sát)<br>Chạm vào ô thửa đất trên bản đồ PWA"]
+    G --> H["5. Bấm [Bắt đầu Khảo sát Ngay]<br><code>POST /api/v1/parcels/{id}/start-survey</code>"]
+    H --> I["Hệ thống tự động gán Task cho Surveyor,<br>Đổi trạng thái sang <b>IN_PROGRESS</b> (Màu Vàng),<br>Mở Form 9 bước làm việc ngay lập tức!"]
+    
+    style A fill:#e0f2fe,stroke:#0284c7
+    style C fill:#dcfce7,stroke:#16a34a
+    style D fill:#fef3c7,stroke:#f59e0b
+    style E fill:#f3e8ff,stroke:#9333ea
+    style G fill:#f1f5f9,stroke:#64748b
+    style I fill:#fef9c3,stroke:#ca8a04,stroke-width:2px
 ```
+
+### 7.1. Ý Nghĩa Thực Tế của Cơ Chế Quét Cạn Linh Hoạt (Ad-Hoc Sweep Survey)
+- **Thực tế hiện trường:** Trong các khu dân cư đô thị dọc tuyến Metro 2, tỷ lệ chủ hộ vắng nhà ban ngày hoặc đi làm xa có thể chiếm 15% - 25%. Nếu Surveyor bị khóa chặt trong danh sách giao việc cứng nhắc, năng suất khảo sát sẽ bị đình trệ.
+- **Giải pháp:** Surveyor được trao quyền chủ động **chạm chọn các ô thửa đất chưa khảo sát trực tiếp trên bản đồ số GIS** trong phân khu Ga của mình để tiến hành khảo sát quét cạn liên tục, tối đa hóa thời gian tại hiện trường.
 
 ---
 
-### 5.3. Cấu trúc Thuộc tính Thực thể `SurveyIdentificationPhoto`
-
-```typescript
-class SurveyIdentificationPhoto {
-    id: UUID;
-    reportId: UUID;
-    photoType: PhotoIdentTypeEnum; // P01, P02, P03, P04
-    
-    // --- 1. CÁC LỚP ẢNH LƯU TRỮ (NON-DESTRUCTIVE IMAGE LAYERS) ---
-    rawPhotoUrl: String;             // 1. Ảnh gốc sạch 100% chưa vẽ nét
-    annotatedPhotoUrl: String;       // 2. Ảnh hiển thị tạm thời nét vẽ tay của cán bộ
-    aiEnhancedPhotoUrl: String;      // 3. Ảnh hoàn thiện sau khi AI nắn thẳng & gán kích thước CAD
-    
-### 5.3. Công Cụ Tương Tác Trên Giao Diện Mobile PWA & Xử Lý "Không Tồn Tại (N/A)"
-
-#### A. 2 Công Cụ Đồ Họa Cốt Lõi Trên Ảnh Mặt Đứng ($P-02 / P-03$):
-1. 🔴 **Icon Chấm Tròn (Polygon Corners / Đa giác đứng):**
-   - Cán bộ chạm 4 điểm (hoặc nhiều điểm đỉnh góc) bao quanh mặt tiền ngôi nhà (Góc mái trái/phải, chân tường trái/phải).
-   - Tọa độ các điểm được lưu vào `facadePolygonPointsJson` giúp AI trích xuất chính xác vùng mặt nhà cần nắn thẳng.
-2. ➖ **Icon Line Ngang (Floor Split Lines / Cắt tầng):**
-   - Cán bộ kéo các đường line ngang phân tách từng tầng (Tầng trệt, Lầu 1, Lầu 2, Mái...).
-   - Tọa độ đường dóng được lưu vào `floorSplitLinesJson`.
-3. ✏️ **Công cụ Ghi Kích Thước & Viết Tay:**
-   - Cán bộ viết tay hoặc nhập số kích thước sơ bộ ($h_1, h_2...$, $H_{tot}$, $W$).
-
-#### B. Xử lý Trường Hợp "Không Tồn Tại (N/A) / Bị Che Khuất":
-- Trong thực tế đô thị, nhiều công trình:
-  - Không có biển số nhà / biển tên cơ quan ($P-01$).
-  - Không có mặt bên do 2 bên là nhà phố liền kề sát vách ($P-03$).
-  - Mặt tiền bị che khuất bởi công trình phía trước hoặc hẻm quá hẹp ($P-02$).
-- **Cơ chế:** Giao diện cung cấp nút tick chọn **`Không tồn tại (N/A)`** hoặc **`Bị che khuất`** (kèm lý do nhanh). Khi kích hoạt cờ `isNotApplicable = true`, hệ thống cho phép Surveyor **bấm Next chuyển bước ngay lập tức** mà không bị bắt buộc chụp ảnh, đảm bảo tiến độ khảo sát trơn tru.
+### 7.2. Logic Nghiệp Vụ Tự Nhận Thửa Đất (`POST /api/v1/parcels/{parcelId}/start-survey`)
+1. **Kiểm tra Thẩm quyền (Jurisdiction Check):** Thửa đất phải nằm trong Phân khu Ga (`zoneId`) mà Surveyor được phân công.
+2. **Kiểm tra Trạng thái Thửa đất (Status Check):**
+   - Thửa đất đang ở trạng thái `NOT_SURVEYED` (Chưa ai làm) hoặc `POSTPONED_ABSENT` (Lần trước vắng nhà, nay chủ hộ đã về).
+   - Nếu thửa đất đang bị Surveyor khác khảo sát (`IN_PROGRESS`), hệ thống trả về cảnh báo `409 Conflict`.
+3. **Cập nhật Giao dịch Tự động (Atomic Claiming Transaction):**
+   - Đổi trạng thái `survey_status = 'IN_PROGRESS'`.
+   - Gán `assigned_surveyor_id = currentSurveyor.id`.
+   - Khởi tạo bản ghi `base_survey_reports` ở trạng thái `DRAFT`.
+   - Ghi nhật ký vào `task_assignment_history` với lý do: `"Ad-hoc pick from GIS map"`.
 
 ---
 
-### 5.4. Cấu trúc Thuộc tính Thực thể `SurveyIdentificationPhoto`
-
-```typescript
-class SurveyIdentificationPhoto {
-    id: UUID;
-    reportId: UUID;
-    photoType: PhotoIdentTypeEnum; // P01, P02, P03, P04
-    
-    // --- 0. NGOẠI LỆ KHÔNG TỒN TẠI (N/A) ---
-    isNotApplicable: Boolean;        // true nếu không có biển số / không có mặt hông
-    naReason: String;                // "Nhà phố liền kề không có mặt bên"
-    
-    // --- 1. CÁC LỚP ẢNH LƯU TRỮ (NON-DESTRUCTIVE IMAGE LAYERS) ---
-    rawPhotoUrl: String;             // 1. Ảnh gốc sạch 100% chưa vẽ nét
-    annotatedPhotoUrl: String;       // 2. Ảnh hiển thị tạm thời nét vẽ tay của cán bộ
-    aiEnhancedPhotoUrl: String;      // 3. Ảnh hoàn thiện sau khi AI nắn thẳng & gán kích thước CAD
-    
-    // --- 2. TỌA ĐỘ NÉT VẼ VECTOR TỪ MOBILE (CANVAS JSON) ---
-    facadePolygonPointsJson: String; // Tọa độ các điểm chấm tròn góc đa giác đứng: [{"x":0.1,"y":0.2}, ...]
-    floorSplitLinesJson: String;     // Tọa độ các đường line ngang cắt tầng: [{"y":0.35,"label":"T1"}, ...]
-    annotationsJson: String;         // Vector stroke paths, text viết tay kích thước
-    
-    // --- 3. DỮ LIỆU TẦNG & KÍCH THƯỚC TRÍCH XUẤT ---
-    floorCountEstimated: Int;        // Số tầng đánh dấu (VD: 3 tầng + 1 tum)
-    floorHeightsJson: String;        // {"T1": 3.8, "T2": 3.4, "T3": 3.4, "Total": 10.6} (mét)
-    facadeWidthM: Float;             // Chiều rộng mặt tiền ước tính
-    totalHeightM: Float;             // Chiều cao tổng ước tính
-    
-    // --- 4. TRẠNG THÁI XỬ LÝ AI TẠI SERVER ---
-    aiProcessingStatus: AIStatusEnum; // PENDING | PROCESSING | COMPLETED | FAILED
-    aiPerspectiveMatrixJson: String;  // Ma trận biến đổi nắn phẳng phối cảnh (Perspective 3x3 Matrix)
-    
-    // Watermark Pháp lý
-    watermarkLat: Float;
-    watermarkLng: Float;
-    watermarkTimestamp: DateTime;
-    metadataJson: String;
-}
-```
+### 7.3. Logic Ghi Nhận Vắng Mặt & Tạm Hoãn (`POST /api/v1/parcels/{parcelId}/record-absence`)
+1. **Phân loại Lý do Vắng mặt (`AbsenceReasonEnum`):**
+   - `HOMEOWNER_ABSENT`: Chủ nhà đi vắng / không có người đại diện.
+   - `LOCKED_GATE`: Cổng/cửa khóa ngoài hoàn toàn.
+   - `REFUSED_ACCESS`: Chủ nhà từ chối tiếp cận hoặc hẹn ca khác.
+2. **Cơ chế Nhật Ký (Absence Audit Trail):**
+   - Tăng bộ đếm `absence_attempt_count = absence_attempt_count + 1`.
+   - Lưu thời điểm, tọa độ GPS lúc đến bấm chuông và ảnh chụp cửa khóa (nếu có).
+   - Chuyển `survey_status = 'POSTPONED_ABSENT'`.
+3. **Báo cáo Lên Zone Admin:**
+   - Trên Web Admin Portal của Zone Admin, các thửa đất bị vắng nhà sẽ hiển thị cờ màu **Tím** kèm thông tin số lần đã đến liên hệ để Zone Admin phối hợp với Tổ dân phố / UBND Phường hỗ trợ liên lạc chủ hộ.
 
 ---
 
-### 5.5. Quy trình Tự Động Hóa 3 Bước của Server AI (AI Pipeline Workflow)
+### 7.4. Mã Màu Trạng Thái Thửa Đất Đồng Bộ Trên GIS Master (Unified GIS Status Palette)
 
-1. **Bước 1: Nắn thẳng phối cảnh (Perspective Rectification):**
-   - AI sử dụng tọa độ đa giác `facadePolygonPointsJson` và các đường mép tường đứng (Vanishing Lines) để tính toán ma trận nắn phẳng hình học ($3 \times 3$ Homography Matrix), xoay chỉnh ảnh chụp ngước thành ảnh **chính diện thẳng đứng 90 độ (Orthogonal Facade View)**.
-2. **Bước 2: Nhận diện chữ viết tay & Tự động bắt dính (OCR & Edge Snapping):**
-   - AI đọc các con số kích thước viết tay ($3.5\text{m}, 12\text{m}\dots$).
-   - Nhận diện vị trí dầm sàn/ban công thực tế và **bắt dính (snap)** các đường kẻ `floorSplitLinesJson` của cán bộ vào đúng vị trí dầm sàn.
-3. **Bước 3: Render lớp đồ họa Kỹ thuật chuẩn CAD (CAD Beautifier Overlay):**
-   - Thay thế nét vẽ tay bằng các đường dóng kích thước mảnh, thẳng tắp, mũi tên 2 đầu chuẩn kỹ thuật xây dựng và font chữ kỹ thuật số sắc nét.
-   - File ảnh `aiEnhancedPhotoUrl` này được tự động chèn vào trang bìa của **Báo cáo Pháp lý PDF/A**.
-
----
-
-## 6. CHUỖI PHÁT SINH ĐỘNG HỌC & ĐỘNG CƠ ĐỐI SOÁT DELTA (PHASE 1 VS PHASE 2 ENGINE)
-
-### 6.1. Cơ Chế Kiểm Soát Chuỗi Phát Sinh Động (Dynamic Array Controls in OOP)
-Cả 2 đợt khảo sát (Phase 1 & Phase 2) đều được thiết kế theo mô hình **Tập hợp Động (Dynamic Growth Collection - Quan hệ $1 \to N$)**:
-1. **Chuỗi phát sinh Tầng & Vùng (`DamageZone[]`):**
-   - Cán bộ đi từ dưới lên trên: Tầng hầm $\to$ Tầng trệt $\to$ Tầng 1 $\to$ Tầng 2 $\to$ Tầng 3... Mỗi tầng/phòng có thể tạo từ $1$ đến $N$ Vùng $Z-01, Z-02\dots$ không giới hạn.
-2. **Chuỗi phát sinh Khuyết tật (`DefectItem[]`):**
-   - Trên mỗi ảnh bối cảnh $Z-xx$, cán bộ thấy bao nhiêu vết nứt thì chạm tay sinh bấy nhiêu ghim $D-01, D-02, D-03\dots$ không bị giới hạn cứng số lượng.
-
----
-
-### 6.2. Cơ Chế Truy Xuất Theo Vị Trí Đứng & Mở Rộng Khuyết Tật Trong Phase 2
-
-```
-                           [ Vị trí đứng của Surveyor: Tầng & Phòng ]
-                                              │
-                    ┌─────────────────────────┴─────────────────────────┐
-                    ▼                                                   ▼
-       [ 1. VÙNG HIỆN HỮU (Z-xx Cũ) ]                        [ 2. KHU VỰC MỚI XUẤT HIỆN ]
-                    │                                                   │
-     ┌──────────────┴──────────────┐                                    │
-     ▼                             ▼                                    ▼
-[ Đối soát Ghim Cũ ]     [ Chấm thêm Ghim Mới ]                [ Bấm "+ Thêm Vùng Mới" ]
-(Đo w2, L2 ➔ Δw, ΔL)     (Chạm lên Photo CTX cũ)               (Tạo Z-new ➔ Chụp CTX mới)
-     │                             │                                    │
-     ▼                             ▼                                    ▼
-(Stable / Widened / Repaired)  (D-new trên Z cũ: MỚI)          (D-new trên Z-new: MỚI)
-```
-
-1. **Truy xuất Khuyết tật Tự động theo Vị trí đứng (Location-Based Defect Querying):**
-   - Khi cán bộ chọn vị trí đứng thực tế (VD: `Lầu 1 ➔ Phòng ngủ 1`), Mobile PWA tự động thực hiện truy vấn:
-     `GET /api/v1/parcels/{parcelId}/phase1/zones?floor=Lầu 1&room=Phòng ngủ 1`
-   - Giao diện lập tức hiển thị toàn bộ các Vùng `Z-xx` đã lập tại GĐ1, bao gồm ảnh bối cảnh `Photo CTX` và vị trí tọa độ các ghim khuyết tật cũ ($D-01, D-02\dots$).
-
-2. **Cơ chế Xử lý trên Vùng Hiện Hữu (`Z-xx` Kế thừa):**
-   - **Đối soát khuyết tật cũ:** Cán bộ chạm vào ghim cũ $D-xx$ trên màn hình. App hiển thị thông số GĐ1 ($w_1, L_1$). Cán bộ đo lại ngoài thực địa ($w_2, L_2$). Hệ thống tự động tính $\Delta w = w_2 - w_1, \Delta L = L_2 - L_1$ và cập nhật trạng thái (`STABLE`, `WIDENED_LENGTHENED`, `REPAIRED_PATCHED`). Chụp ảnh cận cảnh $D-xx\text{-CU}$ mới có thước đo.
-   - **Chấm thêm khuyết tật mới trên Vùng cũ:** Nếu phát hiện vết nứt mới xuất hiện trên mảng tường này sau GĐ1, cán bộ **chạm tay trực tiếp lên ảnh bối cảnh `Photo CTX` cũ** tại tọa độ vết nứt mới. Hệ thống tự động sinh ghim đỏ `D-new`, gán cờ `isNewInPhase2 = true`, nhập kích thước và chụp ảnh cận cảnh kèm thước đo.
-
-3. **Cơ chế Mở Rộng Khu Vực / Vùng Mới Phát Sinh (`Z-xx` Mới):**
-   - Áp dụng khi xuất hiện không gian mới (chủ nhà mới xây phòng sau nhà, cơi nới gác lửng/ban công, hoặc phòng kho trước đây bị khóa nay mở cửa).
-   - Cán bộ bấm **`[+ Thêm Vùng Khảo Sát Mới]`** ➔ Hệ thống cấp mã `Z-new` (gắn cờ `isNewInPhase2 = true`).
-   - Cán bộ lùi lại chụp `Photo CTX` mới cho mảng tường này, sau đó chạm tay chấm thả các điểm khuyết tật `D-new` mới và chụp ảnh cận cảnh kèm thước `CU`.
-
----
-
-### 6.3. Động Cơ Đối Soát Delta & Phán Quyết Bồi Thường ($\Delta$ Engine)
-
-```
-[ Phase 1 (Baseline Gốc) ] ──(Đào hầm TBM)──> [ Phase 2 (Đối Soát Check-Var) ] ──> [ Δ Delta Engine ]
-```
-
-1. **Tổng hợp Biến động Định lượng:**
-   - Số lượng vết nứt: $\text{Total } D_2 = D_{\text{stable}} + D_{\text{widened}} + D_{\text{repaired}} + D_{\text{new}}$.
-   - Biến thiên độ mở rộng khe nứt: $\Delta w = w_2 - w_1$.
-   - Biến thiên biến dạng hình học: $\Delta \text{Tilt} = \text{Tilt}_2 - \text{Tilt}_1$.
-2. **Tự động Tính Toán Biến Động $\Delta ECS$ & Kết Luận Đền Bù (`CompensationVerdictEnum`):**
-   - Tính toán $\Delta ECS = ECS_2 - ECS_1$.
-   - **`NO_IMPACT`:** $\Delta ECS = 0$, không có vết nứt mới ➔ **Khước từ đền bù (Có căn cứ pháp lý vững chắc)**.
-   - **`NEGLIGIBLE_COSMETIC`:** Nứt tóc bề mặt $\le 1$mm ➔ **Hỗ trợ kinh phí sơn bả hoàn thiện**.
-   - **`STRUCTURAL_IMPACT`:** Xuất hiện nứt kết cấu dầm/cột hoặc lún nghiêng $\Delta > 0.5\%$ ➔ **Lập hồ sơ bồi thường thiệt hại theo quy định dự án Metro 2**.
+| Mã màu Hex | Tên trạng thái (`survey_status`) | Ý nghĩa hiển thị trên Mobile PWA & Web Admin |
+| :---: | :--- | :--- |
+| `#9E9E9E` ⚪ | `NOT_SURVEYED` | Thửa đất chưa khảo sát (Surveyor có thể chạm vào để nhận ngay). |
+| `#2196F3` 🔵 | `ASSIGNED_TO_ME` | Thửa đất được Zone Admin giao cụ thể cho Surveyor trong ca làm việc. |
+| `#FFC107` 🟡 | `IN_PROGRESS` | Thửa đất đang được mở Form nhập liệu khảo sát thực địa. |
+| `#9C27B0` 🟣 | `POSTPONED_ABSENT` | Đã đến hiện trường nhưng chủ nhà vắng mặt / khóa cửa (Tạm hoãn). |
+| `#FF9800` 🟠 | `SUBMITTED` | Đã nộp báo cáo hoàn tất, đang chờ Zone Admin thẩm định Split-Pane. |
+| `#4CAF50` 🟢 | `APPROVED` | Báo cáo đã được phê duyệt chính thức & Xuất bản PDF/A. |
+| `#F44336` 🔴 | `REJECTED` | Báo cáo bị trả về kèm lý do cần khảo sát lại. |
