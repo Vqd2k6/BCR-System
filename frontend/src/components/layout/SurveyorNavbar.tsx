@@ -66,40 +66,41 @@ export const SurveyorNavbar: React.FC<Props> = ({ title = 'Khảo Sát Thực Đ
         zIndex: 50,
         backgroundColor: '#ffffff',
         borderBottom: '1px solid #e2e8f0',
-        padding: '0.65rem 1rem',
+        padding: '0.4rem 0.85rem',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
         boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)',
         transform: isVisible ? 'translateY(0)' : 'translateY(-100%)',
         transition: 'transform 0.25s ease-in-out',
+        height: '46px',
       }}
     >
       {/* Brand & Station Info */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', minWidth: 0, flex: 1 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', minWidth: 0, flex: 1 }}>
         <div
           style={{
-            width: '36px',
-            height: '36px',
-            borderRadius: '0.6rem',
+            width: '30px',
+            height: '30px',
+            borderRadius: '0.5rem',
             background: 'linear-gradient(135deg, #0284c7 0%, #2563eb 100%)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             flexShrink: 0,
-            boxShadow: '0 2px 6px rgba(2, 132, 199, 0.25)',
+            boxShadow: '0 2px 5px rgba(2, 132, 199, 0.25)',
           }}
         >
-          <Train size={20} color="#ffffff" />
+          <Train size={17} color="#ffffff" />
         </div>
         <div style={{ minWidth: 0, overflow: 'hidden' }}>
           <h1
             style={{
-              fontSize: '0.95rem',
+              fontSize: '0.875rem',
               fontWeight: 800,
               color: '#0f172a',
               margin: 0,
-              lineHeight: 1.2,
+              lineHeight: 1.15,
               whiteSpace: 'nowrap',
               overflow: 'hidden',
               textOverflow: 'ellipsis',
@@ -109,7 +110,7 @@ export const SurveyorNavbar: React.FC<Props> = ({ title = 'Khảo Sát Thực Đ
           </h1>
           <p
             style={{
-              fontSize: '0.75rem',
+              fontSize: '0.7rem',
               color: '#64748b',
               margin: 0,
               whiteSpace: 'nowrap',
@@ -127,13 +128,13 @@ export const SurveyorNavbar: React.FC<Props> = ({ title = 'Khảo Sát Thực Đ
       </div>
 
       {/* ONLY CIRCULAR AVATAR (Requirement 1) */}
-      <div ref={menuRef} style={{ position: 'relative', flexShrink: 0, marginLeft: '0.5rem' }}>
+      <div ref={menuRef} style={{ position: 'relative', flexShrink: 0, marginLeft: '0.4rem' }}>
         <button
           type="button"
           onClick={() => setShowProfileMenu(!showProfileMenu)}
           style={{
-            width: '36px',
-            height: '36px',
+            width: '32px',
+            height: '32px',
             borderRadius: '50%',
             background: showProfileMenu ? '#0284c7' : 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
             color: '#ffffff',
@@ -141,9 +142,9 @@ export const SurveyorNavbar: React.FC<Props> = ({ title = 'Khảo Sát Thực Đ
             alignItems: 'center',
             justifyContent: 'center',
             fontWeight: 800,
-            fontSize: '0.85rem',
+            fontSize: '0.8rem',
             border: '2px solid #ffffff',
-            boxShadow: '0 2px 6px rgba(2, 132, 199, 0.35)',
+            boxShadow: '0 2px 5px rgba(2, 132, 199, 0.3)',
             cursor: 'pointer',
             transition: 'transform 0.15s ease',
           }}

@@ -254,7 +254,7 @@ export const App: React.FC = () => {
         )}
 
         {activeTab === 'map' && (
-          <div style={{ width: '100%', height: 'calc(100vh - 120px)', padding: '0.5rem' }}>
+          <div style={{ width: '100%', height: 'calc(100vh - 90px)', padding: 0 }}>
             <LeafletSweepMap
               parcels={parcels}
               selectedZone={selectedZone}

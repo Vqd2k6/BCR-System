@@ -28,10 +28,10 @@ export const SurveyorBottomNav: React.FC<Props> = ({ activeTab, onChangeTab }) =
         display: 'flex',
         justifyContent: 'space-around',
         alignItems: 'center',
-        padding: '0.5rem 1rem calc(0.5rem + env(safe-area-inset-bottom)) 1rem',
-        boxShadow: '0 -2px 12px rgba(0, 0, 0, 0.06)',
+        padding: '0.3rem 0.75rem calc(0.3rem + env(safe-area-inset-bottom)) 0.75rem',
+        boxShadow: '0 -2px 10px rgba(0, 0, 0, 0.05)',
         backdropFilter: 'blur(8px)',
-        height: '52px',
+        height: '44px',
       }}
     >
       {tabs.map((tab) => {
@@ -55,13 +55,13 @@ export const SurveyorBottomNav: React.FC<Props> = ({ activeTab, onChangeTab }) =
               justifyContent: 'center',
               color: isActive ? '#0284c7' : '#64748b',
               cursor: 'pointer',
-              padding: '0.55rem 1.75rem',
+              padding: '0.35rem 1.35rem',
               borderRadius: '9999px',
               transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-              boxShadow: isActive ? '0 2px 6px rgba(2, 132, 199, 0.15)' : 'none',
+              boxShadow: isActive ? '0 2px 5px rgba(2, 132, 199, 0.15)' : 'none',
             }}
           >
-            <Icon size={22} strokeWidth={isActive ? 2.5 : 1.8} />
+            <Icon size={19} strokeWidth={isActive ? 2.5 : 1.8} />
           </button>
         );
       })}

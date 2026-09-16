@@ -103,6 +103,15 @@ export const SurveyorHomeView: React.FC<Props> = ({
     onRecordAbsence(parcel);
   };
 
+  const handleOpenDirections = (parcel: GisParcel) => {
+    const destLat = parcel.coordinates[0]?.[0] || 10.8034;
+    const destLng = parcel.coordinates[0]?.[1] || 106.6385;
+    const userLat = 10.8036;
+    const userLng = 106.6388;
+    const url = `https://www.google.com/maps/dir/?api=1&origin=${userLat},${userLng}&destination=${destLat},${destLng}&travelmode=walking`;
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
   const getStatusBadge = (status: GisParcel['surveyStatus']) => {
     switch (status) {
       case 'APPROVED':
@@ -496,11 +505,11 @@ export const SurveyorHomeView: React.FC<Props> = ({
                     </button>
                   )}
 
-                  {/* 📍 Chỉ đường Button */}
+                  {/* 📍 Chỉ đường Button (Google Maps) */}
                   <button
                     type="button"
                     className="btn btn-secondary btn-sm"
-                    onClick={() => onNavigateToMap(p)}
+                    onClick={() => handleOpenDirections(p)}
                     style={{
                       fontSize: '0.775rem',
                       display: 'flex',
@@ -510,7 +519,7 @@ export const SurveyorHomeView: React.FC<Props> = ({
                       borderColor: '#bae6fd',
                       backgroundColor: '#f0f9ff',
                     }}
-                    title="Định vị và chỉ đường tới nhà này trên bản đồ GIS"
+                    title="Mở chỉ đường Google Maps từ vị trí của bạn tới nhà này"
                   >
                     <Navigation size={13} color="#0284c7" />
                     Chỉ đường
