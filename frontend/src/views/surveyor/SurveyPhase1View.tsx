@@ -33,17 +33,28 @@ export const SurveyPhase1View: React.FC<Props> = ({ initialParcelId, onFinished 
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [isSubmitted, setIsSubmitted] = useState<boolean>(false);
 
+  const draftKey = `metro2_phase1_draft_${initialParcelId || 'default'}`;
+
   // STEP 1: Legal & Parcel Info
-  const [parcelData, setParcelData] = useState({
-    projectParcelCode: 'B-00105',
-    officialCadastralCode: 'KS003-00105',
-    houseNumber: '854',
-    street: 'Đường Trường Chinh',
-    ward: 'Phường 15',
-    district: 'Quận Tân Bình',
-    ownerName: 'Nguyễn Văn An',
-    ownerPhone: '0908123456',
-    ownerIdCard: '079085001234',
+  const [parcelData, setParcelData] = useState(() => {
+    try {
+      const saved = localStorage.getItem(`metro2_phase1_draft_${initialParcelId || 'default'}`);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.parcelData) return parsed.parcelData;
+      }
+    } catch (_e) {}
+    return {
+      projectParcelCode: 'B-00105',
+      officialCadastralCode: 'KS003-00105',
+      houseNumber: '854',
+      street: 'Đường Trường Chinh',
+      ward: 'Phường 15',
+      district: 'Quận Tân Bình',
+      ownerName: 'Nguyễn Văn An',
+      ownerPhone: '0908123456',
+      ownerIdCard: '079085001234',
+    };
   });
 
   // STEP 2: Identification Photos P01-P04
@@ -238,6 +249,29 @@ export const SurveyPhase1View: React.FC<Props> = ({ initialParcelId, onFinished 
 
   const currentZone = zones[activeZoneIndex] || zones[0];
 
+  // Auto-save draft on every change
+  useEffect(() => {
+    try {
+      const draft = {
+        parcelData,
+        p01HouseNumberUrl,
+        p01NotApplicable,
+        p02MainFacadeUrl,
+        p02PolygonPoints,
+        p02FloorLines,
+        p02Dimensions,
+        p03SideRearUrl,
+        p04ContextStreetUrl,
+        specs,
+        zones,
+        deformation,
+        ownerRemarks,
+        currentStep,
+      };
+      localStorage.setItem(draftKey, JSON.stringify(draft));
+    } catch (_e) {}
+  }, [parcelData, p01HouseNumberUrl, p01NotApplicable, p02MainFacadeUrl, p02PolygonPoints, p02FloorLines, p02Dimensions, p03SideRearUrl, p04ContextStreetUrl, specs, zones, deformation, ownerRemarks, currentStep]);
+
   const handleSubmitPhase1 = async () => {
     setIsSaving(true);
     try {
@@ -247,8 +281,10 @@ export const SurveyPhase1View: React.FC<Props> = ({ initialParcelId, onFinished 
         surveyorSignatureUrl: surveyorSignature || 'data:image/png;base64,mockSurveyorSig',
       };
       await api.post(`/reports/phase1/${reportId}/submit`, payload);
+      localStorage.removeItem(draftKey);
       setIsSubmitted(true);
     } catch (_err) {
+      localStorage.removeItem(draftKey);
       setIsSubmitted(true);
     } finally {
       setIsSaving(false);

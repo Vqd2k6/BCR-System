@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { GisParcel } from '../../components/gis/LeafletSweepMap';
 import {
@@ -8,7 +8,6 @@ import {
   PlusCircle,
   Search,
   UserX,
-  ArrowRight,
   Target,
   Calendar,
   CheckSquare,
@@ -45,9 +44,14 @@ export const SurveyorHomeView: React.FC<Props> = ({
   const [statusFilter, setStatusFilter] = useState<string>('PENDING_ONLY');
   const [showStatusHelp, setShowStatusHelp] = useState<boolean>(false);
 
-  // Absence log to prevent spamming
-  const [absenceRecordedToday, setAbsenceRecordedToday] = useState<{ [parcelId: string]: string }>({
-    'c0000000-0000-0000-0000-000000000004': '08:15',
+  // Persistent absence log loaded from localStorage (Requirement 4)
+  const [absenceRecordedToday, setAbsenceRecordedToday] = useState<{ [parcelId: string]: string }>(() => {
+    try {
+      const saved = localStorage.getItem('metro2_absence_log');
+      return saved ? JSON.parse(saved) : { 'c0000000-0000-0000-0000-000000000004': '08:15' };
+    } catch (_e) {
+      return { 'c0000000-0000-0000-0000-000000000004': '08:15' };
+    }
   });
 
   // Daily & Weekly Targets
@@ -64,7 +68,6 @@ export const SurveyorHomeView: React.FC<Props> = ({
   const notSurveyed = parcels.filter((p) => p.surveyStatus === 'NOT_SURVEYED').length;
   const pendingTotal = notSurveyed + inProgress + absent;
 
-  // Filter logic
   const filteredParcels = parcels.filter((p) => {
     const matchesSearch =
       p.projectParcelCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -74,7 +77,6 @@ export const SurveyorHomeView: React.FC<Props> = ({
 
     let matchesStatus = false;
     if (statusFilter === 'PENDING_ONLY') {
-      // Mặc định: Chỉ hiện các căn CHƯA XONG (khác APPROVED)
       matchesStatus = p.surveyStatus !== 'APPROVED';
     } else if (statusFilter === 'NOT_SURVEYED') {
       matchesStatus = p.surveyStatus === 'NOT_SURVEYED';
@@ -83,10 +85,8 @@ export const SurveyorHomeView: React.FC<Props> = ({
     } else if (statusFilter === 'ABSENT') {
       matchesStatus = p.surveyStatus === 'POSTPONED_ABSENT';
     } else if (statusFilter === 'APPROVED') {
-      // Tab đã duyệt xong
       matchesStatus = p.surveyStatus === 'APPROVED';
     } else {
-      // ALL
       matchesStatus = true;
     }
 
@@ -95,19 +95,20 @@ export const SurveyorHomeView: React.FC<Props> = ({
 
   const handleSmartAbsence = (parcel: GisParcel) => {
     const nowTime = new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
-    setAbsenceRecordedToday((prev) => ({
-      ...prev,
-      [parcel.id]: nowTime,
-    }));
+    const updated = { ...absenceRecordedToday, [parcel.id]: nowTime };
+    setAbsenceRecordedToday(updated);
+    try {
+      localStorage.setItem('metro2_absence_log', JSON.stringify(updated));
+    } catch (_e) {}
     onRecordAbsence(parcel);
   };
 
   const getStatusBadge = (status: GisParcel['surveyStatus']) => {
     switch (status) {
       case 'APPROVED':
-        return <span className="badge badge-success">✓ Đã duyệt Phase 1 (Sẵn sàng Phase 2)</span>;
+        return <span className="badge badge-success">✓ Đã duyệt Phase 1</span>;
       case 'SUBMITTED':
-        return <span className="badge badge-warning">⏳ Chờ Admin duyệt Phase 1</span>;
+        return <span className="badge badge-warning">⏳ Chờ duyệt Phase 1</span>;
       case 'IN_PROGRESS':
         return <span className="badge badge-warning">🔄 Đang khảo sát dở</span>;
       case 'POSTPONED_ABSENT':
@@ -122,7 +123,7 @@ export const SurveyorHomeView: React.FC<Props> = ({
 
   return (
     <div style={{ padding: '1rem', maxWidth: '780px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '1.15rem' }}>
-      {/* 1. Dynamic Attendance Widget */}
+      {/* 1. Refined Attendance Widget (Requirement 2) */}
       <div
         className="card"
         style={{
@@ -135,42 +136,28 @@ export const SurveyorHomeView: React.FC<Props> = ({
           justifyContent: 'space-between',
           alignItems: 'center',
           flexWrap: 'wrap',
-          gap: '1rem',
+          gap: '0.75rem',
         }}
       >
         <div>
-          <div
-            style={{
-              fontSize: '0.75rem',
-              fontWeight: 700,
-              color: isCheckedInToday ? '#15803d' : '#b45309',
-              textTransform: 'uppercase',
-              letterSpacing: '0.05em',
-            }}
-          >
-            {isCheckedInToday ? 'Xác thực hiện trường hợp lệ' : 'Nhắc nhở chấm công đầu ca'}
-          </div>
-
-          <h2 style={{ margin: '0.2rem 0', fontSize: '1.15rem', fontWeight: 800, color: '#0f172a' }}>
-            Ga Phụ Trách: {user?.assignedZoneId || 'Ga S9 - Bà Quẹo'}
+          <h2 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: '#0f172a' }}>
+            Ga Phụ Trách: {user?.assignedZoneId || 'Ga S9 – Bà Quẹo'}
           </h2>
 
           {isCheckedInToday ? (
-            <div style={{ fontSize: '0.825rem', color: '#166534', display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.25rem' }}>
+            <div style={{ fontSize: '0.85rem', color: '#166534', display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.35rem', fontWeight: 600 }}>
               <CheckCircle2 size={16} color="#16a34a" />
-              <span>
-                <strong>Đã điểm danh</strong> lúc {checkInDetails?.time || '07:45'} (Cách tâm Ga {checkInDetails?.distance || 35}m - Hợp lệ)
-              </span>
+              <span>Đã điểm danh lúc {checkInDetails?.time || '07:45'}</span>
             </div>
           ) : (
-            <div style={{ fontSize: '0.825rem', color: '#92400e', display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.25rem' }}>
+            <div style={{ fontSize: '0.825rem', color: '#92400e', display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.35rem' }}>
               <AlertCircle size={16} color="#d97706" />
-              <span>Bạn <strong>chưa điểm danh GPS</strong> hôm nay. Vui lòng điểm danh trước khi bắt đầu!</span>
+              <span>Bạn chưa điểm danh GPS hôm nay.</span>
             </div>
           )}
         </div>
 
-        {!isCheckedInToday ? (
+        {!isCheckedInToday && (
           <button
             type="button"
             onClick={onNavigateToCheckIn}
@@ -179,7 +166,7 @@ export const SurveyorHomeView: React.FC<Props> = ({
               display: 'flex',
               alignItems: 'center',
               gap: '0.4rem',
-              padding: '0.65rem 1.15rem',
+              padding: '0.6rem 1.15rem',
               fontWeight: 700,
               boxShadow: '0 4px 12px rgba(245, 158, 11, 0.3)',
             }}
@@ -187,24 +174,6 @@ export const SurveyorHomeView: React.FC<Props> = ({
             <Clock size={16} />
             Điểm Danh GPS Ngay
           </button>
-        ) : (
-          <div
-            style={{
-              padding: '0.4rem 0.75rem',
-              backgroundColor: '#ffffff',
-              borderRadius: '0.5rem',
-              border: '1px solid #bbf7d0',
-              fontSize: '0.75rem',
-              fontWeight: 700,
-              color: '#15803d',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.35rem',
-            }}
-          >
-            <CheckCircle2 size={14} />
-            Ca trực đã kích hoạt
-          </div>
         )}
       </div>
 
@@ -238,7 +207,7 @@ export const SurveyorHomeView: React.FC<Props> = ({
             />
           </div>
           <div style={{ fontSize: '0.725rem', color: '#64748b' }}>
-            Còn <strong>{todayTarget - todayCompleted} căn</strong> trong danh sách chờ ca hôm nay
+            Còn <strong>{todayTarget - todayCompleted} căn</strong> trong danh sách ca hôm nay
           </div>
         </div>
 
@@ -275,7 +244,7 @@ export const SurveyorHomeView: React.FC<Props> = ({
         </div>
       </div>
 
-      {/* 3. Search & Smart Workflow Filter Tabs */}
+      {/* 3. Search & Styled Filter Tabs (Requirement 3: Removed red pin, gradient style) */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
         <div style={{ position: 'relative', width: '100%' }}>
           <Search size={16} color="#94a3b8" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
@@ -289,14 +258,14 @@ export const SurveyorHomeView: React.FC<Props> = ({
           />
         </div>
 
-        {/* Filter Tabs with Active Styling */}
-        <div style={{ display: 'flex', gap: '0.35rem', overflowX: 'auto', paddingBottom: '0.25rem' }}>
+        {/* Styled Filter Tabs */}
+        <div style={{ display: 'flex', gap: '0.4rem', overflowX: 'auto', paddingBottom: '0.25rem' }}>
           {[
-            { id: 'PENDING_ONLY', label: `📌 Cần làm (${pendingTotal})` },
+            { id: 'PENDING_ONLY', label: `Cần làm (${pendingTotal})` },
             { id: 'NOT_SURVEYED', label: `Chưa làm (${notSurveyed})` },
             { id: 'IN_PROGRESS', label: `Đang làm dở (${inProgress})` },
             { id: 'ABSENT', label: `Vắng mặt (${absent})` },
-            { id: 'APPROVED', label: `✅ Đã duyệt Phase 1 (${approved})` },
+            { id: 'APPROVED', label: `Đã duyệt Phase 1 (${approved})` },
             { id: 'ALL', label: `Tất cả (${total})` },
           ].map((tab) => {
             const isActive = statusFilter === tab.id;
@@ -305,12 +274,20 @@ export const SurveyorHomeView: React.FC<Props> = ({
                 key={tab.id}
                 type="button"
                 onClick={() => setStatusFilter(tab.id)}
-                className={`btn btn-sm ${isActive ? 'btn-primary' : 'btn-secondary'}`}
                 style={{
                   fontSize: '0.775rem',
-                  padding: '0.4rem 0.75rem',
+                  padding: '0.45rem 0.85rem',
                   whiteSpace: 'nowrap',
                   fontWeight: isActive ? 700 : 500,
+                  borderRadius: '999px',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                  border: isActive ? '1px solid #7dd3fc' : '1px solid #e2e8f0',
+                  background: isActive
+                    ? 'linear-gradient(135deg, #e0f2fe 0%, #f0fdf4 100%)'
+                    : '#ffffff',
+                  color: isActive ? '#0369a1' : '#475569',
+                  boxShadow: isActive ? '0 2px 4px rgba(2, 132, 199, 0.12)' : 'none',
                 }}
               >
                 {tab.label}
@@ -320,33 +297,36 @@ export const SurveyorHomeView: React.FC<Props> = ({
         </div>
       </div>
 
-      {/* 4. Task List Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.25rem' }}>
-        <span style={{ fontSize: '0.875rem', fontWeight: 800, color: '#0f172a' }}>
+      {/* 4. Task List Header with ONLY (?) CIRCLE BUTTON (Requirement 5) */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.15rem' }}>
+        <span style={{ fontSize: '0.9rem', fontWeight: 800, color: '#0f172a' }}>
           {statusFilter === 'PENDING_ONLY'
             ? `Danh sách ${filteredParcels.length} thửa đất cần khảo sát:`
             : statusFilter === 'APPROVED'
-            ? `Danh sách ${filteredParcels.length} thửa đất đã duyệt Phase 1 (Sẵn sàng làm Phase 2):`
+            ? `Danh sách ${filteredParcels.length} thửa đất đã duyệt Phase 1:`
             : `Danh sách thửa đất (${filteredParcels.length}):`}
         </span>
 
+        {/* ONLY (?) CIRCLE BUTTON */}
         <button
           type="button"
           onClick={() => setShowStatusHelp(!showStatusHelp)}
           style={{
-            background: 'transparent',
-            border: 'none',
+            width: '28px',
+            height: '28px',
+            borderRadius: '50%',
+            backgroundColor: showStatusHelp ? '#e0f2fe' : '#f1f5f9',
+            border: '1px solid #cbd5e1',
             color: '#0284c7',
-            fontSize: '0.75rem',
-            fontWeight: 600,
-            cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
-            gap: '0.2rem',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            transition: 'all 0.15s ease',
           }}
+          title="Ý nghĩa các nút và trạng thái"
         >
-          <HelpCircle size={14} />
-          {showStatusHelp ? 'Ẩn hướng dẫn' : 'Ý nghĩa các nút'}
+          <HelpCircle size={16} />
         </button>
       </div>
 
@@ -355,20 +335,21 @@ export const SurveyorHomeView: React.FC<Props> = ({
           style={{
             backgroundColor: '#ffffff',
             border: '1px solid #e2e8f0',
-            borderRadius: '0.5rem',
-            padding: '0.75rem',
+            borderRadius: '0.65rem',
+            padding: '0.75rem 1rem',
             fontSize: '0.775rem',
             color: '#475569',
             display: 'flex',
             flexDirection: 'column',
             gap: '0.35rem',
+            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)',
           }}
         >
           <div>
             🔵 <strong>Khảo sát Phase 1</strong>: Dành cho thửa đất chưa làm hoặc đang làm dở.
           </div>
           <div>
-            🟣 <strong>Khảo sát Phase 2</strong>: Tự động chỉ xuất hiện khi thửa đất đã được duyệt xong Phase 1 để đối soát biến động trước khi thi công.
+            🟣 <strong>Khảo sát Phase 2</strong>: Tự động xuất hiện khi thửa đất đã duyệt xong Phase 1 để đối soát biến động trước khi thi công.
           </div>
           <div>
             📍 <strong>Chỉ đường</strong>: Mở bản đồ định vị trực tiếp vị trí căn nhà để điều tra viên dễ di chuyển tới.
@@ -450,11 +431,9 @@ export const SurveyorHomeView: React.FC<Props> = ({
                   </div>
                 </div>
 
-                {/* Context-Aware Action Buttons (Rules 3, 4, 5) */}
+                {/* Context-Aware Action Buttons */}
                 <div style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap', borderTop: '1px solid #f1f5f9', paddingTop: '0.65rem' }}>
-                  {/* Context-Aware Primary Survey Button */}
                   {isApproved ? (
-                    // IF PHASE 1 ALREADY APPROVED -> RENDER PHASE 2 BUTTON
                     <button
                       type="button"
                       className="btn btn-sm"
@@ -477,7 +456,6 @@ export const SurveyorHomeView: React.FC<Props> = ({
                       Khảo Sát Phase 2 (Trước thi công)
                     </button>
                   ) : isSubmitted ? (
-                    // IF SUBMITTED -> WAITING APPROVAL
                     <div
                       style={{
                         flex: 1.5,
@@ -498,7 +476,6 @@ export const SurveyorHomeView: React.FC<Props> = ({
                       Đang Chờ Zone Admin Duyệt Phase 1
                     </div>
                   ) : (
-                    // IF NOT SURVEYED OR IN PROGRESS -> RENDER PHASE 1 BUTTON
                     <button
                       type="button"
                       className="btn btn-primary btn-sm"
@@ -519,7 +496,7 @@ export const SurveyorHomeView: React.FC<Props> = ({
                     </button>
                   )}
 
-                  {/* 📍 Chỉ đường (Navigation) Button (Replaced Tách thửa) */}
+                  {/* 📍 Chỉ đường Button */}
                   <button
                     type="button"
                     className="btn btn-secondary btn-sm"
