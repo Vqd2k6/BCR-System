@@ -148,8 +148,48 @@ class SurveyIdentificationPhoto {
     annotatedPhotoUrl: String;       // 2. Ảnh hiển thị tạm thời nét vẽ tay của cán bộ
     aiEnhancedPhotoUrl: String;      // 3. Ảnh hoàn thiện sau khi AI nắn thẳng & gán kích thước CAD
     
+### 5.3. Công Cụ Tương Tác Trên Giao Diện Mobile PWA & Xử Lý "Không Tồn Tại (N/A)"
+
+#### A. 2 Công Cụ Đồ Họa Cốt Lõi Trên Ảnh Mặt Đứng ($P-02 / P-03$):
+1. 🔴 **Icon Chấm Tròn (Polygon Corners / Đa giác đứng):**
+   - Cán bộ chạm 4 điểm (hoặc nhiều điểm đỉnh góc) bao quanh mặt tiền ngôi nhà (Góc mái trái/phải, chân tường trái/phải).
+   - Tọa độ các điểm được lưu vào `facadePolygonPointsJson` giúp AI trích xuất chính xác vùng mặt nhà cần nắn thẳng.
+2. ➖ **Icon Line Ngang (Floor Split Lines / Cắt tầng):**
+   - Cán bộ kéo các đường line ngang phân tách từng tầng (Tầng trệt, Lầu 1, Lầu 2, Mái...).
+   - Tọa độ đường dóng được lưu vào `floorSplitLinesJson`.
+3. ✏️ **Công cụ Ghi Kích Thước & Viết Tay:**
+   - Cán bộ viết tay hoặc nhập số kích thước sơ bộ ($h_1, h_2...$, $H_{tot}$, $W$).
+
+#### B. Xử lý Trường Hợp "Không Tồn Tại (N/A) / Bị Che Khuất":
+- Trong thực tế đô thị, nhiều công trình:
+  - Không có biển số nhà / biển tên cơ quan ($P-01$).
+  - Không có mặt bên do 2 bên là nhà phố liền kề sát vách ($P-03$).
+  - Mặt tiền bị che khuất bởi công trình phía trước hoặc hẻm quá hẹp ($P-02$).
+- **Cơ chế:** Giao diện cung cấp nút tick chọn **`Không tồn tại (N/A)`** hoặc **`Bị che khuất`** (kèm lý do nhanh). Khi kích hoạt cờ `isNotApplicable = true`, hệ thống cho phép Surveyor **bấm Next chuyển bước ngay lập tức** mà không bị bắt buộc chụp ảnh, đảm bảo tiến độ khảo sát trơn tru.
+
+---
+
+### 5.4. Cấu trúc Thuộc tính Thực thể `SurveyIdentificationPhoto`
+
+```typescript
+class SurveyIdentificationPhoto {
+    id: UUID;
+    reportId: UUID;
+    photoType: PhotoIdentTypeEnum; // P01, P02, P03, P04
+    
+    // --- 0. NGOẠI LỆ KHÔNG TỒN TẠI (N/A) ---
+    isNotApplicable: Boolean;        // true nếu không có biển số / không có mặt hông
+    naReason: String;                // "Nhà phố liền kề không có mặt bên"
+    
+    // --- 1. CÁC LỚP ẢNH LƯU TRỮ (NON-DESTRUCTIVE IMAGE LAYERS) ---
+    rawPhotoUrl: String;             // 1. Ảnh gốc sạch 100% chưa vẽ nét
+    annotatedPhotoUrl: String;       // 2. Ảnh hiển thị tạm thời nét vẽ tay của cán bộ
+    aiEnhancedPhotoUrl: String;      // 3. Ảnh hoàn thiện sau khi AI nắn thẳng & gán kích thước CAD
+    
     // --- 2. TỌA ĐỘ NÉT VẼ VECTOR TỪ MOBILE (CANVAS JSON) ---
-    annotationsJson: String;         // Vector stroke paths, line coordinates (x1, y1 -> x2, y2), labels
+    facadePolygonPointsJson: String; // Tọa độ các điểm chấm tròn góc đa giác đứng: [{"x":0.1,"y":0.2}, ...]
+    floorSplitLinesJson: String;     // Tọa độ các đường line ngang cắt tầng: [{"y":0.35,"label":"T1"}, ...]
+    annotationsJson: String;         // Vector stroke paths, text viết tay kích thước
     
     // --- 3. DỮ LIỆU TẦNG & KÍCH THƯỚC TRÍCH XUẤT ---
     floorCountEstimated: Int;        // Số tầng đánh dấu (VD: 3 tầng + 1 tum)
@@ -171,14 +211,13 @@ class SurveyIdentificationPhoto {
 
 ---
 
-### 5.4. Quy trình Tự Động Hóa 3 Bước của Server AI (AI Pipeline Workflow)
+### 5.5. Quy trình Tự Động Hóa 3 Bước của Server AI (AI Pipeline Workflow)
 
 1. **Bước 1: Nắn thẳng phối cảnh (Perspective Rectification):**
-   - AI Computer Vision phân tích các đường mép tường đứng (Vanishing Lines) của tòa nhà.
-   - Tính toán ma trận nắn phẳng hình học ($3 \times 3$ Homography Matrix) để xoay chỉnh bức ảnh chụp ngước từ dưới đường thành ảnh **chính diện thẳng đứng 90 độ (Orthogonal Facade View)**.
+   - AI sử dụng tọa độ đa giác `facadePolygonPointsJson` và các đường mép tường đứng (Vanishing Lines) để tính toán ma trận nắn phẳng hình học ($3 \times 3$ Homography Matrix), xoay chỉnh ảnh chụp ngước thành ảnh **chính diện thẳng đứng 90 độ (Orthogonal Facade View)**.
 2. **Bước 2: Nhận diện chữ viết tay & Tự động bắt dính (OCR & Edge Snapping):**
-   - AI đọc các con số kích thước viết tay ($3.5\text{m}, 12\text{m}\dots$) trên canvas.
-   - Tự động phát hiện vị trí dầm sàn, ban công, gờ chỉ trên ảnh và **bắt dính (snap)** các đường kẻ phân tầng nguệch ngoạc của cán bộ vào chính xác vị trí dầm sàn thực tế.
+   - AI đọc các con số kích thước viết tay ($3.5\text{m}, 12\text{m}\dots$).
+   - Nhận diện vị trí dầm sàn/ban công thực tế và **bắt dính (snap)** các đường kẻ `floorSplitLinesJson` của cán bộ vào đúng vị trí dầm sàn.
 3. **Bước 3: Render lớp đồ họa Kỹ thuật chuẩn CAD (CAD Beautifier Overlay):**
    - Thay thế nét vẽ tay bằng các đường dóng kích thước mảnh, thẳng tắp, mũi tên 2 đầu chuẩn kỹ thuật xây dựng và font chữ kỹ thuật số sắc nét.
    - File ảnh `aiEnhancedPhotoUrl` này được tự động chèn vào trang bìa của **Báo cáo Pháp lý PDF/A**.

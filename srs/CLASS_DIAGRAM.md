@@ -226,9 +226,13 @@ classDiagram
         +UUID id
         +UUID reportId
         +PhotoIdentTypeEnum photoType
+        +Boolean isNotApplicable
+        +String naReason
         +String rawPhotoUrl
         +String annotatedPhotoUrl
         +String aiEnhancedPhotoUrl
+        +String facadePolygonPointsJson
+        +String floorSplitLinesJson
         +String annotationsJson
         +Int floorCountEstimated
         +String floorHeightsJson
