@@ -30,13 +30,13 @@ Dưới đây là **BỘ BIỂU MẪU KHẢO SÁT HỢP NHẤT DUY NHẤT** đư
     - [ ] `Có ảnh`: Chụp ảnh biển số nhà / biển tên cơ quan rõ nét.
     - [ ] `Không tồn tại (N/A)`: (Nhà không gắn biển số / Đất trống / Không có biển hiệu ➔ Cho phép bấm Next).
   - **`P-02` (Mặt đứng chính diện):**
-    - [ ] `Có ảnh`: Chụp trực diện toàn bộ mặt tiền ngôi nhà. Sau khi chụp, PWA cung cấp 2 công cụ tương tác:
-      - 🔴 **Icon Chấm tròn (Đa giác đứng / Polygon Corners):** Chạm các điểm góc mặt tiền để chấm đường bao bao quanh ngôi nhà (giúp AI nhận diện khung nhà).
+    - [ ] `Có ảnh`: Chụp trực diện toàn bộ mặt tiền ngôi nhà. Sau khi chụp, PWA cung cấp các công cụ tương tác:
+      - 🔴 **Icon Chấm tròn (Đa giác đứng / Polygon Corners):** Chạm mảng $N$ điểm góc ($N \ge 3$) bao quanh ngôi nhà (hỗ trợ nhà mái xéo, chữ L, giật cấp $N$ đỉnh giúp AI nhận diện khung nhà).
       - ➖ **Icon Line ngang (Đường phân tầng / Floor Split Lines):** Kéo các đường ngang phân tầng (Tầng trệt, Lầu 1, Lầu 2, Mái...).
       - ✏️ **Vẽ tay & Ghi kích thước:** Ghi chú chiều cao từng tầng ($h_1, h_2...$), chiều cao tổng ($H_{tot}$), chiều rộng mặt tiền ($W$).
     - [ ] `Không tồn tại (N/A) / Bị che khuất`: (Mặt tiền bị che khuất hoàn toàn bởi công trình phía trước / Hẻm quá hẹp ➔ Nhập lý do và cho phép Next).
   - **`P-03` (Mặt bên hoặc mặt sau tiếp cận):**
-    - [ ] `Có ảnh`: Chụp mặt hông hoặc mặt sau tiếp cận (Hỗ trợ chấm điểm đa giác + line cắt tầng tương tự P-02).
+    - [ ] `Có ảnh`: Chụp mặt hông hoặc mặt sau tiếp cận (Hỗ trợ chấm điểm đa giác $N$ đỉnh + line cắt tầng tương tự P-02).
     - [ ] `Không tồn tại (N/A)`: (Nhà phố liền kề 2 bên sát vách không có mặt hông ➔ Cho phép bấm Next).
   - **`P-04` (Bối cảnh tổng thể lấy cả đường/ngõ):**
     - [ ] `Có ảnh`: Chụp bối cảnh không gian tiếp cận đường/ngõ.

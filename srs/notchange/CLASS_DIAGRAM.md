@@ -1,10 +1,8 @@
 # Đặc Tả Sơ Đồ Lớp Hệ Thống (SRS - OOP Class Diagram & Domain Data Model)
 
 > [!IMPORTANT]
-> **LƯU Ý DÀNH CHO AI AGENT & DEVELOPER (TÀI LIỆU ĐANG TIẾP TỤC HOÀN THIỆN & MỞ RỘNG):**
-> Tài liệu này là **bản đặc tả cơ sở (Baseline Specification)** cho mô hình dữ liệu OOP và kiến trúc quan hệ thực thể. Tài liệu **CHƯA PHẢI LÀ BẢN ĐẦY ĐỦ 100% TUYỆT ĐỐI** và sẽ tiếp tục được bổ sung thêm các thuộc tính, phương thức và lớp hỗ trợ trong quá trình lập trình (Implementation). Khi phát triển code, Agent/Developer cần chủ động nhận diện các trường dữ liệu phát sinh, tối ưu hóa cấu trúc lớp và đồng bộ cập nhật ngược lại file này.
-
-> Tài liệu đặc tả chuẩn hóa Toàn bộ Mô hình Lớp Hướng Đối Tượng (OOP Class Diagram), Kiến trúc Mã Kép (Dual-ID), Cơ chế Biến động Thửa đất (Cadastral Lineage), và Phân hệ Xuất Báo cáo Hàng loạt cho Hệ thống Khảo sát Quy hoạch Hiện trạng Tuyến Metro 2.
+> **TÀI LIỆU ĐẶC TẢ MÔ HÌNH DỮ LIỆU OOP & THỰC THỂ KHỚP 100% VỚI HỢP ĐỒNG API:**
+> Toàn bộ mô hình lớp hướng đối tượng (OOP Class Diagram), kiến trúc thực thể quan hệ (ERD Entities), thuộc tính, phương thức nghiệp vụ và danh mục Enums đã được chuẩn hóa đồng bộ với `srs/API_SPECIFICATION.md` và `srs/notchange/Business_Logic.md`.
 
 ---
 
@@ -13,7 +11,7 @@
 ```mermaid
 classDiagram
     %% ==========================================
-    %% PACKAGE 1: USER HIERARCHY (OOP INHERITANCE)
+    %% PACKAGE 1: USER HIERARCHY & ATTENDANCE
     %% ==========================================
     class User {
         <<abstract>>
@@ -25,6 +23,7 @@ classDiagram
         +String phone
         +RoleEnum role
         +UserStatusEnum status
+        +String statusReason
         +DateTime createdAt
         +DateTime lastLoginAt
         +login(username, password) Boolean
@@ -36,51 +35,65 @@ classDiagram
     class SuperAdmin {
         +String adminLevel
         +createUser(userData) User
-        +lockUser(userId) Void
+        +updateUser(userId, userData) User
+        +lockUser(userId, status, reason) Void
+        +resetUserPassword(userId, newPassword) Void
+        +deleteUser(userId) Void
         +manageGisLayers(geoJsonData) Void
         +viewExecutiveDashboard() DashboardSummary
         +viewAuditLogs(filter) List~AuditLog~
+        +viewAllAttendance(filter) List~TimekeepingCheckIn~
         +exportMasterDossier(scope, format) CompiledReportBatch
+        +viewAllExportBatches(filter) List~CompiledReportBatch~
+        +cancelOrDeleteExportBatch(batchId) Void
     }
 
     class ZoneAdmin {
         +UUID assignedZoneId
         +String zoneCode
         +viewZoneDashboard(startDate, endDate) ZoneAnalytics
-        +viewSurveyorAttendance(timeRange) List~TimekeepingCheckIn~
+        +viewSurveyorAttendance(filter) List~TimekeepingCheckIn~
+        +verifyAttendance(checkInId, action, notes) TimekeepingCheckIn
         +assignTask(parcelId, surveyorId, deadline) TaskAssignment
+        +reassignTask(taskId, newSurveyorId) TaskAssignment
         +reviewReportSplitPane(reportId) AuditViewData
+        +viewAuditAlerts(filter) List~AuditAlertItem~
         +approveMutation(mutationEventId) Boolean
         +rejectMutation(mutationEventId, reason) Boolean
         +approveReport(reportId) Boolean
         +rejectReport(reportId, reason) Boolean
         +applyEngineeringJudgement(reportId, deltaScore, reason) Void
-        +exportZoneDossier(zoneId, timeRange, format) CompiledReportBatch
+        +exportZoneDossier(scope, criteria, format) CompiledReportBatch
     }
 
     class Surveyor {
         +String employeeCode
+        +UUID assignedZoneId
         +Float currentLat
         +Float currentLng
-        +checkInTimekeeping(selfiePhoto, accompanyingList) TimekeepingCheckIn
+        +checkInTimekeeping(zoneId, lat, lng, selfiePhoto, notes) TimekeepingCheckIn
+        +viewMyAttendanceHistory(startDate, endDate) List~TimekeepingCheckIn~
+        +claimAdHocParcel(parcelId, phase, reason) SurveyReport
+        +recordAbsence(parcelId, reason, proofPhoto, notes, rescheduleDate) SurveyAbsenceLog
         +createSurveyReport(parcelId) SurveyReport
-        +captureIdentificationPhotos(p01, p02, p03, p04) Void
+        +captureIdentificationPhotos(p01..p04, polygonJson, splitLinesJson) Void
         +interviewBuildingSpecs(specData, historyData) Void
-        +createDamageZone(ctxPhoto, floor, room) DamageZone
-        +pinDefect(zoneId, x, y, cuPhoto, measurements) DefectItem
+        +createDamageZone(ctxPhoto, floor, room, burland) DamageZone
+        +pinDefect(zoneId, x, y, cuPhoto, measurements, e2, e4) DefectItem
         +recordDeformation(tiltData, settlementData) DeformationAssessment
-        +proposeCadastralMutation(originalParcelId, newPolygons, type, reason) ParcelMutationEvent
-        +captureVerificationPhotos(surveyorPhoto, inspectorPhoto, ownerPhoto) Void
+        +proposeCadastralMutation(originalParcelId, childPolygons, type, reason) ParcelMutationEvent
+        +updateFootprintPolygon(parcelId, polygonGeoJson, measuredArea) Void
+        +submitReportWithSignatures(ownerRemarks, signatures) Void
         +syncOfflineDraft() Boolean
     }
 
     class ContractorGuest {
         +String organizationName
         +String accessPasscode
+        +String shareToken
         +Boolean isGuestLink
         +viewMetroGisMap() MapViewData
-        +viewParcelDetails(parcelId) ParcelOverview
-        +viewApprovedReport(reportId) SurveyReport
+        +viewParcelSummary(parcelId) ParcelSummary
         +downloadReportPdf(reportId) FileStream
         +downloadPublishedDossier(batchId) FileStream
     }
@@ -97,11 +110,17 @@ classDiagram
         +DateTime checkInTime
         +Float gpsLatitude
         +Float gpsLongitude
-        +Float gpsAccuracy
+        +Float distanceToZoneCenterMeters
+        +Boolean isWithinZoneBoundary
         +String selfiePhotoUrl
-        +List~String~ accompanyingMembers
         +String notes
-        +validateGpsAccuracy() Boolean
+        +VerificationStatusEnum verificationStatus
+        +UUID verifiedById
+        +DateTime verifiedAt
+        +String verificationNotes
+        +Boolean hasAnomalyFlag
+        +String anomalyReason
+        +verify(adminId, action, notes) Void
     }
 
     class AuditLog {
@@ -113,6 +132,19 @@ classDiagram
         +String clientIp
         +DateTime timestamp
         +String diffPayload
+    }
+
+    class AuditAlertItem {
+        +UUID id
+        +UUID reportId
+        +UUID parcelId
+        +AlertTypeEnum alertType
+        +AlertSeverityEnum severity
+        +String title
+        +String detail
+        +String flaggedValuesJson
+        +Boolean isResolved
+        +DateTime createdAt
     }
 
     %% ==========================================
@@ -136,12 +168,16 @@ classDiagram
         +UUID zoneId
         +String officialCadastralCode
         +String projectParcelCode
+        +String fieldSurveyCode
         +String houseNumber
         +String street
         +String ward
         +String district
         +String ownerName
         +String ownerPhone
+        +Float landAreaM2
+        +Float constructionAreaM2
+        +Int floorCount
         +ImportanceGroupEnum importanceGroup
         +AdjacentStructureEnum adjacentType
         +Float gpsLatitude
@@ -150,14 +186,30 @@ classDiagram
         +Float distanceToMetroCenterlineM
         +Float distanceToClearanceBoundaryM
         +String polygonGeoJson
+        +String footprintPolygonGeoJson
         +ParcelSurveyStatusEnum surveyStatus
         +ParcelLifecycleEnum lifecycleStatus
         +MutationTypeEnum mutationType
         +List~UUID~ parentParcelIds
         +List~UUID~ childParcelIds
         +UUID mutationEventId
-        +UUID currentReportId
+        +UUID activePhase1ReportId
+        +UUID activePhase2ReportId
+        +Int absenceAttemptCount
         +updateStatus(newStatus) Void
+        +updateFootprint(newFootprintGeoJson, measuredArea) Void
+    }
+
+    class SurveyAbsenceLog {
+        +UUID id
+        +UUID parcelId
+        +UUID surveyorId
+        +AbsenceReasonEnum absenceReason
+        +String notes
+        +String photoProofUrl
+        +DateTime rescheduleDate
+        +Int attemptCount
+        +DateTime recordedAt
     }
 
     class ParcelMutationEvent {
@@ -187,6 +239,7 @@ classDiagram
         +DateTime deadline
         +TaskStatusEnum status
         +String notes
+        +reassign(newSurveyorId, reason) Void
         +markInProgress() Void
         +markSubmitted() Void
         +markCompleted() Void
@@ -205,7 +258,7 @@ classDiagram
     }
 
     %% ==========================================
-    %% PACKAGE 3: SURVEY REPORT HIERARCHY (OOP INHERITANCE)
+    %% PACKAGE 3: SURVEY REPORT HIERARCHY
     %% ==========================================
     class BaseSurveyReport {
         <<abstract>>
@@ -219,11 +272,18 @@ classDiagram
         +Int currentStep
         +Boolean isDataQualityPassed
         +String summaryConclusions
-        +String recommendations
+        +String engineeringRecommendations
+        +String surveyorSignatureUrl
+        +String ownerSignatureUrl
+        +String ownerRemarks
+        +Boolean isRefusedOrAbsent
+        +String refusalDocRef
+        +DateTime submittedAt
+        +DateTime approvedAt
         +DateTime createdAt
         +DateTime updatedAt
         +submitForReview() Void
-        +approve(adminId) Void
+        +approve(adminId, judgementNotes) Void
         +reject(adminId, reason) Void
         +validateCompleteness() Boolean
     }
@@ -241,27 +301,22 @@ classDiagram
         +SurveyLevelEnum surveyLevel
         +String witnessMembers
         +String specialConditions
-        +Boolean hasExtensionAfterPhase1
-        +String extensionDetail
-        +Boolean hasRepairAfterPhase1
-        +String repairDetail
-        +Boolean hasUsageChangeAfterPhase1
-        +String usageChangeDetail
-        +String otherChanges
-        +Phase1ChangeConclusionEnum phase1ConfirmationConclusion
-        +DefectEvolutionSummaryEnum defectEvolutionSummary
-        +Int totalDefectsCount
-        +Int totalPhotosCount
-        +Int totalSketchesCount
-        +String inaccessibleAreas
+        +Boolean hasStructuralAlterationSincePhase1
+        +Boolean hasAddedFloors
+        +Boolean hasChangedLoadOrUsage
+        +String usageChangeDetails
         +String dataLimitations
-        +String mostNotableDamage
-        +Boolean hasCriticalSigns
+        +String notableDamageSummary
+        +Boolean isCriticalAlert
         +List~MonitoringNeedEnum~ monitoringNeeds
-        +Boolean additionalNdtRequired
-        +String ndtDetails
-        +Phase2ConclusionEnum phase2ConditionConclusion
-        +String checklistItemsJson
+        +Boolean ndtTestingNeeded
+        +String ndtTestingType
+        +Phase2ConclusionEnum phase2Conclusion
+        +String compensationVerdict
+        +Int deltaEcs
+        +String contractorRepSignatureUrl
+        +String thirdPartyRepSignatureUrl
+        +String witnessSignatureUrl
         +loadPhase1Baseline(phase1Id) Void
         +compareDefectsWithPhase1() DefectComparisonSummary
         +generatePhase2ReportPdf() FileStream
@@ -281,20 +336,17 @@ classDiagram
         +String aiEnhancedPhotoUrl
         +String facadePolygonPointsJson
         +String floorSplitLinesJson
-        +String annotationsJson
+        +String dimensionsJson
         +Int floorCountEstimated
-        +String floorHeightsJson
         +Float facadeWidthM
         +Float totalHeightM
         +AIProcessingStatusEnum aiProcessingStatus
-        +String aiPerspectiveMatrixJson
+        +String aiJobId
         +Float watermarkLat
         +Float watermarkLng
         +DateTime watermarkTimestamp
-        +String metadataJson
         +verifyWatermarkIntegrity() Boolean
         +processAIEnhancement() Boolean
-        +renderCompositeImage() FileStream
     }
 
     %% ==========================================
@@ -303,43 +355,41 @@ classDiagram
     class BuildingSpecification {
         +UUID id
         +UUID reportId
-        +UsageTypeEnum usageType
-        +Int floorsAboveGround
-        +Int basementCount
-        +Int yearBuilt
-        +Boolean isYearEstimated
+        +String buildingName
+        +BuildingGradeEnum buildingGrade
+        +String adjacentBuildings
         +StructuralSystemEnum structuralSystem
-        +StructuralFormEnum structuralForm
-        +FoundationTypeEnum foundationType
-        +Int foundationCatScore
-        +List~FoundationSourceEnum~ foundationSources
-        +UsageStatusEnum currentUsageStatus
-        +Boolean isContinuous247
+        +Int floorCount
+        +Int basementCount
+        +FoundationCategoryEnum foundationCategory
+        +String roofType
+        +String wallType
+        +Int yearOfConstruction
+        +Boolean isYearEstimated
     }
 
     class HistoricalSensitivity {
         +UUID id
         +UUID reportId
-        +Int loadAlterationScore
-        +Int majorRenovationScore
-        +Int pastSettlementScore
-        +Int adjacentImpactScore
-        +Int pastSevereIncidentScore
-        +Boolean hasSensitiveEquipment
-        +String sensitiveEquipmentDesc
+        +Boolean extendedOrRenovated
+        +Boolean previousSettlementOrTilt
+        +Boolean fireOrAccident
+        +Boolean sensitiveEquipmentPresent
+        +String details
+        +Int e5HistoryScore
         +calculateE5Score() Int
     }
 
     %% ==========================================
-    %% PACKAGE 5: DAMAGE ZONES, DEFECT PINNING & SKETCH (DYNAMIC ARRAYS)
+    %% PACKAGE 5: DAMAGE ZONES & DEFECT PINNING
     %% ==========================================
     class DamageSketch {
         +UUID id
         +UUID reportId
         +String sketchPhotoUrl
-        +SketchTypeEnum sketchType
-        +String orientation
-        +Boolean hasDamageMap
+        +String cadDrawingRef
+        +String notes
+        +DateTime uploadedAt
     }
 
     class DamageZone {
@@ -349,13 +399,19 @@ classDiagram
         +Boolean isInheritedFromPhase1
         +Boolean isNewInPhase2
         +String zoneCode
-        +Int floorIndex
         +String floorName
         +String roomName
+        +ComponentTypeEnum componentType
         +String wallMaterial
-        +String ctxPhotoUrl
-        +Boolean requiresRepair
+        +Boolean functionalImpactRepairNeeded
         +Int burlandGrade
+        +String ctxPhotoUrl
+        +String notes
+        +String slabCondition
+        +String wallCondition
+        +String beamColumnCondition
+        +String seepageSpallingCondition
+        +String deformationCondition
         +getDefectCount() Int
         +addNewDefect(defectData) DefectItem
     }
@@ -366,50 +422,56 @@ classDiagram
         +UUID phase1DefectItemId
         +Boolean isNewInPhase2
         +String defectCode
-        +Float pinXRatio
-        +Float pinYRatio
+        +Float pinX
+        +Float pinY
         +String cuPhotoUrl
-        +String screeningIndicator
-        +String componentType
-        +String crackPattern
-        +Float crackWidthMaxMm
-        +Float crackLengthMm
+        +String screeningCategory
+        +String defectType
         +String crackDirection
+        +Float widthMaxMm
+        +Float lengthMm
         +ActivityStateEnum activityState
-        +Int materialDegradationScore
-        +Int structuralSignificanceScore
+        +Int materialDegradationE4
+        +Int structuralSignificanceE2
+        +Boolean hasScaleCard
         +Boolean isStructuralCritical
-        +Float deltaCrackWidthMm
-        +Float deltaCrackLengthMm
-        +CrackEvolutionEnum crackEvolutionStatus
+        +Float phase1WidthMm
+        +Float phase2WidthMm
+        +Float deltaWidthMm
+        +Float phase1LengthMm
+        +Float phase2LengthMm
+        +Float deltaLengthMm
+        +CrackEvolutionEnum evolutionStatus
+        +String pinColor
         +calculateSeverityColor() String
         +evaluateEvolutionDelta(phase1Defect) Void
     }
 
     %% ==========================================
-    %% PACKAGE 6: DEFORMATION & SETTLEMENT
+    %% PACKAGE 6: DEFORMATION ASSESSMENT
     %% ==========================================
     class DeformationAssessment {
         +UUID id
         +UUID reportId
-        +Int diffSettlementStatus
-        +String diffSettlementLocation
-        +Int tiltStatus
-        +Float tiltXPercent
-        +Float tiltYPercent
-        +Int floorTiltStatus
-        +Float floorTiltPercent
-        +Int deflectionStatus
-        +String deflectionLocation
-        +List~DataSourceEnum~ dataSources
-        +ReliabilityEnum dataReliability
-        +Boolean requiresExtraMonitoring
-        +String notes
+        +Float tiltAngleX
+        +Float tiltAngleY
+        +String tiltDirection
+        +Float floorSlopeRatio
+        +Float beamDeflectionMm
+        +String measurementMethod
+        +ReliabilityEnum measurementReliability
+        +Float phase2TiltX
+        +Float phase2TiltY
+        +Float deltaTiltX
+        +Float deltaTiltY
+        +Float deltaBeamDeflectionMm
+        +String tiltEvolutionVerdict
+        +Int e3DeformationScore
         +calculateE3Score() Int
     }
 
     %% ==========================================
-    %% PACKAGE 7: RISK SCORING ENGINE (ECS, VI, BURLAND)
+    %% PACKAGE 7: RISK SCORING ENGINE (ECS & VI)
     %% ==========================================
     class RiskScoreCard {
         +UUID id
@@ -422,20 +484,16 @@ classDiagram
         +Int e6OverallFunctionScore
         +Int totalEcsScore
         +ECSClassEnum ecsClass
-        +Float v1FunctionScore
+        +Float v1ImportanceScore
         +Float v2StructureScore
         +Float v3FoundationScore
         +Float v4AgeScore
         +Float v5EcsScore
-        +Float v6EquipmentScore
-        +Float totalViScore
+        +Float v6SensitivityScore
         +Float avgViScore
         +VIClassEnum viClass
-        +Int burlandDominantGrade
-        +Int burlandPeakGrade
-        +SeverityFlagEnum structuralFlag
-        +String constructionImpact
-        +String braRiskLevel
+        +Int constructionImpactLevelI
+        +String buildingRiskAssessmentBRA
         +Boolean isEngineeringJudgementApplied
         +String engineeringJudgementAction
         +String engineeringJudgementReason
@@ -443,63 +501,53 @@ classDiagram
     }
 
     %% ==========================================
-    %% PACKAGE 8: SCOPE & VERIFICATION PHOTOS
+    %% PACKAGE 8: SURVEY SCOPE
     %% ==========================================
     class SurveyScope {
         +UUID id
         +UUID reportId
-        +List~AreaTypeEnum~ surveyedAreas
-        +Boolean hasAccessLimitation
-        +String limitationReason
-        +Boolean hasCadastralMutation
-    }
-
-    class SurveyVerification {
-        +UUID id
-        +UUID reportId
-        +String surveyorFullName
-        +String surveyorPosition
-        +String surveyorSignPhotoUrl
-        +String inspectorFullName
-        +String inspectorPosition
-        +String inspectorSignPhotoUrl
-        +String ownerFullName
-        +String ownerFeedbackText
-        +String ownerSignOrPresencePhotoUrl
-        +DateTime verificationDate
+        +SurveyCoverageEnum surveyCoverage
+        +String inaccessibleAreas
+        +String accessibilityLimitations
     }
 
     %% ==========================================
-    %% PACKAGE 9: BATCH REPORT EXPORT & COMPILED DOSSIER
+    %% PACKAGE 9: BATCH REPORT EXPORT HUB
     %% ==========================================
     class CompiledReportBatch {
         +UUID id
         +String batchCode
         +UUID zoneId
-        +DateTime timeRangeStart
-        +DateTime timeRangeEnd
-        +Int totalParcelsIncluded
-        +List~String~ parcelCodesList
+        +ExportScopeEnum exportScope
+        +List~UUID~ selectedReportIds
+        +String filterCriteriaJson
+        +String periodLabel
+        +Int totalReportsCompiled
         +UUID exportedByUserId
         +ExportFormatEnum exportFormat
-        +String fileDownloadUrl
+        +Boolean includeGisOverviewMap
+        +Boolean includeEcsSummaryTable
+        +ExportStatusEnum status
+        +String downloadUrl
         +Long fileSizeBytes
         +String checksumSha256
-        +Boolean isPublishedToGuests
         +DateTime createdAt
+        +DateTime expiresAt
         +generateBatchPdf() FileStream
-        +publishToGuests() Void
+        +revokeAndPurge() Void
     }
 
     %% ==========================================
     %% RELATIONSHIPS & ASSOCIATIONS
     %% ==========================================
     Surveyor "1" --> "0..*" TimekeepingCheckIn : logs
+    ZoneAdmin "1" --> "0..*" TimekeepingCheckIn : verifies
     MetroZone "1" --> "0..*" Parcel : contains
     MetroZone "1" --> "0..*" GuestShareLink : generates_links
     MetroZone "1" --> "0..*" CompiledReportBatch : compiles_into_batches
     
     Parcel "1" --> "0..*" TaskAssignment : assigned_via
+    Parcel "1" --> "0..*" SurveyAbsenceLog : logs_absence
     ZoneAdmin "1" --> "0..*" TaskAssignment : dispatches
     Surveyor "1" --> "0..*" TaskAssignment : receives
 
@@ -507,6 +555,7 @@ classDiagram
     Surveyor "1" --> "0..*" BaseSurveyReport : conducts
     ZoneAdmin "1" --> "0..*" BaseSurveyReport : reviews
     Phase2SurveyReport "0..*" --> "1" Phase1SurveyReport : references_baseline_phase1
+    BaseSurveyReport "1" --> "0..*" AuditAlertItem : flags_anomalies
     
     Parcel "1..*" --> "0..1" ParcelMutationEvent : sources
     ParcelMutationEvent "1" --> "1..*" Parcel : results_in
@@ -522,74 +571,39 @@ classDiagram
     BaseSurveyReport "1" *-- "1" DeformationAssessment : records_deformation
     BaseSurveyReport "1" *-- "1" SurveyScope : defines_scope
     Phase1SurveyReport "1" *-- "1" RiskScoreCard : scores_ECS_VI
-    BaseSurveyReport "1" *-- "1" SurveyVerification : verified_by_photos
 ```
 
 ---
 
-## 2. CHI TIẾT CÁC PHÂN HỆ VÀ THỰC THỂ (DOMAIN ENTITY SPECIFICATIONS)
-
-### 2.1. Phân Hệ Người Dùng & Chấm Công (User & Attendance Hierarchy)
-- **`User` (Abstract Base Class):** Lớp cha trừu tượng quản lý định danh tài khoản dùng chung (`id`, `username`, `passwordHash`, `fullName`, `email`, `phone`, `role`, `status`).
-- **`SuperAdmin` (extends `User`):** Quản trị toàn hệ thống, tạo và khóa tài khoản, tải lên lớp GIS tim tuyến Metro 2, xem Executive Master Dashboard toàn tuyến, xem Audit Log, và xuất **Bộ Hồ sơ Báo cáo Toàn tuyến** (`exportMasterDossier`).
-- **`ZoneAdmin` (extends `User`):** Quản lý phân khu (`assignedZoneId`), xem Dashboard thống kê tiến độ/chấm công, phân công Task cho Surveyor, thẩm định Split-Pane đối soát, duyệt đề xuất biến động ranh (`approveMutation`/`rejectMutation`), phê duyệt/trả về báo cáo, thực hiện quyền Kỹ sư (`applyEngineeringJudgement`), và xuất **Bộ Hồ sơ Báo cáo Phân khu** (`exportZoneDossier`).
-- **`Surveyor` (extends `User`):** Check-in chấm công GPS hiện trường kèm ảnh selfie và danh sách người đi cùng (`checkInTimekeeping`), tạo và thực hiện luồng khảo sát 9 bước, chụp ảnh bối cảnh $CTX$, thả ghim $D-xx$, chụp ảnh cận cảnh $CU$ có thước, đo lún nghiêng, vẽ lại ranh thửa đất biến động tại Bước 5 (`proposeCadastralMutation`), chụp ảnh xác nhận và đồng bộ nháp offline (`syncOfflineDraft`).
-- **`ContractorGuest` (extends `User`):** Khách vãng lai/đơn vị quan sát truy cập qua public/private link, xem bản đồ GIS phân lô quy hoạch Metro 2, tra cứu thông tin lô đất, đọc trực tuyến và tải về Báo cáo đã duyệt hoặc các Bộ Báo cáo đã công bố (`downloadPublishedDossier`).
-
----
-
-### 2.2. Phân Hệ GIS, Quy Hoạch & Kiến Trúc Mã Kép (Dual-ID Parcel & Cadastral Lineage)
-- **`MetroZone`:** Quản lý 11 phân khu/nhà ga Metro 2 (Ga S1 $\to$ Ga S11), polygon ranh giới, tiến độ hoàn thành.
-- **`Parcel`:** Thửa đất/công trình được quản lý với **Kiến trúc Mã Kép**:
-  - `officialCadastralCode`: Mã địa chính nhà nước thu thập từ dữ liệu cào ban đầu (`data/KS003`) hoặc Số tờ - Số thửa Bộ TN&MT.
-  - `projectParcelCode`: Mã quản lý dự án Metro 2 (**`B-XXXXX`**) được sắp xếp tuần tự theo lý trình tim tuyến.
-  - Quản lý phả hệ biến động: `lifecycleStatus` (`ACTIVE`, `PENDING_MUTATION_APPROVAL`, `SPLIT_DEPRECATED`, `MERGED_DEPRECATED`, `MUTATION_VOID`), `parentParcelIds`, `childParcelIds`.
-- **`ParcelMutationEvent`:** Lưu vết toàn bộ sự kiện biến động ranh đất (Tách/Gộp/Vẽ lại) gồm snapshot đa giác cũ, đa giác mới, ghi chú hiện trường, và trạng thái phê duyệt của Zone Admin.
-- **`TaskAssignment`:** Phân công lô đất cho Surveyor kèm thời hạn hoàn thành và trạng thái.
-
----
-
-### 2.3. Phân Hệ Báo Cáo Khảo Sát (Report Hierarchy: Phase 1 & Phase 2)
-- **`BaseSurveyReport` (Abstract Root Aggregate):** Lớp trừu tượng định nghĩa các thuộc tính và phương thức quản lý vòng đời báo cáo dùng chung (`submitForReview`, `approve`, `reject`, `validateCompleteness`).
-- **`Phase1SurveyReport` (extends `BaseSurveyReport`):** Báo cáo Hiện trạng Giai đoạn 1 (Baseline gốc trước thi công) chứa bộ máy tính điểm tự động $ECS/24$, chỉ số rủi ro $VI$ và ma trận $BRA$.
-- **`Phase2SurveyReport` (extends `BaseSurveyReport`):** Báo cáo Hiện trạng Giai đoạn 2 (Pre-Construction / Delta Verification) chứa tham chiếu Giai đoạn 1 (`phase1ReportId`), cấp khảo sát (`surveyLevel`: L2-A, L2-B, L2-C), xác nhận các biến động sau GĐ1 (cơi nới, sửa chữa, đổi tải trọng), sổ khuyết tật đối soát biến động $\Delta w, \Delta L$, nhu cầu quan trắc bổ sung (lún, nghiêng, nứt, rung), và Checklist 10 mục hoàn thành hồ sơ (Phụ lục A).
-- **`SurveyIdentificationPhoto`:** Lưu ảnh định danh kèm tọa độ chấm tròn đa giác đứng `facadePolygonPointsJson`, đường line cắt tầng `floorSplitLinesJson`, các lớp ảnh `rawPhotoUrl` $\to$ `aiEnhancedPhotoUrl`, và cờ xử lý `isNotApplicable`.
-- **`DamageZone` & `DefectItem`:** Cấu trúc cây $1 \to N$ phát sinh động tầng/khu vực ($Z-01, Z-02...$) và khuyết tật ($D-01, D-02...$), cho phép liên kết đối soát giữa Phase 1 và Phase 2.
-
----
-
-### 2.4. Phân Hệ Xuất Báo Cáo Hàng Loạt (Batch Report Compilation)
-- **`CompiledReportBatch`:** Đóng gói toàn bộ báo cáo đã duyệt của một Phân khu/Nhà ga hoặc Toàn tuyến trong một khoảng thời gian (ngày, tuần, tháng) thành tập tài liệu hoàn chỉnh (PDF Book / ZIP Archive) kèm Sơ đồ GIS tổng hợp và Bảng kê danh mục thửa đất.
-
----
-
-## 3. DANH MỤC ENUMS CHUẨN HÓA (ENUMERATIONS)
+## 2. DANH MỤC ENUMS CHUẨN HÓA (STANDARDIZED ENUMERATIONS)
 
 ```markdown
 - RoleEnum: SUPER_ADMIN, ZONE_ADMIN, SURVEYOR, CONTRACTOR
-- UserStatusEnum: ACTIVE, INACTIVE, LOCKED
-- SurveyPhaseEnum: PHASE_1_PRE_CONSTRUCTION, PHASE_2_POST_CONSTRUCTION
-- SurveyLevelEnum: L2_A, L2_B, L2_C
-- Phase1ChangeConclusionEnum: NO_SIGNIFICANT_CHANGE, HAS_CHANGES
-- DefectEvolutionSummaryEnum: UNCHANGED, EVOLVED, REPAIRED, NEW_RECORDED
-- MonitoringNeedEnum: LUN, NGHIENG, NUT, RUNG
-- Phase2ConclusionEnum: STABLE_OBSERVED, EXISTING_DAMAGE_MONITOR, IN_DEPTH_EVALUATION_REQUIRED
-- ParcelSurveyStatusEnum: NOT_SURVEYED, IN_PROGRESS, PENDING_REVIEW, APPROVED, REJECTED
+- UserStatusEnum: ACTIVE, SUSPENDED, LOCKED
+- VerificationStatusEnum: PENDING_VERIFICATION, APPROVED, FLAGGED_WARNING, REJECTED
+- AlertTypeEnum: GPS_DISTANCE_DISCREPANCY, ABNORMAL_DURATION, STRUCTURAL_CRITICAL, MISSING_SCALE_CARD, REPEATED_ABSENCE
+- AlertSeverityEnum: LOW, MEDIUM, HIGH, CRITICAL
+- AbsenceReasonEnum: HOMEOWNER_ABSENT, LOCKED_GATE, REFUSED_ACCESS
+- ExportScopeEnum: SELECTED_LIST, FILTER_CRITERIA, GLOBAL_ALL_ZONES
+- ExportFormatEnum: PDF_BOOK_COMPILATION, ZIP_INDIVIDUAL_PDFS, EXCEL_SUMMARY
+- ExportStatusEnum: QUEUED, PROCESSING, COMPLETED, FAILED, REVOKED
+- ParcelSurveyStatusEnum: NOT_SURVEYED, ASSIGNED_TO_ME, IN_PROGRESS, POSTPONED_ABSENT, SUBMITTED, APPROVED, REJECTED
 - ParcelLifecycleEnum: ACTIVE, PENDING_MUTATION_APPROVAL, SPLIT_DEPRECATED, MERGED_DEPRECATED, MUTATION_VOID
 - MutationTypeEnum: ORIGINAL, SPLIT, MERGE, REDRAW
 - MutationStatusEnum: PROPOSED_BY_SURVEYOR, APPROVED, REJECTED
 - AIProcessingStatusEnum: PENDING, PROCESSING, COMPLETED, FAILED
-- ExportFormatEnum: PDF_BOOK_COMPILATION, ZIP_ARCHIVE, EXCEL_GEOJSON
 - ReportStatusEnum: DRAFT, SUBMITTED, UNDER_REVIEW, APPROVED, REJECTED
-- CrackEvolutionEnum: STABLE, WIDENED, LENGTHENED, NEW_OCCURRENCE, REPAIRED
+- CrackEvolutionEnum: STABLE, WIDENED, LENGTHENED, NEW_RECORDED, REPAIRED
 - CompensationVerdictEnum: NO_IMPACT, NEGLIGIBLE_COSMETIC, STRUCTURAL_IMPACT
+- BuildingGradeEnum: GENERAL, IMPORTANT, CRITICAL
 - ImportanceGroupEnum: GENERAL, IMPORTANT, CRITICAL
 - AdjacentStructureEnum: TOWNHOUSE, HIGH_RISE, PUBLIC, EMPTY_LAND, OTHER
 - PhotoIdentTypeEnum: P01_HOUSE_NUMBER, P02_MAIN_FACADE, P03_SIDE_OR_REAR, P04_CONTEXT_STREET
-- StructuralSystemEnum: RC_FRAME, STEEL_FRAME, LOAD_BEARING_BRICK, MIXED, TIMBER, OTHER
-- FoundationTypeEnum: SHALLOW_PAD, WOOD_PILE, PC_PILE, CIP_BORED_PILE, UNKNOWN
-- ActivityStateEnum: U_UNKNOWN, S_STABLE, A_ACTIVE
+- StructuralSystemEnum: KHUNG_BTCT_CHIU_LUC, TUONG_GACH_CHIU_LUC, KET_CAU_THEP, NHA_GO, KET_CAU_HON_HOP
+- FoundationCategoryEnum: CAT_1_MONG_NONG_GIA_CO, CAT_2_MONG_DON_BTCT, CAT_3_MONG_BANG_BTCT, CAT_4_MONG_COC_BTCT, CAT_5_KHONG_XAC_DINH
+- ActivityStateEnum: U (Chưa rõ), S (Ổn định), A (Đang phát triển)
 - ECSClassEnum: GOOD_0_5, MEDIUM_6_10, DEFICIENT_11_16, CRITICAL_17_24
 - VIClassEnum: LOW, MEDIUM, HIGH, VERY_HIGH
-- SeverityFlagEnum: NONE, LOW, MODERATE, HIGH, CRITICAL
+- SurveyCoverageEnum: TOAN_BO, MOT_PHAN, KHONG_THE_TIEP_CAN
+- ReliabilityEnum: HIGH, MEDIUM, LOW
 ```

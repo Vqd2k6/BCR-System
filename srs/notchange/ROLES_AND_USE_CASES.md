@@ -1,10 +1,8 @@
 # Đặc tả Phân quyền & Kịch bản Sử dụng (SRS - Roles, Permissions & Use Cases)
 
 > [!IMPORTANT]
-> **LƯU Ý DÀNH CHO AI AGENT & DEVELOPER (TÀI LIỆU ĐANG TIẾP TỤC HOÀN THIỆN & MỞ RỘNG):**
-> Tài liệu này là **bản đặc tả cơ sở (Baseline Specification)** cho các kịch bản sử dụng (Use Cases) và ma trận phân quyền người dùng. Tài liệu **CHƯA PHẢI LÀ BẢN ĐẦY ĐỦ 100% TUYỆT ĐỐI** và sẽ tiếp tục được mở rộng chi tiết trong quá trình code và phát triển sản phẩm. Khi triển khai code thực tế, Agent/Developer cần nắm vững rằng hệ thống sẽ phát sinh thêm các quyền hạn chi tiết, use case phụ và cần chủ động hoàn thiện cả code lẫn cập nhật ngược lại tài liệu này.
-
-> Tài liệu đặc tả chuẩn hóa Ma trận Phân quyền (RBAC) 4 Vai trò cốt lõi và Chi tiết các Kịch bản Sử dụng (Use Cases) cho Hệ thống Khảo sát Hiện trạng Công trình Metro 2.
+> **TÀI LIỆU ĐẶC TẢ PHÂN QUYỀN RBAC & CÁC KỊCH BẢN SỬ DỤNG KHỚP 100% VỚI HỢP ĐỒNG API:**
+> Toàn bộ 4 vai trò người dùng (`SUPER_ADMIN`, `ZONE_ADMIN`, `SURVEYOR`, `CONTRACTOR_GUEST`), Ma trận phân quyền 10 nghiệp vụ, và 10 Kịch bản Sử dụng (Use Cases) đã được đồng bộ chuẩn xác với `srs/API_SPECIFICATION.md` và `srs/notchange/Business_Logic.md`.
 
 ---
 
@@ -15,160 +13,150 @@ Hệ thống áp dụng mô hình kiểm soát truy cập dựa trên vai trò *
 ### 1.1. Danh sách 4 Vai trò Cốt lõi (Role Descriptions)
 
 | Mã Vai trò | Tên Vai trò | Nền tảng sử dụng | Mô tả chức năng & Trách nhiệm chính |
-| :---: | :--- | :---: | :--- |
-| **`SUPER_ADMIN`** | Quản trị viên Cấp cao | Web Admin | Quản lý hệ thống, quản lý tài khoản, cấu hình lớp GIS Metro 2, xem Executive Master Dashboard toàn tuyến, **xuất Bộ Hồ sơ Báo cáo Tổng hợp toàn tuyến (~7.000 căn)** cho Chủ đầu tư MAUR/Nhà thầu TBM. |
-| **`ZONE_ADMIN`** | Quản lý Phân khu | Web Admin | Quản lý Phân khu/Ga. Phân công task, xem Dashboard thống kê công việc & chấm công Surveyor; thẩm định hồ sơ Split-Pane, phê duyệt/trả về, thực hiện quyền Kỹ sư, **xuất Bộ Hồ sơ Báo cáo Tổng hợp theo Phân khu/Nhà ga** theo tuần/tháng. |
-| **`SURVEYOR`** | Cán bộ Khảo sát Hiện trường | Mobile PWA / App | Check-in chấm công hiện trường (GPS + khai báo người đi cùng), thực hiện thu thập dữ liệu 9 bước hợp nhất, đối soát & vẽ lại ranh thửa biến động (Bước 5), chụp ảnh chữ ký xác nhận của cán bộ/chủ hộ, đồng bộ offline. |
-| **`CONTRACTOR`** | Khách vãng lai / Đơn vị quan sát | Web Viewer (Public/Private Link) | Truy cập dưới dạng Khách (Guest) qua link chia sẻ (có passcode/token). Xem bản đồ GIS quy hoạch phân lô, theo dõi tiến độ khảo sát, xem thông tin lô đất và **tải các Bộ Báo cáo đã công bố** (Read-Only). |
+| :---: | :--- | :--- :--- | :--- |
+| **`SUPER_ADMIN`** | Quản trị viên Cấp cao Toàn tuyến | Web Admin | Quản lý toàn bộ hệ thống, quản lý vòng đời người dùng (tạo, sửa, đổi Ga, khóa, mở khóa, reset password, xóa), cấu hình lớp GIS Metro 2, xem Dashboard KPI 11 Ga toàn tuyến, **xuất Bộ Báo cáo Toàn tuyến 11 Ga (~7.000 căn)**, và giám sát lịch sử/thu hồi mẻ xuất. |
+| **`ZONE_ADMIN`** | Quản lý Phân khu Ga | Web Admin | Quản lý Ga phụ trách. Phân công & điều chuyển task, giám sát & duyệt chấm công Surveyor (đối soát GPS & Selfie); thẩm định hồ sơ Split-Pane (Kính lúp 400% + Cờ Audit Flags), duyệt Tách thửa, phê duyệt/trả về báo cáo, thực hiện quyền Kỹ sư, và **xuất Báo cáo Chọn lọc theo Phân khu** (Theo ID chỉ định hoặc Theo ngày/tuần/tháng/rủi ro). |
+| **`SURVEYOR`** | Cán bộ Khảo sát Hiện trường | Mobile PWA / App | Check-in chấm công GPS hiện trường, xem lịch sử chấm công cá nhân, quét cạn thửa đất liền kề (Ad-hoc Pick), ghi nhận vắng nhà (POSTPONED_ABSENT), thực hiện thu thập dữ liệu 9 bước hợp nhất (Phase 1 & Phase 2), đối soát & đề xuất tách thửa (Bước 5), nộp hồ sơ có chữ ký, đồng bộ offline. |
+| **`CONTRACTOR`** | Nhà thầu & Khách Tra Cứu | Web Viewer (Share Link) | Truy cập qua link chia sẻ an toàn (Share Token + Passcode). Xem bản đồ GIS quy hoạch phân lô, xem tóm tắt thông số kết cấu và điểm ECS/VI, đọc trực tuyến và **tải các Bộ Báo cáo đã công bố** (Read-Only) kèm Checksum SHA-256. |
 
 ---
 
 ### 1.2. Ma trận Chi tiết Quyền hạn (Permissions Matrix)
 
 | Chức năng / Hành động Hệ thống | SUPER_ADMIN | ZONE_ADMIN | SURVEYOR | CONTRACTOR / GUEST |
-| :--- | :---: | :---: | :---: | :---: |
-| **Quản lý Tài khoản & Phân quyền User** | Full | Xem | Không | Không |
-| **Quản lý Lớp GIS Metro 2 (Ranh GPMB, Tim tuyến)** | Full | Xem | Xem | Xem |
-| **Phân công Task Khảo sát (Assign Task)** | Full | Full | Không | Không |
-| **Dashboard Thống kê Tiến độ & Chấm công** | Full (Toàn tuyến) | Full (Phân khu) | Không | Không |
-| **Check-in Chấm công Hiện trường (Kèm Người đi cùng)** | Không | Xem | Full | Không |
-| **Lập Báo cáo Khảo sát Hiện trạng (9 Bước)** | Không | Không | Full | Không |
-| **Thả Ghim Khuyết tật $D-xx$ trên Ảnh bối cảnh** | Không | Không | Full | Không |
-| **Vẽ lại Ranh Thửa Đất Biến động (Bước 5)** | Không | Phê duyệt | Đề xuất / Vẽ | Không |
-| **Chụp Ảnh Chữ ký / Ảnh Cán bộ & Chủ hộ Xác nhận** | Không | Không | Full | Không |
-| **Thẩm định Hồ sơ Split-Pane (Kính lúp 400%)** | Full | Full | Không | Xem |
+| :--- | :--- :---: | :---: | :---: | :---: |
+| **Quản lý Tài khoản & Vòng đời User (Tạo, Sửa, Khóa, Reset, Xóa)** | Full | Không | Không | Không |
+| **Quản lý Lớp GIS Metro 2 (Tim tuyến, ZOI 50m, Import thửa đất)** | Full | Xem | Xem | Xem |
+| **Giám sát & Xác nhận Chấm công Thực địa (Verify Attendance)** | Full (Toàn tuyến) | Full (Phân khu) | Xem lịch sử mình | Không |
+| **Phân công & Điều chuyển Task Khảo sát (Assign / Reassign)** | Full | Full | Không | Không |
+| **Tự Chọn Thửa Đất Khảo sát Ngay (Ad-hoc Sweep Survey)** | Không | Không | Full | Không |
+| **Ghi nhận Nhà Vắng / Cửa Khóa (POSTPONED_ABSENT)** | Không | Không | Full | Không |
+| **Lập Hồ sơ Khảo sát Hiện trạng 9 Bước (Phase 1 & Phase 2)** | Không | Không | Full | Không |
+| **Thả Ghim Khuyết tật $D-xx$, Đo Đạc $w, L$ & Chụp Ảnh CU thước mm** | Không | Không | Full | Không |
+| **Đề xuất Tách/Gộp Thửa Đất Cấp Mã Dải Mở Rộng (> 07000)** | Không | Phê duyệt | Đề xuất / Vẽ | Không |
+| **Thẩm định Hồ sơ Split-Pane (Kính lúp 400% + Audit Flags)** | Full | Full | Không | Xem |
 | **Phê duyệt (Approve) / Trả về (Reject) Báo cáo** | Full | Full | Không | Không |
 | **Quyền Can thiệp Kỹ sư (Engineering Judgement)** | Full | Full | Không | Không |
-| **Xem Bản đồ Quy hoạch các Lô & Trạng thái Khảo sát** | Full | Full | Full | Full (Read-Only) |
-| **Xuất Báo cáo Pháp lý Đơn lẻ (PDF/A)** | Full | Full | Xem | Xem (Được phép) |
-| **Xuất Bộ Hồ sơ Báo cáo Tổng hợp (`CompiledReportBatch`)** | Full (Toàn tuyến) | Full (Phân khu) | Không | Tải file công bố |
+| **Xuất Báo Cáo Có Chọn Lọc (Theo ID chỉ định / Bộ lọc Thời gian)** | Full (Toàn tuyến) | Full (Phân khu) | Không | Tải file công bố |
+| **Quản lý & Thu hồi Lịch sử Mẻ Xuất (Global Export Hub)** | Full | Xem mẻ của Ga | Không | Không |
 
 ---
 
-## 2. ĐẶC TẢ CHI TIẾT CHỨC NĂNG TỪNG VAI TRÒ (DETAILED ROLE SPECIFICATIONS)
-
-### 2.1. Quản trị viên Cấp cao (`SUPER_ADMIN`)
-- **Quản lý Hệ thống & Tài khoản:** Tạo mới, khóa, phân quyền cho các tài khoản `ZONE_ADMIN`, `SURVEYOR`.
-- **Quản lý Dữ liệu GIS Quy hoạch:** Quản lý các lớp bản đồ GIS (GeoJSON/KML) chứa đường tim tuyến Metro 2, ranh giới giải phóng mặt bằng, ranh giới 11 nhà ga và các thửa đất/lô đất.
-- **Executive Master Dashboard:** Thống kê tổng quan toàn tuyến (~7.000 căn): Số lượng đã khảo sát, số lượng đã duyệt, số lượng công trình rủi ro `CRITICAL`.
-- **Xuất Bộ Hồ sơ Báo cáo Toàn Tuyến (Master Cadastral Dossier):** Đóng gói toàn bộ báo cáo đã duyệt của toàn tuyến hoặc gói thầu liên phân khu (Gói CP2, CP3) dạng PDF Book / ZIP Archive phục vụ bàn giao mốc pháp lý cho Nhà thầu đào hầm TBM.
-- **Nhật ký Hệ thống (Audit Log & Chain of Custody):** Truy vết lịch sử mọi thao tác đăng nhập, sửa đổi dữ liệu, phê duyệt và xuất báo cáo.
-
-### 2.2. Quản lý Phân khu (`ZONE_ADMIN`)
-- **Quản lý Task theo Phân khu:** Chọn Phân khu/Nhà ga phụ trách (VD: *Ga S9 - Bà Quẹo*), khoanh vùng công trình trên bản đồ GIS và phân công cho `SURVEYOR`.
-- **Dashboard Thống kê Công việc & Chấm công:**
-  - Lọc theo khoảng thời gian (ngày, tuần, tháng).
-  - Thống kê chi tiết số lượng báo cáo: **Đã hoàn thành**, **Đã phê duyệt**, **Đang chờ duyệt**, **Trả về**.
-  - Thống kê hiệu suất làm việc & số ngày chấm công của từng `SURVEYOR`.
-- **Thẩm định Hồ sơ Hiện trường & Duyệt Biến động Ranh Thửa:** 
-  - Xem chi tiết Báo cáo khảo sát 9 bước gửi về từ Surveyor.
-  - Màn hình đối soát chia đôi (Split-Pane View), dùng kính lúp 400% kiểm tra vạch mm trên ảnh cận cảnh `Photo CU`, đối soát vị trí ghim khuyết tật $D-xx$.
-  - Đối soát và phê duyệt các đề xuất biến động ranh thửa (Tách/Gộp thửa) do Surveyor vẽ tại hiện trường.
-  - Phê duyệt (`Approve`) hoặc Trả về (`Reject`) hồ sơ.
-- **Xuất Bộ Hồ sơ Báo cáo Phân Khu (Zone Cadastral Dossier):** Xuất toàn bộ các thửa đất đã duyệt trong phân khu phụ trách theo tuần/tháng để báo cáo cho Ban QLĐS (MAUR).
-- **Thực hiện Quyền Kỹ sư (Engineering Judgement):** Có quyền Nâng/Hạ phân hạng ECS/VI nếu có căn cứ kỹ thuật (bị khoá không cho hạ hạng nếu có cờ `Critical`).
-
-### 2.3. Cán bộ Khảo sát Hiện trường (`SURVEYOR`)
-- **Check-in Chấm công Hiện trường (Timekeeping Check-in):** Check-in GPS real-time, chụp ảnh selfie/hiện trường, khai báo danh sách người đi cùng.
-- **Đăng nhập & Đồng bộ Offline (Mobile App / PWA):** Tự động lưu nháp 3 giây/lần và đồng bộ ngoại tuyến.
-- **Lập Báo cáo Khảo sát Hiện trạng (Luồng 9 bước Hợp nhất):**
-  - **Bước 1:** Chụp 4 ảnh định danh $P-01 \to P-04$ có Watermark GPS & Thời gian thực.
-  - **Bước 2:** Phỏng vấn chủ hộ thu thập công năng, móng (CAT 1-5), kết cấu, lịch sử cơi nới/sửa chữa.
-  - **Bước 3:** Khảo sát từng tầng: 1 Ảnh bối cảnh (`Photo CTX`) = 1 Vùng `Z-xx` ➔ Thả ghim $D-xx$ ➔ Chụp cận cảnh (`Photo CU`) có thước đo khe nứt.
-  - **Bước 4:** Đo lún nghiêng X/Y%, nghiêng sàn, võng dầm.
-  - **Bước 5:** Xác nhận phạm vi đã đi và **Đối soát / Vẽ lại Ranh Thửa Đất trên GIS** nếu có biến động tách/gộp thửa.
-  - **Bước 6 - 9:** Tự động tính điểm ECS/VI, tổng hợp kiến nghị và chụp ảnh chữ ký/xác nhận của cán bộ & chủ hộ.
-
-### 2.4. Khách vãng lai / Đơn vị quan sát (`CONTRACTOR / GUEST`)
-- **Chế độ Truy cập Khách (Guest Mode & Link Sharing):** Truy cập qua đường link chia sẻ (Public Link hoặc Private Link kèm passcode).
-- **Xem Bản đồ Quy hoạch GIS & Trạng thái Lô đất:** Quan sát trực quan bản đồ phân lô, xem mã màu trạng thái khảo sát (Đã xong / Chưa xong).
-- **Tra cứu Thông tin Lô đất & Tải Báo cáo:** Xem thông tin tổng quan, xem báo cáo đơn lẻ trực tuyến hoặc tải về các Bộ Báo cáo Tổng hợp đã được xuất bản (Read-only format).
-
----
-
-## 3. CHI TIẾT CÁC KỊCH BẢN SỬ DỤNG (USE CASE SPECIFICATIONS)
+## 2. ĐẶC TẢ CHI TIẾT 10 KỊCH BẢN SỬ DỤNG (USE CASE SPECIFICATIONS)
 
 ---
 
 ### USE CASE 01: DASHBOARD THỐNG KÊ & PHÂN CÔNG TASK PHÂN KHU (ZONE ANALYTICS & TASK ASSIGNMENT)
 - **Tác nhân:** `ZONE_ADMIN`, `SUPER_ADMIN`.
-- **Mục tiêu:** Thống kê tiến độ báo cáo, quản lý chấm công Surveyor và phân công task khảo sát theo phân khu.
+- **Mục tiêu:** Thống kê tiến độ báo cáo, quản lý chấm công Surveyor và phân công/điều chuyển task khảo sát theo phân khu.
 - **Luồng thực hiện:**
   1. `ZONE_ADMIN` đăng nhập Web Portal, chọn Phân khu/Nhà ga phụ trách.
-  2. **Xem Dashboard thống kê:** Lọc theo khoảng thời gian, xem biểu đồ báo cáo hoàn thành/duyệt/chờ duyệt và bảng chấm công Surveyor.
-  3. **Phân công Task:** Khoanh vùng thửa đất trên GIS, gán task cho `SURVEYOR` phụ trách. Thông báo tự động gửi đến Mobile PWA của Surveyor.
+  2. **Xem Dashboard thống kê:** Lọc theo khoảng thời gian Ngày/Tuần/Tháng, xem biểu đồ 6 trạng thái (`APPROVED`, `SUBMITTED`, `IN_PROGRESS`, `POSTPONED_ABSENT`, `REJECTED`, `NOT_SURVEYED`) và bảng năng suất Surveyor.
+  3. **Phân công Task:** Chọn danh sách thửa đất chưa khảo sát trên GIS, gán task cho `SURVEYOR` phụ trách kèm deadline. Có thể điều chuyển task sang Surveyor khác qua `PUT /tasks/{id}/reassign`.
 
 ---
 
-### USE CASE 02: CHECK-IN CHẤM CÔNG & LẬP BÁO CÁO KHẢO SÁT HỆN TRƯỜNG (FIELD TIMEKEEPING & SURVEY REPORTING)
-- **Tác nhân:** `SURVEYOR`, Chủ sở hữu công trình.
-- **Mục tiêu:** Check-in chấm công ngày làm việc và tiến hành khảo sát thực địa (Phase 1 Baseline hoặc Phase 2 Pre-construction Delta).
-- **Luồng thực hiện Khảo sát Giai đoạn 1 (Phase 1 Baseline):**
-  1. **Check-in Chấm công:** Bắt GPS, chụp ảnh selfie/hiện trường, điền danh sách người đi cùng.
-  2. **Chụp 4 ảnh định danh ($P-01 \to P-04$):** Chụp có Watermark GPS & Thời gian (Hỗ trợ AI đa giác đứng và phân tầng).
-  3. **Phỏng vấn chủ hộ:** Thu thập thông tin móng (CAT 1-5), kết cấu, lịch sử sự cố.
-  4. **Khảo sát từng tầng & Thả ghim $D-xx$:** Chụp ảnh bối cảnh `Photo CTX` (tự tạo Vùng `Z-xx`) ➔ Chạm thả ghim $D-xx$ ➔ Chụp cận cảnh `Photo CU` có thước đo khe nứt.
-  5. **Đo lún nghiêng:** Nhập tỉ lệ nghiêng X/Y%, nghiêng sàn, võng dầm.
-  6. **Xác nhận phạm vi & Vẽ lại ranh thửa GIS (Bước 5):** Sau khi đã đi hết các tầng, nếu phát hiện thửa bị tách làm 2 căn hoặc gộp thửa, dùng công cụ **Polygon Split/Edit Tool** vẽ lại ranh. Hệ thống tự động cấp mã mới từ dải số mở rộng (không làm xô lệch các thửa khác).
-  7. **Auto Scoring & Chụp ảnh xác nhận:** Hệ thống tự động tính điểm ECS/VI. Cán bộ chụp ảnh chữ ký trên giấy hoặc ảnh cán bộ khảo sát / người kiểm tra tại hiện trường. Báo cáo hoàn chỉnh gửi về hệ thống.
-
-- **Luồng thực hiện Khảo sát Giai đoạn 2 (Phase 2 Pre-Construction Delta Verification):**
-  1. **Tự động Kế thừa & Đối soát theo Vị trí đứng:** Khi cán bộ chọn Tầng & Phòng đang đứng, PWA tự động `GET` danh sách các Vùng `Z-xx` của GĐ1 kèm ảnh `Photo CTX` và vị trí ghim $D-xx$ cũ.
-  2. **Xử lý trên Vùng Hiện hữu (`Z-xx` cũ):**
-     - Chạm ghim cũ $D-xx$: Đo lại $w_2, L_2$ ➔ Hệ thống tự tính biến thiên $\Delta w, \Delta L$ ➔ Chọn trạng thái (`Không đổi`, `Phát triển`, `Đã sửa`) ➔ Chụp ảnh $CU$ mới có thước đo.
-     - Chấm thêm vết nứt mới: Chạm trực tiếp lên `Photo CTX` cũ để thả ghim mới màu đỏ $D-new$, nhập kích thước và chụp $CU$ có thước đo.
-  3. **Mở rộng Khu vực / Vùng Mới Xuất Hiện (`Z-xx` mới):** Bấm `[+ Thêm Vùng Mới]` ➔ Hệ thống tạo `Z-new` ➔ Chụp `Photo CTX` mới ➔ Chấm các ghim $D-new$ mới và chụp $CU$ có thước đo.
-  4. **Kiểm tra Checklist 10 Mục Phụ lục A, Tổng hợp Biến động & Ký tên 4 Bên:** Hệ thống tự động kiểm tra tính đầy đủ của hồ sơ, đối chiếu dữ liệu với GĐ1 và hỗ trợ ký số/chụp ảnh xác nhận 4 bên.
+### USE CASE 02: CHẤM CÔNG GPS THỰC ĐỊA & XÁC NHẬN CHẤM CÔNG (FIELD TIMEKEEPING & VERIFICATION)
+- **Tác nhân:** `SURVEYOR`, `ZONE_ADMIN`.
+- **Mục tiêu:** Ghi nhận ngày công thực địa có đối soát GPS và ảnh selfie chống gian lận.
+- **Luồng thực hiện:**
+  1. `SURVEYOR` đến công trường Ga, mở PWA gửi tọa độ GPS thực tế và ảnh selfie (`POST /api/v1/attendance/check-in`).
+  2. Hệ thống PostGIS tự động tính khoảng cách tới tâm Ga:
+     - Nếu $\le 500m$: Trạng thái `PENDING_VERIFICATION`.
+     - Nếu $> 500m$: Trạng thái `FLAGGED_WARNING` (Sai lệch vị trí Ga).
+  3. `ZONE_ADMIN` mở danh sách chấm công (`GET /api/v1/admin/attendance`), kiểm tra vị trí trên bản đồ, xem ảnh selfie và nhấn **Xác nhận ngày công** (`POST /api/v1/admin/attendance/{id}/verify`).
 
 ---
 
-### USE CASE 03: GHIM KHUYẾT TẬT TRÊN SƠ ĐỒ PHÁC THẢO TAY (INTERACTIVE DAMAGE PINNING)
+### USE CASE 03: QUÉT CẠN THỬA ĐẤT AD-HOC & XỬ LÝ VẮNG NHÀ (AD-HOC SWEEP SURVEY & ABSENCE HANDLING)
 - **Tác nhân:** `SURVEYOR`.
-- **Mục tiêu:** Trực quan hóa các điểm tổn thương $D-xx$ trên bản vẽ phác thảo tay mặt bằng/mặt đứng công trình.
+- **Mục tiêu:** Xử lý tình huống chủ hộ vắng nhà và linh hoạt chuyển sang khảo sát các nhà liền kề mà không bị gián đoạn công việc.
 - **Luồng thực hiện:**
-  1. `SURVEYOR` chụp ảnh bản vẽ phác thảo tay (`Damage Map / Sketch`).
-  2. Màn hình PWA hỗ trợ phóng to 300% (Pinch-to-Zoom).
-  3. `SURVEYOR` chạm ngón tay để thả các điểm ghim $D-01, D-02\dots$ 
-  4. Nút ghim tự động đổi màu theo độ rộng khe nứt (🟢 Green <1mm, 🟡 Yellow 1-5mm, 🔴 Red >5mm hoặc nứt kết cấu).
+  1. **Khi nhà được giao đi vắng / khóa cửa:** Surveyor bấm `[Ghi nhận Vắng nhà]` (`POST /parcels/{id}/record-absence`), chụp ảnh cửa khóa làm bằng chứng. Thửa đất chuyển sang màu Tím (`POSTPONED_ABSENT`) và tăng bộ đếm số lần đến vắng mặt.
+  2. **Tự nhận nhà liền kề để quét cạn:** Surveyor chạm vào thửa đất màu xám (`NOT_SURVEYED`) trên bản đồ GIS hoặc danh sách `GET /parcels/nearby` ➔ Bấm `[Nhận & Khảo sát ngay]` (`POST /parcels/{id}/start-survey`). Thửa đất chuyển sang màu Vàng (`IN_PROGRESS`) và Surveyor bắt đầu lập hồ sơ ngay.
 
 ---
 
-### USE CASE 04: THẨM ĐỊNH HỒ SƠ & PHÊ DUYỆT BÁO CÁO (SPLIT-PANE AUDIT & APPROVAL)
+### USE CASE 04: LẬP BÁO CÁO KHẢO SÁT GIAI ĐOẠN 1 (PHASE 1 BASELINE 9 BƯỚC)
+- **Tác nhân:** `SURVEYOR`, Chủ sở hữu công trình.
+- **Mục tiêu:** Thu thập dữ liệu hiện trạng toàn diện trước khi thi công tuyến Metro 2.
+- **Luồng thực hiện:**
+  1. **Bước 1 (Ảnh định danh & Polygon):** Chụp 4 ảnh $P-01 \to P-04$. Vẽ đa giác mặt đứng $N$ đỉnh bất kỳ ($N \ge 3$), vẽ đường phân tầng ngang và nhập kích thước dóng. Hệ thống tự động gửi ảnh $P-02$ vào hàng đợi AI nắn thẳng phối cảnh chuẩn CAD.
+  2. **Bước 2 (Thông số kết cấu):** Phỏng vấn móng (CAT 1-5), hệ khung chịu lực, số tầng, các yếu tố lịch sử $E5$.
+  3. **Bước 3 (Khảo sát hư hỏng từng tầng):** Chụp ảnh bối cảnh `Photo CTX` (tạo Vùng $Z-xx$) ➔ Thả ghim $D-xx$ trên ảnh bối cảnh ➔ Chụp cận cảnh `Photo CU` có thước đo khe nứt mm (Scale Card), đo $w_{max}$, $L$.
+  4. **Bước 4 (Đo lún nghiêng):** Đo Tilt X/Y, nghiêng sàn, võng dầm bằng thước laser.
+  5. **Bước 5 (Phạm vi & Đa giác Footprint):** Cập nhật ranh nhà thực tế. Nếu nhà bị chia nhỏ, dùng công cụ Tách thửa để đề xuất cấp mã từ dải mở rộng ($> 07000$).
+  6. **Bước 6 - 9 (Điểm số, Kiến nghị & Chữ ký):** Tự động tổng hợp điểm $ECS/24$ và chỉ số tổn thương $VI$, chụp chữ ký chủ hộ/cán bộ và nộp hồ sơ (`SUBMITTED` - Màu Cam).
+
+---
+
+### USE CASE 05: LẬP BÁO CÁO KHẢO SÁT GIAI ĐOẠN 2 (PHASE 2 DELTA VERIFICATION & PRE-CONSTRUCTION)
+- **Tác nhân:** `SURVEYOR`, Nhà thầu, Đơn vị độc lập, Chủ hộ.
+- **Mục tiêu:** Đối soát biến động nứt, lún, nghiêng so với GĐ1 trước khi máy đào hầm TBM đi qua.
+- **Luồng thực hiện:**
+  1. Khởi tạo hồ sơ Phase 2 kế thừa toàn bộ dữ liệu gốc từ Phase 1 đã duyệt.
+  2. Chọn Tầng & Phòng đang đứng: Hệ thống tự động lọc ảnh $CTX$ và danh sách ghim cũ $D-xx$ của Phase 1.
+  3. **Đối soát ghim cũ:** Chạm ghim cũ $D-01$, đo $w_2, L_2$, chụp $CU$ mới ➔ Hệ thống tự tính biến thiên $\Delta w, \Delta L$ và gán trạng thái (`Không đổi`, `Phát triển`, `Đã sửa`).
+  4. **Ghi nhận nứt mới:** Chấm thêm ghim mới màu Đỏ $D-new$ trên ảnh $CTX$ cũ hoặc tạo Vùng mới $Z-new$ nếu có khu vực mới cơi nới.
+  5. Đo lại lún nghiêng và tính biến thiên $\Delta$ nghiêng.
+  6. Kiểm tra Checklist 10 tiêu chí Phụ lục A (Quality Gate), tổng kết $\Delta ECS$, đưa ra phán quyết bồi thường và ký tên 4 bên.
+
+---
+
+### USE CASE 06: ĐỘNG CƠ CẢNH BÁO BẤT THƯỜNG & THẨM ĐỊNH SPLIT-PANE (AUDIT ALERT & REVIEW)
 - **Tác nhân:** `ZONE_ADMIN`.
-- **Mục tiêu:** Đối soát tính chính xác của Báo cáo khảo sát, duyệt biến động ranh thửa và phê duyệt báo cáo.
+- **Mục tiêu:** Tự động phát hiện nghi vấn gian lận hiện trường hoặc nguy cấp kết cấu để Zone Admin ưu tiên thẩm định kỹ.
 - **Luồng thực hiện:**
-  1. `ZONE_ADMIN` đăng nhập Web Portal, mở màn hình **Chia đôi Đối soát (Split-Pane)**. Nửa trái xem sơ đồ phác thảo có ghim $D-xx$, nửa phải xem cặp ảnh CTX+CU.
-  2. Rê chuột lên ảnh cận cảnh `Photo CU` kích hoạt **Kính lúp 400%** soi vạch milimet trên thước đo áp sát vết nứt.
-  3. Nếu có biến động tách/gộp thửa, xem so sánh đa giác cũ/mới và bấm **"Duyệt Biến Động Thửa"**.
-  4. Xem điểm số ECS, VI. Nếu cần can thiệp kỹ thuật, nhập lý do vào ô **Engineering Judgement**.
-  5. Bấm phím tắt `A` (**Phê duyệt Báo cáo**) hoặc phím `R` (**Trả về** kèm lý do yêu cầu khảo sát lại).
+  1. Khi hồ sơ nộp về, Động cơ Audit Alerts tự động quét 5 quy tắc:
+     - Chụp ảnh cách tâm nhà $> 50m$ (`GPS_DISTANCE_DISCREPANCY`).
+     - Khảo sát nhà $\ge 2$ tầng chỉ mất $< 5$ phút (`ABNORMAL_DURATION`).
+     - Ghim khuyết tật mang cờ kết cấu Critical hoặc lún nghiêng $\Delta > 0.5\%$ (`STRUCTURAL_CRITICAL`).
+     - Ảnh cận cảnh thiếu thước đo vạch mm (`MISSING_SCALE_CARD`).
+  2. Zone Admin mở danh sách cảnh báo (`GET /api/v1/admin/reports/audit-alerts`), nhấp vào hồ sơ để mở màn hình Split-Pane.
+  3. Rê chuột lên ảnh $CU$ kích hoạt **Kính lúp 400%** soi vạch mm trên thước đo.
+  4. Bấm phím tắt `A` (**Phê duyệt** $\rightarrow$ Sinh PDF/A ký số) hoặc phím tắt `R` (**Trả về** kèm lý do kỹ thuật để khảo sát lại).
 
 ---
 
-### USE CASE 05: TRUY CẬP VÀ XEM BẢN ĐỒ QUY HOẠCH DÀNH CHO KHÁCH (GUEST PUBLIC GIS & PARCEL MONITORING)
-- **Tác nhân:** `CONTRACTOR` / Khách vãng lai (Guest Viewer).
-- **Mục tiêu:** Tra cứu thông tin quy hoạch, vị trí các lô đất và theo dõi tiến độ khảo sát trên GIS.
+### USE CASE 07: QUẢN TRỊ VÒNG ĐỜI NGƯỜI DÙNG & ĐIỀU CHUYỂN GA (USER LIFECYCLE MANAGEMENT)
+- **Tác nhân:** `SUPER_ADMIN`.
+- **Mục tiêu:** Cấp mới, điều chuyển nhân sự giữa các Ga, khóa/mở khóa tài khoản, reset mật khẩu và xóa an toàn.
 - **Luồng thực hiện:**
-  1. Khách truy cập vào hệ thống qua Public Link hoặc Private Link (nhập passcode bảo mật nếu có).
-  2. Màn hình hiển thị Bản đồ GIS tương tác toàn khu vực dự án Metro 2.
-  3. Quan sát các thửa đất được tô màu thể hiện trạng thái khảo sát (Hoàn thành / Chưa hoàn thành).
-  4. Nhấp chọn 1 lô đất bất kỳ để xem thông tin tổng quan và đọc trực tuyến hoặc tải file PDF/A báo cáo đã duyệt.
+  1. Super Admin tra cứu danh sách nhân sự toàn hệ thống với bộ lọc đa chiều (`GET /api/v1/admin/users`).
+  2. Tạo mới tài khoản cho `ZONE_ADMIN`, `SURVEYOR` hoặc `GUEST` (`POST /api/v1/admin/users`).
+  3. Cập nhật thông tin và điều chuyển Surveyor từ Ga này sang Ga khác (`PUT /api/v1/admin/users/{id}`).
+  4. Khóa tài khoản khi vi phạm quy chế (`PUT /api/v1/admin/users/{id}/status`) hoặc đặt lại mật khẩu (`POST /api/v1/admin/users/{id}/reset-password`).
+  5. Xóa tài khoản nhân sự (áp dụng Soft-delete để bảo toàn hồ sơ và chữ ký đã lập).
 
 ---
 
-### USE CASE 06: XUẤT BỘ HỒ SƠ BÁO CÁO TỔNG HỢP PHÂN KHU & TOÀN TUYẾN (COMPILED CADASTRAL DOSSIER EXPORT)
-- **Tác nhân:** `ZONE_ADMIN` (Phân khu), `SUPER_ADMIN` (Toàn tuyến), `CONTRACTOR` (Tải file đã công bố).
-- **Mục tiêu:** Đóng gói và xuất khẩu bộ tài liệu báo cáo hàng loạt các thửa đất đã duyệt kèm sơ đồ GIS và bảng kê danh mục phục vụ bàn giao pháp lý.
+### USE CASE 08: XUẤT BÁO CÁO CÓ CHỌN LỌC PHÂN KHU (ZONE SELECTIVE EXPORT)
+- **Tác nhân:** `ZONE_ADMIN`.
+- **Mục tiêu:** Xuất báo cáo linh hoạt theo danh sách chỉ định hoặc theo bộ lọc thời gian phục vụ bàn giao mặt bằng thi công từng đoạn.
 - **Luồng thực hiện:**
-  1. **Khởi tạo Đợt Xuất:**
-     - `ZONE_ADMIN` (hoặc `SUPER_ADMIN`) truy cập mục **"Xuất Báo Cáo Hàng Loạt (Batch Export)"** trên Web Admin.
-     - Lựa chọn phạm vi: Phân khu/Nhà ga hoặc Toàn tuyến.
-     - Lựa chọn khoảng thời gian (Từ ngày... Đến ngày...).
-     - Lựa chọn định dạng xuất: `PDF Book Compilation` (Sách báo cáo gộp trang) | `ZIP Archive` (Bộ file PDF/A riêng lẻ kèm Excel & GeoJSON).
-  2. **Hệ thống Xử lý Thông minh:**
-     - Tự động gom nhóm các thửa phát sinh do tách thửa (VD: `B-07001` tự động nằm liền sau thửa gốc `B-00002`).
-     - Tạo Mục lục điện tử, Bản đồ GIS thu nhỏ của phân khu, Bảng kê danh mục thửa và Bảng tổng hợp rủi ro ECS/VI.
-     - Đóng gói file và sinh mã băm kiểm tra tính toàn vẹn `checksumSha256`.
-  3. **Tải về & Công bố:**
-     - `ZONE_ADMIN` / `SUPER_ADMIN` tải file về phục vụ bàn giao cho Ban Quản lý Đường sắt Đô thị (MAUR) và Nhà thầu đào hầm TBM.
-     - Bật cờ `isPublishedToGuests = true` để cho phép `CONTRACTOR / GUEST` tải về từ giao diện Web Viewer.
+  1. Zone Admin chọn chế độ xuất (`POST /api/v1/reports/batch-export`):
+     - **Chế độ 1 (Theo chỉ định):** Chọn đúng 3 căn nhà mặt tiền `["B-00105", "B-00106", "B-00107"]` để bàn giao gấp cho nhà thầu đóng cừ Larsen.
+     - **Chế độ 2 (Theo tiêu chí thời gian):** Lọc theo Tuần 37, trạng thái `APPROVED`, rủi ro `VI: HIGH/VERY_HIGH`.
+  2. Chọn định dạng: `PDF Book Compilation` (Sách báo cáo gộp có bìa + mục lục điện tử + bản đồ GIS), `ZIP Archive` (từng file PDF/A đơn lẻ), hoặc `Excel Summary`.
+  3. Hệ thống xử lý nền (Queued $\to$ Completed) và sinh mã băm **Checksum SHA-256** bảo đảm tính toàn vẹn pháp lý.
+
+---
+
+### USE CASE 09: TRUNG TÂM QUẢN TRỊ XUẤT BÁO CÁO TOÀN TUYẾN (GLOBAL EXPORT MANAGEMENT HUB)
+- **Tác nhân:** `SUPER_ADMIN`.
+- **Mục tiêu:** Xuất báo cáo tổng thể 11 Ga Metro 2 và quản trị toàn bộ lịch sử xuất dữ liệu của toàn hệ thống.
+- **Luồng thực hiện:**
+  1. Super Admin khởi tạo đợt xuất tổng thể 11 Ga (~7.000 căn) phục vụ báo cáo UBND TP.HCM, MAUR và Ngân hàng KfW (`POST /api/v1/admin/reports/batch-export`).
+  2. Super Admin xem danh sách toàn bộ các đợt xuất báo cáo của toàn tuyến và của từng Zone Admin (`GET /api/v1/admin/reports/exports`).
+  3. Xem chi tiết mẻ xuất, kiểm tra mã băm SHA-256, hoặc **Thu hồi / Xóa mẻ xuất** khỏi hệ thống khi phát hiện dữ liệu cần cập nhật lại (`DELETE /api/v1/admin/reports/exports/{batchId}`).
+
+---
+
+### USE CASE 10: TRA CỨU BẢN ĐỒ QUY HOẠCH & TẢI TÀI LIỆU DÀNH CHO KHÁCH (CONTRACTOR & GUEST VIEW)
+- **Tác nhân:** `CONTRACTOR` / Khách vãng lai.
+- **Mục tiêu:** Tra cứu bản đồ GIS quy hoạch các công trình đã duyệt qua Share Token an toàn và tải tài liệu công bố.
+- **Luồng thực hiện:**
+  1. Khách truy cập qua đường link chia sẻ an toàn (Share Token + Passcode).
+  2. Màn hình hiển thị Bản đồ GIS tương tác toàn khu vực tuyến Metro 2 với các mã màu trực quan.
+  3. Nhấp chọn 1 lô đất bất kỳ để xem tóm tắt thông số kết cấu, điểm ECS/24, xếp hạng rủi ro VI và tải file PDF/A chính thức.
+  4. Tải Tập hồ sơ hoàn chỉnh (PDF Book Compilation) kèm mã băm Checksum SHA-256.
