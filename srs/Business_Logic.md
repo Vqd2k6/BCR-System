@@ -60,16 +60,34 @@ Khi 2 hoặc nhiều thửa đất liền kề (Ví dụ: `B-00002` và `B-00003
 > [!NOTE]
 > Do mật độ đô thị TP.HCM cao và các toà nhà san sát nhau, cán bộ khảo sát **phải đi hết toàn bộ các tầng và không gian trong nhà (từ Bước 1 đến Bước 4)** rồi mới tiến hành đối soát và vẽ lại đường bao ranh đất tại **Bước 5**. Điều này đảm bảo cảm nhận về diện tích, ranh giới và số lượng căn nhà là chính xác 100%, tránh vẽ sai lệch.
 
-### 2.2. Trình tự Thao tác & Xử lý Dữ liệu
-1. **Surveyor thao tác trên Mobile GIS:**
-   - Tại Bước 5, chọn trạng thái ranh: `Tách thửa` hoặc `Gộp thửa`.
-   - Sử dụng công cụ **Polygon Split / Edit Tool** vẽ đường phân tách hoặc gộp đa giác trực tiếp trên nền bản đồ GIS.
-   - Hệ thống tự động tạo bản ghi `ParcelMutationEvent`.
-2. **Xử lý Task tự động:**
-   - Hệ thống tự động tạo thêm Task khảo sát mới cho thửa phát sinh `B-07001` gán cho chính Surveyor đó để hoàn thành Báo cáo độc lập.
-3. **Zone Admin Phê duyệt Biến động trên Web Portal:**
-   - Zone Admin xem màn hình đối soát đa giác cũ và đa giác mới.
-   - Bấm **"Phê duyệt Biến động"** ➔ Lớp bản đồ GIS chính thức cập nhật thửa mới, chuyển thửa cũ sang lớp Lưu trữ Lịch sử.
+### 2.2. Trình tự Thao tác & Cơ chế Hiển thị Phân lớp GIS (Multi-Layer GIS Display)
+
+Để bảo đảm tính an toàn dữ liệu, hệ thống chia làm **2 Lớp GIS**:
+1. **Lớp Bản đồ Đang Khảo sát của Surveyor (Surveyor Working Draft Layer):**
+   - Khi Surveyor thực hiện cắt thửa tại Bước 5, trên màn hình di động của Surveyor sẽ **CẬP NHẬT NGAY LẬP TỨC** thành 2 thửa `B-00002` và `B-07001` (hiển thị viền cam nét đứt biểu thị trạng thái dự thảo).
+   - Nhờ đó, Surveyor có thể lập tức tạo 2 Báo cáo độc lập và gán số liệu/ảnh cho từng căn nhà mà không bị nghẽn công việc.
+2. **Lớp Bản đồ Quy hoạch Chính thức (Official Master GIS Layer - Cho Admin & Guest):**
+   - **CHƯA CẬP NHẬT CHÍNH THỨC**.
+   - Trên bản đồ chung của toàn dự án, thửa gốc `B-00002` sẽ nhấp nháy cờ cảnh báo màu cam: `PENDING_MUTATION_APPROVAL` (Đang có đề xuất biến động ranh từ hiện trường).
+
+---
+
+### 2.3. Cơ chế Xử lý khi Bị Trả Về / Từ Chối (Rejection & Rollback Handling)
+
+Hệ thống phân biệt rõ ràng **2 Cấp độ Reject** với quy trình xử lý tự động:
+
+#### Cấp độ 1: Zone Admin REJECT Đề xuất Biến động Ranh Thửa (Reject Mutation)
+*Áp dụng khi Surveyor vẽ nhầm ranh, lấn ranh hàng xóm, hoặc thực tế chỉ là 1 căn nhà 1 chủ có 2 cửa:*
+1. **Hủy bỏ Đề xuất Biến động:** Bản ghi `ParcelMutationEvent` chuyển sang trạng thái `REJECTED` kèm lý do từ chối của Admin.
+2. **Khôi phục Thửa gốc (Rollback):** Thửa gốc `B-00002` được gỡ bỏ cờ cảnh báo, trở lại trạng thái `ACTIVE` bình thường với ranh giới đa giác ban đầu.
+3. **Thu hồi Thửa phát sinh:** Thửa tạm `B-07001` chuyển trạng thái `MUTATION_VOID` (vô hiệu hóa, thu hồi mã `B-07001` về kho số tái sử dụng để không làm rác Database).
+4. **Hủy Báo cáo rác & Điều chỉnh Task:** Báo cáo tạm của `B-07001` tự động bị hủy. Báo cáo của `B-00002` được trả về cho Surveyor để gộp nội dung thành 1 báo cáo duy nhất cho căn nhà.
+
+#### Cấp độ 2: Zone Admin DUYỆT Ranh Thửa (Approve Mutation) nhưng REJECT Báo cáo Kỹ thuật (Reject Report Data)
+*Áp dụng khi việc tách 2 nhà là đúng thực tế, nhưng Báo cáo của thửa `B-07001` bị thiếu ảnh vết nứt hoặc chưa đo lún nghiêng:*
+1. **Ranh đất chính thức có hiệu lực:** `ParcelMutationEvent` chuyển thành `APPROVED`. Hai thửa `B-00002` và `B-07001` chính thức cập nhật lên **Official Master GIS Layer** toàn hệ thống.
+2. **Chỉ trả về Báo cáo bị lỗi:** `SurveyReport` của thửa `B-07001` chuyển sang trạng thái `REJECTED` (Yêu cầu Surveyor bổ sung ảnh/số liệu kỹ thuật).
+3. **Không Rollback ranh đất:** Ranh giới đất đã đúng thực tế nên được giữ nguyên vẹn trên GIS.
 
 ---
 
