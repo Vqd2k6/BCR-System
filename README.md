@@ -1,126 +1,89 @@
-# HỆ THỐNG KHẢO SÁT HIỆN TRẠNG CÔNG TRÌNH (KSQH METRO 2)
-> **Dự án:** Ứng dụng Khảo sát Đánh giá Hiện trạng Công trình (Building Condition Assessment - BCA) phục vụ Dự án Tuyến Đường sắt Đô thị Metro Số 2 (Bến Thành – Tham Lương).  
-> **Quy mô khảo sát:** ~7.000 công trình (nhà ở riêng lẻ, trường học, công trình công cộng, TMDV...) dọc hành lang tuyến.  
-> **Mục tiêu cốt lõi:** Thu thập số liệu chi tiết, bằng chứng hình ảnh hiện trạng kiến trúc - kết cấu của các công trình làm căn cứ pháp lý phục vụ việc xác định hoặc khước từ đền bù khi có tranh chấp/tác động lún nứt từ quá trình thi công và vận hành Metro.
+# HỆ THỐNG KHẢO SÁT QUY HOẠCH HIỆN TRẠNG CÔNG TRÌNH - METRO 2 BẾN THÀNH – THAM LƯƠNG
+
+> **Dự án:** Ứng dụng Khảo sát Đánh giá Hiện trạng Công trình (Building Condition Assessment - BCA) phục vụ Tuyến Metro Số 2 (Bến Thành – Tham Lương).  
+> **Kiến trúc:** Clean Architecture & Modular Microservices (PostgreSQL 16/PostGIS + Node.js REST API + PWA Mobile + Web Admin Portal).
 
 ---
 
-## 🌟 TOÀN BỘ CÁC PHÂN HỆ ĐÃ XÂY DỰNG HOÀN CHỈNH
+## 🏗️ CẤU TRÚC THƯ MỤC DỰ ÁN
 
-```
-/Users/vqd2k6/Desktop/Project/KSat_QHoach/
-├── index.html                   # 🌐 Giao diện Prototype Demo (Nền sáng - Light Theme) [Port 3000]
-├── css/ & js/                   # Thư viện giao diện, bản đồ Leaflet Esri, Dual-GPS Canvas
-├── database_schema.sql          # 🗄️ CSDL không gian PostgreSQL 15+ & PostGIS 3+
-├── backend/                     # 🚀 Backend REST API (Node.js/Express + PostGIS + R2) [Port 5050]
-│   ├── package.json
+```text
+/KSat_QHoach/
+├── docker-compose.yml          # Điều phối 4 dịch vụ: PostGIS, Backend API, MinIO S3, Caddy
+├── Caddyfile                   # Cấu hình Caddy Reverse Proxy & Web Server
+├── database/                   # Khởi tạo CSDL Không gian PostGIS
+│   ├── init_schema.sql         # 21 bảng CSDL, UUID, PostGIS Geometry & Spatial Indices
+│   └── seed_data.sql           # Dữ liệu mẫu: 11 ga Metro 2, tài khoản mẫu, thửa đất Dual-ID
+├── backend/                    # Core Backend RESTful API
 │   ├── src/
-│   │   ├── server.js            # Express API Server
-│   │   ├── config/              # PostgreSQL Pool & Cloudflare R2 Client
-│   │   ├── routes/              # Auth, Zones, Buildings, Media
-│   │   └── scripts/             # Seed data script
-└── mobile_app/                  # 📱 Ứng dụng Di Động Flutter Native (iOS & Android)
-    ├── pubspec.yaml             # flutter_map, geolocator, camera, dio
-    ├── lib/
-    │   ├── main.dart            # Light Theme Material 3
-    │   ├── services/            # GpsService, WatermarkService, ApiService
-    │   ├── widgets/             # CrackPainterCanvas, FootprintMapWidget
-    │   └── views/               # LoginView, ZoneListView, SurveyWizardView
-    ├── android/                 # AndroidManifest (Camera, Fine GPS permissions)
-    └── ios/                     # Info.plist (NSCamera, NSLocation permissions)
+│   │   ├── config/db.js        # Pool kết nối PostgreSQL
+│   │   ├── middlewares/auth.js # Xác thực JWT & Phân quyền RBAC 4 cấp
+│   │   ├── routes/api.js       # 14 REST Endpoints theo Sequence Diagrams
+│   │   └── server.js           # Express Server & Health Check
+│   ├── Dockerfile
+│   └── package.json
+├── frontend/                   # Ứng dụng giao diện người dùng
+│   ├── mobile_pwa/index.html   # Mobile PWA cho Cán bộ Khảo sát (Field Surveyor)
+│   └── web_admin/index.html    # Web Portal cho Tổ trưởng (Zone Admin) & Lãnh đạo (Super Admin)
+└── srs/                        # Toàn bộ 9 tài liệu đặc tả chuẩn kỹ thuật & nghiệp vụ
 ```
 
 ---
 
-## 1. TỔNG QUAN HỆ THỐNG & KIẾN TRÚC PHÂN QUYỀN
+## 🚀 HƯỚNG DẪN KHỞI CHẠY HỆ THỐNG
 
-### 1.1. Mô hình Phân quyền 3 Cấp (3-Tier RBAC)
-```
-[ CẤP 1: SUPER ADMIN ] (Chủ đầu tư / Ban QLDA Metro / IT Lead)
-          │
-          ▼
-[ CẤP 2: ZONE MANAGER / REVIEWER ] (Tổ trưởng / Điều phối viên phân đoạn)
-          │
-          ▼
-[ CẤP 3: FIELD SURVEYOR ] (Cán bộ khảo sát hiện trường - Mobile App)
-```
+### Cách 1: Khởi chạy toàn bộ với Docker Compose (Khuyên dùng - 1 Lệnh)
 
-| Cấp bậc | Vai trò | Quyền hạn & Trách nhiệm chính | Nền tảng |
-| :--- | :--- | :--- | :--- |
-| **Cấp 1** | **Super Admin** *(Ban QLDA / CĐT)* | - Quản lý toàn bộ gói thầu, 6 quận huyện dọc tuyến Metro số 2.<br>- Xem Dashboard tiến độ toàn tuyến trên bản đồ số GIS.<br>- Quản lý và cấp tài khoản nội bộ cho Zone Manager, cấu hình hệ thống. | Web Admin Portal |
-| **Cấp 2** | **Zone Manager** *(Điều phối / Duyệt)* | - Quản lý khu vực/phân đoạn được giao (theo Ga/Gói thầu/Quận).<br>- **Vẽ phân vùng khảo sát (Survey Zones)** & giao việc cho từng Surveyor.<br>- **Kiểm duyệt hồ sơ hiện trường:** Duyệt (*Approve*) hoặc Trả về (*Reject* kèm lý do).<br>- Giám sát cờ cảnh báo gian lận GPS (>50m). | Web Admin Portal |
-| **Cấp 3** | **Field Surveyor** *(Cán bộ hiện trường)* | - Đăng nhập tài khoản nội bộ trên Mobile App.<br>- Nhận khu vực được giao, tiến hành **khảo sát quét cạn (Sweep Survey)** từng công trình.<br>- Bắt GPS ngầm, chỉnh ghim tâm nhà, vẽ footprint sau khảo sát.<br>- Chụp ảnh đóng watermark, vẽ sơ đồ vết nứt, nộp hồ sơ chờ duyệt. | Mobile App (iOS / Android) |
+Đảm bảo máy tính đã cài đặt **Docker Desktop** và đang chạy.
 
----
+1. **Khởi chạy tất cả dịch vụ trong background:**
+   ```bash
+   docker compose up -d
+   ```
 
-## 2. CHIẾN LƯỢC KHẢO SÁT QUÉT CẠN & CẬP NHẬT NGƯỢC DỮ LIỆU GIS (REVERSE GIS RECONCILIATION)
+2. **Truy cập các phân hệ ứng dụng:**
+   - **Cổng Web Admin Portal:** [http://localhost/admin](http://localhost/admin) *(hoặc [http://localhost](http://localhost))*
+   - **Ứng dụng Mobile PWA Surveyor:** [http://localhost/pwa](http://localhost/pwa)
+   - **Backend REST API Health:** [http://localhost:5000/health](http://localhost:5000/health)
+   - **MinIO S3 Storage Console:** [http://localhost:9001](http://localhost:9001) *(User: `metro_minio_admin` / Pass: `metro_minio_secret_key`)*
+   - **PostgreSQL PostGIS Database:** `localhost:5432` *(Database: `metro2_survey`, User: `metro_user`, Pass: `metro_pass`)*
 
-> [!NOTE]
-> **Thực tế quy hoạch đô thị:** Dữ liệu bản đồ quy hoạch/địa chính cấp bởi cơ quan nhà nước có thể có độ trễ thời gian, hoặc trên thực tế một thửa đất quy hoạch lớn đã bị chia nhỏ thành 5-7 căn nhà thực tế (nhà chia nhỏ, sổ chung, xây xen kẹt, cơi nới). Do đó, hệ thống áp dụng chiến lược **Bàn giao Phân vùng & Quét cạn thực địa (Zone-based Exhaustive Sweep)**.
-
-### Quy trình nghiệp vụ Khảo sát Thực địa & Cập nhật GIS:
-```
-[ 1. Zone Manager vẽ Polygon Phân vùng & Giao việc ]
-                        │
-                        ▼
-[ 2. Surveyor đến thực địa, đi quét cạn từng công trình trong vùng ]
-                        │
-                        ▼
-[ 3. Tạo hồ sơ công trình mới: Bắt GPS ngầm + Chỉnh ghim tâm nhà ]
-                        │
-                        ▼
-[ 4. Khảo sát chi tiết Cây cấu kiện: Ngoại thất, các Tầng, Phòng, Cấu kiện ]
-                        │
-                        ▼
-[ 5. Chụp ảnh Watermark + Đo đạc & Vẽ đánh dấu vết nứt/hư hỏng ]
-                        │
-                        ▼
-[ 6. Vẽ Đa giác Đường bao ngôi nhà (Building Footprint Polygon) ]
-                        │
-                        ▼
-[ 7. Surveyor Nộp hồ sơ (Submitted) ]
-                        │
-                        ▼
-[ 8. Zone Manager Kiểm tra & Phê duyệt (Approved) ]
-                        │
-                        ▼
-[ 9. Tự động Cập nhật Ngược Footprint vào Bản đồ GIS Trung tâm ]
-```
+3. **Dừng hệ thống:**
+   ```bash
+   docker compose down
+   ```
 
 ---
 
-## 3. HƯỚNG DẪN VẬN HÀNH & TRẢI NGHIỆM
+### Cách 2: Khởi chạy trực tiếp trên máy cục bộ (Local Development)
 
-### 1. Trải nghiệm Giao diện Demo Prototype (Nền sáng - Light Theme)
-- Mở trình duyệt tại: **[http://localhost:3000](http://localhost:3000)**
-- Chế độ **Xem Song Song (Split View)**: Trực tiếp thao tác giả lập điện thoại và thấy dữ liệu đồng bộ sang Web Admin để duyệt.
-- Nút **`📊 Bảng Điều Phối & Thống Kê`** có thể ẩn/mở linh hoạt.
-
-### 2. Khởi chạy Backend API
+#### 1. Khởi chạy Backend API
 ```bash
 cd backend
+npm install
 npm start
-# API chạy tại http://localhost:5050
-# Health check: http://localhost:5050/api/health
 ```
+*API sẽ chạy tại: `http://localhost:5000` (Kiểm tra: `http://localhost:5000/health`)*
 
-### 3. Khởi chạy Ứng dụng Di động Flutter
+#### 2. Khởi chạy Giao diện Frontend
+Bạn có thể mở trực tiếp file HTML hoặc dùng `npx serve` / `Live Server`:
+- **Web Admin Portal:** Mở file `frontend/web_admin/index.html` trong trình duyệt.
+- **Mobile PWA Surveyor:** Mở file `frontend/mobile_pwa/index.html` trong trình duyệt (khuyên dùng chế độ Inspect F12 / Mobile Device View).
+
+Hoặc chạy lệnh serve:
 ```bash
-cd mobile_app
-flutter pub get
-flutter run
+npx serve -l 8080 frontend
+# Web Admin: http://localhost:8080/web_admin/
+# Mobile PWA: http://localhost:8080/mobile_pwa/
 ```
 
 ---
 
-## 4. TÍNH TOÁN DUNG LƯỢNG LƯU TRỮ HÌNH ẢNH & CHI PHÍ DỰ TÍNH
+## 🔐 TÀI KHOẢN TRẢI NGHIỆM MẪU (SEED DATA)
 
-| Thông số | Giá trị định lượng | Ghi chú |
-| :--- | :--- | :--- |
-| **Tổng số công trình** | **~ 7.000 hộ / công trình** | Dọc 6 quận tuyến Metro 2 |
-| **Số ảnh trung bình / hộ** | **~ 20 ảnh / công trình** | Ngoại thất, các tầng, chi tiết nứt |
-| **Tổng số lượng ảnh toàn dự án** | **140.000 bức ảnh** | 7.000 × 20 |
-| **Dung lượng ảnh gốc chất lượng cao** | **~ 4.0 - 5.0 MB / ảnh** | Độ phân giải 12MP - 48MP nguyên bản |
-| **TỔNG DUNG LƯỢNG LƯU TRỮ ẢNH** | **~ 560 GB - 700 GB** | ~ 0.6 - 0.7 Terabyte (TB) |
-| **Dung lượng dự phòng an toàn (+20%)** | **~ 850 GB - 1 TB** | Dự phòng công trình lớn chụp nhiều ảnh |
-| **Chi phí lưu trữ đề xuất (`Cloudflare R2`)** | **~$15 / tháng (~ 375.000 VNĐ)** | **$0 chi phí tải về (Zero Egress Fee)** |
+| Vai trò (Role) | Username | Password | Quyền hạn & Phân đoạn |
+| :--- | :--- | :--- | :--- |
+| **Super Admin** | `superadmin` | `Admin@123` | Toàn quyền quản trị 11 Ga Metro 2, duyệt tách/gộp thửa đất |
+| **Zone Admin** | `zoneadmin_s9` | `Admin@123` | Quản lý & duyệt hồ sơ khu vực Ga S9 (Bà Quẹo) |
+| **Surveyor** | `surveyor_01` | `Survey@123` | Cán bộ hiện trường, thực hiện khảo sát 9 bước Phase 1 & 2 |
+| **Contractor** | `guest_contractor` | `Guest@123` | Nhà thầu xây lắp Metro, tra cứu báo cáo & tải PDF/CAD |
