@@ -201,22 +201,19 @@ classDiagram
     }
 
     %% ==========================================
-    %% PACKAGE 3: SURVEY REPORT AGGREGATE ROOT (PHASE 1 & PHASE 2)
+    %% PACKAGE 3: SURVEY REPORT HIERARCHY (OOP INHERITANCE)
     %% ==========================================
-    class SurveyReport {
+    class BaseSurveyReport {
+        <<abstract>>
         +UUID id
         +UUID parcelId
         +UUID surveyorId
         +UUID zoneAdminId
-        +SurveyPhaseEnum phase
-        +UUID baselinePhase1ReportId
         +String reportCode
         +DateTime surveyDate
         +ReportStatusEnum status
         +Int currentStep
         +Boolean isDataQualityPassed
-        +Int deltaEcsScore
-        +CompensationVerdictEnum compensationVerdict
         +String summaryConclusions
         +String recommendations
         +DateTime createdAt
@@ -224,8 +221,50 @@ classDiagram
         +submitForReview() Void
         +approve(adminId) Void
         +reject(adminId, reason) Void
-        +calculatePhase2DeltaComparison() Void
+        +validateCompleteness() Boolean
     }
+
+    class Phase1SurveyReport {
+        +Boolean isHistoricalBaseline
+        +calculateAutoEcsAndVi() Void
+        +applyEngineeringJudgement(gradeDelta, reason) Void
+        +generatePhase1ReportPdf() FileStream
+    }
+
+    class Phase2SurveyReport {
+        +UUID phase1ReportId
+        +String workSection
+        +SurveyLevelEnum surveyLevel
+        +String witnessMembers
+        +String specialConditions
+        +Boolean hasExtensionAfterPhase1
+        +String extensionDetail
+        +Boolean hasRepairAfterPhase1
+        +String repairDetail
+        +Boolean hasUsageChangeAfterPhase1
+        +String usageChangeDetail
+        +String otherChanges
+        +Phase1ChangeConclusionEnum phase1ConfirmationConclusion
+        +DefectEvolutionSummaryEnum defectEvolutionSummary
+        +Int totalDefectsCount
+        +Int totalPhotosCount
+        +Int totalSketchesCount
+        +String inaccessibleAreas
+        +String dataLimitations
+        +String mostNotableDamage
+        +Boolean hasCriticalSigns
+        +List~MonitoringNeedEnum~ monitoringNeeds
+        +Boolean additionalNdtRequired
+        +String ndtDetails
+        +Phase2ConclusionEnum phase2ConditionConclusion
+        +String checklistItemsJson
+        +loadPhase1Baseline(phase1Id) Void
+        +compareDefectsWithPhase1() DefectComparisonSummary
+        +generatePhase2ReportPdf() FileStream
+    }
+
+    BaseSurveyReport <|-- Phase1SurveyReport
+    BaseSurveyReport <|-- Phase2SurveyReport
 
     class SurveyIdentificationPhoto {
         +UUID id
@@ -458,25 +497,26 @@ classDiagram
     ZoneAdmin "1" --> "0..*" TaskAssignment : dispatches
     Surveyor "1" --> "0..*" TaskAssignment : receives
 
-    Parcel "1" --> "0..*" SurveyReport : documented_by
-    Surveyor "1" --> "0..*" SurveyReport : conducts
-    ZoneAdmin "1" --> "0..*" SurveyReport : reviews
+    Parcel "1" --> "0..*" BaseSurveyReport : documented_by
+    Surveyor "1" --> "0..*" BaseSurveyReport : conducts
+    ZoneAdmin "1" --> "0..*" BaseSurveyReport : reviews
+    Phase2SurveyReport "0..*" --> "1" Phase1SurveyReport : references_baseline_phase1
     
     Parcel "1..*" --> "0..1" ParcelMutationEvent : sources
     ParcelMutationEvent "1" --> "1..*" Parcel : results_in
     Surveyor "1" --> "0..*" ParcelMutationEvent : proposes
     ZoneAdmin "1" --> "0..*" ParcelMutationEvent : approves
 
-    SurveyReport "1" *-- "4" SurveyIdentificationPhoto : contains_P01_to_P04
-    SurveyReport "1" *-- "1" BuildingSpecification : specifies
-    SurveyReport "1" *-- "1" HistoricalSensitivity : records_history
-    SurveyReport "1" *-- "0..*" DamageSketch : includes_sketches
-    SurveyReport "1" *-- "1..*" DamageZone : contains_zones_Zxx
+    BaseSurveyReport "1" *-- "2..4" SurveyIdentificationPhoto : contains_P01_to_P04
+    BaseSurveyReport "1" *-- "1" BuildingSpecification : specifies
+    BaseSurveyReport "1" *-- "1" HistoricalSensitivity : records_history
+    BaseSurveyReport "1" *-- "0..*" DamageSketch : includes_sketches
+    BaseSurveyReport "1" *-- "1..*" DamageZone : contains_zones_Zxx
     DamageZone "1" *-- "0..*" DefectItem : has_defects_Dxx
-    SurveyReport "1" *-- "1" DeformationAssessment : records_deformation
-    SurveyReport "1" *-- "1" SurveyScope : defines_scope
-    SurveyReport "1" *-- "1" RiskScoreCard : scores_ECS_VI
-    SurveyReport "1" *-- "1" SurveyVerification : verified_by_photos
+    BaseSurveyReport "1" *-- "1" DeformationAssessment : records_deformation
+    BaseSurveyReport "1" *-- "1" SurveyScope : defines_scope
+    Phase1SurveyReport "1" *-- "1" RiskScoreCard : scores_ECS_VI
+    BaseSurveyReport "1" *-- "1" SurveyVerification : verified_by_photos
 ```
 
 ---
@@ -503,15 +543,12 @@ classDiagram
 
 ---
 
-### 2.3. Phân Hệ Báo Cáo Hiện Trạng Hợp Nhất (Survey Report Root Aggregate)
-- **`SurveyReport` (Root Aggregate):** Đại diện cho 1 Báo cáo Khảo sát Hiện trạng hoàn chỉnh của một công trình qua vòng đời 9 bước.
-- **`SurveyIdentificationPhoto` (Bước 1):** Lưu 4 ảnh định danh $P-01 \to P-04$ có Watermark GPS & Thời gian thực.
-- **`BuildingSpecification` & `HistoricalSensitivity` (Bước 2):** Thông số kiến trúc, CAT móng (1-5), và các yếu tố cơi nới/lịch sử (tự động ánh xạ điểm $E5$).
-- **`DamageZone` & `DefectItem` (Bước 3):** Cây phân cấp: 1 Báo cáo $\to$ Nhiều Vùng $Z-xx$ (1 Ảnh bối cảnh `Photo CTX`) $\to$ Nhiều Ghim khuyết tật $D-xx$ (1 Ảnh cận cảnh `Photo CU` có thước đo khe nứt).
-- **`DeformationAssessment` (Bước 4):** Lưu số liệu đo lún chênh, góc nghiêng $X/Y\%$, độ nghiêng sàn, võng dầm (tự động ánh xạ điểm $E3$).
-- **`SurveyScope` (Bước 5):** Xác nhận phạm vi các tầng đã đi và ghi nhận biến động ranh thửa đất GIS.
-- **`RiskScoreCard` (Bước 7 & 8):** Tự động tính điểm $ECS$ ($E1 \to E6$, tổng $/24$, phân hạng `Good`/`Medium`/`Deficient`/`Critical`), chỉ số $VI$ ($V1 \to V6$, phân hạng `Low`/`Medium`/`High`/`Very High`), và lưu nhận xét can thiệp kỹ sư (*Engineering Judgement*).
-- **`SurveyVerification` (Bước 9):** Lưu trữ ảnh chụp chữ ký trên giấy hoặc ảnh cán bộ khảo sát / người kiểm tra / chủ hộ tại hiện trường.
+### 2.3. Phân Hệ Báo Cáo Khảo Sát (Report Hierarchy: Phase 1 & Phase 2)
+- **`BaseSurveyReport` (Abstract Root Aggregate):** Lớp trừu tượng định nghĩa các thuộc tính và phương thức quản lý vòng đời báo cáo dùng chung (`submitForReview`, `approve`, `reject`, `validateCompleteness`).
+- **`Phase1SurveyReport` (extends `BaseSurveyReport`):** Báo cáo Hiện trạng Giai đoạn 1 (Baseline gốc trước thi công) chứa bộ máy tính điểm tự động $ECS/24$, chỉ số rủi ro $VI$ và ma trận $BRA$.
+- **`Phase2SurveyReport` (extends `BaseSurveyReport`):** Báo cáo Hiện trạng Giai đoạn 2 (Pre-Construction / Delta Verification) chứa tham chiếu Giai đoạn 1 (`phase1ReportId`), cấp khảo sát (`surveyLevel`: L2-A, L2-B, L2-C), xác nhận các biến động sau GĐ1 (cơi nới, sửa chữa, đổi tải trọng), sổ khuyết tật đối soát biến động $\Delta w, \Delta L$, nhu cầu quan trắc bổ sung (lún, nghiêng, nứt, rung), và Checklist 10 mục hoàn thành hồ sơ (Phụ lục A).
+- **`SurveyIdentificationPhoto`:** Lưu ảnh định danh kèm tọa độ chấm tròn đa giác đứng `facadePolygonPointsJson`, đường line cắt tầng `floorSplitLinesJson`, các lớp ảnh `rawPhotoUrl` $\to$ `aiEnhancedPhotoUrl`, và cờ xử lý `isNotApplicable`.
+- **`DamageZone` & `DefectItem`:** Cấu trúc cây $1 \to N$ phát sinh động tầng/khu vực ($Z-01, Z-02...$) và khuyết tật ($D-01, D-02...$), cho phép liên kết đối soát giữa Phase 1 và Phase 2.
 
 ---
 
@@ -526,6 +563,11 @@ classDiagram
 - RoleEnum: SUPER_ADMIN, ZONE_ADMIN, SURVEYOR, CONTRACTOR
 - UserStatusEnum: ACTIVE, INACTIVE, LOCKED
 - SurveyPhaseEnum: PHASE_1_PRE_CONSTRUCTION, PHASE_2_POST_CONSTRUCTION
+- SurveyLevelEnum: L2_A, L2_B, L2_C
+- Phase1ChangeConclusionEnum: NO_SIGNIFICANT_CHANGE, HAS_CHANGES
+- DefectEvolutionSummaryEnum: UNCHANGED, EVOLVED, REPAIRED, NEW_RECORDED
+- MonitoringNeedEnum: LUN, NGHIENG, NUT, RUNG
+- Phase2ConclusionEnum: STABLE_OBSERVED, EXISTING_DAMAGE_MONITOR, IN_DEPTH_EVALUATION_REQUIRED
 - ParcelSurveyStatusEnum: NOT_SURVEYED, IN_PROGRESS, PENDING_REVIEW, APPROVED, REJECTED
 - ParcelLifecycleEnum: ACTIVE, PENDING_MUTATION_APPROVAL, SPLIT_DEPRECATED, MERGED_DEPRECATED, MUTATION_VOID
 - MutationTypeEnum: ORIGINAL, SPLIT, MERGE, REDRAW

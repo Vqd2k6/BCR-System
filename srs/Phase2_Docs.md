@@ -1,106 +1,177 @@
-# Bộ Biểu Mẫu Khảo Sát Đối Soát Sau Thi Công (Phase 2 - Post-Construction Survey Form)
+# Phiếu Ghi Nhận và Xác Nhận Hiện Trạng Công Trình Trước Thi Công (Phase 2 - Pre-Construction Building Condition Record)
 
-> Tài liệu đặc tả **Biểu Mẫu Khảo Sát Hiện Trạng Đợt 2 (Phase 2)** — Thực hiện sau khi máy đào hầm TBM / công trình Metro 2 vận hành để đối soát (Check-Var) với Phase 1, xác định biến động hư hỏng và làm căn cứ pháp lý để **Đền bù / Khước từ đền bù**.
-
----
-
-## 1. NGUYÊN TẮC KẾ THỪA & ĐỐI SOÁT DELTA (PHASE 1 ➔ PHASE 2)
-
-```
-[ Hồ sơ Phase 1 (Baseline Gốc) ] ──(Kế thừa tự động)──> [ Mở Khảo sát Phase 2 tại Thực địa ]
-                                                                 │
-      ┌──────────────────────────────────────────────────────────┴──────────────────────────────────────────────────────────┐
-      ▼                                                                                                                     ▼
-1. ĐỐI SOÁT VẾT NỨT CŨ (D-xx từ Phase 1)                                                            2. GHI NHẬN VẾT NỨT MỚI PHÁT SINH
-   - Ổn định (Stable): $\Delta w = 0, \Delta L = 0$                                                    - Thả thêm ghim mới: $D-04, D-05\dots$
-   - Mở rộng (Widened): $\Delta w = w_2 - w_1 > 0$                                                     - Phân loại: Do chấn động Metro / Tự nhiên
-   - Dài thêm (Lengthened): $\Delta L = L_2 - L_1 > 0$
-```
+> **MỤC ĐÍCH:** Xác lập và xác nhận hiện trạng gần nhất của công trình ngay trước khi thi công ngầm / đào hầm TBM; ghi nhận có hệ thống các hư hỏng/khuyết tật hiện hữu bằng mô tả, đo đạc, ảnh và sơ đồ vị trí; làm hồ sơ cơ sở để đối chiếu khi có phản ánh/hư hỏng trong quá trình hoặc sau thi công, phục vụ đánh giá trách nhiệm, khiếu nại, bồi thường/bảo hiểm theo hợp đồng, đơn bảo hiểm và quy định áp dụng.
+> *(Chuẩn hóa 100% theo tài liệu gốc `docs/Phase 2_Pre Constuction BCS.docx`)*.
 
 ---
 
-## 2. BỘ BIỂU MẪU KHẢO SÁT ĐỐI SOÁT PHASE 2 (PHASE 2 SURVEY FORM)
+## 1. THÔNG TIN NHẬN DẠNG VÀ PHẠM VI KHẢO SÁT
 
-### BƯỚC 1: Tải Dữ Liệu Gốc Phase 1 & Chụp Ảnh Định Danh Đợt 2
-*Hệ thống tự động đồng bộ hồ sơ Phase 1 của thửa đất `B-XXXXX`.*
-
-- [ ] **Mã Quản lý Dự án:** `B-XXXXX` | **Mã Địa chính KS003:** `KS003-XXXX`
-- [ ] **Liên kết Hồ sơ Gốc Phase 1:** `REPORT-PHASE1-XXXXX` *(Đã duyệt ngày: __/__/____)*
-- [ ] **Chụp 4 Ảnh Định Danh Phase 2 (Có Watermark GPS & Thời gian thực):**
-  - `P-01`: Chụp biển số nhà đợt 2 (hoặc tick `N/A`).
-  - `P-02`: Chụp mặt đứng chính đợt 2 (Hiển thị so sánh song song với ảnh $P-02$ Phase 1).
-  - `P-03`: Chụp mặt bên/sau đợt 2 (hoặc tick `N/A`).
-  - `P-04`: Chụp bối cảnh tổng thể đường/ngõ đợt 2.
-
----
-
-### BƯỚC 2: Phỏng vấn Chủ hộ về Tác động trong Quá trình Đào Hầm TBM
-- [ ] **Hiện tượng ghi nhận khi thi công Metro:**
-  - Rung chấn mạnh / Rung lắc nhà: (Chọn: `Không` / `Nhẹ` / `Rõ rệt` / `Rất mạnh`)
-  - Tiếng ồn ngầm / Tiếng máy TBM: (Chọn: `Không` / `Có`)
-  - Hiện tượng sụt lún sân / nứt đường trước nhà: (Chọn: `Không` / `Có` - Mô tả: ________)
-  - Hiện tượng kẹt cửa ra vào / nứt kính mới phát sinh: (Chọn: `Không` / `Có`)
-- [ ] **Lịch sử sửa chữa của chủ nhà giữa 2 đợt:**
-  - Chủ nhà có tự ý sửa chữa/trám nứt sau Phase 1 không? (Chọn: `Không` / `Có` - Vị trí: ________)
+- [ ] **Mã công trình (Building ID):** `B-XXXXX` *(Mã quản lý tuyến Metro 2)*
+- [ ] **Mã địa chính gốc (Official Cadastral ID / KS003):** `KS003-XXXX` *(Số tờ - Số thửa)*
+- [ ] **Đoạn thi công (Work section):** (Nhập text - VD: Đoạn Ga S9 đến Ga S10)
+- [ ] **Tên công trình:** (Nhập text)
+- [ ] **Địa chỉ:** (Nhập text)
+- [ ] **Chủ sở hữu / Người sử dụng:** (Nhập text)
+- [ ] **Đầu mối liên hệ:** (Số điện thoại / email)
+- [ ] **Ngày – giờ khảo sát:** `___/___/____` ; `____–____`
+- [ ] **Tham chiếu Giai đoạn 1 (Phase 1 Reference Doc./Rev.):** `REPORT-PHASE1-XXXXX`
+- [ ] **Phạm vi tiếp cận:** (Chọn: `Toàn bộ` / `Một phần`)
+- [ ] **Khu vực không tiếp cận (nếu có):** (Nhập text lý do: VD phòng kho khóa cửa, mái dốc nguy hiểm...)
+- [ ] **Mục tiêu khảo sát:** (Chọn: `Baseline trước thi công` / `Kiểm tra lại`)
+- [ ] **Cấp khảo sát (Survey Level):** (Chọn: `L2-A` / `L2-B` / `L2-C`)
+- [ ] **Thành phần chứng kiến:** (Nhập text họ tên các bên tham gia)
+- [ ] **Điều kiện đặc biệt:** (Thời tiết, công trình đang sửa chữa...)
 
 ---
 
-### BƯỚC 3: Đối Soát Từng Tầng & Kiểm Tra Vết Nứt Cũ / Thêm Vết Nứt Mới (Chuỗi Phát Sinh Động)
-*Cán bộ đi lần lượt từ Tầng Trệt ➔ Tầng 1 ➔ Tầng 2 ➔ Tầng 3... (Phát sinh động theo số tầng).*
+## 2. XÁC NHẬN LẠI CÁC ĐẶC TRƯNG CHÍNH CỦA CÔNG TRÌNH (SO VỚI GIAI ĐOẠN 1)
+*Hệ thống tự động tải dữ liệu gốc từ Giai đoạn 1 để cán bộ đối soát và ghi nhận biến động.*
 
-#### 3.1. Đối soát các Vùng $Z-xx$ & Ghim $D-xx$ Kế thừa từ Phase 1:
-*Hệ thống hiển thị lại ảnh bối cảnh `Photo CTX` và vị trí các ghim $D-01, D-02...$ của Phase 1:*
-
-- **Ghim $D-01$ (Phase 1: Rộng $w_1 = 0.5\text{mm}$, Dài $L_1 = 300\text{mm}$):**
-  - Chụp ảnh cận cảnh Phase 2 (`Photo CU Phase 2`) có thước đo khe nứt.
-  - Đo lại kích thước thực tế: Bề rộng $w_2 = \_\_\_\text{mm}$ | Chiều dài $L_2 = \_\_\_\text{mm}$.
-  - **Đánh giá Biến động (Crack Evolution):**
-    - [ ] `STABLE` (Ổn định): $w_2 = w_1$, không có biến động hư hỏng.
-    - [ ] `WIDENED` (Mở rộng thêm): $\Delta w = w_2 - w_1 = +\_\_\_\text{mm}$.
-    - [ ] `LENGTHENED` (Kéo dài thêm): $\Delta L = L_2 - L_1 = +\_\_\_\text{mm}$.
-    - [ ] `REPAIRED` (Đã được chủ nhà trám vá).
-
-#### 3.2. Ghi nhận Vết Nứt MỚI PHÁT SINH tại Phase 2 (New Defects):
-*Nếu phát hiện vết nứt mới xuất hiện sau khi đào hầm TBM:*
-- [ ] **Thao tác:** Chạm tay lên ảnh bối cảnh vùng $Z-xx$ để thả ghim mới: **`D-04 (MỚI)`**, **`D-05 (MỚI)`**...
-- [ ] **Nhập thông số:** Bề rộng $w$, Chiều dài $L$, Dạng nứt (Nứt xiên, nứt kết cấu dầm/cột).
-- [ ] **Chụp Ảnh Cận Cảnh có thước:** Chụp ảnh cận cảnh `Photo CU` có thước đo khe nứt cho ghim mới.
-- [ ] **Đánh giá nguyên nhân sơ bộ:** (Do lún chấn động thi công Metro / Do co ngót tự nhiên).
+- [ ] **Công năng sử dụng:** (Kế thừa từ GĐ1 - Cho phép cập nhật nếu thay đổi)
+- [ ] **Số tầng:** Số tầng nổi: _____ | Số tầng hầm: _____
+- [ ] **Hệ kết cấu chính:** (Chọn: `BTCT` / `Xây gạch` / `Thép` / `Hỗn hợp` / `Khác`)
+- [ ] **Dạng chịu lực:** (Chọn: `Khung` / `Tường chịu lực` / `Khác`)
+- [ ] **Loại móng:** (Kế thừa từ GĐ1 / `Chưa rõ`)
+- [ ] **CAT thông tin móng:** (Chọn từ 1 đến 5: `1` ☐ `2` ☐ `3` ☐ `4` ☐ `5`)
+- [ ] **Cơi nới / cải tạo sau GĐ1:** (Chọn: `Không` / `Có` - Chi tiết: ________)
+- [ ] **Sửa chữa hư hỏng sau GĐ1:** (Chọn: `Không` / `Có` - Chi tiết: ________)
+- [ ] **Thay đổi công năng / tải trọng sau GĐ1:** (Chọn: `Không` / `Có` - Chi tiết: ________)
+- [ ] **Thay đổi khác:** (Nhập text)
+- [ ] **Kết luận xác nhận đặc trưng:**
+  - [ ] `Không thay đổi đáng kể so với GĐ1`
+  - [ ] `Có thay đổi – đã ghi rõ ở trên`
 
 ---
 
-### BƯỚC 4: Đo Đạc Đối Soát Lún – Nghiêng – Biến Dạng Phase 2
-- [ ] **1. Nghiêng công trình Phase 2:**
-  - Mặt trước X: $\_\_\_\%$ (So với Phase 1: $\Delta X = X_2 - X_1$)
-  - Mặt hông Y: $\_\_\_\%$ (So với Phase 1: $\Delta Y = Y_2 - Y_1$)
-- [ ] **2. Độ nghiêng sàn Phase 2:** $\_\_\_\%$ (So với Phase 1: $\Delta = \_\_\_\%$)
-- [ ] **3. Võng dầm / Sàn Phase 2:** (Không / Có - Vị trí: ________)
-- [ ] **4. Lún chênh lệch kết cấu:** (Không / Nhẹ / Nghiêm trọng)
+## 3. ẢNH NHẬN DẠNG / ẢNH TỔNG THỂ PHASE 2
+*(Mỗi ảnh tự động đóng Watermark: Mã ảnh – ngày/giờ – tọa độ GPS. Hỗ trợ nút tick "Không tồn tại / N/A")*
+
+- [ ] **Ảnh `P01` – Số nhà/biển tên + mặt đứng chính:**
+  - [ ] Có ảnh (Hỗ trợ công cụ chấm tròn góc đa giác đứng + kẻ line ngang phân tầng + ghi kích thước).
+  - [ ] Không tồn tại (N/A) / Bị che khuất (Nhập lý do ➔ Cho phép Next).
+- [ ] **Ảnh `P02` – Toàn cảnh công trình và bối cảnh tuyến/đường:**
+  - [ ] Có ảnh (Chụp bao quát công trình gắn liền lòng đường, vỉa hè tuyến Metro).
+  - [ ] Không tồn tại (N/A) (Nhập lý do ➔ Cho phép Next).
 
 ---
 
-### BƯỚC 5: Xác Nhận Phạm Vi & Đối Soát Ranh Thửa Phase 2
-- [ ] **Phạm vi khảo sát Phase 2:** (Đầy đủ như Phase 1 / Hạn chế tiếp cận)
-- [ ] **Ranh thửa đất:** (Khớp với Phase 1 / Có biến động xây cơi nới thêm)
+## 4. GHI NHẬN HIỆN TRẠNG THEO KHU VỰC / CẤU KIỆN (CHUỖI PHÁT SINH ĐỘNG)
+*Cán bộ đi lần lượt qua các Tầng và Phòng/Khu vực. Hệ thống cho phép thêm động không giới hạn số Tầng và Khu vực.*
+
+*(Lặp lại cho: Tầng hầm ➔ Tầng trệt ➔ Tầng 1 ➔ Tầng 2 ➔ Tầng mái...)*
+
+- **Tầng / Khu vực:** (Tầng trệt / Lầu 1 / Phòng khách / Hành lang...)
+- **Tình trạng Sàn / Trần:** (Ổn định / Nứt vỡ / Võng...)
+- **Tình trạng Tường:** (Ổn định / Nứt xiên / Nứt chân chim...)
+- **Tình trạng Cột / Dầm chịu lực:** (Ổn định / Nứt / Lộ cốt thép...)
+- **Thấm / Bong tróc:** (Không / Thấm ẩm / Bong tróc vữa...)
+- **Biến dạng / Lún – nghiêng:** (Không / Nghi ngờ lún chênh / Nghiêng sàn...)
+- **Nhận xét / ID ảnh liên kết:** (Nhập text)
 
 ---
 
-### BƯỚC 6: Tự Động Tính Toán Biến Động Delta $\Delta ECS$ & Kết Luận Đền Bù
-*Hệ thống tự động so sánh toàn bộ số liệu giữa Phase 1 và Phase 2:*
+## 5. BẢNG GHI NHẬN KHUYẾT TẬT (DAMAGE REGISTER: D-01 ➔ D-xx)
+*Hệ thống hiển thị danh sách khuyết tật $D-xx$ từ GĐ1 để đối soát, đồng thời cho phép bấm "Thêm Khuyết Tật Mới" nếu phát sinh.*
 
-- [ ] **Điểm Hiện Trạng Phase 1:** $ECS_1 = \_\_\_/24$ (Hạng: `Good` / `Medium` / `Deficient` / `Critical`)
-- [ ] **Điểm Hiện Trạng Phase 2:** $ECS_2 = \_\_\_/24$ (Hạng: `Good` / `Medium` / `Deficient` / `Critical`)
-- [ ] **Độ Biến Động Điểm:** $\Delta ECS = ECS_2 - ECS_1 = \_\_\_$ điểm.
-- [ ] **Số lượng khuyết tật mới phát sinh:** $\_\_\_$ vết nứt mới.
-- [ ] **Tổng kết luận Pháp lý (Compensation Verdict):**
-  - [ ] `NO_IMPACT` (Không bị ảnh hưởng): Công trình nguyên vẹn, $\Delta ECS = 0$ ➔ **Khước từ đền bù**.
-  - [ ] `NEGLIGIBLE_COSMETIC` (Ảnh hưởng trang trí nhẹ): Xuất hiện vài vết nứt tóc $\le 1$mm ➔ **Hỗ trợ sơn bả / trám trét hoàn thiện**.
-  - [ ] `STRUCTURAL_IMPACT` (Hư hỏng kết cấu do thi công): Nứt dầm cột hoặc lún nghiêng $\Delta > 0.5\%$ ➔ **Lập biên bản đền bù / sửa chữa kết cấu theo quy định dự án Metro 2**.
+| Mã ID | Tầng / Khu Vực | Vị Trí – Cấu Kiện | Loại Khuyết Tật | Bề Rộng Nứt $w$ (mm) | Chiều Dài $L$ / Kích Thước | Hướng / Dạng Nứt | Mã Ảnh Gốc | Trạng Thái so với GĐ1 | Ghi Chú |
+| :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **`D-01`** | *(Tầng 1)* | *(Tường gạch trục A)* | *(Nứt)* | `0.5` | `450 mm` | *(Xiên 45°)* | `D01-CTX, D01-CU` | `Không đổi` | *(Vết nứt cũ)* |
+| **`D-02`** | *(Tầng 1)* | *(Dầm D1)* | *(Nứt)* | `1.2` | `800 mm` | *(Thẳng đứng)* | `D02-CTX, D02-CU` | `Phát triển` | *(Rộng thêm 0.4mm)* |
+| **`D-03`** | *(Lầu 1)* | *(Ban công)* | *(Bong tróc)* | `-` | `200x300 mm` | *(Bong vữa)* | `D03-CTX, D03-CU` | `Đã sửa` | *(Chủ nhà đã trám)* |
+| **`D-04`** | *(Trệt)* | *(Cột C2)* | *(Nứt kết cấu)* | `2.5` | `1200 mm` | *(Xiên)* | `D04-CTX, D04-CU` | `MỚI GHI NHẬN` | *(Mới phát sinh)* |
+
+*(Loại điển hình: Nứt, Lún/nghiêng, Võng/biến dạng, Bong tróc, Tách lớp, Ăn mòn, Thấm/ẩm, Hư hỏng hoàn thiện, Kẹt cửa sổ/cửa đi).*
 
 ---
 
-### BƯỚC 7: Chốt Biên Bản Phase 2 & Chụp Ảnh Xác Nhận Hiện Trường
-- [ ] **Ý kiến phản hồi của Chủ hộ tại Phase 2:** (Nhập text)
-- [ ] **Ảnh Chữ ký / Ảnh Cán bộ Khảo sát Đợt 2:** Họ tên, Chụp ảnh xác nhận tại hiện trường.
-- [ ] **Ảnh Chữ ký / Ảnh Người kiểm tra Đợt 2:** Họ tên, Chụp ảnh người kiểm tra.
-- [ ] **Ảnh Chữ ký / Ảnh Chủ sở hữu Đợt 2:** Chụp ảnh chữ ký trên biên bản giấy hoặc ảnh xác nhận.
+## 6. DẤU HIỆU LÚN – NGHIÊNG – BIẾN DẠNG (NẾU CÓ)
+*Ghi nhận các phép đo nhanh tại hiện trường (không thay thế chương trình quan trắc chuẩn).*
+
+- [ ] **Vị trí / Điểm đo:** (Nhập text - VD: Góc tường mặt tiền trục 1-A)
+- [ ] **Đối tượng đo:** (Nghiêng tường / Nghiêng cột / Lún góc nhà / Võng dầm)
+- [ ] **Giá trị / Chỉ báo đo được:** (Tỉ lệ nghiêng X/Y: _____ %, Độ võng: _____ mm)
+- [ ] **Phương pháp đo:** (Quan sát mắt thường / Thước nivo / Máy laser cầm tay / Quả dọi)
+- [ ] **Mã Ảnh / ID liên kết:** (Nhập ID ảnh đo đạc)
+- [ ] **Nhận xét chuyên môn:** (Nhập text)
+
+---
+
+## 7. HỒ SƠ ẢNH KHUYẾT TẬT (PHOTOGRAPHIC RECORD)
+*Mỗi khuyết tật $D-xx$ bắt buộc tối thiểu 02 ảnh (hoặc ảnh đơn nếu khuyết tật nhỏ):*
+- **Ảnh `D-___-CTX`:** Bối cảnh / Vị trí khuyết tật trên mảng tường/phòng.
+- **Ảnh `D-___-CU`:** Cận cảnh vết nứt có áp sát **Thước đo khe nứt có vạch milimet (Crack Scale Card)**.
+
+---
+
+## 8. SƠ ĐỒ VỊ TRÍ KHUYẾT TẬT (DAMAGE LOCATION SKETCH)
+- [ ] **Chụp ảnh bản vẽ phác thảo tay mặt bằng / mặt đứng:** Chạm thả các điểm ghim $D-01, D-02...$ trực tiếp lên sơ đồ.
+- [ ] **Số hiệu bản vẽ Damage Mapping (nếu có bản vẽ CAD riêng):** `________________________`
+
+---
+
+## 9. SO SÁNH VỚI GIAI ĐOẠN 1 VÀ TÓM TẮT HIỆN TRẠNG (SUMMARY & COMPARISON)
+
+- [ ] **Tình trạng Khuyết tật so với GĐ1:** (Chọn: `Không đổi` / `Phát triển` / `Đã sửa` / `Mới ghi nhận`)
+- [ ] **Tổng số ID khuyết tật đã ghi nhận:** `_____` vết
+- [ ] **Tổng số ảnh gốc lưu trữ:** `_____` ảnh
+- [ ] **Số bản vẽ / phác họa đính kèm:** `_____` bản
+- [ ] **Khu vực không tiếp cận được:** (Nhập text)
+- [ ] **Hạn chế dữ liệu:** (Nhập text)
+- [ ] **Hư hỏng đáng chú ý nhất:** (Mô tả khuyết tật nghiêm trọng nhất)
+- [ ] **Có dấu hiệu nguy cấp?**
+  - [ ] `Không`
+  - [ ] `Có ➔ BÁO CÁO KHẨN CẤP CHO ZONE ADMIN & BAN DỰ ÁN`
+- [ ] **Nhu cầu quan trắc bổ sung:** (Multi-select: `Không` / `Lún` / `Nghiêng` / `Nứt` / `Rung`)
+- [ ] **Khảo sát / Thí nghiệm không phá hủy (NDT) bổ sung:** (Chọn: `Không` / `Có` - Chi tiết: ________)
+- [ ] **Kết luận hiện trạng Phase 2:**
+  - [ ] `Ổn định theo quan sát`
+  - [ ] `Có hư hỏng hiện hữu cần theo dõi`
+  - [ ] `Cần đánh giá chuyên sâu`
+
+---
+
+## 10. XÁC NHẬN HIỆN TRẠNG TRƯỚC THI CÔNG & Ý KIẾN CHỦ HỘ
+
+### 10.1. Cam kết Pháp lý Mẫu:
+> *"Qua khảo sát trong phạm vi tiếp cận được, các bên xác nhận Phiếu 02 và các ảnh/bản vẽ kèm theo phản ánh hiện trạng quan sát được của công trình tại thời điểm khảo sát. Các khuyết tật hiện hữu chính đã được ghi nhận và mã hóa để làm mốc đối chiếu trong quá trình thi công. Phiếu này là hồ sơ hiện trạng cơ sở phục vụ đối chiếu kỹ thuật và xử lý phản ánh/khiếu nại, bồi thường hoặc bảo hiểm (nếu phát sinh) theo hợp đồng, điều kiện bảo hiểm và quy định pháp luật áp dụng; bản thân chữ ký trên phiếu không mặc nhiên xác lập trách nhiệm, không phải sự từ bỏ quyền pháp lý và không miễn trừ nghĩa vụ của bất kỳ bên nào."*
+
+### 10.2. Ý kiến của Chủ sở hữu / Người sử dụng:
+- [ ] `Không có ý kiến khác`
+- [ ] `Có ý kiến ghi nhận:` __________________________________________________
+
+---
+
+## 11. XÁC NHẬN VÀ CHỤP ẢNH CHỨNG CỨ TẠI HIỆN TRƯỜNG (4 BÊN)
+*Hệ thống hỗ trợ chụp ảnh chữ ký trên biên bản giấy hoặc chụp ảnh người đại diện tham gia tại hiện trường:*
+
+1. **Chủ sở hữu / Người sử dụng:** Họ tên, Ngày, Chụp ảnh chữ ký / ảnh chân dung.
+2. **Đại diện Đơn vị Khảo sát (Liên danh CRLG–CRSRI–TT):** Họ tên, Ngày, Chụp ảnh chữ ký / ảnh cán bộ.
+3. **Đại diện Nhà thầu / Khách hàng (nếu tham gia):** Họ tên, Ngày, Chụp ảnh chữ ký.
+4. **Người làm chứng / Đại diện địa phương (nếu áp dụng):** Họ tên, Ngày, Chụp ảnh chữ ký.
+*(Trường hợp từ chối ký/vắng mặt: Lập Biên bản từ chối khảo sát và ghi số tài liệu tham chiếu).*
+
+---
+
+## 12. PHỤ LỤC A – CHECKLIST HOÀN THÀNH HỒ SƠ PHASE 2 (DATA QUALITY GATE)
+
+| STT | Nội dung Kiểm tra | Trạng thái | Ghi chú Tham chiếu |
+| :---: | :--- | :---: | :---: |
+| **1** | Đã xác nhận mã công trình, địa chỉ, đoạn thi công và tham chiếu Giai đoạn 1 | `Đạt` / `Thiếu` / `N/A` | ____________ |
+| **2** | Đã ghi phạm vi tiếp cận và khu vực không tiếp cận | `Đạt` / `Thiếu` / `N/A` | ____________ |
+| **3** | Đã chụp ảnh số nhà/biển tên, mặt đứng và bối cảnh công trình | `Đạt` / `Thiếu` / `N/A` | ____________ |
+| **4** | Đã kiểm tra các tầng/phòng/khu vực có thể tiếp cận | `Đạt` / `Thiếu` / `N/A` | ____________ |
+| **5** | Khuyết tật đã được gán ID và ghi vị trí, loại, kích thước theo khả năng | `Đạt` / `Thiếu` / `N/A` | ____________ |
+| **6** | Mỗi khuyết tật đáng kể có ảnh bối cảnh và ảnh cận cảnh kèm thước | `Đạt` / `Thiếu` / `N/A` | ____________ |
+| **7** | Đã lập sơ đồ/bản vẽ vị trí khuyết tật hoặc ghi số hiệu damage mapping | `Đạt` / `Thiếu` / `N/A` | ____________ |
+| **8** | Đã so sánh với Giai đoạn 1 và ghi rõ thay đổi/sửa chữa/khuyết tật mới | `Đạt` / `Thiếu` / `N/A` | ____________ |
+| **9** | Đã ghi kết luận hiện trạng, nhu cầu quan trắc/NDT/bảo vệ nếu cần | `Đạt` / `Thiếu` / `N/A` | ____________ |
+| **10** | Đã lấy ý kiến/chữ ký hoặc lập hồ sơ từ chối/vắng mặt; dữ liệu gốc đã sao lưu | `Đạt` / `Thiếu` / `N/A` | ____________ |
+
+---
+
+## 13. PHỤ LỤC B – QUY TẮC ĐẶT MÃ ẢNH TỐI THIỂU
+- **Ảnh nhận dạng:** `B-XXXX-P01` (Số nhà/biển tên + mặt đứng)
+- **Ảnh bối cảnh khuyết tật:** `B-XXXX-F02-R03-D05-CTX` (Thể hiện vị trí khuyết tật trong phòng/khu vực)
+- **Ảnh cận cảnh khuyết tật:** `B-XXXX-F02-R03-D05-CU` (Có thước tỷ lệ hệ mét áp sát khe nứt)
+- **Ảnh bổ sung:** `B-XXXX-F02-R03-D05-01`
