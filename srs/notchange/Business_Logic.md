@@ -4,199 +4,144 @@
 > **LƯU Ý DÀNH CHO AI AGENT & DEVELOPER (TÀI LIỆU ĐANG TIẾP TỤC HOÀN THIỆN & MỞ RỘNG):**
 > Tài liệu này là **bản đặc tả cơ sở (Baseline Specification)** cho các thuật toán và logic nghiệp vụ cốt lõi. Tài liệu **CHƯA PHẢI LÀ BẢN ĐẦY ĐỦ 100% TUYỆT ĐỐI** và sẽ tiếp tục được mở rộng chi tiết trong quá trình code và phát triển sản phẩm. Khi triển khai code thực tế, Agent/Developer cần nắm vững rằng hệ thống sẽ phát sinh thêm các quy tắc nghiệp vụ biên, công thức hiệu chỉnh và cần chủ động hoàn thiện cả code lẫn cập nhật ngược lại tài liệu này.
 
-> Tài liệu đặc tả các Quy tắc Nghiệp vụ cốt lõi, Kiến trúc Mã kép Dual-ID, Cơ chế Quản lý Biến động Thửa đất, Bộ máy Tính điểm Kỹ thuật (ECS/VI), Quy trình Xuất Báo cáo Hàng loạt, Kiến trúc Lưu trữ Ảnh Phân lớp Tích hợp AI, và **Quy trình Quét cạn linh hoạt trên Bản đồ GIS & Xử lý Vắng nhà (Ad-hoc Sweep Survey)**.
+> Tài liệu đặc tả các Quy tắc Nghiệp vụ cốt lõi, Kiến trúc Mã kép Dual-ID, Cơ chế Quản lý Biến động Thửa đất, Bộ máy Tính điểm Kỹ thuật (ECS/VI), Quy trình Xuất Báo cáo Có Chọn lọc, Kiến trúc Lưu trữ Ảnh Phân lớp Tích hợp AI, Quy trình Quét cạn linh hoạt & Xử lý Vắng nhà, và **Động Cơ Cảnh Báo Bất Thường / Gian Lận Hiện Trường (Audit Alert Engine)**.
 
 ---
 
 ## 1. KIẾN TRÚC MÃ KÉP (DUAL-ID ARCHITECTURE) & CƠ CHẾ CẤP MÃ BẤT BIẾN `B-XXXXX`
 
 ### 1.1. Kiến trúc Định danh Kép cho Thửa Đất (Dual-ID System)
-Mỗi thửa đất trong hệ thống được định danh đồng thời bởi **2 Mã (Dual-ID)** phục vụ 2 mục đích riêng biệt:
-
-1. **`officialCadastralCode` (Mã Địa chính Gốc / Dữ liệu KS003):**
-   - Mã định danh địa chính nhà nước thu thập từ dữ liệu cào ban đầu (`data/KS003`) hoặc thông tin Số tờ - Số thửa bản đồ địa chính của Bộ TN&MT (VD: `KS003-P1024`, `Tờ 15 - Thửa 89`).
-   - Giúp đối soát và bảo đảm giá trị pháp lý với cơ sở dữ liệu đất đai của Nhà nước khi bàn giao đền bù giải phóng mặt bằng.
-
-2. **`projectParcelCode` (Mã Quản lý Dự án Tuyến Metro 2 - `B-XXXXX`):**
-   - Mã số được hệ thống sắp xếp (sort) tuần tự theo lý trình tim tuyến Metro 2 từ Ga S1 đến Ga S11 (từ `B-00001` đến `B-07000`) để phục vụ quản lý dự án, phân công task cho Surveyor và kiểm soát tiến độ khảo sát.
-   - Kiểm soát biến động thực địa (Tách / Gộp thửa) theo cơ chế Dải số Phát sinh Mở rộng.
+Mỗi thửa đất trong hệ thống được định danh đồng thời bởi **2 Mã (Dual-ID)**:
+1. **`officialCadastralCode` (Mã Địa chính Gốc / Dữ liệu KS003):** Mã số tờ - số thửa bản đồ địa chính nhà nước (VD: `KS003-P1024`, `Tờ 15 - Thửa 89`) bảo đảm tính pháp lý khi giải phóng mặt bằng.
+2. **`projectParcelCode` (Mã Quản lý Dự án Tuyến Metro 2 - `B-XXXXX`):** Mã số sắp xếp tuần tự theo lý trình tim tuyến Metro 2 từ Ga S1 đến Ga S11 (từ `B-00001` đến `B-07000`) để phục vụ quản lý dự án và kiểm soát tiến độ.
 
 ---
 
 ### 1.2. Nguyên tắc Bất biến của Mã Dự Án `B-XXXXX` (Immutability Principle)
-- **Định dạng chuẩn:** Mã công trình/thửa đất cố định theo quy chuẩn **`B-XXXXX`** (Tiền tố `B-` và đúng 5 chữ số từ `B-00001` đến `B-99999`).
-- **Nguyên tắc cốt lõi:** Khi một mã `B-XXXXX` đã được cấp phát và xuất Báo cáo Khảo sát gửi đi, mã này là **MÃ BẤT BIẾN (IMMUTABLE)**.
-- **Quy tắc cấm:** Tuyệt đối **KHÔNG ĐƯỢC PHÉP chèn số vào giữa (Insert In-between)** làm tịnh tiến đẩy số $+1$ các thửa phía sau.
+- **Quy chuẩn:** Cố định **`B-XXXXX`** (Tiền tố `B-` và đúng 5 chữ số từ `B-00001` đến `B-99999`).
+- **Nguyên tắc:** Khi một mã `B-XXXXX` đã cấp phát, mã này là **BẤT BIẾN (IMMUTABLE)**, tuyệt đối không chèn số vào giữa làm xô lệch các thửa khác.
 
 ---
 
 ### 1.3. Cơ chế Dải số Phát sinh Mở rộng (High-Range Sequential Extension Pool)
-
-Dữ liệu ban đầu cào về có $N$ thửa đất (Ví dụ: Tuyến Metro 2 có $N = 7.000$ thửa ban đầu, từ `B-00001` đến `B-07000`).
-
 ```text
 [ Dải số Ban đầu: B-00001 -> B-07000 ] ──> [ Dải số Phát sinh Thực địa: B-07001 -> B-99999 ]
 ```
-
-#### A. Kịch bản Tách Thửa (Parcel Split)
-Khi cán bộ khảo sát thực địa phát hiện 1 thửa gốc thực tế đã bị chia thành $k$ căn nhà độc lập:
-1. **Mảnh 1 (Nhà chính/Địa chỉ gốc):** Giữ nguyên mã gốc **`B-00002`**.
-2. **Mảnh 2 (Nhà phát sinh 1):** Hệ thống tự động lấy mã tiếp theo lớn nhất trong hệ thống: **`B-07001`**.
-3. **Mảnh 3 (Nếu có - Nhà phát sinh 2):** Cấp tiếp mã **`B-07002`**.
-4. **Liên kết Phả hệ (Lineage Metadata):** Thửa phát sinh `B-07001` lưu `parentParcelCode: "B-00002"`.
-5. **Kết quả:** Thửa `B-00005` đã khảo sát hôm qua **VẪN LÀ `B-00005` MÃI MÃI, ZERO XÔ LỆCH**.
-
-#### B. Kịch bản Gộp Thửa (Parcel Merge)
-Khi 2 hoặc nhiều thửa đất liền kề (`B-00002` và `B-00003`) thực tế đã xây chung 1 toà nhà:
-1. Sử dụng mã của **thửa có số nhỏ hơn làm mã đại diện chính: `B-00002`**.
-2. Thửa `B-00003` chuyển trạng thái `MERGED_DEPRECATED`, trường `mergedIntoParcelCode = "B-00002"`.
+- **Tách thửa (Split):** Thửa gốc giữ `B-00002`, các thửa mới phát sinh lấy mã tiếp theo từ kho số mở rộng `B-07001`, `B-07002`...
+- **Gộp thửa (Merge):** Lấy mã nhỏ hơn làm đại diện (`B-00002`), thửa còn lại chuyển `MERGED_DEPRECATED`.
 
 ---
 
 ## 2. QUY TRÌNH BIẾN ĐỘNG RANH THỬA TRÊN GIS (CADASTRAL WORKFLOW)
 
-### 2.1. Vị trí thực hiện trong Luồng Khảo sát: **BƯỚC 5**
-Cán bộ khảo sát **phải đi hết toàn bộ các tầng và không gian trong nhà (từ Bước 1 đến Bước 4)** rồi mới tiến hành đối soát và vẽ lại đường bao ranh đất tại **Bước 5** để cảm nhận diện tích và ranh giới đạt độ chính xác 100%.
-
-### 2.2. Trình tự Thao tác & Cơ chế Hiển thị Phân lớp GIS (Multi-Layer GIS Display)
-1. **Lớp Làm việc Tạm thời của Surveyor (Working Draft Layer):** Cập nhật ngay 2 thửa nét đứt cam trên máy Surveyor để tiếp tục tạo 2 báo cáo độc lập.
-2. **Lớp Bản đồ Quy hoạch Chính thức (Official Master GIS Layer):** Chưa cập nhật chính thức, nhấp nháy cờ vàng `PENDING_MUTATION_APPROVAL` chờ Zone Admin duyệt.
-
-### 2.3. Cơ chế Xử lý khi Bị Trả Về / Từ Chối (Rejection & Rollback Handling)
-- **Cấp độ 1 (Reject Mutation):** Thửa gốc khôi phục `ACTIVE` với ranh ban đầu; Thửa phát sinh chuyển `MUTATION_VOID` (thu hồi mã về kho số); Hủy báo cáo tạm và trả task về để Surveyor gộp làm 1 báo cáo.
-- **Cấp độ 2 (Approve Mutation nhưng Reject Report Data):** Ranh đất mới chính thức có hiệu lực trên Master GIS; chỉ trả về Báo cáo bị lỗi kỹ thuật để Surveyor chụp bổ sung.
+- **Vị trí thực hiện:** **BƯỚC 5** sau khi đã đi hết toàn bộ các tầng và phòng.
+- **Rollback khi Reject:** Nếu Zone Admin từ chối Đề xuất Tách thửa, CSDL tự động hoàn nguyên thửa gốc về `ACTIVE` và hủy các thửa phát sinh về `MUTATION_VOID`.
 
 ---
 
 ## 3. BỘ MÁY TÍNH ĐIỂM KỸ THUẬT TỰ ĐỘNG (ECS & VI SCORING ENGINE)
 
-### 3.1. Bảng Điểm Hiện Trạng ECS ($\Sigma E \le 24$)
-- **$E1$ (Hư hỏng tường/khối xây):** Tự động từ **Burland Grade max** của các Vùng $Z-xx$ ($0 \to 4$đ).
-- **$E2$ (Khuyết tật kết cấu cột/dầm/sàn):** Tự động từ **Ý nghĩa kết cấu max** của các ghim $D-xx$ ($0 \to 4$đ).
-- **$E3$ (Lún/nghiêng/võng):** Tự động tính từ số liệu đo lún nghiêng tại Bước 4 ($0 \to 4$đ).
-- **$E4$ (Suy giảm vật liệu/rỉ thép):** Tự động từ **Mức độ suy giảm max** của các ghim $D-xx$ ($0 \to 4$đ).
-- **$E5$ (Lịch sử cơi nới/sự cố):** Tự động tính từ kết quả phỏng vấn Bước 2.2 ($0 \to 4$đ).
-- **$E6$ (Tình trạng chức năng tổng thể):** Cán bộ đánh giá trực tiếp ($0 \to 4$đ).
-- **Tổng điểm ECS ($\Sigma E$):** `GOOD` [0-5], `MEDIUM` [6-10], `DEFICIENT` [11-16], `CRITICAL` [17-24].
-
-### 3.2. Quy tắc Can thiệp Kỹ sư (Engineering Judgement Rules)
-- **Quy tắc Khoá an toàn (Safety Lock):** Nếu công trình có cờ kết cấu `Critical`, hệ thống **KHOÁ CHẶT chức năng Hạ hạng**.
+- **Điểm ECS ($\Sigma E \le 24$):** Tự động tổng hợp từ $E1$ (Burland max), $E2$ (Ý nghĩa kết cấu max), $E3$ (Lún nghiêng Bước 4), $E4$ (Suy giảm vật liệu max), $E5$ (Lịch sử phỏng vấn), $E6$ (Đánh giá chức năng).
+- **Phân hạng ECS:** `GOOD` [0-5], `MEDIUM` [6-10], `DEFICIENT` [11-16], `CRITICAL` [17-24].
+- **Safety Lock:** Khóa không cho phép Hạ hạng ECS nếu công trình có cờ kết cấu `Critical`.
 
 ---
 
-## 4. QUY TRÌNH XUẤT BÁO CÁO TỔNG HỢP HÀNG LOẠT (COMPILED DOSSIER EXPORT)
+## 4. QUY TRÌNH XUẤT BÁO CÁO CÓ CHỌN LỌC (SELECTIVE DOSSIER EXPORT)
 
-- **`ZONE_ADMIN`:** Xuất Bộ Báo cáo Phân khu theo tuần/tháng báo cáo Ban QLĐS (MAUR).
-- **`SUPER_ADMIN`:** Xuất Bộ Báo cáo Toàn tuyến (~7.000 căn) hoặc liên phân khu bàn giao cho Nhà thầu đào hầm TBM.
-- **`CONTRACTOR / GUEST`:** Tải các Bộ Báo cáo đã công bố (`isPublishedToGuests = true`).
+Hệ thống cho phép Zone Admin và Super Admin đóng gói và xuất báo cáo linh hoạt theo 2 chế độ:
+
+```mermaid
+graph TD
+    A["Yêu cầu Xuất Báo Cáo của Zone Admin"] --> B{"Chế độ Xuất"}
+    
+    B -- "1. THEO CHỈ ĐỊNH (Selected List)" --> C["Chọn danh sách mã cụ thể<br><code>selectedReportIds = ['B-00105', 'B-00106'...]</code>"]
+    B -- "2. THEO TIÊU CHÍ (Filter Criteria)" --> D["Lọc theo Ngày / Tuần / Tháng<br>Trạng thái APPROVED / Cấp rủi ro VI / Lý trình Km"]
+    
+    C --> E{"Định dạng Xuất"}
+    D --> E
+    
+    E -- "PDF Book Compilation" --> F["1 File Tập Hồ sơ gộp duy nhất<br>Có bìa pháp lý + Mục lục tự động + Bản đồ GIS + SHA-256"]
+    E -- "ZIP Individual PDFs" --> G["File ZIP chứa các PDF/A đơn lẻ từng nhà"]
+    E -- "Excel Summary" --> H["File Excel tổng hợp tiến độ và điểm số ECS/VI"]
+    
+    style A fill:#e0f2fe,stroke:#0284c7
+    style F fill:#dcfce7,stroke:#16a34a,stroke-width:2px
+    style G fill:#fef9c3,stroke:#ca8a04
+    style H fill:#f3e8ff,stroke:#9333ea
+```
+
+1. **Chế độ 1: Xuất Theo Danh Sách Chỉ Định (`SELECTED_LIST`):**
+   - Phục vụ các tình huống khẩn cấp tại hiện trường: Ví dụ nhà thầu chuẩn bị đóng cừ larsen tại vị trí Km 8+250, Zone Admin chỉ định đúng 3 căn nhà mặt tiền `B-00105, B-00106, B-00107` để xuất hồ sơ bàn giao ngay.
+2. **Chế độ 2: Xuất Tổng Hợp Theo Thời Gian & Tiêu Chí (`FILTER_CRITERIA`):**
+   - Lọc theo khoảng thời gian: Ngày (`DAILY`), Tuần (`WEEKLY`), Tháng (`MONTHLY`), hoặc Khoảng ngày tùy biến (`startDate` $\to$ `endDate`).
+   - Lọc theo Phân khu Ga, trạng thái duyệt (`APPROVED`), hoặc nhóm rủi ro cao (`VI Class: HIGH, VERY_HIGH`).
+3. **Tính Toàn Vẹn & Pháp Lý:** Mọi file tập hồ sơ xuất ra đều được hệ thống tính toán mã băm **Checksum SHA-256** để chống làm giả hoặc chỉnh sửa tài liệu.
 
 ---
 
 ## 5. KIẾN TRÚC LƯU TRỮ ẢNH PHÂN LỚP & ĐỘNG CƠ AI NẮN THẲNG PHỐI CẢNH
 
-### 5.1. Vấn đề Thực tế tại Hiện trường
-Khi cán bộ khảo sát chụp ảnh mặt đứng chính ($P-02$) hoặc mặt bên ($P-03$):
-- Cán bộ đứng từ dưới đường hẹp ngước lên chụp nên ảnh thường bị **méo góc phối cảnh (Keystone / Perspective Distortion)**.
-- Cán bộ dùng ngón tay vẽ nét nguệch ngoạc lên màn hình điện thoại để kẻ đường phân tầng ($T_1, T_2, T_3\dots$) và viết kích thước sơ bộ ($h_1 = 3.8\text{m}, H_{tot} = 11.2\text{m}$).
-
-> [!CAUTION]
-> **Tuyệt đối KHÔNG ĐƯỢC "đè chết" (Burn/Bake) nét vẽ vào file ảnh gốc.**
-> Nếu đè nét vẽ vào ảnh, pixel gốc bị phá hủy hoàn toàn, khiến AI sau này không thể nhận diện ranh giới cấu kiện, không thể nắn phẳng phối cảnh và không thể render lại bản vẽ đẹp mắt.
-
----
-
-### 5.2. Mô hình Lưu trữ Phân Lớp Phi Hủy Diệt (Non-Destructive Layered Storage)
-
-Mỗi bức ảnh định danh ($P-01 \to P-04$) được lưu trữ độc lập thành **3 Lớp Dữ liệu**:
-1. **Lớp 1: Ảnh Gốc HD (Raw Clean Photo):** Không chứa nét vẽ, giữ nguyên độ phân giải cảm biến camera.
-2. **Lớp 2: Tọa độ Vector Đa giác Đa đỉnh $N$ góc ($N \ge 3$) & Đường phân tầng:** Lưu trong trường JSON `facadePolygonPointsJson`, `floorSplitLinesJson`, `dimensionsJson`.
-3. **Lớp 3: Ảnh Kỹ thuật Hoàn thiện (AI Enhanced CAD-Style Photo):** Render từ ma trận biến đổi phối cảnh 3x3 Homography và đường dóng dimension chuẩn CAD.
+- **Lớp 1 (Ảnh Gốc HD):** Không chứa nét vẽ đè, giữ nguyên độ phân giải quang học.
+- **Lớp 2 (Vector JSON Đa đỉnh $N$ góc & Cắt tầng):** Tọa độ nét vẽ, đa giác $N$ đỉnh tùy biến ($N \ge 3$), đường cắt tầng.
+- **Lớp 3 (Ảnh AI Nắn Thẳng Chuẩn CAD):** Ma trận 3x3 Homography triệt tiêu góc nghiêng, tự động bắt dính dầm sàn và vẽ đường dóng kỹ thuật số sắc nét.
 
 ---
 
 ## 6. CHUỖI PHÁT SINH ĐỘNG HỌC & ĐỘNG CƠ ĐỐI SOÁT DELTA (PHASE 1 VS PHASE 2)
 
-### 6.1. Cơ Chế Truy Xuất Theo Vị Trí Đứng Trong Phase 2
-Khi cán bộ chọn vị trí đứng thực tế (VD: `Lầu 1 ➔ Phòng ngủ 1`), Mobile PWA tự động thực hiện truy vấn:
-`GET /api/v1/parcels/{parcelId}/phase2/zones?floor=Lầu 1&room=Phòng ngủ 1`
-Giao diện lập tức hiển thị toàn bộ các Vùng `Z-xx` đã lập tại GĐ1, bao gồm ảnh bối cảnh `Photo CTX` và vị trí tọa độ các ghim khuyết tật cũ ($D-01, D-02\dots$).
+- **Truy xuất theo vị trí đứng:** Tự động lọc ảnh $CTX$ và ghim $D-xx$ cũ của đúng Tầng & Phòng.
+- **Động cơ Delta:** Tính toán $\Delta w = w_2 - w_1$, $\Delta L = L_2 - L_1$, $\Delta ECS = ECS_2 - ECS_1 \rightarrow$ Đưa ra Phán quyết đền bù: `NO_IMPACT` (Khước từ), `NEGLIGIBLE_COSMETIC` (Hỗ trợ sơn bả), `STRUCTURAL_IMPACT` (Bồi thường kết cấu).
 
 ---
 
-### 6.2. Động Cơ Đối Soát Delta & Phán Quyết Bồi Thường ($\Delta$ Engine)
-1. **Tổng hợp Biến động Định lượng:** $\Delta w = w_2 - w_1$, $\Delta L = L_2 - L_1$, $\Delta \text{Tilt} = \text{Tilt}_2 - \text{Tilt}_1$.
-2. **Phán quyết Tác động (`CompensationVerdictEnum`):**
-   - **`NO_IMPACT`:** $\Delta ECS = 0$, không có vết nứt mới $\rightarrow$ Khước từ đền bù (Có chứng cứ pháp lý vững chắc).
-   - **`NEGLIGIBLE_COSMETIC`:** Nứt vữa trát hoàn thiện $\le 1$mm $\rightarrow$ Hỗ trợ kinh phí sơn bả hoàn thiện.
-   - **`STRUCTURAL_IMPACT`:** Xuất hiện nứt kết cấu dầm/cột hoặc lún nghiêng $\Delta > 0.5\%$ $\rightarrow$ Lập hồ sơ bồi thường thiệt hại theo quy định.
+## 7. QUY TRÌNH QUÉT CẠN LINH HOẠT TRÊN BẢN ĐỒ GIS & XỬ LÝ VẮNG NHÀ (AD-HOC SWEEP SURVEY)
+
+- **Xử lý vắng nhà (`POST /parcels/{id}/record-absence`):** Ghi nhận lý do, chuyển trạng thái sang `POSTPONED_ABSENT` (Màu Tím) và tăng bộ đếm số lần đến vắng mặt.
+- **Tự nhận thửa lân cận (`POST /parcels/{id}/start-survey`):** Surveyor chạm vào ô thửa đất màu xám (`NOT_SURVEYED`) trên bản đồ GIS của PWA để nhận và khảo sát ngay lập tức.
+- **Tra cứu Nearby (`GET /parcels/nearby`):** Lọc các căn nhà lân cận trong bán kính 50m - 200m từ vị trí GPS hiện tại.
 
 ---
 
-## 7. QUY TRÌNH QUÉT CẠN LINH HOẠT TRÊN BẢN ĐỒ GIS & XỬ LÝ VẮNG NHÀ (AD-HOC SWEEP SURVEY & ABSENCE WORKFLOW)
+## 8. ĐỘNG CƠ CẢNH BÁO BẤT THƯỜNG & GIAN LẬN HIỆN TRƯỜNG (AUDIT ALERT & FRAUD DETECTION ENGINE)
+
+Để hỗ trợ Zone Admin kiểm soát chất lượng dữ liệu giữa hàng nghìn công trình, hệ thống tích hợp **Động cơ quét tự động (Automated Audit Rules Engine)** phát hiện các dấu hiệu bất thường trước khi duyệt:
 
 ```mermaid
 graph TD
-    A["1. Surveyor đến hiện trường theo danh sách phân công<br><i>Ví dụ: Thửa B-00105</i>"] --> B{"Chủ hộ có mặt<br>để khảo sát?"}
+    A["Hồ sơ nộp về (SUBMITTED)"] --> B["Động Cơ Quét Cảnh Báo Tự Động (Rules Engine)"]
     
-    B -- "CÓ MẶT" --> C["Thực hiện Khảo sát bình thường<br>9 Bước Phase 1 hoặc Phase 2"]
+    B --> C["1. Cảnh báo Khoảng cách GPS<br><i>Chụp ảnh cách xa tâm nhà > X mét</i>"]
+    B --> D["2. Cảnh báo Thời gian bất thường<br><i>Khảo sát nhà 3 tầng chỉ mất < 5 phút</i>"]
+    B --> E["3. Cảnh báo Nguy cấp Kết cấu<br><i>Cờ Critical hoặc lún nghiêng Δ > 0.5%</i>"]
+    B --> F["4. Cảnh báo Thiếu Thước Đo<br><i>Ảnh cận cảnh CU thiếu vạch mm</i>"]
+    B --> G["5. Cảnh báo Vắng nhà nhiều lần<br><i>Đã đến >= 3 lần nhưng đều vắng</i>"]
     
-    B -- "VẮNG NHÀ / KHÓA CỬA" --> D["2. Ghi nhận Nhật ký Vắng mặt<br><code>POST /api/v1/parcels/{id}/record-absence</code>"]
-    D --> E["Cập nhật trạng thái sang <b>POSTPONED_ABSENT</b> (Màu Tím)<br>Tăng bộ đếm attemptCount, lưu ảnh chụp cửa khóa"]
-    
-    E --> F["3. Mở Bản đồ GIS Quét cạn toàn Ga<br><code>GET /api/v1/parcels/zone-map</code> hoặc <code>GET /parcels/nearby</code>"]
-    F --> G["4. Thấy nhà bên cạnh B-00106 (Màu Xám - Chưa khảo sát)<br>Chạm vào ô thửa đất trên bản đồ PWA"]
-    G --> H["5. Bấm [Bắt đầu Khảo sát Ngay]<br><code>POST /api/v1/parcels/{id}/start-survey</code>"]
-    H --> I["Hệ thống tự động gán Task cho Surveyor,<br>Đổi trạng thái sang <b>IN_PROGRESS</b> (Màu Vàng),<br>Mở Form 9 bước làm việc ngay lập tức!"]
+    C --> H["Gắn Badge Cảnh Báo Lên Giao Diện Split-Pane<br>Hiển thị danh sách ưu tiên tại <code>/admin/reports/audit-alerts</code>"]
+    D --> H
+    E --> H
+    F --> H
+    G --> H
     
     style A fill:#e0f2fe,stroke:#0284c7
-    style C fill:#dcfce7,stroke:#16a34a
-    style D fill:#fef3c7,stroke:#f59e0b
-    style E fill:#f3e8ff,stroke:#9333ea
-    style G fill:#f1f5f9,stroke:#64748b
-    style I fill:#fef9c3,stroke:#ca8a04,stroke-width:2px
+    style B fill:#fef3c7,stroke:#f59e0b,stroke-width:2px
+    style E fill:#fee2e2,stroke:#ef4444
+    style H fill:#f3e8ff,stroke:#9333ea
 ```
 
-### 7.1. Ý Nghĩa Thực Tế của Cơ Chế Quét Cạn Linh Hoạt (Ad-Hoc Sweep Survey)
-- **Thực tế hiện trường:** Trong các khu dân cư đô thị dọc tuyến Metro 2, tỷ lệ chủ hộ vắng nhà ban ngày hoặc đi làm xa có thể chiếm 15% - 25%. Nếu Surveyor bị khóa chặt trong danh sách giao việc cứng nhắc, năng suất khảo sát sẽ bị đình trệ.
-- **Giải pháp:** Surveyor được trao quyền chủ động **chạm chọn các ô thửa đất chưa khảo sát trực tiếp trên bản đồ số GIS** trong phân khu Ga của mình để tiến hành khảo sát quét cạn liên tục, tối đa hóa thời gian tại hiện trường.
+### 8.1. Danh mục 5 Cờ Cảnh Báo Tự Động:
+
+| Loại Cảnh Báo (`alertType`) | Mức Độ | Ngưỡng Kích Hoạt Tự Động | Hành Động Yêu Cầu Của Zone Admin |
+| :--- | :---: | :--- | :--- |
+| **`GPS_DISTANCE_DISCREPANCY`** | `HIGH` | Khoảng cách từ tọa độ chụp ảnh đến tâm thửa đất trên GIS **$> 50$ mét**. | Kiểm tra lại vị trí đứng của Surveyor trên bản đồ vệ tinh, nghi vấn chụp nhầm nhà bên cạnh. |
+| **`ABNORMAL_DURATION`** | `MEDIUM` | Thời gian từ lúc chụp ảnh đầu tiên $P-01$ đến khi nộp hồ sơ **$< 5$ phút** (đối với nhà $\ge 2$ tầng). | Kiểm tra kỹ ảnh các phòng bên trong, nghi vấn Surveyor không vào nhà mà tự tích form. |
+| **`STRUCTURAL_CRITICAL`** | `CRITICAL` | Hồ sơ có ghim $D-xx$ mang cờ kết cấu `Critical` hoặc biến dạng lún nghiêng $\Delta > 0.5\%$. | Bật cờ Đỏ khẩn cấp, thông báo ngay cho MAUR và Tư vấn giám sát để có biện pháp gia cố trước khi TBM đào qua. |
+| **`MISSING_SCALE_CARD`** | `MEDIUM` | Ảnh cận cảnh $CU$ không áp sát thước đo khe nứt (Scale Card). | Yêu cầu trả về (`Reject`) để Surveyor chụp bù lại ảnh có thước đo vạch mm. |
+| **`REPEATED_ABSENCE`** | `LOW` | Thửa đất đã có **$\ge 3$ lần đến liên hệ** nhưng đều ghi nhận vắng nhà. | Chuyển danh sách cho UBND Phường / Tổ dân phố để hỗ trợ đặt lịch hẹn ngoài giờ hành chính. |
 
 ---
 
-### 7.2. Logic Nghiệp Vụ Tự Nhận Thửa Đất (`POST /api/v1/parcels/{parcelId}/start-survey`)
-1. **Kiểm tra Thẩm quyền (Jurisdiction Check):** Thửa đất phải nằm trong Phân khu Ga (`zoneId`) mà Surveyor được phân công.
-2. **Kiểm tra Trạng thái Thửa đất (Status Check):**
-   - Thửa đất đang ở trạng thái `NOT_SURVEYED` (Chưa ai làm) hoặc `POSTPONED_ABSENT` (Lần trước vắng nhà, nay chủ hộ đã về).
-   - Nếu thửa đất đang bị Surveyor khác khảo sát (`IN_PROGRESS`), hệ thống trả về cảnh báo `409 Conflict`.
-3. **Cập nhật Giao dịch Tự động (Atomic Claiming Transaction):**
-   - Đổi trạng thái `survey_status = 'IN_PROGRESS'`.
-   - Gán `assigned_surveyor_id = currentSurveyor.id`.
-   - Khởi tạo bản ghi `base_survey_reports` ở trạng thái `DRAFT`.
-   - Ghi nhật ký vào `task_assignment_history` với lý do: `"Ad-hoc pick from GIS map"`.
-
----
-
-### 7.3. Logic Ghi Nhận Vắng Mặt & Tạm Hoãn (`POST /api/v1/parcels/{parcelId}/record-absence`)
-1. **Phân loại Lý do Vắng mặt (`AbsenceReasonEnum`):**
-   - `HOMEOWNER_ABSENT`: Chủ nhà đi vắng / không có người đại diện.
-   - `LOCKED_GATE`: Cổng/cửa khóa ngoài hoàn toàn.
-   - `REFUSED_ACCESS`: Chủ nhà từ chối tiếp cận hoặc hẹn ca khác.
-2. **Cơ chế Nhật Ký (Absence Audit Trail):**
-   - Tăng bộ đếm `absence_attempt_count = absence_attempt_count + 1`.
-   - Lưu thời điểm, tọa độ GPS lúc đến bấm chuông và ảnh chụp cửa khóa (nếu có).
-   - Chuyển `survey_status = 'POSTPONED_ABSENT'`.
-3. **Báo cáo Lên Zone Admin:**
-   - Trên Web Admin Portal của Zone Admin, các thửa đất bị vắng nhà sẽ hiển thị cờ màu **Tím** kèm thông tin số lần đã đến liên hệ để Zone Admin phối hợp với Tổ dân phố / UBND Phường hỗ trợ liên lạc chủ hộ.
-
----
-
-### 7.4. Mã Màu Trạng Thái Thửa Đất Đồng Bộ Trên GIS Master (Unified GIS Status Palette)
-
-| Mã màu Hex | Tên trạng thái (`survey_status`) | Ý nghĩa hiển thị trên Mobile PWA & Web Admin |
-| :---: | :--- | :--- |
-| `#9E9E9E` ⚪ | `NOT_SURVEYED` | Thửa đất chưa khảo sát (Surveyor có thể chạm vào để nhận ngay). |
-| `#2196F3` 🔵 | `ASSIGNED_TO_ME` | Thửa đất được Zone Admin giao cụ thể cho Surveyor trong ca làm việc. |
-| `#FFC107` 🟡 | `IN_PROGRESS` | Thửa đất đang được mở Form nhập liệu khảo sát thực địa. |
-| `#9C27B0` 🟣 | `POSTPONED_ABSENT` | Đã đến hiện trường nhưng chủ nhà vắng mặt / khóa cửa (Tạm hoãn). |
-| `#FF9800` 🟠 | `SUBMITTED` | Đã nộp báo cáo hoàn tất, đang chờ Zone Admin thẩm định Split-Pane. |
-| `#4CAF50` 🟢 | `APPROVED` | Báo cáo đã được phê duyệt chính thức & Xuất bản PDF/A. |
-| `#F44336` 🔴 | `REJECTED` | Báo cáo bị trả về kèm lý do cần khảo sát lại. |
+### 8.2. Cơ Chế Thống Kê Tiến Độ Thời Gian Thực (`GET /api/v1/admin/analytics/progress`)
+- **Phân tích theo chu kỳ:** Cho phép lọc theo Ngày (`DAILY`), Tuần (`WEEKLY`), Tháng (`MONTHLY`), hoặc Khoảng ngày tùy biến.
+- **Thống kê 6 trạng thái:** Hoàn tất (`APPROVED`), Chờ duyệt (`SUBMITTED`), Đang làm (`IN_PROGRESS`), Vắng nhà (`POSTPONED_ABSENT`), Bị trả về (`REJECTED`), Chưa khảo sát (`NOT_SURVEYED`).
+- **Năng suất Cán bộ (Surveyor Productivity):** Đo lường số lượng hồ sơ hoàn thành và thời gian khảo sát trung bình của từng cán bộ để điều phối nhân sự hợp lý.
