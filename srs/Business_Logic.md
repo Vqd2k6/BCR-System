@@ -221,3 +221,36 @@ class SurveyIdentificationPhoto {
 3. **Bước 3: Render lớp đồ họa Kỹ thuật chuẩn CAD (CAD Beautifier Overlay):**
    - Thay thế nét vẽ tay bằng các đường dóng kích thước mảnh, thẳng tắp, mũi tên 2 đầu chuẩn kỹ thuật xây dựng và font chữ kỹ thuật số sắc nét.
    - File ảnh `aiEnhancedPhotoUrl` này được tự động chèn vào trang bìa của **Báo cáo Pháp lý PDF/A**.
+
+---
+
+## 6. CHUỖI PHÁT SINH ĐỘNG HỌC & ĐỘNG CƠ ĐỐI SOÁT DELTA (PHASE 1 VS PHASE 2 ENGINE)
+
+### 6.1. Cơ Chế Kiểm Soát Chuỗi Phát Sinh Động (Dynamic Array Controls in OOP)
+Cả 2 đợt khảo sát (Phase 1 & Phase 2) đều được thiết kế theo mô hình **Tập hợp Động (Dynamic Growth Collection - Quan hệ $1 \to N$)**:
+1. **Chuỗi phát sinh Tầng & Vùng (`DamageZone[]`):**
+   - Cán bộ đi từ dưới lên trên: Tầng hầm $\to$ Tầng trệt $\to$ Tầng 1 $\to$ Tầng 2 $\to$ Tầng 3... Mỗi tầng/phòng có thể tạo từ $1$ đến $N$ Vùng $Z-01, Z-02\dots$ không giới hạn.
+2. **Chuỗi phát sinh Khuyết tật (`DefectItem[]`):**
+   - Trên mỗi ảnh bối cảnh $Z-xx$, cán bộ thấy bao nhiêu vết nứt thì chạm tay sinh bấy nhiêu ghim $D-01, D-02, D-03\dots$ không bị giới hạn cứng số lượng.
+
+---
+
+### 6.2. Cơ Chế Kế Thừa & Động Cơ Đối Soát Delta Phase 1 vs Phase 2
+
+```
+[ Phase 1 (Baseline Gốc) ] ──(Đào hầm TBM)──> [ Phase 2 (Đối Soát Check-Var) ] ──> [ Δ Delta Engine ]
+```
+
+1. **Khởi tạo Khảo sát Phase 2:**
+   - Hệ thống tự động liên kết `SurveyReport.baselinePhase1ReportId = Phase1_ID`.
+   - Toàn bộ danh sách Vùng $Z-xx$ và Ghim khuyết tật $D-xx$ cũ được tải sẵn lên màn hình PWA của Surveyor.
+2. **Đối soát Biến động từng Vết nứt cũ ($D-xx$ cũ):**
+   - Đo lại kích thước: $\Delta w = w_2 - w_1$ và $\Delta L = L_2 - L_1$.
+   - Phân loại tiến triển `CrackEvolutionEnum`: `STABLE` (ổn định), `WIDENED` (nứt rộng hơn), `LENGTHENED` (nứt dài thêm), `REPAIRED` (đã trám).
+3. **Thêm Vết nứt MỚI PHÁT SINH (`isNewInPhase2 = true`):**
+   - Ghim mới tạo (VD: `D-04 (MỚI)`) được đánh dấu cờ phát sinh sau khi thi công Metro.
+4. **Tự động Tính Toán Biến Động $\Delta ECS$ & Kết Luận Đền Bù (`CompensationVerdictEnum`):**
+   - Tính toán $\Delta ECS = ECS_2 - ECS_1$.
+   - **`NO_IMPACT`:** $\Delta ECS = 0$, không có vết nứt mới ➔ **Khước từ đền bù (Có căn cứ pháp lý vững chắc)**.
+   - **`NEGLIGIBLE_COSMETIC`:** Nứt tóc bề mặt $\le 1$mm ➔ **Hỗ trợ kinh phí sơn bả hoàn thiện**.
+   - **`STRUCTURAL_IMPACT`:** Xuất hiện nứt kết cấu dầm/cột hoặc lún nghiêng $\Delta > 0.5\%$ ➔ **Lập hồ sơ bồi thường thiệt hại theo quy định dự án Metro 2**.

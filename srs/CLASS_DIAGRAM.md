@@ -201,18 +201,22 @@ classDiagram
     }
 
     %% ==========================================
-    %% PACKAGE 3: SURVEY REPORT AGGREGATE ROOT
+    %% PACKAGE 3: SURVEY REPORT AGGREGATE ROOT (PHASE 1 & PHASE 2)
     %% ==========================================
     class SurveyReport {
         +UUID id
         +UUID parcelId
         +UUID surveyorId
         +UUID zoneAdminId
+        +SurveyPhaseEnum phase
+        +UUID baselinePhase1ReportId
         +String reportCode
         +DateTime surveyDate
         +ReportStatusEnum status
         +Int currentStep
         +Boolean isDataQualityPassed
+        +Int deltaEcsScore
+        +CompensationVerdictEnum compensationVerdict
         +String summaryConclusions
         +String recommendations
         +DateTime createdAt
@@ -220,6 +224,7 @@ classDiagram
         +submitForReview() Void
         +approve(adminId) Void
         +reject(adminId, reason) Void
+        +calculatePhase2DeltaComparison() Void
     }
 
     class SurveyIdentificationPhoto {
@@ -283,7 +288,7 @@ classDiagram
     }
 
     %% ==========================================
-    %% PACKAGE 5: DAMAGE ZONES, DEFECT PINNING & SKETCH
+    %% PACKAGE 5: DAMAGE ZONES, DEFECT PINNING & SKETCH (DYNAMIC ARRAYS)
     %% ==========================================
     class DamageSketch {
         +UUID id
@@ -297,18 +302,24 @@ classDiagram
     class DamageZone {
         +UUID id
         +UUID reportId
+        +UUID phase1DamageZoneId
         +String zoneCode
+        +Int floorIndex
         +String floorName
         +String roomName
         +String wallMaterial
         +String ctxPhotoUrl
         +Boolean requiresRepair
         +Int burlandGrade
+        +getDefectCount() Int
+        +addNewDefect(defectData) DefectItem
     }
 
     class DefectItem {
         +UUID id
         +UUID zoneId
+        +UUID phase1DefectItemId
+        +Boolean isNewInPhase2
         +String defectCode
         +Float pinXRatio
         +Float pinYRatio
@@ -323,7 +334,11 @@ classDiagram
         +Int materialDegradationScore
         +Int structuralSignificanceScore
         +Boolean isStructuralCritical
+        +Float deltaCrackWidthMm
+        +Float deltaCrackLengthMm
+        +CrackEvolutionEnum crackEvolutionStatus
         +calculateSeverityColor() String
+        +evaluateEvolutionDelta(phase1Defect) Void
     }
 
     %% ==========================================
@@ -510,6 +525,7 @@ classDiagram
 ```markdown
 - RoleEnum: SUPER_ADMIN, ZONE_ADMIN, SURVEYOR, CONTRACTOR
 - UserStatusEnum: ACTIVE, INACTIVE, LOCKED
+- SurveyPhaseEnum: PHASE_1_PRE_CONSTRUCTION, PHASE_2_POST_CONSTRUCTION
 - ParcelSurveyStatusEnum: NOT_SURVEYED, IN_PROGRESS, PENDING_REVIEW, APPROVED, REJECTED
 - ParcelLifecycleEnum: ACTIVE, PENDING_MUTATION_APPROVAL, SPLIT_DEPRECATED, MERGED_DEPRECATED, MUTATION_VOID
 - MutationTypeEnum: ORIGINAL, SPLIT, MERGE, REDRAW
@@ -517,6 +533,8 @@ classDiagram
 - AIProcessingStatusEnum: PENDING, PROCESSING, COMPLETED, FAILED
 - ExportFormatEnum: PDF_BOOK_COMPILATION, ZIP_ARCHIVE, EXCEL_GEOJSON
 - ReportStatusEnum: DRAFT, SUBMITTED, UNDER_REVIEW, APPROVED, REJECTED
+- CrackEvolutionEnum: STABLE, WIDENED, LENGTHENED, NEW_OCCURRENCE, REPAIRED
+- CompensationVerdictEnum: NO_IMPACT, NEGLIGIBLE_COSMETIC, STRUCTURAL_IMPACT
 - ImportanceGroupEnum: GENERAL, IMPORTANT, CRITICAL
 - AdjacentStructureEnum: TOWNHOUSE, HIGH_RISE, PUBLIC, EMPTY_LAND, OTHER
 - PhotoIdentTypeEnum: P01_HOUSE_NUMBER, P02_MAIN_FACADE, P03_SIDE_OR_REAR, P04_CONTEXT_STREET
