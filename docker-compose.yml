@@ -1,0 +1,60 @@
+version: '3.8'
+
+services:
+  # 1. PostgreSQL 16 + PostGIS Extension
+  postgres_postgis:
+    image: postgis/postgis:16-3.4-alpine
+    container_name: metro2_postgres_postgis
+    restart: always
+    environment:
+      POSTGRES_USER: metro2_user
+      POSTGRES_PASSWORD: metro2_secure_password
+      POSTGRES_DB: metro2_gis_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata_metro2:/var/lib/postgresql/data
+      - ./database/init_schema.sql:/docker-entrypoint-initdb.d/01_init_schema.sql:ro
+      - ./database/seed_data.sql:/docker-entrypoint-initdb.d/02_seed_data.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U metro2_user -d metro2_gis_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # 2. Backend API Service
+  backend_api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: metro2_backend_api
+    restart: always
+    ports:
+      - "4000:4000"
+    environment:
+      PORT: 4000
+      NODE_ENV: production
+      API_PREFIX: /api/v1
+      DB_HOST: postgres_postgis
+      DB_PORT: 5432
+      DB_USER: metro2_user
+      DB_PASSWORD: metro2_secure_password
+      DB_NAME: metro2_gis_db
+      JWT_SECRET: super_secret_metro2_jwt_key_2026_maur_kfw_secure
+      JWT_EXPIRES_IN: 7d
+      JWT_REFRESH_SECRET: super_secret_metro2_refresh_jwt_key_2026
+      JWT_REFRESH_EXPIRES_IN: 30d
+      STORAGE_TYPE: local
+      LOCAL_UPLOAD_DIR: /app/uploads
+      CORS_ORIGIN: "*"
+    volumes:
+      - uploads_data:/app/uploads
+    depends_on:
+      postgres_postgis:
+        condition: service_healthy
+
+volumes:
+  pgdata_metro2:
+    driver: local
+  uploads_data:
+    driver: local
