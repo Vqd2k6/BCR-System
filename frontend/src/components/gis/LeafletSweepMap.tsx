@@ -1,17 +1,20 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { MapContainer, TileLayer, Polygon, Marker, Circle, ZoomControl, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import {
   UserX,
-  PlusCircle,
   Layers,
   X,
   Navigation,
   Check,
   HelpCircle,
-  CheckCircle2,
   Clock,
   Sparkles,
+  Search,
+  CheckCircle2,
+  PlusCircle,
+  Building2,
+  MapPin,
 } from 'lucide-react';
 
 function ChangeView({ center, zoom }: { center: [number, number]; zoom: number }) {
@@ -22,6 +25,16 @@ function ChangeView({ center, zoom }: { center: [number, number]; zoom: number }
   return null;
 }
 
+function FlyToController({ targetCoords }: { targetCoords: [number, number] | null }) {
+  const map = useMap();
+  useEffect(() => {
+    if (targetCoords) {
+      map.flyTo(targetCoords, 19, { animate: true, duration: 0.8 });
+    }
+  }, [targetCoords, map]);
+  return null;
+}
+
 export interface GisParcel {
   id: string;
   projectParcelCode: string;
@@ -29,7 +42,15 @@ export interface GisParcel {
   houseNumber: string;
   street: string;
   ownerName?: string;
-  surveyStatus: 'NOT_SURVEYED' | 'IN_PROGRESS' | 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'POSTPONED_ABSENT';
+  surveyStatus:
+    | 'NOT_SURVEYED'
+    | 'IN_PROGRESS'
+    | 'SUBMITTED'
+    | 'APPROVED'
+    | 'REJECTED'
+    | 'POSTPONED_ABSENT'
+    | 'PHASE2_COMPLETED'
+    | 'APPROVED_PHASE2';
   absenceAttemptCount?: number;
   coordinates: [number, number][]; // LatLng polygon
   distanceMeters?: number;
@@ -67,20 +88,25 @@ export const LeafletSweepMap: React.FC<Props> = ({
   onSelectParcel,
   onStartSurvey,
   onRecordAbsence,
-  onProposeSplit,
   userGps,
 }) => {
   const currentStation = STATIONS.find((s) => s.code === selectedZone) || STATIONS[8];
   const [activeParcel, setActiveParcel] = useState<GisParcel | null>(null);
 
-  // Requirement 4: Map Mode Switcher (Standard / Satellite / OSM)
+  // Search Parcel state (Requirement 1)
+  const [isSearchOpen, setIsSearchOpen] = useState<boolean>(false);
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [targetFlyCoords, setTargetFlyCoords] = useState<[number, number] | null>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // Map Mode Switcher (Standard Esri Streets / Satellite / OSM)
   const [mapMode, setMapMode] = useState<'standard' | 'satellite' | 'osm'>('standard');
   const [showLayerMenu, setShowLayerMenu] = useState<boolean>(false);
 
-  // Requirement 6: Help modal for 4 color dots
+  // Help modal for color legend (Requirement 1 & 4)
   const [showColorLegendModal, setShowColorLegendModal] = useState<boolean>(false);
 
-  // Absence log
+  // Absence log loaded from localStorage
   const [absenceRecordedToday, setAbsenceRecordedToday] = useState<{ [parcelId: string]: string }>(() => {
     try {
       const saved = localStorage.getItem('metro2_absence_log');
@@ -90,38 +116,149 @@ export const LeafletSweepMap: React.FC<Props> = ({
     }
   });
 
+  // Calculate polygon center for smooth map flyTo
+  const getParcelCenter = (parcel: GisParcel): [number, number] => {
+    if (!parcel.coordinates || parcel.coordinates.length === 0) return currentStation.center;
+    const lats = parcel.coordinates.map((c) => c[0]);
+    const lngs = parcel.coordinates.map((c) => c[1]);
+    const avgLat = lats.reduce((a, b) => a + b, 0) / lats.length;
+    const avgLng = lngs.reduce((a, b) => a + b, 0) / lngs.length;
+    return [avgLat, avgLng];
+  };
+
+  // Focus input when search opens
+  useEffect(() => {
+    if (isSearchOpen && searchInputRef.current) {
+      searchInputRef.current.focus();
+    }
+  }, [isSearchOpen]);
+
+  // Filter suggestions based on searchQuery
+  const searchSuggestions = (parcels || []).filter((p) => {
+    if (!searchQuery.trim()) return false;
+    const query = searchQuery.toLowerCase().trim();
+    const code = String(p.projectParcelCode || (p as any).project_parcel_code || '').toLowerCase();
+    const cadastral = String(p.officialCadastralCode || (p as any).official_cadastral_code || '').toLowerCase();
+    const house = String(p.houseNumber || (p as any).house_number || '').toLowerCase();
+    const street = String(p.street || '').toLowerCase();
+    const owner = String(p.ownerName || (p as any).owner_name || '').toLowerCase();
+
+    return (
+      code.includes(query) ||
+      cadastral.includes(query) ||
+      house.includes(query) ||
+      street.includes(query) ||
+      owner.includes(query)
+    );
+  });
+
+  const handleSelectSearchResult = (parcel: GisParcel) => {
+    const center = getParcelCenter(parcel);
+    setTargetFlyCoords(center);
+    setActiveParcel(parcel);
+    onSelectParcel(parcel);
+    setIsSearchOpen(false);
+    setSearchQuery('');
+  };
+
+  const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      if (searchSuggestions.length > 0) {
+        handleSelectSearchResult(searchSuggestions[0]);
+      }
+    } else if (e.key === 'Escape') {
+      setIsSearchOpen(false);
+    }
+  };
+
+  // Requirement 4: Explicit 5-color GIS scheme
   const getStatusColor = (status: GisParcel['surveyStatus']) => {
     switch (status) {
       case 'APPROVED':
-        return '#10b981'; // Green
+        return '#10b981'; // Green: Phase 1 Approved (Ready for Phase 2)
+      case 'PHASE2_COMPLETED':
+      case 'APPROVED_PHASE2':
+        return '#2563eb'; // Blue: Phase 2 Completed (Prior to construction)
       case 'SUBMITTED':
       case 'IN_PROGRESS':
-        return '#f59e0b'; // Amber
+        return '#f59e0b'; // Amber: In progress / Pending review
       case 'POSTPONED_ABSENT':
-        return '#8b5cf6'; // Purple
+        return '#8b5cf6'; // Purple: Absent (Postponed)
       case 'REJECTED':
-        return '#ef4444'; // Red
+        return '#ef4444'; // Red: Rejected (Need remeasurement)
       case 'NOT_SURVEYED':
       default:
-        return '#64748b'; // Slate
+        return '#64748b'; // Slate: Phase 1 Not surveyed
     }
   };
 
   const getStatusBadge = (status: GisParcel['surveyStatus']) => {
     switch (status) {
       case 'APPROVED':
-        return <span className="badge badge-success">✓ Đã duyệt</span>;
+        return (
+          <span
+            className="badge"
+            style={{ backgroundColor: '#dcfce7', color: '#15803d', border: '1px solid #86efac', fontWeight: 700 }}
+          >
+            ✓ Đã duyệt Phase 1
+          </span>
+        );
+      case 'PHASE2_COMPLETED':
+      case 'APPROVED_PHASE2':
+        return (
+          <span
+            className="badge"
+            style={{ backgroundColor: '#dbeafe', color: '#1d4ed8', border: '1px solid #93c5fd', fontWeight: 700 }}
+          >
+            ★ Hoàn tất Phase 2
+          </span>
+        );
       case 'SUBMITTED':
-        return <span className="badge badge-warning">⏳ Chờ duyệt</span>;
+        return (
+          <span
+            className="badge"
+            style={{ backgroundColor: '#fef3c7', color: '#b45309', border: '1px solid #fde68a', fontWeight: 700 }}
+          >
+            ⏳ Chờ duyệt Phase 1
+          </span>
+        );
       case 'IN_PROGRESS':
-        return <span className="badge badge-warning">🔄 Đang làm</span>;
+        return (
+          <span
+            className="badge"
+            style={{ backgroundColor: '#fffbeb', color: '#b45309', border: '1px solid #fde68a', fontWeight: 700 }}
+          >
+            🔄 Đang làm Phase 1
+          </span>
+        );
       case 'POSTPONED_ABSENT':
-        return <span className="badge" style={{ backgroundColor: '#f3e8ff', color: '#7e22ce', border: '1px solid #d8b4fe' }}>🏠 Vắng mặt</span>;
+        return (
+          <span
+            className="badge"
+            style={{ backgroundColor: '#f3e8ff', color: '#7e22ce', border: '1px solid #d8b4fe', fontWeight: 700 }}
+          >
+            🏠 Vắng mặt
+          </span>
+        );
       case 'REJECTED':
-        return <span className="badge badge-danger">✕ Cần bổ sung</span>;
+        return (
+          <span
+            className="badge"
+            style={{ backgroundColor: '#fee2e2', color: '#b91c1c', border: '1px solid #fca5a5', fontWeight: 700 }}
+          >
+            ✕ Cần bổ sung
+          </span>
+        );
       case 'NOT_SURVEYED':
       default:
-        return <span className="badge badge-info">Chưa bắt đầu</span>;
+        return (
+          <span
+            className="badge"
+            style={{ backgroundColor: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1', fontWeight: 600 }}
+          >
+            Chưa làm Phase 1
+          </span>
+        );
     }
   };
 
@@ -179,7 +316,7 @@ export const LeafletSweepMap: React.FC<Props> = ({
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
-      {/* Requirement 6: Ultra-compact Top Bar on a single line */}
+      {/* Top Bar with Search & Circle (?) only (Requirement 1: No 4 dots) */}
       <div
         style={{
           position: 'absolute',
@@ -197,7 +334,7 @@ export const LeafletSweepMap: React.FC<Props> = ({
           boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08)',
         }}
       >
-        {/* Station Select Dropdown (Flex 1, no icon) */}
+        {/* Station Select Dropdown */}
         <select
           value={selectedZone}
           onChange={(e) => onSelectZone(e.target.value)}
@@ -221,7 +358,7 @@ export const LeafletSweepMap: React.FC<Props> = ({
           ))}
         </select>
 
-        {/* Requirement 4: Map Layer Switcher Button */}
+        {/* Map Layer Switcher Button */}
         <div style={{ position: 'relative' }}>
           <button
             type="button"
@@ -246,7 +383,6 @@ export const LeafletSweepMap: React.FC<Props> = ({
             <span>{mapMode === 'satellite' ? 'Vệ tinh' : mapMode === 'osm' ? 'OSM' : 'Phố'}</span>
           </button>
 
-          {/* Layer switcher dropdown */}
           {showLayerMenu && (
             <div
               style={{
@@ -262,7 +398,7 @@ export const LeafletSweepMap: React.FC<Props> = ({
                 display: 'flex',
                 flexDirection: 'column',
                 gap: '0.25rem',
-                minWidth: '130px',
+                minWidth: '135px',
               }}
             >
               <button
@@ -286,7 +422,7 @@ export const LeafletSweepMap: React.FC<Props> = ({
                   gap: '0.4rem',
                 }}
               >
-                <span>🗺️ Đường phố (Carto)</span>
+                <span>🗺️ Đường phố</span>
               </button>
 
               <button
@@ -310,7 +446,7 @@ export const LeafletSweepMap: React.FC<Props> = ({
                   gap: '0.4rem',
                 }}
               >
-                <span>🛰️ Ảnh Vệ tinh (Esri)</span>
+                <span>🛰️ Ảnh Vệ tinh</span>
               </button>
 
               <button
@@ -340,55 +476,200 @@ export const LeafletSweepMap: React.FC<Props> = ({
           )}
         </div>
 
-        {/* Requirement 6: 4 colored dots + (?) question mark button */}
-        <div
+        {/* Requirement 1: Search Parcel Button (Expands Search Bar) */}
+        <button
+          type="button"
+          onClick={() => setIsSearchOpen(!isSearchOpen)}
+          title="Tìm kiếm thửa đất theo số nhà, mã, chủ hộ"
           style={{
+            width: '32px',
+            height: '32px',
+            borderRadius: '0.5rem',
+            backgroundColor: isSearchOpen ? '#0284c7' : '#f1f5f9',
+            border: isSearchOpen ? '1px solid #0284c7' : '1px solid #cbd5e1',
+            color: isSearchOpen ? '#ffffff' : '#0284c7',
             display: 'flex',
             alignItems: 'center',
-            gap: '0.3rem',
-            backgroundColor: '#f8fafc',
-            padding: '0.3rem 0.45rem',
-            borderRadius: '9999px',
-            border: '1px solid #e2e8f0',
+            justifyContent: 'center',
+            cursor: 'pointer',
             flexShrink: 0,
+            transition: 'all 0.15s ease',
           }}
         >
-          {/* 4 dots */}
-          <span title="Đã duyệt" style={{ width: 9, height: 9, borderRadius: '50%', background: '#10b981', display: 'inline-block' }} />
-          <span title="Đang làm" style={{ width: 9, height: 9, borderRadius: '50%', background: '#f59e0b', display: 'inline-block' }} />
-          <span title="Vắng mặt" style={{ width: 9, height: 9, borderRadius: '50%', background: '#8b5cf6', display: 'inline-block' }} />
-          <span title="Chưa khảo sát" style={{ width: 9, height: 9, borderRadius: '50%', background: '#64748b', display: 'inline-block' }} />
+          <Search size={16} />
+        </button>
 
-          {/* (?) Question mark button */}
-          <button
-            type="button"
-            onClick={() => setShowColorLegendModal(true)}
-            title="Xem giải thích màu sắc thửa đất"
-            style={{
-              background: 'transparent',
-              border: 'none',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#0284c7',
-              padding: 0,
-              marginLeft: '2px',
-            }}
-          >
-            <HelpCircle size={15} />
-          </button>
-        </div>
+        {/* Requirement 1: Single circle (?) button without 4 colored dots */}
+        <button
+          type="button"
+          onClick={() => setShowColorLegendModal(true)}
+          title="Xem giải thích màu sắc thửa đất"
+          style={{
+            width: '32px',
+            height: '32px',
+            borderRadius: '50%',
+            backgroundColor: '#f8fafc',
+            border: '1px solid #cbd5e1',
+            color: '#0284c7',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            flexShrink: 0,
+            transition: 'all 0.15s ease',
+          }}
+        >
+          <HelpCircle size={17} />
+        </button>
       </div>
 
-      {/* Requirement 6: Legend Modal */}
+      {/* Requirement 1: Expandable Search Overlay with Auto Suggestions */}
+      {isSearchOpen && (
+        <div
+          style={{
+            position: 'absolute',
+            top: '56px',
+            left: '8px',
+            right: '8px',
+            zIndex: 1100,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '0.35rem',
+            animation: 'fadeIn 0.15s ease-out',
+          }}
+        >
+          {/* Search Input Box */}
+          <div
+            style={{
+              position: 'relative',
+              display: 'flex',
+              alignItems: 'center',
+              backgroundColor: '#ffffff',
+              borderRadius: '0.75rem',
+              border: '2px solid #0284c7',
+              boxShadow: '0 8px 24px rgba(0, 0, 0, 0.16)',
+              overflow: 'hidden',
+            }}
+          >
+            <Search size={16} color="#0284c7" style={{ marginLeft: '12px', flexShrink: 0 }} />
+            <input
+              ref={searchInputRef}
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={handleSearchKeyDown}
+              placeholder="Nhập số nhà, tên đường, mã B-xxx, chủ hộ..."
+              style={{
+                width: '100%',
+                padding: '0.65rem 0.6rem',
+                fontSize: '0.85rem',
+                border: 'none',
+                outline: 'none',
+                color: '#0f172a',
+                backgroundColor: 'transparent',
+              }}
+            />
+            {searchQuery ? (
+              <button
+                type="button"
+                onClick={() => setSearchQuery('')}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  padding: '0.5rem',
+                  color: '#94a3b8',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                }}
+              >
+                <X size={16} />
+              </button>
+            ) : null}
+            <button
+              type="button"
+              onClick={() => setIsSearchOpen(false)}
+              style={{
+                backgroundColor: '#f1f5f9',
+                border: 'none',
+                borderLeft: '1px solid #e2e8f0',
+                padding: '0.65rem 0.85rem',
+                fontSize: '0.775rem',
+                color: '#475569',
+                cursor: 'pointer',
+                fontWeight: 600,
+              }}
+            >
+              Đóng
+            </button>
+          </div>
+
+          {/* Suggestions Dropdown Box */}
+          {searchQuery.trim() && (
+            <div
+              style={{
+                backgroundColor: '#ffffff',
+                borderRadius: '0.75rem',
+                border: '1px solid #cbd5e1',
+                boxShadow: '0 12px 28px rgba(0, 0, 0, 0.18)',
+                maxHeight: '260px',
+                overflowY: 'auto',
+                display: 'flex',
+                flexDirection: 'column',
+              }}
+            >
+              {searchSuggestions.length === 0 ? (
+                <div style={{ padding: '0.85rem 1rem', fontSize: '0.8rem', color: '#64748b', textAlign: 'center' }}>
+                  Không tìm thấy thửa đất nào phù hợp với &quot;<strong>{searchQuery}</strong>&quot;
+                </div>
+              ) : (
+                searchSuggestions.map((parcel) => (
+                  <div
+                    key={parcel.id}
+                    onClick={() => handleSelectSearchResult(parcel)}
+                    style={{
+                      padding: '0.65rem 0.85rem',
+                      borderBottom: '1px solid #f1f5f9',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      transition: 'background 0.1s ease',
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#f0f9ff')}
+                    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '#ffffff')}
+                  >
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                        <span style={{ fontSize: '0.9rem', fontWeight: 800, color: '#0284c7' }}>
+                          {parcel.projectParcelCode}
+                        </span>
+                        {getStatusBadge(parcel.surveyStatus)}
+                      </div>
+                      <div style={{ fontSize: '0.8rem', color: '#0f172a', fontWeight: 600, marginTop: '2px' }}>
+                        Số {parcel.houseNumber} {parcel.street}
+                      </div>
+                      <div style={{ fontSize: '0.725rem', color: '#64748b' }}>
+                        Mã ĐC: {parcel.officialCadastralCode} • Chủ hộ: {parcel.ownerName || 'Chưa cập nhật'}
+                      </div>
+                    </div>
+                    <MapPin size={16} color="#0284c7" style={{ flexShrink: 0, marginLeft: '0.5rem' }} />
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Requirement 4: Color Legend Modal (5-color explicit system) */}
       {showColorLegendModal && (
         <div
           style={{
             position: 'absolute',
             inset: 0,
             zIndex: 2000,
-            backgroundColor: 'rgba(15, 23, 42, 0.4)',
+            backgroundColor: 'rgba(15, 23, 42, 0.45)',
             backdropFilter: 'blur(3px)',
             display: 'flex',
             alignItems: 'center',
@@ -403,7 +684,7 @@ export const LeafletSweepMap: React.FC<Props> = ({
               backgroundColor: '#ffffff',
               borderRadius: '1rem',
               padding: '1.25rem',
-              maxWidth: '320px',
+              maxWidth: '340px',
               width: '100%',
               boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.2)',
               border: '1px solid #e2e8f0',
@@ -412,7 +693,7 @@ export const LeafletSweepMap: React.FC<Props> = ({
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
               <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: '#0f172a' }}>
-                Ý Nghĩa Màu Thửa Đất GIS
+                Ý Nghĩa Màu Sắc Thửa Đất GIS
               </h4>
               <button
                 type="button"
@@ -423,22 +704,36 @@ export const LeafletSweepMap: React.FC<Props> = ({
               </button>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', fontSize: '0.825rem' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', fontSize: '0.825rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <span style={{ width: 12, height: 12, borderRadius: '50%', background: '#10b981', flexShrink: 0 }} />
-                <span><strong style={{ color: '#15803d' }}>Xanh lá:</strong> Đã duyệt hoàn thành Phase 1</span>
+                <span style={{ width: 13, height: 13, borderRadius: '50%', background: '#10b981', flexShrink: 0 }} />
+                <span>
+                  <strong style={{ color: '#15803d' }}>Xanh lá cây:</strong> Đã duyệt Phase 1 (Chờ khảo sát Phase 2)
+                </span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <span style={{ width: 12, height: 12, borderRadius: '50%', background: '#f59e0b', flexShrink: 0 }} />
-                <span><strong style={{ color: '#b45309' }}>Vàng cam:</strong> Đang khảo sát / Chờ thẩm định</span>
+                <span style={{ width: 13, height: 13, borderRadius: '50%', background: '#2563eb', flexShrink: 0 }} />
+                <span>
+                  <strong style={{ color: '#1d4ed8' }}>Xanh dương:</strong> Đã hoàn tất Phase 2 (Trước thi công)
+                </span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <span style={{ width: 12, height: 12, borderRadius: '50%', background: '#8b5cf6', flexShrink: 0 }} />
-                <span><strong style={{ color: '#7e22ce' }}>Tím:</strong> Chủ nhà vắng mặt (Hẹn lại)</span>
+                <span style={{ width: 13, height: 13, borderRadius: '50%', background: '#f59e0b', flexShrink: 0 }} />
+                <span>
+                  <strong style={{ color: '#b45309' }}>Vàng cam:</strong> Đang khảo sát / Chờ thẩm định Phase 1
+                </span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <span style={{ width: 12, height: 12, borderRadius: '50%', background: '#64748b', flexShrink: 0 }} />
-                <span><strong style={{ color: '#475569' }}>Xám:</strong> Chưa khảo sát thực địa</span>
+                <span style={{ width: 13, height: 13, borderRadius: '50%', background: '#8b5cf6', flexShrink: 0 }} />
+                <span>
+                  <strong style={{ color: '#7e22ce' }}>Tím:</strong> Chủ nhà vắng mặt (Đã dán giấy hẹn)
+                </span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span style={{ width: 13, height: 13, borderRadius: '50%', background: '#64748b', flexShrink: 0 }} />
+                <span>
+                  <strong style={{ color: '#475569' }}>Xám tro:</strong> Chưa khảo sát Phase 1
+                </span>
               </div>
             </div>
 
@@ -454,24 +749,25 @@ export const LeafletSweepMap: React.FC<Props> = ({
         </div>
       )}
 
-      {/* Leaflet Map Container (Zoom controls repositioned to bottomright) */}
+      {/* Leaflet Map Container */}
       <div style={{ flex: 1, width: '100%', height: '100%', overflow: 'hidden' }}>
         <MapContainer
           center={currentStation.center}
           zoom={18}
-          zoomControl={false} // Requirement 3: Disable top-left zoom control to avoid overlap
+          zoomControl={false}
           style={{ width: '100%', height: '100%' }}
           scrollWheelZoom={true}
         >
           <ChangeView center={currentStation.center} zoom={18} />
+          <FlyToController targetCoords={targetFlyCoords} />
 
-          {/* Requirement 3: Place zoom control at bottomright */}
+          {/* Zoom controls on bottomright */}
           <ZoomControl position="bottomright" />
 
-          {/* Requirement 4: Tile layer switches dynamically */}
+          {/* Clean Map Tiles without API Key Watermarks */}
           {mapMode === 'satellite' ? (
             <TileLayer
-              attribution='Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
+              attribution="Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP"
               url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
               maxZoom={19}
             />
@@ -483,9 +779,9 @@ export const LeafletSweepMap: React.FC<Props> = ({
             />
           ) : (
             <TileLayer
-              attribution='&copy; <a href="https://carto.com/">CARTO</a>'
-              url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
-              maxZoom={20}
+              attribution="Tiles &copy; Esri &mdash; Esri World Street Map"
+              url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}"
+              maxZoom={19}
             />
           )}
 
@@ -502,11 +798,9 @@ export const LeafletSweepMap: React.FC<Props> = ({
             }}
           />
 
-          {userGps && (
-            <Marker position={[userGps.lat, userGps.lng]} icon={userGpsIcon} />
-          )}
+          {userGps && <Marker position={[userGps.lat, userGps.lng]} icon={userGpsIcon} />}
 
-          {/* Polygons - Requirement 5: NO popup attached to polygon, ONLY bottom card */}
+          {/* Polygons with 5-color scheme */}
           {parcels.map((parcel) => {
             const isSelected = activeParcel?.id === parcel.id;
             const color = getStatusColor(parcel.surveyStatus);
@@ -533,7 +827,7 @@ export const LeafletSweepMap: React.FC<Props> = ({
         </MapContainer>
       </div>
 
-      {/* Requirement 5: Selected Parcel Bottom Drawer MATCHING SurveyorHomeView card design */}
+      {/* Selected Parcel Bottom Drawer (No Split button, No Absent button when Phase 1 is done) */}
       {activeParcel && (
         <div
           style={{
@@ -588,7 +882,8 @@ export const LeafletSweepMap: React.FC<Props> = ({
               Số {activeParcel.houseNumber} {activeParcel.street}
             </div>
             <div style={{ fontSize: '0.775rem', color: '#64748b', marginTop: '2px' }}>
-              Mã ĐC: <strong style={{ color: '#334155' }}>{activeParcel.officialCadastralCode}</strong> • Chủ hộ: {activeParcel.ownerName || 'Chưa cập nhật'}
+              Mã ĐC: <strong style={{ color: '#334155' }}>{activeParcel.officialCadastralCode}</strong> • Chủ hộ:{' '}
+              {activeParcel.ownerName || 'Chưa cập nhật'}
             </div>
           </div>
 
@@ -613,18 +908,18 @@ export const LeafletSweepMap: React.FC<Props> = ({
             </div>
           )}
 
-          {/* Action buttons matching Main Menu */}
+          {/* Action buttons (Requirement 2: NO Tách Thửa; Requirement 3: NO Báo Vắng Mặt for Phase 2) */}
           <div style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap', marginTop: '0.25rem' }}>
-            {/* Survey Button (Phase 1 or Phase 2) */}
             {activeParcel.surveyStatus === 'APPROVED' ? (
+              // Phase 1 Approved -> Ready for Phase 2 Survey
               <button
                 type="button"
                 className="btn btn-sm"
                 onClick={() => onStartSurvey && onStartSurvey(activeParcel)}
                 style={{
-                  flex: 1,
-                  minWidth: '130px',
-                  backgroundColor: '#059669',
+                  flex: 1.5,
+                  minWidth: '150px',
+                  backgroundColor: '#7c3aed',
                   color: '#ffffff',
                   fontWeight: 700,
                   display: 'flex',
@@ -632,19 +927,43 @@ export const LeafletSweepMap: React.FC<Props> = ({
                   justifyContent: 'center',
                   gap: '0.35rem',
                   padding: '0.5rem',
+                  boxShadow: '0 2px 6px rgba(124, 58, 237, 0.25)',
                 }}
               >
                 <Sparkles size={14} />
-                Khảo sát Phase 2
+                Khảo sát Phase 2 (Trước thi công)
               </button>
+            ) : activeParcel.surveyStatus === 'PHASE2_COMPLETED' || activeParcel.surveyStatus === 'APPROVED_PHASE2' ? (
+              // Phase 2 Done
+              <div
+                style={{
+                  flex: 1.5,
+                  minWidth: '150px',
+                  backgroundColor: '#dbeafe',
+                  color: '#1d4ed8',
+                  padding: '0.45rem 0.65rem',
+                  borderRadius: '0.5rem',
+                  fontSize: '0.775rem',
+                  fontWeight: 700,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.35rem',
+                  border: '1px solid #93c5fd',
+                }}
+              >
+                <CheckCircle2 size={14} color="#2563eb" />
+                Đã Hoàn Tất Khảo Sát Phase 2
+              </div>
             ) : (
+              // Phase 1 Survey (Initial or In-progress)
               <button
                 type="button"
                 className="btn btn-primary btn-sm"
                 onClick={() => onStartSurvey && onStartSurvey(activeParcel)}
                 style={{
-                  flex: 1,
-                  minWidth: '130px',
+                  flex: 1.5,
+                  minWidth: '150px',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -681,50 +1000,41 @@ export const LeafletSweepMap: React.FC<Props> = ({
               Chỉ đường
             </button>
 
-            {/* Absence Button */}
-            {activeParcel.surveyStatus !== 'APPROVED' && (
-              <button
-                type="button"
-                className="btn btn-sm"
-                disabled={!!absenceRecordedToday[activeParcel.id]}
-                onClick={() => handleRecordAbsenceClick(activeParcel)}
-                style={{
-                  fontSize: '0.775rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.3rem',
-                  backgroundColor: absenceRecordedToday[activeParcel.id] ? '#f1f5f9' : '#fffbeb',
-                  color: absenceRecordedToday[activeParcel.id] ? '#94a3b8' : '#b45309',
-                  borderColor: absenceRecordedToday[activeParcel.id] ? '#e2e8f0' : '#fde68a',
-                  cursor: absenceRecordedToday[activeParcel.id] ? 'not-allowed' : 'pointer',
-                  padding: '0.5rem 0.75rem',
-                  fontWeight: 600,
-                }}
-              >
-                {absenceRecordedToday[activeParcel.id] ? (
-                  <>
-                    <Check size={13} color="#10b981" />
-                    Đã báo vắng
-                  </>
-                ) : (
-                  <>
-                    <UserX size={13} />
-                    Báo vắng mặt
-                  </>
-                )}
-              </button>
-            )}
-
-            {/* Split parcel button */}
-            <button
-              type="button"
-              className="btn btn-secondary btn-sm"
-              onClick={() => onProposeSplit && onProposeSplit(activeParcel)}
-              style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.5rem 0.75rem' }}
-            >
-              <Layers size={13} />
-              Tách thửa
-            </button>
+            {/* Requirement 3: Absence Button ONLY for Phase 1 not completed */}
+            {activeParcel.surveyStatus !== 'APPROVED' &&
+              activeParcel.surveyStatus !== 'PHASE2_COMPLETED' &&
+              activeParcel.surveyStatus !== 'APPROVED_PHASE2' && (
+                <button
+                  type="button"
+                  className="btn btn-sm"
+                  disabled={!!absenceRecordedToday[activeParcel.id]}
+                  onClick={() => handleRecordAbsenceClick(activeParcel)}
+                  style={{
+                    fontSize: '0.775rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.3rem',
+                    backgroundColor: absenceRecordedToday[activeParcel.id] ? '#f1f5f9' : '#fffbeb',
+                    color: absenceRecordedToday[activeParcel.id] ? '#94a3b8' : '#b45309',
+                    borderColor: absenceRecordedToday[activeParcel.id] ? '#e2e8f0' : '#fde68a',
+                    cursor: absenceRecordedToday[activeParcel.id] ? 'not-allowed' : 'pointer',
+                    padding: '0.5rem 0.75rem',
+                    fontWeight: 600,
+                  }}
+                >
+                  {absenceRecordedToday[activeParcel.id] ? (
+                    <>
+                      <Check size={13} color="#10b981" />
+                      Đã báo vắng
+                    </>
+                  ) : (
+                    <>
+                      <UserX size={13} />
+                      Báo vắng mặt
+                    </>
+                  )}
+                </button>
+              )}
           </div>
         </div>
       )}

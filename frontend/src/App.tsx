@@ -78,7 +78,7 @@ export const App: React.FC = () => {
       houseNumber: '858',
       street: 'Đường Trường Chinh',
       ownerName: 'Lê Hoàng Cường',
-      surveyStatus: 'APPROVED',
+      surveyStatus: 'PHASE2_COMPLETED',
       absenceAttemptCount: 0,
       coordinates: [
         [10.8037, 106.639],

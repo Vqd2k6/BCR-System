@@ -125,18 +125,70 @@ export const SurveyorHomeView: React.FC<Props> = ({
   const getStatusBadge = (status: GisParcel['surveyStatus']) => {
     switch (status) {
       case 'APPROVED':
-        return <span className="badge badge-success">✓ Đã duyệt Phase 1</span>;
+        return (
+          <span
+            className="badge"
+            style={{ backgroundColor: '#dcfce7', color: '#15803d', border: '1px solid #86efac', fontWeight: 700 }}
+          >
+            ✓ Đã duyệt Phase 1
+          </span>
+        );
+      case 'PHASE2_COMPLETED':
+      case 'APPROVED_PHASE2':
+        return (
+          <span
+            className="badge"
+            style={{ backgroundColor: '#dbeafe', color: '#1d4ed8', border: '1px solid #93c5fd', fontWeight: 700 }}
+          >
+            ★ Hoàn tất Phase 2
+          </span>
+        );
       case 'SUBMITTED':
-        return <span className="badge badge-warning">⏳ Chờ duyệt Phase 1</span>;
+        return (
+          <span
+            className="badge"
+            style={{ backgroundColor: '#fef3c7', color: '#b45309', border: '1px solid #fde68a', fontWeight: 700 }}
+          >
+            ⏳ Chờ duyệt Phase 1
+          </span>
+        );
       case 'IN_PROGRESS':
-        return <span className="badge badge-warning">🔄 Đang khảo sát dở</span>;
+        return (
+          <span
+            className="badge"
+            style={{ backgroundColor: '#fffbeb', color: '#b45309', border: '1px solid #fde68a', fontWeight: 700 }}
+          >
+            🔄 Đang làm Phase 1
+          </span>
+        );
       case 'POSTPONED_ABSENT':
-        return <span className="badge" style={{ backgroundColor: '#f3e8ff', color: '#7e22ce', border: '1px solid #d8b4fe' }}>🏠 Vắng mặt (Hẹn lại)</span>;
+        return (
+          <span
+            className="badge"
+            style={{ backgroundColor: '#f3e8ff', color: '#7e22ce', border: '1px solid #d8b4fe', fontWeight: 700 }}
+          >
+            🏠 Vắng mặt (Hẹn lại)
+          </span>
+        );
       case 'REJECTED':
-        return <span className="badge badge-danger">✕ Cần đo bổ sung</span>;
+        return (
+          <span
+            className="badge"
+            style={{ backgroundColor: '#fee2e2', color: '#b91c1c', border: '1px solid #fca5a5', fontWeight: 700 }}
+          >
+            ✕ Cần đo bổ sung
+          </span>
+        );
       case 'NOT_SURVEYED':
       default:
-        return <span className="badge badge-info">Chưa bắt đầu</span>;
+        return (
+          <span
+            className="badge"
+            style={{ backgroundColor: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1', fontWeight: 600 }}
+          >
+            Chưa làm Phase 1
+          </span>
+        );
     }
   };
 
@@ -387,9 +439,16 @@ export const SurveyorHomeView: React.FC<Props> = ({
           </div>
         ) : (
           filteredParcels.map((p) => {
-            const isApproved = p.surveyStatus === 'APPROVED';
-            const isSubmitted = p.surveyStatus === 'SUBMITTED';
-            const isInProgress = p.surveyStatus === 'IN_PROGRESS' || p.surveyStatus === 'REJECTED';
+            const isApproved = p.surveyStatus === 'APPROVED' || (p as any).survey_status === 'APPROVED';
+            const isPhase2Done =
+              p.surveyStatus === 'PHASE2_COMPLETED' ||
+              p.surveyStatus === 'APPROVED_PHASE2' ||
+              (p as any).survey_status === 'PHASE2_COMPLETED';
+            const isSubmitted = p.surveyStatus === 'SUBMITTED' || (p as any).survey_status === 'SUBMITTED';
+            const isInProgress =
+              p.surveyStatus === 'IN_PROGRESS' ||
+              p.surveyStatus === 'REJECTED' ||
+              (p as any).survey_status === 'IN_PROGRESS';
             const recordedAbsenceTime = absenceRecordedToday[p.id];
 
             return (
@@ -402,7 +461,7 @@ export const SurveyorHomeView: React.FC<Props> = ({
                   display: 'flex',
                   flexDirection: 'column',
                   gap: '0.75rem',
-                  border: isApproved ? '1px solid #bbf7d0' : '1px solid #e2e8f0',
+                  border: isPhase2Done ? '1px solid #bfdbfe' : isApproved ? '1px solid #bbf7d0' : '1px solid #e2e8f0',
                 }}
               >
                 {/* Parcel Details */}
@@ -423,7 +482,8 @@ export const SurveyorHomeView: React.FC<Props> = ({
                     </div>
 
                     <div style={{ fontSize: '0.775rem', color: '#64748b' }}>
-                      Mã ĐC: <strong style={{ color: '#334155' }}>{p.officialCadastralCode}</strong> • Chủ hộ: {p.ownerName || 'Chưa cập nhật'}
+                      Mã ĐC: <strong style={{ color: '#334155' }}>{p.officialCadastralCode}</strong> • Chủ hộ:{' '}
+                      {p.ownerName || 'Chưa cập nhật'}
                     </div>
 
                     {/* Absence notice line */}
@@ -452,7 +512,28 @@ export const SurveyorHomeView: React.FC<Props> = ({
 
                 {/* Context-Aware Action Buttons */}
                 <div style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap', borderTop: '1px solid #f1f5f9', paddingTop: '0.65rem' }}>
-                  {isApproved ? (
+                  {isPhase2Done ? (
+                    <div
+                      style={{
+                        flex: 1.5,
+                        minWidth: '150px',
+                        backgroundColor: '#dbeafe',
+                        color: '#1d4ed8',
+                        padding: '0.45rem 0.65rem',
+                        borderRadius: '0.5rem',
+                        fontSize: '0.775rem',
+                        fontWeight: 700,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '0.35rem',
+                        border: '1px solid #93c5fd',
+                      }}
+                    >
+                      <CheckCircle2 size={14} color="#2563eb" />
+                      Đã Hoàn Tất Khảo Sát Phase 2
+                    </div>
+                  ) : isApproved ? (
                     <button
                       type="button"
                       className="btn btn-sm"
@@ -535,8 +616,8 @@ export const SurveyorHomeView: React.FC<Props> = ({
                     Chỉ đường
                   </button>
 
-                  {/* Smart Absence Button */}
-                  {!isApproved && (
+                  {/* Smart Absence Button (Only for Phase 1 incomplete) */}
+                  {!isApproved && !isPhase2Done && (
                     <button
                       type="button"
                       className="btn btn-sm"
