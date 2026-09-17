@@ -7,14 +7,14 @@ import {
   X,
   Navigation,
   Check,
-  HelpCircle,
+  Menu,
   Clock,
   Sparkles,
   Search,
   CheckCircle2,
   PlusCircle,
-  Building2,
   MapPin,
+  Filter,
 } from 'lucide-react';
 
 function ChangeView({ center, zoom }: { center: [number, number]; zoom: number }) {
@@ -93,7 +93,7 @@ export const LeafletSweepMap: React.FC<Props> = ({
   const currentStation = STATIONS.find((s) => s.code === selectedZone) || STATIONS[8];
   const [activeParcel, setActiveParcel] = useState<GisParcel | null>(null);
 
-  // Search Parcel state (Requirement 1)
+  // Search Parcel state
   const [isSearchOpen, setIsSearchOpen] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [targetFlyCoords, setTargetFlyCoords] = useState<[number, number] | null>(null);
@@ -103,8 +103,31 @@ export const LeafletSweepMap: React.FC<Props> = ({
   const [mapMode, setMapMode] = useState<'standard' | 'satellite' | 'osm'>('standard');
   const [showLayerMenu, setShowLayerMenu] = useState<boolean>(false);
 
-  // Help modal for color legend (Requirement 1 & 4)
-  const [showColorLegendModal, setShowColorLegendModal] = useState<boolean>(false);
+  // 3-Bar Filter & Legend Drawer/Modal state
+  const [showFilterModal, setShowFilterModal] = useState<boolean>(false);
+  const [appliedFilters, setAppliedFilters] = useState<{
+    APPROVED: boolean;
+    PHASE2_COMPLETED: boolean;
+    IN_PROGRESS: boolean;
+    POSTPONED_ABSENT: boolean;
+    NOT_SURVEYED: boolean;
+  }>({
+    APPROVED: true,
+    PHASE2_COMPLETED: true,
+    IN_PROGRESS: true,
+    POSTPONED_ABSENT: true,
+    NOT_SURVEYED: true,
+  });
+
+  // Draft filters while modal is open
+  const [draftFilters, setDraftFilters] = useState(appliedFilters);
+
+  // Sync draft filters when modal opens
+  useEffect(() => {
+    if (showFilterModal) {
+      setDraftFilters(appliedFilters);
+    }
+  }, [showFilterModal, appliedFilters]);
 
   // Absence log loaded from localStorage
   const [absenceRecordedToday, setAbsenceRecordedToday] = useState<{ [parcelId: string]: string }>(() => {
@@ -133,8 +156,19 @@ export const LeafletSweepMap: React.FC<Props> = ({
     }
   }, [isSearchOpen]);
 
-  // Filter suggestions based on searchQuery
-  const searchSuggestions = (parcels || []).filter((p) => {
+  // Filtered parcels based on applied checklist
+  const displayedParcels = (parcels || []).filter((parcel) => {
+    const status = parcel.surveyStatus || (parcel as any).survey_status || 'NOT_SURVEYED';
+    if (status === 'APPROVED') return appliedFilters.APPROVED;
+    if (status === 'PHASE2_COMPLETED' || status === 'APPROVED_PHASE2') return appliedFilters.PHASE2_COMPLETED;
+    if (status === 'IN_PROGRESS' || status === 'SUBMITTED' || status === 'REJECTED') return appliedFilters.IN_PROGRESS;
+    if (status === 'POSTPONED_ABSENT') return appliedFilters.POSTPONED_ABSENT;
+    if (status === 'NOT_SURVEYED') return appliedFilters.NOT_SURVEYED;
+    return true;
+  });
+
+  // Filter suggestions based on searchQuery & displayed parcels
+  const searchSuggestions = (displayedParcels || []).filter((p) => {
     if (!searchQuery.trim()) return false;
     const query = searchQuery.toLowerCase().trim();
     const code = String(p.projectParcelCode || (p as any).project_parcel_code || '').toLowerCase();
@@ -171,7 +205,7 @@ export const LeafletSweepMap: React.FC<Props> = ({
     }
   };
 
-  // Requirement 4: Explicit 5-color GIS scheme
+  // 5-color GIS scheme
   const getStatusColor = (status: GisParcel['surveyStatus']) => {
     switch (status) {
       case 'APPROVED':
@@ -262,7 +296,7 @@ export const LeafletSweepMap: React.FC<Props> = ({
     }
   };
 
-  // Requirement 1: Open Google Maps directions from user GPS to parcel
+  // Open Google Maps directions from user GPS to parcel
   const handleOpenGoogleMapsDirections = (parcel: GisParcel) => {
     const destLat = parcel.coordinates[0]?.[0] || currentStation.center[0];
     const destLng = parcel.coordinates[0]?.[1] || currentStation.center[1];
@@ -285,6 +319,44 @@ export const LeafletSweepMap: React.FC<Props> = ({
       onRecordAbsence(parcel);
     }
   };
+
+  // Quick Preset Filters
+  const setAllFilters = (enable: boolean) => {
+    setDraftFilters({
+      APPROVED: enable,
+      PHASE2_COMPLETED: enable,
+      IN_PROGRESS: enable,
+      POSTPONED_ABSENT: enable,
+      NOT_SURVEYED: enable,
+    });
+  };
+
+  const setPhase1Only = () => {
+    setDraftFilters({
+      APPROVED: false,
+      PHASE2_COMPLETED: false,
+      IN_PROGRESS: true,
+      POSTPONED_ABSENT: true,
+      NOT_SURVEYED: true,
+    });
+  };
+
+  const setPhase2Only = () => {
+    setDraftFilters({
+      APPROVED: true,
+      PHASE2_COMPLETED: true,
+      IN_PROGRESS: false,
+      POSTPONED_ABSENT: false,
+      NOT_SURVEYED: false,
+    });
+  };
+
+  const isCustomFilterActive =
+    !appliedFilters.APPROVED ||
+    !appliedFilters.PHASE2_COMPLETED ||
+    !appliedFilters.IN_PROGRESS ||
+    !appliedFilters.POSTPONED_ABSENT ||
+    !appliedFilters.NOT_SURVEYED;
 
   const userGpsIcon = L.divIcon({
     className: 'custom-gps-pin',
@@ -316,7 +388,7 @@ export const LeafletSweepMap: React.FC<Props> = ({
 
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
-      {/* Top Bar with Search & Circle (?) only (Requirement 1: No 4 dots) */}
+      {/* Top Bar with 3-Bar Menu Icon & Search */}
       <div
         style={{
           position: 'absolute',
@@ -476,7 +548,7 @@ export const LeafletSweepMap: React.FC<Props> = ({
           )}
         </div>
 
-        {/* Requirement 1: Search Parcel Button (Expands Search Bar) */}
+        {/* Search Parcel Button */}
         <button
           type="button"
           onClick={() => setIsSearchOpen(!isSearchOpen)}
@@ -499,18 +571,19 @@ export const LeafletSweepMap: React.FC<Props> = ({
           <Search size={16} />
         </button>
 
-        {/* Requirement 1: Single circle (?) button without 4 colored dots */}
+        {/* 3-Bar Menu Icon Button (Replaces ? icon) */}
         <button
           type="button"
-          onClick={() => setShowColorLegendModal(true)}
-          title="Xem giải thích màu sắc thửa đất"
+          onClick={() => setShowFilterModal(true)}
+          title="Bộ lọc hiển thị Phase & Chú thích màu sắc"
           style={{
+            position: 'relative',
             width: '32px',
             height: '32px',
-            borderRadius: '50%',
-            backgroundColor: '#f8fafc',
-            border: '1px solid #cbd5e1',
-            color: '#0284c7',
+            borderRadius: '0.5rem',
+            backgroundColor: isCustomFilterActive ? '#e0f2fe' : '#f8fafc',
+            border: isCustomFilterActive ? '1.5px solid #0284c7' : '1px solid #cbd5e1',
+            color: isCustomFilterActive ? '#0284c7' : '#334155',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -519,11 +592,25 @@ export const LeafletSweepMap: React.FC<Props> = ({
             transition: 'all 0.15s ease',
           }}
         >
-          <HelpCircle size={17} />
+          <Menu size={18} />
+          {isCustomFilterActive && (
+            <span
+              style={{
+                position: 'absolute',
+                top: '-2px',
+                right: '-2px',
+                width: '8px',
+                height: '8px',
+                borderRadius: '50%',
+                backgroundColor: '#0284c7',
+                border: '1.5px solid #ffffff',
+              }}
+            />
+          )}
         </button>
       </div>
 
-      {/* Requirement 1: Expandable Search Overlay with Auto Suggestions */}
+      {/* Expandable Search Overlay with Auto Suggestions */}
       {isSearchOpen && (
         <div
           style={{
@@ -538,7 +625,6 @@ export const LeafletSweepMap: React.FC<Props> = ({
             animation: 'fadeIn 0.15s ease-out',
           }}
         >
-          {/* Search Input Box */}
           <div
             style={{
               position: 'relative',
@@ -604,7 +690,6 @@ export const LeafletSweepMap: React.FC<Props> = ({
             </button>
           </div>
 
-          {/* Suggestions Dropdown Box */}
           {searchQuery.trim() && (
             <div
               style={{
@@ -662,8 +747,8 @@ export const LeafletSweepMap: React.FC<Props> = ({
         </div>
       )}
 
-      {/* Requirement 4: Color Legend Modal (5-color explicit system) */}
-      {showColorLegendModal && (
+      {/* 3-Bar Filter & Legend Drawer/Modal */}
+      {showFilterModal && (
         <div
           style={{
             position: 'absolute',
@@ -676,7 +761,7 @@ export const LeafletSweepMap: React.FC<Props> = ({
             justifyContent: 'center',
             padding: '1rem',
           }}
-          onClick={() => setShowColorLegendModal(false)}
+          onClick={() => setShowFilterModal(false)}
         >
           <div
             className="card"
@@ -684,67 +769,275 @@ export const LeafletSweepMap: React.FC<Props> = ({
               backgroundColor: '#ffffff',
               borderRadius: '1rem',
               padding: '1.25rem',
-              maxWidth: '340px',
+              maxWidth: '360px',
               width: '100%',
+              maxHeight: '88vh',
+              overflowY: 'auto',
               boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.2)',
               border: '1px solid #e2e8f0',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.85rem',
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-              <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: '#0f172a' }}>
-                Ý Nghĩa Màu Sắc Thửa Đất GIS
-              </h4>
+            {/* Modal Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                <Filter size={18} color="#0284c7" />
+                <h4 style={{ margin: 0, fontSize: '0.975rem', fontWeight: 800, color: '#0f172a' }}>
+                  Bộ Lọc Hiển Thị Thửa Đất
+                </h4>
+              </div>
               <button
                 type="button"
-                onClick={() => setShowColorLegendModal(false)}
+                onClick={() => setShowFilterModal(false)}
                 style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer' }}
               >
                 <X size={18} />
               </button>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem', fontSize: '0.825rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <span style={{ width: 13, height: 13, borderRadius: '50%', background: '#10b981', flexShrink: 0 }} />
+            {/* Quick Preset Buttons */}
+            <div style={{ display: 'flex', gap: '0.35rem' }}>
+              <button
+                type="button"
+                onClick={() => setAllFilters(true)}
+                style={{
+                  flex: 1,
+                  fontSize: '0.725rem',
+                  padding: '0.35rem 0.45rem',
+                  borderRadius: '0.45rem',
+                  border: '1px solid #cbd5e1',
+                  background: '#f8fafc',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  color: '#334155',
+                }}
+              >
+                Tất cả ({parcels.length})
+              </button>
+              <button
+                type="button"
+                onClick={setPhase1Only}
+                style={{
+                  flex: 1,
+                  fontSize: '0.725rem',
+                  padding: '0.35rem 0.45rem',
+                  borderRadius: '0.45rem',
+                  border: '1px solid #cbd5e1',
+                  background: '#fffbeb',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  color: '#b45309',
+                }}
+              >
+                Chỉ Phase 1
+              </button>
+              <button
+                type="button"
+                onClick={setPhase2Only}
+                style={{
+                  flex: 1,
+                  fontSize: '0.725rem',
+                  padding: '0.35rem 0.45rem',
+                  borderRadius: '0.45rem',
+                  border: '1px solid #cbd5e1',
+                  background: '#f0fdf4',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  color: '#15803d',
+                }}
+              >
+                Chỉ Phase 2
+              </button>
+            </div>
+
+            {/* Checklist Options */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              <label
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.55rem',
+                  fontSize: '0.825rem',
+                  cursor: 'pointer',
+                  padding: '0.35rem 0.45rem',
+                  borderRadius: '0.45rem',
+                  backgroundColor: draftFilters.APPROVED ? '#f0fdf4' : '#ffffff',
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={draftFilters.APPROVED}
+                  onChange={(e) => setDraftFilters({ ...draftFilters, APPROVED: e.target.checked })}
+                  style={{ width: '16px', height: '16px', accentColor: '#10b981', cursor: 'pointer' }}
+                />
+                <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#10b981', flexShrink: 0 }} />
+                <span style={{ fontWeight: 600, color: '#15803d' }}>Đã duyệt Phase 1 (Chờ làm Phase 2)</span>
+              </label>
+
+              <label
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.55rem',
+                  fontSize: '0.825rem',
+                  cursor: 'pointer',
+                  padding: '0.35rem 0.45rem',
+                  borderRadius: '0.45rem',
+                  backgroundColor: draftFilters.PHASE2_COMPLETED ? '#eff6ff' : '#ffffff',
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={draftFilters.PHASE2_COMPLETED}
+                  onChange={(e) => setDraftFilters({ ...draftFilters, PHASE2_COMPLETED: e.target.checked })}
+                  style={{ width: '16px', height: '16px', accentColor: '#2563eb', cursor: 'pointer' }}
+                />
+                <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#2563eb', flexShrink: 0 }} />
+                <span style={{ fontWeight: 600, color: '#1d4ed8' }}>Đã hoàn tất Phase 2 (Trước thi công)</span>
+              </label>
+
+              <label
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.55rem',
+                  fontSize: '0.825rem',
+                  cursor: 'pointer',
+                  padding: '0.35rem 0.45rem',
+                  borderRadius: '0.45rem',
+                  backgroundColor: draftFilters.IN_PROGRESS ? '#fffbeb' : '#ffffff',
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={draftFilters.IN_PROGRESS}
+                  onChange={(e) => setDraftFilters({ ...draftFilters, IN_PROGRESS: e.target.checked })}
+                  style={{ width: '16px', height: '16px', accentColor: '#f59e0b', cursor: 'pointer' }}
+                />
+                <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#f59e0b', flexShrink: 0 }} />
+                <span style={{ fontWeight: 600, color: '#b45309' }}>Đang khảo sát / Chờ duyệt Phase 1</span>
+              </label>
+
+              <label
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.55rem',
+                  fontSize: '0.825rem',
+                  cursor: 'pointer',
+                  padding: '0.35rem 0.45rem',
+                  borderRadius: '0.45rem',
+                  backgroundColor: draftFilters.POSTPONED_ABSENT ? '#faf5ff' : '#ffffff',
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={draftFilters.POSTPONED_ABSENT}
+                  onChange={(e) => setDraftFilters({ ...draftFilters, POSTPONED_ABSENT: e.target.checked })}
+                  style={{ width: '16px', height: '16px', accentColor: '#8b5cf6', cursor: 'pointer' }}
+                />
+                <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#8b5cf6', flexShrink: 0 }} />
+                <span style={{ fontWeight: 600, color: '#7e22ce' }}>Chủ nhà vắng mặt (Đã dán giấy hẹn)</span>
+              </label>
+
+              <label
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.55rem',
+                  fontSize: '0.825rem',
+                  cursor: 'pointer',
+                  padding: '0.35rem 0.45rem',
+                  borderRadius: '0.45rem',
+                  backgroundColor: draftFilters.NOT_SURVEYED ? '#f8fafc' : '#ffffff',
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={draftFilters.NOT_SURVEYED}
+                  onChange={(e) => setDraftFilters({ ...draftFilters, NOT_SURVEYED: e.target.checked })}
+                  style={{ width: '16px', height: '16px', accentColor: '#64748b', cursor: 'pointer' }}
+                />
+                <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#64748b', flexShrink: 0 }} />
+                <span style={{ fontWeight: 600, color: '#475569' }}>Chưa khảo sát Phase 1</span>
+              </label>
+            </div>
+
+            {/* Confirm Filter Button */}
+            <button
+              type="button"
+              className="btn btn-primary btn-sm"
+              onClick={() => {
+                setAppliedFilters(draftFilters);
+                setShowFilterModal(false);
+              }}
+              style={{
+                width: '100%',
+                padding: '0.55rem',
+                fontWeight: 700,
+                fontSize: '0.85rem',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.4rem',
+                boxShadow: '0 4px 10px rgba(2, 132, 199, 0.25)',
+              }}
+            >
+              <Check size={16} />
+              Xác Nhận Áp Dụng Bộ Lọc
+            </button>
+
+            {/* Bottom Color Legend Description */}
+            <div
+              style={{
+                borderTop: '1px solid #e2e8f0',
+                paddingTop: '0.65rem',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.4rem',
+                fontSize: '0.75rem',
+                backgroundColor: '#f8fafc',
+                padding: '0.6rem 0.75rem',
+                borderRadius: '0.5rem',
+              }}
+            >
+              <div style={{ fontWeight: 700, color: '#334155', marginBottom: '2px' }}>
+                📖 Chú thích màu sắc hiển thị trên Map:
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#10b981', flexShrink: 0 }} />
                 <span>
-                  <strong style={{ color: '#15803d' }}>Xanh lá cây:</strong> Đã duyệt Phase 1 (Chờ khảo sát Phase 2)
+                  <strong style={{ color: '#15803d' }}>Xanh lá:</strong> Đã duyệt Phase 1 (Chờ Phase 2)
                 </span>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <span style={{ width: 13, height: 13, borderRadius: '50%', background: '#2563eb', flexShrink: 0 }} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#2563eb', flexShrink: 0 }} />
                 <span>
-                  <strong style={{ color: '#1d4ed8' }}>Xanh dương:</strong> Đã hoàn tất Phase 2 (Trước thi công)
+                  <strong style={{ color: '#1d4ed8' }}>Xanh dương:</strong> Đã hoàn tất Phase 2
                 </span>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <span style={{ width: 13, height: 13, borderRadius: '50%', background: '#f59e0b', flexShrink: 0 }} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#f59e0b', flexShrink: 0 }} />
                 <span>
-                  <strong style={{ color: '#b45309' }}>Vàng cam:</strong> Đang khảo sát / Chờ thẩm định Phase 1
+                  <strong style={{ color: '#b45309' }}>Vàng cam:</strong> Đang làm / Chờ duyệt Phase 1
                 </span>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <span style={{ width: 13, height: 13, borderRadius: '50%', background: '#8b5cf6', flexShrink: 0 }} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#8b5cf6', flexShrink: 0 }} />
                 <span>
-                  <strong style={{ color: '#7e22ce' }}>Tím:</strong> Chủ nhà vắng mặt (Đã dán giấy hẹn)
+                  <strong style={{ color: '#7e22ce' }}>Tím:</strong> Vắng mặt (Đã dán giấy hẹn)
                 </span>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <span style={{ width: 13, height: 13, borderRadius: '50%', background: '#64748b', flexShrink: 0 }} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#64748b', flexShrink: 0 }} />
                 <span>
                   <strong style={{ color: '#475569' }}>Xám tro:</strong> Chưa khảo sát Phase 1
                 </span>
               </div>
             </div>
-
-            <button
-              type="button"
-              className="btn btn-primary btn-sm"
-              onClick={() => setShowColorLegendModal(false)}
-              style={{ width: '100%', marginTop: '1rem', padding: '0.45rem', fontWeight: 700 }}
-            >
-              Đã hiểu
-            </button>
           </div>
         </div>
       )}
@@ -764,7 +1057,7 @@ export const LeafletSweepMap: React.FC<Props> = ({
           {/* Zoom controls on bottomright */}
           <ZoomControl position="bottomright" />
 
-          {/* Clean Map Tiles without API Key Watermarks */}
+          {/* Clean Map Tiles */}
           {mapMode === 'satellite' ? (
             <TileLayer
               attribution="Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP"
@@ -800,8 +1093,8 @@ export const LeafletSweepMap: React.FC<Props> = ({
 
           {userGps && <Marker position={[userGps.lat, userGps.lng]} icon={userGpsIcon} />}
 
-          {/* Polygons with 5-color scheme */}
-          {parcels.map((parcel) => {
+          {/* Render Only Filtered Polygons */}
+          {displayedParcels.map((parcel) => {
             const isSelected = activeParcel?.id === parcel.id;
             const color = getStatusColor(parcel.surveyStatus);
 
@@ -827,7 +1120,50 @@ export const LeafletSweepMap: React.FC<Props> = ({
         </MapContainer>
       </div>
 
-      {/* Selected Parcel Bottom Drawer (No Split button, No Absent button when Phase 1 is done) */}
+      {/* Floating Filter Status Badge if custom filtering is applied */}
+      {isCustomFilterActive && (
+        <div
+          style={{
+            position: 'absolute',
+            top: '56px',
+            right: '8px',
+            zIndex: 900,
+            backgroundColor: '#0f172a',
+            color: '#ffffff',
+            fontSize: '0.725rem',
+            padding: '0.3rem 0.6rem',
+            borderRadius: '999px',
+            boxShadow: '0 4px 8px rgba(0,0,0,0.2)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.35rem',
+          }}
+        >
+          <Filter size={11} color="#38bdf8" />
+          <span>
+            Đang lọc: <strong>{displayedParcels.length}/{parcels.length}</strong> thửa
+          </span>
+          <button
+            type="button"
+            onClick={() => setAllFilters(true)}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: '#94a3b8',
+              cursor: 'pointer',
+              padding: 0,
+              marginLeft: '2px',
+              display: 'flex',
+              alignItems: 'center',
+            }}
+            title="Bỏ lọc"
+          >
+            <X size={12} />
+          </button>
+        </div>
+      )}
+
+      {/* Selected Parcel Bottom Drawer */}
       {activeParcel && (
         <div
           style={{
@@ -908,10 +1244,9 @@ export const LeafletSweepMap: React.FC<Props> = ({
             </div>
           )}
 
-          {/* Action buttons (Requirement 2: NO Tách Thửa; Requirement 3: NO Báo Vắng Mặt for Phase 2) */}
+          {/* Action buttons */}
           <div style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap', marginTop: '0.25rem' }}>
             {activeParcel.surveyStatus === 'APPROVED' ? (
-              // Phase 1 Approved -> Ready for Phase 2 Survey
               <button
                 type="button"
                 className="btn btn-sm"
@@ -934,7 +1269,6 @@ export const LeafletSweepMap: React.FC<Props> = ({
                 Khảo sát Phase 2 (Trước thi công)
               </button>
             ) : activeParcel.surveyStatus === 'PHASE2_COMPLETED' || activeParcel.surveyStatus === 'APPROVED_PHASE2' ? (
-              // Phase 2 Done
               <div
                 style={{
                   flex: 1.5,
@@ -956,7 +1290,6 @@ export const LeafletSweepMap: React.FC<Props> = ({
                 Đã Hoàn Tất Khảo Sát Phase 2
               </div>
             ) : (
-              // Phase 1 Survey (Initial or In-progress)
               <button
                 type="button"
                 className="btn btn-primary btn-sm"
@@ -977,7 +1310,7 @@ export const LeafletSweepMap: React.FC<Props> = ({
               </button>
             )}
 
-            {/* Requirement 1: Chỉ đường button linking to Google Maps */}
+            {/* Chỉ đường button linking to Google Maps */}
             <button
               type="button"
               className="btn btn-secondary btn-sm"
@@ -1000,7 +1333,7 @@ export const LeafletSweepMap: React.FC<Props> = ({
               Chỉ đường
             </button>
 
-            {/* Requirement 3: Absence Button ONLY for Phase 1 not completed */}
+            {/* Absence Button ONLY for Phase 1 incomplete */}
             {activeParcel.surveyStatus !== 'APPROVED' &&
               activeParcel.surveyStatus !== 'PHASE2_COMPLETED' &&
               activeParcel.surveyStatus !== 'APPROVED_PHASE2' && (
