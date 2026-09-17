@@ -121,11 +121,40 @@ export const App: React.FC = () => {
     },
   ];
 
+  const normalizeParcel = (p: any): GisParcel => {
+    let coords: [number, number][] = [];
+    if (p.cadastral_geojson?.coordinates?.[0]) {
+      coords = p.cadastral_geojson.coordinates[0].map(([lng, lat]: [number, number]) => [lat, lng]);
+    } else if (p.coordinates && Array.isArray(p.coordinates)) {
+      coords = p.coordinates;
+    } else {
+      coords = [
+        [10.8033, 106.6384],
+        [10.8034, 106.6387],
+        [10.8032, 106.6388],
+        [10.8031, 106.6385],
+      ];
+    }
+
+    return {
+      id: p.id,
+      projectParcelCode: p.project_parcel_code || p.projectParcelCode || 'B-XXXXX',
+      officialCadastralCode: p.official_cadastral_code || p.officialCadastralCode || '',
+      houseNumber: p.house_number || p.houseNumber || '',
+      street: p.street || '',
+      ownerName: p.owner_name || p.ownerName || 'Chưa cập nhật',
+      surveyStatus: p.survey_status || p.surveyStatus || 'NOT_SURVEYED',
+      absenceAttemptCount: p.absence_attempt_count ?? p.absenceAttemptCount ?? 0,
+      coordinates: coords,
+    };
+  };
+
   const loadParcels = async () => {
     try {
       const res = await api.get('/parcels/zone-map', { params: { zoneId: selectedZone } });
       if (res.data && res.data.data && res.data.data.length > 0) {
-        setParcels(res.data.data);
+        const normalized = res.data.data.map(normalizeParcel);
+        setParcels(normalized);
       } else {
         setParcels(initialParcels);
       }

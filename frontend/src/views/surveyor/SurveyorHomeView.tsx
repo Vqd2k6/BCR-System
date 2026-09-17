@@ -61,31 +61,41 @@ export const SurveyorHomeView: React.FC<Props> = ({
   const weekCompleted = 8;
 
   // Parcel counts
-  const total = parcels.length;
-  const approved = parcels.filter((p) => p.surveyStatus === 'APPROVED').length;
-  const inProgress = parcels.filter((p) => p.surveyStatus === 'IN_PROGRESS' || p.surveyStatus === 'SUBMITTED').length;
-  const absent = parcels.filter((p) => p.surveyStatus === 'POSTPONED_ABSENT').length;
-  const notSurveyed = parcels.filter((p) => p.surveyStatus === 'NOT_SURVEYED').length;
+  const total = parcels?.length || 0;
+  const getStatus = (p: GisParcel) => p?.surveyStatus || (p as any)?.survey_status || 'NOT_SURVEYED';
+  const approved = (parcels || []).filter((p) => getStatus(p) === 'APPROVED').length;
+  const inProgress = (parcels || []).filter((p) => getStatus(p) === 'IN_PROGRESS' || getStatus(p) === 'SUBMITTED').length;
+  const absent = (parcels || []).filter((p) => getStatus(p) === 'POSTPONED_ABSENT').length;
+  const notSurveyed = (parcels || []).filter((p) => getStatus(p) === 'NOT_SURVEYED').length;
   const pendingTotal = notSurveyed + inProgress + absent;
 
-  const filteredParcels = parcels.filter((p) => {
+  const filteredParcels = (parcels || []).filter((p) => {
+    if (!p) return false;
+    const sTerm = String(searchTerm || '').toLowerCase().trim();
+    const code = String(p.projectParcelCode || (p as any).project_parcel_code || '').toLowerCase();
+    const house = String(p.houseNumber || (p as any).house_number || '').toLowerCase();
+    const street = String(p.street || '').toLowerCase();
+    const owner = String(p.ownerName || (p as any).owner_name || '').toLowerCase();
+    const status = getStatus(p);
+
     const matchesSearch =
-      p.projectParcelCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.houseNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      p.street.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (p.ownerName && p.ownerName.toLowerCase().includes(searchTerm.toLowerCase()));
+      !sTerm ||
+      code.includes(sTerm) ||
+      house.includes(sTerm) ||
+      street.includes(sTerm) ||
+      owner.includes(sTerm);
 
     let matchesStatus = false;
     if (statusFilter === 'PENDING_ONLY') {
-      matchesStatus = p.surveyStatus !== 'APPROVED';
+      matchesStatus = status !== 'APPROVED';
     } else if (statusFilter === 'NOT_SURVEYED') {
-      matchesStatus = p.surveyStatus === 'NOT_SURVEYED';
+      matchesStatus = status === 'NOT_SURVEYED';
     } else if (statusFilter === 'IN_PROGRESS') {
-      matchesStatus = p.surveyStatus === 'IN_PROGRESS' || p.surveyStatus === 'SUBMITTED' || p.surveyStatus === 'REJECTED';
+      matchesStatus = status === 'IN_PROGRESS' || status === 'SUBMITTED' || status === 'REJECTED';
     } else if (statusFilter === 'ABSENT') {
-      matchesStatus = p.surveyStatus === 'POSTPONED_ABSENT';
+      matchesStatus = status === 'POSTPONED_ABSENT';
     } else if (statusFilter === 'APPROVED') {
-      matchesStatus = p.surveyStatus === 'APPROVED';
+      matchesStatus = status === 'APPROVED';
     } else {
       matchesStatus = true;
     }
