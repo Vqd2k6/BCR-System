@@ -17,14 +17,14 @@ INSERT INTO metro_zones (id, zone_code, zone_name, center_geom, total_parcels_co
 ('a0000000-0000-0000-0000-000000000011', 'ZONE_S11', 'Ga S11 - Tân Bình / Tham Lương', ST_SetSRID(ST_MakePoint(106.612000, 10.825100), 4326), 580, 210)
 ON CONFLICT (zone_code) DO NOTHING;
 
--- 2. KHỞI TẠO TÀI KHOẢN MẪU (Password mặc định hash của: 'Password@123' hoặc 'Admin@123')
+-- 2. KHỞI TẠO TÀI KHOẢN MẪU (Password mặc định: 'Admin@123' cho SuperAdmin/ZoneAdmin, 'Password@123' cho Surveyor/Contractor)
 INSERT INTO users (id, username, password_hash, full_name, email, phone, role, status, assigned_zone_id) VALUES
-('b0000000-0000-0000-0000-000000000001', 'superadmin', '$2a$12$e8YgQv0Kq9Wl5J7qK8WkOuN5cK5iF1ZgJ9V8W6Q5X7Y2Z1M0K3L4O', 'Nguyễn Văn Tổng (MAUR)', 'admin@maur.metro2.vn', '0901234567', 'SUPER_ADMIN', 'ACTIVE', NULL),
-('b0000000-0000-0000-0000-000000000002', 'zoneadmin_s9', '$2a$12$e8YgQv0Kq9Wl5J7qK8WkOuN5cK5iF1ZgJ9V8W6Q5X7Y2Z1M0K3L4O', 'Trần Văn Tổ Trưởng (Ga S9)', 'zoneadmin.s9@metro2.vn', '0902345678', 'ZONE_ADMIN', 'ACTIVE', 'ZONE_S9'),
-('b0000000-0000-0000-0000-000000000003', 'surveyor_s9_01', '$2a$12$e8YgQv0Kq9Wl5J7qK8WkOuN5cK5iF1ZgJ9V8W6Q5X7Y2Z1M0K3L4O', 'Nguyễn Văn Khảo Sát', 'surveyor.s9@metro2.vn', '0903456789', 'SURVEYOR', 'ACTIVE', 'ZONE_S9'),
-('b0000000-0000-0000-0000-000000000004', 'surveyor_s9_02', '$2a$12$e8YgQv0Kq9Wl5J7qK8WkOuN5cK5iF1ZgJ9V8W6Q5X7Y2Z1M0K3L4O', 'Trần Văn B', 'surveyor2.s9@metro2.vn', '0904567890', 'SURVEYOR', 'ACTIVE', 'ZONE_S9'),
-('b0000000-0000-0000-0000-000000000005', 'contractor_guest', '$2a$12$e8YgQv0Kq9Wl5J7qK8WkOuN5cK5iF1ZgJ9V8W6Q5X7Y2Z1M0K3L4O', 'Đại diện Nhà Thầu TBM', 'contractor@tbm-tunnel.com', '0905678901', 'CONTRACTOR', 'ACTIVE', NULL)
-ON CONFLICT (username) DO NOTHING;
+('b0000000-0000-0000-0000-000000000001', 'superadmin', '$2a$10$Mc8KQVRO3nHstxfQyiWjEuJCHaPl42TlIR0J.HXeH5nZl6KNXKmDe', 'Nguyễn Văn Tổng (MAUR)', 'admin@maur.metro2.vn', '0901234567', 'SUPER_ADMIN', 'ACTIVE', NULL),
+('b0000000-0000-0000-0000-000000000002', 'zoneadmin_s9', '$2a$10$Mc8KQVRO3nHstxfQyiWjEuJCHaPl42TlIR0J.HXeH5nZl6KNXKmDe', 'Trần Văn Tổ Trưởng (Ga S9)', 'zoneadmin.s9@metro2.vn', '0902345678', 'ZONE_ADMIN', 'ACTIVE', 'ZONE_S9'),
+('b0000000-0000-0000-0000-000000000003', 'surveyor_s9_01', '$2a$10$aK1LSAN1sdZE2SGC49WjuuBDztr4SRxCgYe5jWF4/d3O0Uk2Fn0kK', 'Nguyễn Văn Khảo Sát', 'surveyor.s9@metro2.vn', '0903456789', 'SURVEYOR', 'ACTIVE', 'ZONE_S9'),
+('b0000000-0000-0000-0000-000000000004', 'surveyor_s9_02', '$2a$10$aK1LSAN1sdZE2SGC49WjuuBDztr4SRxCgYe5jWF4/d3O0Uk2Fn0kK', 'Trần Văn B', 'surveyor2.s9@metro2.vn', '0904567890', 'SURVEYOR', 'ACTIVE', 'ZONE_S9'),
+('b0000000-0000-0000-0000-000000000005', 'contractor_guest', '$2a$10$aK1LSAN1sdZE2SGC49WjuuBDztr4SRxCgYe5jWF4/d3O0Uk2Fn0kK', 'Đại diện Nhà Thầu TBM', 'contractor@tbm-tunnel.com', '0905678901', 'CONTRACTOR', 'ACTIVE', NULL)
+ON CONFLICT (username) DO UPDATE SET password_hash = EXCLUDED.password_hash;
 
 -- 3. KHỞI TẠO CÁC THỬA ĐẤT MẪU MÃ KÉP (DUAL-ID PARCELS TẠI PHÂN KHU GA S9)
 INSERT INTO parcels (

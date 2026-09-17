@@ -5,7 +5,7 @@ import { Train, Lock, User, ShieldCheck, ArrowRight, CheckCircle2 } from 'lucide
 export const LoginView: React.FC = () => {
   const { login } = useAuth();
   const [username, setUsername] = useState('surveyor_s9_01');
-  const [password, setPassword] = useState('password123');
+  const [password, setPassword] = useState('Password@123');
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -16,13 +16,13 @@ export const LoginView: React.FC = () => {
     try {
       await login(username, password);
     } catch (err: any) {
-      setErrorMessage(err.response?.data?.detail || 'Đăng nhập không thành công. Vui lòng kiểm tra lại tài khoản.');
+      setErrorMessage(err.response?.data?.detail || err.response?.data?.message || 'Đăng nhập không thành công. Vui lòng kiểm tra lại tài khoản.');
     } finally {
       setLoading(false);
     }
   };
 
-  const setDemoAccount = (u: string, p: string = 'password123') => {
+  const setDemoAccount = (u: string, p: string = 'Password@123') => {
     setUsername(u);
     setPassword(p);
   };
@@ -162,7 +162,7 @@ export const LoginView: React.FC = () => {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.4rem' }}>
             <button
               type="button"
-              onClick={() => setDemoAccount('surveyor_s9_01')}
+              onClick={() => setDemoAccount('surveyor_s9_01', 'Password@123')}
               className="btn btn-secondary btn-sm"
               style={{
                 fontSize: '0.75rem',
@@ -178,7 +178,7 @@ export const LoginView: React.FC = () => {
 
             <button
               type="button"
-              onClick={() => setDemoAccount('zoneadmin_s9')}
+              onClick={() => setDemoAccount('zoneadmin_s9', 'Admin@123')}
               className="btn btn-secondary btn-sm"
               style={{
                 fontSize: '0.75rem',
@@ -194,7 +194,7 @@ export const LoginView: React.FC = () => {
 
             <button
               type="button"
-              onClick={() => setDemoAccount('superadmin')}
+              onClick={() => setDemoAccount('superadmin', 'Admin@123')}
               className="btn btn-secondary btn-sm"
               style={{
                 fontSize: '0.75rem',
@@ -210,15 +210,15 @@ export const LoginView: React.FC = () => {
 
             <button
               type="button"
-              onClick={() => setDemoAccount('contractor_01')}
+              onClick={() => setDemoAccount('contractor_guest', 'Password@123')}
               className="btn btn-secondary btn-sm"
               style={{
                 fontSize: '0.75rem',
                 justifyContent: 'flex-start',
                 padding: '0.4rem 0.5rem',
-                backgroundColor: username === 'contractor_01' ? '#e0f2fe' : '#f8fafc',
-                borderColor: username === 'contractor_01' ? '#0284c7' : '#e2e8f0',
-                color: username === 'contractor_01' ? '#0369a1' : '#334155',
+                backgroundColor: username === 'contractor_guest' ? '#e0f2fe' : '#f8fafc',
+                borderColor: username === 'contractor_guest' ? '#0284c7' : '#e2e8f0',
+                color: username === 'contractor_guest' ? '#0369a1' : '#334155',
               }}
             >
               🏢 Nhà Thầu Metro

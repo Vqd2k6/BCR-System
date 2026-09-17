@@ -46,65 +46,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const login = async (username: string, password: string) => {
-    try {
-      const res = await api.post('/auth/login', { username, password });
-      if (res.data?.success) {
-        const { accessToken, user: userData } = res.data.data;
-        setToken(accessToken);
-        setUser(userData);
-        localStorage.setItem('metro2_access_token', accessToken);
-        localStorage.setItem('metro2_user_profile', JSON.stringify(userData));
-        return;
-      }
-    } catch (error) {
-      console.warn('[AUTH] API login fallback to local demo account');
+    const res = await api.post('/auth/login', { username, password });
+    if (res.data?.success) {
+      const { accessToken, user: userData } = res.data.data;
+      setToken(accessToken);
+      setUser(userData);
+      localStorage.setItem('metro2_access_token', accessToken);
+      localStorage.setItem('metro2_user_profile', JSON.stringify(userData));
     }
-
-    // Demo account matching
-    let demoUser: UserProfile;
-    if (username.includes('zoneadmin')) {
-      demoUser = {
-        id: 'b0000000-0000-0000-0000-000000000002',
-        username,
-        fullName: 'Trần Văn Tổ Trưởng (Zone Admin)',
-        role: 'ZONE_ADMIN',
-        assignedZoneId: 'Ga S9 - Bà Quẹo',
-        status: 'ACTIVE',
-      };
-    } else if (username.includes('superadmin')) {
-      demoUser = {
-        id: 'b0000000-0000-0000-0000-000000000001',
-        username,
-        fullName: 'Nguyễn Văn Tổng (MAUR Lãnh Đạo)',
-        role: 'SUPER_ADMIN',
-        assignedZoneId: 'Toàn tuyến 11 Ga',
-        status: 'ACTIVE',
-      };
-    } else if (username.includes('contractor')) {
-      demoUser = {
-        id: 'b0000000-0000-0000-0000-000000000005',
-        username,
-        fullName: 'Đại diện Liên danh Nhà thầu Metro 2',
-        role: 'CONTRACTOR',
-        assignedZoneId: 'Ga S9 - Bà Quẹo',
-        status: 'ACTIVE',
-      };
-    } else {
-      demoUser = {
-        id: 'b0000000-0000-0000-0000-000000000003',
-        username,
-        fullName: 'Nguyễn Văn Khảo Sát',
-        role: 'SURVEYOR',
-        assignedZoneId: 'Ga S9 - Bà Quẹo',
-        status: 'ACTIVE',
-      };
-    }
-
-    const mockToken = `mock-token-${Date.now()}`;
-    setUser(demoUser);
-    setToken(mockToken);
-    localStorage.setItem('metro2_access_token', mockToken);
-    localStorage.setItem('metro2_user_profile', JSON.stringify(demoUser));
   };
 
   const logout = () => {
