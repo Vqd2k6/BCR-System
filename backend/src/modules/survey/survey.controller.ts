@@ -89,6 +89,23 @@ export class SurveyController {
     }
   }
 
+  static async saveFloorSurveys(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      const { floors } = req.body;
+      if (!Array.isArray(floors)) {
+        throw new BadRequestError('Dữ liệu danh sách tầng phải là một mảng array');
+      }
+      const result = await SurveyService.saveFloorSurveys(id, floors);
+      res.status(200).json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   static async createDamageZone(req: Request, res: Response, next: NextFunction) {
     try {
       const { id } = req.params;

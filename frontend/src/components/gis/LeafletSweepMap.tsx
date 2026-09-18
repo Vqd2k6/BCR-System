@@ -15,6 +15,7 @@ import {
   PlusCircle,
   MapPin,
   Filter,
+  AlertCircle,
 } from 'lucide-react';
 
 function ChangeView({ center, zoom }: { center: [number, number]; zoom: number }) {
@@ -29,7 +30,7 @@ function FlyToController({ targetCoords }: { targetCoords: [number, number] | nu
   const map = useMap();
   useEffect(() => {
     if (targetCoords) {
-      map.flyTo(targetCoords, 19, { animate: true, duration: 0.8 });
+      map.flyTo(targetCoords, 21, { animate: true, duration: 0.8 });
     }
   }, [targetCoords, map]);
   return null;
@@ -54,6 +55,12 @@ export interface GisParcel {
   absenceAttemptCount?: number;
   coordinates: [number, number][]; // LatLng polygon
   distanceMeters?: number;
+  adjacentType?: string;
+  constructionArea?: number;
+  floorCount?: number;
+  landArea?: number;
+  landCategory?: string;
+  landUseName?: string;
 }
 
 interface Props {
@@ -68,17 +75,17 @@ interface Props {
 }
 
 const STATIONS: { code: string; name: string; center: [number, number] }[] = [
-  { code: 'ZONE_S1', name: 'Ga S1 - Bến Thành', center: [10.7715, 106.6983] },
-  { code: 'ZONE_S2', name: 'Ga S2 - Tao Đàn', center: [10.7761, 106.6908] },
-  { code: 'ZONE_S3', name: 'Ga S3 - Dân Chủ', center: [10.7818, 106.6811] },
-  { code: 'ZONE_S4', name: 'Ga S4 - Hòa Hưng', center: [10.7845, 106.6734] },
-  { code: 'ZONE_S5', name: 'Ga S5 - Lê Thị Riêng', center: [10.7876, 106.6662] },
-  { code: 'ZONE_S6', name: 'Ga S6 - Phạm Văn Hai', center: [10.7912, 106.6578] },
-  { code: 'ZONE_S7', name: 'Ga S7 - Bảy Hiền', center: [10.7947, 106.6515] },
-  { code: 'ZONE_S8', name: 'Ga S8 - Nguyễn Hồng Đào', center: [10.7988, 106.6453] },
-  { code: 'ZONE_S9', name: 'Ga S9 - Bà Quẹo', center: [10.8034, 106.6385] },
-  { code: 'ZONE_S10', name: 'Ga S10 - Phạm Văn Bạch', center: [10.8123, 106.6301] },
-  { code: 'ZONE_S11', name: 'Ga S11 - Tân Bình', center: [10.8245, 106.6192] },
+  { code: 'ZONE_S1', name: 'Ga S1 - Bến Thành (322 thửa)', center: [10.771319, 106.696369] },
+  { code: 'ZONE_S2', name: 'Ga S2 - Tao Đàn (370 thửa)', center: [10.773756, 106.688737] },
+  { code: 'ZONE_S3', name: 'Ga S3 - Dân Chủ (660 thửa)', center: [10.779259, 106.679158] },
+  { code: 'ZONE_S4', name: 'Ga S4 - Hòa Hưng (1021 thửa)', center: [10.782492, 106.672906] },
+  { code: 'ZONE_S5', name: 'Ga S5 - Lê Thị Riêng (798 thửa)', center: [10.786664, 106.665238] },
+  { code: 'ZONE_S6', name: 'Ga S6 - Phạm Văn Hai (971 thửa)', center: [10.790414, 106.658129] },
+  { code: 'ZONE_S7', name: 'Ga S7 - Bảy Hiền (553 thửa)', center: [10.794254, 106.651030] },
+  { code: 'ZONE_S8', name: 'Ga S8 - Nguyễn Hồng Đào (574 thửa)', center: [10.797467, 106.644849] },
+  { code: 'ZONE_S9', name: 'Ga S9 - Bà Quẹo (650 thửa)', center: [10.802213, 106.637293] },
+  { code: 'ZONE_S10', name: 'Ga S10 - Phạm Văn Bạch (381 thửa)', center: [10.817184, 106.631724] },
+  { code: 'ZONE_S11', name: 'Ga S11 - Tân Bình (131 thửa)', center: [10.822949, 106.627424] },
 ];
 
 export const LeafletSweepMap: React.FC<Props> = ({
@@ -108,15 +115,19 @@ export const LeafletSweepMap: React.FC<Props> = ({
   const [appliedFilters, setAppliedFilters] = useState<{
     APPROVED: boolean;
     PHASE2_COMPLETED: boolean;
+    SUBMITTED: boolean;
     IN_PROGRESS: boolean;
     POSTPONED_ABSENT: boolean;
     NOT_SURVEYED: boolean;
+    hideNonBuildings: boolean;
   }>({
     APPROVED: true,
     PHASE2_COMPLETED: true,
+    SUBMITTED: true,
     IN_PROGRESS: true,
     POSTPONED_ABSENT: true,
     NOT_SURVEYED: true,
+    hideNonBuildings: false,
   });
 
   // Draft filters while modal is open
@@ -128,6 +139,34 @@ export const LeafletSweepMap: React.FC<Props> = ({
       setDraftFilters(appliedFilters);
     }
   }, [showFilterModal, appliedFilters]);
+
+  // Check if a parcel is a road / waterway / canal / empty non-building parcel
+  const isNonBuildingParcel = (parcel: GisParcel | any): boolean => {
+    const owner = String(parcel.ownerName || parcel.owner_name || '').toLowerCase();
+    const street = String(parcel.street || '').toLowerCase();
+    const houseNum = String(parcel.houseNumber || parcel.house_number || '').trim().toLowerCase();
+    const adjacent = String(parcel.adjacentType || parcel.adjacent_type || '').toUpperCase();
+    const landCategory = String(parcel.landCategory || parcel.land_use_category || '').toUpperCase();
+    const landRaw = String(parcel.landUseName || parcel.land_use_name_raw || '').toLowerCase();
+    const constructArea = Number(parcel.constructionArea ?? parcel.construction_area_m2 ?? 0);
+    const floorCount = Number(parcel.floorCount ?? parcel.floor_count ?? 1);
+
+    // 1. Explicit 0 floor or 0 construction area
+    if (floorCount === 0 || constructArea === 0) return true;
+
+    // 2. House number indicators for public/infrastructure assets
+    if (houseNum === 'kđ' || houseNum === 'mặt nước' || houseNum === 'đất trống' || houseNum === 'n/a' || houseNum === '-') return true;
+
+    // 3. Keyword detection for roads, waterways, canals, public land
+    const keywords = ['giao thông', 'đường đi', 'sông', 'kênh', 'rạch', 'mặt nước', 'công viên', 'cây xanh', 'đất trống', 'hành lang', 'ubnd'];
+    if (keywords.some((k) => owner.includes(k) || landRaw.includes(k))) return true;
+
+    // 4. Adjacent type & Category indicators
+    if (adjacent === 'EMPTY_LAND' || adjacent === 'OTHER') return true;
+    if (landCategory === 'ROAD' || landCategory === 'WATER' || landCategory === 'PARK') return true;
+
+    return false;
+  };
 
   // Absence log loaded from localStorage
   const [absenceRecordedToday, setAbsenceRecordedToday] = useState<{ [parcelId: string]: string }>(() => {
@@ -158,10 +197,14 @@ export const LeafletSweepMap: React.FC<Props> = ({
 
   // Filtered parcels based on applied checklist
   const displayedParcels = (parcels || []).filter((parcel) => {
+    if (appliedFilters.hideNonBuildings && isNonBuildingParcel(parcel)) {
+      return false;
+    }
     const status = parcel.surveyStatus || (parcel as any).survey_status || 'NOT_SURVEYED';
     if (status === 'APPROVED') return appliedFilters.APPROVED;
     if (status === 'PHASE2_COMPLETED' || status === 'APPROVED_PHASE2') return appliedFilters.PHASE2_COMPLETED;
-    if (status === 'IN_PROGRESS' || status === 'SUBMITTED' || status === 'REJECTED') return appliedFilters.IN_PROGRESS;
+    if (status === 'SUBMITTED') return appliedFilters.SUBMITTED;
+    if (status === 'IN_PROGRESS' || status === 'REJECTED') return appliedFilters.IN_PROGRESS;
     if (status === 'POSTPONED_ABSENT') return appliedFilters.POSTPONED_ABSENT;
     if (status === 'NOT_SURVEYED') return appliedFilters.NOT_SURVEYED;
     return true;
@@ -205,17 +248,18 @@ export const LeafletSweepMap: React.FC<Props> = ({
     }
   };
 
-  // 5-color GIS scheme
+  // 6-color GIS scheme
   const getStatusColor = (status: GisParcel['surveyStatus']) => {
     switch (status) {
       case 'APPROVED':
         return '#10b981'; // Green: Phase 1 Approved (Ready for Phase 2)
       case 'PHASE2_COMPLETED':
       case 'APPROVED_PHASE2':
-        return '#2563eb'; // Blue: Phase 2 Completed (Prior to construction)
+        return '#2563eb'; // Royal Blue: Phase 2 Completed (Prior to construction)
       case 'SUBMITTED':
+        return '#0284c7'; // Sky Blue: Submitted & Pending Zone Admin approval
       case 'IN_PROGRESS':
-        return '#f59e0b'; // Amber: In progress / Pending review
+        return '#f59e0b'; // Amber: In progress on device (Unsubmitted)
       case 'POSTPONED_ABSENT':
         return '#8b5cf6'; // Purple: Absent (Postponed)
       case 'REJECTED':
@@ -251,9 +295,9 @@ export const LeafletSweepMap: React.FC<Props> = ({
         return (
           <span
             className="badge"
-            style={{ backgroundColor: '#fef3c7', color: '#b45309', border: '1px solid #fde68a', fontWeight: 700 }}
+            style={{ backgroundColor: '#e0f2fe', color: '#0369a1', border: '1px solid #7dd3fc', fontWeight: 700 }}
           >
-            ⏳ Chờ duyệt Phase 1
+            ⏳ Đã nộp (Chờ duyệt)
           </span>
         );
       case 'IN_PROGRESS':
@@ -262,7 +306,7 @@ export const LeafletSweepMap: React.FC<Props> = ({
             className="badge"
             style={{ backgroundColor: '#fffbeb', color: '#b45309', border: '1px solid #fde68a', fontWeight: 700 }}
           >
-            🔄 Đang làm Phase 1
+            🔄 Đang làm dở (Chưa nộp)
           </span>
         );
       case 'POSTPONED_ABSENT':
@@ -325,9 +369,11 @@ export const LeafletSweepMap: React.FC<Props> = ({
     setDraftFilters({
       APPROVED: enable,
       PHASE2_COMPLETED: enable,
+      SUBMITTED: enable,
       IN_PROGRESS: enable,
       POSTPONED_ABSENT: enable,
       NOT_SURVEYED: enable,
+      hideNonBuildings: false,
     });
   };
 
@@ -335,9 +381,11 @@ export const LeafletSweepMap: React.FC<Props> = ({
     setDraftFilters({
       APPROVED: false,
       PHASE2_COMPLETED: false,
+      SUBMITTED: true,
       IN_PROGRESS: true,
       POSTPONED_ABSENT: true,
       NOT_SURVEYED: true,
+      hideNonBuildings: draftFilters.hideNonBuildings,
     });
   };
 
@@ -345,18 +393,22 @@ export const LeafletSweepMap: React.FC<Props> = ({
     setDraftFilters({
       APPROVED: true,
       PHASE2_COMPLETED: true,
+      SUBMITTED: false,
       IN_PROGRESS: false,
       POSTPONED_ABSENT: false,
       NOT_SURVEYED: false,
+      hideNonBuildings: draftFilters.hideNonBuildings,
     });
   };
 
   const isCustomFilterActive =
     !appliedFilters.APPROVED ||
     !appliedFilters.PHASE2_COMPLETED ||
+    !appliedFilters.SUBMITTED ||
     !appliedFilters.IN_PROGRESS ||
     !appliedFilters.POSTPONED_ABSENT ||
-    !appliedFilters.NOT_SURVEYED;
+    !appliedFilters.NOT_SURVEYED ||
+    appliedFilters.hideNonBuildings;
 
   const userGpsIcon = L.divIcon({
     className: 'custom-gps-pin',
@@ -908,6 +960,28 @@ export const LeafletSweepMap: React.FC<Props> = ({
                   cursor: 'pointer',
                   padding: '0.35rem 0.45rem',
                   borderRadius: '0.45rem',
+                  backgroundColor: draftFilters.SUBMITTED ? '#f0f9ff' : '#ffffff',
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={draftFilters.SUBMITTED}
+                  onChange={(e) => setDraftFilters({ ...draftFilters, SUBMITTED: e.target.checked })}
+                  style={{ width: '16px', height: '16px', accentColor: '#0284c7', cursor: 'pointer' }}
+                />
+                <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#0284c7', flexShrink: 0 }} />
+                <span style={{ fontWeight: 600, color: '#0369a1' }}>Đã nộp hồ sơ (Chờ duyệt)</span>
+              </label>
+
+              <label
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.55rem',
+                  fontSize: '0.825rem',
+                  cursor: 'pointer',
+                  padding: '0.35rem 0.45rem',
+                  borderRadius: '0.45rem',
                   backgroundColor: draftFilters.IN_PROGRESS ? '#fffbeb' : '#ffffff',
                 }}
               >
@@ -918,7 +992,7 @@ export const LeafletSweepMap: React.FC<Props> = ({
                   style={{ width: '16px', height: '16px', accentColor: '#f59e0b', cursor: 'pointer' }}
                 />
                 <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#f59e0b', flexShrink: 0 }} />
-                <span style={{ fontWeight: 600, color: '#b45309' }}>Đang khảo sát / Chờ duyệt Phase 1</span>
+                <span style={{ fontWeight: 600, color: '#b45309' }}>Đang làm dở (Chưa nộp / Lưu nháp)</span>
               </label>
 
               <label
@@ -964,6 +1038,39 @@ export const LeafletSweepMap: React.FC<Props> = ({
                 <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#64748b', flexShrink: 0 }} />
                 <span style={{ fontWeight: 600, color: '#475569' }}>Chưa khảo sát Phase 1</span>
               </label>
+
+              {/* Toggle to Hide Non-Building Parcels (Roads, Waterways, Empty Land) */}
+              <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '0.65rem' }}>
+                <label
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.6rem',
+                    fontSize: '0.825rem',
+                    cursor: 'pointer',
+                    padding: '0.5rem 0.6rem',
+                    borderRadius: '0.5rem',
+                    backgroundColor: draftFilters.hideNonBuildings ? '#fef2f2' : '#f8fafc',
+                    border: draftFilters.hideNonBuildings ? '1.5px solid #f87171' : '1px solid #e2e8f0',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={draftFilters.hideNonBuildings}
+                    onChange={(e) => setDraftFilters({ ...draftFilters, hideNonBuildings: e.target.checked })}
+                    style={{ width: '17px', height: '17px', accentColor: '#dc2626', cursor: 'pointer', flexShrink: 0 }}
+                  />
+                  <div>
+                    <div style={{ fontWeight: 700, color: draftFilters.hideNonBuildings ? '#b91c1c' : '#1e293b' }}>
+                      🚫 Ẩn ô không có công trình ({(parcels || []).filter(isNonBuildingParcel).length} thửa)
+                    </div>
+                    <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '1px' }}>
+                      Bỏ qua đường đi, sông nước, kênh rạch, công viên, đất trống
+                    </div>
+                  </div>
+                </label>
+              </div>
             </div>
 
             {/* Confirm Filter Button */}
@@ -1004,8 +1111,9 @@ export const LeafletSweepMap: React.FC<Props> = ({
                 borderRadius: '0.5rem',
               }}
             >
-              <div style={{ fontWeight: 700, color: '#334155', marginBottom: '2px' }}>
-                📖 Chú thích màu sắc hiển thị trên Map:
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontWeight: 700, color: '#334155', marginBottom: '2px' }}>
+                <Layers size={14} color="#0284c7" />
+                <span>Chú thích màu sắc hiển thị trên bản đồ:</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                 <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#10b981', flexShrink: 0 }} />
@@ -1020,9 +1128,15 @@ export const LeafletSweepMap: React.FC<Props> = ({
                 </span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#0284c7', flexShrink: 0 }} />
+                <span>
+                  <strong style={{ color: '#0369a1' }}>Xanh lam:</strong> Đã nộp hồ sơ (Chờ duyệt)
+                </span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                 <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#f59e0b', flexShrink: 0 }} />
                 <span>
-                  <strong style={{ color: '#b45309' }}>Vàng cam:</strong> Đang làm / Chờ duyệt Phase 1
+                  <strong style={{ color: '#b45309' }}>Vàng cam:</strong> Đang làm dở (Chưa nộp)
                 </span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
@@ -1042,39 +1156,44 @@ export const LeafletSweepMap: React.FC<Props> = ({
         </div>
       )}
 
-      {/* Leaflet Map Container */}
+      {/* Leaflet Map Container with Deep Zoom (up to level 23) */}
       <div style={{ flex: 1, width: '100%', height: '100%', overflow: 'hidden' }}>
         <MapContainer
           center={currentStation.center}
-          zoom={18}
+          zoom={16}
+          minZoom={12}
+          maxZoom={23}
           zoomControl={false}
           style={{ width: '100%', height: '100%' }}
           scrollWheelZoom={true}
         >
-          <ChangeView center={currentStation.center} zoom={18} />
+          <ChangeView center={currentStation.center} zoom={16} />
           <FlyToController targetCoords={targetFlyCoords} />
 
           {/* Zoom controls on bottomright */}
           <ZoomControl position="bottomright" />
 
-          {/* Clean Map Tiles */}
+          {/* Clean Map Tiles with Deep Zoom Scaling (maxNativeZoom: 19, maxZoom: 23) */}
           {mapMode === 'satellite' ? (
             <TileLayer
               attribution="Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP"
               url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-              maxZoom={19}
+              maxNativeZoom={19}
+              maxZoom={23}
             />
           ) : mapMode === 'osm' ? (
             <TileLayer
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-              maxZoom={19}
+              maxNativeZoom={19}
+              maxZoom={23}
             />
           ) : (
             <TileLayer
               attribution="Tiles &copy; Esri &mdash; Esri World Street Map"
               url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}"
-              maxZoom={19}
+              maxNativeZoom={19}
+              maxZoom={23}
             />
           )}
 
@@ -1289,6 +1408,74 @@ export const LeafletSweepMap: React.FC<Props> = ({
                 <CheckCircle2 size={14} color="#2563eb" />
                 Đã Hoàn Tất Khảo Sát Phase 2
               </div>
+            ) : activeParcel.surveyStatus === 'SUBMITTED' ? (
+              <button
+                type="button"
+                className="btn btn-sm"
+                onClick={() => onStartSurvey && onStartSurvey(activeParcel)}
+                style={{
+                  flex: 1.5,
+                  minWidth: '150px',
+                  backgroundColor: '#e0f2fe',
+                  color: '#0369a1',
+                  border: '1px solid #7dd3fc',
+                  fontWeight: 700,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.35rem',
+                  padding: '0.5rem',
+                  cursor: 'pointer',
+                }}
+                title="Hồ sơ đã gửi Zone Admin, nhấp để xem chi tiết"
+              >
+                <Clock size={14} color="#0284c7" />
+                Hồ sơ đã nộp (Chờ duyệt)
+              </button>
+            ) : activeParcel.surveyStatus === 'REJECTED' ? (
+              <button
+                type="button"
+                className="btn btn-sm"
+                onClick={() => onStartSurvey && onStartSurvey(activeParcel)}
+                style={{
+                  flex: 1.5,
+                  minWidth: '150px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.35rem',
+                  padding: '0.5rem',
+                  fontWeight: 700,
+                  backgroundColor: '#fee2e2',
+                  color: '#b91c1c',
+                  border: '1px solid #fca5a5',
+                  cursor: 'pointer',
+                }}
+              >
+                <AlertCircle size={14} color="#dc2626" />
+                Sửa & đo bổ sung Phase 1
+              </button>
+            ) : activeParcel.surveyStatus === 'IN_PROGRESS' ? (
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                onClick={() => onStartSurvey && onStartSurvey(activeParcel)}
+                style={{
+                  flex: 1.5,
+                  minWidth: '150px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.35rem',
+                  padding: '0.5rem',
+                  fontWeight: 700,
+                  backgroundColor: '#d97706',
+                  borderColor: '#b45309',
+                }}
+              >
+                <PlusCircle size={14} />
+                Tiếp tục đo đạc Phase 1
+              </button>
             ) : (
               <button
                 type="button"

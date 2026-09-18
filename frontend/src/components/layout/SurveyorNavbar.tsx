@@ -1,13 +1,22 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { Train, LogOut, ShieldCheck } from 'lucide-react';
+import { Train, LogOut, ShieldCheck, Clock, CheckCircle2, AlertCircle } from 'lucide-react';
 
 interface Props {
   title?: string;
   subtitle?: string;
+  onNavigateToCheckIn?: () => void;
+  onNavigateHome?: () => void;
+  isCheckedInToday?: boolean;
 }
 
-export const SurveyorNavbar: React.FC<Props> = ({ title = 'Khảo Sát Thực Địa Metro 2', subtitle }) => {
+export const SurveyorNavbar: React.FC<Props> = ({
+  title = 'Khảo Sát Thực Địa Metro 2',
+  subtitle,
+  onNavigateToCheckIn,
+  onNavigateHome,
+  isCheckedInToday,
+}) => {
   const { user, logout } = useAuth();
   const [showProfileMenu, setShowProfileMenu] = useState<boolean>(false);
   const [isVisible, setIsVisible] = useState<boolean>(true);
@@ -76,8 +85,19 @@ export const SurveyorNavbar: React.FC<Props> = ({ title = 'Khảo Sát Thực Đ
         height: '46px',
       }}
     >
-      {/* Brand & Station Info */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', minWidth: 0, flex: 1 }}>
+      {/* Brand & Station Info (Clickable to Home) */}
+      <div
+        onClick={onNavigateHome}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.55rem',
+          minWidth: 0,
+          flex: 1,
+          cursor: onNavigateHome ? 'pointer' : 'default',
+        }}
+        title="Quay về Trang chủ Danh sách Khảo sát"
+      >
         <div
           style={{
             width: '30px',
@@ -187,6 +207,62 @@ export const SurveyorNavbar: React.FC<Props> = ({ title = 'Khảo Sát Thực Đ
             <div style={{ fontSize: '0.725rem', color: '#475569', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
               <ShieldCheck size={14} color="#10b981" />
               <span>Phiên làm việc bảo mật JWT</span>
+            </div>
+
+            {/* Chấm công GPS trực tiếp trong Thông tin cá nhân */}
+            <div
+              style={{
+                backgroundColor: isCheckedInToday ? '#f0fdf4' : '#fffbeb',
+                border: isCheckedInToday ? '1px solid #bbf7d0' : '1px solid #fde68a',
+                borderRadius: '0.5rem',
+                padding: '0.55rem 0.65rem',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.35rem',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.75rem', fontWeight: 700, color: isCheckedInToday ? '#166534' : '#92400e' }}>
+                  <Clock size={14} color={isCheckedInToday ? '#16a34a' : '#d97706'} />
+                  <span>Điểm danh GPS</span>
+                </div>
+                <span
+                  className="badge"
+                  style={{
+                    backgroundColor: isCheckedInToday ? '#dcfce7' : '#fef3c7',
+                    color: isCheckedInToday ? '#15803d' : '#b45309',
+                    fontSize: '0.65rem',
+                    fontWeight: 700,
+                    padding: '0.1rem 0.35rem',
+                  }}
+                >
+                  {isCheckedInToday ? '✓ Đã điểm danh' : 'Chưa điểm danh'}
+                </span>
+              </div>
+
+              {onNavigateToCheckIn && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowProfileMenu(false);
+                    onNavigateToCheckIn();
+                  }}
+                  className={isCheckedInToday ? 'btn btn-secondary btn-sm' : 'btn btn-warning btn-sm'}
+                  style={{
+                    width: '100%',
+                    padding: '0.35rem',
+                    fontSize: '0.75rem',
+                    fontWeight: 700,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.3rem',
+                  }}
+                >
+                  <Clock size={12} />
+                  <span>{isCheckedInToday ? 'Xem chi tiết điểm danh' : 'Chấm công GPS ngay'}</span>
+                </button>
+              )}
             </div>
 
             <button

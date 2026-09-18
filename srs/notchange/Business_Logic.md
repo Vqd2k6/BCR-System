@@ -32,16 +32,58 @@ Mỗi thửa đất trong hệ thống được định danh đồng thời bở
 
 ---
 
-## 2. QUY TRÌNH BIẾN ĐỘNG RANH THỬA TRÊN GIS (CADASTRAL WORKFLOW)
+## 2. QUY TRÌNH BIẾN ĐỘNG RANH THỬA TRÊN GIS (CADASTRAL MUTATION & VERIFICATION WORKFLOW)
 
-- **Vị trí thực hiện:** **BƯỚC 5** sau khi đã đi hết toàn bộ các tầng và phòng.
-- **Rollback khi Reject:** Nếu Zone Admin từ chối Đề xuất Tách thửa, CSDL tự động hoàn nguyên thửa gốc về `ACTIVE` và hủy các thửa phát sinh về `MUTATION_VOID`.
+- **Vị trí thực hiện:** **BƯỚC 5** sau khi cán bộ khảo sát đã đi hết toàn bộ các tầng và nắm trọn vẹn hiện trạng không gian toà nhà.
+- **Hiển thị Kích thước Thửa Ban Đầu:** Thẻ giao diện sáng (Light theme) hiển thị trực quan ranh thửa đất quy hoạch ban đầu với kích thước mặt tiền ($W$), chiều sâu ($D$), diện tích $S_{\text{đất}}\text{ m}^2$, địa chỉ, mã dự án (`B-XXXXX`) và mã địa chính (`KS003-XXXX`).
+- **3 Chế độ Đối Soát Thực Địa:**
+  1. **Khớp Ranh (MATCH) - Xác nhận 100% diện tích:**
+     - Bản đồ Leaflet hiển thị duy nhất 1 mình thửa đất hiện tại trên hệ tọa độ PostGIS thực tế.
+     - Xác nhận ranh công trình xây dựng thực tế hoàn toàn trùng khớp 100% với ranh thửa đất địa chính ($S_{\text{xd}} = S_{\text{đất}}\text{ m}^2$), không cần các nút chọn thừa.
+  2. **Tách Thửa (SPLIT) & 2 Màu Phân Biệt & Metadata Đất Thừa:**
+     - Bản đồ GIS hiển thị 2 màu phân biệt: **Màu 1 (Hổ phách `#f59e0b` cho Căn A / Đang khảo sát)** và **Màu 2 (Cam Đỏ `#ea580c` cho Căn B / Phần còn dư / Đất thừa)**.
+     - 2 Option biên tập: Option 1 (Kéo nắn điểm mút / Trượt ranh phân cắt tính diện tích real-time) và Option 2 (Khuôn mẫu Nhà chữ L cắt góc, Chia trước/sau, Chia dọc, Đa giác tự do).
+     - **Cấp mã động $B_{\max}$:** Mã dự án mới được cấp phát tuần tự dựa trên giá trị lớn nhất hiện hữu trong CSDL ($B_{\max} + 1, B_{\max} + 2 > 07000$) theo thuật toán `SELECT MAX(substring(code from 3)::int)`.
+     - **Đồng bộ công năng & Metadata Đất thừa:** Đồng bộ 100% danh mục công năng hệ thống và tùy chọn `⚠️ Đất thừa / Sai số biên ranh (RESIDUAL_SURPLUS)`. Khi chọn Đất thừa, hệ thống ghi chú metadata nguồn gốc `residualParentParcelCode`, `residualParentCadastralCode`, `residualMetadataNote` phục vụ kiểm tra và hồi tố.
+     - **Quy tắc xử lý mé sai số:** Mọi diện tích dôi dư thuộc về ô còn lại; khi khảo sát ô này chỉ vẽ đúng ranh của mình và phần mé thừa tự động tính là lô phụ.
+  3. **Gộp Thửa (MERGE) & Multi-Select 10 Thửa Gần Nhất:**
+     - Bản đồ Leaflet hiển thị **10 thửa đất thực tế gần nhất** từ CSDL.
+     - Thửa hiện tại đang khảo sát **SÁNG ĐÈN NỔI BẬT** (Neon Cyan `#38bdf8` / `#0284c7`).
+     - Cho phép **Multi-select chọn nhiều thửa liền kề** (2, 3 hoặc nhiều thửa) để gộp chung mà không gây che đè UI.
+     - **Quy tắc Mã Đại Diện:** Hệ thống tự động so sánh, giữ mã nhỏ nhất trong nhóm gộp làm Thửa đại diện chính, các thửa phụ còn lại chuyển sang trạng thái `MERGED_DEPRECATED`, và tổng hợp diện tích $S_{\text{gộp}} = S_{\text{chính}} + \sum S_{\text{phụ}}\text{ m}^2$.
+- **Transaction Safety & Rollback khi Reject:** Mọi thao tác biến động chạy trong Database Transaction an toàn. Nếu Zone Admin từ chối Đề xuất Tách thửa, CSDL tự động hoàn nguyên thửa gốc về `ACTIVE` và hủy các thửa phát sinh về `MUTATION_VOID`.
+
+
+---
+
+## 2.1. CẤP BẬC QUẢN LÝ KHẢO SÁT HIỆN TRẠNG 3 TẦNG (TẦNG > VÙNG Z > KHUYẾT TẬT D)
+
+Để phản ánh chính xác kết cấu công trình đô thị tuyến Metro 2, hệ thống quản lý khảo sát theo 3 cấp bậc chặt chẽ:
+1. **Cấp Tầng (Floor Level):**
+   - Định danh tầng (Tầng trệt, Lầu 1, Lầu 2, Sân thượng, Mái, Hầm...).
+   - **Ảnh tổng quan tầng (Floor Overview Photos):** Chụp nhiều ảnh bao quát không gian tầng.
+   - **Bản vẽ phác thảo kỹ thuật / CAD tầng (Floor CAD Sketch):** Chụp hoặc tải lên sơ đồ mặt bằng kỹ thuật tầng (bố trí phòng ngủ, phòng khách, WC, cầu thang...) và cho phép chạm chấm ghim các vị trí vùng **$Z-01, Z-02...$** trực tiếp lên sơ đồ để định vị không gian.
+2. **Cấp Vùng Khảo Sát (Zone Level - $Z-xx$ thuộc Tầng):**
+   - Định danh mã vùng $Z-01, Z-02...$ gắn liền với phòng/không gian cụ thể thuộc tầng.
+   - Trường đánh giá: **Ảnh hưởng chức năng / Cần sửa chữa** (`functionalImpactRepairNeeded`: boolean). Nếu `true`, tự động cộng $2$ điểm vào chỉ số $E6$ (Đánh giá chức năng tổng thể).
+   - Cấp độ Burland Grade sơ bộ (0 - 5) và Ảnh bối cảnh vùng (Photo CTX).
+3. **Cấp Khuyết Tật / Điểm Hư Hỏng (Defect Level - $D-xx$ thuộc Vùng $Z-xx$):**
+   - Chấm ghim trực tiếp $D-xx$ trên ảnh bối cảnh Photo CTX của vùng $Z-xx$.
+   - **Mức độ Suy giảm Vật liệu / Bong tróc / Rỉ thép** (`materialDegradationE4`: $0 - 4$ điểm) $\rightarrow$ Tự động trích xuất giá trị lớn nhất đưa vào chỉ số $E4$ của bảng điểm ECS.
+   - Ý nghĩa kết cấu (`structuralSignificanceE2`: $0 - 4$ điểm) $\rightarrow$ Trích xuất giá trị lớn nhất đưa vào chỉ số $E2$.
+   - Kích thước vết nứt ($w_{\max}, L$), trạng thái hoạt động ($U/S/A$) và Ảnh cận cảnh kèm thước đo Crack Scale Card (Photo CU).
 
 ---
 
 ## 3. BỘ MÁY TÍNH ĐIỂM KỸ THUẬT TỰ ĐỘNG (ECS & VI SCORING ENGINE)
 
-- **Điểm ECS ($\Sigma E \le 24$):** Tự động tổng hợp từ $E1$ (Burland max), $E2$ (Ý nghĩa kết cấu max), $E3$ (Lún nghiêng Bước 4), $E4$ (Suy giảm vật liệu max), $E5$ (Lịch sử phỏng vấn), $E6$ (Đánh giá chức năng).
+- **Điểm ECS ($\Sigma E \le 24$):** Tự động tổng hợp từ:
+  - $E1$: Điểm Burland Grade cao nhất giữa các Vùng $Z$ ($\max(E1) \le 4$).
+  - $E2$: Ý nghĩa kết cấu cao nhất của các vết nứt $D$ ($\max(E2) \le 4$).
+  - $E3$: Điểm lún nghiêng - võng dầm lớn nhất tại Bước 4 ($\max(E3) \le 4$).
+  - $E4$: Mức độ suy giảm vật liệu / bong tróc / rỉ thép lớn nhất tại các điểm $D$ ($\max(E4) \le 4$).
+  - $E5$: Lịch sử cơi nới, biến dạng hoặc sự cố công trình tại Bước 2 ($\max(E5) \le 4$).
+  - $E6$: Đánh giá ảnh hưởng chức năng / cần sửa chữa từ các Vùng $Z$ ($0$đ nếu không có, $2$đ nếu có bất kỳ Vùng $Z$ nào ghi nhận ảnh hưởng chức năng).
 - **Phân hạng ECS:** `GOOD` [0-5], `MEDIUM` [6-10], `DEFICIENT` [11-16], `CRITICAL` [17-24].
 - **Safety Lock:** Khóa không cho phép Hạ hạng ECS nếu công trình có cờ kết cấu `Critical`.
 
@@ -201,4 +243,32 @@ Hệ thống cung cấp cho Super Admin quyền kiểm soát toàn bộ dữ li�
 1. **Xuất báo cáo toàn tuyến 11 Ga (`POST /api/v1/admin/reports/batch-export`):** Cho phép xuất tập hồ sơ tổng hợp toàn tuyến hoặc cụm liên Ga phục vụ báo cáo UBND TP.HCM, Ban Quản lý Đường sắt Đô thị (MAUR) và Ngân hàng Tái thiết Đức (KfW).
 2. **Giám sát lịch sử xuất (`GET /api/v1/admin/reports/exports`):** Theo dõi ai đã xuất file gì, vào thời điểm nào, mã băm Checksum SHA-256 là gì, trạng thái xử lý nền (Queued $\to$ Processing $\to$ Completed $\to$ Failed).
 3. **Thu hồi & Hủy file xuất (`DELETE /api/v1/admin/reports/exports/{batchId}`):** Thu hồi quyền tải file và xóa dữ liệu tạm trên Cloud Storage S3 khi phát hiện dữ liệu cần cập nhật lại.
+
+---
+
+## 12. QUY CHUẨN KIẾN TRÚC PHÂN TẦNG GIS 5 LỚP & BẢO TOÀN DỮ LIỆU ĐA VAI TRÒ (GIS 5-LAYER STACK & DATA INTEGRITY)
+
+Hệ thống tích hợp dữ liệu quy hoạch đô thị SQHKT (`KS003.xlsx` - 6.431 thửa đất, 11.113 ô quy hoạch 1/2000, 4.350 thửa dính lộ giới) và dữ liệu hạ tầng Metro 2 thành **5 Lớp Layer Không Gian**:
+
+```mermaid
+graph TD
+    L4["🔴 Layer 4: Operational Dynamic Layer (Ghim nứt D-xx, GPS chấm công, Ranh tách thửa Draft)"] --> L3["🟡 Layer 3: Cadastral Parcels Layer (6.431 Thửa đất Dual-ID B-xxxxx + 6 Trạng thái màu)"]
+    L3 --> L2["🟣 Layer 2: Planning Masterplan 1/2000 & 1/500 (11.113 Ô phân khu SQHKT + Lộ giới mở đường)"]
+    L2 --> L1["🔵 Layer 1: Metro 2 Infrastructure (Tim tuyến Metro + Hành lang ZOI 50m + 11 Nhà ga)"]
+    L1 --> L0["⚪ Layer 0: Base Map (Bản đồ nền vệ tinh / OpenStreetMap)"]
+    
+    style L0 fill:#f1f5f9,stroke:#94a3b8
+    style L1 fill:#e0f2fe,stroke:#0284c7
+    style L2 fill:#f3e8ff,stroke:#9333ea
+    style L3 fill:#fef9c3,stroke:#ca8a04,stroke-width:2px
+    style L4 fill:#fee2e2,stroke:#dc2626
+```
+
+### 12.1. 6 Nguyên Tắc Bảo Toàn Dữ Liệu Đa Vai Trò (Non-destructive Multi-Role Integrity):
+1. **Bất biến Phân tầng (Layer Isolation):** Layer 1 và Layer 2 là Read-Only tuyệt đối đối với Surveyor và Zone Admin.
+2. **Kiến trúc Phủ đè Phi Phá hủy (Non-destructive Vector Overlay & CQRS):** Khi có biến động tách thửa, không xóa hoặc sửa trực tiếp đa giác gốc trên Layer 3. Sự kiện tách thửa tạo bản ghi `ParcelMutationEvent` ở Layer 4 với ranh mới dạng JSONB và thửa gốc chỉ mang cờ tạm `is_mutation_pending = true`.
+3. **Giao dịch PostGIS ACID & Hoàn nguyên (Rollback Safety):** Mọi thao tác phê duyệt tách thửa chạy trong 1 Database Transaction duy nhất. Khi Reject, CSDL rollback hoàn nguyên Layer 3 về nguyên bản.
+4. **Phân quyền Dữ liệu Cấp Dòng Theo Ga (Row-Level Multi-Tenancy):** Backend tự động gán `WHERE zone_id = req.user.assignedZoneId` vào mọi câu lệnh Query, ngăn chặn ghi đè chéo giữa các Ga.
+5. **Khóa Lạc quan Chống Tranh chấp (Optimistic Locking & State Guards):** Thửa đất mang cờ `IN_PROGRESS` sẽ khóa, không cho phép Surveyor khác nhận trùng lặp.
+6. **Lịch sử Không gian (Spatial Time-Travel Audit Trail):** Mọi biến động đa giác đều được tự động lưu vào bảng `cadastral_history_logs`, hỗ trợ khôi phục ranh về mọi mốc thời gian.
 

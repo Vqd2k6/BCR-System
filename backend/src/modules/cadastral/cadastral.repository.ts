@@ -177,23 +177,19 @@ export class CadastralRepository {
   }
 
   /**
-   * Cấp mã B-XXXXX tiếp theo từ kho số mở rộng (B-07001 -> B-99999)
+   * Cấp mã B-XXXXX tiếp theo dựa trên chỉ số lớn nhất hiện hữu trong hệ thống (MAX + 1)
    */
   static async getNextHighRangeProjectCode(client: PoolClient): Promise<string> {
-    const res = await client.query<{ max_code: string }>(
-      `SELECT project_parcel_code AS max_code
+    const res = await client.query<{ max_val: number }>(
+      `SELECT COALESCE(MAX(substring(project_parcel_code from 3)::integer), 0) AS max_val
        FROM parcels
-       WHERE project_parcel_code >= 'B-07001'
-       ORDER BY project_parcel_code DESC
-       LIMIT 1 FOR UPDATE;`
+       WHERE project_parcel_code ~ '^B-[0-9]+$'
+       FOR UPDATE;`
     );
 
-    let nextNum = 7001;
-    if (res.rows[0]?.max_code) {
-      const currentNum = parseInt(res.rows[0].max_code.replace('B-', ''), 10);
-      if (!isNaN(currentNum)) {
-        nextNum = currentNum + 1;
-      }
+    let nextNum = 1;
+    if (res.rows[0]?.max_val !== undefined && res.rows[0]?.max_val !== null) {
+      nextNum = Number(res.rows[0].max_val) + 1;
     }
 
     return `B-${String(nextNum).padStart(5, '0')}`;

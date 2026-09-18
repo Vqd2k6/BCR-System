@@ -1,7 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { api } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { SignaturePad } from '../../components/canvas/SignaturePad';
+import { PhotoCaptureInput } from '../../components/common/PhotoCaptureInput';
+import { FacadePolygonCanvas, PolygonPoint, FloorSplitLine } from '../../components/canvas/FacadePolygonCanvas';
+import { DefectPinningCanvas, DefectItem } from '../../components/canvas/DefectPinningCanvas';
 import {
   FileCheck,
   CheckCircle,
@@ -10,11 +13,22 @@ import {
   ChevronRight,
   ChevronLeft,
   PenTool,
+  AlertTriangle,
+  Sparkles,
+  Save,
+  Plus,
+  Trash2,
+  HelpCircle,
+  FileText,
+  Activity,
+  Layers,
 } from 'lucide-react';
 
 interface DefectVerification {
   id: string;
   defectCode: string;
+  zoneCode: string;
+  floorAndRoom: string;
   screeningCategory: string;
   defectType: string;
   phase1WidthMm: number;
@@ -23,114 +37,250 @@ interface DefectVerification {
   phase2LengthMm: number;
   deltaW: number;
   deltaL: number;
-  verificationStatus: 'UNCHANGED' | 'DEVELOPED' | 'DISPUTED';
-  isRepaired: boolean;
-  notes?: string;
+  verificationStatus: 'UNCHANGED' | 'DEVELOPED' | 'REPAIRED' | 'NEW';
   cuPhotoUrl: string;
+  notes?: string;
 }
 
-export const SurveyPhase2View: React.FC = () => {
+interface Props {
+  initialParcelId?: string;
+  onFinished?: () => void;
+}
+
+export const SurveyPhase2View: React.FC<Props> = ({ initialParcelId, onFinished }) => {
   const { user } = useAuth();
   const [currentStep, setCurrentStep] = useState<number>(1);
   const [isSubmitted, setIsSubmitted] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [isSaving, setIsSaving] = useState<boolean>(false);
 
-  // Baseline Phase 1 info
-  const [baselineInfo, setBaselineInfo] = useState({
-    parcelCode: 'B-00105',
-    cadastralCode: 'KS003-00105',
-    houseNumber: '854 Trường Chinh',
-    ownerName: 'Nguyễn Văn An',
-    phase1ReportCode: 'REPORT-B-00105-PHASE1',
-    phase1Date: '15/01/2026',
-    phase1Ecs: 7,
-    phase1Vi: 29.17,
+  const draftKey = `metro2_phase2_draft_${initialParcelId || 'default'}`;
+
+  // STEP 1: Identification & Phase 1 Baseline Inheritance
+  const [ident, setIdent] = useState({
+    projectParcelCode: 'B-00105',
+    officialCadastralCode: 'KS003-00105',
+    phase1ReportRef: 'REPORT-PHASE1-B00105',
+    phase1ApprovalDate: '15/01/2026',
+    buildingName: 'Nhà ở gia đình',
+    address: 'Số 854 Đường Trường Chinh, P.15, Q.Tân Bình',
+    ownerName: 'Nguyễn Văn Hùng',
+    ownerContact: '0908123456',
+    workSection: 'Đoạn tuyến Ga S9 (Bà Quẹo) ➔ Ga S10 (Phạm Văn Bạch)',
+    surveyDate: new Date().toLocaleDateString('vi-VN'),
+    surveyPurpose: 'Baseline trước thi công', // Baseline trước thi công, Kiểm tra lại
+    surveyLevel: 'L2-B', // L2-A, L2-B, L2-C
+    witnessList: 'Đại diện Chủ đầu tư MAUR, TVGS, Cán bộ KS, Chủ nhà',
+    specialConditions: 'Thời tiết khô ráo, công trình đang sinh hoạt bình thường',
   });
 
-  // Old defects list from Phase 1
+  // STEP 1 Photos: P01 & P02 for Phase 2 (clean zero-demo)
+  const [p01PhotoUrl, setP01PhotoUrl] = useState('');
+  const [p01NotApplicable, setP01NotApplicable] = useState(false);
+  const [p01NaReason, setP01NaReason] = useState('');
+
+  const [p02PhotoUrl, setP02PhotoUrl] = useState('');
+  const [p02NotApplicable, setP02NotApplicable] = useState(false);
+  const [p02NaReason, setP02NaReason] = useState('');
+  const [p02PolygonPoints, setP02PolygonPoints] = useState<PolygonPoint[]>([]);
+  const [p02FloorLines, setP02FloorLines] = useState<FloorSplitLine[]>([]);
+
+  // STEP 2: Structural Verification & Variations after Phase 1
+  const [variations, setVariations] = useState({
+    useCategory: 'Nhà ở gia đình',
+    floorCount: 3,
+    structuralSystem: 'BTCT (Khung chịu lực)',
+    foundationType: 'Cọc ép BTCT (CAT 3/5)',
+    hasExtensionAfterP1: false,
+    extensionDesc: '',
+    hasRepairsAfterP1: false,
+    repairsDesc: '',
+    hasLoadChangesAfterP1: false,
+    loadChangesDesc: '',
+    otherChangesDesc: '',
+    variationConclusion: 'NO_SIGNIFICANT_CHANGE', // NO_SIGNIFICANT_CHANGE, HAS_CHANGES
+  });
+
+  // STEP 3: Defect Verification Register (Phase 1 Baseline + New Phase 2 Defects)
   const [defects, setDefects] = useState<DefectVerification[]>([
     {
-      id: 'e0000000-0000-0000-0000-000000000001',
+      id: 'd-01',
       defectCode: 'D-01',
+      zoneCode: 'Z-01',
+      floorAndRoom: 'Tầng trệt - Phòng khách',
       screeningCategory: 'Nứt tường / Vữa trát',
-      defectType: 'Nứt xiên góc 45 độ (Phòng khách Tầng 1)',
+      defectType: 'Nứt xiên góc 45 độ gần cửa chính',
       phase1WidthMm: 0.85,
       phase1LengthMm: 650,
-      phase2WidthMm: 0.95,
-      phase2LengthMm: 680,
-      deltaW: 0.1,
-      deltaL: 30,
-      verificationStatus: 'DEVELOPED',
-      isRepaired: false,
-      notes: 'Vết nứt có xu hướng phát triển dài thêm 30mm',
-      cuPhotoUrl: 'https://images.unsplash.com/photo-1590381105924-c72589b9ef3f?w=600&auto=format&fit=crop&q=80',
+      phase2WidthMm: 0.85,
+      phase2LengthMm: 650,
+      deltaW: 0.0,
+      deltaL: 0,
+      verificationStatus: 'UNCHANGED',
+      cuPhotoUrl: '',
+      notes: '',
     },
     {
-      id: 'e0000000-0000-0000-0000-000000000002',
+      id: 'd-02',
       defectCode: 'D-02',
+      zoneCode: 'Z-01',
+      floorAndRoom: 'Tầng trệt - Phòng khách',
       screeningCategory: 'Nứt tường / Vữa trát',
-      defectType: 'Nứt chân chim (Phòng khách Tầng 1)',
+      defectType: 'Nứt chân chim mép tường',
       phase1WidthMm: 0.3,
       phase1LengthMm: 280,
       phase2WidthMm: 0.3,
       phase2LengthMm: 280,
-      deltaW: 0,
+      deltaW: 0.0,
       deltaL: 0,
       verificationStatus: 'UNCHANGED',
-      isRepaired: false,
-      notes: 'Trạng thái ổn định, không thay đổi',
-      cuPhotoUrl: 'https://images.unsplash.com/photo-1590381105924-c72589b9ef3f?w=600&auto=format&fit=crop&q=80',
+      cuPhotoUrl: '',
+      notes: '',
     },
   ]);
 
-  // Quality Gate Checklist 10 criteria
-  const [qualityGate, setQualityGate] = useState([
-    { id: 1, title: '100% Vết nứt Phase 1 đã được đối chiếu thực địa', passed: true },
-    { id: 2, title: 'Có ảnh chụp đối chứng góc máy và thước đo chuẩn (Scale Card)', passed: true },
-    { id: 3, title: 'Đã tính toán độ chênh lệch Δw và ΔL chính xác', passed: true },
-    { id: 4, title: 'Không có vết nứt vượt ngưỡng nguy hiểm chưa báo cáo', passed: true },
-    { id: 5, title: 'Tọa độ GPS điểm danh nằm trong phạm vi 500m của Ga', passed: true },
-    { id: 6, title: 'Đầy đủ ý kiến phản hồi của Chủ sở hữu công trình', passed: true },
-    { id: 7, title: 'Chữ ký số Chủ hộ hợp lệ', passed: true },
-    { id: 8, title: 'Chữ ký số Cán bộ khảo sát hiện trường hợp lệ', passed: true },
-    { id: 9, title: 'Chữ ký số Đại diện Ban Quản Lý Đường Sắt Đô Thị (MAUR)', passed: true },
-    { id: 10, title: 'Chữ ký số Đại diện Nhà thầu thi công Metro 2', passed: true },
+  // Context CTX Photo for Phase 2
+  const [ctxPhotoP2Url, setCtxPhotoP2Url] = useState('');
+
+  // STEP 4: Settlement, Tilt & Deflection (Phase 2 Measurements)
+  const [measP2, setMeasP2] = useState({
+    tiltFrontXPercent: 0.15,
+    deltaTiltX: 0.0,
+    tiltSideYPercent: 0.1,
+    deltaTiltY: 0.0,
+    floorTiltPercent: 0.1,
+    beamDeflectionMm: 6.0,
+    measureMethods: ['Thước laser', 'Thước nivo điện tử'],
+    dataConfidence: 'Cao',
+    expertRemarks: 'Nghiêng và võng trong giới hạn cho phép, ổn định so với GĐ1.',
+  });
+
+  // STEP 5: Scope & GIS Cadastral Alignment
+  const [scopeP2, setScopeP2] = useState({
+    accessScope: 'FULL', // FULL, PARTIAL
+    inaccessibleAreas: '',
+    boundaryAlignment: 'MATCH', // MATCH, SPLIT_MUTATION, EXTENSION
+  });
+
+  // STEP 6: Damage Map Sketch & 10-Item Quality Gate Checklist (Phụ lục A)
+  const [sketchPhotoUrl, setSketchPhotoUrl] = useState('');
+  const [cadDrawingRef, setCadDrawingRef] = useState('');
+  const [qualityChecklist, setQualityChecklist] = useState([
+    { id: 1, title: 'Đã xác nhận mã công trình, địa chỉ, đoạn thi công và tham chiếu Giai đoạn 1', passed: true },
+    { id: 2, title: 'Đã ghi phạm vi tiếp cận và khu vực không tiếp cận (nếu có)', passed: true },
+    { id: 3, title: 'Đã chụp ảnh số nhà/biển tên, mặt đứng và bối cảnh công trình (P-01, P-02)', passed: true },
+    { id: 4, title: 'Đã kiểm tra các tầng/phòng/khu vực có thể tiếp cận', passed: true },
+    { id: 5, title: 'Khuyết tật đã được gán ID và ghi vị trí, loại, kích thước đầy đủ', passed: true },
+    { id: 6, title: 'Mỗi khuyết tật có ảnh bối cảnh (CTX) và ảnh cận cảnh kèm thước (CU)', passed: true },
+    { id: 7, title: 'Đã lập sơ đồ/bản vẽ vị trí khuyết tật hoặc ghi số hiệu damage mapping', passed: true },
+    { id: 8, title: 'Đã so sánh với Giai đoạn 1 và ghi rõ thay đổi/sửa chữa/khuyết tật mới', passed: true },
+    { id: 9, title: 'Đã ghi kết luận hiện trạng, nhu cầu quan trắc/NDT/bảo vệ nếu cần', passed: true },
+    { id: 10, title: 'Đã lấy ý kiến/chữ ký 4 bên hoặc lập hồ sơ từ chối/vắng mặt', passed: true },
   ]);
 
-  // 4 Signatures
-  const [sigOwner, setSigOwner] = useState('');
-  const [sigSurveyor, setSigSurveyor] = useState('');
-  const [sigZoneAdmin, setSigZoneAdmin] = useState('');
-  const [sigContractor, setSigContractor] = useState('');
+  // STEP 7: Comparison Summary & Monitoring Needs
+  const [summaryP2, setSummaryP2] = useState({
+    overallVariation: 'UNCHANGED', // UNCHANGED, DEVELOPED, REPAIRED, NEW_DEFECTS
+    hasCriticalSafetyDanger: false,
+    criticalDangerDesc: '',
+    monitoringNeeds: ['Lún', 'Nghiêng', 'Rung'], // Lún, Nghiêng, Nứt, Rung
+    needsNdtTest: false,
+    ndtType: '',
+    conclusionP2: 'STABLE_OBSERVED', // STABLE_OBSERVED, NEEDS_MONITORING, IN_DEPTH_EVAL
+  });
 
-  const updateDefectP2 = (index: number, width: number, length: number) => {
+  // STEP 8: Owner Feedback & Legal Confirmation
+  const [ownerFeedbackP2, setOwnerFeedbackP2] = useState('Đồng ý và thống nhất với biên bản khảo sát hiện trạng Đợt 2.');
+
+  // STEP 9: 4-Party Signatures (Owner, Joint Venture, Contractor, Witness)
+  const [sigOwner, setSigOwner] = useState('');
+  const [sigJointVenture, setSigJointVenture] = useState('');
+  const [sigContractor, setSigContractor] = useState('');
+  const [sigWitness, setSigWitness] = useState('');
+
+  const [ownerNameP2, setOwnerNameP2] = useState('Nguyễn Văn Hùng');
+  const [jvNameP2, setJvNameP2] = useState('Lê Trọng Nghĩa (Kỹ sư CRLG-CRSRI-TT)');
+  const [contractorNameP2, setContractorNameP2] = useState('Trần Quốc Cường (Đại diện Nhà thầu)');
+  const [witnessNameP2, setWitnessNameP2] = useState('UBND Phường 15 / Tổ dân phố');
+
+  const updateDefectMeasurement = (index: number, width: number, length: number) => {
     const updated = [...defects];
     const item = updated[index];
     item.phase2WidthMm = width;
     item.phase2LengthMm = length;
     item.deltaW = parseFloat((width - item.phase1WidthMm).toFixed(2));
     item.deltaL = parseFloat((length - item.phase1LengthMm).toFixed(1));
-    item.verificationStatus = item.deltaW > 0.05 || item.deltaL > 5 ? 'DEVELOPED' : 'UNCHANGED';
+
+    if (item.verificationStatus !== 'REPAIRED' && item.verificationStatus !== 'NEW') {
+      item.verificationStatus = item.deltaW > 0.05 || item.deltaL > 5 ? 'DEVELOPED' : 'UNCHANGED';
+    }
     setDefects(updated);
   };
 
-  const handleToggleQualityGate = (id: number) => {
-    setQualityGate(
-      qualityGate.map((q) => (q.id === id ? { ...q, passed: !q.passed } : q))
+  const handleAddNewDefect = () => {
+    const nextIdx = defects.length + 1;
+    const newDef: DefectVerification = {
+      id: `d-${String(nextIdx).padStart(2, '0')}`,
+      defectCode: `D-${String(nextIdx).padStart(2, '0')}`,
+      zoneCode: 'Z-01',
+      floorAndRoom: 'Tầng trệt - Phòng khách',
+      screeningCategory: 'Nứt tường / Vữa trát',
+      defectType: 'Vết nứt mới phát sinh sau GĐ1',
+      phase1WidthMm: 0,
+      phase1LengthMm: 0,
+      phase2WidthMm: 0.5,
+      phase2LengthMm: 300,
+      deltaW: 0.5,
+      deltaL: 300,
+      verificationStatus: 'NEW',
+      cuPhotoUrl: '',
+      notes: 'Mới ghi nhận tại GĐ2',
+    };
+    setDefects([...defects, newDef]);
+  };
+
+  const handleRemoveDefect = (index: number) => {
+    setDefects(defects.filter((_, i) => i !== index));
+  };
+
+  const handleToggleQuality = (id: number) => {
+    setQualityChecklist(
+      qualityChecklist.map((q) => (q.id === id ? { ...q, passed: !q.passed } : q))
     );
   };
 
-  const allGatePassed = qualityGate.every((q) => q.passed);
+  const handleSaveDraft = () => {
+    setIsSaving(true);
+    try {
+      const draft = {
+        ident,
+        variations,
+        defects,
+        measP2,
+        scopeP2,
+        sketchPhotoUrl,
+        summaryP2,
+        ownerFeedbackP2,
+      };
+      localStorage.setItem(draftKey, JSON.stringify(draft));
+    } catch (_e) {}
+    setTimeout(() => setIsSaving(false), 600);
+  };
 
   const handleSubmitPhase2 = async () => {
     setIsSubmitting(true);
     try {
       await api.post('/reports/phase2/a0000000-0000-0000-0000-000000000002/submit', {
+        ident,
+        variations,
+        defects,
+        measP2,
+        summaryP2,
         witnessSignatures: {
-          owner: sigOwner || 'mockSig1',
-          surveyor: sigSurveyor || 'mockSig2',
-          zoneAdmin: sigZoneAdmin || 'mockSig3',
-          contractor: sigContractor || 'mockSig4',
+          owner: sigOwner,
+          jointVenture: sigJointVenture,
+          contractor: sigContractor,
+          witness: sigWitness,
         },
       });
       setIsSubmitted(true);
@@ -143,320 +293,799 @@ export const SurveyPhase2View: React.FC = () => {
 
   if (isSubmitted) {
     return (
-      <div style={{ maxWidth: '640px', margin: '2rem auto', padding: '2rem 1rem', textAlign: 'center' }}>
+      <div style={{ maxWidth: '680px', margin: '2rem auto', padding: '2rem 1.5rem', textAlign: 'center' }}>
         <div
           style={{
-            width: '72px',
-            height: '72px',
+            width: '76px',
+            height: '76px',
             borderRadius: '50%',
-            backgroundColor: '#dcfce7',
-            border: '2px solid #10b981',
+            backgroundColor: '#dbeafe',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            margin: '0 auto 1.5rem',
+            margin: '0 auto 1.25rem auto',
+            border: '2px solid #93c5fd',
           }}
         >
-          <CheckCircle size={40} color="#10b981" />
+          <ShieldCheck size={44} color="#1d4ed8" />
         </div>
-        <h2 style={{ fontSize: '1.4rem', fontWeight: 800, color: '#0f172a', marginBottom: '0.5rem' }}>
-          Đã Hoàn Tất Báo Cáo Đối Soát Phase 2!
+        <h2 style={{ fontSize: '1.4rem', fontWeight: 800, color: '#0f172a' }}>
+          ĐÃ HOÀN TẤT HỒ SƠ KHẢO SÁT HIỆN TRẠNG PHASE 2!
         </h2>
-        <p style={{ color: '#64748b', fontSize: '0.875rem', marginBottom: '1.5rem' }}>
-          Biên bản đối chứng 4 bên đã được lập kèm chữ ký điện tử. Toàn bộ dữ liệu đã được lưu trữ vĩnh viễn với mã SHA-256 Checksum.
+        <p style={{ fontSize: '0.875rem', color: '#475569', marginTop: '0.5rem', lineHeight: 1.5 }}>
+          Biên bản khảo sát trước thi công (Phiếu 02) cho công trình <strong>{ident.projectParcelCode}</strong> ({ident.address}) đã được chốt và đồng bộ vào hệ thống cơ sở pháp lý Metro 2.
         </p>
+
+        <div
+          className="card"
+          style={{
+            backgroundColor: '#f8fafc',
+            border: '1px solid #e2e8f0',
+            padding: '1.25rem',
+            margin: '1.5rem 0',
+            textAlign: 'left',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '0.5rem',
+            fontSize: '0.825rem',
+          }}
+        >
+          <div>• <strong>Mã hồ sơ Phase 2:</strong> REPORT-PHASE2-{ident.projectParcelCode}</div>
+          <div>• <strong>Đối chiếu khuyết tật:</strong> {defects.length} vết nứt (Không đổi: {defects.filter(d => d.verificationStatus === 'UNCHANGED').length}, Phát triển: {defects.filter(d => d.verificationStatus === 'DEVELOPED').length}, Mới: {defects.filter(d => d.verificationStatus === 'NEW').length})</div>
+          <div>• <strong>Chữ ký 4 bên:</strong> Đã ký số xác nhận đầy đủ 4 bên theo quy định.</div>
+        </div>
+
         <button
           type="button"
           className="btn btn-primary"
-          onClick={() => {
-            setIsSubmitted(false);
-            setCurrentStep(1);
-          }}
+          onClick={onFinished}
+          style={{ padding: '0.65rem 1.5rem', fontWeight: 700 }}
         >
-          Trở Về Tổng Quan
+          Quay về Trang chủ Khảo sát
         </button>
       </div>
     );
   }
 
+  const stepsList = [
+    { num: 1, title: 'Nhận diện & Ảnh P01-P02' },
+    { num: 2, title: 'Biến động sau GĐ1' },
+    { num: 3, title: 'Đối soát sổ khuyết tật' },
+    { num: 4, title: 'Đo đạc lún – nghiêng GĐ2' },
+    { num: 5, title: 'Phạm vi & Ranh GIS' },
+    { num: 6, title: 'Sơ đồ & Quality Gate' },
+    { num: 7, title: 'Tổng hợp so sánh GĐ1' },
+    { num: 8, title: 'Cam kết pháp lý Phiếu 02' },
+    { num: 9, title: 'Ký biên bản 4 bên' },
+  ];
+
   return (
-    <div style={{ padding: '1rem', maxWidth: '780px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+    <div style={{ maxWidth: '820px', margin: '0 auto', padding: '1rem 1rem 6rem 1rem', display: 'flex', flexDirection: 'column', gap: '1.15rem' }}>
+      {/* Header Bar */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
         <div>
-          <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#7e22ce', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-            Phase 2: Đối Soát Trước Thi Công
-          </span>
-          <h2 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: '#0f172a' }}>
-            Bước {currentStep}/4: {currentStep === 1 ? 'Kế thừa Phase 1' : currentStep === 2 ? 'Đo đạc biến động Δ' : currentStep === 3 ? 'Cổng chất lượng Phụ lục A' : 'Ký số 4 Bên'}
-          </h2>
-        </div>
-        <span className="badge badge-warning">Thửa: {baselineInfo.parcelCode}</span>
-      </div>
-
-      {/* Step Pills */}
-      <div style={{ display: 'flex', gap: '0.5rem' }}>
-        {[
-          { num: 1, title: '1. Kế thừa P1' },
-          { num: 2, title: '2. Đo biến động Δw, ΔL' },
-          { num: 3, title: '3. Quality Gate Phụ lục A' },
-          { num: 4, title: '4. Ký số 4 Bên' },
-        ].map((s) => (
-          <button
-            key={s.num}
-            type="button"
-            onClick={() => setCurrentStep(s.num)}
-            className={`btn btn-sm ${currentStep === s.num ? 'btn-primary' : 'btn-secondary'}`}
-            style={{
-              flex: 1,
-              fontSize: '0.75rem',
-              padding: '0.4rem 0.2rem',
-              backgroundColor: currentStep === s.num ? '#0284c7' : '#ffffff',
-              borderColor: currentStep === s.num ? '#0284c7' : '#e2e8f0',
-              color: currentStep === s.num ? '#ffffff' : '#475569',
-            }}
-          >
-            {s.title}
-          </button>
-        ))}
-      </div>
-
-      {/* STEP 1: Inherit Phase 1 Baseline */}
-      {currentStep === 1 && (
-        <div className="card" style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <FileCheck size={18} color="#0284c7" />
-            Hồ Sơ Nền Phase 1 Được Kế Thừa (Approved Baseline)
-          </h3>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', fontSize: '0.85rem' }}>
-            <div style={{ backgroundColor: '#f8fafc', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid #e2e8f0' }}>
-              <div style={{ color: '#64748b' }}>Mã dự án & Địa chỉ:</div>
-              <div style={{ fontWeight: 700, color: '#0f172a' }}>{baselineInfo.parcelCode} - {baselineInfo.houseNumber}</div>
-            </div>
-            <div style={{ backgroundColor: '#f8fafc', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid #e2e8f0' }}>
-              <div style={{ color: '#64748b' }}>Chủ sở hữu công trình:</div>
-              <div style={{ fontWeight: 700, color: '#0f172a' }}>{baselineInfo.ownerName}</div>
-            </div>
-            <div style={{ backgroundColor: '#f8fafc', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid #e2e8f0' }}>
-              <div style={{ color: '#64748b' }}>Mã hồ sơ Baseline Phase 1:</div>
-              <div style={{ fontWeight: 700, color: '#0284c7' }}>{baselineInfo.phase1ReportCode}</div>
-            </div>
-            <div style={{ backgroundColor: '#f8fafc', padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid #e2e8f0' }}>
-              <div style={{ color: '#64748b' }}>Điểm ECS & Tổn thương P1:</div>
-              <div style={{ fontWeight: 700, color: '#d97706' }}>{baselineInfo.phase1Ecs}/24 ({baselineInfo.phase1Vi}%)</div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* STEP 2: Delta Measurement */}
-      {currentStep === 2 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          {defects.map((d, idx) => (
-            <div
-              key={d.id}
-              className="card"
-              style={{
-                padding: '1rem',
-                border: d.deltaW > 0 ? '1px solid #fecaca' : '1px solid #e2e8f0',
-                backgroundColor: d.deltaW > 0 ? '#fff5f5' : '#ffffff',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '0.75rem',
-              }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  <span className="badge badge-primary">{d.defectCode}</span>
-                  <span style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.85rem' }}>{d.defectType}</span>
-                </div>
-                <span className={`badge ${d.deltaW > 0 ? 'badge-danger' : 'badge-success'}`}>
-                  {d.deltaW > 0 ? `Δw: +${d.deltaW}mm (Tiến triển)` : 'Δw: 0mm (Ổn định)'}
-                </span>
-              </div>
-
-              {/* Photos & Comparison Grid */}
-              <div style={{ display: 'grid', gridTemplateColumns: '100px 1fr 1fr', gap: '0.75rem', alignItems: 'center' }}>
-                <img
-                  src={d.cuPhotoUrl}
-                  alt="Defect CU"
-                  style={{ width: '100px', height: '80px', objectFit: 'cover', borderRadius: '0.5rem', border: '1px solid #e2e8f0' }}
-                />
-
-                {/* Phase 1 Baseline Values */}
-                <div style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', padding: '0.5rem 0.75rem', borderRadius: '0.5rem', fontSize: '0.75rem' }}>
-                  <div style={{ color: '#64748b', fontWeight: 600, marginBottom: '2px' }}>Giai đoạn Phase 1</div>
-                  <div>Rộng: <strong style={{ color: '#0284c7' }}>{d.phase1WidthMm} mm</strong></div>
-                  <div>Dài: <strong style={{ color: '#0284c7' }}>{d.phase1LengthMm} mm</strong></div>
-                </div>
-
-                {/* Phase 2 Measured Inputs */}
-                <div style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', padding: '0.5rem 0.75rem', borderRadius: '0.5rem', fontSize: '0.75rem' }}>
-                  <div style={{ color: '#7e22ce', fontWeight: 600, marginBottom: '2px' }}>Đo lại Phase 2</div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '2px' }}>
-                    <span>Rộng (w₂):</span>
-                    <input
-                      type="number"
-                      step="0.05"
-                      className="form-control"
-                      style={{ fontSize: '0.75rem', padding: '2px 4px', width: '65px' }}
-                      value={d.phase2WidthMm}
-                      onChange={(e) => updateDefectP2(idx, parseFloat(e.target.value) || 0, d.phase2LengthMm)}
-                    />
-                    <span>mm</span>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <span>Dài (L₂):</span>
-                    <input
-                      type="number"
-                      step="10"
-                      className="form-control"
-                      style={{ fontSize: '0.75rem', padding: '2px 4px', width: '65px' }}
-                      value={d.phase2LengthMm}
-                      onChange={(e) => updateDefectP2(idx, d.phase2WidthMm, parseFloat(e.target.value) || 0)}
-                    />
-                    <span>mm</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* STEP 3: Quality Gate Phụ lục A Checklist */}
-      {currentStep === 3 && (
-        <div className="card" style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <ShieldCheck size={18} color="#16a34a" />
-              Cổng Kiểm Soát Chất Lượng Phụ Lục A (10 Tiêu Chí)
-            </h3>
-            <span className={`badge ${allGatePassed ? 'badge-success' : 'badge-warning'}`}>
-              {qualityGate.filter((q) => q.passed).length}/10 Tiêu chí Đạt
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+            <span className="badge" style={{ backgroundColor: '#dbeafe', color: '#1d4ed8', border: '1px solid #93c5fd', fontWeight: 800 }}>
+              PHASE 2 (PRE-CONSTRUCTION)
+            </span>
+            <span style={{ fontSize: '1.2rem', fontWeight: 800, color: '#0f172a' }}>
+              {ident.projectParcelCode}
             </span>
           </div>
+          <div style={{ fontSize: '0.8rem', color: '#64748b' }}>
+            {ident.address} • Kế thừa hồ sơ GĐ1 ({ident.phase1ApprovalDate})
+          </div>
+        </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-            {qualityGate.map((q) => (
-              <label
-                key={q.id}
-                onClick={() => handleToggleQualityGate(q.id)}
+        <div style={{ display: 'flex', gap: '0.4rem' }}>
+          <button
+            type="button"
+            onClick={handleSaveDraft}
+            disabled={isSaving}
+            className="btn btn-secondary btn-sm"
+            style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}
+          >
+            <Save size={14} />
+            <span>{isSaving ? 'Đang lưu...' : 'Lưu nháp'}</span>
+          </button>
+          {onFinished && (
+            <button type="button" onClick={onFinished} className="btn btn-secondary btn-sm">
+              Thoát
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* 9 Steps Navigation Pill Bar */}
+      <div
+        style={{
+          display: 'flex',
+          gap: '0.35rem',
+          overflowX: 'auto',
+          paddingBottom: '0.35rem',
+          scrollbarWidth: 'thin',
+        }}
+      >
+        {stepsList.map((st) => {
+          const isActive = currentStep === st.num;
+          const isPassed = currentStep > st.num;
+          return (
+            <button
+              key={st.num}
+              type="button"
+              onClick={() => setCurrentStep(st.num)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.3rem',
+                padding: '0.4rem 0.75rem',
+                borderRadius: '999px',
+                fontSize: '0.75rem',
+                fontWeight: isActive ? 800 : 500,
+                whiteSpace: 'nowrap',
+                border: isActive ? '1.5px solid #2563eb' : isPassed ? '1px solid #bfdbfe' : '1px solid #cbd5e1',
+                backgroundColor: isActive ? '#eff6ff' : isPassed ? '#f0f9ff' : '#ffffff',
+                color: isActive ? '#1d4ed8' : isPassed ? '#0369a1' : '#475569',
+                cursor: 'pointer',
+              }}
+            >
+              <span>{isPassed ? '✓' : st.num}.</span>
+              <span>{st.title}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* STEP CONTENT CONTAINER */}
+      <div className="card" style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1.15rem' }}>
+        {/* ===================== STEP 1: NHẬN DIỆN & ẢNH P01-P02 ===================== */}
+        {currentStep === 1 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <div style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: '0.65rem' }}>
+              <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>
+                BƯỚC 1: Tiếp Cận Ngoài Nhà, Nhận Diện Công Trình & Chụp Ảnh Phase 2
+              </h3>
+              <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.775rem', color: '#64748b' }}>
+                Hệ thống tự động hiển thị dữ liệu gốc từ Phase 1 và thông tin khảo sát đợt 2.
+              </p>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.75rem' }}>
+              <div>
+                <label className="form-label">Mã tham chiếu Phase 1:</label>
+                <input type="text" className="form-control" value={ident.phase1ReportRef} disabled={true} />
+              </div>
+              <div>
+                <label className="form-label">Đoạn thi công tuyến Metro 2:</label>
+                <input
+                  type="text"
+                  className="form-control"
+                  value={ident.workSection}
+                  onChange={(e) => setIdent({ ...ident, workSection: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="form-label">Mục tiêu khảo sát:</label>
+                <select
+                  className="form-control"
+                  value={ident.surveyPurpose}
+                  onChange={(e) => setIdent({ ...ident, surveyPurpose: e.target.value })}
+                >
+                  <option value="Baseline trước thi công">Baseline trước thi công</option>
+                  <option value="Kiểm tra lại">Kiểm tra lại (Re-survey)</option>
+                </select>
+              </div>
+              <div>
+                <label className="form-label">Cấp khảo sát (Survey Level):</label>
+                <select
+                  className="form-control"
+                  value={ident.surveyLevel}
+                  onChange={(e) => setIdent({ ...ident, surveyLevel: e.target.value })}
+                >
+                  <option value="L2-A">L2-A (Cơ bản: Ngoài phạm vi lún chính)</option>
+                  <option value="L2-B">L2-B (Tiêu chuẩn: Nằm trong đới ảnh hưởng đào hầm)</option>
+                  <option value="L2-C">L2-C (Chuyên sâu: Công trình nhạy cảm cao/di tích)</option>
+                </select>
+              </div>
+            </div>
+
+            {/* 2 Photos P01 & P02 */}
+            <h4 style={{ margin: '0.5rem 0 0 0', fontSize: '0.9rem', fontWeight: 800, color: '#0f172a' }}>
+              Chụp 2 Ảnh Nhận Dạng / Tổng Thể Phase 2:
+            </h4>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '0.85rem' }}>
+              <PhotoCaptureInput
+                label="Ảnh P-01: Số nhà / Biển tên + Mặt đứng chính GĐ2"
+                value={p01PhotoUrl}
+                onChange={setP01PhotoUrl}
+                allowNotApplicable={true}
+                isNotApplicable={p01NotApplicable}
+                onToggleNotApplicable={setP01NotApplicable}
+                naReason={p01NaReason}
+                onNaReasonChange={setP01NaReason}
+                watermarkText={`PHASE2-P01 | ${ident.projectParcelCode}`}
+                required={true}
+              />
+
+              <PhotoCaptureInput
+                label="Ảnh P-02: Toàn cảnh công trình & Bối cảnh tuyến đường"
+                value={p02PhotoUrl}
+                onChange={setP02PhotoUrl}
+                allowNotApplicable={true}
+                isNotApplicable={p02NotApplicable}
+                onToggleNotApplicable={setP02NotApplicable}
+                naReason={p02NaReason}
+                onNaReasonChange={setP02NaReason}
+                watermarkText={`PHASE2-P02 | ${ident.projectParcelCode}`}
+                required={true}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* ===================== STEP 2: BIẾN ĐỘNG SAU GĐ1 ===================== */}
+        {currentStep === 2 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <div style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: '0.65rem' }}>
+              <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>
+                BƯỚC 2: Phỏng Vấn Chủ Hộ & Xác Nhận Biến Động Sau Giai Đoạn 1
+              </h3>
+            </div>
+
+            <div style={{ backgroundColor: '#f8fafc', padding: '0.75rem 1rem', borderRadius: '0.65rem', border: '1px solid #e2e8f0', fontSize: '0.8rem' }}>
+              <strong>Kế thừa từ Phase 1:</strong> {variations.useCategory} • {variations.floorCount} tầng • {variations.structuralSystem} • {variations.foundationType}
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <div>
+                <label className="form-label">1. Cơi nới / Cải tạo sau GĐ1:</label>
+                <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+                  <label style={{ fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                    <input
+                      type="radio"
+                      name="extension"
+                      checked={!variations.hasExtensionAfterP1}
+                      onChange={() => setVariations({ ...variations, hasExtensionAfterP1: false })}
+                    />
+                    Không
+                  </label>
+                  <label style={{ fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                    <input
+                      type="radio"
+                      name="extension"
+                      checked={variations.hasExtensionAfterP1}
+                      onChange={() => setVariations({ ...variations, hasExtensionAfterP1: true })}
+                    />
+                    Có
+                  </label>
+                </div>
+                {variations.hasExtensionAfterP1 && (
+                  <input
+                    type="text"
+                    className="form-control"
+                    placeholder="Mô tả vị trí cơi nới thêm..."
+                    value={variations.extensionDesc}
+                    onChange={(e) => setVariations({ ...variations, extensionDesc: e.target.value })}
+                    style={{ marginTop: '0.35rem' }}
+                  />
+                )}
+              </div>
+
+              <div>
+                <label className="form-label">2. Sửa chữa hư hỏng sau GĐ1 (Trám nứt, sơn lại...):</label>
+                <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+                  <label style={{ fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                    <input
+                      type="radio"
+                      name="repairs"
+                      checked={!variations.hasRepairsAfterP1}
+                      onChange={() => setVariations({ ...variations, hasRepairsAfterP1: false })}
+                    />
+                    Không
+                  </label>
+                  <label style={{ fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                    <input
+                      type="radio"
+                      name="repairs"
+                      checked={variations.hasRepairsAfterP1}
+                      onChange={() => setVariations({ ...variations, hasRepairsAfterP1: true })}
+                    />
+                    Có
+                  </label>
+                </div>
+                {variations.hasRepairsAfterP1 && (
+                  <input
+                    type="text"
+                    className="form-control"
+                    placeholder="Mô tả chi tiết việc sửa chữa..."
+                    value={variations.repairsDesc}
+                    onChange={(e) => setVariations({ ...variations, repairsDesc: e.target.value })}
+                    style={{ marginTop: '0.35rem' }}
+                  />
+                )}
+              </div>
+
+              <div>
+                <label className="form-label">Kết luận xác nhận đặc trưng sau GĐ1:</label>
+                <select
+                  className="form-control"
+                  value={variations.variationConclusion}
+                  onChange={(e) => setVariations({ ...variations, variationConclusion: e.target.value })}
+                >
+                  <option value="NO_SIGNIFICANT_CHANGE">Không thay đổi đáng kể so với GĐ1</option>
+                  <option value="HAS_CHANGES">Có thay đổi – đã ghi nhận ở trên</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ===================== STEP 3: ĐỐI SOÁT SỔ KHUYẾT TẬT ===================== */}
+        {currentStep === 3 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f1f5f9', paddingBottom: '0.65rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>
+                  BƯỚC 3: Đối Soát Sổ Khuyết Tật $D-xx$ & Ghi Nhận Mới Phase 2
+                </h3>
+                <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.775rem', color: '#64748b' }}>
+                  Đo lại kích thước thực tế, tính toán độ biến thiên $\Delta w, \Delta L$ và chụp ảnh Photo CU có thước.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleAddNewDefect}
+                className="btn btn-primary btn-sm"
+                style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}
+              >
+                <Plus size={14} />
+                <span>+ Thêm Vết Nứt Mới (GĐ2)</span>
+              </button>
+            </div>
+
+            {/* Photo CTX for Phase 2 Context */}
+            <PhotoCaptureInput
+              label="Ảnh bối cảnh mảng tường khảo sát Phase 2 (Photo CTX):"
+              value={ctxPhotoP2Url}
+              onChange={setCtxPhotoP2Url}
+              watermarkText={`PHASE2-CTX | ${ident.projectParcelCode}`}
+              height="180px"
+            />
+
+            {/* List of Defects */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+              {defects.map((d, idx) => (
+                <div
+                  key={d.id}
+                  className="card"
+                  style={{
+                    padding: '1rem',
+                    backgroundColor: '#ffffff',
+                    border: d.verificationStatus === 'NEW' ? '1.5px solid #f59e0b' : d.verificationStatus === 'DEVELOPED' ? '1.5px solid #ef4444' : '1px solid #cbd5e1',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.65rem',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                      <span style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0284c7' }}>
+                        {d.defectCode}
+                      </span>
+                      <span
+                        className="badge"
+                        style={{
+                          backgroundColor: d.verificationStatus === 'UNCHANGED' ? '#dcfce7' : d.verificationStatus === 'DEVELOPED' ? '#fee2e2' : '#fef3c7',
+                          color: d.verificationStatus === 'UNCHANGED' ? '#15803d' : d.verificationStatus === 'DEVELOPED' ? '#b91c1c' : '#b45309',
+                          fontWeight: 700,
+                        }}
+                      >
+                        {d.verificationStatus === 'UNCHANGED' ? '✓ Không đổi' : d.verificationStatus === 'DEVELOPED' ? '⚠️ Phát triển' : d.verificationStatus === 'REPAIRED' ? 'Đã sửa' : '★ MỚI GHI NHẬN'}
+                      </span>
+                    </div>
+
+                    {d.verificationStatus === 'NEW' && (
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveDefect(idx)}
+                        style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer' }}
+                      >
+                        <Trash2 size={15} />
+                      </button>
+                    )}
+                  </div>
+
+                  <div style={{ fontSize: '0.8rem', color: '#475569' }}>
+                    Vị trí: <strong>{d.floorAndRoom}</strong> • Loại: {d.defectType}
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.5rem', backgroundColor: '#f8fafc', padding: '0.65rem', borderRadius: '0.5rem', fontSize: '0.775rem' }}>
+                    <div>
+                      Kích thước GĐ1: <strong>{d.phase1WidthMm}mm x {d.phase1LengthMm}mm</strong>
+                    </div>
+                    <div>
+                      Đo lại GĐ2 (mm):{' '}
+                      <input
+                        type="number"
+                        step="0.05"
+                        style={{ width: '70px', padding: '0.2rem', fontSize: '0.775rem' }}
+                        value={d.phase2WidthMm}
+                        onChange={(e) => updateDefectMeasurement(idx, parseFloat(e.target.value) || 0, d.phase2LengthMm)}
+                      />
+                      {' '}x{' '}
+                      <input
+                        type="number"
+                        step="10"
+                        style={{ width: '70px', padding: '0.2rem', fontSize: '0.775rem' }}
+                        value={d.phase2LengthMm}
+                        onChange={(e) => updateDefectMeasurement(idx, d.phase2WidthMm, parseFloat(e.target.value) || 0)}
+                      />
+                    </div>
+                    <div>
+                      Độ biến thiên: <strong style={{ color: d.deltaW > 0 ? '#dc2626' : '#15803d' }}>&Delta;w = {d.deltaW > 0 ? `+${d.deltaW}` : d.deltaW} mm</strong> | &Delta;L = {d.deltaL > 0 ? `+${d.deltaL}` : d.deltaL} mm
+                    </div>
+                  </div>
+
+                  {/* Photo CU with Scale Card */}
+                  <PhotoCaptureInput
+                    label={`Ảnh chụp cận cảnh có thước đo (${d.defectCode}-CU Phase 2):`}
+                    value={d.cuPhotoUrl}
+                    onChange={(url) => {
+                      const updated = [...defects];
+                      updated[idx].cuPhotoUrl = url;
+                      setDefects(updated);
+                    }}
+                    watermarkText={`${d.defectCode}-CU-P2 | ${d.phase2WidthMm}mm x ${d.phase2LengthMm}mm`}
+                    height="150px"
+                    required={true}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ===================== STEP 4: ĐO ĐẠC LÚN NGHIÊNG GĐ2 ===================== */}
+        {currentStep === 4 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <div style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: '0.65rem' }}>
+              <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>
+                BƯỚC 4: Đánh Giá & Đo Đạc Lún – Nghiêng – Biến Dạng Phase 2
+              </h3>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.75rem' }}>
+              <div>
+                <label className="form-label">Nghiêng mặt trước X (%):</label>
+                <input
+                  type="number"
+                  step="0.05"
+                  className="form-control"
+                  value={measP2.tiltFrontXPercent}
+                  onChange={(e) => setMeasP2({ ...measP2, tiltFrontXPercent: parseFloat(e.target.value) || 0 })}
+                />
+              </div>
+
+              <div>
+                <label className="form-label">Nghiêng mặt hông Y (%):</label>
+                <input
+                  type="number"
+                  step="0.05"
+                  className="form-control"
+                  value={measP2.tiltSideYPercent}
+                  onChange={(e) => setMeasP2({ ...measP2, tiltSideYPercent: parseFloat(e.target.value) || 0 })}
+                />
+              </div>
+
+              <div>
+                <label className="form-label">Nghiêng sàn (%):</label>
+                <input
+                  type="number"
+                  step="0.05"
+                  className="form-control"
+                  value={measP2.floorTiltPercent}
+                  onChange={(e) => setMeasP2({ ...measP2, floorTiltPercent: parseFloat(e.target.value) || 0 })}
+                />
+              </div>
+
+              <div>
+                <label className="form-label">Võng dầm lớn nhất (mm):</label>
+                <input
+                  type="number"
+                  step="0.5"
+                  className="form-control"
+                  value={measP2.beamDeflectionMm}
+                  onChange={(e) => setMeasP2({ ...measP2, beamDeflectionMm: parseFloat(e.target.value) || 0 })}
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="form-label">Nhận xét chuyên môn về biến dạng:</label>
+              <textarea
+                className="form-control"
+                rows={2}
+                value={measP2.expertRemarks}
+                onChange={(e) => setMeasP2({ ...measP2, expertRemarks: e.target.value })}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* ===================== STEP 5: PHẠM VI & RANH GIS ===================== */}
+        {currentStep === 5 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <div style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: '0.65rem' }}>
+              <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>
+                BƯỚC 5: Xác Nhận Phạm Vi & Đối Soát Ranh Thửa Đất GIS
+              </h3>
+            </div>
+
+            <div>
+              <label className="form-label">Phạm vi tiếp cận thực tế Phase 2:</label>
+              <div style={{ display: 'flex', gap: '0.75rem' }}>
+                <label style={{ fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                  <input
+                    type="radio"
+                    name="scopeP2"
+                    checked={scopeP2.accessScope === 'FULL'}
+                    onChange={() => setScopeP2({ ...scopeP2, accessScope: 'FULL' })}
+                  />
+                  <span>Toàn bộ ngôi nhà</span>
+                </label>
+                <label style={{ fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                  <input
+                    type="radio"
+                    name="scopeP2"
+                    checked={scopeP2.accessScope === 'PARTIAL'}
+                    onChange={() => setScopeP2({ ...scopeP2, accessScope: 'PARTIAL' })}
+                  />
+                  <span>Một phần (Có khu vực bị khóa/không vào được)</span>
+                </label>
+              </div>
+            </div>
+
+            <div>
+              <label className="form-label">Đối soát ranh địa chính trên GIS:</label>
+              <select
+                className="form-control"
+                value={scopeP2.boundaryAlignment}
+                onChange={(e) => setScopeP2({ ...scopeP2, boundaryAlignment: e.target.value })}
+              >
+                <option value="MATCH">Khớp hoàn toàn với ranh Phase 1</option>
+                <option value="EXTENSION">Phát sinh cơi nới xây thêm</option>
+                <option value="SPLIT_MUTATION">Phát sinh chia tách thửa đất</option>
+              </select>
+            </div>
+          </div>
+        )}
+
+        {/* ===================== STEP 6: SƠ ĐỒ & QUALITY GATE CHECKLIST ===================== */}
+        {currentStep === 6 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <div style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: '0.65rem' }}>
+              <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>
+                BƯỚC 6: Sơ Đồ Vị Trí Khuyết Tật & Cổng Kiểm Soát Chất Lượng (Phụ Lục A)
+              </h3>
+            </div>
+
+            <PhotoCaptureInput
+              label="Sơ đồ phác thảo vị trí khuyết tật Phase 2 (Damage Map Sketch):"
+              value={sketchPhotoUrl}
+              onChange={setSketchPhotoUrl}
+              watermarkText={`DAMAGE-MAP-P2 | ${ident.projectParcelCode}`}
+              height="180px"
+            />
+
+            <div>
+              <label className="form-label">Checklist 10 Tiêu Chí Cổng Kiểm Soát Chất Lượng (Phụ lục A):</label>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+                {qualityChecklist.map((q) => (
+                  <label
+                    key={q.id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                      fontSize: '0.775rem',
+                      padding: '0.45rem 0.65rem',
+                      borderRadius: '0.45rem',
+                      backgroundColor: q.passed ? '#f0fdf4' : '#fffbeb',
+                      border: q.passed ? '1px solid #86efac' : '1px solid #fde68a',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={q.passed}
+                      onChange={() => handleToggleQuality(q.id)}
+                      style={{ accentColor: '#16a34a' }}
+                    />
+                    <span style={{ fontWeight: 600, color: q.passed ? '#15803d' : '#b45309' }}>
+                      {q.id}. {q.title}
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ===================== STEP 7: TỔNG HỢP SO SÁNH GĐ1 ===================== */}
+        {currentStep === 7 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <div style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: '0.65rem' }}>
+              <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>
+                BƯỚC 7: Tổng Hợp So Sánh Giai Đoạn 1 & Đề Xuất Quan Trắc
+              </h3>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.75rem' }}>
+              <div>
+                <label className="form-label">Tổng hợp biến động khuyết tật:</label>
+                <select
+                  className="form-control"
+                  value={summaryP2.overallVariation}
+                  onChange={(e) => setSummaryP2({ ...summaryP2, overallVariation: e.target.value })}
+                >
+                  <option value="UNCHANGED">Không đổi (Ổn định)</option>
+                  <option value="DEVELOPED">Phát triển thêm vết nứt cũ</option>
+                  <option value="REPAIRED">Chủ nhà đã sửa chữa / trám bả</option>
+                  <option value="NEW_DEFECTS">Có phát sinh khuyết tật mới</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="form-label">Kết luận hiện trạng Phase 2:</label>
+                <select
+                  className="form-control"
+                  value={summaryP2.conclusionP2}
+                  onChange={(e) => setSummaryP2({ ...summaryP2, conclusionP2: e.target.value })}
+                >
+                  <option value="STABLE_OBSERVED">Ổn định theo quan sát</option>
+                  <option value="NEEDS_MONITORING">Có hư hỏng hiện hữu cần theo dõi</option>
+                  <option value="IN_DEPTH_EVAL">Cần đánh giá chuyên sâu</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ===================== STEP 8: CAM KẾT PHÁP LÝ PHIẾU 02 ===================== */}
+        {currentStep === 8 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <div style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: '0.65rem' }}>
+              <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>
+                BƯỚC 8: Cam Kết Pháp Lý Mẫu Chuẩn Phiếu 02 & Ý Kiến Chủ Hộ
+              </h3>
+            </div>
+
+            <div
+              style={{
+                backgroundColor: '#f8fafc',
+                border: '1px solid #cbd5e1',
+                padding: '1rem',
+                borderRadius: '0.65rem',
+                fontSize: '0.8rem',
+                lineHeight: 1.6,
+                color: '#334155',
+                fontStyle: 'italic',
+              }}
+            >
+              &quot;Qua khảo sát trong phạm vi tiếp cận được, các bên xác nhận Phiếu 02 và các ảnh/bản vẽ kèm theo phản ánh hiện trạng quan sát được của công trình tại thời điểm khảo sát. Các khuyết tật hiện hữu chính đã được ghi nhận và mã hóa để làm mốc đối chiếu trong quá trình thi công.
+              <br /><br />
+              Phiếu này là hồ sơ hiện trạng cơ sở phục vụ đối chiếu kỹ thuật và xử lý phản ánh/khiếu nại, bồi thường hoặc bảo hiểm (nếu phát sinh) theo hợp đồng, điều kiện bảo hiểm và quy định pháp luật áp dụng; bản thân chữ ký trên phiếu không mặc nhiên xác lập trách nhiệm, không phải sự từ bỏ quyền pháp lý và không miễn trừ nghĩa vụ của bất kỳ bên nào.&quot;
+            </div>
+
+            <div>
+              <label className="form-label">Ý kiến của Chủ sở hữu / Người sử dụng:</label>
+              <input
+                type="text"
+                className="form-control"
+                value={ownerFeedbackP2}
+                onChange={(e) => setOwnerFeedbackP2(e.target.value)}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* ===================== STEP 9: KÝ BIÊN BẢN 4 BÊN ===================== */}
+        {currentStep === 9 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <div style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: '0.65rem' }}>
+              <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>
+                BƯỚC 9: Chốt Biên Bản & Ký Xác Nhận Hiện Trường 4 Bên
+              </h3>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '0.85rem' }}>
+              {/* 1. Chủ sở hữu */}
+              <SignaturePad
+                label="1. CHỦ SỞ HỮU / NGƯỜI SỬ DỤNG:"
+                signerName={ownerNameP2}
+                role="Chủ hộ"
+                onSave={setSigOwner}
+              />
+
+              {/* 2. Đại diện Liên danh */}
+              <SignaturePad
+                label="2. ĐẠI DIỆN LIÊN DANH (CRLG-CRSRI-TT):"
+                signerName={jvNameP2}
+                role="Cán bộ Kỹ thuật"
+                onSave={setSigJointVenture}
+              />
+
+              {/* 3. Đại diện Nhà thầu */}
+              <SignaturePad
+                label="3. ĐẠI DIỆN NHÀ THẦU / KHÁCH HÀNG:"
+                signerName={contractorNameP2}
+                role="Đại diện Nhà thầu"
+                onSave={setSigContractor}
+              />
+
+              {/* 4. Người làm chứng / Địa phương */}
+              <SignaturePad
+                label="4. NGƯỜI LÀM CHỨNG / ĐỊA PHƯƠNG:"
+                signerName={witnessNameP2}
+                role="Chính quyền / Tổ dân phố"
+                onSave={setSigWitness}
+              />
+            </div>
+
+            <div style={{ marginTop: '1rem' }}>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={handleSubmitPhase2}
+                disabled={isSubmitting}
                 style={{
+                  width: '100%',
+                  padding: '0.75rem',
+                  fontWeight: 800,
+                  fontSize: '0.95rem',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '0.75rem',
-                  padding: '0.65rem 0.75rem',
-                  borderRadius: '0.5rem',
-                  backgroundColor: q.passed ? '#f0fdf4' : '#f8fafc',
-                  border: q.passed ? '1px solid #bbf7d0' : '1px solid #e2e8f0',
-                  cursor: 'pointer',
-                  fontSize: '0.8rem',
-                  color: q.passed ? '#15803d' : '#475569',
+                  justifyContent: 'center',
+                  gap: '0.45rem',
+                  backgroundColor: '#2563eb',
+                  boxShadow: '0 4px 14px rgba(37, 99, 235, 0.35)',
                 }}
               >
-                <input
-                  type="checkbox"
-                  checked={q.passed}
-                  onChange={() => {}}
-                  style={{ width: '16px', height: '16px', accentColor: '#10b981' }}
-                />
-                <span style={{ fontWeight: q.passed ? 700 : 500 }}>{q.title}</span>
-              </label>
-            ))}
+                <Send size={18} />
+                <span>{isSubmitting ? 'Đang gửi hồ sơ Phase 2...' : 'HOÀN TẤT & NỘP HỒ SƠ KHẢO SÁT PHASE 2'}</span>
+              </button>
+            </div>
           </div>
+        )}
+
+        {/* STEP FOOTER NAVIGATION (PREV / NEXT) */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #f1f5f9', paddingTop: '0.85rem' }}>
+          {currentStep > 1 ? (
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={() => setCurrentStep(currentStep - 1)}
+              style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}
+            >
+              <ChevronLeft size={16} />
+              <span>Bước trước</span>
+            </button>
+          ) : <div />}
+
+          {currentStep < 9 ? (
+            <button
+              type="button"
+              className="btn btn-primary btn-sm"
+              onClick={() => setCurrentStep(currentStep + 1)}
+              style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}
+            >
+              <span>Tiếp theo: Bước {currentStep + 1}</span>
+              <ChevronRight size={16} />
+            </button>
+          ) : null}
         </div>
-      )}
-
-      {/* STEP 4: 4-Party Digital Signatures */}
-      {currentStep === 4 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <PenTool size={18} color="#0284c7" />
-            Ký Xác Nhận 4 Bên (Phụ Lục 12 Biên Bản Đối Soát)
-          </h3>
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' }}>
-            <SignaturePad
-              label="1. Đại diện Chủ sở hữu công trình"
-              signerName={baselineInfo.ownerName}
-              role="Chủ hộ"
-              initialSignatureUrl={sigOwner}
-              onSave={(dataUrl) => setSigOwner(dataUrl)}
-            />
-
-            <SignaturePad
-              label="2. Đại diện Đơn vị Khảo sát"
-              signerName={user?.fullName || 'Nguyễn Văn Khảo Sát'}
-              role="Cán bộ hiện trường"
-              initialSignatureUrl={sigSurveyor}
-              onSave={(dataUrl) => setSigSurveyor(dataUrl)}
-            />
-
-            <SignaturePad
-              label="3. Đại diện Tư vấn Giám sát (MAUR / Zone Admin)"
-              signerName="Lê Hoàng Giám Sát"
-              role="Kỹ sư Thẩm định MAUR"
-              initialSignatureUrl={sigZoneAdmin}
-              onSave={(dataUrl) => setSigZoneAdmin(dataUrl)}
-            />
-
-            <SignaturePad
-              label="4. Đại diện Nhà thầu Thi công Metro 2"
-              signerName="Trần Đình Thi Công"
-              role="Chỉ huy trưởng Nhà thầu"
-              initialSignatureUrl={sigContractor}
-              onSave={(dataUrl) => setSigContractor(dataUrl)}
-            />
-          </div>
-
-          <button
-            type="button"
-            onClick={handleSubmitPhase2}
-            disabled={isSubmitting}
-            className="btn btn-primary"
-            style={{
-              marginTop: '0.5rem',
-              padding: '0.85rem',
-              fontSize: '1rem',
-              fontWeight: 700,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '0.5rem',
-            }}
-          >
-            <Send size={18} />
-            {isSubmitting ? 'Đang nộp biên bản...' : 'Hoàn Tất & Nộp Biên Bản Đối Soát Phase 2'}
-          </button>
-        </div>
-      )}
-
-      {/* Footer Nav */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.5rem', paddingBottom: '4.5rem' }}>
-        <button
-          type="button"
-          onClick={() => setCurrentStep(Math.max(1, currentStep - 1))}
-          disabled={currentStep === 1}
-          className="btn btn-secondary btn-sm"
-          style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}
-        >
-          <ChevronLeft size={16} />
-          Quay lại
-        </button>
-
-        {currentStep < 4 ? (
-          <button
-            type="button"
-            onClick={() => setCurrentStep(Math.min(4, currentStep + 1))}
-            className="btn btn-primary btn-sm"
-            style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}
-          >
-            Tiếp tục
-            <ChevronRight size={16} />
-          </button>
-        ) : null}
       </div>
     </div>
   );

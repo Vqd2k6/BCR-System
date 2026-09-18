@@ -1275,6 +1275,42 @@
 
 ---
 
+### 1.3.2b. `PUT /api/v1/reports/phase1/{reportId}/floors`
+* **Mô tả:** Bước 3 - Lưu cấu trúc phân cấp danh sách Tầng, ảnh chụp tổng quan từng tầng và bản vẽ CAD phác thảo phân vị trí các Vùng Z.
+* **Quyền truy cập:** `SURVEYOR`
+* **Request Body:**
+```json
+{
+  "floors": [
+    {
+      "floorName": "Tầng 1 (Trệt)",
+      "overviewPhotos": [
+        "https://s3.metro2.vn/photos/rep-p1-00105/F1_OV_01.jpg",
+        "https://s3.metro2.vn/photos/rep-p1-00105/F1_OV_02.jpg"
+      ],
+      "cadDrawingUrl": "https://s3.metro2.vn/photos/rep-p1-00105/F1_CAD_sketch.jpg",
+      "cadZonePins": [
+        { "id": "p-1", "zoneId": "z-01", "zoneCode": "Z-01", "label": "Phòng khách", "x": 35.2, "y": 48.0 },
+        { "id": "p-2", "zoneId": "z-02", "zoneCode": "Z-02", "label": "Bếp", "x": 72.4, "y": 60.1 }
+      ],
+      "notes": "Mặt bằng trệt hoàn thiện gạch ceramic"
+    }
+  ]
+}
+```
+* **Response `200 OK`:**
+```json
+{
+  "success": true,
+  "message": "Đã lưu cấu trúc danh sách Tầng, ảnh tổng quan và bản vẽ CAD phác thảo phân vị trí Z thành công.",
+  "data": {
+    "reportId": "rep-p1-00105"
+  }
+}
+```
+
+---
+
 ### 1.3.3. `PUT /api/v1/reports/phase1/{reportId}/deformation`
 * **Mô tả:** Bước 4 - Lưu số đo lún nghiêng (Tilt X/Y, nghiêng sàn, võng dầm, nguồn đo & độ tin cậy).
 * **Quyền truy cập:** `SURVEYOR`
@@ -2616,3 +2652,145 @@
   * `Content-Type: application/pdf`
   * `Content-Disposition: attachment; filename="Dossier_Zone_S9_20260916.pdf"`
   * `X-Checksum-SHA256: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`
+
+---
+
+# 5. PHÂN HỆ GIS LAYER TRUY XUẤT CHUNG (GIS SHARED LAYER ENDPOINTS)
+
+## 5.1. `GET /api/v1/gis/layers/overview` *(Metadata 5 Tầng Layer GIS)*
+* **Mô tả:** Lấy danh sách 5 tầng Layer GIS, trạng thái hiển thị mặc định theo Role và số lượng đối tượng hình học theo từng Ga.
+* **Quyền truy cập:** Đã đăng nhập (`SUPER_ADMIN`, `ZONE_ADMIN`, `SURVEYOR`, `CONTRACTOR`)
+* **Response `200 OK`:**
+```json
+{
+  "success": true,
+  "data": {
+    "layers": [
+      {
+        "id": "layer_0_basemap",
+        "name": "Bản đồ Nền (Vệ tinh / Bản đồ đường)",
+        "type": "RASTER_TILE",
+        "isDefaultVisible": true,
+        "isEditable": false
+      },
+      {
+        "id": "layer_1_metro",
+        "name": "Hạ tầng Tuyến Metro 2 & ZOI 50m",
+        "type": "VECTOR_METRO",
+        "isDefaultVisible": true,
+        "isEditable": false,
+        "metadata": {
+          "totalStations": 11,
+          "zoiBufferMeters": 50.0
+        }
+      },
+      {
+        "id": "layer_2_planning",
+        "name": "Quy hoạch Đô thị 1/2000 & 1/500 (SQHKT)",
+        "type": "VECTOR_PLANNING",
+        "isDefaultVisible": true,
+        "isEditable": false,
+        "metadata": {
+          "totalZoningPolygons": 11113,
+          "roadSetbackCount": 4350
+        }
+      },
+      {
+        "id": "layer_3_parcels",
+        "name": "Thửa đất Địa chính (Dual-ID)",
+        "type": "VECTOR_PARCELS",
+        "isDefaultVisible": true,
+        "isEditable": false,
+        "metadata": {
+          "totalParcels": 6431,
+          "codeRange": "B-00001 -> B-07000"
+        }
+      },
+      {
+        "id": "layer_4_operations",
+        "name": "Nghiệp vụ Hiện trường (GPS, Nứt D-xx, Tách thửa)",
+        "type": "DYNAMIC_EVENTS",
+        "isDefaultVisible": true,
+        "isEditable": true
+      }
+    ]
+  }
+}
+```
+
+---
+
+## 5.2. `GET /api/v1/gis/layers/planning` *(Lớp Quy hoạch SQHKT 1/2000 & 1/500)*
+* **Mô tả:** Lấy danh sách các ô quy hoạch phân khu chi tiết, lộ giới mở đường và chỉ giới xây dựng theo bbox hoặc theo Ga.
+* **Quyền truy cập:** Đã đăng nhập
+* **Query Parameters:**
+  * `zoneId` (string, optional): `"ZONE_S9"`
+  * `bbox` (string, optional): `"106.63,10.79,106.66,10.82"`
+  * `category` (string, optional): `"RESIDENTIAL"`, `"COMMERCIAL"`, `"MIXED"`
+* **Response `200 OK`:** GeoJSON `FeatureCollection`
+```json
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "plan-001",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[106.6450, 10.7980], [106.6460, 10.7980], [106.6460, 10.7990], [106.6450, 10.7990], [106.6450, 10.7980]]]
+      },
+      "properties": {
+        "zoneCode": "[III.9]",
+        "landUseNameRaw": "Dân cư dự kiến",
+        "landUseCategory": "RESIDENTIAL",
+        "maxBuildingHeightFloors": 5,
+        "maxDensityPercent": 60.0,
+        "maxFsi": 3.5,
+        "roadSetbackMeters": 30.0,
+        "isRoadSetbackAffected": true,
+        "is1500Project": false
+      }
+    }
+  ]
+}
+```
+
+---
+
+## 5.3. `GET /api/v1/gis/layers/metro-infrastructure` *(Tim Tuyến Metro 2 & ZOI 50m)*
+* **Mô tả:** Lấy hình học tim tuyến Metro 2, hành lang bảo vệ an toàn ZOI 50 mét và danh sách 11 Nhà ga.
+* **Quyền truy cập:** Public / Authenticated
+* **Response `200 OK`:** GeoJSON `FeatureCollection`
+```json
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "metro-centerline",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [[106.691, 10.772], [106.685, 10.778], [106.652, 10.795], [106.631, 10.812]]
+      },
+      "properties": {
+        "name": "Tim tuyến Metro Số 2 (Bến Thành - Tham Lương)",
+        "type": "CENTERLINE"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "metro-zoi-50m",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[106.6915, 10.7725], [106.6315, 10.8125], [106.6305, 10.8115], [106.6905, 10.7715], [106.6915, 10.7725]]]
+      },
+      "properties": {
+        "name": "Hành lang ảnh hưởng ZOI 50m",
+        "bufferMeters": 50.0,
+        "type": "ZOI_BUFFER"
+      }
+    }
+  ]
+}
+```
+

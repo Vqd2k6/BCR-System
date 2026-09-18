@@ -150,6 +150,34 @@ classDiagram
     %% ==========================================
     %% PACKAGE 2: PLANNING, GIS & DUAL-ID PARCEL
     %% ==========================================
+    class MetroAlignment {
+        +UUID id
+        +String lineCode
+        +String lineName
+        +String centerlineGeoJson
+        +Float zoiBufferMeters
+        +String zoiPolygonGeoJson
+        +DateTime updatedAt
+        +isWithinZoi(lat, lng) Boolean
+    }
+
+    class PlanningZone {
+        +UUID id
+        +String zoneCode
+        +String landUseNameRaw
+        +LandUseCategoryEnum landUseCategory
+        +Int maxBuildingHeightFloors
+        +Float maxDensityPercent
+        +Float maxFsi
+        +Float roadSetbackMeters
+        +Boolean isRoadSetbackAffected
+        +Boolean is1500Project
+        +String projectName1500
+        +Float areaM2
+        +String geomGeoJson
+        +DateTime createdAt
+    }
+
     class MetroZone {
         +UUID id
         +String zoneCode
@@ -161,6 +189,20 @@ classDiagram
         +Int completedParcelsCount
         +UUID assignedAdminId
         +calculateProgressPercentage() Float
+    }
+
+    class CadastralHistoryLog {
+        +UUID id
+        +UUID parcelId
+        +String projectParcelCode
+        +String actionType
+        +String previousGeomGeoJson
+        +String newGeomGeoJson
+        +String previousStateJson
+        +String newStateJson
+        +UUID changedByUserId
+        +String changeReason
+        +DateTime createdAt
     }
 
     class Parcel {
@@ -383,6 +425,27 @@ classDiagram
     %% ==========================================
     %% PACKAGE 5: DAMAGE ZONES & DEFECT PINNING
     %% ==========================================
+    class FloorSurvey {
+        +UUID id
+        +UUID reportId
+        +String floorName
+        +Int floorOrder
+        +List~String~ overviewPhotos
+        +String cadDrawingUrl
+        +List~CadZonePin~ cadZonePins
+        +String notes
+        +DateTime createdAt
+    }
+
+    class CadZonePin {
+        +String id
+        +String zoneId
+        +String zoneCode
+        +String label
+        +Float x
+        +Float y
+    }
+
     class DamageSketch {
         +UUID id
         +UUID reportId
@@ -565,6 +628,8 @@ classDiagram
     BaseSurveyReport "1" *-- "2..4" SurveyIdentificationPhoto : contains_P01_to_P04
     BaseSurveyReport "1" *-- "1" BuildingSpecification : specifies
     BaseSurveyReport "1" *-- "1" HistoricalSensitivity : records_history
+    BaseSurveyReport "1" *-- "0..*" FloorSurvey : contains_floors
+    FloorSurvey "1" *-- "0..*" DamageZone : groups_zones_Zxx
     BaseSurveyReport "1" *-- "0..*" DamageSketch : includes_sketches
     BaseSurveyReport "1" *-- "1..*" DamageZone : contains_zones_Zxx
     DamageZone "1" *-- "0..*" DefectItem : has_defects_Dxx

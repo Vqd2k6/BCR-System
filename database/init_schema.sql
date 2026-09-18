@@ -81,6 +81,17 @@ CREATE TYPE task_status_enum AS ENUM (
     'CANCELLED'
 );
 
+CREATE TYPE land_use_category_enum AS ENUM (
+    'RESIDENTIAL', 
+    'COMMERCIAL', 
+    'PUBLIC', 
+    'TRANSPORT', 
+    'INDUSTRIAL', 
+    'GREEN', 
+    'MIXED', 
+    'OTHER'
+);
+
 -- Phân hệ 4: Hồ sơ khảo sát
 CREATE TYPE survey_phase_enum AS ENUM (
     'PHASE_1', 
@@ -317,6 +328,33 @@ CREATE TABLE metro_alignments (
 CREATE INDEX idx_metro_alignments_line ON metro_alignments USING GIST(centerline_geom);
 CREATE INDEX idx_metro_alignments_zoi ON metro_alignments USING GIST(zoi_polygon_geom);
 
+-- ============================================================================
+-- LAYER 2: QUY HOẠCH ĐÔ THỊ SQHKT 1/2000 & 1/500 (DỮ LIỆU KS003)
+-- ============================================================================
+CREATE TABLE planning_zones (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    zone_code VARCHAR(64),                         -- Mã ô quy hoạch (VD: '[III.9]', '[II.25]')
+    land_use_name_raw VARCHAR(255) NOT NULL,       -- Tên loại đất thô 72 danh mục SQHKT
+    land_use_category land_use_category_enum NOT NULL DEFAULT 'MIXED',
+    max_building_height_floors INT,
+    max_density_percent NUMERIC(5,2),
+    max_fsi NUMERIC(5,2),                          -- Hệ số sử dụng đất (HSSDĐ)
+    road_setback_meters NUMERIC(8,2),              -- Lộ giới đường
+    is_road_setback_affected BOOLEAN NOT NULL DEFAULT FALSE,
+    is_1_500_project BOOLEAN NOT NULL DEFAULT FALSE,
+    project_name_1_500 TEXT,
+    area_m2 NUMERIC(12,2),
+    geom GEOMETRY(Geometry, 4326) NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_planning_zones_code ON planning_zones(zone_code);
+CREATE INDEX idx_planning_zones_category ON planning_zones(land_use_category);
+CREATE INDEX idx_planning_zones_geom ON planning_zones USING GIST(geom);
+
+-- ============================================================================
+-- LAYER 3: THỬA ĐẤT ĐỊA CHÍNH DUAL-ID (MASTER CADASTRAL PARCELS)
+-- ============================================================================
 CREATE TABLE parcels (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     zone_id VARCHAR(32) NOT NULL,
@@ -391,6 +429,27 @@ CREATE TABLE parcel_mutation_events (
 );
 
 CREATE INDEX idx_mutations_status ON parcel_mutation_events(status);
+
+-- ============================================================================
+-- SPATIAL TIME-TRAVEL AUDIT LOGS (LỊCH SỬ BIẾN ĐỘNG KHÔNG GIAN)
+-- ============================================================================
+CREATE TABLE cadastral_history_logs (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    parcel_id UUID NOT NULL REFERENCES parcels(id) ON DELETE CASCADE,
+    project_parcel_code VARCHAR(16) NOT NULL,
+    action_type VARCHAR(32) NOT NULL,              -- 'UPDATE_FOOTPRINT', 'SPLIT', 'MERGE', 'STATUS_CHANGE'
+    previous_geom GEOMETRY(Geometry, 4326),
+    new_geom GEOMETRY(Geometry, 4326),
+    previous_state JSONB,
+    new_state JSONB,
+    changed_by_user_id UUID REFERENCES users(id),
+    change_reason TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_cadastral_logs_parcel ON cadastral_history_logs(parcel_id);
+CREATE INDEX idx_cadastral_logs_code ON cadastral_history_logs(project_parcel_code);
+CREATE INDEX idx_cadastral_logs_time ON cadastral_history_logs(created_at);
 
 CREATE TABLE task_assignments (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -545,6 +604,20 @@ CREATE TABLE historical_sensitivities (
     details TEXT,
     e5_history_score INT NOT NULL DEFAULT 0
 );
+
+CREATE TABLE floor_surveys (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    report_id UUID NOT NULL REFERENCES base_survey_reports(id) ON DELETE CASCADE,
+    floor_name VARCHAR(64) NOT NULL,
+    floor_order INT NOT NULL DEFAULT 1,
+    overview_photos_json JSONB DEFAULT '[]'::jsonb, -- Mảng URL ảnh tổng quan tầng
+    cad_drawing_url TEXT,                           -- Ảnh bản vẽ phác thảo kỹ thuật tầng (CAD / Sơ đồ phòng)
+    cad_zone_pins_json JSONB DEFAULT '[]'::jsonb,   -- Mảng vị trí chấm zone Z trên bản vẽ CAD [{zoneId, zoneCode, label, x, y}]
+    notes TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_floor_surveys_report ON floor_surveys(report_id);
 
 CREATE TABLE damage_zones (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),

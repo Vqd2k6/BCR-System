@@ -67,6 +67,14 @@ export class SurveyService {
     };
   }
 
+  static async saveFloorSurveys(reportId: string, floors: any[]) {
+    await SurveyRepository.saveFloorSurveys(reportId, floors);
+    return {
+      reportId,
+      message: 'Đã lưu cấu trúc danh sách Tầng, ảnh tổng quan và bản vẽ CAD phác thảo phân vị trí Z thành công',
+    };
+  }
+
   static async createDamageZone(reportId: string, zoneData: any) {
     const zone = await SurveyRepository.createDamageZone(reportId, zoneData);
     return {

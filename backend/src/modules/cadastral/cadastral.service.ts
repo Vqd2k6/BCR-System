@@ -252,4 +252,31 @@ export class CadastralService {
       }
     });
   }
+
+  /**
+   * Lấy danh sách mã dự án B-XXXXX tiếp theo dựa trên chỉ số lớn nhất hiện hữu (MAX + 1)
+   */
+  static async getNextHighRangeCodes(count: number = 2) {
+    const res = await Database.query<{ max_val: number }>(
+      `SELECT COALESCE(MAX(substring(project_parcel_code from 3)::integer), 0) AS max_val
+       FROM parcels
+       WHERE project_parcel_code ~ '^B-[0-9]+$';`
+    );
+
+    let nextNum = 1;
+    if (res.rows[0]?.max_val !== undefined && res.rows[0]?.max_val !== null) {
+      nextNum = Number(res.rows[0].max_val) + 1;
+    }
+
+    const codes: string[] = [];
+    for (let i = 0; i < count; i++) {
+      codes.push(`B-${String(nextNum + i).padStart(5, '0')}`);
+    }
+
+    return {
+      baseNextNum: nextNum,
+      codes,
+    };
+  }
 }
+

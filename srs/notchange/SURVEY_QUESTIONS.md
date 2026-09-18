@@ -149,34 +149,26 @@ Dưới đây là **BỘ BIỂU MẪU KHẢO SÁT HỢP NHẤT DUY NHẤT** đư
 
 ---
 
-### BƯỚC 6: Cổng Kiểm soát Chất lượng Dữ liệu Ảnh & Sơ đồ (Data Quality Gate)
-*Hệ thống tự động quét kiểm tra trước khi chuyển sang bước tính điểm:*
+### BƯỚC 6: Tự động Tính Điểm Kỹ thuật ECS & VI (Auto Calculations 100%)
 
-- [ ] **Sơ đồ phác thảo vị trí khuyết tật (Damage Map / Sketch):** (Tải lên / Chụp ảnh bản vẽ phác tay + Chạm ghim mã D-xx | Tự động check: `Có` / `Không` / `N/A`)
-- [ ] **Liên kết Mã Ảnh - Khuyết tật (Defect - Photo Integrity Link):** (Tự động quét: `ĐỦ` - Nếu tất cả D-xx đã có đủ ảnh cận cảnh | `THIẾU` - Cảnh báo nếu có D-xx bị thiếu ảnh cận cảnh)
-
----
-
-### BƯỚC 7: Tự động Tính Điểm Kỹ thuật ECS & VI (Auto Calculations 100%)
-
-#### 7.1. Bảng Điểm Hiện Hữu ECS (Auto-Calculated từ Bước 2, 3, 4):
+#### 6.1. Bảng Điểm Hiện Hữu ECS (Auto-Calculated từ Bước 2, 3, 4):
 - [ ] **Chỉ số ECS (Điểm 0–4 từng mục):**
   - `E1` (Hư hỏng tường/khối xây): *(Tự động map từ Burland Grade)*
   - `E2` (Khuyết tật kết cấu cột/dầm/sàn): *(Tự động map từ Ý nghĩa kết cấu D-xx)*
   - `E3` (Lún/nghiêng/võng): *(Tự động map từ Bước 4 Lún nghiêng)*
   - `E4` (Suy giảm vật liệu/độ bền): *(Tự động map từ Mức độ suy giảm D-xx)*
   - `E5` (Lịch sử/cơi nới/sự cố): *(Tự động map từ Bước 2.2 Lịch sử phỏng vấn)*
-  - **`E6` Tình trạng chức năng / Tổng thể:** (Chọn: `0` - Tốt / `1` - TB / `2` - Kém / `3-4` - Nguy cấp)
+  - **`E6` Tình trạng chức năng / Tổng thể:** (Chọn: `0` - Tốt / `1` - TB / `2` - Kém / `3-4` - Nguy cấp | Tự động gợi ý từ các Vùng Z)
 - [ ] **Tổng ECS:** $\Sigma E = \_\_\_/24$ | **Phân hạng ECS Class:** (`Good` [0-5] / `Medium` [6-10] / `Deficient` [11-16] / `Critical` [17-24])
-- [ ] **Engineering Judgement (Quyền Can thiệp của Kỹ sư):** (Chọn: `Giữ nguyên` / `Nâng hạng` / `Hạ hạng` | Lý do: ________ - *Cảnh báo: Nếu có cờ kết cấu Critical ➔ Khoá không cho hạ hạng ECS*)
+- [ ] **Engineering Judgement (Quyền Can thiệp của Kỹ sư):** (Chọn: `Giữ nguyên` / `Nâng hạng` / `Hạ hạng` | Lý do: ________ - *Cảnh báo: Nếu có cờ kết cấu Critical hoặc Lún nghiêng nghiêm trọng ➔ Khoá không cho hạ hạng ECS*)
 
-#### 7.2. Bảng Chỉ số Dễ Tổn thương VI (Thanh trượt Slider + Dynamic Notes):
-- [ ] **V1. Công năng:** (Thanh trượt 1-4 | Tự động đề xuất từ Nhóm đối tượng Bước 1)
-- [ ] **V2. Hệ kết cấu:** (Thanh trượt 1-4 điểm | Hiển thị Note mô tả)
-- [ ] **V3. Móng:** `[TỰ ĐỘNG MAP TỪ CAT MÓNG BƯỚC 2.1]`
-- [ ] **V4. Tuổi đời / Cơi nới:** (Thanh trượt 1-4 điểm | Hiển thị Note mô tả)
-- [ ] **V5. Hiện trạng ECS:** `[TỰ ĐỘNG MAP TỪ ECS CLASS MỤC 7.1]`
-- [ ] **V6. Thiết bị nhạy cảm:** (Thanh trượt 1-4 điểm | Hiển thị Note mô tả)
+#### 6.2. Bảng Chỉ số Dễ Tổn thương VI (Chọn Option Tinh Gọn + Pre-selected):
+- [ ] **V1. Công năng & Quy mô:** (Chọn: `1đ - Bỏ hoang` / `2đ - General` / `3đ - Important` / `4đ - Critical` | Tự động đề xuất từ Nhóm đối tượng Bước 1)
+- [ ] **V2. Hệ kết cấu chịu lực:** (Chọn: `1đ - Khung BTCT toàn khối` / `2đ - Khung BTCT + tường gạch` / `3đ - Tường gạch chịu lực` / `4đ - Tường không giằng`)
+- [ ] **V3. Loại móng & Nền đất:** `[TỰ ĐỘNG MAP TỪ CAT MÓNG BƯỚC 2.1: 1-4 điểm]`
+- [ ] **V4. Tuổi đời / Cơi nới:** (Chọn: `1đ - < 10 năm` / `2đ - 10-25 năm` / `3đ - 25-40 năm` / `4đ - > 40 năm/Cơi nới`)
+- [ ] **V5. Hiện trạng kỹ thuật ECS:** `[TỰ ĐỘNG MAP TỪ ECS CLASS MỤC 6.1: 1-4 điểm]`
+- [ ] **V6. Thiết bị nhạy cảm:** (Chọn: `1đ - Không có` / `2đ - Gia dụng` / `3đ - Văn phòng/KD` / `4đ - Y tế/Thí nghiệm 24/7`)
 - [ ] **Tổng VI ($\Sigma V$) & Điểm TB ($V_{\text{avg}}$) ➔ Phân hạng VI Class:** (`Low` / `Medium` / `High` / `Very High`)
 
 ---
@@ -194,21 +186,21 @@ Dưới đây là **BỘ BIỂU MẪU KHẢO SÁT HỢP NHẤT DUY NHẤT** đư
 
 ---
 
-### BƯỚC 8: Tổng hợp Kết luận & Kiến nghị (Summary Dashboard)
-- [ ] **BCS / ECS:** *(Tự động tổng hợp)* Score /24 & ECS Class (`Good` / `Medium` / `Deficient` / `Critical`)
+### BƯỚC 7: Tổng hợp Kết luận & Đề xuất Kỹ thuật (Summary Dashboard)
+- [ ] **BCS / ECS:** *(Tự động tổng hợp)* Score /24 & ECS Class (`Good` / `Medium` / `Deficient` / `Critical` - Kèm hạng điều chỉnh sau can thiệp)
 - [ ] **Burland:** *(Tự động tổng hợp)* Grade Chủ đạo & Grade Cục bộ lớn nhất
 - [ ] **Structural Flag (Cờ kết cấu):** *(Tự động tổng hợp)* (`None` / `Low` / `Moderate` / `High` / `Critical`)
 - [ ] **Vulnerability (VI):** *(Tự động tổng hợp)* Điểm $V_{\text{avg}}$ & VI Class (`Low` / `Medium` / `High` / `Very High`)
-- [ ] **Construction Impact (Tác động thi công):** (Mặc định: `Pending` - Tùy chọn nhập $I=\_\_\_$)
-- [ ] **BRA (Baseline Risk Assessment):** (Mặc định: `Pending` - Tùy chọn chọn `Low` / `Medium` / `High` / `Very High`)
+- [ ] **Construction Impact (Tác động thi công):** (Mặc định: `Pending` - Tùy chọn: `Low [I=1]`, `Medium [I=2]`, `High [I=3]`, `Very High [I=4]`)
+- [ ] **BRA (Baseline Risk Assessment):** (Mặc định: `Pending` - Tùy chọn: `Low`, `Medium`, `High`, `Very High`)
 - [ ] **Khuyết tật / Rủi ro chính:** (Nhập text mô tả tổng quát khuyết tật nổi bật nhất)
 - [ ] **Kiến nghị cụ thể:** (Nhập text đề xuất giải pháp kỹ thuật / quan trắc)
 
 ---
 
-### BƯỚC 9: Chốt Biên bản & Chụp Ảnh Xác nhận Hiện trường
-- [ ] **Tổng số Vùng & Khuyết tật đã ghi nhận:** *(Hệ thống tự đếm)*
+### BƯỚC 8: Chốt Biên bản & Ký Xác nhận Hiện trường 3 Bên
+- [ ] **Tổng số Tầng, Vùng & Khuyết tật đã ghi nhận:** *(Hệ thống tự đếm và hiển thị thanh thống kê)*
 - [ ] **Ý kiến / Phản hồi nguyên văn của Chủ hộ:** (Nhập text)
-- [ ] **Ảnh Chữ ký / Ảnh Cán bộ Khảo sát (Prepared by):** Họ tên, Chức vụ, Ngày khảo sát, Chụp ảnh chữ ký hoặc ảnh chân dung cán bộ tại hiện trường.
-- [ ] **Ảnh Chữ ký / Ảnh Người kiểm tra (Checked by):** Họ tên, Chức vụ, Ngày kiểm tra, Chụp ảnh chữ ký hoặc ảnh người kiểm tra.
-- [ ] **Ảnh Chữ ký / Ảnh Chủ sở hữu (Owner/Representative):** Chụp ảnh chữ ký trên biên bản giấy hoặc ảnh xác nhận của chủ hộ tại hiện trường.
+- [ ] **Ảnh Chữ ký / Ảnh Cán bộ Khảo sát (Prepared by):** Họ tên, Chức vụ, Ngày khảo sát, Ký tay trên màn hình hoặc Chụp ảnh chữ ký/chân dung tại hiện trường.
+- [ ] **Ảnh Chữ ký / Ảnh Người kiểm tra (Checked by):** Họ tên, Chức vụ, Ngày kiểm tra, Ký tay trên màn hình hoặc Chụp ảnh chữ ký.
+- [ ] **Ảnh Chữ ký / Ảnh Chủ sở hữu (Owner/Representative):** Họ tên, Vai trò, Ngày ký, Ký tay trên màn hình hoặc Chụp ảnh chữ ký/chân dung tại hiện trường.

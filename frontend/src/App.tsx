@@ -38,103 +38,21 @@ export const App: React.FC = () => {
     }
   });
 
-  const initialParcels: GisParcel[] = [
-    {
-      id: 'c0000000-0000-0000-0000-000000000001',
-      projectParcelCode: 'B-00105',
-      officialCadastralCode: 'KS003-00105',
-      houseNumber: '854',
-      street: 'Đường Trường Chinh',
-      ownerName: 'Nguyễn Văn An',
-      surveyStatus: 'NOT_SURVEYED',
-      absenceAttemptCount: 0,
-      coordinates: [
-        [10.8033, 106.6384],
-        [10.8034, 106.6387],
-        [10.8032, 106.6388],
-        [10.8031, 106.6385],
-      ],
-    },
-    {
-      id: 'c0000000-0000-0000-0000-000000000002',
-      projectParcelCode: 'B-00106',
-      officialCadastralCode: 'KS003-00106',
-      houseNumber: '856',
-      street: 'Đường Trường Chinh',
-      ownerName: 'Trần Thị Bích',
-      surveyStatus: 'IN_PROGRESS',
-      absenceAttemptCount: 0,
-      coordinates: [
-        [10.8035, 106.6387],
-        [10.8036, 106.639],
-        [10.8034, 106.6391],
-        [10.8033, 106.6388],
-      ],
-    },
-    {
-      id: 'c0000000-0000-0000-0000-000000000003',
-      projectParcelCode: 'B-00107',
-      officialCadastralCode: 'KS003-00107',
-      houseNumber: '858',
-      street: 'Đường Trường Chinh',
-      ownerName: 'Lê Hoàng Cường',
-      surveyStatus: 'PHASE2_COMPLETED',
-      absenceAttemptCount: 0,
-      coordinates: [
-        [10.8037, 106.639],
-        [10.8038, 106.6393],
-        [10.8036, 106.6394],
-        [10.8035, 106.6391],
-      ],
-    },
-    {
-      id: 'c0000000-0000-0000-0000-000000000004',
-      projectParcelCode: 'B-00108',
-      officialCadastralCode: 'KS003-00108',
-      houseNumber: '860',
-      street: 'Đường Trường Chinh',
-      ownerName: 'Phạm Minh Dũng',
-      surveyStatus: 'POSTPONED_ABSENT',
-      absenceAttemptCount: 2,
-      coordinates: [
-        [10.8039, 106.6393],
-        [10.804, 106.6396],
-        [10.8038, 106.6397],
-        [10.8037, 106.6394],
-      ],
-    },
-    {
-      id: 'c0000000-0000-0000-0000-000000000005',
-      projectParcelCode: 'B-00109',
-      officialCadastralCode: 'KS003-00109',
-      houseNumber: '862',
-      street: 'Đường Trường Chinh',
-      ownerName: 'Vũ Thị Hoa',
-      surveyStatus: 'NOT_SURVEYED',
-      absenceAttemptCount: 0,
-      coordinates: [
-        [10.8041, 106.6396],
-        [10.8042, 106.6399],
-        [10.804, 106.64],
-        [10.8039, 106.6397],
-      ],
-    },
-  ];
-
+  // ─── Chuẩn hóa dữ liệu thửa đất từ API ────────────────────────────────────
   const normalizeParcel = (p: any): GisParcel => {
     let coords: [number, number][] = [];
+
+    // Ưu tiên cadastral_geojson (GeoJSON Polygon) từ PostGIS
     if (p.cadastral_geojson?.coordinates?.[0]) {
-      coords = p.cadastral_geojson.coordinates[0].map(([lng, lat]: [number, number]) => [lat, lng]);
-    } else if (p.coordinates && Array.isArray(p.coordinates)) {
+      // GeoJSON dùng [lng, lat] → Leaflet cần [lat, lng]
+      coords = (p.cadastral_geojson.coordinates[0] as [number, number][]).map(
+        ([lng, lat]) => [lat, lng] as [number, number]
+      );
+    } else if (p.coordinates && Array.isArray(p.coordinates) && p.coordinates.length >= 3) {
+      // Đã là [lat, lng][] (từ local override nếu có)
       coords = p.coordinates;
-    } else {
-      coords = [
-        [10.8033, 106.6384],
-        [10.8034, 106.6387],
-        [10.8032, 106.6388],
-        [10.8031, 106.6385],
-      ];
     }
+    // Không có tọa độ → polygon rỗng, parcel không render
 
     return {
       id: p.id,
@@ -146,20 +64,32 @@ export const App: React.FC = () => {
       surveyStatus: p.survey_status || p.surveyStatus || 'NOT_SURVEYED',
       absenceAttemptCount: p.absence_attempt_count ?? p.absenceAttemptCount ?? 0,
       coordinates: coords,
+      adjacentType: p.adjacent_type || p.adjacentType || 'TOWNHOUSE',
+      constructionArea: Number(p.construction_area_m2 ?? p.constructionArea ?? 0),
+      floorCount: Number(p.floor_count ?? p.floorCount ?? 1),
+      landArea: Number(p.land_area_m2 ?? p.landArea ?? 0),
+      landCategory: p.land_use_category || p.landCategory,
+      landUseName: p.land_use_name_raw || p.landUseName,
     };
   };
 
+  // ─── Load thửa đất theo zone từ API Backend ─────────────────────────────────
   const loadParcels = async () => {
     try {
+      console.log(`[Metro2] Loading parcels for zone: ${selectedZone}`);
       const res = await api.get('/parcels/zone-map', { params: { zoneId: selectedZone } });
-      if (res.data && res.data.data && res.data.data.length > 0) {
+      if (res.data?.data && Array.isArray(res.data.data) && res.data.data.length > 0) {
         const normalized = res.data.data.map(normalizeParcel);
-        setParcels(normalized);
+        const withCoords = normalized.filter((p: GisParcel) => p.coordinates.length >= 3);
+        console.log(`[Metro2] Loaded ${withCoords.length}/${res.data.data.length} parcels with valid polygon`);
+        setParcels(withCoords);
       } else {
-        setParcels(initialParcels);
+        console.warn('[Metro2] API returned empty parcel list for zone:', selectedZone);
+        setParcels([]);
       }
-    } catch (_err) {
-      setParcels(initialParcels);
+    } catch (err: any) {
+      console.error('[Metro2] Failed to load parcels:', err?.response?.data || err?.message);
+      setParcels([]);
     }
   };
 
@@ -260,6 +190,9 @@ export const App: React.FC = () => {
             ? 'Hồ Sơ Phase 1 (Baseline)'
             : 'Đối Soát Phase 2 (Pre-Construction)'
         }
+        onNavigateToCheckIn={() => setActiveTab('attendance')}
+        onNavigateHome={() => setActiveTab('home')}
+        isCheckedInToday={isCheckedInToday}
       />
 
       {/* Main Viewport Content */}
@@ -306,6 +239,7 @@ export const App: React.FC = () => {
         {activeTab === 'phase1' && (
           <SurveyPhase1View
             initialParcelId={selectedParcelForSurvey?.id}
+            parcel={selectedParcelForSurvey}
             onFinished={() => setActiveTab('home')}
           />
         )}

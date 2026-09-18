@@ -60,6 +60,7 @@ export function createApp(): express.Application {
   // Thửa đất & Quét cạn
   api.get('/parcels/zone-map', authenticateJwt, CadastralController.getZoneMap);
   api.get('/parcels/nearby', authenticateJwt, CadastralController.getNearbyParcels);
+  api.get('/parcels/next-high-range-codes', authenticateJwt, CadastralController.getNextHighRangeProjectCodes);
   api.get('/parcels/:id', authenticateJwt, CadastralController.getParcelById);
   api.post('/parcels/:id/start-survey', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.startSurvey);
   api.post('/parcels/:id/record-absence', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.recordAbsence);
@@ -71,6 +72,7 @@ export function createApp(): express.Application {
   api.get('/reports/phase1/:id', authenticateJwt, SurveyController.getReportDetail);
   api.post('/reports/phase1/:id/identification-photos', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), SurveyController.saveIdentificationPhotos);
   api.put('/reports/phase1/:id/specs', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), SurveyController.saveBuildingSpecs);
+  api.put('/reports/phase1/:id/floors', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), SurveyController.saveFloorSurveys);
   api.post('/reports/phase1/:id/zones', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), SurveyController.createDamageZone);
   api.post('/reports/phase1/zones/:id/defects', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), SurveyController.createDefectItem);
   api.put('/reports/phase1/:id/deformation', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), SurveyController.saveDeformation);

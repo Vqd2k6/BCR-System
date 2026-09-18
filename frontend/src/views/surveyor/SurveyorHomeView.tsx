@@ -14,6 +14,8 @@ import {
   HelpCircle,
   Navigation,
   Check,
+  FileText,
+  GitCompare,
 } from 'lucide-react';
 
 interface Props {
@@ -44,6 +46,13 @@ export const SurveyorHomeView: React.FC<Props> = ({
   const [statusFilter, setStatusFilter] = useState<string>('PENDING_ONLY');
   const [showStatusHelp, setShowStatusHelp] = useState<boolean>(false);
 
+  // Pagination / Load limit (Requirement 1: Load 10 parcels at a time for performance)
+  const [displayLimit, setDisplayLimit] = useState<number>(10);
+
+  useEffect(() => {
+    setDisplayLimit(10);
+  }, [searchTerm, statusFilter]);
+
   // Persistent absence log loaded from localStorage (Requirement 4)
   const [absenceRecordedToday, setAbsenceRecordedToday] = useState<{ [parcelId: string]: string }>(() => {
     try {
@@ -63,11 +72,13 @@ export const SurveyorHomeView: React.FC<Props> = ({
   // Parcel counts
   const total = parcels?.length || 0;
   const getStatus = (p: GisParcel) => p?.surveyStatus || (p as any)?.survey_status || 'NOT_SURVEYED';
-  const approved = (parcels || []).filter((p) => getStatus(p) === 'APPROVED').length;
-  const inProgress = (parcels || []).filter((p) => getStatus(p) === 'IN_PROGRESS' || getStatus(p) === 'SUBMITTED').length;
+  const approved = (parcels || []).filter((p) => getStatus(p) === 'APPROVED' || getStatus(p) === 'PHASE2_COMPLETED' || getStatus(p) === 'APPROVED_PHASE2').length;
+  const inProgressOnly = (parcels || []).filter((p) => getStatus(p) === 'IN_PROGRESS').length;
+  const submittedOnly = (parcels || []).filter((p) => getStatus(p) === 'SUBMITTED').length;
+  const rejectedOnly = (parcels || []).filter((p) => getStatus(p) === 'REJECTED').length;
   const absent = (parcels || []).filter((p) => getStatus(p) === 'POSTPONED_ABSENT').length;
   const notSurveyed = (parcels || []).filter((p) => getStatus(p) === 'NOT_SURVEYED').length;
-  const pendingTotal = notSurveyed + inProgress + absent;
+  const pendingTotal = notSurveyed + inProgressOnly + rejectedOnly + absent;
 
   const filteredParcels = (parcels || []).filter((p) => {
     if (!p) return false;
@@ -87,15 +98,19 @@ export const SurveyorHomeView: React.FC<Props> = ({
 
     let matchesStatus = false;
     if (statusFilter === 'PENDING_ONLY') {
-      matchesStatus = status !== 'APPROVED';
+      matchesStatus = status !== 'APPROVED' && status !== 'SUBMITTED' && status !== 'PHASE2_COMPLETED' && status !== 'APPROVED_PHASE2';
     } else if (statusFilter === 'NOT_SURVEYED') {
       matchesStatus = status === 'NOT_SURVEYED';
     } else if (statusFilter === 'IN_PROGRESS') {
-      matchesStatus = status === 'IN_PROGRESS' || status === 'SUBMITTED' || status === 'REJECTED';
+      matchesStatus = status === 'IN_PROGRESS';
+    } else if (statusFilter === 'SUBMITTED') {
+      matchesStatus = status === 'SUBMITTED';
+    } else if (statusFilter === 'REJECTED') {
+      matchesStatus = status === 'REJECTED';
     } else if (statusFilter === 'ABSENT') {
       matchesStatus = status === 'POSTPONED_ABSENT';
     } else if (statusFilter === 'APPROVED') {
-      matchesStatus = status === 'APPROVED';
+      matchesStatus = status === 'APPROVED' || status === 'PHASE2_COMPLETED' || status === 'APPROVED_PHASE2';
     } else {
       matchesStatus = true;
     }
@@ -147,9 +162,9 @@ export const SurveyorHomeView: React.FC<Props> = ({
         return (
           <span
             className="badge"
-            style={{ backgroundColor: '#fef3c7', color: '#b45309', border: '1px solid #fde68a', fontWeight: 700 }}
+            style={{ backgroundColor: '#e0f2fe', color: '#0369a1', border: '1px solid #7dd3fc', fontWeight: 700 }}
           >
-            ⏳ Chờ duyệt Phase 1
+            ⏳ Đã nộp (Chờ duyệt)
           </span>
         );
       case 'IN_PROGRESS':
@@ -158,7 +173,7 @@ export const SurveyorHomeView: React.FC<Props> = ({
             className="badge"
             style={{ backgroundColor: '#fffbeb', color: '#b45309', border: '1px solid #fde68a', fontWeight: 700 }}
           >
-            🔄 Đang làm Phase 1
+            🔄 Đang làm dở (Chưa nộp)
           </span>
         );
       case 'POSTPONED_ABSENT':
@@ -194,58 +209,69 @@ export const SurveyorHomeView: React.FC<Props> = ({
 
   return (
     <div style={{ padding: '1rem 1rem 6.5rem 1rem', maxWidth: '780px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '1.15rem' }}>
-      {/* 1. Refined Attendance Widget (Requirement 2) */}
+      {/* 1. Header Zone Banner (Subtle indicator, check-in moved to Profile) */}
       <div
         className="card"
         style={{
-          background: isCheckedInToday
-            ? 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)'
-            : 'linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%)',
-          border: isCheckedInToday ? '1px solid #bbf7d0' : '1px solid #fde68a',
-          padding: '1.15rem 1.25rem',
+          background: '#ffffff',
+          border: '1px solid #e2e8f0',
+          padding: '0.85rem 1.15rem',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
           flexWrap: 'wrap',
-          gap: '0.75rem',
+          gap: '0.65rem',
         }}
       >
         <div>
-          <h2 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: '#0f172a' }}>
-            Ga Phụ Trách: {user?.assignedZoneId || 'Ga S9 – Bà Quẹo'}
+          <div style={{ fontSize: '0.725rem', color: '#64748b', fontWeight: 600 }}>Tuyến Metro 2 Bến Thành – Tham Lương</div>
+          <h2 style={{ margin: '2px 0 0 0', fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>
+            Khu vực phụ trách: {user?.assignedZoneId || 'Ga S9 – Bà Quẹo'}
           </h2>
-
-          {isCheckedInToday ? (
-            <div style={{ fontSize: '0.85rem', color: '#166534', display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.35rem', fontWeight: 600 }}>
-              <CheckCircle2 size={16} color="#16a34a" />
-              <span>Đã điểm danh lúc {checkInDetails?.time || '07:45'}</span>
-            </div>
-          ) : (
-            <div style={{ fontSize: '0.825rem', color: '#92400e', display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.35rem' }}>
-              <AlertCircle size={16} color="#d97706" />
-              <span>Bạn chưa điểm danh GPS hôm nay.</span>
-            </div>
-          )}
         </div>
 
-        {!isCheckedInToday && (
-          <button
-            type="button"
-            onClick={onNavigateToCheckIn}
-            className="btn btn-warning"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.4rem',
-              padding: '0.6rem 1.15rem',
-              fontWeight: 700,
-              boxShadow: '0 4px 12px rgba(245, 158, 11, 0.3)',
-            }}
-          >
-            <Clock size={16} />
-            Điểm Danh GPS Ngay
-          </button>
-        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+          {isCheckedInToday ? (
+            <div
+              style={{
+                fontSize: '0.75rem',
+                color: '#166534',
+                backgroundColor: '#f0fdf4',
+                border: '1px solid #bbf7d0',
+                padding: '0.3rem 0.65rem',
+                borderRadius: '999px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.35rem',
+                fontWeight: 700,
+              }}
+            >
+              <CheckCircle2 size={14} color="#16a34a" />
+              <span>Đã chấm công ({checkInDetails?.time || '07:45'})</span>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={onNavigateToCheckIn}
+              style={{
+                fontSize: '0.75rem',
+                color: '#92400e',
+                backgroundColor: '#fef3c7',
+                border: '1px solid #fde68a',
+                padding: '0.3rem 0.65rem',
+                borderRadius: '999px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.35rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+              }}
+            >
+              <Clock size={14} color="#d97706" />
+              <span>Chưa chấm công GPS ➔</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* 2. Daily & Weekly Targets */}
@@ -334,7 +360,9 @@ export const SurveyorHomeView: React.FC<Props> = ({
           {[
             { id: 'PENDING_ONLY', label: `Cần làm (${pendingTotal})` },
             { id: 'NOT_SURVEYED', label: `Chưa làm (${notSurveyed})` },
-            { id: 'IN_PROGRESS', label: `Đang làm dở (${inProgress})` },
+            { id: 'IN_PROGRESS', label: `Đang làm dở (${inProgressOnly})` },
+            { id: 'SUBMITTED', label: `Chờ duyệt (${submittedOnly})` },
+            ...(rejectedOnly > 0 ? [{ id: 'REJECTED', label: `Cần bổ sung (${rejectedOnly})` }] : []),
             { id: 'ABSENT', label: `Vắng mặt (${absent})` },
             { id: 'APPROVED', label: `Đã duyệt Phase 1 (${approved})` },
             { id: 'ALL', label: `Tất cả (${total})` },
@@ -375,6 +403,10 @@ export const SurveyorHomeView: React.FC<Props> = ({
             ? `Danh sách ${filteredParcels.length} thửa đất cần khảo sát:`
             : statusFilter === 'APPROVED'
             ? `Danh sách ${filteredParcels.length} thửa đất đã duyệt Phase 1:`
+            : statusFilter === 'SUBMITTED'
+            ? `Danh sách ${filteredParcels.length} thửa đất đã nộp (Chờ duyệt):`
+            : statusFilter === 'IN_PROGRESS'
+            ? `Danh sách ${filteredParcels.length} thửa đất đang làm dở (Chưa nộp):`
             : `Danh sách thửa đất (${filteredParcels.length}):`}
         </span>
 
@@ -416,241 +448,303 @@ export const SurveyorHomeView: React.FC<Props> = ({
             boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)',
           }}
         >
-          <div>
-            🔵 <strong>Khảo sát Phase 1</strong>: Dành cho thửa đất chưa làm hoặc đang làm dở.
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+            <FileText size={14} color="#0284c7" />
+            <span><strong>Chưa làm / Đang làm dở:</strong> Cần thực hiện hoặc tiếp tục hoàn thiện hồ sơ Phase 1.</span>
           </div>
-          <div>
-            🟣 <strong>Khảo sát Phase 2</strong>: Tự động xuất hiện khi thửa đất đã duyệt xong Phase 1 để đối soát biến động trước khi thi công.
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+            <Clock size={14} color="#0284c7" />
+            <span><strong>Đã nộp (Chờ duyệt):</strong> Đã gửi Zone Admin phê duyệt, có thể xem lại thông tin.</span>
           </div>
-          <div>
-            📍 <strong>Chỉ đường</strong>: Mở bản đồ định vị trực tiếp vị trí căn nhà để điều tra viên dễ di chuyển tới.
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+            <GitCompare size={14} color="#9333ea" />
+            <span><strong>Khảo sát Phase 2:</strong> Kích hoạt sau khi Phase 1 được duyệt để đối soát biến động trước thi công.</span>
           </div>
-          <div>
-            🏠 <strong>Báo vắng mặt</strong>: Ghi nhận chủ nhà đi vắng, chống bấm trùng lặp trong ngày.
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+            <Navigation size={14} color="#0369a1" />
+            <span><strong>Chỉ đường:</strong> Mở Google Maps dẫn đường trực tiếp tới vị trí thửa đất.</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+            <UserX size={14} color="#dc2626" />
+            <span><strong>Báo vắng mặt:</strong> Ghi nhận chủ hộ vắng nhà kèm hình ảnh thực địa và dán giấy hẹn.</span>
           </div>
         </div>
       )}
 
-      {/* 5. Parcel Tasks List */}
+      {/* 5. Parcel Tasks List (Paginated by 10 items) */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', paddingBottom: '4.5rem' }}>
         {filteredParcels.length === 0 ? (
           <div className="card" style={{ padding: '2rem', textAlign: 'center', color: '#64748b', fontSize: '0.875rem' }}>
             Không có thửa đất nào phù hợp với bộ lọc hiện tại.
           </div>
         ) : (
-          filteredParcels.map((p) => {
-            const isApproved = p.surveyStatus === 'APPROVED' || (p as any).survey_status === 'APPROVED';
-            const isPhase2Done =
-              p.surveyStatus === 'PHASE2_COMPLETED' ||
-              p.surveyStatus === 'APPROVED_PHASE2' ||
-              (p as any).survey_status === 'PHASE2_COMPLETED';
-            const isSubmitted = p.surveyStatus === 'SUBMITTED' || (p as any).survey_status === 'SUBMITTED';
-            const isInProgress =
-              p.surveyStatus === 'IN_PROGRESS' ||
-              p.surveyStatus === 'REJECTED' ||
-              (p as any).survey_status === 'IN_PROGRESS';
-            const recordedAbsenceTime = absenceRecordedToday[p.id];
+          <>
+            {filteredParcels.slice(0, displayLimit).map((p) => {
+              const status = getStatus(p);
+              const isApproved = status === 'APPROVED';
+              const isPhase2Done = status === 'PHASE2_COMPLETED' || status === 'APPROVED_PHASE2';
+              const isSubmitted = status === 'SUBMITTED';
+              const isInProgress = status === 'IN_PROGRESS';
+              const isRejected = status === 'REJECTED';
+              const isAbsent = status === 'POSTPONED_ABSENT';
 
-            return (
-              <div
-                key={p.id}
-                className="card"
-                style={{
-                  padding: '1rem',
-                  backgroundColor: '#ffffff',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '0.75rem',
-                  border: isPhase2Done ? '1px solid #bfdbfe' : isApproved ? '1px solid #bbf7d0' : '1px solid #e2e8f0',
-                }}
-              >
-                {/* Parcel Details */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                      <span style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0284c7' }}>
-                        {p.projectParcelCode}
-                      </span>
-                      {getStatusBadge(p.surveyStatus)}
-                      {p.absenceAttemptCount ? (
-                        <span className="badge badge-danger">Vắng {p.absenceAttemptCount} lần</span>
-                      ) : null}
+              const borderLeftColor = isApproved
+                ? '#10b981'
+                : isPhase2Done
+                ? '#2563eb'
+                : isSubmitted
+                ? '#0284c7'
+                : isInProgress
+                ? '#f59e0b'
+                : isRejected
+                ? '#ef4444'
+                : isAbsent
+                ? '#8b5cf6'
+                : '#64748b';
+
+              const recordedAbsenceTime = absenceRecordedToday[p.id];
+
+              return (
+                <div
+                  key={p.id}
+                  className="card"
+                  style={{
+                    padding: '0.95rem 1.15rem',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.65rem',
+                    borderLeft: `4px solid ${borderLeftColor}`,
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem' }}>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0284c7' }}>
+                          {p.projectParcelCode || (p as any).project_parcel_code}
+                        </span>
+                        {getStatusBadge(p.surveyStatus)}
+                      </div>
+                      <div style={{ fontSize: '0.875rem', fontWeight: 700, color: '#0f172a', marginTop: '0.2rem' }}>
+                        Số {p.houseNumber || (p as any).house_number} {p.street}
+                      </div>
                     </div>
+                  </div>
 
-                    <div style={{ fontSize: '0.925rem', color: '#0f172a', fontWeight: 700, marginTop: '2px' }}>
-                      Số {p.houseNumber} {p.street}
-                    </div>
+                  <div style={{ fontSize: '0.775rem', color: '#64748b', display: 'flex', flexWrap: 'wrap', gap: '0.75rem' }}>
+                    <span>
+                      Chủ sở hữu: <strong>{p.ownerName || (p as any).owner_name || 'Chưa cập nhật'}</strong>
+                    </span>
+                    <span>
+                      Mã địa chính: <strong>{p.officialCadastralCode || (p as any).official_cadastral_code || 'Chưa có'}</strong>
+                    </span>
+                  </div>
 
-                    <div style={{ fontSize: '0.775rem', color: '#64748b' }}>
-                      Mã ĐC: <strong style={{ color: '#334155' }}>{p.officialCadastralCode}</strong> • Chủ hộ:{' '}
-                      {p.ownerName || 'Chưa cập nhật'}
-                    </div>
-
-                    {/* Absence notice line */}
-                    {recordedAbsenceTime && (
-                      <div
+                  {/* Actions Bar */}
+                  <div style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap', paddingTop: '0.45rem', borderTop: '1px solid #f1f5f9' }}>
+                    {/* Primary Button */}
+                    {isApproved ? (
+                      <button
+                        type="button"
+                        onClick={() => onStartPhase2(p)}
+                        className="btn btn-primary btn-sm"
                         style={{
-                          marginTop: '0.35rem',
-                          fontSize: '0.725rem',
-                          color: '#7e22ce',
-                          backgroundColor: '#faf5ff',
-                          padding: '0.25rem 0.5rem',
-                          borderRadius: '0.35rem',
-                          display: 'inline-flex',
+                          fontSize: '0.775rem',
+                          display: 'flex',
                           alignItems: 'center',
-                          gap: '0.3rem',
-                          border: '1px solid #e9d5ff',
-                          fontWeight: 600,
+                          gap: '0.35rem',
+                          backgroundColor: '#2563eb',
+                          borderColor: '#1d4ed8',
                         }}
                       >
-                        <Clock size={12} />
-                        Đã khai báo vắng mặt hôm nay lúc {recordedAbsenceTime} (Đã dán giấy hẹn)
-                      </div>
+                        <GitCompare size={14} />
+                        Khảo sát Phase 2
+                      </button>
+                    ) : isPhase2Done ? (
+                      <button
+                        type="button"
+                        disabled
+                        className="btn btn-sm"
+                        style={{
+                          fontSize: '0.775rem',
+                          backgroundColor: '#dbeafe',
+                          color: '#1d4ed8',
+                          border: '1px solid #93c5fd',
+                          fontWeight: 700,
+                          cursor: 'default',
+                        }}
+                      >
+                        ✓ Đã hoàn tất Phase 2
+                      </button>
+                    ) : isSubmitted ? (
+                      <button
+                        type="button"
+                        onClick={() => onStartPhase1(p)}
+                        className="btn btn-sm"
+                        style={{
+                          fontSize: '0.775rem',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.35rem',
+                          backgroundColor: '#e0f2fe',
+                          color: '#0369a1',
+                          border: '1px solid #7dd3fc',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                        }}
+                        title="Hồ sơ đã gửi Zone Admin, nhấp để xem chi tiết"
+                      >
+                        <Clock size={14} color="#0284c7" />
+                        Hồ sơ đã nộp (Chờ duyệt)
+                      </button>
+                    ) : isRejected ? (
+                      <button
+                        type="button"
+                        onClick={() => onStartPhase1(p)}
+                        className="btn btn-sm"
+                        style={{
+                          fontSize: '0.775rem',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.35rem',
+                          backgroundColor: '#fee2e2',
+                          color: '#b91c1c',
+                          border: '1px solid #fca5a5',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <AlertCircle size={14} color="#dc2626" />
+                        Sửa & đo bổ sung Phase 1
+                      </button>
+                    ) : isInProgress ? (
+                      <button
+                        type="button"
+                        onClick={() => onStartPhase1(p)}
+                        className="btn btn-primary btn-sm"
+                        style={{
+                          fontSize: '0.775rem',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.35rem',
+                          backgroundColor: '#d97706',
+                          borderColor: '#b45309',
+                        }}
+                      >
+                        <PlusCircle size={14} />
+                        Tiếp tục đo đạc Phase 1
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => onStartPhase1(p)}
+                        className="btn btn-primary btn-sm"
+                        style={{ fontSize: '0.775rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}
+                      >
+                        <PlusCircle size={14} />
+                        Khảo sát Phase 1
+                      </button>
                     )}
-                  </div>
-                </div>
 
-                {/* Context-Aware Action Buttons */}
-                <div style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap', borderTop: '1px solid #f1f5f9', paddingTop: '0.65rem' }}>
-                  {isPhase2Done ? (
-                    <div
-                      style={{
-                        flex: 1.5,
-                        minWidth: '150px',
-                        backgroundColor: '#dbeafe',
-                        color: '#1d4ed8',
-                        padding: '0.45rem 0.65rem',
-                        borderRadius: '0.5rem',
-                        fontSize: '0.775rem',
-                        fontWeight: 700,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '0.35rem',
-                        border: '1px solid #93c5fd',
-                      }}
-                    >
-                      <CheckCircle2 size={14} color="#2563eb" />
-                      Đã Hoàn Tất Khảo Sát Phase 2
-                    </div>
-                  ) : isApproved ? (
+                    {/* 📍 Chỉ đường Button (Google Maps) */}
                     <button
                       type="button"
-                      className="btn btn-sm"
-                      onClick={() => onStartPhase2(p)}
-                      style={{
-                        flex: 1.5,
-                        minWidth: '150px',
-                        backgroundColor: '#7c3aed',
-                        color: '#ffffff',
-                        fontSize: '0.8rem',
-                        fontWeight: 700,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '0.35rem',
-                        boxShadow: '0 2px 6px rgba(124, 58, 237, 0.25)',
-                      }}
-                    >
-                      <CheckSquare size={14} />
-                      Khảo Sát Phase 2 (Trước thi công)
-                    </button>
-                  ) : isSubmitted ? (
-                    <div
-                      style={{
-                        flex: 1.5,
-                        backgroundColor: '#fef3c7',
-                        color: '#b45309',
-                        padding: '0.35rem 0.65rem',
-                        borderRadius: '0.5rem',
-                        fontSize: '0.75rem',
-                        fontWeight: 700,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '0.35rem',
-                        border: '1px solid #fde68a',
-                      }}
-                    >
-                      <Clock size={13} />
-                      Đang Chờ Zone Admin Duyệt Phase 1
-                    </div>
-                  ) : (
-                    <button
-                      type="button"
-                      className="btn btn-primary btn-sm"
-                      onClick={() => onStartPhase1(p)}
-                      style={{
-                        flex: 1.5,
-                        minWidth: '150px',
-                        fontSize: '0.8rem',
-                        fontWeight: 700,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '0.35rem',
-                      }}
-                    >
-                      <PlusCircle size={14} />
-                      {isInProgress ? 'Tiếp tục đo đạc Phase 1' : 'Khảo sát Phase 1'}
-                    </button>
-                  )}
-
-                  {/* 📍 Chỉ đường Button (Google Maps) */}
-                  <button
-                    type="button"
-                    className="btn btn-secondary btn-sm"
-                    onClick={() => handleOpenDirections(p)}
-                    style={{
-                      fontSize: '0.775rem',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.3rem',
-                      color: '#0284c7',
-                      borderColor: '#bae6fd',
-                      backgroundColor: '#f0f9ff',
-                    }}
-                    title="Mở chỉ đường Google Maps từ vị trí của bạn tới nhà này"
-                  >
-                    <Navigation size={13} color="#0284c7" />
-                    Chỉ đường
-                  </button>
-
-                  {/* Smart Absence Button (Only for Phase 1 incomplete) */}
-                  {!isApproved && !isPhase2Done && (
-                    <button
-                      type="button"
-                      className="btn btn-sm"
-                      disabled={!!recordedAbsenceTime}
-                      onClick={() => handleSmartAbsence(p)}
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => handleOpenDirections(p)}
                       style={{
                         fontSize: '0.775rem',
                         display: 'flex',
                         alignItems: 'center',
                         gap: '0.3rem',
-                        backgroundColor: recordedAbsenceTime ? '#f1f5f9' : '#fffbeb',
-                        color: recordedAbsenceTime ? '#94a3b8' : '#b45309',
-                        borderColor: recordedAbsenceTime ? '#e2e8f0' : '#fde68a',
-                        cursor: recordedAbsenceTime ? 'not-allowed' : 'pointer',
+                        color: '#0284c7',
+                        borderColor: '#bae6fd',
+                        backgroundColor: '#f0f9ff',
                       }}
+                      title="Mở chỉ đường Google Maps từ vị trí của bạn tới nhà này"
                     >
-                      {recordedAbsenceTime ? (
-                        <>
-                          <Check size={13} color="#10b981" />
-                          Đã báo vắng
-                        </>
-                      ) : (
-                        <>
-                          <UserX size={13} />
-                          Báo vắng mặt
-                        </>
-                      )}
+                      <Navigation size={13} color="#0284c7" />
+                      Chỉ đường
                     </button>
-                  )}
+
+                    {/* Smart Absence Button (Only for Phase 1 incomplete) */}
+                    {!isApproved && !isPhase2Done && (
+                      <button
+                        type="button"
+                        className="btn btn-sm"
+                        disabled={!!recordedAbsenceTime}
+                        onClick={() => handleSmartAbsence(p)}
+                        style={{
+                          fontSize: '0.775rem',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.3rem',
+                          backgroundColor: recordedAbsenceTime ? '#f1f5f9' : '#fffbeb',
+                          color: recordedAbsenceTime ? '#94a3b8' : '#b45309',
+                          borderColor: recordedAbsenceTime ? '#e2e8f0' : '#fde68a',
+                          cursor: recordedAbsenceTime ? 'not-allowed' : 'pointer',
+                        }}
+                      >
+                        {recordedAbsenceTime ? (
+                          <>
+                            <Check size={13} color="#10b981" />
+                            Đã báo vắng
+                          </>
+                        ) : (
+                          <>
+                            <UserX size={13} />
+                            Báo vắng mặt
+                          </>
+                        )}
+                      </button>
+                    )}
+                  </div>
                 </div>
+              );
+            })}
+
+            {/* Pagination Load More Controller */}
+            {filteredParcels.length > displayLimit && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem', alignItems: 'center', marginTop: '0.5rem' }}>
+                <button
+                  type="button"
+                  onClick={() => setDisplayLimit((prev) => prev + 10)}
+                  className="btn btn-primary"
+                  style={{
+                    padding: '0.55rem 1.35rem',
+                    fontSize: '0.825rem',
+                    fontWeight: 700,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.4rem',
+                    borderRadius: '0.5rem',
+                    boxShadow: '0 2px 8px rgba(2, 132, 199, 0.25)',
+                  }}
+                >
+                  <span>+ Xem thêm 10 thửa đất tiếp theo</span>
+                  <span style={{ fontSize: '0.75rem', opacity: 0.9 }}>
+                    (Đang hiện {Math.min(displayLimit, filteredParcels.length)}/{filteredParcels.length})
+                  </span>
+                </button>
+
+                {filteredParcels.length > displayLimit + 10 && (
+                  <button
+                    type="button"
+                    onClick={() => setDisplayLimit(filteredParcels.length)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#0284c7',
+                      fontSize: '0.75rem',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      textDecoration: 'underline',
+                    }}
+                  >
+                    Tải toàn bộ {filteredParcels.length} thửa đất của khu vực
+                  </button>
+                )}
               </div>
-            );
-          })
+            )}
+          </>
         )}
       </div>
     </div>

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Home, Map, Clock } from 'lucide-react';
+import { Home, Map } from 'lucide-react';
 
 export type NavTab = 'home' | 'map' | 'attendance' | 'phase1' | 'phase2';
 
@@ -12,7 +12,6 @@ export const SurveyorBottomNav: React.FC<Props> = ({ activeTab, onChangeTab }) =
   const tabs = [
     { id: 'home' as NavTab, title: 'Tổng quan danh sách thửa đất', icon: Home },
     { id: 'map' as NavTab, title: 'Bản đồ số GIS tuyến Metro 2', icon: Map },
-    { id: 'attendance' as NavTab, title: 'Điểm danh GPS thực địa', icon: Clock },
   ];
 
   return (

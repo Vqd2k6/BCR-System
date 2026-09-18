@@ -44,6 +44,10 @@ export class SurveyRepository {
       `SELECT * FROM historical_sensitivities WHERE report_id = $1;`,
       [reportId]
     );
+    const floorsRes = await Database.query(
+      `SELECT * FROM floor_surveys WHERE report_id = $1 ORDER BY floor_order ASC;`,
+      [reportId]
+    );
     const zonesRes = await Database.query(
       `SELECT z.*,
               COALESCE(json_agg(d.*) FILTER (WHERE d.id IS NOT NULL), '[]') AS defects
@@ -71,6 +75,7 @@ export class SurveyRepository {
       identificationPhotos: photosRes.rows,
       buildingSpecs: specsRes.rows[0] || null,
       historicalSensitivity: historyRes.rows[0] || null,
+      floorSurveys: floorsRes.rows,
       damageZones: zonesRes.rows,
       deformation: deformRes.rows[0] || null,
       riskScores: scoresRes.rows[0] || null,
@@ -269,6 +274,30 @@ export class SurveyRepository {
         deform.measurementReliability,
       ]
     );
+  }
+
+  static async saveFloorSurveys(reportId: string, floors: any[]): Promise<void> {
+    await Database.transaction(async (client) => {
+      await client.query(`DELETE FROM floor_surveys WHERE report_id = $1;`, [reportId]);
+      for (let i = 0; i < floors.length; i++) {
+        const f = floors[i];
+        await client.query(
+          `INSERT INTO floor_surveys (
+             report_id, floor_name, floor_order, overview_photos_json,
+             cad_drawing_url, cad_zone_pins_json, notes
+           ) VALUES ($1, $2, $3, $4, $5, $6, $7);`,
+          [
+            reportId,
+            f.floorName || `Tầng ${i + 1}`,
+            i + 1,
+            JSON.stringify(f.overviewPhotos || []),
+            f.cadDrawingUrl || null,
+            JSON.stringify(f.cadZonePins || []),
+            f.notes || null,
+          ]
+        );
+      }
+    });
   }
 
   static async submitReport(reportId: string, submitData: any): Promise<void> {

@@ -168,4 +168,18 @@ export class CadastralController {
       next(error);
     }
   }
+
+  static async getNextHighRangeProjectCodes(req: Request, res: Response, next: NextFunction) {
+    try {
+      const count = req.query.count ? parseInt(req.query.count as string, 10) : 2;
+      const result = await CadastralService.getNextHighRangeCodes(count);
+      res.status(200).json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
+
