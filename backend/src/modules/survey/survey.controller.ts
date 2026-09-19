@@ -24,7 +24,12 @@ export class SurveyController {
       }
 
       const surveyorId = req.user!.userId;
-      const result = await SurveyService.createPhase1Report(parsed.data.parcelId, surveyorId);
+      const result = await SurveyService.createPhase1Report(
+        parsed.data.parcelId,
+        surveyorId,
+        parsed.data.unitId,
+        parsed.data.reportType
+      );
       res.status(201).json({
         success: true,
         data: result,

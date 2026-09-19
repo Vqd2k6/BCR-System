@@ -16,6 +16,10 @@ import {
   MapPin,
   Filter,
   AlertCircle,
+  Building2,
+  Map,
+  Compass,
+  EyeOff,
 } from 'lucide-react';
 
 function ChangeView({ center, zoom }: { center: [number, number]; zoom: number }) {
@@ -61,7 +65,11 @@ export interface GisParcel {
   landArea?: number;
   landCategory?: string;
   landUseName?: string;
+  buildingType?: 'STANDALONE' | 'CONDOMINIUM' | 'ROW_HOUSE';
+  totalUnits?: number;
+  completedUnits?: number;
 }
+
 
 interface Props {
   parcels: GisParcel[];
@@ -69,6 +77,7 @@ interface Props {
   onSelectZone: (zone: string) => void;
   onSelectParcel: (parcel: GisParcel) => void;
   onStartSurvey?: (parcel: GisParcel) => void;
+  onOpenBuildingHub?: (parcel: GisParcel) => void;
   onRecordAbsence?: (parcel: GisParcel) => void;
   onProposeSplit?: (parcel: GisParcel) => void;
   userGps?: { lat: number; lng: number; accuracy?: number } | null;
@@ -94,6 +103,7 @@ export const LeafletSweepMap: React.FC<Props> = ({
   onSelectZone,
   onSelectParcel,
   onStartSurvey,
+  onOpenBuildingHub,
   onRecordAbsence,
   userGps,
 }) => {
@@ -276,9 +286,10 @@ export const LeafletSweepMap: React.FC<Props> = ({
         return (
           <span
             className="badge"
-            style={{ backgroundColor: '#dcfce7', color: '#15803d', border: '1px solid #86efac', fontWeight: 700 }}
+            style={{ backgroundColor: '#dcfce7', color: '#15803d', border: '1px solid #86efac', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}
           >
-            ✓ Đã duyệt Phase 1
+            <CheckCircle2 size={12} color="#15803d" />
+            Đã duyệt Phase 1
           </span>
         );
       case 'PHASE2_COMPLETED':
@@ -286,45 +297,50 @@ export const LeafletSweepMap: React.FC<Props> = ({
         return (
           <span
             className="badge"
-            style={{ backgroundColor: '#dbeafe', color: '#1d4ed8', border: '1px solid #93c5fd', fontWeight: 700 }}
+            style={{ backgroundColor: '#dbeafe', color: '#1d4ed8', border: '1px solid #93c5fd', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}
           >
-            ★ Hoàn tất Phase 2
+            <CheckCircle2 size={12} color="#1d4ed8" />
+            Hoàn tất Phase 2
           </span>
         );
       case 'SUBMITTED':
         return (
           <span
             className="badge"
-            style={{ backgroundColor: '#e0f2fe', color: '#0369a1', border: '1px solid #7dd3fc', fontWeight: 700 }}
+            style={{ backgroundColor: '#e0f2fe', color: '#0369a1', border: '1px solid #7dd3fc', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}
           >
-            ⏳ Đã nộp (Chờ duyệt)
+            <Clock size={12} color="#0284c7" />
+            Đã nộp (Chờ duyệt)
           </span>
         );
       case 'IN_PROGRESS':
         return (
           <span
             className="badge"
-            style={{ backgroundColor: '#fffbeb', color: '#b45309', border: '1px solid #fde68a', fontWeight: 700 }}
+            style={{ backgroundColor: '#fffbeb', color: '#b45309', border: '1px solid #fde68a', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}
           >
-            🔄 Đang làm dở (Chưa nộp)
+            <Clock size={12} color="#b45309" />
+            Đang làm dở
           </span>
         );
       case 'POSTPONED_ABSENT':
         return (
           <span
             className="badge"
-            style={{ backgroundColor: '#f3e8ff', color: '#7e22ce', border: '1px solid #d8b4fe', fontWeight: 700 }}
+            style={{ backgroundColor: '#f3e8ff', color: '#7e22ce', border: '1px solid #d8b4fe', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}
           >
-            🏠 Vắng mặt
+            <AlertCircle size={12} color="#7e22ce" />
+            Vắng mặt
           </span>
         );
       case 'REJECTED':
         return (
           <span
             className="badge"
-            style={{ backgroundColor: '#fee2e2', color: '#b91c1c', border: '1px solid #fca5a5', fontWeight: 700 }}
+            style={{ backgroundColor: '#fee2e2', color: '#b91c1c', border: '1px solid #fca5a5', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}
           >
-            ✕ Cần bổ sung
+            <AlertCircle size={12} color="#b91c1c" />
+            Cần bổ sung
           </span>
         );
       case 'NOT_SURVEYED':
@@ -332,8 +348,9 @@ export const LeafletSweepMap: React.FC<Props> = ({
         return (
           <span
             className="badge"
-            style={{ backgroundColor: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1', fontWeight: 600 }}
+            style={{ backgroundColor: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px' }}
           >
+            <Clock size={11} color="#64748b" />
             Chưa làm Phase 1
           </span>
         );
@@ -546,7 +563,8 @@ export const LeafletSweepMap: React.FC<Props> = ({
                   gap: '0.4rem',
                 }}
               >
-                <span>🗺️ Đường phố</span>
+                <Map size={14} />
+                <span>Đường phố</span>
               </button>
 
               <button
@@ -570,7 +588,8 @@ export const LeafletSweepMap: React.FC<Props> = ({
                   gap: '0.4rem',
                 }}
               >
-                <span>🛰️ Ảnh Vệ tinh</span>
+                <Compass size={14} />
+                <span>Ảnh Vệ tinh</span>
               </button>
 
               <button
@@ -594,7 +613,8 @@ export const LeafletSweepMap: React.FC<Props> = ({
                   gap: '0.4rem',
                 }}
               >
-                <span>🏙️ Bản đồ OSM</span>
+                <Layers size={14} />
+                <span>Bản đồ OSM</span>
               </button>
             </div>
           )}
@@ -1062,8 +1082,9 @@ export const LeafletSweepMap: React.FC<Props> = ({
                     style={{ width: '17px', height: '17px', accentColor: '#dc2626', cursor: 'pointer', flexShrink: 0 }}
                   />
                   <div>
-                    <div style={{ fontWeight: 700, color: draftFilters.hideNonBuildings ? '#b91c1c' : '#1e293b' }}>
-                      🚫 Ẩn ô không có công trình ({(parcels || []).filter(isNonBuildingParcel).length} thửa)
+                    <div style={{ fontWeight: 700, color: draftFilters.hideNonBuildings ? '#b91c1c' : '#1e293b', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                      <EyeOff size={14} />
+                      <span>Ẩn ô không có công trình ({(parcels || []).filter(isNonBuildingParcel).length} thửa)</span>
                     </div>
                     <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '1px' }}>
                       Bỏ qua đường đi, sông nước, kênh rạch, công viên, đất trống
@@ -1215,17 +1236,20 @@ export const LeafletSweepMap: React.FC<Props> = ({
           {/* Render Only Filtered Polygons */}
           {displayedParcels.map((parcel) => {
             const isSelected = activeParcel?.id === parcel.id;
-            const color = getStatusColor(parcel.surveyStatus);
+            const isCondo = parcel.buildingType === 'CONDOMINIUM';
+            const baseColor = getStatusColor(parcel.surveyStatus);
+            const color = isSelected ? '#0284c7' : isCondo ? '#7c3aed' : baseColor;
 
             return (
               <Polygon
                 key={parcel.id}
                 positions={parcel.coordinates}
                 pathOptions={{
-                  color: isSelected ? '#0284c7' : color,
-                  fillColor: color,
-                  fillOpacity: isSelected ? 0.8 : 0.45,
-                  weight: isSelected ? 3.5 : 1.5,
+                  color: color,
+                  fillColor: isCondo && parcel.surveyStatus === 'NOT_SURVEYED' ? '#8b5cf6' : color,
+                  fillOpacity: isSelected ? 0.8 : isCondo ? 0.6 : 0.45,
+                  weight: isSelected ? 3.5 : isCondo ? 2.5 : 1.5,
+                  dashArray: isCondo && parcel.surveyStatus === 'NOT_SURVEYED' ? '4, 4' : undefined,
                 }}
                 eventHandlers={{
                   click: () => {
@@ -1309,6 +1333,28 @@ export const LeafletSweepMap: React.FC<Props> = ({
                 {activeParcel.projectParcelCode}
               </span>
               {getStatusBadge(activeParcel.surveyStatus)}
+              {activeParcel.buildingType === 'CONDOMINIUM' && (
+                <button
+                  type="button"
+                  onClick={() => onOpenBuildingHub && onOpenBuildingHub(activeParcel)}
+                  style={{
+                    backgroundColor: '#ede9fe',
+                    color: '#5b21b6',
+                    border: '1px solid #c4b5fd',
+                    padding: '2px 8px',
+                    borderRadius: '4px',
+                    fontSize: '0.75rem',
+                    fontWeight: 700,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <Building2 size={12} />
+                  Chung cư ({activeParcel.completedUnits || 0}/{activeParcel.totalUnits || 1} căn)
+                </button>
+              )}
               {activeParcel.absenceAttemptCount ? (
                 <span className="badge badge-danger">Vắng {activeParcel.absenceAttemptCount} lần</span>
               ) : null}
@@ -1341,6 +1387,41 @@ export const LeafletSweepMap: React.FC<Props> = ({
               {activeParcel.ownerName || 'Chưa cập nhật'}
             </div>
           </div>
+
+          {/* Condominium Progress Bar */}
+          {activeParcel.buildingType === 'CONDOMINIUM' && (
+            <div
+              style={{
+                backgroundColor: '#f5f3ff',
+                border: '1px solid #ddd6fe',
+                borderRadius: '0.5rem',
+                padding: '0.45rem 0.65rem',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.25rem',
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', fontWeight: 700 }}>
+                <span style={{ color: '#5b21b6', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                  <Building2 size={13} />
+                  Tiến độ căn hộ:
+                </span>
+                <span style={{ color: '#4338ca' }}>
+                  {activeParcel.completedUnits || 0}/{activeParcel.totalUnits || 1} căn ({Math.min(100, Math.round(((activeParcel.completedUnits || 0) / Math.max(1, activeParcel.totalUnits || 1)) * 100))}%)
+                </span>
+              </div>
+              <div style={{ height: '6px', backgroundColor: '#e2e8f0', borderRadius: '999px', overflow: 'hidden' }}>
+                <div
+                  style={{
+                    height: '100%',
+                    width: `${Math.min(100, Math.round(((activeParcel.completedUnits || 0) / Math.max(1, activeParcel.totalUnits || 1)) * 100))}%`,
+                    backgroundColor: (activeParcel.completedUnits || 0) >= (activeParcel.totalUnits || 1) ? '#10b981' : '#7c3aed',
+                    borderRadius: '999px',
+                  }}
+                />
+              </div>
+            </div>
+          )}
 
           {/* Absence announcement banner if recorded today */}
           {absenceRecordedToday[activeParcel.id] && (
@@ -1455,6 +1536,53 @@ export const LeafletSweepMap: React.FC<Props> = ({
                 <AlertCircle size={14} color="#dc2626" />
                 Sửa & đo bổ sung Phase 1
               </button>
+            ) : activeParcel.buildingType === 'CONDOMINIUM' ? (
+              <>
+                <button
+                  type="button"
+                  className="btn btn-sm"
+                  onClick={() => onOpenBuildingHub && onOpenBuildingHub(activeParcel)}
+                  style={{
+                    flex: 1.5,
+                    minWidth: '160px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.35rem',
+                    padding: '0.5rem',
+                    fontWeight: 700,
+                    backgroundColor: '#4338ca',
+                    color: '#ffffff',
+                    border: '1px solid #3730a3',
+                    cursor: 'pointer',
+                    boxShadow: '0 2px 4px rgba(67, 56, 202, 0.25)',
+                  }}
+                >
+                  <Building2 size={14} />
+                  Mở Hub Căn Hộ ({activeParcel.completedUnits || 0}/{activeParcel.totalUnits || 1})
+                </button>
+
+                <button
+                  type="button"
+                  className="btn btn-primary btn-sm"
+                  onClick={() => onStartSurvey && onStartSurvey(activeParcel)}
+                  style={{
+                    flex: 1,
+                    minWidth: '130px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.35rem',
+                    padding: '0.5rem',
+                    fontWeight: 700,
+                    backgroundColor: '#0284c7',
+                    borderColor: '#0369a1',
+                  }}
+                >
+                  <PlusCircle size={14} />
+                  Khảo sát Tòa Nhà
+                </button>
+              </>
             ) : activeParcel.surveyStatus === 'IN_PROGRESS' ? (
               <button
                 type="button"

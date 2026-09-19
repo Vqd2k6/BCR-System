@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { Train, Lock, User, ShieldCheck, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { Train, Lock, User, ShieldCheck, ArrowRight, CheckCircle2, Zap, UserCheck, Shield, Crown, Building2 } from 'lucide-react';
 
 export const LoginView: React.FC = () => {
   const { login } = useAuth();
@@ -43,34 +43,33 @@ export const LoginView: React.FC = () => {
         style={{
           width: '100%',
           maxWidth: '440px',
-          padding: '2rem 1.75rem',
-          boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.04)',
+          padding: '2rem',
+          boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.01)',
+          borderRadius: '1rem',
           border: '1px solid #e2e8f0',
         }}
       >
-        {/* Logo & Header */}
-        <div style={{ textAlign: 'center', marginBottom: '1.75rem' }}>
+        {/* Header Logo & Title */}
+        <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
           <div
             style={{
-              width: '56px',
-              height: '56px',
-              borderRadius: '1rem',
-              background: 'linear-gradient(135deg, #0284c7 0%, #2563eb 100%)',
+              width: '52px',
+              height: '52px',
+              backgroundColor: '#e0f2fe',
+              borderRadius: '12px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              margin: '0 auto 1rem',
-              boxShadow: '0 8px 16px rgba(2, 132, 199, 0.25)',
+              margin: '0 auto 1rem auto',
             }}
           >
-            <Train size={30} color="#ffffff" />
+            <Train size={30} color="#0284c7" />
           </div>
-
-          <h2 style={{ fontSize: '1.35rem', fontWeight: 800, color: '#0f172a', margin: '0 0 0.25rem' }}>
-            HỆ THỐNG KHẢO SÁT METRO 2
+          <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0f172a', margin: '0 0 0.35rem 0' }}>
+            HỆ THỐNG KHẢO SÁT QUY HOẠCH
           </h2>
-          <p style={{ fontSize: '0.825rem', color: '#64748b', margin: 0 }}>
-            Nền tảng đánh giá hiện trạng công trình (BCA) Tuyến Metro số 2
+          <p style={{ fontSize: '0.8rem', color: '#64748b', margin: 0 }}>
+            Dự án Tuyến Tàu Điện Ngầm Tuyến Số 2 TP.HCM (Metro Tuyến 2)
           </p>
         </div>
 
@@ -78,23 +77,26 @@ export const LoginView: React.FC = () => {
         {errorMessage && (
           <div
             style={{
-              backgroundColor: '#fef2f2',
-              border: '1px solid #fecaca',
-              color: '#991b1b',
-              padding: '0.65rem 0.85rem',
+              padding: '0.75rem 1rem',
+              backgroundColor: '#fee2e2',
+              border: '1px solid #fca5a5',
               borderRadius: '0.5rem',
+              color: '#b91c1c',
               fontSize: '0.8rem',
-              marginBottom: '1rem',
+              marginBottom: '1.25rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
             }}
           >
-            {errorMessage}
+            <span>{errorMessage}</span>
           </div>
         )}
 
         {/* Login Form */}
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           <div>
-            <label className="form-label">Tên đăng nhập / Mã định danh</label>
+            <label className="form-label">Tên Đăng Nhập / Mã Nhân Viên</label>
             <div style={{ position: 'relative' }}>
               <User
                 size={18}
@@ -104,17 +106,17 @@ export const LoginView: React.FC = () => {
               <input
                 type="text"
                 className="form-control"
-                style={{ paddingLeft: '2.4rem' }}
-                placeholder="Ví dụ: surveyor_s9_01"
+                placeholder="VD: surveyor_s9_01"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 required
+                style={{ paddingLeft: '2.5rem' }}
               />
             </div>
           </div>
 
           <div>
-            <label className="form-label">Mật khẩu</label>
+            <label className="form-label">Mật Khẩu</label>
             <div style={{ position: 'relative' }}>
               <Lock
                 size={18}
@@ -124,11 +126,11 @@ export const LoginView: React.FC = () => {
               <input
                 type="password"
                 className="form-control"
-                style={{ paddingLeft: '2.4rem' }}
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
+                style={{ paddingLeft: '2.5rem' }}
               />
             </div>
           </div>
@@ -140,8 +142,8 @@ export const LoginView: React.FC = () => {
             style={{
               marginTop: '0.5rem',
               padding: '0.75rem',
-              fontSize: '0.95rem',
               fontWeight: 700,
+              fontSize: '0.9rem',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -155,8 +157,9 @@ export const LoginView: React.FC = () => {
 
         {/* Quick Demo Accounts Selection */}
         <div style={{ marginTop: '1.5rem', paddingTop: '1.25rem', borderTop: '1px solid #f1f5f9' }}>
-          <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: '0.5rem', textAlign: 'center' }}>
-            ⚡ Chọn nhanh tài khoản để thử nghiệm:
+          <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: '0.5rem', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}>
+            <Zap size={14} color="#0284c7" />
+            <span>Chọn nhanh tài khoản để thử nghiệm:</span>
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.4rem' }}>
@@ -171,9 +174,13 @@ export const LoginView: React.FC = () => {
                 backgroundColor: username === 'surveyor_s9_01' ? '#e0f2fe' : '#f8fafc',
                 borderColor: username === 'surveyor_s9_01' ? '#0284c7' : '#e2e8f0',
                 color: username === 'surveyor_s9_01' ? '#0369a1' : '#334155',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.4rem',
               }}
             >
-              👷 Surveyor S9
+              <UserCheck size={14} />
+              <span>Surveyor S9</span>
             </button>
 
             <button
@@ -187,9 +194,13 @@ export const LoginView: React.FC = () => {
                 backgroundColor: username === 'zoneadmin_s9' ? '#e0f2fe' : '#f8fafc',
                 borderColor: username === 'zoneadmin_s9' ? '#0284c7' : '#e2e8f0',
                 color: username === 'zoneadmin_s9' ? '#0369a1' : '#334155',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.4rem',
               }}
             >
-              🛡️ Zone Admin S9
+              <Shield size={14} />
+              <span>Zone Admin S9</span>
             </button>
 
             <button
@@ -203,9 +214,13 @@ export const LoginView: React.FC = () => {
                 backgroundColor: username === 'superadmin' ? '#e0f2fe' : '#f8fafc',
                 borderColor: username === 'superadmin' ? '#0284c7' : '#e2e8f0',
                 color: username === 'superadmin' ? '#0369a1' : '#334155',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.4rem',
               }}
             >
-              👑 Super Admin
+              <Crown size={14} />
+              <span>Super Admin</span>
             </button>
 
             <button
@@ -219,9 +234,13 @@ export const LoginView: React.FC = () => {
                 backgroundColor: username === 'contractor_guest' ? '#e0f2fe' : '#f8fafc',
                 borderColor: username === 'contractor_guest' ? '#0284c7' : '#e2e8f0',
                 color: username === 'contractor_guest' ? '#0369a1' : '#334155',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.4rem',
               }}
             >
-              🏢 Nhà Thầu Metro
+              <Building2 size={14} />
+              <span>Nhà Thầu Metro</span>
             </button>
           </div>
         </div>

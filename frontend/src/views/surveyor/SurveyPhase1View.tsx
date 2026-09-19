@@ -24,6 +24,7 @@ import {
   HelpCircle,
   Compass,
   Building,
+  Building2,
   Home,
   ShieldCheck,
   Sparkles,
@@ -32,16 +33,29 @@ import {
   Maximize2,
   Ruler,
   Check,
+  CheckCircle2,
+  ArrowRight,
+  ArrowLeft,
+  CornerDownLeft,
+  X,
+  Phone,
+  User,
+  Users,
+  Info,
 } from 'lucide-react';
 
 import { GisParcel } from '../../components/gis/LeafletSweepMap';
 import { CadastralGISBoundaryEditor } from '../../components/gis/CadastralGISBoundaryEditor';
+import { BuildingUnit } from '../../components/survey/BuildingHubModal';
 
 interface Props {
   initialParcelId?: string;
   parcel?: GisParcel | null;
+  unit?: BuildingUnit | null;
+  onOpenBuildingHub?: (parcel: GisParcel) => void;
   onFinished?: () => void;
 }
+
 
 interface DamageZoneData {
   id: string;
@@ -165,9 +179,9 @@ const HelpBadge: React.FC<{ text: string }> = ({ text }) => {
             <button
               type="button"
               onClick={() => setShow(false)}
-              style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: 0, fontSize: '0.75rem' }}
+              style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center' }}
             >
-              ✕
+              <X size={13} />
             </button>
           </div>
           <div>{text}</div>
@@ -177,8 +191,40 @@ const HelpBadge: React.FC<{ text: string }> = ({ text }) => {
   );
 };
 
-export const SurveyPhase1View: React.FC<Props> = ({ initialParcelId, parcel, onFinished }) => {
+// Helper to retrieve parent condominium building draft for child units
+export const getParentBuildingDraft = (parcelId: string) => {
+  try {
+    const raw = localStorage.getItem(`metro2_phase1_draft_${parcelId}`);
+    if (raw) return JSON.parse(raw);
+  } catch (_e) {}
+  return null;
+};
+
+// Sleek badge showing inherited data from parent condominium building
+export const InheritedBadge: React.FC<{ label?: string }> = ({ label = 'Kế thừa từ Tòa nhà' }) => (
+  <span
+    style={{
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: '0.3rem',
+      backgroundColor: '#e0f2fe',
+      color: '#0369a1',
+      border: '1px solid #7dd3fc',
+      borderRadius: '4px',
+      padding: '2px 7px',
+      fontSize: '0.7rem',
+      fontWeight: 700,
+      letterSpacing: '0.01em',
+    }}
+  >
+    <ShieldCheck size={12} color="#0284c7" />
+    <span>{label}</span>
+  </span>
+);
+
+export const SurveyPhase1View: React.FC<Props> = ({ initialParcelId, parcel, unit, onOpenBuildingHub, onFinished }) => {
   const { user } = useAuth();
+  const isUnitMode = !!unit;
   const [currentStep, setCurrentStep] = useState<number>(1);
   const [reportId] = useState<string>('a0000000-0000-0000-0000-000000000001');
   const [isSaving, setIsSaving] = useState<boolean>(false);
@@ -186,7 +232,12 @@ export const SurveyPhase1View: React.FC<Props> = ({ initialParcelId, parcel, onF
   const [showBurlandModal, setShowBurlandModal] = useState<boolean>(false);
 
   const activeParcelId = parcel?.id || initialParcelId || 'default';
-  const draftKey = `metro2_phase1_draft_${activeParcelId}`;
+  const draftKey = unit
+    ? `metro2_phase1_draft_${activeParcelId}_unit_${unit.id}`
+    : `metro2_phase1_draft_${activeParcelId}`;
+
+  // Retrieve parent condominium building draft if in unit mode
+  const parentBuildingDraft = unit ? getParentBuildingDraft(activeParcelId) : null;
 
   const [saveToastMessage, setSaveToastMessage] = useState<string | null>(null);
 
@@ -199,39 +250,152 @@ export const SurveyPhase1View: React.FC<Props> = ({ initialParcelId, parcel, onF
         if (parsed.parcelData) return parsed.parcelData;
       }
     } catch (_e) {}
+
+    const parentPData = parentBuildingDraft?.parcelData;
+    const parentBuildingName = parentPData?.buildingName || (parcel as any)?.buildingName || (parcel as any)?.building_name || 'Tòa nhà Chung cư';
+    const buildingName = unit
+      ? `${parentBuildingName} - Căn ${unit.unit_code} (Lầu ${unit.floor_number})`
+      : (parentPData?.buildingName || (parcel as any)?.buildingName || (parcel as any)?.building_name || '');
+
     return {
-      projectParcelCode: parcel?.projectParcelCode || (parcel as any)?.project_parcel_code || 'B-00105',
-      officialCadastralCode: parcel?.officialCadastralCode || (parcel as any)?.official_cadastral_code || 'KS003-00105',
-      buildingName: (parcel as any)?.buildingName || (parcel as any)?.building_name || '',
-      houseNumber: parcel?.houseNumber || (parcel as any)?.house_number || '854',
-      street: parcel?.street || 'Đường Trường Chinh',
-      ward: (parcel as any)?.ward || 'Phường 14',
-      district: (parcel as any)?.district || 'Quận Tân Bình',
-      ownerName: parcel?.ownerName || (parcel as any)?.owner_name || 'Nguyễn Văn Hùng',
-      importanceGroup: (parcel as any)?.importanceGroup || 'General',
-      adjacentLeft: (parcel as any)?.adjacentLeft || { type: 'Nhà phố / Nhà dân', otherText: '' },
-      adjacentRight: (parcel as any)?.adjacentRight || { type: 'Nhà phố / Nhà dân', otherText: '' },
-      adjacentRear: (parcel as any)?.adjacentRear || { type: 'Nhà phố / Nhà dân', otherText: '' },
-      chainage: 'Km8+450',
-      distToMetroCenterlineM: 18.5,
-      distToClearanceBoundaryM: 4.2,
-      gpsCoords: parcel?.coordinates?.[0] ? `${parcel.coordinates[0][0].toFixed(5)}, ${parcel.coordinates[0][1].toFixed(5)} ±5m` : '10.80340, 106.63850 ±5m',
+      projectParcelCode: parcel?.projectParcelCode || (parcel as any)?.project_parcel_code || parentPData?.projectParcelCode || 'B-00105',
+      officialCadastralCode: parcel?.officialCadastralCode || (parcel as any)?.official_cadastral_code || parentPData?.officialCadastralCode || 'KS003-00105',
+      buildingName,
+      houseNumber: parentPData?.houseNumber || parcel?.houseNumber || (parcel as any)?.house_number || '854',
+      street: parentPData?.street || parcel?.street || 'Đường Trường Chinh',
+      ward: parentPData?.ward || (parcel as any)?.ward || 'Phường 14',
+      district: parentPData?.district || (parcel as any)?.district || 'Quận Tân Bình',
+      ownerName: unit?.owner_name || parcel?.ownerName || (parcel as any)?.owner_name || '',
+      ownerPhone: unit?.owner_phone || (parcel as any)?.ownerPhone || (parcel as any)?.owner_phone || '',
+      ownerIdentityCard: '',
+      importanceGroup: parentPData?.importanceGroup || (parcel as any)?.importanceGroup || (parcel?.buildingType === 'CONDOMINIUM' ? 'Important' : 'General'),
+      buildingType: unit ? 'UNIT_CHILD' : (parcel?.buildingType || (parcel as any)?.building_type || 'STANDALONE'),
+      totalUnits: parentPData?.totalUnits || parcel?.totalUnits || (parcel as any)?.total_units || (parcel?.buildingType === 'CONDOMINIUM' ? 8 : 1),
+      condoName: parentPData?.condoName || parentBuildingName,
+      managementBoard: parentPData?.managementBoard || '',
+      managementPhone: parentPData?.managementPhone || '',
+      totalFloors: parentPData?.totalFloors || 10,
+      totalBasements: parentPData?.totalBasements ?? 1,
+      mainStructure: parentPData?.mainStructure || 'BTCT toàn khối',
+      mainFoundation: parentPData?.mainFoundation || 'Cọc khoan nhồi BTCT',
+      yearBuilt: parentPData?.yearBuilt || 2018,
+      adjacentLeft: parentPData?.adjacentLeft || (parcel as any)?.adjacentLeft || { type: 'Nhà phố / Nhà dân', otherText: '' },
+      adjacentRight: parentPData?.adjacentRight || (parcel as any)?.adjacentRight || { type: 'Nhà phố / Nhà dân', otherText: '' },
+      adjacentRear: parentPData?.adjacentRear || (parcel as any)?.adjacentRear || { type: 'Nhà phố / Nhà dân', otherText: '' },
+      chainage: parentPData?.chainage || 'Km8+450',
+      distToMetroCenterlineM: parentPData?.distToMetroCenterlineM ?? 18.5,
+      distToClearanceBoundaryM: parentPData?.distToClearanceBoundaryM ?? 4.2,
+      gpsCoords: parentPData?.gpsCoords || (parcel?.coordinates?.[0] ? `${parcel.coordinates[0][0].toFixed(5)}, ${parcel.coordinates[0][1].toFixed(5)} ±5m` : '10.80340, 106.63850 ±5m'),
     };
   });
 
+  const handleToggleBuildingType = async (type: 'STANDALONE' | 'CONDOMINIUM') => {
+    setParcelData((prev: any) => ({ ...prev, buildingType: type }));
+    if (parcel?.id && parcel.id !== 'default') {
+      try {
+        await api.patch(`/parcels/${parcel.id}/building-type`, {
+          buildingType: type,
+          totalUnits: type === 'CONDOMINIUM' ? (parcelData.totalUnits || 8) : 1,
+        });
+        setSaveToastMessage(`Đã cập nhật loại hình: ${type === 'CONDOMINIUM' ? 'Chung cư / Tòa nhà nhiều hộ' : 'Nhà ở riêng lẻ'}`);
+        setTimeout(() => setSaveToastMessage(null), 3500);
+      } catch (err) {
+        console.warn('Persist building type error:', err);
+      }
+    }
+  };
+
+  // Smart action: Save master building preliminary survey and immediately transition to Unit Hub
+  const handleSaveAndGoToHub = async () => {
+    const bName = parcelData.buildingName || parcelData.condoName;
+    if (!bName || bName.trim() === '') {
+      alert('Vui lòng nhập Tên Tòa nhà / Chung cư trước khi chuyển tới Hub Căn hộ.');
+      return;
+    }
+    setIsSaving(true);
+    saveDraftToLocalStorage(true);
+    if (parcel?.id && parcel.id !== 'default') {
+      try {
+        await api.patch(`/parcels/${parcel.id}/building-type`, {
+          buildingType: 'CONDOMINIUM',
+          totalUnits: parcelData.totalUnits || 8,
+        });
+      } catch (err) {
+        console.warn('Sync building type error:', err);
+      }
+    }
+    setIsSaving(false);
+    setSaveToastMessage('Đã lưu sơ bộ Tòa nhà! Đang chuyển tới Hub Quản lý Căn hộ...');
+    setTimeout(() => setSaveToastMessage(null), 3000);
+
+    if (onOpenBuildingHub && parcel) {
+      onOpenBuildingHub({
+        ...parcel,
+        buildingType: 'CONDOMINIUM',
+        totalUnits: parcelData.totalUnits || 8,
+      } as GisParcel);
+    }
+  };
+
   useEffect(() => {
-    if (parcel) {
+    if (parcel || unit) {
+      const pDraft = unit ? getParentBuildingDraft(activeParcelId) : null;
+      const pPData = pDraft?.parcelData;
       setParcelData((prev: any) => ({
         ...prev,
-        projectParcelCode: parcel.projectParcelCode || (parcel as any).project_parcel_code || prev.projectParcelCode,
-        officialCadastralCode: parcel.officialCadastralCode || (parcel as any).official_cadastral_code || prev.officialCadastralCode,
-        houseNumber: parcel.houseNumber || (parcel as any).house_number || prev.houseNumber,
-        street: parcel.street || prev.street,
-        ownerName: parcel.ownerName || (parcel as any).owner_name || prev.ownerName,
-        gpsCoords: parcel.coordinates?.[0] ? `${parcel.coordinates[0][0].toFixed(5)}, ${parcel.coordinates[0][1].toFixed(5)} ±5m` : prev.gpsCoords,
+        ...(parcel
+          ? {
+              projectParcelCode: parcel.projectParcelCode || (parcel as any).project_parcel_code || pPData?.projectParcelCode || prev.projectParcelCode,
+              officialCadastralCode: parcel.officialCadastralCode || (parcel as any).official_cadastral_code || pPData?.officialCadastralCode || prev.officialCadastralCode,
+              houseNumber: parcel.houseNumber || (parcel as any).house_number || pPData?.houseNumber || prev.houseNumber,
+              street: parcel.street || pPData?.street || prev.street,
+              ward: (parcel as any).ward || pPData?.ward || prev.ward,
+              district: (parcel as any).district || pPData?.district || prev.district,
+              chainage: (parcel as any).chainage || pPData?.chainage || prev.chainage,
+              distToMetroCenterlineM: (parcel as any).distToMetroCenterlineM || pPData?.distToMetroCenterlineM || prev.distToMetroCenterlineM,
+              distToClearanceBoundaryM: (parcel as any).distToClearanceBoundaryM || pPData?.distToClearanceBoundaryM || prev.distToClearanceBoundaryM,
+              gpsCoords: parcel.coordinates?.[0]
+                ? `${parcel.coordinates[0][0].toFixed(5)}, ${parcel.coordinates[0][1].toFixed(5)} ±5m`
+                : prev.gpsCoords,
+            }
+          : {}),
+        ...(unit
+          ? {
+              ownerName: unit.owner_name || prev.ownerName,
+              ownerPhone: unit.owner_phone || prev.ownerPhone,
+              buildingName: `${pPData?.buildingName || pPData?.condoName || prev.buildingName || 'Chung cư'} - Căn ${unit.unit_code} (Lầu ${unit.floor_number})`,
+            }
+          : parcel
+          ? {
+              ownerName: parcel.ownerName || (parcel as any).owner_name || prev.ownerName,
+            }
+          : {}),
       }));
+
+      // In Unit Mode: Auto-inherit parent photos and specs if not already explicitly set
+      if (unit && pDraft) {
+        if (pDraft.p02?.url) {
+          setP02MainFacadeUrl((current: string) => current || pDraft.p02.url);
+          if (pDraft.p02.points?.length) setP02PolygonPoints((curr: any) => curr.length ? curr : pDraft.p02.points);
+          if (pDraft.p02.lines?.length) setP02FloorLines((curr: any) => curr.length ? curr : pDraft.p02.lines);
+        }
+        if (pDraft.p04?.url) {
+          setP04ContextStreetUrl((current: string) => current || pDraft.p04.url);
+        }
+        if (pDraft.specs) {
+          setSpecs((prev: any) => ({
+            ...prev,
+            structuralSystem: pDraft.specs.structuralSystem || prev.structuralSystem,
+            structuralForm: pDraft.specs.structuralForm || prev.structuralForm,
+            foundationType: pDraft.specs.foundationType || prev.foundationType,
+            pileDimension: pDraft.specs.pileDimension || prev.pileDimension,
+            yearOfConstruction: pDraft.specs.yearOfConstruction || prev.yearOfConstruction,
+          }));
+        }
+      }
     }
-  }, [parcel]);
+  }, [parcel, unit, activeParcelId]);
+
 
   // STEP 1 Photos: P01 - P04 (ZERO hardcoded images, completely clean for live testing)
   const [p01HouseNumberUrl, setP01HouseNumberUrl] = useState(() => {
@@ -247,17 +411,48 @@ export const SurveyPhase1View: React.FC<Props> = ({ initialParcelId, parcel, onF
   const [p02MainFacadeUrl, setP02MainFacadeUrl] = useState(() => {
     try {
       const saved = localStorage.getItem(draftKey);
-      if (saved) return JSON.parse(saved)?.p02?.url || '';
+      if (saved && JSON.parse(saved)?.p02?.url) return JSON.parse(saved).p02.url;
     } catch (_e) {}
+    // INHERIT FROM PARENT CONDOMINIUM DRAFT IF IN UNIT MODE
+    if (unit && parentBuildingDraft?.p02?.url) {
+      return parentBuildingDraft.p02.url;
+    }
     return '';
   });
   const [p02NotApplicable, setP02NotApplicable] = useState(false);
   const [p02NaReason, setP02NaReason] = useState('');
-  const [p02PolygonPoints, setP02PolygonPoints] = useState<PolygonPoint[]>([]);
-  const [p02FloorLines, setP02FloorLines] = useState<FloorSplitLine[]>([]);
-  const [p02FreehandStrokes, setP02FreehandStrokes] = useState<any[]>([]);
+  const [p02PolygonPoints, setP02PolygonPoints] = useState<PolygonPoint[]>(() => {
+    try {
+      const saved = localStorage.getItem(draftKey);
+      if (saved && JSON.parse(saved)?.p02?.points) return JSON.parse(saved).p02.points;
+    } catch (_e) {}
+    if (unit && parentBuildingDraft?.p02?.points) {
+      return parentBuildingDraft.p02.points;
+    }
+    return [];
+  });
+  const [p02FloorLines, setP02FloorLines] = useState<FloorSplitLine[]>(() => {
+    try {
+      const saved = localStorage.getItem(draftKey);
+      if (saved && JSON.parse(saved)?.p02?.lines) return JSON.parse(saved).p02.lines;
+    } catch (_e) {}
+    if (unit && parentBuildingDraft?.p02?.lines) {
+      return parentBuildingDraft.p02.lines;
+    }
+    return [];
+  });
+  const [p02FreehandStrokes, setP02FreehandStrokes] = useState<any[]>(() => {
+    try {
+      const saved = localStorage.getItem(draftKey);
+      if (saved && JSON.parse(saved)?.p02?.strokes) return JSON.parse(saved).p02.strokes;
+    } catch (_e) {}
+    if (unit && parentBuildingDraft?.p02?.strokes) {
+      return parentBuildingDraft.p02.strokes;
+    }
+    return [];
+  });
 
-  // P-03 Multi-Photo List (Hông trái, Hông phải, Phía sau)
+  // P-03 Multi-Photo List
   const [p03Photos, setP03Photos] = useState<{ id: string; url: string; label: string }[]>(() => {
     try {
       const saved = localStorage.getItem(draftKey);
@@ -265,8 +460,11 @@ export const SurveyPhase1View: React.FC<Props> = ({ initialParcelId, parcel, onF
         return JSON.parse(saved).p03Photos;
       }
     } catch (_e) {}
+    if (unit && parentBuildingDraft?.p03Photos?.length) {
+      return parentBuildingDraft.p03Photos;
+    }
     return [
-      { id: 'p03-1', url: '', label: 'Bên hông trái' },
+      { id: 'p03-1', url: '', label: unit ? 'Ban công / Cửa sổ căn hộ' : 'Bên hông trái' },
     ];
   });
   const [p03NotApplicable, setP03NotApplicable] = useState(false);
@@ -275,8 +473,12 @@ export const SurveyPhase1View: React.FC<Props> = ({ initialParcelId, parcel, onF
   const [p04ContextStreetUrl, setP04ContextStreetUrl] = useState(() => {
     try {
       const saved = localStorage.getItem(draftKey);
-      if (saved) return JSON.parse(saved)?.p04?.url || '';
+      if (saved && JSON.parse(saved)?.p04?.url) return JSON.parse(saved).p04.url;
     } catch (_e) {}
+    // INHERIT FROM PARENT CONDOMINIUM DRAFT IF IN UNIT MODE
+    if (unit && parentBuildingDraft?.p04?.url) {
+      return parentBuildingDraft.p04.url;
+    }
     return '';
   });
   const [p04NotApplicable, setP04NotApplicable] = useState(false);
@@ -288,34 +490,34 @@ export const SurveyPhase1View: React.FC<Props> = ({ initialParcelId, parcel, onF
       const saved = localStorage.getItem(draftKey);
       if (saved && JSON.parse(saved)?.specs) return JSON.parse(saved).specs;
     } catch (_e) {}
+    const parentSpecs = parentBuildingDraft?.specs;
     return {
-      useCategory: 'Nhà ở gia đình',
-      useCategoryOther: '',
-      floorCount: 3,
-      basementCount: 0,
-      yearOfConstruction: 2014,
-      isYearEstimated: false,
-      structuralSystem: 'RC', // RC, Steel, Masonry, Mixed, Other
-      structuralForm: 'Frame', // Frame, Wall, Mixed, Other
-      foundationType: 'PC', // Shallow, Wood, PC, CIP, Unknown
-      pileDimension: '', // e.g. D600mm, 250x250mm
-      asBuiltDrawingUrl: '',
-      asBuiltDrawingNotApplicable: false,
-      asBuiltDrawingNaReason: '',
-      catFoundationScore: 3, // 1 to 5
-      catFoundationSource: ['Owner', 'Site'], // Drawing, Owner, Site
-      // Sensitive history (E5 mapping)
-      extendedOrRenovated: 0, // 0 to 4
+      useCategory: unit ? 'Nhà ở gia đình' : (parentSpecs?.useCategory || 'Nhà ở gia đình'),
+      useCategoryOther: parentSpecs?.useCategoryOther || '',
+      floorCount: parentSpecs?.floorCount || (parcelData.totalFloors || 10),
+      basementCount: parentSpecs?.basementCount ?? (parcelData.totalBasements ?? 1),
+      yearOfConstruction: parentSpecs?.yearOfConstruction || (parcelData.yearBuilt || 2018),
+      isYearEstimated: parentSpecs?.isYearEstimated || false,
+      structuralSystem: parentSpecs?.structuralSystem || (parcelData.mainStructure === 'BTCT toàn khối' ? 'RC' : 'RC'),
+      structuralForm: parentSpecs?.structuralForm || 'Frame',
+      foundationType: parentSpecs?.foundationType || (parcelData.mainFoundation?.includes('Cọc') ? 'PC' : 'PC'),
+      pileDimension: parentSpecs?.pileDimension || 'D800mm',
+      asBuiltDrawingUrl: parentSpecs?.asBuiltDrawingUrl || '',
+      asBuiltDrawingNotApplicable: parentSpecs?.asBuiltDrawingNotApplicable || false,
+      asBuiltDrawingNaReason: parentSpecs?.asBuiltDrawingNaReason || '',
+      catFoundationScore: parentSpecs?.catFoundationScore || 3,
+      catFoundationSource: parentSpecs?.catFoundationSource || ['Drawing', 'Site'],
+      extendedOrRenovated: 0,
       renovatedStructure: 0,
-      previousSettlementOrTilt: 0,
-      adjacentDamageHistory: 0,
-      fireOrFloodAccident: 0,
+      previousSettlementOrTilt: parentSpecs?.previousSettlementOrTilt || 0,
+      adjacentDamageHistory: parentSpecs?.adjacentDamageHistory || 0,
+      fireOrFloodAccident: parentSpecs?.fireOrFloodAccident || 0,
       sensitiveEquipment: false,
       sensitiveEquipmentDesc: '',
-      occupancyStatus: 'Đang sử dụng 100%', // Đang sử dụng 100%, Đang sử dụng một phần, Bỏ trống / Không sử dụng
+      occupancyStatus: 'Đang sử dụng 100%',
       continuousOperation247: false,
       historyNotes: '',
-      ownerPhone: (parcel as any)?.ownerPhone || (parcel as any)?.owner_phone || '0908123456',
+      ownerPhone: unit?.owner_phone || (parcel as any)?.ownerPhone || (parcel as any)?.owner_phone || '',
     };
   });
 
@@ -340,6 +542,32 @@ export const SurveyPhase1View: React.FC<Props> = ({ initialParcelId, parcel, onF
         }
       }
     } catch (_e) {}
+    if (unit) {
+      return [
+        {
+          id: `floor-unit-${unit.id}`,
+          floorName: `Lầu ${unit.floor_number} - Căn ${unit.unit_code}`,
+          overviewPhotos: [],
+          cadSketchPhotoUrl: '',
+          cadZonePins: [],
+          zones: [
+            {
+              id: 'zone-pk-01',
+              zoneCode: 'PK-01',
+              floorName: `Lầu ${unit.floor_number} - Căn ${unit.unit_code}`,
+              roomName: 'Phòng khách',
+              componentType: 'Tường trong nhà',
+              wallMaterial: 'Tường gạch trát vữa XM sơn nước',
+              functionalImpactRepairNeeded: false,
+              burlandGrade: 0,
+              ctxPhotoUrl: '',
+              notes: '',
+              defects: [],
+            },
+          ],
+        },
+      ];
+    }
     return [
       {
         id: 'floor-1',
@@ -817,7 +1045,7 @@ export const SurveyPhase1View: React.FC<Props> = ({ initialParcelId, parcel, onF
             zoneCode: zone.zoneCode,
             defectIndex: dIdx,
             defectCode: defCode,
-            message: `${zone.zoneCode} ➔ Ghim ${defCode}: ${missingDetails.join(', ')}.`,
+            message: `${zone.zoneCode} - Ghim ${defCode}: ${missingDetails.join(', ')}.`,
           });
         }
       });
@@ -1047,7 +1275,7 @@ export const SurveyPhase1View: React.FC<Props> = ({ initialParcelId, parcel, onF
       localStorage.setItem(draftKey, JSON.stringify(draft));
       setLastAutosaveTime(nowTimeStr);
       if (!silent) {
-        setSaveToastMessage(`✓ Đã lưu bản nháp thành công lúc ${nowTimeStr} (Thửa: ${parcelData.projectParcelCode})`);
+        setSaveToastMessage(`Đã lưu bản nháp thành công lúc ${nowTimeStr} (Thửa: ${parcelData.projectParcelCode})`);
         setTimeout(() => setSaveToastMessage(null), 3500);
       }
     } catch (_e) {}
@@ -1109,7 +1337,7 @@ export const SurveyPhase1View: React.FC<Props> = ({ initialParcelId, parcel, onF
         const parsed = JSON.parse(saved);
         if (parsed.lastSaved) {
           const formatted = new Date(parsed.lastSaved).toLocaleTimeString('vi-VN');
-          setSaveToastMessage(`⚡ Tự động khôi phục bản nháp chưa nộp (Lưu lúc ${formatted})`);
+          setSaveToastMessage(`Tự động khôi phục bản nháp chưa nộp (Lưu lúc ${formatted})`);
           setTimeout(() => setSaveToastMessage(null), 4500);
         }
       }
@@ -1278,15 +1506,35 @@ export const SurveyPhase1View: React.FC<Props> = ({ initialParcelId, parcel, onF
       {/* Header Bar */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
             <span className="badge badge-primary">PHASE 1</span>
             <span style={{ fontSize: '1.2rem', fontWeight: 800, color: '#0f172a' }}>
-              {parcelData.projectParcelCode}
+              {unit ? `${parcelData.projectParcelCode}-${unit.unit_code}` : parcelData.projectParcelCode}
             </span>
+            {unit && (
+              <span
+                style={{
+                  backgroundColor: '#ecfdf5',
+                  color: '#047857',
+                  border: '1px solid #a7f3d0',
+                  padding: '2px 8px',
+                  borderRadius: '6px',
+                  fontSize: '0.725rem',
+                  fontWeight: 700,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '3px',
+                }}
+              >
+                <Home size={12} />
+                <span>Căn hộ Lầu {unit.floor_number}</span>
+              </span>
+            )}
           </div>
           <div style={{ fontSize: '0.8rem', color: '#64748b' }}>
-            Số {parcelData.houseNumber} {parcelData.street} • Chủ hộ: {parcelData.ownerName}
+            Số {parcelData.houseNumber} {parcelData.street} • Chủ sở hữu: <strong>{parcelData.ownerName}</strong>
           </div>
+
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -1374,8 +1622,71 @@ export const SurveyPhase1View: React.FC<Props> = ({ initialParcelId, parcel, onF
         })}
       </div>
 
+      {/* Banner chế độ Căn hộ con kế thừa khối chung */}
+      {isUnitMode && unit && (
+        <div
+          style={{
+            backgroundColor: '#f0f9ff',
+            border: '1.5px solid #38bdf8',
+            borderRadius: '12px',
+            padding: '1rem 1.25rem',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '0.65rem',
+            boxShadow: '0 4px 12px rgba(2, 132, 199, 0.08)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+              <div style={{ width: '38px', height: '38px', borderRadius: '10px', backgroundColor: '#e0f2fe', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <ShieldCheck size={22} color="#0284c7" />
+              </div>
+              <div>
+                <div style={{ fontWeight: 800, fontSize: '0.975rem', color: '#0369a1' }}>
+                  ĐÃ KẾ THỪA THÀNH CÔNG DỮ LIỆU TÒA NHÀ CHA
+                </div>
+                <div style={{ fontSize: '0.775rem', color: '#0284c7' }}>
+                  Hồ sơ Căn hộ <strong>{unit.unit_code}</strong> (Lầu {unit.floor_number}) • Tòa nhà: <strong>{parcelData.buildingName || parcelData.projectParcelCode}</strong>
+                </div>
+              </div>
+            </div>
+            <InheritedBadge label="Tự động đồng bộ từ Tòa nhà" />
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.5rem', marginTop: '0.25rem' }}>
+            <div style={{ backgroundColor: '#ffffff', border: '1px solid #bae6fd', borderRadius: '8px', padding: '0.55rem 0.75rem', fontSize: '0.75rem' }}>
+              <div style={{ color: '#64748b', fontSize: '0.7rem', fontWeight: 600 }}>Ảnh định danh Tòa nhà (P-02 & P-04):</div>
+              <div style={{ fontWeight: 700, color: p02MainFacadeUrl ? '#16a34a' : '#d97706', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
+                <CheckCircle2 size={13} />
+                <span>{p02MainFacadeUrl ? 'Đã kế thừa ảnh mặt đứng & góc phố' : 'Chờ nạp từ hồ sơ tòa nhà cha'}</span>
+              </div>
+            </div>
+
+            <div style={{ backgroundColor: '#ffffff', border: '1px solid #bae6fd', borderRadius: '8px', padding: '0.55rem 0.75rem', fontSize: '0.75rem' }}>
+              <div style={{ color: '#64748b', fontSize: '0.7rem', fontWeight: 600 }}>Kết cấu móng & Khung chịu lực:</div>
+              <div style={{ fontWeight: 700, color: '#0f172a', marginTop: '2px' }}>
+                Móng: {specs.foundationType} • Khung: {specs.structuralSystem} • Năm: {specs.yearOfConstruction}
+              </div>
+            </div>
+
+            <div style={{ backgroundColor: '#ffffff', border: '1px solid #bae6fd', borderRadius: '8px', padding: '0.55rem 0.75rem', fontSize: '0.75rem' }}>
+              <div style={{ color: '#64748b', fontSize: '0.7rem', fontWeight: 600 }}>Tọa độ tuyến Metro Tuyến 2:</div>
+              <div style={{ fontWeight: 700, color: '#0f172a', marginTop: '2px' }}>
+                Km: {parcelData.chainage} • Cách tim: {parcelData.distToMetroCenterlineM}m
+              </div>
+            </div>
+          </div>
+
+          <div style={{ fontSize: '0.75rem', color: '#0369a1', borderTop: '1px dashed #bae6fd', paddingTop: '0.45rem', display: 'flex', alignItems: 'center', gap: '5px' }}>
+            <Info size={14} color="#0284c7" style={{ flexShrink: 0 }} />
+            <span>Khảo sát viên không cần chụp lại ảnh tòa nhà hay nhập lại móng/kết cấu. Hãy tập trung khảo sát nội thất căn hộ ở <strong>Bước 3</strong>.</span>
+          </div>
+        </div>
+      )}
+
       {/* STEP CONTENT CONTAINER */}
       <div className="card" style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1.15rem' }}>
+
         {/* ===================== STEP 1: TIẾP CẬN NGOÀI NHÀ & NHẬN DIỆN ===================== */}
         {currentStep === 1 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.15rem' }}>
@@ -1413,195 +1724,665 @@ export const SurveyPhase1View: React.FC<Props> = ({ initialParcelId, parcel, onF
                 />
               </div>
 
-              {/* Row 2: Building Name (Proper Name / Signage) */}
-              <div style={{ gridColumn: '1 / -1' }}>
-                <label className="form-label">Tên công trình / Biển hiệu (Building Name / Signage):</label>
-                <input
-                  type="text"
-                  className="form-control"
-                  placeholder="VD: ABC Shop, Ngân hàng XXX, BHXanh, Cty May DEF... (để trống nếu nhà dân không có biển hiệu)"
-                  value={parcelData.buildingName || ''}
-                  onChange={(e) => setParcelData({ ...parcelData, buildingName: e.target.value })}
-                />
-                <span style={{ fontSize: '0.725rem', color: '#64748b', marginTop: '0.25rem', display: 'block' }}>
-                  * Tên riêng hoặc tên biển hiệu thương mại gắn trên công trình (để trống nếu nhà ở tư nhân không gắn biển tên).
-                </span>
-              </div>
-
-              {/* Row 3: Owner & Address */}
-              <div>
-                <label className="form-label">Chủ sở hữu / Người sử dụng (Owner / User):</label>
-                <input
-                  type="text"
-                  className="form-control"
-                  placeholder="Nhập họ tên chủ nhà hoặc người đại diện..."
-                  value={parcelData.ownerName}
-                  onChange={(e) => setParcelData({ ...parcelData, ownerName: e.target.value })}
-                />
-              </div>
-
-              <div>
-                <label className="form-label">Địa chỉ công trình (Address):</label>
-                <input
-                  type="text"
-                  className="form-control"
-                  value={`${parcelData.houseNumber} ${parcelData.street}, ${parcelData.ward}, ${parcelData.district}`}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    setParcelData({ ...parcelData, street: val });
+              {/* Unit Mode Notification Banner */}
+              {isUnitMode && unit && (
+                <div
+                  style={{
+                    gridColumn: '1 / -1',
+                    backgroundColor: '#f0fdf4',
+                    border: '1px solid #bbf7d0',
+                    borderRadius: '10px',
+                    padding: '0.75rem 1rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.65rem',
+                    color: '#15803d',
                   }}
-                />
-              </div>
-
-              {/* Row 4: 4 Survey Object Categories */}
-              <div style={{ gridColumn: '1 / -1' }}>
-                <label className="form-label">Nhóm đối tượng / Phân loại & Xếp hạng sơ bộ:</label>
-                <select
-                  className="form-control"
-                  value={parcelData.importanceGroup}
-                  onChange={(e) => setParcelData({ ...parcelData, importanceGroup: e.target.value })}
                 >
-                  <option value="Critical">1. Critical Building / Công trình trọng yếu</option>
-                  <option value="Important">2. Important Building / Công trình quan trọng</option>
-                  <option value="General">3. General Building / Công trình thông thường</option>
-                  <option value="Poor_Structural">4. Poor Structural Integrity / Kết cấu hiện trạng kém</option>
-                </select>
-
-                <div style={{ marginTop: '0.35rem', fontSize: '0.725rem', color: '#0369a1', backgroundColor: '#e0f2fe', padding: '0.35rem 0.55rem', borderRadius: '0.4rem', border: '1px solid #bae6fd' }}>
-                  {parcelData.importanceGroup === 'Critical' && (
-                    <span>• <strong>Tiêu chí:</strong> Bệnh viện, công trình bảo tồn, vận hành đặc biệt, hoặc hậu quả cao nếu bị ảnh hưởng.</span>
-                  )}
-                  {parcelData.importanceGroup === 'Important' && (
-                    <span>• <strong>Tiêu chí:</strong> Từ 5 tầng trở lên hoặc có thiết bị/vật liệu nhạy cảm.</span>
-                  )}
-                  {parcelData.importanceGroup === 'General' && (
-                    <span>• <strong>Tiêu chí:</strong> Công trình dân dụng thông thường dưới 5 tầng.</span>
-                  )}
-                  {parcelData.importanceGroup === 'Poor_Structural' && (
-                    <span style={{ color: '#b91c1c' }}>• <strong>Tiêu chí:</strong> Có hư hỏng / suy giảm chất lượng kết cấu rõ rệt.</span>
-                  )}
-                </div>
-              </div>
-
-              {/* Row 5: Multi-direction Adjacent Structures (Trái, Phải, Sau) */}
-              <div style={{ gridColumn: '1 / -1', backgroundColor: '#f8fafc', padding: '0.85rem', borderRadius: '0.75rem', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
-                <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0f172a' }}>
-                  🏢 Công trình liền kề theo các hướng tiếp giáp:
-                </div>
-                
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.75rem' }}>
-                  {/* Bên Trái */}
-                  <div>
-                    <label style={{ fontSize: '0.775rem', fontWeight: 700, color: '#334155' }}>
-                      👈 Liền kề Bên Trái:
-                    </label>
-                    <select
-                      className="form-control"
-                      style={{ fontSize: '0.8rem', marginTop: '0.25rem' }}
-                      value={parcelData.adjacentLeft?.type || 'Nhà phố / Nhà dân'}
-                      onChange={(e) =>
-                        setParcelData({
-                          ...parcelData,
-                          adjacentLeft: { ...parcelData.adjacentLeft, type: e.target.value },
-                        })
-                      }
-                    >
-                      {adjacentStructureOptions.map((opt) => (
-                        <option key={opt} value={opt}>{opt}</option>
-                      ))}
-                    </select>
-                    {parcelData.adjacentLeft?.type?.includes('Khác') && (
-                      <input
-                        type="text"
-                        className="form-control"
-                        placeholder="Mô tả cụ thể bên trái..."
-                        style={{ marginTop: '0.35rem', fontSize: '0.775rem' }}
-                        value={parcelData.adjacentLeft?.otherText || ''}
-                        onChange={(e) =>
-                          setParcelData({
-                            ...parcelData,
-                            adjacentLeft: { ...parcelData.adjacentLeft, otherText: e.target.value },
-                          })
-                        }
-                      />
-                    )}
-                  </div>
-
-                  {/* Bên Phải */}
-                  <div>
-                    <label style={{ fontSize: '0.775rem', fontWeight: 700, color: '#334155' }}>
-                      👉 Liền kề Bên Phải:
-                    </label>
-                    <select
-                      className="form-control"
-                      style={{ fontSize: '0.8rem', marginTop: '0.25rem' }}
-                      value={parcelData.adjacentRight?.type || 'Nhà phố / Nhà dân'}
-                      onChange={(e) =>
-                        setParcelData({
-                          ...parcelData,
-                          adjacentRight: { ...parcelData.adjacentRight, type: e.target.value },
-                        })
-                      }
-                    >
-                      {adjacentStructureOptions.map((opt) => (
-                        <option key={opt} value={opt}>{opt}</option>
-                      ))}
-                    </select>
-                    {parcelData.adjacentRight?.type?.includes('Khác') && (
-                      <input
-                        type="text"
-                        className="form-control"
-                        placeholder="Mô tả cụ thể bên phải..."
-                        style={{ marginTop: '0.35rem', fontSize: '0.775rem' }}
-                        value={parcelData.adjacentRight?.otherText || ''}
-                        onChange={(e) =>
-                          setParcelData({
-                            ...parcelData,
-                            adjacentRight: { ...parcelData.adjacentRight, otherText: e.target.value },
-                          })
-                        }
-                      />
-                    )}
-                  </div>
-
-                  {/* Phía Sau */}
-                  <div>
-                    <label style={{ fontSize: '0.775rem', fontWeight: 700, color: '#334155' }}>
-                      🔙 Liền kề Phía Sau:
-                    </label>
-                    <select
-                      className="form-control"
-                      style={{ fontSize: '0.8rem', marginTop: '0.25rem' }}
-                      value={parcelData.adjacentRear?.type || 'Nhà phố / Nhà dân'}
-                      onChange={(e) =>
-                        setParcelData({
-                          ...parcelData,
-                          adjacentRear: { ...parcelData.adjacentRear, type: e.target.value },
-                        })
-                      }
-                    >
-                      {adjacentStructureOptions.map((opt) => (
-                        <option key={opt} value={opt}>{opt}</option>
-                      ))}
-                    </select>
-                    {parcelData.adjacentRear?.type?.includes('Khác') && (
-                      <input
-                        type="text"
-                        className="form-control"
-                        placeholder="Mô tả cụ thể phía sau..."
-                        style={{ marginTop: '0.35rem', fontSize: '0.775rem' }}
-                        value={parcelData.adjacentRear?.otherText || ''}
-                        onChange={(e) =>
-                          setParcelData({
-                            ...parcelData,
-                            adjacentRear: { ...parcelData.adjacentRear, otherText: e.target.value },
-                          })
-                        }
-                      />
-                    )}
+                  <Home size={20} color="#16a34a" style={{ flexShrink: 0 }} />
+                  <div style={{ fontSize: '0.8rem', lineHeight: 1.4 }}>
+                    <strong>Khảo sát Căn hộ {unit.unit_code} (Lầu {unit.floor_number}):</strong> Hồ sơ này thuộc Tòa nhà {parcelData.projectParcelCode}. Ảnh định danh toàn cảnh tòa nhà và thông số kết cấu móng/hầm/PCCC đã được tự động kế thừa từ hồ sơ chung.
                   </div>
                 </div>
-              </div>
+              )}
+
+              {/* ==================== BRANCH 1: UNIT MODE (APARTMENT CHILD SURVEY) ==================== */}
+              {isUnitMode && unit && (
+                <>
+                  <div style={{ gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.75rem' }}>
+                      <div>
+                        <label className="form-label" style={{ fontWeight: 700, color: '#0369a1' }}>
+                          Mã Căn hộ / Số phòng:
+                        </label>
+                        <input
+                          type="text"
+                          className="form-control"
+                          readOnly
+                          value={`Căn ${unit.unit_code}`}
+                          style={{ backgroundColor: '#f0f9ff', border: '1.5px solid #7dd3fc', fontWeight: 800, color: '#0369a1' }}
+                        />
+                      </div>
+
+                      <div>
+                        <label className="form-label" style={{ fontWeight: 700, color: '#0369a1' }}>
+                          Vị trí Tầng / Lầu:
+                        </label>
+                        <input
+                          type="text"
+                          className="form-control"
+                          readOnly
+                          value={`Tầng / Lầu ${unit.floor_number}`}
+                          style={{ backgroundColor: '#f0f9ff', border: '1.5px solid #7dd3fc', fontWeight: 700, color: '#0369a1' }}
+                        />
+                      </div>
+
+                      <div>
+                        <label className="form-label" style={{ fontWeight: 700, color: '#0369a1' }}>
+                          Hiện trạng cư trú:
+                        </label>
+                        <select
+                          className="form-control"
+                          style={{ borderColor: '#7dd3fc' }}
+                          value={unit.status || 'OCCUPIED'}
+                          onChange={() => {}}
+                        >
+                          <option value="OCCUPIED">Chính chủ đang sinh sống</option>
+                          <option value="RENTED">Đang cho thuê nguyên căn</option>
+                          <option value="VACANT">Căn hộ đang bỏ trống</option>
+                          <option value="OFFICE">Làm văn phòng / kinh doanh</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Unit Owner Information */}
+                  <div>
+                    <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                      <User size={14} color="#0284c7" />
+                      <span>Họ tên Chủ căn hộ / Người cư trú:</span>
+                    </label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      placeholder="Nhập họ tên chủ sở hữu hoặc người ở..."
+                      value={parcelData.ownerName}
+                      onChange={(e) => setParcelData({ ...parcelData, ownerName: e.target.value })}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                      <Phone size={14} color="#0284c7" />
+                      <span>Số điện thoại liên hệ:</span>
+                    </label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      placeholder="Số điện thoại liên hệ..."
+                      value={parcelData.ownerPhone}
+                      onChange={(e) => setParcelData({ ...parcelData, ownerPhone: e.target.value })}
+                    />
+                  </div>
+
+                  {/* Inherited Building Address */}
+                  <div style={{ gridColumn: '1 / -1' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
+                      <label className="form-label" style={{ margin: 0, fontWeight: 700 }}>
+                        Địa chỉ đầy đủ của Căn hộ:
+                      </label>
+                      <InheritedBadge label="Kế thừa từ Tòa nhà cha" />
+                    </div>
+                    <input
+                      type="text"
+                      className="form-control"
+                      readOnly
+                      style={{ backgroundColor: '#f0f9ff', border: '1px solid #bae6fd', color: '#0369a1', fontWeight: 600 }}
+                      value={`Căn ${unit.unit_code}, Tầng ${unit.floor_number} - ${parcelData.houseNumber} ${parcelData.street}, ${parcelData.ward}, ${parcelData.district}`}
+                    />
+                  </div>
+
+                  {/* Unit ID card (CCCD) */}
+                  <div style={{ gridColumn: '1 / -1' }}>
+                    <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                      <User size={14} color="#0284c7" />
+                      <span>Số CCCD / CMND Chủ căn hộ:</span>
+                      <HelpBadge text="Số Căn cước công dân hoặc CMND của chủ sở hữu căn hộ. Dùng để đối chiếu hồ sơ pháp lý khi giải quyết đền bù." />
+                    </label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      placeholder="Nhập số CCCD hoặc CMND (nếu có)..."
+                      value={parcelData.ownerIdentityCard || ''}
+                      onChange={(e) => setParcelData({ ...parcelData, ownerIdentityCard: e.target.value })}
+                    />
+                  </div>
+                </>
+              )}
+
+              {/* ==================== BRANCH 2: CONDOMINIUM MASTER PRELIMINARY SURVEY ==================== */}
+              {!isUnitMode && parcelData.buildingType === 'CONDOMINIUM' && (
+                <>
+                  {/* Building Type Switcher */}
+                  <div
+                    style={{
+                      gridColumn: '1 / -1',
+                      backgroundColor: '#f5f3ff',
+                      border: '2px solid #8b5cf6',
+                      borderRadius: '12px',
+                      padding: '0.85rem 1rem',
+                      transition: 'all 0.2s ease',
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+                      <div>
+                        <label className="form-label" style={{ marginBottom: '2px', fontWeight: 700, color: '#4c1d95', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                          <Building2 size={16} color="#7c3aed" />
+                          <span>Loại hình Công trình Thực địa (On-site Building Type):</span>
+                        </label>
+                        <div style={{ fontSize: '0.75rem', color: '#6d28d9' }}>
+                          Đang kích hoạt chế độ khảo sát <strong>Tòa nhà Chung cư / Khu nhiều căn hộ</strong>.
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '0.4rem', backgroundColor: '#ede9fe', padding: '3px', borderRadius: '8px' }}>
+                        <button
+                          type="button"
+                          onClick={() => handleToggleBuildingType('STANDALONE')}
+                          style={{
+                            border: 'none',
+                            borderRadius: '6px',
+                            padding: '5px 12px',
+                            fontSize: '0.775rem',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            backgroundColor: 'transparent',
+                            color: '#6d28d9',
+                          }}
+                        >
+                          <Home size={13} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} />
+                          Nhà riêng lẻ (1 Hộ)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleToggleBuildingType('CONDOMINIUM')}
+                          style={{
+                            border: 'none',
+                            borderRadius: '6px',
+                            padding: '5px 12px',
+                            fontSize: '0.775rem',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            backgroundColor: '#7c3aed',
+                            color: '#ffffff',
+                            boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+                          }}
+                        >
+                          <Building2 size={13} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} />
+                          Chung cư / Tòa nhà nhiều hộ
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Condominium Master Building Name */}
+                  <div style={{ gridColumn: '1 / -1' }}>
+                    <label className="form-label" style={{ fontWeight: 800, color: '#4c1d95' }}>
+                      Tên Tòa nhà / Khu Chung cư / Dự án (Building Master Name): *
+                    </label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      style={{ fontSize: '0.95rem', fontWeight: 700, borderColor: '#a78bfa', backgroundColor: '#faf5ff' }}
+                      placeholder="VD: Chung cư Harmona, Chung cư Phúc Thịnh, Tháp A..."
+                      value={parcelData.buildingName || parcelData.condoName || ''}
+                      onChange={(e) => setParcelData({ ...parcelData, buildingName: e.target.value, condoName: e.target.value })}
+                      required
+                    />
+                    <span style={{ fontSize: '0.725rem', color: '#6d28d9', marginTop: '0.25rem', display: 'block' }}>
+                      * Tên định danh của tòa nhà. Thông tin này sẽ tự động hiển thị trên tất cả hồ sơ căn hộ con sau này.
+                    </span>
+                  </div>
+
+                  {/* Management Board / BQL Contact */}
+                  <div>
+                    <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                      <Users size={14} color="#7c3aed" />
+                      <span>Đại diện Ban Quản Lý / Ban Quản Trị (BQL/BQT):</span>
+                    </label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      placeholder="Họ và tên Trưởng BQL hoặc đại diện BQT..."
+                      value={parcelData.ownerName}
+                      onChange={(e) => setParcelData({ ...parcelData, ownerName: e.target.value })}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="form-label" style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                      <Phone size={14} color="#7c3aed" />
+                      <span>Hotline / Số điện thoại liên hệ BQL:</span>
+                    </label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      placeholder="Số điện thoại hoặc đường dây nóng..."
+                      value={parcelData.ownerPhone}
+                      onChange={(e) => setParcelData({ ...parcelData, ownerPhone: e.target.value })}
+                    />
+                  </div>
+
+                  {/* Building Address */}
+                  <div style={{ gridColumn: '1 / -1' }}>
+                    <label className="form-label">Địa chỉ tổng thể Tòa nhà (Master Address):</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={`${parcelData.houseNumber} ${parcelData.street}, ${parcelData.ward}, ${parcelData.district}`}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setParcelData({ ...parcelData, street: val });
+                      }}
+                    />
+                  </div>
+
+                  {/* Condominium Scale Preliminary */}
+                  <div style={{ gridColumn: '1 / -1', backgroundColor: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: '10px', padding: '0.85rem' }}>
+                    <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#4c1d95', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      <Layers size={15} color="#7c3aed" />
+                      <span>Quy mô Tòa nhà & Số lượng Căn hộ:</span>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '0.75rem' }}>
+                      <div>
+                        <label className="form-label" style={{ fontSize: '0.75rem' }}>Số tầng nổi:</label>
+                        <input
+                          type="number"
+                          min="1"
+                          className="form-control"
+                          value={specs.floorCount}
+                          onChange={(e) => setSpecs({ ...specs, floorCount: parseInt(e.target.value, 10) || 1 })}
+                        />
+                      </div>
+                      <div>
+                        <label className="form-label" style={{ fontSize: '0.75rem' }}>Số tầng hầm:</label>
+                        <input
+                          type="number"
+                          min="0"
+                          className="form-control"
+                          value={specs.basementCount}
+                          onChange={(e) => setSpecs({ ...specs, basementCount: parseInt(e.target.value, 10) || 0 })}
+                        />
+                      </div>
+                      <div>
+                        <label className="form-label" style={{ fontSize: '0.75rem' }}>Tổng số căn hộ (ước tính):</label>
+                        <input
+                          type="number"
+                          min="2"
+                          className="form-control"
+                          value={parcelData.totalUnits || 8}
+                          onChange={(e) => setParcelData({ ...parcelData, totalUnits: parseInt(e.target.value, 10) || 2 })}
+                        />
+                      </div>
+                      <div>
+                        <label className="form-label" style={{ fontSize: '0.75rem' }}>Năm hoàn thành / Vận hành:</label>
+                        <input
+                          type="number"
+                          min="1950"
+                          max="2030"
+                          className="form-control"
+                          value={specs.yearOfConstruction}
+                          onChange={(e) => setSpecs({ ...specs, yearOfConstruction: parseInt(e.target.value, 10) || 2015 })}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Condominium Structural Technical Overview */}
+                  <div style={{ gridColumn: '1 / -1', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '0.85rem' }}>
+                    <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0f172a', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      <Activity size={15} color="#0284c7" />
+                      <span>Kết cấu Kỹ thuật Khối chung Tòa nhà (Tự động kế thừa cho tất cả căn hộ con):</span>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.75rem' }}>
+                      <div>
+                        <label className="form-label" style={{ fontSize: '0.75rem' }}>Hệ kết cấu chịu lực Tòa nhà:</label>
+                        <select
+                          className="form-control"
+                          value={specs.structuralSystem}
+                          onChange={(e) => setSpecs({ ...specs, structuralSystem: e.target.value })}
+                        >
+                          <option value="RC">BTCT (Bê tông cốt thép)</option>
+                          <option value="Steel">Khung thép định hình / Tiền chế</option>
+                          <option value="Masonry">Tường gạch chịu lực</option>
+                          <option value="Mixed">Hỗn hợp (BTCT + Khung thép)</option>
+                          <option value="Other">Khác</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="form-label" style={{ fontSize: '0.75rem' }}>Loại móng chính Tòa nhà:</label>
+                        <select
+                          className="form-control"
+                          value={specs.foundationType}
+                          onChange={(e) => setSpecs({ ...specs, foundationType: e.target.value })}
+                        >
+                          <option value="CIP">Cọc khoan nhồi (CIP Pile)</option>
+                          <option value="PC">Cọc ép / Cọc đóng BTCT</option>
+                          <option value="Shallow">Móng bè / Móng băng BTCT</option>
+                          <option value="Wood">Cừ tràm gia cố</option>
+                          <option value="Unknown">Không rõ / Cần hồ sơ hoàn công</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="form-label" style={{ fontSize: '0.75rem' }}>Nhóm mức độ quan trọng Metro:</label>
+                        <select
+                          className="form-control"
+                          value={parcelData.importanceGroup}
+                          onChange={(e) => setParcelData({ ...parcelData, importanceGroup: e.target.value })}
+                        >
+                          <option value="Critical">1. Critical / Công trình trọng yếu</option>
+                          <option value="Important">2. Important / Công trình quan trọng (&gt;= 5 tầng)</option>
+                          <option value="General">3. General / Công trình thông thường</option>
+                          <option value="Poor_Structural">4. Poor Structural / Hiện trạng suy giảm</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Multi-direction Adjacent Structures around Building */}
+                  <div style={{ gridColumn: '1 / -1', backgroundColor: '#f8fafc', padding: '0.85rem', borderRadius: '0.75rem', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                    <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      <Building2 size={14} color="#64748b" />
+                      <span>Công trình tiếp giáp xung quanh Khối Tòa nhà:</span>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.75rem' }}>
+                      <div>
+                        <label style={{ fontSize: '0.775rem', fontWeight: 700, color: '#334155', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                          <ArrowLeft size={13} color="#64748b" />
+                          <span>Liền kề Bên Trái:</span>
+                        </label>
+                        <select
+                          className="form-control"
+                          style={{ fontSize: '0.8rem', marginTop: '0.25rem' }}
+                          value={parcelData.adjacentLeft?.type || 'Nhà phố / Nhà dân'}
+                          onChange={(e) =>
+                            setParcelData({
+                              ...parcelData,
+                              adjacentLeft: { ...parcelData.adjacentLeft, type: e.target.value },
+                            })
+                          }
+                        >
+                          {adjacentStructureOptions.map((opt) => (
+                            <option key={opt} value={opt}>{opt}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label style={{ fontSize: '0.775rem', fontWeight: 700, color: '#334155', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                          <ArrowRight size={13} color="#64748b" />
+                          <span>Liền kề Bên Phải:</span>
+                        </label>
+                        <select
+                          className="form-control"
+                          style={{ fontSize: '0.8rem', marginTop: '0.25rem' }}
+                          value={parcelData.adjacentRight?.type || 'Nhà phố / Nhà dân'}
+                          onChange={(e) =>
+                            setParcelData({
+                              ...parcelData,
+                              adjacentRight: { ...parcelData.adjacentRight, type: e.target.value },
+                            })
+                          }
+                        >
+                          {adjacentStructureOptions.map((opt) => (
+                            <option key={opt} value={opt}>{opt}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label style={{ fontSize: '0.775rem', fontWeight: 700, color: '#334155', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                          <CornerDownLeft size={13} color="#64748b" />
+                          <span>Liền kề Phía Sau:</span>
+                        </label>
+                        <select
+                          className="form-control"
+                          style={{ fontSize: '0.8rem', marginTop: '0.25rem' }}
+                          value={parcelData.adjacentRear?.type || 'Nhà phố / Nhà dân'}
+                          onChange={(e) =>
+                            setParcelData({
+                              ...parcelData,
+                              adjacentRear: { ...parcelData.adjacentRear, type: e.target.value },
+                            })
+                          }
+                        >
+                          {adjacentStructureOptions.map((opt) => (
+                            <option key={opt} value={opt}>{opt}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {/* ==================== BRANCH 3: STANDALONE SINGLE HOUSE ==================== */}
+              {!isUnitMode && parcelData.buildingType === 'STANDALONE' && (
+                <>
+                  {/* Building Type Switcher */}
+                  <div
+                    style={{
+                      gridColumn: '1 / -1',
+                      backgroundColor: '#f8fafc',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '12px',
+                      padding: '0.85rem 1rem',
+                      transition: 'all 0.2s ease',
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+                      <div>
+                        <label className="form-label" style={{ marginBottom: '2px', fontWeight: 700, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                          <Home size={15} color="#0284c7" />
+                          <span>Loại hình Công trình Thực địa (On-site Building Type):</span>
+                        </label>
+                        <div style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                          Xác nhận thực tế khi khảo sát viên tiếp cận hiện trường: Nhà riêng lẻ hay Tòa nhà nhiều căn hộ / Chung cư.
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '0.4rem', backgroundColor: '#e2e8f0', padding: '3px', borderRadius: '8px' }}>
+                        <button
+                          type="button"
+                          onClick={() => handleToggleBuildingType('STANDALONE')}
+                          style={{
+                            border: 'none',
+                            borderRadius: '6px',
+                            padding: '5px 12px',
+                            fontSize: '0.775rem',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            backgroundColor: '#ffffff',
+                            color: '#0f172a',
+                            boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                          }}
+                        >
+                          <Home size={13} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} />
+                          Nhà ở riêng lẻ (1 Hộ)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleToggleBuildingType('CONDOMINIUM')}
+                          style={{
+                            border: 'none',
+                            borderRadius: '6px',
+                            padding: '5px 12px',
+                            fontSize: '0.775rem',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            backgroundColor: 'transparent',
+                            color: '#64748b',
+                          }}
+                        >
+                          <Building2 size={13} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} />
+                          Chung cư / Tòa nhà nhiều hộ
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Building Name / Signage */}
+                  <div style={{ gridColumn: '1 / -1' }}>
+                    <label className="form-label">Tên công trình / Biển hiệu (Building Name / Signage):</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      placeholder="VD: Cửa hàng ABC, Hiệu thuốc XYZ... (để trống nếu nhà dân không có biển hiệu)"
+                      value={parcelData.buildingName || ''}
+                      onChange={(e) => setParcelData({ ...parcelData, buildingName: e.target.value })}
+                    />
+                    <span style={{ fontSize: '0.725rem', color: '#64748b', marginTop: '0.25rem', display: 'block' }}>
+                      * Tên riêng hoặc biển hiệu thương mại gắn trên công trình (để trống nếu nhà ở tư nhân không có biển).
+                    </span>
+                  </div>
+
+                  {/* Owner & Address */}
+                  <div>
+                    <label className="form-label">Chủ sở hữu / Người sử dụng (Owner / User):</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      placeholder="Nhập họ tên chủ nhà hoặc người đại diện..."
+                      value={parcelData.ownerName}
+                      onChange={(e) => setParcelData({ ...parcelData, ownerName: e.target.value })}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="form-label">Địa chỉ công trình (Address):</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={`${parcelData.houseNumber} ${parcelData.street}, ${parcelData.ward}, ${parcelData.district}`}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setParcelData({ ...parcelData, street: val });
+                      }}
+                    />
+                  </div>
+
+                  {/* 4 Survey Object Categories */}
+                  <div style={{ gridColumn: '1 / -1' }}>
+                    <label className="form-label">Nhóm đối tượng / Phân loại & Xếp hạng sơ bộ:</label>
+                    <select
+                      className="form-control"
+                      value={parcelData.importanceGroup}
+                      onChange={(e) => setParcelData({ ...parcelData, importanceGroup: e.target.value })}
+                    >
+                      <option value="Critical">1. Critical Building / Công trình trọng yếu</option>
+                      <option value="Important">2. Important Building / Công trình quan trọng</option>
+                      <option value="General">3. General Building / Công trình thông thường</option>
+                      <option value="Poor_Structural">4. Poor Structural Integrity / Kết cấu hiện trạng kém</option>
+                    </select>
+
+                    <div style={{ marginTop: '0.35rem', fontSize: '0.725rem', color: '#0369a1', backgroundColor: '#e0f2fe', padding: '0.35rem 0.55rem', borderRadius: '0.4rem', border: '1px solid #bae6fd' }}>
+                      {parcelData.importanceGroup === 'Critical' && (
+                        <span>• <strong>Tiêu chí:</strong> Bệnh viện, công trình bảo tồn, vận hành đặc biệt, hoặc hậu quả cao nếu bị ảnh hưởng.</span>
+                      )}
+                      {parcelData.importanceGroup === 'Important' && (
+                        <span>• <strong>Tiêu chí:</strong> Từ 5 tầng trở lên hoặc có thiết bị/vật liệu nhạy cảm.</span>
+                      )}
+                      {parcelData.importanceGroup === 'General' && (
+                        <span>• <strong>Tiêu chí:</strong> Công trình dân dụng thông thường dưới 5 tầng.</span>
+                      )}
+                      {parcelData.importanceGroup === 'Poor_Structural' && (
+                        <span style={{ color: '#b91c1c' }}>• <strong>Tiêu chí:</strong> Có hư hỏng / suy giảm chất lượng kết cấu rõ rệt.</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Multi-direction Adjacent Structures */}
+                  <div style={{ gridColumn: '1 / -1', backgroundColor: '#f8fafc', padding: '0.85rem', borderRadius: '0.75rem', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                    <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      <Building2 size={14} color="#64748b" />
+                      <span>Công trình liền kề theo các hướng tiếp giáp:</span>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.75rem' }}>
+                      <div>
+                        <label style={{ fontSize: '0.775rem', fontWeight: 700, color: '#334155', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                          <ArrowLeft size={13} color="#64748b" />
+                          <span>Liền kề Bên Trái:</span>
+                        </label>
+                        <select
+                          className="form-control"
+                          style={{ fontSize: '0.8rem', marginTop: '0.25rem' }}
+                          value={parcelData.adjacentLeft?.type || 'Nhà phố / Nhà dân'}
+                          onChange={(e) =>
+                            setParcelData({
+                              ...parcelData,
+                              adjacentLeft: { ...parcelData.adjacentLeft, type: e.target.value },
+                            })
+                          }
+                        >
+                          {adjacentStructureOptions.map((opt) => (
+                            <option key={opt} value={opt}>{opt}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label style={{ fontSize: '0.775rem', fontWeight: 700, color: '#334155', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                          <ArrowRight size={13} color="#64748b" />
+                          <span>Liền kề Bên Phải:</span>
+                        </label>
+                        <select
+                          className="form-control"
+                          style={{ fontSize: '0.8rem', marginTop: '0.25rem' }}
+                          value={parcelData.adjacentRight?.type || 'Nhà phố / Nhà dân'}
+                          onChange={(e) =>
+                            setParcelData({
+                              ...parcelData,
+                              adjacentRight: { ...parcelData.adjacentRight, type: e.target.value },
+                            })
+                          }
+                        >
+                          {adjacentStructureOptions.map((opt) => (
+                            <option key={opt} value={opt}>{opt}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label style={{ fontSize: '0.775rem', fontWeight: 700, color: '#334155', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                          <CornerDownLeft size={13} color="#64748b" />
+                          <span>Liền kề Phía Sau:</span>
+                        </label>
+                        <select
+                          className="form-control"
+                          style={{ fontSize: '0.8rem', marginTop: '0.25rem' }}
+                          value={parcelData.adjacentRear?.type || 'Nhà phố / Nhà dân'}
+                          onChange={(e) =>
+                            setParcelData({
+                              ...parcelData,
+                              adjacentRear: { ...parcelData.adjacentRear, type: e.target.value },
+                            })
+                          }
+                        >
+                          {adjacentStructureOptions.map((opt) => (
+                            <option key={opt} value={opt}>{opt}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
 
             {/* GIS Auto Metadata Badge */}
@@ -1637,14 +2418,24 @@ export const SurveyPhase1View: React.FC<Props> = ({ initialParcelId, parcel, onF
 
             {/* Strict Sequential 4 Photos P01 -> P02 -> P03 -> P04 */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', borderTop: '1px solid #f1f5f9', paddingTop: '0.85rem' }}>
-              <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: '#0f172a' }}>
-                4 Bộ Ảnh Định Danh Hiện Trường (P-01 → P-04):
-              </h4>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+                <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <Camera size={16} color="#0284c7" />
+                  <span>4 Bộ Ảnh Định Danh Hiện Trường (P-01 → P-04):</span>
+                </h4>
+                {isUnitMode && <InheritedBadge label="P-02 & P-04 tự động kế thừa từ Tòa nhà cha" />}
+              </div>
 
-              {/* 1. P-01: Biển số nhà / Tên cơ quan */}
+              {/* 1. P-01: Biển số nhà / Biển số căn hộ */}
               <div style={{ backgroundColor: '#f8fafc', padding: '0.85rem', borderRadius: '0.75rem', border: '1px solid #e2e8f0' }}>
                 <PhotoCaptureInput
-                  label="1. P-01: Biển số nhà / Biển tên cơ quan"
+                  label={
+                    isUnitMode && unit
+                      ? `1. P-01: Cửa ra vào & Biển số Căn hộ ${unit.unit_code} (Bắt buộc)`
+                      : parcelData.buildingType === 'CONDOMINIUM'
+                      ? '1. P-01: Biển tên Tòa nhà / Cổng chính chung cư (Bắt buộc)'
+                      : '1. P-01: Biển số nhà / Biển tên cơ quan (Bắt buộc)'
+                  }
                   value={p01HouseNumberUrl}
                   onChange={setP01HouseNumberUrl}
                   allowNotApplicable={true}
@@ -1652,14 +2443,35 @@ export const SurveyPhase1View: React.FC<Props> = ({ initialParcelId, parcel, onF
                   onToggleNotApplicable={setP01NotApplicable}
                   naReason={p01NaReason}
                   onNaReasonChange={setP01NaReason}
-                  watermarkText={`P-01 | ${parcelData.projectParcelCode}`}
+                  watermarkText={
+                    isUnitMode && unit
+                      ? `P-01 | Căn ${unit.unit_code} - ${parcelData.projectParcelCode}`
+                      : `P-01 | ${parcelData.projectParcelCode}`
+                  }
                   required={true}
                   height="200px"
                 />
               </div>
 
-              {/* 2. P-02: Mặt đứng chính diện + Interactive Polygon Canvas (Freehand Draw) */}
-              <div style={{ backgroundColor: '#f8fafc', padding: '0.85rem', borderRadius: '0.75rem', border: '1px solid #e2e8f0' }}>
+              {/* 2. P-02: Mặt đứng chính diện (Kế thừa nếu là Căn hộ con) */}
+              <div
+                style={{
+                  backgroundColor: isUnitMode ? '#f0f9ff' : '#f8fafc',
+                  padding: '0.85rem',
+                  borderRadius: '0.75rem',
+                  border: isUnitMode ? '2px solid #38bdf8' : '1px solid #e2e8f0',
+                  boxShadow: isUnitMode ? '0 2px 8px rgba(2, 132, 199, 0.08)' : 'none',
+                }}
+              >
+                {isUnitMode && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.45rem' }}>
+                    <span style={{ fontSize: '0.75rem', color: '#0369a1', fontWeight: 700 }}>
+                      Kế thừa ảnh ngoại quan toàn khối Tòa nhà:
+                    </span>
+                    <InheritedBadge label="Đã kế thừa từ Tòa nhà cha" />
+                  </div>
+                )}
+
                 <PhotoCaptureInput
                   label="2. P-02: Mặt đứng chính diện công trình"
                   value={p02MainFacadeUrl}
@@ -1674,7 +2486,7 @@ export const SurveyPhase1View: React.FC<Props> = ({ initialParcelId, parcel, onF
                   height="220px"
                 />
 
-                {p02MainFacadeUrl && !p02NotApplicable && (
+                {p02MainFacadeUrl && !p02NotApplicable && !isUnitMode && (
                   <div style={{ marginTop: '0.85rem' }}>
                     <FacadePolygonCanvas
                       imageUrl={p02MainFacadeUrl}
@@ -1691,11 +2503,13 @@ export const SurveyPhase1View: React.FC<Props> = ({ initialParcelId, parcel, onF
                 )}
               </div>
 
-              {/* 3. P-03: Mặt bên hoặc mặt sau tiếp cận (HỖ TRỢ NHIỀU ẢNH: HÔNG TRÁI, HÔNG PHẢI, PHÍA SAU) */}
+              {/* 3. P-03: Mặt bên hoặc mặt sau tiếp cận */}
               <div style={{ backgroundColor: '#f8fafc', padding: '0.85rem', borderRadius: '0.75rem', border: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
                   <label style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>
-                    3. P-03: Mặt bên hông hoặc mặt sau tiếp cận ({p03Photos.length} ảnh)
+                    {isUnitMode
+                      ? `3. P-03: Góc nhìn từ logia / ban công / vách ngoài căn hộ (${p03Photos.length} ảnh)`
+                      : `3. P-03: Mặt bên hông hoặc mặt sau tiếp cận (${p03Photos.length} ảnh)`}
                   </label>
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
@@ -1706,7 +2520,7 @@ export const SurveyPhase1View: React.FC<Props> = ({ initialParcelId, parcel, onF
                         onChange={(e) => {
                           setP03NotApplicable(e.target.checked);
                           if (e.target.checked) setP03Photos([]);
-                          else setP03Photos([{ id: 'p03-1', url: '', label: 'Bên hông trái' }]);
+                          else setP03Photos([{ id: 'p03-1', url: '', label: isUnitMode ? 'Ban công / Logia' : 'Bên hông trái' }]);
                         }}
                         style={{ accentColor: '#0284c7' }}
                       />
@@ -1739,7 +2553,7 @@ export const SurveyPhase1View: React.FC<Props> = ({ initialParcelId, parcel, onF
                     <input
                       type="text"
                       className="form-control"
-                      placeholder="Ví dụ: Nhà phố liền kề 2 bên sát vách, phía sau giáp nhà dân khác..."
+                      placeholder="Ví dụ: Căn hộ không có ban công mở, nhà phố liền kề 2 bên sát vách..."
                       value={p03NaReason}
                       onChange={(e) => setP03NaReason(e.target.value)}
                       style={{ fontSize: '0.775rem', marginTop: '0.25rem' }}
@@ -1771,10 +2585,11 @@ export const SurveyPhase1View: React.FC<Props> = ({ initialParcelId, parcel, onF
                               setP03Photos(updated);
                             }}
                           >
-                            <option value="Bên hông trái">📐 Bên hông trái</option>
-                            <option value="Bên hông phải">📐 Bên hông phải</option>
-                            <option value="Phía sau tiếp cận">🏡 Phía sau tiếp cận</option>
-                            <option value="Góc tiếp cận khác">🔍 Góc tiếp cận khác</option>
+                            <option value="Bên hông trái">Bên hông trái</option>
+                            <option value="Bên hông phải">Bên hông phải</option>
+                            <option value="Phía sau tiếp cận">Phía sau tiếp cận</option>
+                            <option value="Ban công / Logia">Ban công / Logia</option>
+                            <option value="Góc tiếp cận khác">Góc tiếp cận khác</option>
                           </select>
 
                           {p03Photos.length > 1 && (
@@ -1806,10 +2621,27 @@ export const SurveyPhase1View: React.FC<Props> = ({ initialParcelId, parcel, onF
                 )}
               </div>
 
-              {/* 4. P-04: Bối cảnh tổng thể đường/ngõ */}
-              <div style={{ backgroundColor: '#f8fafc', padding: '0.85rem', borderRadius: '0.75rem', border: '1px solid #e2e8f0' }}>
+              {/* 4. P-04: Bối cảnh tổng thể đường/ngõ (Kế thừa nếu là Căn hộ con) */}
+              <div
+                style={{
+                  backgroundColor: isUnitMode ? '#f0f9ff' : '#f8fafc',
+                  padding: '0.85rem',
+                  borderRadius: '0.75rem',
+                  border: isUnitMode ? '2px solid #38bdf8' : '1px solid #e2e8f0',
+                  boxShadow: isUnitMode ? '0 2px 8px rgba(2, 132, 199, 0.08)' : 'none',
+                }}
+              >
+                {isUnitMode && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.45rem' }}>
+                    <span style={{ fontSize: '0.75rem', color: '#0369a1', fontWeight: 700 }}>
+                      Kế thừa ảnh không gian bối cảnh đường/tuyến Metro:
+                    </span>
+                    <InheritedBadge label="Đã kế thừa từ Tòa nhà cha" />
+                  </div>
+                )}
+
                 <PhotoCaptureInput
-                  label="4. P-04: Bối cảnh không gian tổng thể lấy cả đường/ngõ"
+                  label="4. P-04: Bối cảnh không gian tổng thể lấy cả đường/ngõ tiếp cận"
                   value={p04ContextStreetUrl}
                   onChange={setP04ContextStreetUrl}
                   allowNotApplicable={true}
@@ -1821,6 +2653,122 @@ export const SurveyPhase1View: React.FC<Props> = ({ initialParcelId, parcel, onF
                   height="200px"
                 />
               </div>
+
+              {/* SMART CALL-TO-ACTION CARD FOR CONDOMINIUM MASTER PRELIMINARY */}
+              {!isUnitMode && parcelData.buildingType === 'CONDOMINIUM' && (
+                <div
+                  style={{
+                    backgroundColor: '#f5f3ff',
+                    border: '2px solid #8b5cf6',
+                    borderRadius: '12px',
+                    padding: '1.15rem 1.35rem',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    flexWrap: 'wrap',
+                    gap: '1rem',
+                    marginTop: '0.5rem',
+                    boxShadow: '0 4px 12px rgba(124, 58, 237, 0.12)',
+                  }}
+                >
+                  <div style={{ flex: 1, minWidth: '280px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
+                      <Building2 size={20} color="#7c3aed" />
+                      <span style={{ fontSize: '0.975rem', fontWeight: 800, color: '#4c1d95' }}>
+                        Hoàn tất khảo sát sơ bộ Tòa nhà chung cư
+                      </span>
+                    </div>
+                    <p style={{ margin: 0, fontSize: '0.8rem', color: '#6d28d9', lineHeight: 1.45 }}>
+                      Bạn đã điền đầy đủ thông tin định danh Tòa nhà ({parcelData.buildingName || 'Chung cư'}, quy mô {specs.floorCount} tầng nổi, {specs.basementCount} tầng hầm, móng {specs.foundationType}) và ghi nhận 4 ảnh P-01..P-04. Nhấn nút bên cạnh để lưu dữ liệu và chuyển ngay tới <strong>Hub Quản Lý Căn Hộ</strong> để khảo sát chi tiết từng căn.
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleSaveAndGoToHub}
+                    disabled={isSaving}
+                    style={{
+                      backgroundColor: '#7c3aed',
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: '8px',
+                      padding: '0.75rem 1.35rem',
+                      fontSize: '0.85rem',
+                      fontWeight: 800,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.55rem',
+                      boxShadow: '0 4px 10px rgba(124, 58, 237, 0.35)',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    <Building2 size={16} />
+                    <span>{isSaving ? 'Đang lưu...' : 'Lưu Sơ Bộ & Chuyển Tới Hub Căn Hộ'}</span>
+                    <ArrowRight size={16} />
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* STEP 1 FOOTER NAVIGATION */}
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: '0.75rem',
+                marginTop: '1rem',
+                paddingTop: '1rem',
+                borderTop: '1px solid #e2e8f0',
+              }}
+            >
+              {!isUnitMode && parcelData.buildingType === 'CONDOMINIUM' ? (
+                <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', flexWrap: 'wrap', gap: '0.65rem' }}>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => handleStepChangeWithCheck(2)}
+                    style={{ fontSize: '0.825rem' }}
+                  >
+                    Tiếp tục khảo sát khối chung (Bước 2)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSaveAndGoToHub}
+                    style={{
+                      backgroundColor: '#7c3aed',
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: '6px',
+                      padding: '0.55rem 1.15rem',
+                      fontSize: '0.825rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.45rem',
+                    }}
+                  >
+                    <Building2 size={15} />
+                    <span>Lưu Sơ Bộ & Chuyển Tới Hub Căn Hộ</span>
+                    <ArrowRight size={15} />
+                  </button>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', justifyContent: 'flex-end', width: '100%' }}>
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={() => handleStepChangeWithCheck(2)}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem', fontWeight: 700 }}
+                  >
+                    <span>Chuyển sang Bước 2: Phỏng vấn kỹ thuật</span>
+                    <ArrowRight size={15} />
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -1830,19 +2778,130 @@ export const SurveyPhase1View: React.FC<Props> = ({ initialParcelId, parcel, onF
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             <div style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: '0.65rem' }}>
               <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>
-                BƯỚC 2: Phỏng Vấn Chủ Hộ (Kiến Trúc, Lịch Sử & Yếu Tố Nhạy Cảm)
+                {isUnitMode
+                  ? 'BUỚC 2: Thông Tin Căn Hộ (Kế Thừa Tòa Nhà & Lịch SỮd Riêng)'
+                  : !isUnitMode && parcelData.buildingType === 'CONDOMINIUM'
+                  ? 'BUỚC 2: Phỏng Vấn Ban Quản Lý (Kết Cấu & Lịch SỮd Tòa Nhà)'
+                  : 'BUỚC 2: Phỏng Vấn Chủ Hộ (Kiến Trúc, Lịch Sử & Yếu Tố Nhạy Cảm)'}
               </h3>
               <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.775rem', color: '#64748b' }}>
-                Ghi nhận đặc trưng móng, kết cấu và lịch sử công trình (tự động map điểm E5 trong bảng ECS).
+                {isUnitMode
+                  ? 'Thông số kết cấu được tự động kế thừa từ Tòa nhà cha. Chỉ cần ghi nhận lịch sử riêng của căn hộ (tự động map điểm E5).'
+                  : !isUnitMode && parcelData.buildingType === 'CONDOMINIUM'
+                  ? 'Ghi nhận kết cấu, lịch sử biến động và thiết bị kỹ thuật chung của Tòa nhà (tự động map điểm E5).'
+                  : 'Ghi nhận đặc trưng móng, kết cấu và lịch sử công trình (tự động map điểm E5 trong bảng ECS).'}
               </p>
             </div>
 
-            <h4 style={{ margin: 0, fontSize: '0.9rem', fontWeight: 800, color: '#0f172a' }}>
-              2.1. Kiến Trúc & Kết Cấu Nền:
-            </h4>
+            {/* ===== UNIT CHILD MODE: Show inherited summary + only unit-specific history ===== */}
+            {isUnitMode && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                {/* Inherited structural data read-only card */}
+                <div style={{
+                  backgroundColor: '#f0f9ff',
+                  border: '1.5px solid #38bdf8',
+                  borderRadius: '12px',
+                  padding: '1rem 1.25rem',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.65rem',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <ShieldCheck size={18} color="#0284c7" />
+                      <span style={{ fontWeight: 800, fontSize: '0.9rem', color: '#0369a1' }}>Kế Thừa Từ Tòa Nhà Cha (Tự Động)</span>
+                    </div>
+                    <InheritedBadge label="Đã đồng bộ" />
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.5rem', fontSize: '0.78rem' }}>
+                    <div style={{ backgroundColor: '#ffffff', border: '1px solid #bae6fd', borderRadius: '8px', padding: '0.5rem 0.75rem' }}>
+                      <div style={{ color: '#64748b', fontSize: '0.7rem', fontWeight: 600 }}>Kết cấu chịu lực:</div>
+                      <div style={{ fontWeight: 700, color: '#0f172a', marginTop: '2px' }}>{specs.structuralSystem} / {specs.structuralForm}</div>
+                    </div>
+                    <div style={{ backgroundColor: '#ffffff', border: '1px solid #bae6fd', borderRadius: '8px', padding: '0.5rem 0.75rem' }}>
+                      <div style={{ color: '#64748b', fontSize: '0.7rem', fontWeight: 600 }}>Loại móng:</div>
+                      <div style={{ fontWeight: 700, color: '#0f172a', marginTop: '2px' }}>{specs.foundationType}{specs.pileDimension ? ` (${specs.pileDimension})` : ''}</div>
+                    </div>
+                    <div style={{ backgroundColor: '#ffffff', border: '1px solid #bae6fd', borderRadius: '8px', padding: '0.5rem 0.75rem' }}>
+                      <div style={{ color: '#64748b', fontSize: '0.7rem', fontWeight: 600 }}>Năm xây dựng:</div>
+                      <div style={{ fontWeight: 700, color: '#0f172a', marginTop: '2px' }}>{specs.yearOfConstruction}{specs.isYearEstimated ? ' (ước tính)' : ''}</div>
+                    </div>
+                    <div style={{ backgroundColor: '#ffffff', border: '1px solid #bae6fd', borderRadius: '8px', padding: '0.5rem 0.75rem' }}>
+                      <div style={{ color: '#64748b', fontSize: '0.7rem', fontWeight: 600 }}>Số tầng:</div>
+                      <div style={{ fontWeight: 700, color: '#0f172a', marginTop: '2px' }}>{specs.floorCount} tầng nổi / {specs.basementCount} tầng hầm</div>
+                    </div>
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: '#0369a1', borderTop: '1px dashed #bae6fd', paddingTop: '0.4rem', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                    <Info size={13} color="#0284c7" style={{ flexShrink: 0 }} />
+                    <span>Thông số trên được tự động lấy từ hồ sơ tòa nhà cha. Nếu cần chỉnh sửa, hãy cập nhật ở <strong>Khảo sát Tòa nhà</strong> trong Hub.</span>
+                  </div>
+                </div>
+
+                {/* Unit-specific history only */}
+                <h4 style={{ margin: '0.25rem 0 0 0', fontSize: '0.9rem', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <Activity size={15} color="#0284c7" />
+                  Lịch Sử Riêng Của Căn Hộ Này (Map điểm E5)
+                </h4>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '0.75rem' }}>
+                  <div>
+                    <label className="form-label">Côi nới / Sửa chữa riêng căn hộ:
+                      <HelpBadge text="Có đập tường thông phòng, gia cố sàn, đặt thêm máy lạnh âm trần nặng... Khác với việc cải tạo khối chung." />
+                    </label>
+                    <select className="form-control" value={specs.extendedOrRenovated} onChange={(e) => setSpecs({ ...specs, extendedOrRenovated: parseInt(e.target.value, 10) })}>
+                      <option value={0}>0đ - Không</option>
+                      <option value={1}>1đ - Nhẹ / Đã xử lý</option>
+                      <option value={2}>2đ - Nhiều / Chưa rõ</option>
+                      <option value={3}>3đ - Thay đổi lớn</option>
+                      <option value={4}>4đ - Nghiêm trọng</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="form-label">Lún / Ngịeng sàn căn hộ:
+                      <HelpBadge text="Sàn bị lún một góc, cỚ bị kẹt, gạch bịch nền... Chỉ cho phạm vi trong căn hộ, không phải lún cả khối." />
+                    </label>
+                    <select className="form-control" value={specs.previousSettlementOrTilt} onChange={(e) => setSpecs({ ...specs, previousSettlementOrTilt: parseInt(e.target.value, 10) })}>
+                      <option value={0}>0đ - Không</option>
+                      <option value={1}>1đ - Nhẹ / Đã ổn định</option>
+                      <option value={2}>2đ - Rõ / Tiếp diễn</option>
+                      <option value={3}>3đ - Nghiêm trọng</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="form-label">Sự cố trong căn (Hỏa hoạn / Ngập):
+                      <HelpBadge text="Sự cố chỉ xảy ra trong căn hộ này, không phải sự cố toàn tòa." />
+                    </label>
+                    <select className="form-control" value={specs.fireOrFloodAccident || 0} onChange={(e) => setSpecs({ ...specs, fireOrFloodAccident: parseInt(e.target.value, 10) })}>
+                      <option value={0}>0đ - Không có sự cố</option>
+                      <option value={1}>1đ - Nhẹ / Đã khắc phục</option>
+                      <option value={2}>2đ - Trung bình / Chưa rõ</option>
+                      <option value={3}>3đ - Lớn / Ảnh hưởng kết cấu căn</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="form-label">Tình trạng sử dụng hiện tại:</label>
+                    <select className="form-control" value={specs.occupancyStatus || 'Đang sử dụng 100%'} onChange={(e) => setSpecs({ ...specs, occupancyStatus: e.target.value })}>
+                      <option value="Đang sử dụng 100%">Đang sử dụng 100%</option>
+                      <option value="Đang sử dụng một phần">Đang sử dụng một phần</option>
+                      <option value="Bỏ trống / Không sử dụng">Bỏ trống / Không sử dụng</option>
+                    </select>
+                  </div>
+                </div>
+                <div style={{ backgroundColor: '#eff6ff', padding: '0.65rem 0.85rem', borderRadius: '0.5rem', fontSize: '0.8rem', color: '#1e40af' }}>
+                  • <strong>Điểm E5 Lịch sử / Sự cố tự động tính:</strong> {e5Score}/4 điểm.
+                </div>
+              </div>
+            )}
+
+            {/* ===== STANDALONE or CONDO MASTER MODE ===== */}
+            {!isUnitMode && (
+              <>
+                <h4 style={{ margin: 0, fontSize: '0.9rem', fontWeight: 800, color: '#0f172a' }}>
+                  {parcelData.buildingType === 'CONDOMINIUM' ? '2.1. Kết Cấu & Kỹ Thuật Tòa Nhà:' : '2.1. Kiến Trúc & Kết Cấu Nền:'}
+                </h4>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.85rem' }}>
-              {/* 1. Công năng sử dụng */}
+              {/* 1. Công năng sử dụng - Ẩn cho Chung cư, auto-set = 'Chức năng hỗn hợp - Chưng cư cao tầng' */}
+              {parcelData.buildingType !== 'CONDOMINIUM' && (
               <div style={{ gridColumn: '1 / -1' }}>
                 <label className="form-label">Công năng sử dụng (Use Category):</label>
                 <select
@@ -1850,17 +2909,17 @@ export const SurveyPhase1View: React.FC<Props> = ({ initialParcelId, parcel, onF
                   value={specs.useCategory}
                   onChange={(e) => setSpecs({ ...specs, useCategory: e.target.value })}
                 >
-                  <option value="Nhà ở gia đình">🏠 Nhà ở gia đình (Nhà phố / Biệt thự / Căn hộ)</option>
-                  <option value="Cửa hàng / Shop / Bách hóa">🛒 Cửa hàng / Shop / Bách hóa</option>
-                  <option value="Quán ăn / Nhà hàng / Cafe">☕ Quán ăn / Nhà hàng / Cafe</option>
-                  <option value="Văn phòng / Trụ sở cty">🏢 Văn phòng / Trụ sở công ty</option>
-                  <option value="Khách sạn / Nhà nghỉ / Căn hộ DV">🏨 Khách sạn / Nhà nghỉ / Căn hộ dịch vụ</option>
-                  <option value="Bệnh viện / Phòng khám / Y tế">🏥 Bệnh viện / Phòng khám / Y tế</option>
-                  <option value="Trường học / Trung tâm đào tạo">🏫 Trường học / Trung tâm đào tạo</option>
-                  <option value="Kho hàng / Xưởng sản xuất">🏭 Kho hàng / Xưởng sản xuất</option>
-                  <option value="Cơ sở tôn giáo (Chùa, Nhà thờ)">⛩️ Cơ sở tôn giáo (Chùa, Nhà thờ)</option>
-                  <option value="Công trình công cộng / Hành chính">🏛️ Công trình công cộng / Hành chính nhà nước</option>
-                  <option value="Khác">🔍 Khác (Nhập chi tiết...)</option>
+                  <option value="Nhà ở gia đình">Nhà ở gia đình (Nhà phố / Biệt thự / Căn hộ)</option>
+                  <option value="Cửa hàng / Shop / Bách hóa">Cửa hàng / Shop / Bách hóa</option>
+                  <option value="Quán ăn / Nhà hàng / Cafe">Quán ăn / Nhà hàng / Cafe</option>
+                  <option value="Văn phòng / Trụ sở cty">Văn phòng / Trụ sở công ty</option>
+                  <option value="Khách sạn / Nhà nghỉ / Căn hộ DV">Khách sạn / Nhà nghỉ / Căn hộ dịch vụ</option>
+                  <option value="Bệnh viện / Phòng khám / Y tế">Bệnh viện / Phòng khám / Y tế</option>
+                  <option value="Trường học / Trung tâm đào tạo">Trường học / Trung tâm đào tạo</option>
+                  <option value="Kho hàng / Xưởng sản xuất">Kho hàng / Xưởng sản xuất</option>
+                  <option value="Cơ sở tôn giáo (Chùa, Nhà thờ)">Cơ sở tôn giáo (Chùa, Nhà thờ)</option>
+                  <option value="Công trình công cộng / Hành chính">Công trình công cộng / Hành chính nhà nước</option>
+                  <option value="Khác">Khác (Nhập chi tiết...)</option>
                 </select>
 
                 {specs.useCategory === 'Khác' && (
@@ -1874,10 +2933,13 @@ export const SurveyPhase1View: React.FC<Props> = ({ initialParcelId, parcel, onF
                   />
                 )}
               </div>
+              )}
 
               {/* 2. Số tầng nổi */}
               <div>
-                <label className="form-label">Số tầng nổi:</label>
+                <label className="form-label">
+                  {isUnitMode ? 'Tổng số tầng Tòa nhà:' : 'Số tầng nổi:'}
+                </label>
                 <input
                   type="number"
                   min="1"
@@ -1889,7 +2951,9 @@ export const SurveyPhase1View: React.FC<Props> = ({ initialParcelId, parcel, onF
 
               {/* 3. Số tầng hầm */}
               <div>
-                <label className="form-label">Số tầng hầm:</label>
+                <label className="form-label">
+                  {isUnitMode ? 'Số tầng hầm Tòa nhà:' : 'Số tầng hầm:'}
+                </label>
                 <input
                   type="number"
                   min="0"
@@ -1901,7 +2965,10 @@ export const SurveyPhase1View: React.FC<Props> = ({ initialParcelId, parcel, onF
 
               {/* 4. Năm xây dựng & Ước tính */}
               <div>
-                <label className="form-label">Năm xây dựng (Age):</label>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2px' }}>
+                  <label className="form-label" style={{ margin: 0 }}>Năm xây dựng (Age):</label>
+                  {isUnitMode && <InheritedBadge label="Kế thừa Tòa nhà" />}
+                </div>
                 <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center' }}>
                   <input
                     type="number"
@@ -1925,7 +2992,10 @@ export const SurveyPhase1View: React.FC<Props> = ({ initialParcelId, parcel, onF
 
               {/* 5. Hệ kết cấu chịu lực */}
               <div>
-                <label className="form-label">Hệ kết cấu chịu lực (System):</label>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2px' }}>
+                  <label className="form-label" style={{ margin: 0 }}>Hệ kết cấu chịu lực (System):</label>
+                  {isUnitMode && <InheritedBadge label="Kế thừa Tòa nhà" />}
+                </div>
                 <select
                   className="form-control"
                   value={specs.structuralSystem}
@@ -1941,7 +3011,10 @@ export const SurveyPhase1View: React.FC<Props> = ({ initialParcelId, parcel, onF
 
               {/* 6. Dạng chịu lực */}
               <div>
-                <label className="form-label">Dạng chịu lực (Form):</label>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2px' }}>
+                  <label className="form-label" style={{ margin: 0 }}>Dạng chịu lực (Form):</label>
+                  {isUnitMode && <InheritedBadge label="Kế thừa Tòa nhà" />}
+                </div>
                 <select
                   className="form-control"
                   value={specs.structuralForm || 'Frame'}
@@ -1956,7 +3029,10 @@ export const SurveyPhase1View: React.FC<Props> = ({ initialParcelId, parcel, onF
 
               {/* 7. Loại móng */}
               <div>
-                <label className="form-label">Loại móng (Foundation):</label>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2px' }}>
+                  <label className="form-label" style={{ margin: 0 }}>Loại móng (Foundation):</label>
+                  {isUnitMode && <InheritedBadge label="Kế thừa Tòa nhà" />}
+                </div>
                 <select
                   className="form-control"
                   value={specs.foundationType}
@@ -2017,13 +3093,17 @@ export const SurveyPhase1View: React.FC<Props> = ({ initialParcelId, parcel, onF
             </div>
 
             <h4 style={{ margin: '0.75rem 0 0 0', fontSize: '0.9rem', fontWeight: 800, color: '#0f172a' }}>
-              2.2. Lịch Sử Biến Động, Sự Cố & Yếu Tố Nhạy Cảm (Map điểm E5):
+              {parcelData.buildingType === 'CONDOMINIUM'
+                ? '2.2. Lịch Sử Biến Động Toàn Tòa Nhà & Yếu Tố Nhạy Cảm (Map điểm E5):'
+                : '2.2. Lịch Sử Biến Động, Sự Cố & Yếu Tố Nhạy Cảm (Map điểm E5):'}
             </h4>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '0.75rem' }}>
-              {/* Cơi nới */}
+              {/* Côi nới / Sửa chữa - context-aware label */}
               <div>
-                <label className="form-label">Cơi nới / Thay đổi tải trọng:</label>
+                <label className="form-label">
+                  {parcelData.buildingType === 'CONDOMINIUM' ? 'Cải tạo Kết cấu / Thay đổi tải trọng Toà nhà:' : 'Côi nới / Thay đổi tải trọng:'}
+                </label>
                 <select
                   className="form-control"
                   value={specs.extendedOrRenovated}
@@ -2037,9 +3117,11 @@ export const SurveyPhase1View: React.FC<Props> = ({ initialParcelId, parcel, onF
                 </select>
               </div>
 
-              {/* Sửa chữa lớn */}
+              {/* Sửa chữa lớn - context-aware label */}
               <div>
-                <label className="form-label">Sửa chữa lớn / Cải tạo kết cấu:</label>
+                <label className="form-label">
+                  {parcelData.buildingType === 'CONDOMINIUM' ? 'Sửa chữa lớn / Cải tạo khối chung Toà nhà:' : 'Sửa chữa lớn / Cải tạo kết cấu:'}
+                </label>
                 <select
                   className="form-control"
                   value={specs.renovatedStructure}
@@ -2152,6 +3234,8 @@ export const SurveyPhase1View: React.FC<Props> = ({ initialParcelId, parcel, onF
             <div style={{ backgroundColor: '#eff6ff', padding: '0.65rem 0.85rem', borderRadius: '0.5rem', fontSize: '0.8rem', color: '#1e40af' }}>
               • <strong>Điểm E5 Lịch sử / Sự cố tự động tính:</strong> {e5Score}/4 điểm.
             </div>
+            </> )}
+            {/* Step 2 Navigation */}
           </div>
         )}
 
@@ -2164,7 +3248,7 @@ export const SurveyPhase1View: React.FC<Props> = ({ initialParcelId, parcel, onF
                 BƯỚC 3: Khảo Sát Hiện Trạng & Đánh Giá Hư Hỏng Theo Tầng
               </h3>
               <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.775rem', color: '#64748b' }}>
-                Quản lý phân cấp: Tầng ➔ Vùng khảo sát Z ➔ Khuyết tật D ➔ Bản vẽ sơ đồ mặt bằng tầng.
+                Quản lý phân cấp: Tầng - Vùng khảo sát Z - Khuyết tật D - Bản vẽ sơ đồ mặt bằng tầng.
               </p>
             </div>
 

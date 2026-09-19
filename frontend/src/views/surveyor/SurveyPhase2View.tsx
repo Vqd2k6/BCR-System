@@ -8,6 +8,7 @@ import { DefectPinningCanvas, DefectItem } from '../../components/canvas/DefectP
 import {
   FileCheck,
   CheckCircle,
+  CheckCircle2,
   ShieldCheck,
   Send,
   ChevronRight,
@@ -66,7 +67,7 @@ export const SurveyPhase2View: React.FC<Props> = ({ initialParcelId, onFinished 
     address: 'Số 854 Đường Trường Chinh, P.15, Q.Tân Bình',
     ownerName: 'Nguyễn Văn Hùng',
     ownerContact: '0908123456',
-    workSection: 'Đoạn tuyến Ga S9 (Bà Quẹo) ➔ Ga S10 (Phạm Văn Bạch)',
+    workSection: 'Đoạn tuyến Ga S9 (Bà Quẹo) - Ga S10 (Phạm Văn Bạch)',
     surveyDate: new Date().toLocaleDateString('vi-VN'),
     surveyPurpose: 'Baseline trước thi công', // Baseline trước thi công, Kiểm tra lại
     surveyLevel: 'L2-B', // L2-A, L2-B, L2-C
@@ -429,7 +430,10 @@ export const SurveyPhase2View: React.FC<Props> = ({ initialParcelId, onFinished 
                 cursor: 'pointer',
               }}
             >
-              <span>{isPassed ? '✓' : st.num}.</span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+                {isPassed && <CheckCircle2 size={11} />}
+                <span>{st.num}.</span>
+              </span>
               <span>{st.title}</span>
             </button>
           );
@@ -682,7 +686,7 @@ export const SurveyPhase2View: React.FC<Props> = ({ initialParcelId, onFinished 
                           fontWeight: 700,
                         }}
                       >
-                        {d.verificationStatus === 'UNCHANGED' ? '✓ Không đổi' : d.verificationStatus === 'DEVELOPED' ? '⚠️ Phát triển' : d.verificationStatus === 'REPAIRED' ? 'Đã sửa' : '★ MỚI GHI NHẬN'}
+                        {d.verificationStatus === 'UNCHANGED' ? 'Không đổi' : d.verificationStatus === 'DEVELOPED' ? 'Phát triển thêm' : d.verificationStatus === 'REPAIRED' ? 'Đã sửa chữa' : 'MỚI GHI NHẬN'}
                       </span>
                     </div>
 

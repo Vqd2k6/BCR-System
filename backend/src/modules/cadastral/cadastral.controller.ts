@@ -169,6 +169,42 @@ export class CadastralController {
     }
   }
 
+  static async getUnits(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      const result = await CadastralService.listUnitsForParcel(id);
+      res.status(200).json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async createUnit(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      const { unitCode, floorNumber, ownerName, ownerPhone, ownerIdCard } = req.body;
+      if (!unitCode) {
+        throw new BadRequestError('Mã số căn hộ (unitCode) là bắt buộc');
+      }
+      const result = await CadastralService.createUnitForParcel(id, {
+        unitCode,
+        floorNumber: floorNumber !== undefined ? parseInt(floorNumber, 10) : 1,
+        ownerName,
+        ownerPhone,
+        ownerIdCard,
+      });
+      res.status(201).json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   static async getNextHighRangeProjectCodes(req: Request, res: Response, next: NextFunction) {
     try {
       const count = req.query.count ? parseInt(req.query.count as string, 10) : 2;
@@ -181,5 +217,28 @@ export class CadastralController {
       next(error);
     }
   }
+
+  static async updateBuildingType(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      const { buildingType, totalUnits } = req.body;
+      if (!buildingType) {
+        throw new BadRequestError('Loại hình công trình (buildingType) là bắt buộc');
+      }
+      const result = await CadastralService.updateBuildingType(
+        id,
+        buildingType,
+        totalUnits !== undefined ? parseInt(totalUnits, 10) : undefined
+      );
+      res.status(200).json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
+
+
 

@@ -3,9 +3,18 @@ import { Database } from '../../database/db';
 import { NotFoundError, BadRequestError } from '../../common/errors/problem-details';
 
 export class SurveyService {
-  static async createPhase1Report(parcelId: string, surveyorId: string) {
-    const parcelRes = await Database.query<{ project_parcel_code: string }>(
-      `SELECT project_parcel_code FROM parcels WHERE id = $1;`,
+  static async createPhase1Report(
+    parcelId: string,
+    surveyorId: string,
+    unitId?: string,
+    reportType?: string
+  ) {
+    const parcelRes = await Database.query<{
+      project_parcel_code: string;
+      active_phase1_report_id: string | null;
+      building_type: string;
+    }>(
+      `SELECT project_parcel_code, active_phase1_report_id, building_type FROM parcels WHERE id = $1;`,
       [parcelId]
     );
     if (!parcelRes.rows[0]) {
@@ -13,13 +22,39 @@ export class SurveyService {
     }
 
     const projectCode = parcelRes.rows[0].project_parcel_code;
-    const reportCode = `REPORT-${projectCode}-PHASE1-${Date.now()}`;
+    let actualReportType =
+      reportType ||
+      (parcelRes.rows[0].building_type === 'CONDOMINIUM' ? 'BUILDING_MASTER' : 'STANDALONE');
+    let parentReportId: string | null = null;
+    let reportCode = `REPORT-${projectCode}-PHASE1-${Date.now()}`;
+
+    if (unitId) {
+      actualReportType = 'UNIT_CHILD';
+      const unitRes = await Database.query<{ unit_code: string }>(
+        `SELECT unit_code FROM building_units WHERE id = $1;`,
+        [unitId]
+      );
+      const unitCode = unitRes.rows[0]?.unit_code || 'UNIT';
+      reportCode = `REPORT-${projectCode}-${unitCode}-PHASE1-${Date.now()}`;
+
+      // Tìm master report của toà nhà nếu có
+      const masterRes = await Database.query<{ id: string }>(
+        `SELECT id FROM base_survey_reports 
+         WHERE parcel_id = $1 AND report_type = 'BUILDING_MASTER' AND phase = 'PHASE_1' 
+         ORDER BY created_at DESC LIMIT 1;`,
+        [parcelId]
+      );
+      parentReportId = masterRes.rows[0]?.id || parcelRes.rows[0].active_phase1_report_id || null;
+    }
 
     const report = await SurveyRepository.createBaseReport({
       parcelId,
       surveyorId,
       reportCode,
       phase: 'PHASE_1',
+      unitId,
+      parentReportId: parentReportId || undefined,
+      reportType: actualReportType,
     });
 
     await Database.query(
@@ -27,10 +62,13 @@ export class SurveyService {
       [report.id]
     );
 
-    await Database.query(
-      `UPDATE parcels SET survey_status = 'IN_PROGRESS', active_phase1_report_id = $2 WHERE id = $1;`,
-      [parcelId, report.id]
-    );
+    // Chỉ cập nhật active_phase1_report_id của parcel nếu không phải là căn hộ con
+    if (!unitId) {
+      await Database.query(
+        `UPDATE parcels SET survey_status = 'IN_PROGRESS', active_phase1_report_id = $2 WHERE id = $1;`,
+        [parcelId, report.id]
+      );
+    }
 
     return {
       reportId: report.id,
@@ -38,9 +76,15 @@ export class SurveyService {
       phase: 'PHASE_1',
       status: 'DRAFT',
       currentStep: 1,
-      message: 'Khởi tạo hồ sơ khảo sát Phase 1 Baseline thành công',
+      unitId: unitId || null,
+      parentReportId: parentReportId || null,
+      reportType: actualReportType,
+      message: unitId
+        ? 'Khởi tạo hồ sơ khảo sát Căn hộ thành viên thành công (Kế thừa khối chung)'
+        : 'Khởi tạo hồ sơ khảo sát Phase 1 Baseline thành công',
     };
   }
+
 
   static async getReportDetail(reportId: string) {
     const report = await SurveyRepository.findReportById(reportId);

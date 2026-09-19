@@ -50,3 +50,12 @@ export const ApproveMutationDto = z.object({
   action: z.enum(['APPROVE', 'REJECT']),
   rejectionReason: z.string().optional(),
 });
+
+export const CreateBuildingUnitDto = z.object({
+  unitCode: z.string().min(1, 'Mã số căn hộ bắt buộc'),
+  floorNumber: z.number().int().min(-5).max(100).default(1),
+  ownerName: z.string().optional(),
+  ownerPhone: z.string().optional(),
+  ownerIdCard: z.string().optional(),
+});
+

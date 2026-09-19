@@ -393,8 +393,9 @@ export const PhotoCaptureInput: React.FC<Props> = ({
               zIndex: 10,
             }}
           >
-            <span style={{ fontSize: '0.9rem', fontWeight: 700 }}>
-              📸 Chụp ảnh: {label || 'Hiện trường'}
+            <span style={{ fontSize: '0.9rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+              <Camera size={16} />
+              <span>Chụp ảnh: {label || 'Hiện trường'}</span>
             </span>
             <div style={{ display: 'flex', gap: '0.5rem' }}>
               <button

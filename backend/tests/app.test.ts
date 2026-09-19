@@ -216,6 +216,30 @@ describe('Metro 2 Survey Platform - Full Exhaustive API Verification Suite (All 
         return { rows: [{ count: '10' }], rowCount: 1 } as any;
       }
 
+      // Mock Building Units
+      if (text.includes('FROM building_units') || text.includes('INSERT INTO building_units')) {
+        return {
+          rows: [
+            {
+              id: 'e0000000-0000-0000-0000-000000000001',
+              parcel_id: 'c0000000-0000-0000-0000-000000000001',
+              unit_code: 'P.402',
+              floor_number: 4,
+              owner_name: 'Nguyễn Thị Lan',
+              owner_phone: '0901234567',
+              owner_id_card: '079123456789',
+              status: 'NOT_SURVEYED',
+              phase1_report_id: null,
+              phase2_report_id: null,
+              created_at: new Date(),
+              updated_at: new Date(),
+            },
+          ],
+          rowCount: 1,
+        } as any;
+      }
+
+
       // Mock Default return
       return {
         rows: [
@@ -431,6 +455,34 @@ describe('Metro 2 Survey Platform - Full Exhaustive API Verification Suite (All 
       expect(res.body.data.status).toBe('PROPOSED_BY_SURVEYOR');
     });
 
+    it('1.1.9a. GET /api/v1/parcels/:id/units - should list units for condominium parcel', async () => {
+      const res = await request(app)
+        .get('/api/v1/parcels/c0000000-0000-0000-0000-000000000001/units')
+        .set('Authorization', `Bearer ${surveyorToken}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(Array.isArray(res.body.data.units)).toBe(true);
+      expect(res.body.data.units.length).toBeGreaterThan(0);
+      expect(res.body.data.units[0].unit_code).toBe('P.402');
+    });
+
+    it('1.1.9b. POST /api/v1/parcels/:id/units - should create a new apartment unit in condominium', async () => {
+      const res = await request(app)
+        .post('/api/v1/parcels/c0000000-0000-0000-0000-000000000001/units')
+        .set('Authorization', `Bearer ${surveyorToken}`)
+        .send({
+          unitCode: 'P.501',
+          floorNumber: 5,
+          ownerName: 'Trần Văn Bình',
+          ownerPhone: '0912345678',
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.unit).toBeDefined();
+    });
+
     // Phase 1 9 Steps
     it('1.1.10. POST /api/v1/reports/phase1 - should create Phase 1 Baseline report', async () => {
       const res = await request(app)
@@ -442,6 +494,23 @@ describe('Metro 2 Survey Platform - Full Exhaustive API Verification Suite (All 
       expect(res.body.success).toBe(true);
       expect(res.body.data.phase).toBe('PHASE_1');
     });
+
+    it('1.1.10b. POST /api/v1/reports/phase1 - should create unit survey report inheriting building master', async () => {
+      const res = await request(app)
+        .post('/api/v1/reports/phase1')
+        .set('Authorization', `Bearer ${surveyorToken}`)
+        .send({
+          parcelId: 'c0000000-0000-0000-0000-000000000001',
+          unitId: 'e0000000-0000-0000-0000-000000000001',
+          reportType: 'UNIT_CHILD',
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.unitId).toBe('e0000000-0000-0000-0000-000000000001');
+      expect(res.body.data.reportType).toBe('UNIT_CHILD');
+    });
+
 
     it('1.1.11. POST /api/v1/reports/phase1/:id/identification-photos - should save P01-P04 with N-point polygon', async () => {
       const res = await request(app)

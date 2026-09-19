@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { api } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
-import { Camera, MapPin, CheckCircle, AlertTriangle, Clock, RefreshCw, X, ShieldCheck } from 'lucide-react';
+import { Camera, MapPin, CheckCircle, AlertTriangle, Clock, RefreshCw, X, ShieldCheck, CheckCircle2, XCircle } from 'lucide-react';
 
 interface Props {
   isCheckedInToday?: boolean;
@@ -685,20 +685,24 @@ export const TimekeepingCheckInView: React.FC<Props> = ({ isCheckedInToday = fal
                 {/* Right: Badge with flex-shrink: 0 and white-space: nowrap (Requirement 7) */}
                 <div style={{ flexShrink: 0 }}>
                   {status === 'APPROVED' || status === 'VERIFIED' ? (
-                    <span className="badge badge-success" style={{ whiteSpace: 'nowrap' }}>
-                      ✓ Đã duyệt
+                    <span className="badge badge-success" style={{ whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                      <CheckCircle2 size={12} />
+                      Đã duyệt
                     </span>
                   ) : status === 'FLAGGED_WARNING' || status === 'FLAGGED' ? (
-                    <span className="badge badge-danger" style={{ whiteSpace: 'nowrap' }}>
-                      ⚠️ Gắn cờ
+                    <span className="badge badge-danger" style={{ whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                      <AlertTriangle size={12} />
+                      Gắn cờ
                     </span>
                   ) : status === 'REJECTED' ? (
-                    <span className="badge badge-danger" style={{ whiteSpace: 'nowrap' }}>
-                      ✕ Từ chối
+                    <span className="badge badge-danger" style={{ whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                      <XCircle size={12} />
+                      Từ chối
                     </span>
                   ) : (
-                    <span className="badge badge-warning" style={{ whiteSpace: 'nowrap' }}>
-                      ⏳ Chờ duyệt
+                    <span className="badge badge-warning" style={{ whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                      <Clock size={12} />
+                      Chờ duyệt
                     </span>
                   )}
                 </div>

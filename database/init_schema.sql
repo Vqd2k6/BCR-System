@@ -377,6 +377,8 @@ CREATE TABLE parcels (
     footprint_polygon_geom GEOMETRY(Polygon, 4326),
     survey_status parcel_survey_status_enum NOT NULL DEFAULT 'NOT_SURVEYED',
     lifecycle_status parcel_lifecycle_enum NOT NULL DEFAULT 'ACTIVE',
+    building_type VARCHAR(32) NOT NULL DEFAULT 'STANDALONE', -- 'STANDALONE' | 'CONDOMINIUM' | 'ROW_HOUSE'
+    total_units INT NOT NULL DEFAULT 1,
     mutation_type mutation_type_enum NOT NULL DEFAULT 'ORIGINAL',
     parent_parcel_ids UUID[] DEFAULT '{}',
     child_parcel_ids UUID[] DEFAULT '{}',
@@ -392,9 +394,32 @@ CREATE INDEX idx_parcels_project_code ON parcels(project_parcel_code);
 CREATE INDEX idx_parcels_zone ON parcels(zone_id);
 CREATE INDEX idx_parcels_status ON parcels(survey_status);
 CREATE INDEX idx_parcels_lifecycle ON parcels(lifecycle_status);
+CREATE INDEX idx_parcels_building_type ON parcels(building_type);
 CREATE INDEX idx_parcels_location ON parcels USING GIST(location_geom);
 CREATE INDEX idx_parcels_cadastral ON parcels USING GIST(cadastral_polygon_geom);
 CREATE INDEX idx_parcels_footprint ON parcels USING GIST(footprint_polygon_geom);
+
+-- ============================================================================
+-- CĂN HỘ THÀNH VIÊN TRONG CHUNG CƯ / TÒA NHÀ NHIỀU HỘ (BUILDING UNITS)
+-- ============================================================================
+CREATE TABLE building_units (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    parcel_id UUID NOT NULL REFERENCES parcels(id) ON DELETE CASCADE,
+    unit_code VARCHAR(32) NOT NULL,                  -- VD: 'P.402', 'A-12.05'
+    floor_number INT NOT NULL DEFAULT 1,              -- Lầu 4
+    owner_name VARCHAR(128),
+    owner_phone VARCHAR(32),
+    owner_id_card VARCHAR(32),
+    status parcel_survey_status_enum NOT NULL DEFAULT 'NOT_SURVEYED',
+    phase1_report_id UUID,
+    phase2_report_id UUID,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT uq_parcel_unit UNIQUE (parcel_id, unit_code)
+);
+
+CREATE INDEX idx_building_units_parcel ON building_units(parcel_id);
+CREATE INDEX idx_building_units_status ON building_units(status);
 
 CREATE TABLE survey_absence_logs (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -516,6 +541,9 @@ CREATE TABLE base_survey_reports (
     owner_remarks TEXT,
     is_refused_or_absent BOOLEAN NOT NULL DEFAULT FALSE,
     refusal_doc_ref VARCHAR(128),
+    unit_id UUID REFERENCES building_units(id) ON DELETE SET NULL,
+    parent_report_id UUID REFERENCES base_survey_reports(id) ON DELETE SET NULL,
+    report_type VARCHAR(32) NOT NULL DEFAULT 'STANDALONE', -- 'STANDALONE' | 'BUILDING_MASTER' | 'UNIT_CHILD'
     submitted_at TIMESTAMPTZ,
     approved_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -526,6 +554,9 @@ CREATE INDEX idx_reports_parcel ON base_survey_reports(parcel_id);
 CREATE INDEX idx_reports_surveyor ON base_survey_reports(surveyor_id);
 CREATE INDEX idx_reports_status ON base_survey_reports(status);
 CREATE INDEX idx_reports_phase ON base_survey_reports(phase);
+CREATE INDEX idx_reports_unit ON base_survey_reports(unit_id);
+CREATE INDEX idx_reports_parent ON base_survey_reports(parent_report_id);
+CREATE INDEX idx_reports_type ON base_survey_reports(report_type);
 
 CREATE TABLE phase1_report_details (
     report_id UUID PRIMARY KEY REFERENCES base_survey_reports(id) ON DELETE CASCADE,

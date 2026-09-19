@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { GisParcel } from '../../components/gis/LeafletSweepMap';
+import { BuildingHubModal, BuildingUnit } from '../../components/survey/BuildingHubModal';
 import {
   Clock,
   CheckCircle2,
@@ -16,6 +17,8 @@ import {
   Check,
   FileText,
   GitCompare,
+  Building2,
+  ArrowRight,
 } from 'lucide-react';
 
 interface Props {
@@ -25,6 +28,7 @@ interface Props {
   onNavigateToMap: (parcelToFocus?: GisParcel) => void;
   onNavigateToCheckIn: () => void;
   onStartPhase1: (parcel: GisParcel) => void;
+  onStartUnitSurvey?: (parcel: GisParcel, unit: BuildingUnit) => void;
   onStartPhase2: (parcel: GisParcel) => void;
   onRecordAbsence: (parcel: GisParcel) => void;
 }
@@ -36,11 +40,14 @@ export const SurveyorHomeView: React.FC<Props> = ({
   onNavigateToMap,
   onNavigateToCheckIn,
   onStartPhase1,
+  onStartUnitSurvey,
   onStartPhase2,
   onRecordAbsence,
 }) => {
   const { user } = useAuth();
   const [searchTerm, setSearchTerm] = useState<string>('');
+  const [hubParcel, setHubParcel] = useState<GisParcel | null>(null);
+
   
   // Default filter: PENDING_ONLY (Chỉ hiện các căn cần làm, ẩn các căn đã duyệt)
   const [statusFilter, setStatusFilter] = useState<string>('PENDING_ONLY');
@@ -143,9 +150,10 @@ export const SurveyorHomeView: React.FC<Props> = ({
         return (
           <span
             className="badge"
-            style={{ backgroundColor: '#dcfce7', color: '#15803d', border: '1px solid #86efac', fontWeight: 700 }}
+            style={{ backgroundColor: '#dcfce7', color: '#15803d', border: '1px solid #86efac', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '3px' }}
           >
-            ✓ Đã duyệt Phase 1
+            <CheckCircle2 size={12} />
+            Đã duyệt Phase 1
           </span>
         );
       case 'PHASE2_COMPLETED':
@@ -153,45 +161,50 @@ export const SurveyorHomeView: React.FC<Props> = ({
         return (
           <span
             className="badge"
-            style={{ backgroundColor: '#dbeafe', color: '#1d4ed8', border: '1px solid #93c5fd', fontWeight: 700 }}
+            style={{ backgroundColor: '#dbeafe', color: '#1d4ed8', border: '1px solid #93c5fd', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}
           >
-            ★ Hoàn tất Phase 2
+            <CheckCircle2 size={12} color="#1d4ed8" />
+            Hoàn tất Phase 2
           </span>
         );
       case 'SUBMITTED':
         return (
           <span
             className="badge"
-            style={{ backgroundColor: '#e0f2fe', color: '#0369a1', border: '1px solid #7dd3fc', fontWeight: 700 }}
+            style={{ backgroundColor: '#e0f2fe', color: '#0369a1', border: '1px solid #7dd3fc', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}
           >
-            ⏳ Đã nộp (Chờ duyệt)
+            <Clock size={12} color="#0284c7" />
+            Đã nộp (Chờ duyệt)
           </span>
         );
       case 'IN_PROGRESS':
         return (
           <span
             className="badge"
-            style={{ backgroundColor: '#fffbeb', color: '#b45309', border: '1px solid #fde68a', fontWeight: 700 }}
+            style={{ backgroundColor: '#fffbeb', color: '#b45309', border: '1px solid #fde68a', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}
           >
-            🔄 Đang làm dở (Chưa nộp)
+            <Clock size={12} color="#b45309" />
+            Đang làm dở
           </span>
         );
       case 'POSTPONED_ABSENT':
         return (
           <span
             className="badge"
-            style={{ backgroundColor: '#f3e8ff', color: '#7e22ce', border: '1px solid #d8b4fe', fontWeight: 700 }}
+            style={{ backgroundColor: '#f3e8ff', color: '#7e22ce', border: '1px solid #d8b4fe', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}
           >
-            🏠 Vắng mặt (Hẹn lại)
+            <AlertCircle size={12} color="#7e22ce" />
+            Vắng mặt (Hẹn lại)
           </span>
         );
       case 'REJECTED':
         return (
           <span
             className="badge"
-            style={{ backgroundColor: '#fee2e2', color: '#b91c1c', border: '1px solid #fca5a5', fontWeight: 700 }}
+            style={{ backgroundColor: '#fee2e2', color: '#b91c1c', border: '1px solid #fca5a5', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}
           >
-            ✕ Cần đo bổ sung
+            <AlertCircle size={12} color="#b91c1c" />
+            Cần đo bổ sung
           </span>
         );
       case 'NOT_SURVEYED':
@@ -199,8 +212,9 @@ export const SurveyorHomeView: React.FC<Props> = ({
         return (
           <span
             className="badge"
-            style={{ backgroundColor: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1', fontWeight: 600 }}
+            style={{ backgroundColor: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '4px' }}
           >
+            <Clock size={11} color="#64748b" />
             Chưa làm Phase 1
           </span>
         );
@@ -268,7 +282,8 @@ export const SurveyorHomeView: React.FC<Props> = ({
               }}
             >
               <Clock size={14} color="#d97706" />
-              <span>Chưa chấm công GPS ➔</span>
+              <span>Chưa chấm công GPS</span>
+              <ArrowRight size={13} color="#d97706" />
             </button>
           )}
         </div>
@@ -523,10 +538,51 @@ export const SurveyorHomeView: React.FC<Props> = ({
                           {p.projectParcelCode || (p as any).project_parcel_code}
                         </span>
                         {getStatusBadge(p.surveyStatus)}
+                        {p.buildingType === 'CONDOMINIUM' && (
+                          <button
+                            type="button"
+                            onClick={() => setHubParcel(p)}
+                            style={{
+                              backgroundColor: '#ede9fe',
+                              color: '#5b21b6',
+                              border: '1px solid #c4b5fd',
+                              padding: '2px 8px',
+                              borderRadius: '6px',
+                              fontSize: '0.725rem',
+                              fontWeight: 700,
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                            }}
+                          >
+                            <Building2 size={12} />
+                            Chung cư ({p.completedUnits || 0}/{p.totalUnits || 1} căn)
+                          </button>
+                        )}
                       </div>
+
                       <div style={{ fontSize: '0.875rem', fontWeight: 700, color: '#0f172a', marginTop: '0.2rem' }}>
                         Số {p.houseNumber || (p as any).house_number} {p.street}
                       </div>
+
+                      {p.buildingType === 'CONDOMINIUM' && (
+                        <div style={{ marginTop: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.5rem', maxWidth: '360px' }}>
+                          <div style={{ flex: 1, height: '6px', backgroundColor: '#e2e8f0', borderRadius: '999px', overflow: 'hidden' }}>
+                            <div
+                              style={{
+                                height: '100%',
+                                width: `${Math.min(100, Math.round(((p.completedUnits || 0) / Math.max(1, p.totalUnits || 1)) * 100))}%`,
+                                backgroundColor: (p.completedUnits || 0) >= (p.totalUnits || 1) ? '#10b981' : '#6366f1',
+                                borderRadius: '999px',
+                              }}
+                            />
+                          </div>
+                          <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#4f46e5' }}>
+                            {p.completedUnits || 0}/{p.totalUnits || 1} căn ({Math.min(100, Math.round(((p.completedUnits || 0) / Math.max(1, p.totalUnits || 1)) * 100))}%)
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -571,9 +627,13 @@ export const SurveyorHomeView: React.FC<Props> = ({
                           border: '1px solid #93c5fd',
                           fontWeight: 700,
                           cursor: 'default',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
                         }}
                       >
-                        ✓ Đã hoàn tất Phase 2
+                        <CheckCircle2 size={13} />
+                        <span>Đã hoàn tất Phase 2</span>
                       </button>
                     ) : isSubmitted ? (
                       <button
@@ -616,6 +676,46 @@ export const SurveyorHomeView: React.FC<Props> = ({
                         <AlertCircle size={14} color="#dc2626" />
                         Sửa & đo bổ sung Phase 1
                       </button>
+                    ) : p.buildingType === 'CONDOMINIUM' ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => setHubParcel(p)}
+                          className="btn btn-sm"
+                          style={{
+                            fontSize: '0.775rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.35rem',
+                            backgroundColor: '#4338ca',
+                            color: '#ffffff',
+                            border: '1px solid #3730a3',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                            boxShadow: '0 2px 4px rgba(67, 56, 202, 0.25)',
+                          }}
+                        >
+                          <Building2 size={14} />
+                          Hub Căn Hộ ({p.completedUnits || 0}/{p.totalUnits || 1} căn)
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => onStartPhase1(p)}
+                          className="btn btn-primary btn-sm"
+                          style={{
+                            fontSize: '0.775rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.35rem',
+                            backgroundColor: '#0284c7',
+                            borderColor: '#0369a1',
+                          }}
+                        >
+                          <PlusCircle size={14} />
+                          Khảo sát Tòa Nhà
+                        </button>
+                      </>
                     ) : isInProgress ? (
                       <button
                         type="button"
@@ -645,7 +745,7 @@ export const SurveyorHomeView: React.FC<Props> = ({
                       </button>
                     )}
 
-                    {/* 📍 Chỉ đường Button (Google Maps) */}
+                    {/* Chỉ đường Button (Google Maps) */}
                     <button
                       type="button"
                       className="btn btn-secondary btn-sm"
@@ -747,6 +847,26 @@ export const SurveyorHomeView: React.FC<Props> = ({
           </>
         )}
       </div>
+
+      {hubParcel && (
+        <BuildingHubModal
+          parcel={hubParcel}
+          onClose={() => setHubParcel(null)}
+          onStartMasterSurvey={(p) => {
+            setHubParcel(null);
+            onStartPhase1(p);
+          }}
+          onStartUnitSurvey={(p, unit) => {
+            setHubParcel(null);
+            if (onStartUnitSurvey) {
+              onStartUnitSurvey(p, unit);
+            } else {
+              onStartPhase1(p);
+            }
+          }}
+        />
+      )}
     </div>
   );
 };
+

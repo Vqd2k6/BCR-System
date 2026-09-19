@@ -62,6 +62,9 @@ export function createApp(): express.Application {
   api.get('/parcels/nearby', authenticateJwt, CadastralController.getNearbyParcels);
   api.get('/parcels/next-high-range-codes', authenticateJwt, CadastralController.getNextHighRangeProjectCodes);
   api.get('/parcels/:id', authenticateJwt, CadastralController.getParcelById);
+  api.get('/parcels/:id/units', authenticateJwt, CadastralController.getUnits);
+  api.post('/parcels/:id/units', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.createUnit);
+  api.patch('/parcels/:id/building-type', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.updateBuildingType);
   api.post('/parcels/:id/start-survey', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.startSurvey);
   api.post('/parcels/:id/record-absence', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.recordAbsence);
   api.put('/parcels/:id/footprint', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.updateFootprint);

@@ -6,13 +6,39 @@ export class SurveyRepository {
     surveyorId: string;
     reportCode: string;
     phase: 'PHASE_1' | 'PHASE_2';
+    unitId?: string;
+    parentReportId?: string;
+    reportType?: string;
   }): Promise<{ id: string; report_code: string }> {
     const res = await Database.query<{ id: string; report_code: string }>(
-      `INSERT INTO base_survey_reports (parcel_id, surveyor_id, report_code, phase, status, current_step)
-       VALUES ($1, $2, $3, $4, 'DRAFT', 1)
+      `INSERT INTO base_survey_reports (parcel_id, surveyor_id, report_code, phase, status, current_step, unit_id, parent_report_id, report_type)
+       VALUES ($1, $2, $3, $4, 'DRAFT', 1, $5, $6, $7)
        RETURNING id, report_code;`,
-      [data.parcelId, data.surveyorId, data.reportCode, data.phase]
+      [
+        data.parcelId,
+        data.surveyorId,
+        data.reportCode,
+        data.phase,
+        data.unitId || null,
+        data.parentReportId || null,
+        data.reportType || 'STANDALONE',
+      ]
     );
+
+    if (data.unitId) {
+      if (data.phase === 'PHASE_1') {
+        await Database.query(
+          `UPDATE building_units SET phase1_report_id = $1, status = 'IN_PROGRESS', updated_at = NOW() WHERE id = $2;`,
+          [res.rows[0].id, data.unitId]
+        );
+      } else {
+        await Database.query(
+          `UPDATE building_units SET phase2_report_id = $1, status = 'IN_PROGRESS', updated_at = NOW() WHERE id = $2;`,
+          [res.rows[0].id, data.unitId]
+        );
+      }
+    }
+
     return res.rows[0];
   }
 
@@ -20,11 +46,15 @@ export class SurveyRepository {
     const res = await Database.query(
       `SELECT r.*,
               p.project_parcel_code, p.official_cadastral_code, p.house_number, p.street,
-              p.owner_name, p.owner_phone, p.zone_id,
+              COALESCE(bu.owner_name, p.owner_name) AS owner_name,
+              COALESCE(bu.owner_phone, p.owner_phone) AS owner_phone,
+              bu.unit_code, bu.floor_number AS unit_floor_number,
+              p.zone_id, p.building_type,
               u.full_name AS surveyor_name
        FROM base_survey_reports r
        JOIN parcels p ON r.parcel_id = p.id
        JOIN users u ON r.surveyor_id = u.id
+       LEFT JOIN building_units bu ON r.unit_id = bu.id
        WHERE r.id = $1 LIMIT 1;`,
       [reportId]
     );
@@ -70,10 +100,31 @@ export class SurveyRepository {
       [reportId]
     );
 
+    let identificationPhotos = photosRes.rows;
+    let buildingSpecs = specsRes.rows[0] || null;
+
+    // Kế thừa P01-P04 và Specs từ Parent Report nếu là UNIT_CHILD
+    if (base.parent_report_id) {
+      if (identificationPhotos.length === 0) {
+        const parentPhotosRes = await Database.query(
+          `SELECT * FROM survey_identification_photos WHERE report_id = $1;`,
+          [base.parent_report_id]
+        );
+        identificationPhotos = parentPhotosRes.rows;
+      }
+      if (!buildingSpecs) {
+        const parentSpecsRes = await Database.query(
+          `SELECT * FROM building_specifications WHERE report_id = $1;`,
+          [base.parent_report_id]
+        );
+        buildingSpecs = parentSpecsRes.rows[0] || null;
+      }
+    }
+
     return {
       ...base,
-      identificationPhotos: photosRes.rows,
-      buildingSpecs: specsRes.rows[0] || null,
+      identificationPhotos,
+      buildingSpecs,
       historicalSensitivity: historyRes.rows[0] || null,
       floorSurveys: floorsRes.rows,
       damageZones: zonesRes.rows,
@@ -82,6 +133,7 @@ export class SurveyRepository {
       phase2Details: p2DetailsRes.rows[0] || null,
     };
   }
+
 
   static async saveIdentificationPhotos(
     reportId: string,

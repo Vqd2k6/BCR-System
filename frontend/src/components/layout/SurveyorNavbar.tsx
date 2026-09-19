@@ -234,9 +234,13 @@ export const SurveyorNavbar: React.FC<Props> = ({
                     fontSize: '0.65rem',
                     fontWeight: 700,
                     padding: '0.1rem 0.35rem',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '3px',
                   }}
                 >
-                  {isCheckedInToday ? '✓ Đã điểm danh' : 'Chưa điểm danh'}
+                  {isCheckedInToday && <CheckCircle2 size={10} />}
+                  <span>{isCheckedInToday ? 'Đã điểm danh' : 'Chưa điểm danh'}</span>
                 </span>
               </div>
 

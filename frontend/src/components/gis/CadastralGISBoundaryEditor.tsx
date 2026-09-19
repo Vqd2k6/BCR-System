@@ -31,6 +31,8 @@ import {
   Trash2,
   MousePointer,
   Compass,
+  X,
+  CheckCircle2,
 } from 'lucide-react';
 import { api } from '../../services/api';
 import { GisParcel } from './LeafletSweepMap';
@@ -173,11 +175,12 @@ const HelpBadge: React.FC<{
                   background: 'none',
                   cursor: 'pointer',
                   color: '#94a3b8',
-                  fontSize: '0.85rem',
                   padding: '0 0.2rem',
+                  display: 'flex',
+                  alignItems: 'center',
                 }}
               >
-                ✕
+                <X size={14} />
               </button>
             </div>
             <div>{content}</div>
@@ -226,18 +229,18 @@ const MapClickListener: React.FC<{
 
 // SYSTEM STANDARD USE CATEGORIES
 const SYSTEM_USE_CATEGORIES = [
-  '🏠 Nhà ở gia đình (Nhà phố / Biệt thự / Căn hộ)',
-  '🛒 Cửa hàng / Shop / Bách hóa',
-  '☕ Quán ăn / Nhà hàng / Cafe',
-  '🏢 Văn phòng / Trụ sở công ty',
-  '🏨 Khách sạn / Nhà nghỉ / Căn hộ DV',
-  '🏥 Bệnh viện / Phòng khám / Y tế',
-  '🏫 Trường học / Trung tâm đào tạo',
-  '🏭 Kho hàng / Xưởng sản xuất',
-  '⛩️ Cơ sở tôn giáo (Chùa, Nhà thờ)',
-  '🏛️ Công trình công cộng / Hành chính',
-  '🌱 Đất trống / Sân vườn',
-  '🔍 Khác',
+  'Nhà ở gia đình (Nhà phố / Biệt thự / Căn hộ)',
+  'Cửa hàng / Shop / Bách hóa',
+  'Quán ăn / Nhà hàng / Cafe',
+  'Văn phòng / Trụ sở công ty',
+  'Khách sạn / Nhà nghỉ / Căn hộ DV',
+  'Bệnh viện / Phòng khám / Y tế',
+  'Trường học / Trung tâm đào tạo',
+  'Kho hàng / Xưởng sản xuất',
+  'Cơ sở tôn giáo (Chùa, Nhà thờ)',
+  'Công trình công cộng / Hành chính',
+  'Đất trống / Sân vườn',
+  'Khác',
 ];
 
 // COMMON SPLIT REASONS FOR QUICK SELECTION
@@ -493,7 +496,7 @@ export const CadastralGISBoundaryEditor: React.FC<Props> = ({
                   ownerName: parcelData.ownerName || '',
                   suggestedCode: codes[0] || 'B-00108',
                   areaM2: Math.round(totalLandArea * 0.6 * 10) / 10,
-                  functionalType: '🏠 Nhà ở gia đình (Nhà phố / Biệt thự / Căn hộ)',
+                  functionalType: 'Nhà ở gia đình (Nhà phố / Biệt thự / Căn hộ)',
                   isResidualSurplus: false,
                 },
                 {
@@ -678,7 +681,7 @@ export const CadastralGISBoundaryEditor: React.FC<Props> = ({
           ownerName: c.ownerName || (idx === 0 ? parcelData.ownerName : 'Chủ hộ Căn B'),
           landAreaM2: idx === 0 ? calculatedAreaA : calculatedAreaB,
           floorCount: parcelData.floorCount || 2,
-          functionalType: c.functionalType || (idx === 1 ? 'RESIDUAL_SURPLUS' : '🏠 Nhà ở gia đình (Nhà phố / Biệt thự / Căn hộ)'),
+          functionalType: c.functionalType || (idx === 1 ? 'RESIDUAL_SURPLUS' : 'Nhà ở gia đình (Nhà phố / Biệt thự / Căn hộ)'),
           isResidualSurplus: c.isResidualSurplus || (c.functionalType === 'RESIDUAL_SURPLUS'),
           residualParentParcelCode: parcelData.projectParcelCode,
           residualParentCadastralCode: parcelData.officialCadastralCode,
@@ -726,7 +729,7 @@ export const CadastralGISBoundaryEditor: React.FC<Props> = ({
 
       if (onToastMessage) {
         onToastMessage(
-          `✓ Đã gửi đề xuất ${boundaryStatus === 'SPLIT' ? 'Tách thửa' : 'Gộp thửa'} thành công lúc ${nowStr} (Chờ Zone Admin duyệt)`
+          `Đã gửi đề xuất ${boundaryStatus === 'SPLIT' ? 'Tách thửa' : 'Gộp thửa'} thành công lúc ${nowStr} (Chờ Zone Admin duyệt)`
         );
       }
     } catch (_err) {
@@ -741,7 +744,7 @@ export const CadastralGISBoundaryEditor: React.FC<Props> = ({
 
       if (onToastMessage) {
         onToastMessage(
-          `✓ Đã ghi nhận đề xuất ${boundaryStatus === 'SPLIT' ? 'Tách thửa' : 'Gộp thửa'} lúc ${nowStr} vào hồ sơ kỹ thuật`
+          `Đã ghi nhận đề xuất ${boundaryStatus === 'SPLIT' ? 'Tách thửa' : 'Gộp thửa'} lúc ${nowStr} vào hồ sơ kỹ thuật`
         );
       }
     } finally {
@@ -1023,7 +1026,7 @@ export const CadastralGISBoundaryEditor: React.FC<Props> = ({
               >
                 <Tooltip direction="top">
                   <div style={{ fontSize: '0.725rem', fontWeight: 800, color: '#15803d' }}>
-                    ★ {parcelData.projectParcelCode} ({totalLandArea} m²)
+                    {parcelData.projectParcelCode} ({totalLandArea} m²)
                   </div>
                 </Tooltip>
               </Polygon>
@@ -1088,7 +1091,7 @@ export const CadastralGISBoundaryEditor: React.FC<Props> = ({
                 onClick={() => {
                   onMutationDataChange({ ...mutationData, matchConfirmed: true });
                   if (onToastMessage) {
-                    onToastMessage(`✓ Đã xác nhận thửa ${parcelData.projectParcelCode} khớp ranh 100% vào hồ sơ!`);
+                    onToastMessage(`Đã xác nhận thửa ${parcelData.projectParcelCode} khớp ranh 100% vào hồ sơ!`);
                   }
                 }}
                 className="btn btn-primary btn-sm"
@@ -1104,7 +1107,7 @@ export const CadastralGISBoundaryEditor: React.FC<Props> = ({
                 }}
               >
                 <Check size={14} />
-                <span>✓ Xác nhận Khớp ranh 100%</span>
+                <span>Xác nhận Khớp ranh 100%</span>
               </button>
             </div>
           </div>
@@ -1228,7 +1231,7 @@ export const CadastralGISBoundaryEditor: React.FC<Props> = ({
             {splitShapeOption === 'DRAG_HANDLES' ? (
               <>
                 <div style={{ fontSize: '0.725rem', color: '#9a3412', fontWeight: 700 }}>
-                  ✋ Kéo trực tiếp các điểm mút tròn (1, 2, 3...) trên bản đồ để nắn lại ranh căn nhà:
+                  Kéo trực tiếp các điểm mút tròn (1, 2, 3...) trên bản đồ để nắn lại ranh căn nhà:
                 </div>
                 <div style={{ display: 'flex', gap: '0.25rem' }}>
                   <button
@@ -1261,7 +1264,7 @@ export const CadastralGISBoundaryEditor: React.FC<Props> = ({
             ) : (
               <>
                 <div style={{ fontSize: '0.725rem', color: '#9a3412', fontWeight: 700 }}>
-                  🖱️ Chấm các điểm trên bản đồ để tự động nối thành hình dạng mới ({polyAVertices.length} điểm):
+                  Chấm các điểm trên bản đồ để tự động nối thành hình dạng mới ({polyAVertices.length} điểm):
                 </div>
                 <div style={{ display: 'flex', gap: '0.25rem' }}>
                   <button
@@ -1270,7 +1273,7 @@ export const CadastralGISBoundaryEditor: React.FC<Props> = ({
                     className="btn btn-secondary btn-sm"
                     style={{ fontSize: '0.675rem', padding: '0.2rem 0.45rem', display: 'flex', alignItems: 'center', gap: '0.2rem', backgroundColor: '#fed7aa', color: '#9a3412', fontWeight: 700 }}
                   >
-                    📐 Mẫu chữ L
+                    Mẫu chữ L
                   </button>
                   <button
                     type="button"
@@ -1479,7 +1482,7 @@ export const CadastralGISBoundaryEditor: React.FC<Props> = ({
                     ownerName: parcelData.ownerName || '',
                     suggestedCode: dynamicCodes[0] || 'B-00108',
                     areaM2: calculatedAreaA,
-                    functionalType: '🏠 Nhà ở gia đình (Nhà phố / Biệt thự / Căn hộ)',
+                    functionalType: 'Nhà ở gia đình (Nhà phố / Biệt thự / Căn hộ)',
                   };
                 }
                 updatedChildren[1] = {
@@ -1506,7 +1509,7 @@ export const CadastralGISBoundaryEditor: React.FC<Props> = ({
                 });
               }}
             >
-              <option value="RESIDUAL_SURPLUS">⚠️ 1. Đất thừa / Sai số biên ranh (Mặc định - Lưu metadata truy xuất)</option>
+              <option value="RESIDUAL_SURPLUS">1. Đất thừa / Sai số biên ranh (Mặc định - Lưu metadata truy xuất)</option>
               {SYSTEM_USE_CATEGORIES.map((cat, idx) => (
                 <option key={cat} value={cat}>
                   {idx + 2}. {cat}
@@ -1585,7 +1588,7 @@ export const CadastralGISBoundaryEditor: React.FC<Props> = ({
                 {isSubmittingMutation
                   ? 'Đang gửi...'
                   : mutationData.isSubmitted
-                  ? `✓ Đã gửi đề xuất (${mutationData.submittedAt})`
+                  ? `Đã gửi đề xuất (${mutationData.submittedAt})`
                   : 'Gửi đề xuất Tách thửa'}
               </span>
             </button>
@@ -1680,7 +1683,7 @@ export const CadastralGISBoundaryEditor: React.FC<Props> = ({
                   >
                     <Tooltip direction="top" opacity={0.95}>
                       <div style={{ fontSize: '0.725rem', fontWeight: 800 }}>
-                        {isActive ? '★ ' : ''}{neighbor.projectParcelCode} {isSelectedMerge ? '(✓ Chọn gộp)' : ''}<br />
+                        {neighbor.projectParcelCode} {isSelectedMerge ? '(Chọn gộp)' : ''}<br />
                         <span style={{ fontSize: '0.65rem', fontWeight: 500 }}>
                           Số {neighbor.houseNumber} {neighbor.street}
                         </span>
@@ -1831,7 +1834,7 @@ export const CadastralGISBoundaryEditor: React.FC<Props> = ({
                 {isSubmittingMutation
                   ? 'Đang gửi...'
                   : mutationData.isSubmitted
-                  ? `✓ Đã gửi đề xuất (${mutationData.submittedAt})`
+                  ? `Đã gửi đề xuất (${mutationData.submittedAt})`
                   : `Gửi đề xuất Gộp ${selectedMergeCodes.length + 1} thửa`}
               </span>
             </button>

@@ -9,6 +9,7 @@ import { SurveyorHomeView } from './views/surveyor/SurveyorHomeView';
 import { TimekeepingCheckInView } from './views/surveyor/TimekeepingCheckInView';
 import { SurveyPhase1View } from './views/surveyor/SurveyPhase1View';
 import { SurveyPhase2View } from './views/surveyor/SurveyPhase2View';
+import { BuildingHubModal } from './components/survey/BuildingHubModal';
 
 export const App: React.FC = () => {
   const { user, isAuthenticated, isLoading } = useAuth();
@@ -16,6 +17,8 @@ export const App: React.FC = () => {
   const [selectedZone, setSelectedZone] = useState<string>('ZONE_S9');
   const [parcels, setParcels] = useState<GisParcel[]>([]);
   const [selectedParcelForSurvey, setSelectedParcelForSurvey] = useState<GisParcel | null>(null);
+  const [selectedUnitForSurvey, setSelectedUnitForSurvey] = useState<any | null>(null);
+  const [hubParcel, setHubParcel] = useState<GisParcel | null>(null);
 
   // Dynamic Check-In state for surveyor with localStorage persistence (Requirement 5)
   const [isCheckedInToday, setIsCheckedInToday] = useState<boolean>(() => {
@@ -70,8 +73,12 @@ export const App: React.FC = () => {
       landArea: Number(p.land_area_m2 ?? p.landArea ?? 0),
       landCategory: p.land_use_category || p.landCategory,
       landUseName: p.land_use_name_raw || p.landUseName,
+      buildingType: p.building_type || p.buildingType || 'STANDALONE',
+      totalUnits: Number(p.total_units ?? p.totalUnits ?? 1),
+      completedUnits: Number(p.completed_units_count ?? p.completedUnits ?? 0),
     };
   };
+
 
   // ─── Load thửa đất theo zone từ API Backend ─────────────────────────────────
   const loadParcels = async () => {
@@ -145,6 +152,13 @@ export const App: React.FC = () => {
 
   const handleStartPhase1 = (parcel: GisParcel) => {
     setSelectedParcelForSurvey(parcel);
+    setSelectedUnitForSurvey(null);
+    setActiveTab('phase1');
+  };
+
+  const handleStartUnitSurvey = (parcel: GisParcel, unit: any) => {
+    setSelectedParcelForSurvey(parcel);
+    setSelectedUnitForSurvey(unit);
     setActiveTab('phase1');
   };
 
@@ -187,7 +201,9 @@ export const App: React.FC = () => {
             : activeTab === 'attendance'
             ? 'Điểm Danh GPS Hiện Trường'
             : activeTab === 'phase1'
-            ? 'Hồ Sơ Phase 1 (Baseline)'
+            ? selectedUnitForSurvey
+              ? `Khảo Sát Căn ${selectedUnitForSurvey.unit_code} (${selectedParcelForSurvey?.projectParcelCode})`
+              : 'Hồ Sơ Phase 1 (Baseline)'
             : 'Đối Soát Phase 2 (Pre-Construction)'
         }
         onNavigateToCheckIn={() => setActiveTab('attendance')}
@@ -210,6 +226,7 @@ export const App: React.FC = () => {
             }}
             onNavigateToCheckIn={() => setActiveTab('attendance')}
             onStartPhase1={handleStartPhase1}
+            onStartUnitSurvey={handleStartUnitSurvey}
             onStartPhase2={handleStartPhase2}
             onRecordAbsence={handleRecordAbsence}
           />
@@ -223,6 +240,7 @@ export const App: React.FC = () => {
               onSelectZone={setSelectedZone}
               onSelectParcel={(p) => setSelectedParcelForSurvey(p)}
               onStartSurvey={handleStartPhase1}
+              onOpenBuildingHub={(p) => setHubParcel(p)}
               onRecordAbsence={handleRecordAbsence}
               userGps={{ lat: 10.8036, lng: 106.6388, accuracy: 8 }}
             />
@@ -240,12 +258,38 @@ export const App: React.FC = () => {
           <SurveyPhase1View
             initialParcelId={selectedParcelForSurvey?.id}
             parcel={selectedParcelForSurvey}
-            onFinished={() => setActiveTab('home')}
+            unit={selectedUnitForSurvey}
+            onOpenBuildingHub={(p) => setHubParcel(p)}
+            onFinished={() => {
+              setSelectedUnitForSurvey(null);
+              setActiveTab('home');
+              loadParcels();
+            }}
           />
         )}
 
+
         {activeTab === 'phase2' && <SurveyPhase2View />}
       </main>
+
+      {/* Global Condominium Hub Modal accessible from Map, Home, or Phase 1 */}
+      {hubParcel && (
+        <BuildingHubModal
+          parcel={hubParcel}
+          onClose={() => setHubParcel(null)}
+          onStartMasterSurvey={(p) => {
+            setHubParcel(null);
+            handleStartPhase1(p);
+          }}
+          onStartUnitSurvey={(p, unit) => {
+            setHubParcel(null);
+            handleStartUnitSurvey(p, unit);
+          }}
+          onUnitsUpdated={() => {
+            loadParcels();
+          }}
+        />
+      )}
 
       {/* Bottom Navigation for Mobile PWA (3 Tabs: Home, Map, Attendance) */}
       <SurveyorBottomNav activeTab={activeTab} onChangeTab={setActiveTab} />

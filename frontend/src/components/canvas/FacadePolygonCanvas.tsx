@@ -283,7 +283,7 @@ export const FacadePolygonCanvas: React.FC<FacadePolygonCanvasProps> = ({
                 {aiStatus === 'PROCESSING'
                   ? 'Đang nắn ảnh...'
                   : aiStatus === 'COMPLETED'
-                  ? '✓ Đã nắn thẳng'
+                  ? 'Đã nắn thẳng'
                   : 'Nắn thẳng ảnh (AI)'}
               </span>
             </button>

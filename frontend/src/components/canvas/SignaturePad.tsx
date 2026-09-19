@@ -157,7 +157,8 @@ export const SignaturePad: React.FC<Props> = ({
                   boxShadow: mode === 'DRAW' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
                 }}
               >
-                ✍️ Ký tay
+                <PenTool size={13} style={{ marginRight: '4px', verticalAlign: 'middle' }} />
+                <span>Ký tay</span>
               </button>
               <button
                 type="button"
@@ -172,9 +173,12 @@ export const SignaturePad: React.FC<Props> = ({
                   borderRadius: '0.35rem',
                   cursor: 'pointer',
                   boxShadow: mode === 'PHOTO' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+                  display: 'inline-flex',
+                  alignItems: 'center',
                 }}
               >
-                📷 Chụp ảnh
+                <Camera size={13} style={{ marginRight: '4px', verticalAlign: 'middle' }} />
+                <span>Chụp ảnh</span>
               </button>
             </div>
 

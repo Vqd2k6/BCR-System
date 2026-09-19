@@ -2,7 +2,10 @@ import { z } from 'zod';
 
 export const CreatePhase1ReportDto = z.object({
   parcelId: z.string().uuid(),
+  unitId: z.string().uuid().optional(),
+  reportType: z.enum(['STANDALONE', 'BUILDING_MASTER', 'UNIT_CHILD']).default('STANDALONE'),
 });
+
 
 export const IdentificationPhotosDto = z.object({
   p01HouseNumberUrl: z.string().optional().nullable(),

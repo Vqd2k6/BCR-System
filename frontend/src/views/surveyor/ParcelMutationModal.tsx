@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Layers, Plus, Trash2, AlertTriangle, CheckCircle } from 'lucide-react';
+import { Layers, Plus, Trash2, AlertTriangle, CheckCircle, X } from 'lucide-react';
 import { GisParcel } from '../../components/gis/LeafletSweepMap';
 
 interface Props {
@@ -115,10 +115,11 @@ export const ParcelMutationModal: React.FC<Props> = ({ parcel, isOpen, onClose, 
           </div>
 
           <button
+            type="button"
             onClick={onClose}
-            style={{ background: 'transparent', border: 'none', color: '#94a3b8', fontSize: '1.25rem', cursor: 'pointer' }}
+            style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
           >
-            ✕
+            <X size={20} />
           </button>
         </div>
 

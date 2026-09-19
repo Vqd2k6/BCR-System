@@ -20,6 +20,8 @@ export interface ParcelEntity {
   adjacent_type: string;
   survey_status: 'NOT_SURVEYED' | 'ASSIGNED_TO_ME' | 'IN_PROGRESS' | 'POSTPONED_ABSENT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED';
   lifecycle_status: 'ACTIVE' | 'PENDING_MUTATION_APPROVAL' | 'SPLIT_DEPRECATED' | 'MERGED_DEPRECATED' | 'MUTATION_VOID';
+  building_type?: string;
+  total_units?: number;
   mutation_type: string;
   parent_parcel_ids: string[];
   child_parcel_ids: string[];
@@ -30,6 +32,22 @@ export interface ParcelEntity {
   created_at: Date;
   updated_at: Date;
 }
+
+export interface BuildingUnitEntity {
+  id: string;
+  parcel_id: string;
+  unit_code: string;
+  floor_number: number;
+  owner_name: string | null;
+  owner_phone: string | null;
+  owner_id_card: string | null;
+  status: string;
+  phase1_report_id: string | null;
+  phase2_report_id: string | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
 
 export class CadastralRepository {
   static async findById(id: string): Promise<ParcelEntity | null> {
@@ -64,6 +82,8 @@ export class CadastralRepository {
 
     const res = await Database.query<ParcelEntity>(
       `SELECT p.*,
+              GREATEST(p.total_units, (SELECT COUNT(*)::int FROM building_units u WHERE u.parcel_id = p.id)) AS total_units,
+              (SELECT COUNT(*)::int FROM building_units u WHERE u.parcel_id = p.id AND u.status IN ('APPROVED', 'SUBMITTED')) AS completed_units_count,
               ST_AsGeoJSON(p.location_geom)::json AS location_geojson,
               ST_AsGeoJSON(p.cadastral_polygon_geom)::json AS cadastral_geojson,
               ST_AsGeoJSON(p.footprint_polygon_geom)::json AS footprint_geojson
@@ -194,4 +214,73 @@ export class CadastralRepository {
 
     return `B-${String(nextNum).padStart(5, '0')}`;
   }
+
+  static async findUnitsByParcelId(parcelId: string): Promise<BuildingUnitEntity[]> {
+    const res = await Database.query<BuildingUnitEntity>(
+      `SELECT u.* FROM building_units u
+       WHERE u.parcel_id = $1
+       ORDER BY u.floor_number ASC, u.unit_code ASC;`,
+      [parcelId]
+    );
+    return res.rows;
+  }
+
+  static async findUnitById(unitId: string): Promise<BuildingUnitEntity | null> {
+    const res = await Database.query<BuildingUnitEntity>(
+      `SELECT u.* FROM building_units u WHERE u.id = $1 LIMIT 1;`,
+      [unitId]
+    );
+    return res.rows[0] || null;
+  }
+
+  static async createBuildingUnit(data: {
+    parcelId: string;
+    unitCode: string;
+    floorNumber: number;
+    ownerName?: string;
+    ownerPhone?: string;
+    ownerIdCard?: string;
+  }): Promise<BuildingUnitEntity> {
+    const res = await Database.query<BuildingUnitEntity>(
+      `INSERT INTO building_units (parcel_id, unit_code, floor_number, owner_name, owner_phone, owner_id_card)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING *;`,
+      [
+        data.parcelId,
+        data.unitCode,
+        data.floorNumber,
+        data.ownerName || null,
+        data.ownerPhone || null,
+        data.ownerIdCard || null,
+      ]
+    );
+    // Cập nhật total_units và building_type trong parcels
+    await Database.query(
+      `UPDATE parcels 
+       SET total_units = (SELECT COUNT(*) FROM building_units WHERE parcel_id = $1),
+           building_type = 'CONDOMINIUM',
+           updated_at = NOW()
+       WHERE id = $1;`,
+      [data.parcelId]
+    );
+    return res.rows[0];
+  }
+
+  static async updateBuildingType(
+    parcelId: string,
+    buildingType: string,
+    totalUnits?: number
+  ): Promise<ParcelEntity | null> {
+    const res = await Database.query<ParcelEntity>(
+      `UPDATE parcels 
+       SET building_type = $2,
+           total_units = COALESCE($3, total_units),
+           updated_at = NOW()
+       WHERE id = $1
+       RETURNING *;`,
+      [parcelId, buildingType, totalUnits !== undefined ? totalUnits : null]
+    );
+    return res.rows[0] || null;
+  }
 }
+

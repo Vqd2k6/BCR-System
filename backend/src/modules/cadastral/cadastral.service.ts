@@ -278,5 +278,66 @@ export class CadastralService {
       codes,
     };
   }
+
+  static async listUnitsForParcel(parcelId: string) {
+    const parcel = await CadastralRepository.findById(parcelId);
+    if (!parcel) {
+      throw new NotFoundError(`Không tìm thấy thửa đất với ID: ${parcelId}`);
+    }
+    const units = await CadastralRepository.findUnitsByParcelId(parcelId);
+    return {
+      parcelId,
+      projectParcelCode: parcel.project_parcel_code,
+      buildingType: parcel.building_type || 'STANDALONE',
+      totalUnits: units.length,
+      units,
+    };
+  }
+
+  static async createUnitForParcel(parcelId: string, data: {
+    unitCode: string;
+    floorNumber: number;
+    ownerName?: string;
+    ownerPhone?: string;
+    ownerIdCard?: string;
+  }) {
+    const parcel = await CadastralRepository.findById(parcelId);
+    if (!parcel) {
+      throw new NotFoundError(`Không tìm thấy thửa đất với ID: ${parcelId}`);
+    }
+    const unit = await CadastralRepository.createBuildingUnit({
+      parcelId,
+      unitCode: data.unitCode,
+      floorNumber: data.floorNumber,
+      ownerName: data.ownerName,
+      ownerPhone: data.ownerPhone,
+      ownerIdCard: data.ownerIdCard,
+    });
+    return {
+      message: `Đã tạo thành công căn hộ ${data.unitCode} cho tòa nhà ${parcel.project_parcel_code}`,
+      unit,
+    };
+  }
+
+  static async updateBuildingType(
+    parcelId: string,
+    buildingType: string,
+    totalUnits?: number
+  ) {
+    const parcel = await CadastralRepository.findById(parcelId);
+    if (!parcel) {
+      throw new NotFoundError(`Không tìm thấy thửa đất với ID: ${parcelId}`);
+    }
+    const updated = await CadastralRepository.updateBuildingType(
+      parcelId,
+      buildingType,
+      totalUnits
+    );
+    return {
+      message: `Đã cập nhật loại hình công trình thành ${buildingType}`,
+      parcel: updated,
+    };
+  }
 }
+
 
