@@ -47,6 +47,12 @@ Dưới đây là **BỘ BIỂU MẪU KHẢO SÁT HỢP NHẤT DUY NHẤT** đư
   - **`P-04` (Bối cảnh tổng thể lấy cả đường/ngõ):**
     - [ ] `Có ảnh`: Chụp bối cảnh không gian tiếp cận đường/ngõ.
     - [ ] `Không tồn tại (N/A)`: (Nhập lý do ➔ Cho phép bấm Next).
+- [ ] **Khảo sát trực quan Lún chênh & Nghiêng công trình ngoài nhà (Building Tilt & Settlement Overview):**
+  - *Thực hiện quan sát toàn cảnh khối nhà từ phía ngoài trước khi bước vào bên trong:*
+  - **1. Lún chênh quan sát ngoài nhà / Tầng trệt:** (Chọn: `Không thấy` | `Nghi ngờ` | `Có` ➔ Vị trí/mô tả: `______`)
+  - **2. Độ nghiêng công trình (Mặt tiền / Khối nhà):** (Chọn: `Không thấy` | `Nghi ngờ` | `Có` ➔ Góc nghiêng: $X = \_\_\_\text{ ‰}$, $Y = \_\_\_\text{ ‰}$)
+  - **3. Độ tin cậy dữ liệu:** (Chọn: `Cao` | `Trung bình` | `Thấp`)
+  - **4. Nguồn xác định dữ liệu:** (Multi-select: `Quan sát trực quan` | `Đo nhanh thước/laser` | `Hồ sơ bản vẽ` | `Chủ nhà khai`)
 
 ---
 
@@ -60,13 +66,18 @@ Dưới đây là **BỘ BIỂU MẪU KHẢO SÁT HỢP NHẤT DUY NHẤT** đư
 - [ ] **Hệ kết cấu chịu lực (Structural System):** (Chọn: `RC` - BTCT / `Steel` - Khung thép / `Masonry` - Tường gạch chịu lực / `Mixed` - Hỗn hợp / `Other` - Khác)
 - [ ] **Loại móng (Foundation):** (Chọn: `Shallow` - Móng nông / `Wood` - Cừ tràm / `PC` - Cọc ép BTCT / `CIP` - Cọc khoan nhồi / `Unknown` - Không rõ)
 - [ ] **Kích thước cọc / móng (Pile/Foundation Dimension):** (Nhập text - VD: `D600mm`, `250x250mm`... Để trống nếu không biết)
-- [ ] **Bản vẽ hoàn công / Bản vẽ kết cấu:** (Chụp ảnh hoặc upload bản vẽ hoàn công nếu chủ nhà có lưu giữ)
-- [ ] **Đánh giá Nguồn thông tin móng (CAT Foundation - Thang 1 đến 5 điểm):**
-  - `1đ`: Chỉ biết năm xây dựng
-  - `2đ`: Biết năm xây dựng, rõ loại móng
-  - `3đ`: Biết năm xây dựng, rõ loại móng, rõ kích thước móng/cọc
-  - `4đ - 5đ`: Biết năm xây dựng, rõ loại móng, rõ kích thước móng, có bản vẽ hoàn công/thiết kế
-  - *Nguồn thông tin (Source):* (Multi-select: `Drawing` - Bản vẽ thiết kế / `Owner` - Chủ nhà khai / `Site` - Khảo sát thực địa)
+- [ ] **Bản vẽ hoàn công / Bản vẽ kết cấu & Cơ chế đánh giá tự động CAT Foundation (Thang 1 đến 5 điểm):**
+  - **Trường hợp A: Có bản vẽ hoàn công / kết cấu (Điền đầy đủ thông tin móng & cọc):**
+    - Cán bộ tải lên / chụp ảnh bản vẽ hoàn công.
+    - Bên dưới ảnh bản vẽ xuất hiện **2 option lựa chọn nguồn xác thực**:
+      - [ ] `Xác nhận từ Chính quyền / Đơn vị thiết kế` ➔ Tự động gán **Mức 1 (Cat 1 - Dữ liệu chuẩn xác thực)**
+      - [ ] `Phỏng vấn chủ nhà (có lưu giữ bản vẽ)` ➔ Tự động gán **Mức 2 (Cat 2 - Có bản vẽ từ chủ hộ)**
+  - **Trường hợp B: Không có bản vẽ hoàn công (Surveyor tích chọn "N/A - Không có bản vẽ"):**
+    - Khi tích chọn `N/A`, hệ thống ẩn khung upload và hiển thị **2 nút bấm lựa chọn**:
+      - [ ] `Phỏng vấn chủ hộ` ➔ Tự động gán **Mức 3 (Cat 3 - Chủ nhà nhớ và khai thông tin móng/cọc)**
+      - [ ] `Tự suy luận từ kinh nghiệm hiện trường` ➔ Tự động gán **Mức 4 (Cat 4 - Ước lượng theo số tầng, niên đại, kết cấu)**
+  - **Trường hợp C: Hoàn toàn không có thông tin móng & cọc:**
+    - Khi không có dữ liệu móng/cọc, không có bản vẽ và không thể suy luận ➔ Tự động gán **Mức 5 (Cat 5 - Không rõ thông tin móng)**
 
 #### 2.2. Lịch sử & Yếu tố Nhạy cảm (Khảo sát lịch sử phục vụ riêng cho tính chỉ số E5 trong bảng ECS):
 > [!NOTE]
@@ -100,7 +111,7 @@ Dưới đây là **BỘ BIỂU MẪU KHẢO SÁT HỢP NHẤT DUY NHẤT** đư
 - [ ] **Tên Phòng / Không gian:** Chọn từ danh sách phổ biến (`Phòng khách`, `Phòng ngủ trước`, `Phòng ngủ sau`, `Phòng ngủ 1`, `Phòng ngủ 2`, `Bếp / Ăn`, `Ban công / Lô gia`, `Nhà vệ sinh / WC`, `Cầu thang / Hành lang`, `Sân thượng / Sân phơi`, `Phòng thờ`, `Gara / Nhà xe`, `Kho`) hoặc chọn `Khác` để nhập trực tiếp.
 - [ ] **Cấu kiện chịu lực / Mảng vách:** (`Tường gạch vữa xi măng`, `Cột BTCT`, `Dầm BTCT`, `Sàn BTCT`, `Cầu thang BTCT`, `Mái / Sê nô`, `Khung thép`, `Khác`).
 - [ ] **Vật liệu bề mặt cấu kiện:** Chọn từ danh sách phổ biến (`Tường gạch trát vữa XM sơn nước`, `Bê tông cốt thép (BTCT)`, `Tường gạch ốp gạch men`, `Tường gạch quét vôi`, `Tường / Vách thạch cao`, `Gỗ / Ván công nghiệp`, `Vách kính khung nhôm`) hoặc chọn `Khác` để nhập trực tiếp.
-- [ ] **Ảnh hưởng chức năng / Cần sửa chữa:** (Chọn: `Không` / `Có - Cần sửa chữa` [Hệ thống tự động cộng 2 điểm vào chỉ số E6 tổng thể]).
+- [ ] **Ảnh hưởng chức năng / Cần sửa chữa:** (Chọn: `Không` / `Có - Cần sửa chữa` [Hệ thống tự động cộng điểm vào chỉ số E6 tổng thể]).
 - [ ] **Chốt Burland Grade sơ bộ (Rút gọn):**
   - `Grade 0 - Không đáng kể (<=0.1mm)`
   - `Grade 1 - Rất nhẹ (~0.1-1mm)`
@@ -113,7 +124,15 @@ Dưới đây là **BỘ BIỂU MẪU KHẢO SÁT HỢP NHẤT DUY NHẤT** đư
 #### 3.3. Phân Cấp Khuyết Tật / Vết Nứt (Defect Level - D-xx thuộc Vùng Z-xx):
 *Thả ghim trực tiếp lên Ảnh bối cảnh (Photo CTX) của Vùng Z-xx để định vị vết nứt (Hiển thị dạng biểu tượng vuông - Square Pin/Badge):*
 - [ ] **Chạm mảng nứt để thả ghim:** Mã tự động `D-01`, `D-02`, `D-03`... kèm tọa độ pixel $(X\%, Y\%)$.
-- [ ] **Chỉ số sàng lọc (Ánh xạ từ 8 nhóm chỉ báo BCS Mục 4 trong Docx):** (`Nứt tường / Vữa trát / Hoàn thiện`, `Nứt cấu kiện kết cấu (Cột / Dầm / Sàn / Tường chịu lực)`, `Lún chênh / Võng cấu kiện`, `Thấm dột / Ẩm mốc / Rò nước`, `Bong tróc / Ăn mòn / Lộ cốt thép / Mục`, `Mất tiết diện / Hư hỏng gối tựa / Liên kết`, `Kẹt cửa / Biến dạng khung / Mất kín nước`, `Tái nứt / Phát triển nứt cũ`).
+- [ ] **Chỉ số sàng lọc & Định lượng khuyết tật (Ánh xạ 8 nhóm chỉ báo BCS - Nguồn tự động tính E2, E4, E6):**
+  - **1. Nứt tường / Vữa trát / Hoàn thiện:** (Phục vụ đối chiếu cấp Burland $E_1$)
+  - **2. Nứt cấu kiện kết cấu (Cột / Dầm / Sàn / Tường chịu lực):** (Phục vụ cờ kết cấu $E_2$)
+  - **3. Lún chênh / Võng cấu kiện:** (Phục vụ đối soát $E_3$)
+  - **4. Thấm dột / Ẩm mốc / Rò nước (Nguồn tính E6):** (Chọn mức độ: `Ẩm mốc - 1đ` | `Thấm nước - 2đ` | `Dột nước - 3đ` | `Rò nước / Ngập tràn - 4đ`)
+  - **5. Bong tróc / Ăn mòn / Lộ cốt thép / Mục (Nguồn tính E4):** (Chọn mức độ: `Nhẹ - 1đ` | `Bong tróc / Ăn mòn rõ - 2đ` | `Bong mảng lớn / Lộ cốt thép rỉ - 3đ` | `Mất tiết diện / Mất khả năng chịu lực - 4đ`)
+  - **6. Mất tiết diện / Hư hỏng gối tựa / Liên kết:** (Phục vụ cờ kết cấu $E_2$)
+  - **7. Kẹt cửa / Biến dạng khung cửa (Nguồn tính E6):** (Chọn số lượng/mức độ: `0 cửa - 0đ` | `1-2 cửa - 1đ` | `2-5 cửa - 2đ` | `>5 cửa - 3đ` | `Cửa kẹt cứng không đóng/mở được - 4đ`)
+  - **8. Tái nứt / Phát triển nứt cũ:** (Phục vụ phân loại tính chất hoạt động)
 - [ ] **Dạng nứt & Cấu kiện:** Chọn từ danh sách phổ biến (`Nứt xiên 45° (Cắt gãy / Lún chênh)`, `Nứt dọc / Nứt đứng chịu lực`, `Nứt ngang cấu kiện`, `Nứt chân chim / Mạng nhện vữa trát`, `Nứt ziczac theo mạch vữa gạch`, `Nứt góc cửa sổ / Cửa đi`, `Nứt tiếp giáp Cột - Tường`, `Nứt tiếp giáp Dầm - Tường`, `Nứt tách mép tấm sàn BTCT`, `Bong tróc vữa lộ cốt thép`, `Thấm dột / Ẩm mốc loang lổ`) hoặc chọn `Khác` để nhập trực tiếp.
 - [ ] **Kích thước vết nứt:** Bề rộng lớn nhất $w_{\max}$ (mm), Chiều dài $L$ (mm), Hướng nứt.
 - [ ] **Trạng thái hoạt động:** `U - Chưa rõ / Đang kiểm tra (Unknown)` / `S - Ổn định / Nứt cũ (Stable)` / `A - Đang phát triển / Nghi ngờ hoạt động (Active)`.
@@ -140,7 +159,7 @@ Dưới đây là **BỘ BIỂU MẪU KHẢO SÁT HỢP NHẤT DUY NHẤT** đư
 #### BẢNG TRA CỨU QUY CHUẨN BURLAND (Cheat Sheet Tooltip trên App)
 
 | Grade | Mức độ | Mô tả / Mức sửa chữa điển hình | Bề rộng nứt xấp xỉ |
-| :---: | :--- | :--- | :---: |
+| :---: | :--- | :--- | :--- :
 | **0** | Negligible | Nứt tóc; thực tế không cần sửa chữa. | $\le 0.1$ mm |
 | **1** | Very slight | Nứt mảnh, dễ xử lý trong trang trí/bảo trì thông thường. | $\sim 0.1 - 1$ mm |
 | **2** | Slight | Nứt dễ trám; có thể cần trang trí lại/miết mạch; cửa có thể hơi kẹt. | $\sim 1 - 5$ mm |
@@ -150,16 +169,12 @@ Dưới đây là **BỘ BIỂU MẪU KHẢO SÁT HỢP NHẤT DUY NHẤT** đư
 
 ---
 
-### BƯỚC 5: Đánh giá Lún – Nghiêng – Biến dạng (Theo đúng Mục 6 Docx)
-*Thực hiện quan sát và đo đạc các biến dạng hình học công trình (Hệ thống tự động map điểm E3 vào bảng ECS).*
+### BƯỚC 5: Tổng hợp Biến dạng Kết cấu & Đo đạc Bổ sung
+*Hệ thống tự động liên kết số liệu Lún chênh & Độ nghiêng công trình đã khảo sát từ Bước 1; Cán bộ khảo sát ghi nhận thêm hiện tượng võng dầm/sàn bên trong.*
 
-- [ ] **1. Lún chênh:** (Chọn: `Không thấy` | `Nghi ngờ` | `Có` ➔ Vị trí: `______`)
-- [ ] **2. Nghiêng công trình:** (Chọn: `Không thấy` | `Nghi ngờ` | `Có` ➔ $X = \_\_\_\text{ ‰}$, $Y = \_\_\_\text{ ‰}$)
-- [ ] **3. Nghiêng sàn:** (Chọn: `Không thấy` | `Nghi ngờ` | `Có` ➔ Độ nghiêng: `___\text{ ‰}`)
-- [ ] **4. Võng dầm / Sàn:** (Chọn: `Không thấy` | `Nghi ngờ` | `Có` ➔ Vị trí: `______`)
-- [ ] **5. Nguồn xác định dữ liệu:** (Multi-select: `Quan sát` | `Đo nhanh` | `Bản vẽ` | `Chủ nhà`)
-- [ ] **6. Độ tin cậy dữ liệu:** (Chọn: `Cao` | `TB` | `Thấp`)
-- [ ] **7. Cần đo / Quan trắc bổ sung:** (Chọn: `Không` | `Có` ➔ Nhận xét: `__________________`)
+- [ ] **1. Số liệu Lún chênh & Nghiêng công trình:** *(Tự động đồng bộ từ Bước 1: Lún chênh trệt/ngoài nhà, Độ nghiêng $X, Y\text{ ‰}$, Độ tin cậy dữ liệu)*
+- [ ] **2. Võng dầm / Sàn kết cấu bên trong:** (Chọn: `Không thấy` | `Nghi ngờ` | `Có` ➔ Vị trí: `______`)
+- [ ] **3. Cần đo / Quan trắc bổ sung chuyên sâu:** (Chọn: `Không` | `Có` ➔ Nhận xét: `__________________`)
 
 ---
 
@@ -204,7 +219,7 @@ Dưới đây là **BỘ BIỂU MẪU KHẢO SÁT HỢP NHẤT DUY NHẤT** đư
 - [ ] **1. Thông tin móng:** Tự động check đã có điểm CAT móng hay chưa (`Đủ` / `Chưa đủ`).
 - [ ] **2. Ảnh & Damage Mapping:** Tự động check đủ 4 ảnh P-01..04, ảnh Vùng CTX và ghim khuyết tật D-xx (`Đủ` / `Thiếu`).
 - [ ] **3. Khảo sát bên trong:** Tự động trích xuất từ Bước 6.1 & 6.2 (`Đã khảo sát 100%` / `Hạn chế`).
-- [ ] **4. Dữ liệu lún/nghiêng:** Tự động trích xuất từ Bước 5 (`Đủ` / `Cần đo thêm`).
+- [ ] **4. Dữ liệu lún/nghiêng:** Tự động trích xuất từ Bước 1 & Bước 5 (`Đủ` / `Cần đo thêm`).
 - [ ] **5. Hồ sơ/bản vẽ kết cấu:** Tự động check file đính kèm ở Bước 2.1 (`Có` / `Một phần` / `Không`).
 - [ ] **6. Structural Review:** Tự động cảnh báo Pending nếu có khuyết tật $E_2 \ge 3$ hoặc Cờ kết cấu High/Critical (`N/A` / `Đủ` / `Pending`).
 - [ ] **Quyết định Cổng (Gate Decision BRA):** (Chọn: `Cho phép chuyển tiếp` / `Có điều kiện` / `Chưa đủ - Pending` | Nhập lý do điều kiện).
@@ -220,10 +235,10 @@ Dưới đây là **BỘ BIỂU MẪU KHẢO SÁT HỢP NHẤT DUY NHẤT** đư
 | :---: | :--- | :--- | :--- | :--- | :--- | :--- | :---: |
 | **E1** | Hư hỏng nhìn thấy tường/khối xây | Burland 0–1 | Burland 2 | Burland 3 | Burland 4=3; 5=4 | **Nguồn:** `Burland Grade` lớn nhất từ các Vùng $Z\text{-xx}$ (Bước 3 / Bước 4)<br>➔ **Quy tắc:** $B \le 1 \to 0\text{đ}$; $B=2 \to 1\text{đ}$; $B=3 \to 2\text{đ}$; $B=4 \to 3\text{đ}$; $B=5 \to 4\text{đ}$ | `___` |
 | **E2** | Khuyết tật kết cấu cột/dầm/sàn/tường chịu lực | Không | Low | Moderate | High=3; Critical=4 | **Nguồn:** `Ý nghĩa kết cấu` của Defect $D\text{-xx}$ (Bước 3.3) & `Cờ kết cấu` (Bước 4)<br>➔ **Quy tắc:** $\max(\text{Mức độ cờ kết cấu})$: $\text{None} \to 0\text{đ}$; $\text{Low} \to 1\text{đ}$; $\text{Mod} \to 2\text{đ}$; $\text{High} \to 3\text{đ}$; $\text{Critical} \to 4\text{đ}$ | `___` |
-| **E3** | Lún/nghiêng/võng/biến dạng | Không | Nghi ngờ/nhẹ | Rõ nhưng ổn định | Tiến triển/nghiêm trọng=3; mất ổn định=4 | **Nguồn:** 4 mục hình học tại **Bước 5** (Lún chênh, Độ nghiêng $X, Y\text{ ‰}$, Nghiêng sàn, Võng)<br>➔ **Quy tắc:** Không thấy/Nghiêng $<2\text{ ‰} \to 0\text{đ}$; Nghi ngờ/Nghiêng $2-5\text{ ‰} \to 1\text{đ}$; Có ổn định/Nghiêng $5-10\text{ ‰} \to 2\text{đ}$; Tiến triển/Nghiêng $>10\text{ ‰} \to 3\text{đ}$; Mất ổn định $\to 4\text{đ}$ | `___` |
-| **E4** | Suy giảm vật liệu/độ bền | Không/nhẹ | Cục bộ | Đáng kể | Nặng=3; ảnh hưởng khả năng chịu lực=4 | **Nguồn:** Trường `Mức độ suy giảm vật liệu` của toàn bộ Defect $D\text{-xx}$ (Bước 3.3)<br>➔ **Quy tắc:** $\max(\text{Mức độ suy giảm } D\text{-xx})$: Không/nhẹ $\to 0\text{đ}$; Cục bộ $\to 1\text{đ}$; Đáng kể $\to 2\text{đ}$; Nặng $\to 3\text{đ}$; Ảnh hưởng chịu lực $\to 4\text{đ}$ | `___` |
+| **E3** | Lún/nghiêng/võng/biến dạng | Không | Nghi ngờ/nhẹ | Rõ nhưng ổn định | Tiến triển/nghiêm trọng=3; mất ổn định=4 | **Nguồn:** Cụm quan sát Lún chênh & Độ nghiêng $X, Y\text{ ‰}$ tại **Bước 1** + Võng dầm/sàn tại **Bước 5**<br>➔ **Quy tắc:** Không thấy/Nghiêng $<2\text{ ‰} \to 0\text{đ}$; Nghi ngờ/Nghiêng $2-5\text{ ‰} \to 1\text{đ}$; Có ổn định/Nghiêng $5-10\text{ ‰} \to 2\text{đ}$; Tiến triển/Nghiêng $>10\text{ ‰} \to 3\text{đ}$; Mất ổn định $\to 4\text{đ}$ | `___` |
+| **E4** | Suy giảm vật liệu/độ bền | Không/nhẹ | Cục bộ | Đáng kể | Nặng=3; ảnh hưởng khả năng chịu lực=4 | **Nguồn:** Trường `Mức độ suy giảm vật liệu` (chịu lực) của toàn bộ Defect $D\text{-xx}$ (Bước 3.3)<br>➔ **Quy tắc:** $\max(\text{Mức độ suy giảm } D\text{-xx})$: Không $\to 0\text{đ}$; Nhẹ $\to 1\text{đ}$; Bong tróc/ăn mòn rõ $\to 2\text{đ}$; Bong rộng/lộ thép/suy giảm đáng kể $\to 3\text{đ}$; Mất tiết diện/Mất khả năng chịu lực $\to 4\text{đ}$ | `___` |
 | **E5** | Lịch sử/cơi nới/sự cố & tính toàn vẹn | Không | Nhẹ/đã xử lý | Nhiều/chưa rõ | Thay đổi lớn/sự cố đáng kể=3–4 | **Nguồn:** 5 câu hỏi phỏng vấn lịch sử tại **Bước 2.2**<br>➔ **Quy tắc:** $\max(\text{Điểm 5 câu phỏng vấn B2.2})$: Tất cả 0đ $\to 0\text{đ}$; Max 1đ $\to 1\text{đ}$; Max 2đ $\to 2\text{đ}$; Max 3đ $\to 3-4\text{đ}$ | `___` |
-| **E6** | Tình trạng chức năng/tổng thể | Tốt | TB | Kém | Nguy cấp/không bảo đảm sử dụng=4 | **Nguồn:** Trường `Ảnh hưởng chức năng/Cần sửa chữa` tại các Vùng $Z\text{-xx}$ (Bước 3.2)<br>➔ **Quy tắc:** 0 Vùng hỏng $\to 0\text{đ}$; 1-2 Vùng nhẹ $\to 1\text{đ}$; $\ge 3$ Vùng $\to 2\text{đ}$; Nguy cấp/Không bảo đảm sử dụng $\to 4\text{đ}$ | `___` |
+| **E6** | Tình trạng chức năng/tổng thể | Tốt | TB | Kém | Nguy cấp/không bảo đảm sử dụng=4 | **Nguồn:** Khuyết tật Thấm dột ($1-4\text{đ}$), Kẹt cửa ($1-4\text{đ}$) tại **Bước 3.3** + `Cần sửa chữa` tại **Bước 3.2**<br>➔ **Quy tắc:** $\max(\text{Thấm dột}, \text{Kẹt cửa}, \text{Sửa chữa } Z)$: $0\text{đ} \to 0\text{đ}$; $1\text{đ} \to 1\text{đ}$; $2\text{đ} \to 2\text{đ}$; $3-4\text{đ} \to 3-4\text{đ}$ | `___` |
 
 **Tổng hợp & Đánh giá ECS:**
 - [ ] **Tổng ECS:** $\Sigma E = \_\_\_/24$
@@ -255,6 +270,23 @@ Dưới đây là **BỘ BIỂU MẪU KHẢO SÁT HỢP NHẤT DUY NHẤT** đư
 >    - Chọn chỉ báo *"Bong tróc / Ăn mòn / Lộ cốt thép"* $\Rightarrow$ App tự động gợi ý mức **`3đ`** hoặc **`4đ`**.
 >    - Chọn chỉ báo *"Thấm dột / Ẩm mốc / Rò nước"* $\Rightarrow$ App tự động gợi ý mức **`1đ`** hoặc **`2đ`**.
 
+> [!NOTE]
+> ### 🚪 GIẢI THÍCH CHI TIẾT CƠ CHẾ TỰ ĐỘNG CHẤM CHỈ SỐ E6 (Tình trạng chức năng & Khả năng vận hành):
+> 1. **Ý nghĩa pháp lý trong dự án Metro (Căn cứ đền bù / Khước từ đền bù):**
+>    - Khi thi công hầm ngầm, rung chấn và lún không đều rất dễ làm vặn vẹo khung bao cửa dẫn đến **kẹt cửa, không đóng mở được**, hoặc gây nứt rách các lớp màng chống thấm dẫn đến **thấm ngấm, rò rỉ nước**.
+>    - **Nếu App đã ghi nhận hiện trạng ban đầu $E_6 \ge 2$ (kèm ảnh hiện trường cửa đã kẹt sẵn, tường/trần đã ẩm mốc rò rỉ):** Dự án có căn cứ chứng minh các hư hỏng công năng này đã tồn tại từ trước $\Rightarrow$ **Căn cứ từ chối bồi thường các hư hỏng chức năng cũ**.
+>    - **Nếu $E_6 = 0$ (mọi cửa đóng mở trơn tru, không thấm dột):** Sau này nếu nhà bị kẹt cửa hoặc rò rỉ nước do ảnh hưởng của Metro $\Rightarrow$ **Căn cứ bồi thường / sửa chữa thỏa đáng cho người dân**.
+> 2. **Thang điểm 5 mức của $E_6$:**
+>    - `0 điểm (Tốt / Nguyên vẹn)`: Không kẹt cửa, không thấm dột, toàn bộ các không gian sử dụng bình thường.
+>    - `1 điểm (TB - Ảnh hưởng nhẹ)`: Ẩm mốc nhẹ bề mặt (1đ) HOẶC kẹt 1–2 cánh cửa nhẹ nhưng vẫn đóng/mở được (1đ).
+>    - `2 điểm (Kém - Ảnh hưởng đáng kể)`: Thấm nước loang lổ (2đ) HOẶC kẹt 2–5 cánh cửa (2đ) HOẶC có $\ge 3$ Vùng ghi nhận cần sửa chữa.
+>    - `3 điểm (Nguy cấp / Hư hỏng nặng)`: Dột nước từng giọt (3đ) HOẶC kẹt $>5$ cánh cửa (3đ).
+>    - `4 điểm (Mất công năng hoàn toàn)`: Rò nước chảy thành dòng / ngập úng (4đ) HOẶC Cửa chính/cửa phòng bị kẹt cứng hoàn toàn không thể đóng/mở được (4đ), đe dọa an toàn thoát hiểm và sử dụng.
+> 3. **Thuật toán Tự động tính toán (Auto-Engine):**
+>    - Hệ thống tự động quét toàn bộ các khuyết tật $D\text{-xx}$ thuộc nhóm Thấm dột & Kẹt cửa tại Bước 3.3 và cờ Cần sửa chữa tại Bước 3.2.
+>    - Công thức:
+>      $$E_6 = \max \Big( \max_i(\text{Điểm Thấm dột } D_i), \max_i(\text{Điểm Kẹt cửa } D_i), \text{Điểm sửa chữa các Vùng } Z \Big)$$
+
 #### 7.2. Bảng Chỉ số Dễ Tổn thương VI (13. VI – VULNERABILITY INDEX):
 > **Ghi chú chuẩn Docx:** *VI phản ánh độ nhạy cảm của công trình trước các tác động lún/rung do thi công ngầm. Điểm số từ 1 (ít nhạy cảm) đến 4 (rất nhạy cảm).*
 
@@ -262,10 +294,10 @@ Dưới đây là **BỘ BIỂU MẪU KHẢO SÁT HỢP NHẤT DUY NHẤT** đư
 | :---: | :--- | :--- | :--- | :--- | :--- | :--- | :---: |
 | **V1** | Công năng & Quy mô | General (1đ) | Important (2đ) | — | Critical (4đ) | **Nguồn:** `Nhóm đối tượng` tại **Bước 1**<br>➔ **Quy tắc:** $\text{General} \to 1\text{đ}$; $\text{Important} \to 2\text{đ}$; $\text{Critical} \to 4\text{đ}$ | `___` |
 | **V2** | Hệ kết cấu chịu lực | Khung BTCT toàn khối (1đ) | Khung BTCT + tường gạch (2đ) | Tường gạch chịu lực / thép cũ (3đ) | Tường không giằng / mất ổn định (4đ) | **Nguồn:** Khảo sát kết cấu tại **Bước 2.1**<br>➔ **Quy tắc:** Chọn 1 trong 4 loại hình kết cấu chịu lực ($1 \to 4\text{đ}$) | `___` |
-| **V3** | Loại móng & Nền đất | Deep / cọc tốt (Cat 4-5) | Cọc ma sát / nông tốt (Cat 3) | Nông / nền yếu (Cat 2) | Nền yếu / không rõ (Cat 1) | **Nguồn:** Điểm CAT móng tại **Bước 2.1** ($1 \to 5\text{đ}$)<br>➔ **Quy tắc:** $\text{Cat } 4-5 \to 1\text{đ}$; $\text{Cat } 3 \to 2\text{đ}$; $\text{Cat } 2 \to 3\text{đ}$; $\text{Cat } 1 \to 4\text{đ}$ | `___` |
+| **V3** | Loại móng & Nền đất | Deep / cọc tốt (Cat 1-2) | Cọc ma sát / nông tốt (Cat 3) | Nông / tự suy luận (Cat 4) | Nền yếu / không rõ (Cat 5) | **Nguồn:** Điểm CAT móng tại **Bước 2.1** ($1 \to 5\text{đ}$)<br>➔ **Quy tắc:** $\text{Cat } 1-2 \to 1\text{đ}$; $\text{Cat } 3 \to 2\text{đ}$; $\text{Cat } 4 \to 3\text{đ}$ (nếu Cat 4 thì $+1\text{đ}$ rủi ro); $\text{Cat } 5 \to 4\text{đ}$ | `___` |
 | **V4** | Tuổi đời / Cơi nới | $< 10\text{ năm}$ (1đ) | $10 - 25\text{ năm}$ (2đ) | $25 - 40\text{ năm}$ (3đ) | $> 40\text{ năm}$ / Cơi nới (4đ) | **Nguồn:** Năm xây dựng tại **Bước 2.1** & Cơi nới tại **Bước 2.2**<br>➔ **Quy tắc:** Tự động tính theo tuổi thọ công trình ($1 \to 4\text{đ}$) | `___` |
 | **V5** | Hiện trạng kỹ thuật | ECS Good (1đ) | ECS Medium (2đ) | ECS Deficient (3đ) | ECS Critical (4đ) | **Nguồn:** Phân hạng `ECS Class` tại **Mục 7.1**<br>➔ **Quy tắc:** $\text{Good} \to 1\text{đ}$; $\text{Medium} \to 2\text{đ}$; $\text{Deficient} \to 3\text{đ}$; $\text{Critical} \to 4\text{đ}$ | `___` |
-| **V6** | Thiết bị nhạy cảm | Không có (1đ) | Gia dụng / thấp (2đ) | Văn phòng / KD / cao (3đ) | Y tế / TN 24/7 / rất cao (4đ) | **Nguồn:** Câu hỏi thiết bị nhạy cảm tại **Bước 2.2**<br>➔ **Quy tắc:** Chọn 1 trong 4 mức độ ảnh hưởng thiết bị ($1 \to 4\text{đ}$) | `___` |
+| **V6** | Thiết bị nhạy cảm | Không có (1đ) | Dân dụng (2đ) | Văn phòng / KD (3đ) | Y tế / TN (4đ) | **Nguồn:** Câu hỏi thiết bị nhạy cảm tại **Bước 2.2**<br>➔ **Quy tắc:** Chọn 1 trong 4 mức độ ảnh hưởng thiết bị ($1 \to 4\text{đ}$) | `___` |
 
 **Tổng hợp & Đánh giá VI:**
 - [ ] **Tổng điểm VI:** $\Sigma V = \_\_\_/24$
