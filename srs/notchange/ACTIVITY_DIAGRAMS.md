@@ -1,8 +1,8 @@
 # Đặc Tả Chi Tiết Sơ Đồ Hoạt Động Theo Từng Đối Tượng (Activity Diagrams Specification)
 
 > [!IMPORTANT]
-> **TÀI LIỆU ĐẶC TẢ SƠ ĐỒ HOẠT ĐỘNG (UML ACTIVITY DIAGRAMS) ĐỒNG BỘ 100% VỚI HỆ THỐNG API:**
-> Toàn bộ luồng hoạt động của 4 Vai trò (`SURVEYOR`, `ZONE_ADMIN`, `SUPER_ADMIN`, `CONTRACTOR_GUEST`) đã được chuẩn hóa chi tiết, loại bỏ hoàn toàn các hố đen chức năng.
+> **TÀI LIỆU ĐẶC TẢ SƠ ĐỒ HOẠT ĐỘNG (UML ACTIVITY DIAGRAMS) ĐỒNG BỘ 100% VỚI HỆ THỐNG API & BUSINESS LOGIC:**
+> Toàn bộ luồng hoạt động của 4 Vai trò (`SURVEYOR`, `ZONE_ADMIN`, `SUPER_ADMIN`, `CONTRACTOR_GUEST`) đã được chuẩn hóa chi tiết, tích hợp đầy đủ các quy trình: Khảo sát vắng nhà (Absentee Control Gate), Khảo sát và xuất báo cáo độc lập cho chung cư nhiều căn hộ (Multi-Unit Apartment Flow), tính toán toán học ECS/VI và quản lý trạng thái `EXPORTED`.
 
 ---
 
@@ -29,19 +29,25 @@ flowchart TD
 
 ---
 
-### 1.2. Activity 1.2: Quét Cạn Thửa Đất Ad-hoc & Xử Lý Vắng Nhà (UC-03)
+### 1.2. Activity 1.2: Quét Cạn Thửa Đất Ad-hoc & Quy Trình Khảo Sát Vắng Nhà (Absentee Control Gate)
 
 ```mermaid
 flowchart TD
-    StartAdhoc([Khảo sát thực tế theo danh sách phân công]) --> ArriveParcel[Đến trước công trình được giao]
+    StartAdhoc([Khảo sát thực tế ngoài hiện trường]) --> ArriveParcel[Đến trước công trình]
     ArriveParcel --> CheckPresence{Chủ nhà có mặt và mở cửa?}
     
-    %% NHÁNH 1: VẮNG NHÀ
-    CheckPresence -- Vắng nhà / Cửa khóa / Từ chối --> ClickAbsent[Bấm 'Ghi nhận Vắng Nhà']
-    ClickAbsent --> SelectReason[Chọn lý do: HOMEOWNER_ABSENT / LOCKED_GATE / REFUSED_ACCESS]
-    SelectReason --> SnapProof[Chụp ảnh cửa khóa làm bằng chứng]
-    SnapProof --> SubmitAbsent[Gửi POST /parcels/{id}/record-absence]
-    SubmitAbsent --> UpdatePurple[Thửa đất chuyển sang Màu Tím POSTPONED_ABSENT & Tăng attemptCount]
+    %% NHÁNH 1: VẮNG NHÀ / TỪ CHỐI
+    CheckPresence -- Vắng nhà / Cửa khóa / Từ chối --> ClickAbsent[Bấm nút '🏠 Báo Vắng Nhà' tại Bước 1]
+    ClickAbsent --> ActivateAbsentMode[Kích hoạt Chế độ Khảo Sát Vắng Nhà]
+    ActivateAbsentMode --> FillStep1[Bắt buộc hoàn thành 100% dữ liệu ngoại quan Bước 1:<br>• Số nhà & Tuyến đường<br>• Nhóm đối tượng<br>• Tiếp giáp 3 hướng<br>• Đủ 4 ảnh P-01..P-04<br>• Lý do vắng mặt]
+    
+    FillStep1 --> CheckStep1Done{Đã hoàn thành đủ 100%?}
+    CheckStep1Done -- Chưa đủ --> LockSubmit[Nút Nộp bị KHÓA (Disabled) & Cảnh báo các mục còn thiếu]
+    LockSubmit --> FillStep1
+    
+    CheckStep1Done -- Đã đủ 100% --> UnlockSubmit[MỞ KHÓA nút '🚀 Nộp Báo Cáo Vắng Nhà Về Server']
+    UnlockSubmit --> SubmitAbsent[Gửi POST /surveys/phase1/submit-absentee]
+    SubmitAbsent --> UpdatePurple[Thửa đất chuyển sang Màu Tím POSTPONED_ABSENT & Tăng attemptCount += 1]
     
     UpdatePurple --> NeedSweep{Tiếp tục khảo sát nhà bên cạnh?}
     NeedSweep -- Có --> OpenNearMap[Mở bản đồ GIS hoặc danh sách GET /parcels/nearby]
@@ -50,7 +56,7 @@ flowchart TD
     ClickClaim --> UpdateYellow[Thửa đất chuyển sang Màu Vàng IN_PROGRESS & Bắt đầu làm hồ sơ]
     
     %% NHÁNH 2: CÓ MẶT
-    CheckPresence -- Có mặt --> OpenSurveyForm[Bắt đầu làm hồ sơ khảo sát 9 bước]
+    CheckPresence -- Có mặt --> OpenSurveyForm[Bắt đầu làm hồ sơ khảo sát 9 bước bình thường]
     UpdateYellow --> OpenSurveyForm
 ```
 
@@ -60,83 +66,71 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    StartP1([Bắt đầu Khảo sát Giai đoạn 1]) --> Step1[BƯỚC 1: Tiếp cận ngoài nhà & Chụp 4 ảnh định danh P01-P04]
+    StartP1([Bắt đầu Khảo sát Giai đoạn 1]) --> Step1[BƯỚC 1: Tiếp cận ngoài nhà & Bộ 4 ảnh định danh P01-P04]
     
     %% BƯỚC 1
     Step1 --> SnapP02[Chụp ảnh toàn cảnh mặt đứng P-02]
-    SnapP02 --> AnnotateP02[Chấm mảng N điểm đa giác góc nhà N>=3 + Kéo line phân tầng + Nhập kích thước dóng]
-    AnnotateP02 --> PushAIQueue[Hệ thống tự động đẩy ảnh P-02 vào hàng đợi AI nắn thẳng mặt đứng chuẩn CAD]
+    SnapP02 --> AnnotateP02[Chấm mảng N điểm đa giác ranh mặt tiền + Đường phân tầng]
+    AnnotateP02 --> Step1_LundTilt[Khảo sát sơ bộ Lún chênh & Nghiêng mặt tiền theo 4 Level]
     
     %% BƯỚC 2
-    PushAIQueue --> Step2[BƯỚC 2: Phỏng vấn kết cấu, số tầng, móng CAT 1-5 & Lịch sử sự cố E5]
+    Step1_LundTilt --> Step2[BƯỚC 2: Phỏng vấn kết cấu, số tầng, Móng CAT 1-5 & Lịch sử sự cố E5]
+    Step2 --> CatTree[Cây quyết định CAT Móng: Có bản vẽ hoàn công (1-2đ) vs N/A (3-4đ) vs Chưa rõ (5đ)]
+    CatTree --> E5Resonance[Tính E5: Max(5 câu hỏi). Nếu >=2 câu cùng >2 và bằng nhau thì E5 = 4đ]
     
     %% BƯỚC 3
-    Step2 --> Step3[BƯỚC 3: Khảo sát chi tiết từng tầng & Mảng tường]
+    E5Resonance --> Step3[BƯỚC 3: Khảo sát chi tiết các tầng & Mảng tường]
     Step3 --> LoopFloors[Đi từ Tầng trệt lên Tầng mái]
-    LoopFloors --> SnapCTX[Chụp 1 ảnh bối cảnh Photo CTX ➔ Tạo Vùng Z-01, Z-02... ➔ Chốt Burland 0-5]
-    SnapCTX --> PinDefects[Chạm lên ảnh Photo CTX thả ghim D-01, D-02...]
-    PinDefects --> SnapCU[Bấm từng ghim: Nhập w_max, L & Chụp ảnh cận cảnh CU có thước đo vạch mm]
-    SnapCU --> MoreZones{Còn mảng tường/phòng khác?}
+    LoopFloors --> FloorSketch[Upload sơ đồ CAD tầng & Chấm ghim Vùng Z-01, Z-02...]
+    FloorSketch --> SnapCTX[Chụp ảnh bối cảnh Photo CTX của từng Vùng Z & Đánh giá Burland]
+    SnapCTX --> PinDefects[Chấm ghim D-01, D-02... trên ảnh CTX]
+    PinDefects --> SnapCU[Nhập kích thước nứt & Chụp ảnh cận cảnh CU có thước đo mm + Điểm E2, E4]
+    SnapCU --> MoreZones{Còn phòng / tầng khác?}
     MoreZones -- Còn --> LoopFloors
     
     %% BƯỚC 4
-    MoreZones -- Hết --> Step4[BƯỚC 4: Đo đạc Lún - Nghiêng mặt trước X, hông Y, nghiêng sàn, võng dầm bằng laser]
+    MoreZones -- Hết --> Step4[BƯỚC 4: Tổng hợp Burland E1 & Cờ kết cấu E2]
     
     %% BƯỚC 5
-    Step4 --> Step5[BƯỚC 5: Cập nhật Đa giác ranh nhà Footprint trên bản đồ GIS]
-    Step5 --> CheckSplit{Phát hiện nhà thực tế chia nhỏ?}
-    CheckSplit -- Có --> ProposeSplit[Đề xuất Tách thửa ➔ Tự động cấp mã B-07001, B-07002 từ dải mở rộng]
-    CheckSplit -- Không --> Step6
-    ProposeSplit --> Step6
+    Step4 --> Step5[BƯỚC 5: Khảo sát Lún chênh, Nghiêng công trình ‰, Võng dầm mm (4 Level có popup ?)]
     
-    %% BƯỚC 6 & 7 & 8 & 9
-    Step6[BƯỚC 6: Upload Sơ đồ phác thảo Damage Sketch / CAD] --> Step7[BƯỚC 7: Hệ thống Tự động Tính Điểm ECS/24 & Phân nhóm Rủi ro VI]
-    Step7 --> Step8[BƯỚC 8: Kết luận kỹ thuật, kiến nghị mốc quan trắc & Đánh giá rủi ro BRA]
-    Step8 --> Step9[BƯỚC 9: Ký tên xác nhận chủ hộ & cán bộ khảo sát ➔ Bấm NỘP HỒ SƠ ➔ SUBMITTED]
-    Step9 --> EndP1([Chuyển trạng thái sang Chờ duyệt - Màu Cam])
+    %% BƯỚC 6
+    Step5 --> Step6[BƯỚC 6: Phạm vi khảo sát & Biến động ranh GIS Match/Split/Merge]
+    
+    %% BƯỚC 7
+    Step6 --> Step7[BƯỚC 7: Cổng kiểm tra đủ dữ liệu Gate & Tự động Tính Điểm ECS/24 và VI/4]
+    
+    %% BƯỚC 8 & 9
+    Step7 --> Step8[BƯỚC 8: Dashboard Tổng hợp, Kết luận kỹ thuật & Khuyến nghị BRA]
+    Step8 --> Step9[BƯỚC 9: Ký tên xác nhận 3 bên: Chủ hộ, Khảo sát viên, Trưởng nhóm ➔ NỘP HỒ SƠ]
+    Step9 --> EndP1([Hồ sơ nộp lên server ➔ Chuyển trạng thái SUBMITTED Màu Xanh lơ])
 ```
 
 ---
 
-### 1.4. Activity 1.4: Luồng Khảo Sát Giai Đoạn 2 (Phase 2 Pre-Construction Delta Verification)
+### 1.4. Activity 1.4: Luồng Khảo Sát & Xuất Báo Cáo Chung Cư / Nhiều Căn Hộ (Multi-Unit Workflow)
 
 ```mermaid
 flowchart TD
-    StartP2([Mở Báo cáo Phase 2 của thửa B-XXXXX]) --> InheritP1[Tự động kế thừa toàn bộ hồ sơ Phase 1 đã duyệt]
-    InheritP1 --> Step1_P2[BƯỚC 1: Xác nhận thông tin chung GĐ2 & Chụp 2 ảnh nhận dạng P01-P02]
-    Step1_P2 --> Step2_P2[BƯỚC 2: Phỏng vấn biến động sau GĐ1: cơi nới, đổi tải trọng]
+    StartApt([Surveyor mở Thửa đất Chung cư B-xxxxx]) --> LoadAptMatrix[Hệ thống hiển thị Sơ Đồ Ma Trận Căn Hộ Theo Tầng]
     
-    %% BƯỚC 3 - PHASE 2
-    Step2_P2 --> Step3_P2[BƯỚC 3: Khảo sát đối soát khuyết tật theo Vị trí đứng thực tế]
-    Step3_P2 --> SelectLoc[Chọn Tầng & Phòng đang đứng thực tế]
-    SelectLoc --> FetchP1Zones[PWA tự động tải ảnh Photo CTX và ghim cũ D-xx của GĐ1 tại phòng này]
+    LoadAptMatrix --> SelectUnit[Chọn Căn hộ cần khảo sát: VD Căn P-304]
+    SelectUnit --> InheritMaster[Tự động kế thừa Dữ liệu chung Tòa nhà:<br>• Mã thửa B-xxxxx, Tên chung cư<br>• Bộ 4 ảnh P-01..P-04 mặt tiền & Đa giác Facade<br>• Hồ sơ móng, CAT Móng, Độ nghiêng E3]
     
-    FetchP1Zones --> ZoneBranch{Vị trí đang đứng là Vùng cũ hay Khu vực mới?}
+    InheritMaster --> SurveyUnitInterior[Khảo sát nội bộ riêng Căn 304:<br>• Khảo sát các phòng Z-xx<br>• Ghim khuyết tật D-xx kèm ảnh CU có thước<br>• Đánh giá E1, E4, E6 riêng của căn 304]
     
-    %% NHÁNH A: VÙNG CŨ
-    ZoneBranch -- Vùng hiện hữu Z cũ --> InspectOldPins[Chạm từng ghim cũ D-01]
-    InspectOldPins --> ReMeasure[Đo lại w2, L2 & Chụp ảnh CU GĐ2 có thước mm]
-    ReMeasure --> CalcDelta[Hệ thống tự tính: Δw = w2 - w1, ΔL = L2 - L1 ➔ Đổi màu ghim]
-    CalcDelta --> CheckNewOnExisting{Có vết nứt MỚI phát sinh?}
-    CheckNewOnExisting -- Có --> PinNewOnOld[Chạm lên ảnh CTX cũ ➔ Thả ghim ĐỎ D-new ➔ Chụp CU có thước]
-    PinNewOnOld --> NextCheck
-    CheckNewOnExisting -- Không --> NextCheck
+    SurveyUnitInterior --> SignUnit[Chủ Căn 304 ký biên bản riêng tại Bước 9]
+    SignUnit --> SubmitUnit[Bấm Nộp Hồ Sơ Căn ➔ POST /reports/phase1/units/{id}/submit]
+    SubmitUnit --> UnitSubmitted[Căn 304 chuyển trạng thái SUBMITTED]
     
-    %% NHÁNH B: VÙNG MỚI
-    ZoneBranch -- Khu vực mới phát sinh --> ClickNewZ[Bấm '+ Thêm Vùng Khảo Sát Mới' ➔ Cấp mã Z-new]
-    ClickNewZ --> SnapNewCTX[Chụp ảnh CTX vùng mới ➔ Thả các ghim ĐỎ D-new ➔ Chụp CU có thước]
-    SnapNewCTX --> NextCheck
+    UnitSubmitted --> AdminReview[Zone Admin thẩm định riêng căn 304 qua Split-Pane]
+    AdminReview --> AdminApprove[Duyệt Căn 304 ➔ status: APPROVED]
+    AdminApprove --> ExportUnitPdf[Admin bấm 'Xuất Báo Cáo Căn Hộ' ➔ POST /reports/units/{id}/export]
+    ExportUnitPdf --> UnitExported[Căn 304 chuyển trạng thái EXPORTED Màu Xanh Ngọc & Khóa bất biến]
     
-    NextCheck{Còn phòng khác?}
-    NextCheck -- Còn --> SelectLoc
-    NextCheck -- Hết --> Step4_P2[BƯỚC 4: Đo đạc lún nghiêng GĐ2 & Tính biến thiên Delta nghiêng]
-    
-    Step4_P2 --> Step5_P2[BƯỚC 5: Xác nhận phạm vi tiếp cận thực tế GĐ2]
-    Step5_P2 --> Step6_P2[BƯỚC 6: Sơ đồ phác thảo GĐ2 & Quét Checklist 10 tiêu chí Phụ lục A]
-    Step6_P2 --> Step7_P2[BƯỚC 7: Tổng kết biến động, tính ΔECS, nhu cầu Quan trắc & NDT]
-    Step7_P2 --> Step8_P2[BƯỚC 8: Cam kết trách nhiệm pháp lý chuẩn Phiếu 02]
-    Step8_P2 --> Step9_P2[BƯỚC 9: Ký tên 4 bên: Chủ hộ, Nhà thầu, Đơn vị độc lập, Người làm chứng ➔ NỘP BÁO CÁO]
-    Step9_P2 --> EndP2([Hoàn tất khảo sát GĐ2])
+    UnitExported --> CheckAllUnitsDone{100% các căn hộ trong Chung cư đã EXPORTED?}
+    CheckAllUnitsDone -- Chưa --> ShowProgress[Thửa đất trên GIS hiển thị Màu Vàng kèm tiến độ: VD 32/50 căn]
+    CheckAllUnitsDone -- Đã đủ 100% --> MasterExported[Toàn bộ Lô đất Chung cư chuyển sang trạng thái EXPORTED hoàn tất]
 ```
 
 ---
@@ -193,50 +187,25 @@ flowchart TD
     %% DUYỆT
     AuditDecision -- DUYỆT (Phím 'A') --> ClickApprove[Bấm 'Phê Duyệt' ➔ POST /admin/reports/{id}/approve]
     ClickApprove --> GenPdfA[Hệ thống tự động sinh file PDF/A chính thức đóng dấu ký số điện tử]
-    GenPdfA --> UpdateGreen[Thửa đất chuyển sang Màu Xanh Lá APPROVED]
+    GenPdfA --> UpdateGreen[Thửa đất chuyển sang Màu Xanh Lá APPROVED_PHASE1]
+    
+    %% XUẤT BÁO CÁO BÀN GIAO (EXPORTED)
+    UpdateGreen --> ClickExport[Bấm 'Xuất Báo Cáo Pháp Lý Bàn Giao' ➔ POST /reports/batch-export]
+    ClickExport --> HashSha[Sinh mã Checksum SHA-256 & Khóa bất biến 100% dữ liệu]
+    HashSha --> UpdateExported[Thửa đất chuyển sang Màu Xanh Ngọc EXPORTED]
     
     %% TRẢ VỀ
     AuditDecision -- TRẢ VỀ (Phím 'R') --> ClickReject[Bấm 'Trả Về' ➔ POST /admin/reports/{id}/reject]
     ClickReject --> EnterReason[Bắt buộc nhập Lý do kỹ thuật: VD 'Ảnh CU D-01 thiếu thước đo mm']
     EnterReason --> Rollback[Hệ thống rollback biến động & Thửa đất chuyển sang Màu Đỏ REJECTED]
     
-    UpdateGreen --> EndAudit([Hoàn tất thẩm định])
+    UpdateExported --> EndAudit([Hoàn tất quy trình])
     Rollback --> EndAudit
 ```
 
 ---
 
-### 2.3. Activity 2.3: Xuất Báo Cáo Có Chọn Lọc (Zone Selective Batch Export)
-
-```mermaid
-flowchart TD
-    StartExport([Zone Admin truy cập mục 'Xuất Báo Cáo Chọn Lọc']) --> ChooseMode{Chọn Chế độ Xuất?}
-    
-    %% CHẾ ĐỘ 1: THEO CHỈ ĐỊNH
-    ChooseMode -- Chế độ 1: Theo danh sách chỉ định --> PickSpecificIds[Chọn trực tiếp danh sách mã nhà cụ thể: VD B-00105, B-00106, B-00107]
-    
-    %% CHẾ ĐỘ 2: THEO TIÊU CHÍ
-    ChooseMode -- Chế độ 2: Theo bộ lọc thời gian --> FilterCriteria[Lọc theo Tuần 37, trạng thái APPROVED, rủi ro VI: HIGH/VERY_HIGH]
-    
-    PickSpecificIds --> ChooseFormat[Chọn Định dạng: PDF Book Compilation / ZIP Archive / Excel Summary]
-    FilterCriteria --> ChooseFormat
-    
-    ChooseFormat --> SubmitExport[Bấm 'Khởi Tạo Xuất' ➔ POST /reports/batch-export]
-    SubmitExport --> WorkerQueue[Hệ thống xếp vào hàng đợi xử lý nền QUEUED]
-    WorkerQueue --> CompilePdf[Worker ghép nối trang bìa, mục lục tự động, bản đồ GIS phân khu và các file PDF]
-    CompilePdf --> HashSha256[Sinh mã băm Checksum SHA-256 bảo đảm tính toàn vẹn pháp lý]
-    HashSha256 --> UploadS3[Lưu file lên S3 và cập nhật status = COMPLETED]
-    UploadS3 --> Download[Zone Admin tải file PDF Book hoàn chỉnh kèm mã SHA-256]
-    Download --> EndExport([Hoàn tất xuất báo cáo])
-```
-
----
-
 ## 3. PHÂN HỆ TỔNG QUẢN TRỊ TOÀN TUYẾN (`SUPER_ADMIN`)
-
----
-
-### 3.1. Activity 3.1: Quản Trị Vòng Đời Người Dùng, Lớp Bản Đồ GIS & Trung Tâm Xuất Toàn Tuyến
 
 ```mermaid
 flowchart TD
@@ -248,52 +217,8 @@ flowchart TD
     UserOps -- Sửa / Điều chuyển Ga --> UpdateUser[Cập nhật chức vụ / Đổi Ga phụ trách ➔ PUT /admin/users/{id}]
     UserOps -- Khóa / Mở khóa --> LockUser[Khóa hoặc Kích hoạt tài khoản ➔ PUT /admin/users/{id}/status]
     UserOps -- Reset Mật khẩu --> ResetPass[Đặt lại mật khẩu bảo mật ➔ POST /admin/users/{id}/reset-password]
-    UserOps -- Xóa an toàn --> DeleteUser[Soft-delete tài khoản ➔ DELETE /admin/users/{id}]
     
-    %% QUẢN LÝ GIS
-    ChooseAction -- Quản lý Lớp GIS Tuyến Metro 2 --> ImportGis[Import hàng loạt thửa đất từ GeoJSON ➔ POST /admin/gis/import-parcels]
-    ImportGis --> UpdateMetroLine[Cập nhật Tim tuyến Metro 2 & Tự động buffer ZOI 50m ➔ PUT /admin/gis/layers/metro-alignment]
-    
-    %% XUẤT TOÀN TUYẾN & QUẢN LÝ EXPORT
-    ChooseAction -- Trung tâm Quản trị Xuất Báo cáo --> ExportOps{Thao tác Export Hub?}
-    ExportOps -- Xuất Toàn Tuyến 11 Ga --> GlobalExport[Đóng gói toàn bộ 11 Ga (~7.000 căn) ➔ POST /admin/reports/batch-export]
-    ExportOps -- Xem Lịch sử Export --> ViewExportHistory[Xem danh sách tất cả các đợt export của toàn hệ thống ➔ GET /admin/reports/exports]
-    ExportOps -- Thu hồi / Hủy file --> RevokeExport[Thu hồi link tải và xóa file trên S3 ➔ DELETE /admin/reports/exports/{batchId}]
-    
-    CreateUser --> EndSA([Hoàn tất])
-    UpdateUser --> EndSA
-    LockUser --> EndSA
-    ResetPass --> EndSA
-    DeleteUser --> EndSA
-    UpdateMetroLine --> EndSA
-    GlobalExport --> EndSA
-    ViewExportHistory --> EndSA
-    RevokeExport --> EndSA
-```
-
----
-
-## 4. PHÂN HỆ NHÀ THẦU THI CÔNG & KHÁCH TRA CỨU (`CONTRACTOR_GUEST`)
-
----
-
-### 4.1. Activity 4.1: Tra Cứu Bản Đồ GIS Quy Hoạch & Tải Tập Hồ Sơ Đã Công Bố
-
-```mermaid
-flowchart TD
-    StartGuest([Khách / Nhà thầu truy cập qua Share Link]) --> AuthPasscode{Link có Passcode?}
-    AuthPasscode -- Có --> EnterPasscode[Nhập Passcode 6 ký tự bảo mật]
-    EnterPasscode --> RenderGIS[Mở Bản đồ GIS tương tác toàn tuyến Metro 2]
-    AuthPasscode -- Không --> RenderGIS
-    
-    RenderGIS --> BrowseParcels[Quan sát bản đồ phân lô với mã màu trực quan: Xanh lá = Đã duyệt, Vàng = Đang làm]
-    BrowseParcels --> ClickParcel[Nhấp chuột vào 1 thửa đất cụ thể]
-    ClickParcel --> ShowSummary[Xem Modal Tóm tắt: Kết cấu, Số tầng, Điểm ECS/24, Cấp rủi ro VI]
-    
-    ShowSummary --> GuestAction{Thao tác tải tài liệu?}
-    GuestAction -- Tải Báo cáo Đơn lẻ --> DownloadSingle[Tải file PDF/A chính thức của thửa đất này]
-    GuestAction -- Tải Tập Hồ Sơ Phân Khu --> DownloadDossier[Tải trọn bộ Tập Hồ Sơ PDF Book Compilation kèm mã Checksum SHA-256]
-    
-    DownloadSingle --> EndGuest([Hoàn tất tra cứu])
-    DownloadDossier --> EndGuest
+    %% QUẢN TRỊ GIS & XUẤT TOÀN TUYẾN
+    ChooseAction -- Lớp Bản đồ GIS --> GisOps[Import Quy hoạch SQHKT KS003 mới, Cập nhật Tim tuyến & ZOI 50m]
+    ChooseAction -- Xuất Báo cáo Toàn tuyến --> GlobalExport[Xuất Batch Báo cáo 11 Ga nộp UBND TP.HCM & MAUR ➔ Trạng thái EXPORTED]
 ```

@@ -238,8 +238,29 @@ classDiagram
         +UUID activePhase1ReportId
         +UUID activePhase2ReportId
         +Int absenceAttemptCount
+        +Boolean isMultiUnit
+        +Int totalUnits
+        +Int completedUnits
+        +Int exportedUnits
         +updateStatus(newStatus) Void
         +updateFootprint(newFootprintGeoJson, measuredArea) Void
+    }
+
+    class BuildingUnit {
+        +UUID id
+        +UUID parcelId
+        +String unitCode
+        +String unitName
+        +UnitTypeEnum unitType
+        +String floorLevel
+        +String ownerName
+        +String ownerPhone
+        +ParcelSurveyStatusEnum surveyStatus
+        +String exportedPdfUrl
+        +String checksumSha256
+        +DateTime exportedAt
+        +submitUnitSurvey(surveyData) Void
+        +exportUnitReport() FileStream
     }
 
     class SurveyAbsenceLog {
@@ -248,7 +269,11 @@ classDiagram
         +UUID surveyorId
         +AbsenceReasonEnum absenceReason
         +String notes
-        +String photoProofUrl
+        +Boolean isStep1Complete
+        +String photoP01Url
+        +String photoP02Url
+        +String photoP03Url
+        +String photoP04Url
         +DateTime rescheduleDate
         +Int attemptCount
         +DateTime recordedAt
@@ -636,6 +661,7 @@ classDiagram
     BaseSurveyReport "1" *-- "1" DeformationAssessment : records_deformation
     BaseSurveyReport "1" *-- "1" SurveyScope : defines_scope
     Phase1SurveyReport "1" *-- "1" RiskScoreCard : scores_ECS_VI
+    Parcel "1" *-- "0..*" BuildingUnit : contains_units
 ```
 
 ---
@@ -652,12 +678,13 @@ classDiagram
 - ExportScopeEnum: SELECTED_LIST, FILTER_CRITERIA, GLOBAL_ALL_ZONES
 - ExportFormatEnum: PDF_BOOK_COMPILATION, ZIP_INDIVIDUAL_PDFS, EXCEL_SUMMARY
 - ExportStatusEnum: QUEUED, PROCESSING, COMPLETED, FAILED, REVOKED
-- ParcelSurveyStatusEnum: NOT_SURVEYED, ASSIGNED_TO_ME, IN_PROGRESS, POSTPONED_ABSENT, SUBMITTED, APPROVED, REJECTED
+- ParcelSurveyStatusEnum: NOT_SURVEYED, IN_PROGRESS, SUBMITTED, APPROVED_PHASE1, EXPORTED, POSTPONED_ABSENT, REJECTED, PHASE2_IN_PROGRESS, APPROVED_PHASE2
+- UnitTypeEnum: APARTMENT, SHOPTOP, OFFICE, COMMERCIAL, OTHER
 - ParcelLifecycleEnum: ACTIVE, PENDING_MUTATION_APPROVAL, SPLIT_DEPRECATED, MERGED_DEPRECATED, MUTATION_VOID
 - MutationTypeEnum: ORIGINAL, SPLIT, MERGE, REDRAW
 - MutationStatusEnum: PROPOSED_BY_SURVEYOR, APPROVED, REJECTED
 - AIProcessingStatusEnum: PENDING, PROCESSING, COMPLETED, FAILED
-- ReportStatusEnum: DRAFT, SUBMITTED, UNDER_REVIEW, APPROVED, REJECTED
+- ReportStatusEnum: DRAFT, SUBMITTED, UNDER_REVIEW, APPROVED, EXPORTED, REJECTED
 - CrackEvolutionEnum: STABLE, WIDENED, LENGTHENED, NEW_RECORDED, REPAIRED
 - CompensationVerdictEnum: NO_IMPACT, NEGLIGIBLE_COSMETIC, STRUCTURAL_IMPACT
 - BuildingGradeEnum: GENERAL, IMPORTANT, CRITICAL
@@ -665,7 +692,7 @@ classDiagram
 - AdjacentStructureEnum: TOWNHOUSE, HIGH_RISE, PUBLIC, EMPTY_LAND, OTHER
 - PhotoIdentTypeEnum: P01_HOUSE_NUMBER, P02_MAIN_FACADE, P03_SIDE_OR_REAR, P04_CONTEXT_STREET
 - StructuralSystemEnum: KHUNG_BTCT_CHIU_LUC, TUONG_GACH_CHIU_LUC, KET_CAU_THEP, NHA_GO, KET_CAU_HON_HOP
-- FoundationCategoryEnum: CAT_1_MONG_NONG_GIA_CO, CAT_2_MONG_DON_BTCT, CAT_3_MONG_BANG_BTCT, CAT_4_MONG_COC_BTCT, CAT_5_KHONG_XAC_DINH
+- FoundationCategoryEnum: CAT_1_BAN_VE_CHINH_QUYEN, CAT_2_BAN_VE_PHONG_VAN, CAT_3_PHONG_VAN_NHO_RO, CAT_4_SUY_LUAN_KINH_NGHIEM, CAT_5_KHONG_XAC_DINH
 - ActivityStateEnum: U (Chưa rõ), S (Ổn định), A (Đang phát triển)
 - ECSClassEnum: GOOD_0_5, MEDIUM_6_10, DEFICIENT_11_16, CRITICAL_17_24
 - VIClassEnum: LOW, MEDIUM, HIGH, VERY_HIGH

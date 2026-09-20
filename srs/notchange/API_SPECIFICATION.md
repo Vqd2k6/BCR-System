@@ -23,7 +23,7 @@
 │   ├── [POST] Nhóm Tạo Mới, Upload, Khởi Tạo, Tự Nhận Thửa & Nộp Hồ Sơ
 │   │   ├── 1.1.1. POST /api/v1/attendance/check-in                      # Chấm công GPS thực địa đầu ngày
 │   │   ├── 1.1.2. POST /api/v1/parcels/{id}/start-survey                # Tự chọn ô thửa trên bản đồ & Khảo sát ngay (Ad-hoc Pick)
-│   │   ├── 1.1.3. POST /api/v1/parcels/{id}/record-absence              # Ghi nhận nhà vắng / Cửa khóa (POSTPONED_ABSENT)
+│   │   ├── 1.1.3. POST /api/v1/surveys/phase1/submit-absentee           # Bước 1: Nộp Báo Cáo Vắng Nhà (Yêu cầu Đủ 100% Bước 1)
 │   │   ├── 1.1.4. POST /api/v1/reports/phase1                           # Khởi tạo hồ sơ Phase 1 Baseline
 │   │   ├── 1.1.5. POST /api/v1/reports/phase1/{id}/identification-photos# Bước 1: 4 Ảnh P01-P04 + Polygon N điểm + Phân tầng
 │   │   ├── 1.1.6. POST /api/v1/reports/phase1/{id}/zones                # Bước 3: Tạo Vùng Z-xx + Ảnh CTX + Burland Grade
@@ -31,14 +31,15 @@
 │   │   ├── 1.1.8. POST /api/v1/reports/phase1/{id}/sketch               # Bước 6: Sơ đồ phác thảo Damage Sketch / CAD
 │   │   ├── 1.1.9. POST /api/v1/reports/phase1/{id}/calculate-scores     # Bước 7: Auto tính điểm ECS (0-24) & VI
 │   │   ├── 1.1.10. POST /api/v1/reports/phase1/{id}/submit              # Bước 9: Nộp Phase 1 kèm chữ ký & ý kiến chủ hộ
-│   │   ├── 1.1.11. POST /api/v1/mutations/propose                       # Bước 5: Đề xuất Tách/Gộp thửa, cấp mã > 07000
+│   │   ├── 1.1.11. POST /api/v1/mutations/propose                       # Bước 6: Đề xuất Tách/Gộp thửa, cấp mã > 07000
 │   │   ├── 1.1.12. POST /api/v1/reports/phase2                          # Khởi tạo hồ sơ Phase 2 (kế thừa Phase 1)
 │   │   ├── 1.1.13. POST /api/v1/reports/phase2/{id}/identification-photos# Phase 2 Bước 1: 2 Ảnh P01-P02 mới + Polygon N điểm
 │   │   ├── 1.1.14. POST /api/v1/phase2/zones/{id}/defects               # Phase 2 Bước 3: Thả ghim D-new trên Vùng cũ
 │   │   ├── 1.1.15. POST /api/v1/phase2/reports/{id}/zones               # Phase 2 Bước 3: Tạo Vùng Z-new mới phát sinh
 │   │   ├── 1.1.16. POST /api/v1/reports/phase2/{id}/sketch              # Phase 2 Bước 6: Sơ đồ phác thảo Damage Sketch GĐ2
 │   │   ├── 1.1.17. POST /api/v1/phase2/reports/{id}/summarize           # Phase 2 Bước 7: Tổng kết biến động, ΔECS, Quan trắc & NDT
-│   │   └── 1.1.18. POST /api/v1/reports/phase2/{id}/submit              # Phase 2 Bước 9: Nộp Phase 2 kèm chữ ký 4 bên
+│   │   ├── 1.1.18. POST /api/v1/reports/phase2/{id}/submit              # Phase 2 Bước 9: Nộp Phase 2 kèm chữ ký 4 bên
+│   │   └── 1.1.19. POST /api/v1/reports/phase1/units/{unitId}/submit    # Nộp hồ sơ khảo sát chi tiết Căn hộ Chung cư
 │   │
 │   ├── [GET] Nhóm Tra Cứu, Lọc Dữ Liệu Theo Vị Trí & Bản Đồ Quét Cạn
 │   │   ├── 1.2.1. GET /api/v1/tasks/my-tasks                            # Danh sách công trình được giao việc
@@ -50,15 +51,16 @@
 │   │   ├── 1.2.7. GET /api/v1/reports/phase2/{id}                       # Lấy chi tiết toàn bộ hồ sơ Phase 2
 │   │   ├── 1.2.8. GET /api/v1/reports/phase2/{id}/quality-gate          # Phase 2 Bước 6: Checklist 10 tiêu chí Phụ lục A
 │   │   ├── 1.2.9. GET /api/v1/photos/{id}/ai-status                     # Kiểm tra tiến độ AI nắn thẳng mặt đứng P-02
-│   │   └── 1.2.10. GET /api/v1/attendance/my-history                    # Xem lịch sử chấm công của chính mình
+│   │   ├── 1.2.10. GET /api/v1/attendance/my-history                    # Xem lịch sử chấm công của chính mình
+│   │   └── 1.2.11. GET /api/v1/parcels/{id}/units                       # Lấy danh sách căn hộ Chung cư theo tầng
 │   │
 │   ├── [PUT] Nhóm Cập Nhật Thông Số, Đo Đạc & Đối Soát Delta
 │   │   ├── 1.3.1. PUT /api/v1/reports/phase1/{id}/general-info          # Bước 1: Tên CT, Chủ hộ, Cấp CT, Liền kề
 │   │   ├── 1.3.2. PUT /api/v1/reports/phase1/{id}/specs                 # Bước 2: Kết cấu, Móng CAT 1-5, E5 Lịch sử
-│   │   ├── 1.3.3. PUT /api/v1/reports/phase1/{id}/deformation           # Bước 4: Đo lún nghiêng X/Y, nghiêng sàn, võng dầm
-│   │   ├── 1.3.4. PUT /api/v1/reports/phase1/{id}/scope                 # Bước 5: Phạm vi khảo sát & Hạn chế tiếp cận
+│   │   ├── 1.3.3. PUT /api/v1/reports/phase1/{id}/deformation           # Bước 5: Đo lún nghiêng X/Y (4 Level), võng dầm (mm)
+│   │   ├── 1.3.4. PUT /api/v1/reports/phase1/{id}/scope                 # Bước 6: Phạm vi khảo sát & Hạn chế tiếp cận
 │   │   ├── 1.3.5. PUT /api/v1/reports/phase1/{id}/conclusions           # Bước 8: Kết luận, Rủi ro chính & Kiến nghị
-│   │   ├── 1.3.6. PUT /api/v1/parcels/{id}/footprint                    # Bước 5: Cập nhật Đa giác ranh nhà thực địa
+│   │   ├── 1.3.6. PUT /api/v1/parcels/{id}/footprint                    # Bước 6: Cập nhật Đa giác ranh nhà thực địa
 │   │   ├── 1.3.7. PUT /api/v1/reports/phase2/{id}/confirm-changes       # Phase 2 Bước 2: Xác nhận biến động sau GĐ1
 │   │   ├── 1.3.8. PUT /api/v1/phase2/defects/{id}/verify                # Phase 2 Bước 3: Đối soát ghim cũ (w2, L2, Δw, ΔL)
 │   │   ├── 1.3.9. PUT /api/v1/reports/phase2/{id}/deformation           # Phase 2 Bước 4: Đo lún nghiêng & Tính Delta nghiêng
@@ -69,7 +71,7 @@
 │
 ├── 2. VAI TRÒ 2: TỔ TRƯỞNG & QUẢN TRỊ PHÂN KHU (ZONE ADMIN)
 │   ├── [GET] Nhóm Thống Kê Tiến Độ, Cảnh Báo Bất Thường, Chấm Công & Thẩm Định Split-Pane
-│   │   ├── 2.1.1. GET /api/v1/admin/analytics/progress                  # Thống kê tiến độ Ngày/Tuần/Tháng (Xong, Chưa xong, Vắng...)
+│   │   ├── 2.1.1. GET /api/v1/admin/analytics/progress                  # Thống kê tiến độ Ngày/Tuần/Tháng (7 trạng thái)
 │   │   ├── 2.1.2. GET /api/v1/admin/reports/audit-alerts                # Động cơ cảnh báo gian lận & bất thường GPS/Kết cấu
 │   │   ├── 2.1.3. GET /api/v1/admin/reports/{id}/audit-flags            # Chi tiết các cờ cảnh báo của 1 hồ sơ cụ thể
 │   │   ├── 2.1.4. GET /api/v1/admin/reports/{id}/audit-view             # Payload Split-Pane (Kính lúp 400%) kèm cờ cảnh báo
@@ -86,7 +88,8 @@
 │   │   ├── 2.2.3. POST /api/v1/admin/reports/{id}/approve               # Duyệt Báo cáo (Phím 'A') & Sinh PDF/A ký số
 │   │   ├── 2.2.4. POST /api/v1/admin/reports/{id}/reject                # Trả về Báo cáo (Phím 'R') & Rollback biến động
 │   │   ├── 2.2.5. POST /api/v1/admin/mutations/{id}/approve              # Phê duyệt biến động Tách/Gộp thửa đất
-│   │   └── 2.2.6. POST /api/v1/admin/attendance/{id}/verify             # Phê duyệt / Cảnh báo / Từ chối lượt chấm công
+│   │   ├── 2.2.6. POST /api/v1/admin/attendance/{id}/verify             # Phê duyệt / Cảnh báo / Từ chối lượt chấm công
+│   │   └── 2.2.7. POST /api/v1/reports/units/{unitId}/export            # Xuất Báo Cáo Riêng Cho Căn Hộ & Khóa EXPORTED
 │   │
 │   ├── [PUT] Nhóm Điều Chỉnh Phân Công
 │   │   └── 2.3.1. PUT /api/v1/admin/tasks/{taskId}/reassign             # Chuyển giao nhiệm vụ khảo sát sang Surveyor khác
@@ -309,28 +312,66 @@
 
 ---
 
-### 1.1.3. `POST /api/v1/parcels/{parcelId}/record-absence` *(Ghi nhận vắng nhà / Hoãn khảo sát)*
-* **Mô tả:** Ghi nhận nhật ký khi đến nhà được giao nhưng chủ hộ đi vắng, cửa khóa hoặc từ chối tiếp cận. Thửa đất tự động chuyển sang trạng thái Tạm hoãn (`POSTPONED_ABSENT` - Màu Tím) với bộ đếm `attemptCount`.
+### 1.1.3. `POST /api/v1/surveys/phase1/submit-absentee` *(Nộp Báo Cáo Vắng Nhà - Yêu cầu Đủ 100% Bước 1)*
+* **Mô tả:** Nộp báo cáo khảo sát ngoại quan khi chủ hộ vắng mặt hoặc từ chối tiếp cận. **Điều kiện kiểm soát (Gate):** Surveyor bắt buộc phải hoàn thành 100% dữ liệu ngoại quan Bước 1 (Số nhà thực tế, Tuyến đường, Nhóm đối tượng, Tiếp giáp 3 hướng, Bộ 4 ảnh P-01..P-04, Lý do vắng). Hệ thống lưu trữ hồ sơ, tăng `absenceAttemptCount += 1`, chuyển trạng thái sang `POSTPONED_ABSENT` (Màu Tím) và gán `accessLimitation.type = 'ABSENT_REFUSED'`.
 * **Quyền truy cập:** `SURVEYOR`
-* **Request Headers:** `Content-Type: multipart/form-data`
-* **Form Fields:**
-  * `absenceReason` (string, required): `"HOMEOWNER_ABSENT"` (Đi vắng) | `"LOCKED_GATE"` (Khóa cửa ngoài) | `"REFUSED_ACCESS"` (Từ chối)
-  * `notes` (string, optional): `"Đã gọi điện thoại 2 lần không nhấc máy, hàng xóm báo đi công tác"`
-  * `photoProofFile` (file binary, optional): Ảnh chụp cửa khóa/hiện trạng nhà vắng
-  * `rescheduleDate` (string, optional): `"2026-09-18T09:00:00.000Z"`
+* **Request Headers:** `Content-Type: application/json`
+* **Request Body:**
+```json
+{
+  "parcelId": "p-00105",
+  "surveyData": {
+    "projectParcelCode": "B-00105",
+    "officialCadastralCode": "KS003-P1024",
+    "buildingName": "Nhà ở riêng lẻ",
+    "houseNumber": "142/5B",
+    "street": "Võ Văn Ngân, TP Thủ Đức",
+    "ownerName": "Chủ hộ vắng mặt",
+    "ownerPhone": "",
+    "objectGroup": "GENERAL",
+    "adjacentBuildings": {
+      "left": { "details": "Nhà phố bê tông 3-5 tầng" },
+      "right": { "details": "Nhà phố cấp 4 / mái tôn" },
+      "back": { "details": "Hẻm kỹ thuật / Rãnh thoát" }
+    },
+    "photoP01": { "url": "https://s3.metro2.vn/p01_p00105.jpg", "notApplicable": false },
+    "photoP02": { "url": "https://s3.metro2.vn/p02_p00105.jpg", "notApplicable": false, "polygonPoints": [] },
+    "photoP03": { "url": "https://s3.metro2.vn/p03_p00105.jpg", "notApplicable": false },
+    "photoP04": { "url": "https://s3.metro2.vn/p04_p00105.jpg", "notApplicable": false },
+    "isAbsenteeSurvey": true,
+    "absenteeReason": "Khóa cửa ngoài - Không có người ở nhà",
+    "accessLimitation": {
+      "type": "ABSENT_REFUSED",
+      "mainReason": "Chủ hộ vắng mặt tại thời điểm khảo sát hiện trường"
+    }
+  },
+  "status": "ABSENTEE_SUBMITTED",
+  "completedAt": "2026-09-20T08:30:00.000Z"
+}
+```
 * **Response `201 Created`:**
 ```json
 {
   "success": true,
-  "message": "Đã ghi nhận nhật ký vắng mặt. Thửa đất chuyển sang trạng thái Tạm hoãn (POSTPONED_ABSENT).",
+  "message": "Đã ghi nhận thành công Báo cáo Ngoại quan Vắng nhà (Đủ 100% Bước 1).",
   "data": {
     "parcelId": "p-00105",
     "projectParcelCode": "B-00105",
     "surveyStatus": "POSTPONED_ABSENT",
     "absenceAttemptCount": 1,
-    "proofPhotoUrl": "https://s3.metro2.vn/absence_proofs/p-00105_attempt1.jpg",
-    "recordedAt": "2026-09-16T08:15:00.000Z"
+    "isAbsenteeComplete": true,
+    "submittedAt": "2026-09-20T08:30:00.000Z"
   }
+}
+```
+* **Response `422 Unprocessable Entity` (Khi chưa điền đủ 100% Bước 1):**
+```json
+{
+  "type": "https://metro2.vn/errors/ERR_INCOMPLETE_STEP1_ABSENTEE",
+  "title": "Unprocessable Entity",
+  "status": 422,
+  "detail": "Không thể nộp báo cáo vắng nhà: Thiếu ảnh ngoại quan P-02 và thông tin tiếp giáp 3 hướng.",
+  "instance": "/api/v1/surveys/phase1/submit-absentee"
 }
 ```
 
@@ -826,6 +867,64 @@
 
 ---
 
+### 1.1.19. `POST /api/v1/reports/phase1/units/{unitId}/submit` *(Nộp Hồ Sơ Khảo Sát Căn Hộ Chung Cư)*
+* **Mô tả:** Nộp hồ sơ khảo sát chi tiết cho 1 căn hộ cụ thể (`BuildingUnit`) thuộc tòa nhà Chung cư / Khu tập thể. Dữ liệu kế thừa phần ngoại quan mặt tiền, CAT móng từ Tòa nhà Master và ghi nhận chi tiết khuyết tật bên trong phòng của căn hộ.
+* **Quyền truy cập:** `SURVEYOR`
+* **Request Headers:** `Content-Type: application/json`
+* **Request Body:**
+```json
+{
+  "unitId": "u-304-b00128",
+  "parcelId": "p-00128",
+  "unitCode": "P-304",
+  "ownerName": "Trần Thị Mai",
+  "ownerPhone": "0912 345 678",
+  "surveyData": {
+    "floors": [
+      {
+        "floorName": "Tầng 3 - Căn hộ 304",
+        "zones": [
+          {
+            "zoneCode": "Z-01",
+            "roomName": "Phòng khách",
+            "burlandGrade": 2,
+            "defects": [
+              {
+                "defectCode": "D-01",
+                "crackWidthMm": 0.8,
+                "structuralSignificanceE2": 1,
+                "materialDegradationE4": 1
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "signatures": {
+      "ownerSignature": "data:image/png;base64,iVBORw0KGgo...",
+      "surveyorSignature": "data:image/png;base64,iVBORw0KGgo..."
+    }
+  },
+  "status": "SUBMITTED",
+  "submittedAt": "2026-09-20T09:00:00.000Z"
+}
+```
+* **Response `201 Created`:**
+```json
+{
+  "success": true,
+  "message": "Đã nộp thành công hồ sơ khảo sát Căn hộ P-304 (Chung cư B-00128).",
+  "data": {
+    "unitId": "u-304-b00128",
+    "unitCode": "P-304",
+    "surveyStatus": "SUBMITTED",
+    "submittedAt": "2026-09-20T09:00:00.000Z"
+  }
+}
+```
+
+---
+
 ## 1.2. NHÓM PHƯƠNG THỨC GET (Tra Cứu, Lọc Dữ Liệu Theo Vị Trí & Bản Đồ Quét Cạn)
 
 ### 1.2.1. `GET /api/v1/tasks/my-tasks`
@@ -1199,6 +1298,59 @@
         "verifiedBy": "Trần Văn Tổ Trưởng",
         "verifiedAt": "2026-09-16T08:00:00.000Z",
         "verificationNotes": "Tọa độ chuẩn xác trong ranh Ga S9"
+      }
+    ]
+  }
+}
+```
+
+---
+
+### 1.2.11. `GET /api/v1/parcels/{parcelId}/units` *(Lấy Danh Sách Căn Hộ Chung Cư Theo Tầng)*
+* **Mô tả:** Lấy danh sách toàn bộ các căn hộ/shoptop thuộc tòa nhà Chung cư / Khu tập thể, kèm trạng thái khảo sát và thông tin chủ hộ của từng căn.
+* **Quyền truy cập:** `SURVEYOR`, `ZONE_ADMIN`, `SUPER_ADMIN`
+* **Query Parameters:** `floorLevel` (string, optional: `"Tầng 1"`, `"Tầng 2"`...), `status` (string, optional: `"NOT_SURVEYED"`, `"IN_PROGRESS"`, `"SUBMITTED"`, `"APPROVED"`, `"EXPORTED"`, `"POSTPONED_ABSENT"`)
+* **Response `200 OK`:**
+```json
+{
+  "success": true,
+  "data": {
+    "parcelId": "p-00128",
+    "projectParcelCode": "B-00128",
+    "buildingName": "Chung cư 142 Võ Văn Ngân",
+    "totalUnits": 48,
+    "completedUnits": 36,
+    "exportedUnits": 30,
+    "units": [
+      {
+        "unitId": "u-101-b00128",
+        "unitCode": "P-101",
+        "floorLevel": "Tầng 1",
+        "unitType": "SHOPTOP",
+        "ownerName": "Nguyễn Thị Hà",
+        "ownerPhone": "0903 111 222",
+        "surveyStatus": "EXPORTED",
+        "exportedPdfUrl": "https://s3.metro2.vn/reports/REPORT-B00128-U101.pdf",
+        "exportedAt": "2026-09-18T14:30:00.000Z"
+      },
+      {
+        "unitId": "u-304-b00128",
+        "unitCode": "P-304",
+        "floorLevel": "Tầng 3",
+        "unitType": "APARTMENT",
+        "ownerName": "Trần Thị Mai",
+        "ownerPhone": "0912 345 678",
+        "surveyStatus": "SUBMITTED",
+        "submittedAt": "2026-09-20T09:00:00.000Z"
+      },
+      {
+        "unitId": "u-305-b00128",
+        "unitCode": "P-305",
+        "floorLevel": "Tầng 3",
+        "unitType": "APARTMENT",
+        "ownerName": "Lê Văn Bình",
+        "surveyStatus": "POSTPONED_ABSENT",
+        "absenceAttemptCount": 2
       }
     ]
   }
@@ -2121,6 +2273,38 @@
     "verificationStatus": "APPROVED",
     "verifiedBy": "Trần Văn Tổ Trưởng",
     "verifiedAt": "2026-09-16T08:00:00.000Z"
+  }
+}
+```
+
+---
+
+### 2.2.7. `POST /api/v1/reports/units/{unitId}/export` *(Xuất Báo Cáo Riêng Cho Căn Hộ & Khóa EXPORTED)*
+* **Mô tả:** Zone Admin hoặc Super Admin bấm xuất Báo cáo Hiện trạng chính thức cho 1 căn hộ cụ thể trong Chung cư (`REPORT-{ParcelCode}-{UnitCode}.pdf`). Hệ thống tự động ghép dữ liệu chung của Tòa nhà Master với dữ liệu riêng của Căn hộ, sinh mã băm Checksum SHA-256, chuyển trạng thái của Căn hộ sang `EXPORTED` và khóa cứng 100% dữ liệu.
+* **Quyền truy cập:** `ZONE_ADMIN`, `SUPER_ADMIN`
+* **Request Body:**
+```json
+{
+  "includeCommonMasterData": true,
+  "signatoryTitle": "Tổ trưởng Quản lý Phân khu Ga S9",
+  "notes": "Xuất hồ sơ bàn giao đợt 1 phục vụ giải phóng mặt bằng"
+}
+```
+* **Response `200 OK`:**
+```json
+{
+  "success": true,
+  "message": "Đã xuất Báo cáo Hiện trạng Căn hộ thành công. Dữ liệu đã chuyển sang trạng thái EXPORTED.",
+  "data": {
+    "unitId": "u-304-b00128",
+    "unitCode": "P-304",
+    "parcelCode": "B-00128",
+    "surveyStatus": "EXPORTED",
+    "exportedPdfUrl": "https://s3.metro2.vn/official_reports/REPORT-B00128-U304.pdf",
+    "checksumSha256": "8f4b23c91d8e4f1a2b3c5d7e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a",
+    "exportedAt": "2026-09-20T09:30:00.000Z",
+    "isMasterParcelFullyExported": false,
+    "buildingExportProgress": "31/48 căn"
   }
 }
 ```
