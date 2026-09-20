@@ -1,0 +1,240 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="app.diagrams.net" modified="2026-09-20T01:20:00.000Z" agent="Antigravity AI" version="21.6.8" type="device">
+  <diagram id="phase1_mapping" name="Docx_vs_SRS_Mapping">
+    <mxGraphModel dx="1600" dy="1200" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1400" pageHeight="3200" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="title" value="BẢNG ĐỐI CHIẾU 2 CỘT: DOCX TIÊU CHUẨN DỰ ÁN vs ĐẶC TẢ SRS PWA APP" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=20;fontStyle=1;fontColor=#0f172a;" vertex="1" parent="1">
+          <mxGeometry x="40" y="20" width="1260" height="40" as="geometry" />
+        </mxCell>
+
+        <mxCell id="leg_green" value="Đồng bộ / Khớp 100%" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dcfce7;strokeColor=#16a34a;fontColor=#15803d;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="100" y="70" width="240" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="leg_orange" value="Khác biệt Option / Bổ sung chi tiết" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fef3c7;strokeColor=#d97706;fontColor=#b45309;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="380" y="70" width="260" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="leg_blue" value="Chuyển đổi Kiến trúc / Số hóa GIS" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e0f2fe;strokeColor=#0284c7;fontColor=#0369a1;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="680" y="70" width="260" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="leg_slate" value="Bỏ qua / Chưa thu thập theo chỉ đạo" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f1f5f9;strokeColor=#64748b;fontColor=#475569;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="980" y="70" width="280" height="30" as="geometry" />
+        </mxCell>
+
+        <mxCell id="col_left_hdr" value="CỘT TRÁI: BIỂU MẪU GỐC (Phase 1_BCS_ECS_BRA.docx)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#1e293b;strokeColor=#0f172a;fontColor=#ffffff;fontSize=14;fontStyle=1;align=center;" vertex="1" parent="1">
+          <mxGeometry x="40" y="120" width="580" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="col_right_hdr" value="CỘT PHẢI: VỊ TRÍ &amp; ĐẶC TẢ SRS HIỆN TẠI (Phase1_Docs.md)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#0f766e;strokeColor=#115e59;fontColor=#ffffff;fontSize=14;fontStyle=1;align=center;" vertex="1" parent="1">
+          <mxGeometry x="720" y="120" width="580" height="45" as="geometry" />
+        </mxCell>
+
+        <!-- Row 1: sec1 -->
+        <mxCell id="left_sec1" value="<b><font size="3">1. THÔNG TIN CÔNG TRÌNH (Docx)</font></b><br/><hr/><div align="left" style="font-size:11px; line-height:1.4;">• Mã công trình: [Building ID]<br/>• Tên công trình / Tên riêng<br/>• Địa chỉ / Chủ sở hữu / Người sử dụng<br/>• Công năng: Nhà ở | Cửa hàng | VP | KS | Công cộng | Khác<br/>• Nhóm đối tượng: General | Important | Critical (3 nhóm)<br/>• Số tầng: Nổi ____ | Hầm ____<br/>• Năm xây dựng / Tuổi thọ (Age): ____ [ ] Ước tính<br/>• Hệ kết cấu: RC | Steel | Masonry | Mixed | Other<br/>• Dạng chịu lực: Frame | Wall | Mixed | Other<br/>• Móng: Shallow | Wood | PC | CIP | Unknown<br/>• CAT móng: 1..5/5 | Nguồn: Drawing | Owner | Site<br/>• Tiếp cận: Đầy đủ | Một phần | Chỉ ngoài | Từ chối/vắng<br/>• Công trình liền kề: Nhà phố | Cao tầng | Công cộng | Đất trống | Khác</div>" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fef3c7;strokeColor=#d97706;fontColor=#0f172a;align=center;verticalAlign=top;spacingTop=10;spacingLeft=12;spacingRight=12;spacingBottom=10;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="185" width="580" height="300" as="geometry" />
+        </mxCell>
+
+        <mxCell id="right_sec1" value="<b><font size="3">BƯỚC 1 &amp; BƯỚC 2.1: Tiếp cận ngoài &amp; Kiến trúc (MD)</font></b><br/><hr/><div align="left" style="font-size:11px; line-height:1.4;">• Bước 1: Project Parcel Code (B-xxxxx) &amp; Cadastral Code (KS003-xxxx)<br/>• Bước 1: Tên công trình, Địa chỉ, Chủ sở hữu / Người sử dụng<br/>• Bước 1: Nhóm đối tượng: 3 nhóm chuẩn (General | Important | Critical)<br/>• Bước 1: Liền kề chia 3 hướng chi tiết (Trái, Phải, Sau) kèm menu chi tiết<br/>• Bước 1: Lý trình, Khoảng cách tim tuyến Metro, Tọa độ GPS (Auto)<br/>• Bước 2.1: Công năng sử dụng (Đồng bộ menu chi tiết 11 nhóm)<br/>• Bước 2.1: Số tầng nổi &amp; ngầm (Tầng trệt tính là tầng 1), Năm XD (Ước tính)<br/>• Bước 2.1: Hệ kết cấu (RC/Steel/Masonry/Mixed/Other) - Bỏ Dạng chịu lực trùng lặp<br/>• Bước 2.1: Loại móng, Kích thước cọc, Upload bản vẽ hoàn công<br/>• Bước 2.1: Điểm CAT móng (1đ: biết năm; 2đ: +loại móng; 3đ: +kích thước; 4-5đ: +bản vẽ)<br/>• (Tiếp cận: Đưa về Bước 5 theo thực tế hiện trường)</div>" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fef3c7;strokeColor=#d97706;fontColor=#0f172a;align=center;verticalAlign=top;spacingTop=10;spacingLeft=12;spacingRight=12;spacingBottom=10;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="720" y="185" width="580" height="300" as="geometry" />
+        </mxCell>
+
+        <mxCell id="badge_sec1" value="Chuẩn 3 nhóm; Bỏ dạng chịu lực trùng; Chuẩn hóa CAT móng 1-5đ" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d97706;strokeColor=#d97706;fontColor=#ffffff;fontSize=10;fontStyle=1;align=center;" vertex="1" parent="1">
+          <mxGeometry x="625" y="320" width="90" height="30" as="geometry" />
+        </mxCell>
+
+        <mxCell id="edge_sec1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#d97706;strokeWidth=2;endArrow=classic;endFill=1;" edge="1" parent="1" source="left_sec1" target="right_sec1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Row 2: sec2 -->
+        <mxCell id="left_sec2" value="<b><font size="3">2. PHẠM VI KHẢO SÁT &amp; ẢNH ĐỊNH DANH (Docx)</font></b><br/><hr/><div align="left" style="font-size:11px; line-height:1.4;">• Phạm vi: Ngoài | Trong | Mái | Hầm | Khu phụ<br/>• Hạn chế tiếp cận: Không | Có [Ghi rõ: ______]<br/>• P-01: Số nhà / Biển tên (Photo ID)<br/>• P-02: Mặt đứng chính (Photo ID)<br/>• P-03: Bên/sau tiếp cận (Photo ID)<br/>• P-04: Bối cảnh tổng thể (Photo ID)<br/>• Chainage, khoảng cách tim tuyến, GIS: Lấy tự động</div>" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fef3c7;strokeColor=#d97706;fontColor=#0f172a;align=center;verticalAlign=top;spacingTop=10;spacingLeft=12;spacingRight=12;spacingBottom=10;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="510" width="580" height="180" as="geometry" />
+        </mxCell>
+
+        <mxCell id="right_sec2" value="<b><font size="3">BƯỚC 1 (Ảnh định danh) &amp; BƯỚC 6 (Phạm vi) (MD)</font></b><br/><hr/><div align="left" style="font-size:11px; line-height:1.4;">• Bước 1 - P-01: Ảnh số nhà (Có / N/A)<br/>• Bước 1 - P-02: Mặt đứng chính (Có ảnh + Đa giác đỉnh N điểm + Đường phân tầng trệt, 1, 2... + Vẽ tay kích thước W, H / N/A)<br/>• Bước 1 - P-03: Bên/sau tiếp cận (Chụp nhiều góc: Trái/Phải/Sau / N/A)<br/>• Bước 1 - P-04: Bối cảnh lấy cả đường/ngõ (Có / N/A)<br/>• Bước 6.1: Phạm vi đã KS (Auto tick Ngoài + các Tầng đã làm ở B3 + chọn Mái/Hầm/Khu phụ)<br/>• Bước 6.2: Hạn chế tiếp cận (Vị trí, nguyên nhân, disable tầng đã KS)</div>" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fef3c7;strokeColor=#d97706;fontColor=#0f172a;align=center;verticalAlign=top;spacingTop=10;spacingLeft=12;spacingRight=12;spacingBottom=10;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="720" y="510" width="580" height="180" as="geometry" />
+        </mxCell>
+
+        <mxCell id="badge_sec2" value="Đánh số tầng trệt, 1, 2...; PWA hỗ trợ Đa giác/Phân tầng/Vẽ tay" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d97706;strokeColor=#d97706;fontColor=#ffffff;fontSize=10;fontStyle=1;align=center;" vertex="1" parent="1">
+          <mxGeometry x="625" y="585" width="90" height="30" as="geometry" />
+        </mxCell>
+
+        <mxCell id="edge_sec2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#d97706;strokeWidth=2;endArrow=classic;endFill=1;" edge="1" parent="1" source="left_sec2" target="right_sec2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Row 3: sec3 -->
+        <mxCell id="left_sec3" value="<b><font size="3">3. LỊCH SỬ, SỬ DỤNG &amp; NHẠY CẢM (Docx)</font></b><br/><hr/><div align="left" style="font-size:11px; line-height:1.4;">• Cơi nới / thay đổi tải: Không | Có | Chưa rõ<br/>• Sửa chữa lớn: Không | Có | Chưa rõ<br/>• Lún / nghiêng trước đây: Không | Có | Chưa rõ<br/>• Hư hỏng do CT lân cận: Không | Có | Chưa rõ<br/>• Hỏa hoạn / ngập / sự cố: Không | Có | Chưa rõ<br/>• Thiết bị / hoạt động nhạy cảm: Không | Có [Ghi rõ: _____]<br/>• Tình trạng sử dụng: Đầy đủ | Một phần | Không sử dụng<br/>• Vận hành liên tục 24/7: Không | Có<br/>(MỤC ĐÍCH: Chỉ phục vụ tính điểm lịch sử E5)</div>" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dcfce7;strokeColor=#16a34a;fontColor=#0f172a;align=center;verticalAlign=top;spacingTop=10;spacingLeft=12;spacingRight=12;spacingBottom=10;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="715" width="580" height="220" as="geometry" />
+        </mxCell>
+
+        <mxCell id="right_sec3" value="<b><font size="3">BƯỚC 2.2: Phỏng vấn Lịch sử tính E5 (MD)</font></b><br/><hr/><div align="left" style="font-size:11px; line-height:1.4;">• Cơi nới - thay đổi tải: 0đ Không | 1đ Nhẹ - Đã xử lý | 2đ Nhiều - Chưa rõ | 3đ Thay đổi lớn<br/>• Sửa chữa lớn - cải tạo: 0đ Không | 1đ Nhẹ - Đã xử lý | 2đ Nhiều - Chưa rõ | 3đ Cải tạo lớn<br/>• Lún - nghiêng trước đây: 0đ Không | 1đ Nhẹ - Đã ổn định | 2đ Rõ - Tiếp diễn | 3đ Nghiêm trọng<br/>• Hư hỏng do CT lân cận: 0đ Không | 1đ Nhẹ - Đã bồi thường | 2đ Đáng kể | 3đ Tranh chấp<br/>• Sự cố hỏa hoạn - ngập: 0đ Không | 1đ Nhẹ - Đã khắc phục | 2đ TB - Chưa rõ | 3đ Nghiêm trọng<br/>• Thiết bị - hoạt động nhạy cảm: Không | Có (Nhập mô tả)<br/>• Tình trạng sử dụng: Đang dùng 100% | Một phần | Bỏ trống<br/>• Vận hành liên tục 24/7: Không | Có 24/7<br/>➔ TỰ ĐỘNG TÍNH ĐIỂM E5 TRONG BẢNG ECS</div>" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dcfce7;strokeColor=#16a34a;fontColor=#0f172a;align=center;verticalAlign=top;spacingTop=10;spacingLeft=12;spacingRight=12;spacingBottom=10;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="720" y="715" width="580" height="220" as="geometry" />
+        </mxCell>
+
+        <mxCell id="badge_sec3" value="Khảo sát lịch sử thuần túy tính E5; Thay &quot;/&quot; thành &quot;-&quot;; Thang 3đ" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#16a34a;strokeColor=#16a34a;fontColor=#ffffff;fontSize=10;fontStyle=1;align=center;" vertex="1" parent="1">
+          <mxGeometry x="625" y="810" width="90" height="30" as="geometry" />
+        </mxCell>
+
+        <mxCell id="edge_sec3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#16a34a;strokeWidth=2;endArrow=classic;endFill=1;" edge="1" parent="1" source="left_sec3" target="right_sec3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Row 4: sec4_5 -->
+        <mxCell id="left_sec4_5" value="<b><font size="3">4. SÀNG LỌC BCS &amp; 5. SỔ KHUYẾT TẬT CHI TIẾT (Docx)</font></b><br/><hr/><div align="left" style="font-size:11px; line-height:1.4;">• Mục 4 (Checklist 8 nhóm): Nứt tường | Nứt kết cấu | Lún võng | Nước | Suy giảm | Mất tiết diện | Kẹt cửa | Tái nứt (Có / Không / Vị trí)<br/>• Mục 5 (Sổ Defect D-01..D-07): ID | Vị trí | Cấu kiện / vật liệu | Loại/dạng nứt | Rộng max (mm) | Dài (mm) | Hướng | Hoạt động (U/S/A) | Ý nghĩa KC (N/A/Low/Mod/High/Crit) | Photo ID<br/>• Mục 8 (Damage-Zone Summary Z-01..Z-05): wmax | Số cụm nứt | Ảnh hưởng CN | Burland Grade<br/>• Mục 10 (Ảnh khuyết tật &amp; Damage Map): Ảnh bối cảnh | Ảnh cận cảnh có thước</div>" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e0f2fe;strokeColor=#0284c7;fontColor=#0f172a;align=center;verticalAlign=top;spacingTop=10;spacingLeft=12;spacingRight=12;spacingBottom=10;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="960" width="580" height="160" as="geometry" />
+        </mxCell>
+
+        <mxCell id="right_sec4_5" value="<b><font size="3">BƯỚC 3: Khảo sát Phân cấp 3 tầng (Tầng &gt; Vùng Z &gt; Khuyết tật D) (MD)</font></b><br/><hr/><div align="left" style="font-size:11px; line-height:1.4;">• 3.1. Phân cấp Tầng: Tầng trệt, Tầng 1, Tầng 2, Mái... + Ảnh tổng quan + Sơ đồ CAD tầng ghim vị trí Vùng Z-xx<br/>• 3.2. Phân cấp Vùng (Zone Z-xx): Mã Z-01.. | Tên phòng | Cấu kiện mảng vách | Vật liệu bề mặt | Ảnh hưởng CN/Cần sửa chữa (+2đ E6) | Burland Grade sơ bộ (0-5) | Ảnh bối cảnh Photo CTX<br/>• 3.3. Phân cấp Khuyết tật (Defect D-xx): Thả ghim pixel lên ảnh CTX | Chỉ số sàng lọc (8 nhóm của Mục 4) | Dạng nứt chi tiết | wmax, L, Hướng | Hoạt động (U/S/A) | Ý nghĩa KC (Low..Crit map E2) | Suy giảm VL (map E4) | Ảnh cận cảnh có thước</div>" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e0f2fe;strokeColor=#0284c7;fontColor=#0f172a;align=center;verticalAlign=top;spacingTop=10;spacingLeft=12;spacingRight=12;spacingBottom=10;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="720" y="960" width="580" height="160" as="geometry" />
+        </mxCell>
+
+        <mxCell id="badge_sec4_5" value="Chuyển đổi sang Cấu trúc Phân cấp Hiện trường (Tầng &gt; Vùng &gt; Khuyết tật)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0284c7;strokeColor=#0284c7;fontColor=#ffffff;fontSize=10;fontStyle=1;align=center;" vertex="1" parent="1">
+          <mxGeometry x="625" y="1025" width="90" height="30" as="geometry" />
+        </mxCell>
+
+        <mxCell id="edge_sec4_5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#0284c7;strokeWidth=2;endArrow=classic;endFill=1;" edge="1" parent="1" source="left_sec4_5" target="right_sec4_5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Row 5: sec9 -->
+        <mxCell id="left_sec9" value="<b><font size="3">9. TỔNG HỢP BURLAND &amp; CỜ KẾT CẤU (Docx)</font></b><br/><hr/><div align="left" style="font-size:11px; line-height:1.4;">• Burland Predominant: Grade 0..5<br/>• Burland Local Max: Grade 0..5<br/>• Governing Zone: Zone Z-xx<br/>• Structural Flags: Cột/vách | Dầm/sàn | Nút khung | Tường chịu lực | Móng/cổ cột<br/>• Mức độ cờ kết cấu: None | Low | Moderate | High | Critical<br/>• Structural Override: E2 &gt;= 3 khóa hạ hạng ECS</div>" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dcfce7;strokeColor=#16a34a;fontColor=#0f172a;align=center;verticalAlign=top;spacingTop=10;spacingLeft=12;spacingRight=12;spacingBottom=10;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="1145" width="580" height="170" as="geometry" />
+        </mxCell>
+
+        <mxCell id="right_sec9" value="<b><font size="3">BƯỚC 4: Kết luận Burland &amp; Đánh giá Cờ Kết cấu (MD)</font></b><br/><hr/><div align="left" style="font-size:11px; line-height:1.4;">• Đặt ngay sau khi chụp xong các tầng ở Bước 3 để surveyor tổng hợp nóng<br/>• Burland Chủ đạo (Predominant) &amp; Cục bộ lớn nhất (Local Max)<br/>• Vùng kiểm soát chi phối (Governing Zone Z-xx)<br/>• Đánh giá Cờ kết cấu độc lập (5 nhóm vị trí + 5 mức độ None..Critical)<br/>• Khóa an toàn Structural Override</div>" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dcfce7;strokeColor=#16a34a;fontColor=#0f172a;align=center;verticalAlign=top;spacingTop=10;spacingLeft=12;spacingRight=12;spacingBottom=10;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="720" y="1145" width="580" height="170" as="geometry" />
+        </mxCell>
+
+        <mxCell id="badge_sec9" value="Chuyển thành Bước 4 độc lập ngay sau Bước 3 theo thực tế hiện trường" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#16a34a;strokeColor=#16a34a;fontColor=#ffffff;fontSize=10;fontStyle=1;align=center;" vertex="1" parent="1">
+          <mxGeometry x="625" y="1215" width="90" height="30" as="geometry" />
+        </mxCell>
+
+        <mxCell id="edge_sec9" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#16a34a;strokeWidth=2;endArrow=classic;endFill=1;" edge="1" parent="1" source="left_sec9" target="right_sec9">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Row 6: sec6 -->
+        <mxCell id="left_sec6" value="<b><font size="3">6. LÚN – NGHIÊNG – BIẾN DẠNG (Docx)</font></b><br/><hr/><div align="left" style="font-size:11px; line-height:1.4;">• Lún chênh: Không thấy | Nghi ngờ | Có [Vị trí: _____]<br/>• Nghiêng công trình: Không thấy | Nghi ngờ | Có [X = ___ ‰, Y = ___ ‰]<br/>• Nghiêng sàn: Không thấy | Nghi ngờ | Có [___ ‰]<br/>• Võng dầm / sàn: Không thấy | Nghi ngờ | Có [Vị trí: _____]<br/>• Nguồn xác định: Quan sát | Đo nhanh | Bản vẽ | Chủ nhà<br/>• Độ tin cậy: Cao | TB | Thấp<br/>• Cần đo/quan trắc bổ sung: Không | Có [Nhận xét: _____]</div>" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dcfce7;strokeColor=#16a34a;fontColor=#0f172a;align=center;verticalAlign=top;spacingTop=10;spacingLeft=12;spacingRight=12;spacingBottom=10;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="1340" width="580" height="190" as="geometry" />
+        </mxCell>
+
+        <mxCell id="right_sec6" value="<b><font size="3">BƯỚC 5: Đánh giá Lún – Nghiêng – Biến dạng (MD)</font></b><br/><hr/><div align="left" style="font-size:11px; line-height:1.4;">• Lún chênh: Không thấy | Nghi ngờ | Có (Vị trí)<br/>• Nghiêng công trình: Không thấy | Nghi ngờ | Có (X ‰ và Y ‰)<br/>• Nghiêng sàn: Không thấy | Nghi ngờ | Có (Độ nghiêng sàn ‰)<br/>• Võng dầm / sàn: Không thấy | Nghi ngờ | Có (Vị trí võng)<br/>• Nguồn xác định: Quan sát | Đo nhanh | Bản vẽ | Chủ nhà<br/>• Độ tin cậy: Cao | TB | Thấp<br/>• Cần đo/quan trắc bổ sung: Không | Có (Nhận xét)<br/>➔ TỰ ĐỘNG MAP ĐIỂM E3 VÀO BẢNG ECS</div>" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dcfce7;strokeColor=#16a34a;fontColor=#0f172a;align=center;verticalAlign=top;spacingTop=10;spacingLeft=12;spacingRight=12;spacingBottom=10;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="720" y="1340" width="580" height="190" as="geometry" />
+        </mxCell>
+
+        <mxCell id="badge_sec6" value="Đơn vị nghiêng chuẩn ‰ (phần nghìn); Tự động map sang E3" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#16a34a;strokeColor=#16a34a;fontColor=#ffffff;fontSize=10;fontStyle=1;align=center;" vertex="1" parent="1">
+          <mxGeometry x="625" y="1420" width="90" height="30" as="geometry" />
+        </mxCell>
+
+        <mxCell id="edge_sec6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#16a34a;strokeWidth=2;endArrow=classic;endFill=1;" edge="1" parent="1" source="left_sec6" target="right_sec6">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Row 7: sec11 -->
+        <mxCell id="left_sec11" value="<b><font size="3">11. ECS – ĐÁNH GIÁ TÌNH TRẠNG HIỆN HỮU (Docx)</font></b><br/><hr/><div align="left" style="font-size:11px; line-height:1.4;">• E1: Hư hỏng tường/khối xây (Burland 0-1: 0đ, B2: 1đ, B3: 2đ, B4: 3đ, B5: 4đ)<br/>• E2: Khuyết tật kết cấu cột/dầm/sàn (Không: 0đ, Low: 1đ, Mod: 2đ, High: 3đ, Crit: 4đ)<br/>• E3: Lún/nghiêng/võng (Không: 0đ, Nhẹ: 1đ, Rõ: 2đ, Nghiêm trọng: 3-4đ)<br/>• E4: Suy giảm vật liệu/độ bền (Không: 0đ, Cục bộ: 1đ, Đáng kể: 2đ, Nặng/Chịu lực: 3-4đ)<br/>• E5: Lịch sử/cơi nới/sự cố (Không: 0đ, Nhẹ: 1đ, Nhiều: 2đ, Lớn: 3-4đ)<br/>• E6: Tình trạng chức năng/tổng thể (Tốt: 0đ, TB: 1đ, Kém: 2đ, Nguy cấp: 4đ)<br/>• Tổng ECS: ΣE / 24 | Phân hạng: Good (0-5) | Medium (6-10) | Deficient (11-16) | Critical (17-24)<br/>• Burland Predominant &amp; Local max | Structural Flag<br/>• Engineering judgement: Giữ | Nâng | Hạ (Khóa an toàn: E2/E3 &gt;= 3 cấm hạ hạng)</div>" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dcfce7;strokeColor=#16a34a;fontColor=#0f172a;align=center;verticalAlign=top;spacingTop=10;spacingLeft=12;spacingRight=12;spacingBottom=10;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="1555" width="580" height="220" as="geometry" />
+        </mxCell>
+
+        <mxCell id="right_sec11" value="<b><font size="3">BƯỚC 7.1: Bảng Điểm Hiện Hữu ECS (Auto 100%) (MD)</font></b><br/><hr/><div align="left" style="font-size:11px; line-height:1.4;">• Tự động tính E1 (từ Burland Bước 4), E2 (từ Cờ kết cấu Bước 4), E3 (từ Bước 5), E4 (từ Defect D-xx), E5 (từ Phỏng vấn 2.2), E6 (từ Vùng Z)<br/>• Tổng ECS = ΣE / 24 | Hạng: Good / Medium / Deficient / Critical<br/>• Engineering Judgement: Giữ / Nâng / Hạ (kèm lý do)<br/>• Khóa an toàn ECS Override: Cấm hạ hạng khi E2 &gt;= 3 hoặc E3 &gt;= 3</div>" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dcfce7;strokeColor=#16a34a;fontColor=#0f172a;align=center;verticalAlign=top;spacingTop=10;spacingLeft=12;spacingRight=12;spacingBottom=10;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="720" y="1555" width="580" height="220" as="geometry" />
+        </mxCell>
+
+        <mxCell id="badge_sec11" value="Đồng bộ 100% bảng 6x5, công thức, thang 0-4 và quy tắc khóa Override" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#16a34a;strokeColor=#16a34a;fontColor=#ffffff;fontSize=10;fontStyle=1;align=center;" vertex="1" parent="1">
+          <mxGeometry x="625" y="1650" width="90" height="30" as="geometry" />
+        </mxCell>
+
+        <mxCell id="edge_sec11" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#16a34a;strokeWidth=2;endArrow=classic;endFill=1;" edge="1" parent="1" source="left_sec11" target="right_sec11">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Row 8: sec12 -->
+        <mxCell id="left_sec12" value="<b><font size="3">12. KIỂM TRA ĐỦ DỮ LIỆU / DATA COMPLETENESS GATE (Docx)</font></b><br/><hr/><div align="left" style="font-size:11px; line-height:1.4;">• 1. Thông tin móng: Cat ___/5 (Đủ | Chưa đủ)<br/>• 2. Ảnh &amp; damage mapping: (Đủ | Thiếu)<br/>• 3. Khảo sát bên trong: (Đã khảo sát | Hạn chế)<br/>• 4. Dữ liệu lún/nghiêng: (Đủ | Cần đo)<br/>• 5. Hồ sơ/bản vẽ: (Có | Một phần | Không)<br/>• 6. Structural review: (N/A | Đủ | Pending)<br/>➔ CỔNG CHO PHÉP SANG BRA: Cho phép (Có) | Có điều kiện | Chưa (Pending) + Lý do</div>" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e0f2fe;strokeColor=#0284c7;fontColor=#0f172a;align=center;verticalAlign=top;spacingTop=10;spacingLeft=12;spacingRight=12;spacingBottom=10;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="1800" width="580" height="180" as="geometry" />
+        </mxCell>
+
+        <mxCell id="right_sec12" value="<b><font size="3">CỔNG KIỂM TRA ĐỦ DỮ LIỆU (Data Completeness Gate) (MD)</font></b><br/><hr/><div align="left" style="font-size:11px; line-height:1.4;">• 1. Móng: Tự động check đã có điểm CAT móng hay chưa<br/>• 2. Ảnh &amp; Ghim: Tự động check đủ 4 ảnh P-01..04, ảnh Vùng CTX, ghim D-xx<br/>• 3. Bên trong: Tự động lấy từ Bước 6.1/6.2 (Tiếp cận 100% hay Hạn chế)<br/>• 4. Lún nghiêng: Tự động lấy từ Bước 5 (Đầy đủ hay tick Cần đo thêm)<br/>• 5. Bản vẽ: Tự động check đã upload file bản vẽ B2.1 hay chưa<br/>• 6. Structural review: Tự động cảnh báo Pending nếu có khuyết tật E2 &gt;= 3<br/>➔ Surveyor xác nhận Cổng (Cho phép / Có điều kiện / Chưa đủ - Pending)</div>" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e0f2fe;strokeColor=#0284c7;fontColor=#0f172a;align=center;verticalAlign=top;spacingTop=10;spacingLeft=12;spacingRight=12;spacingBottom=10;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="720" y="1800" width="580" height="180" as="geometry" />
+        </mxCell>
+
+        <mxCell id="badge_sec12" value="Hệ thống tự động quét 6 tiêu chí từ các bước trước; Surveyor chỉ xác nhận" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0284c7;strokeColor=#0284c7;fontColor=#ffffff;fontSize=10;fontStyle=1;align=center;" vertex="1" parent="1">
+          <mxGeometry x="625" y="1875" width="90" height="30" as="geometry" />
+        </mxCell>
+
+        <mxCell id="edge_sec12" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#0284c7;strokeWidth=2;endArrow=classic;endFill=1;" edge="1" parent="1" source="left_sec12" target="right_sec12">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Row 9: sec13 -->
+        <mxCell id="left_sec13" value="<b><font size="3">13. VI – MỨC ĐỘ DỄ TỔN THƯƠNG (Docx)</font></b><br/><hr/><div align="left" style="font-size:11px; line-height:1.4;">• V1. Công năng: General (1) | Important (2) | Critical (4)<br/>• V2. Hệ kết cấu: Khung BTCT (1) | Khung + gạch (2) | Gạch chịu lực/thép cũ (3) | Kém ổn định (4)<br/>• V3. Móng / Độ tin cậy: Ánh xạ theo CAT móng (1..4đ)<br/>• V4. Tuổi đời / Cơi nới: Mới/&lt;10n (1) | TB/10-25n (2) | Cũ/25-40n (3) | Rất cũ/&gt;40n (4)<br/>• V5. Tình trạng ECS: Good (1) | Medium (2) | Deficient (3) | Critical (4)<br/>• V6. Thiết bị nhạy cảm: Không (1) | Gia dụng/thấp (2) | VP/cao (3) | Y tế/rất cao (4)<br/>• Tổng VI: ΣV / 24 | Điểm TB VIavg = ΣV / 6<br/>• VI Class: Low (&lt;=1.5) | Medium (&gt;1.5-2.5) | High (&gt;2.5-3.25) | Very High (&gt;3.25)<br/>• Engineering Judgement cho VI / CAT móng</div>" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dcfce7;strokeColor=#16a34a;fontColor=#0f172a;align=center;verticalAlign=top;spacingTop=10;spacingLeft=12;spacingRight=12;spacingBottom=10;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="2005" width="580" height="220" as="geometry" />
+        </mxCell>
+
+        <mxCell id="right_sec13" value="<b><font size="3">BƯỚC 7.2: Bảng Chỉ số Dễ tổn thương VI (MD)</font></b><br/><hr/><div align="left" style="font-size:11px; line-height:1.4;">• Tự động đề xuất V1 từ Nhóm đối tượng Bước 1 (3 nhóm chuẩn)<br/>• V2: Chọn 1 trong 4 option kết cấu chịu lực<br/>• V3: Tự động map từ điểm CAT móng Bước 2.1 (1-4đ)<br/>• V4: Chọn 1 trong 4 khoảng tuổi đời / cơi nới<br/>• V5: Tự động map từ ECS Class Mục 7.1<br/>• V6: Chọn 1 trong 4 mức độ nhạy cảm<br/>• Tự động tính ΣV, VIavg và xếp hạng VI Class (Low / Med / High / Very High)<br/>• Bổ sung ô Engineering Judgement cho VI (Giữ / Nâng / Hạ + Lý do)</div>" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dcfce7;strokeColor=#16a34a;fontColor=#0f172a;align=center;verticalAlign=top;spacingTop=10;spacingLeft=12;spacingRight=12;spacingBottom=10;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="720" y="2005" width="580" height="220" as="geometry" />
+        </mxCell>
+
+        <mxCell id="badge_sec13" value="Đồng bộ 100% công thức, ngưỡng phân hạng và quyền Kỹ sư can thiệp" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#16a34a;strokeColor=#16a34a;fontColor=#ffffff;fontSize=10;fontStyle=1;align=center;" vertex="1" parent="1">
+          <mxGeometry x="625" y="2100" width="90" height="30" as="geometry" />
+        </mxCell>
+
+        <mxCell id="edge_sec13" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#16a34a;strokeWidth=2;endArrow=classic;endFill=1;" edge="1" parent="1" source="left_sec13" target="right_sec13">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Row 10: sec14_15_16_17 -->
+        <mxCell id="left_sec14_15_16_17" value="<b><font size="3">14, 15, 16, 17: TÁC ĐỘNG THI CÔNG, BRA &amp; KIẾN NGHỊ (Docx)</font></b><br/><hr/><div align="left" style="font-size:11px; line-height:1.4;">• Mục 14: Loại CT Metro (TBM/C&amp;C/Station), Smax, Biến dạng góc, Rung PPV, Impact Class I1..I4<br/>• Mục 15: Ma trận BRA 4x4 (V x I) -&gt; BRA Class (Low / Med / High / Very High / Pending)<br/>• Mục 16: Khuyến nghị 4 mức hành động tối thiểu<br/>• Mục 17: Tóm tắt kết luận &amp; Kiến nghị cụ thể</div>" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f1f5f9;strokeColor=#64748b;fontColor=#0f172a;align=center;verticalAlign=top;spacingTop=10;spacingLeft=12;spacingRight=12;spacingBottom=10;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="2250" width="580" height="160" as="geometry" />
+        </mxCell>
+
+        <mxCell id="right_sec14_15_16_17" value="<b><font size="3">BƯỚC 8: Tổng hợp Kết luận, BRA &amp; Kiến nghị (Đơn giản hóa) (MD)</font></b><br/><hr/><div align="left" style="font-size:11px; line-height:1.4;">• Tự động tổng hợp BCS/ECS Score &amp; Class, Burland Predominant/Max, Structural Flag, VIavg &amp; Class<br/>• Construction Impact: Mặc định [Pending] (Bỏ qua 6 thông số thiết kế chưa thu thập)<br/>• BRA: Mặc định [Pending] (Chờ dữ liệu thiết kế/phê duyệt)<br/>• Khuyết tật / Rủi ro chính: Nhập text tổng hợp<br/>• Kiến nghị cụ thể: Nhập text đề xuất kỹ thuật/quan trắc</div>" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f1f5f9;strokeColor=#64748b;fontColor=#0f172a;align=center;verticalAlign=top;spacingTop=10;spacingLeft=12;spacingRight=12;spacingBottom=10;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="720" y="2250" width="580" height="160" as="geometry" />
+        </mxCell>
+
+        <mxCell id="badge_sec14_15_16_17" value="Bỏ qua 6 trường tác động thi công chi tiết chưa có; Giữ BRA Pending theo chỉ đạo" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#64748b;strokeColor=#64748b;fontColor=#ffffff;fontSize=10;fontStyle=1;align=center;" vertex="1" parent="1">
+          <mxGeometry x="625" y="2315" width="90" height="30" as="geometry" />
+        </mxCell>
+
+        <mxCell id="edge_sec14_15_16_17" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#64748b;strokeWidth=2;endArrow=classic;endFill=1;" edge="1" parent="1" source="left_sec14_15_16_17" target="right_sec14_15_16_17">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Row 11: sec18 -->
+        <mxCell id="left_sec18" value="<b><font size="3">18. XÁC NHẬN / RECORD CONTROL (Docx)</font></b><br/><hr/><div align="left" style="font-size:11px; line-height:1.4;">• 1. Người khảo sát / Prepared by<br/>• 2. Kiểm tra / Checked by<br/>• 3. Phê duyệt / Approved by (Kỹ sư dự án)<br/>• Tài liệu tham chiếu cốt lõi: Burland 1995, Mair 1996, Crossrail, Employer Specs</div>" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dcfce7;strokeColor=#16a34a;fontColor=#0f172a;align=center;verticalAlign=top;spacingTop=10;spacingLeft=12;spacingRight=12;spacingBottom=10;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="2435" width="580" height="160" as="geometry" />
+        </mxCell>
+
+        <mxCell id="right_sec18" value="<b><font size="3">BƯỚC 9: Chốt Biên bản &amp; Ký Xác nhận Hiện trường 3 Bên (MD)</font></b><br/><hr/><div align="left" style="font-size:11px; line-height:1.4;">• Thống kê tổng số Tầng, Vùng Z, Khuyết tật D đã ghi nhận<br/>• Ý kiến / Phản hồi nguyên văn của Chủ hộ<br/>• 1. Cán bộ Khảo sát (Prepared by) - Họ tên, chức vụ, ngày, ký tay/ảnh<br/>• 2. Người kiểm tra (Checked by) - Họ tên, chức vụ, ngày, ký tay/ảnh<br/>• 3. Chủ sở hữu / Người sử dụng (Owner/Representative) - Họ tên, vai trò, ngày, ký tay/ảnh</div>" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dcfce7;strokeColor=#16a34a;fontColor=#0f172a;align=center;verticalAlign=top;spacingTop=10;spacingLeft=12;spacingRight=12;spacingBottom=10;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="720" y="2435" width="580" height="160" as="geometry" />
+        </mxCell>
+
+        <mxCell id="badge_sec18" value="Giữ ký 3 bên hiện trường với Chủ nhà; Không cần thêm Approved by &amp; Tài liệu tham chiếu" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#16a34a;strokeColor=#16a34a;fontColor=#ffffff;fontSize=10;fontStyle=1;align=center;" vertex="1" parent="1">
+          <mxGeometry x="625" y="2500" width="90" height="30" as="geometry" />
+        </mxCell>
+
+        <mxCell id="edge_sec18" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#16a34a;strokeWidth=2;endArrow=classic;endFill=1;" edge="1" parent="1" source="left_sec18" target="right_sec18">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Row 12: gis_mutations -->
+        <mxCell id="left_gis_mutations" value="<b><font size="3">[MỞ RỘNG CÔNG NGHỆ PWA KHÔNG CÓ TRONG DOCX]</font></b><br/><hr/><div align="left" style="font-size:11px; line-height:1.4;">• Biểu mẫu Docx truyền thống trên giấy không có các tính năng bản đồ số động.</div>" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e0f2fe;strokeColor=#0284c7;fontColor=#0f172a;align=center;verticalAlign=top;spacingTop=10;spacingLeft=12;spacingRight=12;spacingBottom=10;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="2620" width="580" height="160" as="geometry" />
+        </mxCell>
+
+        <mxCell id="right_gis_mutations" value="<b><font size="3">BƯỚC 6.3: Động cơ Điều chỉnh Ranh Thửa Đất GIS (MD)</font></b><br/><hr/><div align="left" style="font-size:11px; line-height:1.4;">• MATCH: Xác nhận khớp ranh 100%<br/>• SPLIT: Tách thửa 2 màu (Hổ phách căn A &amp; Cam đỏ căn B) + Metadata Đất thừa sai số biên ranh (RESIDUAL_SURPLUS)<br/>• MERGE: Gộp nhiều thửa liền kề, chọn 10 ô gần nhất, Dual-ID &amp; giữ mã nhỏ nhất Bmin<br/>• Cấp mã động tuần tự theo Bmax (&gt;07000)</div>" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e0f2fe;strokeColor=#0284c7;fontColor=#0f172a;align=center;verticalAlign=top;spacingTop=10;spacingLeft=12;spacingRight=12;spacingBottom=10;shadow=1;" vertex="1" parent="1">
+          <mxGeometry x="720" y="2620" width="580" height="160" as="geometry" />
+        </mxCell>
+
+        <mxCell id="badge_gis_mutations" value="Tính năng số hóa GIS độc quyền của App, tiếp tục duy trì 100%" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0284c7;strokeColor=#0284c7;fontColor=#ffffff;fontSize=10;fontStyle=1;align=center;" vertex="1" parent="1">
+          <mxGeometry x="625" y="2685" width="90" height="30" as="geometry" />
+        </mxCell>
+
+        <mxCell id="edge_gis_mutations" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#0284c7;strokeWidth=2;endArrow=classic;endFill=1;" edge="1" parent="1" source="left_gis_mutations" target="right_gis_mutations">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
