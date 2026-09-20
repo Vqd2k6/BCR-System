@@ -7,9 +7,12 @@ import { SurveyorBottomNav, NavTab } from './components/layout/SurveyorBottomNav
 import { LeafletSweepMap, GisParcel } from './components/gis/LeafletSweepMap';
 import { SurveyorHomeView } from './views/surveyor/SurveyorHomeView';
 import { TimekeepingCheckInView } from './views/surveyor/TimekeepingCheckInView';
-import { SurveyPhase1View } from './views/surveyor/SurveyPhase1View';
+import { SurveyPhase1Page } from './features/survey-phase1/views/SurveyPhase1Page';
 import { SurveyPhase2View } from './views/surveyor/SurveyPhase2View';
 import { BuildingHubModal } from './components/survey/BuildingHubModal';
+import { ZoneManagerDashboardPage } from './features/zone-management/views/ZoneManagerDashboardPage';
+import { AdminDashboardPage } from './features/admin-portal/views/AdminDashboardPage';
+import { PublicCitizenPortalPage } from './features/guest-portal/views/PublicCitizenPortalPage';
 
 export const App: React.FC = () => {
   const { user, isAuthenticated, isLoading } = useAuth();
@@ -255,11 +258,10 @@ export const App: React.FC = () => {
         )}
 
         {activeTab === 'phase1' && (
-          <SurveyPhase1View
-            initialParcelId={selectedParcelForSurvey?.id}
+          <SurveyPhase1Page
             parcel={selectedParcelForSurvey}
             unit={selectedUnitForSurvey}
-            onOpenBuildingHub={(p) => setHubParcel(p)}
+            onBackToHome={() => setActiveTab('home')}
             onFinished={() => {
               setSelectedUnitForSurvey(null);
               setActiveTab('home');
