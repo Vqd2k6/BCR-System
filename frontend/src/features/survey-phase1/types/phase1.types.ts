@@ -45,10 +45,23 @@ export interface HistoryInterviewState {
 }
 
 export interface SettlementTiltState {
-  diffSettlement: { status: 'NONE' | 'SUSPECTED' | 'PRESENT'; position: string };
-  buildingTilt: { status: 'NONE' | 'SUSPECTED' | 'PRESENT'; xPermille: number | ''; yPermille: number | '' };
-  floorTilt: { status: 'NONE' | 'SUSPECTED' | 'PRESENT'; permille: number | '' };
-  beamSagging: { status: 'NONE' | 'SUSPECTED' | 'PRESENT'; position: string };
+  diffSettlement: {
+    level: number; // 0..4
+    position: string;
+    photoUrl?: string;
+  };
+  buildingTilt: {
+    level: number; // 0..4
+    xPermille: number | '';
+    yPermille: number | '';
+    direction?: string;
+  };
+  beamSagging: {
+    level: number; // 0..4
+    position: string;
+    sagMm: number | '';
+    description?: string;
+  };
   dataSource: string[];
   reliability: 'HIGH' | 'MEDIUM' | 'LOW';
   needAdditionalMonitoring: { required: boolean; notes: string };
@@ -94,6 +107,8 @@ export interface Phase1SurveyFormData {
   metroOffsetDistance: string;
   gpsCoords: { lat: number; lng: number };
   adjacentBuildings: AdjacentBuildingState;
+  isAbsenteeSurvey?: boolean;
+  absenteeReason?: string;
 
   // Step 1 Photos & Polygon
   photoP01: { url: string; notApplicable: boolean };

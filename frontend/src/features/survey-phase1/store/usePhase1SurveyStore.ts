@@ -96,11 +96,10 @@ const getDefaultInitialFormData = (parcelId: string = ''): Phase1SurveyFormData 
   },
 
   settlementTilt: {
-    diffSettlement: { status: 'NONE', position: '' },
-    buildingTilt: { status: 'NONE', xPermille: '', yPermille: '' },
-    floorTilt: { status: 'NONE', permille: '' },
-    beamSagging: { status: 'NONE', position: '' },
-    dataSource: ['Quan sát'],
+    diffSettlement: { level: 0, position: '' },
+    buildingTilt: { level: 0, xPermille: '', yPermille: '', direction: '' },
+    beamSagging: { level: 0, position: '', sagMm: '', description: '' },
+    dataSource: ['Quan sát trực quan'],
     reliability: 'HIGH',
     needAdditionalMonitoring: { required: false, notes: '' },
   },

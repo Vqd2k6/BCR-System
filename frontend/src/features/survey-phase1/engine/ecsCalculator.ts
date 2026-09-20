@@ -34,29 +34,14 @@ export function calculateEcsScore(formData: Partial<Phase1SurveyFormData>): EcsS
 
   const e2 = Math.max(maxDefectStructural, flagVal);
 
-  // 3. E3: Lún/nghiêng/võng/biến dạng (Tự động tính từ Bước 5 Lún nghiêng)
+  // 3. E3: Lún/nghiêng/võng/biến dạng (Tự động tính từ Level của Lún chênh, Độ nghiêng B1 & Võng dầm sàn B5)
   let e3 = 0;
   const st = formData.settlementTilt;
   if (st) {
-    const isPresent = (field?: { status: string }) => field?.status === 'PRESENT';
-    const isSuspected = (field?: { status: string }) => field?.status === 'SUSPECTED';
-
-    const x = typeof st.buildingTilt?.xPermille === 'number' ? st.buildingTilt.xPermille : 0;
-    const y = typeof st.buildingTilt?.yPermille === 'number' ? st.buildingTilt.yPermille : 0;
-    const maxTilt = Math.max(x, y);
-
-    const floorTilt = typeof st.floorTilt?.permille === 'number' ? st.floorTilt.permille : 0;
-    const overallMaxTilt = Math.max(maxTilt, floorTilt);
-
-    if (overallMaxTilt > 10 || (isPresent(st.diffSettlement) && isPresent(st.buildingTilt))) {
-      e3 = 3;
-    } else if (overallMaxTilt >= 5 || isPresent(st.diffSettlement) || isPresent(st.buildingTilt) || isPresent(st.beamSagging)) {
-      e3 = 2;
-    } else if (overallMaxTilt >= 2 || isSuspected(st.diffSettlement) || isSuspected(st.buildingTilt) || isSuspected(st.beamSagging)) {
-      e3 = 1;
-    } else {
-      e3 = 0;
-    }
+    const lSettlement = st.diffSettlement?.level ?? 0;
+    const lTilt = st.buildingTilt?.level ?? 0;
+    const lSag = st.beamSagging?.level ?? 0;
+    e3 = Math.min(4, Math.max(lSettlement, lTilt, lSag));
   }
 
   // 4. E4: Suy giảm vật liệu/độ bền (Tự động quét max từ tất cả Defect D-xx Bước 3.3)
@@ -70,7 +55,7 @@ export function calculateEcsScore(formData: Partial<Phase1SurveyFormData>): EcsS
     });
   });
 
-  // 5. E5: Lịch sử/cơi nới/sự cố & tính toàn vẹn (Tự động quét max từ 5 câu hỏi phỏng vấn B2.2)
+  // 5. E5: Lịch sử/cơi nới/sự cố & tính toàn vẹn (Cơ chế cộng hưởng rủi ro từ 5 câu hỏi B2.2)
   let e5 = 0;
   const hi = formData.historyInterview;
   if (hi) {
@@ -81,24 +66,38 @@ export function calculateEcsScore(formData: Partial<Phase1SurveyFormData>): EcsS
       hi.neighborDamage ?? 0,
       hi.fireFloodIncident ?? 0,
     ];
-    e5 = Math.min(4, Math.max(...scores));
+    const maxScore = Math.max(...scores);
+    const countMax = scores.filter((s) => s === maxScore).length;
+    // Nếu có từ 2 thuộc tính cùng đạt điểm Max > 0, cộng thêm 1 điểm gia số rủi ro
+    if (maxScore > 0 && countMax >= 2) {
+      e5 = Math.min(maxScore + 1, 4);
+    } else {
+      e5 = maxScore;
+    }
   }
 
-  // 6. E6: Tình trạng chức năng/tổng thể (Tự động gợi ý từ các Vùng Z có cờ sửa chữa)
+  // 6. E6: Tình trạng chức năng/tổng thể (Tự động quét từ khuyết tật Thấm dột, Kẹt cửa Bước 3.3 & Vùng cần sửa chữa Bước 3.2)
+  let maxDefectE6 = 0;
   let damagedZoneCount = 0;
   formData.floors?.forEach((fl) => {
     fl.zones?.forEach((zn) => {
       if (zn.functionalImpactRepairNeeded || zn.burlandGrade >= 3) {
         damagedZoneCount++;
       }
+      zn.defects?.forEach((df: any) => {
+        const val = df.functionalImpactE6 ?? 0;
+        if (val > maxDefectE6) maxDefectE6 = val;
+      });
     });
   });
 
-  let e6 = 0;
-  if (damagedZoneCount === 0) e6 = 0;
-  else if (damagedZoneCount <= 2) e6 = 1;
-  else if (damagedZoneCount <= 4) e6 = 2;
-  else e6 = 3;
+  let zoneScore = 0;
+  if (damagedZoneCount === 0) zoneScore = 0;
+  else if (damagedZoneCount <= 2) zoneScore = 1;
+  else if (damagedZoneCount <= 4) zoneScore = 2;
+  else zoneScore = 3;
+
+  const e6 = Math.min(4, Math.max(maxDefectE6, zoneScore));
 
   // Tính tổng ECS
   const totalEcs = e1 + e2 + e3 + e4 + e5 + e6;

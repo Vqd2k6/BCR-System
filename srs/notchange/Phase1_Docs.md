@@ -31,7 +31,7 @@ Dưới đây là **BỘ BIỂU MẪU KHẢO SÁT HỢP NHẤT DUY NHẤT** đư
   - Khoảng cách tới tim tuyến Metro: *(Tự động)*
   - Khoảng cách tới ranh giải phóng mặt bằng: *(Tự động)*
   - Tọa độ GPS / GIS: *(Tự động bắt khi check-in)*
-- [ ] **Chụp 4 Bộ Ảnh Định Danh (Có Watermark GPS & Thời gian | Hỗ trợ nút chọn "Không tồn tại / N/A"):**
+- [ ] **Chụp 4 Bộ Ảnh Định Danh Ngoại Thất (Có Watermark GPS & Thời gian | Hỗ trợ nút chọn "Không tồn tại / N/A"):**
   - **`P-01` (Biển số nhà / Biển tên cơ quan):**
     - [ ] `Có ảnh`: Chụp ảnh biển số nhà / biển tên cơ quan rõ nét.
     - [ ] `Không tồn tại (N/A)`: (Nhà không gắn biển số / Đất trống / Không có biển hiệu ➔ Cho phép bấm Next).
@@ -47,12 +47,36 @@ Dưới đây là **BỘ BIỂU MẪU KHẢO SÁT HỢP NHẤT DUY NHẤT** đư
   - **`P-04` (Bối cảnh tổng thể lấy cả đường/ngõ):**
     - [ ] `Có ảnh`: Chụp bối cảnh không gian tiếp cận đường/ngõ.
     - [ ] `Không tồn tại (N/A)`: (Nhập lý do ➔ Cho phép bấm Next).
+
 - [ ] **Khảo sát trực quan Lún chênh & Nghiêng công trình ngoài nhà (Building Tilt & Settlement Overview):**
-  - *Thực hiện quan sát toàn cảnh khối nhà từ phía ngoài trước khi bước vào bên trong:*
-  - **1. Lún chênh quan sát ngoài nhà / Tầng trệt:** (Chọn: `Không thấy` | `Nghi ngờ` | `Có` ➔ Vị trí/mô tả: `______`)
-  - **2. Độ nghiêng công trình (Mặt tiền / Khối nhà):** (Chọn: `Không thấy` | `Nghi ngờ` | `Có` ➔ Góc nghiêng: $X = \_\_\_\text{ ‰}$, $Y = \_\_\_\text{ ‰}$)
+  - *Đánh giá mức độ biến dạng hình học khối nhà theo 4 Level chuẩn (kèm mức 0đ cơ sở). Mỗi mục có nút trợ giúp `?` hiển thị biểu hiện vật lý thực địa:*
+  - **1. Lún chênh quan sát ngoài nhà / Tầng trệt:** 
+    - [ ] **Mức độ (Level):**
+      - `0đ - Không`: Không phát hiện dấu hiệu lún chênh.
+      - `1đ - Nghi ngờ / Rất nhẹ (Chớm vi phạm thẩm mỹ)` *(Vết nứt chân chim tiếp giáp móng-tường, chớm tách khe nhẹ)*
+      - `2đ - Rõ nhưng ổn định (Ảnh hưởng sử dụng)` *(Lún nền trệt 1–2cm, cửa bắt đầu rít nhẹ)*
+      - `3đ - Tiến triển / Nghiêm trọng (Nguy hiểm kết cấu)` *(Lún nứt tách khối nhà, cửa kẹt cứng, biến dạng tăng)*
+      - `4đ - Mất ổn định / Nguy cấp (Nguy cơ sập đổ)` *(Lún sụt trượt móng nghiêm trọng, nguy cơ đổ sập)*
+    - [ ] **Thông tin bổ sung (Additional details):** Vị trí cụ thể (`______`), Ảnh chụp chi tiết vết lún.
+  - **2. Độ nghiêng công trình (Mặt tiền / Khối nhà):**
+    - [ ] **Mức độ (Level):**
+      - `0đ - Không`: Khối nhà thẳng đứng bình thường.
+      - `1đ - Nghi ngờ / Rất nhẹ (Chớm vi phạm thẩm mỹ)` *(Độ nghiêng $< 2‰$, khó nhận biết bằng mắt thường)*
+      - `2đ - Rõ nhưng ổn định (Ảnh hưởng sử dụng)` *(Độ nghiêng $2 - 5‰$, nhìn thấy hơi nghiêng)*
+      - `3đ - Tiến triển / Nghiêm trọng (Nguy hiểm kết cấu)` *(Độ nghiêng $5 - 10‰$, nghiêng rõ rệt, kết cấu chịu tải lệch)*
+      - `4đ - Mất ổn định / Nguy cấp (Nguy cơ sập đổ)` *(Độ nghiêng $> 10‰$, mất ổn định tổng thể tòa nhà)*
+    - [ ] **Thông tin bổ sung (Additional details):** Độ nghiêng $X = \_\_\_\text{ ‰}$, $Y = \_\_\_\text{ ‰}$, Hướng nghiêng (`Trước` | `Sau` | `Trái` | `Phải`).
   - **3. Độ tin cậy dữ liệu:** (Chọn: `Cao` | `Trung bình` | `Thấp`)
   - **4. Nguồn xác định dữ liệu:** (Multi-select: `Quan sát trực quan` | `Đo nhanh thước/laser` | `Hồ sơ bản vẽ` | `Chủ nhà khai`)
+
+> [!IMPORTANT]
+> ### 🚪 QUY TRÌNH KIỂM SOÁT BÁO VẮNG NHÀ (Absentee Survey Flow):
+> - **Nguyên tắc chống gian lận & bỏ sót hiện trường:** Hệ thống **TUYỆT ĐỐI KHÔNG CHO PHÉP** cán bộ khảo sát chỉ bấm nút báo vắng rồi gửi báo cáo ngay lập tức về server.
+> - **Cơ chế hoạt động:**
+>   1. Khi tới trước ngôi nhà, nếu chủ nhà đi vắng / khóa cửa / không tiếp cận được bên trong, cán bộ bấm nút **`Báo Vắng Nhà (Khảo sát Ngoại cảnh)`**.
+>   2. Hệ thống chuyển sang **Chế độ Khảo sát Vắng**: Yêu cầu cán bộ phải hoàn thành **100% tất cả các trường thông tin của BƯỚC 1** (Định danh, 3 giáp ranh, GPS/Metro, Chụp đủ 4 bộ ảnh $P\text{-01} \dots P\text{-04}$ kèm vẽ đa giác đứng Polygon, Cụm Lún/Nghiêng ngoài nhà, Lý do vắng nhà).
+>   3. Khi và chỉ khi toàn bộ dữ liệu ngoại cảnh của Bước 1 được điền đầy đủ và hợp lệ, hệ thống mới gắn nhãn `ABSENT_EXTERIOR_COMPLETED` và kích hoạt nút **`Nộp Báo Cáo Vắng Nhà Về Server`**.
+>   4. Báo cáo vắng nhà được lưu trữ đầy đủ căn cứ pháp lý ngoại thất, làm cơ sở hẹn lịch khảo sát lại đợt tiếp theo.
 
 ---
 
@@ -83,11 +107,11 @@ Dưới đây là **BỘ BIỂU MẪU KHẢO SÁT HỢP NHẤT DUY NHẤT** đư
 > [!NOTE]
 > Đây là các câu hỏi phỏng vấn về **lịch sử quá khứ** của công trình do chủ nhà cung cấp, phục vụ riêng cho việc tính chỉ số $E_5$. Các hư hỏng/vết nứt hiện trạng sẽ được ghi nhận độc lập ở Bước 3 và Bước 4.
 
-- [ ] **Cơi nới - Thay đổi tải trọng trong quá khứ:** (Chọn: `0đ - Không` | `1đ - Nhẹ - Đã xử lý ổn định` | `2đ - Nhiều - Chưa rõ kết cấu` | `3đ - Thay đổi lớn - Nghiêm trọng`)
-- [ ] **Sửa chữa lớn - Cải tạo kết cấu:** (Chọn: `0đ - Không` | `1đ - Nhẹ - Đã xử lý` | `2đ - Nhiều - Chưa rõ hồ sơ` | `3đ - Cải tạo lớn ảnh hưởng chịu lực`)
-- [ ] **Lún - Nghiêng ghi nhận trước đây:** (Chọn: `0đ - Không` | `1đ - Nhẹ - Đã ổn định` | `2đ - Rõ - Tiếp diễn` | `3đ - Nghiêm trọng`)
-- [ ] **Hư hỏng do công trình lân cận gây ra:** (Chọn: `0đ - Không` | `1đ - Nhẹ - Đã bồi thường` | `2đ - Đáng kể` | `3đ - Tranh chấp - Nghiêm trọng`)
-- [ ] **Sự cố nghiêm trọng (Hỏa hoạn - Ngập lụt - Nổ):** (Chọn: `0đ - Không` | `1đ - Nhẹ - Đã khắc phục` | `2đ - Trung bình - Chưa rõ mức ảnh hưởng` | `3đ - Nghiêm trọng`)
+- [ ] **1. Cơi nới - Thay đổi tải trọng trong quá khứ:** (Chọn: `0đ - Không` | `1đ - Nhẹ - Đã xử lý ổn định` | `2đ - Nhiều - Chưa rõ kết cấu` | `3đ - Thay đổi lớn - Nghiêm trọng`)
+- [ ] **2. Sửa chữa lớn - Cải tạo kết cấu:** (Chọn: `0đ - Không` | `1đ - Nhẹ - Đã xử lý` | `2đ - Nhiều - Chưa rõ hồ sơ` | `3đ - Cải tạo lớn ảnh hưởng chịu lực`)
+- [ ] **3. Lún - Nghiêng ghi nhận trước đây:** (Chọn: `0đ - Không` | `1đ - Nhẹ - Đã ổn định` | `2đ - Rõ - Tiếp diễn` | `3đ - Nghiêm trọng`)
+- [ ] **4. Hư hỏng do công trình lân cận gây ra:** (Chọn: `0đ - Không` | `1đ - Nhẹ - Đã bồi thường` | `2đ - Đáng kể` | `3đ - Tranh chấp - Nghiêm trọng`)
+- [ ] **5. Sự cố nghiêm trọng (Hỏa hoạn - Ngập lụt - Nổ):** (Chọn: `0đ - Không` | `1đ - Nhẹ - Đã khắc phục` | `2đ - Trung bình - Chưa rõ mức ảnh hưởng` | `3đ - Nghiêm trọng`)
 - [ ] **Thiết bị - Hoạt động nhạy cảm:** (Chọn: `Không có` | `Có` - Nhập mô tả: Phòng lab, máy MRI/X-quang, đồ cổ, thư viện...)
 - [ ] **Tình trạng sử dụng hiện tại (Occupancy Status):** (Chọn: `Đầy đủ` | `Đang sử dụng một phần` | `Bỏ trống - Không sử dụng`)
 - [ ] **Vận hành liên tục 24/7:** (Chọn: `Không` | `Có - Vận hành 24/7 (Bệnh viện, Data Center, Khách sạn, Nhà máy...)`)
@@ -172,8 +196,15 @@ Dưới đây là **BỘ BIỂU MẪU KHẢO SÁT HỢP NHẤT DUY NHẤT** đư
 ### BƯỚC 5: Tổng hợp Biến dạng Kết cấu & Đo đạc Bổ sung
 *Hệ thống tự động liên kết số liệu Lún chênh & Độ nghiêng công trình đã khảo sát từ Bước 1; Cán bộ khảo sát ghi nhận thêm hiện tượng võng dầm/sàn bên trong.*
 
-- [ ] **1. Số liệu Lún chênh & Nghiêng công trình:** *(Tự động đồng bộ từ Bước 1: Lún chênh trệt/ngoài nhà, Độ nghiêng $X, Y\text{ ‰}$, Độ tin cậy dữ liệu)*
-- [ ] **2. Võng dầm / Sàn kết cấu bên trong:** (Chọn: `Không thấy` | `Nghi ngờ` | `Có` ➔ Vị trí: `______`)
+- [ ] **1. Số liệu Lún chênh & Nghiêng công trình:** *(Tự động đồng bộ từ Bước 1: Level Lún chênh trệt/ngoài nhà, Level Độ nghiêng $X, Y\text{ ‰}$, Độ tin cậy dữ liệu)*
+- [ ] **2. Võng dầm / Sàn kết cấu bên trong:**
+  - [ ] **Mức độ (Level):**
+    - `0đ - Không`: Dầm/sàn phẳng phiu bình thường.
+    - `1đ - Nghi ngờ / Rất nhẹ (Chớm vi phạm thẩm mỹ)` *(Võng nhẹ mặt đáy chưa nhìn thấy rõ bằng mắt thường)*
+    - `2đ - Rõ nhưng ổn định (Ảnh hưởng sử dụng)` *(Võng nhìn thấy bằng mắt thường nhưng đã ổn định, không nứt)*
+    - `3đ - Tiến triển / Nghiêm trọng (Nguy hiểm kết cấu)` *(Võng lớn kèm nứt chữ V giữa nhịp dầm/sàn, rung khi đi lại)*
+    - `4đ - Mất ổn định / Nguy cấp (Nguy cơ sập đổ)` *(Võng quá giới hạn cho phép, nguy cơ sập gãy kết cấu sàn/dầm)*
+  - [ ] **Thông tin bổ sung (Additional details):** Vị trí cấu kiện (`______`), Độ võng ước tính (mm), Mô tả hiện tượng.
 - [ ] **3. Cần đo / Quan trắc bổ sung chuyên sâu:** (Chọn: `Không` | `Có` ➔ Nhận xét: `__________________`)
 
 ---
@@ -218,7 +249,7 @@ Dưới đây là **BỘ BIỂU MẪU KHẢO SÁT HỢP NHẤT DUY NHẤT** đư
 
 - [ ] **1. Thông tin móng:** Tự động check đã có điểm CAT móng hay chưa (`Đủ` / `Chưa đủ`).
 - [ ] **2. Ảnh & Damage Mapping:** Tự động check đủ 4 ảnh P-01..04, ảnh Vùng CTX và ghim khuyết tật D-xx (`Đủ` / `Thiếu`).
-- [ ] **3. Khảo sát bên trong:** Tự động trích xuất từ Bước 6.1 & 6.2 (`Đã khảo sát 100%` / `Hạn chế`).
+- [ ] **3. Khảo sát bên trong:** Tự động trích xuất từ Bước 6.1 & 6.2 (`Đã khảo sát 100%` / `Hạn chế` / `Vắng mặt`).
 - [ ] **4. Dữ liệu lún/nghiêng:** Tự động trích xuất từ Bước 1 & Bước 5 (`Đủ` / `Cần đo thêm`).
 - [ ] **5. Hồ sơ/bản vẽ kết cấu:** Tự động check file đính kèm ở Bước 2.1 (`Có` / `Một phần` / `Không`).
 - [ ] **6. Structural Review:** Tự động cảnh báo Pending nếu có khuyết tật $E_2 \ge 3$ hoặc Cờ kết cấu High/Critical (`N/A` / `Đủ` / `Pending`).
@@ -235,9 +266,9 @@ Dưới đây là **BỘ BIỂU MẪU KHẢO SÁT HỢP NHẤT DUY NHẤT** đư
 | :---: | :--- | :--- | :--- | :--- | :--- | :--- | :---: |
 | **E1** | Hư hỏng nhìn thấy tường/khối xây | Burland 0–1 | Burland 2 | Burland 3 | Burland 4=3; 5=4 | **Nguồn:** `Burland Grade` lớn nhất từ các Vùng $Z\text{-xx}$ (Bước 3 / Bước 4)<br>➔ **Quy tắc:** $B \le 1 \to 0\text{đ}$; $B=2 \to 1\text{đ}$; $B=3 \to 2\text{đ}$; $B=4 \to 3\text{đ}$; $B=5 \to 4\text{đ}$ | `___` |
 | **E2** | Khuyết tật kết cấu cột/dầm/sàn/tường chịu lực | Không | Low | Moderate | High=3; Critical=4 | **Nguồn:** `Ý nghĩa kết cấu` của Defect $D\text{-xx}$ (Bước 3.3) & `Cờ kết cấu` (Bước 4)<br>➔ **Quy tắc:** $\max(\text{Mức độ cờ kết cấu})$: $\text{None} \to 0\text{đ}$; $\text{Low} \to 1\text{đ}$; $\text{Mod} \to 2\text{đ}$; $\text{High} \to 3\text{đ}$; $\text{Critical} \to 4\text{đ}$ | `___` |
-| **E3** | Lún/nghiêng/võng/biến dạng | Không | Nghi ngờ/nhẹ | Rõ nhưng ổn định | Tiến triển/nghiêm trọng=3; mất ổn định=4 | **Nguồn:** Cụm quan sát Lún chênh & Độ nghiêng $X, Y\text{ ‰}$ tại **Bước 1** + Võng dầm/sàn tại **Bước 5**<br>➔ **Quy tắc:** Không thấy/Nghiêng $<2\text{ ‰} \to 0\text{đ}$; Nghi ngờ/Nghiêng $2-5\text{ ‰} \to 1\text{đ}$; Có ổn định/Nghiêng $5-10\text{ ‰} \to 2\text{đ}$; Tiến triển/Nghiêng $>10\text{ ‰} \to 3\text{đ}$; Mất ổn định $\to 4\text{đ}$ | `___` |
+| **E3** | Lún/nghiêng/võng/biến dạng | Không | Nghi ngờ/nhẹ | Rõ nhưng ổn định | Tiến triển/nghiêm trọng=3; mất ổn định=4 | **Nguồn:** Level Lún chênh & Nghiêng tại **Bước 1** + Level Võng dầm/sàn tại **Bước 5**<br>➔ **Quy tắc:** $\max(\text{Level Lún}, \text{Level Nghiêng}, \text{Level Võng})$ ($0 \to 4\text{đ}$) | `___` |
 | **E4** | Suy giảm vật liệu/độ bền | Không/nhẹ | Cục bộ | Đáng kể | Nặng=3; ảnh hưởng khả năng chịu lực=4 | **Nguồn:** Trường `Mức độ suy giảm vật liệu` (chịu lực) của toàn bộ Defect $D\text{-xx}$ (Bước 3.3)<br>➔ **Quy tắc:** $\max(\text{Mức độ suy giảm } D\text{-xx})$: Không $\to 0\text{đ}$; Nhẹ $\to 1\text{đ}$; Bong tróc/ăn mòn rõ $\to 2\text{đ}$; Bong rộng/lộ thép/suy giảm đáng kể $\to 3\text{đ}$; Mất tiết diện/Mất khả năng chịu lực $\to 4\text{đ}$ | `___` |
-| **E5** | Lịch sử/cơi nới/sự cố & tính toàn vẹn | Không | Nhẹ/đã xử lý | Nhiều/chưa rõ | Thay đổi lớn/sự cố đáng kể=3–4 | **Nguồn:** 5 câu hỏi phỏng vấn lịch sử tại **Bước 2.2**<br>➔ **Quy tắc:** $\max(\text{Điểm 5 câu phỏng vấn B2.2})$: Tất cả 0đ $\to 0\text{đ}$; Max 1đ $\to 1\text{đ}$; Max 2đ $\to 2\text{đ}$; Max 3đ $\to 3-4\text{đ}$ | `___` |
+| **E5** | Lịch sử/cơi nới/sự cố & tính toàn vẹn | Không | Nhẹ/đã xử lý | Nhiều/chưa rõ | Thay đổi lớn/sự cố đáng kể=3–4 | **Nguồn:** 5 câu hỏi phỏng vấn lịch sử tại **Bước 2.2**<br>➔ **Quy tắc:** $\text{MaxScore} = \max(\text{5 câu B2.2})$. Nếu có $\ge 2$ câu đạt $\text{MaxScore} > 0$ thì $E_5 = \min(\text{MaxScore}+1, 4)$; ngược lại $E_5 = \text{MaxScore}$ | `___` |
 | **E6** | Tình trạng chức năng/tổng thể | Tốt | TB | Kém | Nguy cấp/không bảo đảm sử dụng=4 | **Nguồn:** Khuyết tật Thấm dột ($1-4\text{đ}$), Kẹt cửa ($1-4\text{đ}$) tại **Bước 3.3** + `Cần sửa chữa` tại **Bước 3.2**<br>➔ **Quy tắc:** $\max(\text{Thấm dột}, \text{Kẹt cửa}, \text{Sửa chữa } Z)$: $0\text{đ} \to 0\text{đ}$; $1\text{đ} \to 1\text{đ}$; $2\text{đ} \to 2\text{đ}$; $3-4\text{đ} \to 3-4\text{đ}$ | `___` |
 
 **Tổng hợp & Đánh giá ECS:**
@@ -265,10 +296,19 @@ Dưới đây là **BỘ BIỂU MẪU KHẢO SÁT HỢP NHẤT DUY NHẤT** đư
 > 3. **Thuật toán Tự động tính toán (Auto-Engine):**
 >    - Hệ thống tự động quét toàn bộ các khuyết tật $D\text{-01}, D\text{-02}, D\text{-03}\dots$ đã ghi nhận ở Bước 3.3 trên tất cả các tầng.
 >    - Công thức: $$E_4 = \max_{i} (\text{Điểm suy giảm vật liệu của Defect } D_i)$$
->    - *Ví dụ:* Nhà có $D\text{-01}$ (nứt tường = 0đ), $D\text{-02}$ (chân tường WC ẩm bong sơn = 1đ), $D\text{-03}$ (dầm ban công trơ thép rỉ sét = 3đ) $\Rightarrow E_4 = \max(0, 1, 3) = \mathbf{3\text{ điểm}}$ (Tự động điền vào bảng ECS).
-> 4. **Cơ chế gợi ý thông minh (Pre-suggestion trên App):**
->    - Chọn chỉ báo *"Bong tróc / Ăn mòn / Lộ cốt thép"* $\Rightarrow$ App tự động gợi ý mức **`3đ`** hoặc **`4đ`**.
->    - Chọn chỉ báo *"Thấm dột / Ẩm mốc / Rò nước"* $\Rightarrow$ App tự động gợi ý mức **`1đ`** hoặc **`2đ`**.
+
+> [!NOTE]
+> ### 📜 GIẢI THÍCH CHI TIẾT CƠ CHẾ TỰ ĐỘNG CHẤM CHỈ SỐ E5 (Lịch sử cơi nới, sửa chữa & Cộng hưởng rủi ro):
+> 1. **Ý nghĩa pháp lý:** Các công trình có tiền sử cơi nới thêm tầng, từng bị lún nứt cũ hoặc chịu sự cố hỏa hoạn/ngập úng có độ nhạy cảm và nguy cơ suy thoái kết cấu rất cao khi tuyến hầm Metro thi công.
+> 2. **Thuật toán Cộng hưởng rủi ro (Risk Resonance Logic):**
+>    - Tính điểm lớn nhất của 5 câu hỏi phỏng vấn lịch sử Bước 2.2: $\text{MaxScore} = \max(\text{Cơi nới}, \text{Sửa chữa}, \text{Lún cũ}, \text{Lân cận}, \text{Sự cố})$.
+>    - Đếm số lượng câu hỏi có điểm bằng $\text{MaxScore}$: $\text{CountMax}$.
+>    - **Quy tắc:**
+>      - Nếu $\text{MaxScore} > 0$ và $\text{CountMax} \ge 2$ (tồn tại từ 2 yếu tố rủi ro cùng đạt mức cao nhất) $\Rightarrow$ **Cộng thêm 1 điểm gia số rủi ro**:
+>        $$E_5 = \min(\text{MaxScore} + 1, 4)$$
+>      - Ngược lại (chỉ có 1 yếu tố hoặc tất cả bằng 0đ):
+>        $$E_5 = \text{MaxScore}$$
+>    - *Ví dụ:* Cơi nới = 2đ (Nhiều), Lún nghiêng cũ = 2đ (Rõ tiếp diễn) $\Rightarrow \text{Max} = 2$, có 2 yếu tố $\Rightarrow E_5 = 2 + 1 = \mathbf{3\text{ điểm}}$.
 
 > [!NOTE]
 > ### 🚪 GIẢI THÍCH CHI TIẾT CƠ CHẾ TỰ ĐỘNG CHẤM CHỈ SỐ E6 (Tình trạng chức năng & Khả năng vận hành):
