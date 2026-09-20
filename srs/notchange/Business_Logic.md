@@ -183,9 +183,11 @@ graph TD
 
 ---
 
-### 8.2. Cơ Chế Thống Kê Tiến Độ Thời Gian Thực (`GET /api/v1/admin/analytics/progress`)
-- **Phân tích theo chu kỳ:** Cho phép lọc theo Ngày (`DAILY`), Tuần (`WEEKLY`), Tháng (`MONTHLY`), hoặc Khoảng ngày tùy biến.
-- **Thống kê 6 trạng thái:** Hoàn tất (`APPROVED`), Chờ duyệt (`SUBMITTED`), Đang làm (`IN_PROGRESS`), Vắng nhà (`POSTPONED_ABSENT`), Bị trả về (`REJECTED`), Chưa khảo sát (`NOT_SURVEYED`).
+- **Thống kê 7 trạng thái khảo sát:** Đã xuất báo cáo pháp lý (`EXPORTED`), Đã duyệt (`APPROVED`), Chờ duyệt (`SUBMITTED`), Đang làm (`IN_PROGRESS`), Vắng nhà (`POSTPONED_ABSENT`), Bị trả về (`REJECTED`), Chưa khảo sát (`NOT_SURVEYED`).
+- **Quy trình Khảo sát & Xuất báo cáo Chung cư / Nhiều căn hộ (Multi-Unit Apartment Workflow):**
+  - Đối với tòa nhà Chung cư / Khu tập thể (1 Thửa đất có $N$ Căn hộ `BuildingUnit`), hệ thống quản lý trạng thái khảo sát và xuất báo cáo riêng biệt cho **từng căn hộ**.
+  - Mỗi căn hộ được xuất 1 tập Báo cáo Hiện trạng độc lập (`REPORT-{ParcelCode}-{UnitCode}.pdf`) kèm chữ ký của Chủ căn hộ đó và mã băm Checksum SHA-256.
+  - Khi xuất báo cáo cho từng căn, trạng thái của căn đó chuyển sang `EXPORTED`. Khi toàn bộ 100% các căn hộ trong tòa nhà đều đã `EXPORTED`, thửa đất trên GIS sẽ chuyển sang trạng thái hoàn tất toàn diện `EXPORTED`.
 - **Năng suất Cán bộ (Surveyor Productivity):** Đo lường số lượng hồ sơ hoàn thành và thời gian khảo sát trung bình của từng cán bộ để điều phối nhân sự hợp lý.
 
 ---

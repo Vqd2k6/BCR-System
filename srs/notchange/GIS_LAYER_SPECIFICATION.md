@@ -83,7 +83,7 @@ graph TD
   - `location_geom`: `GEOMETRY(Point, 4326)` - Tọa độ tâm thửa.
   - `cadastral_polygon_geom`: `GEOMETRY(Polygon, 4326)` - Đa giác thửa đất gốc.
   - `footprint_polygon_geom`: `GEOMETRY(Polygon, 4326)` - Đa giác ranh công trình thực tế (Bước 5).
-  - `survey_status`: 6 màu hiển thị (`NOT_SURVEYED`, `IN_PROGRESS`, `APPROVED_PHASE1`, `APPROVED_PHASE2`, `POSTPONED_ABSENT`, `REJECTED`).
+  - `survey_status`: 7 màu hiển thị (`NOT_SURVEYED`, `IN_PROGRESS`, `SUBMITTED`, `APPROVED_PHASE1`, `EXPORTED`, `POSTPONED_ABSENT`, `REJECTED`, `APPROVED_PHASE2`).
 - **Tính chất:** **Lớp điều phối trung tâm**. Trạng thái được cập nhật qua State Machine.
 
 #### Layer 4: Operational Dynamic Layer (Nghiệp vụ Hiện trường)

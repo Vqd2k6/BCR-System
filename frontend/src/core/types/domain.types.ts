@@ -21,6 +21,7 @@ export type SurveyStatus =
   | 'COMPLETED'
   | 'ABSENT'
   | 'REFUSED'
+  | 'EXPORTED'
   | 'PHASE2_COMPLETED'
   | 'APPROVED_PHASE2';
 
