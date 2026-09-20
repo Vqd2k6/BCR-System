@@ -55,7 +55,7 @@ export function calculateEcsScore(formData: Partial<Phase1SurveyFormData>): EcsS
     });
   });
 
-  // 5. E5: Lịch sử/cơi nới/sự cố & tính toàn vẹn (Cơ chế cộng hưởng rủi ro từ 5 câu hỏi B2.2)
+  // 5. E5: Lịch sử/cơi nới/sự cố & tính toàn vẹn (Cơ chế cộng hưởng khi có từ 2 trường cùng > 2 và bằng nhau)
   let e5 = 0;
   const hi = formData.historyInterview;
   if (hi) {
@@ -67,10 +67,10 @@ export function calculateEcsScore(formData: Partial<Phase1SurveyFormData>): EcsS
       hi.fireFloodIncident ?? 0,
     ];
     const maxScore = Math.max(...scores);
-    const countMax = scores.filter((s) => s === maxScore).length;
-    // Nếu có từ 2 thuộc tính cùng đạt điểm Max > 0, cộng thêm 1 điểm gia số rủi ro
-    if (maxScore > 0 && countMax >= 2) {
-      e5 = Math.min(maxScore + 1, 4);
+    // Nếu có từ 2 trường thông tin cùng > 2 (tức cùng đạt 3đ) và bằng nhau -> +1 điểm
+    const countHigh = scores.filter((s) => s > 2).length;
+    if (countHigh >= 2) {
+      e5 = 4; // 3 + 1 = 4
     } else {
       e5 = maxScore;
     }

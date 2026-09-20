@@ -68,7 +68,7 @@ export const Step2_OwnerInterview: React.FC = () => {
       : 'UNKNOWN'
   );
 
-  // E5 Resonance calculation preview
+  // E5 Resonance calculation preview (Chỉ cộng 1 khi có từ 2 trường cùng > 2 và bằng nhau)
   const qScores = [
     { name: '1. Cơi nới - thay đổi tải trọng', score: hi.renovationLoad ?? 0 },
     { name: '2. Sửa chữa lớn - cải tạo', score: hi.majorRepair ?? 0 },
@@ -78,9 +78,9 @@ export const Step2_OwnerInterview: React.FC = () => {
   ];
 
   const maxQScore = Math.max(...qScores.map((q) => q.score));
-  const maxQCount = qScores.filter((q) => q.score === maxQScore && q.score > 0).length;
-  const isResonance = maxQScore > 0 && maxQCount >= 2;
-  const calculatedE5 = isResonance ? Math.min(maxQScore + 1, 4) : maxQScore;
+  const countHigh = qScores.filter((q) => q.score > 2).length;
+  const isResonance = countHigh >= 2;
+  const calculatedE5 = isResonance ? 4 : maxQScore;
 
   // Handle CAT score selection
   const handleSelectCatScore = (score: number) => {
@@ -349,7 +349,7 @@ export const Step2_OwnerInterview: React.FC = () => {
                 2.2. Phỏng Vấn Lịch Sử Sử Dụng & Sự Cố (Tự động tính điểm E5)
               </h2>
               <p className="text-xs text-slate-500">
-                Điểm E5 = Max(5 câu hỏi). Nếu có từ 2 yếu tố cùng đạt Max &gt; 0, hệ thống tự cộng hưởng +1 điểm.
+                Điểm E5 = Max(5 câu hỏi). Nếu có từ 2 trường cùng &gt; 2 (đều đạt mức 3đ) và bằng nhau $\implies$ E5 được cộng thêm +1 điểm (E5 = 4đ).
               </p>
             </div>
           </div>
@@ -375,8 +375,7 @@ export const Step2_OwnerInterview: React.FC = () => {
             <Zap className="w-4 h-4 text-purple-600 flex-shrink-0 mt-0.5 fill-purple-600" />
             <div>
               <span className="font-bold">Kích hoạt quy tắc Cộng Hưởng Rủi Ro (+1 điểm):</span> Có{' '}
-              <strong>{maxQCount} yếu tố lịch sử</strong> cùng đạt mức điểm tối đa ({maxQScore}đ) $\implies$ Điểm E5
-              được gia tăng lên <strong>{calculatedE5} điểm</strong> (tối đa 4).
+              <strong>{countHigh} trường thông tin</strong> cùng lớn hơn 2 và bằng nhau (cùng đạt mức 3đ nghiêm trọng) $\implies$ Điểm E5 được cộng thêm 1 điểm lên <strong>4 điểm (tối đa)</strong>.
             </div>
           </div>
         )}
