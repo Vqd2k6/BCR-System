@@ -51,7 +51,7 @@ async function migrate() {
     const allTables = tableRows.map(r => r.table_name);
     console.log(`📋 Found ${allTables.length} tables to synchronize.`);
 
-    // 2. Vô hiệu hoá tạm thời ràng buộc khoá ngoại và trigger trên Supabase để insert tự do
+    // 2. Vô hiệu hoá tạm thời ràng buộc khoá ngoại và trigger trên Supabase
     console.log('🔒 Bypassing foreign key constraints & triggers on Supabase...');
     await remoteClient.query("SET session_replication_role = 'replica';");
 
@@ -65,7 +65,7 @@ async function migrate() {
     }
     console.log('🧹 Cleaned existing tables on Supabase.');
 
-    // 4. Di chuyển dữ liệu từng bảng
+    // 4. Di chuyển dữ liệu từng bảng bằng Bulk Multi-row Insert (Siêu tốc)
     let totalMigrated = 0;
     for (const table of allTables) {
       const { rows } = await localClient.query(`SELECT * FROM public."${table}";`);
@@ -76,27 +76,37 @@ async function migrate() {
       const columns = Object.keys(rows[0]);
       const colNames = columns.map(c => `"${c}"`).join(', ');
 
-      const batchSize = 100;
+      // Giới hạn số tham số dưới 65535 của PostgreSQL (khoảng 50-100 rows mỗi batch)
+      const batchSize = Math.max(1, Math.floor(2000 / columns.length));
       let inserted = 0;
+
       for (let i = 0; i < rows.length; i += batchSize) {
         const chunk = rows.slice(i, i + batchSize);
+        const valuePlaceholders: string[] = [];
+        const flatValues: any[] = [];
+        let pIndex = 1;
+
         for (const row of chunk) {
-          const values = columns.map(col => row[col]);
-          const placeholders = columns.map((_, idx) => `$${idx + 1}`).join(', ');
-          await remoteClient.query(
-            `INSERT INTO public."${table}" (${colNames}) VALUES (${placeholders});`,
-            values
-          );
-          inserted++;
+          const rowPlaceholders: string[] = [];
+          for (const col of columns) {
+            rowPlaceholders.push(`$${pIndex++}`);
+            flatValues.push(row[col]);
+          }
+          valuePlaceholders.push(`(${rowPlaceholders.join(', ')})`);
         }
+
+        const sql = `INSERT INTO public."${table}" (${colNames}) VALUES ${valuePlaceholders.join(', ')};`;
+        await remoteClient.query(sql, flatValues);
+        inserted += chunk.length;
       }
-      console.log(`✅ Table "${table}": Migrated ${inserted} records.`);
+
+      console.log(`✅ Table "${table}": Migrated ${inserted}/${rows.length} records.`);
       totalMigrated += inserted;
     }
 
     // 5. Khôi phục lại ràng buộc khoá ngoại và trigger
     await remoteClient.query("SET session_replication_role = 'origin';");
-    console.log(`🎉 HOÀN TẤT THÀNH CÔNG! Đã đồng bộ trọn vẹn ${totalMigrated} bản ghi từ Docker sang Supabase!`);
+    console.log(`\n🎉 HOÀN TẤT THÀNH CÔNG RỰC RỠ! Đã đồng bộ trọn vẹn ${totalMigrated} bản ghi từ Docker sang Supabase!`);
   } catch (error) {
     console.error('❌ Migration failed with error:', error);
   } finally {
