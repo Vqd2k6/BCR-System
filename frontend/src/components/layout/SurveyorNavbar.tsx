@@ -12,7 +12,7 @@ interface Props {
 }
 
 export const SurveyorNavbar: React.FC<Props> = ({
-  title = 'Khảo Sát Thực Địa Metro 2',
+  title = 'Khảo sát hiện trạng công trình MRT Line-2',
   subtitle,
   onNavigateToCheckIn,
   onOpenCompanionCheckIn,
@@ -148,7 +148,11 @@ export const SurveyorNavbar: React.FC<Props> = ({
           >
             {subtitle || (
               <>
-                Khu vực: <strong style={{ color: '#0284c7' }}>{user?.assignedZoneId || 'Ga S9 - Bà Quẹo'}</strong>
+                Khu vực: <strong style={{ color: '#0284c7' }}>
+                  {user?.assignedZoneId === 'ZONE_S9' || user?.assignedZoneId === 'ZONE_ST09' || !user?.assignedZoneId
+                    ? 'Zone_ST09'
+                    : user.assignedZoneId.replace('ZONE_', 'Zone_').replace('S', 'ST0')}
+                </strong>
               </>
             )}
           </p>
@@ -208,7 +212,11 @@ export const SurveyorNavbar: React.FC<Props> = ({
                 {getRoleLabel(user?.role)}
               </div>
               <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '2px' }}>
-                Khu vực: <strong>{user?.assignedZoneId || 'Ga S9 - Bà Quẹo'}</strong>
+                Khu vực: <strong>
+                  {user?.assignedZoneId === 'ZONE_S9' || user?.assignedZoneId === 'ZONE_ST09' || !user?.assignedZoneId
+                    ? 'Zone_ST09 (Ga S9 - Bà Quẹo)'
+                    : user.assignedZoneId.replace('ZONE_', 'Zone_').replace('S', 'ST0')}
+                </strong>
               </div>
             </div>
 
