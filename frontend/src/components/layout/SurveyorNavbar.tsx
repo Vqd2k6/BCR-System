@@ -12,7 +12,7 @@ interface Props {
 }
 
 export const SurveyorNavbar: React.FC<Props> = ({
-  title = 'Khảo sát hiện trạng công trình MRT Line-2',
+  title = 'BUILDING CONDITION SURVEY MRT LINE-2',
   subtitle,
   onNavigateToCheckIn,
   onOpenCompanionCheckIn,
@@ -148,7 +148,7 @@ export const SurveyorNavbar: React.FC<Props> = ({
           >
             {subtitle || (
               <>
-                Khu vực: <strong style={{ color: '#0284c7' }}>
+                Khu vực phụ trách: <strong style={{ color: '#0284c7' }}>
                   {user?.assignedZoneId === 'ZONE_S9' || user?.assignedZoneId === 'ZONE_ST09' || !user?.assignedZoneId
                     ? 'Zone_ST09'
                     : user.assignedZoneId.replace('ZONE_', 'Zone_').replace('S', 'ST0')}

@@ -260,9 +260,9 @@ export const App: React.FC = () => {
         <SurveyorNavbar
           title={
             activeTab === 'home'
-              ? 'Khảo sát hiện trạng công trình MRT Line-2'
+              ? 'BUILDING CONDITION SURVEY MRT LINE-2'
               : activeTab === 'map'
-              ? 'Bản Đồ Quét Cạn GIS'
+              ? 'Bản đồ'
               : activeTab === 'attendance'
               ? 'Điểm Danh GPS Hiện Trường'
               : 'Đối Soát Phase 2 (Pre-Construction)'

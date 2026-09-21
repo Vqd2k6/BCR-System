@@ -274,7 +274,10 @@ export const SurveyorHomeView: React.FC<Props> = ({
         <div>
           <div style={{ fontSize: '0.725rem', color: '#64748b', fontWeight: 600 }}>Tuyến Metro 2 Bến Thành – Tham Lương</div>
           <h2 style={{ margin: '2px 0 0 0', fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>
-            Khu vực phụ trách: {user?.assignedZoneId || 'Ga S9 – Bà Quẹo'}
+            Khu vực phụ trách:{' '}
+            {user?.assignedZoneId === 'ZONE_S9' || user?.assignedZoneId === 'ZONE_ST09' || !user?.assignedZoneId
+              ? 'Zone_ST09'
+              : user.assignedZoneId.replace('ZONE_', 'Zone_').replace('S', 'ST0')}
           </h2>
         </div>
 
