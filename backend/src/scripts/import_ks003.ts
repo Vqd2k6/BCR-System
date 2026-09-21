@@ -1,15 +1,9 @@
 import fs from 'fs';
 import path from 'path';
 import { Pool } from 'pg';
+import { config } from '../config';
 
-const pool = new Pool({
-  host: process.env.DB_HOST || 'localhost',
-  port: parseInt(process.env.DB_PORT || '5433'),
-  user: process.env.DB_USER || 'metro2_user',
-  password: process.env.DB_PASSWORD || 'metro2_secure_password',
-  database: process.env.DB_NAME || 'metro2_gis_db',
-  max: 10,
-});
+const pool = new Pool(config.db);
 
 const STATIONS = [
   { code: 'ZONE_S1', name: 'Ga S1 - Bến Thành', lat: 10.7715, lng: 106.6983 },

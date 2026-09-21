@@ -43,7 +43,9 @@ CREATE TYPE parcel_survey_status_enum AS ENUM (
     'POSTPONED_ABSENT', 
     'SUBMITTED', 
     'APPROVED', 
-    'REJECTED'
+    'REJECTED',
+    'APPROVED_PHASE2',
+    'PHASE2_COMPLETED'
 );
 
 CREATE TYPE parcel_lifecycle_enum AS ENUM (
