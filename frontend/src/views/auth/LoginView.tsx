@@ -22,9 +22,22 @@ export const LoginView: React.FC = () => {
     }
   };
 
-  const setDemoAccount = (u: string, p: string = 'Password@123') => {
+  const handleQuickLogin = async (u: string, p: string = 'Password@123') => {
     setUsername(u);
     setPassword(p);
+    setLoading(true);
+    setErrorMessage(null);
+    try {
+      await login(u, p);
+    } catch (err: any) {
+      setErrorMessage(
+        err.response?.data?.detail ||
+          err.response?.data?.message ||
+          'Đăng nhập không thành công. Vui lòng kiểm tra lại tài khoản.'
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -56,15 +69,15 @@ export const LoginView: React.FC = () => {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              margin: '0 auto 1.15rem auto',
+              margin: '0 auto 1.25rem auto',
             }}
           >
             <img
               src="/logo.png"
               alt="MITECHYX Logo"
               style={{
-                height: '52px',
-                maxWidth: '180px',
+                height: '54px',
+                maxWidth: '240px',
                 objectFit: 'contain',
               }}
             />
@@ -161,90 +174,114 @@ export const LoginView: React.FC = () => {
 
         {/* Quick Demo Accounts Selection */}
         <div style={{ marginTop: '1.5rem', paddingTop: '1.25rem', borderTop: '1px solid #f1f5f9' }}>
-          <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: '0.5rem', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}>
+          <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: '0.65rem', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}>
             <Zap size={14} color="#0284c7" />
-            <span>Chọn nhanh tài khoản để thử nghiệm:</span>
+            <span>Click 1 chạm để đăng nhập nhanh vai trò demo:</span>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.4rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.45rem' }}>
             <button
               type="button"
-              onClick={() => setDemoAccount('surveyor_s9_01', 'Password@123')}
+              disabled={loading}
+              onClick={() => handleQuickLogin('surveyor_s9_01', 'Password@123')}
               className="btn btn-secondary btn-sm"
               style={{
                 fontSize: '0.75rem',
                 justifyContent: 'flex-start',
-                padding: '0.4rem 0.5rem',
+                padding: '0.45rem 0.6rem',
                 backgroundColor: username === 'surveyor_s9_01' ? '#e0f2fe' : '#f8fafc',
                 borderColor: username === 'surveyor_s9_01' ? '#0284c7' : '#e2e8f0',
                 color: username === 'surveyor_s9_01' ? '#0369a1' : '#334155',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '0.4rem',
+                cursor: loading ? 'not-allowed' : 'pointer',
               }}
+              title="Đăng nhập ngay với vai trò Điều Tra Viên Ga S9"
             >
-              <UserCheck size={14} />
-              <span>Surveyor S9</span>
+              <UserCheck size={14} color="#0284c7" />
+              <div style={{ textAlign: 'left', lineHeight: 1.2 }}>
+                <span style={{ fontWeight: 700, display: 'block' }}>Surveyor S9</span>
+                <span style={{ fontSize: '0.65rem', color: '#64748b' }}>Hiện trường</span>
+              </div>
             </button>
 
             <button
               type="button"
-              onClick={() => setDemoAccount('zoneadmin_s9', 'Admin@123')}
+              disabled={loading}
+              onClick={() => handleQuickLogin('zoneadmin_s9', 'Admin@123')}
               className="btn btn-secondary btn-sm"
               style={{
                 fontSize: '0.75rem',
                 justifyContent: 'flex-start',
-                padding: '0.4rem 0.5rem',
+                padding: '0.45rem 0.6rem',
                 backgroundColor: username === 'zoneadmin_s9' ? '#e0f2fe' : '#f8fafc',
                 borderColor: username === 'zoneadmin_s9' ? '#0284c7' : '#e2e8f0',
                 color: username === 'zoneadmin_s9' ? '#0369a1' : '#334155',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '0.4rem',
+                cursor: loading ? 'not-allowed' : 'pointer',
               }}
+              title="Đăng nhập ngay với vai trò Tổ Trưởng Zone Admin"
             >
-              <Shield size={14} />
-              <span>Zone Admin S9</span>
+              <Shield size={14} color="#0284c7" />
+              <div style={{ textAlign: 'left', lineHeight: 1.2 }}>
+                <span style={{ fontWeight: 700, display: 'block' }}>Zone Admin</span>
+                <span style={{ fontSize: '0.65rem', color: '#64748b' }}>Tổ trưởng Ga S9</span>
+              </div>
             </button>
 
             <button
               type="button"
-              onClick={() => setDemoAccount('superadmin', 'Admin@123')}
+              disabled={loading}
+              onClick={() => handleQuickLogin('superadmin', 'Admin@123')}
               className="btn btn-secondary btn-sm"
               style={{
                 fontSize: '0.75rem',
                 justifyContent: 'flex-start',
-                padding: '0.4rem 0.5rem',
+                padding: '0.45rem 0.6rem',
                 backgroundColor: username === 'superadmin' ? '#e0f2fe' : '#f8fafc',
                 borderColor: username === 'superadmin' ? '#0284c7' : '#e2e8f0',
                 color: username === 'superadmin' ? '#0369a1' : '#334155',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '0.4rem',
+                cursor: loading ? 'not-allowed' : 'pointer',
               }}
+              title="Đăng nhập ngay với vai trò Lãnh Đạo MAUR"
             >
-              <Crown size={14} />
-              <span>Super Admin</span>
+              <Crown size={14} color="#d97706" />
+              <div style={{ textAlign: 'left', lineHeight: 1.2 }}>
+                <span style={{ fontWeight: 700, display: 'block' }}>Super Admin</span>
+                <span style={{ fontSize: '0.65rem', color: '#64748b' }}>Lãnh đạo MAUR</span>
+              </div>
             </button>
 
             <button
               type="button"
-              onClick={() => setDemoAccount('contractor_guest', 'Password@123')}
+              disabled={loading}
+              onClick={() => handleQuickLogin('contractor_guest', 'Password@123')}
               className="btn btn-secondary btn-sm"
               style={{
                 fontSize: '0.75rem',
                 justifyContent: 'flex-start',
-                padding: '0.4rem 0.5rem',
+                padding: '0.45rem 0.6rem',
                 backgroundColor: username === 'contractor_guest' ? '#e0f2fe' : '#f8fafc',
                 borderColor: username === 'contractor_guest' ? '#0284c7' : '#e2e8f0',
                 color: username === 'contractor_guest' ? '#0369a1' : '#334155',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '0.4rem',
+                cursor: loading ? 'not-allowed' : 'pointer',
               }}
+              title="Đăng nhập ngay với vai trò Đại diện Nhà Thầu Metro"
             >
-              <Building2 size={14} />
-              <span>Nhà Thầu Metro</span>
+              <Building2 size={14} color="#0284c7" />
+              <div style={{ textAlign: 'left', lineHeight: 1.2 }}>
+                <span style={{ fontWeight: 700, display: 'block' }}>Nhà Thầu</span>
+                <span style={{ fontSize: '0.65rem', color: '#64748b' }}>Đối soát TBM</span>
+              </div>
             </button>
           </div>
         </div>
