@@ -23,6 +23,12 @@ export function calculateEcsScore(formData: Partial<Phase1SurveyFormData>): EcsS
         if (val > maxDefectStructural) maxDefectStructural = val;
       });
     });
+    fl.structuralElements?.forEach((el) => {
+      el.defects?.forEach((df) => {
+        const val = df.structuralSignificanceE2 ?? 0;
+        if (val > maxDefectStructural) maxDefectStructural = val;
+      });
+    });
   });
 
   const flagLevel = formData.burlandSummary?.structuralFlagLevel || 'NONE';
@@ -44,11 +50,17 @@ export function calculateEcsScore(formData: Partial<Phase1SurveyFormData>): EcsS
     e3 = Math.min(4, Math.max(lSettlement, lTilt, lSag));
   }
 
-  // 4. E4: Suy giảm vật liệu/độ bền (Tự động quét max từ tất cả Defect D-xx Bước 3.3)
+  // 4. E4: Suy giảm vật liệu/độ bền (Tự động quét max từ tất cả Defect D-xx Bước 3.3 & 3.4)
   let e4 = 0;
   formData.floors?.forEach((fl) => {
     fl.zones?.forEach((zn) => {
       zn.defects?.forEach((df) => {
+        const val = df.materialDegradationE4 ?? 0;
+        if (val > e4) e4 = val;
+      });
+    });
+    fl.structuralElements?.forEach((el) => {
+      el.defects?.forEach((df) => {
         const val = df.materialDegradationE4 ?? 0;
         if (val > e4) e4 = val;
       });
@@ -76,15 +88,24 @@ export function calculateEcsScore(formData: Partial<Phase1SurveyFormData>): EcsS
     }
   }
 
-  // 6. E6: Tình trạng chức năng/tổng thể (Tự động quét từ khuyết tật Thấm dột, Kẹt cửa Bước 3.3 & Vùng cần sửa chữa Bước 3.2)
+  // 6. E6: Tình trạng chức năng/tổng thể (Tự động quét từ khuyết tật Thấm dột, Kẹt cửa Bước 3.3 & Vùng cần sửa chữa)
   let maxDefectE6 = 0;
   let damagedZoneCount = 0;
   formData.floors?.forEach((fl) => {
     fl.zones?.forEach((zn) => {
-      if (zn.functionalImpactRepairNeeded || zn.burlandGrade >= 3) {
+      if (zn.functionalImpactRepairNeeded || (zn.burlandGrade && zn.burlandGrade >= 3)) {
         damagedZoneCount++;
       }
       zn.defects?.forEach((df: any) => {
+        const val = df.functionalImpactE6 ?? 0;
+        if (val > maxDefectE6) maxDefectE6 = val;
+      });
+    });
+    fl.structuralElements?.forEach((el) => {
+      if (el.hasDamage || (el.defects && el.defects.length > 0)) {
+        damagedZoneCount++;
+      }
+      el.defects?.forEach((df: any) => {
         const val = df.functionalImpactE6 ?? 0;
         if (val > maxDefectE6) maxDefectE6 = val;
       });

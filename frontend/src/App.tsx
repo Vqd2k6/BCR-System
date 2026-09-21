@@ -194,25 +194,23 @@ export const App: React.FC = () => {
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: '#f8fafc', color: '#0f172a' }}>
-      {/* Top Mobile Navbar */}
-      <SurveyorNavbar
-        title={
-          activeTab === 'home'
-            ? 'Khảo Sát Thực Địa Metro 2'
-            : activeTab === 'map'
-            ? 'Bản Đồ Quét Cạn GIS'
-            : activeTab === 'attendance'
-            ? 'Điểm Danh GPS Hiện Trường'
-            : activeTab === 'phase1'
-            ? selectedUnitForSurvey
-              ? `Khảo Sát Căn ${selectedUnitForSurvey.unit_code} (${selectedParcelForSurvey?.projectParcelCode})`
-              : 'Hồ Sơ Phase 1 (Baseline)'
-            : 'Đối Soát Phase 2 (Pre-Construction)'
-        }
-        onNavigateToCheckIn={() => setActiveTab('attendance')}
-        onNavigateHome={() => setActiveTab('home')}
-        isCheckedInToday={isCheckedInToday}
-      />
+      {/* Top Mobile Navbar (Hidden during Phase 1 survey to avoid duplicate headers) */}
+      {activeTab !== 'phase1' && (
+        <SurveyorNavbar
+          title={
+            activeTab === 'home'
+              ? 'Khảo Sát Thực Địa Metro 2'
+              : activeTab === 'map'
+              ? 'Bản Đồ Quét Cạn GIS'
+              : activeTab === 'attendance'
+              ? 'Điểm Danh GPS Hiện Trường'
+              : 'Đối Soát Phase 2 (Pre-Construction)'
+          }
+          onNavigateToCheckIn={() => setActiveTab('attendance')}
+          onNavigateHome={() => setActiveTab('home')}
+          isCheckedInToday={isCheckedInToday}
+        />
+      )}
 
       {/* Main Viewport Content */}
       <main style={{ flex: 1, position: 'relative' }}>
@@ -293,8 +291,10 @@ export const App: React.FC = () => {
         />
       )}
 
-      {/* Bottom Navigation for Mobile PWA (3 Tabs: Home, Map, Attendance) */}
-      <SurveyorBottomNav activeTab={activeTab} onChangeTab={setActiveTab} />
+      {/* Bottom Navigation for Mobile PWA (Hidden during survey) */}
+      {activeTab !== 'phase1' && activeTab !== 'phase2' && (
+        <SurveyorBottomNav activeTab={activeTab} onChangeTab={setActiveTab} />
+      )}
     </div>
   );
 };

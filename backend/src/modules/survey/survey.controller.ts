@@ -186,6 +186,58 @@ export class SurveyController {
     }
   }
 
+  static async submitPhase1FullPackage(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { parcelId, unitId, surveyData } = req.body;
+      if (!parcelId) {
+        throw new BadRequestError('parcelId là bắt buộc');
+      }
+      const surveyorId = req.user!.userId;
+      
+      // 1. Khởi tạo report nếu chưa có
+      const initResult = await SurveyService.createPhase1Report(
+        parcelId,
+        surveyorId,
+        unitId,
+        unitId ? 'UNIT_CHILD' : 'STANDALONE'
+      );
+      const reportId = initResult.reportId;
+
+      // 2. Lưu các bước nếu có dữ liệu
+      if (surveyData?.step1Photos) {
+        await SurveyService.saveIdentificationPhotos(reportId, surveyData.step1Photos);
+      }
+      if (surveyData?.specs) {
+        await SurveyService.saveBuildingSpecs(reportId, surveyData.specs);
+      }
+      if (surveyData?.floors && Array.isArray(surveyData.floors)) {
+        await SurveyService.saveFloorSurveys(reportId, surveyData.floors);
+      }
+      if (surveyData?.deformation) {
+        await SurveyService.saveDeformation(reportId, surveyData.deformation);
+      }
+
+      // 3. Nộp hồ sơ
+      const result = await SurveyService.submitPhase1Report(reportId, {
+        ownerRemarks: surveyData?.signatures?.ownerRemarks || '',
+        surveyorSignatureUrl: surveyData?.signatures?.surveyorSignatureUrl || '',
+        ownerSignatureUrl: surveyData?.signatures?.ownerSignatureUrl || '',
+        summaryConclusions: surveyData?.signatures?.summaryConclusions || '',
+        engineeringRecommendations: surveyData?.signatures?.engineeringRecommendations || '',
+      });
+
+      res.status(200).json({
+        success: true,
+        data: {
+          ...result,
+          message: 'Đã nộp thành công trọn gói hồ sơ khảo sát hiện trạng Phase 1!',
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   // Phase 2
   static async createPhase2Report(req: Request, res: Response, next: NextFunction) {
     try {

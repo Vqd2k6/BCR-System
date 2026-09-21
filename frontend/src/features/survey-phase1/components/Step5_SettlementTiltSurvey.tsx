@@ -4,11 +4,7 @@ import { Card } from '../../../core/components/ui/Card';
 import { Button } from '../../../core/components/ui/Button';
 import { Input, Select } from '../../../core/components/ui/FormControls';
 import { LevelSelectorWithGuide } from './LevelSelectorWithGuide';
-import {
-  SETTLEMENT_LEVEL_OPTIONS,
-  TILT_LEVEL_OPTIONS,
-  SAG_LEVEL_OPTIONS,
-} from '../constants/levelGuideConstants';
+import { SAG_LEVEL_OPTIONS } from '../constants/levelGuideConstants';
 import { Ruler, Activity, CheckCircle2, ShieldAlert, Sparkles } from 'lucide-react';
 
 export const Step5_SettlementTiltSurvey: React.FC = () => {
@@ -29,10 +25,10 @@ export const Step5_SettlementTiltSurvey: React.FC = () => {
             <Ruler className="w-5 h-5 text-emerald-600" />
             <div>
               <h2 className="text-base sm:text-lg font-bold text-slate-800">
-                5. Khảo Sát Lún – Nghiêng – Võng Dầm Sàn (Mục 6 Docx & Tính Điểm E3)
+                5. Khảo Sát Võng Dầm Sàn & Đề Xuất Quan Trắc Chuyên Sâu
               </h2>
               <p className="text-xs text-slate-500">
-                Đánh giá theo 4 mức chuẩn kỹ thuật. Điểm chỉ số <strong>E3 = Max(Lún, Nghiêng, Võng)</strong>.
+                Khảo sát độ võng dầm/sàn bên trong nhà và chốt yêu cầu lắp mốc quan trắc lún nghiêng
               </p>
             </div>
           </div>
@@ -40,117 +36,16 @@ export const Step5_SettlementTiltSurvey: React.FC = () => {
           <div className="flex items-center gap-2">
             <span className="text-xs font-black px-3 py-1.5 rounded-xl border bg-emerald-50 border-emerald-200 text-emerald-900 flex items-center gap-1.5">
               <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Chỉ số E3 = {calculatedE3}/4đ</span>
+              <span>Chỉ số E3 = {calculatedE3}/4</span>
             </span>
           </div>
         </div>
 
-        {/* 3 Main Level Selectors */}
+        {/* Võng Dầm / Bản Sàn */}
         <div className="space-y-5 mt-4">
-          {/* 1. Lún Chênh */}
           <LevelSelectorWithGuide
-            title="1. Lún Chênh Móng / Nền Công Trình"
-            subtitle="Dấu hiệu chuyển vị lún không đều chân móng hoặc vết nứt bậc thang tường bao"
-            selectedLevel={st.diffSettlement?.level ?? 0}
-            onChangeLevel={(level) =>
-              updateFormData({
-                settlementTilt: {
-                  ...st,
-                  diffSettlement: { ...st.diffSettlement, level },
-                },
-              })
-            }
-            options={SETTLEMENT_LEVEL_OPTIONS}
-          >
-            <Input
-              label="Vị trí phát hiện lún chênh"
-              placeholder="VD: Mép móng góc sau nhà tiếp giáp rãnh thoát nước..."
-              value={st.diffSettlement?.position || ''}
-              onChange={(e) =>
-                updateFormData({
-                  settlementTilt: {
-                    ...st,
-                    diffSettlement: { ...st.diffSettlement, position: e.target.value },
-                  },
-                })
-              }
-            />
-          </LevelSelectorWithGuide>
-
-          {/* 2. Nghiêng Toàn Bộ Công Trình */}
-          <LevelSelectorWithGuide
-            title="2. Nghiêng Toàn Bộ Công Trình"
-            subtitle="Độ lệch phương thẳng đứng của toàn khối nhà. Đơn vị đo chuẩn: ‰ (phần nghìn)"
-            selectedLevel={st.buildingTilt?.level ?? 0}
-            onChangeLevel={(level) =>
-              updateFormData({
-                settlementTilt: {
-                  ...st,
-                  buildingTilt: { ...st.buildingTilt, level },
-                },
-              })
-            }
-            options={TILT_LEVEL_OPTIONS}
-          >
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <Input
-                label="Phương X (‰)"
-                type="number"
-                step="0.1"
-                placeholder="VD: 3.5"
-                value={st.buildingTilt?.xPermille ?? ''}
-                onChange={(e) =>
-                  updateFormData({
-                    settlementTilt: {
-                      ...st,
-                      buildingTilt: {
-                        ...st.buildingTilt,
-                        xPermille: e.target.value ? Number(e.target.value) : '',
-                      },
-                    },
-                  })
-                }
-                hint="Trục ngang mặt tiền"
-              />
-              <Input
-                label="Phương Y (‰)"
-                type="number"
-                step="0.1"
-                placeholder="VD: 2.1"
-                value={st.buildingTilt?.yPermille ?? ''}
-                onChange={(e) =>
-                  updateFormData({
-                    settlementTilt: {
-                      ...st,
-                      buildingTilt: {
-                        ...st.buildingTilt,
-                        yPermille: e.target.value ? Number(e.target.value) : '',
-                      },
-                    },
-                  })
-                }
-                hint="Trục dọc chiều sâu"
-              />
-              <Input
-                label="Hướng nghiêng chính"
-                placeholder="VD: Nghiêng về bên trái 45°"
-                value={st.buildingTilt?.direction || ''}
-                onChange={(e) =>
-                  updateFormData({
-                    settlementTilt: {
-                      ...st,
-                      buildingTilt: { ...st.buildingTilt, direction: e.target.value },
-                    },
-                  })
-                }
-              />
-            </div>
-          </LevelSelectorWithGuide>
-
-          {/* 3. Võng Dầm / Bản Sàn */}
-          <LevelSelectorWithGuide
-            title="3. Võng Dầm / Bản Sàn BTCT"
-            subtitle="Hiện tượng uốn võng phần tử chịu uốn ngang (dầm, sê-nô, ban công, ô sàn)"
+            title="Võng Dầm / Bản Sàn Kết Cấu Bên Trong"
+            subtitle="Hiện tượng uốn võng phần tử chịu uốn ngang (dầm chính, dầm phụ, bản sàn, ô văng)"
             selectedLevel={st.beamSagging?.level ?? 0}
             onChangeLevel={(level) =>
               updateFormData({
@@ -162,10 +57,10 @@ export const Step5_SettlementTiltSurvey: React.FC = () => {
             }
             options={SAG_LEVEL_OPTIONS}
           >
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <Input
-                label="Vị trí dầm/sàn bị võng"
-                placeholder="VD: Dầm D2 trục 2-3 Tầng 2, Bản sàn ban công trước..."
+                label="Vị trí cấu kiện bị võng"
+                placeholder="VD: Dầm D2 trục 2-3 Tầng 2, Bản sàn ban công..."
                 value={st.beamSagging?.position || ''}
                 onChange={(e) =>
                   updateFormData({
@@ -177,7 +72,7 @@ export const Step5_SettlementTiltSurvey: React.FC = () => {
                 }
               />
               <Input
-                label="Độ võng đo được (mm)"
+                label="Độ võng ước tính (mm)"
                 type="number"
                 step="0.5"
                 placeholder="VD: 15"
@@ -195,47 +90,66 @@ export const Step5_SettlementTiltSurvey: React.FC = () => {
                 }
                 hint="Đo từ đáy dầm tới dây căng"
               />
-            </div>
-          </LevelSelectorWithGuide>
-        </div>
-
-        {/* Nguồn thu thập & Độ tin cậy */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-6 pt-5 border-t border-slate-100">
-          <Select
-            label="Độ Tin Cậy Dữ Liệu Lún Nghiêng"
-            value={st.reliability}
-            onChange={(e) =>
-              updateFormData({
-                settlementTilt: { ...st, reliability: e.target.value as any },
-              })
-            }
-            options={[
-              { value: 'HIGH', label: 'Cao (Có máy toàn đạc / Thước nivo laser chuẩn)' },
-              { value: 'MEDIUM', label: 'Trung bình (Đo nhanh bằng thước dây & bọt nước)' },
-              { value: 'LOW', label: 'Thấp (Chỉ quan sát trực quan bằng mắt thường)' },
-            ]}
-          />
-
-          <div className="flex items-center mt-6">
-            <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={st.needAdditionalMonitoring?.required}
+              <Input
+                label="Mô tả hiện tượng võng"
+                placeholder="VD: Nứt chữ V giữa nhịp, rung nhẹ khi di chuyển..."
+                value={st.beamSagging?.description || ''}
                 onChange={(e) =>
                   updateFormData({
                     settlementTilt: {
                       ...st,
-                      needAdditionalMonitoring: {
-                        ...st.needAdditionalMonitoring,
-                        required: e.target.checked,
-                      },
+                      beamSagging: { ...st.beamSagging, description: e.target.value },
                     },
                   })
                 }
-                className="rounded text-emerald-600 focus:ring-emerald-500"
               />
-              <span>Yêu cầu đo đạc / Quan trắc chuyển vị bổ sung khi thi công Metro</span>
-            </label>
+            </div>
+          </LevelSelectorWithGuide>
+        </div>
+
+        {/* Cần đo / Quan trắc bổ sung chuyên sâu */}
+        <div className="mt-6 pt-5 border-t border-slate-100 space-y-4">
+          <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 space-y-3">
+            <Select
+              label="Cần Đo / Quan Trắc Bổ Sung Chuyên Sâu:"
+              value={st.needAdditionalMonitoring?.required ? 'YES' : 'NO'}
+              onChange={(e) =>
+                updateFormData({
+                  settlementTilt: {
+                    ...st,
+                    needAdditionalMonitoring: {
+                      ...st.needAdditionalMonitoring,
+                      required: e.target.value === 'YES',
+                    },
+                  },
+                })
+              }
+              options={[
+                { value: 'NO', label: 'Không - Hiện trạng bình thường' },
+                { value: 'YES', label: 'Có - Cần lắp mốc theo dõi / đo đạc chuyên sâu' },
+              ]}
+            />
+
+            {st.needAdditionalMonitoring?.required && (
+              <div className="pt-2 animate-in fade-in">
+                <Input
+                  label="Nhận xét / Đề xuất giải pháp quan trắc cụ thể:"
+                  placeholder="VD: Cần lắp mốc quan trắc lún nghiêng tự động chu kỳ 2 tuần/lần trong suốt quá trình đào ngầm Metro..."
+                  value={st.needAdditionalMonitoring?.notes || ''}
+                  onChange={(e) =>
+                    updateFormData({
+                      settlementTilt: {
+                        ...st,
+                        needAdditionalMonitoring: {
+                          ...st.needAdditionalMonitoring,
+                          notes: e.target.value,
+                        },
+                      },
+                    })
+                  }
+                />
+              </div>
+            )}
           </div>
         </div>
       </Card>

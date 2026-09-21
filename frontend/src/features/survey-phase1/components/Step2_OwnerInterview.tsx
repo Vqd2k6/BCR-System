@@ -4,62 +4,89 @@ import { Card } from '../../../core/components/ui/Card';
 import { Input, Select } from '../../../core/components/ui/FormControls';
 import { Button } from '../../../core/components/ui/Button';
 import { PhotoCaptureInput } from '../../../components/common/PhotoCaptureInput';
+import { InfoPopover } from '../../../core/components/ui/InfoPopover';
 import {
   Layers,
-  HelpCircle,
   History,
   FileCheck,
   FileX,
   Zap,
-  CheckCircle2,
   AlertTriangle,
-  UploadCloud,
 } from 'lucide-react';
 
 const USAGE_OPTIONS = [
-  'Nhà ở riêng lẻ (Townhouse)',
-  'Căn hộ chung cư / Tập thể',
-  'Cửa hàng dịch vụ / Buôn bán',
-  'Văn phòng công ty / Chi nhánh',
-  'Khách sạn / Nhà nghỉ / Lưu trú',
-  'Cơ sở giáo dục / Trường học',
-  'Cơ sở y tế / Bệnh viện / Phòng khám',
-  'Công trình công cộng / Hành chính',
-  'Cơ sở sản xuất / Nhà xưởng / Kho',
-  'Khác...',
+  'Nhà ở gia đình',
+  'Cửa hàng / Shop / Bách hóa',
+  'Quán ăn / Nhà hàng / Cafe',
+  'Văn phòng / Trụ sở cty',
+  'Khách sạn / Nhà nghỉ / Căn hộ DV',
+  'Bệnh viện / Y tế',
+  'Trường học / Đào tạo',
+  'Kho hàng / Xưởng sản xuất',
+  'Cơ sở tôn giáo (Chùa, Nhà thờ)',
+  'Công trình công cộng',
+  'Khác (Nhập chi tiết...)',
 ];
 
 const STRUCTURE_SYSTEMS = [
-  'Khung BTCT toàn khối + Tường gạch chèn',
-  'Khung BTCT bán lắp ghép',
-  'Tường gạch chịu lực (Không khung BTCT)',
-  'Khung kết cấu thép + Sàn deck/panel',
-  'Nhà cấp 4 (Tường gạch mái tôn/ngói)',
-  'Kết cấu hỗn hợp / Khác...',
+  'RC - BTCT (Khung bê tông cốt thép toàn khối)',
+  'Steel - Khung kết cấu thép',
+  'Masonry - Tường gạch chịu lực',
+  'Mixed - Kết cấu hỗn hợp',
+  'Other - Khác',
 ];
 
 const FOUNDATION_TYPES = [
-  'Móng cọc BTCT ép',
-  'Móng cọc khoan nhồi',
-  'Móng băng BTCT',
-  'Móng đơn / Móng cốc',
-  'Móng bè toàn diện',
-  'Móng cọc cừ tràm / Nền gia cố',
-  'Chưa rõ / Không có dữ liệu',
+  'Shallow - Móng nông (Móng băng / Móng đơn / Móng bè)',
+  'Wood - Móng cừ tràm / Nền gia cố',
+  'PC - Móng cọc ép BTCT',
+  'CIP - Móng cọc khoan nhồi',
+  'Unknown - Không rõ thông tin móng',
 ];
 
-const HISTORY_OPTIONS = [
-  { score: 0, label: '0đ – Không có' },
-  { score: 1, label: '1đ – Nhẹ / Đã xử lý khắc phục' },
-  { score: 2, label: '2đ – Nhiều / Chưa rõ nguyên nhân' },
-  { score: 3, label: '3đ – Thay đổi lớn / Sự cố nghiêm trọng' },
+const RENOVATION_OPTIONS = [
+  { score: 0, label: 'Không' },
+  { score: 1, label: 'Nhẹ - Đã xử lý ổn định' },
+  { score: 2, label: 'Nhiều - Chưa rõ kết cấu' },
+  { score: 3, label: 'Thay đổi lớn - Nghiêm trọng' },
+];
+
+const MAJOR_REPAIR_OPTIONS = [
+  { score: 0, label: 'Không' },
+  { score: 1, label: 'Nhẹ - Đã xử lý' },
+  { score: 2, label: 'Nhiều - Chưa rõ hồ sơ' },
+  { score: 3, label: 'Cải tạo lớn ảnh hưởng chịu lực' },
+];
+
+const PAST_SETTLEMENT_OPTIONS = [
+  { score: 0, label: 'Không' },
+  { score: 1, label: 'Nhẹ - Đã ổn định' },
+  { score: 2, label: 'Rõ - Tiếp diễn' },
+  { score: 3, label: 'Nghiêm trọng' },
+];
+
+const NEIGHBOR_DAMAGE_OPTIONS = [
+  { score: 0, label: 'Không' },
+  { score: 1, label: 'Nhẹ - Đã bồi thường' },
+  { score: 2, label: 'Đáng kể' },
+  { score: 3, label: 'Tranh chấp - Nghiêm trọng' },
+];
+
+const FIRE_FLOOD_OPTIONS = [
+  { score: 0, label: 'Không' },
+  { score: 1, label: 'Nhẹ - Đã khắc phục' },
+  { score: 2, label: 'Trung bình - Chưa rõ mức ảnh hưởng' },
+  { score: 3, label: 'Nghiêm trọng' },
 ];
 
 export const Step2_OwnerInterview: React.FC = () => {
   const { formData, updateFormData, nextStep, prevStep } = usePhase1SurveyStore();
   const hi = formData.historyInterview;
 
-  // State for CAT Drawing options
+  const isCustomUsage =
+    formData.usageFunction &&
+    !USAGE_OPTIONS.slice(0, 10).includes(formData.usageFunction);
+
   const [hasDrawingOption, setHasDrawingOption] = useState<'HAS_DRAWING' | 'NO_DRAWING' | 'UNKNOWN'>(
     formData.foundationCatScore === 1 || formData.foundationCatScore === 2
       ? 'HAS_DRAWING'
@@ -68,7 +95,7 @@ export const Step2_OwnerInterview: React.FC = () => {
       : 'UNKNOWN'
   );
 
-  // E5 Resonance calculation preview (Chỉ cộng 1 khi có từ 2 trường cùng > 2 và bằng nhau)
+  // E5 Resonance calculation preview
   const qScores = [
     { name: '1. Cơi nới - thay đổi tải trọng', score: hi.renovationLoad ?? 0 },
     { name: '2. Sửa chữa lớn - cải tạo', score: hi.majorRepair ?? 0 },
@@ -82,34 +109,45 @@ export const Step2_OwnerInterview: React.FC = () => {
   const isResonance = countHigh >= 2;
   const calculatedE5 = isResonance ? 4 : maxQScore;
 
-  // Handle CAT score selection
   const handleSelectCatScore = (score: number) => {
     updateFormData({ foundationCatScore: score });
   };
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto pb-12">
-      {/* 2.1. Khảo sát kiến trúc & Kết cấu & CAT Móng */}
+      {/* 2.1. Khảo sát kiến trúc, kết cấu nền */}
       <Card>
-        <div className="flex items-center gap-2 mb-4 pb-2 border-b border-slate-100">
-          <Layers className="w-5 h-5 text-emerald-600" />
-          <div>
+        <div className="flex items-center justify-between gap-2 mb-4 pb-2 border-b border-slate-100">
+          <div className="flex items-center gap-2">
+            <Layers className="w-5 h-5 text-emerald-600" />
             <h2 className="text-base sm:text-lg font-bold text-slate-800">
-              2.1. Khảo Sát Kiến Trúc, Kết Cấu & Đánh Giá Độ Tin Cậy Dữ Liệu Móng (CAT Móng)
+              2.1. Khảo Sát Kiến Trúc, Kết Cấu Nền
             </h2>
-            <p className="text-xs text-slate-500">
-              Phỏng vấn chủ sở hữu và quan sát thực địa. Căn cứ tự động đánh giá chỉ số V2, V3, V4.
-            </p>
           </div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Select
-            label="Công Năng Sử Dụng Thực Tế"
-            value={formData.usageFunction}
-            onChange={(e) => updateFormData({ usageFunction: e.target.value })}
-            options={USAGE_OPTIONS.map((u) => ({ value: u, label: u }))}
-          />
+          <div className="space-y-2">
+            <Select
+              label="Công Năng Sử Dụng (Use)"
+              value={isCustomUsage ? 'Khác (Nhập chi tiết...)' : formData.usageFunction}
+              onChange={(e) => {
+                if (e.target.value === 'Khác (Nhập chi tiết...)') {
+                  updateFormData({ usageFunction: 'Khác: ' });
+                } else {
+                  updateFormData({ usageFunction: e.target.value });
+                }
+              }}
+              options={USAGE_OPTIONS.map((u) => ({ value: u, label: u }))}
+            />
+            {isCustomUsage && (
+              <Input
+                placeholder="Nhập chi tiết công năng sử dụng thực tế..."
+                value={formData.usageFunction}
+                onChange={(e) => updateFormData({ usageFunction: e.target.value })}
+              />
+            )}
+          </div>
 
           <div className="grid grid-cols-2 gap-2">
             <Input
@@ -118,10 +156,10 @@ export const Step2_OwnerInterview: React.FC = () => {
               min={1}
               value={formData.aboveFloors}
               onChange={(e) => updateFormData({ aboveFloors: Number(e.target.value) || 1 })}
-              hint="Trệt tính là 1"
+              hint="Tầng trệt tính là 1"
             />
             <Input
-              label="Số Tầng Ngầm / Hầm"
+              label="Số Tầng Hầm"
               type="number"
               min={0}
               value={formData.undergroundFloors}
@@ -132,7 +170,7 @@ export const Step2_OwnerInterview: React.FC = () => {
           <div className="flex items-end gap-3">
             <div className="flex-1">
               <Input
-                label="Năm Xây Dựng (Hoàn công)"
+                label="Năm Xây Dựng / Tuổi Thọ"
                 type="number"
                 placeholder="VD: 2012"
                 value={formData.constructionYear}
@@ -152,45 +190,70 @@ export const Step2_OwnerInterview: React.FC = () => {
             </label>
           </div>
 
-          <Select
-            label="Hệ Kết Cấu Chịu Lực Chính"
-            value={formData.structureSystem}
-            onChange={(e) => updateFormData({ structureSystem: e.target.value })}
-            options={STRUCTURE_SYSTEMS.map((s) => ({ value: s, label: s }))}
-          />
+          <div>
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-slate-700 block mb-1">
+                Hệ Kết Cấu Chịu Lực (Structural System)
+              </label>
+              <InfoPopover title="Hướng dẫn nhận diện hệ kết cấu chịu lực (V2)">
+                <ul className="list-disc pl-4 space-y-1">
+                  <li><strong>RC - BTCT (1đ):</strong> Khung cột, dầm, sàn bê tông cốt thép toàn khối. Độ dẻo và phân bố ứng suất tốt.</li>
+                  <li><strong>Steel (2đ):</strong> Khung thép, nhà tiền chế hoặc khung BTCT chèn tường gạch.</li>
+                  <li><strong>Masonry (3đ):</strong> Tường gạch chịu lực dày 20-30cm, không có khung cột BTCT.</li>
+                  <li><strong>Other / Kém ổn định (4đ):</strong> Tường không giằng, kết cấu cơi nới gỗ tạm, tường nứt tách.</li>
+                </ul>
+              </InfoPopover>
+            </div>
+            <Select
+              value={formData.structureSystem}
+              onChange={(e) => updateFormData({ structureSystem: e.target.value })}
+              options={STRUCTURE_SYSTEMS.map((s) => ({ value: s, label: s }))}
+            />
+          </div>
 
           <Select
-            label="Loại Móng Công Trình"
+            label="Loại Móng (Foundation Type)"
             value={formData.foundationType}
             onChange={(e) => updateFormData({ foundationType: e.target.value })}
             options={FOUNDATION_TYPES.map((f) => ({ value: f, label: f }))}
           />
 
           <Input
-            label="Kích Thước Móng / Tiết Diện Cọc (mm)"
-            placeholder="VD: 250 (nếu cọc 250x250mm)"
+            label="Kích Thước Cọc / Móng"
+            placeholder="VD: D600mm, 250x250mm, móng bè..."
             value={formData.pileDimensionMm}
-            onChange={(e) =>
-              updateFormData({ pileDimensionMm: e.target.value ? Number(e.target.value) : '' })
-            }
+            onChange={(e) => updateFormData({ pileDimensionMm: e.target.value })}
+            hint="Để trống nếu không rõ"
           />
         </div>
 
-        {/* CƠ CHẾ ĐÁNH GIÁ CAT MÓNG THEO ĐÚNG SPEC YÊU CẦU */}
+        {/* ĐÁNH GIÁ CAT MÓNG */}
         <div className="mt-5 p-4 rounded-2xl border-2 border-emerald-200 bg-emerald-50/40 space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <FileCheck className="w-5 h-5 text-emerald-700" />
               <h3 className="text-xs sm:text-sm font-bold text-emerald-950 uppercase tracking-wide">
-                🎯 Cơ Chế Đánh Giá Mức Độ Tin Cậy Móng (CAT Score: 1 - 5 Điểm)
+                Đánh Giá CAT
               </h3>
             </div>
-            <span className="text-xs font-black px-3 py-1 rounded-full bg-emerald-600 text-white shadow-sm">
-              CAT Móng: Mức {formData.foundationCatScore} ({formData.foundationCatScore}đ)
-            </span>
+            <div className="flex items-center gap-2">
+              <InfoPopover title="Quy tắc phân loại CAT Móng (Phục vụ V3)">
+                <p className="mb-2">Thang điểm CAT Foundation (1 - 5) phản ánh độ tin cậy của thông tin móng công trình:</p>
+                <ul className="list-disc pl-4 space-y-1 text-[11px]">
+                  <li><strong>Cat 1:</strong> Có bản vẽ hoàn công xác nhận từ cơ quan chức năng / chủ đầu tư.</li>
+                  <li><strong>Cat 2:</strong> Có bản vẽ thiết kế kết cấu do chủ nhà lưu giữ.</li>
+                  <li><strong>Cat 3:</strong> Không có bản vẽ, chủ nhà nhớ và khai rõ thông tin cọc/móng.</li>
+                  <li><strong>Cat 4:</strong> Tự suy luận từ kinh nghiệm hiện trường (số tầng, kết cấu, niên đại).</li>
+                  <li><strong>Cat 5:</strong> Hoàn toàn không có dữ liệu, mặc định xếp mức rủi ro cao nhất ($V_3 = 4$đ).</li>
+                </ul>
+              </InfoPopover>
+              <span className="text-xs font-black px-3 py-1 rounded-full bg-emerald-600 text-white shadow-sm">
+                CAT Móng: Mức {formData.foundationCatScore}
+              </span>
+            </div>
           </div>
 
-          {/* 3 Main Branches: Có bản vẽ hoàn công / Không có bản vẽ (N/A) / Không có thông tin */}
+          {/* 3 Main Branches */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
             <button
               type="button"
@@ -204,11 +267,10 @@ export const Step2_OwnerInterview: React.FC = () => {
                   : 'border-slate-200 bg-white/70 hover:bg-white text-slate-700'
               }`}
             >
-              <div className="flex items-center gap-1.5 font-bold text-xs mb-1">
+              <div className="flex items-center gap-1.5 font-bold text-xs">
                 <FileCheck className="w-4 h-4 text-emerald-600" />
-                <span>Có bản vẽ hoàn công</span>
+                <span>Trường hợp A: Có bản vẽ</span>
               </div>
-              <p className="text-[11px] text-slate-500">Mức 1 hoặc Mức 2</p>
             </button>
 
             <button
@@ -225,11 +287,10 @@ export const Step2_OwnerInterview: React.FC = () => {
                   : 'border-slate-200 bg-white/70 hover:bg-white text-slate-700'
               }`}
             >
-              <div className="flex items-center gap-1.5 font-bold text-xs mb-1">
+              <div className="flex items-center gap-1.5 font-bold text-xs">
                 <FileX className="w-4 h-4 text-amber-600" />
-                <span>N/A Không có bản vẽ</span>
+                <span>Trường hợp B: Không có bản vẽ</span>
               </div>
-              <p className="text-[11px] text-slate-500">Mức 3 hoặc Mức 4</p>
             </button>
 
             <button
@@ -244,19 +305,25 @@ export const Step2_OwnerInterview: React.FC = () => {
                   : 'border-slate-200 bg-white/70 hover:bg-white text-slate-700'
               }`}
             >
-              <div className="flex items-center gap-1.5 font-bold text-xs mb-1">
+              <div className="flex items-center gap-1.5 font-bold text-xs">
                 <AlertTriangle className="w-4 h-4 text-red-600" />
-                <span>Không có thông tin</span>
+                <span>Trường hợp C: Hoàn toàn không rõ</span>
               </div>
-              <p className="text-[11px] text-slate-500">Mức 5 (Mặc định rủi ro)</p>
             </button>
           </div>
 
-          {/* Detailed Branch Sub-Options */}
+          {/* Detailed Sub-Options */}
           {hasDrawingOption === 'HAS_DRAWING' && (
-            <div className="p-3.5 rounded-xl bg-white border border-emerald-200 space-y-2.5 animate-in fade-in">
+            <div className="p-3.5 rounded-xl bg-white border border-emerald-200 space-y-3 animate-in fade-in">
+              <PhotoCaptureInput
+                label="Chụp ảnh / Tải lên bản vẽ hoàn công / kết cấu:"
+                value={formData.asBuiltDrawingPhotoUrl || ''}
+                onChange={(url) => updateFormData({ asBuiltDrawingPhotoUrl: url })}
+                watermarkText="BẢN VẼ HOÀN CÔNG"
+              />
+
               <span className="text-xs font-bold text-slate-700 block">
-                Nguồn gốc & Mức độ xác thực của bản vẽ hoàn công:
+                Nguồn gốc của bản vẽ:
               </span>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <button
@@ -268,10 +335,7 @@ export const Step2_OwnerInterview: React.FC = () => {
                       : 'border-slate-200 hover:bg-slate-50 text-slate-700 text-xs'
                   }`}
                 >
-                  <div className="text-xs font-bold">Mức 1 (1đ) - Xác nhận từ chính quyền</div>
-                  <div className="text-[11px] text-slate-500 font-normal">
-                    Bản vẽ hoàn công được cơ quan thẩm quyền / hồ sơ lưu trữ cấp phép phê duyệt.
-                  </div>
+                  <div className="text-xs font-bold">Xác nhận từ Chính quyền / Đơn vị thiết kế</div>
                 </button>
 
                 <button
@@ -283,10 +347,7 @@ export const Step2_OwnerInterview: React.FC = () => {
                       : 'border-slate-200 hover:bg-slate-50 text-slate-700 text-xs'
                   }`}
                 >
-                  <div className="text-xs font-bold">Mức 2 (2đ) - Do chủ nhà cung cấp</div>
-                  <div className="text-[11px] text-slate-500 font-normal">
-                    Có bản vẽ hoàn công qua phỏng vấn chủ nhà (bản vẽ thi công riêng của gia đình).
-                  </div>
+                  <div className="text-xs font-bold">Bản vẽ do chủ nhà lưu giữ</div>
                 </button>
               </div>
             </div>
@@ -295,7 +356,7 @@ export const Step2_OwnerInterview: React.FC = () => {
           {hasDrawingOption === 'NO_DRAWING' && (
             <div className="p-3.5 rounded-xl bg-white border border-amber-200 space-y-2.5 animate-in fade-in">
               <span className="text-xs font-bold text-slate-700 block">
-                Phương pháp thu thập thông tin móng (Khi không có bản vẽ):
+                Nguồn xác định dữ liệu móng:
               </span>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <button
@@ -307,10 +368,7 @@ export const Step2_OwnerInterview: React.FC = () => {
                       : 'border-slate-200 hover:bg-slate-50 text-slate-700 text-xs'
                   }`}
                 >
-                  <div className="text-xs font-bold">Mức 3 (3đ) - Phỏng vấn chủ nhà</div>
-                  <div className="text-[11px] text-slate-500 font-normal">
-                    Chủ nhà nhớ và cung cấp thông tin rõ ràng về loại móng, chiều dài cọc, năm thi công.
-                  </div>
+                  <div className="text-xs font-bold">Phỏng vấn chủ hộ</div>
                 </button>
 
                 <button
@@ -322,10 +380,7 @@ export const Step2_OwnerInterview: React.FC = () => {
                       : 'border-slate-200 hover:bg-slate-50 text-slate-700 text-xs'
                   }`}
                 >
-                  <div className="text-xs font-bold">Mức 4 (4đ) - Suy luận từ kinh nghiệm</div>
-                  <div className="text-[11px] text-slate-500 font-normal">
-                    Khảo sát viên suy đoán loại móng dựa trên quy mô số tầng, kết cấu và niên đại khu vực.
-                  </div>
+                  <div className="text-xs font-bold">Tự suy luận từ kinh nghiệm hiện trường</div>
                 </button>
               </div>
             </div>
@@ -333,23 +388,23 @@ export const Step2_OwnerInterview: React.FC = () => {
 
           {hasDrawingOption === 'UNKNOWN' && (
             <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-xs text-red-800 animate-in fade-in">
-              <strong>Mức 5 (5đ) - Không có thông tin:</strong> Hoàn toàn không xác định được loại móng, kích thước cọc và không có bản vẽ. Hệ thống xếp vào nhóm rủi ro cao nhất cho chỉ số V3.
+              Không rõ thông tin móng (Mặc định mức rủi ro 5).
             </div>
           )}
         </div>
       </Card>
 
-      {/* 2.2. Phỏng vấn lịch sử & Cơ chế tính E5 cộng hưởng */}
+      {/* 2.2. Lịch sử & Yếu tố nhạy cảm */}
       <Card>
         <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-100">
           <div className="flex items-center gap-2">
             <History className="w-5 h-5 text-purple-600" />
             <div>
               <h2 className="text-base sm:text-lg font-bold text-slate-800">
-                2.2. Phỏng Vấn Lịch Sử Sử Dụng & Sự Cố (Tự động tính điểm E5)
+                2.2. Lịch Sử & Yếu Tố Nhạy Cảm
               </h2>
               <p className="text-xs text-slate-500">
-                Điểm E5 = Max(5 câu hỏi). Nếu có từ 2 trường cùng &gt; 2 (đều đạt mức 3đ) và bằng nhau $\implies$ E5 được cộng thêm +1 điểm (E5 = 4đ).
+                Các câu hỏi phỏng vấn quá khứ do chủ nhà cung cấp. Hư hỏng hiện trạng của công trình trong lịch sử
               </p>
             </div>
           </div>
@@ -364,7 +419,7 @@ export const Step2_OwnerInterview: React.FC = () => {
               }`}
             >
               {isResonance && <Zap className="w-3.5 h-3.5 text-purple-600 fill-purple-600 animate-pulse" />}
-              <span>E5 = {calculatedE5}/4đ</span>
+              <span>E5 = {calculatedE5}/4</span>
             </span>
           </div>
         </div>
@@ -374,8 +429,8 @@ export const Step2_OwnerInterview: React.FC = () => {
           <div className="mb-4 p-3 rounded-xl bg-purple-50 border border-purple-200 text-xs text-purple-900 flex items-start gap-2 animate-in fade-in">
             <Zap className="w-4 h-4 text-purple-600 flex-shrink-0 mt-0.5 fill-purple-600" />
             <div>
-              <span className="font-bold">Kích hoạt quy tắc Cộng Hưởng Rủi Ro (+1 điểm):</span> Có{' '}
-              <strong>{countHigh} trường thông tin</strong> cùng lớn hơn 2 và bằng nhau (cùng đạt mức 3đ nghiêm trọng) $\implies$ Điểm E5 được cộng thêm 1 điểm lên <strong>4 điểm (tối đa)</strong>.
+              <span className="font-bold">Cộng Hưởng Rủi Ro:</span> Có{' '}
+              <strong>{countHigh} trường thông tin</strong> cùng đạt mức nghiêm trọng $\implies$ Chỉ số E5 tự động nâng lên mức <strong>4 (tối đa)</strong>.
             </div>
           </div>
         )}
@@ -389,7 +444,7 @@ export const Step2_OwnerInterview: React.FC = () => {
                 historyInterview: { ...hi, renovationLoad: Number(e.target.value) },
               })
             }
-            options={HISTORY_OPTIONS.map((h) => ({ value: h.score, label: h.label }))}
+            options={RENOVATION_OPTIONS.map((h) => ({ value: h.score, label: h.label }))}
           />
 
           <Select
@@ -400,7 +455,7 @@ export const Step2_OwnerInterview: React.FC = () => {
                 historyInterview: { ...hi, majorRepair: Number(e.target.value) },
               })
             }
-            options={HISTORY_OPTIONS.map((h) => ({ value: h.score, label: h.label }))}
+            options={MAJOR_REPAIR_OPTIONS.map((h) => ({ value: h.score, label: h.label }))}
           />
 
           <Select
@@ -411,7 +466,7 @@ export const Step2_OwnerInterview: React.FC = () => {
                 historyInterview: { ...hi, pastSettlement: Number(e.target.value) },
               })
             }
-            options={HISTORY_OPTIONS.map((h) => ({ value: h.score, label: h.label }))}
+            options={PAST_SETTLEMENT_OPTIONS.map((h) => ({ value: h.score, label: h.label }))}
           />
 
           <Select
@@ -422,7 +477,7 @@ export const Step2_OwnerInterview: React.FC = () => {
                 historyInterview: { ...hi, neighborDamage: Number(e.target.value) },
               })
             }
-            options={HISTORY_OPTIONS.map((h) => ({ value: h.score, label: h.label }))}
+            options={NEIGHBOR_DAMAGE_OPTIONS.map((h) => ({ value: h.score, label: h.label }))}
           />
 
           <Select
@@ -433,11 +488,11 @@ export const Step2_OwnerInterview: React.FC = () => {
                 historyInterview: { ...hi, fireFloodIncident: Number(e.target.value) },
               })
             }
-            options={HISTORY_OPTIONS.map((h) => ({ value: h.score, label: h.label }))}
+            options={FIRE_FLOOD_OPTIONS.map((h) => ({ value: h.score, label: h.label }))}
           />
 
           <Select
-            label="6. Tình trạng sử dụng hiện tại"
+            label="Tình trạng sử dụng hiện tại (Occupancy Status)"
             value={hi.usageStatus}
             onChange={(e) =>
               updateFormData({
@@ -445,15 +500,15 @@ export const Step2_OwnerInterview: React.FC = () => {
               })
             }
             options={[
-              { value: 'Đầy đủ 100%', label: 'Đang sử dụng đầy đủ 100%' },
-              { value: 'Một phần', label: 'Sử dụng một phần (có phòng bỏ trống)' },
-              { value: 'Bỏ trống', label: 'Toàn bộ nhà đang bỏ trống / Chờ sửa' },
+              { value: 'Đầy đủ', label: 'Đầy đủ' },
+              { value: 'Đang sử dụng một phần', label: 'Đang sử dụng một phần' },
+              { value: 'Bỏ trống - Không sử dụng', label: 'Bỏ trống - Không sử dụng' },
             ]}
           />
         </div>
 
-        {/* Thiết bị nhạy cảm & Vận hành 24/7 (Phục vụ V6) */}
-        <div className="mt-4 pt-4 border-t border-slate-100 flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
+        {/* Thiết bị nhạy cảm rung chấn */}
+        <div className="mt-4 pt-4 border-t border-slate-100 space-y-3">
           <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer select-none">
             <input
               type="checkbox"
@@ -468,22 +523,26 @@ export const Step2_OwnerInterview: React.FC = () => {
               }
               className="rounded text-purple-600 focus:ring-purple-500"
             />
-            <span>Có thiết bị / Máy móc nhạy cảm rung chấn (Ảnh hưởng chỉ số V6)</span>
+            <span>Có Thiết bị - Hoạt động nhạy cảm rung chấn (Y tế, Lab, Thiết bị chính xác...)</span>
           </label>
 
-          <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={hi.continuousOperation247}
-              onChange={(e) =>
-                updateFormData({
-                  historyInterview: { ...hi, continuousOperation247: e.target.checked },
-                })
-              }
-              className="rounded text-purple-600 focus:ring-purple-500"
-            />
-            <span>Vận hành liên tục 24/7 (Y tế, máy chủ, phòng nghiên cứu...)</span>
-          </label>
+          {hi.sensitiveEquipment.has && (
+            <div className="p-3 bg-purple-50/50 rounded-xl border border-purple-200">
+              <Input
+                label="Mô tả thiết bị / hoạt động nhạy cảm:"
+                placeholder="VD: Phòng lab xét nghiệm, máy siêu âm/X-quang, server dữ liệu, đồ cổ quý hiếm..."
+                value={hi.sensitiveEquipment.description}
+                onChange={(e) =>
+                  updateFormData({
+                    historyInterview: {
+                      ...hi,
+                      sensitiveEquipment: { ...hi.sensitiveEquipment, description: e.target.value },
+                    },
+                  })
+                }
+              />
+            </div>
+          )}
         </div>
       </Card>
 

@@ -1,0 +1,1646 @@
+[
+  {
+    "group": "Auth",
+    "testId": "0.0",
+    "name": "Health Check",
+    "method": "GET",
+    "url": "/health",
+    "role": "PUBLIC",
+    "expectedStatus": 200,
+    "actualStatus": 200,
+    "passed": true,
+    "latencyMs": 16,
+    "responsePreview": "UP"
+  },
+  {
+    "group": "Auth",
+    "testId": "0.1",
+    "name": "User Login",
+    "method": "POST",
+    "url": "/api/v1/auth/login",
+    "role": "PUBLIC",
+    "expectedStatus": 200,
+    "actualStatus": 200,
+    "passed": true,
+    "latencyMs": 10,
+    "responsePreview": {
+      "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJiMDAwMDAwMC0wMDAwLTAwMDAtMDAwMC0wMDAwMDAwMDAwMDMiLCJ1c2VybmFtZSI6InN1cnZleW9yX3M5XzAxIiwicm9sZSI6IlNVUlZFWU9SIiwiYXNzaWduZWRab25lSWQiOiJaT05FX1M5IiwiZnVsbE5hbWUiOiJOZ3V54buFbiBWxINuIEto4bqjbyBTw6F0IiwiaWF0IjoxNzg5ODk5MDMxLCJleHAiOjE3OTA1MDM4MzF9.kRNRK-YBW4MqH30tkuRvzPn5ngLdVZPIIn3uri8vsKs",
+      "refreshToken": "cd5b8fe6d2b0876ecb3e5ae703920a11a5d2428f321f311433668754b38d569a384f6ecf8e3d5f8e",
+      "expiresIn": 604800,
+      "user": {
+        "id": "b0000000-0000-0000-0000-000000000003",
+        "username": "surveyor_s9_01",
+        "fullName": "Nguyễn Văn Khảo Sát",
+        "role": "SURVEYOR",
+        "assignedZoneId": "ZONE_S9",
+        "status": "ACTIVE"
+      }
+    }
+  },
+  {
+    "group": "Auth",
+    "testId": "0.2",
+    "name": "Refresh Token",
+    "method": "POST",
+    "url": "/api/v1/auth/refresh-token",
+    "role": "PUBLIC",
+    "expectedStatus": 200,
+    "actualStatus": 200,
+    "passed": true,
+    "latencyMs": 3,
+    "responsePreview": {
+      "accessToken": "new_access_token",
+      "expiresIn": 604800
+    }
+  },
+  {
+    "group": "Auth",
+    "testId": "0.3",
+    "name": "Get Profile (Me)",
+    "method": "GET",
+    "url": "/api/v1/auth/me",
+    "role": "SURVEYOR",
+    "expectedStatus": 200,
+    "actualStatus": 200,
+    "passed": true,
+    "latencyMs": 2,
+    "responsePreview": {
+      "id": "b0000000-0000-0000-0000-000000000003",
+      "username": "surveyor_s9_01",
+      "full_name": "Nguyễn Văn Khảo Sát",
+      "role": "SURVEYOR",
+      "status": "ACTIVE",
+      "assigned_zone_id": "ZONE_S9"
+    }
+  },
+  {
+    "group": "Auth",
+    "testId": "0.4",
+    "name": "User Logout",
+    "method": "POST",
+    "url": "/api/v1/auth/logout",
+    "role": "SURVEYOR",
+    "expectedStatus": 200,
+    "actualStatus": 200,
+    "passed": true,
+    "latencyMs": 2,
+    "responsePreview": [
+      "success",
+      "message"
+    ]
+  },
+  {
+    "group": "Surveyor",
+    "testId": "1.1",
+    "name": "GPS Check-In",
+    "method": "POST",
+    "url": "/api/v1/attendance/check-in",
+    "role": "SURVEYOR",
+    "expectedStatus": 201,
+    "actualStatus": 201,
+    "passed": true,
+    "latencyMs": 3,
+    "responsePreview": {
+      "checkInId": "mock-id-ok",
+      "distanceToCenterMeters": 35.5,
+      "message": "Chấm công GPS thành công trong phạm vi Ga"
+    }
+  },
+  {
+    "group": "Surveyor",
+    "testId": "1.2",
+    "name": "Attendance History",
+    "method": "GET",
+    "url": "/api/v1/attendance/my-history",
+    "role": "SURVEYOR",
+    "expectedStatus": 200,
+    "actualStatus": 200,
+    "passed": true,
+    "latencyMs": 1,
+    "responsePreview": [
+      {
+        "id": "mock-id-ok",
+        "status": "OK"
+      }
+    ]
+  },
+  {
+    "group": "Surveyor",
+    "testId": "1.3",
+    "name": "GIS Zone Map",
+    "method": "GET",
+    "url": "/api/v1/parcels/zone-map?zoneId=ZONE_S9",
+    "role": "SURVEYOR",
+    "expectedStatus": 200,
+    "actualStatus": 200,
+    "passed": true,
+    "latencyMs": 3,
+    "responsePreview": [
+      {
+        "id": "a0000000-0000-0000-0000-000000000001",
+        "project_parcel_code": "P-S9-001",
+        "cadastral_parcel_number": "124",
+        "cadastral_sheet_number": "15",
+        "house_number": "124",
+        "street": "Cách Mạng Tháng 8",
+        "ward": "Phường 11",
+        "district": "Quận Tân Bình",
+        "owner_name": "Nguyễn Văn Chủ Hộ",
+        "owner_phone": "0912345678",
+        "survey_status": "NOT_SURVEYED",
+        "building_type": "CONDOMINIUM",
+        "floor_count": 3,
+        "land_area_m2": 120.5,
+        "construction_area_m2": 95,
+        "active_phase1_report_id": "a0000000-0000-0000-0000-000000000001",
+        "active_phase2_report_id": null,
+        "bra_risk_rating": "BRA_B",
+        "ecs_score": 12,
+        "distance_to_metro_line_meters": 18.5,
+        "footprint_polygon_geojson": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [
+                106.65,
+                10.79
+              ],
+              [
+                106.66,
+                10.79
+              ],
+              [
+                106.66,
+                10.8
+              ],
+              [
+                106.65,
+                10.79
+              ]
+            ]
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "group": "Surveyor",
+    "testId": "1.4",
+    "name": "Nearby Parcels GPS Scan",
+    "method": "GET",
+    "url": "/api/v1/parcels/nearby?lat=10.7932&lng=106.6541&radiusMeters=100",
+    "role": "SURVEYOR",
+    "expectedStatus": 200,
+    "actualStatus": 200,
+    "passed": true,
+    "latencyMs": 3,
+    "responsePreview": [
+      {
+        "id": "a0000000-0000-0000-0000-000000000001",
+        "project_parcel_code": "P-S9-001",
+        "cadastral_parcel_number": "124",
+        "cadastral_sheet_number": "15",
+        "house_number": "124",
+        "street": "Cách Mạng Tháng 8",
+        "ward": "Phường 11",
+        "district": "Quận Tân Bình",
+        "owner_name": "Nguyễn Văn Chủ Hộ",
+        "owner_phone": "0912345678",
+        "survey_status": "NOT_SURVEYED",
+        "building_type": "CONDOMINIUM",
+        "floor_count": 3,
+        "land_area_m2": 120.5,
+        "construction_area_m2": 95,
+        "active_phase1_report_id": "a0000000-0000-0000-0000-000000000001",
+        "active_phase2_report_id": null,
+        "bra_risk_rating": "BRA_B",
+        "ecs_score": 12,
+        "distance_to_metro_line_meters": 18.5,
+        "footprint_polygon_geojson": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [
+                106.65,
+                10.79
+              ],
+              [
+                106.66,
+                10.79
+              ],
+              [
+                106.66,
+                10.8
+              ],
+              [
+                106.65,
+                10.79
+              ]
+            ]
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "group": "Surveyor",
+    "testId": "1.5",
+    "name": "High-Range Project Codes",
+    "method": "GET",
+    "url": "/api/v1/parcels/next-high-range-codes?count=4",
+    "role": "SURVEYOR",
+    "expectedStatus": 200,
+    "actualStatus": 200,
+    "passed": true,
+    "latencyMs": 1,
+    "responsePreview": {
+      "baseNextNum": 1,
+      "codes": [
+        "B-00001",
+        "B-00002",
+        "B-00003",
+        "B-00004"
+      ]
+    }
+  },
+  {
+    "group": "Surveyor",
+    "testId": "1.6",
+    "name": "Parcel Detail by ID",
+    "method": "GET",
+    "url": "/api/v1/parcels/a0000000-0000-0000-0000-000000000001",
+    "role": "SURVEYOR",
+    "expectedStatus": 200,
+    "actualStatus": 200,
+    "passed": true,
+    "latencyMs": 2,
+    "responsePreview": {
+      "id": "a0000000-0000-0000-0000-000000000001",
+      "project_parcel_code": "P-S9-001",
+      "cadastral_parcel_number": "124",
+      "cadastral_sheet_number": "15",
+      "house_number": "124",
+      "street": "Cách Mạng Tháng 8",
+      "ward": "Phường 11",
+      "district": "Quận Tân Bình",
+      "owner_name": "Nguyễn Văn Chủ Hộ",
+      "owner_phone": "0912345678",
+      "survey_status": "NOT_SURVEYED",
+      "building_type": "CONDOMINIUM",
+      "floor_count": 3,
+      "land_area_m2": 120.5,
+      "construction_area_m2": 95,
+      "active_phase1_report_id": "a0000000-0000-0000-0000-000000000001",
+      "active_phase2_report_id": null,
+      "bra_risk_rating": "BRA_B",
+      "ecs_score": 12,
+      "distance_to_metro_line_meters": 18.5,
+      "footprint_polygon_geojson": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              106.65,
+              10.79
+            ],
+            [
+              106.66,
+              10.79
+            ],
+            [
+              106.66,
+              10.8
+            ],
+            [
+              106.65,
+              10.79
+            ]
+          ]
+        ]
+      }
+    }
+  },
+  {
+    "group": "Surveyor",
+    "testId": "1.7",
+    "name": "List Condominium Units",
+    "method": "GET",
+    "url": "/api/v1/parcels/a0000000-0000-0000-0000-000000000001/units",
+    "role": "SURVEYOR",
+    "expectedStatus": 200,
+    "actualStatus": 200,
+    "passed": true,
+    "latencyMs": 1,
+    "responsePreview": {
+      "parcelId": "a0000000-0000-0000-0000-000000000001",
+      "projectParcelCode": "P-S9-001",
+      "buildingType": "CONDOMINIUM",
+      "totalUnits": 1,
+      "units": [
+        {
+          "id": "mock-id-ok",
+          "status": "OK"
+        }
+      ]
+    }
+  },
+  {
+    "group": "Surveyor",
+    "testId": "1.8",
+    "name": "Create Condominium Unit",
+    "method": "POST",
+    "url": "/api/v1/parcels/a0000000-0000-0000-0000-000000000001/units",
+    "role": "SURVEYOR",
+    "expectedStatus": 201,
+    "actualStatus": 201,
+    "passed": true,
+    "latencyMs": 2,
+    "responsePreview": {
+      "message": "Đã tạo thành công căn hộ P.402 cho tòa nhà P-S9-001",
+      "unit": {
+        "id": "d0000000-0000-0000-0000-000000000002",
+        "parcel_id": "a0000000-0000-0000-0000-000000000001",
+        "unit_code": "P.402",
+        "floor_number": 4,
+        "owner_name": "Vũ Quốc Đạt",
+        "survey_status": "NOT_SURVEYED"
+      }
+    }
+  },
+  {
+    "group": "Surveyor",
+    "testId": "1.9",
+    "name": "Update Building Type",
+    "method": "PATCH",
+    "url": "/api/v1/parcels/a0000000-0000-0000-0000-000000000001/building-type",
+    "role": "SURVEYOR",
+    "expectedStatus": 200,
+    "actualStatus": 200,
+    "passed": true,
+    "latencyMs": 1,
+    "responsePreview": {
+      "message": "Đã cập nhật loại hình công trình thành CONDOMINIUM",
+      "parcel": {
+        "id": "mock-id-ok",
+        "status": "OK"
+      }
+    }
+  },
+  {
+    "group": "Surveyor",
+    "testId": "1.10",
+    "name": "Start Ad-hoc Survey",
+    "method": "POST",
+    "url": "/api/v1/parcels/a0000000-0000-0000-0000-000000000001/start-survey",
+    "role": "SURVEYOR",
+    "expectedStatus": 201,
+    "actualStatus": 201,
+    "passed": true,
+    "latencyMs": 2,
+    "responsePreview": {
+      "parcelId": "a0000000-0000-0000-0000-000000000001",
+      "projectParcelCode": "P-S9-001",
+      "surveyStatus": "IN_PROGRESS",
+      "activeReportId": "a0000000-0000-0000-0000-000000000001",
+      "message": "Đã tự nhận thửa đất và mở hồ sơ khảo sát thành công"
+    }
+  },
+  {
+    "group": "Surveyor",
+    "testId": "1.11",
+    "name": "Record Absentee Homeowner",
+    "method": "POST",
+    "url": "/api/v1/parcels/a0000000-0000-0000-0000-000000000001/record-absence",
+    "role": "SURVEYOR",
+    "expectedStatus": 201,
+    "actualStatus": 201,
+    "passed": true,
+    "latencyMs": 2,
+    "responsePreview": {
+      "parcelId": "a0000000-0000-0000-0000-000000000001",
+      "projectParcelCode": "P-S9-001",
+      "surveyStatus": "POSTPONED_ABSENT",
+      "absenceAttemptCount": null,
+      "message": "Đã ghi nhận vắng nhà thành công, thửa đất đổi sang màu Tím trên bản đồ"
+    }
+  },
+  {
+    "group": "Surveyor",
+    "testId": "1.12",
+    "name": "Update Footprint Geometry",
+    "method": "PUT",
+    "url": "/api/v1/parcels/a0000000-0000-0000-0000-000000000001/footprint",
+    "role": "SURVEYOR",
+    "expectedStatus": 200,
+    "actualStatus": 200,
+    "passed": true,
+    "latencyMs": 1,
+    "responsePreview": {
+      "parcelId": "a0000000-0000-0000-0000-000000000001",
+      "message": "Đã cập nhật đa giác ranh nhà footprint thành công trên GIS"
+    }
+  },
+  {
+    "group": "Surveyor",
+    "testId": "1.13",
+    "name": "Propose Cadastral Mutation",
+    "method": "POST",
+    "url": "/api/v1/mutations/propose",
+    "role": "SURVEYOR",
+    "expectedStatus": 201,
+    "actualStatus": 201,
+    "passed": true,
+    "latencyMs": 2,
+    "responsePreview": {
+      "mutationEventId": "mock-id-ok",
+      "mutationCode": "MUT-1789899031842-51",
+      "mutationType": "SPLIT",
+      "sourceParcelIds": [
+        "a0000000-0000-0000-0000-000000000001"
+      ],
+      "generatedParcels": [
+        {
+          "id": "a0000000-0000-0000-0000-000000000001",
+          "project_parcel_code": "P-S9-001",
+          "cadastral_parcel_number": "124",
+          "cadastral_sheet_number": "15",
+          "house_number": "124",
+          "street": "Cách Mạng Tháng 8",
+          "ward": "Phường 11",
+          "district": "Quận Tân Bình",
+          "owner_name": "Nguyễn Văn Chủ Hộ",
+          "owner_phone": "0912345678",
+          "survey_status": "NOT_SURVEYED",
+          "building_type": "CONDOMINIUM",
+          "floor_count": 3,
+          "land_area_m2": 120.5,
+          "construction_area_m2": 95,
+          "active_phase1_report_id": "a0000000-0000-0000-0000-000000000001",
+          "active_phase2_report_id": null,
+          "bra_risk_rating": "BRA_B",
+          "ecs_score": 12,
+          "distance_to_metro_line_meters": 18.5,
+          "footprint_polygon_geojson": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  106.65,
+                  10.79
+                ],
+                [
+                  106.66,
+                  10.79
+                ],
+                [
+                  106.66,
+                  10.8
+                ],
+                [
+                  106.65,
+                  10.79
+                ]
+              ]
+            ]
+          }
+        },
+        {
+          "id": "a0000000-0000-0000-0000-000000000001",
+          "project_parcel_code": "P-S9-001",
+          "cadastral_parcel_number": "124",
+          "cadastral_sheet_number": "15",
+          "house_number": "124",
+          "street": "Cách Mạng Tháng 8",
+          "ward": "Phường 11",
+          "district": "Quận Tân Bình",
+          "owner_name": "Nguyễn Văn Chủ Hộ",
+          "owner_phone": "0912345678",
+          "survey_status": "NOT_SURVEYED",
+          "building_type": "CONDOMINIUM",
+          "floor_count": 3,
+          "land_area_m2": 120.5,
+          "construction_area_m2": 95,
+          "active_phase1_report_id": "a0000000-0000-0000-0000-000000000001",
+          "active_phase2_report_id": null,
+          "bra_risk_rating": "BRA_B",
+          "ecs_score": 12,
+          "distance_to_metro_line_meters": 18.5,
+          "footprint_polygon_geojson": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  106.65,
+                  10.79
+                ],
+                [
+                  106.66,
+                  10.79
+                ],
+                [
+                  106.66,
+                  10.8
+                ],
+                [
+                  106.65,
+                  10.79
+                ]
+              ]
+            ]
+          }
+        }
+      ],
+      "status": "PROPOSED_BY_SURVEYOR",
+      "message": "Đã đề xuất biến động và cấp mã từ kho số mở rộng thành công, chờ Zone Admin phê duyệt"
+    }
+  },
+  {
+    "group": "Surveyor",
+    "testId": "1.14",
+    "name": "Create Phase 1 Report",
+    "method": "POST",
+    "url": "/api/v1/reports/phase1",
+    "role": "SURVEYOR",
+    "expectedStatus": 201,
+    "actualStatus": 201,
+    "passed": true,
+    "latencyMs": 2,
+    "responsePreview": {
+      "reportId": "a0000000-0000-0000-0000-000000000001",
+      "reportCode": "REPORT-P-S9-001-PHASE1",
+      "phase": "PHASE_1",
+      "status": "DRAFT",
+      "currentStep": 1,
+      "unitId": null,
+      "parentReportId": null,
+      "reportType": "STANDALONE",
+      "message": "Khởi tạo hồ sơ khảo sát Phase 1 Baseline thành công"
+    }
+  },
+  {
+    "group": "Surveyor",
+    "testId": "1.15",
+    "name": "Get Report Details",
+    "method": "GET",
+    "url": "/api/v1/reports/phase1/a0000000-0000-0000-0000-000000000001",
+    "role": "SURVEYOR",
+    "expectedStatus": 200,
+    "actualStatus": 200,
+    "passed": true,
+    "latencyMs": 1,
+    "responsePreview": {
+      "id": "a0000000-0000-0000-0000-000000000001",
+      "report_code": "REPORT-P-S9-001-PHASE1",
+      "parcel_id": "a0000000-0000-0000-0000-000000000001",
+      "surveyor_id": "b0000000-0000-0000-0000-000000000003",
+      "phase": "PHASE_1",
+      "status": "DRAFT",
+      "current_step": 1,
+      "project_parcel_code": "P-S9-001",
+      "created_at": "2026-09-20T10:10:31.845Z",
+      "identificationPhotos": [
+        {
+          "id": "mock-id-ok",
+          "status": "OK"
+        }
+      ],
+      "buildingSpecs": {
+        "id": "mock-id-ok",
+        "status": "OK"
+      },
+      "historicalSensitivity": {
+        "id": "mock-id-ok",
+        "status": "OK"
+      },
+      "floorSurveys": [
+        {
+          "id": "mock-id-ok",
+          "status": "OK"
+        }
+      ],
+      "damageZones": [
+        {
+          "id": "c0000000-0000-0000-0000-000000000001",
+          "zone_code": "Z-01",
+          "floor_name": "Tầng 1",
+          "room_name": "Phòng khách",
+          "defects": [
+            {
+              "id": "e0000000-0000-0000-0000-000000000001",
+              "defect_code": "D-01",
+              "width_max_mm": 1.5,
+              "length_mm": 1200
+            }
+          ]
+        }
+      ],
+      "deformation": {
+        "id": "mock-id-ok",
+        "status": "OK"
+      },
+      "riskScores": {
+        "id": "mock-id-ok",
+        "status": "OK"
+      },
+      "phase2Details": {
+        "id": "mock-id-ok",
+        "status": "OK"
+      }
+    }
+  },
+  {
+    "group": "Surveyor",
+    "testId": "1.16",
+    "name": "Save Identification Photos (P01-P04)",
+    "method": "POST",
+    "url": "/api/v1/reports/phase1/a0000000-0000-0000-0000-000000000001/identification-photos",
+    "role": "SURVEYOR",
+    "expectedStatus": 201,
+    "actualStatus": 201,
+    "passed": true,
+    "latencyMs": 2,
+    "responsePreview": {
+      "reportId": "a0000000-0000-0000-0000-000000000001",
+      "message": "Đã lưu 4 ảnh định danh P01-P04, đa giác N điểm và phân tầng thành công",
+      "aiJobId": "ai-job-1789899031846"
+    }
+  },
+  {
+    "group": "Surveyor",
+    "testId": "1.17",
+    "name": "Save Building Specs & CAT 1-5",
+    "method": "PUT",
+    "url": "/api/v1/reports/phase1/a0000000-0000-0000-0000-000000000001/specs",
+    "role": "SURVEYOR",
+    "expectedStatus": 200,
+    "actualStatus": 200,
+    "passed": true,
+    "latencyMs": 1,
+    "responsePreview": {
+      "reportId": "a0000000-0000-0000-0000-000000000001",
+      "message": "Đã lưu thông số kết cấu và lịch sử công trình thành công"
+    }
+  },
+  {
+    "group": "Surveyor",
+    "testId": "1.18",
+    "name": "Save Floors Survey",
+    "method": "PUT",
+    "url": "/api/v1/reports/phase1/a0000000-0000-0000-0000-000000000001/floors",
+    "role": "SURVEYOR",
+    "expectedStatus": 200,
+    "actualStatus": 200,
+    "passed": true,
+    "latencyMs": 1,
+    "responsePreview": {
+      "reportId": "a0000000-0000-0000-0000-000000000001",
+      "message": "Đã lưu cấu trúc danh sách Tầng, ảnh tổng quan và bản vẽ CAD phác thảo phân vị trí Z thành công"
+    }
+  },
+  {
+    "group": "Surveyor",
+    "testId": "1.19",
+    "name": "Create Damage Zone (Z-xx)",
+    "method": "POST",
+    "url": "/api/v1/reports/phase1/a0000000-0000-0000-0000-000000000001/zones",
+    "role": "SURVEYOR",
+    "expectedStatus": 201,
+    "actualStatus": 201,
+    "passed": true,
+    "latencyMs": 1,
+    "responsePreview": {
+      "zoneId": "c0000000-0000-0000-0000-000000000001",
+      "zoneCode": "Z-01",
+      "message": "Đã tạo Vùng khảo sát Z-xx thành công"
+    }
+  },
+  {
+    "group": "Surveyor",
+    "testId": "1.20",
+    "name": "Pin Defect Item (D-xx)",
+    "method": "POST",
+    "url": "/api/v1/reports/phase1/zones/c0000000-0000-0000-0000-000000000001/defects",
+    "role": "SURVEYOR",
+    "expectedStatus": 201,
+    "actualStatus": 201,
+    "passed": true,
+    "latencyMs": 2,
+    "responsePreview": {
+      "defectId": "e0000000-0000-0000-0000-000000000001",
+      "defectCode": "D-01",
+      "message": "Đã ghim khuyết tật D-xx thành công kèm ảnh cận cảnh và kích thước"
+    }
+  },
+  {
+    "group": "Surveyor",
+    "testId": "1.21",
+    "name": "Save Deformation Measurements",
+    "method": "PUT",
+    "url": "/api/v1/reports/phase1/a0000000-0000-0000-0000-000000000001/deformation",
+    "role": "SURVEYOR",
+    "expectedStatus": 200,
+    "actualStatus": 200,
+    "passed": true,
+    "latencyMs": 1,
+    "responsePreview": {
+      "reportId": "a0000000-0000-0000-0000-000000000001",
+      "message": "Đã lưu thông số đo đạc lún nghiêng thành công"
+    }
+  },
+  {
+    "group": "Surveyor",
+    "testId": "1.22",
+    "name": "Auto-Calculate Scores (ECS & VI)",
+    "method": "POST",
+    "url": "/api/v1/reports/phase1/a0000000-0000-0000-0000-000000000001/calculate-scores",
+    "role": "SURVEYOR",
+    "expectedStatus": 200,
+    "actualStatus": 200,
+    "passed": true,
+    "latencyMs": 1,
+    "responsePreview": {
+      "reportId": "a0000000-0000-0000-0000-000000000001",
+      "scores": {
+        "e1Burland": 0,
+        "e2Structure": 0,
+        "e3Deformation": 0,
+        "e4Material": 0,
+        "e5History": 0,
+        "e6Function": 0,
+        "totalEcs": 0,
+        "ecsClass": "GOOD",
+        "avgViScore": 0.92,
+        "viClass": "LOW"
+      },
+      "hasCriticalFlag": false,
+      "message": "Đã tự động tính toán điểm kỹ thuật ECS và phân hạng tổn thương VI thành công"
+    }
+  },
+  {
+    "group": "Surveyor",
+    "testId": "1.23",
+    "name": "Submit Phase 1 Report",
+    "method": "POST",
+    "url": "/api/v1/reports/phase1/a0000000-0000-0000-0000-000000000001/submit",
+    "role": "SURVEYOR",
+    "expectedStatus": 200,
+    "actualStatus": 200,
+    "passed": true,
+    "latencyMs": 1,
+    "responsePreview": {
+      "reportId": "a0000000-0000-0000-0000-000000000001",
+      "status": "SUBMITTED",
+      "message": "Đã nộp hồ sơ Phase 1 thành công kèm chữ ký và ý kiến chủ hộ, hồ sơ chuyển sang Chờ duyệt"
+    }
+  },
+  {
+    "group": "Surveyor",
+    "testId": "1.24",
+    "name": "Full Package Submit (Offline-First)",
+    "method": "POST",
+    "url": "/api/v1/surveys/phase1/submit",
+    "role": "SURVEYOR",
+    "expectedStatus": 200,
+    "actualStatus": 200,
+    "passed": true,
+    "latencyMs": 1,
+    "responsePreview": {
+      "reportId": "a0000000-0000-0000-0000-000000000001",
+      "status": "SUBMITTED",
+      "message": "Đã nộp thành công trọn gói hồ sơ khảo sát hiện trạng Phase 1!"
+    }
+  },
+  {
+    "group": "Surveyor",
+    "testId": "1.25",
+    "name": "Submit Absentee (Direct Alias)",
+    "method": "POST",
+    "url": "/api/v1/surveys/phase1/submit-absentee",
+    "role": "SURVEYOR",
+    "expectedStatus": 201,
+    "actualStatus": 201,
+    "passed": true,
+    "latencyMs": 1,
+    "responsePreview": {
+      "projectParcelCode": "P-S9-001",
+      "surveyStatus": "POSTPONED_ABSENT",
+      "absenceAttemptCount": null,
+      "message": "Đã ghi nhận vắng nhà thành công, thửa đất đổi sang màu Tím trên bản đồ"
+    }
+  },
+  {
+    "group": "Surveyor",
+    "testId": "1.26",
+    "name": "Create Phase 2 Report",
+    "method": "POST",
+    "url": "/api/v1/reports/phase2",
+    "role": "SURVEYOR",
+    "expectedStatus": 201,
+    "actualStatus": 201,
+    "passed": true,
+    "latencyMs": 1,
+    "responsePreview": {
+      "reportId": "a0000000-0000-0000-0000-000000000001",
+      "reportCode": "REPORT-P-S9-001-PHASE1",
+      "phase": "PHASE_2",
+      "inheritedFromPhase1Id": "a0000000-0000-0000-0000-000000000001",
+      "message": "Khởi tạo hồ sơ Phase 2 kế thừa toàn bộ Baseline Giai đoạn 1 thành công"
+    }
+  },
+  {
+    "group": "Surveyor",
+    "testId": "1.27",
+    "name": "Get Phase 2 Zones by Room",
+    "method": "GET",
+    "url": "/api/v1/parcels/a0000000-0000-0000-0000-000000000001/phase2/zones",
+    "role": "SURVEYOR",
+    "expectedStatus": 200,
+    "actualStatus": 200,
+    "passed": true,
+    "latencyMs": 1,
+    "responsePreview": [
+      {
+        "id": "c0000000-0000-0000-0000-000000000001",
+        "zone_code": "Z-01",
+        "floor_name": "Tầng 1",
+        "room_name": "Phòng khách",
+        "defects": [
+          {
+            "id": "e0000000-0000-0000-0000-000000000001",
+            "defect_code": "D-01",
+            "width_max_mm": 1.5,
+            "length_mm": 1200
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "group": "Surveyor",
+    "testId": "1.28",
+    "name": "Verify Phase 2 Defect",
+    "method": "PUT",
+    "url": "/api/v1/phase2/defects/e0000000-0000-0000-0000-000000000001/verify",
+    "role": "SURVEYOR",
+    "expectedStatus": 200,
+    "actualStatus": 200,
+    "passed": true,
+    "latencyMs": 1,
+    "responsePreview": {
+      "defectId": "e0000000-0000-0000-0000-000000000001",
+      "p1WidthMm": null,
+      "p2WidthMm": 2.1,
+      "deltaWidthMm": null,
+      "p1LengthMm": null,
+      "p2LengthMm": 1400,
+      "deltaLengthMm": null,
+      "evolutionStatus": "WIDENED",
+      "pinColor": "#FF9800",
+      "message": "Đối soát khuyết tật Phase 2 thành công và tự động tính toán biến thiên Delta"
+    }
+  },
+  {
+    "group": "Surveyor",
+    "testId": "1.29",
+    "name": "Check Quality Gate (10 Criteria)",
+    "method": "GET",
+    "url": "/api/v1/reports/phase2/a0000000-0000-0000-0000-000000000002/quality-gate",
+    "role": "SURVEYOR",
+    "expectedStatus": 200,
+    "actualStatus": 200,
+    "passed": true,
+    "latencyMs": 1,
+    "responsePreview": {
+      "reportId": "a0000000-0000-0000-0000-000000000002",
+      "isPassed": true,
+      "totalItems": 10,
+      "passedCount": 10,
+      "checklist": [
+        {
+          "code": "QG-01",
+          "title": "Xác nhận mã công trình, địa chỉ, đoạn thi công và ref GĐ1",
+          "status": "PASSED"
+        },
+        {
+          "code": "QG-02",
+          "title": "Ghi nhận phạm vi tiếp cận và khu vực hạn chế",
+          "status": "PASSED"
+        },
+        {
+          "code": "QG-03",
+          "title": "Chụp ảnh số nhà, mặt đứng và bối cảnh (P01, P02)",
+          "status": "PASSED"
+        },
+        {
+          "code": "QG-04",
+          "title": "Khảo sát đầy đủ các tầng/phòng tiếp cận được",
+          "status": "PASSED"
+        },
+        {
+          "code": "QG-05",
+          "title": "Ghim khuyết tật đã được mã hóa D-xx và ghi kích thước",
+          "status": "PASSED"
+        },
+        {
+          "code": "QG-06",
+          "title": "Mỗi khuyết tật có đủ ảnh CTX và cận cảnh CU có thước đo",
+          "status": "PASSED"
+        },
+        {
+          "code": "QG-07",
+          "title": "Sơ đồ vị trí khuyết tật / Damage Mapping đã đính kèm",
+          "status": "PASSED"
+        },
+        {
+          "code": "QG-08",
+          "title": "Đã so sánh đối soát biến động với Giai đoạn 1",
+          "status": "PASSED"
+        },
+        {
+          "code": "QG-09",
+          "title": "Đã ghi kết luận hiện trạng và đề xuất quan trắc/NDT",
+          "status": "PASSED"
+        },
+        {
+          "code": "QG-10",
+          "title": "Chữ ký 4 bên hoặc biên bản từ chối/vắng mặt đã lưu trữ",
+          "status": "PASSED"
+        }
+      ],
+      "message": "Hồ sơ đã vượt qua 10/10 tiêu chí Cổng Kiểm Soát Chất Lượng Phụ lục A"
+    }
+  },
+  {
+    "group": "Surveyor",
+    "testId": "1.30",
+    "name": "Submit Phase 2 Report",
+    "method": "POST",
+    "url": "/api/v1/reports/phase2/a0000000-0000-0000-0000-000000000002/submit",
+    "role": "SURVEYOR",
+    "expectedStatus": 200,
+    "actualStatus": 200,
+    "passed": true,
+    "latencyMs": 2,
+    "responsePreview": {
+      "reportId": "a0000000-0000-0000-0000-000000000002",
+      "status": "SUBMITTED",
+      "message": "Đã nộp hồ sơ Phase 2 thành công kèm chữ ký 4 bên chuẩn Phiếu 02"
+    }
+  },
+  {
+    "group": "Admin",
+    "testId": "2.1",
+    "name": "Zone Progress Analytics",
+    "method": "GET",
+    "url": "/api/v1/admin/analytics/progress",
+    "role": "ZONE_ADMIN",
+    "expectedStatus": 200,
+    "actualStatus": 200,
+    "passed": true,
+    "latencyMs": 1,
+    "responsePreview": {
+      "id": "mock-id-ok",
+      "status": "OK"
+    }
+  },
+  {
+    "group": "Admin",
+    "testId": "2.2",
+    "name": "List Surveyor Attendance",
+    "method": "GET",
+    "url": "/api/v1/admin/attendance",
+    "role": "ZONE_ADMIN",
+    "expectedStatus": 200,
+    "actualStatus": 200,
+    "passed": true,
+    "latencyMs": 0,
+    "responsePreview": [
+      {
+        "id": "mock-id-ok",
+        "status": "OK"
+      }
+    ]
+  },
+  {
+    "group": "Admin",
+    "testId": "2.3",
+    "name": "Attendance Monthly Summary",
+    "method": "GET",
+    "url": "/api/v1/admin/attendance/summary",
+    "role": "ZONE_ADMIN",
+    "expectedStatus": 200,
+    "actualStatus": 200,
+    "passed": true,
+    "latencyMs": 2,
+    "responsePreview": [
+      {
+        "id": "mock-id-ok",
+        "status": "OK"
+      }
+    ]
+  },
+  {
+    "group": "Admin",
+    "testId": "2.4",
+    "name": "Attendance Detail by ID",
+    "method": "GET",
+    "url": "/api/v1/admin/attendance/att-001",
+    "role": "ZONE_ADMIN",
+    "expectedStatus": 200,
+    "actualStatus": 200,
+    "passed": true,
+    "latencyMs": 3,
+    "responsePreview": {
+      "id": "mock-id-ok",
+      "status": "OK"
+    }
+  },
+  {
+    "group": "Admin",
+    "testId": "2.5",
+    "name": "Verify Surveyor Attendance",
+    "method": "POST",
+    "url": "/api/v1/admin/attendance/att-001/verify",
+    "role": "ZONE_ADMIN",
+    "expectedStatus": 200,
+    "actualStatus": 200,
+    "passed": true,
+    "latencyMs": 3,
+    "responsePreview": {
+      "checkInId": "mock-id-ok",
+      "message": "Đã xác nhận ngày công hợp lệ"
+    }
+  },
+  {
+    "group": "Admin",
+    "testId": "2.6",
+    "name": "List Automated Audit Alerts",
+    "method": "GET",
+    "url": "/api/v1/admin/reports/audit-alerts",
+    "role": "ZONE_ADMIN",
+    "expectedStatus": 200,
+    "actualStatus": 200,
+    "passed": true,
+    "latencyMs": 2,
+    "responsePreview": [
+      {
+        "id": "mock-id-ok",
+        "status": "OK"
+      }
+    ]
+  },
+  {
+    "group": "Admin",
+    "testId": "2.7",
+    "name": "Get Audit Flags for Report",
+    "method": "GET",
+    "url": "/api/v1/admin/reports/a0000000-0000-0000-0000-000000000001/audit-flags",
+    "role": "ZONE_ADMIN",
+    "expectedStatus": 200,
+    "actualStatus": 200,
+    "passed": true,
+    "latencyMs": 1,
+    "responsePreview": [
+      {
+        "id": "mock-id-ok",
+        "status": "OK"
+      }
+    ]
+  },
+  {
+    "group": "Admin",
+    "testId": "2.8",
+    "name": "Split-Pane Audit View (400% Zoom)",
+    "method": "GET",
+    "url": "/api/v1/admin/reports/a0000000-0000-0000-0000-000000000001/audit-view",
+    "role": "ZONE_ADMIN",
+    "expectedStatus": 200,
+    "actualStatus": 200,
+    "passed": true,
+    "latencyMs": 2,
+    "responsePreview": {
+      "reportId": "a0000000-0000-0000-0000-000000000001",
+      "projectParcelCode": "P-S9-001",
+      "status": "DRAFT",
+      "leftPane": {
+        "damageZones": [
+          {
+            "id": "c0000000-0000-0000-0000-000000000001",
+            "zone_code": "Z-01",
+            "floor_name": "Tầng 1",
+            "room_name": "Phòng khách",
+            "defects": [
+              {
+                "id": "e0000000-0000-0000-0000-000000000001",
+                "defect_code": "D-01",
+                "width_max_mm": 1.5,
+                "length_mm": 1200
+              }
+            ]
+          }
+        ],
+        "riskScoreCard": {
+          "id": "mock-id-ok",
+          "status": "OK"
+        }
+      },
+      "rightPane": {
+        "magnifierZoomFactor": "400%",
+        "photoGalleries": [
+          {
+            "zoneCode": "Z-01",
+            "floorName": "Tầng 1",
+            "roomName": "Phòng khách",
+            "defects": [
+              {
+                "defectCode": "D-01",
+                "widthMaxMm": 1.5,
+                "lengthMm": 1200
+              }
+            ]
+          }
+        ]
+      },
+      "auditFlags": [
+        {
+          "id": "mock-id-ok",
+          "status": "OK"
+        }
+      ]
+    }
+  },
+  {
+    "group": "Admin",
+    "testId": "2.9",
+    "name": "Approve Report & Generate PDF",
+    "method": "POST",
+    "url": "/api/v1/admin/reports/a0000000-0000-0000-0000-000000000001/approve",
+    "role": "ZONE_ADMIN",
+    "expectedStatus": 200,
+    "actualStatus": 200,
+    "passed": true,
+    "latencyMs": 1,
+    "responsePreview": {
+      "reportId": "a0000000-0000-0000-0000-000000000001",
+      "status": "APPROVED",
+      "officialPdfUrl": "https://storage.metro2.vn/reports/REPORT_P-S9-001_OFFICIAL.pdf",
+      "message": "Đã phê duyệt báo cáo thành công và sinh file PDF/A ký số điện tử"
+    }
+  },
+  {
+    "group": "Admin",
+    "testId": "2.10",
+    "name": "Reject Report with Technical Reason",
+    "method": "POST",
+    "url": "/api/v1/admin/reports/a0000000-0000-0000-0000-000000000001/reject",
+    "role": "ZONE_ADMIN",
+    "expectedStatus": 200,
+    "actualStatus": 200,
+    "passed": true,
+    "latencyMs": 2,
+    "responsePreview": {
+      "reportId": "a0000000-0000-0000-0000-000000000001",
+      "status": "REJECTED",
+      "rejectionReason": "Ảnh P02 bị mờ không nhìn rõ biển số nhà",
+      "message": "Đã trả về báo cáo khảo sát thành công"
+    }
+  },
+  {
+    "group": "Admin",
+    "testId": "2.11",
+    "name": "Approve Cadastral Mutation",
+    "method": "POST",
+    "url": "/api/v1/admin/mutations/mut-001/approve",
+    "role": "ZONE_ADMIN",
+    "expectedStatus": 200,
+    "actualStatus": 200,
+    "passed": true,
+    "latencyMs": 2,
+    "responsePreview": {
+      "mutationId": "mut-001",
+      "status": "APPROVED",
+      "message": "Đã phê duyệt biến động tách thửa thành công"
+    }
+  },
+  {
+    "group": "Admin",
+    "testId": "2.12",
+    "name": "Apply Engineering Judgement",
+    "method": "POST",
+    "url": "/api/v1/admin/reports/a0000000-0000-0000-0000-000000000001/engineering-judgement",
+    "role": "ZONE_ADMIN",
+    "expectedStatus": 200,
+    "actualStatus": 200,
+    "passed": true,
+    "latencyMs": 2,
+    "responsePreview": {
+      "reportId": "a0000000-0000-0000-0000-000000000001",
+      "action": "UPGRADE",
+      "reason": "Công trình nằm ngay trên hố đào ga sâu 30m",
+      "message": "Đã ghi nhận quyền can thiệp kỹ sư (Engineering Judgement) thành công"
+    }
+  },
+  {
+    "group": "Admin",
+    "testId": "2.13",
+    "name": "Trigger Batch Export",
+    "method": "POST",
+    "url": "/api/v1/reports/batch-export",
+    "role": "ZONE_ADMIN",
+    "expectedStatus": 202,
+    "actualStatus": 202,
+    "passed": true,
+    "latencyMs": 1,
+    "responsePreview": {
+      "batchId": "mock-id-ok",
+      "status": "COMPLETED",
+      "downloadUrl": "https://storage.metro2.vn/exports/BATCH-ZONE_S9-1789899031886.pdf",
+      "checksumSha256": "edc353a03335164daf9ab7b28d99ce34ebb60cbccd05b30812508b3e386cb7ad",
+      "totalReportsCompiled": 120,
+      "expiresAt": "2026-09-27T10:10:31.886Z",
+      "message": "Đã đóng gói tập hồ sơ báo cáo thành công kèm mã băm Checksum SHA-256"
+    }
+  },
+  {
+    "group": "Admin",
+    "testId": "2.14",
+    "name": "Get Batch Export Status",
+    "method": "GET",
+    "url": "/api/v1/reports/batch-export/f0000000-0000-0000-0000-000000000001/status",
+    "role": "ZONE_ADMIN",
+    "expectedStatus": 200,
+    "actualStatus": 200,
+    "passed": true,
+    "latencyMs": 1,
+    "responsePreview": {
+      "id": "f0000000-0000-0000-0000-000000000001",
+      "batch_code": "BATCH-2026-S9-01",
+      "zone_id": "ZONE_S9",
+      "status": "COMPLETED",
+      "total_reports_compiled": 45,
+      "file_size_bytes": 52428800,
+      "sha256_checksum": "a9f23b...",
+      "created_at": "2026-09-20T10:10:31.887Z"
+    }
+  },
+  {
+    "group": "SuperAdmin",
+    "testId": "3.1",
+    "name": "List Users Across Stations",
+    "method": "GET",
+    "url": "/api/v1/admin/users",
+    "role": "SUPER_ADMIN",
+    "expectedStatus": 200,
+    "actualStatus": 200,
+    "passed": true,
+    "latencyMs": 2,
+    "responsePreview": [
+      {
+        "id": "mock-id-ok",
+        "status": "OK"
+      }
+    ]
+  },
+  {
+    "group": "SuperAdmin",
+    "testId": "3.2",
+    "name": "Get User Detail by ID",
+    "method": "GET",
+    "url": "/api/v1/admin/users/b0000000-0000-0000-0000-000000000003",
+    "role": "SUPER_ADMIN",
+    "expectedStatus": 200,
+    "actualStatus": 200,
+    "passed": true,
+    "latencyMs": 1,
+    "responsePreview": {
+      "id": "b0000000-0000-0000-0000-000000000003",
+      "username": "surveyor_s9_01",
+      "full_name": "Nguyễn Văn Khảo Sát",
+      "role": "SURVEYOR",
+      "status": "ACTIVE",
+      "assigned_zone_id": "ZONE_S9"
+    }
+  },
+  {
+    "group": "SuperAdmin",
+    "testId": "3.3",
+    "name": "Create New Surveyor Account",
+    "method": "POST",
+    "url": "/api/v1/admin/users",
+    "role": "SUPER_ADMIN",
+    "expectedStatus": 201,
+    "actualStatus": 201,
+    "passed": true,
+    "latencyMs": 306,
+    "responsePreview": {
+      "id": "b0000000-0000-0000-0000-000000000099",
+      "username": "surveyor_new_1890",
+      "full_name": "Lê Văn Khảo Sát Mới",
+      "role": "SURVEYOR",
+      "assigned_zone_id": "ZONE_S9",
+      "status": "ACTIVE"
+    }
+  },
+  {
+    "group": "SuperAdmin",
+    "testId": "3.4",
+    "name": "Update User & Station Assignment",
+    "method": "PUT",
+    "url": "/api/v1/admin/users/b0000000-0000-0000-0000-000000000003",
+    "role": "SUPER_ADMIN",
+    "expectedStatus": 200,
+    "actualStatus": 200,
+    "passed": true,
+    "latencyMs": 2,
+    "responsePreview": {
+      "id": "ZONE_S9",
+      "username": "surveyor_s9_01",
+      "full_name": "Nguyễn Văn Khảo Sát (Cập nhật)",
+      "status": "ACTIVE"
+    }
+  },
+  {
+    "group": "SuperAdmin",
+    "testId": "3.5",
+    "name": "Update User Active/Lock Status",
+    "method": "PUT",
+    "url": "/api/v1/admin/users/b0000000-0000-0000-0000-000000000003/status",
+    "role": "SUPER_ADMIN",
+    "expectedStatus": 200,
+    "actualStatus": 200,
+    "passed": true,
+    "latencyMs": 1,
+    "responsePreview": {
+      "id": "b0000000-0000-0000-0000-000000000003",
+      "username": "surveyor_s9_01",
+      "full_name": "Nguyễn Văn Khảo Sát (Cập nhật)",
+      "status": "ACTIVE"
+    }
+  },
+  {
+    "group": "SuperAdmin",
+    "testId": "3.6",
+    "name": "Reset User Password",
+    "method": "POST",
+    "url": "/api/v1/admin/users/b0000000-0000-0000-0000-000000000003/reset-password",
+    "role": "SUPER_ADMIN",
+    "expectedStatus": 200,
+    "actualStatus": 200,
+    "passed": true,
+    "latencyMs": 317,
+    "responsePreview": [
+      "success",
+      "message"
+    ]
+  },
+  {
+    "group": "SuperAdmin",
+    "testId": "3.7",
+    "name": "Soft Delete User",
+    "method": "DELETE",
+    "url": "/api/v1/admin/users/b0000000-0000-0000-0000-000000000003",
+    "role": "SUPER_ADMIN",
+    "expectedStatus": 200,
+    "actualStatus": 200,
+    "passed": true,
+    "latencyMs": 1,
+    "responsePreview": [
+      "success",
+      "message"
+    ]
+  },
+  {
+    "group": "SuperAdmin",
+    "testId": "3.8",
+    "name": "Global 11-Station Batch Export",
+    "method": "POST",
+    "url": "/api/v1/admin/reports/batch-export",
+    "role": "SUPER_ADMIN",
+    "expectedStatus": 202,
+    "actualStatus": 202,
+    "passed": true,
+    "latencyMs": 1,
+    "responsePreview": {
+      "batchId": "mock-id-ok",
+      "status": "COMPLETED",
+      "downloadUrl": "https://storage.metro2.vn/exports/BATCH-GLOBAL-1789899032518.pdf",
+      "checksumSha256": "adb71bfd8b3a888d763a4291e70c35ae5950d152e9d4319dc36d639f2ef11276",
+      "totalReportsCompiled": 120,
+      "expiresAt": "2026-09-27T10:10:32.518Z",
+      "message": "Đã đóng gói tập hồ sơ báo cáo thành công kèm mã băm Checksum SHA-256"
+    }
+  },
+  {
+    "group": "SuperAdmin",
+    "testId": "3.9",
+    "name": "List Global Export Batches",
+    "method": "GET",
+    "url": "/api/v1/admin/reports/exports",
+    "role": "SUPER_ADMIN",
+    "expectedStatus": 200,
+    "actualStatus": 200,
+    "passed": true,
+    "latencyMs": 1,
+    "responsePreview": [
+      {
+        "id": "f0000000-0000-0000-0000-000000000001",
+        "batch_code": "BATCH-2026-S9-01",
+        "zone_id": "ZONE_S9",
+        "status": "COMPLETED",
+        "total_reports_compiled": 45,
+        "file_size_bytes": 52428800,
+        "sha256_checksum": "a9f23b...",
+        "created_at": "2026-09-20T10:10:32.519Z"
+      }
+    ]
+  },
+  {
+    "group": "SuperAdmin",
+    "testId": "3.10",
+    "name": "Revoke/Purge Export Batch",
+    "method": "DELETE",
+    "url": "/api/v1/admin/reports/exports/f0000000-0000-0000-0000-000000000001",
+    "role": "SUPER_ADMIN",
+    "expectedStatus": 200,
+    "actualStatus": 200,
+    "passed": true,
+    "latencyMs": 1,
+    "responsePreview": {
+      "batchId": "f0000000-0000-0000-0000-000000000001",
+      "status": "REVOKED",
+      "message": "Đã thu hồi link tải và xóa file xuất khỏi hệ thống thành công"
+    }
+  },
+  {
+    "group": "Guest",
+    "testId": "4.1",
+    "name": "Guest Read-Only GIS Map",
+    "method": "GET",
+    "url": "/api/v1/guest/gis-map",
+    "role": "PUBLIC",
+    "expectedStatus": 200,
+    "actualStatus": 200,
+    "passed": true,
+    "latencyMs": 1,
+    "responsePreview": {
+      "zoneId": "ZONE_S9",
+      "totalParcels": 1,
+      "parcels": [
+        {
+          "id": "a0000000-0000-0000-0000-000000000001",
+          "project_parcel_code": "P-S9-001",
+          "cadastral_parcel_number": "124",
+          "cadastral_sheet_number": "15",
+          "house_number": "124",
+          "street": "Cách Mạng Tháng 8",
+          "ward": "Phường 11",
+          "district": "Quận Tân Bình",
+          "owner_name": "Nguyễn Văn Chủ Hộ",
+          "owner_phone": "0912345678",
+          "survey_status": "NOT_SURVEYED",
+          "building_type": "CONDOMINIUM",
+          "floor_count": 3,
+          "land_area_m2": 120.5,
+          "construction_area_m2": 95,
+          "active_phase1_report_id": "a0000000-0000-0000-0000-000000000001",
+          "active_phase2_report_id": null,
+          "bra_risk_rating": "BRA_B",
+          "ecs_score": 12,
+          "distance_to_metro_line_meters": 18.5,
+          "footprint_polygon_geojson": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  106.65,
+                  10.79
+                ],
+                [
+                  106.66,
+                  10.79
+                ],
+                [
+                  106.66,
+                  10.8
+                ],
+                [
+                  106.65,
+                  10.79
+                ]
+              ]
+            ]
+          }
+        }
+      ]
+    }
+  },
+  {
+    "group": "Guest",
+    "testId": "4.2",
+    "name": "Guest Parcel Summary (No PII)",
+    "method": "GET",
+    "url": "/api/v1/guest/parcels/a0000000-0000-0000-0000-000000000001/summary",
+    "role": "PUBLIC",
+    "expectedStatus": 200,
+    "actualStatus": 200,
+    "passed": true,
+    "latencyMs": 1,
+    "responsePreview": {
+      "id": "a0000000-0000-0000-0000-000000000001",
+      "project_parcel_code": "P-S9-001",
+      "cadastral_parcel_number": "124",
+      "cadastral_sheet_number": "15",
+      "house_number": "124",
+      "street": "Cách Mạng Tháng 8",
+      "ward": "Phường 11",
+      "district": "Quận Tân Bình",
+      "owner_name": "Nguyễn Văn Chủ Hộ",
+      "owner_phone": "0912345678",
+      "survey_status": "NOT_SURVEYED",
+      "building_type": "CONDOMINIUM",
+      "floor_count": 3,
+      "land_area_m2": 120.5,
+      "construction_area_m2": 95,
+      "active_phase1_report_id": "a0000000-0000-0000-0000-000000000001",
+      "active_phase2_report_id": null,
+      "bra_risk_rating": "BRA_B",
+      "ecs_score": 12,
+      "distance_to_metro_line_meters": 18.5,
+      "footprint_polygon_geojson": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              106.65,
+              10.79
+            ],
+            [
+              106.66,
+              10.79
+            ],
+            [
+              106.66,
+              10.8
+            ],
+            [
+              106.65,
+              10.79
+            ]
+          ]
+        ]
+      }
+    }
+  },
+  {
+    "group": "Security",
+    "testId": "5.1",
+    "name": "Surveyor Forbidden from User Admin",
+    "method": "GET",
+    "url": "/api/v1/admin/users",
+    "role": "SURVEYOR",
+    "expectedStatus": 403,
+    "actualStatus": 403,
+    "passed": true,
+    "latencyMs": 1,
+    "responsePreview": 403
+  },
+  {
+    "group": "Security",
+    "testId": "5.2",
+    "name": "Zone Admin Forbidden from User Creation",
+    "method": "POST",
+    "url": "/api/v1/admin/users",
+    "role": "ZONE_ADMIN",
+    "expectedStatus": 403,
+    "actualStatus": 403,
+    "passed": true,
+    "latencyMs": 1,
+    "responsePreview": 403
+  },
+  {
+    "group": "Security",
+    "testId": "5.3",
+    "name": "Contractor Forbidden from Submitting Reports",
+    "method": "POST",
+    "url": "/api/v1/reports/phase1/a0000000-0000-0000-0000-000000000001/submit",
+    "role": "CONTRACTOR",
+    "expectedStatus": 403,
+    "actualStatus": 403,
+    "passed": true,
+    "latencyMs": 1,
+    "responsePreview": 403
+  },
+  {
+    "group": "Security",
+    "testId": "5.4",
+    "name": "Unauthenticated Request Rejected",
+    "method": "GET",
+    "url": "/api/v1/parcels/zone-map",
+    "role": "PUBLIC",
+    "expectedStatus": 401,
+    "actualStatus": 401,
+    "passed": true,
+    "latencyMs": 1,
+    "responsePreview": 401
+  }
+]

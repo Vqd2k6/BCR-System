@@ -19,9 +19,15 @@ export function verifyDataCompletenessGate(data: Phase1SurveyFormData): GateVeri
   const hasP01 = Boolean(data.photoP01?.url || data.photoP01?.notApplicable);
   const hasP02 = Boolean(data.photoP02?.url || data.photoP02?.notApplicable);
   const hasP04 = Boolean(data.photoP04?.url || data.photoP04?.notApplicable);
-  const totalZones = data.floors.reduce((acc, f) => acc + f.zones.length, 0);
+  const totalZones = data.floors.reduce(
+    (acc, f) => acc + (f.zones?.length || 0) + (f.structuralElements?.length || 0),
+    0
+  );
   const totalDefects = data.floors.reduce(
-    (acc, f) => acc + f.zones.reduce((zacc, z) => zacc + z.defects.length, 0),
+    (acc, f) =>
+      acc +
+      (f.zones?.reduce((zacc, z) => zacc + (z.defects?.length || 0), 0) || 0) +
+      (f.structuralElements?.reduce((eacc, e) => eacc + (e.defects?.length || 0), 0) || 0),
     0
   );
   const photoPassed = hasP01 && hasP02 && hasP04 && totalZones > 0;

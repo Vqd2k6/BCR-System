@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Crosshair, Trash2, Camera, AlertCircle, CheckCircle2, Ruler } from 'lucide-react';
+import { Crosshair, Trash2, Camera, AlertCircle, CheckCircle2, Ruler, Sparkles, MapPin } from 'lucide-react';
 import { PhotoCaptureInput } from '../common/PhotoCaptureInput';
 
 export interface DefectItem {
@@ -15,6 +15,7 @@ export interface DefectItem {
   activityState: 'U' | 'S' | 'A';
   materialDegradationE4: number;
   structuralSignificanceE2: number;
+  functionalImpactE6?: number;
   hasScaleCard: boolean;
   isStructuralCritical: boolean;
   cuPhotoUrl: string;
@@ -43,6 +44,16 @@ const COMMON_DEFECT_TYPES = [
   'Khác',
 ];
 
+const SCREENING_CATEGORIES = [
+  'Nứt tường / Vữa trát',
+  'Nứt cấu kiện kết cấu (Cột/Dầm/Sàn)',
+  'Lún chênh / Võng cấu kiện',
+  'Thấm dột / Ẩm mốc',
+  'Bong tróc / Rỉ cốt thép',
+  'Kẹt cửa / Biến dạng khung',
+  'Khác',
+];
+
 export const DefectPinningCanvas: React.FC<Props> = ({
   ctxPhotoUrl,
   defects,
@@ -51,43 +62,33 @@ export const DefectPinningCanvas: React.FC<Props> = ({
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [selectedDefectIndex, setSelectedDefectIndex] = useState<number | null>(null);
-  const [isAddingPin, setIsAddingPin] = useState<boolean>(false);
+  const [isAddingPin, setIsAddingPin] = useState<boolean>(true); // Default to pin mode for quick marking
 
-  const draftDefect: Partial<DefectItem> = {
-    screeningCategory: 'Nứt tường / Vữa trát',
-    defectType: COMMON_DEFECT_TYPES[0],
-    crackDirection: 'Xiên chéo 45 độ',
-    widthMaxMm: 0.5,
-    lengthMm: 300,
-    activityState: 'U',
-    materialDegradationE4: 1,
-    structuralSignificanceE2: 1,
-    hasScaleCard: true,
-    isStructuralCritical: false,
-    cuPhotoUrl: '',
-  };
+  const nextDefectCode = `D-${String(defects.length + 1).padStart(2, '0')}`;
 
   const handleContainerClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (readOnly || !isAddingPin || !containerRef.current || !ctxPhotoUrl) return;
 
     const rect = containerRef.current.getBoundingClientRect();
-    const x = ((e.clientX - rect.left) / rect.width) * 100;
-    const y = ((e.clientY - rect.top) / rect.height) * 100;
+    const x = parseFloat((((e.clientX - rect.left) / rect.width) * 100).toFixed(2));
+    const y = parseFloat((((e.clientY - rect.top) / rect.height) * 100).toFixed(2));
+
+    const newDefectCode = `D-${String(defects.length + 1).padStart(2, '0')}`;
 
     const newDefect: DefectItem = {
-      defectCode: `D-${String(defects.length + 1).padStart(2, '0')}`,
-      pinX: parseFloat(x.toFixed(2)),
-      pinY: parseFloat(y.toFixed(2)),
-      screeningCategory: draftDefect.screeningCategory || 'Nứt tường / Vữa trát',
-      defectType: draftDefect.defectType || COMMON_DEFECT_TYPES[0],
-      crackDirection: draftDefect.crackDirection || 'Xiên chéo',
-      widthMaxMm: draftDefect.widthMaxMm ?? 0.5,
-      lengthMm: draftDefect.lengthMm ?? 300,
-      activityState: draftDefect.activityState || 'U',
-      materialDegradationE4: draftDefect.materialDegradationE4 ?? 1,
-      structuralSignificanceE2: draftDefect.structuralSignificanceE2 ?? 1,
-      hasScaleCard: draftDefect.hasScaleCard ?? true,
-      isStructuralCritical: draftDefect.isStructuralCritical ?? false,
+      defectCode: newDefectCode,
+      pinX: x,
+      pinY: y,
+      screeningCategory: 'Nứt tường / Vữa trát',
+      defectType: COMMON_DEFECT_TYPES[0],
+      crackDirection: 'Xiên chéo 45 độ',
+      widthMaxMm: 0.5,
+      lengthMm: 300,
+      activityState: 'U',
+      materialDegradationE4: 1,
+      structuralSignificanceE2: 1,
+      hasScaleCard: true,
+      isStructuralCritical: false,
       cuPhotoUrl: '',
       notes: '',
     };
@@ -95,7 +96,6 @@ export const DefectPinningCanvas: React.FC<Props> = ({
     const updated = [...defects, newDefect];
     onChange(updated);
     setSelectedDefectIndex(updated.length - 1);
-    setIsAddingPin(false);
   };
 
   const removeDefect = (index: number) => {
@@ -119,111 +119,89 @@ export const DefectPinningCanvas: React.FC<Props> = ({
     onChange(updated);
   };
 
-  if (!ctxPhotoUrl) {
-    return (
-      <div
-        style={{
-          padding: '1.5rem',
-          backgroundColor: '#f8fafc',
-          border: '1px dashed #cbd5e1',
-          borderRadius: '0.75rem',
-          textAlign: 'center',
-          color: '#64748b',
-          fontSize: '0.825rem',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          gap: '0.5rem',
-        }}
-      >
-        <AlertCircle size={24} color="#94a3b8" />
-        <span>Vui lòng chụp hoặc tải ảnh bối cảnh Photo CTX của mảng tường/cấu kiện ở trên trước khi thả ghim khuyết tật.</span>
-      </div>
-    );
-  }
-
   const selectedDefect = selectedDefectIndex !== null ? defects[selectedDefectIndex] : null;
-  const isCustomDefectType = selectedDefect ? !COMMON_DEFECT_TYPES.slice(0, -1).includes(selectedDefect.defectType) : false;
+
+  // Kiểm tra xem 1 điểm D đã được điền thông tin chi tiết chưa
+  const isDefectFilled = (d: DefectItem) => {
+    return Boolean(d.cuPhotoUrl || (d.notes && d.notes.trim().length > 0) || (d.lengthMm && d.lengthMm > 0 && d.widthMaxMm > 0));
+  };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-      {/* Top Toolbar */}
+    <div className="flex flex-col gap-3 w-full bg-white">
+      {/* Top Control Bar with Quick Info */}
       {!readOnly && (
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            padding: '0.5rem 0.75rem',
-            backgroundColor: '#0f172a',
-            borderRadius: '0.65rem',
-            color: '#ffffff',
-            fontSize: '0.75rem',
-            flexWrap: 'wrap',
-            gap: '0.4rem',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <span style={{ fontWeight: 700, color: '#38bdf8' }}>
-              Danh sách ghim ({defects.length} điểm khuyết tật)
-            </span>
+        <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 bg-slate-50 rounded-xl border border-slate-200 text-xs">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-1.5">
+              <MapPin className="w-4 h-4 text-emerald-600" />
+              <span className="font-bold text-slate-800">
+                Ghi sổ khuyết tật ({defects.length} điểm D):
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2 text-[11px]">
+              <span className="flex items-center gap-1 text-emerald-700 font-medium">
+                <span className="w-2 h-2 rounded-xs bg-emerald-500 inline-block" />
+                Đã điền ({defects.filter(isDefectFilled).length})
+              </span>
+              <span className="flex items-center gap-1 text-amber-700 font-medium">
+                <span className="w-2 h-2 rounded-xs bg-amber-500 inline-block" />
+                Chưa điền ({defects.filter((d) => !isDefectFilled(d)).length})
+              </span>
+            </div>
           </div>
 
           <button
             type="button"
             onClick={() => setIsAddingPin(!isAddingPin)}
-            style={{
-              backgroundColor: isAddingPin ? '#ef4444' : '#0284c7',
-              color: '#ffffff',
-              border: 'none',
-              borderRadius: '0.4rem',
-              padding: '0.35rem 0.75rem',
-              fontWeight: 700,
-              fontSize: '0.75rem',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.35rem',
-              cursor: 'pointer',
-              boxShadow: isAddingPin ? '0 0 8px rgba(239, 68, 68, 0.5)' : 'none',
-            }}
+            className={`px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all shadow-xs ${
+              isAddingPin
+                ? 'bg-red-600 text-white ring-2 ring-red-400'
+                : 'bg-emerald-600 text-white hover:bg-emerald-700'
+            }`}
           >
-            <Crosshair size={14} />
-            <span>{isAddingPin ? 'Hủy thả ghim' : 'Chạm để thả ghim'}</span>
+            <Crosshair className="w-3.5 h-3.5" />
+            <span>{isAddingPin ? `Đang bật chạm chấm ${nextDefectCode}` : `Bật chạm chấm ${nextDefectCode}`}</span>
           </button>
         </div>
       )}
 
-      {/* Pinning Canvas */}
+      {/* Pinning Canvas - Clean Light Theme */}
       <div
         ref={containerRef}
         onClick={handleContainerClick}
-        style={{
-          position: 'relative',
-          width: '100%',
-          minHeight: '260px',
-          maxHeight: '420px',
-          borderRadius: '0.75rem',
-          overflow: 'hidden',
-          backgroundColor: '#0f172a',
-          cursor: isAddingPin ? 'crosshair' : 'default',
-          border: isAddingPin ? '2px solid #38bdf8' : '1px solid #cbd5e1',
-          userSelect: 'none',
-        }}
+        className={`relative w-full min-h-[300px] max-h-[480px] rounded-xl overflow-hidden bg-slate-100 border border-slate-300 select-none shadow-inner ${
+          isAddingPin ? 'cursor-crosshair ring-2 ring-emerald-500/30' : 'cursor-default'
+        }`}
       >
         <img
           src={ctxPhotoUrl}
           alt="Context CTX view"
-          style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }}
+          className="w-full h-full object-contain block max-h-[480px] mx-auto"
         />
 
-        {/* Render Pins with SQUARE styling */}
+        {/* Render Pins with State-dependent Colors */}
         {defects.map((d, idx) => {
           const isSelected = selectedDefectIndex === idx;
           const isCritical = d.isStructuralCritical || d.structuralSignificanceE2 >= 3;
+          const isFilled = isDefectFilled(d);
+
+          // Màu sắc ghim: Đã điền (Emerald/Green), Chưa điền (Amber), Nguy cấp (Red), Đang chọn (Royal Blue)
+          let tagBg = isFilled ? '#059669' : '#d97706';
+          let squareBg = isFilled ? '#10b981' : '#f59e0b';
+
+          if (isCritical) {
+            tagBg = '#dc2626';
+            squareBg = '#ef4444';
+          }
+          if (isSelected) {
+            tagBg = '#0284c7';
+            squareBg = '#38bdf8';
+          }
 
           return (
             <div
-              key={idx}
+              key={d.defectCode || idx}
               onClick={(e) => {
                 e.stopPropagation();
                 setSelectedDefectIndex(idx);
@@ -234,7 +212,7 @@ export const DefectPinningCanvas: React.FC<Props> = ({
                 left: `${d.pinX}%`,
                 transform: 'translate(-50%, -100%)',
                 cursor: 'pointer',
-                zIndex: isSelected ? 20 : 10,
+                zIndex: isSelected ? 35 : 20,
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
@@ -243,30 +221,36 @@ export const DefectPinningCanvas: React.FC<Props> = ({
               {/* Pin Tooltip Box */}
               <div
                 style={{
-                  backgroundColor: isSelected ? '#0284c7' : isCritical ? '#dc2626' : '#0f172a',
+                  backgroundColor: tagBg,
                   color: '#ffffff',
                   fontSize: '0.65rem',
                   fontWeight: 800,
-                  padding: '0.15rem 0.35rem',
+                  padding: '0.15rem 0.4rem',
                   borderRadius: '3px',
                   whiteSpace: 'nowrap',
-                  boxShadow: '0 2px 5px rgba(0,0,0,0.4)',
+                  boxShadow: '0 2px 5px rgba(0,0,0,0.3)',
                   border: isSelected ? '1.5px solid #ffffff' : 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.2rem',
                 }}
               >
-                {d.defectCode} • {d.widthMaxMm}mm
+                <span>{d.defectCode}</span>
+                <span>• {d.widthMaxMm}mm</span>
+                {isFilled && <span style={{ fontSize: '0.6rem' }}>✓</span>}
               </div>
 
               {/* Pin Point - Square icon shape */}
               <div
                 style={{
-                  width: '12px',
-                  height: '12px',
+                  width: isSelected ? '14px' : '12px',
+                  height: isSelected ? '14px' : '12px',
                   borderRadius: '2px',
-                  backgroundColor: isCritical ? '#ef4444' : '#f59e0b',
+                  backgroundColor: squareBg,
                   border: '2px solid #ffffff',
-                  boxShadow: '0 0 6px rgba(0,0,0,0.6)',
+                  boxShadow: '0 0 6px rgba(0,0,0,0.4)',
                   marginTop: '1px',
+                  transition: 'transform 0.15s ease',
                 }}
               />
             </div>
@@ -276,209 +260,209 @@ export const DefectPinningCanvas: React.FC<Props> = ({
 
       {/* Selected Defect Detail Card */}
       {selectedDefect !== null && selectedDefectIndex !== null && (
-        <div
-          className="card"
-          style={{
-            backgroundColor: '#ffffff',
-            borderRadius: '0.75rem',
-            border: '1px solid #7dd3fc',
-            padding: '1rem',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '0.75rem',
-            boxShadow: '0 4px 12px rgba(2, 132, 199, 0.1)',
-          }}
-        >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-              <span style={{ fontSize: '1rem', fontWeight: 800, color: '#0284c7' }}>
-                Chi tiết ghim {selectedDefect.defectCode}
+        <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+          <div className="flex items-center justify-between pb-2 border-b border-slate-200">
+            <div className="flex items-center gap-2">
+              <span className="px-2.5 py-1 bg-slate-900 text-white font-mono font-bold text-xs rounded-lg">
+                {selectedDefect.defectCode}
               </span>
-              <span className="badge badge-warning">
-                Tọa độ: {selectedDefect.pinX}%, {selectedDefect.pinY}%
+              <span className="font-bold text-sm text-slate-800">
+                Thông số chi tiết vết nứt / khuyết tật ({selectedDefect.defectCode})
               </span>
+              {isDefectFilled(selectedDefect) ? (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-1">
+                  <CheckCircle2 className="w-3 h-3" />
+                  Đã điền đầy đủ
+                </span>
+              ) : (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                  ● Đang cập nhật thông tin
+                </span>
+              )}
             </div>
 
             {!readOnly && (
               <button
                 type="button"
                 onClick={() => removeDefect(selectedDefectIndex)}
-                className="btn btn-sm"
-                style={{
-                  backgroundColor: '#fee2e2',
-                  color: '#b91c1c',
-                  border: '1px solid #fca5a5',
-                  padding: '0.3rem 0.55rem',
-                  fontSize: '0.75rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.25rem',
-                }}
+                className="px-2 py-1 bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 rounded-lg text-xs font-semibold flex items-center gap-1"
               >
-                <Trash2 size={13} />
-                <span>Xóa ghim</span>
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Xóa điểm D này</span>
               </button>
             )}
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.65rem' }}>
+          {/* Form fields for Defect Details */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
-              <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#475569' }}>
-                Chỉ số sàng lọc:
-              </label>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Nhóm chỉ báo:</label>
               <select
-                className="form-control"
+                className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-medium focus:ring-1 focus:ring-emerald-500"
                 value={selectedDefect.screeningCategory}
                 onChange={(e) => updateSelectedDefect('screeningCategory', e.target.value)}
-                style={{ fontSize: '0.8rem' }}
                 disabled={readOnly}
               >
-                <option value="Nứt tường / Vữa trát">Nứt tường / Vữa trát</option>
-                <option value="Nứt kết cấu Cột / Dầm / Sàn">Nứt kết cấu Cột / Dầm / Sàn</option>
-                <option value="Lún võng cấu kiện">Lún võng cấu kiện</option>
-                <option value="Thấm dột / Ẩm mốc">Thấm dột / Ẩm mốc</option>
-                <option value="Bong tróc vữa lộ cốt thép">Bong tróc vữa lộ cốt thép</option>
-                <option value="Mất tiết diện bê tông">Mất tiết diện bê tông</option>
-                <option value="Kẹt cửa / Biến dạng khung">Kẹt cửa / Biến dạng khung</option>
-                <option value="Tái nứt / Phát triển nứt cũ">Tái nứt / Phát triển nứt cũ</option>
-              </select>
-            </div>
-
-            {/* Dạng nứt & Cấu kiện with List & Other Input */}
-            <div>
-              <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#475569' }}>
-                Dạng nứt & Cấu kiện:
-              </label>
-              <select
-                className="form-control"
-                value={isCustomDefectType ? 'Khác' : selectedDefect.defectType}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  if (val === 'Khác') {
-                    updateSelectedDefect('defectType', '');
-                  } else {
-                    updateSelectedDefect('defectType', val);
-                  }
-                }}
-                style={{ fontSize: '0.8rem' }}
-                disabled={readOnly}
-              >
-                {COMMON_DEFECT_TYPES.map((dt) => (
-                  <option key={dt} value={dt}>
-                    {dt}
+                {SCREENING_CATEGORIES.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
                   </option>
                 ))}
               </select>
-              {(isCustomDefectType || selectedDefect.defectType === '' || !COMMON_DEFECT_TYPES.slice(0, -1).includes(selectedDefect.defectType)) && (
-                <input
-                  type="text"
-                  className="form-control"
-                  style={{ fontSize: '0.8rem', marginTop: '0.35rem' }}
-                  placeholder="Nhập dạng nứt cụ thể..."
-                  value={selectedDefect.defectType}
-                  onChange={(e) => updateSelectedDefect('defectType', e.target.value)}
-                  disabled={readOnly}
-                  autoFocus
-                />
-              )}
             </div>
 
             <div>
-              <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#475569' }}>
-                Bề rộng lớn nhất (mm):
+              <label className="block text-xs font-bold text-slate-700 mb-1">Dạng nứt / Cấu kiện:</label>
+              <select
+                className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-medium focus:ring-1 focus:ring-emerald-500"
+                value={selectedDefect.defectType}
+                onChange={(e) => updateSelectedDefect('defectType', e.target.value)}
+                disabled={readOnly}
+              >
+                {COMMON_DEFECT_TYPES.map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Hướng nứt:</label>
+              <input
+                type="text"
+                placeholder="VD: Xiên 45 độ, dọc theo cột..."
+                className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs focus:ring-1 focus:ring-emerald-500"
+                value={selectedDefect.crackDirection || ''}
+                onChange={(e) => updateSelectedDefect('crackDirection', e.target.value)}
+                disabled={readOnly}
+              />
+            </div>
+          </div>
+
+          {/* Dimensions & Scale */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Bề rộng lớn nhất w_max (mm):
               </label>
               <input
                 type="number"
                 step="0.05"
-                className="form-control"
+                min="0"
+                className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold focus:ring-1 focus:ring-emerald-500"
                 value={selectedDefect.widthMaxMm}
                 onChange={(e) => updateSelectedDefect('widthMaxMm', parseFloat(e.target.value) || 0)}
-                style={{ fontSize: '0.8rem' }}
                 disabled={readOnly}
               />
             </div>
 
             <div>
-              <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#475569' }}>
-                Chiều dài (mm):
-              </label>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Chiều dài nứt L (mm):</label>
               <input
                 type="number"
                 step="10"
-                className="form-control"
+                min="0"
+                className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold focus:ring-1 focus:ring-emerald-500"
                 value={selectedDefect.lengthMm}
                 onChange={(e) => updateSelectedDefect('lengthMm', parseFloat(e.target.value) || 0)}
-                style={{ fontSize: '0.8rem' }}
                 disabled={readOnly}
               />
             </div>
 
             <div>
-              <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#475569' }}>
-                Trạng thái hoạt động:
-              </label>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Trạng thái hoạt động:</label>
               <select
-                className="form-control"
+                className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-medium focus:ring-1 focus:ring-emerald-500"
                 value={selectedDefect.activityState}
-                onChange={(e) => updateSelectedDefect('activityState', e.target.value as any)}
-                style={{ fontSize: '0.8rem' }}
+                onChange={(e) => updateSelectedDefect('activityState', e.target.value)}
                 disabled={readOnly}
               >
-                <option value="U">U - Chưa rõ / Đang kiểm tra</option>
-                <option value="S">S - Ổn định</option>
-                <option value="A">A - Đang phát triển</option>
-              </select>
-            </div>
-
-            <div>
-              <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#475569' }}>
-                Ý nghĩa kết cấu:
-              </label>
-              <select
-                className="form-control"
-                value={selectedDefect.structuralSignificanceE2}
-                onChange={(e) => updateSelectedDefect('structuralSignificanceE2', parseInt(e.target.value, 10))}
-                style={{ fontSize: '0.8rem' }}
-                disabled={readOnly}
-              >
-                <option value={0}>Không ảnh hưởng</option>
-                <option value={1}>Thấp</option>
-                <option value={2}>Trung bình</option>
-                <option value={3}>Cao</option>
-                <option value={4}>Rất nguy hiểm / Cảnh báo</option>
-              </select>
-            </div>
-
-            <div>
-              <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#475569' }}>
-                Mức độ suy giảm vật liệu / Bong tróc / Rỉ thép:
-              </label>
-              <select
-                className="form-control"
-                value={selectedDefect.materialDegradationE4 ?? 0}
-                onChange={(e) => updateSelectedDefect('materialDegradationE4', parseInt(e.target.value, 10))}
-                style={{ fontSize: '0.8rem' }}
-                disabled={readOnly}
-              >
-                <option value={0}>Không / Rất nhẹ</option>
-                <option value={1}>Cục bộ (Bong tróc nhẹ)</option>
-                <option value={2}>Đáng kể (Bong mảng rộng, rỉ rác)</option>
-                <option value={3}>Nặng (Bong diện rộng, cốt thép rỉ)</option>
-                <option value={4}>Ảnh hưởng chịu lực (Rỉ đứt thép, mất tiết diện)</option>
+                <option value="U">U - Chưa rõ / Đang kiểm tra (Unknown)</option>
+                <option value="S">S - Ổn định / Nứt cũ (Stable)</option>
+                <option value="A">A - Đang phát triển / Hoạt động (Active)</option>
               </select>
             </div>
           </div>
 
-          {/* Close-Up Photo with Scale Card */}
-          <div style={{ marginTop: '0.25rem' }}>
+          {/* Scoring Fields */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3 bg-white rounded-xl border border-slate-200">
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Ý nghĩa kết cấu (Nguồn tính E2):
+              </label>
+              <select
+                className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-medium focus:ring-1 focus:ring-emerald-500"
+                value={selectedDefect.structuralSignificanceE2}
+                onChange={(e) => updateSelectedDefect('structuralSignificanceE2', parseInt(e.target.value, 10))}
+                disabled={readOnly}
+              >
+                <option value={0}>0đ - None / Không ảnh hưởng</option>
+                <option value={1}>1đ - Low / Thấp</option>
+                <option value={2}>2đ - Moderate / Trung bình</option>
+                <option value={3}>3đ - High / Cao</option>
+                <option value={4}>4đ - Critical / Cảnh báo sập</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Suy giảm vật liệu (Nguồn tính E4):
+              </label>
+              <select
+                className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-medium focus:ring-1 focus:ring-emerald-500"
+                value={selectedDefect.materialDegradationE4}
+                onChange={(e) => updateSelectedDefect('materialDegradationE4', parseInt(e.target.value, 10))}
+                disabled={readOnly}
+              >
+                <option value={0}>0đ - Không / Rất nhẹ</option>
+                <option value={1}>1đ - Cục bộ (Bong tróc nhẹ)</option>
+                <option value={2}>2đ - Đáng kể (Bong mảng rộng)</option>
+                <option value={3}>3đ - Nặng (Bê tông bung, cốt thép rỉ)</option>
+                <option value={4}>4đ - Mất tiết diện / Ảnh hưởng chịu lực</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Ảnh hưởng chức năng (Nguồn tính E6):
+              </label>
+              <select
+                className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-medium focus:ring-1 focus:ring-emerald-500"
+                value={selectedDefect.functionalImpactE6 || 0}
+                onChange={(e) => updateSelectedDefect('functionalImpactE6', parseInt(e.target.value, 10))}
+                disabled={readOnly}
+              >
+                <option value={0}>0đ - Không ảnh hưởng chức năng</option>
+                <option value={1}>1đ - Ẩm mốc / Kẹt 1-2 cửa nhẹ</option>
+                <option value={2}>2đ - Thấm nước / Kẹt 2-5 cửa</option>
+                <option value={3}>3đ - Dột nước / Kẹt &gt;5 cửa</option>
+                <option value={4}>4đ - Rò nước tràn / Cửa kẹt cứng hoàn toàn</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Photo CU & Notes */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <PhotoCaptureInput
-              label={`Ảnh cận cảnh có thước đo (${selectedDefect.defectCode}-CU):`}
+              label={`Ảnh cận cảnh Photo CU kèm thước đo (${selectedDefect.defectCode}):`}
               value={selectedDefect.cuPhotoUrl}
               onChange={(url) => updateSelectedDefect('cuPhotoUrl', url)}
-              watermarkText={`${selectedDefect.defectCode}-CU | ${selectedDefect.widthMaxMm}mm x ${selectedDefect.lengthMm}mm`}
-              height="160px"
-              required={true}
+              watermarkText={`PHOTO-CU | ${selectedDefect.defectCode} | ${selectedDefect.widthMaxMm}mm`}
+              height="140px"
             />
+
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Ghi chú vết nứt:</label>
+              <textarea
+                rows={4}
+                placeholder="Mô tả cụ thể vị trí, hình thái nứt..."
+                className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs focus:ring-1 focus:ring-emerald-500"
+                value={selectedDefect.notes || ''}
+                onChange={(e) => updateSelectedDefect('notes', e.target.value)}
+                disabled={readOnly}
+              />
+            </div>
           </div>
         </div>
       )}

@@ -1,5 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Dot, Minus, RotateCcw, Sparkles, Trash2, PenTool, AlertCircle } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { Dot, Minus, RotateCcw, Sparkles, Trash2, PenTool, AlertCircle, Check } from 'lucide-react';
 
 export interface PolygonPoint {
   x: number;
@@ -62,7 +62,6 @@ export const FacadePolygonCanvas: React.FC<FacadePolygonCanvasProps> = ({
 
   const notifyChange = (newPts: PolygonPoint[], newLines: FloorSplitLine[], newStrokes: FreehandStroke[]) => {
     if (onChange) onChange(newPts, newLines, newStrokes);
-    if (onSave) onSave({ polygonPoints: newPts, splitLines: newLines, freehandStrokes: newStrokes });
   };
 
   const getCanvasCoords = (clientX: number, clientY: number) => {
@@ -104,7 +103,7 @@ export const FacadePolygonCanvas: React.FC<FacadePolygonCanvasProps> = ({
       setIsDrawing(false);
       const newStroke: FreehandStroke = {
         points: currentStroke,
-        color: '#facc15', // Bright yellow for clear visibility
+        color: '#facc15',
         width: 1.5,
       };
       const updated = [...strokes, newStroke];
@@ -155,136 +154,80 @@ export const FacadePolygonCanvas: React.FC<FacadePolygonCanvasProps> = ({
     }, 1000);
   };
 
+  const handleSaveExplicit = () => {
+    if (onSave) {
+      onSave({
+        polygonPoints: points,
+        splitLines: splitLines,
+        freehandStrokes: strokes,
+      });
+    }
+  };
+
   if (!activeImage) {
     return (
-      <div
-        style={{
-          padding: '1.5rem',
-          backgroundColor: '#f8fafc',
-          border: '1px dashed #cbd5e1',
-          borderRadius: '0.75rem',
-          textAlign: 'center',
-          color: '#64748b',
-          fontSize: '0.825rem',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          gap: '0.5rem',
-        }}
-      >
-        <AlertCircle size={24} color="#94a3b8" />
-        <span>Vui lòng chụp hoặc tải ảnh mặt đứng chính diện <strong>(Ảnh P-02)</strong> ở trên để vẽ đa giác góc nhà, phân tầng và ghi chú kích thước.</span>
+      <div className="p-6 bg-slate-50 border border-dashed border-slate-300 rounded-xl text-center text-slate-500 text-xs flex flex-col items-center gap-2">
+        <AlertCircle className="w-6 h-6 text-slate-400" />
+        <span>Vui lòng chụp hoặc tải ảnh mặt đứng chính diện <strong>(Ảnh P-02)</strong> ở trên để vẽ đa giác góc nhà và phân tầng.</span>
       </div>
     );
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+    <div className="flex flex-col h-full gap-2">
       {/* Top Toolbar */}
       {!readOnly && (
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '0.5rem 0.75rem',
-            borderRadius: '0.75rem',
-            background: 'rgba(15, 23, 42, 0.92)',
-            border: '1px solid rgba(255, 255, 255, 0.1)',
-            fontSize: '0.75rem',
-            flexWrap: 'wrap',
-            gap: '0.4rem',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
+        <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-900/95 border border-white/10 text-xs flex-wrap gap-2">
+          <div className="flex items-center gap-1.5 flex-wrap">
             <button
               type="button"
               onClick={() => setActiveTool('POLYGON')}
-              style={{
-                backgroundColor: activeTool === 'POLYGON' ? '#0284c7' : 'transparent',
-                color: '#ffffff',
-                border: 'none',
-                padding: '0.35rem 0.65rem',
-                borderRadius: '0.4rem',
-                fontWeight: activeTool === 'POLYGON' ? 700 : 500,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.25rem',
-              }}
+              className={`px-2.5 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-colors ${
+                activeTool === 'POLYGON' ? 'bg-sky-600 text-white' : 'text-slate-300 hover:bg-slate-800'
+              }`}
             >
-              <Dot size={16} />
-              <span>Đa giác góc ({points.length})</span>
+              <Dot className="w-4 h-4 text-red-500" />
+              <span>Chấm góc bao ({points.length})</span>
             </button>
 
             <button
               type="button"
               onClick={() => setActiveTool('SPLIT_LINE')}
-              style={{
-                backgroundColor: activeTool === 'SPLIT_LINE' ? '#0284c7' : 'transparent',
-                color: '#ffffff',
-                border: 'none',
-                padding: '0.35rem 0.65rem',
-                borderRadius: '0.4rem',
-                fontWeight: activeTool === 'SPLIT_LINE' ? 700 : 500,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.25rem',
-              }}
+              className={`px-2.5 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-colors ${
+                activeTool === 'SPLIT_LINE' ? 'bg-sky-600 text-white' : 'text-slate-300 hover:bg-slate-800'
+              }`}
             >
-              <Minus size={16} />
+              <Minus className="w-4 h-4 text-amber-400" />
               <span>Line phân tầng ({splitLines.length})</span>
             </button>
 
             <button
               type="button"
               onClick={() => setActiveTool('FREEHAND')}
-              style={{
-                backgroundColor: activeTool === 'FREEHAND' ? '#0284c7' : 'transparent',
-                color: '#ffffff',
-                border: 'none',
-                padding: '0.35rem 0.65rem',
-                borderRadius: '0.4rem',
-                fontWeight: activeTool === 'FREEHAND' ? 700 : 500,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.25rem',
-              }}
+              className={`px-2.5 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-colors ${
+                activeTool === 'FREEHAND' ? 'bg-sky-600 text-white' : 'text-slate-300 hover:bg-slate-800'
+              }`}
             >
-              <PenTool size={14} />
+              <PenTool className="w-3.5 h-3.5 text-yellow-400" />
               <span>Vẽ note tay ({strokes.length})</span>
             </button>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+          <div className="flex items-center gap-1.5">
             {/* Perspective Correction Button */}
             <button
               type="button"
               onClick={triggerAI}
               disabled={aiStatus === 'PROCESSING'}
-              style={{
-                backgroundColor: aiStatus === 'COMPLETED' ? '#10b981' : '#7c3aed',
-                color: '#ffffff',
-                border: 'none',
-                padding: '0.35rem 0.65rem',
-                borderRadius: '0.4rem',
-                fontWeight: 700,
-                cursor: aiStatus === 'PROCESSING' ? 'wait' : 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.3rem',
-                boxShadow: '0 2px 6px rgba(124, 58, 237, 0.3)',
-              }}
+              className="px-2.5 py-1.5 rounded-lg font-bold flex items-center gap-1 bg-purple-600 text-white hover:bg-purple-700 transition-colors shadow-sm"
             >
-              <Sparkles size={13} />
+              <Sparkles className="w-3.5 h-3.5" />
               <span>
                 {aiStatus === 'PROCESSING'
                   ? 'Đang nắn ảnh...'
                   : aiStatus === 'COMPLETED'
                   ? 'Đã nắn thẳng'
-                  : 'Nắn thẳng ảnh (AI)'}
+                  : 'Nắn thẳng (AI)'}
               </span>
             </button>
 
@@ -294,16 +237,9 @@ export const FacadePolygonCanvas: React.FC<FacadePolygonCanvasProps> = ({
                 type="button"
                 onClick={removeLastPoint}
                 title="Xóa điểm đa giác cuối"
-                style={{
-                  backgroundColor: '#334155',
-                  color: '#ffffff',
-                  border: 'none',
-                  padding: '0.35rem 0.5rem',
-                  borderRadius: '0.4rem',
-                  cursor: 'pointer',
-                }}
+                className="p-1.5 bg-slate-800 text-white hover:bg-slate-700 rounded-lg"
               >
-                <RotateCcw size={13} />
+                <RotateCcw className="w-3.5 h-3.5" />
               </button>
             )}
 
@@ -312,16 +248,9 @@ export const FacadePolygonCanvas: React.FC<FacadePolygonCanvasProps> = ({
                 type="button"
                 onClick={removeLastLine}
                 title="Xóa đường phân tầng cuối"
-                style={{
-                  backgroundColor: '#334155',
-                  color: '#ffffff',
-                  border: 'none',
-                  padding: '0.35rem 0.5rem',
-                  borderRadius: '0.4rem',
-                  cursor: 'pointer',
-                }}
+                className="p-1.5 bg-slate-800 text-white hover:bg-slate-700 rounded-lg"
               >
-                <RotateCcw size={13} />
+                <RotateCcw className="w-3.5 h-3.5" />
               </button>
             )}
 
@@ -330,16 +259,9 @@ export const FacadePolygonCanvas: React.FC<FacadePolygonCanvasProps> = ({
                 type="button"
                 onClick={removeLastStroke}
                 title="Xóa nét vẽ tay cuối"
-                style={{
-                  backgroundColor: '#334155',
-                  color: '#ffffff',
-                  border: 'none',
-                  padding: '0.35rem 0.5rem',
-                  borderRadius: '0.4rem',
-                  cursor: 'pointer',
-                }}
+                className="p-1.5 bg-slate-800 text-white hover:bg-slate-700 rounded-lg"
               >
-                <RotateCcw size={13} />
+                <RotateCcw className="w-3.5 h-3.5" />
               </button>
             )}
 
@@ -348,143 +270,135 @@ export const FacadePolygonCanvas: React.FC<FacadePolygonCanvasProps> = ({
                 type="button"
                 onClick={resetAll}
                 title="Xóa tất cả"
-                style={{
-                  backgroundColor: '#ef4444',
-                  color: '#ffffff',
-                  border: 'none',
-                  padding: '0.35rem 0.5rem',
-                  borderRadius: '0.4rem',
-                  cursor: 'pointer',
-                }}
+                className="p-1.5 bg-red-600 text-white hover:bg-red-700 rounded-lg"
               >
-                <Trash2 size={13} />
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            )}
+
+            {/* Explicit Save button */}
+            {onSave && (
+              <button
+                type="button"
+                onClick={handleSaveExplicit}
+                className="px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 bg-emerald-600 text-white hover:bg-emerald-700 transition-colors shadow-sm ml-1"
+              >
+                <Check className="w-3.5 h-3.5" />
+                <span>Lưu & Đóng</span>
               </button>
             )}
           </div>
         </div>
       )}
 
-      {/* Interactive Canvas */}
-      <div
-        ref={canvasContainerRef}
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-        style={{
-          position: 'relative',
-          width: '100%',
-          minHeight: '280px',
-          maxHeight: '480px',
-          borderRadius: '0.75rem',
-          overflow: 'hidden',
-          backgroundColor: '#0f172a',
-          cursor: readOnly ? 'default' : activeTool === 'FREEHAND' ? 'url("data:image/svg+xml;utf8,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'16\' height=\'16\' fill=\'%23facc15\' viewBox=\'0 0 16 16\'><circle cx=\'8\' cy=\'8\' r=\'4\'/></svg>") 8 8, crosshair' : 'crosshair',
-          userSelect: 'none',
-          touchAction: 'none',
-          border: '1px solid #cbd5e1',
-        }}
-      >
-        <img
-          src={activeImage}
-          alt="Facade view"
-          style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block', pointerEvents: 'none' }}
-        />
-
-        {/* SVG Overlay */}
-        <svg
+      {/* Interactive Canvas Viewport - Scales cleanly for 9:16 portrait or 4:3 */}
+      <div className="flex-1 w-full min-h-[400px] max-h-[calc(100vh-220px)] flex items-center justify-center relative overflow-hidden rounded-xl bg-slate-950 border border-slate-700 select-none">
+        <div
+          ref={canvasContainerRef}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+          className="relative max-w-full max-h-full flex items-center justify-center cursor-crosshair touch-none"
           style={{
-            position: 'absolute',
-            inset: 0,
-            width: '100%',
-            height: '100%',
-            pointerEvents: 'none',
+            userSelect: 'none',
           }}
-          viewBox="0 0 100 100"
-          preserveAspectRatio="none"
         >
-          {/* Polygon area */}
-          {points.length >= 3 && (
-            <polygon
-              points={points.map((p) => `${p.x},${p.y}`).join(' ')}
-              fill="rgba(2, 132, 199, 0.25)"
-              stroke="#38bdf8"
-              strokeWidth="0.8"
-              strokeDasharray="1.5, 1"
-            />
-          )}
+          <img
+            src={activeImage}
+            alt="Facade view"
+            className="max-h-[calc(100vh-230px)] max-w-full object-contain pointer-events-none rounded shadow-xl"
+          />
 
-          {/* Polygon lines if < 3 points */}
-          {points.length < 3 && points.length > 1 && (
-            <polyline
-              points={points.map((p) => `${p.x},${p.y}`).join(' ')}
-              fill="none"
-              stroke="#38bdf8"
-              strokeWidth="0.8"
-            />
-          )}
-
-          {/* Polygon points */}
-          {points.map((p, idx) => (
-            <g key={idx}>
-              <circle cx={p.x} cy={p.y} r="1.8" fill="#ef4444" stroke="#ffffff" strokeWidth="0.6" />
-              <text x={p.x + 2} y={p.y - 2} fontSize="3" fill="#ffffff" fontWeight="bold">
-                P{idx + 1}
-              </text>
-            </g>
-          ))}
-
-          {/* Floor split horizontal lines */}
-          {splitLines.map((line, idx) => (
-            <g key={idx}>
-              <line
-                x1="0"
-                y1={line.y}
-                x2="100"
-                y2={line.y}
-                stroke="#f59e0b"
-                strokeWidth="0.7"
-                strokeDasharray="2, 1.5"
+          {/* SVG Overlay matches exact image bounding box */}
+          <svg
+            className="absolute inset-0 w-full h-full pointer-events-none"
+            viewBox="0 0 100 100"
+            preserveAspectRatio="none"
+          >
+            {/* Polygon area */}
+            {points.length >= 3 && (
+              <polygon
+                points={points.map((p) => `${p.x},${p.y}`).join(' ')}
+                fill="rgba(2, 132, 199, 0.25)"
+                stroke="#38bdf8"
+                strokeWidth="0.8"
+                strokeDasharray="1.5, 1"
               />
-              <rect x="2" y={line.y - 4} width="22" height="3.6" fill="rgba(15, 23, 42, 0.85)" rx="0.8" />
-              <text x="3" y={line.y - 1.5} fontSize="2.4" fill="#fef08a" fontWeight="bold">
-                ── {line.floor}
-              </text>
-            </g>
-          ))}
+            )}
 
-          {/* Saved Freehand Strokes */}
-          {strokes.map((stroke, idx) => {
-            if (stroke.points.length < 2) return null;
-            const d = stroke.points.map((pt, i) => `${i === 0 ? 'M' : 'L'} ${pt.x} ${pt.y}`).join(' ');
-            return (
-              <path
-                key={idx}
-                d={d}
+            {/* Polygon lines if < 3 points */}
+            {points.length < 3 && points.length > 1 && (
+              <polyline
+                points={points.map((p) => `${p.x},${p.y}`).join(' ')}
                 fill="none"
-                stroke={stroke.color || '#facc15'}
-                strokeWidth={stroke.width || 1.2}
+                stroke="#38bdf8"
+                strokeWidth="0.8"
+              />
+            )}
+
+            {/* Polygon points */}
+            {points.map((p, idx) => (
+              <g key={idx}>
+                <circle cx={p.x} cy={p.y} r="1.8" fill="#ef4444" stroke="#ffffff" strokeWidth="0.6" />
+                <text x={p.x + 2} y={p.y - 2} fontSize="3" fill="#ffffff" fontWeight="bold">
+                  P{idx + 1}
+                </text>
+              </g>
+            ))}
+
+            {/* Floor split horizontal lines */}
+            {splitLines.map((line, idx) => (
+              <g key={idx}>
+                <line
+                  x1="0"
+                  y1={line.y}
+                  x2="100"
+                  y2={line.y}
+                  stroke="#f59e0b"
+                  strokeWidth="0.7"
+                  strokeDasharray="2, 1.5"
+                />
+                <rect x="2" y={line.y - 4} width="22" height="3.6" fill="rgba(15, 23, 42, 0.85)" rx="0.8" />
+                <text x="3" y={line.y - 1.5} fontSize="2.4" fill="#fef08a" fontWeight="bold">
+                  ── {line.floor}
+                </text>
+              </g>
+            ))}
+
+            {/* Saved Freehand Strokes */}
+            {strokes.map((stroke, idx) => {
+              if (stroke.points.length < 2) return null;
+              const d = stroke.points.map((pt, i) => `${i === 0 ? 'M' : 'L'} ${pt.x} ${pt.y}`).join(' ');
+              return (
+                <path
+                  key={idx}
+                  d={d}
+                  fill="none"
+                  stroke={stroke.color || '#facc15'}
+                  strokeWidth={stroke.width || 1.2}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              );
+            })}
+
+            {/* Active drawing stroke */}
+            {isDrawing && currentStroke.length > 1 && (
+              <path
+                d={currentStroke.map((pt, i) => `${i === 0 ? 'M' : 'L'} ${pt.x} ${pt.y}`).join(' ')}
+                fill="none"
+                stroke="#facc15"
+                strokeWidth="1.5"
                 strokeLinecap="round"
                 strokeLinejoin="round"
               />
-            );
-          })}
-
-          {/* Active drawing stroke */}
-          {isDrawing && currentStroke.length > 1 && (
-            <path
-              d={currentStroke.map((pt, i) => `${i === 0 ? 'M' : 'L'} ${pt.x} ${pt.y}`).join(' ')}
-              fill="none"
-              stroke="#facc15"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          )}
-        </svg>
+            )}
+          </svg>
+        </div>
       </div>
 
-      <div style={{ fontSize: '0.725rem', color: '#64748b', fontStyle: 'italic' }}>
-        * Chạm để định vị góc nhà ($N \ge 3$), kéo đường phân tầng hoặc chọn <strong>Vẽ note tay</strong> để cầm bút/chạm tay vẽ kích thước ($W, H, h_1, h_2...$) trực tiếp lên ảnh.
+      <div className="text-[11px] text-slate-500 italic text-center">
+        * Chạm lên ảnh để định vị góc nhà ($N \ge 3$), kéo đường phân tầng hoặc chọn <strong>Vẽ note tay</strong> để ghi chú trực tiếp. Nhấn <strong>Lưu & Đóng</strong> khi hoàn tất.
       </div>
     </div>
   );

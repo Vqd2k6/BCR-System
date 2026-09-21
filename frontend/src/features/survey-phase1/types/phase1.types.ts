@@ -15,11 +15,33 @@ export interface DamageZoneData {
   zoneCode: string;
   floorName: string;
   roomName: string;
+  customRoomName?: string;
   componentType: string;
+  customComponentType?: string;
   wallMaterial: string;
-  functionalImpactRepairNeeded: boolean;
-  burlandGrade: number;
-  ctxPhotoUrl: string;
+  customWallMaterial?: string;
+  functionalImpactRepairNeeded?: boolean;
+  burlandGrade?: number;
+  overviewPhotos: string[]; // Hỗ trợ nhiều ảnh tổng quan cho 1 Vùng Z
+  ctxPhotoUrl?: string; // Ảnh bối cảnh chính để thả ghim nứt
+  hasDamage?: boolean; // false nếu không có hư hại, true nếu có điểm khuyết tật D
+  notes: string;
+  defects: DefectItem[];
+}
+
+export interface StructuralElementData {
+  id: string;
+  elementCode: string; // E-01, E-02...
+  floorName: string;
+  roomName: string;
+  customRoomName?: string;
+  elementType: string; // Cột BTCT, Dầm BTCT, Bản sàn...
+  customElementType?: string;
+  materialType: string; // BTCT toàn khối, Khung thép...
+  customMaterialType?: string;
+  overviewPhotos: string[]; // Hỗ trợ nhiều ảnh tổng quan cho 1 Vùng E
+  ctxPhotoUrl?: string; // Ảnh bối cảnh chính để thả ghim khuyết tật kết cấu
+  hasDamage?: boolean; // false nếu không có hư hại, true nếu có khuyết tật D
   notes: string;
   defects: DefectItem[];
 }
@@ -28,9 +50,12 @@ export interface FloorSurveyData {
   id: string;
   floorName: string;
   overviewPhotos: { id: string; url: string; caption?: string }[];
-  cadSketchPhotoUrl: string;
-  cadZonePins: CadZonePin[];
+  cadSketchPhotoUrl: string; // Sơ đồ CAD_01 (Mặt bằng kiến trúc & Mảng tường Vùng Z)
+  cadStructuralSketchPhotoUrl?: string; // Sơ đồ CAD_02 (Mặt bằng kết cấu chịu lực Vùng E)
+  cadZonePins: CadZonePin[]; // Ghim Vùng Z (Kiến trúc / Mảng tường trên CAD_01)
+  cadElementPins?: CadZonePin[]; // Ghim Vùng E (Kết cấu chịu lực trên CAD_02)
   zones: DamageZoneData[];
+  structuralElements?: StructuralElementData[];
 }
 
 export interface HistoryInterviewState {
@@ -105,6 +130,7 @@ export interface Phase1SurveyFormData {
   objectGroup: ObjectGroupType;
   chainage: string;
   metroOffsetDistance: string;
+  clearanceOffsetDistance: string;
   gpsCoords: { lat: number; lng: number };
   adjacentBuildings: AdjacentBuildingState;
   isAbsenteeSurvey?: boolean;
@@ -120,7 +146,12 @@ export interface Phase1SurveyFormData {
     widthM: number | '';
     heightM: number | '';
   };
-  photoP03: { url: string; notApplicable: boolean };
+  photoP03: {
+    url: string;
+    notApplicable: boolean;
+    tag?: string;
+    additionalPhotos?: { url: string; tag: string }[];
+  };
   photoP04: { url: string; notApplicable: boolean };
 
   // Step 2.1 Architecture
@@ -131,7 +162,8 @@ export interface Phase1SurveyFormData {
   isEstimatedYear: boolean;
   structureSystem: string;
   foundationType: string;
-  pileDimensionMm: number | '';
+  pileDimensionMm: string;
+  asBuiltDrawingPhotoUrl?: string;
   asBuiltDrawingFiles: { id: string; name: string; url: string }[];
   foundationCatScore: number; // 1..5
 
@@ -141,7 +173,7 @@ export interface Phase1SurveyFormData {
   // Step 3 Floors & Zones & Defects
   floors: FloorSurveyData[];
 
-  // Step 4 Burland & Structural Summary (Moved right after Step 3)
+  // Step 4 Burland & Structural Summary
   burlandSummary: {
     predominantGrade: number;
     localMaxGrade: number;
@@ -175,6 +207,12 @@ export interface Phase1SurveyFormData {
     notes: string;
   };
 
+  // Data Completeness Gate Decision
+  gateDecision?: {
+    decision: 'ALLOW' | 'CONDITIONAL' | 'PENDING';
+    reason: string;
+  };
+
   // Step 7 Auto Calculations
   ecs: EcsScoreState;
   vi: ViScoreState;
@@ -187,11 +225,27 @@ export interface Phase1SurveyFormData {
     braStatus: 'PENDING';
   };
 
-  // Step 9 Signatures
+  // Step 9 Signatures & Working Minutes
   signatures: {
     ownerFeedback: string;
-    preparedBy: { fullName: string; title: string; date: string; signatureDataUrl: string };
-    checkedBy: { fullName: string; title: string; date: string; signatureDataUrl: string };
-    ownerRepresentative: { fullName: string; role: string; date: string; signatureDataUrl: string };
+    preparedBy: {
+      fullName: string;
+      title: string;
+      date: string;
+      photoUrl?: string;
+    };
+    checkedBy?: {
+      fullName: string;
+      title: string;
+      date: string;
+      photoUrl?: string;
+    };
+    ownerRepresentative: {
+      fullName: string;
+      role: string;
+      date: string;
+      photoUrl?: string;
+    };
+    workingMinutesPhotos: string[];
   };
 }

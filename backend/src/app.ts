@@ -82,6 +82,10 @@ export function createApp(): express.Application {
   api.post('/reports/phase1/:id/calculate-scores', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), ScoringController.calculateScores);
   api.post('/reports/phase1/:id/submit', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), SurveyController.submitPhase1Report);
 
+  // Gói nộp toàn diện từ Client Offline-first
+  api.post('/surveys/phase1/submit', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), SurveyController.submitPhase1FullPackage);
+  api.post('/surveys/phase1/submit-absentee', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.recordAbsence);
+
   // Hồ sơ Phase 2
   api.post('/reports/phase2', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), SurveyController.createPhase2Report);
   api.get('/reports/phase2/:id', authenticateJwt, SurveyController.getReportDetail);

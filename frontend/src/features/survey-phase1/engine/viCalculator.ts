@@ -19,13 +19,13 @@ export function calculateViScore(formData: Partial<Phase1SurveyFormData>, curren
   else if (structSys.includes('Masonry') || structSys.includes('Tường gạch')) v2 = 3;
   else if (structSys.includes('Kém ổn định')) v2 = 4;
 
-  // 3. V3: Loại móng & Nền đất (Tự động ánh xạ từ điểm CAT móng B2.1)
+  // 3. V3: Loại móng & Nền đất (Tự động ánh xạ từ điểm CAT móng B2.1: Cat 1-2 -> 1đ, Cat 3 -> 2đ, Cat 4 -> 3đ, Cat 5 -> 4đ)
   const catScore = formData.foundationCatScore ?? 3;
   let v3 = 2;
-  if (catScore >= 4) v3 = 1;
+  if (catScore === 1 || catScore === 2) v3 = 1;
   else if (catScore === 3) v3 = 2;
-  else if (catScore === 2) v3 = 3;
-  else v3 = 4; // Cat 1
+  else if (catScore === 4) v3 = 3;
+  else v3 = 4; // Cat 5
 
   // 4. V4: Tuổi đời / Cơi nới (Tự động tính theo năm xây dựng)
   let v4 = formData.vi?.v4 ?? 2;

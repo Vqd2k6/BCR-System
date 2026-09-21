@@ -33,11 +33,12 @@ const getDefaultInitialFormData = (parcelId: string = ''): Phase1SurveyFormData 
   objectGroup: 'GENERAL',
   chainage: 'Km 0+000',
   metroOffsetDistance: '15.0m',
+  clearanceOffsetDistance: '5.2m',
   gpsCoords: { lat: 10.7769, lng: 106.7009 },
   adjacentBuildings: {
-    left: { type: 'TOWNHOUSE', details: 'Nhà phố bê tông 3 tầng', note: '' },
-    right: { type: 'TOWNHOUSE', details: 'Nhà phố bê tông 2 tầng', note: '' },
-    back: { type: 'EMPTY_LAND', details: 'Đất trống / Hẻm kỹ thuật', note: '' },
+    left: { type: 'Nhà phố / Nhà dân', details: 'Nhà phố / Nhà dân', note: '' },
+    right: { type: 'Nhà phố / Nhà dân', details: 'Nhà phố / Nhà dân', note: '' },
+    back: { type: 'Đất trống', details: 'Đất trống', note: '' },
   },
 
   photoP01: { url: '', notApplicable: false },
@@ -49,17 +50,18 @@ const getDefaultInitialFormData = (parcelId: string = ''): Phase1SurveyFormData 
     widthM: '',
     heightM: '',
   },
-  photoP03: { url: '', notApplicable: false },
+  photoP03: { url: '', notApplicable: false, tag: 'Bên hông trái', additionalPhotos: [] },
   photoP04: { url: '', notApplicable: false },
 
-  usageFunction: 'Nhà ở riêng lẻ (Townhouse)',
+  usageFunction: 'Nhà ở gia đình',
   aboveFloors: 1,
   undergroundFloors: 0,
   constructionYear: 2010,
   isEstimatedYear: false,
-  structureSystem: 'Khung BTCT toàn khối + Tường gạch chèn',
-  foundationType: 'Móng cọc BTCT ép',
-  pileDimensionMm: 250,
+  structureSystem: 'RC - Khung BTCT toàn khối',
+  foundationType: 'PC - Cọc ép BTCT',
+  pileDimensionMm: '250x250mm',
+  asBuiltDrawingPhotoUrl: '',
   asBuiltDrawingFiles: [],
   foundationCatScore: 3,
 
@@ -81,7 +83,9 @@ const getDefaultInitialFormData = (parcelId: string = ''): Phase1SurveyFormData 
       overviewPhotos: [],
       cadSketchPhotoUrl: '',
       cadZonePins: [],
+      cadElementPins: [],
       zones: [],
+      structuralElements: [],
     },
   ],
 
@@ -123,6 +127,11 @@ const getDefaultInitialFormData = (parcelId: string = ''): Phase1SurveyFormData 
     notes: '',
   },
 
+  gateDecision: {
+    decision: 'ALLOW',
+    reason: '',
+  },
+
   ecs: {
     e1: 0,
     e2: 0,
@@ -157,9 +166,19 @@ const getDefaultInitialFormData = (parcelId: string = ''): Phase1SurveyFormData 
 
   signatures: {
     ownerFeedback: '',
-    preparedBy: { fullName: 'Nguyễn Văn Khảo Sát', title: 'Cán bộ kỹ thuật hiện trường', date: new Date().toISOString().split('T')[0], signatureDataUrl: '' },
-    checkedBy: { fullName: 'Trần Kiểm Tra', title: 'Kỹ sư trưởng nhóm', date: new Date().toISOString().split('T')[0], signatureDataUrl: '' },
-    ownerRepresentative: { fullName: '', role: 'Chủ hộ', date: new Date().toISOString().split('T')[0], signatureDataUrl: '' },
+    preparedBy: {
+      fullName: 'Nguyễn Văn Khảo Sát',
+      title: 'Cán bộ kỹ thuật hiện trường',
+      date: new Date().toISOString().split('T')[0],
+      photoUrl: '',
+    },
+    ownerRepresentative: {
+      fullName: '',
+      role: 'Chủ hộ',
+      date: new Date().toISOString().split('T')[0],
+      photoUrl: '',
+    },
+    workingMinutesPhotos: [],
   },
 });
 
