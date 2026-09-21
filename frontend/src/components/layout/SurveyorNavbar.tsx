@@ -104,18 +104,22 @@ export const SurveyorNavbar: React.FC<Props> = ({
       >
         <div
           style={{
-            width: '30px',
-            height: '30px',
-            borderRadius: '0.5rem',
-            background: 'linear-gradient(135deg, #0284c7 0%, #2563eb 100%)',
+            height: '28px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             flexShrink: 0,
-            boxShadow: '0 2px 5px rgba(2, 132, 199, 0.25)',
           }}
         >
-          <Train size={17} color="#ffffff" />
+          <img
+            src="/logo.png"
+            alt="MITECHYX Logo"
+            style={{
+              height: '26px',
+              maxWidth: '85px',
+              objectFit: 'contain',
+            }}
+          />
         </div>
         <div style={{ minWidth: 0, overflow: 'hidden' }}>
           <h1

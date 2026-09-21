@@ -53,17 +53,21 @@ export const LoginView: React.FC = () => {
         <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
           <div
             style={{
-              width: '52px',
-              height: '52px',
-              backgroundColor: '#e0f2fe',
-              borderRadius: '12px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              margin: '0 auto 1rem auto',
+              margin: '0 auto 1.15rem auto',
             }}
           >
-            <Train size={30} color="#0284c7" />
+            <img
+              src="/logo.png"
+              alt="MITECHYX Logo"
+              style={{
+                height: '52px',
+                maxWidth: '180px',
+                objectFit: 'contain',
+              }}
+            />
           </div>
           <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0f172a', margin: '0 0 0.35rem 0' }}>
             HỆ THỐNG KHẢO SÁT QUY HOẠCH
