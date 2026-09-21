@@ -28,7 +28,7 @@ interface Props {
   onNavigateToMap: (parcelToFocus?: GisParcel) => void;
   onNavigateToCheckIn: () => void;
   onStartPhase1: (parcel: GisParcel) => void;
-  onStartUnitSurvey?: (parcel: GisParcel, unit: BuildingUnit) => void;
+  onStartUnitSurvey?: (parcel: GisParcel, unit: BuildingUnit, phase?: 1 | 2) => void;
   onStartPhase2: (parcel: GisParcel) => void;
   onRecordAbsence: (parcel: GisParcel) => void;
 }
@@ -837,10 +837,10 @@ export const SurveyorHomeView: React.FC<Props> = ({
             setHubParcel(null);
             onStartPhase1(p);
           }}
-          onStartUnitSurvey={(p, unit) => {
+          onStartUnitSurvey={(p, unit, phase) => {
             setHubParcel(null);
             if (onStartUnitSurvey) {
-              onStartUnitSurvey(p, unit);
+              onStartUnitSurvey(p, unit, phase);
             } else {
               onStartPhase1(p);
             }

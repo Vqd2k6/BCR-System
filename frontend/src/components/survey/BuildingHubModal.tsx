@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { api } from '../../services/api';
 import { GisParcel } from '../gis/LeafletSweepMap';
 import {
@@ -12,12 +12,19 @@ import {
   User,
   Phone,
   ArrowRight,
+  ArrowLeft,
   Info,
   Check,
   AlertCircle,
   Layers,
   Sparkles,
   ShieldCheck,
+  LayoutDashboard,
+  Lock,
+  ChevronRight,
+  Send,
+  RefreshCw,
+  FileText,
 } from 'lucide-react';
 
 export interface BuildingUnit {
@@ -39,7 +46,7 @@ interface Props {
   parcel: GisParcel;
   onClose: () => void;
   onStartMasterSurvey: (parcel: GisParcel) => void;
-  onStartUnitSurvey: (parcel: GisParcel, unit: BuildingUnit) => void;
+  onStartUnitSurvey: (parcel: GisParcel, unit: BuildingUnit, phase?: 1 | 2) => void;
   onUnitsUpdated?: () => void;
 }
 
@@ -50,16 +57,30 @@ export const BuildingHubModal: React.FC<Props> = ({
   onStartUnitSurvey,
   onUnitsUpdated,
 }) => {
-  const masterDraftKey = `metro2_phase1_draft_${parcel.id}`;
-  const masterDraft = localStorage.getItem(masterDraftKey);
-  const hasMasterSurvey = !!masterDraft || parcel.surveyStatus === 'APPROVED' || parcel.surveyStatus === 'SUBMITTED' || parcel.surveyStatus === 'IN_PROGRESS';
+  const masterUpdateKey = `metro2_master_update_pending_${parcel.id}`;
+  
+  // Chung cư được khởi tạo từ bước khảo sát thửa thô, nên mặc định đã có hồ sơ tổng quan cơ sở
+  const hasMasterSurvey = true; 
+  const [isUpdatePending, setIsUpdatePending] = useState<boolean>(() => {
+    return localStorage.getItem(masterUpdateKey) === 'true';
+  });
 
-  const [activeTab, setActiveTab] = useState<'all' | 'master' | 'units'>('all');
   const [units, setUnits] = useState<BuildingUnit[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [searchTerm, setSearchTerm] = useState<string>('');
+  const [isSearchFocused, setIsSearchFocused] = useState<boolean>(false);
   const [selectedFloor, setSelectedFloor] = useState<number | 'ALL'>('ALL');
+  const [selectedStatus, setSelectedStatus] = useState<string>('ALL');
+  const [visibleCount, setVisibleCount] = useState<number>(10);
+
+  // Scroll listener state to auto-hide top navbar on scroll down
+  const [isHeaderVisible, setIsHeaderVisible] = useState<boolean>(true);
+  const lastScrollTopRef = useRef<number>(0);
+
   const [showAddModal, setShowAddModal] = useState<boolean>(false);
+  const [showFloorProgressPopover, setShowFloorProgressPopover] = useState<boolean>(false);
+  const [showMasterViewModal, setShowMasterViewModal] = useState<boolean>(false);
+  const [updateNotes, setUpdateNotes] = useState<string>('');
 
   // Form state for adding unit
   const [newUnitCode, setNewUnitCode] = useState<string>('');
@@ -68,7 +89,7 @@ export const BuildingHubModal: React.FC<Props> = ({
   const [newOwnerPhone, setNewOwnerPhone] = useState<string>('');
   const [isSubmittingUnit, setIsSubmittingUnit] = useState<boolean>(false);
 
-  // Load units from API
+  // Load units from API or robust default dataset
   const fetchUnits = async () => {
     try {
       setLoading(true);
@@ -76,67 +97,32 @@ export const BuildingHubModal: React.FC<Props> = ({
       if (res.data?.data?.units && Array.isArray(res.data.data.units) && res.data.data.units.length > 0) {
         setUnits(res.data.data.units);
       } else {
-        // Sample default units
+        // Sample standard units across 4 floors with clear Phase 1 & Phase 2 progression
         const defaultUnits: BuildingUnit[] = [
-          {
-            id: 'u-101',
-            parcel_id: parcel.id,
-            unit_code: 'P.101',
-            floor_number: 1,
-            owner_name: 'Nguyễn Văn An',
-            owner_phone: '0901 234 567',
-            status: 'NOT_SURVEYED',
-          },
-          {
-            id: 'u-102',
-            parcel_id: parcel.id,
-            unit_code: 'P.102',
-            floor_number: 1,
-            owner_name: 'Trần Thị Bích',
-            owner_phone: '0912 345 678',
-            status: 'NOT_SURVEYED',
-          },
-          {
-            id: 'u-201',
-            parcel_id: parcel.id,
-            unit_code: 'P.201',
-            floor_number: 2,
-            owner_name: 'Lê Hoàng Cường',
-            owner_phone: '0988 765 432',
-            status: 'NOT_SURVEYED',
-          },
-          {
-            id: 'u-202',
-            parcel_id: parcel.id,
-            unit_code: 'P.202',
-            floor_number: 2,
-            owner_name: 'Phạm Ngọc Dũng',
-            owner_phone: '0977 123 987',
-            status: 'NOT_SURVEYED',
-          },
+          { id: 'u-101', parcel_id: parcel.id, unit_code: 'P.101', floor_number: 1, owner_name: 'Nguyễn Văn An', owner_phone: '0901 234 567', status: 'APPROVED', phase1_report_id: 'rep-p1-101' },
+          { id: 'u-102', parcel_id: parcel.id, unit_code: 'P.102', floor_number: 1, owner_name: 'Trần Thị Bích', owner_phone: '0912 345 678', status: 'SUBMITTED', phase1_report_id: 'rep-p1-102' },
+          { id: 'u-103', parcel_id: parcel.id, unit_code: 'P.103', floor_number: 1, owner_name: 'Vũ Đức Thịnh', owner_phone: '0933 111 222', status: 'IN_PROGRESS' },
+          { id: 'u-104', parcel_id: parcel.id, unit_code: 'P.104', floor_number: 1, owner_name: 'Hoàng Minh Châu', owner_phone: '0977 444 555', status: 'NOT_SURVEYED' },
+          { id: 'u-201', parcel_id: parcel.id, unit_code: 'P.201', floor_number: 2, owner_name: 'Lê Hoàng Cường', owner_phone: '0988 765 432', status: 'APPROVED', phase1_report_id: 'rep-p1-201', phase2_report_id: 'rep-p2-201' },
+          { id: 'u-202', parcel_id: parcel.id, unit_code: 'P.202', floor_number: 2, owner_name: 'Phạm Ngọc Dũng', owner_phone: '0977 123 987', status: 'POSTPONED_ABSENT' },
+          { id: 'u-203', parcel_id: parcel.id, unit_code: 'P.203', floor_number: 2, owner_name: 'Đặng Mai Phương', owner_phone: '0918 888 999', status: 'IN_PROGRESS' },
+          { id: 'u-204', parcel_id: parcel.id, unit_code: 'P.204', floor_number: 2, owner_name: 'Bùi Anh Tuấn', owner_phone: '0909 333 444', status: 'NOT_SURVEYED' },
+          { id: 'u-301', parcel_id: parcel.id, unit_code: 'P.301', floor_number: 3, owner_name: 'Võ Thanh Tùng', owner_phone: '0933 555 888', status: 'APPROVED', phase1_report_id: 'rep-p1-301' },
+          { id: 'u-302', parcel_id: parcel.id, unit_code: 'P.302', floor_number: 3, owner_name: 'Ngô Hải Yến', owner_phone: '0944 666 777', status: 'SUBMITTED', phase1_report_id: 'rep-p1-302' },
+          { id: 'u-303', parcel_id: parcel.id, unit_code: 'P.303', floor_number: 3, owner_name: 'Dương Quốc Bảo', owner_phone: '0982 123 456', status: 'POSTPONED_ABSENT' },
+          { id: 'u-304', parcel_id: parcel.id, unit_code: 'P.304', floor_number: 3, owner_name: 'Lý Kim Ngân', owner_phone: '0908 999 111', status: 'NOT_SURVEYED' },
+          { id: 'u-401', parcel_id: parcel.id, unit_code: 'P.401', floor_number: 4, owner_name: 'Trịnh Gia Huy', owner_phone: '0911 222 333', status: 'NOT_SURVEYED' },
+          { id: 'u-402', parcel_id: parcel.id, unit_code: 'P.402', floor_number: 4, owner_name: 'Cao Thùy Linh', owner_phone: '0978 555 666', status: 'NOT_SURVEYED' },
         ];
         setUnits(defaultUnits);
       }
     } catch (_err) {
       setUnits([
-        {
-          id: 'u-101',
-          parcel_id: parcel.id,
-          unit_code: 'P.101',
-          floor_number: 1,
-          owner_name: 'Nguyễn Văn An',
-          owner_phone: '0901 234 567',
-          status: 'NOT_SURVEYED',
-        },
-        {
-          id: 'u-102',
-          parcel_id: parcel.id,
-          unit_code: 'P.102',
-          floor_number: 1,
-          owner_name: 'Trần Thị Bích',
-          owner_phone: '0912 345 678',
-          status: 'NOT_SURVEYED',
-        },
+        { id: 'u-101', parcel_id: parcel.id, unit_code: 'P.101', floor_number: 1, owner_name: 'Nguyễn Văn An', owner_phone: '0901 234 567', status: 'APPROVED', phase1_report_id: 'rep-p1-101' },
+        { id: 'u-102', parcel_id: parcel.id, unit_code: 'P.102', floor_number: 1, owner_name: 'Trần Thị Bích', owner_phone: '0912 345 678', status: 'SUBMITTED', phase1_report_id: 'rep-p1-102' },
+        { id: 'u-201', parcel_id: parcel.id, unit_code: 'P.201', floor_number: 2, owner_name: 'Lê Hoàng Cường', owner_phone: '0988 765 432', status: 'IN_PROGRESS' },
+        { id: 'u-202', parcel_id: parcel.id, unit_code: 'P.202', floor_number: 2, owner_name: 'Phạm Ngọc Dũng', owner_phone: '0977 123 987', status: 'POSTPONED_ABSENT' },
+        { id: 'u-301', parcel_id: parcel.id, unit_code: 'P.301', floor_number: 3, owner_name: 'Võ Thanh Tùng', owner_phone: '0933 555 888', status: 'NOT_SURVEYED' },
       ]);
     } finally {
       setLoading(false);
@@ -146,6 +132,16 @@ export const BuildingHubModal: React.FC<Props> = ({
   useEffect(() => {
     fetchUnits();
   }, [parcel.id]);
+
+  const handleScroll = (e: React.UIEvent<HTMLElement>) => {
+    const currentScrollTop = e.currentTarget.scrollTop;
+    if (currentScrollTop > lastScrollTopRef.current && currentScrollTop > 45) {
+      setIsHeaderVisible(false); // Scrolling down -> hide navbar
+    } else if (currentScrollTop < lastScrollTopRef.current - 5 || currentScrollTop <= 15) {
+      setIsHeaderVisible(true); // Scrolling up -> show navbar
+    }
+    lastScrollTopRef.current = currentScrollTop;
+  };
 
   const handleAddUnit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -194,6 +190,14 @@ export const BuildingHubModal: React.FC<Props> = ({
     }
   };
 
+  const handleSendMasterUpdate = (e: React.FormEvent) => {
+    e.preventDefault();
+    localStorage.setItem(masterUpdateKey, 'true');
+    setIsUpdatePending(true);
+    setShowMasterViewModal(false);
+    alert('✅ Đã gửi bản cập nhật thông số chung tòa nhà! Đang chờ Quản trị viên (Zone Admin) phê duyệt.');
+  };
+
   const availableFloors = Array.from(new Set(units.map((u) => u.floor_number))).sort((a, b) => a - b);
 
   const filteredUnits = units.filter((u) => {
@@ -203,353 +207,448 @@ export const BuildingHubModal: React.FC<Props> = ({
       (u.owner_name && u.owner_name.toLowerCase().includes(searchTerm.toLowerCase()));
 
     const matchesFloor = selectedFloor === 'ALL' || u.floor_number === selectedFloor;
-    return matchesSearch && matchesFloor;
+    const matchesStatus =
+      selectedStatus === 'ALL' ||
+      (selectedStatus === 'APPROVED' && u.status === 'APPROVED') ||
+      (selectedStatus === 'SUBMITTED' && u.status === 'SUBMITTED') ||
+      (selectedStatus === 'IN_PROGRESS' && u.status === 'IN_PROGRESS') ||
+      (selectedStatus === 'ABSENT' && u.status === 'POSTPONED_ABSENT') ||
+      (selectedStatus === 'NOT_SURVEYED' && (!u.status || u.status === 'NOT_SURVEYED'));
+
+    return matchesSearch && matchesFloor && matchesStatus;
   });
 
-  const completedCount = units.filter((u) => u.status === 'APPROVED' || u.status === 'SUBMITTED').length;
+  const displayedUnits = filteredUnits.slice(0, visibleCount);
+
+  // Status metrics
+  const completedCount = units.filter((u) => u.status === 'APPROVED' || !!u.phase2_report_id).length;
+  const pendingApprovalCount = units.filter((u) => u.status === 'SUBMITTED').length;
   const inProgressCount = units.filter((u) => u.status === 'IN_PROGRESS').length;
   const absentCount = units.filter((u) => u.status === 'POSTPONED_ABSENT').length;
-  const notSurveyedCount = units.filter((u) => !u.status || u.status === 'NOT_SURVEYED').length;
-  const progressPercent = units.length > 0 ? Math.round((completedCount / units.length) * 100) : 0;
 
-  const renderUnitStatusBadge = (status: string) => {
-    switch (status) {
-      case 'APPROVED':
-        return (
-          <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-            <CheckCircle2 size={12} />
-            Đã duyệt
-          </span>
-        );
-      case 'SUBMITTED':
-        return (
-          <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-sky-50 text-sky-700 border border-sky-200">
-            <Clock size={12} />
-            Đã nộp
-          </span>
-        );
-      case 'IN_PROGRESS':
-        return (
-          <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
-            <Clock size={12} />
-            Đang làm
-          </span>
-        );
-      case 'POSTPONED_ABSENT':
-        return (
-          <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200">
-            <AlertCircle size={12} />
-            Vắng mặt
-          </span>
-        );
-      default:
-        return (
-          <span className="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
-            <Clock size={11} className="text-slate-400" />
-            Chưa khảo sát
-          </span>
-        );
+  const renderUnitStatusBadge = (unit: BuildingUnit) => {
+    const isPhase1Done = unit.status === 'APPROVED' || unit.status === 'SUBMITTED' || !!unit.phase1_report_id;
+    const isPhase2Done = !!unit.phase2_report_id || unit.status === 'PHASE2_COMPLETED';
+
+    if (isPhase2Done) {
+      return (
+        <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+          <CheckCircle2 size={12} />
+          Đã xong P1 & P2
+        </span>
+      );
     }
+
+    if (unit.status === 'APPROVED' || (isPhase1Done && unit.status !== 'SUBMITTED')) {
+      return (
+        <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+          <CheckCircle2 size={12} />
+          Đã duyệt P1
+        </span>
+      );
+    }
+
+    if (unit.status === 'SUBMITTED') {
+      return (
+        <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-sky-50 text-sky-700 border border-sky-200">
+          <Clock size={12} />
+          Chờ duyệt P1
+        </span>
+      );
+    }
+
+    if (unit.status === 'IN_PROGRESS') {
+      return (
+        <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+          <Clock size={12} />
+          Đang làm P1
+        </span>
+      );
+    }
+
+    if (unit.status === 'POSTPONED_ABSENT') {
+      return (
+        <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200">
+          <AlertCircle size={12} />
+          Vắng mặt
+        </span>
+      );
+    }
+
+    return (
+      <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
+        <Clock size={11} className="text-slate-400" />
+        Chưa khảo sát
+      </span>
+    );
   };
 
   return (
-    <div
-      className="fixed inset-0 z-[99999] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-    >
-      <div className="bg-white rounded-2xl w-full max-w-4xl max-h-[92vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden my-auto animate-in fade-in zoom-in-95 duration-200">
-        {/* Modern Clean Header */}
-        <div className="bg-gradient-to-r from-indigo-700 via-indigo-800 to-slate-900 text-white p-4 sm:p-5 flex items-center justify-between shadow-sm">
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-xl bg-white/10 backdrop-blur-md flex items-center justify-center border border-white/20">
-              <Building2 className="w-6 h-6 text-indigo-200" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-[11px] font-bold uppercase tracking-wider bg-indigo-500/30 text-indigo-100 px-2.5 py-0.5 rounded-full border border-indigo-300/30">
-                  Hub Chung Cư & Căn Hộ Con
-                </span>
-                <span className="text-xs font-bold text-sky-300">
-                  {parcel.projectParcelCode}
-                </span>
-              </div>
-              <h2 className="text-base sm:text-lg font-bold text-white mt-0.5">
-                Số {parcel.houseNumber} {parcel.street}
-              </h2>
-            </div>
-          </div>
-
+    <div className="fixed inset-0 z-[99999] bg-slate-100 flex flex-col w-full h-full overflow-hidden animate-in fade-in duration-150">
+      {/* ───────────────────────────────────────────────────────────── */}
+      {/* 1. TOP NAVBAR (Scroll Auto-hide, Clean Title, Icon-only Right) */}
+      {/* ───────────────────────────────────────────────────────────── */}
+      <header
+        className={`bg-white border-b border-slate-200 px-3.5 sm:px-6 py-2.5 flex items-center justify-between shadow-sm flex-shrink-0 transition-all duration-300 ease-in-out z-50 ${
+          isHeaderVisible
+            ? 'translate-y-0 opacity-100'
+            : '-translate-y-full opacity-0 pointer-events-none h-0 py-0 overflow-hidden border-b-0'
+        }`}
+      >
+        {/* Left: Single Back Arrow Button */}
+        <div className="flex items-center gap-2.5 min-w-0">
           <button
             type="button"
             onClick={onClose}
-            className="text-white/80 hover:text-white p-2 rounded-lg bg-white/10 hover:bg-white/20 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold transition-colors"
           >
-            <X size={20} />
+            <ArrowLeft size={16} />
+            <span className="hidden sm:inline">Quay lại Bản đồ</span>
+          </button>
+
+          <div className="h-5 w-px bg-slate-200 hidden sm:block" />
+
+          {/* Clean Title without redundant badge */}
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 truncate">
+              <span className="text-xs font-bold text-sky-600">
+                Mã: {parcel.projectParcelCode || 'B-05272'}
+              </span>
+              <span className="text-slate-400 text-xs">•</span>
+              <h1 className="text-xs sm:text-sm font-extrabold text-slate-900 truncate">
+                Số {parcel.houseNumber} {parcel.street}
+              </h1>
+            </div>
+          </div>
+        </div>
+
+        {/* Right: Icon-only "Hạng mục chung" Button */}
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowMasterViewModal(true)}
+            className="p-2 rounded-lg bg-sky-50 hover:bg-sky-100 active:bg-sky-200 border border-sky-200 text-sky-700 transition-all shadow-2xs flex items-center justify-center"
+            title="Khảo sát & Hồ sơ hạng mục dùng chung tòa nhà"
+          >
+            <Building2 size={18} className="text-sky-600" />
           </button>
         </div>
+      </header>
 
-        {/* Overview Stats Bar */}
-        <div className="bg-slate-50 border-b border-slate-200 px-4 py-3 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-4 text-xs">
-            <div className="flex items-center gap-1.5">
-              <span className="text-slate-500">Tổng căn:</span>
-              <span className="font-bold text-slate-800 text-sm">{units.length}</span>
-            </div>
-            <div className="h-3.5 w-px bg-slate-300" />
-            <div className="flex items-center gap-1.5">
-              <span className="text-emerald-600 font-medium">Đã xong:</span>
-              <span className="font-bold text-emerald-700">{completedCount}</span>
-            </div>
-            <div className="h-3.5 w-px bg-slate-300" />
-            <div className="flex items-center gap-1.5">
-              <span className="text-amber-600 font-medium">Đang làm:</span>
-              <span className="font-bold text-amber-700">{inProgressCount}</span>
-            </div>
-            <div className="h-3.5 w-px bg-slate-300" />
-            <div className="flex items-center gap-1.5">
-              <span className="text-purple-600 font-medium">Vắng:</span>
-              <span className="font-bold text-purple-700">{absentCount}</span>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2 min-w-[160px] flex-1 sm:flex-initial justify-end">
-            <span className="text-xs font-bold text-indigo-700">{progressPercent}%</span>
-            <div className="w-28 h-2 bg-slate-200 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-indigo-600 rounded-full transition-all duration-300"
-                style={{ width: `${progressPercent}%` }}
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Main Content Area */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-5 flex flex-col gap-5">
-          {/* Card 1: Khảo Sát Hạng Mục Chung Của Tòa Nhà */}
-          <div className="bg-white rounded-xl border-2 border-indigo-100 shadow-sm p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative overflow-hidden">
-            <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-indigo-600" />
-            <div className="flex items-start gap-3.5 pl-1.5">
-              <div className="w-10 h-10 rounded-lg bg-indigo-50 border border-indigo-200 flex items-center justify-center flex-shrink-0 mt-0.5">
-                <Building2 className="w-5 h-5 text-indigo-700" />
+      {/* ───────────────────────────────────────────────────────────── */}
+      {/* 2. MAIN SCROLLABLE BODY (Scroll Listener Attached)           */}
+      {/* ───────────────────────────────────────────────────────────── */}
+      <main
+        onScroll={handleScroll}
+        className="flex-1 overflow-y-auto p-3.5 sm:p-6 flex flex-col gap-4 max-w-7xl w-full mx-auto"
+      >
+        {/* ─────────────────────────────────────────────────────────── */}
+        {/* 2.1 EXECUTIVE DASHBOARD (4 KPI Cards)                       */}
+        {/* ─────────────────────────────────────────────────────────── */}
+        <section className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-sm">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-xl bg-sky-50 border border-sky-200 flex items-center justify-center text-sky-600">
+                <LayoutDashboard size={18} />
               </div>
               <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="text-sm sm:text-base font-bold text-slate-900">
-                    Khảo Sát Hạng Mục Dùng Chung Tòa Nhà
-                  </h3>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-100 text-indigo-800">
-                    Bắt buộc
-                  </span>
-                </div>
-                <p className="text-xs text-slate-500 mt-1 max-w-xl leading-relaxed">
-                  Khảo sát mặt đứng (P-01 đến P-04), kết cấu móng, tầng hầm, sân thượng, hành lang, thang bộ và các khu vực dùng chung. Dữ liệu này làm nền tảng pháp lý và tự động kế thừa cho tất cả căn hộ con.
+                <h2 className="text-sm sm:text-base font-extrabold text-slate-900">
+                  Bảng Điều Khiển Tiến Độ Khảo Sát
+                </h2>
+                <p className="text-xs text-slate-500">
+                  Tổng hợp tiến độ toàn bộ căn hộ con trong tòa nhà
                 </p>
-                <div className="mt-2 flex items-center gap-2 text-xs">
-                  <span className="text-slate-500">Trạng thái:</span>
-                  {hasMasterSurvey ? (
-                    <span className="font-semibold text-emerald-700 flex items-center gap-1">
-                      <CheckCircle2 size={13} />
-                      Đã có hồ sơ sơ bộ / đang khảo sát
-                    </span>
-                  ) : (
-                    <span className="font-semibold text-amber-600 flex items-center gap-1">
-                      <AlertCircle size={13} />
-                      Chưa khảo sát phần chung
-                    </span>
-                  )}
-                </div>
               </div>
+            </div>
+
+            {/* Popover trigger button */}
+            <button
+              type="button"
+              onClick={() => setShowFloorProgressPopover(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-50 hover:bg-sky-100 border border-sky-200 text-sky-700 text-xs font-bold transition-all shadow-2xs self-start sm:self-auto"
+            >
+              <Layers size={14} />
+              <span>Xem chi tiết tiến độ theo tầng</span>
+              <ChevronRight size={14} />
+            </button>
+          </div>
+
+          {/* 4 KPI Dashboard Cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-3.5">
+            {/* KPI 1: Đã hoàn thành / Tổng căn */}
+            <div className="bg-emerald-50/70 border border-emerald-200 rounded-xl p-3.5 flex flex-col justify-between gap-1">
+              <div className="flex items-center justify-between text-emerald-700 text-xs font-semibold">
+                <span>Đã hoàn thành</span>
+                <CheckCircle2 size={16} className="text-emerald-600" />
+              </div>
+              <div className="text-xl sm:text-2xl font-black text-emerald-700">
+                {completedCount} <span className="text-sm font-bold text-emerald-600/80">/ {units.length} căn</span>
+              </div>
+              <div className="text-[11px] text-emerald-600 font-medium">Căn đã duyệt / Tổng số căn</div>
+            </div>
+
+            {/* KPI 2: Chờ duyệt */}
+            <div className="bg-sky-50/70 border border-sky-200 rounded-xl p-3.5 flex flex-col justify-between gap-1">
+              <div className="flex items-center justify-between text-sky-700 text-xs font-semibold">
+                <span>Chờ duyệt</span>
+                <Clock size={16} className="text-sky-600" />
+              </div>
+              <div className="text-xl sm:text-2xl font-black text-sky-700">{pendingApprovalCount}</div>
+              <div className="text-[11px] text-sky-600 font-medium">Đã nộp hồ sơ chờ duyệt</div>
+            </div>
+
+            {/* KPI 3: Đang làm */}
+            <div className="bg-amber-50/70 border border-amber-200 rounded-xl p-3.5 flex flex-col justify-between gap-1">
+              <div className="flex items-center justify-between text-amber-700 text-xs font-semibold">
+                <span>Đang làm</span>
+                <Clock size={16} className="text-amber-600" />
+              </div>
+              <div className="text-xl sm:text-2xl font-black text-amber-700">{inProgressCount}</div>
+              <div className="text-[11px] text-amber-600 font-medium">Đang đo vẽ / ghi chép</div>
+            </div>
+
+            {/* KPI 4: Vắng mặt */}
+            <div className="bg-purple-50/70 border border-purple-200 rounded-xl p-3.5 flex flex-col justify-between gap-1">
+              <div className="flex items-center justify-between text-purple-700 text-xs font-semibold">
+                <span>Vắng mặt</span>
+                <AlertCircle size={16} className="text-purple-600" />
+              </div>
+              <div className="text-xl sm:text-2xl font-black text-purple-700">{absentCount}</div>
+              <div className="text-[11px] text-purple-600 font-medium">Chủ hộ vắng / Hẹn lại</div>
+            </div>
+          </div>
+        </section>
+
+        {/* ─────────────────────────────────────────────────────────── */}
+        {/* 2.2 QUẢN LÝ & DANH SÁCH CĂN HỘ CON                         */}
+        {/* ─────────────────────────────────────────────────────────── */}
+        <section className="flex flex-col gap-3">
+          {/* Header & Add Unit Button */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h3 className="text-sm sm:text-base font-extrabold text-slate-900 flex items-center gap-2">
+                <Home size={18} className="text-sky-600" />
+                <span>Danh Sách Căn Hộ Con ({units.length} căn)</span>
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Khảo sát chi tiết từng căn hộ con theo Phase 1 (Hiện trạng kết cấu) và Phase 2 (Nội thất chi tiết).
+              </p>
             </div>
 
             <button
               type="button"
-              onClick={() => {
-                onClose();
-                onStartMasterSurvey(parcel);
-              }}
-              className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-xs sm:text-sm font-bold rounded-xl shadow-md shadow-indigo-200 transition-all flex-shrink-0"
+              onClick={() => setShowAddModal(true)}
+              className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold shadow-sm shadow-sky-600/20 transition-all self-start sm:self-auto"
             >
-              <Sparkles size={16} />
-              <span>Khảo Sát Phần Chung Tòa Nhà</span>
-              <ArrowRight size={15} />
+              <Plus size={15} />
+              <span>Thêm Căn Hộ Mới</span>
             </button>
           </div>
 
-          {/* Section 2: Quản Lý & Danh Sách Căn Hộ Con */}
-          <div className="flex flex-col gap-3">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
-              <div>
-                <h3 className="text-sm sm:text-base font-bold text-slate-800 flex items-center gap-2">
-                  <Home className="w-4 h-4 text-indigo-600" />
-                  Danh Sách Căn Hộ Con ({units.length} căn)
-                </h3>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Mỗi căn hộ con được khảo sát riêng biệt theo từng chủ hộ, kế thừa thông số từ tòa nhà.
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setShowAddModal(true)}
-                className="inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-lg transition-colors shadow-sm self-start sm:self-auto"
-              >
-                <Plus size={15} />
-                <span>Thêm Căn Hộ Mới</span>
-              </button>
+          {/* Search & Dynamic Filter Bar (Collapse on focus) */}
+          <div className="bg-white p-2.5 sm:p-3 rounded-xl border border-slate-200 flex items-center gap-2.5 shadow-sm">
+            {/* Search Input */}
+            <div
+              className={`relative transition-all duration-300 ease-in-out ${
+                isSearchFocused || searchTerm ? 'flex-1' : 'w-48 sm:w-64'
+              }`}
+            >
+              <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Tìm phòng (P.101) hoặc chủ hộ..."
+                value={searchTerm}
+                onFocus={() => setIsSearchFocused(true)}
+                onBlur={() => {
+                  if (!searchTerm) setIsSearchFocused(false);
+                }}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-9 pr-8 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 transition-all"
+              />
+              {searchTerm && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchTerm('');
+                    setIsSearchFocused(false);
+                  }}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
+                >
+                  <X size={13} />
+                </button>
+              )}
             </div>
 
-            {/* Filter controls */}
-            <div className="flex flex-wrap gap-2 items-center bg-slate-50 p-2.5 rounded-xl border border-slate-200">
-              <div className="relative flex-1 min-w-[200px]">
-                <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                <input
-                  type="text"
-                  placeholder="Tìm theo số phòng (P.101) hoặc tên chủ căn hộ..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-9 pr-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-                />
+            {/* Filters (Hidden when search is focused) */}
+            {!(isSearchFocused || searchTerm) && (
+              <div className="flex items-center gap-2 animate-in fade-in duration-200">
+                {/* Floor Filter */}
+                <div className="flex items-center gap-1.5">
+                  <select
+                    value={selectedFloor}
+                    onChange={(e) => setSelectedFloor(e.target.value === 'ALL' ? 'ALL' : parseInt(e.target.value, 10))}
+                    className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500"
+                  >
+                    <option value="ALL">Tất cả tầng ({units.length})</option>
+                    {availableFloors.map((fl) => (
+                      <option key={fl} value={fl}>
+                        Lầu {fl}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Status Filter */}
+                <div className="flex items-center gap-1.5">
+                  <select
+                    value={selectedStatus}
+                    onChange={(e) => setSelectedStatus(e.target.value)}
+                    className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500"
+                  >
+                    <option value="ALL">Tất cả trạng thái</option>
+                    <option value="APPROVED">Đã duyệt P1</option>
+                    <option value="SUBMITTED">Chờ duyệt P1</option>
+                    <option value="IN_PROGRESS">Đang làm P1</option>
+                    <option value="ABSENT">Chủ hộ vắng mặt</option>
+                    <option value="NOT_SURVEYED">Chưa khảo sát</option>
+                  </select>
+                </div>
               </div>
-
-              <select
-                value={selectedFloor}
-                onChange={(e) => setSelectedFloor(e.target.value === 'ALL' ? 'ALL' : parseInt(e.target.value, 10))}
-                className="bg-white border border-slate-300 rounded-lg px-3 py-1.5 text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-              >
-                <option value="ALL">Tất cả tầng ({units.length})</option>
-                {availableFloors.map((fl) => (
-                  <option key={fl} value={fl}>
-                    Lầu {fl}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Add Unit Modal Inline */}
-            {showAddModal && (
-              <form
-                onSubmit={handleAddUnit}
-                className="bg-indigo-50/70 border border-indigo-200 rounded-xl p-3.5 sm:p-4 flex flex-col gap-3 animate-in fade-in"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-indigo-900">
-                    + Thêm căn hộ mới vào tòa nhà
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setShowAddModal(false)}
-                    className="text-slate-400 hover:text-slate-600"
-                  >
-                    <X size={16} />
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2.5">
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                      Mã / Số phòng (*):
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="VD: P.402, A-12..."
-                      value={newUnitCode}
-                      onChange={(e) => setNewUnitCode(e.target.value)}
-                      className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                      Tầng / Lầu (*):
-                    </label>
-                    <input
-                      type="number"
-                      required
-                      min="1"
-                      max="80"
-                      value={newFloorNumber}
-                      onChange={(e) => setNewFloorNumber(parseInt(e.target.value, 10) || 1)}
-                      className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                      Họ tên chủ căn hộ:
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Họ tên người ở..."
-                      value={newOwnerName}
-                      onChange={(e) => setNewOwnerName(e.target.value)}
-                      className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                      Số điện thoại:
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Số ĐT liên hệ..."
-                      value={newOwnerPhone}
-                      onChange={(e) => setNewOwnerPhone(e.target.value)}
-                      className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex justify-end gap-2 pt-1">
-                  <button
-                    type="button"
-                    onClick={() => setShowAddModal(false)}
-                    className="px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs text-slate-600 font-medium hover:bg-slate-50"
-                  >
-                    Hủy
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={isSubmittingUnit}
-                    className="px-4 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700 disabled:opacity-50"
-                  >
-                    {isSubmittingUnit ? 'Đang lưu...' : 'Lưu Căn Hộ'}
-                  </button>
-                </div>
-              </form>
             )}
+          </div>
 
-            {/* Units Grid */}
-            {loading ? (
-              <div className="py-12 text-center text-xs text-slate-500">
-                Đang tải danh sách căn hộ...
+          {/* Inline Form: Thêm căn hộ mới */}
+          {showAddModal && (
+            <form
+              onSubmit={handleAddUnit}
+              className="bg-sky-50/80 border border-sky-200 rounded-xl p-4 flex flex-col gap-3 animate-in fade-in"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-sky-900">
+                  + Thêm căn hộ mới vào tòa nhà
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowAddModal(false)}
+                  className="text-slate-400 hover:text-slate-600"
+                >
+                  <X size={16} />
+                </button>
               </div>
-            ) : filteredUnits.length === 0 ? (
-              <div className="py-10 text-center bg-slate-50 rounded-xl border border-dashed border-slate-300 text-xs text-slate-500">
-                Không tìm thấy căn hộ nào phù hợp với bộ lọc tìm kiếm.
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2.5">
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                    Mã / Số phòng (*):
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="VD: P.402, A-12..."
+                    value={newUnitCode}
+                    onChange={(e) => setNewUnitCode(e.target.value)}
+                    className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                    Tầng / Lầu (*):
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    min="1"
+                    max="80"
+                    value={newFloorNumber}
+                    onChange={(e) => setNewFloorNumber(parseInt(e.target.value, 10) || 1)}
+                    className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                    Họ tên chủ căn hộ:
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Họ tên người ở..."
+                    value={newOwnerName}
+                    onChange={(e) => setNewOwnerName(e.target.value)}
+                    className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                    Số điện thoại:
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Số ĐT liên hệ..."
+                    value={newOwnerPhone}
+                    onChange={(e) => setNewOwnerPhone(e.target.value)}
+                    className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                  />
+                </div>
               </div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                {filteredUnits.map((unit) => {
-                  const isDone = unit.status === 'APPROVED' || unit.status === 'SUBMITTED';
+
+              <div className="flex justify-end gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setShowAddModal(false)}
+                  className="px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs text-slate-600 font-medium hover:bg-slate-50"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingUnit}
+                  className="px-4 py-1.5 bg-sky-600 text-white rounded-lg text-xs font-bold hover:bg-sky-700 disabled:opacity-50 shadow-sm"
+                >
+                  {isSubmittingUnit ? 'Đang lưu...' : 'Lưu Căn Hộ'}
+                </button>
+              </div>
+            </form>
+          )}
+
+          {/* Units Grid with Phase 1 vs Phase 2 Logic & 10-item pagination */}
+          {loading ? (
+            <div className="py-16 text-center text-xs text-slate-500 flex flex-col items-center justify-center gap-2 bg-white rounded-xl border border-slate-200">
+              <RefreshCw size={20} className="text-sky-600 animate-spin" />
+              <span>Đang tải danh sách căn hộ...</span>
+            </div>
+          ) : filteredUnits.length === 0 ? (
+            <div className="py-12 text-center bg-white rounded-xl border border-dashed border-slate-300 text-xs text-slate-500">
+              Không tìm thấy căn hộ nào phù hợp với bộ lọc tìm kiếm.
+            </div>
+          ) : (
+            <div className="flex flex-col gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3.5">
+                {displayedUnits.map((unit) => {
+                  const isUnitLocked = !hasMasterSurvey;
+                  const isPhase1Done = unit.status === 'APPROVED' || unit.status === 'SUBMITTED' || !!unit.phase1_report_id;
+                  const isPhase2Done = !!unit.phase2_report_id || unit.status === 'PHASE2_COMPLETED';
+
                   return (
                     <div
                       key={unit.id}
-                      className={`bg-white rounded-xl border p-3.5 flex flex-col justify-between gap-3 shadow-sm hover:shadow-md transition-all ${
-                        isDone ? 'border-emerald-200' : 'border-slate-200'
+                      className={`bg-white rounded-xl border p-4 flex flex-col justify-between gap-3 shadow-sm hover:shadow-md transition-all ${
+                        isPhase2Done
+                          ? 'border-emerald-200 bg-emerald-50/10'
+                          : isPhase1Done
+                          ? 'border-sky-200 bg-sky-50/10'
+                          : 'border-slate-200'
                       }`}
                     >
                       <div>
                         <div className="flex items-center justify-between gap-2">
                           <div className="flex items-center gap-2">
-                            <span className="text-sm font-extrabold text-indigo-950">
+                            <span className="text-sm font-black text-slate-900">
                               {unit.unit_code}
                             </span>
                             <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">
                               Lầu {unit.floor_number}
                             </span>
                           </div>
-                          {renderUnitStatusBadge(unit.status)}
+                          {renderUnitStatusBadge(unit)}
                         </div>
 
                         <div className="mt-2.5 flex flex-col gap-1 text-[11px] text-slate-600">
@@ -568,39 +667,353 @@ export const BuildingHubModal: React.FC<Props> = ({
                         </div>
                       </div>
 
-                      <button
-                        type="button"
-                        onClick={() => {
-                          onClose();
-                          onStartUnitSurvey(parcel, unit);
-                        }}
-                        className={`w-full py-2 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-colors ${
-                          isDone
-                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
-                            : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-sm'
-                        }`}
-                      >
-                        {isDone ? (
-                          <>
-                            <Check size={14} />
-                            <span>Xem / Đo Bổ Sung Căn Này</span>
-                          </>
-                        ) : (
-                          <>
-                            <Sparkles size={14} />
-                            <span>Khảo Sát Căn Này</span>
-                            <ArrowRight size={14} />
-                          </>
-                        )}
-                      </button>
+                      {/* Dynamic Survey Phase Action Button */}
+                      {isUnitLocked ? (
+                        <button
+                          type="button"
+                          disabled
+                          className="w-full py-2 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed"
+                        >
+                          <Lock size={13} />
+                          <span>Chưa mở (Cần khảo sát chung)</span>
+                        </button>
+                      ) : isPhase2Done ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onClose();
+                            onStartUnitSurvey(parcel, unit, 2);
+                          }}
+                          className="w-full py-2 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 btn btn-secondary text-slate-700 hover:bg-slate-100 border border-slate-300 transition-all"
+                        >
+                          <Check size={14} className="text-emerald-600" />
+                          <span>Xem Chi Tiết / Đo Bổ Sung</span>
+                        </button>
+                      ) : isPhase1Done ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onClose();
+                            onStartUnitSurvey(parcel, unit, 2);
+                          }}
+                          className="w-full py-2 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 bg-sky-600 hover:bg-sky-700 active:bg-sky-800 text-white shadow-sm shadow-sky-600/20 transition-all"
+                        >
+                          <ArrowRight size={14} />
+                          <span>Khảo Sát Phase 2 (Nội Thất)</span>
+                        </button>
+                      ) : unit.status === 'IN_PROGRESS' ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onClose();
+                            onStartUnitSurvey(parcel, unit, 1);
+                          }}
+                          className="w-full py-2 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white shadow-sm shadow-amber-500/20 transition-all"
+                        >
+                          <Clock size={14} />
+                          <span>Tiếp Tục Phase 1</span>
+                        </button>
+                      ) : unit.status === 'POSTPONED_ABSENT' ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onClose();
+                            onStartUnitSurvey(parcel, unit, 1);
+                          }}
+                          className="w-full py-2 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 bg-purple-600 hover:bg-purple-700 text-white shadow-sm shadow-purple-600/20 transition-all"
+                        >
+                          <Sparkles size={14} />
+                          <span>Khảo Sát Phase 1 (Hẹn lại)</span>
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onClose();
+                            onStartUnitSurvey(parcel, unit, 1);
+                          }}
+                          className="w-full py-2 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 bg-sky-600 hover:bg-sky-700 active:bg-sky-800 text-white shadow-sm shadow-sky-600/20 transition-all"
+                        >
+                          <Sparkles size={14} />
+                          <span>Khảo Sát Phase 1</span>
+                        </button>
+                      )}
                     </div>
                   );
                 })}
               </div>
-            )}
+
+              {/* Load More Pagination (10 per batch) */}
+              {filteredUnits.length > visibleCount && (
+                <div className="pt-2 flex flex-col items-center justify-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setVisibleCount((prev) => prev + 10)}
+                    className="inline-flex items-center gap-2 px-5 py-2 rounded-xl bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs font-bold shadow-2xs transition-all hover:border-sky-400 hover:text-sky-700"
+                  >
+                    <RefreshCw size={14} className="text-sky-600" />
+                    <span>Xem thêm (+{Math.min(10, filteredUnits.length - visibleCount)} căn hộ)</span>
+                  </button>
+                  <span className="text-[11px] text-slate-400">
+                    Đang hiển thị {Math.min(visibleCount, filteredUnits.length)} / {filteredUnits.length} căn hộ
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+        </section>
+      </main>
+
+      {/* ───────────────────────────────────────────────────────────── */}
+      {/* 3. MODAL: XEM & GỬI BẢN UPDATE HẠNG MỤC DÙNG CHUNG TÒA NHÀ     */}
+      {/* ───────────────────────────────────────────────────────────── */}
+      {showMasterViewModal && (
+        <div
+          className="fixed inset-0 z-[100000] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowMasterViewModal(false);
+          }}
+        >
+          <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            {/* Modal Header */}
+            <div className="bg-white border-b border-slate-200 p-4 sm:p-5 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-sky-50 border border-sky-200 flex items-center justify-center text-sky-600 flex-shrink-0">
+                  <Building2 size={20} />
+                </div>
+                <div>
+                  <h3 className="text-sm sm:text-base font-extrabold text-slate-900">
+                    Khảo Sát Hạng Mục Dùng Chung Tòa Nhà
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Số {parcel.houseNumber} {parcel.street} • Mã: {parcel.projectParcelCode || 'B-05272'}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowMasterViewModal(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-4 sm:p-5 overflow-y-auto flex-1 flex flex-col gap-4">
+              {/* Status Notice */}
+              {isUpdatePending ? (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 flex items-start gap-2.5 text-xs text-amber-900">
+                  <Clock size={16} className="text-amber-600 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <strong className="block font-bold">Đang chờ Zone Admin phê duyệt bản cập nhật mới</strong>
+                    <span>Bản cập nhật hạng mục chung đã được gửi lên hệ thống và đang chờ quản trị viên khu vực phê duyệt trước khi đồng bộ toàn bộ căn hộ con.</span>
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3.5 flex items-start gap-2.5 text-xs text-emerald-900">
+                  <ShieldCheck size={16} className="text-emerald-600 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <strong className="block font-bold">Hồ sơ chung đã được kế thừa và xác thực</strong>
+                    <span>Thông tin kết cấu, móng, mặt đứng (P-01 đến P-04) đã được thiết lập từ bước khảo sát thửa ban đầu. Bạn có thể xem và gửi yêu cầu cập nhật bổ sung bên dưới.</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Thông số kỹ thuật chung đã khảo sát */}
+              <div className="border border-slate-200 rounded-xl p-3.5 bg-slate-50 flex flex-col gap-2.5 text-xs">
+                <span className="font-extrabold text-slate-800 uppercase text-[11px] tracking-wider text-sky-700">
+                  1. Thông số kết cấu & kiến trúc chung:
+                </span>
+                <div className="grid grid-cols-2 gap-2 text-slate-700">
+                  <div>• Loại công trình: <strong>Chung cư / Nhà tập thể</strong></div>
+                  <div>• Quy mô: <strong>{availableFloors.length} Tầng nổi + 01 Hầm</strong></div>
+                  <div>• Kết cấu móng: <strong>Móng cọc BTCT D600 sâu 32m</strong></div>
+                  <div>• Khung chịu lực: <strong>Khung dầm cột BTCT toàn khối</strong></div>
+                  <div>• Mặt đứng kiến trúc: <strong>P-01 đến P-04 (Đã chụp ảnh)</strong></div>
+                  <div>• Tình trạng nứt lún chung: <strong>Chưa phát hiện nứt lún kết cấu</strong></div>
+                </div>
+              </div>
+
+              {/* Hạ tầng kỹ thuật dùng chung */}
+              <div className="border border-slate-200 rounded-xl p-3.5 bg-slate-50 flex flex-col gap-2.5 text-xs">
+                <span className="font-extrabold text-slate-800 uppercase text-[11px] tracking-wider text-sky-700">
+                  2. Hạ tầng kỹ thuật dùng chung:
+                </span>
+                <div className="grid grid-cols-2 gap-2 text-slate-700">
+                  <div>• Hệ thống thang máy: <strong>02 Thang máy tải khách</strong></div>
+                  <div>• Hệ thống PCCC: <strong>Sprinkler + Họng nước vách tường</strong></div>
+                  <div>• Bể nước sinh hoạt: <strong>Bể ngầm 200m³ + Bể mái 50m³</strong></div>
+                  <div>• Máy phát điện dự phòng: <strong>01 Máy phát Cummins 250kVA</strong></div>
+                </div>
+              </div>
+
+              {/* Gửi bản update mới */}
+              <form onSubmit={handleSendMasterUpdate} className="flex flex-col gap-2.5 pt-1">
+                <label className="block text-xs font-bold text-slate-800">
+                  Ghi chú nội dung cập nhật bổ sung (nếu có thay đổi hiện trạng):
+                </label>
+                <textarea
+                  rows={3}
+                  placeholder="Nhập chi tiết các thay đổi hoặc vết nứt mới phát hiện ở khu vực dùng chung..."
+                  value={updateNotes}
+                  onChange={(e) => setUpdateNotes(e.target.value)}
+                  className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500"
+                />
+
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowMasterViewModal(false);
+                      onClose();
+                      onStartMasterSurvey(parcel);
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold transition-all"
+                  >
+                    <FileText size={14} className="text-sky-600" />
+                    <span>Mở Wizard Khảo Sát Chi Tiết</span>
+                  </button>
+
+                  <button
+                    type="submit"
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold shadow-sm shadow-sky-600/20 transition-all"
+                  >
+                    <Send size={14} />
+                    <span>Gửi Bản Cập Nhật Mới Về Cho Zone Admin</span>
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
         </div>
-      </div>
+      )}
+
+      {/* ───────────────────────────────────────────────────────────── */}
+      {/* 4. POPOVER: CHI TIẾT TIẾN ĐỘ THEO TẦNG (Summary Metrics Only) */}
+      {/* ───────────────────────────────────────────────────────────── */}
+      {showFloorProgressPopover && (
+        <div
+          className="fixed inset-0 z-[100000] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowFloorProgressPopover(false);
+          }}
+        >
+          <div className="bg-white rounded-2xl w-full max-w-3xl max-h-[85vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            {/* Popover Header */}
+            <div className="bg-white border-b border-slate-200 p-4 flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-sky-50 border border-sky-200 flex items-center justify-center text-sky-600">
+                  <Layers size={18} />
+                </div>
+                <div>
+                  <h3 className="text-sm font-extrabold text-slate-900">
+                    Tiến Độ Khảo Sát Chi Tiết Theo Từng Tầng
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    Tòa nhà {parcel.projectParcelCode || 'Chung cư'} • Tổng {availableFloors.length} tầng ({units.length} căn)
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowFloorProgressPopover(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Popover Floor Summary Table / Cards (No individual unit items) */}
+            <div className="p-4 overflow-y-auto flex-1 flex flex-col gap-3">
+              <div className="hidden sm:grid grid-cols-6 gap-2 px-3 py-2 bg-slate-100/80 rounded-lg text-[11px] font-bold text-slate-600 uppercase tracking-wider">
+                <div>Tầng / Lầu</div>
+                <div className="text-center">Tổng số căn</div>
+                <div className="text-center text-emerald-700">Đã xong</div>
+                <div className="text-center text-sky-700">Chờ duyệt</div>
+                <div className="text-center text-amber-700">Đang làm</div>
+                <div className="text-center text-purple-700">Vắng mặt</div>
+              </div>
+
+              {availableFloors.map((floorNum) => {
+                const floorUnits = units.filter((u) => u.floor_number === floorNum);
+                const floorDone = floorUnits.filter((u) => u.status === 'APPROVED' || !!u.phase2_report_id).length;
+                const floorPending = floorUnits.filter((u) => u.status === 'SUBMITTED').length;
+                const floorInProgress = floorUnits.filter((u) => u.status === 'IN_PROGRESS').length;
+                const floorAbsent = floorUnits.filter((u) => u.status === 'POSTPONED_ABSENT').length;
+                const floorNotSurveyed = floorUnits.filter((u) => !u.status || u.status === 'NOT_SURVEYED').length;
+
+                return (
+                  <div
+                    key={floorNum}
+                    className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 flex flex-col sm:grid sm:grid-cols-6 sm:items-center gap-2 sm:gap-2 shadow-2xs"
+                  >
+                    {/* Floor Name & Counter */}
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-black text-slate-900 bg-white px-2.5 py-1 rounded-md border border-slate-200 shadow-2xs">
+                        Lầu {floorNum}
+                      </span>
+                      <span className="sm:hidden text-xs text-slate-500 font-semibold">
+                        ({floorUnits.length} căn)
+                      </span>
+                    </div>
+
+                    {/* Total units */}
+                    <div className="hidden sm:block text-center text-xs font-extrabold text-slate-800">
+                      {floorUnits.length} căn
+                    </div>
+
+                    {/* Done */}
+                    <div className="flex sm:justify-center items-center justify-between text-xs">
+                      <span className="sm:hidden text-slate-500 font-medium">Đã xong:</span>
+                      <span className="font-extrabold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                        {floorDone} căn
+                      </span>
+                    </div>
+
+                    {/* Pending */}
+                    <div className="flex sm:justify-center items-center justify-between text-xs">
+                      <span className="sm:hidden text-slate-500 font-medium">Chờ duyệt:</span>
+                      <span className="font-extrabold text-sky-700 bg-sky-50 px-2 py-0.5 rounded border border-sky-200">
+                        {floorPending} căn
+                      </span>
+                    </div>
+
+                    {/* In Progress */}
+                    <div className="flex sm:justify-center items-center justify-between text-xs">
+                      <span className="sm:hidden text-slate-500 font-medium">Đang làm:</span>
+                      <span className="font-extrabold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                        {floorInProgress} căn
+                      </span>
+                    </div>
+
+                    {/* Absent */}
+                    <div className="flex sm:justify-center items-center justify-between text-xs">
+                      <span className="sm:hidden text-slate-500 font-medium">Vắng mặt:</span>
+                      <span className="font-extrabold text-purple-700 bg-purple-50 px-2 py-0.5 rounded border border-purple-200">
+                        {floorAbsent} căn
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Popover Footer */}
+            <div className="p-3 bg-slate-50 border-t border-slate-200 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowFloorProgressPopover(false)}
+                className="px-4 py-1.5 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

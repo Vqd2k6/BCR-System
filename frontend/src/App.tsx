@@ -175,11 +175,11 @@ export const App: React.FC = () => {
     });
   };
 
-  const handleStartUnitSurvey = (parcel: GisParcel, unit: any) => {
+  const handleStartUnitSurvey = (parcel: GisParcel, unit: any, phase: 1 | 2 = 1) => {
     triggerSurveyWithCheckInGuard(() => {
       setSelectedParcelForSurvey(parcel);
       setSelectedUnitForSurvey(unit);
-      setActiveTab('phase1');
+      setActiveTab(phase === 2 ? 'phase2' : 'phase1');
     });
   };
 
@@ -302,9 +302,9 @@ export const App: React.FC = () => {
             setHubParcel(null);
             handleStartPhase1(p);
           }}
-          onStartUnitSurvey={(p, unit) => {
+          onStartUnitSurvey={(p, unit, phase) => {
             setHubParcel(null);
-            handleStartUnitSurvey(p, unit);
+            handleStartUnitSurvey(p, unit, phase);
           }}
           onUnitsUpdated={() => {
             loadParcels();
