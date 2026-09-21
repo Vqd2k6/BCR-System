@@ -83,7 +83,7 @@ export const LoginView: React.FC = () => {
             />
           </div>
           <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0f172a', margin: '0 0 0.35rem 0' }}>
-            HỆ THỐNG KHẢO SÁT QUY HOẠCH
+            BUILDING CONDITION SURVEY MRT LINE-2 SYSTEM
           </h2>
           <p style={{ fontSize: '0.8rem', color: '#64748b', margin: 0 }}>
             Dự án Tuyến Tàu Điện Ngầm Tuyến Số 2 TP.HCM (Metro Tuyến 2)
