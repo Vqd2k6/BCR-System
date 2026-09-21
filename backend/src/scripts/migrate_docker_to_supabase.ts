@@ -39,7 +39,20 @@ async function migrate() {
       // Ignored if already present
     }
 
-    // 1. Lấy danh sách tất cả các bảng từ database local
+    // 1. Lấy danh sách cột kiểu JSON/JSONB để serialize chuẩn xác
+    const { rows: colTypeRows } = await localClient.query(`
+      SELECT table_name, column_name, data_type, udt_name 
+      FROM information_schema.columns 
+      WHERE table_schema = 'public';
+    `);
+
+    const jsonCols = new Set(
+      colTypeRows
+        .filter(c => c.data_type === 'json' || c.data_type === 'jsonb' || c.udt_name === 'json' || c.udt_name === 'jsonb')
+        .map(c => `${c.table_name}.${c.column_name}`)
+    );
+
+    // 2. Lấy danh sách tất cả các bảng từ database local
     const { rows: tableRows } = await localClient.query(`
       SELECT table_name 
       FROM information_schema.tables 
@@ -51,11 +64,11 @@ async function migrate() {
     const allTables = tableRows.map(r => r.table_name);
     console.log(`📋 Found ${allTables.length} tables to synchronize.`);
 
-    // 2. Vô hiệu hoá tạm thời ràng buộc khoá ngoại và trigger trên Supabase
+    // 3. Vô hiệu hoá tạm thời ràng buộc khoá ngoại và trigger trên Supabase
     console.log('🔒 Bypassing foreign key constraints & triggers on Supabase...');
     await remoteClient.query("SET session_replication_role = 'replica';");
 
-    // 3. Xoá dữ liệu cũ trên Supabase
+    // 4. Xoá dữ liệu cũ trên Supabase
     for (const table of allTables) {
       try {
         await remoteClient.query(`TRUNCATE TABLE public."${table}" CASCADE;`);
@@ -65,7 +78,7 @@ async function migrate() {
     }
     console.log('🧹 Cleaned existing tables on Supabase.');
 
-    // 4. Di chuyển dữ liệu từng bảng bằng Bulk Multi-row Insert (Siêu tốc)
+    // 5. Di chuyển dữ liệu từng bảng bằng Bulk Multi-row Insert
     let totalMigrated = 0;
     for (const table of allTables) {
       const { rows } = await localClient.query(`SELECT * FROM public."${table}";`);
@@ -76,7 +89,7 @@ async function migrate() {
       const columns = Object.keys(rows[0]);
       const colNames = columns.map(c => `"${c}"`).join(', ');
 
-      // Giới hạn số tham số dưới 65535 của PostgreSQL (khoảng 50-100 rows mỗi batch)
+      // Giới hạn số tham số dưới 65535 của PostgreSQL
       const batchSize = Math.max(1, Math.floor(2000 / columns.length));
       let inserted = 0;
 
@@ -90,7 +103,11 @@ async function migrate() {
           const rowPlaceholders: string[] = [];
           for (const col of columns) {
             rowPlaceholders.push(`$${pIndex++}`);
-            flatValues.push(row[col]);
+            let val = row[col];
+            if (val !== null && val !== undefined && jsonCols.has(`${table}.${col}`)) {
+              val = typeof val === 'string' ? val : JSON.stringify(val);
+            }
+            flatValues.push(val);
           }
           valuePlaceholders.push(`(${rowPlaceholders.join(', ')})`);
         }
@@ -104,7 +121,7 @@ async function migrate() {
       totalMigrated += inserted;
     }
 
-    // 5. Khôi phục lại ràng buộc khoá ngoại và trigger
+    // 6. Khôi phục lại ràng buộc khoá ngoại và trigger
     await remoteClient.query("SET session_replication_role = 'origin';");
     console.log(`\n🎉 HOÀN TẤT THÀNH CÔNG RỰC RỠ! Đã đồng bộ trọn vẹn ${totalMigrated} bản ghi từ Docker sang Supabase!`);
   } catch (error) {
