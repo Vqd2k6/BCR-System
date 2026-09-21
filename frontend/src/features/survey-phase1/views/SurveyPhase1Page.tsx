@@ -47,6 +47,13 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
     }
   }, [parcel?.id, unit?.id]);
 
+  // Tự động cuộn lên đầu trang mỗi khi chuyển bước khảo sát
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    document.documentElement.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    document.body.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+  }, [currentStep]);
+
   // Nộp hồ sơ hoàn chỉnh lên Backend
   const handleSubmitFinal = async () => {
     const isValid = validateForFinalSubmit();
@@ -66,7 +73,7 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
 
       await api.post('/surveys/phase1/submit', payload);
       clearDraft();
-      alert('✅ Đã nộp thành công hồ sơ khảo sát hiện trạng Phase 1!');
+      alert('Đã nộp thành công hồ sơ khảo sát hiện trạng Phase 1!');
       if (onFinished) {
         onFinished();
       } else {
@@ -74,7 +81,7 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
       }
     } catch (err: any) {
       console.error('[Phase1] Failed to submit survey:', err);
-      alert('⚠️ Đã lưu hồ sơ cục bộ thành công!');
+      alert('Đã lưu hồ sơ cục bộ thành công!');
       if (onFinished) onFinished();
     } finally {
       setIsSubmitting(false);

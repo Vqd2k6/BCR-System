@@ -7,6 +7,7 @@ import { validateStep, validateAllSteps, MissingFieldItem } from '../utils/stepV
 
 export interface Phase1SurveyStore {
   currentStep: number;
+  currentUnitId: string | null;
   formData: Phase1SurveyFormData;
   isSavingDraft: boolean;
   lastSavedAt: string | null;
@@ -67,9 +68,9 @@ const getDefaultInitialFormData = (parcelId: string = ''): Phase1SurveyFormData 
   photoP04: { url: '', notApplicable: false },
 
   usageFunction: 'Nhà ở gia đình',
-  aboveFloors: 1,
+  aboveFloors: 0,
   undergroundFloors: 0,
-  constructionYear: 2010,
+  constructionYear: 2026,
   isEstimatedYear: false,
   structureSystem: 'RC - Khung BTCT toàn khối',
   foundationType: 'PC - Cọc ép BTCT',
@@ -180,14 +181,20 @@ const getDefaultInitialFormData = (parcelId: string = ''): Phase1SurveyFormData 
   signatures: {
     ownerFeedback: '',
     preparedBy: {
-      fullName: 'Nguyễn Văn Khảo Sát',
-      title: 'Cán bộ kỹ thuật hiện trường',
+      fullName: '',
+      title: 'Kỹ sư khảo sát hiện trường',
+      date: new Date().toISOString().split('T')[0],
+      photoUrl: '',
+    },
+    checkedBy: {
+      fullName: '',
+      title: 'Quản trị viên khu vực (Zone Admin)',
       date: new Date().toISOString().split('T')[0],
       photoUrl: '',
     },
     ownerRepresentative: {
       fullName: '',
-      role: 'Chủ hộ',
+      role: 'Chủ hộ / Đại diện',
       date: new Date().toISOString().split('T')[0],
       photoUrl: '',
     },
@@ -197,13 +204,15 @@ const getDefaultInitialFormData = (parcelId: string = ''): Phase1SurveyFormData 
 
 export const usePhase1SurveyStore = create<Phase1SurveyStore>((set, get) => ({
   currentStep: 1,
+  currentUnitId: null,
   formData: getDefaultInitialFormData(),
   isSavingDraft: false,
   lastSavedAt: null,
   missingModal: null,
 
   initializeForm: (parcel: GisParcel, unit?: BuildingUnit | null) => {
-    const draftKey = `metro2_phase1_draft_${parcel.id}${unit ? `_${unit.id}` : ''}`;
+    const unitId = unit ? unit.id : null;
+    const draftKey = `metro2_phase1_draft_${parcel.id}${unitId ? `_${unitId}` : ''}`;
     let initialData = getDefaultInitialFormData(parcel.id);
 
     // Thử khôi phục từ draft lưu cục bộ
@@ -213,7 +222,7 @@ export const usePhase1SurveyStore = create<Phase1SurveyStore>((set, get) => ({
         const parsed = JSON.parse(saved);
         if (parsed.parcelId === parcel.id) {
           initialData = { ...initialData, ...parsed };
-          console.log('[SurveyPhase1Store] Restored form data from LocalStorage draft');
+          console.log('[SurveyPhase1Store] Restored form data from LocalStorage draft:', draftKey);
         }
       }
     } catch (e) {
@@ -227,8 +236,15 @@ export const usePhase1SurveyStore = create<Phase1SurveyStore>((set, get) => ({
     initialData.houseNumber = parcel.houseNumber || initialData.houseNumber;
     initialData.street = parcel.street || initialData.street;
     initialData.ownerName = unit?.ownerName || parcel.ownerName || initialData.ownerName;
-    if (parcel.floorCount) {
+    if (parcel.floorCount !== undefined && parcel.floorCount !== null) {
       initialData.aboveFloors = parcel.floorCount;
+    }
+
+    // Gán tọa độ thực tế của thửa đất từ Polygon GIS nếu chưa có trong bản nháp
+    if (parcel.coordinates && parcel.coordinates.length > 0) {
+      const avgLat = parcel.coordinates.reduce((sum, c) => sum + c[0], 0) / parcel.coordinates.length;
+      const avgLng = parcel.coordinates.reduce((sum, c) => sum + c[1], 0) / parcel.coordinates.length;
+      initialData.gpsCoords = { lat: Number(avgLat.toFixed(6)), lng: Number(avgLng.toFixed(6)) };
     }
 
     // Tự động tính toán điểm ban đầu
@@ -239,10 +255,31 @@ export const usePhase1SurveyStore = create<Phase1SurveyStore>((set, get) => ({
 
     set({
       currentStep: 1,
+      currentUnitId: unitId,
       formData: initialData,
       missingModal: null,
       lastSavedAt: new Date().toLocaleTimeString('vi-VN'),
     });
+
+    // Thử lấy toạ độ thực tế từ GPS của thiết bị nếu người dùng bật định vị
+    if ('geolocation' in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const lat = Number(pos.coords.latitude.toFixed(6));
+          const lng = Number(pos.coords.longitude.toFixed(6));
+          const current = get().formData;
+          if (current.parcelId === parcel.id) {
+            set((state) => ({
+              formData: { ...state.formData, gpsCoords: { lat, lng } },
+            }));
+          }
+        },
+        (err) => {
+          console.warn('[SurveyPhase1Store] Live device GPS unavailable, using parcel center:', err);
+        },
+        { enableHighAccuracy: true, timeout: 8000 }
+      );
+    }
   },
 
   setCurrentStep: (step: number) => {
@@ -371,22 +408,34 @@ export const usePhase1SurveyStore = create<Phase1SurveyStore>((set, get) => ({
   },
 
   saveDraftToStorage: () => {
-    const { formData } = get();
+    const { formData, currentUnitId } = get();
     if (!formData.parcelId) return;
 
+    const draftKey = `metro2_phase1_draft_${formData.parcelId}${currentUnitId ? `_${currentUnitId}` : ''}`;
     try {
-      const draftKey = `metro2_phase1_draft_${formData.parcelId}`;
       localStorage.setItem(draftKey, JSON.stringify(formData));
       set({ lastSavedAt: new Date().toLocaleTimeString('vi-VN') });
     } catch (e) {
-      console.warn('[SurveyPhase1Store] Failed to save draft:', e);
+      console.warn('[SurveyPhase1Store] LocalStorage full, saving essential fields:', e);
+      try {
+        const compactData = {
+          ...formData,
+          photoP01: { ...formData.photoP01, url: formData.photoP01.url?.length > 100000 ? '' : formData.photoP01.url },
+          photoP02: { ...formData.photoP02, url: formData.photoP02.url?.length > 100000 ? '' : formData.photoP02.url },
+          photoP04: { ...formData.photoP04, url: formData.photoP04.url?.length > 100000 ? '' : formData.photoP04.url },
+        };
+        localStorage.setItem(draftKey, JSON.stringify(compactData));
+        set({ lastSavedAt: new Date().toLocaleTimeString('vi-VN') });
+      } catch (_err) {
+        console.error('[SurveyPhase1Store] Could not save draft:', _err);
+      }
     }
   },
 
   clearDraft: () => {
-    const { formData } = get();
+    const { formData, currentUnitId } = get();
     if (!formData.parcelId) return;
-    const draftKey = `metro2_phase1_draft_${formData.parcelId}`;
+    const draftKey = `metro2_phase1_draft_${formData.parcelId}${currentUnitId ? `_${currentUnitId}` : ''}`;
     localStorage.removeItem(draftKey);
   },
 }));

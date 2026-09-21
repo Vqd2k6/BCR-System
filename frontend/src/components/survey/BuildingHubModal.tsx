@@ -195,7 +195,7 @@ export const BuildingHubModal: React.FC<Props> = ({
     localStorage.setItem(masterUpdateKey, 'true');
     setIsUpdatePending(true);
     setShowMasterViewModal(false);
-    alert('✅ Đã gửi bản cập nhật thông số chung tòa nhà! Đang chờ Quản trị viên (Zone Admin) phê duyệt.');
+    alert('Đã gửi bản cập nhật thông số chung tòa nhà! Đang chờ Quản trị viên (Zone Admin) phê duyệt.');
   };
 
   const availableFloors = Array.from(new Set(units.map((u) => u.floor_number))).sort((a, b) => a - b);

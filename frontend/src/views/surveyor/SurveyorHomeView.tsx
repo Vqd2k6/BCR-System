@@ -25,6 +25,7 @@ interface Props {
   parcels: GisParcel[];
   isCheckedInToday: boolean;
   checkInDetails?: { time: string; distance: number; status: string } | null;
+  userGps?: { lat: number; lng: number; accuracy?: number } | null;
   onNavigateToMap: (parcelToFocus?: GisParcel) => void;
   onNavigateToCheckIn: () => void;
   onStartPhase1: (parcel: GisParcel) => void;
@@ -37,6 +38,7 @@ export const SurveyorHomeView: React.FC<Props> = ({
   parcels,
   isCheckedInToday,
   checkInDetails,
+  userGps,
   onNavigateToMap,
   onNavigateToCheckIn,
   onStartPhase1,
@@ -170,8 +172,8 @@ export const SurveyorHomeView: React.FC<Props> = ({
   const handleOpenDirections = (parcel: GisParcel) => {
     const destLat = parcel.coordinates[0]?.[0] || 10.8034;
     const destLng = parcel.coordinates[0]?.[1] || 106.6385;
-    const userLat = 10.8036;
-    const userLng = 106.6388;
+    const userLat = userGps?.lat || 10.8036;
+    const userLng = userGps?.lng || 106.6388;
     const url = `https://www.google.com/maps/dir/?api=1&origin=${userLat},${userLng}&destination=${destLat},${destLng}&travelmode=walking`;
     window.open(url, '_blank', 'noopener,noreferrer');
   };

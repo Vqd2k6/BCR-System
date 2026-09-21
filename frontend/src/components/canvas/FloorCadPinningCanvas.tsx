@@ -96,7 +96,10 @@ export const FloorCadPinningCanvas: React.FC<Props> = ({
     onChangePins(updated);
   };
 
-  const selectedPin = selectedPinIndex !== null ? pins[selectedPinIndex] : null;
+  const selectedPin =
+    selectedPinIndex !== null && selectedPinIndex >= 0 && selectedPinIndex < pins.length
+      ? pins[selectedPinIndex]
+      : null;
 
   return (
     <div className="flex flex-col gap-3 w-full bg-white">
@@ -172,6 +175,7 @@ export const FloorCadPinningCanvas: React.FC<Props> = ({
 
             {/* Render Pins */}
             {pins.map((pin, idx) => {
+              if (!pin) return null;
               const isSelected = selectedPinIndex === idx;
 
               return (
@@ -205,7 +209,7 @@ export const FloorCadPinningCanvas: React.FC<Props> = ({
                         : 'bg-slate-800 text-white'
                     }`}
                   >
-                    {pin.zoneCode} {pin.label ? `• ${pin.label}` : ''}
+                    {pin.zoneCode || `${prefix}-${idx + 1}`} {pin.label ? `• ${pin.label}` : ''}
                   </div>
 
                   {/* Pin Point Square Badge */}
@@ -226,13 +230,13 @@ export const FloorCadPinningCanvas: React.FC<Props> = ({
           </div>
 
           {/* Selected Pin Details Box */}
-          {selectedPin !== null && selectedPinIndex !== null && (
+          {selectedPin && selectedPinIndex !== null && (
             <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex flex-wrap items-center justify-between gap-2 text-xs">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className={`px-2 py-0.5 rounded font-mono font-bold ${
                   isStructural ? 'bg-amber-100 text-amber-900 border border-amber-200' : 'bg-emerald-100 text-emerald-900 border border-emerald-200'
                 }`}>
-                  Ghim: {selectedPin.zoneCode}
+                  Ghim: {selectedPin.zoneCode || `${prefix}-${selectedPinIndex + 1}`}
                 </span>
 
                 <input

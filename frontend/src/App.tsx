@@ -49,6 +49,47 @@ export const App: React.FC = () => {
     }
   });
 
+  // Tọa độ GPS thực tế của thiết bị (Physical Live GPS)
+  const [liveUserGps, setLiveUserGps] = useState<{ lat: number; lng: number; accuracy?: number } | null>(null);
+
+  useEffect(() => {
+    if (!('geolocation' in navigator)) return;
+
+    // Lấy tọa độ GPS ban đầu với độ chính xác cao
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setLiveUserGps({
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+          accuracy: pos.coords.accuracy,
+        });
+      },
+      (err) => {
+        console.warn('[GPS] Initial physical geolocation failed:', err);
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 }
+    );
+
+    // Lắng nghe thay đổi vị trí thực tế liên tục
+    const watchId = navigator.geolocation.watchPosition(
+      (pos) => {
+        setLiveUserGps({
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+          accuracy: pos.coords.accuracy,
+        });
+      },
+      (err) => {
+        console.warn('[GPS] Geolocation watch error:', err);
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 }
+    );
+
+    return () => {
+      navigator.geolocation.clearWatch(watchId);
+    };
+  }, []);
+
   // ─── Chuẩn hóa dữ liệu thửa đất từ API ────────────────────────────────────
   const normalizeParcel = (p: any): GisParcel => {
     let coords: [number, number][] = [];
@@ -240,6 +281,7 @@ export const App: React.FC = () => {
             parcels={parcels}
             isCheckedInToday={isCheckedInToday}
             checkInDetails={checkInDetails}
+            userGps={liveUserGps}
             onNavigateToMap={(parcelToFocus) => {
               if (parcelToFocus) {
                 setSelectedParcelForSurvey(parcelToFocus);
@@ -264,7 +306,7 @@ export const App: React.FC = () => {
               onStartSurvey={handleStartPhase1}
               onOpenBuildingHub={(p) => setHubParcel(p)}
               onRecordAbsence={handleRecordAbsence}
-              userGps={{ lat: 10.8036, lng: 106.6388, accuracy: 8 }}
+              userGps={liveUserGps}
             />
           </div>
         )}

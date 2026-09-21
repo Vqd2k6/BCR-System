@@ -78,7 +78,10 @@ export const Step6_ScopeAndGisMutation: React.FC = () => {
               }
               className="rounded text-emerald-600 focus:ring-emerald-500"
             />
-            <span>✅ Bên ngoài / Mặt tiền toà nhà (Bộ 4 ảnh P-01 → P-04)</span>
+            <span className="flex items-center gap-1.5">
+              <CheckCircle2 size={14} className="text-emerald-600 shrink-0" />
+              <span>Bên ngoài / Mặt tiền toà nhà (Bộ 4 ảnh P-01 → P-04)</span>
+            </span>
           </label>
         </div>
 
@@ -462,10 +465,25 @@ export const Step6_ScopeAndGisMutation: React.FC = () => {
             <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block">
               Trạng thái ranh thửa hiện tại
             </span>
-            <span className="text-sm font-bold text-slate-800">
-              {formData.gisMutationConfirmed.type === 'MATCH' && '✅ 1. Khớp ranh (Trùng 100% thửa đất địa chính)'}
-              {formData.gisMutationConfirmed.type === 'SPLIT' && '✂️ 2. Đã tách thửa (Chia nhỏ theo thực tế nhà)'}
-              {formData.gisMutationConfirmed.type === 'MERGE' && '🔗 3. Đã gộp thửa (Ghép nhiều thửa liền kề)'}
+            <span className="text-sm font-bold text-slate-800 flex items-center gap-1.5 mt-0.5">
+              {formData.gisMutationConfirmed.type === 'MATCH' && (
+                <>
+                  <CheckCircle2 size={15} className="text-emerald-600 inline" />
+                  <span>1. Khớp ranh (Trùng 100% thửa đất địa chính)</span>
+                </>
+              )}
+              {formData.gisMutationConfirmed.type === 'SPLIT' && (
+                <>
+                  <Edit3 size={15} className="text-amber-600 inline" />
+                  <span>2. Đã tách thửa (Chia nhỏ theo thực tế nhà)</span>
+                </>
+              )}
+              {formData.gisMutationConfirmed.type === 'MERGE' && (
+                <>
+                  <Building className="text-blue-600 inline" size={15} />
+                  <span>3. Đã gộp thửa (Ghép nhiều thửa liền kề)</span>
+                </>
+              )}
             </span>
           </div>
 

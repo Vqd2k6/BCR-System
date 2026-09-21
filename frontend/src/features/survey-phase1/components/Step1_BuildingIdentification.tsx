@@ -15,6 +15,7 @@ import {
   Camera,
   Maximize2,
   CheckCircle2,
+  AlertCircle,
   AlertTriangle,
   Send,
   ArrowRight,
@@ -986,10 +987,18 @@ export const Step1_BuildingIdentification: React.FC = () => {
 
             {/* Nút nộp hồ sơ vắng */}
             <div className="pt-3 border-t border-amber-200 flex flex-col sm:flex-row items-center justify-between gap-3">
-              <span className="text-xs text-amber-800">
-                {completeness.isFullyComplete
-                  ? '✅ Đã hoàn thành 100% dữ liệu ngoại quan Bước 1. Sẵn sàng nộp hồ sơ vắng.'
-                  : '⚠️ Vui lòng hoàn thành đủ các trường thông tin Bước 1 để nộp hồ sơ.'}
+              <span className="text-xs text-amber-900 flex items-center gap-1.5 font-medium">
+                {completeness.isFullyComplete ? (
+                  <>
+                    <CheckCircle2 size={14} className="text-emerald-600 inline shrink-0" />
+                    <span>Đã hoàn thành 100% dữ liệu ngoại quan Bước 1. Sẵn sàng nộp hồ sơ vắng.</span>
+                  </>
+                ) : (
+                  <>
+                    <AlertCircle size={14} className="text-amber-600 inline shrink-0" />
+                    <span>Vui lòng hoàn thành đủ các trường thông tin Bước 1 để nộp hồ sơ.</span>
+                  </>
+                )}
               </span>
               <Button
                 variant="danger"

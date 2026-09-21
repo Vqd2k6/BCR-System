@@ -126,30 +126,40 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
 
   // 2. Tự động sinh Vùng Z khi chấm ghim trên CAD_01
   const handleAutoCreateZonePin = (pin: CadZonePin) => {
-    const prevZone = zones[zones.length - 1];
-    const newZone: DamageZoneData = {
-      id: `zone_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
-      zoneCode: pin.zoneCode,
-      floorName: currentFloor.floorName,
-      roomName: prevZone ? prevZone.roomName : 'Phòng khách',
-      customRoomName: prevZone?.customRoomName || '',
-      componentType: prevZone ? prevZone.componentType : 'Tường gạch vữa xi măng',
-      customComponentType: prevZone?.customComponentType || '',
-      wallMaterial: prevZone ? prevZone.wallMaterial : 'Tường gạch trát vữa XM sơn nước',
-      customWallMaterial: prevZone?.customWallMaterial || '',
-      overviewPhotos: [],
-      ctxPhotoUrl: '',
-      hasDamage: false,
-      notes: '',
-      defects: [],
-    };
+    updateFormData((prev) => {
+      const current = prev.floors[activeFloorIndex] || prev.floors[0];
+      if (!current) return prev;
+      const prevZones = current.zones || [];
+      const prevZone = prevZones[prevZones.length - 1];
+      const newZone: DamageZoneData = {
+        id: `zone_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+        zoneCode: pin.zoneCode,
+        floorName: current.floorName,
+        roomName: prevZone ? prevZone.roomName : 'Phòng khách',
+        customRoomName: prevZone?.customRoomName || '',
+        componentType: prevZone ? prevZone.componentType : 'Tường gạch vữa xi măng',
+        customComponentType: prevZone?.customComponentType || '',
+        wallMaterial: prevZone ? prevZone.wallMaterial : 'Tường gạch trát vữa XM sơn nước',
+        customWallMaterial: prevZone?.customWallMaterial || '',
+        overviewPhotos: [],
+        ctxPhotoUrl: '',
+        hasDamage: false,
+        notes: '',
+        defects: [],
+      };
 
-    const updatedFloors = [...formData.floors];
-    updatedFloors[activeFloorIndex] = {
-      ...currentFloor,
-      zones: [...zones, newZone],
-    };
-    updateFormData({ floors: updatedFloors });
+      const updatedFloors = [...prev.floors];
+      const currentPins = current.cadZonePins || [];
+      const hasPin = currentPins.some((p) => p.id === pin.id || p.zoneCode === pin.zoneCode);
+      const updatedPins = hasPin ? currentPins : [...currentPins, pin];
+
+      updatedFloors[activeFloorIndex] = {
+        ...current,
+        cadZonePins: updatedPins,
+        zones: [...prevZones, newZone],
+      };
+      return { ...prev, floors: updatedFloors };
+    });
     setActiveZoneIndex(zones.length);
   };
 
@@ -179,42 +189,56 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
         notes: '',
         defects: [],
       };
-      const updatedFloors = [...formData.floors];
-      updatedFloors[activeFloorIndex] = {
-        ...currentFloor,
-        zones: [...zones, newZone],
-      };
-      updateFormData({ floors: updatedFloors });
+      updateFormData((prev) => {
+        const updatedFloors = [...prev.floors];
+        const current = updatedFloors[activeFloorIndex] || updatedFloors[0];
+        if (!current) return prev;
+        updatedFloors[activeFloorIndex] = {
+          ...current,
+          zones: [...(current.zones || []), newZone],
+        };
+        return { ...prev, floors: updatedFloors };
+      });
       setActiveZoneIndex(zones.length);
     }
   };
 
   // 4. Tự động sinh Vùng E khi chấm ghim trên CAD_02
   const handleAutoCreateElementPin = (pin: CadZonePin) => {
-    const prevEl = structuralElements[structuralElements.length - 1];
-    const newElement: StructuralElementData = {
-      id: `el_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
-      elementCode: pin.zoneCode,
-      floorName: currentFloor.floorName,
-      roomName: prevEl ? prevEl.roomName : 'Phòng khách',
-      customRoomName: prevEl?.customRoomName || '',
-      elementType: prevEl ? prevEl.elementType : 'Cột BTCT',
-      customElementType: prevEl?.customElementType || '',
-      materialType: prevEl ? prevEl.materialType : 'Bê tông cốt thép (BTCT) đổ toàn khối',
-      customMaterialType: prevEl?.customMaterialType || '',
-      overviewPhotos: [],
-      ctxPhotoUrl: '',
-      hasDamage: false,
-      notes: '',
-      defects: [],
-    };
+    updateFormData((prev) => {
+      const current = prev.floors[activeFloorIndex] || prev.floors[0];
+      if (!current) return prev;
+      const prevEls = current.structuralElements || [];
+      const prevEl = prevEls[prevEls.length - 1];
+      const newElement: StructuralElementData = {
+        id: `el_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+        elementCode: pin.zoneCode,
+        floorName: current.floorName,
+        roomName: prevEl ? prevEl.roomName : 'Phòng khách',
+        customRoomName: prevEl?.customRoomName || '',
+        elementType: prevEl ? prevEl.elementType : 'Cột BTCT',
+        customElementType: prevEl?.customElementType || '',
+        materialType: prevEl ? prevEl.materialType : 'Bê tông cốt thép (BTCT) đổ toàn khối',
+        customMaterialType: prevEl?.customMaterialType || '',
+        overviewPhotos: [],
+        ctxPhotoUrl: '',
+        hasDamage: false,
+        notes: '',
+        defects: [],
+      };
 
-    const updatedFloors = [...formData.floors];
-    updatedFloors[activeFloorIndex] = {
-      ...currentFloor,
-      structuralElements: [...structuralElements, newElement],
-    };
-    updateFormData({ floors: updatedFloors });
+      const updatedFloors = [...prev.floors];
+      const currentPins = current.cadElementPins || [];
+      const hasPin = currentPins.some((p) => p.id === pin.id || p.zoneCode === pin.zoneCode);
+      const updatedPins = hasPin ? currentPins : [...currentPins, pin];
+
+      updatedFloors[activeFloorIndex] = {
+        ...current,
+        cadElementPins: updatedPins,
+        structuralElements: [...prevEls, newElement],
+      };
+      return { ...prev, floors: updatedFloors };
+    });
     setActiveElementIndex(structuralElements.length);
   };
 
@@ -243,12 +267,16 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
         notes: '',
         defects: [],
       };
-      const updatedFloors = [...formData.floors];
-      updatedFloors[activeFloorIndex] = {
-        ...currentFloor,
-        structuralElements: [...structuralElements, newElement],
-      };
-      updateFormData({ floors: updatedFloors });
+      updateFormData((prev) => {
+        const updatedFloors = [...prev.floors];
+        const current = updatedFloors[activeFloorIndex] || updatedFloors[0];
+        if (!current) return prev;
+        updatedFloors[activeFloorIndex] = {
+          ...current,
+          structuralElements: [...(current.structuralElements || []), newElement],
+        };
+        return { ...prev, floors: updatedFloors };
+      });
       setActiveElementIndex(structuralElements.length);
     }
   };
@@ -1251,15 +1279,23 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
               <FloorCadPinningCanvas
                 cadPhotoUrl={currentFloor.cadSketchPhotoUrl}
                 onCadPhotoChange={(url) => {
-                  const updatedFloors = [...formData.floors];
-                  updatedFloors[activeFloorIndex] = { ...currentFloor, cadSketchPhotoUrl: url };
-                  updateFormData({ floors: updatedFloors });
+                  updateFormData((prev) => {
+                    const updatedFloors = [...prev.floors];
+                    const cur = updatedFloors[activeFloorIndex] || updatedFloors[0];
+                    if (!cur) return prev;
+                    updatedFloors[activeFloorIndex] = { ...cur, cadSketchPhotoUrl: url };
+                    return { ...prev, floors: updatedFloors };
+                  });
                 }}
                 pins={currentFloor.cadZonePins || []}
                 onChangePins={(pins) => {
-                  const updatedFloors = [...formData.floors];
-                  updatedFloors[activeFloorIndex] = { ...currentFloor, cadZonePins: pins };
-                  updateFormData({ floors: updatedFloors });
+                  updateFormData((prev) => {
+                    const updatedFloors = [...prev.floors];
+                    const cur = updatedFloors[activeFloorIndex] || updatedFloors[0];
+                    if (!cur) return prev;
+                    updatedFloors[activeFloorIndex] = { ...cur, cadZonePins: pins };
+                    return { ...prev, floors: updatedFloors };
+                  });
                 }}
                 onAutoCreatePin={handleAutoCreateZonePin}
                 mode="ZONE"
@@ -1306,18 +1342,23 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
               <FloorCadPinningCanvas
                 cadPhotoUrl={currentFloor.cadStructuralSketchPhotoUrl || currentFloor.cadSketchPhotoUrl || ''}
                 onCadPhotoChange={(url) => {
-                  const updatedFloors = [...formData.floors];
-                  updatedFloors[activeFloorIndex] = {
-                    ...currentFloor,
-                    cadStructuralSketchPhotoUrl: url,
-                  };
-                  updateFormData({ floors: updatedFloors });
+                  updateFormData((prev) => {
+                    const updatedFloors = [...prev.floors];
+                    const cur = updatedFloors[activeFloorIndex] || updatedFloors[0];
+                    if (!cur) return prev;
+                    updatedFloors[activeFloorIndex] = { ...cur, cadStructuralSketchPhotoUrl: url };
+                    return { ...prev, floors: updatedFloors };
+                  });
                 }}
                 pins={currentFloor.cadElementPins || []}
                 onChangePins={(pins) => {
-                  const updatedFloors = [...formData.floors];
-                  updatedFloors[activeFloorIndex] = { ...currentFloor, cadElementPins: pins };
-                  updateFormData({ floors: updatedFloors });
+                  updateFormData((prev) => {
+                    const updatedFloors = [...prev.floors];
+                    const cur = updatedFloors[activeFloorIndex] || updatedFloors[0];
+                    if (!cur) return prev;
+                    updatedFloors[activeFloorIndex] = { ...cur, cadElementPins: pins };
+                    return { ...prev, floors: updatedFloors };
+                  });
                 }}
                 onAutoCreatePin={handleAutoCreateElementPin}
                 mode="STRUCTURAL"
