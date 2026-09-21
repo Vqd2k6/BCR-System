@@ -40,6 +40,12 @@ const getDefaultInitialFormData = (parcelId: string = ''): Phase1SurveyFormData 
     right: { type: 'Nhà phố / Nhà dân', details: 'Nhà phố / Nhà dân', note: '' },
     back: { type: 'Đất trống', details: 'Đất trống', note: '' },
   },
+  surveyCaseType: 'NORMAL',
+  isAbsenteeSurvey: false,
+  absenteeReason: '',
+  absenteeMinutesPhotos: [],
+  underConstructionPhotos: [],
+  constructionStageNotes: '',
 
   photoP01: { url: '', notApplicable: false },
   photoP02: {

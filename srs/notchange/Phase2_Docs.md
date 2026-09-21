@@ -57,6 +57,94 @@
   - [ ] `L2-A` (Cơ bản: Nhà ngoài phạm vi lún chính / ít nhạy cảm)
   - [ ] `L2-B` (Tiêu chuẩn: Nhà nằm trong đới ảnh hưởng lún đào hầm)
   - [ ] `L2-C` (Chuyên sâu: Công trình di tích, nhạy cảm cao, kết cấu yếu)
+  "2. Chi tiết từng cấp độ khảo sát (L2-A, L2-B, L2-C)
+🔹 Cấp L2-A (Level 2 - Class A: Khảo sát Cơ bản / Vùng đệm rủi ro thấp)
+Đối tượng:
+Các công trình nằm ở ranh ngoài của đới ảnh hưởng lún (vùng đệm, cách tim hầm từ 25m - 50m tùy địa chất).
+Nhà kiên cố (móng cọc sâu, kết cấu BTCT tốt), ít nhạy cảm với rung động.
+Mức độ thu thập:
+Khảo sát tổng thể ngoại quan bên ngoài (chụp ảnh mặt đứng $P-01, P-02$), ghi nhận nhanh công năng.
+Chỉ ghi nhận các khuyết tật nứt/lún lớn, rõ rệt thấy bằng mắt thường.
+Không bắt buộc phải đo vẽ từng vết nứt li ti trong các phòng khuất nếu không có biểu hiện bất thường.
+Mục đích: Lưu trữ hồ sơ cơ sở nhanh chóng để chứng minh công trình không bị ảnh hưởng trực tiếp, tránh mất thời gian khảo sát quá sâu khi rủi ro thấp.
+🔹 Cấp L2-B (Level 2 - Class B: Khảo sát Tiêu chuẩn / Vùng ảnh hưởng trực tiếp)
+Đối tượng:
+Đại đa số các nhà dân, nhà phố, trụ sở nằm trực diện trong đới ảnh hưởng lún chính (thường trong phạm vi < 25m từ tim hầm hoặc nằm sát vách hố đào ga ngầm).
+Mức độ thu thập (Quy chuẩn đầy đủ 9 Bước):
+Kế thừa toàn bộ hồ sơ Giai đoạn 1 ($Z-xx, D-xx$).
+Vào từng phòng, từng tầng: Đo lại kích thước ($w_2, L_2$) vết nứt cũ, tính biến thiên ($\Delta w, \Delta L$), thả ghim vết nứt mới phát sinh.
+Bắt buộc có đủ cặp ảnh: Ảnh bối cảnh (Photo CTX) + Ảnh cận cảnh kèm thước đo khe nứt (Photo CU).
+Đo đạc nhanh độ nghiêng/lún mặt đứng và sàn nhà bằng thước laser/nivo.
+Mục đích: Tạo lập hồ sơ chứng cứ pháp lý - kỹ thuật chặt chẽ nhất, phục vụ việc thẩm định đền bù hoặc bác bỏ các khiếu nại phát sinh sau này khi máy đào TBM đi qua.
+🔹 Cấp L2-C (Level 2 - Class C: Khảo sát Chuyên sâu / Công trình Đặc biệt & Nhạy cảm)
+Đối tượng:
+Công trình di tích lịch sử, bảo tồn văn hóa, tôn giáo (Chùa, Nhà thờ cổ, Dinh thự cổ...).
+Công trình tập trung đông người: Trường học, Bệnh viện, Viện dưỡng lão.
+Các công trình có kết cấu cổ/yếu (nhà tường gạch chịu lực móng gạch/cừ tràm, nhà đã có tiền sử nghiêng nứt nặng ở Phase 1).
+Mức độ thu thập (Nâng cao & Nghiêm ngặt nhất):
+Bao gồm toàn bộ quy trình của L2-B.
+Yêu cầu đo đạc trắc địa chính xác: Đo cao độ mốc lún, độ nghiêng bằng máy toàn đạc điện tử/máy thủy chuẩn chính xác cao.
+Khảo sát thí nghiệm không phá hủy (NDT): Siêu âm chất lượng bê tông, bật nẩy Schmidt, đo rung chấn nền hiện trạng.
+Đề xuất lắp đặt thiết bị quan trắc liên tục: Đặt tấm kính đo nứt (Tell-tale), mốc quan trắc lún (Settlement pin), hoặc cảm biến đo nghiêng (Tiltmeter).
+Mục đích: Bảo tồn an toàn tuyệt đối, phát hiện sớm nguy cơ sụp đổ/nứt toác để kích hoạt giải pháp gia cố nền đất (grouting/jet-grouting) trước khi TBM vận hành.2. Chi tiết từng cấp độ khảo sát (L2-A, L2-B, L2-C)
+🔹 Cấp L2-A (Level 2 - Class A: Khảo sát Cơ bản / Vùng đệm rủi ro thấp)
+Đối tượng:
+Các công trình nằm ở ranh ngoài của đới ảnh hưởng lún (vùng đệm, cách tim hầm từ 25m - 50m tùy địa chất).
+Nhà kiên cố (móng cọc sâu, kết cấu BTCT tốt), ít nhạy cảm với rung động.
+Mức độ thu thập:
+Khảo sát tổng thể ngoại quan bên ngoài (chụp ảnh mặt đứng $P-01, P-02$), ghi nhận nhanh công năng.
+Chỉ ghi nhận các khuyết tật nứt/lún lớn, rõ rệt thấy bằng mắt thường.
+Không bắt buộc phải đo vẽ từng vết nứt li ti trong các phòng khuất nếu không có biểu hiện bất thường.
+Mục đích: Lưu trữ hồ sơ cơ sở nhanh chóng để chứng minh công trình không bị ảnh hưởng trực tiếp, tránh mất thời gian khảo sát quá sâu khi rủi ro thấp.
+🔹 Cấp L2-B (Level 2 - Class B: Khảo sát Tiêu chuẩn / Vùng ảnh hưởng trực tiếp)
+Đối tượng:
+Đại đa số các nhà dân, nhà phố, trụ sở nằm trực diện trong đới ảnh hưởng lún chính (thường trong phạm vi < 25m từ tim hầm hoặc nằm sát vách hố đào ga ngầm).
+Mức độ thu thập (Quy chuẩn đầy đủ 9 Bước):
+Kế thừa toàn bộ hồ sơ Giai đoạn 1 ($Z-xx, D-xx$).
+Vào từng phòng, từng tầng: Đo lại kích thước ($w_2, L_2$) vết nứt cũ, tính biến thiên ($\Delta w, \Delta L$), thả ghim vết nứt mới phát sinh.
+Bắt buộc có đủ cặp ảnh: Ảnh bối cảnh (Photo CTX) + Ảnh cận cảnh kèm thước đo khe nứt (Photo CU).
+Đo đạc nhanh độ nghiêng/lún mặt đứng và sàn nhà bằng thước laser/nivo.
+Mục đích: Tạo lập hồ sơ chứng cứ pháp lý - kỹ thuật chặt chẽ nhất, phục vụ việc thẩm định đền bù hoặc bác bỏ các khiếu nại phát sinh sau này khi máy đào TBM đi qua.
+🔹 Cấp L2-C (Level 2 - Class C: Khảo sát Chuyên sâu / Công trình Đặc biệt & Nhạy cảm)
+Đối tượng:
+Công trình di tích lịch sử, bảo tồn văn hóa, tôn giáo (Chùa, Nhà thờ cổ, Dinh thự cổ...).
+Công trình tập trung đông người: Trường học, Bệnh viện, Viện dưỡng lão.
+Các công trình có kết cấu cổ/yếu (nhà tường gạch chịu lực móng gạch/cừ tràm, nhà đã có tiền sử nghiêng nứt nặng ở Phase 1).
+Mức độ thu thập (Nâng cao & Nghiêm ngặt nhất):
+Bao gồm toàn bộ quy trình của L2-B.
+Yêu cầu đo đạc trắc địa chính xác: Đo cao độ mốc lún, độ nghiêng bằng máy toàn đạc điện tử/máy thủy chuẩn chính xác cao.
+Khảo sát thí nghiệm không phá hủy (NDT): Siêu âm chất lượng bê tông, bật nẩy Schmidt, đo rung chấn nền hiện trạng.
+Đề xuất lắp đặt thiết bị quan trắc liên tục: Đặt tấm kính đo nứt (Tell-tale), mốc quan trắc lún (Settlement pin), hoặc cảm biến đo nghiêng (Tiltmeter).
+Mục đích: Bảo tồn an toàn tuyệt đối, phát hiện sớm nguy cơ sụp đổ/nứt toác để kích hoạt giải pháp gia cố nền đất (grouting/jet-grouting) trước khi TBM vận hành.2. Chi tiết từng cấp độ khảo sát (L2-A, L2-B, L2-C)
+🔹 Cấp L2-A (Level 2 - Class A: Khảo sát Cơ bản / Vùng đệm rủi ro thấp)
+Đối tượng:
+Các công trình nằm ở ranh ngoài của đới ảnh hưởng lún (vùng đệm, cách tim hầm từ 25m - 50m tùy địa chất).
+Nhà kiên cố (móng cọc sâu, kết cấu BTCT tốt), ít nhạy cảm với rung động.
+Mức độ thu thập:
+Khảo sát tổng thể ngoại quan bên ngoài (chụp ảnh mặt đứng $P-01, P-02$), ghi nhận nhanh công năng.
+Chỉ ghi nhận các khuyết tật nứt/lún lớn, rõ rệt thấy bằng mắt thường.
+Không bắt buộc phải đo vẽ từng vết nứt li ti trong các phòng khuất nếu không có biểu hiện bất thường.
+Mục đích: Lưu trữ hồ sơ cơ sở nhanh chóng để chứng minh công trình không bị ảnh hưởng trực tiếp, tránh mất thời gian khảo sát quá sâu khi rủi ro thấp.
+🔹 Cấp L2-B (Level 2 - Class B: Khảo sát Tiêu chuẩn / Vùng ảnh hưởng trực tiếp)
+Đối tượng:
+Đại đa số các nhà dân, nhà phố, trụ sở nằm trực diện trong đới ảnh hưởng lún chính (thường trong phạm vi < 25m từ tim hầm hoặc nằm sát vách hố đào ga ngầm).
+Mức độ thu thập (Quy chuẩn đầy đủ 9 Bước):
+Kế thừa toàn bộ hồ sơ Giai đoạn 1 ($Z-xx, D-xx$).
+Vào từng phòng, từng tầng: Đo lại kích thước ($w_2, L_2$) vết nứt cũ, tính biến thiên ($\Delta w, \Delta L$), thả ghim vết nứt mới phát sinh.
+Bắt buộc có đủ cặp ảnh: Ảnh bối cảnh (Photo CTX) + Ảnh cận cảnh kèm thước đo khe nứt (Photo CU).
+Đo đạc nhanh độ nghiêng/lún mặt đứng và sàn nhà bằng thước laser/nivo.
+Mục đích: Tạo lập hồ sơ chứng cứ pháp lý - kỹ thuật chặt chẽ nhất, phục vụ việc thẩm định đền bù hoặc bác bỏ các khiếu nại phát sinh sau này khi máy đào TBM đi qua.
+🔹 Cấp L2-C (Level 2 - Class C: Khảo sát Chuyên sâu / Công trình Đặc biệt & Nhạy cảm)
+Đối tượng:
+Công trình di tích lịch sử, bảo tồn văn hóa, tôn giáo (Chùa, Nhà thờ cổ, Dinh thự cổ...).
+Công trình tập trung đông người: Trường học, Bệnh viện, Viện dưỡng lão.
+Các công trình có kết cấu cổ/yếu (nhà tường gạch chịu lực móng gạch/cừ tràm, nhà đã có tiền sử nghiêng nứt nặng ở Phase 1).
+Mức độ thu thập (Nâng cao & Nghiêm ngặt nhất):
+Bao gồm toàn bộ quy trình của L2-B.
+Yêu cầu đo đạc trắc địa chính xác: Đo cao độ mốc lún, độ nghiêng bằng máy toàn đạc điện tử/máy thủy chuẩn chính xác cao.
+Khảo sát thí nghiệm không phá hủy (NDT): Siêu âm chất lượng bê tông, bật nẩy Schmidt, đo rung chấn nền hiện trạng.
+Đề xuất lắp đặt thiết bị quan trắc liên tục: Đặt tấm kính đo nứt (Tell-tale), mốc quan trắc lún (Settlement pin), hoặc cảm biến đo nghiêng (Tiltmeter).
+Mục đích: Bảo tồn an toàn tuyệt đối, phát hiện sớm nguy cơ sụp đổ/nứt toác để kích hoạt giải pháp gia cố nền đất (grouting/jet-grouting) trước khi TBM vận hành."
 - [ ] **Thành phần chứng kiến:** (Nhập text họ tên các bên tham gia: Cán bộ KS, Đại diện Chủ đầu tư/Tư vấn, Chủ nhà...) `[MỚI GĐ2]`
 - [ ] **Điều kiện đặc biệt:** (Nhập text: Thời tiết mưa/nắng, công trình đang sửa chữa, hẻm cụt khó tiếp cận...) `[MỚI GĐ2]`
 

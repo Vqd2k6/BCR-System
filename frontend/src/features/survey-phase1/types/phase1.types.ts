@@ -133,8 +133,12 @@ export interface Phase1SurveyFormData {
   clearanceOffsetDistance: string;
   gpsCoords: { lat: number; lng: number };
   adjacentBuildings: AdjacentBuildingState;
+  surveyCaseType?: 'NORMAL' | 'ABSENTEE' | 'APARTMENT' | 'UNDER_CONSTRUCTION';
   isAbsenteeSurvey?: boolean;
   absenteeReason?: string;
+  absenteeMinutesPhotos?: string[]; // Ảnh biên bản vắng nhà (có thể chụp nhiều ảnh)
+  underConstructionPhotos?: string[]; // Ảnh công trình đang thi công xây dựng (nhiều ảnh)
+  constructionStageNotes?: string; // Ghi chú giai đoạn thi công xây dựng
 
   // Step 1 Photos & Polygon
   photoP01: { url: string; notApplicable: boolean };

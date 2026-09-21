@@ -67,14 +67,35 @@ Dưới đây là **BỘ BIỂU MẪU KHẢO SÁT HỢP NHẤT DUY NHẤT** đư
       - `Level 4`: Mất ổn định tổng thể tòa nhà ($> 10‰$).
     - [ ] **Thông tin bổ sung (Additional details):** Độ nghiêng $X = \_\_\_\text{ ‰}$, $Y = \_\_\_\text{ ‰}$.
 
-> [!IMPORTANT]
-> ### 🚪 QUY TRÌNH KIỂM SOÁT BÁO VẮNG NHÀ (Absentee Survey Flow):
-> - **Nguyên tắc chống gian lận & bỏ sót hiện trường:** Hệ thống **TUYỆT ĐỐI KHÔNG CHO PHÉP** cán bộ khảo sát chỉ bấm nút báo vắng rồi gửi báo cáo ngay lập tức về server.
-> - **Cơ chế hoạt động:**
->   1. Khi tới trước ngôi nhà, nếu chủ nhà đi vắng / khóa cửa / không tiếp cận được bên trong, cán bộ bấm nút **`Báo Vắng Nhà (Khảo sát Ngoại cảnh)`**.
->   2. Hệ thống chuyển sang **Chế độ Khảo sát Vắng**: Yêu cầu cán bộ phải hoàn thành **100% tất cả các trường thông tin của BƯỚC 1** (Định danh, 3 giáp ranh, GPS/Metro, Chụp đủ 4 bộ ảnh $P\text{-01} \dots P\text{-04}$ kèm vẽ đa giác đứng Polygon, Cụm Lún/Nghiêng ngoài nhà, Lý do vắng nhà).
->   3. Khi và chỉ khi toàn bộ dữ liệu ngoại cảnh của Bước 1 được điền đầy đủ và hợp lệ, hệ thống mới gắn nhãn `ABSENT_EXTERIOR_COMPLETED` và kích hoạt nút **`Nộp Báo Cáo Vắng Nhà Về Server`**.
->   4. Báo cáo vắng nhà được lưu trữ đầy đủ căn cứ pháp lý ngoại thất, làm cơ sở hẹn lịch khảo sát lại đợt tiếp theo.
+- [ ] **1.7. Tình Trạng Tiếp Cận Hiện Trường & Phương Thức Khảo Sát (Survey Mode Decision at end of Step 1):**
+  *Quyết định phương thức khảo sát được đặt ở CUỐI BƯỚC 1 nhằm đảm bảo toàn bộ dữ liệu ngoại thất (Định danh, GPS, 3 công trình liền kề, 4 bộ ảnh P-01...P-04, Lún/Nghiêng) luôn được thu thập đầy đủ trước khi rẽ nhánh xử lý.*
+  
+  - 🏠 **Option 1: `NORMAL` (Nhà dân / Công trình thông thường):**
+    - Áp dụng cho các công trình nhà ở, thương mại độc lập, tiếp cận được bên trong.
+    - Quy trình: Tiếp tục thực hiện đầy đủ luồng khảo sát 9 bước theo chuẩn Phase 1.
+  
+  - 🚪 **Option 2: `ABSENTEE` (Vắng nhà / Không tiếp cận được bên trong):**
+    - Áp dụng khi chủ nhà đi vắng, khóa cửa, hoặc từ chối hợp tác khảo sát bên trong.
+    - Chuyển thẳng đến giao diện kết thúc hồ sơ vắng nhà.
+    - Cung cấp mục chụp / tải lên **Biên bản thông báo vắng nhà** (`absenteeMinutesPhotos` - *cho phép chụp/up nhiều ảnh*).
+    - Lựa chọn lý do vắng nhà (`Khóa cửa đi vắng`, `Chủ nhà hẹn quay lại sau`, `Từ chối cho vào nhà`, `Nhà bỏ hoang`, `Khác...`).
+    - Yêu cầu xác nhận 100% dữ liệu ngoại thất Bước 1 hợp lệ ➔ Kích hoạt nút **`Xác nhận & Nộp Hồ Sơ Vắng Nhà`** (`ABSENT_EXTERIOR_COMPLETED`).
+  
+  - 🏢 **Option 3: `APARTMENT` (Chung cư / Tòa nhà nhiều căn hộ):**
+    - Áp dụng cho các tòa nhà chung cư, cao ốc cư trú nhiều chủ sở hữu.
+    - **Tự động điều chỉnh trường thông tin:**
+      - Nhóm đối tượng công trình tự động khóa/chuyển sang `Important Building` (Công trình quan trọng $\ge 5$ tầng).
+      - Công năng sử dụng mặc định là `Chung cư / Căn hộ DV`.
+    - **Phạm vi khảo sát đặc thù:** Chỉ khảo sát các **khu vực dùng chung (Common Areas)** của tòa nhà như: Tầng hầm móng, sân thượng/mái, sảnh đón, hành lang, buồng thang bộ, hộp gen/kỹ thuật chung.
+    - Các căn hộ riêng lẻ bên trong tòa nhà được quản lý định danh dưới dạng các **căn hộ con (Sub-units)** và sẽ được khảo sát độc lập bằng phiếu khảo sát con.
+  
+  - 🏗️ **Option 4: `UNDER_CONSTRUCTION` (Nhà đang xây dựng / Đang thi công):**
+    - Áp dụng cho các công trình đang trong quá trình đào móng, đổ sàn, xây thô hoặc hoàn thiện.
+    - Chỉ thu thập các trường dữ liệu ngoại cảnh của Bước 1 (định danh, địa chỉ, GPS, ranh giới).
+    - **Bổ sung trường thu thập chuyên biệt:**
+      - Bộ ảnh chụp hiện trạng thi công (`underConstructionPhotos` - *cho phép chụp nhiều ảnh góc rộng & chi tiết*: đào móng, cột dầm thô, cốp pha, giàn giáo, sàn đang thi công).
+      - Ghi chú giai đoạn thi công (`constructionStageNotes`: Giai đoạn móng, thô tầng N, hoàn thiện...).
+    - Kích hoạt nút **`Xác nhận & Hoàn Tất Khảo Sát Đang Thi Công`** để nộp hồ sơ.
 
 ---
 
