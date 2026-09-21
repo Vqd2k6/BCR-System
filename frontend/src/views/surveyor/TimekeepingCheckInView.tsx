@@ -669,11 +669,8 @@ export const TimekeepingCheckInView: React.FC<Props> = ({ isCheckedInToday = fal
                 <button
                   type="button"
                   onClick={() => setShowCompanionModal(true)}
+                  className="btn btn-secondary btn-sm"
                   style={{
-                    backgroundColor: '#e0f2fe',
-                    color: '#0284c7',
-                    border: '1px solid #bae6fd',
-                    borderRadius: '8px',
                     padding: '0.35rem 0.65rem',
                     fontSize: '0.725rem',
                     fontWeight: 700,

@@ -25,6 +25,7 @@ interface Props {
 export const CompanionCheckInModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
   const todayStr = new Date().toISOString().split('T')[0];
   const storageKey = `metro2_companion_checkin_${todayStr}`;
+  const changeCountKey = `metro2_companion_checkin_count_${todayStr}`;
   const historyStorageKey = 'metro2_companion_history';
 
   const [companionName, setCompanionName] = useState<string>('');
@@ -38,6 +39,14 @@ export const CompanionCheckInModal: React.FC<Props> = ({ isOpen, onClose, onSucc
   const [gpsLoading, setGpsLoading] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [hasCheckedIn, setHasCheckedIn] = useState<boolean>(false);
+  const [changeCount, setChangeCount] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem(`metro2_companion_checkin_count_${todayStr}`);
+      return saved ? parseInt(saved, 10) : 0;
+    } catch {
+      return 0;
+    }
+  });
   const [checkInData, setCheckInData] = useState<any>(null);
   const [companionHistory, setCompanionHistory] = useState<any[]>([]);
 
@@ -130,6 +139,24 @@ export const CompanionCheckInModal: React.FC<Props> = ({ isOpen, onClose, onSucc
       getLiveGps();
       loadCompanionHistory();
 
+      // Load change count for today
+      try {
+        const savedCount = localStorage.getItem(changeCountKey);
+        if (savedCount) {
+          setChangeCount(parseInt(savedCount, 10));
+        } else {
+          const savedCheckin = localStorage.getItem(storageKey);
+          if (savedCheckin) {
+            setChangeCount(1);
+            localStorage.setItem(changeCountKey, '1');
+          } else {
+            setChangeCount(0);
+          }
+        }
+      } catch (_e) {
+        setChangeCount(0);
+      }
+
       // Load saved companion check-in for today if exists
       try {
         const saved = localStorage.getItem(storageKey);
@@ -204,6 +231,11 @@ export const CompanionCheckInModal: React.FC<Props> = ({ isOpen, onClose, onSucc
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (changeCount >= 3) {
+      alert('Đã đạt giới hạn tối đa 3 lần điểm danh / đổi cán bộ đi kèm trong ngày hôm nay.');
+      return;
+    }
+
     if (!companionName.trim()) {
       alert('Vui lòng nhập họ tên cán bộ đi kèm.');
       return;
@@ -243,6 +275,13 @@ export const CompanionCheckInModal: React.FC<Props> = ({ isOpen, onClose, onSucc
       // Save today's companion checkin isolated
       try {
         localStorage.setItem(storageKey, JSON.stringify(newRecord));
+      } catch (_e) {}
+
+      // Update daily change count
+      const nextCount = (changeCount || 0) + 1;
+      setChangeCount(nextCount);
+      try {
+        localStorage.setItem(changeCountKey, String(nextCount));
       } catch (_e) {}
 
       // Prepend to companion history
@@ -503,49 +542,55 @@ export const CompanionCheckInModal: React.FC<Props> = ({ isOpen, onClose, onSucc
                 </div>
               )}
 
-              {/* Action Buttons */}
-              <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.25rem' }}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setHasCheckedIn(false);
-                  }}
-                  style={{
-                    flex: 1,
-                    padding: '0.55rem',
-                    borderRadius: '0.65rem',
-                    border: '1px solid #cbd5e1',
-                    backgroundColor: '#f8fafc',
-                    color: '#475569',
-                    fontSize: '0.775rem',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '0.35rem',
-                  }}
-                >
-                  <RotateCcw size={13} />
-                  <span>Điểm danh lại / Đổi người</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={onClose}
-                  style={{
-                    flex: 1,
-                    padding: '0.55rem',
-                    borderRadius: '0.65rem',
-                    border: 'none',
-                    background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
-                    color: '#ffffff',
-                    fontSize: '0.775rem',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                  }}
-                >
-                  Đóng
-                </button>
+              {/* Action Buttons: Remove "Đóng", show limit notice if >= 3, otherwise re-checkin button */}
+              <div style={{ marginTop: '0.35rem' }}>
+                {changeCount >= 3 ? (
+                  <div
+                    style={{
+                      backgroundColor: '#fff1f2',
+                      border: '1.5px solid #fecdd3',
+                      borderRadius: '0.65rem',
+                      padding: '0.75rem 0.95rem',
+                      fontSize: '0.775rem',
+                      color: '#9f1239',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                    }}
+                  >
+                    <AlertTriangle size={17} color="#e11d48" style={{ flexShrink: 0 }} />
+                    <div>
+                      <strong style={{ display: 'block', marginBottom: '2px' }}>Đã đạt giới hạn điểm danh hôm nay</strong>
+                      <span>Cán bộ đi kèm chỉ được phép điểm danh / đổi tối đa 3 lần/ngày (Đã dùng 3/3 lần).</span>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setHasCheckedIn(false);
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '0.65rem',
+                      borderRadius: '0.65rem',
+                      border: '1px solid #cbd5e1',
+                      backgroundColor: '#f8fafc',
+                      color: '#334155',
+                      fontSize: '0.8rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '0.45rem',
+                      boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
+                    }}
+                  >
+                    <RotateCcw size={14} />
+                    <span>Điểm danh lại / Đổi người ({changeCount}/3 lần hôm nay)</span>
+                  </button>
+                )}
               </div>
             </div>
           ) : (
@@ -562,9 +607,30 @@ export const CompanionCheckInModal: React.FC<Props> = ({ isOpen, onClose, onSucc
                   padding: '0.65rem 0.85rem',
                   borderRadius: '0.65rem',
                   border: '1px solid #e2e8f0',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  gap: '0.5rem',
                 }}
               >
-                Quy chuẩn tổ khảo sát hiện trường gồm <strong>02 cán bộ</strong> (01 điều tra viên chính + 01 cán bộ đi kèm). Vui lòng nhập thông tin và chụp ảnh selfie xác thực để hoàn tất thủ tục ngày công.
+                <div>
+                  Quy chuẩn tổ khảo sát hiện trường gồm <strong>02 cán bộ</strong> (01 điều tra viên chính + 01 cán bộ đi kèm). Vui lòng nhập thông tin và chụp ảnh selfie.
+                </div>
+                <span
+                  style={{
+                    backgroundColor: '#e0f2fe',
+                    color: '#0369a1',
+                    border: '1px solid #bae6fd',
+                    padding: '2px 8px',
+                    borderRadius: '999px',
+                    fontSize: '0.7rem',
+                    fontWeight: 700,
+                    whiteSpace: 'nowrap',
+                    flexShrink: 0,
+                  }}
+                >
+                  Lần {Math.min(3, changeCount + 1)}/3 trong ngày
+                </span>
               </div>
 
               {/* Location info Card */}
