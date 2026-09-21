@@ -29,6 +29,17 @@ export function createApp(): express.Application {
     app.use(morgan('dev'));
   }
 
+  // Root welcome endpoint
+  app.get('/', (_req, res) => {
+    res.status(200).json({
+      name: 'Metro 2 Building Condition Assessment (BCA) API Service',
+      version: '1.0.0',
+      status: 'ONLINE',
+      healthCheck: '/health',
+      apiPrefix: config.apiPrefix,
+    });
+  });
+
   // Health check endpoint
   app.get('/health', async (_req, res) => {
     const dbStatus = await Database.healthCheck();
