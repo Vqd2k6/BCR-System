@@ -1,7 +1,22 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { api } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
-import { Camera, MapPin, CheckCircle, AlertTriangle, Clock, RefreshCw, X, ShieldCheck, CheckCircle2, XCircle, User } from 'lucide-react';
+import { CompanionCheckInModal } from '../../components/attendance/CompanionCheckInModal';
+import {
+  Camera,
+  MapPin,
+  CheckCircle,
+  AlertTriangle,
+  Clock,
+  RefreshCw,
+  X,
+  ShieldCheck,
+  CheckCircle2,
+  XCircle,
+  User,
+  Users,
+  UserCheck,
+} from 'lucide-react';
 
 interface Props {
   isCheckedInToday?: boolean;
@@ -10,9 +25,13 @@ interface Props {
 
 export const TimekeepingCheckInView: React.FC<Props> = ({ isCheckedInToday = false, onCheckInSuccess }) => {
   const { user } = useAuth();
+  const todayStr = new Date().toISOString().split('T')[0];
+  const storageKey = `metro2_today_checkin_${todayStr}`;
+  const companionStorageKey = `metro2_companion_checkin_${todayStr}`;
+
   const [gpsLoading, setGpsLoading] = useState<boolean>(true);
   const [gpsCoordinates, setGpsCoordinates] = useState<{ lat: number; lng: number; accuracy: number } | null>(null);
-  const [distanceMeters, setDistanceMeters] = useState<number>(35); // default mock 35m from Ga S9
+  const [distanceMeters, setDistanceMeters] = useState<number>(35);
   const [selfieUrl, setSelfieUrl] = useState<string>('');
   const [outOfBoundsReason, setOutOfBoundsReason] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
@@ -20,6 +39,12 @@ export const TimekeepingCheckInView: React.FC<Props> = ({ isCheckedInToday = fal
   const [history, setHistory] = useState<any[]>([]);
   const [cameraActive, setCameraActive] = useState<boolean>(false);
   const [hasCheckedIn, setHasCheckedIn] = useState<boolean>(isCheckedInToday);
+  const [checkInDetails, setCheckInDetails] = useState<any>(null);
+
+  // Companion check-in state
+  const [showCompanionModal, setShowCompanionModal] = useState<boolean>(false);
+  const [companionData, setCompanionData] = useState<any>(null);
+
   const videoRef = useRef<HTMLVideoElement>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
 
@@ -61,7 +86,7 @@ export const TimekeepingCheckInView: React.FC<Props> = ({ isCheckedInToday = fal
           setDistanceMeters(dist);
           setGpsLoading(false);
         },
-        (_err) => {
+        () => {
           const lat = 10.8036;
           const lng = 106.6388;
           setGpsCoordinates({ lat, lng, accuracy: 8 });
@@ -77,24 +102,46 @@ export const TimekeepingCheckInView: React.FC<Props> = ({ isCheckedInToday = fal
     }
   };
 
+  const loadCompanionData = () => {
+    try {
+      const saved = localStorage.getItem(companionStorageKey);
+      if (saved) {
+        setCompanionData(JSON.parse(saved));
+      } else {
+        setCompanionData(null);
+      }
+    } catch (_e) {}
+  };
+
   const loadHistory = async () => {
     try {
       const res = await api.get('/attendance/my-history');
       if (res.data && res.data.data && Array.isArray(res.data.data) && res.data.data.length > 0) {
         setHistory(res.data.data);
-        const todayStr = new Date().toISOString().split('T')[0];
-        const hasToday = res.data.data.some((item: any) => {
+        const todayRecord = res.data.data.find((item: any) => {
           const d = new Date(item.checkin_time).toISOString().split('T')[0];
           return d === todayStr;
         });
-        if (hasToday) {
+        if (todayRecord) {
           setHasCheckedIn(true);
+          const details = {
+            time: new Date(todayRecord.checkin_time).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
+            distance: Math.round(todayRecord.distance_to_zone_center_meters ?? todayRecord.distance_meters ?? 0),
+            status: todayRecord.verification_status || 'APPROVED',
+            selfiePhotoUrl: todayRecord.selfie_photo_url || todayRecord.selfiePhotoUrl,
+            notes: todayRecord.notes,
+            coordinates: { lat: Number(todayRecord.gps_latitude || 10.8034), lng: Number(todayRecord.gps_longitude || 106.6385), accuracy: 8 },
+          };
+          setCheckInDetails(details);
+          if (details.selfiePhotoUrl) setSelfieUrl(details.selfiePhotoUrl);
+          if (details.notes) setOutOfBoundsReason(details.notes);
+          if (details.distance !== undefined) setDistanceMeters(details.distance);
+          if (details.coordinates) setGpsCoordinates(details.coordinates);
         }
       } else {
         throw new Error('No server records');
       }
     } catch (_err) {
-      // Static history records with independent photos (Requirement 7)
       setHistory([
         {
           id: 'mock-1',
@@ -120,12 +167,23 @@ export const TimekeepingCheckInView: React.FC<Props> = ({ isCheckedInToday = fal
   useEffect(() => {
     getLiveGps();
     loadHistory();
+    loadCompanionData();
 
-    const todayStr = new Date().toISOString().split('T')[0];
-    const saved = localStorage.getItem(`metro2_today_checkin_${todayStr}`);
-    if (saved || isCheckedInToday) {
-      setHasCheckedIn(true);
-    }
+    // Check local storage for today's check-in
+    try {
+      const saved = localStorage.getItem(storageKey);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        setHasCheckedIn(true);
+        setCheckInDetails(parsed);
+        if (parsed.selfiePhotoUrl) setSelfieUrl(parsed.selfiePhotoUrl);
+        if (parsed.notes) setOutOfBoundsReason(parsed.notes);
+        if (parsed.distance !== undefined) setDistanceMeters(parsed.distance);
+        if (parsed.coordinates) setGpsCoordinates(parsed.coordinates);
+      } else if (isCheckedInToday) {
+        setHasCheckedIn(true);
+      }
+    } catch (_e) {}
 
     return () => {
       if (mediaStreamRef.current) {
@@ -183,7 +241,7 @@ export const TimekeepingCheckInView: React.FC<Props> = ({ isCheckedInToday = fal
       return;
     }
 
-    if (isOutOfBounds && !outOfBoundsReason.trim()) {
+    if (distanceMeters > 500 && !outOfBoundsReason.trim()) {
       alert('Vui lòng nhập lý do chấm công ngoài phạm vi 500m.');
       return;
     }
@@ -193,8 +251,6 @@ export const TimekeepingCheckInView: React.FC<Props> = ({ isCheckedInToday = fal
 
     const now = new Date();
     const checkInTime = now.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
-    const todayStr = now.toISOString().split('T')[0];
-
     const capturedPhoto = selfieUrl;
 
     try {
@@ -203,7 +259,7 @@ export const TimekeepingCheckInView: React.FC<Props> = ({ isCheckedInToday = fal
         gpsLatitude: gpsCoordinates.lat,
         gpsLongitude: gpsCoordinates.lng,
         selfiePhotoUrl: capturedPhoto,
-        notes: distanceMeters > 500 ? outOfBoundsReason : undefined,
+        notes: distanceMeters > 500 ? outOfBoundsReason.trim() : undefined,
       };
 
       const res = await api.post('/attendance/check-in', payload);
@@ -213,13 +269,15 @@ export const TimekeepingCheckInView: React.FC<Props> = ({ isCheckedInToday = fal
         time: checkInTime,
         distance: distanceMeters,
         status: resData?.verificationStatus || (distanceMeters > 500 ? 'FLAGGED_WARNING' : 'APPROVED'),
+        selfiePhotoUrl: capturedPhoto,
+        notes: distanceMeters > 500 ? outOfBoundsReason.trim() : undefined,
+        coordinates: gpsCoordinates,
       };
 
       try {
-        localStorage.setItem(`metro2_today_checkin_${todayStr}`, JSON.stringify(details));
+        localStorage.setItem(storageKey, JSON.stringify(details));
       } catch (_e) {}
 
-      // Requirement 5: Simplified success text without (...)
       setSubmitResult({
         success: true,
         message: 'Điểm danh GPS thành công!',
@@ -227,6 +285,7 @@ export const TimekeepingCheckInView: React.FC<Props> = ({ isCheckedInToday = fal
       });
 
       setHasCheckedIn(true);
+      setCheckInDetails(details);
 
       if (onCheckInSuccess) {
         onCheckInSuccess(details);
@@ -238,28 +297,30 @@ export const TimekeepingCheckInView: React.FC<Props> = ({ isCheckedInToday = fal
         time: checkInTime,
         distance: distanceMeters,
         status: distanceMeters > 500 ? 'FLAGGED_WARNING' : 'APPROVED',
+        selfiePhotoUrl: capturedPhoto,
+        notes: distanceMeters > 500 ? outOfBoundsReason.trim() : undefined,
+        coordinates: gpsCoordinates,
       };
 
       try {
-        localStorage.setItem(`metro2_today_checkin_${todayStr}`, JSON.stringify(fallbackDetails));
+        localStorage.setItem(storageKey, JSON.stringify(fallbackDetails));
       } catch (_e) {}
 
-      // Requirement 5: Simplified success text
       setSubmitResult({
         success: true,
         message: 'Điểm danh GPS thành công!',
       });
 
       setHasCheckedIn(true);
+      setCheckInDetails(fallbackDetails);
 
-      // Prepend new record with its own unique photo to history list
       setHistory((prev) => [
         {
           id: `local-${Date.now()}`,
           checkin_time: new Date().toISOString(),
           distance_to_zone_center_meters: distanceMeters,
           is_within_zone_boundary: distanceMeters <= 500,
-          notes: distanceMeters > 500 ? outOfBoundsReason : null,
+          notes: distanceMeters > 500 ? outOfBoundsReason.trim() : null,
           verification_status: distanceMeters > 500 ? 'FLAGGED_WARNING' : 'APPROVED',
           selfie_photo_url: capturedPhoto,
         },
@@ -275,6 +336,7 @@ export const TimekeepingCheckInView: React.FC<Props> = ({ isCheckedInToday = fal
   };
 
   const isOutOfBounds = distanceMeters > 500;
+  const isCompanionCheckedIn = !!companionData;
 
   return (
     <div
@@ -298,388 +360,636 @@ export const TimekeepingCheckInView: React.FC<Props> = ({ isCheckedInToday = fal
           </p>
         </div>
 
-        {/* Requirement 1: Refined subtle pill button for GPS reload */}
-        <button
-          type="button"
-          onClick={getLiveGps}
-          style={{
-            background: '#f8fafc',
-            color: '#0284c7',
-            border: '1px solid #cbd5e1',
-            borderRadius: '9999px',
-            padding: '0.45rem 0.85rem',
-            fontSize: '0.8rem',
-            fontWeight: 600,
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '0.35rem',
-            cursor: 'pointer',
-            transition: 'all 0.2s ease',
-            boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
-            whiteSpace: 'nowrap',
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = '#e0f2fe';
-            e.currentTarget.style.borderColor = '#7dd3fc';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.backgroundColor = '#f8fafc';
-            e.currentTarget.style.borderColor = '#cbd5e1';
-          }}
-        >
-          <RefreshCw size={13} className={gpsLoading ? 'animate-spin' : ''} />
-          <span>Lấy lại GPS</span>
-        </button>
-      </div>
-
-      {/* Requirement 2: Clean, balanced Warning/Status Card without text misalignments */}
-      <div
-        className="card"
-        style={{
-          background: isOutOfBounds ? '#fef2f2' : '#f0fdf4',
-          border: isOutOfBounds ? '1px solid #fecaca' : '1px solid #bbf7d0',
-          padding: '1.15rem',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '0.75rem',
-          borderRadius: '0.85rem',
-        }}
-      >
-        {/* Header row */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', minWidth: 0 }}>
-            <MapPin size={18} color={isOutOfBounds ? '#dc2626' : '#16a34a'} style={{ flexShrink: 0 }} />
-            <span
-              style={{
-                fontWeight: 700,
-                color: isOutOfBounds ? '#991b1b' : '#166534',
-                fontSize: '0.925rem',
-                lineHeight: 1.3,
-              }}
-            >
-              {isOutOfBounds ? 'Cảnh báo: Ngoài bán kính 500m' : 'Vị trí hợp lệ trong trạm (Hợp lệ)'}
-            </span>
-          </div>
-          <span
-            className={`badge ${isOutOfBounds ? 'badge-danger' : 'badge-success'}`}
-            style={{ flexShrink: 0, whiteSpace: 'nowrap', fontSize: '0.75rem', fontWeight: 700 }}
-          >
-            Khoảng cách: {distanceMeters}m
-          </span>
-        </div>
-
-        {/* Coordinates row */}
-        <div
-          style={{
-            display: 'flex',
-            flexWrap: 'wrap',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            gap: '0.5rem',
-            fontSize: '0.8rem',
-            color: '#475569',
-            backgroundColor: isOutOfBounds ? 'rgba(254, 226, 226, 0.4)' : 'rgba(220, 252, 231, 0.5)',
-            padding: '0.45rem 0.75rem',
-            borderRadius: '0.5rem',
-          }}
-        >
-          <div>
-            Tọa độ thực: <strong>{gpsCoordinates ? `${gpsCoordinates.lat.toFixed(5)}, ${gpsCoordinates.lng.toFixed(5)}` : 'Đang dò...'}</strong>
-          </div>
-          <div>
-            Độ chính xác: <strong>±{gpsCoordinates?.accuracy ? Math.round(gpsCoordinates.accuracy) : 5}m</strong>
-          </div>
-        </div>
-
-        {/* Warning callout */}
-        {isOutOfBounds && (
-          <div
+        {!hasCheckedIn && (
+          <button
+            type="button"
+            onClick={getLiveGps}
             style={{
-              backgroundColor: '#fee2e2',
-              padding: '0.6rem 0.8rem',
-              borderRadius: '0.5rem',
-              fontSize: '0.775rem',
-              color: '#991b1b',
-              display: 'flex',
-              alignItems: 'flex-start',
-              gap: '0.5rem',
-              lineHeight: 1.45,
-            }}
-          >
-            <AlertTriangle size={15} style={{ flexShrink: 0, marginTop: '2px', color: '#dc2626' }} />
-            <span>
-              Bạn đang cách tâm Ga <strong>{distanceMeters}m</strong> (&gt;500m). Vui lòng nhập lý do thực địa bên dưới để báo cáo Zone Admin.
-            </span>
-          </div>
-        )}
-      </div>
-
-      {/* Check-In Form */}
-      <form onSubmit={handleCheckInSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.15rem' }}>
-        {/* Requirement 3: Centered large selfie preview with button placed underneath */}
-        <div
-          className="card"
-          style={{
-            backgroundColor: '#ffffff',
-            padding: '1.25rem',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '1rem',
-            borderRadius: '0.85rem',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-            <Camera size={17} color="#0284c7" />
-            <span style={{ fontWeight: 700, fontSize: '0.925rem', color: '#0f172a' }}>
-              Ảnh chụp Selfie xác thực
-            </span>
-          </div>
-
-          {cameraActive ? (
-            <div
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '0.75rem',
-                alignItems: 'center',
-                backgroundColor: '#0f172a',
-                padding: '0.85rem',
-                borderRadius: '0.75rem',
-              }}
-            >
-              <video
-                ref={videoRef}
-                autoPlay
-                playsInline
-                style={{ width: '100%', maxHeight: '280px', borderRadius: '0.5rem', objectFit: 'cover' }}
-              />
-              <div style={{ display: 'flex', gap: '0.5rem', width: '100%', justifyContent: 'center' }}>
-                <button
-                  type="button"
-                  onClick={handleCapturePhoto}
-                  className="btn btn-primary btn-sm"
-                  style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.55rem 1.35rem', fontWeight: 700 }}
-                >
-                  <Camera size={15} />
-                  Chụp ảnh ngay
-                </button>
-                <button
-                  type="button"
-                  onClick={handleStopCamera}
-                  className="btn btn-secondary btn-sm"
-                  style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.55rem 1rem' }}
-                >
-                  <X size={15} />
-                  Hủy
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.85rem', width: '100%' }}>
-              {/* Portrait silhouette frame or real snapshot */}
-              <div style={{ position: 'relative', width: '100%', maxWidth: '280px', display: 'flex', justifyContent: 'center' }}>
-                {selfieUrl ? (
-                  <img
-                    src={selfieUrl}
-                    alt="Surveyor Selfie"
-                    style={{
-                      width: '100%',
-                      height: '210px',
-                      borderRadius: '0.85rem',
-                      objectFit: 'cover',
-                      border: '2px solid #bae6fd',
-                      boxShadow: '0 4px 14px rgba(2, 132, 199, 0.14)',
-                    }}
-                  />
-                ) : (
-                  <div
-                    style={{
-                      width: '100%',
-                      height: '200px',
-                      borderRadius: '0.85rem',
-                      backgroundColor: '#f8fafc',
-                      border: '2px dashed #cbd5e1',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '0.5rem',
-                      color: '#94a3b8',
-                    }}
-                  >
-                    <div
-                      style={{
-                        width: '72px',
-                        height: '72px',
-                        borderRadius: '50%',
-                        backgroundColor: '#e2e8f0',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        color: '#64748b',
-                      }}
-                    >
-                      <User size={40} />
-                    </div>
-                    <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#64748b' }}>
-                      Khung chân dung người điểm danh
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              <div style={{ fontSize: '0.8rem', color: '#64748b', textAlign: 'center' }}>
-                {selfieUrl
-                  ? 'Đã chụp ảnh xác thực danh tính thực địa.'
-                  : 'Vui lòng bật camera để chụp ảnh khuôn mặt trước khi điểm danh.'}
-              </div>
-
-              {/* Requirement 3: Button located directly under the photo */}
-              {!hasCheckedIn && (
-                <button
-                  type="button"
-                  onClick={handleStartCamera}
-                  style={{
-                    background: '#e0f2fe',
-                    color: '#0369a1',
-                    border: '1px solid #7dd3fc',
-                    borderRadius: '9999px',
-                    padding: '0.5rem 1.25rem',
-                    fontSize: '0.85rem',
-                    fontWeight: 700,
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '0.45rem',
-                    cursor: 'pointer',
-                    boxShadow: '0 2px 4px rgba(3, 105, 161, 0.08)',
-                    transition: 'all 0.15s ease',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = '#bae6fd';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = '#e0f2fe';
-                  }}
-                >
-                  <Camera size={15} />
-                  <span>{selfieUrl ? 'Bật Camera chụp lại' : 'Bật Camera Chụp Selfie'}</span>
-                </button>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Requirement 4: Sleek redesigned out-of-bounds reason textarea without double borders */}
-        {isOutOfBounds && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-            <label
-              style={{
-                fontSize: '0.85rem',
-                fontWeight: 700,
-                color: '#9a3412',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.35rem',
-              }}
-            >
-              <AlertTriangle size={15} color="#ea580c" />
-              Lý do chấm công ngoài vùng (&gt;500m) <span style={{ color: '#ef4444' }}>*</span>
-            </label>
-            <textarea
-              className="form-control"
-              rows={3}
-              required
-              disabled={hasCheckedIn}
-              value={outOfBoundsReason}
-              onChange={(e) => setOutOfBoundsReason(e.target.value)}
-              placeholder="Nhập lý do khảo sát vùng phụ cận hoặc nhiệm vụ đột xuất..."
-              style={{
-                fontSize: '0.875rem',
-                padding: '0.65rem 0.85rem',
-                borderRadius: '0.65rem',
-                border: '1.5px solid #fed7aa',
-                backgroundColor: hasCheckedIn ? '#f8fafc' : '#fffaf5',
-                lineHeight: '1.45',
-                color: '#1e293b',
-                boxShadow: 'none',
-              }}
-            />
-          </div>
-        )}
-
-        {/* Requirement 5: Submit Feedback Message */}
-        {submitResult && (
-          <div
-            style={{
-              padding: '0.75rem 1rem',
-              borderRadius: '0.65rem',
-              backgroundColor: submitResult.success ? '#f0fdf4' : '#fef2f2',
-              border: `1px solid ${submitResult.success ? '#bbf7d0' : '#fecaca'}`,
-              color: submitResult.success ? '#15803d' : '#991b1b',
-              fontSize: '0.875rem',
+              background: '#f8fafc',
+              color: '#0284c7',
+              border: '1px solid #cbd5e1',
+              borderRadius: '9999px',
+              padding: '0.45rem 0.85rem',
+              fontSize: '0.8rem',
               fontWeight: 600,
-              display: 'flex',
+              display: 'inline-flex',
               alignItems: 'center',
-              gap: '0.5rem',
+              gap: '0.35rem',
+              cursor: 'pointer',
+              boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+              whiteSpace: 'nowrap',
             }}
           >
-            <CheckCircle size={18} />
-            <span>{submitResult.message}</span>
-          </div>
+            <RefreshCw size={13} className={gpsLoading ? 'animate-spin' : ''} />
+            <span>Lấy lại GPS</span>
+          </button>
         )}
+      </div>
 
-        {/* Requirement 6: Prevent spam after check-in */}
-        {hasCheckedIn ? (
+      {/* ───────────────────────────────────────────────────────────── */}
+      {/* MODE 1: ĐÃ ĐIỂM DANH HÔM NAY (VERIFIED SUMMARY VIEW)          */}
+      {/* ───────────────────────────────────────────────────────────── */}
+      {hasCheckedIn ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          {/* Verified Header Banner */}
           <div
+            className="card"
             style={{
               background: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)',
               border: '1.5px solid #86efac',
-              borderRadius: '9999px',
-              padding: '0.85rem 1.5rem',
-              color: '#15803d',
-              fontWeight: 700,
-              fontSize: '0.95rem',
+              borderRadius: '1rem',
+              padding: '1.15rem',
               display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '0.5rem',
+              alignItems: 'flex-start',
+              gap: '0.85rem',
               boxShadow: '0 2px 8px rgba(22, 163, 74, 0.12)',
-              width: '100%',
-              textAlign: 'center',
             }}
           >
-            <ShieldCheck size={20} color="#16a34a" />
-            <span>Đã hoàn thành điểm danh ca trực hôm nay</span>
-          </div>
-        ) : (
-          <button
-            type="submit"
-            disabled={isSubmitting || gpsLoading}
-            style={{
-              background: isSubmitting || gpsLoading ? '#f1f5f9' : 'linear-gradient(135deg, #e0f2fe 0%, #dbeafe 100%)',
-              color: isSubmitting || gpsLoading ? '#94a3b8' : '#0369a1',
-              border: `1.5px solid ${isSubmitting || gpsLoading ? '#cbd5e1' : '#7dd3fc'}`,
-              borderRadius: '9999px',
-              padding: '0.85rem 1.75rem',
-              fontWeight: 700,
-              fontSize: '1rem',
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '0.5rem',
-              cursor: isSubmitting || gpsLoading ? 'not-allowed' : 'pointer',
-              boxShadow: isSubmitting || gpsLoading ? 'none' : '0 2px 8px rgba(3, 105, 161, 0.12)',
-              transition: 'all 0.2s ease',
-              width: '100%',
-            }}
-          >
-            <Clock size={18} />
-            {isSubmitting ? 'Đang gửi điểm danh...' : 'Xác Nhận Chấm Công GPS'}
-          </button>
-        )}
-      </form>
+            <div
+              style={{
+                width: '42px',
+                height: '42px',
+                borderRadius: '10px',
+                backgroundColor: '#bbf7d0',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+                color: '#15803d',
+              }}
+            >
+              <ShieldCheck size={24} />
+            </div>
 
-      {/* Requirement 7: History Section with independent images and non-breaking badges */}
+            <div style={{ flex: 1 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+                <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: '#14532d' }}>
+                  ĐÃ ĐIỂM DANH THỰC ĐỊA HÔM NAY
+                </h3>
+                <span
+                  style={{
+                    backgroundColor: distanceMeters > 500 ? '#fef3c7' : '#dcfce7',
+                    color: distanceMeters > 500 ? '#b45309' : '#15803d',
+                    border: `1px solid ${distanceMeters > 500 ? '#fde68a' : '#86efac'}`,
+                    borderRadius: '999px',
+                    padding: '2px 8px',
+                    fontSize: '0.7rem',
+                    fontWeight: 700,
+                  }}
+                >
+                  {distanceMeters > 500 ? 'Cảnh báo vị trí (>500m)' : 'Vị trí hợp lệ'}
+                </span>
+              </div>
+
+              <div style={{ marginTop: '0.45rem', fontSize: '0.775rem', color: '#166534', display: 'flex', flexWrap: 'wrap', gap: '0.75rem' }}>
+                <span>
+                  Thời gian: <strong>{checkInDetails?.time || 'Hôm nay'}</strong>
+                </span>
+                <span>
+                  Khoảng cách: <strong>{distanceMeters}m</strong> tới Ga S9
+                </span>
+                {gpsCoordinates && (
+                  <span>
+                    GPS: <strong>{gpsCoordinates.lat.toFixed(5)}, {gpsCoordinates.lng.toFixed(5)}</strong>
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Real Photo & Verification Details Card */}
+          <div
+            className="card"
+            style={{
+              backgroundColor: '#ffffff',
+              border: '1px solid #e2e8f0',
+              borderRadius: '1rem',
+              padding: '1.15rem',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '1rem',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+              <Camera size={16} color="#0284c7" />
+              <span style={{ fontWeight: 700, fontSize: '0.9rem', color: '#0f172a' }}>
+                Ảnh Selfie Xác Thực Đã Chụp Hôm Nay
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'row', flexWrap: 'wrap', gap: '1rem', alignItems: 'center' }}>
+              {selfieUrl ? (
+                <img
+                  src={selfieUrl}
+                  alt="Surveyor Selfie"
+                  style={{
+                    width: '130px',
+                    height: '160px',
+                    borderRadius: '0.75rem',
+                    objectFit: 'cover',
+                    border: '2px solid #7dd3fc',
+                    boxShadow: '0 4px 10px rgba(2, 132, 199, 0.15)',
+                    flexShrink: 0,
+                  }}
+                />
+              ) : (
+                <div
+                  style={{
+                    width: '130px',
+                    height: '160px',
+                    borderRadius: '0.75rem',
+                    backgroundColor: '#f8fafc',
+                    border: '2px dashed #cbd5e1',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#94a3b8',
+                    flexShrink: 0,
+                  }}
+                >
+                  <User size={36} />
+                  <span style={{ fontSize: '0.7rem', marginTop: '4px', fontWeight: 600 }}>Ảnh selfie</span>
+                </div>
+              )}
+
+              <div style={{ flex: 1, width: '100%', display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.8rem' }}>
+                <div style={{ paddingBottom: '0.5rem', borderBottom: '1px solid #f1f5f9' }}>
+                  <span style={{ color: '#94a3b8', fontSize: '0.725rem', display: 'block' }}>Điều tra viên:</span>
+                  <span style={{ fontSize: '0.95rem', fontWeight: 800, color: '#0f172a' }}>
+                    {user?.fullName || 'Nguyễn Văn Khảo Sát'}
+                  </span>
+                  <span style={{ color: '#64748b', fontSize: '0.75rem', display: 'block', marginTop: '2px' }}>
+                    Khu vực: <strong>{user?.assignedZoneId || 'Ga S9 - Bà Quẹo'}</strong>
+                  </span>
+                </div>
+
+                {outOfBoundsReason ? (
+                  <div
+                    style={{
+                      backgroundColor: '#fffbeb',
+                      border: '1px solid #fde68a',
+                      borderRadius: '0.65rem',
+                      padding: '0.65rem 0.75rem',
+                      color: '#92400e',
+                    }}
+                  >
+                    <div style={{ fontWeight: 700, fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '2px' }}>
+                      <AlertTriangle size={13} color="#d97706" />
+                      <span>Lý do chấm công ngoài vùng (&gt;500m) đã khai báo:</span>
+                    </div>
+                    <p style={{ margin: 0, fontSize: '0.775rem', fontStyle: 'italic', color: '#78350f', lineHeight: 1.4 }}>
+                      "{outOfBoundsReason}"
+                    </p>
+                  </div>
+                ) : (
+                  <div style={{ color: '#16a34a', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '4px', fontStyle: 'italic' }}>
+                    <CheckCircle2 size={13} />
+                    <span>Vị trí nằm trong bán kính quy chuẩn ≤ 500m quanh Ga Metro 2.</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Section: Cán Bộ Đi Kèm (Co-Surveyor) */}
+          <div
+            className="card"
+            style={{
+              backgroundColor: '#ffffff',
+              border: isCompanionCheckedIn ? '1.5px solid #a5b4fc' : '1.5px dashed #c7d2fe',
+              borderRadius: '1rem',
+              padding: '1.15rem',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.85rem',
+              background: 'linear-gradient(135deg, #faf5ff 0%, #f5f3ff 100%)',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <div
+                  style={{
+                    width: '32px',
+                    height: '32px',
+                    borderRadius: '8px',
+                    backgroundColor: '#ede9fe',
+                    color: '#6d28d9',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Users size={18} />
+                </div>
+                <div>
+                  <h4 style={{ margin: 0, fontSize: '0.875rem', fontWeight: 800, color: '#4c1d95' }}>
+                    Cán Bộ Đi Kèm (Tổ 02 người)
+                  </h4>
+                  <span style={{ fontSize: '0.7rem', color: '#6d28d9' }}>
+                    Quy chuẩn tổ khảo sát hiện trường Metro Line 2
+                  </span>
+                </div>
+              </div>
+
+              <span
+                style={{
+                  backgroundColor: isCompanionCheckedIn ? '#dcfce7' : '#fef3c7',
+                  color: isCompanionCheckedIn ? '#15803d' : '#b45309',
+                  border: `1px solid ${isCompanionCheckedIn ? '#86efac' : '#fde68a'}`,
+                  borderRadius: '999px',
+                  padding: '2px 8px',
+                  fontSize: '0.7rem',
+                  fontWeight: 700,
+                }}
+              >
+                {isCompanionCheckedIn ? '✓ Đã điểm danh' : 'Chưa điểm danh'}
+              </span>
+            </div>
+
+            {isCompanionCheckedIn && companionData ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', backgroundColor: '#ffffff', padding: '0.65rem 0.85rem', borderRadius: '0.65rem', border: '1px solid #e9d5ff' }}>
+                {companionData.selfieUrl ? (
+                  <img
+                    src={companionData.selfieUrl}
+                    alt={companionData.name}
+                    style={{ width: '42px', height: '42px', borderRadius: '50%', objectFit: 'cover', border: '1.5px solid #c084fc' }}
+                  />
+                ) : (
+                  <div style={{ width: '42px', height: '42px', borderRadius: '50%', backgroundColor: '#f3e8ff', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#7e22ce' }}>
+                    <User size={20} />
+                  </div>
+                )}
+                <div style={{ flex: 1, minWidth: 0, fontSize: '0.775rem' }}>
+                  <div style={{ fontWeight: 800, color: '#1e1b4b' }}>{companionData.name}</div>
+                  <div style={{ color: '#6d28d9', fontSize: '0.7rem' }}>{companionData.role} • Lúc {companionData.time}</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowCompanionModal(true)}
+                  style={{
+                    backgroundColor: '#ede9fe',
+                    color: '#6d28d9',
+                    border: '1px solid #ddd6fe',
+                    borderRadius: '8px',
+                    padding: '0.35rem 0.65rem',
+                    fontSize: '0.725rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Xem chi tiết
+                </button>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: '0.75rem', color: '#6b7280' }}>
+                  Chưa ghi nhận điểm danh cho cán bộ đi cùng.
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowCompanionModal(true)}
+                  style={{
+                    backgroundColor: '#6d28d9',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: '8px',
+                    padding: '0.45rem 0.95rem',
+                    fontSize: '0.775rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.35rem',
+                    boxShadow: '0 2px 5px rgba(109, 40, 217, 0.25)',
+                  }}
+                >
+                  <UserCheck size={14} />
+                  <span>Điểm danh cán bộ đi kèm</span>
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      ) : (
+        /* ───────────────────────────────────────────────────────────── */
+        /* MODE 2: CHƯA ĐIỂM DANH (LIVE GPS SCAN & CAMERA FORM)          */
+        /* ───────────────────────────────────────────────────────────── */
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+          {/* GPS Live Status Card */}
+          <div
+            className="card"
+            style={{
+              background: isOutOfBounds ? '#fef2f2' : '#f0fdf4',
+              border: isOutOfBounds ? '1px solid #fecaca' : '1px solid #bbf7d0',
+              padding: '1.15rem',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.75rem',
+              borderRadius: '0.85rem',
+            }}
+          >
+            {/* Header row */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', minWidth: 0 }}>
+                <MapPin size={18} color={isOutOfBounds ? '#dc2626' : '#16a34a'} style={{ flexShrink: 0 }} />
+                <span
+                  style={{
+                    fontWeight: 700,
+                    color: isOutOfBounds ? '#991b1b' : '#166534',
+                    fontSize: '0.925rem',
+                    lineHeight: 1.3,
+                  }}
+                >
+                  {isOutOfBounds ? 'Cảnh báo: Ngoài bán kính 500m' : 'Vị trí hợp lệ trong trạm (Hợp lệ)'}
+                </span>
+              </div>
+              <span
+                className={`badge ${isOutOfBounds ? 'badge-danger' : 'badge-success'}`}
+                style={{ flexShrink: 0, whiteSpace: 'nowrap', fontSize: '0.75rem', fontWeight: 700 }}
+              >
+                Khoảng cách: {distanceMeters}m
+              </span>
+            </div>
+
+            {/* Coordinates row */}
+            <div
+              style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                gap: '0.5rem',
+                fontSize: '0.8rem',
+                color: '#475569',
+                backgroundColor: isOutOfBounds ? 'rgba(254, 226, 226, 0.4)' : 'rgba(220, 252, 231, 0.5)',
+                padding: '0.45rem 0.75rem',
+                borderRadius: '0.5rem',
+              }}
+            >
+              <div>
+                Tọa độ thực: <strong>{gpsCoordinates ? `${gpsCoordinates.lat.toFixed(5)}, ${gpsCoordinates.lng.toFixed(5)}` : 'Đang dò...'}</strong>
+              </div>
+              <div>
+                Độ chính xác: <strong>±{gpsCoordinates?.accuracy ? Math.round(gpsCoordinates.accuracy) : 5}m</strong>
+              </div>
+            </div>
+
+            {/* Warning callout */}
+            {isOutOfBounds && (
+              <div
+                style={{
+                  backgroundColor: '#fee2e2',
+                  padding: '0.6rem 0.8rem',
+                  borderRadius: '0.5rem',
+                  fontSize: '0.775rem',
+                  color: '#991b1b',
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '0.5rem',
+                  lineHeight: 1.45,
+                }}
+              >
+                <AlertTriangle size={15} style={{ flexShrink: 0, marginTop: '2px', color: '#dc2626' }} />
+                <span>
+                  Bạn đang cách tâm Ga <strong>{distanceMeters}m</strong> (&gt;500m). Vui lòng nhập lý do thực địa bên dưới để báo cáo Zone Admin.
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* Check-In Form */}
+          <form onSubmit={handleCheckInSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.15rem' }}>
+            <div
+              className="card"
+              style={{
+                backgroundColor: '#ffffff',
+                padding: '1.25rem',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '1rem',
+                borderRadius: '0.85rem',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <Camera size={17} color="#0284c7" />
+                <span style={{ fontWeight: 700, fontSize: '0.925rem', color: '#0f172a' }}>
+                  Ảnh chụp Selfie xác thực (*)
+                </span>
+              </div>
+
+              {cameraActive ? (
+                <div
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.75rem',
+                    alignItems: 'center',
+                    backgroundColor: '#0f172a',
+                    padding: '0.85rem',
+                    borderRadius: '0.75rem',
+                  }}
+                >
+                  <video
+                    ref={videoRef}
+                    autoPlay
+                    playsInline
+                    style={{ width: '100%', maxHeight: '280px', borderRadius: '0.5rem', objectFit: 'cover' }}
+                  />
+                  <div style={{ display: 'flex', gap: '0.5rem', width: '100%', justifyContent: 'center' }}>
+                    <button
+                      type="button"
+                      onClick={handleCapturePhoto}
+                      className="btn btn-primary btn-sm"
+                      style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.55rem 1.35rem', fontWeight: 700 }}
+                    >
+                      <Camera size={15} />
+                      Chụp ảnh ngay
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleStopCamera}
+                      className="btn btn-secondary btn-sm"
+                      style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', padding: '0.55rem 1rem' }}
+                    >
+                      <X size={15} />
+                      Hủy
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.85rem', width: '100%' }}>
+                  <div style={{ position: 'relative', width: '100%', maxWidth: '280px', display: 'flex', justifyContent: 'center' }}>
+                    {selfieUrl ? (
+                      <img
+                        src={selfieUrl}
+                        alt="Surveyor Selfie"
+                        style={{
+                          width: '100%',
+                          height: '210px',
+                          borderRadius: '0.85rem',
+                          objectFit: 'cover',
+                          border: '2px solid #bae6fd',
+                          boxShadow: '0 4px 14px rgba(2, 132, 199, 0.14)',
+                        }}
+                      />
+                    ) : (
+                      <div
+                        style={{
+                          width: '100%',
+                          height: '200px',
+                          borderRadius: '0.85rem',
+                          backgroundColor: '#f8fafc',
+                          border: '2px dashed #cbd5e1',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '0.5rem',
+                          color: '#94a3b8',
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: '72px',
+                            height: '72px',
+                            borderRadius: '50%',
+                            backgroundColor: '#e2e8f0',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: '#64748b',
+                          }}
+                        >
+                          <User size={40} />
+                        </div>
+                        <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#64748b' }}>
+                          Khung chân dung người điểm danh
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div style={{ fontSize: '0.8rem', color: '#64748b', textAlign: 'center' }}>
+                    {selfieUrl
+                      ? 'Đã chụp ảnh xác thực danh tính thực địa.'
+                      : 'Vui lòng bật camera để chụp ảnh khuôn mặt trước khi điểm danh.'}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleStartCamera}
+                    style={{
+                      background: '#e0f2fe',
+                      color: '#0369a1',
+                      border: '1px solid #7dd3fc',
+                      borderRadius: '9999px',
+                      padding: '0.5rem 1.25rem',
+                      fontSize: '0.85rem',
+                      fontWeight: 700,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '0.45rem',
+                      cursor: 'pointer',
+                      boxShadow: '0 2px 4px rgba(3, 105, 161, 0.08)',
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    <Camera size={15} />
+                    <span>{selfieUrl ? 'Bật Camera chụp lại' : 'Bật Camera Chụp Selfie'}</span>
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Out of bounds reason textarea */}
+            {isOutOfBounds && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                <label
+                  style={{
+                    fontSize: '0.85rem',
+                    fontWeight: 700,
+                    color: '#9a3412',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.35rem',
+                  }}
+                >
+                  <AlertTriangle size={15} color="#ea580c" />
+                  Lý do chấm công ngoài vùng (&gt;500m) <span style={{ color: '#ef4444' }}>*</span>
+                </label>
+                <textarea
+                  className="form-control"
+                  rows={3}
+                  required
+                  value={outOfBoundsReason}
+                  onChange={(e) => setOutOfBoundsReason(e.target.value)}
+                  placeholder="Nhập lý do khảo sát vùng phụ cận hoặc nhiệm vụ đột xuất..."
+                  style={{
+                    fontSize: '0.875rem',
+                    padding: '0.65rem 0.85rem',
+                    borderRadius: '0.65rem',
+                    border: '1.5px solid #fed7aa',
+                    backgroundColor: '#fffaf5',
+                    lineHeight: '1.45',
+                    color: '#1e293b',
+                    boxShadow: 'none',
+                  }}
+                />
+              </div>
+            )}
+
+            {/* Submit button */}
+            <button
+              type="submit"
+              disabled={isSubmitting || gpsLoading}
+              style={{
+                background: isSubmitting || gpsLoading ? '#f1f5f9' : 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                color: isSubmitting || gpsLoading ? '#94a3b8' : '#ffffff',
+                border: 'none',
+                borderRadius: '9999px',
+                padding: '0.85rem 1.75rem',
+                fontWeight: 700,
+                fontSize: '0.95rem',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.5rem',
+                cursor: isSubmitting || gpsLoading ? 'not-allowed' : 'pointer',
+                boxShadow: '0 4px 10px rgba(2, 132, 199, 0.25)',
+                transition: 'all 0.2s ease',
+                width: '100%',
+              }}
+            >
+              <Clock size={18} />
+              {isSubmitting ? 'Đang gửi điểm danh...' : 'Xác Nhận Chấm Công GPS'}
+            </button>
+          </form>
+        </div>
+      )}
+
+      {/* Submit Result Toast (Auto-dismissed) */}
+      {submitResult && (
+        <div
+          style={{
+            padding: '0.75rem 1rem',
+            borderRadius: '0.65rem',
+            backgroundColor: submitResult.success ? '#f0fdf4' : '#fef2f2',
+            border: `1px solid ${submitResult.success ? '#bbf7d0' : '#fecaca'}`,
+            color: submitResult.success ? '#15803d' : '#991b1b',
+            fontSize: '0.875rem',
+            fontWeight: 600,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+          }}
+        >
+          <CheckCircle size={18} />
+          <span>{submitResult.message}</span>
+        </div>
+      )}
+
+      {/* History Section */}
       <div style={{ marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
         <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700, color: '#0f172a' }}>
           Lịch sử chấm công gần đây
@@ -689,7 +999,6 @@ export const TimekeepingCheckInView: React.FC<Props> = ({ isCheckedInToday = fal
           {history.map((h, i) => {
             const distance = Math.round(h.distance_to_zone_center_meters ?? h.distance_meters ?? 0);
             const isOutOfBoundItem = distance > 500 || h.is_out_of_bounds || !h.is_within_zone_boundary;
-            // Each history record retains its own independent image URL (Requirement 7)
             const photo = h.selfie_photo_url || h.photo_selfie_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300';
             const status = h.verification_status;
 
@@ -708,7 +1017,6 @@ export const TimekeepingCheckInView: React.FC<Props> = ({ isCheckedInToday = fal
                   gap: '0.75rem',
                 }}
               >
-                {/* Left: Avatar and text */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0, flex: 1 }}>
                   <img
                     src={photo}
@@ -733,7 +1041,6 @@ export const TimekeepingCheckInView: React.FC<Props> = ({ isCheckedInToday = fal
                   </div>
                 </div>
 
-                {/* Right: Badge with flex-shrink: 0 and white-space: nowrap (Requirement 7) */}
                 <div style={{ flexShrink: 0 }}>
                   {status === 'APPROVED' || status === 'VERIFIED' ? (
                     <span className="badge badge-success" style={{ whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
@@ -762,6 +1069,18 @@ export const TimekeepingCheckInView: React.FC<Props> = ({ isCheckedInToday = fal
           })}
         </div>
       </div>
+
+      {/* Companion Check-In Modal */}
+      {showCompanionModal && (
+        <CompanionCheckInModal
+          isOpen={showCompanionModal}
+          onClose={() => setShowCompanionModal(false)}
+          onSuccess={(data) => {
+            setCompanionData(data);
+            setShowCompanionModal(false);
+          }}
+        />
+      )}
     </div>
   );
 };

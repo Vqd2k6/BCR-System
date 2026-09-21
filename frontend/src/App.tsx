@@ -10,6 +10,7 @@ import { TimekeepingCheckInView } from './views/surveyor/TimekeepingCheckInView'
 import { SurveyPhase1Page } from './features/survey-phase1/views/SurveyPhase1Page';
 import { SurveyPhase2View } from './views/surveyor/SurveyPhase2View';
 import { BuildingHubModal } from './components/survey/BuildingHubModal';
+import { CompanionCheckInModal } from './components/attendance/CompanionCheckInModal';
 import { ZoneManagerDashboardPage } from './features/zone-management/views/ZoneManagerDashboardPage';
 import { AdminDashboardPage } from './features/admin-portal/views/AdminDashboardPage';
 import { PublicCitizenPortalPage } from './features/guest-portal/views/PublicCitizenPortalPage';
@@ -24,6 +25,7 @@ export const App: React.FC = () => {
   const [selectedUnitForSurvey, setSelectedUnitForSurvey] = useState<any | null>(null);
   const [hubParcel, setHubParcel] = useState<GisParcel | null>(null);
   const [showAttendanceWarningModal, setShowAttendanceWarningModal] = useState<boolean>(false);
+  const [showCompanionCheckInModal, setShowCompanionCheckInModal] = useState<boolean>(false);
   const [pendingSurveyFn, setPendingSurveyFn] = useState<(() => void) | null>(null);
 
   // Dynamic Check-In state for surveyor with localStorage persistence (Requirement 5)
@@ -225,6 +227,7 @@ export const App: React.FC = () => {
               : 'Đối Soát Phase 2 (Pre-Construction)'
           }
           onNavigateToCheckIn={() => setActiveTab('attendance')}
+          onOpenCompanionCheckIn={() => setShowCompanionCheckInModal(true)}
           onNavigateHome={() => setActiveTab('home')}
           isCheckedInToday={isCheckedInToday}
         />
@@ -358,6 +361,14 @@ export const App: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Companion Check-In Modal (Accessible globally via Profile Navbar) */}
+      {showCompanionCheckInModal && (
+        <CompanionCheckInModal
+          isOpen={showCompanionCheckInModal}
+          onClose={() => setShowCompanionCheckInModal(false)}
+        />
       )}
 
       {/* Bottom Navigation for Mobile PWA (Hidden during survey) */}

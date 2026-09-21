@@ -1,11 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { Train, LogOut, ShieldCheck, Clock, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Train, LogOut, ShieldCheck, Clock, CheckCircle2, AlertCircle, Users, UserCheck } from 'lucide-react';
 
 interface Props {
   title?: string;
   subtitle?: string;
   onNavigateToCheckIn?: () => void;
+  onOpenCompanionCheckIn?: () => void;
   onNavigateHome?: () => void;
   isCheckedInToday?: boolean;
 }
@@ -14,10 +15,13 @@ export const SurveyorNavbar: React.FC<Props> = ({
   title = 'Khảo Sát Thực Địa Metro 2',
   subtitle,
   onNavigateToCheckIn,
+  onOpenCompanionCheckIn,
   onNavigateHome,
   isCheckedInToday,
 }) => {
   const { user, logout } = useAuth();
+  const todayStr = new Date().toISOString().split('T')[0];
+  const isCompanionCheckedIn = !!localStorage.getItem(`metro2_companion_checkin_${todayStr}`);
   const [showProfileMenu, setShowProfileMenu] = useState<boolean>(false);
   const [isVisible, setIsVisible] = useState<boolean>(true);
   const [lastScrollY, setLastScrollY] = useState<number>(0);
@@ -265,6 +269,71 @@ export const SurveyorNavbar: React.FC<Props> = ({
                 >
                   <Clock size={12} />
                   <span>{isCheckedInToday ? 'Xem chi tiết điểm danh' : 'Chấm công GPS ngay'}</span>
+                </button>
+              )}
+            </div>
+
+            {/* Điểm danh Cán bộ đi kèm trong Profile */}
+            <div
+              style={{
+                backgroundColor: isCompanionCheckedIn ? '#faf5ff' : '#f8fafc',
+                border: isCompanionCheckedIn ? '1px solid #e9d5ff' : '1px solid #e2e8f0',
+                borderRadius: '0.5rem',
+                padding: '0.55rem 0.65rem',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.35rem',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.75rem', fontWeight: 700, color: '#4c1d95' }}>
+                  <Users size={14} color="#7c3aed" />
+                  <span>Cán bộ đi kèm</span>
+                </div>
+                <span
+                  className="badge"
+                  style={{
+                    backgroundColor: isCompanionCheckedIn ? '#dcfce7' : '#fef3c7',
+                    color: isCompanionCheckedIn ? '#15803d' : '#b45309',
+                    fontSize: '0.65rem',
+                    fontWeight: 700,
+                    padding: '0.1rem 0.35rem',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '3px',
+                  }}
+                >
+                  {isCompanionCheckedIn && <CheckCircle2 size={10} />}
+                  <span>{isCompanionCheckedIn ? 'Đã điểm danh' : 'Chưa điểm danh'}</span>
+                </span>
+              </div>
+
+              {onOpenCompanionCheckIn && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowProfileMenu(false);
+                    onOpenCompanionCheckIn();
+                  }}
+                  className="btn btn-sm"
+                  style={{
+                    width: '100%',
+                    padding: '0.35rem',
+                    fontSize: '0.75rem',
+                    fontWeight: 700,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.3rem',
+                    backgroundColor: '#7c3aed',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <UserCheck size={12} />
+                  <span>{isCompanionCheckedIn ? 'Xem thông tin người đi kèm' : 'Điểm danh người đi kèm'}</span>
                 </button>
               )}
             </div>
