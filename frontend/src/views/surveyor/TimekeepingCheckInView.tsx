@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { api } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
-import { Camera, MapPin, CheckCircle, AlertTriangle, Clock, RefreshCw, X, ShieldCheck, CheckCircle2, XCircle } from 'lucide-react';
+import { Camera, MapPin, CheckCircle, AlertTriangle, Clock, RefreshCw, X, ShieldCheck, CheckCircle2, XCircle, User } from 'lucide-react';
 
 interface Props {
   isCheckedInToday?: boolean;
@@ -13,9 +13,7 @@ export const TimekeepingCheckInView: React.FC<Props> = ({ isCheckedInToday = fal
   const [gpsLoading, setGpsLoading] = useState<boolean>(true);
   const [gpsCoordinates, setGpsCoordinates] = useState<{ lat: number; lng: number; accuracy: number } | null>(null);
   const [distanceMeters, setDistanceMeters] = useState<number>(35); // default mock 35m from Ga S9
-  const [selfieUrl, setSelfieUrl] = useState<string>(
-    'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=500&auto=format&fit=crop&q=80'
-  );
+  const [selfieUrl, setSelfieUrl] = useState<string>('');
   const [outOfBoundsReason, setOutOfBoundsReason] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [submitResult, setSubmitResult] = useState<{ success: boolean; message: string; data?: any } | null>(null);
@@ -26,6 +24,16 @@ export const TimekeepingCheckInView: React.FC<Props> = ({ isCheckedInToday = fal
   const mediaStreamRef = useRef<MediaStream | null>(null);
 
   const STATION_S9_COORDS = { lat: 10.8034, lng: 106.6385 };
+
+  // Auto-dismiss submitResult message after 3.5 seconds
+  useEffect(() => {
+    if (submitResult) {
+      const timer = setTimeout(() => {
+        setSubmitResult(null);
+      }, 3500);
+      return () => clearTimeout(timer);
+    }
+  }, [submitResult]);
 
   const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
     const R = 6371e3;
@@ -169,6 +177,11 @@ export const TimekeepingCheckInView: React.FC<Props> = ({ isCheckedInToday = fal
   const handleCheckInSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!gpsCoordinates || hasCheckedIn) return;
+
+    if (!selfieUrl) {
+      alert('Vui lòng bật camera để chụp ảnh chân dung selfie xác thực trước khi gửi điểm danh.');
+      return;
+    }
 
     if (isOutOfBounds && !outOfBoundsReason.trim()) {
       alert('Vui lòng nhập lý do chấm công ngoài phạm vi 500m.');
@@ -463,24 +476,62 @@ export const TimekeepingCheckInView: React.FC<Props> = ({ isCheckedInToday = fal
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.85rem', width: '100%' }}>
-              {/* Centered large snapshot image */}
+              {/* Portrait silhouette frame or real snapshot */}
               <div style={{ position: 'relative', width: '100%', maxWidth: '280px', display: 'flex', justifyContent: 'center' }}>
-                <img
-                  src={selfieUrl}
-                  alt="Surveyor Selfie"
-                  style={{
-                    width: '100%',
-                    height: '210px',
-                    borderRadius: '0.85rem',
-                    objectFit: 'cover',
-                    border: '2px solid #bae6fd',
-                    boxShadow: '0 4px 14px rgba(2, 132, 199, 0.14)',
-                  }}
-                />
+                {selfieUrl ? (
+                  <img
+                    src={selfieUrl}
+                    alt="Surveyor Selfie"
+                    style={{
+                      width: '100%',
+                      height: '210px',
+                      borderRadius: '0.85rem',
+                      objectFit: 'cover',
+                      border: '2px solid #bae6fd',
+                      boxShadow: '0 4px 14px rgba(2, 132, 199, 0.14)',
+                    }}
+                  />
+                ) : (
+                  <div
+                    style={{
+                      width: '100%',
+                      height: '200px',
+                      borderRadius: '0.85rem',
+                      backgroundColor: '#f8fafc',
+                      border: '2px dashed #cbd5e1',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '0.5rem',
+                      color: '#94a3b8',
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: '72px',
+                        height: '72px',
+                        borderRadius: '50%',
+                        backgroundColor: '#e2e8f0',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: '#64748b',
+                      }}
+                    >
+                      <User size={40} />
+                    </div>
+                    <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#64748b' }}>
+                      Khung chân dung người điểm danh
+                    </span>
+                  </div>
+                )}
               </div>
 
               <div style={{ fontSize: '0.8rem', color: '#64748b', textAlign: 'center' }}>
-                Xác thực danh tính thực địa qua camera trước.
+                {selfieUrl
+                  ? 'Đã chụp ảnh xác thực danh tính thực địa.'
+                  : 'Vui lòng bật camera để chụp ảnh khuôn mặt trước khi điểm danh.'}
               </div>
 
               {/* Requirement 3: Button located directly under the photo */}
@@ -511,7 +562,7 @@ export const TimekeepingCheckInView: React.FC<Props> = ({ isCheckedInToday = fal
                   }}
                 >
                   <Camera size={15} />
-                  <span>Bật Camera chụp lại</span>
+                  <span>{selfieUrl ? 'Bật Camera chụp lại' : 'Bật Camera Chụp Selfie'}</span>
                 </button>
               )}
             </div>

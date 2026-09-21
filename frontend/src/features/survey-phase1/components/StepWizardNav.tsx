@@ -20,7 +20,7 @@ interface StepWizardNavProps {
 }
 
 export const StepWizardNav: React.FC<StepWizardNavProps> = ({ onBackToHome }) => {
-  const { currentStep, setCurrentStep, nextStep, prevStep, lastSavedAt, isSavingDraft } =
+  const { currentStep, requestStepNavigation, nextStep, prevStep, lastSavedAt, isSavingDraft } =
     usePhase1SurveyStore();
 
   return (
@@ -85,7 +85,7 @@ export const StepWizardNav: React.FC<StepWizardNavProps> = ({ onBackToHome }) =>
             return (
               <button
                 key={stepNum}
-                onClick={() => setCurrentStep(stepNum)}
+                onClick={() => requestStepNavigation(stepNum)}
                 className={clsx(
                   'flex-1 py-1.5 px-2 rounded-lg text-xs font-medium text-center transition-all flex items-center justify-center gap-1.5 truncate border',
                   isCurrent

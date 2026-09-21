@@ -10,6 +10,7 @@ import { Step6_ScopeAndGisMutation } from '../components/Step6_ScopeAndGisMutati
 import { Step7_TechnicalCalculations } from '../components/Step7_TechnicalCalculations';
 import { Step8_ExecutiveDashboard } from '../components/Step8_ExecutiveDashboard';
 import { Step9_FieldSignatures } from '../components/Step9_FieldSignatures';
+import { MissingFieldsModal } from '../components/MissingFieldsModal';
 import { GisParcel, BuildingUnit } from '../../../core/types/domain.types';
 import { api } from '../../../services/api';
 
@@ -26,7 +27,17 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
   onBackToHome,
   onFinished,
 }) => {
-  const { currentStep, formData, initializeForm, clearDraft } = usePhase1SurveyStore();
+  const {
+    currentStep,
+    formData,
+    initializeForm,
+    clearDraft,
+    missingModal,
+    closeMissingModal,
+    proceedAnyway,
+    focusMissingField,
+    validateForFinalSubmit,
+  } = usePhase1SurveyStore();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Khởi tạo form khi parcel thay đổi
@@ -38,6 +49,9 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
 
   // Nộp hồ sơ hoàn chỉnh lên Backend
   const handleSubmitFinal = async () => {
+    const isValid = validateForFinalSubmit();
+    if (!isValid) return;
+
     try {
       setIsSubmitting(true);
       console.log('[Phase1] Submitting final survey payload:', formData);
@@ -89,6 +103,19 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
           />
         )}
       </main>
+
+      {/* Missing Required Fields Validation Popup */}
+      {missingModal && (
+        <MissingFieldsModal
+          isOpen={missingModal.isOpen}
+          missingFields={missingModal.missingFields}
+          currentStep={currentStep}
+          targetStep={missingModal.targetStep}
+          onClose={closeMissingModal}
+          onProceedAnyway={proceedAnyway}
+          onFocusField={focusMissingField}
+        />
+      )}
     </div>
   );
 };

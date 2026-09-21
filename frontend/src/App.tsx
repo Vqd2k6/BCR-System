@@ -13,6 +13,7 @@ import { BuildingHubModal } from './components/survey/BuildingHubModal';
 import { ZoneManagerDashboardPage } from './features/zone-management/views/ZoneManagerDashboardPage';
 import { AdminDashboardPage } from './features/admin-portal/views/AdminDashboardPage';
 import { PublicCitizenPortalPage } from './features/guest-portal/views/PublicCitizenPortalPage';
+import { MapPin, Camera } from 'lucide-react';
 
 export const App: React.FC = () => {
   const { user, isAuthenticated, isLoading } = useAuth();
@@ -22,6 +23,8 @@ export const App: React.FC = () => {
   const [selectedParcelForSurvey, setSelectedParcelForSurvey] = useState<GisParcel | null>(null);
   const [selectedUnitForSurvey, setSelectedUnitForSurvey] = useState<any | null>(null);
   const [hubParcel, setHubParcel] = useState<GisParcel | null>(null);
+  const [showAttendanceWarningModal, setShowAttendanceWarningModal] = useState<boolean>(false);
+  const [pendingSurveyFn, setPendingSurveyFn] = useState<(() => void) | null>(null);
 
   // Dynamic Check-In state for surveyor with localStorage persistence (Requirement 5)
   const [isCheckedInToday, setIsCheckedInToday] = useState<boolean>(() => {
@@ -153,21 +156,36 @@ export const App: React.FC = () => {
     return <LoginView />;
   }
 
+  const triggerSurveyWithCheckInGuard = (surveyFn: () => void) => {
+    if (!isCheckedInToday) {
+      setPendingSurveyFn(() => surveyFn);
+      setShowAttendanceWarningModal(true);
+    } else {
+      surveyFn();
+    }
+  };
+
   const handleStartPhase1 = (parcel: GisParcel) => {
-    setSelectedParcelForSurvey(parcel);
-    setSelectedUnitForSurvey(null);
-    setActiveTab('phase1');
+    triggerSurveyWithCheckInGuard(() => {
+      setSelectedParcelForSurvey(parcel);
+      setSelectedUnitForSurvey(null);
+      setActiveTab('phase1');
+    });
   };
 
   const handleStartUnitSurvey = (parcel: GisParcel, unit: any) => {
-    setSelectedParcelForSurvey(parcel);
-    setSelectedUnitForSurvey(unit);
-    setActiveTab('phase1');
+    triggerSurveyWithCheckInGuard(() => {
+      setSelectedParcelForSurvey(parcel);
+      setSelectedUnitForSurvey(unit);
+      setActiveTab('phase1');
+    });
   };
 
   const handleStartPhase2 = (parcel: GisParcel) => {
-    setSelectedParcelForSurvey(parcel);
-    setActiveTab('phase2');
+    triggerSurveyWithCheckInGuard(() => {
+      setSelectedParcelForSurvey(parcel);
+      setActiveTab('phase2');
+    });
   };
 
   const handleRecordAbsence = async (parcel: GisParcel) => {
@@ -289,6 +307,57 @@ export const App: React.FC = () => {
             loadParcels();
           }}
         />
+      )}
+
+      {/* Attendance Check-in Reminder Modal */}
+      {showAttendanceWarningModal && (
+        <div
+          className="fixed inset-0 z-[999999] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto"
+          onClick={() => setShowAttendanceWarningModal(false)}
+        >
+          <div
+            className="bg-white rounded-2xl w-full max-w-md shadow-2xl border border-amber-200 overflow-hidden my-auto p-5 animate-in fade-in zoom-in-95"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start gap-3.5">
+              <div className="w-12 h-12 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center flex-shrink-0 border border-amber-200">
+                <MapPin size={24} />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900">
+                  Chưa Điểm Danh GPS Hôm Nay!
+                </h3>
+                <p className="text-xs text-slate-600 mt-1.5 leading-relaxed">
+                  Theo quy chuẩn hiện trường Metro Line 2, cán bộ cần thực hiện <strong>Điểm danh GPS</strong> & chụp ảnh selfie tại Ga phụ trách trước khi thu thập số liệu.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-5 flex flex-col sm:flex-row gap-2.5">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowAttendanceWarningModal(false);
+                  if (pendingSurveyFn) pendingSurveyFn();
+                }}
+                className="flex-1 py-2.5 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-colors"
+              >
+                Khảo sát trước (Chấm công sau)
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowAttendanceWarningModal(false);
+                  setActiveTab('attendance');
+                }}
+                className="flex-1 py-2.5 px-4 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold rounded-xl transition-colors shadow-md shadow-sky-200 flex items-center justify-center gap-1.5"
+              >
+                <Camera size={15} />
+                <span>Điểm danh ngay</span>
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Bottom Navigation for Mobile PWA (Hidden during survey) */}

@@ -1647,42 +1647,6 @@ export const LeafletSweepMap: React.FC<Props> = ({
               <Navigation size={14} color="#0284c7" />
               Chỉ đường
             </button>
-
-            {/* Absence Button ONLY for Phase 1 incomplete */}
-            {activeParcel.surveyStatus !== 'APPROVED' &&
-              activeParcel.surveyStatus !== 'PHASE2_COMPLETED' &&
-              activeParcel.surveyStatus !== 'APPROVED_PHASE2' && (
-                <button
-                  type="button"
-                  className="btn btn-sm"
-                  disabled={!!absenceRecordedToday[activeParcel.id]}
-                  onClick={() => handleRecordAbsenceClick(activeParcel)}
-                  style={{
-                    fontSize: '0.775rem',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.3rem',
-                    backgroundColor: absenceRecordedToday[activeParcel.id] ? '#f1f5f9' : '#fffbeb',
-                    color: absenceRecordedToday[activeParcel.id] ? '#94a3b8' : '#b45309',
-                    borderColor: absenceRecordedToday[activeParcel.id] ? '#e2e8f0' : '#fde68a',
-                    cursor: absenceRecordedToday[activeParcel.id] ? 'not-allowed' : 'pointer',
-                    padding: '0.5rem 0.75rem',
-                    fontWeight: 600,
-                  }}
-                >
-                  {absenceRecordedToday[activeParcel.id] ? (
-                    <>
-                      <Check size={13} color="#10b981" />
-                      Đã báo vắng
-                    </>
-                  ) : (
-                    <>
-                      <UserX size={13} />
-                      Báo vắng mặt
-                    </>
-                  )}
-                </button>
-              )}
           </div>
         </div>
       )}

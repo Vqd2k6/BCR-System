@@ -76,9 +76,41 @@ export const SurveyorHomeView: React.FC<Props> = ({
   const weekTarget = 20;
   const weekCompleted = 8;
 
+  // Helper resolving real-time draft status & building type
+  const getStatus = (p: GisParcel) => {
+    const baseStatus = p?.surveyStatus || (p as any)?.survey_status || 'NOT_SURVEYED';
+    if (baseStatus !== 'APPROVED' && baseStatus !== 'PHASE2_COMPLETED' && baseStatus !== 'APPROVED_PHASE2' && p?.id) {
+      try {
+        const draft = localStorage.getItem(`metro2_phase1_draft_${p.id}`);
+        if (draft) {
+          const parsed = JSON.parse(draft);
+          if (parsed.isAbsenteeSurvey || parsed.surveyCaseType === 'ABSENTEE') {
+            return 'POSTPONED_ABSENT';
+          }
+          return 'IN_PROGRESS';
+        }
+      } catch (_e) {}
+    }
+    return baseStatus;
+  };
+
+  const getBuildingType = (p: GisParcel) => {
+    if (p?.id) {
+      try {
+        const draft = localStorage.getItem(`metro2_phase1_draft_${p.id}`);
+        if (draft) {
+          const parsed = JSON.parse(draft);
+          if (parsed.surveyCaseType === 'APARTMENT') {
+            return 'CONDOMINIUM';
+          }
+        }
+      } catch (_e) {}
+    }
+    return p?.buildingType || (p as any)?.building_type || 'STANDALONE';
+  };
+
   // Parcel counts
   const total = parcels?.length || 0;
-  const getStatus = (p: GisParcel) => p?.surveyStatus || (p as any)?.survey_status || 'NOT_SURVEYED';
   const approved = (parcels || []).filter((p) => getStatus(p) === 'APPROVED' || getStatus(p) === 'PHASE2_COMPLETED' || getStatus(p) === 'APPROVED_PHASE2').length;
   const inProgressOnly = (parcels || []).filter((p) => getStatus(p) === 'IN_PROGRESS').length;
   const submittedOnly = (parcels || []).filter((p) => getStatus(p) === 'SUBMITTED').length;
@@ -537,8 +569,8 @@ export const SurveyorHomeView: React.FC<Props> = ({
                         <span style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0284c7' }}>
                           {p.projectParcelCode || (p as any).project_parcel_code}
                         </span>
-                        {getStatusBadge(p.surveyStatus)}
-                        {p.buildingType === 'CONDOMINIUM' && (
+                        {getStatusBadge(status)}
+                        {getBuildingType(p) === 'CONDOMINIUM' && (
                           <button
                             type="button"
                             onClick={() => setHubParcel(p)}
@@ -566,7 +598,7 @@ export const SurveyorHomeView: React.FC<Props> = ({
                         Số {p.houseNumber || (p as any).house_number} {p.street}
                       </div>
 
-                      {p.buildingType === 'CONDOMINIUM' && (
+                      {getBuildingType(p) === 'CONDOMINIUM' && (
                         <div style={{ marginTop: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.5rem', maxWidth: '360px' }}>
                           <div style={{ flex: 1, height: '6px', backgroundColor: '#e2e8f0', borderRadius: '999px', overflow: 'hidden' }}>
                             <div
@@ -676,46 +708,27 @@ export const SurveyorHomeView: React.FC<Props> = ({
                         <AlertCircle size={14} color="#dc2626" />
                         Sửa & đo bổ sung Phase 1
                       </button>
-                    ) : p.buildingType === 'CONDOMINIUM' ? (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => setHubParcel(p)}
-                          className="btn btn-sm"
-                          style={{
-                            fontSize: '0.775rem',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.35rem',
-                            backgroundColor: '#4338ca',
-                            color: '#ffffff',
-                            border: '1px solid #3730a3',
-                            fontWeight: 700,
-                            cursor: 'pointer',
-                            boxShadow: '0 2px 4px rgba(67, 56, 202, 0.25)',
-                          }}
-                        >
-                          <Building2 size={14} />
-                          Hub Căn Hộ ({p.completedUnits || 0}/{p.totalUnits || 1} căn)
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => onStartPhase1(p)}
-                          className="btn btn-primary btn-sm"
-                          style={{
-                            fontSize: '0.775rem',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.35rem',
-                            backgroundColor: '#0284c7',
-                            borderColor: '#0369a1',
-                          }}
-                        >
-                          <PlusCircle size={14} />
-                          Khảo sát Tòa Nhà
-                        </button>
-                      </>
+                    ) : getBuildingType(p) === 'CONDOMINIUM' ? (
+                      <button
+                        type="button"
+                        onClick={() => setHubParcel(p)}
+                        className="btn btn-sm"
+                        style={{
+                          fontSize: '0.775rem',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.35rem',
+                          backgroundColor: '#4338ca',
+                          color: '#ffffff',
+                          border: '1px solid #3730a3',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          boxShadow: '0 2px 4px rgba(67, 56, 202, 0.25)',
+                        }}
+                      >
+                        <Building2 size={14} />
+                        Mở Hub Căn Hộ ({p.completedUnits || 0}/{p.totalUnits || 1} căn)
+                      </button>
                     ) : isInProgress ? (
                       <button
                         type="button"
@@ -764,38 +777,6 @@ export const SurveyorHomeView: React.FC<Props> = ({
                       <Navigation size={13} color="#0284c7" />
                       Chỉ đường
                     </button>
-
-                    {/* Smart Absence Button (Only for Phase 1 incomplete) */}
-                    {!isApproved && !isPhase2Done && (
-                      <button
-                        type="button"
-                        className="btn btn-sm"
-                        disabled={!!recordedAbsenceTime}
-                        onClick={() => handleSmartAbsence(p)}
-                        style={{
-                          fontSize: '0.775rem',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '0.3rem',
-                          backgroundColor: recordedAbsenceTime ? '#f1f5f9' : '#fffbeb',
-                          color: recordedAbsenceTime ? '#94a3b8' : '#b45309',
-                          borderColor: recordedAbsenceTime ? '#e2e8f0' : '#fde68a',
-                          cursor: recordedAbsenceTime ? 'not-allowed' : 'pointer',
-                        }}
-                      >
-                        {recordedAbsenceTime ? (
-                          <>
-                            <Check size={13} color="#10b981" />
-                            Đã báo vắng
-                          </>
-                        ) : (
-                          <>
-                            <UserX size={13} />
-                            Báo vắng mặt
-                          </>
-                        )}
-                      </button>
-                    )}
                   </div>
                 </div>
               );

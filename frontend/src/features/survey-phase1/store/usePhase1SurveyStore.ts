@@ -3,18 +3,25 @@ import { Phase1SurveyFormData } from '../types/phase1.types';
 import { calculateEcsScore } from '../engine/ecsCalculator';
 import { calculateViScore } from '../engine/viCalculator';
 import { GisParcel, BuildingUnit } from '../../../core/types/domain.types';
+import { validateStep, validateAllSteps, MissingFieldItem } from '../utils/stepValidator';
 
 export interface Phase1SurveyStore {
   currentStep: number;
   formData: Phase1SurveyFormData;
   isSavingDraft: boolean;
   lastSavedAt: string | null;
+  missingModal: { isOpen: boolean; missingFields: MissingFieldItem[]; targetStep: number } | null;
 
   // Actions
   initializeForm: (parcel: GisParcel, unit?: BuildingUnit | null) => void;
   setCurrentStep: (step: number) => void;
+  requestStepNavigation: (targetStep: number) => void;
   nextStep: () => void;
   prevStep: () => void;
+  closeMissingModal: () => void;
+  proceedAnyway: () => void;
+  focusMissingField: (item: MissingFieldItem) => void;
+  validateForFinalSubmit: () => boolean;
   updateFormData: (updater: Partial<Phase1SurveyFormData> | ((prev: Phase1SurveyFormData) => Phase1SurveyFormData)) => void;
   saveDraftToStorage: () => void;
   clearDraft: () => void;
@@ -193,6 +200,7 @@ export const usePhase1SurveyStore = create<Phase1SurveyStore>((set, get) => ({
   formData: getDefaultInitialFormData(),
   isSavingDraft: false,
   lastSavedAt: null,
+  missingModal: null,
 
   initializeForm: (parcel: GisParcel, unit?: BuildingUnit | null) => {
     const draftKey = `metro2_phase1_draft_${parcel.id}${unit ? `_${unit.id}` : ''}`;
@@ -232,6 +240,7 @@ export const usePhase1SurveyStore = create<Phase1SurveyStore>((set, get) => ({
     set({
       currentStep: 1,
       formData: initialData,
+      missingModal: null,
       lastSavedAt: new Date().toLocaleTimeString('vi-VN'),
     });
   },
@@ -240,14 +249,39 @@ export const usePhase1SurveyStore = create<Phase1SurveyStore>((set, get) => ({
     if (step >= 1 && step <= 9) {
       get().recalculateScores();
       get().saveDraftToStorage();
-      set({ currentStep: step });
+      set({ currentStep: step, missingModal: null });
     }
+  },
+
+  requestStepNavigation: (targetStep: number) => {
+    const { currentStep, formData } = get();
+    if (targetStep === currentStep) return;
+
+    if (targetStep < currentStep) {
+      get().setCurrentStep(targetStep);
+      return;
+    }
+
+    // Navigating forward -> validate current step
+    const validation = validateStep(currentStep, formData);
+    if (!validation.isValid) {
+      set({
+        missingModal: {
+          isOpen: true,
+          missingFields: validation.missingFields,
+          targetStep,
+        },
+      });
+      return;
+    }
+
+    get().setCurrentStep(targetStep);
   },
 
   nextStep: () => {
     const { currentStep } = get();
     if (currentStep < 9) {
-      get().setCurrentStep(currentStep + 1);
+      get().requestStepNavigation(currentStep + 1);
     }
   },
 
@@ -256,6 +290,61 @@ export const usePhase1SurveyStore = create<Phase1SurveyStore>((set, get) => ({
     if (currentStep > 1) {
       get().setCurrentStep(currentStep - 1);
     }
+  },
+
+  closeMissingModal: () => {
+    set({ missingModal: null });
+  },
+
+  proceedAnyway: () => {
+    const { missingModal } = get();
+    if (missingModal) {
+      const target = missingModal.targetStep;
+      get().saveDraftToStorage();
+      set({ missingModal: null });
+      if (target >= 1 && target <= 9) {
+        get().setCurrentStep(target);
+      }
+    }
+  },
+
+  focusMissingField: (item: MissingFieldItem) => {
+    const { currentStep } = get();
+    set({ missingModal: null });
+
+    if (item.step !== currentStep) {
+      get().setCurrentStep(item.step);
+    }
+
+    setTimeout(() => {
+      const el = document.getElementById(item.fieldId);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.classList.add('ring-4', 'ring-red-400', 'bg-red-50/50');
+        setTimeout(() => {
+          el.classList.remove('ring-4', 'ring-red-400', 'bg-red-50/50');
+        }, 3500);
+        if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement) {
+          el.focus();
+        }
+      }
+    }, 250);
+  },
+
+  validateForFinalSubmit: () => {
+    const { formData } = get();
+    const validation = validateAllSteps(formData);
+    if (!validation.isValid) {
+      set({
+        missingModal: {
+          isOpen: true,
+          missingFields: validation.missingFields,
+          targetStep: 10,
+        },
+      });
+      return false;
+    }
+    return true;
   },
 
   updateFormData: (updater) => {
