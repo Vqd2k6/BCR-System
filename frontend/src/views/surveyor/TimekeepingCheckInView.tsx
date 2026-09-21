@@ -90,14 +90,15 @@ export const TimekeepingCheckInView: React.FC<Props> = ({ isCheckedInToday = fal
           setDistanceMeters(dist);
           setGpsLoading(false);
         },
-        () => {
+        (err) => {
+          console.warn('[Timekeeping GPS Error]:', err);
           const lat = 10.8036;
           const lng = 106.6388;
           setGpsCoordinates({ lat, lng, accuracy: 8 });
           setDistanceMeters(35);
           setGpsLoading(false);
         },
-        { enableHighAccuracy: true, timeout: 5000 }
+        { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
       );
     } else {
       setGpsCoordinates({ lat: 10.8036, lng: 106.6388, accuracy: 10 });

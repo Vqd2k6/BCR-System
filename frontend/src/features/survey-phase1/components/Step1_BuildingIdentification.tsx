@@ -27,6 +27,8 @@ import {
   Trash2,
   Plus,
   FileText,
+  Navigation,
+  RefreshCw,
 } from 'lucide-react';
 import { FacadePolygonCanvas } from '../../../components/canvas/FacadePolygonCanvas';
 import { ObjectGroupType } from '../types/phase1.types';
@@ -117,6 +119,47 @@ export const Step1_BuildingIdentification: React.FC = () => {
   const [isSubmittingUnderConstruction, setIsSubmittingUnderConstruction] = useState(false);
   const [showAbsenteeSuccessModal, setShowAbsenteeSuccessModal] = useState(false);
   const [showUnderConstructionSuccessModal, setShowUnderConstructionSuccessModal] = useState(false);
+
+  // Live GPS Fetching State
+  const [isGpsFetching, setIsGpsFetching] = useState(false);
+  const [gpsErrorMsg, setGpsErrorMsg] = useState<string | null>(null);
+
+  const handleFetchCurrentGps = (showNotification = true) => {
+    if (!('geolocation' in navigator)) {
+      if (showNotification) alert('Trình duyệt không hỗ trợ Geolocation GPS.');
+      return;
+    }
+    setIsGpsFetching(true);
+    setGpsErrorMsg(null);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const lat = Number(pos.coords.latitude.toFixed(6));
+        const lng = Number(pos.coords.longitude.toFixed(6));
+        updateFormData({ gpsCoords: { lat, lng } });
+        setIsGpsFetching(false);
+      },
+      (err) => {
+        console.warn('[Step1 GPS Error]:', err);
+        setIsGpsFetching(false);
+        if (err.code === err.PERMISSION_DENIED) {
+          setGpsErrorMsg('Trình duyệt chưa được cấp quyền Vị trí (Location).');
+          if (showNotification) {
+            alert('Vui lòng cho phép quyền truy cập Vị trí (Location) trong cài đặt trình duyệt để lấy GPS thực tế.');
+          }
+        } else if (err.code === err.TIMEOUT) {
+          setGpsErrorMsg('Quá thời gian lấy GPS. Vui lòng thử lại.');
+        } else {
+          setGpsErrorMsg('Không thể dò vị trí thiết bị.');
+        }
+      },
+      { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
+    );
+  };
+
+  // Auto fetch physical live GPS on step 1 mount
+  React.useEffect(() => {
+    handleFetchCurrentGps(false);
+  }, []);
 
   // Survey case mode
   const currentCase = formData.surveyCaseType || (formData.isAbsenteeSurvey ? 'ABSENTEE' : 'NORMAL');
@@ -330,11 +373,23 @@ export const Step1_BuildingIdentification: React.FC = () => {
             <span className="text-slate-500 block font-medium">Khoảng cách tới ranh GPMB</span>
             <span className="text-sm font-bold text-slate-800">{formData.clearanceOffsetDistance || '5.2m'}</span>
           </div>
-          <div className="p-3 bg-white rounded-xl border border-slate-200">
-            <span className="text-slate-500 block font-medium">Tọa độ GPS Check-in</span>
-            <span className="text-sm font-bold text-emerald-700 font-mono">
-              {formData.gpsCoords?.lat?.toFixed(5)}, {formData.gpsCoords?.lng?.toFixed(5)}
+          <div className="p-3 bg-white rounded-xl border border-slate-200 flex flex-col justify-between">
+            <div className="flex items-center justify-between">
+              <span className="text-slate-500 block font-medium">Tọa độ GPS thực địa</span>
+              <button
+                type="button"
+                onClick={() => handleFetchCurrentGps(true)}
+                className="text-[10px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 px-1.5 py-0.5 rounded flex items-center gap-1 transition-colors"
+                title="Cập nhật tọa độ GPS thực tế của thiết bị"
+              >
+                <RefreshCw className={`w-2.5 h-2.5 ${isGpsFetching ? 'animate-spin' : ''}`} />
+                <span>{isGpsFetching ? 'Đang dò...' : 'Lấy GPS'}</span>
+              </button>
+            </div>
+            <span className="text-sm font-bold text-emerald-700 font-mono mt-1 block">
+              {formData.gpsCoords?.lat ? `${formData.gpsCoords.lat.toFixed(6)}, ${formData.gpsCoords.lng.toFixed(6)}` : 'Chưa có tọa độ'}
             </span>
+            {gpsErrorMsg && <span className="text-[10px] text-red-500 block mt-0.5 leading-tight">{gpsErrorMsg}</span>}
           </div>
         </div>
       </Card>

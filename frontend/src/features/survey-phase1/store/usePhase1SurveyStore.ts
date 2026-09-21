@@ -277,7 +277,7 @@ export const usePhase1SurveyStore = create<Phase1SurveyStore>((set, get) => ({
         (err) => {
           console.warn('[SurveyPhase1Store] Live device GPS unavailable, using parcel center:', err);
         },
-        { enableHighAccuracy: true, timeout: 8000 }
+        { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
       );
     }
   },
