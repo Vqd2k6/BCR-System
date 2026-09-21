@@ -16,6 +16,7 @@ export const config = {
     database: process.env.DB_NAME || 'metro2_gis_db',
     max: parseInt(process.env.DB_MAX_CONNECTIONS || '20', 10),
     idleTimeoutMillis: parseInt(process.env.DB_IDLE_TIMEOUT_MS || '30000', 10),
+    ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : undefined,
   },
 
   jwt: {
