@@ -276,8 +276,8 @@ export const SurveyorNavbar: React.FC<Props> = ({
             {/* Điểm danh Cán bộ đi kèm trong Profile */}
             <div
               style={{
-                backgroundColor: isCompanionCheckedIn ? '#faf5ff' : '#f8fafc',
-                border: isCompanionCheckedIn ? '1px solid #e9d5ff' : '1px solid #e2e8f0',
+                backgroundColor: isCompanionCheckedIn ? '#f0f9ff' : '#f8fafc',
+                border: isCompanionCheckedIn ? '1px solid #bae6fd' : '1px solid #e2e8f0',
                 borderRadius: '0.5rem',
                 padding: '0.55rem 0.65rem',
                 display: 'flex',
@@ -286,8 +286,8 @@ export const SurveyorNavbar: React.FC<Props> = ({
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.75rem', fontWeight: 700, color: '#4c1d95' }}>
-                  <Users size={14} color="#7c3aed" />
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.75rem', fontWeight: 700, color: '#0369a1' }}>
+                  <Users size={14} color="#0284c7" />
                   <span>Cán bộ đi kèm</span>
                 </div>
                 <span
@@ -325,7 +325,7 @@ export const SurveyorNavbar: React.FC<Props> = ({
                     alignItems: 'center',
                     justifyContent: 'center',
                     gap: '0.3rem',
-                    backgroundColor: '#7c3aed',
+                    backgroundColor: '#0284c7',
                     color: '#ffffff',
                     border: 'none',
                     borderRadius: '6px',

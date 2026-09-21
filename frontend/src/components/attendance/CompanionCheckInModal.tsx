@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { api } from '../../services/api';
 import {
   Users,
   Camera,
@@ -13,6 +12,8 @@ import {
   User,
   Phone,
   RefreshCw,
+  RotateCcw,
+  BadgeCheck,
 } from 'lucide-react';
 
 interface Props {
@@ -24,6 +25,7 @@ interface Props {
 export const CompanionCheckInModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
   const todayStr = new Date().toISOString().split('T')[0];
   const storageKey = `metro2_companion_checkin_${todayStr}`;
+  const historyStorageKey = 'metro2_companion_history';
 
   const [companionName, setCompanionName] = useState<string>('');
   const [companionRole, setCompanionRole] = useState<string>('Cán bộ đo đạc & Ghi chép');
@@ -33,9 +35,11 @@ export const CompanionCheckInModal: React.FC<Props> = ({ isOpen, onClose, onSucc
   const [cameraActive, setCameraActive] = useState<boolean>(false);
   const [gpsCoordinates, setGpsCoordinates] = useState<{ lat: number; lng: number; accuracy: number } | null>(null);
   const [distanceMeters, setDistanceMeters] = useState<number>(35);
+  const [gpsLoading, setGpsLoading] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [hasCheckedIn, setHasCheckedIn] = useState<boolean>(false);
   const [checkInData, setCheckInData] = useState<any>(null);
+  const [companionHistory, setCompanionHistory] = useState<any[]>([]);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
@@ -56,6 +60,7 @@ export const CompanionCheckInModal: React.FC<Props> = ({ isOpen, onClose, onSucc
   };
 
   const getLiveGps = () => {
+    setGpsLoading(true);
     if ('geolocation' in navigator) {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
@@ -65,25 +70,67 @@ export const CompanionCheckInModal: React.FC<Props> = ({ isOpen, onClose, onSucc
           setGpsCoordinates({ lat, lng, accuracy });
           const dist = calculateDistance(lat, lng, STATION_S9_COORDS.lat, STATION_S9_COORDS.lng);
           setDistanceMeters(dist);
+          setGpsLoading(false);
         },
         () => {
           const lat = 10.8036;
           const lng = 106.6388;
           setGpsCoordinates({ lat, lng, accuracy: 8 });
           setDistanceMeters(35);
+          setGpsLoading(false);
         },
         { enableHighAccuracy: true, timeout: 5000 }
       );
     } else {
       setGpsCoordinates({ lat: 10.8036, lng: 106.6388, accuracy: 10 });
       setDistanceMeters(35);
+      setGpsLoading(false);
     }
+  };
+
+  const loadCompanionHistory = () => {
+    try {
+      const savedHist = localStorage.getItem(historyStorageKey);
+      if (savedHist) {
+        setCompanionHistory(JSON.parse(savedHist));
+      } else {
+        const defaultHistory = [
+          {
+            id: 'comp-mock-1',
+            name: 'Trần Văn Bình',
+            role: 'Cán bộ đo đạc & Ghi chép',
+            phone: '0912 345 678',
+            checkin_time: new Date(Date.now() - 86400000).toISOString(),
+            distance: 38,
+            distance_meters: 38,
+            selfieUrl: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=300&fit=crop&q=80',
+            status: 'APPROVED',
+          },
+          {
+            id: 'comp-mock-2',
+            name: 'Lê Hoàng Nam',
+            role: 'Trợ lý kỹ thuật hiện trường',
+            phone: '0988 765 432',
+            checkin_time: new Date(Date.now() - 172800000).toISOString(),
+            distance: 540,
+            distance_meters: 540,
+            notes: 'Hỗ trợ đo vẽ ranh mốc mở rộng tiếp giáp Ga S9',
+            selfieUrl: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=300&fit=crop&q=80',
+            status: 'FLAGGED_WARNING',
+          },
+        ];
+        setCompanionHistory(defaultHistory);
+        localStorage.setItem(historyStorageKey, JSON.stringify(defaultHistory));
+      }
+    } catch (_e) {}
   };
 
   useEffect(() => {
     if (isOpen) {
       getLiveGps();
-      // Load saved check-in if exists
+      loadCompanionHistory();
+
+      // Load saved companion check-in for today if exists
       try {
         const saved = localStorage.getItem(storageKey);
         if (saved) {
@@ -177,39 +224,37 @@ export const CompanionCheckInModal: React.FC<Props> = ({ isOpen, onClose, onSucc
       const now = new Date();
       const checkInTime = now.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
 
-      const payload = {
+      const newRecord = {
+        id: `comp-${Date.now()}`,
         name: companionName.trim(),
         role: companionRole,
         phone: companionPhone.trim(),
         selfieUrl,
         time: checkInTime,
         date: todayStr,
+        checkin_time: now.toISOString(),
         distance: distanceMeters,
+        distance_meters: distanceMeters,
         coordinates: gpsCoordinates,
         notes: distanceMeters > 500 ? outOfBoundsReason.trim() : undefined,
         status: distanceMeters > 500 ? 'FLAGGED_WARNING' : 'APPROVED',
       };
 
+      // Save today's companion checkin isolated
       try {
-        localStorage.setItem(storageKey, JSON.stringify(payload));
+        localStorage.setItem(storageKey, JSON.stringify(newRecord));
       } catch (_e) {}
 
-      // Try syncing to backend
+      // Prepend to companion history
+      const updatedHistory = [newRecord, ...companionHistory.filter((item) => item.id !== newRecord.id)];
+      setCompanionHistory(updatedHistory);
       try {
-        await api.post('/attendance/check-in', {
-          zoneId: 'ZONE_S9',
-          isCompanion: true,
-          companionName: payload.name,
-          gpsLatitude: gpsCoordinates?.lat || 10.8034,
-          gpsLongitude: gpsCoordinates?.lng || 106.6385,
-          selfiePhotoUrl: selfieUrl,
-          notes: payload.notes,
-        });
-      } catch (_err) {}
+        localStorage.setItem(historyStorageKey, JSON.stringify(updatedHistory));
+      } catch (_e) {}
 
       setHasCheckedIn(true);
-      setCheckInData(payload);
-      if (onSuccess) onSuccess(payload);
+      setCheckInData(newRecord);
+      if (onSuccess) onSuccess(newRecord);
     } catch (err: any) {
       console.error('Submit companion error:', err);
     } finally {
@@ -228,21 +273,58 @@ export const CompanionCheckInModal: React.FC<Props> = ({ isOpen, onClose, onSucc
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl border border-indigo-200 overflow-hidden my-auto animate-in fade-in zoom-in-95 duration-200">
-        {/* Header */}
-        <div className="bg-gradient-to-r from-indigo-700 via-indigo-800 to-slate-900 text-white p-4 sm:p-5 flex items-center justify-between shadow-sm">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center border border-white/20">
-              <Users className="w-5 h-5 text-indigo-200" />
+      <div
+        className="bg-white rounded-2xl w-full max-w-lg shadow-2xl border border-slate-200 overflow-hidden my-auto animate-in fade-in zoom-in-95 duration-200"
+        style={{ maxHeight: '92vh', display: 'flex', flexDirection: 'column' }}
+      >
+        {/* Harmonious Light Blue Header */}
+        <div
+          style={{
+            backgroundColor: '#ffffff',
+            borderBottom: '1px solid #e2e8f0',
+            padding: '0.85rem 1.15rem',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            boxShadow: '0 1px 2px rgba(0, 0, 0, 0.03)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+            <div
+              style={{
+                width: '36px',
+                height: '36px',
+                borderRadius: '0.5rem',
+                background: 'linear-gradient(135deg, #0284c7 0%, #2563eb 100%)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+                boxShadow: '0 2px 5px rgba(2, 132, 199, 0.25)',
+                color: '#ffffff',
+              }}
+            >
+              <Users size={19} />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] font-bold uppercase tracking-wider bg-indigo-500/30 text-indigo-100 px-2 py-0.5 rounded-full border border-indigo-300/30">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                <span
+                  style={{
+                    fontSize: '0.65rem',
+                    fontWeight: 800,
+                    textTransform: 'uppercase',
+                    backgroundColor: '#e0f2fe',
+                    color: '#0369a1',
+                    padding: '1px 6px',
+                    borderRadius: '999px',
+                    border: '1px solid #bae6fd',
+                  }}
+                >
                   Tổ 02 Cán Bộ
                 </span>
-                <span className="text-xs font-semibold text-slate-300">Ga S9 - Bà Quẹo</span>
+                <span style={{ fontSize: '0.7rem', color: '#64748b' }}>Ga S9 - Bà Quẹo</span>
               </div>
-              <h2 className="text-base sm:text-lg font-bold text-white mt-0.5">
+              <h2 style={{ margin: '2px 0 0 0', fontSize: '0.95rem', fontWeight: 800, color: '#0f172a' }}>
                 Điểm Danh Cán Bộ Đi Kèm (Co-Surveyor)
               </h2>
             </div>
@@ -251,139 +333,322 @@ export const CompanionCheckInModal: React.FC<Props> = ({ isOpen, onClose, onSucc
           <button
             type="button"
             onClick={onClose}
-            className="text-white/80 hover:text-white p-1.5 rounded-lg bg-white/10 hover:bg-white/20 transition-colors"
+            style={{
+              background: '#f8fafc',
+              border: '1px solid #e2e8f0',
+              color: '#64748b',
+              borderRadius: '0.5rem',
+              padding: '0.35rem',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
           >
-            <X size={18} />
+            <X size={17} />
           </button>
         </div>
 
-        {/* Body Content */}
-        <div className="p-4 sm:p-5 max-h-[80vh] overflow-y-auto flex flex-col gap-4">
+        {/* Modal Scrollable Body */}
+        <div style={{ padding: '1rem', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           {hasCheckedIn && checkInData ? (
-            /* VERIFIED COMPANION CARD (Read-only summary) */
-            <div className="flex flex-col gap-4">
-              <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4 flex items-start gap-3">
-                <ShieldCheck className="w-6 h-6 text-emerald-600 flex-shrink-0 mt-0.5" />
-                <div className="flex-1">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs font-extrabold text-emerald-900 uppercase">
-                      Đã Điểm Danh Thành Công
+            /* ───────────────────────────────────────────────────────────── */
+            /* MODE 1: ĐÃ ĐIỂM DANH (VERIFIED CO-SURVEYOR SUMMARY CARD)      */
+            /* ───────────────────────────────────────────────────────────── */
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+              {/* Verified Header Banner */}
+              <div
+                style={{
+                  background: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)',
+                  border: '1.5px solid #86efac',
+                  borderRadius: '0.85rem',
+                  padding: '0.95rem',
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '0.75rem',
+                }}
+              >
+                <div
+                  style={{
+                    width: '36px',
+                    height: '36px',
+                    borderRadius: '8px',
+                    backgroundColor: '#bbf7d0',
+                    color: '#15803d',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                  }}
+                >
+                  <ShieldCheck size={20} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#14532d', textTransform: 'uppercase' }}>
+                      Cán bộ đi kèm đã điểm danh
                     </span>
-                    <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
+                    <span
+                      style={{
+                        fontSize: '0.675rem',
+                        fontWeight: 700,
+                        padding: '1px 7px',
+                        borderRadius: '999px',
+                        backgroundColor: checkInData.status === 'FLAGGED_WARNING' ? '#fef3c7' : '#dcfce7',
+                        color: checkInData.status === 'FLAGGED_WARNING' ? '#b45309' : '#15803d',
+                        border: `1px solid ${checkInData.status === 'FLAGGED_WARNING' ? '#fde68a' : '#86efac'}`,
+                      }}
+                    >
                       {checkInData.status === 'FLAGGED_WARNING' ? 'Cảnh báo vị trí' : 'Hợp lệ'}
                     </span>
                   </div>
-                  <div className="text-xs text-emerald-800 mt-1">
+                  <div style={{ fontSize: '0.75rem', color: '#166534', marginTop: '3px' }}>
                     Ghi nhận lúc: <strong>{checkInData.time}</strong> hôm nay ({todayStr})
                   </div>
                 </div>
               </div>
 
-              {/* Companion Info card */}
-              <div className="bg-white rounded-xl border border-slate-200 p-4 flex flex-col sm:flex-row gap-4 items-center">
+              {/* Co-Surveyor Personal Info & Photo Card */}
+              <div
+                style={{
+                  backgroundColor: '#ffffff',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '0.85rem',
+                  padding: '1rem',
+                  display: 'flex',
+                  gap: '1rem',
+                  alignItems: 'center',
+                }}
+              >
                 {checkInData.selfieUrl ? (
                   <img
                     src={checkInData.selfieUrl}
                     alt={checkInData.name}
-                    className="w-28 h-36 rounded-xl object-cover border-2 border-indigo-200 shadow-sm flex-shrink-0"
+                    style={{
+                      width: '110px',
+                      height: '140px',
+                      borderRadius: '0.65rem',
+                      objectFit: 'cover',
+                      border: '2px solid #7dd3fc',
+                      boxShadow: '0 2px 8px rgba(2, 132, 199, 0.15)',
+                      flexShrink: 0,
+                    }}
                   />
                 ) : (
-                  <div className="w-28 h-36 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400 flex-shrink-0">
-                    <User size={36} />
+                  <div
+                    style={{
+                      width: '110px',
+                      height: '140px',
+                      borderRadius: '0.65rem',
+                      backgroundColor: '#f8fafc',
+                      border: '2px dashed #cbd5e1',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#94a3b8',
+                      flexShrink: 0,
+                    }}
+                  >
+                    <User size={32} />
                   </div>
                 )}
 
-                <div className="flex-1 flex flex-col gap-1.5 text-xs text-slate-700 w-full">
+                <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: '0.4rem', fontSize: '0.775rem' }}>
                   <div>
-                    <span className="text-slate-400 block text-[11px]">Họ tên cán bộ:</span>
-                    <span className="text-sm font-bold text-slate-900">{checkInData.name}</span>
+                    <span style={{ color: '#94a3b8', fontSize: '0.7rem', display: 'block' }}>Họ tên cán bộ:</span>
+                    <span style={{ fontSize: '0.95rem', fontWeight: 800, color: '#0f172a' }}>{checkInData.name}</span>
                   </div>
+
                   <div>
-                    <span className="text-slate-400 block text-[11px]">Chức danh / Vai trò:</span>
-                    <span className="font-semibold text-indigo-700">{checkInData.role}</span>
+                    <span style={{ color: '#94a3b8', fontSize: '0.7rem', display: 'block' }}>Vai trò / Chức danh:</span>
+                    <span style={{ fontWeight: 700, color: '#0284c7' }}>{checkInData.role}</span>
                   </div>
+
                   {checkInData.phone && (
                     <div>
-                      <span className="text-slate-400 block text-[11px]">Số điện thoại:</span>
-                      <span className="font-medium text-slate-800">{checkInData.phone}</span>
+                      <span style={{ color: '#94a3b8', fontSize: '0.7rem', display: 'block' }}>Số điện thoại:</span>
+                      <span style={{ color: '#334155', fontWeight: 600 }}>{checkInData.phone}</span>
                     </div>
                   )}
+
                   <div>
-                    <span className="text-slate-400 block text-[11px]">Khoảng cách tới tâm Ga S9:</span>
-                    <span className="font-bold text-slate-800">{checkInData.distance}m</span>
+                    <span style={{ color: '#94a3b8', fontSize: '0.7rem', display: 'block' }}>Khoảng cách tới Ga S9:</span>
+                    <span style={{ fontWeight: 700, color: '#0f172a' }}>{checkInData.distance}m</span>
                   </div>
                 </div>
               </div>
 
-              {/* Notes if out of bounds */}
+              {/* Specific Out of Bounds Note for Companion */}
               {checkInData.notes && (
-                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-900 flex items-start gap-2">
-                  <AlertTriangle size={15} className="text-amber-600 flex-shrink-0 mt-0.5" />
+                <div
+                  style={{
+                    backgroundColor: '#fffbeb',
+                    border: '1px solid #fde68a',
+                    borderRadius: '0.65rem',
+                    padding: '0.65rem 0.85rem',
+                    fontSize: '0.75rem',
+                    color: '#92400e',
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '0.45rem',
+                  }}
+                >
+                  <AlertTriangle size={15} color="#d97706" style={{ flexShrink: 0, marginTop: '1px' }} />
                   <div>
-                    <span className="font-bold block">Lý do ngoài vùng đã khai báo:</span>
-                    <span className="text-slate-700 mt-0.5 block">{checkInData.notes}</span>
+                    <span style={{ fontWeight: 700, display: 'block' }}>Lý do chấm công ngoài vùng (&gt;500m) đã khai báo:</span>
+                    <span style={{ color: '#78350f', fontStyle: 'italic', marginTop: '2px', display: 'block' }}>
+                      "{checkInData.notes}"
+                    </span>
                   </div>
                 </div>
               )}
 
-              <button
-                type="button"
-                onClick={onClose}
-                className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-xl transition-colors"
-              >
-                Đóng
-              </button>
+              {/* Action Buttons */}
+              <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.25rem' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setHasCheckedIn(false);
+                  }}
+                  style={{
+                    flex: 1,
+                    padding: '0.55rem',
+                    borderRadius: '0.65rem',
+                    border: '1px solid #cbd5e1',
+                    backgroundColor: '#f8fafc',
+                    color: '#475569',
+                    fontSize: '0.775rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.35rem',
+                  }}
+                >
+                  <RotateCcw size={13} />
+                  <span>Điểm danh lại / Đổi người</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  style={{
+                    flex: 1,
+                    padding: '0.55rem',
+                    borderRadius: '0.65rem',
+                    border: 'none',
+                    background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                    color: '#ffffff',
+                    fontSize: '0.775rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Đóng
+                </button>
+              </div>
             </div>
           ) : (
-            /* CHECK-IN FORM FOR COMPANION */
-            <form onSubmit={handleSubmit} className="flex flex-col gap-3.5">
-              <div className="text-xs text-slate-600 leading-relaxed bg-slate-50 p-3 rounded-xl border border-slate-200">
-                Theo quy định tổ khảo sát hiện trường gồm 02 cán bộ (01 điều tra viên chính + 01 cán bộ đi kèm). Vui lòng nhập thông tin và chụp ảnh selfie xác thực để hoàn tất điểm danh tổ.
+            /* ───────────────────────────────────────────────────────────── */
+            /* MODE 2: FORM ĐIỂM DANH CÁN BỘ ĐI KÈM                          */
+            /* ───────────────────────────────────────────────────────────── */
+            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0.95rem' }}>
+              <div
+                style={{
+                  fontSize: '0.75rem',
+                  color: '#475569',
+                  lineHeight: 1.45,
+                  backgroundColor: '#f8fafc',
+                  padding: '0.65rem 0.85rem',
+                  borderRadius: '0.65rem',
+                  border: '1px solid #e2e8f0',
+                }}
+              >
+                Quy chuẩn tổ khảo sát hiện trường gồm <strong>02 cán bộ</strong> (01 điều tra viên chính + 01 cán bộ đi kèm). Vui lòng nhập thông tin và chụp ảnh selfie xác thực để hoàn tất thủ tục ngày công.
               </div>
 
-              {/* Location info */}
-              <div className={`p-3 rounded-xl border flex items-center justify-between text-xs ${isOutOfBounds ? 'bg-amber-50 border-amber-200 text-amber-900' : 'bg-emerald-50 border-emerald-200 text-emerald-900'}`}>
-                <div className="flex items-center gap-2">
-                  <MapPin size={16} className={isOutOfBounds ? 'text-amber-600' : 'text-emerald-600'} />
-                  <span className="font-bold">
-                    {isOutOfBounds ? 'Ngoài vùng 500m' : 'Vị trí hợp lệ'} ({distanceMeters}m)
+              {/* Location info Card */}
+              <div
+                style={{
+                  padding: '0.65rem 0.85rem',
+                  borderRadius: '0.65rem',
+                  border: `1px solid ${isOutOfBounds ? '#fecaca' : '#bbf7d0'}`,
+                  backgroundColor: isOutOfBounds ? '#fef2f2' : '#f0fdf4',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  fontSize: '0.775rem',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <MapPin size={15} color={isOutOfBounds ? '#dc2626' : '#16a34a'} />
+                  <span style={{ fontWeight: 700, color: isOutOfBounds ? '#991b1b' : '#166534' }}>
+                    {isOutOfBounds ? 'Ngoài vùng 500m' : 'Vị trí hợp lệ trong trạm'} ({distanceMeters}m)
                   </span>
                 </div>
                 <button
                   type="button"
                   onClick={getLiveGps}
-                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-indigo-600 hover:text-indigo-800"
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#0284c7',
+                    fontSize: '0.725rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '3px',
+                  }}
                 >
-                  <RefreshCw size={12} />
-                  Lấy lại GPS
+                  <RefreshCw size={11} className={gpsLoading ? 'animate-spin' : ''} />
+                  <span>Lấy lại GPS</span>
                 </button>
               </div>
 
               {/* Companion Name */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Họ tên cán bộ đi kèm (*):
+                <label style={{ display: 'block', fontSize: '0.775rem', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+                  Họ tên cán bộ đi kèm <span style={{ color: '#ef4444' }}>*</span>
                 </label>
                 <input
                   type="text"
                   required
-                  placeholder="VD: Trần Văn B..."
+                  placeholder="VD: Trần Văn Bình..."
                   value={companionName}
                   onChange={(e) => setCompanionName(e.target.value)}
-                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                  style={{
+                    width: '100%',
+                    padding: '0.55rem 0.75rem',
+                    backgroundColor: '#ffffff',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: '0.5rem',
+                    fontSize: '0.8rem',
+                    color: '#0f172a',
+                    outline: 'none',
+                  }}
                 />
               </div>
 
-              {/* Companion Role */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* Role & Phone */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.65rem' }}>
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                  <label style={{ display: 'block', fontSize: '0.775rem', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
                     Vai trò / Chức danh:
                   </label>
                   <select
                     value={companionRole}
                     onChange={(e) => setCompanionRole(e.target.value)}
-                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                    style={{
+                      width: '100%',
+                      padding: '0.55rem 0.75rem',
+                      backgroundColor: '#ffffff',
+                      border: '1px solid #cbd5e1',
+                      borderRadius: '0.5rem',
+                      fontSize: '0.8rem',
+                      color: '#0f172a',
+                      outline: 'none',
+                    }}
                   >
                     <option value="Cán bộ đo đạc & Ghi chép">Cán bộ đo đạc & Ghi chép</option>
                     <option value="Trợ lý kỹ thuật hiện trường">Trợ lý kỹ thuật hiện trường</option>
@@ -393,7 +658,7 @@ export const CompanionCheckInModal: React.FC<Props> = ({ isOpen, onClose, onSucc
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                  <label style={{ display: 'block', fontSize: '0.775rem', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
                     Số điện thoại liên hệ:
                   </label>
                   <input
@@ -401,65 +666,147 @@ export const CompanionCheckInModal: React.FC<Props> = ({ isOpen, onClose, onSucc
                     placeholder="09xx xxx xxx"
                     value={companionPhone}
                     onChange={(e) => setCompanionPhone(e.target.value)}
-                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                    style={{
+                      width: '100%',
+                      padding: '0.55rem 0.75rem',
+                      backgroundColor: '#ffffff',
+                      border: '1px solid #cbd5e1',
+                      borderRadius: '0.5rem',
+                      fontSize: '0.8rem',
+                      color: '#0f172a',
+                      outline: 'none',
+                    }}
                   />
                 </div>
               </div>
 
               {/* Camera & Selfie Capture */}
-              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 flex flex-col items-center gap-3">
-                <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800 self-start">
-                  <Camera size={15} className="text-indigo-600" />
+              <div
+                style={{
+                  backgroundColor: '#f8fafc',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '0.75rem',
+                  padding: '0.85rem',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: '0.65rem',
+                }}
+              >
+                <div style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.775rem', fontWeight: 700, color: '#0f172a' }}>
+                  <Camera size={14} color="#0284c7" />
                   <span>Ảnh Selfie Cán Bộ Đi Kèm (*)</span>
                 </div>
 
                 {cameraActive ? (
-                  <div className="w-full flex flex-col items-center gap-2 bg-slate-900 p-2.5 rounded-xl">
+                  <div
+                    style={{
+                      width: '100%',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                      backgroundColor: '#0f172a',
+                      padding: '0.65rem',
+                      borderRadius: '0.65rem',
+                    }}
+                  >
                     <video
                       ref={videoRef}
                       autoPlay
                       playsInline
-                      className="w-full max-h-52 rounded-lg object-cover"
+                      style={{ width: '100%', maxHeight: '200px', borderRadius: '0.5rem', objectFit: 'cover' }}
                     />
-                    <div className="flex gap-2">
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
                       <button
                         type="button"
                         onClick={handleCapturePhoto}
-                        className="px-4 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold flex items-center gap-1"
+                        style={{
+                          background: '#0284c7',
+                          color: '#ffffff',
+                          border: 'none',
+                          borderRadius: '0.45rem',
+                          padding: '0.45rem 1rem',
+                          fontSize: '0.75rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                        }}
                       >
-                        <Camera size={14} />
+                        <Camera size={13} />
                         Chụp ảnh
                       </button>
                       <button
                         type="button"
                         onClick={handleStopCamera}
-                        className="px-3 py-1.5 bg-slate-700 text-white rounded-lg text-xs font-medium"
+                        style={{
+                          background: '#475569',
+                          color: '#ffffff',
+                          border: 'none',
+                          borderRadius: '0.45rem',
+                          padding: '0.45rem 0.85rem',
+                          fontSize: '0.75rem',
+                          cursor: 'pointer',
+                        }}
                       >
                         Hủy
                       </button>
                     </div>
                   </div>
                 ) : (
-                  <div className="flex flex-col items-center gap-2.5">
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.65rem' }}>
                     {selfieUrl ? (
                       <img
                         src={selfieUrl}
                         alt="Companion Selfie"
-                        className="w-32 h-40 rounded-xl object-cover border-2 border-indigo-300 shadow-sm"
+                        style={{
+                          width: '120px',
+                          height: '150px',
+                          borderRadius: '0.65rem',
+                          objectFit: 'cover',
+                          border: '2px solid #7dd3fc',
+                          boxShadow: '0 2px 6px rgba(2, 132, 199, 0.15)',
+                        }}
                       />
                     ) : (
-                      <div className="w-32 h-36 rounded-xl bg-white border-2 border-dashed border-slate-300 flex flex-col items-center justify-center text-slate-400 gap-1.5">
-                        <User size={32} className="text-slate-300" />
-                        <span className="text-[10px] font-semibold text-slate-500">
-                          Khung chân dung
-                        </span>
+                      <div
+                        style={{
+                          width: '120px',
+                          height: '140px',
+                          borderRadius: '0.65rem',
+                          backgroundColor: '#ffffff',
+                          border: '2px dashed #cbd5e1',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '4px',
+                          color: '#94a3b8',
+                        }}
+                      >
+                        <User size={30} color="#cbd5e1" />
+                        <span style={{ fontSize: '0.675rem', fontWeight: 600, color: '#94a3b8' }}>Khung chân dung</span>
                       </div>
                     )}
 
                     <button
                       type="button"
                       onClick={handleStartCamera}
-                      className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-bold transition-colors"
+                      style={{
+                        background: '#e0f2fe',
+                        color: '#0284c7',
+                        border: '1px solid #bae6fd',
+                        borderRadius: '999px',
+                        padding: '0.4rem 1rem',
+                        fontSize: '0.75rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                      }}
                     >
                       <Camera size={13} />
                       <span>{selfieUrl ? 'Chụp lại ảnh' : 'Bật Camera Chụp Selfie'}</span>
@@ -471,41 +818,190 @@ export const CompanionCheckInModal: React.FC<Props> = ({ isOpen, onClose, onSucc
               {/* Out of bounds reason */}
               {isOutOfBounds && (
                 <div>
-                  <label className="block text-xs font-bold text-amber-800 mb-1 flex items-center gap-1">
-                    <AlertTriangle size={13} className="text-amber-600" />
-                    Lý do ngoài bán kính (&gt;500m) (*):
+                  <label
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      fontSize: '0.75rem',
+                      fontWeight: 700,
+                      color: '#9a3412',
+                      marginBottom: '4px',
+                    }}
+                  >
+                    <AlertTriangle size={13} color="#ea580c" />
+                    Lý do ngoài bán kính (&gt;500m) <span style={{ color: '#ef4444' }}>*</span>
                   </label>
                   <textarea
                     rows={2}
                     required
-                    placeholder="Nhập lý do khảo sát vùng phụ cận..."
+                    placeholder="Nhập lý do khảo sát vùng phụ cận hoặc nhiệm vụ đột xuất..."
                     value={outOfBoundsReason}
                     onChange={(e) => setOutOfBoundsReason(e.target.value)}
-                    className="w-full px-3 py-2 bg-amber-50/50 border border-amber-300 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                    style={{
+                      width: '100%',
+                      padding: '0.55rem 0.75rem',
+                      backgroundColor: '#fffaf5',
+                      border: '1px solid #fed7aa',
+                      borderRadius: '0.5rem',
+                      fontSize: '0.8rem',
+                      color: '#1e293b',
+                      outline: 'none',
+                    }}
                   />
                 </div>
               )}
 
-              {/* Actions */}
-              <div className="flex gap-2 justify-end pt-1">
+              {/* Submit button */}
+              <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', paddingTop: '0.25rem' }}>
                 <button
                   type="button"
                   onClick={onClose}
-                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-xl"
+                  style={{
+                    padding: '0.55rem 1rem',
+                    borderRadius: '0.5rem',
+                    border: '1px solid #cbd5e1',
+                    backgroundColor: '#f8fafc',
+                    color: '#475569',
+                    fontSize: '0.775rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
                 >
                   Hủy
                 </button>
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-md shadow-indigo-200 disabled:opacity-50 flex items-center gap-1.5"
+                  style={{
+                    padding: '0.55rem 1.25rem',
+                    borderRadius: '0.5rem',
+                    border: 'none',
+                    background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+                    color: '#ffffff',
+                    fontSize: '0.775rem',
+                    fontWeight: 700,
+                    cursor: isSubmitting ? 'not-allowed' : 'pointer',
+                    boxShadow: '0 2px 5px rgba(2, 132, 199, 0.25)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                  }}
                 >
-                  <UserCheck size={15} />
+                  <UserCheck size={14} />
                   <span>{isSubmitting ? 'Đang gửi...' : 'Xác Nhận Điểm Danh'}</span>
                 </button>
               </div>
             </form>
           )}
+
+          {/* ───────────────────────────────────────────────────────────── */}
+          {/* SECTION: LỊCH SỬ ĐIỂM DANH CỦA CÁN BỘ ĐI KÈM                 */}
+          {/* ───────────────────────────────────────────────────────────── */}
+          <div style={{ marginTop: '0.5rem', borderTop: '1px solid #e2e8f0', paddingTop: '0.85rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.65rem' }}>
+              <Clock size={14} color="#0284c7" />
+              <h3 style={{ margin: 0, fontSize: '0.85rem', fontWeight: 800, color: '#0f172a' }}>
+                Lịch Sử Điểm Danh Cán Bộ Đi Kèm
+              </h3>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              {companionHistory.length > 0 ? (
+                companionHistory.map((item, idx) => {
+                  const dist = Math.round(item.distance ?? item.distance_meters ?? 0);
+                  const isItemOutOfBound = dist > 500 || item.status === 'FLAGGED_WARNING';
+                  const dateFormatted = item.checkin_time ? new Date(item.checkin_time).toLocaleString('vi-VN') : (item.date || 'Gần đây');
+
+                  return (
+                    <div
+                      key={item.id || idx}
+                      style={{
+                        backgroundColor: '#f8fafc',
+                        border: '1px solid #e2e8f0',
+                        borderRadius: '0.65rem',
+                        padding: '0.65rem 0.85rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        gap: '0.65rem',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', minWidth: 0 }}>
+                        {item.selfieUrl ? (
+                          <img
+                            src={item.selfieUrl}
+                            alt={item.name}
+                            style={{
+                              width: '38px',
+                              height: '38px',
+                              borderRadius: '50%',
+                              objectFit: 'cover',
+                              border: '1.5px solid #bae6fd',
+                              flexShrink: 0,
+                            }}
+                          />
+                        ) : (
+                          <div
+                            style={{
+                              width: '38px',
+                              height: '38px',
+                              borderRadius: '50%',
+                              backgroundColor: '#e0f2fe',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              color: '#0284c7',
+                              flexShrink: 0,
+                            }}
+                          >
+                            <User size={18} />
+                          </div>
+                        )}
+
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontSize: '0.8rem', fontWeight: 800, color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {item.name}
+                          </div>
+                          <div style={{ fontSize: '0.7rem', color: '#0284c7', fontWeight: 600 }}>
+                            {item.role || 'Cán bộ đi kèm'}
+                          </div>
+                          <div style={{ fontSize: '0.675rem', color: '#64748b' }}>
+                            {dateFormatted} • Cách Ga: <strong>{dist}m</strong>
+                            {isItemOutOfBound && <span style={{ color: '#ef4444', fontWeight: 600 }}> (Ngoài vùng)</span>}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div style={{ flexShrink: 0 }}>
+                        <span
+                          style={{
+                            fontSize: '0.65rem',
+                            fontWeight: 700,
+                            padding: '1px 6px',
+                            borderRadius: '999px',
+                            backgroundColor: isItemOutOfBound ? '#fef3c7' : '#dcfce7',
+                            color: isItemOutOfBound ? '#b45309' : '#15803d',
+                            border: `1px solid ${isItemOutOfBound ? '#fde68a' : '#86efac'}`,
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '2px',
+                          }}
+                        >
+                          <BadgeCheck size={10} />
+                          {isItemOutOfBound ? 'Ghi nhận' : 'Đã duyệt'}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                <div style={{ fontSize: '0.75rem', color: '#94a3b8', textAlign: 'center', padding: '0.85rem' }}>
+                  Chưa có lịch sử điểm danh cán bộ đi kèm nào.
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </div>
     </div>
