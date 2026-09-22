@@ -113,9 +113,6 @@ export const LevelSelectorWithGuide: React.FC<LevelSelectorWithGuideProps> = ({
       {/* Additional Expanded Details */}
       {selectedLevel > 0 && children && (
         <div className="mt-3 pt-3 border-t border-dashed border-slate-200 animate-in fade-in">
-          <span className="text-[11px] font-bold text-slate-600 block mb-2 uppercase tracking-wide">
-            📝 Thông tin định lượng chi tiết bổ sung (Additional Details):
-          </span>
           {children}
         </div>
       )}

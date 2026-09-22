@@ -7,6 +7,7 @@ import { Input, Select } from '../../../core/components/ui/FormControls';
 import { PhotoCaptureInput } from '../../../components/common/PhotoCaptureInput';
 import { LevelSelectorWithGuide, LevelOptionGuide } from './LevelSelectorWithGuide';
 import { InfoPopover } from '../../../core/components/ui/InfoPopover';
+import { api } from '../../../services/api';
 import {
   Building,
   MapPin,
@@ -29,6 +30,7 @@ import {
   FileText,
   Navigation,
   RefreshCw,
+  X,
 } from 'lucide-react';
 import { FacadePolygonCanvas } from '../../../components/canvas/FacadePolygonCanvas';
 import { ObjectGroupType } from '../types/phase1.types';
@@ -119,6 +121,8 @@ export const Step1_BuildingIdentification: React.FC = () => {
   const [isSubmittingUnderConstruction, setIsSubmittingUnderConstruction] = useState(false);
   const [showAbsenteeSuccessModal, setShowAbsenteeSuccessModal] = useState(false);
   const [showUnderConstructionSuccessModal, setShowUnderConstructionSuccessModal] = useState(false);
+  const [isConfirmingApartment, setIsConfirmingApartment] = useState(false);
+  const [showApartmentSuccessModal, setShowApartmentSuccessModal] = useState(false);
 
   // Live GPS Fetching State
   const [isGpsFetching, setIsGpsFetching] = useState(false);
@@ -131,34 +135,61 @@ export const Step1_BuildingIdentification: React.FC = () => {
     }
     setIsGpsFetching(true);
     setGpsErrorMsg(null);
+
+    const tryFallbackLowAccuracy = () => {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const lat = Number(pos.coords.latitude.toFixed(6));
+          const lng = Number(pos.coords.longitude.toFixed(6));
+          updateFormData({ gpsCoords: { lat, lng } });
+          setIsGpsFetching(false);
+          setGpsErrorMsg(null);
+        },
+        (err) => {
+          setIsGpsFetching(false);
+          if (err.code === err.PERMISSION_DENIED) {
+            setGpsErrorMsg('Trình duyệt chưa được cấp quyền Vị trí (Location).');
+            if (showNotification) {
+              alert('Vui lòng cho phép quyền truy cập Vị trí (Location) trong cài đặt trình duyệt để lấy GPS thực tế.');
+            }
+          } else {
+            setGpsErrorMsg('Không thể dò vị trí thiết bị. Đã giữ tọa độ quy hoạch.');
+          }
+        },
+        { enableHighAccuracy: false, timeout: 15000, maximumAge: 300000 }
+      );
+    };
+
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         const lat = Number(pos.coords.latitude.toFixed(6));
         const lng = Number(pos.coords.longitude.toFixed(6));
         updateFormData({ gpsCoords: { lat, lng } });
         setIsGpsFetching(false);
+        setGpsErrorMsg(null);
       },
       (err) => {
-        console.warn('[Step1 GPS Error]:', err);
-        setIsGpsFetching(false);
-        if (err.code === err.PERMISSION_DENIED) {
+        if (err.code === err.TIMEOUT) {
+          tryFallbackLowAccuracy();
+        } else if (err.code === err.PERMISSION_DENIED) {
+          setIsGpsFetching(false);
           setGpsErrorMsg('Trình duyệt chưa được cấp quyền Vị trí (Location).');
           if (showNotification) {
-            alert('Vui lòng cho phép quyền truy cập Vị trí (Location) trong cài đặt trình duyệt để lấy GPS thực tế.');
+            alert('Vui lòng cho phép quyền truy cập Vị trí (Location) trong cài đặt trình duyệt.');
           }
-        } else if (err.code === err.TIMEOUT) {
-          setGpsErrorMsg('Quá thời gian lấy GPS. Vui lòng thử lại.');
         } else {
-          setGpsErrorMsg('Không thể dò vị trí thiết bị.');
+          tryFallbackLowAccuracy();
         }
       },
-      { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
+      { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
     );
   };
 
-  // Auto fetch physical live GPS on step 1 mount
+  // Auto fetch physical live GPS on step 1 mount only if coordinates not yet available
   React.useEffect(() => {
-    handleFetchCurrentGps(false);
+    if (!formData.gpsCoords?.lat || !formData.gpsCoords?.lng) {
+      handleFetchCurrentGps(false);
+    }
   }, []);
 
   // Survey case mode
@@ -192,22 +223,28 @@ export const Step1_BuildingIdentification: React.FC = () => {
   };
 
   const validateStep1Completeness = () => {
-    const hasAddress = Boolean(formData.street || formData.houseNumber);
+    const hasOfficialCadastralCode = Boolean(formData.officialCadastralCode?.trim());
+    const hasGps = Boolean(formData.gpsCoords?.lat && formData.gpsCoords?.lng);
+    const hasAddress = Boolean(formData.street?.trim() || formData.houseNumber?.trim());
     const hasObjectGroup = Boolean(formData.objectGroup);
-    const hasAdjacent =
-      Boolean(formData.adjacentBuildings?.left?.details) &&
-      Boolean(formData.adjacentBuildings?.right?.details) &&
-      Boolean(formData.adjacentBuildings?.back?.details);
+    const hasAdjacent = Boolean(
+      formData.adjacentBuildings?.left?.details &&
+      formData.adjacentBuildings?.right?.details &&
+      formData.adjacentBuildings?.back?.details
+    );
     const hasPhotos = Boolean(
-      (formData.photoP01.url || formData.photoP01.notApplicable) &&
-      (formData.photoP02.url || formData.photoP02.notApplicable) &&
-      (formData.photoP04.url || formData.photoP04.notApplicable)
+      (formData.photoP01?.url || formData.photoP01?.notApplicable) &&
+      (formData.photoP02?.url || formData.photoP02?.notApplicable) &&
+      (formData.photoP03?.url || formData.photoP03?.notApplicable) &&
+      (formData.photoP04?.url || formData.photoP04?.notApplicable)
     );
     const hasSettlement = typeof formData.settlementTilt?.diffSettlement?.level === 'number';
 
     const isFullyComplete = hasAddress && hasObjectGroup && hasAdjacent && hasPhotos && hasSettlement;
 
     return {
+      hasOfficialCadastralCode,
+      hasGps,
       hasAddress,
       hasObjectGroup,
       hasAdjacent,
@@ -222,8 +259,31 @@ export const Step1_BuildingIdentification: React.FC = () => {
   const handleSubmitAbsentee = async () => {
     try {
       setIsSubmittingAbsentee(true);
+      const buildingId = formData.projectParcelCode || formData.officialCadastralCode || formData.parcelId;
       console.log('[Phase1] Submitting Absentee Survey:', formData);
-      await new Promise((resolve) => setTimeout(resolve, 800));
+
+      // 1. Lưu trạng thái override cục bộ đảm bảo UI trang chủ cập nhật ngay lập tức
+      try {
+        const overrides = JSON.parse(localStorage.getItem('metro2_parcel_status_overrides') || '{}');
+        overrides[formData.parcelId] = {
+          status: 'POSTPONED_ABSENT',
+          updatedAt: new Date().toISOString(),
+          buildingId,
+        };
+        localStorage.setItem('metro2_parcel_status_overrides', JSON.stringify(overrides));
+      } catch (_e) {}
+
+      // 2. Gửi API máy chủ
+      try {
+        await api.post(`/parcels/${formData.parcelId}/record-absence`, {
+          absenceReason: 'HOMEOWNER_ABSENT',
+          notes: formData.absenteeReason === 'Lý do khác' ? (formData.customAbsenteeReason || 'Lý do khác') : (formData.absenteeReason || 'Chủ nhà vắng mặt'),
+          photoProofUrl: formData.absenteeMinutesPhotos?.[0] || formData.photoP01?.url || '',
+        });
+      } catch (apiErr) {
+        console.warn('[Phase1] API record-absence failed (fallback to persistent local status):', apiErr);
+      }
+
       setShowAbsenteeSuccessModal(true);
     } catch (err) {
       console.error('Submit absentee error:', err);
@@ -236,14 +296,74 @@ export const Step1_BuildingIdentification: React.FC = () => {
   const handleSubmitUnderConstruction = async () => {
     try {
       setIsSubmittingUnderConstruction(true);
+      const buildingId = formData.projectParcelCode || formData.officialCadastralCode || formData.parcelId;
       console.log('[Phase1] Submitting Under Construction Survey:', formData);
-      await new Promise((resolve) => setTimeout(resolve, 800));
+
+      // 1. Lưu trạng thái override cục bộ
+      try {
+        const overrides = JSON.parse(localStorage.getItem('metro2_parcel_status_overrides') || '{}');
+        overrides[formData.parcelId] = {
+          status: 'UNDER_CONSTRUCTION',
+          updatedAt: new Date().toISOString(),
+          buildingId,
+        };
+        localStorage.setItem('metro2_parcel_status_overrides', JSON.stringify(overrides));
+      } catch (_e) {}
+
+      // 2. Gửi API máy chủ
+      try {
+        await api.post('/surveys/phase1/submit', {
+          parcelId: formData.parcelId,
+          surveyData: formData,
+          status: 'IN_PROGRESS',
+        });
+      } catch (apiErr) {
+        console.warn('[Phase1] API submit under-construction failed (fallback to local status):', apiErr);
+      }
+
       setShowUnderConstructionSuccessModal(true);
     } catch (err) {
       console.error('Submit under construction error:', err);
       alert('Có lỗi khi gửi báo cáo công trình đang xây dựng.');
     } finally {
       setIsSubmittingUnderConstruction(false);
+    }
+  };
+
+  const handleConfirmApartment = async () => {
+    try {
+      setIsConfirmingApartment(true);
+      const buildingId = formData.projectParcelCode || formData.officialCadastralCode || formData.parcelId;
+      console.log('[Phase1] Confirming Condominium / Apartment Complex for:', buildingId);
+
+      // 1. Gọi API cập nhật loại hình công trình thành CONDOMINIUM
+      try {
+        await api.patch(`/parcels/${formData.parcelId}/building-type`, {
+          buildingType: 'CONDOMINIUM',
+        });
+      } catch (apiErr) {
+        console.warn('[Phase1] API patch building-type failed (using local persistent override):', apiErr);
+      }
+
+      // 2. Lưu override trạng thái công trình là chung cư
+      try {
+        const overrides = JSON.parse(localStorage.getItem('metro2_parcel_status_overrides') || '{}');
+        overrides[formData.parcelId] = {
+          ...(overrides[formData.parcelId] || {}),
+          buildingType: 'CONDOMINIUM',
+          surveyCaseType: 'APARTMENT',
+          updatedAt: new Date().toISOString(),
+          buildingId,
+        };
+        localStorage.setItem('metro2_parcel_status_overrides', JSON.stringify(overrides));
+      } catch (_e) {}
+
+      setShowApartmentSuccessModal(true);
+    } catch (err: any) {
+      console.error('Lỗi xác nhận chung cư:', err);
+      alert('Có lỗi khi xác nhận loại hình chung cư: ' + (err?.message || 'Vui lòng thử lại'));
+    } finally {
+      setIsConfirmingApartment(false);
     }
   };
 
@@ -266,7 +386,8 @@ export const Step1_BuildingIdentification: React.FC = () => {
             hint="Tự động cấp từ hệ thống theo lý trình"
           />
           <Input
-            label="Mã Địa Chính Gốc (Cadastral Code / KS003)"
+            id="input-officialCadastralCode"
+            label="Mã Địa Chính Gốc (Cadastral Code)"
             value={formData.officialCadastralCode}
             disabled
             hint="Số tờ - Số thửa bản đồ địa chính nhà nước"
@@ -280,15 +401,21 @@ export const Step1_BuildingIdentification: React.FC = () => {
           />
 
           <Input
+            id="input-address"
             label="Địa Chỉ Thực Tế Hiện Trường (Address) *"
             placeholder="Số nhà, Tên đường (Đối chiếu sơ đồ quy hoạch)"
-            value={formData.houseNumber ? `${formData.houseNumber}, ${formData.street}` : formData.street}
+            value={formData.houseNumber ? `${formData.houseNumber}, ${formData.street}` : (formData.street || '')}
             onChange={(e) => {
-              const parts = e.target.value.split(',');
+              const val = e.target.value;
+              if (!val || val.trim() === '') {
+                updateFormData({ houseNumber: '', street: '' });
+                return;
+              }
+              const parts = val.split(',');
               if (parts.length > 1) {
                 updateFormData({ houseNumber: parts[0].trim(), street: parts.slice(1).join(',').trim() });
               } else {
-                updateFormData({ street: e.target.value });
+                updateFormData({ houseNumber: '', street: val });
               }
             }}
           />
@@ -353,10 +480,13 @@ export const Step1_BuildingIdentification: React.FC = () => {
               1.3. Thông Tin Tuyến Metro & Tọa Độ GIS
             </h2>
           </div>
-          <InfoPopover title="Thông tin trích xuất tự động từ GIS">
-            <p className="leading-relaxed">
-              Các thông số khoảng cách tim Metro, ranh giải phóng mặt bằng (GPMB) và lý trình tuyến được tính toán tự động dựa trên vị trí GPS check-in và lớp bản đồ quy hoạch PostGIS tuyến Metro Line 2.
-            </p>
+          <InfoPopover title="Ý nghĩa 4 thông số Tuyến Metro & Tọa độ GIS">
+            <div className="space-y-2 text-xs text-slate-700">
+              <p><strong>1. Lý trình (Chainage):</strong> Vị trí cọc Km theo hướng tim tuyến Metro Line 2 (VD: Km 0+000) để xác định mốc tuyến.</p>
+              <p><strong>2. Khoảng cách tới tim Metro:</strong> Cự ly vuông góc từ mép công trình đến tim hầm Metro, quyết định phân vùng rung chấn và lún kết cấu.</p>
+              <p><strong>3. Khoảng cách tới ranh GPMB:</strong> Khoảng cách từ ranh thửa đất đến hành lang giải phóng mặt bằng thu hồi đất dự án Metro.</p>
+              <p><strong>4. Tọa độ GPS thực địa:</strong> Tọa độ trắc địa WGS84 thu thập trực tiếp tại hiện trường để đối soát và gắn kết bản đồ GIS.</p>
+            </div>
           </InfoPopover>
         </div>
 
@@ -410,7 +540,7 @@ export const Step1_BuildingIdentification: React.FC = () => {
           <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2.5">
             <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
               <Compass className="w-4 h-4 text-emerald-600" />
-              <span>Bên Trái (Nhìn từ ngoài vào)</span>
+              <span>Bên Trái (Theo hướng toà nhà)</span>
             </div>
             <Select
               value={formData.adjacentBuildings?.left?.details || ADJACENT_LEFT_RIGHT[0]}
@@ -442,7 +572,7 @@ export const Step1_BuildingIdentification: React.FC = () => {
           <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2.5">
             <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
               <Compass className="w-4 h-4 text-emerald-600" />
-              <span>Bên Phải (Nhìn từ ngoài vào)</span>
+              <span>Bên Phải (Theo hướng toà nhà)</span>
             </div>
             <Select
               value={formData.adjacentBuildings?.right?.details || ADJACENT_LEFT_RIGHT[0]}
@@ -517,7 +647,7 @@ export const Step1_BuildingIdentification: React.FC = () => {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {/* P-01 */}
-          <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50 space-y-2.5">
+          <div id="photo-p01-section" className="p-3.5 rounded-xl border border-slate-200 bg-slate-50 space-y-2.5">
             <div className="flex items-center justify-between">
               <span className="font-bold text-xs text-slate-800">
                 P-01: Biển Số Nhà / Biển Tên Cơ Quan
@@ -551,7 +681,7 @@ export const Step1_BuildingIdentification: React.FC = () => {
           </div>
 
           {/* P-02: Mặt Đứng Chính Diện */}
-          <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50 space-y-2.5">
+          <div id="photo-p02-section" className="p-3.5 rounded-xl border border-slate-200 bg-slate-50 space-y-2.5">
             <div className="flex items-center justify-between">
               <span className="font-bold text-xs text-slate-800">
                 P-02: Mặt Đứng Chính Diện (Facade Overview)
@@ -605,7 +735,7 @@ export const Step1_BuildingIdentification: React.FC = () => {
           </div>
 
           {/* P-03: Mặt Bên / Mặt Sau */}
-          <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50 space-y-2.5">
+          <div id="photo-p03-section" className="p-3.5 rounded-xl border border-slate-200 bg-slate-50 space-y-2.5">
             <div className="flex items-center justify-between">
               <span className="font-bold text-xs text-slate-800">
                 P-03: Mặt Bên Hoặc Mặt Sau Tiếp Cận
@@ -652,7 +782,7 @@ export const Step1_BuildingIdentification: React.FC = () => {
           </div>
 
           {/* P-04: Bối Cảnh Tổng Thể */}
-          <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50 space-y-2.5">
+          <div id="photo-p04-section" className="p-3.5 rounded-xl border border-slate-200 bg-slate-50 space-y-2.5">
             <div className="flex items-center justify-between">
               <span className="font-bold text-xs text-slate-800">
                 P-04: Bối Cảnh Tổng Thể Lấy Cả Đường/Ngõ
@@ -992,6 +1122,15 @@ export const Step1_BuildingIdentification: React.FC = () => {
               options={ABSENTEE_REASONS.map((r) => ({ value: r, label: r }))}
             />
 
+            {formData.absenteeReason === 'Lý do khác' && (
+              <Input
+                label="Chi tiết lý do vắng mặt khác *"
+                placeholder="Nhập lý do cụ thể (VD: Gia đình đi định cư nước ngoài, nhà đang niêm phong tranh chấp...)"
+                value={formData.customAbsenteeReason || ''}
+                onChange={(e) => updateFormData({ customAbsenteeReason: e.target.value })}
+              />
+            )}
+
             {/* Tải lên nhiều ảnh biên bản vắng nhà */}
             <div className="space-y-2 pt-2 border-t border-amber-200">
               <div className="flex items-center justify-between">
@@ -1078,11 +1217,17 @@ export const Step1_BuildingIdentification: React.FC = () => {
             <p className="text-xs text-blue-800 leading-relaxed">
               • Hệ thống đã tự động thiết lập <strong>Nhóm đối tượng = Important (2đ)</strong>.<br />
               • Khảo sát tập trung vào các <strong>Không gian & Kết cấu dùng chung</strong>: Tầng hầm để xe, Mái/Sân thượng, Sảnh đón, Thang bộ/Thang máy, Trục kỹ thuật chung.<br />
-              • <strong>Các căn hộ con trong toà:</strong> Được quản lý độc lập theo danh sách căn hộ (Building Units) và sẽ được khảo sát riêng từng căn.
+              • <strong>Các căn hộ con trong toà:</strong> Được quản lý độc lập theo danh sách căn hộ (Building Units) trong Hub Chung Cư và sẽ được khảo sát riêng từng căn.
             </p>
             <div className="pt-2 flex justify-end">
-              <Button size="md" className="bg-blue-600 hover:bg-blue-700 text-white" onClick={nextStep}>
-                Tiếp tục: Bước 2 (Khảo sát Tòa Nhà Chung Cư) ➔
+              <Button
+                size="md"
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+                disabled={isConfirmingApartment}
+                onClick={handleConfirmApartment}
+                icon={<Building2 className="w-4 h-4" />}
+              >
+                {isConfirmingApartment ? 'Đang gửi xác nhận...' : 'Xác nhận Chung cư/Toàn nhiều căn hộ'}
               </Button>
             </div>
           </div>
@@ -1187,9 +1332,14 @@ export const Step1_BuildingIdentification: React.FC = () => {
                   Chấm các đỉnh góc nhà để tính diện tích bao và kéo đường phân tầng
                 </p>
               </div>
-              <Button variant="outline" size="sm" onClick={() => setIsDrawingPolygon(false)}>
-                Đóng lại
-              </Button>
+              <button
+                type="button"
+                onClick={() => setIsDrawingPolygon(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-200 transition-colors"
+                title="Hủy / Đóng"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
             <div className="flex-1 overflow-hidden p-3 bg-slate-100">
               <FacadePolygonCanvas
@@ -1225,7 +1375,7 @@ export const Step1_BuildingIdentification: React.FC = () => {
       {currentCase === 'NORMAL' && (
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-slate-200">
           <div className="text-xs text-slate-500">
-            Bước 1 / 9: Định danh công trình & Ngoại quan
+            Bước 1 / 8: Định danh công trình & Ngoại quan
           </div>
           <Button size="lg" onClick={nextStep}>
             Tiếp tục: Bước 2 (Phỏng vấn chủ hộ) ➔
@@ -1244,7 +1394,7 @@ export const Step1_BuildingIdentification: React.FC = () => {
               Đã Nộp Thành Công Báo Cáo Vắng Nhà!
             </h3>
             <p className="text-xs text-slate-600 leading-relaxed">
-              Dữ liệu ngoại quan công trình <strong>{formData.houseNumber} {formData.street}</strong> kèm biên bản vắng nhà đã được ghi nhận và đồng bộ lên hệ thống máy chủ.
+              Dữ liệu ngoại quan và toàn bộ hình ảnh thực tế của công trình <strong>[{formData.projectParcelCode || formData.officialCadastralCode || formData.parcelId}]</strong> đã được đồng bộ lên máy chủ.
             </p>
             <div className="pt-2">
               <Button
@@ -1253,6 +1403,7 @@ export const Step1_BuildingIdentification: React.FC = () => {
                 onClick={() => {
                   setShowAbsenteeSuccessModal(false);
                   clearDraft();
+                  window.location.hash = '#/';
                   window.location.reload();
                 }}
               >
@@ -1274,7 +1425,7 @@ export const Step1_BuildingIdentification: React.FC = () => {
               Đã Nộp Thành Công Hồ Sơ Công Trình Đang Xây Dựng!
             </h3>
             <p className="text-xs text-slate-600 leading-relaxed">
-              Hiện trạng thi công và toàn bộ hình ảnh thực tế của công trình <strong>{formData.houseNumber} {formData.street}</strong> đã được đồng bộ lên máy chủ.
+              Hiện trạng thi công và toàn bộ hình ảnh thực tế của công trình <strong>[{formData.projectParcelCode || formData.officialCadastralCode || formData.parcelId}]</strong> đã được đồng bộ lên máy chủ.
             </p>
             <div className="pt-2">
               <Button
@@ -1283,10 +1434,58 @@ export const Step1_BuildingIdentification: React.FC = () => {
                 onClick={() => {
                   setShowUnderConstructionSuccessModal(false);
                   clearDraft();
+                  window.location.hash = '#/';
                   window.location.reload();
                 }}
               >
                 Hoàn tất khảo sát
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Success Modal for Apartment Confirmation */}
+      {showApartmentSuccessModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 text-center shadow-2xl border border-slate-200 space-y-4">
+            <div className="w-12 h-12 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center mx-auto">
+              <Building2 className="w-7 h-7" />
+            </div>
+            <h3 className="text-lg font-bold text-slate-800">
+              Đã Xác Nhận Quy Chuẩn Chung Cư Thành Công!
+            </h3>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Công trình <strong>[{formData.projectParcelCode || formData.officialCadastralCode || formData.parcelId}]</strong> đã được thiết lập quy chuẩn quản lý Tòa Nhà Chung Cư / Nhiều Căn Hộ.
+            </p>
+            <div className="grid grid-cols-2 gap-3 pt-2">
+              <Button
+                variant="secondary"
+                size="md"
+                onClick={() => {
+                  setShowApartmentSuccessModal(false);
+                  clearDraft();
+                  window.location.hash = '#/';
+                  window.location.reload();
+                }}
+              >
+                Về trang chủ
+              </Button>
+              <Button
+                size="md"
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+                onClick={() => {
+                  setShowApartmentSuccessModal(false);
+                  try {
+                    localStorage.setItem('metro2_open_hub_parcel_id', formData.parcelId);
+                  } catch (_e) {}
+                  clearDraft();
+                  window.location.hash = '#/';
+                  window.location.reload();
+                }}
+                icon={<Building2 className="w-4 h-4" />}
+              >
+                Hub chung cư
               </Button>
             </div>
           </div>

@@ -15,7 +15,9 @@ import { SurveyController } from './modules/survey/survey.controller';
 import { ScoringController } from './modules/scoring/scoring.controller';
 import { AuditController } from './modules/audit/audit.controller';
 import { ExportController } from './modules/export/export.controller';
+import { StorageController } from './modules/storage/storage.controller';
 import { Database } from './database/db';
+import multer from 'multer';
 
 export function createApp(): express.Application {
   const app = express();
@@ -51,10 +53,21 @@ export function createApp(): express.Application {
     });
   });
 
+  const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 25 * 1024 * 1024 }, // Tối đa 25MB mỗi ảnh
+  });
+
   const api = express.Router();
 
   // ==========================================
-  // 0. AUTHENTICATION (PUBLIC)
+  // 0. STORAGE & ẢNH HIỆN TRƯỜNG (CLOUDFLARE R2)
+  // ==========================================
+  api.post('/storage/upload', authenticateJwt, upload.single('file'), StorageController.uploadFile);
+  api.post('/storage/upload-base64', authenticateJwt, StorageController.uploadBase64);
+
+  // ==========================================
+  // 1. AUTHENTICATION (PUBLIC)
   // ==========================================
   api.post('/auth/login', AuthController.login);
   api.post('/auth/refresh-token', AuthController.refreshToken);

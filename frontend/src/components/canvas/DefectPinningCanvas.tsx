@@ -61,6 +61,7 @@ export const DefectPinningCanvas: React.FC<Props> = ({
   readOnly = false,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const detailFormRef = useRef<HTMLDivElement>(null);
   const [selectedDefectIndex, setSelectedDefectIndex] = useState<number | null>(null);
   const [isAddingPin, setIsAddingPin] = useState<boolean>(true); // Default to pin mode for quick marking
 
@@ -96,6 +97,10 @@ export const DefectPinningCanvas: React.FC<Props> = ({
     const updated = [...defects, newDefect];
     onChange(updated);
     setSelectedDefectIndex(updated.length - 1);
+    setIsAddingPin(false);
+    setTimeout(() => {
+      detailFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }, 60);
   };
 
   const removeDefect = (index: number) => {
@@ -260,7 +265,7 @@ export const DefectPinningCanvas: React.FC<Props> = ({
 
       {/* Selected Defect Detail Card */}
       {selectedDefect !== null && selectedDefectIndex !== null && (
-        <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
+        <div ref={detailFormRef} className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
           <div className="flex items-center justify-between pb-2 border-b border-slate-200">
             <div className="flex items-center gap-2">
               <span className="px-2.5 py-1 bg-slate-900 text-white font-mono font-bold text-xs rounded-lg">
@@ -464,6 +469,26 @@ export const DefectPinningCanvas: React.FC<Props> = ({
               />
             </div>
           </div>
+
+          {/* Action footer: Chấm điểm mới quay trở lại canvas phía trên */}
+          {!readOnly && (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-slate-200">
+              <span className="text-xs text-slate-500">
+                Đang sửa thông tin <strong>{selectedDefect.defectCode}</strong>. Bấm nút bên cạnh để chấm điểm khuyết tật mới.
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsAddingPin(true);
+                  containerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }}
+                className="w-full sm:w-auto px-4 py-2 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-xl text-xs font-bold shadow-sm transition-all flex items-center justify-center gap-2"
+              >
+                <Crosshair className="w-4 h-4" />
+                <span>+ Chấm điểm khuyết tật mới ({nextDefectCode})</span>
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -5,7 +5,6 @@ import { Step1_BuildingIdentification } from '../components/Step1_BuildingIdenti
 import { Step2_OwnerInterview } from '../components/Step2_OwnerInterview';
 import { Step3_FloorHierarchySurvey } from '../components/Step3_FloorHierarchySurvey';
 import { Step4_BurlandSummary } from '../components/Step4_BurlandSummary';
-import { Step5_SettlementTiltSurvey } from '../components/Step5_SettlementTiltSurvey';
 import { Step6_ScopeAndGisMutation } from '../components/Step6_ScopeAndGisMutation';
 import { Step7_TechnicalCalculations } from '../components/Step7_TechnicalCalculations';
 import { Step8_ExecutiveDashboard } from '../components/Step8_ExecutiveDashboard';
@@ -90,7 +89,7 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
 
   return (
     <div className="min-h-screen bg-slate-50/50 flex flex-col">
-      {/* 9-Step Navigation Header */}
+      {/* 8-Step Navigation Header */}
       <StepWizardNav onBackToHome={onBackToHome} />
 
       {/* Main Step Content Container */}
@@ -99,11 +98,10 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
         {currentStep === 2 && <Step2_OwnerInterview />}
         {currentStep === 3 && <Step3_FloorHierarchySurvey />}
         {currentStep === 4 && <Step4_BurlandSummary />}
-        {currentStep === 5 && <Step5_SettlementTiltSurvey />}
-        {currentStep === 6 && <Step6_ScopeAndGisMutation />}
-        {currentStep === 7 && <Step7_TechnicalCalculations />}
-        {currentStep === 8 && <Step8_ExecutiveDashboard />}
-        {currentStep === 9 && (
+        {currentStep === 5 && <Step6_ScopeAndGisMutation />}
+        {currentStep === 6 && <Step7_TechnicalCalculations />}
+        {currentStep === 7 && <Step8_ExecutiveDashboard />}
+        {currentStep === 8 && (
           <Step9_FieldSignatures
             onSubmitFinal={handleSubmitFinal}
             isSubmitting={isSubmitting}

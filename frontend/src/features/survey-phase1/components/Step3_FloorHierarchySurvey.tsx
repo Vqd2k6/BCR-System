@@ -8,6 +8,8 @@ import { PhotoCaptureInput } from '../../../components/common/PhotoCaptureInput'
 import { DefectPinningCanvas, DefectItem } from '../../../components/canvas/DefectPinningCanvas';
 import { FloorCadPinningCanvas, CadZonePin } from '../../../components/canvas/FloorCadPinningCanvas';
 import { FloorSurveyData, DamageZoneData, StructuralElementData } from '../types/phase1.types';
+import { LevelSelectorWithGuide } from './LevelSelectorWithGuide';
+import { SAG_LEVEL_OPTIONS } from '../constants/levelGuideConstants';
 import {
   Plus,
   Trash2,
@@ -26,6 +28,7 @@ import {
   Image as ImageIcon,
   Copy,
   X,
+  Ruler,
 } from 'lucide-react';
 
 const COMMON_ROOM_NAMES = [
@@ -94,8 +97,6 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
   const [activeElementIndex, setActiveElementIndex] = useState<number>(0);
 
   // Modals
-  const [showCad01Modal, setShowCad01Modal] = useState<boolean>(false);
-  const [showCad02Modal, setShowCad02Modal] = useState<boolean>(false);
   const [pinningZoneId, setPinningZoneId] = useState<string | null>(null);
   const [pinningElementId, setPinningElementId] = useState<string | null>(null);
 
@@ -166,41 +167,35 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
   // 3. Xử lý khi bấm nút "Thêm Vùng Z"
   const handleRequestAddZone = () => {
     const cadPins = currentFloor.cadZonePins || [];
-    // Nếu số lượng vùng Z đã tạo >= số lượng ghim đã chấm trên CAD_01 ➔ Mở CAD_01 để chấm vị trí mới
-    if (zones.length >= cadPins.length) {
-      setShowCad01Modal(true);
-    } else {
-      // Nếu có ghim CAD_01 chưa tạo vùng, tạo ngay vùng kế thừa
-      const nextZoneCode = cadPins[zones.length]?.zoneCode || `Z-${String(zones.length + 1).padStart(2, '0')}`;
-      const prevZone = zones[zones.length - 1];
-      const newZone: DamageZoneData = {
-        id: `zone_${Date.now()}`,
-        zoneCode: nextZoneCode,
-        floorName: currentFloor.floorName,
-        roomName: prevZone ? prevZone.roomName : 'Phòng khách',
-        customRoomName: prevZone?.customRoomName || '',
-        componentType: prevZone ? prevZone.componentType : 'Tường gạch vữa xi măng',
-        customComponentType: prevZone?.customComponentType || '',
-        wallMaterial: prevZone ? prevZone.wallMaterial : 'Tường gạch trát vữa XM sơn nước',
-        customWallMaterial: prevZone?.customWallMaterial || '',
-        overviewPhotos: [],
-        ctxPhotoUrl: '',
-        hasDamage: false,
-        notes: '',
-        defects: [],
+    const nextZoneCode = cadPins[zones.length]?.zoneCode || `Z-${String(zones.length + 1).padStart(2, '0')}`;
+    const prevZone = zones[zones.length - 1];
+    const newZone: DamageZoneData = {
+      id: `zone_${Date.now()}`,
+      zoneCode: nextZoneCode,
+      floorName: currentFloor.floorName,
+      roomName: prevZone ? prevZone.roomName : 'Phòng khách',
+      customRoomName: prevZone?.customRoomName || '',
+      componentType: prevZone ? prevZone.componentType : 'Tường gạch vữa xi măng',
+      customComponentType: prevZone?.customComponentType || '',
+      wallMaterial: prevZone ? prevZone.wallMaterial : 'Tường gạch trát vữa XM sơn nước',
+      customWallMaterial: prevZone?.customWallMaterial || '',
+      overviewPhotos: [],
+      ctxPhotoUrl: '',
+      hasDamage: false,
+      notes: '',
+      defects: [],
+    };
+    updateFormData((prev) => {
+      const updatedFloors = [...prev.floors];
+      const current = updatedFloors[activeFloorIndex] || updatedFloors[0];
+      if (!current) return prev;
+      updatedFloors[activeFloorIndex] = {
+        ...current,
+        zones: [...(current.zones || []), newZone],
       };
-      updateFormData((prev) => {
-        const updatedFloors = [...prev.floors];
-        const current = updatedFloors[activeFloorIndex] || updatedFloors[0];
-        if (!current) return prev;
-        updatedFloors[activeFloorIndex] = {
-          ...current,
-          zones: [...(current.zones || []), newZone],
-        };
-        return { ...prev, floors: updatedFloors };
-      });
-      setActiveZoneIndex(zones.length);
-    }
+      return { ...prev, floors: updatedFloors };
+    });
+    setActiveZoneIndex(zones.length);
   };
 
   // 4. Tự động sinh Vùng E khi chấm ghim trên CAD_02
@@ -245,40 +240,35 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
   // 5. Xử lý khi bấm nút "Thêm Vùng E"
   const handleRequestAddElement = () => {
     const cadPins = currentFloor.cadElementPins || [];
-    // Nếu số lượng cấu kiện E đã tạo >= số lượng ghim đã chấm trên CAD_02 ➔ Mở CAD_02 để chấm vị trí mới
-    if (structuralElements.length >= cadPins.length) {
-      setShowCad02Modal(true);
-    } else {
-      const nextElementCode = cadPins[structuralElements.length]?.zoneCode || `E-${String(structuralElements.length + 1).padStart(2, '0')}`;
-      const prevEl = structuralElements[structuralElements.length - 1];
-      const newElement: StructuralElementData = {
-        id: `el_${Date.now()}`,
-        elementCode: nextElementCode,
-        floorName: currentFloor.floorName,
-        roomName: prevEl ? prevEl.roomName : 'Phòng khách',
-        customRoomName: prevEl?.customRoomName || '',
-        elementType: prevEl ? prevEl.elementType : 'Cột BTCT',
-        customElementType: prevEl?.customElementType || '',
-        materialType: prevEl ? prevEl.materialType : 'Bê tông cốt thép (BTCT) đổ toàn khối',
-        customMaterialType: prevEl?.customMaterialType || '',
-        overviewPhotos: [],
-        ctxPhotoUrl: '',
-        hasDamage: false,
-        notes: '',
-        defects: [],
+    const nextElementCode = cadPins[structuralElements.length]?.zoneCode || `E-${String(structuralElements.length + 1).padStart(2, '0')}`;
+    const prevEl = structuralElements[structuralElements.length - 1];
+    const newElement: StructuralElementData = {
+      id: `el_${Date.now()}`,
+      elementCode: nextElementCode,
+      floorName: currentFloor.floorName,
+      roomName: prevEl ? prevEl.roomName : 'Phòng khách',
+      customRoomName: prevEl?.customRoomName || '',
+      elementType: prevEl ? prevEl.elementType : 'Cột BTCT',
+      customElementType: prevEl?.customElementType || '',
+      materialType: prevEl ? prevEl.materialType : 'Bê tông cốt thép (BTCT) đổ toàn khối',
+      customMaterialType: prevEl?.customMaterialType || '',
+      overviewPhotos: [],
+      ctxPhotoUrl: '',
+      hasDamage: false,
+      notes: '',
+      defects: [],
+    };
+    updateFormData((prev) => {
+      const updatedFloors = [...prev.floors];
+      const current = updatedFloors[activeFloorIndex] || updatedFloors[0];
+      if (!current) return prev;
+      updatedFloors[activeFloorIndex] = {
+        ...current,
+        structuralElements: [...(current.structuralElements || []), newElement],
       };
-      updateFormData((prev) => {
-        const updatedFloors = [...prev.floors];
-        const current = updatedFloors[activeFloorIndex] || updatedFloors[0];
-        if (!current) return prev;
-        updatedFloors[activeFloorIndex] = {
-          ...current,
-          structuralElements: [...(current.structuralElements || []), newElement],
-        };
-        return { ...prev, floors: updatedFloors };
-      });
-      setActiveElementIndex(structuralElements.length);
-    }
+      return { ...prev, floors: updatedFloors };
+    });
+    setActiveElementIndex(structuralElements.length);
   };
 
   // 6. Cập nhật Vùng Z
@@ -374,7 +364,7 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
         <div>
           <h2 className="text-base sm:text-lg font-bold text-slate-800 flex items-center gap-2">
             <Layers className="w-5 h-5 text-emerald-600" />
-            <span>3. Khảo Sát Hiện Trạng Chi Tiết (Tầng ➔ CAD_01 Vùng Z ➔ CAD_02 Vùng E)</span>
+            <span>3. Khảo Sát Hiện Trạng Chi Tiết</span>
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">
             Đánh dấu tự sinh các Vùng trên sơ đồ CAD, khảo sát tuần tự và tự động kế thừa thông tin
@@ -417,7 +407,7 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
       {/* ========================================================================= */}
       {/* PHẦN 1: SƠ ĐỒ CAD_01 & KHẢO SÁT VÙNG KIẾN TRÚC / MẢNG TƯỜNG (VÙNG Z)     */}
       {/* ========================================================================= */}
-      <Card className="border-slate-200 bg-white space-y-4 shadow-xs">
+      <Card id="step3-floor-cad-section" className="border-slate-200 bg-white space-y-4 shadow-xs">
         {/* Header CAD_01 */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
           <div className="flex items-center gap-2">
@@ -430,60 +420,43 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
                 </span>
               </h3>
               <p className="text-xs text-slate-500">
-                Đánh dấu vị trí các Vùng Z trên sơ đồ mặt bằng kiến trúc và ghi sổ chi tiết
+                Đánh dấu vị trí các Vùng Z trực tiếp trên sơ đồ mặt bằng kiến trúc và ghi sổ chi tiết
               </p>
             </div>
           </div>
-
-          <Button
-            size="sm"
-            variant="outline"
-            icon={<MapPin className="w-3.5 h-3.5" />}
-            onClick={() => setShowCad01Modal(true)}
-          >
-            {currentFloor.cadSketchPhotoUrl
-              ? `Mở Sơ đồ CAD_01 (${currentFloor.cadZonePins?.length || 0} ghim Z) ➔`
-              : 'Tải Sơ đồ CAD_01 & Chấm Ghim Z'}
-          </Button>
         </div>
 
-        {/* CAD_01 Preview Thumbnail & Quick Info */}
-        {currentFloor.cadSketchPhotoUrl ? (
-          <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <img
-                src={currentFloor.cadSketchPhotoUrl}
-                alt="CAD_01 floor layout"
-                className="w-16 h-12 object-cover rounded-lg border border-slate-300"
-              />
-              <div>
-                <span className="text-xs font-bold text-slate-800 block">
-                  Bản vẽ mặt bằng kiến trúc CAD_01 ({currentFloor.floorName})
-                </span>
-                <span className="text-[11px] text-slate-500">
-                  Đã thả {currentFloor.cadZonePins?.length || 0} điểm ghim Z trên bản vẽ
-                </span>
-              </div>
-            </div>
-            <Button size="sm" variant="ghost" onClick={() => setShowCad01Modal(true)}>
-              Chỉnh sửa ghim CAD_01 ➔
-            </Button>
-          </div>
-        ) : (
-          <div className="p-4 text-center bg-slate-50 rounded-xl border border-dashed border-slate-300">
-            <PhotoCaptureInput
-              label={`Tải lên hoặc chụp sơ đồ mặt bằng kiến trúc CAD_01 (${currentFloor.floorName}):`}
-              value={currentFloor.cadSketchPhotoUrl}
-              onChange={(url) => {
-                const updatedFloors = [...formData.floors];
-                updatedFloors[activeFloorIndex] = { ...currentFloor, cadSketchPhotoUrl: url };
-                updateFormData({ floors: updatedFloors });
-              }}
-              watermarkText={`CAD-01 | ${currentFloor.floorName}`}
-              height="140px"
-            />
-          </div>
-        )}
+        {/* CAD_01 Inline Interactive Canvas */}
+        <FloorCadPinningCanvas
+          cadPhotoUrl={currentFloor.cadSketchPhotoUrl}
+          onCadPhotoChange={(url) => {
+            updateFormData((prev) => {
+              const updatedFloors = [...prev.floors];
+              const cur = updatedFloors[activeFloorIndex] || updatedFloors[0];
+              if (!cur) return prev;
+              updatedFloors[activeFloorIndex] = { ...cur, cadSketchPhotoUrl: url };
+              return { ...prev, floors: updatedFloors };
+            });
+          }}
+          pins={currentFloor.cadZonePins || []}
+          onChangePins={(pins) => {
+            updateFormData((prev) => {
+              const updatedFloors = [...prev.floors];
+              const cur = updatedFloors[activeFloorIndex] || updatedFloors[0];
+              if (!cur) return prev;
+              updatedFloors[activeFloorIndex] = { ...cur, cadZonePins: pins };
+              return { ...prev, floors: updatedFloors };
+            });
+          }}
+          onAutoCreatePin={handleAutoCreateZonePin}
+          onSelectPin={(pin) => {
+            const idx = zones.findIndex((z) => z.zoneCode === pin.zoneCode);
+            if (idx !== -1) setActiveZoneIndex(idx);
+          }}
+          mode="ZONE"
+          floorName={currentFloor.floorName}
+          cadTitle={`Tải lên hoặc chụp sơ đồ mặt bằng kiến trúc CAD_01 (${currentFloor.floorName}):`}
+        />
 
         {/* Stepper danh sách các Vùng Z */}
         <div className="space-y-3 pt-2">
@@ -497,7 +470,7 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
               icon={<Plus className="w-3.5 h-3.5" />}
               onClick={handleRequestAddZone}
             >
-              Thêm Vùng Z-xx (Kế thừa)
+              Thêm Vùng Z-xx
             </Button>
           </div>
 
@@ -580,6 +553,7 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <Select
+                    id="select-zone-roomName"
                     label="Tên Phòng / Không Gian"
                     value={activeZone.roomName}
                     onChange={(e) => handleUpdateZone(activeZoneIndex, { roomName: e.target.value })}
@@ -587,6 +561,7 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
                   />
                   {activeZone.roomName === 'Khác' && (
                     <Input
+                      id="input-zone-customRoomName"
                       placeholder="Nhập tên phòng..."
                       value={activeZone.customRoomName || ''}
                       onChange={(e) =>
@@ -599,6 +574,7 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
 
                 <div>
                   <Select
+                    id="select-zone-componentType"
                     label="Cấu Kiện Mảng Vách Kiến Trúc"
                     value={activeZone.componentType}
                     onChange={(e) =>
@@ -608,6 +584,7 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
                   />
                   {activeZone.componentType === 'Khác' && (
                     <Input
+                      id="input-zone-customComponentType"
                       placeholder="Nhập loại cấu kiện..."
                       value={activeZone.customComponentType || ''}
                       onChange={(e) =>
@@ -620,6 +597,7 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
 
                 <div>
                   <Select
+                    id="select-zone-wallMaterial"
                     label="Vật Liệu Bề Mặt Hoàn Thiện"
                     value={activeZone.wallMaterial}
                     onChange={(e) =>
@@ -629,6 +607,7 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
                   />
                   {activeZone.wallMaterial === 'Khác' && (
                     <Input
+                      id="input-zone-customWallMaterial"
                       placeholder="Nhập vật liệu..."
                       value={activeZone.customWallMaterial || ''}
                       onChange={(e) =>
@@ -785,7 +764,7 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
                       icon={<Plus className="w-3.5 h-3.5" />}
                       onClick={handleRequestAddZone}
                     >
-                      Thêm Vùng Z tiếp theo (Kế thừa)
+                      Thêm Vùng Z tiếp theo
                     </Button>
                   )}
                 </div>
@@ -798,7 +777,7 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
       {/* ========================================================================= */}
       {/* PHẦN 2: SƠ ĐỒ CAD_02 & KHẢO SÁT CẤU KIỆN KẾT CẤU CHỊU LỰC (VÙNG E)       */}
       {/* ========================================================================= */}
-      <Card className="border-amber-200 bg-white space-y-4 shadow-xs">
+      <Card id="step3-structure-cad-section" className="border-amber-200 bg-white space-y-4 shadow-xs">
         {/* Header CAD_02 */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-amber-100">
           <div className="flex items-center gap-2">
@@ -811,80 +790,43 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
                 </span>
               </h3>
               <p className="text-xs text-slate-500">
-                Đánh dấu vị trí Cột, Dầm, Bản sàn chịu lực trên sơ đồ CAD_02 và ghi sổ khuyết tật kết cấu
+                Đánh dấu vị trí Cột, Dầm, Bản sàn chịu lực trực tiếp trên sơ đồ CAD_02 và ghi sổ khuyết tật kết cấu
               </p>
             </div>
           </div>
-
-          <div className="flex items-center gap-2">
-            {!currentFloor.cadStructuralSketchPhotoUrl && currentFloor.cadSketchPhotoUrl && (
-              <Button
-                size="sm"
-                variant="outline"
-                icon={<Copy className="w-3.5 h-3.5" />}
-                onClick={() => {
-                  const updatedFloors = [...formData.floors];
-                  updatedFloors[activeFloorIndex] = {
-                    ...currentFloor,
-                    cadStructuralSketchPhotoUrl: currentFloor.cadSketchPhotoUrl,
-                  };
-                  updateFormData({ floors: updatedFloors });
-                }}
-              >
-                Dùng lại ảnh CAD_01
-              </Button>
-            )}
-
-            <Button
-              size="sm"
-              className="bg-amber-600 hover:bg-amber-700 text-white"
-              icon={<MapPin className="w-3.5 h-3.5" />}
-              onClick={() => setShowCad02Modal(true)}
-            >
-              {currentFloor.cadStructuralSketchPhotoUrl
-                ? `Mở Sơ đồ CAD_02 (${currentFloor.cadElementPins?.length || 0} ghim E) ➔`
-                : 'Tải Sơ đồ CAD_02 & Chấm Ghim E'}
-            </Button>
-          </div>
         </div>
 
-        {/* CAD_02 Preview Thumbnail & Quick Info */}
-        {currentFloor.cadStructuralSketchPhotoUrl ? (
-          <div className="p-3 bg-amber-50/40 rounded-xl border border-amber-200 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <img
-                src={currentFloor.cadStructuralSketchPhotoUrl}
-                alt="CAD_02 floor layout"
-                className="w-16 h-12 object-cover rounded-lg border border-amber-300"
-              />
-              <div>
-                <span className="text-xs font-bold text-amber-950 block">
-                  Bản vẽ sơ đồ kết cấu CAD_02 ({currentFloor.floorName})
-                </span>
-                <span className="text-[11px] text-slate-500">
-                  Đã thả {currentFloor.cadElementPins?.length || 0} điểm ghim E trên bản vẽ
-                </span>
-              </div>
-            </div>
-            <Button size="sm" variant="ghost" onClick={() => setShowCad02Modal(true)}>
-              Chỉnh sửa ghim CAD_02 ➔
-            </Button>
-          </div>
-        ) : (
-          <div className="p-4 text-center bg-amber-50/20 rounded-xl border border-dashed border-amber-300">
-            <PhotoCaptureInput
-              label={`Tải lên hoặc chụp sơ đồ mặt bằng kết cấu CAD_02 (${currentFloor.floorName}):`}
-              value={currentFloor.cadStructuralSketchPhotoUrl || ''}
-              onChange={(url) => {
-                const updatedFloors = [...formData.floors];
-                updatedFloors[activeFloorIndex] = { ...currentFloor, cadStructuralSketchPhotoUrl: url };
-                updateFormData({ floors: updatedFloors });
-              }}
-              watermarkText={`CAD-02 | ${currentFloor.floorName}`}
-              height="140px"
-            />
-          </div>
-        )}
+        {/* CAD_02 Inline Interactive Canvas */}
+        <FloorCadPinningCanvas
+          cadPhotoUrl={currentFloor.cadStructuralSketchPhotoUrl || ''}
+          onCadPhotoChange={(url) => {
+            updateFormData((prev) => {
+              const updatedFloors = [...prev.floors];
+              const cur = updatedFloors[activeFloorIndex] || updatedFloors[0];
+              if (!cur) return prev;
+              updatedFloors[activeFloorIndex] = { ...cur, cadStructuralSketchPhotoUrl: url };
+              return { ...prev, floors: updatedFloors };
+            });
+          }}
+          pins={currentFloor.cadElementPins || []}
+          onChangePins={(pins) => {
+            updateFormData((prev) => {
+              const updatedFloors = [...prev.floors];
+              const cur = updatedFloors[activeFloorIndex] || updatedFloors[0];
+              if (!cur) return prev;
+              updatedFloors[activeFloorIndex] = { ...cur, cadElementPins: pins };
+              return { ...prev, floors: updatedFloors };
+            });
+          }}
+          onAutoCreatePin={handleAutoCreateElementPin}
+          onSelectPin={(pin) => {
+            const idx = structuralElements.findIndex((e) => e.elementCode === pin.zoneCode);
+            if (idx !== -1) setActiveElementIndex(idx);
+          }}
+          mode="STRUCTURAL"
+          floorName={currentFloor.floorName}
+          cadTitle={`Tải lên hoặc chụp sơ đồ mặt bằng kết cấu CAD_02 (${currentFloor.floorName}):`}
+        />
 
         {/* Stepper danh sách các Vùng Kết Cấu E */}
         <div className="space-y-3 pt-2">
@@ -985,6 +927,7 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
                   <Select
+                    id="select-el-roomName"
                     label="Vị Trí / Thuộc Không Gian"
                     value={activeElement.roomName}
                     onChange={(e) =>
@@ -994,6 +937,7 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
                   />
                   {activeElement.roomName === 'Khác' && (
                     <Input
+                      id="input-el-customRoomName"
                       placeholder="Nhập vị trí..."
                       value={activeElement.customRoomName || ''}
                       onChange={(e) =>
@@ -1006,6 +950,7 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
 
                 <div>
                   <Select
+                    id="select-el-elementType"
                     label="Loại Cấu Kiện Chịu Lực"
                     value={activeElement.elementType}
                     onChange={(e) =>
@@ -1015,6 +960,7 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
                   />
                   {activeElement.elementType === 'Khác' && (
                     <Input
+                      id="input-el-customElementType"
                       placeholder="Nhập loại cấu kiện..."
                       value={activeElement.customElementType || ''}
                       onChange={(e) =>
@@ -1029,6 +975,7 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
 
                 <div>
                   <Select
+                    id="select-el-materialType"
                     label="Loại Vật Liệu Kết Cấu"
                     value={activeElement.materialType}
                     onChange={(e) =>
@@ -1038,6 +985,7 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
                   />
                   {activeElement.materialType === 'Khác' && (
                     <Input
+                      id="input-el-customMaterialType"
                       placeholder="Nhập vật liệu kết cấu..."
                       value={activeElement.customMaterialType || ''}
                       onChange={(e) =>
@@ -1203,13 +1151,149 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
                       icon={<Plus className="w-3.5 h-3.5" />}
                       onClick={handleRequestAddElement}
                     >
-                      Thêm Kết Cấu E tiếp theo (Kế thừa)
+                      Thêm Kết Cấu E tiếp theo
                     </Button>
                   )}
                 </div>
               </div>
             </div>
           ) : null}
+        </div>
+      </Card>
+
+      {/* ========================================================================= */}
+      {/* 3.3. VÕNG DẦM SÀN & ĐỀ XUẤT QUAN TRẬC (Tích hợp từ Bước 5)            */}
+      {/* ========================================================================= */}
+      <Card className="border-violet-200 bg-white space-y-4 shadow-xs">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-violet-100">
+          <div className="flex items-center gap-2">
+            <Ruler className="w-5 h-5 text-violet-600" />
+            <div>
+              <h3 className="text-sm font-bold text-slate-800">
+                3.3. Võng Dầm Sàn & ĐỀ Xuất Quan Trắc Chuyên Sâu
+              </h3>
+              <p className="text-xs text-slate-500">
+                Khảo sát độ võng dầm/sàn bên trong nhà và chốt yêu cầu lắp mốc quan trắc lún nhiêng
+              </p>
+            </div>
+          </div>
+          <span className="text-xs font-black px-3 py-1.5 rounded-xl border bg-violet-50 border-violet-200 text-violet-900 flex items-center gap-1.5">
+            <Sparkles className="w-3.5 h-3.5 text-violet-600" />
+            <span>Chỉ số E3 = {Math.min(4, Math.max(
+              formData.settlementTilt?.diffSettlement?.level ?? 0,
+              formData.settlementTilt?.buildingTilt?.level ?? 0,
+              formData.settlementTilt?.beamSagging?.level ?? 0
+            ))}/4</span>
+          </span>
+        </div>
+
+        <div className="space-y-5">
+          <LevelSelectorWithGuide
+            title="Võng Dầm / Bản Sàn Kết Cấu Bên Trong"
+            subtitle="Hiện tượng uốn võng phần tử chịu uốn ngang (dầm chính, dầm phụ, bản sàn, ô văng)"
+            selectedLevel={formData.settlementTilt?.beamSagging?.level ?? 0}
+            onChangeLevel={(level) =>
+              updateFormData({
+                settlementTilt: {
+                  ...formData.settlementTilt,
+                  beamSagging: { ...formData.settlementTilt?.beamSagging, level },
+                },
+              })
+            }
+            options={SAG_LEVEL_OPTIONS}
+          >
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <Input
+                label="Vị trí cấu kiện bị võng"
+                placeholder="VD: Dầm D2 trục 2-3 Tầng 2, Bản sàn ban công..."
+                value={formData.settlementTilt?.beamSagging?.position || ''}
+                onChange={(e) =>
+                  updateFormData({
+                    settlementTilt: {
+                      ...formData.settlementTilt,
+                      beamSagging: { ...formData.settlementTilt?.beamSagging, position: e.target.value },
+                    },
+                  })
+                }
+              />
+              <Input
+                label="Độ võng ước tính (mm)"
+                type="number"
+                step="0.5"
+                placeholder="VD: 15"
+                value={formData.settlementTilt?.beamSagging?.sagMm ?? ''}
+                onChange={(e) =>
+                  updateFormData({
+                    settlementTilt: {
+                      ...formData.settlementTilt,
+                      beamSagging: {
+                        ...formData.settlementTilt?.beamSagging,
+                        sagMm: e.target.value ? Number(e.target.value) : '',
+                      },
+                    },
+                  })
+                }
+                hint="Đo từ đáy dầm tới dây căng"
+              />
+              <Input
+                label="Mô tả hiện tượng võng"
+                placeholder="VD: Nứt chữ V giữa nhịp, rung nhẹ khi di chuyển..."
+                value={formData.settlementTilt?.beamSagging?.description || ''}
+                onChange={(e) =>
+                  updateFormData({
+                    settlementTilt: {
+                      ...formData.settlementTilt,
+                      beamSagging: { ...formData.settlementTilt?.beamSagging, description: e.target.value },
+                    },
+                  })
+                }
+              />
+            </div>
+          </LevelSelectorWithGuide>
+        </div>
+
+        <div className="mt-4 pt-4 border-t border-slate-100 space-y-3">
+          <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 space-y-3">
+            <Select
+              label="Cần Đo / Quan Trắc Bổ Sung Chuyên Sâu:"
+              value={formData.settlementTilt?.needAdditionalMonitoring?.required ? 'YES' : 'NO'}
+              onChange={(e) =>
+                updateFormData({
+                  settlementTilt: {
+                    ...formData.settlementTilt,
+                    needAdditionalMonitoring: {
+                      ...formData.settlementTilt?.needAdditionalMonitoring,
+                      required: e.target.value === 'YES',
+                    },
+                  },
+                })
+              }
+              options={[
+                { value: 'NO', label: 'Không - Hiện trạng bình thường' },
+                { value: 'YES', label: 'Có - Cần lắp mốc theo dõi / đo đạc chuyên sâu' },
+              ]}
+            />
+            {formData.settlementTilt?.needAdditionalMonitoring?.required && (
+              <div className="pt-2 animate-in fade-in">
+                <Input
+                  label="Nhận xét / Đề xuất giải pháp quan trắc cụ thể:"
+                  placeholder="VD: Cần lắp mốc quan trắc lún nghiêng tự động chu kỳ 2 tuần/lần..."
+                  value={formData.settlementTilt?.needAdditionalMonitoring?.notes || ''}
+                  onChange={(e) =>
+                    updateFormData({
+                      settlementTilt: {
+                        ...formData.settlementTilt,
+                        needAdditionalMonitoring: {
+                          ...formData.settlementTilt?.needAdditionalMonitoring,
+                          notes: e.target.value,
+                        },
+                      },
+                    })
+                  }
+                />
+              </div>
+            )}
+          </div>
         </div>
       </Card>
 
@@ -1253,135 +1337,7 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
         </div>
       </div>
 
-      {/* ========================================================================= */}
-      {/* MODAL SƠ ĐỒ CAD_01: ĐÁNH DẤU VÙNG Z (LIGHT THEME)                          */}
-      {/* ========================================================================= */}
-      {showCad01Modal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 animate-in fade-in">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 bg-slate-50">
-              <div className="flex items-center gap-2">
-                <Building className="w-4 h-4 text-emerald-600" />
-                <h3 className="font-bold text-sm sm:text-base text-slate-800">
-                  Sơ Đồ Mặt Bằng Kiến Trúc CAD_01 ({currentFloor.floorName}) - Chấm Ghim Vùng Z
-                </h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowCad01Modal(false)}
-                className="p-1 rounded-lg hover:bg-slate-200 text-slate-500 hover:text-slate-800 transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
 
-            <div className="flex-1 overflow-y-auto p-4">
-              <FloorCadPinningCanvas
-                cadPhotoUrl={currentFloor.cadSketchPhotoUrl}
-                onCadPhotoChange={(url) => {
-                  updateFormData((prev) => {
-                    const updatedFloors = [...prev.floors];
-                    const cur = updatedFloors[activeFloorIndex] || updatedFloors[0];
-                    if (!cur) return prev;
-                    updatedFloors[activeFloorIndex] = { ...cur, cadSketchPhotoUrl: url };
-                    return { ...prev, floors: updatedFloors };
-                  });
-                }}
-                pins={currentFloor.cadZonePins || []}
-                onChangePins={(pins) => {
-                  updateFormData((prev) => {
-                    const updatedFloors = [...prev.floors];
-                    const cur = updatedFloors[activeFloorIndex] || updatedFloors[0];
-                    if (!cur) return prev;
-                    updatedFloors[activeFloorIndex] = { ...cur, cadZonePins: pins };
-                    return { ...prev, floors: updatedFloors };
-                  });
-                }}
-                onAutoCreatePin={handleAutoCreateZonePin}
-                mode="ZONE"
-                floorName={currentFloor.floorName}
-                cadTitle={`Bản vẽ mặt bằng kiến trúc CAD_01 (${currentFloor.floorName}):`}
-              />
-            </div>
-
-            <div className="flex items-center justify-between px-4 py-3 border-t border-slate-200 bg-slate-50">
-              <span className="text-xs text-slate-500">
-                Đã đánh dấu <strong>{currentFloor.cadZonePins?.length || 0} điểm ghim Z</strong>. Đóng sơ đồ để điền thông tin chi tiết.
-              </span>
-              <Button size="sm" onClick={() => setShowCad01Modal(false)}>
-                Hoàn tất & Đóng CAD_01
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* MODAL SƠ ĐỒ CAD_02: ĐÁNH DẤU VÙNG E (LIGHT THEME)                          */}
-      {/* ========================================================================= */}
-      {showCad02Modal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 animate-in fade-in">
-          <div className="bg-white rounded-2xl shadow-2xl border border-amber-200 w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-amber-200 bg-amber-50/50">
-              <div className="flex items-center gap-2">
-                <Hammer className="w-4 h-4 text-amber-700" />
-                <h3 className="font-bold text-sm sm:text-base text-slate-800">
-                  Sơ Đồ Mặt Bằng Kết Cấu CAD_02 ({currentFloor.floorName}) - Chấm Ghim Vùng E
-                </h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowCad02Modal(false)}
-                className="p-1 rounded-lg hover:bg-amber-100 text-slate-500 hover:text-slate-800 transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-4">
-              <FloorCadPinningCanvas
-                cadPhotoUrl={currentFloor.cadStructuralSketchPhotoUrl || currentFloor.cadSketchPhotoUrl || ''}
-                onCadPhotoChange={(url) => {
-                  updateFormData((prev) => {
-                    const updatedFloors = [...prev.floors];
-                    const cur = updatedFloors[activeFloorIndex] || updatedFloors[0];
-                    if (!cur) return prev;
-                    updatedFloors[activeFloorIndex] = { ...cur, cadStructuralSketchPhotoUrl: url };
-                    return { ...prev, floors: updatedFloors };
-                  });
-                }}
-                pins={currentFloor.cadElementPins || []}
-                onChangePins={(pins) => {
-                  updateFormData((prev) => {
-                    const updatedFloors = [...prev.floors];
-                    const cur = updatedFloors[activeFloorIndex] || updatedFloors[0];
-                    if (!cur) return prev;
-                    updatedFloors[activeFloorIndex] = { ...cur, cadElementPins: pins };
-                    return { ...prev, floors: updatedFloors };
-                  });
-                }}
-                onAutoCreatePin={handleAutoCreateElementPin}
-                mode="STRUCTURAL"
-                floorName={currentFloor.floorName}
-                cadTitle={`Bản vẽ mặt bằng kết cấu CAD_02 (${currentFloor.floorName}):`}
-              />
-            </div>
-
-            <div className="flex items-center justify-between px-4 py-3 border-t border-amber-200 bg-amber-50/50">
-              <span className="text-xs text-slate-500">
-                Đã đánh dấu <strong>{currentFloor.cadElementPins?.length || 0} điểm ghim E</strong>. Đóng sơ đồ để điền thông tin chi tiết.
-              </span>
-              <Button
-                size="sm"
-                className="bg-amber-600 hover:bg-amber-700 text-white"
-                onClick={() => setShowCad02Modal(false)}
-              >
-                Hoàn tất & Đóng CAD_02
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* ========================================================================= */}
       {/* MODAL GHIM VẾT NỨT VÙNG Z (LIGHT THEME)                                   */}

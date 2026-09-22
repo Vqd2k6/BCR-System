@@ -19,6 +19,7 @@ import {
   GitCompare,
   Building2,
   ArrowRight,
+  HardHat,
 } from 'lucide-react';
 
 interface Props {
@@ -78,8 +79,33 @@ export const SurveyorHomeView: React.FC<Props> = ({
   const weekTarget = 20;
   const weekCompleted = 8;
 
+  // Auto open Condominium Hub if redirected from Apartment confirmation
+  useEffect(() => {
+    try {
+      const targetHubId = localStorage.getItem('metro2_open_hub_parcel_id');
+      if (targetHubId && parcels && parcels.length > 0) {
+        const target = parcels.find((p) => p.id === targetHubId);
+        if (target) {
+          localStorage.removeItem('metro2_open_hub_parcel_id');
+          setHubParcel(target);
+        }
+      }
+    } catch (_e) {}
+  }, [parcels]);
+
   // Helper resolving real-time draft status & building type
   const getStatus = (p: GisParcel) => {
+    // 1. Kiểm tra trạng thái override cục bộ được lưu gần nhất
+    try {
+      const overridesStr = localStorage.getItem('metro2_parcel_status_overrides');
+      if (overridesStr && p?.id) {
+        const overrides = JSON.parse(overridesStr);
+        if (overrides[p.id]?.status) {
+          return overrides[p.id].status;
+        }
+      }
+    } catch (_e) {}
+
     const baseStatus = p?.surveyStatus || (p as any)?.survey_status || 'NOT_SURVEYED';
     if (baseStatus !== 'APPROVED' && baseStatus !== 'PHASE2_COMPLETED' && baseStatus !== 'APPROVED_PHASE2' && p?.id) {
       try {
@@ -88,6 +114,9 @@ export const SurveyorHomeView: React.FC<Props> = ({
           const parsed = JSON.parse(draft);
           if (parsed.isAbsenteeSurvey || parsed.surveyCaseType === 'ABSENTEE') {
             return 'POSTPONED_ABSENT';
+          }
+          if (parsed.surveyCaseType === 'UNDER_CONSTRUCTION') {
+            return 'UNDER_CONSTRUCTION';
           }
           return 'IN_PROGRESS';
         }
@@ -98,6 +127,15 @@ export const SurveyorHomeView: React.FC<Props> = ({
 
   const getBuildingType = (p: GisParcel) => {
     if (p?.id) {
+      try {
+        const overridesStr = localStorage.getItem('metro2_parcel_status_overrides');
+        if (overridesStr) {
+          const overrides = JSON.parse(overridesStr);
+          if (overrides[p.id]?.buildingType === 'CONDOMINIUM') {
+            return 'CONDOMINIUM';
+          }
+        }
+      } catch (_e) {}
       try {
         const draft = localStorage.getItem(`metro2_phase1_draft_${p.id}`);
         if (draft) {
@@ -229,6 +267,16 @@ export const SurveyorHomeView: React.FC<Props> = ({
           >
             <AlertCircle size={12} color="#7e22ce" />
             Vắng mặt (Hẹn lại)
+          </span>
+        );
+      case 'UNDER_CONSTRUCTION':
+        return (
+          <span
+            className="badge"
+            style={{ backgroundColor: '#fff7ed', color: '#c2410c', border: '1px solid #fdba74', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+          >
+            <HardHat size={12} color="#c2410c" />
+            Đang xây dựng
           </span>
         );
       case 'REJECTED':
@@ -539,6 +587,7 @@ export const SurveyorHomeView: React.FC<Props> = ({
               const isInProgress = status === 'IN_PROGRESS';
               const isRejected = status === 'REJECTED';
               const isAbsent = status === 'POSTPONED_ABSENT';
+              const isUnderConstruction = status === 'UNDER_CONSTRUCTION';
 
               const borderLeftColor = isApproved
                 ? '#10b981'
@@ -552,6 +601,8 @@ export const SurveyorHomeView: React.FC<Props> = ({
                 ? '#ef4444'
                 : isAbsent
                 ? '#8b5cf6'
+                : isUnderConstruction
+                ? '#f97316'
                 : '#64748b';
 
               const recordedAbsenceTime = absenceRecordedToday[p.id];

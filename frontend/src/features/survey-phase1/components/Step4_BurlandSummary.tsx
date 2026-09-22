@@ -4,7 +4,7 @@ import { Card } from '../../../core/components/ui/Card';
 import { Button } from '../../../core/components/ui/Button';
 import { Input, Select } from '../../../core/components/ui/FormControls';
 import { InfoPopover } from '../../../core/components/ui/InfoPopover';
-import { Activity, ShieldAlert, AlertTriangle } from 'lucide-react';
+import { Activity, ShieldAlert, AlertTriangle, Sparkles, RefreshCw } from 'lucide-react';
 
 const STRUCTURAL_FLAG_LEVELS = [
   { value: 'NONE', label: 'None - Không có cờ kết cấu', color: 'bg-emerald-50 text-emerald-800 border-emerald-200' },
@@ -19,7 +19,81 @@ export const Step4_BurlandSummary: React.FC = () => {
   const bs = formData.burlandSummary;
 
   // Lấy danh sách tất cả các mã Zone Z-xx hiện có
-  const allZones = formData.floors.flatMap((f) => f.zones);
+  const allZones = formData.floors.flatMap((f) => f.zones || []);
+
+  // Hàm tính cấp Burland từ bề rộng vết nứt (mm)
+  const getBurlandGradeFromWidth = (w: number): number => {
+    if (w <= 0.1) return 0;
+    if (w <= 1) return 1;
+    if (w <= 5) return 2;
+    if (w <= 15) return 3;
+    if (w <= 25) return 4;
+    return 5;
+  };
+
+  // Thu thập tất cả vết nứt CHỈ trong các Vùng Kiến trúc Z (bỏ qua hoàn toàn E)
+  const zDefects = (formData.floors || []).flatMap((f) =>
+    (f.zones || []).flatMap((z) =>
+      (z.defects || []).map((d) => ({
+        grade: getBurlandGradeFromWidth(d.widthMaxMm || 0),
+        zoneCode: z.zoneCode,
+        roomName: z.roomName,
+        floorName: f.floorName,
+      }))
+    )
+  );
+
+  let inheritedMax = 0;
+  let governingZoneSuggestion = allZones[0]?.zoneCode || 'Z-01';
+  let inheritedPredominant = 0;
+
+  if (zDefects.length > 0) {
+    zDefects.forEach((item) => {
+      if (item.grade >= inheritedMax) {
+        inheritedMax = item.grade;
+        governingZoneSuggestion = item.zoneCode;
+      }
+    });
+
+    const counts: Record<number, number> = {};
+    zDefects.forEach((item) => {
+      counts[item.grade] = (counts[item.grade] || 0) + 1;
+    });
+
+    let maxCount = -1;
+    Object.entries(counts).forEach(([gradeStr, count]) => {
+      const g = Number(gradeStr);
+      if (count > maxCount || (count === maxCount && g > inheritedPredominant)) {
+        maxCount = count;
+        inheritedPredominant = g;
+      }
+    });
+  }
+
+  // Tự động áp dụng giá trị kế thừa từ Vùng Z khi chưa khởi tạo
+  React.useEffect(() => {
+    if (zDefects.length > 0 && bs.predominantGrade === undefined && bs.localMaxGrade === undefined) {
+      updateFormData({
+        burlandSummary: {
+          ...bs,
+          predominantGrade: inheritedPredominant,
+          localMaxGrade: inheritedMax,
+          governingZoneCode: bs.governingZoneCode || governingZoneSuggestion,
+        },
+      });
+    }
+  }, []);
+
+  const handleApplyInheritedBurland = () => {
+    updateFormData({
+      burlandSummary: {
+        ...bs,
+        predominantGrade: inheritedPredominant,
+        localMaxGrade: inheritedMax,
+        governingZoneCode: governingZoneSuggestion,
+      },
+    });
+  };
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto pb-12">
@@ -88,48 +162,88 @@ export const Step4_BurlandSummary: React.FC = () => {
           </InfoPopover>
         </div>
 
+        {/* Banner Kế thừa từ Vùng Z */}
+        <div className="mb-4 p-3 bg-emerald-50/60 rounded-xl border border-emerald-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+            <span className="text-xs text-slate-700">
+              Tổng hợp từ <strong>{zDefects.length} vết nứt Vùng Kiến Trúc Z</strong>: Cấp chủ đạo (Mode) = <strong>Grade {inheritedPredominant}</strong>, Cấp cục bộ lớn nhất (Max) = <strong>Grade {inheritedMax}</strong> (tại {governingZoneSuggestion}).
+            </span>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            className="text-xs border-emerald-300 text-emerald-800 hover:bg-emerald-100 whitespace-nowrap"
+            icon={<RefreshCw className="w-3.5 h-3.5" />}
+            onClick={handleApplyInheritedBurland}
+          >
+            Đồng bộ từ Zone Z
+          </Button>
+        </div>
+
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Select
-            label="1. Burland Chủ Đạo Toàn Nhà (Predominant)"
-            value={bs.predominantGrade}
-            onChange={(e) =>
-              updateFormData({
-                burlandSummary: { ...bs, predominantGrade: Number(e.target.value) },
-              })
-            }
-            options={[
-              { value: 0, label: '0 - Không đáng kể (<=0.1mm)' },
-              { value: 1, label: '1 - Rất nhẹ (~0.1-1mm)' },
-              { value: 2, label: '2 - Nhẹ (~1-5mm)' },
-              { value: 3, label: '3 - Trung bình (~5-15mm)' },
-              { value: 4, label: '4 - Nặng (~15-25mm)' },
-              { value: 5, label: '5 - Rất nặng (>=25mm)' },
-            ]}
-            hint="Mức độ nứt xuất hiện phổ biến nhất"
-          />
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label htmlFor="select-burland-predominant" className="block text-xs font-semibold text-slate-700">
+                1. Burland Chủ Đạo Toàn Nhà (Predominant)
+              </label>
+              <span className="text-[10px] font-mono text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                ⚡ Kế thừa: Cấp {inheritedPredominant}
+              </span>
+            </div>
+            <Select
+              id="select-burland-predominant"
+              value={bs.predominantGrade ?? inheritedPredominant}
+              onChange={(e) =>
+                updateFormData({
+                  burlandSummary: { ...bs, predominantGrade: Number(e.target.value) },
+                })
+              }
+              options={[
+                { value: 0, label: '0 - Không đáng kể (<=0.1mm)' },
+                { value: 1, label: '1 - Rất nhẹ (~0.1-1mm)' },
+                { value: 2, label: '2 - Nhẹ (~1-5mm)' },
+                { value: 3, label: '3 - Trung bình (~5-15mm)' },
+                { value: 4, label: '4 - Nặng (~15-25mm)' },
+                { value: 5, label: '5 - Rất nặng (>=25mm)' },
+              ]}
+              hint="Mức độ nứt xuất hiện phổ biến nhất trong các vùng Z"
+            />
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label htmlFor="select-burland-localMax" className="block text-xs font-semibold text-slate-700">
+                2. Burland Cục Bộ Lớn Nhất (Local Max)
+              </label>
+              <span className="text-[10px] font-mono text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                ⚡ Kế thừa: Cấp {inheritedMax}
+              </span>
+            </div>
+            <Select
+              id="select-burland-localMax"
+              value={bs.localMaxGrade ?? inheritedMax}
+              onChange={(e) =>
+                updateFormData({
+                  burlandSummary: { ...bs, localMaxGrade: Number(e.target.value) },
+                })
+              }
+              options={[
+                { value: 0, label: '0 - Không đáng kể (<=0.1mm)' },
+                { value: 1, label: '1 - Rất nhẹ (~0.1-1mm)' },
+                { value: 2, label: '2 - Nhẹ (~1-5mm)' },
+                { value: 3, label: '3 - Trung bình (~5-15mm)' },
+                { value: 4, label: '4 - Nặng (~15-25mm)' },
+                { value: 5, label: '5 - Rất nặng (>=25mm)' },
+              ]}
+              hint="Vết nứt nặng nhất trong các vùng Z (dùng để tính E1)"
+            />
+          </div>
 
           <Select
-            label="2. Burland Cục Bộ Lớn Nhất (Local Max)"
-            value={bs.localMaxGrade}
-            onChange={(e) =>
-              updateFormData({
-                burlandSummary: { ...bs, localMaxGrade: Number(e.target.value) },
-              })
-            }
-            options={[
-              { value: 0, label: '0 - Không đáng kể (<=0.1mm)' },
-              { value: 1, label: '1 - Rất nhẹ (~0.1-1mm)' },
-              { value: 2, label: '2 - Nhẹ (~1-5mm)' },
-              { value: 3, label: '3 - Trung bình (~5-15mm)' },
-              { value: 4, label: '4 - Nặng (~15-25mm)' },
-              { value: 5, label: '5 - Rất nặng (>=25mm)' },
-            ]}
-            hint="Vết nứt nặng nhất ghi nhận được (dùng để tính E1)"
-          />
-
-          <Select
+            id="select-burland-governingZone"
             label="3. Vùng Kiểm Soát Chi Phối (Governing Zone)"
-            value={bs.governingZoneCode}
+            value={bs.governingZoneCode || governingZoneSuggestion}
             onChange={(e) =>
               updateFormData({
                 burlandSummary: { ...bs, governingZoneCode: e.target.value },
@@ -139,13 +253,14 @@ export const Step4_BurlandSummary: React.FC = () => {
               allZones.length > 0
                 ? allZones.map((z) => ({
                     value: z.zoneCode,
-                    label: `${z.zoneCode} - ${z.floorName} - ${z.roomName} (${z.defects.length} nứt)`,
+                    label: `${z.zoneCode} - ${z.floorName} - ${z.roomName} (${(z.defects || []).length} nứt)`,
                   }))
                 : [{ value: 'Z-01', label: 'Z-01 (Mặc định)' }]
             }
           />
 
           <Input
+            id="input-burland-governingZoneDesc"
             label="Mô Tả Mảng Tường / Khu Vực Vùng Chi Phối"
             placeholder="VD: Mảng tường chịu lực phòng khách tầng trệt tiếp giáp khe lún..."
             value={bs.governingZoneDescription || ''}
@@ -157,6 +272,7 @@ export const Step4_BurlandSummary: React.FC = () => {
           />
 
           <Select
+            id="select-burland-representativeness"
             label="4. Tính Đại Diện (Representativeness)"
             value={bs.representativeness}
             onChange={(e) =>
@@ -174,6 +290,7 @@ export const Step4_BurlandSummary: React.FC = () => {
           />
 
           <Select
+            id="select-burland-structuralReview"
             label="5. Cần Kỹ Sư Kết Cấu Thẩm Định (Structural Review)"
             value={bs.needStructuralEngineerReview ? 'YES' : 'NO'}
             onChange={(e) =>
@@ -267,7 +384,7 @@ export const Step4_BurlandSummary: React.FC = () => {
           ⬅️ Quay lại Bước 3
         </Button>
         <Button onClick={nextStep}>
-          Tiếp tục: Bước 5 (Lún - Nghiêng ‰) ➔
+          Tiếp tục: Bước 5 (Phạm vi & Ranh GIS) ➔
         </Button>
       </div>
     </div>

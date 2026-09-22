@@ -214,23 +214,6 @@ export const FacadePolygonCanvas: React.FC<FacadePolygonCanvasProps> = ({
           </div>
 
           <div className="flex items-center gap-1.5">
-            {/* Perspective Correction Button */}
-            <button
-              type="button"
-              onClick={triggerAI}
-              disabled={aiStatus === 'PROCESSING'}
-              className="px-2.5 py-1.5 rounded-lg font-bold flex items-center gap-1 bg-purple-600 text-white hover:bg-purple-700 transition-colors shadow-sm"
-            >
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>
-                {aiStatus === 'PROCESSING'
-                  ? 'Đang nắn ảnh...'
-                  : aiStatus === 'COMPLETED'
-                  ? 'Đã nắn thẳng'
-                  : 'Nắn thẳng (AI)'}
-              </span>
-            </button>
-
             {/* Undo buttons */}
             {points.length > 0 && activeTool === 'POLYGON' && (
               <button

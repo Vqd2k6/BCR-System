@@ -8,6 +8,8 @@ import { LeafletSweepMap, GisParcel } from './components/gis/LeafletSweepMap';
 import { SurveyorHomeView } from './views/surveyor/SurveyorHomeView';
 import { TimekeepingCheckInView } from './views/surveyor/TimekeepingCheckInView';
 import { SurveyPhase1Page } from './features/survey-phase1/views/SurveyPhase1Page';
+import { SurveyCondoMasterPage } from './features/survey-condo-master/views/SurveyCondoMasterPage';
+import { SurveyCondoUnitPage } from './features/survey-condo-unit/views/SurveyCondoUnitPage';
 import { SurveyPhase2View } from './views/surveyor/SurveyPhase2View';
 import { BuildingHubModal } from './components/survey/BuildingHubModal';
 import { CompanionCheckInModal } from './components/attendance/CompanionCheckInModal';
@@ -216,11 +218,27 @@ export const App: React.FC = () => {
     });
   };
 
+  const handleStartCondoMaster = (parcel: GisParcel) => {
+    triggerSurveyWithCheckInGuard(() => {
+      setSelectedParcelForSurvey(parcel);
+      setSelectedUnitForSurvey(null);
+      setActiveTab('condo-master');
+    });
+  };
+
+  const handleStartCondoUnit = (parcel: GisParcel, unit: any) => {
+    triggerSurveyWithCheckInGuard(() => {
+      setSelectedParcelForSurvey(parcel);
+      setSelectedUnitForSurvey(unit);
+      setActiveTab('condo-unit');
+    });
+  };
+
   const handleStartUnitSurvey = (parcel: GisParcel, unit: any, phase: 1 | 2 = 1) => {
     triggerSurveyWithCheckInGuard(() => {
       setSelectedParcelForSurvey(parcel);
       setSelectedUnitForSurvey(unit);
-      setActiveTab(phase === 2 ? 'phase2' : 'phase1');
+      setActiveTab(phase === 2 ? 'phase2' : 'condo-unit');
     });
   };
 
@@ -255,8 +273,8 @@ export const App: React.FC = () => {
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: '#f8fafc', color: '#0f172a' }}>
-      {/* Top Mobile Navbar (Hidden during Phase 1 survey to avoid duplicate headers) */}
-      {activeTab !== 'phase1' && (
+      {/* Top Mobile Navbar (Hidden during surveys to avoid duplicate headers) */}
+      {activeTab !== 'phase1' && activeTab !== 'condo-master' && activeTab !== 'condo-unit' && (
         <SurveyorNavbar
           title={
             activeTab === 'home'
@@ -331,6 +349,35 @@ export const App: React.FC = () => {
           />
         )}
 
+        {activeTab === 'condo-master' && (
+          <SurveyCondoMasterPage
+            parcel={selectedParcelForSurvey}
+            onBackToHome={() => {
+              setActiveTab('home');
+              setHubParcel(selectedParcelForSurvey);
+            }}
+            onFinished={() => {
+              setActiveTab('home');
+              loadParcels();
+            }}
+          />
+        )}
+
+        {activeTab === 'condo-unit' && (
+          <SurveyCondoUnitPage
+            parcel={selectedParcelForSurvey}
+            unit={selectedUnitForSurvey}
+            onBackToHome={() => {
+              setActiveTab('home');
+              setHubParcel(selectedParcelForSurvey);
+            }}
+            onFinished={() => {
+              setSelectedUnitForSurvey(null);
+              setActiveTab('home');
+              loadParcels();
+            }}
+          />
+        )}
 
         {activeTab === 'phase2' && <SurveyPhase2View />}
       </main>
@@ -342,11 +389,15 @@ export const App: React.FC = () => {
           onClose={() => setHubParcel(null)}
           onStartMasterSurvey={(p) => {
             setHubParcel(null);
-            handleStartPhase1(p);
+            handleStartCondoMaster(p);
           }}
           onStartUnitSurvey={(p, unit, phase) => {
             setHubParcel(null);
-            handleStartUnitSurvey(p, unit, phase);
+            if (phase === 2) {
+              handleStartUnitSurvey(p, unit, 2);
+            } else {
+              handleStartCondoUnit(p, unit);
+            }
           }}
           onUnitsUpdated={() => {
             loadParcels();

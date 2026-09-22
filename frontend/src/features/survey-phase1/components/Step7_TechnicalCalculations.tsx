@@ -48,36 +48,77 @@ export const Step7_TechnicalCalculations: React.FC = () => {
         </div>
 
         {/* 6 Tiêu chí đánh giá */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs mb-4">
-          <div className="p-2.5 rounded-lg bg-white border border-slate-200">
-            <span className="text-slate-500 block">1. Thông tin móng</span>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-xs mb-4">
+          <div className="p-3 rounded-xl bg-white border border-slate-200 flex flex-col justify-between">
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-slate-500 font-medium">1. Thông tin móng</span>
+              <InfoPopover title="Tiêu chí 1: Thông tin móng công trình" size="sm">
+                <p><strong>Nguồn:</strong> Cấp độ tin cậy kết cấu móng (CAT 1 - CAT 5) khảo sát ở Bước 2.1.</p>
+                <p className="mt-1"><strong>Điều kiện đạt:</strong> Điểm CAT ≥ 1 (có thông tin móng từ bản vẽ, phỏng vấn hoặc suy luận).</p>
+                <p className="mt-1"><strong>Điểm số hiện tại:</strong> CAT {gateResult.foundationInfo.score}/5.</p>
+              </InfoPopover>
+            </div>
             <span className="font-bold text-slate-800">{gateResult.foundationInfo.label}</span>
           </div>
 
-          <div className="p-2.5 rounded-lg bg-white border border-slate-200">
-            <span className="text-slate-500 block">2. Ảnh & Ghim khuyết tật</span>
-            <span className="font-bold text-slate-800">
-              {gateResult.photoMapping.label} ({gateResult.photoMapping.details})
-            </span>
+          <div className="p-3 rounded-xl bg-white border border-slate-200 flex flex-col justify-between">
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-slate-500 font-medium">2. Khảo sát hiện trạng chi tiết</span>
+              <InfoPopover title="Tiêu chí 2: Khảo sát hiện trạng chi tiết (Z & E)" size="sm">
+                <p><strong>Nguồn:</strong> Dữ liệu Vùng kiến trúc Z (Mục 3.1) và Cấu kiện kết cấu E (Mục 3.2).</p>
+                <p className="mt-1"><strong>Quy chuẩn:</strong> Tách biệt số lượng Vùng Z (vết nứt hoàn thiện kiến trúc) và Cấu kiện E (khuyết tật kết cấu chịu lực).</p>
+                <p className="mt-1"><strong>Điều kiện đạt:</strong> Chụp đủ ảnh mặt đứng P01, P02, P04 và có ít nhất 1 Vùng Z được tạo.</p>
+              </InfoPopover>
+            </div>
+            <div>
+              <span className="font-bold text-slate-800 block text-xs">{gateResult.photoMapping.label}</span>
+              <span className="text-[11px] text-slate-600 block mt-0.5 leading-snug">
+                {gateResult.photoMapping.details}
+              </span>
+            </div>
           </div>
 
-          <div className="p-2.5 rounded-lg bg-white border border-slate-200">
-            <span className="text-slate-500 block">3. Khảo sát bên trong</span>
+          <div className="p-3 rounded-xl bg-white border border-slate-200 flex flex-col justify-between">
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-slate-500 font-medium">3. Khảo sát bên trong</span>
+              <InfoPopover title="Tiêu chí 3: Khảo sát bên trong & Hạn chế tiếp cận" size="sm">
+                <p><strong>Nguồn:</strong> Tình trạng tiếp cận công trình ghi nhận ở Bước 5.2.</p>
+                <p className="mt-1"><strong>Quy chuẩn:</strong> Đạt khi tiếp cận được 100% các phòng/tầng. Nếu bị khóa cửa hoặc chủ nhà không cho vào (LIMITED), hệ thống xếp vào diện "Có điều kiện" và yêu cầu biên bản hiện trường.</p>
+              </InfoPopover>
+            </div>
             <span className="font-bold text-slate-800">{gateResult.internalAccess.label}</span>
           </div>
 
-          <div className="p-2.5 rounded-lg bg-white border border-slate-200">
-            <span className="text-slate-500 block">4. Dữ liệu lún nghiêng</span>
+          <div className="p-3 rounded-xl bg-white border border-slate-200 flex flex-col justify-between">
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-slate-500 font-medium">4. Dữ liệu lún nghiêng</span>
+              <InfoPopover title="Tiêu chí 4: Hiện trạng lún nghiêng & Quan trắc" size="sm">
+                <p><strong>Nguồn:</strong> Khảo sát lún chênh, độ nghiêng nhà (Bước 1) và võng dầm/sàn (Bước 3.3).</p>
+                <p className="mt-1"><strong>Quy chuẩn:</strong> Đạt khi hiện trạng không cần lắp mốc đo đạc chuyên sâu. Nếu surveyor yêu cầu đo bổ sung, hệ thống sẽ lưu ý kiểm toán chu kỳ.</p>
+              </InfoPopover>
+            </div>
             <span className="font-bold text-slate-800">{gateResult.settlementData.label}</span>
           </div>
 
-          <div className="p-2.5 rounded-lg bg-white border border-slate-200">
-            <span className="text-slate-500 block">5. Hồ sơ / Bản vẽ</span>
+          <div className="p-3 rounded-xl bg-white border border-slate-200 flex flex-col justify-between">
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-slate-500 font-medium">5. Hồ sơ / Bản vẽ</span>
+              <InfoPopover title="Tiêu chí 5: Hồ sơ hoàn công & Bản vẽ kỹ thuật" size="sm">
+                <p><strong>Nguồn:</strong> Danh mục hồ sơ đính kèm thu thập từ chủ nhà hoặc cơ quan cấp phép.</p>
+                <p className="mt-1"><strong>Quy chuẩn:</strong> Có bản vẽ gốc giúp tăng độ tin cậy và căn cứ pháp lý đối chiếu bảo vệ quyền lợi dự án khi thi công tuyến Metro.</p>
+              </InfoPopover>
+            </div>
             <span className="font-bold text-slate-800">{gateResult.asBuiltDrawings.label}</span>
           </div>
 
-          <div className="p-2.5 rounded-lg bg-white border border-slate-200">
-            <span className="text-slate-500 block">6. Structural Review</span>
+          <div className="p-3 rounded-xl bg-white border border-slate-200 flex flex-col justify-between">
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-slate-500 font-medium">6. Structural Review</span>
+              <InfoPopover title="Tiêu chí 6: Thẩm tra chuyên sâu Kỹ sư kết cấu" size="sm">
+                <p><strong>Nguồn:</strong> Tự động kích hoạt khi chỉ số khuyết tật kết cấu E2 ≥ 3 hoặc Cờ kết cấu ở mức HIGH / CRITICAL (Bước 4).</p>
+                <p className="mt-1"><strong>Quy chuẩn:</strong> Ngăn chặn bỏ sót rủi ro sập đổ hoặc nứt gãy nguy cấp trước khi máy đào TBM đi qua khu vực lân cận.</p>
+              </InfoPopover>
+            </div>
             <span
               className={`font-bold ${
                 gateResult.structuralReview.status === 'PENDING_REVIEW'
@@ -93,6 +134,7 @@ export const Step7_TechnicalCalculations: React.FC = () => {
         {/* Quyết định Cổng (Gate Decision BRA) */}
         <div className="p-3.5 bg-white rounded-xl border border-sky-200 grid grid-cols-1 sm:grid-cols-2 gap-3 items-end">
           <Select
+            id="select-gate-decision"
             label="Quyết định Cổng (Gate Decision BRA)"
             value={gateDecision.decision}
             onChange={(e) =>
@@ -111,6 +153,7 @@ export const Step7_TechnicalCalculations: React.FC = () => {
           />
 
           <Input
+            id="input-gate-reason"
             label="Lý do điều kiện / Ghi chú kiểm tra cổng"
             placeholder="Nhập ghi chú nếu chấp nhận có điều kiện hoặc tạm hoãn..."
             value={gateDecision.reason}
@@ -313,6 +356,7 @@ export const Step7_TechnicalCalculations: React.FC = () => {
         {/* Can thiệp của Kỹ sư ECS */}
         <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 grid grid-cols-1 sm:grid-cols-2 gap-3 items-end">
           <Select
+            id="select-ecs-action"
             label="Quyền Can Thiệp Của Kỹ Sư (Engineering Judgement ECS)"
             value={ecs.engineeringJudgement.action}
             disabled={ecs.isOverrideLocked}
@@ -334,22 +378,25 @@ export const Step7_TechnicalCalculations: React.FC = () => {
             ]}
           />
 
-          <Input
-            label="Lý do can thiệp kỹ sư (ECS)"
-            placeholder="Nhập lý do kỹ thuật nếu thay đổi hạng..."
-            value={ecs.engineeringJudgement.reason}
-            onChange={(e) =>
-              updateFormData({
-                ecs: {
-                  ...ecs,
-                  engineeringJudgement: {
-                    ...ecs.engineeringJudgement,
-                    reason: e.target.value,
+          {ecs.engineeringJudgement.action !== 'KEEP' && (
+            <Input
+              id="input-ecs-reason"
+              label="Lý do can thiệp kỹ sư (ECS)"
+              placeholder="Nhập lý do kỹ thuật nếu thay đổi hạng..."
+              value={ecs.engineeringJudgement.reason}
+              onChange={(e) =>
+                updateFormData({
+                  ecs: {
+                    ...ecs,
+                    engineeringJudgement: {
+                      ...ecs.engineeringJudgement,
+                      reason: e.target.value,
+                    },
                   },
-                },
-              })
-            }
-          />
+                })
+              }
+            />
+          )}
         </div>
 
         {ecs.isOverrideLocked && (
@@ -520,6 +567,7 @@ export const Step7_TechnicalCalculations: React.FC = () => {
         {/* Can thiệp của Kỹ sư VI */}
         <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 grid grid-cols-1 sm:grid-cols-2 gap-3 items-end">
           <Select
+            id="select-vi-action"
             label="Quyền Can Thiệp Của Kỹ Sư (Engineering Judgement VI)"
             value={vi.engineeringJudgement?.action || 'KEEP'}
             onChange={(e) =>
@@ -540,32 +588,35 @@ export const Step7_TechnicalCalculations: React.FC = () => {
             ]}
           />
 
-          <Input
-            label="Lý do can thiệp kỹ sư (VI)"
-            placeholder="Nhập lý do kỹ thuật nếu thay đổi hạng VI..."
-            value={vi.engineeringJudgement?.reason || ''}
-            onChange={(e) =>
-              updateFormData({
-                vi: {
-                  ...vi,
-                  engineeringJudgement: {
-                    ...vi.engineeringJudgement,
-                    reason: e.target.value,
+          {(vi.engineeringJudgement?.action && vi.engineeringJudgement.action !== 'KEEP') && (
+            <Input
+              id="input-vi-reason"
+              label="Lý do can thiệp kỹ sư (VI)"
+              placeholder="Nhập lý do kỹ thuật nếu thay đổi hạng VI..."
+              value={vi.engineeringJudgement?.reason || ''}
+              onChange={(e) =>
+                updateFormData({
+                  vi: {
+                    ...vi,
+                    engineeringJudgement: {
+                      ...vi.engineeringJudgement,
+                      reason: e.target.value,
+                    },
                   },
-                },
-              })
-            }
-          />
+                })
+              }
+            />
+          )}
         </div>
       </Card>
 
       {/* Navigation */}
       <div className="flex justify-between pt-4">
         <Button variant="outline" onClick={prevStep}>
-          ⬅️ Quay lại Bước 6
+          ⬅️ Quay lại Bước 5
         </Button>
         <Button onClick={nextStep}>
-          Tiếp tục: Bước 8 (Dashboard Tổng Hợp) ➔
+          Tiếp tục: Bước 7 (Dashboard Tổng Hợp) ➔
         </Button>
       </div>
     </div>

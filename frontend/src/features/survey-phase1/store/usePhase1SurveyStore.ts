@@ -29,7 +29,7 @@ export interface Phase1SurveyStore {
   recalculateScores: () => void;
 }
 
-const getDefaultInitialFormData = (parcelId: string = ''): Phase1SurveyFormData => ({
+export const getDefaultInitialFormData = (parcelId: string = ''): Phase1SurveyFormData => ({
   parcelId,
   projectParcelCode: 'B-XXXXX',
   officialCadastralCode: '',
@@ -283,7 +283,7 @@ export const usePhase1SurveyStore = create<Phase1SurveyStore>((set, get) => ({
   },
 
   setCurrentStep: (step: number) => {
-    if (step >= 1 && step <= 9) {
+    if (step >= 1 && step <= 8) {
       get().recalculateScores();
       get().saveDraftToStorage();
       set({ currentStep: step, missingModal: null });
@@ -317,7 +317,7 @@ export const usePhase1SurveyStore = create<Phase1SurveyStore>((set, get) => ({
 
   nextStep: () => {
     const { currentStep } = get();
-    if (currentStep < 9) {
+    if (currentStep < 8) {
       get().requestStepNavigation(currentStep + 1);
     }
   },
@@ -339,7 +339,7 @@ export const usePhase1SurveyStore = create<Phase1SurveyStore>((set, get) => ({
       const target = missingModal.targetStep;
       get().saveDraftToStorage();
       set({ missingModal: null });
-      if (target >= 1 && target <= 9) {
+      if (target >= 1 && target <= 8) {
         get().setCurrentStep(target);
       }
     }

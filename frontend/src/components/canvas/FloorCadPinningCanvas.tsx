@@ -18,6 +18,7 @@ interface Props {
   onChangePins: (pins: CadZonePin[]) => void;
   onAutoCreatePin?: (pin: CadZonePin) => void;
   onDeletePin?: (pinId: string, index: number) => void;
+  onSelectPin?: (pin: CadZonePin, index: number) => void;
   mode?: 'ZONE' | 'STRUCTURAL';
   floorName?: string;
   cadTitle?: string;
@@ -31,6 +32,7 @@ export const FloorCadPinningCanvas: React.FC<Props> = ({
   onChangePins,
   onAutoCreatePin,
   onDeletePin,
+  onSelectPin,
   mode = 'ZONE',
   floorName = 'Tầng',
   cadTitle,
@@ -71,9 +73,11 @@ export const FloorCadPinningCanvas: React.FC<Props> = ({
     onChangePins(updated);
     setSelectedPinIndex(updated.length - 1);
 
-    // Tự động sinh Vùng Z hoặc E ở ngoài để cán bộ đóng CAD là có form điền ngay
     if (onAutoCreatePin) {
       onAutoCreatePin(newPin);
+    }
+    if (onSelectPin) {
+      onSelectPin(newPin, updated.length - 1);
     }
   };
 
@@ -104,15 +108,15 @@ export const FloorCadPinningCanvas: React.FC<Props> = ({
   return (
     <div className="flex flex-col gap-3 w-full bg-white">
       {/* Upload/Capture CAD Sketch */}
-      <PhotoCaptureInput
-        label={cadTitle || defaultCadTitle}
-        value={cadPhotoUrl}
-        onChange={onCadPhotoChange}
-        watermarkText={`CAD-${prefix} | ${floorName}`}
-        height="200px"
-      />
-
-      {cadPhotoUrl && (
+      {!cadPhotoUrl ? (
+        <PhotoCaptureInput
+          label={cadTitle || defaultCadTitle}
+          value={cadPhotoUrl}
+          onChange={onCadPhotoChange}
+          watermarkText={`CAD-${prefix} | ${floorName}`}
+          height="160px"
+        />
+      ) : (
         <div className="flex flex-col gap-2.5">
           {/* Top Control Bar with Quick Pinning Guides */}
           <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 bg-slate-50 rounded-xl border border-slate-200 text-xs">
@@ -129,6 +133,19 @@ export const FloorCadPinningCanvas: React.FC<Props> = ({
 
             {!readOnly && (
               <div className="flex items-center gap-2 ml-auto">
+                {/* Delete button appears next to add pin button when a pin is selected */}
+                {selectedPin !== null && selectedPinIndex !== null && (
+                  <button
+                    type="button"
+                    onClick={() => removePin(selectedPinIndex)}
+                    className="px-2.5 py-1.5 bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 rounded-lg font-bold flex items-center gap-1 transition-all"
+                    title={`Xóa điểm ${selectedPin.zoneCode}`}
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Xóa {selectedPin.zoneCode}</span>
+                  </button>
+                )}
+
                 <button
                   type="button"
                   onClick={() => setIsAddingPin(!isAddingPin)}

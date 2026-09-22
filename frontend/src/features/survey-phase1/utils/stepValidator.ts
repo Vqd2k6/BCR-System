@@ -20,28 +20,19 @@ export const validateStep = (step: number, formData: Phase1SurveyFormData): Step
     if (!formData.officialCadastralCode?.trim()) {
       missing.push({
         fieldId: 'input-officialCadastralCode',
-        label: '1.1. Mã địa chính gốc (KS003)',
+        label: '1.1. Mã địa chính gốc (Cadastral Code)',
         step: 1,
-        description: 'Vui lòng nhập số tờ - số thửa bản đồ địa chính.',
+        description: 'Vui lòng kiểm tra số tờ - số thửa bản đồ địa chính.',
       });
     }
 
     // 1.1 Address
-    if (!formData.houseNumber?.trim()) {
+    if (!formData.houseNumber?.trim() && !formData.street?.trim()) {
       missing.push({
-        fieldId: 'input-houseNumber',
-        label: '1.1. Số nhà',
+        fieldId: 'input-address',
+        label: '1.1. Địa chỉ thực tế công trình',
         step: 1,
-        description: 'Vui lòng nhập số nhà thực tế.',
-      });
-    }
-
-    if (!formData.street?.trim()) {
-      missing.push({
-        fieldId: 'input-street',
-        label: '1.1. Tên đường',
-        step: 1,
-        description: 'Vui lòng nhập tên đường.',
+        description: 'Vui lòng nhập số nhà hoặc tên đường thực tế.',
       });
     }
 
@@ -124,12 +115,12 @@ export const validateStep = (step: number, formData: Phase1SurveyFormData): Step
       });
     }
 
-    if (!formData.aboveFloors || formData.aboveFloors < 1) {
+    if (formData.aboveFloors === undefined || formData.aboveFloors === null || (formData.aboveFloors as any) === '') {
       missing.push({
         fieldId: 'input-aboveFloors',
         label: '2.1. Số tầng nổi',
         step: 2,
-        description: 'Vui lòng nhập số tầng nổi (tối thiểu 1 tầng).',
+        description: 'Vui lòng nhập số tầng nổi (0 nếu đang xây).',
       });
     }
 
@@ -172,23 +163,23 @@ export const validateStep = (step: number, formData: Phase1SurveyFormData): Step
     }
   }
 
-  if (step === 6) {
+  if (step === 5) {
     if (!formData.surveyScope?.surveyedFloors || formData.surveyScope.surveyedFloors.length === 0) {
       missing.push({
         fieldId: 'input-surveyedFloors',
-        label: '6.1. Danh sách tầng được khảo sát',
-        step: 6,
+        label: '5.1. Danh sách tầng được khảo sát',
+        step: 5,
         description: 'Vui lòng chọn ít nhất 1 tầng nằm trong phạm vi khảo sát.',
       });
     }
   }
 
-  if (step === 9) {
+  if (step === 8) {
     if (!formData.signatures?.preparedBy?.fullName?.trim()) {
       missing.push({
         fieldId: 'input-preparedBy-name',
-        label: '9.1. Họ tên Cán bộ kỹ thuật khảo sát',
-        step: 9,
+        label: '8.1. Họ tên Cán bộ kỹ thuật khảo sát',
+        step: 8,
         description: 'Vui lòng nhập đầy đủ họ tên cán bộ thực hiện.',
       });
     }
@@ -209,7 +200,7 @@ export const validateAllSteps = (formData: Phase1SurveyFormData): StepValidation
     return step1Res;
   }
 
-  for (let s = 1; s <= 9; s++) {
+  for (let s = 1; s <= 8; s++) {
     const res = validateStep(s, formData);
     allMissing.push(...res.missingFields);
   }

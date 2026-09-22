@@ -196,33 +196,18 @@ Dưới đây là **BỘ BIỂU MẪU KHẢO SÁT HỢP NHẤT DUY NHẤT** đư
 
 ---
 
-### BƯỚC 5: Tổng hợp Biến dạng Kết cấu & Đo đạc Bổ sung
-*Số liệu Lún chênh & Độ nghiêng công trình đã khảo sát ở Bước 1; Cán bộ khảo sát ghi nhận thêm hiện tượng võng dầm/sàn bên trong.*
-
-- [ ] **1. Võng dầm / Sàn kết cấu bên trong:**
-  - [ ] **Mức độ (Level):**
-    - `Level 0`: Dầm/sàn phẳng phiu bình thường.
-    - `Level 1`: Võng nhẹ mặt đáy chưa nhìn thấy rõ bằng mắt thường.
-    - `Level 2`: Võng nhìn thấy bằng mắt thường nhưng đã ổn định, không nứt.
-    - `Level 3`: Võng lớn kèm nứt chữ V giữa nhịp dầm/sàn, rung khi đi lại.
-    - `Level 4`: Võng quá giới hạn cho phép, nguy cơ sập gãy kết cấu sàn/dầm.
-  - [ ] **Thông tin bổ sung (Additional details):** Vị trí cấu kiện (`______`), Độ võng ước tính (mm), Mô tả hiện tượng.
-- [ ] **2. Cần đo / Quan trắc bổ sung chuyên sâu:** (Chọn: `Không` | `Có` ➔ Nhận xét: `__________________`)
-
----
-
-### BƯỚC 6: Xác nhận Phạm vi, Hạn chế & Điều chỉnh Ranh Thửa Đất GIS
+### BƯỚC 5: Xác nhận Phạm vi, Hạn chế & Điều chỉnh Ranh Thửa Đất GIS
 *Sau khi cán bộ đã đi hết các tầng, nắm trọn vẹn hiện trạng không gian toà nhà và ranh giới thực tế.*
 
-- [ ] **6.1. Phạm Vi Không Gian Đã Khảo Sát (Survey Scope):**
-  - Tự động kết xuất cây cấu trúc: `Bên ngoài / Mặt tiền (P-01 → P-04)` ➔ Danh sách Tầng ➔ Các Vùng Kiến Trúc $Z$ (Tên phòng, Số khuyết tật) & Vùng Kết Cấu $E$ (Loại cấu kiện, Số khuyết tật) từ Bước 3 để cán bộ xác nhận lại.
-  - Hỗ trợ chọn thêm không gian bổ sung: `Mái / Sân thượng / Sê-nô`, `Tầng hầm / Bán hầm`, `Khu phụ / Sân sau / Giếng trời`.
-- [ ] **6.2. Hạn Chế Tiếp Cận (Access Limitations):** (Chọn: `Không có hạn chế (Tiếp cận 100%)` / `Có hạn chế tiếp cận một phần`):
+- [ ] **5.1. Phạm Vi Không Gian Đã Khảo Sát (Survey Scope):**
+  - Tự động kết xuất danh sách các Tầng đã khảo sát ở Bước 3 để cán bộ xác nhận lại.
+  - Ghi chú thêm về phạm vi nếu có khu vực đặc thù.
+- [ ] **5.2. Hạn Chế Tiếp Cận (Access Limitations):** (Chọn: `Không có hạn chế (Tiếp cận 100%)` / `Có hạn chế tiếp cận một phần`):
   - **Vị trí / Khu vực bị hạn chế:** Chọn từ danh sách (`Các tầng lầu trên cao`, `Mái/Sân thượng`, `Tầng hầm`, `Phòng ngủ/Khu vực riêng tư`, `Phòng kho khóa cửa`, `Khác` ➔ *Nhập text chi tiết*).
   - **Phân rã tầng lầu bị hạn chế:** Tự động vô hiệu hóa (disabled) các tầng đã có dữ liệu ở Bước 3 để tránh mâu thuẫn.
   - **Nguyên nhân chính hạn chế tiếp cận:** Chọn từ danh sách (`Chỉ đồng ý cho xem tầng trệt`, `Chủ nhà đi vắng/Khóa cửa`, `Chủ nhà không cho phép`, `Khu vực nguy hiểm`, `Kẹt cửa/Mất chìa khóa`, `Khu vực chứa tài sản nhạy cảm`, `Khác` ➔ *Nhập text chi tiết*).
   - **Ghi chú diễn giải:** Nhập text mô tả chi tiết biên bản hiện trường.
-- [ ] **6.3. Kiểm tra Đối soát Kích thước & Điều chỉnh Ranh Thửa Đất trên GIS (Cadastral Boundary & Mutation Engine):**
+- [ ] **5.3. Kiểm tra Đối soát Kích thước & Điều chỉnh Ranh Thửa Đất trên GIS (Cadastral Boundary & Mutation Engine):**
   - **Hiển thị kích thước thửa ban đầu:** Mặt tiền ($W$), Chiều sâu ($D$), Diện tích thửa gốc ($S_{\text{đất}}\text{ m}^2$), Mã quản lý dự án (`B-XXXXX`) và Mã địa chính gốc (`KS003-XXXX`).
   - **3 Trạng thái nghiệp vụ & Động cơ tương tác:**
     1. **`1. Khớp ranh (MATCH)` - Xác nhận 100% diện tích:** Xác nhận ranh xây dựng trùng khớp 100% ranh thửa đất địa chính ($S_{\text{xd}} = S_{\text{đất}}\text{ m}^2$).
@@ -231,22 +216,20 @@ Dưới đây là **BỘ BIỂU MẪU KHẢO SÁT HỢP NHẤT DUY NHẤT** đư
 
 ---
 
-### CỔNG KIỂM TRA ĐỦ DỮ LIỆU (DATA COMPLETENESS GATE)
+### BƯỚC 6: Tự động Tính Điểm Kỹ thuật ECS & VI (Auto Calculations 100%)
+
+#### CỔNG KIỂM TRA ĐỦ DỮ LIỆU (DATA COMPLETENESS GATE)
 *Hệ thống tự động quét kiểm tra 6 tiêu chí kỹ thuật trước khi chuyển sang tính toán kết luận:*
 
 - [ ] **1. Thông tin móng:** Tự động check điểm CAT móng (`Đủ` / `Chưa đủ`).
 - [ ] **2. Ảnh & Damage Mapping:** Tự động check đủ 4 ảnh P-01..04, ảnh Vùng CTX và ghim khuyết tật D-xx trong cả Z và E (`Đủ` / `Thiếu`).
-- [ ] **3. Khảo sát bên trong:** Tự động trích xuất từ Bước 6.1 & 6.2 (`Đã khảo sát 100%` / `Hạn chế` / `Vắng mặt`).
-- [ ] **4. Dữ liệu lún/nghiêng:** Tự động trích xuất từ Bước 1 & Bước 5 (`Đủ` / `Cần đo thêm`).
+- [ ] **3. Khảo sát bên trong:** Tự động trích xuất từ Bước 5.1 & 5.2 (`Đã khảo sát 100%` / `Hạn chế` / `Vắng mặt`).
+- [ ] **4. Dữ liệu lún/nghiêng:** Tự động trích xuất từ Bước 1 & Bước 3.3 (`Đủ` / `Cần đo thêm`).
 - [ ] **5. Hồ sơ/bản vẽ kết cấu:** Tự động check file đính kèm ở Bước 2.1 (`Có` / `Một phần` / `Không`).
 - [ ] **6. Structural Review:** Tự động cảnh báo Pending nếu có khuyết tật $E_2 \ge 3$ hoặc Cờ kết cấu High/Critical (`N/A` / `Đủ` / `Pending`).
 - [ ] **Quyết định Cổng (Gate Decision BRA):** (Chọn: `Cho phép chuyển tiếp` / `Có điều kiện` / `Chưa đủ - Pending` | Nhập lý do điều kiện).
 
----
-
-### BƯỚC 7: Tự động Tính Điểm Kỹ thuật ECS & VI (Auto Calculations 100%)
-
-#### 7.1. Bảng Điểm Hiện Hữu ECS (11. ECS – EXISTING CONDITION SCORE):
+#### 6.1. Bảng Điểm Hiện Hữu ECS (11. ECS – EXISTING CONDITION SCORE):
 *Ghi chú: Toàn bộ nguồn Map và quy tắc tính toán chi tiết của từng tiêu chí $E_1 \dots E_6$ được tích hợp trong biểu tượng Info Popover cạnh tiêu chí.*
 
 | Mã | Tiêu chí đánh giá | 0 | 1 | 2 | 3–4 | Điểm |
@@ -268,7 +251,7 @@ Dưới đây là **BỘ BIỂU MẪU KHẢO SÁT HỢP NHẤT DUY NHẤT** đư
 - [ ] **Engineering judgement:** [ ] `Giữ`  [ ] `Nâng`  [ ] `Hạ` \| **Lý do:** `____________________`
 - [ ] **ECS override (Khóa an toàn):** *Critical structural issue $\Rightarrow$ không được hạ ECS chỉ vì Burland thấp ($E_2 \ge 3$ hoặc $E_3 \ge 3$).*
 
-#### 7.2. Bảng Chỉ số Dễ Tổn thương VI (13. VI – VULNERABILITY INDEX):
+#### 6.2. Bảng Chỉ số Dễ Tổn thương VI (13. VI – VULNERABILITY INDEX):
 *Ghi chú: Toàn bộ nguồn Map và quy tắc tính toán chi tiết của từng tiêu chí $V_1 \dots V_6$ được tích hợp trong biểu tượng Info Popover cạnh tiêu chí.*
 
 | Mã | Tiêu chí đánh giá | 1 | 2 | 3 | 4 | Điểm |
@@ -288,7 +271,7 @@ Dưới đây là **BỘ BIỂU MẪU KHẢO SÁT HỢP NHẤT DUY NHẤT** đư
 
 ---
 
-### BƯỚC 8: Tổng hợp Kết luận Toàn diện & Đề xuất Kỹ thuật (Executive Summary Dashboard)
+### BƯỚC 7: Tổng hợp Kết luận Toàn diện & Đề xuất Kỹ thuật (Executive Summary Dashboard)
 - [ ] **BCS / ECS:** Score /24 & ECS Class (`Good` / `Medium` / `Deficient` / `Critical`)
 - [ ] **Burland & Cờ kết cấu:** Grade Chủ đạo, Grade Max, Vùng chi phối & Cờ kết cấu
 - [ ] **Vulnerability (VI):** Điểm $V_{\text{avg}}$ & VI Class (`Low` / `Medium` / `High` / `Very High`)
@@ -299,9 +282,8 @@ Dưới đây là **BỘ BIỂU MẪU KHẢO SÁT HỢP NHẤT DUY NHẤT** đư
 
 ---
 
-### BƯỚC 9: Chốt Biên bản & Ký Xác nhận Hiện trường
-- [ ] **Thống kê tổng số Tầng, Vùng (Z & E) & Khuyết tật D đã ghi nhận.**
+### BƯỚC 8: Chốt Biên bản & Ký Xác nhận Hiện trường
+- [ ] **Thống kê số Tầng, số Vùng Z - E & số Vết nứt D đã ghi nhận.**
 - [ ] **Ý kiến / Phản hồi nguyên văn của Chủ hộ:** (Nhập text).
 - [ ] **Ảnh Chữ ký Cán bộ Khảo sát (Prepared by):** Họ tên, Chức vụ, Ngày khảo sát, Chụp ảnh chữ ký giấy hoặc tải tệp ảnh lên (kèm xem trước & chụp lại).
-- [ ] **Ảnh Chữ ký Chủ sở hữu (Owner/Representative):** Họ tên, Vai trò, Ngày ký, Chụp ảnh chữ ký giấy hoặc tải tệp ảnh lên (kèm xem trước & chụp lại).
 - [ ] **Ảnh chụp Biên bản làm việc hiện trường (Working Minutes Photos):** Cho phép chụp / tải lên nhiều ảnh biên bản giấy đã ký tại hiện trường làm cơ sở lưu trữ pháp lý.

@@ -28,7 +28,6 @@ const RESTRICTED_AREAS_PRESETS = [
 
 export const Step6_ScopeAndGisMutation: React.FC = () => {
   const { formData, updateFormData, nextStep, prevStep } = usePhase1SurveyStore();
-  const [showGisEditorModal, setShowGisEditorModal] = useState(false);
   const [extraFloorsCount, setExtraFloorsCount] = useState(0);
 
   const scope = formData.surveyScope;
@@ -48,187 +47,55 @@ export const Step6_ScopeAndGisMutation: React.FC = () => {
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto pb-12">
-      {/* 6.1. Phạm vi đã khảo sát */}
+      {/* 5.1. Phạm vi đã khảo sát */}
       <Card>
         <div className="flex items-center gap-2 mb-3 pb-2 border-b border-slate-100">
           <ShieldCheck className="w-5 h-5 text-emerald-600" />
           <div>
             <h2 className="text-base sm:text-lg font-bold text-slate-800">
-              6.1. Phạm Vi Không Gian Đã Khảo Sát (Survey Scope)
+              5.1. Phạm Vi Không Gian Đã Khảo Sát (Survey Scope)
             </h2>
             <p className="text-xs text-slate-500">
-              Tự động trích xuất các tầng và Vùng Z đã khảo sát ở Bước 3 để cán bộ xác nhận lại
+              Tự động trích xuất các tầng đã khảo sát ở Bước 3 để cán bộ xác nhận lại
             </p>
           </div>
         </div>
 
-        {/* 1. Tổng quan & Ngoại thất */}
-        <div className="mb-4 space-y-2">
-          <span className="text-xs font-bold text-slate-700 uppercase tracking-wider block">
-            1. Khảo sát ngoại quan toàn cảnh
-          </span>
-          <label className="flex items-center gap-2 p-3 rounded-xl border border-emerald-200 bg-emerald-50/50 text-xs font-semibold text-emerald-950 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={scope.externalFront}
-              onChange={(e) =>
-                updateFormData({
-                  surveyScope: { ...scope, externalFront: e.target.checked },
-                })
-              }
-              className="rounded text-emerald-600 focus:ring-emerald-500"
-            />
-            <span className="flex items-center gap-1.5">
-              <CheckCircle2 size={14} className="text-emerald-600 shrink-0" />
-              <span>Bên ngoài / Mặt tiền toà nhà (Bộ 4 ảnh P-01 → P-04)</span>
-            </span>
+        {/* Danh sách tầng đã khảo sát */}
+        <div className="space-y-3 mb-4">
+          <label className="text-sm font-semibold text-slate-700 block">
+            Các tầng đã khảo sát (Bước 3)
           </label>
-        </div>
-
-        {/* 2. Cây phân cấp Tầng, Vùng Kiến trúc Z và Vùng Kết cấu E thực tế từ Bước 3 */}
-        <div className="mb-4 space-y-2.5">
-          <span className="text-xs font-bold text-slate-700 uppercase tracking-wider block">
-            2. Danh sách các Tầng, Vùng Kiến Trúc (Z) & Kết Cấu Chịu Lực (E) đã khảo sát (Bước 3)
-          </span>
-
-          <div className="space-y-2.5">
-            {formData.floors.map((floor, fIdx) => (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+            {formData.floors.map((floor) => (
               <div
-                key={floor.id || fIdx}
-                className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/70 space-y-2.5"
+                key={floor.id}
+                className="p-3 rounded-xl border border-slate-200 bg-slate-50 flex items-center justify-between"
               >
-                <div className="flex items-center justify-between">
-                  <span className="font-bold text-xs sm:text-sm text-slate-800 flex items-center gap-1.5">
-                    <Building className="w-4 h-4 text-emerald-600" />
-                    <span>{floor.floorName}</span>
-                    <span className="text-[11px] font-normal text-slate-500">
-                      ({floor.zones?.length || 0} Vùng Z • {floor.structuralElements?.length || 0} Vùng E)
-                    </span>
-                  </span>
-                  <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
-                    Đã khảo sát
-                  </span>
-                </div>
-
-                {/* Danh sách các Vùng Z trong tầng */}
-                {floor.zones && floor.zones.length > 0 && (
-                  <div className="space-y-1.5">
-                    <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
-                      Mảng tường & Hoàn thiện kiến trúc (Vùng Z):
-                    </span>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      {floor.zones.map((zone) => (
-                        <div
-                          key={zone.id}
-                          className="p-2 rounded-lg bg-white border border-slate-200 flex items-center justify-between text-xs"
-                        >
-                          <div className="flex items-center gap-1.5">
-                            <span className="font-bold text-slate-800 font-mono text-[10px] bg-slate-100 px-1.5 py-0.5 rounded">
-                              {zone.zoneCode}
-                            </span>
-                            <span className="text-slate-700 font-medium truncate max-w-[140px]" title={zone.roomName}>
-                              {zone.roomName}
-                            </span>
-                          </div>
-                          <span className="text-[10px] text-slate-500 font-mono">
-                            {zone.defects?.length > 0 ? `${zone.defects.length} D` : 'Không nứt'}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Danh sách các Vùng E (Kết cấu chịu lực) trong tầng */}
-                {floor.structuralElements && floor.structuralElements.length > 0 && (
-                  <div className="space-y-1.5 pt-1 border-t border-slate-200/60">
-                    <span className="text-[10px] font-bold text-amber-800 uppercase tracking-wider block">
-                      Cấu kiện kết cấu chịu lực (Vùng E):
-                    </span>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      {floor.structuralElements.map((el) => (
-                        <div
-                          key={el.id}
-                          className="p-2 rounded-lg bg-amber-50/40 border border-amber-200 flex items-center justify-between text-xs"
-                        >
-                          <div className="flex items-center gap-1.5">
-                            <span className="font-bold text-amber-950 font-mono text-[10px] bg-amber-100 px-1.5 py-0.5 rounded">
-                              {el.elementCode}
-                            </span>
-                            <span className="text-slate-700 font-medium truncate max-w-[140px]" title={el.elementType}>
-                              {el.elementType}
-                            </span>
-                          </div>
-                          <span className="text-[10px] text-amber-800 font-mono">
-                            {el.defects?.length > 0 ? `${el.defects.length} D kết cấu` : 'Ổn định'}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
+                <span className="font-bold text-xs sm:text-sm text-slate-800 flex items-center gap-1.5">
+                  <Building className="w-4 h-4 text-slate-600" />
+                  <span>{floor.floorName}</span>
+                </span>
+                <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
+                  Đã khảo sát
+                </span>
               </div>
             ))}
-          </div>
-        </div>
-
-        {/* 3. Không gian khảo sát bổ sung */}
-        <div className="space-y-2 pt-2 border-t border-slate-100">
-          <span className="text-xs font-bold text-slate-700 uppercase tracking-wider block">
-            3. Không gian khảo sát bổ sung (nếu có)
-          </span>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-            <label className="flex items-center gap-2 p-2.5 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-800 cursor-pointer hover:bg-slate-50">
-              <input
-                type="checkbox"
-                checked={scope.roofTerrace}
-                onChange={(e) =>
-                  updateFormData({
-                    surveyScope: { ...scope, roofTerrace: e.target.checked },
-                  })
-                }
-                className="rounded text-emerald-600 focus:ring-emerald-500"
-              />
-              <span>Mái / Sân thượng / Sê-nô</span>
-            </label>
-
-            <label className="flex items-center gap-2 p-2.5 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-800 cursor-pointer hover:bg-slate-50">
-              <input
-                type="checkbox"
-                checked={scope.basement}
-                onChange={(e) =>
-                  updateFormData({
-                    surveyScope: { ...scope, basement: e.target.checked },
-                  })
-                }
-                className="rounded text-emerald-600 focus:ring-emerald-500"
-              />
-              <span>Tầng hầm / Bán hầm</span>
-            </label>
-
-            <label className="flex items-center gap-2 p-2.5 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-800 cursor-pointer hover:bg-slate-50">
-              <input
-                type="checkbox"
-                checked={scope.backyardOuthouse}
-                onChange={(e) =>
-                  updateFormData({
-                    surveyScope: { ...scope, backyardOuthouse: e.target.checked },
-                  })
-                }
-                className="rounded text-emerald-600 focus:ring-emerald-500"
-              />
-              <span>Khu phụ / Sân sau / Giếng trời</span>
-            </label>
+            {formData.floors.length === 0 && (
+              <div className="col-span-full text-xs text-slate-400 italic p-3 bg-slate-50 rounded-lg border border-dashed border-slate-200">
+                Chưa có dữ liệu tầng nào từ Bước 3.
+              </div>
+            )}
           </div>
         </div>
       </Card>
 
-      {/* 6.2. Hạn chế tiếp cận */}
+      {/* 5.2. Hạn chế tiếp cận */}
       <Card>
         <div className="flex items-center gap-2 mb-3 pb-2 border-b border-slate-100">
           <AlertCircle className="w-5 h-5 text-amber-600" />
           <h2 className="text-base sm:text-lg font-bold text-slate-800">
-            6.2. Hạn Chế Tiếp Cận (Access Limitations)
+            5.2. Hạn Chế Tiếp Cận (Access Limitations)
           </h2>
         </div>
 
@@ -305,6 +172,7 @@ export const Step6_ScopeAndGisMutation: React.FC = () => {
                 {access.restrictedAreas?.includes('Khác (Nhập chi tiết...)') && (
                   <div className="mt-2.5 animate-in fade-in">
                     <Input
+                      id="input-custom-restricted-area"
                       placeholder="Mô tả cụ thể khu vực bị hạn chế tiếp cận..."
                       value={customRestrictedArea}
                       onChange={(e) => {
@@ -392,6 +260,7 @@ export const Step6_ScopeAndGisMutation: React.FC = () => {
               {/* Nguyên nhân chính */}
               <div>
                 <Select
+                  id="select-access-main-reason"
                   label="Nguyên Nhân Chính Hạn Chế Tiếp Cận"
                   value={
                     ACCESS_LIMIT_PRESETS.slice(0, 7).includes(access.mainReason)
@@ -414,6 +283,7 @@ export const Step6_ScopeAndGisMutation: React.FC = () => {
                 {access.mainReason.startsWith('Khác') && (
                   <div className="mt-2 animate-in fade-in">
                     <Input
+                      id="input-custom-access-reason"
                       placeholder="Nhập nguyên nhân hạn chế tiếp cận thực tế..."
                       value={access.mainReason}
                       onChange={(e) =>
@@ -427,6 +297,7 @@ export const Step6_ScopeAndGisMutation: React.FC = () => {
               </div>
 
               <Textarea
+                id="textarea-access-notes"
                 label="Ghi Chú Diễn Giải Chi Tiết Hiện Trường (Biên bản hiện trường)"
                 placeholder="Mô tả cụ thể lý do hạn chế để làm cơ sở pháp lý và lập biên bản..."
                 value={access.notes}
@@ -441,71 +312,33 @@ export const Step6_ScopeAndGisMutation: React.FC = () => {
         </div>
       </Card>
 
-      {/* 6.3. Động cơ điều chỉnh ranh thửa GIS */}
-      <Card>
-        <div className="flex items-center justify-between mb-3 pb-2 border-b border-slate-100">
+      {/* 5.3. Động cơ điều chỉnh ranh thửa GIS */}
+      <Card id="step5-gis-editor-section" className="space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
           <div className="flex items-center gap-2">
             <Map className="w-5 h-5 text-blue-600" />
-            <h2 className="text-base sm:text-lg font-bold text-slate-800">
-              6.3. Đối Soát Kích Thước & Điều Chỉnh Ranh Thửa Đất trên GIS
-            </h2>
+            <div>
+              <h2 className="text-base sm:text-lg font-bold text-slate-800">
+                5.3. Đối Soát Kích Thước & Điều Chỉnh Ranh Thửa Đất trên GIS
+              </h2>
+              <p className="text-xs text-slate-500">
+                Vẽ đa giác khoanh vùng khảo sát (ranh nhà thực địa) trực tiếp trên bản đồ GIS
+              </p>
+            </div>
           </div>
-          <Button
-            size="sm"
-            variant="outline"
-            icon={<Edit3 className="w-3.5 h-3.5" />}
-            onClick={() => setShowGisEditorModal(true)}
-          >
-            Mở Bản Đồ & Trình Biên Tập GIS
-          </Button>
-        </div>
 
-        <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-          <div>
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider block">
-              Trạng thái ranh thửa hiện tại
-            </span>
-            <span className="text-sm font-bold text-slate-800 flex items-center gap-1.5 mt-0.5">
-              {formData.gisMutationConfirmed.type === 'MATCH' && (
-                <>
-                  <CheckCircle2 size={15} className="text-emerald-600 inline" />
-                  <span>1. Khớp ranh (Trùng 100% thửa đất địa chính)</span>
-                </>
-              )}
-              {formData.gisMutationConfirmed.type === 'SPLIT' && (
-                <>
-                  <Edit3 size={15} className="text-amber-600 inline" />
-                  <span>2. Đã tách thửa (Chia nhỏ theo thực tế nhà)</span>
-                </>
-              )}
-              {formData.gisMutationConfirmed.type === 'MERGE' && (
-                <>
-                  <Building className="text-blue-600 inline" size={15} />
-                  <span>3. Đã gộp thửa (Ghép nhiều thửa liền kề)</span>
-                </>
-              )}
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-slate-500">Trạng thái ranh:</span>
+            <span className="text-xs font-bold px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-200">
+              {formData.gisMutationConfirmed.type === 'MATCH' && '1. Khớp ranh 100%'}
+              {formData.gisMutationConfirmed.type === 'SPLIT' && '2. Đã tách thửa'}
+              {formData.gisMutationConfirmed.type === 'MERGE' && '3. Đã gộp thửa'}
             </span>
           </div>
-
-          <Button size="sm" onClick={() => setShowGisEditorModal(true)}>
-            Xác nhận / Biên tập lại ranh
-          </Button>
         </div>
-      </Card>
 
-      {/* Modal Trình biên tập GIS */}
-      {showGisEditorModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/90 flex flex-col p-3 sm:p-5 animate-in fade-in">
-          <div className="flex items-center justify-between text-white pb-3 border-b border-slate-800">
-            <h3 className="font-bold text-base flex items-center gap-2">
-              <Map className="w-5 h-5 text-blue-400" />
-              <span>Động Cơ Biên Tập Ranh Thửa Đất GIS (Match / Split / Merge)</span>
-            </h3>
-            <Button variant="danger" size="sm" onClick={() => setShowGisEditorModal(false)}>
-              Đóng lại
-            </Button>
-          </div>
-
+        {/* Trình biên tập GIS hiển thị trực tiếp inline */}
+        <div className="rounded-xl overflow-hidden border border-slate-200 min-h-[520px]">
           <CadastralGISBoundaryEditor
             activeParcelId={formData.parcelId}
             parcelData={{
@@ -545,15 +378,15 @@ export const Step6_ScopeAndGisMutation: React.FC = () => {
             }}
           />
         </div>
-      )}
+      </Card>
 
       {/* Navigation */}
       <div className="flex justify-between pt-4">
         <Button variant="outline" onClick={prevStep}>
-          ⬅️ Quay lại Bước 5
+          ⬅️ Quay lại Bước 4
         </Button>
         <Button onClick={nextStep}>
-          Tiếp tục: Bước 7 (Bảng Điểm ECS & VI) ➔
+          Tiếp tục: Bước 6 (Bảng Điểm ECS & VI) ➔
         </Button>
       </div>
     </div>

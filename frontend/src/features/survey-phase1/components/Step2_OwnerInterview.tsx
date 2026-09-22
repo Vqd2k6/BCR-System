@@ -33,7 +33,7 @@ const STRUCTURE_SYSTEMS = [
   'Steel - Khung kết cấu thép',
   'Masonry - Tường gạch chịu lực',
   'Mixed - Kết cấu hỗn hợp',
-  'Other - Khác',
+  'Other - Khác (Nhập chi tiết...)',
 ];
 
 const FOUNDATION_TYPES = [
@@ -86,6 +86,10 @@ export const Step2_OwnerInterview: React.FC = () => {
   const isCustomUsage =
     formData.usageFunction &&
     !USAGE_OPTIONS.slice(0, 10).includes(formData.usageFunction);
+
+  const isCustomStructure =
+    Boolean(formData.structureSystem) &&
+    !STRUCTURE_SYSTEMS.slice(0, 4).includes(formData.structureSystem);
 
   const [hasDrawingOption, setHasDrawingOption] = useState<'HAS_DRAWING' | 'NO_DRAWING' | 'UNKNOWN'>(
     formData.foundationCatScore === 1 || formData.foundationCatScore === 2
@@ -153,9 +157,9 @@ export const Step2_OwnerInterview: React.FC = () => {
             <Input
               label="Số Tầng Nổi"
               type="number"
-              min={1}
+              min={0}
               value={formData.aboveFloors}
-              onChange={(e) => updateFormData({ aboveFloors: Number(e.target.value) || 1 })}
+              onChange={(e) => updateFormData({ aboveFloors: Number(e.target.value) || 0 })}
               hint="Tầng trệt tính là 1"
             />
             <Input
@@ -172,7 +176,7 @@ export const Step2_OwnerInterview: React.FC = () => {
               <Input
                 label="Năm Xây Dựng / Tuổi Thọ"
                 type="number"
-                placeholder="VD: 2012"
+                placeholder="2026"
                 value={formData.constructionYear}
                 onChange={(e) =>
                   updateFormData({ constructionYear: e.target.value ? Number(e.target.value) : '' })
@@ -205,10 +209,23 @@ export const Step2_OwnerInterview: React.FC = () => {
               </InfoPopover>
             </div>
             <Select
-              value={formData.structureSystem}
-              onChange={(e) => updateFormData({ structureSystem: e.target.value })}
+              value={isCustomStructure ? 'Other - Khác (Nhập chi tiết...)' : formData.structureSystem}
+              onChange={(e) => {
+                if (e.target.value === 'Other - Khác (Nhập chi tiết...)') {
+                  updateFormData({ structureSystem: 'Khác: ' });
+                } else {
+                  updateFormData({ structureSystem: e.target.value });
+                }
+              }}
               options={STRUCTURE_SYSTEMS.map((s) => ({ value: s, label: s }))}
             />
+            {isCustomStructure && (
+              <Input
+                placeholder="Nhập chi tiết hệ kết cấu chịu lực thực tế..."
+                value={formData.structureSystem}
+                onChange={(e) => updateFormData({ structureSystem: e.target.value })}
+              />
+            )}
           </div>
 
           <Select

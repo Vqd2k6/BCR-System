@@ -54,6 +54,7 @@ export interface GisParcel {
     | 'APPROVED'
     | 'REJECTED'
     | 'POSTPONED_ABSENT'
+    | 'UNDER_CONSTRUCTION'
     | 'PHASE2_COMPLETED'
     | 'APPROVED_PHASE2';
   absenceAttemptCount?: number;

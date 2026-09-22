@@ -1,6 +1,6 @@
 import React from 'react';
 import { usePhase1SurveyStore } from '../store/usePhase1SurveyStore';
-import { Check, Save, ArrowLeft, ArrowRight } from 'lucide-react';
+import { Save, ArrowLeft, ArrowRight } from 'lucide-react';
 import clsx from 'clsx';
 
 const STEP_LABELS = [
@@ -8,11 +8,10 @@ const STEP_LABELS = [
   '2. Phỏng vấn chủ hộ',
   '3. Khảo sát các tầng',
   '4. Chốt Burland & Cờ KC',
-  '5. Lún - Nghiêng (‰)',
-  '6. Phạm vi & Ranh GIS',
-  '7. Bảng điểm ECS & VI',
-  '8. Tổng hợp Dashboard',
-  '9. Ký biên bản 3 bên',
+  '5. Phạm vi & Ranh GIS',
+  '6. Bảng điểm ECS & VI',
+  '7. Tổng hợp Dashboard',
+  '8. Ký biên bản 3 bên',
 ];
 
 interface StepWizardNavProps {
@@ -38,7 +37,7 @@ export const StepWizardNav: React.FC<StepWizardNavProps> = ({ onBackToHome }) =>
         {/* Step indicator pills on mobile */}
         <div className="flex items-center gap-2">
           <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
-            Bước {currentStep}/9
+            Bước {currentStep}/8
           </span>
           <span className="text-xs sm:text-sm font-semibold text-slate-800 hidden sm:inline">
             {STEP_LABELS[currentStep - 1]}
@@ -65,7 +64,7 @@ export const StepWizardNav: React.FC<StepWizardNavProps> = ({ onBackToHome }) =>
 
           <button
             onClick={nextStep}
-            disabled={currentStep === 9}
+            disabled={currentStep === 8}
             className="p-1.5 text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:pointer-events-none rounded-lg border border-slate-200 transition-all"
             title="Bước tiếp theo"
           >
@@ -95,18 +94,18 @@ export const StepWizardNav: React.FC<StepWizardNavProps> = ({ onBackToHome }) =>
                     : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'
                 )}
               >
-                {isPassed ? (
-                  <Check className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
-                ) : (
-                  <span
-                    className={clsx(
-                      'w-4 h-4 rounded-full text-[10px] flex items-center justify-center flex-shrink-0',
-                      isCurrent ? 'bg-white text-emerald-700 font-bold' : 'bg-slate-200 text-slate-600'
-                    )}
-                  >
-                    {stepNum}
-                  </span>
-                )}
+                <span
+                  className={clsx(
+                    'w-4 h-4 rounded-full text-[10px] flex items-center justify-center flex-shrink-0 font-bold',
+                    isCurrent
+                      ? 'bg-white text-emerald-700'
+                      : isPassed
+                      ? 'bg-emerald-200 text-emerald-800'
+                      : 'bg-slate-200 text-slate-600'
+                  )}
+                >
+                  {stepNum}
+                </span>
                 <span className="truncate">{label.split('. ')[1]}</span>
               </button>
             );

@@ -136,9 +136,16 @@ export interface Phase1SurveyFormData {
   surveyCaseType?: 'NORMAL' | 'ABSENTEE' | 'APARTMENT' | 'UNDER_CONSTRUCTION';
   isAbsenteeSurvey?: boolean;
   absenteeReason?: string;
+  customAbsenteeReason?: string; // Nhập tay khi chọn Lý do khác
   absenteeMinutesPhotos?: string[]; // Ảnh biên bản vắng nhà (có thể chụp nhiều ảnh)
   underConstructionPhotos?: string[]; // Ảnh công trình đang thi công xây dựng (nhiều ảnh)
   constructionStageNotes?: string; // Ghi chú giai đoạn thi công xây dựng
+
+  // Thông tin mở rộng cho Tòa nhà Chung cư / Cao tầng
+  unitsPerFloor?: number | ''; // Số căn mỗi tầng
+  totalUnitsCount?: number | ''; // Tổng số căn hộ ước tính
+  managementContactName?: string; // Đại diện BQL / BQT tòa nhà
+  managementContactPhone?: string; // Số điện thoại BQL tòa nhà
 
   // Step 1 Photos & Polygon
   photoP01: { url: string; notApplicable: boolean };

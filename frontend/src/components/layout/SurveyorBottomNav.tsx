@@ -1,7 +1,7 @@
 import React from 'react';
 import { Home, Map } from 'lucide-react';
 
-export type NavTab = 'home' | 'map' | 'attendance' | 'phase1' | 'phase2';
+export type NavTab = 'home' | 'map' | 'attendance' | 'phase1' | 'phase2' | 'condo-master' | 'condo-unit';
 
 interface Props {
   activeTab: NavTab;

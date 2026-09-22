@@ -18,6 +18,7 @@ export type SurveyStatus =
   | 'APPROVED'
   | 'REJECTED'
   | 'POSTPONED_ABSENT'
+  | 'UNDER_CONSTRUCTION'
   | 'COMPLETED'
   | 'ABSENT'
   | 'REFUSED'

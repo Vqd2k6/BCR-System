@@ -2,7 +2,15 @@ import { Phase1SurveyFormData } from '../types/phase1.types';
 
 export interface GateVerificationResult {
   foundationInfo: { passed: boolean; label: string; score: number };
-  photoMapping: { passed: boolean; label: string; details: string };
+  photoMapping: {
+    passed: boolean;
+    label: string;
+    details: string;
+    countZonesZ: number;
+    countElementsE: number;
+    countDefectsZ: number;
+    countDefectsE: number;
+  };
   internalAccess: { passed: boolean; label: string };
   settlementData: { passed: boolean; label: string };
   asBuiltDrawings: { passed: boolean; label: string };
@@ -15,22 +23,24 @@ export function verifyDataCompletenessGate(data: Phase1SurveyFormData): GateVeri
   const catScore = data.foundationCatScore ?? 0;
   const foundationPassed = catScore >= 1;
 
-  // 2. Ảnh & Ghim
+  // 2. Ảnh & Ghim khuyết tật - Tách riêng Vùng Kiến trúc Z và Cấu kiện Kết cấu E
   const hasP01 = Boolean(data.photoP01?.url || data.photoP01?.notApplicable);
   const hasP02 = Boolean(data.photoP02?.url || data.photoP02?.notApplicable);
   const hasP04 = Boolean(data.photoP04?.url || data.photoP04?.notApplicable);
-  const totalZones = data.floors.reduce(
-    (acc, f) => acc + (f.zones?.length || 0) + (f.structuralElements?.length || 0),
+
+  const countZonesZ = (data.floors || []).reduce((acc, f) => acc + (f.zones?.length || 0), 0);
+  const countElementsE = (data.floors || []).reduce((acc, f) => acc + (f.structuralElements?.length || 0), 0);
+
+  const countDefectsZ = (data.floors || []).reduce(
+    (acc, f) => acc + (f.zones?.reduce((zacc, z) => zacc + (z.defects?.length || 0), 0) || 0),
     0
   );
-  const totalDefects = data.floors.reduce(
-    (acc, f) =>
-      acc +
-      (f.zones?.reduce((zacc, z) => zacc + (z.defects?.length || 0), 0) || 0) +
-      (f.structuralElements?.reduce((eacc, e) => eacc + (e.defects?.length || 0), 0) || 0),
+  const countDefectsE = (data.floors || []).reduce(
+    (acc, f) => acc + (f.structuralElements?.reduce((eacc, e) => eacc + (e.defects?.length || 0), 0) || 0),
     0
   );
-  const photoPassed = hasP01 && hasP02 && hasP04 && totalZones > 0;
+
+  const photoPassed = hasP01 && hasP02 && hasP04 && countZonesZ > 0;
 
   // 3. Khảo sát bên trong
   const isLimited = data.accessLimitation.type !== 'FULL_100';
@@ -68,7 +78,11 @@ export function verifyDataCompletenessGate(data: Phase1SurveyFormData): GateVeri
     photoMapping: {
       passed: photoPassed,
       label: photoPassed ? 'Đủ' : 'Thiếu',
-      details: `${totalZones} Vùng Z, ${totalDefects} Khuyết tật D`,
+      details: `${countZonesZ} Vùng Z (${countDefectsZ} nứt) • ${countElementsE} Cấu kiện E (${countDefectsE} nứt)`,
+      countZonesZ,
+      countElementsE,
+      countDefectsZ,
+      countDefectsE,
     },
     internalAccess: {
       passed: !isLimited,
