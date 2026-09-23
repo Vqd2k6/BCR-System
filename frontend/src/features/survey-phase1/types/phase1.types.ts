@@ -27,6 +27,7 @@ export interface DamageZoneData {
   hasDamage?: boolean; // false nếu không có hư hại, true nếu có điểm khuyết tật D
   notes: string;
   defects: DefectItem[];
+  isCompleted?: boolean;
 }
 
 export interface StructuralElementData {
@@ -44,6 +45,7 @@ export interface StructuralElementData {
   hasDamage?: boolean; // false nếu không có hư hại, true nếu có khuyết tật D
   notes: string;
   defects: DefectItem[];
+  isCompleted?: boolean;
 }
 
 export interface FloorSurveyData {
@@ -216,6 +218,22 @@ export interface Phase1SurveyFormData {
   gisMutationConfirmed: {
     type: 'MATCH' | 'SPLIT' | 'MERGE';
     notes: string;
+    details?: {
+      matchConfirmed?: boolean;
+      splitReason?: string;
+      splitCustomReason?: string;
+      splitCount?: number;
+      splitChildren?: any[];
+      splitShapeOption?: 'DRAG_HANDLES' | 'CLICK_TO_DRAW';
+      splitCustomPointsA?: [number, number][];
+      mergeReason?: string;
+      mergeCustomReason?: string;
+      mergeTargetCode?: string;
+      selectedMergeCodes?: string[];
+      activeProposalType?: 'MATCH' | 'SPLIT' | 'MERGE' | null;
+      isSubmitted?: boolean;
+      submittedAt?: string;
+    };
   };
 
   // Data Completeness Gate Decision

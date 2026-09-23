@@ -63,6 +63,7 @@ export interface MutationPayloadData {
   mergeReason: string;
   mergeTargetCode?: string;
   selectedMergeCodes?: string[];
+  activeProposalType?: 'MATCH' | 'SPLIT' | 'MERGE' | null;
   isSubmitted?: boolean;
   submittedAt?: string;
   matchConfirmed?: boolean;
@@ -200,7 +201,7 @@ const MapBoundsController: React.FC<{
   useEffect(() => {
     if (coords && coords.length >= 3) {
       const bounds = L.latLngBounds(coords.map(([lat, lng]) => [lat, lng]));
-      map.fitBounds(bounds, { padding: [30, 30], maxZoom: 19 });
+      map.fitBounds(bounds, { padding: [30, 30], maxZoom: 20 });
     } else if (coords && coords.length > 0) {
       map.setView(coords[0], zoom);
     }
@@ -227,23 +228,20 @@ const MapClickListener: React.FC<{
   return null;
 };
 
-// SYSTEM STANDARD USE CATEGORIES
-const SYSTEM_USE_CATEGORIES = [
-  'Nhà ở gia đình (Nhà phố / Biệt thự / Căn hộ)',
-  'Cửa hàng / Shop / Bách hóa',
-  'Quán ăn / Nhà hàng / Cafe',
-  'Văn phòng / Trụ sở công ty',
-  'Khách sạn / Nhà nghỉ / Căn hộ DV',
-  'Bệnh viện / Phòng khám / Y tế',
-  'Trường học / Trung tâm đào tạo',
-  'Kho hàng / Xưởng sản xuất',
-  'Cơ sở tôn giáo (Chùa, Nhà thờ)',
-  'Công trình công cộng / Hành chính',
-  'Đất trống / Sân vườn',
-  'Khác',
+// SYSTEM STANDARD USE CATEGORIES FOR RESIDUAL SURPLUS
+const RESIDUAL_FUNCTION_OPTIONS = [
+  { value: 'RESIDUAL_SURPLUS', label: '1. Đất thừa / Sai số biên ranh (Mặc định - Đất dôi dư)' },
+  { value: 'Nhà ở gia đình (Nhà phố / Biệt thự / Căn hộ)', label: '2. Nhà ở gia đình (Nhà phố / Biệt thự / Căn hộ)' },
+  { value: 'Cửa hàng / Shop / Bách hóa', label: '3. Cửa hàng / Shop / Bách hóa' },
+  { value: 'Quán ăn / Nhà hàng / Cafe', label: '4. Quán ăn / Nhà hàng / Cafe' },
+  { value: 'Văn phòng / Trụ sở công ty', label: '5. Văn phòng / Trụ sở công ty' },
+  { value: 'Kho hàng / Xưởng sản xuất', label: '6. Kho hàng / Xưởng sản xuất' },
+  { value: 'Đất trống / Sân vườn', label: '7. Đất trống / Sân vườn' },
+  { value: 'Ngõ đi chung / Lối thoát hiểm', label: '8. Ngõ đi chung / Lối thoát hiểm' },
+  { value: 'OTHER', label: '9. Khác (Nhập công năng cụ thể...)' },
 ];
 
-// COMMON SPLIT REASONS FOR QUICK SELECTION
+// COMMON SPLIT REASONS FOR QUICK SELECT
 const COMMON_SPLIT_REASONS = [
   'Nhà gốc chia tách 2 căn riêng biệt có lối đi độc lập',
   'Chủ nhà đã chuyển nhượng 1 phần diện tích phía sau',
@@ -251,6 +249,14 @@ const COMMON_SPLIT_REASONS = [
   'Tách phần đất dôi dư ngoài ranh xây dựng công trình',
   'Thực tế xây dựng 2 căn có đồng hồ điện nước riêng',
   'Tách thửa do sai lệch ranh đo đạc địa chính hiện trường',
+];
+
+// COMMON MERGE REASONS FOR QUICK SELECT
+const COMMON_MERGE_REASONS = [
+  'Chủ hộ mua lại các thửa lân cận và xây dựng hợp khối một công trình duy nhất',
+  'Thừa kế nhiều thửa liền kề, gia đình sử dụng chung một khối nhà',
+  'Xây dựng công trình/nhà xưởng vượt qua ranh giới nhiều thửa đất',
+  'Đã được cấp Giấy chứng nhận gộp thửa mới nhưng bản đồ địa chính cũ chưa hợp nhất',
 ];
 
 // Custom handle icon for draggable polygon handles
@@ -402,28 +408,118 @@ export const CadastralGISBoundaryEditor: React.FC<Props> = ({
     return [avgLat, avgLng];
   }, [realActiveCoords]);
 
-  // 10 Closest Neighboring Parcels
+  // Fallback các thửa lân cận nếu API chưa có hoặc rỗng
+  const fallbackNeighbors: GisParcel[] = useMemo(() => {
+    const baseNum = parseInt(parcelData.projectParcelCode.replace(/\D/g, ''), 10) || 107;
+    const [cLat, cLng] = activeCentroid;
+    const dLat = 0.00028;
+    const dLng = 0.00032;
+
+    return [
+      {
+        id: 'neighbor_left',
+        projectParcelCode: `B-${String(baseNum - 1).padStart(5, '0')}`,
+        officialCadastralCode: `TĐ-${baseNum - 1}`,
+        houseNumber: `${Math.max(1, baseNum - 2)}`,
+        street: parcelData.street,
+        ownerName: 'Hộ liền kề bên trái',
+        surveyStatus: 'NOT_SURVEYED',
+        absenceAttemptCount: 0,
+        coordinates: [
+          [cLat, cLng - dLng],
+          [cLat + dLat, cLng - dLng],
+          [cLat + dLat, cLng],
+          [cLat, cLng],
+        ],
+        distanceMeters: 6,
+      },
+      {
+        id: 'neighbor_right',
+        projectParcelCode: `B-${String(baseNum + 1).padStart(5, '0')}`,
+        officialCadastralCode: `TĐ-${baseNum + 1}`,
+        houseNumber: `${baseNum + 2}`,
+        street: parcelData.street,
+        ownerName: 'Hộ liền kề bên phải',
+        surveyStatus: 'NOT_SURVEYED',
+        absenceAttemptCount: 0,
+        coordinates: [
+          [cLat, cLng + dLng],
+          [cLat + dLat, cLng + dLng],
+          [cLat + dLat, cLng + 2 * dLng],
+          [cLat, cLng + 2 * dLng],
+        ],
+        distanceMeters: 8,
+      },
+      {
+        id: 'neighbor_back',
+        projectParcelCode: `B-${String(baseNum + 2).padStart(5, '0')}`,
+        officialCadastralCode: `TĐ-${baseNum + 2}`,
+        houseNumber: `${baseNum + 4}`,
+        street: parcelData.street,
+        ownerName: 'Hộ liền kề phía sau',
+        surveyStatus: 'NOT_SURVEYED',
+        absenceAttemptCount: 0,
+        coordinates: [
+          [cLat + dLat, cLng],
+          [cLat + 2 * dLat, cLng],
+          [cLat + 2 * dLat, cLng + dLng],
+          [cLat + dLat, cLng + dLng],
+        ],
+        distanceMeters: 15,
+      },
+      {
+        id: 'neighbor_corner',
+        projectParcelCode: `B-${String(baseNum + 3).padStart(5, '0')}`,
+        officialCadastralCode: `TĐ-${baseNum + 3}`,
+        houseNumber: `${baseNum + 6}`,
+        street: parcelData.street,
+        ownerName: 'Hộ góc liền kề',
+        surveyStatus: 'NOT_SURVEYED',
+        absenceAttemptCount: 0,
+        coordinates: [
+          [cLat + dLat, cLng + dLng],
+          [cLat + 2 * dLat, cLng + dLng],
+          [cLat + 2 * dLat, cLng + 2 * dLng],
+          [cLat + dLat, cLng + 2 * dLng],
+        ],
+        distanceMeters: 20,
+      },
+    ];
+  }, [parcelData.projectParcelCode, parcelData.street, activeCentroid]);
+
+  // 10 Closest Neighboring Parcels (Kết hợp API + Fallback để luôn chọn được)
   const tenClosestParcels: GisParcel[] = useMemo(() => {
-    if (zoneParcels.length === 0) return [];
-    const withDist = zoneParcels.map((p) => {
+    const combined = [...zoneParcels];
+    fallbackNeighbors.forEach((fb) => {
+      if (!combined.some((p) => p.projectParcelCode === fb.projectParcelCode)) {
+        combined.push(fb);
+      }
+    });
+
+    const withDist = combined.map((p) => {
       const pCenterLat = p.coordinates.reduce((s, c) => s + c[0], 0) / (p.coordinates.length || 1);
       const pCenterLng = p.coordinates.reduce((s, c) => s + c[1], 0) / (p.coordinates.length || 1);
       const dLat = pCenterLat - activeCentroid[0];
       const dLng = pCenterLng - activeCentroid[1];
       const dist = Math.sqrt(dLat * dLat + dLng * dLng);
-      return { ...p, distanceMeters: Math.round(dist * 111000) };
+      return { ...p, distanceMeters: (p as any).distanceMeters || Math.round(dist * 111000) };
     });
 
     withDist.sort((a, b) => (a.distanceMeters || 0) - (b.distanceMeters || 0));
-    return withDist.slice(0, 10);
-  }, [zoneParcels, activeCentroid]);
+    return withDist.filter((p) => p.projectParcelCode !== parcelData.projectParcelCode).slice(0, 10);
+  }, [zoneParcels, fallbackNeighbors, activeCentroid, parcelData.projectParcelCode]);
 
   // =========================================================================
-  // SPLIT ENGINE: OPTION 1 (DRAGGABLE VERTICES) & OPTION 2 (CLICK TO DRAW POLYGON)
+  // SPLIT ENGINE: OPTION 1 (CHẤM ĐIỂM TỰ NỐI) & OPTION 2 (KÉO NẮN ĐIỂM MÚT)
   // =========================================================================
   const [splitShapeOption, setSplitShapeOption] = useState<'DRAG_HANDLES' | 'CLICK_TO_DRAW'>(
-    (mutationData.splitShapeOption as any) === 'CLICK_TO_DRAW' ? 'CLICK_TO_DRAW' : 'DRAG_HANDLES'
+    mutationData.splitShapeOption || 'CLICK_TO_DRAW'
   );
+
+  // State cho mục Khác
+  const [customResidualType, setCustomResidualType] = useState<string>('');
+  const [customSplitReason, setCustomSplitReason] = useState<string>('');
+  const [customMergeReason, setCustomMergeReason] = useState<string>('');
 
   // Dynamic High-Range Codes from Backend based on MAX parcel index (e.g. B-00108, B-00109)
   const [dynamicCodes, setDynamicCodes] = useState<string[]>([]);
@@ -460,20 +556,26 @@ export const CadastralGISBoundaryEditor: React.FC<Props> = ({
     return [p0, frontCut, cornerPoint, cutR, p2, p3];
   }, [realActiveCoords]);
 
-  // Vertices for Căn A (Màu 1)
+  // Option 1: Ban đầu KHÔNG CÓ ĐIỂM NÀO CẢ ([]). Người dùng nhấp để chấm điểm tự link lại.
   const [polyAVertices, setPolyAVertices] = useState<[number, number][]>(() => {
-    if (mutationData.splitCustomPointsA && mutationData.splitCustomPointsA.length >= 3) {
+    if (mutationData.splitCustomPointsA && mutationData.splitCustomPointsA.length > 0) {
       return mutationData.splitCustomPointsA;
     }
-    return getDefaultPolygonA();
+    return [];
   });
 
-  // Keep vertices updated when realActiveCoords changes initially
+  // Khi chuyển sang Option 2 (Kéo nắn), nếu chưa có điểm nào thì nạp mẫu mặc định
   useEffect(() => {
-    if (!mutationData.splitCustomPointsA || mutationData.splitCustomPointsA.length < 3) {
-      setPolyAVertices(getDefaultPolygonA());
+    if (splitShapeOption === 'DRAG_HANDLES' && polyAVertices.length < 3) {
+      const def = getDefaultPolygonA();
+      setPolyAVertices(def);
+      onMutationDataChange({
+        ...mutationData,
+        splitShapeOption: 'DRAG_HANDLES',
+        splitCustomPointsA: def,
+      });
     }
-  }, [realActiveCoords, getDefaultPolygonA, mutationData.splitCustomPointsA]);
+  }, [splitShapeOption, getDefaultPolygonA]);
 
   // Fetch dynamic codes from backend (MAX index in DB + 1)
   useEffect(() => {
@@ -549,16 +651,20 @@ export const CadastralGISBoundaryEditor: React.FC<Props> = ({
 
   // Calculate Area A & Area B Dynamically
   const calculatedAreaA = useMemo(() => {
+    if (polyAVertices.length < 3) {
+      return 0;
+    }
     const raw = computePolygonAreaM2(polyAVertices);
     if (raw > 0 && raw < totalLandArea) return raw;
     return Math.round(totalLandArea * 0.6 * 10) / 10;
   }, [polyAVertices, totalLandArea]);
 
   const calculatedAreaB = useMemo(() => {
+    if (calculatedAreaA <= 0) return totalLandArea;
     return Math.max(0.1, Math.round((totalLandArea - calculatedAreaA) * 10) / 10);
   }, [totalLandArea, calculatedAreaA]);
 
-  // Handle Dragging a Vertex in Option 1
+  // Handle Dragging a Vertex in Option 2 (Kéo nắn)
   const handleVertexDrag = (index: number, newLatLng: L.LatLng) => {
     const updated = [...polyAVertices];
     updated[index] = [newLatLng.lat, newLatLng.lng];
@@ -566,20 +672,22 @@ export const CadastralGISBoundaryEditor: React.FC<Props> = ({
     onMutationDataChange({
       ...mutationData,
       splitCustomPointsA: updated,
+      isSubmitted: false,
     });
   };
 
-  // Handle Clicking on Map to Add Points in Option 2
+  // Handle Clicking on Map to Add Points in Option 1 (Chấm điểm)
   const handleMapClickDraw = (point: [number, number]) => {
     const updated = [...polyAVertices, point];
     setPolyAVertices(updated);
     onMutationDataChange({
       ...mutationData,
       splitCustomPointsA: updated,
+      isSubmitted: false,
     });
   };
 
-  // Add Midpoint Handle in Option 1
+  // Add Midpoint Handle in Option 2
   const handleAddMidpoint = () => {
     if (polyAVertices.length < 2) return;
     const p1 = polyAVertices[polyAVertices.length - 1];
@@ -590,27 +698,30 @@ export const CadastralGISBoundaryEditor: React.FC<Props> = ({
     onMutationDataChange({
       ...mutationData,
       splitCustomPointsA: updated,
+      isSubmitted: false,
     });
   };
 
-  // Remove Last Handle
+  // Remove Last Handle / Undo
   const handleRemovePoint = () => {
-    if (polyAVertices.length <= 3) return;
+    if (polyAVertices.length === 0) return;
     const updated = polyAVertices.slice(0, -1);
     setPolyAVertices(updated);
     onMutationDataChange({
       ...mutationData,
       splitCustomPointsA: updated,
+      isSubmitted: false,
     });
   };
 
-  // Reset to Default Polygon
+  // Reset to Default Polygon (Cho Option 2)
   const handleResetDefault = () => {
     const def = getDefaultPolygonA();
     setPolyAVertices(def);
     onMutationDataChange({
       ...mutationData,
       splitCustomPointsA: def,
+      isSubmitted: false,
     });
   };
 
@@ -621,6 +732,7 @@ export const CadastralGISBoundaryEditor: React.FC<Props> = ({
     onMutationDataChange({
       ...mutationData,
       splitCustomPointsA: lShape,
+      isSubmitted: false,
     });
   };
 
@@ -644,7 +756,7 @@ export const CadastralGISBoundaryEditor: React.FC<Props> = ({
 
     let totalMergedArea = totalLandArea;
     selectedMergeCodes.forEach((code) => {
-      const p = zoneParcels.find((zp) => zp.projectParcelCode === code);
+      const p = tenClosestParcels.find((zp) => zp.projectParcelCode === code);
       const approxArea = (p as any)?.land_area_m2 || 75.0;
       totalMergedArea += approxArea;
     });
@@ -654,7 +766,7 @@ export const CadastralGISBoundaryEditor: React.FC<Props> = ({
       deprecatedCodes,
       totalMergedArea: Math.round(totalMergedArea * 10) / 10,
     };
-  }, [selectedMergeCodes, parcelData.projectParcelCode, totalLandArea, zoneParcels]);
+  }, [selectedMergeCodes, parcelData.projectParcelCode, totalLandArea, tenClosestParcels]);
 
   // Handle Multi-Select Merge Parcel Toggle
   const handleToggleMergeParcel = (code: string) => {
@@ -666,90 +778,35 @@ export const CadastralGISBoundaryEditor: React.FC<Props> = ({
       ...mutationData,
       selectedMergeCodes: next,
       mergeTargetCode: next[0] || '',
+      isSubmitted: false,
     });
   };
 
-  // Handle Submit Mutation Proposal
-  const handleSubmitMutation = async () => {
+  // Handle Save Mutation Proposal (Lưu tạm vào hồ sơ thửa ban đầu, không gọi API sớm)
+  const handleSaveMutationProposal = () => {
     setIsSubmittingMutation(true);
     const nowStr = new Date().toLocaleTimeString('vi-VN');
-    try {
-      if (boundaryStatus === 'SPLIT') {
-        const childParcelsPayload = (mutationData.splitChildren || []).map((c, idx) => ({
-          houseNumber: c.houseNumber || `${parcelData.houseNumber}${String.fromCharCode(65 + idx)}`,
-          street: parcelData.street,
-          ownerName: c.ownerName || (idx === 0 ? parcelData.ownerName : 'Chủ hộ Căn B'),
-          landAreaM2: idx === 0 ? calculatedAreaA : calculatedAreaB,
-          floorCount: parcelData.floorCount || 2,
-          functionalType: c.functionalType || (idx === 1 ? 'RESIDUAL_SURPLUS' : 'Nhà ở gia đình (Nhà phố / Biệt thự / Căn hộ)'),
-          isResidualSurplus: c.isResidualSurplus || (c.functionalType === 'RESIDUAL_SURPLUS'),
-          residualParentParcelCode: parcelData.projectParcelCode,
-          residualParentCadastralCode: parcelData.officialCadastralCode,
-          residualMetadataNote: c.residualMetadataNote || (c.functionalType === 'RESIDUAL_SURPLUS' ? `Đất thừa tách từ ${parcelData.projectParcelCode}` : undefined),
-        }));
+    const updatedMutation: MutationPayloadData = {
+      ...mutationData,
+      isSubmitted: true,
+      activeProposalType: boundaryStatus,
+      matchConfirmed: false,
+      submittedAt: nowStr,
+      splitShapeOption,
+      splitCustomPointsA: polyAVertices,
+    };
 
-        await api.post('/mutations/propose', {
-          mutationType: 'SPLIT',
-          sourceParcelIds: [activeParcelId],
-          childParcels: childParcelsPayload,
-          reason: mutationData.splitReason || 'Tách thành các căn độc lập trên thực địa',
-        });
-      } else if (boundaryStatus === 'MERGE') {
-        const sourceIds = [activeParcelId];
-        selectedMergeCodes.forEach((code) => {
-          const found = zoneParcels.find((zp) => zp.projectParcelCode === code);
-          if (found && !sourceIds.includes(found.id)) sourceIds.push(found.id);
-        });
+    onMutationDataChange(updatedMutation);
 
-        await api.post('/mutations/propose', {
-          mutationType: 'MERGE',
-          sourceParcelIds: sourceIds,
-          reason: mutationData.mergeReason || 'Gộp các thửa liền kề thành một khối công trình duy nhất',
-          childParcels: [
-            {
-              houseNumber: parcelData.houseNumber,
-              street: parcelData.street,
-              ownerName: parcelData.ownerName,
-              landAreaM2: mergeSummary.totalMergedArea,
-              floorCount: parcelData.floorCount || 2,
-            },
-          ],
-        });
-      }
-
-      const updatedMutation: MutationPayloadData = {
-        ...mutationData,
-        isSubmitted: true,
-        submittedAt: nowStr,
-        splitShapeOption,
-        splitCustomPointsA: polyAVertices,
-      };
-
-      onMutationDataChange(updatedMutation);
-
-      if (onToastMessage) {
-        onToastMessage(
-          `Đã gửi đề xuất ${boundaryStatus === 'SPLIT' ? 'Tách thửa' : 'Gộp thửa'} thành công lúc ${nowStr} (Chờ Zone Admin duyệt)`
-        );
-      }
-    } catch (_err) {
-      const updatedMutation: MutationPayloadData = {
-        ...mutationData,
-        isSubmitted: true,
-        submittedAt: nowStr,
-        splitShapeOption,
-        splitCustomPointsA: polyAVertices,
-      };
-      onMutationDataChange(updatedMutation);
-
-      if (onToastMessage) {
-        onToastMessage(
-          `Đã ghi nhận đề xuất ${boundaryStatus === 'SPLIT' ? 'Tách thửa' : 'Gộp thửa'} lúc ${nowStr} vào hồ sơ kỹ thuật`
-        );
-      }
-    } finally {
-      setIsSubmittingMutation(false);
+    if (onToastMessage) {
+      onToastMessage(
+        `✓ Đã ghi nhận đề xuất ${boundaryStatus === 'SPLIT' ? 'Tách thửa' : 'Gộp thửa'} gần nhất vào hồ sơ thửa ${parcelData.projectParcelCode}!`
+      );
     }
+
+    setTimeout(() => {
+      setIsSubmittingMutation(false);
+    }, 200);
   };
 
   return (
@@ -994,9 +1051,10 @@ export const CadastralGISBoundaryEditor: React.FC<Props> = ({
             <MapContainer
               center={activeCentroid}
               zoom={18}
+              maxZoom={22}
               zoomControl={false}
               style={{ width: '100%', height: '100%' }}
-              scrollWheelZoom={false}
+              scrollWheelZoom={true}
             >
               <MapBoundsController coords={realActiveCoords} zoom={18} />
               <ZoomControl position="bottomright" />
@@ -1005,13 +1063,15 @@ export const CadastralGISBoundaryEditor: React.FC<Props> = ({
                 <TileLayer
                   attribution="Esri World Imagery"
                   url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-                  maxZoom={19}
+                  maxNativeZoom={19}
+                  maxZoom={22}
                 />
               ) : (
                 <TileLayer
                   attribution="OpenStreetMap"
                   url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                  maxZoom={19}
+                  maxNativeZoom={19}
+                  maxZoom={22}
                 />
               )}
 
@@ -1085,29 +1145,79 @@ export const CadastralGISBoundaryEditor: React.FC<Props> = ({
               </div>
             </div>
 
+            {/* Phản hồi trực quan sau khi xác nhận khớp ranh (chỉ hiện khi là đề xuất MATCH gần nhất) */}
+            {mutationData.activeProposalType === 'MATCH' && mutationData.matchConfirmed && (
+              <div
+                style={{
+                  backgroundColor: '#ecfdf5',
+                  border: '1.5px solid #10b981',
+                  borderRadius: '0.5rem',
+                  padding: '0.55rem 0.75rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '0.5rem',
+                  color: '#065f46',
+                  fontSize: '0.725rem',
+                  fontWeight: 700,
+                  marginTop: '0.2rem',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <CheckCircle2 size={16} color="#059669" />
+                  <span>
+                    ✓ Đã xác nhận công trình khớp 100% ranh thửa đất {parcelData.projectParcelCode} ({mutationData.submittedAt || 'Đã ghi nhận'}). Đề xuất được lưu trong hồ sơ thửa ban đầu.
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onMutationDataChange({ ...mutationData, matchConfirmed: false, activeProposalType: null })}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#6b7280',
+                    fontSize: '0.675rem',
+                    textDecoration: 'underline',
+                    cursor: 'pointer',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  Xác nhận lại
+                </button>
+              </div>
+            )}
+
             <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.2rem' }}>
               <button
                 type="button"
                 onClick={() => {
-                  onMutationDataChange({ ...mutationData, matchConfirmed: true });
+                  const nowStr = new Date().toLocaleTimeString('vi-VN');
+                  onMutationDataChange({
+                    ...mutationData,
+                    activeProposalType: 'MATCH',
+                    matchConfirmed: true,
+                    isSubmitted: false,
+                    submittedAt: nowStr,
+                  });
                   if (onToastMessage) {
-                    onToastMessage(`Đã xác nhận thửa ${parcelData.projectParcelCode} khớp ranh 100% vào hồ sơ!`);
+                    onToastMessage(`✓ Đã xác nhận thửa ${parcelData.projectParcelCode} khớp ranh 100%!`);
                   }
                 }}
                 className="btn btn-primary btn-sm"
                 style={{
-                  backgroundColor: '#16a34a',
-                  borderColor: '#16a34a',
+                  backgroundColor: (mutationData.activeProposalType === 'MATCH' && mutationData.matchConfirmed) ? '#059669' : '#16a34a',
+                  borderColor: (mutationData.activeProposalType === 'MATCH' && mutationData.matchConfirmed) ? '#059669' : '#16a34a',
                   display: 'flex',
                   alignItems: 'center',
                   gap: '0.35rem',
                   fontSize: '0.75rem',
                   fontWeight: 700,
-                  padding: '0.35rem 0.75rem',
+                  padding: '0.4rem 0.85rem',
+                  boxShadow: (mutationData.activeProposalType === 'MATCH' && mutationData.matchConfirmed) ? '0 0 0 3px rgba(16, 185, 129, 0.25)' : 'none',
                 }}
               >
-                <Check size={14} />
-                <span>Xác nhận Khớp ranh 100%</span>
+                {(mutationData.activeProposalType === 'MATCH' && mutationData.matchConfirmed) ? <CheckCircle2 size={15} /> : <Check size={14} />}
+                <span>{(mutationData.activeProposalType === 'MATCH' && mutationData.matchConfirmed) ? '✓ ĐÃ XÁC NHẬN KHỚP RANH 100%' : 'Xác nhận Khớp ranh 100%'}</span>
               </button>
             </div>
           </div>
@@ -1135,7 +1245,7 @@ export const CadastralGISBoundaryEditor: React.FC<Props> = ({
               <span>Biên Tập Phân Tách Thửa Đất (2 Màu: Căn Đang KS & Đất Còn Dư)</span>
               <HelpBadge
                 title="Hướng dẫn Tách thửa"
-                content="Option 1: Kéo nắn các điểm mút trên ranh thực tế. Option 2: Chấm trực tiếp các điểm trên bản đồ để nối thành đa giác ngôi nhà mới (nhà chữ L, đa giác tự do). Phần diện tích còn dư tự động tính cho ô thứ 2."
+                content="Option 1: Chấm trực tiếp các điểm trên bản đồ, các điểm tự link lại để tạo diện tích cho mảnh đất (nhà chữ L, đa giác tự do). Option 2: Điều chỉnh kéo nắn các điểm mút polygon. Phần diện tích còn dư tự động tính cho ô thứ 2."
               />
             </div>
             <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center' }}>
@@ -1161,42 +1271,17 @@ export const CadastralGISBoundaryEditor: React.FC<Props> = ({
             </div>
           </div>
 
-          {/* BỘ CHỌN 2 OPTION BIÊN TẬP TÁCH THỬA */}
+          {/* BỘ CHỌN 2 OPTION BIÊN TẬP TÁCH THỬA (OPTION 1: CHẤM ĐIỂM, OPTION 2: KÉO NẮN ĐIỂM) */}
           <div style={{ display: 'flex', gap: '0.45rem' }}>
             <button
               type="button"
               onClick={() => {
-                setSplitShapeOption('DRAG_HANDLES');
-                onMutationDataChange({ ...mutationData, splitShapeOption: 'DRAG_HANDLES' });
-              }}
-              style={{
-                flex: 1,
-                padding: '0.45rem 0.65rem',
-                borderRadius: '0.5rem',
-                fontSize: '0.725rem',
-                fontWeight: splitShapeOption === 'DRAG_HANDLES' ? 800 : 600,
-                backgroundColor: splitShapeOption === 'DRAG_HANDLES' ? '#ea580c' : '#f8fafc',
-                color: splitShapeOption === 'DRAG_HANDLES' ? '#ffffff' : '#475569',
-                border: splitShapeOption === 'DRAG_HANDLES' ? 'none' : '1px solid #cbd5e1',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '0.35rem',
-              }}
-            >
-              <Move size={15} /> Option 1: Kéo nắn các điểm mút polygon
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
                 setSplitShapeOption('CLICK_TO_DRAW');
-                onMutationDataChange({ ...mutationData, splitShapeOption: 'CLICK_TO_DRAW' });
+                onMutationDataChange({ ...mutationData, splitShapeOption: 'CLICK_TO_DRAW', isSubmitted: false });
               }}
               style={{
                 flex: 1,
-                padding: '0.45rem 0.65rem',
+                padding: '0.5rem 0.65rem',
                 borderRadius: '0.5rem',
                 fontSize: '0.725rem',
                 fontWeight: splitShapeOption === 'CLICK_TO_DRAW' ? 800 : 600,
@@ -1208,9 +1293,36 @@ export const CadastralGISBoundaryEditor: React.FC<Props> = ({
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: '0.35rem',
+                boxShadow: splitShapeOption === 'CLICK_TO_DRAW' ? '0 2px 4px rgba(234, 88, 12, 0.2)' : 'none',
               }}
             >
-              <MousePointer size={15} /> Option 2: Chấm điểm vẽ đường bao (Nhà chữ L)
+              <MousePointer size={15} /> Option 1: Chấm các điểm (Tự link tạo diện tích)
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setSplitShapeOption('DRAG_HANDLES');
+                onMutationDataChange({ ...mutationData, splitShapeOption: 'DRAG_HANDLES', isSubmitted: false });
+              }}
+              style={{
+                flex: 1,
+                padding: '0.5rem 0.65rem',
+                borderRadius: '0.5rem',
+                fontSize: '0.725rem',
+                fontWeight: splitShapeOption === 'DRAG_HANDLES' ? 800 : 600,
+                backgroundColor: splitShapeOption === 'DRAG_HANDLES' ? '#ea580c' : '#f8fafc',
+                color: splitShapeOption === 'DRAG_HANDLES' ? '#ffffff' : '#475569',
+                border: splitShapeOption === 'DRAG_HANDLES' ? 'none' : '1px solid #cbd5e1',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.35rem',
+                boxShadow: splitShapeOption === 'DRAG_HANDLES' ? '0 2px 4px rgba(234, 88, 12, 0.2)' : 'none',
+              }}
+            >
+              <Move size={15} /> Option 2: Điều chỉnh các điểm (Kéo di chuyển chấm)
             </button>
           </div>
 
@@ -1228,10 +1340,46 @@ export const CadastralGISBoundaryEditor: React.FC<Props> = ({
               border: '1px dashed #fdba74',
             }}
           >
-            {splitShapeOption === 'DRAG_HANDLES' ? (
+            {splitShapeOption === 'CLICK_TO_DRAW' ? (
               <>
                 <div style={{ fontSize: '0.725rem', color: '#9a3412', fontWeight: 700 }}>
-                  Kéo trực tiếp các điểm mút tròn (1, 2, 3...) trên bản đồ để nắn lại ranh căn nhà:
+                  Option 1: Nhấp trên bản đồ để chấm các đỉnh ranh ({polyAVertices.length} điểm đã chấm):
+                </div>
+                <div style={{ display: 'flex', gap: '0.25rem' }}>
+                  <button
+                    type="button"
+                    onClick={handleApplyLShape}
+                    className="btn btn-secondary btn-sm"
+                    style={{ fontSize: '0.675rem', padding: '0.2rem 0.45rem', display: 'flex', alignItems: 'center', gap: '0.2rem', backgroundColor: '#fed7aa', color: '#9a3412', fontWeight: 700 }}
+                  >
+                    Mẫu chữ L
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleRemovePoint}
+                    disabled={polyAVertices.length === 0}
+                    className="btn btn-secondary btn-sm"
+                    style={{ fontSize: '0.675rem', padding: '0.2rem 0.45rem', display: 'flex', alignItems: 'center', gap: '0.2rem' }}
+                  >
+                    <Undo size={11} /> Hoàn tác
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPolyAVertices([]);
+                      onMutationDataChange({ ...mutationData, splitCustomPointsA: [], isSubmitted: false });
+                    }}
+                    className="btn btn-secondary btn-sm"
+                    style={{ fontSize: '0.675rem', padding: '0.2rem 0.45rem', display: 'flex', alignItems: 'center', gap: '0.2rem', color: '#dc2626' }}
+                  >
+                    <Trash2 size={11} /> Xóa vẽ lại (0 điểm)
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div style={{ fontSize: '0.725rem', color: '#9a3412', fontWeight: 700 }}>
+                  Option 2: Kéo trực tiếp các điểm mút tròn (1, 2, 3...) để khớp với thực tế:
                 </div>
                 <div style={{ display: 'flex', gap: '0.25rem' }}>
                   <button
@@ -1257,43 +1405,7 @@ export const CadastralGISBoundaryEditor: React.FC<Props> = ({
                     className="btn btn-secondary btn-sm"
                     style={{ fontSize: '0.675rem', padding: '0.2rem 0.45rem', display: 'flex', alignItems: 'center', gap: '0.2rem' }}
                   >
-                    <RefreshCw size={11} /> Mặc định
-                  </button>
-                </div>
-              </>
-            ) : (
-              <>
-                <div style={{ fontSize: '0.725rem', color: '#9a3412', fontWeight: 700 }}>
-                  Chấm các điểm trên bản đồ để tự động nối thành hình dạng mới ({polyAVertices.length} điểm):
-                </div>
-                <div style={{ display: 'flex', gap: '0.25rem' }}>
-                  <button
-                    type="button"
-                    onClick={handleApplyLShape}
-                    className="btn btn-secondary btn-sm"
-                    style={{ fontSize: '0.675rem', padding: '0.2rem 0.45rem', display: 'flex', alignItems: 'center', gap: '0.2rem', backgroundColor: '#fed7aa', color: '#9a3412', fontWeight: 700 }}
-                  >
-                    Mẫu chữ L
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleRemovePoint}
-                    disabled={polyAVertices.length === 0}
-                    className="btn btn-secondary btn-sm"
-                    style={{ fontSize: '0.675rem', padding: '0.2rem 0.45rem', display: 'flex', alignItems: 'center', gap: '0.2rem' }}
-                  >
-                    <Undo size={11} /> Hoàn tác
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPolyAVertices([]);
-                      onMutationDataChange({ ...mutationData, splitCustomPointsA: [] });
-                    }}
-                    className="btn btn-secondary btn-sm"
-                    style={{ fontSize: '0.675rem', padding: '0.2rem 0.45rem', display: 'flex', alignItems: 'center', gap: '0.2rem', color: '#dc2626' }}
-                  >
-                    <Trash2 size={11} /> Xóa vẽ lại
+                    <RefreshCw size={11} /> Khôi phục mặc định
                   </button>
                 </div>
               </>
@@ -1314,14 +1426,15 @@ export const CadastralGISBoundaryEditor: React.FC<Props> = ({
             <MapContainer
               center={activeCentroid}
               zoom={18}
+              maxZoom={22}
               zoomControl={false}
               style={{ width: '100%', height: '100%' }}
-              scrollWheelZoom={false}
+              scrollWheelZoom={true}
             >
               <MapBoundsController coords={realActiveCoords} zoom={18} />
               <ZoomControl position="bottomright" />
 
-              {/* Click listener for Option 2 */}
+              {/* Click listener for Option 1: Chấm điểm */}
               <MapClickListener
                 enabled={splitShapeOption === 'CLICK_TO_DRAW'}
                 onMapClick={handleMapClickDraw}
@@ -1331,13 +1444,15 @@ export const CadastralGISBoundaryEditor: React.FC<Props> = ({
                 <TileLayer
                   attribution="Esri World Imagery"
                   url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-                  maxZoom={19}
+                  maxNativeZoom={19}
+                  maxZoom={22}
                 />
               ) : (
                 <TileLayer
                   attribution="OpenStreetMap"
                   url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                  maxZoom={19}
+                  maxNativeZoom={19}
+                  maxZoom={22}
                 />
               )}
 
@@ -1359,7 +1474,7 @@ export const CadastralGISBoundaryEditor: React.FC<Props> = ({
                 </Tooltip>
               </Polygon>
 
-              {/* CĂN A ĐANG KHẢO SÁT (MÀU 1 - VÀNG HỔ PHÁCH): ĐA GIÁC ĐƯỢC NẮN / CHẤM ĐIỂM */}
+              {/* CĂN A ĐANG KHẢO SÁT (MÀU 1 - VÀNG HỔ PHÁCH): ĐA GIÁC ĐƯỢC CHẤM / NẮN ĐIỂM */}
               {polyAVertices.length >= 3 && (
                 <Polygon
                   positions={polyAVertices}
@@ -1378,15 +1493,15 @@ export const CadastralGISBoundaryEditor: React.FC<Props> = ({
                 </Polygon>
               )}
 
-              {/* Polyline preview khi đang chấm < 3 điểm ở Option 2 */}
-              {polyAVertices.length > 0 && polyAVertices.length < 3 && (
+              {/* Polyline preview khi đang chấm < 3 điểm ở Option 1 */}
+              {polyAVertices.length > 0 && (
                 <Polyline
                   positions={polyAVertices}
-                  pathOptions={{ color: '#d97706', weight: 4, dashArray: '4, 4' }}
+                  pathOptions={{ color: '#d97706', weight: 4, dashArray: polyAVertices.length < 3 ? '4, 4' : undefined }}
                 />
               )}
 
-              {/* DRAGGABLE VERTEX HANDLES TRONG OPTION 1 */}
+              {/* DRAGGABLE VERTEX HANDLES TRONG OPTION 2 */}
               {splitShapeOption === 'DRAG_HANDLES' &&
                 polyAVertices.map((vertex, idx) => (
                   <Marker
@@ -1402,7 +1517,7 @@ export const CadastralGISBoundaryEditor: React.FC<Props> = ({
                   />
                 ))}
 
-              {/* MARKER CHẤM ĐIỂM TRONG OPTION 2 */}
+              {/* MARKER CHẤM ĐIỂM TRONG OPTION 1 */}
               {splitShapeOption === 'CLICK_TO_DRAW' &&
                 polyAVertices.map((vertex, idx) => (
                   <Marker
@@ -1412,6 +1527,34 @@ export const CadastralGISBoundaryEditor: React.FC<Props> = ({
                   />
                 ))}
             </MapContainer>
+
+            {/* Hướng dẫn khi chưa có điểm nào ở Option 1 */}
+            {splitShapeOption === 'CLICK_TO_DRAW' && polyAVertices.length === 0 && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '12px',
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  zIndex: 800,
+                  backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                  color: '#c2410c',
+                  padding: '0.35rem 0.85rem',
+                  borderRadius: '0.5rem',
+                  fontSize: '0.725rem',
+                  fontWeight: 700,
+                  border: '1.5px solid #fdba74',
+                  boxShadow: '0 2px 6px rgba(0,0,0,0.1)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                <MousePointer size={14} color="#ea580c" />
+                <span>👉 Hãy nhấp lên bản đồ để chấm các đỉnh ranh giới Căn A (Cần ít nhất 3 điểm để tạo thành mảnh đất)</span>
+              </div>
+            )}
 
             {/* Clean Floating Legend (Không che tâm thửa đất) */}
             <div
@@ -1443,7 +1586,7 @@ export const CadastralGISBoundaryEditor: React.FC<Props> = ({
             </div>
           </div>
 
-          {/* PHÂN LOẠI CÔNG NĂNG CHO Ô CÒN DƯ (MÀU 2) */}
+          {/* PHÂN LOẠI CÔNG NĂNG CHO Ô CÒN DƯ (MÀU 2) - CÓ MỤC KHÁC CHO PHÉP NHẬP */}
           <div
             style={{
               backgroundColor: '#ffffff',
@@ -1467,10 +1610,15 @@ export const CadastralGISBoundaryEditor: React.FC<Props> = ({
               </label>
             </div>
 
+            {/* List sổ chọn công năng ô còn dư */}
             <select
               className="form-control"
               style={{ fontSize: '0.75rem', fontWeight: 600, backgroundColor: '#fff7ed', border: '1.5px solid #fdba74', color: '#9a3412' }}
-              value={mutationData.splitChildren?.[1]?.functionalType || 'RESIDUAL_SURPLUS'}
+              value={
+                RESIDUAL_FUNCTION_OPTIONS.some((opt) => opt.value === (mutationData.splitChildren?.[1]?.functionalType || 'RESIDUAL_SURPLUS'))
+                  ? (mutationData.splitChildren?.[1]?.functionalType || 'RESIDUAL_SURPLUS')
+                  : 'OTHER'
+              }
               onChange={(e) => {
                 const val = e.target.value;
                 const isSurplus = val === 'RESIDUAL_SURPLUS';
@@ -1485,6 +1633,7 @@ export const CadastralGISBoundaryEditor: React.FC<Props> = ({
                     functionalType: 'Nhà ở gia đình (Nhà phố / Biệt thự / Căn hộ)',
                   };
                 }
+                const finalType = val === 'OTHER' ? (customResidualType || 'Khác: ') : val;
                 updatedChildren[1] = {
                   ...(updatedChildren[1] || {
                     label: 'Căn B (Phần còn dư)',
@@ -1493,103 +1642,185 @@ export const CadastralGISBoundaryEditor: React.FC<Props> = ({
                     suggestedCode: dynamicCodes[1] || 'B-00109',
                   }),
                   areaM2: calculatedAreaB,
-                  functionalType: val,
+                  functionalType: finalType,
                   isResidualSurplus: isSurplus,
                   residualParentParcelCode: parcelData.projectParcelCode,
                   residualParentCadastralCode: parcelData.officialCadastralCode,
                   residualParentAddress: `Số ${parcelData.houseNumber} ${parcelData.street}`,
                   residualMetadataNote: isSurplus
                     ? `Đất thừa dôi dư tách từ thửa ${parcelData.projectParcelCode}`
-                    : `Lô đất phân tách công năng [${val}] từ thửa gốc ${parcelData.projectParcelCode}`,
+                    : `Lô đất phân tách công năng [${finalType}] từ thửa gốc ${parcelData.projectParcelCode}`,
                 };
 
                 onMutationDataChange({
                   ...mutationData,
                   splitChildren: updatedChildren,
+                  isSubmitted: false,
                 });
               }}
             >
-              <option value="RESIDUAL_SURPLUS">1. Đất thừa / Sai số biên ranh (Mặc định - Lưu metadata truy xuất)</option>
-              {SYSTEM_USE_CATEGORIES.map((cat, idx) => (
-                <option key={cat} value={cat}>
-                  {idx + 2}. {cat}
+              {RESIDUAL_FUNCTION_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
                 </option>
               ))}
             </select>
+
+            {/* Ô nhập text tự do khi chọn KHÁC ở công năng ô còn dư */}
+            {(mutationData.splitChildren?.[1]?.functionalType === 'OTHER' ||
+              (mutationData.splitChildren?.[1]?.functionalType &&
+                !RESIDUAL_FUNCTION_OPTIONS.some((o) => o.value === mutationData.splitChildren?.[1]?.functionalType))) && (
+              <div style={{ marginTop: '0.2rem' }}>
+                <input
+                  type="text"
+                  className="form-control"
+                  style={{ fontSize: '0.75rem', backgroundColor: '#ffffff', border: '1px solid #fdba74' }}
+                  placeholder="Nhập cụ thể công năng sử dụng của ô đất còn dư..."
+                  value={customResidualType || mutationData.splitChildren?.[1]?.functionalType || ''}
+                  onChange={(e) => {
+                    const text = e.target.value;
+                    setCustomResidualType(text);
+                    const updatedChildren = [...(mutationData.splitChildren || [])];
+                    if (updatedChildren[1]) {
+                      updatedChildren[1] = {
+                        ...updatedChildren[1],
+                        functionalType: text,
+                        residualMetadataNote: `Công năng khác: ${text}`,
+                      };
+                      onMutationDataChange({
+                        ...mutationData,
+                        splitChildren: updatedChildren,
+                        isSubmitted: false,
+                      });
+                    }
+                  }}
+                />
+              </div>
+            )}
           </div>
 
-          {/* LÝ DO CHIA TÁCH THỬA ĐẤT THỰC TẾ: Ô TRỐNG + CÁC PILL TAG GỢI Ý NHANH DƯỚI */}
+          {/* LÝ DO CHIA TÁCH THỬA ĐẤT THỰC TẾ: LIST SỔ CHỌN + MỤC KHÁC CHO NHẬP */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
             <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#334155', margin: 0, display: 'flex', alignItems: 'center' }}>
               Lý do chia tách thửa đất thực tế:
               <HelpBadge
                 title="Lý do tách thửa"
-                content="Nhập diễn giải cụ thể hoặc bấm nhanh các tùy chọn phổ biến bên dưới để điền trực tiếp vào biên bản."
+                content="Chọn lý do phổ biến trong danh sách sổ chọn hoặc chọn 'Khác' để nhập chi tiết lý do phân chia thực tế."
               />
             </label>
 
-            <input
-              type="text"
+            <select
               className="form-control"
-              style={{ fontSize: '0.775rem' }}
-              placeholder=""
-              value={mutationData.splitReason || ''}
-              onChange={(e) => onMutationDataChange({ ...mutationData, splitReason: e.target.value })}
-            />
+              style={{ fontSize: '0.75rem', fontWeight: 600, backgroundColor: '#ffffff', border: '1.5px solid #cbd5e1' }}
+              value={
+                COMMON_SPLIT_REASONS.includes(mutationData.splitReason || '')
+                  ? (mutationData.splitReason || '')
+                  : (mutationData.splitReason ? 'OTHER' : '')
+              }
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === 'OTHER') {
+                  onMutationDataChange({
+                    ...mutationData,
+                    splitReason: customSplitReason ? `Khác: ${customSplitReason}` : 'Khác: ',
+                    isSubmitted: false,
+                  });
+                } else {
+                  onMutationDataChange({
+                    ...mutationData,
+                    splitReason: val,
+                    isSubmitted: false,
+                  });
+                }
+              }}
+            >
+              <option value="">-- Chọn lý do chia tách thửa đất thực tế --</option>
+              {COMMON_SPLIT_REASONS.map((r, i) => (
+                <option key={r} value={r}>
+                  {i + 1}. {r}
+                </option>
+              ))}
+              <option value="OTHER">7. Khác (Nhập lý do thực tế...)</option>
+            </select>
 
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.3rem', marginTop: '0.15rem' }}>
-              {COMMON_SPLIT_REASONS.map((reasonText) => {
-                const isSelected = mutationData.splitReason === reasonText;
-                return (
-                  <button
-                    key={reasonText}
-                    type="button"
-                    onClick={() => onMutationDataChange({ ...mutationData, splitReason: reasonText })}
-                    style={{
-                      backgroundColor: isSelected ? '#fed7aa' : '#f8fafc',
-                      border: isSelected ? '1px solid #ea580c' : '1px solid #e2e8f0',
-                      borderRadius: '0.4rem',
-                      padding: '0.25rem 0.5rem',
-                      fontSize: '0.675rem',
-                      color: isSelected ? '#9a3412' : '#475569',
-                      fontWeight: isSelected ? 700 : 500,
-                      cursor: 'pointer',
-                      textAlign: 'left',
-                      transition: 'all 0.15s ease',
-                    }}
-                  >
-                    + {reasonText}
-                  </button>
-                );
-              })}
-            </div>
+            {/* Ô nhập lý do khác khi chọn OTHER */}
+            {(mutationData.splitReason?.startsWith('Khác') ||
+              (mutationData.splitReason && !COMMON_SPLIT_REASONS.includes(mutationData.splitReason))) && (
+              <div style={{ marginTop: '0.15rem' }}>
+                <input
+                  type="text"
+                  className="form-control"
+                  style={{ fontSize: '0.75rem', border: '1px solid #fdba74' }}
+                  placeholder="Nhập lý do chia tách thực tế tại hiện trường..."
+                  value={
+                    customSplitReason ||
+                    (mutationData.splitReason.startsWith('Khác: ')
+                      ? mutationData.splitReason.replace('Khác: ', '')
+                      : mutationData.splitReason)
+                  }
+                  onChange={(e) => {
+                    const text = e.target.value;
+                    setCustomSplitReason(text);
+                    onMutationDataChange({
+                      ...mutationData,
+                      splitReason: text ? `Khác: ${text}` : 'Khác: ',
+                      isSubmitted: false,
+                    });
+                  }}
+                />
+              </div>
+            )}
           </div>
 
-          {/* NÚT GỬI ĐỀ XUẤT TÁCH THỬA */}
+          {/* Phản hồi trực quan sau khi đề xuất tách thửa (chỉ hiện khi là đề xuất SPLIT gần nhất) */}
+          {mutationData.activeProposalType === 'SPLIT' && mutationData.isSubmitted && (
+            <div
+              style={{
+                backgroundColor: '#ecfdf5',
+                border: '1.5px solid #10b981',
+                borderRadius: '0.5rem',
+                padding: '0.55rem 0.75rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                color: '#065f46',
+                fontSize: '0.725rem',
+                fontWeight: 700,
+              }}
+            >
+              <CheckCircle2 size={16} color="#059669" />
+              <span>
+                ✓ Đã lưu tạm cấu hình tách thửa vào hồ sơ thửa ban đầu {parcelData.projectParcelCode} ({mutationData.submittedAt}). Đề xuất được lưu trong hồ sơ thửa ban đầu.
+              </span>
+            </div>
+          )}
+
+          {/* NÚT LƯU ĐỀ XUẤT TÁCH THỬA (CÓ HIỆU ỨNG PHẢN HỒI) */}
           <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.2rem' }}>
             <button
               type="button"
               className="btn btn-primary btn-sm"
-              onClick={handleSubmitMutation}
+              onClick={handleSaveMutationProposal}
               disabled={isSubmittingMutation}
               style={{
-                backgroundColor: mutationData.isSubmitted ? '#16a34a' : '#ea580c',
-                borderColor: mutationData.isSubmitted ? '#16a34a' : '#ea580c',
+                backgroundColor: (mutationData.activeProposalType === 'SPLIT' && mutationData.isSubmitted) ? '#16a34a' : '#ea580c',
+                borderColor: (mutationData.activeProposalType === 'SPLIT' && mutationData.isSubmitted) ? '#16a34a' : '#ea580c',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '0.35rem',
                 fontSize: '0.75rem',
                 fontWeight: 700,
-                padding: '0.35rem 0.85rem',
+                padding: '0.4rem 0.95rem',
+                boxShadow: (mutationData.activeProposalType === 'SPLIT' && mutationData.isSubmitted) ? '0 0 0 3px rgba(22, 163, 74, 0.25)' : 'none',
               }}
             >
-              <CheckCircle size={14} />
+              {(mutationData.activeProposalType === 'SPLIT' && mutationData.isSubmitted) ? <CheckCircle2 size={15} /> : <CheckCircle size={14} />}
               <span>
                 {isSubmittingMutation
-                  ? 'Đang gửi...'
-                  : mutationData.isSubmitted
-                  ? `Đã gửi đề xuất (${mutationData.submittedAt})`
-                  : 'Gửi đề xuất Tách thửa'}
+                  ? 'Đang lưu...'
+                  : (mutationData.activeProposalType === 'SPLIT' && mutationData.isSubmitted)
+                  ? `✓ ĐÃ GHI NHẬN ĐỀ XUẤT TÁCH THỬA (${mutationData.submittedAt})`
+                  : 'Lưu đề xuất Tách thửa'}
               </span>
             </button>
           </div>
@@ -1638,6 +1869,7 @@ export const CadastralGISBoundaryEditor: React.FC<Props> = ({
             <MapContainer
               center={activeCentroid}
               zoom={17}
+              maxZoom={22}
               zoomControl={false}
               style={{ width: '100%', height: '100%' }}
               scrollWheelZoom={true}
@@ -1648,42 +1880,54 @@ export const CadastralGISBoundaryEditor: React.FC<Props> = ({
               <TileLayer
                 attribution="OpenStreetMap"
                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                maxZoom={19}
+                maxNativeZoom={19}
+                maxZoom={22}
               />
 
+              {/* 1. THỬA ĐANG KHẢO SÁT (THỬA GỐC) - HIGHLIGHT NỔI BẬT ĐẶC BIỆT */}
+              <Polygon
+                positions={realActiveCoords}
+                pathOptions={{
+                  color: '#b45309',
+                  fillColor: '#f59e0b',
+                  fillOpacity: 0.65,
+                  weight: 5,
+                }}
+              >
+                <Tooltip permanent direction="center">
+                  <div style={{ textAlign: 'center', fontWeight: 900, color: '#7c2d12', fontSize: '0.725rem', textShadow: '0 1px 2px #fff' }}>
+                    ⭐ THỬA GỐC ĐANG KS<br />
+                    <span style={{ fontSize: '0.825rem', color: '#b45309' }}>{parcelData.projectParcelCode}</span> ({totalLandArea} m²)
+                  </div>
+                </Tooltip>
+              </Polygon>
+
+              {/* 2. CÁC THỬA LÂN CẬN XUNG QUANH (CLICK ĐỂ GỘP/BỎ GỘP) */}
               {tenClosestParcels.map((neighbor) => {
-                const isActive = neighbor.projectParcelCode === parcelData.projectParcelCode;
                 const isSelectedMerge = selectedMergeCodes.includes(neighbor.projectParcelCode);
 
                 return (
                   <Polygon
-                    key={neighbor.id}
+                    key={neighbor.id || neighbor.projectParcelCode}
                     positions={neighbor.coordinates}
                     pathOptions={{
-                      color: isActive
-                        ? '#0284c7'
-                        : isSelectedMerge
-                        ? '#16a34a'
-                        : '#94a3b8',
-                      fillColor: isActive
-                        ? '#38bdf8'
-                        : isSelectedMerge
-                        ? '#4ade80'
-                        : '#cbd5e1',
-                      fillOpacity: isActive ? 0.85 : isSelectedMerge ? 0.75 : 0.35,
-                      weight: isActive ? 4.5 : isSelectedMerge ? 3.5 : 1.5,
-                      dashArray: isActive ? 'none' : isSelectedMerge ? 'none' : '4, 2',
+                      color: isSelectedMerge ? '#047857' : '#475569',
+                      fillColor: isSelectedMerge ? '#10b981' : '#cbd5e1',
+                      fillOpacity: isSelectedMerge ? 0.75 : 0.3,
+                      weight: isSelectedMerge ? 4 : 2,
+                      dashArray: isSelectedMerge ? undefined : '5, 4',
                     }}
                     eventHandlers={{
                       click: () => {
-                        if (isActive) return;
                         handleToggleMergeParcel(neighbor.projectParcelCode);
                       },
                     }}
                   >
                     <Tooltip direction="top" opacity={0.95}>
                       <div style={{ fontSize: '0.725rem', fontWeight: 800 }}>
-                        {neighbor.projectParcelCode} {isSelectedMerge ? '(Chọn gộp)' : ''}<br />
+                        {isSelectedMerge ? '✓ ĐÃ CHỌN GỘP: ' : 'Thửa lân cận: '}
+                        <strong style={{ color: isSelectedMerge ? '#047857' : '#1e293b' }}>{neighbor.projectParcelCode}</strong>
+                        {isSelectedMerge ? <span style={{ color: '#047857' }}> (Bấm để hủy)</span> : <span style={{ color: '#2563eb' }}> (Bấm để gộp)</span>}<br />
                         <span style={{ fontSize: '0.65rem', fontWeight: 500 }}>
                           Số {neighbor.houseNumber} {neighbor.street}
                         </span>
@@ -1694,27 +1938,37 @@ export const CadastralGISBoundaryEditor: React.FC<Props> = ({
               })}
             </MapContainer>
 
+            {/* Chú giải trực quan phân biệt thửa gốc và các thửa lân cận */}
             <div
               style={{
                 position: 'absolute',
                 top: '8px',
                 left: '8px',
                 zIndex: 800,
-                backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                color: '#0369a1',
-                padding: '0.25rem 0.55rem',
-                borderRadius: '0.45rem',
+                backgroundColor: 'rgba(255, 255, 255, 0.96)',
+                padding: '0.35rem 0.65rem',
+                borderRadius: '0.5rem',
                 fontSize: '0.675rem',
-                fontWeight: 700,
-                border: '1px solid #bae6fd',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.08)',
+                border: '1px solid #cbd5e1',
+                boxShadow: '0 2px 6px rgba(0,0,0,0.1)',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '0.3rem',
+                gap: '0.75rem',
+                flexWrap: 'wrap',
               }}
             >
-              <Sparkles size={12} color="#0284c7" />
-              <span>Thửa {parcelData.projectParcelCode} đang sáng đèn | Bấm các ô liền kề để gộp</span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', color: '#b45309', fontWeight: 800 }}>
+                <span style={{ display: 'inline-block', width: '12px', height: '12px', backgroundColor: '#f59e0b', border: '2px solid #b45309', borderRadius: '2px' }} />
+                Thửa gốc đang KS ({parcelData.projectParcelCode})
+              </span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', color: '#047857', fontWeight: 700 }}>
+                <span style={{ display: 'inline-block', width: '12px', height: '12px', backgroundColor: '#10b981', border: '2px solid #047857', borderRadius: '2px' }} />
+                Đã chọn gộp ({selectedMergeCodes.length})
+              </span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', color: '#64748b' }}>
+                <span style={{ display: 'inline-block', width: '12px', height: '12px', backgroundColor: '#e2e8f0', border: '1px dashed #475569', borderRadius: '2px' }} />
+                Thửa lân cận (Click để gộp)
+              </span>
             </div>
           </div>
 
@@ -1799,43 +2053,121 @@ export const CadastralGISBoundaryEditor: React.FC<Props> = ({
               Lý do gộp thửa:
               <HelpBadge
                 title="Lý do gộp thửa"
-                content="Nhập lý do công trình xây dựng hợp khối trên nhiều thửa đất thực tế."
+                content="Chọn lý do phổ biến trong danh sách sổ chọn hoặc chọn 'Khác' để nhập chi tiết lý do công trình xây dựng hợp khối nhiều thửa."
               />
             </label>
-            <input
-              type="text"
+            <select
               className="form-control"
-              style={{ fontSize: '0.775rem', marginTop: '0.15rem' }}
-              placeholder=""
-              value={mutationData.mergeReason || ''}
-              onChange={(e) => onMutationDataChange({ ...mutationData, mergeReason: e.target.value })}
-            />
+              style={{ fontSize: '0.75rem', fontWeight: 600, backgroundColor: '#ffffff', border: '1.5px solid #cbd5e1', marginTop: '0.2rem' }}
+              value={
+                COMMON_MERGE_REASONS.includes(mutationData.mergeReason || '')
+                  ? (mutationData.mergeReason || '')
+                  : (mutationData.mergeReason ? 'OTHER' : '')
+              }
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === 'OTHER') {
+                  onMutationDataChange({
+                    ...mutationData,
+                    mergeReason: customMergeReason ? `Khác: ${customMergeReason}` : 'Khác: ',
+                    isSubmitted: false,
+                  });
+                } else {
+                  onMutationDataChange({
+                    ...mutationData,
+                    mergeReason: val,
+                    isSubmitted: false,
+                  });
+                }
+              }}
+            >
+              <option value="">-- Chọn lý do gộp thửa thực tế --</option>
+              {COMMON_MERGE_REASONS.map((r, i) => (
+                <option key={r} value={r}>
+                  {i + 1}. {r}
+                </option>
+              ))}
+              <option value="OTHER">5. Khác (Nhập lý do thực tế...)</option>
+            </select>
+
+            {/* Ô nhập lý do khác khi chọn OTHER ở Gộp thửa */}
+            {(mutationData.mergeReason?.startsWith('Khác') ||
+              (mutationData.mergeReason && !COMMON_MERGE_REASONS.includes(mutationData.mergeReason))) && (
+              <div style={{ marginTop: '0.2rem' }}>
+                <input
+                  type="text"
+                  className="form-control"
+                  style={{ fontSize: '0.75rem', border: '1px solid #93c5fd' }}
+                  placeholder="Nhập lý do gộp thửa thực tế tại hiện trường..."
+                  value={
+                    customMergeReason ||
+                    (mutationData.mergeReason.startsWith('Khác: ')
+                      ? mutationData.mergeReason.replace('Khác: ', '')
+                      : mutationData.mergeReason)
+                  }
+                  onChange={(e) => {
+                    const text = e.target.value;
+                    setCustomMergeReason(text);
+                    onMutationDataChange({
+                      ...mutationData,
+                      mergeReason: text ? `Khác: ${text}` : 'Khác: ',
+                      isSubmitted: false,
+                    });
+                  }}
+                />
+              </div>
+            )}
           </div>
 
+          {/* Phản hồi trực quan sau khi đề xuất gộp thửa (chỉ hiện khi là đề xuất MERGE gần nhất) */}
+          {mutationData.activeProposalType === 'MERGE' && mutationData.isSubmitted && (
+            <div
+              style={{
+                backgroundColor: '#ecfdf5',
+                border: '1.5px solid #10b981',
+                borderRadius: '0.5rem',
+                padding: '0.55rem 0.75rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.4rem',
+                color: '#065f46',
+                fontSize: '0.725rem',
+                fontWeight: 700,
+              }}
+            >
+              <CheckCircle2 size={16} color="#059669" />
+              <span>
+                ✓ Đã lưu tạm đề xuất gộp {selectedMergeCodes.length + 1} thửa vào hồ sơ thửa ban đầu {parcelData.projectParcelCode} ({mutationData.submittedAt}). Đề xuất được lưu trong hồ sơ thửa ban đầu.
+              </span>
+            </div>
+          )}
+
+          {/* NÚT LƯU ĐỀ XUẤT GỘP THỬA (CÓ HIỆU ỨNG PHẢN HỒI) */}
           <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.2rem' }}>
             <button
               type="button"
               className="btn btn-primary btn-sm"
-              onClick={handleSubmitMutation}
+              onClick={handleSaveMutationProposal}
               disabled={isSubmittingMutation || selectedMergeCodes.length === 0}
               style={{
-                backgroundColor: mutationData.isSubmitted ? '#16a34a' : '#0284c7',
-                borderColor: mutationData.isSubmitted ? '#16a34a' : '#0284c7',
+                backgroundColor: (mutationData.activeProposalType === 'MERGE' && mutationData.isSubmitted) ? '#16a34a' : '#0284c7',
+                borderColor: (mutationData.activeProposalType === 'MERGE' && mutationData.isSubmitted) ? '#16a34a' : '#0284c7',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '0.35rem',
                 fontSize: '0.75rem',
                 fontWeight: 700,
-                padding: '0.35rem 0.85rem',
+                padding: '0.4rem 0.95rem',
+                boxShadow: (mutationData.activeProposalType === 'MERGE' && mutationData.isSubmitted) ? '0 0 0 3px rgba(22, 163, 74, 0.25)' : 'none',
               }}
             >
-              <CheckCircle size={14} />
+              {(mutationData.activeProposalType === 'MERGE' && mutationData.isSubmitted) ? <CheckCircle2 size={15} /> : <CheckCircle size={14} />}
               <span>
                 {isSubmittingMutation
-                  ? 'Đang gửi...'
-                  : mutationData.isSubmitted
-                  ? `Đã gửi đề xuất (${mutationData.submittedAt})`
-                  : `Gửi đề xuất Gộp ${selectedMergeCodes.length + 1} thửa`}
+                  ? 'Đang lưu...'
+                  : (mutationData.activeProposalType === 'MERGE' && mutationData.isSubmitted)
+                  ? `✓ ĐÃ GHI NHẬN ĐỀ XUẤT GỘP ${selectedMergeCodes.length + 1} THỬA (${mutationData.submittedAt})`
+                  : `Lưu đề xuất Gộp ${selectedMergeCodes.length + 1} thửa`}
               </span>
             </button>
           </div>

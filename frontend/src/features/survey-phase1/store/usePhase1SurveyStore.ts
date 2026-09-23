@@ -4,6 +4,7 @@ import { calculateEcsScore } from '../engine/ecsCalculator';
 import { calculateViScore } from '../engine/viCalculator';
 import { GisParcel, BuildingUnit } from '../../../core/types/domain.types';
 import { validateStep, validateAllSteps, MissingFieldItem } from '../utils/stepValidator';
+import { calculateParcelMetroSpatialMetrics } from '../utils/metroSpatialCalculator';
 
 export interface Phase1SurveyStore {
   currentStep: number;
@@ -74,7 +75,7 @@ export const getDefaultInitialFormData = (parcelId: string = ''): Phase1SurveyFo
   isEstimatedYear: false,
   structureSystem: 'RC - Khung BTCT toàn khối',
   foundationType: 'PC - Cọc ép BTCT',
-  pileDimensionMm: '250x250mm',
+  pileDimensionMm: '',
   asBuiltDrawingPhotoUrl: '',
   asBuiltDrawingFiles: [],
   foundationCatScore: 3,
@@ -107,7 +108,7 @@ export const getDefaultInitialFormData = (parcelId: string = ''): Phase1SurveyFo
     predominantGrade: 0,
     localMaxGrade: 0,
     governingZoneCode: 'Z-01',
-    governingZoneDescription: 'Mảng tường phòng khách',
+    governingZoneDescription: '',
     representativeness: 'GLOBAL',
     structuralFlagLevel: 'NONE',
     needStructuralEngineerReview: false,
@@ -240,11 +241,13 @@ export const usePhase1SurveyStore = create<Phase1SurveyStore>((set, get) => ({
       initialData.aboveFloors = parcel.floorCount;
     }
 
-    // Gán tọa độ thực tế của thửa đất từ Polygon GIS nếu chưa có trong bản nháp
+    // Tính toán trắc địa không gian chuẩn từ Polygon thửa đất (Phương án A)
     if (parcel.coordinates && parcel.coordinates.length > 0) {
-      const avgLat = parcel.coordinates.reduce((sum, c) => sum + c[0], 0) / parcel.coordinates.length;
-      const avgLng = parcel.coordinates.reduce((sum, c) => sum + c[1], 0) / parcel.coordinates.length;
-      initialData.gpsCoords = { lat: Number(avgLat.toFixed(6)), lng: Number(avgLng.toFixed(6)) };
+      const spatialMetrics = calculateParcelMetroSpatialMetrics(parcel.coordinates);
+      initialData.gpsCoords = spatialMetrics.centroid;
+      initialData.metroOffsetDistance = spatialMetrics.metroOffsetDistance;
+      initialData.clearanceOffsetDistance = spatialMetrics.clearanceOffsetDistance;
+      initialData.chainage = spatialMetrics.chainage;
     }
 
     // Tự động tính toán điểm ban đầu
@@ -260,26 +263,6 @@ export const usePhase1SurveyStore = create<Phase1SurveyStore>((set, get) => ({
       missingModal: null,
       lastSavedAt: new Date().toLocaleTimeString('vi-VN'),
     });
-
-    // Thử lấy toạ độ thực tế từ GPS của thiết bị nếu người dùng bật định vị
-    if ('geolocation' in navigator) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          const lat = Number(pos.coords.latitude.toFixed(6));
-          const lng = Number(pos.coords.longitude.toFixed(6));
-          const current = get().formData;
-          if (current.parcelId === parcel.id) {
-            set((state) => ({
-              formData: { ...state.formData, gpsCoords: { lat, lng } },
-            }));
-          }
-        },
-        (err) => {
-          console.warn('[SurveyPhase1Store] Live device GPS unavailable, using parcel center:', err);
-        },
-        { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
-      );
-    }
   },
 
   setCurrentStep: (step: number) => {
@@ -336,6 +319,10 @@ export const usePhase1SurveyStore = create<Phase1SurveyStore>((set, get) => ({
   proceedAnyway: () => {
     const { missingModal } = get();
     if (missingModal) {
+      const hasBlocking = missingModal.missingFields.some((f) => f.isBlocking);
+      if (hasBlocking) {
+        return;
+      }
       const target = missingModal.targetStep;
       get().saveDraftToStorage();
       set({ missingModal: null });

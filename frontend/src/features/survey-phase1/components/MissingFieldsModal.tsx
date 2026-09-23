@@ -102,14 +102,24 @@ export const MissingFieldsModal: React.FC<Props> = ({
 
         {/* Action Buttons */}
         <div className="bg-slate-50 border-t border-slate-200 p-4 sm:p-5 flex flex-col-reverse sm:flex-row items-center justify-end gap-2.5">
-          <button
-            type="button"
-            onClick={onProceedAnyway}
-            className="w-full sm:w-auto px-4 py-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 text-xs font-bold flex items-center justify-center gap-1.5 transition-colors"
-          >
-            <Save size={14} className="text-slate-500" />
-            <span>{isFinalSubmit ? 'Lưu nháp hồ sơ' : 'Lưu tạm & Chuyển bước'}</span>
-          </button>
+          {missingFields.some((f) => f.isBlocking) ? (
+            <div
+              className="w-full sm:w-auto px-4 py-2.5 rounded-xl border border-red-200 bg-red-50 text-red-700 text-xs font-bold flex items-center justify-center gap-1.5 cursor-not-allowed select-none"
+              title="Bắt buộc bổ sung đầy đủ các điểm chấm Z, E và khuyết tật D trước khi sang bước tiếp theo"
+            >
+              <AlertTriangle size={14} className="text-red-500" />
+              <span>Bắt buộc bổ sung mới được chuyển bước</span>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={onProceedAnyway}
+              className="w-full sm:w-auto px-4 py-2.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 text-xs font-bold flex items-center justify-center gap-1.5 transition-colors"
+            >
+              <Save size={14} className="text-slate-500" />
+              <span>{isFinalSubmit ? 'Lưu nháp hồ sơ' : 'Lưu tạm & Chuyển bước'}</span>
+            </button>
+          )}
 
           <button
             type="button"

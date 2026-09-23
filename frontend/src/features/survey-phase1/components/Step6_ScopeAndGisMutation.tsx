@@ -36,14 +36,23 @@ export const Step6_ScopeAndGisMutation: React.FC = () => {
   const [customRestrictedArea, setCustomRestrictedArea] = useState('');
   const [customMainReason, setCustomMainReason] = useState('');
 
-  // Danh sách tầng hiển thị trong phân rã hạn chế
-  const availableDecomposedFloors = [
-    'Tầng 1 (Lầu 1)',
-    'Tầng 2 (Lầu 2)',
-    'Tầng 3 (Lầu 3)',
-    'Tầng 4 (Lầu 4)',
-    ...Array.from({ length: extraFloorsCount }, (_, i) => `Tầng ${5 + i} (Lầu ${5 + i})`),
-  ];
+  // Tự động nhận diện danh sách tầng của công trình:
+  // - Các tầng đã có ở Bước 3 (formData.floors): đánh dấu isAlreadySurveyed = true
+  // - Các tầng cao hơn (dựa trên formData.aboveFloors và extraFloorsCount): isAlreadySurveyed = false cho phép chọn
+  const surveyedCount = formData.floors.length;
+  const totalBuildingFloorsCount = Math.max(formData.aboveFloors || 0, surveyedCount, 3) + extraFloorsCount;
+
+  const allBuildingFloors = Array.from({ length: totalBuildingFloorsCount }, (_, i) => {
+    const isAlreadySurveyed = i < surveyedCount;
+    const floorLabel = isAlreadySurveyed
+      ? formData.floors[i].floorName || `Tầng ${i + 1}`
+      : `Tầng ${i + 1} (Lầu ${i})`;
+    return {
+      index: i + 1,
+      label: floorLabel,
+      isAlreadySurveyed,
+    };
+  });
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto pb-12">
@@ -208,46 +217,44 @@ export const Step6_ScopeAndGisMutation: React.FC = () => {
                   </div>
 
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    {availableDecomposedFloors.map((floorLabel) => {
-                      const isAlreadySurveyed = formData.floors.some(
-                        (f) =>
-                          f.floorName.toLowerCase().includes(floorLabel.toLowerCase().slice(0, 6)) &&
-                          (f.zones.length > 0 || f.overviewPhotos.length > 0 || f.cadSketchPhotoUrl)
-                      );
-                      const isChecked = access.restrictedFloorLevels?.includes(floorLabel) || false;
+                    {allBuildingFloors.map((floorItem) => {
+                      const isSurveyed = floorItem.isAlreadySurveyed;
+                      const isChecked = access.restrictedFloorLevels?.includes(floorItem.label) || false;
 
                       return (
                         <label
-                          key={floorLabel}
-                          className={`flex items-center justify-between p-2 rounded-lg border text-xs select-none ${
-                            isAlreadySurveyed
-                              ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed'
+                          key={floorItem.label}
+                          className={`flex items-center justify-between p-2 rounded-lg border text-xs select-none transition-all ${
+                            isSurveyed
+                              ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed opacity-60'
                               : isChecked
-                              ? 'bg-amber-100 border-amber-400 font-bold text-amber-950 cursor-pointer'
+                              ? 'bg-amber-100 border-amber-400 font-bold text-amber-950 cursor-pointer shadow-xs'
                               : 'bg-white border-slate-200 text-slate-700 cursor-pointer hover:bg-slate-50'
                           }`}
                         >
                           <div className="flex items-center gap-1.5">
                             <input
                               type="checkbox"
-                              disabled={isAlreadySurveyed}
-                              checked={isAlreadySurveyed ? false : isChecked}
+                              disabled={isSurveyed}
+                              checked={isSurveyed ? false : isChecked}
                               onChange={(e) => {
                                 const cur = access.restrictedFloorLevels || [];
                                 const next = e.target.checked
-                                  ? [...cur, floorLabel]
-                                  : cur.filter((fl) => fl !== floorLabel);
+                                  ? [...cur, floorItem.label]
+                                  : cur.filter((fl) => fl !== floorItem.label);
                                 updateFormData({
                                   accessLimitation: { ...access, restrictedFloorLevels: next },
                                 });
                               }}
-                              className="rounded text-amber-600 focus:ring-amber-500"
+                              className="rounded text-amber-600 focus:ring-amber-500 disabled:opacity-50"
                             />
-                            <span>{floorLabel}</span>
+                            <span className={isSurveyed ? 'line-through text-slate-400' : ''}>
+                              {floorItem.label}
+                            </span>
                           </div>
-                          {isAlreadySurveyed && (
-                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 font-semibold">
-                              Đã KS ở B3
+                          {isSurveyed && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 font-semibold whitespace-nowrap">
+                              ✓ Đã KS ở B3
                             </span>
                           )}
                         </label>
@@ -359,20 +366,29 @@ export const Step6_ScopeAndGisMutation: React.FC = () => {
               });
             }}
             mutationData={{
-              splitReason: formData.gisMutationConfirmed.notes || '',
-              splitCount: 2,
-              splitChildren: [],
-              mergeReason: '',
-              mergeTargetCode: '',
-              selectedMergeCodes: [],
-              isSubmitted: false,
-              submittedAt: '',
+              splitReason: formData.gisMutationConfirmed.details?.splitReason || formData.gisMutationConfirmed.notes || '',
+              splitCount: formData.gisMutationConfirmed.details?.splitCount || 2,
+              splitChildren: formData.gisMutationConfirmed.details?.splitChildren || [],
+              splitCutType: 'CUSTOM_POINTS',
+              splitShapeOption: formData.gisMutationConfirmed.details?.splitShapeOption || 'CLICK_TO_DRAW',
+              splitCustomPointsA: formData.gisMutationConfirmed.details?.splitCustomPointsA || [],
+              mergeReason: formData.gisMutationConfirmed.details?.mergeReason || '',
+              mergeTargetCode: formData.gisMutationConfirmed.details?.mergeTargetCode || '',
+              selectedMergeCodes: formData.gisMutationConfirmed.details?.selectedMergeCodes || [],
+              isSubmitted: formData.gisMutationConfirmed.details?.isSubmitted || false,
+              submittedAt: formData.gisMutationConfirmed.details?.submittedAt || '',
+              matchConfirmed: formData.gisMutationConfirmed.details?.matchConfirmed || (formData.gisMutationConfirmed.type === 'MATCH'),
+              activeProposalType: formData.gisMutationConfirmed.details?.activeProposalType ?? (formData.gisMutationConfirmed.details?.isSubmitted ? formData.gisMutationConfirmed.type : (formData.gisMutationConfirmed.type === 'MATCH' ? 'MATCH' : null)),
             }}
             onMutationDataChange={(data) => {
               updateFormData({
                 gisMutationConfirmed: {
                   ...formData.gisMutationConfirmed,
                   notes: data.splitReason || data.mergeReason || formData.gisMutationConfirmed.notes,
+                  details: {
+                    ...formData.gisMutationConfirmed.details,
+                    ...data,
+                  },
                 },
               });
             }}

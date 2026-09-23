@@ -5,6 +5,7 @@ export interface MissingFieldItem {
   label: string;
   step: number;
   description?: string;
+  isBlocking?: boolean;
 }
 
 export interface StepValidationResult {
@@ -16,6 +17,16 @@ export const validateStep = (step: number, formData: Phase1SurveyFormData): Step
   const missing: MissingFieldItem[] = [];
 
   if (step === 1) {
+    // 1.1 Project Parcel Code
+    if (!formData.projectParcelCode?.trim()) {
+      missing.push({
+        fieldId: 'input-projectParcelCode',
+        label: '1.1. Mã quản lý dự án (Project Parcel Code)',
+        step: 1,
+        description: 'Vui lòng kiểm tra mã quản lý dự án B-XXXXX.',
+      });
+    }
+
     // 1.1 Cadastral Code
     if (!formData.officialCadastralCode?.trim()) {
       missing.push({
@@ -33,6 +44,16 @@ export const validateStep = (step: number, formData: Phase1SurveyFormData): Step
         label: '1.1. Địa chỉ thực tế công trình',
         step: 1,
         description: 'Vui lòng nhập số nhà hoặc tên đường thực tế.',
+      });
+    }
+
+    // 1.1 Owner Name
+    if (!formData.ownerName?.trim()) {
+      missing.push({
+        fieldId: 'input-ownerName',
+        label: '1.1. Chủ sở hữu / Người sử dụng',
+        step: 1,
+        description: 'Vui lòng nhập tên chủ hộ hoặc người đại diện sử dụng công trình.',
       });
     }
 
@@ -55,6 +76,16 @@ export const validateStep = (step: number, formData: Phase1SurveyFormData): Step
       });
     }
 
+    // 1.5 Mandatory P-02 Polygon if P-02 uploaded
+    if (formData.photoP02?.url && (!formData.photoP02.polygonPoints || formData.photoP02.polygonPoints.length < 3)) {
+      missing.push({
+        fieldId: 'btn-p02-polygon',
+        label: '1.5. Chấm điểm đa giác mặt tiền (P-02)',
+        step: 1,
+        description: 'Vui lòng chấm tối thiểu 3 điểm đỉnh đa giác bao quanh mặt đứng công trình khi có ảnh P-02.',
+      });
+    }
+
     if (!formData.photoP03?.url && !formData.photoP03?.notApplicable) {
       missing.push({
         fieldId: 'photo-p03-section',
@@ -70,6 +101,20 @@ export const validateStep = (step: number, formData: Phase1SurveyFormData): Step
         label: '1.5. Ảnh P-04 (Bối cảnh tổng thể lấy đường/hẻm)',
         step: 1,
         description: 'Vui lòng chụp ảnh bối cảnh đường hoặc đánh dấu N/A.',
+      });
+    }
+
+    // 1.6 Data source (Nguồn xác định dữ liệu ngoại quan)
+    if (
+      formData.surveyCaseType !== 'ABSENTEE' &&
+      formData.surveyCaseType !== 'UNDER_CONSTRUCTION' &&
+      (!formData.settlementTilt?.dataSource || formData.settlementTilt.dataSource.length === 0)
+    ) {
+      missing.push({
+        fieldId: 'section-settlement-datasource',
+        label: '1.6. Nguồn xác định dữ liệu ngoại quan',
+        step: 1,
+        description: 'Vui lòng chọn ít nhất 1 nguồn xác định dữ liệu ngoại quan (Quan sát thực tế, Đo đạc, Bản vẽ, Chủ nhà).',
       });
     }
 
@@ -159,6 +204,105 @@ export const validateStep = (step: number, formData: Phase1SurveyFormData): Step
         label: '3. Khảo sát các tầng',
         step: 3,
         description: 'Cần có ít nhất 1 tầng được khảo sát trong danh sách.',
+        isBlocking: true,
+      });
+    } else {
+      formData.floors.forEach((floor, fIdx) => {
+        const floorTitle = floor.floorName || `Tầng ${fIdx + 1}`;
+        const cadZonePins = floor.cadZonePins || [];
+        const zones = floor.zones || [];
+        const cadElementPins = floor.cadElementPins || [];
+        const structuralElements = floor.structuralElements || [];
+
+        // 1. Kiểm tra điểm chấm trên CAD_01 và Vùng Z
+        if (cadZonePins.length === 0 && zones.length === 0) {
+          missing.push({
+            fieldId: 'step3-floor-cad-section',
+            label: `3.1. Điểm chấm Vùng Z (${floorTitle})`,
+            step: 3,
+            description: `Chưa có điểm chấm Vùng kiến trúc (Z) nào trên sơ đồ CAD_01 của ${floorTitle}. Vui lòng chấm ít nhất 1 Vùng Z.`,
+            isBlocking: true,
+          });
+        } else if (cadZonePins.length !== zones.length) {
+          missing.push({
+            fieldId: 'step3-floor-cad-section',
+            label: `3.1. Khớp số lượng Vùng Z (${floorTitle})`,
+            step: 3,
+            description: `Số lượng điểm ghim CAD_01 (${cadZonePins.length}) chưa khớp với số Vùng Z (${zones.length}) của ${floorTitle}. Vui lòng kiểm tra lại.`,
+            isBlocking: true,
+          });
+        }
+
+        // 2. Kiểm tra điểm chấm trên CAD_02 và Cấu kiện E
+        if (cadElementPins.length === 0 && structuralElements.length === 0) {
+          missing.push({
+            fieldId: 'step3-structure-cad-section',
+            label: `3.2. Điểm chấm Cấu kiện E (${floorTitle})`,
+            step: 3,
+            description: `Chưa có điểm chấm Cấu kiện kết cấu chịu lực (E) nào trên sơ đồ CAD_02 của ${floorTitle}. Vui lòng chấm ít nhất 1 Cấu kiện E.`,
+            isBlocking: true,
+          });
+        } else if (cadElementPins.length !== structuralElements.length) {
+          missing.push({
+            fieldId: 'step3-structure-cad-section',
+            label: `3.2. Khớp số lượng Cấu kiện E (${floorTitle})`,
+            step: 3,
+            description: `Số lượng điểm ghim CAD_02 (${cadElementPins.length}) chưa khớp với số Cấu kiện E (${structuralElements.length}) của ${floorTitle}. Vui lòng kiểm tra lại.`,
+            isBlocking: true,
+          });
+        }
+
+        // 3. Kiểm tra khuyết tật D so với Vùng Z
+        zones.forEach((z) => {
+          const hasDamageMarked = z.hasDamage || (z.defects && z.defects.length > 0);
+          const defectCount = z.defects ? z.defects.length : 0;
+
+          if (hasDamageMarked && defectCount === 0) {
+            missing.push({
+              fieldId: 'step3-active-zone-card',
+              label: `3.1. Ghi sổ khuyết tật D cho Vùng ${z.zoneCode} (${floorTitle})`,
+              step: 3,
+              description: `Vùng ${z.zoneCode} được đánh dấu CÓ vết nứt/hư hỏng nhưng chưa có điểm khuyết tật D nào được ghi sổ. Vui lòng chấm điểm ghi sổ D-xx hoặc bỏ chọn mục hư hỏng.`,
+              isBlocking: true,
+            });
+          }
+
+          if (hasDamageMarked && defectCount > 0 && !z.ctxPhotoUrl) {
+            missing.push({
+              fieldId: 'step3-active-zone-card',
+              label: `3.1. Ảnh bối cảnh khuyết tật Vùng ${z.zoneCode} (${floorTitle})`,
+              step: 3,
+              description: `Vùng ${z.zoneCode} có ${defectCount} khuyết tật D nhưng chưa có ảnh bối cảnh chính để định vị. Vui lòng chụp/chọn ảnh bối cảnh.`,
+              isBlocking: true,
+            });
+          }
+        });
+
+        // 4. Kiểm tra khuyết tật D so với Cấu kiện E
+        structuralElements.forEach((el) => {
+          const hasDamageMarked = el.hasDamage || (el.defects && el.defects.length > 0);
+          const defectCount = el.defects ? el.defects.length : 0;
+
+          if (hasDamageMarked && defectCount === 0) {
+            missing.push({
+              fieldId: 'step3-active-element-card',
+              label: `3.2. Ghi sổ khuyết tật D cho Cấu kiện ${el.elementCode} (${floorTitle})`,
+              step: 3,
+              description: `Cấu kiện ${el.elementCode} được đánh dấu CÓ nứt kết cấu/võng nhưng chưa có điểm khuyết tật D nào được ghi sổ. Vui lòng chấm điểm ghi sổ D-xx hoặc bỏ chọn mục hư hỏng.`,
+              isBlocking: true,
+            });
+          }
+
+          if (hasDamageMarked && defectCount > 0 && !el.ctxPhotoUrl) {
+            missing.push({
+              fieldId: 'step3-active-element-card',
+              label: `3.2. Ảnh bối cảnh khuyết tật Cấu kiện ${el.elementCode} (${floorTitle})`,
+              step: 3,
+              description: `Cấu kiện ${el.elementCode} có ${defectCount} khuyết tật D nhưng chưa có ảnh bối cảnh cấu kiện để định vị. Vui lòng chụp/chọn ảnh bối cảnh.`,
+              isBlocking: true,
+            });
+          }
+        });
       });
     }
   }
@@ -170,6 +314,22 @@ export const validateStep = (step: number, formData: Phase1SurveyFormData): Step
         label: '5.1. Danh sách tầng được khảo sát',
         step: 5,
         description: 'Vui lòng chọn ít nhất 1 tầng nằm trong phạm vi khảo sát.',
+      });
+    }
+  }
+
+  if (step === 6) {
+    if (
+      formData.ecs?.engineeringJudgement?.action &&
+      formData.ecs.engineeringJudgement.action !== 'KEEP' &&
+      !formData.ecs.engineeringJudgement.reason?.trim()
+    ) {
+      missing.push({
+        fieldId: 'input-ecs-reason',
+        label: '6.1. Lý do can thiệp kỹ sư (ECS)',
+        step: 6,
+        description: 'Khi kỹ sư can thiệp Nâng hoặc Hạ hạng ECS, bắt buộc phải giải trình căn cứ kỹ thuật.',
+        isBlocking: true,
       });
     }
   }

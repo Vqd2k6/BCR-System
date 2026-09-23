@@ -124,74 +124,6 @@ export const Step1_BuildingIdentification: React.FC = () => {
   const [isConfirmingApartment, setIsConfirmingApartment] = useState(false);
   const [showApartmentSuccessModal, setShowApartmentSuccessModal] = useState(false);
 
-  // Live GPS Fetching State
-  const [isGpsFetching, setIsGpsFetching] = useState(false);
-  const [gpsErrorMsg, setGpsErrorMsg] = useState<string | null>(null);
-
-  const handleFetchCurrentGps = (showNotification = true) => {
-    if (!('geolocation' in navigator)) {
-      if (showNotification) alert('Trình duyệt không hỗ trợ Geolocation GPS.');
-      return;
-    }
-    setIsGpsFetching(true);
-    setGpsErrorMsg(null);
-
-    const tryFallbackLowAccuracy = () => {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          const lat = Number(pos.coords.latitude.toFixed(6));
-          const lng = Number(pos.coords.longitude.toFixed(6));
-          updateFormData({ gpsCoords: { lat, lng } });
-          setIsGpsFetching(false);
-          setGpsErrorMsg(null);
-        },
-        (err) => {
-          setIsGpsFetching(false);
-          if (err.code === err.PERMISSION_DENIED) {
-            setGpsErrorMsg('Trình duyệt chưa được cấp quyền Vị trí (Location).');
-            if (showNotification) {
-              alert('Vui lòng cho phép quyền truy cập Vị trí (Location) trong cài đặt trình duyệt để lấy GPS thực tế.');
-            }
-          } else {
-            setGpsErrorMsg('Không thể dò vị trí thiết bị. Đã giữ tọa độ quy hoạch.');
-          }
-        },
-        { enableHighAccuracy: false, timeout: 15000, maximumAge: 300000 }
-      );
-    };
-
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const lat = Number(pos.coords.latitude.toFixed(6));
-        const lng = Number(pos.coords.longitude.toFixed(6));
-        updateFormData({ gpsCoords: { lat, lng } });
-        setIsGpsFetching(false);
-        setGpsErrorMsg(null);
-      },
-      (err) => {
-        if (err.code === err.TIMEOUT) {
-          tryFallbackLowAccuracy();
-        } else if (err.code === err.PERMISSION_DENIED) {
-          setIsGpsFetching(false);
-          setGpsErrorMsg('Trình duyệt chưa được cấp quyền Vị trí (Location).');
-          if (showNotification) {
-            alert('Vui lòng cho phép quyền truy cập Vị trí (Location) trong cài đặt trình duyệt.');
-          }
-        } else {
-          tryFallbackLowAccuracy();
-        }
-      },
-      { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
-    );
-  };
-
-  // Auto fetch physical live GPS on step 1 mount only if coordinates not yet available
-  React.useEffect(() => {
-    if (!formData.gpsCoords?.lat || !formData.gpsCoords?.lng) {
-      handleFetchCurrentGps(false);
-    }
-  }, []);
-
   // Survey case mode
   const currentCase = formData.surveyCaseType || (formData.isAbsenteeSurvey ? 'ABSENTEE' : 'NORMAL');
 
@@ -223,9 +155,11 @@ export const Step1_BuildingIdentification: React.FC = () => {
   };
 
   const validateStep1Completeness = () => {
+    const hasProjectParcelCode = Boolean(formData.projectParcelCode?.trim());
     const hasOfficialCadastralCode = Boolean(formData.officialCadastralCode?.trim());
     const hasGps = Boolean(formData.gpsCoords?.lat && formData.gpsCoords?.lng);
     const hasAddress = Boolean(formData.street?.trim() || formData.houseNumber?.trim());
+    const hasOwnerName = Boolean(formData.ownerName?.trim());
     const hasObjectGroup = Boolean(formData.objectGroup);
     const hasAdjacent = Boolean(
       formData.adjacentBuildings?.left?.details &&
@@ -238,18 +172,34 @@ export const Step1_BuildingIdentification: React.FC = () => {
       (formData.photoP03?.url || formData.photoP03?.notApplicable) &&
       (formData.photoP04?.url || formData.photoP04?.notApplicable)
     );
+    const hasP02Polygon = !formData.photoP02?.url || Boolean(formData.photoP02.polygonPoints && formData.photoP02.polygonPoints.length >= 3);
     const hasSettlement = typeof formData.settlementTilt?.diffSettlement?.level === 'number';
+    const hasDataSource = Boolean(formData.settlementTilt?.dataSource && formData.settlementTilt.dataSource.length > 0);
 
-    const isFullyComplete = hasAddress && hasObjectGroup && hasAdjacent && hasPhotos && hasSettlement;
+    const isFullyComplete =
+      hasProjectParcelCode &&
+      hasOfficialCadastralCode &&
+      hasAddress &&
+      hasOwnerName &&
+      hasObjectGroup &&
+      hasAdjacent &&
+      hasPhotos &&
+      hasP02Polygon &&
+      hasSettlement &&
+      hasDataSource;
 
     return {
+      hasProjectParcelCode,
       hasOfficialCadastralCode,
       hasGps,
       hasAddress,
+      hasOwnerName,
       hasObjectGroup,
       hasAdjacent,
       hasPhotos,
+      hasP02Polygon,
       hasSettlement,
+      hasDataSource,
       isFullyComplete,
     };
   };
@@ -374,20 +324,21 @@ export const Step1_BuildingIdentification: React.FC = () => {
         <div className="flex items-center gap-2 mb-4 pb-2 border-b border-slate-100">
           <Building className="w-5 h-5 text-emerald-600" />
           <h2 className="text-base sm:text-lg font-bold text-slate-800">
-            1.1. Thông Tin Nhận Diện & Định Danh Công Trình
+            1.1. Thông Tin Nhận Diện & Định Danh Công Trình *
           </h2>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Input
-            label="Mã Quản Lý Dự Án (Project Parcel Code)"
+            id="input-projectParcelCode"
+            label="Mã Quản Lý Dự Án (Project Parcel Code) *"
             value={formData.projectParcelCode}
             disabled
             hint="Tự động cấp từ hệ thống theo lý trình"
           />
           <Input
             id="input-officialCadastralCode"
-            label="Mã Địa Chính Gốc (Cadastral Code)"
+            label="Mã Địa Chính Gốc (Cadastral Code) *"
             value={formData.officialCadastralCode}
             disabled
             hint="Số tờ - Số thửa bản đồ địa chính nhà nước"
@@ -422,7 +373,8 @@ export const Step1_BuildingIdentification: React.FC = () => {
 
           <div className="sm:col-span-2">
             <Input
-              label="Chủ Sở Hữu / Người Sử Dụng (Owner / User)"
+              id="input-ownerName"
+              label="Chủ Sở Hữu / Người Sử Dụng (Owner / User) *"
               placeholder={currentCase === 'ABSENTEE' ? 'Chủ hộ vắng mặt (nếu biết tên thì ghi)' : 'Nguyễn Văn A'}
               value={formData.ownerName}
               onChange={(e) => updateFormData({ ownerName: e.target.value })}
@@ -482,10 +434,10 @@ export const Step1_BuildingIdentification: React.FC = () => {
           </div>
           <InfoPopover title="Ý nghĩa 4 thông số Tuyến Metro & Tọa độ GIS">
             <div className="space-y-2 text-xs text-slate-700">
-              <p><strong>1. Lý trình (Chainage):</strong> Vị trí cọc Km theo hướng tim tuyến Metro Line 2 (VD: Km 0+000) để xác định mốc tuyến.</p>
-              <p><strong>2. Khoảng cách tới tim Metro:</strong> Cự ly vuông góc từ mép công trình đến tim hầm Metro, quyết định phân vùng rung chấn và lún kết cấu.</p>
-              <p><strong>3. Khoảng cách tới ranh GPMB:</strong> Khoảng cách từ ranh thửa đất đến hành lang giải phóng mặt bằng thu hồi đất dự án Metro.</p>
-              <p><strong>4. Tọa độ GPS thực địa:</strong> Tọa độ trắc địa WGS84 thu thập trực tiếp tại hiện trường để đối soát và gắn kết bản đồ GIS.</p>
+              <p><strong>1. Lý trình (Chainage):</strong> Vị trí mốc Km trên tuyến Metro Số 2 (Bến Thành – Tham Lương) tương ứng với vị trí lô đất.</p>
+              <p><strong>2. Khoảng cách tới tim Metro:</strong> Cự ly vuông góc ngắn nhất từ các đỉnh đa giác thửa đất đến đường tim tuyến hầm Metro, quyết định phân vùng rung chấn.</p>
+              <p><strong>3. Khoảng cách tới ranh GPMB:</strong> Cự ly ngắn nhất từ ranh thửa đất đến mốc hành lang giải phóng mặt bằng thu hồi đất dự án Metro.</p>
+              <p><strong>4. Tọa độ thửa đất (GIS Parcel):</strong> Tọa độ trắc địa WGS84 tâm lô đất cố định trích xuất từ cơ sở dữ liệu địa chính quy hoạch.</p>
             </div>
           </InfoPopover>
         </div>
@@ -505,21 +457,14 @@ export const Step1_BuildingIdentification: React.FC = () => {
           </div>
           <div className="p-3 bg-white rounded-xl border border-slate-200 flex flex-col justify-between">
             <div className="flex items-center justify-between">
-              <span className="text-slate-500 block font-medium">Tọa độ GPS thực địa</span>
-              <button
-                type="button"
-                onClick={() => handleFetchCurrentGps(true)}
-                className="text-[10px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 px-1.5 py-0.5 rounded flex items-center gap-1 transition-colors"
-                title="Cập nhật tọa độ GPS thực tế của thiết bị"
-              >
-                <RefreshCw className={`w-2.5 h-2.5 ${isGpsFetching ? 'animate-spin' : ''}`} />
-                <span>{isGpsFetching ? 'Đang dò...' : 'Lấy GPS'}</span>
-              </button>
+              <span className="text-slate-500 block font-medium">Tọa độ thửa đất (GIS Parcel)</span>
+              <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                Tâm lô đất
+              </span>
             </div>
             <span className="text-sm font-bold text-emerald-700 font-mono mt-1 block">
               {formData.gpsCoords?.lat ? `${formData.gpsCoords.lat.toFixed(6)}, ${formData.gpsCoords.lng.toFixed(6)}` : 'Chưa có tọa độ'}
             </span>
-            {gpsErrorMsg && <span className="text-[10px] text-red-500 block mt-0.5 leading-tight">{gpsErrorMsg}</span>}
           </div>
         </div>
       </Card>
@@ -716,17 +661,32 @@ export const Step1_BuildingIdentification: React.FC = () => {
                 />
 
                 {formData.photoP02.url && (
-                  <div className="flex items-center justify-between p-2 bg-white rounded-lg border border-slate-200">
-                    <span className="text-xs text-slate-600 font-medium">
-                      Đa giác bao: {formData.photoP02.polygonPoints?.length || 0} điểm đỉnh
-                    </span>
+                  <div
+                    className={`p-2.5 rounded-lg border flex flex-col sm:flex-row sm:items-center justify-between gap-2 ${
+                      (formData.photoP02.polygonPoints?.length || 0) >= 3
+                        ? 'bg-emerald-50/50 border-emerald-200'
+                        : 'bg-amber-50/80 border-amber-300 ring-2 ring-amber-300/40'
+                    }`}
+                  >
+                    <div className="flex items-center gap-1.5">
+                      {(formData.photoP02.polygonPoints?.length || 0) >= 3 ? (
+                        <span className="text-xs font-bold text-emerald-700 flex items-center gap-1">
+                          ✓ Đã chấm {formData.photoP02.polygonPoints?.length} điểm đa giác mặt tiền
+                        </span>
+                      ) : (
+                        <span className="text-xs font-bold text-amber-800 flex items-center gap-1">
+                          ⚠️ Bắt buộc chấm đa giác mặt tiền (tối thiểu 3 điểm) *
+                        </span>
+                      )}
+                    </div>
                     <Button
+                      id="btn-p02-polygon"
                       size="sm"
-                      variant="outline"
+                      variant={(formData.photoP02.polygonPoints?.length || 0) >= 3 ? 'outline' : 'primary'}
                       icon={<Maximize2 className="w-3.5 h-3.5" />}
                       onClick={() => setIsDrawingPolygon(true)}
                     >
-                      Chấm điểm đa giác & Vẽ phân tầng
+                      {(formData.photoP02.polygonPoints?.length || 0) >= 3 ? 'Chỉnh sửa đa giác & phân tầng' : 'Chấm điểm đa giác & phân tầng *'}
                     </Button>
                   </div>
                 )}
@@ -922,10 +882,24 @@ export const Step1_BuildingIdentification: React.FC = () => {
           </LevelSelectorWithGuide>
 
           {/* Nguồn xác định dữ liệu */}
-          <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 space-y-2">
-            <label className="text-xs font-bold text-slate-700 block mb-2">
-              Nguồn Xác Định Dữ Liệu Ngoại Quan (Multi-select)
-            </label>
+          <div
+            id="section-settlement-datasource"
+            className={`p-4 rounded-xl border transition-colors ${
+              (!formData.settlementTilt?.dataSource || formData.settlementTilt.dataSource.length === 0)
+                ? 'bg-amber-50/40 border-amber-300 ring-1 ring-amber-200'
+                : 'bg-slate-50/50 border-slate-200'
+            } space-y-2`}
+          >
+            <div className="flex items-center justify-between flex-wrap gap-1 mb-2">
+              <label className="text-xs font-bold text-slate-800 block">
+                Nguồn Xác Định Dữ Liệu Ngoại Quan (Multi-select) *
+              </label>
+              {(!formData.settlementTilt?.dataSource || formData.settlementTilt.dataSource.length === 0) && (
+                <span className="text-[11px] font-semibold text-red-600">
+                  * Bắt buộc chọn ít nhất 1 nguồn
+                </span>
+              )}
+            </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {DATA_SOURCES.map((src) => {
                 const isChecked = formData.settlementTilt?.dataSource?.includes(src) || false;

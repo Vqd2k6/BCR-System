@@ -125,6 +125,80 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
     setActiveElementIndex(0);
   };
 
+  // Helper cuộn mượt đến phần tử theo ID
+  const scrollToTarget = (elementId: string) => {
+    const el = document.getElementById(elementId);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
+  // Điều hướng chuyển Vùng Z và cuộn lên đầu card chi tiết
+  const navigateToZone = (idx: number, markCurrentCompleted = false) => {
+    if (idx < 0 || idx >= zones.length) return;
+    if (markCurrentCompleted && activeZoneIndex >= 0 && activeZoneIndex < zones.length) {
+      handleUpdateZone(activeZoneIndex, { isCompleted: true });
+    }
+    setActiveZoneIndex(idx);
+    setTimeout(() => {
+      scrollToTarget('step3-active-zone-card');
+    }, 60);
+  };
+
+  const handleNextZone = () => {
+    navigateToZone(activeZoneIndex + 1, true);
+  };
+
+  const handlePrevZone = () => {
+    navigateToZone(activeZoneIndex - 1, false);
+  };
+
+  // Khi bấm "Thêm Vùng Z tiếp theo" ở cuối: cuộn lên vị trí Sơ đồ CAD_01 để người dùng chấm điểm Z mới
+  const handleRequestAddNextZone = () => {
+    if (activeZoneIndex >= 0 && activeZoneIndex < zones.length) {
+      handleUpdateZone(activeZoneIndex, { isCompleted: true });
+    }
+    const cadEl = document.getElementById('step3-floor-cad-section');
+    if (cadEl) {
+      cadEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      cadEl.classList.add('ring-4', 'ring-emerald-400');
+      setTimeout(() => cadEl.classList.remove('ring-4', 'ring-emerald-400'), 2500);
+    }
+  };
+
+  // Điều hướng chuyển Cấu kiện E và cuộn lên đầu card chi tiết
+  const navigateToElement = (idx: number, markCurrentCompleted = false) => {
+    if (idx < 0 || idx >= structuralElements.length) return;
+    if (markCurrentCompleted && activeElementIndex >= 0 && activeElementIndex < structuralElements.length) {
+      handleUpdateElement(activeElementIndex, { isCompleted: true });
+    }
+    setActiveElementIndex(idx);
+    setTimeout(() => {
+      scrollToTarget('step3-active-element-card');
+    }, 60);
+  };
+
+  const handleNextElement = () => {
+    navigateToElement(activeElementIndex + 1, true);
+  };
+
+  const handlePrevElement = () => {
+    navigateToElement(activeElementIndex - 1, false);
+  };
+
+  // Khi bấm "Thêm Kết Cấu E tiếp theo" ở cuối: cuộn lên vị trí Sơ đồ CAD_02 để người dùng chấm điểm E mới
+  const handleRequestAddNextElement = () => {
+    if (activeElementIndex >= 0 && activeElementIndex < structuralElements.length) {
+      handleUpdateElement(activeElementIndex, { isCompleted: true });
+    }
+    const cadEl = document.getElementById('step3-structure-cad-section');
+    if (cadEl) {
+      cadEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      cadEl.classList.add('ring-4', 'ring-amber-400');
+      setTimeout(() => cadEl.classList.remove('ring-4', 'ring-amber-400'), 2500);
+    }
+  };
+
   // 2. Tự động sinh Vùng Z khi chấm ghim trên CAD_01
   const handleAutoCreateZonePin = (pin: CadZonePin) => {
     updateFormData((prev) => {
@@ -147,6 +221,7 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
         hasDamage: false,
         notes: '',
         defects: [],
+        isCompleted: false,
       };
 
       const updatedFloors = [...prev.floors];
@@ -161,41 +236,15 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
       };
       return { ...prev, floors: updatedFloors };
     });
-    setActiveZoneIndex(zones.length);
+    // Luôn giữ ở Z-01 đầu tiên cho người dùng, không tự động nhảy sang ô mới tạo
+    if (zones.length === 0) {
+      setActiveZoneIndex(0);
+    }
   };
 
-  // 3. Xử lý khi bấm nút "Thêm Vùng Z"
+  // 3. Xử lý khi bấm nút "Thêm Vùng Z" (nếu cần fallback)
   const handleRequestAddZone = () => {
-    const cadPins = currentFloor.cadZonePins || [];
-    const nextZoneCode = cadPins[zones.length]?.zoneCode || `Z-${String(zones.length + 1).padStart(2, '0')}`;
-    const prevZone = zones[zones.length - 1];
-    const newZone: DamageZoneData = {
-      id: `zone_${Date.now()}`,
-      zoneCode: nextZoneCode,
-      floorName: currentFloor.floorName,
-      roomName: prevZone ? prevZone.roomName : 'Phòng khách',
-      customRoomName: prevZone?.customRoomName || '',
-      componentType: prevZone ? prevZone.componentType : 'Tường gạch vữa xi măng',
-      customComponentType: prevZone?.customComponentType || '',
-      wallMaterial: prevZone ? prevZone.wallMaterial : 'Tường gạch trát vữa XM sơn nước',
-      customWallMaterial: prevZone?.customWallMaterial || '',
-      overviewPhotos: [],
-      ctxPhotoUrl: '',
-      hasDamage: false,
-      notes: '',
-      defects: [],
-    };
-    updateFormData((prev) => {
-      const updatedFloors = [...prev.floors];
-      const current = updatedFloors[activeFloorIndex] || updatedFloors[0];
-      if (!current) return prev;
-      updatedFloors[activeFloorIndex] = {
-        ...current,
-        zones: [...(current.zones || []), newZone],
-      };
-      return { ...prev, floors: updatedFloors };
-    });
-    setActiveZoneIndex(zones.length);
+    handleRequestAddNextZone();
   };
 
   // 4. Tự động sinh Vùng E khi chấm ghim trên CAD_02
@@ -220,6 +269,7 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
         hasDamage: false,
         notes: '',
         defects: [],
+        isCompleted: false,
       };
 
       const updatedFloors = [...prev.floors];
@@ -234,41 +284,15 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
       };
       return { ...prev, floors: updatedFloors };
     });
-    setActiveElementIndex(structuralElements.length);
+    // Luôn giữ ở E-01 đầu tiên cho người dùng, không tự động nhảy sang ô mới tạo
+    if (structuralElements.length === 0) {
+      setActiveElementIndex(0);
+    }
   };
 
-  // 5. Xử lý khi bấm nút "Thêm Vùng E"
+  // 5. Xử lý khi bấm nút "Thêm Vùng E" (fallback)
   const handleRequestAddElement = () => {
-    const cadPins = currentFloor.cadElementPins || [];
-    const nextElementCode = cadPins[structuralElements.length]?.zoneCode || `E-${String(structuralElements.length + 1).padStart(2, '0')}`;
-    const prevEl = structuralElements[structuralElements.length - 1];
-    const newElement: StructuralElementData = {
-      id: `el_${Date.now()}`,
-      elementCode: nextElementCode,
-      floorName: currentFloor.floorName,
-      roomName: prevEl ? prevEl.roomName : 'Phòng khách',
-      customRoomName: prevEl?.customRoomName || '',
-      elementType: prevEl ? prevEl.elementType : 'Cột BTCT',
-      customElementType: prevEl?.customElementType || '',
-      materialType: prevEl ? prevEl.materialType : 'Bê tông cốt thép (BTCT) đổ toàn khối',
-      customMaterialType: prevEl?.customMaterialType || '',
-      overviewPhotos: [],
-      ctxPhotoUrl: '',
-      hasDamage: false,
-      notes: '',
-      defects: [],
-    };
-    updateFormData((prev) => {
-      const updatedFloors = [...prev.floors];
-      const current = updatedFloors[activeFloorIndex] || updatedFloors[0];
-      if (!current) return prev;
-      updatedFloors[activeFloorIndex] = {
-        ...current,
-        structuralElements: [...(current.structuralElements || []), newElement],
-      };
-      return { ...prev, floors: updatedFloors };
-    });
-    setActiveElementIndex(structuralElements.length);
+    handleRequestAddNextElement();
   };
 
   // 6. Cập nhật Vùng Z
@@ -451,7 +475,7 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
           onAutoCreatePin={handleAutoCreateZonePin}
           onSelectPin={(pin) => {
             const idx = zones.findIndex((z) => z.zoneCode === pin.zoneCode);
-            if (idx !== -1) setActiveZoneIndex(idx);
+            if (idx !== -1) navigateToZone(idx, false);
           }}
           mode="ZONE"
           floorName={currentFloor.floorName}
@@ -464,14 +488,6 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
             <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
               Danh sách các Vùng Z ({zones.length} Vùng)
             </span>
-            <Button
-              size="sm"
-              variant="outline"
-              icon={<Plus className="w-3.5 h-3.5" />}
-              onClick={handleRequestAddZone}
-            >
-              Thêm Vùng Z-xx
-            </Button>
           </div>
 
           {zones.length > 0 && (
@@ -484,7 +500,7 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
                   <button
                     key={z.id || idx}
                     type="button"
-                    onClick={() => setActiveZoneIndex(idx)}
+                    onClick={() => navigateToZone(idx, false)}
                     className={`px-3 py-2 rounded-xl text-xs font-bold transition-all border flex items-center gap-1.5 whitespace-nowrap ${
                       isSelected
                         ? 'bg-emerald-700 text-white border-emerald-700 shadow-xs ring-2 ring-emerald-500/20'
@@ -497,9 +513,9 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
                       <span className="px-1.5 py-0.2 rounded bg-red-500 text-white text-[9px] font-mono font-bold">
                         {z.defects.length} D
                       </span>
-                    ) : (
-                      <span className="text-emerald-400 text-[10px]">✓</span>
-                    )}
+                    ) : z.isCompleted ? (
+                      <span className="text-emerald-400 text-[10px] font-bold">✓</span>
+                    ) : null}
                   </button>
                 );
               })}
@@ -514,14 +530,14 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
                 Chưa có Vùng kiến trúc (Z) nào ở {currentFloor.floorName}
               </p>
               <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                Bấm mở Sơ đồ CAD_01 để chạm chấm các Vùng Z hoặc bấm nút bên dưới để tạo nhanh.
+                Bấm mở Sơ đồ CAD_01 để chạm chấm các Vùng Z trên sơ đồ kiến trúc.
               </p>
-              <Button size="sm" onClick={handleRequestAddZone}>
-                Thêm Vùng Z-01
+              <Button size="sm" onClick={handleRequestAddNextZone}>
+                Chấm Vùng Z trên sơ đồ CAD
               </Button>
             </div>
           ) : activeZone ? (
-            <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-4">
+            <div id="step3-active-zone-card" className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-4">
               {/* Header card Z */}
               <div className="flex items-center justify-between pb-2 border-b border-slate-200">
                 <div className="flex items-center gap-2">
@@ -676,10 +692,6 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
               {/* Tùy chọn Có Hư Hỏng / Vết Nứt */}
               <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-800">
-                    Hiện Trạng Vết Nứt / Khuyết Tật Kiến Trúc:
-                  </span>
-
                   <label className="flex items-center gap-2 cursor-pointer select-none">
                     <input
                       type="checkbox"
@@ -744,7 +756,7 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
                   size="sm"
                   variant="outline"
                   disabled={activeZoneIndex === 0}
-                  onClick={() => setActiveZoneIndex((prev) => Math.max(0, prev - 1))}
+                  onClick={handlePrevZone}
                 >
                   ⬅️ Vùng {zones[activeZoneIndex - 1]?.zoneCode || 'trước'}
                 </Button>
@@ -753,7 +765,7 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
                   {activeZoneIndex < zones.length - 1 ? (
                     <Button
                       size="sm"
-                      onClick={() => setActiveZoneIndex((prev) => prev + 1)}
+                      onClick={handleNextZone}
                     >
                       Tiếp theo: {zones[activeZoneIndex + 1]?.zoneCode} ➔
                     </Button>
@@ -762,7 +774,7 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
                       size="sm"
                       variant="outline"
                       icon={<Plus className="w-3.5 h-3.5" />}
-                      onClick={handleRequestAddZone}
+                      onClick={handleRequestAddNextZone}
                     >
                       Thêm Vùng Z tiếp theo
                     </Button>
@@ -821,7 +833,7 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
           onAutoCreatePin={handleAutoCreateElementPin}
           onSelectPin={(pin) => {
             const idx = structuralElements.findIndex((e) => e.elementCode === pin.zoneCode);
-            if (idx !== -1) setActiveElementIndex(idx);
+            if (idx !== -1) navigateToElement(idx, false);
           }}
           mode="STRUCTURAL"
           floorName={currentFloor.floorName}
@@ -834,14 +846,6 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
             <span className="text-xs font-bold text-amber-900 uppercase tracking-wider">
               Danh sách Cấu kiện Kết cấu ({structuralElements.length} Vùng E)
             </span>
-            <Button
-              size="sm"
-              className="bg-amber-600 hover:bg-amber-700 text-white"
-              icon={<Plus className="w-3.5 h-3.5" />}
-              onClick={handleRequestAddElement}
-            >
-              Thêm Vùng E-xx (Kế thừa)
-            </Button>
           </div>
 
           {structuralElements.length > 0 && (
@@ -854,7 +858,7 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
                   <button
                     key={el.id || idx}
                     type="button"
-                    onClick={() => setActiveElementIndex(idx)}
+                    onClick={() => navigateToElement(idx, false)}
                     className={`px-3 py-2 rounded-xl text-xs font-bold transition-all border flex items-center gap-1.5 whitespace-nowrap ${
                       isSelected
                         ? 'bg-amber-700 text-white border-amber-700 shadow-xs ring-2 ring-amber-500/20'
@@ -867,9 +871,9 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
                       <span className="px-1.5 py-0.2 rounded bg-red-500 text-white text-[9px] font-mono font-bold">
                         {el.defects.length} D
                       </span>
-                    ) : (
-                      <span className="text-emerald-500 text-[10px]">✓</span>
-                    )}
+                    ) : el.isCompleted ? (
+                      <span className="text-emerald-500 text-[10px] font-bold">✓</span>
+                    ) : null}
                   </button>
                 );
               })}
@@ -884,18 +888,18 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
                 Chưa có Cấu kiện kết cấu chịu lực (E) nào ở {currentFloor.floorName}
               </p>
               <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                Bấm mở Sơ đồ CAD_02 để chạm chấm các Vùng E (Cột BTCT, Dầm, Bản sàn...) hoặc bấm nút bên dưới.
+                Bấm mở Sơ đồ CAD_02 để chạm chấm các Vùng E (Cột BTCT, Dầm, Bản sàn...) trên sơ đồ kết cấu.
               </p>
               <Button
                 size="sm"
                 className="bg-amber-600 hover:bg-amber-700 text-white"
-                onClick={handleRequestAddElement}
+                onClick={handleRequestAddNextElement}
               >
-                Thêm Vùng Kết Cấu E-01
+                Chấm Cấu kiện E trên sơ đồ CAD
               </Button>
             </div>
           ) : activeElement ? (
-            <div className="p-4 bg-amber-50/30 rounded-xl border border-amber-200 space-y-4">
+            <div id="step3-active-element-card" className="p-4 bg-amber-50/30 rounded-xl border border-amber-200 space-y-4">
               {/* Header card E */}
               <div className="flex items-center justify-between pb-2 border-b border-amber-200">
                 <div className="flex items-center gap-2">
@@ -1056,10 +1060,6 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
               {/* Tùy chọn Có hư hỏng khuyết tật kết cấu */}
               <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-800">
-                    Hiện Trạng Khuyết Tật Cột / Dầm / Sàn Chịu Lực:
-                  </span>
-
                   <label className="flex items-center gap-2 cursor-pointer select-none">
                     <input
                       type="checkbox"
@@ -1130,7 +1130,7 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
                   size="sm"
                   variant="outline"
                   disabled={activeElementIndex === 0}
-                  onClick={() => setActiveElementIndex((prev) => Math.max(0, prev - 1))}
+                  onClick={handlePrevElement}
                 >
                   ⬅️ Kết cấu {structuralElements[activeElementIndex - 1]?.elementCode || 'trước'}
                 </Button>
@@ -1140,7 +1140,7 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
                     <Button
                       size="sm"
                       className="bg-amber-600 hover:bg-amber-700 text-white"
-                      onClick={() => setActiveElementIndex((prev) => prev + 1)}
+                      onClick={handleNextElement}
                     >
                       Tiếp theo: {structuralElements[activeElementIndex + 1]?.elementCode} ➔
                     </Button>
@@ -1149,7 +1149,7 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
                       size="sm"
                       variant="outline"
                       icon={<Plus className="w-3.5 h-3.5" />}
-                      onClick={handleRequestAddElement}
+                      onClick={handleRequestAddNextElement}
                     >
                       Thêm Kết Cấu E tiếp theo
                     </Button>
