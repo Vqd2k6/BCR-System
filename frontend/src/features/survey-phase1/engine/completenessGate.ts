@@ -51,14 +51,27 @@ export function verifyDataCompletenessGate(data: Phase1SurveyFormData): GateVeri
   // 5. Bản vẽ
   const hasDrawings = (data.asBuiltDrawingFiles?.length ?? 0) > 0;
 
-  // 6. Structural Review
+  // 6. Structural Review (3 giá trị: N/A / Đủ / Pending)
   let structuralStatus: 'SUFFICIENT' | 'PENDING_REVIEW' | 'NA' = 'SUFFICIENT';
+  let structuralLabel = 'Đủ';
+
   if (
     data.ecs.e2 >= 3 ||
     data.burlandSummary.structuralFlagLevel === 'HIGH' ||
-    data.burlandSummary.structuralFlagLevel === 'CRITICAL'
+    data.burlandSummary.structuralFlagLevel === 'CRITICAL' ||
+    data.burlandSummary.needStructuralEngineerReview
   ) {
     structuralStatus = 'PENDING_REVIEW';
+    structuralLabel = 'Pending';
+  } else if (
+    data.ecs.e2 === 0 &&
+    (data.burlandSummary.structuralFlagLevel === 'NONE' || !data.burlandSummary.structuralFlagLevel)
+  ) {
+    structuralStatus = 'NA';
+    structuralLabel = 'N/A';
+  } else {
+    structuralStatus = 'SUFFICIENT';
+    structuralLabel = 'Đủ';
   }
 
   // Đề xuất
@@ -98,10 +111,7 @@ export function verifyDataCompletenessGate(data: Phase1SurveyFormData): GateVeri
     },
     structuralReview: {
       status: structuralStatus,
-      label:
-        structuralStatus === 'PENDING_REVIEW'
-          ? '⚠️ Cần Kỹ sư kết cấu Review (E2 >= 3 / Cờ đỏ)'
-          : 'Đủ điều kiện',
+      label: structuralLabel,
     },
     overallSuggestedDecision,
   };

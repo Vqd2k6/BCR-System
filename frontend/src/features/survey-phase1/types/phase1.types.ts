@@ -264,8 +264,8 @@ export interface Phase1SurveyFormData {
   executiveSummary: {
     keyRisksDefectsText: string;
     specificRecommendationsText: string;
-    constructionImpactStatus: 'PENDING';
-    braStatus: 'PENDING';
+    constructionImpactStatus: 'I1' | 'I2' | 'I3' | 'I4' | 'PENDING' | string;
+    braStatus: 'LOW' | 'MEDIUM' | 'HIGH' | 'VERY_HIGH' | 'PENDING' | string;
   };
 
   // Step 9 Signatures & Working Minutes

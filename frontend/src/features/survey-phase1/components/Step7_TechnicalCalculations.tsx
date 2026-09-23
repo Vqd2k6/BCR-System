@@ -127,22 +127,27 @@ export const Step7_TechnicalCalculations: React.FC = () => {
               <InfoPopover title="Tiêu chí 6: Thẩm tra chuyên sâu Kỹ sư kết cấu (Structural Review)" size="md">
                 <p><strong>Nguồn:</strong> Tự động phân tích từ chỉ số khuyết tật chịu lực E2 và Cờ kết cấu ở Bước 4 (Burland Summary).</p>
                 <div className="mt-2 pt-2 border-t border-slate-100 text-[11px] leading-relaxed">
-                  <p className="font-bold text-slate-800 mb-1">Các giá trị có thể xuất hiện & Ý nghĩa kỹ thuật/an toàn:</p>
+                  <p className="font-bold text-slate-800 mb-1">Các giá trị hiển thị & Ý nghĩa an toàn kết cấu (3 giá trị):</p>
                   <ul className="space-y-1.5 pl-1 text-slate-600">
                     <li>
-                      <span className="font-semibold text-emerald-700">● &quot;Đủ điều kiện&quot; (SUFFICIENT):</span> Khi E2 &lt; 3 và Cờ kết cấu ở mức None hoặc Low/Moderate. <em>Ý nghĩa:</em> Kết cấu chịu lực chính (cột, dầm, sàn) an toàn, không có vết nứt phá hoại nguy cấp; khảo sát viên được phép nghiệm thu chuyển tiếp bình thường.
+                      <span className="font-semibold text-slate-700">● &quot;N/A&quot; (Không áp dụng):</span> Khi E2 = 0 và Cờ kết cấu ở mức None. <em>Ý nghĩa:</em> Công trình không có bất kỳ khuyết tật hay cảnh báo kết cấu nào cần kích hoạt thẩm tra.
                     </li>
                     <li>
-                      <span className="font-semibold text-red-600">● &quot;⚠️ Cần Kỹ sư kết cấu Review (E2 &gt;= 3 / Cờ đỏ)&quot; (PENDING_REVIEW):</span> Tự động kích hoạt khi E2 ≥ 3 hoặc Cờ kết cấu ở mức HIGH/CRITICAL (ví dụ nứt xiên cắt cột, võng dầm lớn, rỉ đứt cốt thép). <em>Ý nghĩa:</em> Cảnh báo nguy cơ mất ổn định kết cấu nghiêm trọng. Hệ thống chuyển trạng thái cổng sang <strong>&quot;PENDING / CẦN XEM XÉT&quot;</strong>, bắt buộc Kỹ sư kết cấu chuyên môn cao phải vào đánh giá hiện trường và phê duyệt trước khi máy đào hầm Metro đi qua.
+                      <span className="font-semibold text-emerald-700">● &quot;Đủ&quot; (Đủ điều kiện):</span> Khi E2 &lt; 3 và Cờ kết cấu ở mức Low hoặc Moderate. <em>Ý nghĩa:</em> Đã kiểm tra cấu kiện chịu lực chính, các khuyết tật ở mức nhẹ/vừa trong tầm kiểm soát an toàn của khảo sát hiện trường.
+                    </li>
+                    <li>
+                      <span className="font-semibold text-red-600">● &quot;Pending&quot; (⚠️ Cần Kỹ sư kết cấu Review):</span> Tự động kích hoạt khi E2 ≥ 3 hoặc Cờ kết cấu ở mức High/Critical. <em>Ý nghĩa:</em> Cảnh báo nguy cơ nứt gãy / mất ổn định kết cấu chịu lực nghiêm trọng, bắt buộc Kỹ sư kết cấu chuyên môn cao phải vào đánh giá và ký duyệt trước khi máy đào hầm Metro đi qua.
                     </li>
                   </ul>
                 </div>
               </InfoPopover>
             </div>
             <span
-              className={`font-bold ${
+              className={`font-bold text-sm ${
                 gateResult.structuralReview.status === 'PENDING_REVIEW'
                   ? 'text-red-600'
+                  : gateResult.structuralReview.status === 'NA'
+                  ? 'text-slate-500'
                   : 'text-emerald-700'
               }`}
             >
