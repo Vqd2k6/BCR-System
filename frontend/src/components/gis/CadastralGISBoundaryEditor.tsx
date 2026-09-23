@@ -784,6 +784,16 @@ export const CadastralGISBoundaryEditor: React.FC<Props> = ({
 
   // Handle Save Mutation Proposal (Lưu tạm vào hồ sơ thửa ban đầu, không gọi API sớm)
   const handleSaveMutationProposal = () => {
+    if (boundaryStatus === 'SPLIT' && !mutationData.splitReason?.trim()) {
+      alert('Vui lòng chọn hoặc nhập Lý do chia tách thửa đất thực tế trước khi xác nhận đề xuất!');
+      const el = document.getElementById('input-splitReason');
+      if (el) {
+        el.focus();
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+      return;
+    }
+
     setIsSubmittingMutation(true);
     const nowStr = new Date().toLocaleTimeString('vi-VN');
     const updatedMutation: MutationPayloadData = {
@@ -1703,13 +1713,15 @@ export const CadastralGISBoundaryEditor: React.FC<Props> = ({
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
             <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#334155', margin: 0, display: 'flex', alignItems: 'center' }}>
               Lý do chia tách thửa đất thực tế:
+              <span style={{ color: '#dc2626', marginLeft: '4px', fontWeight: 800 }}>* (Bắt buộc)</span>
               <HelpBadge
                 title="Lý do tách thửa"
-                content="Chọn lý do phổ biến trong danh sách sổ chọn hoặc chọn 'Khác' để nhập chi tiết lý do phân chia thực tế."
+                content="Bắt buộc chọn lý do phổ biến trong danh sách sổ chọn hoặc chọn 'Khác' để nhập chi tiết lý do phân chia thực tế."
               />
             </label>
 
             <select
+              id="input-splitReason"
               className="form-control"
               style={{ fontSize: '0.75rem', fontWeight: 600, backgroundColor: '#ffffff', border: '1.5px solid #cbd5e1' }}
               value={

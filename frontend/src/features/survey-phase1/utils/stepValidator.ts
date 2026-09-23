@@ -4,6 +4,7 @@ export interface MissingFieldItem {
   fieldId: string;
   label: string;
   step: number;
+  floorIndex?: number;
   description?: string;
   isBlocking?: boolean;
 }
@@ -182,15 +183,7 @@ export const validateCondoUnitStep = (step: number, formData: Phase1SurveyFormDa
   }
 
   if (step === 7) {
-    // Bước 7 ở Căn hộ con: Ký biên bản hiện trường
-    if (!formData.signatures?.preparedBy?.fullName?.trim()) {
-      missing.push({
-        fieldId: 'input-preparedBy-name',
-        label: '7.1. Họ tên Cán bộ kỹ thuật khảo sát',
-        step: 7,
-        description: 'Vui lòng nhập đầy đủ họ tên cán bộ thực hiện.',
-      });
-    }
+    // Bước 7 ở Căn hộ con: Ký biên bản hiện trường (họ tên cán bộ không bắt buộc)
   }
 
   return {
@@ -410,6 +403,7 @@ export const validateStep = (step: number, formData: Phase1SurveyFormData): Step
             fieldId: 'step3-floor-cad-section',
             label: `3.1. Điểm chấm Vùng Z (${floorTitle})`,
             step: 3,
+            floorIndex: fIdx,
             description: `Chưa có điểm chấm Vùng kiến trúc (Z) nào trên sơ đồ CAD_01 của ${floorTitle}. Vui lòng chấm ít nhất 1 Vùng Z.`,
             isBlocking: true,
           });
@@ -418,6 +412,7 @@ export const validateStep = (step: number, formData: Phase1SurveyFormData): Step
             fieldId: 'step3-floor-cad-section',
             label: `3.1. Khớp số lượng Vùng Z (${floorTitle})`,
             step: 3,
+            floorIndex: fIdx,
             description: `Số lượng điểm ghim CAD_01 (${cadZonePins.length}) chưa khớp với số Vùng Z (${zones.length}) của ${floorTitle}. Vui lòng kiểm tra lại.`,
             isBlocking: true,
           });
@@ -429,6 +424,7 @@ export const validateStep = (step: number, formData: Phase1SurveyFormData): Step
             fieldId: 'step3-structure-cad-section',
             label: `3.2. Điểm chấm Cấu kiện E (${floorTitle})`,
             step: 3,
+            floorIndex: fIdx,
             description: `Chưa có điểm chấm Cấu kiện kết cấu chịu lực (E) nào trên sơ đồ CAD_02 của ${floorTitle}. Vui lòng chấm ít nhất 1 Cấu kiện E.`,
             isBlocking: true,
           });
@@ -437,6 +433,7 @@ export const validateStep = (step: number, formData: Phase1SurveyFormData): Step
             fieldId: 'step3-structure-cad-section',
             label: `3.2. Khớp số lượng Cấu kiện E (${floorTitle})`,
             step: 3,
+            floorIndex: fIdx,
             description: `Số lượng điểm ghim CAD_02 (${cadElementPins.length}) chưa khớp với số Cấu kiện E (${structuralElements.length}) của ${floorTitle}. Vui lòng kiểm tra lại.`,
             isBlocking: true,
           });
@@ -452,6 +449,7 @@ export const validateStep = (step: number, formData: Phase1SurveyFormData): Step
               fieldId: 'step3-active-zone-card',
               label: `3.1. Ghi sổ khuyết tật D cho Vùng ${z.zoneCode} (${floorTitle})`,
               step: 3,
+              floorIndex: fIdx,
               description: `Vùng ${z.zoneCode} được đánh dấu CÓ vết nứt/hư hỏng nhưng chưa có điểm khuyết tật D nào được ghi sổ. Vui lòng chấm điểm ghi sổ D-xx hoặc bỏ chọn mục hư hỏng.`,
               isBlocking: true,
             });
@@ -462,6 +460,7 @@ export const validateStep = (step: number, formData: Phase1SurveyFormData): Step
               fieldId: 'step3-active-zone-card',
               label: `3.1. Ảnh bối cảnh khuyết tật Vùng ${z.zoneCode} (${floorTitle})`,
               step: 3,
+              floorIndex: fIdx,
               description: `Vùng ${z.zoneCode} có ${defectCount} khuyết tật D nhưng chưa có ảnh bối cảnh chính để định vị. Vui lòng chụp/chọn ảnh bối cảnh.`,
               isBlocking: true,
             });
@@ -478,6 +477,7 @@ export const validateStep = (step: number, formData: Phase1SurveyFormData): Step
               fieldId: 'step3-active-element-card',
               label: `3.2. Ghi sổ khuyết tật D cho Cấu kiện ${el.elementCode} (${floorTitle})`,
               step: 3,
+              floorIndex: fIdx,
               description: `Cấu kiện ${el.elementCode} được đánh dấu CÓ nứt kết cấu/võng nhưng chưa có điểm khuyết tật D nào được ghi sổ. Vui lòng chấm điểm ghi sổ D-xx hoặc bỏ chọn mục hư hỏng.`,
               isBlocking: true,
             });
@@ -488,6 +488,7 @@ export const validateStep = (step: number, formData: Phase1SurveyFormData): Step
               fieldId: 'step3-active-element-card',
               label: `3.2. Ảnh bối cảnh khuyết tật Cấu kiện ${el.elementCode} (${floorTitle})`,
               step: 3,
+              floorIndex: fIdx,
               description: `Cấu kiện ${el.elementCode} có ${defectCount} khuyết tật D nhưng chưa có ảnh bối cảnh cấu kiện để định vị. Vui lòng chụp/chọn ảnh bối cảnh.`,
               isBlocking: true,
             });
@@ -504,6 +505,23 @@ export const validateStep = (step: number, formData: Phase1SurveyFormData): Step
         label: '5.1. Danh sách tầng được khảo sát',
         step: 5,
         description: 'Vui lòng chọn ít nhất 1 tầng nằm trong phạm vi khảo sát.',
+      });
+    }
+
+    const isSplit =
+      formData.gisMutationConfirmed?.type === 'SPLIT' || (formData as any).gisMutation?.type === 'SPLIT';
+    const splitReason =
+      formData.gisMutationConfirmed?.details?.splitReason ||
+      formData.gisMutationConfirmed?.notes ||
+      (formData as any).gisMutation?.splitReason;
+
+    if (isSplit && !splitReason?.trim()) {
+      missing.push({
+        fieldId: 'input-splitReason',
+        label: '5.2. Lý do chia tách thửa đất',
+        step: 5,
+        description: 'Bắt buộc phải chọn hoặc nhập lý do chia tách thửa đất thực tế.',
+        isBlocking: true,
       });
     }
   }
@@ -525,14 +543,7 @@ export const validateStep = (step: number, formData: Phase1SurveyFormData): Step
   }
 
   if (step === 8) {
-    if (!formData.signatures?.preparedBy?.fullName?.trim()) {
-      missing.push({
-        fieldId: 'input-preparedBy-name',
-        label: '8.1. Họ tên Cán bộ kỹ thuật khảo sát',
-        step: 8,
-        description: 'Vui lòng nhập đầy đủ họ tên cán bộ thực hiện.',
-      });
-    }
+    // Không bắt buộc họ tên cán bộ khảo sát do form đã lược bỏ
   }
 
   return {

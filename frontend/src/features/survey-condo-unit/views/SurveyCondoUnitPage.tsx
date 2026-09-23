@@ -30,6 +30,7 @@ export const SurveyCondoUnitPage: React.FC<SurveyCondoUnitPageProps> = ({
     setCurrentStep,
     formData,
     initializeForm,
+    saveDraftToStorage,
     clearDraft,
     missingModal,
     closeMissingModal,
@@ -42,10 +43,51 @@ export const SurveyCondoUnitPage: React.FC<SurveyCondoUnitPageProps> = ({
   useEffect(() => {
     if (parcel) {
       initializeForm(parcel, unit);
-      // Mặc định bắt đầu từ Bước 1 (Đối soát toà cha)
-      setCurrentStep(1);
     }
   }, [parcel?.id, unit?.id]);
+
+  // Chặn thao tác reload / đóng tab ngoài ý muốn
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      saveDraftToStorage();
+      e.preventDefault();
+      e.returnValue = 'Bạn có dữ liệu khảo sát căn hộ đang thực hiện. Bạn có chắc chắn muốn tải lại hoặc rời đi?';
+      return e.returnValue;
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [saveDraftToStorage]);
+
+  // Chặn thao tác back trình duyệt / vuốt back trên điện thoại
+  useEffect(() => {
+    window.history.pushState({ condoUnitSessionActive: true }, '');
+
+    const handlePopState = () => {
+      const confirmLeave = window.confirm(
+        'Bạn có chắc chắn muốn quay lại và tạm rời phiên khảo sát căn hộ? Dữ liệu đang nhập đã được lưu nháp an toàn.'
+      );
+      if (confirmLeave) {
+        saveDraftToStorage();
+        onBackToHome();
+      } else {
+        window.history.pushState({ condoUnitSessionActive: true }, '');
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [onBackToHome, saveDraftToStorage]);
+
+  // Quay về an toàn có xác nhận và lưu nháp
+  const handleSafeBackToHome = () => {
+    const confirmLeave = window.confirm(
+      'Bạn có chắc chắn muốn quay về danh sách căn hộ? Toàn bộ dữ liệu khảo sát đã được tự động lưu nháp an toàn.'
+    );
+    if (confirmLeave) {
+      saveDraftToStorage();
+      onBackToHome();
+    }
+  };
 
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
@@ -107,7 +149,7 @@ export const SurveyCondoUnitPage: React.FC<SurveyCondoUnitPageProps> = ({
   return (
     <div className="min-h-screen bg-slate-100/90 flex flex-col font-sans">
       {/* Navbar sáng đồng bộ toàn hệ thống */}
-      <CondoUnitWizardNav onBackToHub={onBackToHome} />
+      <CondoUnitWizardNav onBackToHub={handleSafeBackToHome} />
 
       {/* Main Step Content Container */}
       <main className="flex-1 px-3 sm:px-6 py-6">

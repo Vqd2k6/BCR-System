@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { Crosshair, Trash2, Camera, AlertCircle, CheckCircle2, Ruler, Sparkles, MapPin } from 'lucide-react';
 import { PhotoCaptureInput } from '../common/PhotoCaptureInput';
+import { InfoPopover } from '../../core/components/ui/InfoPopover';
 
 export interface DefectItem {
   id?: string;
@@ -393,9 +394,22 @@ export const DefectPinningCanvas: React.FC<Props> = ({
           {/* Scoring Fields */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3 bg-white rounded-xl border border-slate-200">
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Ý nghĩa kết cấu (Nguồn tính E2):
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs font-bold text-slate-700">
+                  Ý nghĩa kết cấu (Nguồn E2):
+                </label>
+                <InfoPopover title="Ý nghĩa kết cấu khuyết tật (Nguồn tính E2)" size="md">
+                  <p><strong>Bản chất:</strong> Đánh giá mức độ ảnh hưởng của vết nứt/khuyết tật này tới khả năng chịu lực của kết cấu (cột, dầm, sàn, tường chịu lực).</p>
+                  <p className="mt-1"><strong>Cách tính vào ECS:</strong> Điểm E2 toàn công trình sẽ lấy giá trị <em>LỚN NHẤT (Max)</em> từ tất cả các khuyết tật D được khảo sát.</p>
+                  <ul className="list-disc pl-3.5 space-y-0.5 text-[11px] text-slate-600 mt-1.5 pt-1.5 border-t border-slate-100">
+                    <li><strong>0đ (None):</strong> Vết nứt nông trang trí/vữa trát, không ảnh hưởng kết cấu.</li>
+                    <li><strong>1đ (Low):</strong> Nứt vi mô bề mặt bê tông do co ngót, ngoài vùng chịu lực chính.</li>
+                    <li><strong>2đ (Moderate):</strong> Nứt rõ ở cấu kiện chịu lực nhưng bề rộng ổn định, chưa suy giảm sức kháng cắt/uốn.</li>
+                    <li><strong>3đ (High):</strong> Nứt chéo xiên 45° gần gối dầm/cột, hoặc nứt vùng nén (Tự động kích hoạt Review kết cấu).</li>
+                    <li><strong>4đ (Critical):</strong> Bê tông bị vỡ vụn, nứt toác, cốt thép biến dạng cong vênh (Báo động nguy cấp).</li>
+                  </ul>
+                </InfoPopover>
+              </div>
               <select
                 className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-medium focus:ring-1 focus:ring-emerald-500"
                 value={selectedDefect.structuralSignificanceE2}
@@ -411,9 +425,22 @@ export const DefectPinningCanvas: React.FC<Props> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Suy giảm vật liệu (Nguồn tính E4):
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs font-bold text-slate-700">
+                  Suy giảm vật liệu (Nguồn E4):
+                </label>
+                <InfoPopover title="Suy giảm độ bền vật liệu (Nguồn tính E4)" size="md">
+                  <p><strong>Bản chất:</strong> Mức độ thoái hóa, phong hóa, bong tróc của bê tông, cốt thép và gạch xây tại vị trí khuyết tật.</p>
+                  <p className="mt-1"><strong>Cách tính vào ECS:</strong> Điểm E4 toàn công trình sẽ lấy giá trị <em>LỚN NHẤT (Max)</em> từ các khuyết tật D.</p>
+                  <ul className="list-disc pl-3.5 space-y-0.5 text-[11px] text-slate-600 mt-1.5 pt-1.5 border-t border-slate-100">
+                    <li><strong>0đ (Không/rất nhẹ):</strong> Bê tông chắc đặc, vạch không xước, không ẩm mốc.</li>
+                    <li><strong>1đ (Cục bộ):</strong> Bong tróc nhẹ lớp sơn vôi hoặc vữa trát một vài điểm.</li>
+                    <li><strong>2đ (Đáng kể):</strong> Rỗ tổ ong bê tông, phong hóa mục vữa diện rộng, chưa lộ cốt thép.</li>
+                    <li><strong>3đ (Nặng/lộ thép):</strong> Bê tông nứt bong mảng làm lộ thanh thép gỉ sét, giảm tiết diện.</li>
+                    <li><strong>4đ (Mất tiết diện):</strong> Cốt thép đứt rỉ nghiêm trọng, bê tông mục nát mất liên kết chịu lực.</li>
+                  </ul>
+                </InfoPopover>
+              </div>
               <select
                 className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-medium focus:ring-1 focus:ring-emerald-500"
                 value={selectedDefect.materialDegradationE4}
@@ -429,9 +456,22 @@ export const DefectPinningCanvas: React.FC<Props> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Ảnh hưởng chức năng (Nguồn tính E6):
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="text-xs font-bold text-slate-700">
+                  Ảnh hưởng chức năng (Nguồn E6):
+                </label>
+                <InfoPopover title="Ảnh hưởng chức năng sử dụng (Nguồn tính E6)" size="md">
+                  <p><strong>Bản chất:</strong> Hậu quả của khuyết tật đến công năng sinh hoạt thực tế (thấm dột, kẹt cửa, thoát nạn, đường ống).</p>
+                  <p className="mt-1"><strong>Cách tính vào ECS:</strong> Góp phần vào chỉ số tổng thể E6 cùng với tình trạng thấm dột, kẹt cửa toàn nhà.</p>
+                  <ul className="list-disc pl-3.5 space-y-0.5 text-[11px] text-slate-600 mt-1.5 pt-1.5 border-t border-slate-100">
+                    <li><strong>0đ (Không ảnh hưởng):</strong> Sinh hoạt, vận hành bình thường.</li>
+                    <li><strong>1đ (Nhẹ):</strong> Ẩm mốc nhẹ hoặc kẹt 1–2 bộ cửa trong nhà ở mức nhẹ.</li>
+                    <li><strong>2đ (Trung bình):</strong> Thấm nước tường/sàn hoặc kẹt 2–5 bộ cửa phải dùng lực mạnh.</li>
+                    <li><strong>3đ (Nặng):</strong> Nước dột chảy thành dòng, kẹt trên 5 bộ cửa không đóng mở được.</li>
+                    <li><strong>4đ (Nguy cấp):</strong> Nước rò rỉ gây nguy cơ chập cháy điện, hoặc cửa kẹt cứng chắn lối thoát hiểm khẩn cấp.</li>
+                  </ul>
+                </InfoPopover>
+              </div>
               <select
                 className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-medium focus:ring-1 focus:ring-emerald-500"
                 value={selectedDefect.functionalImpactE6 || 0}

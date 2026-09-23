@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { usePhase1SurveyStore } from '../store/usePhase1SurveyStore';
 import { Card } from '../../../core/components/ui/Card';
 import { Button } from '../../../core/components/ui/Button';
@@ -104,7 +104,19 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
   const zones: DamageZoneData[] = currentFloor.zones || [];
   const structuralElements: StructuralElementData[] = currentFloor.structuralElements || [];
 
-  // 1. Thêm Tầng Mới
+  // Lắng nghe sự kiện chuyển tầng từ modal cảnh báo thiếu thông tin
+  useEffect(() => {
+    const handleFocusFloor = (e: any) => {
+      const fIdx = e.detail?.floorIndex;
+      if (typeof fIdx === 'number' && fIdx >= 0 && fIdx < formData.floors.length) {
+        setActiveFloorIndex(fIdx);
+      }
+    };
+    window.addEventListener('ksqh-focus-floor', handleFocusFloor);
+    return () => window.removeEventListener('ksqh-focus-floor', handleFocusFloor);
+  }, [formData.floors.length]);
+
+  // 1. Thêm Tầng Mới (tự động cuộn lên đầu trang và đặt mặc định quan trắc là Không)
   const handleAddFloor = () => {
     const floorNumber = formData.floors.length;
     const newFloorName = floorNumber === 1 ? 'Tầng 1 (Lầu 1)' : `Tầng ${floorNumber}`;
@@ -119,10 +131,17 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
       zones: [],
       structuralElements: [],
     };
-    updateFormData({ floors: [...formData.floors, newFloor] });
+    updateFormData({
+      floors: [...formData.floors, newFloor],
+      settlementTilt: {
+        ...formData.settlementTilt,
+        needAdditionalMonitoring: { required: false, notes: '' },
+      },
+    });
     setActiveFloorIndex(formData.floors.length);
     setActiveZoneIndex(0);
     setActiveElementIndex(0);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   // Helper cuộn mượt đến phần tử theo ID
@@ -133,9 +152,57 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
     }
   };
 
+  // Kiểm tra điều kiện bắt buộc của Vùng Z hiện tại trước khi cho phép chuyển vùng
+  const validateZoneCanAdvance = (zone: DamageZoneData | undefined): { ok: boolean; message?: string } => {
+    if (!zone) return { ok: true };
+    if (zone.hasDamage) {
+      if (!zone.ctxPhotoUrl) {
+        return {
+          ok: false,
+          message: `Vùng ${zone.zoneCode} đã chọn "Có vết nứt / hư hỏng" nhưng chưa chụp hoặc tải ảnh bối cảnh (Context Photo). Vui lòng bổ sung ảnh trước khi chuyển sang Vùng Z khác!`,
+        };
+      }
+      if (!zone.defects || zone.defects.length === 0) {
+        return {
+          ok: false,
+          message: `Vùng ${zone.zoneCode} đã chọn "Có vết nứt / hư hỏng" nhưng chưa chấm ghim và chấm điểm khuyết tật (D). Vui lòng ghim ít nhất 1 khuyết tật trước khi chuyển tiếp!`,
+        };
+      }
+    }
+    return { ok: true };
+  };
+
+  // Kiểm tra điều kiện bắt buộc của Cấu kiện E hiện tại trước khi chuyển cấu kiện
+  const validateElementCanAdvance = (element: StructuralElementData | undefined): { ok: boolean; message?: string } => {
+    if (!element) return { ok: true };
+    if (element.hasDamage) {
+      if (!element.ctxPhotoUrl) {
+        return {
+          ok: false,
+          message: `Cấu kiện ${element.elementCode} đã chọn "Có khuyết tật / biến dạng" nhưng chưa có ảnh bối cảnh. Vui lòng bổ sung ảnh trước khi chuyển tiếp!`,
+        };
+      }
+      if (!element.defects || element.defects.length === 0) {
+        return {
+          ok: false,
+          message: `Cấu kiện ${element.elementCode} đã chọn "Có khuyết tật" nhưng chưa chấm ghim và chấm điểm khuyết tật. Vui lòng ghim ít nhất 1 khuyết tật trước khi chuyển tiếp!`,
+        };
+      }
+    }
+    return { ok: true };
+  };
+
   // Điều hướng chuyển Vùng Z và cuộn lên đầu card chi tiết
   const navigateToZone = (idx: number, markCurrentCompleted = false) => {
     if (idx < 0 || idx >= zones.length) return;
+    if (idx !== activeZoneIndex) {
+      const currentZone = zones[activeZoneIndex];
+      const check = validateZoneCanAdvance(currentZone);
+      if (!check.ok) {
+        alert(check.message);
+        return;
+      }
+    }
     if (markCurrentCompleted && activeZoneIndex >= 0 && activeZoneIndex < zones.length) {
       handleUpdateZone(activeZoneIndex, { isCompleted: true });
     }
@@ -153,8 +220,14 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
     navigateToZone(activeZoneIndex - 1, false);
   };
 
-  // Khi bấm "Thêm Vùng Z tiếp theo" ở cuối: cuộn lên vị trí Sơ đồ CAD_01 để người dùng chấm điểm Z mới
+  // Khi bấm "Thêm Vùng Z tiếp theo" ở cuối: kiểm tra hợp lệ rồi cuộn lên vị trí Sơ đồ CAD_01
   const handleRequestAddNextZone = () => {
+    const currentZone = zones[activeZoneIndex];
+    const check = validateZoneCanAdvance(currentZone);
+    if (!check.ok) {
+      alert(check.message);
+      return;
+    }
     if (activeZoneIndex >= 0 && activeZoneIndex < zones.length) {
       handleUpdateZone(activeZoneIndex, { isCompleted: true });
     }
@@ -169,6 +242,14 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
   // Điều hướng chuyển Cấu kiện E và cuộn lên đầu card chi tiết
   const navigateToElement = (idx: number, markCurrentCompleted = false) => {
     if (idx < 0 || idx >= structuralElements.length) return;
+    if (idx !== activeElementIndex) {
+      const currentEl = structuralElements[activeElementIndex];
+      const check = validateElementCanAdvance(currentEl);
+      if (!check.ok) {
+        alert(check.message);
+        return;
+      }
+    }
     if (markCurrentCompleted && activeElementIndex >= 0 && activeElementIndex < structuralElements.length) {
       handleUpdateElement(activeElementIndex, { isCompleted: true });
     }
@@ -186,8 +267,14 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
     navigateToElement(activeElementIndex - 1, false);
   };
 
-  // Khi bấm "Thêm Kết Cấu E tiếp theo" ở cuối: cuộn lên vị trí Sơ đồ CAD_02 để người dùng chấm điểm E mới
+  // Khi bấm "Thêm Kết Cấu E tiếp theo" ở cuối: kiểm tra hợp lệ rồi cuộn lên vị trí Sơ đồ CAD_02
   const handleRequestAddNextElement = () => {
+    const currentEl = structuralElements[activeElementIndex];
+    const check = validateElementCanAdvance(currentEl);
+    if (!check.ok) {
+      alert(check.message);
+      return;
+    }
     if (activeElementIndex >= 0 && activeElementIndex < structuralElements.length) {
       handleUpdateElement(activeElementIndex, { isCompleted: true });
     }

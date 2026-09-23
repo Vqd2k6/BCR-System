@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { usePhase1SurveyStore } from '../../survey-phase1/store/usePhase1SurveyStore';
-import { Home, ArrowLeft, ArrowRight, Save, Building2 } from 'lucide-react';
+import { Home, ArrowLeft, ArrowRight, Save, Building2, Check } from 'lucide-react';
 import clsx from 'clsx';
 
 export const CONDO_UNIT_STEPS = [
@@ -18,8 +18,15 @@ interface Props {
 }
 
 export const CondoUnitWizardNav: React.FC<Props> = ({ onBackToHub }) => {
-  const { currentStep, setCurrentStep, nextStep, prevStep, formData, lastSavedAt } =
+  const { currentStep, setCurrentStep, nextStep, prevStep, formData, lastSavedAt, saveDraftToStorage } =
     usePhase1SurveyStore();
+  const [savedToast, setSavedToast] = useState(false);
+
+  const handleManualSave = () => {
+    saveDraftToStorage();
+    setSavedToast(true);
+    setTimeout(() => setSavedToast(false), 2500);
+  };
 
   const handleStepClick = (stepId: number) => {
     setCurrentStep(stepId);
@@ -73,12 +80,28 @@ export const CondoUnitWizardNav: React.FC<Props> = ({ onBackToHub }) => {
 
         {/* Right Status & Quick Navigation */}
         <div className="flex items-center gap-2.5">
-          {lastSavedAt && (
-            <span className="text-[11px] text-slate-400 hidden md:inline-flex items-center gap-1">
-              <Save className="w-3.5 h-3.5 text-emerald-500" />
-              Lưu nháp: {lastSavedAt}
-            </span>
-          )}
+          <button
+            onClick={handleManualSave}
+            className={clsx(
+              'inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-lg border transition-all shadow-xs',
+              savedToast
+                ? 'bg-emerald-600 text-white border-emerald-600'
+                : 'text-emerald-700 bg-emerald-50/80 hover:bg-emerald-100 border-emerald-200'
+            )}
+            title="Bấm để lưu nháp dữ liệu khảo sát căn hộ vào bộ nhớ thiết bị"
+          >
+            {savedToast ? (
+              <>
+                <Check className="w-3.5 h-3.5 text-white" />
+                <span>Đã lưu!</span>
+              </>
+            ) : (
+              <>
+                <Save className="w-3.5 h-3.5 text-emerald-600" />
+                <span>{lastSavedAt ? `Lưu nháp: ${lastSavedAt}` : 'Lưu nháp'}</span>
+              </>
+            )}
+          </button>
 
           <div className="flex items-center gap-1">
             <button

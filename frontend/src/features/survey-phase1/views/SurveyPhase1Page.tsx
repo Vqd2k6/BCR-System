@@ -30,6 +30,7 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
     currentStep,
     formData,
     initializeForm,
+    saveDraftToStorage,
     clearDraft,
     missingModal,
     closeMissingModal,
@@ -45,6 +46,49 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
       initializeForm(parcel, unit);
     }
   }, [parcel?.id, unit?.id]);
+
+  // Chặn thao tác reload / đóng tab ngoài ý muốn
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      saveDraftToStorage();
+      e.preventDefault();
+      e.returnValue = 'Bạn có dữ liệu khảo sát đang thực hiện. Bạn có chắc chắn muốn tải lại hoặc rời đi?';
+      return e.returnValue;
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [saveDraftToStorage]);
+
+  // Chặn thao tác back trình duyệt / vuốt back trên điện thoại
+  useEffect(() => {
+    window.history.pushState({ surveySessionActive: true }, '');
+
+    const handlePopState = () => {
+      const confirmLeave = window.confirm(
+        'Bạn có chắc chắn muốn quay lại và tạm rời phiên khảo sát? Toàn bộ dữ liệu đang nhập đã được lưu nháp an toàn.'
+      );
+      if (confirmLeave) {
+        saveDraftToStorage();
+        onBackToHome();
+      } else {
+        window.history.pushState({ surveySessionActive: true }, '');
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [onBackToHome, saveDraftToStorage]);
+
+  // Quay về an toàn có xác nhận và lưu nháp
+  const handleSafeBackToHome = () => {
+    const confirmLeave = window.confirm(
+      'Bạn có chắc chắn muốn quay về danh sách? Toàn bộ dữ liệu khảo sát đã được tự động lưu nháp an toàn vào bộ nhớ thiết bị.'
+    );
+    if (confirmLeave) {
+      saveDraftToStorage();
+      onBackToHome();
+    }
+  };
 
   // Tự động cuộn lên đầu trang mỗi khi chuyển bước khảo sát
   useEffect(() => {
@@ -90,7 +134,7 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
   return (
     <div className="min-h-screen bg-slate-50/50 flex flex-col">
       {/* 8-Step Navigation Header */}
-      <StepWizardNav onBackToHome={onBackToHome} />
+      <StepWizardNav onBackToHome={handleSafeBackToHome} />
 
       {/* Main Step Content Container */}
       <main className="flex-1 px-3 sm:px-6 py-6">

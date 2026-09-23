@@ -459,7 +459,7 @@ export const Step1_BuildingIdentification: React.FC = () => {
             <div className="flex items-center justify-between">
               <span className="text-slate-500 block font-medium">Tọa độ thửa đất (GIS Parcel)</span>
               <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
-                Tâm lô đất
+                Đỉnh ranh gần tim Metro nhất
               </span>
             </div>
             <span className="text-sm font-bold text-emerald-700 font-mono mt-1 block">

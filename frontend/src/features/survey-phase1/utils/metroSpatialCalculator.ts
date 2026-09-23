@@ -95,17 +95,18 @@ export const pointToSegmentDistance = (
 export const polygonToPolylineDistance = (
   polygonCoords: [number, number][],
   polylineCoords: [number, number][]
-): { minDistance: number; closestPoint: [number, number]; segmentIndex: number; t: number } => {
+): { minDistance: number; closestPoint: [number, number]; closestVertex: [number, number]; segmentIndex: number; t: number } => {
   if (!polygonCoords || polygonCoords.length === 0 || !polylineCoords || polylineCoords.length < 2) {
-    return { minDistance: 15.0, closestPoint: [10.8034, 106.6385], segmentIndex: 0, t: 0 };
+    return { minDistance: 15.0, closestPoint: [10.8034, 106.6385], closestVertex: [10.8034, 106.6385], segmentIndex: 0, t: 0 };
   }
 
   let minDistance = Infinity;
   let closestPoint: [number, number] = polylineCoords[0];
+  let closestVertex: [number, number] = polygonCoords[0];
   let segmentIndex = 0;
   let bestT = 0;
 
-  // Duyệt qua tất cả các đỉnh của đa giác thửa đất
+  // Duyệt qua tất cả các đỉnh của đa giác thửa đất để tìm đỉnh gần tim tuyến nhất
   for (const vertex of polygonCoords) {
     for (let i = 0; i < polylineCoords.length - 1; i++) {
       const segA = polylineCoords[i];
@@ -114,13 +115,14 @@ export const polygonToPolylineDistance = (
       if (res.distance < minDistance) {
         minDistance = res.distance;
         closestPoint = res.projection;
+        closestVertex = vertex;
         segmentIndex = i;
         bestT = res.t;
       }
     }
   }
 
-  return { minDistance, closestPoint, segmentIndex, t: bestT };
+  return { minDistance, closestPoint, closestVertex, segmentIndex, t: bestT };
 };
 
 /**
@@ -136,6 +138,7 @@ export const formatChainage = (kmValue: number): string => {
 
 export interface ParcelMetroSpatialMetrics {
   centroid: { lat: number; lng: number };
+  closestVertex: { lat: number; lng: number };
   metroOffsetDistance: string; // VD: "12.5m"
   clearanceOffsetDistance: string; // VD: "4.8m"
   chainage: string; // VD: "Km 7+850"
@@ -145,6 +148,7 @@ export interface ParcelMetroSpatialMetrics {
 /**
  * TÍNH TOÁN TOÀN DIỆN CHỈ SỐ KHÔNG GIAN CHO THỬA ĐẤT (PHƯƠNG ÁN A)
  * - Tọa độ tâm thửa đất (Centroid)
+ * - Tọa độ đỉnh ranh thửa gần tim tuyến Metro nhất (Closest Vertex)
  * - Khoảng cách gần nhất từ mép lô đất đến tim tuyến Metro 2
  * - Khoảng cách gần nhất từ mép lô đất đến ranh mốc GPMB
  * - Lý trình (Chainage)
@@ -186,6 +190,10 @@ export const calculateParcelMetroSpatialMetrics = (
 
   return {
     centroid: { lat: avgLat, lng: avgLng },
+    closestVertex: {
+      lat: Number(centerAnalysis.closestVertex[0].toFixed(6)),
+      lng: Number(centerAnalysis.closestVertex[1].toFixed(6)),
+    },
     metroOffsetDistance: `${distanceToCenterlineMeters.toFixed(1)}m`,
     clearanceOffsetDistance: `${distanceToClearanceMeters.toFixed(1)}m`,
     chainage: chainageStr,

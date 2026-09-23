@@ -184,9 +184,15 @@ export const Step4_BurlandSummary: React.FC = () => {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <div className="flex items-center justify-between mb-1">
-              <label htmlFor="select-burland-predominant" className="block text-xs font-semibold text-slate-700">
-                1. Burland Chủ Đạo Toàn Nhà (Predominant)
-              </label>
+              <div className="flex items-center gap-1.5">
+                <label htmlFor="select-burland-predominant" className="block text-xs font-semibold text-slate-700">
+                  1. Burland Chủ Đạo Toàn Nhà (Predominant)
+                </label>
+                <InfoPopover title="1. Cấp Burland Chủ Đạo (Predominant Grade)" size="md">
+                  <p><strong>Định nghĩa:</strong> Cấp độ hư hại nứt nẻ xuất hiện phổ biến nhất (Mode giá trị xuất hiện nhiều nhất) trên phần lớn các bề mặt tường và phòng của toàn bộ ngôi nhà.</p>
+                  <p className="mt-1"><strong>Mục đích:</strong> Phản ánh bức tranh hư hỏng chung bình diện toàn công trình trước khi có tác động thi công tuyến Metro 2.</p>
+                </InfoPopover>
+              </div>
               <span className="text-[10px] font-mono text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
                 ⚡ Kế thừa: Cấp {inheritedPredominant}
               </span>
@@ -213,9 +219,15 @@ export const Step4_BurlandSummary: React.FC = () => {
 
           <div>
             <div className="flex items-center justify-between mb-1">
-              <label htmlFor="select-burland-localMax" className="block text-xs font-semibold text-slate-700">
-                2. Burland Cục Bộ Lớn Nhất (Local Max)
-              </label>
+              <div className="flex items-center gap-1.5">
+                <label htmlFor="select-burland-localMax" className="block text-xs font-semibold text-slate-700">
+                  2. Burland Cục Bộ Lớn Nhất (Local Max)
+                </label>
+                <InfoPopover title="2. Cấp Burland Cục Bộ Lớn Nhất (Local Max Grade)" size="md">
+                  <p><strong>Định nghĩa:</strong> Cấp nứt nghiêm trọng nhất (Max) được ghi nhận tại bất kỳ vị trí nào trong công trình.</p>
+                  <p className="mt-1"><strong>Tác động tính toán:</strong> Giá trị này trực tiếp quyết định <strong>Chỉ số tổn thương bề mặt E1</strong> trong thang điểm hiện trạng ECS.</p>
+                </InfoPopover>
+              </div>
               <span className="text-[10px] font-mono text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
                 ⚡ Kế thừa: Cấp {inheritedMax}
               </span>
@@ -240,24 +252,34 @@ export const Step4_BurlandSummary: React.FC = () => {
             />
           </div>
 
-          <Select
-            id="select-burland-governingZone"
-            label="3. Vùng Kiểm Soát Chi Phối (Governing Zone)"
-            value={bs.governingZoneCode || governingZoneSuggestion}
-            onChange={(e) =>
-              updateFormData({
-                burlandSummary: { ...bs, governingZoneCode: e.target.value },
-              })
-            }
-            options={
-              allZones.length > 0
-                ? allZones.map((z) => ({
-                    value: z.zoneCode,
-                    label: `${z.zoneCode} - ${z.floorName} - ${z.roomName} (${(z.defects || []).length} nứt)`,
-                  }))
-                : [{ value: 'Z-01', label: 'Z-01 (Mặc định)' }]
-            }
-          />
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label htmlFor="select-burland-governingZone" className="block text-xs font-semibold text-slate-700">
+                3. Vùng Kiểm Soát Chi Phối (Governing Zone)
+              </label>
+              <InfoPopover title="3. Vùng Kiểm Soát Chi Phối (Governing Zone)" size="md">
+                <p><strong>Định nghĩa:</strong> Vùng không gian (Zone Z-xx) mang mức độ hư hại nặng nhất hoặc nằm ở vị trí chịu lực nhạy cảm nhất của ngôi nhà (gần tim metro nhất hoặc vị trí nứt kết cấu).</p>
+                <p className="mt-1"><strong>Mục đích:</strong> Đây sẽ là điểm mốc then chốt để đo đạc đối chiếu so sánh hiện trạng khi thi công hầm/ga Metro sau này.</p>
+              </InfoPopover>
+            </div>
+            <Select
+              id="select-burland-governingZone"
+              value={bs.governingZoneCode || governingZoneSuggestion}
+              onChange={(e) =>
+                updateFormData({
+                  burlandSummary: { ...bs, governingZoneCode: e.target.value },
+                })
+              }
+              options={
+                allZones.length > 0
+                  ? allZones.map((z) => ({
+                      value: z.zoneCode,
+                      label: `${z.zoneCode} - ${z.floorName} - ${z.roomName} (${(z.defects || []).length} nứt)`,
+                    }))
+                  : [{ value: 'Z-01', label: 'Z-01 (Mặc định)' }]
+              }
+            />
+          </div>
 
           <Input
             id="input-burland-governingZoneDesc"
@@ -271,41 +293,61 @@ export const Step4_BurlandSummary: React.FC = () => {
             }
           />
 
-          <Select
-            id="select-burland-representativeness"
-            label="4. Tính Đại Diện (Representativeness)"
-            value={bs.representativeness}
-            onChange={(e) =>
-              updateFormData({
-                burlandSummary: {
-                  ...bs,
-                  representativeness: e.target.value as 'GLOBAL' | 'LOCAL',
-                },
-              })
-            }
-            options={[
-              { value: 'GLOBAL', label: 'Toàn công trình (Đại diện chung toàn nhà)' },
-              { value: 'LOCAL', label: 'Cục bộ (Chỉ xuất hiện tại một vài khu vực)' },
-            ]}
-          />
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label htmlFor="select-burland-representativeness" className="block text-xs font-semibold text-slate-700">
+                4. Tính Đại Diện (Representativeness)
+              </label>
+              <InfoPopover title="4. Tính Đại Diện Của Hư Hỏng (Representativeness)" size="md">
+                <p><strong>GLOBAL (Toàn diện):</strong> Các vết nứt phân bố đều khắp các tầng, mảng tường, phản ánh tác động đồng bộ của nền móng hoặc co ngót chung.</p>
+                <p className="mt-1"><strong>LOCAL (Cục bộ):</strong> Hư hại chỉ xuất hiện tập trung tại 1 góc nhà, 1 vị trí cơi nới hoặc mảng tường chịu tác động riêng lẻ.</p>
+              </InfoPopover>
+            </div>
+            <Select
+              id="select-burland-representativeness"
+              value={bs.representativeness}
+              onChange={(e) =>
+                updateFormData({
+                  burlandSummary: {
+                    ...bs,
+                    representativeness: e.target.value as 'GLOBAL' | 'LOCAL',
+                  },
+                })
+              }
+              options={[
+                { value: 'GLOBAL', label: 'Toàn công trình (Đại diện chung toàn nhà)' },
+                { value: 'LOCAL', label: 'Cục bộ (Chỉ xuất hiện tại một vài khu vực)' },
+              ]}
+            />
+          </div>
 
-          <Select
-            id="select-burland-structuralReview"
-            label="5. Cần Kỹ Sư Kết Cấu Thẩm Định (Structural Review)"
-            value={bs.needStructuralEngineerReview ? 'YES' : 'NO'}
-            onChange={(e) =>
-              updateFormData({
-                burlandSummary: {
-                  ...bs,
-                  needStructuralEngineerReview: e.target.value === 'YES',
-                },
-              })
-            }
-            options={[
-              { value: 'NO', label: 'Không - Mức độ hư hỏng thông thường' },
-              { value: 'YES', label: 'Có - Cần Kỹ sư kết cấu thẩm tra chuyên sâu' },
-            ]}
-          />
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label htmlFor="select-burland-structuralReview" className="block text-xs font-semibold text-slate-700">
+                5. Cần Kỹ Sư Kết Cấu Thẩm Định (Structural Review)
+              </label>
+              <InfoPopover title="5. Thẩm Tra Kỹ Sư Kết Cấu (Structural Review)" size="md">
+                <p><strong>Cơ sở yêu cầu:</strong> Kích hoạt khi công trình có các vết nứt xiên 45° chịu cắt tại cột/dầm (Cờ khuyết tật E2 &ge; 3), độ võng sàn lớn, hoặc nghiêng lún tiến triển.</p>
+                <p className="mt-1"><strong>Hệ quả:</strong> Kỹ sư kết cấu chuyên môn cao sẽ được phân công kiểm toán chi tiết độ an toàn chịu lực trước khi máy đào TBM đi qua.</p>
+              </InfoPopover>
+            </div>
+            <Select
+              id="select-burland-structuralReview"
+              value={bs.needStructuralEngineerReview ? 'YES' : 'NO'}
+              onChange={(e) =>
+                updateFormData({
+                  burlandSummary: {
+                    ...bs,
+                    needStructuralEngineerReview: e.target.value === 'YES',
+                  },
+                })
+              }
+              options={[
+                { value: 'NO', label: 'Không - Mức độ hư hỏng thông thường' },
+                { value: 'YES', label: 'Có - Cần Kỹ sư kết cấu thẩm tra chuyên sâu' },
+              ]}
+            />
+          </div>
         </div>
       </Card>
 

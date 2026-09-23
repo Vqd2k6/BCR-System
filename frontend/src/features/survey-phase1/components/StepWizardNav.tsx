@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { usePhase1SurveyStore } from '../store/usePhase1SurveyStore';
-import { Save, ArrowLeft, ArrowRight } from 'lucide-react';
+import { Save, ArrowLeft, ArrowRight, Check } from 'lucide-react';
 import clsx from 'clsx';
 
 const STEP_LABELS = [
@@ -19,8 +19,15 @@ interface StepWizardNavProps {
 }
 
 export const StepWizardNav: React.FC<StepWizardNavProps> = ({ onBackToHome }) => {
-  const { currentStep, requestStepNavigation, nextStep, prevStep, lastSavedAt, isSavingDraft } =
+  const { currentStep, requestStepNavigation, nextStep, prevStep, lastSavedAt, saveDraftToStorage } =
     usePhase1SurveyStore();
+  const [savedToast, setSavedToast] = useState(false);
+
+  const handleManualSave = () => {
+    saveDraftToStorage();
+    setSavedToast(true);
+    setTimeout(() => setSavedToast(false), 2500);
+  };
 
   return (
     <div className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200/80 shadow-sm">
@@ -46,12 +53,28 @@ export const StepWizardNav: React.FC<StepWizardNavProps> = ({ onBackToHome }) =>
 
         {/* Auto save badge & navigation buttons */}
         <div className="flex items-center gap-2">
-          {lastSavedAt && (
-            <span className="text-[11px] text-slate-400 hidden md:inline-flex items-center gap-1">
-              <Save className="w-3.5 h-3.5 text-emerald-500" />
-              Lưu nháp: {lastSavedAt}
-            </span>
-          )}
+          <button
+            onClick={handleManualSave}
+            className={clsx(
+              'inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-lg border transition-all shadow-xs',
+              savedToast
+                ? 'bg-emerald-600 text-white border-emerald-600'
+                : 'text-emerald-700 bg-emerald-50/80 hover:bg-emerald-100 border-emerald-200'
+            )}
+            title="Bấm để lưu nháp dữ liệu khảo sát vào bộ nhớ thiết bị"
+          >
+            {savedToast ? (
+              <>
+                <Check className="w-3.5 h-3.5 text-white" />
+                <span>Đã lưu!</span>
+              </>
+            ) : (
+              <>
+                <Save className="w-3.5 h-3.5 text-emerald-600" />
+                <span>{lastSavedAt ? `Lưu nháp: ${lastSavedAt}` : 'Lưu nháp'}</span>
+              </>
+            )}
+          </button>
 
           <button
             onClick={prevStep}

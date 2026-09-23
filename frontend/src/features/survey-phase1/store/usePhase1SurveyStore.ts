@@ -5,6 +5,7 @@ import { calculateViScore } from '../engine/viCalculator';
 import { GisParcel, BuildingUnit } from '../../../core/types/domain.types';
 import { validateStep, validateAllSteps, MissingFieldItem } from '../utils/stepValidator';
 import { calculateParcelMetroSpatialMetrics } from '../utils/metroSpatialCalculator';
+import { saveSurveyDraft, loadSurveyDraft, deleteSurveyDraft } from '../../../core/utils/idbDraftStorage';
 
 export interface Phase1SurveyStore {
   currentStep: number;
@@ -73,7 +74,7 @@ export const getDefaultInitialFormData = (parcelId: string = ''): Phase1SurveyFo
   undergroundFloors: 0,
   constructionYear: 2026,
   isEstimatedYear: false,
-  structureSystem: 'RC - Khung BTCT toàn khối',
+  structureSystem: '',
   foundationType: 'PC - Cọc ép BTCT',
   pileDimensionMm: '',
   asBuiltDrawingPhotoUrl: '',
@@ -215,39 +216,44 @@ export const usePhase1SurveyStore = create<Phase1SurveyStore>((set, get) => ({
     const unitId = unit ? unit.id : null;
     const draftKey = `metro2_phase1_draft_${parcel.id}${unitId ? `_${unitId}` : ''}`;
     let initialData = getDefaultInitialFormData(parcel.id);
+    let initialStep = 1;
 
-    // Thử khôi phục từ draft lưu cục bộ
+    // 1. Thử khôi phục nhanh đồng bộ từ localStorage (fallback)
     try {
       const saved = localStorage.getItem(draftKey);
       if (saved) {
         const parsed = JSON.parse(saved);
         if (parsed.parcelId === parcel.id) {
           initialData = { ...initialData, ...parsed };
-          console.log('[SurveyPhase1Store] Restored form data from LocalStorage draft:', draftKey);
+          if (parsed._savedStep && parsed._savedStep >= 1 && parsed._savedStep <= 8) {
+            initialStep = parsed._savedStep;
+          }
+          console.log('[SurveyPhase1Store] Restored fast draft from LocalStorage:', draftKey);
         }
       }
     } catch (e) {
-      console.warn('[SurveyPhase1Store] Failed to restore draft:', e);
+      console.warn('[SurveyPhase1Store] Failed to restore localStorage draft:', e);
     }
 
-    // Luôn map thông tin thửa mới nhất
+    // 2. Map các thông tin định danh thửa đất (nếu draft chưa có thì lấy từ parcel)
     initialData.parcelId = parcel.id;
-    initialData.projectParcelCode = parcel.projectParcelCode || initialData.projectParcelCode;
-    initialData.officialCadastralCode = parcel.officialCadastralCode || initialData.officialCadastralCode;
-    initialData.houseNumber = parcel.houseNumber || initialData.houseNumber;
-    initialData.street = parcel.street || initialData.street;
-    initialData.ownerName = unit?.ownerName || parcel.ownerName || initialData.ownerName;
-    if (parcel.floorCount !== undefined && parcel.floorCount !== null) {
-      initialData.aboveFloors = parcel.floorCount;
+    initialData.projectParcelCode = initialData.projectParcelCode || parcel.projectParcelCode || '';
+    initialData.officialCadastralCode = initialData.officialCadastralCode || parcel.officialCadastralCode || '';
+    initialData.houseNumber = initialData.houseNumber || parcel.houseNumber || '';
+    initialData.street = initialData.street || parcel.street || '';
+    initialData.ownerName = initialData.ownerName || unit?.ownerName || parcel.ownerName || '';
+    if (initialData.aboveFloors === undefined || initialData.aboveFloors === null || initialData.aboveFloors === 0) {
+      initialData.aboveFloors = parcel.floorCount ?? 0;
     }
 
     // Tính toán trắc địa không gian chuẩn từ Polygon thửa đất (Phương án A)
+    // Tọa độ là Đỉnh ranh polygon gần tim Metro nhất
     if (parcel.coordinates && parcel.coordinates.length > 0) {
       const spatialMetrics = calculateParcelMetroSpatialMetrics(parcel.coordinates);
-      initialData.gpsCoords = spatialMetrics.centroid;
-      initialData.metroOffsetDistance = spatialMetrics.metroOffsetDistance;
-      initialData.clearanceOffsetDistance = spatialMetrics.clearanceOffsetDistance;
-      initialData.chainage = spatialMetrics.chainage;
+      initialData.gpsCoords = initialData.gpsCoords?.lat ? initialData.gpsCoords : spatialMetrics.closestVertex;
+      initialData.metroOffsetDistance = initialData.metroOffsetDistance || spatialMetrics.metroOffsetDistance;
+      initialData.clearanceOffsetDistance = initialData.clearanceOffsetDistance || spatialMetrics.clearanceOffsetDistance;
+      initialData.chainage = initialData.chainage || spatialMetrics.chainage;
     }
 
     // Khởi tạo thông tin riêng cho Căn hộ con nếu có unit
@@ -281,12 +287,36 @@ export const usePhase1SurveyStore = create<Phase1SurveyStore>((set, get) => ({
     initialData.vi = vi;
 
     set({
-      currentStep: 1,
+      currentStep: initialStep,
       currentUnitId: unitId,
       formData: initialData,
       missingModal: null,
       lastSavedAt: new Date().toLocaleTimeString('vi-VN'),
     });
+
+    // 3. Tải bất đồng bộ draft đầy đủ (không giới hạn ảnh và bản vẽ CAD) từ IndexedDB
+    loadSurveyDraft<any>(draftKey)
+      .then((fullDraft) => {
+        if (fullDraft && fullDraft.parcelId === parcel.id) {
+          const targetStep = fullDraft._savedStep >= 1 && fullDraft._savedStep <= 8 ? fullDraft._savedStep : undefined;
+          set((state) => {
+            const merged = { ...state.formData, ...fullDraft };
+            const recalculatedEcs = calculateEcsScore(merged);
+            const recalculatedVi = calculateViScore(merged, recalculatedEcs);
+            merged.ecs = recalculatedEcs;
+            merged.vi = recalculatedVi;
+            return {
+              formData: merged,
+              currentStep: targetStep !== undefined ? targetStep : state.currentStep,
+              lastSavedAt: new Date().toLocaleTimeString('vi-VN'),
+            };
+          });
+          console.log('[SurveyPhase1Store] Full rich draft restored from IndexedDB:', draftKey, 'savedStep:', targetStep);
+        }
+      })
+      .catch((err) => {
+        console.warn('[SurveyPhase1Store] IDB load draft error:', err);
+      });
   },
 
   setCurrentStep: (step: number) => {
@@ -364,6 +394,15 @@ export const usePhase1SurveyStore = create<Phase1SurveyStore>((set, get) => ({
       get().setCurrentStep(item.step);
     }
 
+    // Nếu trường còn thiếu thuộc tầng cụ thể (floorIndex), phát sự kiện chuyển tab tầng trước
+    if (item.floorIndex !== undefined) {
+      window.dispatchEvent(
+        new CustomEvent('ksqh-focus-floor', {
+          detail: { floorIndex: item.floorIndex },
+        })
+      );
+    }
+
     setTimeout(() => {
       const el = document.getElementById(item.fieldId);
       if (el) {
@@ -376,7 +415,7 @@ export const usePhase1SurveyStore = create<Phase1SurveyStore>((set, get) => ({
           el.focus();
         }
       }
-    }, 250);
+    }, item.floorIndex !== undefined ? 350 : 250);
   },
 
   validateForFinalSubmit: () => {
@@ -419,27 +458,54 @@ export const usePhase1SurveyStore = create<Phase1SurveyStore>((set, get) => ({
   },
 
   saveDraftToStorage: () => {
-    const { formData, currentUnitId } = get();
+    const { formData, currentUnitId, currentStep } = get();
     if (!formData.parcelId) return;
 
     const draftKey = `metro2_phase1_draft_${formData.parcelId}${currentUnitId ? `_${currentUnitId}` : ''}`;
-    try {
-      localStorage.setItem(draftKey, JSON.stringify(formData));
-      set({ lastSavedAt: new Date().toLocaleTimeString('vi-VN') });
-    } catch (e) {
-      console.warn('[SurveyPhase1Store] LocalStorage full, saving essential fields:', e);
-      try {
-        const compactData = {
-          ...formData,
-          photoP01: { ...formData.photoP01, url: formData.photoP01.url?.length > 100000 ? '' : formData.photoP01.url },
-          photoP02: { ...formData.photoP02, url: formData.photoP02.url?.length > 100000 ? '' : formData.photoP02.url },
-          photoP04: { ...formData.photoP04, url: formData.photoP04.url?.length > 100000 ? '' : formData.photoP04.url },
-        };
-        localStorage.setItem(draftKey, JSON.stringify(compactData));
+    const payloadWithStep = {
+      ...formData,
+      _savedStep: currentStep,
+    };
+
+    // 1. Lưu bản đầy đủ không giới hạn vào IndexedDB (lưu được ảnh Base64 lớn và CAD)
+    saveSurveyDraft(draftKey, payloadWithStep)
+      .then(() => {
         set({ lastSavedAt: new Date().toLocaleTimeString('vi-VN') });
-      } catch (_err) {
-        console.error('[SurveyPhase1Store] Could not save draft:', _err);
-      }
+      })
+      .catch((e) => {
+        console.warn('[SurveyPhase1Store] IDB save failed:', e);
+      });
+
+    // 2. Lưu bản compact vào localStorage để dự phòng
+    try {
+      const compactData = {
+        ...payloadWithStep,
+        floors: (payloadWithStep.floors || []).map((f) => ({
+          ...f,
+          cadSketchPhotoUrl: f.cadSketchPhotoUrl && f.cadSketchPhotoUrl.length > 50000 ? '' : f.cadSketchPhotoUrl,
+          cadStructuralSketchPhotoUrl: f.cadStructuralSketchPhotoUrl && f.cadStructuralSketchPhotoUrl.length > 50000 ? '' : f.cadStructuralSketchPhotoUrl,
+          zones: (f.zones || []).map((z) => ({
+            ...z,
+            ctxPhotoUrl: z.ctxPhotoUrl && z.ctxPhotoUrl.length > 50000 ? '' : z.ctxPhotoUrl,
+            defects: (z.defects || []).map((d) => ({
+              ...d,
+              cuPhotoUrl: d.cuPhotoUrl && d.cuPhotoUrl.length > 50000 ? '' : d.cuPhotoUrl,
+            })),
+          })),
+          structuralElements: (f.structuralElements || []).map((e) => ({
+            ...e,
+            ctxPhotoUrl: e.ctxPhotoUrl && e.ctxPhotoUrl.length > 50000 ? '' : e.ctxPhotoUrl,
+            defects: (e.defects || []).map((d) => ({
+              ...d,
+              cuPhotoUrl: d.cuPhotoUrl && d.cuPhotoUrl.length > 50000 ? '' : d.cuPhotoUrl,
+            })),
+          })),
+        })),
+      };
+      localStorage.setItem(draftKey, JSON.stringify(compactData));
+      set({ lastSavedAt: new Date().toLocaleTimeString('vi-VN') });
+    } catch (_err) {
+      console.warn('[SurveyPhase1Store] LocalStorage quota reached, relied on IndexedDB');
     }
   },
 
@@ -447,6 +513,7 @@ export const usePhase1SurveyStore = create<Phase1SurveyStore>((set, get) => ({
     const { formData, currentUnitId } = get();
     if (!formData.parcelId) return;
     const draftKey = `metro2_phase1_draft_${formData.parcelId}${currentUnitId ? `_${currentUnitId}` : ''}`;
+    deleteSurveyDraft(draftKey);
     localStorage.removeItem(draftKey);
   },
 }));

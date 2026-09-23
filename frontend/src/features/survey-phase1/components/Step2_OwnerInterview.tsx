@@ -209,6 +209,7 @@ export const Step2_OwnerInterview: React.FC = () => {
               </InfoPopover>
             </div>
             <Select
+              id="input-structureSystem"
               value={isCustomStructure ? 'Other - Khác (Nhập chi tiết...)' : formData.structureSystem}
               onChange={(e) => {
                 if (e.target.value === 'Other - Khác (Nhập chi tiết...)') {
@@ -217,7 +218,10 @@ export const Step2_OwnerInterview: React.FC = () => {
                   updateFormData({ structureSystem: e.target.value });
                 }
               }}
-              options={STRUCTURE_SYSTEMS.map((s) => ({ value: s, label: s }))}
+              options={[
+                { value: '', label: '--- Chọn hệ kết cấu chịu lực ---' },
+                ...STRUCTURE_SYSTEMS.map((s) => ({ value: s, label: s })),
+              ]}
             />
             {isCustomStructure && (
               <Input
