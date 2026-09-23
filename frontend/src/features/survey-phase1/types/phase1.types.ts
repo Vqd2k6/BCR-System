@@ -149,6 +149,20 @@ export interface Phase1SurveyFormData {
   managementContactName?: string; // Đại diện BQL / BQT tòa nhà
   managementContactPhone?: string; // Số điện thoại BQL tòa nhà
 
+  // Thông tin mở rộng cho Căn hộ con trong Tòa chung cư
+  unitId?: string;
+  unitCode?: string;
+  unitFloorNumber?: number;
+  parentBuildingInfo?: {
+    buildingName: string;
+    projectParcelCode: string;
+    officialCadastralCode: string;
+    address: string;
+    chainage: string;
+    metroOffsetDistance: string;
+    isConfirmed?: boolean;
+  };
+
   // Step 1 Photos & Polygon
   photoP01: { url: string; notApplicable: boolean };
   photoP02: {

@@ -13,7 +13,197 @@ export interface StepValidationResult {
   missingFields: MissingFieldItem[];
 }
 
+export const validateCondoUnitStep = (step: number, formData: Phase1SurveyFormData): StepValidationResult => {
+  const missing: MissingFieldItem[] = [];
+
+  if (step === 1) {
+    // Bước 1: Kế thừa dữ liệu toà cha -> hợp lệ
+  }
+
+  if (step === 2) {
+    // Bước 2: Thông tin định danh căn hộ & chủ hộ
+    if (!formData.unitCode?.trim()) {
+      missing.push({
+        fieldId: 'input-unitCode',
+        label: '2.1. Mã Căn Hộ',
+        step: 2,
+        description: 'Vui lòng nhập mã căn hộ (VD: P.1204).',
+        isBlocking: true,
+      });
+    }
+
+    if (!formData.ownerName?.trim()) {
+      missing.push({
+        fieldId: 'input-ownerName',
+        label: '2.2. Họ tên Chủ hộ / Người sử dụng',
+        step: 2,
+        description: 'Vui lòng nhập họ tên chủ sở hữu hoặc người sử dụng căn hộ.',
+        isBlocking: true,
+      });
+    }
+
+    if (!formData.photoP01?.url && !formData.photoP01?.notApplicable) {
+      missing.push({
+        fieldId: 'photo-p01-section',
+        label: '2.3. Ảnh P-01 (Cửa chính căn hộ từ hành lang)',
+        step: 2,
+        description: 'Vui lòng chụp ảnh cửa chính căn hộ từ hành lang hoặc đánh dấu N/A.',
+      });
+    }
+
+    if (!formData.photoP04?.url && !formData.photoP04?.notApplicable) {
+      missing.push({
+        fieldId: 'photo-p04-section',
+        label: '2.3. Ảnh P-04 (Toàn cảnh phòng khách)',
+        step: 2,
+        description: 'Vui lòng chụp ảnh không gian sinh hoạt chính / phòng khách hoặc đánh dấu N/A.',
+      });
+    }
+  }
+
+  if (step === 3) {
+    // Bước 3: Khảo sát các tầng/phòng chi tiết của căn hộ
+    if (!formData.floors || formData.floors.length === 0) {
+      missing.push({
+        fieldId: 'step3-floor-cad-section',
+        label: '3. Khảo sát căn hộ',
+        step: 3,
+        description: 'Cần có ít nhất 1 không gian khảo sát trong danh sách.',
+        isBlocking: true,
+      });
+    } else {
+      formData.floors.forEach((floor, fIdx) => {
+        const floorTitle = floor.floorName || `Không gian ${fIdx + 1}`;
+        const cadZonePins = floor.cadZonePins || [];
+        const zones = floor.zones || [];
+        const cadElementPins = floor.cadElementPins || [];
+        const structuralElements = floor.structuralElements || [];
+
+        if (cadZonePins.length === 0 && zones.length === 0) {
+          missing.push({
+            fieldId: 'step3-floor-cad-section',
+            label: `3.1. Điểm chấm Vùng Z (${floorTitle})`,
+            step: 3,
+            description: `Chưa có điểm chấm Vùng kiến trúc (Z) nào trên sơ đồ CAD_01 của ${floorTitle}. Vui lòng chấm ít nhất 1 Vùng Z.`,
+            isBlocking: true,
+          });
+        } else if (cadZonePins.length !== zones.length) {
+          missing.push({
+            fieldId: 'step3-floor-cad-section',
+            label: `3.1. Khớp số lượng Vùng Z (${floorTitle})`,
+            step: 3,
+            description: `Số lượng điểm ghim CAD_01 (${cadZonePins.length}) chưa khớp với số Vùng Z (${zones.length}) của ${floorTitle}.`,
+            isBlocking: true,
+          });
+        }
+
+        if (cadElementPins.length === 0 && structuralElements.length === 0) {
+          missing.push({
+            fieldId: 'step3-structure-cad-section',
+            label: `3.2. Điểm chấm Cấu kiện E (${floorTitle})`,
+            step: 3,
+            description: `Chưa có điểm chấm Cấu kiện kết cấu chịu lực (E) nào trên sơ đồ CAD_02 của ${floorTitle}. Vui lòng chấm ít nhất 1 Cấu kiện E.`,
+            isBlocking: true,
+          });
+        } else if (cadElementPins.length !== structuralElements.length) {
+          missing.push({
+            fieldId: 'step3-structure-cad-section',
+            label: `3.2. Khớp số lượng Cấu kiện E (${floorTitle})`,
+            step: 3,
+            description: `Số lượng điểm ghim CAD_02 (${cadElementPins.length}) chưa khớp với số Cấu kiện E (${structuralElements.length}) của ${floorTitle}.`,
+            isBlocking: true,
+          });
+        }
+
+        zones.forEach((z) => {
+          const hasDamageMarked = z.hasDamage || (z.defects && z.defects.length > 0);
+          const defectCount = z.defects ? z.defects.length : 0;
+          if (hasDamageMarked && defectCount === 0) {
+            missing.push({
+              fieldId: 'step3-active-zone-card',
+              label: `3.1. Ghi sổ khuyết tật D cho Vùng ${z.zoneCode} (${floorTitle})`,
+              step: 3,
+              description: `Vùng ${z.zoneCode} được đánh dấu CÓ vết nứt/hư hỏng nhưng chưa có điểm khuyết tật D nào được ghi sổ.`,
+              isBlocking: true,
+            });
+          }
+          if (hasDamageMarked && defectCount > 0 && !z.ctxPhotoUrl) {
+            missing.push({
+              fieldId: 'step3-active-zone-card',
+              label: `3.1. Ảnh bối cảnh khuyết tật Vùng ${z.zoneCode} (${floorTitle})`,
+              step: 3,
+              description: `Vùng ${z.zoneCode} có ${defectCount} khuyết tật D nhưng chưa có ảnh bối cảnh chính để định vị.`,
+              isBlocking: true,
+            });
+          }
+        });
+
+        structuralElements.forEach((el) => {
+          const hasDamageMarked = el.hasDamage || (el.defects && el.defects.length > 0);
+          const defectCount = el.defects ? el.defects.length : 0;
+          if (hasDamageMarked && defectCount === 0) {
+            missing.push({
+              fieldId: 'step3-active-element-card',
+              label: `3.2. Ghi sổ khuyết tật D cho Cấu kiện ${el.elementCode} (${floorTitle})`,
+              step: 3,
+              description: `Cấu kiện ${el.elementCode} được đánh dấu CÓ nứt kết cấu nhưng chưa có điểm khuyết tật D nào được ghi sổ.`,
+              isBlocking: true,
+            });
+          }
+          if (hasDamageMarked && defectCount > 0 && !el.ctxPhotoUrl) {
+            missing.push({
+              fieldId: 'step3-active-element-card',
+              label: `3.2. Ảnh bối cảnh khuyết tật Cấu kiện ${el.elementCode} (${floorTitle})`,
+              step: 3,
+              description: `Cấu kiện ${el.elementCode} có ${defectCount} khuyết tật D nhưng chưa có ảnh bối cảnh cấu kiện để định vị.`,
+              isBlocking: true,
+            });
+          }
+        });
+      });
+    }
+  }
+
+  if (step === 5) {
+    // Bước 5 ở Căn hộ con: Bảng điểm ECS & VI
+    if (
+      formData.ecs?.engineeringJudgement?.action &&
+      formData.ecs.engineeringJudgement.action !== 'KEEP' &&
+      !formData.ecs.engineeringJudgement.reason?.trim()
+    ) {
+      missing.push({
+        fieldId: 'input-ecs-reason',
+        label: '5.1. Lý do can thiệp kỹ sư (ECS)',
+        step: 5,
+        description: 'Khi kỹ sư can thiệp Nâng hoặc Hạ hạng ECS, bắt buộc phải giải trình căn cứ kỹ thuật.',
+        isBlocking: true,
+      });
+    }
+  }
+
+  if (step === 7) {
+    // Bước 7 ở Căn hộ con: Ký biên bản hiện trường
+    if (!formData.signatures?.preparedBy?.fullName?.trim()) {
+      missing.push({
+        fieldId: 'input-preparedBy-name',
+        label: '7.1. Họ tên Cán bộ kỹ thuật khảo sát',
+        step: 7,
+        description: 'Vui lòng nhập đầy đủ họ tên cán bộ thực hiện.',
+      });
+    }
+  }
+
+  return {
+    isValid: missing.length === 0,
+    missingFields: missing,
+  };
+};
+
 export const validateStep = (step: number, formData: Phase1SurveyFormData): StepValidationResult => {
+  if (Boolean(formData.unitId)) {
+    return validateCondoUnitStep(step, formData);
+  }
+
   const missing: MissingFieldItem[] = [];
 
   if (step === 1) {
@@ -353,6 +543,18 @@ export const validateStep = (step: number, formData: Phase1SurveyFormData): Step
 
 export const validateAllSteps = (formData: Phase1SurveyFormData): StepValidationResult => {
   const allMissing: MissingFieldItem[] = [];
+
+  // Đối với căn hộ chung cư con: kiểm tra 7 bước chuẩn
+  if (Boolean(formData.unitId)) {
+    for (let s = 1; s <= 7; s++) {
+      const res = validateCondoUnitStep(s, formData);
+      allMissing.push(...res.missingFields);
+    }
+    return {
+      isValid: allMissing.length === 0,
+      missingFields: allMissing,
+    };
+  }
 
   // If absentee or under construction, only Step 1 is required
   if (formData.surveyCaseType === 'ABSENTEE' || formData.surveyCaseType === 'UNDER_CONSTRUCTION') {

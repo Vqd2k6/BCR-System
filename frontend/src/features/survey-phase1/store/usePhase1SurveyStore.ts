@@ -250,6 +250,30 @@ export const usePhase1SurveyStore = create<Phase1SurveyStore>((set, get) => ({
       initialData.chainage = spatialMetrics.chainage;
     }
 
+    // Khởi tạo thông tin riêng cho Căn hộ con nếu có unit
+    if (unit) {
+      const floorNum = parseInt(unit.floorLevel?.replace(/\D/g, '') || '1', 10) || 1;
+      initialData.unitId = unit.id;
+      initialData.unitCode = unit.unitCode || initialData.unitCode || '';
+      initialData.unitFloorNumber = floorNum;
+      initialData.surveyCaseType = 'APARTMENT';
+      initialData.parentBuildingInfo = {
+        buildingName: (parcel as any).buildingName || parcel.projectParcelCode || 'Tòa Nhà Chung Cư Cao Tầng',
+        projectParcelCode: parcel.projectParcelCode || '',
+        officialCadastralCode: parcel.officialCadastralCode || '',
+        address: (parcel.houseNumber ? `${parcel.houseNumber}, ` : '') + (parcel.street || ''),
+        chainage: initialData.chainage || '',
+        metroOffsetDistance: initialData.metroOffsetDistance || '',
+        isConfirmed: initialData.parentBuildingInfo?.isConfirmed || false,
+      };
+
+      // Đặt tên tầng phù hợp với căn hộ nếu mới khởi tạo
+      if (initialData.floors && initialData.floors.length === 1 && initialData.floors[0].id === 'floor_ground') {
+        initialData.floors[0].id = `floor_${floorNum}`;
+        initialData.floors[0].floorName = `Tầng ${floorNum} - Căn hộ ${unit.unitCode}`;
+      }
+    }
+
     // Tự động tính toán điểm ban đầu
     const ecs = calculateEcsScore(initialData);
     const vi = calculateViScore(initialData, ecs);

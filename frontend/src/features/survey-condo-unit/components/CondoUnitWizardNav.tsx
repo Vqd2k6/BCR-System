@@ -1,13 +1,16 @@
 import React from 'react';
-import { useCondoUnitSurveyStore } from '../store/useCondoUnitSurveyStore';
-import { Home, ArrowLeft, Save, Building2 } from 'lucide-react';
-import { Button } from '../../../core/components/ui/Button';
+import { usePhase1SurveyStore } from '../../survey-phase1/store/usePhase1SurveyStore';
+import { Home, ArrowLeft, ArrowRight, Save, Building2 } from 'lucide-react';
+import clsx from 'clsx';
 
-const CONDO_UNIT_STEPS = [
+export const CONDO_UNIT_STEPS = [
   { id: 1, label: '1. Đối soát toà cha' },
-  { id: 2, label: '2. Thông tin & 2 ảnh P01/P04' },
-  { id: 3, label: '3. Khuyết tật & Lún riêng' },
-  { id: 4, label: '4. Ký số chủ căn hộ' },
+  { id: 2, label: '2. Thông tin căn hộ' },
+  { id: 3, label: '3. Khảo sát các tầng' },
+  { id: 4, label: '4. Chốt Burland & Cờ KC' },
+  { id: 5, label: '5. Bảng điểm ECS & VI' },
+  { id: 6, label: '6. Tổng hợp Dashboard' },
+  { id: 7, label: '7. Ký biên bản 3 bên' },
 ];
 
 interface Props {
@@ -15,53 +18,97 @@ interface Props {
 }
 
 export const CondoUnitWizardNav: React.FC<Props> = ({ onBackToHub }) => {
-  const { currentStep, setStep, formData, lastSavedAt } = useCondoUnitSurveyStore();
+  const { currentStep, setCurrentStep, nextStep, prevStep, formData, lastSavedAt } =
+    usePhase1SurveyStore();
+
+  const handleStepClick = (stepId: number) => {
+    setCurrentStep(stepId);
+  };
+
+  const handlePrev = () => {
+    if (currentStep > 1) {
+      setCurrentStep(currentStep - 1);
+    }
+  };
+
+  const handleNext = () => {
+    if (currentStep < 7) {
+      setCurrentStep(currentStep + 1);
+    }
+  };
 
   return (
-    <header className="sticky top-0 z-40 bg-slate-900 text-white shadow-md border-b border-teal-900/50">
-      <div className="max-w-4xl mx-auto px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-3">
+    <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200/80 shadow-xs">
+      <div className="max-w-7xl mx-auto px-4 py-2.5 flex flex-col sm:flex-row items-center justify-between gap-3">
         {/* Left Info & Back */}
         <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-start">
-          <Button
-            variant="secondary"
-            size="sm"
+          <button
+            type="button"
             onClick={onBackToHub}
-            className="bg-slate-800 text-slate-200 hover:bg-slate-700 border-slate-700 text-xs"
-            icon={<ArrowLeft className="w-3.5 h-3.5" />}
+            className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-slate-600 hover:text-slate-900 px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200/80 transition-colors"
           >
-            Về Hub
-          </Button>
+            <ArrowLeft className="w-4 h-4" />
+            <span>Quay lại Hub</span>
+          </button>
 
           <div className="flex items-center gap-2">
-            <div className="p-1.5 rounded-lg bg-teal-600/30 border border-teal-500/30 text-teal-400">
+            <div className="p-1.5 rounded-lg bg-teal-50 border border-teal-200 text-teal-600">
               <Home className="w-5 h-5" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-xs font-bold bg-teal-500/20 text-teal-300 border border-teal-400/30 px-2 py-0.5 rounded">
+                <span className="text-xs font-bold bg-teal-50 text-teal-700 border border-teal-200 px-2 py-0.5 rounded">
                   CĂN HỘ {formData.unitCode || 'P.---'}
                 </span>
-                <span className="text-sm font-bold text-white">
-                  Tầng {formData.floorNumber}
+                <span className="text-xs font-bold text-slate-800">
+                  Tầng {formData.unitFloorNumber || 1}
                 </span>
               </div>
-              <span className="text-[11px] text-slate-400 block truncate max-w-[240px]">
-                Thuộc: {formData.parentInfo?.buildingName || 'Tòa Chung Cư'}
+              <span className="text-[11px] text-slate-500 block truncate max-w-[260px]">
+                Thuộc: {formData.parentBuildingInfo?.buildingName || formData.buildingName || 'Tòa Chung Cư'}
               </span>
             </div>
           </div>
         </div>
 
-        {/* Right Status */}
-        <div className="flex items-center gap-2 text-xs text-slate-400">
-          <Save className="w-3.5 h-3.5 text-emerald-400" />
-          <span>Lưu nháp: {lastSavedAt || 'Vừa xong'}</span>
+        {/* Right Status & Quick Navigation */}
+        <div className="flex items-center gap-2.5">
+          {lastSavedAt && (
+            <span className="text-[11px] text-slate-400 hidden md:inline-flex items-center gap-1">
+              <Save className="w-3.5 h-3.5 text-emerald-500" />
+              Lưu nháp: {lastSavedAt}
+            </span>
+          )}
+
+          <div className="flex items-center gap-1">
+            <button
+              onClick={handlePrev}
+              disabled={currentStep === 1}
+              className="p-1.5 text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:pointer-events-none rounded-lg border border-slate-200 transition-all"
+              title="Bước trước"
+            >
+              <ArrowLeft className="w-4 h-4" />
+            </button>
+
+            <span className="text-xs font-bold text-teal-700 bg-teal-50 px-2.5 py-1 rounded-full border border-teal-200">
+              Bước {currentStep}/7
+            </span>
+
+            <button
+              onClick={handleNext}
+              disabled={currentStep === 7}
+              className="p-1.5 text-slate-600 hover:bg-slate-100 disabled:opacity-30 disabled:pointer-events-none rounded-lg border border-slate-200 transition-all"
+              title="Bước tiếp theo"
+            >
+              <ArrowRight className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       </div>
 
       {/* Stepper Steps Bar */}
-      <div className="bg-slate-950/80 border-t border-slate-800 px-4 py-2 overflow-x-auto">
-        <div className="max-w-4xl mx-auto flex items-center justify-between gap-2">
+      <div className="px-4 pb-2 max-w-7xl mx-auto overflow-x-auto no-scrollbar">
+        <div className="flex items-center gap-1 min-w-[700px]">
           {CONDO_UNIT_STEPS.map((s) => {
             const isCurrent = currentStep === s.id;
             const isPassed = currentStep > s.id;
@@ -70,27 +117,29 @@ export const CondoUnitWizardNav: React.FC<Props> = ({ onBackToHub }) => {
               <button
                 key={s.id}
                 type="button"
-                onClick={() => setStep(s.id)}
-                className={`flex-1 flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-all ${
+                onClick={() => handleStepClick(s.id)}
+                className={clsx(
+                  'flex-1 py-1.5 px-2 rounded-lg text-xs font-medium text-center transition-all flex items-center justify-center gap-1.5 truncate border',
                   isCurrent
-                    ? 'bg-teal-600 text-white font-bold shadow-xs'
+                    ? 'bg-teal-600 text-white border-teal-600 shadow-xs font-bold'
                     : isPassed
-                    ? 'text-teal-300 bg-teal-950/40 hover:bg-teal-900/50'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
-                }`}
+                    ? 'bg-teal-50 text-teal-700 border-teal-200 hover:bg-teal-100/70'
+                    : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'
+                )}
               >
                 <span
-                  className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-bold ${
+                  className={clsx(
+                    'w-4 h-4 rounded-full text-[10px] flex items-center justify-center flex-shrink-0 font-bold',
                     isCurrent
-                      ? 'bg-white text-teal-900'
+                      ? 'bg-white text-teal-700'
                       : isPassed
-                      ? 'bg-teal-500/30 text-teal-200 border border-teal-400/40'
-                      : 'bg-slate-800 text-slate-400'
-                  }`}
+                      ? 'bg-teal-200 text-teal-800'
+                      : 'bg-slate-200 text-slate-600'
+                  )}
                 >
                   {s.id}
                 </span>
-                <span className="truncate">{s.label}</span>
+                <span className="truncate">{s.label.split('. ')[1]}</span>
               </button>
             );
           })}

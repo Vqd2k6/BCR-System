@@ -722,7 +722,7 @@ export const Step7_TechnicalCalculations: React.FC = () => {
       {/* Navigation */}
       <div className="flex justify-between pt-4">
         <Button variant="outline" onClick={prevStep}>
-          ⬅️ Quay lại Bước 5
+          {formData.unitId ? '⬅️ Quay lại Bước 4 (Chốt Burland)' : '⬅️ Quay lại Bước 5'}
         </Button>
         <Button
           onClick={() => {
@@ -735,7 +735,7 @@ export const Step7_TechnicalCalculations: React.FC = () => {
             nextStep();
           }}
         >
-          Tiếp tục: Bước 7 (Dashboard Tổng Hợp) ➔
+          {formData.unitId ? 'Tiếp tục: Bước 6 (Dashboard Tổng Hợp) ➔' : 'Tiếp tục: Bước 7 (Dashboard Tổng Hợp) ➔'}
         </Button>
       </div>
     </div>

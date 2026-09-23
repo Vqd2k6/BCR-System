@@ -384,7 +384,9 @@ export const Step4_BurlandSummary: React.FC = () => {
           ⬅️ Quay lại Bước 3
         </Button>
         <Button onClick={nextStep}>
-          Tiếp tục: Bước 5 (Phạm vi & Ranh GIS) ➔
+          {formData.unitId
+            ? 'Tiếp tục: Bước 5 (Bảng điểm ECS & VI) ➔'
+            : 'Tiếp tục: Bước 5 (Phạm vi & Ranh GIS) ➔'}
         </Button>
       </div>
     </div>

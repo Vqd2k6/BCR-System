@@ -1,33 +1,37 @@
 import React from 'react';
-import { useCondoUnitSurveyStore } from '../store/useCondoUnitSurveyStore';
+import { usePhase1SurveyStore } from '../../survey-phase1/store/usePhase1SurveyStore';
 import { Card } from '../../../core/components/ui/Card';
 import { Button } from '../../../core/components/ui/Button';
 import {
   Building2,
-  MapPin,
-  Compass,
   CheckCircle2,
   ArrowRight,
   ShieldCheck,
-  FileCheck,
 } from 'lucide-react';
 
 export const Step1_ParentInheritanceConfirmation: React.FC = () => {
-  const { formData, updateFormData, nextStep } = useCondoUnitSurveyStore();
-  const parent = formData.parentInfo;
+  const { formData, updateFormData, setCurrentStep } = usePhase1SurveyStore();
+  const parent = formData.parentBuildingInfo;
 
   const handleConfirm = () => {
     updateFormData({
-      parentInfo: {
-        ...formData.parentInfo,
+      parentBuildingInfo: {
+        ...(formData.parentBuildingInfo || {
+          buildingName: formData.buildingName,
+          projectParcelCode: formData.projectParcelCode,
+          officialCadastralCode: formData.officialCadastralCode,
+          address: `${formData.houseNumber} ${formData.street}`.trim(),
+          chainage: formData.chainage,
+          metroOffsetDistance: formData.metroOffsetDistance,
+        }),
         isConfirmed: true,
       },
     });
-    nextStep();
+    setCurrentStep(2);
   };
 
   return (
-    <div className="space-y-6 max-w-3xl mx-auto pb-12 animate-in fade-in">
+    <div className="space-y-6 max-w-4xl mx-auto pb-12 animate-in fade-in">
       {/* Banner Giới thiệu nguyên tắc OOP */}
       <div className="p-4 bg-teal-50 border border-teal-200 rounded-2xl flex items-start gap-3">
         <div className="p-2 rounded-xl bg-teal-100 text-teal-700 shrink-0 mt-0.5">
@@ -44,7 +48,7 @@ export const Step1_ParentInheritanceConfirmation: React.FC = () => {
       </div>
 
       {/* Card Thông tin toà chung cư cha */}
-      <Card className="border-slate-200 bg-white shadow-sm space-y-4">
+      <Card className="border-slate-200 bg-white shadow-xs space-y-4">
         <div className="flex items-center justify-between pb-3 border-b border-slate-100">
           <div className="flex items-center gap-2">
             <Building2 className="w-5 h-5 text-teal-600" />
@@ -62,42 +66,42 @@ export const Step1_ParentInheritanceConfirmation: React.FC = () => {
           <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
             <span className="text-slate-500 block font-medium">Mã Quản Lý Dự Án (Parent Parcel Code)</span>
             <span className="text-sm font-bold text-teal-700 font-mono mt-0.5 block">
-              {parent?.projectParcelCode || 'B-001'}
+              {parent?.projectParcelCode || formData.projectParcelCode || 'Đang cập nhật'}
             </span>
           </div>
 
           <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
             <span className="text-slate-500 block font-medium">Mã Địa Chính Gốc (Cadastral Code)</span>
             <span className="text-sm font-bold text-slate-800 font-mono mt-0.5 block">
-              {parent?.officialCadastralCode || 'DC-001'}
+              {parent?.officialCadastralCode || formData.officialCadastralCode || 'Đang cập nhật'}
             </span>
           </div>
 
           <div className="sm:col-span-2 p-3 bg-slate-50 rounded-xl border border-slate-200">
             <span className="text-slate-500 block font-medium">Tên Công Trình / Khối Tháp Chung Cư</span>
             <span className="text-sm font-bold text-slate-800 mt-0.5 block">
-              {parent?.buildingName || 'Tòa Nhà Chung Cư Cao Tầng'}
+              {parent?.buildingName || formData.buildingName || 'Tòa Nhà Chung Cư Cao Tầng'}
             </span>
           </div>
 
           <div className="sm:col-span-2 p-3 bg-slate-50 rounded-xl border border-slate-200">
             <span className="text-slate-500 block font-medium">Địa Chỉ Thực Tế Toàn Tòa Nhà</span>
             <span className="text-sm font-bold text-slate-800 mt-0.5 block">
-              {parent?.address || 'Chưa cập nhật địa chỉ'}
+              {parent?.address || (formData.houseNumber ? `${formData.houseNumber}, ` : '') + (formData.street || 'Chưa cập nhật địa chỉ')}
             </span>
           </div>
 
           <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
             <span className="text-slate-500 block font-medium">Lý Trình Tuyến Metro (Chainage)</span>
             <span className="text-sm font-bold text-slate-800 mt-0.5 block">
-              {parent?.chainage || 'Km 3+450'}
+              {parent?.chainage || formData.chainage || 'Km 3+450'}
             </span>
           </div>
 
           <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
             <span className="text-slate-500 block font-medium">Cự Ly Tới Tim Hầm Metro</span>
-            <span className="text-sm font-bold text-indigo-700 mt-0.5 block">
-              {parent?.metroOffsetDistance || '12.5m'}
+            <span className="text-sm font-bold text-teal-700 mt-0.5 block">
+              {parent?.metroOffsetDistance || formData.metroOffsetDistance || '12.5m'}
             </span>
           </div>
         </div>
@@ -107,7 +111,7 @@ export const Step1_ParentInheritanceConfirmation: React.FC = () => {
       <div className="pt-2 flex justify-end">
         <Button
           size="lg"
-          className="bg-teal-600 hover:bg-teal-700 text-white w-full sm:w-auto shadow-md"
+          className="bg-teal-600 hover:bg-teal-700 text-white w-full sm:w-auto shadow-xs"
           onClick={handleConfirm}
           icon={<ArrowRight className="w-4 h-4" />}
         >

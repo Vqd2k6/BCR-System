@@ -260,10 +260,10 @@ export const Step8_ExecutiveDashboard: React.FC = () => {
       {/* Navigation */}
       <div className="flex justify-between pt-4">
         <Button variant="outline" onClick={prevStep}>
-          ⬅️ Quay lại Bước 6
+          {formData.unitId ? '⬅️ Quay lại Bước 5 (Bảng điểm ECS & VI)' : '⬅️ Quay lại Bước 6'}
         </Button>
         <Button onClick={nextStep}>
-          Tiếp tục: Bước 8 (Ký Biên Bản 3 Bên) ➔
+          {formData.unitId ? 'Tiếp tục: Bước 7 (Ký Biên Bản 3 Bên) ➔' : 'Tiếp tục: Bước 8 (Ký Biên Bản 3 Bên) ➔'}
         </Button>
       </div>
     </div>

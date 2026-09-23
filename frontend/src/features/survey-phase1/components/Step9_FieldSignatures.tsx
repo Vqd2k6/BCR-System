@@ -266,7 +266,7 @@ export const Step9_FieldSignatures: React.FC<Step9Props> = ({ onSubmitFinal, isS
       {/* Final Submit Buttons */}
       <div className="flex justify-between items-center pt-4">
         <Button variant="outline" onClick={prevStep}>
-          ⬅️ Quay lại Bước 7
+          {formData.unitId ? '⬅️ Quay lại Bước 6 (Dashboard)' : '⬅️ Quay lại Bước 7'}
         </Button>
         <Button
           size="lg"
