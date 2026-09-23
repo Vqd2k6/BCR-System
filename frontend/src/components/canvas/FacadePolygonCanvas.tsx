@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Dot, Minus, RotateCcw, Sparkles, Trash2, PenTool, AlertCircle, Check } from 'lucide-react';
+import { Dot, Minus, RotateCcw, Sparkles, Trash2, PenTool, AlertCircle, Check, X } from 'lucide-react';
 
 export interface PolygonPoint {
   x: number;
@@ -7,8 +7,14 @@ export interface PolygonPoint {
 }
 
 export interface FloorSplitLine {
+  id?: string;
   floor: string;
-  y: number;
+  lineType?: 'GROUND' | 'MEZZANINE' | 'FLOOR' | 'ROOF' | string;
+  x1?: number; // 0..100%
+  y1?: number; // 0..100%
+  x2?: number; // 0..100%
+  y2?: number; // 0..100%
+  y?: number;  // legacy horizontal line fallback
 }
 
 export interface FreehandStroke {
@@ -57,6 +63,11 @@ export const FacadePolygonCanvas: React.FC<FacadePolygonCanvasProps> = ({
   const [isDrawing, setIsDrawing] = useState<boolean>(false);
   const [currentStroke, setCurrentStroke] = useState<{ x: number; y: number }[]>([]);
 
+  // 2-point line state for SPLIT_LINE
+  const [pendingLineStart, setPendingLineStart] = useState<{ x: number; y: number } | null>(null);
+  const [hoverCoords, setHoverCoords] = useState<{ x: number; y: number } | null>(null);
+  const [activeLineType, setActiveLineType] = useState<'GROUND' | 'MEZZANINE' | 'FLOOR' | 'ROOF'>('FLOOR');
+
   const [aiStatus, setAiStatus] = useState<'IDLE' | 'PROCESSING' | 'COMPLETED'>('IDLE');
   const canvasContainerRef = useRef<HTMLDivElement>(null);
 
@@ -72,6 +83,19 @@ export const FacadePolygonCanvas: React.FC<FacadePolygonCanvasProps> = ({
     return { x, y };
   };
 
+  // Calculate default floor name based on current lines
+  const getFloorName = (type: 'GROUND' | 'MEZZANINE' | 'FLOOR' | 'ROOF') => {
+    if (type === 'GROUND') return 'Line tầng trệt';
+    if (type === 'MEZZANINE') return 'Line tầng lửng';
+    if (type === 'ROOF') return 'Line mái / Sân thượng';
+
+    const floorLines = splitLines.filter(
+      (l) => l.lineType === 'FLOOR' || (!l.lineType && !l.floor.includes('trệt') && !l.floor.includes('lửng') && !l.floor.includes('mái'))
+    );
+    const nextIdx = floorLines.length + 1;
+    return `Lầu ${nextIdx}`;
+  };
+
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (readOnly || !activeImage) return;
     const { x, y } = getCanvasCoords(e.clientX, e.clientY);
@@ -81,11 +105,26 @@ export const FacadePolygonCanvas: React.FC<FacadePolygonCanvasProps> = ({
       setPoints(updated);
       notifyChange(updated, splitLines, strokes);
     } else if (activeTool === 'SPLIT_LINE') {
-      const nextFloorIndex = splitLines.length + 1;
-      const floorName = nextFloorIndex === 1 ? 'Tầng trệt' : `Lầu ${nextFloorIndex - 1}`;
-      const updated = [...splitLines, { floor: floorName, y }];
-      setSplitLines(updated);
-      notifyChange(points, updated, strokes);
+      if (!pendingLineStart) {
+        // Point 1: Start of line
+        setPendingLineStart({ x, y });
+      } else {
+        // Point 2: End of line -> create 2-point slanted/horizontal line
+        const floorName = getFloorName(activeLineType);
+        const newLine: FloorSplitLine = {
+          id: `line_${Date.now()}`,
+          floor: floorName,
+          lineType: activeLineType,
+          x1: pendingLineStart.x,
+          y1: pendingLineStart.y,
+          x2: x,
+          y2: y,
+        };
+        const updated = [...splitLines, newLine];
+        setSplitLines(updated);
+        setPendingLineStart(null);
+        notifyChange(points, updated, strokes);
+      }
     } else if (activeTool === 'FREEHAND') {
       setIsDrawing(true);
       setCurrentStroke([{ x, y }]);
@@ -93,9 +132,13 @@ export const FacadePolygonCanvas: React.FC<FacadePolygonCanvasProps> = ({
   };
 
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!isDrawing || activeTool !== 'FREEHAND' || readOnly) return;
+    if (readOnly) return;
     const { x, y } = getCanvasCoords(e.clientX, e.clientY);
-    setCurrentStroke((prev) => [...prev, { x, y }]);
+    setHoverCoords({ x, y });
+
+    if (isDrawing && activeTool === 'FREEHAND') {
+      setCurrentStroke((prev) => [...prev, { x, y }]);
+    }
   };
 
   const handlePointerUp = () => {
@@ -139,19 +182,8 @@ export const FacadePolygonCanvas: React.FC<FacadePolygonCanvasProps> = ({
     setPoints([]);
     setSplitLines([]);
     setStrokes([]);
+    setPendingLineStart(null);
     notifyChange([], [], []);
-  };
-
-  const triggerAI = async () => {
-    setAiStatus('PROCESSING');
-    if (onTriggerAiRectify) {
-      try {
-        await onTriggerAiRectify();
-      } catch (_e) {}
-    }
-    setTimeout(() => {
-      setAiStatus('COMPLETED');
-    }, 1000);
   };
 
   const handleSaveExplicit = () => {
@@ -177,100 +209,174 @@ export const FacadePolygonCanvas: React.FC<FacadePolygonCanvasProps> = ({
     <div className="flex flex-col h-full gap-2">
       {/* Top Toolbar */}
       {!readOnly && (
-        <div className="flex items-center justify-between p-2.5 rounded-xl bg-slate-900/95 border border-white/10 text-xs flex-wrap gap-2">
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <button
-              type="button"
-              onClick={() => setActiveTool('POLYGON')}
-              className={`px-2.5 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-colors ${
-                activeTool === 'POLYGON' ? 'bg-sky-600 text-white' : 'text-slate-300 hover:bg-slate-800'
-              }`}
-            >
-              <Dot className="w-4 h-4 text-red-500" />
-              <span>Chấm góc bao ({points.length})</span>
-            </button>
+        <div className="flex flex-col gap-2 p-2.5 rounded-xl bg-slate-900/95 border border-white/10 text-xs">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTool('POLYGON');
+                  setPendingLineStart(null);
+                }}
+                className={`px-2.5 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-colors ${
+                  activeTool === 'POLYGON' ? 'bg-sky-600 text-white' : 'text-slate-300 hover:bg-slate-800'
+                }`}
+              >
+                <Dot className="w-4 h-4 text-red-500" />
+                <span>Chấm góc bao ({points.length})</span>
+              </button>
 
-            <button
-              type="button"
-              onClick={() => setActiveTool('SPLIT_LINE')}
-              className={`px-2.5 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-colors ${
-                activeTool === 'SPLIT_LINE' ? 'bg-sky-600 text-white' : 'text-slate-300 hover:bg-slate-800'
-              }`}
-            >
-              <Minus className="w-4 h-4 text-amber-400" />
-              <span>Line phân tầng ({splitLines.length})</span>
-            </button>
+              <button
+                type="button"
+                onClick={() => setActiveTool('SPLIT_LINE')}
+                className={`px-2.5 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-colors ${
+                  activeTool === 'SPLIT_LINE' ? 'bg-sky-600 text-white' : 'text-slate-300 hover:bg-slate-800'
+                }`}
+              >
+                <Minus className="w-4 h-4 text-amber-400" />
+                <span>Line phân tầng ({splitLines.length})</span>
+              </button>
 
-            <button
-              type="button"
-              onClick={() => setActiveTool('FREEHAND')}
-              className={`px-2.5 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-colors ${
-                activeTool === 'FREEHAND' ? 'bg-sky-600 text-white' : 'text-slate-300 hover:bg-slate-800'
-              }`}
-            >
-              <PenTool className="w-3.5 h-3.5 text-yellow-400" />
-              <span>Vẽ note tay ({strokes.length})</span>
-            </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTool('FREEHAND');
+                  setPendingLineStart(null);
+                }}
+                className={`px-2.5 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-colors ${
+                  activeTool === 'FREEHAND' ? 'bg-sky-600 text-white' : 'text-slate-300 hover:bg-slate-800'
+                }`}
+              >
+                <PenTool className="w-3.5 h-3.5 text-yellow-400" />
+                <span>Vẽ note tay ({strokes.length})</span>
+              </button>
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              {/* Undo buttons */}
+              {points.length > 0 && activeTool === 'POLYGON' && (
+                <button
+                  type="button"
+                  onClick={removeLastPoint}
+                  title="Xóa điểm đa giác cuối"
+                  className="p-1.5 bg-slate-800 text-white hover:bg-slate-700 rounded-lg"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                </button>
+              )}
+
+              {splitLines.length > 0 && activeTool === 'SPLIT_LINE' && (
+                <button
+                  type="button"
+                  onClick={removeLastLine}
+                  title="Xóa đường phân tầng cuối"
+                  className="p-1.5 bg-slate-800 text-white hover:bg-slate-700 rounded-lg"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                </button>
+              )}
+
+              {strokes.length > 0 && activeTool === 'FREEHAND' && (
+                <button
+                  type="button"
+                  onClick={removeLastStroke}
+                  title="Xóa nét vẽ tay cuối"
+                  className="p-1.5 bg-slate-800 text-white hover:bg-slate-700 rounded-lg"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                </button>
+              )}
+
+              {(points.length > 0 || splitLines.length > 0 || strokes.length > 0) && (
+                <button
+                  type="button"
+                  onClick={resetAll}
+                  title="Xóa tất cả"
+                  className="p-1.5 bg-red-600 text-white hover:bg-red-700 rounded-lg"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              )}
+
+              {/* Explicit Save button */}
+              {onSave && (
+                <button
+                  type="button"
+                  onClick={handleSaveExplicit}
+                  className="px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 bg-emerald-600 text-white hover:bg-emerald-700 transition-colors shadow-sm ml-1"
+                >
+                  <Check className="w-3.5 h-3.5" />
+                  <span>Lưu & Đóng</span>
+                </button>
+              )}
+            </div>
           </div>
 
-          <div className="flex items-center gap-1.5">
-            {/* Undo buttons */}
-            {points.length > 0 && activeTool === 'POLYGON' && (
-              <button
-                type="button"
-                onClick={removeLastPoint}
-                title="Xóa điểm đa giác cuối"
-                className="p-1.5 bg-slate-800 text-white hover:bg-slate-700 rounded-lg"
-              >
-                <RotateCcw className="w-3.5 h-3.5" />
-              </button>
-            )}
+          {/* Sub-toolbar for SPLIT_LINE options */}
+          {activeTool === 'SPLIT_LINE' && (
+            <div className="flex items-center justify-between flex-wrap gap-2 pt-2 border-t border-slate-800 text-[11px]">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-slate-400 font-semibold">Loại line tiếp theo:</span>
+                <button
+                  type="button"
+                  onClick={() => setActiveLineType('GROUND')}
+                  className={`px-2 py-0.5 rounded transition-colors ${
+                    activeLineType === 'GROUND' ? 'bg-amber-500 text-slate-950 font-bold' : 'bg-slate-800 text-slate-300'
+                  }`}
+                >
+                  Line tầng trệt
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveLineType('MEZZANINE')}
+                  className={`px-2 py-0.5 rounded transition-colors ${
+                    activeLineType === 'MEZZANINE' ? 'bg-amber-500 text-slate-950 font-bold' : 'bg-slate-800 text-slate-300'
+                  }`}
+                >
+                  Line tầng lửng
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveLineType('FLOOR')}
+                  className={`px-2 py-0.5 rounded transition-colors ${
+                    activeLineType === 'FLOOR' ? 'bg-amber-500 text-slate-950 font-bold' : 'bg-slate-800 text-slate-300'
+                  }`}
+                >
+                  {getFloorName('FLOOR')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveLineType('ROOF')}
+                  className={`px-2 py-0.5 rounded transition-colors ${
+                    activeLineType === 'ROOF' ? 'bg-amber-500 text-slate-950 font-bold' : 'bg-slate-800 text-slate-300'
+                  }`}
+                >
+                  Line mái / Sân thượng
+                </button>
+              </div>
 
-            {splitLines.length > 0 && activeTool === 'SPLIT_LINE' && (
-              <button
-                type="button"
-                onClick={removeLastLine}
-                title="Xóa đường phân tầng cuối"
-                className="p-1.5 bg-slate-800 text-white hover:bg-slate-700 rounded-lg"
-              >
-                <RotateCcw className="w-3.5 h-3.5" />
-              </button>
-            )}
-
-            {strokes.length > 0 && activeTool === 'FREEHAND' && (
-              <button
-                type="button"
-                onClick={removeLastStroke}
-                title="Xóa nét vẽ tay cuối"
-                className="p-1.5 bg-slate-800 text-white hover:bg-slate-700 rounded-lg"
-              >
-                <RotateCcw className="w-3.5 h-3.5" />
-              </button>
-            )}
-
-            {(points.length > 0 || splitLines.length > 0 || strokes.length > 0) && (
-              <button
-                type="button"
-                onClick={resetAll}
-                title="Xóa tất cả"
-                className="p-1.5 bg-red-600 text-white hover:bg-red-700 rounded-lg"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-              </button>
-            )}
-
-            {/* Explicit Save button */}
-            {onSave && (
-              <button
-                type="button"
-                onClick={handleSaveExplicit}
-                className="px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 bg-emerald-600 text-white hover:bg-emerald-700 transition-colors shadow-sm ml-1"
-              >
-                <Check className="w-3.5 h-3.5" />
-                <span>Lưu & Đóng</span>
-              </button>
-            )}
-          </div>
+              <div className="flex items-center gap-2">
+                {pendingLineStart ? (
+                  <span className="text-amber-300 font-bold flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping inline-block" />
+                    Chấm điểm 2 để nối line...
+                    <button
+                      type="button"
+                      onClick={() => setPendingLineStart(null)}
+                      className="ml-1 p-0.5 text-slate-400 hover:text-white"
+                      title="Hủy điểm đầu"
+                    >
+                      <X className="w-3 h-3 inline" />
+                    </button>
+                  </span>
+                ) : (
+                  <span className="text-slate-400 italic">
+                    * Chấm 2 đầu của dầm/sàn để nối thành 1 line (hỗ trợ góc chụp nghiêng)
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -329,24 +435,70 @@ export const FacadePolygonCanvas: React.FC<FacadePolygonCanvasProps> = ({
               </g>
             ))}
 
-            {/* Floor split horizontal lines */}
-            {splitLines.map((line, idx) => (
-              <g key={idx}>
+            {/* Floor split lines */}
+            {splitLines.map((line, idx) => {
+              if (line.x1 !== undefined && line.x2 !== undefined && line.y1 !== undefined && line.y2 !== undefined) {
+                // 2-point slanted / horizontal line
+                const midX = (line.x1 + line.x2) / 2;
+                const midY = (line.y1 + line.y2) / 2;
+                return (
+                  <g key={idx}>
+                    <line
+                      x1={line.x1}
+                      y1={line.y1}
+                      x2={line.x2}
+                      y2={line.y2}
+                      stroke="#f59e0b"
+                      strokeWidth="0.8"
+                      strokeDasharray="2, 1.5"
+                    />
+                    <circle cx={line.x1} cy={line.y1} r="1.2" fill="#f59e0b" stroke="#ffffff" strokeWidth="0.4" />
+                    <circle cx={line.x2} cy={line.y2} r="1.2" fill="#f59e0b" stroke="#ffffff" strokeWidth="0.4" />
+                    <rect x={midX - 10} y={midY - 2.2} width="20" height="3.6" fill="rgba(15, 23, 42, 0.9)" rx="0.8" />
+                    <text x={midX} y={midY + 0.3} fontSize="2.2" fill="#fef08a" fontWeight="bold" textAnchor="middle">
+                      {line.floor}
+                    </text>
+                  </g>
+                );
+              } else if (line.y !== undefined) {
+                // Legacy horizontal line fallback
+                return (
+                  <g key={idx}>
+                    <line
+                      x1="0"
+                      y1={line.y}
+                      x2="100"
+                      y2={line.y}
+                      stroke="#f59e0b"
+                      strokeWidth="0.7"
+                      strokeDasharray="2, 1.5"
+                    />
+                    <rect x="2" y={line.y - 4} width="22" height="3.6" fill="rgba(15, 23, 42, 0.85)" rx="0.8" />
+                    <text x="3" y={line.y - 1.5} fontSize="2.4" fill="#fef08a" fontWeight="bold">
+                      ── {line.floor}
+                    </text>
+                  </g>
+                );
+              }
+              return null;
+            })}
+
+            {/* Split line preview during 2-point drawing */}
+            {activeTool === 'SPLIT_LINE' && pendingLineStart && hoverCoords && (
+              <g>
+                <circle cx={pendingLineStart.x} cy={pendingLineStart.y} r="1.5" fill="#f59e0b" stroke="#ffffff" strokeWidth="0.5" />
                 <line
-                  x1="0"
-                  y1={line.y}
-                  x2="100"
-                  y2={line.y}
-                  stroke="#f59e0b"
-                  strokeWidth="0.7"
-                  strokeDasharray="2, 1.5"
+                  x1={pendingLineStart.x}
+                  y1={pendingLineStart.y}
+                  x2={hoverCoords.x}
+                  y2={hoverCoords.y}
+                  stroke="#fbbf24"
+                  strokeWidth="0.8"
+                  strokeDasharray="1.5, 1"
                 />
-                <rect x="2" y={line.y - 4} width="22" height="3.6" fill="rgba(15, 23, 42, 0.85)" rx="0.8" />
-                <text x="3" y={line.y - 1.5} fontSize="2.4" fill="#fef08a" fontWeight="bold">
-                  ── {line.floor}
-                </text>
+                <circle cx={hoverCoords.x} cy={hoverCoords.y} r="1.2" fill="#fbbf24" opacity="0.8" />
               </g>
-            ))}
+            )}
 
             {/* Saved Freehand Strokes */}
             {strokes.map((stroke, idx) => {
@@ -381,7 +533,7 @@ export const FacadePolygonCanvas: React.FC<FacadePolygonCanvasProps> = ({
       </div>
 
       <div className="text-[11px] text-slate-500 italic text-center">
-        * Chạm lên ảnh để định vị góc nhà ($N \ge 3$), kéo đường phân tầng hoặc chọn <strong>Vẽ note tay</strong> để ghi chú trực tiếp. Nhấn <strong>Lưu & Đóng</strong> khi hoàn tất.
+        * Chấm các điểm đỉnh đa giác góc nhà ($N \ge 3$), chấm 2 đầu để kẻ line phân tầng theo góc nghiêng, hoặc chọn <strong>Vẽ note tay</strong>. Nhấn <strong>Lưu & Đóng</strong> khi hoàn tất.
       </div>
     </div>
   );

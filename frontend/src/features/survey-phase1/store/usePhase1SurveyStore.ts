@@ -46,9 +46,9 @@ export const getDefaultInitialFormData = (parcelId: string = ''): Phase1SurveyFo
   clearanceOffsetDistance: '5.2m',
   gpsCoords: { lat: 10.7769, lng: 106.7009 },
   adjacentBuildings: {
-    left: { type: 'Nhà phố / Nhà dân', details: 'Nhà phố / Nhà dân', note: '' },
-    right: { type: 'Nhà phố / Nhà dân', details: 'Nhà phố / Nhà dân', note: '' },
-    back: { type: 'Đất trống', details: 'Đất trống', note: '' },
+    left: { type: '', details: '', note: '' },
+    right: { type: '', details: '', note: '' },
+    back: { type: '', details: '', note: '' },
   },
   surveyCaseType: 'NORMAL',
   isAbsenteeSurvey: false,
@@ -69,14 +69,16 @@ export const getDefaultInitialFormData = (parcelId: string = ''): Phase1SurveyFo
   photoP03: { url: '', notApplicable: false, tag: 'Bên hông trái', additionalPhotos: [] },
   photoP04: { url: '', notApplicable: false },
 
-  usageFunction: 'Nhà ở gia đình',
-  aboveFloors: 0,
-  undergroundFloors: 0,
+  usageFunction: '',
+  aboveFloors: '',
+  undergroundFloors: '',
   constructionYear: 2026,
   isEstimatedYear: false,
   structureSystem: '',
-  foundationType: 'PC - Cọc ép BTCT',
+  foundationType: '',
   pileDimensionMm: '',
+  pileWidthMm: '',
+  pileLengthMm: '',
   asBuiltDrawingPhotoUrl: '',
   asBuiltDrawingFiles: [],
   foundationCatScore: 3,
@@ -116,9 +118,10 @@ export const getDefaultInitialFormData = (parcelId: string = ''): Phase1SurveyFo
   },
 
   settlementTilt: {
-    diffSettlement: { level: 0, position: '' },
-    buildingTilt: { level: 0, xPermille: '', yPermille: '', direction: '' },
-    beamSagging: { level: 0, position: '', sagMm: '', description: '' },
+    diffSettlement: { level: 0, position: '', photoUrl: '', notes: '' },
+    buildingTilt: { level: 0, xPermille: '', yPermille: '', direction: '', photoUrl: '', notes: '' },
+    beamSagging: { level: 0, position: '', sagMm: '', description: '', photoUrl: '', notes: '' },
+    abnormalCase: { photoUrl: '', notes: '' },
     dataSource: ['Quan sát trực quan'],
     reliability: 'HIGH',
     needAdditionalMonitoring: { required: false, notes: '' },
@@ -242,8 +245,8 @@ export const usePhase1SurveyStore = create<Phase1SurveyStore>((set, get) => ({
     initialData.houseNumber = initialData.houseNumber || parcel.houseNumber || '';
     initialData.street = initialData.street || parcel.street || '';
     initialData.ownerName = initialData.ownerName || unit?.ownerName || parcel.ownerName || '';
-    if (initialData.aboveFloors === undefined || initialData.aboveFloors === null || initialData.aboveFloors === 0) {
-      initialData.aboveFloors = parcel.floorCount ?? 0;
+    if (initialData.aboveFloors === undefined || initialData.aboveFloors === null || initialData.aboveFloors === 0 || initialData.aboveFloors === '') {
+      initialData.aboveFloors = parcel.floorCount ? parcel.floorCount : '';
     }
 
     // Tính toán trắc địa không gian chuẩn từ Polygon thửa đất (Phương án A)

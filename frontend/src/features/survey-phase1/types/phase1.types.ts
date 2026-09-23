@@ -76,18 +76,27 @@ export interface SettlementTiltState {
     level: number; // 0..4
     position: string;
     photoUrl?: string;
+    notes?: string;
   };
   buildingTilt: {
     level: number; // 0..4
     xPermille: number | '';
     yPermille: number | '';
     direction?: string;
+    photoUrl?: string;
+    notes?: string;
   };
   beamSagging: {
     level: number; // 0..4
     position: string;
     sagMm: number | '';
     description?: string;
+    photoUrl?: string;
+    notes?: string;
+  };
+  abnormalCase?: {
+    photoUrl?: string;
+    notes?: string;
   };
   dataSource: string[];
   reliability: 'HIGH' | 'MEDIUM' | 'LOW';
@@ -183,13 +192,15 @@ export interface Phase1SurveyFormData {
 
   // Step 2.1 Architecture
   usageFunction: string;
-  aboveFloors: number;
-  undergroundFloors: number;
+  aboveFloors: number | '';
+  undergroundFloors: number | '';
   constructionYear: number | '';
   isEstimatedYear: boolean;
   structureSystem: string;
   foundationType: string;
   pileDimensionMm: string;
+  pileWidthMm?: number | '';
+  pileLengthMm?: number | '';
   asBuiltDrawingPhotoUrl?: string;
   asBuiltDrawingFiles: { id: string; name: string; url: string }[];
   foundationCatScore: number; // 1..5

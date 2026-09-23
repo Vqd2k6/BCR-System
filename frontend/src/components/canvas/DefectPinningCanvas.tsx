@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Crosshair, Trash2, Camera, AlertCircle, CheckCircle2, Ruler, Sparkles, MapPin } from 'lucide-react';
+import { Crosshair, Trash2, Camera, AlertCircle, CheckCircle2, Ruler, Sparkles, MapPin, AlertTriangle } from 'lucide-react';
 import { PhotoCaptureInput } from '../common/PhotoCaptureInput';
 import { InfoPopover } from '../../core/components/ui/InfoPopover';
 
@@ -11,12 +11,12 @@ export interface DefectItem {
   screeningCategory: string;
   defectType: string;
   crackDirection?: string;
-  widthMaxMm: number;
-  lengthMm: number;
-  activityState: 'U' | 'S' | 'A';
-  materialDegradationE4: number;
-  structuralSignificanceE2: number;
-  functionalImpactE6?: number;
+  widthMaxMm: number | '';
+  lengthMm: number | '';
+  activityState: 'U' | 'S' | 'A' | '';
+  materialDegradationE4: number | '';
+  structuralSignificanceE2: number | '';
+  functionalImpactE6?: number | '';
   hasScaleCard: boolean;
   isStructuralCritical: boolean;
   cuPhotoUrl: string;
@@ -28,30 +28,48 @@ interface Props {
   defects: DefectItem[];
   onChange: (defects: DefectItem[]) => void;
   readOnly?: boolean;
+  mode?: 'ARCHITECTURAL' | 'STRUCTURAL'; // Z vs E
 }
 
-const COMMON_DEFECT_TYPES = [
-  'Nứt xiên 45° (Cắt gãy / Biến dạng lún)',
-  'Nứt dọc / Nứt đứng chịu lực',
-  'Nứt ngang cấu kiện',
-  'Nứt chân chim / Mạng nhện vữa trát',
-  'Nứt ziczac theo mạch vữa gạch',
-  'Nứt góc cửa sổ / Cửa đi',
-  'Nứt tiếp giáp Cột - Tường',
-  'Nứt tiếp giáp Dầm - Tường',
-  'Nứt tách mép tấm sàn BTCT',
-  'Bong tróc vữa lộ cốt thép',
-  'Thấm dột / Ẩm mốc loang lổ',
+const ARCH_SCREENING_CATEGORIES = [
+  'Nứt tường gạch / Vữa trát hoàn thiện',
+  'Nứt tiếp giáp khuôn cửa / Trần',
+  'Bong rộp / Nứt gạch ốp lát',
+  'Thấm dột / Ẩm mốc bề mặt',
+  'Kẹt cửa / Cong vênh phụ kiện',
   'Khác',
 ];
 
-const SCREENING_CATEGORIES = [
-  'Nứt tường / Vữa trát',
-  'Nứt cấu kiện kết cấu (Cột/Dầm/Sàn)',
-  'Lún chênh / Võng cấu kiện',
-  'Thấm dột / Ẩm mốc',
-  'Bong tróc / Rỉ cốt thép',
-  'Kẹt cửa / Biến dạng khung',
+const ARCH_DEFECT_TYPES = [
+  'Nứt chân chim / Mạng nhện vữa trát (<0.5mm)',
+  'Nứt ziczac theo mạch vữa gạch',
+  'Nứt góc cửa sổ / Cửa đi',
+  'Nứt tiếp giáp Cột - Tường gạch',
+  'Nứt tiếp giáp Dầm - Tường gạch',
+  'Bong rộp sơn vôi / Ẩm mốc loang lổ',
+  'Bong tách gạch ốp tường / Gạch lát nền',
+  'Nứt trần thạch cao / Khe tiếp giáp la phông',
+  'Khác',
+];
+
+const STRUCT_SCREENING_CATEGORIES = [
+  'Nứt cấu kiện kết cấu chịu lực (Cột/Dầm/Sàn)',
+  'Vỡ bê tông / Trơ rỉ cốt thép chịu lực',
+  'Nứt nút khung / Mối nối liên kết chịu lực',
+  'Võng uốn dầm sàn / Biến dạng cấu kiện',
+  'Nứt gãy cổ cột / Móng tiếp giáp nền',
+  'Khác',
+];
+
+const STRUCT_DEFECT_TYPES = [
+  'Nứt xiên 45° chịu cắt gần đầu cột / gối dầm (Nguy hiểm)',
+  'Nứt dọc thân cột bê tông (Quá tải nén dọc)',
+  'Nứt uốn giữa nhịp dầm / Đáy bản sàn chịu lực',
+  'Nứt toác / Bong bê tông lộ cốt thép gỉ sét',
+  'Nứt tách mép tấm sàn BTCT chịu lực',
+  'Nứt tách rời nút khung Cột - Dầm',
+  'Nứt gãy chân cột / Cổ móng',
+  'Lỏng rơ bu lông / Rách mối hàn liên kết thép',
   'Khác',
 ];
 
@@ -60,11 +78,15 @@ export const DefectPinningCanvas: React.FC<Props> = ({
   defects,
   onChange,
   readOnly = false,
+  mode = 'ARCHITECTURAL',
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const detailFormRef = useRef<HTMLDivElement>(null);
   const [selectedDefectIndex, setSelectedDefectIndex] = useState<number | null>(null);
-  const [isAddingPin, setIsAddingPin] = useState<boolean>(true); // Default to pin mode for quick marking
+  const [isAddingPin, setIsAddingPin] = useState<boolean>(true);
+
+  const screeningCategories = mode === 'STRUCTURAL' ? STRUCT_SCREENING_CATEGORIES : ARCH_SCREENING_CATEGORIES;
+  const commonDefectTypes = mode === 'STRUCTURAL' ? STRUCT_DEFECT_TYPES : ARCH_DEFECT_TYPES;
 
   const nextDefectCode = `D-${String(defects.length + 1).padStart(2, '0')}`;
 
@@ -77,18 +99,20 @@ export const DefectPinningCanvas: React.FC<Props> = ({
 
     const newDefectCode = `D-${String(defects.length + 1).padStart(2, '0')}`;
 
+    // Khởi tạo khuyết tật mới trống hoàn toàn để surveyor bắt buộc điền thủ công
     const newDefect: DefectItem = {
       defectCode: newDefectCode,
       pinX: x,
       pinY: y,
-      screeningCategory: 'Nứt tường / Vữa trát',
-      defectType: COMMON_DEFECT_TYPES[0],
-      crackDirection: 'Xiên chéo 45 độ',
-      widthMaxMm: 0.5,
-      lengthMm: 300,
-      activityState: 'U',
-      materialDegradationE4: 1,
-      structuralSignificanceE2: 1,
+      screeningCategory: '',
+      defectType: '',
+      crackDirection: '',
+      widthMaxMm: '' as any,
+      lengthMm: '' as any,
+      activityState: '',
+      materialDegradationE4: '' as any,
+      structuralSignificanceE2: '' as any,
+      functionalImpactE6: '' as any,
       hasScaleCard: true,
       isStructuralCritical: false,
       cuPhotoUrl: '',
@@ -127,9 +151,24 @@ export const DefectPinningCanvas: React.FC<Props> = ({
 
   const selectedDefect = selectedDefectIndex !== null ? defects[selectedDefectIndex] : null;
 
-  // Kiểm tra xem 1 điểm D đã được điền thông tin chi tiết chưa
+  // Kiểm tra xem 1 điểm D đã điền đầy đủ mọi trường bắt buộc chưa
   const isDefectFilled = (d: DefectItem) => {
-    return Boolean(d.cuPhotoUrl || (d.notes && d.notes.trim().length > 0) || (d.lengthMm && d.lengthMm > 0 && d.widthMaxMm > 0));
+    return Boolean(
+      d.cuPhotoUrl &&
+      d.notes &&
+      d.notes.trim().length > 0 &&
+      d.crackDirection &&
+      d.crackDirection.trim().length > 0 &&
+      Number(d.widthMaxMm) > 0 &&
+      Number(d.lengthMm) > 0 &&
+      d.screeningCategory &&
+      d.defectType &&
+      d.activityState &&
+      d.structuralSignificanceE2 !== '' &&
+      d.structuralSignificanceE2 !== undefined &&
+      d.materialDegradationE4 !== '' &&
+      d.materialDegradationE4 !== undefined
+    );
   };
 
   return (
@@ -148,11 +187,11 @@ export const DefectPinningCanvas: React.FC<Props> = ({
             <div className="flex items-center gap-2 text-[11px]">
               <span className="flex items-center gap-1 text-emerald-700 font-medium">
                 <span className="w-2 h-2 rounded-xs bg-emerald-500 inline-block" />
-                Đã điền ({defects.filter(isDefectFilled).length})
+                Đã điền đủ ({defects.filter(isDefectFilled).length})
               </span>
               <span className="flex items-center gap-1 text-amber-700 font-medium">
                 <span className="w-2 h-2 rounded-xs bg-amber-500 inline-block" />
-                Chưa điền ({defects.filter((d) => !isDefectFilled(d)).length})
+                Chưa đủ thông số ({defects.filter((d) => !isDefectFilled(d)).length})
               </span>
             </div>
           </div>
@@ -178,75 +217,61 @@ export const DefectPinningCanvas: React.FC<Props> = ({
         onClick={handleContainerClick}
         className={`relative w-full min-h-[300px] max-h-[480px] rounded-xl overflow-hidden bg-slate-100 border border-slate-300 select-none shadow-inner ${
           isAddingPin ? 'cursor-crosshair ring-2 ring-emerald-500/30' : 'cursor-default'
-        }`}
+        } flex items-center justify-center`}
       >
         <img
           src={ctxPhotoUrl}
-          alt="Context CTX view"
-          className="w-full h-full object-contain block max-h-[480px] mx-auto"
+          alt="Context Photo for Defects"
+          className="max-h-[480px] w-full object-contain pointer-events-none"
         />
 
-        {/* Render Pins with State-dependent Colors */}
+        {/* Existing Pins */}
         {defects.map((d, idx) => {
           const isSelected = selectedDefectIndex === idx;
-          const isCritical = d.isStructuralCritical || d.structuralSignificanceE2 >= 3;
           const isFilled = isDefectFilled(d);
-
-          // Màu sắc ghim: Đã điền (Emerald/Green), Chưa điền (Amber), Nguy cấp (Red), Đang chọn (Royal Blue)
-          let tagBg = isFilled ? '#059669' : '#d97706';
-          let squareBg = isFilled ? '#10b981' : '#f59e0b';
-
-          if (isCritical) {
-            tagBg = '#dc2626';
-            squareBg = '#ef4444';
-          }
-          if (isSelected) {
-            tagBg = '#0284c7';
-            squareBg = '#38bdf8';
-          }
+          const squareBg = isFilled ? '#10b981' : '#f59e0b';
 
           return (
             <div
-              key={d.defectCode || idx}
+              key={idx}
               onClick={(e) => {
                 e.stopPropagation();
                 setSelectedDefectIndex(idx);
+                setIsAddingPin(false);
+                setTimeout(() => {
+                  detailFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }, 60);
               }}
               style={{
                 position: 'absolute',
-                top: `${d.pinY}%`,
                 left: `${d.pinX}%`,
-                transform: 'translate(-50%, -100%)',
+                top: `${d.pinY}%`,
+                transform: 'translate(-50%, -50%)',
                 cursor: 'pointer',
-                zIndex: isSelected ? 35 : 20,
+                zIndex: isSelected ? 30 : 20,
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
               }}
+              title={`${d.defectCode}: ${d.defectType || 'Chưa chọn'} (${isFilled ? 'Đã điền đủ' : 'Chưa điền đủ'})`}
             >
-              {/* Pin Tooltip Box */}
               <div
                 style={{
-                  backgroundColor: tagBg,
-                  color: '#ffffff',
                   fontSize: '0.65rem',
                   fontWeight: 800,
-                  padding: '0.15rem 0.4rem',
+                  fontFamily: 'monospace',
+                  padding: '1px 5px',
                   borderRadius: '3px',
+                  backgroundColor: isSelected ? '#0284c7' : 'rgba(15, 23, 42, 0.9)',
+                  color: '#ffffff',
+                  border: isSelected ? '1.5px solid #ffffff' : '1px solid rgba(255,255,255,0.4)',
                   whiteSpace: 'nowrap',
-                  boxShadow: '0 2px 5px rgba(0,0,0,0.3)',
-                  border: isSelected ? '1.5px solid #ffffff' : 'none',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.2rem',
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
                 }}
               >
-                <span>{d.defectCode}</span>
-                <span>• {d.widthMaxMm}mm</span>
-                {isFilled && <span style={{ fontSize: '0.6rem' }}>✓</span>}
+                {d.defectCode}
               </div>
 
-              {/* Pin Point - Square icon shape */}
               <div
                 style={{
                   width: isSelected ? '14px' : '12px',
@@ -268,7 +293,7 @@ export const DefectPinningCanvas: React.FC<Props> = ({
       {selectedDefect !== null && selectedDefectIndex !== null && (
         <div ref={detailFormRef} className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
           <div className="flex items-center justify-between pb-2 border-b border-slate-200">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <span className="px-2.5 py-1 bg-slate-900 text-white font-mono font-bold text-xs rounded-lg">
                 {selectedDefect.defectCode}
               </span>
@@ -278,11 +303,12 @@ export const DefectPinningCanvas: React.FC<Props> = ({
               {isDefectFilled(selectedDefect) ? (
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-1">
                   <CheckCircle2 className="w-3 h-3" />
-                  Đã điền đầy đủ
+                  Đã điền đầy đủ tất cả các trường
                 </span>
               ) : (
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
-                  ● Đang cập nhật thông tin
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200 flex items-center gap-1">
+                  <AlertTriangle className="w-3 h-3 text-amber-600" />
+                  Bắt buộc điền đầy đủ các trường bên dưới
                 </span>
               )}
             </div>
@@ -302,14 +328,19 @@ export const DefectPinningCanvas: React.FC<Props> = ({
           {/* Form fields for Defect Details */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Nhóm chỉ báo:</label>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Nhóm chỉ báo *
+              </label>
               <select
-                className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-medium focus:ring-1 focus:ring-emerald-500"
+                className={`w-full px-2.5 py-1.5 bg-white border rounded-lg text-xs font-medium focus:ring-1 focus:ring-emerald-500 ${
+                  !selectedDefect.screeningCategory ? 'border-amber-400 bg-amber-50/30' : 'border-slate-300'
+                }`}
                 value={selectedDefect.screeningCategory}
                 onChange={(e) => updateSelectedDefect('screeningCategory', e.target.value)}
                 disabled={readOnly}
               >
-                {SCREENING_CATEGORIES.map((c) => (
+                <option value="">--- Chọn nhóm chỉ báo ---</option>
+                {screeningCategories.map((c) => (
                   <option key={c} value={c}>
                     {c}
                   </option>
@@ -318,14 +349,19 @@ export const DefectPinningCanvas: React.FC<Props> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Dạng nứt / Cấu kiện:</label>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Dạng nứt / Cấu kiện *
+              </label>
               <select
-                className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-medium focus:ring-1 focus:ring-emerald-500"
+                className={`w-full px-2.5 py-1.5 bg-white border rounded-lg text-xs font-medium focus:ring-1 focus:ring-emerald-500 ${
+                  !selectedDefect.defectType ? 'border-amber-400 bg-amber-50/30' : 'border-slate-300'
+                }`}
                 value={selectedDefect.defectType}
                 onChange={(e) => updateSelectedDefect('defectType', e.target.value)}
                 disabled={readOnly}
               >
-                {COMMON_DEFECT_TYPES.map((t) => (
+                <option value="">--- Chọn dạng nứt / khuyết tật ---</option>
+                {commonDefectTypes.map((t) => (
                   <option key={t} value={t}>
                     {t}
                   </option>
@@ -334,11 +370,15 @@ export const DefectPinningCanvas: React.FC<Props> = ({
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Hướng nứt:</label>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Hướng nứt *
+              </label>
               <input
                 type="text"
-                placeholder="VD: Xiên 45 độ, dọc theo cột..."
-                className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs focus:ring-1 focus:ring-emerald-500"
+                placeholder="VD: Xiên 45° từ góc cửa sổ lên dầm..."
+                className={`w-full px-2.5 py-1.5 bg-white border rounded-lg text-xs focus:ring-1 focus:ring-emerald-500 ${
+                  !selectedDefect.crackDirection ? 'border-amber-400 bg-amber-50/30' : 'border-slate-300'
+                }`}
                 value={selectedDefect.crackDirection || ''}
                 onChange={(e) => updateSelectedDefect('crackDirection', e.target.value)}
                 disabled={readOnly}
@@ -350,40 +390,63 @@ export const DefectPinningCanvas: React.FC<Props> = ({
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">
-                Bề rộng lớn nhất w_max (mm):
+                Bề rộng lớn nhất w_max (mm) *
               </label>
               <input
                 type="number"
                 step="0.05"
                 min="0"
-                className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold focus:ring-1 focus:ring-emerald-500"
-                value={selectedDefect.widthMaxMm}
-                onChange={(e) => updateSelectedDefect('widthMaxMm', parseFloat(e.target.value) || 0)}
+                placeholder="VD: 0.8"
+                className={`w-full px-2.5 py-1.5 bg-white border rounded-lg text-xs font-mono font-bold focus:ring-1 focus:ring-emerald-500 ${
+                  !selectedDefect.widthMaxMm ? 'border-amber-400 bg-amber-50/30' : 'border-slate-300'
+                }`}
+                value={selectedDefect.widthMaxMm === '' ? '' : selectedDefect.widthMaxMm}
+                onChange={(e) =>
+                  updateSelectedDefect(
+                    'widthMaxMm',
+                    e.target.value === '' ? ('' as any) : parseFloat(e.target.value) || 0
+                  )
+                }
                 disabled={readOnly}
               />
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Chiều dài nứt L (mm):</label>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Chiều dài nứt L (mm) *
+              </label>
               <input
                 type="number"
                 step="10"
                 min="0"
-                className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold focus:ring-1 focus:ring-emerald-500"
-                value={selectedDefect.lengthMm}
-                onChange={(e) => updateSelectedDefect('lengthMm', parseFloat(e.target.value) || 0)}
+                placeholder="VD: 450"
+                className={`w-full px-2.5 py-1.5 bg-white border rounded-lg text-xs font-mono font-bold focus:ring-1 focus:ring-emerald-500 ${
+                  !selectedDefect.lengthMm ? 'border-amber-400 bg-amber-50/30' : 'border-slate-300'
+                }`}
+                value={selectedDefect.lengthMm === '' ? '' : selectedDefect.lengthMm}
+                onChange={(e) =>
+                  updateSelectedDefect(
+                    'lengthMm',
+                    e.target.value === '' ? ('' as any) : parseFloat(e.target.value) || 0
+                  )
+                }
                 disabled={readOnly}
               />
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Trạng thái hoạt động:</label>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Trạng thái hoạt động *
+              </label>
               <select
-                className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-medium focus:ring-1 focus:ring-emerald-500"
+                className={`w-full px-2.5 py-1.5 bg-white border rounded-lg text-xs font-medium focus:ring-1 focus:ring-emerald-500 ${
+                  !selectedDefect.activityState ? 'border-amber-400 bg-amber-50/30' : 'border-slate-300'
+                }`}
                 value={selectedDefect.activityState}
                 onChange={(e) => updateSelectedDefect('activityState', e.target.value)}
                 disabled={readOnly}
               >
+                <option value="">--- Chọn trạng thái hoạt động ---</option>
                 <option value="U">U - Chưa rõ / Đang kiểm tra (Unknown)</option>
                 <option value="S">S - Ổn định / Nứt cũ (Stable)</option>
                 <option value="A">A - Đang phát triển / Hoạt động (Active)</option>
@@ -396,7 +459,7 @@ export const DefectPinningCanvas: React.FC<Props> = ({
             <div>
               <div className="flex items-center justify-between mb-1">
                 <label className="text-xs font-bold text-slate-700">
-                  Ý nghĩa kết cấu (Nguồn E2):
+                  Ý nghĩa kết cấu (Nguồn E2) *
                 </label>
                 <InfoPopover title="Ý nghĩa kết cấu khuyết tật (Nguồn tính E2)" size="md">
                   <p><strong>Bản chất:</strong> Đánh giá mức độ ảnh hưởng của vết nứt/khuyết tật này tới khả năng chịu lực của kết cấu (cột, dầm, sàn, tường chịu lực).</p>
@@ -411,23 +474,33 @@ export const DefectPinningCanvas: React.FC<Props> = ({
                 </InfoPopover>
               </div>
               <select
-                className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-medium focus:ring-1 focus:ring-emerald-500"
-                value={selectedDefect.structuralSignificanceE2}
-                onChange={(e) => updateSelectedDefect('structuralSignificanceE2', parseInt(e.target.value, 10))}
+                className={`w-full px-2.5 py-1.5 bg-slate-50 border rounded-lg text-xs font-medium focus:ring-1 focus:ring-emerald-500 ${
+                  selectedDefect.structuralSignificanceE2 === '' || selectedDefect.structuralSignificanceE2 === undefined
+                    ? 'border-amber-400'
+                    : 'border-slate-300'
+                }`}
+                value={selectedDefect.structuralSignificanceE2 ?? ''}
+                onChange={(e) =>
+                  updateSelectedDefect(
+                    'structuralSignificanceE2',
+                    e.target.value === '' ? '' : parseInt(e.target.value, 10)
+                  )
+                }
                 disabled={readOnly}
               >
-                <option value={0}>0đ - None / Không ảnh hưởng</option>
-                <option value={1}>1đ - Low / Thấp</option>
-                <option value={2}>2đ - Moderate / Trung bình</option>
-                <option value={3}>3đ - High / Cao</option>
-                <option value={4}>4đ - Critical / Cảnh báo sập</option>
+                <option value="">--- Chọn mức ý nghĩa kết cấu (E2) ---</option>
+                <option value={0}>0đ - None / Không ảnh hưởng kết cấu</option>
+                <option value={1}>1đ - Low / Thấp (Nứt co ngót nhẹ)</option>
+                <option value={2}>2đ - Moderate / Trung bình (Nứt rõ, ổn định)</option>
+                <option value={3}>3đ - High / Cao (Nứt xiên gần gối / vùng nén)</option>
+                <option value={4}>4đ - Critical / Nguy cấp (Vỡ vụn bê tông / trơ thép)</option>
               </select>
             </div>
 
             <div>
               <div className="flex items-center justify-between mb-1">
                 <label className="text-xs font-bold text-slate-700">
-                  Suy giảm vật liệu (Nguồn E4):
+                  Suy giảm vật liệu (Nguồn E4) *
                 </label>
                 <InfoPopover title="Suy giảm độ bền vật liệu (Nguồn tính E4)" size="md">
                   <p><strong>Bản chất:</strong> Mức độ thoái hóa, phong hóa, bong tróc của bê tông, cốt thép và gạch xây tại vị trí khuyết tật.</p>
@@ -442,16 +515,26 @@ export const DefectPinningCanvas: React.FC<Props> = ({
                 </InfoPopover>
               </div>
               <select
-                className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-medium focus:ring-1 focus:ring-emerald-500"
-                value={selectedDefect.materialDegradationE4}
-                onChange={(e) => updateSelectedDefect('materialDegradationE4', parseInt(e.target.value, 10))}
+                className={`w-full px-2.5 py-1.5 bg-slate-50 border rounded-lg text-xs font-medium focus:ring-1 focus:ring-emerald-500 ${
+                  selectedDefect.materialDegradationE4 === '' || selectedDefect.materialDegradationE4 === undefined
+                    ? 'border-amber-400'
+                    : 'border-slate-300'
+                }`}
+                value={selectedDefect.materialDegradationE4 ?? ''}
+                onChange={(e) =>
+                  updateSelectedDefect(
+                    'materialDegradationE4',
+                    e.target.value === '' ? '' : parseInt(e.target.value, 10)
+                  )
+                }
                 disabled={readOnly}
               >
+                <option value="">--- Chọn mức suy giảm vật liệu (E4) ---</option>
                 <option value={0}>0đ - Không / Rất nhẹ</option>
-                <option value={1}>1đ - Cục bộ (Bong tróc nhẹ)</option>
-                <option value={2}>2đ - Đáng kể (Bong mảng rộng)</option>
-                <option value={3}>3đ - Nặng (Bê tông bung, cốt thép rỉ)</option>
-                <option value={4}>4đ - Mất tiết diện / Ảnh hưởng chịu lực</option>
+                <option value={1}>1đ - Cục bộ (Bong tróc nhẹ sơn vữa)</option>
+                <option value={2}>2đ - Đáng kể (Rỗ tổ ong, mục vữa diện rộng)</option>
+                <option value={3}>3đ - Nặng (Bê tông bung, cốt thép rỉ sét)</option>
+                <option value={4}>4đ - Mất tiết diện / Cốt thép đứt rỉ</option>
               </select>
             </div>
 
@@ -474,8 +557,13 @@ export const DefectPinningCanvas: React.FC<Props> = ({
               </div>
               <select
                 className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-medium focus:ring-1 focus:ring-emerald-500"
-                value={selectedDefect.functionalImpactE6 || 0}
-                onChange={(e) => updateSelectedDefect('functionalImpactE6', parseInt(e.target.value, 10))}
+                value={selectedDefect.functionalImpactE6 ?? 0}
+                onChange={(e) =>
+                  updateSelectedDefect(
+                    'functionalImpactE6',
+                    e.target.value === '' ? 0 : parseInt(e.target.value, 10)
+                  )
+                }
                 disabled={readOnly}
               >
                 <option value={0}>0đ - Không ảnh hưởng chức năng</option>
@@ -490,19 +578,27 @@ export const DefectPinningCanvas: React.FC<Props> = ({
           {/* Photo CU & Notes */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <PhotoCaptureInput
-              label={`Ảnh cận cảnh Photo CU kèm thước đo (${selectedDefect.defectCode}):`}
+              label={`Ảnh cận cảnh Photo CU kèm thước đo (${selectedDefect.defectCode}) *:`}
               value={selectedDefect.cuPhotoUrl}
               onChange={(url) => updateSelectedDefect('cuPhotoUrl', url)}
-              watermarkText={`PHOTO-CU | ${selectedDefect.defectCode} | ${selectedDefect.widthMaxMm}mm`}
+              recommendedOrientation="landscape"
+              orientationHint="Khuyến nghị: Chụp ảnh NGANG (4:3) cận cảnh kèm thẻ thước đo tỷ lệ"
+              watermarkText={`PHOTO-CU | ${selectedDefect.defectCode} | ${selectedDefect.widthMaxMm || 0}mm`}
+              annotationTitle={`Vẽ & Ghi chú trên ảnh Photo CU (${selectedDefect.defectCode})`}
               height="140px"
+              required
             />
 
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Ghi chú vết nứt:</label>
+              <label className="block text-xs font-bold text-slate-700 mb-1">
+                Ghi chú chi tiết vết nứt *:
+              </label>
               <textarea
                 rows={4}
-                placeholder="Mô tả cụ thể vị trí, hình thái nứt..."
-                className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs focus:ring-1 focus:ring-emerald-500"
+                placeholder="Mô tả cụ thể vị trí, hình thái nứt, mép nứt sắc cạnh hay đã trám trét..."
+                className={`w-full px-2.5 py-1.5 bg-white border rounded-lg text-xs focus:ring-1 focus:ring-emerald-500 ${
+                  !selectedDefect.notes ? 'border-amber-400 bg-amber-50/30' : 'border-slate-300'
+                }`}
                 value={selectedDefect.notes || ''}
                 onChange={(e) => updateSelectedDefect('notes', e.target.value)}
                 disabled={readOnly}

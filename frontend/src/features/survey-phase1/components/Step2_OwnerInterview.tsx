@@ -133,7 +133,8 @@ export const Step2_OwnerInterview: React.FC = () => {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="space-y-2">
             <Select
-              label="Công Năng Sử Dụng (Use)"
+              id="input-usageFunction"
+              label="Công Năng Sử Dụng (Use) *"
               value={isCustomUsage ? 'Khác (Nhập chi tiết...)' : formData.usageFunction}
               onChange={(e) => {
                 if (e.target.value === 'Khác (Nhập chi tiết...)') {
@@ -142,7 +143,10 @@ export const Step2_OwnerInterview: React.FC = () => {
                   updateFormData({ usageFunction: e.target.value });
                 }
               }}
-              options={USAGE_OPTIONS.map((u) => ({ value: u, label: u }))}
+              options={[
+                { value: '', label: '--- Chọn công năng sử dụng ---' },
+                ...USAGE_OPTIONS.map((u) => ({ value: u, label: u })),
+              ]}
             />
             {isCustomUsage && (
               <Input
@@ -155,19 +159,25 @@ export const Step2_OwnerInterview: React.FC = () => {
 
           <div className="grid grid-cols-2 gap-2">
             <Input
-              label="Số Tầng Nổi"
+              id="input-aboveFloors"
+              label="Số Tầng Nổi *"
               type="number"
               min={0}
-              value={formData.aboveFloors}
-              onChange={(e) => updateFormData({ aboveFloors: Number(e.target.value) || 0 })}
+              value={formData.aboveFloors === '' || formData.aboveFloors === undefined ? '' : formData.aboveFloors}
+              onChange={(e) =>
+                updateFormData({ aboveFloors: e.target.value === '' ? '' : Number(e.target.value) })
+              }
               hint="Tầng trệt tính là 1"
             />
             <Input
+              id="input-undergroundFloors"
               label="Số Tầng Hầm"
               type="number"
               min={0}
-              value={formData.undergroundFloors}
-              onChange={(e) => updateFormData({ undergroundFloors: Number(e.target.value) || 0 })}
+              value={formData.undergroundFloors === '' || formData.undergroundFloors === undefined ? '' : formData.undergroundFloors}
+              onChange={(e) =>
+                updateFormData({ undergroundFloors: e.target.value === '' ? '' : Number(e.target.value) })
+              }
             />
           </div>
 
@@ -197,7 +207,7 @@ export const Step2_OwnerInterview: React.FC = () => {
           <div>
             <div className="flex items-center justify-between">
               <label className="text-xs font-bold text-slate-700 block mb-1">
-                Hệ Kết Cấu Chịu Lực (Structural System)
+                Hệ Kết Cấu Chịu Lực (Structural System) *
               </label>
               <InfoPopover title="Hướng dẫn nhận diện hệ kết cấu chịu lực (V2)">
                 <ul className="list-disc pl-4 space-y-1">
@@ -233,19 +243,52 @@ export const Step2_OwnerInterview: React.FC = () => {
           </div>
 
           <Select
-            label="Loại Móng (Foundation Type)"
+            id="input-foundationType"
+            label="Loại Móng (Foundation Type) *"
             value={formData.foundationType}
             onChange={(e) => updateFormData({ foundationType: e.target.value })}
-            options={FOUNDATION_TYPES.map((f) => ({ value: f, label: f }))}
+            options={[
+              { value: '', label: '--- Chọn loại móng công trình ---' },
+              ...FOUNDATION_TYPES.map((f) => ({ value: f, label: f })),
+            ]}
           />
 
-          <Input
-            label="Kích Thước Cọc / Móng"
-            placeholder="VD: D600mm, 250x250mm, móng bè..."
-            value={formData.pileDimensionMm}
-            onChange={(e) => updateFormData({ pileDimensionMm: e.target.value })}
-            hint="Để trống nếu không rõ"
-          />
+          <div>
+            <label className="text-xs font-bold text-slate-700 block mb-1">
+              Kích Thước Cọc / Móng (Dài x Rộng)
+            </label>
+            <div className="flex items-center gap-1.5">
+              <Input
+                type="number"
+                placeholder="Rộng"
+                value={formData.pileWidthMm === '' || formData.pileWidthMm === undefined ? '' : formData.pileWidthMm}
+                onChange={(e) => {
+                  const val = e.target.value === '' ? '' : Number(e.target.value);
+                  const other = formData.pileLengthMm ?? '';
+                  updateFormData({
+                    pileWidthMm: val,
+                    pileDimensionMm: val && other ? `${val} x ${other} mm` : val ? `${val} mm` : '',
+                  });
+                }}
+              />
+              <span className="text-slate-400 font-bold px-1">✕</span>
+              <Input
+                type="number"
+                placeholder="Dài / Sâu"
+                value={formData.pileLengthMm === '' || formData.pileLengthMm === undefined ? '' : formData.pileLengthMm}
+                onChange={(e) => {
+                  const val = e.target.value === '' ? '' : Number(e.target.value);
+                  const other = formData.pileWidthMm ?? '';
+                  updateFormData({
+                    pileLengthMm: val,
+                    pileDimensionMm: other && val ? `${other} x ${val} mm` : val ? `${val} mm` : '',
+                  });
+                }}
+              />
+              <span className="text-xs font-bold text-slate-500 whitespace-nowrap pl-1">mm</span>
+            </div>
+            <span className="text-[11px] text-slate-400 italic">VD: 250 x 250 mm hoặc D600 mm (để trống nếu không rõ)</span>
+          </div>
         </div>
 
         {/* ĐÁNH GIÁ CAT MÓNG */}

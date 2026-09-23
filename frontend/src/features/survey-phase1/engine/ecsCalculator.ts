@@ -19,13 +19,15 @@ export function calculateEcsScore(formData: Partial<Phase1SurveyFormData>): EcsS
   formData.floors?.forEach((fl) => {
     fl.zones?.forEach((zn) => {
       zn.defects?.forEach((df) => {
-        const val = df.structuralSignificanceE2 ?? 0;
+        const rawVal = df.structuralSignificanceE2 ?? 0;
+        const val = typeof rawVal === 'number' ? rawVal : 0;
         if (val > maxDefectStructural) maxDefectStructural = val;
       });
     });
     fl.structuralElements?.forEach((el) => {
       el.defects?.forEach((df) => {
-        const val = df.structuralSignificanceE2 ?? 0;
+        const rawVal = df.structuralSignificanceE2 ?? 0;
+        const val = typeof rawVal === 'number' ? rawVal : 0;
         if (val > maxDefectStructural) maxDefectStructural = val;
       });
     });
@@ -55,13 +57,15 @@ export function calculateEcsScore(formData: Partial<Phase1SurveyFormData>): EcsS
   formData.floors?.forEach((fl) => {
     fl.zones?.forEach((zn) => {
       zn.defects?.forEach((df) => {
-        const val = df.materialDegradationE4 ?? 0;
+        const rawVal = df.materialDegradationE4 ?? 0;
+        const val = typeof rawVal === 'number' ? rawVal : 0;
         if (val > e4) e4 = val;
       });
     });
     fl.structuralElements?.forEach((el) => {
       el.defects?.forEach((df) => {
-        const val = df.materialDegradationE4 ?? 0;
+        const rawVal = df.materialDegradationE4 ?? 0;
+        const val = typeof rawVal === 'number' ? rawVal : 0;
         if (val > e4) e4 = val;
       });
     });

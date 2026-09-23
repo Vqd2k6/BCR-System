@@ -240,6 +240,20 @@ export const validateStep = (step: number, formData: Phase1SurveyFormData): Step
       });
     }
 
+    // 1.4 Adjacent Buildings (3 hướng liền kề)
+    if (
+      !formData.adjacentBuildings?.left?.details?.trim() ||
+      !formData.adjacentBuildings?.right?.details?.trim() ||
+      !formData.adjacentBuildings?.back?.details?.trim()
+    ) {
+      missing.push({
+        fieldId: 'input-adjacent-buildings',
+        label: '1.4. Công trình liền kề 3 hướng (Trái, Phải, Sau)',
+        step: 1,
+        description: 'Vui lòng chọn hiện trạng công trình liền kề bên trái, bên phải và phía sau tiếp giáp.',
+      });
+    }
+
     // 1.5 Photos
     if (!formData.photoP01?.url && !formData.photoP01?.notApplicable) {
       missing.push({
@@ -465,6 +479,20 @@ export const validateStep = (step: number, formData: Phase1SurveyFormData): Step
               isBlocking: true,
             });
           }
+
+          // Kiểm tra chi tiết từng khuyết tật D trong Vùng Z
+          z.defects?.forEach((d) => {
+            if (!d.cuPhotoUrl || !d.notes?.trim() || !d.defectType || !Number(d.widthMaxMm)) {
+              missing.push({
+                fieldId: 'step3-active-zone-card',
+                label: `3.1. Thông số chi tiết vết nứt ${d.defectCode} (${z.zoneCode} - ${floorTitle})`,
+                step: 3,
+                floorIndex: fIdx,
+                description: `Khuyết tật ${d.defectCode} chưa điền đủ các thông số bắt buộc (ảnh cận cảnh CU, kích thước bề rộng/dài, dạng nứt hoặc ghi chú).`,
+                isBlocking: true,
+              });
+            }
+          });
         });
 
         // 4. Kiểm tra khuyết tật D so với Cấu kiện E
@@ -493,6 +521,20 @@ export const validateStep = (step: number, formData: Phase1SurveyFormData): Step
               isBlocking: true,
             });
           }
+
+          // Kiểm tra chi tiết từng khuyết tật D trong Cấu kiện E
+          el.defects?.forEach((d) => {
+            if (!d.cuPhotoUrl || !d.notes?.trim() || !d.defectType || !Number(d.widthMaxMm)) {
+              missing.push({
+                fieldId: 'step3-active-element-card',
+                label: `3.2. Thông số chi tiết vết nứt kết cấu ${d.defectCode} (${el.elementCode} - ${floorTitle})`,
+                step: 3,
+                floorIndex: fIdx,
+                description: `Khuyết tật kết cấu ${d.defectCode} chưa điền đủ các thông số bắt buộc (ảnh cận cảnh CU, kích thước bề rộng/dài, dạng nứt kết cấu hoặc ghi chú).`,
+                isBlocking: true,
+              });
+            }
+          });
         });
       });
     }

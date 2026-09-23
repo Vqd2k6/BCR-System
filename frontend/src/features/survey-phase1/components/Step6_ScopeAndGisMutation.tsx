@@ -354,7 +354,7 @@ export const Step6_ScopeAndGisMutation: React.FC = () => {
               houseNumber: formData.houseNumber,
               street: formData.street,
               ownerName: formData.ownerName,
-              floorCount: formData.aboveFloors,
+              floorCount: typeof formData.aboveFloors === 'number' ? formData.aboveFloors : undefined,
             }}
             boundaryStatus={formData.gisMutationConfirmed.type}
             onStatusChange={(status) => {

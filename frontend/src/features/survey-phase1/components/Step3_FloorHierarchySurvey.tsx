@@ -50,43 +50,48 @@ const COMMON_ROOM_NAMES = [
 ];
 
 const ARCH_COMPONENT_TYPES = [
-  'Tường gạch vữa xi măng',
-  'Vách thạch cao / Vách ngăn nhẹ',
-  'Sàn / Nền lát gạch men',
-  'Nền bê tông hoàn thiện',
+  'Tường gạch vữa xi măng (Tường bao / ngăn)',
+  'Mảng tường giáp ranh nhà lân cận',
+  'Vách thạch cao / Vách ngăn tấm nhẹ',
   'Trần thạch cao / Trần la phông',
-  'Cầu thang xây gạch / Ốp đá',
-  'Mảng tường giáp ranh',
+  'Sàn / Nền lát gạch men / Đá granite',
+  'Sàn lát gỗ / Sàn nhựa vinyl',
+  'Cửa đi / Cửa sổ / Khung nhôm kính',
+  'Lan can ban công / Lô gia kiến trúc',
+  'Cầu thang kiến trúc (Ốp đá / gạch)',
   'Khác',
 ];
 
 const WALL_MATERIALS = [
-  'Tường gạch trát vữa XM sơn nước',
-  'Tường gạch ốp gạch men',
-  'Tường gạch quét vôi',
-  'Vách thạch cao sơn nước',
-  'Gỗ / Ván công nghiệp',
-  'Vách kính khung nhôm',
+  'Sơn nước nội thất / ngoại thất',
+  'Ốp gạch men ceramic / Đá granite',
+  'Trát vữa xi măng quét vôi',
+  'Tấm thạch cao hoàn thiện bả sơn',
+  'Ván gỗ / Gỗ công nghiệp',
+  'Kính cường lực / Khung nhôm',
   'Khác',
 ];
 
 const STRUCTURAL_ELEMENT_TYPES = [
-  'Cột BTCT',
-  'Dầm BTCT (Dầm chính / Dầm phụ)',
+  'Cột BTCT (Cột chịu lực chính)',
+  'Dầm chính BTCT / Dầm phụ BTCT',
   'Bản sàn BTCT chịu lực',
-  'Cột thép / Dầm thép',
-  'Khung thép định hình',
-  'Tường BTCT / Vách thang máy',
-  'Cầu thang BTCT chịu lực',
-  'Gối tựa / Mối nối liên kết chịu lực',
+  'Vách cứng BTCT / Lõi thang máy chịu lực',
+  'Cột thép / Dầm thép kết cấu',
+  'Khung kèo thép tiền chế / Giàn mái',
+  'Tường gạch xây dày chịu lực (Masonry)',
+  'Bản thang BTCT chịu lực',
+  'Móng / Cổ cột BTCT',
+  'Mối nối liên kết chịu lực (Nút khung, bu lông)',
   'Khác',
 ];
 
 const STRUCTURAL_MATERIALS = [
   'Bê tông cốt thép (BTCT) đổ toàn khối',
-  'Bê tông cốt thép lắp ghép / đúc sẵn',
-  'Thép hình / Thép cán nóng',
-  'Kết cấu liên hợp Thép - Bê tông',
+  'Bê tông cốt thép lắp ghép / Đúc sẵn',
+  'Thép hình / Thép kết cấu cán nóng',
+  'Kết cấu liên hợp Thép - Bê tông (CFT/SRC)',
+  'Khối xây gạch đặc chịu lực mác cao (vữa M75-M100)',
   'Khác',
 ];
 
@@ -824,15 +829,16 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
                       </Button>
                     </div>
 
-                    {!activeZone.ctxPhotoUrl && (
-                      <PhotoCaptureInput
-                        label={`Chọn hoặc chụp Ảnh bối cảnh chính để thả ghim nứt cho ${activeZone.zoneCode}:`}
-                        value={activeZone.ctxPhotoUrl || ''}
-                        onChange={(url) => handleUpdateZone(activeZoneIndex, { ctxPhotoUrl: url })}
-                        watermarkText={`CTX | ${activeZone.zoneCode}`}
-                        height="120px"
-                      />
-                    )}
+                    <PhotoCaptureInput
+                      label={`Ảnh bối cảnh chính để thả ghim nứt cho ${activeZone.zoneCode}:`}
+                      value={activeZone.ctxPhotoUrl || ''}
+                      onChange={(url) => handleUpdateZone(activeZoneIndex, { ctxPhotoUrl: url })}
+                      recommendedOrientation="landscape"
+                      orientationHint="Khuyến nghị: Chụp ảnh NGANG (4:3) bao quát mảng tường"
+                      annotationTitle={`Vẽ & Ghi chú trên ảnh bối cảnh Vùng ${activeZone.zoneCode}`}
+                      watermarkText={`CTX | ${activeZone.zoneCode}`}
+                      height="130px"
+                    />
                   </div>
                 )}
               </div>
@@ -1196,17 +1202,18 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
                       </Button>
                     </div>
 
-                    {!activeElement.ctxPhotoUrl && (
-                      <PhotoCaptureInput
-                        label={`Chọn hoặc chụp Ảnh bối cảnh cấu kiện để thả ghim cho ${activeElement.elementCode}:`}
-                        value={activeElement.ctxPhotoUrl || ''}
-                        onChange={(url) =>
-                          handleUpdateElement(activeElementIndex, { ctxPhotoUrl: url })
-                        }
-                        watermarkText={`STRUCTURAL | ${activeElement.elementCode}`}
-                        height="120px"
-                      />
-                    )}
+                    <PhotoCaptureInput
+                      label={`Ảnh bối cảnh cấu kiện để thả ghim cho ${activeElement.elementCode}:`}
+                      value={activeElement.ctxPhotoUrl || ''}
+                      onChange={(url) =>
+                        handleUpdateElement(activeElementIndex, { ctxPhotoUrl: url })
+                      }
+                      recommendedOrientation="landscape"
+                      orientationHint="Khuyến nghị: Chụp ảnh bao quát toàn bộ cấu kiện chịu lực"
+                      annotationTitle={`Vẽ & Ghi chú trên ảnh bối cảnh Cấu kiện ${activeElement.elementCode}`}
+                      watermarkText={`STRUCTURAL | ${activeElement.elementCode}`}
+                      height="130px"
+                    />
                   </div>
                 )}
               </div>
@@ -1336,6 +1343,51 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
                 }
               />
             </div>
+
+            {/* Bổ sung ảnh chụp & ghi chú cho 3.3 */}
+            <div className="mt-3 pt-3 border-t border-slate-200 grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <PhotoCaptureInput
+                label="Ảnh chụp dầm/sàn bị võng hoặc vị trí mốc quan trắc:"
+                value={formData.settlementTilt?.beamSagging?.photoUrl || ''}
+                onChange={(url) =>
+                  updateFormData({
+                    settlementTilt: {
+                      ...formData.settlementTilt,
+                      beamSagging: {
+                        ...formData.settlementTilt?.beamSagging,
+                        photoUrl: url,
+                      },
+                    },
+                  })
+                }
+                recommendedOrientation="landscape"
+                orientationHint="Khuyến nghị: Chụp ảnh NGANG (16:9 / 4:3) lấy trọn nhịp dầm/sàn"
+                watermarkText={`3.3 | VONG-DAM-SAN | ${formData.projectParcelCode}`}
+                height="130px"
+              />
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1">
+                  Ghi chú hiện trạng võng / giải pháp quan trắc:
+                </label>
+                <textarea
+                  rows={4}
+                  placeholder="Mô tả cụ thể vị trí võng lớn nhất, hiện trạng dây căng hoặc mốc quan trắc đo lường..."
+                  value={formData.settlementTilt?.beamSagging?.notes || ''}
+                  onChange={(e) =>
+                    updateFormData({
+                      settlementTilt: {
+                        ...formData.settlementTilt,
+                        beamSagging: {
+                          ...formData.settlementTilt?.beamSagging,
+                          notes: e.target.value,
+                        },
+                      },
+                    })
+                  }
+                  className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs focus:ring-1 focus:ring-violet-500"
+                />
+              </div>
+            </div>
           </LevelSelectorWithGuide>
         </div>
 
@@ -1454,6 +1506,7 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
               <DefectPinningCanvas
                 ctxPhotoUrl={pinningZoneObj.ctxPhotoUrl}
                 defects={pinningZoneObj.defects || []}
+                mode="ARCHITECTURAL"
                 onChange={(defects: DefectItem[]) => {
                   const zoneIndex = zones.findIndex((z) => z.id === pinningZoneObj.id);
                   if (zoneIndex !== -1) {
@@ -1503,6 +1556,7 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
               <DefectPinningCanvas
                 ctxPhotoUrl={pinningElementObj.ctxPhotoUrl}
                 defects={pinningElementObj.defects || []}
+                mode="STRUCTURAL"
                 onChange={(defects: DefectItem[]) => {
                   const elIndex = structuralElements.findIndex((e) => e.id === pinningElementObj.id);
                   if (elIndex !== -1) {

@@ -488,7 +488,7 @@ export const Step1_BuildingIdentification: React.FC = () => {
               <span>Bên Trái (Theo hướng toà nhà)</span>
             </div>
             <Select
-              value={formData.adjacentBuildings?.left?.details || ADJACENT_LEFT_RIGHT[0]}
+              value={formData.adjacentBuildings?.left?.details || ''}
               onChange={(e) =>
                 updateFormData({
                   adjacentBuildings: {
@@ -497,7 +497,10 @@ export const Step1_BuildingIdentification: React.FC = () => {
                   },
                 })
               }
-              options={ADJACENT_LEFT_RIGHT.map((opt) => ({ value: opt, label: opt }))}
+              options={[
+                { value: '', label: '--- Chọn hiện trạng bên trái ---' },
+                ...ADJACENT_LEFT_RIGHT.map((opt) => ({ value: opt, label: opt })),
+              ]}
             />
             <Input
               placeholder="Ghi chú chi tiết bên trái (nếu có)..."
@@ -517,10 +520,10 @@ export const Step1_BuildingIdentification: React.FC = () => {
           <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2.5">
             <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
               <Compass className="w-4 h-4 text-emerald-600" />
-              <span>Bên Phải (Theo hướng toà nhà)</span>
+              <span>Bên Phải (Theo hướng toà nhà) *</span>
             </div>
             <Select
-              value={formData.adjacentBuildings?.right?.details || ADJACENT_LEFT_RIGHT[0]}
+              value={formData.adjacentBuildings?.right?.details || ''}
               onChange={(e) =>
                 updateFormData({
                   adjacentBuildings: {
@@ -529,7 +532,10 @@ export const Step1_BuildingIdentification: React.FC = () => {
                   },
                 })
               }
-              options={ADJACENT_LEFT_RIGHT.map((opt) => ({ value: opt, label: opt }))}
+              options={[
+                { value: '', label: '--- Chọn hiện trạng bên phải ---' },
+                ...ADJACENT_LEFT_RIGHT.map((opt) => ({ value: opt, label: opt })),
+              ]}
             />
             <Input
               placeholder="Ghi chú chi tiết bên phải (nếu có)..."
@@ -549,10 +555,10 @@ export const Step1_BuildingIdentification: React.FC = () => {
           <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2.5">
             <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
               <Compass className="w-4 h-4 text-emerald-600" />
-              <span>Phía Sau Tiếp Giáp</span>
+              <span>Phía Sau Tiếp Giáp *</span>
             </div>
             <Select
-              value={formData.adjacentBuildings?.back?.details || ADJACENT_REAR[0]}
+              value={formData.adjacentBuildings?.back?.details || ''}
               onChange={(e) =>
                 updateFormData({
                   adjacentBuildings: {
@@ -561,7 +567,10 @@ export const Step1_BuildingIdentification: React.FC = () => {
                   },
                 })
               }
-              options={ADJACENT_REAR.map((opt) => ({ value: opt, label: opt }))}
+              options={[
+                { value: '', label: '--- Chọn hiện trạng phía sau ---' },
+                ...ADJACENT_REAR.map((opt) => ({ value: opt, label: opt })),
+              ]}
             />
             <Input
               placeholder="Ghi chú chi tiết phía sau (nếu có)..."
@@ -619,6 +628,8 @@ export const Step1_BuildingIdentification: React.FC = () => {
                 onChange={(url) =>
                   updateFormData({ photoP01: { ...formData.photoP01, url } })
                 }
+                recommendedOrientation="landscape"
+                orientationHint="Khuyến nghị: Chụp ảnh NGANG (4:3) để lấy trọn vẹn biển số"
                 watermarkText={`P-01 | ${formData.houseNumber || 'BIEN-SO'}`}
                 height="150px"
               />
@@ -656,8 +667,10 @@ export const Step1_BuildingIdentification: React.FC = () => {
                       photoP02: { ...formData.photoP02, url },
                     })
                   }
+                  recommendedOrientation="portrait"
+                  orientationHint="Khuyến nghị: Chụp ảnh DỌC (3:4 / 9:16) để bao quát toàn bộ chiều cao công trình từ vỉa hè lên mái"
                   watermarkText={`P-02 | FACADE | ${formData.projectParcelCode}`}
-                  height="150px"
+                  height="160px"
                 />
 
                 {formData.photoP02.url && (
@@ -671,11 +684,11 @@ export const Step1_BuildingIdentification: React.FC = () => {
                     <div className="flex items-center gap-1.5">
                       {(formData.photoP02.polygonPoints?.length || 0) >= 3 ? (
                         <span className="text-xs font-bold text-emerald-700 flex items-center gap-1">
-                          ✓ Đã chấm {formData.photoP02.polygonPoints?.length} điểm đa giác mặt tiền
+                          ✓ Đã chấm {formData.photoP02.polygonPoints?.length} điểm đa giác & {formData.photoP02.floorSplits?.length || 0} line phân tầng
                         </span>
                       ) : (
                         <span className="text-xs font-bold text-amber-800 flex items-center gap-1">
-                          ⚠️ Bắt buộc chấm đa giác mặt tiền (tối thiểu 3 điểm) *
+                          ⚠️ Bắt buộc chấm đa giác mặt tiền (tối thiểu 3 điểm) & line phân tầng *
                         </span>
                       )}
                     </div>
@@ -734,8 +747,10 @@ export const Step1_BuildingIdentification: React.FC = () => {
                       photoP03: { ...formData.photoP03, url },
                     })
                   }
+                  recommendedOrientation="portrait"
+                  orientationHint="Khuyến nghị: Chụp ảnh DỌC (3:4) để lấy chiều cao khối hông"
                   watermarkText={`P-03 | ${formData.photoP03.tag || 'MAT-BEN'}`}
-                  height="115px"
+                  height="125px"
                 />
               </div>
             )}
@@ -763,15 +778,29 @@ export const Step1_BuildingIdentification: React.FC = () => {
             </div>
 
             {!formData.photoP04.notApplicable && (
-              <PhotoCaptureInput
-                label="Chụp bối cảnh tiếp cận tuyến đường/ngõ:"
-                value={formData.photoP04.url}
-                onChange={(url) =>
-                  updateFormData({ photoP04: { ...formData.photoP04, url } })
-                }
-                watermarkText={`P-04 | CONTEXT | ${formData.street || 'STREET'}`}
-                height="150px"
-              />
+              <div className="space-y-2">
+                <PhotoCaptureInput
+                  label="Chụp bối cảnh tiếp cận tuyến đường/ngõ:"
+                  value={formData.photoP04.url}
+                  onChange={(url) =>
+                    updateFormData({ photoP04: { ...formData.photoP04, url } })
+                  }
+                  recommendedOrientation="landscape"
+                  orientationHint="Khuyến nghị: Chụp ảnh NGANG (16:9 / 4:3) góc rộng bao quát cả dãy phố và đường trước nhà"
+                  annotationTitle="Đánh dấu mũi tên chỉ rõ vị trí ngôi nhà khảo sát trên ảnh P-04"
+                  initialAnnotationTool="ARROW"
+                  watermarkText={`P-04 | CONTEXT | ${formData.street || 'STREET'}`}
+                  height="150px"
+                />
+                {formData.photoP04.url && (
+                  <div className="text-[11px] text-emerald-700 bg-emerald-50 p-2 rounded-lg border border-emerald-200 flex items-center gap-1.5">
+                    <ArrowRight className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    <span>
+                      Nhấn nút <strong>"Vẽ / Chú thích"</strong> ở góc ảnh trên để kéo mũi tên ➔ chỉ rõ ngôi nhà của chúng ta trong toàn cảnh dãy phố.
+                    </span>
+                  </div>
+                )}
+              </div>
             )}
           </div>
         </div>
@@ -806,22 +835,66 @@ export const Step1_BuildingIdentification: React.FC = () => {
             }
             options={SETTLEMENT_LEVEL_OPTIONS}
           >
-            <Input
-              label="Vị trí phát hiện lún chênh cụ thể (nếu có)"
-              placeholder="VD: Góc chân tường bên trái giáp hẻm..."
-              value={formData.settlementTilt?.diffSettlement?.position || ''}
-              onChange={(e) =>
-                updateFormData({
-                  settlementTilt: {
-                    ...formData.settlementTilt,
-                    diffSettlement: {
-                      ...formData.settlementTilt.diffSettlement,
-                      position: e.target.value,
+            <div className="space-y-3">
+              <Input
+                label="Vị trí phát hiện lún chênh cụ thể (nếu có)"
+                placeholder="VD: Góc chân tường bên trái giáp hẻm..."
+                value={formData.settlementTilt?.diffSettlement?.position || ''}
+                onChange={(e) =>
+                  updateFormData({
+                    settlementTilt: {
+                      ...formData.settlementTilt,
+                      diffSettlement: {
+                        ...formData.settlementTilt.diffSettlement,
+                        position: e.target.value,
+                      },
                     },
-                  },
-                })
-              }
-            />
+                  })
+                }
+              />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <PhotoCaptureInput
+                  label="Ảnh chụp vị trí lún chênh / chân tường:"
+                  value={formData.settlementTilt?.diffSettlement?.photoUrl || ''}
+                  onChange={(url) =>
+                    updateFormData({
+                      settlementTilt: {
+                        ...formData.settlementTilt,
+                        diffSettlement: {
+                          ...formData.settlementTilt.diffSettlement,
+                          photoUrl: url,
+                        },
+                      },
+                    })
+                  }
+                  recommendedOrientation="landscape"
+                  watermarkText={`1.6.1 | LUN-CHENH | ${formData.projectParcelCode}`}
+                  height="120px"
+                />
+                <div>
+                  <label className="text-xs font-bold text-slate-700 block mb-1">
+                    Ghi chú chi tiết hiện tượng lún:
+                  </label>
+                  <textarea
+                    rows={4}
+                    placeholder="Mô tả mức độ tách vách, nứt chân tường, vết nứt bậc thang do lún..."
+                    value={formData.settlementTilt?.diffSettlement?.notes || ''}
+                    onChange={(e) =>
+                      updateFormData({
+                        settlementTilt: {
+                          ...formData.settlementTilt,
+                          diffSettlement: {
+                            ...formData.settlementTilt.diffSettlement,
+                            notes: e.target.value,
+                          },
+                        },
+                      })
+                    }
+                    className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs focus:ring-1 focus:ring-emerald-500"
+                  />
+                </div>
+              </div>
+            </div>
           </LevelSelectorWithGuide>
 
           {/* Nghiêng Công Trình */}
@@ -841,45 +914,139 @@ export const Step1_BuildingIdentification: React.FC = () => {
             }
             options={TILT_LEVEL_OPTIONS}
           >
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <Input
-                label="Độ nghiêng phương X (‰)"
-                type="number"
-                step="0.1"
-                placeholder="VD: 3.5"
-                value={formData.settlementTilt?.buildingTilt?.xPermille ?? ''}
-                onChange={(e) =>
-                  updateFormData({
-                    settlementTilt: {
-                      ...formData.settlementTilt,
-                      buildingTilt: {
-                        ...formData.settlementTilt.buildingTilt,
-                        xPermille: e.target.value ? Number(e.target.value) : '',
+            <div className="space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <Input
+                  label="Độ nghiêng phương X (‰)"
+                  type="number"
+                  step="0.1"
+                  placeholder="VD: 3.5"
+                  value={formData.settlementTilt?.buildingTilt?.xPermille ?? ''}
+                  onChange={(e) =>
+                    updateFormData({
+                      settlementTilt: {
+                        ...formData.settlementTilt,
+                        buildingTilt: {
+                          ...formData.settlementTilt.buildingTilt,
+                          xPermille: e.target.value ? Number(e.target.value) : '',
+                        },
                       },
-                    },
-                  })
-                }
-              />
-              <Input
-                label="Độ nghiêng phương Y (‰)"
-                type="number"
-                step="0.1"
-                placeholder="VD: 1.8"
-                value={formData.settlementTilt?.buildingTilt?.yPermille ?? ''}
-                onChange={(e) =>
-                  updateFormData({
-                    settlementTilt: {
-                      ...formData.settlementTilt,
-                      buildingTilt: {
-                        ...formData.settlementTilt.buildingTilt,
-                        yPermille: e.target.value ? Number(e.target.value) : '',
+                    })
+                  }
+                />
+                <Input
+                  label="Độ nghiêng phương Y (‰)"
+                  type="number"
+                  step="0.1"
+                  placeholder="VD: 1.8"
+                  value={formData.settlementTilt?.buildingTilt?.yPermille ?? ''}
+                  onChange={(e) =>
+                    updateFormData({
+                      settlementTilt: {
+                        ...formData.settlementTilt,
+                        buildingTilt: {
+                          ...formData.settlementTilt.buildingTilt,
+                          yPermille: e.target.value ? Number(e.target.value) : '',
+                        },
                       },
-                    },
-                  })
-                }
-              />
+                    })
+                  }
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <PhotoCaptureInput
+                  label="Ảnh chụp độ nghiêng khối nhà / thước đo Laser/Nivo:"
+                  value={formData.settlementTilt?.buildingTilt?.photoUrl || ''}
+                  onChange={(url) =>
+                    updateFormData({
+                      settlementTilt: {
+                        ...formData.settlementTilt,
+                        buildingTilt: {
+                          ...formData.settlementTilt.buildingTilt,
+                          photoUrl: url,
+                        },
+                      },
+                    })
+                  }
+                  recommendedOrientation="portrait"
+                  watermarkText={`1.6.2 | NGHIENG | ${formData.projectParcelCode}`}
+                  height="120px"
+                />
+                <div>
+                  <label className="text-xs font-bold text-slate-700 block mb-1">
+                    Ghi chú chi tiết độ nghiêng:
+                  </label>
+                  <textarea
+                    rows={4}
+                    placeholder="Mô tả hướng nghiêng (về bên trái/phải/sau), khoảng hở đỉnh tường với nhà liền kề..."
+                    value={formData.settlementTilt?.buildingTilt?.notes || ''}
+                    onChange={(e) =>
+                      updateFormData({
+                        settlementTilt: {
+                          ...formData.settlementTilt,
+                          buildingTilt: {
+                            ...formData.settlementTilt.buildingTilt,
+                            notes: e.target.value,
+                          },
+                        },
+                      })
+                    }
+                    className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs focus:ring-1 focus:ring-emerald-500"
+                  />
+                </div>
+              </div>
             </div>
           </LevelSelectorWithGuide>
+
+          {/* 3. Trường Hợp Ngoại Lệ / Hiện Trạng Bất Thường Khác (Mới) */}
+          <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/70 space-y-3">
+            <span className="text-xs font-bold text-slate-800 block">
+              3. Trường Hợp Ngoại Lệ / Hiện Trạng Bất Thường Khác (Nếu có)
+            </span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <PhotoCaptureInput
+                label="Ảnh chụp trường hợp bất thường / ngoại lệ:"
+                value={formData.settlementTilt?.abnormalCase?.photoUrl || ''}
+                onChange={(url) =>
+                  updateFormData({
+                    settlementTilt: {
+                      ...formData.settlementTilt,
+                      abnormalCase: {
+                        ...formData.settlementTilt?.abnormalCase,
+                        photoUrl: url,
+                      },
+                    },
+                  })
+                }
+                recommendedOrientation="landscape"
+                watermarkText={`1.6.3 | NGOAI-LE | ${formData.projectParcelCode}`}
+                height="120px"
+              />
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1">
+                  Ghi chú trường hợp ngoại lệ:
+                </label>
+                <textarea
+                  rows={4}
+                  placeholder="VD: Rễ cây lớn làm nứt vỉa hè, hố ga thoát nước sát móng bị sụt, vết nứt tường rào không liên kết khối nhà chính..."
+                  value={formData.settlementTilt?.abnormalCase?.notes || ''}
+                  onChange={(e) =>
+                    updateFormData({
+                      settlementTilt: {
+                        ...formData.settlementTilt,
+                        abnormalCase: {
+                          ...formData.settlementTilt?.abnormalCase,
+                          notes: e.target.value,
+                        },
+                      },
+                    })
+                  }
+                  className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs focus:ring-1 focus:ring-emerald-500"
+                />
+              </div>
+            </div>
+          </div>
 
           {/* Nguồn xác định dữ liệu */}
           <div
@@ -935,7 +1102,7 @@ export const Step1_BuildingIdentification: React.FC = () => {
       </Card>
 
       {/* ========================================================================= */}
-      {/* 1.7. TÌNH TRẠNG TIẾP CẬN HIỆN TRƯỜNG & PHƯƠNG THỨC KHẢO SÁT (Ở CUỐI BƯỚC 1) */}
+      {/* 1.7. NHẬN ĐỊNH LOẠI CÔNG TRÌNH (Ở CUỐI BƯỚC 1) */}
       {/* ========================================================================= */}
       <Card className="border-emerald-300 bg-emerald-50/30 shadow-xs space-y-4">
         <div className="flex items-center justify-between pb-2 border-b border-emerald-200">
@@ -943,7 +1110,7 @@ export const Step1_BuildingIdentification: React.FC = () => {
             <Building2 className="w-5 h-5 text-emerald-700" />
             <div>
               <h2 className="text-base sm:text-lg font-bold text-slate-800">
-                1.7. Tình Trạng Tiếp Cận Hiện Trường & Phương Thức Khảo Sát
+                1.7. Nhận Định Loại Công Trình
               </h2>
               <p className="text-xs text-slate-600">
                 Lựa chọn phương thức khảo sát phù hợp với tình trạng thực tế của công trình
