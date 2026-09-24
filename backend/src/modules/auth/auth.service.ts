@@ -217,6 +217,8 @@ export class AuthService {
     phone?: string | null;
     role: string;
     assignedZoneId?: string | null;
+    signatureImageUrl?: string | null;
+    createdByUserId?: string | null;
   }) {
     const existing = await AuthRepository.findByUsername(userData.username);
     if (existing) {
@@ -232,6 +234,8 @@ export class AuthService {
       phone: userData.phone,
       role: userData.role,
       assignedZoneId: userData.assignedZoneId,
+      signatureImageUrl: userData.signatureImageUrl,
+      createdByUserId: userData.createdByUserId,
     });
 
     const { password_hash, ...safeUser } = user;
@@ -246,6 +250,7 @@ export class AuthService {
       phone?: string | null;
       role?: string;
       assignedZoneId?: string | null;
+      signatureImageUrl?: string | null;
     }
   ) {
     const user = await AuthRepository.updateUser(id, data);

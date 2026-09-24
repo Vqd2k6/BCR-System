@@ -12,6 +12,9 @@ export interface UserEntity {
   status: 'ACTIVE' | 'SUSPENDED' | 'LOCKED';
   status_reason: string | null;
   avatar_url: string | null;
+  signature_image_url?: string | null;
+  created_by_user_id?: string | null;
+  surveyor_code?: string | null;
   created_at: Date;
   updated_at: Date;
   deleted_at: Date | null;
@@ -88,10 +91,20 @@ export class AuthRepository {
     phone?: string | null;
     role: string;
     assignedZoneId?: string | null;
+    signatureImageUrl?: string | null;
+    createdByUserId?: string | null;
   }): Promise<UserEntity> {
+    let surveyorCode: string | null = null;
+    if (userData.role === 'SURVEYOR' && userData.phone) {
+      const digits = userData.phone.replace(/\D/g, '');
+      if (digits.length >= 4) {
+        surveyorCode = `P-${digits.slice(-4)}`;
+      }
+    }
+
     const res = await Database.query<UserEntity>(
-      `INSERT INTO users (username, password_hash, full_name, email, phone, role, assigned_zone_id, status)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, 'ACTIVE')
+      `INSERT INTO users (username, password_hash, full_name, email, phone, role, assigned_zone_id, status, signature_image_url, created_by_user_id, surveyor_code)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'ACTIVE', $8, $9, $10)
        RETURNING *;`,
       [
         userData.username,
@@ -101,6 +114,9 @@ export class AuthRepository {
         userData.phone || null,
         userData.role,
         userData.assignedZoneId || null,
+        userData.signatureImageUrl || null,
+        userData.createdByUserId || null,
+        surveyorCode,
       ]
     );
     return res.rows[0];
@@ -114,6 +130,7 @@ export class AuthRepository {
       phone?: string | null;
       role?: string;
       assignedZoneId?: string | null;
+      signatureImageUrl?: string | null;
     }
   ): Promise<UserEntity | null> {
     const fields: string[] = [];
@@ -130,6 +147,13 @@ export class AuthRepository {
     if (data.phone !== undefined) {
       params.push(data.phone);
       fields.push(`phone = $${params.length}`);
+      if (data.phone) {
+        const digits = data.phone.replace(/\D/g, '');
+        if (digits.length >= 4) {
+          params.push(`P-${digits.slice(-4)}`);
+          fields.push(`surveyor_code = $${params.length}`);
+        }
+      }
     }
     if (data.role !== undefined) {
       params.push(data.role);
@@ -138,6 +162,10 @@ export class AuthRepository {
     if (data.assignedZoneId !== undefined) {
       params.push(data.assignedZoneId);
       fields.push(`assigned_zone_id = $${params.length}`);
+    }
+    if (data.signatureImageUrl !== undefined) {
+      params.push(data.signatureImageUrl);
+      fields.push(`signature_image_url = $${params.length}`);
     }
 
     if (fields.length === 0) return this.findById(id);

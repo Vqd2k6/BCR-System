@@ -264,11 +264,19 @@ export class ResidentialReportGenerator {
     const surveyId = cleanPhone.length >= 4 ? `P-${cleanPhone.slice(-4)}` : (reportData.surveyor_code || 'P-0000');
 
     // Địa chỉ thực tế lấy từ khảo sát Phase 1
+    const formatWard = (w?: string) => {
+      if (!w) return '';
+      return w.toLowerCase().startsWith('phường') || w.toLowerCase().startsWith('xã') ? w : `Phường ${w}`;
+    };
+    const formatDistrict = (d?: string) => {
+      if (!d) return '';
+      return d.toLowerCase().startsWith('quận') || d.toLowerCase().startsWith('huyện') || d.toLowerCase().startsWith('thành phố') || d.toLowerCase().startsWith('tp') ? d : `Quận ${d}`;
+    };
     const addressParts = [
       reportData.house_number,
       reportData.street,
-      reportData.ward ? `Phường ${reportData.ward}` : '',
-      reportData.district ? `Quận ${reportData.district}` : '',
+      formatWard(reportData.ward),
+      formatDistrict(reportData.district),
     ].filter(Boolean);
     const address = addressParts.length > 0 ? addressParts.join(', ') : (reportData.address || '');
 

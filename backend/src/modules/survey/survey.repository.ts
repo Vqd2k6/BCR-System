@@ -52,11 +52,22 @@ export class SurveyRepository {
               p.zone_id, p.building_type,
               u.full_name AS surveyor_name,
               u.phone AS surveyor_phone,
-              za.full_name AS zone_admin_name
+              u.surveyor_code,
+              u.signature_image_url AS surveyor_signature_img,
+              za.full_name AS zone_admin_name,
+              za.signature_image_url AS zone_admin_signature_img,
+              COALESCE(sa.full_name, default_sa.full_name) AS super_admin_name,
+              COALESCE(sa.signature_image_url, default_sa.signature_image_url) AS super_admin_signature_img
        FROM base_survey_reports r
        JOIN parcels p ON r.parcel_id = p.id
        JOIN users u ON r.surveyor_id = u.id
        LEFT JOIN users za ON r.zone_admin_id = za.id
+       LEFT JOIN users sa ON za.created_by_user_id = sa.id
+       LEFT JOIN LATERAL (
+         SELECT full_name, signature_image_url FROM users 
+         WHERE role = 'SUPER_ADMIN' AND status = 'ACTIVE' 
+         ORDER BY created_at ASC LIMIT 1
+       ) default_sa ON true
        LEFT JOIN building_units bu ON r.unit_id = bu.id
        WHERE r.id = $1 LIMIT 1;`,
       [reportId]
@@ -191,6 +202,18 @@ export class SurveyRepository {
           [reportId, photos.p04ContextStreetUrl || null, photos.p04NotApplicable]
         );
       }
+
+      // Đồng bộ địa chỉ thực tế từ Bước 1 vào thửa đất
+      if (photos.houseNumber || photos.street) {
+        await client.query(
+          `UPDATE parcels SET 
+             house_number = COALESCE($1, house_number),
+             street = COALESCE($2, street),
+             updated_at = NOW()
+           WHERE id = (SELECT parcel_id FROM base_survey_reports WHERE id = $3);`,
+          [photos.houseNumber || null, photos.street || null, reportId]
+        );
+      }
     });
   }
 
@@ -199,8 +222,9 @@ export class SurveyRepository {
       await client.query(
         `INSERT INTO building_specifications (
            report_id, building_name, building_grade, adjacent_buildings, structural_system,
-           floor_count, basement_count, foundation_category, year_of_construction, is_year_estimated
-         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+           floor_count, basement_count, foundation_category, year_of_construction, is_year_estimated,
+           construction_area_m2, building_height_m, foundation_source
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
          ON CONFLICT (report_id) DO UPDATE SET
            building_name = EXCLUDED.building_name,
            building_grade = EXCLUDED.building_grade,
@@ -210,7 +234,10 @@ export class SurveyRepository {
            basement_count = EXCLUDED.basement_count,
            foundation_category = EXCLUDED.foundation_category,
            year_of_construction = EXCLUDED.year_of_construction,
-           is_year_estimated = EXCLUDED.is_year_estimated;`,
+           is_year_estimated = EXCLUDED.is_year_estimated,
+           construction_area_m2 = EXCLUDED.construction_area_m2,
+           building_height_m = EXCLUDED.building_height_m,
+           foundation_source = EXCLUDED.foundation_source;`,
         [
           reportId,
           specs.buildingName || null,
@@ -222,6 +249,9 @@ export class SurveyRepository {
           specs.foundationCategory,
           specs.yearOfConstruction || null,
           specs.isYearEstimated,
+          specs.constructionAreaM2 !== undefined && specs.constructionAreaM2 !== null && specs.constructionAreaM2 !== '' ? Number(specs.constructionAreaM2) : null,
+          specs.buildingHeightM !== undefined && specs.buildingHeightM !== null && specs.buildingHeightM !== '' ? Number(specs.buildingHeightM) : null,
+          specs.foundationSource || null,
         ]
       );
 
@@ -378,12 +408,24 @@ export class SurveyRepository {
         ]
       );
 
-      await client.query(
-        `UPDATE parcels
-         SET survey_status = 'SUBMITTED', updated_at = NOW()
-         WHERE id = (SELECT parcel_id FROM base_survey_reports WHERE id = $1);`,
-        [reportId]
-      );
+      if (submitData.houseNumber || submitData.street) {
+        await client.query(
+          `UPDATE parcels
+           SET house_number = COALESCE($1, house_number),
+               street = COALESCE($2, street),
+               survey_status = 'SUBMITTED', 
+               updated_at = NOW()
+           WHERE id = (SELECT parcel_id FROM base_survey_reports WHERE id = $3);`,
+          [submitData.houseNumber || null, submitData.street || null, reportId]
+        );
+      } else {
+        await client.query(
+          `UPDATE parcels
+           SET survey_status = 'SUBMITTED', updated_at = NOW()
+           WHERE id = (SELECT parcel_id FROM base_survey_reports WHERE id = $1);`,
+          [reportId]
+        );
+      }
     });
   }
 }

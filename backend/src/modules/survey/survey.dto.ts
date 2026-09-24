@@ -46,6 +46,9 @@ export const BuildingSpecsDto = z.object({
     'CAT_4_MONG_COC_BTCT',
     'CAT_5_KHONG_XAC_DINH',
   ]).default('CAT_2_MONG_DON_BTCT'),
+  foundationSource: z.string().optional().nullable(),
+  constructionAreaM2: z.number().optional().nullable(),
+  buildingHeightM: z.number().optional().nullable(),
   yearOfConstruction: z.number().int().optional().nullable(),
   isYearEstimated: z.boolean().default(false),
   

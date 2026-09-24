@@ -194,10 +194,13 @@ export interface Phase1SurveyFormData {
   usageFunction: string;
   aboveFloors: number | '';
   undergroundFloors: number | '';
+  constructionAreaM2?: number | '';
+  buildingHeightM?: number | '';
   constructionYear: number | '';
   isEstimatedYear: boolean;
   structureSystem: string;
   foundationType: string;
+  foundationSource?: string;
   pileDimensionMm: string;
   pileWidthMm?: number | '';
   pileLengthMm?: number | '';

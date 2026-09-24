@@ -58,7 +58,11 @@ export class UserAdminController {
         );
       }
 
-      const user = await AuthService.createUser(parsed.data);
+      const createdByUserId = parsed.data.createdByUserId || (req as any).user?.userId || (req as any).user?.id || null;
+      const user = await AuthService.createUser({
+        ...parsed.data,
+        createdByUserId,
+      });
       res.status(201).json({
         success: true,
         message: 'Cấp tài khoản mới thành công',

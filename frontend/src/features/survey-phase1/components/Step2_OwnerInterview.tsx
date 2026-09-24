@@ -181,6 +181,35 @@ export const Step2_OwnerInterview: React.FC = () => {
             />
           </div>
 
+          <div className="grid grid-cols-2 gap-2">
+            <Input
+              id="input-constructionAreaM2"
+              label="Diện Tích Sàn Xây Dựng (m²)"
+              type="number"
+              step="any"
+              min={0}
+              placeholder="VD: 120.5"
+              value={formData.constructionAreaM2 === '' || formData.constructionAreaM2 === undefined ? '' : formData.constructionAreaM2}
+              onChange={(e) =>
+                updateFormData({ constructionAreaM2: e.target.value === '' ? '' : Number(e.target.value) })
+              }
+              hint="Tổng diện tích sàn thực tế"
+            />
+            <Input
+              id="input-buildingHeightM"
+              label="Chiều Cao Công Trình (m)"
+              type="number"
+              step="any"
+              min={0}
+              placeholder="VD: 11.8"
+              value={formData.buildingHeightM === '' || formData.buildingHeightM === undefined ? '' : formData.buildingHeightM}
+              onChange={(e) =>
+                updateFormData({ buildingHeightM: e.target.value === '' ? '' : Number(e.target.value) })
+              }
+              hint="Chiều cao đo đạc thực tế"
+            />
+          </div>
+
           <div className="flex items-end gap-3">
             <div className="flex-1">
               <Input
@@ -242,16 +271,31 @@ export const Step2_OwnerInterview: React.FC = () => {
             )}
           </div>
 
-          <Select
-            id="input-foundationType"
-            label="Loại Móng (Foundation Type) *"
-            value={formData.foundationType}
-            onChange={(e) => updateFormData({ foundationType: e.target.value })}
-            options={[
-              { value: '', label: '--- Chọn loại móng công trình ---' },
-              ...FOUNDATION_TYPES.map((f) => ({ value: f, label: f })),
-            ]}
-          />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <Select
+              id="input-foundationType"
+              label="Loại Móng (Foundation Type) *"
+              value={formData.foundationType}
+              onChange={(e) => updateFormData({ foundationType: e.target.value })}
+              options={[
+                { value: '', label: '--- Chọn loại móng công trình ---' },
+                ...FOUNDATION_TYPES.map((f) => ({ value: f, label: f })),
+              ]}
+            />
+            <Select
+              id="input-foundationSource"
+              label="Nguồn Xác Định Móng"
+              value={formData.foundationSource || 'Bản vẽ hoàn công'}
+              onChange={(e) => updateFormData({ foundationSource: e.target.value })}
+              options={[
+                { value: 'Bản vẽ hoàn công', label: 'Bản vẽ hoàn công' },
+                { value: 'Chủ nhà khai', label: 'Chủ nhà khai báo' },
+                { value: 'Khảo sát hiện trường', label: 'Khảo sát hiện trường' },
+                { value: 'Hồ sơ kỹ thuật', label: 'Hồ sơ kỹ thuật dự án' },
+                { value: 'Chưa rõ / Ước tính', label: 'Chưa rõ / Ước tính' },
+              ]}
+            />
+          </div>
 
           <div>
             <label className="text-xs font-bold text-slate-700 block mb-1">

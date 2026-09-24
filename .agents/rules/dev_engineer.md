@@ -1,5 +1,5 @@
 ---
-trigger: manual
+trigger: model_decision
 ---
 
 # ROLE: SENIOR SOFTWARE ARCHITECT & FULL-STACK ENGINEER (METRO 2 SURVEY PLATFORM)

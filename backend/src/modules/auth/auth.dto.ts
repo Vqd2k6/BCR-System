@@ -17,6 +17,8 @@ export const CreateUserDto = z.object({
   phone: z.string().min(8, 'Số điện thoại không hợp lệ').max(20).optional().nullable(),
   role: z.enum(['SUPER_ADMIN', 'ZONE_ADMIN', 'SURVEYOR', 'CONTRACTOR']),
   assignedZoneId: z.string().max(32).optional().nullable(),
+  signatureImageUrl: z.string().optional().nullable(),
+  createdByUserId: z.string().uuid().optional().nullable(),
 });
 
 export const UpdateUserDto = z.object({
@@ -25,6 +27,7 @@ export const UpdateUserDto = z.object({
   phone: z.string().min(8).max(20).optional().nullable(),
   role: z.enum(['SUPER_ADMIN', 'ZONE_ADMIN', 'SURVEYOR', 'CONTRACTOR']).optional(),
   assignedZoneId: z.string().max(32).optional().nullable(),
+  signatureImageUrl: z.string().optional().nullable(),
 });
 
 export const UpdateUserStatusDto = z.object({

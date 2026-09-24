@@ -204,12 +204,40 @@ export class SurveyController {
       const reportId = initResult.reportId;
 
       // 2. Lưu các bước nếu có dữ liệu
-      if (surveyData?.step1Photos) {
-        await SurveyService.saveIdentificationPhotos(reportId, surveyData.step1Photos);
+      const step1Photos = surveyData?.step1Photos || {
+        p01HouseNumberUrl: surveyData?.photoP01?.url,
+        p01NotApplicable: surveyData?.photoP01?.notApplicable,
+        p02MainFacadeUrl: surveyData?.photoP02?.url,
+        p02NotApplicable: surveyData?.photoP02?.notApplicable,
+        p03SideRearUrl: surveyData?.photoP03?.url,
+        p03NotApplicable: surveyData?.photoP03?.notApplicable,
+        p04ContextStreetUrl: surveyData?.photoP04?.url,
+        p04NotApplicable: surveyData?.photoP04?.notApplicable,
+        houseNumber: surveyData?.houseNumber,
+        street: surveyData?.street,
+      };
+      if (step1Photos.p01HouseNumberUrl || step1Photos.p02MainFacadeUrl || step1Photos.houseNumber || surveyData?.step1Photos) {
+        await SurveyService.saveIdentificationPhotos(reportId, step1Photos);
       }
-      if (surveyData?.specs) {
-        await SurveyService.saveBuildingSpecs(reportId, surveyData.specs);
+
+      const specs = surveyData?.specs || {
+        buildingName: surveyData?.buildingName,
+        landUseFunction: surveyData?.usageFunction,
+        floorCount: surveyData?.aboveFloors !== '' && surveyData?.aboveFloors !== undefined ? Number(surveyData.aboveFloors) : 1,
+        basementCount: surveyData?.undergroundFloors !== '' && surveyData?.undergroundFloors !== undefined ? Number(surveyData.undergroundFloors) : 0,
+        constructionAreaM2: surveyData?.constructionAreaM2 !== '' && surveyData?.constructionAreaM2 !== undefined ? Number(surveyData.constructionAreaM2) : null,
+        buildingHeightM: surveyData?.buildingHeightM !== '' && surveyData?.buildingHeightM !== undefined ? Number(surveyData.buildingHeightM) : null,
+        yearOfConstruction: surveyData?.constructionYear !== '' && surveyData?.constructionYear !== undefined ? Number(surveyData.constructionYear) : null,
+        isYearEstimated: Boolean(surveyData?.isEstimatedYear),
+        structuralSystem: surveyData?.structureSystem || 'KHUNG_BTCT_CHIU_LUC',
+        foundationCategory: surveyData?.foundationType || 'CAT_2_MONG_DON_BTCT',
+        foundationSource: surveyData?.foundationSource || 'Bản vẽ hoàn công',
+        adjacentBuildings: surveyData?.adjacentBuildings ? JSON.stringify(surveyData.adjacentBuildings) : null,
+      };
+      if (specs.floorCount || specs.structuralSystem || surveyData?.specs) {
+        await SurveyService.saveBuildingSpecs(reportId, specs);
       }
+
       if (surveyData?.floors && Array.isArray(surveyData.floors)) {
         await SurveyService.saveFloorSurveys(reportId, surveyData.floors);
       }
@@ -219,11 +247,13 @@ export class SurveyController {
 
       // 3. Nộp hồ sơ
       const result = await SurveyService.submitPhase1Report(reportId, {
-        ownerRemarks: surveyData?.signatures?.ownerRemarks || '',
-        surveyorSignatureUrl: surveyData?.signatures?.surveyorSignatureUrl || '',
-        ownerSignatureUrl: surveyData?.signatures?.ownerSignatureUrl || '',
-        summaryConclusions: surveyData?.signatures?.summaryConclusions || '',
-        engineeringRecommendations: surveyData?.signatures?.engineeringRecommendations || '',
+        ownerRemarks: surveyData?.signatures?.ownerRemarks || surveyData?.ownerRemarks || '',
+        surveyorSignatureUrl: surveyData?.signatures?.surveyorSignatureUrl || surveyData?.surveyorSignatureUrl || '',
+        ownerSignatureUrl: surveyData?.signatures?.ownerSignatureUrl || surveyData?.ownerSignatureUrl || '',
+        summaryConclusions: surveyData?.signatures?.summaryConclusions || surveyData?.executiveSummary?.summaryConclusionsText || '',
+        engineeringRecommendations: surveyData?.signatures?.engineeringRecommendations || surveyData?.executiveSummary?.specificRecommendationsText || '',
+        houseNumber: surveyData?.houseNumber,
+        street: surveyData?.street,
       });
 
       res.status(200).json({
