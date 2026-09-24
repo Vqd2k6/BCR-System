@@ -97,6 +97,7 @@ export function createApp(): express.Application {
   api.post('/parcels/:id/record-absence', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.recordAbsence);
   api.put('/parcels/:id/footprint', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.updateFootprint);
   api.post('/mutations/propose', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.proposeMutation);
+  api.get('/parcels/:id/phase1-report', authenticateJwt, SurveyController.getPhase1ReportByParcelId);
 
   // Hồ sơ Phase 1
   api.post('/reports/phase1', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), SurveyController.createPhase1Report);

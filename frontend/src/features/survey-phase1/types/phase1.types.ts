@@ -289,6 +289,7 @@ export interface Phase1SurveyFormData {
   };
 
   // Step 9 Signatures & Working Minutes
+  ownerRemarks?: string;
   signatures: {
     ownerFeedback: string;
     preparedBy: {

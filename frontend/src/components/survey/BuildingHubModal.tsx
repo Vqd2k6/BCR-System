@@ -83,7 +83,7 @@ export const BuildingHubModal: React.FC<Props> = ({
   const [updateNotes, setUpdateNotes] = useState<string>('');
 
   const [newUnitCode, setNewUnitCode] = useState<string>('');
-  const [newFloorNumber, setNewFloorNumber] = useState<number>(1);
+  const [newFloorNumber, setNewFloorNumber] = useState<number | ''>(1);
   const [isSubmittingUnit, setIsSubmittingUnit] = useState<boolean>(false);
 
   // Load units from API or robust default dataset
@@ -143,11 +143,12 @@ export const BuildingHubModal: React.FC<Props> = ({
   const handleAddUnit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newUnitCode.trim()) return;
+    const parsedFloor = Number(newFloorNumber) || 1;
     try {
       setIsSubmittingUnit(true);
       const res = await api.post(`/parcels/${parcel.id}/units`, {
         unitCode: newUnitCode.trim(),
-        floorNumber: newFloorNumber,
+        floorNumber: parsedFloor,
       });
       if (res.data?.data?.unit) {
         setUnits((prev) => [...prev, res.data.data.unit]);
@@ -156,7 +157,7 @@ export const BuildingHubModal: React.FC<Props> = ({
           id: `u-${Date.now()}`,
           parcel_id: parcel.id,
           unit_code: newUnitCode.trim(),
-          floor_number: newFloorNumber,
+          floor_number: parsedFloor,
           owner_name: 'Chưa cập nhật',
           owner_phone: '',
           status: 'NOT_SURVEYED',
@@ -165,13 +166,14 @@ export const BuildingHubModal: React.FC<Props> = ({
       }
       setShowAddModal(false);
       setNewUnitCode('');
+      setNewFloorNumber(1);
       if (onUnitsUpdated) onUnitsUpdated();
     } catch (_err) {
       const fakeUnit: BuildingUnit = {
         id: `u-${Date.now()}`,
         parcel_id: parcel.id,
         unit_code: newUnitCode.trim(),
-        floor_number: newFloorNumber,
+        floor_number: parsedFloor,
         owner_name: 'Chưa cập nhật',
         owner_phone: '',
         status: 'NOT_SURVEYED',
@@ -179,6 +181,7 @@ export const BuildingHubModal: React.FC<Props> = ({
       setUnits((prev) => [...prev, fakeUnit]);
       setShowAddModal(false);
       setNewUnitCode('');
+      setNewFloorNumber(1);
     } finally {
       setIsSubmittingUnit(false);
     }
@@ -554,7 +557,7 @@ export const BuildingHubModal: React.FC<Props> = ({
                     min="1"
                     max="80"
                     value={newFloorNumber}
-                    onChange={(e) => setNewFloorNumber(parseInt(e.target.value, 10) || 1)}
+                    onChange={(e) => setNewFloorNumber(e.target.value === '' ? '' : parseInt(e.target.value, 10))}
                     className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-sky-500"
                   />
                 </div>

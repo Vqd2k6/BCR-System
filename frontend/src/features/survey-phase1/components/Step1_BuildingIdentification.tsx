@@ -157,6 +157,7 @@ export const Step1_BuildingIdentification: React.FC = () => {
   const validateStep1Completeness = () => {
     const hasProjectParcelCode = Boolean(formData.projectParcelCode?.trim());
     const hasOfficialCadastralCode = Boolean(formData.officialCadastralCode?.trim());
+    const hasBuildingName = Boolean(formData.buildingName?.trim());
     const hasGps = Boolean(formData.gpsCoords?.lat && formData.gpsCoords?.lng);
     const hasAddress = Boolean(formData.street?.trim() || formData.houseNumber?.trim());
     const hasOwnerName = Boolean(formData.ownerName?.trim());
@@ -179,6 +180,7 @@ export const Step1_BuildingIdentification: React.FC = () => {
     const isFullyComplete =
       hasProjectParcelCode &&
       hasOfficialCadastralCode &&
+      hasBuildingName &&
       hasAddress &&
       hasOwnerName &&
       hasObjectGroup &&
@@ -191,6 +193,7 @@ export const Step1_BuildingIdentification: React.FC = () => {
     return {
       hasProjectParcelCode,
       hasOfficialCadastralCode,
+      hasBuildingName,
       hasGps,
       hasAddress,
       hasOwnerName,
@@ -208,6 +211,25 @@ export const Step1_BuildingIdentification: React.FC = () => {
 
   const handleSubmitAbsentee = async () => {
     try {
+      if (!formData.absenteeReason?.trim()) {
+        alert('Vui lòng chọn hoặc nhập lý do vắng mặt / không tiếp cận.');
+        const el = document.getElementById('input-absenteeReason');
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          el.focus();
+        }
+        return;
+      }
+
+      if (!formData.absenteeMinutesPhotos || formData.absenteeMinutesPhotos.length === 0) {
+        alert('Vui lòng chụp ít nhất 1 ảnh biên bản / giấy báo hẹn vắng mặt trước khi nộp hồ sơ.');
+        const el = document.getElementById('absentee-minutes-section');
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+        return;
+      }
+
       setIsSubmittingAbsentee(true);
       const buildingId = formData.projectParcelCode || formData.officialCadastralCode || formData.parcelId;
       console.log('[Phase1] Submitting Absentee Survey:', formData);
@@ -245,6 +267,25 @@ export const Step1_BuildingIdentification: React.FC = () => {
 
   const handleSubmitUnderConstruction = async () => {
     try {
+      if (!formData.underConstructionPhotos || formData.underConstructionPhotos.length === 0) {
+        alert('Vui lòng chụp ít nhất 1 ảnh hiện trạng công trình đang thi công.');
+        const el = document.getElementById('under-construction-photos-section');
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+        return;
+      }
+
+      if (!formData.constructionStageNotes?.trim()) {
+        alert('Vui lòng nhập mô tả giai đoạn thi công hiện tại.');
+        const el = document.getElementById('input-constructionStageNotes');
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          el.focus();
+        }
+        return;
+      }
+
       setIsSubmittingUnderConstruction(true);
       const buildingId = formData.projectParcelCode || formData.officialCadastralCode || formData.parcelId;
       console.log('[Phase1] Submitting Under Construction Survey:', formData);
@@ -345,8 +386,9 @@ export const Step1_BuildingIdentification: React.FC = () => {
           />
 
           <Input
-            label="Tên Công Trình / Biển Hiệu Riêng (Building Name)"
-            placeholder="VD: Cửa hàng tiện lợi, Nhà thuốc, Ngân hàng (để trống nếu là nhà dân)"
+            id="input-buildingName"
+            label="Tên Công Trình / Biển Hiệu Riêng (Building Name) *"
+            placeholder="VD: Cửa hàng tiện lợi, Nhà thuốc, Nhà ở gia đình..."
             value={formData.buildingName}
             onChange={(e) => updateFormData({ buildingName: e.target.value })}
           />
@@ -480,14 +522,15 @@ export const Step1_BuildingIdentification: React.FC = () => {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div id="input-adjacent-buildings" className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {/* Bên Trái */}
           <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2.5">
             <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
               <Compass className="w-4 h-4 text-emerald-600" />
-              <span>Bên Trái (Theo hướng toà nhà)</span>
+              <span>Bên Trái (Theo hướng toà nhà) *</span>
             </div>
             <Select
+              id="input-adjacentLeft"
               value={formData.adjacentBuildings?.left?.details || ''}
               onChange={(e) =>
                 updateFormData({
@@ -523,6 +566,7 @@ export const Step1_BuildingIdentification: React.FC = () => {
               <span>Bên Phải (Theo hướng toà nhà) *</span>
             </div>
             <Select
+              id="input-adjacentRight"
               value={formData.adjacentBuildings?.right?.details || ''}
               onChange={(e) =>
                 updateFormData({
@@ -558,6 +602,7 @@ export const Step1_BuildingIdentification: React.FC = () => {
               <span>Phía Sau Tiếp Giáp *</span>
             </div>
             <Select
+              id="input-adjacentBack"
               value={formData.adjacentBuildings?.back?.details || ''}
               onChange={(e) =>
                 updateFormData({
@@ -1257,10 +1302,14 @@ export const Step1_BuildingIdentification: React.FC = () => {
             </div>
 
             <Select
-              label="Lý do vắng mặt / không tiếp cận:"
-              value={formData.absenteeReason || ABSENTEE_REASONS[0]}
+              id="input-absenteeReason"
+              label="Lý do vắng mặt / không tiếp cận: *"
+              value={formData.absenteeReason || ''}
               onChange={(e) => updateFormData({ absenteeReason: e.target.value })}
-              options={ABSENTEE_REASONS.map((r) => ({ value: r, label: r }))}
+              options={[
+                { value: '', label: '-- Chọn lý do vắng mặt / không tiếp cận --' },
+                ...ABSENTEE_REASONS.map((r) => ({ value: r, label: r })),
+              ]}
             />
 
             {formData.absenteeReason === 'Lý do khác' && (
@@ -1273,11 +1322,11 @@ export const Step1_BuildingIdentification: React.FC = () => {
             )}
 
             {/* Tải lên nhiều ảnh biên bản vắng nhà */}
-            <div className="space-y-2 pt-2 border-t border-amber-200">
+            <div id="absentee-minutes-section" className="space-y-2 pt-2 border-t border-amber-200">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-amber-950 flex items-center gap-1.5">
                   <FileText className="w-4 h-4 text-amber-700" />
-                  Ảnh Chụp Biên Bản Vắng Nhà (Có thể chụp nhiều ảnh):
+                  Ảnh Chụp Biên Bản Vắng Nhà (Bắt buộc tối thiểu 1 ảnh) *:
                 </span>
                 <span className="text-[11px] text-slate-500">
                   Đã tải: {formData.absenteeMinutesPhotos?.length || 0} ảnh
@@ -1383,10 +1432,10 @@ export const Step1_BuildingIdentification: React.FC = () => {
             </div>
 
             {/* Nhiều ảnh công trình đang xây dựng */}
-            <div className="space-y-2">
+            <div id="under-construction-photos-section" className="space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-orange-950">
-                  Ảnh Chụp Hiện Trạng Công Trình Đang Thi Công (Chụp nhiều ảnh):
+                  Ảnh Chụp Hiện Trạng Công Trình Đang Thi Công (Bắt buộc tối thiểu 1 ảnh) *:
                 </span>
                 <span className="text-[11px] text-slate-500">
                   Đã chụp: {formData.underConstructionPhotos?.length || 0} ảnh
@@ -1431,9 +1480,10 @@ export const Step1_BuildingIdentification: React.FC = () => {
 
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">
-                Ghi chú giai đoạn thi công hiện tại:
+                Ghi chú giai đoạn thi công hiện tại *:
               </label>
               <textarea
+                id="input-constructionStageNotes"
                 rows={2}
                 placeholder="VD: Đang đào hố móng, đang ghép coffa đổ sàn tầng 2, đã xong phần thô đang hoàn thiện..."
                 className="w-full px-2.5 py-1.5 bg-white border border-orange-300 rounded-lg text-xs focus:ring-1 focus:ring-orange-500"

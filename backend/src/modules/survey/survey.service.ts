@@ -375,4 +375,8 @@ export class SurveyService {
       message: 'Đã nộp hồ sơ Phase 2 thành công kèm chữ ký 4 bên chuẩn Phiếu 02',
     };
   }
+
+  static async getPhase1ReportByParcelId(parcelId: string) {
+    return await SurveyRepository.findLatestPhase1ReportByParcelId(parcelId);
+  }
 }

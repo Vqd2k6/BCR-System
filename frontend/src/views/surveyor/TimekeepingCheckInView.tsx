@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { api } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { CompanionCheckInModal } from '../../components/attendance/CompanionCheckInModal';
-import { getZoneCentroid, calculateDistanceMeters, MetroZoneCentroid } from '../../core/utils/metroZoneUtils';
+import { getZoneCentroid, calculateDistanceMeters, MetroZoneCentroid, METRO_ZONE_CENTROIDS } from '../../core/utils/metroZoneUtils';
 import {
   Camera,
   MapPin,
@@ -49,17 +49,28 @@ export const TimekeepingCheckInView: React.FC<Props> = ({ isCheckedInToday = fal
   // Companion check-in state
   const [showCompanionModal, setShowCompanionModal] = useState<boolean>(false);
   const [companionData, setCompanionData] = useState<any>(null);
+  const [isSimulatedGps, setIsSimulatedGps] = useState<boolean>(false);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
 
-  const assignedZoneId = user?.assignedZoneId || 'ZONE_S9';
-  const [targetZone, setTargetZone] = useState<MetroZoneCentroid>(() => getZoneCentroid(assignedZoneId));
+  const [selectedZoneId, setSelectedZoneId] = useState<string>(() => user?.assignedZoneId || 'ZONE_S9');
+  const [targetZone, setTargetZone] = useState<MetroZoneCentroid>(() => getZoneCentroid(selectedZoneId));
 
-  // Tải thông tin trọng tâm phân khu từ backend
+  // Tự động đồng bộ zone khi thông tin user thay đổi
   useEffect(() => {
+    if (user?.assignedZoneId) {
+      setSelectedZoneId(user.assignedZoneId);
+    }
+  }, [user?.assignedZoneId]);
+
+  // Tải thông tin trọng tâm phân khu khi selectedZoneId thay đổi
+  useEffect(() => {
+    const defaultCentroid = getZoneCentroid(selectedZoneId);
+    setTargetZone(defaultCentroid);
+
     let isMounted = true;
-    api.get(`/attendance/assigned-zone?zoneId=${assignedZoneId}`)
+    api.get(`/attendance/assigned-zone?zoneId=${selectedZoneId}`)
       .then((res) => {
         if (isMounted && res.data?.success && res.data?.data) {
           const zData = res.data.data;
@@ -72,10 +83,10 @@ export const TimekeepingCheckInView: React.FC<Props> = ({ isCheckedInToday = fal
         }
       })
       .catch((_err) => {
-        // Fallback đã khởi tạo từ METRO_ZONE_CENTROIDS
+        // Fallback từ getZoneCentroid
       });
     return () => { isMounted = false; };
-  }, [assignedZoneId]);
+  }, [selectedZoneId]);
 
   // Auto-dismiss submitResult message after 3.5 seconds
   useEffect(() => {
@@ -87,8 +98,8 @@ export const TimekeepingCheckInView: React.FC<Props> = ({ isCheckedInToday = fal
     }
   }, [submitResult]);
 
-  const getLiveGps = () => {
-    const activeZone = targetZone;
+  const getLiveGps = (zoneToUse?: MetroZoneCentroid) => {
+    const activeZone = zoneToUse || targetZone;
     setGpsLoading(true);
     if ('geolocation' in navigator) {
       navigator.geolocation.getCurrentPosition(
@@ -96,36 +107,44 @@ export const TimekeepingCheckInView: React.FC<Props> = ({ isCheckedInToday = fal
           const lat = pos.coords.latitude;
           const lng = pos.coords.longitude;
           const accuracy = pos.coords.accuracy;
+          setIsSimulatedGps(false);
           setGpsCoordinates({ lat, lng, accuracy });
           const dist = calculateDistanceMeters(lat, lng, activeZone.lat, activeZone.lng);
           setDistanceMeters(dist);
           setGpsLoading(false);
         },
-        (err) => {
-          console.warn('[Timekeeping GPS Error]:', err);
-          // Giả lập tọa độ thực địa chuẩn gần trọng tâm zone (~35m)
-          const lat = activeZone.lat + 0.00025;
-          const lng = activeZone.lng + 0.0002;
-          const dist = calculateDistanceMeters(lat, lng, activeZone.lat, activeZone.lng);
-          setGpsCoordinates({ lat, lng, accuracy: 8 });
+        (_err) => {
+          // Người dùng chặn GPS hoặc thiết bị không hỗ trợ định vị -> Tự động chuyển tọa độ thực địa tại phân khu
+          setIsSimulatedGps(true);
+          const simLat = Number((activeZone.lat + 0.00025).toFixed(6));
+          const simLng = Number((activeZone.lng + 0.00020).toFixed(6));
+          const dist = calculateDistanceMeters(simLat, simLng, activeZone.lat, activeZone.lng);
+          setGpsCoordinates({ lat: simLat, lng: simLng, accuracy: 8 });
           setDistanceMeters(dist);
           setGpsLoading(false);
         },
-        { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
       );
     } else {
-      const lat = activeZone.lat + 0.00025;
-      const lng = activeZone.lng + 0.0002;
-      const dist = calculateDistanceMeters(lat, lng, activeZone.lat, activeZone.lng);
-      setGpsCoordinates({ lat, lng, accuracy: 10 });
+      setIsSimulatedGps(true);
+      const simLat = Number((activeZone.lat + 0.00025).toFixed(6));
+      const simLng = Number((activeZone.lng + 0.00020).toFixed(6));
+      const dist = calculateDistanceMeters(simLat, simLng, activeZone.lat, activeZone.lng);
+      setGpsCoordinates({ lat: simLat, lng: simLng, accuracy: 10 });
       setDistanceMeters(dist);
       setGpsLoading(false);
     }
   };
 
-  // Cập nhật lại khoảng cách khi targetZone thay đổi
+  // Cập nhật lại tọa độ và khoảng cách khi targetZone thay đổi
   useEffect(() => {
-    if (gpsCoordinates) {
+    if (isSimulatedGps || !gpsCoordinates) {
+      const simLat = Number((targetZone.lat + 0.00025).toFixed(6));
+      const simLng = Number((targetZone.lng + 0.00020).toFixed(6));
+      const dist = calculateDistanceMeters(simLat, simLng, targetZone.lat, targetZone.lng);
+      setGpsCoordinates({ lat: simLat, lng: simLng, accuracy: 8 });
+      setDistanceMeters(dist);
+    } else {
       const dist = calculateDistanceMeters(gpsCoordinates.lat, gpsCoordinates.lng, targetZone.lat, targetZone.lng);
       setDistanceMeters(dist);
     }
@@ -421,20 +440,48 @@ export const TimekeepingCheckInView: React.FC<Props> = ({ isCheckedInToday = fal
       }}
     >
       {/* Header Info */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
         <div>
           <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: '#0f172a' }}>
             Điểm Danh GPS Hiện Trường
           </h2>
-          <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.825rem', color: '#64748b' }}>
-            Ga phụ trách: <strong style={{ color: '#0284c7' }}>{user?.assignedZoneId || 'Ga S9 - Bà Quẹo'}</strong>
-          </p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.35rem', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Phân khu khảo sát:</span>
+            <select
+              value={selectedZoneId}
+              onChange={(e) => {
+                const newZId = e.target.value;
+                setSelectedZoneId(newZId);
+                const newCentroid = getZoneCentroid(newZId);
+                setTargetZone(newCentroid);
+                getLiveGps(newCentroid);
+              }}
+              className="form-control"
+              style={{
+                fontSize: '0.825rem',
+                fontWeight: 700,
+                color: '#0369a1',
+                backgroundColor: '#f0f9ff',
+                borderColor: '#bae6fd',
+                borderRadius: '0.5rem',
+                padding: '0.25rem 0.6rem',
+                width: 'auto',
+                cursor: 'pointer',
+              }}
+            >
+              {Object.values(METRO_ZONE_CENTROIDS).map((z) => (
+                <option key={z.zoneId} value={z.zoneId}>
+                  {z.zoneName}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
         {!hasCheckedIn && (
           <button
             type="button"
-            onClick={getLiveGps}
+            onClick={() => getLiveGps()}
             style={{
               background: '#f8fafc',
               color: '#0284c7',
@@ -517,7 +564,7 @@ export const TimekeepingCheckInView: React.FC<Props> = ({ isCheckedInToday = fal
                   Thời gian: <strong>{checkInDetails?.time || 'Hôm nay'}</strong>
                 </span>
                 <span>
-                  Khoảng cách: <strong>{distanceMeters}m</strong> tới Ga S9
+                  Khoảng cách: <strong>{distanceMeters}m</strong> tới {targetZone.zoneName}
                 </span>
                 {gpsCoordinates && (
                   <span>
@@ -802,6 +849,25 @@ export const TimekeepingCheckInView: React.FC<Props> = ({ isCheckedInToday = fal
                 Trọng tâm {targetZone.zoneName}: <strong>{targetZone.lat.toFixed(5)}, {targetZone.lng.toFixed(5)}</strong>
               </div>
             </div>
+
+            {isSimulatedGps && (
+              <div
+                style={{
+                  backgroundColor: '#eff6ff',
+                  border: '1px solid #bfdbfe',
+                  borderRadius: '0.5rem',
+                  padding: '0.45rem 0.75rem',
+                  fontSize: '0.75rem',
+                  color: '#1e40af',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                }}
+              >
+                <MapPin size={13} color="#2563eb" style={{ flexShrink: 0 }} />
+                <span>📍 Tọa độ mô phỏng thực địa tại <strong>{targetZone.zoneName}</strong> (~{distanceMeters}m).</span>
+              </div>
+            )}
 
             {/* Warning callout */}
             {isOutOfBounds && (

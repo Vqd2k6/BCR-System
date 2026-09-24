@@ -33,6 +33,7 @@ import {
   Compass,
   X,
   CheckCircle2,
+  Crosshair,
 } from 'lucide-react';
 import { api } from '../../services/api';
 import { GisParcel } from './LeafletSweepMap';
@@ -67,8 +68,10 @@ export interface MutationPayloadData {
   mergeBuildingAreaM2?: number;
   mergeResidualAreaM2?: number;
   mergeResidualType?: string;
+  customMergeResidualType?: string;
   mergeBuildingRatio?: number;
   mergeResidualParcelCode?: string;
+  mergeBuildingCustomPoints?: [number, number][];
   activeProposalType?: 'MATCH' | 'SPLIT' | 'MERGE' | null;
   isSubmitted?: boolean;
   submittedAt?: string;
@@ -526,6 +529,12 @@ export const CadastralGISBoundaryEditor: React.FC<Props> = ({
   const [customResidualType, setCustomResidualType] = useState<string>('');
   const [customSplitReason, setCustomSplitReason] = useState<string>('');
   const [customMergeReason, setCustomMergeReason] = useState<string>('');
+  const [customMergeResidualType, setCustomMergeResidualType] = useState<string>(
+    mutationData.customMergeResidualType || ''
+  );
+  const [mergeBuildingVertices, setMergeBuildingVertices] = useState<[number, number][]>(() => {
+    return mutationData.mergeBuildingCustomPoints || [];
+  });
 
   // Dynamic High-Range Codes from Backend based on MAX parcel index (e.g. B-00108, B-00109)
   const [dynamicCodes, setDynamicCodes] = useState<string[]>([]);
@@ -784,6 +793,70 @@ export const CadastralGISBoundaryEditor: React.FC<Props> = ({
       ...mutationData,
       selectedMergeCodes: next,
       mergeTargetCode: next[0] || '',
+      isSubmitted: false,
+    });
+  };
+
+  // MERGE WITH PARTIAL BUILDING: Tính diện tích công trình P1 và đất dư P2
+  const calculatedMergeBArea = useMemo(() => {
+    if (mergeBuildingVertices.length >= 3) {
+      const raw = computePolygonAreaM2(mergeBuildingVertices);
+      if (raw > 0) return raw;
+    }
+    return mutationData.mergeBuildingAreaM2 || Math.round((mergeSummary.totalMergedArea || totalLandArea) * 0.65 * 10) / 10;
+  }, [mergeBuildingVertices, mutationData.mergeBuildingAreaM2, mergeSummary.totalMergedArea, totalLandArea]);
+
+  const calculatedMergeRArea = useMemo(() => {
+    const total = mergeSummary.totalMergedArea || totalLandArea;
+    return Math.max(0.1, Math.round((total - calculatedMergeBArea) * 10) / 10);
+  }, [mergeSummary.totalMergedArea, totalLandArea, calculatedMergeBArea]);
+
+  const handleMergeMapClickDraw = (point: [number, number]) => {
+    const updated = [...mergeBuildingVertices, point];
+    setMergeBuildingVertices(updated);
+    const bArea = updated.length >= 3 ? computePolygonAreaM2(updated) : 0;
+    const total = mergeSummary.totalMergedArea || totalLandArea;
+    const validBArea = bArea > 0 ? bArea : Math.round(total * 0.65 * 10) / 10;
+    const rArea = Math.max(0.1, Math.round((total - validBArea) * 10) / 10);
+    onMutationDataChange({
+      ...mutationData,
+      mergeBuildingCustomPoints: updated,
+      mergeBuildingAreaM2: validBArea,
+      mergeResidualAreaM2: rArea,
+      mergeResidualParcelCode: `${mergeSummary.keptCode}-P2`,
+      isSubmitted: false,
+    });
+  };
+
+  const handleMergeRemoveLastPoint = () => {
+    if (mergeBuildingVertices.length === 0) return;
+    const updated = mergeBuildingVertices.slice(0, -1);
+    setMergeBuildingVertices(updated);
+    const bArea = updated.length >= 3 ? computePolygonAreaM2(updated) : 0;
+    const total = mergeSummary.totalMergedArea || totalLandArea;
+    const validBArea = bArea > 0 ? bArea : Math.round(total * 0.65 * 10) / 10;
+    const rArea = Math.max(0.1, Math.round((total - validBArea) * 10) / 10);
+    onMutationDataChange({
+      ...mutationData,
+      mergeBuildingCustomPoints: updated,
+      mergeBuildingAreaM2: validBArea,
+      mergeResidualAreaM2: rArea,
+      mergeResidualParcelCode: `${mergeSummary.keptCode}-P2`,
+      isSubmitted: false,
+    });
+  };
+
+  const handleMergeClearDraw = () => {
+    setMergeBuildingVertices([]);
+    const total = mergeSummary.totalMergedArea || totalLandArea;
+    const bArea = Math.round(total * 0.65 * 10) / 10;
+    const rArea = Math.round((total - bArea) * 10) / 10;
+    onMutationDataChange({
+      ...mutationData,
+      mergeBuildingCustomPoints: [],
+      mergeBuildingAreaM2: bArea,
+      mergeResidualAreaM2: rArea,
+      mergeResidualParcelCode: `${mergeSummary.keptCode}-P2`,
       isSubmitted: false,
     });
   };
@@ -1234,7 +1307,7 @@ export const CadastralGISBoundaryEditor: React.FC<Props> = ({
                 }}
               >
                 {(mutationData.activeProposalType === 'MATCH' && mutationData.matchConfirmed) ? <CheckCircle2 size={15} /> : <Check size={14} />}
-                <span>{(mutationData.activeProposalType === 'MATCH' && mutationData.matchConfirmed) ? '✓ ĐÃ XÁC NHẬN KHỚP RANH 100%' : 'Xác nhận Khớp ranh 100%'}</span>
+                <span>{(mutationData.activeProposalType === 'MATCH' && mutationData.matchConfirmed) ? 'ĐÃ XÁC NHẬN KHỚP RANH 100%' : 'Xác nhận Khớp ranh 100%'}</span>
               </button>
             </div>
           </div>
@@ -1839,7 +1912,7 @@ export const CadastralGISBoundaryEditor: React.FC<Props> = ({
                 {isSubmittingMutation
                   ? 'Đang lưu...'
                   : (mutationData.activeProposalType === 'SPLIT' && mutationData.isSubmitted)
-                  ? `✓ ĐÃ GHI NHẬN ĐỀ XUẤT TÁCH THỬA (${mutationData.submittedAt})`
+                  ? `ĐÃ GHI NHẬN ĐỀ XUẤT TÁCH THỬA (${mutationData.submittedAt})`
                   : 'Lưu đề xuất Tách thửa'}
               </span>
             </button>
@@ -2209,7 +2282,7 @@ export const CadastralGISBoundaryEditor: React.FC<Props> = ({
                     mergeBuildingAreaM2: mutationData.mergeBuildingAreaM2 || bArea,
                     mergeResidualAreaM2: mutationData.mergeResidualAreaM2 || rArea,
                     mergeResidualType: mutationData.mergeResidualType || 'Sân vườn / Cây cảnh',
-                    mergeResidualParcelCode: `${mergeSummary.keptCode}-RESIDUAL`,
+                    mergeResidualParcelCode: `${mergeSummary.keptCode}-P2`,
                     mergeBuildingRatio: 65,
                     isSubmitted: false,
                   });
@@ -2252,65 +2325,235 @@ export const CadastralGISBoundaryEditor: React.FC<Props> = ({
                   gap: '0.6rem',
                 }}
               >
-                <div style={{ fontSize: '0.7rem', color: '#9a3412', fontWeight: 700 }}>
-                  ⚡ Khoanh vùng diện tích xây dựng thực tế & bóc tách mảnh đất dư:
+                <div style={{ fontSize: '0.7rem', color: '#9a3412', fontWeight: 700, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span>⚡ Nhấp trên bản đồ để khoanh vùng công trình toà nhà ({mergeBuildingVertices.length} điểm đã chấm):</span>
+                  <div style={{ display: 'flex', gap: '0.35rem' }}>
+                    <button
+                      type="button"
+                      onClick={handleMergeRemoveLastPoint}
+                      disabled={mergeBuildingVertices.length === 0}
+                      className="btn btn-outline-secondary btn-sm"
+                      style={{ fontSize: '0.65rem', padding: '0.15rem 0.4rem', display: 'flex', alignItems: 'center', gap: '0.2rem' }}
+                    >
+                      <Undo size={12} />
+                      Xóa điểm vừa chấm
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleMergeClearDraw}
+                      disabled={mergeBuildingVertices.length === 0}
+                      className="btn btn-outline-danger btn-sm"
+                      style={{ fontSize: '0.65rem', padding: '0.15rem 0.4rem', display: 'flex', alignItems: 'center', gap: '0.2rem' }}
+                    >
+                      <Trash2 size={12} />
+                      Xóa làm lại
+                    </button>
+                  </div>
                 </div>
 
-                {/* Thanh trượt tỷ lệ & ô nhập m² */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.65rem', alignItems: 'center' }}>
-                  <div>
-                    <label style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', fontWeight: 700, color: '#334155' }}>
-                      <span>Tỷ lệ diện tích xây dựng:</span>
-                      <strong style={{ color: '#ea580c' }}>
-                        {mutationData.mergeBuildingRatio || Math.round(((mutationData.mergeBuildingAreaM2 || 0) / (mergeSummary.totalMergedArea || 1)) * 100)}%
-                      </strong>
-                    </label>
-                    <input
-                      type="range"
-                      min="15"
-                      max="95"
-                      step="5"
-                      value={mutationData.mergeBuildingRatio || 65}
-                      onChange={(e) => {
-                        const ratio = parseInt(e.target.value, 10);
-                        const total = mergeSummary.totalMergedArea || totalLandArea;
-                        const bArea = Math.round(((total * ratio) / 100) * 10) / 10;
-                        const rArea = Math.round((total - bArea) * 10) / 10;
-                        onMutationDataChange({
-                          ...mutationData,
-                          mergeBuildingRatio: ratio,
-                          mergeBuildingAreaM2: bArea,
-                          mergeResidualAreaM2: rArea,
-                          isSubmitted: false,
-                        });
-                      }}
-                      style={{ width: '100%', accentColor: '#ea580c' }}
-                    />
-                  </div>
+                {/* Bản đồ tương tác chấm điểm khoanh vùng công trình nhà */}
+                <div
+                  style={{
+                    height: '280px',
+                    width: '100%',
+                    borderRadius: '0.5rem',
+                    overflow: 'hidden',
+                    border: '1.5px solid #fdba74',
+                    position: 'relative',
+                  }}
+                >
+                  <MapContainer
+                    center={activeCentroid}
+                    zoom={19}
+                    maxZoom={22}
+                    zoomControl={false}
+                    style={{ width: '100%', height: '100%' }}
+                    scrollWheelZoom={true}
+                  >
+                    <MapBoundsController coords={realActiveCoords} zoom={19} />
+                    <ZoomControl position="bottomright" />
 
-                  <div>
-                    <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 700, color: '#334155', marginBottom: '2px' }}>
-                      Mục đích sử dụng phần đất dư:
-                    </label>
-                    <select
-                      className="form-control"
-                      style={{ fontSize: '0.725rem', backgroundColor: '#fff', border: '1px solid #cbd5e1' }}
-                      value={mutationData.mergeResidualType || 'Sân vườn / Cây cảnh'}
-                      onChange={(e) => {
-                        onMutationDataChange({
-                          ...mutationData,
-                          mergeResidualType: e.target.value,
-                          isSubmitted: false,
-                        });
+                    <MapClickListener
+                      enabled={true}
+                      onMapClick={handleMergeMapClickDraw}
+                    />
+
+                    {tileMode === 'satellite' ? (
+                      <TileLayer
+                        attribution="Esri World Imagery"
+                        url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+                        maxNativeZoom={19}
+                        maxZoom={22}
+                      />
+                    ) : (
+                      <TileLayer
+                        attribution="&copy; OpenStreetMap contributors &copy; CARTO"
+                        url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+                        subdomains="abcd"
+                        maxNativeZoom={19}
+                        maxZoom={22}
+                      />
+                    )}
+
+                    {/* Thửa gốc đang KS */}
+                    <Polygon
+                      positions={realActiveCoords}
+                      pathOptions={{
+                        color: '#b45309',
+                        fillColor: '#f59e0b',
+                        fillOpacity: 0.35,
+                        weight: 2,
+                        dashArray: '4, 4',
+                      }}
+                    />
+
+                    {/* Các thửa lân cận đã chọn gộp */}
+                    {tenClosestParcels
+                      .filter((p) => selectedMergeCodes.includes(p.projectParcelCode))
+                      .map((p) => (
+                        <Polygon
+                          key={p.id || p.projectParcelCode}
+                          positions={p.coordinates}
+                          pathOptions={{
+                            color: '#047857',
+                            fillColor: '#10b981',
+                            fillOpacity: 0.35,
+                            weight: 2,
+                            dashArray: '4, 4',
+                          }}
+                        />
+                      ))}
+
+                    {/* Công trình toà nhà được vẽ (Đa giác hoặc Polyline) */}
+                    {mergeBuildingVertices.length >= 3 && (
+                      <Polygon
+                        positions={mergeBuildingVertices}
+                        pathOptions={{
+                          color: '#ea580c',
+                          fillColor: '#f97316',
+                          fillOpacity: 0.7,
+                          weight: 3.5,
+                        }}
+                      >
+                        <Tooltip direction="top">
+                          <div style={{ fontSize: '0.725rem', fontWeight: 800, color: '#9a3412' }}>
+                            Công trình nhà: {mergeSummary.keptCode}-P1 ({calculatedMergeBArea} m²)
+                          </div>
+                        </Tooltip>
+                      </Polygon>
+                    )}
+
+                    {mergeBuildingVertices.length > 0 && (
+                      <Polyline
+                        positions={mergeBuildingVertices}
+                        pathOptions={{ color: '#ea580c', weight: 4, dashArray: mergeBuildingVertices.length < 3 ? '4, 4' : undefined }}
+                      />
+                    )}
+
+                    {mergeBuildingVertices.map((vertex, idx) => (
+                      <Marker
+                        key={`merge-building-${idx}`}
+                        position={vertex}
+                        icon={createHandleIcon(idx + 1)}
+                      />
+                    ))}
+                  </MapContainer>
+
+                  {mergeBuildingVertices.length === 0 && (
+                    <div
+                      style={{
+                        position: 'absolute',
+                        top: '10px',
+                        left: '50%',
+                        transform: 'translateX(-50%)',
+                        zIndex: 800,
+                        backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                        color: '#c2410c',
+                        padding: '0.35rem 0.85rem',
+                        borderRadius: '0.5rem',
+                        fontSize: '0.725rem',
+                        fontWeight: 700,
+                        border: '1.5px solid #fdba74',
+                        boxShadow: '0 2px 6px rgba(0,0,0,0.1)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.4rem',
+                        whiteSpace: 'nowrap',
                       }}
                     >
-                      <option value="Sân vườn / Cây cảnh">Sân vườn / Cây cảnh (Khoảng lùi sinh thái)</option>
-                      <option value="Sân trước / Sân sau lát gạch">Sân trước / Sân sau lát gạch</option>
-                      <option value="Đất trống chưa xây dựng (Để dành)">Đất trống chưa xây dựng (Để dành)</option>
-                      <option value="Kho bãi tạm / Gara ô tô ngoài trời">Kho bãi tạm / Gara ô tô ngoài trời</option>
-                      <option value="Lối đi riêng / Ngõ phụ tiếp giáp">Lối đi riêng / Ngõ phụ tiếp giáp</option>
-                    </select>
-                  </div>
+                      <Crosshair size={13} color="#ea580c" />
+                      <span>Nhấp trực tiếp trên bản đồ để chấm các góc công trình toà nhà</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Mục đích sử dụng phần đất dư */}
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 700, color: '#334155', marginBottom: '2px' }}>
+                    Mục đích sử dụng phần đất dư:
+                  </label>
+                  <select
+                    className="form-control"
+                    style={{ fontSize: '0.725rem', backgroundColor: '#fff', border: '1px solid #cbd5e1' }}
+                    value={
+                      ['Sân vườn / Cây cảnh', 'Sân trước / Sân sau lát gạch', 'Đất trống chưa xây dựng (Để dành)', 'Kho bãi tạm / Gara ô tô ngoài trời', 'Lối đi riêng / Ngõ phụ tiếp giáp'].includes(mutationData.mergeResidualType || '')
+                        ? (mutationData.mergeResidualType || 'Sân vườn / Cây cảnh')
+                        : 'OTHER'
+                    }
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === 'OTHER') {
+                        onMutationDataChange({
+                          ...mutationData,
+                          mergeResidualType: customMergeResidualType ? `Khác: ${customMergeResidualType}` : 'Khác: ',
+                          isSubmitted: false,
+                        });
+                      } else {
+                        onMutationDataChange({
+                          ...mutationData,
+                          mergeResidualType: val,
+                          isSubmitted: false,
+                        });
+                      }
+                    }}
+                  >
+                    <option value="Sân vườn / Cây cảnh">Sân vườn / Cây cảnh (Khoảng lùi sinh thái)</option>
+                    <option value="Sân trước / Sân sau lát gạch">Sân trước / Sân sau lát gạch</option>
+                    <option value="Đất trống chưa xây dựng (Để dành)">Đất trống chưa xây dựng (Để dành)</option>
+                    <option value="Kho bãi tạm / Gara ô tô ngoài trời">Kho bãi tạm / Gara ô tô ngoài trời</option>
+                    <option value="Lối đi riêng / Ngõ phụ tiếp giáp">Lối đi riêng / Ngõ phụ tiếp giáp</option>
+                    <option value="OTHER">Khác (Nhập mục đích sử dụng thực tế...)</option>
+                  </select>
+
+                  {/* Text input cho Khác */}
+                  {(mutationData.mergeResidualType === 'Khác' ||
+                    mutationData.mergeResidualType?.startsWith('Khác') ||
+                    (!['Sân vườn / Cây cảnh', 'Sân trước / Sân sau lát gạch', 'Đất trống chưa xây dựng (Để dành)', 'Kho bãi tạm / Gara ô tô ngoài trời', 'Lối đi riêng / Ngõ phụ tiếp giáp'].includes(mutationData.mergeResidualType || '') && mutationData.mergeResidualType)) && (
+                    <div style={{ marginTop: '0.35rem' }}>
+                      <input
+                        type="text"
+                        className="form-control"
+                        style={{ fontSize: '0.725rem', border: '1px solid #fdba74' }}
+                        placeholder="Nhập mục đích sử dụng phần đất dư..."
+                        value={
+                          customMergeResidualType ||
+                          (mutationData.mergeResidualType?.startsWith('Khác: ')
+                            ? mutationData.mergeResidualType.replace('Khác: ', '')
+                            : mutationData.customMergeResidualType || '')
+                        }
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setCustomMergeResidualType(val);
+                          onMutationDataChange({
+                            ...mutationData,
+                            mergeResidualType: val ? `Khác: ${val}` : 'Khác: ',
+                            customMergeResidualType: val,
+                            isSubmitted: false,
+                          });
+                        }}
+                      />
+                    </div>
+                  )}
                 </div>
 
                 {/* 2 Thẻ phân vùng bóc tách rõ ràng */}
@@ -2327,11 +2570,11 @@ export const CadastralGISBoundaryEditor: React.FC<Props> = ({
                   >
                     <div style={{ fontWeight: 800, color: '#c2410c', display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
                       <span>🏠 1. Mảnh đất ngôi nhà (Khảo sát)</span>
-                      <span className="badge" style={{ backgroundColor: '#ea580c', color: '#fff' }}>{mergeSummary.keptCode}</span>
+                      <span className="badge" style={{ backgroundColor: '#ea580c', color: '#fff' }}>{mergeSummary.keptCode}-P1</span>
                     </div>
                     <div style={{ color: '#475569', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
                       <span>Diện tích xây dựng thực tế:</span>
-                      <strong style={{ color: '#0f172a', fontSize: '0.75rem' }}>{mutationData.mergeBuildingAreaM2 || Math.round((mergeSummary.totalMergedArea || 0) * 0.65)} m²</strong>
+                      <strong style={{ color: '#0f172a', fontSize: '0.75rem' }}>{calculatedMergeBArea} m²</strong>
                     </div>
                   </div>
 
@@ -2348,12 +2591,12 @@ export const CadastralGISBoundaryEditor: React.FC<Props> = ({
                     <div style={{ fontWeight: 800, color: '#166534', display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
                       <span>🌳 2. Mảnh đất dư (Chủ nhà mới)</span>
                       <span className="badge" style={{ backgroundColor: '#16a34a', color: '#fff' }}>
-                        {mutationData.mergeResidualParcelCode || `${mergeSummary.keptCode}-RESIDUAL`}
+                        {mutationData.mergeResidualParcelCode || `${mergeSummary.keptCode}-P2`}
                       </span>
                     </div>
                     <div style={{ color: '#475569', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
                       <span>Diện tích đất dư:</span>
-                      <strong style={{ color: '#166534', fontSize: '0.75rem' }}>{mutationData.mergeResidualAreaM2 || Math.round((mergeSummary.totalMergedArea || 0) * 0.35)} m²</strong>
+                      <strong style={{ color: '#166534', fontSize: '0.75rem' }}>{calculatedMergeRArea} m²</strong>
                     </div>
                     <div style={{ fontSize: '0.65rem', color: '#64748b', marginTop: '2px' }}>
                       Loại: <em>{mutationData.mergeResidualType || 'Sân vườn / Cây cảnh'}</em>
@@ -2411,7 +2654,7 @@ export const CadastralGISBoundaryEditor: React.FC<Props> = ({
                 {isSubmittingMutation
                   ? 'Đang lưu...'
                   : (mutationData.activeProposalType === 'MERGE' && mutationData.isSubmitted)
-                  ? `✓ ĐÃ GHI NHẬN ĐỀ XUẤT GỘP ${selectedMergeCodes.length + 1} THỬA (${mutationData.submittedAt})`
+                  ? `ĐÃ GHI NHẬN ĐỀ XUẤT GỘP ${selectedMergeCodes.length + 1} THỬA (${mutationData.submittedAt})`
                   : `Lưu đề xuất Gộp ${selectedMergeCodes.length + 1} thửa`}
               </span>
             </button>

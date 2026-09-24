@@ -19,9 +19,10 @@ import confetti from 'canvas-confetti';
 interface Step9Props {
   onSubmitFinal: () => void;
   isSubmitting?: boolean;
+  readOnly?: boolean;
 }
 
-export const Step9_FieldSignatures: React.FC<Step9Props> = ({ onSubmitFinal, isSubmitting = false }) => {
+export const Step9_FieldSignatures: React.FC<Step9Props> = ({ onSubmitFinal, isSubmitting = false, readOnly = false }) => {
   const { formData, updateFormData, prevStep } = usePhase1SurveyStore();
   const sigs = formData.signatures;
 
@@ -161,30 +162,34 @@ export const Step9_FieldSignatures: React.FC<Step9Props> = ({ onSubmitFinal, isS
         </div>
 
         <Textarea
-          label="Ý Kiến / Phản Hồi Của Chủ Sở Hữu (Ghi nhận nguyên văn ý kiến hiện trường)"
+          id="input-ownerFeedback"
+          label="Ý Kiến / Phản Hồi Của Chủ Sở Hữu (Ghi nhận nguyên văn ý kiến hiện trường) *"
           placeholder="Ví dụ: Chủ nhà nhất trí với biên bản khảo sát hiện trạng; xác nhận các vết nứt đã có từ trước khi làm đường..."
           rows={2}
-          value={sigs.ownerFeedback}
-          onChange={(e) =>
+          required
+          value={sigs.ownerFeedback || formData.ownerRemarks || ''}
+          onChange={(e) => {
+            const val = e.target.value;
             updateFormData({
-              signatures: { ...sigs, ownerFeedback: e.target.value },
-            })
-          }
+              signatures: { ...sigs, ownerFeedback: val },
+              ownerRemarks: val,
+            });
+          }}
         />
       </Card>
 
 
-      {/* 8.2. Ảnh Chụp Biên Bản Làm Việc Hiện Trường (Có thể có nhiều ảnh) */}
-      <Card>
+      {/* 8.2. Ảnh Chụp Biên Bản Làm Việc Hiện Trường (Bắt buộc) */}
+      <Card id="working-minutes-section">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4 pb-2 border-b border-slate-100">
           <div className="flex items-center gap-2">
             <ImageIcon className="w-5 h-5 text-blue-600" />
             <div>
               <h2 className="text-base sm:text-lg font-bold text-slate-800">
-                8.2. Ảnh Chụp Biên Bản Làm Việc Hiện Trường (Tùy chọn nhiều ảnh)
+                8.2. Ảnh Chụp Biên Bản Làm Việc Hiện Trường *
               </h2>
               <p className="text-xs text-slate-500">
-                Đính kèm ảnh chụp các trang biên bản khảo sát giấy hoặc biên bản làm việc có chữ ký tươi
+                Bắt buộc đính kèm ảnh chụp các trang biên bản khảo sát giấy hoặc biên bản làm việc có chữ ký tươi
               </p>
             </div>
           </div>
@@ -257,8 +262,8 @@ export const Step9_FieldSignatures: React.FC<Step9Props> = ({ onSubmitFinal, isS
             ))}
           </div>
         ) : (
-          <div className="p-6 border-2 border-dashed border-slate-200 rounded-xl bg-slate-50/50 text-center text-xs text-slate-400">
-            Chưa có ảnh chụp biên bản làm việc nào được đính kèm. Bấm &quot;Chụp biên bản&quot; hoặc &quot;Tải file ảnh&quot; để bổ sung.
+          <div className="p-6 border-2 border-dashed border-amber-300 rounded-xl bg-amber-50/30 text-center text-xs text-amber-700 font-medium">
+            ⚠️ Bắt buộc chụp hoặc tải ít nhất 1 ảnh biên bản làm việc hiện trường có chữ ký tươi (*). Bấm &quot;Chụp biên bản&quot; hoặc &quot;Tải file ảnh&quot; để bổ sung.
           </div>
         )}
       </Card>
@@ -268,15 +273,23 @@ export const Step9_FieldSignatures: React.FC<Step9Props> = ({ onSubmitFinal, isS
         <Button variant="outline" onClick={prevStep}>
           {formData.unitId ? '⬅️ Quay lại Bước 6 (Dashboard)' : '⬅️ Quay lại Bước 7'}
         </Button>
-        <Button
-          size="lg"
-          variant="success"
-          icon={<Send className="w-4 h-4" />}
-          loading={isSubmitting}
-          onClick={handleCompleteSurvey}
-        >
-          Hoàn Tất & Nộp Hồ Sơ Khảo Sát Hiện Trường
-        </Button>
+        {readOnly ? (
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-amber-800 bg-amber-100 px-3.5 py-2 rounded-lg font-bold border border-amber-300">
+              👁️ Chế độ xem lại (Read-Only) - Không thể nộp lại hồ sơ
+            </span>
+          </div>
+        ) : (
+          <Button
+            size="lg"
+            variant="success"
+            icon={<Send className="w-4 h-4" />}
+            loading={isSubmitting}
+            onClick={handleCompleteSurvey}
+          >
+            Hoàn Tất & Nộp Hồ Sơ Khảo Sát Hiện Trường
+          </Button>
+        )}
       </div>
     </div>
   );

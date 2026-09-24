@@ -370,4 +370,17 @@ export class SurveyController {
       next(error);
     }
   }
+
+  static async getPhase1ReportByParcelId(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      const report = await SurveyService.getPhase1ReportByParcelId(id);
+      res.status(200).json({
+        success: true,
+        data: report,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
 }

@@ -9,6 +9,7 @@ export interface DefectItem {
   pinX: number; // 0 to 100%
   pinY: number; // 0 to 100%
   screeningCategory: string;
+  customScreeningCategory?: string;
   defectType: string;
   crackDirection?: string;
   widthMaxMm: number | '';
@@ -73,6 +74,11 @@ const STRUCT_DEFECT_TYPES = [
   'Khác',
 ];
 
+export const isCrackRelated = (cat = '', type = '') => {
+  const t = `${cat} ${type}`.toLowerCase();
+  return t.includes('nứt') || t.includes('crack');
+};
+
 export const DefectPinningCanvas: React.FC<Props> = ({
   ctxPhotoUrl,
   defects,
@@ -105,6 +111,7 @@ export const DefectPinningCanvas: React.FC<Props> = ({
       pinX: x,
       pinY: y,
       screeningCategory: '',
+      customScreeningCategory: '',
       defectType: '',
       crackDirection: '',
       widthMaxMm: '' as any,
@@ -153,22 +160,32 @@ export const DefectPinningCanvas: React.FC<Props> = ({
 
   // Kiểm tra xem 1 điểm D đã điền đầy đủ mọi trường bắt buộc chưa
   const isDefectFilled = (d: DefectItem) => {
-    return Boolean(
+    const isCrack = isCrackRelated(d.screeningCategory, d.defectType);
+    const baseOk = Boolean(
       d.cuPhotoUrl &&
       d.notes &&
       d.notes.trim().length > 0 &&
-      d.crackDirection &&
-      d.crackDirection.trim().length > 0 &&
-      Number(d.widthMaxMm) > 0 &&
-      Number(d.lengthMm) > 0 &&
       d.screeningCategory &&
+      (d.screeningCategory !== 'Khác' || (d.customScreeningCategory && d.customScreeningCategory.trim().length > 0)) &&
       d.defectType &&
-      d.activityState &&
-      d.structuralSignificanceE2 !== '' &&
-      d.structuralSignificanceE2 !== undefined &&
-      d.materialDegradationE4 !== '' &&
-      d.materialDegradationE4 !== undefined
+      d.functionalImpactE6 !== '' &&
+      d.functionalImpactE6 !== undefined
     );
+    if (!baseOk) return false;
+
+    if (mode === 'STRUCTURAL') {
+      if (d.structuralSignificanceE2 === '' || d.structuralSignificanceE2 === undefined) return false;
+      if (d.materialDegradationE4 === '' || d.materialDegradationE4 === undefined) return false;
+    }
+
+    if (isCrack) {
+      if (!d.crackDirection || d.crackDirection.trim().length === 0) return false;
+      if (d.widthMaxMm === '' || Number(d.widthMaxMm) <= 0) return false;
+      if (d.lengthMm === '' || Number(d.lengthMm) <= 0) return false;
+      if (!d.activityState) return false;
+    }
+
+    return true;
   };
 
   return (
@@ -326,7 +343,7 @@ export const DefectPinningCanvas: React.FC<Props> = ({
           </div>
 
           {/* Form fields for Defect Details */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className={`grid grid-cols-1 ${isCrackRelated(selectedDefect.screeningCategory, selectedDefect.defectType) ? 'sm:grid-cols-3' : 'sm:grid-cols-2'} gap-3`}>
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">
                 Nhóm chỉ báo *
@@ -346,6 +363,23 @@ export const DefectPinningCanvas: React.FC<Props> = ({
                   </option>
                 ))}
               </select>
+              {selectedDefect.screeningCategory === 'Khác' && (
+                <div className="mt-2">
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                    Tên nhóm chỉ báo tùy chỉnh *
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Nhập nhóm chỉ báo tùy chỉnh..."
+                    className={`w-full px-2.5 py-1.5 bg-white border rounded-lg text-xs font-medium focus:ring-1 focus:ring-emerald-500 ${
+                      !selectedDefect.customScreeningCategory?.trim() ? 'border-amber-400 bg-amber-50/30' : 'border-slate-300'
+                    }`}
+                    value={selectedDefect.customScreeningCategory || ''}
+                    onChange={(e) => updateSelectedDefect('customScreeningCategory', e.target.value)}
+                    disabled={readOnly}
+                  />
+                </div>
+              )}
             </div>
 
             <div>
@@ -369,179 +403,187 @@ export const DefectPinningCanvas: React.FC<Props> = ({
               </select>
             </div>
 
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Hướng nứt *
-              </label>
-              <input
-                type="text"
-                placeholder="VD: Xiên 45° từ góc cửa sổ lên dầm..."
-                className={`w-full px-2.5 py-1.5 bg-white border rounded-lg text-xs focus:ring-1 focus:ring-emerald-500 ${
-                  !selectedDefect.crackDirection ? 'border-amber-400 bg-amber-50/30' : 'border-slate-300'
-                }`}
-                value={selectedDefect.crackDirection || ''}
-                onChange={(e) => updateSelectedDefect('crackDirection', e.target.value)}
-                disabled={readOnly}
-              />
-            </div>
+            {isCrackRelated(selectedDefect.screeningCategory, selectedDefect.defectType) && (
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Hướng nứt *
+                </label>
+                <input
+                  type="text"
+                  placeholder="VD: Xiên 45° từ góc cửa sổ lên dầm..."
+                  className={`w-full px-2.5 py-1.5 bg-white border rounded-lg text-xs focus:ring-1 focus:ring-emerald-500 ${
+                    !selectedDefect.crackDirection ? 'border-amber-400 bg-amber-50/30' : 'border-slate-300'
+                  }`}
+                  value={selectedDefect.crackDirection || ''}
+                  onChange={(e) => updateSelectedDefect('crackDirection', e.target.value)}
+                  disabled={readOnly}
+                />
+              </div>
+            )}
           </div>
 
           {/* Dimensions & Scale */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Bề rộng lớn nhất w_max (mm) *
-              </label>
-              <input
-                type="number"
-                step="0.05"
-                min="0"
-                placeholder="VD: 0.8"
-                className={`w-full px-2.5 py-1.5 bg-white border rounded-lg text-xs font-mono font-bold focus:ring-1 focus:ring-emerald-500 ${
-                  !selectedDefect.widthMaxMm ? 'border-amber-400 bg-amber-50/30' : 'border-slate-300'
-                }`}
-                value={selectedDefect.widthMaxMm === '' ? '' : selectedDefect.widthMaxMm}
-                onChange={(e) =>
-                  updateSelectedDefect(
-                    'widthMaxMm',
-                    e.target.value === '' ? ('' as any) : parseFloat(e.target.value) || 0
-                  )
-                }
-                disabled={readOnly}
-              />
-            </div>
+          {isCrackRelated(selectedDefect.screeningCategory, selectedDefect.defectType) && (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Bề rộng lớn nhất w_max (mm) *
+                </label>
+                <input
+                  type="number"
+                  step="0.05"
+                  min="0"
+                  placeholder="VD: 0.8"
+                  className={`w-full px-2.5 py-1.5 bg-white border rounded-lg text-xs font-mono font-bold focus:ring-1 focus:ring-emerald-500 ${
+                    !selectedDefect.widthMaxMm ? 'border-amber-400 bg-amber-50/30' : 'border-slate-300'
+                  }`}
+                  value={selectedDefect.widthMaxMm === '' ? '' : selectedDefect.widthMaxMm}
+                  onChange={(e) =>
+                    updateSelectedDefect(
+                      'widthMaxMm',
+                      e.target.value === '' ? ('' as any) : parseFloat(e.target.value) || 0
+                    )
+                  }
+                  disabled={readOnly}
+                />
+              </div>
 
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Chiều dài nứt L (mm) *
-              </label>
-              <input
-                type="number"
-                step="10"
-                min="0"
-                placeholder="VD: 450"
-                className={`w-full px-2.5 py-1.5 bg-white border rounded-lg text-xs font-mono font-bold focus:ring-1 focus:ring-emerald-500 ${
-                  !selectedDefect.lengthMm ? 'border-amber-400 bg-amber-50/30' : 'border-slate-300'
-                }`}
-                value={selectedDefect.lengthMm === '' ? '' : selectedDefect.lengthMm}
-                onChange={(e) =>
-                  updateSelectedDefect(
-                    'lengthMm',
-                    e.target.value === '' ? ('' as any) : parseFloat(e.target.value) || 0
-                  )
-                }
-                disabled={readOnly}
-              />
-            </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Chiều dài nứt L (mm) *
+                </label>
+                <input
+                  type="number"
+                  step="10"
+                  min="0"
+                  placeholder="VD: 450"
+                  className={`w-full px-2.5 py-1.5 bg-white border rounded-lg text-xs font-mono font-bold focus:ring-1 focus:ring-emerald-500 ${
+                    !selectedDefect.lengthMm ? 'border-amber-400 bg-amber-50/30' : 'border-slate-300'
+                  }`}
+                  value={selectedDefect.lengthMm === '' ? '' : selectedDefect.lengthMm}
+                  onChange={(e) =>
+                    updateSelectedDefect(
+                      'lengthMm',
+                      e.target.value === '' ? ('' as any) : parseFloat(e.target.value) || 0
+                    )
+                  }
+                  disabled={readOnly}
+                />
+              </div>
 
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Trạng thái hoạt động *
-              </label>
-              <select
-                className={`w-full px-2.5 py-1.5 bg-white border rounded-lg text-xs font-medium focus:ring-1 focus:ring-emerald-500 ${
-                  !selectedDefect.activityState ? 'border-amber-400 bg-amber-50/30' : 'border-slate-300'
-                }`}
-                value={selectedDefect.activityState}
-                onChange={(e) => updateSelectedDefect('activityState', e.target.value)}
-                disabled={readOnly}
-              >
-                <option value="">--- Chọn trạng thái hoạt động ---</option>
-                <option value="U">U - Chưa rõ / Đang kiểm tra (Unknown)</option>
-                <option value="S">S - Ổn định / Nứt cũ (Stable)</option>
-                <option value="A">A - Đang phát triển / Hoạt động (Active)</option>
-              </select>
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Trạng thái hoạt động *
+                </label>
+                <select
+                  className={`w-full px-2.5 py-1.5 bg-white border rounded-lg text-xs font-medium focus:ring-1 focus:ring-emerald-500 ${
+                    !selectedDefect.activityState ? 'border-amber-400 bg-amber-50/30' : 'border-slate-300'
+                  }`}
+                  value={selectedDefect.activityState}
+                  onChange={(e) => updateSelectedDefect('activityState', e.target.value)}
+                  disabled={readOnly}
+                >
+                  <option value="">--- Chọn trạng thái hoạt động ---</option>
+                  <option value="U">U - Chưa rõ / Đang kiểm tra (Unknown)</option>
+                  <option value="S">S - Ổn định / Nứt cũ (Stable)</option>
+                  <option value="A">A - Đang phát triển / Hoạt động (Active)</option>
+                </select>
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Scoring Fields */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3 bg-white rounded-xl border border-slate-200">
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="text-xs font-bold text-slate-700">
-                  Ý nghĩa kết cấu (Nguồn E2) *
-                </label>
-                <InfoPopover title="Ý nghĩa kết cấu khuyết tật (Nguồn tính E2)" size="md">
-                  <p><strong>Bản chất:</strong> Đánh giá mức độ ảnh hưởng của vết nứt/khuyết tật này tới khả năng chịu lực của kết cấu (cột, dầm, sàn, tường chịu lực).</p>
-                  <p className="mt-1"><strong>Cách tính vào ECS:</strong> Điểm E2 toàn công trình sẽ lấy giá trị <em>LỚN NHẤT (Max)</em> từ tất cả các khuyết tật D được khảo sát.</p>
-                  <ul className="list-disc pl-3.5 space-y-0.5 text-[11px] text-slate-600 mt-1.5 pt-1.5 border-t border-slate-100">
-                    <li><strong>0đ (None):</strong> Vết nứt nông trang trí/vữa trát, không ảnh hưởng kết cấu.</li>
-                    <li><strong>1đ (Low):</strong> Nứt vi mô bề mặt bê tông do co ngót, ngoài vùng chịu lực chính.</li>
-                    <li><strong>2đ (Moderate):</strong> Nứt rõ ở cấu kiện chịu lực nhưng bề rộng ổn định, chưa suy giảm sức kháng cắt/uốn.</li>
-                    <li><strong>3đ (High):</strong> Nứt chéo xiên 45° gần gối dầm/cột, hoặc nứt vùng nén (Tự động kích hoạt Review kết cấu).</li>
-                    <li><strong>4đ (Critical):</strong> Bê tông bị vỡ vụn, nứt toác, cốt thép biến dạng cong vênh (Báo động nguy cấp).</li>
-                  </ul>
-                </InfoPopover>
-              </div>
-              <select
-                className={`w-full px-2.5 py-1.5 bg-slate-50 border rounded-lg text-xs font-medium focus:ring-1 focus:ring-emerald-500 ${
-                  selectedDefect.structuralSignificanceE2 === '' || selectedDefect.structuralSignificanceE2 === undefined
-                    ? 'border-amber-400'
-                    : 'border-slate-300'
-                }`}
-                value={selectedDefect.structuralSignificanceE2 ?? ''}
-                onChange={(e) =>
-                  updateSelectedDefect(
-                    'structuralSignificanceE2',
-                    e.target.value === '' ? '' : parseInt(e.target.value, 10)
-                  )
-                }
-                disabled={readOnly}
-              >
-                <option value="">--- Chọn mức ý nghĩa kết cấu (E2) ---</option>
-                <option value={0}>0đ - None / Không ảnh hưởng kết cấu</option>
-                <option value={1}>1đ - Low / Thấp (Nứt co ngót nhẹ)</option>
-                <option value={2}>2đ - Moderate / Trung bình (Nứt rõ, ổn định)</option>
-                <option value={3}>3đ - High / Cao (Nứt xiên gần gối / vùng nén)</option>
-                <option value={4}>4đ - Critical / Nguy cấp (Vỡ vụn bê tông / trơ thép)</option>
-              </select>
-            </div>
+          <div className={`grid grid-cols-1 ${mode === 'STRUCTURAL' ? 'sm:grid-cols-3' : 'sm:grid-cols-1'} gap-3 p-3 bg-white rounded-xl border border-slate-200`}>
+            {mode === 'STRUCTURAL' && (
+              <>
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs font-bold text-slate-700">
+                      Ý nghĩa kết cấu (Nguồn E2) *
+                    </label>
+                    <InfoPopover title="Ý nghĩa kết cấu khuyết tật (Nguồn tính E2)" size="md">
+                      <p><strong>Bản chất:</strong> Đánh giá mức độ ảnh hưởng của vết nứt/khuyết tật này tới khả năng chịu lực của kết cấu (cột, dầm, sàn, tường chịu lực).</p>
+                      <p className="mt-1"><strong>Cách tính vào ECS:</strong> Điểm E2 toàn công trình sẽ lấy giá trị <em>LỚN NHẤT (Max)</em> từ tất cả các khuyết tật D được khảo sát.</p>
+                      <ul className="list-disc pl-3.5 space-y-0.5 text-[11px] text-slate-600 mt-1.5 pt-1.5 border-t border-slate-100">
+                        <li><strong>0đ (None):</strong> Vết nứt nông trang trí/vữa trát, không ảnh hưởng kết cấu.</li>
+                        <li><strong>1đ (Low):</strong> Nứt vi mô bề mặt bê tông do co ngót, ngoài vùng chịu lực chính.</li>
+                        <li><strong>2đ (Moderate):</strong> Nứt rõ ở cấu kiện chịu lực nhưng bề rộng ổn định, chưa suy giảm sức kháng cắt/uốn.</li>
+                        <li><strong>3đ (High):</strong> Nứt chéo xiên 45° gần gối dầm/cột, hoặc nứt vùng nén (Tự động kích hoạt Review kết cấu).</li>
+                        <li><strong>4đ (Critical):</strong> Bê tông bị vỡ vụn, nứt toác, cốt thép biến dạng cong vênh (Báo động nguy cấp).</li>
+                      </ul>
+                    </InfoPopover>
+                  </div>
+                  <select
+                    className={`w-full px-2.5 py-1.5 bg-slate-50 border rounded-lg text-xs font-medium focus:ring-1 focus:ring-emerald-500 ${
+                      selectedDefect.structuralSignificanceE2 === '' || selectedDefect.structuralSignificanceE2 === undefined
+                        ? 'border-amber-400'
+                        : 'border-slate-300'
+                    }`}
+                    value={selectedDefect.structuralSignificanceE2 ?? ''}
+                    onChange={(e) =>
+                      updateSelectedDefect(
+                        'structuralSignificanceE2',
+                        e.target.value === '' ? '' : parseInt(e.target.value, 10)
+                      )
+                    }
+                    disabled={readOnly}
+                  >
+                    <option value="">--- Chọn mức ý nghĩa kết cấu (E2) ---</option>
+                    <option value={0}>0đ - None / Không ảnh hưởng kết cấu</option>
+                    <option value={1}>1đ - Low / Thấp (Nứt co ngót nhẹ)</option>
+                    <option value={2}>2đ - Moderate / Trung bình (Nứt rõ, ổn định)</option>
+                    <option value={3}>3đ - High / Cao (Nứt xiên gần gối / vùng nén)</option>
+                    <option value={4}>4đ - Critical / Nguy cấp (Vỡ vụn bê tông / trơ thép)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs font-bold text-slate-700">
+                      Suy giảm vật liệu (Nguồn E4) *
+                    </label>
+                    <InfoPopover title="Suy giảm độ bền vật liệu (Nguồn tính E4)" size="md">
+                      <p><strong>Bản chất:</strong> Mức độ thoái hóa, phong hóa, bong tróc của bê tông, cốt thép và gạch xây tại vị trí khuyết tật.</p>
+                      <p className="mt-1"><strong>Cách tính vào ECS:</strong> Điểm E4 toàn công trình sẽ lấy giá trị <em>LỚN NHẤT (Max)</em> từ các khuyết tật D.</p>
+                      <ul className="list-disc pl-3.5 space-y-0.5 text-[11px] text-slate-600 mt-1.5 pt-1.5 border-t border-slate-100">
+                        <li><strong>0đ (Không/rất nhẹ):</strong> Bê tông chắc đặc, vạch không xước, không ẩm mốc.</li>
+                        <li><strong>1đ (Cục bộ):</strong> Bong tróc nhẹ lớp sơn vôi hoặc vữa trát một vài điểm.</li>
+                        <li><strong>2đ (Đáng kể):</strong> Rỗ tổ ong bê tông, phong hóa mục vữa diện rộng, chưa lộ cốt thép.</li>
+                        <li><strong>3đ (Nặng/lộ thép):</strong> Bê tông nứt bong mảng làm lộ thanh thép gỉ sét, giảm tiết diện.</li>
+                        <li><strong>4đ (Mất tiết diện):</strong> Cốt thép đứt rỉ nghiêm trọng, bê tông mục nát mất liên kết chịu lực.</li>
+                      </ul>
+                    </InfoPopover>
+                  </div>
+                  <select
+                    className={`w-full px-2.5 py-1.5 bg-slate-50 border rounded-lg text-xs font-medium focus:ring-1 focus:ring-emerald-500 ${
+                      selectedDefect.materialDegradationE4 === '' || selectedDefect.materialDegradationE4 === undefined
+                        ? 'border-amber-400'
+                        : 'border-slate-300'
+                    }`}
+                    value={selectedDefect.materialDegradationE4 ?? ''}
+                    onChange={(e) =>
+                      updateSelectedDefect(
+                        'materialDegradationE4',
+                        e.target.value === '' ? '' : parseInt(e.target.value, 10)
+                      )
+                    }
+                    disabled={readOnly}
+                  >
+                    <option value="">--- Chọn mức suy giảm vật liệu (E4) ---</option>
+                    <option value={0}>0đ - Không / Rất nhẹ</option>
+                    <option value={1}>1đ - Cục bộ (Bong tróc nhẹ sơn vữa)</option>
+                    <option value={2}>2đ - Đáng kể (Rỗ tổ ong, mục vữa diện rộng)</option>
+                    <option value={3}>3đ - Nặng (Bê tông bung, cốt thép rỉ sét)</option>
+                    <option value={4}>4đ - Mất tiết diện / Cốt thép đứt rỉ</option>
+                  </select>
+                </div>
+              </>
+            )}
 
             <div>
               <div className="flex items-center justify-between mb-1">
                 <label className="text-xs font-bold text-slate-700">
-                  Suy giảm vật liệu (Nguồn E4) *
-                </label>
-                <InfoPopover title="Suy giảm độ bền vật liệu (Nguồn tính E4)" size="md">
-                  <p><strong>Bản chất:</strong> Mức độ thoái hóa, phong hóa, bong tróc của bê tông, cốt thép và gạch xây tại vị trí khuyết tật.</p>
-                  <p className="mt-1"><strong>Cách tính vào ECS:</strong> Điểm E4 toàn công trình sẽ lấy giá trị <em>LỚN NHẤT (Max)</em> từ các khuyết tật D.</p>
-                  <ul className="list-disc pl-3.5 space-y-0.5 text-[11px] text-slate-600 mt-1.5 pt-1.5 border-t border-slate-100">
-                    <li><strong>0đ (Không/rất nhẹ):</strong> Bê tông chắc đặc, vạch không xước, không ẩm mốc.</li>
-                    <li><strong>1đ (Cục bộ):</strong> Bong tróc nhẹ lớp sơn vôi hoặc vữa trát một vài điểm.</li>
-                    <li><strong>2đ (Đáng kể):</strong> Rỗ tổ ong bê tông, phong hóa mục vữa diện rộng, chưa lộ cốt thép.</li>
-                    <li><strong>3đ (Nặng/lộ thép):</strong> Bê tông nứt bong mảng làm lộ thanh thép gỉ sét, giảm tiết diện.</li>
-                    <li><strong>4đ (Mất tiết diện):</strong> Cốt thép đứt rỉ nghiêm trọng, bê tông mục nát mất liên kết chịu lực.</li>
-                  </ul>
-                </InfoPopover>
-              </div>
-              <select
-                className={`w-full px-2.5 py-1.5 bg-slate-50 border rounded-lg text-xs font-medium focus:ring-1 focus:ring-emerald-500 ${
-                  selectedDefect.materialDegradationE4 === '' || selectedDefect.materialDegradationE4 === undefined
-                    ? 'border-amber-400'
-                    : 'border-slate-300'
-                }`}
-                value={selectedDefect.materialDegradationE4 ?? ''}
-                onChange={(e) =>
-                  updateSelectedDefect(
-                    'materialDegradationE4',
-                    e.target.value === '' ? '' : parseInt(e.target.value, 10)
-                  )
-                }
-                disabled={readOnly}
-              >
-                <option value="">--- Chọn mức suy giảm vật liệu (E4) ---</option>
-                <option value={0}>0đ - Không / Rất nhẹ</option>
-                <option value={1}>1đ - Cục bộ (Bong tróc nhẹ sơn vữa)</option>
-                <option value={2}>2đ - Đáng kể (Rỗ tổ ong, mục vữa diện rộng)</option>
-                <option value={3}>3đ - Nặng (Bê tông bung, cốt thép rỉ sét)</option>
-                <option value={4}>4đ - Mất tiết diện / Cốt thép đứt rỉ</option>
-              </select>
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="text-xs font-bold text-slate-700">
-                  Ảnh hưởng chức năng (Nguồn E6):
+                  Ảnh hưởng chức năng (Nguồn E6) *
                 </label>
                 <InfoPopover title="Ảnh hưởng chức năng sử dụng (Nguồn tính E6)" size="md">
                   <p><strong>Bản chất:</strong> Hậu quả của khuyết tật đến công năng sinh hoạt thực tế (thấm dột, kẹt cửa, thoát nạn, đường ống).</p>
@@ -556,16 +598,21 @@ export const DefectPinningCanvas: React.FC<Props> = ({
                 </InfoPopover>
               </div>
               <select
-                className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-medium focus:ring-1 focus:ring-emerald-500"
-                value={selectedDefect.functionalImpactE6 ?? 0}
+                className={`w-full px-2.5 py-1.5 bg-slate-50 border rounded-lg text-xs font-medium focus:ring-1 focus:ring-emerald-500 ${
+                  selectedDefect.functionalImpactE6 === '' || selectedDefect.functionalImpactE6 === undefined
+                    ? 'border-amber-400 bg-amber-50/30'
+                    : 'border-slate-300'
+                }`}
+                value={selectedDefect.functionalImpactE6 === '' || selectedDefect.functionalImpactE6 === undefined ? '' : selectedDefect.functionalImpactE6}
                 onChange={(e) =>
                   updateSelectedDefect(
                     'functionalImpactE6',
-                    e.target.value === '' ? 0 : parseInt(e.target.value, 10)
+                    e.target.value === '' ? '' : parseInt(e.target.value, 10)
                   )
                 }
                 disabled={readOnly}
               >
+                <option value="">--- Chọn mức ảnh hưởng chức năng (E6) ---</option>
                 <option value={0}>0đ - Không ảnh hưởng chức năng</option>
                 <option value={1}>1đ - Ẩm mốc / Kẹt 1-2 cửa nhẹ</option>
                 <option value={2}>2đ - Thấm nước / Kẹt 2-5 cửa</option>

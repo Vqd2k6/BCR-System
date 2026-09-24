@@ -20,6 +20,8 @@ import {
   Map,
   Compass,
   EyeOff,
+  Eye,
+  HardHat,
 } from 'lucide-react';
 
 function ChangeView({ center, zoom }: { center: [number, number]; zoom: number }) {
@@ -69,6 +71,7 @@ export interface GisParcel {
   buildingType?: 'STANDALONE' | 'CONDOMINIUM' | 'ROW_HOUSE';
   totalUnits?: number;
   completedUnits?: number;
+  updatedAt?: string;
 }
 
 
@@ -77,7 +80,7 @@ interface Props {
   selectedZone: string;
   onSelectZone: (zone: string) => void;
   onSelectParcel: (parcel: GisParcel) => void;
-  onStartSurvey?: (parcel: GisParcel) => void;
+  onStartSurvey?: (parcel: GisParcel, readOnly?: boolean) => void;
   onOpenBuildingHub?: (parcel: GisParcel) => void;
   onRecordAbsence?: (parcel: GisParcel) => void;
   onProposeSplit?: (parcel: GisParcel) => void;
@@ -281,7 +284,7 @@ export const LeafletSweepMap: React.FC<Props> = ({
     }
   };
 
-  const getStatusBadge = (status: GisParcel['surveyStatus']) => {
+  const getStatusBadge = (status: GisParcel['surveyStatus'], parcel?: GisParcel) => {
     switch (status) {
       case 'APPROVED':
         return (
@@ -324,14 +327,36 @@ export const LeafletSweepMap: React.FC<Props> = ({
             Đang làm dở
           </span>
         );
-      case 'POSTPONED_ABSENT':
+      case 'POSTPONED_ABSENT': {
+        const dateVal = parcel?.updatedAt || (parcel as any)?.updated_at || (parcel as any)?.postponed_at;
+        let daysText = 'Hẹn lại';
+        if (dateVal) {
+          const d = new Date(dateVal);
+          if (!isNaN(d.getTime())) {
+            const diffDays = Math.floor(Math.abs(Date.now() - d.getTime()) / (1000 * 60 * 60 * 24));
+            daysText = diffDays === 0 ? 'Hẹn lại - hôm nay' : `${diffDays} ngày trước`;
+          }
+        } else if (parcel?.absenceAttemptCount) {
+          daysText = `${parcel.absenceAttemptCount} ngày trước`;
+        }
         return (
           <span
             className="badge"
             style={{ backgroundColor: '#f3e8ff', color: '#7e22ce', border: '1px solid #d8b4fe', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}
           >
             <AlertCircle size={12} color="#7e22ce" />
-            Vắng mặt
+            Vắng mặt ({daysText})
+          </span>
+        );
+      }
+      case 'UNDER_CONSTRUCTION':
+        return (
+          <span
+            className="badge"
+            style={{ backgroundColor: '#fff7ed', color: '#c2410c', border: '1px solid #fdba74', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+          >
+            <HardHat size={12} color="#c2410c" />
+            Đang xây dựng
           </span>
         );
       case 'REJECTED':
@@ -802,7 +827,7 @@ export const LeafletSweepMap: React.FC<Props> = ({
                         <span style={{ fontSize: '0.9rem', fontWeight: 800, color: '#0284c7' }}>
                           {parcel.projectParcelCode}
                         </span>
-                        {getStatusBadge(parcel.surveyStatus)}
+                        {getStatusBadge(parcel.surveyStatus, parcel)}
                       </div>
                       <div style={{ fontSize: '0.8rem', color: '#0f172a', fontWeight: 600, marginTop: '2px' }}>
                         Số {parcel.houseNumber} {parcel.street}
@@ -1334,7 +1359,7 @@ export const LeafletSweepMap: React.FC<Props> = ({
               <span style={{ fontSize: '1.15rem', fontWeight: 800, color: '#0284c7' }}>
                 {activeParcel.projectParcelCode}
               </span>
-              {getStatusBadge(activeParcel.surveyStatus)}
+              {getStatusBadge(activeParcel.surveyStatus, activeParcel)}
               {activeParcel.buildingType === 'CONDOMINIUM' && (
                 <button
                   type="button"
@@ -1585,6 +1610,28 @@ export const LeafletSweepMap: React.FC<Props> = ({
                   Khảo sát Tòa Nhà
                 </button>
               </>
+            ) : activeParcel.surveyStatus === 'UNDER_CONSTRUCTION' ? (
+              <button
+                type="button"
+                className="btn btn-sm"
+                onClick={() => onStartSurvey && onStartSurvey(activeParcel, true)}
+                style={{
+                  flex: 1.5,
+                  minWidth: '150px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.35rem',
+                  padding: '0.5rem',
+                  fontWeight: 700,
+                  backgroundColor: '#fff7ed',
+                  color: '#c2410c',
+                  border: '1px solid #fdba74',
+                }}
+              >
+                <Eye size={14} color="#c2410c" />
+                Xem lại biểu mẫu
+              </button>
             ) : activeParcel.surveyStatus === 'IN_PROGRESS' ? (
               <button
                 type="button"

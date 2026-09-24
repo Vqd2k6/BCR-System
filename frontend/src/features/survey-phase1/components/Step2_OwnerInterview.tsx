@@ -44,40 +44,14 @@ const FOUNDATION_TYPES = [
   'Unknown - Không rõ thông tin móng',
 ];
 
-const RENOVATION_OPTIONS = [
-  { score: 0, label: 'Không' },
-  { score: 1, label: 'Nhẹ - Đã xử lý ổn định' },
-  { score: 2, label: 'Nhiều - Chưa rõ kết cấu' },
-  { score: 3, label: 'Thay đổi lớn - Nghiêm trọng' },
-];
+import {
+  RENOVATION_OPTIONS,
+  MAJOR_REPAIR_OPTIONS,
+  PAST_SETTLEMENT_OPTIONS,
+  NEIGHBOR_DAMAGE_OPTIONS,
+  FIRE_FLOOD_OPTIONS,
+} from '../constants/historyInterviewConstants';
 
-const MAJOR_REPAIR_OPTIONS = [
-  { score: 0, label: 'Không' },
-  { score: 1, label: 'Nhẹ - Đã xử lý' },
-  { score: 2, label: 'Nhiều - Chưa rõ hồ sơ' },
-  { score: 3, label: 'Cải tạo lớn ảnh hưởng chịu lực' },
-];
-
-const PAST_SETTLEMENT_OPTIONS = [
-  { score: 0, label: 'Không' },
-  { score: 1, label: 'Nhẹ - Đã ổn định' },
-  { score: 2, label: 'Rõ - Tiếp diễn' },
-  { score: 3, label: 'Nghiêm trọng' },
-];
-
-const NEIGHBOR_DAMAGE_OPTIONS = [
-  { score: 0, label: 'Không' },
-  { score: 1, label: 'Nhẹ - Đã bồi thường' },
-  { score: 2, label: 'Đáng kể' },
-  { score: 3, label: 'Tranh chấp - Nghiêm trọng' },
-];
-
-const FIRE_FLOOD_OPTIONS = [
-  { score: 0, label: 'Không' },
-  { score: 1, label: 'Nhẹ - Đã khắc phục' },
-  { score: 2, label: 'Trung bình - Chưa rõ mức ảnh hưởng' },
-  { score: 3, label: 'Nghiêm trọng' },
-];
 
 export const Step2_OwnerInterview: React.FC = () => {
   const { formData, updateFormData, nextStep, prevStep } = usePhase1SurveyStore();
@@ -184,7 +158,7 @@ export const Step2_OwnerInterview: React.FC = () => {
           <div className="grid grid-cols-2 gap-2">
             <Input
               id="input-constructionAreaM2"
-              label="Diện Tích Sàn Xây Dựng (m²)"
+              label="Diện Tích Sàn Xây Dựng (m²) *"
               type="number"
               step="any"
               min={0}
@@ -197,7 +171,7 @@ export const Step2_OwnerInterview: React.FC = () => {
             />
             <Input
               id="input-buildingHeightM"
-              label="Chiều Cao Công Trình (m)"
+              label="Chiều Cao Công Trình (m) *"
               type="number"
               step="any"
               min={0}
@@ -271,7 +245,7 @@ export const Step2_OwnerInterview: React.FC = () => {
             )}
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <div>
             <Select
               id="input-foundationType"
               label="Loại Móng (Foundation Type) *"
@@ -280,19 +254,6 @@ export const Step2_OwnerInterview: React.FC = () => {
               options={[
                 { value: '', label: '--- Chọn loại móng công trình ---' },
                 ...FOUNDATION_TYPES.map((f) => ({ value: f, label: f })),
-              ]}
-            />
-            <Select
-              id="input-foundationSource"
-              label="Nguồn Xác Định Móng"
-              value={formData.foundationSource || 'Bản vẽ hoàn công'}
-              onChange={(e) => updateFormData({ foundationSource: e.target.value })}
-              options={[
-                { value: 'Bản vẽ hoàn công', label: 'Bản vẽ hoàn công' },
-                { value: 'Chủ nhà khai', label: 'Chủ nhà khai báo' },
-                { value: 'Khảo sát hiện trường', label: 'Khảo sát hiện trường' },
-                { value: 'Hồ sơ kỹ thuật', label: 'Hồ sơ kỹ thuật dự án' },
-                { value: 'Chưa rõ / Ước tính', label: 'Chưa rõ / Ước tính' },
               ]}
             />
           </div>
@@ -422,9 +383,9 @@ export const Step2_OwnerInterview: React.FC = () => {
 
           {/* Detailed Sub-Options */}
           {hasDrawingOption === 'HAS_DRAWING' && (
-            <div className="p-3.5 rounded-xl bg-white border border-emerald-200 space-y-3 animate-in fade-in">
+            <div id="as-built-drawing-section" className="p-3.5 rounded-xl bg-white border border-emerald-200 space-y-3 animate-in fade-in">
               <PhotoCaptureInput
-                label="Chụp ảnh / Tải lên bản vẽ hoàn công / kết cấu:"
+                label="Chụp ảnh / Tải lên bản vẽ hoàn công / kết cấu: *"
                 value={formData.asBuiltDrawingPhotoUrl || ''}
                 onChange={(url) => updateFormData({ asBuiltDrawingPhotoUrl: url })}
                 watermarkText="BẢN VẼ HOÀN CÔNG"

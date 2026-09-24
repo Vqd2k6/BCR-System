@@ -302,11 +302,11 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
         id: `zone_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
         zoneCode: pin.zoneCode,
         floorName: current.floorName,
-        roomName: prevZone ? prevZone.roomName : 'Phòng khách',
+        roomName: prevZone?.roomName || '',
         customRoomName: prevZone?.customRoomName || '',
-        componentType: prevZone ? prevZone.componentType : 'Tường gạch vữa xi măng',
+        componentType: prevZone?.componentType || '',
         customComponentType: prevZone?.customComponentType || '',
-        wallMaterial: prevZone ? prevZone.wallMaterial : 'Tường gạch trát vữa XM sơn nước',
+        wallMaterial: prevZone?.wallMaterial || '',
         customWallMaterial: prevZone?.customWallMaterial || '',
         overviewPhotos: [],
         ctxPhotoUrl: '',
@@ -662,10 +662,13 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
                 <div>
                   <Select
                     id="select-zone-roomName"
-                    label="Tên Phòng / Không Gian"
+                    label="Tên Phòng / Không Gian *"
                     value={activeZone.roomName}
                     onChange={(e) => handleUpdateZone(activeZoneIndex, { roomName: e.target.value })}
-                    options={COMMON_ROOM_NAMES.map((r) => ({ value: r, label: r }))}
+                    options={[
+                      { value: '', label: '--- Chọn tên phòng / không gian ---' },
+                      ...COMMON_ROOM_NAMES.map((r) => ({ value: r, label: r })),
+                    ]}
                   />
                   {activeZone.roomName === 'Khác' && (
                     <Input
@@ -683,12 +686,15 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
                 <div>
                   <Select
                     id="select-zone-componentType"
-                    label="Cấu Kiện Mảng Vách Kiến Trúc"
+                    label="Cấu Kiện Mảng Vách Kiến Trúc *"
                     value={activeZone.componentType}
                     onChange={(e) =>
                       handleUpdateZone(activeZoneIndex, { componentType: e.target.value })
                     }
-                    options={ARCH_COMPONENT_TYPES.map((c) => ({ value: c, label: c }))}
+                    options={[
+                      { value: '', label: '--- Chọn cấu kiện vách ---' },
+                      ...ARCH_COMPONENT_TYPES.map((c) => ({ value: c, label: c })),
+                    ]}
                   />
                   {activeZone.componentType === 'Khác' && (
                     <Input
@@ -706,12 +712,15 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
                 <div>
                   <Select
                     id="select-zone-wallMaterial"
-                    label="Vật Liệu Bề Mặt Hoàn Thiện"
+                    label="Vật Liệu Bề Mặt Hoàn Thiện *"
                     value={activeZone.wallMaterial}
                     onChange={(e) =>
                       handleUpdateZone(activeZoneIndex, { wallMaterial: e.target.value })
                     }
-                    options={WALL_MATERIALS.map((w) => ({ value: w, label: w }))}
+                    options={[
+                      { value: '', label: '--- Chọn vật liệu hoàn thiện ---' },
+                      ...WALL_MATERIALS.map((w) => ({ value: w, label: w })),
+                    ]}
                   />
                   {activeZone.wallMaterial === 'Khác' && (
                     <Input
@@ -752,8 +761,10 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => {
+                          const deletedUrl = activeZone.overviewPhotos[pIdx];
                           const updated = activeZone.overviewPhotos.filter((_, i) => i !== pIdx);
-                          handleUpdateZone(activeZoneIndex, { overviewPhotos: updated });
+                          const newCtx = activeZone.ctxPhotoUrl === deletedUrl ? (updated[0] || '') : activeZone.ctxPhotoUrl;
+                          handleUpdateZone(activeZoneIndex, { overviewPhotos: updated, ctxPhotoUrl: newCtx });
                         }}
                         className="absolute top-1 right-1 p-1 bg-red-600 text-white rounded-md text-xs opacity-0 group-hover:opacity-100 transition-opacity"
                         title="Xóa ảnh"
@@ -1121,8 +1132,10 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => {
+                          const deletedUrl = activeElement.overviewPhotos[pIdx];
                           const updated = activeElement.overviewPhotos.filter((_, i) => i !== pIdx);
-                          handleUpdateElement(activeElementIndex, { overviewPhotos: updated });
+                          const newCtx = activeElement.ctxPhotoUrl === deletedUrl ? (updated[0] || '') : activeElement.ctxPhotoUrl;
+                          handleUpdateElement(activeElementIndex, { overviewPhotos: updated, ctxPhotoUrl: newCtx });
                         }}
                         className="absolute top-1 right-1 p-1 bg-red-600 text-white rounded-md text-xs opacity-0 group-hover:opacity-100 transition-opacity"
                         title="Xóa ảnh"

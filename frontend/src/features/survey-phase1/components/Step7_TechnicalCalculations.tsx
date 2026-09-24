@@ -32,15 +32,11 @@ export const Step7_TechnicalCalculations: React.FC = () => {
               </p>
             </div>
           </div>
-          <Badge
-            variant={
-              gateResult.overallSuggestedDecision === 'ALLOW'
-                ? 'success'
-                : 'warning'
-            }
-          >
-            {gateResult.overallSuggestedDecision === 'ALLOW' ? 'ĐỦ ĐIỀU KIỆN CHUYỂN TIẾP' : 'CÓ ĐIỀU KIỆN'}
-          </Badge>
+          {gateResult.overallSuggestedDecision === 'ALLOW' && (
+            <Badge variant="success">
+              ĐỦ ĐIỀU KIỆN CHUYỂN TIẾP
+            </Badge>
+          )}
         </div>
 
         {/* 6 Tiêu chí đánh giá */}
@@ -61,7 +57,11 @@ export const Step7_TechnicalCalculations: React.FC = () => {
                 </div>
               </InfoPopover>
             </div>
-            <span className="font-bold text-slate-800">{gateResult.foundationInfo.label}</span>
+            <span className="font-bold text-slate-800">
+              {formData.surveyCaseType === 'APARTMENT' || formData.unitId
+                ? 'Kế thừa từ toà mẹ'
+                : `${formData.foundationCatScore || 5}/5`}
+            </span>
           </div>
 
           {/* Tiêu chí 2: Khảo sát hiện trạng chi tiết */}
@@ -112,18 +112,19 @@ export const Step7_TechnicalCalculations: React.FC = () => {
             <div className="flex items-center justify-between mb-1.5">
               <span className="text-slate-500 font-medium">4. Dữ liệu lún nghiêng</span>
               <InfoPopover title="Tiêu chí 4: Hiện trạng lún nghiêng &amp; Quan trắc" size="md">
-                <p><strong>📌 Nguồn trích xuất:</strong> Khảo sát lún chênh, độ nghiêng thân nhà (<strong>Bước 1.6</strong>) và võng dầm/sàn, quan trắc biến dạng (<strong>Bước 3.3</strong>).</p>
+                <p><strong>📌 Nguồn trích xuất:</strong> Khảo sát lún chênh và độ nghiêng thân nhà tại <strong>Bước 1.6</strong>.</p>
                 <div className="mt-2 pt-2 border-t border-slate-100 text-[11px] leading-relaxed">
-                  <p className="font-bold text-slate-800 mb-1">🎯 Các giá trị có thể xuất hiện:</p>
-                  <ul className="space-y-1 pl-1 text-slate-600">
-                    <li><span className="font-semibold text-emerald-700">● &quot;Đủ&quot;:</span> Hình học công trình bình thường, không có dấu hiệu nghiêng lún nguy hiểm, không yêu cầu lắp mốc quan trắc bổ sung.</li>
-                    <li><span className="font-semibold text-amber-700">● &quot;Cần đo bổ sung&quot;:</span> Phát hiện lún chênh lớn, nghiêng lệch vượt ngưỡng hoặc võng dầm sàn nghiêm trọng, cần kích hoạt đo đạc trắc địa chuyên sâu.</li>
-                  </ul>
-                  <p className="mt-2 text-slate-700"><strong>⚖️ Ý nghĩa kỹ thuật/pháp lý:</strong> Cung cấp mốc tọa độ và cao độ 0 (Zero Baseline) để phát hiện kịp thời dịch chuyển địa chất trong suốt quá trình đào ngầm.</p>
+                  <p className="font-bold text-slate-800 mb-1">🎯 Cách xác định:</p>
+                  <p className="text-slate-600">Lấy mức lớn nhất giữa mức lún chênh và độ nghiêng thân nhà: <code>max(diffSettlement.level, buildingTilt.level)</code>.</p>
+                  <p className="mt-2 text-slate-700"><strong>⚖️ Ý nghĩa kỹ thuật/pháp lý:</strong> Cung cấp mốc cao độ và độ nghiêng ban đầu (Zero Baseline) để phát hiện kịp thời dịch chuyển địa chất trong suốt quá trình đào ngầm Metro.</p>
                 </div>
               </InfoPopover>
             </div>
-            <span className="font-bold text-slate-800">{gateResult.settlementData.label}</span>
+            <span className="font-bold text-slate-800">
+              {formData.surveyCaseType === 'APARTMENT' || formData.unitId
+                ? 'Kế thừa toà mẹ'
+                : `Mức ${Math.max(formData.settlementTilt?.diffSettlement?.level ?? 0, formData.settlementTilt?.buildingTilt?.level ?? 0)}/4đ`}
+            </span>
           </div>
 
           {/* Tiêu chí 5: Hồ sơ / Bản vẽ */}
@@ -200,19 +201,6 @@ export const Step7_TechnicalCalculations: React.FC = () => {
               </p>
             </div>
           </div>
-          <Badge
-            variant={
-              ecs.ecsClass === 'GOOD'
-                ? 'success'
-                : ecs.ecsClass === 'MEDIUM'
-                ? 'warning'
-                : ecs.ecsClass === 'DEFICIENT'
-                ? 'danger'
-                : 'neutral'
-            }
-          >
-            Tổng: {ecs.totalEcs}/24 ({ecs.ecsClass})
-          </Badge>
         </div>
 
         {/* Summary Badges Strip */}
@@ -297,24 +285,24 @@ export const Step7_TechnicalCalculations: React.FC = () => {
                 <td className="p-2.5 text-center font-bold">E2</td>
                 <td className="p-2.5 font-medium flex items-center justify-between">
                   <span>Khuyết tật kết cấu cột/dầm/sàn/tường</span>
-                  <InfoPopover title="Quy tắc tính chỉ số E2" size="md">
+                  <InfoPopover title="Quy tắc tính chỉ số E2 (Thang điểm 0–4)" size="md">
                     <p><strong>Nguồn:</strong> Cờ kết cấu ở Bước 4 và Ý nghĩa kết cấu của từng vết nứt D-xx ở Bước 3.3.</p>
-                    <p className="mt-1"><strong>Quy tắc:</strong> Max(Cờ KC, Vết nứt): None: 0đ; Low: 1đ; Moderate: 2đ; High: 3đ; Critical: 4đ.</p>
+                    <p className="mt-1"><strong>Quy tắc:</strong> Max(Cờ KC, Vết nứt): 0đ (None); 1đ (Low); 2đ (Moderate); 3đ (High); 4đ (Critical).</p>
                     <div className="mt-2 pt-2 border-t border-slate-100 text-[11px] leading-relaxed">
-                      <strong className="text-slate-800 block mb-1">🔍 Chi tiết cách thức tính điểm:</strong>
+                      <strong className="text-slate-800 block mb-1">Các mức độ ý nghĩa kết cấu (0–4đ):</strong>
                       <ul className="list-disc pl-3.5 space-y-0.5 text-slate-600">
-                        <li><strong>0 điểm (Không):</strong> Cột, dầm, sàn nguyên vẹn, không có vết nứt chịu lực.</li>
-                        <li><strong>1 điểm (Low):</strong> Nứt vi mô bề mặt bê tông do co ngót, nứt không nằm trong vùng chịu cắt/nén cao.</li>
-                        <li><strong>2 điểm (Moderate):</strong> Nứt rõ ở cấu kiện chịu lực nhưng bề rộng ổn định, chưa gây suy giảm sức kháng uốn/cắt.</li>
+                        <li><strong>0 điểm (None):</strong> Cột, dầm, sàn nguyên vẹn, không có vết nứt chịu lực hoặc chỉ nứt lớp hoàn thiện.</li>
+                        <li><strong>1 điểm (Low):</strong> Nứt vi mô bề mặt bê tông do co ngót, nứt ngoài vùng chịu cắt/nén cao.</li>
+                        <li><strong>2 điểm (Moderate):</strong> Nứt rõ ở cấu kiện chịu lực nhưng bề rộng ổn định, chưa suy giảm sức kháng uốn/cắt.</li>
                         <li><strong>3 điểm (High):</strong> Nứt chéo xiên 45° gần gối tựa dầm/cột hoặc nứt vùng nén bê tông (Tự động kích hoạt Review kết cấu).</li>
-                        <li><strong>4 điểm (Critical):</strong> Bê tông bị vỡ vụn, phồng rộp nén, cốt thép đứt hoặc biến dạng cong vênh (Báo động nguy cấp).</li>
+                        <li><strong>4 điểm (Critical):</strong> Bê tông bị vỡ vụn, nứt toác, cốt thép biến dạng cong vênh hoặc trơ rỉ nghiêm trọng (Báo động nguy cấp).</li>
                       </ul>
                     </div>
                   </InfoPopover>
                 </td>
-                <td className="p-2.5 text-center text-slate-500">Không</td>
-                <td className="p-2.5 text-center text-slate-500">Low</td>
-                <td className="p-2.5 text-center text-slate-500">Moderate</td>
+                <td className="p-2.5 text-center text-slate-500">None (0đ)</td>
+                <td className="p-2.5 text-center text-slate-500">Low (1đ)</td>
+                <td className="p-2.5 text-center text-slate-500">Mod (2đ)</td>
                 <td className="p-2.5 text-center text-slate-500">High=3đ; Crit=4đ</td>
                 <td className="p-2.5 text-center font-bold text-emerald-700 bg-emerald-50/50">{ecs.e2}</td>
               </tr>
@@ -324,25 +312,25 @@ export const Step7_TechnicalCalculations: React.FC = () => {
                 <td className="p-2.5 text-center font-bold">E3</td>
                 <td className="p-2.5 font-medium flex items-center justify-between">
                   <span>Lún/nghiêng/võng/biến dạng</span>
-                  <InfoPopover title="Quy tắc tính chỉ số E3" size="md">
-                    <p><strong>Nguồn:</strong> Level Lún chênh & Độ nghiêng ở Bước 1 + Level Võng dầm/sàn ở Bước 5.</p>
-                    <p className="mt-1"><strong>Quy tắc:</strong> Max(Level Lún, Level Nghiêng, Level Võng) (0 đến 4đ).</p>
+                  <InfoPopover title="Quy tắc tính chỉ số E3 (Thang định tính hiện trường 0–4)" size="md">
+                    <p><strong>Nguồn:</strong> Level Lún chênh & Độ nghiêng ở Bước 1.6 + Level Võng dầm/sàn ở Bước 5.</p>
+                    <p className="mt-1"><strong>Quy tắc:</strong> Max(Level Lún chênh, Level Độ nghiêng, Level Võng dầm sàn) (0 đến 4đ).</p>
                     <div className="mt-2 pt-2 border-t border-slate-100 text-[11px] leading-relaxed">
-                      <strong className="text-slate-800 block mb-1">🔍 Chi tiết cách thức tính điểm:</strong>
+                      <strong className="text-slate-800 block mb-1">Các mức độ định tính hiện trường (0–4đ):</strong>
                       <ul className="list-disc pl-3.5 space-y-0.5 text-slate-600">
-                        <li><strong>0 điểm (Không):</strong> Không có dấu hiệu lún lệch, độ nghiêng &lt; 1/500, dầm sàn võng trong hạn mức tiêu chuẩn.</li>
-                        <li><strong>1 điểm (Nghi ngờ/nhẹ):</strong> Độ nghiêng từ 1/500 đến 1/300 hoặc nghi ngờ lún nhẹ cảm quan không đều.</li>
-                        <li><strong>2 điểm (Rõ ổn định):</strong> Lún lệch hoặc độ nghiêng 1/300 đến 1/150 nhưng đã ổn định lâu năm, không phát sinh nứt mới.</li>
-                        <li><strong>3 điểm (Tiến triển):</strong> Độ nghiêng &gt; 1/150, lún chênh tiếp tục phát triển, xuất hiện kẹt cửa hàng loạt hoặc võng dầm thấy rõ.</li>
-                        <li><strong>4 điểm (Nguy cấp):</strong> Độ nghiêng vượt giới hạn an toàn (&gt; 1/100), công trình có nguy cơ mất ổn định lật đổ khi chịu rung chấn ngầm.</li>
+                        <li><strong>0 điểm (Không):</strong> Hình học công trình bình thường, không có dấu hiệu lún lệch hay nghiêng bằng mắt thường.</li>
+                        <li><strong>1 điểm (Nghi ngờ/nhẹ):</strong> Cảm quan có độ dốc sàn nhẹ hoặc vết nứt bậc thang vi mô chân tường.</li>
+                        <li><strong>2 điểm (Rõ ổn định):</strong> Lún chênh hoặc nghiêng thân nhà nhìn thấy được nhưng ổn định lâu năm, không phát sinh nứt mới.</li>
+                        <li><strong>3 điểm (Tiến triển/nặng):</strong> Nghiêng lún rõ rệt, phát sinh kẹt cửa hàng loạt, nứt toác chân tường tiếp giáp nền.</li>
+                        <li><strong>4 điểm (Nguy cấp):</strong> Nghiêng lệch nghiêm trọng đe dọa mất ổn định kết cấu, cần chống đỡ khẩn cấp.</li>
                       </ul>
                     </div>
                   </InfoPopover>
                 </td>
-                <td className="p-2.5 text-center text-slate-500">Không</td>
-                <td className="p-2.5 text-center text-slate-500">Nghi ngờ/nhẹ</td>
-                <td className="p-2.5 text-center text-slate-500">Rõ ổn định</td>
-                <td className="p-2.5 text-center text-slate-500">Tiến triển=3-4đ</td>
+                <td className="p-2.5 text-center text-slate-500">Không (0đ)</td>
+                <td className="p-2.5 text-center text-slate-500">Nhẹ (1đ)</td>
+                <td className="p-2.5 text-center text-slate-500">Rõ/Ổn định (2đ)</td>
+                <td className="p-2.5 text-center text-slate-500">Tiến triển=3đ; Nguy cấp=4đ</td>
                 <td className="p-2.5 text-center font-bold text-emerald-700 bg-emerald-50/50">{ecs.e3}</td>
               </tr>
 
@@ -355,7 +343,6 @@ export const Step7_TechnicalCalculations: React.FC = () => {
                     <p><strong>Nguồn:</strong> Trường Mức độ suy giảm vật liệu của toàn bộ Defect D-xx ở Bước 3.3.</p>
                     <p className="mt-1"><strong>Quy tắc:</strong> Max(Suy giảm D-xx): Không: 0đ; Cục bộ: 1đ; Đáng kể: 2đ; Nặng/lộ thép: 3đ; Ảnh hưởng chịu lực: 4đ.</p>
                     <div className="mt-2 pt-2 border-t border-slate-100 text-[11px] leading-relaxed">
-                      <strong className="text-slate-800 block mb-1">🔍 Chi tiết cách thức tính điểm:</strong>
                       <ul className="list-disc pl-3.5 space-y-0.5 text-slate-600">
                         <li><strong>0 điểm (Không/nhẹ):</strong> Bê tông và gạch xây còn chắc đặc, không bị phong hóa.</li>
                         <li><strong>1 điểm (Cục bộ):</strong> Bong tróc nhẹ lớp sơn hoặc vữa trát bề mặt một vài vị trí nhỏ.</li>
@@ -378,17 +365,18 @@ export const Step7_TechnicalCalculations: React.FC = () => {
                 <td className="p-2.5 text-center font-bold">E5</td>
                 <td className="p-2.5 font-medium flex items-center justify-between">
                   <span>Lịch sử/cơi nới/sự cố & toàn vẹn</span>
-                  <InfoPopover title="Quy tắc tính chỉ số E5 & Cộng hưởng rủi ro" size="md">
-                    <p><strong>Nguồn:</strong> 5 câu hỏi phỏng vấn lịch sử ở Bước 2.2.</p>
-                    <p className="mt-1"><strong>Quy tắc:</strong> Max điểm 5 câu. Nếu có từ 2 yếu tố cùng lớn hơn 2 và bằng nhau (cùng 3đ) thì kích hoạt cộng hưởng E5 = 4đ.</p>
+                  <InfoPopover title="Quy tắc tính chỉ số E5 & Thuật toán Cộng hưởng rủi ro" size="md">
+                    <p><strong>Nguồn:</strong> 5 câu hỏi phỏng vấn lịch sử công trình ở Mục 2.2.</p>
+                    <p className="mt-1"><strong>Thuật toán Cộng hưởng Rủi ro (Risk Resonance Logic):</strong> Điểm E5 cơ sở = max(điểm 5 câu hỏi). Khi có từ 2 yếu tố cùng đạt mức rủi ro nặng (điểm ≥ 3), hệ thống tự động kích hoạt cộng hưởng rủi ro đẩy E5 = 4đ (Nguy cấp).</p>
+                    <p className="mt-1 text-slate-700"><strong>Căn cứ pháp lý:</strong> Quy chuẩn kỹ thuật BCS của Liên danh CRLG-CRSRI-TT và Ban QLĐS Đô thị (MAUR) nhằm xác định các tiền sử hư hại hoặc cơi nới quá tải làm suy giảm khả năng chịu lực dự trữ trước khi TBM vận hành.</p>
                     <div className="mt-2 pt-2 border-t border-slate-100 text-[11px] leading-relaxed">
-                      <strong className="text-slate-800 block mb-1">🔍 Chi tiết cách thức tính điểm:</strong>
+                      <strong className="text-slate-800 block mb-1">Các mức độ rủi ro (0–4đ):</strong>
                       <ul className="list-disc pl-3.5 space-y-0.5 text-slate-600">
                         <li><strong>0 điểm:</strong> Công trình nguyên bản, không cơi nới, không có tiền sử sự cố.</li>
                         <li><strong>1 điểm:</strong> Cải tạo nội thất nhẹ hoặc cơi nới nhỏ có kiểm soát kỹ thuật.</li>
                         <li><strong>2 điểm:</strong> Đã nâng thêm 1 tầng nhẹ hoặc từng ngập nước cục bộ nhưng đã gia cố ổn định.</li>
                         <li><strong>3 điểm:</strong> Nâng từ 2 tầng trở lên không rõ hồ sơ móng, hoặc từng bị nứt lún rõ rệt do công trình lân cận thi công.</li>
-                        <li><strong>4 điểm (Cộng hưởng):</strong> Có từ 2 yếu tố rủi ro nặng cùng đạt 3đ (vừa cơi nới vừa từng lún nứt) hoặc từng gặp sự cố cháy nổ/chấn động làm suy giảm tính toàn vẹn kết cấu.</li>
+                        <li><strong>4 điểm (Cộng hưởng):</strong> Có ≥ 2 yếu tố rủi ro nặng cùng đạt ≥ 3đ (vừa cơi nới vừa từng lún nứt) hoặc từng gặp sự cố cháy nổ/chấn động làm suy giảm tính toàn vẹn kết cấu.</li>
                       </ul>
                     </div>
                   </InfoPopover>
@@ -405,25 +393,25 @@ export const Step7_TechnicalCalculations: React.FC = () => {
                 <td className="p-2.5 text-center font-bold">E6</td>
                 <td className="p-2.5 font-medium flex items-center justify-between">
                   <span>Tình trạng chức năng/tổng thể</span>
-                  <InfoPopover title="Quy tắc tính chỉ số E6" size="md">
-                    <p><strong>Nguồn:</strong> Khuyết tật Thấm dột (1-4đ), Kẹt cửa (1-4đ) ở Bước 3.3 và Vùng cần sửa chữa ở Bước 3.2.</p>
-                    <p className="mt-1"><strong>Quy tắc:</strong> Max(Thấm dột, Kẹt cửa, Sửa chữa Vùng Z) (0 đến 4đ).</p>
+                  <InfoPopover title="Quy tắc tính chỉ số E6 & Thuật toán Auto-Engine" size="md">
+                    <p><strong>Nguồn:</strong> Khảo sát các điểm khuyết tật D và tình trạng vận hành thực tế ở Bước 3.</p>
+                    <p className="mt-1"><strong>Thuật toán Auto-Engine:</strong> E6 = max(functionalImpactE6) từ tất cả các khuyết tật D đã ghi sổ, kết hợp mức độ thấm dột và kẹt cửa toàn nhà.</p>
                     <div className="mt-2 pt-2 border-t border-slate-100 text-[11px] leading-relaxed">
-                      <strong className="text-slate-800 block mb-1">🔍 Chi tiết cách thức tính điểm:</strong>
+                      <strong className="text-slate-800 block mb-1">5 Cấp độ ảnh hưởng chức năng (0–4đ):</strong>
                       <ul className="list-disc pl-3.5 space-y-0.5 text-slate-600">
-                        <li><strong>0 điểm (Tốt):</strong> Mọi công năng sử dụng bình thường, không thấm ẩm, cửa đóng mở trơn tru.</li>
-                        <li><strong>1 điểm (Khá/TB nhẹ):</strong> Ẩm chân tường nhẹ cục bộ hoặc có 1–2 vùng nhỏ cần dặm vá.</li>
-                        <li><strong>2 điểm (Trung bình):</strong> Thấm dột mái/sàn vệ sinh rõ rệt, kẹt 1–2 bộ cửa do biến dạng khuôn, hoặc 3–4 vùng cần sửa chữa.</li>
-                        <li><strong>3 điểm (Kém):</strong> Thấm dột chảy thành dòng, kẹt nhiều cửa chính/cửa sổ không đóng mở được, trên 4 vùng hư hỏng.</li>
-                        <li><strong>4 điểm (Nguy cấp):</strong> Mất an toàn công năng toàn diện (nguy cơ chập cháy điện do ngấm nước hoặc biến dạng hình học cản trở thoát nạn khẩn cấp).</li>
+                        <li><strong>0 điểm (Không ảnh hưởng):</strong> Mọi công năng sử dụng bình thường, không thấm ẩm, cửa đóng mở trơn tru.</li>
+                        <li><strong>1 điểm (Nhẹ):</strong> Ẩm mốc bề mặt nhẹ hoặc kẹt 1–2 bộ cửa trong nhà ở mức nhẹ.</li>
+                        <li><strong>2 điểm (Trung bình):</strong> Thấm nước tường/sàn hoặc kẹt 2–5 bộ cửa phải dùng lực mạnh.</li>
+                        <li><strong>3 điểm (Nặng):</strong> Nước dột chảy thành dòng, kẹt trên 5 bộ cửa không đóng mở được.</li>
+                        <li><strong>4 điểm (Nguy cấp):</strong> Nước rò rỉ gây nguy cơ chập cháy điện, hoặc cửa kẹt cứng chắn lối thoát nạn khẩn cấp.</li>
                       </ul>
                     </div>
                   </InfoPopover>
                 </td>
-                <td className="p-2.5 text-center text-slate-500">Tốt</td>
-                <td className="p-2.5 text-center text-slate-500">TB</td>
-                <td className="p-2.5 text-center text-slate-500">Kém</td>
-                <td className="p-2.5 text-center text-slate-500">Nguy cấp=4đ</td>
+                <td className="p-2.5 text-center text-slate-500">0đ (Không)</td>
+                <td className="p-2.5 text-center text-slate-500">1đ (Nhẹ)</td>
+                <td className="p-2.5 text-center text-slate-500">2đ (TB)</td>
+                <td className="p-2.5 text-center text-slate-500">3đ (Nặng) / 4đ (Nguy cấp)</td>
                 <td className="p-2.5 text-center font-bold text-emerald-700 bg-emerald-50/50">{ecs.e6}</td>
               </tr>
             </tbody>

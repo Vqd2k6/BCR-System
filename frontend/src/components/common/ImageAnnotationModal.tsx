@@ -406,7 +406,7 @@ export const ImageAnnotationModal: React.FC<ImageAnnotationModalProps> = ({
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800 bg-slate-950">
           <div className="flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-emerald-400" />
+            <Sparkles className="w-4 h-4 text-sky-400" />
             <span className="font-bold text-sm sm:text-base text-slate-100">{title}</span>
           </div>
           <button
@@ -426,7 +426,7 @@ export const ImageAnnotationModal: React.FC<ImageAnnotationModalProps> = ({
               type="button"
               onClick={() => setActiveTool('ARROW')}
               className={`px-3 py-1.5 rounded-lg font-bold flex items-center gap-1.5 transition-all ${
-                activeTool === 'ARROW' ? 'bg-emerald-600 text-white shadow-sm' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                activeTool === 'ARROW' ? 'bg-sky-600 text-white shadow-sm' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
               }`}
             >
               <ArrowRight className="w-3.5 h-3.5" />
@@ -437,7 +437,7 @@ export const ImageAnnotationModal: React.FC<ImageAnnotationModalProps> = ({
               type="button"
               onClick={() => setActiveTool('PEN')}
               className={`px-3 py-1.5 rounded-lg font-bold flex items-center gap-1.5 transition-all ${
-                activeTool === 'PEN' ? 'bg-emerald-600 text-white shadow-sm' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                activeTool === 'PEN' ? 'bg-sky-600 text-white shadow-sm' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
               }`}
             >
               <PenTool className="w-3.5 h-3.5" />
@@ -448,7 +448,7 @@ export const ImageAnnotationModal: React.FC<ImageAnnotationModalProps> = ({
               type="button"
               onClick={() => setActiveTool('CIRCLE')}
               className={`px-2.5 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-all ${
-                activeTool === 'CIRCLE' ? 'bg-emerald-600 text-white shadow-sm' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                activeTool === 'CIRCLE' ? 'bg-sky-600 text-white shadow-sm' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
               }`}
             >
               <Circle className="w-3.5 h-3.5" />
@@ -459,7 +459,7 @@ export const ImageAnnotationModal: React.FC<ImageAnnotationModalProps> = ({
               type="button"
               onClick={() => setActiveTool('RECT')}
               className={`px-2.5 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-all ${
-                activeTool === 'RECT' ? 'bg-emerald-600 text-white shadow-sm' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                activeTool === 'RECT' ? 'bg-sky-600 text-white shadow-sm' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
               }`}
             >
               <Square className="w-3.5 h-3.5" />
@@ -470,7 +470,7 @@ export const ImageAnnotationModal: React.FC<ImageAnnotationModalProps> = ({
               type="button"
               onClick={() => setActiveTool('TEXT')}
               className={`px-2.5 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-all ${
-                activeTool === 'TEXT' ? 'bg-emerald-600 text-white shadow-sm' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                activeTool === 'TEXT' ? 'bg-sky-600 text-white shadow-sm' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
               }`}
             >
               <Type className="w-3.5 h-3.5" />
@@ -539,7 +539,7 @@ export const ImageAnnotationModal: React.FC<ImageAnnotationModalProps> = ({
               value={arrowLabel}
               onChange={(e) => setArrowLabel(e.target.value)}
               placeholder="VD: Công trình khảo sát / Vết nứt D-01"
-              className="bg-slate-900 border border-slate-700 rounded px-2 py-0.5 text-xs text-slate-100 flex-1 max-w-xs focus:ring-1 focus:ring-emerald-500"
+              className="bg-slate-900 border border-slate-700 rounded px-2 py-0.5 text-xs text-slate-100 flex-1 max-w-xs focus:ring-1 focus:ring-sky-500"
             />
             <span className="text-slate-500 text-[11px] italic">
               * Kéo từ vị trí nhãn và thả tại ngôi nhà/vết nứt mục tiêu
@@ -555,7 +555,7 @@ export const ImageAnnotationModal: React.FC<ImageAnnotationModalProps> = ({
               value={customText}
               onChange={(e) => setCustomText(e.target.value)}
               placeholder="Nhập nội dung rồi chạm vào ảnh để đặt..."
-              className="bg-slate-900 border border-slate-700 rounded px-2 py-0.5 text-xs text-slate-100 flex-1 max-w-sm focus:ring-1 focus:ring-emerald-500"
+              className="bg-slate-900 border border-slate-700 rounded px-2 py-0.5 text-xs text-slate-100 flex-1 max-w-sm focus:ring-1 focus:ring-sky-500"
             />
           </div>
         )}
@@ -600,7 +600,7 @@ export const ImageAnnotationModal: React.FC<ImageAnnotationModalProps> = ({
             <button
               type="button"
               onClick={handleSave}
-              className="px-4 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-500 text-white flex items-center gap-1.5 shadow-sm transition-all"
+              className="px-4 py-2 rounded-xl text-xs font-bold bg-sky-600 hover:bg-sky-500 text-white flex items-center gap-1.5 shadow-sm transition-all"
             >
               <Check className="w-4 h-4" />
               <span>Lưu & Áp dụng ảnh</span>

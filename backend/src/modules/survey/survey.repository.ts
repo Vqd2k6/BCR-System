@@ -428,4 +428,36 @@ export class SurveyRepository {
       }
     });
   }
+
+  static async findLatestPhase1ReportByParcelId(parcelId: string): Promise<any | null> {
+    const reportRes = await Database.query<{ id: string }>(
+      `SELECT id FROM base_survey_reports
+       WHERE parcel_id = $1 AND phase = 'PHASE_1'
+       ORDER BY created_at DESC LIMIT 1;`,
+      [parcelId]
+    );
+
+    let report = null;
+    if (reportRes.rows[0]) {
+      report = await SurveyRepository.findReportById(reportRes.rows[0].id);
+    }
+
+    const absenceRes = await Database.query(
+      `SELECT * FROM survey_absence_logs
+       WHERE parcel_id = $1
+       ORDER BY created_at DESC LIMIT 1;`,
+      [parcelId]
+    );
+
+    const parcelRes = await Database.query(
+      `SELECT * FROM parcels WHERE id = $1 LIMIT 1;`,
+      [parcelId]
+    );
+
+    return {
+      report,
+      absenceLog: absenceRes.rows[0] || null,
+      parcel: parcelRes.rows[0] || null,
+    };
+  }
 }

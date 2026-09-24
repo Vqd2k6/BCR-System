@@ -70,8 +70,8 @@ export const getDefaultInitialFormData = (parcelId: string = ''): Phase1SurveyFo
   photoP04: { url: '', notApplicable: false },
 
   usageFunction: '',
-  aboveFloors: '',
-  undergroundFloors: '',
+  aboveFloors: 0,
+  undergroundFloors: 0,
   constructionAreaM2: '',
   buildingHeightM: '',
   constructionYear: 2026,
@@ -432,18 +432,26 @@ export const usePhase1SurveyStore = create<Phase1SurveyStore>((set, get) => ({
     }
 
     setTimeout(() => {
-      const el = document.getElementById(item.fieldId);
+      let el = document.getElementById(item.fieldId);
+      if (!el) {
+        el = document.querySelector(`[name="${item.fieldId}"]`) ||
+             document.querySelector(`[data-field-id="${item.fieldId}"]`) ||
+             document.querySelector(`.${item.fieldId}`) as HTMLElement | null;
+      }
       if (el) {
         el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        el.classList.add('ring-4', 'ring-red-400', 'bg-red-50/50');
+        el.classList.add('ring-4', 'ring-red-400', 'bg-red-50/50', 'transition-all', 'duration-300');
         setTimeout(() => {
-          el.classList.remove('ring-4', 'ring-red-400', 'bg-red-50/50');
+          el?.classList.remove('ring-4', 'ring-red-400', 'bg-red-50/50', 'transition-all', 'duration-300');
         }, 3500);
         if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement) {
           el.focus();
+        } else {
+          const childInput = el.querySelector('input, select, textarea, button') as HTMLElement | null;
+          if (childInput) childInput.focus();
         }
       }
-    }, item.floorIndex !== undefined ? 350 : 250);
+    }, item.floorIndex !== undefined ? 400 : 250);
   },
 
   validateForFinalSubmit: () => {

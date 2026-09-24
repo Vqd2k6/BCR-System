@@ -20,6 +20,7 @@ import {
   Building2,
   ArrowRight,
   HardHat,
+  Eye,
 } from 'lucide-react';
 
 interface Props {
@@ -29,7 +30,7 @@ interface Props {
   userGps?: { lat: number; lng: number; accuracy?: number } | null;
   onNavigateToMap: (parcelToFocus?: GisParcel) => void;
   onNavigateToCheckIn: () => void;
-  onStartPhase1: (parcel: GisParcel) => void;
+  onStartPhase1: (parcel: GisParcel, readOnly?: boolean) => void;
   onStartUnitSurvey?: (parcel: GisParcel, unit: BuildingUnit, phase?: 1 | 2) => void;
   onStartPhase2: (parcel: GisParcel) => void;
   onRecordAbsence: (parcel: GisParcel) => void;
@@ -216,7 +217,7 @@ export const SurveyorHomeView: React.FC<Props> = ({
     window.open(url, '_blank', 'noopener,noreferrer');
   };
 
-  const getStatusBadge = (status: GisParcel['surveyStatus']) => {
+  const getStatusBadge = (status: GisParcel['surveyStatus'], parcel?: GisParcel) => {
     switch (status) {
       case 'APPROVED':
         return (
@@ -259,16 +260,28 @@ export const SurveyorHomeView: React.FC<Props> = ({
             Đang làm dở
           </span>
         );
-      case 'POSTPONED_ABSENT':
+      case 'POSTPONED_ABSENT': {
+        const dateVal = parcel?.updatedAt || (parcel as any)?.updated_at || (parcel as any)?.postponed_at;
+        let daysText = 'Hẹn lại';
+        if (dateVal) {
+          const d = new Date(dateVal);
+          if (!isNaN(d.getTime())) {
+            const diffDays = Math.floor(Math.abs(Date.now() - d.getTime()) / (1000 * 60 * 60 * 24));
+            daysText = diffDays === 0 ? 'Hẹn lại - hôm nay' : `${diffDays} ngày trước`;
+          }
+        } else if (parcel?.absenceAttemptCount) {
+          daysText = `${parcel.absenceAttemptCount} ngày trước`;
+        }
         return (
           <span
             className="badge"
             style={{ backgroundColor: '#f3e8ff', color: '#7e22ce', border: '1px solid #d8b4fe', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}
           >
             <AlertCircle size={12} color="#7e22ce" />
-            Vắng mặt (Hẹn lại)
+            Vắng mặt ({daysText})
           </span>
         );
+      }
       case 'UNDER_CONSTRUCTION':
         return (
           <span
@@ -651,7 +664,7 @@ export const SurveyorHomeView: React.FC<Props> = ({
                         <span style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0284c7' }}>
                           {p.projectParcelCode || (p as any).project_parcel_code}
                         </span>
-                        {getStatusBadge(status)}
+                        {getStatusBadge(status, p)}
                         {getBuildingType(p) === 'CONDOMINIUM' && (
                           <button
                             type="button"
@@ -752,7 +765,7 @@ export const SurveyorHomeView: React.FC<Props> = ({
                     ) : isSubmitted ? (
                       <button
                         type="button"
-                        onClick={() => onStartPhase1(p)}
+                        onClick={() => onStartPhase1(p, true)}
                         className="btn btn-sm"
                         style={{
                           fontSize: '0.775rem',
@@ -765,10 +778,31 @@ export const SurveyorHomeView: React.FC<Props> = ({
                           fontWeight: 700,
                           cursor: 'pointer',
                         }}
-                        title="Hồ sơ đã gửi Zone Admin, nhấp để xem chi tiết"
+                        title="Hồ sơ đã gửi Zone Admin, nhấp để xem lại biểu mẫu"
                       >
-                        <Clock size={14} color="#0284c7" />
-                        Hồ sơ đã nộp (Chờ duyệt)
+                        <Eye size={14} color="#0284c7" />
+                        Xem lại biểu mẫu
+                      </button>
+                    ) : isUnderConstruction ? (
+                      <button
+                        type="button"
+                        onClick={() => onStartPhase1(p, true)}
+                        className="btn btn-sm"
+                        style={{
+                          fontSize: '0.775rem',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.35rem',
+                          backgroundColor: '#fff7ed',
+                          color: '#c2410c',
+                          border: '1px solid #fdba74',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                        }}
+                        title="Công trình đang xây dựng (Đã hoàn thành khảo sát - Xem lại biểu mẫu)"
+                      >
+                        <Eye size={14} color="#c2410c" />
+                        Xem lại biểu mẫu
                       </button>
                     ) : isRejected ? (
                       <button

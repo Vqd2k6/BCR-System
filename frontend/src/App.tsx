@@ -29,6 +29,7 @@ export const App: React.FC = () => {
   const [showAttendanceWarningModal, setShowAttendanceWarningModal] = useState<boolean>(false);
   const [showCompanionCheckInModal, setShowCompanionCheckInModal] = useState<boolean>(false);
   const [pendingSurveyFn, setPendingSurveyFn] = useState<(() => void) | null>(null);
+  const [isReadOnlySurvey, setIsReadOnlySurvey] = useState<boolean>(false);
 
   // Dynamic Check-In state for surveyor with localStorage persistence (Requirement 5)
   const [isCheckedInToday, setIsCheckedInToday] = useState<boolean>(() => {
@@ -210,7 +211,8 @@ export const App: React.FC = () => {
     }
   };
 
-  const handleStartPhase1 = (parcel: GisParcel) => {
+  const handleStartPhase1 = (parcel: GisParcel, readOnly: boolean = false) => {
+    setIsReadOnlySurvey(readOnly);
     triggerSurveyWithCheckInGuard(() => {
       setSelectedParcelForSurvey(parcel);
       setSelectedUnitForSurvey(null);
@@ -340,8 +342,13 @@ export const App: React.FC = () => {
           <SurveyPhase1Page
             parcel={selectedParcelForSurvey}
             unit={selectedUnitForSurvey}
-            onBackToHome={() => setActiveTab('home')}
+            readOnly={isReadOnlySurvey}
+            onBackToHome={() => {
+              setIsReadOnlySurvey(false);
+              setActiveTab('home');
+            }}
             onFinished={() => {
+              setIsReadOnlySurvey(false);
               setSelectedUnitForSurvey(null);
               setActiveTab('home');
               loadParcels();

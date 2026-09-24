@@ -220,6 +220,17 @@ export const validateStep = (step: number, formData: Phase1SurveyFormData): Step
       });
     }
 
+    // 1.1 Building Name
+    if (!formData.buildingName?.trim()) {
+      missing.push({
+        fieldId: 'input-buildingName',
+        label: '1.1. Tên công trình / Biển hiệu riêng *',
+        step: 1,
+        description: 'Vui lòng nhập tên công trình hoặc biển hiệu riêng (VD: Nhà ở hộ gia đình, Cửa hàng...).',
+        isBlocking: true,
+      });
+    }
+
     // 1.1 Address
     if (!formData.houseNumber?.trim() && !formData.street?.trim()) {
       missing.push({
@@ -241,16 +252,31 @@ export const validateStep = (step: number, formData: Phase1SurveyFormData): Step
     }
 
     // 1.4 Adjacent Buildings (3 hướng liền kề)
-    if (
-      !formData.adjacentBuildings?.left?.details?.trim() ||
-      !formData.adjacentBuildings?.right?.details?.trim() ||
-      !formData.adjacentBuildings?.back?.details?.trim()
-    ) {
+    if (!formData.adjacentBuildings?.left?.details?.trim()) {
       missing.push({
-        fieldId: 'input-adjacent-buildings',
-        label: '1.4. Công trình liền kề 3 hướng (Trái, Phải, Sau)',
+        fieldId: 'input-adjacentLeft',
+        label: '1.4. Công trình liền kề bên trái *',
         step: 1,
-        description: 'Vui lòng chọn hiện trạng công trình liền kề bên trái, bên phải và phía sau tiếp giáp.',
+        description: 'Vui lòng chọn hiện trạng công trình liền kề bên trái.',
+        isBlocking: true,
+      });
+    }
+    if (!formData.adjacentBuildings?.right?.details?.trim()) {
+      missing.push({
+        fieldId: 'input-adjacentRight',
+        label: '1.4. Công trình liền kề bên phải *',
+        step: 1,
+        description: 'Vui lòng chọn hiện trạng công trình liền kề bên phải.',
+        isBlocking: true,
+      });
+    }
+    if (!formData.adjacentBuildings?.back?.details?.trim()) {
+      missing.push({
+        fieldId: 'input-adjacentBack',
+        label: '1.4. Công trình liền kề phía sau *',
+        step: 1,
+        description: 'Vui lòng chọn hiện trạng công trình liền kề phía sau tiếp giáp.',
+        isBlocking: true,
       });
     }
 
@@ -309,9 +335,10 @@ export const validateStep = (step: number, formData: Phase1SurveyFormData): Step
     ) {
       missing.push({
         fieldId: 'section-settlement-datasource',
-        label: '1.6. Nguồn xác định dữ liệu ngoại quan',
+        label: '1.6. Nguồn xác định dữ liệu ngoại quan *',
         step: 1,
         description: 'Vui lòng chọn ít nhất 1 nguồn xác định dữ liệu ngoại quan (Quan sát thực tế, Đo đạc, Bản vẽ, Chủ nhà).',
+        isBlocking: true,
       });
     }
 
@@ -320,17 +347,19 @@ export const validateStep = (step: number, formData: Phase1SurveyFormData): Step
       if (!formData.absenteeReason?.trim()) {
         missing.push({
           fieldId: 'input-absenteeReason',
-          label: '1.7. Lý do vắng nhà',
+          label: '1.7. Lý do vắng mặt / không tiếp cận *',
           step: 1,
           description: 'Vui lòng chọn hoặc nhập lý do vắng nhà.',
+          isBlocking: true,
         });
       }
       if (!formData.absenteeMinutesPhotos || formData.absenteeMinutesPhotos.length === 0) {
         missing.push({
           fieldId: 'absentee-minutes-section',
-          label: '1.7. Ảnh biên bản vắng nhà',
+          label: '1.7. Ảnh biên bản vắng nhà *',
           step: 1,
           description: 'Vui lòng chụp ít nhất 1 ảnh biên bản dán thông báo vắng nhà.',
+          isBlocking: true,
         });
       }
     }
@@ -339,9 +368,19 @@ export const validateStep = (step: number, formData: Phase1SurveyFormData): Step
       if (!formData.underConstructionPhotos || formData.underConstructionPhotos.length === 0) {
         missing.push({
           fieldId: 'under-construction-photos-section',
-          label: '1.7. Ảnh hiện trạng công trình đang thi công',
+          label: '1.7. Ảnh hiện trạng công trình đang thi công *',
           step: 1,
           description: 'Vui lòng chụp ít nhất 1 ảnh hiện trường móng/cột/sàn đang xây dựng.',
+          isBlocking: true,
+        });
+      }
+      if (!formData.constructionStageNotes?.trim()) {
+        missing.push({
+          fieldId: 'input-constructionStageNotes',
+          label: '1.7. Ghi chú giai đoạn thi công *',
+          step: 1,
+          description: 'Vui lòng nhập mô tả giai đoạn thi công hiện tại.',
+          isBlocking: true,
         });
       }
     }
@@ -351,7 +390,7 @@ export const validateStep = (step: number, formData: Phase1SurveyFormData): Step
     if (!formData.usageFunction?.trim()) {
       missing.push({
         fieldId: 'input-usageFunction',
-        label: '2.1. Công năng sử dụng',
+        label: '2.1. Công năng sử dụng *',
         step: 2,
         description: 'Vui lòng chọn công năng của công trình.',
       });
@@ -360,9 +399,29 @@ export const validateStep = (step: number, formData: Phase1SurveyFormData): Step
     if (formData.aboveFloors === undefined || formData.aboveFloors === null || (formData.aboveFloors as any) === '') {
       missing.push({
         fieldId: 'input-aboveFloors',
-        label: '2.1. Số tầng nổi',
+        label: '2.1. Số tầng nổi *',
         step: 2,
-        description: 'Vui lòng nhập số tầng nổi (0 nếu đang xây).',
+        description: 'Vui lòng nhập số tầng nổi (0 nếu đang xây móng).',
+      });
+    }
+
+    if (!formData.constructionAreaM2 || Number(formData.constructionAreaM2) <= 0) {
+      missing.push({
+        fieldId: 'input-constructionAreaM2',
+        label: '2.1. Diện tích sàn xây dựng *',
+        step: 2,
+        description: 'Vui lòng nhập diện tích sàn xây dựng thực tế (> 0 m²).',
+        isBlocking: true,
+      });
+    }
+
+    if (!formData.buildingHeightM || Number(formData.buildingHeightM) <= 0) {
+      missing.push({
+        fieldId: 'input-buildingHeightM',
+        label: '2.1. Chiều cao công trình *',
+        step: 2,
+        description: 'Vui lòng nhập chiều cao công trình thực tế (> 0 m).',
+        isBlocking: true,
       });
     }
 
@@ -378,7 +437,7 @@ export const validateStep = (step: number, formData: Phase1SurveyFormData): Step
     if (!formData.structureSystem?.trim()) {
       missing.push({
         fieldId: 'input-structureSystem',
-        label: '2.1. Hệ kết cấu chịu lực',
+        label: '2.1. Hệ kết cấu chịu lực *',
         step: 2,
         description: 'Vui lòng chọn hệ kết cấu chịu lực (RC, Steel, Masonry...).',
       });
@@ -387,9 +446,20 @@ export const validateStep = (step: number, formData: Phase1SurveyFormData): Step
     if (!formData.foundationType?.trim()) {
       missing.push({
         fieldId: 'input-foundationType',
-        label: '2.1. Loại móng',
+        label: '2.1. Loại móng *',
         step: 2,
         description: 'Vui lòng chọn loại móng của ngôi nhà.',
+      });
+    }
+
+    // Trường hợp A: Có bản vẽ hoàn công/thiết kế bắt buộc ảnh bản vẽ
+    if ((formData.foundationCatScore === 1 || formData.foundationCatScore === 2) && !formData.asBuiltDrawingPhotoUrl) {
+      missing.push({
+        fieldId: 'as-built-drawing-section',
+        label: '2.1. Bản vẽ hoàn công / kết cấu (Trường hợp A) *',
+        step: 2,
+        description: 'Trường hợp A (Có bản vẽ) bắt buộc phải chụp ảnh hoặc tải lên bản vẽ kỹ thuật.',
+        isBlocking: true,
       });
     }
   }
@@ -453,8 +523,41 @@ export const validateStep = (step: number, formData: Phase1SurveyFormData): Step
           });
         }
 
-        // 3. Kiểm tra khuyết tật D so với Vùng Z
+        // 3. Kiểm tra thuộc tính bắt buộc của Vùng Z (Tên phòng, cấu kiện, vật liệu) & khuyết tật D
         zones.forEach((z) => {
+          if (!z.roomName?.trim() || (z.roomName === 'Khác' && !z.customRoomName?.trim())) {
+            missing.push({
+              fieldId: 'select-zone-roomName',
+              label: `3.1. Tên phòng / không gian Vùng ${z.zoneCode} (${floorTitle}) *`,
+              step: 3,
+              floorIndex: fIdx,
+              description: `Vui lòng chọn hoặc nhập tên phòng cho Vùng ${z.zoneCode}.`,
+              isBlocking: true,
+            });
+          }
+
+          if (!z.componentType?.trim() || (z.componentType === 'Khác' && !z.customComponentType?.trim())) {
+            missing.push({
+              fieldId: 'select-zone-componentType',
+              label: `3.1. Cấu kiện vách kiến trúc Vùng ${z.zoneCode} (${floorTitle}) *`,
+              step: 3,
+              floorIndex: fIdx,
+              description: `Vui lòng chọn hoặc nhập loại cấu kiện mảng vách cho Vùng ${z.zoneCode}.`,
+              isBlocking: true,
+            });
+          }
+
+          if (!z.wallMaterial?.trim() || (z.wallMaterial === 'Khác' && !z.customWallMaterial?.trim())) {
+            missing.push({
+              fieldId: 'select-zone-wallMaterial',
+              label: `3.1. Vật liệu bề mặt hoàn thiện Vùng ${z.zoneCode} (${floorTitle}) *`,
+              step: 3,
+              floorIndex: fIdx,
+              description: `Vui lòng chọn hoặc nhập vật liệu bề mặt hoàn thiện cho Vùng ${z.zoneCode}.`,
+              isBlocking: true,
+            });
+          }
+
           const hasDamageMarked = z.hasDamage || (z.defects && z.defects.length > 0);
           const defectCount = z.defects ? z.defects.length : 0;
 
@@ -464,7 +567,7 @@ export const validateStep = (step: number, formData: Phase1SurveyFormData): Step
               label: `3.1. Ghi sổ khuyết tật D cho Vùng ${z.zoneCode} (${floorTitle})`,
               step: 3,
               floorIndex: fIdx,
-              description: `Vùng ${z.zoneCode} được đánh dấu CÓ vết nứt/hư hỏng nhưng chưa có điểm khuyết tật D nào được ghi sổ. Vui lòng chấm điểm ghi sổ D-xx hoặc bỏ chọn mục hư hỏng.`,
+              description: `Vui lòng chấm ít nhất 1 khuyết tật D cho Vùng ${z.zoneCode}.`,
               isBlocking: true,
             });
           }
@@ -585,7 +688,25 @@ export const validateStep = (step: number, formData: Phase1SurveyFormData): Step
   }
 
   if (step === 8) {
-    // Không bắt buộc họ tên cán bộ khảo sát do form đã lược bỏ
+    if (!formData.signatures?.ownerFeedback?.trim() && !formData.ownerRemarks?.trim()) {
+      missing.push({
+        fieldId: 'input-ownerFeedback',
+        label: '8.1. Ý kiến / phản hồi của chủ sở hữu *',
+        step: 8,
+        description: 'Vui lòng ghi nhận ý kiến phản hồi thực tế của chủ sở hữu / người sử dụng tại hiện trường.',
+        isBlocking: true,
+      });
+    }
+
+    if (!formData.signatures?.workingMinutesPhotos || formData.signatures.workingMinutesPhotos.length === 0) {
+      missing.push({
+        fieldId: 'working-minutes-section',
+        label: '8.2. Ảnh chụp biên bản làm việc hiện trường *',
+        step: 8,
+        description: 'Vui lòng chụp ít nhất 1 ảnh biên bản làm việc hiện trường có chữ ký xác nhận.',
+        isBlocking: true,
+      });
+    }
   }
 
   return {
