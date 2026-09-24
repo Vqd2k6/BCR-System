@@ -19,9 +19,11 @@ export interface GateVerificationResult {
 }
 
 export function verifyDataCompletenessGate(data: Phase1SurveyFormData): GateVerificationResult {
-  // 1. Móng (Bước 2.1)
+  const isCondoUnit = data.surveyCaseType === 'APARTMENT' || Boolean(data.unitId);
+
+  // 1. Móng (Bước 2.1): Căn hộ con kế thừa từ tòa mẹ
   const catScore = data.foundationCatScore ?? 0;
-  const foundationPassed = catScore >= 1;
+  const foundationPassed = isCondoUnit ? true : catScore >= 1;
 
   // 2. Ảnh & Ghim khuyết tật - Tách riêng Vùng Kiến trúc Z (Mục 3.1) và Cấu kiện Kết cấu E (Mục 3.2)
   const hasP01 = Boolean(data.photoP01?.url || data.photoP01?.notApplicable);
@@ -45,14 +47,16 @@ export function verifyDataCompletenessGate(data: Phase1SurveyFormData): GateVeri
   // 3. Khảo sát bên trong (Bước 5)
   const isLimited = (data.accessLimitation?.type || 'FULL_100') !== 'FULL_100';
 
-  // 4. Dữ liệu lún nghiêng (Bước 1 & Bước 3.3)
-  const settlementPassed = !data.settlementTilt?.needAdditionalMonitoring?.required;
+  // 4. Dữ liệu lún nghiêng (Đo nghiêng lấy theo tòa nhà mẹ)
+  const settlementPassed = isCondoUnit ? true : !data.settlementTilt?.needAdditionalMonitoring?.required;
 
-  // 5. Hồ sơ / Bản vẽ (Dựa vào Bước 2: asBuiltDrawingPhotoUrl hoặc asBuiltDrawingFiles)
-  const hasDrawings = Boolean(
-    (data.asBuiltDrawingPhotoUrl && data.asBuiltDrawingPhotoUrl.trim() !== '') ||
-    (data.asBuiltDrawingFiles && data.asBuiltDrawingFiles.length > 0)
-  );
+  // 5. Hồ sơ / Bản vẽ (Căn hộ con bỏ qua vì truy trong CAD giai đoạn sau, kế thừa từ toà mẹ)
+  const hasDrawings = isCondoUnit
+    ? true
+    : Boolean(
+        (data.asBuiltDrawingPhotoUrl && data.asBuiltDrawingPhotoUrl.trim() !== '') ||
+        (data.asBuiltDrawingFiles && data.asBuiltDrawingFiles.length > 0)
+      );
 
   // 6. Structural Review (Lấy trực tiếp từ Bước 4: Burland Summary)
   const burland = data.burlandSummary || {};
@@ -88,7 +92,7 @@ export function verifyDataCompletenessGate(data: Phase1SurveyFormData): GateVeri
   return {
     foundationInfo: {
       passed: foundationPassed,
-      label: foundationPassed ? `Đủ (Cat ${catScore}/5)` : 'Chưa đủ',
+      label: isCondoUnit ? 'Kế thừa từ toà mẹ' : (foundationPassed ? `Đủ (Cat ${catScore}/5)` : 'Chưa đủ'),
       score: catScore,
     },
     photoMapping: {
@@ -106,11 +110,11 @@ export function verifyDataCompletenessGate(data: Phase1SurveyFormData): GateVeri
     },
     settlementData: {
       passed: settlementPassed,
-      label: settlementPassed ? 'Đủ' : 'Cần đo bổ sung',
+      label: isCondoUnit ? 'Kế thừa toà mẹ' : (settlementPassed ? 'Đủ' : 'Cần đo bổ sung'),
     },
     asBuiltDrawings: {
       passed: hasDrawings,
-      label: hasDrawings ? 'Có' : 'Không có',
+      label: isCondoUnit ? 'Kế thừa toà mẹ (Truy CAD sau)' : (hasDrawings ? 'Có' : 'Không có'),
     },
     structuralReview: {
       status: structuralStatus,

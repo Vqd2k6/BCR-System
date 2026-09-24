@@ -273,6 +273,21 @@ export const usePhase1SurveyStore = create<Phase1SurveyStore>((set, get) => ({
       initialData.unitFloorNumber = floorNum;
       initialData.aboveFloors = floorNum;
       initialData.surveyCaseType = 'APARTMENT';
+
+      // Phương án B: Mặc định tick "Không áp dụng" (N/A) đối với P-02 và P-03 ở căn hộ con
+      if (!initialData.photoP02?.url) {
+        initialData.photoP02 = {
+          ...(initialData.photoP02 || { url: '', polygonPoints: [], floorSplits: [], widthM: '', heightM: '' }),
+          notApplicable: true,
+        };
+      }
+      if (!initialData.photoP03?.url) {
+        initialData.photoP03 = {
+          ...(initialData.photoP03 || { url: '' }),
+          notApplicable: true,
+        };
+      }
+
       initialData.parentBuildingInfo = {
         buildingName: (parcel as any).buildingName || parcel.projectParcelCode || 'Tòa Nhà Chung Cư Cao Tầng',
         projectParcelCode: parcel.projectParcelCode || '',
