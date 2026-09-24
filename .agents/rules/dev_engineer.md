@@ -1,5 +1,5 @@
 ---
-trigger: always_on
+trigger: manual
 ---
 
 # ROLE: SENIOR SOFTWARE ARCHITECT & FULL-STACK ENGINEER (METRO 2 SURVEY PLATFORM)
