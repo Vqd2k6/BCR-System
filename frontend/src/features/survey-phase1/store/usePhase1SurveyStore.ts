@@ -261,10 +261,17 @@ export const usePhase1SurveyStore = create<Phase1SurveyStore>((set, get) => ({
 
     // Khởi tạo thông tin riêng cho Căn hộ con nếu có unit
     if (unit) {
-      const floorNum = parseInt(unit.floorLevel?.replace(/\D/g, '') || '1', 10) || 1;
+      const uCode = (unit as any).unitCode || (unit as any).unit_code || '';
+      const rawFloor = (unit as any).floorNumber ?? (unit as any).floor_number ?? (unit as any).floorLevel ?? 1;
+      const floorNum = typeof rawFloor === 'number' ? rawFloor : (parseInt(String(rawFloor).replace(/\D/g, ''), 10) || 1);
+
       initialData.unitId = unit.id;
-      initialData.unitCode = unit.unitCode || initialData.unitCode || '';
+      // Luôn kế thừa mã căn hộ và tầng lầu từ ngoài hub
+      if (uCode) {
+        initialData.unitCode = uCode;
+      }
       initialData.unitFloorNumber = floorNum;
+      initialData.aboveFloors = floorNum;
       initialData.surveyCaseType = 'APARTMENT';
       initialData.parentBuildingInfo = {
         buildingName: (parcel as any).buildingName || parcel.projectParcelCode || 'Tòa Nhà Chung Cư Cao Tầng',
@@ -279,7 +286,7 @@ export const usePhase1SurveyStore = create<Phase1SurveyStore>((set, get) => ({
       // Đặt tên tầng phù hợp với căn hộ nếu mới khởi tạo
       if (initialData.floors && initialData.floors.length === 1 && initialData.floors[0].id === 'floor_ground') {
         initialData.floors[0].id = `floor_${floorNum}`;
-        initialData.floors[0].floorName = `Tầng ${floorNum} - Căn hộ ${unit.unitCode}`;
+        initialData.floors[0].floorName = `Tầng ${floorNum} - Căn hộ ${uCode || 'Con'}`;
       }
     }
 

@@ -82,11 +82,8 @@ export const BuildingHubModal: React.FC<Props> = ({
   const [showMasterViewModal, setShowMasterViewModal] = useState<boolean>(false);
   const [updateNotes, setUpdateNotes] = useState<string>('');
 
-  // Form state for adding unit
   const [newUnitCode, setNewUnitCode] = useState<string>('');
   const [newFloorNumber, setNewFloorNumber] = useState<number>(1);
-  const [newOwnerName, setNewOwnerName] = useState<string>('');
-  const [newOwnerPhone, setNewOwnerPhone] = useState<string>('');
   const [isSubmittingUnit, setIsSubmittingUnit] = useState<boolean>(false);
 
   // Load units from API or robust default dataset
@@ -151,8 +148,6 @@ export const BuildingHubModal: React.FC<Props> = ({
       const res = await api.post(`/parcels/${parcel.id}/units`, {
         unitCode: newUnitCode.trim(),
         floorNumber: newFloorNumber,
-        ownerName: newOwnerName.trim() || undefined,
-        ownerPhone: newOwnerPhone.trim() || undefined,
       });
       if (res.data?.data?.unit) {
         setUnits((prev) => [...prev, res.data.data.unit]);
@@ -162,16 +157,14 @@ export const BuildingHubModal: React.FC<Props> = ({
           parcel_id: parcel.id,
           unit_code: newUnitCode.trim(),
           floor_number: newFloorNumber,
-          owner_name: newOwnerName.trim() || 'Chưa cập nhật',
-          owner_phone: newOwnerPhone.trim() || '',
+          owner_name: 'Chưa cập nhật',
+          owner_phone: '',
           status: 'NOT_SURVEYED',
         };
         setUnits((prev) => [...prev, fakeUnit]);
       }
       setShowAddModal(false);
       setNewUnitCode('');
-      setNewOwnerName('');
-      setNewOwnerPhone('');
       if (onUnitsUpdated) onUnitsUpdated();
     } catch (_err) {
       const fakeUnit: BuildingUnit = {
@@ -179,12 +172,13 @@ export const BuildingHubModal: React.FC<Props> = ({
         parcel_id: parcel.id,
         unit_code: newUnitCode.trim(),
         floor_number: newFloorNumber,
-        owner_name: newOwnerName.trim() || 'Chưa cập nhật',
-        owner_phone: newOwnerPhone.trim() || '',
+        owner_name: 'Chưa cập nhật',
+        owner_phone: '',
         status: 'NOT_SURVEYED',
       };
       setUnits((prev) => [...prev, fakeUnit]);
       setShowAddModal(false);
+      setNewUnitCode('');
     } finally {
       setIsSubmittingUnit(false);
     }
@@ -536,7 +530,7 @@ export const BuildingHubModal: React.FC<Props> = ({
                 </button>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-700 mb-1">
                     Mã / Số phòng (*):
@@ -561,30 +555,6 @@ export const BuildingHubModal: React.FC<Props> = ({
                     max="80"
                     value={newFloorNumber}
                     onChange={(e) => setNewFloorNumber(parseInt(e.target.value, 10) || 1)}
-                    className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-sky-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                    Họ tên chủ căn hộ:
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Họ tên người ở..."
-                    value={newOwnerName}
-                    onChange={(e) => setNewOwnerName(e.target.value)}
-                    className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-sky-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                    Số điện thoại:
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Số ĐT liên hệ..."
-                    value={newOwnerPhone}
-                    onChange={(e) => setNewOwnerPhone(e.target.value)}
                     className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-sky-500"
                   />
                 </div>

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useCondoMasterSurveyStore } from '../store/useCondoMasterSurveyStore';
+import { usePhase1SurveyStore } from '../../survey-phase1/store/usePhase1SurveyStore';
 import { Card } from '../../../core/components/ui/Card';
 import { Button } from '../../../core/components/ui/Button';
 import { Input, Select } from '../../../core/components/ui/FormControls';
@@ -22,7 +22,7 @@ import {
 } from '../types/condo-master.types';
 
 export const Step2_CondoMasterInterview: React.FC = () => {
-  const { formData, updateFormData, nextStep, prevStep } = useCondoMasterSurveyStore();
+  const { formData, updateFormData, nextStep, prevStep } = usePhase1SurveyStore();
   const [customStructural, setCustomStructural] = useState(
     CONDO_STRUCTURAL_SYSTEMS.includes(formData.structureSystem as any) ? '' : formData.structureSystem
   );

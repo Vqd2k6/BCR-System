@@ -100,12 +100,12 @@ export const SurveyCondoMasterPage: React.FC<SurveyCondoMasterPageProps> = ({
       <CondoMasterWizardNav onBackToHub={onBackToHome} />
 
       {/* Thông báo phân biệt khảo sát tòa nhà mẹ */}
-      <div className="bg-indigo-950 text-indigo-200 px-4 py-2 text-xs border-b border-indigo-900 flex items-center justify-between">
-        <div className="max-w-6xl mx-auto w-full flex items-center justify-between">
-          <span>
+      <div className="bg-indigo-50/90 text-indigo-900 px-4 py-2 text-xs border-b border-indigo-200/80 shadow-xs flex items-center justify-between">
+        <div className="max-w-7xl mx-auto w-full flex items-center justify-between gap-3">
+          <span className="leading-relaxed">
             📌 <strong>Lưu ý nghiệp vụ:</strong> Đây là biểu mẫu khảo sát Toà nhà tổng thể (Không gian & Kết cấu dùng chung). Các căn hộ con sẽ được khảo sát riêng từng căn trong Hub.
           </span>
-          <span className="font-bold text-white bg-indigo-800/80 px-2 py-0.5 rounded text-[11px]">
+          <span className="font-bold text-indigo-700 bg-white border border-indigo-300 px-2.5 py-0.5 rounded-full text-[11px] shrink-0 shadow-2xs">
             BIỂU MẪU TOÀ MẸ
           </span>
         </div>
