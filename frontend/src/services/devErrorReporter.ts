@@ -1,19 +1,25 @@
 /**
  * Dev Error Reporter Service
  * 
- * Tự động bắt lỗi runtime (window.onerror) và unhandled promise rejection (window.onunhandledrejection)
- * trong môi trường phát triển (DEV), lọc bỏ các lỗi ngoại vi (browser extensions, ResizeObserver, v.v.),
- * và gửi về backend để ghi nối tiếp vào tệp `app_errors.log` tại thư mục gốc của dự án.
+ * Tự động bắt toàn diện mọi loại lỗi phát sinh khi kiểm thử giao diện trong môi trường DEV:
+ * 1. window.onerror & window.addEventListener('error', ..., true) (Uncaught Runtime Errors)
+ * 2. window.onunhandledrejection & window.addEventListener('unhandledrejection') (Unhandled Promises)
+ * 3. React Error Boundary (Lỗi crash render component)
+ * 4. Axios API Interceptor (Lỗi API 4xx, 5xx, Network Error)
+ * 5. console.error interceptor (Lỗi runtime được log ra console)
+ * 
+ * Toàn bộ lỗi được lọc bỏ extension ngoại vi, chống spam debouncing và gửi về:
+ * POST /api/dev/report-error -> ghi nối tiếp vào app_errors.log ở thư mục gốc dự án.
  */
 
 export interface DevErrorPayload {
-  errorType: 'RUNTIME_ERROR' | 'UNHANDLED_PROMISE_REJECTION' | 'REACT_ERROR_BOUNDARY' | 'CUSTOM_DEV_ERROR';
+  errorType: 'RUNTIME_ERROR' | 'UNHANDLED_PROMISE_REJECTION' | 'REACT_ERROR_BOUNDARY' | 'API_ERROR' | 'CONSOLE_ERROR' | 'CUSTOM_DEV_ERROR';
   message: string;
   stack?: string;
   source?: string;
   lineno?: number;
   colno?: number;
-  url: string;
+  url?: string;
   timestamp?: string;
   userAgent?: string;
   componentStack?: string;
@@ -21,7 +27,7 @@ export interface DevErrorPayload {
 
 // Bảng cache tạm để chống spam/lặp lại lỗi giống hệt nhau trong thời gian ngắn (debouncing)
 const recentErrorTimestamps = new Map<string, number>();
-const DEBOUNCE_WINDOW_MS = 2500;
+const DEBOUNCE_WINDOW_MS = 2000;
 
 // Cờ chống vòng lặp đệ quy nếu fetch báo cáo lỗi gặp trục trặc
 let isReportingInProgress = false;
@@ -29,7 +35,7 @@ let isReportingInProgress = false;
 /**
  * Kiểm tra xem lỗi có thuộc diện ngoại vi (browser extension, hệ điều hành, ResizeObserver) cần bỏ qua không.
  */
-function isIgnoredError(message: string, stack?: string, source?: string): boolean {
+export function isIgnoredError(message: string, stack?: string, source?: string): boolean {
   const normalizedMsg = (message || '').toLowerCase();
   const normalizedStack = (stack || '').toLowerCase();
   const normalizedSource = (source || '').toLowerCase();
@@ -76,6 +82,11 @@ function isIgnoredError(message: string, stack?: string, source?: string): boole
     return true;
   }
 
+  // 4. Bỏ qua các log thông tin bình thường của Vite dev server
+  if (normalizedMsg.includes('[vite]') || normalizedMsg.includes('download the react devtools')) {
+    return true;
+  }
+
   return false;
 }
 
@@ -98,7 +109,7 @@ export async function sendDevError(payload: DevErrorPayload): Promise<void> {
     return;
   }
 
-  // Chống spam lặp cùng 1 lỗi trong 2.5 giây
+  // Chống spam lặp cùng 1 lỗi trong 2 giây
   const errorKey = `${payload.errorType}:${payload.message}:${payload.source || ''}:${payload.lineno || ''}`;
   const now = Date.now();
   const lastTime = recentErrorTimestamps.get(errorKey);
@@ -121,8 +132,8 @@ export async function sendDevError(payload: DevErrorPayload): Promise<void> {
     const body = {
       ...payload,
       timestamp: payload.timestamp || new Date().toISOString(),
-      userAgent: payload.userAgent || navigator.userAgent,
-      url: payload.url || window.location.href,
+      userAgent: payload.userAgent || (typeof navigator !== 'undefined' ? navigator.userAgent : 'N/A'),
+      url: payload.url || (typeof window !== 'undefined' ? window.location.href : 'N/A'),
     };
 
     // Dùng native fetch để không bị interceptors của axios can thiệp
@@ -133,7 +144,7 @@ export async function sendDevError(payload: DevErrorPayload): Promise<void> {
       },
       body: JSON.stringify(body),
     });
-  } catch (err) {
+  } catch (_err) {
     // Không ném lỗi ra ngoài để tránh gây crash app khi backend chưa sẵn sàng
   } finally {
     isReportingInProgress = false;
@@ -144,32 +155,62 @@ export async function sendDevError(payload: DevErrorPayload): Promise<void> {
  * Khởi tạo listener toàn cục cho Frontend (chỉ kích hoạt trong môi trường Development)
  */
 export function initDevErrorReporter(): void {
-  if (!import.meta.env.DEV) {
+  if (!import.meta.env.DEV || typeof window === 'undefined') {
     return;
   }
 
-  // 1. Bắt lỗi runtime chưa được xử lý (Uncaught Exceptions)
-  window.addEventListener('error', (event: ErrorEvent) => {
-    // Bỏ qua nếu không có thông điệp lỗi hoặc là lỗi tải tài nguyên thẻ <img>/<script>
-    if (!event.message) return;
+  // Tránh gắn lặp nhiều lần nếu HMR reload
+  if ((window as any).__metro2_dev_reporter_initialized) {
+    return;
+  }
+  (window as any).__metro2_dev_reporter_initialized = true;
 
-    if (isIgnoredError(event.message, event.error?.stack, event.filename)) {
-      return;
+  // 1. Gắn window.onerror trực tiếp (Native Hook)
+  const prevOnError = window.onerror;
+  window.onerror = function (message, source, lineno, colno, error) {
+    const msgStr = typeof message === 'string' ? message : (message as any)?.message || 'Uncaught Error';
+    if (!isIgnoredError(msgStr, error?.stack, source)) {
+      sendDevError({
+        errorType: 'RUNTIME_ERROR',
+        message: msgStr,
+        stack: error?.stack || (error ? String(error) : '(No stack trace)'),
+        source: source || '',
+        lineno: lineno,
+        colno: colno,
+        url: window.location.href,
+      });
     }
 
-    sendDevError({
-      errorType: 'RUNTIME_ERROR',
-      message: event.message,
-      stack: event.error?.stack || '(No stack trace available)',
-      source: event.filename,
-      lineno: event.lineno,
-      colno: event.colno,
-      url: window.location.href,
-    });
-  });
+    if (typeof prevOnError === 'function') {
+      return prevOnError(message, source, lineno, colno, error);
+    }
+    return false;
+  };
 
-  // 2. Bắt lỗi Promise bị reject mà không có .catch() (Unhandled Rejections)
-  window.addEventListener('unhandledrejection', (event: PromiseRejectionEvent) => {
+  // 2. Gắn window.addEventListener('error') ở CAPTURING PHASE (useCapture = true)
+  // để bắt trước khi bất kỳ thư viện nào gọi stopPropagation()
+  window.addEventListener(
+    'error',
+    (event: ErrorEvent) => {
+      if (!event.message) return;
+      if (isIgnoredError(event.message, event.error?.stack, event.filename)) return;
+
+      sendDevError({
+        errorType: 'RUNTIME_ERROR',
+        message: event.message,
+        stack: event.error?.stack || '(No stack trace available)',
+        source: event.filename,
+        lineno: event.lineno,
+        colno: event.colno,
+        url: window.location.href,
+      });
+    },
+    true
+  );
+
+  // 3. Gắn window.onunhandledrejection trực tiếp
+  const prevOnRejection = window.onunhandledrejection;
+  window.onunhandledrejection = function (event: PromiseRejectionEvent) {
     const reason = event.reason;
     let message = 'Unhandled Promise Rejection';
     let stack = '';
@@ -187,20 +228,71 @@ export function initDevErrorReporter(): void {
       }
     }
 
-    if (isIgnoredError(message, stack)) {
-      return;
+    if (!isIgnoredError(message, stack)) {
+      sendDevError({
+        errorType: 'UNHANDLED_PROMISE_REJECTION',
+        message,
+        stack: stack || '(No stack trace available)',
+        url: window.location.href,
+      });
     }
 
-    sendDevError({
-      errorType: 'UNHANDLED_PROMISE_REJECTION',
-      message,
-      stack: stack || '(No stack trace available)',
-      url: window.location.href,
-    });
-  });
+    if (typeof prevOnRejection === 'function') {
+      return (prevOnRejection as any).call(window, event);
+    }
+  };
+
+  // 4. Hook console.error để bắt các lỗi render do React Fiber log ra console
+  const originalConsoleError = console.error;
+  console.error = function (...args: any[]) {
+    originalConsoleError.apply(console, args);
+
+    try {
+      const errorObj = args.find((a) => a instanceof Error);
+      const combinedMsg = args
+        .map((a) => {
+          if (typeof a === 'string') return a;
+          if (a instanceof Error) return a.message;
+          try {
+            return JSON.stringify(a);
+          } catch {
+            return String(a);
+          }
+        })
+        .join(' ');
+
+      if (combinedMsg && !isIgnoredError(combinedMsg, errorObj?.stack)) {
+        // Chỉ gửi nếu có nội dung lỗi đáng kể
+        if (
+          combinedMsg.includes('Error') ||
+          combinedMsg.includes('Uncaught') ||
+          combinedMsg.includes('exception') ||
+          combinedMsg.includes('failed') ||
+          errorObj
+        ) {
+          sendDevError({
+            errorType: 'CONSOLE_ERROR',
+            message: combinedMsg.slice(0, 500),
+            stack: errorObj?.stack || '(From console.error call)',
+            url: window.location.href,
+          });
+        }
+      }
+    } catch (_e) {}
+  };
+
+  // 5. Cung cấp hàm test nhanh trên DevTools Console: window.__triggerTestError()
+  (window as any).__triggerTestError = (msg?: string) => {
+    const errMsg = msg || 'Manual test runtime error from DevTools';
+    console.info('[DevErrorReporter] Triggering test error:', errMsg);
+    setTimeout(() => {
+      throw new Error(errMsg);
+    }, 0);
+  };
+  (window as any).__reportDevError = sendDevError;
 
   console.info(
-    '%c[DevErrorReporter]%c Global runtime error capture is active (Logs -> app_errors.log)',
+    '%c[DevErrorReporter]%c Global runtime & console error capture is active! (Logs -> app_errors.log). Test in console: window.__triggerTestError()',
     'color: #0284c7; font-weight: bold;',
     'color: inherit;'
   );

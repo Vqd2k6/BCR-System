@@ -1,4 +1,5 @@
 import axios, { AxiosError } from 'axios';
+import { sendDevError } from './devErrorReporter';
 
 export const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || '/api/v1',
@@ -25,6 +26,23 @@ api.interceptors.response.use(
     const method = error.config?.method?.toUpperCase();
     const data = error.response?.data;
     const detailMsg = data?.detail || data?.message || data?.title || error.message;
+
+    // Tự động chuyển tiếp lỗi API về dev reporter nếu trong môi trường DEV
+    if (status && status >= 400 && status !== 401) {
+      sendDevError({
+        errorType: 'API_ERROR',
+        message: `[API ${status}] ${method} ${url}: ${detailMsg}`,
+        stack: error.stack,
+        url: typeof window !== 'undefined' ? window.location.href : '',
+      });
+    } else if (!status && !error.message?.includes('canceled')) {
+      sendDevError({
+        errorType: 'API_ERROR',
+        message: `[API NETWORK ERROR] ${method} ${url}: Không thể kết nối Backend (Port 4000)`,
+        stack: error.stack,
+        url: typeof window !== 'undefined' ? window.location.href : '',
+      });
+    }
 
     if (status === 401) {
       console.warn(
