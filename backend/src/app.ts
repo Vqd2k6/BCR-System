@@ -17,6 +17,7 @@ import { AuditController } from './modules/audit/audit.controller';
 import { ExportController } from './modules/export/export.controller';
 import { StorageController } from './modules/storage/storage.controller';
 import { ReportController } from './modules/report/report.controller';
+import { DevController } from './modules/dev/dev.controller';
 import { Database } from './database/db';
 import multer from 'multer';
 
@@ -169,6 +170,12 @@ export function createApp(): express.Application {
   // ==========================================
   api.get('/reports/:id/export/pdf', ReportController.exportResidentialPdf);
   api.get('/reports/:id/preview/html', ReportController.previewResidentialHtml);
+
+  // ==========================================
+  // 6. DEV ERROR REPORTING & RUNTIME DIAGNOSTICS
+  // ==========================================
+  api.post('/dev/report-error', DevController.reportError);
+  app.post('/api/dev/report-error', DevController.reportError);
 
   // Mount API prefix
   app.use(config.apiPrefix, api);

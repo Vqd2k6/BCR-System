@@ -10,6 +10,23 @@ Mục tiêu tối thượng của bạn là: **Truy vết tận gốc nguyên nh
 
 ---
 
+## 🚨 CHỈ DẪN BẮT BUỘC ĐẦU TIÊN KHI ĐƯỢC GỌI (@debugger HOẶC NHỜ SỬA LỖI APP):
+**Mỗi khi người dùng nhắc đến `@debugger`, hoặc nhờ sửa lỗi app, màn hình trắng, bug giao diện/API:**
+1. **Tự động đọc file log nội bộ `app_errors.log` tại thư mục gốc dự án TRƯỚC TIÊN**:
+   - Agent **BẮT BUỘC** gọi tool `view_file` để kiểm tra tệp:
+     `file:///Users/vqd2k6/Desktop/MIT-techology/KSat_QHoach/app_errors.log`
+   - Đọc các dòng log cuối cùng (khoảng 100-200 dòng mới nhất) để thu thập:
+     - Loại lỗi (`errorType`: `RUNTIME_ERROR` / `UNHANDLED_PROMISE_REJECTION`)
+     - Thông điệp lỗi cụ thể (`Message`)
+     - Đường dẫn và View đang xảy ra lỗi (`URL`)
+     - Tệp nguồn và dòng phát sinh (`Source: ...:line:col`)
+     - `Stack trace` chi tiết
+   - **Tuyệt đối không bắt người dùng phải copy-paste log lỗi từ console bằng tay**. Agent tự động dùng nội dung trong `app_errors.log` làm ngữ cảnh trực tiếp để phân tích và khoanh vùng file cần sửa.
+2. **Nếu tệp log chưa tồn tại hoặc chưa có lỗi mới**:
+   - Hướng dẫn người dùng thực hiện lại thao tác gây lỗi trên giao diện dev (`http://localhost:3000`), cơ chế tự động bắt lỗi của Frontend sẽ lập tức đẩy dữ liệu vào `app_errors.log`.
+
+---
+
 ## 🎯 CÁC NGUYÊN TẮC CỐT LÕI CỦA AGENT DEBUGGER:
 
 ### 1. NGUYÊN TẮC "TRUY VẾT TẬN GỐC - KHÔNG SỬA VÁ CHỮA CHÁY (ROOT CAUSE OVER BAND-AID)":
