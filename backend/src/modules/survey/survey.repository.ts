@@ -45,15 +45,18 @@ export class SurveyRepository {
   static async findReportById(reportId: string): Promise<any | null> {
     const res = await Database.query(
       `SELECT r.*,
-              p.project_parcel_code, p.official_cadastral_code, p.house_number, p.street,
+              p.project_parcel_code, p.official_cadastral_code, p.house_number, p.street, p.ward, p.district,
               COALESCE(bu.owner_name, p.owner_name) AS owner_name,
               COALESCE(bu.owner_phone, p.owner_phone) AS owner_phone,
               bu.unit_code, bu.floor_number AS unit_floor_number,
               p.zone_id, p.building_type,
-              u.full_name AS surveyor_name
+              u.full_name AS surveyor_name,
+              u.phone AS surveyor_phone,
+              za.full_name AS zone_admin_name
        FROM base_survey_reports r
        JOIN parcels p ON r.parcel_id = p.id
        JOIN users u ON r.surveyor_id = u.id
+       LEFT JOIN users za ON r.zone_admin_id = za.id
        LEFT JOIN building_units bu ON r.unit_id = bu.id
        WHERE r.id = $1 LIMIT 1;`,
       [reportId]

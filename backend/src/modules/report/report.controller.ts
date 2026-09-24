@@ -9,12 +9,11 @@ export class ReportController {
   static async exportResidentialPdf(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const { id } = req.params;
-      const { pdfBuffer, reportCode, checksum } = await ReportService.generateResidentialPdf(id);
+      const { pdfBuffer, reportCode } = await ReportService.generateResidentialPdf(id);
 
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `inline; filename="BCS_Phase1_${reportCode}.pdf"`);
       res.setHeader('Content-Length', pdfBuffer.length);
-      res.setHeader('X-Report-Checksum-SHA256', checksum);
 
       res.status(200).send(pdfBuffer);
     } catch (err) {

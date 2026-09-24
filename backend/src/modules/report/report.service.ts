@@ -10,7 +10,7 @@ export class ReportService {
   static async generateResidentialPdf(reportId: string): Promise<{
     pdfBuffer: Buffer;
     reportCode: string;
-    checksum: string;
+    checksum?: string;
     viewModel: any;
   }> {
     const rawReport = await SurveyRepository.findReportById(reportId);
@@ -34,7 +34,6 @@ export class ReportService {
     return {
       pdfBuffer,
       reportCode: viewModel.reportCode,
-      checksum: viewModel.sha256Checksum,
       viewModel,
     };
   }

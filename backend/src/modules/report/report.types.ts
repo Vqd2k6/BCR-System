@@ -130,8 +130,9 @@ export interface ResidentialReportViewModel {
   foundationCategory: string;
   foundationCategoryLabel: string;
   foundationInfoSource: string;
-  constructionAreaM2: number;
-  estimatedHeightM: number;
+  constructionAreaM2: number | string;
+  buildingHeightM: number | string;
+  estimatedHeightM: number | string;
   yearOfConstruction: number | string;
   isYearEstimated: boolean;
   adjacentBuildingsNote: string;
@@ -233,12 +234,14 @@ export interface ResidentialReportViewModel {
   requiresPhase2: boolean;
   requiresMonitoring: boolean;
 
-  // Signatures & Integrity
+  // Signatures
   surveyorSignatureUrl?: string;
+  surveyorSignatureImg?: string;
   ownerSignatureUrl?: string;
+  ownerSignatureImg?: string;
   zoneAdminSignatureUrl?: string;
+  zoneAdminSignatureImg?: string;
+  superAdminSignatureImg?: string;
   fieldWorkMinutesPhotoUrl?: string;
-  sha256Checksum: string;
-  qrVerificationUrl: string;
   generatedAt: string;
 }

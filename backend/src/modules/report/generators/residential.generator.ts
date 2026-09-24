@@ -2,7 +2,6 @@ import * as fs from 'fs';
 import * as path from 'path';
 import Handlebars from 'handlebars';
 import { ResidentialReportViewModel, DefectItemReport, DamageZoneReport, FloorSurveyReport, BcsChecklistItem, ReportPhotoItem } from '../report.types';
-import { CryptoUtils } from '../../../common/utils/crypto.utils';
 
 export class ResidentialReportGenerator {
   /**
@@ -259,34 +258,49 @@ export class ResidentialReportGenerator {
       braMandatoryAction = 'Đánh giá chuyên sâu bởi Structural Engineer; thiết kế biện pháp gia cường móng/chống đỡ trước khi TBM đi qua.';
     }
 
-    // Tính mã băm SHA-256 xác thực bất biến
-    const hashPayload = `${reportData.id}-${reportData.report_code}-${reportData.survey_date}-${riskScores.total_ecs_score}-${braValue}`;
-    const sha256Checksum = CryptoUtils.sha256(hashPayload);
+    // Quy ước Survey ID theo 4 số cuối SĐT của Surveyor: P-XXXX
+    const surveyorPhone = reportData.surveyor_phone || '';
+    const cleanPhone = surveyorPhone.replace(/\D/g, '');
+    const surveyId = cleanPhone.length >= 4 ? `P-${cleanPhone.slice(-4)}` : (reportData.surveyor_code || 'P-0000');
+
+    // Địa chỉ thực tế lấy từ khảo sát Phase 1
+    const addressParts = [
+      reportData.house_number,
+      reportData.street,
+      reportData.ward ? `Phường ${reportData.ward}` : '',
+      reportData.district ? `Quận ${reportData.district}` : '',
+    ].filter(Boolean);
+    const address = addressParts.length > 0 ? addressParts.join(', ') : (reportData.address || '');
+
+    // Revision gắn chết với lô đất (00, 01, 02...)
+    const revision = reportData.export_revision !== undefined && reportData.export_revision !== null
+      ? String(reportData.export_revision).padStart(2, '0')
+      : '00';
 
     return {
       projectName: 'DỰ ÁN XÂY DỰNG TUYẾN ĐƯỜNG SẮT ĐÔ THỊ SỐ 2 TP. HỒ CHÍ MINH (BẾN THÀNH – THAM LƯƠNG)',
       metroLineName: 'Tuyến Metro Số 2 (Bến Thành – Tham Lương)',
       reportCode: reportData.report_code || 'BCS-P1-CRLG-001',
       buildingId: reportData.project_parcel_code || 'B-00000',
-      surveyId: `SRV-${reportData.project_parcel_code || '0000'}`,
-      address: `${reportData.house_number || ''} ${reportData.street || ''}, Phường ${reportData.ward || ''}, Quận ${reportData.district || ''}`.trim(),
+      surveyId,
+      address,
       houseNumber: reportData.house_number || '',
       street: reportData.street || '',
       ward: reportData.ward || '',
       district: reportData.district || '',
       zoneId: reportData.zone_id || 'ZONE_S9',
       zoneName: `Khu vực Ga ${reportData.zone_id || 'S9'}`,
-      chainage: 'Km 9+450',
-      distanceToTunnelMeters: 18.5,
-      metroItemType: 'Đào hầm bằng khiên đào TBM ngầm',
-      surveyDate: reportData.survey_date ? new Date(reportData.survey_date).toLocaleDateString('vi-VN') : new Date().toLocaleDateString('vi-VN'),
-      revision: '00',
+      chainage: reportData.chainage || 'Km 9+450',
+      distanceToTunnelMeters: reportData.distance_to_tunnel_meters ? Number(reportData.distance_to_tunnel_meters) : 18.5,
+      metroItemType: reportData.metro_item_type || 'Đào hầm bằng khiên đào TBM ngầm',
+      surveyDate: reportData.survey_date ? new Date(reportData.survey_date).toLocaleDateString('vi-VN') : '',
+      revision,
       preparedByName: reportData.surveyor_name || 'Khảo sát viên Hiện trường',
-      preparedByTitle: 'Kỹ sư Khảo sát Hiện trạng',
-      checkedByName: 'Nguyễn Văn Kiểm',
-      checkedByTitle: 'Kỹ sư Thẩm tra Kết cấu',
-      approvedByName: 'Zone Admin Metro 2',
-      approvedByTitle: 'Chuyên gia Phê duyệt Liên danh CRLG',
+      preparedByTitle: 'Khảo sát viên Hiện trường (Prepared by)',
+      checkedByName: reportData.zone_admin_name || 'Zone Admin',
+      checkedByTitle: 'Kỹ sư Giám sát Zone Admin (Checked by)',
+      approvedByName: reportData.super_admin_name || 'Super Admin',
+      approvedByTitle: 'Chuyên gia Phê duyệt Super Admin (Approved by)',
       facadeCoverPhotoUrl: p02.url,
 
       // Dashboard
@@ -300,54 +314,55 @@ export class ResidentialReportGenerator {
       impactBadgeClass: 'badge-medium',
       buildingRiskAssessmentBra: braValue,
       braBadgeClass: getBraBadge(braValue),
-      predictedSettlementSmax: 12.5,
-      angularDistortion: '1/850',
-      vibrationPpv: 2.1,
+      predictedSettlementSmax: reportData.predicted_settlement_smax ? Number(reportData.predicted_settlement_smax) : 0,
+      angularDistortion: reportData.angular_distortion || '',
+      vibrationPpv: reportData.vibration_ppv ? Number(reportData.vibration_ppv) : 0,
 
       // Building specs
-      buildingName: specs.building_name || `Nhà ở riêng lẻ ${reportData.house_number || ''} ${reportData.street || ''}`,
-      ownerName: reportData.owner_name || 'Chủ sở hữu công trình',
+      buildingName: specs.building_name || '',
+      ownerName: reportData.owner_name || '',
       ownerPhone: reportData.owner_phone || '',
-      landUseFunction: 'Nhà ở riêng lẻ / Nhà phố dân cư',
+      landUseFunction: specs.land_use_function || 'Nhà ở riêng lẻ',
       floorCount: Number(specs.floor_count || reportData.floor_count || 1),
       basementCount: Number(specs.basement_count || 0),
       structuralSystem: specs.structural_system || 'KHUNG_BTCT_CHIU_LUC',
-      structuralSystemLabel: structuralSystemLabels[specs.structural_system] || 'Khung BTCT chịu lực',
-      foundationCategory: specs.foundation_category || 'CAT_2_MONG_DON_BTCT',
-      foundationCategoryLabel: foundationLabels[specs.foundation_category] || 'CAT 2: Móng đơn BTCT',
-      foundationInfoSource: 'Quan sát hiện trường & Lời khai chủ hộ',
-      constructionAreaM2: Number(reportData.construction_area_m2 || 85.0),
-      estimatedHeightM: Number(specs.floor_count || 1) * 3.6,
-      yearOfConstruction: specs.year_of_construction || '2012',
+      structuralSystemLabel: structuralSystemLabels[specs.structural_system] || '',
+      foundationCategory: specs.foundation_category || '',
+      foundationCategoryLabel: foundationLabels[specs.foundation_category] || '',
+      foundationInfoSource: specs.foundation_source || '',
+      constructionAreaM2: specs.construction_area_m2 ? Number(specs.construction_area_m2) : '',
+      buildingHeightM: specs.building_height_m ? Number(specs.building_height_m) : '',
+      estimatedHeightM: specs.building_height_m ? Number(specs.building_height_m) : '',
+      yearOfConstruction: specs.year_of_construction || '',
       isYearEstimated: Boolean(specs.is_year_estimated),
-      adjacentBuildingsNote: specs.adjacent_buildings || 'Tiếp giáp nhà phố liền kề 3 tầng bên trái, hẻm bê tông bên phải.',
+      adjacentBuildingsNote: specs.adjacent_buildings || '',
 
-      // History & Notes phát sinh
+      // History & Notes phát sinh (Nếu không có thì để trống)
       extendedOrRenovated: Boolean(history.extended_or_renovated),
-      extendedOrRenovatedNotes: history.extended_or_renovated ? 'Có lịch sử cơi nới thêm mái tôn và nâng cấp mặt tiền phía trước.' : '',
+      extendedOrRenovatedNotes: history.extended_or_renovated ? (history.details || '') : '',
       previousSettlementOrTilt: Boolean(history.previous_settlement_or_tilt),
-      previousSettlementNotes: history.previous_settlement_or_tilt ? 'Chủ nhà phản ánh có vết nứt chân chim xuất hiện từ năm 2018.' : '',
+      previousSettlementNotes: history.previous_settlement_or_tilt ? (history.details || '') : '',
       fireOrAccident: Boolean(history.fire_or_accident),
-      fireOrAccidentNotes: '',
+      fireOrAccidentNotes: history.fire_or_accident ? (history.details || '') : '',
       sensitiveEquipmentPresent: Boolean(history.sensitive_equipment_present),
-      sensitiveEquipmentNotes: '',
+      sensitiveEquipmentNotes: history.sensitive_equipment_present ? (history.details || '') : '',
       historyDetailsNote: history.details || '',
 
       // Scope Access
       scopeAccess: {
         facadeStatus: 'ĐÃ TIẾP CẬN',
-        facadeNote: 'Quan sát và chụp ảnh toàn bộ mặt đứng P-01 đến P-04',
+        facadeNote: '',
         groundFloorStatus: 'ĐÃ TIẾP CẬN',
-        groundFloorNote: 'Khảo sát đầy đủ phòng khách, bếp và khu vệ sinh',
+        groundFloorNote: '',
         upperFloorsStatus: 'ĐÃ TIẾP CẬN',
-        upperFloorsNote: 'Khảo sát toàn bộ các phòng ngủ và hành lang cầu thang',
+        upperFloorsNote: '',
         roofStatus: 'TIẾP CẬN 1 PHẦN',
-        roofNote: 'Chỉ quan sát được mép mái phía trước do sân sau khóa cửa',
+        roofNote: '',
         basementStatus: 'KHÔNG ÁP DỤNG',
-        basementNote: 'Công trình không xây dựng tầng hầm',
+        basementNote: '',
         auxiliaryStatus: 'ĐÃ TIẾP CẬN',
-        auxiliaryNote: 'Khu giếng trời và sân phơi phụ trợ',
-        inaccessibleAreasReason: '',
+        auxiliaryNote: '',
+        inaccessibleAreasReason: reportData.inaccessible_areas_reason || '',
       },
 
       p01,
@@ -363,67 +378,69 @@ export class ResidentialReportGenerator {
       // Deformation
       tiltAngleX: Number(deformation.tilt_angle_x || 0.0),
       tiltAngleY: Number(deformation.tilt_angle_y || 0.0),
-      tiltDirection: deformation.tilt_direction || 'Thẳng đứng, không nghiêng lệch rõ rệt',
+      tiltDirection: deformation.tilt_direction || '',
       floorSlopeRatio: Number(deformation.floor_slope_ratio || 0.0),
       beamDeflectionMm: Number(deformation.beam_deflection_mm || 0.0),
-      measurementMethod: deformation.measurement_method || 'Máy cân bằng Laser & Thước đo kỹ thuật số',
-      measurementReliability: deformation.measurement_reliability || 'Độ tin cậy cao',
+      measurementMethod: deformation.measurement_method || '',
+      measurementReliability: deformation.measurement_reliability || '',
       requiresAdditionalMonitoring: Boolean(deformation.beam_deflection_mm > 5.0 || deformation.tilt_angle_x > 2.0),
-      deformationEngineerComments: 'Độ nghiêng công trình nằm trong giới hạn cho phép theo tiêu chuẩn TCVN 9381:2012. Không ghi nhận chuyển dịch nghiêng nguy hiểm.',
+      deformationEngineerComments: deformation.engineer_comments || deformation.tilt_evolution_verdict || '',
 
       // Burland 1977
-      burlandPredominantGrade: Number(riskScores.e1_burland_score || 1),
-      burlandPredominantLabel: burlandLabels[Number(riskScores.e1_burland_score || 1)] || 'Grade 1',
-      burlandLocalMaxGrade: Number(riskScores.e1_burland_score || 1),
-      burlandLocalMaxLabel: burlandLabels[Number(riskScores.e1_burland_score || 1)] || 'Grade 1',
-      structuralDefectFlag: totalDefectsCount > 0 ? 'Nứt phi kết cấu khối xây (Non-structural masonry cracks)' : 'Không có khuyết tật kết cấu',
+      burlandPredominantGrade: Number(riskScores.e1_burland_score || 0),
+      burlandPredominantLabel: burlandLabels[Number(riskScores.e1_burland_score || 0)] || 'Grade 0',
+      burlandLocalMaxGrade: Number(riskScores.e1_burland_score || 0),
+      burlandLocalMaxLabel: burlandLabels[Number(riskScores.e1_burland_score || 0)] || 'Grade 0',
+      structuralDefectFlag: totalDefectsCount > 0 ? 'Nứt phi kết cấu khối xây' : 'Không có khuyết tật kết cấu',
       requiresStructuralReview: false,
 
       // ECS
-      ecsE1: Number(riskScores.e1_burland_score || 1),
+      ecsE1: Number(riskScores.e1_burland_score || 0),
       ecsE2: Number(riskScores.e2_structure_score || 0),
       ecsE3: Number(riskScores.e3_deformation_score || 0),
       ecsE4: Number(riskScores.e4_material_score || 0),
       ecsE5: Number(riskScores.e5_history_score || 0),
-      ecsE6: Number(riskScores.e6_overall_function_score || 1),
+      ecsE6: Number(riskScores.e6_overall_function_score || 0),
       ecsJudgementApplied: Boolean(riskScores.is_engineering_judgement_applied),
       ecsJudgementAction: riskScores.engineering_judgement_action || 'KEEP',
-      ecsJudgementReason: riskScores.engineering_judgement_reason || 'Giữ nguyên điểm đánh giá tự động dựa trên số liệu khảo sát hiện trường chuẩn mực.',
+      ecsJudgementReason: riskScores.engineering_judgement_reason || '',
       qualityGates: [
-        { code: 'QG-01', title: 'Thông tin móng công trình', status: 'PASSED', notes: 'Đã xác định loại móng qua khảo sát hiện trường' },
-        { code: 'QG-02', title: 'Ảnh định danh P-01 đến P-04', status: 'PASSED', notes: 'Đủ 4 ảnh ngoại thất có tọa độ GPS' },
-        { code: 'QG-03', title: 'Sổ khuyết tật và ảnh có thước đo', status: 'PASSED', notes: 'Toàn bộ vết nứt đều có thước crack gauge' },
-        { code: 'QG-04', title: 'Đo đạc độ nghiêng và võng dầm', status: 'PASSED', notes: 'Số liệu đo laser level đầy đủ' },
+        { code: 'QG-01', title: 'Thông tin móng công trình', status: 'PASSED', notes: '' },
+        { code: 'QG-02', title: 'Ảnh định danh P-01 đến P-04', status: 'PASSED', notes: '' },
+        { code: 'QG-03', title: 'Sổ khuyết tật và ảnh có thước đo', status: 'PASSED', notes: '' },
+        { code: 'QG-04', title: 'Đo đạc độ nghiêng và võng dầm', status: 'PASSED', notes: '' },
       ],
 
       // VI
       viV1: Number(riskScores.v1_importance_score || 1.0),
-      viV2: Number(riskScores.v2_structure_score || 1.5),
-      viV3: Number(riskScores.v3_foundation_score || 2.0),
-      viV4: Number(riskScores.v4_age_score || 1.2),
+      viV2: Number(riskScores.v2_structure_score || 1.0),
+      viV3: Number(riskScores.v3_foundation_score || 1.0),
+      viV4: Number(riskScores.v4_age_score || 1.0),
       viV5: Number(riskScores.v5_ecs_score || 1.0),
       viV6: Number(riskScores.v6_sensitivity_score || 1.0),
-      viJudgementReason: 'Chỉ số VI phản ánh mức độ nhạy cảm trung bình của kết cấu nhà phố thấp tầng trong vùng lân cận tuyến hầm Metro.',
+      viJudgementReason: '',
 
       // Metro & BRA
       braMatrixCell: `V=${riskScores.vi_class || 'LOW'} × I=${riskScores.construction_impact_level_i || 2}`,
       braMandatoryAction,
-      braEngineeringReviewNotes: 'Công trình nằm trong vùng chịu ảnh hưởng gián tiếp từ công tác đào hầm TBM. Đề xuất đưa vào danh sách quan trắc mốc lún định kỳ trước và trong giai đoạn máy TBM đi qua.',
+      braEngineeringReviewNotes: reportData.bra_engineering_review_notes || '',
 
-      // Conclusions & Recommendations
-      summaryConclusions: reportData.summary_conclusions || 'Công trình hiện trạng có kết cấu chịu lực ổn định, xuất hiện một số vết nứt chân chim nhẹ tại lớp trát tường ngăn nội thất (Cấp Burland 1-2). Chưa phát hiện dấu hiệu lún nứt kết cấu dầm cột nguy hiểm.',
-      engineeringRecommendations: reportData.engineering_recommendations || 'Tiếp tục theo dõi hiện trạng. Thiết lập mốc quan trắc lún trước khi khởi công khoan ngầm TBM đoạn qua thửa đất. Đề xuất khảo sát Phase 2 đối chứng sau khi hoàn thành thông hầm.',
-      ownerRemarks: reportData.owner_remarks || 'Chủ nhà đã cùng đi kiểm tra thực tế toàn bộ các tầng với kỹ sư khảo sát, thống nhất với các vết nứt được chụp ảnh và ký tên vào biên bản làm việc.',
+      // Conclusions & Recommendations (Lấy từ Phase 1, nếu không có thì để trống)
+      summaryConclusions: reportData.summary_conclusions || '',
+      engineeringRecommendations: reportData.engineering_recommendations || '',
+      ownerRemarks: reportData.owner_remarks || '',
       requiresPhase2: true,
       requiresMonitoring: true,
 
-      // Signatures
+      // Signatures (Lấy ảnh chữ ký thật từ user attribute)
       surveyorSignatureUrl: reportData.surveyor_signature_url,
+      surveyorSignatureImg: reportData.surveyor_signature_img || reportData.surveyor_signature_url || '',
       ownerSignatureUrl: reportData.owner_signature_url,
+      ownerSignatureImg: reportData.owner_signature_url || '',
       zoneAdminSignatureUrl: reportData.zone_admin_signature_url,
-      fieldWorkMinutesPhotoUrl: reportData.official_pdf_url || reportData.surveyor_signature_url || '',
-      sha256Checksum,
-      qrVerificationUrl: `https://metro2.hcmc.gov.vn/verify-report/${reportData.report_code || '001'}`,
+      zoneAdminSignatureImg: reportData.zone_admin_signature_img || reportData.zone_admin_signature_url || '',
+      superAdminSignatureImg: reportData.super_admin_signature_img || '',
+      fieldWorkMinutesPhotoUrl: reportData.official_pdf_url || '',
       generatedAt: new Date().toLocaleString('vi-VN'),
     };
   }
@@ -432,7 +449,10 @@ export class ResidentialReportGenerator {
    * Tạo chuỗi HTML hoàn chỉnh từ ViewModel và Template Handlebars
    */
   static generateHtml(viewModel: ResidentialReportViewModel): string {
-    const templateDir = path.resolve(__dirname, '../templates/residential');
+    let templateDir = path.resolve(__dirname, '../templates/residential');
+    if (!fs.existsSync(templateDir)) {
+      templateDir = path.resolve(process.cwd(), 'src/modules/report/templates/residential');
+    }
     const templatePath = path.join(templateDir, 'index.hbs');
     const stylesPath = path.join(templateDir, 'styles.css');
 

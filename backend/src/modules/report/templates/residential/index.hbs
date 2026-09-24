@@ -136,6 +136,44 @@
     </tbody>
   </table>
 
+  <!-- BẢNG CHỮ KÝ KIỂM SOÁT TÀI LIỆU -->
+  <table class="tech-table" style="margin-top: 6px;">
+    <thead>
+      <tr>
+        <th style="width: 25%;">Vai trò kiểm soát</th>
+        <th style="width: 32%;">Họ và tên</th>
+        <th style="width: 25%; text-align: center;">Chữ ký</th>
+        <th style="width: 18%; text-align: center;">Ngày</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Prepared by / Người lập</strong></td>
+        <td>{{preparedByName}}</td>
+        <td class="text-center">
+          {{#if surveyorSignatureImg}}<img src="{{surveyorSignatureImg}}" style="height: 35px; max-width: 90%; object-fit: contain;">{{else}}--{{/if}}
+        </td>
+        <td class="text-center">{{surveyDate}}</td>
+      </tr>
+      <tr>
+        <td><strong>Checked by / Kiểm tra</strong></td>
+        <td>{{checkedByName}}</td>
+        <td class="text-center">
+          {{#if zoneAdminSignatureImg}}<img src="{{zoneAdminSignatureImg}}" style="height: 35px; max-width: 90%; object-fit: contain;">{{else}}--{{/if}}
+        </td>
+        <td class="text-center">{{surveyDate}}</td>
+      </tr>
+      <tr>
+        <td><strong>Approved by / Phê duyệt</strong></td>
+        <td>{{approvedByName}}</td>
+        <td class="text-center">
+          {{#if superAdminSignatureImg}}<img src="{{superAdminSignatureImg}}" style="height: 35px; max-width: 90%; object-fit: contain;">{{else}}--{{/if}}
+        </td>
+        <td class="text-center">{{surveyDate}}</td>
+      </tr>
+    </tbody>
+  </table>
+
   <div class="note-box">
     <div class="note-title">📌 Ghi chú pháp lý tài liệu:</div>
     Báo cáo Phase 1 là hồ sơ kỹ thuật khảo sát và sàng lọc rủi ro ban đầu. Hồ sơ pháp lý xác nhận hiện trạng trước thi công được lưu trữ trong Cơ sở dữ liệu Dự án Metro 2 và làm căn cứ pháp lý đối soát giải quyết bồi hoàn/khiếu nại nếu có phát sinh ảnh hưởng lún nứt trong quá trình thi công đào hầm TBM.
@@ -302,10 +340,10 @@
       <td>{{foundationCategory}} (Nguồn: {{foundationInfoSource}})</td>
     </tr>
     <tr>
-      <th>Diện tích xây dựng</th>
-      <td>{{constructionAreaM2}} m²</td>
-      <th>Chiều cao ước tính</th>
-      <td>{{estimatedHeightM}} m</td>
+      <th>Diện tích sàn xây dựng</th>
+      <td>{{#if constructionAreaM2}}{{constructionAreaM2}} m²{{else}}--{{/if}}</td>
+      <th>Chiều cao công trình</th>
+      <td>{{#if buildingHeightM}}{{buildingHeightM}} m{{else}}--{{/if}}</td>
     </tr>
     <tr>
       <th>Công trình tiếp giáp lân cận</th>
@@ -327,22 +365,22 @@
       <tr>
         <td class="font-bold">Cơi nới / Thay đổi tải trọng / Nâng tầng</td>
         <td class="text-center">{{#if extendedOrRenovated}}<span style="color: #c2410c; font-weight: bold;">CÓ</span>{{else}}KHÔNG{{/if}}</td>
-        <td>{{#if extendedOrRenovatedNotes}}{{extendedOrRenovatedNotes}}{{else}}Không có cơi nới hoặc thay đổi kết cấu lớn.{{/if}}</td>
+        <td>{{#if extendedOrRenovatedNotes}}{{extendedOrRenovatedNotes}}{{else}}--{{/if}}</td>
       </tr>
       <tr>
         <td class="font-bold">Lịch sử lún / nghiêng / nứt trước đây</td>
         <td class="text-center">{{#if previousSettlementOrTilt}}<span style="color: #c2410c; font-weight: bold;">CÓ</span>{{else}}KHÔNG{{/if}}</td>
-        <td>{{#if previousSettlementNotes}}{{previousSettlementNotes}}{{else}}Chủ nhà không ghi nhận hiện tượng lún nghiêng bất thường trước đây.{{/if}}</td>
+        <td>{{#if previousSettlementNotes}}{{previousSettlementNotes}}{{else}}--{{/if}}</td>
       </tr>
       <tr>
         <td class="font-bold">Sự cố hỏa hoạn / ngập lụt / va chạm xe</td>
         <td class="text-center">{{#if fireOrAccident}}<span style="color: #c2410c; font-weight: bold;">CÓ</span>{{else}}KHÔNG{{/if}}</td>
-        <td>{{#if fireOrAccidentNotes}}{{fireOrAccidentNotes}}{{else}}Không có tiền sử hỏa hoạn hoặc ngập lụt ảnh hưởng móng.{{/if}}</td>
+        <td>{{#if fireOrAccidentNotes}}{{fireOrAccidentNotes}}{{else}}--{{/if}}</td>
       </tr>
       <tr>
         <td class="font-bold">Thiết bị / Hoạt động nhạy cảm rung động</td>
         <td class="text-center">{{#if sensitiveEquipmentPresent}}<span style="color: #c2410c; font-weight: bold;">CÓ</span>{{else}}KHÔNG{{/if}}</td>
-        <td>{{#if sensitiveEquipmentNotes}}{{sensitiveEquipmentNotes}}{{else}}Không có thiết bị y tế hoặc phòng thí nghiệm đặc biệt nhạy cảm.{{/if}}</td>
+        <td>{{#if sensitiveEquipmentNotes}}{{sensitiveEquipmentNotes}}{{else}}--{{/if}}</td>
       </tr>
     </tbody>
   </table>
@@ -973,7 +1011,7 @@
   <div class="note-box" style="background-color: #f0fdf4; border-left-color: #16a34a;">
     <div class="note-title">🗣️ Ý kiến, yêu cầu và ghi chú bảo lưu của Chủ sở hữu / Người sử dụng:</div>
     <div style="font-style: italic; color: #166534; font-size: 9pt;">
-      {{#if ownerRemarks}}"{{ownerRemarks}}"{{else}}"Chủ nhà thống nhất với toàn bộ số liệu và hình ảnh khuyết tật do đoàn khảo sát ghi nhận tại hiện trường, không có khiếu nại hoặc bổ sung thêm."{{/if}}
+      {{#if ownerRemarks}}"{{ownerRemarks}}"{{else}}--{{/if}}
     </div>
   </div>
 
@@ -998,10 +1036,10 @@
     <div class="sig-box">
       <div class="sig-role">KHẢO SÁT VIÊN HIỆN TRƯỜNG</div>
       <div>
-        {{#if surveyorSignatureUrl}}
-          <img src="{{surveyorSignatureUrl}}" alt="Chữ ký khảo sát viên" class="sig-img">
+        {{#if surveyorSignatureImg}}
+          <img src="{{surveyorSignatureImg}}" alt="Chữ ký khảo sát viên" class="sig-img">
         {{else}}
-          <div style="height: 50px; line-height: 50px; color: #94a3b8; font-size: 8pt;">(Đã ký xác nhận)</div>
+          <div style="height: 50px; line-height: 50px; color: #94a3b8; font-size: 8pt;">(Đã ký)</div>
         {{/if}}
       </div>
       <div>
@@ -1013,8 +1051,8 @@
     <div class="sig-box">
       <div class="sig-role">CHỦ SỞ HỮU / ĐẠI DIỆN CÔNG TRÌNH</div>
       <div>
-        {{#if ownerSignatureUrl}}
-          <img src="{{ownerSignatureUrl}}" alt="Chữ ký chủ nhà" class="sig-img">
+        {{#if ownerSignatureImg}}
+          <img src="{{ownerSignatureImg}}" alt="Chữ ký chủ nhà" class="sig-img">
         {{else}}
           <div style="height: 50px; line-height: 50px; color: #94a3b8; font-size: 8pt;">(Đã ký xác nhận)</div>
         {{/if}}
@@ -1028,32 +1066,21 @@
     <div class="sig-box">
       <div class="sig-role">GIÁM SÁT / PHÊ DUYỆT (ZONE ADMIN)</div>
       <div>
-        {{#if zoneAdminSignatureUrl}}
-          <img src="{{zoneAdminSignatureUrl}}" alt="Chữ ký Zone Admin" class="sig-img">
+        {{#if zoneAdminSignatureImg}}
+          <img src="{{zoneAdminSignatureImg}}" alt="Chữ ký Zone Admin" class="sig-img">
         {{else}}
-          <div style="height: 50px; line-height: 50px; color: #94a3b8; font-size: 8pt;">(Đã ký số)</div>
+          <div style="height: 50px; line-height: 50px; color: #94a3b8; font-size: 8pt;">(Đã ký)</div>
         {{/if}}
       </div>
       <div>
-        <div class="sig-name">{{approvedByName}}</div>
+        <div class="sig-name">{{checkedByName}}</div>
         <div class="sig-date">Ngày: {{surveyDate}}</div>
       </div>
     </div>
   </div>
 
-  <!-- MÃ TRA CỨU QR & BẢO MẬT CHECKSUM SHA-256 -->
-  <div style="margin-top: 20px; border-top: 0.5pt solid #cbd5e1; padding-top: 10px; display: flex; justify-content: space-between; align-items: center; font-size: 7.5pt; color: #64748b;">
-    <div>
-      <div><strong>Mã băm toàn vẹn hồ sơ (SHA-256 Checksum):</strong></div>
-      <div style="font-family: monospace; color: #0f172a; word-break: break-all;">{{sha256Checksum}}</div>
-      <div style="margin-top: 2px;">Thời điểm xuất báo cáo: {{generatedAt}} | Hệ thống Quản lý Khảo sát Metro 2 TP.HCM</div>
-    </div>
-    <div style="text-align: center; margin-left: 15px;">
-      <div style="border: 0.5pt solid #94a3b8; padding: 2px; background: #fff; width: 64px; height: 64px; display: flex; align-items: center; justify-content: center; font-size: 7pt; color: #0f3b6c; font-weight: bold;">
-        [ QR TRA CỨU ]
-      </div>
-      <div style="font-size: 6.5pt; color: #475569; margin-top: 1px;">Tra cứu hồ sơ</div>
-    </div>
+  <div style="margin-top: 25px; border-top: 0.5pt solid #cbd5e1; padding-top: 8px; font-size: 8pt; color: #64748b; text-align: center;">
+    Thời điểm xuất báo cáo: {{generatedAt}} | Hệ thống Khảo sát & Đánh giá Hiện trạng Tuyến Metro Số 2 TP.HCM
   </div>
 
 </body>
