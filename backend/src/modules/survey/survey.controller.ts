@@ -11,7 +11,10 @@ import {
   CreatePhase2ReportDto,
   VerifyPhase2DefectDto,
   SubmitPhase2ReportDto,
+  normalizeStructuralSystem,
+  normalizeFoundationCategory,
 } from './survey.dto';
+import { Database } from '../../database/db';
 import { BadRequestError } from '../../common/errors/problem-details';
 
 export class SurveyController {
@@ -194,12 +197,32 @@ export class SurveyController {
       }
       const surveyorId = req.user!.userId;
       
-      // 1. Khởi tạo report nếu chưa có
+      // 1. Chuẩn hóa unitId để tránh lỗi UUID invalid (ví dụ: 'u-204')
+      let cleanUnitId: string | null = null;
+      if (unitId && typeof unitId === 'string' && unitId.trim()) {
+        const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        if (uuidRegex.test(unitId)) {
+          cleanUnitId = unitId;
+        } else {
+          // Tra cứu trong database theo mã căn hộ (unit_code)
+          const candidateCode = unitId.replace(/^u-/, 'P.');
+          const rawCode = unitId.replace(/^u-/, '');
+          const unitRow = await Database.query<{ id: string }>(
+            `SELECT id FROM building_units WHERE parcel_id = $1 AND (unit_code = $2 OR unit_code = $3 OR unit_code ILIKE '%' || $3 || '%') LIMIT 1;`,
+            [parcelId, candidateCode, rawCode]
+          );
+          if (unitRow.rows[0]) {
+            cleanUnitId = unitRow.rows[0].id;
+          }
+        }
+      }
+
+      // Khởi tạo report nếu chưa có
       const initResult = await SurveyService.createPhase1Report(
         parcelId,
         surveyorId,
-        unitId,
-        unitId ? 'UNIT_CHILD' : 'STANDALONE'
+        cleanUnitId || undefined,
+        cleanUnitId ? 'UNIT_CHILD' : 'STANDALONE'
       );
       const reportId = initResult.reportId;
 
@@ -220,19 +243,22 @@ export class SurveyController {
         await SurveyService.saveIdentificationPhotos(reportId, step1Photos);
       }
 
-      const specs = surveyData?.specs || {
-        buildingName: surveyData?.buildingName,
-        landUseFunction: surveyData?.usageFunction,
-        floorCount: surveyData?.aboveFloors !== '' && surveyData?.aboveFloors !== undefined ? Number(surveyData.aboveFloors) : 1,
-        basementCount: surveyData?.undergroundFloors !== '' && surveyData?.undergroundFloors !== undefined ? Number(surveyData.undergroundFloors) : 0,
-        constructionAreaM2: surveyData?.constructionAreaM2 !== '' && surveyData?.constructionAreaM2 !== undefined ? Number(surveyData.constructionAreaM2) : null,
-        buildingHeightM: surveyData?.buildingHeightM !== '' && surveyData?.buildingHeightM !== undefined ? Number(surveyData.buildingHeightM) : null,
-        yearOfConstruction: surveyData?.constructionYear !== '' && surveyData?.constructionYear !== undefined ? Number(surveyData.constructionYear) : null,
-        isYearEstimated: Boolean(surveyData?.isEstimatedYear),
-        structuralSystem: surveyData?.structureSystem || 'KHUNG_BTCT_CHIU_LUC',
-        foundationCategory: surveyData?.foundationType || 'CAT_2_MONG_DON_BTCT',
-        foundationSource: surveyData?.foundationSource || 'Bản vẽ hoàn công',
-        adjacentBuildings: surveyData?.adjacentBuildings ? JSON.stringify(surveyData.adjacentBuildings) : null,
+      const rawStructure = surveyData?.specs?.structuralSystem || surveyData?.structureSystem || surveyData?.specs?.structureSystem;
+      const rawFoundation = surveyData?.specs?.foundationCategory || surveyData?.foundationType || surveyData?.specs?.foundationType;
+
+      const specs = {
+        buildingName: surveyData?.specs?.buildingName || surveyData?.buildingName,
+        landUseFunction: surveyData?.specs?.landUseFunction || surveyData?.usageFunction,
+        floorCount: Number(surveyData?.specs?.floorCount ?? (surveyData?.aboveFloors !== '' && surveyData?.aboveFloors !== undefined ? surveyData.aboveFloors : 1)),
+        basementCount: Number(surveyData?.specs?.basementCount ?? (surveyData?.undergroundFloors !== '' && surveyData?.undergroundFloors !== undefined ? surveyData.undergroundFloors : 0)),
+        constructionAreaM2: surveyData?.specs?.constructionAreaM2 ?? (surveyData?.constructionAreaM2 !== '' && surveyData?.constructionAreaM2 !== undefined ? Number(surveyData.constructionAreaM2) : null),
+        buildingHeightM: surveyData?.specs?.buildingHeightM ?? (surveyData?.buildingHeightM !== '' && surveyData?.buildingHeightM !== undefined ? Number(surveyData.buildingHeightM) : null),
+        yearOfConstruction: surveyData?.specs?.yearOfConstruction ?? (surveyData?.constructionYear !== '' && surveyData?.constructionYear !== undefined ? Number(surveyData.constructionYear) : null),
+        isYearEstimated: Boolean(surveyData?.specs?.isYearEstimated ?? surveyData?.isEstimatedYear),
+        structuralSystem: normalizeStructuralSystem(rawStructure),
+        foundationCategory: normalizeFoundationCategory(rawFoundation),
+        foundationSource: surveyData?.specs?.foundationSource || surveyData?.foundationSource || 'Bản vẽ hoàn công',
+        adjacentBuildings: surveyData?.specs?.adjacentBuildings || (surveyData?.adjacentBuildings ? JSON.stringify(surveyData.adjacentBuildings) : null),
       };
       if (specs.floorCount || specs.structuralSystem || surveyData?.specs) {
         await SurveyService.saveBuildingSpecs(reportId, specs);

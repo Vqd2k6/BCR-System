@@ -1084,8 +1084,9 @@ export const CadastralGISBoundaryEditor: React.FC<Props> = ({
                 />
               ) : (
                 <TileLayer
-                  attribution="OpenStreetMap"
-                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                  attribution="&copy; OpenStreetMap contributors &copy; CARTO"
+                  url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+                  subdomains="abcd"
                   maxNativeZoom={19}
                   maxZoom={22}
                 />
@@ -1465,8 +1466,9 @@ export const CadastralGISBoundaryEditor: React.FC<Props> = ({
                 />
               ) : (
                 <TileLayer
-                  attribution="OpenStreetMap"
-                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                  attribution="&copy; OpenStreetMap contributors &copy; CARTO"
+                  url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+                  subdomains="abcd"
                   maxNativeZoom={19}
                   maxZoom={22}
                 />
@@ -1896,8 +1898,9 @@ export const CadastralGISBoundaryEditor: React.FC<Props> = ({
               <ZoomControl position="bottomright" />
 
               <TileLayer
-                attribution="OpenStreetMap"
-                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                attribution="&copy; OpenStreetMap contributors &copy; CARTO"
+                url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+                subdomains="abcd"
                 maxNativeZoom={19}
                 maxZoom={22}
               />

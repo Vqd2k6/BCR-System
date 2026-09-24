@@ -96,30 +96,30 @@ export const BuildingHubModal: React.FC<Props> = ({
       } else {
         // Sample standard units across 4 floors with clear Phase 1 & Phase 2 progression
         const defaultUnits: BuildingUnit[] = [
-          { id: 'u-101', parcel_id: parcel.id, unit_code: 'P.101', floor_number: 1, owner_name: 'Nguyễn Văn An', owner_phone: '0901 234 567', status: 'APPROVED', phase1_report_id: 'rep-p1-101' },
-          { id: 'u-102', parcel_id: parcel.id, unit_code: 'P.102', floor_number: 1, owner_name: 'Trần Thị Bích', owner_phone: '0912 345 678', status: 'SUBMITTED', phase1_report_id: 'rep-p1-102' },
-          { id: 'u-103', parcel_id: parcel.id, unit_code: 'P.103', floor_number: 1, owner_name: 'Vũ Đức Thịnh', owner_phone: '0933 111 222', status: 'IN_PROGRESS' },
-          { id: 'u-104', parcel_id: parcel.id, unit_code: 'P.104', floor_number: 1, owner_name: 'Hoàng Minh Châu', owner_phone: '0977 444 555', status: 'NOT_SURVEYED' },
-          { id: 'u-201', parcel_id: parcel.id, unit_code: 'P.201', floor_number: 2, owner_name: 'Lê Hoàng Cường', owner_phone: '0988 765 432', status: 'APPROVED', phase1_report_id: 'rep-p1-201', phase2_report_id: 'rep-p2-201' },
-          { id: 'u-202', parcel_id: parcel.id, unit_code: 'P.202', floor_number: 2, owner_name: 'Phạm Ngọc Dũng', owner_phone: '0977 123 987', status: 'POSTPONED_ABSENT' },
-          { id: 'u-203', parcel_id: parcel.id, unit_code: 'P.203', floor_number: 2, owner_name: 'Đặng Mai Phương', owner_phone: '0918 888 999', status: 'IN_PROGRESS' },
-          { id: 'u-204', parcel_id: parcel.id, unit_code: 'P.204', floor_number: 2, owner_name: 'Bùi Anh Tuấn', owner_phone: '0909 333 444', status: 'NOT_SURVEYED' },
-          { id: 'u-301', parcel_id: parcel.id, unit_code: 'P.301', floor_number: 3, owner_name: 'Võ Thanh Tùng', owner_phone: '0933 555 888', status: 'APPROVED', phase1_report_id: 'rep-p1-301' },
-          { id: 'u-302', parcel_id: parcel.id, unit_code: 'P.302', floor_number: 3, owner_name: 'Ngô Hải Yến', owner_phone: '0944 666 777', status: 'SUBMITTED', phase1_report_id: 'rep-p1-302' },
-          { id: 'u-303', parcel_id: parcel.id, unit_code: 'P.303', floor_number: 3, owner_name: 'Dương Quốc Bảo', owner_phone: '0982 123 456', status: 'POSTPONED_ABSENT' },
-          { id: 'u-304', parcel_id: parcel.id, unit_code: 'P.304', floor_number: 3, owner_name: 'Lý Kim Ngân', owner_phone: '0908 999 111', status: 'NOT_SURVEYED' },
-          { id: 'u-401', parcel_id: parcel.id, unit_code: 'P.401', floor_number: 4, owner_name: 'Trịnh Gia Huy', owner_phone: '0911 222 333', status: 'NOT_SURVEYED' },
-          { id: 'u-402', parcel_id: parcel.id, unit_code: 'P.402', floor_number: 4, owner_name: 'Cao Thùy Linh', owner_phone: '0978 555 666', status: 'NOT_SURVEYED' },
+          { id: 'c0000000-0000-0000-0000-000000000101', parcel_id: parcel.id, unit_code: 'P.101', floor_number: 1, owner_name: 'Nguyễn Văn An', owner_phone: '0901 234 567', status: 'APPROVED', phase1_report_id: 'rep-p1-101' },
+          { id: 'c0000000-0000-0000-0000-000000000102', parcel_id: parcel.id, unit_code: 'P.102', floor_number: 1, owner_name: 'Trần Thị Bích', owner_phone: '0912 345 678', status: 'SUBMITTED', phase1_report_id: 'rep-p1-102' },
+          { id: 'c0000000-0000-0000-0000-000000000103', parcel_id: parcel.id, unit_code: 'P.103', floor_number: 1, owner_name: 'Vũ Đức Thịnh', owner_phone: '0933 111 222', status: 'IN_PROGRESS' },
+          { id: 'c0000000-0000-0000-0000-000000000104', parcel_id: parcel.id, unit_code: 'P.104', floor_number: 1, owner_name: 'Hoàng Minh Châu', owner_phone: '0977 444 555', status: 'NOT_SURVEYED' },
+          { id: 'c0000000-0000-0000-0000-000000000201', parcel_id: parcel.id, unit_code: 'P.201', floor_number: 2, owner_name: 'Lê Hoàng Cường', owner_phone: '0988 765 432', status: 'APPROVED', phase1_report_id: 'rep-p1-201', phase2_report_id: 'rep-p2-201' },
+          { id: 'c0000000-0000-0000-0000-000000000202', parcel_id: parcel.id, unit_code: 'P.202', floor_number: 2, owner_name: 'Phạm Ngọc Dũng', owner_phone: '0977 123 987', status: 'POSTPONED_ABSENT' },
+          { id: 'c0000000-0000-0000-0000-000000000203', parcel_id: parcel.id, unit_code: 'P.203', floor_number: 2, owner_name: 'Đặng Mai Phương', owner_phone: '0918 888 999', status: 'IN_PROGRESS' },
+          { id: 'c0000000-0000-0000-0000-000000000204', parcel_id: parcel.id, unit_code: 'P.204', floor_number: 2, owner_name: 'Bùi Anh Tuấn', owner_phone: '0909 333 444', status: 'NOT_SURVEYED' },
+          { id: 'c0000000-0000-0000-0000-000000000301', parcel_id: parcel.id, unit_code: 'P.301', floor_number: 3, owner_name: 'Võ Thanh Tùng', owner_phone: '0933 555 888', status: 'APPROVED', phase1_report_id: 'rep-p1-301' },
+          { id: 'c0000000-0000-0000-0000-000000000302', parcel_id: parcel.id, unit_code: 'P.302', floor_number: 3, owner_name: 'Ngô Hải Yến', owner_phone: '0944 666 777', status: 'SUBMITTED', phase1_report_id: 'rep-p1-302' },
+          { id: 'c0000000-0000-0000-0000-000000000303', parcel_id: parcel.id, unit_code: 'P.303', floor_number: 3, owner_name: 'Dương Quốc Bảo', owner_phone: '0982 123 456', status: 'POSTPONED_ABSENT' },
+          { id: 'c0000000-0000-0000-0000-000000000304', parcel_id: parcel.id, unit_code: 'P.304', floor_number: 3, owner_name: 'Lý Kim Ngân', owner_phone: '0908 999 111', status: 'NOT_SURVEYED' },
+          { id: 'c0000000-0000-0000-0000-000000000401', parcel_id: parcel.id, unit_code: 'P.401', floor_number: 4, owner_name: 'Trịnh Gia Huy', owner_phone: '0911 222 333', status: 'NOT_SURVEYED' },
+          { id: 'c0000000-0000-0000-0000-000000000402', parcel_id: parcel.id, unit_code: 'P.402', floor_number: 4, owner_name: 'Cao Thùy Linh', owner_phone: '0978 555 666', status: 'NOT_SURVEYED' },
         ];
         setUnits(defaultUnits);
       }
     } catch (_err) {
       setUnits([
-        { id: 'u-101', parcel_id: parcel.id, unit_code: 'P.101', floor_number: 1, owner_name: 'Nguyễn Văn An', owner_phone: '0901 234 567', status: 'APPROVED', phase1_report_id: 'rep-p1-101' },
-        { id: 'u-102', parcel_id: parcel.id, unit_code: 'P.102', floor_number: 1, owner_name: 'Trần Thị Bích', owner_phone: '0912 345 678', status: 'SUBMITTED', phase1_report_id: 'rep-p1-102' },
-        { id: 'u-201', parcel_id: parcel.id, unit_code: 'P.201', floor_number: 2, owner_name: 'Lê Hoàng Cường', owner_phone: '0988 765 432', status: 'IN_PROGRESS' },
-        { id: 'u-202', parcel_id: parcel.id, unit_code: 'P.202', floor_number: 2, owner_name: 'Phạm Ngọc Dũng', owner_phone: '0977 123 987', status: 'POSTPONED_ABSENT' },
-        { id: 'u-301', parcel_id: parcel.id, unit_code: 'P.301', floor_number: 3, owner_name: 'Võ Thanh Tùng', owner_phone: '0933 555 888', status: 'NOT_SURVEYED' },
+        { id: 'c0000000-0000-0000-0000-000000000101', parcel_id: parcel.id, unit_code: 'P.101', floor_number: 1, owner_name: 'Nguyễn Văn An', owner_phone: '0901 234 567', status: 'APPROVED', phase1_report_id: 'rep-p1-101' },
+        { id: 'c0000000-0000-0000-0000-000000000102', parcel_id: parcel.id, unit_code: 'P.102', floor_number: 1, owner_name: 'Trần Thị Bích', owner_phone: '0912 345 678', status: 'SUBMITTED', phase1_report_id: 'rep-p1-102' },
+        { id: 'c0000000-0000-0000-0000-000000000201', parcel_id: parcel.id, unit_code: 'P.201', floor_number: 2, owner_name: 'Lê Hoàng Cường', owner_phone: '0988 765 432', status: 'IN_PROGRESS' },
+        { id: 'c0000000-0000-0000-0000-000000000202', parcel_id: parcel.id, unit_code: 'P.202', floor_number: 2, owner_name: 'Phạm Ngọc Dũng', owner_phone: '0977 123 987', status: 'POSTPONED_ABSENT' },
+        { id: 'c0000000-0000-0000-0000-000000000301', parcel_id: parcel.id, unit_code: 'P.301', floor_number: 3, owner_name: 'Võ Thanh Tùng', owner_phone: '0933 555 888', status: 'NOT_SURVEYED' },
       ]);
     } finally {
       setLoading(false);
