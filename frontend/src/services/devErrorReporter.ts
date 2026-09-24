@@ -110,11 +110,13 @@ export async function sendDevError(payload: DevErrorPayload): Promise<void> {
     return;
   }
 
-  // Chống spam lặp cùng 1 lỗi trong 1.5 giây
-  const errorKey = `${payload.errorType}:${payload.message.slice(0, 100)}:${payload.source || ''}:${payload.lineno || ''}`;
+  // Chống spam lặp cùng 1 lỗi (đối với tile bản đồ thì debounce 5 giây để tránh tràn log)
+  const isMapTile = payload.message.includes('MAP_TILE_NETWORK_ERROR');
+  const errorKey = isMapTile ? 'MAP_TILE_NETWORK_ERROR' : `${payload.errorType}:${payload.message.slice(0, 100)}:${payload.source || ''}:${payload.lineno || ''}`;
+  const debounceTime = isMapTile ? 5000 : DEBOUNCE_WINDOW_MS;
   const now = Date.now();
   const lastTime = recentErrorTimestamps.get(errorKey);
-  if (lastTime && now - lastTime < DEBOUNCE_WINDOW_MS) {
+  if (lastTime && now - lastTime < debounceTime) {
     return;
   }
   recentErrorTimestamps.set(errorKey, now);
@@ -215,14 +217,25 @@ export function initDevErrorReporter(): void {
   window.addEventListener(
     'error',
     (event: ErrorEvent | Event) => {
-      // 2a. Nếu là lỗi tài nguyên (thẻ img, script, link css không tải được)
+      // 2a. Nếu là lỗi tài nguyên (thẻ img, script, link css không tải được, vd: map tile, ảnh chụp hỏng link)
       const target = event.target as HTMLElement | null;
       if (target && 'tagName' in target && (target.tagName === 'IMG' || target.tagName === 'SCRIPT' || target.tagName === 'LINK')) {
-        const src = (target as HTMLImageElement).src || (target as HTMLScriptElement).src || (target as HTMLLinkElement).href;
+        const src = (target as HTMLImageElement).src || (target as HTMLImageElement).currentSrc || (target as HTMLScriptElement).src || (target as HTMLLinkElement).href;
         if (src && !isIgnoredError(src)) {
+          // Nếu là lỗi tải tile bản đồ OpenStreetMap (net::ERR_CONNECTION_REFUSED)
+          if (src.includes('tile.openstreetmap.org') || src.includes('/tile/')) {
+            sendDevError({
+              errorType: 'RESOURCE_ERROR',
+              message: `[MAP_TILE_NETWORK_ERROR] Máy chủ bản đồ OpenStreetMap từ chối kết nối (net::ERR_CONNECTION_REFUSED): ${src}`,
+              source: src,
+              url: window.location.href,
+            });
+            return;
+          }
+
           sendDevError({
             errorType: 'RESOURCE_ERROR',
-            message: `[RESOURCE_404_FAILED] Không thể tải tài nguyên (${target.tagName}): ${src}`,
+            message: `[RESOURCE_LOAD_FAILED] Không thể tải tài nguyên (${target.tagName}): ${src}`,
             source: src,
             url: window.location.href,
           });
