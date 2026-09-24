@@ -62,6 +62,43 @@ export class AttendanceService {
     };
   }
 
+  static async getZoneInfo(zoneId: string) {
+    const zoneRes = await Database.query<{
+      zone_code: string;
+      zone_name: string;
+      lng: number;
+      lat: number;
+    }>(
+      `SELECT zone_code, zone_name,
+              ST_X(center_geom) as lng,
+              ST_Y(center_geom) as lat
+       FROM metro_zones
+       WHERE zone_code = $1 LIMIT 1;`,
+      [zoneId]
+    );
+
+    if (zoneRes.rows.length > 0) {
+      const row = zoneRes.rows[0];
+      return {
+        zoneId: row.zone_code,
+        zoneName: row.zone_name,
+        centroid: {
+          lat: parseFloat(row.lat.toString()),
+          lng: parseFloat(row.lng.toString()),
+        },
+      };
+    }
+
+    return {
+      zoneId: 'ZONE_S9',
+      zoneName: 'Ga S9 - Bà Quẹo',
+      centroid: {
+        lat: 10.802564,
+        lng: 106.637211,
+      },
+    };
+  }
+
   static async getMyHistory(surveyorId: string, startDate?: string, endDate?: string) {
     return AttendanceRepository.listCheckIns({
       surveyorId,

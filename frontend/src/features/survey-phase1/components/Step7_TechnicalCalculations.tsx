@@ -36,38 +36,48 @@ export const Step7_TechnicalCalculations: React.FC = () => {
             variant={
               gateResult.overallSuggestedDecision === 'ALLOW'
                 ? 'success'
-                : gateResult.overallSuggestedDecision === 'CONDITIONAL'
-                ? 'warning'
-                : 'danger'
+                : 'warning'
             }
           >
-            {gateResult.overallSuggestedDecision === 'ALLOW' && 'ĐỦ ĐIỀU KIỆN CHUYỂN TIẾP'}
-            {gateResult.overallSuggestedDecision === 'CONDITIONAL' && 'CÓ ĐIỀU KIỆN'}
-            {gateResult.overallSuggestedDecision === 'PENDING' && 'PENDING / CẦN XEM XÉT'}
+            {gateResult.overallSuggestedDecision === 'ALLOW' ? 'ĐỦ ĐIỀU KIỆN CHUYỂN TIẾP' : 'CÓ ĐIỀU KIỆN'}
           </Badge>
         </div>
 
         {/* 6 Tiêu chí đánh giá */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-xs mb-4">
+          {/* Tiêu chí 1: Thông tin móng */}
           <div className="p-3 rounded-xl bg-white border border-slate-200 flex flex-col justify-between">
             <div className="flex items-center justify-between mb-1.5">
               <span className="text-slate-500 font-medium">1. Thông tin móng</span>
-              <InfoPopover title="Tiêu chí 1: Thông tin móng công trình" size="sm">
-                <p><strong>Nguồn:</strong> Cấp độ tin cậy kết cấu móng (CAT 1 - CAT 5) khảo sát ở Bước 2.1.</p>
-                <p className="mt-1"><strong>Điều kiện đạt:</strong> Điểm CAT ≥ 1 (có thông tin móng từ bản vẽ, phỏng vấn hoặc suy luận).</p>
-                <p className="mt-1"><strong>Điểm số hiện tại:</strong> CAT {gateResult.foundationInfo.score}/5.</p>
+              <InfoPopover title="Tiêu chí 1: Thông tin móng công trình" size="md">
+                <p><strong>📌 Nguồn trích xuất:</strong> Mục 2.1 &quot;Loại móng &amp; Cấp độ tin cậy kết cấu móng (CAT 1 - CAT 5)&quot; khảo sát ở <strong>Bước 2</strong>.</p>
+                <div className="mt-2 pt-2 border-t border-slate-100 text-[11px] leading-relaxed">
+                  <p className="font-bold text-slate-800 mb-1">🎯 Các giá trị có thể xuất hiện:</p>
+                  <ul className="space-y-1 pl-1 text-slate-600">
+                    <li><span className="font-semibold text-emerald-700">● &quot;Đủ (Cat 1 đến 5/5)&quot;:</span> Đã xác định được loại móng qua hồ sơ hoàn công (CAT 5), bản vẽ cấp phép (CAT 4), phỏng vấn chủ nhà (CAT 3) hoặc đánh giá kỹ thuật (CAT 2/1).</li>
+                    <li><span className="font-semibold text-amber-700">● &quot;Chưa đủ (Cat 0/5)&quot;:</span> Chưa chọn loại móng của ngôi nhà.</li>
+                  </ul>
+                  <p className="mt-2 text-slate-700"><strong>⚖️ Ý nghĩa kỹ thuật/pháp lý:</strong> Loại móng (móng cọc, móng băng, móng đơn) quyết định trực tiếp khả năng chịu lún chênh và biến dạng khi khiên đào hầm TBM hoạt động ngầm bên dưới.</p>
+                </div>
               </InfoPopover>
             </div>
             <span className="font-bold text-slate-800">{gateResult.foundationInfo.label}</span>
           </div>
 
+          {/* Tiêu chí 2: Khảo sát hiện trạng chi tiết */}
           <div className="p-3 rounded-xl bg-white border border-slate-200 flex flex-col justify-between">
             <div className="flex items-center justify-between mb-1.5">
               <span className="text-slate-500 font-medium">2. Khảo sát hiện trạng chi tiết</span>
-              <InfoPopover title="Tiêu chí 2: Khảo sát hiện trạng chi tiết (Z & E)" size="sm">
-                <p><strong>Nguồn:</strong> Dữ liệu Vùng kiến trúc Z (Mục 3.1) và Cấu kiện kết cấu E (Mục 3.2).</p>
-                <p className="mt-1"><strong>Quy chuẩn:</strong> Tách biệt số lượng Vùng Z (vết nứt hoàn thiện kiến trúc) và Cấu kiện E (khuyết tật kết cấu chịu lực).</p>
-                <p className="mt-1"><strong>Điều kiện đạt:</strong> Chụp đủ ảnh mặt đứng P01, P02, P04 và có ít nhất 1 Vùng Z được tạo.</p>
+              <InfoPopover title="Tiêu chí 2: Khảo sát hiện trạng chi tiết (Z &amp; E)" size="md">
+                <p><strong>📌 Nguồn trích xuất:</strong> Ảnh mặt đứng P-01, P-02, P-04 (<strong>Bước 1</strong>); Danh mục Vùng kiến trúc Z (Mục 3.1) và Cấu kiện kết cấu E (Mục 3.2) của các tầng (<strong>Bước 3</strong>).</p>
+                <div className="mt-2 pt-2 border-t border-slate-100 text-[11px] leading-relaxed">
+                  <p className="font-bold text-slate-800 mb-1">🎯 Các giá trị có thể xuất hiện:</p>
+                  <ul className="space-y-1 pl-1 text-slate-600">
+                    <li><span className="font-semibold text-emerald-700">● &quot;Đủ&quot;:</span> Đã chụp đủ ảnh ngoại quan bắt buộc (P-01, P-02, P-04) và lập ít nhất 1 Vùng khảo sát Z trên sơ đồ CAD_01.</li>
+                    <li><span className="font-semibold text-amber-700">● &quot;Thiếu&quot;:</span> Thiếu ảnh ngoại quan chính hoặc chưa chấm ghim Vùng Z nào.</li>
+                  </ul>
+                  <p className="mt-2 text-slate-700"><strong>⚖️ Ý nghĩa kỹ thuật/pháp lý:</strong> Phân tách rõ ràng giữa vết nứt hoàn thiện kiến trúc (Z - vữa trát, ốp lát) và khuyết tật kết cấu chịu lực (E - cột, dầm, sàn), làm bằng chứng pháp lý đối chiếu trước và sau khi Metro thi công.</p>
+                </div>
               </InfoPopover>
             </div>
             <div>
@@ -78,65 +88,84 @@ export const Step7_TechnicalCalculations: React.FC = () => {
             </div>
           </div>
 
+          {/* Tiêu chí 3: Khảo sát bên trong */}
           <div className="p-3 rounded-xl bg-white border border-slate-200 flex flex-col justify-between">
             <div className="flex items-center justify-between mb-1.5">
               <span className="text-slate-500 font-medium">3. Khảo sát bên trong</span>
-              <InfoPopover title="Tiêu chí 3: Khảo sát bên trong & Hạn chế tiếp cận" size="sm">
-                <p><strong>Nguồn:</strong> Tình trạng tiếp cận công trình ghi nhận ở Bước 5.2.</p>
-                <p className="mt-1"><strong>Quy chuẩn:</strong> Đạt khi tiếp cận được 100% các phòng/tầng. Nếu bị khóa cửa hoặc chủ nhà không cho vào (LIMITED), hệ thống xếp vào diện "Có điều kiện" và yêu cầu biên bản hiện trường.</p>
+              <InfoPopover title="Tiêu chí 3: Khảo sát bên trong &amp; Hạn chế tiếp cận" size="md">
+                <p><strong>📌 Nguồn trích xuất:</strong> Tình trạng tiếp cận công trình ghi nhận ở Mục 5.2 (<strong>Bước 5</strong>).</p>
+                <div className="mt-2 pt-2 border-t border-slate-100 text-[11px] leading-relaxed">
+                  <p className="font-bold text-slate-800 mb-1">🎯 Các giá trị có thể xuất hiện:</p>
+                  <ul className="space-y-1 pl-1 text-slate-600">
+                    <li><span className="font-semibold text-emerald-700">● &quot;Đã khảo sát 100%&quot; (FULL_100):</span> Tiếp cận được toàn bộ các tầng và các phòng bên trong ngôi nhà.</li>
+                    <li><span className="font-semibold text-amber-700">● &quot;Hạn chế tiếp cận&quot; (LIMITED / NO_ACCESS):</span> Chủ nhà vắng mặt, khóa cửa hoặc chỉ cho khảo sát một phần.</li>
+                  </ul>
+                  <p className="mt-2 text-slate-700"><strong>⚖️ Ý nghĩa kỹ thuật/pháp lý:</strong> Khi bị hạn chế tiếp cận, hồ sơ chuyển sang diện &quot;CÓ ĐIỀU KIỆN&quot;, yêu cầu lập biên bản hiện trường xác nhận để loại trừ trách nhiệm với các vết nứt khu vực không được tiếp cận.</p>
+                </div>
               </InfoPopover>
             </div>
             <span className="font-bold text-slate-800">{gateResult.internalAccess.label}</span>
           </div>
 
+          {/* Tiêu chí 4: Dữ liệu lún nghiêng */}
           <div className="p-3 rounded-xl bg-white border border-slate-200 flex flex-col justify-between">
             <div className="flex items-center justify-between mb-1.5">
               <span className="text-slate-500 font-medium">4. Dữ liệu lún nghiêng</span>
-              <InfoPopover title="Tiêu chí 4: Hiện trạng lún nghiêng & Quan trắc" size="sm">
-                <p><strong>Nguồn:</strong> Khảo sát lún chênh, độ nghiêng nhà (Bước 1) và võng dầm/sàn (Bước 3.3).</p>
-                <p className="mt-1"><strong>Quy chuẩn:</strong> Đạt khi hiện trạng không cần lắp mốc đo đạc chuyên sâu. Nếu surveyor yêu cầu đo bổ sung, hệ thống sẽ lưu ý kiểm toán chu kỳ.</p>
+              <InfoPopover title="Tiêu chí 4: Hiện trạng lún nghiêng &amp; Quan trắc" size="md">
+                <p><strong>📌 Nguồn trích xuất:</strong> Khảo sát lún chênh, độ nghiêng thân nhà (<strong>Bước 1.6</strong>) và võng dầm/sàn, quan trắc biến dạng (<strong>Bước 3.3</strong>).</p>
+                <div className="mt-2 pt-2 border-t border-slate-100 text-[11px] leading-relaxed">
+                  <p className="font-bold text-slate-800 mb-1">🎯 Các giá trị có thể xuất hiện:</p>
+                  <ul className="space-y-1 pl-1 text-slate-600">
+                    <li><span className="font-semibold text-emerald-700">● &quot;Đủ&quot;:</span> Hình học công trình bình thường, không có dấu hiệu nghiêng lún nguy hiểm, không yêu cầu lắp mốc quan trắc bổ sung.</li>
+                    <li><span className="font-semibold text-amber-700">● &quot;Cần đo bổ sung&quot;:</span> Phát hiện lún chênh lớn, nghiêng lệch vượt ngưỡng hoặc võng dầm sàn nghiêm trọng, cần kích hoạt đo đạc trắc địa chuyên sâu.</li>
+                  </ul>
+                  <p className="mt-2 text-slate-700"><strong>⚖️ Ý nghĩa kỹ thuật/pháp lý:</strong> Cung cấp mốc tọa độ và cao độ 0 (Zero Baseline) để phát hiện kịp thời dịch chuyển địa chất trong suốt quá trình đào ngầm.</p>
+                </div>
               </InfoPopover>
             </div>
             <span className="font-bold text-slate-800">{gateResult.settlementData.label}</span>
           </div>
 
+          {/* Tiêu chí 5: Hồ sơ / Bản vẽ */}
           <div className="p-3 rounded-xl bg-white border border-slate-200 flex flex-col justify-between">
             <div className="flex items-center justify-between mb-1.5">
               <span className="text-slate-500 font-medium">5. Hồ sơ / Bản vẽ</span>
-              <InfoPopover title="Tiêu chí 5: Hồ sơ hoàn công & Bản vẽ kỹ thuật" size="md">
-                <p><strong>Nguồn:</strong> Tệp hồ sơ, bản vẽ kỹ thuật tải lên ở danh mục đính kèm (Bước 1 hoặc hồ sơ công trình).</p>
+              <InfoPopover title="Tiêu chí 5: Hồ sơ hoàn công &amp; Bản vẽ kỹ thuật" size="md">
+                <p><strong>📌 Nguồn trích xuất:</strong> Hồ sơ hoàn công, bản vẽ kỹ thuật tải lên tại Mục 2.3 (<strong>Bước 2</strong>).</p>
                 <div className="mt-2 pt-2 border-t border-slate-100 text-[11px] leading-relaxed">
-                  <p className="font-bold text-slate-800 mb-1">Các giá trị có thể xuất hiện & Ý nghĩa kỹ thuật/pháp lý:</p>
-                  <ul className="space-y-1.5 pl-1 text-slate-600">
+                  <p className="font-bold text-slate-800 mb-1">🎯 Các giá trị có thể xuất hiện (2 giá trị):</p>
+                  <ul className="space-y-1 pl-1 text-slate-600">
                     <li>
-                      <span className="font-semibold text-emerald-700">● &quot;Có bản vẽ&quot; (Đạt):</span> Đã thu thập được bản vẽ hoàn công, bản vẽ thiết kế kết cấu hoặc bản vẽ cấp phép. <em>Ý nghĩa:</em> Đảm bảo căn cứ pháp lý và dữ liệu đối chiếu chuẩn xác nhất về kích thước, cốt móng, dầm sàn ban đầu nhằm bảo vệ quyền lợi dự án và chủ sở hữu nếu có tranh chấp nứt lún khi thi công metro.
+                      <span className="font-semibold text-emerald-700">● &quot;Có&quot;:</span> Đã thu thập được ảnh chụp hoặc tệp bản vẽ hoàn công, bản vẽ thiết kế kết cấu ở Bước 2.
                     </li>
                     <li>
-                      <span className="font-semibold text-amber-700">● &quot;Không có / Một phần&quot; (Chưa đạt):</span> Chưa tải lên tệp bản vẽ kỹ thuật nào. <em>Ý nghĩa:</em> Hồ sơ sẽ chuyển sang diện <strong>&quot;Có điều kiện (CONDITIONAL)&quot;</strong>, tiềm ẩn rủi ro tranh chấp do chỉ đánh giá được phần lộ thiên, không kiểm chứng được cốt thép hoặc móng ngầm.
+                      <span className="font-semibold text-amber-700">● &quot;Không có&quot;:</span> Chưa thu thập được bản vẽ kỹ thuật ở Bước 2.
                     </li>
                   </ul>
+                  <p className="mt-2 text-slate-700"><strong>⚖️ Ý nghĩa kỹ thuật/pháp lý:</strong> Nếu &quot;Không có&quot;, hồ sơ chuyển diện &quot;CÓ ĐIỀU KIỆN&quot;, dự án phải căn cứ hoàn toàn vào số liệu đo đạc thực tế ngoại quan do không kiểm chứng được cốt thép bên trong.</p>
                 </div>
               </InfoPopover>
             </div>
             <span className="font-bold text-slate-800">{gateResult.asBuiltDrawings.label}</span>
           </div>
 
+          {/* Tiêu chí 6: Structural Review */}
           <div className="p-3 rounded-xl bg-white border border-slate-200 flex flex-col justify-between">
             <div className="flex items-center justify-between mb-1.5">
               <span className="text-slate-500 font-medium">6. Structural Review</span>
               <InfoPopover title="Tiêu chí 6: Thẩm tra chuyên sâu Kỹ sư kết cấu (Structural Review)" size="md">
-                <p><strong>Nguồn:</strong> Tự động phân tích từ chỉ số khuyết tật chịu lực E2 và Cờ kết cấu ở Bước 4 (Burland Summary).</p>
+                <p><strong>📌 Nguồn trích xuất:</strong> Lấy trực tiếp từ <strong>Bước 4 (Burland Summary)</strong> - dựa trên Cờ kết cấu (Structural Flag Level) và Nhu cầu thẩm định chuyên gia.</p>
                 <div className="mt-2 pt-2 border-t border-slate-100 text-[11px] leading-relaxed">
-                  <p className="font-bold text-slate-800 mb-1">Các giá trị hiển thị & Ý nghĩa an toàn kết cấu (3 giá trị):</p>
+                  <p className="font-bold text-slate-800 mb-1">🎯 Các giá trị có thể xuất hiện (3 giá trị):</p>
                   <ul className="space-y-1.5 pl-1 text-slate-600">
                     <li>
-                      <span className="font-semibold text-slate-700">● &quot;N/A&quot; (Không áp dụng):</span> Khi E2 = 0 và Cờ kết cấu ở mức None. <em>Ý nghĩa:</em> Công trình không có bất kỳ khuyết tật hay cảnh báo kết cấu nào cần kích hoạt thẩm tra.
+                      <span className="font-semibold text-slate-700">● &quot;N/A (Bình thường)&quot;:</span> Khi Cờ kết cấu ở mức None và không yêu cầu thẩm tra. <em>Ý nghĩa:</em> Không có khuyết tật kết cấu nguy hiểm.
                     </li>
                     <li>
-                      <span className="font-semibold text-emerald-700">● &quot;Đủ&quot; (Đủ điều kiện):</span> Khi E2 &lt; 3 và Cờ kết cấu ở mức Low hoặc Moderate. <em>Ý nghĩa:</em> Đã kiểm tra cấu kiện chịu lực chính, các khuyết tật ở mức nhẹ/vừa trong tầm kiểm soát an toàn của khảo sát hiện trường.
+                      <span className="font-semibold text-emerald-700">● &quot;Đủ (Không yêu cầu)&quot;:</span> Khi Cờ kết cấu ở mức Low hoặc Moderate. <em>Ý nghĩa:</em> Đã kiểm tra cấu kiện chịu lực chính, các hư hại ở mức nhẹ trong ngưỡng an toàn.
                     </li>
                     <li>
-                      <span className="font-semibold text-red-600">● &quot;Pending&quot; (⚠️ Cần Kỹ sư kết cấu Review):</span> Tự động kích hoạt khi E2 ≥ 3 hoặc Cờ kết cấu ở mức High/Critical. <em>Ý nghĩa:</em> Cảnh báo nguy cơ nứt gãy / mất ổn định kết cấu chịu lực nghiêm trọng, bắt buộc Kỹ sư kết cấu chuyên môn cao phải vào đánh giá và ký duyệt trước khi máy đào hầm Metro đi qua.
+                      <span className="font-semibold text-red-600">● &quot;Cần thẩm tra (Pending Review)&quot;:</span> Tự động kích hoạt khi Cờ kết cấu ở mức High/Critical hoặc tick chọn cần Kỹ sư thẩm định ở Bước 4. <em>Ý nghĩa:</em> Bắt buộc Kỹ sư kết cấu cấp cao vào đánh giá trước khi đào hầm Metro qua.
                     </li>
                   </ul>
                 </div>

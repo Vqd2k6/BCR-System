@@ -16,6 +16,9 @@ import {
   BadgeCheck,
 } from 'lucide-react';
 
+import { useAuth } from '../../context/AuthContext';
+import { getZoneCentroid, calculateDistanceMeters, MetroZoneCentroid } from '../../core/utils/metroZoneUtils';
+
 interface Props {
   isOpen: boolean;
   onClose: () => void;
@@ -23,6 +26,10 @@ interface Props {
 }
 
 export const CompanionCheckInModal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
+  const { user } = useAuth();
+  const assignedZoneId = user?.assignedZoneId || 'ZONE_S9';
+  const targetZone = getZoneCentroid(assignedZoneId);
+
   const todayStr = new Date().toISOString().split('T')[0];
   const storageKey = `metro2_companion_checkin_${todayStr}`;
   const changeCountKey = `metro2_companion_checkin_count_${todayStr}`;
@@ -53,21 +60,6 @@ export const CompanionCheckInModal: React.FC<Props> = ({ isOpen, onClose, onSucc
   const videoRef = useRef<HTMLVideoElement>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
 
-  const STATION_S9_COORDS = { lat: 10.8034, lng: 106.6385 };
-
-  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
-    const R = 6371e3;
-    const φ1 = (lat1 * Math.PI) / 180;
-    const φ2 = (lat2 * Math.PI) / 180;
-    const Δφ = ((lat2 - lat1) * Math.PI) / 180;
-    const Δλ = ((lon2 - lon1) * Math.PI) / 180;
-    const a =
-      Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
-      Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return Math.round(R * c);
-  };
-
   const getLiveGps = () => {
     setGpsLoading(true);
     if ('geolocation' in navigator) {
@@ -77,23 +69,27 @@ export const CompanionCheckInModal: React.FC<Props> = ({ isOpen, onClose, onSucc
           const lng = pos.coords.longitude;
           const accuracy = pos.coords.accuracy;
           setGpsCoordinates({ lat, lng, accuracy });
-          const dist = calculateDistance(lat, lng, STATION_S9_COORDS.lat, STATION_S9_COORDS.lng);
+          const dist = calculateDistanceMeters(lat, lng, targetZone.lat, targetZone.lng);
           setDistanceMeters(dist);
           setGpsLoading(false);
         },
         (err) => {
           console.warn('[Companion GPS Error]:', err);
-          const lat = 10.8036;
-          const lng = 106.6388;
+          const lat = targetZone.lat + 0.00025;
+          const lng = targetZone.lng + 0.0002;
+          const dist = calculateDistanceMeters(lat, lng, targetZone.lat, targetZone.lng);
           setGpsCoordinates({ lat, lng, accuracy: 8 });
-          setDistanceMeters(35);
+          setDistanceMeters(dist);
           setGpsLoading(false);
         },
         { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
       );
     } else {
-      setGpsCoordinates({ lat: 10.8036, lng: 106.6388, accuracy: 10 });
-      setDistanceMeters(35);
+      const lat = targetZone.lat + 0.00025;
+      const lng = targetZone.lng + 0.0002;
+      const dist = calculateDistanceMeters(lat, lng, targetZone.lat, targetZone.lng);
+      setGpsCoordinates({ lat, lng, accuracy: 10 });
+      setDistanceMeters(dist);
       setGpsLoading(false);
     }
   };
@@ -650,7 +646,7 @@ export const CompanionCheckInModal: React.FC<Props> = ({ isOpen, onClose, onSucc
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                   <MapPin size={15} color={isOutOfBounds ? '#dc2626' : '#16a34a'} />
                   <span style={{ fontWeight: 700, color: isOutOfBounds ? '#991b1b' : '#166534' }}>
-                    {isOutOfBounds ? 'Ngoài vùng 500m' : 'Vị trí hợp lệ trong trạm'} ({distanceMeters}m)
+                    {isOutOfBounds ? `Ngoài bán kính 500m (${targetZone.zoneName})` : `Vị trí hợp lệ`} ({distanceMeters}m)
                   </span>
                 </div>
                 <button

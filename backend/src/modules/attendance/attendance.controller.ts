@@ -41,6 +41,19 @@ export class AttendanceController {
     }
   }
 
+  static async getAssignedZone(req: Request, res: Response, next: NextFunction) {
+    try {
+      const zoneId = req.user?.assignedZoneId || (req.query.zoneId as string) || 'ZONE_S9';
+      const zoneInfo = await AttendanceService.getZoneInfo(zoneId);
+      res.status(200).json({
+        success: true,
+        data: zoneInfo,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   // --- ADMIN ENDPOINTS ---
 
   static async listCheckIns(req: Request, res: Response, next: NextFunction) {

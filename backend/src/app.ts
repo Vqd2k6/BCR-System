@@ -80,6 +80,7 @@ export function createApp(): express.Application {
   // Chấm công
   api.post('/attendance/check-in', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), AttendanceController.checkIn);
   api.get('/attendance/my-history', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), AttendanceController.getMyHistory);
+  api.get('/attendance/assigned-zone', authenticateJwt, AttendanceController.getAssignedZone);
 
   // Thửa đất & Quét cạn
   api.get('/parcels/zone-map', authenticateJwt, CadastralController.getZoneMap);

@@ -65,7 +65,7 @@ export const FloorCadPinningCanvas: React.FC<Props> = ({
       zoneCode: newPinCode,
       pinX: x,
       pinY: y,
-      label: `${modeLabel} ${newPinCode}`,
+      label: newPinCode,
       type: mode,
     };
 
@@ -226,7 +226,7 @@ export const FloorCadPinningCanvas: React.FC<Props> = ({
                         : 'bg-slate-800 text-white'
                     }`}
                   >
-                    {pin.zoneCode || `${prefix}-${idx + 1}`} {pin.label ? `• ${pin.label}` : ''}
+                    {pin.zoneCode || `${prefix}-${idx + 1}`}
                   </div>
 
                   {/* Pin Point Square Badge */}

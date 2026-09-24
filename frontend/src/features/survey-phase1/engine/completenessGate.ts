@@ -15,15 +15,15 @@ export interface GateVerificationResult {
   settlementData: { passed: boolean; label: string };
   asBuiltDrawings: { passed: boolean; label: string };
   structuralReview: { status: 'SUFFICIENT' | 'PENDING_REVIEW' | 'NA'; label: string };
-  overallSuggestedDecision: 'ALLOW' | 'CONDITIONAL' | 'PENDING';
+  overallSuggestedDecision: 'ALLOW' | 'CONDITIONAL';
 }
 
 export function verifyDataCompletenessGate(data: Phase1SurveyFormData): GateVerificationResult {
-  // 1. Móng
+  // 1. Móng (Bước 2.1)
   const catScore = data.foundationCatScore ?? 0;
   const foundationPassed = catScore >= 1;
 
-  // 2. Ảnh & Ghim khuyết tật - Tách riêng Vùng Kiến trúc Z và Cấu kiện Kết cấu E
+  // 2. Ảnh & Ghim khuyết tật - Tách riêng Vùng Kiến trúc Z (Mục 3.1) và Cấu kiện Kết cấu E (Mục 3.2)
   const hasP01 = Boolean(data.photoP01?.url || data.photoP01?.notApplicable);
   const hasP02 = Boolean(data.photoP02?.url || data.photoP02?.notApplicable);
   const hasP04 = Boolean(data.photoP04?.url || data.photoP04?.notApplicable);
@@ -42,44 +42,47 @@ export function verifyDataCompletenessGate(data: Phase1SurveyFormData): GateVeri
 
   const photoPassed = hasP01 && hasP02 && hasP04 && countZonesZ > 0;
 
-  // 3. Khảo sát bên trong
-  const isLimited = data.accessLimitation.type !== 'FULL_100';
+  // 3. Khảo sát bên trong (Bước 5)
+  const isLimited = (data.accessLimitation?.type || 'FULL_100') !== 'FULL_100';
 
-  // 4. Dữ liệu lún nghiêng
-  const settlementPassed = !data.settlementTilt.needAdditionalMonitoring.required;
+  // 4. Dữ liệu lún nghiêng (Bước 1 & Bước 3.3)
+  const settlementPassed = !data.settlementTilt?.needAdditionalMonitoring?.required;
 
-  // 5. Bản vẽ
-  const hasDrawings = (data.asBuiltDrawingFiles?.length ?? 0) > 0;
+  // 5. Hồ sơ / Bản vẽ (Dựa vào Bước 2: asBuiltDrawingPhotoUrl hoặc asBuiltDrawingFiles)
+  const hasDrawings = Boolean(
+    (data.asBuiltDrawingPhotoUrl && data.asBuiltDrawingPhotoUrl.trim() !== '') ||
+    (data.asBuiltDrawingFiles && data.asBuiltDrawingFiles.length > 0)
+  );
 
-  // 6. Structural Review (3 giá trị: N/A / Đủ / Pending)
+  // 6. Structural Review (Lấy trực tiếp từ Bước 4: Burland Summary)
+  const burland = data.burlandSummary || {};
+  const needsReview = Boolean(
+    burland.needStructuralEngineerReview ||
+    burland.structuralFlagLevel === 'HIGH' ||
+    burland.structuralFlagLevel === 'CRITICAL'
+  );
+  const isNoStructuralFlag = (burland.structuralFlagLevel === 'NONE' || !burland.structuralFlagLevel) && !burland.needStructuralEngineerReview;
+
   let structuralStatus: 'SUFFICIENT' | 'PENDING_REVIEW' | 'NA' = 'SUFFICIENT';
-  let structuralLabel = 'Đủ';
+  let structuralLabel = 'Đủ (Không yêu cầu)';
 
-  if (
-    data.ecs.e2 >= 3 ||
-    data.burlandSummary.structuralFlagLevel === 'HIGH' ||
-    data.burlandSummary.structuralFlagLevel === 'CRITICAL' ||
-    data.burlandSummary.needStructuralEngineerReview
-  ) {
+  if (needsReview) {
     structuralStatus = 'PENDING_REVIEW';
-    structuralLabel = 'Pending';
-  } else if (
-    data.ecs.e2 === 0 &&
-    (data.burlandSummary.structuralFlagLevel === 'NONE' || !data.burlandSummary.structuralFlagLevel)
-  ) {
+    structuralLabel = 'Cần thẩm tra (Pending Review)';
+  } else if (isNoStructuralFlag) {
     structuralStatus = 'NA';
-    structuralLabel = 'N/A';
+    structuralLabel = 'N/A (Bình thường)';
   } else {
     structuralStatus = 'SUFFICIENT';
-    structuralLabel = 'Đủ';
+    structuralLabel = 'Đủ (Không yêu cầu)';
   }
 
-  // Đề xuất
-  let overallSuggestedDecision: 'ALLOW' | 'CONDITIONAL' | 'PENDING' = 'ALLOW';
-  if (!foundationPassed || !photoPassed || structuralStatus === 'PENDING_REVIEW') {
-    overallSuggestedDecision = 'PENDING';
-  } else if (isLimited || !settlementPassed || !hasDrawings) {
+  // Đề xuất tổng quan: Chỉ còn 2 trạng thái ALLOW hoặc CONDITIONAL (Đã bỏ PENDING)
+  let overallSuggestedDecision: 'ALLOW' | 'CONDITIONAL' = 'ALLOW';
+  if (!foundationPassed || !photoPassed || isLimited || !settlementPassed || !hasDrawings || structuralStatus === 'PENDING_REVIEW') {
     overallSuggestedDecision = 'CONDITIONAL';
+  } else {
+    overallSuggestedDecision = 'ALLOW';
   }
 
   return {
@@ -107,7 +110,7 @@ export function verifyDataCompletenessGate(data: Phase1SurveyFormData): GateVeri
     },
     asBuiltDrawings: {
       passed: hasDrawings,
-      label: hasDrawings ? 'Có bản vẽ' : 'Không có / Một phần',
+      label: hasDrawings ? 'Có' : 'Không có',
     },
     structuralReview: {
       status: structuralStatus,

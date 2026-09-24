@@ -322,9 +322,6 @@ export const Step8_ExecutiveDashboard: React.FC = () => {
               <span className="font-semibold text-slate-800">
                 Giao điểm: <strong>{bra.vCode}</strong> ({bra.vLabel.split(' ')[1]}) × <strong>{impact.code}</strong> ({impact.levelText})
               </span>
-              <span className="text-[11px] text-slate-500 block mt-0.5 truncate" title={bra.recommendation}>
-                {bra.recommendation}
-              </span>
             </div>
           </div>
         </div>

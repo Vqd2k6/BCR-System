@@ -255,6 +255,12 @@ export interface Phase1SurveyFormData {
       mergeCustomReason?: string;
       mergeTargetCode?: string;
       selectedMergeCodes?: string[];
+      mergeHasPartialBuilding?: boolean;
+      mergeBuildingAreaM2?: number;
+      mergeResidualAreaM2?: number;
+      mergeResidualType?: string;
+      mergeBuildingRatio?: number;
+      mergeResidualParcelCode?: string;
       activeProposalType?: 'MATCH' | 'SPLIT' | 'MERGE' | null;
       isSubmitted?: boolean;
       submittedAt?: string;
@@ -263,7 +269,7 @@ export interface Phase1SurveyFormData {
 
   // Data Completeness Gate Decision
   gateDecision?: {
-    decision: 'ALLOW' | 'CONDITIONAL' | 'PENDING';
+    decision: 'ALLOW' | 'CONDITIONAL';
     reason: string;
   };
 

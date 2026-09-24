@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { api } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { CompanionCheckInModal } from '../../components/attendance/CompanionCheckInModal';
+import { getZoneCentroid, calculateDistanceMeters, MetroZoneCentroid } from '../../core/utils/metroZoneUtils';
 import {
   Camera,
   MapPin,
@@ -52,7 +53,29 @@ export const TimekeepingCheckInView: React.FC<Props> = ({ isCheckedInToday = fal
   const videoRef = useRef<HTMLVideoElement>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
 
-  const STATION_S9_COORDS = { lat: 10.8034, lng: 106.6385 };
+  const assignedZoneId = user?.assignedZoneId || 'ZONE_S9';
+  const [targetZone, setTargetZone] = useState<MetroZoneCentroid>(() => getZoneCentroid(assignedZoneId));
+
+  // Tải thông tin trọng tâm phân khu từ backend
+  useEffect(() => {
+    let isMounted = true;
+    api.get(`/attendance/assigned-zone?zoneId=${assignedZoneId}`)
+      .then((res) => {
+        if (isMounted && res.data?.success && res.data?.data) {
+          const zData = res.data.data;
+          setTargetZone({
+            zoneId: zData.zoneId,
+            zoneName: zData.zoneName,
+            lat: zData.centroid.lat,
+            lng: zData.centroid.lng,
+          });
+        }
+      })
+      .catch((_err) => {
+        // Fallback đã khởi tạo từ METRO_ZONE_CENTROIDS
+      });
+    return () => { isMounted = false; };
+  }, [assignedZoneId]);
 
   // Auto-dismiss submitResult message after 3.5 seconds
   useEffect(() => {
@@ -64,20 +87,8 @@ export const TimekeepingCheckInView: React.FC<Props> = ({ isCheckedInToday = fal
     }
   }, [submitResult]);
 
-  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
-    const R = 6371e3;
-    const φ1 = (lat1 * Math.PI) / 180;
-    const φ2 = (lat2 * Math.PI) / 180;
-    const Δφ = ((lat2 - lat1) * Math.PI) / 180;
-    const Δλ = ((lon2 - lon1) * Math.PI) / 180;
-    const a =
-      Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
-      Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return Math.round(R * c);
-  };
-
   const getLiveGps = () => {
+    const activeZone = targetZone;
     setGpsLoading(true);
     if ('geolocation' in navigator) {
       navigator.geolocation.getCurrentPosition(
@@ -86,26 +97,39 @@ export const TimekeepingCheckInView: React.FC<Props> = ({ isCheckedInToday = fal
           const lng = pos.coords.longitude;
           const accuracy = pos.coords.accuracy;
           setGpsCoordinates({ lat, lng, accuracy });
-          const dist = calculateDistance(lat, lng, STATION_S9_COORDS.lat, STATION_S9_COORDS.lng);
+          const dist = calculateDistanceMeters(lat, lng, activeZone.lat, activeZone.lng);
           setDistanceMeters(dist);
           setGpsLoading(false);
         },
         (err) => {
           console.warn('[Timekeeping GPS Error]:', err);
-          const lat = 10.8036;
-          const lng = 106.6388;
+          // Giả lập tọa độ thực địa chuẩn gần trọng tâm zone (~35m)
+          const lat = activeZone.lat + 0.00025;
+          const lng = activeZone.lng + 0.0002;
+          const dist = calculateDistanceMeters(lat, lng, activeZone.lat, activeZone.lng);
           setGpsCoordinates({ lat, lng, accuracy: 8 });
-          setDistanceMeters(35);
+          setDistanceMeters(dist);
           setGpsLoading(false);
         },
         { enableHighAccuracy: true, timeout: 20000, maximumAge: 0 }
       );
     } else {
-      setGpsCoordinates({ lat: 10.8036, lng: 106.6388, accuracy: 10 });
-      setDistanceMeters(35);
+      const lat = activeZone.lat + 0.00025;
+      const lng = activeZone.lng + 0.0002;
+      const dist = calculateDistanceMeters(lat, lng, activeZone.lat, activeZone.lng);
+      setGpsCoordinates({ lat, lng, accuracy: 10 });
+      setDistanceMeters(dist);
       setGpsLoading(false);
     }
   };
+
+  // Cập nhật lại khoảng cách khi targetZone thay đổi
+  useEffect(() => {
+    if (gpsCoordinates) {
+      const dist = calculateDistanceMeters(gpsCoordinates.lat, gpsCoordinates.lng, targetZone.lat, targetZone.lng);
+      setDistanceMeters(dist);
+    }
+  }, [targetZone]);
 
   const loadCompanionData = () => {
     try {
@@ -298,7 +322,7 @@ export const TimekeepingCheckInView: React.FC<Props> = ({ isCheckedInToday = fal
 
     try {
       const payload = {
-        zoneId: user?.assignedZoneId || 'ZONE_S9',
+        zoneId: targetZone.zoneId,
         gpsLatitude: gpsCoordinates.lat,
         gpsLongitude: gpsCoordinates.lng,
         selfiePhotoUrl: capturedPhoto,
@@ -307,14 +331,18 @@ export const TimekeepingCheckInView: React.FC<Props> = ({ isCheckedInToday = fal
 
       const res = await api.post('/attendance/check-in', payload);
       const resData = res.data?.data;
+      const finalDistance = typeof resData?.distanceToCenterMeters === 'number'
+        ? Math.round(resData.distanceToCenterMeters)
+        : distanceMeters;
 
       const details = {
         time: checkInTime,
-        distance: distanceMeters,
-        status: resData?.verificationStatus || (distanceMeters > 500 ? 'FLAGGED_WARNING' : 'APPROVED'),
+        distance: finalDistance,
+        status: resData?.verificationStatus || (finalDistance > 500 ? 'FLAGGED_WARNING' : 'APPROVED'),
         selfiePhotoUrl: capturedPhoto,
-        notes: distanceMeters > 500 ? outOfBoundsReason.trim() : undefined,
+        notes: finalDistance > 500 ? outOfBoundsReason.trim() : undefined,
         coordinates: gpsCoordinates,
+        zoneName: targetZone.zoneName,
       };
 
       try {
@@ -741,14 +769,14 @@ export const TimekeepingCheckInView: React.FC<Props> = ({ isCheckedInToday = fal
                     lineHeight: 1.3,
                   }}
                 >
-                  {isOutOfBounds ? 'Cảnh báo: Ngoài bán kính 500m' : 'Vị trí hợp lệ trong trạm (Hợp lệ)'}
+                  {isOutOfBounds ? `Cảnh báo: Ngoài bán kính 500m (${targetZone.zoneName})` : `Vị trí hợp lệ (${distanceMeters}m ≤ 500m)`}
                 </span>
               </div>
               <span
                 className={`badge ${isOutOfBounds ? 'badge-danger' : 'badge-success'}`}
                 style={{ flexShrink: 0, whiteSpace: 'nowrap', fontSize: '0.75rem', fontWeight: 700 }}
               >
-                Khoảng cách: {distanceMeters}m
+                Cách trọng tâm {targetZone.zoneName}: {distanceMeters}m
               </span>
             </div>
 
@@ -771,7 +799,7 @@ export const TimekeepingCheckInView: React.FC<Props> = ({ isCheckedInToday = fal
                 Tọa độ thực: <strong>{gpsCoordinates ? `${gpsCoordinates.lat.toFixed(5)}, ${gpsCoordinates.lng.toFixed(5)}` : 'Đang dò...'}</strong>
               </div>
               <div>
-                Độ chính xác: <strong>±{gpsCoordinates?.accuracy ? Math.round(gpsCoordinates.accuracy) : 5}m</strong>
+                Trọng tâm {targetZone.zoneName}: <strong>{targetZone.lat.toFixed(5)}, {targetZone.lng.toFixed(5)}</strong>
               </div>
             </div>
 
@@ -792,7 +820,7 @@ export const TimekeepingCheckInView: React.FC<Props> = ({ isCheckedInToday = fal
               >
                 <AlertTriangle size={15} style={{ flexShrink: 0, marginTop: '2px', color: '#dc2626' }} />
                 <span>
-                  Bạn đang cách tâm Ga <strong>{distanceMeters}m</strong> (&gt;500m). Vui lòng nhập lý do thực địa bên dưới để báo cáo Zone Admin.
+                  Bạn đang cách trọng tâm {targetZone.zoneName} <strong>{distanceMeters}m</strong> (&gt;500m). Vui lòng nhập lý do thực địa bên dưới để báo cáo Zone Admin.
                 </span>
               </div>
             )}

@@ -63,6 +63,12 @@ export interface MutationPayloadData {
   mergeReason: string;
   mergeTargetCode?: string;
   selectedMergeCodes?: string[];
+  mergeHasPartialBuilding?: boolean;
+  mergeBuildingAreaM2?: number;
+  mergeResidualAreaM2?: number;
+  mergeResidualType?: string;
+  mergeBuildingRatio?: number;
+  mergeResidualParcelCode?: string;
   activeProposalType?: 'MATCH' | 'SPLIT' | 'MERGE' | null;
   isSubmitted?: boolean;
   submittedAt?: string;
@@ -2127,6 +2133,230 @@ export const CadastralGISBoundaryEditor: React.FC<Props> = ({
                     });
                   }}
                 />
+              </div>
+            )}
+          </div>
+
+          {/* 3.3.1. KHOANH VÙNG DIỆN TÍCH XÂY DỰNG & TÁCH MẢNH ĐẤT DƯ KHI GỘP */}
+          <div
+            style={{
+              backgroundColor: '#f8fafc',
+              border: '1.5px solid #cbd5e1',
+              borderRadius: '0.65rem',
+              padding: '0.75rem',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.65rem',
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <label style={{ fontSize: '0.75rem', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                <Layers size={14} color="#0284c7" />
+                Hiện trạng xây dựng của toà nhà trên đất sau gộp:
+              </label>
+              <span className="badge" style={{ backgroundColor: mutationData.mergeHasPartialBuilding ? '#ea580c' : '#0284c7', color: '#fff', fontSize: '0.675rem' }}>
+                {mutationData.mergeHasPartialBuilding ? 'Xây một phần (Có đất dư)' : 'Xây kín toàn bộ'}
+              </span>
+            </div>
+
+            {/* Hai tùy chọn dạng thẻ bấm */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '0.5rem' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  onMutationDataChange({
+                    ...mutationData,
+                    mergeHasPartialBuilding: false,
+                    isSubmitted: false,
+                  });
+                }}
+                style={{
+                  padding: '0.55rem 0.75rem',
+                  borderRadius: '0.5rem',
+                  border: !mutationData.mergeHasPartialBuilding ? '2px solid #0284c7' : '1px solid #cbd5e1',
+                  backgroundColor: !mutationData.mergeHasPartialBuilding ? '#e0f2fe' : '#ffffff',
+                  color: !mutationData.mergeHasPartialBuilding ? '#0369a1' : '#475569',
+                  textAlign: 'left',
+                  fontSize: '0.725rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                }}
+              >
+                <span style={{ fontSize: '1rem' }}>🏢</span>
+                <div>
+                  <div>Nhà xây kín toàn bộ đất gộp</div>
+                  <div style={{ fontSize: '0.65rem', fontWeight: 500, color: '#64748b' }}>
+                    Công trình chiếm 100% diện tích gộp ({mergeSummary.totalMergedArea} m²)
+                  </div>
+                </div>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  const total = mergeSummary.totalMergedArea || totalLandArea;
+                  const bArea = Math.round(total * 0.65 * 10) / 10;
+                  const rArea = Math.round((total - bArea) * 10) / 10;
+                  onMutationDataChange({
+                    ...mutationData,
+                    mergeHasPartialBuilding: true,
+                    mergeBuildingAreaM2: mutationData.mergeBuildingAreaM2 || bArea,
+                    mergeResidualAreaM2: mutationData.mergeResidualAreaM2 || rArea,
+                    mergeResidualType: mutationData.mergeResidualType || 'Sân vườn / Cây cảnh',
+                    mergeResidualParcelCode: `${mergeSummary.keptCode}-RESIDUAL`,
+                    mergeBuildingRatio: 65,
+                    isSubmitted: false,
+                  });
+                }}
+                style={{
+                  padding: '0.55rem 0.75rem',
+                  borderRadius: '0.5rem',
+                  border: mutationData.mergeHasPartialBuilding ? '2px solid #ea580c' : '1px solid #cbd5e1',
+                  backgroundColor: mutationData.mergeHasPartialBuilding ? '#ffedd5' : '#ffffff',
+                  color: mutationData.mergeHasPartialBuilding ? '#c2410c' : '#475569',
+                  textAlign: 'left',
+                  fontSize: '0.725rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                }}
+              >
+                <span style={{ fontSize: '1rem' }}>🏠</span>
+                <div>
+                  <div>Nhà chỉ xây một phần (Có đất dư)</div>
+                  <div style={{ fontSize: '0.65rem', fontWeight: 500, color: '#9a3412' }}>
+                    Chủ nhà mua thêm đất cạnh nhưng chưa xây kín
+                  </div>
+                </div>
+              </button>
+            </div>
+
+            {/* Chi tiết bóc tách khi chọn Xây một phần */}
+            {mutationData.mergeHasPartialBuilding && (
+              <div
+                style={{
+                  backgroundColor: '#ffffff',
+                  border: '1px solid #fed7aa',
+                  borderRadius: '0.5rem',
+                  padding: '0.65rem 0.75rem',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.6rem',
+                }}
+              >
+                <div style={{ fontSize: '0.7rem', color: '#9a3412', fontWeight: 700 }}>
+                  ⚡ Khoanh vùng diện tích xây dựng thực tế & bóc tách mảnh đất dư:
+                </div>
+
+                {/* Thanh trượt tỷ lệ & ô nhập m² */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.65rem', alignItems: 'center' }}>
+                  <div>
+                    <label style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', fontWeight: 700, color: '#334155' }}>
+                      <span>Tỷ lệ diện tích xây dựng:</span>
+                      <strong style={{ color: '#ea580c' }}>
+                        {mutationData.mergeBuildingRatio || Math.round(((mutationData.mergeBuildingAreaM2 || 0) / (mergeSummary.totalMergedArea || 1)) * 100)}%
+                      </strong>
+                    </label>
+                    <input
+                      type="range"
+                      min="15"
+                      max="95"
+                      step="5"
+                      value={mutationData.mergeBuildingRatio || 65}
+                      onChange={(e) => {
+                        const ratio = parseInt(e.target.value, 10);
+                        const total = mergeSummary.totalMergedArea || totalLandArea;
+                        const bArea = Math.round(((total * ratio) / 100) * 10) / 10;
+                        const rArea = Math.round((total - bArea) * 10) / 10;
+                        onMutationDataChange({
+                          ...mutationData,
+                          mergeBuildingRatio: ratio,
+                          mergeBuildingAreaM2: bArea,
+                          mergeResidualAreaM2: rArea,
+                          isSubmitted: false,
+                        });
+                      }}
+                      style={{ width: '100%', accentColor: '#ea580c' }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 700, color: '#334155', marginBottom: '2px' }}>
+                      Mục đích sử dụng phần đất dư:
+                    </label>
+                    <select
+                      className="form-control"
+                      style={{ fontSize: '0.725rem', backgroundColor: '#fff', border: '1px solid #cbd5e1' }}
+                      value={mutationData.mergeResidualType || 'Sân vườn / Cây cảnh'}
+                      onChange={(e) => {
+                        onMutationDataChange({
+                          ...mutationData,
+                          mergeResidualType: e.target.value,
+                          isSubmitted: false,
+                        });
+                      }}
+                    >
+                      <option value="Sân vườn / Cây cảnh">Sân vườn / Cây cảnh (Khoảng lùi sinh thái)</option>
+                      <option value="Sân trước / Sân sau lát gạch">Sân trước / Sân sau lát gạch</option>
+                      <option value="Đất trống chưa xây dựng (Để dành)">Đất trống chưa xây dựng (Để dành)</option>
+                      <option value="Kho bãi tạm / Gara ô tô ngoài trời">Kho bãi tạm / Gara ô tô ngoài trời</option>
+                      <option value="Lối đi riêng / Ngõ phụ tiếp giáp">Lối đi riêng / Ngõ phụ tiếp giáp</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* 2 Thẻ phân vùng bóc tách rõ ràng */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.5rem', marginTop: '0.2rem' }}>
+                  {/* Mảnh 1: Toà nhà */}
+                  <div
+                    style={{
+                      backgroundColor: '#fff7ed',
+                      border: '1.5px solid #fdba74',
+                      borderRadius: '0.5rem',
+                      padding: '0.5rem 0.65rem',
+                      fontSize: '0.7rem',
+                    }}
+                  >
+                    <div style={{ fontWeight: 800, color: '#c2410c', display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
+                      <span>🏠 1. Mảnh đất ngôi nhà (Khảo sát)</span>
+                      <span className="badge" style={{ backgroundColor: '#ea580c', color: '#fff' }}>{mergeSummary.keptCode}</span>
+                    </div>
+                    <div style={{ color: '#475569', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
+                      <span>Diện tích xây dựng thực tế:</span>
+                      <strong style={{ color: '#0f172a', fontSize: '0.75rem' }}>{mutationData.mergeBuildingAreaM2 || Math.round((mergeSummary.totalMergedArea || 0) * 0.65)} m²</strong>
+                    </div>
+                  </div>
+
+                  {/* Mảnh 2: Đất dư */}
+                  <div
+                    style={{
+                      backgroundColor: '#f0fdf4',
+                      border: '1.5px solid #86efac',
+                      borderRadius: '0.5rem',
+                      padding: '0.5rem 0.65rem',
+                      fontSize: '0.7rem',
+                    }}
+                  >
+                    <div style={{ fontWeight: 800, color: '#166534', display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
+                      <span>🌳 2. Mảnh đất dư (Chủ nhà mới)</span>
+                      <span className="badge" style={{ backgroundColor: '#16a34a', color: '#fff' }}>
+                        {mutationData.mergeResidualParcelCode || `${mergeSummary.keptCode}-RESIDUAL`}
+                      </span>
+                    </div>
+                    <div style={{ color: '#475569', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
+                      <span>Diện tích đất dư:</span>
+                      <strong style={{ color: '#166534', fontSize: '0.75rem' }}>{mutationData.mergeResidualAreaM2 || Math.round((mergeSummary.totalMergedArea || 0) * 0.35)} m²</strong>
+                    </div>
+                    <div style={{ fontSize: '0.65rem', color: '#64748b', marginTop: '2px' }}>
+                      Loại: <em>{mutationData.mergeResidualType || 'Sân vườn / Cây cảnh'}</em>
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
           </div>
