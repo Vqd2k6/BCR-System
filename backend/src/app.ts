@@ -74,6 +74,7 @@ export function createApp(): express.Application {
   api.post('/auth/login', AuthController.login);
   api.post('/auth/refresh-token', AuthController.refreshToken);
   api.get('/auth/me', authenticateJwt, AuthController.getMe);
+  api.put('/auth/me', authenticateJwt, AuthController.updateMe);
   api.post('/auth/logout', authenticateJwt, AuthController.logout);
 
   // ==========================================

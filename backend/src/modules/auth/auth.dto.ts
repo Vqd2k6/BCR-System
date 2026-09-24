@@ -30,6 +30,13 @@ export const UpdateUserDto = z.object({
   signatureImageUrl: z.string().optional().nullable(),
 });
 
+export const UpdateProfileDto = z.object({
+  fullName: z.string().min(2, 'Họ tên phải từ 2 ký tự').max(128).optional(),
+  email: z.string().email('Email không đúng định dạng').optional().nullable(),
+  phone: z.string().min(8, 'Số điện thoại phải từ 8 số trở lên').max(20).optional().nullable(),
+  signatureImageUrl: z.string().optional().nullable(),
+});
+
 export const UpdateUserStatusDto = z.object({
   status: z.enum(['ACTIVE', 'SUSPENDED', 'LOCKED']),
   reason: z.string().min(3, 'Lý do thay đổi trạng thái phải từ 3 ký tự').optional(),

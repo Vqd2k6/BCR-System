@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { Train, LogOut, ShieldCheck, Clock, CheckCircle2, AlertCircle, Users, UserCheck } from 'lucide-react';
+import { Train, LogOut, ShieldCheck, Clock, CheckCircle2, AlertCircle, Users, UserCheck, Phone, PenTool, FileSignature } from 'lucide-react';
+import { UserProfileModal } from '../profile/UserProfileModal';
 
 interface Props {
   title?: string;
@@ -23,6 +24,7 @@ export const SurveyorNavbar: React.FC<Props> = ({
   const todayStr = new Date().toISOString().split('T')[0];
   const isCompanionCheckedIn = !!localStorage.getItem(`metro2_companion_checkin_${todayStr}`);
   const [showProfileMenu, setShowProfileMenu] = useState<boolean>(false);
+  const [showProfileModal, setShowProfileModal] = useState<boolean>(false);
   const [isVisible, setIsVisible] = useState<boolean>(true);
   const [lastScrollY, setLastScrollY] = useState<number>(0);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -218,6 +220,56 @@ export const SurveyorNavbar: React.FC<Props> = ({
                     : user.assignedZoneId.replace('ZONE_', 'Zone_').replace('S', 'ST0')}
                 </strong>
               </div>
+
+              {/* Surveyor ID Badge (CRLG Standard) */}
+              {user?.role === 'SURVEYOR' && (
+                <div style={{ marginTop: '0.4rem', backgroundColor: '#e0f2fe', border: '1px solid #bae6fd', borderRadius: '4px', padding: '3px 6px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: '0.675rem', color: '#0369a1', fontWeight: 700 }}>Surveyor ID:</span>
+                  <span style={{ fontFamily: 'monospace', fontWeight: 800, fontSize: '0.75rem', color: '#0284c7' }}>
+                    {user?.surveyorCode || 'P-____'}
+                  </span>
+                </div>
+              )}
+
+              {/* SĐT liên hệ */}
+              <div style={{ marginTop: '0.35rem', fontSize: '0.7rem', color: '#475569', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                <Phone size={12} color="#64748b" />
+                <span>SĐT: <strong>{user?.phone || 'Chưa cập nhật'}</strong></span>
+              </div>
+
+              {/* Trạng thái chữ ký */}
+              <div style={{ marginTop: '0.25rem', fontSize: '0.7rem', color: '#475569', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                <PenTool size={12} color={user?.signatureImageUrl ? '#10b981' : '#f59e0b'} />
+                <span>Chữ ký: <strong style={{ color: user?.signatureImageUrl ? '#16a34a' : '#d97706' }}>{user?.signatureImageUrl ? 'Đã có' : 'Chưa cài'}</strong></span>
+              </div>
+
+              {/* Nút mở Modal Cập nhật SĐT & Chữ ký */}
+              <button
+                type="button"
+                onClick={() => {
+                  setShowProfileMenu(false);
+                  setShowProfileModal(true);
+                }}
+                style={{
+                  width: '100%',
+                  marginTop: '0.5rem',
+                  padding: '0.35rem 0.5rem',
+                  fontSize: '0.725rem',
+                  fontWeight: 700,
+                  color: '#0369a1',
+                  backgroundColor: '#f0f9ff',
+                  border: '1px solid #7dd3fc',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '4px',
+                }}
+              >
+                <UserCheck size={13} />
+                <span>Cập nhật SĐT & Chữ ký</span>
+              </button>
             </div>
 
             <div style={{ fontSize: '0.725rem', color: '#475569', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
@@ -372,6 +424,12 @@ export const SurveyorNavbar: React.FC<Props> = ({
           </div>
         )}
       </div>
+
+      {/* Modal Cập nhật SĐT & Chữ ký Khảo sát viên */}
+      <UserProfileModal
+        isOpen={showProfileModal}
+        onClose={() => setShowProfileModal(false)}
+      />
     </header>
   );
 };

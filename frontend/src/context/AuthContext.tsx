@@ -8,6 +8,10 @@ export interface UserProfile {
   role: 'SUPER_ADMIN' | 'ZONE_ADMIN' | 'SURVEYOR' | 'CONTRACTOR';
   assignedZoneId?: string | null;
   status: string;
+  phone?: string | null;
+  surveyorCode?: string | null;
+  signatureImageUrl?: string | null;
+  email?: string | null;
 }
 
 interface AuthContextType {
@@ -17,6 +21,8 @@ interface AuthContextType {
   login: (username: string, password: string) => Promise<void>;
   logout: () => void;
   isLoading: boolean;
+  updateProfile: (data: { fullName?: string; phone?: string | null; signatureImageUrl?: string | null; email?: string | null }) => Promise<void>;
+  refreshProfile: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -26,6 +32,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [token, setToken] = useState<string | null>(localStorage.getItem('metro2_access_token'));
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
+  const syncUserProfileFromApi = async () => {
+    try {
+      const res = await api.get('/auth/me');
+      if (res.data?.success && res.data?.data) {
+        const fresh = res.data.data;
+        const normalized: UserProfile = {
+          id: fresh.id,
+          username: fresh.username,
+          fullName: fresh.fullName || fresh.full_name,
+          role: fresh.role,
+          assignedZoneId: fresh.assignedZoneId || fresh.assigned_zone_id,
+          status: fresh.status,
+          phone: fresh.phone || null,
+          surveyorCode: fresh.surveyorCode || fresh.surveyor_code || null,
+          signatureImageUrl: fresh.signatureImageUrl || fresh.signature_image_url || null,
+          email: fresh.email || null,
+        };
+        setUser(normalized);
+        localStorage.setItem('metro2_user_profile', JSON.stringify(normalized));
+      }
+    } catch (_err) {
+      // Offline fallback: keep cached profile
+    }
+  };
+
   useEffect(() => {
     const initSession = async () => {
       const savedUser = localStorage.getItem('metro2_user_profile');
@@ -34,6 +65,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         try {
           setUser(JSON.parse(savedUser));
           setToken(savedToken);
+          // Đồng bộ thông tin mới nhất (phone, surveyorCode, signatureImageUrl) từ database
+          syncUserProfileFromApi();
         } catch (_e) {
           localStorage.removeItem('metro2_user_profile');
           localStorage.removeItem('metro2_access_token');
@@ -49,11 +82,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const res = await api.post('/auth/login', { username, password });
       if (res.data?.success) {
-        const { accessToken, user: userData } = res.data.data;
+        const { accessToken, user: rawUser } = res.data.data;
+        const normalized: UserProfile = {
+          id: rawUser.id,
+          username: rawUser.username,
+          fullName: rawUser.fullName || rawUser.full_name,
+          role: rawUser.role,
+          assignedZoneId: rawUser.assignedZoneId || rawUser.assigned_zone_id,
+          status: rawUser.status,
+          phone: rawUser.phone || null,
+          surveyorCode: rawUser.surveyorCode || rawUser.surveyor_code || null,
+          signatureImageUrl: rawUser.signatureImageUrl || rawUser.signature_image_url || null,
+          email: rawUser.email || null,
+        };
         setToken(accessToken);
-        setUser(userData);
+        setUser(normalized);
         localStorage.setItem('metro2_access_token', accessToken);
-        localStorage.setItem('metro2_user_profile', JSON.stringify(userData));
+        localStorage.setItem('metro2_user_profile', JSON.stringify(normalized));
         return;
       }
     } catch (apiErr: any) {
@@ -67,6 +112,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           role: 'SURVEYOR',
           assignedZoneId: 'ZONE_S9',
           status: 'ACTIVE',
+          phone: '0903456789',
+          surveyorCode: 'P-6789',
+        },
+        surveyor_s9_02: {
+          id: 'b0000000-0000-0000-0000-000000000004',
+          username: 'surveyor_s9_02',
+          fullName: 'Trần Văn B',
+          role: 'SURVEYOR',
+          assignedZoneId: 'ZONE_S9',
+          status: 'ACTIVE',
+          phone: '0904567890',
+          surveyorCode: 'P-7890',
         },
         zoneadmin_s9: {
           id: 'b0000000-0000-0000-0000-000000000002',
@@ -75,6 +132,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           role: 'ZONE_ADMIN',
           assignedZoneId: 'ZONE_S9',
           status: 'ACTIVE',
+          phone: '0902345678',
         },
         superadmin: {
           id: 'b0000000-0000-0000-0000-000000000001',
@@ -83,6 +141,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           role: 'SUPER_ADMIN',
           assignedZoneId: null,
           status: 'ACTIVE',
+          phone: '0901234567',
         },
         contractor_guest: {
           id: 'b0000000-0000-0000-0000-000000000005',
@@ -91,6 +150,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           role: 'CONTRACTOR',
           assignedZoneId: null,
           status: 'ACTIVE',
+          phone: '0905678901',
         },
       };
 
@@ -105,6 +165,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       throw apiErr;
+    }
+  };
+
+  const updateProfile = async (data: { fullName?: string; phone?: string | null; signatureImageUrl?: string | null; email?: string | null }) => {
+    const res = await api.put('/auth/me', data);
+    if (res.data?.success && res.data?.data) {
+      const fresh = res.data.data;
+      const updated: UserProfile = {
+        ...user!,
+        fullName: fresh.fullName || fresh.full_name || user!.fullName,
+        phone: fresh.phone !== undefined ? fresh.phone : user!.phone,
+        surveyorCode: fresh.surveyorCode || fresh.surveyor_code || user!.surveyorCode,
+        signatureImageUrl: fresh.signatureImageUrl !== undefined ? fresh.signatureImageUrl : user!.signatureImageUrl,
+        email: fresh.email !== undefined ? fresh.email : user!.email,
+      };
+      setUser(updated);
+      localStorage.setItem('metro2_user_profile', JSON.stringify(updated));
     }
   };
 
@@ -131,6 +208,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         login,
         logout,
         isLoading,
+        updateProfile,
+        refreshProfile: syncUserProfileFromApi,
       }}
     >
       {children}

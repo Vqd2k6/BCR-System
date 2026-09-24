@@ -327,6 +327,32 @@ export const SurveyorHomeView: React.FC<Props> = ({
               ? 'Zone_ST09'
               : user.assignedZoneId.replace('ZONE_', 'Zone_').replace('S', 'ST0')}
           </h2>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '3px', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: '0.775rem', fontWeight: 700, color: '#334155' }}>
+              {user?.fullName}
+            </span>
+            {user?.role === 'SURVEYOR' && (
+              <span
+                style={{
+                  backgroundColor: '#e0f2fe',
+                  color: '#0369a1',
+                  fontSize: '0.675rem',
+                  fontWeight: 800,
+                  padding: '1px 6px',
+                  borderRadius: '4px',
+                  border: '1px solid #bae6fd',
+                  fontFamily: 'monospace',
+                }}
+              >
+                ID: {user?.surveyorCode || 'Chưa kích hoạt'}
+              </span>
+            )}
+            {user?.phone && (
+              <span style={{ fontSize: '0.725rem', color: '#64748b' }}>
+                • SĐT: {user.phone}
+              </span>
+            )}
+          </div>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>

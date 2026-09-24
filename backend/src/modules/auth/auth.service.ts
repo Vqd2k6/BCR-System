@@ -157,6 +157,9 @@ export class AuthService {
         role: user.role,
         assignedZoneId: user.assigned_zone_id,
         status: user.status,
+        phone: user.phone || null,
+        surveyorCode: user.surveyor_code || null,
+        signatureImageUrl: user.signature_image_url || null,
       },
     };
   }
@@ -191,7 +194,38 @@ export class AuthService {
       throw new NotFoundError('Không tìm thấy thông tin người dùng');
     }
     const { password_hash, ...safeUser } = user;
-    return safeUser;
+    return {
+      ...safeUser,
+      fullName: safeUser.full_name,
+      assignedZoneId: safeUser.assigned_zone_id,
+      phone: safeUser.phone,
+      surveyorCode: safeUser.surveyor_code,
+      signatureImageUrl: safeUser.signature_image_url,
+    };
+  }
+
+  static async updateProfile(
+    userId: string,
+    data: {
+      fullName?: string;
+      email?: string | null;
+      phone?: string | null;
+      signatureImageUrl?: string | null;
+    }
+  ) {
+    const user = await AuthRepository.updateUser(userId, data);
+    if (!user) {
+      throw new NotFoundError('Không tìm thấy tài khoản người dùng');
+    }
+    const { password_hash, ...safeUser } = user;
+    return {
+      ...safeUser,
+      fullName: safeUser.full_name,
+      assignedZoneId: safeUser.assigned_zone_id,
+      phone: safeUser.phone,
+      surveyorCode: safeUser.surveyor_code,
+      signatureImageUrl: safeUser.signature_image_url,
+    };
   }
 
   // --- SUPER ADMIN USER LIFECYCLE ---

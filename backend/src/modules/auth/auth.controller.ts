@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { AuthService } from './auth.service';
-import { LoginDto, RefreshTokenDto } from './auth.dto';
+import { LoginDto, RefreshTokenDto, UpdateProfileDto } from './auth.dto';
 import { BadRequestError } from '../../common/errors/problem-details';
 
 export class AuthController {
@@ -57,6 +57,28 @@ export class AuthController {
       const profile = await AuthService.getProfile(userId);
       res.status(200).json({
         success: true,
+        data: profile,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async updateMe(req: Request, res: Response, next: NextFunction) {
+    try {
+      const userId = req.user!.userId;
+      const parsed = UpdateProfileDto.safeParse(req.body);
+      if (!parsed.success) {
+        throw new BadRequestError(
+          'Dữ liệu hồ sơ không hợp lệ',
+          parsed.error.errors.map((e) => ({ field: e.path.join('.'), message: e.message }))
+        );
+      }
+
+      const profile = await AuthService.updateProfile(userId, parsed.data);
+      res.status(200).json({
+        success: true,
+        message: 'Cập nhật thông tin cá nhân thành công',
         data: profile,
       });
     } catch (error) {
