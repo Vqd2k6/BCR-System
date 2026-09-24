@@ -27,11 +27,12 @@ api.interceptors.response.use(
     const data = error.response?.data;
     const detailMsg = data?.detail || data?.message || data?.title || error.message;
 
-    // Tự động chuyển tiếp lỗi API về dev reporter nếu trong môi trường DEV
-    if (status && status >= 400 && status !== 401) {
+    // Tự động chuyển tiếp toàn bộ lỗi API về dev reporter nếu trong môi trường DEV
+    if (status && status >= 400) {
+      const msgStr = typeof detailMsg === 'object' ? JSON.stringify(detailMsg) : String(detailMsg);
       sendDevError({
         errorType: 'API_ERROR',
-        message: `[API ${status}] ${method} ${url}: ${detailMsg}`,
+        message: `[API ${status}] ${method} ${url}: ${msgStr}`,
         stack: error.stack,
         url: typeof window !== 'undefined' ? window.location.href : '',
       });
