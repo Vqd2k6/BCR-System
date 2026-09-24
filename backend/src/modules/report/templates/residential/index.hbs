@@ -1,0 +1,1060 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>BÁO CÁO KHẢO SÁT HIỆN TRẠNG CÔNG TRÌNH - {{reportCode}}</title>
+  <style>
+    {{{styles}}}
+  </style>
+</head>
+<body>
+
+  <!-- =====================================================================
+       TRANG BÌA (COVER PAGE)
+       ===================================================================== -->
+  <div class="cover-page">
+    <div class="cover-header">
+      <div class="joint-venture">LIÊN DANH CRLG–CRSRI–TT</div>
+      <div class="project-name">
+        DỰ ÁN XÂY DỰNG TUYẾN ĐƯỜNG SẮT ĐÔ THỊ SỐ 2 TP. HỒ CHÍ MINH<br>
+        (BẾN THÀNH – THAM LƯƠNG)
+      </div>
+    </div>
+
+    <div style="text-align: center; margin: 12px 0;">
+      <h1 class="doc-title">BÁO CÁO KHẢO SÁT HIỆN TRẠNG CÔNG TRÌNH – PHASE 1</h1>
+      <h2 class="doc-subtitle">BUILDING CONDITION SURVEY REPORT – PHASE 1</h2>
+    </div>
+
+    <!-- ẢNH ĐỊNH DANH NGOẠI THẤT P-02 TRÊN TRANG BÌA -->
+    <div class="cover-photo">
+      {{#if p02.url}}
+        <img src="{{p02.url}}" alt="Mặt đứng chính công trình">
+      {{else}}
+        <div style="height: 220px; display: flex; align-items: center; justify-content: center; background: #e2e8f0; color: #64748b;">
+          [ Chưa có ảnh mặt đứng chính P-02 ]
+        </div>
+      {{/if}}
+      <div style="font-size: 8pt; color: #475569; margin-top: 3px;">
+        ẢNH MẶT ĐỨNG CÔNG TRÌNH / BUILDING FRONTAGE PHOTO (P-02)
+      </div>
+    </div>
+
+    <!-- BẢNG ĐỊNH DANH BÌA -->
+    <table class="cover-meta-table">
+      <tr>
+        <td class="label">Mã công trình (Building ID)</td>
+        <td class="font-bold">{{buildingId}}</td>
+        <td class="label">Mã khảo sát (Survey ID)</td>
+        <td>{{surveyId}}</td>
+      </tr>
+      <tr>
+        <td class="label">Địa chỉ công trình</td>
+        <td colspan="3">{{address}}</td>
+      </tr>
+      <tr>
+        <td class="label">Đoạn tuyến / Phân khu</td>
+        <td>{{zoneName}} ({{zoneId}})</td>
+        <td class="label">Hạng mục Metro gần nhất</td>
+        <td>{{metroItemType}}</td>
+      </tr>
+      <tr>
+        <td class="label">Cự ly đến tim hầm</td>
+        <td>{{distanceToTunnelMeters}} m (Lý trình: {{chainage}})</td>
+        <td class="label">Ngày khảo sát</td>
+        <td>{{surveyDate}}</td>
+      </tr>
+      <tr>
+        <td class="label">Chủ sở hữu / Người sử dụng</td>
+        <td>{{ownerName}}</td>
+        <td class="label">Số hiệu tài liệu / Phiên bản</td>
+        <td>{{reportCode}} (Rev. {{revision}})</td>
+      </tr>
+    </table>
+
+    <div class="cover-footer">
+      THÀNH PHỐ HỒ CHÍ MINH, NĂM 2026
+    </div>
+  </div>
+
+  <!-- =====================================================================
+       TRANG 2: KIỂM SOÁT TÀI LIỆU & DASHBOARD CHỈ SỐ RỦI RO
+       ===================================================================== -->
+  <div class="page-break"></div>
+
+  <h2 class="section-header">KIỂM SOÁT TÀI LIỆU / DOCUMENT CONTROL</h2>
+  <table class="tech-table">
+    <tr>
+      <th style="width: 25%;">Tên dự án</th>
+      <td colspan="3">Xây dựng Tuyến Đường sắt đô thị số 2 TP.HCM (Bến Thành – Tham Lương)</td>
+    </tr>
+    <tr>
+      <th>Tên tài liệu</th>
+      <td>Báo cáo khảo sát hiện trạng công trình – Phase 1 (Baseline Report)</td>
+      <th style="width: 20%;">Số tài liệu</th>
+      <td>{{reportCode}}</td>
+    </tr>
+    <tr>
+      <th>Đơn vị thực hiện</th>
+      <td>Liên danh CRLG–CRSRI–TT</td>
+      <th>Nhà thầu EPC</th>
+      <td>THACO-CREC</td>
+    </tr>
+    <tr>
+      <th>Mã thửa đất (Building ID)</th>
+      <td class="font-bold">{{buildingId}}</td>
+      <th>Mã địa chính</th>
+      <td>{{officialCadastralCode}}</td>
+    </tr>
+    <tr>
+      <th>Địa chỉ thực tế</th>
+      <td colspan="3">{{address}}</td>
+    </tr>
+  </table>
+
+  <!-- BẢNG THEO DÕI SỬA ĐỔI PHÁT HÀNH -->
+  <table class="tech-table">
+    <thead>
+      <tr>
+        <th class="text-center" style="width: 8%;">Rev.</th>
+        <th class="text-center" style="width: 15%;">Ngày</th>
+        <th>Mô tả phát hành</th>
+        <th class="text-center" style="width: 18%;">Lập báo cáo</th>
+        <th class="text-center" style="width: 18%;">Kiểm tra</th>
+        <th class="text-center" style="width: 18%;">Phê duyệt</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="text-center">{{revision}}</td>
+        <td class="text-center">{{surveyDate}}</td>
+        <td>Phát hành hồ sơ khảo sát hiện trạng công trình trước thi công Metro</td>
+        <td class="text-center">{{preparedByName}}</td>
+        <td class="text-center">{{checkedByName}}</td>
+        <td class="text-center">{{approvedByName}}</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="note-box">
+    <div class="note-title">📌 Ghi chú pháp lý tài liệu:</div>
+    Báo cáo Phase 1 là hồ sơ kỹ thuật khảo sát và sàng lọc rủi ro ban đầu. Hồ sơ pháp lý xác nhận hiện trạng trước thi công được lưu trữ trong Cơ sở dữ liệu Dự án Metro 2 và làm căn cứ pháp lý đối soát giải quyết bồi hoàn/khiếu nại nếu có phát sinh ảnh hưởng lún nứt trong quá trình thi công đào hầm TBM.
+  </div>
+
+  <!-- BẢNG ĐIỀU KHIỂN CHỈ SỐ RỦI RO (EXECUTIVE RISK DASHBOARD) -->
+  <h2 class="section-header" style="margin-top: 20px;">TỔNG QUAN CHỈ SỐ RỦI RO CÔNG TRÌNH (EXECUTIVE DASHBOARD)</h2>
+  
+  <div class="dashboard-grid">
+    <div class="metric-card">
+      <div class="metric-label">Tình trạng hiện hữu (ECS)</div>
+      <div class="metric-value">{{totalEcsScore}} <span style="font-size: 9pt; color: #64748b;">/ 24</span></div>
+      <div style="margin-top: 4px;">
+        <span class="badge {{ecsBadgeClass}}">{{ecsClass}}</span>
+      </div>
+      <div class="metric-desc">Thang điểm 6 tiêu chí E1-E6</div>
+    </div>
+
+    <div class="metric-card">
+      <div class="metric-label">Chỉ số dễ tổn thương (VI)</div>
+      <div class="metric-value">{{avgViScore}} <span style="font-size: 9pt; color: #64748b;">/ 4.0</span></div>
+      <div style="margin-top: 4px;">
+        <span class="badge {{viBadgeClass}}">{{viClass}}</span>
+      </div>
+      <div class="metric-desc">Mức nhạy cảm với biến dạng</div>
+    </div>
+
+    <div class="metric-card">
+      <div class="metric-label">Cấp tác động Metro (I)</div>
+      <div class="metric-value">CẤP I-{{constructionImpactLevelI}}</div>
+      <div style="margin-top: 4px;">
+        <span class="badge {{impactBadgeClass}}">CỰ LY {{distanceToTunnelMeters}}M</span>
+      </div>
+      <div class="metric-desc">Khoảng cách đến tim hầm</div>
+    </div>
+
+    <div class="metric-card">
+      <div class="metric-label">Sàng lọc rủi ro (BRA)</div>
+      <div class="metric-value" style="font-size: 11pt;">{{buildingRiskAssessmentBra}}</div>
+      <div style="margin-top: 4px;">
+        <span class="badge {{braBadgeClass}}">MA TRẬN V × I</span>
+      </div>
+      <div class="metric-desc">Hành động tối thiểu tương ứng</div>
+    </div>
+  </div>
+
+  <table class="tech-table">
+    <tr>
+      <th style="width: 25%;">Dự báo lún tối đa ($S_{\text{max}}$)</th>
+      <td style="width: 25%;">{{predictedSettlementSmax}} mm</td>
+      <th style="width: 25%;">Độ võng dầm / sàn lớn nhất</th>
+      <td style="width: 25%;">{{beamDeflectionMm}} mm</td>
+    </tr>
+    <tr>
+      <th>Độ nghiêng công trình ($X / Y$)</th>
+      <td>{{tiltAngleX}} ‰ / {{tiltAngleY}} ‰ ({{tiltDirection}})</td>
+      <th>Tổng số vết nứt ghi nhận</th>
+      <td class="font-bold">{{totalDefectsCount}} vết nứt ({{totalDamageZonesCount}} vùng)</td>
+    </tr>
+  </table>
+
+  <!-- =====================================================================
+       MỤC 1 & 2: THÔNG TIN DỰ ÁN & PHƯƠNG PHÁP KHẢO SÁT
+       ===================================================================== -->
+  <h2 class="section-header">1. THÔNG TIN CHUNG DỰ ÁN & VỊ TRÍ CÔNG TRÌNH</h2>
+  <p style="font-size: 9pt; margin: 4px 0 8px 0; text-align: justify;">
+    Dự án Xây dựng Tuyến Đường sắt đô thị số 2 TP.HCM (Bến Thành – Tham Lương) được triển khai qua các trục đường đô thị có mật độ công trình dày đặc. Công tác khảo sát hiện trạng Phase 1 nhằm thiết lập bộ hồ sơ hiện trạng kỹ thuật ban đầu (Baseline Condition) phục vụ sàng lọc rủi ro BRA và làm căn cứ bảo vệ quyền lợi hợp pháp của người dân cũng như Chủ đầu tư.
+  </p>
+
+  <table class="tech-table">
+    <tr>
+      <th style="width: 25%;">Nhà thầu EPC</th>
+      <td>THACO-CREC</td>
+      <th style="width: 25%;">Đơn vị khảo sát</th>
+      <td>Liên danh CRLG–CRSRI–TT</td>
+    </tr>
+    <tr>
+      <th>Đoạn tuyến / Ga phụ trách</th>
+      <td>{{zoneName}}</td>
+      <th>Hạng mục công trình Metro</th>
+      <td>{{metroItemType}}</td>
+    </tr>
+    <tr>
+      <th>Lý trình tim tuyến (Chainage)</th>
+      <td>{{chainage}}</td>
+      <th>Cự ly từ ranh đất đến tim hầm</th>
+      <td class="font-bold">{{distanceToTunnelMeters}} mét</td>
+    </tr>
+  </table>
+
+  <h2 class="section-header">2. MỤC ĐÍCH, PHẠM VI VÀ THIẾT BỊ KHẢO SÁT</h2>
+  <table class="tech-table">
+    <thead>
+      <tr>
+        <th class="text-center" style="width: 8%;">STT</th>
+        <th style="width: 35%;">Thiết bị / Công cụ đo đạc</th>
+        <th style="width: 25%;">Thông số kỹ thuật</th>
+        <th>Mục đích sử dụng</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="text-center">1</td>
+        <td class="font-bold">Thiết bị chụp ảnh số có gắn GPS</td>
+        <td>Độ phân giải &ge; 12MP, gắn EXIF tọa độ</td>
+        <td>Chụp ảnh định danh và bối cảnh vết nứt</td>
+      </tr>
+      <tr>
+        <td class="text-center">2</td>
+        <td class="font-bold">Thước đo bề rộng vết nứt (Crack Gauge)</td>
+        <td>Thước chuẩn vạch chia từ 0.1mm đến 5.0mm</td>
+        <td>Đo bề rộng lớn nhất ($w_{\text{max}}$) của khuyết tật</td>
+      </tr>
+      <tr>
+        <td class="text-center">3</td>
+        <td class="font-bold">Thước đo khoảng cách Laser / Thước thép</td>
+        <td>Sai số &plusmn; 1.5mm, tầm đo 40m</td>
+        <td>Đo chiều dài vết nứt và kích thước phòng</td>
+      </tr>
+      <tr>
+        <td class="text-center">4</td>
+        <td class="font-bold">Thiết bị đo nghiêng kỹ thuật số (Laser Level)</td>
+        <td>Độ chính xác 0.1&permil;</td>
+        <td>Đo độ nghiêng tường và độ dốc sàn dầm</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- =====================================================================
+       MỤC 3: THÔNG TIN VÀ ĐẶC ĐIỂM CÔNG TRÌNH (KÈM LỊCH SỬ SỬ DỤNG)
+       ===================================================================== -->
+  <div class="page-break"></div>
+
+  <h2 class="section-header">3. THÔNG TIN VÀ ĐẶC ĐIỂM CÔNG TRÌNH</h2>
+
+  <h3 class="subsection-header">3.1. Thông tin nhận dạng & quy mô kết cấu</h3>
+  <table class="tech-table">
+    <tr>
+      <th style="width: 22%;">Tên công trình</th>
+      <td style="width: 28%;">{{buildingName}}</td>
+      <th style="width: 22%;">Chủ sở hữu / Người sử dụng</th>
+      <td style="width: 28%;">{{ownerName}}</td>
+    </tr>
+    <tr>
+      <th>Địa chỉ công trình</th>
+      <td colspan="3">{{address}}</td>
+    </tr>
+    <tr>
+      <th>Công năng hiện hữu</th>
+      <td>{{landUseFunction}}</td>
+      <th>Số tầng công trình</th>
+      <td>Nổi: {{floorCount}} tầng | Hầm: {{basementCount}} hầm</td>
+    </tr>
+    <tr>
+      <th>Hệ kết cấu chịu lực</th>
+      <td class="font-bold">{{structuralSystemLabel}}</td>
+      <th>Năm xây dựng</th>
+      <td>{{yearOfConstruction}} {{#if isYearEstimated}}(Ước tính){{/if}}</td>
+    </tr>
+    <tr>
+      <th>Loại móng</th>
+      <td class="font-bold">{{foundationCategoryLabel}}</td>
+      <th>CAT thông tin móng</th>
+      <td>{{foundationCategory}} (Nguồn: {{foundationInfoSource}})</td>
+    </tr>
+    <tr>
+      <th>Diện tích xây dựng</th>
+      <td>{{constructionAreaM2}} m²</td>
+      <th>Chiều cao ước tính</th>
+      <td>{{estimatedHeightM}} m</td>
+    </tr>
+    <tr>
+      <th>Công trình tiếp giáp lân cận</th>
+      <td colspan="3">{{adjacentBuildingsNote}}</td>
+    </tr>
+  </table>
+
+  <!-- 3.2. LỊCH SỬ SỬ DỤNG VÀ CÁC YẾU TỐ NHẠY CẢM (CÁC NOTE PHÁT SINH) -->
+  <h3 class="subsection-header">3.2. Lịch sử sử dụng và các yếu tố nhạy cảm (Ghi chú khảo sát)</h3>
+  <table class="tech-table">
+    <thead>
+      <tr>
+        <th style="width: 32%;">Nội dung kiểm tra</th>
+        <th class="text-center" style="width: 14%;">Hiện trạng</th>
+        <th>Ghi chú chi tiết phát sinh tại hiện trường</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="font-bold">Cơi nới / Thay đổi tải trọng / Nâng tầng</td>
+        <td class="text-center">{{#if extendedOrRenovated}}<span style="color: #c2410c; font-weight: bold;">CÓ</span>{{else}}KHÔNG{{/if}}</td>
+        <td>{{#if extendedOrRenovatedNotes}}{{extendedOrRenovatedNotes}}{{else}}Không có cơi nới hoặc thay đổi kết cấu lớn.{{/if}}</td>
+      </tr>
+      <tr>
+        <td class="font-bold">Lịch sử lún / nghiêng / nứt trước đây</td>
+        <td class="text-center">{{#if previousSettlementOrTilt}}<span style="color: #c2410c; font-weight: bold;">CÓ</span>{{else}}KHÔNG{{/if}}</td>
+        <td>{{#if previousSettlementNotes}}{{previousSettlementNotes}}{{else}}Chủ nhà không ghi nhận hiện tượng lún nghiêng bất thường trước đây.{{/if}}</td>
+      </tr>
+      <tr>
+        <td class="font-bold">Sự cố hỏa hoạn / ngập lụt / va chạm xe</td>
+        <td class="text-center">{{#if fireOrAccident}}<span style="color: #c2410c; font-weight: bold;">CÓ</span>{{else}}KHÔNG{{/if}}</td>
+        <td>{{#if fireOrAccidentNotes}}{{fireOrAccidentNotes}}{{else}}Không có tiền sử hỏa hoạn hoặc ngập lụt ảnh hưởng móng.{{/if}}</td>
+      </tr>
+      <tr>
+        <td class="font-bold">Thiết bị / Hoạt động nhạy cảm rung động</td>
+        <td class="text-center">{{#if sensitiveEquipmentPresent}}<span style="color: #c2410c; font-weight: bold;">CÓ</span>{{else}}KHÔNG{{/if}}</td>
+        <td>{{#if sensitiveEquipmentNotes}}{{sensitiveEquipmentNotes}}{{else}}Không có thiết bị y tế hoặc phòng thí nghiệm đặc biệt nhạy cảm.{{/if}}</td>
+      </tr>
+    </tbody>
+  </table>
+
+  {{#if historyDetailsNote}}
+  <div class="note-box note-box-warning">
+    <div class="note-title">⚠️ Ghi chú bổ sung về lịch sử biến động công trình:</div>
+    {{historyDetailsNote}}
+  </div>
+  {{/if}}
+
+  <!-- =====================================================================
+       MỤC 4: PHẠM VI TIẾP CẬN & HỒ SƠ ẢNH ĐỊNH DANH (P-01 ĐẾN P-04)
+       ===================================================================== -->
+  <h2 class="section-header">4. PHẠM VI TIẾP CẬN VÀ HỒ SƠ ẢNH ĐỊNH DANH</h2>
+
+  <h3 class="subsection-header">4.1. Khả năng tiếp cận các khu vực</h3>
+  <table class="tech-table">
+    <thead>
+      <tr>
+        <th style="width: 25%;">Khu vực khảo sát</th>
+        <th class="text-center" style="width: 20%;">Mức độ tiếp cận</th>
+        <th>Ghi chú / Nguyên nhân hạn chế tiếp cận</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Mặt ngoài công trình</td>
+        <td class="text-center font-bold">{{scopeAccess.facadeStatus}}</td>
+        <td>{{scopeAccess.facadeNote}}</td>
+      </tr>
+      <tr>
+        <td>Tầng trệt</td>
+        <td class="text-center font-bold">{{scopeAccess.groundFloorStatus}}</td>
+        <td>{{scopeAccess.groundFloorNote}}</td>
+      </tr>
+      <tr>
+        <td>Các tầng lầu</td>
+        <td class="text-center font-bold">{{scopeAccess.upperFloorsStatus}}</td>
+        <td>{{scopeAccess.upperFloorsNote}}</td>
+      </tr>
+      <tr>
+        <td>Sân thượng / Mái</td>
+        <td class="text-center font-bold">{{scopeAccess.roofStatus}}</td>
+        <td>{{scopeAccess.roofNote}}</td>
+      </tr>
+      <tr>
+        <td>Tầng hầm (nếu có)</td>
+        <td class="text-center font-bold">{{scopeAccess.basementStatus}}</td>
+        <td>{{scopeAccess.basementNote}}</td>
+      </tr>
+    </tbody>
+  </table>
+
+  {{#if scopeAccess.inaccessibleAreasReason}}
+  <div class="note-box note-box-danger">
+    <div class="note-title">⛔ Ghi chú về khu vực không thể tiếp cận / hạn chế khảo sát:</div>
+    {{scopeAccess.inaccessibleAreasReason}}
+  </div>
+  {{/if}}
+
+  <!-- BỘ 4 ẢNH ĐỊNH DANH NGOẠI THẤT -->
+  <h3 class="subsection-header">4.2. Bộ ảnh nhận diện ngoại thất chuẩn (P-01 đến P-04)</h3>
+  <div class="photo-grid-2x2">
+    <!-- P-01 -->
+    <div class="photo-card">
+      {{#if p01.url}}
+        <img src="{{p01.url}}" alt="P-01 Biển số nhà">
+      {{else}}
+        <div style="height: 160px; display: flex; align-items: center; justify-content: center; background: #f1f5f9; color: #64748b; font-size: 8pt;">
+          {{#if p01.isNotApplicable}}KHÔNG ÁP DỤNG: {{p01.naReason}}{{else}}Chưa có ảnh P-01{{/if}}
+        </div>
+      {{/if}}
+      <div class="photo-meta">
+        <div class="photo-title">P-01: BIỂN SỐ NHÀ / TÊN CÔNG TRÌNH</div>
+        <div>Mã ảnh: {{p01.photoId}} | Ngày: {{p01.capturedAt}}</div>
+        <div>Tọa độ GPS: {{p01.gpsLat}}, {{p01.gpsLng}}</div>
+      </div>
+    </div>
+
+    <!-- P-02 -->
+    <div class="photo-card">
+      {{#if p02.url}}
+        <img src="{{p02.url}}" alt="P-02 Mặt đứng chính">
+      {{else}}
+        <div style="height: 160px; display: flex; align-items: center; justify-content: center; background: #f1f5f9; color: #64748b; font-size: 8pt;">
+          Chưa có ảnh P-02
+        </div>
+      {{/if}}
+      <div class="photo-meta">
+        <div class="photo-title">P-02: MẶT ĐỨNG CHÍNH TOÀN CẢNH</div>
+        <div>Mã ảnh: {{p02.photoId}} | Ngày: {{p02.capturedAt}}</div>
+        <div>Tọa độ GPS: {{p02.gpsLat}}, {{p02.gpsLng}}</div>
+      </div>
+    </div>
+
+    <!-- P-03 -->
+    <div class="photo-card">
+      {{#if p03.url}}
+        <img src="{{p03.url}}" alt="P-03 Mặt bên hoặc phía sau">
+      {{else}}
+        <div style="height: 160px; display: flex; align-items: center; justify-content: center; background: #f1f5f9; color: #64748b; font-size: 8pt;">
+          {{#if p03.isNotApplicable}}KHÔNG ÁP DỤNG: {{p03.naReason}}{{else}}Chưa có ảnh P-03{{/if}}
+        </div>
+      {{/if}}
+      <div class="photo-meta">
+        <div class="photo-title">P-03: MẶT BÊN / MẶT SAU CÔNG TRÌNH</div>
+        <div>Mã ảnh: {{p03.photoId}} | Ngày: {{p03.capturedAt}}</div>
+        <div>{{#if p03.isNotApplicable}}Lý do: {{p03.naReason}}{{else}}Tọa độ GPS: {{p03.gpsLat}}, {{p03.gpsLng}}{{/if}}</div>
+      </div>
+    </div>
+
+    <!-- P-04 -->
+    <div class="photo-card">
+      {{#if p04.url}}
+        <img src="{{p04.url}}" alt="P-04 Bối cảnh vỉa hè và tuyến Metro">
+      {{else}}
+        <div style="height: 160px; display: flex; align-items: center; justify-content: center; background: #f1f5f9; color: #64748b; font-size: 8pt;">
+          Chưa có ảnh P-04
+        </div>
+      {{/if}}
+      <div class="photo-meta">
+        <div class="photo-title">P-04: BỐI CẢNH ĐƯỜNG PHỐ & TUYẾN METRO</div>
+        <div>Mã ảnh: {{p04.photoId}} | Ngày: {{p04.capturedAt}}</div>
+        <div>Tọa độ GPS: {{p04.gpsLat}}, {{p04.gpsLng}}</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- =====================================================================
+       MỤC 5: GHI NHẬN HIỆN TRẠNG CÔNG TRÌNH – BCS CHECKLIST (8 NHÓM)
+       ===================================================================== -->
+  <div class="page-break"></div>
+
+  <h2 class="section-header">5. GHI NHẬN HIỆN TRẠNG CÔNG TRÌNH – BCS CHECKLIST</h2>
+  <p style="font-size: 8.5pt; color: #475569; margin-bottom: 6px;">
+    Bảng tổng hợp nhanh các chỉ báo khuyết tật quan sát được trực tiếp tại thời điểm khảo sát hiện trường:
+  </p>
+
+  <table class="tech-table">
+    <thead>
+      <tr>
+        <th class="text-center" style="width: 8%;">STT</th>
+        <th style="width: 20%;">Nhóm chỉ báo</th>
+        <th style="width: 32%;">Hiện tượng khảo sát / Indicator</th>
+        <th class="text-center" style="width: 12%;">Ghi nhận</th>
+        <th>Vị trí cụ thể & Mức độ ghi nhận</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{#each bcsChecklist}}
+      <tr>
+        <td class="text-center">{{@index}}</td>
+        <td class="font-bold">{{category}}</td>
+        <td>{{indicator}}</td>
+        <td class="text-center font-bold">
+          {{#if hasIndicator}}<span style="color: #c2410c;">CÓ</span>{{else}}<span style="color: #15803d;">KHÔNG</span>{{/if}}
+        </td>
+        <td>{{locationAndSeverity}}</td>
+      </tr>
+      {{/each}}
+    </tbody>
+  </table>
+
+  <!-- =====================================================================
+       MỤC 6: SỔ KHUYẾT TẬT CHI TIẾT THEO TẦNG & BẢN ĐỒ HƯ HỎNG (DAMAGE MAP)
+       ===================================================================== -->
+  <h2 class="section-header">6. SỔ KHUYẾT TẬT (DEFECT REGISTER) & BẢN ĐỒ HƯ HỎNG THEO TẦNG</h2>
+  <p style="font-size: 8.5pt; color: #475569; margin-bottom: 8px;">
+    Hệ thống phân cấp khảo sát đi từ Tổng quan tầng &rarr; Vùng kiến trúc ($Z$) &rarr; Cấu kiện chịu lực ($E$) &rarr; Vết nứt chi tiết ($D$). Ảnh khuyết tật được gắn trực tiếp kèm thước đo nứt (Crack gauge) để đối tác tra cứu ngay lập tức.
+  </p>
+
+  {{#each floors}}
+    <div style="border-top: 1.5pt solid #0f3b6c; padding-top: 6px; margin-top: 14px; break-before: auto;">
+      <h3 style="font-size: 11pt; color: #0f3b6c; margin: 4px 0;">
+        📍 KHẢO SÁT HIỆN TRẠNG: {{floorName}} (Thứ tự: {{floorOrder}})
+      </h3>
+
+      {{#if notes}}
+      <div class="note-box">
+        <div class="note-title">📝 Ghi chú tổng quan tầng {{floorName}}:</div>
+        {{notes}}
+      </div>
+      {{/if}}
+
+      <!-- SƠ ĐỒ MẶT BẰNG DAMAGE MAP CỦA TẦNG NÀY -->
+      {{#if damageMapUrl}}
+      <div class="damage-map-container">
+        <img src="{{damageMapUrl}}" alt="Damage Map {{floorName}}">
+        <div style="font-size: 8pt; color: #475569; font-weight: bold; margin-top: 2px;">
+          SƠ ĐỒ VỊ TRÍ KHUYẾT TẬT (DAMAGE MAP) - {{floorName}} (Gắn mã Zone Z và Defect D)
+        </div>
+      </div>
+      {{/if}}
+
+      <!-- DUYỆT TỪNG VÙNG Z TRONG TẦNG -->
+      {{#each zones}}
+        <div style="background-color: #f1f5f9; padding: 4px 8px; border-radius: 3px; margin: 8px 0 6px 0; border-left: 3pt solid #1e3a8a;">
+          <span class="font-bold" style="color: #0f3b6c;">VÙNG {{zoneCode}}: {{roomName}}</span> 
+          | Cấu kiện: {{componentType}} | Cấp Burland: Cấp {{burlandGrade}} ({{burlandLabel}})
+          {{#if functionalImpactRepairNeeded}} | <span style="color: #c2410c; font-weight: bold;">[Cần sửa chữa công năng]</span>{{/if}}
+        </div>
+
+        {{#if notes}}
+        <div style="font-size: 8pt; color: #334155; margin-bottom: 4px; padding-left: 6px;">
+          <em>Ghi chú vùng: {{notes}}</em>
+        </div>
+        {{/if}}
+
+        <!-- HIỂN THỊ CÁC THẺ KHUYẾT TẬT D DẠNG CẶP ẢNH ĐỐI CHIẾU -->
+        {{#each defects}}
+        <div class="defect-card">
+          <div class="defect-header">
+            <div>VẾT NỨT: {{defectCode}} ({{roomName}} - {{componentType}})</div>
+            <div>Trạng thái: {{activityStateLabel}} | Cấp Burland: {{burlandGrade}}</div>
+          </div>
+          <div class="defect-body">
+            <!-- Thông số kỹ thuật -->
+            <div class="defect-params">
+              <table>
+                <tr>
+                  <td style="color: #64748b; width: 45%;">Bề rộng max:</td>
+                  <td class="font-bold" style="color: #b91c1c;">{{widthMaxMm}} mm</td>
+                </tr>
+                <tr>
+                  <td style="color: #64748b;">Chiều dài:</td>
+                  <td>{{lengthMm}} mm</td>
+                </tr>
+                <tr>
+                  <td style="color: #64748b;">Phương nứt:</td>
+                  <td>{{crackDirection}}</td>
+                </tr>
+                <tr>
+                  <td style="color: #64748b;">Ý nghĩa kết cấu:</td>
+                  <td class="font-bold">{{structuralSignificanceLabel}}</td>
+                </tr>
+                <tr>
+                  <td style="color: #64748b;">Thước đo nứt:</td>
+                  <td>{{#if hasScaleCard}}Đã đặt thước chuẩn{{else}}<span style="color: #dc2626;">Không có thước</span>{{/if}}</td>
+                </tr>
+                <tr>
+                  <td style="color: #64748b;">Cảnh báo:</td>
+                  <td>{{#if isStructuralCritical}}<span class="badge badge-critical">NỨT NGUY HIỂM</span>{{else}}Bình thường{{/if}}</td>
+                </tr>
+              </table>
+              {{#if notes}}
+              <div style="margin-top: 4px; font-size: 7.5pt; color: #475569;">
+                <strong>Ghi chú:</strong> {{notes}}
+              </div>
+              {{/if}}
+            </div>
+
+            <!-- Ảnh bối cảnh toàn cảnh -->
+            <div class="defect-photo-box">
+              {{#if ctxPhotoUrl}}
+                <img src="{{ctxPhotoUrl}}" alt="Ảnh bối cảnh {{defectCode}}">
+              {{else}}
+                <div style="height: 110px; display: flex; align-items: center; justify-content: center; background: #f8fafc; font-size: 7.5pt; color: #94a3b8;">
+                  [ Chưa có ảnh bối cảnh ]
+                </div>
+              {{/if}}
+              <div class="caption">Ảnh bối cảnh mảng tường</div>
+            </div>
+
+            <!-- Ảnh cận cảnh có thước đo nứt -->
+            <div class="defect-photo-box">
+              {{#if cuPhotoUrl}}
+                <img src="{{cuPhotoUrl}}" alt="Ảnh cận cảnh có thước {{defectCode}}">
+              {{else}}
+                <div style="height: 110px; display: flex; align-items: center; justify-content: center; background: #f8fafc; font-size: 7.5pt; color: #94a3b8;">
+                  [ Chưa có ảnh thước đo ]
+                </div>
+              {{/if}}
+              <div class="caption">Ảnh cận cảnh kèm Crack Gauge</div>
+            </div>
+          </div>
+        </div>
+        {{/each}}
+
+      {{/each}}
+    </div>
+  {{/each}}
+
+  <!-- =====================================================================
+       MỤC 7 & 8: LÚN - NGHIÊNG - BIẾN DẠNG & ĐÁNH GIÁ BURLAND 1977
+       ===================================================================== -->
+  <div class="page-break"></div>
+
+  <h2 class="section-header">7. ĐO ĐẠC LÚN – NGHIÊNG – BIẾN DẠNG</h2>
+  <table class="tech-table">
+    <tr>
+      <th style="width: 25%;">Độ nghiêng phương X</th>
+      <td style="width: 25%;">{{tiltAngleX}} ‰</td>
+      <th style="width: 25%;">Độ nghiêng phương Y</th>
+      <td style="width: 25%;">{{tiltAngleY}} ‰</td>
+    </tr>
+    <tr>
+      <th>Hướng nghiêng chủ đạo</th>
+      <td>{{tiltDirection}}</td>
+      <th>Độ dốc sàn đo được</th>
+      <td>{{floorSlopeRatio}}</td>
+    </tr>
+    <tr>
+      <th>Độ võng dầm / sàn lớn nhất</th>
+      <td class="font-bold">{{beamDeflectionMm}} mm</td>
+      <th>Phương pháp đo đạc</th>
+      <td>{{measurementMethod}}</td>
+    </tr>
+    <tr>
+      <th>Độ tin cậy số liệu</th>
+      <td>{{measurementReliability}}</td>
+      <th>Yêu cầu quan trắc bổ sung</th>
+      <td>{{#if requiresAdditionalMonitoring}}<span style="color: #c2410c; font-weight: bold;">CẦN LẮP MỐC QUAN TRẮC</span>{{else}}Không cần{{/if}}</td>
+    </tr>
+  </table>
+
+  {{#if deformationEngineerComments}}
+  <div class="note-box">
+    <div class="note-title">👨‍💼 Nhận xét kỹ thuật của Kỹ sư hiện trường về biến dạng:</div>
+    {{deformationEngineerComments}}
+  </div>
+  {{/if}}
+
+  <h2 class="section-header">8. ĐÁNH GIÁ HƯ HỎNG THEO BURLAND (1977)</h2>
+  <table class="tech-table">
+    <thead>
+      <tr>
+        <th class="text-center" style="width: 12%;">Cấp Burland</th>
+        <th style="width: 22%;">Mức độ hư hại</th>
+        <th style="width: 20%;">Bề rộng nứt xấp xỉ</th>
+        <th>Mô tả ảnh hưởng chức năng & Mức sửa chữa điển hình</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="text-center font-bold">Grade 0</td>
+        <td>Không đáng kể (Negligible)</td>
+        <td>&lt; 0.1 mm</td>
+        <td>Nứt tóc; về thực tế không cần sửa chữa cấu trúc.</td>
+      </tr>
+      <tr>
+        <td class="text-center font-bold">Grade 1</td>
+        <td>Rất nhẹ (Very slight)</td>
+        <td>0.1 – 1.0 mm</td>
+        <td>Nứt mảnh hoàn thiện; xử lý trong sơn bả/bảo trì thông thường.</td>
+      </tr>
+      <tr>
+        <td class="text-center font-bold">Grade 2</td>
+        <td>Nhẹ (Slight)</td>
+        <td>1.0 – 5.0 mm</td>
+        <td>Nứt dễ trám; có thể cần trang trí lại/miết mạch; cửa có thể hơi kẹt.</td>
+      </tr>
+      <tr>
+        <td class="text-center font-bold">Grade 3</td>
+        <td>Trung bình (Moderate)</td>
+        <td>5.0 – 15.0 mm</td>
+        <td>Cần mở rộng/vá nứt, sửa cục bộ khối xây; ảnh hưởng nhẹ chức năng.</td>
+      </tr>
+      <tr>
+        <td class="text-center font-bold">Grade 4</td>
+        <td>Nặng (Severe)</td>
+        <td>15.0 – 25.0 mm</td>
+        <td>Sửa chữa lớn/thay thế cục bộ; tường biến dạng; ảnh hưởng dầm sàn.</td>
+      </tr>
+      <tr>
+        <td class="text-center font-bold">Grade 5</td>
+        <td>Rất nặng (Very severe)</td>
+        <td>&gt; 25.0 mm</td>
+        <td>Nguy cơ sụp đổ bộ phận; cần kích chống khẩn cấp hoặc xây dựng lại.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <table class="tech-table" style="margin-top: 8px;">
+    <tr>
+      <th style="width: 30%;">Burland chủ đạo (Predominant)</th>
+      <td class="font-bold" style="width: 20%;">Cấp {{burlandPredominantGrade}} ({{burlandPredominantLabel}})</td>
+      <th style="width: 30%;">Burland lớn nhất (Local Max)</th>
+      <td class="font-bold" style="width: 20%;">Cấp {{burlandLocalMaxGrade}} ({{burlandLocalMaxLabel}})</td>
+    </tr>
+    <tr>
+      <th>Cảnh báo nứt kết cấu (Structural Flag)</th>
+      <td colspan="3" class="font-bold">{{structuralDefectFlag}}</td>
+    </tr>
+  </table>
+
+  <!-- =====================================================================
+       MỤC 9 & 10: ĐÁNH GIÁ TÌNH TRẠNG HIỆN HỮU (ECS) & DỄ TỔN THƯƠNG (VI)
+       ===================================================================== -->
+  <div class="page-break"></div>
+
+  <h2 class="section-header">9. ĐÁNH GIÁ TÌNH TRẠNG HIỆN HỮU (ECS - 24 ĐIỂM)</h2>
+  <table class="tech-table">
+    <thead>
+      <tr>
+        <th class="text-center" style="width: 8%;">Mã</th>
+        <th style="width: 40%;">Tiêu chí đánh giá tình trạng</th>
+        <th class="text-center" style="width: 14%;">Thang điểm</th>
+        <th class="text-center" style="width: 14%;">Điểm ghi nhận</th>
+        <th>Diễn giải đánh giá kỹ thuật</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="text-center font-bold">E1</td>
+        <td>Hư hỏng nhìn thấy của tường / khối xây</td>
+        <td class="text-center">0 – 4</td>
+        <td class="text-center font-bold">{{ecsE1}}</td>
+        <td>Dựa trên cấp Burland lớn nhất ghi nhận</td>
+      </tr>
+      <tr>
+        <td class="text-center font-bold">E2</td>
+        <td>Khuyết tật kết cấu cột / dầm / sàn / tường chịu lực</td>
+        <td class="text-center">0 – 4</td>
+        <td class="text-center font-bold">{{ecsE2}}</td>
+        <td>Mức độ nguy hại đối với an toàn chịu lực</td>
+      </tr>
+      <tr>
+        <td class="text-center font-bold">E3</td>
+        <td>Lún / nghiêng / võng / biến dạng</td>
+        <td class="text-center">0 – 4</td>
+        <td class="text-center font-bold">{{ecsE3}}</td>
+        <td>Theo độ nghiêng và độ võng dầm đo được</td>
+      </tr>
+      <tr>
+        <td class="text-center font-bold">E4</td>
+        <td>Suy giảm vật liệu / độ bền / bong tróc</td>
+        <td class="text-center">0 – 4</td>
+        <td class="text-center font-bold">{{ecsE4}}</td>
+        <td>Ăn mòn cốt thép, phong hóa gạch vữa</td>
+      </tr>
+      <tr>
+        <td class="text-center font-bold">E5</td>
+        <td>Lịch sử cơi nới / sự cố & tính toàn vẹn</td>
+        <td class="text-center">0 – 4</td>
+        <td class="text-center font-bold">{{ecsE5}}</td>
+        <td>Ảnh hưởng từ lịch sử nâng tầng, sửa chữa cũ</td>
+      </tr>
+      <tr>
+        <td class="text-center font-bold">E6</td>
+        <td>Tình trạng chức năng / tổng thể</td>
+        <td class="text-center">0 – 4</td>
+        <td class="text-center font-bold">{{ecsE6}}</td>
+        <td>Khả năng vận hành và độ kín nước an toàn</td>
+      </tr>
+      <tr style="background-color: #f1f5f9;">
+        <td colspan="3" class="font-bold text-right">TỔNG ĐIỂM ECS TÍCH LŨY:</td>
+        <td class="text-center font-bold" style="font-size: 11pt; color: #0f3b6c;">{{totalEcsScore}} / 24</td>
+        <td class="font-bold"><span class="badge {{ecsBadgeClass}}">HẠNG: {{ecsClass}}</span></td>
+      </tr>
+    </tbody>
+  </table>
+
+  {{#if ecsJudgementApplied}}
+  <div class="note-box note-box-warning">
+    <div class="note-title">⚖️ Đánh giá chuyên gia điều chỉnh điểm ECS (Engineering Judgement):</div>
+    Hành động: <strong>{{ecsJudgementAction}}</strong> | Lý do giải trình: {{ecsJudgementReason}}
+  </div>
+  {{/if}}
+
+  <h2 class="section-header">10. CHỈ SỐ DỄ TỔN THƯƠNG CỦA CÔNG TRÌNH (VI - 24 ĐIỂM)</h2>
+  <table class="tech-table">
+    <thead>
+      <tr>
+        <th class="text-center" style="width: 8%;">Mã</th>
+        <th style="width: 40%;">Yếu tố nhạy cảm</th>
+        <th class="text-center" style="width: 14%;">Thang điểm</th>
+        <th class="text-center" style="width: 14%;">Điểm ghi nhận</th>
+        <th>Căn cứ xác lập chỉ số</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="text-center font-bold">V1</td>
+        <td>Công năng công trình / Mức độ hậu quả</td>
+        <td class="text-center">1.0 – 4.0</td>
+        <td class="text-center font-bold">{{viV1}}</td>
+        <td>Phân loại công trình dân dụng / công cộng</td>
+      </tr>
+      <tr>
+        <td class="text-center font-bold">V2</td>
+        <td>Hệ kết cấu / Tính dễ bị tổn thương</td>
+        <td class="text-center">1.0 – 4.0</td>
+        <td class="text-center font-bold">{{viV2}}</td>
+        <td>Khung BTCT hay tường gạch chịu lực</td>
+      </tr>
+      <tr>
+        <td class="text-center font-bold">V3</td>
+        <td>Hệ móng / Mức độ chắc chắn của thông tin</td>
+        <td class="text-center">1.0 – 4.0</td>
+        <td class="text-center font-bold">{{viV3}}</td>
+        <td>Theo CAT thông tin móng (CAT 1-5)</td>
+      </tr>
+      <tr>
+        <td class="text-center font-bold">V4</td>
+        <td>Tuổi thọ công trình / Cơi nới</td>
+        <td class="text-center">1.0 – 4.0</td>
+        <td class="text-center font-bold">{{viV4}}</td>
+        <td>Năm xây dựng và mức độ thay đổi tải trọng</td>
+      </tr>
+      <tr>
+        <td class="text-center font-bold">V5</td>
+        <td>Tình trạng hiện hữu suy giảm (kế thừa ECS)</td>
+        <td class="text-center">1.0 – 4.0</td>
+        <td class="text-center font-bold">{{viV5}}</td>
+        <td>Quy đổi trực tiếp từ tổng điểm ECS</td>
+      </tr>
+      <tr>
+        <td class="text-center font-bold">V6</td>
+        <td>Thiết bị nhạy cảm rung động / Gián đoạn</td>
+        <td class="text-center">1.0 – 4.0</td>
+        <td class="text-center font-bold">{{viV6}}</td>
+        <td>Sự hiện diện của thiết bị chính xác cao</td>
+      </tr>
+      <tr style="background-color: #f1f5f9;">
+        <td colspan="3" class="font-bold text-right">ĐIỂM TRUNG BÌNH VI (VI_AVG):</td>
+        <td class="text-center font-bold" style="font-size: 11pt; color: #0f3b6c;">{{avgViScore}}</td>
+        <td class="font-bold"><span class="badge {{viBadgeClass}}">CẤP ĐỘ: {{viClass}}</span></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- =====================================================================
+       MỤC 11, 12, 13: METRO IMPACT, MA TRẬN BRA & KẾT LUẬN KIẾN NGHỊ
+       ===================================================================== -->
+  <div class="page-break"></div>
+
+  <h2 class="section-header">11. DỮ LIỆU TÁC ĐỘNG TỪ CÔNG TRÌNH METRO & MẶT CẮT HÌNH HỌC</h2>
+  <table class="tech-table">
+    <tr>
+      <th style="width: 25%;">Hạng mục Metro tác động</th>
+      <td style="width: 25%;">{{metroItemType}}</td>
+      <th style="width: 25%;">Khoảng cách ranh đất đến tim hầm</th>
+      <td class="font-bold" style="width: 25%;">{{distanceToTunnelMeters}} mét</td>
+    </tr>
+    <tr>
+      <th>Dự báo lún tối đa ($S_{\text{max}}$)</th>
+      <td>{{predictedSettlementSmax}} mm</td>
+      <th>Biến dạng góc dự báo</th>
+      <td>{{angularDistortion}}</td>
+    </tr>
+    <tr>
+      <th>Vận tốc hạt đỉnh rung động (PPV)</th>
+      <td>{{vibrationPpv}} mm/s</td>
+      <th>Cấp tác động Metro (Impact Class I)</th>
+      <td class="font-bold"><span class="badge {{impactBadgeClass}}">CẤP I-{{constructionImpactLevelI}}</span></td>
+    </tr>
+  </table>
+
+  <h2 class="section-header">12. SÀNG LỌC MA TRẬN RỦI RO CƠ SỞ (BUILDING RISK ASSESSMENT - BRA)</h2>
+  <table class="tech-table">
+    <thead>
+      <tr>
+        <th style="width: 22%;">Vulnerability (VI) ↓ \ Impact (I) &rarr;</th>
+        <th class="text-center" style="width: 18%;">I1 (Thấp)</th>
+        <th class="text-center" style="width: 18%;">I2 (Trung bình)</th>
+        <th class="text-center" style="width: 18%;">I3 (Cao)</th>
+        <th class="text-center" style="width: 18%;">I4 (Rất cao)</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="font-bold">V1 (Thấp)</td>
+        <td class="text-center">Thấp</td>
+        <td class="text-center">Thấp</td>
+        <td class="text-center">Trung bình</td>
+        <td class="text-center">Cao</td>
+      </tr>
+      <tr>
+        <td class="font-bold">V2 (Trung bình)</td>
+        <td class="text-center">Thấp</td>
+        <td class="text-center">Trung bình</td>
+        <td class="text-center">Trung bình</td>
+        <td class="text-center">Cao</td>
+      </tr>
+      <tr>
+        <td class="font-bold">V3 (Cao)</td>
+        <td class="text-center">Trung bình</td>
+        <td class="text-center">Trung bình</td>
+        <td class="text-center">Cao</td>
+        <td class="text-center">Rất cao</td>
+      </tr>
+      <tr>
+        <td class="font-bold">V4 (Rất cao)</td>
+        <td class="text-center">Cao</td>
+        <td class="text-center">Cao</td>
+        <td class="text-center">Rất cao</td>
+        <td class="text-center">Rất cao</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <table class="tech-table" style="margin-top: 8px;">
+    <tr>
+      <th style="width: 25%;">Kết quả giao điểm rủi ro:</th>
+      <td class="font-bold" style="font-size: 11pt; color: #b91c1c; width: 35%;">
+        BRA = {{buildingRiskAssessmentBra}}
+      </td>
+      <th style="width: 15%;">Giao điểm:</th>
+      <td>VI: {{viClass}} &times; Cấp I-{{constructionImpactLevelI}}</td>
+    </tr>
+    <tr>
+      <th>Hành động bắt buộc:</th>
+      <td colspan="3" class="font-bold">{{braMandatoryAction}}</td>
+    </tr>
+  </table>
+
+  {{#if braEngineeringReviewNotes}}
+  <div class="note-box">
+    <div class="note-title">🛡️ Ý kiến chuyên gia rà soát rủi ro BRA:</div>
+    {{braEngineeringReviewNotes}}
+  </div>
+  {{/if}}
+
+  <h2 class="section-header">13. KẾT LUẬN VÀ KIẾN NGHỊ KỸ THUẬT</h2>
+  
+  <div style="font-size: 9pt; margin-bottom: 8px;">
+    <strong>Tóm tắt kết luận hiện trạng:</strong>
+    <p style="margin: 2px 0 6px 0; text-align: justify;">{{summaryConclusions}}</p>
+  </div>
+
+  <div style="font-size: 9pt; margin-bottom: 8px;">
+    <strong>Kiến nghị kỹ thuật bảo vệ & quan trắc:</strong>
+    <p style="margin: 2px 0 6px 0; text-align: justify;">{{engineeringRecommendations}}</p>
+  </div>
+
+  <!-- NƠI HIỂN THỊ Ý KIẾN VÀ GHI CHÚ PHẢN ÁNH CỦA CHỦ NHÀ -->
+  <div class="note-box" style="background-color: #f0fdf4; border-left-color: #16a34a;">
+    <div class="note-title">🗣️ Ý kiến, yêu cầu và ghi chú bảo lưu của Chủ sở hữu / Người sử dụng:</div>
+    <div style="font-style: italic; color: #166534; font-size: 9pt;">
+      {{#if ownerRemarks}}"{{ownerRemarks}}"{{else}}"Chủ nhà thống nhất với toàn bộ số liệu và hình ảnh khuyết tật do đoàn khảo sát ghi nhận tại hiện trường, không có khiếu nại hoặc bổ sung thêm."{{/if}}
+    </div>
+  </div>
+
+  <!-- =====================================================================
+       PHỤ LỤC F: BIÊN BẢN LÀM VIỆC HIỆN TRƯỜNG & CHỮ KÝ 3 BÊN
+       ===================================================================== -->
+  <div class="page-break"></div>
+
+  <h2 class="section-header">PHỤ LỤC F: BIÊN BẢN LÀM VIỆC HIỆN TRƯỜNG & CHỮ KÝ PHÁP LÝ</h2>
+
+  {{#if fieldWorkMinutesPhotoUrl}}
+  <div style="text-align: center; margin: 10px 0; border: 1pt solid #cbd5e1; padding: 6px; background-color: #f8fafc;">
+    <img src="{{fieldWorkMinutesPhotoUrl}}" alt="Biên bản hiện trường viết tay" style="max-width: 100%; max-height: 480px; object-fit: contain;">
+    <div style="font-size: 8pt; font-weight: bold; color: #475569; margin-top: 4px;">
+      HÌNH F.1: BIÊN BẢN LÀM VIỆC KHẢO SÁT HIỆN TRƯỜNG KÝ XÁC NHẬN TẠI CHỖ (BẢN GỐC)
+    </div>
+  </div>
+  {{/if}}
+
+  <!-- KHUNG CHỮ KÝ 3 BÊN -->
+  <div class="signature-grid">
+    <div class="sig-box">
+      <div class="sig-role">KHẢO SÁT VIÊN HIỆN TRƯỜNG</div>
+      <div>
+        {{#if surveyorSignatureUrl}}
+          <img src="{{surveyorSignatureUrl}}" alt="Chữ ký khảo sát viên" class="sig-img">
+        {{else}}
+          <div style="height: 50px; line-height: 50px; color: #94a3b8; font-size: 8pt;">(Đã ký xác nhận)</div>
+        {{/if}}
+      </div>
+      <div>
+        <div class="sig-name">{{preparedByName}}</div>
+        <div class="sig-date">Ngày: {{surveyDate}}</div>
+      </div>
+    </div>
+
+    <div class="sig-box">
+      <div class="sig-role">CHỦ SỞ HỮU / ĐẠI DIỆN CÔNG TRÌNH</div>
+      <div>
+        {{#if ownerSignatureUrl}}
+          <img src="{{ownerSignatureUrl}}" alt="Chữ ký chủ nhà" class="sig-img">
+        {{else}}
+          <div style="height: 50px; line-height: 50px; color: #94a3b8; font-size: 8pt;">(Đã ký xác nhận)</div>
+        {{/if}}
+      </div>
+      <div>
+        <div class="sig-name">{{ownerName}}</div>
+        <div class="sig-date">Ngày: {{surveyDate}}</div>
+      </div>
+    </div>
+
+    <div class="sig-box">
+      <div class="sig-role">GIÁM SÁT / PHÊ DUYỆT (ZONE ADMIN)</div>
+      <div>
+        {{#if zoneAdminSignatureUrl}}
+          <img src="{{zoneAdminSignatureUrl}}" alt="Chữ ký Zone Admin" class="sig-img">
+        {{else}}
+          <div style="height: 50px; line-height: 50px; color: #94a3b8; font-size: 8pt;">(Đã ký số)</div>
+        {{/if}}
+      </div>
+      <div>
+        <div class="sig-name">{{approvedByName}}</div>
+        <div class="sig-date">Ngày: {{surveyDate}}</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MÃ TRA CỨU QR & BẢO MẬT CHECKSUM SHA-256 -->
+  <div style="margin-top: 20px; border-top: 0.5pt solid #cbd5e1; padding-top: 10px; display: flex; justify-content: space-between; align-items: center; font-size: 7.5pt; color: #64748b;">
+    <div>
+      <div><strong>Mã băm toàn vẹn hồ sơ (SHA-256 Checksum):</strong></div>
+      <div style="font-family: monospace; color: #0f172a; word-break: break-all;">{{sha256Checksum}}</div>
+      <div style="margin-top: 2px;">Thời điểm xuất báo cáo: {{generatedAt}} | Hệ thống Quản lý Khảo sát Metro 2 TP.HCM</div>
+    </div>
+    <div style="text-align: center; margin-left: 15px;">
+      <div style="border: 0.5pt solid #94a3b8; padding: 2px; background: #fff; width: 64px; height: 64px; display: flex; align-items: center; justify-content: center; font-size: 7pt; color: #0f3b6c; font-weight: bold;">
+        [ QR TRA CỨU ]
+      </div>
+      <div style="font-size: 6.5pt; color: #475569; margin-top: 1px;">Tra cứu hồ sơ</div>
+    </div>
+  </div>
+
+</body>
+</html>

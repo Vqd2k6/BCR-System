@@ -15,22 +15,13 @@ Nhiệm vụ của bạn là:
 
 ## 🎯 CÁC NGUYÊN TẮC CỐT LÕI KHI THIẾT KẾ VÀ XUẤT BÁO CÁO:
 
-### 1. BÁM SÁT MẪU BÁO CÁO GỐC CRLG–CRSRI–TT:
-- Báo cáo phải có đầy đủ 13 phần chính và 7 phụ lục (Phụ lục A đến G):
-  - Phần 1: Thông tin chung dự án & mặt bằng tuyến.
-  - Phần 2: Mục đích, phạm vi, phương pháp & thiết bị đo.
-  - Phần 3: Thông tin nhận dạng, hệ kết cấu, móng và lịch sử sử dụng.
-  - Phần 4: Phạm vi tiếp cận và Hồ sơ 4 ảnh định danh (P-01 đến P-04).
-  - Phần 5: Ghi nhận hiện trạng công trình (BCS Checklist).
-  - Phần 6: Sổ khuyết tật (Defect Register: D-01, D-02...) & Bản đồ hư hỏng (Damage Map gắn Z và E).
-  - Phần 7: Lún – Nghiêng – Biến dạng & Ảnh cận cảnh có thước đo nứt.
-  - Phần 8: Đánh giá hư hỏng nhìn thấy theo Burland 1977 (Predominant & Local Max).
-  - Phần 9: Đánh giá tình trạng hiện hữu ECS (Thang điểm $E_1$ đến $E_6$, tổng 24đ).
-  - Phần 10: Chỉ số dễ tổn thương VI (Thang điểm $V_1$ đến $V_6$, tổng 24đ).
-  - Phần 11: Dữ liệu tác động Metro (Lý trình Chainage, Cự ly tim hầm, Cấp tác động $I$).
-  - Phần 12: Sàng lọc rủi ro cơ sở BRA ($V \times I \implies$ Low/Medium/High/Very High).
-  - Phần 13: Kết luận & Kiến nghị kỹ thuật.
-  - Phụ lục A - G: Bản đồ GIS, Mặt bằng CAD, Damage Map, Hồ sơ ảnh có thước, Phiếu khảo sát, Biên bản hiện trường có chữ ký số.
+### 1. NGUYÊN TẮC THIẾT KẾ: ĐỦ 100% THÔNG TIN PHÁP LÝ NHƯNG TỐI ƯU HÓA BỐ CỤC:
+- **Đảm bảo đầy đủ toàn bộ thông tin**: Báo cáo xuất ra phải chứa trọn vẹn 100% các dữ liệu kỹ thuật, định danh, trắc địa, khuyết tật và đánh giá rủi ro theo yêu cầu của **Liên danh CRLG–CRSRI–TT** và Ban Quản lý Đường sắt Đô thị (MAUR) / Nhà thầu EPC THACO-CREC.
+- **Không sao chép máy móc 100% bố cục cũ**: Biểu mẫu gốc Word có nhiều bảng biểu phân tán và ảnh bị dồn về phụ lục cuối khiến hồ sơ khó tra cứu. Hệ thống được phép **tái cấu trúc và thiết kế layout tối ưu, chuyên nghiệp**:
+  - Gắn trực tiếp ảnh chụp vết nứt có thước đo (Inline Evidence) ngay bên cạnh dòng mô tả của Sổ khuyết tật thay vì bắt đối tác phải lật tới lui.
+  - Tích hợp sơ đồ mặt bằng Damage Map rõ nét, phóng to các điểm Pin $Z$ và $D$.
+  - Trình bày bảng điểm ECS, VI, BRA dạng Dashboard chỉ số trực quan, phân màu cảnh báo tiêu chuẩn.
+- **Chất lượng đầu ra PDF chuẩn chỉnh**: Khi render bằng engine Puppeteer (Chromium Headless), định dạng A4 phải chuẩn xác từng mm, font chữ vector sắc nét, lề trang (`margin`) cân đối như bản in Word cao cấp, tuyệt đối không bị vỡ khung hay lỗi nhảy trang bừa bãi.
 
 ---
 

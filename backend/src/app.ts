@@ -16,6 +16,7 @@ import { ScoringController } from './modules/scoring/scoring.controller';
 import { AuditController } from './modules/audit/audit.controller';
 import { ExportController } from './modules/export/export.controller';
 import { StorageController } from './modules/storage/storage.controller';
+import { ReportController } from './modules/report/report.controller';
 import { Database } from './database/db';
 import multer from 'multer';
 
@@ -162,6 +163,12 @@ export function createApp(): express.Application {
   // ==========================================
   api.get('/guest/gis-map', ExportController.getGuestGisMap);
   api.get('/guest/parcels/:id/summary', ExportController.getGuestParcelSummary);
+
+  // ==========================================
+  // 5. TECHNICAL BCS REPORT EXPORT (PDF & PREVIEW)
+  // ==========================================
+  api.get('/reports/:id/export/pdf', ReportController.exportResidentialPdf);
+  api.get('/reports/:id/preview/html', ReportController.previewResidentialHtml);
 
   // Mount API prefix
   app.use(config.apiPrefix, api);
