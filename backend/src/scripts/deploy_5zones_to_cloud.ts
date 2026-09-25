@@ -195,6 +195,8 @@ async function deploy5ZonesToCloud() {
     let globalSequence = 0;
     const summary: Record<string, { totalRaw: number; inserted: number; skipped: number; startCode: string; endCode: string }> = {};
 
+    const seenCadastralCodes = new Set<string>();
+
     for (const z of ZONES_TO_IMPORT) {
       const filePath = path.resolve(__dirname, `../../../data/${z.folder}/ban_do_data.json`);
       if (!fs.existsSync(filePath)) {
@@ -211,20 +213,62 @@ async function deploy5ZonesToCloud() {
 
       console.log(`   ├─ Đang xử lý ${z.zoneId} (${z.name}, ${z.segmentType}) - Tổng: ${rawParcels.length} thửa...`);
 
+      const batchToInsert: any[] = [];
+
+      const flushBatch = async (items: any[]) => {
+        if (items.length === 0) return;
+        const valPlaceholders: string[] = [];
+        const flatValues: any[] = [];
+        let pIndex = 1;
+
+        for (const item of items) {
+          valPlaceholders.push(`(
+            $${pIndex++}, $${pIndex++}, $${pIndex++}, $${pIndex++},
+            $${pIndex++}, $${pIndex++},
+            $${pIndex++}, $${pIndex++}, $${pIndex++}, $${pIndex++},
+            $${pIndex++}, $${pIndex++}, $${pIndex++}, $${pIndex++},
+            $${pIndex++}, $${pIndex++}, $${pIndex++},
+            $${pIndex++}, $${pIndex++},
+            ST_SetSRID(ST_MakePoint($${pIndex++}, $${pIndex++}), 4326),
+            ST_MakeValid(ST_SetSRID(ST_PolygonFromText($${pIndex++}), 4326)),
+            ST_MakeValid(ST_SetSRID(ST_PolygonFromText($${pIndex++}), 4326))
+          )`);
+
+          flatValues.push(
+            item.zoneId, item.segmentType, item.projectParcelCode, item.codeSlug,
+            item.mathuadat, item.fieldSurveyCode,
+            item.houseNumber, item.street, item.ward, item.district,
+            item.ownerName, item.ownerPhone, item.landArea, item.constructionArea,
+            item.floorCount, item.buildingType, item.totalUnits,
+            item.surveyStatus, item.lifecycleStatus,
+            item.lng, item.lat, item.wkt, item.wkt
+          );
+        }
+
+        const sql = `
+          INSERT INTO parcels (
+            zone_id, segment_type, project_parcel_code, code_slug,
+            official_cadastral_code, field_survey_code,
+            house_number, street, ward, district,
+            owner_name, owner_phone, land_area_m2, construction_area_m2,
+            floor_count, building_type, total_units,
+            survey_status, lifecycle_status,
+            location_geom, cadastral_polygon_geom, footprint_polygon_geom
+          ) VALUES ${valPlaceholders.join(', ')};
+        `;
+        await client.query(sql, flatValues);
+      };
+
       for (const p of rawParcels) {
-        const mathuadat = p.mathuadat;
+        const mathuadat = p.mathuadat ? String(p.mathuadat) : null;
         if (!mathuadat) continue;
 
-        // Kiểm tra tồn tại
-        const check = await client.query(
-          `SELECT id FROM parcels WHERE official_cadastral_code = $1 LIMIT 1;`,
-          [String(mathuadat)]
-        );
-
-        if (check.rows.length > 0) {
+        // Kiểm tra tồn tại trong bộ nhớ (First-come, first-served)
+        if (seenCadastralCodes.has(mathuadat)) {
           skippedCount++;
           continue;
         }
+        seenCadastralCodes.add(mathuadat);
 
         globalSequence++;
         const seqStr = String(globalSequence).padStart(5, '0');
@@ -251,34 +295,44 @@ async function deploy5ZonesToCloud() {
         const landArea = parseFloat(p.dientich) || 65.0;
         const constructionArea = Math.round(landArea * 0.85 * 10) / 10;
 
-        await client.query(`
-          INSERT INTO parcels (
-            zone_id, segment_type, project_parcel_code, code_slug,
-            official_cadastral_code, field_survey_code,
-            house_number, street, ward, district,
-            owner_name, owner_phone, land_area_m2, construction_area_m2,
-            floor_count, building_type, total_units,
-            survey_status, lifecycle_status,
-            location_geom, cadastral_polygon_geom, footprint_polygon_geom
-          ) VALUES (
-            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
-            $11, $12, $13, $14, $15, $16, $17, $18, $19,
-            ST_SetSRID(ST_MakePoint($20, $21), 4326),
-            ST_MakeValid(ST_SetSRID(ST_PolygonFromText($22), 4326)),
-            ST_MakeValid(ST_SetSRID(ST_PolygonFromText($22), 4326))
-          );
-        `, [
-          z.zoneId, z.segmentType, projectParcelCode, codeSlug,
-          String(mathuadat), `KS-${z.folder}-${mathuadat}`,
-          sothua, street, ward, district,
-          `Chủ hộ thửa ${sothua} (Tờ ${soto})`,
-          '090' + String(1000000 + (globalSequence % 9000000)),
-          landArea, constructionArea, 2, 'STANDALONE', 1,
-          'NOT_SURVEYED', 'ACTIVE',
-          p.longitude, p.latitude, wkt,
-        ]);
+        batchToInsert.push({
+          zoneId: z.zoneId,
+          segmentType: z.segmentType,
+          projectParcelCode,
+          codeSlug,
+          mathuadat,
+          fieldSurveyCode: `KS-${z.folder}-${mathuadat}`,
+          houseNumber: sothua,
+          street,
+          ward,
+          district,
+          ownerName: `Chủ hộ thửa ${sothua} (Tờ ${soto})`,
+          ownerPhone: '090' + String(1000000 + (globalSequence % 9000000)),
+          landArea,
+          constructionArea,
+          floorCount: 2,
+          buildingType: 'STANDALONE',
+          totalUnits: 1,
+          surveyStatus: 'NOT_SURVEYED',
+          lifecycleStatus: 'ACTIVE',
+          lng: p.longitude,
+          lat: p.latitude,
+          wkt,
+        });
 
         insertedCount++;
+
+        // Batch 50 thửa/lần
+        if (batchToInsert.length >= 50) {
+          await flushBatch(batchToInsert);
+          batchToInsert.length = 0;
+        }
+      }
+
+      // Flush phần còn lại
+      if (batchToInsert.length > 0) {
+        await flushBatch(batchToInsert);
+        batchToInsert.length = 0;
       }
 
       summary[z.zoneId] = {

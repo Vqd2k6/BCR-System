@@ -21,6 +21,7 @@ import {
   Square,
   AlertCircle
 } from 'lucide-react';
+import { METRO_22_ZONES } from '../../survey-phase1/constants/metroGisConstants';
 
 export interface ExportParcelItem {
   id: string;
@@ -45,7 +46,7 @@ interface Phase1ExportModuleBoxProps {
 }
 
 export const Phase1ExportModuleBox: React.FC<Phase1ExportModuleBoxProps> = ({
-  initialZoneId = 'ZONE_S9',
+  initialZoneId = 'ZONE_01',
   className = '',
 }) => {
   const { user, token } = useAuth();
@@ -569,10 +570,20 @@ export const Phase1ExportModuleBox: React.FC<Phase1ExportModuleBoxProps> = ({
               onChange={(e) => setSelectedZone(e.target.value)}
               className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
             >
-              <option value="ZONE_S9">Ga S9 (Bảy Hiền - Tân Bình)</option>
-              <option value="ZONE_S10">Ga S10 (Phạm Văn Hai)</option>
-              <option value="ZONE_S11">Ga S11 (Dân Chủ)</option>
-              <option value="ZONE_01">Phân đoạn Zone 01</option>
+              <optgroup label="⭐ 5 Phân đoạn dữ liệu chuẩn">
+                {METRO_22_ZONES.filter((z) => z.isDataReady).map((z) => (
+                  <option key={z.code} value={z.code}>
+                    {z.name} ({z.rawParcelCount} thửa)
+                  </option>
+                ))}
+              </optgroup>
+              <optgroup label="Tất cả 22 Phân đoạn">
+                {METRO_22_ZONES.map((z) => (
+                  <option key={z.code} value={z.code}>
+                    {z.name}
+                  </option>
+                ))}
+              </optgroup>
             </select>
           </div>
 

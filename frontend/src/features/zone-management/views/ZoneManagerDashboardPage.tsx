@@ -4,9 +4,10 @@ import { Badge } from '../../../core/components/ui/Badge';
 import { Button } from '../../../core/components/ui/Button';
 import { Users, MapPin, CheckCircle2, Clock, AlertTriangle, Filter, Download } from 'lucide-react';
 import { Phase1ExportModuleBox } from '../components/Phase1ExportModuleBox';
+import { METRO_22_ZONES } from '../../survey-phase1/constants/metroGisConstants';
 
 export const ZoneManagerDashboardPage: React.FC = () => {
-  const [selectedZone, setSelectedZone] = useState('ZONE_S9');
+  const [selectedZone, setSelectedZone] = useState('ZONE_01');
 
   const stats = {
     totalParcels: 320,
@@ -46,9 +47,20 @@ export const ZoneManagerDashboardPage: React.FC = () => {
             onChange={(e) => setSelectedZone(e.target.value)}
             className="rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-sm font-bold text-slate-800"
           >
-            <option value="ZONE_S9">Khu vực Ga S9 (Bảy Hiền - Tân Bình)</option>
-            <option value="ZONE_S10">Khu vực Ga S10 (Phạm Văn Hai)</option>
-            <option value="ZONE_S11">Khu vực Ga S11 (Dân Chủ)</option>
+            <optgroup label="⭐ 5 Phân đoạn dữ liệu chuẩn">
+              {METRO_22_ZONES.filter((z) => z.isDataReady).map((z) => (
+                <option key={z.code} value={z.code}>
+                  {z.name} ({z.rawParcelCount} thửa)
+                </option>
+              ))}
+            </optgroup>
+            <optgroup label="Tất cả 22 Phân đoạn">
+              {METRO_22_ZONES.map((z) => (
+                <option key={z.code} value={z.code}>
+                  {z.name}
+                </option>
+              ))}
+            </optgroup>
           </select>
         </div>
       </div>
