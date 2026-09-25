@@ -10,11 +10,11 @@ import { Step7_TechnicalCalculations } from '../components/Step7_TechnicalCalcul
 import { Step8_ExecutiveDashboard } from '../components/Step8_ExecutiveDashboard';
 import { Step9_FieldSignatures } from '../components/Step9_FieldSignatures';
 import { MissingFieldsModal } from '../components/MissingFieldsModal';
+import { SurveyReviewBanner } from '../components/SurveyReviewBanner';
 import { GisParcel, BuildingUnit } from '../../../core/types/domain.types';
 import { api } from '../../../services/api';
 import { useAuth } from '../../../context/AuthContext';
 import confetti from 'canvas-confetti';
-import { Eye, CheckCircle2, XCircle } from 'lucide-react';
 
 export interface SurveyPhase1PageProps {
   parcel?: GisParcel | null;
@@ -397,56 +397,14 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
   return (
     <div className="min-h-screen bg-slate-50/50 flex flex-col">
       {/* Read-Only Mode Banner */}
-      {readOnly && (
-        <div className={`px-4 py-2.5 shadow-sm flex flex-wrap items-center justify-between sticky top-0 z-50 animate-in fade-in gap-2 border-b ${
-          canApproveOrReject
-            ? 'bg-violet-50 border-violet-200'
-            : 'bg-sky-50 border-sky-200'
-        }`}>
-          <div className="flex items-center gap-2.5 text-xs sm:text-sm font-bold">
-            <Eye className={`w-4 h-4 flex-shrink-0 ${canApproveOrReject ? 'text-violet-600' : 'text-sky-600'}`} />
-            <span className={canApproveOrReject ? 'text-violet-800' : 'text-sky-800'}>
-              {canApproveOrReject ? (
-                <>Thẩm định hồ sơ (Zone Admin / Super Admin) - Thửa: <strong className="text-violet-700">{parcel?.projectParcelCode || parcel?.officialCadastralCode || parcel?.id}</strong></>
-              ) : (
-                <>👁️ Chế độ Xem lại biểu mẫu — Hồ sơ đã nộp, không thể chỉnh sửa.</>              )}
-            </span>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            {canApproveOrReject && (
-              <>
-                <button
-                  type="button"
-                  onClick={handleApproveFromPage}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 shadow-sm transition-colors cursor-pointer"
-                >
-                  <CheckCircle2 className="w-4 h-4" />
-                  Duyệt hồ sơ
-                </button>
-                <button
-                  type="button"
-                  onClick={handleRejectFromPage}
-                  className="bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 shadow-sm transition-colors cursor-pointer"
-                >
-                  <XCircle className="w-4 h-4" />
-                  Từ chối
-                </button>
-              </>
-            )}
-            <button
-              type="button"
-              onClick={onBackToHome}
-              className={`text-xs font-bold px-3 py-1.5 rounded-lg border transition-colors shrink-0 cursor-pointer ${
-                canApproveOrReject
-                  ? 'bg-white hover:bg-violet-50 text-violet-700 border-violet-300'
-                  : 'bg-white hover:bg-sky-50 text-sky-700 border-sky-300'
-              }`}
-            >
-              Quay về
-            </button>
-          </div>
-        </div>
-      )}
+      <SurveyReviewBanner
+        readOnly={readOnly}
+        canApproveOrReject={canApproveOrReject}
+        targetCode={parcel?.projectParcelCode || parcel?.officialCadastralCode || parcel?.id || ''}
+        onApprove={handleApproveFromPage}
+        onReject={handleRejectFromPage}
+        onBack={onBackToHome}
+      />
 
       {/* 8-Step Navigation Header */}
       <StepWizardNav onBackToHome={handleSafeBackToHome} />
