@@ -11,7 +11,8 @@
     "test:api": "ts-node scripts/test-apis.ts",
     "seed:ks003": "ts-node src/scripts/import_ks003.ts",
     "migrate:docker-to-supabase": "ts-node src/scripts/migrate_docker_to_supabase.ts",
-    "reset:clean-production": "ts-node src/scripts/reset_clean_production.ts"
+    "reset:clean-production": "ts-node src/scripts/reset_clean_production.ts",
+    "deploy:5zones-cloud": "ts-node src/scripts/deploy_5zones_to_cloud.ts"
   },
   "keywords": [
     "metro2",
