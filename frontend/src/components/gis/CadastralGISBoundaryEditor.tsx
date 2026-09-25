@@ -94,6 +94,8 @@ interface Props {
     lotDepth?: number;
     floorCount?: number;
     gpsCoords?: string;
+    zoneId?: string;
+    coordinates?: [number, number][];
   };
   parcel?: GisParcel | any;
   boundaryStatus: 'MATCH' | 'SPLIT' | 'MERGE';
@@ -344,7 +346,7 @@ export const CadastralGISBoundaryEditor: React.FC<Props> = ({
     const fetchZoneParcels = async () => {
       try {
         setIsLoadingZoneParcels(true);
-        const zoneId = parcel?.zoneId || (parcel as any)?.zone_id || 'ZONE_S9';
+        const zoneId = parcel?.zoneId || (parcel as any)?.zone_id || parcelData.zoneId || 'ALL';
         const res = await api.get('/parcels/zone-map', { params: { zoneId } });
         if (isMounted && res.data?.success && Array.isArray(res.data.data)) {
           const mapped: GisParcel[] = res.data.data
@@ -384,18 +386,24 @@ export const CadastralGISBoundaryEditor: React.FC<Props> = ({
     return () => {
       isMounted = false;
     };
-  }, [parcel]);
+  }, [parcel, parcelData.zoneId]);
 
   // REAL POSTGIS COORDINATES OF ACTIVE PARCEL
   const realActiveCoords: [number, number][] = useMemo(() => {
     if (parcel?.coordinates && Array.isArray(parcel.coordinates) && parcel.coordinates.length >= 3) {
       return parcel.coordinates;
     }
+    if (parcelData.coordinates && Array.isArray(parcelData.coordinates) && parcelData.coordinates.length >= 3) {
+      return parcelData.coordinates;
+    }
     const matched = zoneParcels.find(
       (zp) => zp.id === activeParcelId || zp.projectParcelCode === parcelData.projectParcelCode
     );
     if (matched && matched.coordinates.length >= 3) {
       return matched.coordinates;
+    }
+    if (zoneParcels.length > 0 && zoneParcels[0].coordinates.length >= 3) {
+      return zoneParcels[0].coordinates;
     }
     const baseLat = 10.798123;
     const baseLng = 106.645678;
@@ -407,7 +415,7 @@ export const CadastralGISBoundaryEditor: React.FC<Props> = ({
       [baseLat + dLat, baseLng + dLng],
       [baseLat, baseLng + dLng],
     ];
-  }, [parcel, activeParcelId, parcelData.projectParcelCode, zoneParcels]);
+  }, [parcel, parcelData.coordinates, activeParcelId, parcelData.projectParcelCode, zoneParcels]);
 
   // Centroid of active parcel
   const activeCentroid: [number, number] = useMemo(() => {
@@ -496,7 +504,7 @@ export const CadastralGISBoundaryEditor: React.FC<Props> = ({
     ];
   }, [parcelData.projectParcelCode, parcelData.street, activeCentroid]);
 
-  // 10 Closest Neighboring Parcels (Kết hợp API + Fallback để luôn chọn được)
+  // Danh sách các thửa đất liền kề trong phạm vi 20m từ tâm thửa đất để gộp thửa (MERGE)
   const tenClosestParcels: GisParcel[] = useMemo(() => {
     const combined = [...zoneParcels];
     fallbackNeighbors.forEach((fb) => {
@@ -515,7 +523,20 @@ export const CadastralGISBoundaryEditor: React.FC<Props> = ({
     });
 
     withDist.sort((a, b) => (a.distanceMeters || 0) - (b.distanceMeters || 0));
-    return withDist.filter((p) => p.projectParcelCode !== parcelData.projectParcelCode).slice(0, 10);
+
+    // Lấy TẤT CẢ các thửa đất liền kề trong phạm vi 20m (không bị giới hạn slice 10)
+    const within20m = withDist.filter(
+      (p) => p.projectParcelCode !== parcelData.projectParcelCode && (p.distanceMeters || 0) <= 20
+    );
+
+    if (within20m.length > 0) {
+      return within20m;
+    }
+
+    // Dự phòng nếu khu vực thưa tọa độ hoặc thửa rộng: lấy các thửa gần nhất trong phạm vi 35m
+    return withDist
+      .filter((p) => p.projectParcelCode !== parcelData.projectParcelCode && (p.distanceMeters || 0) <= 35)
+      .slice(0, 15);
   }, [zoneParcels, fallbackNeighbors, activeCentroid, parcelData.projectParcelCode]);
 
   // =========================================================================
@@ -2069,7 +2090,7 @@ export const CadastralGISBoundaryEditor: React.FC<Props> = ({
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.3rem' }}>
               <label style={{ fontSize: '0.75rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>
-                Chọn các thửa đất liền kề để gộp ({selectedMergeCodes.length} thửa đã chọn):
+                Chọn các thửa đất liền kề trong phạm vi 20m để gộp ({tenClosestParcels.length} thửa liền kề - đã chọn {selectedMergeCodes.length}):
               </label>
               {selectedMergeCodes.length > 0 && (
                 <button
@@ -2090,11 +2111,12 @@ export const CadastralGISBoundaryEditor: React.FC<Props> = ({
               )}
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.4rem', maxHeight: '180px', overflowY: 'auto', padding: '2px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.4rem', maxHeight: '260px', overflowY: 'auto', padding: '2px' }}>
               {tenClosestParcels
                 .filter((p) => p.projectParcelCode !== parcelData.projectParcelCode)
                 .map((adj) => {
                   const isSelected = selectedMergeCodes.includes(adj.projectParcelCode);
+                  const distM = (adj as any).distanceMeters || 0;
                   return (
                     <div
                       key={adj.id}
@@ -2113,16 +2135,26 @@ export const CadastralGISBoundaryEditor: React.FC<Props> = ({
                     >
                       <div>
                         <div style={{ fontSize: '0.775rem', fontWeight: isSelected ? 800 : 600, color: isSelected ? '#0369a1' : '#334155' }}>
-                          {adj.projectParcelCode} ({adj.distanceMeters || 0}m)
+                          {adj.projectParcelCode} <span style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 500 }}>({distM}m)</span>
                         </div>
                         <div style={{ fontSize: '0.675rem', color: '#64748b' }}>
                           Số {adj.houseNumber} {adj.street}
                         </div>
+                        {adj.ownerName && adj.ownerName !== 'Chủ sở hữu phần đất dôi dư' && (
+                          <div style={{ fontSize: '0.625rem', color: '#94a3b8', fontStyle: 'italic' }}>
+                            {adj.ownerName}
+                          </div>
+                        )}
                       </div>
                       {isSelected && <Check size={15} color="#0284c7" />}
                     </div>
                   );
                 })}
+              {tenClosestParcels.filter(p => p.projectParcelCode !== parcelData.projectParcelCode).length === 0 && (
+                <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '1rem', color: '#94a3b8', fontSize: '0.725rem' }}>
+                  Không tìm thấy thửa đất liền kề trong phạm vi 20m. Vui lòng chờ tải bản đồ GIS...
+                </div>
+              )}
             </div>
           </div>
 
@@ -2274,16 +2306,13 @@ export const CadastralGISBoundaryEditor: React.FC<Props> = ({
                 type="button"
                 onClick={() => {
                   const total = mergeSummary.totalMergedArea || totalLandArea;
-                  const bArea = Math.round(total * 0.65 * 10) / 10;
-                  const rArea = Math.round((total - bArea) * 10) / 10;
                   onMutationDataChange({
                     ...mutationData,
                     mergeHasPartialBuilding: true,
-                    mergeBuildingAreaM2: mutationData.mergeBuildingAreaM2 || bArea,
-                    mergeResidualAreaM2: mutationData.mergeResidualAreaM2 || rArea,
-                    mergeResidualType: mutationData.mergeResidualType || 'Sân vườn / Cây cảnh',
+                    mergeBuildingAreaM2: mutationData.mergeBuildingAreaM2 || undefined,
+                    mergeResidualAreaM2: mutationData.mergeResidualAreaM2 || undefined,
+                    mergeResidualType: mutationData.mergeResidualType || '',
                     mergeResidualParcelCode: `${mergeSummary.keptCode}-P2`,
-                    mergeBuildingRatio: 65,
                     isSubmitted: false,
                   });
                 }}
@@ -2489,20 +2518,48 @@ export const CadastralGISBoundaryEditor: React.FC<Props> = ({
 
                 {/* Mục đích sử dụng phần đất dư */}
                 <div>
-                  <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 700, color: '#334155', marginBottom: '2px' }}>
-                    Mục đích sử dụng phần đất dư:
-                  </label>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '3px' }}>
+                    <label style={{ display: 'block', fontSize: '0.725rem', fontWeight: 800, color: '#334155', margin: 0 }}>
+                      Chức năng / mục đích sử dụng phần đất dư:
+                      <span style={{ color: '#ea580c', marginLeft: '4px' }}>* (Chọn thực tế)</span>
+                    </label>
+                    {!mutationData.mergeResidualType && mergeBuildingVertices.length >= 3 && (
+                      <span style={{ fontSize: '0.65rem', color: '#c2410c', fontWeight: 700, backgroundColor: '#ffedd5', padding: '0.1rem 0.4rem', borderRadius: '0.25rem' }}>
+                        Cần chọn chức năng
+                      </span>
+                    )}
+                  </div>
                   <select
                     className="form-control"
-                    style={{ fontSize: '0.725rem', backgroundColor: '#fff', border: '1px solid #cbd5e1' }}
+                    style={{
+                      fontSize: '0.725rem',
+                      backgroundColor: mutationData.mergeResidualType ? '#ffffff' : '#fff7ed',
+                      border: mutationData.mergeResidualType ? '1px solid #cbd5e1' : '1.5px solid #ea580c',
+                      color: mutationData.mergeResidualType ? '#1e293b' : '#9a3412',
+                      fontWeight: 600,
+                    }}
                     value={
-                      ['Sân vườn / Cây cảnh', 'Sân trước / Sân sau lát gạch', 'Đất trống chưa xây dựng (Để dành)', 'Kho bãi tạm / Gara ô tô ngoài trời', 'Lối đi riêng / Ngõ phụ tiếp giáp'].includes(mutationData.mergeResidualType || '')
-                        ? (mutationData.mergeResidualType || 'Sân vườn / Cây cảnh')
-                        : 'OTHER'
+                      [
+                        'Sân vườn / Cây cảnh (Khoảng lùi sinh thái)',
+                        'Sân trước / Sân sau lát gạch',
+                        'Đất trống chưa xây dựng (Để dành)',
+                        'Kho bãi tạm / Gara ô tô ngoài trời',
+                        'Lối đi riêng / Ngõ phụ tiếp giáp',
+                        'Công trình phụ / Bếp / Nhà xe tạm',
+                        'Đất dôi dư ngoài ranh xây dựng',
+                      ].includes(mutationData.mergeResidualType || '')
+                        ? mutationData.mergeResidualType
+                        : mutationData.mergeResidualType ? 'OTHER' : ''
                     }
                     onChange={(e) => {
                       const val = e.target.value;
-                      if (val === 'OTHER') {
+                      if (!val) {
+                        onMutationDataChange({
+                          ...mutationData,
+                          mergeResidualType: '',
+                          isSubmitted: false,
+                        });
+                      } else if (val === 'OTHER') {
                         onMutationDataChange({
                           ...mutationData,
                           mergeResidualType: customMergeResidualType ? `Khác: ${customMergeResidualType}` : 'Khác: ',
@@ -2517,24 +2574,35 @@ export const CadastralGISBoundaryEditor: React.FC<Props> = ({
                       }
                     }}
                   >
-                    <option value="Sân vườn / Cây cảnh">Sân vườn / Cây cảnh (Khoảng lùi sinh thái)</option>
-                    <option value="Sân trước / Sân sau lát gạch">Sân trước / Sân sau lát gạch</option>
-                    <option value="Đất trống chưa xây dựng (Để dành)">Đất trống chưa xây dựng (Để dành)</option>
-                    <option value="Kho bãi tạm / Gara ô tô ngoài trời">Kho bãi tạm / Gara ô tô ngoài trời</option>
-                    <option value="Lối đi riêng / Ngõ phụ tiếp giáp">Lối đi riêng / Ngõ phụ tiếp giáp</option>
-                    <option value="OTHER">Khác (Nhập mục đích sử dụng thực tế...)</option>
+                    <option value="">-- Vui lòng chọn chức năng thực tế của phần đất dư --</option>
+                    <option value="Sân vườn / Cây cảnh (Khoảng lùi sinh thái)">1. Sân vườn / Cây cảnh (Khoảng lùi sinh thái)</option>
+                    <option value="Sân trước / Sân sau lát gạch">2. Sân trước / Sân sau lát gạch</option>
+                    <option value="Đất trống chưa xây dựng (Để dành)">3. Đất trống chưa xây dựng (Để dành)</option>
+                    <option value="Kho bãi tạm / Gara ô tô ngoài trời">4. Kho bãi tạm / Gara ô tô ngoài trời</option>
+                    <option value="Lối đi riêng / Ngõ phụ tiếp giáp">5. Lối đi riêng / Ngõ phụ tiếp giáp</option>
+                    <option value="Công trình phụ / Bếp / Nhà xe tạm">6. Công trình phụ / Bếp / Nhà xe tạm</option>
+                    <option value="Đất dôi dư ngoài ranh xây dựng">7. Đất dôi dư ngoài ranh xây dựng</option>
+                    <option value="OTHER">8. Khác (Nhập mục đích sử dụng thực tế...)</option>
                   </select>
 
                   {/* Text input cho Khác */}
                   {(mutationData.mergeResidualType === 'Khác' ||
                     mutationData.mergeResidualType?.startsWith('Khác') ||
-                    (!['Sân vườn / Cây cảnh', 'Sân trước / Sân sau lát gạch', 'Đất trống chưa xây dựng (Để dành)', 'Kho bãi tạm / Gara ô tô ngoài trời', 'Lối đi riêng / Ngõ phụ tiếp giáp'].includes(mutationData.mergeResidualType || '') && mutationData.mergeResidualType)) && (
+                    (![
+                      'Sân vườn / Cây cảnh (Khoảng lùi sinh thái)',
+                      'Sân trước / Sân sau lát gạch',
+                      'Đất trống chưa xây dựng (Để dành)',
+                      'Kho bãi tạm / Gara ô tô ngoài trời',
+                      'Lối đi riêng / Ngõ phụ tiếp giáp',
+                      'Công trình phụ / Bếp / Nhà xe tạm',
+                      'Đất dôi dư ngoài ranh xây dựng',
+                    ].includes(mutationData.mergeResidualType || '') && mutationData.mergeResidualType)) && (
                     <div style={{ marginTop: '0.35rem' }}>
                       <input
                         type="text"
                         className="form-control"
                         style={{ fontSize: '0.725rem', border: '1px solid #fdba74' }}
-                        placeholder="Nhập mục đích sử dụng phần đất dư..."
+                        placeholder="Nhập mục đích sử dụng phần đất dư thực tế..."
                         value={
                           customMergeResidualType ||
                           (mutationData.mergeResidualType?.startsWith('Khác: ')
@@ -2599,7 +2667,7 @@ export const CadastralGISBoundaryEditor: React.FC<Props> = ({
                       <strong style={{ color: '#166534', fontSize: '0.75rem' }}>{calculatedMergeRArea} m²</strong>
                     </div>
                     <div style={{ fontSize: '0.65rem', color: '#64748b', marginTop: '2px' }}>
-                      Loại: <em>{mutationData.mergeResidualType || 'Sân vườn / Cây cảnh'}</em>
+                      Loại: <em>{mutationData.mergeResidualType || 'Chưa chọn công năng'}</em>
                     </div>
                   </div>
                 </div>

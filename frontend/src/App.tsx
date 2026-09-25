@@ -21,7 +21,7 @@ import { MapPin, Camera } from 'lucide-react';
 export const App: React.FC = () => {
   const { user, isAuthenticated, isLoading } = useAuth();
   const [activeTab, setActiveTab] = useState<NavTab>('home');
-  const [selectedZone, setSelectedZone] = useState<string>('ZONE_S9');
+  const [selectedZone, setSelectedZone] = useState<string>('ZONE_01');
   const [parcels, setParcels] = useState<GisParcel[]>([]);
   const [selectedParcelForSurvey, setSelectedParcelForSurvey] = useState<GisParcel | null>(null);
   const [selectedUnitForSurvey, setSelectedUnitForSurvey] = useState<any | null>(null);
@@ -109,14 +109,56 @@ export const App: React.FC = () => {
     }
     // Không có tọa độ → polygon rỗng, parcel không render
 
+    // Tự động đồng bộ trạng thái nháp dở dang từ LocalStorage / IDB
+    let effectiveStatus: GisParcel['surveyStatus'] = p.survey_status || p.surveyStatus || 'NOT_SURVEYED';
+    let effectiveBuildingType = p.building_type || p.buildingType || 'STANDALONE';
+
+    let parcelUpdatedAt = p.updated_at || p.updatedAt || null;
+    if (p.id) {
+      try {
+        const overridesStr = localStorage.getItem('metro2_parcel_status_overrides');
+        if (overridesStr) {
+          const overrides = JSON.parse(overridesStr);
+          if (overrides[p.id]?.status) {
+            effectiveStatus = overrides[p.id].status;
+          }
+          if (overrides[p.id]?.buildingType) {
+            effectiveBuildingType = overrides[p.id].buildingType;
+          }
+          if (overrides[p.id]?.updatedAt) {
+            parcelUpdatedAt = overrides[p.id].updatedAt;
+          }
+        }
+      } catch (_e) {}
+
+      if (effectiveStatus !== 'APPROVED' && effectiveStatus !== 'PHASE2_COMPLETED' && effectiveStatus !== 'APPROVED_PHASE2') {
+        try {
+          const draft = localStorage.getItem(`metro2_phase1_draft_${p.id}`);
+          if (draft) {
+            const parsed = JSON.parse(draft);
+            if (parsed.isAbsenteeSurvey || parsed.surveyCaseType === 'ABSENTEE') {
+              effectiveStatus = 'POSTPONED_ABSENT';
+            } else if (parsed.surveyCaseType === 'UNDER_CONSTRUCTION') {
+              effectiveStatus = 'UNDER_CONSTRUCTION';
+            } else {
+              effectiveStatus = 'IN_PROGRESS';
+            }
+            if (parsed.lastSavedAt || parsed.updatedAt) {
+              parcelUpdatedAt = parsed.lastSavedAt || parsed.updatedAt || parcelUpdatedAt;
+            }
+          }
+        } catch (_e) {}
+      }
+    }
+
     return {
       id: p.id,
-      projectParcelCode: p.project_parcel_code || p.projectParcelCode || 'B-XXXXX',
+      projectParcelCode: p.project_parcel_code || p.projectParcelCode || '',
       officialCadastralCode: p.official_cadastral_code || p.officialCadastralCode || '',
       houseNumber: p.house_number || p.houseNumber || '',
       street: p.street || '',
       ownerName: p.owner_name || p.ownerName || 'Chưa cập nhật',
-      surveyStatus: p.survey_status || p.surveyStatus || 'NOT_SURVEYED',
+      surveyStatus: effectiveStatus,
       absenceAttemptCount: p.absence_attempt_count ?? p.absenceAttemptCount ?? 0,
       coordinates: coords,
       adjacentType: p.adjacent_type || p.adjacentType || 'TOWNHOUSE',
@@ -125,9 +167,10 @@ export const App: React.FC = () => {
       landArea: Number(p.land_area_m2 ?? p.landArea ?? 0),
       landCategory: p.land_use_category || p.landCategory,
       landUseName: p.land_use_name_raw || p.landUseName,
-      buildingType: p.building_type || p.buildingType || 'STANDALONE',
+      buildingType: effectiveBuildingType,
       totalUnits: Number(p.total_units ?? p.totalUnits ?? 1),
       completedUnits: Number(p.completed_units_count ?? p.completedUnits ?? 0),
+      updatedAt: parcelUpdatedAt,
     };
   };
 
@@ -313,6 +356,7 @@ export const App: React.FC = () => {
             onStartUnitSurvey={handleStartUnitSurvey}
             onStartPhase2={handleStartPhase2}
             onRecordAbsence={handleRecordAbsence}
+            onRefresh={loadParcels}
           />
         )}
 
@@ -346,6 +390,7 @@ export const App: React.FC = () => {
             onBackToHome={() => {
               setIsReadOnlySurvey(false);
               setActiveTab('home');
+              loadParcels();
             }}
             onFinished={() => {
               setIsReadOnlySurvey(false);

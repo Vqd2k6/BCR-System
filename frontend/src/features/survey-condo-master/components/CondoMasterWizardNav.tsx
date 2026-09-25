@@ -19,8 +19,15 @@ interface Props {
 }
 
 export const CondoMasterWizardNav: React.FC<Props> = ({ onBackToHub }) => {
-  const { currentStep, setCurrentStep, nextStep, prevStep, formData, lastSavedAt, saveDraftToStorage } =
-    usePhase1SurveyStore();
+  const {
+    currentStep,
+    requestStepNavigation,
+    nextStep,
+    prevStep,
+    formData,
+    lastSavedAt,
+    saveDraftToStorage,
+  } = usePhase1SurveyStore();
   const [savedToast, setSavedToast] = useState(false);
 
   const handleManualSave = () => {
@@ -30,19 +37,15 @@ export const CondoMasterWizardNav: React.FC<Props> = ({ onBackToHub }) => {
   };
 
   const handleStepClick = (stepId: number) => {
-    setCurrentStep(stepId);
+    requestStepNavigation(stepId);
   };
 
   const handlePrev = () => {
-    if (currentStep > 1) {
-      setCurrentStep(currentStep - 1);
-    }
+    prevStep();
   };
 
   const handleNext = () => {
-    if (currentStep < 8) {
-      setCurrentStep(currentStep + 1);
-    }
+    nextStep();
   };
 
   return (

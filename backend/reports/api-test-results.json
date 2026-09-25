@@ -9,7 +9,7 @@
     "expectedStatus": 200,
     "actualStatus": 200,
     "passed": true,
-    "latencyMs": 16,
+    "latencyMs": 15,
     "responsePreview": "UP"
   },
   {
@@ -22,10 +22,10 @@
     "expectedStatus": 200,
     "actualStatus": 200,
     "passed": true,
-    "latencyMs": 10,
+    "latencyMs": 9,
     "responsePreview": {
-      "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJiMDAwMDAwMC0wMDAwLTAwMDAtMDAwMC0wMDAwMDAwMDAwMDMiLCJ1c2VybmFtZSI6InN1cnZleW9yX3M5XzAxIiwicm9sZSI6IlNVUlZFWU9SIiwiYXNzaWduZWRab25lSWQiOiJaT05FX1M5IiwiZnVsbE5hbWUiOiJOZ3V54buFbiBWxINuIEto4bqjbyBTw6F0IiwiaWF0IjoxNzg5ODk5MDMxLCJleHAiOjE3OTA1MDM4MzF9.kRNRK-YBW4MqH30tkuRvzPn5ngLdVZPIIn3uri8vsKs",
-      "refreshToken": "cd5b8fe6d2b0876ecb3e5ae703920a11a5d2428f321f311433668754b38d569a384f6ecf8e3d5f8e",
+      "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJiMDAwMDAwMC0wMDAwLTAwMDAtMDAwMC0wMDAwMDAwMDAwMDMiLCJ1c2VybmFtZSI6InN1cnZleW9yX3M5XzAxIiwicm9sZSI6IlNVUlZFWU9SIiwiYXNzaWduZWRab25lSWQiOiJaT05FX1M5IiwiZnVsbE5hbWUiOiJOZ3V54buFbiBWxINuIEto4bqjbyBTw6F0IiwiaWF0IjoxNzkwMzA1Mjc3LCJleHAiOjE3OTA5MTAwNzd9.kLvKr2UowLdi_thhFcVgkCfozvDpjTfZKIMGUx0ghxA",
+      "refreshToken": "965889d1de429cbd5059a596f5e9b70cdb2ab06362c7eaf9038c5473cfe2728aeec31abf1588fac3",
       "expiresIn": 604800,
       "user": {
         "id": "b0000000-0000-0000-0000-000000000003",
@@ -33,7 +33,10 @@
         "fullName": "Nguyễn Văn Khảo Sát",
         "role": "SURVEYOR",
         "assignedZoneId": "ZONE_S9",
-        "status": "ACTIVE"
+        "status": "ACTIVE",
+        "phone": null,
+        "surveyorCode": null,
+        "signatureImageUrl": null
       }
     }
   },
@@ -63,14 +66,16 @@
     "expectedStatus": 200,
     "actualStatus": 200,
     "passed": true,
-    "latencyMs": 2,
+    "latencyMs": 5,
     "responsePreview": {
       "id": "b0000000-0000-0000-0000-000000000003",
       "username": "surveyor_s9_01",
       "full_name": "Nguyễn Văn Khảo Sát",
       "role": "SURVEYOR",
       "status": "ACTIVE",
-      "assigned_zone_id": "ZONE_S9"
+      "assigned_zone_id": "ZONE_S9",
+      "fullName": "Nguyễn Văn Khảo Sát",
+      "assignedZoneId": "ZONE_S9"
     }
   },
   {
@@ -99,7 +104,7 @@
     "expectedStatus": 201,
     "actualStatus": 201,
     "passed": true,
-    "latencyMs": 3,
+    "latencyMs": 2,
     "responsePreview": {
       "checkInId": "mock-id-ok",
       "distanceToCenterMeters": 35.5,
@@ -116,7 +121,7 @@
     "expectedStatus": 200,
     "actualStatus": 200,
     "passed": true,
-    "latencyMs": 1,
+    "latencyMs": 2,
     "responsePreview": [
       {
         "id": "mock-id-ok",
@@ -193,7 +198,7 @@
     "expectedStatus": 200,
     "actualStatus": 200,
     "passed": true,
-    "latencyMs": 3,
+    "latencyMs": 4,
     "responsePreview": [
       {
         "id": "a0000000-0000-0000-0000-000000000001",
@@ -252,7 +257,7 @@
     "expectedStatus": 200,
     "actualStatus": 200,
     "passed": true,
-    "latencyMs": 1,
+    "latencyMs": 3,
     "responsePreview": {
       "baseNextNum": 1,
       "codes": [
@@ -330,7 +335,7 @@
     "expectedStatus": 200,
     "actualStatus": 200,
     "passed": true,
-    "latencyMs": 1,
+    "latencyMs": 3,
     "responsePreview": {
       "parcelId": "a0000000-0000-0000-0000-000000000001",
       "projectParcelCode": "P-S9-001",
@@ -354,7 +359,7 @@
     "expectedStatus": 201,
     "actualStatus": 201,
     "passed": true,
-    "latencyMs": 2,
+    "latencyMs": 3,
     "responsePreview": {
       "message": "Đã tạo thành công căn hộ P.402 cho tòa nhà P-S9-001",
       "unit": {
@@ -377,7 +382,7 @@
     "expectedStatus": 200,
     "actualStatus": 200,
     "passed": true,
-    "latencyMs": 1,
+    "latencyMs": 2,
     "responsePreview": {
       "message": "Đã cập nhật loại hình công trình thành CONDOMINIUM",
       "parcel": {
@@ -396,7 +401,7 @@
     "expectedStatus": 201,
     "actualStatus": 201,
     "passed": true,
-    "latencyMs": 2,
+    "latencyMs": 1,
     "responsePreview": {
       "parcelId": "a0000000-0000-0000-0000-000000000001",
       "projectParcelCode": "P-S9-001",
@@ -415,7 +420,7 @@
     "expectedStatus": 201,
     "actualStatus": 201,
     "passed": true,
-    "latencyMs": 2,
+    "latencyMs": 1,
     "responsePreview": {
       "parcelId": "a0000000-0000-0000-0000-000000000001",
       "projectParcelCode": "P-S9-001",
@@ -453,7 +458,7 @@
     "latencyMs": 2,
     "responsePreview": {
       "mutationEventId": "mock-id-ok",
-      "mutationCode": "MUT-1789899031842-51",
+      "mutationCode": "MUT-1790305277119-461",
       "mutationType": "SPLIT",
       "sourceParcelIds": [
         "a0000000-0000-0000-0000-000000000001"
@@ -597,7 +602,7 @@
       "status": "DRAFT",
       "current_step": 1,
       "project_parcel_code": "P-S9-001",
-      "created_at": "2026-09-20T10:10:31.845Z",
+      "created_at": "2026-09-25T03:01:17.122Z",
       "identificationPhotos": [
         {
           "id": "mock-id-ok",
@@ -662,7 +667,7 @@
     "responsePreview": {
       "reportId": "a0000000-0000-0000-0000-000000000001",
       "message": "Đã lưu 4 ảnh định danh P01-P04, đa giác N điểm và phân tầng thành công",
-      "aiJobId": "ai-job-1789899031846"
+      "aiJobId": "ai-job-1790305277124"
     }
   },
   {
@@ -691,7 +696,7 @@
     "expectedStatus": 200,
     "actualStatus": 200,
     "passed": true,
-    "latencyMs": 1,
+    "latencyMs": 2,
     "responsePreview": {
       "reportId": "a0000000-0000-0000-0000-000000000001",
       "message": "Đã lưu cấu trúc danh sách Tầng, ảnh tổng quan và bản vẽ CAD phác thảo phân vị trí Z thành công"
@@ -786,7 +791,7 @@
     "expectedStatus": 200,
     "actualStatus": 200,
     "passed": true,
-    "latencyMs": 1,
+    "latencyMs": 2,
     "responsePreview": {
       "reportId": "a0000000-0000-0000-0000-000000000001",
       "status": "SUBMITTED",
@@ -885,7 +890,7 @@
     "expectedStatus": 200,
     "actualStatus": 200,
     "passed": true,
-    "latencyMs": 1,
+    "latencyMs": 2,
     "responsePreview": {
       "defectId": "e0000000-0000-0000-0000-000000000001",
       "p1WidthMm": null,
@@ -980,7 +985,7 @@
     "expectedStatus": 200,
     "actualStatus": 200,
     "passed": true,
-    "latencyMs": 2,
+    "latencyMs": 1,
     "responsePreview": {
       "reportId": "a0000000-0000-0000-0000-000000000002",
       "status": "SUBMITTED",
@@ -1013,7 +1018,7 @@
     "expectedStatus": 200,
     "actualStatus": 200,
     "passed": true,
-    "latencyMs": 0,
+    "latencyMs": 1,
     "responsePreview": [
       {
         "id": "mock-id-ok",
@@ -1031,7 +1036,7 @@
     "expectedStatus": 200,
     "actualStatus": 200,
     "passed": true,
-    "latencyMs": 2,
+    "latencyMs": 1,
     "responsePreview": [
       {
         "id": "mock-id-ok",
@@ -1049,7 +1054,7 @@
     "expectedStatus": 200,
     "actualStatus": 200,
     "passed": true,
-    "latencyMs": 3,
+    "latencyMs": 2,
     "responsePreview": {
       "id": "mock-id-ok",
       "status": "OK"
@@ -1065,7 +1070,7 @@
     "expectedStatus": 200,
     "actualStatus": 200,
     "passed": true,
-    "latencyMs": 3,
+    "latencyMs": 2,
     "responsePreview": {
       "checkInId": "mock-id-ok",
       "message": "Đã xác nhận ngày công hợp lệ"
@@ -1081,7 +1086,7 @@
     "expectedStatus": 200,
     "actualStatus": 200,
     "passed": true,
-    "latencyMs": 2,
+    "latencyMs": 1,
     "responsePreview": [
       {
         "id": "mock-id-ok",
@@ -1117,7 +1122,7 @@
     "expectedStatus": 200,
     "actualStatus": 200,
     "passed": true,
-    "latencyMs": 2,
+    "latencyMs": 1,
     "responsePreview": {
       "reportId": "a0000000-0000-0000-0000-000000000001",
       "projectParcelCode": "P-S9-001",
@@ -1215,7 +1220,7 @@
     "expectedStatus": 200,
     "actualStatus": 200,
     "passed": true,
-    "latencyMs": 2,
+    "latencyMs": 1,
     "responsePreview": {
       "mutationId": "mut-001",
       "status": "APPROVED",
@@ -1254,10 +1259,10 @@
     "responsePreview": {
       "batchId": "mock-id-ok",
       "status": "COMPLETED",
-      "downloadUrl": "https://storage.metro2.vn/exports/BATCH-ZONE_S9-1789899031886.pdf",
-      "checksumSha256": "edc353a03335164daf9ab7b28d99ce34ebb60cbccd05b30812508b3e386cb7ad",
+      "downloadUrl": "https://storage.metro2.vn/exports/BATCH-ZONE_S9-1790305277160.pdf",
+      "checksumSha256": "f46d69060cfcd3afa714006709584a23a37552885320c233373107958fc50dc4",
       "totalReportsCompiled": 120,
-      "expiresAt": "2026-09-27T10:10:31.886Z",
+      "expiresAt": "2026-10-02T03:01:17.160Z",
       "message": "Đã đóng gói tập hồ sơ báo cáo thành công kèm mã băm Checksum SHA-256"
     }
   },
@@ -1271,7 +1276,7 @@
     "expectedStatus": 200,
     "actualStatus": 200,
     "passed": true,
-    "latencyMs": 1,
+    "latencyMs": 12,
     "responsePreview": {
       "id": "f0000000-0000-0000-0000-000000000001",
       "batch_code": "BATCH-2026-S9-01",
@@ -1280,7 +1285,7 @@
       "total_reports_compiled": 45,
       "file_size_bytes": 52428800,
       "sha256_checksum": "a9f23b...",
-      "created_at": "2026-09-20T10:10:31.887Z"
+      "created_at": "2026-09-25T03:01:17.164Z"
     }
   },
   {
@@ -1293,7 +1298,7 @@
     "expectedStatus": 200,
     "actualStatus": 200,
     "passed": true,
-    "latencyMs": 2,
+    "latencyMs": 6,
     "responsePreview": [
       {
         "id": "mock-id-ok",
@@ -1311,7 +1316,7 @@
     "expectedStatus": 200,
     "actualStatus": 200,
     "passed": true,
-    "latencyMs": 1,
+    "latencyMs": 3,
     "responsePreview": {
       "id": "b0000000-0000-0000-0000-000000000003",
       "username": "surveyor_s9_01",
@@ -1331,10 +1336,10 @@
     "expectedStatus": 201,
     "actualStatus": 201,
     "passed": true,
-    "latencyMs": 306,
+    "latencyMs": 305,
     "responsePreview": {
       "id": "b0000000-0000-0000-0000-000000000099",
-      "username": "surveyor_new_1890",
+      "username": "surveyor_new_7181",
       "full_name": "Lê Văn Khảo Sát Mới",
       "role": "SURVEYOR",
       "assigned_zone_id": "ZONE_S9",
@@ -1387,7 +1392,7 @@
     "expectedStatus": 200,
     "actualStatus": 200,
     "passed": true,
-    "latencyMs": 317,
+    "latencyMs": 289,
     "responsePreview": [
       "success",
       "message"
@@ -1423,10 +1428,10 @@
     "responsePreview": {
       "batchId": "mock-id-ok",
       "status": "COMPLETED",
-      "downloadUrl": "https://storage.metro2.vn/exports/BATCH-GLOBAL-1789899032518.pdf",
-      "checksumSha256": "adb71bfd8b3a888d763a4291e70c35ae5950d152e9d4319dc36d639f2ef11276",
+      "downloadUrl": "https://storage.metro2.vn/exports/BATCH-GLOBAL-1790305277780.pdf",
+      "checksumSha256": "538ca25eea05841d4708bace989b7c1172b86c2e6dd45238021166c315233910",
       "totalReportsCompiled": 120,
-      "expiresAt": "2026-09-27T10:10:32.518Z",
+      "expiresAt": "2026-10-02T03:01:17.780Z",
       "message": "Đã đóng gói tập hồ sơ báo cáo thành công kèm mã băm Checksum SHA-256"
     }
   },
@@ -1450,7 +1455,7 @@
         "total_reports_compiled": 45,
         "file_size_bytes": 52428800,
         "sha256_checksum": "a9f23b...",
-        "created_at": "2026-09-20T10:10:32.519Z"
+        "created_at": "2026-09-25T03:01:17.781Z"
       }
     ]
   },
@@ -1481,7 +1486,7 @@
     "expectedStatus": 200,
     "actualStatus": 200,
     "passed": true,
-    "latencyMs": 1,
+    "latencyMs": 2,
     "responsePreview": {
       "zoneId": "ZONE_S9",
       "totalParcels": 1,
@@ -1544,7 +1549,7 @@
     "expectedStatus": 200,
     "actualStatus": 200,
     "passed": true,
-    "latencyMs": 1,
+    "latencyMs": 3,
     "responsePreview": {
       "id": "a0000000-0000-0000-0000-000000000001",
       "project_parcel_code": "P-S9-001",
@@ -1601,7 +1606,7 @@
     "expectedStatus": 403,
     "actualStatus": 403,
     "passed": true,
-    "latencyMs": 1,
+    "latencyMs": 2,
     "responsePreview": 403
   },
   {
@@ -1640,7 +1645,7 @@
     "expectedStatus": 401,
     "actualStatus": 401,
     "passed": true,
-    "latencyMs": 1,
+    "latencyMs": 0,
     "responsePreview": 401
   }
 ]

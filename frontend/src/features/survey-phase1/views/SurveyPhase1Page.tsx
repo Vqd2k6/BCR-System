@@ -12,7 +12,9 @@ import { Step9_FieldSignatures } from '../components/Step9_FieldSignatures';
 import { MissingFieldsModal } from '../components/MissingFieldsModal';
 import { GisParcel, BuildingUnit } from '../../../core/types/domain.types';
 import { api } from '../../../services/api';
-import { Eye } from 'lucide-react';
+import { useAuth } from '../../../context/AuthContext';
+import confetti from 'canvas-confetti';
+import { Eye, CheckCircle2, XCircle } from 'lucide-react';
 
 export interface SurveyPhase1PageProps {
   parcel?: GisParcel | null;
@@ -41,8 +43,11 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
     proceedAnyway,
     focusMissingField,
     validateForFinalSubmit,
+    setIsReadOnly,
   } = usePhase1SurveyStore();
+  const { user } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [reportData, setReportData] = useState<any>(null);
 
   // Khởi tạo form khi parcel thay đổi
   useEffect(() => {
@@ -50,6 +55,12 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
       initializeForm(parcel, unit);
     }
   }, [parcel?.id, unit?.id]);
+
+  // Sync readOnly prop vào Zustand store để toàn bộ wizard hiểu chế độ xem lại
+  useEffect(() => {
+    setIsReadOnly(readOnly);
+    return () => setIsReadOnly(false); // cleanup khi unmount
+  }, [readOnly]);
 
   // Tải dữ liệu hồ sơ nếu ở chế độ xem lại (Read-Only)
   useEffect(() => {
@@ -59,6 +70,7 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
           const data = res?.data?.data || res?.data;
           if (data) {
             console.log('[SurveyPhase1Page] Read-only report loaded:', data);
+            setReportData(data);
             const rep = data.report;
             const absence = data.absenceLog;
             const updates: any = {};
@@ -237,6 +249,13 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
 
       await api.post('/surveys/phase1/submit', payload);
       clearDraft();
+      try {
+        confetti({
+          particleCount: 100,
+          spread: 80,
+          origin: { y: 0.6 },
+        });
+      } catch (_e) {}
       alert('Đã nộp thành công hồ sơ khảo sát hiện trạng Phase 1!');
       if (onFinished) {
         onFinished();
@@ -252,24 +271,132 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
     }
   };
 
+  const isPendingApproval = parcel?.surveyStatus === 'SUBMITTED' || reportData?.report?.status === 'SUBMITTED';
+  const canApproveOrReject = (user?.role === 'ZONE_ADMIN' || user?.role === 'SUPER_ADMIN') && readOnly && isPendingApproval;
+
+  const handleApproveFromPage = async () => {
+    if (!parcel?.id) return;
+    if (user?.role !== 'ZONE_ADMIN' && user?.role !== 'SUPER_ADMIN') {
+      alert('Chỉ có Zone Admin hoặc Super Admin mới có quyền phê duyệt hồ sơ.');
+      return;
+    }
+    const confirmApprove = window.confirm(`Bạn có chắc chắn muốn PHÊ DUYỆT hồ sơ khảo sát thửa [${parcel.projectParcelCode || parcel.officialCadastralCode || parcel.id}]?`);
+    if (!confirmApprove) return;
+
+    try {
+      const overridesStr = localStorage.getItem('metro2_parcel_status_overrides');
+      const overrides = overridesStr ? JSON.parse(overridesStr) : {};
+      overrides[parcel.id] = {
+        ...(overrides[parcel.id] || {}),
+        status: 'APPROVED',
+        updatedAt: new Date().toISOString(),
+      };
+      localStorage.setItem('metro2_parcel_status_overrides', JSON.stringify(overrides));
+
+      try {
+        await api.post(`/admin/reports/${parcel.id}/approve`, {});
+      } catch (err: any) {
+        console.warn('Backend approve API notice:', err?.response?.data || err?.message);
+      }
+
+      alert(`Đã phê duyệt thành công hồ sơ thửa [${parcel.projectParcelCode || parcel.officialCadastralCode || parcel.id}]!`);
+      onBackToHome();
+    } catch (e) {
+      console.error('Approve error:', e);
+      alert('Có lỗi xảy ra khi duyệt hồ sơ.');
+    }
+  };
+
+  const handleRejectFromPage = async () => {
+    if (!parcel?.id) return;
+    if (user?.role !== 'ZONE_ADMIN' && user?.role !== 'SUPER_ADMIN') {
+      alert('Chỉ có Zone Admin hoặc Super Admin mới có quyền từ chối hồ sơ.');
+      return;
+    }
+    const reason = window.prompt(
+      `Nhập lý do yêu cầu bổ sung / từ chối hồ sơ thửa [${parcel.projectParcelCode || parcel.officialCadastralCode || parcel.id}]:`,
+      'Hồ sơ thiếu ảnh hiện trạng hoặc số liệu cần đo đạc lại'
+    );
+    if (!reason || !reason.trim()) return;
+
+    try {
+      const overridesStr = localStorage.getItem('metro2_parcel_status_overrides');
+      const overrides = overridesStr ? JSON.parse(overridesStr) : {};
+      overrides[parcel.id] = {
+        ...(overrides[parcel.id] || {}),
+        status: 'REJECTED',
+        rejectionReason: reason.trim(),
+        updatedAt: new Date().toISOString(),
+      };
+      localStorage.setItem('metro2_parcel_status_overrides', JSON.stringify(overrides));
+
+      try {
+        await api.post(`/admin/reports/${parcel.id}/reject`, {
+          rejectionReason: reason.trim(),
+        });
+      } catch (err: any) {
+        console.warn('Backend reject API notice:', err?.response?.data || err?.message);
+      }
+
+      alert(`Đã trả về hồ sơ thửa [${parcel.projectParcelCode || parcel.officialCadastralCode || parcel.id}] với yêu cầu bổ sung: "${reason.trim()}".`);
+      onBackToHome();
+    } catch (e) {
+      console.error('Reject error:', e);
+      alert('Có lỗi xảy ra khi từ chối hồ sơ.');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-50/50 flex flex-col">
       {/* Read-Only Mode Banner */}
       {readOnly && (
-        <div className="bg-amber-500 text-white px-4 py-2.5 shadow-md flex items-center justify-between sticky top-0 z-50 animate-in fade-in">
+        <div className={`px-4 py-2.5 shadow-sm flex flex-wrap items-center justify-between sticky top-0 z-50 animate-in fade-in gap-2 border-b ${
+          canApproveOrReject
+            ? 'bg-violet-50 border-violet-200'
+            : 'bg-sky-50 border-sky-200'
+        }`}>
           <div className="flex items-center gap-2.5 text-xs sm:text-sm font-bold">
-            <Eye className="w-5 h-5 flex-shrink-0" />
-            <span>
-              👁️ Chế độ xem lại biểu mẫu (Read-Only) - Hồ sơ đã nộp / Đang thi công / Vắng mặt. Không thể chỉnh sửa hoặc nộp lại.
+            <Eye className={`w-4 h-4 flex-shrink-0 ${canApproveOrReject ? 'text-violet-600' : 'text-sky-600'}`} />
+            <span className={canApproveOrReject ? 'text-violet-800' : 'text-sky-800'}>
+              {canApproveOrReject ? (
+                <>Thẩm định hồ sơ (Zone Admin / Super Admin) - Thửa: <strong className="text-violet-700">{parcel?.projectParcelCode || parcel?.officialCadastralCode || parcel?.id}</strong></>
+              ) : (
+                <>👁️ Chế độ Xem lại biểu mẫu — Hồ sơ đã nộp, không thể chỉnh sửa.</>              )}
             </span>
           </div>
-          <button
-            type="button"
-            onClick={onBackToHome}
-            className="bg-white/20 hover:bg-white/30 text-white text-xs font-bold px-3 py-1.5 rounded-lg border border-white/30 transition-colors shrink-0 ml-2"
-          >
-            Quay về danh sách
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            {canApproveOrReject && (
+              <>
+                <button
+                  type="button"
+                  onClick={handleApproveFromPage}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 shadow-sm transition-colors cursor-pointer"
+                >
+                  <CheckCircle2 className="w-4 h-4" />
+                  Duyệt hồ sơ
+                </button>
+                <button
+                  type="button"
+                  onClick={handleRejectFromPage}
+                  className="bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 shadow-sm transition-colors cursor-pointer"
+                >
+                  <XCircle className="w-4 h-4" />
+                  Từ chối
+                </button>
+              </>
+            )}
+            <button
+              type="button"
+              onClick={onBackToHome}
+              className={`text-xs font-bold px-3 py-1.5 rounded-lg border transition-colors shrink-0 cursor-pointer ${
+                canApproveOrReject
+                  ? 'bg-white hover:bg-violet-50 text-violet-700 border-violet-300'
+                  : 'bg-white hover:bg-sky-50 text-sky-700 border-sky-300'
+              }`}
+            >
+              Quay về
+            </button>
+          </div>
         </div>
       )}
 

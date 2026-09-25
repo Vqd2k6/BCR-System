@@ -70,6 +70,11 @@ export const Select: React.FC<SelectProps> = ({
 }) => {
   const selectId = id || (label ? label.toLowerCase().replace(/\s+/g, '-') : undefined);
 
+  // Kiểm tra nếu value hiện tại không có trong options list (VD: khi read-only restore từ API)
+  const currentValue = props.value as string | undefined;
+  const valueExistsInOptions = !options || !currentValue || currentValue === ''
+    || options.some(opt => String(opt.value) === String(currentValue));
+
   return (
     <div className="w-full">
       {label && (
@@ -87,11 +92,19 @@ export const Select: React.FC<SelectProps> = ({
         {...props}
       >
         {options
-          ? options.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))
+          ? (
+            <>
+              {/* Nếu value không match option nào (VD: read-only từ API), hiển thị như option đặc biệt */}
+              {!valueExistsInOptions && currentValue && (
+                <option value={currentValue}>{currentValue}</option>
+              )}
+              {options.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </>
+          )
           : children}
       </select>
       {hint && !error && <p className="text-xs text-slate-500 mt-1">{hint}</p>}

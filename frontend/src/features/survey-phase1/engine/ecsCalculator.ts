@@ -101,7 +101,8 @@ export function calculateEcsScore(formData: Partial<Phase1SurveyFormData>): EcsS
         damagedZoneCount++;
       }
       zn.defects?.forEach((df: any) => {
-        const val = df.functionalImpactE6 ?? 0;
+        let val = df.functionalImpactE6 ?? 0;
+        if (val === 5) val = 2; // Kẹt cửa: tính 2 điểm ảnh hưởng chức năng
         if (val > maxDefectE6) maxDefectE6 = val;
       });
     });
@@ -110,7 +111,8 @@ export function calculateEcsScore(formData: Partial<Phase1SurveyFormData>): EcsS
         damagedZoneCount++;
       }
       el.defects?.forEach((df: any) => {
-        const val = df.functionalImpactE6 ?? 0;
+        let val = df.functionalImpactE6 ?? 0;
+        if (val === 5) val = 2; // Kẹt cửa: tính 2 điểm ảnh hưởng chức năng
         if (val > maxDefectE6) maxDefectE6 = val;
       });
     });

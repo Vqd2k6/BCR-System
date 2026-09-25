@@ -131,19 +131,18 @@ export const Step7_TechnicalCalculations: React.FC = () => {
           <div className="p-3 rounded-xl bg-white border border-slate-200 flex flex-col justify-between">
             <div className="flex items-center justify-between mb-1.5">
               <span className="text-slate-500 font-medium">5. Hồ sơ / Bản vẽ</span>
-              <InfoPopover title="Tiêu chí 5: Hồ sơ hoàn công &amp; Bản vẽ kỹ thuật" size="md">
-                <p><strong>📌 Nguồn trích xuất:</strong> Hồ sơ hoàn công, bản vẽ kỹ thuật tải lên tại Mục 2.3 (<strong>Bước 2</strong>).</p>
+              <InfoPopover title="Tiêu chí 5: Hồ sơ hoàn công & Bản vẽ kỹ thuật" size="md">
+                <p><strong>📌 Lấy từ đâu?</strong> Mục 2.3 "Bản vẽ hoàn công / Kết cấu" (<strong>Bước 2</strong>).</p>
                 <div className="mt-2 pt-2 border-t border-slate-100 text-[11px] leading-relaxed">
-                  <p className="font-bold text-slate-800 mb-1">🎯 Các giá trị có thể xuất hiện (2 giá trị):</p>
+                  <p className="font-bold text-slate-800 mb-1">📋 Chỉ có 2 giá trị:</p>
                   <ul className="space-y-1 pl-1 text-slate-600">
                     <li>
-                      <span className="font-semibold text-emerald-700">● &quot;Có&quot;:</span> Đã thu thập được ảnh chụp hoặc tệp bản vẽ hoàn công, bản vẽ thiết kế kết cấu ở Bước 2.
+                      <span className="font-semibold text-emerald-700">✅ &quot;Có&quot;:</span> Đã chụp ảnh hoặc tải lên bản vẽ kỹ thuật tại Bước 2.
                     </li>
                     <li>
-                      <span className="font-semibold text-amber-700">● &quot;Không có&quot;:</span> Chưa thu thập được bản vẽ kỹ thuật ở Bước 2.
+                      <span className="font-semibold text-amber-700">⚠️ &quot;Không có&quot;:</span> Chưa thu thập được bản vẽ tại Bước 2 (chủ nhà không cung cấp được).
                     </li>
                   </ul>
-                  <p className="mt-2 text-slate-700"><strong>⚖️ Ý nghĩa kỹ thuật/pháp lý:</strong> Nếu &quot;Không có&quot;, hồ sơ chuyển diện &quot;CÓ ĐIỀU KIỆN&quot;, dự án phải căn cứ hoàn toàn vào số liệu đo đạc thực tế ngoại quan do không kiểm chứng được cốt thép bên trong.</p>
                 </div>
               </InfoPopover>
             </div>
@@ -154,21 +153,19 @@ export const Step7_TechnicalCalculations: React.FC = () => {
           <div className="p-3 rounded-xl bg-white border border-slate-200 flex flex-col justify-between">
             <div className="flex items-center justify-between mb-1.5">
               <span className="text-slate-500 font-medium">6. Structural Review</span>
-              <InfoPopover title="Tiêu chí 6: Thẩm tra chuyên sâu Kỹ sư kết cấu (Structural Review)" size="md">
-                <p><strong>📌 Nguồn trích xuất:</strong> Lấy trực tiếp từ <strong>Bước 4 (Burland Summary)</strong> - dựa trên Cờ kết cấu (Structural Flag Level) và Nhu cầu thẩm định chuyên gia.</p>
+              <InfoPopover title="Tiêu chí 6: CÓ CẦN kỹ sư kết cấu thẩm tra không?" size="md">
+                <p><strong>📌 Lấy từ đâu?</strong> Mục 4.1.5 “Cần Kỹ sư kết cấu thẩm định” (<strong>Bước 4</strong>).</p>
                 <div className="mt-2 pt-2 border-t border-slate-100 text-[11px] leading-relaxed">
-                  <p className="font-bold text-slate-800 mb-1">🎯 Các giá trị có thể xuất hiện (3 giá trị):</p>
+                  <p className="font-bold text-slate-800 mb-1">📋 Chỉ có 2 giá trị:</p>
                   <ul className="space-y-1.5 pl-1 text-slate-600">
                     <li>
-                      <span className="font-semibold text-slate-700">● &quot;N/A (Bình thường)&quot;:</span> Khi Cờ kết cấu ở mức None và không yêu cầu thẩm tra. <em>Ý nghĩa:</em> Không có khuyết tật kết cấu nguy hiểm.
+                      <span className="font-semibold text-emerald-700">✅ &quot;Không cần — Hư hỏng bình thường&quot;:</span> Công trình ổn định, không có vết nứt ngưỡng nguy hiểm. KSV tự xử lý được hồ sơ.
                     </li>
                     <li>
-                      <span className="font-semibold text-emerald-700">● &quot;Đủ (Không yêu cầu)&quot;:</span> Khi Cờ kết cấu ở mức Low hoặc Moderate. <em>Ý nghĩa:</em> Đã kiểm tra cấu kiện chịu lực chính, các hư hại ở mức nhẹ trong ngưỡng an toàn.
-                    </li>
-                    <li>
-                      <span className="font-semibold text-red-600">● &quot;Cần thẩm tra (Pending Review)&quot;:</span> Tự động kích hoạt khi Cờ kết cấu ở mức High/Critical hoặc tick chọn cần Kỹ sư thẩm định ở Bước 4. <em>Ý nghĩa:</em> Bắt buộc Kỹ sư kết cấu cấp cao vào đánh giá trước khi đào hầm Metro qua.
+                      <span className="font-semibold text-red-600">⚠️ &quot;Có — Cần kỹ sư kết cấu đến thẩm tra&quot;:</span> Công trình có vết nứt ngang, nứt xiên nghiêm trọng hoặc KSV thấy cần chuyên gia xác nhận thêm. Khi đó, hồ sơ cần gửi cho kỹ sư kết cấu trước khi nộp.
                     </li>
                   </ul>
+                  <p className="mt-2 italic text-slate-500 text-[10px]">💡 Nếu bạn tích “Cần kỹ sư kết cấu” ở Bước 4, hệ thống tự động đặt mục này là “Có — Cần thẩm tra”.</p>
                 </div>
               </InfoPopover>
             </div>
@@ -176,8 +173,6 @@ export const Step7_TechnicalCalculations: React.FC = () => {
               className={`font-bold text-sm ${
                 gateResult.structuralReview.status === 'PENDING_REVIEW'
                   ? 'text-red-600'
-                  : gateResult.structuralReview.status === 'NA'
-                  ? 'text-slate-500'
                   : 'text-emerald-700'
               }`}
             >

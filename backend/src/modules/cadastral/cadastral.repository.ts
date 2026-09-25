@@ -72,8 +72,28 @@ export class CadastralRepository {
   }
 
   static async listParcelsByZone(zoneId: string, status?: string): Promise<ParcelEntity[]> {
-    let whereClause = `WHERE p.zone_id = $1 AND p.lifecycle_status = 'ACTIVE'`;
-    const params: any[] = [zoneId];
+    // Map between ZONE_S1..S11 and ZONE_01..ZONE_22
+    const zoneMapping: Record<string, string> = {
+      'ZONE_S1': 'ZONE_01', 'ZONE_S2': 'ZONE_03', 'ZONE_S3': 'ZONE_05',
+      'ZONE_S4': 'ZONE_07', 'ZONE_S5': 'ZONE_09', 'ZONE_S6': 'ZONE_11',
+      'ZONE_S7': 'ZONE_13', 'ZONE_S8': 'ZONE_15', 'ZONE_S9': 'ZONE_17',
+      'ZONE_S10': 'ZONE_19', 'ZONE_S11': 'ZONE_21',
+      'ZONE_01': 'ZONE_S1', 'ZONE_03': 'ZONE_S2', 'ZONE_05': 'ZONE_S3',
+      'ZONE_07': 'ZONE_S4', 'ZONE_09': 'ZONE_S5', 'ZONE_11': 'ZONE_S6',
+      'ZONE_13': 'ZONE_S7', 'ZONE_15': 'ZONE_S8', 'ZONE_17': 'ZONE_S9',
+      'ZONE_19': 'ZONE_S10', 'ZONE_21': 'ZONE_S11',
+    };
+    const target = (zoneId || 'ALL').toUpperCase();
+    const isAll = target === 'ALL';
+    const altTarget = zoneMapping[target] || target;
+
+    let whereClause = `WHERE p.lifecycle_status = 'ACTIVE'`;
+    const params: any[] = [];
+
+    if (!isAll) {
+      whereClause += ` AND (p.zone_id = $1 OR p.zone_id = $2)`;
+      params.push(target, altTarget);
+    }
 
     if (status) {
       params.push(status);
@@ -92,6 +112,31 @@ export class CadastralRepository {
        ORDER BY p.project_parcel_code ASC;`,
       params
     );
+    return res.rows;
+  }
+
+  static async getMetroAlignment() {
+    const res = await Database.query(`
+      SELECT 
+        id, line_code, line_name, zoi_buffer_meters,
+        ST_AsGeoJSON(centerline_geom)::json AS centerline_geojson,
+        ST_AsGeoJSON(zoi_polygon_geom)::json AS zoi_geojson
+      FROM metro_alignments
+      LIMIT 1;
+    `);
+    return res.rows[0] || null;
+  }
+
+  static async getMetroSegments() {
+    const res = await Database.query(`
+      SELECT 
+        id, zone_index, segment_code, segment_name, construction_type,
+        start_chainage_km, end_chainage_km, zoi_buffer_meters,
+        ST_AsGeoJSON(centerline_geom)::json AS centerline_geojson,
+        ST_AsGeoJSON(zoi_polygon_geom)::json AS zoi_geojson
+      FROM metro_segments
+      ORDER BY zone_index ASC;
+    `);
     return res.rows;
   }
 

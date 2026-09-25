@@ -45,6 +45,8 @@ export interface GisParcel {
   buildingType?: string;
   totalUnits?: number;
   completedUnits?: number;
+  updatedAt?: string | Date;
+  zoneId?: string;
 }
 
 export interface BuildingUnit {

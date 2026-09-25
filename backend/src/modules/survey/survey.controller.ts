@@ -248,6 +248,7 @@ export class SurveyController {
 
       const specs = {
         buildingName: surveyData?.specs?.buildingName || surveyData?.buildingName,
+        buildingGrade: surveyData?.targetGroup || surveyData?.specs?.buildingGrade || 'GENERAL',
         landUseFunction: surveyData?.specs?.landUseFunction || surveyData?.usageFunction,
         floorCount: Number(surveyData?.specs?.floorCount ?? (surveyData?.aboveFloors !== '' && surveyData?.aboveFloors !== undefined ? surveyData.aboveFloors : 1)),
         basementCount: Number(surveyData?.specs?.basementCount ?? (surveyData?.undergroundFloors !== '' && surveyData?.undergroundFloors !== undefined ? surveyData.undergroundFloors : 0)),
@@ -259,6 +260,12 @@ export class SurveyController {
         foundationCategory: normalizeFoundationCategory(rawFoundation),
         foundationSource: surveyData?.specs?.foundationSource || surveyData?.foundationSource || 'Bản vẽ hoàn công',
         adjacentBuildings: surveyData?.specs?.adjacentBuildings || (surveyData?.adjacentBuildings ? JSON.stringify(surveyData.adjacentBuildings) : null),
+        extendedOrRenovated: Boolean(surveyData?.specs?.extendedOrRenovated ?? surveyData?.extendedOrRenovated ?? surveyData?.history?.extendedOrRenovated ?? false),
+        previousSettlementOrTilt: Boolean(surveyData?.specs?.previousSettlementOrTilt ?? surveyData?.previousSettlementOrTilt ?? false),
+        fireOrAccident: Boolean(surveyData?.specs?.fireOrAccident ?? surveyData?.fireOrAccident ?? false),
+        sensitiveEquipmentPresent: Boolean(surveyData?.specs?.sensitiveEquipmentPresent ?? surveyData?.sensitiveEquipmentPresent ?? false),
+        historyDetails: surveyData?.specs?.historyDetails || surveyData?.historyDetails || null,
+        e5HistoryScore: Number(surveyData?.specs?.e5HistoryScore ?? surveyData?.e5HistoryScore ?? 0),
       };
       if (specs.floorCount || specs.structuralSystem || surveyData?.specs) {
         await SurveyService.saveBuildingSpecs(reportId, specs);
@@ -280,6 +287,7 @@ export class SurveyController {
         engineeringRecommendations: surveyData?.signatures?.engineeringRecommendations || surveyData?.executiveSummary?.specificRecommendationsText || '',
         houseNumber: surveyData?.houseNumber,
         street: surveyData?.street,
+        surveyDataJson: surveyData || null,
       });
 
       res.status(200).json({

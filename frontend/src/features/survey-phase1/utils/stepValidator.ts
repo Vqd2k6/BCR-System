@@ -204,9 +204,10 @@ export const validateStep = (step: number, formData: Phase1SurveyFormData): Step
     if (!formData.projectParcelCode?.trim()) {
       missing.push({
         fieldId: 'input-projectParcelCode',
-        label: '1.1. Mã quản lý dự án (Project Parcel Code)',
+        label: '1.1. Mã quản lý dự án (Project Parcel Code) *',
         step: 1,
         description: 'Vui lòng kiểm tra mã quản lý dự án B-XXXXX.',
+        isBlocking: true,
       });
     }
 
@@ -214,9 +215,10 @@ export const validateStep = (step: number, formData: Phase1SurveyFormData): Step
     if (!formData.officialCadastralCode?.trim()) {
       missing.push({
         fieldId: 'input-officialCadastralCode',
-        label: '1.1. Mã địa chính gốc (Cadastral Code)',
+        label: '1.1. Mã địa chính gốc (Cadastral Code) *',
         step: 1,
         description: 'Vui lòng kiểm tra số tờ - số thửa bản đồ địa chính.',
+        isBlocking: true,
       });
     }
 
@@ -235,9 +237,10 @@ export const validateStep = (step: number, formData: Phase1SurveyFormData): Step
     if (!formData.houseNumber?.trim() && !formData.street?.trim()) {
       missing.push({
         fieldId: 'input-address',
-        label: '1.1. Địa chỉ thực tế công trình',
+        label: '1.1. Địa chỉ thực tế công trình *',
         step: 1,
         description: 'Vui lòng nhập số nhà hoặc tên đường thực tế.',
+        isBlocking: true,
       });
     }
 
@@ -245,9 +248,10 @@ export const validateStep = (step: number, formData: Phase1SurveyFormData): Step
     if (!formData.ownerName?.trim()) {
       missing.push({
         fieldId: 'input-ownerName',
-        label: '1.1. Chủ sở hữu / Người sử dụng',
+        label: '1.1. Chủ sở hữu / Người sử dụng *',
         step: 1,
         description: 'Vui lòng nhập tên chủ hộ hoặc người đại diện sử dụng công trình.',
+        isBlocking: true,
       });
     }
 
@@ -284,18 +288,20 @@ export const validateStep = (step: number, formData: Phase1SurveyFormData): Step
     if (!formData.photoP01?.url && !formData.photoP01?.notApplicable) {
       missing.push({
         fieldId: 'photo-p01-section',
-        label: '1.5. Ảnh P-01 (Biển số nhà)',
+        label: '1.5. Ảnh P-01 (Biển số nhà) *',
         step: 1,
         description: 'Vui lòng chụp ảnh biển số nhà hoặc đánh dấu N/A nếu không có.',
+        isBlocking: true,
       });
     }
 
     if (!formData.photoP02?.url && !formData.photoP02?.notApplicable) {
       missing.push({
         fieldId: 'photo-p02-section',
-        label: '1.5. Ảnh P-02 (Mặt đứng chính diện)',
+        label: '1.5. Ảnh P-02 (Mặt đứng chính diện) *',
         step: 1,
         description: 'Vui lòng chụp ảnh trực diện ngôi nhà hoặc đánh dấu N/A.',
+        isBlocking: true,
       });
     }
 
@@ -303,27 +309,30 @@ export const validateStep = (step: number, formData: Phase1SurveyFormData): Step
     if (formData.photoP02?.url && (!formData.photoP02.polygonPoints || formData.photoP02.polygonPoints.length < 3)) {
       missing.push({
         fieldId: 'btn-p02-polygon',
-        label: '1.5. Chấm điểm đa giác mặt tiền (P-02)',
+        label: '1.5. Chấm điểm đa giác mặt tiền (P-02) *',
         step: 1,
         description: 'Vui lòng chấm tối thiểu 3 điểm đỉnh đa giác bao quanh mặt đứng công trình khi có ảnh P-02.',
+        isBlocking: true,
       });
     }
 
     if (!formData.photoP03?.url && !formData.photoP03?.notApplicable) {
       missing.push({
         fieldId: 'photo-p03-section',
-        label: '1.5. Ảnh P-03 (Mặt bên hoặc mặt sau)',
+        label: '1.5. Ảnh P-03 (Mặt bên hoặc mặt sau) *',
         step: 1,
         description: 'Vui lòng chụp ảnh mặt hông/sau hoặc đánh dấu N/A.',
+        isBlocking: true,
       });
     }
 
     if (!formData.photoP04?.url && !formData.photoP04?.notApplicable) {
       missing.push({
         fieldId: 'photo-p04-section',
-        label: '1.5. Ảnh P-04 (Bối cảnh tổng thể lấy đường/hẻm)',
+        label: '1.5. Ảnh P-04 (Bối cảnh tổng thể lấy đường/hẻm) *',
         step: 1,
         description: 'Vui lòng chụp ảnh bối cảnh đường hoặc đánh dấu N/A.',
+        isBlocking: true,
       });
     }
 
@@ -393,6 +402,7 @@ export const validateStep = (step: number, formData: Phase1SurveyFormData): Step
         label: '2.1. Công năng sử dụng *',
         step: 2,
         description: 'Vui lòng chọn công năng của công trình.',
+        isBlocking: true,
       });
     }
 
@@ -402,6 +412,7 @@ export const validateStep = (step: number, formData: Phase1SurveyFormData): Step
         label: '2.1. Số tầng nổi *',
         step: 2,
         description: 'Vui lòng nhập số tầng nổi (0 nếu đang xây móng).',
+        isBlocking: true,
       });
     }
 
@@ -440,6 +451,7 @@ export const validateStep = (step: number, formData: Phase1SurveyFormData): Step
         label: '2.1. Hệ kết cấu chịu lực *',
         step: 2,
         description: 'Vui lòng chọn hệ kết cấu chịu lực (RC, Steel, Masonry...).',
+        isBlocking: true,
       });
     }
 
@@ -449,6 +461,7 @@ export const validateStep = (step: number, formData: Phase1SurveyFormData): Step
         label: '2.1. Loại móng *',
         step: 2,
         description: 'Vui lòng chọn loại móng của ngôi nhà.',
+        isBlocking: true,
       });
     }
 

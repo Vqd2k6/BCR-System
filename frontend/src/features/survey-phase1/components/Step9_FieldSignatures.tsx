@@ -49,11 +49,6 @@ export const Step9_FieldSignatures: React.FC<Step9Props> = ({ onSubmitFinal, isS
   );
 
   const handleCompleteSurvey = () => {
-    confetti({
-      particleCount: 80,
-      spread: 70,
-      origin: { y: 0.6 },
-    });
     onSubmitFinal();
   };
 

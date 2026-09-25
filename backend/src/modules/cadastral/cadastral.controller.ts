@@ -12,12 +12,36 @@ import { BadRequestError } from '../../common/errors/problem-details';
 export class CadastralController {
   static async getZoneMap(req: Request, res: Response, next: NextFunction) {
     try {
-      const zoneId = (req.query.zoneId as string) || req.user?.assignedZoneId || 'ZONE_S9';
+      const zoneId = (req.query.zoneId as string) || req.user?.assignedZoneId || 'ZONE_01';
       const status = req.query.status as string;
       const parcels = await CadastralService.listParcelsInZone(zoneId, status);
       res.status(200).json({
         success: true,
         data: parcels,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async getMetroAlignment(req: Request, res: Response, next: NextFunction) {
+    try {
+      const alignment = await CadastralService.getMetroAlignment();
+      res.status(200).json({
+        success: true,
+        data: alignment,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async getMetroSegments(req: Request, res: Response, next: NextFunction) {
+    try {
+      const segments = await CadastralService.getMetroSegments();
+      res.status(200).json({
+        success: true,
+        data: segments,
       });
     } catch (error) {
       next(error);

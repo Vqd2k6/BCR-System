@@ -1,0 +1,1745 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bản Đồ Công Trình & Quy Hoạch Đô Thị TP.HCM</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+        body, html {
+            height: 100%;
+            width: 100%;
+            overflow: hidden;
+            background: #0f172a;
+        }
+        #map {
+            height: 100%;
+            width: 100%;
+            z-index: 1;
+        }
+        .control-panel {
+            position: absolute;
+            top: 16px;
+            left: 16px;
+            z-index: 1000;
+            background: rgba(15, 23, 42, 0.92);
+            backdrop-filter: blur(14px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 12px;
+            padding: 16px 20px;
+            color: #f8fafc;
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.6);
+            max-width: 360px;
+        }
+        .control-panel h1 {
+            font-size: 15px;
+            font-weight: 700;
+            color: #38bdf8;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 5px;
+            margin: 10px 0;
+        }
+        .stat-card {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 7px 5px;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            text-align: center;
+        }
+        .stat-label {
+            font-size: 9.5px;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .stat-val {
+            font-size: 15px;
+            font-weight: 700;
+            color: #f1f5f9;
+            margin-top: 2px;
+        }
+        .legend {
+            margin-top: 12px;
+            font-size: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #cbd5e1;
+        }
+        .legend-color {
+            width: 14px;
+            height: 14px;
+            border-radius: 3px;
+        }
+        .btn-live {
+            margin-top: 12px;
+            width: 100%;
+            background: #0284c7;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 6px;
+            transition: background 0.2s;
+        }
+        .btn-live:hover {
+            background: #0369a1;
+        }
+
+        /* ZONE BADGES & TOOLTIPS (22 PHÂN VÙNG QUY HOẠCH) */
+        .zone-badge-container {
+            background: transparent !important;
+            border: none !important;
+        }
+        .zone-floating-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 3px 8px 3px 4px;
+            border-radius: 20px;
+            color: #ffffff;
+            font-size: 11px;
+            font-weight: 700;
+            border: 1.5px solid rgba(255, 255, 255, 0.95);
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.55);
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            white-space: nowrap;
+            backdrop-filter: blur(8px);
+        }
+        .zone-floating-badge:hover {
+            transform: scale(1.15) translateY(-2px);
+            box-shadow: 0 8px 22px rgba(0, 0, 0, 0.8);
+            z-index: 99999 !important;
+        }
+        .zone-floating-badge .badge-num {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 20px;
+            height: 20px;
+            background: rgba(255, 255, 255, 0.95);
+            color: #0f172a;
+            border-radius: 50%;
+            font-size: 11px;
+            font-weight: 800;
+        }
+        .zone-floating-badge .badge-tag {
+            font-size: 10.5px;
+            font-weight: 600;
+            max-width: 140px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .zone-selector-box {
+            margin-top: 10px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 8px;
+            padding: 8px 10px;
+        }
+        .zone-select-dropdown {
+            width: 100%;
+            background: #1e293b;
+            color: #f8fafc;
+            border: 1px solid #475569;
+            border-radius: 6px;
+            padding: 6px 8px;
+            font-size: 11.5px;
+            outline: none;
+            margin-top: 5px;
+            cursor: pointer;
+        }
+
+        /* POPUP GIAO DIỆN QUY HOẠCH CHUẨN SỞ QUY HOẠCH */
+        .planning-popup {
+            min-width: 320px;
+            max-width: 360px;
+            font-size: 12px;
+            color: #1e293b;
+            padding: 4px;
+        }
+        .planning-popup .pop-header {
+            background: #ea580c;
+            color: white;
+            padding: 8px 12px;
+            border-radius: 6px 6px 0 0;
+            font-weight: 700;
+            font-size: 13.5px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .planning-popup .pop-body {
+            padding: 10px 12px;
+            background: #ffffff;
+            border-radius: 0 0 6px 6px;
+        }
+        .pop-section-title {
+            font-weight: 700;
+            color: #ea580c;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 2px solid #fed7aa;
+            padding-bottom: 3px;
+            margin: 10px 0 6px 0;
+        }
+        .pop-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 3px 0;
+            border-bottom: 1px dashed #f1f5f9;
+        }
+        .pop-row .label {
+            color: #64748b;
+        }
+        .pop-row .val {
+            font-weight: 600;
+            color: #0f172a;
+            text-align: right;
+        }
+        .pop-doan {
+            background: #fff7ed;
+            border-left: 3px solid #f97316;
+            padding: 6px 8px;
+            font-size: 11px;
+            color: #9a3412;
+            line-height: 1.4;
+            border-radius: 0 4px 4px 0;
+            margin: 4px 0;
+        }
+        .function-card {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 6px 8px;
+            margin: 4px 0;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        .func-title {
+            font-weight: 700;
+            color: #ea580c;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .func-badge {
+            background: #ea580c;
+            color: white;
+            padding: 1px 6px;
+            border-radius: 4px;
+            font-size: 10px;
+        }
+        .logioi-box {
+            background: #f1f5f9;
+            padding: 5px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            color: #334155;
+            margin-top: 4px;
+        }
+        .leaflet-popup-content-wrapper {
+            border-radius: 10px;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.4);
+            padding: 8px;
+        }
+
+        /* PHẦN KÍCH THƯỚC CÁC CẠNH ĐA GIÁC THỬA ĐẤT */
+        .parcel-edges-container {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 6px 8px;
+            margin: 6px 0;
+            max-height: 120px;
+            overflow-y: auto;
+        }
+        .parcel-edges-container::-webkit-scrollbar {
+            width: 4px;
+        }
+        .parcel-edges-container::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        .edges-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 4px 6px;
+        }
+        .edge-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 4px;
+            padding: 3px 6px;
+            font-size: 11px;
+            transition: all 0.15s ease;
+        }
+        .edge-item:hover {
+            border-color: #0284c7;
+            background: #f0f9ff;
+        }
+        .edge-tag {
+            font-weight: 600;
+            color: #475569;
+        }
+        .edge-val {
+            font-weight: 700;
+            color: #0284c7;
+            font-family: monospace;
+            font-size: 11px;
+        }
+        .perimeter-badge {
+            font-size: 10.5px;
+            font-weight: 600;
+            color: #0369a1;
+            background: #e0f2fe;
+            padding: 2px 6px;
+            border-radius: 4px;
+            border: 1px solid #bae6fd;
+        }
+        .edge-dim-wrapper {
+            background: transparent !important;
+            border: none !important;
+        }
+        .edge-dim-tag {
+            display: inline-block;
+            background: rgba(15, 23, 42, 0.92);
+            color: #38bdf8;
+            font-size: 9.5px;
+            font-weight: 700;
+            padding: 1px 5px;
+            border-radius: 4px;
+            border: 1px solid rgba(56, 189, 248, 0.7);
+            white-space: nowrap;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.4);
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            font-family: 'Inter', -apple-system, sans-serif;
+        }
+
+        /* BẢNG TRA CỨU & SƠ ĐỒ THỬA ĐẤT BÊN HÔNG (SIDE PANEL INSPECTOR) */
+        .parcel-side-panel {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            bottom: 16px;
+            width: 400px;
+            max-width: calc(100vw - 32px);
+            background: rgba(255, 255, 255, 0.96);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(226, 232, 240, 0.9);
+            border-radius: 14px;
+            box-shadow: 0 20px 45px rgba(0, 0, 0, 0.28), 0 4px 10px rgba(0, 0, 0, 0.05);
+            z-index: 1001;
+            display: flex;
+            flex-direction: column;
+            transform: translateX(450px);
+            transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            overflow: hidden;
+        }
+        .parcel-side-panel.open {
+            transform: translateX(0);
+        }
+        .panel-header {
+            background: linear-gradient(135deg, #ea580c, #c2410c);
+            color: white;
+            padding: 12px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .panel-title-wrap {
+            display: flex;
+            flex-direction: column;
+        }
+        .panel-title {
+            font-size: 14px;
+            font-weight: 700;
+            letter-spacing: 0.3px;
+        }
+        .panel-subtitle {
+            font-size: 11.5px;
+            opacity: 0.92;
+            margin-top: 2px;
+        }
+        .btn-close-panel {
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            color: white;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s;
+        }
+        .btn-close-panel:hover {
+            background: rgba(255, 255, 255, 0.35);
+        }
+        .panel-content {
+            padding: 14px 16px;
+            overflow-y: auto;
+            flex: 1;
+            font-size: 12px;
+            color: #1e293b;
+        }
+
+        /* SƠ ĐỒ HÌNH THỂ CADASTAL SVG */
+        .parcel-cadastral-box {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 10px;
+            margin: 10px 0 12px 0;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+        }
+        .cadastral-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 11.5px;
+            font-weight: 700;
+            color: #ea580c;
+            margin-bottom: 8px;
+            padding-bottom: 5px;
+            border-bottom: 1px dashed #fed7aa;
+        }
+        .cadastral-header-left {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .cadastral-actions {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .btn-cad-tool {
+            background: #f1f5f9;
+            border: 1px solid #cbd5e1;
+            color: #334155;
+            border-radius: 4px;
+            padding: 2px 6px;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.15s ease;
+            user-select: none;
+        }
+        .btn-cad-tool:hover {
+            background: #e2e8f0;
+            color: #0f172a;
+            border-color: #94a3b8;
+        }
+        .cadastral-tag {
+            background: #ffedd5;
+            color: #c2410c;
+            padding: 1px 6px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: 700;
+        }
+        .cadastral-svg-wrap {
+            width: 100%;
+            height: 230px;
+            background: #fafafa;
+            border-radius: 6px;
+            border: 1px solid #e2e8f0;
+            overflow: hidden;
+            position: relative;
+            cursor: grab;
+            user-select: none;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .cadastral-svg-wrap.dragging {
+            cursor: grabbing !important;
+        }
+        .cadastral-svg-content {
+            width: 100%;
+            height: 100%;
+            transform-origin: center center;
+            transition: transform 0.05s linear;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .cadastral-hint {
+            position: absolute;
+            bottom: 6px;
+            left: 8px;
+            font-size: 9.5px;
+            color: #64748b;
+            background: rgba(255, 255, 255, 0.88);
+            padding: 2px 6px;
+            border-radius: 4px;
+            pointer-events: none;
+            border: 1px solid rgba(226, 232, 240, 0.8);
+            backdrop-filter: blur(4px);
+        }
+        .cadastral-zoom-badge {
+            position: absolute;
+            bottom: 6px;
+            right: 8px;
+            font-size: 9.5px;
+            font-weight: 700;
+            color: #0284c7;
+            background: rgba(255, 255, 255, 0.88);
+            padding: 2px 6px;
+            border-radius: 4px;
+            pointer-events: none;
+            border: 1px solid rgba(226, 232, 240, 0.8);
+            backdrop-filter: blur(4px);
+        }
+
+        /* MODAL PHÓNG TO TOÀN MÀN HÌNH */
+        .cadastral-modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(15, 23, 42, 0.8);
+            backdrop-filter: blur(8px);
+            z-index: 99999;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .cadastral-modal-overlay.open {
+            display: flex;
+        }
+        .cadastral-modal-box {
+            background: #ffffff;
+            border-radius: 14px;
+            width: 92vw;
+            max-width: 1000px;
+            height: 88vh;
+            max-height: 850px;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+            overflow: hidden;
+            animation: modalFadeIn 0.2s ease-out;
+        }
+        @keyframes modalFadeIn {
+            from { opacity: 0; transform: scale(0.96); }
+            to { opacity: 1; transform: scale(1); }
+        }
+        .cadastral-modal-header {
+            background: linear-gradient(135deg, #ea580c, #c2410c);
+            color: white;
+            padding: 12px 18px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .cadastral-modal-title {
+            font-size: 15px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .cadastral-modal-body {
+            padding: 14px;
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            overflow: hidden;
+            background: #f8fafc;
+            gap: 10px;
+        }
+        .cadastral-modal-svg-wrap {
+            flex: 1;
+            background: #ffffff;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            overflow: hidden;
+            position: relative;
+            cursor: grab;
+            user-select: none;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .cadastral-modal-svg-wrap.dragging {
+            cursor: grabbing !important;
+        }
+        .cadastral-modal-svg-content {
+            width: 100%;
+            height: 100%;
+            transform-origin: center center;
+            transition: transform 0.05s linear;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .cadastral-modal-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #ffffff;
+            padding: 10px 14px;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    
+    <div class="control-panel">
+        <h1>🏢 Bản Đồ Quy Hoạch & Thửa Đất</h1>
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-label">Lưới quét</div>
+                <div class="stat-val" id="total-grid-count">12386</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Đã quét</div>
+                <div class="stat-val" style="color: #38bdf8;" id="scanned-grid-count">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Thửa đất</div>
+                <div class="stat-val" style="color: #f97316;" id="parcels-count">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Đã xoá</div>
+                <div class="stat-val" style="color: #ef4444;" id="deleted-count">0</div>
+            </div>
+        </div>
+        
+        <div class="legend">
+            <div class="legend-item">
+                <div class="legend-color" style="background: #ea580c; border: 1px solid #c2410c;"></div>
+                <span><strong>Ô Thửa đất / Công trình (Click để xem)</strong></span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #22c55e; border: 1px solid #15803d; border-radius: 50%;"></div>
+                <span>Đã quét: Có thửa đất (Tô màu cam)</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #fef08a; border: 1px solid #f59e0b; border-radius: 50%;"></div>
+                <span>Đã quét: Không có số thửa (Giao thông/công)</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: #94a3b8; border-radius: 50%;"></div>
+                <span>Điểm lưới chưa quét tới</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-color" style="background: rgba(56, 189, 248, 0.25); border: 1px solid #0284c7;"></div>
+                <span>Vùng ranh khảo sát (Boundary / Buffer)</span>
+            </div>
+        </div>
+
+        <!-- BỘ CHỌN PHÂN VÙNG QUY HOẠCH (22 PHÂN VÙNG METRO 2) -->
+        <div id="zone-selection-panel" class="zone-selector-box" style="display: none;">
+            <div style="font-size: 11px; font-weight: 700; color: #38bdf8; display: flex; justify-content: space-between; align-items: center;">
+                <span>📍 PHÂN VÙNG QUY HOẠCH</span>
+                <span id="zone-badge-counter" style="background: rgba(56,189,248,0.2); color: #38bdf8; padding: 2px 6px; border-radius: 10px; font-size: 10px;">22 Vùng</span>
+            </div>
+            <select id="zone-dropdown" class="zone-select-dropdown" onchange="onZoneDropdownChange(this.value)">
+                <option value="">-- Chọn vùng để phóng to xem --</option>
+            </select>
+        </div>
+        
+        <div style="display: flex; gap: 8px; margin-top: 12px;">
+            <button class="btn-live" style="flex: 1;" onclick="reloadLiveData(true)">
+                🔄 Cập nhật
+            </button>
+            <button class="btn-live" id="btn-toggle-grid" style="flex: 1.2; background: #0284c7;" onclick="toggleGridPoints()">
+                👁️ Ẩn chấm
+            </button>
+        </div>
+    </div>
+
+    <!-- Bảng tra cứu chi tiết & Sơ đồ thửa đất bên hông (Side Inspector Panel) -->
+    <div id="parcel-side-panel" class="parcel-side-panel">
+        <div class="panel-header">
+            <div class="panel-title-wrap">
+                <span class="panel-title">🏢 Tra Cứu Quy Hoạch Thửa Đất</span>
+                <span class="panel-subtitle" id="side-panel-sub">Nhấp vào thửa đất để xem</span>
+            </div>
+            <button class="btn-close-panel" onclick="closeSidePanel()" title="Đóng bảng">✕</button>
+        </div>
+        <div class="panel-content" id="side-panel-content">
+            <div style="text-align: center; color: #64748b; padding: 40px 10px;">
+                <div style="font-size: 36px; margin-bottom: 10px;">🗺️</div>
+                <div style="font-weight: 600; font-size: 13px; color: #334155;">Nhấp vào bất kỳ thửa đất màu cam nào trên bản đồ</div>
+                <div style="font-size: 11.5px; margin-top: 6px; line-height: 1.4;">Hệ thống sẽ hiển thị toàn bộ <b>Sơ đồ hình thể, kích thước các cạnh</b> và 4 Sheet quy hoạch chi tiết mà không che mất bản đồ!</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal phóng to sơ đồ thửa đất siêu nét (Fullscreen Lightbox) -->
+    <div id="cadastral-modal-overlay" class="cadastral-modal-overlay" onclick="handleModalOverlayClick(event)">
+        <div class="cadastral-modal-box">
+            <div class="cadastral-modal-header">
+                <div class="cadastral-modal-title">
+                    <span>📐 SƠ ĐỒ HÌNH THỂ THỬA ĐẤT CHI TIẾT</span>
+                    <span class="cadastral-tag" id="modal-cad-tag" style="background: rgba(255,255,255,0.25); color: white;">- CẠNH</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <div class="cadastral-actions">
+                        <button class="btn-cad-tool" style="background: rgba(255,255,255,0.2); color: white; border-color: rgba(255,255,255,0.4);" onclick="modalCadZoom(1.3)" title="Phóng to">🔍+ Phóng to</button>
+                        <button class="btn-cad-tool" style="background: rgba(255,255,255,0.2); color: white; border-color: rgba(255,255,255,0.4);" onclick="modalCadZoom(0.75)" title="Thu nhỏ">🔍- Thu nhỏ</button>
+                        <button class="btn-cad-tool" style="background: rgba(255,255,255,0.2); color: white; border-color: rgba(255,255,255,0.4);" onclick="resetModalCadZoom()" title="Khôi phục kích thước">🔄 Khôi phục</button>
+                    </div>
+                    <button class="btn-close-panel" onclick="closeCadastralModal()" title="Đóng modal (Esc)">✕</button>
+                </div>
+            </div>
+            <div class="cadastral-modal-body">
+                <div class="cadastral-modal-svg-wrap" id="modal-cad-svg-wrap">
+                    <div class="cadastral-modal-svg-content" id="modal-cad-svg-content"></div>
+                    <div class="cadastral-hint">🖱️ Cuộn chuột để Phóng to / Thu nhỏ | Giữ & Rê chuột để Di chuyển sơ đồ</div>
+                    <div class="cadastral-zoom-badge" id="modal-cad-zoom-badge">100%</div>
+                </div>
+                <div class="cadastral-modal-footer">
+                    <div id="modal-parcel-info" style="color: #334155; font-weight: 600;">Thửa đất -</div>
+                    <div id="modal-parcel-perimeter" style="color: #ea580c; font-weight: 700;">Chu vi: -</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tải ban_do_data.js lần đầu -->
+    <script src="ban_do_data.js"></script>
+    <script>
+        // Sử dụng Canvas renderer để tối ưu hoá hiệu năng tuyệt đối (Zero DOM-leak)
+        const map = L.map('map', {
+            preferCanvas: true,
+            zoomControl: true
+        }).setView([10.773164, 106.690326], 17);
+
+        // Tạo Custom Map Panes chuyên dụng để Bật/Tắt tức thì 100% không giật lag
+        map.createPane('gridPointsPane');
+        map.getPane('gridPointsPane').style.zIndex = '350';
+
+        map.createPane('parcelsPane');
+        map.getPane('parcelsPane').style.zIndex = '450';
+
+        const canvasRenderer = L.canvas({ padding: 0.5, pane: 'parcelsPane' });
+        const gridCanvasRenderer = L.canvas({ padding: 0.5, pane: 'gridPointsPane' });
+
+        // Lớp bản đồ nền
+        const streetLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 20,
+            attribution: '© OpenStreetMap'
+        });
+
+        const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            maxZoom: 20,
+            attribution: '© Esri World Imagery'
+        });
+
+        satelliteLayer.addTo(map);
+
+        let bufferLayer = null;
+        let routeLayer = null;
+        const parcelsGroup = L.featureGroup().addTo(map);
+        const gridPointsGroup = L.featureGroup().addTo(map);
+        const edgeLabelsGroup = L.layerGroup().addTo(map);
+
+        L.control.layers({
+            "Bản đồ vệ tinh": satelliteLayer,
+            "Bản đồ đường phố": streetLayer
+        }, {
+            "🏢 Thửa đất quy hoạch": parcelsGroup,
+            "🟢 Chấm toạ độ lưới": gridPointsGroup
+        }, { position: 'topright' }).addTo(map);
+        
+        let parcelLayers = {};
+        let gridMarkers = {};
+        let initializedStaticLayers = false;
+        let lastTimestamp = 0;
+        let showGridMarkers = true;
+
+        window.toggleGridPoints = function() {
+            showGridMarkers = !showGridMarkers;
+            const btn = document.getElementById('btn-toggle-grid');
+            const pane = map.getPane('gridPointsPane');
+            
+            if (showGridMarkers) {
+                if (pane) pane.style.display = 'block';
+                if (btn) {
+                    btn.style.background = '#0284c7';
+                    btn.innerHTML = '👁️ Ẩn chấm';
+                }
+            } else {
+                if (pane) pane.style.display = 'none';
+                if (btn) {
+                    btn.style.background = '#475569';
+                    btn.innerHTML = '👁️ Hiện chấm';
+                }
+            }
+        };
+
+        map.on('overlayadd', function(e) {
+            if (e.name && e.name.includes("Chấm")) {
+                const pane = map.getPane('gridPointsPane');
+                if (pane) pane.style.display = 'block';
+                showGridMarkers = true;
+                const btn = document.getElementById('btn-toggle-grid');
+                if (btn) { btn.style.background = '#0284c7'; btn.innerHTML = '👁️ Ẩn chấm'; }
+            }
+        });
+
+        map.on('overlayremove', function(e) {
+            if (e.name && e.name.includes("Chấm")) {
+                const pane = map.getPane('gridPointsPane');
+                if (pane) pane.style.display = 'none';
+                showGridMarkers = false;
+                const btn = document.getElementById('btn-toggle-grid');
+                if (btn) { btn.style.background = '#475569'; btn.innerHTML = '👁️ Hiện chấm'; }
+            }
+        });
+
+        function renderStaticLayers(data) {
+            if (initializedStaticLayers || !data) return;
+            
+            // Vẽ 22 Phân Vùng Quy Hoạch Thực Tế & Huy Hiệu Đánh Số (Trước Vùng đệm để hiển thị sắc nét)
+            if (data.zones && data.zones.length > 0) {
+                const zoneDropdown = document.getElementById('zone-dropdown');
+                const zonePanel = document.getElementById('zone-selection-panel');
+                if (zonePanel) zonePanel.style.display = 'block';
+                if (zoneDropdown) {
+                    zoneDropdown.innerHTML = '<option value="">-- Chọn vùng để phóng to xem --</option>';
+                }
+
+                data.zones.forEach(zone => {
+                    if (zoneDropdown) {
+                        const opt = document.createElement('option');
+                        opt.value = zone.id;
+                        opt.innerText = `${zone.name} (${zone.area_ha} ha)`;
+                        zoneDropdown.appendChild(opt);
+                    }
+
+                    // 1. Vẽ ranh giới đa giác phân vùng
+                    if (zone.coords && zone.coords.length > 0) {
+                        const isSelectedZone = (data.selected_zone && data.selected_zone.id === zone.id);
+                        const zPoly = L.polygon(zone.coords, {
+                            color: isSelectedZone ? '#f59e0b' : zone.color,
+                            weight: isSelectedZone ? 3.5 : 2.2,
+                            fillColor: zone.color,
+                            fillOpacity: isSelectedZone ? 0.32 : 0.15,
+                            dashArray: isSelectedZone ? null : '5, 4'
+                        }).addTo(map);
+
+                        const popContent = `
+                            <div style="font-family: 'Inter', sans-serif; min-width: 250px; padding: 4px;">
+                                <div style="font-size: 13px; font-weight: 700; color: ${zone.color}; border-bottom: 1px solid #334155; padding-bottom: 6px; margin-bottom: 8px;">
+                                    🏷️ ${zone.name}
+                                </div>
+                                <div style="font-size: 12px; color: #1e293b; line-height: 1.6;">
+                                    <div><b>Phân loại:</b> <span style="font-weight: 600; color: ${zone.color};">${zone.type === 'station' ? 'Nhà Ga' : (zone.type === 'depot' ? 'Depot Tham Lương' : 'Đoạn Tuyến / Hầm TBM')}</span></div>
+                                    <div><b>Diện tích:</b> <b>${zone.area_ha} ha</b></div>
+                                    <div><b>Tọa độ tâm:</b> ${zone.center[0]}, ${zone.center[1]}</div>
+                                </div>
+                                <div style="margin-top: 10px; padding: 8px; background: #f1f5f9; border-radius: 6px; border: 1px solid #cbd5e1;">
+                                    <div style="font-size: 11px; font-weight: 700; color: #0284c7; margin-bottom: 3px;">⚡ Lệnh cào riêng vùng này:</div>
+                                    <code style="display: block; background: #0f172a; color: #4ade80; padding: 5px 8px; border-radius: 4px; font-size: 10.5px; user-select: all;">python main.py --zone ${zone.id} --grid 20</code>
+                                </div>
+                            </div>
+                        `;
+                        zPoly.bindPopup(popContent);
+                        zPoly.bindTooltip(`<b>${zone.name}</b> (${zone.area_ha} ha)`, { sticky: true });
+
+                        window.ZONE_LAYERS = window.ZONE_LAYERS || {};
+                        window.ZONE_LAYERS[zone.id] = zPoly;
+                    }
+
+                    // 2. Huy hiệu số thứ tự nổi trên bản đồ
+                    if (zone.center) {
+                        const badgeHtml = `
+                            <div class="zone-floating-badge" style="background: ${zone.color};" onclick="focusZoneOnMap(${zone.id})" title="${zone.name}">
+                                <span class="badge-num">${zone.id}</span>
+                                <span class="badge-tag">${zone.short_name}</span>
+                            </div>
+                        `;
+                        L.marker(zone.center, {
+                            icon: L.divIcon({
+                                className: 'zone-badge-container',
+                                html: badgeHtml,
+                                iconSize: [120, 28],
+                                iconAnchor: [60, 14]
+                            }),
+                            zIndexOffset: 600
+                        }).addTo(map);
+                    }
+                });
+            }
+
+            // Vẽ Vùng đệm
+            if (data.buffer && data.buffer.length > 0) {
+                bufferLayer = L.polygon(data.buffer, {
+                    color: '#38bdf8',
+                    weight: 1.5,
+                    fillColor: '#0284c7',
+                    fillOpacity: 0.08,
+                    dashArray: '4',
+                    renderer: canvasRenderer
+                }).addTo(map);
+                bufferLayer.bindTooltip("Toàn bộ ranh giới khảo sát", { sticky: true });
+                map.fitBounds(bufferLayer.getBounds());
+            }
+
+            // Vẽ Tuyến đường gốc
+            if (data.route && data.route.length > 0) {
+                if (Array.isArray(data.route[0]) && Array.isArray(data.route[0][0])) {
+                    data.route.forEach(line => {
+                        L.polyline(line, {
+                            color: '#ef4444',
+                            weight: 3.5,
+                            opacity: 0.85,
+                            renderer: canvasRenderer
+                        }).addTo(map);
+                    });
+                } else {
+                    routeLayer = L.polyline(data.route, {
+                        color: '#ef4444',
+                        weight: 4.5,
+                        opacity: 0.95,
+                        renderer: canvasRenderer
+                    }).addTo(map);
+                    routeLayer.bindTooltip("Tuyến đường KML", { sticky: true });
+                }
+            }
+
+            initializedStaticLayers = true;
+        }
+
+        function onZoneDropdownChange(zid) {
+            if (!zid) return;
+            focusZoneOnMap(parseInt(zid));
+        }
+
+        function focusZoneOnMap(zid) {
+            if (window.ZONE_LAYERS && window.ZONE_LAYERS[zid]) {
+                const layer = window.ZONE_LAYERS[zid];
+                map.fitBounds(layer.getBounds(), { padding: [60, 60], maxZoom: 17 });
+                layer.openPopup();
+            }
+        }
+
+        function renderGridPoints(points, scannedMap) {
+            if (!points && !scannedMap) return;
+            if (points) {
+                const totalCount = points.length;
+                document.getElementById('total-grid-count').innerText = totalCount.toLocaleString();
+            }
+
+            const scannedEntries = Object.entries(scannedMap || {});
+            const scannedCount = scannedEntries.length;
+            document.getElementById('scanned-grid-count').innerText = scannedCount.toLocaleString();
+
+            const ptsList = points || [];
+            if (ptsList.length > 0) {
+                ptsList.forEach(p => {
+                    const pLon = p.lon !== undefined ? p.lon : p[0];
+                    const pLat = p.lat !== undefined ? p.lat : p[1];
+                    const pKey = (pLon.toFixed(6) + ',' + pLat.toFixed(6));
+                    
+                    if (gridMarkers[pKey]) return; // Đã vẽ trên Canvas rồi
+
+                    const status = scannedMap ? scannedMap[pKey] : undefined;
+                    let color, fillColor, tipText;
+                    if (status === true) {
+                        color = '#15803d';
+                        fillColor = '#22c55e';
+                        tipText = `Toạ độ: ${pLat.toFixed(6)}, ${pLon.toFixed(6)}<br><b style="color:#16a34a">✅ Đã quét: Có thửa đất</b>`;
+                    } else if (status === false) {
+                        color = '#f59e0b';
+                        fillColor = '#fef08a';
+                        tipText = `Toạ độ: ${pLat.toFixed(6)}, ${pLon.toFixed(6)}<br><b style="color:#d97706">ℹ️ Cổng SQHKT không có số thửa<br>(Đất giao thông / Đất công)</b>`;
+                    } else {
+                        color = '#64748b';
+                        fillColor = '#94a3b8';
+                        tipText = `Toạ độ: ${pLat.toFixed(6)}, ${pLon.toFixed(6)}<br><span style="color:#64748b">Điểm lưới khoảng cách</span>`;
+                    }
+
+                    const m = L.circleMarker([pLat, pLon], {
+                        radius: 2,
+                        color: color,
+                        weight: 0.8,
+                        fillColor: fillColor,
+                        fillOpacity: 0.75,
+                        renderer: gridCanvasRenderer
+                    }).addTo(gridPointsGroup);
+                    m.bindTooltip(tipText);
+                    gridMarkers[pKey] = m;
+                });
+            } else if (scannedEntries.length > 0) {
+                scannedEntries.forEach(([pKey, status]) => {
+                    if (gridMarkers[pKey]) return;
+
+                    const parts = pKey.split(',');
+                    if (parts.length < 2) return;
+                    const pLon = parseFloat(parts[0]);
+                    const pLat = parseFloat(parts[1]);
+
+                    let color, fillColor, tipText;
+                    if (status === true) {
+                        color = '#15803d';
+                        fillColor = '#22c55e';
+                        tipText = `Toạ độ: ${pLat.toFixed(6)}, ${pLon.toFixed(6)}<br><b style="color:#16a34a">✅ Đã quét: Có thửa đất</b>`;
+                    } else {
+                        color = '#f59e0b';
+                        fillColor = '#fef08a';
+                        tipText = `Toạ độ: ${pLat.toFixed(6)}, ${pLon.toFixed(6)}<br><b style="color:#d97706">ℹ️ Cổng SQHKT không có số thửa</b>`;
+                    }
+
+                    const m = L.circleMarker([pLat, pLon], {
+                        radius: 2,
+                        color: color,
+                        weight: 0.8,
+                        fillColor: fillColor,
+                        fillOpacity: 0.75,
+                        renderer: gridCanvasRenderer
+                    }).addTo(gridPointsGroup);
+                    m.bindTooltip(tipText);
+                    gridMarkers[pKey] = m;
+                });
+            }
+        }
+
+        function calculatePolygonEdges(coords) {
+            if (!coords || !Array.isArray(coords) || coords.length < 3) return null;
+            
+            let pts = coords;
+            while (Array.isArray(pts[0]) && Array.isArray(pts[0][0])) {
+                pts = pts[0];
+            }
+            
+            let cleanPts = [];
+            for (let i = 0; i < pts.length; i++) {
+                let p = pts[i];
+                if (!p || !Array.isArray(p) || p.length < 2) continue;
+                let lat = parseFloat(p[0]);
+                let lon = parseFloat(p[1]);
+                if (isNaN(lat) || isNaN(lon)) continue;
+                
+                if (cleanPts.length > 0) {
+                    let last = cleanPts[cleanPts.length - 1];
+                    let dLat = Math.abs(lat - last[0]);
+                    let dLon = Math.abs(lon - last[1]);
+                    if (dLat < 0.000001 && dLon < 0.000001) {
+                        continue;
+                    }
+                }
+                cleanPts.push([lat, lon]);
+            }
+            
+            if (cleanPts.length < 3) return null;
+            
+            let first = cleanPts[0];
+            let last = cleanPts[cleanPts.length - 1];
+            if (Math.abs(first[0] - last[0]) < 0.000001 && Math.abs(first[1] - last[1]) < 0.000001) {
+                cleanPts.pop();
+            }
+            
+            if (cleanPts.length < 3) return null;
+            
+            let edges = [];
+            let totalPerimeter = 0;
+            const n = cleanPts.length;
+            
+            for (let i = 0; i < n; i++) {
+                let p1 = cleanPts[i];
+                let p2 = cleanPts[(i + 1) % n];
+                
+                let distMeters = 0;
+                if (typeof L !== 'undefined' && L.latLng) {
+                    distMeters = L.latLng(p1[0], p1[1]).distanceTo(L.latLng(p2[0], p2[1]));
+                } else {
+                    const R = 6378137;
+                    const dLat = (p2[0] - p1[0]) * Math.PI / 180;
+                    const dLon = (p2[1] - p1[1]) * Math.PI / 180;
+                    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                              Math.cos(p1[0] * Math.PI / 180) * Math.cos(p2[0] * Math.PI / 180) *
+                              Math.sin(dLon / 2) * Math.sin(dLon / 2);
+                    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+                    distMeters = R * c;
+                }
+                
+                totalPerimeter += distMeters;
+                const formatted = distMeters >= 1000 ? (distMeters / 1000).toFixed(2) + ' km' : distMeters.toFixed(2) + ' m';
+                
+                edges.push({
+                    index: i + 1,
+                    p1: p1,
+                    p2: p2,
+                    midPoint: [(p1[0] + p2[0]) / 2, (p1[1] + p2[1]) / 2],
+                    length: distMeters,
+                    lengthFormatted: formatted
+                });
+            }
+            
+            const perimeterFormatted = totalPerimeter >= 1000 ? (totalPerimeter / 1000).toFixed(2) + ' km' : totalPerimeter.toFixed(2) + ' m';
+            
+            return {
+                vertexCount: n,
+                cleanPts: cleanPts,
+                edges: edges,
+                perimeter: totalPerimeter,
+                perimeterFormatted: perimeterFormatted
+            };
+        }
+
+        function generateRawSvg(cleanPts, edges, svgW, svgH, isModal) {
+            if (!cleanPts || cleanPts.length < 3) return '';
+            svgW = svgW || (isModal ? 800 : 350);
+            svgH = svgH || (isModal ? 500 : 210);
+            
+            const centerLat = cleanPts.reduce((sum, p) => sum + p[0], 0) / cleanPts.length;
+            const cosLat = Math.cos(centerLat * Math.PI / 180);
+            
+            let localPts = cleanPts.map(p => ({
+                x: p[1] * cosLat * 111319.5,
+                y: p[0] * 111319.5
+            }));
+            
+            let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+            localPts.forEach(p => {
+                if (p.x < minX) minX = p.x;
+                if (p.x > maxX) maxX = p.x;
+                if (p.y < minY) minY = p.y;
+                if (p.y > maxY) maxY = p.y;
+            });
+            
+            const rangeX = (maxX - minX) || 1;
+            const rangeY = (maxY - minY) || 1;
+            
+            const pad = isModal ? 60 : 36;
+            const availW = svgW - 2 * pad;
+            const availH = svgH - 2 * pad;
+            
+            const scale = Math.min(availW / rangeX, availH / rangeY);
+            const offsetX = pad + (availW - rangeX * scale) / 2;
+            const offsetY = pad + (availH - rangeY * scale) / 2;
+            
+            const svgPts = localPts.map(p => ({
+                x: offsetX + (p.x - minX) * scale,
+                y: offsetY + (maxY - p.y) * scale
+            }));
+            
+            const n = svgPts.length;
+            
+            let cx = 0, cy = 0;
+            svgPts.forEach(p => { cx += p.x; cy += p.y; });
+            cx /= n;
+            cy /= n;
+            
+            const pointsStr = svgPts.map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+            
+            let edgesSvg = '';
+            let verticesSvg = '';
+            
+            for (let i = 0; i < n; i++) {
+                const p1 = svgPts[i];
+                const p2 = svgPts[(i + 1) % n];
+                const edgeData = (edges && edges[i]) ? edges[i] : {};
+                const lengthText = edgeData.lengthFormatted || '';
+                
+                const mx = (p1.x + p2.x) / 2;
+                const my = (p1.y + p2.y) / 2;
+                
+                const dx = p2.x - p1.x;
+                const dy = p2.y - p1.y;
+                const len = Math.sqrt(dx * dx + dy * dy);
+                
+                if (len > 0) {
+                    let nx = -dy / len;
+                    let ny = dx / len;
+                    
+                    const vcx = mx - cx;
+                    const vcy = my - cy;
+                    if (nx * vcx + ny * vcy < 0) {
+                        nx = -nx;
+                        ny = -ny;
+                    }
+                    
+                    const labelOffset = isModal ? 20 : 14;
+                    const labelX = mx + nx * labelOffset;
+                    const labelY = my + ny * labelOffset;
+                    const fontSize = isModal ? 12 : 9.5;
+                    const badgeH = isModal ? 22 : 16;
+                    const charW = isModal ? 7.8 : 6.5;
+                    const badgeW = Math.max(isModal ? 48 : 38, lengthText.length * charW + 10);
+                    const strokeW = isModal ? 3.5 : 2.5;
+                    
+                    edgesSvg += `
+                        <g class="svg-edge-item" id="svg-edge-${i+1}">
+                            <line x1="${p1.x.toFixed(1)}" y1="${p1.y.toFixed(1)}" x2="${p2.x.toFixed(1)}" y2="${p2.y.toFixed(1)}" stroke="#ea580c" stroke-width="${strokeW}" stroke-linecap="round"/>
+                            <rect x="${(labelX - badgeW/2).toFixed(1)}" y="${(labelY - badgeH/2).toFixed(1)}" width="${badgeW}" height="${badgeH}" rx="4" fill="rgba(15, 23, 42, 0.94)" stroke="#38bdf8" stroke-width="1"/>
+                            <text x="${labelX.toFixed(1)}" y="${labelY.toFixed(1)}" fill="#38bdf8" font-size="${fontSize}" font-weight="700" font-family="'Inter', -apple-system, sans-serif" text-anchor="middle" dominant-baseline="central">${lengthText}</text>
+                        </g>
+                    `;
+                }
+                
+                const vRadius = isModal ? 6 : 4.5;
+                const vFontSize = isModal ? 12 : 9;
+                const vTextOffset = isModal ? 10 : 7;
+                
+                verticesSvg += `
+                    <circle cx="${p1.x.toFixed(1)}" cy="${p1.y.toFixed(1)}" r="${vRadius}" fill="#ea580c" stroke="#ffffff" stroke-width="2"/>
+                    <text x="${p1.x.toFixed(1)}" y="${(p1.y - vTextOffset).toFixed(1)}" fill="#0f172a" font-size="${vFontSize}" font-weight="800" text-anchor="middle">${i + 1}</text>
+                `;
+            }
+            
+            const compassSize = isModal ? 18 : 13;
+            const compassPos = isModal ? 32 : 24;
+            const compassSvg = `
+                <g transform="translate(${svgW - compassPos}, ${compassPos})">
+                    <circle cx="0" cy="0" r="${compassSize}" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.2" filter="drop-shadow(0 2px 5px rgba(0,0,0,0.15))"/>
+                    <path d="M 0,-${compassSize * 0.7} L ${compassSize * 0.25},${compassSize * 0.15} L 0,0 L -${compassSize * 0.25},${compassSize * 0.15} Z" fill="#ef4444"/>
+                    <path d="M 0,${compassSize * 0.7} L ${compassSize * 0.25},0 L 0,0 L -${compassSize * 0.25},0 Z" fill="#94a3b8"/>
+                    <text x="0" y="-${compassSize * 0.85}" fill="#ef4444" font-size="${isModal ? 10 : 8}" font-weight="800" text-anchor="middle">B</text>
+                </g>
+            `;
+            
+            const gridPatternId = isModal ? "cad-grid-modal" : "cad-grid-panel";
+            const gridCellSize = isModal ? 20 : 16;
+            
+            return `
+                <svg width="${svgW}" height="${svgH}" viewBox="0 0 ${svgW} ${svgH}" xmlns="http://www.w3.org/2000/svg" style="display: block; max-width: 100%; height: auto;">
+                    <defs>
+                        <pattern id="${gridPatternId}" width="${gridCellSize}" height="${gridCellSize}" patternUnits="userSpaceOnUse">
+                            <path d="M ${gridCellSize} 0 L 0 0 0 ${gridCellSize}" fill="none" stroke="#e2e8f0" stroke-width="0.75"/>
+                        </pattern>
+                    </defs>
+                    <rect width="100%" height="100%" fill="#ffffff" rx="6"/>
+                    <rect width="100%" height="100%" fill="url(#${gridPatternId})" rx="6"/>
+                    <polygon points="${pointsStr}" fill="#fed7aa" fill-opacity="0.5" stroke="#f97316" stroke-width="1.2" stroke-dasharray="3,3"/>
+                    ${edgesSvg}
+                    ${verticesSvg}
+                    ${compassSvg}
+                </svg>
+            `;
+        }
+
+        function generateParcelSvg(cleanPts, edges) {
+            if (!cleanPts || cleanPts.length < 3) return '';
+            const n = cleanPts.length;
+            const rawSvg = generateRawSvg(cleanPts, edges, 360, 210, false);
+            
+            return `
+                <div class="parcel-cadastral-box">
+                    <div class="cadastral-header">
+                        <div class="cadastral-header-left">
+                            <span>📐 SƠ ĐỒ HÌNH THỂ THỬA ĐẤT</span>
+                            <span class="cadastral-tag">${n} CẠNH</span>
+                        </div>
+                        <div class="cadastral-actions">
+                            <button class="btn-cad-tool" onclick="panelCadZoom(1.25)" title="Phóng to sơ đồ">🔍+</button>
+                            <button class="btn-cad-tool" onclick="panelCadZoom(0.8)" title="Thu nhỏ sơ đồ">🔍-</button>
+                            <button class="btn-cad-tool" onclick="resetPanelCadZoom()" title="Khôi phục gốc">🔄</button>
+                            <button class="btn-cad-tool" style="color: #0284c7; font-weight: 700;" onclick="openCadastralModal()" title="Mở sơ đồ toàn màn hình siêu nét">⛶ Toàn màn hình</button>
+                        </div>
+                    </div>
+                    <div class="cadastral-svg-wrap" id="panel-cad-svg-wrap" ondblclick="openCadastralModal()" title="Nhấp đúp hoặc bấm 'Toàn màn hình' để xem chi tiết lớn">
+                        <div class="cadastral-svg-content" id="panel-cad-svg-content">
+                            ${rawSvg}
+                        </div>
+                        <div class="cadastral-hint">🖱️ Cuộn chuột / Kéo để zoom & di chuyển</div>
+                        <div class="cadastral-zoom-badge" id="panel-cad-zoom-badge">100%</div>
+                    </div>
+                </div>
+            `;
+        }
+
+        let activeParcelData = null;
+        let activeSelectedLayer = null;
+
+        // Trạng thái Zoom / Pan trên Side Inspector Panel
+        let panelCadState = {
+            scale: 1,
+            translateX: 0,
+            translateY: 0,
+            isDragging: false,
+            startX: 0,
+            startY: 0
+        };
+
+        // Trạng thái Zoom / Pan trong Fullscreen Modal
+        let modalCadState = {
+            scale: 1,
+            translateX: 0,
+            translateY: 0,
+            isDragging: false,
+            startX: 0,
+            startY: 0
+        };
+
+        function applyPanelCadTransform() {
+            const el = document.getElementById('panel-cad-svg-content');
+            const badge = document.getElementById('panel-cad-zoom-badge');
+            if (el) {
+                el.style.transform = `translate(${panelCadState.translateX}px, ${panelCadState.translateY}px) scale(${panelCadState.scale})`;
+            }
+            if (badge) {
+                badge.innerText = `${Math.round(panelCadState.scale * 100)}%`;
+            }
+        }
+
+        window.panelCadZoom = function(factor) {
+            panelCadState.scale = Math.max(0.4, Math.min(8, panelCadState.scale * factor));
+            applyPanelCadTransform();
+        };
+
+        window.resetPanelCadZoom = function() {
+            panelCadState.scale = 1;
+            panelCadState.translateX = 0;
+            panelCadState.translateY = 0;
+            applyPanelCadTransform();
+        };
+
+        function applyModalCadTransform() {
+            const el = document.getElementById('modal-cad-svg-content');
+            const badge = document.getElementById('modal-cad-zoom-badge');
+            if (el) {
+                el.style.transform = `translate(${modalCadState.translateX}px, ${modalCadState.translateY}px) scale(${modalCadState.scale})`;
+            }
+            if (badge) {
+                badge.innerText = `${Math.round(modalCadState.scale * 100)}%`;
+            }
+        }
+
+        window.modalCadZoom = function(factor) {
+            modalCadState.scale = Math.max(0.3, Math.min(10, modalCadState.scale * factor));
+            applyModalCadTransform();
+        };
+
+        window.resetModalCadZoom = function() {
+            modalCadState.scale = 1;
+            modalCadState.translateX = 0;
+            modalCadState.translateY = 0;
+            applyModalCadTransform();
+        };
+
+        window.openCadastralModal = function() {
+            if (!activeParcelData) return;
+            const edgesInfo = calculatePolygonEdges(activeParcelData.ranh_coords);
+            if (!edgesInfo || !edgesInfo.cleanPts) return;
+
+            const modalOverlay = document.getElementById('cadastral-modal-overlay');
+            const modalContent = document.getElementById('modal-cad-svg-content');
+            const modalTag = document.getElementById('modal-cad-tag');
+            const modalInfo = document.getElementById('modal-parcel-info');
+            const modalPerimeter = document.getElementById('modal-parcel-perimeter');
+
+            if (modalTag) modalTag.innerText = `${edgesInfo.vertexCount} CẠNH`;
+            if (modalInfo) modalInfo.innerText = `Thửa ${activeParcelData.sothua} / Tờ ${activeParcelData.soto} | ${activeParcelData.tenphuongxa}, ${activeParcelData.tenquanhuyen} (Diện tích: ${activeParcelData.dientich_formatted || activeParcelData.dientich} m²)`;
+            if (modalPerimeter) modalPerimeter.innerText = `Tổng chu vi thửa: ${edgesInfo.perimeterFormatted}`;
+
+            const svgHtml = generateRawSvg(edgesInfo.cleanPts, edgesInfo.edges, 880, 520, true);
+            if (modalContent) modalContent.innerHTML = svgHtml;
+
+            resetModalCadZoom();
+            if (modalOverlay) modalOverlay.classList.add('open');
+            bindCadastralInteractions();
+        };
+
+        window.closeCadastralModal = function() {
+            const modalOverlay = document.getElementById('cadastral-modal-overlay');
+            if (modalOverlay) modalOverlay.classList.remove('open');
+        };
+
+        window.handleModalOverlayClick = function(e) {
+            if (e.target && e.target.id === 'cadastral-modal-overlay') {
+                closeCadastralModal();
+            }
+        };
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeCadastralModal();
+            }
+        });
+
+        function bindCadastralInteractions() {
+            const pWrap = document.getElementById('panel-cad-svg-wrap');
+            if (pWrap && !pWrap.dataset.bound) {
+                pWrap.dataset.bound = 'true';
+                pWrap.addEventListener('wheel', (e) => {
+                    e.preventDefault();
+                    const factor = e.deltaY < 0 ? 1.15 : 0.87;
+                    panelCadZoom(factor);
+                }, { passive: false });
+
+                pWrap.addEventListener('mousedown', (e) => {
+                    panelCadState.isDragging = true;
+                    panelCadState.startX = e.clientX - panelCadState.translateX;
+                    panelCadState.startY = e.clientY - panelCadState.translateY;
+                    pWrap.classList.add('dragging');
+                });
+            }
+
+            const mWrap = document.getElementById('modal-cad-svg-wrap');
+            if (mWrap && !mWrap.dataset.bound) {
+                mWrap.dataset.bound = 'true';
+                mWrap.addEventListener('wheel', (e) => {
+                    e.preventDefault();
+                    const factor = e.deltaY < 0 ? 1.15 : 0.87;
+                    modalCadZoom(factor);
+                }, { passive: false });
+
+                mWrap.addEventListener('mousedown', (e) => {
+                    modalCadState.isDragging = true;
+                    modalCadState.startX = e.clientX - modalCadState.translateX;
+                    modalCadState.startY = e.clientY - modalCadState.translateY;
+                    mWrap.classList.add('dragging');
+                });
+            }
+        }
+
+        window.addEventListener('mousemove', (e) => {
+            if (panelCadState.isDragging) {
+                panelCadState.translateX = e.clientX - panelCadState.startX;
+                panelCadState.translateY = e.clientY - panelCadState.startY;
+                applyPanelCadTransform();
+            }
+            if (modalCadState.isDragging) {
+                modalCadState.translateX = e.clientX - modalCadState.startX;
+                modalCadState.translateY = e.clientY - modalCadState.startY;
+                applyModalCadTransform();
+            }
+        });
+
+        window.addEventListener('mouseup', () => {
+            if (panelCadState.isDragging) {
+                panelCadState.isDragging = false;
+                const pWrap = document.getElementById('panel-cad-svg-wrap');
+                if (pWrap) pWrap.classList.remove('dragging');
+            }
+            if (modalCadState.isDragging) {
+                modalCadState.isDragging = false;
+                const mWrap = document.getElementById('modal-cad-svg-wrap');
+                if (mWrap) mWrap.classList.remove('dragging');
+            }
+        });
+
+        window.closeSidePanel = function() {
+            const panel = document.getElementById('parcel-side-panel');
+            if (panel) panel.classList.remove('open');
+            edgeLabelsGroup.clearLayers();
+            if (activeSelectedLayer) {
+                activeSelectedLayer.setStyle({ weight: 2.5, fillOpacity: 0.45, color: '#ea580c' });
+                activeSelectedLayer = null;
+            }
+        };
+
+        window.showParcelDetails = function(p) {
+            activeParcelData = p;
+            const panel = document.getElementById('parcel-side-panel');
+            const subTitle = document.getElementById('side-panel-sub');
+            const content = document.getElementById('side-panel-content');
+            if (!panel || !content) return;
+            
+            if (subTitle) subTitle.innerText = `Thửa ${p.sothua} / Tờ ${p.soto} (${p.tenphuongxa}, ${p.tenquanhuyen})`;
+            
+            const edgesInfo = calculatePolygonEdges(p.ranh_coords);
+            const svgHtml = (edgesInfo && edgesInfo.cleanPts) ? generateParcelSvg(edgesInfo.cleanPts, edgesInfo.edges) : '';
+            
+            let html = `
+                <div class="pop-section-title">THÔNG TIN THỬA ĐẤT</div>
+                <div class="pop-row"><span class="label">Tỉnh / Thành:</span><span class="val">TP. Hồ Chí Minh</span></div>
+                <div class="pop-row"><span class="label">Quận / Huyện:</span><span class="val">${p.tenquanhuyen}</span></div>
+                <div class="pop-row"><span class="label">Phường / Xã:</span><span class="val">${p.tenphuongxa}</span></div>
+                <div class="pop-row"><span class="label">Diện tích:</span><span class="val" style="color: #ea580c; font-weight: 700;">${p.dientich_formatted || p.dientich} m²</span></div>
+                <div class="pop-row"><span class="label">Mã thửa SQHKT:</span><span class="val" style="font-family: monospace;">${p.mathuadat}</span></div>
+                
+                ${svgHtml}
+            `;
+            
+            if (edgesInfo && edgesInfo.edges && edgesInfo.edges.length > 0) {
+                html += `
+                    <div class="pop-section-title" style="display: flex; justify-content: space-between; align-items: center; margin-top: 10px;">
+                        <span>📐 BẢNG KÍCH THƯỚC CÁC CẠNH (${edgesInfo.vertexCount} CẠNH)</span>
+                        <span class="perimeter-badge">Chu vi: ${edgesInfo.perimeterFormatted}</span>
+                    </div>
+                    <div class="parcel-edges-container">
+                        <div class="edges-grid">
+                `;
+                edgesInfo.edges.forEach(e => {
+                    html += `
+                        <div class="edge-item" title="Cạnh ${e.index}: ${e.lengthFormatted}">
+                            <span class="edge-tag">Cạnh ${e.index}</span>
+                            <span class="edge-val">${e.lengthFormatted}</span>
+                        </div>
+                    `;
+                });
+                html += `
+                        </div>
+                    </div>
+                `;
+            }
+            
+            html += `
+                <div class="pop-section-title">ĐỒ ÁN QUY HOẠCH 1/2000</div>
+                <div class="pop-doan">${p.tendoan || 'Chưa có thông tin đồ án'}</div>
+
+                <div class="pop-section-title">Ô CHỨC NĂNG SỬ DỤNG ĐẤT & CHỈ TIÊU KT</div>
+            `;
+            
+            if (p.qhpk_details && p.qhpk_details.length > 0) {
+                p.qhpk_details.forEach(o => {
+                    html += `
+                        <div class="function-card">
+                            <div class="func-title">
+                                <span class="func-badge">${o.maopho || 'Ô phố'}</span>
+                                <span>${o.chucnang || 'Chưa phân định'}</span>
+                            </div>
+                            <div style="font-size: 11px; color: #475569; margin: 2px 0;">
+                                Diện tích ô: <b>${o.dientich_formatted || o.dientich} m²</b> (Chiếm <b>${o.tldientich_formatted || o.tldientich}%</b>)
+                            </div>
+                            <div style="font-size: 11px; color: #0284c7; background: #f0f9ff; padding: 4px; border-radius: 4px; margin-top: 3px;">
+                                Tầng cao: <b>${o.tangcao || '-'}</b> | Cao: <b>${o.chieucao ? o.chieucao + 'm' : '-'}</b> | Mật độ: <b>${o.matdo ? o.matdo + '%' : '-'}</b> | HSSDĐ: <b>${o.hesosdd || '-'}</b>
+                            </div>
+                        </div>
+                    `;
+                });
+            } else {
+                html += `<div style="color: #64748b; font-size: 11px; margin: 4px 0;">${p.chucnang_summary || 'Chưa phân định'}</div>`;
+            }
+            
+            html += `
+                <div class="pop-section-title">LỘ GIỚI TIẾP GIÁP</div>
+                <div class="logioi-box">${p.logioi_summary || 'Không có lộ giới'}</div>
+                <button class="btn-delete-thua" onclick="deleteParcel('${p.mathuadat}', '${p.sothua}', '${p.soto}')" style="margin-top: 14px; width: 100%; background: #fef2f2; color: #dc2626; border: 1px solid #fca5a5; padding: 9px 10px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; transition: all 0.2s;" onmouseover="this.style.background='#fee2e2'" onmouseout="this.style.background='#fef2f2'">
+                    🗑️ Xoá thửa này khỏi bản đồ & Excel
+                </button>
+            `;
+            
+            content.innerHTML = html;
+            panel.classList.add('open');
+            resetPanelCadZoom();
+            bindCadastralInteractions();
+            
+            if (activeSelectedLayer) {
+                activeSelectedLayer.setStyle({ weight: 2.5, fillOpacity: 0.45, color: '#ea580c' });
+            }
+            if (parcelLayers[p.mathuadat]) {
+                activeSelectedLayer = parcelLayers[p.mathuadat];
+                activeSelectedLayer.setStyle({ weight: 4.5, fillOpacity: 0.7, color: '#0284c7' });
+                
+                const pBounds = activeSelectedLayer.getBounds();
+                map.fitBounds(pBounds.pad(0.35), {
+                    paddingTopLeft: [50, 50],
+                    paddingBottomRight: [410, 50],
+                    maxZoom: 19
+                });
+            }
+            
+            edgeLabelsGroup.clearLayers();
+            if (edgesInfo && edgesInfo.edges) {
+                edgesInfo.edges.forEach(e => {
+                    if (e.length >= 0.3) {
+                        const icon = L.divIcon({
+                            className: 'edge-dim-wrapper',
+                            html: `<span class="edge-dim-tag">C${e.index}: ${e.lengthFormatted}</span>`,
+                            iconSize: [0, 0]
+                        });
+                        L.marker(e.midPoint, { icon: icon, interactive: false }).addTo(edgeLabelsGroup);
+                    }
+                });
+            }
+        };
+
+        function renderParcels(parcels) {
+            if (!parcels) return;
+            Object.values(parcels).forEach(p => {
+                if (!p.ranh_coords || p.ranh_coords.length === 0) return;
+                if (window.EXCLUDED_PARCELS && window.EXCLUDED_PARCELS.has(p.mathuadat)) return;
+                
+                if (!parcelLayers[p.mathuadat]) {
+                    const poly = L.polygon(p.ranh_coords, {
+                        color: '#ea580c',
+                        weight: 2.5,
+                        fillColor: '#fb923c',
+                        fillOpacity: 0.45,
+                        renderer: canvasRenderer
+                    }).addTo(parcelsGroup);
+
+                    poly.bindTooltip(`Thửa: ${p.sothua} | Tờ: ${p.soto} (${p.dientich_formatted || p.dientich} m²)`, {
+                        sticky: true,
+                        direction: 'top'
+                    });
+
+                    poly.on('mouseover', () => {
+                        if (activeSelectedLayer !== poly) {
+                            poly.setStyle({ weight: 4, fillOpacity: 0.65, color: '#c2410c' });
+                        }
+                    });
+                    poly.on('mouseout', () => {
+                        if (activeSelectedLayer !== poly) {
+                            poly.setStyle({ weight: 2.5, fillOpacity: 0.45, color: '#ea580c' });
+                        }
+                    });
+
+                    poly.on('click', () => {
+                        showParcelDetails(p);
+                    });
+
+                    parcelLayers[p.mathuadat] = poly;
+                }
+            });
+
+            const parcelCount = Object.keys(parcelLayers).length;
+            document.getElementById('parcels-count').innerText = parcelCount;
+
+            if (parcelCount > 0 && !window.HAS_FITTED_PARCEL_BOUNDS) {
+                try {
+                    const pBounds = parcelsGroup.getBounds();
+                    if (pBounds && pBounds.isValid()) {
+                        map.fitBounds(pBounds.pad(0.08));
+                        window.HAS_FITTED_PARCEL_BOUNDS = true;
+                    }
+                } catch(e) {}
+            }
+        }
+
+        window.EXCLUDED_PARCELS = new Set();
+        window.deleteParcel = async function(mathua, sothua, soto) {
+            if (!confirm(`Bạn có chắc chắn muốn xoá Thửa ${sothua} / Tờ ${soto} (Mã: ${mathua})?\n\nThao tác này sẽ xoá thửa khỏi bản đồ VÀ xoá trực tiếp khỏi file Excel!`)) return;
+            
+            let syncedWithExcel = false;
+            try {
+                let resp = await fetch('/api/delete_parcel', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ mathua: mathua, sothua: sothua, soto: soto })
+                });
+                let result = await resp.json();
+                if (result && result.success) {
+                    syncedWithExcel = true;
+                }
+            } catch(e) {
+                syncedWithExcel = false;
+            }
+
+            window.EXCLUDED_PARCELS.add(mathua);
+            if (parcelLayers[mathua]) {
+                parcelsGroup.removeLayer(parcelLayers[mathua]);
+                delete parcelLayers[mathua];
+            }
+            
+            document.getElementById('parcels-count').innerText = Object.keys(parcelLayers).length;
+            const delCountEl = document.getElementById('deleted-count');
+            if (delCountEl) delCountEl.innerText = window.EXCLUDED_PARCELS.size;
+            
+            map.closePopup();
+
+            const toast = document.createElement('div');
+            toast.style.cssText = 'position: fixed; bottom: 25px; right: 25px; background: #0f172a; color: white; padding: 12px 18px; border-radius: 8px; box-shadow: 0 10px 25px rgba(0,0,0,0.3); font-size: 13px; z-index: 99999; display: flex; align-items: center; gap: 8px; border-left: 4px solid #ef4444; font-family: sans-serif;';
+            if (syncedWithExcel) {
+                toast.innerHTML = `✅ <b>Thửa ${sothua} / Tờ ${soto}</b> đã được xoá vĩnh viễn khỏi cả 4 Sheet của file Excel!`;
+            } else {
+                toast.innerHTML = `🗑️ <b>Thửa ${sothua} / Tờ ${soto}</b> đã ẩn khỏi bản đồ (Mở bằng <code>python main.py --view</code> để tự động cập nhật Excel).`;
+            }
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 4000);
+        };
+
+        function applyData(data) {
+            if (!data) return;
+            if (data.route || data.buffer) renderStaticLayers(data);
+            if (data.total_points && !data.points) {
+                const el = document.getElementById('total-grid-count');
+                if (el) el.innerText = data.total_points.toLocaleString();
+            }
+            if (data.points || data.scanned_points) {
+                renderGridPoints(data.points, data.scanned_points);
+            }
+            if (data.parcels) renderParcels(data.parcels);
+        }
+
+        // Render ban đầu nếu có dữ liệu từ ban_do_data.js
+        if (window.LIVE_PLANNING_DATA) {
+            applyData(window.LIVE_PLANNING_DATA);
+        }
+
+        // Cơ chế cập nhật Live không rò rỉ bộ nhớ (Garbage collection friendly)
+        let isFetching = false;
+        async function reloadLiveData(force = false) {
+            if (isFetching) return;
+            isFetching = true;
+            try {
+                if (window.location.protocol.startsWith('http')) {
+                    const res = await fetch('ban_do_data.json?t=' + Date.now(), { cache: 'no-store' });
+                    if (res.ok) {
+                        const data = await res.json();
+                        applyData(data);
+                    }
+                } else {
+                    // Dành cho giao thức file:// : Nạp qua thẻ script và dọn dẹp biến bộ đệm ngay sau khi nạp
+                    const oldScript = document.getElementById('live-data-script');
+                    if (oldScript) oldScript.remove();
+
+                    const script = document.createElement('script');
+                    script.id = 'live-data-script';
+                    script.src = 'ban_do_data.js?t=' + Date.now();
+                    script.onload = () => {
+                        if (window.LIVE_PLANNING_DATA) {
+                            applyData(window.LIVE_PLANNING_DATA);
+                        }
+                    };
+                    document.head.appendChild(script);
+                }
+            } catch(err) {
+                // Bỏ qua lỗi kết nối tạm thời
+            } finally {
+                isFetching = false;
+            }
+        }
+
+        // Tự động kiểm tra cập nhật mỗi 3.5 giây
+        setInterval(() => reloadLiveData(false), 3500);
+    </script>
+</body>
+</html>

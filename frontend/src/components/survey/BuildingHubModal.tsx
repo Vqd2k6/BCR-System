@@ -25,6 +25,7 @@ import {
   Send,
   RefreshCw,
   FileText,
+  AlertTriangle,
 } from 'lucide-react';
 
 export interface BuildingUnit {
@@ -59,8 +60,26 @@ export const BuildingHubModal: React.FC<Props> = ({
 }) => {
   const masterUpdateKey = `metro2_master_update_pending_${parcel.id}`;
   
-  // Chung cư được khởi tạo từ bước khảo sát thửa thô, nên mặc định đã có hồ sơ tổng quan cơ sở
-  const hasMasterSurvey = true; 
+  // Kiểm tra xem đã hoàn thành khảo sát toà mẹ chưa
+  const [isMasterSurveyDone, setIsMasterSurveyDone] = useState<boolean>(() => {
+    try {
+      const savedSubmitted = localStorage.getItem(`metro2_condo_master_submitted_${parcel.id}`);
+      if (savedSubmitted === 'true') return true;
+      const overridesStr = localStorage.getItem('metro2_parcel_status_overrides');
+      if (overridesStr) {
+        const overrides = JSON.parse(overridesStr);
+        if (overrides[parcel.id]?.isMasterSurveyDone || overrides[parcel.id]?.status === 'APPROVED' || overrides[parcel.id]?.status === 'SUBMITTED') {
+          return true;
+        }
+      }
+      return false;
+    } catch {
+      return false;
+    }
+  });
+
+  const [masterReportData, setMasterReportData] = useState<any>(null);
+
   const [isUpdatePending, setIsUpdatePending] = useState<boolean>(() => {
     return localStorage.getItem(masterUpdateKey) === 'true';
   });
@@ -128,6 +147,17 @@ export const BuildingHubModal: React.FC<Props> = ({
 
   useEffect(() => {
     fetchUnits();
+
+    // Kiểm tra hồ sơ khảo sát toà mẹ thực tế từ backend
+    api.get(`/parcels/${parcel.id}/phase1-report`)
+      .then((res: any) => {
+        const data = res?.data?.data || res?.data;
+        if (data?.report && (data.report.status === 'SUBMITTED' || data.report.status === 'APPROVED')) {
+          setIsMasterSurveyDone(true);
+          setMasterReportData(data.report);
+        }
+      })
+      .catch(() => {});
   }, [parcel.id]);
 
   const handleScroll = (e: React.UIEvent<HTMLElement>) => {
@@ -339,6 +369,41 @@ export const BuildingHubModal: React.FC<Props> = ({
         onScroll={handleScroll}
         className="flex-1 overflow-y-auto p-3.5 sm:p-6 flex flex-col gap-4 max-w-7xl w-full mx-auto"
       >
+        {/* Banner cảnh báo chưa khảo sát tổng quan tòa nhà chung cư */}
+        {!isMasterSurveyDone && (
+          <div className="bg-amber-50/90 border-2 border-amber-300 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm animate-in fade-in">
+            <div className="flex items-start gap-3.5">
+              <div className="w-11 h-11 rounded-xl bg-amber-100 border border-amber-300 text-amber-800 flex items-center justify-center flex-shrink-0 mt-0.5 shadow-2xs">
+                <AlertTriangle size={22} className="text-amber-600" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h4 className="text-sm sm:text-base font-extrabold text-amber-950">
+                    Bạn Chưa Khảo Sát Tổng Quan Chung Cư (Khối Tháp Dùng Chung)
+                  </h4>
+                  <span className="bg-amber-200/80 text-amber-900 font-bold px-2 py-0.5 rounded text-[10px] border border-amber-300 uppercase">
+                    Chưa Khảo Sát
+                  </span>
+                </div>
+                <p className="text-xs text-amber-800 mt-1 leading-relaxed max-w-2xl">
+                  Công trình mới chỉ được thiết lập loại hình Chung cư từ bản đồ thửa đất ban đầu. Theo quy chuẩn kỹ thuật Metro 2, cần hoàn thành <strong>Khảo sát tổng quan tòa nhà</strong> (kết cấu chịu lực, móng, bộ 4 ảnh mặt đứng P01–P04, không gian dùng chung) để phục vụ kế thừa dữ liệu cho các căn hộ con.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                onClose();
+                onStartMasterSurvey(parcel);
+              }}
+              className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 active:scale-95 text-white text-xs font-bold shadow-md shadow-amber-600/20 transition-all shrink-0 cursor-pointer self-start sm:self-auto"
+            >
+              <Building2 size={16} />
+              <span>Mở Wizard Khảo Sát Tổng Quan</span>
+            </button>
+          </div>
+        )}
+
         {/* ─────────────────────────────────────────────────────────── */}
         {/* 2.1 EXECUTIVE DASHBOARD (4 KPI Cards)                       */}
         {/* ─────────────────────────────────────────────────────────── */}
@@ -596,7 +661,7 @@ export const BuildingHubModal: React.FC<Props> = ({
             <div className="flex flex-col gap-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3.5">
                 {displayedUnits.map((unit) => {
-                  const isUnitLocked = !hasMasterSurvey;
+                  const isUnitLocked = !isMasterSurveyDone;
                   const isPhase1Done = unit.status === 'APPROVED' || unit.status === 'SUBMITTED' || !!unit.phase1_report_id;
                   const isPhase2Done = !!unit.phase2_report_id || unit.status === 'PHASE2_COMPLETED';
 
@@ -775,67 +840,19 @@ export const BuildingHubModal: React.FC<Props> = ({
 
             {/* Modal Body */}
             <div className="p-4 sm:p-5 overflow-y-auto flex-1 flex flex-col gap-4">
-              {/* Status Notice */}
-              {isUpdatePending ? (
-                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 flex items-start gap-2.5 text-xs text-amber-900">
-                  <Clock size={16} className="text-amber-600 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <strong className="block font-bold">Đang chờ Zone Admin phê duyệt bản cập nhật mới</strong>
-                    <span>Bản cập nhật hạng mục chung đã được gửi lên hệ thống và đang chờ quản trị viên khu vực phê duyệt trước khi đồng bộ toàn bộ căn hộ con.</span>
+              {!isMasterSurveyDone ? (
+                <div className="text-center py-8 px-4 flex flex-col items-center justify-center gap-3">
+                  <div className="w-16 h-16 rounded-2xl bg-amber-50 border border-amber-200 text-amber-600 flex items-center justify-center shadow-xs">
+                    <Building2 size={32} />
                   </div>
-                </div>
-              ) : (
-                <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3.5 flex items-start gap-2.5 text-xs text-emerald-900">
-                  <ShieldCheck size={16} className="text-emerald-600 flex-shrink-0 mt-0.5" />
                   <div>
-                    <strong className="block font-bold">Hồ sơ chung đã được kế thừa và xác thực</strong>
-                    <span>Thông tin kết cấu, móng, mặt đứng (P-01 đến P-04) đã được thiết lập từ bước khảo sát thửa ban đầu. Bạn có thể xem và gửi yêu cầu cập nhật bổ sung bên dưới.</span>
+                    <h4 className="text-base font-extrabold text-slate-900">
+                      Chưa Có Dữ Liệu Khảo Sát Tổng Quan Chung Cư
+                    </h4>
+                    <p className="text-xs text-slate-500 max-w-md mx-auto mt-1 leading-relaxed">
+                      Tòa nhà này mới chỉ được thiết lập loại hình Chung cư từ bước khởi tạo thửa đất. Chưa có số liệu khảo sát thực tế về kết cấu chịu lực, loại móng, bộ ảnh mặt đứng và hạ tầng kỹ thuật dùng chung.
+                    </p>
                   </div>
-                </div>
-              )}
-
-              {/* Thông số kỹ thuật chung đã khảo sát */}
-              <div className="border border-slate-200 rounded-xl p-3.5 bg-slate-50 flex flex-col gap-2.5 text-xs">
-                <span className="font-extrabold text-slate-800 uppercase text-[11px] tracking-wider text-sky-700">
-                  1. Thông số kết cấu & kiến trúc chung:
-                </span>
-                <div className="grid grid-cols-2 gap-2 text-slate-700">
-                  <div>• Loại công trình: <strong>Chung cư / Nhà tập thể</strong></div>
-                  <div>• Quy mô: <strong>{availableFloors.length} Tầng nổi + 01 Hầm</strong></div>
-                  <div>• Kết cấu móng: <strong>Móng cọc BTCT D600 sâu 32m</strong></div>
-                  <div>• Khung chịu lực: <strong>Khung dầm cột BTCT toàn khối</strong></div>
-                  <div>• Mặt đứng kiến trúc: <strong>P-01 đến P-04 (Đã chụp ảnh)</strong></div>
-                  <div>• Tình trạng nứt lún chung: <strong>Chưa phát hiện nứt lún kết cấu</strong></div>
-                </div>
-              </div>
-
-              {/* Hạ tầng kỹ thuật dùng chung */}
-              <div className="border border-slate-200 rounded-xl p-3.5 bg-slate-50 flex flex-col gap-2.5 text-xs">
-                <span className="font-extrabold text-slate-800 uppercase text-[11px] tracking-wider text-sky-700">
-                  2. Hạ tầng kỹ thuật dùng chung:
-                </span>
-                <div className="grid grid-cols-2 gap-2 text-slate-700">
-                  <div>• Hệ thống thang máy: <strong>02 Thang máy tải khách</strong></div>
-                  <div>• Hệ thống PCCC: <strong>Sprinkler + Họng nước vách tường</strong></div>
-                  <div>• Bể nước sinh hoạt: <strong>Bể ngầm 200m³ + Bể mái 50m³</strong></div>
-                  <div>• Máy phát điện dự phòng: <strong>01 Máy phát Cummins 250kVA</strong></div>
-                </div>
-              </div>
-
-              {/* Gửi bản update mới */}
-              <form onSubmit={handleSendMasterUpdate} className="flex flex-col gap-2.5 pt-1">
-                <label className="block text-xs font-bold text-slate-800">
-                  Ghi chú nội dung cập nhật bổ sung (nếu có thay đổi hiện trạng):
-                </label>
-                <textarea
-                  rows={3}
-                  placeholder="Nhập chi tiết các thay đổi hoặc vết nứt mới phát hiện ở khu vực dùng chung..."
-                  value={updateNotes}
-                  onChange={(e) => setUpdateNotes(e.target.value)}
-                  className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500"
-                />
-
-                <div className="flex flex-wrap items-center justify-between gap-2 pt-2">
                   <button
                     type="button"
                     onClick={() => {
@@ -843,21 +860,86 @@ export const BuildingHubModal: React.FC<Props> = ({
                       onClose();
                       onStartMasterSurvey(parcel);
                     }}
-                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold transition-all"
+                    className="mt-3 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 active:scale-95 text-white text-xs font-bold shadow-md shadow-sky-600/20 transition-all cursor-pointer"
                   >
-                    <FileText size={14} className="text-sky-600" />
-                    <span>Mở Wizard Khảo Sát Chi Tiết</span>
-                  </button>
-
-                  <button
-                    type="submit"
-                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold shadow-sm shadow-sky-600/20 transition-all"
-                  >
-                    <Send size={14} />
-                    <span>Gửi Bản Cập Nhật Mới Về Cho Zone Admin</span>
+                    <FileText size={16} />
+                    <span>Mở Wizard Khảo Sát Chi Tiết Tòa Nhà</span>
                   </button>
                 </div>
-              </form>
+              ) : (
+                <>
+                  {/* Status Notice */}
+                  {isUpdatePending ? (
+                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-3.5 flex items-start gap-2.5 text-xs text-amber-900">
+                      <Clock size={16} className="text-amber-600 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <strong className="block font-bold">Đang chờ Zone Admin phê duyệt bản cập nhật mới</strong>
+                        <span>Bản cập nhật hạng mục chung đã được gửi lên hệ thống và đang chờ quản trị viên khu vực phê duyệt trước khi đồng bộ toàn bộ căn hộ con.</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3.5 flex items-start gap-2.5 text-xs text-emerald-900">
+                      <ShieldCheck size={16} className="text-emerald-600 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <strong className="block font-bold">Hồ sơ chung đã được kế thừa và xác thực</strong>
+                        <span>Thông tin kết cấu, móng, mặt đứng (P-01 đến P-04) đã được khảo sát ở biểu mẫu tòa nhà tổng thể. Bạn có thể xem và gửi yêu cầu cập nhật bổ sung bên dưới.</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Thông số kỹ thuật thực tế đã khảo sát */}
+                  <div className="border border-slate-200 rounded-xl p-3.5 bg-slate-50 flex flex-col gap-2.5 text-xs">
+                    <span className="font-extrabold text-slate-800 uppercase text-[11px] tracking-wider text-sky-700">
+                      1. Thông số kết cấu & kiến trúc thực tế:
+                    </span>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-slate-700">
+                      <div>• Loại công trình: <strong>{masterReportData?.building_type || 'Chung cư / Nhà tập thể'}</strong></div>
+                      <div>• Quy mô: <strong>{masterReportData?.buildingSpecs?.floor_count || parcel.floorCount || availableFloors.length} Tầng nổi + {masterReportData?.buildingSpecs?.basement_count || 0} Hầm</strong></div>
+                      <div>• Kết cấu móng: <strong>{masterReportData?.buildingSpecs?.foundation_category || 'Theo hồ sơ khảo sát đã duyệt'}</strong></div>
+                      <div>• Khung chịu lực: <strong>{masterReportData?.buildingSpecs?.structural_system || 'Theo hồ sơ khảo sát đã duyệt'}</strong></div>
+                      <div>• Mặt đứng kiến trúc: <strong>{masterReportData?.identificationPhotos?.length ? `P-01 đến P-04 (${masterReportData.identificationPhotos.length} ảnh đã chụp)` : 'Đã chụp bộ ảnh P-01 đến P-04'}</strong></div>
+                      <div>• Tình trạng nứt lún chung: <strong>{masterReportData?.summary_conclusions || 'Đã ghi nhận trong hồ sơ tổng thể'}</strong></div>
+                    </div>
+                  </div>
+
+                  {/* Gửi bản update mới */}
+                  <form onSubmit={handleSendMasterUpdate} className="flex flex-col gap-2.5 pt-1">
+                    <label className="block text-xs font-bold text-slate-800">
+                      Ghi chú nội dung cập nhật bổ sung (nếu có thay đổi hiện trạng):
+                    </label>
+                    <textarea
+                      rows={3}
+                      placeholder="Nhập chi tiết các thay đổi hoặc vết nứt mới phát hiện ở khu vực dùng chung..."
+                      value={updateNotes}
+                      onChange={(e) => setUpdateNotes(e.target.value)}
+                      className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500"
+                    />
+
+                    <div className="flex flex-wrap items-center justify-between gap-2 pt-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowMasterViewModal(false);
+                          onClose();
+                          onStartMasterSurvey(parcel);
+                        }}
+                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold transition-all"
+                      >
+                        <FileText size={14} className="text-sky-600" />
+                        <span>Mở Wizard Khảo Sát Chi Tiết</span>
+                      </button>
+
+                      <button
+                        type="submit"
+                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold shadow-sm shadow-sky-600/20 transition-all"
+                      >
+                        <Send size={14} />
+                        <span>Gửi Bản Cập Nhật Mới Về Cho Zone Admin</span>
+                      </button>
+                    </div>
+                  </form>
+                </>
+              )}
             </div>
           </div>
         </div>

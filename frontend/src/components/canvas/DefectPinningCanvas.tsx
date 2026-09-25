@@ -583,17 +583,18 @@ export const DefectPinningCanvas: React.FC<Props> = ({
             <div>
               <div className="flex items-center justify-between mb-1">
                 <label className="text-xs font-bold text-slate-700">
-                  Ảnh hưởng chức năng (Nguồn E6) *
+                  Ảnh hưởng chức năng *
                 </label>
                 <InfoPopover title="Ảnh hưởng chức năng sử dụng (Nguồn tính E6)" size="md">
                   <p><strong>Bản chất:</strong> Hậu quả của khuyết tật đến công năng sinh hoạt thực tế (thấm dột, kẹt cửa, thoát nạn, đường ống).</p>
                   <p className="mt-1"><strong>Cách tính vào ECS:</strong> Góp phần vào chỉ số tổng thể E6 cùng với tình trạng thấm dột, kẹt cửa toàn nhà.</p>
                   <ul className="list-disc pl-3.5 space-y-0.5 text-[11px] text-slate-600 mt-1.5 pt-1.5 border-t border-slate-100">
-                    <li><strong>0đ (Không ảnh hưởng):</strong> Sinh hoạt, vận hành bình thường.</li>
-                    <li><strong>1đ (Nhẹ):</strong> Ẩm mốc nhẹ hoặc kẹt 1–2 bộ cửa trong nhà ở mức nhẹ.</li>
-                    <li><strong>2đ (Trung bình):</strong> Thấm nước tường/sàn hoặc kẹt 2–5 bộ cửa phải dùng lực mạnh.</li>
-                    <li><strong>3đ (Nặng):</strong> Nước dột chảy thành dòng, kẹt trên 5 bộ cửa không đóng mở được.</li>
-                    <li><strong>4đ (Nguy cấp):</strong> Nước rò rỉ gây nguy cơ chập cháy điện, hoặc cửa kẹt cứng chắn lối thoát hiểm khẩn cấp.</li>
+                    <li><strong>Không ảnh hưởng:</strong> Sinh hoạt, vận hành bình thường.</li>
+                    <li><strong>Ẩm mốc:</strong> Ẩm mốc bề mặt nhẹ.</li>
+                    <li><strong>Thấm nước:</strong> Thấm ẩm tường, dầm hoặc sàn bê tông.</li>
+                    <li><strong>Dột nước:</strong> Nước dột chảy thành dòng khi trời mưa hoặc rò từ tầng trên.</li>
+                    <li><strong>Rò rỉ nước tràn:</strong> Rò rỉ nước gây ngập, nguy cơ chập cháy điện.</li>
+                    <li><strong>Kẹt cửa:</strong> Cửa đi/cửa sổ bị chèn ép, khó đóng mở hoặc kẹt cứng.</li>
                   </ul>
                 </InfoPopover>
               </div>
@@ -612,12 +613,13 @@ export const DefectPinningCanvas: React.FC<Props> = ({
                 }
                 disabled={readOnly}
               >
-                <option value="">--- Chọn mức ảnh hưởng chức năng (E6) ---</option>
-                <option value={0}>0đ - Không ảnh hưởng chức năng</option>
-                <option value={1}>1đ - Ẩm mốc / Kẹt 1-2 cửa nhẹ</option>
-                <option value={2}>2đ - Thấm nước / Kẹt 2-5 cửa</option>
-                <option value={3}>3đ - Dột nước / Kẹt &gt;5 cửa</option>
-                <option value={4}>4đ - Rò nước tràn / Cửa kẹt cứng hoàn toàn</option>
+                <option value="">--- Chọn ảnh hưởng chức năng ---</option>
+                <option value={0}>Không ảnh hưởng chức năng</option>
+                <option value={1}>Ẩm mốc</option>
+                <option value={2}>Thấm nước</option>
+                <option value={3}>Dột nước</option>
+                <option value={4}>Rò rỉ nước tràn</option>
+                <option value={5}>Kẹt cửa</option>
               </select>
             </div>
           </div>

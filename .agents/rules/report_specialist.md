@@ -1,5 +1,5 @@
 ---
-trigger: always_on
+trigger: model_decision
 ---
 
 # ROLE: SENIOR REPORT DESIGNER & EXPORT ARCHITECT (METRO 2 BUILDING CONDITION SURVEY)

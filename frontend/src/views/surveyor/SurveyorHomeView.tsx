@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import api from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { GisParcel } from '../../components/gis/LeafletSweepMap';
 import { BuildingHubModal, BuildingUnit } from '../../components/survey/BuildingHubModal';
@@ -21,6 +22,7 @@ import {
   ArrowRight,
   HardHat,
   Eye,
+  XCircle,
 } from 'lucide-react';
 
 interface Props {
@@ -34,6 +36,7 @@ interface Props {
   onStartUnitSurvey?: (parcel: GisParcel, unit: BuildingUnit, phase?: 1 | 2) => void;
   onStartPhase2: (parcel: GisParcel) => void;
   onRecordAbsence: (parcel: GisParcel) => void;
+  onRefresh?: () => void;
 }
 
 export const SurveyorHomeView: React.FC<Props> = ({
@@ -47,8 +50,10 @@ export const SurveyorHomeView: React.FC<Props> = ({
   onStartUnitSurvey,
   onStartPhase2,
   onRecordAbsence,
+  onRefresh,
 }) => {
   const { user } = useAuth();
+  const canApproveOrReject = user?.role === 'ZONE_ADMIN' || user?.role === 'SUPER_ADMIN';
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [hubParcel, setHubParcel] = useState<GisParcel | null>(null);
 
@@ -110,6 +115,15 @@ export const SurveyorHomeView: React.FC<Props> = ({
     const baseStatus = p?.surveyStatus || (p as any)?.survey_status || 'NOT_SURVEYED';
     if (baseStatus !== 'APPROVED' && baseStatus !== 'PHASE2_COMPLETED' && baseStatus !== 'APPROVED_PHASE2' && p?.id) {
       try {
+        const overridesStr = localStorage.getItem('metro2_parcel_status_overrides');
+        if (overridesStr) {
+          const overrides = JSON.parse(overridesStr);
+          if (overrides[p.id]?.status) {
+            return overrides[p.id].status;
+          }
+        }
+      } catch (_e) {}
+      try {
         const draft = localStorage.getItem(`metro2_phase1_draft_${p.id}`);
         if (draft) {
           const parsed = JSON.parse(draft);
@@ -157,8 +171,9 @@ export const SurveyorHomeView: React.FC<Props> = ({
   const submittedOnly = (parcels || []).filter((p) => getStatus(p) === 'SUBMITTED').length;
   const rejectedOnly = (parcels || []).filter((p) => getStatus(p) === 'REJECTED').length;
   const absent = (parcels || []).filter((p) => getStatus(p) === 'POSTPONED_ABSENT').length;
+  const underConstruction = (parcels || []).filter((p) => getStatus(p) === 'UNDER_CONSTRUCTION').length;
   const notSurveyed = (parcels || []).filter((p) => getStatus(p) === 'NOT_SURVEYED').length;
-  const pendingTotal = notSurveyed + inProgressOnly + rejectedOnly + absent;
+  const pendingTotal = notSurveyed + inProgressOnly + rejectedOnly + absent + underConstruction;
 
   const filteredParcels = (parcels || []).filter((p) => {
     if (!p) return false;
@@ -189,6 +204,8 @@ export const SurveyorHomeView: React.FC<Props> = ({
       matchesStatus = status === 'REJECTED';
     } else if (statusFilter === 'ABSENT') {
       matchesStatus = status === 'POSTPONED_ABSENT';
+    } else if (statusFilter === 'UNDER_CONSTRUCTION') {
+      matchesStatus = status === 'UNDER_CONSTRUCTION';
     } else if (statusFilter === 'APPROVED') {
       matchesStatus = status === 'APPROVED' || status === 'PHASE2_COMPLETED' || status === 'APPROVED_PHASE2';
     } else {
@@ -217,6 +234,106 @@ export const SurveyorHomeView: React.FC<Props> = ({
     window.open(url, '_blank', 'noopener,noreferrer');
   };
 
+  const handleAdminApprove = async (parcel: GisParcel) => {
+    if (!canApproveOrReject) {
+      alert('Chỉ có Zone Admin hoặc Super Admin mới có quyền phê duyệt hồ sơ.');
+      return;
+    }
+
+    try {
+      let targetStatus: GisParcel['surveyStatus'] = 'APPROVED';
+      const overridesStr = localStorage.getItem('metro2_parcel_status_overrides');
+      const overrides = overridesStr ? JSON.parse(overridesStr) : {};
+      const overrideObj = overrides[parcel.id];
+
+      if (overrideObj?.subType === 'POSTPONED_ABSENT' || overrideObj?.isAbsentee) {
+        targetStatus = 'POSTPONED_ABSENT';
+      } else if (overrideObj?.subType === 'UNDER_CONSTRUCTION') {
+        targetStatus = 'UNDER_CONSTRUCTION';
+      } else if (overrideObj?.subType === 'IN_PROGRESS') {
+        targetStatus = 'IN_PROGRESS';
+      } else {
+        const draft = localStorage.getItem(`metro2_phase1_draft_${parcel.id}`);
+        if (draft) {
+          const parsed = JSON.parse(draft);
+          if (parsed.isAbsenteeSurvey || parsed.surveyCaseType === 'ABSENTEE') targetStatus = 'POSTPONED_ABSENT';
+          else if (parsed.surveyCaseType === 'UNDER_CONSTRUCTION') targetStatus = 'UNDER_CONSTRUCTION';
+          else if (parsed.surveyCaseType === 'IN_PROGRESS') targetStatus = 'IN_PROGRESS';
+        }
+      }
+
+      // 1. Cập nhật override
+      overrides[parcel.id] = {
+        ...(overrideObj || {}),
+        status: targetStatus,
+        updatedAt: new Date().toISOString(),
+      };
+      delete overrides[parcel.id].subType;
+      delete overrides[parcel.id].isAbsentee;
+      localStorage.setItem('metro2_parcel_status_overrides', JSON.stringify(overrides));
+
+      // 2. Đồng bộ API nếu có
+      try {
+        await api.post(`/admin/reports/${parcel.id}/approve`, {});
+      } catch (e: any) {
+        console.warn('Backend approve API notice:', e?.response?.data || e?.message);
+      }
+
+      if (onRefresh) {
+        onRefresh();
+      }
+      alert(`Đã duyệt hồ sơ thửa [${parcel.projectParcelCode || parcel.officialCadastralCode || parcel.id}]! Thửa đất đã về đúng ô lọc: ${
+        targetStatus === 'POSTPONED_ABSENT' ? 'Vắng mặt' :
+        targetStatus === 'UNDER_CONSTRUCTION' ? 'Đang xây dựng' :
+        targetStatus === 'IN_PROGRESS' ? 'Đang làm dở' : 'Đã duyệt Phase 1'
+      }.`);
+    } catch (err) {
+      console.error('Admin approve error:', err);
+      alert('Có lỗi xảy ra khi duyệt hồ sơ.');
+    }
+  };
+
+  const handleAdminReject = async (parcel: GisParcel) => {
+    if (!canApproveOrReject) {
+      alert('Chỉ có Zone Admin hoặc Super Admin mới có quyền từ chối hồ sơ.');
+      return;
+    }
+
+    const reason = window.prompt(
+      `Nhập lý do yêu cầu bổ sung / từ chối hồ sơ thửa [${parcel.projectParcelCode || parcel.officialCadastralCode || parcel.id}]:`,
+      'Hồ sơ thiếu ảnh hiện trạng hoặc số liệu cần đo đạc lại'
+    );
+    if (!reason || !reason.trim()) return;
+
+    try {
+      const overridesStr = localStorage.getItem('metro2_parcel_status_overrides');
+      const overrides = overridesStr ? JSON.parse(overridesStr) : {};
+      overrides[parcel.id] = {
+        ...(overrides[parcel.id] || {}),
+        status: 'REJECTED',
+        rejectionReason: reason.trim(),
+        updatedAt: new Date().toISOString(),
+      };
+      localStorage.setItem('metro2_parcel_status_overrides', JSON.stringify(overrides));
+
+      try {
+        await api.post(`/admin/reports/${parcel.id}/reject`, {
+          rejectionReason: reason.trim(),
+        });
+      } catch (e: any) {
+        console.warn('Backend reject API notice:', e?.response?.data || e?.message);
+      }
+
+      if (onRefresh) {
+        onRefresh();
+      }
+      alert(`Đã trả về hồ sơ thửa [${parcel.projectParcelCode || parcel.officialCadastralCode || parcel.id}] với yêu cầu bổ sung: "${reason.trim()}". Hồ sơ đã chuyển sang mục Cần bổ sung.`);
+    } catch (err) {
+      console.error('Admin reject error:', err);
+      alert('Có lỗi xảy ra khi từ chối hồ sơ.');
+    }
+  };
+
   const getStatusBadge = (status: GisParcel['surveyStatus'], parcel?: GisParcel) => {
     switch (status) {
       case 'APPROVED':
@@ -240,16 +357,41 @@ export const SurveyorHomeView: React.FC<Props> = ({
             Hoàn tất Phase 2
           </span>
         );
-      case 'SUBMITTED':
+      case 'SUBMITTED': {
+        let subTypeText = '';
+        if (parcel?.id) {
+          try {
+            const overrides = JSON.parse(localStorage.getItem('metro2_parcel_status_overrides') || '{}');
+            if (overrides[parcel.id]?.subType === 'POSTPONED_ABSENT' || overrides[parcel.id]?.isAbsentee) {
+              subTypeText = ' - Vắng mặt';
+            } else if (overrides[parcel.id]?.subType === 'UNDER_CONSTRUCTION') {
+              subTypeText = ' - Đang xây';
+            } else if (overrides[parcel.id]?.subType === 'IN_PROGRESS') {
+              subTypeText = ' - Làm dở';
+            }
+          } catch (_e) {}
+          if (!subTypeText) {
+            try {
+              const draft = localStorage.getItem(`metro2_phase1_draft_${parcel.id}`);
+              if (draft) {
+                const parsed = JSON.parse(draft);
+                if (parsed.isAbsenteeSurvey || parsed.surveyCaseType === 'ABSENTEE') subTypeText = ' - Vắng mặt';
+                else if (parsed.surveyCaseType === 'UNDER_CONSTRUCTION') subTypeText = ' - Đang xây';
+                else if (parsed.surveyCaseType === 'IN_PROGRESS') subTypeText = ' - Làm dở';
+              }
+            } catch (_e) {}
+          }
+        }
         return (
           <span
             className="badge"
             style={{ backgroundColor: '#e0f2fe', color: '#0369a1', border: '1px solid #7dd3fc', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}
           >
             <Clock size={12} color="#0284c7" />
-            Đã nộp (Chờ duyệt)
+            Đã nộp (Chờ duyệt{subTypeText})
           </span>
         );
+      }
       case 'IN_PROGRESS':
         return (
           <span
@@ -262,15 +404,19 @@ export const SurveyorHomeView: React.FC<Props> = ({
         );
       case 'POSTPONED_ABSENT': {
         const dateVal = parcel?.updatedAt || (parcel as any)?.updated_at || (parcel as any)?.postponed_at;
-        let daysText = 'Hẹn lại';
+        let daysText = '0 ngày trước';
         if (dateVal) {
           const d = new Date(dateVal);
           if (!isNaN(d.getTime())) {
-            const diffDays = Math.floor(Math.abs(Date.now() - d.getTime()) / (1000 * 60 * 60 * 24));
-            daysText = diffDays === 0 ? 'Hẹn lại - hôm nay' : `${diffDays} ngày trước`;
+            const now = new Date();
+            const isToday = d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate();
+            if (isToday) {
+              daysText = '0 ngày trước';
+            } else {
+              const diffDays = Math.max(1, Math.floor(Math.abs(Date.now() - d.getTime()) / (1000 * 60 * 60 * 24)));
+              daysText = `${diffDays} ngày trước`;
+            }
           }
-        } else if (parcel?.absenceAttemptCount) {
-          daysText = `${parcel.absenceAttemptCount} ngày trước`;
         }
         return (
           <span
@@ -500,6 +646,7 @@ export const SurveyorHomeView: React.FC<Props> = ({
             { id: 'PENDING_ONLY', label: `Cần làm (${pendingTotal})` },
             { id: 'NOT_SURVEYED', label: `Chưa làm (${notSurveyed})` },
             { id: 'IN_PROGRESS', label: `Đang làm dở (${inProgressOnly})` },
+            { id: 'UNDER_CONSTRUCTION', label: `Đang xây (${underConstruction})` },
             { id: 'SUBMITTED', label: `Chờ duyệt (${submittedOnly})` },
             ...(rejectedOnly > 0 ? [{ id: 'REJECTED', label: `Cần bổ sung (${rejectedOnly})` }] : []),
             { id: 'ABSENT', label: `Vắng mặt (${absent})` },
@@ -546,6 +693,10 @@ export const SurveyorHomeView: React.FC<Props> = ({
             ? `Danh sách ${filteredParcels.length} thửa đất đã nộp (Chờ duyệt):`
             : statusFilter === 'IN_PROGRESS'
             ? `Danh sách ${filteredParcels.length} thửa đất đang làm dở (Chưa nộp):`
+            : statusFilter === 'UNDER_CONSTRUCTION'
+            ? `Danh sách ${filteredParcels.length} thửa đất đang xây dựng:`
+            : statusFilter === 'ABSENT'
+            ? `Danh sách ${filteredParcels.length} thửa đất vắng mặt:`
             : `Danh sách thửa đất (${filteredParcels.length}):`}
         </span>
 
@@ -763,26 +914,92 @@ export const SurveyorHomeView: React.FC<Props> = ({
                         <span>Đã hoàn tất Phase 2</span>
                       </button>
                     ) : isSubmitted ? (
-                      <button
-                        type="button"
-                        onClick={() => onStartPhase1(p, true)}
-                        className="btn btn-sm"
-                        style={{
-                          fontSize: '0.775rem',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '0.35rem',
-                          backgroundColor: '#e0f2fe',
-                          color: '#0369a1',
-                          border: '1px solid #7dd3fc',
-                          fontWeight: 700,
-                          cursor: 'pointer',
-                        }}
-                        title="Hồ sơ đã gửi Zone Admin, nhấp để xem lại biểu mẫu"
-                      >
-                        <Eye size={14} color="#0284c7" />
-                        Xem lại biểu mẫu
-                      </button>
+                      <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                        <button
+                          type="button"
+                          onClick={() => onStartPhase1(p, true)}
+                          className="btn btn-sm"
+                          style={{
+                            fontSize: '0.775rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.35rem',
+                            backgroundColor: '#e0f2fe',
+                            color: '#0369a1',
+                            border: '1px solid #7dd3fc',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                          }}
+                          title="Hồ sơ đã nộp, nhấp để xem lại biểu mẫu"
+                        >
+                          <Eye size={14} color="#0284c7" />
+                          Xem lại
+                        </button>
+                        {canApproveOrReject ? (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => handleAdminApprove(p)}
+                              className="btn btn-sm"
+                              style={{
+                                fontSize: '0.775rem',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.35rem',
+                                backgroundColor: '#059669',
+                                color: '#ffffff',
+                                border: '1px solid #047857',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                boxShadow: '0 2px 4px rgba(5, 150, 105, 0.2)',
+                              }}
+                              title="Zone Admin / Super Admin phê duyệt hồ sơ này"
+                            >
+                              <CheckCircle2 size={14} />
+                              Duyệt
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleAdminReject(p)}
+                              className="btn btn-sm"
+                              style={{
+                                fontSize: '0.775rem',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.35rem',
+                                backgroundColor: '#fff1f2',
+                                color: '#e11d48',
+                                border: '1px solid #fecdd3',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                              }}
+                              title="Zone Admin / Super Admin từ chối / yêu cầu bổ sung"
+                            >
+                              <XCircle size={14} color="#e11d48" />
+                              Từ chối
+                            </button>
+                          </>
+                        ) : (
+                          <span
+                            style={{
+                              fontSize: '0.725rem',
+                              color: '#0369a1',
+                              fontWeight: 600,
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              padding: '0.25rem 0.5rem',
+                              backgroundColor: '#f0f9ff',
+                              borderRadius: '6px',
+                              border: '1px solid #bae6fd',
+                            }}
+                            title="Hồ sơ đang chờ Zone Admin hoặc Super Admin phê duyệt"
+                          >
+                            <Clock size={12} />
+                            Chờ Zone Admin duyệt
+                          </span>
+                        )}
+                      </div>
                     ) : isUnderConstruction ? (
                       <button
                         type="button"

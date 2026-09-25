@@ -27,7 +27,7 @@ const RESTRICTED_AREAS_PRESETS = [
 ];
 
 export const Step6_ScopeAndGisMutation: React.FC = () => {
-  const { formData, updateFormData, nextStep, prevStep } = usePhase1SurveyStore();
+  const { formData, updateFormData, nextStep, prevStep, activeParcel } = usePhase1SurveyStore();
   const [extraFloorsCount, setExtraFloorsCount] = useState(0);
 
   const scope = formData.surveyScope;
@@ -348,6 +348,23 @@ export const Step6_ScopeAndGisMutation: React.FC = () => {
         <div className="rounded-xl overflow-hidden border border-slate-200 min-h-[520px]">
           <CadastralGISBoundaryEditor
             activeParcelId={formData.parcelId}
+            parcel={
+              activeParcel ||
+              (formData.parcelCoordinates && formData.parcelCoordinates.length >= 3
+                ? ({
+                    id: formData.parcelId,
+                    projectParcelCode: formData.projectParcelCode,
+                    officialCadastralCode: formData.officialCadastralCode,
+                    houseNumber: formData.houseNumber,
+                    street: formData.street,
+                    ownerName: formData.ownerName,
+                    surveyStatus: 'IN_PROGRESS',
+                    absenceAttemptCount: 0,
+                    coordinates: formData.parcelCoordinates,
+                    zoneId: formData.zoneId,
+                  } as any)
+                : undefined)
+            }
             parcelData={{
               projectParcelCode: formData.projectParcelCode,
               officialCadastralCode: formData.officialCadastralCode,
@@ -355,6 +372,8 @@ export const Step6_ScopeAndGisMutation: React.FC = () => {
               street: formData.street,
               ownerName: formData.ownerName,
               floorCount: typeof formData.aboveFloors === 'number' ? formData.aboveFloors : undefined,
+              zoneId: activeParcel?.zoneId || formData.zoneId,
+              coordinates: activeParcel?.coordinates || formData.parcelCoordinates,
             }}
             boundaryStatus={formData.gisMutationConfirmed.type}
             onStatusChange={(status) => {

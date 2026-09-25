@@ -22,6 +22,7 @@ interface LevelSelectorWithGuideProps {
   onChangeLevel: (level: number) => void;
   options: LevelOptionGuide[];
   children?: React.ReactNode;
+  alwaysShowChildren?: boolean;
 }
 
 const DEFAULT_COLOR_CLASSES = [
@@ -39,6 +40,7 @@ export const LevelSelectorWithGuide: React.FC<LevelSelectorWithGuideProps> = ({
   onChangeLevel,
   options,
   children,
+  alwaysShowChildren = false,
 }) => {
   const [showGuideModal, setShowGuideModal] = useState(false);
 
@@ -111,7 +113,7 @@ export const LevelSelectorWithGuide: React.FC<LevelSelectorWithGuideProps> = ({
       </div>
 
       {/* Additional Expanded Details */}
-      {selectedLevel > 0 && children && (
+      {(alwaysShowChildren || selectedLevel > 0) && children && (
         <div className="mt-3 pt-3 border-t border-dashed border-slate-200 animate-in fade-in">
           {children}
         </div>

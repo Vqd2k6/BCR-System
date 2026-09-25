@@ -19,6 +19,7 @@ ALTER TABLE building_specifications
   ADD COLUMN IF NOT EXISTS building_height_m NUMERIC(6,2),
   ADD COLUMN IF NOT EXISTS foundation_source VARCHAR(64);
 
--- 3. Bổ sung Revision Counter vào base_survey_reports
+-- 3. Bổ sung Revision Counter và Lưu trữ toàn vẹn JSON vào base_survey_reports
 ALTER TABLE base_survey_reports
-  ADD COLUMN IF NOT EXISTS export_revision INT NOT NULL DEFAULT 0;
+  ADD COLUMN IF NOT EXISTS export_revision INT NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS survey_data_json JSONB;

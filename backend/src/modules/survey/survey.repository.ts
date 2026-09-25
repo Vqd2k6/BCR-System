@@ -241,14 +241,14 @@ export class SurveyRepository {
         [
           reportId,
           specs.buildingName || null,
-          specs.buildingGrade,
+          specs.buildingGrade || 'GENERAL',
           specs.adjacentBuildings || null,
-          specs.structuralSystem,
-          specs.floorCount,
-          specs.basementCount,
-          specs.foundationCategory,
+          specs.structuralSystem || 'KHUNG_BTCT_CHIU_LUC',
+          Number(specs.floorCount) || 1,
+          Number(specs.basementCount) || 0,
+          specs.foundationCategory || 'CAT_2_MONG_DON_BTCT',
           specs.yearOfConstruction || null,
-          specs.isYearEstimated,
+          specs.isYearEstimated ?? false,
           specs.constructionAreaM2 !== undefined && specs.constructionAreaM2 !== null && specs.constructionAreaM2 !== '' ? Number(specs.constructionAreaM2) : null,
           specs.buildingHeightM !== undefined && specs.buildingHeightM !== null && specs.buildingHeightM !== '' ? Number(specs.buildingHeightM) : null,
           specs.foundationSource || null,
@@ -269,12 +269,12 @@ export class SurveyRepository {
            e5_history_score = EXCLUDED.e5_history_score;`,
         [
           reportId,
-          specs.extendedOrRenovated,
-          specs.previousSettlementOrTilt,
-          specs.fireOrAccident,
-          specs.sensitiveEquipmentPresent,
-          specs.historyDetails || null,
-          specs.e5HistoryScore,
+          Boolean(specs.extendedOrRenovated ?? false),
+          Boolean(specs.previousSettlementOrTilt ?? false),
+          Boolean(specs.fireOrAccident ?? false),
+          Boolean(specs.sensitiveEquipmentPresent ?? false),
+          specs.historyDetails || specs.details || null,
+          Number(specs.e5HistoryScore) || 0,
         ]
       );
     });
@@ -396,6 +396,7 @@ export class SurveyRepository {
              owner_signature_url = COALESCE($4, owner_signature_url),
              summary_conclusions = COALESCE($5, summary_conclusions),
              engineering_recommendations = COALESCE($6, engineering_recommendations),
+             survey_data_json = COALESCE($7, survey_data_json),
              updated_at = NOW()
          WHERE id = $1;`,
         [
@@ -405,6 +406,7 @@ export class SurveyRepository {
           submitData.ownerSignatureUrl || null,
           submitData.summaryConclusions || null,
           submitData.engineeringRecommendations || null,
+          submitData.surveyDataJson ? (typeof submitData.surveyDataJson === 'string' ? submitData.surveyDataJson : JSON.stringify(submitData.surveyDataJson)) : null,
         ]
       );
 
@@ -445,7 +447,7 @@ export class SurveyRepository {
     const absenceRes = await Database.query(
       `SELECT * FROM survey_absence_logs
        WHERE parcel_id = $1
-       ORDER BY created_at DESC LIMIT 1;`,
+       ORDER BY recorded_at DESC LIMIT 1;`,
       [parcelId]
     );
 

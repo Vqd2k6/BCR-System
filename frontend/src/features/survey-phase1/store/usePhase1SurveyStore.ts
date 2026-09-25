@@ -13,9 +13,12 @@ export interface Phase1SurveyStore {
   formData: Phase1SurveyFormData;
   isSavingDraft: boolean;
   lastSavedAt: string | null;
+  activeParcel: GisParcel | null;
   missingModal: { isOpen: boolean; missingFields: MissingFieldItem[]; targetStep: number } | null;
 
   // Actions
+  isReadOnly: boolean;
+  setIsReadOnly: (isReadOnly: boolean) => void;
   initializeForm: (parcel: GisParcel, unit?: BuildingUnit | null) => void;
   setCurrentStep: (step: number) => void;
   requestStepNavigation: (targetStep: number) => void;
@@ -33,7 +36,7 @@ export interface Phase1SurveyStore {
 
 export const getDefaultInitialFormData = (parcelId: string = ''): Phase1SurveyFormData => ({
   parcelId,
-  projectParcelCode: 'B-XXXXX',
+  projectParcelCode: '',
   officialCadastralCode: '',
   buildingName: '',
   houseNumber: '',
@@ -216,7 +219,10 @@ export const usePhase1SurveyStore = create<Phase1SurveyStore>((set, get) => ({
   formData: getDefaultInitialFormData(),
   isSavingDraft: false,
   lastSavedAt: null,
+  activeParcel: null,
   missingModal: null,
+  isReadOnly: false,
+  setIsReadOnly: (isReadOnly: boolean) => set({ isReadOnly, missingModal: isReadOnly ? null : get().missingModal }),
 
   initializeForm: (parcel: GisParcel, unit?: BuildingUnit | null) => {
     const unitId = unit ? unit.id : null;
@@ -241,13 +247,20 @@ export const usePhase1SurveyStore = create<Phase1SurveyStore>((set, get) => ({
       console.warn('[SurveyPhase1Store] Failed to restore localStorage draft:', e);
     }
 
-    // 2. Map các thông tin định danh thửa đất (nếu draft chưa có thì lấy từ parcel)
+    // 2. Map các thông tin định danh thửa đất (nếu draft chưa có hoặc là default thì lấy từ parcel)
     initialData.parcelId = parcel.id;
-    initialData.projectParcelCode = initialData.projectParcelCode || parcel.projectParcelCode || '';
-    initialData.officialCadastralCode = initialData.officialCadastralCode || parcel.officialCadastralCode || '';
-    initialData.houseNumber = initialData.houseNumber || parcel.houseNumber || '';
+    initialData.parcelCoordinates = parcel.coordinates;
+    initialData.zoneId = parcel.zoneId || (parcel as any).zone_id;
+    const realProjectCode = parcel.projectParcelCode || (parcel as any).project_parcel_code || (parcel as any).projectCode;
+    if (realProjectCode && (!initialData.projectParcelCode || initialData.projectParcelCode === 'B-XXXXX')) {
+      initialData.projectParcelCode = realProjectCode;
+    } else if (!initialData.projectParcelCode) {
+      initialData.projectParcelCode = realProjectCode || 'B-XXXXX';
+    }
+    initialData.officialCadastralCode = initialData.officialCadastralCode || parcel.officialCadastralCode || (parcel as any).official_cadastral_code || '';
+    initialData.houseNumber = initialData.houseNumber || parcel.houseNumber || (parcel as any).house_number || '';
     initialData.street = initialData.street || parcel.street || '';
-    initialData.ownerName = initialData.ownerName || unit?.ownerName || parcel.ownerName || '';
+    initialData.ownerName = initialData.ownerName || unit?.ownerName || parcel.ownerName || (parcel as any).owner_name || '';
     if (initialData.aboveFloors === undefined || initialData.aboveFloors === null || initialData.aboveFloors === 0 || initialData.aboveFloors === '') {
       initialData.aboveFloors = parcel.floorCount ? parcel.floorCount : '';
     }
@@ -318,6 +331,7 @@ export const usePhase1SurveyStore = create<Phase1SurveyStore>((set, get) => ({
       currentStep: initialStep,
       currentUnitId: unitId,
       formData: initialData,
+      activeParcel: parcel,
       missingModal: null,
       lastSavedAt: new Date().toLocaleTimeString('vi-VN'),
     });
@@ -349,17 +363,20 @@ export const usePhase1SurveyStore = create<Phase1SurveyStore>((set, get) => ({
 
   setCurrentStep: (step: number) => {
     if (step >= 1 && step <= 8) {
-      get().recalculateScores();
-      get().saveDraftToStorage();
+      if (!get().isReadOnly) {
+        get().recalculateScores();
+        get().saveDraftToStorage();
+      }
       set({ currentStep: step, missingModal: null });
     }
   },
 
   requestStepNavigation: (targetStep: number) => {
-    const { currentStep, formData } = get();
+    const { currentStep, formData, isReadOnly } = get();
     if (targetStep === currentStep) return;
 
-    if (targetStep < currentStep) {
+    // Khi ở chế độ xem lại (Read-Only) hoặc chuyển về bước trước -> Cho phép chuyển bước tự do không block
+    if (isReadOnly || targetStep < currentStep) {
       get().setCurrentStep(targetStep);
       return;
     }
@@ -381,9 +398,13 @@ export const usePhase1SurveyStore = create<Phase1SurveyStore>((set, get) => ({
   },
 
   nextStep: () => {
-    const { currentStep } = get();
+    const { currentStep, isReadOnly } = get();
     if (currentStep < 8) {
-      get().requestStepNavigation(currentStep + 1);
+      if (isReadOnly) {
+        get().setCurrentStep(currentStep + 1);
+      } else {
+        get().requestStepNavigation(currentStep + 1);
+      }
     }
   },
 
@@ -471,6 +492,9 @@ export const usePhase1SurveyStore = create<Phase1SurveyStore>((set, get) => ({
   },
 
   updateFormData: (updater) => {
+    // Chế độ Xem lại (Read-Only): TUYỆT ĐỐI không cho phép thay đổi dữ liệu biểu mẫu đã nộp
+    if (get().isReadOnly) return;
+
     set((state) => {
       const newFormData = typeof updater === 'function' ? updater(state.formData) : { ...state.formData, ...updater };
       // Tự động tính lại điểm ECS & VI khi form thay đổi
@@ -494,6 +518,7 @@ export const usePhase1SurveyStore = create<Phase1SurveyStore>((set, get) => ({
   },
 
   saveDraftToStorage: () => {
+    if (get().isReadOnly) return;
     const { formData, currentUnitId, currentStep } = get();
     if (!formData.parcelId) return;
 
@@ -540,6 +565,24 @@ export const usePhase1SurveyStore = create<Phase1SurveyStore>((set, get) => ({
       };
       localStorage.setItem(draftKey, JSON.stringify(compactData));
       set({ lastSavedAt: new Date().toLocaleTimeString('vi-VN') });
+
+      // 3. Đồng bộ trạng thái 'IN_PROGRESS' vào overrides để toàn bộ App và Map GIS nhận biết ngay lập tức
+      try {
+        const overridesStr = localStorage.getItem('metro2_parcel_status_overrides') || '{}';
+        const overrides = JSON.parse(overridesStr);
+        let s = 'IN_PROGRESS';
+        if (formData.isAbsenteeSurvey || formData.surveyCaseType === 'ABSENTEE') {
+          s = 'POSTPONED_ABSENT';
+        } else if (formData.surveyCaseType === 'UNDER_CONSTRUCTION') {
+          s = 'UNDER_CONSTRUCTION';
+        }
+        overrides[formData.parcelId] = {
+          ...(overrides[formData.parcelId] || {}),
+          status: s,
+          updatedAt: new Date().toISOString(),
+        };
+        localStorage.setItem('metro2_parcel_status_overrides', JSON.stringify(overrides));
+      } catch (_err) {}
     } catch (_err) {
       console.warn('[SurveyPhase1Store] LocalStorage quota reached, relied on IndexedDB');
     }
@@ -551,5 +594,14 @@ export const usePhase1SurveyStore = create<Phase1SurveyStore>((set, get) => ({
     const draftKey = `metro2_phase1_draft_${formData.parcelId}${currentUnitId ? `_${currentUnitId}` : ''}`;
     deleteSurveyDraft(draftKey);
     localStorage.removeItem(draftKey);
+
+    try {
+      const overridesStr = localStorage.getItem('metro2_parcel_status_overrides') || '{}';
+      const overrides = JSON.parse(overridesStr);
+      if (overrides[formData.parcelId]) {
+        delete overrides[formData.parcelId];
+        localStorage.setItem('metro2_parcel_status_overrides', JSON.stringify(overrides));
+      }
+    } catch (_err) {}
   },
 }));

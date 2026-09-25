@@ -143,6 +143,8 @@ export interface Phase1SurveyFormData {
   metroOffsetDistance: string;
   clearanceOffsetDistance: string;
   gpsCoords: { lat: number; lng: number };
+  parcelCoordinates?: [number, number][];
+  zoneId?: string;
   adjacentBuildings: AdjacentBuildingState;
   surveyCaseType?: 'NORMAL' | 'ABSENTEE' | 'APARTMENT' | 'UNDER_CONSTRUCTION';
   isAbsenteeSurvey?: boolean;

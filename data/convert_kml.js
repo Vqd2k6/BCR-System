@@ -9,7 +9,7 @@ let match;
 
 let leftBoundary = null;
 let rightBoundary = null;
-const stationPolygons = [];
+const allPolygons = [];
 
 const STATIONS_METADATA = [
   { code: 'ST01', name: 'Ga Bến Thành (ST01)', type: 'Ga ngầm trung tâm (Kết nối Metro 1, 2, 3A, 4)', km: 'KM0+000', desc: 'Công viên 23/9 – Chợ Bến Thành, Quận 1' },
@@ -30,7 +30,7 @@ while ((match = placemarkRegex.exec(kmlText)) !== null) {
   const nameMatch = pText.match(/<name>(.*?)<\/name>/);
   const name = nameMatch ? nameMatch[1].trim() : '';
 
-  if (pText.includes('<LineString>')) {
+  if (pText.includes('<LineString>') || pText.includes('<Polygon>')) {
     const coordMatch = pText.match(/<coordinates>([\s\S]*?)<\/coordinates>/);
     if (coordMatch) {
       const coords = coordMatch[1].trim().split(/\s+/).map(c => {
@@ -42,10 +42,11 @@ while ((match = placemarkRegex.exec(kmlText)) !== null) {
         leftBoundary = { name: 'Ranh Giải Phóng Mặt Bằng Tả Tuyến (Left Boundary)', coords };
       } else if (name === 'Polyline_002' && coords.length > 1500) {
         rightBoundary = { name: 'Ranh Giải Phóng Mặt Bằng Hữu Tuyến (Right Boundary)', coords };
-      } else if (name.includes('Depot') || name.includes('ST11') || (name.startsWith('Polygon') && coords.length >= 10)) {
+      } else if (coords.length >= 10 && coords.length < 1500) {
+        // Exclude tiny duplicate fragments (like index 10,11,14,15 which are small 19-pt sub-boxes)
         const avgLat = coords.reduce((a,b) => a + b[0], 0) / coords.length;
         const avgLng = coords.reduce((a,b) => a + b[1], 0) / coords.length;
-        stationPolygons.push({
+        allPolygons.push({
           rawName: name,
           coords: coords,
           center: [avgLat, avgLng]
@@ -55,11 +56,38 @@ while ((match = placemarkRegex.exec(kmlText)) !== null) {
   }
 }
 
-// Sort from Ben Thanh (SE, max lng) to Tham Luong (NW, min lng)
+// Filter out minor sub-duplicate polylines (pts < 25 if close to another segment)
+const cleanedPolygons = [];
+allPolygons.sort((a,b) => b.center[1] - a.center[1]);
+for (const poly of allPolygons) {
+  if (poly.coords.length <= 20 && poly.rawName === 'Polyline_001') {
+    continue; // skip small 19/20-pt auxiliary lines
+  }
+  cleanedPolygons.push(poly);
+}
+
+// 1. Separate Station Boxes vs TBM / Tunnel segments
+const stationPolygons = [];
+const tbmPolygons = [];
+
+cleanedPolygons.forEach((poly) => {
+  // Station boxes are identifiable by being compact station shapes (e.g. Polygon_001, Polyline_005 at stations, ST11)
+  if (
+    poly.rawName.startsWith('Polygon_001') ||
+    (poly.rawName.startsWith('Polyline_005') && poly.coords.length === 16) ||
+    poly.rawName.includes('ST11') ||
+    poly.rawName.includes('Depot')
+  ) {
+    stationPolygons.push(poly);
+  } else {
+    tbmPolygons.push(poly);
+  }
+});
+
+// Sort stations SE -> NW
 stationPolygons.sort((a,b) => b.center[1] - a.center[1]);
 
 const calculatedStations = [];
-
 stationPolygons.forEach((poly, idx) => {
   const meta = STATIONS_METADATA[idx] || {
     code: `ST${idx+1 < 10 ? '0' : ''}${idx+1}`,
@@ -85,6 +113,66 @@ stationPolygons.forEach((poly, idx) => {
   });
 });
 
+// 2. Compute TRUE CENTERLINE directly between the two blue parallel lines (Tả Tuyến & Hữu Tuyến)
+function distSq(p1, p2) {
+  const dLat = p1[0] - p2[0];
+  const dLng = (p1[1] - p2[1]) * Math.cos(p1[0] * Math.PI / 180);
+  return dLat * dLat + dLng * dLng;
+}
+
+function closestPointOnSegment(p, a, b) {
+  const abLat = b[0] - a[0];
+  const abLng = (b[1] - a[1]) * Math.cos(a[0] * Math.PI / 180);
+  const apLat = p[0] - a[0];
+  const apLng = (p[1] - a[1]) * Math.cos(a[0] * Math.PI / 180);
+  const abLenSq = abLat * abLat + abLng * abLng;
+  if (abLenSq === 0) return a;
+  const t = Math.max(0, Math.min(1, (apLat * abLat + apLng * abLng) / abLenSq));
+  return [a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1])];
+}
+
+function closestOnPolyline(p, polyline) {
+  let minDist = Infinity;
+  let bestPt = polyline[0];
+  for (let i = 0; i < polyline.length - 1; i++) {
+    const pt = closestPointOnSegment(p, polyline[i], polyline[i+1]);
+    const d = distSq(p, pt);
+    if (d < minDist) {
+      minDist = d;
+      bestPt = pt;
+    }
+  }
+  return bestPt;
+}
+
+const trueCenterline = [];
+if (leftBoundary && rightBoundary) {
+  let lastAdded = null;
+  const MIN_DIST_SQ = (5 / 111320) * (5 / 111320); // ~5m sampling for high precision smooth curves
+  for (let i = 0; i < leftBoundary.coords.length; i++) {
+    const pLeft = leftBoundary.coords[i];
+    if (!lastAdded || distSq(pLeft, lastAdded) >= MIN_DIST_SQ || i === leftBoundary.coords.length - 1) {
+      const pRight = closestOnPolyline(pLeft, rightBoundary.coords);
+      const mid = [
+        Math.round(((pLeft[0] + pRight[0]) / 2) * 1e6) / 1e6,
+        Math.round(((pLeft[1] + pRight[1]) / 2) * 1e6) / 1e6
+      ];
+      trueCenterline.push(mid);
+      lastAdded = pLeft;
+    }
+  }
+}
+
+// 3. Complete segments collection (both station boxes and TBM tunnel boundaries)
+const allCorridorSegments = cleanedPolygons.map((p, idx) => ({
+  id: `SEG_${idx + 1 < 10 ? '0' : ''}${idx + 1}`,
+  name: p.name || p.rawName,
+  coords: p.coords,
+  center: p.center,
+  isStation: !!p.code,
+  code: p.code || `TBM_${idx + 1}`,
+}));
+
 const corridorLines = [];
 if (leftBoundary) corridorLines.push(leftBoundary);
 if (rightBoundary) corridorLines.push(rightBoundary);
@@ -93,15 +181,23 @@ const metroDataset = {
   title: 'Hệ Thống Đường Bao Ranh Gốc Tuyến Metro Số 2 (Bến Thành – Tham Lương)',
   source: 'Dữ liệu CAD/GIS ranh giải phóng mặt bằng chuẩn Ban QLDA Đường sắt Đô thị (MAUR)',
   corridorBoundaries: corridorLines,
-  stationPolygons: stationPolygons, // All 11 station boxes unified
-  stations: calculatedStations       // All 11 stations unified
+  centerline: trueCenterline,          // True median centerline running between the two blue lines
+  stationPolygons: stationPolygons,     // 11 station boxes from CAD
+  tbmPolygons: tbmPolygons,             // Continuous TBM tunnel polygons from CAD
+  allCorridorSegments: allCorridorSegments,
+  stations: calculatedStations
 };
 
 const jsonTarget = path.join(__dirname, 'metro_boundary_data.json');
 fs.writeFileSync(jsonTarget, JSON.stringify(metroDataset, null, 2));
 
-const jsTarget = path.join(__dirname, '..', 'js', 'metro_boundary_data.js');
-const jsCode = '/**\n * METRO LINE 2 OFFICIAL CAD/GIS BOUNDARIES & 11 STATIONS (UNIFIED)\n * Chuẩn hoá đồng nhất 11 ga Metro Số 2 từ CAD Ban Quản lý Đường sắt Đô thị (MAUR)\n */\nconst METRO_LINE2_OFFICIAL = ' + JSON.stringify(metroDataset) + ';\n\nif (typeof module !== "undefined") module.exports = METRO_LINE2_OFFICIAL;\n';
-fs.writeFileSync(jsTarget, jsCode);
+// Copy to frontend constants as well
+const frontendJsonTarget = path.join(__dirname, '../frontend/src/features/survey-phase1/constants/metro_boundary_data.json');
+fs.writeFileSync(frontendJsonTarget, JSON.stringify(metroDataset, null, 2));
 
-console.log('Successfully regenerated unified dataset with 11 unified equal stations (ST01 -> ST11)!');
+console.log(`✅ Successfully generated authentic Metro 2 dataset:`);
+console.log(` - Corridor boundaries: 2 lines (${leftBoundary.coords.length} & ${rightBoundary.coords.length} pts)`);
+console.log(` - True centerline: ${trueCenterline.length} smooth points`);
+console.log(` - Stations: ${calculatedStations.length} stations`);
+console.log(` - TBM segments: ${tbmPolygons.length} TBM tunnel sections`);
+console.log(` - Total corridor segments: ${allCorridorSegments.length} segments`);

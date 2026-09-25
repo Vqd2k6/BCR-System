@@ -15,6 +15,14 @@ export class CadastralService {
     return CadastralRepository.listParcelsByZone(zoneId, status);
   }
 
+  static async getMetroAlignment() {
+    return CadastralRepository.getMetroAlignment();
+  }
+
+  static async getMetroSegments() {
+    return CadastralRepository.getMetroSegments();
+  }
+
   static async findNearbyParcels(lat: number, lng: number, radius: number = 150) {
     return CadastralRepository.findNearbyParcels(lat, lng, radius);
   }

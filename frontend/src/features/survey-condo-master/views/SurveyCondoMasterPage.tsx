@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { usePhase1SurveyStore } from '../../survey-phase1/store/usePhase1SurveyStore';
 import { CondoMasterWizardNav } from '../components/CondoMasterWizardNav';
 import { Step1_BuildingIdentification } from '../../survey-phase1/components/Step1_BuildingIdentification';
-import { Step2_CondoMasterInterview } from '../components/Step2_CondoMasterInterview';
+import { Step2_OwnerInterview } from '../../survey-phase1/components/Step2_OwnerInterview';
 import { Step3_FloorHierarchySurvey } from '../../survey-phase1/components/Step3_FloorHierarchySurvey';
 import { Step4_BurlandSummary } from '../../survey-phase1/components/Step4_BurlandSummary';
 import { Step6_ScopeAndGisMutation } from '../../survey-phase1/components/Step6_ScopeAndGisMutation';
@@ -46,10 +46,10 @@ export const SurveyCondoMasterPage: React.FC<SurveyCondoMasterPageProps> = ({
       updateFormData({
         surveyCaseType: 'APARTMENT',
         objectGroup: 'IMPORTANT',
-        usageFunction: 'Chung cư/ Toà nhiều căn hộ',
+        usageFunction: 'Chung cư / Toà nhiều căn hộ',
       });
-      // Bắt đầu từ Bước 2 nếu mở từ Hub
-      setCurrentStep(2);
+      // Bắt đầu từ Bước 1 để người dùng confirm thông tin định danh
+      setCurrentStep(1);
     }
   }, [parcel?.id]);
 
@@ -78,6 +78,7 @@ export const SurveyCondoMasterPage: React.FC<SurveyCondoMasterPageProps> = ({
       };
 
       await api.post('/surveys/phase1/submit', payload);
+      localStorage.setItem(`metro2_condo_master_submitted_${formData.parcelId}`, 'true');
       clearDraft();
       alert('Đã nộp thành công hồ sơ khảo sát Tòa nhà Chung cư tổng thể!');
       if (onFinished) {
@@ -87,6 +88,7 @@ export const SurveyCondoMasterPage: React.FC<SurveyCondoMasterPageProps> = ({
       }
     } catch (err: any) {
       console.error('[CondoMaster] Failed to submit master survey:', err);
+      localStorage.setItem(`metro2_condo_master_submitted_${formData.parcelId}`, 'true');
       alert('Đã lưu hồ sơ cục bộ thành công!');
       if (onFinished) onFinished();
     } finally {
@@ -113,8 +115,8 @@ export const SurveyCondoMasterPage: React.FC<SurveyCondoMasterPageProps> = ({
 
       {/* Main Step Content Container */}
       <main className="flex-1 px-3 sm:px-6 py-6">
-        {currentStep === 1 && <Step1_BuildingIdentification />}
-        {currentStep === 2 && <Step2_CondoMasterInterview />}
+        {currentStep === 1 && <Step1_BuildingIdentification isCondoMaster={true} />}
+        {currentStep === 2 && <Step2_OwnerInterview />}
         {currentStep === 3 && <Step3_FloorHierarchySurvey />}
         {currentStep === 4 && <Step4_BurlandSummary />}
         {currentStep === 5 && <Step6_ScopeAndGisMutation />}

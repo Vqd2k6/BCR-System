@@ -113,7 +113,9 @@ const ABSENTEE_REASONS = [
   'Lý do khác',
 ];
 
-export const Step1_BuildingIdentification: React.FC = () => {
+export const Step1_BuildingIdentification: React.FC<{ isCondoMaster?: boolean }> = ({
+  isCondoMaster = false,
+}) => {
   const { formData, updateFormData, nextStep, clearDraft } = usePhase1SurveyStore();
 
   const [isDrawingPolygon, setIsDrawingPolygon] = useState(false);
@@ -234,11 +236,13 @@ export const Step1_BuildingIdentification: React.FC = () => {
       const buildingId = formData.projectParcelCode || formData.officialCadastralCode || formData.parcelId;
       console.log('[Phase1] Submitting Absentee Survey:', formData);
 
-      // 1. Lưu trạng thái override cục bộ đảm bảo UI trang chủ cập nhật ngay lập tức
+      // 1. Lưu trạng thái override cục bộ dạng CHỜ DUYỆT (với phân loại VẮNG MẶT)
       try {
         const overrides = JSON.parse(localStorage.getItem('metro2_parcel_status_overrides') || '{}');
         overrides[formData.parcelId] = {
-          status: 'POSTPONED_ABSENT',
+          status: 'SUBMITTED',
+          subType: 'POSTPONED_ABSENT',
+          isAbsentee: true,
           updatedAt: new Date().toISOString(),
           buildingId,
         };
@@ -290,23 +294,28 @@ export const Step1_BuildingIdentification: React.FC = () => {
       const buildingId = formData.projectParcelCode || formData.officialCadastralCode || formData.parcelId;
       console.log('[Phase1] Submitting Under Construction Survey:', formData);
 
-      // 1. Lưu trạng thái override cục bộ
+      // 1. Lưu trạng thái override cục bộ dạng CHỜ DUYỆT (với phân loại ĐANG XÂY DỰNG)
       try {
         const overrides = JSON.parse(localStorage.getItem('metro2_parcel_status_overrides') || '{}');
         overrides[formData.parcelId] = {
-          status: 'UNDER_CONSTRUCTION',
+          status: 'SUBMITTED',
+          subType: 'UNDER_CONSTRUCTION',
           updatedAt: new Date().toISOString(),
           buildingId,
         };
         localStorage.setItem('metro2_parcel_status_overrides', JSON.stringify(overrides));
       } catch (_e) {}
 
-      // 2. Gửi API máy chủ
+      // 2. Gửi API máy chủ với status: SUBMITTED
       try {
         await api.post('/surveys/phase1/submit', {
           parcelId: formData.parcelId,
-          surveyData: formData,
-          status: 'IN_PROGRESS',
+          surveyData: {
+            ...formData,
+            targetGroup: (formData as any).targetGroup || formData.objectGroup || 'GENERAL',
+            summaryConclusions: `Công trình đang xây dựng: ${formData.constructionStageNotes || ''}`,
+          },
+          status: 'SUBMITTED',
         });
       } catch (apiErr) {
         console.warn('[Phase1] API submit under-construction failed (fallback to local status):', apiErr);
@@ -867,6 +876,7 @@ export const Step1_BuildingIdentification: React.FC = () => {
           <LevelSelectorWithGuide
             title="1. Lún Chênh Quan Sát Ngoài Nhà / Tầng Trệt"
             selectedLevel={formData.settlementTilt?.diffSettlement?.level ?? 0}
+            alwaysShowChildren={true}
             onChangeLevel={(level) =>
               updateFormData({
                 settlementTilt: {
@@ -881,25 +891,27 @@ export const Step1_BuildingIdentification: React.FC = () => {
             options={SETTLEMENT_LEVEL_OPTIONS}
           >
             <div className="space-y-3">
-              <Input
-                label="Vị trí phát hiện lún chênh cụ thể (nếu có)"
-                placeholder="VD: Góc chân tường bên trái giáp hẻm..."
-                value={formData.settlementTilt?.diffSettlement?.position || ''}
-                onChange={(e) =>
-                  updateFormData({
-                    settlementTilt: {
-                      ...formData.settlementTilt,
-                      diffSettlement: {
-                        ...formData.settlementTilt.diffSettlement,
-                        position: e.target.value,
+              {(formData.settlementTilt?.diffSettlement?.level ?? 0) > 0 && (
+                <Input
+                  label="Vị trí phát hiện lún chênh cụ thể (nếu có)"
+                  placeholder="VD: Góc chân tường bên trái giáp hẻm..."
+                  value={formData.settlementTilt?.diffSettlement?.position || ''}
+                  onChange={(e) =>
+                    updateFormData({
+                      settlementTilt: {
+                        ...formData.settlementTilt,
+                        diffSettlement: {
+                          ...formData.settlementTilt.diffSettlement,
+                          position: e.target.value,
+                        },
                       },
-                    },
-                  })
-                }
-              />
+                    })
+                  }
+                />
+              )}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <PhotoCaptureInput
-                  label="Ảnh chụp vị trí lún chênh / chân tường:"
+                  label={(formData.settlementTilt?.diffSettlement?.level ?? 0) > 0 ? "Ảnh chụp vị trí lún chênh / chân tường:" : "Ảnh chụp hiện trạng chân tường / nền nhà (Minh chứng không lún):"}
                   value={formData.settlementTilt?.diffSettlement?.photoUrl || ''}
                   onChange={(url) =>
                     updateFormData({
@@ -918,11 +930,11 @@ export const Step1_BuildingIdentification: React.FC = () => {
                 />
                 <div>
                   <label className="text-xs font-bold text-slate-700 block mb-1">
-                    Ghi chú chi tiết hiện tượng lún:
+                    {(formData.settlementTilt?.diffSettlement?.level ?? 0) > 0 ? "Ghi chú chi tiết hiện tượng lún:" : "Ghi chú minh chứng (không có lún chênh):"}
                   </label>
                   <textarea
                     rows={4}
-                    placeholder="Mô tả mức độ tách vách, nứt chân tường, vết nứt bậc thang do lún..."
+                    placeholder={(formData.settlementTilt?.diffSettlement?.level ?? 0) > 0 ? "Mô tả mức độ tách vách, nứt chân tường, vết nứt bậc thang do lún..." : "Ghi chú hiện trạng chân tường, nền nhà bằng phẳng, không có dấu hiệu lún..."}
                     value={formData.settlementTilt?.diffSettlement?.notes || ''}
                     onChange={(e) =>
                       updateFormData({
@@ -946,6 +958,7 @@ export const Step1_BuildingIdentification: React.FC = () => {
           <LevelSelectorWithGuide
             title="2. Độ Nghiêng Công Trình (Mặt tiền / Khối nhà)"
             selectedLevel={formData.settlementTilt?.buildingTilt?.level ?? 0}
+            alwaysShowChildren={true}
             onChangeLevel={(level) =>
               updateFormData({
                 settlementTilt: {
@@ -960,48 +973,50 @@ export const Step1_BuildingIdentification: React.FC = () => {
             options={TILT_LEVEL_OPTIONS}
           >
             <div className="space-y-3">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <Input
-                  label="Độ nghiêng phương X (‰)"
-                  type="number"
-                  step="0.1"
-                  placeholder="VD: 3.5"
-                  value={formData.settlementTilt?.buildingTilt?.xPermille ?? ''}
-                  onChange={(e) =>
-                    updateFormData({
-                      settlementTilt: {
-                        ...formData.settlementTilt,
-                        buildingTilt: {
-                          ...formData.settlementTilt.buildingTilt,
-                          xPermille: e.target.value ? Number(e.target.value) : '',
+              {(formData.settlementTilt?.buildingTilt?.level ?? 0) > 0 && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <Input
+                    label="Độ nghiêng phương X (‰)"
+                    type="number"
+                    step="0.1"
+                    placeholder="VD: 3.5"
+                    value={formData.settlementTilt?.buildingTilt?.xPermille ?? ''}
+                    onChange={(e) =>
+                      updateFormData({
+                        settlementTilt: {
+                          ...formData.settlementTilt,
+                          buildingTilt: {
+                            ...formData.settlementTilt.buildingTilt,
+                            xPermille: e.target.value ? Number(e.target.value) : '',
+                          },
                         },
-                      },
-                    })
-                  }
-                />
-                <Input
-                  label="Độ nghiêng phương Y (‰)"
-                  type="number"
-                  step="0.1"
-                  placeholder="VD: 1.8"
-                  value={formData.settlementTilt?.buildingTilt?.yPermille ?? ''}
-                  onChange={(e) =>
-                    updateFormData({
-                      settlementTilt: {
-                        ...formData.settlementTilt,
-                        buildingTilt: {
-                          ...formData.settlementTilt.buildingTilt,
-                          yPermille: e.target.value ? Number(e.target.value) : '',
+                      })
+                    }
+                  />
+                  <Input
+                    label="Độ nghiêng phương Y (‰)"
+                    type="number"
+                    step="0.1"
+                    placeholder="VD: 1.8"
+                    value={formData.settlementTilt?.buildingTilt?.yPermille ?? ''}
+                    onChange={(e) =>
+                      updateFormData({
+                        settlementTilt: {
+                          ...formData.settlementTilt,
+                          buildingTilt: {
+                            ...formData.settlementTilt.buildingTilt,
+                            yPermille: e.target.value ? Number(e.target.value) : '',
+                          },
                         },
-                      },
-                    })
-                  }
-                />
-              </div>
+                      })
+                    }
+                  />
+                </div>
+              )}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <PhotoCaptureInput
-                  label="Ảnh chụp độ nghiêng khối nhà / thước đo Laser/Nivo:"
+                  label={(formData.settlementTilt?.buildingTilt?.level ?? 0) > 0 ? "Ảnh chụp độ nghiêng khối nhà / thước đo Laser/Nivo:" : "Ảnh chụp mặt đứng công trình (Minh chứng không nghiêng):"}
                   value={formData.settlementTilt?.buildingTilt?.photoUrl || ''}
                   onChange={(url) =>
                     updateFormData({
@@ -1147,9 +1162,10 @@ export const Step1_BuildingIdentification: React.FC = () => {
       </Card>
 
       {/* ========================================================================= */}
-      {/* 1.7. NHẬN ĐỊNH LOẠI CÔNG TRÌNH (Ở CUỐI BƯỚC 1) */}
+      {/* 1.7. NHẬN ĐỊNH LOẠI CÔNG TRÌNH (Ở CUỐI BƯỚC 1) - ẨN KHI LÀ TOÀ CHUNG CƯ */}
       {/* ========================================================================= */}
-      <Card className="border-emerald-300 bg-emerald-50/30 shadow-xs space-y-4">
+      {!isCondoMaster && (
+        <Card className="border-emerald-300 bg-emerald-50/30 shadow-xs space-y-4">
         <div className="flex items-center justify-between pb-2 border-b border-emerald-200">
           <div className="flex items-center gap-2">
             <Building2 className="w-5 h-5 text-emerald-700" />
@@ -1509,30 +1525,32 @@ export const Step1_BuildingIdentification: React.FC = () => {
           </div>
         )}
       </Card>
+      )}
 
       {/* Polygon Drawing Modal - Full Screen */}
       {isDrawingPolygon && formData.photoP02.url && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex flex-col p-3 sm:p-5 animate-in fade-in">
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex flex-col p-3 sm:p-5 animate-in fade-in">
           <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 flex-1 flex flex-col overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 bg-slate-50">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-emerald-100 bg-gradient-to-r from-emerald-50 to-white">
               <div>
-                <h3 className="font-bold text-sm sm:text-base text-slate-800">
+                <h3 className="font-bold text-sm sm:text-base text-emerald-800 flex items-center gap-2">
+                  <span className="w-6 h-6 rounded-full bg-emerald-600 text-white text-[11px] flex items-center justify-center font-bold flex-shrink-0">P2</span>
                   Vẽ Đa Giác Bao Mặt Đứng & Đường Phân Tầng (Ảnh P-02)
                 </h3>
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-slate-500 mt-0.5 ml-8">
                   Chấm các đỉnh góc nhà để tính diện tích bao và kéo đường phân tầng
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setIsDrawingPolygon(false)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-200 transition-colors"
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors border border-slate-200"
                 title="Hủy / Đóng"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <div className="flex-1 overflow-hidden p-3 bg-slate-100">
+            <div className="flex-1 overflow-hidden p-3 bg-slate-50">
               <FacadePolygonCanvas
                 imageUrl={formData.photoP02.url}
                 polygonPoints={formData.photoP02.polygonPoints}
@@ -1562,8 +1580,23 @@ export const Step1_BuildingIdentification: React.FC = () => {
         </div>
       )}
 
-      {/* Bottom Action Footer (Hiển thị khi ở chế độ Nhà dân thông thường) */}
-      {currentCase === 'NORMAL' && (
+
+      {/* Bottom Action Footer */}
+      {isCondoMaster ? (
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-slate-200">
+          <div className="text-xs text-slate-500 font-medium">
+            Bước 1 / 8: Xác nhận định danh khối tháp Chung cư & Ngoại quan
+          </div>
+          <Button
+            size="lg"
+            onClick={nextStep}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold"
+            icon={<ArrowRight className="w-4 h-4" />}
+          >
+            Tiếp tục: Bước 2 (Phỏng vấn BQL Tòa nhà & Nền móng) ➔
+          </Button>
+        </div>
+      ) : currentCase === 'NORMAL' && (
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-4 border-t border-slate-200">
           <div className="text-xs text-slate-500">
             Bước 1 / 8: Định danh công trình & Ngoại quan

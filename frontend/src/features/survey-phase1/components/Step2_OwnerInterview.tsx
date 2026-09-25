@@ -16,6 +16,7 @@ import {
 
 const USAGE_OPTIONS = [
   'Nhà ở gia đình',
+  'Chung cư / Toà nhiều căn hộ',
   'Cửa hàng / Shop / Bách hóa',
   'Quán ăn / Nhà hàng / Cafe',
   'Văn phòng / Trụ sở cty',

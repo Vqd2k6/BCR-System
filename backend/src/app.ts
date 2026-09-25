@@ -85,6 +85,10 @@ export function createApp(): express.Application {
   api.get('/attendance/my-history', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), AttendanceController.getMyHistory);
   api.get('/attendance/assigned-zone', authenticateJwt, AttendanceController.getAssignedZone);
 
+  // GIS Layers: Tim tuyến Metro 2 & 22 Phân đoạn Zone
+  api.get('/gis/metro-alignment', CadastralController.getMetroAlignment);
+  api.get('/gis/metro-segments', CadastralController.getMetroSegments);
+
   // Thửa đất & Quét cạn
   api.get('/parcels/zone-map', authenticateJwt, CadastralController.getZoneMap);
   api.get('/parcels/nearby', authenticateJwt, CadastralController.getNearbyParcels);

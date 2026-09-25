@@ -58,28 +58,18 @@ export function verifyDataCompletenessGate(data: Phase1SurveyFormData): GateVeri
         (data.asBuiltDrawingFiles && data.asBuiltDrawingFiles.length > 0)
       );
 
-  // 6. Structural Review (Lấy trực tiếp từ Bước 4: Burland Summary)
+  // 6. Structural Review (Lấy trực tiếp từ Bước 4: Burland Summary 4.1 mục 5)
   const burland = data.burlandSummary || {};
   const needsReview = Boolean(
     burland.needStructuralEngineerReview ||
     burland.structuralFlagLevel === 'HIGH' ||
     burland.structuralFlagLevel === 'CRITICAL'
   );
-  const isNoStructuralFlag = (burland.structuralFlagLevel === 'NONE' || !burland.structuralFlagLevel) && !burland.needStructuralEngineerReview;
 
-  let structuralStatus: 'SUFFICIENT' | 'PENDING_REVIEW' | 'NA' = 'SUFFICIENT';
-  let structuralLabel = 'Đủ (Không yêu cầu)';
-
-  if (needsReview) {
-    structuralStatus = 'PENDING_REVIEW';
-    structuralLabel = 'Cần thẩm tra (Pending Review)';
-  } else if (isNoStructuralFlag) {
-    structuralStatus = 'NA';
-    structuralLabel = 'N/A (Bình thường)';
-  } else {
-    structuralStatus = 'SUFFICIENT';
-    structuralLabel = 'Đủ (Không yêu cầu)';
-  }
+  let structuralStatus: 'SUFFICIENT' | 'PENDING_REVIEW' = needsReview ? 'PENDING_REVIEW' : 'SUFFICIENT';
+  let structuralLabel = needsReview
+    ? 'Có - Cần Kỹ sư kết cấu thẩm tra chuyên sâu'
+    : 'Không - Mức độ hư hỏng thông thường';
 
   // Đề xuất tổng quan: Chỉ còn 2 trạng thái ALLOW hoặc CONDITIONAL (Đã bỏ PENDING)
   let overallSuggestedDecision: 'ALLOW' | 'CONDITIONAL' = 'ALLOW';

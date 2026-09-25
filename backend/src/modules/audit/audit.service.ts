@@ -195,17 +195,28 @@ export class AuditService {
 
   static async approveReport(reportId: string, adminId: string, judgementNotes?: string) {
     return Database.transaction(async (client) => {
-      const repRes = await client.query<{ id: string; parcel_id: string; project_parcel_code: string }>(
-        `SELECT r.id, r.parcel_id, p.project_parcel_code
+      const repRes = await client.query<{
+        id: string;
+        parcel_id: string;
+        project_parcel_code: string;
+        is_refused_or_absent: boolean;
+        summary_conclusions: string;
+        current_step: number;
+      }>(
+        `SELECT r.id, r.parcel_id, p.project_parcel_code, r.is_refused_or_absent, r.summary_conclusions, r.current_step
          FROM base_survey_reports r
          JOIN parcels p ON r.parcel_id = p.id
-         WHERE r.id = $1 FOR UPDATE;`,
+         WHERE (r.id = $1 OR r.parcel_id = $1)
+         ORDER BY (CASE WHEN r.id = $1 THEN 0 ELSE 1 END), r.created_at DESC
+         LIMIT 1 FOR UPDATE;`,
         [reportId]
       );
       if (!repRes.rows[0]) {
         throw new NotFoundError(`Không tìm thấy hồ sơ với ID: ${reportId}`);
       }
 
+      const actualReportId = repRes.rows[0].id;
+      const actualParcelId = repRes.rows[0].parcel_id;
       const officialPdfUrl = `https://storage.metro2.vn/reports/REPORT_${repRes.rows[0].project_parcel_code}_OFFICIAL.pdf`;
 
       // 1. Phê duyệt Báo cáo
@@ -218,13 +229,23 @@ export class AuditService {
              engineering_recommendations = COALESCE($4, engineering_recommendations),
              updated_at = NOW()
          WHERE id = $1;`,
-        [reportId, adminId, officialPdfUrl, judgementNotes || null]
+        [actualReportId, adminId, officialPdfUrl, judgementNotes || null]
       );
 
-      // 2. Chuyển trạng thái Thửa đất sang APPROVED (Màu Xanh Lá trên GIS)
+      // 2. Chuyển trạng thái Thửa đất về trạng thái đã duyệt tương ứng
+      let parcelApprovedStatus = 'APPROVED';
+      if (repRes.rows[0].is_refused_or_absent) {
+        parcelApprovedStatus = 'POSTPONED_ABSENT';
+      } else if (
+        repRes.rows[0].summary_conclusions?.toLowerCase().includes('đang thi công') ||
+        repRes.rows[0].summary_conclusions?.toLowerCase().includes('đang xây')
+      ) {
+        parcelApprovedStatus = 'UNDER_CONSTRUCTION';
+      }
+
       await client.query(
-        `UPDATE parcels SET survey_status = 'APPROVED', updated_at = NOW() WHERE id = $1;`,
-        [repRes.rows[0].parcel_id]
+        `UPDATE parcels SET survey_status = $2, updated_at = NOW() WHERE id = $1;`,
+        [actualParcelId, parcelApprovedStatus]
       );
 
       // 3. Tự động đóng các cờ cảnh báo
@@ -232,11 +253,12 @@ export class AuditService {
         `UPDATE audit_alert_items
          SET is_resolved = TRUE, resolved_by_user_id = $2, resolved_at = NOW()
          WHERE report_id = $1;`,
-        [reportId, adminId]
+        [actualReportId, adminId]
       );
 
       return {
-        reportId,
+        reportId: actualReportId,
+        parcelId: actualParcelId,
         status: 'APPROVED',
         officialPdfUrl,
         message: 'Đã phê duyệt báo cáo thành công và sinh file PDF/A ký số điện tử',
@@ -247,12 +269,18 @@ export class AuditService {
   static async rejectReport(reportId: string, adminId: string, rejectionReason: string) {
     return Database.transaction(async (client) => {
       const repRes = await client.query<{ id: string; parcel_id: string }>(
-        `SELECT id, parcel_id FROM base_survey_reports WHERE id = $1 FOR UPDATE;`,
+        `SELECT id, parcel_id FROM base_survey_reports 
+         WHERE (id = $1 OR parcel_id = $1)
+         ORDER BY (CASE WHEN id = $1 THEN 0 ELSE 1 END), created_at DESC
+         LIMIT 1 FOR UPDATE;`,
         [reportId]
       );
       if (!repRes.rows[0]) {
         throw new NotFoundError(`Không tìm thấy hồ sơ với ID: ${reportId}`);
       }
+
+      const actualReportId = repRes.rows[0].id;
+      const actualParcelId = repRes.rows[0].parcel_id;
 
       // 1. Trả về Báo cáo kèm lý do kỹ thuật
       await client.query(
@@ -262,17 +290,18 @@ export class AuditService {
              engineering_recommendations = $3,
              updated_at = NOW()
          WHERE id = $1;`,
-        [reportId, adminId, `LÝ DO TRẢ VỀ: ${rejectionReason}`]
+        [actualReportId, adminId, `LÝ DO TRẢ VỀ: ${rejectionReason}`]
       );
 
       // 2. Chuyển thửa đất sang REJECTED (Màu Đỏ trên GIS)
       await client.query(
         `UPDATE parcels SET survey_status = 'REJECTED', updated_at = NOW() WHERE id = $1;`,
-        [repRes.rows[0].parcel_id]
+        [actualParcelId]
       );
 
       return {
-        reportId,
+        reportId: actualReportId,
+        parcelId: actualParcelId,
         status: 'REJECTED',
         rejectionReason,
         message: 'Đã trả về báo cáo khảo sát thành công',
