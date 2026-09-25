@@ -291,11 +291,11 @@ export class SurveyController {
 
       // 4. Nộp hồ sơ
       const result = await SurveyService.submitPhase1Report(reportId, {
-        ownerRemarks: surveyData?.signatures?.ownerRemarks || '',
+        ownerRemarks: surveyData?.signatures?.ownerFeedback || surveyData?.signatures?.ownerRemarks || '',
         surveyorSignatureUrl: surveyData?.signatures?.preparedBy?.photoUrl || surveyData?.signatures?.surveyorSignatureUrl || '',
         ownerSignatureUrl: surveyData?.signatures?.ownerRepresentative?.photoUrl || surveyData?.signatures?.ownerSignatureUrl || '',
-        summaryConclusions: surveyData?.summaryConclusions || surveyData?.signatures?.summaryConclusions || '',
-        engineeringRecommendations: surveyData?.engineeringRecommendations || surveyData?.signatures?.engineeringRecommendations || '',
+        summaryConclusions: surveyData?.executiveSummary?.keyRisksDefectsText || surveyData?.summaryConclusions || '',
+        engineeringRecommendations: surveyData?.executiveSummary?.specificRecommendationsText || surveyData?.engineeringRecommendations || '',
       });
 
       res.status(200).json({
