@@ -538,21 +538,22 @@ export const Step7_TechnicalCalculations: React.FC = () => {
                 <td className="p-2.5 font-medium flex items-center justify-between">
                   <span>Công năng & Quy mô</span>
                   <InfoPopover title="Quy tắc tính chỉ số V1" size="md">
-                    <p><strong>Nguồn:</strong> Nhóm đối tượng công trình ở Bước 1.</p>
-                    <p className="mt-1"><strong>Quy tắc:</strong> General: 1đ; Important: 2đ; Critical: 4đ.</p>
+                    <p><strong>Nguồn:</strong> Công năng Bước 2 & Nhóm đối tượng công trình Bước 1.</p>
+                    <p className="mt-1"><strong>Quy tắc:</strong> Normal: 0đ; General: 2đ; Important: 3đ; Critical: 4đ.</p>
                     <div className="mt-2 pt-2 border-t border-slate-100 text-[11px] leading-relaxed">
-                      <strong className="text-slate-800 block mb-1">🔍 Chi tiết cách thức tính điểm:</strong>
+                      <strong className="text-slate-800 block mb-1">🔍 Chi tiết cách thức tính điểm (Xét Normal trước 2, 3, 4đ):</strong>
                       <ul className="list-disc pl-3.5 space-y-0.5 text-slate-600">
-                        <li><strong>1 điểm (General):</strong> Nhà ở riêng lẻ dân dụng thông thường, quy mô 1–3 tầng, mức độ rủi ro cộng đồng thấp.</li>
-                        <li><strong>2 điểm (Important):</strong> Nhà phố kết hợp kinh doanh đông người, trường mầm non, chung cư mini, khách sạn mini (4–7 tầng).</li>
-                        <li><strong>4 điểm (Critical):</strong> Bệnh viện, trường học lớn, di sản văn hóa/kiến trúc cổ, trụ sở cơ quan trọng yếu, công trình tập trung rất đông người.</li>
+                        <li><strong>0 điểm (Normal):</strong> "Nhà bỏ trống" tại Bước 2 hoặc "Đất trống" tại Bước 1 (không có người cư trú/không tải trọng công trình).</li>
+                        <li><strong>2 điểm (General):</strong> Nhà dân / Công trình thông thường (nhà ở riêng lẻ dân dụng 1–3 tầng).</li>
+                        <li><strong>3 điểm (Important):</strong> Công trình quan trọng (nhà phố kinh doanh đông người, trường mầm non, chung cư mini, khách sạn mini).</li>
+                        <li><strong>4 điểm (Critical):</strong> Công trình trọng yếu cấp đặc biệt (bệnh viện lớn, di tích lịch sử, trụ sở cơ quan đầu não).</li>
                       </ul>
                     </div>
                   </InfoPopover>
                 </td>
-                <td className="p-2.5 text-center text-slate-500">General (1)</td>
-                <td className="p-2.5 text-center text-slate-500">Important (2)</td>
-                <td className="p-2.5 text-center text-slate-500">—</td>
+                <td className="p-2.5 text-center text-slate-500">Normal (0)</td>
+                <td className="p-2.5 text-center text-slate-500">General (2)</td>
+                <td className="p-2.5 text-center text-slate-500">Important (3)</td>
                 <td className="p-2.5 text-center text-slate-500">Critical (4)</td>
                 <td className="p-2.5 text-center font-bold text-purple-700 bg-purple-50/50">{vi.v1}</td>
               </tr>

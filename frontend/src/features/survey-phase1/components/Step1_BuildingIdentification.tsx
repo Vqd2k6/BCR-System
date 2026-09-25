@@ -13,33 +13,54 @@ import { Step1PolygonModal } from './step1/Step1PolygonModal';
 import { Step1BottomNav } from './step1/Step1BottomNav';
 import { Step1SuccessModals } from './step1/Step1SuccessModals';
 
-export const Step1_BuildingIdentification: React.FC<{ isCondoMaster?: boolean }> = ({
+interface Step1BuildingIdentificationProps {
+  isCondoMaster?: boolean;
+  onFinished?: () => void;
+  onBackToHome?: () => void;
+}
+
+export const Step1_BuildingIdentification: React.FC<Step1BuildingIdentificationProps> = ({
   isCondoMaster = false,
+  onFinished,
+  onBackToHome,
 }) => {
   const { formData, updateFormData, nextStep, clearDraft } = usePhase1SurveyStore();
 
   const [isDrawingPolygon, setIsDrawingPolygon] = useState(false);
   const [isSubmittingAbsentee, setIsSubmittingAbsentee] = useState(false);
   const [isSubmittingUnderConstruction, setIsSubmittingUnderConstruction] = useState(false);
+  const [isSubmittingVacantLand, setIsSubmittingVacantLand] = useState(false);
   const [showAbsenteeSuccessModal, setShowAbsenteeSuccessModal] = useState(false);
   const [showUnderConstructionSuccessModal, setShowUnderConstructionSuccessModal] = useState(false);
+  const [showVacantLandSuccessModal, setShowVacantLandSuccessModal] = useState(false);
   const [isConfirmingApartment, setIsConfirmingApartment] = useState(false);
   const [showApartmentSuccessModal, setShowApartmentSuccessModal] = useState(false);
 
   // Survey case mode
   const currentCase = formData.surveyCaseType || (formData.isAbsenteeSurvey ? 'ABSENTEE' : 'NORMAL');
 
-  const handleSelectCase = (caseType: 'NORMAL' | 'ABSENTEE' | 'APARTMENT' | 'UNDER_CONSTRUCTION') => {
+  const handleSelectCase = (caseType: 'NORMAL' | 'ABSENTEE' | 'APARTMENT' | 'UNDER_CONSTRUCTION' | 'VACANT_LAND') => {
     if (caseType === 'ABSENTEE') {
       updateFormData({
         surveyCaseType: 'ABSENTEE',
         isAbsenteeSurvey: true,
+        isVacantLand: false,
         absenteeReason: formData.absenteeReason || ABSENTEE_REASONS[0],
+      });
+    } else if (caseType === 'VACANT_LAND') {
+      updateFormData({
+        surveyCaseType: 'VACANT_LAND',
+        isAbsenteeSurvey: false,
+        isVacantLand: true,
+        buildingName: formData.buildingName || 'Khu đất trống',
+        usageFunction: 'Đất trống',
+        vacantLandStatus: formData.vacantLandStatus || 'Đất trống chưa xây dựng',
       });
     } else if (caseType === 'APARTMENT') {
       updateFormData({
         surveyCaseType: 'APARTMENT',
         isAbsenteeSurvey: false,
+        isVacantLand: false,
         objectGroup: 'IMPORTANT',
         usageFunction: formData.usageFunction === 'Nhà ở gia đình' ? 'Khách sạn / Nhà nghỉ / Căn hộ DV' : formData.usageFunction,
       });
@@ -47,11 +68,13 @@ export const Step1_BuildingIdentification: React.FC<{ isCondoMaster?: boolean }>
       updateFormData({
         surveyCaseType: 'UNDER_CONSTRUCTION',
         isAbsenteeSurvey: false,
+        isVacantLand: false,
       });
     } else {
       updateFormData({
         surveyCaseType: 'NORMAL',
         isAbsenteeSurvey: false,
+        isVacantLand: false,
       });
     }
   };
@@ -157,7 +180,8 @@ export const Step1_BuildingIdentification: React.FC<{ isCondoMaster?: boolean }>
           photoProofUrl: formData.absenteeMinutesPhotos?.[0] || formData.photoP01?.url || '',
         });
       } catch (apiErr) {
-        console.warn('[Phase1] API record-absence failed (fallback to persistent local status):', apiErr);
+        console.error('[Phase1] API record-absence failed:', apiErr);
+        throw apiErr;
       }
 
       setShowAbsenteeSuccessModal(true);
@@ -218,7 +242,8 @@ export const Step1_BuildingIdentification: React.FC<{ isCondoMaster?: boolean }>
           status: 'SUBMITTED',
         });
       } catch (apiErr) {
-        console.warn('[Phase1] API submit under-construction failed (fallback to local status):', apiErr);
+        console.error('[Phase1] API submit under construction failed:', apiErr);
+        throw apiErr;
       }
 
       setShowUnderConstructionSuccessModal(true);
@@ -227,6 +252,68 @@ export const Step1_BuildingIdentification: React.FC<{ isCondoMaster?: boolean }>
       alert('Có lỗi khi gửi báo cáo công trình đang xây dựng.');
     } finally {
       setIsSubmittingUnderConstruction(false);
+    }
+  };
+
+  const handleSubmitVacantLand = async () => {
+    try {
+      if (!formData.vacantLandPhotos || formData.vacantLandPhotos.length === 0) {
+        if (!formData.photoP01?.url && !formData.photoP02?.url) {
+          alert('Vui lòng chụp ít nhất 1 ảnh hiện trạng thửa đất trống.');
+          const el = document.getElementById('vacant-land-photos-section');
+          if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+          return;
+        }
+      }
+
+      setIsSubmittingVacantLand(true);
+      const buildingId = formData.projectParcelCode || formData.officialCadastralCode || formData.parcelId;
+      console.log('[Phase1] Submitting Vacant Land Survey:', formData);
+
+      // 1. Lưu trạng thái override cục bộ dạng SUBMITTED (với phân loại ĐẤT TRỐNG)
+      try {
+        const overrides = JSON.parse(localStorage.getItem('metro2_parcel_status_overrides') || '{}');
+        overrides[formData.parcelId] = {
+          status: 'SUBMITTED',
+          subType: 'VACANT_LAND',
+          isVacantLand: true,
+          buildingCategory: 'Đất trống',
+          updatedAt: new Date().toISOString(),
+          buildingId,
+        };
+        localStorage.setItem('metro2_parcel_status_overrides', JSON.stringify(overrides));
+      } catch (_e) {}
+
+      // 2. Gửi API máy chủ với status: SUBMITTED
+      try {
+        await api.post('/surveys/phase1/submit', {
+          parcelId: formData.parcelId,
+          surveyData: {
+            ...formData,
+            surveyCaseType: 'VACANT_LAND',
+            buildingCategory: 'Đất trống',
+            isVacantLand: true,
+            usageFunction: 'Đất trống',
+            targetGroup: (formData as any).targetGroup || formData.objectGroup || 'GENERAL',
+            summaryConclusions: `Thửa đất trống: ${formData.vacantLandStatus || 'Đất trống chưa xây dựng'}. ${formData.vacantLandNotes || ''}`,
+          },
+          status: 'SUBMITTED',
+        });
+      } catch (apiErr) {
+        console.error('[Phase1] API submit vacant land failed:', apiErr);
+        throw apiErr;
+      }
+
+
+
+      setShowVacantLandSuccessModal(true);
+    } catch (err) {
+      console.error('Submit vacant land error:', err);
+      alert('Có lỗi khi gửi báo cáo đất trống.');
+    } finally {
+      setIsSubmittingVacantLand(false);
     }
   };
 
@@ -242,7 +329,8 @@ export const Step1_BuildingIdentification: React.FC<{ isCondoMaster?: boolean }>
           buildingType: 'CONDOMINIUM',
         });
       } catch (apiErr) {
-        console.warn('[Phase1] API patch building-type failed (using local persistent override):', apiErr);
+        console.error('[Phase1] API patch building-type failed:', apiErr);
+        throw apiErr;
       }
 
       // 2. Lưu override trạng thái công trình là chung cư
@@ -320,6 +408,8 @@ export const Step1_BuildingIdentification: React.FC<{ isCondoMaster?: boolean }>
         onConfirmApartment={handleConfirmApartment}
         isSubmittingUnderConstruction={isSubmittingUnderConstruction}
         onSubmitUnderConstruction={handleSubmitUnderConstruction}
+        isSubmittingVacantLand={isSubmittingVacantLand}
+        onSubmitVacantLand={handleSubmitVacantLand}
       />
 
       {/* Polygon Drawing Modal - Full Screen */}
@@ -349,37 +439,64 @@ export const Step1_BuildingIdentification: React.FC<{ isCondoMaster?: boolean }>
         onNextStep={nextStep}
       />
 
-      {/* Success Modals for Absentee, Under Construction, Apartment */}
+      {/* Success Modals for Absentee, Under Construction, Apartment, Vacant Land */}
       <Step1SuccessModals
         showAbsenteeSuccessModal={showAbsenteeSuccessModal}
         onCloseAbsentee={() => {
           setShowAbsenteeSuccessModal(false);
-          clearDraft();
-          window.location.hash = '#/';
-          window.location.reload();
+          clearDraft(true);
+          if (onFinished) onFinished();
+          else if (onBackToHome) onBackToHome();
+          else {
+            window.location.hash = '#/';
+            window.location.reload();
+          }
         }}
         showUnderConstructionSuccessModal={showUnderConstructionSuccessModal}
         onCloseUnderConstruction={() => {
           setShowUnderConstructionSuccessModal(false);
-          clearDraft();
-          window.location.hash = '#/';
-          window.location.reload();
+          clearDraft(true);
+          if (onFinished) onFinished();
+          else if (onBackToHome) onBackToHome();
+          else {
+            window.location.hash = '#/';
+            window.location.reload();
+          }
+        }}
+        showVacantLandSuccessModal={showVacantLandSuccessModal}
+        onCloseVacantLand={() => {
+          setShowVacantLandSuccessModal(false);
+          clearDraft(true);
+          if (onFinished) onFinished();
+          else if (onBackToHome) onBackToHome();
+          else {
+            window.location.hash = '#/';
+            window.location.reload();
+          }
         }}
         showApartmentSuccessModal={showApartmentSuccessModal}
         onCloseApartment={() => {
           setShowApartmentSuccessModal(false);
-          clearDraft();
-          window.location.hash = '#/';
-          window.location.reload();
+          clearDraft(true);
+          if (onFinished) onFinished();
+          else if (onBackToHome) onBackToHome();
+          else {
+            window.location.hash = '#/';
+            window.location.reload();
+          }
         }}
         onOpenCondoHub={() => {
           setShowApartmentSuccessModal(false);
           try {
             localStorage.setItem('metro2_open_hub_parcel_id', formData.parcelId);
           } catch (_e) {}
-          clearDraft();
-          window.location.hash = '#/';
-          window.location.reload();
+          clearDraft(true);
+          if (onFinished) onFinished();
+          else if (onBackToHome) onBackToHome();
+          else {
+            window.location.hash = '#/';
+            window.location.reload();
+          }
         }}
         buildingCode={buildingIdentifier}
       />

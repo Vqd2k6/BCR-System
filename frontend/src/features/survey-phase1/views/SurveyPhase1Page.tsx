@@ -154,17 +154,82 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
                   continuousOperation247: Boolean(h.continuous_operation_247),
                 };
               }
-              if (rep.floorSurveys && rep.floorSurveys.length > 0) {
-                updates.floors = rep.floorSurveys.map((f: any) => ({
-                  id: f.id,
-                  floorName: f.floor_name,
-                  overviewPhotos: f.overview_photos || [],
-                  cadSketchPhotoUrl: f.cad_sketch_photo_url || '',
-                  cadZonePins: f.cad_zone_pins || [],
-                  cadElementPins: f.cad_element_pins || [],
-                  zones: f.zones || [],
-                  structuralElements: f.structural_elements || [],
-                }));
+              if (updates.floors && Array.isArray(updates.floors) && updates.floors.length > 0) {
+                // Đã khôi phục từ snapshot survey_data_json -> Chuẩn hóa ảnh và bảo toàn dữ liệu zones, pins, CAD
+                updates.floors = updates.floors.map((fl: any, idx: number) => {
+                  const beFloor = rep.floorSurveys?.[idx];
+                  const rawPhotos = fl.overviewPhotos && fl.overviewPhotos.length > 0 
+                    ? fl.overviewPhotos 
+                    : (beFloor?.overview_photos_json || beFloor?.overview_photos || []);
+                  
+                  const normalizedPhotos = (Array.isArray(rawPhotos) ? rawPhotos : []).map((p: any, pIdx: number) => {
+                    if (typeof p === 'string') return { id: `fl_ov_${pIdx}`, url: p, caption: '' };
+                    return { id: p.id || `fl_ov_${pIdx}`, url: p.url || '', caption: p.caption || '' };
+                  });
+
+                  return {
+                    ...fl,
+                    overviewPhotos: normalizedPhotos,
+                    cadSketchPhotoUrl: fl.cadSketchPhotoUrl || beFloor?.cad_drawing_url || beFloor?.cad_sketch_photo_url || '',
+                    cadStructuralSketchPhotoUrl: fl.cadStructuralSketchPhotoUrl || fl.cadStructuralDrawingUrl || beFloor?.cad_structural_drawing_url || '',
+                    cadZonePins: fl.cadZonePins || beFloor?.cad_zone_pins_json || beFloor?.cad_zone_pins || [],
+                    cadElementPins: fl.cadElementPins || beFloor?.cad_element_pins_json || beFloor?.cad_element_pins || [],
+                    zones: fl.zones || [],
+                    structuralElements: fl.structuralElements || [],
+                  };
+                });
+              } else if (rep.floorSurveys && rep.floorSurveys.length > 0) {
+                // Fallback nếu không có survey_data_json: khôi phục từ bảng floor_surveys và damage_zones
+                const zonesByFloor = (rep.damageZones || []).reduce((acc: any, z: any) => {
+                  const fid = z.floor_id;
+                  if (!acc[fid]) acc[fid] = [];
+                  acc[fid].push({
+                    id: z.id,
+                    zoneCode: z.zone_code,
+                    zoneName: z.zone_name,
+                    componentType: z.component_type,
+                    notes: z.notes,
+                    ctxPhotoUrl: z.photo_context_url || z.ctx_photo_url,
+                    hasDamage: (z.defects && z.defects.length > 0) || Boolean(z.has_damage),
+                    defects: (z.defects || []).map((d: any) => ({
+                      id: d.id,
+                      defectCode: d.defect_code,
+                      pinX: Number(d.pin_x) || 0,
+                      pinY: Number(d.pin_y) || 0,
+                      screeningCategory: d.screening_category,
+                      defectType: d.defect_type,
+                      crackDirection: d.crack_direction,
+                      widthMaxMm: Number(d.width_max_mm) || 0,
+                      lengthMm: Number(d.length_mm) || 0,
+                      cuPhotoUrl: d.cu_photo_url,
+                      extraPhotoUrl: d.extra_photo_url,
+                      pinColor: d.pin_color || '#ef4444',
+                      hasScaleCard: d.has_scale_card ?? true,
+                      isStructuralCritical: d.is_structural_critical ?? false,
+                    })),
+                  });
+                  return acc;
+                }, {});
+
+                updates.floors = rep.floorSurveys.map((f: any) => {
+                  const rawPhotos = f.overview_photos_json || f.overview_photos || [];
+                  const normalizedPhotos = (Array.isArray(rawPhotos) ? rawPhotos : []).map((p: any, pIdx: number) => {
+                    if (typeof p === 'string') return { id: `fl_ov_${pIdx}`, url: p, caption: '' };
+                    return { id: p.id || `fl_ov_${pIdx}`, url: p.url || '', caption: p.caption || '' };
+                  });
+
+                  return {
+                    id: f.id,
+                    floorName: f.floor_name,
+                    overviewPhotos: normalizedPhotos,
+                    cadSketchPhotoUrl: f.cad_drawing_url || f.cad_sketch_photo_url || '',
+                    cadStructuralSketchPhotoUrl: f.cad_structural_drawing_url || '',
+                    cadZonePins: f.cad_zone_pins_json || f.cad_zone_pins || [],
+                    cadElementPins: f.cad_element_pins_json || f.cad_element_pins || [],
+                    zones: zonesByFloor[f.id] || f.zones || [],
+                    structuralElements: f.structural_elements || [],
+                  };
+                });
               }
               if (rep.owner_remarks) {
                 updates.ownerRemarks = rep.owner_remarks;
@@ -204,6 +269,10 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
   // Chặn thao tác reload / đóng tab ngoài ý muốn
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      const store = usePhase1SurveyStore.getState();
+      if (store.isSubmitted || readOnly) {
+        return;
+      }
       saveDraftToStorage();
       e.preventDefault();
       e.returnValue = 'Bạn có dữ liệu khảo sát đang thực hiện. Bạn có chắc chắn muốn tải lại hoặc rời đi?';
@@ -211,13 +280,18 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
     };
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [saveDraftToStorage]);
+  }, [readOnly, saveDraftToStorage]);
 
   // Chặn thao tác back trình duyệt / vuốt back trên điện thoại
   useEffect(() => {
     window.history.pushState({ surveySessionActive: true }, '');
 
     const handlePopState = () => {
+      const store = usePhase1SurveyStore.getState();
+      if (store.isSubmitted || readOnly) {
+        onBackToHome();
+        return;
+      }
       const confirmLeave = window.confirm(
         'Bạn có chắc chắn muốn quay lại và tạm rời phiên khảo sát? Toàn bộ dữ liệu đang nhập đã được lưu nháp an toàn.'
       );
@@ -231,10 +305,15 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
 
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, [onBackToHome, saveDraftToStorage]);
+  }, [onBackToHome, readOnly, saveDraftToStorage]);
 
   // Quay về an toàn có xác nhận và lưu nháp
   const handleSafeBackToHome = () => {
+    const store = usePhase1SurveyStore.getState();
+    if (store.isSubmitted || readOnly) {
+      onBackToHome();
+      return;
+    }
     const confirmLeave = window.confirm(
       'Bạn có chắc chắn muốn quay về danh sách? Toàn bộ dữ liệu khảo sát đã được tự động lưu nháp an toàn vào bộ nhớ thiết bị.'
     );
@@ -434,7 +513,12 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
 
       {/* Main Step Content Container */}
       <main className="flex-1 px-3 sm:px-6 py-6">
-        {currentStep === 1 && <Step1_BuildingIdentification />}
+        {currentStep === 1 && (
+          <Step1_BuildingIdentification
+            onFinished={onFinished}
+            onBackToHome={onBackToHome}
+          />
+        )}
         {currentStep === 2 && <Step2_OwnerInterview />}
         {currentStep === 3 && <Step3_FloorHierarchySurvey />}
         {currentStep === 4 && <Step4_BurlandSummary />}

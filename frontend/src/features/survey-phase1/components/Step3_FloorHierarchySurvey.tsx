@@ -5,6 +5,7 @@ import { CadZonePin } from '../../../components/canvas/FloorCadPinningCanvas';
 import { FloorSurveyData, DamageZoneData, StructuralElementData } from '../types/phase1.types';
 
 import { FloorTabsNavigation } from './step3/FloorTabsNavigation';
+import { Step3FloorOverviewSection } from './step3/Step3FloorOverviewSection';
 import { DamageZonesSection } from './step3/DamageZonesSection';
 import { StructuralElementsSection } from './step3/StructuralElementsSection';
 import { SaggingMonitoringSection } from './step3/SaggingMonitoringSection';
@@ -75,6 +76,64 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
     setActiveZoneIndex(0);
     setActiveElementIndex(0);
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // Đổi tên Tầng
+  const handleRenameFloor = (floorIndex: number, newName: string) => {
+    updateFormData((prev) => {
+      const updatedFloors = [...prev.floors];
+      const target = updatedFloors[floorIndex];
+      if (!target) return prev;
+      updatedFloors[floorIndex] = {
+        ...target,
+        floorName: newName,
+        zones: (target.zones || []).map((z) => ({ ...z, floorName: newName })),
+        structuralElements: (target.structuralElements || []).map((e) => ({ ...e, floorName: newName })),
+      };
+      return { ...prev, floors: updatedFloors };
+    });
+  };
+
+  // Xóa Tầng
+  const handleDeleteFloor = (floorIndex: number) => {
+    if (formData.floors.length <= 1) {
+      alert('Công trình bắt buộc phải có ít nhất 1 tầng.');
+      return;
+    }
+    const floorToDelete = formData.floors[floorIndex];
+    const confirmed = window.confirm(
+      `Bạn có chắc chắn muốn xóa tầng "${floorToDelete.floorName}" và toàn bộ ${floorToDelete.zones?.length || 0} Vùng Z, ${floorToDelete.structuralElements?.length || 0} Cấu kiện E thuộc tầng này?`
+    );
+    if (!confirmed) return;
+
+    updateFormData((prev) => {
+      const updatedFloors = prev.floors.filter((_, i) => i !== floorIndex);
+      return {
+        ...prev,
+        floors: updatedFloors,
+        aboveFloors: Math.max(1, updatedFloors.length),
+      };
+    });
+
+    setActiveFloorIndex((prev) => {
+      if (prev >= floorIndex) {
+        return Math.max(0, prev - 1);
+      }
+      return prev;
+    });
+    setActiveZoneIndex(0);
+    setActiveElementIndex(0);
+  };
+
+  // Cập nhật ảnh chụp tổng quan tầng
+  const handleUpdateFloorOverviewPhotos = (photos: { id: string; url: string; caption?: string }[]) => {
+    updateFormData((prev) => {
+      const updatedFloors = [...prev.floors];
+      const cur = updatedFloors[activeFloorIndex] || updatedFloors[0];
+      if (!cur) return prev;
+      updatedFloors[activeFloorIndex] = { ...cur, overviewPhotos: photos };
+      return { ...prev, floors: updatedFloors };
+    });
   };
 
   const scrollToTarget = (elementId: string) => {
@@ -384,6 +443,15 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
           setActiveElementIndex(0);
         }}
         onAddFloor={handleAddFloor}
+        onRenameFloor={handleRenameFloor}
+        onDeleteFloor={handleDeleteFloor}
+      />
+
+      {/* Ảnh chụp tổng quan tầng (Bắt buộc trước 3.1) */}
+      <Step3FloorOverviewSection
+        currentFloor={currentFloor}
+        activeFloorIndex={activeFloorIndex}
+        onUpdateOverviewPhotos={handleUpdateFloorOverviewPhotos}
       />
 
       {/* 3.1. Sơ đồ CAD_01 & Vùng Kiến Trúc Z */}

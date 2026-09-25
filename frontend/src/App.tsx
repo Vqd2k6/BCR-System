@@ -126,39 +126,61 @@ export const App: React.FC = () => {
 
     let parcelUpdatedAt = p.updated_at || p.updatedAt || null;
     if (p.id) {
-      try {
-        const overridesStr = localStorage.getItem('metro2_parcel_status_overrides');
-        if (overridesStr) {
-          const overrides = JSON.parse(overridesStr);
-          if (overrides[p.id]?.status) {
-            effectiveStatus = overrides[p.id].status;
-          }
-          if (overrides[p.id]?.buildingType) {
-            effectiveBuildingType = overrides[p.id].buildingType;
-          }
-          if (overrides[p.id]?.updatedAt) {
-            parcelUpdatedAt = overrides[p.id].updatedAt;
-          }
-        }
-      } catch (_e) {}
-
-      if (effectiveStatus !== 'APPROVED' && effectiveStatus !== 'PHASE2_COMPLETED' && effectiveStatus !== 'APPROVED_PHASE2') {
+      // 1. Chân lý từ Server: nếu server trả về SUBMITTED/APPROVED thì giữ nguyên, dọn dẹp nháp cũ
+      if (effectiveStatus === 'SUBMITTED' || effectiveStatus === 'APPROVED' || effectiveStatus === 'PHASE2_COMPLETED' || effectiveStatus === 'APPROVED_PHASE2') {
         try {
-          const draft = localStorage.getItem(`metro2_phase1_draft_${p.id}`);
-          if (draft) {
-            const parsed = JSON.parse(draft);
-            if (parsed.isAbsenteeSurvey || parsed.surveyCaseType === 'ABSENTEE') {
-              effectiveStatus = 'POSTPONED_ABSENT';
-            } else if (parsed.surveyCaseType === 'UNDER_CONSTRUCTION') {
-              effectiveStatus = 'UNDER_CONSTRUCTION';
-            } else {
-              effectiveStatus = 'IN_PROGRESS';
-            }
-            if (parsed.lastSavedAt || parsed.updatedAt) {
-              parcelUpdatedAt = parsed.lastSavedAt || parsed.updatedAt || parcelUpdatedAt;
+          localStorage.removeItem(`metro2_phase1_draft_${p.id}`);
+          const overridesStr = localStorage.getItem('metro2_parcel_status_overrides');
+          if (overridesStr) {
+            const overrides = JSON.parse(overridesStr);
+            if (overrides[p.id] && overrides[p.id].status !== effectiveStatus) {
+              if (effectiveStatus === 'SUBMITTED') {
+                overrides[p.id].status = 'SUBMITTED';
+              } else {
+                delete overrides[p.id];
+              }
+              localStorage.setItem('metro2_parcel_status_overrides', JSON.stringify(overrides));
             }
           }
         } catch (_e) {}
+      } else {
+        // 2. Chỉ đọc override & nháp khi server CHƯA ghi nhận SUBMITTED/APPROVED
+        try {
+          const overridesStr = localStorage.getItem('metro2_parcel_status_overrides');
+          if (overridesStr) {
+            const overrides = JSON.parse(overridesStr);
+            if (overrides[p.id]?.status) {
+              effectiveStatus = overrides[p.id].status;
+            }
+            if (overrides[p.id]?.buildingType) {
+              effectiveBuildingType = overrides[p.id].buildingType;
+            }
+            if (overrides[p.id]?.updatedAt) {
+              parcelUpdatedAt = overrides[p.id].updatedAt;
+            }
+          }
+        } catch (_e) {}
+
+        if (effectiveStatus !== 'APPROVED' && effectiveStatus !== 'PHASE2_COMPLETED' && effectiveStatus !== 'APPROVED_PHASE2' && effectiveStatus !== 'SUBMITTED') {
+          try {
+            const draft = localStorage.getItem(`metro2_phase1_draft_${p.id}`);
+            if (draft) {
+              const parsed = JSON.parse(draft);
+              if (parsed.isAbsenteeSurvey || parsed.surveyCaseType === 'ABSENTEE') {
+                effectiveStatus = 'POSTPONED_ABSENT';
+              } else if (parsed.surveyCaseType === 'UNDER_CONSTRUCTION') {
+                effectiveStatus = 'UNDER_CONSTRUCTION';
+              } else if (parsed.surveyCaseType === 'VACANT_LAND' || parsed.isVacantLand) {
+                effectiveStatus = 'SUBMITTED';
+              } else {
+                effectiveStatus = 'IN_PROGRESS';
+              }
+              if (parsed.lastSavedAt || parsed.updatedAt) {
+                parcelUpdatedAt = parsed.lastSavedAt || parsed.updatedAt || parcelUpdatedAt;
+              }
+            }
+          } catch (_e) {}
+        }
       }
     }
 

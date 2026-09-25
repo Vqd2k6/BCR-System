@@ -223,8 +223,9 @@ export class SurveyRepository {
         `INSERT INTO building_specifications (
            report_id, building_name, building_grade, adjacent_buildings, structural_system,
            floor_count, basement_count, foundation_category, year_of_construction, is_year_estimated,
-           construction_area_m2, building_height_m, foundation_source
-         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+           construction_area_m2, building_height_m, foundation_source,
+           foundation_depth_m, foundation_density, foundation_spacing_m, foundation_notes
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
          ON CONFLICT (report_id) DO UPDATE SET
            building_name = EXCLUDED.building_name,
            building_grade = EXCLUDED.building_grade,
@@ -237,7 +238,11 @@ export class SurveyRepository {
            is_year_estimated = EXCLUDED.is_year_estimated,
            construction_area_m2 = EXCLUDED.construction_area_m2,
            building_height_m = EXCLUDED.building_height_m,
-           foundation_source = EXCLUDED.foundation_source;`,
+           foundation_source = EXCLUDED.foundation_source,
+           foundation_depth_m = EXCLUDED.foundation_depth_m,
+           foundation_density = EXCLUDED.foundation_density,
+           foundation_spacing_m = EXCLUDED.foundation_spacing_m,
+           foundation_notes = EXCLUDED.foundation_notes;`,
         [
           reportId,
           specs.buildingName || null,
@@ -252,6 +257,10 @@ export class SurveyRepository {
           specs.constructionAreaM2 !== undefined && specs.constructionAreaM2 !== null && specs.constructionAreaM2 !== '' ? Number(specs.constructionAreaM2) : null,
           specs.buildingHeightM !== undefined && specs.buildingHeightM !== null && specs.buildingHeightM !== '' ? Number(specs.buildingHeightM) : null,
           specs.foundationSource || null,
+          specs.foundationDepthM !== undefined && specs.foundationDepthM !== null && specs.foundationDepthM !== '' ? Number(specs.foundationDepthM) : null,
+          specs.foundationDensity !== undefined && specs.foundationDensity !== null && specs.foundationDensity !== '' ? Number(specs.foundationDensity) : null,
+          specs.foundationSpacingM !== undefined && specs.foundationSpacingM !== null && specs.foundationSpacingM !== '' ? Number(specs.foundationSpacingM) : null,
+          specs.foundationNotes || null,
         ]
       );
 
@@ -363,24 +372,101 @@ export class SurveyRepository {
 
   static async saveFloorSurveys(reportId: string, floors: any[]): Promise<void> {
     await Database.transaction(async (client) => {
+      // 1. Lưu danh sách tầng, sơ đồ CAD_01 và CAD_02
       await client.query(`DELETE FROM floor_surveys WHERE report_id = $1;`, [reportId]);
       for (let i = 0; i < floors.length; i++) {
         const f = floors[i];
         await client.query(
           `INSERT INTO floor_surveys (
              report_id, floor_name, floor_order, overview_photos_json,
-             cad_drawing_url, cad_zone_pins_json, notes
-           ) VALUES ($1, $2, $3, $4, $5, $6, $7);`,
+             cad_drawing_url, cad_zone_pins_json, cad_structural_drawing_url, cad_element_pins_json, notes
+           ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9);`,
           [
             reportId,
             f.floorName || `Tầng ${i + 1}`,
             i + 1,
             JSON.stringify(f.overviewPhotos || []),
-            f.cadDrawingUrl || null,
+            f.cadDrawingUrl || f.cadSketchPhotoUrl || null,
             JSON.stringify(f.cadZonePins || []),
+            f.cadStructuralDrawingUrl || f.cadStructuralSketchPhotoUrl || null,
+            JSON.stringify(f.cadElementPins || []),
             f.notes || null,
           ]
         );
+      }
+
+      // 2. Lưu chi tiết Vùng Z (Damage Zones) và Khuyết tật D (Defect Items) từ các tầng
+      const allZones: any[] = [];
+      for (const f of floors) {
+        if (f.zones && Array.isArray(f.zones)) {
+          for (const z of f.zones) {
+            allZones.push({ ...z, floorName: z.floorName || f.floorName });
+          }
+        }
+      }
+
+      if (allZones.length > 0) {
+        await client.query(`DELETE FROM damage_zones WHERE report_id = $1;`, [reportId]);
+        for (const z of allZones) {
+          const compType = ['WALL', 'BEAM', 'COLUMN', 'SLAB', 'FLOOR', 'STAIRS'].includes(z.componentType)
+            ? z.componentType
+            : 'WALL';
+
+          const zoneRes = await client.query<{ id: string }>(
+            `INSERT INTO damage_zones (
+               report_id, zone_code, floor_name, room_name, component_type,
+               wall_material, functional_impact_repair_needed, burland_grade,
+               ctx_photo_url, notes
+             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+             RETURNING id;`,
+            [
+              reportId,
+              z.zoneCode || 'Z-01',
+              z.floorName || 'Tầng trệt',
+              z.roomName || 'Không gian chung',
+              compType,
+              z.wallMaterial || null,
+              Boolean(z.functionalImpactRepairNeeded),
+              Number(z.burlandGrade) || 0,
+              z.ctxPhotoUrl || '',
+              z.notes || null,
+            ]
+          );
+
+          const zoneId = zoneRes.rows[0]?.id;
+          if (zoneId && z.defects && Array.isArray(z.defects)) {
+            for (const d of z.defects) {
+              const actState = ['A', 'S', 'U'].includes(d.activityState) ? d.activityState : 'U';
+              await client.query(
+                `INSERT INTO defect_items (
+                   zone_id, defect_code, pin_x, pin_y, screening_category, defect_type,
+                   crack_direction, width_max_mm, length_mm, activity_state,
+                   material_degradation_e4, structural_significance_e2, has_scale_card,
+                   is_structural_critical, cu_photo_url, extra_photo_url, pin_color
+                 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17);`,
+                [
+                  zoneId,
+                  d.defectCode || 'D-01',
+                  Number(d.pinX) || 0,
+                  Number(d.pinY) || 0,
+                  d.screeningCategory || 'CRACK',
+                  d.defectType || 'HAIRLINE',
+                  d.crackDirection || null,
+                  Number(d.widthMaxMm) || 0,
+                  Number(d.lengthMm) || 0,
+                  actState,
+                  Number(d.materialDegradationE4) || 0,
+                  Number(d.structuralSignificanceE2) || 0,
+                  d.hasScaleCard ?? true,
+                  d.isStructuralCritical ?? false,
+                  d.cuPhotoUrl || '',
+                  d.extraPhotoUrl || null,
+                  d.pinColor || '#ef4444',
+                ]
+              );
+            }
+          }
+        }
       }
     });
   }

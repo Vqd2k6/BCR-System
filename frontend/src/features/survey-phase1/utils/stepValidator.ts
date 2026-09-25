@@ -80,6 +80,18 @@ export const validateCondoUnitStep = (step: number, formData: Phase1SurveyFormDa
         const cadElementPins = floor.cadElementPins || [];
         const structuralElements = floor.structuralElements || [];
 
+        // 0. Kiểm tra ảnh chụp tổng quan tầng (Bắt buộc)
+        if (!floor.overviewPhotos || floor.overviewPhotos.length === 0) {
+          missing.push({
+            fieldId: `step3-floor-overview-section-${fIdx}`,
+            label: `Ảnh chụp tổng quan (${floorTitle}) *`,
+            step: 3,
+            floorIndex: fIdx,
+            description: `Chưa có ảnh chụp tổng quan cho ${floorTitle}. Bắt buộc phải chụp ít nhất 1 ảnh tổng quan tầng.`,
+            isBlocking: true,
+          });
+        }
+
         if (cadZonePins.length === 0 && zones.length === 0) {
           missing.push({
             fieldId: 'step3-floor-cad-section',
@@ -493,6 +505,18 @@ export const validateStep = (step: number, formData: Phase1SurveyFormData): Step
         const zones = floor.zones || [];
         const cadElementPins = floor.cadElementPins || [];
         const structuralElements = floor.structuralElements || [];
+
+        // 0. Kiểm tra ảnh chụp tổng quan tầng (Bắt buộc)
+        if (!floor.overviewPhotos || floor.overviewPhotos.length === 0) {
+          missing.push({
+            fieldId: `step3-floor-overview-section-${fIdx}`,
+            label: `Ảnh chụp tổng quan (${floorTitle}) *`,
+            step: 3,
+            floorIndex: fIdx,
+            description: `Chưa có ảnh chụp tổng quan cho ${floorTitle}. Bắt buộc phải chụp ít nhất 1 ảnh tổng quan tầng.`,
+            isBlocking: true,
+          });
+        }
 
         // 1. Kiểm tra điểm chấm trên CAD_01 và Vùng Z
         if (cadZonePins.length === 0 && zones.length === 0) {

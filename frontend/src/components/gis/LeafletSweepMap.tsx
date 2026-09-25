@@ -238,7 +238,7 @@ export const LeafletSweepMap: React.FC<Props> = ({
   const getEffectiveParcelStatus = (parcel: GisParcel | any): GisParcel['surveyStatus'] => {
     if (!parcel) return 'NOT_SURVEYED';
     const baseStatus = parcel.surveyStatus || parcel.survey_status || 'NOT_SURVEYED';
-    if (baseStatus === 'APPROVED' || baseStatus === 'PHASE2_COMPLETED' || baseStatus === 'APPROVED_PHASE2') {
+    if (baseStatus === 'APPROVED' || baseStatus === 'PHASE2_COMPLETED' || baseStatus === 'APPROVED_PHASE2' || baseStatus === 'SUBMITTED') {
       return baseStatus;
     }
     const pid = parcel.id;
@@ -257,6 +257,7 @@ export const LeafletSweepMap: React.FC<Props> = ({
           const parsed = JSON.parse(draft);
           if (parsed.isAbsenteeSurvey || parsed.surveyCaseType === 'ABSENTEE') return 'POSTPONED_ABSENT';
           if (parsed.surveyCaseType === 'UNDER_CONSTRUCTION') return 'UNDER_CONSTRUCTION';
+          if (parsed.surveyCaseType === 'VACANT_LAND' || parsed.isVacantLand) return 'SUBMITTED';
           return 'IN_PROGRESS';
         }
       } catch (_e) {}
@@ -371,6 +372,8 @@ export const LeafletSweepMap: React.FC<Props> = ({
               subTypeText = ' - Vắng mặt';
             } else if (overrides[parcel.id]?.subType === 'UNDER_CONSTRUCTION') {
               subTypeText = ' - Đang xây';
+            } else if (overrides[parcel.id]?.subType === 'VACANT_LAND' || overrides[parcel.id]?.isVacantLand) {
+              subTypeText = ' - Đất trống';
             } else if (overrides[parcel.id]?.subType === 'IN_PROGRESS') {
               subTypeText = ' - Làm dở';
             }
@@ -382,6 +385,7 @@ export const LeafletSweepMap: React.FC<Props> = ({
                 const parsed = JSON.parse(draft);
                 if (parsed.isAbsenteeSurvey || parsed.surveyCaseType === 'ABSENTEE') subTypeText = ' - Vắng mặt';
                 else if (parsed.surveyCaseType === 'UNDER_CONSTRUCTION') subTypeText = ' - Đang xây';
+                else if (parsed.surveyCaseType === 'VACANT_LAND' || parsed.isVacantLand) subTypeText = ' - Đất trống';
                 else if (parsed.surveyCaseType === 'IN_PROGRESS') subTypeText = ' - Làm dở';
               }
             } catch (_e) {}

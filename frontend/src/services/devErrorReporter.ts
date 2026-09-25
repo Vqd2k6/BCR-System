@@ -57,6 +57,9 @@ export function isIgnoredError(message: string, stack?: string, source?: string)
     '200.js',
     "reading 'm_id'",
     'reading "m_id"',
+    "reading 'm_id",
+    'reading "m_id',
+    'm_id',
   ];
 
   for (const pattern of extensionPatterns) {
@@ -197,17 +200,19 @@ export function initDevErrorReporter(): void {
   const prevOnError = window.onerror;
   window.onerror = function (message, source, lineno, colno, error) {
     const msgStr = typeof message === 'string' ? message : (message as any)?.message || 'Uncaught Error';
-    if (!isIgnoredError(msgStr, error?.stack, source)) {
-      sendDevError({
-        errorType: 'RUNTIME_ERROR',
-        message: msgStr,
-        stack: error?.stack || (error ? String(error) : '(No stack trace available)'),
-        source: source || '',
-        lineno: lineno,
-        colno: colno,
-        url: window.location.href,
-      });
+    if (isIgnoredError(msgStr, error?.stack, source)) {
+      return true; // Ngăn chặn trình duyệt in lỗi extension ra console
     }
+
+    sendDevError({
+      errorType: 'RUNTIME_ERROR',
+      message: msgStr,
+      stack: error?.stack || (error ? String(error) : '(No stack trace available)'),
+      source: source || '',
+      lineno: lineno,
+      colno: colno,
+      url: window.location.href,
+    });
 
     if (typeof prevOnError === 'function') {
       return prevOnError(message, source, lineno, colno, error);
@@ -216,16 +221,18 @@ export function initDevErrorReporter(): void {
   };
 
   // 2. Gắn window.addEventListener('error') ở CAPTURING PHASE (useCapture = true)
-  // để bắt trước khi bất kỳ thư viện nào gọi stopPropagation()
   window.addEventListener(
     'error',
     (event: ErrorEvent | Event) => {
-      // 2a. Nếu là lỗi tài nguyên (thẻ img, script, link css không tải được, vd: map tile, ảnh chụp hỏng link)
+      // 2a. Nếu là lỗi tài nguyên
       const target = event.target as HTMLElement | null;
       if (target && 'tagName' in target && (target.tagName === 'IMG' || target.tagName === 'SCRIPT' || target.tagName === 'LINK')) {
         const src = (target as HTMLImageElement).src || (target as HTMLImageElement).currentSrc || (target as HTMLScriptElement).src || (target as HTMLLinkElement).href;
-        if (src && !isIgnoredError(src)) {
-          // Nếu là lỗi tải tile bản đồ OpenStreetMap (net::ERR_CONNECTION_REFUSED)
+        if (src && isIgnoredError(src)) {
+          event.preventDefault();
+          return;
+        }
+        if (src) {
           if (src.includes('tile.openstreetmap.org') || src.includes('/tile/')) {
             sendDevError({
               errorType: 'RESOURCE_ERROR',
@@ -248,7 +255,11 @@ export function initDevErrorReporter(): void {
 
       // 2b. Nếu là ErrorEvent runtime thông thường
       const errEvent = event as ErrorEvent;
-      if (errEvent.message && !isIgnoredError(errEvent.message, errEvent.error?.stack, errEvent.filename)) {
+      if (errEvent.message) {
+        if (isIgnoredError(errEvent.message, errEvent.error?.stack, errEvent.filename)) {
+          errEvent.preventDefault();
+          return;
+        }
         sendDevError({
           errorType: 'RUNTIME_ERROR',
           message: errEvent.message,
@@ -263,9 +274,8 @@ export function initDevErrorReporter(): void {
     true
   );
 
-  // 3. Gắn window.onunhandledrejection trực tiếp
-  const prevOnRejection = window.onunhandledrejection;
-  window.onunhandledrejection = function (event: PromiseRejectionEvent) {
+  // 3. Gắn window.onunhandledrejection & addEventListener('unhandledrejection')
+  const handleRejection = (event: PromiseRejectionEvent) => {
     const reason = event.reason;
     let message = 'Unhandled Promise Rejection';
     let stack = '';
@@ -283,19 +293,29 @@ export function initDevErrorReporter(): void {
       }
     }
 
-    if (!isIgnoredError(message, stack)) {
-      sendDevError({
-        errorType: 'UNHANDLED_PROMISE_REJECTION',
-        message,
-        stack: stack || '(No stack trace available)',
-        url: window.location.href,
-      });
+    if (isIgnoredError(message, stack)) {
+      event.preventDefault(); // Triệt tiêu "Uncaught (in promise)" từ browser extension
+      return true;
     }
 
+    sendDevError({
+      errorType: 'UNHANDLED_PROMISE_REJECTION',
+      message,
+      stack: stack || '(No stack trace available)',
+      url: window.location.href,
+    });
+    return false;
+  };
+
+  const prevOnRejection = window.onunhandledrejection;
+  window.onunhandledrejection = function (event: PromiseRejectionEvent) {
+    const suppressed = handleRejection(event);
+    if (suppressed) return;
     if (typeof prevOnRejection === 'function') {
       return (prevOnRejection as any).call(window, event);
     }
   };
+  window.addEventListener('unhandledrejection', handleRejection);
 
   // 4. Hook console.error TOÀN DIỆN (bắt mọi lỗi được log ra console mà không lọc case-sensitive)
   console.error = function (...args: any[]) {

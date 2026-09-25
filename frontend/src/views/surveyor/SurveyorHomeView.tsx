@@ -101,7 +101,31 @@ export const SurveyorHomeView: React.FC<Props> = ({
 
   // Helper resolving real-time draft status & building type
   const getStatus = (p: GisParcel) => {
-    // 1. Kiểm tra trạng thái override cục bộ được lưu gần nhất
+    const baseStatus = p?.surveyStatus || (p as any)?.survey_status || 'NOT_SURVEYED';
+
+    // 1. Chân lý từ Server: Nếu backend đã là SUBMITTED hoặc APPROVED -> Server Truth luôn có độ ưu tiên cao nhất
+    if (baseStatus === 'SUBMITTED' || baseStatus === 'APPROVED' || baseStatus === 'PHASE2_COMPLETED' || baseStatus === 'APPROVED_PHASE2') {
+      if (p?.id) {
+        try {
+          localStorage.removeItem(`metro2_phase1_draft_${p.id}`);
+          const overridesStr = localStorage.getItem('metro2_parcel_status_overrides');
+          if (overridesStr) {
+            const overrides = JSON.parse(overridesStr);
+            if (overrides[p.id] && overrides[p.id].status !== baseStatus) {
+              if (baseStatus === 'SUBMITTED') {
+                overrides[p.id].status = 'SUBMITTED';
+              } else {
+                delete overrides[p.id];
+              }
+              localStorage.setItem('metro2_parcel_status_overrides', JSON.stringify(overrides));
+            }
+          }
+        } catch (_e) {}
+      }
+      return baseStatus;
+    }
+
+    // 2. Kiểm tra trạng thái override cục bộ được lưu gần nhất (khi server chưa cập nhật)
     try {
       const overridesStr = localStorage.getItem('metro2_parcel_status_overrides');
       if (overridesStr && p?.id) {
@@ -112,31 +136,24 @@ export const SurveyorHomeView: React.FC<Props> = ({
       }
     } catch (_e) {}
 
-    const baseStatus = p?.surveyStatus || (p as any)?.survey_status || 'NOT_SURVEYED';
-    if (baseStatus !== 'APPROVED' && baseStatus !== 'PHASE2_COMPLETED' && baseStatus !== 'APPROVED_PHASE2' && p?.id) {
-      try {
-        const overridesStr = localStorage.getItem('metro2_parcel_status_overrides');
-        if (overridesStr) {
-          const overrides = JSON.parse(overridesStr);
-          if (overrides[p.id]?.status) {
-            return overrides[p.id].status;
-          }
+    // 3. Kiểm tra nháp local
+    try {
+      const draft = localStorage.getItem(`metro2_phase1_draft_${p.id}`);
+      if (draft) {
+        const parsed = JSON.parse(draft);
+        if (parsed.isAbsenteeSurvey || parsed.surveyCaseType === 'ABSENTEE') {
+          return 'POSTPONED_ABSENT';
         }
-      } catch (_e) {}
-      try {
-        const draft = localStorage.getItem(`metro2_phase1_draft_${p.id}`);
-        if (draft) {
-          const parsed = JSON.parse(draft);
-          if (parsed.isAbsenteeSurvey || parsed.surveyCaseType === 'ABSENTEE') {
-            return 'POSTPONED_ABSENT';
-          }
-          if (parsed.surveyCaseType === 'UNDER_CONSTRUCTION') {
-            return 'UNDER_CONSTRUCTION';
-          }
-          return 'IN_PROGRESS';
+        if (parsed.surveyCaseType === 'UNDER_CONSTRUCTION') {
+          return 'UNDER_CONSTRUCTION';
         }
-      } catch (_e) {}
-    }
+        if (parsed.surveyCaseType === 'VACANT_LAND' || parsed.isVacantLand) {
+          return 'SUBMITTED';
+        }
+        return 'IN_PROGRESS';
+      }
+    } catch (_e) {}
+
     return baseStatus;
   };
 
@@ -366,6 +383,8 @@ export const SurveyorHomeView: React.FC<Props> = ({
               subTypeText = ' - Vắng mặt';
             } else if (overrides[parcel.id]?.subType === 'UNDER_CONSTRUCTION') {
               subTypeText = ' - Đang xây';
+            } else if (overrides[parcel.id]?.subType === 'VACANT_LAND' || overrides[parcel.id]?.isVacantLand) {
+              subTypeText = ' - Đất trống';
             } else if (overrides[parcel.id]?.subType === 'IN_PROGRESS') {
               subTypeText = ' - Làm dở';
             }
@@ -377,6 +396,7 @@ export const SurveyorHomeView: React.FC<Props> = ({
                 const parsed = JSON.parse(draft);
                 if (parsed.isAbsenteeSurvey || parsed.surveyCaseType === 'ABSENTEE') subTypeText = ' - Vắng mặt';
                 else if (parsed.surveyCaseType === 'UNDER_CONSTRUCTION') subTypeText = ' - Đang xây';
+                else if (parsed.surveyCaseType === 'VACANT_LAND' || parsed.isVacantLand) subTypeText = ' - Đất trống';
                 else if (parsed.surveyCaseType === 'IN_PROGRESS') subTypeText = ' - Làm dở';
               }
             } catch (_e) {}

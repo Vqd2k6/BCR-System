@@ -146,13 +146,17 @@ export interface Phase1SurveyFormData {
   parcelCoordinates?: [number, number][];
   zoneId?: string;
   adjacentBuildings: AdjacentBuildingState;
-  surveyCaseType?: 'NORMAL' | 'ABSENTEE' | 'APARTMENT' | 'UNDER_CONSTRUCTION';
+  surveyCaseType?: 'NORMAL' | 'ABSENTEE' | 'APARTMENT' | 'UNDER_CONSTRUCTION' | 'VACANT_LAND';
   isAbsenteeSurvey?: boolean;
   absenteeReason?: string;
   customAbsenteeReason?: string; // Nhập tay khi chọn Lý do khác
   absenteeMinutesPhotos?: string[]; // Ảnh biên bản vắng nhà (có thể chụp nhiều ảnh)
   underConstructionPhotos?: string[]; // Ảnh công trình đang thi công xây dựng (nhiều ảnh)
   constructionStageNotes?: string; // Ghi chú giai đoạn thi công xây dựng
+  isVacantLand?: boolean; // Trường hợp Đất trống
+  vacantLandStatus?: string; // Hiện trạng đất trống
+  vacantLandNotes?: string; // Ghi chú đất trống
+  vacantLandPhotos?: string[]; // Ảnh chụp hiện trạng đất trống (nhiều ảnh)
 
   // Thông tin mở rộng cho Tòa nhà Chung cư / Cao tầng
   unitsPerFloor?: number | ''; // Số căn mỗi tầng
@@ -206,6 +210,10 @@ export interface Phase1SurveyFormData {
   pileDimensionMm: string;
   pileWidthMm?: number | '';
   pileLengthMm?: number | '';
+  foundationDepthM?: number | ''; // Chiều sâu móng (m)
+  foundationDensity?: number | ''; // Mật độ móng (số lượng/m^2)
+  foundationSpacingM?: number | ''; // Khoảng cách giữa các móng (m)
+  foundationNotes?: string; // Ghi chú về móng
   asBuiltDrawingPhotoUrl?: string;
   asBuiltDrawingFiles: { id: string; name: string; url: string }[];
   foundationCatScore: number; // 1..5

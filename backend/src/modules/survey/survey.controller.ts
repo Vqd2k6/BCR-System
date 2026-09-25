@@ -283,6 +283,10 @@ export class SurveyController {
         sensitiveEquipmentPresent: Boolean(surveyData?.historyInterview?.sensitiveEquipment?.has ?? surveyData?.specs?.sensitiveEquipmentPresent ?? surveyData?.sensitiveEquipmentPresent ?? false),
         historyDetails: surveyData?.historyInterview ? JSON.stringify(surveyData.historyInterview) : (surveyData?.specs?.historyDetails || surveyData?.historyDetails || null),
         e5HistoryScore: Number(surveyData?.ecs?.e5 ?? surveyData?.specs?.e5HistoryScore ?? surveyData?.e5HistoryScore ?? 0),
+        foundationDepthM: surveyData?.specs?.foundationDepthM ?? surveyData?.foundationDepthM,
+        foundationDensity: surveyData?.specs?.foundationDensity ?? surveyData?.foundationDensity,
+        foundationSpacingM: surveyData?.specs?.foundationSpacingM ?? surveyData?.foundationSpacingM,
+        foundationNotes: surveyData?.specs?.foundationNotes ?? surveyData?.foundationNotes,
       };
       await SurveyService.saveBuildingSpecs(reportId, specs);
 

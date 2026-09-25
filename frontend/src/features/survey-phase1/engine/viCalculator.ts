@@ -5,12 +5,24 @@ import { Phase1SurveyFormData, ViScoreState, EcsScoreState } from '../types/phas
  * 6 tiêu chí V1..V6 (thang 1-4 điểm), tổng 6-24, điểm trung bình VIavg = tổng / 6
  */
 export function calculateViScore(formData: Partial<Phase1SurveyFormData>, currentEcs?: EcsScoreState): ViScoreState {
-  // 1. V1: Công năng & Quy mô (Tự động đề xuất từ Nhóm đối tượng Bước 1)
-  let v1 = 1;
-  const objGroup = formData.objectGroup || 'GENERAL';
-  if (objGroup === 'CRITICAL') v1 = 4;
-  else if (objGroup === 'IMPORTANT') v1 = 2;
-  else v1 = 1;
+  // 1. V1: Công năng & Quy mô
+  // Lưu ý: Bắt buộc phải xét điều kiện Normal (0đ) trước khi xét các điều kiện 2, 3, 4đ
+  let v1 = 2;
+  const isAbandonedHouse = formData.usageFunction === 'Nhà bỏ trống';
+  const isVacantLand =
+    formData.surveyCaseType === 'VACANT_LAND' ||
+    formData.isVacantLand === true ||
+    formData.usageFunction === 'Đất trống';
+
+  if (isAbandonedHouse || isVacantLand) {
+    v1 = 0; // Normal 0đ (nếu "nhà bỏ trống" tại bước 2 hoặc "Đất trống" tại bước 1)
+  } else {
+    // Các mục 2, 3, 4đ tăng dần theo "Nhóm đối tượng công trình" ở bước 1
+    const objGroup = formData.objectGroup || 'GENERAL';
+    if (objGroup === 'CRITICAL') v1 = 4;
+    else if (objGroup === 'IMPORTANT') v1 = 3;
+    else v1 = 2; // GENERAL
+  }
 
   // 2. V2: Hệ kết cấu chịu lực (Mặc định hoặc chọn từ B2.1)
   let v2 = formData.vi?.v2 ?? 2;

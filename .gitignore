@@ -35,4 +35,5 @@ mobile_app/build/
 mobile_app/ios/Flutter/Generated.xcconfig
 mobile_app/ios/Flutter/flutter_export_environment.sh
 mobile_app/android/local.properties
-mobile_app/android/.gradle/
+# Backups & Temp
+dev-source*

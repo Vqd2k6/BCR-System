@@ -59,7 +59,44 @@ export class ScoringService {
     else ecsClass = 'CRITICAL';
 
     // 6. Tính điểm Dễ Tổn thương VI (V1 -> V6)
-    const v1 = 1.0;
+    // Lấy thông tin công năng & nhóm đối tượng để tính V1 chuẩn
+    const specRes = await Database.query<{
+      building_grade?: string;
+      land_use_function?: string;
+      survey_data_json?: any;
+    }>(
+      `SELECT bs.building_grade, bs.land_use_function, r.survey_data_json
+       FROM base_survey_reports r
+       LEFT JOIN building_specifications bs ON bs.report_id = r.id
+       WHERE r.id = $1;`,
+      [reportId]
+    );
+    const specData = specRes.rows[0];
+    let surveyJson: any = null;
+    if (specData?.survey_data_json) {
+      try {
+        surveyJson = typeof specData.survey_data_json === 'string'
+          ? JSON.parse(specData.survey_data_json)
+          : specData.survey_data_json;
+      } catch (_) {}
+    }
+
+    const usageFunction = surveyJson?.usageFunction || specData?.land_use_function || '';
+    const surveyCaseType = surveyJson?.surveyCaseType || '';
+    const isVacantLand = surveyCaseType === 'VACANT_LAND' || surveyJson?.isVacantLand === true || usageFunction === 'Đất trống';
+    const isAbandoned = usageFunction === 'Nhà bỏ trống';
+
+    // Bắt buộc xét Normal (0đ) trước các điều kiện 2, 3, 4đ
+    let v1 = 2.0;
+    if (isAbandoned || isVacantLand) {
+      v1 = 0.0;
+    } else {
+      const objGroup = surveyJson?.objectGroup || specData?.building_grade || 'GENERAL';
+      if (objGroup === 'CRITICAL' || objGroup === 'GRADE_1') v1 = 4.0;
+      else if (objGroup === 'IMPORTANT' || objGroup === 'GRADE_2') v1 = 3.0;
+      else v1 = 2.0;
+    }
+
     const v2 = 1.5;
     const v3 = 1.0;
     const v4 = 1.0;

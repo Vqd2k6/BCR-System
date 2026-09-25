@@ -10,6 +10,8 @@ interface Step1SuccessModalsProps {
   showApartmentSuccessModal: boolean;
   onCloseApartment: () => void;
   onOpenCondoHub: () => void;
+  showVacantLandSuccessModal?: boolean;
+  onCloseVacantLand?: () => void;
   buildingCode: string;
 }
 
@@ -21,10 +23,33 @@ export const Step1SuccessModals: React.FC<Step1SuccessModalsProps> = ({
   showApartmentSuccessModal,
   onCloseApartment,
   onOpenCondoHub,
+  showVacantLandSuccessModal,
+  onCloseVacantLand,
   buildingCode,
 }) => {
   return (
     <>
+      {/* Success Modal for Vacant Land Submission */}
+      {showVacantLandSuccessModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white rounded-2xl max-w-md w-full p-6 text-center shadow-2xl border border-slate-200 space-y-4">
+            <div className="w-12 h-12 rounded-full bg-teal-100 text-teal-600 flex items-center justify-center mx-auto">
+              <CheckCircle2 className="w-7 h-7" />
+            </div>
+            <h3 className="text-lg font-bold text-slate-800">
+              Đã Nộp Thành Công Hồ Sơ Đất Trống!
+            </h3>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Hiện trạng thửa đất trống <strong>[{buildingCode}]</strong> và toàn bộ hình ảnh thực tế đã được gửi về cho Admin và kết thúc khảo sát.
+            </p>
+            <div className="pt-2">
+              <Button size="md" className="w-full bg-teal-600 hover:bg-teal-700 text-white" onClick={onCloseVacantLand}>
+                Hoàn tất khảo sát
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Success Modal for Absentee Submission */}
       {showAbsenteeSuccessModal && (
         <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">

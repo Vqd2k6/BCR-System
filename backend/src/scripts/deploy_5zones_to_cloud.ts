@@ -111,6 +111,19 @@ async function deploy5ZonesToCloud() {
       EXCEPTION WHEN OTHERS THEN
         NULL;
       END $$;
+
+      ALTER TABLE building_specifications
+        ADD COLUMN IF NOT EXISTS construction_area_m2 NUMERIC,
+        ADD COLUMN IF NOT EXISTS building_height_m NUMERIC,
+        ADD COLUMN IF NOT EXISTS foundation_source VARCHAR(64),
+        ADD COLUMN IF NOT EXISTS foundation_depth_m NUMERIC(6,2),
+        ADD COLUMN IF NOT EXISTS foundation_density INT,
+        ADD COLUMN IF NOT EXISTS foundation_spacing_m NUMERIC(6,2),
+        ADD COLUMN IF NOT EXISTS foundation_notes TEXT;
+
+      ALTER TABLE floor_surveys
+        ADD COLUMN IF NOT EXISTS cad_structural_drawing_url TEXT,
+        ADD COLUMN IF NOT EXISTS cad_element_pins_json JSONB DEFAULT '[]'::jsonb;
     `);
 
     // 3. Tạo bảng metro_segments nếu chưa có

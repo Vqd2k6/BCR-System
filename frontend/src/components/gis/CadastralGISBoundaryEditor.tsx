@@ -346,7 +346,23 @@ export const CadastralGISBoundaryEditor: React.FC<Props> = ({
     const fetchZoneParcels = async () => {
       try {
         setIsLoadingZoneParcels(true);
-        const zoneId = parcel?.zoneId || (parcel as any)?.zone_id || parcelData.zoneId || 'ALL';
+        let zoneId = parcel?.zoneId || (parcel as any)?.zone_id || parcelData.zoneId;
+        // Nếu chưa có zoneId, thử truy vấn thông tin thửa đất đang khảo sát
+        if (!zoneId && activeParcelId) {
+          try {
+            const pRes = await api.get(`/parcels/${activeParcelId}`);
+            const pData = pRes.data?.data || pRes.data;
+            if (pData?.zone_id || pData?.zoneId) {
+              zoneId = pData.zone_id || pData.zoneId;
+            }
+          } catch (_) {
+            // ignore
+          }
+        }
+        // Luôn fallback về zone cụ thể, tuyệt đối không dùng 'ALL' để tránh render tất cả các zone
+        if (!zoneId || zoneId === 'ALL') {
+          zoneId = 'ZONE_01';
+        }
         const res = await api.get('/parcels/zone-map', { params: { zoneId } });
         if (isMounted && res.data?.success && Array.isArray(res.data.data)) {
           const mapped: GisParcel[] = res.data.data
@@ -369,6 +385,7 @@ export const CadastralGISBoundaryEditor: React.FC<Props> = ({
                 surveyStatus: p.survey_status || p.surveyStatus || 'NOT_SURVEYED',
                 absenceAttemptCount: p.absence_attempt_count ?? p.absenceAttemptCount ?? 0,
                 coordinates: coords,
+                land_area_m2: p.land_area_m2 || p.landAreaM2 || p.cadastral_geojson?.properties?.area_m2 || 75.0,
               };
             })
             .filter((p: GisParcel) => p.coordinates.length >= 3);
@@ -501,27 +518,35 @@ export const CadastralGISBoundaryEditor: React.FC<Props> = ({
     };
   }, [activeCentroid, parcelData.projectParcelCode]);
 
-  // Danh sách các thửa đất thực tế liền kề trong phạm vi 30m từ tâm thửa đất để gộp thửa (MERGE) - Không mock data giả
-  const tenClosestParcels: GisParcel[] = useMemo(() => {
-    const pool = [...nearby30mParcels];
+  // Danh sách TẤT CẢ các thửa đất thuộc Zone hiện tại của thửa đất đang khảo sát (để gộp thửa MERGE)
+  const [mergeSearchTerm, setMergeSearchTerm] = useState('');
 
-    // Lọc và bổ sung các thửa từ zoneParcels trong phạm vi 30m
-    zoneParcels.forEach((zp) => {
-      if (zp.projectParcelCode === parcelData.projectParcelCode) return;
-      if (pool.some((p) => p.projectParcelCode === zp.projectParcelCode)) return;
+  const currentZoneMergeParcels: GisParcel[] = useMemo(() => {
+    return zoneParcels
+      .filter((zp) => zp.projectParcelCode !== parcelData.projectParcelCode)
+      .map((zp) => {
+        const pCenterLat = zp.coordinates.reduce((s, c) => s + c[0], 0) / (zp.coordinates.length || 1);
+        const pCenterLng = zp.coordinates.reduce((s, c) => s + c[1], 0) / (zp.coordinates.length || 1);
+        const dist = Math.round(calcDistanceMeters(activeCentroid[0], activeCentroid[1], pCenterLat, pCenterLng));
+        return { ...zp, distanceMeters: dist };
+      })
+      .sort((a, b) => ((a as any).distanceMeters || 0) - ((b as any).distanceMeters || 0));
+  }, [zoneParcels, activeCentroid, parcelData.projectParcelCode]);
 
-      const pCenterLat = zp.coordinates.reduce((s, c) => s + c[0], 0) / (zp.coordinates.length || 1);
-      const pCenterLng = zp.coordinates.reduce((s, c) => s + c[1], 0) / (zp.coordinates.length || 1);
-      const dist = calcDistanceMeters(activeCentroid[0], activeCentroid[1], pCenterLat, pCenterLng);
+  const filteredMergeParcels: GisParcel[] = useMemo(() => {
+    if (!mergeSearchTerm.trim()) return currentZoneMergeParcels;
+    const q = mergeSearchTerm.trim().toLowerCase();
+    return currentZoneMergeParcels.filter(
+      (p) =>
+        p.projectParcelCode.toLowerCase().includes(q) ||
+        (p.houseNumber && p.houseNumber.toLowerCase().includes(q)) ||
+        (p.street && p.street.toLowerCase().includes(q)) ||
+        (p.ownerName && p.ownerName.toLowerCase().includes(q))
+    );
+  }, [currentZoneMergeParcels, mergeSearchTerm]);
 
-      if (dist <= 30) {
-        pool.push({ ...zp, distanceMeters: dist });
-      }
-    });
-
-    pool.sort((a, b) => ((a as any).distanceMeters || 0) - ((b as any).distanceMeters || 0));
-    return pool;
-  }, [nearby30mParcels, zoneParcels, activeCentroid, parcelData.projectParcelCode]);
+  // Alias for backward compatibility
+  const tenClosestParcels: GisParcel[] = currentZoneMergeParcels;
 
   // =========================================================================
   // SPLIT ENGINE: OPTION 1 (CHẤM ĐIỂM TỰ NỐI) & OPTION 2 (KÉO NẮN ĐIỂM MÚT)
@@ -2001,8 +2026,8 @@ export const CadastralGISBoundaryEditor: React.FC<Props> = ({
                 </Tooltip>
               </Polygon>
 
-              {/* 2. CÁC THỬA LÂN CẬN XUNG QUANH (CLICK ĐỂ GỘP/BỎ GỘP) */}
-              {tenClosestParcels.map((neighbor) => {
+              {/* 2. CÁC THỬA TRONG CÙNG ZONE ĐANG KHẢO SÁT (CLICK ĐỂ GỘP/BỎ GỘP) */}
+              {currentZoneMergeParcels.map((neighbor) => {
                 const isSelectedMerge = selectedMergeCodes.includes(neighbor.projectParcelCode);
 
                 return (
@@ -2012,8 +2037,8 @@ export const CadastralGISBoundaryEditor: React.FC<Props> = ({
                     pathOptions={{
                       color: isSelectedMerge ? '#047857' : '#475569',
                       fillColor: isSelectedMerge ? '#10b981' : '#cbd5e1',
-                      fillOpacity: isSelectedMerge ? 0.75 : 0.3,
-                      weight: isSelectedMerge ? 4 : 2,
+                      fillOpacity: isSelectedMerge ? 0.75 : 0.25,
+                      weight: isSelectedMerge ? 4 : 1.5,
                       dashArray: isSelectedMerge ? undefined : '5, 4',
                     }}
                     eventHandlers={{
@@ -2024,11 +2049,11 @@ export const CadastralGISBoundaryEditor: React.FC<Props> = ({
                   >
                     <Tooltip direction="top" opacity={0.95}>
                       <div style={{ fontSize: '0.725rem', fontWeight: 800 }}>
-                        {isSelectedMerge ? '✓ ĐÃ CHỌN GỘP: ' : 'Thửa lân cận: '}
+                        {isSelectedMerge ? '✓ ĐÃ CHỌN GỘP: ' : 'Thửa trong Zone: '}
                         <strong style={{ color: isSelectedMerge ? '#047857' : '#1e293b' }}>{neighbor.projectParcelCode}</strong>
                         {isSelectedMerge ? <span style={{ color: '#047857' }}> (Bấm để hủy)</span> : <span style={{ color: '#2563eb' }}> (Bấm để gộp)</span>}<br />
                         <span style={{ fontSize: '0.65rem', fontWeight: 500 }}>
-                          Số {neighbor.houseNumber} {neighbor.street}
+                          Số {neighbor.houseNumber} {neighbor.street} {typeof (neighbor as any).distanceMeters === 'number' ? `• Cách ${(neighbor as any).distanceMeters}m` : ''}
                         </span>
                       </div>
                     </Tooltip>
@@ -2037,7 +2062,7 @@ export const CadastralGISBoundaryEditor: React.FC<Props> = ({
               })}
             </MapContainer>
 
-            {/* Chú giải trực quan phân biệt thửa gốc và các thửa lân cận */}
+            {/* Chú giải trực quan phân biệt thửa gốc và các thửa trong Zone */}
             <div
               style={{
                 position: 'absolute',
@@ -2066,77 +2091,91 @@ export const CadastralGISBoundaryEditor: React.FC<Props> = ({
               </span>
               <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', color: '#64748b' }}>
                 <span style={{ display: 'inline-block', width: '12px', height: '12px', backgroundColor: '#e2e8f0', border: '1px dashed #475569', borderRadius: '2px' }} />
-                Thửa lân cận (Click để gộp)
+                Thửa trong Zone (Click để gộp)
               </span>
             </div>
           </div>
 
           <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.3rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem', flexWrap: 'wrap', gap: '0.5rem' }}>
               <label style={{ fontSize: '0.75rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>
-                Chọn các thửa đất liền kề trong phạm vi 30m để gộp ({tenClosestParcels.length} thửa liền kề - đã chọn {selectedMergeCodes.length}):
+                Chọn thửa đất trong Zone khảo sát ({filteredMergeParcels.length}/{currentZoneMergeParcels.length} thửa - đã chọn {selectedMergeCodes.length}):
               </label>
-              {selectedMergeCodes.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => onMutationDataChange({ ...mutationData, selectedMergeCodes: [], mergeTargetCode: '' })}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <input
+                  type="text"
+                  placeholder="Tìm mã thửa, số nhà, tên đường..."
+                  value={mergeSearchTerm}
+                  onChange={(e) => setMergeSearchTerm(e.target.value)}
                   style={{
-                    border: 'none',
-                    background: 'none',
-                    color: '#dc2626',
-                    fontSize: '0.675rem',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    padding: 0,
+                    fontSize: '0.72rem',
+                    padding: '0.25rem 0.5rem',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: '0.375rem',
+                    width: '180px',
+                    outline: 'none',
                   }}
-                >
-                  Bỏ chọn tất cả
-                </button>
-              )}
+                />
+                {selectedMergeCodes.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => onMutationDataChange({ ...mutationData, selectedMergeCodes: [], mergeTargetCode: '' })}
+                    style={{
+                      border: 'none',
+                      background: 'none',
+                      color: '#dc2626',
+                      fontSize: '0.675rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      padding: 0,
+                    }}
+                  >
+                    Bỏ chọn tất cả
+                  </button>
+                )}
+              </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.4rem', maxHeight: '260px', overflowY: 'auto', padding: '2px' }}>
-              {tenClosestParcels
-                .filter((p) => p.projectParcelCode !== parcelData.projectParcelCode)
-                .map((adj) => {
-                  const isSelected = selectedMergeCodes.includes(adj.projectParcelCode);
-                  const distM = (adj as any).distanceMeters || 0;
-                  return (
-                    <div
-                      key={adj.id}
-                      onClick={() => handleToggleMergeParcel(adj.projectParcelCode)}
-                      style={{
-                        padding: '0.4rem 0.55rem',
-                        borderRadius: '0.45rem',
-                        border: isSelected ? '2px solid #0284c7' : '1px solid #cbd5e1',
-                        backgroundColor: isSelected ? '#e0f2fe' : '#ffffff',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        transition: 'all 0.15s ease',
-                      }}
-                    >
-                      <div>
-                        <div style={{ fontSize: '0.775rem', fontWeight: isSelected ? 800 : 600, color: isSelected ? '#0369a1' : '#334155' }}>
-                          {adj.projectParcelCode} <span style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 500 }}>({distM}m)</span>
-                        </div>
-                        <div style={{ fontSize: '0.675rem', color: '#64748b' }}>
-                          Số {adj.houseNumber} {adj.street}
-                        </div>
-                        {adj.ownerName && adj.ownerName !== 'Chủ sở hữu phần đất dôi dư' && (
-                          <div style={{ fontSize: '0.625rem', color: '#94a3b8', fontStyle: 'italic' }}>
-                            {adj.ownerName}
-                          </div>
-                        )}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(185px, 1fr))', gap: '0.4rem', maxHeight: '260px', overflowY: 'auto', padding: '2px' }}>
+              {filteredMergeParcels.map((adj) => {
+                const isSelected = selectedMergeCodes.includes(adj.projectParcelCode);
+                const distM = (adj as any).distanceMeters || 0;
+                return (
+                  <div
+                    key={adj.id || adj.projectParcelCode}
+                    onClick={() => handleToggleMergeParcel(adj.projectParcelCode)}
+                    style={{
+                      padding: '0.4rem 0.55rem',
+                      borderRadius: '0.45rem',
+                      border: isSelected ? '2px solid #0284c7' : '1px solid #cbd5e1',
+                      backgroundColor: isSelected ? '#e0f2fe' : '#ffffff',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontSize: '0.775rem', fontWeight: isSelected ? 800 : 600, color: isSelected ? '#0369a1' : '#334155' }}>
+                        {adj.projectParcelCode} <span style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: 500 }}>({distM}m)</span>
                       </div>
-                      {isSelected && <Check size={15} color="#0284c7" />}
+                      <div style={{ fontSize: '0.675rem', color: '#64748b' }}>
+                        Số {adj.houseNumber} {adj.street}
+                      </div>
+                      {adj.ownerName && adj.ownerName !== 'Chủ sở hữu phần đất dôi dư' && (
+                        <div style={{ fontSize: '0.625rem', color: '#94a3b8', fontStyle: 'italic' }}>
+                          {adj.ownerName}
+                        </div>
+                      )}
                     </div>
-                  );
-                })}
-              {tenClosestParcels.filter(p => p.projectParcelCode !== parcelData.projectParcelCode).length === 0 && (
+                    {isSelected && <Check size={15} color="#0284c7" />}
+                  </div>
+                );
+              })}
+              {filteredMergeParcels.length === 0 && (
                 <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '1rem', color: '#94a3b8', fontSize: '0.725rem' }}>
-                  Không tìm thấy thửa đất nào trong phạm vi 30m so với thửa đất đang khảo sát.
+                  {mergeSearchTerm ? 'Không tìm thấy thửa đất nào khớp với từ khóa tìm kiếm trong Zone.' : 'Không có thửa đất nào khác trong phân khu này.'}
                 </div>
               )}
             </div>

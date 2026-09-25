@@ -191,39 +191,39 @@ export const Step9_FieldSignatures: React.FC<Step9Props> = ({ onSubmitFinal, isS
 
           <div className="flex items-center gap-2">
             <input
+              id="minutes-camera-input"
               type="file"
               ref={minutesCameraRef}
               accept="image/*"
               capture="environment"
-              className="hidden"
+              className="sr-only"
               onChange={handleMinutesPhotoUpload}
             />
             <input
+              id="minutes-file-input"
               type="file"
               ref={minutesFileRef}
               accept="image/*"
               multiple
-              className="hidden"
+              className="sr-only"
               onChange={handleMinutesPhotoUpload}
             />
 
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => minutesCameraRef.current?.click()}
+            <label
+              htmlFor="minutes-camera-input"
+              className="inline-flex items-center justify-center rounded-md text-xs font-semibold ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 px-3 py-2 cursor-pointer shadow-xs"
             >
-              <Camera className="w-3.5 h-3.5 mr-1 text-sky-600" />
-              Chụp biên bản
-            </Button>
+              <Camera className="w-3.5 h-3.5 mr-1 text-emerald-600" />
+              Chụp camera
+            </label>
 
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => minutesFileRef.current?.click()}
+            <label
+              htmlFor="minutes-file-input"
+              className="inline-flex items-center justify-center rounded-md text-xs font-semibold ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 px-3 py-2 cursor-pointer shadow-xs"
             >
               <Upload className="w-3.5 h-3.5 mr-1 text-slate-600" />
               Tải file ảnh
-            </Button>
+            </label>
           </div>
         </div>
 

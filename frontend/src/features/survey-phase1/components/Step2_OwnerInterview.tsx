@@ -16,6 +16,7 @@ import {
 
 const USAGE_OPTIONS = [
   'Nhà ở gia đình',
+  'Nhà bỏ trống',
   'Chung cư / Toà nhiều căn hộ',
   'Cửa hàng / Shop / Bách hóa',
   'Quán ăn / Nhà hàng / Cafe',
@@ -60,7 +61,7 @@ export const Step2_OwnerInterview: React.FC = () => {
 
   const isCustomUsage =
     formData.usageFunction &&
-    !USAGE_OPTIONS.slice(0, 10).includes(formData.usageFunction);
+    !USAGE_OPTIONS.slice(0, USAGE_OPTIONS.length - 1).includes(formData.usageFunction);
 
   const isCustomStructure =
     Boolean(formData.structureSystem) &&
@@ -294,6 +295,64 @@ export const Step2_OwnerInterview: React.FC = () => {
               <span className="text-xs font-bold text-slate-500 whitespace-nowrap pl-1">mm</span>
             </div>
             <span className="text-[11px] text-slate-400 italic">VD: 250 x 250 mm hoặc D600 mm (để trống nếu không rõ)</span>
+          </div>
+
+          {/* Thông số móng bổ sung */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:col-span-2 p-3.5 bg-slate-50/80 rounded-xl border border-slate-200">
+            <div>
+              <Input
+                id="input-foundationDepthM"
+                label="Chiều Sâu Móng (m)"
+                type="number"
+                step="any"
+                min={0}
+                placeholder="VD: 2.5"
+                value={formData.foundationDepthM === '' || formData.foundationDepthM === undefined ? '' : formData.foundationDepthM}
+                onChange={(e) =>
+                  updateFormData({ foundationDepthM: e.target.value === '' ? '' : Number(e.target.value) })
+                }
+                hint="Chiều sâu đáy móng thực tế"
+              />
+            </div>
+            <div>
+              <Input
+                id="input-foundationDensity"
+                label="Mật Độ Móng (SL/m²)"
+                type="number"
+                step="any"
+                min={0}
+                placeholder="VD: 0.15"
+                value={formData.foundationDensity === '' || formData.foundationDensity === undefined ? '' : formData.foundationDensity}
+                onChange={(e) =>
+                  updateFormData({ foundationDensity: e.target.value === '' ? '' : Number(e.target.value) })
+                }
+                hint="Số lượng cọc/móng trên m²"
+              />
+            </div>
+            <div>
+              <Input
+                id="input-foundationSpacingM"
+                label="Khoảng Cách Giữa Móng (m)"
+                type="number"
+                step="any"
+                min={0}
+                placeholder="VD: 3.2"
+                value={formData.foundationSpacingM === '' || formData.foundationSpacingM === undefined ? '' : formData.foundationSpacingM}
+                onChange={(e) =>
+                  updateFormData({ foundationSpacingM: e.target.value === '' ? '' : Number(e.target.value) })
+                }
+                hint="Khoảng cách giữa các móng (m)"
+              />
+            </div>
+            <div className="sm:col-span-3 mt-1">
+              <Input
+                id="input-foundationNotes"
+                label="Ghi Chú Về Móng"
+                placeholder="Ghi chú chi tiết về tình trạng móng, cừ gia cố, lớp đất nền..."
+                value={formData.foundationNotes || ''}
+                onChange={(e) => updateFormData({ foundationNotes: e.target.value })}
+              />
+            </div>
           </div>
         </div>
 

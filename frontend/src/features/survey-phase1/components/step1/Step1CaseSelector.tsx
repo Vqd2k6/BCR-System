@@ -14,15 +14,26 @@ import {
   FileText,
   Trash2,
   Send,
+  Trees,
 } from 'lucide-react';
 import { Phase1SurveyFormData } from '../../types/phase1.types';
 import { ABSENTEE_REASONS } from './step1.constants';
 
+export const VACANT_LAND_STATUSES = [
+  'Đất trống chưa xây dựng',
+  'Đất rào chắn lưu không',
+  'Đất nông nghiệp / Trồng cây / Hoa màu',
+  'Bãi đỗ xe / Bãi tập kết vật tư tạm',
+  'Đất giải tỏa trắng / Mặt bằng sạch',
+  'Đất hoang hóa / San lấp dở dang',
+  'Khác (Nhập chi tiết...)',
+];
+
 interface Step1CaseSelectorProps {
   formData: Phase1SurveyFormData;
   updateFormData: (updates: Partial<Phase1SurveyFormData>) => void;
-  currentCase: 'NORMAL' | 'ABSENTEE' | 'APARTMENT' | 'UNDER_CONSTRUCTION';
-  onSelectCase: (caseType: 'NORMAL' | 'ABSENTEE' | 'APARTMENT' | 'UNDER_CONSTRUCTION') => void;
+  currentCase: 'NORMAL' | 'ABSENTEE' | 'APARTMENT' | 'UNDER_CONSTRUCTION' | 'VACANT_LAND';
+  onSelectCase: (caseType: 'NORMAL' | 'ABSENTEE' | 'APARTMENT' | 'UNDER_CONSTRUCTION' | 'VACANT_LAND') => void;
   isCondoMaster?: boolean;
   completeness: {
     hasAddress: boolean;
@@ -37,6 +48,8 @@ interface Step1CaseSelectorProps {
   onConfirmApartment: () => void;
   isSubmittingUnderConstruction: boolean;
   onSubmitUnderConstruction: () => void;
+  isSubmittingVacantLand?: boolean;
+  onSubmitVacantLand?: () => void;
 }
 
 export const Step1CaseSelector: React.FC<Step1CaseSelectorProps> = ({
@@ -52,6 +65,8 @@ export const Step1CaseSelector: React.FC<Step1CaseSelectorProps> = ({
   onConfirmApartment,
   isSubmittingUnderConstruction,
   onSubmitUnderConstruction,
+  isSubmittingVacantLand = false,
+  onSubmitVacantLand,
 }) => {
   if (isCondoMaster) return null;
 
@@ -87,7 +102,7 @@ export const Step1CaseSelector: React.FC<Step1CaseSelectorProps> = ({
               <Home className="w-4 h-4" />
             </div>
             <span className="font-bold text-sm text-slate-800">
-              1. Nhà dân / Công trình thông thường
+              1. Sử dụng bình thường
             </span>
           </div>
           <p className="text-xs text-slate-600 leading-relaxed pl-9">
@@ -158,6 +173,28 @@ export const Step1CaseSelector: React.FC<Step1CaseSelectorProps> = ({
           </div>
           <p className="text-xs text-slate-600 leading-relaxed pl-9">
             Ghi nhận ảnh hiện trạng tiến độ xây thô, móng, giàn giáo và hoàn tất hồ sơ khảo sát công trình dở dang.
+          </p>
+        </div>
+
+        {/* Option 5: Đất trống */}
+        <div
+          onClick={() => onSelectCase('VACANT_LAND')}
+          className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${
+            currentCase === 'VACANT_LAND'
+              ? 'bg-teal-50/90 border-teal-600 shadow-sm ring-2 ring-teal-500/20'
+              : 'bg-white/80 border-slate-200 hover:border-slate-300'
+          }`}
+        >
+          <div className="flex items-center gap-2.5 mb-1.5">
+            <div className="p-2 rounded-lg bg-teal-100 text-teal-800">
+              <Trees className="w-4 h-4" />
+            </div>
+            <span className="font-bold text-sm text-teal-950">
+              5. Đất trống
+            </span>
+          </div>
+          <p className="text-xs text-slate-600 leading-relaxed pl-9">
+            Thửa đất trống chưa xây dựng hoặc làm bãi tạm. Nộp hồ sơ hiện trạng đất trống và kết thúc khảo sát.
           </p>
         </div>
       </div>
@@ -408,6 +445,141 @@ export const Step1CaseSelector: React.FC<Step1CaseSelectorProps> = ({
               icon={<Send className="w-4 h-4" />}
             >
               {isSubmittingUnderConstruction ? 'Đang gửi hồ sơ...' : 'Hoàn Tất Hồ Sơ Nhà Đang Xây'}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* 4. Chi tiết Option ĐẤT TRỐNG */}
+      {currentCase === 'VACANT_LAND' && (
+        <div className="p-4 bg-teal-50 rounded-xl border border-teal-200 space-y-4 animate-in fade-in">
+          <div className="flex items-center gap-2 text-teal-950 font-bold text-sm pb-2 border-b border-teal-200">
+            <Trees className="w-4 h-4 text-teal-700" />
+            <span>Hồ Sơ Xác Nhận Hiện Trạng Đất Trống & Ngoại Quan</span>
+          </div>
+
+          {/* Checklist hoàn thiện Bước 1 */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+            <div className="p-2.5 bg-white rounded-lg border border-teal-200 flex items-center justify-between">
+              <span>1. Số nhà & Địa chỉ định danh</span>
+              {completeness.hasAddress ? (
+                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+              ) : (
+                <span className="text-amber-700 font-bold">Chưa đủ</span>
+              )}
+            </div>
+            <div className="p-2.5 bg-white rounded-lg border border-teal-200 flex items-center justify-between">
+              <span>2. Nhóm đối tượng</span>
+              {completeness.hasObjectGroup ? (
+                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+              ) : (
+                <span className="text-amber-700 font-bold">Chưa chọn</span>
+              )}
+            </div>
+            <div className="p-2.5 bg-white rounded-lg border border-teal-200 flex items-center justify-between">
+              <span>3. Hiện trạng tiếp giáp 3 hướng</span>
+              {completeness.hasAdjacent ? (
+                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+              ) : (
+                <span className="text-amber-700 font-bold">Chưa đủ</span>
+              )}
+            </div>
+            <div className="p-2.5 bg-white rounded-lg border border-teal-200 flex items-center justify-between">
+              <span>4. Ảnh ngoại quan / Đất trống</span>
+              {(formData.vacantLandPhotos && formData.vacantLandPhotos.length > 0) || completeness.hasPhotos ? (
+                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+              ) : (
+                <span className="text-amber-700 font-bold">Chưa chụp đủ</span>
+              )}
+            </div>
+          </div>
+
+          <Select
+            id="input-vacantLandStatus"
+            label="Hiện trạng đất trống thực tế: *"
+            value={formData.vacantLandStatus || ''}
+            onChange={(e) => updateFormData({ vacantLandStatus: e.target.value })}
+            options={[
+              { value: '', label: '-- Chọn hiện trạng đất trống thực tế --' },
+              ...VACANT_LAND_STATUSES.map((s) => ({ value: s, label: s })),
+            ]}
+          />
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">
+              Ghi chú hiện trạng đất trống:
+            </label>
+            <textarea
+              id="input-vacantLandNotes"
+              rows={2}
+              placeholder="VD: Đất trống có rào chắn, không có móng ngầm, hiện trạng cỏ mọc tự nhiên..."
+              className="w-full px-2.5 py-1.5 bg-white border border-teal-300 rounded-lg text-xs focus:ring-1 focus:ring-teal-500"
+              value={formData.vacantLandNotes || ''}
+              onChange={(e) => updateFormData({ vacantLandNotes: e.target.value })}
+            />
+          </div>
+
+          {/* Tải lên nhiều ảnh hiện trạng đất trống */}
+          <div id="vacant-land-photos-section" className="space-y-2 pt-2 border-t border-teal-200">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-teal-950 flex items-center gap-1.5">
+                <FileText className="w-4 h-4 text-teal-700" />
+                Ảnh Chụp Hiện Trạng Đất Trống (Bắt buộc tối thiểu 1 ảnh) *:
+              </span>
+              <span className="text-[11px] text-slate-500">
+                Đã chụp: {formData.vacantLandPhotos?.length || 0} ảnh
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {formData.vacantLandPhotos?.map((photoUrl, pIdx) => (
+                <div
+                  key={pIdx}
+                  className="relative rounded-lg overflow-hidden border border-teal-300 aspect-video group"
+                >
+                  <img src={photoUrl} alt={`Vacant Land ${pIdx}`} className="w-full h-full object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const updated = formData.vacantLandPhotos?.filter((_, i) => i !== pIdx) || [];
+                      updateFormData({ vacantLandPhotos: updated });
+                    }}
+                    className="absolute top-1 right-1 p-1 bg-red-600 text-white rounded-md text-xs opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                    title="Xóa ảnh"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </button>
+                </div>
+              ))}
+
+              <PhotoCaptureInput
+                label="Thêm ảnh đất trống"
+                value=""
+                onChange={(url) => {
+                  if (url) {
+                    const updated = [...(formData.vacantLandPhotos || []), url];
+                    updateFormData({ vacantLandPhotos: updated });
+                  }
+                }}
+                watermarkText={`DAT-TRONG | ${formData.houseNumber || 'VACANT-LAND'}`}
+                height="85px"
+              />
+            </div>
+          </div>
+
+          {/* Nút nộp hồ sơ đất trống */}
+          <div className="pt-3 border-t border-teal-200 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <span className="text-xs text-teal-900">
+              Gửi biểu mẫu đất trống về cho Admin và kết thúc khảo sát.
+            </span>
+            <Button
+              size="lg"
+              className="bg-teal-600 hover:bg-teal-700 text-white"
+              disabled={isSubmittingVacantLand}
+              onClick={onSubmitVacantLand}
+              icon={<Send className="w-4 h-4" />}
+            >
+              {isSubmittingVacantLand ? 'Đang gửi hồ sơ đất trống...' : 'Xác Nhận & Nộp Hồ Sơ Đất Trống'}
             </Button>
           </div>
         </div>

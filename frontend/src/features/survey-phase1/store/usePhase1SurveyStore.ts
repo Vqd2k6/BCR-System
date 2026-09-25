@@ -19,6 +19,8 @@ export interface Phase1SurveyStore {
   // Actions
   isReadOnly: boolean;
   setIsReadOnly: (isReadOnly: boolean) => void;
+  isSubmitted: boolean;
+  setIsSubmitted: (isSubmitted: boolean) => void;
   initializeForm: (parcel: GisParcel, unit?: BuildingUnit | null) => void;
   setCurrentStep: (step: number) => void;
   requestStepNavigation: (targetStep: number) => void;
@@ -31,7 +33,7 @@ export interface Phase1SurveyStore {
   updateFormData: (updater: Partial<Phase1SurveyFormData> | ((prev: Phase1SurveyFormData) => Phase1SurveyFormData)) => void;
   loadReportData: (serverFormData: Partial<Phase1SurveyFormData>) => void;
   saveDraftToStorage: () => void;
-  clearDraft: () => void;
+  clearDraft: (preserveSubmittedStatus?: boolean) => void;
   recalculateScores: () => void;
 }
 
@@ -60,6 +62,10 @@ export const getDefaultInitialFormData = (parcelId: string = ''): Phase1SurveyFo
   absenteeMinutesPhotos: [],
   underConstructionPhotos: [],
   constructionStageNotes: '',
+  isVacantLand: false,
+  vacantLandStatus: '',
+  vacantLandNotes: '',
+  vacantLandPhotos: [],
 
   photoP01: { url: '', notApplicable: false },
   photoP02: {
@@ -86,6 +92,10 @@ export const getDefaultInitialFormData = (parcelId: string = ''): Phase1SurveyFo
   pileDimensionMm: '',
   pileWidthMm: '',
   pileLengthMm: '',
+  foundationDepthM: '',
+  foundationDensity: '',
+  foundationSpacingM: '',
+  foundationNotes: '',
   asBuiltDrawingPhotoUrl: '',
   asBuiltDrawingFiles: [],
   foundationCatScore: 3,
@@ -224,8 +234,11 @@ export const usePhase1SurveyStore = create<Phase1SurveyStore>((set, get) => ({
   missingModal: null,
   isReadOnly: false,
   setIsReadOnly: (isReadOnly: boolean) => set({ isReadOnly, missingModal: isReadOnly ? null : get().missingModal }),
+  isSubmitted: false,
+  setIsSubmitted: (isSubmitted: boolean) => set({ isSubmitted }),
 
   initializeForm: (parcel: GisParcel, unit?: BuildingUnit | null) => {
+    set({ isSubmitted: false });
     const unitId = unit ? unit.id : null;
     const draftKey = `metro2_phase1_draft_${parcel.id}${unitId ? `_${unitId}` : ''}`;
     let initialData = getDefaultInitialFormData(parcel.id);
@@ -532,7 +545,7 @@ export const usePhase1SurveyStore = create<Phase1SurveyStore>((set, get) => ({
   },
 
   saveDraftToStorage: () => {
-    if (get().isReadOnly) return;
+    if (get().isReadOnly || get().isSubmitted) return;
     const { formData, currentUnitId, currentStep } = get();
     if (!formData.parcelId) return;
 
@@ -602,7 +615,8 @@ export const usePhase1SurveyStore = create<Phase1SurveyStore>((set, get) => ({
     }
   },
 
-  clearDraft: () => {
+  clearDraft: (preserveSubmittedStatus: boolean = true) => {
+    set({ isSubmitted: true });
     const { formData, currentUnitId } = get();
     if (!formData.parcelId) return;
     const draftKey = `metro2_phase1_draft_${formData.parcelId}${currentUnitId ? `_${currentUnitId}` : ''}`;
@@ -613,7 +627,11 @@ export const usePhase1SurveyStore = create<Phase1SurveyStore>((set, get) => ({
       const overridesStr = localStorage.getItem('metro2_parcel_status_overrides') || '{}';
       const overrides = JSON.parse(overridesStr);
       if (overrides[formData.parcelId]) {
-        delete overrides[formData.parcelId];
+        if (preserveSubmittedStatus && (overrides[formData.parcelId].status === 'SUBMITTED' || overrides[formData.parcelId].status === 'APPROVED')) {
+          // Bảo lưu trạng thái đã nộp / đã duyệt
+        } else {
+          delete overrides[formData.parcelId];
+        }
         localStorage.setItem('metro2_parcel_status_overrides', JSON.stringify(overrides));
       }
     } catch (_err) {}

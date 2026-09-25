@@ -624,7 +624,11 @@ CREATE TABLE building_specifications (
     roof_type VARCHAR(64),
     wall_type VARCHAR(64),
     year_of_construction INT,
-    is_year_estimated BOOLEAN NOT NULL DEFAULT FALSE
+    is_year_estimated BOOLEAN NOT NULL DEFAULT FALSE,
+    foundation_depth_m NUMERIC(6,2),
+    foundation_density INT,
+    foundation_spacing_m NUMERIC(6,2),
+    foundation_notes TEXT
 );
 
 CREATE TABLE historical_sensitivities (
@@ -644,8 +648,10 @@ CREATE TABLE floor_surveys (
     floor_name VARCHAR(64) NOT NULL,
     floor_order INT NOT NULL DEFAULT 1,
     overview_photos_json JSONB DEFAULT '[]'::jsonb, -- Mảng URL ảnh tổng quan tầng
-    cad_drawing_url TEXT,                           -- Ảnh bản vẽ phác thảo kỹ thuật tầng (CAD / Sơ đồ phòng)
-    cad_zone_pins_json JSONB DEFAULT '[]'::jsonb,   -- Mảng vị trí chấm zone Z trên bản vẽ CAD [{zoneId, zoneCode, label, x, y}]
+    cad_drawing_url TEXT,                           -- Ảnh bản vẽ phác thảo kỹ thuật tầng (CAD_01 / Sơ đồ kiến trúc phòng)
+    cad_zone_pins_json JSONB DEFAULT '[]'::jsonb,   -- Mảng vị trí chấm zone Z trên bản vẽ CAD_01 [{zoneId, zoneCode, label, x, y}]
+    cad_structural_drawing_url TEXT,                -- Ảnh bản vẽ phác thảo kết cấu tầng (CAD_02 / Sơ đồ kết cấu chịu lực)
+    cad_element_pins_json JSONB DEFAULT '[]'::jsonb,-- Mảng vị trí chấm cấu kiện E trên bản vẽ CAD_02 [{elementId, elementCode, label, x, y}]
     notes TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

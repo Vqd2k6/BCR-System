@@ -24,7 +24,7 @@ export const Step1PhotosSection: React.FC<Step1PhotosSectionProps> = ({
         <div className="flex items-center gap-2">
           <Camera className="w-5 h-5 text-emerald-600" />
           <h2 className="text-base sm:text-lg font-bold text-slate-800">
-            1.5. Chụp 4 Bộ Ảnh Định Danh Ngoại Thất
+            1.5. Chụp 4 Bộ Ảnh Định Danh Bên Ngoài
           </h2>
         </div>
       </div>
