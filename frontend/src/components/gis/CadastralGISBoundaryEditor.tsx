@@ -425,119 +425,103 @@ export const CadastralGISBoundaryEditor: React.FC<Props> = ({
     return [avgLat, avgLng];
   }, [realActiveCoords]);
 
-  // Fallback các thửa lân cận nếu API chưa có hoặc rỗng
-  const fallbackNeighbors: GisParcel[] = useMemo(() => {
-    const baseNum = parseInt(parcelData.projectParcelCode.replace(/\D/g, ''), 10) || 107;
-    const [cLat, cLng] = activeCentroid;
-    const dLat = 0.00028;
-    const dLng = 0.00032;
+  // Helper tính khoảng cách chính xác theo công thức Haversine (mét)
+  const calcDistanceMeters = (lat1: number, lng1: number, lat2: number, lng2: number): number => {
+    const R = 6371e3;
+    const phi1 = (lat1 * Math.PI) / 180;
+    const phi2 = (lat2 * Math.PI) / 180;
+    const deltaPhi = ((lat2 - lat1) * Math.PI) / 180;
+    const deltaLambda = ((lng2 - lng1) * Math.PI) / 180;
 
-    return [
-      {
-        id: 'neighbor_left',
-        projectParcelCode: `B-${String(baseNum - 1).padStart(5, '0')}`,
-        officialCadastralCode: `TĐ-${baseNum - 1}`,
-        houseNumber: `${Math.max(1, baseNum - 2)}`,
-        street: parcelData.street,
-        ownerName: 'Hộ liền kề bên trái',
-        surveyStatus: 'NOT_SURVEYED',
-        absenceAttemptCount: 0,
-        coordinates: [
-          [cLat, cLng - dLng],
-          [cLat + dLat, cLng - dLng],
-          [cLat + dLat, cLng],
-          [cLat, cLng],
-        ],
-        distanceMeters: 6,
-      },
-      {
-        id: 'neighbor_right',
-        projectParcelCode: `B-${String(baseNum + 1).padStart(5, '0')}`,
-        officialCadastralCode: `TĐ-${baseNum + 1}`,
-        houseNumber: `${baseNum + 2}`,
-        street: parcelData.street,
-        ownerName: 'Hộ liền kề bên phải',
-        surveyStatus: 'NOT_SURVEYED',
-        absenceAttemptCount: 0,
-        coordinates: [
-          [cLat, cLng + dLng],
-          [cLat + dLat, cLng + dLng],
-          [cLat + dLat, cLng + 2 * dLng],
-          [cLat, cLng + 2 * dLng],
-        ],
-        distanceMeters: 8,
-      },
-      {
-        id: 'neighbor_back',
-        projectParcelCode: `B-${String(baseNum + 2).padStart(5, '0')}`,
-        officialCadastralCode: `TĐ-${baseNum + 2}`,
-        houseNumber: `${baseNum + 4}`,
-        street: parcelData.street,
-        ownerName: 'Hộ liền kề phía sau',
-        surveyStatus: 'NOT_SURVEYED',
-        absenceAttemptCount: 0,
-        coordinates: [
-          [cLat + dLat, cLng],
-          [cLat + 2 * dLat, cLng],
-          [cLat + 2 * dLat, cLng + dLng],
-          [cLat + dLat, cLng + dLng],
-        ],
-        distanceMeters: 15,
-      },
-      {
-        id: 'neighbor_corner',
-        projectParcelCode: `B-${String(baseNum + 3).padStart(5, '0')}`,
-        officialCadastralCode: `TĐ-${baseNum + 3}`,
-        houseNumber: `${baseNum + 6}`,
-        street: parcelData.street,
-        ownerName: 'Hộ góc liền kề',
-        surveyStatus: 'NOT_SURVEYED',
-        absenceAttemptCount: 0,
-        coordinates: [
-          [cLat + dLat, cLng + dLng],
-          [cLat + 2 * dLat, cLng + dLng],
-          [cLat + 2 * dLat, cLng + 2 * dLng],
-          [cLat + dLat, cLng + 2 * dLng],
-        ],
-        distanceMeters: 20,
-      },
-    ];
-  }, [parcelData.projectParcelCode, parcelData.street, activeCentroid]);
+    const a =
+      Math.sin(deltaPhi / 2) * Math.sin(deltaPhi / 2) +
+      Math.cos(phi1) * Math.cos(phi2) * Math.sin(deltaLambda / 2) * Math.sin(deltaLambda / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
-  // Danh sách các thửa đất liền kề trong phạm vi 20m từ tâm thửa đất để gộp thửa (MERGE)
+    return Math.round(R * c);
+  };
+
+  // Tải danh sách thửa đất thực tế lân cận trong phạm vi 30m từ API
+  const [nearby30mParcels, setNearby30mParcels] = useState<GisParcel[]>([]);
+  const [_isLoadingNearby, setIsLoadingNearby] = useState<boolean>(false);
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchNearby = async () => {
+      const [cLat, cLng] = activeCentroid;
+      if (!cLat || !cLng) return;
+      try {
+        setIsLoadingNearby(true);
+        const res = await api.get('/parcels/nearby', {
+          params: { lat: cLat, lng: cLng, radius: 30 },
+        });
+        if (isMounted && res.data?.success && Array.isArray(res.data.data)) {
+          const mapped: GisParcel[] = res.data.data
+            .map((p: any) => {
+              let coords: [number, number][] = [];
+              if (p.cadastral_geojson?.coordinates?.[0]) {
+                coords = (p.cadastral_geojson.coordinates[0] as [number, number][]).map(
+                  ([lngVal, latVal]) => [latVal, lngVal] as [number, number]
+                );
+              } else if (p.coordinates && Array.isArray(p.coordinates)) {
+                coords = p.coordinates;
+              }
+              const dist =
+                typeof p.distance_meters === 'number'
+                  ? Math.round(p.distance_meters)
+                  : calcDistanceMeters(cLat, cLng, coords[0]?.[0] || cLat, coords[0]?.[1] || cLng);
+
+              return {
+                id: p.id,
+                projectParcelCode: p.project_parcel_code || p.projectParcelCode || 'B-XXXXX',
+                officialCadastralCode: p.official_cadastral_code || p.officialCadastralCode || '',
+                houseNumber: p.house_number || p.houseNumber || '',
+                street: p.street || '',
+                ownerName: p.owner_name || p.ownerName || 'Chưa cập nhật',
+                surveyStatus: p.survey_status || p.surveyStatus || 'NOT_SURVEYED',
+                absenceAttemptCount: p.absence_attempt_count ?? p.absenceAttemptCount ?? 0,
+                coordinates: coords,
+                distanceMeters: dist,
+              };
+            })
+            .filter((p: GisParcel) => p.coordinates.length >= 3 && p.projectParcelCode !== parcelData.projectParcelCode);
+
+          setNearby30mParcels(mapped);
+        }
+      } catch (_err) {
+        console.warn('Could not fetch /parcels/nearby');
+      } finally {
+        if (isMounted) setIsLoadingNearby(false);
+      }
+    };
+
+    fetchNearby();
+    return () => {
+      isMounted = false;
+    };
+  }, [activeCentroid, parcelData.projectParcelCode]);
+
+  // Danh sách các thửa đất thực tế liền kề trong phạm vi 30m từ tâm thửa đất để gộp thửa (MERGE) - Không mock data giả
   const tenClosestParcels: GisParcel[] = useMemo(() => {
-    const combined = [...zoneParcels];
-    fallbackNeighbors.forEach((fb) => {
-      if (!combined.some((p) => p.projectParcelCode === fb.projectParcelCode)) {
-        combined.push(fb);
+    const pool = [...nearby30mParcels];
+
+    // Lọc và bổ sung các thửa từ zoneParcels trong phạm vi 30m
+    zoneParcels.forEach((zp) => {
+      if (zp.projectParcelCode === parcelData.projectParcelCode) return;
+      if (pool.some((p) => p.projectParcelCode === zp.projectParcelCode)) return;
+
+      const pCenterLat = zp.coordinates.reduce((s, c) => s + c[0], 0) / (zp.coordinates.length || 1);
+      const pCenterLng = zp.coordinates.reduce((s, c) => s + c[1], 0) / (zp.coordinates.length || 1);
+      const dist = calcDistanceMeters(activeCentroid[0], activeCentroid[1], pCenterLat, pCenterLng);
+
+      if (dist <= 30) {
+        pool.push({ ...zp, distanceMeters: dist });
       }
     });
 
-    const withDist = combined.map((p) => {
-      const pCenterLat = p.coordinates.reduce((s, c) => s + c[0], 0) / (p.coordinates.length || 1);
-      const pCenterLng = p.coordinates.reduce((s, c) => s + c[1], 0) / (p.coordinates.length || 1);
-      const dLat = pCenterLat - activeCentroid[0];
-      const dLng = pCenterLng - activeCentroid[1];
-      const dist = Math.sqrt(dLat * dLat + dLng * dLng);
-      return { ...p, distanceMeters: (p as any).distanceMeters || Math.round(dist * 111000) };
-    });
-
-    withDist.sort((a, b) => (a.distanceMeters || 0) - (b.distanceMeters || 0));
-
-    // Lấy TẤT CẢ các thửa đất liền kề trong phạm vi 20m (không bị giới hạn slice 10)
-    const within20m = withDist.filter(
-      (p) => p.projectParcelCode !== parcelData.projectParcelCode && (p.distanceMeters || 0) <= 20
-    );
-
-    if (within20m.length > 0) {
-      return within20m;
-    }
-
-    // Dự phòng nếu khu vực thưa tọa độ hoặc thửa rộng: lấy các thửa gần nhất trong phạm vi 35m
-    return withDist
-      .filter((p) => p.projectParcelCode !== parcelData.projectParcelCode && (p.distanceMeters || 0) <= 35)
-      .slice(0, 15);
-  }, [zoneParcels, fallbackNeighbors, activeCentroid, parcelData.projectParcelCode]);
+    pool.sort((a, b) => ((a as any).distanceMeters || 0) - ((b as any).distanceMeters || 0));
+    return pool;
+  }, [nearby30mParcels, zoneParcels, activeCentroid, parcelData.projectParcelCode]);
 
   // =========================================================================
   // SPLIT ENGINE: OPTION 1 (CHẤM ĐIỂM TỰ NỐI) & OPTION 2 (KÉO NẮN ĐIỂM MÚT)
@@ -2090,7 +2074,7 @@ export const CadastralGISBoundaryEditor: React.FC<Props> = ({
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.3rem' }}>
               <label style={{ fontSize: '0.75rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>
-                Chọn các thửa đất liền kề trong phạm vi 20m để gộp ({tenClosestParcels.length} thửa liền kề - đã chọn {selectedMergeCodes.length}):
+                Chọn các thửa đất liền kề trong phạm vi 30m để gộp ({tenClosestParcels.length} thửa liền kề - đã chọn {selectedMergeCodes.length}):
               </label>
               {selectedMergeCodes.length > 0 && (
                 <button
@@ -2152,7 +2136,7 @@ export const CadastralGISBoundaryEditor: React.FC<Props> = ({
                 })}
               {tenClosestParcels.filter(p => p.projectParcelCode !== parcelData.projectParcelCode).length === 0 && (
                 <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '1rem', color: '#94a3b8', fontSize: '0.725rem' }}>
-                  Không tìm thấy thửa đất liền kề trong phạm vi 20m. Vui lòng chờ tải bản đồ GIS...
+                  Không tìm thấy thửa đất nào trong phạm vi 30m so với thửa đất đang khảo sát.
                 </div>
               )}
             </div>

@@ -76,9 +76,16 @@ export function problemDetailsErrorHandler(
   _next: NextFunction
 ): void {
   const isAppError = err instanceof AppError;
-  const status = isAppError ? err.status : 500;
-  const code = isAppError ? err.code : 'INTERNAL_SERVER_ERROR';
-  const detail = err.message || 'Đã xảy ra lỗi máy chủ nội bộ';
+  const isPayloadTooLarge =
+    (err as any).type === 'entity.too.large' ||
+    (err as any).status === 413 ||
+    (err.message && err.message.toLowerCase().includes('too large'));
+
+  const status = isAppError ? err.status : isPayloadTooLarge ? 413 : 500;
+  const code = isAppError ? err.code : isPayloadTooLarge ? 'PAYLOAD_TOO_LARGE' : 'INTERNAL_SERVER_ERROR';
+  const detail = isPayloadTooLarge
+    ? 'Dung lượng gói tin vượt quá giới hạn cho phép của máy chủ (Tối đa 150MB). Vui lòng nén ảnh hoặc gửi theo từng phần.'
+    : err.message || 'Đã xảy ra lỗi máy chủ nội bộ';
 
   const problem: ProblemDetails = {
     type: `https://metro2.vn/errors/${code.toLowerCase()}`,

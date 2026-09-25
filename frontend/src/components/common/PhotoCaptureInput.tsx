@@ -62,21 +62,67 @@ export const PhotoCaptureInput: React.FC<Props> = ({
     img.src = value;
   }, [value]);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const compressImage = (file: File): Promise<string> => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const rawBase64 = event.target?.result as string;
+        if (!rawBase64) {
+          resolve('');
+          return;
+        }
+        const img = new Image();
+        img.onload = () => {
+          const maxDim = 1920;
+          let width = img.naturalWidth;
+          let height = img.naturalHeight;
+
+          if (width > maxDim || height > maxDim) {
+            if (width > height) {
+              height = Math.round((height * maxDim) / width);
+              width = maxDim;
+            } else {
+              width = Math.round((width * maxDim) / height);
+              height = maxDim;
+            }
+          }
+
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            resolve(rawBase64);
+            return;
+          }
+
+          ctx.drawImage(img, 0, 0, width, height);
+          const compressed = canvas.toDataURL('image/jpeg', 0.82);
+          resolve(compressed);
+        };
+        img.onerror = () => resolve(rawBase64);
+        img.src = rawBase64;
+      };
+      reader.onerror = () => resolve('');
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const base64 = event.target?.result as string;
+    try {
+      const base64 = await compressImage(file);
       if (base64) {
         onChange(base64);
         if (isNotApplicable && onToggleNotApplicable) {
           onToggleNotApplicable(false);
         }
       }
-    };
-    reader.readAsDataURL(file);
+    } catch (_err) {
+      console.warn('Image compression fallback');
+    }
     e.target.value = '';
   };
 

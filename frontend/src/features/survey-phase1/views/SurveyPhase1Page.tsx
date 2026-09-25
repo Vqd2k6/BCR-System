@@ -16,6 +16,8 @@ import { api } from '../../../services/api';
 import { useAuth } from '../../../context/AuthContext';
 import confetti from 'canvas-confetti';
 
+import { AbsenteeReviewView } from './AbsenteeReviewView';
+
 export interface SurveyPhase1PageProps {
   parcel?: GisParcel | null;
   unit?: BuildingUnit | null;
@@ -393,6 +395,27 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
       alert('Có lỗi xảy ra khi từ chối hồ sơ.');
     }
   };
+
+  const isAbsenteeReport =
+    formData.surveyCaseType === 'ABSENTEE' ||
+    formData.isAbsenteeSurvey === true ||
+    parcel?.surveyStatus === 'POSTPONED_ABSENT' ||
+    reportData?.report?.survey_status === 'POSTPONED_ABSENT' ||
+    Boolean(reportData?.absenceLog);
+
+  if (readOnly && isAbsenteeReport) {
+    return (
+      <AbsenteeReviewView
+        parcel={parcel}
+        unit={unit}
+        readOnly={readOnly}
+        canApproveOrReject={Boolean(canApproveOrReject)}
+        onApprove={handleApproveFromPage}
+        onReject={handleRejectFromPage}
+        onBackToHome={onBackToHome}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen bg-slate-50/50 flex flex-col">

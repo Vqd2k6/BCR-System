@@ -151,17 +151,17 @@ export class CadastralRepository {
                 p.location_geom::geography,
                 ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography
               ) AS distance_meters,
-              ST_AsGeoJSON(p.location_geom)::json AS location_geojson
+              ST_AsGeoJSON(p.location_geom)::json AS location_geojson,
+              ST_AsGeoJSON(p.cadastral_polygon_geom)::json AS cadastral_geojson
        FROM parcels p
        WHERE p.lifecycle_status = 'ACTIVE'
-         AND p.survey_status IN ('NOT_SURVEYED', 'POSTPONED_ABSENT')
          AND ST_DWithin(
            p.location_geom::geography,
            ST_SetSRID(ST_MakePoint($2, $1), 4326)::geography,
            $3
          )
        ORDER BY distance_meters ASC
-       LIMIT 20;`,
+       LIMIT 50;`,
       [lat, lng, radiusMeters]
     );
     return res.rows;
