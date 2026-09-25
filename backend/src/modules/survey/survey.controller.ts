@@ -203,27 +203,99 @@ export class SurveyController {
       );
       const reportId = initResult.reportId;
 
-      // 2. Lưu các bước nếu có dữ liệu
-      if (surveyData?.step1Photos) {
-        await SurveyService.saveIdentificationPhotos(reportId, surveyData.step1Photos);
+      // 2. Map and Save Dữ liệu
+      const p01 = surveyData?.photoP01 || {};
+      const p02 = surveyData?.photoP02 || {};
+      const p03 = surveyData?.photoP03 || {};
+      const p04 = surveyData?.photoP04 || {};
+
+      const step1Photos = {
+        p01HouseNumberUrl: p01.url,
+        p01NotApplicable: p01.notApplicable,
+        p01NaReason: p01.naReason,
+        p02MainFacadeUrl: p02.url,
+        p02FacadePolygonPoints: p02.polygonPoints,
+        p02FloorSplitLines: p02.floorSplits,
+        p02Dimensions: p02.dimensions,
+        p02NotApplicable: p02.notApplicable,
+        p02NaReason: p02.naReason,
+        p03SideRearUrl: p03.url,
+        p03NotApplicable: p03.notApplicable,
+        p04ContextStreetUrl: p04.url,
+        p04NotApplicable: p04.notApplicable,
+      };
+      await SurveyService.saveIdentificationPhotos(reportId, step1Photos);
+
+      let structuralSystem = 'KHUNG_BTCT_CHIU_LUC';
+      const frontendStructure = surveyData?.structureSystem || '';
+      if (frontendStructure.includes('RC') || frontendStructure.includes('BTCT toàn khối') || frontendStructure.includes('BTCT')) {
+        structuralSystem = 'KHUNG_BTCT_CHIU_LUC';
+      } else if (frontendStructure.includes('Masonry') || frontendStructure.includes('Tường gạch')) {
+        structuralSystem = 'TUONG_GACH_CHIU_LUC';
+      } else if (frontendStructure.includes('Steel') || frontendStructure.includes('Khung kết cấu thép')) {
+        structuralSystem = 'KET_CAU_THEP';
+      } else if (frontendStructure.includes('Mixed') || frontendStructure.includes('Kết cấu hỗn hợp')) {
+        structuralSystem = 'KET_CAU_HON_HOP';
+      } else {
+         structuralSystem = 'NHA_GO';
       }
-      if (surveyData?.specs) {
-        await SurveyService.saveBuildingSpecs(reportId, surveyData.specs);
-      }
+
+      let foundationCategory = 'CAT_2_MONG_DON_BTCT';
+      const score = surveyData?.foundationCatScore;
+      if (score === 1) foundationCategory = 'CAT_1_MONG_NONG_GIA_CO';
+      else if (score === 2) foundationCategory = 'CAT_2_MONG_DON_BTCT';
+      else if (score === 3) foundationCategory = 'CAT_3_MONG_BANG_BTCT';
+      else if (score === 4) foundationCategory = 'CAT_4_MONG_COC_BTCT';
+      else if (score === 5) foundationCategory = 'CAT_5_KHONG_XAC_DINH';
+
+      const specs = {
+        buildingName: surveyData?.buildingName,
+        buildingGrade: surveyData?.objectGroup === 'GENERAL' || surveyData?.objectGroup === 'IMPORTANT' || surveyData?.objectGroup === 'CRITICAL' ? surveyData?.objectGroup : 'GENERAL',
+        adjacentBuildings: JSON.stringify(surveyData?.adjacentBuildings || {}),
+        structuralSystem,
+        floorCount: surveyData?.aboveFloors || 1,
+        basementCount: surveyData?.undergroundFloors || 0,
+        foundationCategory,
+        yearOfConstruction: surveyData?.constructionYear || null,
+        isYearEstimated: surveyData?.isEstimatedYear || false,
+        extendedOrRenovated: surveyData?.historyInterview?.renovationLoad > 0,
+        previousSettlementOrTilt: surveyData?.historyInterview?.pastSettlement > 0,
+        fireOrAccident: surveyData?.historyInterview?.fireFloodIncident > 0,
+        sensitiveEquipmentPresent: surveyData?.historyInterview?.sensitiveEquipment?.has || false,
+        historyDetails: JSON.stringify(surveyData?.historyInterview || {}),
+        e5HistoryScore: surveyData?.ecs?.e5 || 0,
+      };
+      await SurveyService.saveBuildingSpecs(reportId, specs);
+
       if (surveyData?.floors && Array.isArray(surveyData.floors)) {
         await SurveyService.saveFloorSurveys(reportId, surveyData.floors);
       }
-      if (surveyData?.deformation) {
-        await SurveyService.saveDeformation(reportId, surveyData.deformation);
+
+      if (surveyData?.settlementTilt) {
+         const tilt = surveyData.settlementTilt.buildingTilt || {};
+         const sag = surveyData.settlementTilt.beamSagging || {};
+         const def = {
+            tiltAngleX: tilt.xPermille || 0,
+            tiltAngleY: tilt.yPermille || 0,
+            tiltDirection: tilt.direction,
+            beamDeflectionMm: sag.sagMm || 0,
+            measurementMethod: surveyData.settlementTilt.dataSource ? surveyData.settlementTilt.dataSource.join(', ') : 'LASER_LEVEL',
+            measurementReliability: surveyData.settlementTilt.reliability || 'HIGH',
+         };
+         await SurveyService.saveDeformation(reportId, def);
       }
 
-      // 3. Nộp hồ sơ
+      // 3. Tính điểm Rủi ro (Scoring) tự động trên Backend
+      const { ScoringService } = require('../scoring/scoring.service');
+      await ScoringService.calculatePhase1Scores(reportId);
+
+      // 4. Nộp hồ sơ
       const result = await SurveyService.submitPhase1Report(reportId, {
         ownerRemarks: surveyData?.signatures?.ownerRemarks || '',
-        surveyorSignatureUrl: surveyData?.signatures?.surveyorSignatureUrl || '',
-        ownerSignatureUrl: surveyData?.signatures?.ownerSignatureUrl || '',
-        summaryConclusions: surveyData?.signatures?.summaryConclusions || '',
-        engineeringRecommendations: surveyData?.signatures?.engineeringRecommendations || '',
+        surveyorSignatureUrl: surveyData?.signatures?.preparedBy?.photoUrl || surveyData?.signatures?.surveyorSignatureUrl || '',
+        ownerSignatureUrl: surveyData?.signatures?.ownerRepresentative?.photoUrl || surveyData?.signatures?.ownerSignatureUrl || '',
+        summaryConclusions: surveyData?.summaryConclusions || surveyData?.signatures?.summaryConclusions || '',
+        engineeringRecommendations: surveyData?.engineeringRecommendations || surveyData?.signatures?.engineeringRecommendations || '',
       });
 
       res.status(200).json({
