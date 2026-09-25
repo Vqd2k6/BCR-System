@@ -350,13 +350,13 @@ export class SurveyRepository {
          measurement_reliability = EXCLUDED.measurement_reliability;`,
       [
         reportId,
-        deform.tiltAngleX,
-        deform.tiltAngleY,
-        deform.tiltDirection || null,
-        deform.floorSlopeRatio,
-        deform.beamDeflectionMm,
-        deform.measurementMethod,
-        deform.measurementReliability,
+        Number(deform.tiltAngleX) || 0,
+        Number(deform.tiltAngleY) || 0,
+        deform.tiltDirection ? String(deform.tiltDirection) : null,
+        Number(deform.floorSlopeRatio) || 0,
+        Number(deform.beamDeflectionMm) || 0,
+        deform.measurementMethod || 'LASER_LEVEL',
+        deform.measurementReliability || 'HIGH',
       ]
     );
   }

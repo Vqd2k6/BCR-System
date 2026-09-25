@@ -294,16 +294,30 @@ export class SurveyController {
         const tilt = surveyData.settlementTilt.buildingTilt || {};
         const sag = surveyData.settlementTilt.beamSagging || {};
         const def = {
-          tiltAngleX: tilt.xPermille || 0,
-          tiltAngleY: tilt.yPermille || 0,
-          tiltDirection: tilt.direction,
-          beamDeflectionMm: sag.sagMm || 0,
-          measurementMethod: surveyData.settlementTilt.dataSource ? surveyData.settlementTilt.dataSource.join(', ') : 'LASER_LEVEL',
-          measurementReliability: surveyData.settlementTilt.reliability || 'HIGH',
+          tiltAngleX: Number(tilt.xPermille) || 0,
+          tiltAngleY: Number(tilt.yPermille) || 0,
+          tiltDirection: tilt.direction ? String(tilt.direction) : null,
+          floorSlopeRatio: Number(surveyData.settlementTilt.floorSlopeRatio) || 0,
+          beamDeflectionMm: Number(sag.sagMm) || 0,
+          measurementMethod: Array.isArray(surveyData.settlementTilt.dataSource)
+            ? surveyData.settlementTilt.dataSource.join(', ')
+            : (surveyData.settlementTilt.dataSource || 'LASER_LEVEL'),
+          measurementReliability:
+            surveyData.settlementTilt.reliability === 'MEDIUM' || surveyData.settlementTilt.reliability === 'LOW'
+              ? surveyData.settlementTilt.reliability
+              : 'HIGH',
         };
         await SurveyService.saveDeformation(reportId, def);
       } else if (surveyData?.deformation) {
-        await SurveyService.saveDeformation(reportId, surveyData.deformation);
+        await SurveyService.saveDeformation(reportId, {
+          tiltAngleX: Number(surveyData.deformation.tiltAngleX) || 0,
+          tiltAngleY: Number(surveyData.deformation.tiltAngleY) || 0,
+          tiltDirection: surveyData.deformation.tiltDirection ? String(surveyData.deformation.tiltDirection) : null,
+          floorSlopeRatio: Number(surveyData.deformation.floorSlopeRatio) || 0,
+          beamDeflectionMm: Number(surveyData.deformation.beamDeflectionMm) || 0,
+          measurementMethod: surveyData.deformation.measurementMethod || 'LASER_LEVEL',
+          measurementReliability: surveyData.deformation.measurementReliability || 'HIGH',
+        });
       }
 
       // 3. Tính điểm Rủi ro (Scoring) tự động trên Backend
