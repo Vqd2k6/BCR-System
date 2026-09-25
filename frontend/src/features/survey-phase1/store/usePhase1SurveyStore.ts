@@ -29,6 +29,7 @@ export interface Phase1SurveyStore {
   focusMissingField: (item: MissingFieldItem) => void;
   validateForFinalSubmit: () => boolean;
   updateFormData: (updater: Partial<Phase1SurveyFormData> | ((prev: Phase1SurveyFormData) => Phase1SurveyFormData)) => void;
+  loadReportData: (serverFormData: Partial<Phase1SurveyFormData>) => void;
   saveDraftToStorage: () => void;
   clearDraft: () => void;
   recalculateScores: () => void;
@@ -508,6 +509,19 @@ export const usePhase1SurveyStore = create<Phase1SurveyStore>((set, get) => ({
 
     // Auto save draft debounced
     get().saveDraftToStorage();
+  },
+
+  loadReportData: (serverFormData) => {
+    set((state) => {
+      const newFormData = { ...state.formData, ...serverFormData };
+      // Tự động tính lại điểm ECS & VI khi tải dữ liệu từ server
+      const ecs = calculateEcsScore(newFormData);
+      const vi = calculateViScore(newFormData, ecs);
+      newFormData.ecs = ecs;
+      newFormData.vi = vi;
+
+      return { formData: newFormData };
+    });
   },
 
   recalculateScores: () => {

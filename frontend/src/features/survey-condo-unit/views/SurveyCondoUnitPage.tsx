@@ -99,6 +99,11 @@ export const SurveyCondoUnitPage: React.FC<SurveyCondoUnitPageProps> = ({
     const isValid = validateForFinalSubmit();
     if (!isValid) return;
 
+    const confirmed = window.confirm(
+      'Xac nhan nop ho so khao sat can ho ' + (formData.unitCode || '') + '?\n\nSau khi nop, ho so se chuyen sang trang thai "Cho duyet" va khong the chinh sua.'
+    );
+    if (!confirmed) return;
+
     try {
       setIsSubmitting(true);
       console.log('[CondoUnit] Submitting child unit survey payload:', formData);
@@ -112,14 +117,14 @@ export const SurveyCondoUnitPage: React.FC<SurveyCondoUnitPageProps> = ({
         completedAt: new Date().toISOString(),
       };
 
-      // Gửi API lên backend nếu có
-      try {
-        await api.post('/surveys/phase1/submit', payload);
-      } catch (apiErr) {
-        console.warn('[CondoUnit] API submit fallback (local sync):', apiErr);
+      // ✅ Đợi API xác nhận - KHÔNG bắt lỗi bên trong để lỗi nổi lên catch ngoài
+      const response = await api.post('/surveys/phase1/submit', payload);
+
+      if (!response.data?.success) {
+        throw new Error(response.data?.message || 'Server bao loi khong xac dinh');
       }
 
-      // Đánh dấu hoàn tất trong localStorage của căn hộ này
+      // Chỉ đánh dấu hoàn tất sau khi server xác nhận
       try {
         const completedUnitsKey = `metro2_condo_completed_units_${formData.parcelId}`;
         const existing = JSON.parse(localStorage.getItem(completedUnitsKey) || '[]');
@@ -130,7 +135,7 @@ export const SurveyCondoUnitPage: React.FC<SurveyCondoUnitPageProps> = ({
       } catch (_e) {}
 
       clearDraft();
-      alert(`Đã hoàn tất nộp hồ sơ khảo sát cho căn hộ ${formData.unitCode}!`);
+      alert('Da nop thanh cong ho so khao sat can ho ' + (formData.unitCode || '') + '!\n\nHo so dang cho duyet tu Zone Admin.');
 
       if (onFinished) {
         onFinished();
@@ -139,12 +144,27 @@ export const SurveyCondoUnitPage: React.FC<SurveyCondoUnitPageProps> = ({
       }
     } catch (err: any) {
       console.error('[CondoUnit] Error submitting unit survey:', err);
-      alert('Đã lưu dữ liệu căn hộ thành công!');
-      if (onFinished) onFinished();
+      const statusCode = err?.response?.status;
+      const serverMsg = err?.response?.data?.detail || err?.response?.data?.message || err?.message;
+      if (statusCode === 500) {
+        alert(
+          `❌ Lỗi máy chủ (500) - Hồ sơ CHƯA ĐƯỢC nộp!\n\n${serverMsg || 'Internal Server Error'}\n\nVui lòng thử lại sau hoặc liên hệ kỹ thuật viên.\nDữ liệu đã được lưu nháp an toàn trên thiết bị.`
+        );
+      } else if (!statusCode) {
+        alert(
+          '❌ Lỗi kết nối mạng - Hồ sơ CHƯA ĐƯỢC nộp!\n\nKiểm tra kết nối internet và thử lại.\nDữ liệu đã được lưu nháp an toàn trên thiết bị.'
+        );
+      } else {
+        alert(
+          `❌ Nộp hồ sơ thất bại (${statusCode}) - Hồ sơ CHƯA ĐƯỢC nộp!\n\n${serverMsg || 'Lỗi không xác định'}\n\nVui lòng thử lại.`
+        );
+      }
+      // ⛔ Không gọi onFinished()
     } finally {
       setIsSubmitting(false);
     }
   };
+
 
   return (
     <div className="min-h-screen bg-slate-100/90 flex flex-col font-sans">

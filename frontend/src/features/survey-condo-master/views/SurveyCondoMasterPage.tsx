@@ -60,10 +60,15 @@ export const SurveyCondoMasterPage: React.FC<SurveyCondoMasterPageProps> = ({
     document.body.scrollTo({ top: 0, left: 0, behavior: 'instant' });
   }, [currentStep]);
 
-  // Nộp hồ sơ toàn diện Tòa nhà Chung cư mẹ
+  // Nộp hồ sơ toàn diện Toà nhà Chung cư mẹ
   const handleSubmitFinal = async () => {
     const isValid = validateForFinalSubmit();
     if (!isValid) return;
+
+    const confirmed = window.confirm(
+      'Xác nhận nộp hồ sơ khảo sát Tòa nhà Chung cư tổng thể?\n\nSau khi nộp, hồ sơ sẽ chuyển sang trạng thái "Chờ duyệt" và không thể chỉnh sửa.'
+    );
+    if (!confirmed) return;
 
     try {
       setIsSubmitting(true);
@@ -77,24 +82,43 @@ export const SurveyCondoMasterPage: React.FC<SurveyCondoMasterPageProps> = ({
         completedAt: new Date().toISOString(),
       };
 
-      await api.post('/surveys/phase1/submit', payload);
-      localStorage.setItem(`metro2_condo_master_submitted_${formData.parcelId}`, 'true');
-      clearDraft();
-      alert('Đã nộp thành công hồ sơ khảo sát Tòa nhà Chung cư tổng thể!');
-      if (onFinished) {
-        onFinished();
+      const response = await api.post('/surveys/phase1/submit', payload);
+
+      if (response.data?.success) {
+        localStorage.setItem(`metro2_condo_master_submitted_${formData.parcelId}`, 'true');
+        clearDraft();
+        alert('Đã nộp thành công hồ sơ khảo sát Tòa nhà Chung cư tổng thể!\n\nHồ sơ đang chờ duyệt từ Zone Admin.');
+        if (onFinished) {
+          onFinished();
+        } else {
+          onBackToHome();
+        }
       } else {
-        onBackToHome();
+        throw new Error(response.data?.message || 'Server báo lỗi không xác định');
       }
     } catch (err: any) {
       console.error('[CondoMaster] Failed to submit master survey:', err);
-      localStorage.setItem(`metro2_condo_master_submitted_${formData.parcelId}`, 'true');
-      alert('Đã lưu hồ sơ cục bộ thành công!');
-      if (onFinished) onFinished();
+      const statusCode = err?.response?.status;
+      const serverMsg = err?.response?.data?.detail || err?.response?.data?.message || err?.message;
+
+      if (statusCode === 500) {
+        alert(
+          `❌ Lỗi máy chủ (500) - Hồ sơ CHƯA ĐƯỢC nộp!\n\n${serverMsg || 'Internal Server Error'}\n\nVui lòng thử lại sau hoặc liên hệ kỹ thuật viên.\nDữ liệu đã được lưu nháp an toàn trên thiết bị.`
+        );
+      } else if (!statusCode) {
+        alert(
+          '❌ Lỗi kết nối mạng - Hồ sơ CHƯA ĐƯỢC nộp!\n\nKiểm tra kết nối internet và thử lại.\nDữ liệu đã được lưu nháp an toàn trên thiết bị.'
+        );
+      } else {
+        alert(
+          `❌ Nộp hồ sơ thất bại (${statusCode}) - Hồ sơ CHƯA ĐƯỢC nộp!\n\n${serverMsg || 'Lỗi không xác định'}\n\nVui lòng thử lại.`
+        );
+      }
     } finally {
       setIsSubmitting(false);
     }
   };
+
 
   return (
     <div className="min-h-screen bg-slate-100/90 flex flex-col font-sans">

@@ -54,6 +54,9 @@ export function isIgnoredError(message: string, stack?: string, source?: string)
     'chrome://',
     'moz-extension://',
     'devtools://',
+    '200.js',
+    "reading 'm_id'",
+    'reading "m_id"',
   ];
 
   for (const pattern of extensionPatterns) {

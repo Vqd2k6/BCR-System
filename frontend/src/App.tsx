@@ -297,8 +297,9 @@ export const App: React.FC = () => {
   const handleRecordAbsence = async (parcel: GisParcel) => {
     try {
       await api.post(`/parcels/${parcel.id}/record-absence`, {
-        reason: 'Chủ nhà đi vắng, đã dán giấy thông báo khảo sát lần 2',
-        evidencePhotoUrl: 'https://images.unsplash.com/photo-1580587771525-78b9dba3b914?w=600',
+        absenceReason: 'HOMEOWNER_ABSENT',
+        notes: 'Chủ nhà đi vắng, đã dán giấy thông báo khảo sát lần 2',
+        photoProofUrl: 'https://images.unsplash.com/photo-1580587771525-78b9dba3b914?w=600',
       });
     } catch (_err) {
       setParcels(

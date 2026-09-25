@@ -44,6 +44,7 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
     focusMissingField,
     validateForFinalSubmit,
     setIsReadOnly,
+    loadReportData,
   } = usePhase1SurveyStore();
   const { user } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -75,10 +76,25 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
             const absence = data.absenceLog;
             const updates: any = {};
 
+            // 1. Khôi phục toàn vẹn 100% dữ liệu gốc từ JSON snapshot nếu đã từng nộp
+            if (rep?.survey_data_json) {
+              try {
+                const rawJson = typeof rep.survey_data_json === 'string'
+                  ? JSON.parse(rep.survey_data_json)
+                  : rep.survey_data_json;
+                if (rawJson && typeof rawJson === 'object') {
+                  Object.assign(updates, rawJson);
+                  console.log('[SurveyPhase1Page] Restored 100% original state from survey_data_json');
+                }
+              } catch (jsonErr) {
+                console.warn('[SurveyPhase1Page] Lỗi giải mã survey_data_json:', jsonErr);
+              }
+            }
+
             if (absence) {
               updates.surveyCaseType = 'ABSENTEE';
               updates.isAbsenteeSurvey = true;
-              updates.absenteeReason = absence.absence_reason || '';
+              updates.absenteeReason = absence.absence_reason || updates.absenteeReason || '';
               if (absence.photo_proof_url) {
                 updates.absenteeMinutesPhotos = [absence.photo_proof_url];
               }
@@ -98,29 +114,31 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
                 if (s.structural_system) updates.structureSystem = s.structural_system;
                 if (s.foundation_category) updates.foundationType = s.foundation_category;
               }
-              if (rep.identificationPhotos && Array.isArray(rep.identificationPhotos)) {
+              if (rep.identificationPhotos && Array.isArray(rep.identificationPhotos) && rep.identificationPhotos.length > 0) {
                 rep.identificationPhotos.forEach((p: any) => {
                   if (p.photo_type === 'P01_HOUSE_NUMBER') {
                     updates.photoP01 = { url: p.raw_photo_url || '', notApplicable: p.is_not_applicable };
                   } else if (p.photo_type === 'P02_MAIN_FACADE') {
                     updates.photoP02 = {
+                      ...(updates.photoP02 || {}),
                       url: p.raw_photo_url || '',
                       notApplicable: p.is_not_applicable,
-                      polygonPoints: p.facade_polygon_points_json || [],
-                      floorSplits: p.floor_split_lines_json || [],
-                      widthM: '',
-                      heightM: '',
+                      polygonPoints: p.facade_polygon_points_json || updates.photoP02?.polygonPoints || [],
+                      floorSplits: p.floor_split_lines_json || updates.photoP02?.floorSplits || [],
+                      widthM: updates.photoP02?.widthM || '',
+                      heightM: updates.photoP02?.heightM || '',
                     };
                   } else if (p.photo_type === 'P03_SIDE_OR_REAR') {
-                    updates.photoP03 = { url: p.raw_photo_url || '', notApplicable: p.is_not_applicable };
+                    updates.photoP03 = { ...(updates.photoP03 || {}), url: p.raw_photo_url || '', notApplicable: p.is_not_applicable };
                   } else if (p.photo_type === 'P04_CONTEXT_STREET') {
-                    updates.photoP04 = { url: p.raw_photo_url || '', notApplicable: p.is_not_applicable };
+                    updates.photoP04 = { ...(updates.photoP04 || {}), url: p.raw_photo_url || '', notApplicable: p.is_not_applicable };
                   }
                 });
               }
               if (rep.historicalSensitivity) {
                 const h = rep.historicalSensitivity;
                 updates.historyInterview = {
+                  ...(updates.historyInterview || {}),
                   renovationLoad: h.renovation_load ?? 0,
                   majorRepair: h.major_repair ?? 0,
                   pastSettlement: h.past_settlement ?? 0,
@@ -149,28 +167,29 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
               if (rep.owner_remarks) {
                 updates.ownerRemarks = rep.owner_remarks;
               }
-              if (rep.surveyor_name || rep.owner_name) {
+              if (rep.surveyor_name || rep.owner_name || rep.surveyor_signature_url) {
                 updates.signatures = {
-                  ownerFeedback: rep.owner_remarks || '',
+                  ...(updates.signatures || {}),
+                  ownerFeedback: rep.owner_remarks || updates.signatures?.ownerFeedback || '',
                   preparedBy: {
-                    fullName: rep.surveyor_name || '',
+                    fullName: rep.surveyor_name || updates.signatures?.preparedBy?.fullName || '',
                     title: 'Kỹ sư khảo sát hiện trường',
-                    date: rep.submitted_at ? rep.submitted_at.split('T')[0] : '',
-                    photoUrl: rep.surveyor_signature_img || '',
+                    date: rep.submitted_at ? rep.submitted_at.split('T')[0] : (updates.signatures?.preparedBy?.date || ''),
+                    photoUrl: rep.surveyor_signature_url || rep.surveyor_signature_img || updates.signatures?.preparedBy?.photoUrl || '',
                   },
                   ownerRepresentative: {
-                    fullName: rep.owner_name || '',
+                    fullName: rep.owner_name || updates.signatures?.ownerRepresentative?.fullName || '',
                     role: 'Chủ hộ / Đại diện',
-                    date: rep.submitted_at ? rep.submitted_at.split('T')[0] : '',
-                    photoUrl: rep.owner_signature_url || '',
+                    date: rep.submitted_at ? rep.submitted_at.split('T')[0] : (updates.signatures?.ownerRepresentative?.date || ''),
+                    photoUrl: rep.owner_signature_url || updates.signatures?.ownerRepresentative?.photoUrl || '',
                   },
-                  workingMinutesPhotos: [],
+                  workingMinutesPhotos: updates.signatures?.workingMinutesPhotos || [],
                 };
               }
             }
 
             if (Object.keys(updates).length > 0) {
-              updateFormData(updates);
+              loadReportData(updates);
             }
           }
         })
@@ -235,6 +254,11 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
     const isValid = validateForFinalSubmit();
     if (!isValid) return;
 
+    const confirmed = window.confirm(
+      'Xác nhận nộp hồ sơ khảo sát Phase 1?\n\nSau khi nộp, hồ sơ sẽ chuyển sang trạng thái "Chờ duyệt" và không thể chỉnh sửa.\n\n⚠️ Vui lòng đảm bảo đã kiểm tra đầy đủ thông tin trước khi nộp.'
+    );
+    if (!confirmed) return;
+
     try {
       setIsSubmitting(true);
       console.log('[Phase1] Submitting final survey payload:', formData);
@@ -247,29 +271,53 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
         completedAt: new Date().toISOString(),
       };
 
-      await api.post('/surveys/phase1/submit', payload);
-      clearDraft();
-      try {
-        confetti({
-          particleCount: 100,
-          spread: 80,
-          origin: { y: 0.6 },
-        });
-      } catch (_e) {}
-      alert('Đã nộp thành công hồ sơ khảo sát hiện trạng Phase 1!');
-      if (onFinished) {
-        onFinished();
+      const response = await api.post('/surveys/phase1/submit', payload);
+
+      // ✅ Chỉ báo thành công khi server xác nhận (2xx)
+      if (response.data?.success) {
+        clearDraft();
+        try {
+          confetti({
+            particleCount: 100,
+            spread: 80,
+            origin: { y: 0.6 },
+          });
+        } catch (_e) {}
+        alert('✅ Đã nộp thành công hồ sơ khảo sát hiện trạng Phase 1!\n\nHồ sơ đang chờ duyệt từ Zone Admin.');
+        if (onFinished) {
+          onFinished();
+        } else {
+          onBackToHome();
+        }
       } else {
-        onBackToHome();
+        // Server trả 2xx nhưng success=false
+        throw new Error(response.data?.message || 'Server báo lỗi không xác định');
       }
     } catch (err: any) {
       console.error('[Phase1] Failed to submit survey:', err);
-      alert('Đã lưu hồ sơ cục bộ thành công!');
-      if (onFinished) onFinished();
+      // ❌ Lỗi thực sự - KHÔNG báo thành công, hiển thị thông báo lỗi rõ ràng
+      const statusCode = err?.response?.status;
+      const serverMsg = err?.response?.data?.detail || err?.response?.data?.message || err?.message;
+
+      if (statusCode === 500) {
+        alert(
+          `❌ Lỗi máy chủ (500) - Hồ sơ CHƯA được nộp!\n\n${serverMsg || 'Internal Server Error'}\n\nVui lòng thử lại sau hoặc liên hệ kỹ thuật viên.\nDữ liệu đã được lưu nháp an toàn trên thiết bị.`
+        );
+      } else if (!statusCode) {
+        alert(
+          '❌ Lỗi kết nối mạng - Hồ sơ CHƯA được nộp!\n\nKiểm tra kết nối internet và thử lại.\nDữ liệu đã được lưu nháp an toàn trên thiết bị.'
+        );
+      } else {
+        alert(
+          `❌ Nộp hồ sơ thất bại (${statusCode}) - Hồ sơ CHƯA được nộp!\n\n${serverMsg || 'Lỗi không xác định'}\n\nVui lòng thử lại.`
+        );
+      }
+      // ⛔ KHÔNG gọi onFinished() - ở lại trang để user có thể thử lại
     } finally {
       setIsSubmitting(false);
     }
   };
+
 
   const isPendingApproval = parcel?.surveyStatus === 'SUBMITTED' || reportData?.report?.status === 'SUBMITTED';
   const canApproveOrReject = (user?.role === 'ZONE_ADMIN' || user?.role === 'SUPER_ADMIN') && readOnly && isPendingApproval;
