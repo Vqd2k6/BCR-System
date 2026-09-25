@@ -4,9 +4,10 @@ import { Badge } from '../../../core/components/ui/Badge';
 import { Button } from '../../../core/components/ui/Button';
 import { Input, Select } from '../../../core/components/ui/FormControls';
 import { ShieldCheck, Users, Settings, FileSpreadsheet, Database, Lock, Search } from 'lucide-react';
+import { Phase1ExportModuleBox } from '../../zone-management/components/Phase1ExportModuleBox';
 
 export const AdminDashboardPage: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'users' | 'export' | 'audit' | 'config'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'export' | 'audit' | 'config'>('export');
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto p-4 sm:p-6 pb-20">
@@ -30,8 +31,8 @@ export const AdminDashboardPage: React.FC = () => {
       {/* Admin Navigation Tabs */}
       <div className="flex items-center gap-2 border-b border-slate-200 pb-2 overflow-x-auto no-scrollbar">
         {[
+          { key: 'export', label: 'Xuất Báo Cáo Phase 1 (BCS Export Module Box)', icon: <FileSpreadsheet className="w-4 h-4" /> },
           { key: 'users', label: 'Quản lý Người dùng & Phân quyền', icon: <Users className="w-4 h-4" /> },
-          { key: 'export', label: 'Xuất Báo Cáo & Dữ Liệu Excel/Docx', icon: <FileSpreadsheet className="w-4 h-4" /> },
           { key: 'audit', label: 'Nhật Ký Hệ Thống (Audit Logs)', icon: <Database className="w-4 h-4" /> },
           { key: 'config', label: 'Cấu Hình Tham Số BRA & Metro', icon: <Settings className="w-4 h-4" /> },
         ].map((tab) => (
@@ -50,7 +51,12 @@ export const AdminDashboardPage: React.FC = () => {
         ))}
       </div>
 
-      {/* Tab 1: Quản lý Người dùng */}
+      {/* Tab Export: Phase1ExportModuleBox */}
+      {activeTab === 'export' && (
+        <Phase1ExportModuleBox initialZoneId="ZONE_S9" />
+      )}
+
+      {/* Tab Users */}
       {activeTab === 'users' && (
         <Card>
           <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-100">
@@ -84,48 +90,14 @@ export const AdminDashboardPage: React.FC = () => {
                 </tr>
                 <tr className="hover:bg-slate-50/50">
                   <td className="p-3 font-bold text-slate-800">Trần Trưởng Zone</td>
-                  <td className="p-3 text-slate-600 font-mono">zone_lead_s9</td>
-                  <td className="p-3"><Badge variant="warning">ZONE_MANAGER</Badge></td>
+                  <td className="p-3 text-slate-600 font-mono">zoneadmin_s9</td>
+                  <td className="p-3"><Badge variant="warning">ZONE_ADMIN</Badge></td>
                   <td className="p-3 font-semibold text-slate-700">ZONE_S9 (Bảy Hiền)</td>
-                  <td className="p-3 text-center"><Badge variant="success">Hoạt động</Badge></td>
-                  <td className="p-3 text-right"><Button size="sm" variant="ghost">Sửa</Button></td>
-                </tr>
-                <tr className="hover:bg-slate-50/50">
-                  <td className="p-3 font-bold text-slate-800">Super Admin MAUR</td>
-                  <td className="p-3 text-slate-600 font-mono">admin_root</td>
-                  <td className="p-3"><Badge variant="neutral">SUPER_ADMIN</Badge></td>
-                  <td className="p-3 font-semibold text-slate-700">Toàn dự án Tuyến 2</td>
                   <td className="p-3 text-center"><Badge variant="success">Hoạt động</Badge></td>
                   <td className="p-3 text-right"><Button size="sm" variant="ghost">Sửa</Button></td>
                 </tr>
               </tbody>
             </table>
-          </div>
-        </Card>
-      )}
-
-      {/* Tab 2: Export dữ liệu */}
-      {activeTab === 'export' && (
-        <Card>
-          <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-100">
-            <div>
-              <h2 className="text-base font-bold text-slate-800">Xuất Báo Cáo Kỹ Thuật Đền Bù & Hồ Sơ Hoàn Chỉnh</h2>
-              <p className="text-xs text-slate-500">Đóng gói file Excel tổng hợp BCS/ECS/VI và file Word biên bản từng hộ</p>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-3">
-              <h3 className="text-sm font-bold text-slate-800">Xuất Tổng Hợp Số Liệu (Excel .xlsx)</h3>
-              <p className="text-xs text-slate-500">Bảng tính chứa đầy đủ mã thửa, điểm CAT móng, điểm ECS, chỉ số VI, diện tích và số lượng nứt.</p>
-              <Button size="sm" icon={<FileSpreadsheet className="w-4 h-4" />}>Xuất Toàn Bộ Tuyến Metro 2</Button>
-            </div>
-
-            <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-3">
-              <h3 className="text-sm font-bold text-slate-800">Đóng Gói Hồ Sơ Từng Thửa (.zip Word)</h3>
-              <p className="text-xs text-slate-500">Chứa toàn bộ biên bản khảo sát 3 bên có kèm ảnh định danh, ảnh bối cảnh và ảnh thước đo vết nứt.</p>
-              <Button size="sm" variant="outline" icon={<FileSpreadsheet className="w-4 h-4" />}>Tải Gói Biên Bản Theo Zone</Button>
-            </div>
           </div>
         </Card>
       )}

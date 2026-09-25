@@ -9,6 +9,7 @@ interface Props {
   onNavigateToCheckIn?: () => void;
   onOpenCompanionCheckIn?: () => void;
   onNavigateHome?: () => void;
+  onNavigateAdminExport?: () => void;
   isCheckedInToday?: boolean;
 }
 
@@ -18,6 +19,7 @@ export const SurveyorNavbar: React.FC<Props> = ({
   onNavigateToCheckIn,
   onOpenCompanionCheckIn,
   onNavigateHome,
+  onNavigateAdminExport,
   isCheckedInToday,
 }) => {
   const { user, logout } = useAuth();
@@ -270,6 +272,36 @@ export const SurveyorNavbar: React.FC<Props> = ({
                 <UserCheck size={13} />
                 <span>Cập nhật SĐT & Chữ ký</span>
               </button>
+
+              {onNavigateAdminExport && (user?.role === 'ZONE_ADMIN' || user?.role === 'SUPER_ADMIN') && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowProfileMenu(false);
+                    onNavigateAdminExport();
+                  }}
+                  style={{
+                    width: '100%',
+                    marginTop: '0.35rem',
+                    padding: '0.4rem 0.5rem',
+                    fontSize: '0.725rem',
+                    fontWeight: 800,
+                    color: '#ffffff',
+                    backgroundColor: '#0284c7',
+                    border: 'none',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '5px',
+                    boxShadow: '0 2px 4px rgba(2, 132, 199, 0.25)',
+                  }}
+                >
+                  <ShieldCheck size={14} />
+                  <span>Zone Admin Module Xuất Export</span>
+                </button>
+              )}
             </div>
 
             <div style={{ fontSize: '0.725rem', color: '#475569', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>

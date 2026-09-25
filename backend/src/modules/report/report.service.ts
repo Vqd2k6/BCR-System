@@ -13,7 +13,10 @@ export class ReportService {
     checksum?: string;
     viewModel: any;
   }> {
-    const rawReport = await SurveyRepository.findReportById(reportId);
+    let rawReport = await SurveyRepository.findReportById(reportId);
+    if (!rawReport) {
+      rawReport = await SurveyRepository.findLatestPhase1ReportByParcelId(reportId);
+    }
     if (!rawReport) {
       throw new NotFoundError(`Không tìm thấy hồ sơ khảo sát với ID: ${reportId}`);
     }
@@ -42,7 +45,10 @@ export class ReportService {
    * Xem trước mã HTML của Báo cáo Nhà Dân cư độc lập
    */
   static async previewResidentialHtml(reportId: string): Promise<string> {
-    const rawReport = await SurveyRepository.findReportById(reportId);
+    let rawReport = await SurveyRepository.findReportById(reportId);
+    if (!rawReport) {
+      rawReport = await SurveyRepository.findLatestPhase1ReportByParcelId(reportId);
+    }
     if (!rawReport) {
       throw new NotFoundError(`Không tìm thấy hồ sơ khảo sát với ID: ${reportId}`);
     }

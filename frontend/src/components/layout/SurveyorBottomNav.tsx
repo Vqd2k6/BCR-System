@@ -1,7 +1,8 @@
 import React from 'react';
-import { Home, Map } from 'lucide-react';
+import { Home, Map, FileText } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
 
-export type NavTab = 'home' | 'map' | 'attendance' | 'phase1' | 'phase2' | 'condo-master' | 'condo-unit';
+export type NavTab = 'home' | 'map' | 'attendance' | 'phase1' | 'phase2' | 'condo-master' | 'condo-unit' | 'admin-export';
 
 interface Props {
   activeTab: NavTab;
@@ -9,9 +10,13 @@ interface Props {
 }
 
 export const SurveyorBottomNav: React.FC<Props> = ({ activeTab, onChangeTab }) => {
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'ZONE_ADMIN' || user?.role === 'SUPER_ADMIN';
+
   const tabs = [
     { id: 'home' as NavTab, title: 'Tổng quan danh sách thửa đất', icon: Home },
     { id: 'map' as NavTab, title: 'Bản đồ số GIS tuyến Metro 2', icon: Map },
+    ...(isAdmin ? [{ id: 'admin-export' as NavTab, title: 'Module Xuất Báo Cáo Zone Admin', icon: FileText }] : []),
   ];
 
   return (

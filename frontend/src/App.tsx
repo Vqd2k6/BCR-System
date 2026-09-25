@@ -13,6 +13,7 @@ import { SurveyCondoUnitPage } from './features/survey-condo-unit/views/SurveyCo
 import { SurveyPhase2View } from './views/surveyor/SurveyPhase2View';
 import { BuildingHubModal } from './components/survey/BuildingHubModal';
 import { CompanionCheckInModal } from './components/attendance/CompanionCheckInModal';
+import { Phase1ExportModuleBox } from './features/zone-management/components/Phase1ExportModuleBox';
 import { ZoneManagerDashboardPage } from './features/zone-management/views/ZoneManagerDashboardPage';
 import { AdminDashboardPage } from './features/admin-portal/views/AdminDashboardPage';
 import { PublicCitizenPortalPage } from './features/guest-portal/views/PublicCitizenPortalPage';
@@ -21,6 +22,16 @@ import { MapPin, Camera } from 'lucide-react';
 export const App: React.FC = () => {
   const { user, isAuthenticated, isLoading } = useAuth();
   const [activeTab, setActiveTab] = useState<NavTab>('home');
+
+  // Automatically switch activeTab based on logged-in user role
+  useEffect(() => {
+    if (!isAuthenticated || !user) return;
+    if (user.role === 'ZONE_ADMIN' || user.role === 'SUPER_ADMIN') {
+      setActiveTab('admin-export');
+    } else {
+      setActiveTab('home');
+    }
+  }, [user?.id, user?.role, isAuthenticated]);
   const [selectedZone, setSelectedZone] = useState<string>('ZONE_01');
   const [parcels, setParcels] = useState<GisParcel[]>([]);
   const [selectedParcelForSurvey, setSelectedParcelForSurvey] = useState<GisParcel | null>(null);
@@ -323,7 +334,9 @@ export const App: React.FC = () => {
       {activeTab !== 'phase1' && activeTab !== 'condo-master' && activeTab !== 'condo-unit' && (
         <SurveyorNavbar
           title={
-            activeTab === 'home'
+            activeTab === 'admin-export'
+              ? 'PHÂN HỆ ADMIN ZONE - XUẤT BÁO CÁO'
+              : activeTab === 'home'
               ? 'BUILDING CONDITION SURVEY MRT LINE-2'
               : activeTab === 'map'
               ? 'Bản đồ'
@@ -334,12 +347,18 @@ export const App: React.FC = () => {
           onNavigateToCheckIn={() => setActiveTab('attendance')}
           onOpenCompanionCheckIn={() => setShowCompanionCheckInModal(true)}
           onNavigateHome={() => setActiveTab('home')}
+          onNavigateAdminExport={() => setActiveTab('admin-export')}
           isCheckedInToday={isCheckedInToday}
         />
       )}
 
       {/* Main Viewport Content */}
       <main style={{ flex: 1, position: 'relative' }}>
+        {activeTab === 'admin-export' && (
+          <div className="max-w-7xl mx-auto p-4 sm:p-6 pb-20">
+            <Phase1ExportModuleBox initialZoneId={selectedZone} />
+          </div>
+        )}
         {activeTab === 'home' && (
           <SurveyorHomeView
             parcels={parcels}

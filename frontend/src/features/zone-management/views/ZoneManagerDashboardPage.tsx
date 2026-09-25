@@ -3,6 +3,7 @@ import { Card } from '../../../core/components/ui/Card';
 import { Badge } from '../../../core/components/ui/Badge';
 import { Button } from '../../../core/components/ui/Button';
 import { Users, MapPin, CheckCircle2, Clock, AlertTriangle, Filter, Download } from 'lucide-react';
+import { Phase1ExportModuleBox } from '../components/Phase1ExportModuleBox';
 
 export const ZoneManagerDashboardPage: React.FC = () => {
   const [selectedZone, setSelectedZone] = useState('ZONE_S9');
@@ -24,6 +25,9 @@ export const ZoneManagerDashboardPage: React.FC = () => {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto p-4 sm:p-6 pb-20">
+      {/* 1. Primary Feature Module Box: Export Report Phase 1 */}
+      <Phase1ExportModuleBox initialZoneId={selectedZone} />
+
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
         <div>
@@ -46,10 +50,6 @@ export const ZoneManagerDashboardPage: React.FC = () => {
             <option value="ZONE_S10">Khu vực Ga S10 (Phạm Văn Hai)</option>
             <option value="ZONE_S11">Khu vực Ga S11 (Dân Chủ)</option>
           </select>
-
-          <Button size="sm" variant="outline" icon={<Download className="w-4 h-4" />}>
-            Xuất báo cáo
-          </Button>
         </div>
       </div>
 
