@@ -223,6 +223,8 @@ export const CreateDamageZoneDto = z.object({
   notes: z.string().optional(),
 });
 
+export type CreateDamageZoneInput = z.infer<typeof CreateDamageZoneDto>;
+
 export const CreateDefectItemDto = z.object({
   defectCode: z.string().default('D-01'),
   pinX: z.number().min(0).max(100),

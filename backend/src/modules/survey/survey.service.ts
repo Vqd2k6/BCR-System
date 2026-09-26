@@ -1,6 +1,7 @@
 import { SurveyRepository } from './survey.repository';
 import { Database } from '../../database/db';
 import { NotFoundError, BadRequestError } from '../../common/errors/problem-details';
+import { CreateDamageZoneInput } from './survey.dto';
 
 export class SurveyService {
   static async createPhase1Report(
@@ -119,11 +120,11 @@ export class SurveyService {
     };
   }
 
-  static async createDamageZone(reportId: string, zoneData: any) {
+  static async createDamageZone(reportId: string, zoneData: CreateDamageZoneInput) {
     const zone = await SurveyRepository.createDamageZone(reportId, zoneData);
     return {
       zoneId: zone?.id || 'd0000000-0000-0000-0000-000000000001',
-      zoneCode: zone?.zone_code || zone?.zoneCode || zoneData.zoneCode || 'Z-01',
+      zoneCode: zone?.zone_code || zoneData.zoneCode || 'Z-01',
       message: 'Đã tạo Vùng khảo sát Z-xx thành công',
     };
   }
