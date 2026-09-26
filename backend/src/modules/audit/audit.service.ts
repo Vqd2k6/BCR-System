@@ -76,24 +76,20 @@ export class AuditService {
   }
 
   static async listAuditAlerts(filters: { zoneId?: string; severity?: string; isResolved?: boolean }) {
-    let whereClause = `WHERE a.is_resolved = $1`;
-    const params: any[] = [filters.isResolved ?? false];
-
-    if (filters.zoneId) {
-      params.push(filters.zoneId);
-      whereClause += ` AND p.zone_id = $${params.length}`;
-    }
-    if (filters.severity) {
-      params.push(filters.severity);
-      whereClause += ` AND a.severity = $${params.length}`;
-    }
+    const params: any[] = [
+      filters.isResolved ?? false,
+      filters.zoneId || null,
+      filters.severity || null,
+    ];
 
     const res = await Database.query(
       `SELECT a.*, p.project_parcel_code, p.house_number, p.street, u.full_name AS surveyor_name
        FROM audit_alert_items a
        JOIN parcels p ON a.parcel_id = p.id
        JOIN users u ON a.surveyor_id = u.id
-       ${whereClause}
+       WHERE a.is_resolved = $1
+         AND ($2::text IS NULL OR p.zone_id = $2)
+         AND ($3::text IS NULL OR a.severity = $3)
        ORDER BY a.created_at DESC;`,
       params
     );
