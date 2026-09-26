@@ -21,12 +21,19 @@ export class StorageService {
         throw new Error('S3/Cloudflare R2 configuration is missing endpoint, accessKeyId, or secretAccessKey.');
       }
 
+      let endpoint = config.storage.s3.endpoint.trim();
+      const bucket = config.storage.s3.bucket?.trim();
+      if (bucket && endpoint.endsWith(`/${bucket}`)) {
+        endpoint = endpoint.slice(0, -(`/${bucket}`.length));
+      }
+      endpoint = endpoint.replace(/\/+$/, '');
+
       this.s3Client = new S3Client({
         region: config.storage.s3.region || 'auto',
-        endpoint: config.storage.s3.endpoint,
+        endpoint,
         credentials: {
-          accessKeyId: config.storage.s3.accessKeyId,
-          secretAccessKey: config.storage.s3.secretAccessKey,
+          accessKeyId: config.storage.s3.accessKeyId.trim(),
+          secretAccessKey: config.storage.s3.secretAccessKey.trim(),
         },
       });
     }
