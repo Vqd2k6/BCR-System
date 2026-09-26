@@ -86,19 +86,9 @@ export class CadastralRepository {
     const target = (zoneId || 'ALL').toUpperCase();
     const isAll = target === 'ALL';
     const altTarget = zoneMapping[target] || target;
+    const statusParam = status || null;
 
-    let whereClause = `WHERE p.lifecycle_status = 'ACTIVE'`;
-    const params: any[] = [];
-
-    if (!isAll) {
-      whereClause += ` AND (p.zone_id = $1 OR p.zone_id = $2)`;
-      params.push(target, altTarget);
-    }
-
-    if (status) {
-      params.push(status);
-      whereClause += ` AND p.survey_status = $${params.length}`;
-    }
+    const params: any[] = [isAll, target, altTarget, statusParam];
 
     const res = await Database.query<ParcelEntity>(
       `SELECT p.*,
@@ -108,7 +98,9 @@ export class CadastralRepository {
               ST_AsGeoJSON(p.cadastral_polygon_geom)::json AS cadastral_geojson,
               ST_AsGeoJSON(p.footprint_polygon_geom)::json AS footprint_geojson
        FROM parcels p
-       ${whereClause}
+       WHERE p.lifecycle_status = 'ACTIVE'
+         AND ($1::boolean = true OR p.zone_id = $2 OR p.zone_id = $3)
+         AND ($4::text IS NULL OR p.survey_status = $4)
        ORDER BY p.project_parcel_code ASC;`,
       params
     );
