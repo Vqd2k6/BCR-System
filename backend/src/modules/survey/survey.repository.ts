@@ -1,4 +1,21 @@
 import { Database } from '../../database/db';
+import { CreateDamageZoneInput } from './survey.dto';
+
+export interface DamageZone {
+  id: string;
+  report_id: string;
+  zone_code: string;
+  floor_name: string;
+  room_name: string;
+  component_type: string;
+  wall_material: string | null;
+  functional_impact_repair_needed: boolean;
+  burland_grade: number;
+  ctx_photo_url: string;
+  notes: string | null;
+  created_at?: Date;
+  updated_at?: Date;
+}
 
 export class SurveyRepository {
   static async createBaseReport(data: {
@@ -289,8 +306,8 @@ export class SurveyRepository {
     });
   }
 
-  static async createDamageZone(reportId: string, zoneData: any): Promise<any> {
-    const res = await Database.query(
+  static async createDamageZone(reportId: string, zoneData: CreateDamageZoneInput): Promise<DamageZone> {
+    const res = await Database.query<DamageZone>(
       `INSERT INTO damage_zones (
          report_id, zone_code, floor_name, room_name, component_type,
          wall_material, functional_impact_repair_needed, burland_grade,
