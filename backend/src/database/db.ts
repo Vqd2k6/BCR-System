@@ -24,7 +24,7 @@ export class Database {
         console.warn(`[SLOW QUERY] ${duration}ms: ${text.slice(0, 100)}...`);
       }
       return res;
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('[DATABASE QUERY ERROR]', { text, params, error });
       throw error;
     }
@@ -60,7 +60,7 @@ export class Database {
         status: 'UP',
         postgisVersion: res.rows[0]?.postgis_version,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       return {
         status: 'DOWN',
       };
