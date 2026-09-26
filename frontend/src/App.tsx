@@ -216,7 +216,6 @@ export const App: React.FC = () => {
       if (res.data?.data && Array.isArray(res.data.data) && res.data.data.length > 0) {
         const normalized = res.data.data.map(normalizeParcel);
         const withCoords = normalized.filter((p: GisParcel) => p.coordinates.length >= 3);
-        console.log(`[Metro2] Loaded ${withCoords.length}/${res.data.data.length} parcels with valid polygon`);
         setParcels(withCoords);
       } else {
         console.warn('[Metro2] API returned empty parcel list for zone:', selectedZone);
