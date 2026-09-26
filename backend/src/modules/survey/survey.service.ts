@@ -234,17 +234,7 @@ export class SurveyService {
   }
 
   static async getPhase2ZonesByLocation(parcelId: string, floorName?: string, roomName?: string) {
-    let whereClause = `WHERE r.parcel_id = $1 AND r.phase = 'PHASE_1'`;
-    const params: any[] = [parcelId];
-
-    if (floorName) {
-      params.push(floorName);
-      whereClause += ` AND z.floor_name = $${params.length}`;
-    }
-    if (roomName) {
-      params.push(roomName);
-      whereClause += ` AND z.room_name = $${params.length}`;
-    }
+    const params: any[] = [parcelId, floorName || null, roomName || null];
 
     const res = await Database.query(
       `SELECT z.*,
@@ -252,7 +242,10 @@ export class SurveyService {
        FROM damage_zones z
        JOIN base_survey_reports r ON z.report_id = r.id
        LEFT JOIN defect_items d ON z.id = d.zone_id
-       ${whereClause}
+       WHERE r.parcel_id = $1
+         AND r.phase = 'PHASE_1'
+         AND ($2::text IS NULL OR z.floor_name = $2)
+         AND ($3::text IS NULL OR z.room_name = $3)
        GROUP BY z.id;`,
       params
     );
