@@ -1,8 +1,20 @@
 import axios, { AxiosError } from 'axios';
 import { sendDevError } from './devErrorReporter';
 
+const resolveBaseUrl = (): string => {
+  let envUrl = (import.meta.env.VITE_API_BASE_URL || '').trim();
+  if (!envUrl) return '/api/v1';
+  // Tự động xử lý nếu người dùng vô tình dán cả "VITE_API_BASE_URL=https://..." vào ô Value
+  if (envUrl.includes('=')) {
+    envUrl = envUrl.slice(envUrl.indexOf('=') + 1).trim();
+  }
+  // Loại bỏ dấu nháy kép hoặc đơn nếu có
+  envUrl = envUrl.replace(/^["']|["']$/g, '').trim();
+  return envUrl || '/api/v1';
+};
+
 export const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || '/api/v1',
+  baseURL: resolveBaseUrl(),
   timeout: 120000, // 120s timeout chịu tải Render Free cold-start và upload khảo sát
   headers: {
     'Content-Type': 'application/json',
