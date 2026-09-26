@@ -33,8 +33,8 @@ export function authenticateJwt(req: Request, _res: Response, next: NextFunction
     const decoded = jwt.verify(token, config.jwt.secret) as JwtPayload;
     req.user = decoded;
     next();
-  } catch (error: any) {
-    if (error.name === 'TokenExpiredError') {
+  } catch (error: unknown) {
+    if (error instanceof Error && error.name === 'TokenExpiredError') {
       return next(new UnauthorizedError('Token đã hết hạn, vui lòng refresh token hoặc đăng nhập lại'));
     }
     return next(new UnauthorizedError('Token không hợp lệ hoặc đã bị chỉnh sửa'));
