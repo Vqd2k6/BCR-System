@@ -45,39 +45,34 @@ export class AuthRepository {
     limit?: number;
     offset?: number;
   }): Promise<{ users: UserEntity[]; total: number }> {
-    let whereClause = `WHERE deleted_at IS NULL`;
-    const params: any[] = [];
-
-    if (filters.role) {
-      params.push(filters.role);
-      whereClause += ` AND role = $${params.length}`;
-    }
-    if (filters.zoneId) {
-      params.push(filters.zoneId);
-      whereClause += ` AND assigned_zone_id = $${params.length}`;
-    }
-    if (filters.status) {
-      params.push(filters.status);
-      whereClause += ` AND status = $${params.length}`;
-    }
-    if (filters.search) {
-      params.push(`%${filters.search}%`);
-      whereClause += ` AND (username ILIKE $${params.length} OR full_name ILIKE $${params.length} OR email ILIKE $${params.length})`;
-    }
+    const role = filters.role || null;
+    const zoneId = filters.zoneId || null;
+    const status = filters.status || null;
+    const search = filters.search ? `%${filters.search}%` : null;
+    const limit = filters.limit || 20;
+    const offset = filters.offset || 0;
 
     const countRes = await Database.query<{ count: string }>(
-      `SELECT COUNT(*) AS count FROM users ${whereClause};`,
-      params
+      `SELECT COUNT(*) AS count FROM users
+       WHERE deleted_at IS NULL
+         AND ($1 IS NULL OR role = $1)
+         AND ($2 IS NULL OR assigned_zone_id = $2)
+         AND ($3 IS NULL OR status = $3)
+         AND ($4 IS NULL OR username ILIKE $4 OR full_name ILIKE $4 OR email ILIKE $4);`,
+      [role, zoneId, status, search]
     );
     const total = parseInt(countRes.rows[0]?.count || '0', 10);
 
-    const limit = filters.limit || 20;
-    const offset = filters.offset || 0;
-    params.push(limit, offset);
-
     const res = await Database.query<UserEntity>(
-      `SELECT * FROM users ${whereClause} ORDER BY created_at DESC LIMIT $${params.length - 1} OFFSET $${params.length};`,
-      params
+      `SELECT * FROM users
+       WHERE deleted_at IS NULL
+         AND ($1 IS NULL OR role = $1)
+         AND ($2 IS NULL OR assigned_zone_id = $2)
+         AND ($3 IS NULL OR status = $3)
+         AND ($4 IS NULL OR username ILIKE $4 OR full_name ILIKE $4 OR email ILIKE $4)
+       ORDER BY created_at DESC
+       LIMIT $5 OFFSET $6;`,
+      [role, zoneId, status, search, limit, offset]
     );
 
     return { users: res.rows, total };
