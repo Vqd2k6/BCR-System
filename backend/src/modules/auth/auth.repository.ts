@@ -45,28 +45,30 @@ export class AuthRepository {
     limit?: number;
     offset?: number;
   }): Promise<{ users: UserEntity[]; total: number }> {
-    let whereClause = `WHERE deleted_at IS NULL`;
+    const conditions: string[] = ['deleted_at IS NULL'];
     const params: any[] = [];
 
     if (filters.role) {
       params.push(filters.role);
-      whereClause += ` AND role = $${params.length}`;
+      conditions.push(`role = $${params.length}`);
     }
     if (filters.zoneId) {
       params.push(filters.zoneId);
-      whereClause += ` AND assigned_zone_id = $${params.length}`;
+      conditions.push(`assigned_zone_id = $${params.length}`);
     }
     if (filters.status) {
       params.push(filters.status);
-      whereClause += ` AND status = $${params.length}`;
+      conditions.push(`status = $${params.length}`);
     }
     if (filters.search) {
       params.push(`%${filters.search}%`);
-      whereClause += ` AND (username ILIKE $${params.length} OR full_name ILIKE $${params.length} OR email ILIKE $${params.length})`;
+      conditions.push(`(username ILIKE $${params.length} OR full_name ILIKE $${params.length} OR email ILIKE $${params.length})`);
     }
 
+    const whereStr = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
+
     const countRes = await Database.query<{ count: string }>(
-      `SELECT COUNT(*) AS count FROM users ${whereClause};`,
+      'SELECT COUNT(*) AS count FROM users ' + whereStr + ';',
       params
     );
     const total = parseInt(countRes.rows[0]?.count || '0', 10);
@@ -76,7 +78,7 @@ export class AuthRepository {
     params.push(limit, offset);
 
     const res = await Database.query<UserEntity>(
-      `SELECT * FROM users ${whereClause} ORDER BY created_at DESC LIMIT $${params.length - 1} OFFSET $${params.length};`,
+      'SELECT * FROM users ' + whereStr + ' ORDER BY created_at DESC LIMIT $' + (params.length - 1) + ' OFFSET $' + params.length + ';',
       params
     );
 
