@@ -334,7 +334,7 @@ export const CadastralGISBoundaryEditor: React.FC<Props> = ({
 }) => {
   const frontage = parcelData.frontageWidth || 4.2;
   const depth = parcelData.lotDepth || 18.5;
-  const totalLandArea = parcelData.landArea || Math.round(frontage * depth * 10) / 10 || 68.5;
+  const totalLandArea = parcelData.constructionArea || parcelData.landArea || Math.round(frontage * depth * 10) / 10 || 68.5;
 
   const [tileMode, setTileMode] = useState<'osm' | 'satellite'>('osm');
   const [zoneParcels, setZoneParcels] = useState<GisParcel[]>([]);
@@ -1016,9 +1016,23 @@ export const CadastralGISBoundaryEditor: React.FC<Props> = ({
 
         <div style={{ fontSize: '0.725rem', color: '#475569', borderTop: '1px solid #f1f5f9', paddingTop: '0.35rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.35rem' }}>
           <span>
-            Địa chỉ: <strong>Số {parcelData.houseNumber} {parcelData.street}, {parcelData.ward || 'Phường 15'}, {parcelData.district || 'Quận Tân Bình'}</strong>
+            Địa chỉ: <strong>{(() => {
+              const hn = parcelData.houseNumber?.trim();
+              const st = parcelData.street?.trim();
+              let fullAddr = '';
+              if (hn && st) {
+                fullAddr = hn.toLowerCase().startsWith('số') ? `${hn} ${st}` : `Số ${hn} ${st}`;
+              } else if (st) {
+                fullAddr = st.toLowerCase().startsWith('số') ? st : `Số ${st}`;
+              } else if (hn) {
+                fullAddr = hn.toLowerCase().startsWith('số') ? hn : `Số ${hn}`;
+              }
+              const ward = parcelData.ward || (parcel as any)?.ward || 'Phường 15';
+              const dist = parcelData.district || (parcel as any)?.district || 'Quận Tân Bình';
+              return fullAddr ? `${fullAddr}, ${ward}, ${dist}` : `${ward}, ${dist}`;
+            })()}</strong>
           </span>
-          <span>Chủ hộ: <strong>{parcelData.ownerName || 'Chưa cập nhật'}</strong></span>
+          <span>Chủ hộ: <strong>{parcelData.ownerName || (parcel as any)?.owner_name || parcel?.ownerName || 'Chưa cập nhật'}</strong></span>
         </div>
       </div>
 

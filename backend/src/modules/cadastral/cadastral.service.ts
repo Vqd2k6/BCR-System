@@ -84,6 +84,8 @@ export class CadastralService {
       notes: data.notes,
       photoProofUrl: data.photoProofUrl,
       rescheduleDate: data.rescheduleDate,
+      ownerName: data.ownerName,
+      ownerPhone: data.ownerPhone,
     });
 
     return {

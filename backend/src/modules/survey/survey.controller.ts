@@ -336,6 +336,9 @@ export class SurveyController {
         engineeringRecommendations: surveyData?.executiveSummary?.specificRecommendationsText || surveyData?.signatures?.engineeringRecommendations || surveyData?.engineeringRecommendations || '',
         houseNumber: surveyData?.houseNumber,
         street: surveyData?.street,
+        ownerName: surveyData?.ownerName || surveyData?.signatures?.ownerRepresentative?.fullName || null,
+        ownerPhone: surveyData?.ownerPhone || null,
+        constructionAreaM2: surveyData?.constructionAreaM2 !== '' && surveyData?.constructionAreaM2 !== undefined ? Number(surveyData.constructionAreaM2) : null,
         surveyDataJson: surveyData || null,
       });
 

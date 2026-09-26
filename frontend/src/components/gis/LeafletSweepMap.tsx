@@ -70,6 +70,7 @@ export interface GisParcel {
   houseNumber: string;
   street: string;
   ownerName?: string;
+  ownerPhone?: string;
   surveyStatus:
     | 'NOT_SURVEYED'
     | 'IN_PROGRESS'

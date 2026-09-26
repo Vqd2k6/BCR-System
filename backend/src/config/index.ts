@@ -8,16 +8,25 @@ export const config = {
   port: parseInt(process.env.PORT || '4000', 10),
   apiPrefix: process.env.API_PREFIX || '/api/v1',
   
-  db: {
-    host: process.env.DB_HOST || 'localhost',
-    port: parseInt(process.env.DB_PORT || '5432', 10),
-    user: process.env.DB_USER || 'metro2_user',
-    password: process.env.DB_PASSWORD || 'metro2_secure_password',
-    database: process.env.DB_NAME || 'metro2_gis_db',
-    max: parseInt(process.env.DB_MAX_CONNECTIONS || '20', 10),
-    idleTimeoutMillis: parseInt(process.env.DB_IDLE_TIMEOUT_MS || '30000', 10),
-    ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : undefined,
-  },
+  db: process.env.DATABASE_URL
+    ? {
+        connectionString: process.env.DATABASE_URL,
+        max: parseInt(process.env.DB_MAX_CONNECTIONS || '20', 10),
+        idleTimeoutMillis: parseInt(process.env.DB_IDLE_TIMEOUT_MS || '30000', 10),
+        ssl: (process.env.DB_SSL === 'false' || process.env.DATABASE_URL.includes('localhost') || process.env.DATABASE_URL.includes('127.0.0.1'))
+          ? undefined
+          : { rejectUnauthorized: false },
+      }
+    : {
+        host: process.env.DB_HOST || 'localhost',
+        port: parseInt(process.env.DB_PORT || '5432', 10),
+        user: process.env.DB_USER || 'metro2_user',
+        password: process.env.DB_PASSWORD || 'metro2_secure_password',
+        database: process.env.DB_NAME || 'metro2_gis_db',
+        max: parseInt(process.env.DB_MAX_CONNECTIONS || '20', 10),
+        idleTimeoutMillis: parseInt(process.env.DB_IDLE_TIMEOUT_MS || '30000', 10),
+        ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : undefined,
+      },
 
   jwt: {
     secret: process.env.JWT_SECRET || 'super_secret_metro2_jwt_key_2026_maur_kfw_secure',

@@ -224,8 +224,9 @@ export class SurveyRepository {
            report_id, building_name, building_grade, adjacent_buildings, structural_system,
            floor_count, basement_count, foundation_category, year_of_construction, is_year_estimated,
            construction_area_m2, building_height_m, foundation_source,
-           foundation_depth_m, foundation_density, foundation_spacing_m, foundation_notes
-         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+           foundation_depth_m, foundation_density, foundation_spacing_m, foundation_notes,
+           land_use_function
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
          ON CONFLICT (report_id) DO UPDATE SET
            building_name = EXCLUDED.building_name,
            building_grade = EXCLUDED.building_grade,
@@ -242,7 +243,8 @@ export class SurveyRepository {
            foundation_depth_m = EXCLUDED.foundation_depth_m,
            foundation_density = EXCLUDED.foundation_density,
            foundation_spacing_m = EXCLUDED.foundation_spacing_m,
-           foundation_notes = EXCLUDED.foundation_notes;`,
+           foundation_notes = EXCLUDED.foundation_notes,
+           land_use_function = EXCLUDED.land_use_function;`,
         [
           reportId,
           specs.buildingName || null,
@@ -261,6 +263,7 @@ export class SurveyRepository {
           specs.foundationDensity !== undefined && specs.foundationDensity !== null && specs.foundationDensity !== '' ? Number(specs.foundationDensity) : null,
           specs.foundationSpacingM !== undefined && specs.foundationSpacingM !== null && specs.foundationSpacingM !== '' ? Number(specs.foundationSpacingM) : null,
           specs.foundationNotes || null,
+          specs.landUseFunction || null,
         ]
       );
 
@@ -496,22 +499,40 @@ export class SurveyRepository {
         ]
       );
 
-      if (submitData.houseNumber || submitData.street) {
+      // Cập nhật thông tin thực tế hiện trường vào bảng parcels
+      await client.query(
+        `UPDATE parcels
+         SET house_number = COALESCE($1, house_number),
+             street = COALESCE($2, street),
+             owner_name = COALESCE($3, owner_name),
+             owner_phone = COALESCE($4, owner_phone),
+             construction_area_m2 = COALESCE($5, construction_area_m2),
+             survey_status = 'SUBMITTED', 
+             updated_at = NOW()
+         WHERE id = (SELECT parcel_id FROM base_survey_reports WHERE id = $6);`,
+        [
+          submitData.houseNumber || null,
+          submitData.street || null,
+          submitData.ownerName || null,
+          submitData.ownerPhone || null,
+          submitData.constructionAreaM2 !== undefined && submitData.constructionAreaM2 !== null && submitData.constructionAreaM2 !== '' ? Number(submitData.constructionAreaM2) : null,
+          reportId,
+        ]
+      );
+
+      // Nếu là căn hộ con thuộc chung cư (có unit_id), cập nhật luôn thông tin chủ căn hộ vào bảng building_units
+      if (submitData.ownerName || submitData.ownerPhone) {
         await client.query(
-          `UPDATE parcels
-           SET house_number = COALESCE($1, house_number),
-               street = COALESCE($2, street),
-               survey_status = 'SUBMITTED', 
+          `UPDATE building_units
+           SET owner_name = COALESCE($1, owner_name),
+               owner_phone = COALESCE($2, owner_phone),
                updated_at = NOW()
-           WHERE id = (SELECT parcel_id FROM base_survey_reports WHERE id = $3);`,
-          [submitData.houseNumber || null, submitData.street || null, reportId]
-        );
-      } else {
-        await client.query(
-          `UPDATE parcels
-           SET survey_status = 'SUBMITTED', updated_at = NOW()
-           WHERE id = (SELECT parcel_id FROM base_survey_reports WHERE id = $1);`,
-          [reportId]
+           WHERE id = (SELECT unit_id FROM base_survey_reports WHERE id = $3 AND unit_id IS NOT NULL);`,
+          [
+            submitData.ownerName || null,
+            submitData.ownerPhone || null,
+            reportId,
+          ]
         );
       }
     });

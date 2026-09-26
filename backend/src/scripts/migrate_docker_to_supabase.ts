@@ -72,7 +72,8 @@ async function migrate() {
         ADD COLUMN IF NOT EXISTS foundation_depth_m NUMERIC(6,2),
         ADD COLUMN IF NOT EXISTS foundation_density INT,
         ADD COLUMN IF NOT EXISTS foundation_spacing_m NUMERIC(6,2),
-        ADD COLUMN IF NOT EXISTS foundation_notes TEXT;
+        ADD COLUMN IF NOT EXISTS foundation_notes TEXT,
+        ADD COLUMN IF NOT EXISTS land_use_function VARCHAR(128);
 
       ALTER TABLE floor_surveys
         ADD COLUMN IF NOT EXISTS cad_structural_drawing_url TEXT,

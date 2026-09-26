@@ -103,6 +103,11 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
             }
 
             if (rep) {
+              if (rep.owner_name) updates.ownerName = rep.owner_name;
+              if (rep.owner_phone) updates.ownerPhone = rep.owner_phone;
+              if (rep.house_number) updates.houseNumber = rep.house_number;
+              if (rep.street) updates.street = rep.street;
+
               if (rep.buildingSpecs) {
                 const s = rep.buildingSpecs;
                 if (s.building_name) updates.buildingName = s.building_name;

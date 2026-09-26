@@ -621,6 +621,7 @@ CREATE TABLE building_specifications (
     floor_count INT NOT NULL DEFAULT 1,
     basement_count INT NOT NULL DEFAULT 0,
     foundation_category foundation_category_enum NOT NULL DEFAULT 'CAT_2_MONG_DON_BTCT',
+    land_use_function VARCHAR(128),
     roof_type VARCHAR(64),
     wall_type VARCHAR(64),
     year_of_construction INT,

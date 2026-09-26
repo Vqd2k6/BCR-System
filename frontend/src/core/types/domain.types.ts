@@ -33,6 +33,7 @@ export interface GisParcel {
   houseNumber?: string;
   street?: string;
   ownerName?: string;
+  ownerPhone?: string;
   surveyStatus?: SurveyStatus;
   absenceAttemptCount?: number;
   coordinates: [number, number][];

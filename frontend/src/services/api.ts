@@ -3,6 +3,7 @@ import { sendDevError } from './devErrorReporter';
 
 export const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || '/api/v1',
+  timeout: 120000, // 120s timeout chịu tải Render Free cold-start và upload khảo sát
   headers: {
     'Content-Type': 'application/json',
   },

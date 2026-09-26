@@ -10,6 +10,8 @@ export const RecordAbsenceDto = z.object({
   notes: z.string().optional().nullable(),
   photoProofUrl: z.string().optional().nullable(),
   rescheduleDate: z.string().datetime().optional().nullable(),
+  ownerName: z.string().optional().nullable(),
+  ownerPhone: z.string().optional().nullable(),
 });
 
 export const UpdateFootprintDto = z.object({

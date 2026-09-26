@@ -349,8 +349,21 @@ export const Step6_ScopeAndGisMutation: React.FC = () => {
           <CadastralGISBoundaryEditor
             activeParcelId={formData.parcelId}
             parcel={
-              activeParcel ||
-              (formData.parcelCoordinates && formData.parcelCoordinates.length >= 3
+              activeParcel
+                ? {
+                    ...activeParcel,
+                    houseNumber: formData.houseNumber || activeParcel.houseNumber,
+                    street: formData.street || activeParcel.street,
+                    ownerName: formData.ownerName || activeParcel.ownerName,
+                    ownerPhone: formData.ownerPhone || (activeParcel as any).ownerPhone,
+                    landAreaM2: (formData.constructionAreaM2 !== '' && formData.constructionAreaM2 !== undefined)
+                      ? Number(formData.constructionAreaM2)
+                      : ((activeParcel as any)?.land_area_m2 || (activeParcel as any)?.landAreaM2),
+                    constructionAreaM2: (formData.constructionAreaM2 !== '' && formData.constructionAreaM2 !== undefined)
+                      ? Number(formData.constructionAreaM2)
+                      : ((activeParcel as any)?.construction_area_m2 || (activeParcel as any)?.constructionAreaM2),
+                  }
+                : (formData.parcelCoordinates && formData.parcelCoordinates.length >= 3
                 ? ({
                     id: formData.parcelId,
                     projectParcelCode: formData.projectParcelCode,
@@ -358,10 +371,17 @@ export const Step6_ScopeAndGisMutation: React.FC = () => {
                     houseNumber: formData.houseNumber,
                     street: formData.street,
                     ownerName: formData.ownerName,
+                    ownerPhone: formData.ownerPhone,
                     surveyStatus: 'IN_PROGRESS',
                     absenceAttemptCount: 0,
                     coordinates: formData.parcelCoordinates,
                     zoneId: formData.zoneId,
+                    landAreaM2: (formData.constructionAreaM2 !== '' && formData.constructionAreaM2 !== undefined)
+                      ? Number(formData.constructionAreaM2)
+                      : undefined,
+                    constructionAreaM2: (formData.constructionAreaM2 !== '' && formData.constructionAreaM2 !== undefined)
+                      ? Number(formData.constructionAreaM2)
+                      : undefined,
                   } as any)
                 : undefined)
             }
@@ -370,10 +390,20 @@ export const Step6_ScopeAndGisMutation: React.FC = () => {
               officialCadastralCode: formData.officialCadastralCode,
               houseNumber: formData.houseNumber,
               street: formData.street,
+              ward: (activeParcel as any)?.ward || (activeParcel as any)?.ward_name || 'Phường 15',
+              district: (activeParcel as any)?.district || (activeParcel as any)?.district_name || 'Quận Tân Bình',
               ownerName: formData.ownerName,
               floorCount: typeof formData.aboveFloors === 'number' ? formData.aboveFloors : undefined,
               zoneId: activeParcel?.zoneId || formData.zoneId,
               coordinates: activeParcel?.coordinates || formData.parcelCoordinates,
+              landArea: (formData.constructionAreaM2 !== '' && formData.constructionAreaM2 !== undefined)
+                ? Number(formData.constructionAreaM2)
+                : ((activeParcel as any)?.land_area_m2 || (activeParcel as any)?.landAreaM2 || (activeParcel as any)?.landArea),
+              constructionArea: (formData.constructionAreaM2 !== '' && formData.constructionAreaM2 !== undefined)
+                ? Number(formData.constructionAreaM2)
+                : undefined,
+              frontageWidth: (activeParcel as any)?.frontage_width || (activeParcel as any)?.frontageWidth,
+              lotDepth: (activeParcel as any)?.lot_depth || (activeParcel as any)?.lotDepth,
             }}
             boundaryStatus={formData.gisMutationConfirmed.type}
             onStatusChange={(status) => {

@@ -275,6 +275,7 @@ export const usePhase1SurveyStore = create<Phase1SurveyStore>((set, get) => ({
     initialData.houseNumber = initialData.houseNumber || parcel.houseNumber || (parcel as any).house_number || '';
     initialData.street = initialData.street || parcel.street || '';
     initialData.ownerName = initialData.ownerName || unit?.ownerName || parcel.ownerName || (parcel as any).owner_name || '';
+    initialData.ownerPhone = initialData.ownerPhone || (unit as any)?.ownerPhone || (unit as any)?.owner_phone || parcel.ownerPhone || (parcel as any).owner_phone || '';
     if (initialData.aboveFloors === undefined || initialData.aboveFloors === null || initialData.aboveFloors === 0 || initialData.aboveFloors === '') {
       initialData.aboveFloors = parcel.floorCount ? parcel.floorCount : '';
     }
@@ -517,7 +518,17 @@ export const usePhase1SurveyStore = create<Phase1SurveyStore>((set, get) => ({
       newFormData.ecs = ecs;
       newFormData.vi = vi;
 
-      return { formData: newFormData };
+      return {
+        formData: newFormData,
+        activeParcel: state.activeParcel
+          ? {
+              ...state.activeParcel,
+              ...(newFormData.ownerName !== undefined ? { ownerName: newFormData.ownerName } : {}),
+              ...(newFormData.houseNumber !== undefined ? { houseNumber: newFormData.houseNumber } : {}),
+              ...(newFormData.street !== undefined ? { street: newFormData.street } : {}),
+            }
+          : state.activeParcel,
+      };
     });
 
     // Auto save draft debounced

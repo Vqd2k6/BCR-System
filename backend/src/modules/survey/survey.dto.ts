@@ -256,6 +256,12 @@ export const SubmitPhase1ReportDto = z.object({
   ownerSignatureUrl: z.string().optional(),
   summaryConclusions: z.string().optional(),
   engineeringRecommendations: z.string().optional(),
+  houseNumber: z.string().optional().nullable(),
+  street: z.string().optional().nullable(),
+  ownerName: z.string().optional().nullable(),
+  ownerPhone: z.string().optional().nullable(),
+  constructionAreaM2: z.number().optional().nullable(),
+  surveyDataJson: z.any().optional(),
 });
 
 // Phase 2 DTOs

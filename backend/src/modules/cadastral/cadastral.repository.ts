@@ -187,16 +187,20 @@ export class CadastralRepository {
     notes?: string | null;
     photoProofUrl?: string | null;
     rescheduleDate?: string | null;
+    ownerName?: string | null;
+    ownerPhone?: string | null;
   }): Promise<void> {
     await Database.transaction(async (client) => {
-      // 1. Tăng số lần vắng mặt và chuyển trạng thái thửa đất sang POSTPONED_ABSENT
+      // 1. Tăng số lần vắng mặt, chuyển trạng thái sang POSTPONED_ABSENT và lưu thông tin chủ hộ/SĐT nếu có
       await client.query(
         `UPDATE parcels
          SET survey_status = 'POSTPONED_ABSENT',
              absence_attempt_count = absence_attempt_count + 1,
+             owner_name = COALESCE($2, owner_name),
+             owner_phone = COALESCE($3, owner_phone),
              updated_at = NOW()
          WHERE id = $1;`,
-        [data.parcelId]
+        [data.parcelId, data.ownerName || null, data.ownerPhone || null]
       );
 
       // 2. Lấy bộ đếm hiện tại

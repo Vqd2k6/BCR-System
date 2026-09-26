@@ -51,32 +51,54 @@ export const Step1IdentificationSection: React.FC<Step1IdentificationSectionProp
         <Input
           id="input-address"
           label="Địa Chỉ Thực Tế Hiện Trường (Address) *"
-          placeholder="Số nhà, Tên đường (Đối chiếu sơ đồ quy hoạch)"
-          value={formData.houseNumber ? `${formData.houseNumber}, ${formData.street}` : (formData.street || '')}
+          placeholder="VD: 107/4, Trường Chinh hoặc 245A Cách Mạng Tháng 8"
+          value={
+            formData.houseNumber && formData.street
+              ? `${formData.houseNumber}, ${formData.street}`
+              : (formData.houseNumber || formData.street || '')
+          }
           onChange={(e) => {
             const val = e.target.value;
             if (!val || val.trim() === '') {
               updateFormData({ houseNumber: '', street: '' });
               return;
             }
-            const parts = val.split(',');
-            if (parts.length > 1) {
-              updateFormData({ houseNumber: parts[0].trim(), street: parts.slice(1).join(',').trim() });
+            if (val.includes(',')) {
+              const parts = val.split(',');
+              const rawHn = parts[0].replace(/^số\s+/i, '').trim();
+              const rawSt = parts.slice(1).join(',').trim();
+              updateFormData({ houseNumber: rawHn, street: rawSt });
             } else {
-              updateFormData({ houseNumber: '', street: val });
+              // Nhận diện tự động nếu người dùng gõ số nhà và tên đường không có dấu phẩy
+              const match = val.trim().match(/^(?:Số\s+)?([0-9]+[A-Za-z0-9\/\-]*)\s+(.+)$/i);
+              if (match) {
+                updateFormData({ houseNumber: match[1].trim(), street: match[2].trim() });
+              } else {
+                updateFormData({ houseNumber: '', street: val.trim() });
+              }
             }
           }}
+          hint="Nhập số nhà và tên đường thực tế đối chiếu tại hiện trường"
         />
 
-        <div className="sm:col-span-2">
-          <Input
-            id="input-ownerName"
-            label="Chủ Sở Hữu / Người Sử Dụng (Owner / User) *"
-            placeholder={currentCase === 'ABSENTEE' ? 'Chủ hộ vắng mặt (nếu biết tên thì ghi)' : 'Nguyễn Văn A'}
-            value={formData.ownerName}
-            onChange={(e) => updateFormData({ ownerName: e.target.value })}
-          />
-        </div>
+        <Input
+          id="input-ownerName"
+          label="Chủ Sở Hữu / Người Sử Dụng (Owner / User) *"
+          placeholder={currentCase === 'ABSENTEE' ? 'Chủ hộ vắng mặt (nếu biết tên thì ghi)' : 'Nguyễn Văn A'}
+          value={formData.ownerName || ''}
+          onChange={(e) => updateFormData({ ownerName: e.target.value })}
+          hint="Tên chủ sở hữu hoặc người đang trực tiếp sử dụng công trình"
+        />
+
+        <Input
+          id="input-ownerPhone"
+          label="Số Điện Thoại Liên Hệ (Owner Phone)"
+          type="tel"
+          placeholder="VD: 0912 345 678"
+          value={formData.ownerPhone || ''}
+          onChange={(e) => updateFormData({ ownerPhone: e.target.value })}
+          hint="Số điện thoại của chủ hộ hoặc người đang trực tiếp sử dụng"
+        />
       </div>
     </Card>
   );

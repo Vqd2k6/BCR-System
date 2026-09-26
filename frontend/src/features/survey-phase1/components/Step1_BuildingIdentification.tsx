@@ -178,6 +178,8 @@ export const Step1_BuildingIdentification: React.FC<Step1BuildingIdentificationP
           absenceReason: 'HOMEOWNER_ABSENT',
           notes: formData.absenteeReason === 'Lý do khác' ? (formData.customAbsenteeReason || 'Lý do khác') : (formData.absenteeReason || 'Chủ nhà vắng mặt'),
           photoProofUrl: formData.absenteeMinutesPhotos?.[0] || formData.photoP01?.url || '',
+          ownerName: formData.ownerName || null,
+          ownerPhone: formData.ownerPhone || null,
         });
       } catch (apiErr) {
         console.error('[Phase1] API record-absence failed:', apiErr);
