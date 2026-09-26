@@ -65,20 +65,13 @@ export class ExportService {
   }
 
   static async listAllExportBatches(zoneId?: string) {
-    let whereClause = ``;
-    const params: any[] = [];
-    if (zoneId) {
-      params.push(zoneId);
-      whereClause = `WHERE b.zone_id = $1`;
-    }
-
     const res = await Database.query(
       `SELECT b.*, u.full_name AS exporter_name
        FROM compiled_report_batches b
        JOIN users u ON b.exported_by_user_id = u.id
-       ${whereClause}
+       WHERE ($1::text IS NULL OR b.zone_id = $1)
        ORDER BY b.created_at DESC;`,
-      params
+      [zoneId || null]
     );
     return res.rows;
   }
