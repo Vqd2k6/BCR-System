@@ -79,29 +79,21 @@ export class AttendanceRepository {
     limit?: number;
     offset?: number;
   }): Promise<{ checkIns: TimekeepingCheckInEntity[]; total: number }> {
-    let whereClause = `WHERE 1=1`;
-    const params: any[] = [];
+    const params: any[] = [
+      filters.surveyorId || null,
+      filters.zoneId || null,
+      filters.status || null,
+      filters.startDate || null,
+      filters.endDate || null,
+    ];
 
-    if (filters.surveyorId) {
-      params.push(filters.surveyorId);
-      whereClause += ` AND t.surveyor_id = $${params.length}`;
-    }
-    if (filters.zoneId) {
-      params.push(filters.zoneId);
-      whereClause += ` AND t.zone_id = $${params.length}`;
-    }
-    if (filters.status) {
-      params.push(filters.status);
-      whereClause += ` AND t.verification_status = $${params.length}`;
-    }
-    if (filters.startDate) {
-      params.push(filters.startDate);
-      whereClause += ` AND t.checkin_time >= $${params.length}::timestamptz`;
-    }
-    if (filters.endDate) {
-      params.push(filters.endDate);
-      whereClause += ` AND t.checkin_time <= $${params.length}::timestamptz`;
-    }
+    const whereClause = `
+      WHERE ($1::uuid IS NULL OR t.surveyor_id = $1::uuid)
+        AND ($2::text IS NULL OR t.zone_id = $2)
+        AND ($3::text IS NULL OR t.verification_status = $3)
+        AND ($4::timestamptz IS NULL OR t.checkin_time >= $4::timestamptz)
+        AND ($5::timestamptz IS NULL OR t.checkin_time <= $5::timestamptz)
+    `;
 
     const countRes = await Database.query<{ count: string }>(
       `SELECT COUNT(*) AS count FROM timekeeping_checkins t ${whereClause};`,
@@ -111,7 +103,7 @@ export class AttendanceRepository {
 
     const limit = filters.limit || 20;
     const offset = filters.offset || 0;
-    params.push(limit, offset);
+    const queryParams = [...params, limit, offset];
 
     const res = await Database.query<TimekeepingCheckInEntity>(
       `SELECT t.*, u.full_name AS surveyor_name, ST_X(t.gps_location) AS gps_longitude, ST_Y(t.gps_location) AS gps_latitude
@@ -119,8 +111,8 @@ export class AttendanceRepository {
        JOIN users u ON t.surveyor_id = u.id
        ${whereClause}
        ORDER BY t.checkin_time DESC
-       LIMIT $${params.length - 1} OFFSET $${params.length};`,
-      params
+       LIMIT $6 OFFSET $7;`,
+      queryParams
     );
 
     return { checkIns: res.rows, total };
@@ -146,14 +138,10 @@ export class AttendanceRepository {
   }
 
   static async getAttendanceSummary(zoneId?: string, month?: string): Promise<any[]> {
-    let whereClause = ``;
-    const params: any[] = [];
+    const params = [zoneId || null];
+    // In PostgreSQL, to check an optional parameter, we use: ($1::text IS NULL OR t.zone_id = $1)
 
-    if (zoneId) {
-      params.push(zoneId);
-      whereClause += ` AND t.zone_id = $${params.length}`;
-    }
-
+    // Note: If month filtering was intended, we could add it similarly. Right now, month is unused.
     const res = await Database.query(
       `SELECT 
          t.surveyor_id,
@@ -165,7 +153,7 @@ export class AttendanceRepository {
          COUNT(*) FILTER (WHERE t.verification_status = 'REJECTED') AS rejected_days
        FROM timekeeping_checkins t
        JOIN users u ON t.surveyor_id = u.id
-       WHERE 1=1 ${whereClause}
+       WHERE ($1::text IS NULL OR t.zone_id = $1)
        GROUP BY t.surveyor_id, u.full_name, u.assigned_zone_id;`,
       params
     );
