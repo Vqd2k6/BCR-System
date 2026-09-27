@@ -17,6 +17,7 @@ import { useAuth } from '../../../context/AuthContext';
 import confetti from 'canvas-confetti';
 
 import { AbsenteeReviewView } from './AbsenteeReviewView';
+import { uploadAllSurveyImages } from '../utils/imageUploader';
 
 export interface SurveyPhase1PageProps {
   parcel?: GisParcel | null;
@@ -50,6 +51,7 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
   } = usePhase1SurveyStore();
   const { user } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [uploadStatusText, setUploadStatusText] = useState<string>('');
   const [reportData, setReportData] = useState<any>(null);
 
   // Khởi tạo form khi parcel thay đổi
@@ -347,12 +349,24 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
 
     try {
       setIsSubmitting(true);
-      console.log('[Phase1] Submitting final survey payload:', formData);
+      setUploadStatusText('Đang kiểm tra và tải ảnh hiện trường lên Cloud Storage...');
+      console.log('[Phase1] Uploading images before submitting final survey payload...');
+
+      // 1. Tự động tải tất cả ảnh Base64 trong form lên R2 Storage
+      const preparedFormData = await uploadAllSurveyImages(formData, (progress) => {
+        setUploadStatusText(progress.statusText);
+      });
+
+      // Cập nhật lại form trong store với các URL ảnh mới
+      updateFormData(preparedFormData);
+
+      setUploadStatusText('Đang gửi hồ sơ khảo sát lên máy chủ...');
+      console.log('[Phase1] Submitting final survey payload:', preparedFormData);
 
       const payload = {
-        parcelId: formData.parcelId,
+        parcelId: preparedFormData.parcelId,
         unitId: unit?.id,
-        surveyData: formData,
+        surveyData: preparedFormData,
         status: 'COMPLETED',
         completedAt: new Date().toISOString(),
       };
@@ -401,6 +415,7 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
       // ⛔ KHÔNG gọi onFinished() - ở lại trang để user có thể thử lại
     } finally {
       setIsSubmitting(false);
+      setUploadStatusText('');
     }
   };
 
@@ -515,6 +530,20 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
 
       {/* 8-Step Navigation Header */}
       <StepWizardNav onBackToHome={handleSafeBackToHome} />
+
+      {/* Full-screen Loading Overlay for Uploading Images & Submitting */}
+      {isSubmitting && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex flex-col items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-md w-full text-center border border-slate-100 animate-in fade-in zoom-in duration-200">
+            <div className="w-16 h-16 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+            <h3 className="text-lg font-bold text-slate-800 mb-2">Đang xử lý nộp hồ sơ</h3>
+            <p className="text-sm text-slate-600 mb-4">{uploadStatusText || 'Vui lòng không đóng trình duyệt...'}</p>
+            <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+              <div className="bg-emerald-600 h-2 rounded-full animate-pulse w-full"></div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Main Step Content Container */}
       <main className="flex-1 px-3 sm:px-6 py-6">
