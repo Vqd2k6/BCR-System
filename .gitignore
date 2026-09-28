@@ -19,10 +19,11 @@ yarn-error.log*
 backend/.env
 backend/.env.local
 
-# Logs
+# Logs & Test Reports
 *.log
 logs/
 backend/logs/
+backend/reports/
 
 # Flutter & Dart (Mobile App)
 mobile_app/.dart_tool/
