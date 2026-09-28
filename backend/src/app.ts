@@ -2,6 +2,8 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
+import fs from 'fs';
+import path from 'path';
 import { config } from './config';
 import { problemDetailsErrorHandler } from './common/errors/problem-details';
 import { authenticateJwt, requireRoles } from './common/guards/auth.guard';
@@ -25,13 +27,24 @@ export function createApp(): express.Application {
   const app = express();
 
   // Global Middlewares
-  app.use(helmet());
+  app.use(
+    helmet({
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
+    })
+  );
   app.use(cors({ origin: config.cors.origin }));
   app.use(express.json({ limit: '150mb' }));
   app.use(express.urlencoded({ extended: true, limit: '150mb' }));
   if (config.env !== 'test') {
     app.use(morgan('dev'));
   }
+
+  // Phục vụ tệp tĩnh ảnh hiện trường & tài liệu đã tải lên
+  const uploadsDir = config.storage.localUploadDir;
+  if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+  }
+  app.use('/uploads', express.static(uploadsDir, { maxAge: '1d', etag: true }));
 
   // Root welcome endpoint
   app.get('/', (_req, res) => {

@@ -1,7 +1,23 @@
 import dotenv from 'dotenv';
 import path from 'path';
+import fs from 'fs';
 
 dotenv.config({ path: path.resolve(process.cwd(), '.env') });
+
+const resolveUploadDir = (): string => {
+  if (process.env.LOCAL_UPLOAD_DIR) {
+    return path.resolve(process.env.LOCAL_UPLOAD_DIR);
+  }
+  const rootBackendUploads = path.resolve(process.cwd(), 'backend', 'uploads');
+  if (fs.existsSync(rootBackendUploads)) {
+    return rootBackendUploads;
+  }
+  const cwdUploads = path.resolve(process.cwd(), 'uploads');
+  if (fs.existsSync(cwdUploads)) {
+    return cwdUploads;
+  }
+  return path.resolve(__dirname, '../../uploads');
+};
 
 export const config = {
   env: process.env.NODE_ENV || 'development',
@@ -37,7 +53,7 @@ export const config = {
 
   storage: {
     type: (process.env.STORAGE_TYPE || 'local') as 'local' | 'r2' | 's3',
-    localUploadDir: process.env.LOCAL_UPLOAD_DIR || './uploads',
+    localUploadDir: resolveUploadDir(),
     s3: {
       endpoint: process.env.S3_ENDPOINT,
       region: process.env.S3_REGION || 'auto',

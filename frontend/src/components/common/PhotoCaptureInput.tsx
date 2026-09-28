@@ -55,6 +55,13 @@ export const PhotoCaptureInput: React.FC<Props> = ({
 
   const [isAnnotating, setIsAnnotating] = useState(false);
   const [detectedAspectRatio, setDetectedAspectRatio] = useState<'landscape' | 'portrait' | 'square' | null>(null);
+  const [localPreview, setLocalPreview] = useState<string | null>(null);
+  const [hasLoadError, setHasLoadError] = useState(false);
+
+  // Tự động reset trạng thái lỗi khi value thay đổi
+  useEffect(() => {
+    setHasLoadError(false);
+  }, [value]);
 
   // Tính toán options watermark hợp nhất (ưu tiên watermarkOptions, fallback watermarkText)
   const effectiveWatermarkOptions = useMemo<MetroWatermarkOptions | undefined>(() => {
@@ -147,6 +154,7 @@ export const PhotoCaptureInput: React.FC<Props> = ({
     try {
       const { dataUrl, photoCode: generatedCode } = await processAndWatermarkImage(file);
       if (dataUrl) {
+        setLocalPreview(dataUrl);
         onChange(dataUrl, generatedCode);
         if (isNotApplicable && onToggleNotApplicable) {
           onToggleNotApplicable(false);
@@ -160,6 +168,8 @@ export const PhotoCaptureInput: React.FC<Props> = ({
   };
 
   const handleClear = () => {
+    setLocalPreview(null);
+    setHasLoadError(false);
     onChange('', '');
     setDetectedAspectRatio(null);
   };
@@ -238,6 +248,7 @@ export const PhotoCaptureInput: React.FC<Props> = ({
         effectiveWatermarkOptions
       );
       if (dataUrl) {
+        setLocalPreview(dataUrl);
         onChange(dataUrl, generatedCode);
         if (isNotApplicable && onToggleNotApplicable) {
           onToggleNotApplicable(false);
@@ -253,6 +264,7 @@ export const PhotoCaptureInput: React.FC<Props> = ({
       if (ctx) {
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
         const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+        setLocalPreview(dataUrl);
         onChange(dataUrl, displayPhotoCode);
         uploadToServer(dataUrl, displayPhotoCode);
       }
@@ -453,8 +465,13 @@ export const PhotoCaptureInput: React.FC<Props> = ({
           <img
             id={photoCode || displayPhotoCode || undefined}
             data-photo-code={photoCode || displayPhotoCode || undefined}
-            src={value}
+            src={hasLoadError && localPreview ? localPreview : value}
             alt={displayPhotoCode || label || 'Photo preview'}
+            onError={() => {
+              if (localPreview && !hasLoadError) {
+                setHasLoadError(true);
+              }
+            }}
             style={{ width: '100%', height: '100%', objectFit: 'contain' }}
           />
 
@@ -689,6 +706,7 @@ export const PhotoCaptureInput: React.FC<Props> = ({
           title={annotationTitle || `Ghi chú & Vẽ trên ${label || 'ảnh'}`}
           initialTool={initialAnnotationTool || (label?.includes('P-04') ? 'ARROW' : 'PEN')}
           onSave={(annotated) => {
+            setLocalPreview(annotated);
             onChange(annotated);
             uploadToServer(annotated, displayPhotoCode);
             setIsAnnotating(false);

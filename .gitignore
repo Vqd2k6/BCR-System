@@ -38,3 +38,5 @@ mobile_app/ios/Flutter/flutter_export_environment.sh
 mobile_app/android/local.properties
 # Backups & Temp
 dev-source*
+uploads/
+backend/uploads/
