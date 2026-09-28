@@ -755,8 +755,14 @@ export const usePhase1SurveyStore = create<Phase1SurveyStore>((set, get) => ({
         isDirty: false,
       });
     } catch (err: any) {
-      console.warn('[SurveyPhase1Store] Sync draft to server failed:', err);
-      set({ syncStatus: 'ERROR' });
+      const is404 = err?.response?.status === 404;
+      if (is404) {
+        // Server chưa có route nháp hoặc đang bảo trì: Giữ trạng thái OFFLINE an toàn (dữ liệu đã lưu trọn vẹn trong IndexedDB)
+        set({ syncStatus: 'OFFLINE', isDirty: false });
+      } else {
+        console.warn('[SurveyPhase1Store] Sync draft to server failed:', err);
+        set({ syncStatus: 'ERROR' });
+      }
     }
   },
 

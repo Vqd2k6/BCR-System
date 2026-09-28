@@ -56,7 +56,7 @@ export const SyncStatusBadge: React.FC<SyncStatusBadgeProps> = ({
 
       {syncStatus === 'OFFLINE' && (
         <div
-          title="Đang lưu tạm trên máy do mất kết nối mạng. Sẽ tự động tải lên khi có mạng."
+          title="Dữ liệu khảo sát được bảo vệ trọn vẹn trong bộ nhớ máy (IndexedDB). Sẽ tự động tải lên máy chủ khi kết nối sẵn sàng."
           className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-700 border border-slate-300 shadow-xs"
         >
           <WifiOff className="w-3.5 h-3.5 text-slate-500" />
@@ -66,11 +66,13 @@ export const SyncStatusBadge: React.FC<SyncStatusBadgeProps> = ({
 
       {syncStatus === 'ERROR' && (
         <div
-          title="Không thể kết nối đến máy chủ. Dữ liệu vẫn được bảo vệ trên máy."
-          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-rose-50 text-rose-700 border border-rose-200 shadow-xs"
+          title="Đồng bộ máy chủ bị gián đoạn. Dữ liệu khảo sát vẫn được lưu an toàn 100% trên máy. Bấm 'Lưu tạm' để thử lại."
+          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-amber-50 text-amber-800 border border-amber-300 shadow-xs cursor-pointer hover:bg-amber-100 transition-colors"
+          onClick={onManualSync}
         >
-          <AlertTriangle className="w-3.5 h-3.5 text-rose-500" />
-          <span className="hidden sm:inline">Lỗi mạng</span>
+          <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+          <span className="hidden sm:inline">Chưa đồng bộ</span>
+          <span className="sm:hidden">Thử lại</span>
         </div>
       )}
 

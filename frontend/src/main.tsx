@@ -5,6 +5,34 @@ import { App } from './App';
 import './styles/index.css';
 import { initDevErrorReporter, sendDevError } from './services/devErrorReporter';
 
+// Bộ lọc toàn cục chủ động chặn các lỗi ngoại lai từ Browser Extension (như 200.js, M_ID...)
+if (typeof window !== 'undefined') {
+  window.addEventListener(
+    'error',
+    (event) => {
+      const filename = String(event.filename || '').toLowerCase();
+      const message = String(event.message || '').toLowerCase();
+      if (filename.includes('200.js') || message.includes('m_id')) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+      }
+    },
+    true
+  );
+
+  window.addEventListener(
+    'unhandledrejection',
+    (event) => {
+      const reason = String(event.reason?.stack || event.reason?.message || event.reason || '').toLowerCase();
+      if (reason.includes('200.js') || reason.includes('m_id')) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+      }
+    },
+    true
+  );
+}
+
 // Khởi chạy listener bắt lỗi runtime toàn cục trong môi trường DEV
 initDevErrorReporter();
 
