@@ -228,6 +228,13 @@ export class AuthRepository {
     );
   }
 
+  static async revokeUserSessions(userId: string): Promise<void> {
+    await Database.query(
+      `UPDATE user_sessions SET is_revoked = TRUE WHERE user_id = $1;`,
+      [userId]
+    );
+  }
+
   static async isSessionActive(refreshTokenHash: string): Promise<boolean> {
     const res = await Database.query<{ is_revoked: boolean; expires_at: Date }>(
       `SELECT is_revoked, expires_at FROM user_sessions WHERE refresh_token_hash = $1 LIMIT 1;`,

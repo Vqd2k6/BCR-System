@@ -308,8 +308,8 @@ export const UserEditModal: React.FC<Props> = ({
                     </option>
                   ))}
                 </optgroup>
-                <optgroup label="Tất cả 22 Phân đoạn toàn tuyến">
-                  {METRO_22_ZONES.map((z) => (
+                <optgroup label="17 Phân đoạn còn lại (Toàn tuyến Metro 2)">
+                  {METRO_22_ZONES.filter((z) => !z.isDataReady).map((z) => (
                     <option key={z.code} value={z.code}>
                       {z.name} ({z.code})
                     </option>

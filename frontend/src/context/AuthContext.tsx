@@ -79,92 +79,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const login = async (username: string, password: string) => {
-    try {
-      const res = await api.post('/auth/login', { username, password });
-      if (res.data?.success) {
-        const { accessToken, user: rawUser } = res.data.data;
-        const normalized: UserProfile = {
-          id: rawUser.id,
-          username: rawUser.username,
-          fullName: rawUser.fullName || rawUser.full_name,
-          role: rawUser.role,
-          assignedZoneId: rawUser.assignedZoneId || rawUser.assigned_zone_id,
-          status: rawUser.status,
-          phone: rawUser.phone || null,
-          surveyorCode: rawUser.surveyorCode || rawUser.surveyor_code || null,
-          signatureImageUrl: rawUser.signatureImageUrl || rawUser.signature_image_url || null,
-          email: rawUser.email || null,
-        };
-        setToken(accessToken);
-        setUser(normalized);
-        localStorage.setItem('metro2_access_token', accessToken);
-        localStorage.setItem('metro2_user_profile', JSON.stringify(normalized));
-        return;
-      }
-    } catch (apiErr: any) {
-      console.warn('[Auth] API login failed, checking demo fallback:', apiErr?.message);
-
-      const mockUsers: Record<string, UserProfile> = {
-        surveyor_s9_01: {
-          id: 'b0000000-0000-0000-0000-000000000003',
-          username: 'surveyor_s9_01',
-          fullName: 'Nguyễn Văn Khảo Sát (Ga S1)',
-          role: 'SURVEYOR',
-          assignedZoneId: 'ZONE_01',
-          status: 'ACTIVE',
-          phone: '0903456789',
-          surveyorCode: 'P-6789',
-        },
-        surveyor_s9_02: {
-          id: 'b0000000-0000-0000-0000-000000000004',
-          username: 'surveyor_s9_02',
-          fullName: 'Trần Văn B (Ga S1)',
-          role: 'SURVEYOR',
-          assignedZoneId: 'ZONE_01',
-          status: 'ACTIVE',
-          phone: '0904567890',
-          surveyorCode: 'P-7890',
-        },
-        zoneadmin_s9: {
-          id: 'b0000000-0000-0000-0000-000000000002',
-          username: 'zoneadmin_s9',
-          fullName: 'Trần Văn Tổ Trưởng (Ga S1 / Bến Thành)',
-          role: 'ZONE_ADMIN',
-          assignedZoneId: 'ZONE_01',
-          status: 'ACTIVE',
-          phone: '0902345678',
-        },
-        superadmin: {
-          id: 'b0000000-0000-0000-0000-000000000001',
-          username: 'superadmin',
-          fullName: 'Nguyễn Văn Tổng (MAUR)',
-          role: 'SUPER_ADMIN',
-          assignedZoneId: null,
-          status: 'ACTIVE',
-          phone: '0901234567',
-        },
-        contractor_guest: {
-          id: 'b0000000-0000-0000-0000-000000000005',
-          username: 'contractor_guest',
-          fullName: 'Đại diện Nhà Thầu TBM',
-          role: 'CONTRACTOR',
-          assignedZoneId: null,
-          status: 'ACTIVE',
-          phone: '0905678901',
-        },
+    const res = await api.post('/auth/login', { username, password });
+    if (res.data?.success) {
+      const { accessToken, user: rawUser } = res.data.data;
+      const normalized: UserProfile = {
+        id: rawUser.id,
+        username: rawUser.username,
+        fullName: rawUser.fullName || rawUser.full_name,
+        role: rawUser.role,
+        assignedZoneId: rawUser.assignedZoneId || rawUser.assigned_zone_id,
+        status: rawUser.status,
+        phone: rawUser.phone || null,
+        surveyorCode: rawUser.surveyorCode || rawUser.surveyor_code || null,
+        signatureImageUrl: rawUser.signatureImageUrl || rawUser.signature_image_url || null,
+        email: rawUser.email || null,
       };
-
-      const matchedMock = mockUsers[username.toLowerCase().trim()];
-      if (matchedMock) {
-        const mockToken = `mock-token-${Date.now()}-${matchedMock.id}`;
-        setToken(mockToken);
-        setUser(matchedMock);
-        localStorage.setItem('metro2_access_token', mockToken);
-        localStorage.setItem('metro2_user_profile', JSON.stringify(matchedMock));
-        return;
-      }
-
-      throw apiErr;
+      setToken(accessToken);
+      setUser(normalized);
+      localStorage.setItem('metro2_access_token', accessToken);
+      localStorage.setItem('metro2_user_profile', JSON.stringify(normalized));
     }
   };
 

@@ -105,14 +105,6 @@ export class AuthService {
     if (user.password_hash) {
       isMatch = await CryptoUtils.comparePassword(password, user.password_hash);
     }
-    // Allow demo passwords fallback
-    if (!isMatch) {
-      if ((username === 'surveyor_s9_01' || username === 'surveyor_s9_02' || username === 'contractor_guest') && (password === 'Password@123' || password === 'Admin@123')) {
-        isMatch = true;
-      } else if ((username === 'zoneadmin_s9' || username === 'superadmin') && (password === 'Admin@123' || password === 'Password@123')) {
-        isMatch = true;
-      }
-    }
 
     if (!isMatch) {
       throw new UnauthorizedError('Tên đăng nhập hoặc mật khẩu không chính xác');
@@ -300,6 +292,9 @@ export class AuthService {
     if (!user) {
       throw new NotFoundError(`Không tìm thấy tài khoản với ID: ${id}`);
     }
+    if (status === 'LOCKED' || status === 'SUSPENDED') {
+      await AuthRepository.revokeUserSessions(id);
+    }
     const { password_hash, ...safeUser } = user;
     return safeUser;
   }
@@ -311,6 +306,7 @@ export class AuthService {
     }
     const passwordHash = await CryptoUtils.hashPassword(newPassword);
     await AuthRepository.updatePassword(id, passwordHash);
+    await AuthRepository.revokeUserSessions(id);
     return { message: 'Đặt lại mật khẩu thành công' };
   }
 
@@ -320,6 +316,7 @@ export class AuthService {
       throw new NotFoundError(`Không tìm thấy tài khoản với ID: ${id}`);
     }
     await AuthRepository.softDeleteUser(id);
+    await AuthRepository.revokeUserSessions(id);
     return { message: 'Đã vô hiệu hóa tài khoản thành công (Bảo toàn lịch sử)' };
   }
 }

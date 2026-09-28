@@ -61,57 +61,10 @@ export const UserManagementTab: React.FC = () => {
         setTotal(res.pagination?.total ?? res.data.length);
       }
     } catch (err: any) {
-      console.warn('Lỗi khi tải danh sách người dùng:', err);
-      // Fallback demo users if offline/local dev
-      setUsers([
-        {
-          id: 'b0000000-0000-0000-0000-000000000001',
-          username: 'superadmin',
-          fullName: 'Nguyễn Văn Tổng (MAUR)',
-          role: 'SUPER_ADMIN',
-          assignedZoneId: null,
-          status: 'ACTIVE',
-          phone: '0901234567',
-        },
-        {
-          id: 'b0000000-0000-0000-0000-000000000002',
-          username: 'zoneadmin_s9',
-          fullName: 'Trần Văn Tổ Trưởng (Ga S1 / Bến Thành)',
-          role: 'ZONE_ADMIN',
-          assignedZoneId: 'ZONE_01',
-          status: 'ACTIVE',
-          phone: '0902345678',
-        },
-        {
-          id: 'b0000000-0000-0000-0000-000000000003',
-          username: 'surveyor_s9_01',
-          fullName: 'Nguyễn Văn Khảo Sát (Ga S1)',
-          role: 'SURVEYOR',
-          assignedZoneId: 'ZONE_01',
-          status: 'ACTIVE',
-          phone: '0903456789',
-          surveyorCode: 'P-6789',
-        },
-        {
-          id: 'b0000000-0000-0000-0000-000000000004',
-          username: 'surveyor_s9_02',
-          fullName: 'Trần Văn B (Ga S1)',
-          role: 'SURVEYOR',
-          assignedZoneId: 'ZONE_01',
-          status: 'ACTIVE',
-          phone: '0904567890',
-          surveyorCode: 'P-7890',
-        },
-        {
-          id: 'b0000000-0000-0000-0000-000000000005',
-          username: 'contractor_guest',
-          fullName: 'Đại diện Nhà Thầu TBM',
-          role: 'CONTRACTOR',
-          assignedZoneId: null,
-          status: 'ACTIVE',
-          phone: '0905678901',
-        },
-      ]);
+      console.error('Lỗi khi tải danh sách người dùng:', err);
+      setUsers([]);
+      setTotal(0);
+      setBannerMsg({ type: 'error', text: err?.message || 'Không thể kết nối đến máy chủ để tải danh sách tài khoản' });
     } finally {
       setIsLoading(false);
     }

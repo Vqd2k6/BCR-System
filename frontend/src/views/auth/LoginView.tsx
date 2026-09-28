@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { Train, Lock, User, ShieldCheck, ArrowRight, CheckCircle2, Zap, UserCheck, Shield, Crown, Building2 } from 'lucide-react';
+import { Lock, User, ShieldCheck, ArrowRight } from 'lucide-react';
 
 interface Props {
   onNavigatePublicPortal?: () => void;
@@ -8,8 +8,8 @@ interface Props {
 
 export const LoginView: React.FC<Props> = ({ onNavigatePublicPortal }) => {
   const { login } = useAuth();
-  const [username, setUsername] = useState('surveyor_s9_01');
-  const [password, setPassword] = useState('Password@123');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -21,24 +21,6 @@ export const LoginView: React.FC<Props> = ({ onNavigatePublicPortal }) => {
       await login(username, password);
     } catch (err: any) {
       setErrorMessage(err.response?.data?.detail || err.response?.data?.message || 'Đăng nhập không thành công. Vui lòng kiểm tra lại tài khoản.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleQuickLogin = async (u: string, p: string = 'Password@123') => {
-    setUsername(u);
-    setPassword(p);
-    setLoading(true);
-    setErrorMessage(null);
-    try {
-      await login(u, p);
-    } catch (err: any) {
-      setErrorMessage(
-        err.response?.data?.detail ||
-          err.response?.data?.message ||
-          'Đăng nhập không thành công. Vui lòng kiểm tra lại tài khoản.'
-      );
     } finally {
       setLoading(false);
     }
@@ -176,119 +158,7 @@ export const LoginView: React.FC<Props> = ({ onNavigatePublicPortal }) => {
           </button>
         </form>
 
-        {/* Quick Demo Accounts Selection */}
-        <div style={{ marginTop: '1.5rem', paddingTop: '1.25rem', borderTop: '1px solid #f1f5f9' }}>
-          <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b', marginBottom: '0.65rem', textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}>
-            <Zap size={14} color="#0284c7" />
-            <span>Click 1 chạm để đăng nhập nhanh vai trò demo:</span>
-          </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.45rem' }}>
-            <button
-              type="button"
-              disabled={loading}
-              onClick={() => handleQuickLogin('surveyor_s9_01', 'Password@123')}
-              className="btn btn-secondary btn-sm"
-              style={{
-                fontSize: '0.75rem',
-                justifyContent: 'flex-start',
-                padding: '0.45rem 0.6rem',
-                backgroundColor: username === 'surveyor_s9_01' ? '#e0f2fe' : '#f8fafc',
-                borderColor: username === 'surveyor_s9_01' ? '#0284c7' : '#e2e8f0',
-                color: username === 'surveyor_s9_01' ? '#0369a1' : '#334155',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.4rem',
-                cursor: loading ? 'not-allowed' : 'pointer',
-              }}
-              title="Đăng nhập ngay với vai trò Điều Tra Viên Ga S1 Bến Thành"
-            >
-              <UserCheck size={14} color="#0284c7" />
-              <div style={{ textAlign: 'left', lineHeight: 1.2 }}>
-                <span style={{ fontWeight: 700, display: 'block' }}>Surveyor S1</span>
-                <span style={{ fontSize: '0.65rem', color: '#64748b' }}>Ga S1 Bến Thành</span>
-              </div>
-            </button>
-
-            <button
-              type="button"
-              disabled={loading}
-              onClick={() => handleQuickLogin('zoneadmin_s9', 'Admin@123')}
-              className="btn btn-secondary btn-sm"
-              style={{
-                fontSize: '0.75rem',
-                justifyContent: 'flex-start',
-                padding: '0.45rem 0.6rem',
-                backgroundColor: username === 'zoneadmin_s9' ? '#e0f2fe' : '#f8fafc',
-                borderColor: username === 'zoneadmin_s9' ? '#0284c7' : '#e2e8f0',
-                color: username === 'zoneadmin_s9' ? '#0369a1' : '#334155',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.4rem',
-                cursor: loading ? 'not-allowed' : 'pointer',
-              }}
-              title="Đăng nhập ngay với vai trò Tổ Trưởng Zone Admin (Ga S1)"
-            >
-              <Shield size={14} color="#0284c7" />
-              <div style={{ textAlign: 'left', lineHeight: 1.2 }}>
-                <span style={{ fontWeight: 700, display: 'block' }}>Zone Admin</span>
-                <span style={{ fontSize: '0.65rem', color: '#64748b' }}>Tổ trưởng Ga S1</span>
-              </div>
-            </button>
-
-            <button
-              type="button"
-              disabled={loading}
-              onClick={() => handleQuickLogin('superadmin', 'Admin@123')}
-              className="btn btn-secondary btn-sm"
-              style={{
-                fontSize: '0.75rem',
-                justifyContent: 'flex-start',
-                padding: '0.45rem 0.6rem',
-                backgroundColor: username === 'superadmin' ? '#e0f2fe' : '#f8fafc',
-                borderColor: username === 'superadmin' ? '#0284c7' : '#e2e8f0',
-                color: username === 'superadmin' ? '#0369a1' : '#334155',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.4rem',
-                cursor: loading ? 'not-allowed' : 'pointer',
-              }}
-              title="Đăng nhập ngay với vai trò Lãnh Đạo MAUR"
-            >
-              <Crown size={14} color="#d97706" />
-              <div style={{ textAlign: 'left', lineHeight: 1.2 }}>
-                <span style={{ fontWeight: 700, display: 'block' }}>Super Admin</span>
-                <span style={{ fontSize: '0.65rem', color: '#64748b' }}>Lãnh đạo MAUR</span>
-              </div>
-            </button>
-
-            <button
-              type="button"
-              disabled={loading}
-              onClick={() => handleQuickLogin('contractor_guest', 'Password@123')}
-              className="btn btn-secondary btn-sm"
-              style={{
-                fontSize: '0.75rem',
-                justifyContent: 'flex-start',
-                padding: '0.45rem 0.6rem',
-                backgroundColor: username === 'contractor_guest' ? '#e0f2fe' : '#f8fafc',
-                borderColor: username === 'contractor_guest' ? '#0284c7' : '#e2e8f0',
-                color: username === 'contractor_guest' ? '#0369a1' : '#334155',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.4rem',
-                cursor: loading ? 'not-allowed' : 'pointer',
-              }}
-              title="Đăng nhập ngay với vai trò Đại diện Nhà Thầu Metro"
-            >
-              <Building2 size={14} color="#0284c7" />
-              <div style={{ textAlign: 'left', lineHeight: 1.2 }}>
-                <span style={{ fontWeight: 700, display: 'block' }}>Nhà Thầu</span>
-                <span style={{ fontSize: '0.65rem', color: '#64748b' }}>Đối soát TBM</span>
-              </div>
-            </button>
-          </div>
-        </div>
 
         {/* Public Citizen Portal Access */}
         {onNavigatePublicPortal && (
