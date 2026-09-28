@@ -44,10 +44,18 @@ export const surveyDraftService = {
    * Truy vấn bản nháp hiện tại của công trình từ server
    */
   async fetchDraft(parcelId: string, unitId?: string | null): Promise<DraftResponseData> {
-    const res = await api.get(`/surveys/draft/${parcelId}`, {
-      params: unitId ? { unitId } : {},
-    });
-    return res.data?.data || res.data;
+    try {
+      const res = await api.get(`/surveys/draft/${parcelId}`, {
+        params: unitId ? { unitId } : {},
+      });
+      return res.data?.data || res.data;
+    } catch (err: any) {
+      if (err?.response?.status === 404) {
+        // Coi như công trình chưa có bản nháp trên server để tiến trình khảo sát diễn ra mượt mà
+        return { hasDraft: false };
+      }
+      throw err;
+    }
   },
 
   /**

@@ -295,11 +295,11 @@ export async function applyMetroWatermark(
   // 3. Vẽ ảnh gốc
   ctx.drawImage(src.element, 0, 0, width, height);
 
-  // 4. Vẽ Logo THACO-CREC ở góc trên bên phải (Tỷ lệ 24-25% chiều rộng ảnh, chuẩn như mẫu thực tế)
+  // 4. Vẽ Logo THACO-CREC ở góc trên bên phải (Đã tăng thêm 40%: chiếm 43.75% chiều rộng ảnh)
   try {
     const logoImg = await loadLogo(options?.logoUrl);
     if (logoImg.naturalWidth > 0 && logoImg.naturalHeight > 0) {
-      const logoWidth = Math.round(width * 0.25); // Chiếm 25% chiều rộng ảnh
+      const logoWidth = Math.round(width * 0.4375); // Tăng thêm 40% kích thước (0.3125 * 1.4 = 0.4375)
       const logoHeight = Math.round(logoWidth * (logoImg.naturalHeight / logoImg.naturalWidth));
       const paddingRight = Math.round(width * 0.025);
       const paddingTop = Math.round(width * 0.025);
@@ -309,7 +309,7 @@ export async function applyMetroWatermark(
       ctx.save();
       // Đổ bóng mờ trắng nhẹ phía sau để logo xanh luôn sắc nét ngay cả khi chụp nền tối/vỉa hè/đêm
       ctx.shadowColor = 'rgba(255, 255, 255, 0.75)';
-      ctx.shadowBlur = Math.max(2, Math.round(width * 0.005));
+      ctx.shadowBlur = Math.max(3, Math.round(width * 0.007));
       ctx.drawImage(logoImg, logoX, logoY, logoWidth, logoHeight);
       ctx.restore();
     }
@@ -317,11 +317,11 @@ export async function applyMetroWatermark(
     console.error('[WATERMARK] Lỗi nghiêm trọng khi nạp logo THACO-CREC:', logoErr);
   }
 
-  // 5. Vẽ Ngày giờ + Mã định danh Photo ID ở góc dưới bên phải
-  const fontSize = Math.max(16, Math.round(width * 0.022)); // Tương ứng 2.2% chiều rộng ảnh
+  // 5. Vẽ Ngày giờ + Mã định danh Photo ID ở góc dưới bên phải (Đã tăng thêm 40% cỡ chữ)
+  const fontSize = Math.max(22, Math.round(width * 0.031)); // Tăng thêm 40% cỡ chữ (0.022 * 1.4 = 0.0308 ≈ 3.1% chiều rộng ảnh)
   const lineHeight = Math.round(fontSize * 1.35);
   const paddingRight = Math.round(width * 0.03);
-  const paddingBottom = Math.round(height * 0.03);
+  const paddingBottom = Math.round(height * 0.035);
 
   const textX = width - paddingRight;
   const line2Y = height - paddingBottom;
@@ -334,12 +334,12 @@ export async function applyMetroWatermark(
 
   // Hiệu ứng đổ bóng mờ đen (Shadow)
   ctx.shadowColor = 'rgba(0, 0, 0, 0.9)';
-  ctx.shadowBlur = Math.round(fontSize * 0.25);
-  ctx.shadowOffsetX = 1;
-  ctx.shadowOffsetY = 2;
+  ctx.shadowBlur = Math.round(fontSize * 0.28);
+  ctx.shadowOffsetX = Math.max(1.5, Math.round(fontSize * 0.05));
+  ctx.shadowOffsetY = Math.max(2, Math.round(fontSize * 0.08));
 
   // Viền nét mảnh đen (Stroke) chống chìm chữ trên nền đường/vỉa hè sáng
-  ctx.lineWidth = Math.max(1.5, fontSize * 0.06);
+  ctx.lineWidth = Math.max(2, fontSize * 0.07);
   ctx.strokeStyle = 'rgba(0, 0, 0, 0.85)';
   ctx.strokeText(timeStr, textX, line1Y);
   ctx.strokeText(photoCode, textX, line2Y);

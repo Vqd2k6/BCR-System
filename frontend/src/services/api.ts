@@ -40,8 +40,11 @@ api.interceptors.response.use(
     const data = error.response?.data;
     const detailMsg = data?.detail || data?.message || data?.title || error.message;
 
+    // Bỏ qua cảnh báo lỗi cho endpoint kiểm tra bản nháp nếu là 404 (chưa có bản nháp)
+    const isDraftCheck404 = url?.includes('/surveys/draft/') && status === 404;
+
     // Tự động chuyển tiếp toàn bộ lỗi API về dev reporter nếu trong môi trường DEV
-    if (status && status >= 400) {
+    if (status && status >= 400 && !isDraftCheck404) {
       const msgStr = typeof detailMsg === 'object' ? JSON.stringify(detailMsg) : String(detailMsg);
       sendDevError({
         errorType: 'API_ERROR',
@@ -65,12 +68,14 @@ api.interceptors.response.use(
         'color: inherit;'
       );
     } else if (status && status >= 400 && status < 500) {
-      console.warn(
-        `%c[API CLIENT ERROR ${status}] ${method} ${url}%c -> ${detailMsg}`,
-        'color: #ef4444; font-weight: bold;',
-        'color: inherit;',
-        data?.errors || data
-      );
+      if (!isDraftCheck404) {
+        console.warn(
+          `%c[API CLIENT ERROR ${status}] ${method} ${url}%c -> ${detailMsg}`,
+          'color: #ef4444; font-weight: bold;',
+          'color: inherit;',
+          data?.errors || data
+        );
+      }
     } else if (status && status >= 500) {
       console.error(
         `%c[API SERVER ERROR ${status}] ${method} ${url}%c -> Lỗi máy chủ: ${detailMsg}`,
