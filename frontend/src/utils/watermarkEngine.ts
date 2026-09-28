@@ -249,12 +249,13 @@ function loadImageSource(source: HTMLImageElement | HTMLVideoElement | string): 
 
 export interface WatermarkResult {
   dataUrl: string;
+  blob?: Blob;
   photoCode: string;
 }
 
 /**
  * Hàm cốt lõi: Dập Watermark Logo THACO-CREC và Photo ID vào ảnh trên Canvas
- * Trả về Data URL JPEG và Photo ID chuẩn hóa
+ * Trả về Data URL JPEG, Binary Blob và Photo ID chuẩn hóa
  */
 export async function applyMetroWatermark(
   imageSource: HTMLImageElement | HTMLVideoElement | string,
@@ -349,11 +350,15 @@ export async function applyMetroWatermark(
   ctx.fillText(photoCode, textX, line2Y);
   ctx.restore();
 
-  // 6. Xuất Base64 JPEG chất lượng cao
-  const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+  // 6. Xuất Binary Blob và Data URL JPEG tối ưu
+  const blob: Blob = await new Promise((resolve) => {
+    canvas.toBlob((b) => resolve(b || new Blob()), 'image/jpeg', 0.82);
+  });
+  const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
 
   return {
     dataUrl,
+    blob,
     photoCode,
   };
 }

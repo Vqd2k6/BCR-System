@@ -17,6 +17,7 @@ import { GisParcel, BuildingUnit } from '../../../core/types/domain.types';
 import { api } from '../../../services/api';
 import { useAuth } from '../../../context/AuthContext';
 import confetti from 'canvas-confetti';
+import { uploadQueue, countBase64Images, sanitizeSurveyDataForSync } from '../../../core/services/uploadQueueService';
 
 import { AbsenteeReviewView } from './AbsenteeReviewView';
 
@@ -382,14 +383,31 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
     );
     if (!confirmed) return;
 
+    // 1. Kiểm tra hàng đợi upload Cloud
+    const pendingUploads = uploadQueue.getPendingAndActiveCount();
+    if (pendingUploads > 0) {
+      alert(`⚠️ Còn ${pendingUploads} ảnh đang được tải lên Cloudflare R2.\n\nVui lòng chờ trong giây lát để các ảnh hoàn tất tải lên trước khi nộp hồ sơ.`);
+      return;
+    }
+
+    // 2. Kiểm tra nếu còn ảnh dạng Base64 chưa lên Cloud
+    const base64Count = countBase64Images(formData);
+    if (base64Count > 0) {
+      const proceed = window.confirm(
+        `⚠️ Phát hiện ${base64Count} ảnh chưa được tải lên máy chủ Cloud (do mạng chập chờn hoặc đang chờ tải lại).\n\nBạn có muốn nộp ngay (các ảnh chưa lên Cloud sẽ được bỏ qua) hay bấm HỦY để đợi tải xong?`
+      );
+      if (!proceed) return;
+    }
+
     try {
       setIsSubmitting(true);
-      console.log('[Phase1] Submitting final survey payload:', formData);
+      const cleanFormData = sanitizeSurveyDataForSync(formData);
+      console.log('[Phase1] Submitting final survey payload (sanitized):', cleanFormData);
 
       const payload = {
         parcelId: formData.parcelId,
         unitId: unit?.id,
-        surveyData: formData,
+        surveyData: cleanFormData,
         status: 'COMPLETED',
         completedAt: new Date().toISOString(),
       };

@@ -54,4 +54,54 @@ export class StorageController {
       next(error);
     }
   }
+
+  /**
+   * Tạo Presigned URL để client tải trực tiếp file lên Cloudflare R2
+   */
+  static async generatePresignedUrl(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { filename, mimeType, folder } = req.body;
+      const cleanFilename = typeof filename === 'string' && filename.trim() ? filename.trim() : 'photo.jpg';
+      const cleanMimeType = typeof mimeType === 'string' && mimeType.trim() ? mimeType.trim() : 'image/jpeg';
+      const cleanFolder = typeof folder === 'string' && folder.trim() ? folder.trim() : 'surveys';
+
+      const result = await StorageService.generatePresignedUploadUrl(
+        cleanFilename,
+        cleanMimeType,
+        cleanFolder
+      );
+
+      res.status(200).json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Endpoint nhận HTTP PUT nhị phân cục bộ khi chạy ở chế độ LOCAL development
+   */
+  static async handleLocalPut(req: Request, res: Response, next: NextFunction) {
+    try {
+      const key = req.query.key as string;
+      const mimeType = (req.query.mimeType as string) || (req.headers['content-type'] as string) || 'image/jpeg';
+
+      if (!key) {
+        throw new BadRequestError('Tham số "key" là bắt buộc');
+      }
+
+      const buffer = req.body instanceof Buffer ? req.body : Buffer.from(req.body);
+      const result = await StorageService.saveLocalBuffer(buffer, key, mimeType);
+
+      res.status(200).json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
+

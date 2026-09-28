@@ -2,6 +2,7 @@ import React, { useRef, useState, useEffect, useId, useMemo } from 'react';
 import { Camera, Trash2, MapPin, Edit3, AlertTriangle, Compass, Image as ImageIcon, RefreshCw, X, Video } from 'lucide-react';
 import { ImageAnnotationModal } from './ImageAnnotationModal';
 import { api } from '../../services/api';
+import { uploadQueue } from '../../core/services/uploadQueueService';
 import {
   applyMetroWatermark,
   MetroWatermarkOptions,
@@ -104,7 +105,44 @@ export const PhotoCaptureInput: React.FC<Props> = ({
     img.src = value;
   }, [value]);
 
-  const processAndWatermarkImage = (file: File): Promise<{ dataUrl: string; photoCode: string }> => {
+  // Trạng thái đồng bộ ảnh lên Cloudflare R2
+  const [uploadStatus, setUploadStatus] = useState<'IDLE' | 'UPLOADING' | 'SUCCESS' | 'ERROR'>('IDLE');
+  const lastBlobRef = useRef<Blob | null>(null);
+
+  useEffect(() => {
+    if (value && (value.startsWith('http') || value.startsWith('/uploads'))) {
+      setUploadStatus('SUCCESS');
+    } else if (value && value.startsWith('data:image')) {
+      if (uploadStatus === 'IDLE') {
+        setUploadStatus('UPLOADING');
+      }
+    } else {
+      setUploadStatus('IDLE');
+    }
+  }, [value]);
+
+  const startDirectUpload = (blob: Blob, code?: string) => {
+    lastBlobRef.current = blob;
+    setUploadStatus('UPLOADING');
+
+    const prefix = code ? code.replace(/[^a-zA-Z0-9_-]/g, '_') : 'photo';
+    const filename = `${prefix}_${Date.now()}.jpg`;
+
+    uploadQueue.enqueue(blob, filename, {
+      folder: 'surveys',
+      mimeType: 'image/jpeg',
+      onSuccess: (publicUrl) => {
+        setUploadStatus('SUCCESS');
+        onChange(publicUrl, code);
+      },
+      onError: (err) => {
+        console.warn('[PhotoCaptureInput] Direct upload failed, will retry or fallback:', err);
+        setUploadStatus('ERROR');
+      },
+    });
+  };
+
+  const processAndWatermarkImage = (file: File): Promise<{ dataUrl: string; blob?: Blob; photoCode: string }> => {
     return new Promise((resolve) => {
       const reader = new FileReader();
       reader.onload = async (event) => {
@@ -121,6 +159,7 @@ export const PhotoCaptureInput: React.FC<Props> = ({
           console.warn('[WATERMARK] Fallback nén ảnh thông thường do lỗi dập watermark:', err);
           resolve({
             dataUrl: rawBase64,
+            blob: file,
             photoCode: displayPhotoCode,
           });
         }
@@ -140,10 +179,12 @@ export const PhotoCaptureInput: React.FC<Props> = ({
       });
       const uploadedUrl = res.data?.data?.url;
       if (uploadedUrl) {
+        setUploadStatus('SUCCESS');
         onChange(uploadedUrl, code);
       }
     } catch (err) {
       console.warn('[PhotoCaptureInput] Background upload to server failed, keeping local base64:', err);
+      setUploadStatus('ERROR');
     }
   };
 
@@ -152,14 +193,28 @@ export const PhotoCaptureInput: React.FC<Props> = ({
     if (!file) return;
 
     try {
-      const { dataUrl, photoCode: generatedCode } = await processAndWatermarkImage(file);
+      const { dataUrl, blob, photoCode: generatedCode } = await processAndWatermarkImage(file);
       if (dataUrl) {
         setLocalPreview(dataUrl);
         onChange(dataUrl, generatedCode);
         if (isNotApplicable && onToggleNotApplicable) {
           onToggleNotApplicable(false);
         }
-        uploadToServer(dataUrl, generatedCode);
+        if (blob) {
+          startDirectUpload(blob, generatedCode);
+        } else {
+          try {
+            const byteString = atob(dataUrl.split(',')[1]);
+            const ab = new ArrayBuffer(byteString.length);
+            const ia = new Uint8Array(ab);
+            for (let i = 0; i < byteString.length; i++) {
+              ia[i] = byteString.charCodeAt(i);
+            }
+            startDirectUpload(new Blob([ab], { type: 'image/jpeg' }), generatedCode);
+          } catch (_e) {
+            uploadToServer(dataUrl, generatedCode);
+          }
+        }
       }
     } catch (_err) {
       console.warn('Image processing fallback');
@@ -243,7 +298,7 @@ export const PhotoCaptureInput: React.FC<Props> = ({
     const video = videoRef.current;
 
     try {
-      const { dataUrl, photoCode: generatedCode } = await applyMetroWatermark(
+      const { dataUrl, blob, photoCode: generatedCode } = await applyMetroWatermark(
         video,
         effectiveWatermarkOptions
       );
@@ -253,7 +308,11 @@ export const PhotoCaptureInput: React.FC<Props> = ({
         if (isNotApplicable && onToggleNotApplicable) {
           onToggleNotApplicable(false);
         }
-        uploadToServer(dataUrl, generatedCode);
+        if (blob) {
+          startDirectUpload(blob, generatedCode);
+        } else {
+          uploadToServer(dataUrl, generatedCode);
+        }
       }
     } catch (err) {
       console.warn('[WATERMARK] Fallback chụp ảnh trực tiếp:', err);
@@ -263,10 +322,16 @@ export const PhotoCaptureInput: React.FC<Props> = ({
       const ctx = canvas.getContext('2d');
       if (ctx) {
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
-        setLocalPreview(dataUrl);
-        onChange(dataUrl, displayPhotoCode);
-        uploadToServer(dataUrl, displayPhotoCode);
+        canvas.toBlob((b) => {
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+          setLocalPreview(dataUrl);
+          onChange(dataUrl, displayPhotoCode);
+          if (b) {
+            startDirectUpload(b, displayPhotoCode);
+          } else {
+            uploadToServer(dataUrl, displayPhotoCode);
+          }
+        }, 'image/jpeg', 0.85);
       }
     }
     stopLiveCamera();
@@ -474,6 +539,101 @@ export const PhotoCaptureInput: React.FC<Props> = ({
             }}
             style={{ width: '100%', height: '100%', objectFit: 'contain' }}
           />
+
+          {/* Cloud Upload Status Badge */}
+          {uploadStatus === 'UPLOADING' && (
+            <div
+              style={{
+                position: 'absolute',
+                top: '6px',
+                left: '6px',
+                backgroundColor: 'rgba(245, 158, 11, 0.92)',
+                color: '#ffffff',
+                fontSize: '0.65rem',
+                fontWeight: 600,
+                padding: '0.2rem 0.45rem',
+                borderRadius: '0.35rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.3rem',
+                backdropFilter: 'blur(3px)',
+                boxShadow: '0 2px 5px rgba(0, 0, 0, 0.35)',
+                zIndex: 4,
+              }}
+            >
+              <RefreshCw size={11} className="animate-spin" />
+              <span>Đang tải lên Cloud...</span>
+            </div>
+          )}
+          {uploadStatus === 'SUCCESS' && (
+            <div
+              style={{
+                position: 'absolute',
+                top: '6px',
+                left: '6px',
+                backgroundColor: 'rgba(16, 185, 129, 0.9)',
+                color: '#ffffff',
+                fontSize: '0.65rem',
+                fontWeight: 600,
+                padding: '0.2rem 0.45rem',
+                borderRadius: '0.35rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.25rem',
+                backdropFilter: 'blur(3px)',
+                boxShadow: '0 2px 5px rgba(0, 0, 0, 0.35)',
+                zIndex: 4,
+              }}
+            >
+              <span>✓ Đã lưu Cloud R2</span>
+            </div>
+          )}
+          {uploadStatus === 'ERROR' && (
+            <div
+              style={{
+                position: 'absolute',
+                top: '6px',
+                left: '6px',
+                backgroundColor: 'rgba(239, 68, 68, 0.92)',
+                color: '#ffffff',
+                fontSize: '0.65rem',
+                fontWeight: 600,
+                padding: '0.2rem 0.45rem',
+                borderRadius: '0.35rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.35rem',
+                backdropFilter: 'blur(3px)',
+                boxShadow: '0 2px 5px rgba(0, 0, 0, 0.35)',
+                zIndex: 4,
+              }}
+            >
+              <span>⚠️ Chưa lên Cloud</span>
+              {lastBlobRef.current && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (lastBlobRef.current) {
+                      startDirectUpload(lastBlobRef.current, photoCode || displayPhotoCode);
+                    }
+                  }}
+                  style={{
+                    backgroundColor: '#ffffff',
+                    color: '#ef4444',
+                    border: 'none',
+                    borderRadius: '0.25rem',
+                    padding: '0.05rem 0.3rem',
+                    fontSize: '0.6rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Thử lại
+                </button>
+              )}
+            </div>
+          )}
 
           {/* Photo ID Badge / Watermark Tag */}
           {displayPhotoCode && (

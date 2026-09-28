@@ -40,8 +40,60 @@ tags:
     description: Đóng gói tập hồ sơ phân khu hàng loạt (PDF Book) & Checksum SHA-256
   - name: Public Guest Access
     description: Tra cứu GIS công khai cho Nhà thầu xây lắp qua Share Token
+  - name: Storage & Cloud
+    description: Lưu trữ ảnh chứng cứ hiện trường, Cloudflare R2 Presigned URLs & Checksum SHA-256
 
 paths:
+  /storage/presign:
+    post:
+      tags: [Storage & Cloud]
+      summary: Sinh Presigned Upload URL tải ảnh trực tiếp lên Cloudflare R2
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [filename]
+              properties:
+                filename:
+                  type: string
+                  example: HCM_M2_B05272_F01_Z01_D01_CU_01.jpg
+                mimeType:
+                  type: string
+                  example: image/jpeg
+                folder:
+                  type: string
+                  default: surveys
+      responses:
+        '200':
+          description: Đã sinh URL upload thành công
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      uploadUrl:
+                        type: string
+                      publicUrl:
+                        type: string
+                      key:
+                        type: string
+                      method:
+                        type: string
+                        example: PUT
+                      expiresInSeconds:
+                        type: number
+                        example: 900
+
   /auth/login:
     post:
       tags: [Auth & IAM]

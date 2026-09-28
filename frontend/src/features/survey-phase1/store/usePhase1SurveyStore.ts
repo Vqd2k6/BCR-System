@@ -7,6 +7,7 @@ import { validateStep, validateAllSteps, MissingFieldItem } from '../utils/stepV
 import { calculateParcelMetroSpatialMetrics } from '../utils/metroSpatialCalculator';
 import { saveSurveyDraft, loadSurveyDraft, deleteSurveyDraft } from '../../../core/utils/idbDraftStorage';
 import { surveyDraftService } from '../services/surveyDraftService';
+import { sanitizeSurveyDataForSync } from '../../../core/services/uploadQueueService';
 
 export interface Phase1SurveyStore {
   currentStep: number;
@@ -735,12 +736,15 @@ export const usePhase1SurveyStore = create<Phase1SurveyStore>((set, get) => ({
 
     set({ syncStatus: 'SYNCING' });
     try {
+      // Làm sạch dữ liệu, loại bỏ toàn bộ chuỗi Base64 để payload draft luôn < 100KB
+      const cleanSurveyData = sanitizeSurveyDataForSync(formData);
+
       const res = await surveyDraftService.saveDraft({
         parcelId: formData.parcelId,
         unitId: currentUnitId,
         reportType: currentUnitId ? 'UNIT_CHILD' : (formData.surveyCaseType === 'APARTMENT' ? 'BUILDING_MASTER' : 'STANDALONE'),
         currentStep,
-        surveyData: formData,
+        surveyData: cleanSurveyData,
         syncVersion,
       });
 

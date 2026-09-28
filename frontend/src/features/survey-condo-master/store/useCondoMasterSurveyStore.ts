@@ -5,6 +5,7 @@ import { calculateEcsScore } from '../../survey-phase1/engine/ecsCalculator';
 import { calculateViScore } from '../../survey-phase1/engine/viCalculator';
 import { CondoMasterFormData, CONDO_USAGE_FUNCTIONS, CONDO_FOUNDATION_TYPES, CONDO_STRUCTURAL_SYSTEMS } from '../types/condo-master.types';
 import { surveyDraftService } from '../../survey-phase1/services/surveyDraftService';
+import { sanitizeSurveyDataForSync } from '../../../core/services/uploadQueueService';
 
 interface CondoMasterSurveyStore {
   currentStep: number;
@@ -243,11 +244,13 @@ export const useCondoMasterSurveyStore = create<CondoMasterSurveyStore>((set, ge
 
     set({ syncStatus: 'SYNCING' });
     try {
+      const cleanSurveyData = sanitizeSurveyDataForSync(formData);
+
       const res = await surveyDraftService.saveDraft({
         parcelId: formData.parcelId,
         reportType: 'BUILDING_MASTER',
         currentStep,
-        surveyData: formData,
+        surveyData: cleanSurveyData,
         syncVersion,
       });
 

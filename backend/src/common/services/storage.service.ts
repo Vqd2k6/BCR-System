@@ -1,4 +1,5 @@
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
@@ -10,6 +11,14 @@ export interface UploadResult {
   checksumSha256: string;
   sizeBytes: number;
   mimeType: string;
+}
+
+export interface PresignedUploadResult {
+  uploadUrl: string;
+  publicUrl: string;
+  key: string;
+  method: 'PUT';
+  expiresInSeconds: number;
 }
 
 export class StorageService {
@@ -132,4 +141,81 @@ export class StorageService {
 
     return this.uploadBuffer(buffer, `${filenamePrefix}${ext}`, mimeType, folder);
   }
+
+  /**
+   * Tạo Presigned URL để Client PWA tải trực tiếp file nhị phân (Blob/Binary) lên Cloudflare R2
+   * Giảm tải 100% RAM và băng thông cho Backend Render, chống timeout và chống OOM crash
+   */
+  public static async generatePresignedUploadUrl(
+    filename: string,
+    mimeType: string = 'image/jpeg',
+    folder: string = 'surveys'
+  ): Promise<PresignedUploadResult> {
+    const ext = path.extname(filename) || '.jpg';
+    const cleanBasename = path.basename(filename, ext).replace(/[^a-zA-Z0-9_-]/g, '_');
+    const uniqueKey = `${folder}/${Date.now()}_${cleanBasename}_${crypto.randomUUID().slice(0, 8)}${ext}`;
+    const expiresInSeconds = 900; // 15 phút
+
+    if (config.storage.type === 'r2' || config.storage.type === 's3') {
+      const client = this.getS3Client();
+      const command = new PutObjectCommand({
+        Bucket: config.storage.s3.bucket,
+        Key: uniqueKey,
+        ContentType: mimeType,
+      });
+
+      const uploadUrl = await getSignedUrl(client, command, { expiresIn: expiresInSeconds });
+
+      const publicBaseUrl = config.storage.s3.publicUrl?.replace(/\/$/, '') ||
+        `${config.storage.s3.endpoint?.replace(/\/$/, '')}/${config.storage.s3.bucket}`;
+      const publicUrl = `${publicBaseUrl}/${uniqueKey}`;
+
+      return {
+        uploadUrl,
+        publicUrl,
+        key: uniqueKey,
+        method: 'PUT',
+        expiresInSeconds,
+      };
+    } else {
+      // Local development fallback: Trả về endpoint PUT cục bộ tương thích hoàn toàn
+      const uploadUrl = `${config.apiPrefix}/storage/local-put?key=${encodeURIComponent(uniqueKey)}&mimeType=${encodeURIComponent(mimeType)}`;
+      const publicUrl = `/uploads/${uniqueKey}`;
+
+      return {
+        uploadUrl,
+        publicUrl,
+        key: uniqueKey,
+        method: 'PUT',
+        expiresInSeconds,
+      };
+    }
+  }
+
+  /**
+   * Lưu buffer nhị phân từ local PUT endpoint (khi chạy ở môi trường DEV local)
+   */
+  public static async saveLocalBuffer(
+    buffer: Buffer,
+    uniqueKey: string,
+    mimeType: string
+  ): Promise<UploadResult> {
+    const checksumSha256 = this.calculateSha256(buffer);
+    const sizeBytes = buffer.length;
+    const targetPath = path.resolve(config.storage.localUploadDir, uniqueKey);
+    const targetDir = path.dirname(targetPath);
+    if (!fs.existsSync(targetDir)) {
+      fs.mkdirSync(targetDir, { recursive: true });
+    }
+    fs.writeFileSync(targetPath, buffer);
+
+    return {
+      url: `/uploads/${uniqueKey}`,
+      key: uniqueKey,
+      checksumSha256,
+      sizeBytes,
+      mimeType,
+    };
+  }
 }
+
