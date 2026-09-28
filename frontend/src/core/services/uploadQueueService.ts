@@ -176,51 +176,87 @@ class UploadQueueService {
   }
 
   /**
+   * Phương án dự phòng (Fallback): Tải ảnh thông qua Backend Storage API
+   * Dùng khi trình duyệt bị chặn CORS bởi Cloudflare R2 hoặc Direct PUT gặp sự cố
+   */
+  private async executeBackendFallback(task: UploadTask): Promise<{ publicUrl: string; key: string }> {
+    console.log(`[UploadQueue] 🔄 Kích hoạt đường truyền dự phòng Backend cho task ${task.id}...`);
+    const formData = new FormData();
+    const file = new File([task.blob], task.filename, { type: task.mimeType || 'image/jpeg' });
+    formData.append('file', file);
+    if (task.folder) {
+      formData.append('folder', task.folder);
+    }
+
+    const res = await api.post('/storage/upload', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+
+    const data = res.data?.data;
+    if (!data || !data.url) {
+      throw new Error('Backend upload fallback không trả về URL hợp lệ');
+    }
+
+    return {
+      publicUrl: data.url,
+      key: data.key || task.filename,
+    };
+  }
+
+  /**
    * Thực hiện tải lên trực tiếp (Direct Presigned PUT to Cloudflare R2)
+   * Tự động Fallback sang Backend Storage API nếu Direct PUT bị chặn CORS hoặc lỗi mạng
    */
   private async executeUpload(task: UploadTask): Promise<{ publicUrl: string; key: string }> {
-    // 1. Xin Presigned PUT URL từ Backend (Request payload cực nhẹ ~80 bytes, RAM backend tiêu tốn = 0)
-    const presignRes = await api.post('/storage/presign', {
-      filename: task.filename,
-      mimeType: task.mimeType,
-      folder: task.folder,
-    });
+    try {
+      // 1. Xin Presigned PUT URL từ Backend (Request payload cực nhẹ ~80 bytes, RAM backend tiêu tốn = 0)
+      const presignRes = await api.post('/storage/presign', {
+        filename: task.filename,
+        mimeType: task.mimeType,
+        folder: task.folder,
+      });
 
-    const presignData = presignRes.data?.data;
-    if (!presignData || !presignData.uploadUrl) {
-      throw new Error('Backend không trả về Presigned Upload URL hợp lệ');
-    }
-
-    const { uploadUrl, publicUrl, key } = presignData;
-
-    // 2. Chuẩn hóa URL cho môi trường Local vs Cloudflare R2
-    let targetPutUrl = uploadUrl;
-    if (targetPutUrl.startsWith('/')) {
-      const configuredBase = api.defaults.baseURL || '/api/v1';
-      const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
-      if (configuredBase.startsWith('http')) {
-        const urlObj = new URL(configuredBase);
-        targetPutUrl = `${urlObj.origin}${uploadUrl}`;
-      } else {
-        targetPutUrl = `${origin}${uploadUrl}`;
+      const presignData = presignRes.data?.data;
+      if (!presignData || !presignData.uploadUrl) {
+        throw new Error('Backend không trả về Presigned Upload URL hợp lệ');
       }
+
+      const { uploadUrl, publicUrl, key } = presignData;
+
+      // 2. Chuẩn hóa URL cho môi trường Local vs Cloudflare R2
+      let targetPutUrl = uploadUrl;
+      if (targetPutUrl.startsWith('/')) {
+        const configuredBase = api.defaults.baseURL || '/api/v1';
+        const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
+        if (configuredBase.startsWith('http')) {
+          const urlObj = new URL(configuredBase);
+          targetPutUrl = `${urlObj.origin}${uploadUrl}`;
+        } else {
+          targetPutUrl = `${origin}${uploadUrl}`;
+        }
+      }
+
+      // 3. Thực hiện HTTP PUT nhị phân trực tiếp lên Cloudflare R2
+      const uploadRes = await fetch(targetPutUrl, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': task.mimeType || 'image/jpeg',
+        },
+        body: task.blob,
+      });
+
+      if (!uploadRes.ok) {
+        const errText = await uploadRes.text().catch(() => '');
+        throw new Error(`HTTP ${uploadRes.status} khi đẩy file lên R2: ${errText || uploadRes.statusText}`);
+      }
+
+      return { publicUrl, key };
+    } catch (directError: any) {
+      console.warn(`[UploadQueue] Direct PUT lên R2 thất bại (${directError?.message}), tự động chuyển hướng qua Backend fallback...`);
+      return this.executeBackendFallback(task);
     }
-
-    // 3. Thực hiện HTTP PUT nhị phân trực tiếp lên Cloudflare R2
-    const uploadRes = await fetch(targetPutUrl, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': task.mimeType || 'image/jpeg',
-      },
-      body: task.blob,
-    });
-
-    if (!uploadRes.ok) {
-      const errText = await uploadRes.text().catch(() => '');
-      throw new Error(`HTTP ${uploadRes.status} khi đẩy file lên R2: ${errText || uploadRes.statusText}`);
-    }
-
-    return { publicUrl, key };
   }
 }
 

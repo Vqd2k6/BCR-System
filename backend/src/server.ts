@@ -1,6 +1,7 @@
 import { createApp } from './app';
 import { config } from './config';
 import { Database } from './database/db';
+import { StorageService } from './common/services/storage.service';
 
 async function bootstrap() {
   const app = createApp();
@@ -11,6 +12,9 @@ async function bootstrap() {
 
   // Tự động kiểm tra và chạy các migration phòng vệ nếu thiếu cột
   await Database.runStartupMigrations();
+
+  // Tự động kiểm tra và cấu hình CORS cho Cloudflare R2 bucket nếu đang chạy R2 storage
+  await StorageService.autoConfigureR2Cors();
 
   app.listen(config.port, () => {
     console.log(`================================================================`);

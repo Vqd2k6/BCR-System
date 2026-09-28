@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, PutBucketCorsCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import crypto from 'crypto';
 import fs from 'fs';
@@ -23,6 +23,46 @@ export interface PresignedUploadResult {
 
 export class StorageService {
   private static s3Client: S3Client | null = null;
+
+  /**
+   * Tự động kiểm tra và cấu hình CORS cho bucket Cloudflare R2
+   * Cho phép trình duyệt PWA gửi trực tiếp lệnh PUT nhị phân lên bucket
+   */
+  public static async autoConfigureR2Cors(): Promise<void> {
+    if (config.storage.type !== 'r2' && config.storage.type !== 's3') {
+      return;
+    }
+
+    try {
+      const client = this.getS3Client();
+      await client.send(
+        new PutBucketCorsCommand({
+          Bucket: config.storage.s3.bucket,
+          CORSConfiguration: {
+            CORSRules: [
+              {
+                AllowedHeaders: ['*'],
+                AllowedMethods: ['GET', 'PUT', 'POST', 'HEAD', 'DELETE'],
+                AllowedOrigins: [
+                  'https://*.vercel.app',
+                  'http://localhost:3000',
+                  'http://localhost:5173',
+                  '*',
+                ],
+                ExposeHeaders: ['ETag'],
+                MaxAgeSeconds: 3600,
+              },
+            ],
+          },
+        })
+      );
+      console.log(`✅ [R2 STORAGE] Đã tự động cấu hình CORS cho bucket "${config.storage.s3.bucket}".`);
+    } catch (err: any) {
+      console.warn(
+        `⚠️ [R2 STORAGE] Không thể tự động đặt CORS qua S3 API token: ${err?.message || err}. (Quản trị viên có thể dán CORS rule trong Cloudflare Dashboard nếu cần).`
+      );
+    }
+  }
 
   private static getS3Client(): S3Client {
     if (!this.s3Client) {
