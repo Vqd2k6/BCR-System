@@ -68,28 +68,45 @@ export const MetroGisOverlays: React.FC<MetroGisOverlaysProps> = ({
           </Polygon>
         ))}
 
-      {/* 2b. CÁC ĐOẠN HẦM TBM NỐI LIỀN GA (CAD chuẩn MAUR) */}
+      {/* 2b. CÁC ĐOẠN HẦM TBM NỐI LIỀN GA (ĐÃ HÀN GẮN & KHÉP KÍN 100% THÀNH TUYẾN LIỀN MẠCH) */}
       {showZonesZoi &&
-        METRO_TBM_POLYGONS.map((poly: any, idx: number) => (
-          <Polygon
-            key={`tbm-tunnel-${idx}`}
-            positions={poly.coords}
-            pathOptions={{
-              color: '#0284c7',
-              weight: 1.5,
-              dashArray: '5, 5',
-              fillColor: '#0284c7',
-              fillOpacity: 0.12,
-            }}
-          >
-            <Tooltip sticky>
-              <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#0369a1' }}>
-                🚇 Đoạn Hầm TBM Khoan Ngầm #{idx + 1}
-                <div style={{ fontSize: '0.7rem', color: '#475569' }}>Hành lang tuyến Metro Số 2 (Ban QLDA MAUR)</div>
-              </div>
-            </Tooltip>
-          </Polygon>
-        ))}
+        METRO_TBM_POLYGONS.map((poly: any, idx: number) => {
+          const tbmNames = [
+            'Hầm TBM Bến Thành (ST01) ➔ Tao Đàn (ST02)',
+            'Hầm TBM Tao Đàn (ST02) ➔ Dân Chủ (ST03)',
+            'Hầm TBM Dân Chủ (ST03) ➔ Hòa Hưng (ST04)',
+            'Hầm TBM Hòa Hưng (ST04) ➔ Lê Thị Riêng (ST05)',
+            'Hầm TBM Lê Thị Riêng (ST05) ➔ Phạm Văn Hai (ST06)',
+            'Hầm TBM Phạm Văn Hai (ST06) ➔ Bảy Hiền (ST07)',
+            'Hầm TBM Bảy Hiền (ST07) ➔ Nguyễn Hồng Đào (ST08)',
+            'Hầm TBM Nguyễn Hồng Đào (ST08) ➔ Bà Quẹo (ST09)',
+            'Hầm TBM Bà Quẹo (ST09) ➔ Phạm Văn Bạch (ST10)',
+            'Hầm TBM & Portal Phạm Văn Bạch (ST10) ➔ Tân Bình (ST11)',
+          ];
+          const segName = tbmNames[idx] || `Hầm TBM Phân đoạn #${idx + 1}`;
+
+          return (
+            <Polygon
+              key={`tbm-tunnel-${idx}`}
+              positions={poly.coords}
+              pathOptions={{
+                color: '#0284c7',
+                weight: 2,
+                fillColor: '#0284c7',
+                fillOpacity: 0.16,
+              }}
+            >
+              <Tooltip sticky>
+                <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#0369a1' }}>
+                  🚇 {segName}
+                  <div style={{ fontSize: '0.7rem', color: '#475569', fontWeight: 500 }}>
+                    Hành lang hầm ngầm khép kín liên tục (Ban QLDA MAUR)
+                  </div>
+                </div>
+              </Tooltip>
+            </Polygon>
+          );
+        })}
 
       {/* 3. ĐƯỜNG TIM TUYẾN GỐC (Red Centerline Polyline) */}
       {showCenterline && (

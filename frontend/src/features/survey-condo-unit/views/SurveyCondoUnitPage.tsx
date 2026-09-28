@@ -9,6 +9,8 @@ import { Step7_TechnicalCalculations } from '../../survey-phase1/components/Step
 import { Step8_ExecutiveDashboard } from '../../survey-phase1/components/Step8_ExecutiveDashboard';
 import { Step9_FieldSignatures } from '../../survey-phase1/components/Step9_FieldSignatures';
 import { MissingFieldsModal } from '../../survey-phase1/components/MissingFieldsModal';
+import { HandoverTakeoverModal } from '../../survey-phase1/components/HandoverTakeoverModal';
+import { ActiveSurveyorLockedModal } from '../../survey-phase1/components/ActiveSurveyorLockedModal';
 import { GisParcel, BuildingUnit } from '../../../core/types/domain.types';
 import { api } from '../../../services/api';
 
@@ -37,6 +39,15 @@ export const SurveyCondoUnitPage: React.FC<SurveyCondoUnitPageProps> = ({
     proceedAnyway,
     focusMissingField,
     validateForFinalSubmit,
+    isLockedByOther,
+    lockedInfo,
+    closeLockedModal,
+    isHandoverModalOpen,
+    handoverInfo,
+    closeHandoverModal,
+    takeoverDraft,
+    syncDraftToServer,
+    isDirty,
   } = usePhase1SurveyStore();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -46,10 +57,14 @@ export const SurveyCondoUnitPage: React.FC<SurveyCondoUnitPageProps> = ({
     }
   }, [parcel?.id, unit?.id]);
 
-  // Chặn thao tác reload / đóng tab ngoài ý muốn
+  // Chặn thao tác reload / đóng tab ngoài ý muốn & tự động đồng bộ
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       saveDraftToStorage();
+      const state = usePhase1SurveyStore.getState();
+      if (state.isDirty) {
+        state.syncDraftToServer();
+      }
       e.preventDefault();
       e.returnValue = 'Bạn có dữ liệu khảo sát căn hộ đang thực hiện. Bạn có chắc chắn muốn tải lại hoặc rời đi?';
       return e.returnValue;
@@ -57,6 +72,19 @@ export const SurveyCondoUnitPage: React.FC<SurveyCondoUnitPageProps> = ({
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [saveDraftToStorage]);
+
+  // Định kỳ 2 phút tự động đồng bộ bản nháp lên máy chủ nếu có thay đổi
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const state = usePhase1SurveyStore.getState();
+      if (state.isDirty) {
+        console.log('[SurveyCondoUnitPage] Auto-sync draft to server (2-min timer)...');
+        state.syncDraftToServer();
+      }
+    }, 120_000);
+
+    return () => clearInterval(interval);
+  }, []);
 
   // Chặn thao tác back trình duyệt / vuốt back trên điện thoại
   useEffect(() => {
@@ -68,6 +96,8 @@ export const SurveyCondoUnitPage: React.FC<SurveyCondoUnitPageProps> = ({
       );
       if (confirmLeave) {
         saveDraftToStorage();
+        const state = usePhase1SurveyStore.getState();
+        if (state.isDirty) state.syncDraftToServer();
         onBackToHome();
       } else {
         window.history.pushState({ condoUnitSessionActive: true }, '');
@@ -85,6 +115,8 @@ export const SurveyCondoUnitPage: React.FC<SurveyCondoUnitPageProps> = ({
     );
     if (confirmLeave) {
       saveDraftToStorage();
+      const state = usePhase1SurveyStore.getState();
+      if (state.isDirty) state.syncDraftToServer();
       onBackToHome();
     }
   };
@@ -196,6 +228,27 @@ export const SurveyCondoUnitPage: React.FC<SurveyCondoUnitPageProps> = ({
         onClose={closeMissingModal}
         onProceedAnyway={proceedAnyway}
         onFocusField={focusMissingField}
+      />
+
+      {/* Modal Bàn Giao Ca / Tiếp Quản Hồ Sơ Nháp Căn Hộ */}
+      <HandoverTakeoverModal
+        isOpen={isHandoverModalOpen}
+        handoverInfo={handoverInfo}
+        onTakeover={takeoverDraft}
+        onCancel={() => {
+          closeHandoverModal();
+          onBackToHome();
+        }}
+      />
+
+      {/* Modal Cảnh Báo Khóa Phiên Khảo Sát Căn Hộ */}
+      <ActiveSurveyorLockedModal
+        isOpen={isLockedByOther}
+        lockedInfo={lockedInfo}
+        onClose={() => {
+          closeLockedModal();
+          onBackToHome();
+        }}
       />
     </div>
   );

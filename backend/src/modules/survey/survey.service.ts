@@ -387,4 +387,140 @@ export class SurveyService {
   static async getPhase1ReportByParcelId(parcelId: string) {
     return await SurveyRepository.findLatestPhase1ReportByParcelId(parcelId);
   }
+
+  static async getSurveyDraft(
+    parcelId: string,
+    currentUserId: string,
+    unitId?: string | null
+  ) {
+    const draft = await SurveyRepository.findActiveDraft(parcelId, unitId);
+    if (!draft) {
+      return { hasDraft: false };
+    }
+
+    const isOwner = draft.surveyor_id === currentUserId;
+
+    if (!isOwner) {
+      const diffMs = Date.now() - new Date(draft.updated_at).getTime();
+      const diffMinutes = Math.floor(diffMs / (60 * 1000));
+
+      if (diffMinutes < 15 && !draft.is_ready_for_handover) {
+        return {
+          hasDraft: true,
+          isLocked: true,
+          activeSurveyorName: draft.surveyor_name || 'Kỹ sư khác',
+          activeSurveyorPhone: draft.surveyor_phone || '',
+          minutesAgo: Math.max(1, diffMinutes),
+          message: `Công trình đang được Kỹ sư ${draft.surveyor_name || 'khác'} khảo sát (vừa cập nhật ${Math.max(1, diffMinutes)} phút trước). Vui lòng chờ 15 phút hoặc liên hệ KSV để bàn giao ca.`,
+        };
+      }
+
+      return {
+        hasDraft: true,
+        isLocked: false,
+        requiresHandover: true,
+        fromSurveyorName: draft.surveyor_name || 'Kỹ sư ca trước',
+        fromSurveyorPhone: draft.surveyor_phone || '',
+        currentStep: draft.current_step,
+        securityCode: draft.handover_security_code || '123456',
+        updatedAt: draft.updated_at,
+        syncVersion: draft.sync_version,
+      };
+    }
+
+    return {
+      hasDraft: true,
+      isLocked: false,
+      requiresHandover: false,
+      draft: {
+        reportId: draft.id,
+        currentStep: draft.current_step,
+        surveyData: typeof draft.survey_data_json === 'string'
+          ? JSON.parse(draft.survey_data_json)
+          : draft.survey_data_json,
+        syncVersion: draft.sync_version,
+        updatedAt: draft.updated_at,
+      },
+    };
+  }
+
+  static async saveSurveyDraft(data: {
+    parcelId: string;
+    surveyorId: string;
+    unitId?: string | null;
+    reportType?: string;
+    currentStep: number;
+    surveyData: any;
+    syncVersion?: number;
+  }) {
+    const existing = await SurveyRepository.findActiveDraft(data.parcelId, data.unitId);
+    if (existing && existing.surveyor_id !== data.surveyorId) {
+      const diffMs = Date.now() - new Date(existing.updated_at).getTime();
+      const diffMinutes = Math.floor(diffMs / (60 * 1000));
+      if (diffMinutes < 15 && !existing.is_ready_for_handover) {
+        throw new BadRequestError(
+          `Bản nháp đang bị khóa bởi Kỹ sư ${existing.surveyor_name}. Bạn cần tiếp quản ca trước khi lưu.`
+        );
+      }
+    }
+
+    const saved = await SurveyRepository.upsertDraft(data);
+    return {
+      success: true,
+      reportId: saved.id,
+      syncVersion: saved.sync_version,
+      lastSavedAt: saved.updated_at,
+      message: 'Đã đồng bộ bản nháp lên máy chủ thành công',
+    };
+  }
+
+  static async releaseDraftLock(parcelId: string, unitId: string | null, surveyorId: string) {
+    const result = await SurveyRepository.releaseDraftLock(parcelId, unitId, surveyorId);
+    if (!result) {
+      throw new NotFoundError('Không tìm thấy bản nháp để mở khóa');
+    }
+    return {
+      success: true,
+      message: 'Đã mở khóa ca khảo sát thành công. Đồng đội có thể tiếp quản ngay bây giờ.',
+    };
+  }
+
+  static async takeoverSurveyDraft(data: {
+    parcelId: string;
+    unitId?: string | null;
+    handoverCode: string;
+    newSurveyorId: string;
+    note?: string;
+  }) {
+    const draft = await SurveyRepository.findActiveDraft(data.parcelId, data.unitId);
+    if (!draft) {
+      throw new NotFoundError('Không tìm thấy bản nháp đang khảo sát để tiếp quản');
+    }
+
+    if (String(draft.handover_security_code).trim() !== String(data.handoverCode).trim()) {
+      throw new BadRequestError('Mã xác nhận bảo mật 6 số không chính xác. Vui lòng nhập đúng mã hiển thị trên màn hình.');
+    }
+
+    const updated = await SurveyRepository.takeoverDraft(
+      data.parcelId,
+      data.unitId || null,
+      data.newSurveyorId,
+      data.note
+    );
+
+    return {
+      success: true,
+      message: 'Tiếp quản ca khảo sát thành công',
+      draft: {
+        reportId: updated.id,
+        currentStep: updated.current_step,
+        surveyData: typeof updated.survey_data_json === 'string'
+          ? JSON.parse(updated.survey_data_json)
+          : updated.survey_data_json,
+        syncVersion: updated.sync_version,
+        updatedAt: updated.updated_at,
+      },
+    };
+  }
 }
+

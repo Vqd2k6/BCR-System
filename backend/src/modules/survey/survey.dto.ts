@@ -340,3 +340,29 @@ export const SubmitPhase2ReportDto = z.object({
   phase2Conclusion: z.string().optional(),
   compensationVerdict: z.string().optional(),
 });
+
+// Draft Sync & Shift Handover DTOs
+export const SaveSurveyDraftDto = z.object({
+  parcelId: z.string().min(1),
+  unitId: z.string().nullable().optional(),
+  reportType: z.enum(['STANDALONE', 'BUILDING_MASTER', 'UNIT_CHILD']).optional(),
+  currentStep: z.number().int().min(1).max(9),
+  surveyData: z.record(z.any()),
+  syncVersion: z.number().int().optional(),
+});
+export type SaveSurveyDraftInput = z.infer<typeof SaveSurveyDraftDto>;
+
+export const TakeoverSurveyDraftDto = z.object({
+  parcelId: z.string().min(1),
+  unitId: z.string().nullable().optional(),
+  handoverCode: z.string().min(4).max(8),
+  note: z.string().optional(),
+});
+export type TakeoverSurveyDraftInput = z.infer<typeof TakeoverSurveyDraftDto>;
+
+export const ReleaseDraftLockDto = z.object({
+  parcelId: z.string().min(1),
+  unitId: z.string().nullable().optional(),
+});
+export type ReleaseDraftLockInput = z.infer<typeof ReleaseDraftLockDto>;
+

@@ -6,6 +6,7 @@ import { GisParcel, BuildingUnit } from '../../../core/types/domain.types';
 import { validateStep, validateAllSteps, MissingFieldItem } from '../utils/stepValidator';
 import { calculateParcelMetroSpatialMetrics } from '../utils/metroSpatialCalculator';
 import { saveSurveyDraft, loadSurveyDraft, deleteSurveyDraft } from '../../../core/utils/idbDraftStorage';
+import { surveyDraftService } from '../services/surveyDraftService';
 
 export interface Phase1SurveyStore {
   currentStep: number;
@@ -15,6 +16,22 @@ export interface Phase1SurveyStore {
   lastSavedAt: string | null;
   activeParcel: GisParcel | null;
   missingModal: { isOpen: boolean; missingFields: MissingFieldItem[]; targetStep: number } | null;
+
+  // Trạng thái Đồng bộ Server & Tiếp quản Ca
+  syncStatus: 'IDLE' | 'SYNCING' | 'SAVED' | 'OFFLINE' | 'ERROR';
+  lastSyncedAt: string | null;
+  syncVersion: number;
+  isDirty: boolean;
+  isLockedByOther: boolean;
+  lockedInfo: { surveyorName: string; phone?: string; minutesAgo: number; message?: string } | null;
+  isHandoverModalOpen: boolean;
+  handoverInfo: {
+    fromSurveyorName: string;
+    fromSurveyorPhone?: string;
+    currentStep: number;
+    securityCode: string;
+    updatedAt: string;
+  } | null;
 
   // Actions
   isReadOnly: boolean;
@@ -33,6 +50,12 @@ export interface Phase1SurveyStore {
   updateFormData: (updater: Partial<Phase1SurveyFormData> | ((prev: Phase1SurveyFormData) => Phase1SurveyFormData)) => void;
   loadReportData: (serverFormData: Partial<Phase1SurveyFormData>) => void;
   saveDraftToStorage: () => void;
+  syncDraftToServer: () => Promise<void>;
+  releaseDraftLock: () => Promise<void>;
+  takeoverDraft: (handoverCode: string, note?: string) => Promise<boolean>;
+  closeHandoverModal: () => void;
+  closeLockedModal: () => void;
+  setIsDirty: (isDirty: boolean) => void;
   clearDraft: (preserveSubmittedStatus?: boolean) => void;
   recalculateScores: () => void;
 }
@@ -237,8 +260,21 @@ export const usePhase1SurveyStore = create<Phase1SurveyStore>((set, get) => ({
   isSubmitted: false,
   setIsSubmitted: (isSubmitted: boolean) => set({ isSubmitted }),
 
+  // Trạng thái Đồng bộ Server & Tiếp quản Ca
+  syncStatus: 'IDLE',
+  lastSyncedAt: null,
+  syncVersion: 1,
+  isDirty: false,
+  isLockedByOther: false,
+  lockedInfo: null,
+  isHandoverModalOpen: false,
+  handoverInfo: null,
+  setIsDirty: (isDirty: boolean) => set({ isDirty }),
+  closeHandoverModal: () => set({ isHandoverModalOpen: false }),
+  closeLockedModal: () => set({ isLockedByOther: false, lockedInfo: null }),
+
   initializeForm: (parcel: GisParcel, unit?: BuildingUnit | null) => {
-    set({ isSubmitted: false });
+    set({ isSubmitted: false, isLockedByOther: false, lockedInfo: null, isHandoverModalOpen: false });
     const unitId = unit ? unit.id : null;
     const draftKey = `metro2_phase1_draft_${parcel.id}${unitId ? `_${unitId}` : ''}`;
     let initialData = getDefaultInitialFormData(parcel.id);
@@ -374,6 +410,71 @@ export const usePhase1SurveyStore = create<Phase1SurveyStore>((set, get) => ({
       .catch((err) => {
         console.warn('[SurveyPhase1Store] IDB load draft error:', err);
       });
+
+    // 4. Đồng bộ bản nháp từ máy chủ (Server Draft Sync)
+    surveyDraftService
+      .fetchDraft(parcel.id, unitId)
+      .then((serverRes) => {
+        if (serverRes.isLocked) {
+          set({
+            isLockedByOther: true,
+            lockedInfo: {
+              surveyorName: serverRes.activeSurveyorName || 'Kỹ sư khác',
+              phone: serverRes.activeSurveyorPhone,
+              minutesAgo: serverRes.minutesAgo || 1,
+              message: serverRes.message,
+            },
+          });
+          return;
+        }
+
+        if (serverRes.requiresHandover) {
+          set({
+            isHandoverModalOpen: true,
+            handoverInfo: {
+              fromSurveyorName: serverRes.fromSurveyorName || 'Kỹ sư ca trước',
+              fromSurveyorPhone: serverRes.fromSurveyorPhone,
+              currentStep: serverRes.currentStep || 1,
+              securityCode: serverRes.securityCode || '',
+              updatedAt: serverRes.updatedAt || '',
+            },
+          });
+          return;
+        }
+
+        if (serverRes.draft && serverRes.draft.surveyData) {
+          const serverData = serverRes.draft.surveyData;
+          const targetStep =
+            serverRes.draft.currentStep >= 1 && serverRes.draft.currentStep <= 8
+              ? serverRes.draft.currentStep
+              : undefined;
+
+          set((state) => {
+            const merged = { ...state.formData, ...serverData };
+            const recalculatedEcs = calculateEcsScore(merged);
+            const recalculatedVi = calculateViScore(merged, recalculatedEcs);
+            merged.ecs = recalculatedEcs;
+            merged.vi = recalculatedVi;
+
+            return {
+              formData: merged,
+              currentStep: targetStep !== undefined ? targetStep : state.currentStep,
+              syncVersion: serverRes.draft!.syncVersion || state.syncVersion,
+              syncStatus: 'SAVED',
+              lastSyncedAt: serverRes.draft!.updatedAt
+                ? new Date(serverRes.draft!.updatedAt).toLocaleTimeString('vi-VN')
+                : new Date().toLocaleTimeString('vi-VN'),
+              lastSavedAt: new Date().toLocaleTimeString('vi-VN'),
+              isDirty: false,
+            };
+          });
+          console.log('[SurveyPhase1Store] Server draft restored successfully:', serverRes.draft.reportId);
+        }
+      })
+      .catch((err) => {
+        console.warn('[SurveyPhase1Store] Failed to fetch server draft:', err);
+        set({ syncStatus: 'OFFLINE' });
+      });
   },
 
   setCurrentStep: (step: number) => {
@@ -381,6 +482,7 @@ export const usePhase1SurveyStore = create<Phase1SurveyStore>((set, get) => ({
       if (!get().isReadOnly) {
         get().recalculateScores();
         get().saveDraftToStorage();
+        get().syncDraftToServer();
       }
       set({ currentStep: step, missingModal: null });
     }
@@ -520,6 +622,7 @@ export const usePhase1SurveyStore = create<Phase1SurveyStore>((set, get) => ({
 
       return {
         formData: newFormData,
+        isDirty: true,
         activeParcel: state.activeParcel
           ? {
               ...state.activeParcel,
@@ -531,7 +634,7 @@ export const usePhase1SurveyStore = create<Phase1SurveyStore>((set, get) => ({
       };
     });
 
-    // Auto save draft debounced
+    // Lưu ngay lập tức vào IndexedDB/localStorage cục bộ (anti-crash)
     get().saveDraftToStorage();
   },
 
@@ -626,6 +729,90 @@ export const usePhase1SurveyStore = create<Phase1SurveyStore>((set, get) => ({
     }
   },
 
+  syncDraftToServer: async () => {
+    const { formData, currentUnitId, currentStep, syncVersion, isReadOnly, isSubmitted } = get();
+    if (isReadOnly || isSubmitted || !formData.parcelId) return;
+
+    set({ syncStatus: 'SYNCING' });
+    try {
+      const res = await surveyDraftService.saveDraft({
+        parcelId: formData.parcelId,
+        unitId: currentUnitId,
+        reportType: currentUnitId ? 'UNIT_CHILD' : (formData.surveyCaseType === 'APARTMENT' ? 'BUILDING_MASTER' : 'STANDALONE'),
+        currentStep,
+        surveyData: formData,
+        syncVersion,
+      });
+
+      set({
+        syncStatus: 'SAVED',
+        syncVersion: res.syncVersion || syncVersion + 1,
+        lastSyncedAt: new Date().toLocaleTimeString('vi-VN'),
+        isDirty: false,
+      });
+    } catch (err: any) {
+      console.warn('[SurveyPhase1Store] Sync draft to server failed:', err);
+      set({ syncStatus: 'ERROR' });
+    }
+  },
+
+  releaseDraftLock: async () => {
+    const { formData, currentUnitId } = get();
+    if (!formData.parcelId) return;
+    try {
+      await surveyDraftService.releaseLock(formData.parcelId, currentUnitId);
+      set({ syncStatus: 'SAVED', lastSyncedAt: new Date().toLocaleTimeString('vi-VN') });
+    } catch (err) {
+      console.warn('[SurveyPhase1Store] Release lock failed:', err);
+    }
+  },
+
+  takeoverDraft: async (handoverCode: string, note?: string) => {
+    const { formData, currentUnitId } = get();
+    if (!formData.parcelId) return false;
+
+    try {
+      const res = await surveyDraftService.takeoverDraft({
+        parcelId: formData.parcelId,
+        unitId: currentUnitId,
+        handoverCode,
+        note,
+      });
+
+      if (res && res.draft) {
+        const serverData = res.draft.surveyData;
+        const targetStep = res.draft.currentStep >= 1 && res.draft.currentStep <= 8 ? res.draft.currentStep : 1;
+
+        set((state) => {
+          const merged = { ...state.formData, ...serverData };
+          const recalculatedEcs = calculateEcsScore(merged);
+          const recalculatedVi = calculateViScore(merged, recalculatedEcs);
+          merged.ecs = recalculatedEcs;
+          merged.vi = recalculatedVi;
+
+          return {
+            formData: merged,
+            currentStep: targetStep,
+            syncVersion: res.draft.syncVersion,
+            syncStatus: 'SAVED',
+            lastSyncedAt: new Date().toLocaleTimeString('vi-VN'),
+            isHandoverModalOpen: false,
+            handoverInfo: null,
+            isDirty: false,
+          };
+        });
+
+        const draftKey = `metro2_phase1_draft_${formData.parcelId}${currentUnitId ? `_${currentUnitId}` : ''}`;
+        saveSurveyDraft(draftKey, { ...serverData, _savedStep: targetStep });
+        return true;
+      }
+      return false;
+    } catch (err: any) {
+      console.error('[SurveyPhase1Store] Takeover failed:', err);
+      throw err;
+    }
+  },
+
   clearDraft: (preserveSubmittedStatus: boolean = true) => {
     set({ isSubmitted: true });
     const { formData, currentUnitId } = get();
@@ -648,3 +835,4 @@ export const usePhase1SurveyStore = create<Phase1SurveyStore>((set, get) => ({
     } catch (_err) {}
   },
 }));
+

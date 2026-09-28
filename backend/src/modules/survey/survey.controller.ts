@@ -12,6 +12,9 @@ import {
   CreatePhase2ReportDto,
   VerifyPhase2DefectDto,
   SubmitPhase2ReportDto,
+  SaveSurveyDraftDto,
+  TakeoverSurveyDraftDto,
+  ReleaseDraftLockDto,
 } from './survey.dto';
 import { SurveyPackageMapper } from './survey-package.mapper';
 import { Database } from '../../database/db';
@@ -357,4 +360,94 @@ export class SurveyController {
       next(error);
     }
   }
+
+  // Draft Sync & Handover Endpoints
+  static async getSurveyDraft(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { parcelId } = req.params;
+      const unitId = req.query.unitId as string | undefined;
+      const surveyorId = req.user!.userId;
+      const result = await SurveyService.getSurveyDraft(parcelId, surveyorId, unitId);
+      res.status(200).json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async saveSurveyDraft(req: Request, res: Response, next: NextFunction) {
+    try {
+      const parsed = SaveSurveyDraftDto.safeParse(req.body);
+      if (!parsed.success) {
+        throw new BadRequestError(
+          'Dữ liệu bản nháp không hợp lệ',
+          parsed.error.errors.map((e) => ({ field: e.path.join('.'), message: e.message }))
+        );
+      }
+
+      const surveyorId = req.user!.userId;
+      const result = await SurveyService.saveSurveyDraft({
+        ...parsed.data,
+        surveyorId,
+      });
+
+      res.status(200).json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async releaseDraftLock(req: Request, res: Response, next: NextFunction) {
+    try {
+      const parsed = ReleaseDraftLockDto.safeParse(req.body);
+      if (!parsed.success) {
+        throw new BadRequestError('parcelId là bắt buộc');
+      }
+
+      const surveyorId = req.user!.userId;
+      const result = await SurveyService.releaseDraftLock(
+        parsed.data.parcelId,
+        parsed.data.unitId || null,
+        surveyorId
+      );
+
+      res.status(200).json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async takeoverSurveyDraft(req: Request, res: Response, next: NextFunction) {
+    try {
+      const parsed = TakeoverSurveyDraftDto.safeParse(req.body);
+      if (!parsed.success) {
+        throw new BadRequestError(
+          'Dữ liệu tiếp quản không hợp lệ',
+          parsed.error.errors.map((e) => ({ field: e.path.join('.'), message: e.message }))
+        );
+      }
+
+      const newSurveyorId = req.user!.userId;
+      const result = await SurveyService.takeoverSurveyDraft({
+        ...parsed.data,
+        newSurveyorId,
+      });
+
+      res.status(200).json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
+

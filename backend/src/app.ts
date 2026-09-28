@@ -119,6 +119,13 @@ export function createApp(): express.Application {
   api.post('/surveys/phase1/submit', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), SurveyController.submitPhase1FullPackage);
   api.post('/surveys/phase1/submit-absentee', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.recordAbsence);
 
+  // Đồng bộ Bản nháp & Tiếp quản Ca Khảo sát (Draft Sync & Handover)
+  api.get('/surveys/draft/:parcelId', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), SurveyController.getSurveyDraft);
+  api.post('/surveys/draft/save', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), SurveyController.saveSurveyDraft);
+  api.post('/surveys/draft/release-lock', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), SurveyController.releaseDraftLock);
+  api.post('/surveys/draft/takeover', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), SurveyController.takeoverSurveyDraft);
+
+
   // Hồ sơ Phase 2
   api.post('/reports/phase2', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), SurveyController.createPhase2Report);
   api.get('/reports/phase2/:id', authenticateJwt, SurveyController.getReportDetail);

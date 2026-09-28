@@ -11,6 +11,8 @@ import { Step8_ExecutiveDashboard } from '../components/Step8_ExecutiveDashboard
 import { Step9_FieldSignatures } from '../components/Step9_FieldSignatures';
 import { MissingFieldsModal } from '../components/MissingFieldsModal';
 import { SurveyReviewBanner } from '../components/SurveyReviewBanner';
+import { HandoverTakeoverModal } from '../components/HandoverTakeoverModal';
+import { ActiveSurveyorLockedModal } from '../components/ActiveSurveyorLockedModal';
 import { GisParcel, BuildingUnit } from '../../../core/types/domain.types';
 import { api } from '../../../services/api';
 import { useAuth } from '../../../context/AuthContext';
@@ -47,6 +49,16 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
     validateForFinalSubmit,
     setIsReadOnly,
     loadReportData,
+    // Trạng thái khóa & tiếp quản ca
+    isLockedByOther,
+    lockedInfo,
+    closeLockedModal,
+    isHandoverModalOpen,
+    handoverInfo,
+    closeHandoverModal,
+    takeoverDraft,
+    syncDraftToServer,
+    isDirty,
   } = usePhase1SurveyStore();
   const { user } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -63,6 +75,31 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
   useEffect(() => {
     setIsReadOnly(readOnly);
     return () => setIsReadOnly(false); // cleanup khi unmount
+  }, [readOnly]);
+
+  // Định kỳ 2 phút tự động đồng bộ bản nháp lên máy chủ nếu có thay đổi (isDirty === true)
+  useEffect(() => {
+    if (readOnly) return;
+    const interval = setInterval(() => {
+      const state = usePhase1SurveyStore.getState();
+      if (state.isDirty && !state.isReadOnly) {
+        console.log('[SurveyPhase1Page] Periodic 2-min auto-sync triggered...');
+        state.syncDraftToServer();
+      }
+    }, 120_000);
+
+    const handleBeforeUnloadSync = () => {
+      const state = usePhase1SurveyStore.getState();
+      if (state.isDirty && !state.isReadOnly) {
+        state.syncDraftToServer();
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnloadSync);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('beforeunload', handleBeforeUnloadSync);
+    };
   }, [readOnly]);
 
   // Tải dữ liệu hồ sơ nếu ở chế độ xem lại (Read-Only)
@@ -551,6 +588,27 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
           onFocusField={focusMissingField}
         />
       )}
+
+      {/* Modal Bàn Giao Ca / Tiếp Quản Hồ Sơ Nháp */}
+      <HandoverTakeoverModal
+        isOpen={isHandoverModalOpen}
+        handoverInfo={handoverInfo}
+        onTakeover={takeoverDraft}
+        onCancel={() => {
+          closeHandoverModal();
+          onBackToHome();
+        }}
+      />
+
+      {/* Modal Cảnh Báo Khóa Phiên Khảo Sát (KSV Khác Đang Làm Việc) */}
+      <ActiveSurveyorLockedModal
+        isOpen={isLockedByOther}
+        lockedInfo={lockedInfo}
+        onClose={() => {
+          closeLockedModal();
+          onBackToHome();
+        }}
+      />
     </div>
   );
 };

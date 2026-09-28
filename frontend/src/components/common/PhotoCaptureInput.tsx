@@ -1,6 +1,7 @@
 import React, { useRef, useState, useEffect, useId, useMemo } from 'react';
 import { Camera, Trash2, MapPin, Edit3, AlertTriangle, Compass, Image as ImageIcon, RefreshCw, X, Video } from 'lucide-react';
 import { ImageAnnotationModal } from './ImageAnnotationModal';
+import { api } from '../../services/api';
 import {
   applyMetroWatermark,
   MetroWatermarkOptions,
@@ -122,6 +123,23 @@ export const PhotoCaptureInput: React.FC<Props> = ({
     });
   };
 
+  const uploadToServer = async (base64Str: string, code?: string) => {
+    if (!base64Str || !base64Str.startsWith('data:image/')) return;
+    try {
+      const res = await api.post('/storage/upload-base64', {
+        base64: base64Str,
+        filenamePrefix: code ? code.replace(/[^a-zA-Z0-9_-]/g, '_') : 'photo',
+        folder: 'surveys',
+      });
+      const uploadedUrl = res.data?.data?.url;
+      if (uploadedUrl) {
+        onChange(uploadedUrl, code);
+      }
+    } catch (err) {
+      console.warn('[PhotoCaptureInput] Background upload to server failed, keeping local base64:', err);
+    }
+  };
+
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -133,6 +151,7 @@ export const PhotoCaptureInput: React.FC<Props> = ({
         if (isNotApplicable && onToggleNotApplicable) {
           onToggleNotApplicable(false);
         }
+        uploadToServer(dataUrl, generatedCode);
       }
     } catch (_err) {
       console.warn('Image processing fallback');
@@ -223,6 +242,7 @@ export const PhotoCaptureInput: React.FC<Props> = ({
         if (isNotApplicable && onToggleNotApplicable) {
           onToggleNotApplicable(false);
         }
+        uploadToServer(dataUrl, generatedCode);
       }
     } catch (err) {
       console.warn('[WATERMARK] Fallback chụp ảnh trực tiếp:', err);
@@ -234,6 +254,7 @@ export const PhotoCaptureInput: React.FC<Props> = ({
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
         const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
         onChange(dataUrl, displayPhotoCode);
+        uploadToServer(dataUrl, displayPhotoCode);
       }
     }
     stopLiveCamera();
@@ -669,6 +690,7 @@ export const PhotoCaptureInput: React.FC<Props> = ({
           initialTool={initialAnnotationTool || (label?.includes('P-04') ? 'ARROW' : 'PEN')}
           onSave={(annotated) => {
             onChange(annotated);
+            uploadToServer(annotated, displayPhotoCode);
             setIsAnnotating(false);
           }}
           onClose={() => setIsAnnotating(false)}

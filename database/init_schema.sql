@@ -548,6 +548,11 @@ CREATE TABLE base_survey_reports (
     report_type VARCHAR(32) NOT NULL DEFAULT 'STANDALONE', -- 'STANDALONE' | 'BUILDING_MASTER' | 'UNIT_CHILD'
     export_revision INT NOT NULL DEFAULT 0,
     survey_data_json JSONB,
+    sync_version INT NOT NULL DEFAULT 1,
+    last_edited_by_id UUID REFERENCES users(id),
+    handover_security_code VARCHAR(8),
+    is_ready_for_handover BOOLEAN NOT NULL DEFAULT FALSE,
+    handover_history JSONB NOT NULL DEFAULT '[]'::jsonb,
     submitted_at TIMESTAMPTZ,
     approved_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -561,6 +566,7 @@ CREATE INDEX idx_reports_phase ON base_survey_reports(phase);
 CREATE INDEX idx_reports_unit ON base_survey_reports(unit_id);
 CREATE INDEX idx_reports_parent ON base_survey_reports(parent_report_id);
 CREATE INDEX idx_reports_type ON base_survey_reports(report_type);
+CREATE INDEX idx_reports_draft_lookup ON base_survey_reports(parcel_id, phase, status);
 
 CREATE TABLE phase1_report_details (
     report_id UUID PRIMARY KEY REFERENCES base_survey_reports(id) ON DELETE CASCADE,

@@ -177,13 +177,46 @@ const corridorLines = [];
 if (leftBoundary) corridorLines.push(leftBoundary);
 if (rightBoundary) corridorLines.push(rightBoundary);
 
+// 2c. HÀN GẮN & KHÉP KÍN 100% CÁC HỘP GA VÀ ĐOẠN HẦM TBM TRÁNH BỊ HỞ POLYLINE
+const healedStationPolygons = stationPolygons.map((st) => {
+  const coords = [...st.coords];
+  if (coords[0][0] !== coords[coords.length - 1][0] || coords[0][1] !== coords[coords.length - 1][1]) {
+    coords.push([coords[0][0], coords[0][1]]);
+  }
+  return { ...st, coords };
+});
+
+const healedTbmPolygons = tbmPolygons.map((tbm, idx) => {
+  let coords = [...tbm.coords];
+  const tbmNumber = idx + 1;
+  if (tbmNumber === 1) {
+    const leg1 = coords.slice(0, 112);
+    const leg2 = coords.slice(224, 336).reverse();
+    coords = [...leg1, ...leg2, [leg1[0][0], leg1[0][1]]];
+  } else if (tbmNumber === 2) {
+    coords = coords.slice(0, 368);
+    if (coords[0][0] !== coords[coords.length - 1][0] || coords[0][1] !== coords[coords.length - 1][1]) {
+      coords.push([coords[0][0], coords[0][1]]);
+    }
+  } else if (tbmNumber === 6 || tbmNumber === 7 || tbmNumber === 10) {
+    if (coords[0][0] !== coords[coords.length - 1][0] || coords[0][1] !== coords[coords.length - 1][1]) {
+      coords.push([coords[0][0], coords[0][1]]);
+    }
+  } else {
+    if (coords[0][0] !== coords[coords.length - 1][0] || coords[0][1] !== coords[coords.length - 1][1]) {
+      coords.push([coords[0][0], coords[0][1]]);
+    }
+  }
+  return { ...tbm, coords };
+});
+
 const metroDataset = {
   title: 'Hệ Thống Đường Bao Ranh Gốc Tuyến Metro Số 2 (Bến Thành – Tham Lương)',
   source: 'Dữ liệu CAD/GIS ranh giải phóng mặt bằng chuẩn Ban QLDA Đường sắt Đô thị (MAUR)',
   corridorBoundaries: corridorLines,
   centerline: trueCenterline,          // True median centerline running between the two blue lines
-  stationPolygons: stationPolygons,     // 11 station boxes from CAD
-  tbmPolygons: tbmPolygons,             // Continuous TBM tunnel polygons from CAD
+  stationPolygons: healedStationPolygons, // 11 station boxes khép kín 100%
+  tbmPolygons: healedTbmPolygons,         // Continuous TBM tunnel polygons khép kín 100%
   allCorridorSegments: allCorridorSegments,
   stations: calculatedStations
 };

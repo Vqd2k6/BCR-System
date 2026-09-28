@@ -10,6 +10,8 @@ import { Step7_TechnicalCalculations } from '../../survey-phase1/components/Step
 import { Step8_ExecutiveDashboard } from '../../survey-phase1/components/Step8_ExecutiveDashboard';
 import { Step9_FieldSignatures } from '../../survey-phase1/components/Step9_FieldSignatures';
 import { MissingFieldsModal } from '../../survey-phase1/components/MissingFieldsModal';
+import { HandoverTakeoverModal } from '../../survey-phase1/components/HandoverTakeoverModal';
+import { ActiveSurveyorLockedModal } from '../../survey-phase1/components/ActiveSurveyorLockedModal';
 import { GisParcel } from '../../../core/types/domain.types';
 import { api } from '../../../services/api';
 
@@ -36,6 +38,15 @@ export const SurveyCondoMasterPage: React.FC<SurveyCondoMasterPageProps> = ({
     proceedAnyway,
     focusMissingField,
     validateForFinalSubmit,
+    isLockedByOther,
+    lockedInfo,
+    closeLockedModal,
+    isHandoverModalOpen,
+    handoverInfo,
+    closeHandoverModal,
+    takeoverDraft,
+    syncDraftToServer,
+    isDirty,
   } = usePhase1SurveyStore();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -52,6 +63,38 @@ export const SurveyCondoMasterPage: React.FC<SurveyCondoMasterPageProps> = ({
       setCurrentStep(1);
     }
   }, [parcel?.id]);
+
+  // Định kỳ 2 phút tự động đồng bộ bản nháp lên máy chủ nếu có thay đổi (isDirty === true)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const state = usePhase1SurveyStore.getState();
+      if (state.isDirty) {
+        console.log('[SurveyCondoMasterPage] Periodic 2-min auto-sync triggered...');
+        state.syncDraftToServer();
+      }
+    }, 120_000);
+
+    const handleBeforeUnloadSync = () => {
+      const state = usePhase1SurveyStore.getState();
+      if (state.isDirty) {
+        state.syncDraftToServer();
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnloadSync);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('beforeunload', handleBeforeUnloadSync);
+    };
+  }, []);
+
+  const handleSafeBackToHome = () => {
+    const state = usePhase1SurveyStore.getState();
+    if (state.isDirty) {
+      state.syncDraftToServer();
+    }
+    onBackToHome();
+  };
 
   // Cuộn lên đầu trang khi chuyển bước
   useEffect(() => {
@@ -123,7 +166,7 @@ export const SurveyCondoMasterPage: React.FC<SurveyCondoMasterPageProps> = ({
   return (
     <div className="min-h-screen bg-slate-100/90 flex flex-col font-sans">
       {/* Condo Master Header */}
-      <CondoMasterWizardNav onBackToHub={onBackToHome} />
+      <CondoMasterWizardNav onBackToHub={handleSafeBackToHome} />
 
       {/* Thông báo phân biệt khảo sát tòa nhà mẹ */}
       <div className="bg-indigo-50/90 text-indigo-900 px-4 py-2 text-xs border-b border-indigo-200/80 shadow-xs flex items-center justify-between">
@@ -166,6 +209,27 @@ export const SurveyCondoMasterPage: React.FC<SurveyCondoMasterPageProps> = ({
           onFocusField={focusMissingField}
         />
       )}
+
+      {/* Modal Bàn Giao Ca / Tiếp Quản Hồ Sơ Nháp Tòa Nhà */}
+      <HandoverTakeoverModal
+        isOpen={isHandoverModalOpen}
+        handoverInfo={handoverInfo}
+        onTakeover={takeoverDraft}
+        onCancel={() => {
+          closeHandoverModal();
+          onBackToHome();
+        }}
+      />
+
+      {/* Modal Cảnh Báo Khóa Phiên Khảo Sát Tòa Nhà */}
+      <ActiveSurveyorLockedModal
+        isOpen={isLockedByOther}
+        lockedInfo={lockedInfo}
+        onClose={() => {
+          closeLockedModal();
+          onBackToHome();
+        }}
+      />
     </div>
   );
 };

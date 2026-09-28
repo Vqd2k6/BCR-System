@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { usePhase1SurveyStore } from '../store/usePhase1SurveyStore';
 import { Save, ArrowLeft, ArrowRight, Check } from 'lucide-react';
 import clsx from 'clsx';
+import { SyncStatusBadge } from './SyncStatusBadge';
 
 export const DEFAULT_STEP_LABELS = [
   '1. Tiếp cận & Ảnh',
@@ -31,8 +32,21 @@ export const StepWizardNav: React.FC<StepWizardNavProps> = ({
   leftBadge,
   subtitleBadge,
 }) => {
-  const { currentStep, requestStepNavigation, nextStep, prevStep, lastSavedAt, saveDraftToStorage } =
-    usePhase1SurveyStore();
+  const {
+    currentStep,
+    requestStepNavigation,
+    nextStep,
+    prevStep,
+    lastSavedAt,
+    saveDraftToStorage,
+    syncStatus,
+    lastSyncedAt,
+    isDirty,
+    syncDraftToServer,
+    releaseDraftLock,
+    isReadOnly,
+  } = usePhase1SurveyStore();
+
   const [savedToast, setSavedToast] = useState(false);
 
   const handleManualSave = () => {
@@ -117,27 +131,18 @@ export const StepWizardNav: React.FC<StepWizardNavProps> = ({
 
         {/* Auto save badge & navigation buttons */}
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={handleManualSave}
-            className={clsx(
-              'inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-lg border transition-all shadow-xs cursor-pointer',
-              savedToast ? themeClasses.saveBtnActive : themeClasses.saveBtn
-            )}
-            title="Bấm để lưu nháp dữ liệu khảo sát vào bộ nhớ thiết bị"
-          >
-            {savedToast ? (
-              <>
-                <Check className="w-3.5 h-3.5 text-white" />
-                <span>Đã lưu!</span>
-              </>
-            ) : (
-              <>
-                <Save className={clsx('w-3.5 h-3.5', themeClasses.saveIcon)} />
-                <span>{lastSavedAt ? `Lưu nháp: ${lastSavedAt}` : 'Lưu nháp'}</span>
-              </>
-            )}
-          </button>
+          <SyncStatusBadge
+            syncStatus={syncStatus}
+            lastSyncedAt={lastSyncedAt || lastSavedAt}
+            isDirty={isDirty}
+            onManualSync={() => {
+              saveDraftToStorage();
+              syncDraftToServer();
+            }}
+            onReleaseLock={releaseDraftLock}
+            disabled={isReadOnly}
+          />
+
 
           <button
             type="button"
