@@ -197,12 +197,12 @@ export const LoginView: React.FC = () => {
                 gap: '0.4rem',
                 cursor: loading ? 'not-allowed' : 'pointer',
               }}
-              title="Đăng nhập ngay với vai trò Điều Tra Viên Ga S9"
+              title="Đăng nhập ngay với vai trò Điều Tra Viên Ga S1 Bến Thành"
             >
               <UserCheck size={14} color="#0284c7" />
               <div style={{ textAlign: 'left', lineHeight: 1.2 }}>
-                <span style={{ fontWeight: 700, display: 'block' }}>Surveyor S9</span>
-                <span style={{ fontSize: '0.65rem', color: '#64748b' }}>Hiện trường</span>
+                <span style={{ fontWeight: 700, display: 'block' }}>Surveyor S1</span>
+                <span style={{ fontSize: '0.65rem', color: '#64748b' }}>Ga S1 Bến Thành</span>
               </div>
             </button>
 
@@ -223,12 +223,12 @@ export const LoginView: React.FC = () => {
                 gap: '0.4rem',
                 cursor: loading ? 'not-allowed' : 'pointer',
               }}
-              title="Đăng nhập ngay với vai trò Tổ Trưởng Zone Admin"
+              title="Đăng nhập ngay với vai trò Tổ Trưởng Zone Admin (Ga S1)"
             >
               <Shield size={14} color="#0284c7" />
               <div style={{ textAlign: 'left', lineHeight: 1.2 }}>
                 <span style={{ fontWeight: 700, display: 'block' }}>Zone Admin</span>
-                <span style={{ fontSize: '0.65rem', color: '#64748b' }}>Tổ trưởng Ga S9</span>
+                <span style={{ fontSize: '0.65rem', color: '#64748b' }}>Tổ trưởng Ga S1</span>
               </div>
             </button>
 

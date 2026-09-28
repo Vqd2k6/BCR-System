@@ -53,7 +53,7 @@ export const AdminDashboardPage: React.FC = () => {
 
       {/* Tab Export: Phase1ExportModuleBox */}
       {activeTab === 'export' && (
-        <Phase1ExportModuleBox initialZoneId="ZONE_S9" />
+        <Phase1ExportModuleBox initialZoneId="ALL" />
       )}
 
       {/* Tab Users */}
@@ -82,9 +82,9 @@ export const AdminDashboardPage: React.FC = () => {
               <tbody className="divide-y divide-slate-100">
                 <tr className="hover:bg-slate-50/50">
                   <td className="p-3 font-bold text-slate-800">Nguyễn Văn Khảo Sát</td>
-                  <td className="p-3 text-slate-600 font-mono">surveyor_01</td>
+                  <td className="p-3 text-slate-600 font-mono">surveyor_s9_01</td>
                   <td className="p-3"><Badge variant="info">SURVEYOR</Badge></td>
-                  <td className="p-3 font-semibold text-slate-700">ZONE_S9 (Bảy Hiền)</td>
+                  <td className="p-3 font-semibold text-slate-700">ZONE_01 (Ga S1 Bến Thành)</td>
                   <td className="p-3 text-center"><Badge variant="success">Hoạt động</Badge></td>
                   <td className="p-3 text-right"><Button size="sm" variant="ghost">Sửa</Button></td>
                 </tr>
@@ -92,7 +92,7 @@ export const AdminDashboardPage: React.FC = () => {
                   <td className="p-3 font-bold text-slate-800">Trần Trưởng Zone</td>
                   <td className="p-3 text-slate-600 font-mono">zoneadmin_s9</td>
                   <td className="p-3"><Badge variant="warning">ZONE_ADMIN</Badge></td>
-                  <td className="p-3 font-semibold text-slate-700">ZONE_S9 (Bảy Hiền)</td>
+                  <td className="p-3 font-semibold text-slate-700">ZONE_01 (Ga S1 Bến Thành)</td>
                   <td className="p-3 text-center"><Badge variant="success">Hoạt động</Badge></td>
                   <td className="p-3 text-right"><Button size="sm" variant="ghost">Sửa</Button></td>
                 </tr>

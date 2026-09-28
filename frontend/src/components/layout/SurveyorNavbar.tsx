@@ -153,9 +153,11 @@ export const SurveyorNavbar: React.FC<Props> = ({
             {subtitle || (
               <>
                 Khu vực phụ trách: <strong style={{ color: '#0284c7' }}>
-                  {user?.assignedZoneId === 'ZONE_S9' || user?.assignedZoneId === 'ZONE_ST09' || !user?.assignedZoneId
-                    ? 'Zone_ST09'
-                    : user.assignedZoneId.replace('ZONE_', 'Zone_').replace('S', 'ST0')}
+                  {user?.role === 'SUPER_ADMIN'
+                    ? 'Toàn tuyến Metro 2 (22 Phân đoạn)'
+                    : user?.assignedZoneId
+                    ? `${user.assignedZoneId} (Ga S1 Bến Thành)`
+                    : 'Zone_01 (Ga S1 Bến Thành)'}
                 </strong>
               </>
             )}
@@ -217,9 +219,11 @@ export const SurveyorNavbar: React.FC<Props> = ({
               </div>
               <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '2px' }}>
                 Khu vực: <strong>
-                  {user?.assignedZoneId === 'ZONE_S9' || user?.assignedZoneId === 'ZONE_ST09' || !user?.assignedZoneId
-                    ? 'Zone_ST09 (Ga S9 - Bà Quẹo)'
-                    : user.assignedZoneId.replace('ZONE_', 'Zone_').replace('S', 'ST0')}
+                  {user?.role === 'SUPER_ADMIN'
+                    ? 'Toàn tuyến Metro 2'
+                    : user?.assignedZoneId
+                    ? `${user.assignedZoneId} (Ga S1 Bến Thành)`
+                    : 'Zone_01 (Ga S1 Bến Thành)'}
                 </strong>
               </div>
 

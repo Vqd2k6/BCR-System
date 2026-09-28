@@ -16,7 +16,11 @@ export const SurveyorBottomNav: React.FC<Props> = ({ activeTab, onChangeTab }) =
   const tabs = [
     { id: 'home' as NavTab, title: 'Tổng quan danh sách thửa đất', icon: Home },
     { id: 'map' as NavTab, title: 'Bản đồ số GIS tuyến Metro 2', icon: Map },
-    ...(isAdmin ? [{ id: 'admin-export' as NavTab, title: 'Module Xuất Báo Cáo Zone Admin', icon: FileText }] : []),
+    ...(isAdmin ? [{ 
+      id: 'admin-export' as NavTab, 
+      title: user?.role === 'SUPER_ADMIN' ? 'Trung Tâm Quản Trị Hệ Thống' : 'Dashboard Quản Trị Zone', 
+      icon: FileText 
+    }] : []),
   ];
 
   return (

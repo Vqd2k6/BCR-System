@@ -357,7 +357,9 @@ export const App: React.FC = () => {
         <SurveyorNavbar
           title={
             activeTab === 'admin-export'
-              ? 'PHÂN HỆ ADMIN ZONE - XUẤT BÁO CÁO'
+              ? user?.role === 'SUPER_ADMIN'
+                ? 'TRUNG TÂM QUẢN TRỊ HỆ THỐNG METRO 2'
+                : 'PHÂN HỆ QUẢN TRỊ KHU VỰC (ZONE ADMIN)'
               : activeTab === 'home'
               ? 'BUILDING CONDITION SURVEY MRT LINE-2'
               : activeTab === 'map'
@@ -377,9 +379,11 @@ export const App: React.FC = () => {
       {/* Main Viewport Content */}
       <main style={{ flex: 1, position: 'relative' }}>
         {activeTab === 'admin-export' && (
-          <div className="max-w-7xl mx-auto p-4 sm:p-6 pb-20">
-            <Phase1ExportModuleBox initialZoneId={selectedZone} />
-          </div>
+          user?.role === 'SUPER_ADMIN' ? (
+            <AdminDashboardPage />
+          ) : (
+            <ZoneManagerDashboardPage />
+          )
         )}
         {activeTab === 'home' && (
           <SurveyorHomeView
