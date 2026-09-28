@@ -119,7 +119,7 @@ export const initializeEditFormData = (reportData: any, parcel: ExportParcelItem
     foundationType: json.foundationType || specs.foundation_category || 'CAT 4: Móng cọc BTCT',
     foundationSource: json.foundationSource || specs.foundation_source || 'Quan sát hiện trường',
     foundationDepthM: json.foundationDepthM !== undefined ? String(json.foundationDepthM) : (specs.foundation_depth_m ? String(specs.foundation_depth_m) : '0.4'),
-    pileDimensionMm: json.pileDimensionMm || '22x25 mm',
+    pileDimensionMm: json.pileDimensionMm || '22x25 cm',
     pileLengthMm: json.pileLengthMm || '18000',
     foundationCatScore: json.foundationCatScore !== undefined ? json.foundationCatScore : 4,
     foundationNotes: json.foundationNotes || specs.foundation_notes || '',

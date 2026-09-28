@@ -55,6 +55,7 @@ export function verifyDataCompletenessGate(data: Phase1SurveyFormData): GateVeri
     ? true
     : Boolean(
         (data.asBuiltDrawingPhotoUrl && data.asBuiltDrawingPhotoUrl.trim() !== '') ||
+        (data.asBuiltDrawingPhotos && data.asBuiltDrawingPhotos.some((p) => p.url && p.url.trim() !== '')) ||
         (data.asBuiltDrawingFiles && data.asBuiltDrawingFiles.length > 0)
       );
 

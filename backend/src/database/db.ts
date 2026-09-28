@@ -66,4 +66,49 @@ export class Database {
       };
     }
   }
+
+  /**
+   * Tự động áp dụng các câu lệnh DDL phòng vệ (ADD COLUMN IF NOT EXISTS)
+   * Đảm bảo mọi môi trường (Docker, Local, Supabase Render) luôn có đầy đủ cột dữ liệu mới
+   */
+  static async runStartupMigrations(): Promise<void> {
+    try {
+      // 1. base_survey_reports
+      await this.query(`
+        ALTER TABLE base_survey_reports
+          ADD COLUMN IF NOT EXISTS sync_version INT NOT NULL DEFAULT 1,
+          ADD COLUMN IF NOT EXISTS last_edited_by_id UUID REFERENCES users(id) ON DELETE SET NULL,
+          ADD COLUMN IF NOT EXISTS handover_security_code VARCHAR(8),
+          ADD COLUMN IF NOT EXISTS is_ready_for_handover BOOLEAN NOT NULL DEFAULT FALSE,
+          ADD COLUMN IF NOT EXISTS handover_history JSONB NOT NULL DEFAULT '[]'::jsonb;
+      `);
+
+      await this.query(`
+        CREATE INDEX IF NOT EXISTS idx_reports_draft_lookup 
+          ON base_survey_reports(parcel_id, phase, status);
+      `);
+
+      // 2. deformation_assessments
+      await this.query(`
+        ALTER TABLE deformation_assessments
+          ADD COLUMN IF NOT EXISTS diff_settlement_photo_code VARCHAR(150),
+          ADD COLUMN IF NOT EXISTS tilt_photo_code VARCHAR(150),
+          ADD COLUMN IF NOT EXISTS abnormal_photo_code VARCHAR(150),
+          ADD COLUMN IF NOT EXISTS diff_settlement_photos_json JSONB DEFAULT '[]'::jsonb,
+          ADD COLUMN IF NOT EXISTS tilt_photos_json JSONB DEFAULT '[]'::jsonb,
+          ADD COLUMN IF NOT EXISTS abnormal_photos_json JSONB DEFAULT '[]'::jsonb;
+      `);
+
+      // 3. building_specifications
+      await this.query(`
+        ALTER TABLE building_specifications
+          ADD COLUMN IF NOT EXISTS as_built_drawing_photos_json JSONB DEFAULT '[]'::jsonb;
+      `);
+
+      console.log('✅ [STARTUP MIGRATION] All idempotent migrations executed successfully.');
+    } catch (error) {
+      console.warn('⚠️ [STARTUP MIGRATION WARNING] Some startup migrations could not run:', error);
+    }
+  }
 }
+

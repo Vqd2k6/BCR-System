@@ -333,7 +333,7 @@ export const GeneralAndFoundationSection: React.FC<GeneralAndFoundationSectionPr
           </div>
 
           <div>
-            <label className="text-[11px] font-bold text-slate-600 block mb-1">Kích thước cọc (mm)</label>
+            <label className="text-[11px] font-bold text-slate-600 block mb-1">Kích thước cọc (cm)</label>
             <input
               type="text"
               value={editFormData.pileDimensionMm}

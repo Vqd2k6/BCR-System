@@ -538,15 +538,15 @@
     <div class="photo-card">
       <div class="photo-header">
         <span class="photo-tag">P-03.{{inc @index}}</span>
-        <span class="photo-header-title">ẢNH MẶT BÊN / GÓC HÔNG BỔ SUNG</span>
+        <span class="photo-header-title">{{#if this.tag}}{{this.tag}}{{else}}ẢNH MẶT BÊN / GÓC HÔNG BỔ SUNG{{/if}}</span>
       </div>
       <div class="photo-frame">
-        <img src="{{this}}" alt="Ảnh mặt bên bổ sung">
+        <img src="{{#if this.url}}{{this.url}}{{else}}{{this}}{{/if}}" alt="Ảnh mặt bên bổ sung">
       </div>
       <div class="photo-meta">
         <div class="meta-row">
           <span><strong>Ảnh số:</strong> P-03.{{inc @index}}</span>
-          <span><strong>Tình trạng:</strong> Đính kèm hồ sơ</span>
+          <span><strong>Vị trí / Chức năng:</strong> {{#if this.tag}}{{this.tag}}{{else}}Mặt bên / Sau{{/if}}</span>
         </div>
       </div>
     </div>
@@ -632,8 +632,24 @@
     </tr>
   </table>
 
-  <!-- HỒ SƠ BẢN VẼ HOÀN CÔNG MÓNG (NẾU CÓ) -->
-  {{#if asBuiltDrawingPhotoUrl}}
+  <!-- HỒ SƠ BẢN VẼ HOÀN CÔNG MÓNG / KẾT CẤU -->
+  {{#if asBuiltDrawingPhotos.length}}
+  <div style="margin-top: 8px; border: 0.5pt solid #cbd5e1; border-radius: 4px; padding: 6px; background: #f8fafc;">
+    <div style="font-weight: bold; font-size: 8.5pt; color: #0f3b6c; margin-bottom: 6px;">
+      📐 ẢNH BẢN VẼ HOÀN CÔNG / THIẾT KẾ KẾT CẤU MÓNG ĐƯỢC CHỦ NHÀ CUNG CẤP ({{asBuiltDrawingPhotos.length}} ảnh / trang):
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px;">
+      {{#each asBuiltDrawingPhotos}}
+      <div style="border: 0.5pt solid #e2e8f0; background: #ffffff; border-radius: 4px; padding: 4px; text-align: center;">
+        <img src="{{this.url}}" alt="Bản vẽ hoàn công" style="max-height: 200px; max-width: 100%; object-fit: contain; border: 0.5pt solid #cbd5e1;">
+        <div style="font-size: 7.5pt; color: #475569; margin-top: 4px; font-weight: 500;">
+          {{#if this.pageNote}}{{this.pageNote}}{{else}}Trang {{inc @index}}{{/if}}
+        </div>
+      </div>
+      {{/each}}
+    </div>
+  </div>
+  {{else if asBuiltDrawingPhotoUrl}}
   <div style="margin-top: 8px; border: 0.5pt solid #cbd5e1; border-radius: 4px; padding: 6px; background: #f8fafc;">
     <div style="font-weight: bold; font-size: 8.5pt; color: #0f3b6c; margin-bottom: 4px;">
       📐 ẢNH BẢN VẼ HOÀN CÔNG / THIẾT KẾ KẾT CẤU MÓNG ĐƯỢC CHỦ NHÀ CUNG CẤP:
@@ -732,24 +748,53 @@
   </table>
 
   <!-- ẢNH ĐO ĐẠC BIẾN DẠNG LÚN & NGHIÊNG HIỆN TRƯỜNG -->
-  {{#if (or buildingTiltPhotoUrl diffSettlementPhotoUrl)}}
+  {{#if (or buildingTiltPhotoUrl diffSettlementPhotoUrl tiltPhotos.length diffSettlementPhotos.length abnormalPhotos.length)}}
   <div class="deformation-grid">
-    {{#if buildingTiltPhotoUrl}}
-    <div class="deformation-card">
-      <div class="photo-frame">
-        <img src="{{buildingTiltPhotoUrl}}" alt="Ảnh kiểm tra độ nghiêng công trình">
+    {{#if tiltPhotos.length}}
+      {{#each tiltPhotos}}
+      <div class="deformation-card">
+        <div class="photo-frame">
+          <img src="{{this.url}}" alt="Ảnh kiểm tra độ nghiêng công trình">
+        </div>
+        <div class="meta">HÌNH 3.1.{{inc @index}}: MINH CHỨNG ĐỘ NGHIÊNG THÂN NHÀ {{#if this.caption}}({{this.caption}}){{/if}}</div>
       </div>
-      <div class="meta">HÌNH 3.1: KIỂM TRA ĐỘ NGHIÊNG THÂN NHÀ MẶT TIỀN (TILT MEASUREMENT)</div>
-    </div>
+      {{/each}}
+    {{else if buildingTiltPhotoUrl}}
+      <div class="deformation-card">
+        <div class="photo-frame">
+          <img src="{{buildingTiltPhotoUrl}}" alt="Ảnh kiểm tra độ nghiêng công trình">
+        </div>
+        <div class="meta">HÌNH 3.1: KIỂM TRA ĐỘ NGHIÊNG THÂN NHÀ MẶT TIỀN (TILT MEASUREMENT)</div>
+      </div>
     {{/if}}
 
-    {{#if diffSettlementPhotoUrl}}
-    <div class="deformation-card">
-      <div class="photo-frame">
-        <img src="{{diffSettlementPhotoUrl}}" alt="Ảnh kiểm tra lún lệch công trình">
+    {{#if diffSettlementPhotos.length}}
+      {{#each diffSettlementPhotos}}
+      <div class="deformation-card">
+        <div class="photo-frame">
+          <img src="{{this.url}}" alt="Ảnh kiểm tra lún lệch công trình">
+        </div>
+        <div class="meta">HÌNH 3.2.{{inc @index}}: MINH CHỨNG LÚN CHÊNH LỆCH {{#if this.caption}}({{this.caption}}){{/if}}</div>
       </div>
-      <div class="meta">HÌNH 3.2: KIỂM TRA LÚN LỆCH MẶT TIỀN (DIFFERENTIAL SETTLEMENT)</div>
-    </div>
+      {{/each}}
+    {{else if diffSettlementPhotoUrl}}
+      <div class="deformation-card">
+        <div class="photo-frame">
+          <img src="{{diffSettlementPhotoUrl}}" alt="Ảnh kiểm tra lún lệch công trình">
+        </div>
+        <div class="meta">HÌNH 3.2: KIỂM TRA LÚN LỆCH MẶT TIỀN (DIFFERENTIAL SETTLEMENT)</div>
+      </div>
+    {{/if}}
+
+    {{#if abnormalPhotos.length}}
+      {{#each abnormalPhotos}}
+      <div class="deformation-card">
+        <div class="photo-frame">
+          <img src="{{this.url}}" alt="Ảnh trường hợp bất thường / ngoại lệ">
+        </div>
+        <div class="meta">HÌNH 3.3.{{inc @index}}: TRƯỜNG HỢP BẤT THƯỜNG / NGOẠI LỆ {{#if this.caption}}({{this.caption}}){{/if}}</div>
+      </div>
+      {{/each}}
     {{/if}}
   </div>
   {{/if}}

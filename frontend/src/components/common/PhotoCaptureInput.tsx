@@ -545,70 +545,75 @@ export const PhotoCaptureInput: React.FC<Props> = ({
             <div
               style={{
                 position: 'absolute',
-                top: '6px',
-                left: '6px',
-                backgroundColor: 'rgba(245, 158, 11, 0.92)',
+                bottom: '6px',
+                right: '6px',
+                backgroundColor: 'rgba(245, 158, 11, 0.95)',
                 color: '#ffffff',
-                fontSize: '0.65rem',
+                fontSize: '0.62rem',
                 fontWeight: 600,
-                padding: '0.2rem 0.45rem',
+                padding: '0.18rem 0.4rem',
                 borderRadius: '0.35rem',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '0.3rem',
+                gap: '0.25rem',
                 backdropFilter: 'blur(3px)',
-                boxShadow: '0 2px 5px rgba(0, 0, 0, 0.35)',
-                zIndex: 4,
+                boxShadow: '0 2px 4px rgba(0, 0, 0, 0.35)',
+                zIndex: 5,
               }}
+              title="Đang tải ảnh lên Cloudflare R2..."
             >
-              <RefreshCw size={11} className="animate-spin" />
-              <span>Đang tải lên Cloud...</span>
+              <RefreshCw size={10} className="animate-spin" />
+              <span>Lưu R2...</span>
             </div>
           )}
           {uploadStatus === 'SUCCESS' && (
             <div
               style={{
                 position: 'absolute',
-                top: '6px',
-                left: '6px',
-                backgroundColor: 'rgba(16, 185, 129, 0.9)',
+                bottom: '6px',
+                right: '6px',
+                width: '22px',
+                height: '22px',
+                borderRadius: '50%',
+                backgroundColor: 'rgba(16, 185, 129, 0.95)',
                 color: '#ffffff',
-                fontSize: '0.65rem',
-                fontWeight: 600,
-                padding: '0.2rem 0.45rem',
-                borderRadius: '0.35rem',
+                fontSize: '0.62rem',
+                fontWeight: 800,
                 display: 'flex',
                 alignItems: 'center',
-                gap: '0.25rem',
-                backdropFilter: 'blur(3px)',
-                boxShadow: '0 2px 5px rgba(0, 0, 0, 0.35)',
-                zIndex: 4,
+                justifyContent: 'center',
+                boxShadow: '0 2px 4px rgba(0, 0, 0, 0.35)',
+                border: '1.5px solid rgba(255, 255, 255, 0.9)',
+                zIndex: 5,
+                letterSpacing: '-0.02em',
+                userSelect: 'none',
               }}
+              title="Đã lưu Cloudflare R2 an toàn"
             >
-              <span>✓ Đã lưu Cloud R2</span>
+              R2
             </div>
           )}
           {uploadStatus === 'ERROR' && (
             <div
               style={{
                 position: 'absolute',
-                top: '6px',
-                left: '6px',
-                backgroundColor: 'rgba(239, 68, 68, 0.92)',
+                bottom: '6px',
+                right: '6px',
+                backgroundColor: 'rgba(239, 68, 68, 0.95)',
                 color: '#ffffff',
-                fontSize: '0.65rem',
+                fontSize: '0.6rem',
                 fontWeight: 600,
-                padding: '0.2rem 0.45rem',
+                padding: '0.15rem 0.35rem',
                 borderRadius: '0.35rem',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '0.35rem',
+                gap: '0.25rem',
                 backdropFilter: 'blur(3px)',
-                boxShadow: '0 2px 5px rgba(0, 0, 0, 0.35)',
-                zIndex: 4,
+                boxShadow: '0 2px 4px rgba(0, 0, 0, 0.35)',
+                zIndex: 5,
               }}
             >
-              <span>⚠️ Chưa lên Cloud</span>
+              <span>⚠️ Lỗi R2</span>
               {lastBlobRef.current && (
                 <button
                   type="button"
@@ -623,8 +628,8 @@ export const PhotoCaptureInput: React.FC<Props> = ({
                     color: '#ef4444',
                     border: 'none',
                     borderRadius: '0.25rem',
-                    padding: '0.05rem 0.3rem',
-                    fontSize: '0.6rem',
+                    padding: '0.05rem 0.25rem',
+                    fontSize: '0.55rem',
                     fontWeight: 700,
                     cursor: 'pointer',
                   }}

@@ -195,13 +195,39 @@ export class SurveyRepository {
         );
       }
 
-      // P03
+      // P03 (Chính)
       if (photos.p03SideRearUrl || photos.p03NotApplicable) {
         await client.query(
-          `INSERT INTO survey_identification_photos (report_id, photo_type, raw_photo_url, photo_code, is_not_applicable)
-           VALUES ($1, 'P03_SIDE_OR_REAR', $2, $3, $4);`,
-          [reportId, photos.p03SideRearUrl || null, photos.p03PhotoCode || null, photos.p03NotApplicable]
+          `INSERT INTO survey_identification_photos (
+             report_id, photo_type, raw_photo_url, photo_code, dimensions_json, is_not_applicable
+           ) VALUES ($1, 'P03_SIDE_OR_REAR', $2, $3, $4, $5);`,
+          [
+            reportId,
+            photos.p03SideRearUrl || null,
+            photos.p03PhotoCode || null,
+            JSON.stringify({ tag: photos.p03Tag || 'Bên hông trái' }),
+            photos.p03NotApplicable,
+          ]
         );
+      }
+
+      // P03 (Bổ sung nếu có)
+      if (Array.isArray(photos.p03AdditionalPhotos) && photos.p03AdditionalPhotos.length > 0) {
+        for (const item of photos.p03AdditionalPhotos) {
+          if (item?.url) {
+            await client.query(
+              `INSERT INTO survey_identification_photos (
+                 report_id, photo_type, raw_photo_url, photo_code, dimensions_json, is_not_applicable
+               ) VALUES ($1, 'P03_SIDE_OR_REAR', $2, $3, $4, FALSE);`,
+              [
+                reportId,
+                item.url,
+                item.photoCode || null,
+                JSON.stringify({ tag: item.tag || 'Bên hông', isAdditional: true }),
+              ]
+            );
+          }
+        }
       }
 
       // P04
@@ -235,8 +261,8 @@ export class SurveyRepository {
            floor_count, basement_count, foundation_category, year_of_construction, is_year_estimated,
            construction_area_m2, building_height_m, foundation_source,
            foundation_depth_m, foundation_density, foundation_spacing_m, foundation_notes,
-           land_use_function
-         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+           land_use_function, as_built_drawing_photos_json
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
          ON CONFLICT (report_id) DO UPDATE SET
            building_name = EXCLUDED.building_name,
            building_grade = EXCLUDED.building_grade,
@@ -254,7 +280,8 @@ export class SurveyRepository {
            foundation_density = EXCLUDED.foundation_density,
            foundation_spacing_m = EXCLUDED.foundation_spacing_m,
            foundation_notes = EXCLUDED.foundation_notes,
-           land_use_function = EXCLUDED.land_use_function;`,
+           land_use_function = EXCLUDED.land_use_function,
+           as_built_drawing_photos_json = EXCLUDED.as_built_drawing_photos_json;`,
         [
           reportId,
           specs.buildingName || null,
@@ -274,6 +301,7 @@ export class SurveyRepository {
           specs.foundationSpacingM !== undefined && specs.foundationSpacingM !== null && specs.foundationSpacingM !== '' ? Number(specs.foundationSpacingM) : null,
           specs.foundationNotes || null,
           specs.landUseFunction || null,
+          JSON.stringify(specs.asBuiltDrawingPhotos || []),
         ]
       );
 
@@ -363,8 +391,9 @@ export class SurveyRepository {
       `INSERT INTO deformation_assessments (
          report_id, tilt_angle_x, tilt_angle_y, tilt_direction, floor_slope_ratio,
          beam_deflection_mm, measurement_method, measurement_reliability,
-         diff_settlement_photo_code, tilt_photo_code, abnormal_photo_code
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+         diff_settlement_photo_code, tilt_photo_code, abnormal_photo_code,
+         diff_settlement_photos_json, tilt_photos_json, abnormal_photos_json
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
        ON CONFLICT (report_id) DO UPDATE SET
          tilt_angle_x = EXCLUDED.tilt_angle_x,
          tilt_angle_y = EXCLUDED.tilt_angle_y,
@@ -375,7 +404,10 @@ export class SurveyRepository {
          measurement_reliability = EXCLUDED.measurement_reliability,
          diff_settlement_photo_code = EXCLUDED.diff_settlement_photo_code,
          tilt_photo_code = EXCLUDED.tilt_photo_code,
-         abnormal_photo_code = EXCLUDED.abnormal_photo_code;`,
+         abnormal_photo_code = EXCLUDED.abnormal_photo_code,
+         diff_settlement_photos_json = EXCLUDED.diff_settlement_photos_json,
+         tilt_photos_json = EXCLUDED.tilt_photos_json,
+         abnormal_photos_json = EXCLUDED.abnormal_photos_json;`,
       [
         reportId,
         Number(deform.tiltAngleX) || 0,
@@ -388,6 +420,9 @@ export class SurveyRepository {
         deform.diffSettlementPhotoCode || null,
         deform.tiltPhotoCode || null,
         deform.abnormalPhotoCode || null,
+        JSON.stringify(deform.diffSettlementPhotos || []),
+        JSON.stringify(deform.tiltPhotos || []),
+        JSON.stringify(deform.abnormalPhotos || []),
       ]
     );
   }

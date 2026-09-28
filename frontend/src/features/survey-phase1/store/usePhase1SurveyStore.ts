@@ -121,6 +121,7 @@ export const getDefaultInitialFormData = (parcelId: string = ''): Phase1SurveyFo
   foundationSpacingM: '',
   foundationNotes: '',
   asBuiltDrawingPhotoUrl: '',
+  asBuiltDrawingPhotos: [],
   asBuiltDrawingFiles: [],
   foundationCatScore: 3,
 
@@ -159,10 +160,10 @@ export const getDefaultInitialFormData = (parcelId: string = ''): Phase1SurveyFo
   },
 
   settlementTilt: {
-    diffSettlement: { level: 0, position: '', photoUrl: '', notes: '' },
-    buildingTilt: { level: 0, xPermille: '', yPermille: '', direction: '', photoUrl: '', notes: '' },
+    diffSettlement: { level: 0, position: '', photoUrl: '', photos: [], notes: '' },
+    buildingTilt: { level: 0, xPermille: '', yPermille: '', direction: '', photoUrl: '', photos: [], notes: '' },
     beamSagging: { level: 0, position: '', sagMm: '', description: '', photoUrl: '', notes: '' },
-    abnormalCase: { photoUrl: '', notes: '' },
+    abnormalCase: { photoUrl: '', photos: [], notes: '' },
     dataSource: ['Quan sát trực quan'],
     reliability: 'HIGH',
     needAdditionalMonitoring: { required: false, notes: '' },

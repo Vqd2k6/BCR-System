@@ -3,7 +3,7 @@ import { Card } from '../../../../core/components/ui/Card';
 import { Button } from '../../../../core/components/ui/Button';
 import { Select } from '../../../../core/components/ui/FormControls';
 import { PhotoCaptureInput } from '../../../../components/common/PhotoCaptureInput';
-import { Camera, Maximize2, ArrowRight } from 'lucide-react';
+import { Camera, Maximize2, ArrowRight, Plus, Trash2 } from 'lucide-react';
 import { Phase1SurveyFormData } from '../../types/phase1.types';
 import { P03_TAGS } from './step1.constants';
 
@@ -150,10 +150,10 @@ export const Step1PhotosSection: React.FC<Step1PhotosSectionProps> = ({
         </div>
 
         {/* P-03: Mặt Bên / Mặt Sau */}
-        <div id="photo-p03-section" className="p-3.5 rounded-xl border border-slate-200 bg-slate-50 space-y-2.5">
+        <div id="photo-p03-section" className="p-3.5 rounded-xl border border-slate-200 bg-slate-50 space-y-3">
           <div className="flex items-center justify-between">
             <span className="font-bold text-xs text-slate-800">
-              P-03: Mặt Bên Hoặc Mặt Sau Tiếp Cận
+              P-03: Mặt Bên Hoặc Mặt Sau Tiếp Cận (Tối đa 3 ảnh)
             </span>
             <label className="flex items-center gap-1.5 text-xs font-medium text-slate-600 cursor-pointer">
               <input
@@ -171,36 +171,129 @@ export const Step1PhotosSection: React.FC<Step1PhotosSectionProps> = ({
           </div>
 
           {!formData.photoP03.notApplicable && (
-            <div className="space-y-2">
-              <Select
-                value={formData.photoP03.tag || P03_TAGS[0]}
-                onChange={(e) =>
-                  updateFormData({
-                    photoP03: { ...formData.photoP03, tag: e.target.value },
-                  })
-                }
-                options={P03_TAGS.map((t) => ({ value: t, label: t }))}
-              />
-              <PhotoCaptureInput
-                label="Chụp mặt bên/mặt sau tiếp cận:"
-                value={formData.photoP03.url}
-                photoCode={formData.photoP03.photoCode}
-                onChange={(url, code) =>
-                  updateFormData({
-                    photoP03: { ...formData.photoP03, url, photoCode: code },
-                  })
-                }
-                recommendedOrientation="portrait"
-                orientationHint="Khuyến nghị: Chụp ảnh DỌC (3:4) để lấy chiều cao khối hông"
-                watermarkOptions={{
-                  parcelCode: formData.projectParcelCode,
-                  floor: 'EXT',
-                  photoType: 'P03',
-                  zoneOrRoom: formData.photoP03.tag || 'MAT-BEN',
-                  photoIndex: 1,
-                }}
-                height="125px"
-              />
+            <div className="space-y-3">
+              {/* Ảnh P03 chính (Ảnh 1) */}
+              <div className="p-2.5 bg-white rounded-lg border border-slate-200 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-slate-700">
+                    Ảnh 1 (Chính):
+                  </span>
+                  <div className="w-48">
+                    <Select
+                      value={formData.photoP03.tag || P03_TAGS[0]}
+                      onChange={(e) =>
+                        updateFormData({
+                          photoP03: { ...formData.photoP03, tag: e.target.value },
+                        })
+                      }
+                      options={P03_TAGS.map((t) => ({ value: t, label: t }))}
+                    />
+                  </div>
+                </div>
+                <PhotoCaptureInput
+                  label={`Chụp ảnh mặt bên/sau (${formData.photoP03.tag || 'Bên hông trái'}):`}
+                  value={formData.photoP03.url}
+                  photoCode={formData.photoP03.photoCode}
+                  onChange={(url, code) =>
+                    updateFormData({
+                      photoP03: { ...formData.photoP03, url, photoCode: code },
+                    })
+                  }
+                  recommendedOrientation="portrait"
+                  orientationHint="Khuyến nghị: Chụp ảnh DỌC (3:4) để lấy chiều cao khối hông"
+                  watermarkOptions={{
+                    parcelCode: formData.projectParcelCode,
+                    floor: 'EXT',
+                    photoType: 'P03',
+                    zoneOrRoom: formData.photoP03.tag || 'MAT-BEN',
+                    photoIndex: 1,
+                  }}
+                  height="125px"
+                />
+              </div>
+
+              {/* Các ảnh P03 bổ sung (Ảnh 2, Ảnh 3) */}
+              {(formData.photoP03.additionalPhotos || []).map((extraPhoto, idx) => (
+                <div key={idx} className="p-2.5 bg-white rounded-lg border border-sky-200 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-sky-800">
+                      Ảnh {idx + 2} (Bổ sung):
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <div className="w-44">
+                        <Select
+                          value={extraPhoto.tag || P03_TAGS[Math.min(idx + 1, P03_TAGS.length - 1)]}
+                          onChange={(e) => {
+                            const next = [...(formData.photoP03.additionalPhotos || [])];
+                            next[idx] = { ...next[idx], tag: e.target.value };
+                            updateFormData({
+                              photoP03: { ...formData.photoP03, additionalPhotos: next },
+                            });
+                          }}
+                          options={P03_TAGS.map((t) => ({ value: t, label: t }))}
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const next = (formData.photoP03.additionalPhotos || []).filter((_, i) => i !== idx);
+                          updateFormData({
+                            photoP03: { ...formData.photoP03, additionalPhotos: next },
+                          });
+                        }}
+                        className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-md transition-colors"
+                        title="Xóa ảnh này"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                  <PhotoCaptureInput
+                    label={`Chụp ảnh mặt bên/sau (${extraPhoto.tag || 'Bổ sung'}):`}
+                    value={extraPhoto.url}
+                    photoCode={extraPhoto.photoCode}
+                    onChange={(url, code) => {
+                      const next = [...(formData.photoP03.additionalPhotos || [])];
+                      next[idx] = { ...next[idx], url, photoCode: code };
+                      updateFormData({
+                        photoP03: { ...formData.photoP03, additionalPhotos: next },
+                      });
+                    }}
+                    recommendedOrientation="portrait"
+                    orientationHint="Khuyến nghị: Chụp ảnh DỌC (3:4) để lấy chiều cao khối hông"
+                    watermarkOptions={{
+                      parcelCode: formData.projectParcelCode,
+                      floor: 'EXT',
+                      photoType: 'P03',
+                      zoneOrRoom: extraPhoto.tag || 'MAT-BEN',
+                      photoIndex: idx + 2,
+                    }}
+                    height="125px"
+                  />
+                </div>
+              ))}
+
+              {/* Nút thêm ảnh P-03 phụ nếu chưa đạt giới hạn 3 ảnh */}
+              {(formData.photoP03.additionalPhotos || []).length < 2 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const currentExtras = formData.photoP03.additionalPhotos || [];
+                    const usedTags = [formData.photoP03.tag || P03_TAGS[0], ...currentExtras.map((p) => p.tag)];
+                    const nextTag = P03_TAGS.find((t) => !usedTags.includes(t)) || 'Khác';
+                    updateFormData({
+                      photoP03: {
+                        ...formData.photoP03,
+                        additionalPhotos: [...currentExtras, { url: '', tag: nextTag, photoCode: '' }],
+                      },
+                    });
+                  }}
+                  className="w-full py-2 px-3 border border-dashed border-sky-400 bg-sky-50/60 hover:bg-sky-50 text-sky-700 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-2xs"
+                >
+                  <Plus className="w-3.5 h-3.5 text-sky-600" />
+                  <span>Thêm mặt bên / mặt sau khác (Còn lại: {2 - (formData.photoP03.additionalPhotos || []).length} ảnh)</span>
+                </button>
+              )}
             </div>
           )}
         </div>

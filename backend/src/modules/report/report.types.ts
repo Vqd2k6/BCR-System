@@ -214,6 +214,7 @@ export interface ResidentialReportViewModel {
   isYearEstimated: boolean;
   asBuiltDrawingPhotoUrl?: string;
   asBuiltDrawingFiles?: string[];
+  asBuiltDrawingPhotos?: Array<{ url: string; pageNote?: string; photoCode?: string }>;
   isAbsenteeSurvey?: boolean;
   absenteeReason?: string;
   vacantLandStatus?: string;
@@ -250,7 +251,7 @@ export interface ResidentialReportViewModel {
   underConstructionPhotos?: string[];
   constructionStageNotes?: string;
   p03Tag?: string;
-  p03AdditionalPhotos?: string[];
+  p03AdditionalPhotos?: Array<{ url: string; tag?: string; photoCode?: string } | string>;
 
   // 4. Scope & Access Limitations (Step 5)
   surveyScopeItems?: {
@@ -311,6 +312,9 @@ export interface ResidentialReportViewModel {
   buildingTiltPhotoUrl?: string;
   diffSettlementPhotoUrl?: string;
   beamSaggingPhotoUrl?: string;
+  diffSettlementPhotos?: Array<{ url: string; photoCode?: string; caption?: string }>;
+  tiltPhotos?: Array<{ url: string; photoCode?: string; caption?: string }>;
+  abnormalPhotos?: Array<{ url: string; photoCode?: string; caption?: string }>;
   diffSettlementLevel?: number;
   diffSettlementPosition?: string;
   diffSettlementNotes?: string;

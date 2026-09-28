@@ -3,9 +3,93 @@ import { Card } from '../../../../core/components/ui/Card';
 import { Input } from '../../../../core/components/ui/FormControls';
 import { PhotoCaptureInput } from '../../../../components/common/PhotoCaptureInput';
 import { LevelSelectorWithGuide } from '../LevelSelectorWithGuide';
-import { Building } from 'lucide-react';
-import { Phase1SurveyFormData } from '../../types/phase1.types';
+import { Building, Plus, Trash2 } from 'lucide-react';
+import { Phase1SurveyFormData, EvidencePhotoItem } from '../../types/phase1.types';
 import { SETTLEMENT_LEVEL_OPTIONS, TILT_LEVEL_OPTIONS, DATA_SOURCES } from './step1.constants';
+
+interface MultiEvidencePhotoInputProps {
+  primaryLabel: string;
+  photos: EvidencePhotoItem[];
+  onChange: (photos: EvidencePhotoItem[]) => void;
+  photoType: string;
+  parcelCode: string;
+  recommendedOrientation?: 'portrait' | 'landscape';
+  orientationHint?: string;
+  addLabel: string;
+}
+
+const MultiEvidencePhotoInput: React.FC<MultiEvidencePhotoInputProps> = ({
+  primaryLabel,
+  photos,
+  onChange,
+  photoType,
+  parcelCode,
+  recommendedOrientation = 'landscape',
+  orientationHint,
+  addLabel,
+}) => {
+  const list = photos.length > 0 ? photos : [{ url: '', photoCode: '', notes: '' }];
+
+  const handleUpdate = (index: number, url: string, code?: string) => {
+    const next = [...list];
+    next[index] = { ...next[index], url, photoCode: code };
+    onChange(next);
+  };
+
+  const handleRemove = (index: number) => {
+    const next = list.filter((_, i) => i !== index);
+    onChange(next.length > 0 ? next : [{ url: '', photoCode: '', notes: '' }]);
+  };
+
+  const handleAdd = () => {
+    onChange([...list, { url: '', photoCode: '', notes: '' }]);
+  };
+
+  return (
+    <div className="space-y-2.5">
+      {list.map((item, idx) => (
+        <div key={idx} className="p-2 bg-slate-50/80 rounded-lg border border-slate-200 space-y-1.5">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-slate-700">
+              {idx === 0 ? primaryLabel : `${primaryLabel} (Ảnh ${idx + 1}):`}
+            </span>
+            {idx > 0 && (
+              <button
+                type="button"
+                onClick={() => handleRemove(idx)}
+                className="text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-50 transition-colors"
+                title="Xóa ảnh này"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+          <PhotoCaptureInput
+            value={item.url}
+            photoCode={item.photoCode}
+            onChange={(url, code) => handleUpdate(idx, url, code)}
+            recommendedOrientation={recommendedOrientation}
+            orientationHint={orientationHint}
+            watermarkOptions={{
+              parcelCode,
+              photoType,
+              photoIndex: idx + 1,
+            }}
+            height="120px"
+          />
+        </div>
+      ))}
+      <button
+        type="button"
+        onClick={handleAdd}
+        className="w-full py-2 px-3 border border-dashed border-emerald-400 bg-emerald-50/50 hover:bg-emerald-50 text-emerald-700 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-2xs"
+      >
+        <Plus className="w-3.5 h-3.5 text-emerald-600" />
+        <span>{addLabel}</span>
+      </button>
+    </div>
+  );
+};
 
 interface Step1SettlementTiltSectionProps {
   formData: Phase1SurveyFormData;
@@ -66,29 +150,26 @@ export const Step1SettlementTiltSection: React.FC<Step1SettlementTiltSectionProp
               />
             )}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <PhotoCaptureInput
-                label={(formData.settlementTilt?.diffSettlement?.level ?? 0) > 0 ? "Ảnh chụp vị trí lún chênh / chân tường:" : "Ảnh chụp hiện trạng chân tường / nền nhà (Minh chứng không lún):"}
-                value={formData.settlementTilt?.diffSettlement?.photoUrl || ''}
-                photoCode={formData.settlementTilt?.diffSettlement?.photoCode}
-                onChange={(url, code) =>
+              <MultiEvidencePhotoInput
+                primaryLabel={(formData.settlementTilt?.diffSettlement?.level ?? 0) > 0 ? "Ảnh chụp vị trí lún chênh / chân tường:" : "Ảnh chụp hiện trạng chân tường / nền nhà (Minh chứng không lún):"}
+                photos={formData.settlementTilt?.diffSettlement?.photos || (formData.settlementTilt?.diffSettlement?.photoUrl ? [{ url: formData.settlementTilt.diffSettlement.photoUrl, photoCode: formData.settlementTilt.diffSettlement.photoCode }] : [])}
+                onChange={(photos) =>
                   updateFormData({
                     settlementTilt: {
                       ...formData.settlementTilt,
                       diffSettlement: {
                         ...formData.settlementTilt.diffSettlement,
-                        photoUrl: url,
-                        photoCode: code,
+                        photos,
+                        photoUrl: photos[0]?.url || '',
+                        photoCode: photos[0]?.photoCode || '',
                       },
                     },
                   })
                 }
+                photoType="SETTLE"
+                parcelCode={formData.projectParcelCode}
                 recommendedOrientation="landscape"
-                watermarkOptions={{
-                  parcelCode: formData.projectParcelCode,
-                  photoType: 'SETTLE',
-                  photoIndex: 1,
-                }}
-                height="120px"
+                addLabel="Chụp thêm ảnh lún / chân tường"
               />
               <div>
                 <label className="text-xs font-bold text-slate-700 block mb-1">
@@ -177,29 +258,26 @@ export const Step1SettlementTiltSection: React.FC<Step1SettlementTiltSectionProp
             )}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <PhotoCaptureInput
-                label={(formData.settlementTilt?.buildingTilt?.level ?? 0) > 0 ? "Ảnh chụp độ nghiêng khối nhà / thước đo Laser/Nivo:" : "Ảnh chụp mặt đứng công trình (Minh chứng không nghiêng):"}
-                value={formData.settlementTilt?.buildingTilt?.photoUrl || ''}
-                photoCode={formData.settlementTilt?.buildingTilt?.photoCode}
-                onChange={(url, code) =>
+              <MultiEvidencePhotoInput
+                primaryLabel={(formData.settlementTilt?.buildingTilt?.level ?? 0) > 0 ? "Ảnh chụp độ nghiêng khối nhà / thước đo Laser/Nivo:" : "Ảnh chụp mặt đứng công trình (Minh chứng không nghiêng):"}
+                photos={formData.settlementTilt?.buildingTilt?.photos || (formData.settlementTilt?.buildingTilt?.photoUrl ? [{ url: formData.settlementTilt.buildingTilt.photoUrl, photoCode: formData.settlementTilt.buildingTilt.photoCode }] : [])}
+                onChange={(photos) =>
                   updateFormData({
                     settlementTilt: {
                       ...formData.settlementTilt,
                       buildingTilt: {
                         ...formData.settlementTilt.buildingTilt,
-                        photoUrl: url,
-                        photoCode: code,
+                        photos,
+                        photoUrl: photos[0]?.url || '',
+                        photoCode: photos[0]?.photoCode || '',
                       },
                     },
                   })
                 }
+                photoType="TILT"
+                parcelCode={formData.projectParcelCode}
                 recommendedOrientation="portrait"
-                watermarkOptions={{
-                  parcelCode: formData.projectParcelCode,
-                  photoType: 'TILT',
-                  photoIndex: 1,
-                }}
-                height="120px"
+                addLabel="Chụp thêm ảnh mặt đứng / độ nghiêng"
               />
               <div>
                 <label className="text-xs font-bold text-slate-700 block mb-1">
@@ -233,29 +311,26 @@ export const Step1SettlementTiltSection: React.FC<Step1SettlementTiltSectionProp
             3. Trường Hợp Ngoại Lệ / Hiện Trạng Bất Thường Khác (Nếu có)
           </span>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <PhotoCaptureInput
-              label="Ảnh chụp trường hợp bất thường / ngoại lệ:"
-              value={formData.settlementTilt?.abnormalCase?.photoUrl || ''}
-              photoCode={formData.settlementTilt?.abnormalCase?.photoCode}
-              onChange={(url, code) =>
+            <MultiEvidencePhotoInput
+              primaryLabel="Ảnh chụp trường hợp bất thường / ngoại lệ:"
+              photos={formData.settlementTilt?.abnormalCase?.photos || (formData.settlementTilt?.abnormalCase?.photoUrl ? [{ url: formData.settlementTilt.abnormalCase.photoUrl, photoCode: formData.settlementTilt.abnormalCase.photoCode }] : [])}
+              onChange={(photos) =>
                 updateFormData({
                   settlementTilt: {
                     ...formData.settlementTilt,
                     abnormalCase: {
                       ...formData.settlementTilt?.abnormalCase,
-                      photoUrl: url,
-                      photoCode: code,
+                      photos,
+                      photoUrl: photos[0]?.url || '',
+                      photoCode: photos[0]?.photoCode || '',
                     },
                   },
                 })
               }
+              photoType="ANOMALY"
+              parcelCode={formData.projectParcelCode}
               recommendedOrientation="landscape"
-              watermarkOptions={{
-                parcelCode: formData.projectParcelCode,
-                photoType: 'ANOMALY',
-                photoIndex: 1,
-              }}
-              height="120px"
+              addLabel="Chụp thêm ảnh hiện trạng bất thường"
             />
             <div>
               <label className="text-xs font-bold text-slate-700 block mb-1">

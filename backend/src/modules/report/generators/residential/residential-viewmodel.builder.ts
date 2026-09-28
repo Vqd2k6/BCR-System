@@ -295,7 +295,7 @@ export function buildResidentialViewModel(reportData: any): ResidentialReportVie
   const foundationDepthM = json.foundationDepthM !== undefined && json.foundationDepthM !== null && json.foundationDepthM !== ''
     ? json.foundationDepthM
     : (specs.foundation_depth_m || '--');
-  const pileDimensionMm = json.pileDimensionMm || (json.pileWidthMm && json.pileLengthMm ? `${json.pileWidthMm} x ${json.pileLengthMm} mm` : '');
+  const pileDimensionMm = json.pileDimensionMm || (json.pileWidthMm && json.pileLengthMm ? `${json.pileWidthMm} x ${json.pileLengthMm} cm` : '');
 
   // Đánh giá Burland
   const rawBurland = json.burlandSummary || {};
@@ -391,7 +391,10 @@ export function buildResidentialViewModel(reportData: any): ResidentialReportVie
     estimatedHeightM: json.buildingHeightM || (specs.building_height_m ? Number(specs.building_height_m) : ''),
     yearOfConstruction: json.constructionYear || specs.year_of_construction || '',
     isYearEstimated: Boolean(json.isEstimatedYear !== undefined ? json.isEstimatedYear : specs.is_year_estimated),
-    asBuiltDrawingPhotoUrl: json.asBuiltDrawingPhotoUrl || '',
+    asBuiltDrawingPhotoUrl: json.asBuiltDrawingPhotoUrl || (Array.isArray(json.asBuiltDrawingPhotos) && json.asBuiltDrawingPhotos[0]?.url) || (Array.isArray(specs.as_built_drawing_photos_json) && specs.as_built_drawing_photos_json[0]?.url) || '',
+    asBuiltDrawingPhotos: Array.isArray(json.asBuiltDrawingPhotos) && json.asBuiltDrawingPhotos.length > 0
+      ? json.asBuiltDrawingPhotos
+      : (Array.isArray(specs.as_built_drawing_photos_json) ? specs.as_built_drawing_photos_json : []),
     asBuiltDrawingFiles: Array.isArray(json.asBuiltDrawingFiles) ? json.asBuiltDrawingFiles : [],
     isAbsenteeSurvey: Boolean(json.isAbsenteeSurvey),
     absenteeReason: json.absenteeReason || '',
@@ -429,7 +432,13 @@ export function buildResidentialViewModel(reportData: any): ResidentialReportVie
     underConstructionPhotos: (json.underConstructionPhotos || []).filter(Boolean),
     constructionStageNotes: json.constructionStageNotes || '',
     p03Tag: p03.tag || json.photoP03?.tag || 'Bên hông trái',
-    p03AdditionalPhotos: (json.photoP03?.additionalPhotos || []).filter(Boolean),
+    p03AdditionalPhotos: (Array.isArray(json.photoP03?.additionalPhotos) && json.photoP03.additionalPhotos.length > 0)
+      ? json.photoP03.additionalPhotos
+      : (identPhotos.filter((p: any) => p.photo_type === 'P03_SIDE_OR_REAR').slice(1).map((p: any) => ({
+          url: p.raw_photo_url || p.annotated_photo_url,
+          tag: p.dimensions_json?.tag || 'Mặt bên bổ sung',
+          photoCode: p.photo_code || 'P03-EXTRA',
+        }))),
 
     // Scope & Access Limitations
     surveyScopeItems: (() => {
@@ -537,6 +546,15 @@ export function buildResidentialViewModel(reportData: any): ResidentialReportVie
     buildingTiltPhotoUrl: json.settlementTilt?.buildingTilt?.photoUrl || '',
     diffSettlementPhotoUrl: json.settlementTilt?.diffSettlement?.photoUrl || '',
     beamSaggingPhotoUrl: json.settlementTilt?.beamSagging?.photoUrl || '',
+    diffSettlementPhotos: Array.isArray(json.settlementTilt?.diffSettlement?.photos) && json.settlementTilt.diffSettlement.photos.length > 0
+      ? json.settlementTilt.diffSettlement.photos
+      : (Array.isArray(deformation.diff_settlement_photos_json) ? deformation.diff_settlement_photos_json : []),
+    tiltPhotos: Array.isArray(json.settlementTilt?.buildingTilt?.photos) && json.settlementTilt.buildingTilt.photos.length > 0
+      ? json.settlementTilt.buildingTilt.photos
+      : (Array.isArray(deformation.tilt_photos_json) ? deformation.tilt_photos_json : []),
+    abnormalPhotos: Array.isArray(json.settlementTilt?.abnormalCase?.photos) && json.settlementTilt.abnormalCase.photos.length > 0
+      ? json.settlementTilt.abnormalCase.photos
+      : (Array.isArray(deformation.abnormal_photos_json) ? deformation.abnormal_photos_json : []),
     diffSettlementLevel: json.settlementTilt?.diffSettlement?.level !== undefined ? Number(json.settlementTilt.diffSettlement.level) : 0,
     diffSettlementPosition: json.settlementTilt?.diffSettlement?.position || '',
     diffSettlementNotes: json.settlementTilt?.diffSettlement?.notes || '',

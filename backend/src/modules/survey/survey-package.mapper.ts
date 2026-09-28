@@ -25,6 +25,9 @@ export class SurveyPackageMapper {
       p02NotApplicable: surveyData?.step1Photos?.p02NotApplicable ?? p02.notApplicable ?? false,
       p02NaReason: surveyData?.step1Photos?.p02NaReason || p02.naReason,
       p03SideRearUrl: surveyData?.step1Photos?.p03SideRearUrl || p03.url || null,
+      p03PhotoCode: p03.photoCode || null,
+      p03Tag: p03.tag || 'Bên hông trái',
+      p03AdditionalPhotos: Array.isArray(p03.additionalPhotos) ? p03.additionalPhotos : [],
       p03NotApplicable: surveyData?.step1Photos?.p03NotApplicable ?? p03.notApplicable ?? false,
       p04ContextStreetUrl: surveyData?.step1Photos?.p04ContextStreetUrl || p04.url || null,
       p04NotApplicable: surveyData?.step1Photos?.p04NotApplicable ?? p04.notApplicable ?? false,
@@ -72,6 +75,8 @@ export class SurveyPackageMapper {
       foundationDensity: surveyData?.specs?.foundationDensity ?? surveyData?.foundationDensity,
       foundationSpacingM: surveyData?.specs?.foundationSpacingM ?? surveyData?.foundationSpacingM,
       foundationNotes: surveyData?.specs?.foundationNotes ?? surveyData?.foundationNotes,
+      asBuiltDrawingPhotoUrl: surveyData?.asBuiltDrawingPhotoUrl || (Array.isArray(surveyData?.asBuiltDrawingPhotos) && surveyData.asBuiltDrawingPhotos[0]?.url) || null,
+      asBuiltDrawingPhotos: Array.isArray(surveyData?.asBuiltDrawingPhotos) ? surveyData.asBuiltDrawingPhotos : [],
     };
   }
 
@@ -82,6 +87,9 @@ export class SurveyPackageMapper {
     if (surveyData?.settlementTilt) {
       const tilt = surveyData.settlementTilt.buildingTilt || {};
       const sag = surveyData.settlementTilt.beamSagging || {};
+      const settle = surveyData.settlementTilt.diffSettlement || {};
+      const anomaly = surveyData.settlementTilt.abnormalCase || {};
+
       return {
         tiltAngleX: Number(tilt.xPermille) || 0,
         tiltAngleY: Number(tilt.yPermille) || 0,
@@ -95,6 +103,12 @@ export class SurveyPackageMapper {
           surveyData.settlementTilt.reliability === 'MEDIUM' || surveyData.settlementTilt.reliability === 'LOW'
             ? surveyData.settlementTilt.reliability
             : 'HIGH',
+        diffSettlementPhotoCode: settle.photoCode || null,
+        tiltPhotoCode: tilt.photoCode || null,
+        abnormalPhotoCode: anomaly.photoCode || null,
+        diffSettlementPhotos: Array.isArray(settle.photos) ? settle.photos : (settle.photoUrl ? [{ url: settle.photoUrl, photoCode: settle.photoCode }] : []),
+        tiltPhotos: Array.isArray(tilt.photos) ? tilt.photos : (tilt.photoUrl ? [{ url: tilt.photoUrl, photoCode: tilt.photoCode }] : []),
+        abnormalPhotos: Array.isArray(anomaly.photos) ? anomaly.photos : (anomaly.photoUrl ? [{ url: anomaly.photoUrl, photoCode: anomaly.photoCode }] : []),
       };
     } else if (surveyData?.deformation) {
       return {
@@ -105,6 +119,12 @@ export class SurveyPackageMapper {
         beamDeflectionMm: Number(surveyData.deformation.beamDeflectionMm) || 0,
         measurementMethod: surveyData.deformation.measurementMethod || 'LASER_LEVEL',
         measurementReliability: surveyData.deformation.measurementReliability || 'HIGH',
+        diffSettlementPhotoCode: surveyData.deformation.diffSettlementPhotoCode || null,
+        tiltPhotoCode: surveyData.deformation.tiltPhotoCode || null,
+        abnormalPhotoCode: surveyData.deformation.abnormalPhotoCode || null,
+        diffSettlementPhotos: Array.isArray(surveyData.deformation.diffSettlementPhotos) ? surveyData.deformation.diffSettlementPhotos : [],
+        tiltPhotos: Array.isArray(surveyData.deformation.tiltPhotos) ? surveyData.deformation.tiltPhotos : [],
+        abnormalPhotos: Array.isArray(surveyData.deformation.abnormalPhotos) ? surveyData.deformation.abnormalPhotos : [],
       };
     }
     return null;

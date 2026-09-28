@@ -73,12 +73,25 @@ export interface HistoryInterviewState {
   continuousOperation247: boolean;
 }
 
+export interface EvidencePhotoItem {
+  url: string;
+  photoCode?: string;
+  notes?: string;
+}
+
+export interface P03PhotoItem {
+  url: string;
+  photoCode?: string;
+  tag: string;
+}
+
 export interface SettlementTiltState {
   diffSettlement: {
     level: number; // 0..4
     position: string;
     photoUrl?: string;
     photoCode?: string;
+    photos?: EvidencePhotoItem[];
     notes?: string;
   };
   buildingTilt: {
@@ -88,6 +101,7 @@ export interface SettlementTiltState {
     direction?: string;
     photoUrl?: string;
     photoCode?: string;
+    photos?: EvidencePhotoItem[];
     notes?: string;
   };
   beamSagging: {
@@ -102,6 +116,7 @@ export interface SettlementTiltState {
   abnormalCase?: {
     photoUrl?: string;
     photoCode?: string;
+    photos?: EvidencePhotoItem[];
     notes?: string;
   };
   dataSource: string[];
@@ -200,7 +215,7 @@ export interface Phase1SurveyFormData {
     photoCode?: string;
     notApplicable: boolean;
     tag?: string;
-    additionalPhotos?: { url: string; tag: string; photoCode?: string }[];
+    additionalPhotos?: P03PhotoItem[];
   };
   photoP04: { url: string; photoCode?: string; notApplicable: boolean };
 
@@ -223,6 +238,7 @@ export interface Phase1SurveyFormData {
   foundationSpacingM?: number | ''; // Khoảng cách giữa các móng (m)
   foundationNotes?: string; // Ghi chú về móng
   asBuiltDrawingPhotoUrl?: string;
+  asBuiltDrawingPhotos?: EvidencePhotoItem[];
   asBuiltDrawingFiles: { id: string; name: string; url: string }[];
   foundationCatScore: number; // 1..5
 

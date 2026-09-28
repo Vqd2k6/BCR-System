@@ -9,6 +9,9 @@ async function bootstrap() {
   const health = await Database.healthCheck();
   console.log(`[DATABASE CONNECTED] Status: ${health.status}, PostGIS: ${health.postgisVersion || 'N/A'}`);
 
+  // Tự động kiểm tra và chạy các migration phòng vệ nếu thiếu cột
+  await Database.runStartupMigrations();
+
   app.listen(config.port, () => {
     console.log(`================================================================`);
     console.log(`🚀 METRO 2 SURVEY BACKEND API SERVICE IS RUNNING`);

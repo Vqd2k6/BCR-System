@@ -12,7 +12,10 @@ import {
   FileX,
   Zap,
   AlertTriangle,
+  Plus,
+  Trash2,
 } from 'lucide-react';
+import { EvidencePhotoItem } from '../types/phase1.types';
 
 const USAGE_OPTIONS = [
   'Nhà ở gia đình',
@@ -274,7 +277,7 @@ export const Step2_OwnerInterview: React.FC = () => {
                   const other = formData.pileLengthMm ?? '';
                   updateFormData({
                     pileWidthMm: val,
-                    pileDimensionMm: val && other ? `${val} x ${other} mm` : val ? `${val} mm` : '',
+                    pileDimensionMm: val && other ? `${val} x ${other} cm` : val ? `${val} cm` : '',
                   });
                 }}
               />
@@ -288,13 +291,13 @@ export const Step2_OwnerInterview: React.FC = () => {
                   const other = formData.pileWidthMm ?? '';
                   updateFormData({
                     pileLengthMm: val,
-                    pileDimensionMm: other && val ? `${other} x ${val} mm` : val ? `${val} mm` : '',
+                    pileDimensionMm: other && val ? `${other} x ${val} cm` : val ? `${val} cm` : '',
                   });
                 }}
               />
-              <span className="text-xs font-bold text-slate-500 whitespace-nowrap pl-1">mm</span>
+              <span className="text-xs font-bold text-slate-500 whitespace-nowrap pl-1">cm</span>
             </div>
-            <span className="text-[11px] text-slate-400 italic">VD: 250 x 250 mm hoặc D600 mm (để trống nếu không rõ)</span>
+            <span className="text-[11px] text-slate-400 italic">VD: 25 x 25 cm hoặc D60 cm (để trống nếu không rõ)</span>
           </div>
 
           {/* Thông số móng bổ sung */}
@@ -444,12 +447,99 @@ export const Step2_OwnerInterview: React.FC = () => {
           {/* Detailed Sub-Options */}
           {hasDrawingOption === 'HAS_DRAWING' && (
             <div id="as-built-drawing-section" className="p-3.5 rounded-xl bg-white border border-emerald-200 space-y-3 animate-in fade-in">
-              <PhotoCaptureInput
-                label="Chụp ảnh / Tải lên bản vẽ hoàn công / kết cấu: *"
-                value={formData.asBuiltDrawingPhotoUrl || ''}
-                onChange={(url) => updateFormData({ asBuiltDrawingPhotoUrl: url })}
-                watermarkText="BẢN VẼ HOÀN CÔNG"
-              />
+              <div className="space-y-3">
+                <span className="text-xs font-bold text-slate-800 block">
+                  Chụp ảnh / Tải lên bản vẽ hoàn công / kết cấu: * (Có thể tải nhiều trang)
+                </span>
+                {(() => {
+                  const asBuiltPhotos: EvidencePhotoItem[] =
+                    formData.asBuiltDrawingPhotos && formData.asBuiltDrawingPhotos.length > 0
+                      ? formData.asBuiltDrawingPhotos
+                      : formData.asBuiltDrawingPhotoUrl
+                      ? [{ url: formData.asBuiltDrawingPhotoUrl, photoCode: '', notes: '' }]
+                      : [{ url: '', photoCode: '', notes: '' }];
+
+                  const handleUpdateDrawing = (idx: number, url: string, code?: string, notes?: string) => {
+                    const next = [...asBuiltPhotos];
+                    next[idx] = {
+                      ...next[idx],
+                      url,
+                      photoCode: code !== undefined ? code : next[idx]?.photoCode,
+                      notes: notes !== undefined ? notes : next[idx]?.notes,
+                    };
+                    updateFormData({
+                      asBuiltDrawingPhotos: next,
+                      asBuiltDrawingPhotoUrl: next[0]?.url || '',
+                    });
+                  };
+
+                  const handleAddDrawing = () => {
+                    const next = [...asBuiltPhotos, { url: '', photoCode: '', notes: '' }];
+                    updateFormData({
+                      asBuiltDrawingPhotos: next,
+                      asBuiltDrawingPhotoUrl: next[0]?.url || '',
+                    });
+                  };
+
+                  const handleRemoveDrawing = (idx: number) => {
+                    const next = asBuiltPhotos.filter((_, i) => i !== idx);
+                    const finalNext = next.length > 0 ? next : [{ url: '', photoCode: '', notes: '' }];
+                    updateFormData({
+                      asBuiltDrawingPhotos: finalNext,
+                      asBuiltDrawingPhotoUrl: finalNext[0]?.url || '',
+                    });
+                  };
+
+                  return (
+                    <div className="space-y-3">
+                      {asBuiltPhotos.map((item, idx) => (
+                        <div key={idx} className="p-3 bg-slate-50/80 rounded-xl border border-slate-200 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs font-bold text-emerald-800">
+                              {idx === 0 ? 'Bản vẽ 1 (Trang chính):' : `Bản vẽ ${idx + 1} (Bổ sung):`}
+                            </span>
+                            {idx > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveDrawing(idx)}
+                                className="text-red-500 hover:text-red-700 p-1 rounded hover:bg-red-50 transition-colors"
+                                title="Xóa trang bản vẽ này"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                          <PhotoCaptureInput
+                            value={item.url}
+                            photoCode={item.photoCode}
+                            onChange={(url, code) => handleUpdateDrawing(idx, url, code)}
+                            watermarkText="BẢN VẼ HOÀN CÔNG"
+                            watermarkOptions={{
+                              parcelCode: formData.projectParcelCode,
+                              photoType: 'DOC',
+                              photoIndex: idx + 1,
+                            }}
+                            height="130px"
+                          />
+                          <Input
+                            placeholder="Ghi chú nội dung trang (VD: Mặt bằng móng cọc / Chi tiết đài cọc)..."
+                            value={item.notes || ''}
+                            onChange={(e) => handleUpdateDrawing(idx, item.url, item.photoCode, e.target.value)}
+                          />
+                        </div>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={handleAddDrawing}
+                        className="w-full py-2 px-3 border border-dashed border-emerald-500 bg-emerald-50/60 hover:bg-emerald-50 text-emerald-700 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all shadow-2xs"
+                      >
+                        <Plus className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>Thêm trang / ảnh bản vẽ khác</span>
+                      </button>
+                    </div>
+                  );
+                })()}
+              </div>
 
               <span className="text-xs font-bold text-slate-700 block">
                 Nguồn gốc của bản vẽ:

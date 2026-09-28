@@ -478,7 +478,11 @@ export const validateStep = (step: number, formData: Phase1SurveyFormData): Step
     }
 
     // Trường hợp A: Có bản vẽ hoàn công/thiết kế bắt buộc ảnh bản vẽ
-    if ((formData.foundationCatScore === 1 || formData.foundationCatScore === 2) && !formData.asBuiltDrawingPhotoUrl) {
+    const hasDrawing =
+      Boolean(formData.asBuiltDrawingPhotoUrl && formData.asBuiltDrawingPhotoUrl.trim() !== '') ||
+      Boolean(formData.asBuiltDrawingPhotos && formData.asBuiltDrawingPhotos.some((p) => p.url && p.url.trim() !== ''));
+
+    if ((formData.foundationCatScore === 1 || formData.foundationCatScore === 2) && !hasDrawing) {
       missing.push({
         fieldId: 'as-built-drawing-section',
         label: '2.1. Bản vẽ hoàn công / kết cấu (Trường hợp A) *',

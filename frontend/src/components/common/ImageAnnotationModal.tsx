@@ -23,7 +23,7 @@ export interface ImageAnnotationModalProps {
 
 type AnnotationType =
   | { type: 'PEN'; points: { x: number; y: number }[]; color: string; width: number }
-  | { type: 'ARROW'; from: { x: number; y: number }; to: { x: number; y: number }; color: string; width: number; label?: string }
+  | { type: 'ARROW'; from: { x: number; y: number }; to: { x: number; y: number }; color: string; width: number }
   | { type: 'CIRCLE'; cx: number; cy: number; rx: number; ry: number; color: string; width: number }
   | { type: 'RECT'; x: number; y: number; w: number; h: number; color: string; width: number }
   | { type: 'TEXT'; x: number; y: number; text: string; color: string; fontSize: number };
@@ -51,7 +51,6 @@ export const ImageAnnotationModal: React.FC<ImageAnnotationModalProps> = ({
   const [activeTool, setActiveTool] = useState<'ARROW' | 'PEN' | 'CIRCLE' | 'RECT' | 'TEXT'>(initialTool);
   const [selectedColor, setSelectedColor] = useState<string>('#ef4444');
   const [lineWidth, setLineWidth] = useState<number>(3);
-  const [arrowLabel, setArrowLabel] = useState<string>('Công trình khảo sát');
   const [customText, setCustomText] = useState<string>('');
 
   const [annotations, setAnnotations] = useState<AnnotationType[]>([]);
@@ -109,7 +108,7 @@ export const ImageAnnotationModal: React.FC<ImageAnnotationModalProps> = ({
         }
         ctx.stroke();
       } else if (activeTool === 'ARROW') {
-        drawArrow(ctx, startPos.x, startPos.y, previewPos.x, previewPos.y, selectedColor, lineWidth, arrowLabel);
+        drawArrow(ctx, startPos.x, startPos.y, previewPos.x, previewPos.y, selectedColor, lineWidth);
       } else if (activeTool === 'RECT') {
         const x = Math.min(startPos.x, previewPos.x);
         const y = Math.min(startPos.y, previewPos.y);
@@ -154,7 +153,7 @@ export const ImageAnnotationModal: React.FC<ImageAnnotationModalProps> = ({
       }
       ctx.stroke();
     } else if (item.type === 'ARROW') {
-      drawArrow(ctx, item.from.x, item.from.y, item.to.x, item.to.y, item.color, item.width, item.label);
+      drawArrow(ctx, item.from.x, item.from.y, item.to.x, item.to.y, item.color, item.width);
     } else if (item.type === 'RECT') {
       ctx.beginPath();
       ctx.strokeStyle = item.color;
@@ -190,8 +189,7 @@ export const ImageAnnotationModal: React.FC<ImageAnnotationModalProps> = ({
     toX: number,
     toY: number,
     color: string,
-    width: number,
-    label?: string
+    width: number
   ) => {
     ctx.save();
     ctx.strokeStyle = color;
@@ -222,21 +220,6 @@ export const ImageAnnotationModal: React.FC<ImageAnnotationModalProps> = ({
     ctx.arc(fromX, fromY, width * 1.5, 0, Math.PI * 2);
     ctx.fill();
 
-    // Optional text label near start of arrow
-    if (label && label.trim().length > 0) {
-      const fontSize = Math.max(13, width * 3.5);
-      ctx.font = `bold ${fontSize}px sans-serif`;
-      const metrics = ctx.measureText(label);
-      const pad = 6;
-      const labelX = fromX - metrics.width / 2;
-      const labelY = fromY - 14;
-
-      ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
-      ctx.fillRect(labelX - pad, labelY - fontSize, metrics.width + pad * 2, fontSize + pad);
-
-      ctx.fillStyle = color;
-      ctx.fillText(label, labelX, labelY - 2);
-    }
     ctx.restore();
   };
 
@@ -332,7 +315,6 @@ export const ImageAnnotationModal: React.FC<ImageAnnotationModalProps> = ({
             to: previewPos,
             color: selectedColor,
             width: lineWidth,
-            label: arrowLabel,
           },
         ]);
       }
@@ -500,11 +482,13 @@ export const ImageAnnotationModal: React.FC<ImageAnnotationModalProps> = ({
             <select
               value={lineWidth}
               onChange={(e) => setLineWidth(Number(e.target.value))}
-              className="bg-white text-slate-800 border border-slate-300 rounded-lg px-2 py-1 text-xs focus:ring-1 focus:ring-sky-500"
+              className="bg-white text-slate-800 border border-slate-300 rounded-lg px-2 py-1 text-xs focus:ring-1 focus:ring-sky-500 font-medium"
             >
               <option value={2}>Nét mảnh (2px)</option>
               <option value={3}>Nét vừa (3px)</option>
               <option value={5}>Nét đậm (5px)</option>
+              <option value={7}>Nét rất đậm (7px)</option>
+              <option value={10}>Nét siêu đậm (10px)</option>
             </select>
 
             {/* Undo & Clear */}
@@ -531,21 +515,7 @@ export const ImageAnnotationModal: React.FC<ImageAnnotationModalProps> = ({
         </div>
 
         {/* Extra option input based on tool */}
-        {activeTool === 'ARROW' && (
-          <div className="flex items-center gap-2 px-4 py-1.5 bg-sky-50/70 border-b border-sky-100 text-xs">
-            <span className="text-sky-900 font-semibold">Nhãn gắn mũi tên:</span>
-            <input
-              type="text"
-              value={arrowLabel}
-              onChange={(e) => setArrowLabel(e.target.value)}
-              placeholder="VD: Công trình khảo sát / Vết nứt D-01"
-              className="bg-white border border-slate-300 rounded px-2 py-0.5 text-xs text-slate-900 flex-1 max-w-xs focus:ring-1 focus:ring-sky-500"
-            />
-            <span className="text-slate-500 text-[11px] italic">
-              * Kéo từ vị trí nhãn và thả tại ngôi nhà/vết nứt mục tiêu
-            </span>
-          </div>
-        )}
+
 
         {activeTool === 'TEXT' && (
           <div className="flex items-center gap-2 px-4 py-1.5 bg-sky-50/70 border-b border-sky-100 text-xs">

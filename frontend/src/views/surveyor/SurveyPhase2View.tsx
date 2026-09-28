@@ -645,7 +645,7 @@ export const SurveyPhase2View: React.FC<Props> = ({ initialParcelId, onFinished 
                 style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}
               >
                 <Plus size={14} />
-                <span>+ Thêm Vết Nứt Mới (GĐ2)</span>
+                <span>Thêm Vết Nứt Mới (GĐ2)</span>
               </button>
             </div>
 
