@@ -79,7 +79,7 @@ export class AuditService {
     let whereClause = `WHERE a.is_resolved = $1`;
     const params: any[] = [filters.isResolved ?? false];
 
-    if (filters.zoneId) {
+    if (filters.zoneId && filters.zoneId.toUpperCase() !== 'ALL' && filters.zoneId.toUpperCase() !== 'ALL_ZONES') {
       params.push(filters.zoneId);
       whereClause += ` AND p.zone_id = $${params.length}`;
     }
@@ -310,11 +310,26 @@ export class AuditService {
   }
 
   static async getProgressAnalytics(zoneId?: string) {
+    const zoneMapping: Record<string, string> = {
+      'ZONE_S1': 'ZONE_01', 'ZONE_S2': 'ZONE_03', 'ZONE_S3': 'ZONE_05',
+      'ZONE_S4': 'ZONE_07', 'ZONE_S5': 'ZONE_09', 'ZONE_S6': 'ZONE_11',
+      'ZONE_S7': 'ZONE_13', 'ZONE_S8': 'ZONE_15', 'ZONE_S9': 'ZONE_17',
+      'ZONE_S10': 'ZONE_19', 'ZONE_S11': 'ZONE_21',
+      'ZONE_01': 'ZONE_S1', 'ZONE_03': 'ZONE_S2', 'ZONE_05': 'ZONE_S3',
+      'ZONE_07': 'ZONE_S4', 'ZONE_09': 'ZONE_S5', 'ZONE_11': 'ZONE_S6',
+      'ZONE_13': 'ZONE_S7', 'ZONE_15': 'ZONE_S8', 'ZONE_17': 'ZONE_S9',
+      'ZONE_19': 'ZONE_S10', 'ZONE_21': 'ZONE_S11',
+    };
+
     let whereClause = ``;
     const params: any[] = [];
-    if (zoneId) {
-      params.push(zoneId);
-      whereClause = `WHERE zone_id = $1`;
+    const target = (zoneId || 'ALL').toUpperCase();
+    const isAll = target === 'ALL' || target === 'ALL_ZONES';
+
+    if (!isAll) {
+      const altTarget = zoneMapping[target] || target;
+      params.push(target, altTarget);
+      whereClause = `WHERE (zone_id = $1 OR zone_id = $2)`;
     }
 
     const res = await Database.query(

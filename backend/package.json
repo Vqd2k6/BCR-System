@@ -4,7 +4,7 @@
   "description": "Backend API Service for Metro 2 Building Condition Assessment & Survey Platform",
   "main": "dist/server.js",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && mkdir -p dist/modules/report && cp -r src/modules/report/templates dist/modules/report/",
     "start": "node dist/server.js",
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
     "test": "jest --runInBand --detectOpenHandles",
@@ -50,6 +50,7 @@
     "supertest": "^6.3.4",
     "typescript": "^5.4.5",
     "uuid": "^9.0.1",
+    "docx": "^8.5.0",
     "zod": "^3.22.4"
   },
   "devDependencies": {

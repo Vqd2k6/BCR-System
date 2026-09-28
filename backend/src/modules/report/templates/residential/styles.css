@@ -3,11 +3,6 @@
    TIÊU CHUẨN XUẤT BẢN IN KỸ THUẬT A4 CHUYÊN NGHIỆP CHO MAUR & LIÊN DANH CRLG
    ========================================================================== */
 
-@page {
-  size: A4 portrait;
-  margin: 18mm 15mm 18mm 18mm;
-}
-
 * {
   box-sizing: border-box;
   -webkit-print-color-adjust: exact !important;
@@ -19,14 +14,92 @@ body {
   font-size: 10pt;
   line-height: 1.35;
   color: #1e293b;
-  margin: 0;
-  padding: 0;
-  background-color: #ffffff;
 }
 
-/* --- NGẮT TRANG & BẢO TOÀN KHỐI (PAGE BREAKS) --- */
-.page-break {
-  page-break-before: always;
+/* ==========================================================================
+   CHẾ ĐỘ XEM TRƯỚC MÀN HÌNH (SCREEN PREVIEW - SIMULATE A4 PORTRAIT)
+   Mô phỏng tờ giấy in A4 khổ đứng chuẩn tỷ lệ 210mm x 297mm như Adobe Reader
+   ========================================================================== */
+@media screen {
+  html {
+    background-color: #334155;
+    padding: 24px 0;
+    min-height: 100%;
+  }
+
+  body {
+    width: 210mm;
+    max-width: calc(100% - 24px);
+    min-height: 297mm;
+    margin: 0 auto;
+    padding: 20mm 15mm 20mm 18mm;
+    background-color: #ffffff;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45), 0 2px 8px rgba(0, 0, 0, 0.25);
+    border-radius: 3px;
+    box-sizing: border-box;
+    position: relative;
+  }
+
+  /* Phân cách trực quan giữa các trang in A4 */
+  .page-break {
+    margin: 36px -15mm 36px -18mm;
+    height: 18px;
+    background-color: #1e293b;
+    border-top: 1px dashed #64748b;
+    border-bottom: 1px dashed #64748b;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    page-break-before: always;
+  }
+
+  .page-break::after {
+    content: "✂ TRANG IN A4 MỚI (PAGE BREAK)";
+    background: #0f172a;
+    color: #cbd5e1;
+    font-size: 7.5pt;
+    font-weight: bold;
+    letter-spacing: 1px;
+    padding: 2px 14px;
+    border-radius: 9999px;
+    border: 0.5pt solid #475569;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  }
+}
+
+/* ==========================================================================
+   CHẾ ĐỘ IN ẤN THỰC TẾ & XUẤT PDF (PUPPETEER PRINT)
+   ========================================================================== */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 18mm 15mm 18mm 18mm;
+  }
+
+  html, body {
+    width: auto !important;
+    max-width: none !important;
+    min-height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background-color: #ffffff !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+  }
+
+  .page-break {
+    page-break-before: always !important;
+    height: 0 !important;
+    margin: 0 !important;
+    border: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+
+  .page-break::after {
+    display: none !important;
+  }
 }
 
 .no-break {
@@ -102,6 +175,42 @@ table.tech-table tr:nth-child(even) td {
 .text-center { text-align: center !important; }
 .text-right { text-align: right !important; }
 .font-bold { font-weight: bold !important; }
+
+/* --- BẢNG KIỂM SOÁT TÀI LIỆU TRANG 2 (THEO CHUẨN CRLG) --- */
+table.doc-control-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 6px 0 8px 0;
+  font-size: 8.5pt;
+  break-inside: avoid;
+}
+
+table.doc-control-table th,
+table.doc-control-table td {
+  border: 0.75pt solid #000000;
+  padding: 4px 6px;
+  vertical-align: middle;
+  line-height: 1.35;
+}
+
+table.doc-control-table thead th {
+  background-color: #dbeafe;
+  color: #000000;
+  font-weight: bold;
+  text-align: center;
+}
+
+table.doc-control-table td.col-label {
+  background-color: #dbeafe;
+  font-weight: bold;
+  color: #000000;
+  width: 32%;
+}
+
+table.doc-control-table td.col-val {
+  background-color: #ffffff;
+  color: #000000;
+}
 
 /* --- BADGES VÀ CHỈ SỐ RỦI RO --- */
 .badge {
@@ -186,13 +295,81 @@ table.tech-table tr:nth-child(even) td {
   margin-bottom: 2px;
 }
 
-/* --- KHUNG ẢNH ĐỊNH DANH (P-01 ĐẾN P-04) --- */
+/* --- KHUNG ẢNH ĐỊNH DANH (P-01 ĐẾN P-04) - 3 TẦNG BỐ CỤC (P01 FULL -> P02+P03 2 COL -> P04 FULL) --- */
+.photo-card-full {
+  border: 0.75pt solid #94a3b8;
+  border-radius: 4px;
+  overflow: hidden;
+  background-color: #ffffff;
+  break-inside: avoid;
+  page-break-inside: avoid;
+  margin-bottom: 12px;
+  width: 100%;
+  box-shadow: 0 0.5pt 1.5pt rgba(0, 0, 0, 0.05);
+}
+
+.photo-frame-full {
+  width: 100%;
+  height: auto;
+  background-color: #ffffff;
+  overflow: hidden;
+  position: relative;
+  border-top: 0.5pt solid #e2e8f0;
+  border-bottom: 0.5pt solid #e2e8f0;
+  display: block;
+}
+
+.photo-frame-full img {
+  width: 100% !important;
+  max-width: 100% !important;
+  height: auto !important;
+  display: block !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.photo-frame-full .photo-placeholder {
+  min-height: 200px;
+}
+
+.photo-grid-pair-2col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 12px;
+  break-inside: avoid;
+  page-break-inside: avoid;
+  width: 100%;
+}
+
+.photo-grid-vertical-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 12px;
+  break-inside: avoid;
+  page-break-inside: avoid;
+  width: 100%;
+}
+
+.photo-list-horizontal {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 12px;
+  break-inside: avoid;
+  page-break-inside: avoid;
+  width: 100%;
+}
+
 .photo-grid-2x2 {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 10px;
   margin-bottom: 12px;
   break-inside: avoid;
+  page-break-inside: avoid;
+  width: 100%;
 }
 
 .photo-card {
@@ -201,27 +378,217 @@ table.tech-table tr:nth-child(even) td {
   overflow: hidden;
   background-color: #ffffff;
   break-inside: avoid;
+  page-break-inside: avoid;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  box-shadow: 0 0.5pt 1.5pt rgba(0, 0, 0, 0.05);
+  width: 100%;
 }
 
-.photo-card img {
+.photo-card .photo-header {
+  background-color: #0f3b6c;
+  color: #ffffff;
+  padding: 4px 8px;
+  font-size: 8pt;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.photo-card .photo-tag {
+  background-color: #38bdf8;
+  color: #082f49;
+  font-weight: bold;
+  font-size: 7.5pt;
+  padding: 1px 5px;
+  border-radius: 2px;
+  text-transform: uppercase;
+}
+
+.photo-card .photo-header-title {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 8pt;
+  letter-spacing: 0.2px;
+}
+
+.photo-frame {
   width: 100%;
-  height: 160px;
-  object-fit: cover;
+  height: auto;
+  background-color: #ffffff;
   display: block;
+  overflow: hidden;
+  position: relative;
+  border-top: 0.5pt solid #e2e8f0;
+  border-bottom: 0.5pt solid #e2e8f0;
+}
+
+.photo-frame img,
+.photo-card img {
+  width: 100% !important;
+  max-width: 100% !important;
+  height: auto !important;
+  display: block !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* 2 Ảnh kề nhau P-02 & P-03: Chiều rộng 100% của mỗi cột (W_P02 + W_P03 = W_A4) */
+.photo-frame-vertical {
+  width: 100%;
+  height: auto;
+  background-color: #ffffff;
+  display: block;
+  overflow: hidden;
+  position: relative;
+  border-top: 0.5pt solid #e2e8f0;
+  border-bottom: 0.5pt solid #e2e8f0;
+}
+
+.photo-frame-vertical img {
+  width: 100% !important;
+  max-width: 100% !important;
+  height: auto !important;
+  display: block !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.photo-frame-vertical .photo-placeholder {
+  min-height: 220px;
+}
+
+/* 2 Ảnh ngang P-03 & P-04: Xếp phân tầng 1 cột, chiều rộng 100% full chiều rộng A4 */
+.photo-frame-horizontal {
+  width: 100%;
+  height: auto;
+  background-color: #ffffff;
+  display: block;
+  overflow: hidden;
+  position: relative;
+  border-top: 0.5pt solid #e2e8f0;
+  border-bottom: 0.5pt solid #e2e8f0;
+}
+
+.photo-frame-horizontal img {
+  width: 100% !important;
+  max-width: 100% !important;
+  height: auto !important;
+  display: block !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.photo-frame-horizontal .photo-placeholder {
+  min-height: 200px;
+}
+
+.photo-placeholder {
+  min-height: 180px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background-color: #f8fafc;
+  color: #64748b;
+  font-size: 8pt;
+  padding: 10px;
+  text-align: center;
+}
+
+.photo-placeholder .placeholder-na {
+  color: #c2410c;
+  font-weight: bold;
+  font-size: 8.5pt;
+  margin-bottom: 4px;
+}
+
+.photo-placeholder .placeholder-reason {
+  color: #475569;
+  font-size: 7.5pt;
+  font-style: italic;
+  max-width: 90%;
 }
 
 .photo-meta {
-  padding: 5px 7px;
+  padding: 4px 8px;
   background-color: #f8fafc;
-  border-top: 0.5pt solid #cbd5e1;
   font-size: 7.5pt;
-  line-height: 1.25;
+  line-height: 1.35;
+  color: #334155;
 }
 
 .photo-meta .photo-title {
   font-weight: bold;
   color: #0f172a;
   font-size: 8pt;
+  margin-bottom: 2px;
+}
+
+.photo-meta .meta-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 1px;
+}
+
+/* --- KHỐI THẺ KHUYẾT TẬT ĐỨNG RIÊNG LẺ (SINGLE FULL-WIDTH DEFECT CARDS: W = W_A4) --- */
+.defect-card-single {
+  border: 0.75pt solid #cbd5e1;
+  border-radius: 4px;
+  margin-bottom: 14px;
+  background-color: #ffffff;
+  overflow: hidden;
+  break-inside: avoid;
+  page-break-inside: avoid;
+  box-shadow: 0 0.5pt 1.5pt rgba(0, 0, 0, 0.04);
+  width: 100%;
+}
+
+.defect-evidence-full {
+  width: 100%;
+  height: auto;
+  background-color: #ffffff;
+  display: block;
+  overflow: hidden;
+  position: relative;
+  border-top: 0.5pt solid #e2e8f0;
+  border-bottom: 0.5pt solid #e2e8f0;
+}
+
+.defect-evidence-full img {
+  width: 100% !important;
+  max-width: 100% !important;
+  height: auto !important;
+  display: block !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.evidence-caption-full {
+  font-size: 8.5pt;
+  padding: 5px 8px;
+  background-color: #f1f5f9;
+  color: #0f172a;
+  font-weight: bold;
+  border-top: 0.5pt solid #cbd5e1;
+  line-height: 1.35;
+}
+
+.defect-meta-bar {
+  padding: 5px 8px;
+  background-color: #f8fafc;
+  font-size: 8pt;
+  color: #334155;
+  border-top: 0.5pt solid #e2e8f0;
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
 }
 
 /* --- KHỐI THẺ KHUYẾT TẬT TÍCH HỢP (INLINE DEFECT CARDS) --- */
@@ -252,6 +619,48 @@ table.tech-table tr:nth-child(even) td {
   padding: 6px;
 }
 
+/* --- CẶP ẢNH ĐỐI CHIẾU KHUYẾT TẬT CÓ THƯỚC ĐO (PAIR COMPARISON - BỰ FULL RÕ NÉT) --- */
+.pair-comparison {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 6px;
+  break-inside: avoid;
+}
+
+.evidence-box {
+  border: 0.75pt solid #cbd5e1;
+  border-radius: 4px;
+  overflow: hidden;
+  background-color: #f8fafc;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 280px;
+}
+
+.evidence-box img {
+  max-width: 100%;
+  max-height: 260px;
+  height: 260px;
+  width: auto;
+  object-fit: contain;
+  display: block;
+  margin: auto;
+  background-color: #f8fafc;
+}
+
+.evidence-caption {
+  font-size: 8pt;
+  padding: 4px 6px;
+  background-color: #f1f5f9;
+  color: #1e293b;
+  font-weight: bold;
+  border-top: 0.5pt solid #cbd5e1;
+  line-height: 1.3;
+}
+
 .defect-params {
   font-size: 8pt;
   line-height: 1.35;
@@ -272,13 +681,21 @@ table.tech-table tr:nth-child(even) td {
   border-radius: 3px;
   overflow: hidden;
   text-align: center;
+  background-color: #f8fafc;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: 150px;
 }
 
 .defect-photo-box img {
-  width: 100%;
-  height: 110px;
-  object-fit: cover;
+  max-width: 100%;
+  max-height: 135px;
+  width: auto;
+  height: auto;
+  object-fit: contain;
   display: block;
+  margin: auto;
 }
 
 .defect-photo-box .caption {
@@ -385,16 +802,35 @@ table.tech-table tr:nth-child(even) td {
 
 .cover-photo {
   text-align: center;
-  margin: 14px 0;
+  margin: 10px auto;
   border: 1pt solid #94a3b8;
-  padding: 4px;
+  padding: 6px;
   background: #f8fafc;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .cover-photo img {
   max-width: 100%;
-  height: 250px;
-  object-fit: cover;
+  max-height: 375px;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  margin: 0 auto;
+  display: block;
+}
+
+.cover-photo .cover-photo-caption {
+  font-size: 8pt;
+  color: #475569;
+  margin-top: 4px;
+  text-align: center;
+  width: 100%;
+  font-weight: bold;
 }
 
 .cover-meta-table {
@@ -405,14 +841,15 @@ table.tech-table tr:nth-child(even) td {
 
 .cover-meta-table td {
   border: 0.5pt solid #94a3b8;
-  padding: 5px 8px;
-  font-size: 9pt;
+  padding: 4px 8px;
+  font-size: 8.5pt;
 }
 
 .cover-meta-table td.label {
   font-weight: bold;
   background-color: #f1f5f9;
-  width: 32%;
+  width: 35%;
+  color: #334155;
 }
 
 .cover-footer {
@@ -423,3 +860,371 @@ table.tech-table tr:nth-child(even) td {
   border-top: 1pt solid #cbd5e1;
   padding-top: 8px;
 }
+
+/* --- SƠ ĐỒ CAD BẢN ĐỒ HƯ HỎNG & KẾT CẤU THEO TẦNG --- */
+.cad-dual-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin: 10px 0;
+  break-inside: avoid;
+}
+
+.cad-box {
+  border: 0.75pt solid #94a3b8;
+  border-radius: 4px;
+  padding: 5px;
+  background-color: #ffffff;
+  text-align: center;
+}
+
+.cad-box img {
+  width: 100%;
+  height: 320px;
+  object-fit: contain;
+  display: block;
+  background-color: #f8fafc;
+}
+
+.cad-box .cad-caption {
+  font-size: 7.5pt;
+  font-weight: bold;
+  color: #1e3a8a;
+  margin-top: 4px;
+  text-transform: uppercase;
+}
+
+/* --- LƯỚI ẢNH TỔNG QUAN TẦNG (LỚN ĐỂ THẤY RÕ TỔNG THỂ) --- */
+.floor-overview-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 10px 0 14px 0;
+  break-inside: avoid;
+  page-break-inside: avoid;
+  width: 100%;
+}
+
+.floor-overview-dual-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin: 10px 0 14px 0;
+  break-inside: avoid;
+  page-break-inside: avoid;
+  width: 100%;
+}
+
+.floor-overview-card {
+  border: 0.75pt solid #cbd5e1;
+  border-radius: 4px;
+  overflow: hidden;
+  background: #ffffff;
+  box-shadow: 0 0.5pt 1.5pt rgba(0, 0, 0, 0.05);
+  break-inside: avoid;
+  page-break-inside: avoid;
+  width: 100%;
+}
+
+.floor-overview-card .photo-frame,
+.floor-overview-frame-vertical,
+.floor-overview-frame-full {
+  width: 100%;
+  height: auto;
+  background-color: #ffffff;
+  display: block;
+  overflow: hidden;
+  border-top: 0.5pt solid #e2e8f0;
+  border-bottom: 0.5pt solid #e2e8f0;
+}
+
+.floor-overview-card img,
+.floor-overview-frame-vertical img,
+.floor-overview-frame-full img {
+  width: 100% !important;
+  max-width: 100% !important;
+  height: auto !important;
+  display: block !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.floor-overview-card .caption,
+.floor-overview-card .meta {
+  font-size: 8pt;
+  padding: 4px 8px;
+  background: #f1f5f9;
+  color: #334155;
+  font-weight: bold;
+  border-top: 0.5pt solid #e2e8f0;
+}
+
+/* --- LƯỚI CẤU KIỆN KẾT CẤU CHỊU LỰC (CỘT / DẦM / SÀN E) --- */
+.structural-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  margin: 8px 0 14px 0;
+  break-inside: avoid;
+  page-break-inside: avoid;
+  width: 100%;
+}
+
+.element-card {
+  border: 0.75pt solid #cbd5e1;
+  border-radius: 4px;
+  overflow: hidden;
+  background: #ffffff;
+  break-inside: avoid;
+  page-break-inside: avoid;
+  width: 100%;
+}
+
+.element-card img {
+  width: 100% !important;
+  max-width: 100% !important;
+  height: auto !important;
+  background-color: #ffffff;
+  display: block !important;
+  margin: 0 !important;
+}
+
+.element-card .element-meta {
+  padding: 4px 6px;
+  font-size: 7.5pt;
+  line-height: 1.25;
+  background: #f8fafc;
+  border-top: 0.5pt solid #e2e8f0;
+}
+
+.element-card .element-title {
+  font-weight: bold;
+  color: #0f3b6c;
+}
+
+/* --- KHỐI VÙNG KIẾN TRÚC Z & THƯ VIỆN ẢNH KHÔNG GIAN --- */
+.zone-header-bar {
+  background-color: #f1f5f9;
+  padding: 5px 8px;
+  border-radius: 3px;
+  margin: 10px 0 6px 0;
+  border-left: 3pt solid #1e3a8a;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 8.5pt;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+.zone-photos-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  margin: 6px 0 10px 0;
+  break-inside: avoid;
+  page-break-inside: avoid;
+  width: 100%;
+}
+
+.zone-photo-card {
+  border: 0.5pt solid #cbd5e1;
+  border-radius: 3px;
+  overflow: hidden;
+  background: #ffffff;
+  page-break-inside: avoid;
+  width: 100%;
+}
+
+.zone-photo-card img {
+  width: 100% !important;
+  max-width: 100% !important;
+  height: auto !important;
+  background-color: #ffffff;
+  display: block !important;
+  margin: 0 !important;
+}
+
+.zone-photo-card .caption {
+  font-size: 7.5pt;
+  padding: 3px 5px;
+  background: #f8fafc;
+  color: #475569;
+}
+
+/* --- ẢNH ĐO ĐẠC BIẾN DẠNG LÚN NGHIÊNG --- */
+.deformation-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin: 10px 0;
+  break-inside: avoid;
+  page-break-inside: avoid;
+  width: 100%;
+}
+
+.deformation-card {
+  border: 0.75pt solid #94a3b8;
+  border-radius: 4px;
+  overflow: hidden;
+  background-color: #ffffff;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  page-break-inside: avoid;
+  width: 100%;
+}
+
+.deformation-card .photo-frame {
+  width: 100%;
+  height: auto;
+  background-color: #ffffff;
+  display: block;
+  overflow: hidden;
+}
+
+.deformation-card img {
+  width: 100% !important;
+  max-width: 100% !important;
+  height: auto !important;
+  background-color: #ffffff;
+  display: block !important;
+  margin: 0 !important;
+}
+
+.deformation-card .meta {
+  padding: 5px 7px;
+  font-size: 8pt;
+  background-color: #f8fafc;
+  border-top: 0.5pt solid #cbd5e1;
+  font-weight: bold;
+  color: #0f172a;
+  line-height: 1.3;
+}
+
+/* --- BỘ ẢNH PHỤ LỤC VÙNG Z & CẤU KIỆN E (MỖI ẢNH ĐỨNG RIÊNG LẺ FULL WIDTH W = W_A4) --- */
+.appendix-photo-list-full {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin: 8px 0 16px 0;
+  break-inside: avoid;
+  page-break-inside: avoid;
+  width: 100%;
+}
+
+.appendix-photo-card-full {
+  border: 0.75pt solid #94a3b8;
+  border-radius: 4px;
+  overflow: hidden;
+  background-color: #ffffff;
+  break-inside: avoid;
+  page-break-inside: avoid;
+  width: 100%;
+  box-shadow: 0 1pt 2pt rgba(0, 0, 0, 0.05);
+}
+
+.appendix-photo-frame-full {
+  width: 100%;
+  height: auto;
+  background-color: #ffffff;
+  display: block;
+  overflow: hidden;
+  border-top: 0.5pt solid #e2e8f0;
+  border-bottom: 0.5pt solid #e2e8f0;
+}
+
+.appendix-photo-frame-full img {
+  width: 100% !important;
+  max-width: 100% !important;
+  height: auto !important;
+  display: block !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.appendix-photo-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin: 8px 0 16px 0;
+  break-inside: avoid;
+  page-break-inside: avoid;
+  width: 100%;
+}
+
+.appendix-photo-grid .photo-card {
+  border: 0.75pt solid #94a3b8;
+  border-radius: 4px;
+  overflow: hidden;
+  background-color: #ffffff;
+  break-inside: avoid;
+  page-break-inside: avoid;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  box-shadow: 0 1pt 2pt rgba(0, 0, 0, 0.05);
+  width: 100%;
+}
+
+.appendix-photo-grid .photo-frame {
+  width: 100%;
+  height: auto;
+  background-color: #ffffff;
+  display: block;
+  overflow: hidden;
+}
+
+.appendix-photo-grid .photo-frame img {
+  width: 100% !important;
+  max-width: 100% !important;
+  height: auto !important;
+  display: block !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* --- KHỐI BIẾN ĐỘNG RANH ĐẤT GIS (SPLIT / MERGE) --- */
+.gis-mutation-box {
+  background-color: #f0fdf4;
+  border: 0.75pt solid #86efac;
+  border-left: 3.5pt solid #16a34a;
+  border-radius: 4px;
+  padding: 8px 10px;
+  margin: 10px 0;
+  break-inside: avoid;
+}
+
+.gis-mutation-title {
+  font-size: 9pt;
+  font-weight: bold;
+  color: #166534;
+  margin-bottom: 4px;
+}
+
+/* --- PHỤ LỤC F: BIÊN BẢN LÀM VIỆC HIỆN TRƯỜNG --- */
+.working-minutes-sheet {
+  text-align: center;
+  margin: 12px 0;
+  border: 1pt solid #cbd5e1;
+  padding: 8px;
+  background-color: #ffffff;
+  break-inside: avoid;
+}
+
+.working-minutes-sheet img {
+  max-width: 100%;
+  max-height: 780px;
+  object-fit: contain;
+  display: block;
+  margin: 0 auto;
+}
+
+.working-minutes-caption {
+  font-size: 8pt;
+  font-weight: bold;
+  color: #334155;
+  margin-top: 6px;
+  text-transform: uppercase;
+}
+

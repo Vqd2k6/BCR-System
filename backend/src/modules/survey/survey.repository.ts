@@ -43,6 +43,11 @@ export class SurveyRepository {
   }
 
   static async findReportById(reportId: string): Promise<any | null> {
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(reportId);
+    const whereClause = isUuid
+      ? `WHERE r.id = $1`
+      : `WHERE (r.report_code = $1 OR p.project_parcel_code = $1 OR p.official_cadastral_code = $1)`;
+
     const res = await Database.query(
       `SELECT r.*,
               p.project_parcel_code, p.official_cadastral_code, p.house_number, p.street, p.ward, p.district,
@@ -69,28 +74,31 @@ export class SurveyRepository {
          ORDER BY created_at ASC LIMIT 1
        ) default_sa ON true
        LEFT JOIN building_units bu ON r.unit_id = bu.id
-       WHERE r.id = $1 LIMIT 1;`,
+       ${whereClause} 
+       ORDER BY r.created_at DESC 
+       LIMIT 1;`,
       [reportId]
     );
     if (!res.rows[0]) return null;
     const base = res.rows[0];
+    const actualReportId = base.id;
 
     // Lấy các bảng chi tiết đính kèm
     const photosRes = await Database.query(
       `SELECT * FROM survey_identification_photos WHERE report_id = $1;`,
-      [reportId]
+      [actualReportId]
     );
     const specsRes = await Database.query(
       `SELECT * FROM building_specifications WHERE report_id = $1;`,
-      [reportId]
+      [actualReportId]
     );
     const historyRes = await Database.query(
       `SELECT * FROM historical_sensitivities WHERE report_id = $1;`,
-      [reportId]
+      [actualReportId]
     );
     const floorsRes = await Database.query(
       `SELECT * FROM floor_surveys WHERE report_id = $1 ORDER BY floor_order ASC;`,
-      [reportId]
+      [actualReportId]
     );
     const zonesRes = await Database.query(
       `SELECT z.*,
@@ -99,19 +107,19 @@ export class SurveyRepository {
        LEFT JOIN defect_items d ON z.id = d.zone_id
        WHERE z.report_id = $1
        GROUP BY z.id;`,
-      [reportId]
+      [actualReportId]
     );
     const deformRes = await Database.query(
       `SELECT * FROM deformation_assessments WHERE report_id = $1;`,
-      [reportId]
+      [actualReportId]
     );
     const scoresRes = await Database.query(
       `SELECT * FROM risk_score_cards WHERE report_id = $1;`,
-      [reportId]
+      [actualReportId]
     );
     const p2DetailsRes = await Database.query(
       `SELECT * FROM phase2_report_details WHERE report_id = $1;`,
-      [reportId]
+      [actualReportId]
     );
 
     let identificationPhotos = photosRes.rows;
@@ -538,12 +546,141 @@ export class SurveyRepository {
     });
   }
 
+  static async updateReportData(reportId: string, updateData: any): Promise<number> {
+    let newRevision = 1;
+    await Database.transaction(async (client) => {
+      // 1. Cập nhật base_survey_reports & tăng export_revision
+      const revRes = await client.query(
+        `UPDATE base_survey_reports
+         SET export_revision = export_revision + 1,
+             owner_remarks = COALESCE($2, owner_remarks),
+             summary_conclusions = COALESCE($3, summary_conclusions),
+             engineering_recommendations = COALESCE($4, engineering_recommendations),
+             survey_data_json = COALESCE($5, survey_data_json),
+             updated_at = NOW()
+         WHERE id = $1
+         RETURNING export_revision, parcel_id, unit_id;`,
+        [
+          reportId,
+          updateData.ownerRemarks !== undefined ? updateData.ownerRemarks : null,
+          updateData.summaryConclusions !== undefined ? updateData.summaryConclusions : null,
+          updateData.engineeringRecommendations !== undefined ? updateData.engineeringRecommendations : null,
+          updateData.surveyDataJson ? (typeof updateData.surveyDataJson === 'string' ? updateData.surveyDataJson : JSON.stringify(updateData.surveyDataJson)) : null,
+        ]
+      );
+
+      if (revRes.rows[0]) {
+        newRevision = revRes.rows[0].export_revision;
+        const parcelId = revRes.rows[0].parcel_id;
+        const unitId = revRes.rows[0].unit_id;
+
+        // 2. Cập nhật thông tin thực tế vào parcels nếu có chỉnh sửa
+        if (
+          updateData.houseNumber !== undefined ||
+          updateData.street !== undefined ||
+          updateData.ownerName !== undefined ||
+          updateData.ownerPhone !== undefined ||
+          updateData.constructionAreaM2 !== undefined
+        ) {
+          await client.query(
+            `UPDATE parcels
+             SET house_number = COALESCE($1, house_number),
+                 street = COALESCE($2, street),
+                 owner_name = COALESCE($3, owner_name),
+                 owner_phone = COALESCE($4, owner_phone),
+                 construction_area_m2 = COALESCE($5, construction_area_m2),
+                 updated_at = NOW()
+             WHERE id = $6;`,
+            [
+              updateData.houseNumber ?? null,
+              updateData.street ?? null,
+              updateData.ownerName ?? null,
+              updateData.ownerPhone ?? null,
+              updateData.constructionAreaM2 !== undefined && updateData.constructionAreaM2 !== '' && updateData.constructionAreaM2 !== null
+                ? Number(updateData.constructionAreaM2)
+                : null,
+              parcelId,
+            ]
+          );
+        }
+
+        // 3. Nếu là căn hộ con, cập nhật vào building_units
+        if (unitId && (updateData.ownerName !== undefined || updateData.ownerPhone !== undefined)) {
+          await client.query(
+            `UPDATE building_units
+             SET owner_name = COALESCE($1, owner_name),
+                 owner_phone = COALESCE($2, owner_phone),
+                 updated_at = NOW()
+             WHERE id = $3;`,
+            [
+              updateData.ownerName ?? null,
+              updateData.ownerPhone ?? null,
+              unitId,
+            ]
+          );
+        }
+
+        // 4. Cập nhật building_specifications nếu có
+        if (
+          updateData.foundationDepthM !== undefined ||
+          updateData.foundationNotes !== undefined ||
+          updateData.constructionAreaM2 !== undefined ||
+          updateData.buildingHeightM !== undefined ||
+          updateData.yearOfConstruction !== undefined ||
+          updateData.buildingName !== undefined
+        ) {
+          await client.query(
+            `UPDATE building_specifications
+             SET foundation_depth_m = COALESCE($1, foundation_depth_m),
+                 foundation_notes = COALESCE($2, foundation_notes),
+                 construction_area_m2 = COALESCE($3, construction_area_m2),
+                 building_height_m = COALESCE($4, building_height_m),
+                 year_of_construction = COALESCE($5, year_of_construction),
+                 building_name = COALESCE($6, building_name)
+             WHERE report_id = $7;`,
+            [
+              updateData.foundationDepthM !== undefined && updateData.foundationDepthM !== '' && updateData.foundationDepthM !== '--'
+                ? Number(updateData.foundationDepthM)
+                : null,
+              updateData.foundationNotes ?? null,
+              updateData.constructionAreaM2 !== undefined && updateData.constructionAreaM2 !== '' && updateData.constructionAreaM2 !== null
+                ? Number(updateData.constructionAreaM2)
+                : null,
+              updateData.buildingHeightM !== undefined && updateData.buildingHeightM !== '' && updateData.buildingHeightM !== null
+                ? Number(updateData.buildingHeightM)
+                : null,
+              updateData.yearOfConstruction !== undefined && updateData.yearOfConstruction !== '' && updateData.yearOfConstruction !== null
+                ? parseInt(String(updateData.yearOfConstruction))
+                : null,
+              updateData.buildingName ?? null,
+              reportId,
+            ]
+          );
+        }
+      }
+    });
+
+    return newRevision;
+  }
+
   static async findLatestPhase1ReportByParcelId(parcelId: string): Promise<any | null> {
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(parcelId);
+    let resolvedParcelId = parcelId;
+
+    if (!isUuid) {
+      const pRes = await Database.query<{ id: string }>(
+        `SELECT id FROM parcels WHERE project_parcel_code = $1 OR official_cadastral_code = $1 LIMIT 1;`,
+        [parcelId]
+      );
+      if (!pRes.rows[0]) return null;
+      resolvedParcelId = pRes.rows[0].id;
+    }
+
     const reportRes = await Database.query<{ id: string }>(
       `SELECT id FROM base_survey_reports
        WHERE parcel_id = $1 AND phase = 'PHASE_1'
        ORDER BY created_at DESC LIMIT 1;`,
-      [parcelId]
+      [resolvedParcelId]
     );
 
     let report = null;
@@ -555,12 +692,12 @@ export class SurveyRepository {
       `SELECT * FROM survey_absence_logs
        WHERE parcel_id = $1
        ORDER BY recorded_at DESC LIMIT 1;`,
-      [parcelId]
+      [resolvedParcelId]
     );
 
     const parcelRes = await Database.query(
       `SELECT * FROM parcels WHERE id = $1 LIMIT 1;`,
-      [parcelId]
+      [resolvedParcelId]
     );
 
     return {

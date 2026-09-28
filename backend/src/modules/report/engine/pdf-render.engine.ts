@@ -1,5 +1,8 @@
 import puppeteer, { Browser } from 'puppeteer-core';
 import * as fs from 'fs';
+import * as path from 'path';
+import * as os from 'os';
+import { v4 as uuidv4 } from 'uuid';
 
 export class PdfRenderEngine {
   private static browserInstance: Browser | null = null;
@@ -69,14 +72,18 @@ export class PdfRenderEngine {
   ): Promise<Buffer> {
     const browser = await this.getBrowser();
     const page = await browser.newPage();
+    const tempHtmlPath = path.join(os.tmpdir(), `metro2_report_${uuidv4()}.html`);
 
     try {
-      // Đặt kích thước viewport mô phỏng trang A4 300 DPI
+      // 1. Ghi HTML ra file tạm để Chromium nạp trực tiếp qua File Descriptor OS (tránh nghẽn WebSocket CDP với Base64 lớn)
+      fs.writeFileSync(tempHtmlPath, htmlContent, 'utf8');
+
+      // 2. Đặt kích thước viewport mô phỏng trang A4
       await page.setViewport({ width: 1240, height: 1754, deviceScaleFactor: 2 });
 
-      // Nạp HTML và đợi render xong domcontentloaded + networkidle0
-      await page.setContent(htmlContent, {
-        waitUntil: ['domcontentloaded', 'networkidle0'],
+      // 3. Nạp file qua URL file:// cực nhanh (< 500ms thay vì setContent nghẽn)
+      await page.goto(`file://${tempHtmlPath}`, {
+        waitUntil: 'domcontentloaded',
         timeout: 60000,
       });
 
@@ -117,6 +124,13 @@ export class PdfRenderEngine {
 
       return Buffer.from(pdfBuffer);
     } finally {
+      try {
+        if (fs.existsSync(tempHtmlPath)) {
+          fs.unlinkSync(tempHtmlPath);
+        }
+      } catch (err) {
+        // bỏ qua lỗi dọn file tạm
+      }
       await page.close();
     }
   }

@@ -6,7 +6,7 @@ import { BadRequestError } from '../../common/errors/problem-details';
 export class AuditController {
   static async getProgressAnalytics(req: Request, res: Response, next: NextFunction) {
     try {
-      const zoneId = (req.query.zoneId as string) || req.user?.assignedZoneId || undefined;
+      const zoneId = (req.query.zoneId as string) || (req.user?.role === 'SUPER_ADMIN' ? 'ALL' : req.user?.assignedZoneId) || 'ALL';
       const result = await AuditService.getProgressAnalytics(zoneId);
       res.status(200).json({
         success: true,

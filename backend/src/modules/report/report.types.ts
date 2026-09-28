@@ -10,6 +10,7 @@ export interface ReportPhotoItem {
   gpsLng?: number;
   label?: string;
   notes?: string;
+  tag?: string;
 }
 
 export interface DefectItemReport {
@@ -17,6 +18,8 @@ export interface DefectItemReport {
   zoneCode: string;
   roomName: string;
   componentType: string;
+  defectType?: string;
+  screeningCategory?: string;
   crackDirection?: string;
   widthMaxMm: number;
   lengthMm: number;
@@ -28,10 +31,24 @@ export interface DefectItemReport {
   materialDegradationLabel: string;
   hasScaleCard: boolean;
   isStructuralCritical: boolean;
+  pinX?: number;
+  pinY?: number;
   ctxPhotoUrl?: string;
   cuPhotoUrl?: string;
   extraPhotoUrl?: string;
   notes?: string;
+}
+
+export interface StructuralElementReport {
+  elementCode: string;
+  elementType: string;
+  materialType: string;
+  roomName: string;
+  floorName: string;
+  hasDamage: boolean;
+  notes?: string;
+  ctxPhotoUrl?: string;
+  overviewPhotos?: string[];
 }
 
 export interface DamageZoneReport {
@@ -44,6 +61,9 @@ export interface DamageZoneReport {
   burlandGrade: number;
   burlandLabel: string;
   notes?: string;
+  ctxPhotoUrl?: string;
+  overviewPhotos?: string[];
+  hasDamage: boolean;
   slabCondition?: string;
   wallCondition?: string;
   beamColumnCondition?: string;
@@ -53,12 +73,24 @@ export interface DamageZoneReport {
 }
 
 export interface FloorSurveyReport {
+  floorId?: string;
   floorName: string;
   floorOrder: number;
   notes?: string;
   cadDrawingUrl?: string;
   damageMapUrl?: string;
+  cadSketchPhotoUrl?: string;
+  cadStructuralSketchPhotoUrl?: string;
+  isDualPortrait?: boolean;
+  overviewPhotos?: Array<{ id?: string; url: string; caption?: string }>;
   zones: DamageZoneReport[];
+  structuralElements?: StructuralElementReport[];
+  totalDefectsInFloor?: number;
+  beamDeflectionMm?: number;
+  beamSaggingPosition?: string;
+  beamSaggingDesc?: string;
+  beamSaggingPhotoUrl?: string;
+  requiresAdditionalMonitoring?: boolean;
 }
 
 export interface BcsChecklistItem {
@@ -76,12 +108,44 @@ export interface QualityGateItemReport {
   notes?: string;
 }
 
+export interface AdjacentBuildingSide {
+  side: 'left' | 'right' | 'back';
+  sideLabel: string;
+  details: string;
+  note?: string;
+}
+
+export interface GisMutationChildReport {
+  label: string;
+  areaM2: number;
+  ownerName: string;
+  houseNumber: string;
+  suggestedCode: string;
+  functionalType: string;
+}
+
+export interface GisMutationReport {
+  isMutated: boolean;
+  type: string;
+  typeLabel: string;
+  splitReason?: string;
+  splitChildren?: GisMutationChildReport[];
+}
+
+export interface HistoryInterviewItemReport {
+  category: string;
+  indicator: string;
+  hasItem: boolean;
+  notes: string;
+}
+
 export interface ResidentialReportViewModel {
   // 1. Cover & Document Control
   projectName: string;
   metroLineName: string;
   reportCode: string;
   buildingId: string;
+  officialCadastralCode?: string;
   surveyId: string;
   address: string;
   houseNumber: string;
@@ -92,7 +156,12 @@ export interface ResidentialReportViewModel {
   zoneName: string;
   chainage: string;
   distanceToTunnelMeters: number;
+  clearanceOffsetDistanceM?: string;
   metroItemType: string;
+  isTbm?: boolean;
+  isStation?: boolean;
+  isCutAndCover?: boolean;
+  isOtherMetro?: boolean;
   surveyDate: string;
   revision: string;
   preparedByName: string;
@@ -130,12 +199,29 @@ export interface ResidentialReportViewModel {
   foundationCategory: string;
   foundationCategoryLabel: string;
   foundationInfoSource: string;
+  foundationDepthM?: number | string;
+  pileDimensionMm?: string;
+  foundationDensity?: string;
+  foundationSpacingM?: string;
+  foundationNotes?: string;
   constructionAreaM2: number | string;
   buildingHeightM: number | string;
   estimatedHeightM: number | string;
   yearOfConstruction: number | string;
   isYearEstimated: boolean;
+  asBuiltDrawingPhotoUrl?: string;
+  asBuiltDrawingFiles?: string[];
+  isAbsenteeSurvey?: boolean;
+  absenteeReason?: string;
+  vacantLandStatus?: string;
+  vacantLandNotes?: string;
+  p02WidthM?: string;
+  p02HeightM?: string;
   adjacentBuildingsNote: string;
+  adjacentBuildingsList: AdjacentBuildingSide[];
+
+  // GIS Mutation
+  gisMutation: GisMutationReport;
 
   // Historical Sensitivities & Notes
   extendedOrRenovated: boolean;
@@ -147,9 +233,29 @@ export interface ResidentialReportViewModel {
   sensitiveEquipmentPresent: boolean;
   sensitiveEquipmentNotes: string;
   historyDetailsNote: string;
+  historyInterviewItems: HistoryInterviewItemReport[];
 
-  // 4. Scope & Access Limitations
-  scopeAccess: {
+  // Step 1: Identification, GPS & Survey Case Type
+  gpsLat?: number;
+  gpsLng?: number;
+  objectGroup?: string;
+  objectGroupLabel?: string;
+  surveyCaseType?: string;
+  surveyCaseLabel?: string;
+  absenteeMinutesPhotos?: string[];
+  vacantLandPhotos?: string[];
+  underConstructionPhotos?: string[];
+  constructionStageNotes?: string;
+  p03Tag?: string;
+  p03AdditionalPhotos?: string[];
+
+  // 4. Scope & Access Limitations (Step 5)
+  surveyScopeItems?: {
+    areaName: string;
+    isAccessed: boolean;
+    notes: string;
+  }[];
+  scopeAccess?: {
     facadeStatus: string;
     facadeNote: string;
     groundFloorStatus: string;
@@ -164,6 +270,15 @@ export interface ResidentialReportViewModel {
     auxiliaryNote: string;
     inaccessibleAreasReason: string;
   };
+  surveyedFloorsList?: string[];
+  accessLimitationType?: string;
+  accessLimitationLabel?: string;
+  restrictedAreasList?: string[];
+  restrictedAreasDisplay?: string;
+  accessMainReason?: string;
+  accessMainReasonDisplay?: string;
+  accessNotes?: string;
+  accessNotesDisplay?: string;
 
   // Identification Photos P-01 to P-04
   p01: ReportPhotoItem;
@@ -178,8 +293,9 @@ export interface ResidentialReportViewModel {
   floors: FloorSurveyReport[];
   totalDefectsCount: number;
   totalDamageZonesCount: number;
+  totalStructuralElementsCount: number;
 
-  // 7. Deformation & Tilt
+  // 7. Deformation & Tilt (Step 4)
   tiltAngleX: number;
   tiltAngleY: number;
   tiltDirection: string;
@@ -189,16 +305,33 @@ export interface ResidentialReportViewModel {
   measurementReliability: string;
   requiresAdditionalMonitoring: boolean;
   deformationEngineerComments: string;
+  buildingTiltPhotoUrl?: string;
+  diffSettlementPhotoUrl?: string;
+  beamSaggingPhotoUrl?: string;
+  diffSettlementLevel?: number;
+  diffSettlementPosition?: string;
+  diffSettlementNotes?: string;
+  buildingTiltLevel?: number;
+  buildingTiltNotes?: string;
+  beamSaggingLevel?: number;
+  beamSaggingPosition?: string;
+  beamSaggingDesc?: string;
 
-  // 8. Burland 1977
+  // 8. Burland 1977 (Step 4)
   burlandPredominantGrade: number;
   burlandPredominantLabel: string;
   burlandLocalMaxGrade: number;
   burlandLocalMaxLabel: string;
+  burlandGoverningZoneCode?: string;
+  burlandGoverningZoneDesc?: string;
+  burlandStructuralFlagLevel?: string;
+  burlandStructuralFlagLevelLabel?: string;
+  burlandRepresentativeness?: string;
+  burlandRepresentativenessLabel?: string;
   structuralDefectFlag: string;
   requiresStructuralReview: boolean;
 
-  // 9. ECS Breakdown
+  // 9. ECS Breakdown (Step 6)
   ecsE1: number;
   ecsE2: number;
   ecsE3: number;
@@ -209,14 +342,19 @@ export interface ResidentialReportViewModel {
   ecsJudgementAction: string;
   ecsJudgementReason: string;
   qualityGates: QualityGateItemReport[];
+  gateDecisionStatus?: string;
+  gateDecisionLabel?: string;
+  gateDecisionReason?: string;
 
-  // 10. VI Breakdown
+  // 10. VI Breakdown (Step 6)
   viV1: number;
   viV2: number;
   viV3: number;
   viV4: number;
   viV5: number;
   viV6: number;
+  viJudgementApplied?: boolean;
+  viJudgementAction?: string;
   viJudgementReason: string;
 
   // 11. Metro Alignment & Cross section
@@ -234,7 +372,7 @@ export interface ResidentialReportViewModel {
   requiresPhase2: boolean;
   requiresMonitoring: boolean;
 
-  // Signatures
+  // Signatures & Working Minutes
   surveyorSignatureUrl?: string;
   surveyorSignatureImg?: string;
   ownerSignatureUrl?: string;
@@ -243,5 +381,6 @@ export interface ResidentialReportViewModel {
   zoneAdminSignatureImg?: string;
   superAdminSignatureImg?: string;
   fieldWorkMinutesPhotoUrl?: string;
+  workingMinutesPhotos: string[];
   generatedAt: string;
 }

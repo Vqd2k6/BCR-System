@@ -172,10 +172,17 @@ export function createApp(): express.Application {
   api.get('/guest/parcels/:id/summary', ExportController.getGuestParcelSummary);
 
   // ==========================================
-  // 5. TECHNICAL BCS REPORT EXPORT (PDF & PREVIEW)
+  // 5. TECHNICAL BCS REPORT EXPORT (PDF, DOCX & PREVIEW)
   // ==========================================
-  api.get('/reports/:id/export/pdf', ReportController.exportResidentialPdf);
+  api.get('/reports/:id',              ReportController.getReportDetail);
+  api.get('/reports/:id/export/pdf',   ReportController.exportResidentialPdf);
+  api.post('/reports/:id/export/pdf',  ReportController.exportResidentialPdf); // Xuất PDF có overrides (Không sửa DB)
+  api.get('/reports/:id/export/docx',  ReportController.exportResidentialDocx);
+  api.post('/reports/:id/export/docx', ReportController.exportResidentialDocx); // Xuất DOCX có overrides (Không sửa DB)
   api.get('/reports/:id/preview/html', ReportController.previewResidentialHtml);
+  api.post('/reports/:id/preview/html', ReportController.previewResidentialHtml); // Xem trước HTML có overrides (Không sửa DB)
+  api.put('/reports/:id/survey-data',  ReportController.updateReportSurveyData);
+  api.patch('/reports/:id/survey-data', ReportController.updateReportSurveyData);
 
   // ==========================================
   // 6. DEV ERROR REPORTING & RUNTIME DIAGNOSTICS

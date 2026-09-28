@@ -104,13 +104,13 @@ export class ExportService {
   // --- CONTRACTOR & GUEST VIEW ENDPOINTS ---
 
   static async getGuestGisMap(zoneId?: string) {
-    const targetZone = zoneId || 'ZONE_S9';
+    const targetZone = zoneId || 'ZONE_01';
     const res = await Database.query(
       `SELECT p.id, p.project_parcel_code, p.house_number, p.street, p.survey_status,
               ST_AsGeoJSON(p.location_geom)::json AS location_geojson,
               ST_AsGeoJSON(p.footprint_polygon_geom)::json AS footprint_geojson
        FROM parcels p
-       WHERE p.zone_id = $1 AND p.lifecycle_status = 'ACTIVE';`,
+       WHERE (p.zone_id = $1 OR ($1 = 'ALL' AND p.zone_id IS NOT NULL)) AND p.lifecycle_status = 'ACTIVE';`,
       [targetZone]
     );
     return {
