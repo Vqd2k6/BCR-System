@@ -24,6 +24,7 @@ export interface DamageZoneData {
   burlandGrade?: number;
   overviewPhotos: string[]; // Hỗ trợ nhiều ảnh tổng quan cho 1 Vùng Z
   ctxPhotoUrl?: string; // Ảnh bối cảnh chính để thả ghim nứt
+  ctxPhotoCode?: string; // Mã ID ảnh bối cảnh (photoCode)
   hasDamage?: boolean; // false nếu không có hư hại, true nếu có điểm khuyết tật D
   notes: string;
   defects: DefectItem[];
@@ -42,6 +43,7 @@ export interface StructuralElementData {
   customMaterialType?: string;
   overviewPhotos: string[]; // Hỗ trợ nhiều ảnh tổng quan cho 1 Vùng E
   ctxPhotoUrl?: string; // Ảnh bối cảnh chính để thả ghim khuyết tật kết cấu
+  ctxPhotoCode?: string; // Mã ID ảnh bối cảnh cấu kiện
   hasDamage?: boolean; // false nếu không có hư hại, true nếu có khuyết tật D
   notes: string;
   defects: DefectItem[];
@@ -51,7 +53,7 @@ export interface StructuralElementData {
 export interface FloorSurveyData {
   id: string;
   floorName: string;
-  overviewPhotos: { id: string; url: string; caption?: string }[];
+  overviewPhotos: { id: string; url: string; caption?: string; photoCode?: string }[];
   cadSketchPhotoUrl: string; // Sơ đồ CAD_01 (Mặt bằng kiến trúc & Mảng tường Vùng Z)
   cadStructuralSketchPhotoUrl?: string; // Sơ đồ CAD_02 (Mặt bằng kết cấu chịu lực Vùng E)
   cadZonePins: CadZonePin[]; // Ghim Vùng Z (Kiến trúc / Mảng tường trên CAD_01)
@@ -76,6 +78,7 @@ export interface SettlementTiltState {
     level: number; // 0..4
     position: string;
     photoUrl?: string;
+    photoCode?: string;
     notes?: string;
   };
   buildingTilt: {
@@ -84,6 +87,7 @@ export interface SettlementTiltState {
     yPermille: number | '';
     direction?: string;
     photoUrl?: string;
+    photoCode?: string;
     notes?: string;
   };
   beamSagging: {
@@ -92,10 +96,12 @@ export interface SettlementTiltState {
     sagMm: number | '';
     description?: string;
     photoUrl?: string;
+    photoCode?: string;
     notes?: string;
   };
   abnormalCase?: {
     photoUrl?: string;
+    photoCode?: string;
     notes?: string;
   };
   dataSource: string[];
@@ -179,9 +185,10 @@ export interface Phase1SurveyFormData {
   };
 
   // Step 1 Photos & Polygon
-  photoP01: { url: string; notApplicable: boolean };
+  photoP01: { url: string; photoCode?: string; notApplicable: boolean };
   photoP02: {
     url: string;
+    photoCode?: string;
     notApplicable: boolean;
     polygonPoints: PolygonPoint[];
     floorSplits: FloorSplitLine[];
@@ -190,11 +197,12 @@ export interface Phase1SurveyFormData {
   };
   photoP03: {
     url: string;
+    photoCode?: string;
     notApplicable: boolean;
     tag?: string;
-    additionalPhotos?: { url: string; tag: string }[];
+    additionalPhotos?: { url: string; tag: string; photoCode?: string }[];
   };
-  photoP04: { url: string; notApplicable: boolean };
+  photoP04: { url: string; photoCode?: string; notApplicable: boolean };
 
   // Step 2.1 Architecture
   usageFunction: string;

@@ -2,7 +2,11 @@ import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { Train, Lock, User, ShieldCheck, ArrowRight, CheckCircle2, Zap, UserCheck, Shield, Crown, Building2 } from 'lucide-react';
 
-export const LoginView: React.FC = () => {
+interface Props {
+  onNavigatePublicPortal?: () => void;
+}
+
+export const LoginView: React.FC<Props> = ({ onNavigatePublicPortal }) => {
   const { login } = useAuth();
   const [username, setUsername] = useState('surveyor_s9_01');
   const [password, setPassword] = useState('Password@123');
@@ -285,6 +289,34 @@ export const LoginView: React.FC = () => {
             </button>
           </div>
         </div>
+
+        {/* Public Citizen Portal Access */}
+        {onNavigatePublicPortal && (
+          <div style={{ marginTop: '1.25rem', paddingTop: '1rem', borderTop: '1px solid #f1f5f9' }}>
+            <button
+              type="button"
+              onClick={onNavigatePublicPortal}
+              style={{
+                width: '100%',
+                padding: '0.6rem 0.8rem',
+                backgroundColor: '#f0fdf4',
+                border: '1px solid #bbf7d0',
+                borderRadius: '0.75rem',
+                color: '#15803d',
+                fontSize: '0.75rem',
+                fontWeight: 700,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.4rem',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+              }}
+            >
+              <span>🔍 Tra Cứu Hồ Sơ Khảo Sát (Dành cho Chủ Hộ & Nhà Thầu)</span>
+            </button>
+          </div>
+        )}
 
         {/* Footer Security Note */}
         <div style={{ marginTop: '1.25rem', textAlign: 'center', fontSize: '0.7rem', color: '#94a3b8', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem' }}>

@@ -546,6 +546,8 @@ CREATE TABLE base_survey_reports (
     unit_id UUID REFERENCES building_units(id) ON DELETE SET NULL,
     parent_report_id UUID REFERENCES base_survey_reports(id) ON DELETE SET NULL,
     report_type VARCHAR(32) NOT NULL DEFAULT 'STANDALONE', -- 'STANDALONE' | 'BUILDING_MASTER' | 'UNIT_CHILD'
+    export_revision INT NOT NULL DEFAULT 0,
+    survey_data_json JSONB,
     submitted_at TIMESTAMPTZ,
     approved_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),

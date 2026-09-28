@@ -7,28 +7,36 @@ import { FloorSurveyData } from '../../types/phase1.types';
 interface Step3FloorOverviewSectionProps {
   currentFloor: FloorSurveyData;
   activeFloorIndex: number;
-  onUpdateOverviewPhotos: (photos: { id: string; url: string; caption?: string }[]) => void;
+  projectParcelCode?: string;
+  onUpdateOverviewPhotos: (photos: { id: string; url: string; caption?: string; photoCode?: string }[]) => void;
 }
 
 export const Step3FloorOverviewSection: React.FC<Step3FloorOverviewSectionProps> = ({
   currentFloor,
   activeFloorIndex,
+  projectParcelCode,
   onUpdateOverviewPhotos,
 }) => {
   const rawPhotos = currentFloor.overviewPhotos || [];
   const photos = rawPhotos.map((p: any, idx: number) => {
     if (typeof p === 'string') {
-      return { id: `fl_ov_${idx}`, url: p, caption: '' };
+      return { id: `fl_ov_${idx}`, url: p, caption: '', photoCode: '' };
     }
-    return { id: p?.id || `fl_ov_${idx}`, url: p?.url || '', caption: p?.caption || '' };
+    return {
+      id: p?.id || `fl_ov_${idx}`,
+      url: p?.url || '',
+      caption: p?.caption || '',
+      photoCode: p?.photoCode || '',
+    };
   });
 
-  const handleAddPhoto = (url: string) => {
+  const handleAddPhoto = (url: string, code?: string) => {
     if (!url) return;
     const newPhoto = {
       id: `fl_ov_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
       url,
       caption: '',
+      photoCode: code || '',
     };
     onUpdateOverviewPhotos([...photos, newPhoto]);
   };
@@ -86,13 +94,23 @@ export const Step3FloorOverviewSection: React.FC<Step3FloorOverviewSectionProps>
           >
             <div className="relative aspect-video rounded-lg overflow-hidden border border-slate-200 bg-slate-900">
               <img
+                id={photo.photoCode || undefined}
+                data-photo-code={photo.photoCode || undefined}
                 src={photo.url}
-                alt={`Tổng quan ${currentFloor.floorName} - ${pIdx + 1}`}
+                alt={photo.photoCode || `Tổng quan ${currentFloor.floorName} - ${pIdx + 1}`}
                 className="w-full h-full object-cover"
               />
               <span className="absolute top-1.5 left-1.5 px-2 py-0.5 rounded bg-black/60 backdrop-blur-xs text-white text-[10px] font-mono">
                 #{pIdx + 1}
               </span>
+              {photo.photoCode && (
+                <span
+                  className="absolute bottom-1.5 left-1.5 px-2 py-0.5 rounded bg-slate-950/80 backdrop-blur-xs text-emerald-400 text-[9px] font-mono border border-emerald-500/30 max-w-[85%] truncate"
+                  title={photo.photoCode}
+                >
+                  {photo.photoCode}
+                </span>
+              )}
               <button
                 type="button"
                 onClick={() => handleRemovePhoto(photo.id)}
@@ -125,7 +143,12 @@ export const Step3FloorOverviewSection: React.FC<Step3FloorOverviewSectionProps>
             label={photos.length === 0 ? 'Chụp ảnh tổng quan tầng *' : 'Chụp thêm ảnh tổng quan'}
             value=""
             onChange={handleAddPhoto}
-            watermarkText={`TONG-QUAN | ${currentFloor.floorName}`}
+            watermarkOptions={{
+              parcelCode: projectParcelCode,
+              floor: currentFloor.floorName,
+              photoType: 'OVERVIEW',
+              photoIndex: photos.length + 1,
+            }}
             height="145px"
             recommendedOrientation="landscape"
             orientationHint="Khuyến nghị xoay ngang điện thoại để chụp rộng toàn cảnh tầng"

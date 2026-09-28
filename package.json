@@ -1,0 +1,9 @@
+{
+  "name": "metro2-survey-platform",
+  "version": "1.0.0",
+  "description": "Metro 2 Building Condition Assessment & Survey Platform",
+  "scripts": {
+    "start": "./start-local.sh",
+    "dev": "./start-local.sh"
+  }
+}

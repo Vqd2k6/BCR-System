@@ -103,6 +103,7 @@ const READY_ZONES: Record<string, number> = {
   ZONE_02: 153,
   ZONE_03: 138,
   ZONE_04: 442,
+  ZONE_08: 415,
   ZONE_09: 192,
 };
 

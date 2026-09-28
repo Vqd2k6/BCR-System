@@ -55,12 +55,18 @@ export const Step1PhotosSection: React.FC<Step1PhotosSectionProps> = ({
             <PhotoCaptureInput
               label="Chụp ảnh biển số nhà rõ nét:"
               value={formData.photoP01.url}
-              onChange={(url) =>
-                updateFormData({ photoP01: { ...formData.photoP01, url } })
+              photoCode={formData.photoP01.photoCode}
+              onChange={(url, code) =>
+                updateFormData({ photoP01: { ...formData.photoP01, url, photoCode: code } })
               }
               recommendedOrientation="landscape"
               orientationHint="Khuyến nghị: Chụp ảnh NGANG (4:3) để lấy trọn vẹn biển số"
-              watermarkText={`P-01 | ${formData.houseNumber || 'BIEN-SO'}`}
+              watermarkOptions={{
+                parcelCode: formData.projectParcelCode,
+                floor: 'EXT',
+                photoType: 'P01',
+                photoIndex: 1,
+              }}
               height="150px"
             />
           )}
@@ -92,14 +98,20 @@ export const Step1PhotosSection: React.FC<Step1PhotosSectionProps> = ({
               <PhotoCaptureInput
                 label="Chụp trực diện toàn bộ mặt tiền công trình:"
                 value={formData.photoP02.url}
-                onChange={(url) =>
+                photoCode={formData.photoP02.photoCode}
+                onChange={(url, code) =>
                   updateFormData({
-                    photoP02: { ...formData.photoP02, url },
+                    photoP02: { ...formData.photoP02, url, photoCode: code },
                   })
                 }
                 recommendedOrientation="portrait"
                 orientationHint="Khuyến nghị: Chụp ảnh DỌC (3:4 / 9:16) để bao quát toàn bộ chiều cao công trình từ vỉa hè lên mái"
-                watermarkText={`P-02 | FACADE | ${formData.projectParcelCode}`}
+                watermarkOptions={{
+                  parcelCode: formData.projectParcelCode,
+                  floor: 'EXT',
+                  photoType: 'P02',
+                  photoIndex: 1,
+                }}
                 height="160px"
               />
 
@@ -172,14 +184,21 @@ export const Step1PhotosSection: React.FC<Step1PhotosSectionProps> = ({
               <PhotoCaptureInput
                 label="Chụp mặt bên/mặt sau tiếp cận:"
                 value={formData.photoP03.url}
-                onChange={(url) =>
+                photoCode={formData.photoP03.photoCode}
+                onChange={(url, code) =>
                   updateFormData({
-                    photoP03: { ...formData.photoP03, url },
+                    photoP03: { ...formData.photoP03, url, photoCode: code },
                   })
                 }
                 recommendedOrientation="portrait"
                 orientationHint="Khuyến nghị: Chụp ảnh DỌC (3:4) để lấy chiều cao khối hông"
-                watermarkText={`P-03 | ${formData.photoP03.tag || 'MAT-BEN'}`}
+                watermarkOptions={{
+                  parcelCode: formData.projectParcelCode,
+                  floor: 'EXT',
+                  photoType: 'P03',
+                  zoneOrRoom: formData.photoP03.tag || 'MAT-BEN',
+                  photoIndex: 1,
+                }}
                 height="125px"
               />
             </div>
@@ -212,14 +231,20 @@ export const Step1PhotosSection: React.FC<Step1PhotosSectionProps> = ({
               <PhotoCaptureInput
                 label="Chụp bối cảnh tiếp cận tuyến đường/ngõ:"
                 value={formData.photoP04.url}
-                onChange={(url) =>
-                  updateFormData({ photoP04: { ...formData.photoP04, url } })
+                photoCode={formData.photoP04.photoCode}
+                onChange={(url, code) =>
+                  updateFormData({ photoP04: { ...formData.photoP04, url, photoCode: code } })
                 }
                 recommendedOrientation="landscape"
                 orientationHint="Khuyến nghị: Chụp ảnh NGANG (16:9 / 4:3) góc rộng bao quát cả dãy phố và đường trước nhà"
                 annotationTitle="Đánh dấu mũi tên chỉ rõ vị trí ngôi nhà khảo sát trên ảnh P-04"
                 initialAnnotationTool="ARROW"
-                watermarkText={`P-04 | CONTEXT | ${formData.street || 'STREET'}`}
+                watermarkOptions={{
+                  parcelCode: formData.projectParcelCode,
+                  floor: 'EXT',
+                  photoType: 'P04',
+                  photoIndex: 1,
+                }}
                 height="150px"
               />
               {formData.photoP04.url && (

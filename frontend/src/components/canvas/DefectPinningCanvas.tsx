@@ -21,6 +21,7 @@ export interface DefectItem {
   hasScaleCard: boolean;
   isStructuralCritical: boolean;
   cuPhotoUrl: string;
+  cuPhotoCode?: string;
   notes?: string;
 }
 
@@ -629,10 +630,25 @@ export const DefectPinningCanvas: React.FC<Props> = ({
             <PhotoCaptureInput
               label={`Ảnh cận cảnh Photo CU kèm thước đo (${selectedDefect.defectCode}) *:`}
               value={selectedDefect.cuPhotoUrl}
-              onChange={(url) => updateSelectedDefect('cuPhotoUrl', url)}
+              photoCode={selectedDefect.cuPhotoCode}
+              onChange={(url, code) => {
+                if (selectedDefectIndex !== null) {
+                  const next = [...defects];
+                  next[selectedDefectIndex] = {
+                    ...next[selectedDefectIndex],
+                    cuPhotoUrl: url,
+                    cuPhotoCode: code || next[selectedDefectIndex].cuPhotoCode,
+                  };
+                  onChange(next);
+                }
+              }}
               recommendedOrientation="landscape"
               orientationHint="Khuyến nghị: Chụp ảnh NGANG (4:3) cận cảnh kèm thẻ thước đo tỷ lệ"
-              watermarkText={`PHOTO-CU | ${selectedDefect.defectCode} | ${selectedDefect.widthMaxMm || 0}mm`}
+              watermarkOptions={{
+                defectCode: selectedDefect.defectCode,
+                photoType: 'CU',
+                photoIndex: 1,
+              }}
               annotationTitle={`Vẽ & Ghi chú trên ảnh Photo CU (${selectedDefect.defectCode})`}
               height="140px"
               required

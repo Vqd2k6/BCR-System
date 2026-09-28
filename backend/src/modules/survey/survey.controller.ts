@@ -244,6 +244,11 @@ export class SurveyController {
         await SurveyService.saveDeformation(reportId, def);
       }
 
+      // 4.5. Map and Save Phạm vi và Hạn chế tiếp cận khảo sát (Bảng survey_scopes)
+      if (surveyData?.surveyScope || surveyData?.accessLimitation || surveyData?.isAbsenteeSurvey) {
+        await SurveyService.saveSurveyScope(reportId, surveyData);
+      }
+
       // 5. Tính điểm Rủi ro (Scoring) tự động trên Backend
       await ScoringService.calculatePhase1Scores(reportId);
 

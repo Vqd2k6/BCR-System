@@ -249,7 +249,7 @@ export const SurveyorNavbar: React.FC<Props> = ({
                 <span>Chữ ký: <strong style={{ color: user?.signatureImageUrl ? '#16a34a' : '#d97706' }}>{user?.signatureImageUrl ? 'Đã có' : 'Chưa cài'}</strong></span>
               </div>
 
-              {/* Nút mở Modal Cập nhật SĐT & Chữ ký */}
+              {/* Nút mở Modal Xem Thẻ Cán Bộ (Read-only) */}
               <button
                 type="button"
                 onClick={() => {
@@ -274,8 +274,11 @@ export const SurveyorNavbar: React.FC<Props> = ({
                 }}
               >
                 <UserCheck size={13} />
-                <span>Cập nhật SĐT & Chữ ký</span>
+                <span>Xem Thẻ Cán Bộ Khảo Sát</span>
               </button>
+              <div style={{ fontSize: '0.625rem', color: '#94a3b8', textAlign: 'center', marginTop: '3px' }}>
+                🔒 SĐT & chữ ký do Ban QLDA quản lý tập trung
+              </div>
 
               {onNavigateAdminExport && (user?.role === 'ZONE_ADMIN' || user?.role === 'SUPER_ADMIN') && (
                 <button

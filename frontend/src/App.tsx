@@ -17,11 +17,13 @@ import { Phase1ExportModuleBox } from './features/zone-management/components/Pha
 import { ZoneManagerDashboardPage } from './features/zone-management/views/ZoneManagerDashboardPage';
 import { AdminDashboardPage } from './features/admin-portal/views/AdminDashboardPage';
 import { PublicCitizenPortalPage } from './features/guest-portal/views/PublicCitizenPortalPage';
+import { AdminTopNav } from './components/layout/AdminTopNav';
 import { MapPin, Camera } from 'lucide-react';
 
 export const App: React.FC = () => {
   const { user, isAuthenticated, isLoading } = useAuth();
   const [activeTab, setActiveTab] = useState<NavTab>('home');
+  const [showPublicPortal, setShowPublicPortal] = useState<boolean>(false);
 
   // Automatically switch activeTab based on logged-in user role
   useEffect(() => {
@@ -273,9 +275,17 @@ export const App: React.FC = () => {
     );
   }
 
-  // If not logged in, render the login page first!
+  // If not logged in, render the login page or public citizen portal
   if (!isAuthenticated || !user) {
-    return <LoginView />;
+    if (showPublicPortal) {
+      return <PublicCitizenPortalPage onBackToLogin={() => setShowPublicPortal(false)} />;
+    }
+    return <LoginView onNavigatePublicPortal={() => setShowPublicPortal(true)} />;
+  }
+
+  // If contractor or guest, render Contractor / Citizen Portal directly
+  if (user?.role === 'CONTRACTOR') {
+    return <PublicCitizenPortalPage />;
   }
 
   const triggerSurveyWithCheckInGuard = (surveyFn: () => void) => {
@@ -352,28 +362,27 @@ export const App: React.FC = () => {
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: '#f8fafc', color: '#0f172a' }}>
-      {/* Top Mobile Navbar (Hidden during surveys to avoid duplicate headers) */}
+      {/* Top Header: AdminTopNav cho Quản trị viên (Desktop/Tablet) hoặc SurveyorNavbar cho Khảo sát viên (Mobile PWA) */}
       {activeTab !== 'phase1' && activeTab !== 'condo-master' && activeTab !== 'condo-unit' && (
-        <SurveyorNavbar
-          title={
-            activeTab === 'admin-export'
-              ? user?.role === 'SUPER_ADMIN'
-                ? 'TRUNG TÂM QUẢN TRỊ HỆ THỐNG METRO 2'
-                : 'PHÂN HỆ QUẢN TRỊ KHU VỰC (ZONE ADMIN)'
-              : activeTab === 'home'
-              ? 'BUILDING CONDITION SURVEY MRT LINE-2'
-              : activeTab === 'map'
-              ? 'Bản đồ'
-              : activeTab === 'attendance'
-              ? 'Điểm Danh GPS Hiện Trường'
-              : 'Đối Soát Phase 2 (Pre-Construction)'
-          }
-          onNavigateToCheckIn={() => setActiveTab('attendance')}
-          onOpenCompanionCheckIn={() => setShowCompanionCheckInModal(true)}
-          onNavigateHome={() => setActiveTab('home')}
-          onNavigateAdminExport={() => setActiveTab('admin-export')}
-          isCheckedInToday={isCheckedInToday}
-        />
+        user?.role === 'SUPER_ADMIN' || user?.role === 'ZONE_ADMIN' ? (
+          <AdminTopNav activeTab={activeTab} onChangeTab={setActiveTab} />
+        ) : (
+          <SurveyorNavbar
+            title={
+              activeTab === 'home'
+                ? 'BUILDING CONDITION SURVEY MRT LINE-2'
+                : activeTab === 'map'
+                ? 'Bản đồ số GIS'
+                : activeTab === 'attendance'
+                ? 'Điểm Danh GPS Hiện Trường'
+                : 'Đối Soát Phase 2 (Pre-Construction)'
+            }
+            onNavigateToCheckIn={() => setActiveTab('attendance')}
+            onOpenCompanionCheckIn={() => setShowCompanionCheckInModal(true)}
+            onNavigateHome={() => setActiveTab('home')}
+            isCheckedInToday={isCheckedInToday}
+          />
+        )
       )}
 
       {/* Main Viewport Content */}
@@ -562,8 +571,8 @@ export const App: React.FC = () => {
         />
       )}
 
-      {/* Bottom Navigation for Mobile PWA (Hidden during survey) */}
-      {activeTab !== 'phase1' && activeTab !== 'phase2' && (
+      {/* Bottom Navigation for Mobile PWA (CHỈ hiển thị cho Khảo sát viên, ẩn hoàn toàn với Admin) */}
+      {user?.role !== 'SUPER_ADMIN' && user?.role !== 'ZONE_ADMIN' && activeTab !== 'phase1' && activeTab !== 'phase2' && activeTab !== 'condo-master' && activeTab !== 'condo-unit' && (
         <SurveyorBottomNav activeTab={activeTab} onChangeTab={setActiveTab} />
       )}
     </div>

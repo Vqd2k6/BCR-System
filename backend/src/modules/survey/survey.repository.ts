@@ -1,4 +1,5 @@
 import { Database } from '../../database/db';
+import { normalizeComponentType } from './survey.dto';
 
 export class SurveyRepository {
   static async createBaseReport(data: {
@@ -168,9 +169,9 @@ export class SurveyRepository {
       // P01
       if (photos.p01HouseNumberUrl || photos.p01NotApplicable) {
         await client.query(
-          `INSERT INTO survey_identification_photos (report_id, photo_type, raw_photo_url, is_not_applicable, na_reason)
-           VALUES ($1, 'P01_HOUSE_NUMBER', $2, $3, $4);`,
-          [reportId, photos.p01HouseNumberUrl || null, photos.p01NotApplicable, photos.p01NaReason || null]
+          `INSERT INTO survey_identification_photos (report_id, photo_type, raw_photo_url, photo_code, is_not_applicable, na_reason)
+           VALUES ($1, 'P01_HOUSE_NUMBER', $2, $3, $4, $5);`,
+          [reportId, photos.p01HouseNumberUrl || null, photos.p01PhotoCode || null, photos.p01NotApplicable, photos.p01NaReason || null]
         );
       }
 
@@ -178,12 +179,13 @@ export class SurveyRepository {
       if (photos.p02MainFacadeUrl || photos.p02NotApplicable) {
         await client.query(
           `INSERT INTO survey_identification_photos (
-             report_id, photo_type, raw_photo_url, facade_polygon_points_json,
+             report_id, photo_type, raw_photo_url, photo_code, facade_polygon_points_json,
              floor_split_lines_json, dimensions_json, is_not_applicable, na_reason
-           ) VALUES ($1, 'P02_MAIN_FACADE', $2, $3, $4, $5, $6, $7);`,
+           ) VALUES ($1, 'P02_MAIN_FACADE', $2, $3, $4, $5, $6, $7, $8);`,
           [
             reportId,
             photos.p02MainFacadeUrl || null,
+            photos.p02PhotoCode || null,
             JSON.stringify(photos.p02FacadePolygonPoints || []),
             JSON.stringify(photos.p02FloorSplitLines || []),
             JSON.stringify(photos.p02Dimensions || {}),
@@ -196,18 +198,18 @@ export class SurveyRepository {
       // P03
       if (photos.p03SideRearUrl || photos.p03NotApplicable) {
         await client.query(
-          `INSERT INTO survey_identification_photos (report_id, photo_type, raw_photo_url, is_not_applicable)
-           VALUES ($1, 'P03_SIDE_OR_REAR', $2, $3);`,
-          [reportId, photos.p03SideRearUrl || null, photos.p03NotApplicable]
+          `INSERT INTO survey_identification_photos (report_id, photo_type, raw_photo_url, photo_code, is_not_applicable)
+           VALUES ($1, 'P03_SIDE_OR_REAR', $2, $3, $4);`,
+          [reportId, photos.p03SideRearUrl || null, photos.p03PhotoCode || null, photos.p03NotApplicable]
         );
       }
 
       // P04
       if (photos.p04ContextStreetUrl || photos.p04NotApplicable) {
         await client.query(
-          `INSERT INTO survey_identification_photos (report_id, photo_type, raw_photo_url, is_not_applicable)
-           VALUES ($1, 'P04_CONTEXT_STREET', $2, $3);`,
-          [reportId, photos.p04ContextStreetUrl || null, photos.p04NotApplicable]
+          `INSERT INTO survey_identification_photos (report_id, photo_type, raw_photo_url, photo_code, is_not_applicable)
+           VALUES ($1, 'P04_CONTEXT_STREET', $2, $3, $4);`,
+          [reportId, photos.p04ContextStreetUrl || null, photos.p04PhotoCode || null, photos.p04NotApplicable]
         );
       }
 
@@ -305,19 +307,20 @@ export class SurveyRepository {
       `INSERT INTO damage_zones (
          report_id, zone_code, floor_name, room_name, component_type,
          wall_material, functional_impact_repair_needed, burland_grade,
-         ctx_photo_url, notes
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+         ctx_photo_url, ctx_photo_code, notes
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
        RETURNING *;`,
       [
         reportId,
         zoneData.zoneCode,
         zoneData.floorName,
         zoneData.roomName,
-        zoneData.componentType,
+        normalizeComponentType(zoneData.componentType || zoneData.customComponentType),
         zoneData.wallMaterial || null,
         zoneData.functionalImpactRepairNeeded,
         zoneData.burlandGrade,
         zoneData.ctxPhotoUrl,
+        zoneData.ctxPhotoCode || null,
         zoneData.notes || null,
       ]
     );
@@ -330,8 +333,8 @@ export class SurveyRepository {
          zone_id, defect_code, pin_x, pin_y, screening_category, defect_type,
          crack_direction, width_max_mm, length_mm, activity_state,
          material_degradation_e4, structural_significance_e2, has_scale_card,
-         is_structural_critical, cu_photo_url
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+         is_structural_critical, cu_photo_url, cu_photo_code
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
        RETURNING *;`,
       [
         zoneId,
@@ -349,6 +352,7 @@ export class SurveyRepository {
         defectData.hasScaleCard,
         defectData.isStructuralCritical,
         defectData.cuPhotoUrl,
+        defectData.cuPhotoCode || null,
       ]
     );
     return res.rows[0];
@@ -358,8 +362,9 @@ export class SurveyRepository {
     await Database.query(
       `INSERT INTO deformation_assessments (
          report_id, tilt_angle_x, tilt_angle_y, tilt_direction, floor_slope_ratio,
-         beam_deflection_mm, measurement_method, measurement_reliability
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+         beam_deflection_mm, measurement_method, measurement_reliability,
+         diff_settlement_photo_code, tilt_photo_code, abnormal_photo_code
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
        ON CONFLICT (report_id) DO UPDATE SET
          tilt_angle_x = EXCLUDED.tilt_angle_x,
          tilt_angle_y = EXCLUDED.tilt_angle_y,
@@ -367,7 +372,10 @@ export class SurveyRepository {
          floor_slope_ratio = EXCLUDED.floor_slope_ratio,
          beam_deflection_mm = EXCLUDED.beam_deflection_mm,
          measurement_method = EXCLUDED.measurement_method,
-         measurement_reliability = EXCLUDED.measurement_reliability;`,
+         measurement_reliability = EXCLUDED.measurement_reliability,
+         diff_settlement_photo_code = EXCLUDED.diff_settlement_photo_code,
+         tilt_photo_code = EXCLUDED.tilt_photo_code,
+         abnormal_photo_code = EXCLUDED.abnormal_photo_code;`,
       [
         reportId,
         Number(deform.tiltAngleX) || 0,
@@ -377,7 +385,35 @@ export class SurveyRepository {
         Number(deform.beamDeflectionMm) || 0,
         deform.measurementMethod || 'LASER_LEVEL',
         deform.measurementReliability || 'HIGH',
+        deform.diffSettlementPhotoCode || null,
+        deform.tiltPhotoCode || null,
+        deform.abnormalPhotoCode || null,
       ]
+    );
+  }
+
+  static async saveSurveyScope(reportId: string, scopeData: any): Promise<void> {
+    let coverage: 'TOAN_BO' | 'MOT_PHAN' | 'KHONG_THE_TIEP_CAN' = 'TOAN_BO';
+    const accType = scopeData?.accessLimitation?.type || scopeData?.type;
+    if (accType === 'LIMITED') coverage = 'MOT_PHAN';
+    else if (accType === 'ABSENT_REFUSED' || accType === 'ABSENTEE' || scopeData?.isAbsenteeSurvey) coverage = 'KHONG_THE_TIEP_CAN';
+
+    const inaccessible = Array.isArray(scopeData?.accessLimitation?.restrictedAreas) && scopeData.accessLimitation.restrictedAreas.length > 0
+      ? scopeData.accessLimitation.restrictedAreas.join(', ')
+      : (scopeData?.inaccessibleAreas || null);
+
+    const limitations = scopeData?.accessLimitation?.mainReason
+      ? (scopeData.accessLimitation.notes ? `${scopeData.accessLimitation.mainReason}: ${scopeData.accessLimitation.notes}` : scopeData.accessLimitation.mainReason)
+      : (scopeData?.accessibilityLimitations || null);
+
+    await Database.query(
+      `INSERT INTO survey_scopes (report_id, survey_coverage, inaccessible_areas, accessibility_limitations)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (report_id) DO UPDATE SET
+         survey_coverage = EXCLUDED.survey_coverage,
+         inaccessible_areas = EXCLUDED.inaccessible_areas,
+         accessibility_limitations = EXCLUDED.accessibility_limitations;`,
+      [reportId, coverage, inaccessible, limitations]
     );
   }
 
@@ -419,9 +455,7 @@ export class SurveyRepository {
       if (allZones.length > 0) {
         await client.query(`DELETE FROM damage_zones WHERE report_id = $1;`, [reportId]);
         for (const z of allZones) {
-          const compType = ['WALL', 'BEAM', 'COLUMN', 'SLAB', 'FLOOR', 'STAIRS'].includes(z.componentType)
-            ? z.componentType
-            : 'WALL';
+          const compType = normalizeComponentType(z.componentType || z.customComponentType);
 
           const zoneRes = await client.query<{ id: string }>(
             `INSERT INTO damage_zones (

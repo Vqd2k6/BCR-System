@@ -451,6 +451,7 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
       <Step3FloorOverviewSection
         currentFloor={currentFloor}
         activeFloorIndex={activeFloorIndex}
+        projectParcelCode={formData.projectParcelCode}
         onUpdateOverviewPhotos={handleUpdateFloorOverviewPhotos}
       />
 
@@ -458,6 +459,7 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
       <DamageZonesSection
         currentFloor={currentFloor}
         activeZoneIndex={activeZoneIndex}
+        projectParcelCode={formData.projectParcelCode}
         onCadPhotoChange={(url) => {
           updateFormData((prev) => {
             const updatedFloors = [...prev.floors];

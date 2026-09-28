@@ -12,6 +12,7 @@ import { Building, Camera, Trash2, MapPin, AlertCircle, Plus } from 'lucide-reac
 interface DamageZonesSectionProps {
   currentFloor: FloorSurveyData;
   activeZoneIndex: number;
+  projectParcelCode?: string;
   onCadPhotoChange: (url: string) => void;
   onChangePins: (pins: CadZonePin[]) => void;
   onAutoCreatePin: (pin: CadZonePin) => void;
@@ -27,6 +28,7 @@ interface DamageZonesSectionProps {
 export const DamageZonesSection: React.FC<DamageZonesSectionProps> = ({
   currentFloor,
   activeZoneIndex,
+  projectParcelCode,
   onCadPhotoChange,
   onChangePins,
   onAutoCreatePin,
@@ -282,16 +284,23 @@ export const DamageZonesSection: React.FC<DamageZonesSectionProps> = ({
                 <PhotoCaptureInput
                   label="Thêm ảnh tổng quan"
                   value=""
-                  onChange={(url) => {
+                  onChange={(url, code) => {
                     if (url) {
                       const updated = [...(activeZone.overviewPhotos || []), url];
                       onUpdateZone(activeZoneIndex, {
                         overviewPhotos: updated,
                         ctxPhotoUrl: activeZone.ctxPhotoUrl || url,
+                        ctxPhotoCode: activeZone.ctxPhotoCode || code,
                       });
                     }
                   }}
-                  watermarkText={`${activeZone.zoneCode} | ${activeZone.roomName}`}
+                  watermarkOptions={{
+                    parcelCode: projectParcelCode,
+                    floor: currentFloor.floorName,
+                    zoneOrRoom: activeZone.zoneCode,
+                    photoType: 'CTX',
+                    photoIndex: (activeZone.overviewPhotos?.length || 0) + 1,
+                  }}
                   height="85px"
                 />
               </div>
@@ -348,11 +357,23 @@ export const DamageZonesSection: React.FC<DamageZonesSectionProps> = ({
                   <PhotoCaptureInput
                     label={`Ảnh bối cảnh chính để thả ghim nứt cho ${activeZone.zoneCode}:`}
                     value={activeZone.ctxPhotoUrl || ''}
-                    onChange={(url) => onUpdateZone(activeZoneIndex, { ctxPhotoUrl: url })}
+                    photoCode={activeZone.ctxPhotoCode}
+                    onChange={(url, code) =>
+                      onUpdateZone(activeZoneIndex, {
+                        ctxPhotoUrl: url,
+                        ctxPhotoCode: code || activeZone.ctxPhotoCode,
+                      })
+                    }
                     recommendedOrientation="landscape"
                     orientationHint="Khuyến nghị: Chụp ảnh NGANG (4:3) bao quát mảng tường"
                     annotationTitle={`Vẽ & Ghi chú trên ảnh bối cảnh Vùng ${activeZone.zoneCode}`}
-                    watermarkText={`CTX | ${activeZone.zoneCode}`}
+                    watermarkOptions={{
+                      parcelCode: projectParcelCode,
+                      floor: currentFloor.floorName,
+                      zoneOrRoom: activeZone.zoneCode,
+                      photoType: 'CTX',
+                      photoIndex: 1,
+                    }}
                     height="130px"
                   />
                 </div>

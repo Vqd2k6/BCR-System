@@ -5,6 +5,7 @@ import { Button } from '../../../core/components/ui/Button';
 import { Input, Select } from '../../../core/components/ui/FormControls';
 import { ShieldCheck, Users, Settings, FileSpreadsheet, Database, Lock, Search } from 'lucide-react';
 import { Phase1ExportModuleBox } from '../../zone-management/components/Phase1ExportModuleBox';
+import { UserManagementTab } from '../components/UserManagementTab';
 
 export const AdminDashboardPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'users' | 'export' | 'audit' | 'config'>('export');
@@ -56,51 +57,37 @@ export const AdminDashboardPage: React.FC = () => {
         <Phase1ExportModuleBox initialZoneId="ALL" />
       )}
 
-      {/* Tab Users */}
+      {/* Tab Users: Dynamic UserManagementTab */}
       {activeTab === 'users' && (
-        <Card>
-          <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-100">
-            <div>
-              <h2 className="text-base font-bold text-slate-800">Danh Sách Tài Khoản & Vai Trò</h2>
-              <p className="text-xs text-slate-500">Phân quyền Surveyor, Trưởng Zone, Ban Quản lý Metro</p>
-            </div>
-            <Button size="sm">+ Thêm tài khoản mới</Button>
-          </div>
+        <UserManagementTab />
+      )}
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs text-left">
-              <thead className="bg-slate-50 text-slate-600 font-bold uppercase border-b border-slate-200">
-                <tr>
-                  <th className="p-3">Họ và tên</th>
-                  <th className="p-3">Tên đăng nhập</th>
-                  <th className="p-3">Vai trò</th>
-                  <th className="p-3">Zone được gán</th>
-                  <th className="p-3 text-center">Trạng thái</th>
-                  <th className="p-3 text-right">Thao tác</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                <tr className="hover:bg-slate-50/50">
-                  <td className="p-3 font-bold text-slate-800">Nguyễn Văn Khảo Sát</td>
-                  <td className="p-3 text-slate-600 font-mono">surveyor_s9_01</td>
-                  <td className="p-3"><Badge variant="info">SURVEYOR</Badge></td>
-                  <td className="p-3 font-semibold text-slate-700">ZONE_01 (Ga S1 Bến Thành)</td>
-                  <td className="p-3 text-center"><Badge variant="success">Hoạt động</Badge></td>
-                  <td className="p-3 text-right"><Button size="sm" variant="ghost">Sửa</Button></td>
-                </tr>
-                <tr className="hover:bg-slate-50/50">
-                  <td className="p-3 font-bold text-slate-800">Trần Trưởng Zone</td>
-                  <td className="p-3 text-slate-600 font-mono">zoneadmin_s9</td>
-                  <td className="p-3"><Badge variant="warning">ZONE_ADMIN</Badge></td>
-                  <td className="p-3 font-semibold text-slate-700">ZONE_01 (Ga S1 Bến Thành)</td>
-                  <td className="p-3 text-center"><Badge variant="success">Hoạt động</Badge></td>
-                  <td className="p-3 text-right"><Button size="sm" variant="ghost">Sửa</Button></td>
-                </tr>
-              </tbody>
-            </table>
+      {/* Tab Audit */}
+      {activeTab === 'audit' && (
+        <Card>
+          <div className="p-8 text-center">
+            <Database className="w-12 h-12 text-slate-400 mx-auto mb-3 opacity-60" />
+            <h3 className="text-base font-bold text-slate-800">Nhật Ký Thẩm Định & Kiểm Toán Dữ Liệu</h3>
+            <p className="text-xs text-slate-500 max-w-md mx-auto mt-1">
+              Toàn bộ lịch sử nộp hồ sơ, chữ ký số hiện trường, tính toán mã băm SHA-256 bất biến và các cảnh báo bất thường GPS được lưu trữ tại phân hệ Audit Log của Backend.
+            </p>
+          </div>
+        </Card>
+      )}
+
+      {/* Tab Config */}
+      {activeTab === 'config' && (
+        <Card>
+          <div className="p-8 text-center">
+            <Settings className="w-12 h-12 text-slate-400 mx-auto mb-3 opacity-60" />
+            <h3 className="text-base font-bold text-slate-800">Tham Số Ma Trận Kỹ Thuật Tuyến Metro Số 2</h3>
+            <p className="text-xs text-slate-500 max-w-md mx-auto mt-1">
+              Hệ thống đang áp dụng Tiêu chuẩn phân cấp nứt Burland 1977 và Ma trận đánh giá rủi ro cơ sở BRA (Building Risk Assessment) $V \times I$ theo quy chuẩn Liên danh CRLG-CRSRI-TT.
+            </p>
           </div>
         </Card>
       )}
     </div>
   );
 };
+

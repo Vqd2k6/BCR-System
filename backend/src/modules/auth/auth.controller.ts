@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { AuthService } from './auth.service';
 import { LoginDto, RefreshTokenDto, UpdateProfileDto } from './auth.dto';
-import { BadRequestError } from '../../common/errors/problem-details';
+import { BadRequestError, ForbiddenError } from '../../common/errors/problem-details';
 
 export class AuthController {
   static async login(req: Request, res: Response, next: NextFunction) {
@@ -67,6 +67,15 @@ export class AuthController {
   static async updateMe(req: Request, res: Response, next: NextFunction) {
     try {
       const userId = req.user!.userId;
+      const userRole = req.user?.role;
+
+      // Bảo vệ pháp lý: Khảo sát viên không được tự ý sửa đổi SĐT hoặc Chữ ký số mẫu
+      if (userRole === 'SURVEYOR' && (req.body.phone !== undefined || req.body.signatureImageUrl !== undefined)) {
+        throw new ForbiddenError(
+          'Khảo sát viên hiện trường không được phép tự ý thay đổi Số điện thoại hoặc Chữ ký số pháp lý. Vui lòng liên hệ Quản trị viên Ban QLDA Metro 2.'
+        );
+      }
+
       const parsed = UpdateProfileDto.safeParse(req.body);
       if (!parsed.success) {
         throw new BadRequestError(

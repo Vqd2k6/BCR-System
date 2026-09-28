@@ -69,19 +69,25 @@ export const Step1SettlementTiltSection: React.FC<Step1SettlementTiltSectionProp
               <PhotoCaptureInput
                 label={(formData.settlementTilt?.diffSettlement?.level ?? 0) > 0 ? "Ảnh chụp vị trí lún chênh / chân tường:" : "Ảnh chụp hiện trạng chân tường / nền nhà (Minh chứng không lún):"}
                 value={formData.settlementTilt?.diffSettlement?.photoUrl || ''}
-                onChange={(url) =>
+                photoCode={formData.settlementTilt?.diffSettlement?.photoCode}
+                onChange={(url, code) =>
                   updateFormData({
                     settlementTilt: {
                       ...formData.settlementTilt,
                       diffSettlement: {
                         ...formData.settlementTilt.diffSettlement,
                         photoUrl: url,
+                        photoCode: code,
                       },
                     },
                   })
                 }
                 recommendedOrientation="landscape"
-                watermarkText={`1.6.1 | LUN-CHENH | ${formData.projectParcelCode}`}
+                watermarkOptions={{
+                  parcelCode: formData.projectParcelCode,
+                  photoType: 'SETTLE',
+                  photoIndex: 1,
+                }}
                 height="120px"
               />
               <div>
@@ -174,19 +180,25 @@ export const Step1SettlementTiltSection: React.FC<Step1SettlementTiltSectionProp
               <PhotoCaptureInput
                 label={(formData.settlementTilt?.buildingTilt?.level ?? 0) > 0 ? "Ảnh chụp độ nghiêng khối nhà / thước đo Laser/Nivo:" : "Ảnh chụp mặt đứng công trình (Minh chứng không nghiêng):"}
                 value={formData.settlementTilt?.buildingTilt?.photoUrl || ''}
-                onChange={(url) =>
+                photoCode={formData.settlementTilt?.buildingTilt?.photoCode}
+                onChange={(url, code) =>
                   updateFormData({
                     settlementTilt: {
                       ...formData.settlementTilt,
                       buildingTilt: {
                         ...formData.settlementTilt.buildingTilt,
                         photoUrl: url,
+                        photoCode: code,
                       },
                     },
                   })
                 }
                 recommendedOrientation="portrait"
-                watermarkText={`1.6.2 | NGHIENG | ${formData.projectParcelCode}`}
+                watermarkOptions={{
+                  parcelCode: formData.projectParcelCode,
+                  photoType: 'TILT',
+                  photoIndex: 1,
+                }}
                 height="120px"
               />
               <div>
@@ -224,19 +236,25 @@ export const Step1SettlementTiltSection: React.FC<Step1SettlementTiltSectionProp
             <PhotoCaptureInput
               label="Ảnh chụp trường hợp bất thường / ngoại lệ:"
               value={formData.settlementTilt?.abnormalCase?.photoUrl || ''}
-              onChange={(url) =>
+              photoCode={formData.settlementTilt?.abnormalCase?.photoCode}
+              onChange={(url, code) =>
                 updateFormData({
                   settlementTilt: {
                     ...formData.settlementTilt,
                     abnormalCase: {
                       ...formData.settlementTilt?.abnormalCase,
                       photoUrl: url,
+                      photoCode: code,
                     },
                   },
                 })
               }
               recommendedOrientation="landscape"
-              watermarkText={`1.6.3 | NGOAI-LE | ${formData.projectParcelCode}`}
+              watermarkOptions={{
+                parcelCode: formData.projectParcelCode,
+                photoType: 'ANOMALY',
+                photoIndex: 1,
+              }}
               height="120px"
             />
             <div>

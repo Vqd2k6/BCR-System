@@ -35,6 +35,7 @@ export interface DefectItemReport {
   pinY?: number;
   ctxPhotoUrl?: string;
   cuPhotoUrl?: string;
+  cuPhotoCode?: string;
   extraPhotoUrl?: string;
   notes?: string;
 }
@@ -48,6 +49,7 @@ export interface StructuralElementReport {
   hasDamage: boolean;
   notes?: string;
   ctxPhotoUrl?: string;
+  ctxPhotoCode?: string;
   overviewPhotos?: string[];
 }
 
@@ -62,6 +64,7 @@ export interface DamageZoneReport {
   burlandLabel: string;
   notes?: string;
   ctxPhotoUrl?: string;
+  ctxPhotoCode?: string;
   overviewPhotos?: string[];
   hasDamage: boolean;
   slabCondition?: string;

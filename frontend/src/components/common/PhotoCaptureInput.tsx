@@ -1,12 +1,19 @@
-import React, { useRef, useState, useEffect, useId } from 'react';
+import React, { useRef, useState, useEffect, useId, useMemo } from 'react';
 import { Camera, Trash2, MapPin, Edit3, AlertTriangle, Compass, Image as ImageIcon, RefreshCw, X, Video } from 'lucide-react';
 import { ImageAnnotationModal } from './ImageAnnotationModal';
+import {
+  applyMetroWatermark,
+  MetroWatermarkOptions,
+  generateMetroPhotoCode,
+} from '../../utils/watermarkEngine';
 
 interface Props {
   value: string; // Base64 or image URL
-  onChange: (photoUrl: string) => void;
+  onChange: (photoUrl: string, photoCode?: string) => void;
   label?: string;
   watermarkText?: string;
+  watermarkOptions?: MetroWatermarkOptions;
+  photoCode?: string; // Mã ID ảnh định danh duy nhất (photoCode)
   allowNotApplicable?: boolean;
   isNotApplicable?: boolean;
   onToggleNotApplicable?: (na: boolean) => void;
@@ -26,6 +33,8 @@ export const PhotoCaptureInput: React.FC<Props> = ({
   onChange,
   label,
   watermarkText,
+  watermarkOptions,
+  photoCode,
   allowNotApplicable = false,
   isNotApplicable = false,
   onToggleNotApplicable,
@@ -45,6 +54,20 @@ export const PhotoCaptureInput: React.FC<Props> = ({
 
   const [isAnnotating, setIsAnnotating] = useState(false);
   const [detectedAspectRatio, setDetectedAspectRatio] = useState<'landscape' | 'portrait' | 'square' | null>(null);
+
+  // Tính toán options watermark hợp nhất (ưu tiên watermarkOptions, fallback watermarkText)
+  const effectiveWatermarkOptions = useMemo<MetroWatermarkOptions | undefined>(() => {
+    if (watermarkOptions) return watermarkOptions;
+    if (watermarkText) return { customCode: watermarkText };
+    return undefined;
+  }, [watermarkOptions, watermarkText]);
+
+  // Mã định danh hiển thị
+  const displayPhotoCode = useMemo(() => {
+    if (photoCode) return photoCode;
+    if (effectiveWatermarkOptions) return generateMetroPhotoCode(effectiveWatermarkOptions);
+    return watermarkText || '';
+  }, [photoCode, effectiveWatermarkOptions, watermarkText]);
 
   // In-App Live Camera State
   const [isLiveCameraOpen, setIsLiveCameraOpen] = useState(false);
@@ -73,48 +96,28 @@ export const PhotoCaptureInput: React.FC<Props> = ({
     img.src = value;
   }, [value]);
 
-  const compressImage = (file: File): Promise<string> => {
+  const processAndWatermarkImage = (file: File): Promise<{ dataUrl: string; photoCode: string }> => {
     return new Promise((resolve) => {
       const reader = new FileReader();
-      reader.onload = (event) => {
+      reader.onload = async (event) => {
         const rawBase64 = event.target?.result as string;
         if (!rawBase64) {
-          resolve('');
+          resolve({ dataUrl: '', photoCode: '' });
           return;
         }
-        const img = new Image();
-        img.onload = () => {
-          const maxDim = 1920;
-          let width = img.naturalWidth;
-          let height = img.naturalHeight;
-
-          if (width > maxDim || height > maxDim) {
-            if (width > height) {
-              height = Math.round((height * maxDim) / width);
-              width = maxDim;
-            } else {
-              width = Math.round((width * maxDim) / height);
-              height = maxDim;
-            }
-          }
-
-          const canvas = document.createElement('canvas');
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext('2d');
-          if (!ctx) {
-            resolve(rawBase64);
-            return;
-          }
-
-          ctx.drawImage(img, 0, 0, width, height);
-          const compressed = canvas.toDataURL('image/jpeg', 0.82);
-          resolve(compressed);
-        };
-        img.onerror = () => resolve(rawBase64);
-        img.src = rawBase64;
+        try {
+          // Tự động dập Logo THACO-CREC + Ngày giờ + Photo ID vào Canvas
+          const result = await applyMetroWatermark(rawBase64, effectiveWatermarkOptions);
+          resolve(result);
+        } catch (err) {
+          console.warn('[WATERMARK] Fallback nén ảnh thông thường do lỗi dập watermark:', err);
+          resolve({
+            dataUrl: rawBase64,
+            photoCode: displayPhotoCode,
+          });
+        }
       };
-      reader.onerror = () => resolve('');
+      reader.onerror = () => resolve({ dataUrl: '', photoCode: '' });
       reader.readAsDataURL(file);
     });
   };
@@ -124,21 +127,21 @@ export const PhotoCaptureInput: React.FC<Props> = ({
     if (!file) return;
 
     try {
-      const base64 = await compressImage(file);
-      if (base64) {
-        onChange(base64);
+      const { dataUrl, photoCode: generatedCode } = await processAndWatermarkImage(file);
+      if (dataUrl) {
+        onChange(dataUrl, generatedCode);
         if (isNotApplicable && onToggleNotApplicable) {
           onToggleNotApplicable(false);
         }
       }
     } catch (_err) {
-      console.warn('Image compression fallback');
+      console.warn('Image processing fallback');
     }
     e.target.value = '';
   };
 
   const handleClear = () => {
-    onChange('');
+    onChange('', '');
     setDetectedAspectRatio(null);
   };
 
@@ -205,20 +208,33 @@ export const PhotoCaptureInput: React.FC<Props> = ({
     };
   }, [isLiveCameraOpen, facingMode]);
 
-  // Chụp ảnh từ luồng WebRTC
-  const handleCaptureLiveFrame = () => {
+  // Chụp ảnh từ luồng WebRTC kèm dập Watermark
+  const handleCaptureLiveFrame = async () => {
     if (!videoRef.current) return;
     const video = videoRef.current;
-    const canvas = document.createElement('canvas');
-    canvas.width = video.videoWidth || 1280;
-    canvas.height = video.videoHeight || 720;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
-    onChange(dataUrl);
-    if (isNotApplicable && onToggleNotApplicable) {
-      onToggleNotApplicable(false);
+
+    try {
+      const { dataUrl, photoCode: generatedCode } = await applyMetroWatermark(
+        video,
+        effectiveWatermarkOptions
+      );
+      if (dataUrl) {
+        onChange(dataUrl, generatedCode);
+        if (isNotApplicable && onToggleNotApplicable) {
+          onToggleNotApplicable(false);
+        }
+      }
+    } catch (err) {
+      console.warn('[WATERMARK] Fallback chụp ảnh trực tiếp:', err);
+      const canvas = document.createElement('canvas');
+      canvas.width = video.videoWidth || 1280;
+      canvas.height = video.videoHeight || 720;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+        onChange(dataUrl, displayPhotoCode);
+      }
     }
     stopLiveCamera();
   };
@@ -414,33 +430,39 @@ export const PhotoCaptureInput: React.FC<Props> = ({
           }}
         >
           <img
+            id={photoCode || displayPhotoCode || undefined}
+            data-photo-code={photoCode || displayPhotoCode || undefined}
             src={value}
-            alt={label || 'Photo preview'}
+            alt={displayPhotoCode || label || 'Photo preview'}
             style={{ width: '100%', height: '100%', objectFit: 'contain' }}
           />
 
-          {/* Watermark Tag */}
-          {watermarkText && (
+          {/* Photo ID Badge / Watermark Tag */}
+          {displayPhotoCode && (
             <div
               style={{
                 position: 'absolute',
                 bottom: '6px',
                 left: '6px',
-                backgroundColor: 'rgba(0, 0, 0, 0.75)',
-                color: '#38bdf8',
+                backgroundColor: 'rgba(15, 23, 42, 0.88)',
+                color: '#34d399',
                 fontSize: '0.65rem',
+                fontWeight: 600,
                 padding: '0.2rem 0.45rem',
                 borderRadius: '0.35rem',
-                fontFamily: 'monospace',
-                backdropFilter: 'blur(2px)',
-                maxWidth: '90%',
+                fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+                backdropFilter: 'blur(3px)',
+                border: '1px solid rgba(52, 211, 153, 0.35)',
+                maxWidth: '92%',
                 whiteSpace: 'nowrap',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
+                boxShadow: '0 2px 5px rgba(0, 0, 0, 0.35)',
               }}
+              title={`Photo ID Pháp Lý: ${displayPhotoCode}`}
             >
-              <MapPin size={11} style={{ display: 'inline', marginRight: '4px', verticalAlign: 'middle' }} />
-              {watermarkText}
+              <MapPin size={11} style={{ display: 'inline', marginRight: '4px', verticalAlign: 'middle', color: '#10b981' }} />
+              <span>{displayPhotoCode}</span>
             </div>
           )}
 

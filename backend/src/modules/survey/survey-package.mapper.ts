@@ -1,6 +1,7 @@
 import {
   normalizeStructuralSystem,
   normalizeFoundationCategory,
+  normalizeComponentType,
 } from './survey.dto';
 
 export class SurveyPackageMapper {

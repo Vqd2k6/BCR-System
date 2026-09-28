@@ -145,6 +145,14 @@ export class SurveyService {
     };
   }
 
+  static async saveSurveyScope(reportId: string, scopeData: any) {
+    await SurveyRepository.saveSurveyScope(reportId, scopeData);
+    return {
+      reportId,
+      message: 'Đã lưu phạm vi và mức độ tiếp cận khảo sát thành công',
+    };
+  }
+
   static async submitPhase1Report(reportId: string, submitData: any) {
     await SurveyRepository.submitReport(reportId, submitData);
     return {

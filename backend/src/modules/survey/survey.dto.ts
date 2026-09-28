@@ -9,10 +9,12 @@ export const CreatePhase1ReportDto = z.object({
 
 export const IdentificationPhotosDto = z.object({
   p01HouseNumberUrl: z.string().optional().nullable(),
+  p01PhotoCode: z.string().optional().nullable(),
   p01NotApplicable: z.boolean().default(false),
   p01NaReason: z.string().optional(),
   
   p02MainFacadeUrl: z.string().optional().nullable(),
+  p02PhotoCode: z.string().optional().nullable(),
   p02FacadePolygonPoints: z.array(z.object({ x: z.number(), y: z.number() })).optional(),
   p02FloorSplitLines: z.array(z.object({ floor: z.string(), y: z.number() })).optional(),
   p02Dimensions: z.record(z.string()).optional(),
@@ -20,9 +22,11 @@ export const IdentificationPhotosDto = z.object({
   p02NaReason: z.string().optional(),
   
   p03SideRearUrl: z.string().optional().nullable(),
+  p03PhotoCode: z.string().optional().nullable(),
   p03NotApplicable: z.boolean().default(false),
   
   p04ContextStreetUrl: z.string().optional().nullable(),
+  p04PhotoCode: z.string().optional().nullable(),
   p04NotApplicable: z.boolean().default(false),
 });
 
@@ -170,6 +174,44 @@ export function normalizeFoundationCategory(val?: any): string {
   return 'CAT_2_MONG_DON_BTCT';
 }
 
+export function normalizeComponentType(val?: any): 'WALL' | 'BEAM' | 'COLUMN' | 'SLAB' | 'FLOOR' | 'STAIRS' {
+  if (!val) return 'WALL';
+  const str = String(val).trim().toUpperCase();
+
+  // 1. Nếu đã là giá trị enum chuẩn
+  if (['WALL', 'BEAM', 'COLUMN', 'SLAB', 'FLOOR', 'STAIRS'].includes(str)) {
+    return str as 'WALL' | 'BEAM' | 'COLUMN' | 'SLAB' | 'FLOOR' | 'STAIRS';
+  }
+
+  // 2. Cầu thang bộ / thang kiến trúc
+  if (str.includes('THANG') || str.includes('STAIR')) {
+    return 'STAIRS';
+  }
+
+  // 3. Sàn / Nền nhà lát gạch, đá, gỗ, vinyl
+  if (str.includes('SÀN') || str.includes('SAN') || str.includes('NỀN') || str.includes('NEN') || str.includes('FLOOR')) {
+    return 'FLOOR';
+  }
+
+  // 4. Cột BTCT / Cột thép
+  if (str.includes('CỘT') || str.includes('COT') || str.includes('COLUMN')) {
+    return 'COLUMN';
+  }
+
+  // 5. Dầm BTCT / Dầm thép
+  if (str.includes('DẦM') || str.includes('DAM') || str.includes('BEAM')) {
+    return 'BEAM';
+  }
+
+  // 6. Trần thạch cao / Bản sàn BTCT chịu lực
+  if (str.includes('TRẦN') || str.includes('TRAN') || str.includes('SLAB')) {
+    return 'SLAB';
+  }
+
+  // 7. Mặc định là Tường (WALL)
+  return 'WALL';
+}
+
 export const BuildingSpecsDto = z.object({
   buildingName: z.string().optional(),
   buildingGrade: z.enum(['GENERAL', 'IMPORTANT', 'CRITICAL']).default('GENERAL'),
@@ -220,6 +262,7 @@ export const CreateDamageZoneDto = z.object({
   functionalImpactRepairNeeded: z.boolean().default(false),
   burlandGrade: z.number().int().min(0).max(5).default(0),
   ctxPhotoUrl: z.string().min(1, 'Ảnh bối cảnh Photo CTX bắt buộc phải có'),
+  ctxPhotoCode: z.string().optional(),
   notes: z.string().optional(),
 });
 
@@ -238,6 +281,7 @@ export const CreateDefectItemDto = z.object({
   hasScaleCard: z.boolean().default(true),
   isStructuralCritical: z.boolean().default(false),
   cuPhotoUrl: z.string().min(1, 'Ảnh cận cảnh Photo CU bắt buộc phải có'),
+  cuPhotoCode: z.string().optional(),
 });
 
 export const DeformationDto = z.object({
@@ -248,6 +292,12 @@ export const DeformationDto = z.object({
   beamDeflectionMm: z.number().default(0),
   measurementMethod: z.string().default('LASER_LEVEL'),
   measurementReliability: z.enum(['HIGH', 'MEDIUM', 'LOW']).default('HIGH'),
+  diffSettlementPhotoUrl: z.string().optional().nullable(),
+  diffSettlementPhotoCode: z.string().optional().nullable(),
+  tiltPhotoUrl: z.string().optional().nullable(),
+  tiltPhotoCode: z.string().optional().nullable(),
+  abnormalPhotoUrl: z.string().optional().nullable(),
+  abnormalPhotoCode: z.string().optional().nullable(),
 });
 
 export const SubmitPhase1ReportDto = z.object({

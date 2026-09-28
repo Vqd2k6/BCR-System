@@ -28,6 +28,7 @@ export const METRO_ZONE_CENTROIDS: Record<string, MetroZoneCentroid> = {
   ZONE_02: { zoneId: 'ZONE_02', zoneName: 'Zone 2: Hầm TBM Bến Thành -> Tao Đàn (POR)', lat: 10.771500, lng: 106.694800 },
   ZONE_03: { zoneId: 'ZONE_03', zoneName: 'Zone 3: Ga S2 Tao Đàn (C&C)', lat: 10.773237, lng: 106.690138 },
   ZONE_04: { zoneId: 'ZONE_04', zoneName: 'Zone 4: Hầm TBM Tao Đàn -> Dân Chủ (POR)', lat: 10.774500, lng: 106.687500 },
+  ZONE_08: { zoneId: 'ZONE_08', zoneName: 'Zone 8: Hầm TBM Hòa Hưng -> Lê Thị Riêng (POR)', lat: 10.784328, lng: 106.669262 },
   ZONE_09: { zoneId: 'ZONE_09', zoneName: 'Zone 9: Ga S5 Lê Thị Riêng (C&C)', lat: 10.786163, lng: 106.665623 },
 };
 

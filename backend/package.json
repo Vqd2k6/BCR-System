@@ -6,6 +6,7 @@
   "scripts": {
     "build": "tsc && mkdir -p dist/modules/report && cp -r src/modules/report/templates dist/modules/report/",
     "start": "node dist/server.js",
+    "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
     "test": "ts-node scripts/test-apis.ts",
     "test:api": "ts-node scripts/test-apis.ts",
     "seed:ks003": "ts-node src/scripts/import_ks003.ts",
