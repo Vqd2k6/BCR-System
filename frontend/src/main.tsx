@@ -5,14 +5,14 @@ import { App } from './App';
 import './styles/index.css';
 import { initDevErrorReporter, sendDevError } from './services/devErrorReporter';
 
-// Bộ lọc toàn cục chủ động chặn các lỗi ngoại lai từ Browser Extension (như 200.js, M_ID...)
+// Bộ lọc toàn cục chủ động chặn các lỗi ngoại lai từ Browser Extension (như 200.js, requests.js, M_ID...)
 if (typeof window !== 'undefined') {
   window.addEventListener(
     'error',
     (event) => {
       const filename = String(event.filename || '').toLowerCase();
       const message = String(event.message || '').toLowerCase();
-      if (filename.includes('200.js') || message.includes('m_id')) {
+      if (filename.includes('200.js') || filename.includes('requests.js') || message.includes('m_id')) {
         event.preventDefault();
         event.stopImmediatePropagation();
       }
@@ -24,7 +24,7 @@ if (typeof window !== 'undefined') {
     'unhandledrejection',
     (event) => {
       const reason = String(event.reason?.stack || event.reason?.message || event.reason || '').toLowerCase();
-      if (reason.includes('200.js') || reason.includes('m_id')) {
+      if (reason.includes('200.js') || reason.includes('requests.js') || reason.includes('m_id')) {
         event.preventDefault();
         event.stopImmediatePropagation();
       }

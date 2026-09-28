@@ -16,6 +16,7 @@ const resolveBaseUrl = (): string => {
 export const api = axios.create({
   baseURL: resolveBaseUrl(),
   timeout: 120000, // 120s timeout chịu tải Render Free cold-start và upload khảo sát
+  adapter: typeof fetch !== 'undefined' ? 'fetch' : undefined,
   headers: {
     'Content-Type': 'application/json',
   },

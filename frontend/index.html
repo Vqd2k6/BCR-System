@@ -10,6 +10,43 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <title>Metro 2 Survey - Khảo Sát Hiện Trạng Công Trình</title>
     
+    <!-- 🛡️ BỘ LỌC TOÀN CỤC CHỐNG LỖI NGOẠI LAI TỪ EXTENSION TRÌNH DUYỆT (200.js, requests.js, M_ID) -->
+    <script>
+      (function() {
+        if (typeof window === 'undefined') return;
+
+        function isForeignExtensionError(e) {
+          try {
+            var target = e && (e.error || e.reason || e);
+            var str = String(
+              (target && (target.stack || target.message)) ||
+              (e && (e.message || e.filename)) ||
+              target || ''
+            ).toLowerCase();
+            return str.indexOf('200.js') !== -1 || str.indexOf('m_id') !== -1 || str.indexOf('requests.js') !== -1;
+          } catch (_) {
+            return false;
+          }
+        }
+
+        window.addEventListener('error', function(event) {
+          if (isForeignExtensionError(event)) {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            return true;
+          }
+        }, true);
+
+        window.addEventListener('unhandledrejection', function(event) {
+          if (isForeignExtensionError(event)) {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            return true;
+          }
+        }, true);
+      })();
+    </script>
+    
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
