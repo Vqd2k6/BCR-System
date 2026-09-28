@@ -14,11 +14,25 @@ export class StorageController {
       }
 
       const folder = (req.body.folder as string) || 'surveys';
+      let metadata: Record<string, any> | undefined;
+      if (req.body.metadata) {
+        if (typeof req.body.metadata === 'string') {
+          try {
+            metadata = JSON.parse(req.body.metadata);
+          } catch (_e) {
+            metadata = { note: req.body.metadata };
+          }
+        } else if (typeof req.body.metadata === 'object') {
+          metadata = req.body.metadata;
+        }
+      }
+
       const result = await StorageService.uploadBuffer(
         file.buffer,
         file.originalname,
         file.mimetype,
-        folder
+        folder,
+        metadata
       );
 
       res.status(201).json({
@@ -35,15 +49,25 @@ export class StorageController {
    */
   static async uploadBase64(req: Request, res: Response, next: NextFunction) {
     try {
-      const { base64, filenamePrefix, folder } = req.body;
+      const { base64, filenamePrefix, folder, metadata } = req.body;
       if (!base64 || typeof base64 !== 'string') {
         throw new BadRequestError('Trường "base64" là bắt buộc và phải là chuỗi hợp lệ');
+      }
+
+      let parsedMeta = metadata;
+      if (typeof metadata === 'string') {
+        try {
+          parsedMeta = JSON.parse(metadata);
+        } catch (_e) {
+          parsedMeta = { note: metadata };
+        }
       }
 
       const result = await StorageService.uploadBase64(
         base64,
         filenamePrefix || 'photo',
-        folder || 'surveys'
+        folder || 'surveys',
+        parsedMeta
       );
 
       res.status(201).json({
@@ -60,7 +84,7 @@ export class StorageController {
    */
   static async generatePresignedUrl(req: Request, res: Response, next: NextFunction) {
     try {
-      const { filename, mimeType, folder } = req.body;
+      const { filename, mimeType, folder, metadata } = req.body;
       const cleanFilename = typeof filename === 'string' && filename.trim() ? filename.trim() : 'photo.jpg';
       const cleanMimeType = typeof mimeType === 'string' && mimeType.trim() ? mimeType.trim() : 'image/jpeg';
       const cleanFolder = typeof folder === 'string' && folder.trim() ? folder.trim() : 'surveys';
@@ -68,7 +92,8 @@ export class StorageController {
       const result = await StorageService.generatePresignedUploadUrl(
         cleanFilename,
         cleanMimeType,
-        cleanFolder
+        cleanFolder,
+        metadata
       );
 
       res.status(200).json({

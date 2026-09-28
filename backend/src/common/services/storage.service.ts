@@ -18,6 +18,7 @@ export interface PresignedUploadResult {
   publicUrl: string;
   key: string;
   method: 'PUT';
+  headers?: Record<string, string>;
   expiresInSeconds: number;
 }
 
@@ -97,19 +98,74 @@ export class StorageService {
   }
 
   /**
+   * Chuẩn hóa và làm sạch Metadata cho S3 / Cloudflare R2:
+   * 1. Key: chữ thường, chỉ chứa a-z, 0-9, gạch ngang, gạch dưới.
+   * 2. Value: loại bỏ dấu tiếng Việt sang ASCII an toàn, giới hạn độ dài < 500 ký tự.
+   */
+  public static sanitizeMetadataForS3(meta?: Record<string, any>): Record<string, string> {
+    const result: Record<string, string> = {};
+    if (!meta || typeof meta !== 'object') return result;
+
+    for (const [rawKey, rawVal] of Object.entries(meta)) {
+      if (rawVal === undefined || rawVal === null || rawVal === '') continue;
+      const cleanKey = String(rawKey).trim().toLowerCase().replace(/[^a-z0-9_-]/g, '-');
+      if (!cleanKey) continue;
+
+      let cleanVal = String(rawVal)
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/đ/g, 'd')
+        .replace(/Đ/g, 'D')
+        .replace(/[^\x20-\x7E]/g, '') // Chỉ giữ các ký tự ASCII an toàn
+        .trim();
+
+      if (cleanVal.length > 500) {
+        cleanVal = cleanVal.slice(0, 500);
+      }
+
+      result[cleanKey] = cleanVal;
+    }
+    return result;
+  }
+
+  /**
+   * Tạo S3 Key chuẩn hóa theo cấu trúc thư mục rõ ràng và dễ tra cứu:
+   * surveys/{buildingCode}/{category}/{cleanFilename}
+   */
+  public static buildUniqueKey(filename: string, folder: string = 'surveys'): string {
+    const ext = path.extname(filename) || '.jpg';
+    const cleanBasename = path.basename(filename, ext).replace(/[^a-zA-Z0-9_.-]/g, '_');
+    
+    // Nếu cleanBasename đã có timestamp hoặc suffix dài, chỉ thêm random hash ngắn
+    const shortHash = crypto.randomUUID().slice(0, 6);
+    const hasSuffix = /[0-9]{8,}/.test(cleanBasename);
+    const finalBasename = hasSuffix ? `${cleanBasename}_${shortHash}` : `${cleanBasename}_${Date.now()}_${shortHash}`;
+    
+    const cleanFolder = folder.replace(/^\/+|\/+$/g, '') || 'surveys';
+    return `${cleanFolder}/${finalBasename}${ext}`;
+  }
+
+  /**
    * Tải Buffer (file nhị phân) lên Cloudflare R2 hoặc Local storage
    */
   public static async uploadBuffer(
     buffer: Buffer,
     filename: string,
     mimeType: string,
-    folder: string = 'surveys'
+    folder: string = 'surveys',
+    metadata?: Record<string, any>
   ): Promise<UploadResult> {
     const checksumSha256 = this.calculateSha256(buffer);
     const sizeBytes = buffer.length;
-    const ext = path.extname(filename) || '.jpg';
-    const cleanBasename = path.basename(filename, ext).replace(/[^a-zA-Z0-9_-]/g, '_');
-    const uniqueKey = `${folder}/${Date.now()}_${cleanBasename}_${crypto.randomUUID().slice(0, 8)}${ext}`;
+    const uniqueKey = this.buildUniqueKey(filename, folder);
+
+    const sanitizedMeta = this.sanitizeMetadataForS3(metadata);
+    const s3Metadata: Record<string, string> = {
+      'sha256-checksum': checksumSha256,
+      'uploaded-at': new Date().toISOString(),
+      'project': 'METRO2_HCM',
+      ...sanitizedMeta,
+    };
 
     if (config.storage.type === 'r2' || config.storage.type === 's3') {
       const client = this.getS3Client();
@@ -119,10 +175,7 @@ export class StorageService {
           Key: uniqueKey,
           Body: buffer,
           ContentType: mimeType,
-          Metadata: {
-            'sha256-checksum': checksumSha256,
-            'uploaded-at': new Date().toISOString(),
-          },
+          Metadata: s3Metadata,
         })
       );
 
@@ -139,13 +192,13 @@ export class StorageService {
       };
     } else {
       // Local fallback
-      const targetDir = path.resolve(config.storage.localUploadDir, folder);
+      const targetPath = path.resolve(config.storage.localUploadDir, uniqueKey);
+      const targetDir = path.dirname(targetPath);
       if (!fs.existsSync(targetDir)) {
         fs.mkdirSync(targetDir, { recursive: true });
       }
 
-      const filePath = path.join(targetDir, path.basename(uniqueKey));
-      fs.writeFileSync(filePath, buffer);
+      fs.writeFileSync(targetPath, buffer);
 
       return {
         url: `/uploads/${uniqueKey}`,
@@ -163,7 +216,8 @@ export class StorageService {
   public static async uploadBase64(
     base64String: string,
     filenamePrefix: string = 'photo',
-    folder: string = 'surveys'
+    folder: string = 'surveys',
+    metadata?: Record<string, any>
   ): Promise<UploadResult> {
     let mimeType = 'image/jpeg';
     let base64Data = base64String;
@@ -179,7 +233,7 @@ export class StorageService {
     if (mimeType.includes('png')) ext = '.png';
     else if (mimeType.includes('webp')) ext = '.webp';
 
-    return this.uploadBuffer(buffer, `${filenamePrefix}${ext}`, mimeType, folder);
+    return this.uploadBuffer(buffer, `${filenamePrefix}${ext}`, mimeType, folder, metadata);
   }
 
   /**
@@ -189,12 +243,25 @@ export class StorageService {
   public static async generatePresignedUploadUrl(
     filename: string,
     mimeType: string = 'image/jpeg',
-    folder: string = 'surveys'
+    folder: string = 'surveys',
+    metadata?: Record<string, any>
   ): Promise<PresignedUploadResult> {
-    const ext = path.extname(filename) || '.jpg';
-    const cleanBasename = path.basename(filename, ext).replace(/[^a-zA-Z0-9_-]/g, '_');
-    const uniqueKey = `${folder}/${Date.now()}_${cleanBasename}_${crypto.randomUUID().slice(0, 8)}${ext}`;
+    const uniqueKey = this.buildUniqueKey(filename, folder);
     const expiresInSeconds = 900; // 15 phút
+
+    const sanitizedMeta = this.sanitizeMetadataForS3(metadata);
+    const s3Metadata: Record<string, string> = {
+      'uploaded-at': new Date().toISOString(),
+      'project': 'METRO2_HCM',
+      ...sanitizedMeta,
+    };
+
+    const headers: Record<string, string> = {
+      'Content-Type': mimeType,
+    };
+    for (const [k, v] of Object.entries(s3Metadata)) {
+      headers[`x-amz-meta-${k}`] = v;
+    }
 
     if (config.storage.type === 'r2' || config.storage.type === 's3') {
       const client = this.getS3Client();
@@ -202,6 +269,7 @@ export class StorageService {
         Bucket: config.storage.s3.bucket,
         Key: uniqueKey,
         ContentType: mimeType,
+        Metadata: s3Metadata,
       });
 
       const uploadUrl = await getSignedUrl(client, command, { expiresIn: expiresInSeconds });
@@ -215,6 +283,7 @@ export class StorageService {
         publicUrl,
         key: uniqueKey,
         method: 'PUT',
+        headers,
         expiresInSeconds,
       };
     } else {
@@ -227,6 +296,7 @@ export class StorageService {
         publicUrl,
         key: uniqueKey,
         method: 'PUT',
+        headers,
         expiresInSeconds,
       };
     }

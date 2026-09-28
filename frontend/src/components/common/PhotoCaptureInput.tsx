@@ -121,16 +121,68 @@ export const PhotoCaptureInput: React.FC<Props> = ({
     }
   }, [value]);
 
+  // Trích xuất thông tin định danh công trình và phân loại ảnh phục vụ cây thư mục R2 & Custom Metadata
+  const extractPhotoDetails = (code?: string) => {
+    let buildingCode = effectiveWatermarkOptions?.parcelCode || '';
+    let pType = effectiveWatermarkOptions?.photoType || '';
+    const fullCode = code || displayPhotoCode || '';
+
+    if (!buildingCode && fullCode) {
+      // Phân tích mã như HCM_M2_B00008CC_SETTLE_01 hoặc HCM_M2.B00008CC_...
+      const cleanCode = fullCode.replace(/^HCM_M2[._]/i, '');
+      const parts = cleanCode.split(/[._]/);
+      if (parts[0] && parts[0].length >= 3) {
+        buildingCode = parts[0];
+      }
+      if (!pType && parts[1]) {
+        pType = parts[1];
+      }
+    }
+
+    // Làm sạch ký tự
+    buildingCode = buildingCode.replace(/[^a-zA-Z0-9_-]/g, '').toUpperCase();
+    pType = String(pType).replace(/[^a-zA-Z0-9_-]/g, '').toUpperCase();
+
+    // Xác định thư mục phân cấp rõ ràng trong Cloudflare R2: surveys/{buildingCode}/{photoType}
+    let targetFolder = 'surveys';
+    if (buildingCode) {
+      targetFolder = pType ? `surveys/${buildingCode}/${pType}` : `surveys/${buildingCode}`;
+    }
+
+    const metadata: Record<string, string> = {
+      'photo-code': fullCode,
+      'building-code': buildingCode,
+      'photo-type': pType,
+      'survey-phase': 'PHASE_1',
+      'project': 'METRO2_HCM',
+      'captured-at': new Date().toISOString(),
+    };
+
+    if (effectiveWatermarkOptions?.floor) {
+      metadata['floor'] = String(effectiveWatermarkOptions.floor);
+    }
+    if (effectiveWatermarkOptions?.stationCode) {
+      metadata['station-code'] = effectiveWatermarkOptions.stationCode;
+    }
+    if (label) {
+      metadata['label'] = label;
+    }
+
+    return { buildingCode, photoType: pType, targetFolder, metadata };
+  };
+
   const startDirectUpload = (blob: Blob, code?: string) => {
     lastBlobRef.current = blob;
     setUploadStatus('UPLOADING');
 
+    const { targetFolder, metadata } = extractPhotoDetails(code);
     const prefix = code ? code.replace(/[^a-zA-Z0-9_-]/g, '_') : 'photo';
     const filename = `${prefix}_${Date.now()}.jpg`;
 
     uploadQueue.enqueue(blob, filename, {
-      folder: 'surveys',
+      folder: targetFolder,
       mimeType: 'image/jpeg',
+      metadata,
       onSuccess: (publicUrl) => {
         setUploadStatus('SUCCESS');
         onChange(publicUrl, code);
@@ -172,10 +224,12 @@ export const PhotoCaptureInput: React.FC<Props> = ({
   const uploadToServer = async (base64Str: string, code?: string) => {
     if (!base64Str || !base64Str.startsWith('data:image/')) return;
     try {
+      const { targetFolder, metadata } = extractPhotoDetails(code);
       const res = await api.post('/storage/upload-base64', {
         base64: base64Str,
         filenamePrefix: code ? code.replace(/[^a-zA-Z0-9_-]/g, '_') : 'photo',
-        folder: 'surveys',
+        folder: targetFolder,
+        metadata,
       });
       const uploadedUrl = res.data?.data?.url;
       if (uploadedUrl) {

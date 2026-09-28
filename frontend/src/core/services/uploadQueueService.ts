@@ -12,6 +12,7 @@ export interface UploadTask {
   filename: string;
   folder?: string;
   mimeType?: string;
+  metadata?: Record<string, string>;
   status: UploadStatus;
   progress: number;
   retryCount: number;
@@ -67,6 +68,7 @@ class UploadQueueService {
       id?: string;
       folder?: string;
       mimeType?: string;
+      metadata?: Record<string, string>;
       onSuccess?: (publicUrl: string, key: string) => void;
       onError?: (err: Error) => void;
     }
@@ -78,6 +80,7 @@ class UploadQueueService {
     if (existingIndex >= 0 && this.queue[existingIndex].status !== 'SUCCESS') {
       this.queue[existingIndex].blob = blob;
       this.queue[existingIndex].filename = filename;
+      this.queue[existingIndex].metadata = options?.metadata;
       this.queue[existingIndex].status = 'QUEUED';
       this.queue[existingIndex].retryCount = 0;
       this.queue[existingIndex].onSuccess = options?.onSuccess;
@@ -92,6 +95,7 @@ class UploadQueueService {
       filename,
       folder: options?.folder || 'surveys',
       mimeType: options?.mimeType || 'image/jpeg',
+      metadata: options?.metadata,
       status: 'QUEUED',
       progress: 0,
       retryCount: 0,
@@ -187,6 +191,9 @@ class UploadQueueService {
     if (task.folder) {
       formData.append('folder', task.folder);
     }
+    if (task.metadata) {
+      formData.append('metadata', JSON.stringify(task.metadata));
+    }
 
     const res = await api.post('/storage/upload', formData, {
       headers: {
@@ -211,11 +218,12 @@ class UploadQueueService {
    */
   private async executeUpload(task: UploadTask): Promise<{ publicUrl: string; key: string }> {
     try {
-      // 1. Xin Presigned PUT URL từ Backend (Request payload cực nhẹ ~80 bytes, RAM backend tiêu tốn = 0)
+      // 1. Xin Presigned PUT URL từ Backend kèm Metadata định danh
       const presignRes = await api.post('/storage/presign', {
         filename: task.filename,
         mimeType: task.mimeType,
         folder: task.folder,
+        metadata: task.metadata,
       });
 
       const presignData = presignRes.data?.data;
@@ -223,7 +231,7 @@ class UploadQueueService {
         throw new Error('Backend không trả về Presigned Upload URL hợp lệ');
       }
 
-      const { uploadUrl, publicUrl, key } = presignData;
+      const { uploadUrl, publicUrl, key, headers: presignHeaders } = presignData;
 
       // 2. Chuẩn hóa URL cho môi trường Local vs Cloudflare R2
       let targetPutUrl = uploadUrl;
@@ -238,12 +246,15 @@ class UploadQueueService {
         }
       }
 
-      // 3. Thực hiện HTTP PUT nhị phân trực tiếp lên Cloudflare R2
+      // 3. Thực hiện HTTP PUT nhị phân trực tiếp lên Cloudflare R2 kèm Metadata Headers
+      const putHeaders: Record<string, string> = {
+        'Content-Type': task.mimeType || 'image/jpeg',
+        ...(presignHeaders || {}),
+      };
+
       const uploadRes = await fetch(targetPutUrl, {
         method: 'PUT',
-        headers: {
-          'Content-Type': task.mimeType || 'image/jpeg',
-        },
+        headers: putHeaders,
         body: task.blob,
       });
 
