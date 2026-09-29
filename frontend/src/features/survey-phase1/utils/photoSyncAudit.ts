@@ -299,8 +299,8 @@ export function auditSurveyPhotos(
         );
       }
 
-      // Sơ đồ CAD kết cấu
-      if (floor.cadStructuralSketchPhotoUrl) {
+      // Sơ đồ CAD kết cấu (chỉ kiểm tra nếu tầng không được miễn khảo sát kết cấu)
+      if (floor.hasStructuralElements !== false && floor.cadStructuralSketchPhotoUrl) {
         checkAndAdd(
           `floor_${fi}_cad_struct`,
           3,
@@ -426,8 +426,8 @@ export function auditSurveyPhotos(
         });
       }
 
-      // Cấu kiện kết cấu E (nếu có)
-      if (Array.isArray(floor.structuralElements)) {
+      // Cấu kiện kết cấu E (chỉ kiểm tra nếu tầng không được miễn khảo sát kết cấu)
+      if (floor.hasStructuralElements !== false && Array.isArray(floor.structuralElements)) {
         floor.structuralElements.forEach((elem, ei) => {
           const eLabel = elem.elementCode || `Cấu kiện E-${ei + 1}`;
 

@@ -110,22 +110,24 @@ export const validateCondoUnitStep = (step: number, formData: Phase1SurveyFormDa
           });
         }
 
-        if (cadElementPins.length === 0 && structuralElements.length === 0) {
-          missing.push({
-            fieldId: 'step3-structure-cad-section',
-            label: `3.2. Điểm chấm Cấu kiện E (${floorTitle})`,
-            step: 3,
-            description: `Chưa có điểm chấm Cấu kiện kết cấu chịu lực (E) nào trên sơ đồ CAD_02 của ${floorTitle}. Vui lòng chấm ít nhất 1 Cấu kiện E.`,
-            isBlocking: true,
-          });
-        } else if (cadElementPins.length !== structuralElements.length) {
-          missing.push({
-            fieldId: 'step3-structure-cad-section',
-            label: `3.2. Khớp số lượng Cấu kiện E (${floorTitle})`,
-            step: 3,
-            description: `Số lượng điểm ghim CAD_02 (${cadElementPins.length}) chưa khớp với số Cấu kiện E (${structuralElements.length}) của ${floorTitle}.`,
-            isBlocking: true,
-          });
+        if (floor.hasStructuralElements !== false) {
+          if (cadElementPins.length === 0 && structuralElements.length === 0) {
+            missing.push({
+              fieldId: 'step3-structure-cad-section',
+              label: `3.2. Điểm chấm Cấu kiện E (${floorTitle})`,
+              step: 3,
+              description: `Chưa có điểm chấm Cấu kiện kết cấu chịu lực (E) nào trên sơ đồ CAD_02 của ${floorTitle}. Vui lòng chấm ít nhất 1 Cấu kiện E hoặc chọn "Miễn khảo sát kết cấu" nếu là tầng mái.`,
+              isBlocking: true,
+            });
+          } else if (cadElementPins.length !== structuralElements.length) {
+            missing.push({
+              fieldId: 'step3-structure-cad-section',
+              label: `3.2. Khớp số lượng Cấu kiện E (${floorTitle})`,
+              step: 3,
+              description: `Số lượng điểm ghim CAD_02 (${cadElementPins.length}) chưa khớp với số Cấu kiện E (${structuralElements.length}) của ${floorTitle}.`,
+              isBlocking: true,
+            });
+          }
         }
 
         zones.forEach((z) => {
@@ -151,28 +153,30 @@ export const validateCondoUnitStep = (step: number, formData: Phase1SurveyFormDa
           }
         });
 
-        structuralElements.forEach((el) => {
-          const hasDamageMarked = el.hasDamage || (el.defects && el.defects.length > 0);
-          const defectCount = el.defects ? el.defects.length : 0;
-          if (hasDamageMarked && defectCount === 0) {
-            missing.push({
-              fieldId: 'step3-active-element-card',
-              label: `3.2. Ghi sổ khuyết tật D cho Cấu kiện ${el.elementCode} (${floorTitle})`,
-              step: 3,
-              description: `Cấu kiện ${el.elementCode} được đánh dấu CÓ nứt kết cấu nhưng chưa có điểm khuyết tật D nào được ghi sổ.`,
-              isBlocking: true,
-            });
-          }
-          if (hasDamageMarked && defectCount > 0 && !el.ctxPhotoUrl) {
-            missing.push({
-              fieldId: 'step3-active-element-card',
-              label: `3.2. Ảnh bối cảnh khuyết tật Cấu kiện ${el.elementCode} (${floorTitle})`,
-              step: 3,
-              description: `Cấu kiện ${el.elementCode} có ${defectCount} khuyết tật D nhưng chưa có ảnh bối cảnh cấu kiện để định vị.`,
-              isBlocking: true,
-            });
-          }
-        });
+        if (floor.hasStructuralElements !== false) {
+          structuralElements.forEach((el) => {
+            const hasDamageMarked = el.hasDamage || (el.defects && el.defects.length > 0);
+            const defectCount = el.defects ? el.defects.length : 0;
+            if (hasDamageMarked && defectCount === 0) {
+              missing.push({
+                fieldId: 'step3-active-element-card',
+                label: `3.2. Ghi sổ khuyết tật D cho Cấu kiện ${el.elementCode} (${floorTitle})`,
+                step: 3,
+                description: `Cấu kiện ${el.elementCode} được đánh dấu CÓ nứt kết cấu nhưng chưa có điểm khuyết tật D nào được ghi sổ.`,
+                isBlocking: true,
+              });
+            }
+            if (hasDamageMarked && defectCount > 0 && !el.ctxPhotoUrl) {
+              missing.push({
+                fieldId: 'step3-active-element-card',
+                label: `3.2. Ảnh bối cảnh khuyết tật Cấu kiện ${el.elementCode} (${floorTitle})`,
+                step: 3,
+                description: `Cấu kiện ${el.elementCode} có ${defectCount} khuyết tật D nhưng chưa có ảnh bối cảnh cấu kiện để định vị.`,
+                isBlocking: true,
+              });
+            }
+          });
+        }
       });
     }
   }
@@ -543,25 +547,27 @@ export const validateStep = (step: number, formData: Phase1SurveyFormData): Step
           });
         }
 
-        // 2. Kiểm tra điểm chấm trên CAD_02 và Cấu kiện E
-        if (cadElementPins.length === 0 && structuralElements.length === 0) {
-          missing.push({
-            fieldId: 'step3-structure-cad-section',
-            label: `3.2. Điểm chấm Cấu kiện E (${floorTitle})`,
-            step: 3,
-            floorIndex: fIdx,
-            description: `Chưa có điểm chấm Cấu kiện kết cấu chịu lực (E) nào trên sơ đồ CAD_02 của ${floorTitle}. Vui lòng chấm ít nhất 1 Cấu kiện E.`,
-            isBlocking: true,
-          });
-        } else if (cadElementPins.length !== structuralElements.length) {
-          missing.push({
-            fieldId: 'step3-structure-cad-section',
-            label: `3.2. Khớp số lượng Cấu kiện E (${floorTitle})`,
-            step: 3,
-            floorIndex: fIdx,
-            description: `Số lượng điểm ghim CAD_02 (${cadElementPins.length}) chưa khớp với số Cấu kiện E (${structuralElements.length}) của ${floorTitle}. Vui lòng kiểm tra lại.`,
-            isBlocking: true,
-          });
+        // 2. Kiểm tra điểm chấm trên CAD_02 và Cấu kiện E (Nếu tầng có cấu kiện kết cấu riêng)
+        if (floor.hasStructuralElements !== false) {
+          if (cadElementPins.length === 0 && structuralElements.length === 0) {
+            missing.push({
+              fieldId: 'step3-structure-cad-section',
+              label: `3.2. Điểm chấm Cấu kiện E (${floorTitle})`,
+              step: 3,
+              floorIndex: fIdx,
+              description: `Chưa có điểm chấm Cấu kiện kết cấu chịu lực (E) nào trên sơ đồ CAD_02 của ${floorTitle}. Vui lòng chấm ít nhất 1 Cấu kiện E hoặc chọn "Miễn khảo sát kết cấu" nếu là tầng mái.`,
+              isBlocking: true,
+            });
+          } else if (cadElementPins.length !== structuralElements.length) {
+            missing.push({
+              fieldId: 'step3-structure-cad-section',
+              label: `3.2. Khớp số lượng Cấu kiện E (${floorTitle})`,
+              step: 3,
+              floorIndex: fIdx,
+              description: `Số lượng điểm ghim CAD_02 (${cadElementPins.length}) chưa khớp với số Cấu kiện E (${structuralElements.length}) của ${floorTitle}. Vui lòng kiểm tra lại.`,
+              isBlocking: true,
+            });
+          }
         }
 
         // 3. Kiểm tra thuộc tính bắt buộc của Vùng Z (Tên phòng, cấu kiện, vật liệu) & khuyết tật D
@@ -639,47 +645,49 @@ export const validateStep = (step: number, formData: Phase1SurveyFormData): Step
           });
         });
 
-        // 4. Kiểm tra khuyết tật D so với Cấu kiện E
-        structuralElements.forEach((el) => {
-          const hasDamageMarked = el.hasDamage || (el.defects && el.defects.length > 0);
-          const defectCount = el.defects ? el.defects.length : 0;
+        // 4. Kiểm tra khuyết tật D so với Cấu kiện E (Nếu tầng có cấu kiện kết cấu riêng)
+        if (floor.hasStructuralElements !== false) {
+          structuralElements.forEach((el) => {
+            const hasDamageMarked = el.hasDamage || (el.defects && el.defects.length > 0);
+            const defectCount = el.defects ? el.defects.length : 0;
 
-          if (hasDamageMarked && defectCount === 0) {
-            missing.push({
-              fieldId: 'step3-active-element-card',
-              label: `3.2. Ghi sổ khuyết tật D cho Cấu kiện ${el.elementCode} (${floorTitle})`,
-              step: 3,
-              floorIndex: fIdx,
-              description: `Cấu kiện ${el.elementCode} được đánh dấu CÓ nứt kết cấu/võng nhưng chưa có điểm khuyết tật D nào được ghi sổ. Vui lòng chấm điểm ghi sổ D-xx hoặc bỏ chọn mục hư hỏng.`,
-              isBlocking: true,
-            });
-          }
-
-          if (hasDamageMarked && defectCount > 0 && !el.ctxPhotoUrl) {
-            missing.push({
-              fieldId: 'step3-active-element-card',
-              label: `3.2. Ảnh bối cảnh khuyết tật Cấu kiện ${el.elementCode} (${floorTitle})`,
-              step: 3,
-              floorIndex: fIdx,
-              description: `Cấu kiện ${el.elementCode} có ${defectCount} khuyết tật D nhưng chưa có ảnh bối cảnh cấu kiện để định vị. Vui lòng chụp/chọn ảnh bối cảnh.`,
-              isBlocking: true,
-            });
-          }
-
-          // Kiểm tra chi tiết từng khuyết tật D trong Cấu kiện E
-          el.defects?.forEach((d) => {
-            if (!d.cuPhotoUrl || !d.notes?.trim() || !d.defectType || !Number(d.widthMaxMm)) {
+            if (hasDamageMarked && defectCount === 0) {
               missing.push({
                 fieldId: 'step3-active-element-card',
-                label: `3.2. Thông số chi tiết vết nứt kết cấu ${d.defectCode} (${el.elementCode} - ${floorTitle})`,
+                label: `3.2. Ghi sổ khuyết tật D cho Cấu kiện ${el.elementCode} (${floorTitle})`,
                 step: 3,
                 floorIndex: fIdx,
-                description: `Khuyết tật kết cấu ${d.defectCode} chưa điền đủ các thông số bắt buộc (ảnh cận cảnh CU, kích thước bề rộng/dài, dạng nứt kết cấu hoặc ghi chú).`,
+                description: `Cấu kiện ${el.elementCode} được đánh dấu CÓ nứt kết cấu/võng nhưng chưa có điểm khuyết tật D nào được ghi sổ. Vui lòng chấm điểm ghi sổ D-xx hoặc bỏ chọn mục hư hỏng.`,
                 isBlocking: true,
               });
             }
+
+            if (hasDamageMarked && defectCount > 0 && !el.ctxPhotoUrl) {
+              missing.push({
+                fieldId: 'step3-active-element-card',
+                label: `3.2. Ảnh bối cảnh khuyết tật Cấu kiện ${el.elementCode} (${floorTitle})`,
+                step: 3,
+                floorIndex: fIdx,
+                description: `Cấu kiện ${el.elementCode} có ${defectCount} khuyết tật D nhưng chưa có ảnh bối cảnh cấu kiện để định vị. Vui lòng chụp/chọn ảnh bối cảnh.`,
+                isBlocking: true,
+              });
+            }
+
+            // Kiểm tra chi tiết từng khuyết tật D trong Cấu kiện E
+            el.defects?.forEach((d) => {
+              if (!d.cuPhotoUrl || !d.notes?.trim() || !d.defectType || !Number(d.widthMaxMm)) {
+                missing.push({
+                  fieldId: 'step3-active-element-card',
+                  label: `3.2. Thông số chi tiết vết nứt kết cấu ${d.defectCode} (${el.elementCode} - ${floorTitle})`,
+                  step: 3,
+                  floorIndex: fIdx,
+                  description: `Khuyết tật kết cấu ${d.defectCode} chưa điền đủ các thông số bắt buộc (ảnh cận cảnh CU, kích thước bề rộng/dài, dạng nứt kết cấu hoặc ghi chú).`,
+                  isBlocking: true,
+                });
+              }
+            });
           });
-        });
+        }
       });
     }
   }

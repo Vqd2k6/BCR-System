@@ -60,6 +60,8 @@ export interface FloorSurveyData {
   cadElementPins?: CadZonePin[]; // Ghim Vùng E (Kết cấu chịu lực trên CAD_02)
   zones: DamageZoneData[];
   structuralElements?: StructuralElementData[];
+  hasStructuralElements?: boolean; // Tùy chọn: Tầng có cấu kiện chịu lực riêng hay không (mặc định true, false cho tầng mái/sân thượng/tum)
+  noStructuralElementsReason?: string; // Lý do miễn khảo sát cấu kiện chịu lực riêng (VD: Tầng mái không có cấu kiện riêng, Khung nhẹ/Mái tôn, v.v.)
 }
 
 export interface HistoryInterviewState {

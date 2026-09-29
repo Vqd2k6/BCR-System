@@ -64,6 +64,7 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
       cadElementPins: [],
       zones: [],
       structuralElements: [],
+      hasStructuralElements: true,
     };
     updateFormData({
       floors: [...formData.floors, newFloor],
@@ -489,6 +490,23 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
     });
   };
 
+  // Bật/tắt khảo sát kết cấu chịu lực trên tầng hiện tại (Ví dụ: Tầng mái/Sân thượng không có kết cấu riêng)
+  const handleToggleHasStructuralElements = (hasElements: boolean, reason?: string) => {
+    updateFormData((prev) => {
+      const updatedFloors = [...prev.floors];
+      const cur = updatedFloors[activeFloorIndex] || updatedFloors[0];
+      if (!cur) return prev;
+      updatedFloors[activeFloorIndex] = {
+        ...cur,
+        hasStructuralElements: hasElements,
+        noStructuralElementsReason: hasElements
+          ? undefined
+          : (reason || cur.noStructuralElementsReason || 'Tầng mái / Sân thượng không có cấu kiện chịu lực riêng'),
+      };
+      return { ...prev, floors: updatedFloors };
+    });
+  };
+
   // Modal active objects
   const pinningZoneObj = zones.find((z) => z.id === pinningZoneId);
   const pinningElementObj = structuralElements.find((e) => e.id === pinningElementId);
@@ -585,6 +603,7 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
         onPrevElement={handlePrevElement}
         onRequestAddNextElement={handleRequestAddNextElement}
         onOpenPinningModal={(elementId) => setPinningElementId(elementId)}
+        onToggleHasStructuralElements={handleToggleHasStructuralElements}
       />
 
       {/* 3.3. Võng dầm sàn & Đề xuất quan trắc */}
