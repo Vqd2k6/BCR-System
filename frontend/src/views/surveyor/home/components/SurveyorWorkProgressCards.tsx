@@ -5,10 +5,6 @@ import {
   PlayCircle,
   Eye,
   CheckCircle2,
-  AlertCircle,
-  Calendar,
-  Layers,
-  ChevronRight,
 } from 'lucide-react';
 import {
   filterParcelsByWorkProgress,
@@ -26,7 +22,6 @@ export const SurveyorWorkProgressCards: React.FC<SurveyorWorkProgressCardsProps>
 }) => {
   const {
     inProgressToday,
-    inProgressThisWeek,
     completedToday,
     completedThisWeek,
   } = filterParcelsByWorkProgress(parcels);
@@ -193,154 +188,7 @@ export const SurveyorWorkProgressCards: React.FC<SurveyorWorkProgressCardsProps>
         )}
       </div>
 
-      {/* ─── MỤC 2: ĐANG LÀM DỞ TUẦN NÀY ───────────────────────────────────── */}
-      <div
-        className="card"
-        style={{
-          background: '#ffffff',
-          border: '1px solid #fed7aa',
-          borderLeft: '4px solid #f59e0b',
-          borderRadius: '12px',
-          padding: '0.9rem 1rem',
-          boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
-        }}
-      >
-        <div
-          style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            marginBottom: '0.65rem',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-            <Calendar size={15} color="#d97706" />
-            <h3 style={{ margin: 0, fontSize: '0.9rem', fontWeight: 800, color: '#92400e' }}>
-              Đang làm dở tuần này
-            </h3>
-          </div>
-          <span
-            style={{
-              fontSize: '0.725rem',
-              fontWeight: 800,
-              padding: '2px 8px',
-              borderRadius: '999px',
-              backgroundColor: inProgressThisWeek.length > 0 ? '#fef3c7' : '#f1f5f9',
-              color: inProgressThisWeek.length > 0 ? '#b45309' : '#64748b',
-              border: `1px solid ${inProgressThisWeek.length > 0 ? '#fde68a' : '#e2e8f0'}`,
-            }}
-          >
-            {inProgressThisWeek.length} lô
-          </span>
-        </div>
-
-        {inProgressThisWeek.length === 0 ? (
-          <div
-            style={{
-              padding: '0.75rem',
-              backgroundColor: '#fffbeb',
-              borderRadius: '8px',
-              border: '1px dashed #fde68a',
-              textAlign: 'center',
-              fontSize: '0.75rem',
-              color: '#92400e',
-            }}
-          >
-            ✓ Không có lô tồn đọng từ các ngày trước trong tuần
-          </div>
-        ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '0.6rem' }}>
-            {inProgressThisWeek.map((item) => (
-              <div
-                key={item.parcel.id}
-                style={{
-                  backgroundColor: '#fffbeb',
-                  border: '1px solid #fef3c7',
-                  borderRadius: '8px',
-                  padding: '0.65rem 0.75rem',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  justifyContent: 'space-between',
-                  gap: '0.45rem',
-                }}
-              >
-                <div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: '0.875rem', fontWeight: 800, color: '#b45309', fontFamily: 'monospace' }}>
-                      {item.parcel.projectParcelCode || (item.parcel as any).project_parcel_code || 'Lô chưa có mã'}
-                    </span>
-                    <span
-                      style={{
-                        fontSize: '0.65rem',
-                        fontWeight: 700,
-                        color: '#92400e',
-                        backgroundColor: '#fde68a',
-                        padding: '1px 5px',
-                        borderRadius: '4px',
-                      }}
-                    >
-                      Tồn tuần
-                    </span>
-                  </div>
-                  <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#1e293b', marginTop: '2px' }}>
-                    Số {item.parcel.houseNumber || (item.parcel as any).house_number || '---'} {item.parcel.street}
-                  </div>
-                  <div style={{ fontSize: '0.7rem', color: '#64748b' }}>
-                    Chủ hộ: <strong>{item.parcel.ownerName || (item.parcel as any).owner_name || 'Chưa cập nhật'}</strong>
-                  </div>
-                </div>
-
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    paddingTop: '0.4rem',
-                    borderTop: '1px dashed #fde68a',
-                  }}
-                >
-                  <span
-                    style={{
-                      fontSize: '0.675rem',
-                      color: '#92400e',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '3px',
-                      fontWeight: 600,
-                    }}
-                  >
-                    <Clock size={11} color="#d97706" />
-                    {item.formattedTime}
-                  </span>
-
-                  <button
-                    type="button"
-                    onClick={() => onStartPhase1(item.parcel)}
-                    style={{
-                      backgroundColor: '#d97706',
-                      color: '#ffffff',
-                      border: 'none',
-                      borderRadius: '6px',
-                      padding: '3px 8px',
-                      fontSize: '0.7rem',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '4px',
-                    }}
-                  >
-                    <PlayCircle size={12} />
-                    Tiếp tục
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* ─── MỤC 3: ĐÃ XONG HÔM NAY / ĐÃ XONG TRONG TUẦN ──────────────────── */}
+      {/* ─── MỤC 2: ĐÃ XONG HÔM NAY / ĐÃ XONG TRONG TUẦN ──────────────────── */}
       <div
         className="card"
         style={{
