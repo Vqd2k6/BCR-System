@@ -484,37 +484,38 @@ export const Step7_TechnicalCalculations: React.FC = () => {
                 </div>
                 <div className="flex items-center gap-2">
                   <Input
+                    id="input-ecs-score"
                     type="text"
                     inputMode="numeric"
                     pattern="[0-9]*"
-                    placeholder="Nhập điểm ECS (0 - 24)..."
+                    placeholder="Nhập số nguyên từ 0 - 24..."
                     value={ecsScoreStr}
                     onChange={(e) => {
                       const raw = e.target.value;
-                      if (raw === '' || /^\d+$/.test(raw)) {
-                        setEcsScoreStr(raw);
-                        if (raw !== '') {
-                          const parsed = parseInt(raw, 10);
-                          const score = Math.max(0, Math.min(24, parsed));
-                          const adjClass = score >= 17 ? 'CRITICAL' : score >= 11 ? 'DEFICIENT' : score >= 6 ? 'MEDIUM' : 'GOOD';
-                          updateFormData({
-                            ecs: {
-                              ...ecs,
-                              engineeringJudgement: {
-                                ...ecs.engineeringJudgement,
-                                initialScore: ecs.totalEcs,
-                                initialClass: ecs.ecsClass,
-                                adjustedScore: score,
-                                adjustedClass: adjClass,
-                              },
+                      if (raw === '') {
+                        setEcsScoreStr('');
+                      } else if (/^\d+$/.test(raw)) {
+                        const parsed = parseInt(raw, 10);
+                        const score = Math.max(0, Math.min(24, parsed));
+                        setEcsScoreStr(String(score));
+                        const adjClass = score >= 17 ? 'CRITICAL' : score >= 11 ? 'DEFICIENT' : score >= 6 ? 'MEDIUM' : 'GOOD';
+                        updateFormData({
+                          ecs: {
+                            ...ecs,
+                            engineeringJudgement: {
+                              ...ecs.engineeringJudgement,
+                              initialScore: ecs.totalEcs,
+                              initialClass: ecs.ecsClass,
+                              adjustedScore: score,
+                              adjustedClass: adjClass,
                             },
-                          });
-                        }
+                          },
+                        });
                       }
                     }}
                     onBlur={() => {
-                      if (ecsScoreStr === '') {
-                        const fallback = ecs.totalEcs;
+                      if (ecsScoreStr === '' || isNaN(parseInt(ecsScoreStr, 10))) {
+                        const fallback = Math.max(0, Math.min(24, Math.round(ecs.totalEcs)));
                         setEcsScoreStr(String(fallback));
                         const adjClass = fallback >= 17 ? 'CRITICAL' : fallback >= 11 ? 'DEFICIENT' : fallback >= 6 ? 'MEDIUM' : 'GOOD';
                         updateFormData({
@@ -829,7 +830,7 @@ export const Step7_TechnicalCalculations: React.FC = () => {
               <div className="space-y-1">
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-bold text-slate-700">
-                    Điểm VI sau can thiệp (6 - 24) *
+                    Điểm VI sau can thiệp (0 - 24) *
                   </label>
                   <span className="text-[11px] text-slate-500">
                     Điểm ban đầu: <strong className="text-blue-700">{vi.totalVi}/24</strong> ({vi.viClass})
@@ -837,39 +838,42 @@ export const Step7_TechnicalCalculations: React.FC = () => {
                 </div>
                 <div className="flex items-center gap-2">
                   <Input
+                    id="input-vi-score"
                     type="text"
                     inputMode="numeric"
                     pattern="[0-9]*"
-                    placeholder="Nhập điểm VI (6 - 24)..."
+                    placeholder="Nhập số nguyên từ 0 - 24..."
                     value={viScoreStr}
                     onChange={(e) => {
                       const raw = e.target.value;
-                      if (raw === '' || /^\d+$/.test(raw)) {
-                        setViScoreStr(raw);
-                        if (raw !== '') {
-                          const parsed = parseInt(raw, 10);
-                          const score = Math.max(6, Math.min(24, parsed));
-                          const adjClass = score >= 21 ? 'VERY_HIGH' : score >= 16 ? 'HIGH' : score >= 11 ? 'MEDIUM' : 'LOW';
-                          updateFormData({
-                            vi: {
-                              ...vi,
-                              engineeringJudgement: {
-                                ...vi.engineeringJudgement,
-                                initialScore: vi.totalVi,
-                                initialClass: vi.viClass,
-                                adjustedScore: score,
-                                adjustedClass: adjClass,
-                              },
+                      if (raw === '') {
+                        setViScoreStr('');
+                      } else if (/^\d+$/.test(raw)) {
+                        const parsed = parseInt(raw, 10);
+                        const score = Math.max(0, Math.min(24, parsed));
+                        setViScoreStr(String(score));
+                        const viAvg = score / 6;
+                        const adjClass = viAvg > 3.25 ? 'VERY_HIGH' : viAvg > 2.5 ? 'HIGH' : viAvg > 1.5 ? 'MEDIUM' : 'LOW';
+                        updateFormData({
+                          vi: {
+                            ...vi,
+                            engineeringJudgement: {
+                              ...vi.engineeringJudgement,
+                              initialScore: vi.totalVi,
+                              initialClass: vi.viClass,
+                              adjustedScore: score,
+                              adjustedClass: adjClass,
                             },
-                          });
-                        }
+                          },
+                        });
                       }
                     }}
                     onBlur={() => {
-                      if (viScoreStr === '') {
-                        const fallback = vi.totalVi;
+                      if (viScoreStr === '' || isNaN(parseInt(viScoreStr, 10))) {
+                        const fallback = Math.max(0, Math.min(24, Math.round(vi.totalVi)));
                         setViScoreStr(String(fallback));
-                        const adjClass = fallback >= 21 ? 'VERY_HIGH' : fallback >= 16 ? 'HIGH' : fallback >= 11 ? 'MEDIUM' : 'LOW';
+                        const viAvg = fallback / 6;
+                        const adjClass = viAvg > 3.25 ? 'VERY_HIGH' : viAvg > 2.5 ? 'HIGH' : viAvg > 1.5 ? 'MEDIUM' : 'LOW';
                         updateFormData({
                           vi: {
                             ...vi,
@@ -937,17 +941,35 @@ export const Step7_TechnicalCalculations: React.FC = () => {
         </Button>
         <Button
           onClick={() => {
-            if (ecs.engineeringJudgement.action !== 'KEEP' && !ecs.engineeringJudgement.reason?.trim()) {
-              alert('⚠️ Bắt buộc phải nhập Lý do can thiệp kỹ sư (ECS) khi lựa chọn Nâng hoặc Hạ hạng!');
-              const el = document.getElementById('input-ecs-reason');
-              if (el) el.focus();
-              return;
+            if (ecs.engineeringJudgement.action !== 'KEEP') {
+              const score = parseInt(ecsScoreStr, 10);
+              if (isNaN(score) || score < 0 || score > 24) {
+                alert('⚠️ Điểm ECS sau can thiệp phải là số nguyên từ 0 đến 24!');
+                const el = document.getElementById('input-ecs-score');
+                if (el) el.focus();
+                return;
+              }
+              if (!ecs.engineeringJudgement.reason?.trim()) {
+                alert('⚠️ Bắt buộc phải nhập Lý do can thiệp kỹ sư (ECS) khi lựa chọn Nâng hoặc Hạ hạng!');
+                const el = document.getElementById('input-ecs-reason');
+                if (el) el.focus();
+                return;
+              }
             }
-            if (vi.engineeringJudgement?.action !== 'KEEP' && !vi.engineeringJudgement?.reason?.trim()) {
-              alert('⚠️ Bắt buộc phải nhập Lý do can thiệp kỹ sư (VI) khi lựa chọn Nâng hoặc Hạ hạng!');
-              const el = document.getElementById('input-vi-reason');
-              if (el) el.focus();
-              return;
+            if (vi.engineeringJudgement?.action && vi.engineeringJudgement.action !== 'KEEP') {
+              const score = parseInt(viScoreStr, 10);
+              if (isNaN(score) || score < 0 || score > 24) {
+                alert('⚠️ Điểm VI sau can thiệp phải là số nguyên từ 0 đến 24!');
+                const el = document.getElementById('input-vi-score');
+                if (el) el.focus();
+                return;
+              }
+              if (!vi.engineeringJudgement?.reason?.trim()) {
+                alert('⚠️ Bắt buộc phải nhập Lý do can thiệp kỹ sư (VI) khi lựa chọn Nâng hoặc Hạ hạng!');
+                const el = document.getElementById('input-vi-reason');
+                if (el) el.focus();
+                return;
+              }
             }
             nextStep();
           }}
