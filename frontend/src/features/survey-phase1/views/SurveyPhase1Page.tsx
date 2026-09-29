@@ -20,6 +20,8 @@ import confetti from 'canvas-confetti';
 import { uploadQueue, countBase64Images, sanitizeSurveyDataForSync } from '../../../core/services/uploadQueueService';
 
 import { AbsenteeReviewView } from './AbsenteeReviewView';
+import { CloudPhotoSyncModal } from '../components/CloudPhotoSyncModal';
+import { auditSurveyPhotos } from '../utils/photoSyncAudit';
 
 export interface SurveyPhase1PageProps {
   parcel?: GisParcel | null;
@@ -60,10 +62,13 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
     takeoverDraft,
     syncDraftToServer,
     isDirty,
+    setCurrentStep,
   } = usePhase1SurveyStore();
   const { user } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [reportData, setReportData] = useState<any>(null);
+  const [isPhotoSyncModalOpen, setIsPhotoSyncModalOpen] = useState(false);
+  const [isPhotoSyncFromSubmit, setIsPhotoSyncFromSubmit] = useState(false);
 
   // Khởi tạo form khi parcel thay đổi
   useEffect(() => {
@@ -373,32 +378,10 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
     document.body.scrollTo({ top: 0, left: 0, behavior: 'instant' });
   }, [currentStep]);
 
-  // Nộp hồ sơ hoàn chỉnh lên Backend
-  const handleSubmitFinal = async () => {
-    const isValid = validateForFinalSubmit();
-    if (!isValid) return;
+  const photoAudit = auditSurveyPhotos(formData, updateFormData);
 
-    const confirmed = window.confirm(
-      'Xác nhận nộp hồ sơ khảo sát Phase 1?\n\nSau khi nộp, hồ sơ sẽ chuyển sang trạng thái "Chờ duyệt" và không thể chỉnh sửa.\n\n⚠️ Vui lòng đảm bảo đã kiểm tra đầy đủ thông tin trước khi nộp.'
-    );
-    if (!confirmed) return;
-
-    // 1. Kiểm tra hàng đợi upload Cloud
-    const pendingUploads = uploadQueue.getPendingAndActiveCount();
-    if (pendingUploads > 0) {
-      alert(`⚠️ Còn ${pendingUploads} ảnh đang được tải lên Cloudflare R2.\n\nVui lòng chờ trong giây lát để các ảnh hoàn tất tải lên trước khi nộp hồ sơ.`);
-      return;
-    }
-
-    // 2. Kiểm tra nếu còn ảnh dạng Base64 chưa lên Cloud
-    const base64Count = countBase64Images(formData);
-    if (base64Count > 0) {
-      const proceed = window.confirm(
-        `⚠️ Phát hiện ${base64Count} ảnh chưa được tải lên máy chủ Cloud (do mạng chập chờn hoặc đang chờ tải lại).\n\nBạn có muốn nộp ngay (các ảnh chưa lên Cloud sẽ được bỏ qua) hay bấm HỦY để đợi tải xong?`
-      );
-      if (!proceed) return;
-    }
-
+  // Thực thi lệnh gửi payload khảo sát lên server
+  const executeFinalSubmit = async () => {
     try {
       setIsSubmitting(true);
       const cleanFormData = sanitizeSurveyDataForSync(formData);
@@ -457,6 +440,29 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  // Nộp hồ sơ hoàn chỉnh lên Backend
+  const handleSubmitFinal = async () => {
+    const isValid = validateForFinalSubmit();
+    if (!isValid) return;
+
+    const confirmed = window.confirm(
+      'Xác nhận nộp hồ sơ khảo sát Phase 1?\n\nSau khi nộp, hồ sơ sẽ chuyển sang trạng thái "Chờ duyệt" và không thể chỉnh sửa.\n\n⚠️ Vui lòng đảm bảo đã kiểm tra đầy đủ thông tin trước khi nộp.'
+    );
+    if (!confirmed) return;
+
+    // 1. Kiểm tra hàng đợi upload Cloud hoặc còn ảnh dạng Base64
+    const currentAudit = auditSurveyPhotos(formData, updateFormData);
+    const pendingUploads = uploadQueue.getPendingAndActiveCount();
+    if (currentAudit.unsyncedPhotosCount > 0 || pendingUploads > 0) {
+      // Thay vì alert mù mờ, mở ngay Modal chi tiết danh sách ảnh để user thấy rõ ảnh nào thiếu & ở bước nào
+      setIsPhotoSyncFromSubmit(true);
+      setIsPhotoSyncModalOpen(true);
+      return;
+    }
+
+    await executeFinalSubmit();
   };
 
 
@@ -569,7 +575,13 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
       />
 
       {/* 8-Step Navigation Header */}
-      <StepWizardNav onBackToHome={handleSafeBackToHome} />
+      <StepWizardNav
+        onBackToHome={handleSafeBackToHome}
+        onOpenPhotoAuditModal={() => {
+          setIsPhotoSyncFromSubmit(false);
+          setIsPhotoSyncModalOpen(true);
+        }}
+      />
 
       {/* Main Step Content Container */}
       <main className="flex-1 px-3 sm:px-6 py-6">
@@ -625,6 +637,25 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
         onClose={() => {
           closeLockedModal();
           onBackToHome();
+        }}
+      />
+
+      {/* Modal Kiểm Tra Chi Tiết Trạng Thái Ảnh Cloudflare R2 */}
+      <CloudPhotoSyncModal
+        isOpen={isPhotoSyncModalOpen}
+        onClose={() => setIsPhotoSyncModalOpen(false)}
+        allPhotos={photoAudit.allPhotos}
+        unsyncedPhotos={photoAudit.unsyncedPhotos}
+        syncedPhotos={photoAudit.syncedPhotos}
+        parcelCode={parcel?.projectParcelCode || parcel?.officialCadastralCode || formData.projectParcelCode || 'CHƯA_RÕ'}
+        onNavigateToStep={(step) => {
+          setCurrentStep(step);
+          setIsPhotoSyncModalOpen(false);
+        }}
+        isFromSubmitAttempt={isPhotoSyncFromSubmit}
+        onProceedSubmitAnyway={() => {
+          setIsPhotoSyncModalOpen(false);
+          executeFinalSubmit();
         }}
       />
     </div>

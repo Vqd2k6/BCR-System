@@ -1,0 +1,376 @@
+import React, { useState, useEffect } from 'react';
+import {
+  Cloud,
+  CheckCircle2,
+  AlertTriangle,
+  RefreshCw,
+  ArrowRight,
+  X,
+  ExternalLink,
+  Image as ImageIcon,
+  ShieldCheck,
+  AlertCircle,
+} from 'lucide-react';
+import { Button } from '../../../core/components/ui/Button';
+import { Badge } from '../../../core/components/ui/Badge';
+import {
+  SurveyPhotoAuditItem,
+  retryUploadSinglePhoto,
+} from '../utils/photoSyncAudit';
+import { uploadQueue } from '../../../core/services/uploadQueueService';
+
+interface CloudPhotoSyncModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  allPhotos: SurveyPhotoAuditItem[];
+  unsyncedPhotos: SurveyPhotoAuditItem[];
+  syncedPhotos: SurveyPhotoAuditItem[];
+  parcelCode: string;
+  onNavigateToStep: (step: number) => void;
+  isFromSubmitAttempt?: boolean;
+  onProceedSubmitAnyway?: () => void;
+}
+
+export const CloudPhotoSyncModal: React.FC<CloudPhotoSyncModalProps> = ({
+  isOpen,
+  onClose,
+  allPhotos,
+  unsyncedPhotos,
+  syncedPhotos,
+  parcelCode,
+  onNavigateToStep,
+  isFromSubmitAttempt = false,
+  onProceedSubmitAnyway,
+}) => {
+  const [activeTab, setActiveTab] = useState<'UNSYNCED' | 'SYNCED' | 'ALL'>('UNSYNCED');
+  const [retryingId, setRetryingId] = useState<string | null>(null);
+  const [isRetryingAll, setIsRetryingAll] = useState(false);
+  const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
+
+  // Mặc định chọn tab UNSYNCED nếu có ảnh chưa đồng bộ, ngược lại chọn ALL
+  useEffect(() => {
+    if (unsyncedPhotos.length > 0) {
+      setActiveTab('UNSYNCED');
+    } else {
+      setActiveTab('ALL');
+    }
+  }, [unsyncedPhotos.length, isOpen]);
+
+  if (!isOpen) return null;
+
+  const total = allPhotos.length;
+  const syncedCount = syncedPhotos.length;
+  const unsyncedCount = unsyncedPhotos.length;
+  const percent = total > 0 ? Math.round((syncedCount / total) * 100) : 100;
+
+  const displayedList =
+    activeTab === 'UNSYNCED'
+      ? unsyncedPhotos
+      : activeTab === 'SYNCED'
+      ? syncedPhotos
+      : allPhotos;
+
+  const handleRetrySingle = async (item: SurveyPhotoAuditItem) => {
+    setRetryingId(item.id);
+    try {
+      await retryUploadSinglePhoto(item, parcelCode);
+    } catch (err: any) {
+      alert(`Không thể tải lại ảnh: ${err?.message || 'Lỗi mạng hoặc Cloudflare R2'}`);
+    } finally {
+      setRetryingId(null);
+    }
+  };
+
+  const handleRetryAll = async () => {
+    setIsRetryingAll(true);
+    try {
+      for (const item of unsyncedPhotos) {
+        await retryUploadSinglePhoto(item, parcelCode).catch((e) =>
+          console.warn('Lỗi tải lại ảnh đơn:', e)
+        );
+      }
+    } finally {
+      setIsRetryingAll(false);
+    }
+  };
+
+  const handleGoToStep = (step: number) => {
+    onClose();
+    onNavigateToStep(step);
+  };
+
+  return (
+    <div className="fixed inset-0 z-[99999] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
+      <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] shadow-2xl border border-slate-200 flex flex-col overflow-hidden animate-in fade-in zoom-in-95">
+        {/* Header */}
+        <div className="p-4 sm:p-5 border-b border-slate-100 bg-slate-50/80 flex items-start justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div
+              className={`p-2.5 rounded-xl ${
+                unsyncedCount > 0
+                  ? 'bg-amber-100 text-amber-700'
+                  : 'bg-emerald-100 text-emerald-700'
+              }`}
+            >
+              <Cloud className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="font-bold text-base text-slate-800 flex items-center gap-2">
+                Kiểm Tra Ảnh Đã Lên Cloudflare R2
+                {unsyncedCount > 0 ? (
+                  <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800">
+                    Thiếu {unsyncedCount} ảnh
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800">
+                    100% Hoàn tất
+                  </span>
+                )}
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Mã thửa: <span className="font-mono font-bold text-slate-700">{parcelCode}</span> • Giúp bạn biết chính xác ảnh nào chưa lên Cloud và vị trí ở bước nào
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-200 transition-colors"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Progress Bar & Summary Banner */}
+        <div className="px-4 sm:px-5 py-3 border-b border-slate-100 bg-white space-y-2">
+          <div className="flex items-center justify-between text-xs font-medium text-slate-600">
+            <span>Tiến độ tải ảnh lên Cloudflare R2:</span>
+            <span className="font-bold font-mono">
+              {syncedCount}/{total} ảnh ({percent}%)
+            </span>
+          </div>
+          <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+            <div
+              className={`h-full transition-all duration-300 ${
+                percent === 100
+                  ? 'bg-emerald-500'
+                  : percent > 50
+                  ? 'bg-blue-500'
+                  : 'bg-amber-500'
+              }`}
+              style={{ width: `${percent}%` }}
+            />
+          </div>
+
+          {isFromSubmitAttempt && unsyncedCount > 0 && (
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2.5 text-amber-800 text-xs mt-2">
+              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-bold text-amber-900">CHƯA THỂ NỘP HỒ SƠ DO CÒN ẢNH CHƯA LÊN CLOUD</p>
+                <p className="mt-0.5 leading-relaxed text-amber-800">
+                  Hệ thống phát hiện <strong>{unsyncedCount} ảnh</strong> mới chỉ lưu tạm trên thiết bị (chưa lên Cloudflare R2). Hãy bấm <strong>"Tải lại ảnh này"</strong> hoặc bấm <strong>"Đi tới bước này"</strong> để kiểm tra lại ảnh trước khi nộp.
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Filter Tabs & Quick Action */}
+        <div className="px-4 sm:px-5 py-2.5 bg-slate-50/50 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => setActiveTab('UNSYNCED')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                activeTab === 'UNSYNCED'
+                  ? 'bg-amber-600 text-white shadow-xs'
+                  : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+              }`}
+            >
+              Chưa lên Cloud ({unsyncedCount})
+            </button>
+            <button
+              onClick={() => setActiveTab('SYNCED')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                activeTab === 'SYNCED'
+                  ? 'bg-emerald-600 text-white shadow-xs'
+                  : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+              }`}
+            >
+              Đã lên Cloud ({syncedCount})
+            </button>
+            <button
+              onClick={() => setActiveTab('ALL')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                activeTab === 'ALL'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+              }`}
+            >
+              Tất cả ({total})
+            </button>
+          </div>
+
+          {unsyncedCount > 0 && (
+            <Button
+              size="sm"
+              onClick={handleRetryAll}
+              disabled={isRetryingAll}
+              icon={<RefreshCw size={13} className={isRetryingAll ? 'animate-spin' : ''} />}
+              className="bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-xs"
+            >
+              {isRetryingAll ? 'Đang tải lại tất cả...' : 'Tải lại tất cả ảnh thiếu'}
+            </Button>
+          )}
+        </div>
+
+        {/* Photo List Container */}
+        <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3">
+          {displayedList.length === 0 ? (
+            <div className="text-center py-10 text-slate-400">
+              <CheckCircle2 className="w-12 h-12 text-emerald-500 mx-auto mb-2 opacity-80" />
+              <p className="font-bold text-sm text-slate-700">Tuyệt vời! Không có ảnh nào chưa lên Cloud</p>
+              <p className="text-xs text-slate-500 mt-1">
+                Tất cả hình ảnh đã được dập watermark và đồng bộ an toàn trên Cloudflare R2.
+              </p>
+            </div>
+          ) : (
+            displayedList.map((item) => {
+              const isRetrying = retryingId === item.id;
+              const isMissingCloud = item.isBase64 && !item.isCloudUrl;
+
+              return (
+                <div
+                  key={item.id}
+                  className={`p-3 rounded-xl border transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                    isMissingCloud
+                      ? 'bg-amber-50/40 border-amber-200/80 shadow-xs'
+                      : 'bg-white border-slate-200/80'
+                  }`}
+                >
+                  {/* Photo Thumbnail + Info */}
+                  <div className="flex items-start gap-3 min-w-0 flex-1">
+                    {/* Thumbnail Preview */}
+                    <div
+                      onClick={() => setPreviewImageUrl(item.url)}
+                      className="relative w-14 h-14 rounded-lg bg-slate-100 border border-slate-200 overflow-hidden shrink-0 cursor-pointer group"
+                      title="Bấm để xem ảnh phóng to"
+                    >
+                      <img
+                        src={item.url}
+                        alt={item.fieldTitle}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                      />
+                      <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                        <ImageIcon size={14} />
+                      </div>
+                    </div>
+
+                    {/* Metadata Details */}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-blue-100 text-blue-800">
+                          {item.stepTitle.split(':')[0]}
+                        </span>
+                        <h4 className="font-bold text-xs text-slate-800 truncate">
+                          {item.fieldTitle}
+                        </h4>
+                      </div>
+
+                      {item.photoCode && (
+                        <p className="text-[11px] font-mono text-slate-500 truncate mt-0.5">
+                          ID: <span className="text-slate-700 font-semibold">{item.photoCode}</span>
+                        </p>
+                      )}
+
+                      {/* Status indicator */}
+                      <div className="flex items-center gap-1.5 mt-1">
+                        {isMissingCloud ? (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-700">
+                            <AlertCircle size={12} className="text-amber-600" />
+                            Chưa lên Cloud (Lưu tạm Base64 trên máy)
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700">
+                            <ShieldCheck size={12} className="text-emerald-600" />
+                            Đã lưu Cloudflare R2 an toàn
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+                    {/* Nút Đi tới bước này */}
+                    <button
+                      type="button"
+                      onClick={() => handleGoToStep(item.step)}
+                      className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors"
+                      title={`Chuyển tới ${item.stepTitle}`}
+                    >
+                      <span>Tới Bước {item.step}</span>
+                      <ArrowRight size={12} />
+                    </button>
+
+                    {/* Nút Thử tải lại ảnh */}
+                    {isMissingCloud && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleRetrySingle(item)}
+                        disabled={isRetrying || isRetryingAll}
+                        icon={<RefreshCw size={12} className={isRetrying ? 'animate-spin' : ''} />}
+                        className="border-amber-300 text-amber-800 hover:bg-amber-100 text-xs font-semibold"
+                      >
+                        {isRetrying ? 'Đang tải...' : 'Tải lại'}
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* Modal Footer */}
+        <div className="p-4 border-t border-slate-100 bg-slate-50 flex items-center justify-between gap-3">
+          <Button size="sm" variant="outline" onClick={onClose}>
+            Đóng cửa sổ
+          </Button>
+
+          {isFromSubmitAttempt && unsyncedCount > 0 && onProceedSubmitAnyway && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={onProceedSubmitAnyway}
+              className="border-red-200 text-red-700 hover:bg-red-50 text-xs font-semibold"
+            >
+              Vẫn nộp ngay (Bỏ qua ảnh chưa lên Cloud)
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {/* Lightbox Preview Modal */}
+      {previewImageUrl && (
+        <div
+          className="fixed inset-0 z-[100000] bg-black/80 flex items-center justify-center p-4 cursor-pointer"
+          onClick={() => setPreviewImageUrl(null)}
+        >
+          <div className="relative max-w-3xl max-h-[85vh] bg-slate-900 rounded-2xl overflow-hidden shadow-2xl p-2">
+            <button
+              onClick={() => setPreviewImageUrl(null)}
+              className="absolute top-4 right-4 z-10 p-2 bg-black/60 text-white rounded-full hover:bg-black/80"
+            >
+              <X size={18} />
+            </button>
+            <img
+              src={previewImageUrl}
+              alt="Preview"
+              className="max-w-full max-h-[80vh] object-contain rounded-xl"
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};

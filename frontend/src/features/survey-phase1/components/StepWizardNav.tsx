@@ -3,6 +3,7 @@ import { usePhase1SurveyStore } from '../store/usePhase1SurveyStore';
 import { Save, ArrowLeft, ArrowRight, Check, ChevronDown } from 'lucide-react';
 import clsx from 'clsx';
 import { SyncStatusBadge } from './SyncStatusBadge';
+import { CloudPhotoStatusBadge } from './CloudPhotoStatusBadge';
 
 export const DEFAULT_STEP_LABELS = [
   '1. Tiếp cận & Ảnh',
@@ -22,6 +23,7 @@ export interface StepWizardNavProps {
   themeColor?: 'emerald' | 'indigo' | 'sky' | 'teal';
   leftBadge?: React.ReactNode;
   subtitleBadge?: React.ReactNode;
+  onOpenPhotoAuditModal?: () => void;
 }
 
 export const StepWizardNav: React.FC<StepWizardNavProps> = ({
@@ -31,6 +33,7 @@ export const StepWizardNav: React.FC<StepWizardNavProps> = ({
   themeColor = 'emerald',
   leftBadge,
   subtitleBadge,
+  onOpenPhotoAuditModal,
 }) => {
   const {
     currentStep,
@@ -146,6 +149,9 @@ export const StepWizardNav: React.FC<StepWizardNavProps> = ({
 
           {/* Ở giữa & bên phải: Ô thời gian sao lưu và nút sao lưu nhỏ */}
           <div className="flex items-center gap-2">
+            {onOpenPhotoAuditModal && (
+              <CloudPhotoStatusBadge onOpenAuditModal={onOpenPhotoAuditModal} />
+            )}
             <SyncStatusBadge
               syncStatus={syncStatus}
               lastSyncedAt={lastSyncedAt || lastSavedAt}
@@ -222,6 +228,9 @@ export const StepWizardNav: React.FC<StepWizardNavProps> = ({
 
         {/* Auto save badge & navigation buttons */}
         <div className="flex items-center gap-2">
+          {onOpenPhotoAuditModal && (
+            <CloudPhotoStatusBadge onOpenAuditModal={onOpenPhotoAuditModal} />
+          )}
           <SyncStatusBadge
             syncStatus={syncStatus}
             lastSyncedAt={lastSyncedAt || lastSavedAt}
