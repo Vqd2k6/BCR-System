@@ -1,6 +1,6 @@
 {
   "name": "metro2-survey-backend",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Backend API Service for Metro 2 Building Condition Assessment & Survey Platform",
   "main": "dist/server.js",
   "scripts": {
