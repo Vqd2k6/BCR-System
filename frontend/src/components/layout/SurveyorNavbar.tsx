@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { Train, LogOut, ShieldCheck, Clock, CheckCircle2, AlertCircle, Users, UserCheck, Phone, PenTool, FileSignature } from 'lucide-react';
 import { UserProfileModal } from '../profile/UserProfileModal';
+import { METRO_ZONE_CENTROIDS } from '../../core/utils/metroZoneUtils';
 
 interface Props {
   title?: string;
@@ -73,6 +74,13 @@ export const SurveyorNavbar: React.FC<Props> = ({
       default:
         return 'Điều Tra Viên Hiện Trường';
     }
+  };
+  const getZoneDisplayName = (zoneId?: string | null): string => {
+    if (!zoneId) return 'Zone_09 (Ga S5 Lê Thị Riêng)';
+    const upper = zoneId.toUpperCase();
+    const info = METRO_ZONE_CENTROIDS[upper] || METRO_ZONE_CENTROIDS[upper.replace('ZONE_', 'ZONE_S')];
+    const code = upper.replace('ZONE_', 'Zone_');
+    return info ? `${code} (${info.zoneName.replace(/Zone\\s*\\d+:\\s*/i, '')})` : code;
   };
 
   return (
@@ -161,9 +169,7 @@ export const SurveyorNavbar: React.FC<Props> = ({
                 Khu vực phụ trách: <strong style={{ color: '#0284c7' }}>
                   {user?.role === 'SUPER_ADMIN'
                     ? 'Toàn tuyến Metro 2 (22 Phân đoạn)'
-                    : user?.assignedZoneId
-                    ? `${user.assignedZoneId} (Ga S1 Bến Thành)`
-                    : 'Zone_01 (Ga S1 Bến Thành)'}
+                    : getZoneDisplayName(user?.assignedZoneId)}
                 </strong>
               </>
             )}
@@ -227,9 +233,7 @@ export const SurveyorNavbar: React.FC<Props> = ({
                 Khu vực: <strong>
                   {user?.role === 'SUPER_ADMIN'
                     ? 'Toàn tuyến Metro 2'
-                    : user?.assignedZoneId
-                    ? `${user.assignedZoneId} (Ga S1 Bến Thành)`
-                    : 'Zone_01 (Ga S1 Bến Thành)'}
+                    : getZoneDisplayName(user?.assignedZoneId)}
                 </strong>
               </div>
 

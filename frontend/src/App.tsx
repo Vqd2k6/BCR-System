@@ -34,7 +34,33 @@ export const App: React.FC = () => {
       setActiveTab('home');
     }
   }, [user?.id, user?.role, isAuthenticated]);
-  const [selectedZone, setSelectedZone] = useState<string>('ZONE_01');
+
+  const [selectedZone, setSelectedZone] = useState<string>(() => {
+    try {
+      const savedZone = localStorage.getItem('metro2_selected_zone');
+      if (savedZone) return savedZone.toUpperCase();
+    } catch (_e) {}
+    return 'ZONE_09';
+  });
+
+  // Tự động đồng bộ zone theo khu vực phân công của surveyor (user.assignedZoneId)
+  useEffect(() => {
+    if (user?.assignedZoneId) {
+      const normalized = user.assignedZoneId.toUpperCase();
+      setSelectedZone(normalized);
+      try {
+        localStorage.setItem('metro2_selected_zone', normalized);
+      } catch (_e) {}
+    }
+  }, [user?.assignedZoneId]);
+
+  const handleSelectZone = (newZone: string) => {
+    setSelectedZone(newZone);
+    try {
+      localStorage.setItem('metro2_selected_zone', newZone);
+    } catch (_e) {}
+  };
+
   const [parcels, setParcels] = useState<GisParcel[]>([]);
   const [selectedParcelForSurvey, setSelectedParcelForSurvey] = useState<GisParcel | null>(null);
   const [selectedUnitForSurvey, setSelectedUnitForSurvey] = useState<any | null>(null);
@@ -420,7 +446,7 @@ export const App: React.FC = () => {
             <LeafletSweepMap
               parcels={parcels}
               selectedZone={selectedZone}
-              onSelectZone={setSelectedZone}
+              onSelectZone={handleSelectZone}
               onSelectParcel={(p) => setSelectedParcelForSurvey(p)}
               onStartSurvey={handleStartPhase1}
               onOpenBuildingHub={(p) => setHubParcel(p)}

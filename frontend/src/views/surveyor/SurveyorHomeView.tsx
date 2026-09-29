@@ -74,12 +74,14 @@ export const SurveyorHomeView: React.FC<SurveyorHomeViewProps> = ({
         gap: '1.15rem',
       }}
     >
-      {/* 1. Header Zone Banner & 2. Targets */}
+      {/* 1. Header Zone Banner & 2. Work Progress Cards */}
       <SurveyorBanner
         user={user}
         isCheckedInToday={isCheckedInToday}
         checkInDetails={checkInDetails}
         onNavigateToCheckIn={onNavigateToCheckIn}
+        parcels={parcels}
+        onStartPhase1={onStartPhase1}
         todayCompleted={todayCompleted}
         todayTarget={todayTarget}
         weekCompleted={weekCompleted}

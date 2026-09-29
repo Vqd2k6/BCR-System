@@ -2,20 +2,23 @@ import React from 'react';
 import {
   Clock,
   CheckCircle2,
-  Target,
-  Calendar,
   ArrowRight,
 } from 'lucide-react';
+import { GisParcel } from '../../../../components/gis/LeafletSweepMap';
+import { METRO_ZONE_CENTROIDS } from '../../../../core/utils/metroZoneUtils';
+import { SurveyorWorkProgressCards } from './SurveyorWorkProgressCards';
 
 interface SurveyorBannerProps {
   user: any;
   isCheckedInToday: boolean;
   checkInDetails?: { time: string; distance: number; status: string } | null;
   onNavigateToCheckIn: () => void;
-  todayCompleted: number;
-  todayTarget: number;
-  weekCompleted: number;
-  weekTarget: number;
+  parcels: GisParcel[];
+  onStartPhase1: (parcel: GisParcel, readOnly?: boolean) => void;
+  todayCompleted?: number;
+  todayTarget?: number;
+  weekCompleted?: number;
+  weekTarget?: number;
 }
 
 export const SurveyorBanner: React.FC<SurveyorBannerProps> = ({
@@ -23,10 +26,12 @@ export const SurveyorBanner: React.FC<SurveyorBannerProps> = ({
   isCheckedInToday,
   checkInDetails,
   onNavigateToCheckIn,
-  todayCompleted,
-  todayTarget,
-  weekCompleted,
-  weekTarget,
+  parcels,
+  onStartPhase1,
+  todayCompleted = 2,
+  todayTarget = 5,
+  weekCompleted = 8,
+  weekTarget = 20,
 }) => {
   return (
     <>
@@ -50,9 +55,12 @@ export const SurveyorBanner: React.FC<SurveyorBannerProps> = ({
           </div>
           <h2 style={{ margin: '2px 0 0 0', fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>
             Khu vực phụ trách:{' '}
-            {user?.assignedZoneId === 'ZONE_S9' || user?.assignedZoneId === 'ZONE_ST09' || !user?.assignedZoneId
-              ? 'Zone_ST09'
-              : user.assignedZoneId.replace('ZONE_', 'Zone_').replace('S', 'ST0')}
+            {(() => {
+              const zoneId = (user?.assignedZoneId || 'ZONE_09').toUpperCase();
+              const zoneInfo = METRO_ZONE_CENTROIDS[zoneId] || METRO_ZONE_CENTROIDS[zoneId.replace('ZONE_', 'ZONE_S')];
+              const displayName = zoneId.replace('ZONE_', 'Zone_');
+              return zoneInfo ? `${displayName} (${zoneInfo.zoneName.replace(/Zone\s*\d+:\s*/i, '')})` : displayName;
+            })()}
           </h2>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '3px', flexWrap: 'wrap' }}>
             <span style={{ fontSize: '0.775rem', fontWeight: 700, color: '#334155' }}>
@@ -127,72 +135,11 @@ export const SurveyorBanner: React.FC<SurveyorBannerProps> = ({
         </div>
       </div>
 
-      {/* 2. Daily & Weekly Targets */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '0.75rem' }}>
-        {/* Today */}
-        <div className="card" style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#64748b', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-              <Target size={15} color="#0284c7" />
-              Tiến độ hôm nay
-            </span>
-            <span className="badge badge-primary">
-              {todayCompleted}/{todayTarget} căn ({Math.round((todayCompleted / todayTarget) * 100)}%)
-            </span>
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.35rem' }}>
-            <span style={{ fontSize: '1.75rem', fontWeight: 800, color: '#0f172a' }}>{todayCompleted}</span>
-            <span style={{ fontSize: '0.925rem', color: '#64748b' }}>/ {todayTarget} căn cần khảo sát</span>
-          </div>
-
-          <div style={{ width: '100%', height: '8px', backgroundColor: '#e2e8f0', borderRadius: '999px', overflow: 'hidden' }}>
-            <div
-              style={{
-                width: `${(todayCompleted / todayTarget) * 100}%`,
-                height: '100%',
-                backgroundColor: '#0284c7',
-                borderRadius: '999px',
-              }}
-            />
-          </div>
-          <div style={{ fontSize: '0.725rem', color: '#64748b' }}>
-            Còn <strong>{todayTarget - todayCompleted} căn</strong> trong danh sách ca hôm nay
-          </div>
-        </div>
-
-        {/* Weekly */}
-        <div className="card" style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#64748b', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-              <Calendar size={15} color="#10b981" />
-              Tiến độ tuần này
-            </span>
-            <span className="badge badge-success">
-              {weekCompleted}/{weekTarget} căn ({Math.round((weekCompleted / weekTarget) * 100)}%)
-            </span>
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.35rem' }}>
-            <span style={{ fontSize: '1.75rem', fontWeight: 800, color: '#0f172a' }}>{weekCompleted}</span>
-            <span style={{ fontSize: '0.925rem', color: '#64748b' }}>/ {weekTarget} căn toàn ga</span>
-          </div>
-
-          <div style={{ width: '100%', height: '8px', backgroundColor: '#e2e8f0', borderRadius: '999px', overflow: 'hidden' }}>
-            <div
-              style={{
-                width: `${(weekCompleted / weekTarget) * 100}%`,
-                height: '100%',
-                backgroundColor: '#10b981',
-                borderRadius: '999px',
-              }}
-            />
-          </div>
-          <div style={{ fontSize: '0.725rem', color: '#64748b' }}>
-            Đã hoàn tất duyệt <strong>{weekCompleted} căn</strong>
-          </div>
-        </div>
-      </div>
+      {/* 2. Cụm Thẻ Tiến Độ Công Việc Thực Tế (Tạm ẩn 2 ô tiến độ thanh mục tiêu theo yêu cầu) */}
+      <SurveyorWorkProgressCards
+        parcels={parcels}
+        onStartPhase1={onStartPhase1}
+      />
     </>
   );
 };
