@@ -229,33 +229,57 @@ export class SurveyController {
       );
       const reportId = initResult.reportId;
 
-      // 2. Map and Save Ảnh nhận diện và mặt đứng P-01 -> P-04
-      const step1Photos = SurveyPackageMapper.mapStep1Photos(surveyData);
-      await SurveyService.saveIdentificationPhotos(reportId, step1Photos);
+      // 2. Map and Save Ảnh nhận diện và mặt đứng P-01 -> P-04 (Có phòng vệ schema)
+      try {
+        const step1Photos = SurveyPackageMapper.mapStep1Photos(surveyData);
+        await SurveyService.saveIdentificationPhotos(reportId, step1Photos);
+      } catch (photoErr) {
+        console.warn('[submitPhase1FullPackage] Cảnh báo lưu survey_identification_photos (Dữ liệu vẫn được bảo toàn 100% trong survey_data_json):', photoErr);
+      }
 
       // 3. Map and Save Thông số kết cấu công trình
-      const specs = SurveyPackageMapper.mapBuildingSpecs(surveyData);
-      await SurveyService.saveBuildingSpecs(reportId, specs);
+      try {
+        const specs = SurveyPackageMapper.mapBuildingSpecs(surveyData);
+        await SurveyService.saveBuildingSpecs(reportId, specs);
+      } catch (specsErr) {
+        console.warn('[submitPhase1FullPackage] Cảnh báo lưu building_specifications:', specsErr);
+      }
 
       if (surveyData?.floors && Array.isArray(surveyData.floors)) {
-        await SurveyService.saveFloorSurveys(reportId, surveyData.floors);
+        try {
+          await SurveyService.saveFloorSurveys(reportId, surveyData.floors);
+        } catch (floorsErr) {
+          console.warn('[submitPhase1FullPackage] Cảnh báo lưu floor surveys:', floorsErr);
+        }
       }
 
       // 4. Map and Save Biến dạng & Lún nghiêng
       const def = SurveyPackageMapper.mapDeformation(surveyData);
       if (def) {
-        await SurveyService.saveDeformation(reportId, def);
+        try {
+          await SurveyService.saveDeformation(reportId, def);
+        } catch (defErr) {
+          console.warn('[submitPhase1FullPackage] Cảnh báo lưu deformation:', defErr);
+        }
       }
 
       // 4.5. Map and Save Phạm vi và Hạn chế tiếp cận khảo sát (Bảng survey_scopes)
       if (surveyData?.surveyScope || surveyData?.accessLimitation || surveyData?.isAbsenteeSurvey) {
-        await SurveyService.saveSurveyScope(reportId, surveyData);
+        try {
+          await SurveyService.saveSurveyScope(reportId, surveyData);
+        } catch (scopeErr) {
+          console.warn('[submitPhase1FullPackage] Cảnh báo lưu survey scope:', scopeErr);
+        }
       }
 
       // 5. Tính điểm Rủi ro (Scoring) tự động trên Backend
-      await ScoringService.calculatePhase1Scores(reportId);
+      try {
+        await ScoringService.calculatePhase1Scores(reportId);
+      } catch (scoreErr) {
+        console.warn('[submitPhase1FullPackage] Cảnh báo tính điểm scoring:', scoreErr);
+      }
 
-      // 6. Nộp hồ sơ
+      // 6. Nộp hồ sơ (Chuyển status thành SUBMITTED & lưu survey_data_json toàn vẹn)
       const submitData = SurveyPackageMapper.mapSubmitData(surveyData);
       const result = await SurveyService.submitPhase1Report(reportId, submitData);
 

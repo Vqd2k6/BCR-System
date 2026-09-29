@@ -10,27 +10,27 @@ export class SurveyRepository {
       return this.columnCache.get(cacheKey)!;
     }
     try {
-      const res = await Database.query(
-        `SELECT 1 FROM information_schema.columns 
-         WHERE table_name = $1 AND column_name = $2 
-         LIMIT 1;`,
-        [tableName, columnName]
-      );
-      if (res.rows && res.rows.length > 0) {
-        this.columnCache.set(cacheKey, true);
-        return true;
-      }
+      // 1. Chủ động thực thi ALTER TABLE thêm cột trước nếu thiếu
       try {
         await Database.query(`ALTER TABLE ${tableName} ADD COLUMN IF NOT EXISTS ${columnName} VARCHAR(150);`);
-        this.columnCache.set(cacheKey, true);
-        return true;
-      } catch (alterErr) {
-        console.warn(`[SurveyRepository] Note: Column ${columnName} in ${tableName} not present and could not be auto-added:`, alterErr);
-        this.columnCache.set(cacheKey, false);
-        return false;
+      } catch {
+        // Bỏ qua lỗi DDL nếu user không có quyền ALTER trên remote DB
       }
+
+      // 2. Kiểm tra trực tiếp vào bảng danh mục quan hệ thực tế (regclass) theo đúng search_path hiện tại
+      const res = await Database.query(
+        `SELECT 1 FROM pg_attribute 
+         WHERE attrelid = $1::regclass 
+           AND attname = $2 
+           AND NOT attisdropped;`,
+        [tableName, columnName]
+      );
+      const exists = !!(res.rows && res.rows.length > 0);
+      this.columnCache.set(cacheKey, exists);
+      return exists;
     } catch (err) {
-      console.warn(`[SurveyRepository] Error checking column ${columnName} in ${tableName}:`, err);
+      console.warn(`[SurveyRepository] Error verifying column ${columnName} in ${tableName}:`, err);
+      this.columnCache.set(cacheKey, false);
       return false;
     }
   }

@@ -69,26 +69,39 @@ export class Database {
 
   /**
    * Tự động áp dụng các câu lệnh DDL phòng vệ (ADD COLUMN IF NOT EXISTS)
-   * Đảm bảo mọi môi trường (Docker, Local, Supabase Render) luôn có đầy đủ cột dữ liệu mới
+   * Đảm bảo mọi môi trường (Docker, Local, Supabase Render) luôn có đầy đủ cột dữ liệu mới.
+   * Từng khối lệnh được cô lập trong try/catch độc lập để lỗi ở một bảng không làm gián đoạn bảng khác.
    */
   static async runStartupMigrations(): Promise<void> {
+    // 1. survey_identification_photos.photo_code (Ưu tiên số 1)
     try {
-      // 1. base_survey_reports
-      await this.query(`
-        ALTER TABLE base_survey_reports
-          ADD COLUMN IF NOT EXISTS sync_version INT NOT NULL DEFAULT 1,
-          ADD COLUMN IF NOT EXISTS last_edited_by_id UUID REFERENCES users(id) ON DELETE SET NULL,
-          ADD COLUMN IF NOT EXISTS handover_security_code VARCHAR(8),
-          ADD COLUMN IF NOT EXISTS is_ready_for_handover BOOLEAN NOT NULL DEFAULT FALSE,
-          ADD COLUMN IF NOT EXISTS handover_history JSONB NOT NULL DEFAULT '[]'::jsonb;
-      `);
+      await this.query(`ALTER TABLE survey_identification_photos ADD COLUMN IF NOT EXISTS photo_code VARCHAR(150);`);
+      await this.query(`CREATE INDEX IF NOT EXISTS idx_survey_photos_photo_code ON survey_identification_photos(photo_code);`);
+      console.log('✅ [STARTUP MIGRATION] survey_identification_photos.photo_code ready.');
+    } catch (e) {
+      console.warn('⚠️ [STARTUP MIGRATION] survey_identification_photos.photo_code warning:', e);
+    }
 
-      await this.query(`
-        CREATE INDEX IF NOT EXISTS idx_reports_draft_lookup 
-          ON base_survey_reports(parcel_id, phase, status);
-      `);
+    // 2. damage_zones.ctx_photo_code
+    try {
+      await this.query(`ALTER TABLE damage_zones ADD COLUMN IF NOT EXISTS ctx_photo_code VARCHAR(150);`);
+      await this.query(`CREATE INDEX IF NOT EXISTS idx_damage_zones_ctx_photo_code ON damage_zones(ctx_photo_code);`);
+      console.log('✅ [STARTUP MIGRATION] damage_zones.ctx_photo_code ready.');
+    } catch (e) {
+      console.warn('⚠️ [STARTUP MIGRATION] damage_zones.ctx_photo_code warning:', e);
+    }
 
-      // 2. deformation_assessments
+    // 3. defect_items.cu_photo_code
+    try {
+      await this.query(`ALTER TABLE defect_items ADD COLUMN IF NOT EXISTS cu_photo_code VARCHAR(150);`);
+      await this.query(`CREATE INDEX IF NOT EXISTS idx_defect_items_cu_photo_code ON defect_items(cu_photo_code);`);
+      console.log('✅ [STARTUP MIGRATION] defect_items.cu_photo_code ready.');
+    } catch (e) {
+      console.warn('⚠️ [STARTUP MIGRATION] defect_items.cu_photo_code warning:', e);
+    }
+
+    // 4. deformation_assessments Photo IDs
+    try {
       await this.query(`
         ALTER TABLE deformation_assessments
           ADD COLUMN IF NOT EXISTS diff_settlement_photo_code VARCHAR(150),
@@ -98,34 +111,39 @@ export class Database {
           ADD COLUMN IF NOT EXISTS tilt_photos_json JSONB DEFAULT '[]'::jsonb,
           ADD COLUMN IF NOT EXISTS abnormal_photos_json JSONB DEFAULT '[]'::jsonb;
       `);
+      console.log('✅ [STARTUP MIGRATION] deformation_assessments photo codes ready.');
+    } catch (e) {
+      console.warn('⚠️ [STARTUP MIGRATION] deformation_assessments photo codes warning:', e);
+    }
 
-      // 3. building_specifications
+    // 5. building_specifications as_built
+    try {
       await this.query(`
         ALTER TABLE building_specifications
           ADD COLUMN IF NOT EXISTS as_built_drawing_photos_json JSONB DEFAULT '[]'::jsonb;
       `);
+      console.log('✅ [STARTUP MIGRATION] building_specifications as-built drawings ready.');
+    } catch (e) {
+      console.warn('⚠️ [STARTUP MIGRATION] building_specifications warning:', e);
+    }
 
-      // 4. survey_identification_photos, damage_zones, defect_items (Photo Code columns)
+    // 6. base_survey_reports handover and draft sync
+    try {
       await this.query(`
-        ALTER TABLE survey_identification_photos 
-          ADD COLUMN IF NOT EXISTS photo_code VARCHAR(150);
-        CREATE INDEX IF NOT EXISTS idx_survey_photos_photo_code 
-          ON survey_identification_photos(photo_code);
-
-        ALTER TABLE damage_zones 
-          ADD COLUMN IF NOT EXISTS ctx_photo_code VARCHAR(150);
-        CREATE INDEX IF NOT EXISTS idx_damage_zones_ctx_photo_code 
-          ON damage_zones(ctx_photo_code);
-
-        ALTER TABLE defect_items 
-          ADD COLUMN IF NOT EXISTS cu_photo_code VARCHAR(150);
-        CREATE INDEX IF NOT EXISTS idx_defect_items_cu_photo_code 
-          ON defect_items(cu_photo_code);
+        ALTER TABLE base_survey_reports
+          ADD COLUMN IF NOT EXISTS sync_version INT NOT NULL DEFAULT 1,
+          ADD COLUMN IF NOT EXISTS last_edited_by_id UUID,
+          ADD COLUMN IF NOT EXISTS handover_security_code VARCHAR(8),
+          ADD COLUMN IF NOT EXISTS is_ready_for_handover BOOLEAN NOT NULL DEFAULT FALSE,
+          ADD COLUMN IF NOT EXISTS handover_history JSONB NOT NULL DEFAULT '[]'::jsonb;
       `);
-
-      console.log('✅ [STARTUP MIGRATION] All idempotent migrations executed successfully.');
-    } catch (error) {
-      console.warn('⚠️ [STARTUP MIGRATION WARNING] Some startup migrations could not run:', error);
+      await this.query(`
+        CREATE INDEX IF NOT EXISTS idx_reports_draft_lookup 
+          ON base_survey_reports(parcel_id, phase, status);
+      `);
+      console.log('✅ [STARTUP MIGRATION] base_survey_reports handover & draft sync ready.');
+    } catch (e) {
+      console.warn('⚠️ [STARTUP MIGRATION] base_survey_reports handover warning:', e);
     }
   }
 }
