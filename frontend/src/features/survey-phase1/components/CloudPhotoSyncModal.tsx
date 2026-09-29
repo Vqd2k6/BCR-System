@@ -226,7 +226,7 @@ export const CloudPhotoSyncModal: React.FC<CloudPhotoSyncModalProps> = ({
           {displayedList.length === 0 ? (
             <div className="text-center py-10 text-slate-400">
               <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-700 font-mono text-xl font-bold flex items-center justify-center mx-auto mb-2">
-                V
+                ✓
               </div>
               <p className="font-bold text-sm text-slate-700">Tuyệt vời! Không có ảnh nào chưa lên Cloud</p>
               <p className="text-xs text-slate-500 mt-1">

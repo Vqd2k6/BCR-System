@@ -95,25 +95,32 @@ export const StepWizardNav: React.FC<StepWizardNavProps> = ({
   }[themeColor];
 
   return (
-    <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200/80 shadow-xs">
+    <header
+      className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200/80 shadow-xs"
+      style={{
+        paddingTop: 'env(safe-area-inset-top, 0px)',
+      }}
+    >
       {/* Top action header */}
-      <div className="px-3 sm:px-4 py-2 flex items-center justify-between gap-3 max-w-7xl mx-auto">
+      <div className="px-2.5 sm:px-4 py-2 flex items-center justify-between gap-1.5 sm:gap-3 max-w-7xl mx-auto">
         {/* Left Info & Back */}
-        <div className="flex items-center gap-2 sm:gap-3 flex-wrap min-w-0">
+        <div className="flex items-center gap-1.5 sm:gap-2.5 min-w-0 max-w-[45%] sm:max-w-none">
           <button
             type="button"
             onClick={onBackToHome}
-            className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-slate-600 hover:text-slate-900 px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200/80 transition-colors cursor-pointer shrink-0"
+            className="inline-flex items-center gap-1 sm:gap-1.5 text-xs sm:text-sm font-semibold text-slate-700 hover:text-slate-900 px-2 sm:px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200/80 transition-colors cursor-pointer shrink-0"
+            title={backLabel}
           >
-            <ArrowLeft className="w-4 h-4" />
-            <span>{backLabel}</span>
+            <ArrowLeft className="w-4 h-4 shrink-0" />
+            <span className="hidden sm:inline">{backLabel}</span>
+            <span className="sm:hidden text-xs">Về</span>
           </button>
-          {leftBadge}
-          {subtitleBadge}
+          {leftBadge && <div className="truncate min-w-0">{leftBadge}</div>}
+          {subtitleBadge && <div className="hidden md:block truncate min-w-0">{subtitleBadge}</div>}
         </div>
 
         {/* Auto save badge & photo sync status */}
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
           {onOpenPhotoAuditModal && (
             <CloudPhotoStatusBadge onOpenAuditModal={onOpenPhotoAuditModal} />
           )}

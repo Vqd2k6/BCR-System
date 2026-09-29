@@ -531,7 +531,7 @@ export const Step9_FieldSignatures: React.FC<Step9Props> = ({ onSubmitFinal, isS
                       )}
                       {isSuccess && (
                         <span className="bg-emerald-600/95 text-white text-[10px] font-black px-2 py-0.5 rounded-full flex items-center gap-1 shadow-md border border-white/40">
-                          <span className="font-mono font-bold text-[10px]">V</span>
+                          <span className="font-mono font-bold text-[10px]">✓</span>
                           <span>R2</span>
                         </span>
                       )}

@@ -7,6 +7,12 @@
 :root {
   --font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
   
+  /* PWA Safe Area Variables */
+  --sat: env(safe-area-inset-top, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px);
+  --sar: env(safe-area-inset-right, 0px);
+  
   /* Modern Clean Light Theme Color Palette */
   --bg-main: #f8fafc;
   --bg-card: #ffffff;
@@ -243,5 +249,19 @@ body {
 .metro-station-white-outline:hover {
   stroke-width: 3.5px !important;
   fill-opacity: 0.45 !important;
+}
+
+/* PWA Safe Area Utilities */
+.pt-safe {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.top-safe {
+  top: env(safe-area-inset-top, 0px);
+}
+.bottom-safe {
+  bottom: env(safe-area-inset-bottom, 0px);
 }
 

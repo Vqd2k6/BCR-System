@@ -23,7 +23,7 @@ export const SurveyorLayout: React.FC<SurveyorLayoutProps> = ({
         onNavigateToCheckIn={() => onTabChange && onTabChange('attendance')}
       />
 
-      <main className="flex-1 pb-16">
+      <main className="flex-1 pb-[calc(4.5rem+env(safe-area-inset-bottom,0px))]">
         {children || <Outlet />}
       </main>
 

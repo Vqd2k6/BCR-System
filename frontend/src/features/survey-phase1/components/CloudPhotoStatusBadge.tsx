@@ -95,11 +95,11 @@ export const CloudPhotoStatusBadge: React.FC<Props> = ({
       title="Toàn bộ ảnh đã được lưu trữ an toàn trên Cloudflare R2. Bấm để xem danh mục ảnh."
       className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200/80 shadow-xs cursor-pointer hover:bg-emerald-100/70 transition-colors select-none"
     >
-      <Cloud className="w-3.5 h-3.5 text-emerald-600" />
+      <Cloud className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
       <span className="hidden md:inline">Cloud R2:</span>
-      <span className="font-semibold">{audit.syncedPhotosCount}/{audit.totalPhotos} ảnh</span>
+      <span className="font-semibold">{audit.syncedPhotosCount}/{audit.totalPhotos}<span className="hidden sm:inline"> ảnh</span></span>
       <span className="px-1.5 py-0.2 rounded bg-emerald-600 text-white font-mono font-bold text-[10px] tracking-wider shadow-2xs">
-        V
+        ✓
       </span>
     </div>
   );

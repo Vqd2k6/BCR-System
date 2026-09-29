@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Dot, Minus, RotateCcw, Sparkles, Trash2, PenTool, AlertCircle, Check, X } from 'lucide-react';
+import { Dot, Minus, RotateCcw, Sparkles, Trash2, PenTool, AlertCircle, Check, X, Hand, ZoomIn, ZoomOut, Maximize2 } from 'lucide-react';
 
 export interface PolygonPoint {
   x: number;
@@ -55,13 +55,25 @@ export const FacadePolygonCanvas: React.FC<FacadePolygonCanvasProps> = ({
   readOnly = false,
 }) => {
   const activeImage = imageUrl || photoUrl || '';
-  const [activeTool, setActiveTool] = useState<'POLYGON' | 'SPLIT_LINE' | 'FREEHAND'>('POLYGON');
+  const [activeTool, setActiveTool] = useState<'POLYGON' | 'SPLIT_LINE' | 'FREEHAND' | 'PAN'>('POLYGON');
 
   const [points, setPoints] = useState<PolygonPoint[]>(polygonPoints || []);
   const [splitLines, setSplitLines] = useState<FloorSplitLine[]>(floorSplitLines || []);
   const [strokes, setStrokes] = useState<FreehandStroke[]>(freehandStrokes || []);
   const [isDrawing, setIsDrawing] = useState<boolean>(false);
   const [currentStroke, setCurrentStroke] = useState<{ x: number; y: number }[]>([]);
+
+  // Zoom & Pan state
+  const [zoom, setZoom] = useState<number>(1);
+  const [pan, setPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [isPanning, setIsPanning] = useState<boolean>(false);
+  const panStartRef = useRef<{ startX: number; startY: number; initialPanX: number; initialPanY: number }>({
+    startX: 0,
+    startY: 0,
+    initialPanX: 0,
+    initialPanY: 0,
+  });
+  const touchDistanceRef = useRef<number | null>(null);
 
   // 2-point line state for SPLIT_LINE
   const [pendingLineStart, setPendingLineStart] = useState<{ x: number; y: number } | null>(null);
@@ -83,6 +95,52 @@ export const FacadePolygonCanvas: React.FC<FacadePolygonCanvasProps> = ({
     return { x, y };
   };
 
+  const handleZoomIn = () => {
+    setZoom((prev) => Math.min(4, Math.round((prev + 0.5) * 10) / 10));
+  };
+
+  const handleZoomOut = () => {
+    setZoom((prev) => {
+      const next = Math.max(1, Math.round((prev - 0.5) * 10) / 10);
+      if (next === 1) setPan({ x: 0, y: 0 });
+      return next;
+    });
+  };
+
+  const handleResetZoom = () => {
+    setZoom(1);
+    setPan({ x: 0, y: 0 });
+  };
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length === 2) {
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      touchDistanceRef.current = Math.hypot(dx, dy);
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (e.touches.length === 2 && touchDistanceRef.current !== null) {
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      const newDist = Math.hypot(dx, dy);
+      const factor = newDist / touchDistanceRef.current;
+      if (Math.abs(factor - 1) > 0.04) {
+        setZoom((prev) => {
+          const next = Math.max(1, Math.min(4, Math.round(prev * factor * 10) / 10));
+          if (next === 1) setPan({ x: 0, y: 0 });
+          return next;
+        });
+        touchDistanceRef.current = newDist;
+      }
+    }
+  };
+
+  const handleTouchEnd = () => {
+    touchDistanceRef.current = null;
+  };
+
   // Calculate default floor name based on current lines
   const getFloorName = (type: 'GROUND' | 'MEZZANINE' | 'FLOOR' | 'ROOF') => {
     if (type === 'GROUND') return 'Line tầng trệt';
@@ -98,6 +156,20 @@ export const FacadePolygonCanvas: React.FC<FacadePolygonCanvasProps> = ({
 
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (readOnly || !activeImage) return;
+
+    // Pan Mode or middle-click
+    if (activeTool === 'PAN' || e.button === 1) {
+      setIsPanning(true);
+      panStartRef.current = {
+        startX: e.clientX,
+        startY: e.clientY,
+        initialPanX: pan.x,
+        initialPanY: pan.y,
+      };
+      (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
+      return;
+    }
+
     const { x, y } = getCanvasCoords(e.clientX, e.clientY);
 
     if (activeTool === 'POLYGON') {
@@ -133,6 +205,17 @@ export const FacadePolygonCanvas: React.FC<FacadePolygonCanvasProps> = ({
 
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     if (readOnly) return;
+
+    if (isPanning) {
+      const dx = e.clientX - panStartRef.current.startX;
+      const dy = e.clientY - panStartRef.current.startY;
+      setPan({
+        x: panStartRef.current.initialPanX + dx,
+        y: panStartRef.current.initialPanY + dy,
+      });
+      return;
+    }
+
     const { x, y } = getCanvasCoords(e.clientX, e.clientY);
     setHoverCoords({ x, y });
 
@@ -141,7 +224,15 @@ export const FacadePolygonCanvas: React.FC<FacadePolygonCanvasProps> = ({
     }
   };
 
-  const handlePointerUp = () => {
+  const handlePointerUp = (e?: React.PointerEvent<HTMLDivElement>) => {
+    if (isPanning) {
+      setIsPanning(false);
+      if (e) {
+        (e.currentTarget as HTMLElement).releasePointerCapture?.(e.pointerId);
+      }
+      return;
+    }
+
     if (isDrawing && activeTool === 'FREEHAND' && currentStroke.length > 0) {
       setIsDrawing(false);
       const newStroke: FreehandStroke = {
@@ -249,6 +340,21 @@ export const FacadePolygonCanvas: React.FC<FacadePolygonCanvasProps> = ({
               >
                 <PenTool className="w-3.5 h-3.5 text-yellow-400" />
                 <span>Vẽ note tay ({strokes.length})</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTool('PAN');
+                  setPendingLineStart(null);
+                }}
+                className={`px-2 sm:px-2.5 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-colors cursor-pointer ${
+                  activeTool === 'PAN' ? 'bg-amber-600 text-white shadow-xs' : 'text-slate-300 hover:bg-slate-800'
+                }`}
+                title="Kéo & di chuyển toàn bộ ảnh khi phóng to"
+              >
+                <Hand className="w-3.5 h-3.5 text-amber-300" />
+                <span>Kéo ảnh</span>
               </button>
             </div>
 
@@ -381,21 +487,29 @@ export const FacadePolygonCanvas: React.FC<FacadePolygonCanvasProps> = ({
       )}
 
       {/* Interactive Canvas Viewport - Scales cleanly for 9:16 portrait or 4:3 */}
-      <div className="flex-1 w-full min-h-[400px] max-h-[calc(100vh-220px)] flex items-center justify-center relative overflow-hidden rounded-xl bg-slate-950 border border-slate-700 select-none">
+      <div className="flex-1 w-full min-h-0 relative overflow-hidden rounded-xl bg-slate-950 border border-slate-700/80 flex items-center justify-center select-none">
         <div
           ref={canvasContainerRef}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
-          className="relative max-w-full max-h-full flex items-center justify-center cursor-crosshair touch-none"
+          onPointerCancel={handlePointerUp}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+          className={`relative max-w-full max-h-full flex items-center justify-center touch-none select-none transition-transform duration-75 ${
+            activeTool === 'PAN' ? (isPanning ? 'cursor-grabbing' : 'cursor-grab') : 'cursor-crosshair'
+          }`}
           style={{
+            transform: `scale(${zoom}) translate(${pan.x / zoom}px, ${pan.y / zoom}px)`,
+            transformOrigin: 'center center',
             userSelect: 'none',
           }}
         >
           <img
             src={activeImage}
             alt="Facade view"
-            className="max-h-[calc(100vh-230px)] max-w-full object-contain pointer-events-none rounded shadow-xl"
+            className="max-h-[calc(100vh-210px)] max-w-full object-contain pointer-events-none rounded shadow-2xl block"
           />
 
           {/* SVG Overlay matches exact image bounding box */}
@@ -529,6 +643,44 @@ export const FacadePolygonCanvas: React.FC<FacadePolygonCanvasProps> = ({
               />
             )}
           </svg>
+        </div>
+
+        {/* Floating Zoom & Pan Controls Widget */}
+        <div className="absolute bottom-3 right-3 z-30 flex items-center gap-1 bg-slate-900/90 text-white backdrop-blur-md border border-slate-700/80 p-1 rounded-xl shadow-2xl select-none">
+          <button
+            type="button"
+            onClick={handleZoomOut}
+            disabled={zoom <= 1}
+            className="p-1.5 rounded-lg hover:bg-slate-800 disabled:opacity-30 disabled:pointer-events-none text-slate-200 hover:text-white transition-colors cursor-pointer"
+            title="Thu nhỏ (Zoom -)"
+          >
+            <ZoomOut className="w-4 h-4" />
+          </button>
+
+          <span className="px-1.5 font-mono text-[11px] font-bold min-w-[38px] text-center text-sky-400">
+            {Math.round(zoom * 100)}%
+          </span>
+
+          <button
+            type="button"
+            onClick={handleZoomIn}
+            disabled={zoom >= 4}
+            className="p-1.5 rounded-lg hover:bg-slate-800 disabled:opacity-30 disabled:pointer-events-none text-slate-200 hover:text-white transition-colors cursor-pointer"
+            title="Phóng to (Zoom +)"
+          >
+            <ZoomIn className="w-4 h-4" />
+          </button>
+
+          {(zoom > 1 || pan.x !== 0 || pan.y !== 0) && (
+            <button
+              type="button"
+              onClick={handleResetZoom}
+              className="p-1.5 rounded-lg hover:bg-slate-800 text-amber-400 hover:text-amber-300 transition-colors cursor-pointer ml-0.5 border-l border-slate-700 pl-2"
+              title="Vừa vặn khung hình 100% (Fit)"
+            >
+              <Maximize2 className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
       </div>
 
