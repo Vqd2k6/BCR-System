@@ -22,6 +22,7 @@ import {
 import { AdminUser, userService } from '../../../services/userService';
 import { UserEditModal } from './UserEditModal';
 import { ResetPasswordModal } from './ResetPasswordModal';
+import { CleanResetModal } from './CleanResetModal';
 import { METRO_22_ZONES } from '../../survey-phase1/constants/metroGisConstants';
 
 export const UserManagementTab: React.FC = () => {
@@ -40,6 +41,7 @@ export const UserManagementTab: React.FC = () => {
   const [isEditModalOpen, setIsEditModalOpen] = useState<boolean>(false);
   const [selectedUserForPassword, setSelectedUserForPassword] = useState<AdminUser | null>(null);
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState<boolean>(false);
+  const [isResetModalOpen, setIsResetModalOpen] = useState<boolean>(false);
 
   // Feedback banner
   const [bannerMsg, setBannerMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -172,6 +174,15 @@ export const UserManagementTab: React.FC = () => {
             disabled={isLoading}
           >
             Làm mới
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setIsResetModalOpen(true)}
+            icon={<Trash2 size={14} className="text-red-500" />}
+            className="border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300"
+          >
+            🧹 Dọn Sạch DB Về Ban Đầu
           </Button>
         </div>
       </div>
@@ -391,6 +402,19 @@ export const UserManagementTab: React.FC = () => {
             type: 'success',
             text: `Đã đổi mật khẩu thành công cho tài khoản ${selectedUserForPassword?.username}!`,
           });
+        }}
+      />
+
+      {/* Clean Reset Database Modal */}
+      <CleanResetModal
+        isOpen={isResetModalOpen}
+        onClose={() => setIsResetModalOpen(false)}
+        onSuccess={(stats) => {
+          setBannerMsg({
+            type: 'success',
+            text: `🎉 Đã dọn sạch DB thành công! ${stats?.totalParcels || 1643} thửa đất đã chuẩn hóa mã số & sẵn sàng khảo sát (0 báo cáo). Chỉ còn duy nhất tài khoản Super Admin (superadmin / Admin@123).`,
+          });
+          fetchUsers();
         }}
       />
     </Card>

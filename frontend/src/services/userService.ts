@@ -94,6 +94,27 @@ export const userService = {
     const res = await api.delete(`/admin/users/${id}`);
     return res.data;
   },
+
+  cleanResetDatabase: async (): Promise<{
+    success: boolean;
+    message: string;
+    stats: {
+      totalParcels: number;
+      unstartedParcels: number;
+      totalReports: number;
+      totalZones: number;
+      totalUsers: number;
+      totalStandardized: number;
+    };
+    adminAccount: {
+      username: string;
+      role: string;
+      note: string;
+    };
+  }> => {
+    const res = await api.post('/admin/maintenance/clean-reset');
+    return res.data;
+  },
 };
 
 export default userService;

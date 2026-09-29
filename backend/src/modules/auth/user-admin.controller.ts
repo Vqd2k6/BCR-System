@@ -7,6 +7,7 @@ import {
   ResetPasswordDto,
 } from './auth.dto';
 import { BadRequestError } from '../../common/errors/problem-details';
+import { executeCleanReset } from '../../scripts/clean_reset_production_preserving_parcels';
 
 export class UserAdminController {
   static async listUsers(req: Request, res: Response, next: NextFunction) {
@@ -146,6 +147,15 @@ export class UserAdminController {
         success: true,
         message: result.message,
       });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async cleanResetDatabase(req: Request, res: Response, next: NextFunction) {
+    try {
+      const result = await executeCleanReset();
+      res.status(200).json(result);
     } catch (error) {
       next(error);
     }

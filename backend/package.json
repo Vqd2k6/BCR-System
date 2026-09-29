@@ -12,6 +12,7 @@
     "seed:ks003": "ts-node src/scripts/import_ks003.ts",
     "migrate:docker-to-supabase": "ts-node src/scripts/migrate_docker_to_supabase.ts",
     "reset:clean-production": "ts-node src/scripts/reset_clean_production.ts",
+    "reset:clean-parcels": "ts-node src/scripts/clean_reset_production_preserving_parcels.ts",
     "deploy:5zones-cloud": "ts-node src/scripts/deploy_5zones_to_cloud.ts"
   },
   "keywords": [

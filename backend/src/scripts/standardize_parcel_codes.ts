@@ -79,11 +79,11 @@ async function standardizeParcelCodes() {
 
     console.log(`[MIGRATION SUCCESS] Đã chuẩn hóa thành công ${totalUpdated} thửa đất!`);
   });
-
-  process.exit(0);
 }
 
-standardizeParcelCodes().catch((err) => {
-  console.error('[MIGRATION ERROR]', err);
-  process.exit(1);
-});
+if (require.main === module) {
+  standardizeParcelCodes().catch((err) => {
+    console.error('[MIGRATION ERROR]', err);
+    process.exit(1);
+  });
+}
