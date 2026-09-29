@@ -2,6 +2,38 @@ import { Database } from '../../database/db';
 import { normalizeComponentType } from './survey.dto';
 
 export class SurveyRepository {
+  private static columnCache = new Map<string, boolean>();
+
+  public static async hasColumn(tableName: string, columnName: string): Promise<boolean> {
+    const cacheKey = `${tableName}.${columnName}`;
+    if (this.columnCache.has(cacheKey)) {
+      return this.columnCache.get(cacheKey)!;
+    }
+    try {
+      const res = await Database.query(
+        `SELECT 1 FROM information_schema.columns 
+         WHERE table_name = $1 AND column_name = $2 
+         LIMIT 1;`,
+        [tableName, columnName]
+      );
+      if (res.rows && res.rows.length > 0) {
+        this.columnCache.set(cacheKey, true);
+        return true;
+      }
+      try {
+        await Database.query(`ALTER TABLE ${tableName} ADD COLUMN IF NOT EXISTS ${columnName} VARCHAR(150);`);
+        this.columnCache.set(cacheKey, true);
+        return true;
+      } catch (alterErr) {
+        console.warn(`[SurveyRepository] Note: Column ${columnName} in ${tableName} not present and could not be auto-added:`, alterErr);
+        this.columnCache.set(cacheKey, false);
+        return false;
+      }
+    } catch (err) {
+      console.warn(`[SurveyRepository] Error checking column ${columnName} in ${tableName}:`, err);
+      return false;
+    }
+  }
   static async createBaseReport(data: {
     parcelId: string;
     surveyorId: string;
@@ -162,11 +194,13 @@ export class SurveyRepository {
     reportId: string,
     photos: any
   ): Promise<void> {
+    const hasPhotoCode = await this.hasColumn('survey_identification_photos', 'photo_code');
+
     await Database.transaction(async (client) => {
       // Xóa cũ và ghi mới
       await client.query(`DELETE FROM survey_identification_photos WHERE report_id = $1;`, [reportId]);
 
-      // Safe insert helper in case photo_code column is absent in any unmigrated environment
+      // Safe insert helper branching on verified column schema
       const safeInsert = async (
         photoType: string,
         rawUrl: string | null,
@@ -177,7 +211,7 @@ export class SurveyRepository {
         floorSplits: any = null,
         dimensions: any = null
       ) => {
-        try {
+        if (hasPhotoCode) {
           if (photoType === 'P02_MAIN_FACADE') {
             await client.query(
               `INSERT INTO survey_identification_photos (
@@ -210,42 +244,38 @@ export class SurveyRepository {
               [reportId, photoType, rawUrl, photoCode, isNa, naReason]
             );
           }
-        } catch (err: any) {
-          if (err.message && err.message.includes('photo_code')) {
-            console.warn('[DB Fallback] Column photo_code not found in survey_identification_photos, inserting without photo_code');
-            if (photoType === 'P02_MAIN_FACADE') {
-              await client.query(
-                `INSERT INTO survey_identification_photos (
-                   report_id, photo_type, raw_photo_url, facade_polygon_points_json,
-                   floor_split_lines_json, dimensions_json, is_not_applicable, na_reason
-                 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8);`,
-                [
-                  reportId,
-                  photoType,
-                  rawUrl,
-                  JSON.stringify(facadePoly || []),
-                  JSON.stringify(floorSplits || []),
-                  JSON.stringify(dimensions || {}),
-                  isNa,
-                  naReason,
-                ]
-              );
-            } else if (photoType === 'P03_SIDE_OR_REAR') {
-              await client.query(
-                `INSERT INTO survey_identification_photos (
-                   report_id, photo_type, raw_photo_url, dimensions_json, is_not_applicable
-                 ) VALUES ($1, $2, $3, $4, $5);`,
-                [reportId, photoType, rawUrl, JSON.stringify(dimensions || {}), isNa]
-              );
-            } else {
-              await client.query(
-                `INSERT INTO survey_identification_photos (report_id, photo_type, raw_photo_url, is_not_applicable, na_reason)
-                 VALUES ($1, $2, $3, $4, $5);`,
-                [reportId, photoType, rawUrl, isNa, naReason]
-              );
-            }
+        } else {
+          // Schema fallback if photo_code is not present in legacy database
+          if (photoType === 'P02_MAIN_FACADE') {
+            await client.query(
+              `INSERT INTO survey_identification_photos (
+                 report_id, photo_type, raw_photo_url, facade_polygon_points_json,
+                 floor_split_lines_json, dimensions_json, is_not_applicable, na_reason
+               ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8);`,
+              [
+                reportId,
+                photoType,
+                rawUrl,
+                JSON.stringify(facadePoly || []),
+                JSON.stringify(floorSplits || []),
+                JSON.stringify(dimensions || {}),
+                isNa,
+                naReason,
+              ]
+            );
+          } else if (photoType === 'P03_SIDE_OR_REAR') {
+            await client.query(
+              `INSERT INTO survey_identification_photos (
+                 report_id, photo_type, raw_photo_url, dimensions_json, is_not_applicable
+               ) VALUES ($1, $2, $3, $4, $5);`,
+              [reportId, photoType, rawUrl, JSON.stringify(dimensions || {}), isNa]
+            );
           } else {
-            throw err;
+            await client.query(
+              `INSERT INTO survey_identification_photos (report_id, photo_type, raw_photo_url, is_not_applicable, na_reason)
+               VALUES ($1, $2, $3, $4, $5);`,
+              [reportId, photoType, rawUrl, isNa, naReason]
+            );
           }
         }
       };
@@ -410,100 +440,191 @@ export class SurveyRepository {
   }
 
   static async createDamageZone(reportId: string, zoneData: any): Promise<any> {
-    const res = await Database.query(
-      `INSERT INTO damage_zones (
-         report_id, zone_code, floor_name, room_name, component_type,
-         wall_material, functional_impact_repair_needed, burland_grade,
-         ctx_photo_url, ctx_photo_code, notes
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-       RETURNING *;`,
-      [
-        reportId,
-        zoneData.zoneCode,
-        zoneData.floorName,
-        zoneData.roomName,
-        normalizeComponentType(zoneData.componentType || zoneData.customComponentType),
-        zoneData.wallMaterial || null,
-        zoneData.functionalImpactRepairNeeded,
-        zoneData.burlandGrade,
-        zoneData.ctxPhotoUrl,
-        zoneData.ctxPhotoCode || null,
-        zoneData.notes || null,
-      ]
-    );
-    return res.rows[0];
+    const hasCtxCode = await this.hasColumn('damage_zones', 'ctx_photo_code');
+    if (hasCtxCode) {
+      const res = await Database.query(
+        `INSERT INTO damage_zones (
+           report_id, zone_code, floor_name, room_name, component_type,
+           wall_material, functional_impact_repair_needed, burland_grade,
+           ctx_photo_url, ctx_photo_code, notes
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+         RETURNING *;`,
+        [
+          reportId,
+          zoneData.zoneCode,
+          zoneData.floorName,
+          zoneData.roomName,
+          normalizeComponentType(zoneData.componentType || zoneData.customComponentType),
+          zoneData.wallMaterial || null,
+          zoneData.functionalImpactRepairNeeded,
+          zoneData.burlandGrade,
+          zoneData.ctxPhotoUrl,
+          zoneData.ctxPhotoCode || null,
+          zoneData.notes || null,
+        ]
+      );
+      return res.rows[0];
+    } else {
+      const res = await Database.query(
+        `INSERT INTO damage_zones (
+           report_id, zone_code, floor_name, room_name, component_type,
+           wall_material, functional_impact_repair_needed, burland_grade,
+           ctx_photo_url, notes
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+         RETURNING *;`,
+        [
+          reportId,
+          zoneData.zoneCode,
+          zoneData.floorName,
+          zoneData.roomName,
+          normalizeComponentType(zoneData.componentType || zoneData.customComponentType),
+          zoneData.wallMaterial || null,
+          zoneData.functionalImpactRepairNeeded,
+          zoneData.burlandGrade,
+          zoneData.ctxPhotoUrl,
+          zoneData.notes || null,
+        ]
+      );
+      return res.rows[0];
+    }
   }
 
   static async createDefectItem(zoneId: string, defectData: any): Promise<any> {
-    const res = await Database.query(
-      `INSERT INTO defect_items (
-         zone_id, defect_code, pin_x, pin_y, screening_category, defect_type,
-         crack_direction, width_max_mm, length_mm, activity_state,
-         material_degradation_e4, structural_significance_e2, has_scale_card,
-         is_structural_critical, cu_photo_url, cu_photo_code
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
-       RETURNING *;`,
-      [
-        zoneId,
-        defectData.defectCode,
-        defectData.pinX,
-        defectData.pinY,
-        defectData.screeningCategory,
-        defectData.defectType,
-        defectData.crackDirection || null,
-        defectData.widthMaxMm,
-        defectData.lengthMm,
-        defectData.activityState,
-        defectData.materialDegradationE4,
-        defectData.structuralSignificanceE2,
-        defectData.hasScaleCard,
-        defectData.isStructuralCritical,
-        defectData.cuPhotoUrl,
-        defectData.cuPhotoCode || null,
-      ]
-    );
-    return res.rows[0];
+    const hasCuCode = await this.hasColumn('defect_items', 'cu_photo_code');
+    if (hasCuCode) {
+      const res = await Database.query(
+        `INSERT INTO defect_items (
+           zone_id, defect_code, pin_x, pin_y, screening_category, defect_type,
+           crack_direction, width_max_mm, length_mm, activity_state,
+           material_degradation_e4, structural_significance_e2, has_scale_card,
+           is_structural_critical, cu_photo_url, cu_photo_code
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+         RETURNING *;`,
+        [
+          zoneId,
+          defectData.defectCode,
+          defectData.pinX,
+          defectData.pinY,
+          defectData.screeningCategory,
+          defectData.defectType,
+          defectData.crackDirection || null,
+          defectData.widthMaxMm,
+          defectData.lengthMm,
+          defectData.activityState,
+          defectData.materialDegradationE4,
+          defectData.structuralSignificanceE2,
+          defectData.hasScaleCard,
+          defectData.isStructuralCritical,
+          defectData.cuPhotoUrl,
+          defectData.cuPhotoCode || null,
+        ]
+      );
+      return res.rows[0];
+    } else {
+      const res = await Database.query(
+        `INSERT INTO defect_items (
+           zone_id, defect_code, pin_x, pin_y, screening_category, defect_type,
+           crack_direction, width_max_mm, length_mm, activity_state,
+           material_degradation_e4, structural_significance_e2, has_scale_card,
+           is_structural_critical, cu_photo_url
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+         RETURNING *;`,
+        [
+          zoneId,
+          defectData.defectCode,
+          defectData.pinX,
+          defectData.pinY,
+          defectData.screeningCategory,
+          defectData.defectType,
+          defectData.crackDirection || null,
+          defectData.widthMaxMm,
+          defectData.lengthMm,
+          defectData.activityState,
+          defectData.materialDegradationE4,
+          defectData.structuralSignificanceE2,
+          defectData.hasScaleCard,
+          defectData.isStructuralCritical,
+          defectData.cuPhotoUrl,
+        ]
+      );
+      return res.rows[0];
+    }
   }
 
   static async saveDeformation(reportId: string, deform: any): Promise<void> {
-    await Database.query(
-      `INSERT INTO deformation_assessments (
-         report_id, tilt_angle_x, tilt_angle_y, tilt_direction, floor_slope_ratio,
-         beam_deflection_mm, measurement_method, measurement_reliability,
-         diff_settlement_photo_code, tilt_photo_code, abnormal_photo_code,
-         diff_settlement_photos_json, tilt_photos_json, abnormal_photos_json
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
-       ON CONFLICT (report_id) DO UPDATE SET
-         tilt_angle_x = EXCLUDED.tilt_angle_x,
-         tilt_angle_y = EXCLUDED.tilt_angle_y,
-         tilt_direction = EXCLUDED.tilt_direction,
-         floor_slope_ratio = EXCLUDED.floor_slope_ratio,
-         beam_deflection_mm = EXCLUDED.beam_deflection_mm,
-         measurement_method = EXCLUDED.measurement_method,
-         measurement_reliability = EXCLUDED.measurement_reliability,
-         diff_settlement_photo_code = EXCLUDED.diff_settlement_photo_code,
-         tilt_photo_code = EXCLUDED.tilt_photo_code,
-         abnormal_photo_code = EXCLUDED.abnormal_photo_code,
-         diff_settlement_photos_json = EXCLUDED.diff_settlement_photos_json,
-         tilt_photos_json = EXCLUDED.tilt_photos_json,
-         abnormal_photos_json = EXCLUDED.abnormal_photos_json;`,
-      [
-        reportId,
-        Number(deform.tiltAngleX) || 0,
-        Number(deform.tiltAngleY) || 0,
-        deform.tiltDirection ? String(deform.tiltDirection) : null,
-        Number(deform.floorSlopeRatio) || 0,
-        Number(deform.beamDeflectionMm) || 0,
-        deform.measurementMethod || 'LASER_LEVEL',
-        deform.measurementReliability || 'HIGH',
-        deform.diffSettlementPhotoCode || null,
-        deform.tiltPhotoCode || null,
-        deform.abnormalPhotoCode || null,
-        JSON.stringify(deform.diffSettlementPhotos || []),
-        JSON.stringify(deform.tiltPhotos || []),
-        JSON.stringify(deform.abnormalPhotos || []),
-      ]
-    );
+    const hasPhotoCodes = await this.hasColumn('deformation_assessments', 'diff_settlement_photo_code');
+    if (hasPhotoCodes) {
+      await Database.query(
+        `INSERT INTO deformation_assessments (
+           report_id, tilt_angle_x, tilt_angle_y, tilt_direction, floor_slope_ratio,
+           beam_deflection_mm, measurement_method, measurement_reliability,
+           diff_settlement_photo_code, tilt_photo_code, abnormal_photo_code,
+           diff_settlement_photos_json, tilt_photos_json, abnormal_photos_json
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+         ON CONFLICT (report_id) DO UPDATE SET
+           tilt_angle_x = EXCLUDED.tilt_angle_x,
+           tilt_angle_y = EXCLUDED.tilt_angle_y,
+           tilt_direction = EXCLUDED.tilt_direction,
+           floor_slope_ratio = EXCLUDED.floor_slope_ratio,
+           beam_deflection_mm = EXCLUDED.beam_deflection_mm,
+           measurement_method = EXCLUDED.measurement_method,
+           measurement_reliability = EXCLUDED.measurement_reliability,
+           diff_settlement_photo_code = EXCLUDED.diff_settlement_photo_code,
+           tilt_photo_code = EXCLUDED.tilt_photo_code,
+           abnormal_photo_code = EXCLUDED.abnormal_photo_code,
+           diff_settlement_photos_json = EXCLUDED.diff_settlement_photos_json,
+           tilt_photos_json = EXCLUDED.tilt_photos_json,
+           abnormal_photos_json = EXCLUDED.abnormal_photos_json;`,
+        [
+          reportId,
+          Number(deform.tiltAngleX) || 0,
+          Number(deform.tiltAngleY) || 0,
+          deform.tiltDirection ? String(deform.tiltDirection) : null,
+          Number(deform.floorSlopeRatio) || 0,
+          Number(deform.beamDeflectionMm) || 0,
+          deform.measurementMethod || 'LASER_LEVEL',
+          deform.measurementReliability || 'HIGH',
+          deform.diffSettlementPhotoCode || null,
+          deform.tiltPhotoCode || null,
+          deform.abnormalPhotoCode || null,
+          JSON.stringify(deform.diffSettlementPhotos || []),
+          JSON.stringify(deform.tiltPhotos || []),
+          JSON.stringify(deform.abnormalPhotos || []),
+        ]
+      );
+    } else {
+      await Database.query(
+        `INSERT INTO deformation_assessments (
+           report_id, tilt_angle_x, tilt_angle_y, tilt_direction, floor_slope_ratio,
+           beam_deflection_mm, measurement_method, measurement_reliability,
+           diff_settlement_photos_json, tilt_photos_json, abnormal_photos_json
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+         ON CONFLICT (report_id) DO UPDATE SET
+           tilt_angle_x = EXCLUDED.tilt_angle_x,
+           tilt_angle_y = EXCLUDED.tilt_angle_y,
+           tilt_direction = EXCLUDED.tilt_direction,
+           floor_slope_ratio = EXCLUDED.floor_slope_ratio,
+           beam_deflection_mm = EXCLUDED.beam_deflection_mm,
+           measurement_method = EXCLUDED.measurement_method,
+           measurement_reliability = EXCLUDED.measurement_reliability,
+           diff_settlement_photos_json = EXCLUDED.diff_settlement_photos_json,
+           tilt_photos_json = EXCLUDED.tilt_photos_json,
+           abnormal_photos_json = EXCLUDED.abnormal_photos_json;`,
+        [
+          reportId,
+          Number(deform.tiltAngleX) || 0,
+          Number(deform.tiltAngleY) || 0,
+          deform.tiltDirection ? String(deform.tiltDirection) : null,
+          Number(deform.floorSlopeRatio) || 0,
+          Number(deform.beamDeflectionMm) || 0,
+          deform.measurementMethod || 'LASER_LEVEL',
+          deform.measurementReliability || 'HIGH',
+          JSON.stringify(deform.diffSettlementPhotos || []),
+          JSON.stringify(deform.tiltPhotos || []),
+          JSON.stringify(deform.abnormalPhotos || []),
+        ]
+      );
+    }
   }
 
   static async saveSurveyScope(reportId: string, scopeData: any): Promise<void> {

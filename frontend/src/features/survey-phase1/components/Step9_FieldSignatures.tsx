@@ -2,7 +2,7 @@ import React, { useRef, useState } from 'react';
 import { usePhase1SurveyStore } from '../store/usePhase1SurveyStore';
 import { Card } from '../../../core/components/ui/Card';
 import { Button } from '../../../core/components/ui/Button';
-import { Input, Textarea } from '../../../core/components/ui/FormControls';
+import { Textarea } from '../../../core/components/ui/FormControls';
 import {
   FileCheck2,
   Send,
@@ -11,7 +11,6 @@ import {
   Upload,
   Camera,
   Image as ImageIcon,
-  PenTool,
   RefreshCw,
   CheckCircle2,
   AlertCircle,
@@ -20,7 +19,6 @@ import {
   X,
   FileText,
 } from 'lucide-react';
-import { SignaturePad } from '../../../components/canvas/SignaturePad';
 import { ImageAnnotationModal } from '../../../components/common/ImageAnnotationModal';
 import { applyMetroWatermark } from '../../../utils/watermarkEngine';
 import { uploadQueue } from '../../../core/services/uploadQueueService';
@@ -623,169 +621,6 @@ export const Step9_FieldSignatures: React.FC<Step9Props> = ({ onSubmitFinal, isS
           onClose={() => setAnnotatingIndex(null)}
         />
       )}
-
-      {/* 8.3. Ký Xác Nhận Hiện Trường */}
-      <Card id="signatures-section">
-        <div className="flex items-center gap-2 mb-4 pb-2 border-b border-slate-100">
-          <PenTool className="w-5 h-5 text-indigo-600" />
-          <div>
-            <h2 className="text-base sm:text-lg font-bold text-slate-800">
-              8.3. Ký Xác Nhận Khảo Sát Hiện Trường
-            </h2>
-            <p className="text-xs text-slate-500">
-              Ký trực tiếp trên màn hình cảm ứng hoặc chụp ảnh chữ ký tươi có dập watermark định danh pháp lý
-            </p>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Cột 1: Người lập phiếu (Khảo sát viên) */}
-          <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 space-y-3">
-            <h3 className="font-bold text-sm text-slate-800 flex items-center justify-between">
-              <span>1. Người Lập Phiếu (Khảo Sát Viên)</span>
-              <span className="text-[11px] font-normal text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">Bắt buộc</span>
-            </h3>
-            <Input
-              label="Họ và tên khảo sát viên *"
-              placeholder="Nguyễn Văn A"
-              value={sigs.preparedBy?.fullName || ''}
-              onChange={(e) =>
-                updateFormData({
-                  signatures: {
-                    ...sigs,
-                    preparedBy: { ...sigs.preparedBy, fullName: e.target.value },
-                  },
-                })
-              }
-              disabled={readOnly}
-            />
-            <div className="grid grid-cols-2 gap-2">
-              <Input
-                label="Chức danh / Đơn vị"
-                placeholder="Khảo sát viên"
-                value={sigs.preparedBy?.title || ''}
-                onChange={(e) =>
-                  updateFormData({
-                    signatures: {
-                      ...sigs,
-                      preparedBy: { ...sigs.preparedBy, title: e.target.value },
-                    },
-                  })
-                }
-                disabled={readOnly}
-              />
-              <Input
-                label="Ngày ký"
-                type="date"
-                value={sigs.preparedBy?.date || new Date().toISOString().split('T')[0]}
-                onChange={(e) =>
-                  updateFormData({
-                    signatures: {
-                      ...sigs,
-                      preparedBy: { ...sigs.preparedBy, date: e.target.value },
-                    },
-                  })
-                }
-                disabled={readOnly}
-              />
-            </div>
-            <SignaturePad
-              label="Chữ ký Khảo sát viên"
-              signerName={sigs.preparedBy?.fullName || 'Khảo sát viên'}
-              role={sigs.preparedBy?.title || 'Khảo sát viên'}
-              initialSignatureUrl={sigs.preparedBy?.photoUrl}
-              onSave={(url) =>
-                updateFormData({
-                  signatures: {
-                    ...sigs,
-                    preparedBy: { ...sigs.preparedBy, photoUrl: url },
-                  },
-                })
-              }
-              watermarkOptions={{
-                parcelCode: formData.projectParcelCode,
-                floor: 'DOC',
-                zoneOrRoom: 'CHUKY',
-                photoType: 'SIG_SURVEYOR',
-              }}
-              readOnly={readOnly}
-            />
-          </div>
-
-          {/* Cột 2: Đại diện chủ sở hữu */}
-          <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 space-y-3">
-            <h3 className="font-bold text-sm text-slate-800 flex items-center justify-between">
-              <span>2. Đại Diện Chủ Sở Hữu / Người Sử Dụng</span>
-              <span className="text-[11px] font-normal text-sky-600 bg-sky-50 px-2 py-0.5 rounded border border-sky-200">Hiện trường</span>
-            </h3>
-            <Input
-              label="Họ và tên người đại diện *"
-              placeholder="Trần Thị B"
-              value={sigs.ownerRepresentative?.fullName || ''}
-              onChange={(e) =>
-                updateFormData({
-                  signatures: {
-                    ...sigs,
-                    ownerRepresentative: { ...sigs.ownerRepresentative, fullName: e.target.value },
-                  },
-                })
-              }
-              disabled={readOnly}
-            />
-            <div className="grid grid-cols-2 gap-2">
-              <Input
-                label="Quan hệ với chủ hộ"
-                placeholder="Chủ hộ / Đại diện ủy quyền"
-                value={sigs.ownerRepresentative?.role || ''}
-                onChange={(e) =>
-                  updateFormData({
-                    signatures: {
-                      ...sigs,
-                      ownerRepresentative: { ...sigs.ownerRepresentative, role: e.target.value },
-                    },
-                  })
-                }
-                disabled={readOnly}
-              />
-              <Input
-                label="Ngày ký"
-                type="date"
-                value={sigs.ownerRepresentative?.date || new Date().toISOString().split('T')[0]}
-                onChange={(e) =>
-                  updateFormData({
-                    signatures: {
-                      ...sigs,
-                      ownerRepresentative: { ...sigs.ownerRepresentative, date: e.target.value },
-                    },
-                  })
-                }
-                disabled={readOnly}
-              />
-            </div>
-            <SignaturePad
-              label="Chữ ký Chủ hộ / Đại diện"
-              signerName={sigs.ownerRepresentative?.fullName || 'Chủ hộ'}
-              role={sigs.ownerRepresentative?.role || 'Chủ hộ'}
-              initialSignatureUrl={sigs.ownerRepresentative?.photoUrl}
-              onSave={(url) =>
-                updateFormData({
-                  signatures: {
-                    ...sigs,
-                    ownerRepresentative: { ...sigs.ownerRepresentative, photoUrl: url },
-                  },
-                })
-              }
-              watermarkOptions={{
-                parcelCode: formData.projectParcelCode,
-                floor: 'DOC',
-                zoneOrRoom: 'CHUKY',
-                photoType: 'SIG_OWNER',
-              }}
-              readOnly={readOnly}
-            />
-          </div>
-        </div>
-      </Card>
 
       {/* Final Submit Buttons */}
       <div className="flex justify-between items-center pt-4">
