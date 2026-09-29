@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
   Cloud,
-  CheckCircle2,
   AlertTriangle,
   RefreshCw,
   ArrowRight,
@@ -226,7 +225,9 @@ export const CloudPhotoSyncModal: React.FC<CloudPhotoSyncModalProps> = ({
         <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-3">
           {displayedList.length === 0 ? (
             <div className="text-center py-10 text-slate-400">
-              <CheckCircle2 className="w-12 h-12 text-emerald-500 mx-auto mb-2 opacity-80" />
+              <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-700 font-mono text-xl font-bold flex items-center justify-center mx-auto mb-2">
+                V
+              </div>
               <p className="font-bold text-sm text-slate-700">Tuyệt vời! Không có ảnh nào chưa lên Cloud</p>
               <p className="text-xs text-slate-500 mt-1">
                 Tất cả hình ảnh đã được dập watermark và đồng bộ an toàn trên Cloudflare R2.

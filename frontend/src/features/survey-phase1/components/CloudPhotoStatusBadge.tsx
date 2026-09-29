@@ -97,7 +97,10 @@ export const CloudPhotoStatusBadge: React.FC<Props> = ({
     >
       <Cloud className="w-3.5 h-3.5 text-emerald-600" />
       <span className="hidden md:inline">Cloud R2:</span>
-      <span className="font-semibold">{audit.syncedPhotosCount}/{audit.totalPhotos} ảnh ✅</span>
+      <span className="font-semibold">{audit.syncedPhotosCount}/{audit.totalPhotos} ảnh</span>
+      <span className="px-1.5 py-0.2 rounded bg-emerald-600 text-white font-mono font-bold text-[10px] tracking-wider shadow-2xs">
+        V
+      </span>
     </div>
   );
 };

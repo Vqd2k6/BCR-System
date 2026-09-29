@@ -118,7 +118,7 @@ export const DamageZonesSection: React.FC<DamageZonesSectionProps> = ({
                       {z.defects.length} D
                     </span>
                   ) : z.isCompleted ? (
-                    <span className="text-emerald-400 text-[10px] font-bold">✓</span>
+                    <span className="font-mono text-emerald-400 text-[10px] font-bold">V</span>
                   ) : null}
                 </button>
               );
