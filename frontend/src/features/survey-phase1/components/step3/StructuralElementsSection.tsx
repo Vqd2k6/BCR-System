@@ -12,9 +12,12 @@ import { Hammer, Camera, Trash2, MapPin, Plus } from 'lucide-react';
 interface StructuralElementsSectionProps {
   currentFloor: FloorSurveyData;
   activeElementIndex: number;
+  projectParcelCode?: string;
   onCadPhotoChange: (url: string) => void;
   onChangePins: (pins: CadZonePin[]) => void;
   onAutoCreatePin: (pin: CadZonePin) => void;
+  onDeletePin?: (pin: CadZonePin, index: number) => void;
+  onRenamePin?: (oldCode: string, newCode: string, updatedPin: CadZonePin) => void;
   onSelectElement: (index: number) => void;
   onUpdateElement: (index: number, updater: Partial<StructuralElementData>) => void;
   onDeleteElement: (index: number) => void;
@@ -27,9 +30,12 @@ interface StructuralElementsSectionProps {
 export const StructuralElementsSection: React.FC<StructuralElementsSectionProps> = ({
   currentFloor,
   activeElementIndex,
+  projectParcelCode,
   onCadPhotoChange,
   onChangePins,
   onAutoCreatePin,
+  onDeletePin,
+  onRenamePin,
   onSelectElement,
   onUpdateElement,
   onDeleteElement,
@@ -68,12 +74,15 @@ export const StructuralElementsSection: React.FC<StructuralElementsSectionProps>
         pins={currentFloor.cadElementPins || []}
         onChangePins={onChangePins}
         onAutoCreatePin={onAutoCreatePin}
+        onDeletePin={onDeletePin}
+        onRenamePin={onRenamePin}
         onSelectPin={(pin) => {
           const idx = structuralElements.findIndex((e) => e.elementCode === pin.zoneCode);
           if (idx !== -1) onSelectElement(idx);
         }}
         mode="STRUCTURAL"
         floorName={currentFloor.floorName}
+        parcelCode={projectParcelCode}
         cadTitle={`Tải lên hoặc chụp sơ đồ mặt bằng kết cấu CAD_02 (${currentFloor.floorName}):`}
       />
 
@@ -140,9 +149,25 @@ export const StructuralElementsSection: React.FC<StructuralElementsSectionProps>
             {/* Header card E */}
             <div className="flex items-center justify-between pb-2 border-b border-amber-200">
               <div className="flex items-center gap-2">
-                <span className="px-2.5 py-1 rounded-lg bg-amber-700 text-white font-mono text-xs font-extrabold">
-                  {activeElement.elementCode}
-                </span>
+                <div className="flex items-center gap-1">
+                  <input
+                    type="text"
+                    value={activeElement.elementCode}
+                    onChange={(e) => {
+                      const newCode = e.target.value.toUpperCase();
+                      const oldCode = activeElement.elementCode;
+                      onUpdateElement(activeElementIndex, { elementCode: newCode });
+                      if (onRenamePin) {
+                        const matchingPin = (currentFloor.cadElementPins || []).find((p) => p.zoneCode === oldCode);
+                        if (matchingPin) {
+                          onRenamePin(oldCode, newCode, { ...matchingPin, zoneCode: newCode });
+                        }
+                      }
+                    }}
+                    className="px-2 py-0.5 rounded-lg bg-amber-700 text-white font-mono text-xs font-extrabold w-20 border border-amber-500 uppercase focus:ring-1 focus:ring-amber-300"
+                    title="Mã Vùng E (đồng bộ với ghim trên sơ đồ CAD)"
+                  />
+                </div>
                 <span className="text-sm font-bold text-slate-800">
                   Khảo Sát Kết Cấu: {activeElement.elementType} ({activeElement.roomName})
                 </span>
@@ -292,7 +317,13 @@ export const StructuralElementsSection: React.FC<StructuralElementsSectionProps>
                       });
                     }
                   }}
-                  watermarkText={`${activeElement.elementCode} | ${activeElement.elementType}`}
+                  watermarkOptions={{
+                    parcelCode: projectParcelCode,
+                    floor: currentFloor.floorName,
+                    zoneOrRoom: activeElement.elementCode,
+                    photoType: 'CTX',
+                    photoIndex: (activeElement.overviewPhotos?.length || 0) + 1,
+                  }}
                   height="85px"
                 />
               </div>

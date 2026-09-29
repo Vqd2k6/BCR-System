@@ -128,19 +128,29 @@ export const PhotoCaptureInput: React.FC<Props> = ({
     const fullCode = code || displayPhotoCode || '';
 
     if (!buildingCode && fullCode) {
-      // Phân tích mã như HCM_M2_B00008CC_SETTLE_01 hoặc HCM_M2.B00008CC_...
+      // Phân tích mã như HCM_M2.[C&C-01-B-0001]_... hoặc HCM_M2_B00008CC_...
       const cleanCode = fullCode.replace(/^HCM_M2[._]/i, '');
-      const parts = cleanCode.split(/[._]/);
-      if (parts[0] && parts[0].length >= 3) {
-        buildingCode = parts[0];
-      }
-      if (!pType && parts[1]) {
-        pType = parts[1];
+      const bracketMatch = cleanCode.match(/^\[([^\]]+)\]/);
+      if (bracketMatch) {
+        buildingCode = bracketMatch[1];
+        const rest = cleanCode.substring(bracketMatch[0].length).replace(/^_+/, '');
+        const parts = rest.split('_');
+        if (!pType && parts.length > 1) {
+          pType = parts[parts.length - 2] || parts[0];
+        }
+      } else {
+        const parts = cleanCode.split(/[._]/);
+        if (parts[0] && parts[0].length >= 3) {
+          buildingCode = parts[0];
+        }
+        if (!pType && parts[1]) {
+          pType = parts[1];
+        }
       }
     }
 
-    // Làm sạch ký tự
-    buildingCode = buildingCode.replace(/[^a-zA-Z0-9_-]/g, '').toUpperCase();
+    // Làm sạch ký tự cho thư mục lưu trữ R2 (chuyển & thành _)
+    buildingCode = buildingCode.replace(/&/g, '_').replace(/[^a-zA-Z0-9_-]/g, '').toUpperCase();
     pType = String(pType).replace(/[^a-zA-Z0-9_-]/g, '').toUpperCase();
 
     // Xác định thư mục phân cấp rõ ràng trong Cloudflare R2: surveys/{buildingCode}/{photoType}
@@ -395,8 +405,9 @@ export const PhotoCaptureInput: React.FC<Props> = ({
     value &&
     recommendedOrientation &&
     detectedAspectRatio &&
-    detectedAspectRatio !== 'square' &&
-    detectedAspectRatio !== recommendedOrientation;
+    (recommendedOrientation === 'square'
+      ? detectedAspectRatio !== 'square'
+      : detectedAspectRatio !== 'square' && detectedAspectRatio !== recommendedOrientation);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', width: '100%' }}>
@@ -536,8 +547,10 @@ export const PhotoCaptureInput: React.FC<Props> = ({
         >
           <AlertTriangle size={13} style={{ flexShrink: 0 }} />
           <span>
-            {recommendedOrientation === 'landscape'
-              ? 'Ảnh đang là ảnh dọc. Báo cáo khuyến nghị dùng ảnh ngang để tránh méo layout.'
+            {recommendedOrientation === 'square'
+              ? 'Ảnh chi tiết khuyết tật khuyến nghị dùng khung vuông (1:1) kèm thước đo tỷ lệ.'
+              : recommendedOrientation === 'landscape'
+              ? 'Ảnh đang là ảnh dọc. Báo cáo khuyến nghị dùng ảnh ngang (4:3) để bao quát và tránh méo layout.'
               : 'Ảnh đang là ảnh ngang. Báo cáo khuyến nghị dùng ảnh dọc để vừa khung mẫu.'}
           </span>
         </div>

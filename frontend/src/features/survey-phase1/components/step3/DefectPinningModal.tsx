@@ -8,6 +8,8 @@ interface DefectPinningModalProps {
   mode: 'ARCHITECTURAL' | 'STRUCTURAL';
   code: string;
   name: string;
+  floorName?: string;
+  projectParcelCode?: string;
   ctxPhotoUrl?: string;
   defects: DefectItem[];
   onChange: (defects: DefectItem[]) => void;
@@ -19,6 +21,8 @@ export const DefectPinningModal: React.FC<DefectPinningModalProps> = ({
   mode,
   code,
   name,
+  floorName,
+  projectParcelCode,
   ctxPhotoUrl,
   defects,
   onChange,
@@ -61,6 +65,9 @@ export const DefectPinningModal: React.FC<DefectPinningModalProps> = ({
             ctxPhotoUrl={ctxPhotoUrl}
             defects={defects}
             mode={mode}
+            parcelCode={projectParcelCode}
+            floorName={floorName}
+            zoneOrElementCode={code}
             onChange={onChange}
           />
         </div>

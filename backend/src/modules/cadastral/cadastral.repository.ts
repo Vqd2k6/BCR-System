@@ -246,13 +246,12 @@ export class CadastralRepository {
   }
 
   /**
-   * Cấp mã B-XXXXX tiếp theo dựa trên chỉ số lớn nhất hiện hữu trong hệ thống (MAX + 1)
+   * Cấp mã B-XXXX tiếp theo dựa trên chỉ số lớn nhất hiện hữu trong hệ thống (MAX + 1)
    */
   static async getNextHighRangeProjectCode(client: PoolClient): Promise<string> {
     const res = await client.query<{ max_val: number }>(
-      `SELECT COALESCE(MAX(substring(project_parcel_code from 3)::integer), 0) AS max_val
+      `SELECT COALESCE(MAX(substring(project_parcel_code from '[0-9]+$')::integer), 0) AS max_val
        FROM parcels
-       WHERE project_parcel_code ~ '^B-[0-9]+$'
        FOR UPDATE;`
     );
 
@@ -261,7 +260,7 @@ export class CadastralRepository {
       nextNum = Number(res.rows[0].max_val) + 1;
     }
 
-    return `B-${String(nextNum).padStart(5, '0')}`;
+    return `B-${String(nextNum).padStart(4, '0')}`;
   }
 
   static async findUnitsByParcelId(parcelId: string): Promise<BuildingUnitEntity[]> {

@@ -562,6 +562,20 @@ export const useCadastralMutation = ({
     });
   };
 
+  const getPolygonB = useCallback((): [number, number][] => {
+    if (realActiveCoords.length < 3) return realActiveCoords;
+    if (polyAVertices.length >= 4) {
+      const p0 = realActiveCoords[0];
+      const p1 = realActiveCoords[1];
+      const p2 = realActiveCoords[2];
+      const p3 = realActiveCoords[3] || realActiveCoords[2];
+      const cutR = polyAVertices[2] || interpolatePoint(p1, p2, 0.6);
+      const cutL = polyAVertices[3] || interpolatePoint(p0, p3, 0.6);
+      return [cutL, cutR, p2, p3];
+    }
+    return realActiveCoords;
+  }, [realActiveCoords, polyAVertices]);
+
   const handleSaveMutationProposal = () => {
     if (boundaryStatus === 'SPLIT' && !mutationData.splitReason?.trim()) {
       alert('Vui lòng chọn hoặc nhập Lý do chia tách thửa đất thực tế trước khi xác nhận đề xuất!');
@@ -575,6 +589,58 @@ export const useCadastralMutation = ({
 
     setIsSubmittingMutation(true);
     const nowStr = new Date().toLocaleTimeString('vi-VN');
+    const polyB = getPolygonB();
+
+    const currentChildren = mutationData.splitChildren && mutationData.splitChildren.length > 0
+      ? mutationData.splitChildren
+      : [
+          {
+            label: 'Căn A (Mặt tiền / Đang KS)',
+            houseNumber: `${parcelData.houseNumber}A`,
+            ownerName: parcelData.ownerName || '',
+            suggestedCode: dynamicCodes[0] || `${parcelData.projectParcelCode}-P1`,
+            areaM2: calculatedAreaA,
+            functionalType: 'Nhà ở gia đình (Nhà phố / Biệt thự / Căn hộ)',
+            isResidualSurplus: false,
+          },
+          {
+            label: 'Căn B (Phần diện tích còn dư)',
+            houseNumber: `${parcelData.houseNumber}B`,
+            ownerName: 'Chủ sở hữu phần đất dôi dư',
+            suggestedCode: dynamicCodes[1] || `${parcelData.projectParcelCode}-P2`,
+            areaM2: calculatedAreaB,
+            functionalType: customResidualType || 'RESIDUAL_SURPLUS',
+            isResidualSurplus: true,
+            residualParentParcelCode: parcelData.projectParcelCode,
+            residualParentCadastralCode: parcelData.officialCadastralCode,
+            residualParentAddress: `Số ${parcelData.houseNumber} ${parcelData.street}`,
+            residualMetadataNote: `Đất thừa tách từ ${parcelData.projectParcelCode}`,
+          },
+        ];
+
+    const updatedChildren = currentChildren.map((c, idx) => {
+      if (idx === 0) {
+        return {
+          ...c,
+          suggestedCode: c.suggestedCode || dynamicCodes[0] || `${parcelData.projectParcelCode}-P1`,
+          areaM2: calculatedAreaA,
+          coordinates: polyAVertices,
+        };
+      }
+      if (idx === 1) {
+        return {
+          ...c,
+          suggestedCode: c.suggestedCode || dynamicCodes[1] || `${parcelData.projectParcelCode}-P2`,
+          areaM2: calculatedAreaB,
+          isResidualSurplus: true,
+          coordinates: polyB,
+          residualParentParcelCode: parcelData.projectParcelCode,
+          residualParentCadastralCode: parcelData.officialCadastralCode,
+        };
+      }
+      return c;
+    });
+
     const updatedMutation: MutationPayloadData = {
       ...mutationData,
       isSubmitted: true,
@@ -583,13 +649,20 @@ export const useCadastralMutation = ({
       submittedAt: nowStr,
       splitShapeOption,
       splitCustomPointsA: polyAVertices,
+      splitCustomPointsB: polyB,
+      splitChildren: updatedChildren,
+      mergeBuildingCustomPoints: mergeBuildingVertices,
+      mergeResidualParcelCode: mutationData.mergeResidualParcelCode || `${mergeSummary.keptCode}-P2`,
+      mergeBuildingAreaM2: calculatedMergeBArea,
+      mergeResidualAreaM2: calculatedMergeRArea,
+      mergeResidualCustomPoints: realActiveCoords,
     };
 
     onMutationDataChange(updatedMutation);
 
     if (onToastMessage) {
       onToastMessage(
-        `✓ Đã ghi nhận đề xuất ${boundaryStatus === 'SPLIT' ? 'Tách thửa' : 'Gộp thửa'} gần nhất vào hồ sơ thửa ${parcelData.projectParcelCode}!`
+        `✓ Đã ghi nhận đề xuất ${boundaryStatus === 'SPLIT' ? 'Tách thửa' : 'Gộp thửa'} kèm tọa độ polygon các lô vào hồ sơ thửa ${parcelData.projectParcelCode}!`
       );
     }
 

@@ -1,7 +1,8 @@
 import React, { useState, useRef } from 'react';
-import { Crosshair, Trash2, Camera, AlertCircle, CheckCircle2, Ruler, Sparkles, MapPin, AlertTriangle } from 'lucide-react';
+import { Crosshair, Trash2, Camera, AlertCircle, CheckCircle2, Ruler, Sparkles, MapPin, AlertTriangle, Eye, EyeOff } from 'lucide-react';
 import { PhotoCaptureInput } from '../common/PhotoCaptureInput';
 import { InfoPopover } from '../../core/components/ui/InfoPopover';
+import { getNextAvailablePinCode } from './FloorCadPinningCanvas';
 
 export interface DefectItem {
   id?: string;
@@ -31,6 +32,9 @@ interface Props {
   onChange: (defects: DefectItem[]) => void;
   readOnly?: boolean;
   mode?: 'ARCHITECTURAL' | 'STRUCTURAL'; // Z vs E
+  parcelCode?: string;
+  floorName?: string;
+  zoneOrElementCode?: string;
 }
 
 const ARCH_SCREENING_CATEGORIES = [
@@ -86,16 +90,24 @@ export const DefectPinningCanvas: React.FC<Props> = ({
   onChange,
   readOnly = false,
   mode = 'ARCHITECTURAL',
+  parcelCode,
+  floorName,
+  zoneOrElementCode,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const detailFormRef = useRef<HTMLDivElement>(null);
   const [selectedDefectIndex, setSelectedDefectIndex] = useState<number | null>(null);
   const [isAddingPin, setIsAddingPin] = useState<boolean>(true);
+  const [showPins, setShowPins] = useState<boolean>(true);
 
   const screeningCategories = mode === 'STRUCTURAL' ? STRUCT_SCREENING_CATEGORIES : ARCH_SCREENING_CATEGORIES;
   const commonDefectTypes = mode === 'STRUCTURAL' ? STRUCT_DEFECT_TYPES : ARCH_DEFECT_TYPES;
 
-  const nextDefectCode = `D-${String(defects.length + 1).padStart(2, '0')}`;
+  // Tự động tìm số thứ tự nhỏ nhất còn trống cho D-xx
+  const nextDefectCode = getNextAvailablePinCode(
+    defects.map((d) => ({ zoneCode: d.defectCode })),
+    'D'
+  );
 
   const handleContainerClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (readOnly || !isAddingPin || !containerRef.current || !ctxPhotoUrl) return;
@@ -104,7 +116,10 @@ export const DefectPinningCanvas: React.FC<Props> = ({
     const x = parseFloat((((e.clientX - rect.left) / rect.width) * 100).toFixed(2));
     const y = parseFloat((((e.clientY - rect.top) / rect.height) * 100).toFixed(2));
 
-    const newDefectCode = `D-${String(defects.length + 1).padStart(2, '0')}`;
+    const newDefectCode = getNextAvailablePinCode(
+      defects.map((d) => ({ zoneCode: d.defectCode })),
+      'D'
+    );
 
     // Khởi tạo khuyết tật mới trống hoàn toàn để surveyor bắt buộc điền thủ công
     const newDefect: DefectItem = {
@@ -214,18 +229,35 @@ export const DefectPinningCanvas: React.FC<Props> = ({
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={() => setIsAddingPin(!isAddingPin)}
-            className={`px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all shadow-xs ${
-              isAddingPin
-                ? 'bg-red-600 text-white ring-2 ring-red-400'
-                : 'bg-emerald-600 text-white hover:bg-emerald-700'
-            }`}
-          >
-            <Crosshair className="w-3.5 h-3.5" />
-            <span>{isAddingPin ? `Đang bật chạm chấm ${nextDefectCode}` : `Bật chạm chấm ${nextDefectCode}`}</span>
-          </button>
+          <div className="flex items-center gap-2">
+            {/* Eye toggle button */}
+            <button
+              type="button"
+              onClick={() => setShowPins(!showPins)}
+              className={`px-2.5 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all border ${
+                showPins
+                  ? 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                  : 'bg-amber-100 text-amber-800 border-amber-300 ring-2 ring-amber-400'
+              }`}
+              title={showPins ? "Bấm để ẩn ghim xem ảnh bối cảnh rõ hơn" : "Bấm để hiển thị lại các ghim"}
+            >
+              {showPins ? <Eye className="w-3.5 h-3.5 text-slate-500" /> : <EyeOff className="w-3.5 h-3.5 text-amber-700" />}
+              <span>{showPins ? 'Ẩn ghim D' : 'Hiện ghim D'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setIsAddingPin(!isAddingPin)}
+              className={`px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all shadow-xs ${
+                isAddingPin
+                  ? 'bg-red-600 text-white ring-2 ring-red-400'
+                  : 'bg-emerald-600 text-white hover:bg-emerald-700'
+              }`}
+            >
+              <Crosshair className="w-3.5 h-3.5" />
+              <span>{isAddingPin ? `Đang bật chạm chấm ${nextDefectCode}` : `Bật chạm chấm ${nextDefectCode}`}</span>
+            </button>
+          </div>
         </div>
       )}
 
@@ -244,7 +276,7 @@ export const DefectPinningCanvas: React.FC<Props> = ({
         />
 
         {/* Existing Pins */}
-        {defects.map((d, idx) => {
+        {showPins && defects.map((d, idx) => {
           const isSelected = selectedDefectIndex === idx;
           const isFilled = isDefectFilled(d);
           const squareBg = isFilled ? '#10b981' : '#f59e0b';
@@ -312,9 +344,17 @@ export const DefectPinningCanvas: React.FC<Props> = ({
         <div ref={detailFormRef} className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
           <div className="flex items-center justify-between pb-2 border-b border-slate-200">
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="px-2.5 py-1 bg-slate-900 text-white font-mono font-bold text-xs rounded-lg">
-                {selectedDefect.defectCode}
-              </span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[11px] font-bold text-slate-500">Mã D:</span>
+                <input
+                  type="text"
+                  value={selectedDefect.defectCode}
+                  onChange={(e) => updateSelectedDefect('defectCode', e.target.value.toUpperCase())}
+                  className="px-2 py-0.5 bg-slate-900 text-white font-mono font-bold text-xs rounded border border-slate-700 w-20 uppercase focus:ring-1 focus:ring-emerald-400"
+                  disabled={readOnly}
+                  title="Đổi mã khuyết tật D"
+                />
+              </div>
               <span className="font-bold text-sm text-slate-800">
                 Thông số chi tiết vết nứt / khuyết tật ({selectedDefect.defectCode})
               </span>
@@ -642,15 +682,18 @@ export const DefectPinningCanvas: React.FC<Props> = ({
                   onChange(next);
                 }
               }}
-              recommendedOrientation="landscape"
-              orientationHint="Khuyến nghị: Chụp ảnh NGANG (4:3) cận cảnh kèm thẻ thước đo tỷ lệ"
+              recommendedOrientation="square"
+              orientationHint="Khuyến nghị: Chụp ảnh KHUNG VUÔNG (1:1) cận cảnh kèm thẻ thước đo tỷ lệ"
               watermarkOptions={{
+                parcelCode,
+                floor: floorName,
+                zoneOrRoom: zoneOrElementCode,
                 defectCode: selectedDefect.defectCode,
                 photoType: 'CU',
                 photoIndex: 1,
               }}
               annotationTitle={`Vẽ & Ghi chú trên ảnh Photo CU (${selectedDefect.defectCode})`}
-              height="140px"
+              height="240px"
               required
             />
 

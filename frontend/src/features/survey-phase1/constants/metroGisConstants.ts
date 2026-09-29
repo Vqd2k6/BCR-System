@@ -49,9 +49,24 @@ export const METRO_CORRIDOR_BOUNDARIES: MetroCorridorBoundary[] =
 export const METRO_STATION_POLYGONS: MetroStationPolygon[] =
   (rawBoundaryData.stationPolygons as any[]) || [];
 
+export interface DetailedStationFootprint {
+  code: string;
+  name: string;
+  rawName: string;
+  desc?: string;
+  coords: [number, number][];
+  center: [number, number];
+  pointCount: number;
+  type: 'STATION_OUTLINE' | 'DEPOT_OUTLINE';
+}
+
 // 2b. Các Phân đoạn Hầm TBM nối liền các ga (CAD chuẩn MAUR, khép kín hành lang)
 export const METRO_TBM_POLYGONS: { rawName: string; coords: [number, number][]; center: [number, number] }[] =
   ((rawBoundaryData as any).tbmPolygons as any[]) || [];
+
+// 2c. Phác hoạ chi tiết công trình nhà ga màu trắng (11 Ga ngầm + Depot Tham Lương)
+export const METRO_STATION_DETAILED_OUTLINES: DetailedStationFootprint[] =
+  ((rawBoundaryData as any).stationDetailedFootprints as DetailedStationFootprint[]) || [];
 
 export const METRO_ALL_CORRIDOR_SEGMENTS: any[] =
   ((rawBoundaryData as any).allCorridorSegments as any[]) || [];

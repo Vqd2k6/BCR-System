@@ -166,48 +166,126 @@ export class SurveyRepository {
       // Xóa cũ và ghi mới
       await client.query(`DELETE FROM survey_identification_photos WHERE report_id = $1;`, [reportId]);
 
+      // Safe insert helper in case photo_code column is absent in any unmigrated environment
+      const safeInsert = async (
+        photoType: string,
+        rawUrl: string | null,
+        photoCode: string | null,
+        isNa: boolean,
+        naReason: string | null = null,
+        facadePoly: any = null,
+        floorSplits: any = null,
+        dimensions: any = null
+      ) => {
+        try {
+          if (photoType === 'P02_MAIN_FACADE') {
+            await client.query(
+              `INSERT INTO survey_identification_photos (
+                 report_id, photo_type, raw_photo_url, photo_code, facade_polygon_points_json,
+                 floor_split_lines_json, dimensions_json, is_not_applicable, na_reason
+               ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9);`,
+              [
+                reportId,
+                photoType,
+                rawUrl,
+                photoCode,
+                JSON.stringify(facadePoly || []),
+                JSON.stringify(floorSplits || []),
+                JSON.stringify(dimensions || {}),
+                isNa,
+                naReason,
+              ]
+            );
+          } else if (photoType === 'P03_SIDE_OR_REAR') {
+            await client.query(
+              `INSERT INTO survey_identification_photos (
+                 report_id, photo_type, raw_photo_url, photo_code, dimensions_json, is_not_applicable
+               ) VALUES ($1, $2, $3, $4, $5, $6);`,
+              [reportId, photoType, rawUrl, photoCode, JSON.stringify(dimensions || {}), isNa]
+            );
+          } else {
+            await client.query(
+              `INSERT INTO survey_identification_photos (report_id, photo_type, raw_photo_url, photo_code, is_not_applicable, na_reason)
+               VALUES ($1, $2, $3, $4, $5, $6);`,
+              [reportId, photoType, rawUrl, photoCode, isNa, naReason]
+            );
+          }
+        } catch (err: any) {
+          if (err.message && err.message.includes('photo_code')) {
+            console.warn('[DB Fallback] Column photo_code not found in survey_identification_photos, inserting without photo_code');
+            if (photoType === 'P02_MAIN_FACADE') {
+              await client.query(
+                `INSERT INTO survey_identification_photos (
+                   report_id, photo_type, raw_photo_url, facade_polygon_points_json,
+                   floor_split_lines_json, dimensions_json, is_not_applicable, na_reason
+                 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8);`,
+                [
+                  reportId,
+                  photoType,
+                  rawUrl,
+                  JSON.stringify(facadePoly || []),
+                  JSON.stringify(floorSplits || []),
+                  JSON.stringify(dimensions || {}),
+                  isNa,
+                  naReason,
+                ]
+              );
+            } else if (photoType === 'P03_SIDE_OR_REAR') {
+              await client.query(
+                `INSERT INTO survey_identification_photos (
+                   report_id, photo_type, raw_photo_url, dimensions_json, is_not_applicable
+                 ) VALUES ($1, $2, $3, $4, $5);`,
+                [reportId, photoType, rawUrl, JSON.stringify(dimensions || {}), isNa]
+              );
+            } else {
+              await client.query(
+                `INSERT INTO survey_identification_photos (report_id, photo_type, raw_photo_url, is_not_applicable, na_reason)
+                 VALUES ($1, $2, $3, $4, $5);`,
+                [reportId, photoType, rawUrl, isNa, naReason]
+              );
+            }
+          } else {
+            throw err;
+          }
+        }
+      };
+
       // P01
       if (photos.p01HouseNumberUrl || photos.p01NotApplicable) {
-        await client.query(
-          `INSERT INTO survey_identification_photos (report_id, photo_type, raw_photo_url, photo_code, is_not_applicable, na_reason)
-           VALUES ($1, 'P01_HOUSE_NUMBER', $2, $3, $4, $5);`,
-          [reportId, photos.p01HouseNumberUrl || null, photos.p01PhotoCode || null, photos.p01NotApplicable, photos.p01NaReason || null]
+        await safeInsert(
+          'P01_HOUSE_NUMBER',
+          photos.p01HouseNumberUrl || null,
+          photos.p01PhotoCode || null,
+          photos.p01NotApplicable,
+          photos.p01NaReason || null
         );
       }
 
       // P02 Facade
       if (photos.p02MainFacadeUrl || photos.p02NotApplicable) {
-        await client.query(
-          `INSERT INTO survey_identification_photos (
-             report_id, photo_type, raw_photo_url, photo_code, facade_polygon_points_json,
-             floor_split_lines_json, dimensions_json, is_not_applicable, na_reason
-           ) VALUES ($1, 'P02_MAIN_FACADE', $2, $3, $4, $5, $6, $7, $8);`,
-          [
-            reportId,
-            photos.p02MainFacadeUrl || null,
-            photos.p02PhotoCode || null,
-            JSON.stringify(photos.p02FacadePolygonPoints || []),
-            JSON.stringify(photos.p02FloorSplitLines || []),
-            JSON.stringify(photos.p02Dimensions || {}),
-            photos.p02NotApplicable,
-            photos.p02NaReason || null,
-          ]
+        await safeInsert(
+          'P02_MAIN_FACADE',
+          photos.p02MainFacadeUrl || null,
+          photos.p02PhotoCode || null,
+          photos.p02NotApplicable,
+          photos.p02NaReason || null,
+          photos.p02FacadePolygonPoints,
+          photos.p02FloorSplitLines,
+          photos.p02Dimensions
         );
       }
 
       // P03 (Chính)
       if (photos.p03SideRearUrl || photos.p03NotApplicable) {
-        await client.query(
-          `INSERT INTO survey_identification_photos (
-             report_id, photo_type, raw_photo_url, photo_code, dimensions_json, is_not_applicable
-           ) VALUES ($1, 'P03_SIDE_OR_REAR', $2, $3, $4, $5);`,
-          [
-            reportId,
-            photos.p03SideRearUrl || null,
-            photos.p03PhotoCode || null,
-            JSON.stringify({ tag: photos.p03Tag || 'Bên hông trái' }),
-            photos.p03NotApplicable,
-          ]
+        await safeInsert(
+          'P03_SIDE_OR_REAR',
+          photos.p03SideRearUrl || null,
+          photos.p03PhotoCode || null,
+          photos.p03NotApplicable,
+          null,
+          null,
+          null,
+          { tag: photos.p03Tag || 'Bên hông trái' }
         );
       }
 
@@ -215,16 +293,15 @@ export class SurveyRepository {
       if (Array.isArray(photos.p03AdditionalPhotos) && photos.p03AdditionalPhotos.length > 0) {
         for (const item of photos.p03AdditionalPhotos) {
           if (item?.url) {
-            await client.query(
-              `INSERT INTO survey_identification_photos (
-                 report_id, photo_type, raw_photo_url, photo_code, dimensions_json, is_not_applicable
-               ) VALUES ($1, 'P03_SIDE_OR_REAR', $2, $3, $4, FALSE);`,
-              [
-                reportId,
-                item.url,
-                item.photoCode || null,
-                JSON.stringify({ tag: item.tag || 'Bên hông', isAdditional: true }),
-              ]
+            await safeInsert(
+              'P03_SIDE_OR_REAR',
+              item.url,
+              item.photoCode || null,
+              false,
+              null,
+              null,
+              null,
+              { tag: item.tag || 'Bên hông', isAdditional: true }
             );
           }
         }
@@ -232,10 +309,12 @@ export class SurveyRepository {
 
       // P04
       if (photos.p04ContextStreetUrl || photos.p04NotApplicable) {
-        await client.query(
-          `INSERT INTO survey_identification_photos (report_id, photo_type, raw_photo_url, photo_code, is_not_applicable)
-           VALUES ($1, 'P04_CONTEXT_STREET', $2, $3, $4);`,
-          [reportId, photos.p04ContextStreetUrl || null, photos.p04PhotoCode || null, photos.p04NotApplicable]
+        await safeInsert(
+          'P04_CONTEXT_STREET',
+          photos.p04ContextStreetUrl || null,
+          photos.p04PhotoCode || null,
+          photos.p04NotApplicable,
+          null
         );
       }
 

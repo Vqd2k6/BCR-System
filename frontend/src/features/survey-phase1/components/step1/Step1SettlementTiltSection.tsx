@@ -72,6 +72,7 @@ const MultiEvidencePhotoInput: React.FC<MultiEvidencePhotoInputProps> = ({
             orientationHint={orientationHint}
             watermarkOptions={{
               parcelCode,
+              floor: photoType === 'SETTLE' ? 'FOUND' : 'EXT',
               photoType,
               photoIndex: idx + 1,
             }}

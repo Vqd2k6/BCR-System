@@ -21,6 +21,7 @@ export type MetroFloorType =
   | 'ROOF' // Mái
   | 'FOUND' // Móng / đà kiềng
   | 'EXT' // Ngoại thất ngoài nhà
+  | 'DOC' // Hồ sơ, tài liệu, biên bản pháp lý
   | string
   | number;
 
@@ -32,27 +33,86 @@ export type MetroPhotoType =
   | 'SETTLE' // Lún chênh Bước 1 (1.6.1)
   | 'TILT' // Đo nghiêng Bước 1 (1.6.2)
   | 'ANOMALY' // Bất thường ngoại lệ (1.6.3)
+  | 'CONSTRUCT' // Hiện trạng đang thi công
+  | 'VACANT' // Hiện trạng đất trống
   | 'OVERVIEW' // Toàn cảnh sàn tầng
+  | 'CAD_ARCH' // Sơ đồ CAD kiến trúc
+  | 'CAD_STRUCT' // Sơ đồ CAD kết cấu
   | 'CTX' // Bối cảnh mảng tường nứt
   | 'CU' // Cận cảnh nứt có thước đo
   | 'SAGGING' // Võng dầm sàn
-  | 'EXTRA' // Ảnh bổ sung phát sinh
-  | 'DOC' // Hồ sơ, sổ hồng, hoàn công
+  | 'DRAWING' // Bản vẽ hoàn công / kết cấu
+  | 'HOANCONG' // Hồ sơ hoàn công
+  | 'KETCAU' // Bản vẽ kết cấu
+  | 'SOHONG' // Sổ hồng / GCN
+  | 'GPXD' // Giấy phép xây dựng
+  | 'ABSENTEE' // Biên bản vắng nhà
   | 'MINUTES' // Biên bản hiện trường 3 bên
+  | 'SIG_SURVEYOR' // Chữ ký KSV
+  | 'SIG_OWNER' // Chữ ký chủ hộ
+  | 'EXTRA' // Ảnh bổ sung phát sinh
   | string;
 
 export interface MetroWatermarkOptions {
   prefix?: string; // Mặc định: 'HCM_M2'
   stationCode?: string; // Ví dụ: 'ST02'
-  parcelCode?: string; // Ví dụ: 'B05272' hoặc 'B-05272'
-  floor?: MetroFloorType; // Ví dụ: 3 -> 'F03', 'MEZZ', 'B01'
-  zoneOrRoom?: string; // Ví dụ: 'Z02', 'C01', 'PK'
-  defectCode?: string; // Ví dụ: 'D01'
-  photoType?: MetroPhotoType; // Ví dụ: 'CU', 'CTX', 'SETTLE', 'TILT'
+  parcelCode?: string; // Ví dụ: 'C&C-01-B-0001' hoặc 'B-0001'
+  floor?: MetroFloorType; // Ví dụ: 'Tầng 1 (Trệt)' -> 'F00', 'Tầng 2' -> 'F02', 'DOC', 'EXT', 'FOUND'
+  zoneOrRoom?: string; // Ví dụ: 'Z-01', 'E-01', 'HOANCONG', 'ABSENTEE'
+  defectCode?: string; // Ví dụ: 'D-01'
+  photoType?: MetroPhotoType; // Ví dụ: 'CU', 'CTX', 'SETTLE', 'TILT', 'MINUTES'
   photoIndex?: number; // Ví dụ: 1 -> '_01', 2 -> '_02'
   customCode?: string; // Chuỗi mã chỉ định trực tiếp (nếu có)
   timestamp?: Date; // Mặc định: new Date()
   logoUrl?: string; // Mặc định: '/Logo_Thaco_Crec.png'
+}
+
+/**
+ * Chuẩn hóa tên tầng tiếng Việt sang mã tầng tiêu chuẩn Metro 2
+ * Ví dụ: "Tầng 1 (Trệt)" -> "F00", "Tầng 1 (Lầu 1)" -> "F01", "Tầng 2" -> "F02", "Mái" -> "ROOF"
+ */
+export function normalizeMetroFloorCode(floor?: MetroFloorType): string {
+  if (floor === undefined || floor === null || floor === '') return '';
+  if (typeof floor === 'number') {
+    const fNum = Math.floor(floor);
+    return fNum === 0 ? 'F00' : `F${String(fNum).padStart(2, '0')}`;
+  }
+  const str = String(floor).trim();
+  const upper = str.toUpperCase();
+
+  // Các token đặc biệt
+  if (['DOC', 'EXT', 'FOUND', 'ROOF', 'TERRACE', 'TUM', 'MEZZ', 'SB'].includes(upper)) {
+    return upper;
+  }
+  if (/^B\d+$/i.test(upper)) return upper;
+  if (/^F\d+$/i.test(upper)) return upper;
+  if (/^\d+$/.test(upper)) {
+    const n = parseInt(upper, 10);
+    return n === 0 ? 'F00' : `F${String(n).padStart(2, '0')}`;
+  }
+
+  // Nhận diện theo chuỗi tiếng Việt thực tế trong hệ thống
+  if (upper.includes('TRỆT') || upper.includes('TẦNG 1 (TRỆT)')) return 'F00';
+  if (upper.includes('LỬNG') || upper.includes('MEZZANINE')) return 'MEZZ';
+  if (upper.includes('BÁN HẦM')) return 'SB';
+  if (upper.includes('HẦM 1')) return 'B01';
+  if (upper.includes('HẦM 2')) return 'B02';
+  if (upper.includes('HẦM 3')) return 'B03';
+  if (upper.includes('SÂN THƯỢNG') || upper.includes('TERRACE')) return 'TERRACE';
+  if (upper.includes('MÁI') || upper.includes('ROOF')) return 'ROOF';
+  if (upper.includes('TUM') || upper.includes('ATTIC')) return 'TUM';
+  if (upper.includes('MÓNG') || upper.includes('ĐÀ KIỀNG')) return 'FOUND';
+  if (upper.includes('NGOẠI THẤT') || upper.includes('NGOÀI NHÀ')) return 'EXT';
+  if (upper.includes('HỒ SƠ') || upper.includes('PHÁP LÝ') || upper.includes('BIÊN BẢN')) return 'DOC';
+
+  // "Tầng 1 (Lầu 1)" -> F01, "Tầng 2" -> F02, "Lầu 3" -> F03
+  const matchNum = upper.match(/TẦNG\s*(\d+)/i) || upper.match(/LẦU\s*(\d+)/i);
+  if (matchNum) {
+    const n = parseInt(matchNum[1], 10);
+    return `F${String(n).padStart(2, '0')}`;
+  }
+
+  return upper.replace(/[^A-Z0-9_-]/g, '');
 }
 
 /**
@@ -81,45 +141,39 @@ export function generateMetroPhotoCode(opts: MetroWatermarkOptions): string {
   const prefix = (opts.prefix || 'HCM_M2').toUpperCase();
   const parts: string[] = [];
 
-  // 1. Mã công trình / Thửa đất
-  if (opts.stationCode && opts.parcelCode) {
-    const cleanStation = opts.stationCode.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
-    const cleanParcel = opts.parcelCode.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
-    parts.push(`${cleanStation}-${cleanParcel}`);
-  } else if (opts.parcelCode) {
-    parts.push(opts.parcelCode.replace(/[^a-zA-Z0-9]/g, '').toUpperCase());
-  }
-
-  // 2. Vị trí tầng
-  if (opts.floor !== undefined && opts.floor !== null && opts.floor !== '') {
-    if (typeof opts.floor === 'number') {
-      const fNum = Math.floor(opts.floor);
-      parts.push(fNum === 0 ? 'F00' : `F${String(fNum).padStart(2, '0')}`);
+  // 1. Mã công trình / Thửa đất (Bảo toàn dấu -, & và chuẩn hóa dạng [MÃ])
+  if (opts.parcelCode) {
+    const rawParcel = opts.parcelCode.trim().replace(/^\[|\]$/g, '');
+    const cleanParcel = rawParcel.replace(/[^a-zA-Z0-9&_-]/g, '').toUpperCase();
+    if (opts.stationCode) {
+      const cleanStation = opts.stationCode.replace(/[^a-zA-Z0-9_-]/g, '').toUpperCase();
+      parts.push(`[${cleanStation}-${cleanParcel}]`);
     } else {
-      const fUpper = String(opts.floor).trim().toUpperCase();
-      // Nếu là số thuần dạng chuỗi '3' -> 'F03'
-      if (/^\d+$/.test(fUpper)) {
-        const fNum = parseInt(fUpper, 10);
-        parts.push(fNum === 0 ? 'F00' : `F${String(fNum).padStart(2, '0')}`);
-      } else {
-        parts.push(fUpper);
-      }
+      parts.push(`[${cleanParcel}]`);
     }
   }
 
-  // 3. Vùng hư hỏng / Cấu kiện / Phòng
+  // 2. Vị trí tầng (F00, F01, MEZZ, FOUND, EXT, DOC...)
+  if (opts.floor !== undefined && opts.floor !== null && opts.floor !== '') {
+    const normFloor = normalizeMetroFloorCode(opts.floor);
+    if (normFloor) {
+      parts.push(normFloor);
+    }
+  }
+
+  // 3. Vùng hư hỏng / Cấu kiện / Nhóm hồ sơ (Z-01, E-01, HOANCONG, ABSENTEE...)
   if (opts.zoneOrRoom) {
-    parts.push(opts.zoneOrRoom.trim().toUpperCase());
+    parts.push(opts.zoneOrRoom.trim().replace(/[^a-zA-Z0-9&_-]/g, '').toUpperCase());
   }
 
-  // 4. Mã khuyết tật (D01, D02...)
+  // 4. Mã khuyết tật (D-01, D-02...)
   if (opts.defectCode) {
-    parts.push(opts.defectCode.trim().toUpperCase());
+    parts.push(opts.defectCode.trim().replace(/[^a-zA-Z0-9&_-]/g, '').toUpperCase());
   }
 
-  // 5. Loại ảnh (P01-P04, SETTLE, TILT, CTX, CU, OVERVIEW...)
+  // 5. Loại ảnh (P01-P04, SETTLE, TILT, CTX, CU, OVERVIEW, DRAWING, MINUTES...)
   if (opts.photoType) {
-    parts.push(opts.photoType.trim().toUpperCase());
+    parts.push(opts.photoType.trim().replace(/[^a-zA-Z0-9&_-]/g, '').toUpperCase());
   }
 
   // 6. Số thứ tự ảnh cùng vị trí chụp nhiều góc (_01, _02...)
@@ -295,11 +349,17 @@ export async function applyMetroWatermark(
   // 3. Vẽ ảnh gốc
   ctx.drawImage(src.element, 0, 0, width, height);
 
-  // 4. Vẽ Logo THACO-CREC ở góc trên bên phải (Đã tăng thêm 40%: chiếm 43.75% chiều rộng ảnh)
+  const isLandscape = width > height;
+
+  // 4. Vẽ Logo THACO-CREC ở góc trên bên phải
+  // Ảnh dọc: giữ nguyên kích thước (chiếm 43.75% chiều rộng ảnh)
+  // Ảnh ngang: tăng thêm 25% kích thước (0.4375 * 1.25 = 0.546875 chiều rộng ảnh)
   try {
     const logoImg = await loadLogo(options?.logoUrl);
     if (logoImg.naturalWidth > 0 && logoImg.naturalHeight > 0) {
-      const logoWidth = Math.round(width * 0.4375); // Tăng thêm 40% kích thước (0.3125 * 1.4 = 0.4375)
+      const logoWidth = isLandscape
+        ? Math.round(width * 0.4375 * 1.25)
+        : Math.round(width * 0.4375);
       const logoHeight = Math.round(logoWidth * (logoImg.naturalHeight / logoImg.naturalWidth));
       const paddingRight = Math.round(width * 0.025);
       const paddingTop = Math.round(width * 0.025);
@@ -317,8 +377,12 @@ export async function applyMetroWatermark(
     console.error('[WATERMARK] Lỗi nghiêm trọng khi nạp logo THACO-CREC:', logoErr);
   }
 
-  // 5. Vẽ Ngày giờ + Mã định danh Photo ID ở góc dưới bên phải (Đã tăng thêm 40% cỡ chữ)
-  const fontSize = Math.max(22, Math.round(width * 0.031)); // Tăng thêm 40% cỡ chữ (0.022 * 1.4 = 0.0308 ≈ 3.1% chiều rộng ảnh)
+  // 5. Vẽ Ngày giờ + Mã định danh Photo ID ở góc dưới bên phải
+  // Ảnh dọc: giữ nguyên kích thước (3.1% chiều rộng ảnh)
+  // Ảnh ngang: giảm 25% kích thước chữ (0.031 * 0.75 = 0.02325 chiều rộng ảnh)
+  const fontSize = isLandscape
+    ? Math.max(18, Math.round(width * 0.031 * 0.75))
+    : Math.max(22, Math.round(width * 0.031));
   const lineHeight = Math.round(fontSize * 1.35);
   const paddingRight = Math.round(width * 0.03);
   const paddingBottom = Math.round(height * 0.035);

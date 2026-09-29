@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { MapPin, Plus, Trash2, Crosshair, AlertCircle, Layers, CheckCircle2, Sparkles } from 'lucide-react';
+import { MapPin, Plus, Trash2, Crosshair, AlertCircle, Layers, CheckCircle2, Sparkles, Eye, EyeOff } from 'lucide-react';
 import { PhotoCaptureInput } from '../common/PhotoCaptureInput';
 
 export interface CadZonePin {
@@ -11,16 +11,39 @@ export interface CadZonePin {
   type?: 'ZONE' | 'STRUCTURAL';
 }
 
+/**
+ * Thuật toán tự bù số thứ tự nhỏ nhất còn trống cho mã ghim (Z-xx, E-xx, D-xx)
+ */
+export function getNextAvailablePinCode(pins: { zoneCode?: string }[], prefix: string): string {
+  const usedNumbers = new Set<number>();
+  const regex = new RegExp(`^${prefix}-(\\d+)`, 'i');
+  for (const p of pins) {
+    if (p.zoneCode) {
+      const match = p.zoneCode.match(regex);
+      if (match) {
+        usedNumbers.add(parseInt(match[1], 10));
+      }
+    }
+  }
+  let num = 1;
+  while (usedNumbers.has(num)) {
+    num++;
+  }
+  return `${prefix}-${String(num).padStart(2, '0')}`;
+}
+
 interface Props {
   cadPhotoUrl: string;
   onCadPhotoChange: (url: string) => void;
   pins: CadZonePin[];
   onChangePins: (pins: CadZonePin[]) => void;
   onAutoCreatePin?: (pin: CadZonePin) => void;
-  onDeletePin?: (pinId: string, index: number) => void;
+  onDeletePin?: (pin: CadZonePin, index: number) => void;
+  onRenamePin?: (oldCode: string, newCode: string, updatedPin: CadZonePin) => void;
   onSelectPin?: (pin: CadZonePin, index: number) => void;
   mode?: 'ZONE' | 'STRUCTURAL';
   floorName?: string;
+  parcelCode?: string;
   cadTitle?: string;
   readOnly?: boolean;
 }
@@ -32,15 +55,18 @@ export const FloorCadPinningCanvas: React.FC<Props> = ({
   onChangePins,
   onAutoCreatePin,
   onDeletePin,
+  onRenamePin,
   onSelectPin,
   mode = 'ZONE',
   floorName = 'Tầng',
+  parcelCode,
   cadTitle,
   readOnly = false,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [selectedPinIndex, setSelectedPinIndex] = useState<number | null>(null);
   const [isAddingPin, setIsAddingPin] = useState<boolean>(true); // Default to pin mode for quick marking
+  const [showPins, setShowPins] = useState<boolean>(true); // Toggle eye visibility
 
   const isStructural = mode === 'STRUCTURAL';
   const prefix = isStructural ? 'E' : 'Z';
@@ -49,8 +75,8 @@ export const FloorCadPinningCanvas: React.FC<Props> = ({
     ? `Sơ đồ mặt bằng kết cấu CAD_02 (${floorName})`
     : `Sơ đồ mặt bằng kiến trúc CAD_01 (${floorName})`;
 
-  const nextIndex = pins.length + 1;
-  const nextCode = `${prefix}-${String(nextIndex).padStart(2, '0')}`;
+  // Tự động tìm số thứ tự nhỏ nhất còn trống
+  const nextCode = getNextAvailablePinCode(pins, prefix);
 
   const handleContainerClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (readOnly || !isAddingPin || !containerRef.current || !cadPhotoUrl) return;
@@ -59,7 +85,7 @@ export const FloorCadPinningCanvas: React.FC<Props> = ({
     const x = parseFloat((((e.clientX - rect.left) / rect.width) * 100).toFixed(2));
     const y = parseFloat((((e.clientY - rect.top) / rect.height) * 100).toFixed(2));
 
-    const newPinCode = `${prefix}-${String(pins.length + 1).padStart(2, '0')}`;
+    const newPinCode = getNextAvailablePinCode(pins, prefix);
     const newPin: CadZonePin = {
       id: `pin-${prefix.toLowerCase()}-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
       zoneCode: newPinCode,
@@ -88,16 +114,22 @@ export const FloorCadPinningCanvas: React.FC<Props> = ({
     onChangePins(updated);
 
     if (onDeletePin && pinToRemove) {
-      onDeletePin(pinToRemove.id, index);
+      onDeletePin(pinToRemove, index);
     }
     setSelectedPinIndex(null);
   };
 
   const updateSelectedPin = (field: keyof CadZonePin, value: any) => {
     if (selectedPinIndex === null || readOnly) return;
+    const prevPin = pins[selectedPinIndex];
     const updated = [...pins];
-    updated[selectedPinIndex] = { ...updated[selectedPinIndex], [field]: value };
+    const updatedPin = { ...prevPin, [field]: value };
+    updated[selectedPinIndex] = updatedPin;
     onChangePins(updated);
+
+    if (field === 'zoneCode' && onRenamePin && prevPin.zoneCode !== value) {
+      onRenamePin(prevPin.zoneCode, value, updatedPin);
+    }
   };
 
   const selectedPin =
@@ -113,7 +145,12 @@ export const FloorCadPinningCanvas: React.FC<Props> = ({
           label={cadTitle || defaultCadTitle}
           value={cadPhotoUrl}
           onChange={onCadPhotoChange}
-          watermarkText={`CAD-${prefix} | ${floorName}`}
+          watermarkOptions={{
+            parcelCode,
+            floor: floorName,
+            photoType: isStructural ? 'CAD_STRUCT' : 'CAD_ARCH',
+            photoIndex: 1,
+          }}
           height="160px"
         />
       ) : (
@@ -145,6 +182,21 @@ export const FloorCadPinningCanvas: React.FC<Props> = ({
                     <span>Xóa {selectedPin.zoneCode}</span>
                   </button>
                 )}
+
+                {/* Eye toggle button */}
+                <button
+                  type="button"
+                  onClick={() => setShowPins(!showPins)}
+                  className={`px-2.5 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all border ${
+                    showPins
+                      ? 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                      : 'bg-amber-100 text-amber-800 border-amber-300 ring-2 ring-amber-400'
+                  }`}
+                  title={showPins ? "Bấm để ẩn ghim xem bản vẽ CAD rõ hơn" : "Bấm để hiển thị lại các ghim"}
+                >
+                  {showPins ? <Eye className="w-3.5 h-3.5 text-slate-500" /> : <EyeOff className="w-3.5 h-3.5 text-amber-700" />}
+                  <span>{showPins ? 'Ẩn ghim' : 'Hiện ghim'}</span>
+                </button>
 
                 <button
                   type="button"
@@ -191,7 +243,7 @@ export const FloorCadPinningCanvas: React.FC<Props> = ({
             />
 
             {/* Render Pins */}
-            {pins.map((pin, idx) => {
+            {showPins && pins.map((pin, idx) => {
               if (!pin) return null;
               const isSelected = selectedPinIndex === idx;
 
@@ -250,11 +302,19 @@ export const FloorCadPinningCanvas: React.FC<Props> = ({
           {selectedPin && selectedPinIndex !== null && (
             <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex flex-wrap items-center justify-between gap-2 text-xs">
               <div className="flex items-center gap-2 flex-wrap">
-                <span className={`px-2 py-0.5 rounded font-mono font-bold ${
-                  isStructural ? 'bg-amber-100 text-amber-900 border border-amber-200' : 'bg-emerald-100 text-emerald-900 border border-emerald-200'
-                }`}>
-                  Ghim: {selectedPin.zoneCode || `${prefix}-${selectedPinIndex + 1}`}
-                </span>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] font-bold text-slate-500">Mã:</span>
+                  <input
+                    type="text"
+                    className={`px-2 py-0.5 font-mono font-bold text-xs rounded border w-24 uppercase focus:ring-1 focus:ring-emerald-500 ${
+                      isStructural ? 'bg-amber-50 text-amber-900 border-amber-300' : 'bg-emerald-50 text-emerald-900 border-emerald-300'
+                    }`}
+                    value={selectedPin.zoneCode || ''}
+                    onChange={(e) => updateSelectedPin('zoneCode', e.target.value.toUpperCase())}
+                    disabled={readOnly}
+                    title="Đổi mã ghim (tự động đồng bộ với danh sách vùng)"
+                  />
+                </div>
 
                 <input
                   type="text"

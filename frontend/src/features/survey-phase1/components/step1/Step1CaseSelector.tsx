@@ -305,7 +305,13 @@ export const Step1CaseSelector: React.FC<Step1CaseSelectorProps> = ({
                     updateFormData({ absenteeMinutesPhotos: updated });
                   }
                 }}
-                watermarkText={`BIEN-BAN-VANG | ${formData.houseNumber || 'ABSENTEE'}`}
+                watermarkOptions={{
+                  parcelCode: formData.projectParcelCode,
+                  floor: 'DOC',
+                  zoneOrRoom: 'ABSENTEE',
+                  photoType: 'MINUTES',
+                  photoIndex: (formData.absenteeMinutesPhotos?.length || 0) + 1,
+                }}
                 height="85px"
               />
             </div>
@@ -413,7 +419,13 @@ export const Step1CaseSelector: React.FC<Step1CaseSelectorProps> = ({
                     updateFormData({ underConstructionPhotos: updated });
                   }
                 }}
-                watermarkText={`CONSTRUCTION | ${formData.houseNumber || 'BUILDING'}`}
+                watermarkOptions={{
+                  parcelCode: formData.projectParcelCode,
+                  floor: 'EXT',
+                  zoneOrRoom: 'CONSTRUCT',
+                  photoType: 'OVERVIEW',
+                  photoIndex: (formData.underConstructionPhotos?.length || 0) + 1,
+                }}
                 height="85px"
               />
             </div>
@@ -561,7 +573,13 @@ export const Step1CaseSelector: React.FC<Step1CaseSelectorProps> = ({
                     updateFormData({ vacantLandPhotos: updated });
                   }
                 }}
-                watermarkText={`DAT-TRONG | ${formData.houseNumber || 'VACANT-LAND'}`}
+                watermarkOptions={{
+                  parcelCode: formData.projectParcelCode,
+                  floor: 'EXT',
+                  zoneOrRoom: 'VACANT',
+                  photoType: 'OVERVIEW',
+                  photoIndex: (formData.vacantLandPhotos?.length || 0) + 1,
+                }}
                 height="85px"
               />
             </div>

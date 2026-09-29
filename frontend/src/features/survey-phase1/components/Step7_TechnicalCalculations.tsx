@@ -414,29 +414,80 @@ export const Step7_TechnicalCalculations: React.FC = () => {
         </div>
 
         {/* Can thiệp của Kỹ sư ECS */}
-        <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 grid grid-cols-1 sm:grid-cols-2 gap-3 items-start">
-          <Select
-            id="select-ecs-action"
-            label="Quyền Can Thiệp Của Kỹ Sư (Engineering Judgement ECS)"
-            value={ecs.engineeringJudgement.action}
-            disabled={ecs.isOverrideLocked}
-            onChange={(e) =>
-              updateFormData({
-                ecs: {
-                  ...ecs,
-                  engineeringJudgement: {
-                    ...ecs.engineeringJudgement,
-                    action: e.target.value as any,
+        <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-start">
+            <Select
+              id="select-ecs-action"
+              label="Quyền Can Thiệp Của Kỹ Sư (Engineering Judgement ECS)"
+              value={ecs.engineeringJudgement.action}
+              disabled={ecs.isOverrideLocked}
+              onChange={(e) => {
+                const action = e.target.value as 'KEEP' | 'UPGRADE' | 'DOWNGRADE';
+                updateFormData({
+                  ecs: {
+                    ...ecs,
+                    engineeringJudgement: {
+                      ...ecs.engineeringJudgement,
+                      action,
+                      initialScore: ecs.totalEcs,
+                      initialClass: ecs.ecsClass,
+                      adjustedScore: action === 'KEEP' ? undefined : (ecs.engineeringJudgement.adjustedScore ?? ecs.totalEcs),
+                      adjustedClass: action === 'KEEP' ? undefined : (ecs.engineeringJudgement.adjustedClass ?? ecs.ecsClass),
+                    },
                   },
-                },
-              })
-            }
-            options={[
-              { value: 'KEEP', label: 'Giữ nguyên hạng đề xuất' },
-              { value: 'UPGRADE', label: 'Nâng hạng rủi ro (Tăng nặng)' },
-              { value: 'DOWNGRADE', label: 'Hạ hạng rủi ro (Giảm nhẹ)' },
-            ]}
-          />
+                });
+              }}
+              options={[
+                { value: 'KEEP', label: 'Giữ nguyên hạng đề xuất' },
+                { value: 'UPGRADE', label: 'Nâng hạng rủi ro (Tăng nặng)' },
+                { value: 'DOWNGRADE', label: 'Hạ hạng rủi ro (Giảm nhẹ)' },
+              ]}
+            />
+
+            {ecs.engineeringJudgement.action !== 'KEEP' && (
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-700">
+                    Điểm ECS sau can thiệp (0 - 24) *
+                  </label>
+                  <span className="text-[11px] text-slate-500">
+                    Điểm ban đầu: <strong className="text-emerald-700">{ecs.totalEcs}/24</strong> ({ecs.ecsClass})
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="number"
+                    min={0}
+                    max={24}
+                    value={ecs.engineeringJudgement.adjustedScore !== undefined ? ecs.engineeringJudgement.adjustedScore : ecs.totalEcs}
+                    onChange={(e) => {
+                      const score = Math.max(0, Math.min(24, Number(e.target.value) || 0));
+                      const adjClass = score >= 17 ? 'CRITICAL' : score >= 11 ? 'DEFICIENT' : score >= 6 ? 'MEDIUM' : 'GOOD';
+                      updateFormData({
+                        ecs: {
+                          ...ecs,
+                          engineeringJudgement: {
+                            ...ecs.engineeringJudgement,
+                            initialScore: ecs.totalEcs,
+                            initialClass: ecs.ecsClass,
+                            adjustedScore: score,
+                            adjustedClass: adjClass,
+                          },
+                        },
+                      });
+                    }}
+                  />
+                  <Badge variant={
+                    (ecs.engineeringJudgement.adjustedClass || ecs.ecsClass) === 'CRITICAL' ? 'danger' :
+                    (ecs.engineeringJudgement.adjustedClass || ecs.ecsClass) === 'DEFICIENT' ? 'warning' :
+                    (ecs.engineeringJudgement.adjustedClass || ecs.ecsClass) === 'MEDIUM' ? 'info' : 'success'
+                  }>
+                    Hạng: {ecs.engineeringJudgement.adjustedClass || ecs.ecsClass}
+                  </Badge>
+                </div>
+              </div>
+            )}
+          </div>
 
           {ecs.engineeringJudgement.action !== 'KEEP' && (
             <div>
@@ -692,47 +743,111 @@ export const Step7_TechnicalCalculations: React.FC = () => {
         </div>
 
         {/* Can thiệp của Kỹ sư VI */}
-        <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 grid grid-cols-1 sm:grid-cols-2 gap-3 items-end">
-          <Select
-            id="select-vi-action"
-            label="Quyền Can Thiệp Của Kỹ Sư (Engineering Judgement VI)"
-            value={vi.engineeringJudgement?.action || 'KEEP'}
-            onChange={(e) =>
-              updateFormData({
-                vi: {
-                  ...vi,
-                  engineeringJudgement: {
-                    ...vi.engineeringJudgement,
-                    action: e.target.value as any,
-                  },
-                },
-              })
-            }
-            options={[
-              { value: 'KEEP', label: 'Giữ nguyên hạng đề xuất' },
-              { value: 'UPGRADE', label: 'Nâng hạng rủi ro (Tăng nặng)' },
-              { value: 'DOWNGRADE', label: 'Hạ hạng rủi ro (Giảm nhẹ)' },
-            ]}
-          />
-
-          {(vi.engineeringJudgement?.action && vi.engineeringJudgement.action !== 'KEEP') && (
-            <Input
-              id="input-vi-reason"
-              label="Lý do can thiệp kỹ sư (VI)"
-              placeholder="Nhập lý do kỹ thuật nếu thay đổi hạng VI..."
-              value={vi.engineeringJudgement?.reason || ''}
-              onChange={(e) =>
+        <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-start">
+            <Select
+              id="select-vi-action"
+              label="Quyền Can Thiệp Của Kỹ Sư (Engineering Judgement VI)"
+              value={vi.engineeringJudgement?.action || 'KEEP'}
+              onChange={(e) => {
+                const action = e.target.value as 'KEEP' | 'UPGRADE' | 'DOWNGRADE';
                 updateFormData({
                   vi: {
                     ...vi,
                     engineeringJudgement: {
                       ...vi.engineeringJudgement,
-                      reason: e.target.value,
+                      action,
+                      initialScore: vi.totalVi,
+                      initialClass: vi.viClass,
+                      adjustedScore: action === 'KEEP' ? undefined : (vi.engineeringJudgement?.adjustedScore ?? vi.totalVi),
+                      adjustedClass: action === 'KEEP' ? undefined : (vi.engineeringJudgement?.adjustedClass ?? vi.viClass),
                     },
                   },
-                })
-              }
+                });
+              }}
+              options={[
+                { value: 'KEEP', label: 'Giữ nguyên hạng đề xuất' },
+                { value: 'UPGRADE', label: 'Nâng hạng rủi ro (Tăng nặng)' },
+                { value: 'DOWNGRADE', label: 'Hạ hạng rủi ro (Giảm nhẹ)' },
+              ]}
             />
+
+            {(vi.engineeringJudgement?.action && vi.engineeringJudgement.action !== 'KEEP') && (
+              <div className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-700">
+                    Điểm VI sau can thiệp (6 - 24) *
+                  </label>
+                  <span className="text-[11px] text-slate-500">
+                    Điểm ban đầu: <strong className="text-blue-700">{vi.totalVi}/24</strong> ({vi.viClass})
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="number"
+                    min={6}
+                    max={24}
+                    value={vi.engineeringJudgement.adjustedScore !== undefined ? vi.engineeringJudgement.adjustedScore : vi.totalVi}
+                    onChange={(e) => {
+                      const score = Math.max(6, Math.min(24, Number(e.target.value) || 6));
+                      const adjClass = score >= 21 ? 'VERY_HIGH' : score >= 16 ? 'HIGH' : score >= 11 ? 'MEDIUM' : 'LOW';
+                      updateFormData({
+                        vi: {
+                          ...vi,
+                          engineeringJudgement: {
+                            ...vi.engineeringJudgement,
+                            initialScore: vi.totalVi,
+                            initialClass: vi.viClass,
+                            adjustedScore: score,
+                            adjustedClass: adjClass,
+                          },
+                        },
+                      });
+                    }}
+                  />
+                  <Badge variant={
+                    (vi.engineeringJudgement.adjustedClass || vi.viClass) === 'VERY_HIGH' ? 'danger' :
+                    (vi.engineeringJudgement.adjustedClass || vi.viClass) === 'HIGH' ? 'warning' :
+                    (vi.engineeringJudgement.adjustedClass || vi.viClass) === 'MEDIUM' ? 'info' : 'success'
+                  }>
+                    Hạng: {vi.engineeringJudgement.adjustedClass || vi.viClass}
+                  </Badge>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {(vi.engineeringJudgement?.action && vi.engineeringJudgement.action !== 'KEEP') && (
+            <div>
+              <Input
+                id="input-vi-reason"
+                label="Lý do can thiệp kỹ sư (VI) * Bắt buộc"
+                placeholder="Bắt buộc: Nhập lý do kỹ thuật nếu thay đổi hạng VI..."
+                required
+                value={vi.engineeringJudgement?.reason || ''}
+                error={
+                  !vi.engineeringJudgement?.reason?.trim()
+                    ? 'Bắt buộc nhập lý do kỹ thuật khi can thiệp thay đổi hạng VI'
+                    : undefined
+                }
+                onChange={(e) =>
+                  updateFormData({
+                    vi: {
+                      ...vi,
+                      engineeringJudgement: {
+                        ...vi.engineeringJudgement,
+                        reason: e.target.value,
+                      },
+                    },
+                  })
+                }
+              />
+              {!vi.engineeringJudgement?.reason?.trim() && (
+                <p className="text-[11px] text-red-600 mt-1 font-medium">
+                  ⚠️ Bắt buộc phải có lý do kỹ thuật để làm cơ sở bảo vệ quyết định điều chỉnh hạng VI.
+                </p>
+              )}
+            </div>
           )}
         </div>
       </Card>
@@ -747,6 +862,12 @@ export const Step7_TechnicalCalculations: React.FC = () => {
             if (ecs.engineeringJudgement.action !== 'KEEP' && !ecs.engineeringJudgement.reason?.trim()) {
               alert('⚠️ Bắt buộc phải nhập Lý do can thiệp kỹ sư (ECS) khi lựa chọn Nâng hoặc Hạ hạng!');
               const el = document.getElementById('input-ecs-reason');
+              if (el) el.focus();
+              return;
+            }
+            if (vi.engineeringJudgement?.action !== 'KEEP' && !vi.engineeringJudgement?.reason?.trim()) {
+              alert('⚠️ Bắt buộc phải nhập Lý do can thiệp kỹ sư (VI) khi lựa chọn Nâng hoặc Hạ hạng!');
+              const el = document.getElementById('input-vi-reason');
               if (el) el.focus();
               return;
             }

@@ -71,48 +71,66 @@ $$\mathbf{HCM\_M2. [MÃ\_CÔNG\_TRÌNH] \_ [VỊ\_TRÍ\_TẦNG] \_ [VÙNG/BỘ\_
 | :--- | :--- | :--- |
 | **`P01`** | Bước 1: Ngoại thất | Ảnh chụp Biển số nhà / Số hiệu căn hộ |
 | **`P02`** | Bước 1: Ngoại thất | Ảnh chụp Mặt đứng chính diện bao quát toàn bộ chiều cao |
-| **`P03`** | Bước 1: Ngoại thất | Ảnh chụp Mặt bên hông / Hẻm tiếp giáp / Mặt sau |
+| **`P03`** | Bước 1: Ngoại thất | Ảnh chụp Mặt bên hông (`LEFT`, `RIGHT`) / Hẻm tiếp giáp / Mặt sau (`REAR`) |
 | **`P04`** | Bước 1: Ngoại thất | Ảnh chụp Vỉa hè / Mặt đường / Lộ giới tiếp giáp công trình |
 | **`SETTLE`** | Bước 1: Lún Chênh (1.6.1) | Ảnh chụp hiện tượng lún chênh lệch, nứt xé chân tường, lún bậc tam cấp |
 | **`TILT`** | Bước 1: Nghiêng (1.6.2) | Ảnh chụp đo độ nghiêng khối nhà, thước đo Laser/Nivo, quả dọi |
 | **`ANOMALY`** | Bước 1: Bất Thường (1.6.3) | Ảnh trường hợp bất thường / ngoại lệ (rễ cây đội nền, hố ga sụt, vách độc lập) |
-| **`OVERVIEW`** | Bước 3: Toàn Cảnh Sàn | Ảnh chụp góc rộng bao quát toàn bộ một tầng/sàn |
-| **`CTX`** | Bước 3: Bối Cảnh (Context) | Ảnh chụp bao quát mảng tường / khu vực có khuyết tật trước khi thả ghim D-xx |
+| **`CONSTRUCT`** | Bước 1: Đang thi công | Ảnh hiện trạng công trình đang thi công xây dựng dở dang |
+| **`VACANT`** | Bước 1: Đất trống | Ảnh chụp hiện trạng thửa đất trống, ranh mốc |
+| **`HOANCONG`** | Bước 2: Hồ sơ hoàn công | **Ảnh chụp bản vẽ hoàn công kiến trúc & kết cấu công trình** |
+| **`KETCAU`** | Bước 2: Hồ sơ kết cấu | Ảnh chụp bản vẽ kết cấu móng, đài cọc, dầm sàn |
+| **`SOHONG`** | Bước 2: Pháp lý thửa đất | Ảnh chụp sổ hồng, giấy chứng nhận quyền sử dụng đất |
+| **`GPXD`** | Bước 2: Pháp lý xây dựng | Ảnh chụp giấy phép xây dựng được cấp |
+| **`OVERVIEW`** | Bước 3: Toàn Cảnh Sàn | Ảnh chụp góc rộng bao quát toàn bộ một tầng/sàn hoặc phòng Z/cấu kiện E |
+| **`CAD_ARCH`** | Bước 3: CAD Kiến trúc | Ảnh sơ đồ mặt bằng CAD kiến trúc (phân bố mảng tường Vùng Z) |
+| **`CAD_STRUCT`**| Bước 3: CAD Kết cấu | Ảnh sơ đồ mặt bằng CAD kết cấu chịu lực (phân bố Cấu kiện E) |
+| **`CTX`** | Bước 3: Bối Cảnh (Context) | Ảnh chụp bao quát mảng tường / cấu kiện có khuyết tật trước khi thả ghim D-xx |
 | **`CU`** | Bước 3: Cận Cảnh (Close-Up) | **Ảnh chụp cận cảnh vết nứt BẮT BUỘC kẹp thước đo tỷ lệ hệ mét** |
-| **`SAGGING`** | Bước 3: Võng Kết Cấu | Ảnh đo độ võng dầm/sàn khẩu độ lớn |
+| **`SAGGING`** | Bước 3/5: Võng Kết Cấu | Ảnh đo độ võng dầm/sàn khẩu độ lớn hoặc mốc quan trắc võng |
+| **`ABSENTEE`** | Bước 1: Biên bản vắng | Ảnh chụp biên bản dán thông báo vắng nhà, niêm phong cửa |
+| **`MINUTES`** | Bước 9: Biên bản hiện trường| Ảnh chụp biên bản làm việc hiện trường 3 bên (CRLG - Nhà thầu - Chủ hộ) |
+| **`SIG_SURVEYOR`**| Bước 9: Chữ ký KSV | Ảnh chữ ký xác nhận của Khảo sát viên tại hiện trường |
+| **`SIG_OWNER`** | Bước 9: Chữ ký Chủ hộ | Ảnh chữ ký xác nhận của Chủ nhà / Người đại diện hợp pháp |
 | **`EXTRA`** | Ảnh Bổ Sung Phát Sinh | Ảnh hiện trường phát sinh thêm ngoài danh mục tiêu chuẩn |
-| **`DOC`** | Hồ Sơ Giấy Tờ Phát Sinh | Ảnh chụp sổ hồng, giấy phép xây dựng, bản vẽ hoàn công kiến trúc |
-| **`MINUTES`** | Biên Bản Hiện Trường | Ảnh chụp biên bản làm việc, chữ ký 3 bên tại hiện trường |
 
 ---
 
 ### 2.4. Quy Tắc Đánh Chỉ Số Ảnh Cùng Vị Trí (Multi-shot Index: `_01`, `_02`, `_03`...)
 
-Khi khảo sát viên chụp **nhiều bức ảnh tại cùng một vị trí** (ví dụ: chụp thẳng, chụp nghiêng 45 độ, chụp cận cảnh điểm đầu và điểm cuối vết nứt), hệ thống tự động tăng hậu tố số thứ tự:
-- `_01`: Bức ảnh thứ nhất (Góc chính diện / Tiêu chuẩn).
-- `_02`: Bức ảnh thứ hai (Góc nghiêng / Bổ trợ chi tiết).
-- `_03`: Bức ảnh thứ ba (Góc phóng đại / Toàn cảnh bổ sung).
+Khi khảo sát viên chụp **nhiều bức ảnh tại cùng một vị trí** (ví dụ: chụp nhiều trang bản vẽ hoàn công, chụp nhiều góc vết nứt), hệ thống tự động tăng hậu tố số thứ tự:
+- `_01`: Bức ảnh thứ nhất (Góc chính diện / Trang 1 / Tiêu chuẩn).
+- `_02`: Bức ảnh thứ hai (Góc nghiêng / Trang 2 / Bổ trợ chi tiết).
+- `_03`: Bức ảnh thứ ba (Góc phóng đại / Trang 3 / Toàn cảnh bổ sung).
 
 ---
 
-## 3. VÍ DỤ MINH HỌA ÁP DỤNG THỰC TẾ
+## 3. VÍ DỤ MINH HỌA ÁP DỤNG THỰC TẾ (ĐỌC LÀ BIẾT NGAY VỊ TRÍ)
 
-| Ngữ Cảnh Chụp Tại Hiện Trường | Mã Định Danh Ảnh (Photo ID) |
+| Ngữ Cảnh Chụp Tại Hiện Trường | Mã Định Danh Ảnh Thông Minh (Photo ID) |
 | :--- | :--- |
-| **Vết nứt D01 ở Vùng Z02 Tầng 3 (Chụp cận cảnh có thước đo, góc thẳng)** | `HCM_M2.B05272_F03_Z02_D01_CU_01` |
-| **Vết nứt D01 ở Vùng Z02 Tầng 3 (Chụp góc nghiêng 45 độ thứ 2)** | `HCM_M2.B05272_F03_Z02_D01_CU_02` |
-| **Ảnh bối cảnh mảng tường Vùng Z02 Tầng 3 (Ảnh góc rộng 1)** | `HCM_M2.B05272_F03_Z02_CTX_01` |
-| **Ảnh bối cảnh mảng tường Vùng Z02 Tầng 3 (Ảnh góc rộng 2)** | `HCM_M2.B05272_F03_Z02_CTX_02` |
-| **Ảnh toàn cảnh sàn Tầng 3** | `HCM_M2.B05272_F03_OVERVIEW_01` |
-| **Bộ 4 ảnh định danh ngoại thất (P-01 đến P-04)** | `HCM_M2.B05272_EXT_P01_01`<br>`HCM_M2.B05272_EXT_P02_01`<br>`HCM_M2.B05272_EXT_P03_01`<br>`HCM_M2.B05272_EXT_P04_01` |
-| **Ảnh lún chênh lệch chân tường ở Bước 1** | `HCM_M2.B05272_SETTLE_01` (và `_02`) |
-| **Ảnh đo nghiêng khối nhà ở Bước 1** | `HCM_M2.B05272_TILT_01` |
-| **Hiện trạng nứt dầm sàn Tầng Hầm B1** | `HCM_M2.B05272_B01_Z01_D01_CU_01` |
-| **Hiện trạng nứt dầm sàn Tầng Lửng** | `HCM_M2.B05272_MEZZ_Z01_D01_CU_01` |
-| **Hiện trạng nứt sàn Sân Thượng** | `HCM_M2.B05272_TERRACE_Z01_D01_CU_01` |
-| **Ảnh căn hộ chung cư (Căn P.402, Tầng 4, Phòng khách PK, Vết nứt D01)** | `HCM_M2.P402_F04_PK_D01_CU_01` |
-| **Ảnh bổ sung phát sinh tại hiện trường** | `HCM_M2.B05272_EXTRA_01` |
-| **Ảnh chụp sổ hồng / bản vẽ hoàn công** | `HCM_M2.B05272_DOC_01` |
+| **Bộ 4 ảnh ngoại thất (P-01 đến P-04)** | `HCM_M2.C&C-01-B-0001_EXT_P01_01`<br>`HCM_M2.C&C-01-B-0001_EXT_P02_01`<br>`HCM_M2.C&C-01-B-0001_EXT_P03_LEFT_01`<br>`HCM_M2.C&C-01-B-0001_EXT_P04_01` |
+| **Hồ sơ bản vẽ hoàn công (Trang 1 & Trang 2)** | `HCM_M2.C&C-01-B-0001_DOC_HOANCONG_01`<br>`HCM_M2.C&C-01-B-0001_DOC_HOANCONG_02` |
+| **Hồ sơ bản vẽ kết cấu móng cọc** | `HCM_M2.C&C-01-B-0001_DOC_KETCAU_01` |
+| **Hồ sơ sổ hồng chủ quyền nhà** | `HCM_M2.C&C-01-B-0001_DOC_SOHONG_01` |
+| **Biên bản dán thông báo vắng chủ hộ** | `HCM_M2.C&C-01-B-0001_DOC_ABSENTEE_01` |
+| **Công trình đang đào móng thi công** | `HCM_M2.C&C-01-B-0001_EXT_CONSTRUCT_01` |
+| **Hiện trạng thửa đất trống** | `HCM_M2.C&C-01-B-0001_EXT_VACANT_01` |
+| **Lún chênh bậc tam cấp / cổ móng** | `HCM_M2.C&C-01-B-0001_FOUND_SETTLE_01` |
+| **Đo độ nghiêng khối nhà ngoài mặt tiền** | `HCM_M2.C&C-01-B-0001_EXT_TILT_01` |
+| **Sơ đồ CAD kiến trúc Tầng 1 (chứa Vùng Z)** | `HCM_M2.C&C-01-B-0001_F01_CAD_ARCH_01` |
+| **Sơ đồ CAD kết cấu Tầng 1 (chứa Cấu kiện E)** | `HCM_M2.C&C-01-B-0001_F01_CAD_STRUCT_01` |
+| **Ảnh toàn cảnh sàn Tầng 1** | `HCM_M2.C&C-01-B-0001_F01_OVERVIEW_01` |
+| **Ảnh toàn cảnh phòng khách (Vùng Z01) Tầng 1** | `HCM_M2.C&C-01-B-0001_F01_Z01_OVERVIEW_01` |
+| **Ảnh bối cảnh mảng tường nứt Vùng Z01 Tầng 1** | `HCM_M2.C&C-01-B-0001_F01_Z01_CTX_01` |
+| **Ảnh cận cảnh vết nứt D01 trên Vùng Z01 có thước đo** | `HCM_M2.C&C-01-B-0001_F01_Z01_D01_CU_01` |
+| **Ảnh toàn cảnh cột C1 (Cấu kiện E01) Tầng 1** | `HCM_M2.C&C-01-B-0001_F01_E01_OVERVIEW_01` |
+| **Ảnh bối cảnh cấu kiện cột C1 (E01) Tầng 1** | `HCM_M2.C&C-01-B-0001_F01_E01_CTX_01` |
+| **Ảnh cận cảnh nứt kết cấu D01 trên cột E01 có thước đo** | `HCM_M2.C&C-01-B-0001_F01_E01_D01_CU_01` |
+| **Ảnh đo võng dầm sàn Tầng 2** | `HCM_M2.C&C-01-B-0001_F02_SAGGING_01` |
+| **Biên bản làm việc hiện trường 3 bên** | `HCM_M2.C&C-01-B-0001_DOC_MINUTES_01` |
+| **Chữ ký xác nhận của Khảo sát viên** | `HCM_M2.C&C-01-B-0001_DOC_SIG_SURVEYOR_01` |
+| **Chữ ký xác nhận của Chủ nhà** | `HCM_M2.C&C-01-B-0001_DOC_SIG_OWNER_01` |
 
 ---
 

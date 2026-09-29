@@ -79,7 +79,7 @@ export const Step1IdentificationSection: React.FC<Step1IdentificationSectionProp
           label="Mã Quản Lý Dự Án (Project Parcel Code) *"
           value={formData.projectParcelCode}
           disabled
-          hint="Tự động cấp từ hệ thống theo lý trình"
+          hint="Mã định danh chuẩn phân đoạn: [LOẠI]-[STT]-[B-XXXX]"
         />
         <Input
           id="input-officialCadastralCode"

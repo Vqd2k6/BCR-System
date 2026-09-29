@@ -105,6 +105,24 @@ export class Database {
           ADD COLUMN IF NOT EXISTS as_built_drawing_photos_json JSONB DEFAULT '[]'::jsonb;
       `);
 
+      // 4. survey_identification_photos, damage_zones, defect_items (Photo Code columns)
+      await this.query(`
+        ALTER TABLE survey_identification_photos 
+          ADD COLUMN IF NOT EXISTS photo_code VARCHAR(150);
+        CREATE INDEX IF NOT EXISTS idx_survey_photos_photo_code 
+          ON survey_identification_photos(photo_code);
+
+        ALTER TABLE damage_zones 
+          ADD COLUMN IF NOT EXISTS ctx_photo_code VARCHAR(150);
+        CREATE INDEX IF NOT EXISTS idx_damage_zones_ctx_photo_code 
+          ON damage_zones(ctx_photo_code);
+
+        ALTER TABLE defect_items 
+          ADD COLUMN IF NOT EXISTS cu_photo_code VARCHAR(150);
+        CREATE INDEX IF NOT EXISTS idx_defect_items_cu_photo_code 
+          ON defect_items(cu_photo_code);
+      `);
+
       console.log('✅ [STARTUP MIGRATION] All idempotent migrations executed successfully.');
     } catch (error) {
       console.warn('⚠️ [STARTUP MIGRATION WARNING] Some startup migrations could not run:', error);

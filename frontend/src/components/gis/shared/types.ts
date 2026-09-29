@@ -45,6 +45,7 @@ export interface SplitChildData {
   residualParentCadastralCode?: string;
   residualParentAddress?: string;
   residualMetadataNote?: string;
+  coordinates?: [number, number][]; // Tọa độ đa giác riêng của lô đất con
 }
 
 export interface MutationPayloadData {
@@ -55,6 +56,7 @@ export interface MutationPayloadData {
   splitCutType?: 'HORIZONTAL' | 'VERTICAL' | 'L_SHAPE' | 'CUSTOM_POINTS';
   splitShapeOption?: 'DRAG_HANDLES' | 'CLICK_TO_DRAW';
   splitCustomPointsA?: [number, number][];
+  splitCustomPointsB?: [number, number][]; // Tọa độ đa giác của phần đất dôi dư Căn B
   mergeReason: string;
   mergeTargetCode?: string;
   selectedMergeCodes?: string[];
@@ -66,6 +68,7 @@ export interface MutationPayloadData {
   mergeBuildingRatio?: number;
   mergeResidualParcelCode?: string;
   mergeBuildingCustomPoints?: [number, number][];
+  mergeResidualCustomPoints?: [number, number][]; // Tọa độ đa giác phần đất dư ngoài công trình
   activeProposalType?: 'MATCH' | 'SPLIT' | 'MERGE' | null;
   isSubmitted?: boolean;
   submittedAt?: string;

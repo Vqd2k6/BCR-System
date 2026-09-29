@@ -16,6 +16,8 @@ interface DamageZonesSectionProps {
   onCadPhotoChange: (url: string) => void;
   onChangePins: (pins: CadZonePin[]) => void;
   onAutoCreatePin: (pin: CadZonePin) => void;
+  onDeletePin?: (pin: CadZonePin, index: number) => void;
+  onRenamePin?: (oldCode: string, newCode: string, updatedPin: CadZonePin) => void;
   onSelectZone: (index: number) => void;
   onUpdateZone: (index: number, updater: Partial<DamageZoneData>) => void;
   onDeleteZone: (index: number) => void;
@@ -32,6 +34,8 @@ export const DamageZonesSection: React.FC<DamageZonesSectionProps> = ({
   onCadPhotoChange,
   onChangePins,
   onAutoCreatePin,
+  onDeletePin,
+  onRenamePin,
   onSelectZone,
   onUpdateZone,
   onDeleteZone,
@@ -70,12 +74,15 @@ export const DamageZonesSection: React.FC<DamageZonesSectionProps> = ({
         pins={currentFloor.cadZonePins || []}
         onChangePins={onChangePins}
         onAutoCreatePin={onAutoCreatePin}
+        onDeletePin={onDeletePin}
+        onRenamePin={onRenamePin}
         onSelectPin={(pin) => {
           const idx = zones.findIndex((z) => z.zoneCode === pin.zoneCode);
           if (idx !== -1) onSelectZone(idx);
         }}
         mode="ZONE"
         floorName={currentFloor.floorName}
+        parcelCode={projectParcelCode}
         cadTitle={`Tải lên hoặc chụp sơ đồ mặt bằng kiến trúc CAD_01 (${currentFloor.floorName}):`}
       />
 
@@ -138,9 +145,25 @@ export const DamageZonesSection: React.FC<DamageZonesSectionProps> = ({
             {/* Header card Z */}
             <div className="flex items-center justify-between pb-2 border-b border-slate-200">
               <div className="flex items-center gap-2">
-                <span className="px-2.5 py-1 rounded-lg bg-emerald-700 text-white font-mono text-xs font-extrabold">
-                  {activeZone.zoneCode}
-                </span>
+                <div className="flex items-center gap-1">
+                  <input
+                    type="text"
+                    value={activeZone.zoneCode}
+                    onChange={(e) => {
+                      const newCode = e.target.value.toUpperCase();
+                      const oldCode = activeZone.zoneCode;
+                      onUpdateZone(activeZoneIndex, { zoneCode: newCode });
+                      if (onRenamePin) {
+                        const matchingPin = (currentFloor.cadZonePins || []).find((p) => p.zoneCode === oldCode);
+                        if (matchingPin) {
+                          onRenamePin(oldCode, newCode, { ...matchingPin, zoneCode: newCode });
+                        }
+                      }
+                    }}
+                    className="px-2 py-0.5 rounded-lg bg-emerald-700 text-white font-mono text-xs font-extrabold w-20 border border-emerald-500 uppercase focus:ring-1 focus:ring-emerald-300"
+                    title="Mã Vùng Z (đồng bộ với ghim trên sơ đồ CAD)"
+                  />
+                </div>
                 <span className="text-sm font-bold text-slate-800">
                   Khảo Sát Mảng Tường ({activeZone.roomName})
                 </span>

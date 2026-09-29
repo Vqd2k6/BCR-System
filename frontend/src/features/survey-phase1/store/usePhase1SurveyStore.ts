@@ -318,14 +318,14 @@ export const usePhase1SurveyStore = create<Phase1SurveyStore>((set, get) => ({
       initialData.aboveFloors = parcel.floorCount ? parcel.floorCount : '';
     }
 
-    // Tính toán trắc địa không gian chuẩn từ Polygon thửa đất (Phương án A)
-    // Tọa độ là Đỉnh ranh polygon gần tim Metro nhất
+    // Tính toán trắc địa không gian chuẩn từ Polygon thửa đất:
+    // Đỉnh ranh polygon gần tim hầm & ga màu trắng nhất được đưa trực tiếp vào gpsCoords
     if (parcel.coordinates && parcel.coordinates.length > 0) {
       const spatialMetrics = calculateParcelMetroSpatialMetrics(parcel.coordinates);
-      initialData.gpsCoords = initialData.gpsCoords?.lat ? initialData.gpsCoords : spatialMetrics.closestVertex;
-      initialData.metroOffsetDistance = initialData.metroOffsetDistance || spatialMetrics.metroOffsetDistance;
-      initialData.clearanceOffsetDistance = initialData.clearanceOffsetDistance || spatialMetrics.clearanceOffsetDistance;
-      initialData.chainage = initialData.chainage || spatialMetrics.chainage;
+      initialData.gpsCoords = spatialMetrics.closestVertex;
+      initialData.metroOffsetDistance = spatialMetrics.metroOffsetDistance;
+      initialData.clearanceOffsetDistance = spatialMetrics.clearanceOffsetDistance;
+      initialData.chainage = '';
     }
 
     // Khởi tạo thông tin riêng cho Căn hộ con nếu có unit

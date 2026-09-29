@@ -2,6 +2,8 @@ import React, { useRef, useState, useEffect } from 'react';
 import { Eraser, PenTool, Camera, Upload, CheckCircle2 } from 'lucide-react';
 import { PhotoCaptureInput } from '../common/PhotoCaptureInput';
 
+import { MetroWatermarkOptions } from '../../utils/watermarkEngine';
+
 interface Props {
   label: string;
   signerName: string;
@@ -9,6 +11,7 @@ interface Props {
   initialSignatureUrl?: string;
   onSave: (signatureDataUrl: string) => void;
   readOnly?: boolean;
+  watermarkOptions?: MetroWatermarkOptions;
 }
 
 export const SignaturePad: React.FC<Props> = ({
@@ -18,6 +21,7 @@ export const SignaturePad: React.FC<Props> = ({
   initialSignatureUrl,
   onSave,
   readOnly = false,
+  watermarkOptions,
 }) => {
   const [mode, setMode] = useState<'DRAW' | 'PHOTO'>('DRAW');
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -261,7 +265,8 @@ export const SignaturePad: React.FC<Props> = ({
             onSave(url);
           }}
           height="140px"
-          watermarkText={`KÝ XÁC NHẬN: ${signerName || role}`}
+          watermarkOptions={watermarkOptions}
+          watermarkText={!watermarkOptions ? `KÝ XÁC NHẬN: ${signerName || role}` : undefined}
         />
       )}
 

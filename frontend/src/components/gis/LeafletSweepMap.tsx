@@ -36,6 +36,8 @@ export const LeafletSweepMap: React.FC<LeafletSweepMapProps> = ({
     setShowZonesZoi,
     showStationMarkers,
     setShowStationMarkers,
+    showStationOutlines,
+    setShowStationOutlines,
     isSearchOpen,
     setIsSearchOpen,
     searchQuery,
@@ -89,6 +91,8 @@ export const LeafletSweepMap: React.FC<LeafletSweepMapProps> = ({
         setShowZonesZoi={setShowZonesZoi}
         showStationMarkers={showStationMarkers}
         setShowStationMarkers={setShowStationMarkers}
+        showStationOutlines={showStationOutlines}
+        setShowStationOutlines={setShowStationOutlines}
         isSearchOpen={isSearchOpen}
         setIsSearchOpen={setIsSearchOpen}
         searchQuery={searchQuery}
@@ -160,6 +164,7 @@ export const LeafletSweepMap: React.FC<LeafletSweepMapProps> = ({
             showCenterline={showCenterline}
             showZonesZoi={showZonesZoi}
             showStationMarkers={showStationMarkers}
+            showStationOutlines={showStationOutlines}
             currentStationCenter={currentStation.center}
             userGps={userGps}
           />

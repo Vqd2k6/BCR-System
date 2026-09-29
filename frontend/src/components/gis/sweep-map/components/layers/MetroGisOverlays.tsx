@@ -6,6 +6,7 @@ import {
   METRO_CORRIDOR_BOUNDARIES,
   METRO_STATION_POLYGONS,
   METRO_TBM_POLYGONS,
+  METRO_STATION_DETAILED_OUTLINES,
 } from '../../../../../features/survey-phase1/constants/metroGisConstants';
 import { userGpsIcon } from '../../utils/sweepMapHelpers';
 
@@ -13,6 +14,7 @@ interface MetroGisOverlaysProps {
   showCenterline: boolean;
   showZonesZoi: boolean;
   showStationMarkers: boolean;
+  showStationOutlines?: boolean;
   currentStationCenter: [number, number];
   userGps?: { lat: number; lng: number; accuracy?: number } | null;
 }
@@ -21,6 +23,7 @@ export const MetroGisOverlays: React.FC<MetroGisOverlaysProps> = ({
   showCenterline,
   showZonesZoi,
   showStationMarkers,
+  showStationOutlines = true,
   currentStationCenter,
   userGps,
 }) => {
@@ -107,6 +110,37 @@ export const MetroGisOverlays: React.FC<MetroGisOverlaysProps> = ({
             </Polygon>
           );
         })}
+
+      {/* 2c. PHÁC HOẠ CÔNG TRÌNH NHÀ GA MÀU TRẮNG (GOOGLE MY MAPS / CAD MAUR) */}
+      {showStationOutlines &&
+        METRO_STATION_DETAILED_OUTLINES.map((station, idx) => (
+          <Polygon
+            key={`station-detailed-${station.code}-${idx}`}
+            positions={station.coords}
+            pathOptions={{
+              color: '#ffffff',
+              weight: 2.5,
+              fillColor: '#ffffff',
+              fillOpacity: 0.28,
+              opacity: 0.95,
+              className: 'metro-station-white-outline',
+            }}
+          >
+            <Tooltip sticky>
+              <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#0f172a' }}>
+                🏛️ {station.name}
+                {station.desc && (
+                  <div style={{ fontSize: '0.7rem', color: '#475569', fontWeight: 500, marginTop: '2px', maxWidth: '300px' }}>
+                    {station.desc}
+                  </div>
+                )}
+                <div style={{ fontSize: '0.675rem', color: '#0284c7', marginTop: '3px' }}>
+                  📐 Phác họa công trình: {station.coords.length} đỉnh tọa độ chi tiết
+                </div>
+              </div>
+            </Tooltip>
+          </Polygon>
+        ))}
 
       {/* 3. ĐƯỜNG TIM TUYẾN GỐC (Red Centerline Polyline) */}
       {showCenterline && (

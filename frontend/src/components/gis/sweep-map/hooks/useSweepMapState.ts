@@ -49,6 +49,7 @@ export const useSweepMapState = ({
   const [showCenterline, setShowCenterline] = useState<boolean>(true);
   const [showZonesZoi, setShowZonesZoi] = useState<boolean>(true);
   const [showStationMarkers, setShowStationMarkers] = useState<boolean>(true);
+  const [showStationOutlines, setShowStationOutlines] = useState<boolean>(true);
 
   // Search Parcel state
   const [isSearchOpen, setIsSearchOpen] = useState<boolean>(false);
@@ -233,6 +234,8 @@ export const useSweepMapState = ({
     setShowZonesZoi,
     showStationMarkers,
     setShowStationMarkers,
+    showStationOutlines,
+    setShowStationOutlines,
     isSearchOpen,
     setIsSearchOpen,
     searchQuery,

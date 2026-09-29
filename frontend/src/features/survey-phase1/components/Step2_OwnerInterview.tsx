@@ -513,10 +513,11 @@ export const Step2_OwnerInterview: React.FC = () => {
                             value={item.url}
                             photoCode={item.photoCode}
                             onChange={(url, code) => handleUpdateDrawing(idx, url, code)}
-                            watermarkText="BẢN VẼ HOÀN CÔNG"
                             watermarkOptions={{
                               parcelCode: formData.projectParcelCode,
-                              photoType: 'DOC',
+                              floor: 'DOC',
+                              zoneOrRoom: 'HOANCONG',
+                              photoType: 'DRAWING',
                               photoIndex: idx + 1,
                             }}
                             height="130px"

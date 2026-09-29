@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import { usePhase1SurveyStore } from '../store/usePhase1SurveyStore';
 import { Card } from '../../../core/components/ui/Card';
 import { Button } from '../../../core/components/ui/Button';
@@ -6,15 +6,24 @@ import { Input, Textarea } from '../../../core/components/ui/FormControls';
 import {
   FileCheck2,
   Send,
-  Camera,
-  Upload,
   Trash2,
-  FileText,
   Plus,
+  Upload,
+  Camera,
   Image as ImageIcon,
+  PenTool,
+  RefreshCw,
   CheckCircle2,
+  AlertCircle,
+  Eye,
+  Edit3,
+  X,
+  FileText,
 } from 'lucide-react';
-import confetti from 'canvas-confetti';
+import { SignaturePad } from '../../../components/canvas/SignaturePad';
+import { ImageAnnotationModal } from '../../../components/common/ImageAnnotationModal';
+import { applyMetroWatermark } from '../../../utils/watermarkEngine';
+import { uploadQueue } from '../../../core/services/uploadQueueService';
 
 interface Step9Props {
   onSubmitFinal: () => void;
@@ -26,15 +35,19 @@ export const Step9_FieldSignatures: React.FC<Step9Props> = ({ onSubmitFinal, isS
   const { formData, updateFormData, prevStep } = usePhase1SurveyStore();
   const sigs = formData.signatures;
 
-  // File input refs
-  const preparedPhotoCameraRef = useRef<HTMLInputElement>(null);
-  const preparedPhotoFileRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isProcessingBatch, setIsProcessingBatch] = useState(false);
 
-  const ownerPhotoCameraRef = useRef<HTMLInputElement>(null);
-  const ownerPhotoFileRef = useRef<HTMLInputElement>(null);
+  // Lưu trữ Blob cho các ảnh chưa hoàn tất tải để retry nếu lỗi
+  const blobsRef = useRef<Map<string, { blob: Blob; filename: string; folder: string; metadata: Record<string, string> }>>(new Map());
 
-  const minutesCameraRef = useRef<HTMLInputElement>(null);
-  const minutesFileRef = useRef<HTMLInputElement>(null);
+  // Trạng thái upload R2 cho từng URL: UPLOADING | SUCCESS | ERROR
+  const [uploadStatusMap, setUploadStatusMap] = useState<Record<string, 'UPLOADING' | 'SUCCESS' | 'ERROR'>>({});
+
+  // Lightbox & Chú thích Modal
+  const [previewModalUrl, setPreviewModalUrl] = useState<string | null>(null);
+  const [annotatingIndex, setAnnotatingIndex] = useState<number | null>(null);
 
   // Thống kê nhanh toàn bộ hồ sơ
   const totalFloors = formData.floors.length;
@@ -52,65 +65,236 @@ export const Step9_FieldSignatures: React.FC<Step9Props> = ({ onSubmitFinal, isS
     onSubmitFinal();
   };
 
-  const handleSignatureUpload = (
-    role: 'preparedBy' | 'ownerRepresentative',
-    e: React.ChangeEvent<HTMLInputElement>
-  ) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const minutesPhotos = (sigs.workingMinutesPhotos || []).filter(Boolean);
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const url = event.target?.result as string;
-      if (role === 'preparedBy') {
-        updateFormData({
-          signatures: {
-            ...sigs,
-            preparedBy: { ...sigs.preparedBy, photoUrl: url },
-          },
-        });
-      } else if (role === 'ownerRepresentative') {
-        updateFormData({
-          signatures: {
-            ...sigs,
-            ownerRepresentative: { ...sigs.ownerRepresentative, photoUrl: url },
-          },
-        });
-      }
-    };
-    reader.readAsDataURL(file);
-    e.target.value = '';
-  };
-
-  const handleMinutesPhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
+  // Hàm xử lý ảnh: Đọc -> Dập Watermark Canvas -> Preview tức thì -> Tải lên Cloudflare R2
+  const processAndUploadFiles = async (files: FileList | File[]) => {
     if (!files || files.length === 0) return;
+    setIsProcessingBatch(true);
 
-    Array.from(files).forEach((file) => {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const url = event.target?.result as string;
-        if (url) {
-          const currentPhotos = sigs.workingMinutesPhotos || [];
-          updateFormData({
-            signatures: {
-              ...sigs,
-              workingMinutesPhotos: [...currentPhotos, url],
-            },
-          });
+    const parcelCode = formData.projectParcelCode || formData.officialCadastralCode || 'PARCEL';
+    const cleanParcel = parcelCode.replace(/&/g, '_').replace(/[^a-zA-Z0-9_-]/g, '').toUpperCase();
+    const folder = `surveys/${cleanParcel}/DOC`;
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      try {
+        // 1. Đọc file sang Base64
+        const rawDataUrl = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+
+        // 2. Tính số thứ tự và dập Watermark Metro 2
+        const currentList = (usePhase1SurveyStore.getState().formData.signatures.workingMinutesPhotos || []).filter(Boolean);
+        const photoIndex = currentList.length + 1;
+
+        const watermarked = await applyMetroWatermark(rawDataUrl, {
+          parcelCode,
+          floor: 'DOC',
+          zoneOrRoom: 'MINUTES',
+          photoType: 'MINUTES',
+          photoIndex,
+        });
+
+        const localDataUrl = watermarked.dataUrl;
+        const photoCode = watermarked.photoCode || `HCM_M2.[${cleanParcel}]_DOC_MINUTES_${String(photoIndex).padStart(2, '0')}`;
+
+        // 3. Cập nhật ngay preview Base64 có Watermark vào Store để KSV nhìn thấy tức thì
+        const updatedList = [...currentList, localDataUrl];
+        updateFormData({
+          signatures: {
+            ...sigs,
+            workingMinutesPhotos: updatedList,
+          },
+        });
+
+        // Đánh dấu trạng thái đang tải lên Cloudflare R2
+        setUploadStatusMap((prev) => ({ ...prev, [localDataUrl]: 'UPLOADING' }));
+
+        // 4. Chuẩn bị Metadata R2
+        const filename = `${photoCode.replace(/[^a-zA-Z0-9_-]/g, '_')}_${Date.now()}.jpg`;
+        const metadata: Record<string, string> = {
+          'photo-code': photoCode,
+          'building-code': cleanParcel,
+          'photo-type': 'MINUTES',
+          'floor': 'DOC',
+          'survey-phase': 'PHASE_1',
+          'project': 'METRO2_HCM',
+          'captured-at': new Date().toISOString(),
+        };
+
+        // 5. Chuẩn bị Blob và lưu vào bộ nhớ tạm để phục vụ Retry nếu cần
+        let uploadBlob = watermarked.blob;
+        if (!uploadBlob) {
+          const byteString = atob(localDataUrl.split(',')[1]);
+          const ab = new ArrayBuffer(byteString.length);
+          const ia = new Uint8Array(ab);
+          for (let j = 0; j < byteString.length; j++) {
+            ia[j] = byteString.charCodeAt(j);
+          }
+          uploadBlob = new Blob([ab], { type: 'image/jpeg' });
         }
-      };
-      reader.readAsDataURL(file);
-    });
-    e.target.value = '';
+
+        blobsRef.current.set(localDataUrl, {
+          blob: uploadBlob,
+          filename,
+          folder,
+          metadata,
+        });
+
+        // 6. Đưa vào hàng đợi Upload trực tiếp lên Cloudflare R2
+        uploadQueue.enqueue(uploadBlob, filename, {
+          folder,
+          mimeType: 'image/jpeg',
+          metadata,
+          onSuccess: (publicUrl) => {
+            // Thay thế localDataUrl bằng publicUrl của R2 trong Store
+            const latestList = (usePhase1SurveyStore.getState().formData.signatures.workingMinutesPhotos || []).filter(Boolean);
+            const replacedList = latestList.map((url) => (url === localDataUrl ? publicUrl : url));
+            updateFormData({
+              signatures: {
+                ...usePhase1SurveyStore.getState().formData.signatures,
+                workingMinutesPhotos: replacedList,
+              },
+            });
+
+            blobsRef.current.delete(localDataUrl);
+            setUploadStatusMap((prev) => {
+              const next = { ...prev };
+              delete next[localDataUrl];
+              next[publicUrl] = 'SUCCESS';
+              return next;
+            });
+          },
+          onError: (err) => {
+            console.warn('[Step9] Lỗi upload R2 cho biên bản hiện trường:', err);
+            setUploadStatusMap((prev) => ({ ...prev, [localDataUrl]: 'ERROR' }));
+          },
+        });
+      } catch (err) {
+        console.error('[Step9] Lỗi xử lý watermark hoặc upload ảnh biên bản:', err);
+        alert(`Có lỗi xảy ra khi xử lý ảnh ${file.name}`);
+      }
+    }
+    setIsProcessingBatch(false);
   };
 
-  const removeMinutesPhoto = (index: number) => {
-    const updated = (sigs.workingMinutesPhotos || []).filter((_, i) => i !== index);
+  // Thử lại upload khi gặp sự cố mạng
+  const handleRetryUpload = (url: string) => {
+    const item = blobsRef.current.get(url);
+    if (!item) {
+      alert('Không tìm thấy tệp ảnh gốc trong bộ nhớ tạm để tải lại. Vui lòng chọn lại ảnh.');
+      return;
+    }
+
+    setUploadStatusMap((prev) => ({ ...prev, [url]: 'UPLOADING' }));
+
+    uploadQueue.enqueue(item.blob, item.filename, {
+      folder: item.folder,
+      mimeType: 'image/jpeg',
+      metadata: item.metadata,
+      onSuccess: (publicUrl) => {
+        const latestList = (usePhase1SurveyStore.getState().formData.signatures.workingMinutesPhotos || []).filter(Boolean);
+        const replacedList = latestList.map((i) => (i === url ? publicUrl : i));
+        updateFormData({
+          signatures: {
+            ...usePhase1SurveyStore.getState().formData.signatures,
+            workingMinutesPhotos: replacedList,
+          },
+        });
+        blobsRef.current.delete(url);
+        setUploadStatusMap((prev) => {
+          const next = { ...prev };
+          delete next[url];
+          next[publicUrl] = 'SUCCESS';
+          return next;
+        });
+      },
+      onError: (err) => {
+        console.warn('[Step9] Thử lại tải lên R2 thất bại:', err);
+        setUploadStatusMap((prev) => ({ ...prev, [url]: 'ERROR' }));
+      },
+    });
+  };
+
+  // Xóa trang biên bản
+  const handleRemoveMinutesPhoto = (index: number) => {
+    const list = [...(sigs.workingMinutesPhotos || [])];
+    const removedUrl = list[index];
+    list.splice(index, 1);
+    if (removedUrl) {
+      blobsRef.current.delete(removedUrl);
+    }
     updateFormData({
       signatures: {
         ...sigs,
-        workingMinutesPhotos: updated,
+        workingMinutesPhotos: list.filter(Boolean),
+      },
+    });
+  };
+
+  // Lưu ảnh sau khi vẽ / chú thích
+  const handleSaveAnnotation = async (annotatedBase64: string) => {
+    if (annotatingIndex === null) return;
+    const targetIdx = annotatingIndex;
+    setAnnotatingIndex(null);
+
+    const currentPhotos = [...(sigs.workingMinutesPhotos || [])];
+    currentPhotos[targetIdx] = annotatedBase64;
+    updateFormData({
+      signatures: {
+        ...sigs,
+        workingMinutesPhotos: currentPhotos,
+      },
+    });
+
+    const parcelCode = formData.projectParcelCode || 'CHUA_CO_MA';
+    const cleanParcel = parcelCode.replace(/&/g, '_').replace(/[^a-zA-Z0-9_-]/g, '').toUpperCase();
+    const photoCode = `HCM_M2.[${cleanParcel}]_DOC_MINUTES_${String(targetIdx + 1).padStart(2, '0')}`;
+    const folder = `surveys/${cleanParcel}/DOC`;
+    const filename = `${photoCode.replace(/[^a-zA-Z0-9_-]/g, '_')}_annotated_${Date.now()}.jpg`;
+
+    const byteString = atob(annotatedBase64.split(',')[1]);
+    const ab = new ArrayBuffer(byteString.length);
+    const ia = new Uint8Array(ab);
+    for (let j = 0; j < byteString.length; j++) ia[j] = byteString.charCodeAt(j);
+    const uploadBlob = new Blob([ab], { type: 'image/jpeg' });
+
+    setUploadStatusMap((prev) => ({ ...prev, [annotatedBase64]: 'UPLOADING' }));
+
+    uploadQueue.enqueue(uploadBlob, filename, {
+      folder,
+      mimeType: 'image/jpeg',
+      metadata: {
+        'photo-code': photoCode,
+        'building-code': cleanParcel,
+        'photo-type': 'MINUTES',
+        'floor': 'DOC',
+        'survey-phase': 'PHASE_1',
+        'project': 'METRO2_HCM',
+        'captured-at': new Date().toISOString(),
+      },
+      onSuccess: (publicUrl) => {
+        const latestList = (usePhase1SurveyStore.getState().formData.signatures.workingMinutesPhotos || []).filter(Boolean);
+        const replacedList = latestList.map((i) => (i === annotatedBase64 ? publicUrl : i));
+        updateFormData({
+          signatures: {
+            ...usePhase1SurveyStore.getState().formData.signatures,
+            workingMinutesPhotos: replacedList,
+          },
+        });
+        setUploadStatusMap((prev) => {
+          const next = { ...prev };
+          delete next[annotatedBase64];
+          next[publicUrl] = 'SUCCESS';
+          return next;
+        });
+      },
+      onError: () => {
+        setUploadStatusMap((prev) => ({ ...prev, [annotatedBase64]: 'ERROR' }));
       },
     });
   };
@@ -176,91 +360,431 @@ export const Step9_FieldSignatures: React.FC<Step9Props> = ({ onSubmitFinal, isS
 
       {/* 8.2. Ảnh Chụp Biên Bản Làm Việc Hiện Trường (Bắt buộc) */}
       <Card id="working-minutes-section">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4 pb-2 border-b border-slate-100">
-          <div className="flex items-center gap-2">
-            <ImageIcon className="w-5 h-5 text-blue-600" />
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-3 border-b border-slate-100">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
+              <ImageIcon className="w-5 h-5" />
+            </div>
             <div>
-              <h2 className="text-base sm:text-lg font-bold text-slate-800">
-                8.2. Ảnh Chụp Biên Bản Làm Việc Hiện Trường *
-              </h2>
-              <p className="text-xs text-slate-500">
-                Bắt buộc đính kèm ảnh chụp các trang biên bản khảo sát giấy hoặc biên bản làm việc có chữ ký tươi
+              <div className="flex items-center gap-2">
+                <h2 className="text-base sm:text-lg font-bold text-slate-800">
+                  8.2. Ảnh Chụp Biên Bản Làm Việc Hiện Trường *
+                </h2>
+                {minutesPhotos.length > 0 && (
+                  <span className="text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2.5 py-0.5 rounded-full">
+                    {minutesPhotos.length} trang
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Bắt buộc đính kèm ảnh chụp các trang biên bản khảo sát giấy hoặc biên bản làm việc có chữ ký tươi. Tự động dập watermark <code className="text-blue-700 font-bold">HCM_M2.[MÃ THỬA]_DOC_MINUTES_xx</code> và lưu trữ Cloudflare R2.
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 self-start sm:self-center">
             <input
-              id="minutes-camera-input"
               type="file"
-              ref={minutesCameraRef}
+              ref={cameraInputRef}
               accept="image/*"
               capture="environment"
               className="sr-only"
-              onChange={handleMinutesPhotoUpload}
+              onChange={(e) => {
+                if (e.target.files) {
+                  processAndUploadFiles(e.target.files);
+                  e.target.value = '';
+                }
+              }}
             />
             <input
-              id="minutes-file-input"
               type="file"
-              ref={minutesFileRef}
+              ref={fileInputRef}
               accept="image/*"
               multiple
               className="sr-only"
-              onChange={handleMinutesPhotoUpload}
+              onChange={(e) => {
+                if (e.target.files) {
+                  processAndUploadFiles(e.target.files);
+                  e.target.value = '';
+                }
+              }}
             />
 
-            <label
-              htmlFor="minutes-camera-input"
-              className="inline-flex items-center justify-center rounded-md text-xs font-semibold ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 px-3 py-2 cursor-pointer shadow-xs"
-            >
-              <Camera className="w-3.5 h-3.5 mr-1 text-emerald-600" />
-              Chụp camera
-            </label>
+            {!readOnly && (
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  loading={isProcessingBatch}
+                  onClick={() => cameraInputRef.current?.click()}
+                  icon={<Camera className="w-4 h-4 text-emerald-600" />}
+                  className="border-emerald-200 hover:bg-emerald-50 text-emerald-800 font-bold"
+                >
+                  Chụp camera
+                </Button>
 
-            <label
-              htmlFor="minutes-file-input"
-              className="inline-flex items-center justify-center rounded-md text-xs font-semibold ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 px-3 py-2 cursor-pointer shadow-xs"
-            >
-              <Upload className="w-3.5 h-3.5 mr-1 text-slate-600" />
-              Tải file ảnh
-            </label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  loading={isProcessingBatch}
+                  onClick={() => fileInputRef.current?.click()}
+                  icon={<Upload className="w-4 h-4 text-slate-600" />}
+                  className="font-bold"
+                >
+                  Tải file ảnh
+                </Button>
+              </>
+            )}
           </div>
         </div>
 
         {/* Danh sách ảnh biên bản */}
-        {sigs.workingMinutesPhotos && sigs.workingMinutesPhotos.length > 0 ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-            {sigs.workingMinutesPhotos.map((photoUrl, idx) => (
-              <div
-                key={idx}
-                className="relative group rounded-xl border border-slate-200 overflow-hidden bg-slate-100 aspect-3/4 flex items-center justify-center shadow-xs"
-              >
-                <img
-                  src={photoUrl}
-                  alt={`Biên bản trang ${idx + 1}`}
-                  className="w-full h-full object-cover"
-                />
-                <div className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-between p-2">
-                  <span className="text-[10px] text-white font-bold bg-slate-900/80 px-2 py-0.5 rounded self-start">
-                    Trang {idx + 1}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => removeMinutesPhoto(idx)}
-                    className="p-1.5 bg-red-600 text-white rounded-lg self-end hover:bg-red-700 transition-colors"
-                    title="Xóa trang này"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
+        {minutesPhotos.length === 0 ? (
+          <div className="border-2 border-dashed border-slate-200 rounded-2xl p-8 bg-slate-50/60 text-center flex flex-col items-center justify-center gap-3">
+            <div className="w-12 h-12 rounded-full bg-blue-100/70 text-blue-600 flex items-center justify-center">
+              <FileText className="w-6 h-6" />
+            </div>
+            <div>
+              <h4 className="text-sm font-bold text-slate-700">Chưa có ảnh biên bản làm việc hiện trường</h4>
+              <p className="text-xs text-slate-500 mt-1 max-w-md">
+                Bắt buộc chụp hoặc tải ít nhất 1 ảnh biên bản khảo sát giấy có chữ ký xác nhận của các bên. Ảnh sẽ được tự động dập watermark pháp lý và lưu an toàn trên Cloudflare R2.
+              </p>
+            </div>
+            {!readOnly && (
+              <div className="flex items-center gap-2.5 mt-2">
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="sm"
+                  onClick={() => cameraInputRef.current?.click()}
+                  icon={<Camera className="w-4 h-4" />}
+                >
+                  Chụp camera ngay
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => fileInputRef.current?.click()}
+                  icon={<Upload className="w-4 h-4" />}
+                >
+                  Tải ảnh từ máy (chọn nhiều file)
+                </Button>
               </div>
-            ))}
+            )}
           </div>
         ) : (
-          <div className="p-6 border-2 border-dashed border-amber-300 rounded-xl bg-amber-50/30 text-center text-xs text-amber-700 font-medium">
-            ⚠️ Bắt buộc chụp hoặc tải ít nhất 1 ảnh biên bản làm việc hiện trường có chữ ký tươi (*). Bấm &quot;Chụp biên bản&quot; hoặc &quot;Tải file ảnh&quot; để bổ sung.
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {minutesPhotos.map((photoUrl, idx) => {
+              const isUploading = uploadStatusMap[photoUrl] === 'UPLOADING';
+              const isSuccess =
+                uploadStatusMap[photoUrl] === 'SUCCESS' ||
+                photoUrl.startsWith('http') ||
+                photoUrl.startsWith('/uploads');
+              const isError = uploadStatusMap[photoUrl] === 'ERROR';
+              const pageCode = `HCM_M2.[${(formData.projectParcelCode || formData.officialCadastralCode || 'PARCEL')
+                .replace(/&/g, '_')
+                .replace(/[^a-zA-Z0-9_-]/g, '')
+                .toUpperCase()}]_DOC_MINUTES_${String(idx + 1).padStart(2, '0')}`;
+
+              return (
+                <div
+                  key={idx}
+                  className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs hover:shadow-md transition-shadow flex flex-col"
+                >
+                  {/* Header card */}
+                  <div className="flex items-center justify-between px-3 py-2 bg-slate-50 border-b border-slate-100 text-xs">
+                    <div className="flex items-center gap-1.5 font-bold text-slate-700">
+                      <span className="bg-blue-100 text-blue-800 px-2 py-0.5 rounded text-[11px]">
+                        Trang {idx + 1}
+                      </span>
+                      <span className="text-[10px] font-mono text-slate-500 truncate max-w-[150px]" title={pageCode}>
+                        {pageCode}
+                      </span>
+                    </div>
+                    {!readOnly && (
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveMinutesPhoto(idx)}
+                        className="text-slate-400 hover:text-red-600 p-1 rounded hover:bg-red-50 transition-colors"
+                        title="Xóa trang này"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Preview Image Box */}
+                  <div className="relative aspect-[3/4] bg-slate-950 flex items-center justify-center overflow-hidden group">
+                    <img
+                      src={photoUrl}
+                      alt={`Biên bản trang ${idx + 1}`}
+                      className="w-full h-full object-contain"
+                    />
+
+                    {/* R2 Cloud Status Badge */}
+                    <div className="absolute bottom-2 right-2 z-10 pointer-events-auto">
+                      {isUploading && (
+                        <span className="bg-amber-500/95 text-white text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 shadow-md animate-pulse">
+                          <RefreshCw className="w-2.5 h-2.5 animate-spin" />
+                          Lưu R2...
+                        </span>
+                      )}
+                      {isSuccess && (
+                        <span className="bg-emerald-600/95 text-white text-[10px] font-black px-2 py-0.5 rounded-full flex items-center gap-1 shadow-md border border-white/40">
+                          <CheckCircle2 className="w-2.5 h-2.5" />
+                          R2 ✓
+                        </span>
+                      )}
+                      {isError && (
+                        <button
+                          type="button"
+                          onClick={() => handleRetryUpload(photoUrl)}
+                          className="bg-red-600 hover:bg-red-700 text-white text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 shadow-md transition-colors"
+                          title="Bấm để thử lại tải lên Cloudflare R2"
+                        >
+                          <AlertCircle className="w-2.5 h-2.5" />
+                          Thử lại R2
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Hover Action Overlay */}
+                    <div className="absolute inset-0 bg-slate-900/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 p-2">
+                      <button
+                        type="button"
+                        onClick={() => setPreviewModalUrl(photoUrl)}
+                        className="bg-white/90 hover:bg-white text-slate-800 text-xs font-bold px-2.5 py-1.5 rounded-lg flex items-center gap-1 shadow-sm transition-transform active:scale-95"
+                      >
+                        <Eye className="w-3.5 h-3.5 text-blue-600" />
+                        Xem lớn
+                      </button>
+                      {!readOnly && (
+                        <button
+                          type="button"
+                          onClick={() => setAnnotatingIndex(idx)}
+                          className="bg-emerald-600/90 hover:bg-emerald-600 text-white text-xs font-bold px-2.5 py-1.5 rounded-lg flex items-center gap-1 shadow-sm transition-transform active:scale-95"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                          Chú thích
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
+      </Card>
+
+      {/* Lightbox xem lớn ảnh biên bản */}
+      {previewModalUrl && (
+        <div
+          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4"
+          onClick={() => setPreviewModalUrl(null)}
+        >
+          <div
+            className="relative max-w-4xl max-h-[90vh] bg-slate-900 rounded-2xl overflow-hidden shadow-2xl p-2 flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between p-2 text-white">
+              <span className="text-xs font-bold font-mono text-emerald-400">
+                Chi tiết ảnh biên bản hiện trường (Watermark chuẩn Metro 2)
+              </span>
+              <button
+                type="button"
+                onClick={() => setPreviewModalUrl(null)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-auto flex items-center justify-center p-2">
+              <img
+                src={previewModalUrl}
+                alt="Biên bản xem lớn"
+                className="max-h-[80vh] w-auto object-contain rounded-lg shadow-lg"
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal chú thích / vẽ trên ảnh */}
+      {annotatingIndex !== null && minutesPhotos[annotatingIndex] && (
+        <ImageAnnotationModal
+          isOpen={annotatingIndex !== null}
+          imageUrl={minutesPhotos[annotatingIndex]}
+          title={`Ghi chú & Đánh dấu trang ${annotatingIndex + 1}`}
+          onSave={handleSaveAnnotation}
+          onClose={() => setAnnotatingIndex(null)}
+        />
+      )}
+
+      {/* 8.3. Ký Xác Nhận Hiện Trường */}
+      <Card id="signatures-section">
+        <div className="flex items-center gap-2 mb-4 pb-2 border-b border-slate-100">
+          <PenTool className="w-5 h-5 text-indigo-600" />
+          <div>
+            <h2 className="text-base sm:text-lg font-bold text-slate-800">
+              8.3. Ký Xác Nhận Khảo Sát Hiện Trường
+            </h2>
+            <p className="text-xs text-slate-500">
+              Ký trực tiếp trên màn hình cảm ứng hoặc chụp ảnh chữ ký tươi có dập watermark định danh pháp lý
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Cột 1: Người lập phiếu (Khảo sát viên) */}
+          <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 space-y-3">
+            <h3 className="font-bold text-sm text-slate-800 flex items-center justify-between">
+              <span>1. Người Lập Phiếu (Khảo Sát Viên)</span>
+              <span className="text-[11px] font-normal text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">Bắt buộc</span>
+            </h3>
+            <Input
+              label="Họ và tên khảo sát viên *"
+              placeholder="Nguyễn Văn A"
+              value={sigs.preparedBy?.fullName || ''}
+              onChange={(e) =>
+                updateFormData({
+                  signatures: {
+                    ...sigs,
+                    preparedBy: { ...sigs.preparedBy, fullName: e.target.value },
+                  },
+                })
+              }
+              disabled={readOnly}
+            />
+            <div className="grid grid-cols-2 gap-2">
+              <Input
+                label="Chức danh / Đơn vị"
+                placeholder="Khảo sát viên"
+                value={sigs.preparedBy?.title || ''}
+                onChange={(e) =>
+                  updateFormData({
+                    signatures: {
+                      ...sigs,
+                      preparedBy: { ...sigs.preparedBy, title: e.target.value },
+                    },
+                  })
+                }
+                disabled={readOnly}
+              />
+              <Input
+                label="Ngày ký"
+                type="date"
+                value={sigs.preparedBy?.date || new Date().toISOString().split('T')[0]}
+                onChange={(e) =>
+                  updateFormData({
+                    signatures: {
+                      ...sigs,
+                      preparedBy: { ...sigs.preparedBy, date: e.target.value },
+                    },
+                  })
+                }
+                disabled={readOnly}
+              />
+            </div>
+            <SignaturePad
+              label="Chữ ký Khảo sát viên"
+              signerName={sigs.preparedBy?.fullName || 'Khảo sát viên'}
+              role={sigs.preparedBy?.title || 'Khảo sát viên'}
+              initialSignatureUrl={sigs.preparedBy?.photoUrl}
+              onSave={(url) =>
+                updateFormData({
+                  signatures: {
+                    ...sigs,
+                    preparedBy: { ...sigs.preparedBy, photoUrl: url },
+                  },
+                })
+              }
+              watermarkOptions={{
+                parcelCode: formData.projectParcelCode,
+                floor: 'DOC',
+                zoneOrRoom: 'CHUKY',
+                photoType: 'SIG_SURVEYOR',
+              }}
+              readOnly={readOnly}
+            />
+          </div>
+
+          {/* Cột 2: Đại diện chủ sở hữu */}
+          <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 space-y-3">
+            <h3 className="font-bold text-sm text-slate-800 flex items-center justify-between">
+              <span>2. Đại Diện Chủ Sở Hữu / Người Sử Dụng</span>
+              <span className="text-[11px] font-normal text-sky-600 bg-sky-50 px-2 py-0.5 rounded border border-sky-200">Hiện trường</span>
+            </h3>
+            <Input
+              label="Họ và tên người đại diện *"
+              placeholder="Trần Thị B"
+              value={sigs.ownerRepresentative?.fullName || ''}
+              onChange={(e) =>
+                updateFormData({
+                  signatures: {
+                    ...sigs,
+                    ownerRepresentative: { ...sigs.ownerRepresentative, fullName: e.target.value },
+                  },
+                })
+              }
+              disabled={readOnly}
+            />
+            <div className="grid grid-cols-2 gap-2">
+              <Input
+                label="Quan hệ với chủ hộ"
+                placeholder="Chủ hộ / Đại diện ủy quyền"
+                value={sigs.ownerRepresentative?.role || ''}
+                onChange={(e) =>
+                  updateFormData({
+                    signatures: {
+                      ...sigs,
+                      ownerRepresentative: { ...sigs.ownerRepresentative, role: e.target.value },
+                    },
+                  })
+                }
+                disabled={readOnly}
+              />
+              <Input
+                label="Ngày ký"
+                type="date"
+                value={sigs.ownerRepresentative?.date || new Date().toISOString().split('T')[0]}
+                onChange={(e) =>
+                  updateFormData({
+                    signatures: {
+                      ...sigs,
+                      ownerRepresentative: { ...sigs.ownerRepresentative, date: e.target.value },
+                    },
+                  })
+                }
+                disabled={readOnly}
+              />
+            </div>
+            <SignaturePad
+              label="Chữ ký Chủ hộ / Đại diện"
+              signerName={sigs.ownerRepresentative?.fullName || 'Chủ hộ'}
+              role={sigs.ownerRepresentative?.role || 'Chủ hộ'}
+              initialSignatureUrl={sigs.ownerRepresentative?.photoUrl}
+              onSave={(url) =>
+                updateFormData({
+                  signatures: {
+                    ...sigs,
+                    ownerRepresentative: { ...sigs.ownerRepresentative, photoUrl: url },
+                  },
+                })
+              }
+              watermarkOptions={{
+                parcelCode: formData.projectParcelCode,
+                floor: 'DOC',
+                zoneOrRoom: 'CHUKY',
+                photoType: 'SIG_OWNER',
+              }}
+              readOnly={readOnly}
+            />
+          </div>
+        </div>
       </Card>
 
       {/* Final Submit Buttons */}

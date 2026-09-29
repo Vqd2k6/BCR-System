@@ -167,15 +167,11 @@ export const ImageAnnotationModal: React.FC<ImageAnnotationModalProps> = ({
       ctx.stroke();
     } else if (item.type === 'TEXT') {
       ctx.font = `bold ${item.fontSize}px sans-serif`;
-      const metrics = ctx.measureText(item.text);
-      const padding = 6;
-      ctx.fillStyle = 'rgba(15, 23, 42, 0.8)';
-      ctx.fillRect(
-        item.x - padding,
-        item.y - item.fontSize - padding / 2,
-        metrics.width + padding * 2,
-        item.fontSize + padding
-      );
+      // Bỏ highlight background box, chỉ vẽ text thuần túy với shadow sắc nét chống chìm chữ
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.85)';
+      ctx.shadowBlur = 4;
+      ctx.shadowOffsetX = 1;
+      ctx.shadowOffsetY = 1;
       ctx.fillStyle = item.color;
       ctx.fillText(item.text, item.x, item.y);
     }

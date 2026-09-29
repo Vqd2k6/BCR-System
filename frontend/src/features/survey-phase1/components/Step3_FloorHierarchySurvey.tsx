@@ -427,6 +427,68 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
     }
   };
 
+  // Xóa pin trên CAD_01 -> tự động xóa Vùng Z tương ứng (2-way sync sống còn)
+  const handleDeleteZonePin = (pin: CadZonePin) => {
+    updateFormData((prev) => {
+      const current = prev.floors[activeFloorIndex] || prev.floors[0];
+      if (!current) return prev;
+      const updatedZones = (current.zones || []).filter((z) => z.zoneCode !== pin.zoneCode);
+      const updatedPins = (current.cadZonePins || []).filter((p) => p.id !== pin.id && p.zoneCode !== pin.zoneCode);
+      const updatedFloors = [...prev.floors];
+      updatedFloors[activeFloorIndex] = { ...current, zones: updatedZones, cadZonePins: updatedPins };
+      return { ...prev, floors: updatedFloors };
+    });
+    setActiveZoneIndex((prev) => Math.max(0, prev - 1));
+  };
+
+  // Đổi mã pin trên CAD_01 -> tự động đồng bộ mã Vùng Z tương ứng
+  const handleRenameZonePin = (oldCode: string, newCode: string, updatedPin: CadZonePin) => {
+    updateFormData((prev) => {
+      const current = prev.floors[activeFloorIndex] || prev.floors[0];
+      if (!current) return prev;
+      const updatedZones = (current.zones || []).map((z) =>
+        z.zoneCode === oldCode ? { ...z, zoneCode: newCode } : z
+      );
+      const updatedPins = (current.cadZonePins || []).map((p) =>
+        p.id === updatedPin.id || p.zoneCode === oldCode ? { ...p, zoneCode: newCode, label: updatedPin.label || newCode } : p
+      );
+      const updatedFloors = [...prev.floors];
+      updatedFloors[activeFloorIndex] = { ...current, zones: updatedZones, cadZonePins: updatedPins };
+      return { ...prev, floors: updatedFloors };
+    });
+  };
+
+  // Xóa pin trên CAD_02 -> tự động xóa Cấu kiện E tương ứng (2-way sync sống còn)
+  const handleDeleteElementPin = (pin: CadZonePin) => {
+    updateFormData((prev) => {
+      const current = prev.floors[activeFloorIndex] || prev.floors[0];
+      if (!current) return prev;
+      const updatedElements = (current.structuralElements || []).filter((e) => e.elementCode !== pin.zoneCode);
+      const updatedPins = (current.cadElementPins || []).filter((p) => p.id !== pin.id && p.zoneCode !== pin.zoneCode);
+      const updatedFloors = [...prev.floors];
+      updatedFloors[activeFloorIndex] = { ...current, structuralElements: updatedElements, cadElementPins: updatedPins };
+      return { ...prev, floors: updatedFloors };
+    });
+    setActiveElementIndex((prev) => Math.max(0, prev - 1));
+  };
+
+  // Đổi mã pin trên CAD_02 -> tự động đồng bộ mã Cấu kiện E tương ứng
+  const handleRenameElementPin = (oldCode: string, newCode: string, updatedPin: CadZonePin) => {
+    updateFormData((prev) => {
+      const current = prev.floors[activeFloorIndex] || prev.floors[0];
+      if (!current) return prev;
+      const updatedElements = (current.structuralElements || []).map((e) =>
+        e.elementCode === oldCode ? { ...e, elementCode: newCode } : e
+      );
+      const updatedPins = (current.cadElementPins || []).map((p) =>
+        p.id === updatedPin.id || p.zoneCode === oldCode ? { ...p, zoneCode: newCode, label: updatedPin.label || newCode } : p
+      );
+      const updatedFloors = [...prev.floors];
+      updatedFloors[activeFloorIndex] = { ...current, structuralElements: updatedElements, cadElementPins: updatedPins };
+      return { ...prev, floors: updatedFloors };
+    });
+  };
+
   // Modal active objects
   const pinningZoneObj = zones.find((z) => z.id === pinningZoneId);
   const pinningElementObj = structuralElements.find((e) => e.id === pinningElementId);
@@ -479,6 +541,8 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
           });
         }}
         onAutoCreatePin={handleAutoCreateZonePin}
+        onDeletePin={handleDeleteZonePin}
+        onRenamePin={handleRenameZonePin}
         onSelectZone={(idx) => navigateToZone(idx, false)}
         onUpdateZone={handleUpdateZone}
         onDeleteZone={handleDeleteZone}
@@ -492,6 +556,7 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
       <StructuralElementsSection
         currentFloor={currentFloor}
         activeElementIndex={activeElementIndex}
+        projectParcelCode={formData.projectParcelCode}
         onCadPhotoChange={(url) => {
           updateFormData((prev) => {
             const updatedFloors = [...prev.floors];
@@ -511,6 +576,8 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
           });
         }}
         onAutoCreatePin={handleAutoCreateElementPin}
+        onDeletePin={handleDeleteElementPin}
+        onRenamePin={handleRenameElementPin}
         onSelectElement={(idx) => navigateToElement(idx, false)}
         onUpdateElement={handleUpdateElement}
         onDeleteElement={handleDeleteElement}
@@ -559,6 +626,8 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
           mode="ARCHITECTURAL"
           code={pinningZoneObj.zoneCode}
           name={pinningZoneObj.roomName}
+          floorName={currentFloor.floorName}
+          projectParcelCode={formData.projectParcelCode}
           ctxPhotoUrl={pinningZoneObj.ctxPhotoUrl}
           defects={pinningZoneObj.defects || []}
           onChange={(defects: DefectItem[]) => {
@@ -578,6 +647,8 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
           mode="STRUCTURAL"
           code={pinningElementObj.elementCode}
           name={pinningElementObj.elementType}
+          floorName={currentFloor.floorName}
+          projectParcelCode={formData.projectParcelCode}
           ctxPhotoUrl={pinningElementObj.ctxPhotoUrl}
           defects={pinningElementObj.defects || []}
           onChange={(defects: DefectItem[]) => {

@@ -114,8 +114,12 @@ export const SaggingMonitoringSection: React.FC<SaggingMonitoringSectionProps> =
                 })
               }
               recommendedOrientation="landscape"
-              orientationHint="Khuyến nghị: Chụp ảnh NGANG (16:9 / 4:3) lấy trọn nhịp dầm/sàn"
-              watermarkText={`3.3 | VONG-DAM-SAN | ${projectParcelCode}`}
+              watermarkOptions={{
+                parcelCode: projectParcelCode,
+                floor: 'F01',
+                photoType: 'SAGGING',
+                photoIndex: 1,
+              }}
               height="130px"
             />
             <div>

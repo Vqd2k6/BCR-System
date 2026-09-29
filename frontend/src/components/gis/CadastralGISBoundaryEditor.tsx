@@ -147,6 +147,7 @@ export const CadastralGISBoundaryEditor: React.FC<CadastralBoundaryEditorProps> 
           realActiveCoords={realActiveCoords}
           activeCentroid={activeCentroid}
           tileMode={tileMode}
+          setTileMode={setTileMode}
           currentZoneMergeParcels={currentZoneMergeParcels}
           filteredMergeParcels={filteredMergeParcels}
           selectedMergeCodes={selectedMergeCodes}

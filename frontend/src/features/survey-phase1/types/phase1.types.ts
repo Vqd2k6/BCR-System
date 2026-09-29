@@ -133,7 +133,14 @@ export interface EcsScoreState {
   e6: number; // 0..4 (Functional/Overall)
   totalEcs: number; // 0..24
   ecsClass: 'GOOD' | 'MEDIUM' | 'DEFICIENT' | 'CRITICAL';
-  engineeringJudgement: { action: 'KEEP' | 'UPGRADE' | 'DOWNGRADE'; reason: string };
+  engineeringJudgement: {
+    action: 'KEEP' | 'UPGRADE' | 'DOWNGRADE';
+    reason: string;
+    initialScore?: number;
+    initialClass?: 'GOOD' | 'MEDIUM' | 'DEFICIENT' | 'CRITICAL';
+    adjustedScore?: number;
+    adjustedClass?: 'GOOD' | 'MEDIUM' | 'DEFICIENT' | 'CRITICAL';
+  };
   isOverrideLocked: boolean;
 }
 
@@ -147,7 +154,14 @@ export interface ViScoreState {
   totalVi: number; // 6..24
   viAvg: number; // 1.0..4.0
   viClass: 'LOW' | 'MEDIUM' | 'HIGH' | 'VERY_HIGH';
-  engineeringJudgement: { action: 'KEEP' | 'UPGRADE' | 'DOWNGRADE'; reason: string };
+  engineeringJudgement: {
+    action: 'KEEP' | 'UPGRADE' | 'DOWNGRADE';
+    reason: string;
+    initialScore?: number;
+    initialClass?: 'LOW' | 'MEDIUM' | 'HIGH' | 'VERY_HIGH';
+    adjustedScore?: number;
+    adjustedClass?: 'LOW' | 'MEDIUM' | 'HIGH' | 'VERY_HIGH';
+  };
 }
 
 export interface Phase1SurveyFormData {

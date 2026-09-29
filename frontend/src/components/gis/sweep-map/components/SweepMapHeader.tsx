@@ -18,6 +18,8 @@ interface SweepMapHeaderProps {
   setShowZonesZoi: (show: boolean) => void;
   showStationMarkers: boolean;
   setShowStationMarkers: (show: boolean) => void;
+  showStationOutlines?: boolean;
+  setShowStationOutlines?: (show: boolean) => void;
   isSearchOpen: boolean;
   setIsSearchOpen: (open: boolean | ((prev: boolean) => boolean)) => void;
   searchQuery: string;
@@ -44,6 +46,8 @@ export const SweepMapHeader: React.FC<SweepMapHeaderProps> = ({
   setShowZonesZoi,
   showStationMarkers,
   setShowStationMarkers,
+  showStationOutlines = true,
+  setShowStationOutlines = () => {},
   isSearchOpen,
   setIsSearchOpen,
   searchQuery,
@@ -319,6 +323,30 @@ export const SweepMapHeader: React.FC<SweepMapHeaderProps> = ({
                   style={{ accentColor: '#ea580c' }}
                 />
                 <span>🚉 12 Nhà ga &amp; Depot</span>
+              </label>
+
+              {/* Toggle Phác họa công trình nhà ga màu trắng */}
+              <label
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  fontSize: '0.75rem',
+                  fontWeight: 600,
+                  color: '#0f172a',
+                  padding: '0.3rem 0.5rem',
+                  borderRadius: '0.4rem',
+                  cursor: 'pointer',
+                  backgroundColor: showStationOutlines ? '#f8fafc' : 'transparent',
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={showStationOutlines}
+                  onChange={(e) => setShowStationOutlines(e.target.checked)}
+                  style={{ accentColor: '#0284c7' }}
+                />
+                <span>🏛️ Phác họa công trình ga (Trắng)</span>
               </label>
             </div>
           )}

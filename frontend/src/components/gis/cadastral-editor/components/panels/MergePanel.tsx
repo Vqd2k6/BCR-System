@@ -21,6 +21,7 @@ interface MergePanelProps {
   realActiveCoords: [number, number][];
   activeCentroid: [number, number];
   tileMode: 'osm' | 'satellite';
+  setTileMode: (mode: 'osm' | 'satellite' | ((prev: 'osm' | 'satellite') => 'osm' | 'satellite')) => void;
   currentZoneMergeParcels: GisParcel[];
   filteredMergeParcels: GisParcel[];
   selectedMergeCodes: string[];
@@ -54,6 +55,7 @@ export const MergePanel: React.FC<MergePanelProps> = ({
   realActiveCoords,
   activeCentroid,
   tileMode,
+  setTileMode,
   currentZoneMergeParcels,
   filteredMergeParcels,
   selectedMergeCodes,
@@ -97,9 +99,30 @@ export const MergePanel: React.FC<MergePanelProps> = ({
             content="Bấm chọn các thửa liền kề trên bản đồ hoặc danh sách bên dưới để gộp lại thành một công trình. Mã dự án nhỏ nhất trong nhóm sẽ được giữ lại làm mã đại diện chính thức."
           />
         </div>
-        <span className="badge" style={{ backgroundColor: '#e0f2fe', color: '#0369a1', border: '1px solid #93c5fd', fontSize: '0.675rem' }}>
-          Giữ mã nhỏ nhất: {mergeSummary.keptCode}
-        </span>
+        <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center' }}>
+          <span className="badge" style={{ backgroundColor: '#e0f2fe', color: '#0369a1', border: '1px solid #93c5fd', fontSize: '0.675rem' }}>
+            Giữ mã nhỏ nhất: {mergeSummary.keptCode}
+          </span>
+          <button
+            type="button"
+            onClick={() => setTileMode((prev) => (prev === 'osm' ? 'satellite' : 'osm'))}
+            style={{
+              padding: '0.2rem 0.5rem',
+              borderRadius: '0.3rem',
+              fontSize: '0.675rem',
+              fontWeight: 700,
+              backgroundColor: tileMode === 'satellite' ? '#0284c7' : '#f1f5f9',
+              color: tileMode === 'satellite' ? '#ffffff' : '#475569',
+              border: '1px solid #cbd5e1',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.25rem',
+            }}
+          >
+            <span>{tileMode === 'osm' ? '🛰️ Vệ tinh' : '🗺️ Bản đồ'}</span>
+          </button>
+        </div>
       </div>
 
       <div
@@ -124,10 +147,19 @@ export const MergePanel: React.FC<MergePanelProps> = ({
           <ZoomControl position="bottomright" />
 
           <TileLayer
-            attribution="&copy; OpenStreetMap contributors &copy; CARTO"
-            url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
-            subdomains="abcd"
-            maxNativeZoom={19}
+            key={tileMode}
+            attribution={
+              tileMode === 'satellite'
+                ? 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
+                : '&copy; OpenStreetMap contributors &copy; CARTO'
+            }
+            url={
+              tileMode === 'satellite'
+                ? 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+                : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png'
+            }
+            subdomains={tileMode === 'satellite' ? undefined : 'abcd'}
+            maxNativeZoom={tileMode === 'satellite' ? 19 : 19}
             maxZoom={22}
           />
 
