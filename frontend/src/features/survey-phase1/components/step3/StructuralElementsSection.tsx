@@ -254,7 +254,7 @@ export const StructuralElementsSection: React.FC<StructuralElementsSectionProps>
             </Button>
           </div>
         ) : activeElement ? (
-          <div id="step3-active-element-card" className="p-4 bg-amber-50/30 rounded-xl border border-amber-200 space-y-4">
+          <div id="step3-active-element-card" className="p-3 sm:p-4 bg-amber-50/20 rounded-2xl border border-amber-200/80 space-y-3.5">
             {/* Header card E */}
             <div className="flex items-center justify-between pb-2 border-b border-amber-200">
               <div className="flex items-center gap-2">
@@ -376,7 +376,7 @@ export const StructuralElementsSection: React.FC<StructuralElementsSectionProps>
             </div>
 
             {/* Chụp nhiều ảnh tổng quan cấu kiện E */}
-            <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-2.5">
+            <div className="p-2.5 sm:p-3 bg-white rounded-xl border border-amber-200/60 space-y-2.5 shadow-2xs">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Camera className="w-4 h-4 text-amber-700" />
@@ -433,13 +433,13 @@ export const StructuralElementsSection: React.FC<StructuralElementsSectionProps>
                     photoType: 'CTX',
                     photoIndex: (activeElement.overviewPhotos?.length || 0) + 1,
                   }}
-                  height="85px"
+                  height="100px"
                 />
               </div>
             </div>
 
             {/* Tùy chọn Có hư hỏng khuyết tật kết cấu */}
-            <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-3">
+            <div className="p-2.5 sm:p-3 bg-white rounded-xl border border-amber-200/60 space-y-3 shadow-2xs">
               <div className="flex items-center justify-between">
                 <label className="flex items-center gap-2 cursor-pointer select-none">
                   <input
@@ -456,7 +456,7 @@ export const StructuralElementsSection: React.FC<StructuralElementsSectionProps>
                           activeElement.ctxPhotoUrl || activeElement.overviewPhotos?.[0] || '',
                       });
                     }}
-                    className="rounded text-red-600 focus:ring-red-500"
+                    className="w-4 h-4 rounded text-red-600 focus:ring-red-500"
                   />
                   <span className="text-xs font-bold text-red-700">
                     Cấu kiện {activeElement.elementCode} CÓ nứt kết cấu / trơ thép / võng cần ghi sổ D-xx
@@ -467,7 +467,7 @@ export const StructuralElementsSection: React.FC<StructuralElementsSectionProps>
               {/* Nếu CÓ hư hỏng kết cấu: Hiển thị Canvas ghim */}
               {(activeElement.hasDamage ||
                 (activeElement.defects && activeElement.defects.length > 0)) && (
-                <div className="p-3 bg-red-50/50 rounded-xl border border-red-200 space-y-2.5">
+                <div className="p-2.5 sm:p-3 bg-red-50/40 rounded-xl border border-red-200 space-y-2.5">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                     <div>
                       <span className="text-xs font-bold text-slate-800 block">
@@ -500,7 +500,7 @@ export const StructuralElementsSection: React.FC<StructuralElementsSectionProps>
                     orientationHint="Khuyến nghị: Chụp ảnh bao quát toàn bộ cấu kiện chịu lực"
                     annotationTitle={`Vẽ & Ghi chú trên ảnh bối cảnh Cấu kiện ${activeElement.elementCode}`}
                     watermarkText={`STRUCTURAL | ${activeElement.elementCode}`}
-                    height="130px"
+                    height="140px"
                   />
                 </div>
               )}

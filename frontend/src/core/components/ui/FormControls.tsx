@@ -7,6 +7,7 @@ export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> 
   error?: string;
   hint?: string;
   icon?: React.ReactNode;
+  statusHighlight?: boolean;
 }
 
 export const Input: React.FC<InputProps> = ({
@@ -16,9 +17,21 @@ export const Input: React.FC<InputProps> = ({
   icon,
   className,
   id,
+  statusHighlight = true,
   ...props
 }) => {
   const inputId = id || (label ? label.toLowerCase().replace(/\s+/g, '-') : undefined);
+  const isSpecialType = props.type === 'hidden' || props.type === 'checkbox' || props.type === 'radio';
+  const hasValue = props.value !== undefined && props.value !== null && String(props.value).trim() !== '';
+  const shouldHighlight = statusHighlight && !props.disabled && !isSpecialType && !props.readOnly;
+
+  const borderClass = error
+    ? 'border-red-400 focus:border-red-500 focus:ring-red-500/20 bg-red-50/10'
+    : shouldHighlight
+      ? hasValue
+        ? 'border-emerald-500 bg-emerald-50/10 text-slate-900 focus:border-emerald-600 focus:ring-emerald-500/20 shadow-2xs'
+        : 'border-amber-400 bg-amber-50/25 text-slate-800 focus:border-amber-500 focus:ring-amber-500/20 shadow-2xs'
+      : 'border-slate-200 focus:border-emerald-500 focus:ring-emerald-500/20';
 
   return (
     <div className="w-full">
@@ -36,9 +49,9 @@ export const Input: React.FC<InputProps> = ({
         <input
           id={inputId}
           className={clsx(
-            'w-full rounded-xl border bg-white px-3.5 py-2.5 text-sm text-slate-800 placeholder-slate-400 transition-all focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 shadow-sm disabled:bg-slate-50 disabled:text-slate-400',
+            'w-full rounded-xl border px-3.5 py-2.5 text-sm text-slate-800 placeholder-slate-400 transition-all focus:outline-none focus:ring-2 shadow-sm disabled:bg-slate-50 disabled:text-slate-400',
             icon && 'pl-9',
-            error ? 'border-red-300 focus:border-red-500 focus:ring-red-500/20' : 'border-slate-200',
+            borderClass,
             className
           )}
           {...props}
@@ -56,6 +69,7 @@ export interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElemen
   error?: string;
   hint?: string;
   options?: { value: string | number; label: string }[];
+  statusHighlight?: boolean;
 }
 
 export const Select: React.FC<SelectProps> = ({
@@ -66,6 +80,7 @@ export const Select: React.FC<SelectProps> = ({
   children,
   className,
   id,
+  statusHighlight = true,
   ...props
 }) => {
   const selectId = id || (label ? label.toLowerCase().replace(/\s+/g, '-') : undefined);
@@ -74,6 +89,17 @@ export const Select: React.FC<SelectProps> = ({
   const currentValue = props.value as string | undefined;
   const valueExistsInOptions = !options || !currentValue || currentValue === ''
     || options.some(opt => String(opt.value) === String(currentValue));
+
+  const hasValue = currentValue !== undefined && currentValue !== null && String(currentValue).trim() !== '';
+  const shouldHighlight = statusHighlight && !props.disabled;
+
+  const borderClass = error
+    ? 'border-red-400 focus:border-red-500 focus:ring-red-500/20 bg-red-50/10'
+    : shouldHighlight
+      ? hasValue
+        ? 'border-emerald-500 bg-emerald-50/10 text-slate-900 focus:border-emerald-600 focus:ring-emerald-500/20 shadow-2xs'
+        : 'border-amber-400 bg-amber-50/25 text-slate-800 focus:border-amber-500 focus:ring-amber-500/20 shadow-2xs'
+      : 'border-slate-200 focus:border-emerald-500 focus:ring-emerald-500/20';
 
   return (
     <div className="w-full">
@@ -85,8 +111,8 @@ export const Select: React.FC<SelectProps> = ({
       <select
         id={selectId}
         className={clsx(
-          'w-full rounded-xl border bg-white px-3.5 py-2.5 text-sm text-slate-800 transition-all focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 shadow-sm disabled:bg-slate-50 disabled:text-slate-400',
-          error ? 'border-red-300 focus:border-red-500 focus:ring-red-500/20' : 'border-slate-200',
+          'w-full rounded-xl border px-3.5 py-2.5 text-sm text-slate-800 transition-all focus:outline-none focus:ring-2 shadow-sm disabled:bg-slate-50 disabled:text-slate-400',
+          borderClass,
           className
         )}
         {...props}
@@ -118,6 +144,7 @@ export interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextArea
   label?: string;
   error?: string;
   hint?: string;
+  statusHighlight?: boolean;
 }
 
 export const Textarea: React.FC<TextareaProps> = ({
@@ -127,9 +154,20 @@ export const Textarea: React.FC<TextareaProps> = ({
   className,
   id,
   rows = 3,
+  statusHighlight = true,
   ...props
 }) => {
   const textareaId = id || (label ? label.toLowerCase().replace(/\s+/g, '-') : undefined);
+  const hasValue = props.value !== undefined && props.value !== null && String(props.value).trim() !== '';
+  const shouldHighlight = statusHighlight && !props.disabled && !props.readOnly;
+
+  const borderClass = error
+    ? 'border-red-400 focus:border-red-500 focus:ring-red-500/20 bg-red-50/10'
+    : shouldHighlight
+      ? hasValue
+        ? 'border-emerald-500 bg-emerald-50/10 text-slate-900 focus:border-emerald-600 focus:ring-emerald-500/20 shadow-2xs'
+        : 'border-amber-400 bg-amber-50/25 text-slate-800 focus:border-amber-500 focus:ring-amber-500/20 shadow-2xs'
+      : 'border-slate-200 focus:border-emerald-500 focus:ring-emerald-500/20';
 
   return (
     <div className="w-full">
@@ -142,8 +180,8 @@ export const Textarea: React.FC<TextareaProps> = ({
         id={textareaId}
         rows={rows}
         className={clsx(
-          'w-full rounded-xl border bg-white px-3.5 py-2.5 text-sm text-slate-800 placeholder-slate-400 transition-all focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 shadow-sm disabled:bg-slate-50 disabled:text-slate-400',
-          error ? 'border-red-300 focus:border-red-500 focus:ring-red-500/20' : 'border-slate-200',
+          'w-full rounded-xl border px-3.5 py-2.5 text-sm text-slate-800 placeholder-slate-400 transition-all focus:outline-none focus:ring-2 shadow-sm disabled:bg-slate-50 disabled:text-slate-400',
+          borderClass,
           className
         )}
         {...props}

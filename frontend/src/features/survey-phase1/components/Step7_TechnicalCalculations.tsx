@@ -16,6 +16,34 @@ export const Step7_TechnicalCalculations: React.FC = () => {
 
   const gateResult = verifyDataCompletenessGate(formData);
 
+  const [ecsScoreStr, setEcsScoreStr] = React.useState<string>(() => {
+    return ecs.engineeringJudgement?.adjustedScore !== undefined
+      ? String(ecs.engineeringJudgement.adjustedScore)
+      : String(ecs.totalEcs);
+  });
+
+  const [viScoreStr, setViScoreStr] = React.useState<string>(() => {
+    return vi.engineeringJudgement?.adjustedScore !== undefined
+      ? String(vi.engineeringJudgement.adjustedScore)
+      : String(vi.totalVi);
+  });
+
+  React.useEffect(() => {
+    if (ecs.engineeringJudgement?.adjustedScore !== undefined) {
+      setEcsScoreStr(String(ecs.engineeringJudgement.adjustedScore));
+    } else {
+      setEcsScoreStr(String(ecs.totalEcs));
+    }
+  }, [ecs.engineeringJudgement?.adjustedScore, ecs.totalEcs]);
+
+  React.useEffect(() => {
+    if (vi.engineeringJudgement?.adjustedScore !== undefined) {
+      setViScoreStr(String(vi.engineeringJudgement.adjustedScore));
+    } else {
+      setViScoreStr(String(vi.totalVi));
+    }
+  }, [vi.engineeringJudgement?.adjustedScore, vi.totalVi]);
+
   return (
     <div className="space-y-6 max-w-5xl mx-auto pb-12">
       {/* 1. CỔNG KIỂM TRA ĐỦ DỮ LIỆU (DATA COMPLETENESS GATE) */}
@@ -456,25 +484,50 @@ export const Step7_TechnicalCalculations: React.FC = () => {
                 </div>
                 <div className="flex items-center gap-2">
                   <Input
-                    type="number"
-                    min={0}
-                    max={24}
-                    value={ecs.engineeringJudgement.adjustedScore !== undefined ? ecs.engineeringJudgement.adjustedScore : ecs.totalEcs}
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    placeholder="Nhập điểm ECS (0 - 24)..."
+                    value={ecsScoreStr}
                     onChange={(e) => {
-                      const score = Math.max(0, Math.min(24, Number(e.target.value) || 0));
-                      const adjClass = score >= 17 ? 'CRITICAL' : score >= 11 ? 'DEFICIENT' : score >= 6 ? 'MEDIUM' : 'GOOD';
-                      updateFormData({
-                        ecs: {
-                          ...ecs,
-                          engineeringJudgement: {
-                            ...ecs.engineeringJudgement,
-                            initialScore: ecs.totalEcs,
-                            initialClass: ecs.ecsClass,
-                            adjustedScore: score,
-                            adjustedClass: adjClass,
+                      const raw = e.target.value;
+                      if (raw === '' || /^\d+$/.test(raw)) {
+                        setEcsScoreStr(raw);
+                        if (raw !== '') {
+                          const parsed = parseInt(raw, 10);
+                          const score = Math.max(0, Math.min(24, parsed));
+                          const adjClass = score >= 17 ? 'CRITICAL' : score >= 11 ? 'DEFICIENT' : score >= 6 ? 'MEDIUM' : 'GOOD';
+                          updateFormData({
+                            ecs: {
+                              ...ecs,
+                              engineeringJudgement: {
+                                ...ecs.engineeringJudgement,
+                                initialScore: ecs.totalEcs,
+                                initialClass: ecs.ecsClass,
+                                adjustedScore: score,
+                                adjustedClass: adjClass,
+                              },
+                            },
+                          });
+                        }
+                      }
+                    }}
+                    onBlur={() => {
+                      if (ecsScoreStr === '') {
+                        const fallback = ecs.totalEcs;
+                        setEcsScoreStr(String(fallback));
+                        const adjClass = fallback >= 17 ? 'CRITICAL' : fallback >= 11 ? 'DEFICIENT' : fallback >= 6 ? 'MEDIUM' : 'GOOD';
+                        updateFormData({
+                          ecs: {
+                            ...ecs,
+                            engineeringJudgement: {
+                              ...ecs.engineeringJudgement,
+                              adjustedScore: fallback,
+                              adjustedClass: adjClass,
+                            },
                           },
-                        },
-                      });
+                        });
+                      }
                     }}
                   />
                   <Badge variant={
@@ -784,25 +837,50 @@ export const Step7_TechnicalCalculations: React.FC = () => {
                 </div>
                 <div className="flex items-center gap-2">
                   <Input
-                    type="number"
-                    min={6}
-                    max={24}
-                    value={vi.engineeringJudgement.adjustedScore !== undefined ? vi.engineeringJudgement.adjustedScore : vi.totalVi}
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    placeholder="Nhập điểm VI (6 - 24)..."
+                    value={viScoreStr}
                     onChange={(e) => {
-                      const score = Math.max(6, Math.min(24, Number(e.target.value) || 6));
-                      const adjClass = score >= 21 ? 'VERY_HIGH' : score >= 16 ? 'HIGH' : score >= 11 ? 'MEDIUM' : 'LOW';
-                      updateFormData({
-                        vi: {
-                          ...vi,
-                          engineeringJudgement: {
-                            ...vi.engineeringJudgement,
-                            initialScore: vi.totalVi,
-                            initialClass: vi.viClass,
-                            adjustedScore: score,
-                            adjustedClass: adjClass,
+                      const raw = e.target.value;
+                      if (raw === '' || /^\d+$/.test(raw)) {
+                        setViScoreStr(raw);
+                        if (raw !== '') {
+                          const parsed = parseInt(raw, 10);
+                          const score = Math.max(6, Math.min(24, parsed));
+                          const adjClass = score >= 21 ? 'VERY_HIGH' : score >= 16 ? 'HIGH' : score >= 11 ? 'MEDIUM' : 'LOW';
+                          updateFormData({
+                            vi: {
+                              ...vi,
+                              engineeringJudgement: {
+                                ...vi.engineeringJudgement,
+                                initialScore: vi.totalVi,
+                                initialClass: vi.viClass,
+                                adjustedScore: score,
+                                adjustedClass: adjClass,
+                              },
+                            },
+                          });
+                        }
+                      }
+                    }}
+                    onBlur={() => {
+                      if (viScoreStr === '') {
+                        const fallback = vi.totalVi;
+                        setViScoreStr(String(fallback));
+                        const adjClass = fallback >= 21 ? 'VERY_HIGH' : fallback >= 16 ? 'HIGH' : fallback >= 11 ? 'MEDIUM' : 'LOW';
+                        updateFormData({
+                          vi: {
+                            ...vi,
+                            engineeringJudgement: {
+                              ...vi.engineeringJudgement,
+                              adjustedScore: fallback,
+                              adjustedClass: adjClass,
+                            },
                           },
-                        },
-                      });
+                        });
+                      }
                     }}
                   />
                   <Badge variant={

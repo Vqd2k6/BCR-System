@@ -300,7 +300,7 @@ export const FacadePolygonCanvas: React.FC<FacadePolygonCanvasProps> = ({
     <div className="flex flex-col h-full gap-2">
       {/* Top Toolbar */}
       {!readOnly && (
-        <div className="flex flex-col gap-2 p-2.5 rounded-xl bg-slate-900/95 border border-white/10 text-xs">
+        <div className="flex flex-col gap-2 p-2 sm:p-2.5 rounded-xl bg-white border border-slate-200/90 shadow-2xs text-xs text-slate-700">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div className="flex items-center gap-1.5 flex-wrap">
               <button
@@ -309,8 +309,10 @@ export const FacadePolygonCanvas: React.FC<FacadePolygonCanvasProps> = ({
                   setActiveTool('POLYGON');
                   setPendingLineStart(null);
                 }}
-                className={`px-2.5 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-colors ${
-                  activeTool === 'POLYGON' ? 'bg-sky-600 text-white' : 'text-slate-300 hover:bg-slate-800'
+                className={`px-2.5 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-colors cursor-pointer ${
+                  activeTool === 'POLYGON'
+                    ? 'bg-sky-600 text-white shadow-xs'
+                    : 'text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200'
                 }`}
               >
                 <Dot className="w-4 h-4 text-red-500" />
@@ -320,11 +322,13 @@ export const FacadePolygonCanvas: React.FC<FacadePolygonCanvasProps> = ({
               <button
                 type="button"
                 onClick={() => setActiveTool('SPLIT_LINE')}
-                className={`px-2.5 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-colors ${
-                  activeTool === 'SPLIT_LINE' ? 'bg-sky-600 text-white' : 'text-slate-300 hover:bg-slate-800'
+                className={`px-2.5 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-colors cursor-pointer ${
+                  activeTool === 'SPLIT_LINE'
+                    ? 'bg-sky-600 text-white shadow-xs'
+                    : 'text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200'
                 }`}
               >
-                <Minus className="w-4 h-4 text-amber-400" />
+                <Minus className="w-4 h-4 text-amber-500" />
                 <span>Line phân tầng ({splitLines.length})</span>
               </button>
 
@@ -334,11 +338,13 @@ export const FacadePolygonCanvas: React.FC<FacadePolygonCanvasProps> = ({
                   setActiveTool('FREEHAND');
                   setPendingLineStart(null);
                 }}
-                className={`px-2.5 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-colors ${
-                  activeTool === 'FREEHAND' ? 'bg-sky-600 text-white' : 'text-slate-300 hover:bg-slate-800'
+                className={`px-2.5 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-colors cursor-pointer ${
+                  activeTool === 'FREEHAND'
+                    ? 'bg-sky-600 text-white shadow-xs'
+                    : 'text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200'
                 }`}
               >
-                <PenTool className="w-3.5 h-3.5 text-yellow-400" />
+                <PenTool className="w-3.5 h-3.5 text-yellow-600" />
                 <span>Vẽ note tay ({strokes.length})</span>
               </button>
 
@@ -349,11 +355,13 @@ export const FacadePolygonCanvas: React.FC<FacadePolygonCanvasProps> = ({
                   setPendingLineStart(null);
                 }}
                 className={`px-2 sm:px-2.5 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-colors cursor-pointer ${
-                  activeTool === 'PAN' ? 'bg-amber-600 text-white shadow-xs' : 'text-slate-300 hover:bg-slate-800'
+                  activeTool === 'PAN'
+                    ? 'bg-amber-600 text-white shadow-xs'
+                    : 'text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200'
                 }`}
                 title="Kéo & di chuyển toàn bộ ảnh khi phóng to"
               >
-                <Hand className="w-3.5 h-3.5 text-amber-300" />
+                <Hand className="w-3.5 h-3.5 text-amber-500" />
                 <span>Kéo ảnh</span>
               </button>
             </div>
@@ -365,7 +373,7 @@ export const FacadePolygonCanvas: React.FC<FacadePolygonCanvasProps> = ({
                   type="button"
                   onClick={removeLastPoint}
                   title="Xóa điểm đa giác cuối"
-                  className="p-1.5 bg-slate-800 text-white hover:bg-slate-700 rounded-lg"
+                  className="p-1.5 bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200 rounded-lg cursor-pointer"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
                 </button>
@@ -376,7 +384,7 @@ export const FacadePolygonCanvas: React.FC<FacadePolygonCanvasProps> = ({
                   type="button"
                   onClick={removeLastLine}
                   title="Xóa đường phân tầng cuối"
-                  className="p-1.5 bg-slate-800 text-white hover:bg-slate-700 rounded-lg"
+                  className="p-1.5 bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200 rounded-lg cursor-pointer"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
                 </button>
@@ -387,7 +395,7 @@ export const FacadePolygonCanvas: React.FC<FacadePolygonCanvasProps> = ({
                   type="button"
                   onClick={removeLastStroke}
                   title="Xóa nét vẽ tay cuối"
-                  className="p-1.5 bg-slate-800 text-white hover:bg-slate-700 rounded-lg"
+                  className="p-1.5 bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200 rounded-lg cursor-pointer"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
                 </button>
@@ -398,7 +406,7 @@ export const FacadePolygonCanvas: React.FC<FacadePolygonCanvasProps> = ({
                   type="button"
                   onClick={resetAll}
                   title="Xóa tất cả"
-                  className="p-1.5 bg-red-600 text-white hover:bg-red-700 rounded-lg"
+                  className="p-1.5 bg-red-50 text-red-600 hover:bg-red-600 hover:text-white border border-red-200 rounded-lg transition-colors cursor-pointer"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
@@ -409,7 +417,7 @@ export const FacadePolygonCanvas: React.FC<FacadePolygonCanvasProps> = ({
                 <button
                   type="button"
                   onClick={handleSaveExplicit}
-                  className="px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 bg-emerald-600 text-white hover:bg-emerald-700 transition-colors shadow-sm ml-1"
+                  className="px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 bg-emerald-600 text-white hover:bg-emerald-700 transition-colors shadow-sm ml-1 cursor-pointer"
                 >
                   <Check className="w-3.5 h-3.5" />
                   <span>Lưu & Đóng</span>
@@ -420,14 +428,14 @@ export const FacadePolygonCanvas: React.FC<FacadePolygonCanvasProps> = ({
 
           {/* Sub-toolbar for SPLIT_LINE options */}
           {activeTool === 'SPLIT_LINE' && (
-            <div className="flex items-center justify-between flex-wrap gap-2 pt-2 border-t border-slate-800 text-[11px]">
+            <div className="flex items-center justify-between flex-wrap gap-2 pt-2 border-t border-slate-200 text-[11px] text-slate-600">
               <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="text-slate-400 font-semibold">Loại line tiếp theo:</span>
+                <span className="text-slate-600 font-semibold">Loại line tiếp theo:</span>
                 <button
                   type="button"
                   onClick={() => setActiveLineType('GROUND')}
-                  className={`px-2 py-0.5 rounded transition-colors ${
-                    activeLineType === 'GROUND' ? 'bg-amber-500 text-slate-950 font-bold' : 'bg-slate-800 text-slate-300'
+                  className={`px-2 py-0.5 rounded transition-colors cursor-pointer ${
+                    activeLineType === 'GROUND' ? 'bg-amber-500 text-white font-bold shadow-2xs' : 'bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200'
                   }`}
                 >
                   Line tầng trệt
@@ -435,8 +443,8 @@ export const FacadePolygonCanvas: React.FC<FacadePolygonCanvasProps> = ({
                 <button
                   type="button"
                   onClick={() => setActiveLineType('MEZZANINE')}
-                  className={`px-2 py-0.5 rounded transition-colors ${
-                    activeLineType === 'MEZZANINE' ? 'bg-amber-500 text-slate-950 font-bold' : 'bg-slate-800 text-slate-300'
+                  className={`px-2 py-0.5 rounded transition-colors cursor-pointer ${
+                    activeLineType === 'MEZZANINE' ? 'bg-amber-500 text-white font-bold shadow-2xs' : 'bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200'
                   }`}
                 >
                   Line tầng lửng
@@ -444,8 +452,8 @@ export const FacadePolygonCanvas: React.FC<FacadePolygonCanvasProps> = ({
                 <button
                   type="button"
                   onClick={() => setActiveLineType('FLOOR')}
-                  className={`px-2 py-0.5 rounded transition-colors ${
-                    activeLineType === 'FLOOR' ? 'bg-amber-500 text-slate-950 font-bold' : 'bg-slate-800 text-slate-300'
+                  className={`px-2 py-0.5 rounded transition-colors cursor-pointer ${
+                    activeLineType === 'FLOOR' ? 'bg-amber-500 text-white font-bold shadow-2xs' : 'bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200'
                   }`}
                 >
                   {getFloorName('FLOOR')}
@@ -453,8 +461,8 @@ export const FacadePolygonCanvas: React.FC<FacadePolygonCanvasProps> = ({
                 <button
                   type="button"
                   onClick={() => setActiveLineType('ROOF')}
-                  className={`px-2 py-0.5 rounded transition-colors ${
-                    activeLineType === 'ROOF' ? 'bg-amber-500 text-slate-950 font-bold' : 'bg-slate-800 text-slate-300'
+                  className={`px-2 py-0.5 rounded transition-colors cursor-pointer ${
+                    activeLineType === 'ROOF' ? 'bg-amber-500 text-white font-bold shadow-2xs' : 'bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200'
                   }`}
                 >
                   Line mái / Sân thượng
@@ -463,20 +471,20 @@ export const FacadePolygonCanvas: React.FC<FacadePolygonCanvasProps> = ({
 
               <div className="flex items-center gap-2">
                 {pendingLineStart ? (
-                  <span className="text-amber-300 font-bold flex items-center gap-1">
-                    <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping inline-block" />
+                  <span className="text-amber-700 font-bold flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping inline-block" />
                     Chấm điểm 2 để nối line...
                     <button
                       type="button"
                       onClick={() => setPendingLineStart(null)}
-                      className="ml-1 p-0.5 text-slate-400 hover:text-white"
+                      className="ml-1 p-0.5 text-slate-500 hover:text-slate-800"
                       title="Hủy điểm đầu"
                     >
                       <X className="w-3 h-3 inline" />
                     </button>
                   </span>
                 ) : (
-                  <span className="text-slate-400 italic">
+                  <span className="text-slate-500 italic">
                     * Chấm 2 đầu của dầm/sàn để nối thành 1 line (hỗ trợ góc chụp nghiêng)
                   </span>
                 )}
@@ -487,7 +495,7 @@ export const FacadePolygonCanvas: React.FC<FacadePolygonCanvasProps> = ({
       )}
 
       {/* Interactive Canvas Viewport - Scales cleanly for 9:16 portrait or 4:3 */}
-      <div className="flex-1 w-full min-h-0 relative overflow-hidden rounded-xl bg-slate-950 border border-slate-700/80 flex items-center justify-center select-none">
+      <div className="flex-1 w-full min-h-0 relative overflow-hidden rounded-xl bg-slate-100/90 border border-slate-300/80 flex items-center justify-center select-none shadow-inner">
         <div
           ref={canvasContainerRef}
           onPointerDown={handlePointerDown}
@@ -646,18 +654,18 @@ export const FacadePolygonCanvas: React.FC<FacadePolygonCanvasProps> = ({
         </div>
 
         {/* Floating Zoom & Pan Controls Widget */}
-        <div className="absolute bottom-3 right-3 z-30 flex items-center gap-1 bg-slate-900/90 text-white backdrop-blur-md border border-slate-700/80 p-1 rounded-xl shadow-2xl select-none">
+        <div className="absolute bottom-3 right-3 z-30 flex items-center gap-1 bg-white/95 text-slate-800 backdrop-blur-md border border-slate-200 p-1 rounded-xl shadow-lg select-none">
           <button
             type="button"
             onClick={handleZoomOut}
             disabled={zoom <= 1}
-            className="p-1.5 rounded-lg hover:bg-slate-800 disabled:opacity-30 disabled:pointer-events-none text-slate-200 hover:text-white transition-colors cursor-pointer"
+            className="p-1.5 rounded-lg hover:bg-slate-100 disabled:opacity-30 disabled:pointer-events-none text-slate-700 transition-colors cursor-pointer"
             title="Thu nhỏ (Zoom -)"
           >
             <ZoomOut className="w-4 h-4" />
           </button>
 
-          <span className="px-1.5 font-mono text-[11px] font-bold min-w-[38px] text-center text-sky-400">
+          <span className="px-1.5 font-mono text-[11px] font-bold min-w-[38px] text-center text-sky-600">
             {Math.round(zoom * 100)}%
           </span>
 
@@ -665,7 +673,7 @@ export const FacadePolygonCanvas: React.FC<FacadePolygonCanvasProps> = ({
             type="button"
             onClick={handleZoomIn}
             disabled={zoom >= 4}
-            className="p-1.5 rounded-lg hover:bg-slate-800 disabled:opacity-30 disabled:pointer-events-none text-slate-200 hover:text-white transition-colors cursor-pointer"
+            className="p-1.5 rounded-lg hover:bg-slate-100 disabled:opacity-30 disabled:pointer-events-none text-slate-700 transition-colors cursor-pointer"
             title="Phóng to (Zoom +)"
           >
             <ZoomIn className="w-4 h-4" />
@@ -675,17 +683,13 @@ export const FacadePolygonCanvas: React.FC<FacadePolygonCanvasProps> = ({
             <button
               type="button"
               onClick={handleResetZoom}
-              className="p-1.5 rounded-lg hover:bg-slate-800 text-amber-400 hover:text-amber-300 transition-colors cursor-pointer ml-0.5 border-l border-slate-700 pl-2"
+              className="p-1.5 rounded-lg hover:bg-slate-100 text-amber-600 hover:text-amber-700 transition-colors cursor-pointer ml-0.5 border-l border-slate-200 pl-2"
               title="Vừa vặn khung hình 100% (Fit)"
             >
               <Maximize2 className="w-3.5 h-3.5" />
             </button>
           )}
         </div>
-      </div>
-
-      <div className="text-[11px] text-slate-500 italic text-center">
-        * Chấm các điểm đỉnh đa giác góc nhà ($N \ge 3$), chấm 2 đầu để kẻ line phân tầng theo góc nghiêng, hoặc chọn <strong>Vẽ note tay</strong>. Nhấn <strong>Lưu & Đóng</strong> khi hoàn tất.
       </div>
     </div>
   );

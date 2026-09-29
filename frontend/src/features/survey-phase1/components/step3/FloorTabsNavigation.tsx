@@ -68,29 +68,7 @@ export const FloorTabsNavigation: React.FC<FloorTabsNavigationProps> = ({
           </p>
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
-          <Button
-            size="sm"
-            variant="outline"
-            icon={<Edit2 className="w-3.5 h-3.5" />}
-            onClick={() => startEditing(activeFloorIndex, currentActiveFloor?.floorName || '')}
-            title="Đổi tên tầng đang chọn"
-          >
-            Đổi Tên Tầng
-          </Button>
-
-          {floors.length > 1 && (
-            <Button
-              size="sm"
-              variant="danger"
-              icon={<Trash2 className="w-3.5 h-3.5" />}
-              onClick={() => handleDelete(activeFloorIndex)}
-              title="Xóa tầng đang chọn"
-            >
-              Xóa Tầng
-            </Button>
-          )}
-
+        <div className="flex items-center gap-2 shrink-0">
           <Button size="sm" icon={<Plus className="w-4 h-4" />} onClick={onAddFloor}>
             Thêm Tầng Mới
           </Button>

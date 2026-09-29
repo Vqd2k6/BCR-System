@@ -55,7 +55,7 @@ export const Step1PolygonModal: React.FC<Step1PolygonModalProps> = ({
             <X className="w-4 h-4 sm:w-5 sm:h-5" />
           </button>
         </div>
-        <div className="flex-1 overflow-hidden p-1.5 sm:p-3 bg-slate-900 flex flex-col min-h-0">
+        <div className="flex-1 overflow-hidden p-1.5 sm:p-3 bg-slate-50 flex flex-col min-h-0 border-t border-slate-200">
           <FacadePolygonCanvas
             imageUrl={photoP02Url}
             polygonPoints={polygonPoints}

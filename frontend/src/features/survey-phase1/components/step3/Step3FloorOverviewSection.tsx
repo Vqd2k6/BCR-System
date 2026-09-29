@@ -138,7 +138,7 @@ export const Step3FloorOverviewSection: React.FC<Step3FloorOverviewSectionProps>
         ))}
 
         {/* Nút chụp thêm ảnh tổng quan */}
-        <div className="rounded-xl border-2 border-dashed border-emerald-300 bg-emerald-50/20 p-2 flex flex-col justify-center min-h-[170px]">
+        <div className="flex flex-col justify-center">
           <PhotoCaptureInput
             label={photos.length === 0 ? 'Chụp ảnh tổng quan tầng *' : 'Chụp thêm ảnh tổng quan'}
             value=""
@@ -149,7 +149,7 @@ export const Step3FloorOverviewSection: React.FC<Step3FloorOverviewSectionProps>
               photoType: 'OVERVIEW',
               photoIndex: photos.length + 1,
             }}
-            height="145px"
+            height="150px"
             recommendedOrientation="landscape"
             orientationHint="Khuyến nghị xoay ngang điện thoại để chụp rộng toàn cảnh tầng"
           />

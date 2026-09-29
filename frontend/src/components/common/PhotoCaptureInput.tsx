@@ -833,101 +833,123 @@ export const PhotoCaptureInput: React.FC<Props> = ({
         </div>
       ) : (
         /* Empty State with direct Camera, Live Camera, and Gallery options */
-        <div
-          style={{
-            width: '100%',
-            height,
-            border: '2px dashed #cbd5e1',
-            borderRadius: '0.65rem',
-            backgroundColor: '#f8fafc',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '0.65rem',
-            padding: '1rem',
-          }}
-        >
-          <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600, textAlign: 'center' }}>
-            {label ? `Chụp hoặc tải ảnh cho ${label}` : 'Chưa có ảnh'}
-          </div>
+        (() => {
+          const isCompact = typeof height === 'number' ? height <= 125 : parseInt(String(height), 10) <= 125;
+          return (
+            <div
+              style={{
+                width: '100%',
+                minHeight: height,
+                height: 'auto',
+                border: '1.5px dashed #cbd5e1',
+                borderRadius: '0.65rem',
+                backgroundColor: '#f8fafc',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: isCompact ? '0.35rem' : '0.65rem',
+                padding: isCompact ? '0.45rem' : '0.85rem 1rem',
+                boxSizing: 'border-box',
+                overflow: 'hidden',
+              }}
+            >
+              {label && (
+                <div
+                  style={{
+                    fontSize: isCompact ? '0.7rem' : '0.75rem',
+                    color: '#64748b',
+                    fontWeight: 600,
+                    textAlign: 'center',
+                    lineHeight: 1.2,
+                  }}
+                >
+                  {label}
+                </div>
+              )}
 
-          {orientationHint && (
-            <div style={{ fontSize: '0.7rem', color: '#0369a1', fontStyle: 'italic', textAlign: 'center' }}>
-              {orientationHint}
+              {orientationHint && !isCompact && (
+                <div style={{ fontSize: '0.7rem', color: '#0369a1', fontStyle: 'italic', textAlign: 'center' }}>
+                  {orientationHint}
+                </div>
+              )}
+
+              <div style={{ display: 'flex', gap: isCompact ? '0.25rem' : '0.5rem', flexWrap: 'wrap', justifyContent: 'center' }}>
+                {/* Direct Hardware Camera trigger via Label */}
+                <label
+                  htmlFor={cameraInputId}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: isCompact ? '0.25rem' : '0.4rem',
+                    padding: isCompact ? '0.25rem 0.45rem' : '0.45rem 0.85rem',
+                    fontWeight: 700,
+                    backgroundColor: '#059669',
+                    color: '#ffffff',
+                    borderRadius: '0.45rem',
+                    cursor: 'pointer',
+                    fontSize: isCompact ? '0.68rem' : '0.75rem',
+                    boxShadow: '0 1px 3px rgba(5, 150, 105, 0.25)',
+                    userSelect: 'none',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  <Camera size={isCompact ? 13 : 15} />
+                  <span>{isCompact ? 'Camera' : 'Chụp Camera'}</span>
+                </label>
+
+                {/* In-app live camera modal button */}
+                <button
+                  type="button"
+                  onClick={() => setIsLiveCameraOpen(true)}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: isCompact ? '0.25rem' : '0.4rem',
+                    padding: isCompact ? '0.25rem 0.45rem' : '0.45rem 0.85rem',
+                    fontWeight: 600,
+                    backgroundColor: '#0284c7',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: '0.45rem',
+                    cursor: 'pointer',
+                    fontSize: isCompact ? '0.68rem' : '0.75rem',
+                    boxShadow: '0 1px 3px rgba(2, 132, 199, 0.2)',
+                    userSelect: 'none',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  <Video size={isCompact ? 13 : 15} />
+                  <span>{isCompact ? 'Live' : 'Camera Live'}</span>
+                </button>
+
+                {/* Gallery File input trigger via Label */}
+                <label
+                  htmlFor={galleryInputId}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: isCompact ? '0.25rem' : '0.4rem',
+                    padding: isCompact ? '0.25rem 0.45rem' : '0.45rem 0.85rem',
+                    fontWeight: 600,
+                    backgroundColor: '#ffffff',
+                    color: '#334155',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: '0.45rem',
+                    cursor: 'pointer',
+                    fontSize: isCompact ? '0.68rem' : '0.75rem',
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+                    userSelect: 'none',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  <ImageIcon size={isCompact ? 13 : 15} />
+                  <span>{isCompact ? 'Chọn ảnh' : 'Chọn từ máy'}</span>
+                </label>
+              </div>
             </div>
-          )}
-
-          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'center' }}>
-            {/* Direct Hardware Camera trigger via Label */}
-            <label
-              htmlFor={cameraInputId}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.4rem',
-                padding: '0.45rem 0.85rem',
-                fontWeight: 700,
-                backgroundColor: '#059669',
-                color: '#ffffff',
-                borderRadius: '0.5rem',
-                cursor: 'pointer',
-                fontSize: '0.75rem',
-                boxShadow: '0 2px 4px rgba(5, 150, 105, 0.25)',
-                userSelect: 'none',
-              }}
-            >
-              <Camera size={15} />
-              <span>Chụp Camera</span>
-            </label>
-
-            {/* In-app live camera modal button */}
-            <button
-              type="button"
-              onClick={() => setIsLiveCameraOpen(true)}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.4rem',
-                padding: '0.45rem 0.85rem',
-                fontWeight: 600,
-                backgroundColor: '#0284c7',
-                color: '#ffffff',
-                border: 'none',
-                borderRadius: '0.5rem',
-                cursor: 'pointer',
-                fontSize: '0.75rem',
-                boxShadow: '0 2px 4px rgba(2, 132, 199, 0.2)',
-              }}
-            >
-              <Video size={15} />
-              <span>Camera Live</span>
-            </button>
-
-            {/* Gallery File input trigger via Label */}
-            <label
-              htmlFor={galleryInputId}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.4rem',
-                padding: '0.45rem 0.85rem',
-                fontWeight: 600,
-                backgroundColor: '#ffffff',
-                color: '#334155',
-                border: '1px solid #cbd5e1',
-                borderRadius: '0.5rem',
-                cursor: 'pointer',
-                fontSize: '0.75rem',
-                boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
-                userSelect: 'none',
-              }}
-            >
-              <ImageIcon size={15} />
-              <span>Chọn từ máy</span>
-            </label>
-          </div>
-        </div>
+          );
+        })()
       )}
 
       {/* Modal for image annotations */}

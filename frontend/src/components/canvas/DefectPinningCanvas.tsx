@@ -391,7 +391,7 @@ export const DefectPinningCanvas: React.FC<Props> = ({
               </label>
               <select
                 className={`w-full px-2.5 py-1.5 bg-white border rounded-lg text-xs font-medium focus:ring-1 focus:ring-emerald-500 ${
-                  !selectedDefect.screeningCategory ? 'border-amber-400 bg-amber-50/30' : 'border-slate-300'
+                  !selectedDefect.screeningCategory ? 'border-amber-400 bg-amber-50/30' : 'border-emerald-500 bg-emerald-50/15'
                 }`}
                 value={selectedDefect.screeningCategory}
                 onChange={(e) => updateSelectedDefect('screeningCategory', e.target.value)}
@@ -413,7 +413,7 @@ export const DefectPinningCanvas: React.FC<Props> = ({
                     type="text"
                     placeholder="Nhập nhóm chỉ báo tùy chỉnh..."
                     className={`w-full px-2.5 py-1.5 bg-white border rounded-lg text-xs font-medium focus:ring-1 focus:ring-emerald-500 ${
-                      !selectedDefect.customScreeningCategory?.trim() ? 'border-amber-400 bg-amber-50/30' : 'border-slate-300'
+                      !selectedDefect.customScreeningCategory?.trim() ? 'border-amber-400 bg-amber-50/30' : 'border-emerald-500 bg-emerald-50/15'
                     }`}
                     value={selectedDefect.customScreeningCategory || ''}
                     onChange={(e) => updateSelectedDefect('customScreeningCategory', e.target.value)}
@@ -429,7 +429,7 @@ export const DefectPinningCanvas: React.FC<Props> = ({
               </label>
               <select
                 className={`w-full px-2.5 py-1.5 bg-white border rounded-lg text-xs font-medium focus:ring-1 focus:ring-emerald-500 ${
-                  !selectedDefect.defectType ? 'border-amber-400 bg-amber-50/30' : 'border-slate-300'
+                  !selectedDefect.defectType ? 'border-amber-400 bg-amber-50/30' : 'border-emerald-500 bg-emerald-50/15'
                 }`}
                 value={selectedDefect.defectType}
                 onChange={(e) => updateSelectedDefect('defectType', e.target.value)}
@@ -453,7 +453,7 @@ export const DefectPinningCanvas: React.FC<Props> = ({
                   type="text"
                   placeholder="VD: Xiên 45° từ góc cửa sổ lên dầm..."
                   className={`w-full px-2.5 py-1.5 bg-white border rounded-lg text-xs focus:ring-1 focus:ring-emerald-500 ${
-                    !selectedDefect.crackDirection ? 'border-amber-400 bg-amber-50/30' : 'border-slate-300'
+                    !selectedDefect.crackDirection ? 'border-amber-400 bg-amber-50/30' : 'border-emerald-500 bg-emerald-50/15'
                   }`}
                   value={selectedDefect.crackDirection || ''}
                   onChange={(e) => updateSelectedDefect('crackDirection', e.target.value)}
@@ -476,7 +476,7 @@ export const DefectPinningCanvas: React.FC<Props> = ({
                   min="0"
                   placeholder="VD: 0.8"
                   className={`w-full px-2.5 py-1.5 bg-white border rounded-lg text-xs font-mono font-bold focus:ring-1 focus:ring-emerald-500 ${
-                    !selectedDefect.widthMaxMm ? 'border-amber-400 bg-amber-50/30' : 'border-slate-300'
+                    !selectedDefect.widthMaxMm ? 'border-amber-400 bg-amber-50/30' : 'border-emerald-500 bg-emerald-50/15'
                   }`}
                   value={selectedDefect.widthMaxMm === '' ? '' : selectedDefect.widthMaxMm}
                   onChange={(e) =>
@@ -499,7 +499,7 @@ export const DefectPinningCanvas: React.FC<Props> = ({
                   min="0"
                   placeholder="VD: 450"
                   className={`w-full px-2.5 py-1.5 bg-white border rounded-lg text-xs font-mono font-bold focus:ring-1 focus:ring-emerald-500 ${
-                    !selectedDefect.lengthMm ? 'border-amber-400 bg-amber-50/30' : 'border-slate-300'
+                    !selectedDefect.lengthMm ? 'border-amber-400 bg-amber-50/30' : 'border-emerald-500 bg-emerald-50/15'
                   }`}
                   value={selectedDefect.lengthMm === '' ? '' : selectedDefect.lengthMm}
                   onChange={(e) =>
@@ -518,7 +518,7 @@ export const DefectPinningCanvas: React.FC<Props> = ({
                 </label>
                 <select
                   className={`w-full px-2.5 py-1.5 bg-white border rounded-lg text-xs font-medium focus:ring-1 focus:ring-emerald-500 ${
-                    !selectedDefect.activityState ? 'border-amber-400 bg-amber-50/30' : 'border-slate-300'
+                    !selectedDefect.activityState ? 'border-amber-400 bg-amber-50/30' : 'border-emerald-500 bg-emerald-50/15'
                   }`}
                   value={selectedDefect.activityState}
                   onChange={(e) => updateSelectedDefect('activityState', e.target.value)}
@@ -557,8 +557,8 @@ export const DefectPinningCanvas: React.FC<Props> = ({
                   <select
                     className={`w-full px-2.5 py-1.5 bg-slate-50 border rounded-lg text-xs font-medium focus:ring-1 focus:ring-emerald-500 ${
                       selectedDefect.structuralSignificanceE2 === '' || selectedDefect.structuralSignificanceE2 === undefined
-                        ? 'border-amber-400'
-                        : 'border-slate-300'
+                        ? 'border-amber-400 bg-amber-50/30'
+                        : 'border-emerald-500 bg-emerald-50/15'
                     }`}
                     value={selectedDefect.structuralSignificanceE2 ?? ''}
                     onChange={(e) =>
@@ -598,8 +598,8 @@ export const DefectPinningCanvas: React.FC<Props> = ({
                   <select
                     className={`w-full px-2.5 py-1.5 bg-slate-50 border rounded-lg text-xs font-medium focus:ring-1 focus:ring-emerald-500 ${
                       selectedDefect.materialDegradationE4 === '' || selectedDefect.materialDegradationE4 === undefined
-                        ? 'border-amber-400'
-                        : 'border-slate-300'
+                        ? 'border-amber-400 bg-amber-50/30'
+                        : 'border-emerald-500 bg-emerald-50/15'
                     }`}
                     value={selectedDefect.materialDegradationE4 ?? ''}
                     onChange={(e) =>
@@ -643,7 +643,7 @@ export const DefectPinningCanvas: React.FC<Props> = ({
                 className={`w-full px-2.5 py-1.5 bg-slate-50 border rounded-lg text-xs font-medium focus:ring-1 focus:ring-emerald-500 ${
                   selectedDefect.functionalImpactE6 === '' || selectedDefect.functionalImpactE6 === undefined
                     ? 'border-amber-400 bg-amber-50/30'
-                    : 'border-slate-300'
+                    : 'border-emerald-500 bg-emerald-50/15'
                 }`}
                 value={selectedDefect.functionalImpactE6 === '' || selectedDefect.functionalImpactE6 === undefined ? '' : selectedDefect.functionalImpactE6}
                 onChange={(e) =>
@@ -705,7 +705,7 @@ export const DefectPinningCanvas: React.FC<Props> = ({
                 rows={4}
                 placeholder="Mô tả cụ thể vị trí, hình thái nứt, mép nứt sắc cạnh hay đã trám trét..."
                 className={`w-full px-2.5 py-1.5 bg-white border rounded-lg text-xs focus:ring-1 focus:ring-emerald-500 ${
-                  !selectedDefect.notes ? 'border-amber-400 bg-amber-50/30' : 'border-slate-300'
+                  !selectedDefect.notes ? 'border-amber-400 bg-amber-50/30' : 'border-emerald-500 bg-emerald-50/15'
                 }`}
                 value={selectedDefect.notes || ''}
                 onChange={(e) => updateSelectedDefect('notes', e.target.value)}
