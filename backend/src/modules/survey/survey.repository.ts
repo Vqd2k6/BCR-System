@@ -1007,8 +1007,12 @@ export class SurveyRepository {
 
     // 3. Phân nhánh xử lý Ô dôi dư
     if (residualKind === 'NEW_BUILDING') {
-      // NHÁNH 2: CĂN NHÀ MỚI ĐỘC LẬP -> Cấp mã B-07xxx, tạo parcel mới, gán cho KSV làm tiếp
-      const newProjectCode = await CadastralRepository.getNextHighRangeProjectCode(client);
+      // NHÁNH 2: CĂN NHÀ MỚI ĐỘC LẬP -> Cấp mã nối tiếp theo Max của Zone (Phương án 1), tạo parcel mới, gán cho KSV làm tiếp
+      const newProjectCode = await CadastralRepository.getNextHighRangeProjectCode(
+        client,
+        parent.zone_id,
+        parent.project_parcel_code
+      );
       const bHouseNumber = childB.houseNumber || (parent.house_number ? `${parent.house_number}B` : 'KĐ');
       const bOwnerName = childB.ownerName || `Chủ hộ Căn B (${newProjectCode})`;
       const bArea = childB.areaM2 ? Number(childB.areaM2) : null;

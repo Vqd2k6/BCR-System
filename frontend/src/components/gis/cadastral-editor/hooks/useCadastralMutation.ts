@@ -302,7 +302,9 @@ export const useCadastralMutation = ({
     const fetchCodes = async () => {
       try {
         setIsLoadingCodes(true);
-        const res = await api.get('/parcels/next-high-range-codes?count=4');
+        const qParcel = parcelData.id ? `&parcelId=${encodeURIComponent(parcelData.id)}` : '';
+        const qZone = parcelData.zoneId ? `&zoneId=${encodeURIComponent(parcelData.zoneId)}` : '';
+        const res = await api.get(`/parcels/next-high-range-codes?count=4${qParcel}${qZone}`);
         if (isMounted && res.data?.success && res.data.data?.codes) {
           const codes = res.data.data.codes;
           setDynamicCodes(codes);
@@ -325,7 +327,7 @@ export const useCadastralMutation = ({
                   label: isNewB ? 'Căn B (Nhà mới độc lập)' : 'Phần diện tích dôi dư (Đất thừa / Sân vườn)',
                   houseNumber: `${parcelData.houseNumber}B`,
                   ownerName: isNewB ? 'Chủ hộ Căn B' : 'Chủ sở hữu phần đất dôi dư',
-                  suggestedCode: isNewB ? (codes[0] || 'B-07001') : `${parcelData.projectParcelCode}-DU`,
+                  suggestedCode: isNewB ? (codes[0] || `${parcelData.projectParcelCode}-B`) : `${parcelData.projectParcelCode}-DU`,
                   areaM2: Math.round(totalLandArea * 0.4 * 10) / 10,
                   functionalType: isNewB ? 'Nhà ở gia đình (Nhà phố / Biệt thự / Căn hộ)' : 'RESIDUAL_SURPLUS',
                   residualKind: isNewB ? 'NEW_BUILDING' : 'NON_BUILDING',
@@ -350,7 +352,7 @@ export const useCadastralMutation = ({
                 }
                 return {
                   ...c,
-                  suggestedCode: isNewB ? (codes[0] || c.suggestedCode || 'B-07001') : `${parcelData.projectParcelCode}-DU`,
+                  suggestedCode: isNewB ? (codes[0] || c.suggestedCode || `${parcelData.projectParcelCode}-B`) : `${parcelData.projectParcelCode}-DU`,
                   residualKind: (isNewB ? 'NEW_BUILDING' : 'NON_BUILDING') as 'NON_BUILDING' | 'NEW_BUILDING',
                 };
               });
@@ -362,7 +364,14 @@ export const useCadastralMutation = ({
           }
         }
       } catch (_err) {
-        const fallbackCodes = ['B-07001', 'B-07002'];
+        const match = parcelData.projectParcelCode.match(/^(.*?)(\d+)$/);
+        const prefix = match ? match[1] : 'B-';
+        const nextNum = match ? (parseInt(match[2], 10) + 1) : 9999;
+        const padLen = match ? Math.max(match[2].length, 4) : 4;
+        const fallbackCodes = [
+          `${prefix}${String(nextNum).padStart(padLen, '0')}`,
+          `${prefix}${String(nextNum + 1).padStart(padLen, '0')}`,
+        ];
         if (isMounted) setDynamicCodes(fallbackCodes);
       } finally {
         if (isMounted) setIsLoadingCodes(false);

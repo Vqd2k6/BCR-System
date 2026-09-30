@@ -277,15 +277,16 @@ async function runTest() {
     }
 
     console.log(`✅ [Xác nhận 2.4]: Thửa Căn B đã được tạo thành công:`);
-    console.log(`   - Mã dự án (Kho mở rộng): [${childRow.project_parcel_code}] (Quy chuẩn B-07xxx)`);
+    console.log(`   - Mã dự án (Nối tiếp Max của Zone): [${childRow.project_parcel_code}]`);
     console.log(`   - Số nhà: [${childRow.house_number}]`);
     console.log(`   - Chủ sở hữu: [${childRow.owner_name}]`);
     console.log(`   - Trạng thái khảo sát: [${childRow.survey_status}] (Sẵn sàng để khảo sát)`);
     console.log(`   - Trạng thái vòng đời: [${childRow.lifecycle_status}] (ACTIVE - Hiển thị ngay trên Mobile)`);
     console.log(`   - Quan hệ cha con (Audit Trail): parent_parcel_ids=[${childRow.parent_parcel_ids}] (Trỏ đúng về Căn A [${parcel2.id}])`);
 
-    if (!childRow.project_parcel_code.startsWith('B-07')) {
-      throw new Error(`Test 2 Thất bại: Mã Căn B [${childRow.project_parcel_code}] không thuộc dải mở rộng B-07xxx!`);
+    const childNum = parseInt(childRow.project_parcel_code.match(/\d+$/)?.[0] || '0', 10);
+    if (childNum <= 0) {
+      throw new Error(`Test 2 Thất bại: Mã Căn B [${childRow.project_parcel_code}] không hợp lệ!`);
     }
 
     // Kiểm tra Phân công công việc (task_assignments) cho KSV

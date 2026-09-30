@@ -108,7 +108,7 @@ export const SplitPanel: React.FC<SplitPanelProps> = ({
           <span className="badge" style={{ backgroundColor: '#ffedd5', color: '#c2410c', border: '1px solid #fed7aa', fontSize: '0.675rem' }}>
             Căn A: <strong>{parcelData.projectParcelCode}</strong> (Gốc)
             {mutationData.residualKind === 'NEW_BUILDING' && (
-              <span> | Căn B: <strong>{dynamicCodes[0] || 'B-07001'}</strong> (Mã mới)</span>
+              <span> | Căn B: <strong>{dynamicCodes[0] || `${parcelData.projectParcelCode}-B`}</strong> (Mã mới)</span>
             )}
           </span>
           <button
@@ -543,7 +543,7 @@ export const SplitPanel: React.FC<SplitPanelProps> = ({
                   functionalType: 'Nhà ở gia đình (Nhà phố / Biệt thự / Căn hộ)',
                 };
               }
-              const newCode = dynamicCodes[0] || 'B-07001';
+              const newCode = dynamicCodes[0] || `${parcelData.projectParcelCode}-B`;
               updatedChildren[1] = {
                 ...(updatedChildren[1] || {
                   label: 'Căn B (Nhà mới độc lập)',
@@ -584,7 +584,7 @@ export const SplitPanel: React.FC<SplitPanelProps> = ({
               boxShadow: (mutationData.residualKind === 'NEW_BUILDING') ? '0 2px 4px rgba(234, 88, 12, 0.25)' : 'none',
             }}
           >
-            <Home size={15} /> 🏠 2. Căn Nhà Mới Độc Lập (Tạo lô mới B-07xxx)
+            <Home size={15} /> 🏠 2. Căn Nhà Mới Độc Lập (Tạo lô mới {dynamicCodes[0] || 'nối tiếp'})
           </button>
         </div>
 
@@ -595,7 +595,7 @@ export const SplitPanel: React.FC<SplitPanelProps> = ({
           </div>
         ) : (
           <div style={{ backgroundColor: '#fff7ed', border: '1px solid #fdba74', borderRadius: '0.45rem', padding: '0.45rem 0.65rem', fontSize: '0.7rem', color: '#9a3412', lineHeight: 1.4 }}>
-            ⚡ <strong>Nhánh Phát sinh nhà mới</strong>: Căn A giữ nguyên mã gốc [{parcelData.projectParcelCode}]. Hệ thống sẽ <strong>cấp mã mới [{dynamicCodes[0] || 'B-07001'}]</strong> cho Căn B và tạo 1 lô mới trên bản đồ để KSV tiếp tục khảo sát tại chỗ!
+            ⚡ <strong>Nhánh Phát sinh nhà mới</strong>: Căn A giữ nguyên mã gốc [{parcelData.projectParcelCode}]. Hệ thống sẽ <strong>cấp mã mới [{dynamicCodes[0] || 'nối tiếp Max Zone'}]</strong> cho Căn B và tạo 1 lô mới trên bản đồ để KSV tiếp tục khảo sát tại chỗ!
           </div>
         )}
 

@@ -236,7 +236,9 @@ export class CadastralController {
   static async getNextHighRangeProjectCodes(req: Request, res: Response, next: NextFunction) {
     try {
       const count = req.query.count ? parseInt(req.query.count as string, 10) : 2;
-      const result = await CadastralService.getNextHighRangeCodes(count);
+      const zoneId = req.query.zoneId as string | undefined;
+      const parcelId = req.query.parcelId as string | undefined;
+      const result = await CadastralService.getNextHighRangeCodes(count, zoneId, parcelId);
       res.status(200).json({
         success: true,
         data: result,

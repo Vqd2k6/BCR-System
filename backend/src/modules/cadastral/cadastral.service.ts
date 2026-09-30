@@ -264,23 +264,54 @@ export class CadastralService {
   }
 
   /**
-   * Lấy danh sách mã dự án B-XXXX tiếp theo dựa trên chỉ số lớn nhất hiện hữu (MAX + 1)
+   * Lấy danh sách mã dự án tiếp theo dựa trên Max của chính Zone đó (Phương án 1)
    */
-  static async getNextHighRangeCodes(count: number = 2) {
-    const res = await Database.query<{ max_val: number }>(
-      `SELECT COALESCE(MAX(substring(project_parcel_code from '[0-9]+$')::integer), 7000) AS max_val
-       FROM parcels
-       WHERE substring(project_parcel_code from '[0-9]+$')::integer >= 7000;`
-    );
+  static async getNextHighRangeCodes(count: number = 2, zoneId?: string, parcelId?: string) {
+    let resolvedZoneId = zoneId;
+    let parentParcelCode = '';
 
-    let nextNum = 7001;
-    if (res.rows[0]?.max_val !== undefined && res.rows[0]?.max_val !== null && Number(res.rows[0].max_val) >= 7000) {
-      nextNum = Number(res.rows[0].max_val) + 1;
+    if (parcelId) {
+      const p = await CadastralRepository.findById(parcelId);
+      if (p) {
+        resolvedZoneId = resolvedZoneId || p.zone_id;
+        parentParcelCode = p.project_parcel_code;
+      }
+    }
+
+    let query = `SELECT project_parcel_code FROM parcels`;
+    const params: any[] = [];
+    if (resolvedZoneId) {
+      query += ` WHERE zone_id = $1`;
+      params.push(resolvedZoneId);
+    }
+    query += ` ORDER BY substring(project_parcel_code from '[0-9]+$')::integer DESC LIMIT 1;`;
+
+    const res = await Database.query<{ project_parcel_code: string }>(query, params);
+
+    let prefix = 'B-';
+    let padLen = 4;
+    let nextNum = 1;
+
+    if (res.rows.length > 0 && res.rows[0].project_parcel_code) {
+      const maxCode = res.rows[0].project_parcel_code;
+      const match = maxCode.match(/^(.*?)(\d+)$/);
+      if (match) {
+        prefix = match[1];
+        padLen = Math.max(match[2].length, 4);
+        nextNum = parseInt(match[2], 10) + 1;
+      }
+    } else if (parentParcelCode) {
+      const match = parentParcelCode.match(/^(.*?)(\d+)$/);
+      if (match) {
+        prefix = match[1];
+        padLen = Math.max(match[2].length, 4);
+        nextNum = parseInt(match[2], 10) + 1;
+      }
     }
 
     const codes: string[] = [];
     for (let i = 0; i < count; i++) {
-      codes.push(`B-${String(nextNum + i).padStart(5, '0')}`);
+      codes.push(`${prefix}${String(nextNum + i).padStart(padLen, '0')}`);
     }
 
     return {

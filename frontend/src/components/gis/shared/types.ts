@@ -82,6 +82,7 @@ export interface MutationPayloadData {
 }
 
 export interface CadastralParcelData {
+  id?: string;
   projectParcelCode: string;
   officialCadastralCode: string;
   houseNumber: string;

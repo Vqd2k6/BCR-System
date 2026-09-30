@@ -320,24 +320,52 @@ export class CadastralRepository {
   }
 
   /**
-   * Cấp mã B-XXXX tiếp theo dựa trên kho số mở rộng B-07001 -> B-99999
+   * Cấp mã tiếp theo cho thửa đất phát sinh (Phương án 1: Nối tiếp Max của chính Zone đó)
    */
-  static async getNextHighRangeProjectCode(client: PoolClient): Promise<string> {
-    const res = await client.query<{ num: number }>(
-      `SELECT substring(project_parcel_code from '[0-9]+$')::integer AS num
-       FROM parcels
-       WHERE substring(project_parcel_code from '[0-9]+$')::integer >= 7000
-       ORDER BY substring(project_parcel_code from '[0-9]+$')::integer DESC
-       LIMIT 1
-       FOR UPDATE;`
-    );
+  static async getNextHighRangeProjectCode(
+    client: PoolClient,
+    zoneId?: string,
+    parentCode?: string
+  ): Promise<string> {
+    let query = `
+      SELECT project_parcel_code
+      FROM parcels
+    `;
+    const params: any[] = [];
+    if (zoneId) {
+      query += ` WHERE zone_id = $1 `;
+      params.push(zoneId);
+    }
+    query += `
+      ORDER BY substring(project_parcel_code from '[0-9]+$')::integer DESC
+      LIMIT 1
+      FOR UPDATE;
+    `;
 
-    let nextNum = 7001;
-    if (res.rows[0]?.num !== undefined && res.rows[0]?.num !== null && Number(res.rows[0].num) >= 7000) {
-      nextNum = Number(res.rows[0].num) + 1;
+    const res = await client.query<{ project_parcel_code: string }>(query, params);
+
+    let prefix = 'B-';
+    let padLen = 4;
+    let nextNum = 1;
+
+    if (res.rows.length > 0 && res.rows[0].project_parcel_code) {
+      const maxCode = res.rows[0].project_parcel_code;
+      const match = maxCode.match(/^(.*?)(\d+)$/);
+      if (match) {
+        prefix = match[1];
+        padLen = Math.max(match[2].length, 4);
+        nextNum = parseInt(match[2], 10) + 1;
+      }
+    } else if (parentCode) {
+      const match = parentCode.match(/^(.*?)(\d+)$/);
+      if (match) {
+        prefix = match[1];
+        padLen = Math.max(match[2].length, 4);
+        nextNum = parseInt(match[2], 10) + 1;
+      }
     }
 
-    return `B-${String(nextNum).padStart(5, '0')}`;
+    return `${prefix}${String(nextNum).padStart(padLen, '0')}`;
   }
 
   static async findUnitsByParcelId(parcelId: string): Promise<BuildingUnitEntity[]> {
