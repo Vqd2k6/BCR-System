@@ -79,10 +79,9 @@ const STRUCT_DEFECT_TYPES = [
   'Khác',
 ];
 
-export const isCrackRelated = (cat = '', type = '') => {
-  const t = `${cat} ${type}`.toLowerCase();
-  return t.includes('nứt') || t.includes('crack');
-};
+import { isCrackRelated } from './defectHelpers';
+export { isCrackRelated };
+
 
 export const DefectPinningCanvas: React.FC<Props> = ({
   ctxPhotoUrl,

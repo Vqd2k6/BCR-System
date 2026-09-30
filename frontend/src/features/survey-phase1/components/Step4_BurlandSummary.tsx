@@ -5,6 +5,7 @@ import { Button } from '../../../core/components/ui/Button';
 import { Input, Select } from '../../../core/components/ui/FormControls';
 import { InfoPopover } from '../../../core/components/ui/InfoPopover';
 import { Activity, ShieldAlert, AlertTriangle, Sparkles, RefreshCw } from 'lucide-react';
+import { isCrackRelated } from '../../../components/canvas/defectHelpers';
 
 const STRUCTURAL_FLAG_LEVELS = [
   { value: 'NONE', label: 'None - Không có cờ kết cấu', color: 'bg-emerald-50 text-emerald-800 border-emerald-200' },
@@ -31,15 +32,17 @@ export const Step4_BurlandSummary: React.FC = () => {
     return 5;
   };
 
-  // Thu thập tất cả vết nứt CHỈ trong các Vùng Kiến trúc Z (bỏ qua hoàn toàn E)
+  // Thu thập tất cả vết nứt CHỈ trong các Vùng Kiến trúc Z (bỏ qua hoàn toàn E và khuyết tật phi vết nứt như ẩm mốc)
   const zDefects = (formData.floors || []).flatMap((f) =>
     (f.zones || []).flatMap((z) =>
-      (z.defects || []).map((d) => ({
-        grade: getBurlandGradeFromWidth(d.widthMaxMm || 0),
-        zoneCode: z.zoneCode,
-        roomName: z.roomName,
-        floorName: f.floorName,
-      }))
+      (z.defects || [])
+        .filter((d) => isCrackRelated(d.screeningCategory, d.defectType))
+        .map((d) => ({
+          grade: getBurlandGradeFromWidth(Number(d.widthMaxMm) || 0),
+          zoneCode: z.zoneCode,
+          roomName: z.roomName,
+          floorName: f.floorName,
+        }))
     )
   );
 
