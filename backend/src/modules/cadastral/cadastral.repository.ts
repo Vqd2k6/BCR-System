@@ -320,21 +320,52 @@ export class CadastralRepository {
   }
 
   /**
-   * Cấp mã B-XXXX tiếp theo dựa trên chỉ số lớn nhất hiện hữu trong hệ thống (MAX + 1)
+   * Cấp mã tiếp theo cho thửa đất phát sinh (Phương án 1: Nối tiếp Max của chính Zone đó)
    */
-  static async getNextHighRangeProjectCode(client: PoolClient): Promise<string> {
-    const res = await client.query<{ max_val: number }>(
-      `SELECT COALESCE(MAX(substring(project_parcel_code from '[0-9]+$')::integer), 0) AS max_val
-       FROM parcels
-       FOR UPDATE;`
-    );
+  static async getNextHighRangeProjectCode(
+    client: PoolClient,
+    zoneId?: string,
+    parentCode?: string
+  ): Promise<string> {
+    let query = `
+      SELECT project_parcel_code
+      FROM parcels
+    `;
+    const params: any[] = [];
+    if (zoneId) {
+      query += ` WHERE zone_id = $1 `;
+      params.push(zoneId);
+    }
+    query += `
+      ORDER BY substring(project_parcel_code from '[0-9]+$')::integer DESC
+      LIMIT 1
+      FOR UPDATE;
+    `;
 
+    const res = await client.query<{ project_parcel_code: string }>(query, params);
+
+    let prefix = 'B-';
+    let padLen = 4;
     let nextNum = 1;
-    if (res.rows[0]?.max_val !== undefined && res.rows[0]?.max_val !== null) {
-      nextNum = Number(res.rows[0].max_val) + 1;
+
+    if (res.rows.length > 0 && res.rows[0].project_parcel_code) {
+      const maxCode = res.rows[0].project_parcel_code;
+      const match = maxCode.match(/^(.*?)(\d+)$/);
+      if (match) {
+        prefix = match[1];
+        padLen = Math.max(match[2].length, 4);
+        nextNum = parseInt(match[2], 10) + 1;
+      }
+    } else if (parentCode) {
+      const match = parentCode.match(/^(.*?)(\d+)$/);
+      if (match) {
+        prefix = match[1];
+        padLen = Math.max(match[2].length, 4);
+        nextNum = parseInt(match[2], 10) + 1;
+      }
     }
 
-    return `B-${String(nextNum).padStart(4, '0')}`;
+    return `${prefix}${String(nextNum).padStart(padLen, '0')}`;
   }
 
   static async findUnitsByParcelId(parcelId: string): Promise<BuildingUnitEntity[]> {

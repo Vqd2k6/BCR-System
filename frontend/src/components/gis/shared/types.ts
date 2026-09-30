@@ -45,6 +45,7 @@ export interface SplitChildData {
   polygonRatio?: number;
   functionalType?: string;
   isResidualSurplus?: boolean;
+  residualKind?: 'NON_BUILDING' | 'NEW_BUILDING';
   residualParentParcelCode?: string;
   residualParentCadastralCode?: string;
   residualParentAddress?: string;
@@ -59,6 +60,7 @@ export interface MutationPayloadData {
   splitCutRatio?: number;
   splitCutType?: 'HORIZONTAL' | 'VERTICAL' | 'L_SHAPE' | 'CUSTOM_POINTS';
   splitShapeOption?: 'DRAG_HANDLES' | 'CLICK_TO_DRAW';
+  residualKind?: 'NON_BUILDING' | 'NEW_BUILDING';
   splitCustomPointsA?: [number, number][];
   splitCustomPointsB?: [number, number][]; // Tọa độ đa giác của phần đất dôi dư Căn B
   mergeReason: string;
@@ -80,6 +82,7 @@ export interface MutationPayloadData {
 }
 
 export interface CadastralParcelData {
+  id?: string;
   projectParcelCode: string;
   officialCadastralCode: string;
   houseNumber: string;

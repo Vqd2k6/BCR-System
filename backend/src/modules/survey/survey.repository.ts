@@ -1,4 +1,6 @@
 import { Database } from '../../database/db';
+import { PoolClient } from 'pg';
+import { CadastralRepository } from '../cadastral/cadastral.repository';
 import { normalizeComponentType } from './survey.dto';
 
 export class SurveyRepository {
@@ -812,7 +814,278 @@ export class SurveyRepository {
           ]
         );
       }
+
+      // XỬ LÝ BIẾN ĐỘNG TÁCH THỬA THỰC ĐỊA (SPLIT MUTATION 2 NHÁNH & TRUY VẾT)
+      try {
+        const parsedJson = typeof submitData.surveyDataJson === 'string'
+          ? JSON.parse(submitData.surveyDataJson)
+          : submitData.surveyDataJson;
+        const rawMutation = parsedJson?.gisMutationConfirmed || parsedJson?.gisMutation;
+        if (rawMutation && rawMutation.type === 'SPLIT') {
+          await SurveyRepository.handleFieldSplitMutation(client, reportId, rawMutation);
+        }
+      } catch (mutErr) {
+        console.error('[submitReport] Cảnh báo xử lý biến động tách thửa (Dữ liệu khảo sát chính vẫn được bảo toàn):', mutErr);
+      }
     });
+  }
+
+  /**
+   * Chuẩn hóa tọa độ mảng đỉnh thành Polygon GeoJSON hợp lệ (khép kín vòng và chuẩn [lng, lat])
+   */
+  public static toGeoJsonPolygon(points: any): any {
+    if (!points) return null;
+    if (points.type === 'Polygon' && Array.isArray(points.coordinates)) {
+      return points;
+    }
+    if (!Array.isArray(points) || points.length < 3) {
+      return null;
+    }
+
+    const ring = points
+      .map((p: any) => {
+        if (!Array.isArray(p) || p.length < 2) return null;
+        const a = Number(p[0]);
+        const b = Number(p[1]);
+        if (isNaN(a) || isNaN(b)) return null;
+        // Chuẩn tọa độ Việt Nam: Lat ~ 8-23, Lng ~ 102-110
+        if (a < 50 && b > 50) {
+          return [b, a]; // Đảo [lat, lng] -> [lng, lat]
+        }
+        return [a, b];
+      })
+      .filter((p): p is [number, number] => p !== null);
+
+    if (ring.length < 3) return null;
+
+    // Khép kín polygon nếu điểm đầu khác điểm cuối
+    const first = ring[0];
+    const last = ring[ring.length - 1];
+    if (first[0] !== last[0] || first[1] !== last[1]) {
+      ring.push([first[0], first[1]]);
+    }
+
+    return {
+      type: 'Polygon',
+      coordinates: [ring],
+    };
+  }
+
+  /**
+   * Xử lý Biến động Tách Thửa Thực Địa theo quy chuẩn 2 Nhánh & Bảo đảm 100% Truy Vết:
+   * - Căn A (ngôi nhà đang KS): Kế thừa 100% mã gốc, ranh đất thu gọn theo diện tích Căn A.
+   * - Nhánh 1 (Đất dư / Sân vườn): Không tạo lô mới trên GIS, KSV nộp xong là hoàn tất.
+   * - Nhánh 2 (Căn nhà mới độc lập): Cấp mã mới B-07xxx, tạo lô mới trên GIS và tự động phân công cho KSV làm tiếp.
+   */
+  public static async handleFieldSplitMutation(
+    client: PoolClient,
+    reportId: string,
+    rawMutation: any
+  ): Promise<void> {
+    const pRes = await client.query<{
+      parcel_id: string;
+      surveyor_id: string;
+      zone_id: string;
+      project_parcel_code: string;
+      house_number: string;
+      street: string;
+      ward: string;
+      district: string;
+      original_geom_json: string;
+    }>(
+      `SELECT r.parcel_id, r.surveyor_id,
+              p.zone_id, p.project_parcel_code, p.house_number, p.street, p.ward, p.district,
+              ST_AsGeoJSON(p.cadastral_polygon_geom) AS original_geom_json
+       FROM base_survey_reports r
+       JOIN parcels p ON r.parcel_id = p.id
+       WHERE r.id = $1;`,
+      [reportId]
+    );
+
+    const parent = pRes.rows[0];
+    if (!parent) return;
+
+    const details = rawMutation.details || rawMutation;
+    const residualKind = details.residualKind || 'NON_BUILDING';
+    const splitChildren = Array.isArray(details.splitChildren) ? details.splitChildren : [];
+    const childA = splitChildren[0] || {};
+    const childB = splitChildren[1] || {};
+
+    const polyAPoints = details.splitCustomPointsA || childA.coordinates;
+    const polyBPoints = details.splitCustomPointsB || childB.coordinates;
+
+    const geoJsonA = this.toGeoJsonPolygon(polyAPoints);
+    const geoJsonB = this.toGeoJsonPolygon(polyBPoints);
+
+    // 1. Cập nhật Thửa Gốc Căn A: Kế thừa 100% mã gốc B-XXXXX, thu nhỏ ranh đất theo Căn A
+    if (geoJsonA) {
+      await client.query(
+        `UPDATE parcels
+         SET cadastral_polygon_geom = ST_SetSRID(ST_GeomFromGeoJSON($1), 4326),
+             footprint_polygon_geom = ST_SetSRID(ST_GeomFromGeoJSON($1), 4326),
+             location_geom = ST_Centroid(ST_SetSRID(ST_GeomFromGeoJSON($1), 4326)),
+             land_area_m2 = COALESCE($2, land_area_m2),
+             mutation_type = 'SPLIT',
+             updated_at = NOW()
+         WHERE id = $3;`,
+        [
+          JSON.stringify(geoJsonA),
+          childA.areaM2 ? Number(childA.areaM2) : null,
+          parent.parcel_id,
+        ]
+      );
+    } else {
+      await client.query(
+        `UPDATE parcels
+         SET land_area_m2 = COALESCE($1, land_area_m2),
+             mutation_type = 'SPLIT',
+             updated_at = NOW()
+         WHERE id = $2;`,
+        [
+          childA.areaM2 ? Number(childA.areaM2) : null,
+          parent.parcel_id,
+        ]
+      );
+    }
+
+    // 2. Tạo sự kiện biến động (Audit Trail 100%) vào bảng parcel_mutation_events
+    const mutationCode = `MUT-SPLIT-${Date.now()}`;
+    const newGeoJson = {
+      type: 'FeatureCollection',
+      features: [
+        geoJsonA ? {
+          type: 'Feature',
+          properties: {
+            role: 'CHILD_A',
+            code: parent.project_parcel_code,
+            label: `Căn A (Đang KS - ${parent.project_parcel_code})`,
+            areaM2: childA.areaM2,
+            houseNumber: parent.house_number,
+          },
+          geometry: geoJsonA,
+        } : null,
+        geoJsonB ? {
+          type: 'Feature',
+          properties: {
+            role: 'CHILD_B',
+            residualKind,
+            code: residualKind === 'NEW_BUILDING' ? (childB.suggestedCode || 'B-07001') : `${parent.project_parcel_code}-DU`,
+            label: residualKind === 'NEW_BUILDING' ? 'Căn B (Nhà mới độc lập)' : 'Phần diện tích dôi dư (Đất thừa / Sân vườn)',
+            areaM2: childB.areaM2,
+            functionalType: childB.functionalType,
+            houseNumber: childB.houseNumber,
+            ownerName: childB.ownerName,
+          },
+          geometry: geoJsonB,
+        } : null,
+      ].filter(Boolean),
+    };
+
+    const mutRes = await client.query<{ id: string }>(
+      `INSERT INTO parcel_mutation_events (
+         mutation_code, mutation_type, source_parcel_ids, result_parcel_ids,
+         original_geojson, new_geojson, surveyor_notes, surveyor_id, status, approved_at
+       ) VALUES (
+         $1, 'SPLIT', ARRAY[$2::uuid], ARRAY[$2::uuid],
+         $3, $4, $5, $6, 'APPROVED', NOW()
+       ) RETURNING id;`,
+      [
+        mutationCode,
+        parent.parcel_id,
+        parent.original_geom_json ? JSON.parse(parent.original_geom_json) : null,
+        JSON.stringify(newGeoJson),
+        details.splitReason || rawMutation.notes || 'Tách thửa thực địa theo hiện trạng',
+        parent.surveyor_id,
+      ]
+    );
+
+    const mutationEventId = mutRes.rows[0].id;
+    await client.query(
+      `UPDATE parcels SET mutation_event_id = $1 WHERE id = $2;`,
+      [mutationEventId, parent.parcel_id]
+    );
+
+    // 3. Phân nhánh xử lý Ô dôi dư
+    if (residualKind === 'NEW_BUILDING') {
+      // NHÁNH 2: CĂN NHÀ MỚI ĐỘC LẬP -> Cấp mã nối tiếp theo Max của Zone (Phương án 1), tạo parcel mới, gán cho KSV làm tiếp
+      const newProjectCode = await CadastralRepository.getNextHighRangeProjectCode(
+        client,
+        parent.zone_id,
+        parent.project_parcel_code
+      );
+      const bHouseNumber = childB.houseNumber || (parent.house_number ? `${parent.house_number}B` : 'KĐ');
+      const bOwnerName = childB.ownerName || `Chủ hộ Căn B (${newProjectCode})`;
+      const bArea = childB.areaM2 ? Number(childB.areaM2) : null;
+      const bGeomStr = geoJsonB ? JSON.stringify(geoJsonB) : parent.original_geom_json;
+
+      const insertChildRes = await client.query<{ id: string }>(
+        `INSERT INTO parcels (
+           zone_id, project_parcel_code, house_number, street, ward, district,
+           owner_name, owner_phone, land_area_m2, construction_area_m2, floor_count,
+           cadastral_polygon_geom, footprint_polygon_geom, location_geom,
+           survey_status, lifecycle_status, mutation_type, parent_parcel_ids, mutation_event_id
+         ) VALUES (
+           $1, $2, $3, $4, $5, $6,
+           $7, $8, $9, $10, 1,
+           ST_SetSRID(ST_GeomFromGeoJSON($11), 4326),
+           ST_SetSRID(ST_GeomFromGeoJSON($11), 4326),
+           ST_Centroid(ST_SetSRID(ST_GeomFromGeoJSON($11), 4326)),
+           'NOT_SURVEYED', 'ACTIVE', 'SPLIT', ARRAY[$12::uuid], $13
+         ) RETURNING id;`,
+        [
+          parent.zone_id,
+          newProjectCode,
+          bHouseNumber,
+          parent.street,
+          parent.ward,
+          parent.district,
+          bOwnerName,
+          childB.ownerPhone || null,
+          bArea,
+          bArea,
+          bGeomStr,
+          parent.parcel_id,
+          mutationEventId,
+        ]
+      );
+
+      const childParcelId = insertChildRes.rows[0].id;
+
+      // Cập nhật quan hệ cha - con trong parcels (Audit Trail)
+      await client.query(
+        `UPDATE parcels
+         SET child_parcel_ids = array_append(COALESCE(child_parcel_ids, '{}'), $1::uuid)
+         WHERE id = $2;`,
+        [childParcelId, parent.parcel_id]
+      );
+
+      // Cập nhật result_parcel_ids trong parcel_mutation_events
+      await client.query(
+        `UPDATE parcel_mutation_events
+         SET result_parcel_ids = ARRAY[$1::uuid, $2::uuid]
+         WHERE id = $3;`,
+        [parent.parcel_id, childParcelId, mutationEventId]
+      );
+
+      // Tự động phân công nhiệm vụ khảo sát Căn B cho chính KSV đang nộp
+      await client.query(
+        `INSERT INTO task_assignments (
+           parcel_id, surveyor_id, assigned_by_admin_id, deadline, status, notes
+         ) VALUES (
+           $1, $2, $2, NOW() + INTERVAL '7 days', 'ASSIGNED', $3
+         );`,
+        [
+          childParcelId,
+          parent.surveyor_id,
+          `Tự động giao Căn B (${newProjectCode}) sau khi tách thửa thực địa từ mã ${parent.project_parcel_code}`,
+        ]
+      );
+
+      console.log(`[handleFieldSplitMutation] Đã kích hoạt Căn B (${newProjectCode}) độc lập và phân công cho KSV ${parent.surveyor_id}`);
+    } else {
+      // NHÁNH 1: ĐẤT DƯ / SÂN VƯỜN / NGÕ ĐI -> Phi công trình, KHÔNG tạo thửa mới trong parcels
+      console.log(`[handleFieldSplitMutation] Nhánh Phi công trình (${residualKind}): Đã lưu ranh đất dôi dư phục vụ đền bù, không phát sinh lô mới.`);
+    }
   }
 
   static async updateReportData(reportId: string, updateData: any): Promise<number> {
