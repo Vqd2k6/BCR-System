@@ -13,11 +13,18 @@ import {
   Tag,
   CheckCircle,
   CheckCircle2,
+  Home,
+  Trees,
 } from 'lucide-react';
 import { CadastralParcelData, MutationPayloadData } from '../../../shared/types';
 import { MapBoundsController, MapClickListener, HelpBadge } from '../../../shared/MapControllers';
 import { createHandleIcon } from '../../../shared/geoMath';
-import { RESIDUAL_FUNCTION_OPTIONS, COMMON_SPLIT_REASONS } from '../../../shared/constants';
+import {
+  RESIDUAL_FUNCTION_OPTIONS,
+  NON_BUILDING_RESIDUAL_OPTIONS,
+  BUILDING_RESIDUAL_OPTIONS,
+  COMMON_SPLIT_REASONS,
+} from '../../../shared/constants';
 
 interface SplitPanelProps {
   parcelData: CadastralParcelData;
@@ -99,7 +106,10 @@ export const SplitPanel: React.FC<SplitPanelProps> = ({
         </div>
         <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center' }}>
           <span className="badge" style={{ backgroundColor: '#ffedd5', color: '#c2410c', border: '1px solid #fed7aa', fontSize: '0.675rem' }}>
-            Mã mới: {dynamicCodes[0] || 'B-00108'}, {dynamicCodes[1] || 'B-00109'}
+            Căn A: <strong>{parcelData.projectParcelCode}</strong> (Gốc)
+            {mutationData.residualKind === 'NEW_BUILDING' && (
+              <span> | Căn B: <strong>{dynamicCodes[0] || 'B-07001'}</strong> (Mã mới)</span>
+            )}
           </span>
           <button
             type="button"
@@ -436,117 +446,278 @@ export const SplitPanel: React.FC<SplitPanelProps> = ({
         </div>
       </div>
 
-      {/* PHÂN LOẠI CÔNG NĂNG CHO Ô CÒN DƯ (MÀU 2) - CÓ MỤC KHÁC CHO PHÉP NHẬP */}
+      {/* PHÂN LOẠI CÔNG NĂNG CHO Ô CÒN DƯ (MÀU 2) - 2 NHÁNH LỰA CHỌN */}
       <div
         style={{
           backgroundColor: '#ffffff',
-          border: '1px solid #fed7aa',
+          border: '1.5px solid #fed7aa',
           borderRadius: '0.65rem',
-          padding: '0.65rem 0.75rem',
+          padding: '0.75rem',
           display: 'flex',
           flexDirection: 'column',
-          gap: '0.45rem',
+          gap: '0.55rem',
         }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.35rem' }}>
-          <label style={{ fontSize: '0.75rem', fontWeight: 800, color: '#9a3412', margin: 0, display: 'flex', alignItems: 'center' }}>
-            <Tag size={14} color="#ea580c" style={{ marginRight: '0.3rem' }} />
-            Công năng sử dụng Ô còn dư (Màu 2 - {calculatedAreaB} m²):
+          <label style={{ fontSize: '0.775rem', fontWeight: 800, color: '#9a3412', margin: 0, display: 'flex', alignItems: 'center' }}>
+            <Tag size={15} color="#ea580c" style={{ marginRight: '0.35rem' }} />
+            Bản chất Ô còn dư (Màu 2 - {calculatedAreaB} m²):
             <HelpBadge
               type="alert"
-              title="Quy tắc xử lý đất dôi dư"
-              content="Toàn bộ phần dôi dư sau khi tách (kể cả mé nhỏ sai số địa chính) mặc định là Đất thừa. Khi khảo sát căn bên cạnh, kỹ sư chỉ việc chấm ranh căn của họ, mé thừa còn lại được tự động bỏ qua."
+              title="Phân loại 2 nhánh Ô dôi dư"
+              content="Nhánh 1: Nếu là sân vườn, đất trống, lối đi (không có công trình nhà), hệ thống chỉ lưu ranh đất đền bù và KHÔNG tạo lô khảo sát mới. Nhánh 2: Nếu là một căn nhà mới độc lập, hệ thống sẽ cấp mã mới (B-07xxx) và tạo lô mới để KSV tiếp tục khảo sát."
             />
           </label>
         </div>
 
-        {/* List sổ chọn công năng ô còn dư */}
-        <select
-          className="form-control"
-          style={{ fontSize: '0.75rem', fontWeight: 600, backgroundColor: '#fff7ed', border: '1.5px solid #fdba74', color: '#9a3412' }}
-          value={
-            RESIDUAL_FUNCTION_OPTIONS.some((opt) => opt.value === (mutationData.splitChildren?.[1]?.functionalType || 'RESIDUAL_SURPLUS'))
-              ? (mutationData.splitChildren?.[1]?.functionalType || 'RESIDUAL_SURPLUS')
-              : 'OTHER'
-          }
-          onChange={(e) => {
-            const val = e.target.value;
-            const isSurplus = val === 'RESIDUAL_SURPLUS';
-            const updatedChildren = [...(mutationData.splitChildren || [])];
-            if (!updatedChildren[0]) {
-              updatedChildren[0] = {
-                label: 'Căn A (Mặt tiền / Đang KS)',
-                houseNumber: `${parcelData.houseNumber}A`,
-                ownerName: parcelData.ownerName || '',
-                suggestedCode: dynamicCodes[0] || 'B-00108',
-                areaM2: calculatedAreaA,
-                functionalType: 'Nhà ở gia đình (Nhà phố / Biệt thự / Căn hộ)',
+        {/* BỘ CHỌN 2 NHÁNH TOGGLE BUTTONS */}
+        <div style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            onClick={() => {
+              const updatedChildren = [...(mutationData.splitChildren || [])];
+              if (!updatedChildren[0]) {
+                updatedChildren[0] = {
+                  label: `Căn A (Đang KS - ${parcelData.projectParcelCode})`,
+                  houseNumber: parcelData.houseNumber,
+                  ownerName: parcelData.ownerName || '',
+                  suggestedCode: parcelData.projectParcelCode,
+                  areaM2: calculatedAreaA,
+                  functionalType: 'Nhà ở gia đình (Nhà phố / Biệt thự / Căn hộ)',
+                };
+              }
+              updatedChildren[1] = {
+                ...(updatedChildren[1] || {
+                  label: 'Phần diện tích dôi dư (Đất thừa / Sân vườn)',
+                  houseNumber: `${parcelData.houseNumber}B`,
+                  ownerName: 'Chủ sở hữu phần đất dôi dư',
+                }),
+                suggestedCode: `${parcelData.projectParcelCode}-DU`,
+                areaM2: calculatedAreaB,
+                functionalType: 'RESIDUAL_SURPLUS',
+                residualKind: 'NON_BUILDING',
+                isResidualSurplus: true,
+                residualParentParcelCode: parcelData.projectParcelCode,
+                residualParentCadastralCode: parcelData.officialCadastralCode,
+                residualParentAddress: `Số ${parcelData.houseNumber} ${parcelData.street}`,
+                residualMetadataNote: `Đất thừa tách từ ${parcelData.projectParcelCode}`,
               };
-            }
-            const finalType = val === 'OTHER' ? (customResidualType || 'Khác: ') : val;
-            updatedChildren[1] = {
-              ...(updatedChildren[1] || {
-                label: 'Căn B (Phần còn dư)',
-                houseNumber: `${parcelData.houseNumber}B`,
-                ownerName: 'Chủ sở hữu phần đất dôi dư',
-                suggestedCode: dynamicCodes[1] || 'B-00109',
-              }),
-              areaM2: calculatedAreaB,
-              functionalType: finalType,
-              isResidualSurplus: isSurplus,
-              residualParentParcelCode: parcelData.projectParcelCode,
-              residualParentCadastralCode: parcelData.officialCadastralCode,
-              residualParentAddress: `Số ${parcelData.houseNumber} ${parcelData.street}`,
-              residualMetadataNote: isSurplus
-                ? `Đất thừa dôi dư tách từ thửa ${parcelData.projectParcelCode}`
-                : `Lô đất phân tách công năng [${finalType}] từ thửa gốc ${parcelData.projectParcelCode}`,
-            };
+              onMutationDataChange({
+                ...mutationData,
+                residualKind: 'NON_BUILDING',
+                splitChildren: updatedChildren,
+                isSubmitted: false,
+              });
+            }}
+            style={{
+              flex: '1 1 200px',
+              padding: '0.5rem 0.65rem',
+              borderRadius: '0.5rem',
+              fontSize: '0.725rem',
+              fontWeight: (mutationData.residualKind !== 'NEW_BUILDING') ? 800 : 600,
+              backgroundColor: (mutationData.residualKind !== 'NEW_BUILDING') ? '#059669' : '#f8fafc',
+              color: (mutationData.residualKind !== 'NEW_BUILDING') ? '#ffffff' : '#475569',
+              border: (mutationData.residualKind !== 'NEW_BUILDING') ? 'none' : '1px solid #cbd5e1',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '0.35rem',
+              boxShadow: (mutationData.residualKind !== 'NEW_BUILDING') ? '0 2px 4px rgba(5, 150, 105, 0.25)' : 'none',
+            }}
+          >
+            <Trees size={15} /> 🌳 1. Đất Dư / Sân Vườn (Không tạo lô mới)
+          </button>
 
-            onMutationDataChange({
-              ...mutationData,
-              splitChildren: updatedChildren,
-              isSubmitted: false,
-            });
-          }}
-        >
-          {RESIDUAL_FUNCTION_OPTIONS.map((opt) => (
-            <option key={opt.value} value={opt.value}>
-              {opt.label}
-            </option>
-          ))}
-        </select>
+          <button
+            type="button"
+            onClick={() => {
+              const updatedChildren = [...(mutationData.splitChildren || [])];
+              if (!updatedChildren[0]) {
+                updatedChildren[0] = {
+                  label: `Căn A (Đang KS - ${parcelData.projectParcelCode})`,
+                  houseNumber: parcelData.houseNumber,
+                  ownerName: parcelData.ownerName || '',
+                  suggestedCode: parcelData.projectParcelCode,
+                  areaM2: calculatedAreaA,
+                  functionalType: 'Nhà ở gia đình (Nhà phố / Biệt thự / Căn hộ)',
+                };
+              }
+              const newCode = dynamicCodes[0] || 'B-07001';
+              updatedChildren[1] = {
+                ...(updatedChildren[1] || {
+                  label: 'Căn B (Nhà mới độc lập)',
+                  houseNumber: `${parcelData.houseNumber}B`,
+                  ownerName: 'Chủ hộ Căn B',
+                }),
+                suggestedCode: newCode,
+                areaM2: calculatedAreaB,
+                functionalType: 'Nhà ở gia đình (Nhà phố / Biệt thự / Căn hộ)',
+                residualKind: 'NEW_BUILDING',
+                isResidualSurplus: false,
+                residualParentParcelCode: parcelData.projectParcelCode,
+                residualParentCadastralCode: parcelData.officialCadastralCode,
+                residualParentAddress: `Số ${parcelData.houseNumber} ${parcelData.street}`,
+                residualMetadataNote: `Nhà mới tách từ ${parcelData.projectParcelCode}`,
+              };
+              onMutationDataChange({
+                ...mutationData,
+                residualKind: 'NEW_BUILDING',
+                splitChildren: updatedChildren,
+                isSubmitted: false,
+              });
+            }}
+            style={{
+              flex: '1 1 200px',
+              padding: '0.5rem 0.65rem',
+              borderRadius: '0.5rem',
+              fontSize: '0.725rem',
+              fontWeight: (mutationData.residualKind === 'NEW_BUILDING') ? 800 : 600,
+              backgroundColor: (mutationData.residualKind === 'NEW_BUILDING') ? '#ea580c' : '#f8fafc',
+              color: (mutationData.residualKind === 'NEW_BUILDING') ? '#ffffff' : '#475569',
+              border: (mutationData.residualKind === 'NEW_BUILDING') ? 'none' : '1px solid #cbd5e1',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '0.35rem',
+              boxShadow: (mutationData.residualKind === 'NEW_BUILDING') ? '0 2px 4px rgba(234, 88, 12, 0.25)' : 'none',
+            }}
+          >
+            <Home size={15} /> 🏠 2. Căn Nhà Mới Độc Lập (Tạo lô mới B-07xxx)
+          </button>
+        </div>
 
-        {/* Ô nhập text tự do khi chọn KHÁC ở công năng ô còn dư */}
-        {(mutationData.splitChildren?.[1]?.functionalType === 'OTHER' ||
-          (mutationData.splitChildren?.[1]?.functionalType &&
-            !RESIDUAL_FUNCTION_OPTIONS.some((o) => o.value === mutationData.splitChildren?.[1]?.functionalType))) && (
-          <div style={{ marginTop: '0.2rem' }}>
-            <input
-              type="text"
-              className="form-control"
-              style={{ fontSize: '0.75rem', backgroundColor: '#ffffff', border: '1px solid #fdba74' }}
-              placeholder="Nhập cụ thể công năng sử dụng của ô đất còn dư..."
-              value={customResidualType || mutationData.splitChildren?.[1]?.functionalType || ''}
-              onChange={(e) => {
-                const text = e.target.value;
-                setCustomResidualType(text);
-                const updatedChildren = [...(mutationData.splitChildren || [])];
-                if (updatedChildren[1]) {
-                  updatedChildren[1] = {
-                    ...updatedChildren[1],
-                    functionalType: text,
-                    residualMetadataNote: `Công năng khác: ${text}`,
-                  };
-                  onMutationDataChange({
-                    ...mutationData,
-                    splitChildren: updatedChildren,
-                    isSubmitted: false,
-                  });
-                }
-              }}
-            />
+        {/* THÔNG ĐIỆP HƯỚNG DẪN TƯƠNG ỨNG TỪNG NHÁNH */}
+        {mutationData.residualKind !== 'NEW_BUILDING' ? (
+          <div style={{ backgroundColor: '#ecfdf5', border: '1px solid #6ee7b7', borderRadius: '0.45rem', padding: '0.45rem 0.65rem', fontSize: '0.7rem', color: '#065f46', lineHeight: 1.4 }}>
+            ✓ <strong>Nhánh Phi công trình</strong>: Phần diện tích dôi dư ({calculatedAreaB} m²) được ghi nhận làm căn cứ bồi thường đất. Hệ thống <strong>KHÔNG tạo thêm lô khảo sát mới</strong>, KSV hoàn tất Căn A ({parcelData.projectParcelCode}) là xong toàn bộ thửa đất.
+          </div>
+        ) : (
+          <div style={{ backgroundColor: '#fff7ed', border: '1px solid #fdba74', borderRadius: '0.45rem', padding: '0.45rem 0.65rem', fontSize: '0.7rem', color: '#9a3412', lineHeight: 1.4 }}>
+            ⚡ <strong>Nhánh Phát sinh nhà mới</strong>: Căn A giữ nguyên mã gốc [{parcelData.projectParcelCode}]. Hệ thống sẽ <strong>cấp mã mới [{dynamicCodes[0] || 'B-07001'}]</strong> cho Căn B và tạo 1 lô mới trên bản đồ để KSV tiếp tục khảo sát tại chỗ!
           </div>
         )}
+
+        {/* CHI TIẾT CÔNG NĂNG & THÔNG TIN CĂN B */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginTop: '0.1rem' }}>
+          <label style={{ fontSize: '0.72rem', fontWeight: 700, color: '#475569', margin: 0 }}>
+            {mutationData.residualKind === 'NEW_BUILDING' ? 'Loại hình công trình Căn B:' : 'Chi tiết hiện trạng phần đất dôi dư:'}
+          </label>
+          <select
+            className="form-control"
+            style={{ fontSize: '0.75rem', fontWeight: 600, backgroundColor: '#f8fafc', border: '1px solid #cbd5e1', color: '#1e293b' }}
+            value={
+              (mutationData.residualKind === 'NEW_BUILDING' ? BUILDING_RESIDUAL_OPTIONS : NON_BUILDING_RESIDUAL_OPTIONS).some(
+                (opt) => opt.value === (mutationData.splitChildren?.[1]?.functionalType)
+              )
+                ? (mutationData.splitChildren?.[1]?.functionalType || (mutationData.residualKind === 'NEW_BUILDING' ? 'Nhà ở gia đình (Nhà phố / Biệt thự / Căn hộ)' : 'RESIDUAL_SURPLUS'))
+                : 'OTHER'
+            }
+            onChange={(e) => {
+              const val = e.target.value;
+              const finalType = val === 'OTHER' ? (customResidualType || 'Khác: ') : val;
+              const updatedChildren = [...(mutationData.splitChildren || [])];
+              if (updatedChildren[1]) {
+                updatedChildren[1] = {
+                  ...updatedChildren[1],
+                  functionalType: finalType,
+                };
+                onMutationDataChange({
+                  ...mutationData,
+                  splitChildren: updatedChildren,
+                  isSubmitted: false,
+                });
+              }
+            }}
+          >
+            {(mutationData.residualKind === 'NEW_BUILDING' ? BUILDING_RESIDUAL_OPTIONS : NON_BUILDING_RESIDUAL_OPTIONS).map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+
+          {/* Ô nhập text tự do khi chọn KHÁC */}
+          {(mutationData.splitChildren?.[1]?.functionalType === 'OTHER' ||
+            (mutationData.splitChildren?.[1]?.functionalType &&
+              !(mutationData.residualKind === 'NEW_BUILDING' ? BUILDING_RESIDUAL_OPTIONS : NON_BUILDING_RESIDUAL_OPTIONS).some(
+                (o) => o.value === mutationData.splitChildren?.[1]?.functionalType
+              ))) && (
+            <div style={{ marginTop: '0.15rem' }}>
+              <input
+                type="text"
+                className="form-control"
+                style={{ fontSize: '0.75rem', backgroundColor: '#ffffff', border: '1px solid #fdba74' }}
+                placeholder="Nhập cụ thể công năng sử dụng thực tế..."
+                value={customResidualType || mutationData.splitChildren?.[1]?.functionalType || ''}
+                onChange={(e) => {
+                  const text = e.target.value;
+                  setCustomResidualType(text);
+                  const updatedChildren = [...(mutationData.splitChildren || [])];
+                  if (updatedChildren[1]) {
+                    updatedChildren[1] = {
+                      ...updatedChildren[1],
+                      functionalType: text,
+                      residualMetadataNote: `Công năng khác: ${text}`,
+                    };
+                    onMutationDataChange({
+                      ...mutationData,
+                      splitChildren: updatedChildren,
+                      isSubmitted: false,
+                    });
+                  }
+                }}
+              />
+            </div>
+          )}
+
+          {/* Nếu là NHÀ MỚI ĐỘC LẬP: Hiển thị thêm ô nhập số nhà và chủ hộ Căn B */}
+          {mutationData.residualKind === 'NEW_BUILDING' && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginTop: '0.2rem', backgroundColor: '#f8fafc', padding: '0.45rem', borderRadius: '0.4rem', border: '1px dashed #cbd5e1' }}>
+              <div>
+                <label style={{ fontSize: '0.675rem', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '0.15rem' }}>
+                  Số nhà Căn B:
+                </label>
+                <input
+                  type="text"
+                  className="form-control"
+                  style={{ fontSize: '0.725rem' }}
+                  placeholder="VD: 108B..."
+                  value={mutationData.splitChildren?.[1]?.houseNumber || `${parcelData.houseNumber}B`}
+                  onChange={(e) => {
+                    const text = e.target.value;
+                    const updatedChildren = [...(mutationData.splitChildren || [])];
+                    if (updatedChildren[1]) {
+                      updatedChildren[1] = { ...updatedChildren[1], houseNumber: text };
+                      onMutationDataChange({ ...mutationData, splitChildren: updatedChildren, isSubmitted: false });
+                    }
+                  }}
+                />
+              </div>
+              <div>
+                <label style={{ fontSize: '0.675rem', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '0.15rem' }}>
+                  Chủ hộ Căn B:
+                </label>
+                <input
+                  type="text"
+                  className="form-control"
+                  style={{ fontSize: '0.725rem' }}
+                  placeholder="Tên chủ hộ Căn B..."
+                  value={mutationData.splitChildren?.[1]?.ownerName || ''}
+                  onChange={(e) => {
+                    const text = e.target.value;
+                    const updatedChildren = [...(mutationData.splitChildren || [])];
+                    if (updatedChildren[1]) {
+                      updatedChildren[1] = { ...updatedChildren[1], ownerName: text };
+                      onMutationDataChange({ ...mutationData, splitChildren: updatedChildren, isSubmitted: false });
+                    }
+                  }}
+                />
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* LÝ DO CHIA TÁCH THỬA ĐẤT THỰC TẾ: LIST SỔ CHỌN + MỤC KHÁC CHO NHẬP */}

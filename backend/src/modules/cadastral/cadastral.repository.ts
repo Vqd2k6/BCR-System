@@ -320,21 +320,24 @@ export class CadastralRepository {
   }
 
   /**
-   * Cấp mã B-XXXX tiếp theo dựa trên chỉ số lớn nhất hiện hữu trong hệ thống (MAX + 1)
+   * Cấp mã B-XXXX tiếp theo dựa trên kho số mở rộng B-07001 -> B-99999
    */
   static async getNextHighRangeProjectCode(client: PoolClient): Promise<string> {
-    const res = await client.query<{ max_val: number }>(
-      `SELECT COALESCE(MAX(substring(project_parcel_code from '[0-9]+$')::integer), 0) AS max_val
+    const res = await client.query<{ num: number }>(
+      `SELECT substring(project_parcel_code from '[0-9]+$')::integer AS num
        FROM parcels
+       WHERE substring(project_parcel_code from '[0-9]+$')::integer >= 7000
+       ORDER BY substring(project_parcel_code from '[0-9]+$')::integer DESC
+       LIMIT 1
        FOR UPDATE;`
     );
 
-    let nextNum = 1;
-    if (res.rows[0]?.max_val !== undefined && res.rows[0]?.max_val !== null) {
-      nextNum = Number(res.rows[0].max_val) + 1;
+    let nextNum = 7001;
+    if (res.rows[0]?.num !== undefined && res.rows[0]?.num !== null && Number(res.rows[0].num) >= 7000) {
+      nextNum = Number(res.rows[0].num) + 1;
     }
 
-    return `B-${String(nextNum).padStart(4, '0')}`;
+    return `B-${String(nextNum).padStart(5, '0')}`;
   }
 
   static async findUnitsByParcelId(parcelId: string): Promise<BuildingUnitEntity[]> {

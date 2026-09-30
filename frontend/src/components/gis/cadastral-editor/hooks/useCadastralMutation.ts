@@ -309,40 +309,51 @@ export const useCadastralMutation = ({
 
           if (!mutationData.isSubmitted) {
             const currentChildren = mutationData.splitChildren || [];
+            const isNewB = mutationData.residualKind === 'NEW_BUILDING';
             if (currentChildren.length === 0) {
               const initChildren: SplitChildData[] = [
                 {
-                  label: 'Căn A (Mặt tiền / Đang KS)',
-                  houseNumber: `${parcelData.houseNumber}A`,
+                  label: `Căn A (Đang KS - ${parcelData.projectParcelCode})`,
+                  houseNumber: parcelData.houseNumber,
                   ownerName: parcelData.ownerName || '',
-                  suggestedCode: codes[0] || 'B-00108',
+                  suggestedCode: parcelData.projectParcelCode,
                   areaM2: Math.round(totalLandArea * 0.6 * 10) / 10,
                   functionalType: 'Nhà ở gia đình (Nhà phố / Biệt thự / Căn hộ)',
                   isResidualSurplus: false,
                 },
                 {
-                  label: 'Căn B (Phần diện tích còn dư)',
+                  label: isNewB ? 'Căn B (Nhà mới độc lập)' : 'Phần diện tích dôi dư (Đất thừa / Sân vườn)',
                   houseNumber: `${parcelData.houseNumber}B`,
-                  ownerName: 'Chủ sở hữu phần đất dôi dư',
-                  suggestedCode: codes[1] || 'B-00109',
+                  ownerName: isNewB ? 'Chủ hộ Căn B' : 'Chủ sở hữu phần đất dôi dư',
+                  suggestedCode: isNewB ? (codes[0] || 'B-07001') : `${parcelData.projectParcelCode}-DU`,
                   areaM2: Math.round(totalLandArea * 0.4 * 10) / 10,
-                  functionalType: 'RESIDUAL_SURPLUS',
-                  isResidualSurplus: true,
+                  functionalType: isNewB ? 'Nhà ở gia đình (Nhà phố / Biệt thự / Căn hộ)' : 'RESIDUAL_SURPLUS',
+                  residualKind: isNewB ? 'NEW_BUILDING' : 'NON_BUILDING',
+                  isResidualSurplus: !isNewB,
                   residualParentParcelCode: parcelData.projectParcelCode,
                   residualParentCadastralCode: parcelData.officialCadastralCode,
                   residualParentAddress: `Số ${parcelData.houseNumber} ${parcelData.street}`,
-                  residualMetadataNote: `Đất thừa tách từ ${parcelData.projectParcelCode}`,
+                  residualMetadataNote: isNewB
+                    ? `Nhà mới tách từ ${parcelData.projectParcelCode}`
+                    : `Đất thừa tách từ ${parcelData.projectParcelCode}`,
                 },
               ];
               onMutationDataChange({
                 ...mutationData,
+                residualKind: mutationData.residualKind || 'NON_BUILDING',
                 splitChildren: initChildren,
               });
             } else {
-              const updated = currentChildren.map((c, idx) => ({
-                ...c,
-                suggestedCode: codes[idx] || c.suggestedCode,
-              }));
+              const updated = currentChildren.map((c, idx) => {
+                if (idx === 0) {
+                  return { ...c, suggestedCode: parcelData.projectParcelCode };
+                }
+                return {
+                  ...c,
+                  suggestedCode: isNewB ? (codes[0] || c.suggestedCode || 'B-07001') : `${parcelData.projectParcelCode}-DU`,
+                  residualKind: (isNewB ? 'NEW_BUILDING' : 'NON_BUILDING') as 'NON_BUILDING' | 'NEW_BUILDING',
+                };
+              });
               onMutationDataChange({
                 ...mutationData,
                 splitChildren: updated,
@@ -351,11 +362,7 @@ export const useCadastralMutation = ({
           }
         }
       } catch (_err) {
-        const baseNum = parseInt(parcelData.projectParcelCode.replace(/\D/g, ''), 10) || 107;
-        const fallbackCodes = [
-          `B-${String(baseNum + 1).padStart(5, '0')}`,
-          `B-${String(baseNum + 2).padStart(5, '0')}`,
-        ];
+        const fallbackCodes = ['B-07001', 'B-07002'];
         if (isMounted) setDynamicCodes(fallbackCodes);
       } finally {
         if (isMounted) setIsLoadingCodes(false);
@@ -591,38 +598,42 @@ export const useCadastralMutation = ({
     const nowStr = new Date().toLocaleTimeString('vi-VN');
     const polyB = getPolygonB();
 
-    const currentChildren = mutationData.splitChildren && mutationData.splitChildren.length > 0
+    const isNewB = mutationData.residualKind === 'NEW_BUILDING';
+    const currentChildren: SplitChildData[] = mutationData.splitChildren && mutationData.splitChildren.length > 0
       ? mutationData.splitChildren
       : [
           {
-            label: 'Căn A (Mặt tiền / Đang KS)',
-            houseNumber: `${parcelData.houseNumber}A`,
+            label: `Căn A (Đang KS - ${parcelData.projectParcelCode})`,
+            houseNumber: parcelData.houseNumber,
             ownerName: parcelData.ownerName || '',
-            suggestedCode: dynamicCodes[0] || `${parcelData.projectParcelCode}-P1`,
+            suggestedCode: parcelData.projectParcelCode,
             areaM2: calculatedAreaA,
             functionalType: 'Nhà ở gia đình (Nhà phố / Biệt thự / Căn hộ)',
             isResidualSurplus: false,
           },
           {
-            label: 'Căn B (Phần diện tích còn dư)',
+            label: isNewB ? 'Căn B (Nhà mới độc lập)' : 'Phần diện tích dôi dư (Đất thừa / Sân vườn)',
             houseNumber: `${parcelData.houseNumber}B`,
-            ownerName: 'Chủ sở hữu phần đất dôi dư',
-            suggestedCode: dynamicCodes[1] || `${parcelData.projectParcelCode}-P2`,
+            ownerName: isNewB ? 'Chủ hộ Căn B' : 'Chủ sở hữu phần đất dôi dư',
+            suggestedCode: isNewB ? (dynamicCodes[0] || 'B-07001') : `${parcelData.projectParcelCode}-DU`,
             areaM2: calculatedAreaB,
-            functionalType: customResidualType || 'RESIDUAL_SURPLUS',
-            isResidualSurplus: true,
+            functionalType: customResidualType || (isNewB ? 'Nhà ở gia đình (Nhà phố / Biệt thự / Căn hộ)' : 'RESIDUAL_SURPLUS'),
+            residualKind: isNewB ? 'NEW_BUILDING' : 'NON_BUILDING',
+            isResidualSurplus: !isNewB,
             residualParentParcelCode: parcelData.projectParcelCode,
             residualParentCadastralCode: parcelData.officialCadastralCode,
             residualParentAddress: `Số ${parcelData.houseNumber} ${parcelData.street}`,
-            residualMetadataNote: `Đất thừa tách từ ${parcelData.projectParcelCode}`,
+            residualMetadataNote: isNewB
+              ? `Nhà mới tách từ ${parcelData.projectParcelCode}`
+              : `Đất thừa tách từ ${parcelData.projectParcelCode}`,
           },
         ];
 
-    const updatedChildren = currentChildren.map((c, idx) => {
+    const updatedChildren: SplitChildData[] = currentChildren.map((c, idx) => {
       if (idx === 0) {
         return {
           ...c,
-          suggestedCode: c.suggestedCode || dynamicCodes[0] || `${parcelData.projectParcelCode}-P1`,
+          suggestedCode: parcelData.projectParcelCode,
           areaM2: calculatedAreaA,
           coordinates: polyAVertices,
         };
@@ -630,12 +641,19 @@ export const useCadastralMutation = ({
       if (idx === 1) {
         return {
           ...c,
-          suggestedCode: c.suggestedCode || dynamicCodes[1] || `${parcelData.projectParcelCode}-P2`,
+          label: isNewB ? 'Căn B (Nhà mới độc lập)' : 'Phần diện tích dôi dư (Đất thừa / Sân vườn)',
+          suggestedCode: isNewB
+            ? (c.suggestedCode && c.suggestedCode !== `${parcelData.projectParcelCode}-DU` ? c.suggestedCode : (dynamicCodes[0] || 'B-07001'))
+            : `${parcelData.projectParcelCode}-DU`,
           areaM2: calculatedAreaB,
-          isResidualSurplus: true,
+          residualKind: isNewB ? 'NEW_BUILDING' : 'NON_BUILDING',
+          isResidualSurplus: !isNewB,
           coordinates: polyB,
           residualParentParcelCode: parcelData.projectParcelCode,
           residualParentCadastralCode: parcelData.officialCadastralCode,
+          residualMetadataNote: isNewB
+            ? `Nhà mới tách từ ${parcelData.projectParcelCode}`
+            : `Đất thừa tách từ ${parcelData.projectParcelCode}`,
         };
       }
       return c;
@@ -645,6 +663,7 @@ export const useCadastralMutation = ({
       ...mutationData,
       isSubmitted: true,
       activeProposalType: boundaryStatus,
+      residualKind: isNewB ? 'NEW_BUILDING' : 'NON_BUILDING',
       matchConfirmed: false,
       submittedAt: nowStr,
       splitShapeOption,

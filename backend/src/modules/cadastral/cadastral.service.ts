@@ -268,18 +268,19 @@ export class CadastralService {
    */
   static async getNextHighRangeCodes(count: number = 2) {
     const res = await Database.query<{ max_val: number }>(
-      `SELECT COALESCE(MAX(substring(project_parcel_code from '[0-9]+$')::integer), 0) AS max_val
-       FROM parcels;`
+      `SELECT COALESCE(MAX(substring(project_parcel_code from '[0-9]+$')::integer), 7000) AS max_val
+       FROM parcels
+       WHERE substring(project_parcel_code from '[0-9]+$')::integer >= 7000;`
     );
 
-    let nextNum = 1;
-    if (res.rows[0]?.max_val !== undefined && res.rows[0]?.max_val !== null) {
+    let nextNum = 7001;
+    if (res.rows[0]?.max_val !== undefined && res.rows[0]?.max_val !== null && Number(res.rows[0].max_val) >= 7000) {
       nextNum = Number(res.rows[0].max_val) + 1;
     }
 
     const codes: string[] = [];
     for (let i = 0; i < count; i++) {
-      codes.push(`B-${String(nextNum + i).padStart(4, '0')}`);
+      codes.push(`B-${String(nextNum + i).padStart(5, '0')}`);
     }
 
     return {
