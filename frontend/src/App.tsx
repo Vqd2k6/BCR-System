@@ -232,6 +232,10 @@ export const App: React.FC = () => {
       totalUnits: Number(p.total_units ?? p.totalUnits ?? 1),
       completedUnits: Number(p.completed_units_count ?? p.completedUnits ?? 0),
       updatedAt: parcelUpdatedAt,
+      assignedSurveyorId: p.assigned_surveyor_id || p.assignedSurveyorId || undefined,
+      assignedSurveyorName: p.assigned_surveyor_name || p.assignedSurveyorName || undefined,
+      assignedSurveyorCode: p.assigned_surveyor_code || p.assignedSurveyorCode || undefined,
+      assignedSurveyorPhone: p.assigned_surveyor_phone || p.assignedSurveyorPhone || undefined,
     };
   };
 

@@ -139,6 +139,7 @@ export const SurveyorBanner: React.FC<SurveyorBannerProps> = ({
       <SurveyorWorkProgressCards
         parcels={parcels}
         onStartPhase1={onStartPhase1}
+        currentUser={user}
       />
     </>
   );

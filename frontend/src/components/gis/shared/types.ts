@@ -30,6 +30,10 @@ export interface GisParcel {
   completedUnits?: number;
   updatedAt?: string;
   zoneId?: string;
+  assignedSurveyorId?: string;
+  assignedSurveyorName?: string;
+  assignedSurveyorCode?: string;
+  assignedSurveyorPhone?: string;
 }
 
 export interface SplitChildData {

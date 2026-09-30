@@ -6,6 +6,10 @@ export interface WorkProgressItem {
   status: string;
   updatedAt: Date | null;
   formattedTime: string;
+  surveyorId?: string;
+  surveyorName?: string;
+  surveyorCode?: string;
+  isCurrentUser: boolean;
 }
 
 /**
@@ -137,7 +141,10 @@ export interface FilteredWorkProgress {
 /**
  * Phân loại danh sách thửa đất theo 3 nhóm tiến độ công việc thực tế
  */
-export const filterParcelsByWorkProgress = (parcels: GisParcel[]): FilteredWorkProgress => {
+export const filterParcelsByWorkProgress = (
+  parcels: GisParcel[],
+  currentUser?: any
+): FilteredWorkProgress => {
   const inProgressToday: WorkProgressItem[] = [];
   const inProgressThisWeek: WorkProgressItem[] = [];
   const completedToday: WorkProgressItem[] = [];
@@ -149,11 +156,38 @@ export const filterParcelsByWorkProgress = (parcels: GisParcel[]): FilteredWorkP
     const updatedDate = getEffectiveUpdatedAt(p);
     const formattedTime = formatRelativeUpdateTime(updatedDate);
 
+    // Kiểm tra quyền sở hữu công việc: Của ai nhìn thấy của người ấy
+    const hasLocalDraft = typeof window !== 'undefined' && !!localStorage.getItem(`metro2_phase1_draft_${p.id}`);
+    const isAssignedToCurrentUser = currentUser ? (
+      (p.assignedSurveyorId && currentUser.id && p.assignedSurveyorId === currentUser.id) ||
+      (p.assignedSurveyorCode && currentUser.surveyorCode && p.assignedSurveyorCode === currentUser.surveyorCode) ||
+      (p.assignedSurveyorName && currentUser.fullName && p.assignedSurveyorName === currentUser.fullName)
+    ) : false;
+
+    const isMine = isAssignedToCurrentUser || hasLocalDraft;
+
+    // Nếu người dùng đăng nhập là SURVEYOR, chỉ hiển thị bài của chính mình ("Của ai nhìn thấy của người ấy")
+    if (currentUser?.role === 'SURVEYOR' && !isMine) {
+      return;
+    }
+
+    const surveyorName = isMine && (!p.assignedSurveyorName || p.assignedSurveyorName === currentUser?.fullName)
+      ? (currentUser?.fullName || p.assignedSurveyorName || 'Tôi')
+      : (p.assignedSurveyorName || 'Khảo sát viên');
+
+    const surveyorCode = isMine && (!p.assignedSurveyorCode || p.assignedSurveyorCode === currentUser?.surveyorCode)
+      ? (currentUser?.surveyorCode || p.assignedSurveyorCode)
+      : p.assignedSurveyorCode;
+
     const item: WorkProgressItem = {
       parcel: p,
       status,
       updatedAt: updatedDate,
       formattedTime,
+      surveyorId: isMine ? (currentUser?.id || p.assignedSurveyorId) : p.assignedSurveyorId,
+      surveyorName,
+      surveyorCode,
+      isCurrentUser: isMine,
     };
 
     // Nhóm 1 & 2: Đang làm dở (IN_PROGRESS)

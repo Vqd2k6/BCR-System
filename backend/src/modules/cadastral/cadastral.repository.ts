@@ -26,6 +26,10 @@ export interface ParcelEntity {
   parent_parcel_ids: string[];
   child_parcel_ids: string[];
   absence_attempt_count: number;
+  assigned_surveyor_id?: string | null;
+  assigned_surveyor_name?: string | null;
+  assigned_surveyor_code?: string | null;
+  assigned_surveyor_phone?: string | null;
   location_geojson?: any;
   cadastral_geojson?: any;
   footprint_geojson?: any;
@@ -104,6 +108,76 @@ export class CadastralRepository {
       `SELECT p.*,
               GREATEST(p.total_units, (SELECT COUNT(*)::int FROM building_units u WHERE u.parcel_id = p.id)) AS total_units,
               (SELECT COUNT(*)::int FROM building_units u WHERE u.parcel_id = p.id AND u.status IN ('APPROVED', 'SUBMITTED')) AS completed_units_count,
+              COALESCE(
+                (
+                  SELECT r.surveyor_id
+                  FROM base_survey_reports r
+                  WHERE r.parcel_id = p.id
+                  ORDER BY r.updated_at DESC
+                  LIMIT 1
+                ),
+                (
+                  SELECT ta.surveyor_id
+                  FROM task_assignments ta
+                  WHERE ta.parcel_id = p.id
+                  ORDER BY ta.assigned_at DESC
+                  LIMIT 1
+                )
+              ) AS assigned_surveyor_id,
+              COALESCE(
+                (
+                  SELECT u.full_name
+                  FROM base_survey_reports r
+                  JOIN users u ON r.surveyor_id = u.id
+                  WHERE r.parcel_id = p.id
+                  ORDER BY r.updated_at DESC
+                  LIMIT 1
+                ),
+                (
+                  SELECT u.full_name
+                  FROM task_assignments ta
+                  JOIN users u ON ta.surveyor_id = u.id
+                  WHERE ta.parcel_id = p.id
+                  ORDER BY ta.assigned_at DESC
+                  LIMIT 1
+                )
+              ) AS assigned_surveyor_name,
+              COALESCE(
+                (
+                  SELECT u.surveyor_code
+                  FROM base_survey_reports r
+                  JOIN users u ON r.surveyor_id = u.id
+                  WHERE r.parcel_id = p.id
+                  ORDER BY r.updated_at DESC
+                  LIMIT 1
+                ),
+                (
+                  SELECT u.surveyor_code
+                  FROM task_assignments ta
+                  JOIN users u ON ta.surveyor_id = u.id
+                  WHERE ta.parcel_id = p.id
+                  ORDER BY ta.assigned_at DESC
+                  LIMIT 1
+                )
+              ) AS assigned_surveyor_code,
+              COALESCE(
+                (
+                  SELECT u.phone
+                  FROM base_survey_reports r
+                  JOIN users u ON r.surveyor_id = u.id
+                  WHERE r.parcel_id = p.id
+                  ORDER BY r.updated_at DESC
+                  LIMIT 1
+                ),
+                (
+                  SELECT u.phone
+                  FROM task_assignments ta
+                  JOIN users u ON ta.surveyor_id = u.id
+                  WHERE ta.parcel_id = p.id
+                  ORDER BY ta.assigned_at DESC
+                  LIMIT 1
+                )
+              ) AS assigned_surveyor_phone,
               ST_AsGeoJSON(p.location_geom)::json AS location_geojson,
               ST_AsGeoJSON(p.cadastral_polygon_geom)::json AS cadastral_geojson,
               ST_AsGeoJSON(p.footprint_polygon_geom)::json AS footprint_geojson

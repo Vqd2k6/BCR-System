@@ -6,6 +6,7 @@ import {
   Eye,
   CheckCircle2,
   Calendar,
+  User,
 } from 'lucide-react';
 import {
   filterParcelsByWorkProgress,
@@ -15,18 +16,20 @@ import {
 interface SurveyorWorkProgressCardsProps {
   parcels: GisParcel[];
   onStartPhase1: (parcel: GisParcel, readOnly?: boolean) => void;
+  currentUser?: any;
 }
 
 export const SurveyorWorkProgressCards: React.FC<SurveyorWorkProgressCardsProps> = ({
   parcels,
   onStartPhase1,
+  currentUser,
 }) => {
   const {
     inProgressToday,
     inProgressThisWeek,
     completedToday,
     completedThisWeek,
-  } = filterParcelsByWorkProgress(parcels);
+  } = filterParcelsByWorkProgress(parcels, currentUser);
 
   const [completedTab, setCompletedTab] = useState<'TODAY' | 'WEEK'>('TODAY');
 
@@ -137,6 +140,29 @@ export const SurveyorWorkProgressCards: React.FC<SurveyorWorkProgressCardsProps>
                   </div>
                   <div style={{ fontSize: '0.7rem', color: '#64748b' }}>
                     Chủ hộ: <strong>{item.parcel.ownerName || (item.parcel as any).owner_name || 'Chưa cập nhật'}</strong>
+                  </div>
+                  <div style={{ fontSize: '0.7rem', color: '#475569', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '3px' }}>
+                    <User size={11} color={item.isCurrentUser ? '#0284c7' : '#d97706'} />
+                    <span>Phụ trách: </span>
+                    <strong style={{ color: item.isCurrentUser ? '#0284c7' : '#1e293b' }}>
+                      {item.isCurrentUser ? `Bạn (${item.surveyorName})` : item.surveyorName}
+                    </strong>
+                    {item.surveyorCode && (
+                      <span
+                        style={{
+                          fontSize: '0.625rem',
+                          color: item.isCurrentUser ? '#0369a1' : '#b45309',
+                          backgroundColor: item.isCurrentUser ? '#e0f2fe' : '#fef3c7',
+                          border: `1px solid ${item.isCurrentUser ? '#bae6fd' : '#fde68a'}`,
+                          padding: '0px 4px',
+                          borderRadius: '3px',
+                          fontWeight: 700,
+                          fontFamily: 'monospace',
+                        }}
+                      >
+                        {item.surveyorCode}
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -272,6 +298,29 @@ export const SurveyorWorkProgressCards: React.FC<SurveyorWorkProgressCardsProps>
                   </div>
                   <div style={{ fontSize: '0.7rem', color: '#64748b' }}>
                     Chủ hộ: <strong>{item.parcel.ownerName || (item.parcel as any).owner_name || 'Chưa cập nhật'}</strong>
+                  </div>
+                  <div style={{ fontSize: '0.7rem', color: '#475569', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '3px' }}>
+                    <User size={11} color={item.isCurrentUser ? '#0284c7' : '#d97706'} />
+                    <span>Phụ trách: </span>
+                    <strong style={{ color: item.isCurrentUser ? '#0284c7' : '#1e293b' }}>
+                      {item.isCurrentUser ? `Bạn (${item.surveyorName})` : item.surveyorName}
+                    </strong>
+                    {item.surveyorCode && (
+                      <span
+                        style={{
+                          fontSize: '0.625rem',
+                          color: item.isCurrentUser ? '#0369a1' : '#b45309',
+                          backgroundColor: item.isCurrentUser ? '#e0f2fe' : '#fef3c7',
+                          border: `1px solid ${item.isCurrentUser ? '#bae6fd' : '#fde68a'}`,
+                          padding: '0px 4px',
+                          borderRadius: '3px',
+                          fontWeight: 700,
+                          fontFamily: 'monospace',
+                        }}
+                      >
+                        {item.surveyorCode}
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -460,6 +509,29 @@ export const SurveyorWorkProgressCards: React.FC<SurveyorWorkProgressCardsProps>
                     </div>
                     <div style={{ fontSize: '0.7rem', color: '#64748b' }}>
                       Chủ hộ: <strong>{item.parcel.ownerName || (item.parcel as any).owner_name || 'Chưa cập nhật'}</strong>
+                    </div>
+                    <div style={{ fontSize: '0.7rem', color: '#475569', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '3px' }}>
+                      <User size={11} color="#059669" />
+                      <span>Phụ trách: </span>
+                      <strong style={{ color: item.isCurrentUser ? '#047857' : '#1e293b' }}>
+                        {item.isCurrentUser ? `Bạn (${item.surveyorName})` : item.surveyorName}
+                      </strong>
+                      {item.surveyorCode && (
+                        <span
+                          style={{
+                            fontSize: '0.625rem',
+                            color: '#047857',
+                            backgroundColor: '#d1fae5',
+                            border: '1px solid #a7f3d0',
+                            padding: '0px 4px',
+                            borderRadius: '3px',
+                            fontWeight: 700,
+                            fontFamily: 'monospace',
+                          }}
+                        >
+                          {item.surveyorCode}
+                        </span>
+                      )}
                     </div>
                   </div>
 
