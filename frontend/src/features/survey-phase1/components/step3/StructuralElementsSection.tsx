@@ -7,7 +7,7 @@ import { PhotoCaptureInput } from '../../../../components/common/PhotoCaptureInp
 import { FloorCadPinningCanvas, CadZonePin } from '../../../../components/canvas/FloorCadPinningCanvas';
 import { FloorSurveyData, StructuralElementData } from '../../types/phase1.types';
 import { COMMON_ROOM_NAMES, STRUCTURAL_ELEMENT_TYPES, STRUCTURAL_MATERIALS } from './step3.constants';
-import { Hammer, Camera, Trash2, MapPin, Plus, ShieldAlert, AlertCircle, Info, Sparkles } from 'lucide-react';
+import { Hammer, Camera, Trash2, MapPin, Plus, ShieldAlert, AlertCircle, Info, Sparkles, RotateCcw } from 'lucide-react';
 
 interface StructuralElementsSectionProps {
   currentFloor: FloorSurveyData;
@@ -49,6 +49,120 @@ export const StructuralElementsSection: React.FC<StructuralElementsSectionProps>
   const structuralElements: StructuralElementData[] = currentFloor.structuralElements || [];
   const activeElement = structuralElements[activeElementIndex];
   const hasStructuralElements = currentFloor.hasStructuralElements !== false;
+
+  const prevElement = activeElementIndex > 0 ? structuralElements[activeElementIndex - 1] : undefined;
+  const customFields = activeElement?.customizedFields || [];
+  const hasCustomizedFields = customFields.length > 0;
+  const isRoot = activeElementIndex === 0;
+  const downstreamCount = structuralElements.length - 1 - activeElementIndex;
+
+  const handleSyncToEntireFloor = () => {
+    if (!activeElement.elementType && !activeElement.materialType) {
+      alert('Vui lòng chọn Loại cấu kiện hoặc Vật liệu trước khi đồng bộ toàn tầng!');
+      return;
+    }
+    const remainingCount = structuralElements.length - 1;
+    if (
+      !confirm(
+        `Bạn có chắc muốn áp dụng loại "${activeElement.elementType || 'hiện tại'}" và vật liệu "${activeElement.materialType || 'hiện tại'}" của ${activeElement.elementCode} cho tất cả ${remainingCount} Cấu kiện E còn lại trên ${currentFloor.floorName}?`
+      )
+    ) {
+      return;
+    }
+    structuralElements.forEach((_, idx) => {
+      if (idx > 0) {
+        onUpdateElement(idx, {
+          elementType: activeElement.elementType || undefined,
+          customElementType: activeElement.customElementType || undefined,
+          materialType: activeElement.materialType || undefined,
+          customMaterialType: activeElement.customMaterialType || undefined,
+        });
+      }
+    });
+  };
+
+  const handleSyncToDownstreamElements = () => {
+    if (!activeElement.elementType && !activeElement.materialType) {
+      alert('Vui lòng chọn Loại cấu kiện hoặc Vật liệu trước khi đồng bộ!');
+      return;
+    }
+    const downstreamElements = structuralElements.slice(activeElementIndex + 1);
+    const downstreamCodes = downstreamElements.map((e) => e.elementCode).join(', ');
+    if (
+      !confirm(
+        `Bạn có chắc muốn áp dụng loại "${activeElement.elementType || 'hiện tại'}" và vật liệu "${activeElement.materialType || 'hiện tại'}" của ${activeElement.elementCode} cho ${downstreamCount} Cấu kiện E phía sau (${downstreamCodes})?\n(Các Cấu kiện E phía trước sẽ được giữ nguyên 100%)`
+      )
+    ) {
+      return;
+    }
+    for (let idx = activeElementIndex + 1; idx < structuralElements.length; idx++) {
+      onUpdateElement(idx, {
+        elementType: activeElement.elementType || undefined,
+        customElementType: activeElement.customElementType || undefined,
+        materialType: activeElement.materialType || undefined,
+        customMaterialType: activeElement.customMaterialType || undefined,
+      });
+    }
+  };
+
+  const handleResetField = (field: 'roomName' | 'elementType' | 'materialType') => {
+    if (!prevElement || !activeElement) return;
+    const updater: Partial<StructuralElementData> = {};
+    if (field === 'roomName') {
+      updater.roomName = prevElement.roomName;
+      updater.customRoomName = prevElement.customRoomName || '';
+    } else if (field === 'elementType') {
+      updater.elementType = prevElement.elementType;
+      updater.customElementType = prevElement.customElementType || '';
+    } else if (field === 'materialType') {
+      updater.materialType = prevElement.materialType;
+      updater.customMaterialType = prevElement.customMaterialType || '';
+    }
+    const newCustom = (activeElement.customizedFields || []).filter((f) => f !== field);
+    updater.customizedFields = newCustom;
+    updater.syncedFromElementCode = prevElement.elementCode;
+    onUpdateElement(activeElementIndex, updater);
+  };
+
+  const handleResetAllToPrevElement = () => {
+    if (!prevElement || !activeElement) return;
+    onUpdateElement(activeElementIndex, {
+      roomName: prevElement.roomName,
+      customRoomName: prevElement.customRoomName || '',
+      elementType: prevElement.elementType,
+      customElementType: prevElement.customElementType || '',
+      materialType: prevElement.materialType,
+      customMaterialType: prevElement.customMaterialType || '',
+      customizedFields: [],
+      syncedFromElementCode: prevElement.elementCode,
+    });
+  };
+
+  const renderElementFieldBadge = (field: 'roomName' | 'elementType' | 'materialType') => {
+    if (!prevElement || !activeElement) return null;
+    const isCustom = customFields.includes(field);
+    if (!isCustom) {
+      return (
+        <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-800 bg-amber-100/70 px-1.5 py-0.5 rounded mt-1">
+          <Sparkles className="w-2.5 h-2.5 text-amber-600" />
+          Đồng bộ từ {prevElement.elementCode}
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center gap-1 text-[10px] font-medium text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded mt-1">
+        Đã tùy chỉnh cho {activeElement.elementCode}
+        <button
+          type="button"
+          onClick={() => handleResetField(field)}
+          className="text-amber-700 hover:underline cursor-pointer ml-1 font-semibold"
+          title={`Khôi phục trường này theo ${prevElement.elementCode}`}
+        >
+          ↺ Lấy lại
+        </button>
+      </span>
+    );
+  };
 
   return (
     <Card id="step3-structure-cad-section" className="border-amber-200 bg-white space-y-4 shadow-xs">
@@ -299,122 +413,130 @@ export const StructuralElementsSection: React.FC<StructuralElementsSectionProps>
               </button>
             </div>
 
-            {/* Thuộc tính cấu kiện chịu lực */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div>
-                <Select
-                  id="select-el-roomName"
-                  label="Vị Trí / Thuộc Không Gian"
-                  value={activeElement.roomName}
-                  onChange={(e) =>
-                    onUpdateElement(activeElementIndex, { roomName: e.target.value })
-                  }
-                  options={COMMON_ROOM_NAMES.map((r) => ({ value: r, label: r }))}
-                />
-                {activeElement.roomName === 'Khác' && (
-                  <Input
-                    id="input-el-customRoomName"
-                    placeholder="Nhập vị trí..."
-                    value={activeElement.customRoomName || ''}
-                    onChange={(e) =>
-                      onUpdateElement(activeElementIndex, { customRoomName: e.target.value })
-                    }
-                    className="mt-1.5"
-                  />
+            {/* Thuộc tính cấu kiện chịu lực có dải phát sáng đồng bộ & tự động kế thừa */}
+            <div className="relative p-3.5 bg-gradient-to-b from-amber-50/40 to-white rounded-xl border border-amber-200/80 space-y-3 shadow-2xs">
+              {/* Line sáng hổ phách trên đỉnh container */}
+              <div className="absolute -top-[1px] left-3 right-3 h-[2px] bg-gradient-to-r from-amber-400 via-orange-300 to-amber-500 rounded-full shadow-[0_0_8px_rgba(245,158,11,0.7)]" />
+
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-amber-950">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                  <span>Thông số định danh & kết cấu cấu kiện</span>
+                </div>
+                {activeElementIndex === 0 && structuralElements.length > 1 && (
+                  <span className="text-[10px] font-semibold text-amber-800 bg-amber-100/80 px-2 py-0.5 rounded-full border border-amber-200">
+                    Gốc mẫu ({activeElement.elementCode}) - Tự động kế thừa sang các cấu kiện E sau
+                  </span>
                 )}
               </div>
 
-              <div>
-                <Select
-                  id="select-el-elementType"
-                  label="Loại Cấu Kiện Chịu Lực"
-                  value={activeElement.elementType}
-                  onChange={(e) =>
-                    onUpdateElement(activeElementIndex, { elementType: e.target.value })
-                  }
-                  options={STRUCTURAL_ELEMENT_TYPES.map((t) => ({ value: t, label: t }))}
-                />
-                {activeElement.elementType === 'Khác' && (
-                  <Input
-                    id="input-el-customElementType"
-                    placeholder="Nhập loại cấu kiện..."
-                    value={activeElement.customElementType || ''}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <Select
+                    id="select-el-roomName"
+                    label="Vị Trí / Thuộc Không Gian"
+                    value={activeElement.roomName}
                     onChange={(e) =>
-                      onUpdateElement(activeElementIndex, {
-                        customElementType: e.target.value,
-                      })
+                      onUpdateElement(activeElementIndex, { roomName: e.target.value })
                     }
-                    className="mt-1.5"
+                    options={COMMON_ROOM_NAMES.map((r) => ({ value: r, label: r }))}
                   />
-                )}
-              </div>
-
-              <div>
-                <Select
-                  id="select-el-materialType"
-                  label="Loại Vật Liệu Kết Cấu"
-                  value={activeElement.materialType}
-                  onChange={(e) =>
-                    onUpdateElement(activeElementIndex, { materialType: e.target.value })
-                  }
-                  options={STRUCTURAL_MATERIALS.map((m) => ({ value: m, label: m }))}
-                />
-                {activeElement.materialType === 'Khác' && (
-                  <Input
-                    id="input-el-customMaterialType"
-                    placeholder="Nhập vật liệu kết cấu..."
-                    value={activeElement.customMaterialType || ''}
-                    onChange={(e) =>
-                      onUpdateElement(activeElementIndex, {
-                        customMaterialType: e.target.value,
-                      })
-                    }
-                    className="mt-1.5"
-                  />
-                )}
-              </div>
-            </div>
-
-            {/* Nút tối ưu: Áp dụng vật liệu kết cấu cho toàn tầng */}
-            {(currentFloor.structuralElements?.length || 0) > 1 && (
-              <div className="flex items-center justify-between p-2 bg-amber-50/70 border border-amber-200/80 rounded-xl text-xs">
-                <span className="text-amber-800 text-[11px] font-medium">
-                  Tiết kiệm thời gian: Áp dụng loại cấu kiện và vật liệu của <strong>{activeElement.elementCode}</strong> cho {(currentFloor.structuralElements?.length || 1) - 1} Cấu kiện E còn lại trên {currentFloor.floorName}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (!activeElement.elementType && !activeElement.materialType) {
-                      alert('Vui lòng chọn Loại cấu kiện hoặc Vật liệu trước khi áp dụng cho toàn tầng!');
-                      return;
-                    }
-                    const count = currentFloor.structuralElements?.length || 0;
-                    if (
-                      !confirm(
-                        `Bạn có chắc chắn muốn áp dụng loại "${activeElement.elementType || 'hiện tại'}" và vật liệu "${activeElement.materialType || 'hiện tại'}" cho toàn bộ ${count} Cấu kiện E của ${currentFloor.floorName}?`
-                      )
-                    ) {
-                      return;
-                    }
-                    (currentFloor.structuralElements || []).forEach((_, idx) => {
-                      if (idx !== activeElementIndex) {
-                        onUpdateElement(idx, {
-                          elementType: activeElement.elementType || undefined,
-                          customElementType: activeElement.customElementType || undefined,
-                          materialType: activeElement.materialType || undefined,
-                          customMaterialType: activeElement.customMaterialType || undefined,
-                        });
+                  {activeElement.roomName === 'Khác' && (
+                    <Input
+                      id="input-el-customRoomName"
+                      placeholder="Nhập vị trí..."
+                      value={activeElement.customRoomName || ''}
+                      onChange={(e) =>
+                        onUpdateElement(activeElementIndex, { customRoomName: e.target.value })
                       }
-                    });
-                  }}
-                  className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-bold text-xs flex items-center gap-1 transition-all shadow-xs shrink-0 cursor-pointer"
-                  title="Đồng bộ cấu kiện và vật liệu cho tất cả Cấu kiện E trong tầng"
-                >
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>Áp dụng toàn tầng</span>
-                </button>
+                      className="mt-1.5"
+                    />
+                  )}
+                  {renderElementFieldBadge('roomName')}
+                </div>
+
+                <div>
+                  <Select
+                    id="select-el-elementType"
+                    label="Loại Cấu Kiện Chịu Lực"
+                    value={activeElement.elementType}
+                    onChange={(e) =>
+                      onUpdateElement(activeElementIndex, { elementType: e.target.value })
+                    }
+                    options={STRUCTURAL_ELEMENT_TYPES.map((t) => ({ value: t, label: t }))}
+                  />
+                  {activeElement.elementType === 'Khác' && (
+                    <Input
+                      id="input-el-customElementType"
+                      placeholder="Nhập loại cấu kiện..."
+                      value={activeElement.customElementType || ''}
+                      onChange={(e) =>
+                        onUpdateElement(activeElementIndex, {
+                          customElementType: e.target.value,
+                        })
+                      }
+                      className="mt-1.5"
+                    />
+                  )}
+                  {renderElementFieldBadge('elementType')}
+                </div>
+
+                <div>
+                  <Select
+                    id="select-el-materialType"
+                    label="Loại Vật Liệu Kết Cấu"
+                    value={activeElement.materialType}
+                    onChange={(e) =>
+                      onUpdateElement(activeElementIndex, { materialType: e.target.value })
+                    }
+                    options={STRUCTURAL_MATERIALS.map((m) => ({ value: m, label: m }))}
+                  />
+                  {activeElement.materialType === 'Khác' && (
+                    <Input
+                      id="input-el-customMaterialType"
+                      placeholder="Nhập vật liệu kết cấu..."
+                      value={activeElement.customMaterialType || ''}
+                      onChange={(e) =>
+                        onUpdateElement(activeElementIndex, {
+                          customMaterialType: e.target.value,
+                        })
+                      }
+                      className="mt-1.5"
+                    />
+                  )}
+                  {renderElementFieldBadge('materialType')}
+                </div>
               </div>
-            )}
+
+              {/* Nút đồng bộ xuôi chiều tinh gọn (Mobile-friendly, không văn bản thừa) */}
+              {isRoot && structuralElements.length > 1 && (
+                <div className="flex justify-end pt-1">
+                  <button
+                    type="button"
+                    onClick={handleSyncToEntireFloor}
+                    className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
+                    title="Đồng bộ cấu kiện và vật liệu của E-01 cho toàn bộ các Cấu kiện E còn lại trên tầng"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>Đồng bộ cho toàn tầng</span>
+                  </button>
+                </div>
+              )}
+
+              {!isRoot && downstreamCount > 0 && (
+                <div className="flex justify-end pt-1">
+                  <button
+                    type="button"
+                    onClick={handleSyncToDownstreamElements}
+                    className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
+                    title={`Đồng bộ cấu kiện và vật liệu cho ${downstreamCount} Cấu kiện E phía sau (không ảnh hưởng các Cấu kiện E phía trước)`}
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>Đồng bộ cho các E còn lại ({downstreamCount})</span>
+                  </button>
+                </div>
+              )}
+            </div>
 
             {/* Chụp nhiều ảnh tổng quan cấu kiện E */}
             <div className="p-2.5 sm:p-3 bg-white rounded-xl border border-amber-200/60 space-y-2.5 shadow-2xs">

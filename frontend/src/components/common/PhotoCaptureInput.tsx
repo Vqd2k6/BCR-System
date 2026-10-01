@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect, useId, useMemo } from 'react';
-import { Camera, Trash2, MapPin, Edit3, AlertTriangle, Compass, Image as ImageIcon, RefreshCw, X, Video } from 'lucide-react';
+import { Camera, Trash2, MapPin, Edit3, AlertTriangle, Image as ImageIcon, RefreshCw, RotateCw, X, MoreVertical } from 'lucide-react';
 import { ImageAnnotationModal } from './ImageAnnotationModal';
 import { api } from '../../services/api';
 import { uploadQueue } from '../../core/services/uploadQueueService';
@@ -59,6 +59,47 @@ export const PhotoCaptureInput: React.FC<Props> = ({
   const [localPreview, setLocalPreview] = useState<string | null>(null);
   const [hasLoadError, setHasLoadError] = useState(false);
 
+  // Trạng thái mở menu thao tác phụ gọn gàng
+  const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
+  const moreMenuRef = useRef<HTMLDivElement>(null);
+
+  // Đóng menu khi click ra ngoài
+  useEffect(() => {
+    if (!isMoreMenuOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (moreMenuRef.current && !moreMenuRef.current.contains(e.target as Node)) {
+        setIsMoreMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isMoreMenuOpen]);
+
+  // Trạng thái Camera Khảo Sát trực tiếp (Live Camera) với Zoom 2 ngón tay
+  const [isLiveCameraOpen, setIsLiveCameraOpen] = useState(false);
+  const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
+  const [cameraLoading, setCameraLoading] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [zoomLevel, setZoomLevel] = useState<number>(1.0);
+  const [isPinching, setIsPinching] = useState(false);
+
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const initialPinchDistRef = useRef<number>(0);
+  const initialZoomRef = useRef<number>(1.0);
+  const zoomLevelRef = useRef<number>(1.0);
+  zoomLevelRef.current = zoomLevel;
+
+  // Trạng thái Lightbox soi ảnh chi tiết bằng 2 ngón tay
+  const [isLightboxOpen, setIsLightboxOpen] = useState(false);
+  const [lightboxZoom, setLightboxZoom] = useState<number>(1.0);
+  const [lightboxPan, setLightboxPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [isLightboxPinching, setIsLightboxPinching] = useState(false);
+  const lightboxPinchDistRef = useRef<number>(0);
+  const lightboxInitialZoomRef = useRef<number>(1.0);
+  const lightboxDragStartRef = useRef<{ x: number; y: number } | null>(null);
+  const lightboxInitialPanRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+
   // Tự động reset trạng thái lỗi khi value thay đổi
   useEffect(() => {
     setHasLoadError(false);
@@ -77,14 +118,6 @@ export const PhotoCaptureInput: React.FC<Props> = ({
     if (effectiveWatermarkOptions) return generateMetroPhotoCode(effectiveWatermarkOptions);
     return watermarkText || '';
   }, [photoCode, effectiveWatermarkOptions, watermarkText]);
-
-  // In-App Live Camera State
-  const [isLiveCameraOpen, setIsLiveCameraOpen] = useState(false);
-  const [facingMode, setFacingMode] = useState<'environment' | 'user'>('environment');
-  const [cameraLoading, setCameraLoading] = useState(false);
-  const [cameraError, setCameraError] = useState<string | null>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const streamRef = useRef<MediaStream | null>(null);
 
   // Detect image aspect ratio when value changes
   useEffect(() => {
@@ -293,148 +326,281 @@ export const PhotoCaptureInput: React.FC<Props> = ({
     setDetectedAspectRatio(null);
   };
 
-  // Dừng stream camera khi đóng
-  const stopLiveCamera = () => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((t) => t.stop());
-      streamRef.current = null;
+  // Xoay ảnh 90 độ theo chiều kim đồng hồ khi người dùng chụp ngược hướng
+  const handleRotate90 = async () => {
+    const currentImgUrl = localPreview || value;
+    if (!currentImgUrl) return;
+    try {
+      const img = new Image();
+      if (!currentImgUrl.startsWith('data:')) {
+        img.crossOrigin = 'anonymous';
+      }
+      await new Promise((resolve, reject) => {
+        img.onload = resolve;
+        img.onerror = reject;
+        img.src = currentImgUrl;
+      });
+
+      const canvas = document.createElement('canvas');
+      canvas.width = img.naturalHeight;
+      canvas.height = img.naturalWidth;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      // Xoay 90 độ chiều kim đồng hồ
+      ctx.translate(canvas.width / 2, canvas.height / 2);
+      ctx.rotate((90 * Math.PI) / 180);
+      ctx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2);
+
+      const rotatedDataUrl = canvas.toDataURL('image/jpeg', 0.96);
+      setLocalPreview(rotatedDataUrl);
+      onChange(rotatedDataUrl, displayPhotoCode);
+
+      canvas.toBlob((b) => {
+        if (b) {
+          startDirectUpload(b, displayPhotoCode);
+        } else {
+          uploadToServer(rotatedDataUrl, displayPhotoCode);
+        }
+      }, 'image/jpeg', 0.96);
+    } catch (err) {
+      console.warn('[PhotoCaptureInput] Lỗi khi xoay ảnh 90°:', err);
     }
-    setIsLiveCameraOpen(false);
-    setCameraLoading(false);
-    setCameraError(null);
   };
 
-  // Khởi động luồng WebRTC camera
-  useEffect(() => {
-    if (!isLiveCameraOpen) return;
-    let active = true;
+  // Dọn dẹp tài nguyên Live Camera
+  const stopLiveCamera = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => {
+        try {
+          track.stop();
+        } catch (_e) {}
+      });
+      streamRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+  };
+
+  // Điều khiển Hardware Sensor Zoom (nếu thiết bị Android/Chrome hỗ trợ)
+  const applyHardwareZoom = (zoom: number) => {
+    try {
+      const track = streamRef.current?.getVideoTracks()[0];
+      if (track) {
+        const caps = (track.getCapabilities ? track.getCapabilities() : {}) as any;
+        if (caps.zoom) {
+          const min = caps.zoom.min || 1;
+          const max = caps.zoom.max || 5;
+          const target = Math.min(max, Math.max(min, zoom));
+          track.applyConstraints({ advanced: [{ zoom: target } as any] }).catch(() => {});
+        }
+      }
+    } catch (_e) {}
+  };
+
+  // Khởi động Camera trực tiếp
+  const startLiveCamera = async () => {
     setCameraLoading(true);
     setCameraError(null);
+    setZoomLevel(1.0);
+    initialPinchDistRef.current = 0;
+    initialZoomRef.current = 1.0;
 
-    const startStream = async () => {
-      try {
-        if (!navigator?.mediaDevices?.getUserMedia) {
-          throw new Error('Thiết bị không hỗ trợ live camera hoặc cần kết nối HTTPS.');
-        }
-        if (streamRef.current) {
-          streamRef.current.getTracks().forEach((t) => t.stop());
-        }
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: { ideal: facingMode },
-            width: { ideal: 1920 },
-            height: { ideal: 1080 },
-          },
-          audio: false,
-        });
-
-        if (active && videoRef.current) {
-          streamRef.current = stream;
-          videoRef.current.srcObject = stream;
-          videoRef.current.play();
-          setCameraLoading(false);
-        } else {
-          stream.getTracks().forEach((t) => t.stop());
-        }
-      } catch (err: any) {
-        if (active) {
-          console.warn('Lỗi mở WebRTC camera:', err);
-          setCameraLoading(false);
-          setCameraError(err?.message || 'Không thể truy cập camera. Vui lòng cấp quyền hoặc dùng nút camera hệ thống.');
-        }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: facingMode },
+          width: { ideal: 2560 },
+          height: { ideal: 1920 },
+        },
+        audio: false,
+      });
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
       }
-    };
+      setCameraLoading(false);
+    } catch (err: any) {
+      console.warn('[LiveCamera] Không thể mở camera trực tiếp:', err);
+      setCameraError('Không thể mở camera trực tiếp. Bạn có thể bấm nút bên dưới để mở camera hệ thống.');
+      setCameraLoading(false);
+    }
+  };
 
-    startStream();
-
+  useEffect(() => {
+    if (isLiveCameraOpen) {
+      startLiveCamera();
+    } else {
+      stopLiveCamera();
+    }
     return () => {
-      active = false;
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach((t) => t.stop());
-        streamRef.current = null;
-      }
+      stopLiveCamera();
     };
   }, [isLiveCameraOpen, facingMode]);
 
-  // Chụp ảnh từ luồng WebRTC kèm dập Watermark và tự động crop theo khung ngắm
+  // Xử lý zoom 2 ngón tay (Pinch to zoom) trên khung ngắm Camera
+  const handleCameraTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (e.touches.length === 2) {
+      const dist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      initialPinchDistRef.current = dist;
+      initialZoomRef.current = zoomLevelRef.current;
+      setIsPinching(true);
+    }
+  };
+
+  const handleCameraTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (e.touches.length === 2 && initialPinchDistRef.current > 0) {
+      const dist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      const scale = dist / initialPinchDistRef.current;
+      let nextZoom = Math.min(5.0, Math.max(1.0, initialZoomRef.current * scale));
+      nextZoom = Math.round(nextZoom * 10) / 10;
+      setZoomLevel(nextZoom);
+      applyHardwareZoom(nextZoom);
+    }
+  };
+
+  const handleCameraTouchEnd = () => {
+    initialPinchDistRef.current = 0;
+    setTimeout(() => setIsPinching(false), 1200);
+  };
+
+  // Hỗ trợ chuột lăn (wheel) khi test trên laptop / desktop
+  const handleCameraWheel = (e: React.WheelEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const delta = e.deltaY < 0 ? 0.2 : -0.2;
+    setZoomLevel((prev) => {
+      const next = Math.min(5.0, Math.max(1.0, Math.round((prev + delta) * 10) / 10));
+      applyHardwareZoom(next);
+      return next;
+    });
+    setIsPinching(true);
+    setTimeout(() => setIsPinching(false), 1200);
+  };
+
+  // Chụp ảnh từ khung ngắm Camera (kèm crop zoom sắc nét 4:3)
   const handleCaptureLiveFrame = async () => {
     if (!videoRef.current) return;
     const video = videoRef.current;
+    const vw = video.videoWidth || 1920;
+    const vh = video.videoHeight || 1440;
+
+    const track = streamRef.current?.getVideoTracks()[0];
+    const caps = (track?.getCapabilities ? track.getCapabilities() : {}) as any;
+    const hasHardwareZoom = !!caps.zoom;
+
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    if (hasHardwareZoom || zoomLevel <= 1.0) {
+      canvas.width = vw;
+      canvas.height = vh;
+      ctx.drawImage(video, 0, 0, vw, vh);
+    } else {
+      // High-res Digital Crop Zoom trên Canvas (chuẩn 4:3, giữ tâm khung hình)
+      const cropW = vw / zoomLevel;
+      const cropH = vh / zoomLevel;
+      const cropX = (vw - cropW) / 2;
+      const cropY = (vh - cropH) / 2;
+      canvas.width = vw;
+      canvas.height = vh;
+      ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, vw, vh);
+    }
+
+    const rawBase64 = canvas.toDataURL('image/jpeg', 0.96);
+    stopLiveCamera();
+    setIsLiveCameraOpen(false);
 
     try {
-      // 1. Xác định tỷ lệ mục tiêu theo hướng khuyến nghị
-      let targetRatio = 4 / 3;
-      if (recommendedOrientation === 'portrait') targetRatio = 3 / 4;
-      else if (recommendedOrientation === 'square') targetRatio = 1 / 1;
-      else if (recommendedOrientation === 'landscape') targetRatio = 4 / 3;
-
-      const vWidth = video.videoWidth || 1920;
-      const vHeight = video.videoHeight || 1080;
-      const vAspect = vWidth / vHeight;
-
-      let cropW = vWidth;
-      let cropH = vHeight;
-      let startX = 0;
-      let startY = 0;
-
-      if (vAspect > targetRatio) {
-        // Video rộng hơn khung -> crop 2 bên
-        cropW = Math.round(vHeight * targetRatio);
-        startX = Math.round((vWidth - cropW) / 2);
-      } else {
-        // Video cao hơn khung -> crop trên/dưới
-        cropH = Math.round(vWidth / targetRatio);
-        startY = Math.round((vHeight - cropH) / 2);
-      }
-
-      const cropCanvas = document.createElement('canvas');
-      cropCanvas.width = cropW;
-      cropCanvas.height = cropH;
-      const cropCtx = cropCanvas.getContext('2d');
-      if (cropCtx) {
-        cropCtx.drawImage(video, startX, startY, cropW, cropH, 0, 0, cropW, cropH);
-      }
-
-      const captureSource = cropCanvas.width > 0 ? cropCanvas : video;
-
-      const { dataUrl, blob, photoCode: generatedCode } = await applyMetroWatermark(
-        captureSource,
-        effectiveWatermarkOptions
-      );
-      if (dataUrl) {
-        setLocalPreview(dataUrl);
-        onChange(dataUrl, generatedCode);
+      const result = await applyMetroWatermark(rawBase64, effectiveWatermarkOptions);
+      if (result.dataUrl) {
+        setLocalPreview(result.dataUrl);
+        onChange(result.dataUrl, result.photoCode);
         if (isNotApplicable && onToggleNotApplicable) {
           onToggleNotApplicable(false);
         }
-        if (blob) {
-          startDirectUpload(blob, generatedCode);
+        if (result.blob) {
+          startDirectUpload(result.blob, result.photoCode);
         } else {
-          uploadToServer(dataUrl, generatedCode);
+          uploadToServer(result.dataUrl, result.photoCode);
         }
-        stopLiveCamera();
       }
-    } catch (err) {
-      console.warn('[WATERMARK] Fallback chụp ảnh trực tiếp:', err);
-      const canvas = document.createElement('canvas');
-      canvas.width = video.videoWidth || 1280;
-      canvas.height = video.videoHeight || 720;
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        canvas.toBlob((b) => {
-          const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
-          setLocalPreview(dataUrl);
-          onChange(dataUrl, displayPhotoCode);
-          if (b) {
-            startDirectUpload(b, displayPhotoCode);
-          } else {
-            uploadToServer(dataUrl, displayPhotoCode);
-          }
-        }, 'image/jpeg', 0.85);
-      }
+    } catch (_err) {
+      setLocalPreview(rawBase64);
+      onChange(rawBase64, displayPhotoCode);
+      uploadToServer(rawBase64, displayPhotoCode);
     }
-    stopLiveCamera();
+  };
+
+  // Mở Camera Khảo Sát (hoặc fallback camera hệ thống nếu không có getUserMedia)
+  const handleTriggerCapture = () => {
+    if (typeof navigator !== 'undefined' && navigator.mediaDevices && typeof navigator.mediaDevices.getUserMedia === 'function') {
+      setIsLiveCameraOpen(true);
+    } else {
+      document.getElementById(cameraInputId)?.click();
+    }
+  };
+
+  // Xử lý zoom và pan 2 ngón tay trên Lightbox soi ảnh chi tiết
+  const handleLightboxTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (e.touches.length === 2) {
+      const dist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      lightboxPinchDistRef.current = dist;
+      lightboxInitialZoomRef.current = lightboxZoom;
+      setIsLightboxPinching(true);
+    } else if (e.touches.length === 1 && lightboxZoom > 1.0) {
+      lightboxDragStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+      lightboxInitialPanRef.current = { ...lightboxPan };
+    }
+  };
+
+  const handleLightboxTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (e.touches.length === 2 && lightboxPinchDistRef.current > 0) {
+      const dist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      const scale = dist / lightboxPinchDistRef.current;
+      const nextZoom = Math.min(4.0, Math.max(1.0, Math.round(lightboxInitialZoomRef.current * scale * 10) / 10));
+      setLightboxZoom(nextZoom);
+      if (nextZoom === 1.0) {
+        setLightboxPan({ x: 0, y: 0 });
+      }
+    } else if (e.touches.length === 1 && lightboxDragStartRef.current && lightboxZoom > 1.0) {
+      const dx = e.touches[0].clientX - lightboxDragStartRef.current.x;
+      const dy = e.touches[0].clientY - lightboxDragStartRef.current.y;
+      setLightboxPan({
+        x: lightboxInitialPanRef.current.x + dx,
+        y: lightboxInitialPanRef.current.y + dy,
+      });
+    }
+  };
+
+  const handleLightboxTouchEnd = () => {
+    lightboxPinchDistRef.current = 0;
+    lightboxDragStartRef.current = null;
+    setIsLightboxPinching(false);
+  };
+
+  const handleLightboxWheel = (e: React.WheelEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const delta = e.deltaY < 0 ? 0.2 : -0.2;
+    setLightboxZoom((prev) => {
+      const next = Math.min(4.0, Math.max(1.0, Math.round((prev + delta) * 10) / 10));
+      if (next === 1.0) setLightboxPan({ x: 0, y: 0 });
+      return next;
+    });
   };
 
   const isOrientationMismatch =
@@ -514,9 +680,9 @@ export const PhotoCaptureInput: React.FC<Props> = ({
                 alignItems: 'center',
                 gap: '0.25rem',
               }}
-              title="Khuyến nghị xoay ngang điện thoại để trang in báo cáo không bị méo"
+              title="Khảo sát viên vui lòng xoay ngang điện thoại khi chụp để ảnh đạt chuẩn ngang 4:3 của báo cáo"
             >
-              📐 Khuyến nghị: Ảnh NGANG (16:9 / 4:3)
+              🔄 Xoay ngang máy khi chụp (4:3)
             </span>
           )}
 
@@ -534,9 +700,9 @@ export const PhotoCaptureInput: React.FC<Props> = ({
                 alignItems: 'center',
                 gap: '0.25rem',
               }}
-              title="Khuyến nghị cầm dọc điện thoại để chụp trọn vẹn tầng cao"
+              title="Khảo sát viên cầm dọc điện thoại để chụp trọn vẹn chiều cao công trình"
             >
-              📐 Khuyến nghị: Ảnh DỌC (3:4 / 9:16)
+              📱 Cầm dọc máy khi chụp (3:4)
             </span>
           )}
         </div>
@@ -583,11 +749,9 @@ export const PhotoCaptureInput: React.FC<Props> = ({
         >
           <AlertTriangle size={13} style={{ flexShrink: 0 }} />
           <span>
-            {recommendedOrientation === 'square'
-              ? 'Ảnh chi tiết khuyết tật khuyến nghị dùng khung vuông (1:1) kèm thước đo tỷ lệ.'
-              : recommendedOrientation === 'landscape'
-              ? 'Ảnh đang là ảnh dọc. Báo cáo khuyến nghị dùng ảnh ngang (4:3) để bao quát và tránh méo layout.'
-              : 'Ảnh đang là ảnh ngang. Báo cáo khuyến nghị dùng ảnh dọc để vừa khung mẫu.'}
+            {recommendedOrientation === 'landscape'
+              ? 'Ảnh đang là ảnh dọc. Báo cáo khuyến nghị xoay ngang điện thoại (4:3) để vừa khung in báo cáo.'
+              : 'Ảnh đang là ảnh ngang. Báo cáo khuyến nghị cầm dọc điện thoại (3:4) để lấy trọn chiều cao công trình.'}
           </span>
         </div>
       )}
@@ -640,231 +804,297 @@ export const PhotoCaptureInput: React.FC<Props> = ({
                 setHasLoadError(true);
               }
             }}
-            style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+            onClick={() => setIsLightboxOpen(true)}
+            title="Chạm vào ảnh để phóng to soi vạch thước đo nứt (2 ngón tay)"
+            style={{ width: '100%', height: '100%', objectFit: 'contain', cursor: 'pointer' }}
           />
 
-          {/* Cloud Upload Status Badge */}
-          {uploadStatus === 'UPLOADING' && (
-            <div
-              style={{
-                position: 'absolute',
-                bottom: '6px',
-                right: '6px',
-                backgroundColor: 'rgba(245, 158, 11, 0.95)',
-                color: '#ffffff',
-                fontSize: '0.62rem',
-                fontWeight: 600,
-                padding: '0.18rem 0.4rem',
-                borderRadius: '0.35rem',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.25rem',
-                backdropFilter: 'blur(3px)',
-                boxShadow: '0 2px 4px rgba(0, 0, 0, 0.35)',
-                zIndex: 5,
-              }}
-              title="Đang tải ảnh lên Cloudflare R2..."
-            >
-              <RefreshCw size={10} className="animate-spin" />
-              <span>Lưu R2...</span>
-            </div>
-          )}
-          {uploadStatus === 'SUCCESS' && (
-            <div
-              style={{
-                position: 'absolute',
-                bottom: '6px',
-                right: '6px',
-                width: '22px',
-                height: '22px',
-                borderRadius: '50%',
-                backgroundColor: 'rgba(16, 185, 129, 0.95)',
-                color: '#ffffff',
-                fontSize: '0.62rem',
-                fontWeight: 800,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                boxShadow: '0 2px 4px rgba(0, 0, 0, 0.35)',
-                border: '1.5px solid rgba(255, 255, 255, 0.9)',
-                zIndex: 5,
-                letterSpacing: '-0.02em',
-                userSelect: 'none',
-              }}
-              title="Đã lưu Cloudflare R2 an toàn"
-            >
-              R2
-            </div>
-          )}
-          {uploadStatus === 'ERROR' && (
-            <div
-              style={{
-                position: 'absolute',
-                bottom: '6px',
-                right: '6px',
-                backgroundColor: 'rgba(239, 68, 68, 0.95)',
-                color: '#ffffff',
-                fontSize: '0.6rem',
-                fontWeight: 600,
-                padding: '0.15rem 0.35rem',
-                borderRadius: '0.35rem',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.25rem',
-                backdropFilter: 'blur(3px)',
-                boxShadow: '0 2px 4px rgba(0, 0, 0, 0.35)',
-                zIndex: 5,
-              }}
-            >
-              <span>⚠️ Lỗi R2</span>
-              {lastBlobRef.current && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (lastBlobRef.current) {
-                      startDirectUpload(lastBlobRef.current, photoCode || displayPhotoCode);
-                    }
-                  }}
-                  style={{
-                    backgroundColor: '#ffffff',
-                    color: '#ef4444',
-                    border: 'none',
-                    borderRadius: '0.25rem',
-                    padding: '0.05rem 0.25rem',
-                    fontSize: '0.55rem',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                  }}
-                >
-                  Thử lại
-                </button>
-              )}
-            </div>
-          )}
-
-          {/* Photo ID Badge / Watermark Tag */}
+          {/* Top-Left: Minimalist Photo ID chip + Cloud Status */}
           {displayPhotoCode && (
             <div
               style={{
                 position: 'absolute',
-                bottom: '6px',
+                top: '6px',
                 left: '6px',
-                backgroundColor: 'rgba(15, 23, 42, 0.88)',
+                backgroundColor: 'rgba(15, 23, 42, 0.85)',
                 color: '#34d399',
                 fontSize: '0.65rem',
-                fontWeight: 600,
-                padding: '0.2rem 0.45rem',
-                borderRadius: '0.35rem',
+                fontWeight: 700,
+                padding: '0.2rem 0.5rem',
+                borderRadius: '9999px',
                 fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
-                backdropFilter: 'blur(3px)',
+                backdropFilter: 'blur(4px)',
                 border: '1px solid rgba(52, 211, 153, 0.35)',
-                maxWidth: '92%',
+                maxWidth: '48%',
                 whiteSpace: 'nowrap',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
                 boxShadow: '0 2px 5px rgba(0, 0, 0, 0.35)',
+                zIndex: 10,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.25rem',
               }}
-              title={`Photo ID Pháp Lý: ${displayPhotoCode}`}
+              title={`Photo ID: ${displayPhotoCode}`}
             >
-              <MapPin size={11} style={{ display: 'inline', marginRight: '4px', verticalAlign: 'middle', color: '#10b981' }} />
-              <span>{displayPhotoCode}</span>
+              <MapPin size={10} style={{ color: '#10b981', flexShrink: 0 }} />
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{displayPhotoCode}</span>
+              {uploadStatus === 'UPLOADING' && <RefreshCw size={9} className="animate-spin text-amber-400 shrink-0" />}
+              {uploadStatus === 'SUCCESS' && (
+                <span
+                  style={{
+                    width: '6px',
+                    height: '6px',
+                    borderRadius: '50%',
+                    backgroundColor: '#10b981',
+                    flexShrink: 0,
+                  }}
+                  title="Đã lưu Cloudflare R2 an toàn"
+                />
+              )}
+              {uploadStatus === 'ERROR' && (
+                <span
+                  style={{
+                    width: '6px',
+                    height: '6px',
+                    borderRadius: '50%',
+                    backgroundColor: '#ef4444',
+                    flexShrink: 0,
+                  }}
+                  title="Lỗi tải R2"
+                />
+              )}
             </div>
           )}
 
-          {/* Action floating buttons */}
-          <div style={{ position: 'absolute', top: '6px', right: '6px', display: 'flex', gap: '0.35rem' }}>
-            {allowAnnotation && (
-              <button
-                type="button"
-                onClick={() => setIsAnnotating(true)}
-                title="Vẽ, đánh dấu mũi tên hoặc ghi chú lên ảnh"
-                style={{
-                  backgroundColor: 'rgba(16, 185, 129, 0.9)',
-                  color: '#ffffff',
-                  border: 'none',
-                  borderRadius: '0.4rem',
-                  padding: '0.35rem 0.55rem',
-                  fontSize: '0.7rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.25rem',
-                  cursor: 'pointer',
-                  backdropFilter: 'blur(2px)',
-                  fontWeight: 600,
-                  boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
-                }}
-              >
-                <Edit3 size={13} />
-                <span>Vẽ / Chú thích</span>
-              </button>
-            )}
-
-            {/* Chụp lại bằng Camera */}
-            <label
-              htmlFor={cameraInputId}
-              title="Mở camera điện thoại chụp lại"
+          {/* Top-Right: Minimalist Action Cluster (Chụp Lại + Menu ⋯) */}
+          <div
+            ref={moreMenuRef}
+            style={{
+              position: 'absolute',
+              top: '6px',
+              right: '6px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.35rem',
+              zIndex: 20,
+            }}
+          >
+            {/* Nút chính Chụp Lại - Nhanh, Tiện, 1 chạm */}
+            <button
+              type="button"
+              onClick={handleTriggerCapture}
+              title="Mở camera chụp lại ảnh này (có zoom 2 ngón tay)"
               style={{
                 backgroundColor: 'rgba(5, 150, 105, 0.92)',
                 color: '#ffffff',
-                border: 'none',
-                borderRadius: '0.4rem',
-                padding: '0.35rem 0.55rem',
-                fontSize: '0.7rem',
+                border: '1px solid rgba(255, 255, 255, 0.25)',
+                borderRadius: '9999px',
+                padding: '0.25rem 0.65rem',
+                fontSize: '0.72rem',
+                fontWeight: 700,
                 display: 'flex',
                 alignItems: 'center',
                 gap: '0.25rem',
                 cursor: 'pointer',
-                backdropFilter: 'blur(2px)',
-                fontWeight: 600,
+                backdropFilter: 'blur(4px)',
+                boxShadow: '0 2px 6px rgba(0, 0, 0, 0.3)',
                 userSelect: 'none',
               }}
             >
-              <Camera size={13} />
+              <Camera size={12} />
               <span>Chụp lại</span>
-            </label>
-
-            {/* Đổi ảnh từ máy */}
-            <label
-              htmlFor={galleryInputId}
-              title="Chọn ảnh từ thư viện thiết bị"
-              style={{
-                backgroundColor: 'rgba(15, 23, 42, 0.85)',
-                color: '#ffffff',
-                border: 'none',
-                borderRadius: '0.4rem',
-                padding: '0.35rem 0.55rem',
-                fontSize: '0.7rem',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.25rem',
-                cursor: 'pointer',
-                backdropFilter: 'blur(2px)',
-                fontWeight: 600,
-                userSelect: 'none',
-              }}
-            >
-              <ImageIcon size={13} />
-              <span>Đổi ảnh</span>
-            </label>
-
-            <button
-              type="button"
-              onClick={handleClear}
-              title="Xóa ảnh"
-              style={{
-                backgroundColor: 'rgba(239, 68, 68, 0.9)',
-                color: '#ffffff',
-                border: 'none',
-                borderRadius: '0.4rem',
-                padding: '0.35rem 0.5rem',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-              }}
-            >
-              <Trash2 size={13} />
             </button>
+
+            {/* Nút ⋯ Thao tác mở rộng */}
+            <div style={{ position: 'relative' }}>
+              <button
+                type="button"
+                onClick={() => setIsMoreMenuOpen(!isMoreMenuOpen)}
+                title="Tùy chọn thao tác khác (Soi, Xoay, Vẽ, Đổi ảnh, Xóa)"
+                style={{
+                  backgroundColor: 'rgba(15, 23, 42, 0.85)',
+                  color: '#ffffff',
+                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                  borderRadius: '50%',
+                  width: '28px',
+                  height: '28px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  backdropFilter: 'blur(4px)',
+                  boxShadow: '0 2px 6px rgba(0, 0, 0, 0.3)',
+                }}
+              >
+                <MoreVertical size={14} />
+              </button>
+
+              {/* Dropdown Menu Tinh Tế */}
+              {isMoreMenuOpen && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: '32px',
+                    right: 0,
+                    backgroundColor: 'rgba(15, 23, 42, 0.96)',
+                    color: '#f8fafc',
+                    borderRadius: '0.65rem',
+                    padding: '0.3rem',
+                    boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5)',
+                    border: '1px solid rgba(51, 65, 85, 0.8)',
+                    minWidth: '165px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.15rem',
+                    fontSize: '0.75rem',
+                    backdropFilter: 'blur(8px)',
+                    zIndex: 30,
+                  }}
+                >
+
+                  {/* Xoay 90 độ */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsMoreMenuOpen(false);
+                      handleRotate90();
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '0.4rem 0.6rem',
+                      borderRadius: '0.4rem',
+                      border: 'none',
+                      backgroundColor: 'transparent',
+                      color: '#f8fafc',
+                      textAlign: 'left',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.45rem',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'rgba(51, 65, 85, 0.6)')}
+                    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                  >
+                    <RotateCw size={13} style={{ color: '#fbbf24' }} />
+                    <span>Xoay ảnh 90°</span>
+                  </button>
+
+                  {/* Vẽ / Chú thích */}
+                  {allowAnnotation && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMoreMenuOpen(false);
+                        setIsAnnotating(true);
+                      }}
+                      style={{
+                        width: '100%',
+                        padding: '0.4rem 0.6rem',
+                        borderRadius: '0.4rem',
+                        border: 'none',
+                        backgroundColor: 'transparent',
+                        color: '#f8fafc',
+                        textAlign: 'left',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.45rem',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'rgba(51, 65, 85, 0.6)')}
+                      onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                    >
+                      <Edit3 size={13} style={{ color: '#34d399' }} />
+                      <span>Vẽ / Ghi chú nứt</span>
+                    </button>
+                  )}
+
+                  {/* Chọn ảnh từ máy */}
+                  <label
+                    htmlFor={galleryInputId}
+                    onClick={() => setIsMoreMenuOpen(false)}
+                    style={{
+                      width: '100%',
+                      padding: '0.4rem 0.6rem',
+                      borderRadius: '0.4rem',
+                      backgroundColor: 'transparent',
+                      color: '#f8fafc',
+                      textAlign: 'left',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.45rem',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      boxSizing: 'border-box',
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'rgba(51, 65, 85, 0.6)')}
+                    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                  >
+                    <ImageIcon size={13} style={{ color: '#60a5fa' }} />
+                    <span>Chọn từ thư viện máy</span>
+                  </label>
+
+                  <div style={{ borderTop: '1px solid rgba(51, 65, 85, 0.8)', margin: '0.2rem 0' }} />
+
+                  {/* Xóa ảnh */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsMoreMenuOpen(false);
+                      handleClear();
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '0.4rem 0.6rem',
+                      borderRadius: '0.4rem',
+                      border: 'none',
+                      backgroundColor: 'transparent',
+                      color: '#f87171',
+                      textAlign: 'left',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.45rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.2)')}
+                    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                  >
+                    <Trash2 size={13} />
+                    <span>Xóa ảnh này</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Bottom Center: Subtle Hint */}
+          <div
+            style={{
+              position: 'absolute',
+              bottom: '6px',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              pointerEvents: 'none',
+              zIndex: 10,
+            }}
+          >
+            <span
+              style={{
+                fontSize: '0.62rem',
+                color: 'rgba(255, 255, 255, 0.75)',
+                backgroundColor: 'rgba(0, 0, 0, 0.45)',
+                padding: '0.15rem 0.5rem',
+                borderRadius: '9999px',
+                backdropFilter: 'blur(2px)',
+                fontWeight: 500,
+                whiteSpace: 'nowrap',
+              }}
+            >
+              Chạm ảnh để phóng to
+            </span>
           </div>
         </div>
       ) : (
@@ -910,80 +1140,58 @@ export const PhotoCaptureInput: React.FC<Props> = ({
                 </div>
               )}
 
-              <div style={{ display: 'flex', gap: isCompact ? '0.25rem' : '0.5rem', flexWrap: 'wrap', justifyContent: 'center' }}>
-                {/* In-app live camera modal button (Primary) */}
+              <div style={{ display: 'flex', gap: isCompact ? '0.35rem' : '0.65rem', flexWrap: 'wrap', justifyContent: 'center' }}>
+                {/* 1. NÚT CHÍNH: Chụp ảnh bằng camera khảo sát (hỗ trợ zoom 2 ngón tay) */}
                 <button
                   type="button"
-                  onClick={() => setIsLiveCameraOpen(true)}
+                  onClick={handleTriggerCapture}
                   style={{
                     display: 'inline-flex',
                     alignItems: 'center',
-                    gap: isCompact ? '0.25rem' : '0.4rem',
-                    padding: isCompact ? '0.3rem 0.55rem' : '0.5rem 0.95rem',
+                    gap: isCompact ? '0.25rem' : '0.45rem',
+                    padding: isCompact ? '0.35rem 0.65rem' : '0.5rem 1.05rem',
                     fontWeight: 700,
                     backgroundColor: '#059669',
                     color: '#ffffff',
                     border: 'none',
                     borderRadius: '0.45rem',
                     cursor: 'pointer',
-                    fontSize: isCompact ? '0.7rem' : '0.8rem',
-                    boxShadow: '0 2px 4px rgba(5, 150, 105, 0.3)',
+                    fontSize: isCompact ? '0.72rem' : '0.8rem',
+                    boxShadow: '0 2px 4px rgba(5, 150, 105, 0.25)',
                     userSelect: 'none',
                     whiteSpace: 'nowrap',
+                    transition: 'all 0.15s ease',
                   }}
-                  title="Mở camera định hướng theo khung hình chuẩn báo cáo"
+                  title="Mở camera khảo sát (hỗ trợ zoom 2 ngón tay)"
                 >
-                  <Video size={isCompact ? 13 : 16} />
-                  <span>{isCompact ? 'Live Cam' : 'Camera Live (Khung chuẩn)'}</span>
+                  <Camera size={isCompact ? 14 : 16} />
+                  <span>Chụp ảnh</span>
                 </button>
 
-                {/* Direct Hardware Camera trigger via Label */}
-                <label
-                  htmlFor={cameraInputId}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: isCompact ? '0.25rem' : '0.4rem',
-                    padding: isCompact ? '0.25rem 0.45rem' : '0.45rem 0.85rem',
-                    fontWeight: 600,
-                    backgroundColor: '#ffffff',
-                    color: '#334155',
-                    border: '1px solid #cbd5e1',
-                    borderRadius: '0.45rem',
-                    cursor: 'pointer',
-                    fontSize: isCompact ? '0.68rem' : '0.75rem',
-                    boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
-                    userSelect: 'none',
-                    whiteSpace: 'nowrap',
-                  }}
-                  title="Dùng camera mặc định của hệ điều hành máy"
-                >
-                  <Camera size={isCompact ? 13 : 15} />
-                  <span>{isCompact ? 'Máy ảnh' : 'Camera máy'}</span>
-                </label>
-
-                {/* Gallery File input trigger via Label */}
+                {/* 2. NÚT PHỤ: Chọn ảnh từ thư viện máy */}
                 <label
                   htmlFor={galleryInputId}
                   style={{
                     display: 'inline-flex',
                     alignItems: 'center',
-                    gap: isCompact ? '0.25rem' : '0.4rem',
-                    padding: isCompact ? '0.25rem 0.45rem' : '0.45rem 0.85rem',
+                    gap: isCompact ? '0.25rem' : '0.45rem',
+                    padding: isCompact ? '0.35rem 0.65rem' : '0.5rem 0.95rem',
                     fontWeight: 600,
                     backgroundColor: '#ffffff',
                     color: '#334155',
                     border: '1px solid #cbd5e1',
                     borderRadius: '0.45rem',
                     cursor: 'pointer',
-                    fontSize: isCompact ? '0.68rem' : '0.75rem',
+                    fontSize: isCompact ? '0.72rem' : '0.775rem',
                     boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
                     userSelect: 'none',
                     whiteSpace: 'nowrap',
+                    transition: 'all 0.15s ease',
                   }}
+                  title="Chọn ảnh đã chụp sẵn từ thư viện thiết bị"
                 >
-                  <ImageIcon size={isCompact ? 13 : 15} />
-                  <span>{isCompact ? 'Chọn ảnh' : 'Chọn từ máy'}</span>
+                  <ImageIcon size={isCompact ? 14 : 15} color="#64748b" />
+                  <span>{isCompact ? 'Thư viện' : 'Chọn từ máy'}</span>
                 </label>
               </div>
             </div>
@@ -1008,79 +1216,128 @@ export const PhotoCaptureInput: React.FC<Props> = ({
         />
       )}
 
-      {/* Live In-App Camera Viewfinder Modal */}
+      {/* 3. Camera Khảo Sát Viewfinder Modal (Hỗ trợ Zoom 2 ngón tay - Pinch to Zoom siêu tối giản) */}
       {isLiveCameraOpen && (
         <div
           style={{
             position: 'fixed',
             inset: 0,
-            zIndex: 99999,
+            zIndex: 9999,
             backgroundColor: '#000000',
             display: 'flex',
             flexDirection: 'column',
+            justifyContent: 'space-between',
+            userSelect: 'none',
+            touchAction: 'none',
           }}
         >
-          {/* Top Bar */}
+          {/* Top Bar: Đóng, Chỉ số Zoom (chạm để về 1.0x), Đổi camera */}
           <div
             style={{
               padding: '0.75rem 1rem',
               display: 'flex',
-              justifyContent: 'space-between',
               alignItems: 'center',
-              backgroundColor: 'rgba(0,0,0,0.7)',
-              color: '#ffffff',
-              zIndex: 10,
+              justifyContent: 'space-between',
+              backgroundColor: 'rgba(0, 0, 0, 0.65)',
+              zIndex: 20,
             }}
           >
-            <div style={{ fontSize: '0.85rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-              <Camera size={18} color="#10b981" />
-              <span>{label || 'Chụp ảnh khảo sát'}</span>
-            </div>
             <button
               type="button"
-              onClick={stopLiveCamera}
+              onClick={() => setIsLiveCameraOpen(false)}
               style={{
-                background: 'rgba(255,255,255,0.15)',
+                background: 'rgba(255, 255, 255, 0.2)',
                 border: 'none',
                 borderRadius: '50%',
-                width: '32px',
-                height: '32px',
+                width: '40px',
+                height: '40px',
                 color: '#ffffff',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 cursor: 'pointer',
               }}
+              title="Đóng camera"
             >
-              <X size={18} />
+              <X size={20} />
+            </button>
+
+            {/* Floating Zoom Indicator - Chạm vào để về ngay 1.0x */}
+            <button
+              type="button"
+              onClick={() => {
+                setZoomLevel(1.0);
+                applyHardwareZoom(1.0);
+              }}
+              style={{
+                backgroundColor: zoomLevel > 1.0 ? 'rgba(16, 185, 129, 0.9)' : 'rgba(255, 255, 255, 0.15)',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: '9999px',
+                padding: '0.3rem 0.85rem',
+                fontSize: '0.85rem',
+                fontWeight: 800,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.25rem',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
+              }}
+              title="Chạm để đưa về 1.0x"
+            >
+              <span>{zoomLevel.toFixed(1)}x</span>
+            </button>
+
+            {/* Switch Camera trước/sau */}
+            <button
+              type="button"
+              onClick={() => setFacingMode((prev) => (prev === 'environment' ? 'user' : 'environment'))}
+              style={{
+                background: 'rgba(255, 255, 255, 0.2)',
+                border: 'none',
+                borderRadius: '50%',
+                width: '40px',
+                height: '40px',
+                color: '#ffffff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+              }}
+              title="Đổi camera trước / sau"
+            >
+              <RefreshCw size={18} />
             </button>
           </div>
 
-          {/* Viewfinder area */}
+          {/* Viewfinder cảm ứng 2 ngón tay Pinch-to-zoom */}
           <div
+            onTouchStart={handleCameraTouchStart}
+            onTouchMove={handleCameraTouchMove}
+            onTouchEnd={handleCameraTouchEnd}
+            onWheel={handleCameraWheel}
             style={{
-              flex: 1,
               position: 'relative',
+              flex: 1,
+              overflow: 'hidden',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              overflow: 'hidden',
               backgroundColor: '#000000',
             }}
           >
-            {cameraLoading && (
-              <div style={{ color: '#ffffff', fontSize: '0.85rem', textAlign: 'center' }}>
-                Đang khởi động camera...
+            {cameraLoading ? (
+              <div style={{ color: '#94a3b8', fontSize: '0.85rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem' }}>
+                <RefreshCw size={24} className="animate-spin text-emerald-400" />
+                <span>Đang khởi động camera...</span>
               </div>
-            )}
-
-            {cameraError ? (
-              <div style={{ color: '#ef4444', textAlign: 'center', padding: '1rem', maxWidth: '300px' }}>
-                <AlertTriangle size={32} style={{ margin: '0 auto 0.5rem auto' }} />
-                <p style={{ fontSize: '0.8rem', marginBottom: '1rem' }}>{cameraError}</p>
+            ) : cameraError ? (
+              <div style={{ color: '#f87171', padding: '1.5rem', textAlign: 'center', maxWidth: '320px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem' }}>
+                <AlertTriangle size={32} />
+                <div style={{ fontSize: '0.8rem' }}>{cameraError}</div>
                 <label
                   htmlFor={cameraInputId}
-                  onClick={stopLiveCamera}
+                  onClick={() => setIsLiveCameraOpen(false)}
                   style={{
                     backgroundColor: '#059669',
                     color: '#ffffff',
@@ -1089,10 +1346,9 @@ export const PhotoCaptureInput: React.FC<Props> = ({
                     fontSize: '0.8rem',
                     fontWeight: 700,
                     cursor: 'pointer',
-                    display: 'inline-block',
                   }}
                 >
-                  Mở máy ảnh mặc định
+                  Mở máy ảnh hệ thống
                 </label>
               </div>
             ) : (
@@ -1105,11 +1361,14 @@ export const PhotoCaptureInput: React.FC<Props> = ({
                   width: '100%',
                   height: '100%',
                   objectFit: 'cover',
+                  transform: `scale(${zoomLevel})`,
+                  transformOrigin: 'center center',
+                  transition: isPinching ? 'none' : 'transform 0.1s ease-out',
                 }}
               />
             )}
 
-            {/* Viewfinder Framing Overlay */}
+            {/* Khung hướng dẫn 4:3 và Gợi ý cử chỉ zoom 2 ngón tay */}
             {!cameraLoading && !cameraError && (
               <div
                 style={{
@@ -1117,93 +1376,46 @@ export const PhotoCaptureInput: React.FC<Props> = ({
                   inset: 0,
                   pointerEvents: 'none',
                   display: 'flex',
+                  flexDirection: 'column',
                   alignItems: 'center',
-                  justifyContent: 'center',
+                  justifyContent: 'space-between',
+                  padding: '1rem',
                 }}
               >
-                {/* Frame box with box shadow mask */}
+                {/* Viền hướng dẫn khung hình */}
                 <div
                   style={{
-                    position: 'relative',
-                    width:
-                      recommendedOrientation === 'square'
-                        ? 'min(82vw, 340px)'
-                        : recommendedOrientation === 'portrait'
-                        ? 'min(78vw, 320px)'
-                        : 'min(92vw, 480px)',
-                    aspectRatio:
-                      recommendedOrientation === 'square'
-                        ? '1 / 1'
-                        : recommendedOrientation === 'portrait'
-                        ? '3 / 4'
-                        : '4 / 3',
-                    border: '2px solid rgba(16, 185, 129, 0.9)',
+                    position: 'absolute',
+                    inset: '12px',
+                    border: '1.5px dashed rgba(255, 255, 255, 0.35)',
                     borderRadius: '0.75rem',
-                    boxShadow: '0 0 0 9999px rgba(0, 0, 0, 0.45)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    justifyContent: 'space-between',
-                    padding: '0.75rem',
+                    pointerEvents: 'none',
+                  }}
+                />
+
+                {/* Gợi ý chụm 2 ngón tay */}
+                <div
+                  style={{
+                    marginTop: 'auto',
+                    marginBottom: '0.5rem',
+                    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+                    color: '#f8fafc',
+                    fontSize: '0.72rem',
+                    fontWeight: 600,
+                    padding: '0.25rem 0.75rem',
+                    borderRadius: '9999px',
+                    backdropFilter: 'blur(3px)',
+                    border: '1px solid rgba(255, 255, 255, 0.2)',
+                    zIndex: 10,
                   }}
                 >
-                  {/* Top helper text */}
-                  <div
-                    style={{
-                      alignSelf: 'center',
-                      backgroundColor: 'rgba(0, 0, 0, 0.7)',
-                      color: '#10b981',
-                      fontSize: '0.72rem',
-                      fontWeight: 700,
-                      padding: '0.2rem 0.6rem',
-                      borderRadius: '0.35rem',
-                      border: '1px solid rgba(16, 185, 129, 0.4)',
-                    }}
-                  >
-                    {recommendedOrientation === 'square'
-                      ? '📐 Khung Vuông 1:1 (Ảnh khuyết tật D)'
-                      : recommendedOrientation === 'portrait'
-                      ? '📐 Khung Dọc 3:4 (Căn trọn nhà P-02/P-04)'
-                      : '📐 Khung Ngang 4:3 (Bao quát mặt sàn)'}
-                  </div>
-
-                  {/* Corner brackets */}
-                  <div style={{ position: 'absolute', top: '-2px', left: '-2px', width: '20px', height: '20px', borderTop: '3px solid #10b981', borderLeft: '3px solid #10b981', borderTopLeftRadius: '0.75rem' }} />
-                  <div style={{ position: 'absolute', top: '-2px', right: '-2px', width: '20px', height: '20px', borderTop: '3px solid #10b981', borderRight: '3px solid #10b981', borderTopRightRadius: '0.75rem' }} />
-                  <div style={{ position: 'absolute', bottom: '-2px', left: '-2px', width: '20px', height: '20px', borderBottom: '3px solid #10b981', borderLeft: '3px solid #10b981', borderBottomLeftRadius: '0.75rem' }} />
-                  <div style={{ position: 'absolute', bottom: '-2px', right: '-2px', width: '20px', height: '20px', borderBottom: '3px solid #10b981', borderRight: '3px solid #10b981', borderBottomRightRadius: '0.75rem' }} />
-
-                  {/* Scale card helper box for defect photos */}
-                  {recommendedOrientation === 'square' && (
-                    <div
-                      style={{
-                        position: 'absolute',
-                        bottom: '12px',
-                        right: '12px',
-                        width: '84px',
-                        height: '46px',
-                        border: '1.5px dashed #f59e0b',
-                        backgroundColor: 'rgba(245, 158, 11, 0.25)',
-                        borderRadius: '0.35rem',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: '0.58rem',
-                        fontWeight: 800,
-                        color: '#fef3c7',
-                        textAlign: 'center',
-                        lineHeight: 1.1,
-                        padding: '2px',
-                      }}
-                    >
-                      Đặt thước tỷ lệ tại đây
-                    </div>
-                  )}
+                  Chụm / mở 2 ngón tay để zoom
                 </div>
               </div>
             )}
           </div>
 
-          {/* Bottom Controls */}
+          {/* Bottom Bar: Nút chuyển Camera hệ thống & Nút Chụp chính */}
           <div
             style={{
               padding: '1.25rem 1.5rem',
@@ -1211,63 +1423,14 @@ export const PhotoCaptureInput: React.FC<Props> = ({
               display: 'flex',
               justifyContent: 'space-around',
               alignItems: 'center',
-              zIndex: 10,
+              zIndex: 20,
             }}
           >
-            {/* Switch Camera */}
-            <button
-              type="button"
-              onClick={() => setFacingMode((prev) => (prev === 'environment' ? 'user' : 'environment'))}
-              title="Đổi camera trước / sau"
-              style={{
-                background: 'rgba(255,255,255,0.15)',
-                border: 'none',
-                borderRadius: '50%',
-                width: '44px',
-                height: '44px',
-                color: '#ffffff',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: 'pointer',
-              }}
-            >
-              <RefreshCw size={20} />
-            </button>
-
-            {/* Shutter Button */}
-            <button
-              type="button"
-              onClick={handleCaptureLiveFrame}
-              disabled={cameraLoading || !!cameraError}
-              style={{
-                width: '68px',
-                height: '68px',
-                borderRadius: '50%',
-                backgroundColor: '#ffffff',
-                border: '4px solid #10b981',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                boxShadow: '0 0 15px rgba(16, 185, 129, 0.5)',
-              }}
-            >
-              <div
-                style={{
-                  width: '52px',
-                  height: '52px',
-                  borderRadius: '50%',
-                  backgroundColor: '#10b981',
-                }}
-              />
-            </button>
-
-            {/* Fallback to Native Camera */}
+            {/* Nút dùng máy ảnh hệ thống */}
             <label
               htmlFor={cameraInputId}
-              onClick={stopLiveCamera}
-              title="Dùng camera hệ thống"
+              onClick={() => setIsLiveCameraOpen(false)}
+              title="Dùng camera hệ điều hành"
               style={{
                 background: 'rgba(255,255,255,0.15)',
                 border: 'none',
@@ -1283,6 +1446,163 @@ export const PhotoCaptureInput: React.FC<Props> = ({
             >
               <Camera size={20} />
             </label>
+
+            {/* Shutter Button */}
+            <button
+              type="button"
+              onClick={handleCaptureLiveFrame}
+              disabled={cameraLoading || !!cameraError}
+              style={{
+                width: '72px',
+                height: '72px',
+                borderRadius: '50%',
+                backgroundColor: '#ffffff',
+                border: '4px solid #10b981',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 0 18px rgba(16, 185, 129, 0.55)',
+                transition: 'transform 0.1s ease',
+              }}
+              onPointerDown={(e) => (e.currentTarget.style.transform = 'scale(0.94)')}
+              onPointerUp={(e) => (e.currentTarget.style.transform = 'scale(1)')}
+            >
+              <div
+                style={{
+                  width: '56px',
+                  height: '56px',
+                  borderRadius: '50%',
+                  backgroundColor: '#10b981',
+                }}
+              />
+            </button>
+
+            {/* Khoảng trống cân bằng bố cục */}
+            <div style={{ width: '44px', height: '44px' }} />
+          </div>
+        </div>
+      )}
+
+      {/* 4. Lightbox Soi Ảnh Chi Tiết Bằng 2 Ngón Tay (Zoom 1.0x - 4.0x + Pan) */}
+      {isLightboxOpen && value && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 9999,
+            backgroundColor: 'rgba(0, 0, 0, 0.94)',
+            display: 'flex',
+            flexDirection: 'column',
+            userSelect: 'none',
+            touchAction: 'none',
+          }}
+        >
+          {/* Top Bar Lightbox */}
+          <div
+            style={{
+              padding: '0.75rem 1rem',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              backgroundColor: 'rgba(0,0,0,0.5)',
+              zIndex: 30,
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => {
+                setLightboxZoom(1.0);
+                setLightboxPan({ x: 0, y: 0 });
+              }}
+              style={{
+                backgroundColor: lightboxZoom > 1.0 ? 'rgba(16, 185, 129, 0.9)' : 'rgba(255, 255, 255, 0.15)',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: '9999px',
+                padding: '0.3rem 0.85rem',
+                fontSize: '0.85rem',
+                fontWeight: 800,
+                cursor: 'pointer',
+              }}
+              title="Chạm để đặt lại 1.0x"
+            >
+              <span>{lightboxZoom.toFixed(1)}x (Chạm để về 1.0x)</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setIsLightboxOpen(false);
+                setLightboxZoom(1.0);
+                setLightboxPan({ x: 0, y: 0 });
+              }}
+              style={{
+                background: 'rgba(255, 255, 255, 0.2)',
+                border: 'none',
+                borderRadius: '50%',
+                width: '40px',
+                height: '40px',
+                color: '#ffffff',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+              }}
+              title="Đóng soi ảnh"
+            >
+              <X size={20} />
+            </button>
+          </div>
+
+          {/* Vùng cảm ứng zoom 2 ngón tay và kéo rê */}
+          <div
+            onTouchStart={handleLightboxTouchStart}
+            onTouchMove={handleLightboxTouchMove}
+            onTouchEnd={handleLightboxTouchEnd}
+            onWheel={handleLightboxWheel}
+            style={{
+              position: 'relative',
+              flex: 1,
+              overflow: 'hidden',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <img
+              src={hasLoadError && localPreview ? localPreview : value}
+              alt="Soi ảnh chi tiết"
+              style={{
+                maxWidth: '100%',
+                maxHeight: '100%',
+                objectFit: 'contain',
+                transform: `scale(${lightboxZoom}) translate(${lightboxPan.x / lightboxZoom}px, ${lightboxPan.y / lightboxZoom}px)`,
+                transformOrigin: 'center center',
+                transition: isLightboxPinching ? 'none' : 'transform 0.1s ease-out',
+                cursor: lightboxZoom > 1 ? 'grab' : 'zoom-in',
+              }}
+            />
+
+            {/* Gợi ý thao tác dưới chân Lightbox */}
+            <div
+              style={{
+                position: 'absolute',
+                bottom: '1rem',
+                backgroundColor: 'rgba(0, 0, 0, 0.65)',
+                color: '#f8fafc',
+                fontSize: '0.72rem',
+                fontWeight: 600,
+                padding: '0.25rem 0.75rem',
+                borderRadius: '9999px',
+                backdropFilter: 'blur(3px)',
+                border: '1px solid rgba(255, 255, 255, 0.2)',
+                pointerEvents: 'none',
+                zIndex: 10,
+              }}
+            >
+              Chụm 2 ngón tay để phóng to soi vạch thước đo • Kéo để di chuyển
+            </div>
           </div>
         </div>
       )}

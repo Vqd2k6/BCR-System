@@ -8,9 +8,10 @@ interface CadastralHeaderBarProps {
   parcel?: GisParcel | any;
   boundaryStatus: 'MATCH' | 'SPLIT' | 'MERGE';
   onStatusChange: (status: 'MATCH' | 'SPLIT' | 'MERGE') => void;
-  frontage: number;
-  depth: number;
+  frontage?: number;
+  depth?: number;
   totalLandArea: number;
+  buildingHeight?: number;
 }
 
 export const CadastralHeaderBar: React.FC<CadastralHeaderBarProps> = ({
@@ -21,6 +22,7 @@ export const CadastralHeaderBar: React.FC<CadastralHeaderBarProps> = ({
   frontage,
   depth,
   totalLandArea,
+  buildingHeight,
 }) => {
   return (
     <>
@@ -78,19 +80,7 @@ export const CadastralHeaderBar: React.FC<CadastralHeaderBarProps> = ({
                 color: '#334155',
               }}
             >
-              Mặt tiền: <strong style={{ color: '#0284c7' }}>{frontage}m</strong>
-            </span>
-            <span
-              style={{
-                backgroundColor: '#f8fafc',
-                border: '1px solid #e2e8f0',
-                padding: '0.2rem 0.55rem',
-                borderRadius: '0.4rem',
-                fontSize: '0.725rem',
-                color: '#334155',
-              }}
-            >
-              Chiều sâu: <strong style={{ color: '#0284c7' }}>{depth}m</strong>
+              Chiều cao: <strong style={{ color: '#0284c7' }}>{buildingHeight !== undefined && buildingHeight !== null && (buildingHeight as any) !== '' ? `${buildingHeight}m` : '—'}</strong>
             </span>
             <span
               style={{

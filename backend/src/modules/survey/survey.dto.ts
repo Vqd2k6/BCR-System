@@ -280,8 +280,10 @@ export const CreateDefectItemDto = z.object({
   structuralSignificanceE2: z.number().int().min(0).max(4).default(0),
   hasScaleCard: z.boolean().default(true),
   isStructuralCritical: z.boolean().default(false),
-  cuPhotoUrl: z.string().min(1, 'Ảnh cận cảnh Photo CU bắt buộc phải có'),
+  cuPhotoUrl: z.string().optional().nullable(),
   cuPhotoCode: z.string().optional().nullable(),
+  cuPhotos: z.array(z.string()).optional().default([]),
+  cuPhotoCodes: z.array(z.string()).optional().default([]),
 });
 
 export const DeformationDto = z.object({

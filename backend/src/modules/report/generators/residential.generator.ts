@@ -10,6 +10,7 @@ Handlebars.registerHelper('ne', (a: any, b: any) => a !== b);
 Handlebars.registerHelper('gt', (a: any, b: any) => Number(a) > Number(b));
 Handlebars.registerHelper('gte', (a: any, b: any) => Number(a) >= Number(b));
 Handlebars.registerHelper('inc', (v: any) => Number(v) + 1);
+Handlebars.registerHelper('addOne', (v: any) => Number(v) + 1);
 Handlebars.registerHelper('or', function(...args: any[]) {
   args.pop(); // remove Handlebars options
   return args.some(Boolean);

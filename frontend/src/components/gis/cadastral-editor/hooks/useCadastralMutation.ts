@@ -25,6 +25,10 @@ export const useCadastralMutation = ({
 }: UseCadastralMutationProps) => {
   const frontage = parcelData.frontageWidth || 4.2;
   const depth = parcelData.lotDepth || 18.5;
+  const buildingHeight =
+    parcelData.buildingHeight !== undefined && parcelData.buildingHeight !== null && (parcelData.buildingHeight as any) !== ''
+      ? Number(parcelData.buildingHeight)
+      : (parcel?.buildingHeightM || (parcel as any)?.building_height_m ? Number(parcel?.buildingHeightM || (parcel as any)?.building_height_m) : undefined);
   const totalLandArea =
     parcelData.constructionArea || parcelData.landArea || Math.round(frontage * depth * 10) / 10 || 68.5;
 
@@ -742,6 +746,7 @@ export const useCadastralMutation = ({
   return {
     frontage,
     depth,
+    buildingHeight,
     totalLandArea,
     tileMode,
     setTileMode,

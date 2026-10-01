@@ -156,7 +156,8 @@ export const validateCondoUnitStep = (step: number, formData: Phase1SurveyFormDa
           // Kiểm tra chi tiết từng khuyết tật D trong Vùng Z (Căn hộ)
           z.defects?.forEach((d) => {
             const isCrack = isCrackRelated(d.screeningCategory, d.defectType);
-            const hasBaseFields = Boolean(d.cuPhotoUrl && d.notes?.trim() && d.defectType);
+            const hasPhoto = Boolean(d.cuPhotoUrl || (Array.isArray(d.cuPhotos) && d.cuPhotos.length > 0));
+            const hasBaseFields = Boolean(hasPhoto && d.notes?.trim() && d.defectType);
             const hasCrackFields = isCrack ? Boolean(Number(d.widthMaxMm) > 0) : true;
 
             if (!hasBaseFields || !hasCrackFields) {
@@ -199,7 +200,8 @@ export const validateCondoUnitStep = (step: number, formData: Phase1SurveyFormDa
             // Kiểm tra chi tiết từng khuyết tật D trong Cấu kiện E (Căn hộ)
             el.defects?.forEach((d) => {
               const isCrack = isCrackRelated(d.screeningCategory, d.defectType);
-              const hasBaseFields = Boolean(d.cuPhotoUrl && d.notes?.trim() && d.defectType);
+              const hasPhoto = Boolean(d.cuPhotoUrl || (Array.isArray(d.cuPhotos) && d.cuPhotos.length > 0));
+              const hasBaseFields = Boolean(hasPhoto && d.notes?.trim() && d.defectType);
               const hasCrackFields = isCrack ? Boolean(Number(d.widthMaxMm) > 0) : true;
 
               if (!hasBaseFields || !hasCrackFields) {
@@ -672,7 +674,8 @@ export const validateStep = (step: number, formData: Phase1SurveyFormData): Step
           // Kiểm tra chi tiết từng khuyết tật D trong Vùng Z
           z.defects?.forEach((d) => {
             const isCrack = isCrackRelated(d.screeningCategory, d.defectType);
-            const hasBaseFields = Boolean(d.cuPhotoUrl && d.notes?.trim() && d.defectType);
+            const hasPhoto = Boolean(d.cuPhotoUrl || (Array.isArray(d.cuPhotos) && d.cuPhotos.length > 0));
+            const hasBaseFields = Boolean(hasPhoto && d.notes?.trim() && d.defectType);
             const hasCrackFields = isCrack ? Boolean(Number(d.widthMaxMm) > 0) : true;
 
             if (!hasBaseFields || !hasCrackFields) {
@@ -721,7 +724,8 @@ export const validateStep = (step: number, formData: Phase1SurveyFormData): Step
             // Kiểm tra chi tiết từng khuyết tật D trong Cấu kiện E
             el.defects?.forEach((d) => {
               const isCrack = isCrackRelated(d.screeningCategory, d.defectType);
-              const hasBaseFields = Boolean(d.cuPhotoUrl && d.notes?.trim() && d.defectType);
+              const hasPhoto = Boolean(d.cuPhotoUrl || (Array.isArray(d.cuPhotos) && d.cuPhotos.length > 0));
+              const hasBaseFields = Boolean(hasPhoto && d.notes?.trim() && d.defectType);
               const hasCrackFields = isCrack ? Boolean(Number(d.widthMaxMm) > 0) : true;
 
               if (!hasBaseFields || !hasCrackFields) {

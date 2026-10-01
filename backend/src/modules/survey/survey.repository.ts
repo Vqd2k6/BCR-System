@@ -492,8 +492,48 @@ export class SurveyRepository {
   }
 
   static async createDefectItem(zoneId: string, defectData: any): Promise<any> {
+    const hasCuPhotosJson = await this.hasColumn('defect_items', 'cu_photos_json');
     const hasCuCode = await this.hasColumn('defect_items', 'cu_photo_code');
-    if (hasCuCode) {
+    const primaryCuUrl = defectData.cuPhotos?.[0] || defectData.cuPhotoUrl || '';
+    const extraCuUrl = defectData.cuPhotos?.[1] || defectData.extraPhotoUrl || null;
+    const cuPhotos = Array.isArray(defectData.cuPhotos) && defectData.cuPhotos.length > 0
+      ? defectData.cuPhotos
+      : (primaryCuUrl ? [primaryCuUrl] : []);
+    const cuPhotosJson = JSON.stringify(cuPhotos);
+    const primaryCuCode = defectData.cuPhotoCodes?.[0] || defectData.cuPhotoCode || null;
+
+    if (hasCuPhotosJson && hasCuCode) {
+      const res = await Database.query(
+        `INSERT INTO defect_items (
+           zone_id, defect_code, pin_x, pin_y, screening_category, defect_type,
+           crack_direction, width_max_mm, length_mm, activity_state,
+           material_degradation_e4, structural_significance_e2, has_scale_card,
+           is_structural_critical, cu_photo_url, extra_photo_url, cu_photo_code, cu_photos_json
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+         RETURNING *;`,
+        [
+          zoneId,
+          defectData.defectCode,
+          defectData.pinX,
+          defectData.pinY,
+          defectData.screeningCategory,
+          defectData.defectType,
+          defectData.crackDirection || null,
+          Number(defectData.widthMaxMm) || 0,
+          Number(defectData.lengthMm) || 0,
+          defectData.activityState || 'U',
+          Number(defectData.materialDegradationE4) || 0,
+          Number(defectData.structuralSignificanceE2) || 0,
+          defectData.hasScaleCard ?? true,
+          defectData.isStructuralCritical ?? false,
+          primaryCuUrl,
+          extraCuUrl,
+          primaryCuCode,
+          cuPhotosJson,
+        ]
+      );
+      return res.rows[0];
+    } else if (hasCuCode) {
       const res = await Database.query(
         `INSERT INTO defect_items (
            zone_id, defect_code, pin_x, pin_y, screening_category, defect_type,
@@ -517,8 +557,8 @@ export class SurveyRepository {
           Number(defectData.structuralSignificanceE2) || 0,
           defectData.hasScaleCard ?? true,
           defectData.isStructuralCritical ?? false,
-          defectData.cuPhotoUrl,
-          defectData.cuPhotoCode || null,
+          primaryCuUrl,
+          primaryCuCode,
         ]
       );
       return res.rows[0];
@@ -719,13 +759,22 @@ export class SurveyRepository {
           if (zoneId && z.defects && Array.isArray(z.defects)) {
             for (const d of z.defects) {
               const actState = ['A', 'S', 'U'].includes(d.activityState) ? d.activityState : 'U';
+              const primaryCuUrl = d.cuPhotos?.[0] || d.cuPhotoUrl || '';
+              const extraCuUrl = d.cuPhotos?.[1] || d.extraPhotoUrl || null;
+              const cuPhotosList = Array.isArray(d.cuPhotos) && d.cuPhotos.length > 0
+                ? d.cuPhotos
+                : (primaryCuUrl ? [primaryCuUrl] : []);
+              const cuPhotosJson = JSON.stringify(cuPhotosList);
+              const primaryCuCode = d.cuPhotoCodes?.[0] || d.cuPhotoCode || null;
+
               await client.query(
                 `INSERT INTO defect_items (
                    zone_id, defect_code, pin_x, pin_y, screening_category, defect_type,
                    crack_direction, width_max_mm, length_mm, activity_state,
                    material_degradation_e4, structural_significance_e2, has_scale_card,
-                   is_structural_critical, cu_photo_url, extra_photo_url, pin_color
-                 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17);`,
+                   is_structural_critical, cu_photo_url, extra_photo_url, pin_color,
+                   cu_photo_code, cu_photos_json
+                 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19);`,
                 [
                   zoneId,
                   d.defectCode || 'D-01',
@@ -741,9 +790,11 @@ export class SurveyRepository {
                   Number(d.structuralSignificanceE2) || 0,
                   d.hasScaleCard ?? true,
                   d.isStructuralCritical ?? false,
-                  d.cuPhotoUrl || '',
-                  d.extraPhotoUrl || null,
+                  primaryCuUrl,
+                  extraCuUrl,
                   d.pinColor || '#ef4444',
+                  primaryCuCode,
+                  cuPhotosJson,
                 ]
               );
             }

@@ -28,6 +28,7 @@ export const CadastralGISBoundaryEditor: React.FC<CadastralBoundaryEditorProps> 
   const {
     frontage,
     depth,
+    buildingHeight,
     totalLandArea,
     tileMode,
     setTileMode,
@@ -90,6 +91,7 @@ export const CadastralGISBoundaryEditor: React.FC<CadastralBoundaryEditorProps> 
         frontage={frontage}
         depth={depth}
         totalLandArea={totalLandArea}
+        buildingHeight={buildingHeight}
       />
 
       {/* 2. MATCH Panel (100% Khớp ranh) */}

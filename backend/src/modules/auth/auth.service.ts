@@ -43,6 +43,13 @@ export class AuthService {
           zoneId: 'ZONE_S9',
           defaultPass: 'Admin@123',
         },
+        zoneadmin: {
+          id: 'b0000000-0000-0000-0000-000000000006',
+          fullName: 'Trần Văn Tổ Trưởng (Zone Admin)',
+          role: 'ZONE_ADMIN',
+          zoneId: 'ALL',
+          defaultPass: 'Admin@123',
+        },
         superadmin: {
           id: 'b0000000-0000-0000-0000-000000000001',
           fullName: 'Nguyễn Văn Tổng (MAUR)',

@@ -399,28 +399,47 @@ export function auditSurveyPhotos(
           if (Array.isArray(zone.defects)) {
             zone.defects.forEach((defect, di) => {
               const dLabel = defect.defectCode || `Khuyết tật #${di + 1}`;
-              if (defect.cuPhotoUrl) {
-                checkAndAdd(
-                  `floor_${fi}_zone_${zi}_defect_${di}`,
-                  3,
-                  s3Title,
-                  `Vết nứt/Khuyết tật [${dLabel}] tại [${fName} > ${zLabel}]`,
-                  defect.cuPhotoUrl,
-                  defect.cuPhotoCode,
-                  (newUrl) =>
-                    updateFormData((prev) => {
-                      const floors = [...prev.floors];
-                      if (floors[fi]?.zones?.[zi]?.defects?.[di]) {
-                        const zones = [...floors[fi].zones];
-                        const defects = [...zones[zi].defects];
-                        defects[di] = { ...defects[di], cuPhotoUrl: newUrl };
-                        zones[zi] = { ...zones[zi], defects };
-                        floors[fi] = { ...floors[fi], zones };
-                      }
-                      return { ...prev, floors };
-                    })
-                );
-              }
+              const cuList: string[] = Array.isArray(defect.cuPhotos) && defect.cuPhotos.length > 0
+                ? defect.cuPhotos
+                : (defect.cuPhotoUrl ? [defect.cuPhotoUrl] : []);
+              const codeList: string[] = Array.isArray(defect.cuPhotoCodes) && defect.cuPhotoCodes.length > 0
+                ? defect.cuPhotoCodes
+                : (defect.cuPhotoCode ? [defect.cuPhotoCode] : []);
+
+              cuList.forEach((photoUrl, pIdx) => {
+                if (photoUrl) {
+                  const pSuffix = cuList.length > 1 ? ` (Ảnh #${pIdx + 1})` : '';
+                  checkAndAdd(
+                    `floor_${fi}_zone_${zi}_defect_${di}_photo_${pIdx}`,
+                    3,
+                    s3Title,
+                    `Vết nứt/Khuyết tật [${dLabel}]${pSuffix} tại [${fName} > ${zLabel}]`,
+                    photoUrl,
+                    codeList[pIdx] || defect.cuPhotoCode,
+                    (newUrl) =>
+                      updateFormData((prev) => {
+                        const floors = [...prev.floors];
+                        if (floors[fi]?.zones?.[zi]?.defects?.[di]) {
+                          const zones = [...floors[fi].zones];
+                          const defects = [...zones[zi].defects];
+                          const curDefect = { ...defects[di] };
+                          const nextCuPhotos = Array.isArray(curDefect.cuPhotos) && curDefect.cuPhotos.length > 0
+                            ? [...curDefect.cuPhotos]
+                            : (curDefect.cuPhotoUrl ? [curDefect.cuPhotoUrl] : []);
+                          nextCuPhotos[pIdx] = newUrl;
+                          curDefect.cuPhotos = nextCuPhotos;
+                          if (pIdx === 0) {
+                            curDefect.cuPhotoUrl = newUrl;
+                          }
+                          defects[di] = curDefect;
+                          zones[zi] = { ...zones[zi], defects };
+                          floors[fi] = { ...floors[fi], zones };
+                        }
+                        return { ...prev, floors };
+                      })
+                  );
+                }
+              });
             });
           }
         });
@@ -455,28 +474,47 @@ export function auditSurveyPhotos(
           if (Array.isArray(elem.defects)) {
             elem.defects.forEach((defect, di) => {
               const dLabel = defect.defectCode || `Khuyết tật #${di + 1}`;
-              if (defect.cuPhotoUrl) {
-                checkAndAdd(
-                  `floor_${fi}_elem_${ei}_defect_${di}`,
-                  3,
-                  s3Title,
-                  `Khuyết tật kết cấu [${dLabel}] tại [${fName} > ${eLabel}]`,
-                  defect.cuPhotoUrl,
-                  defect.cuPhotoCode,
-                  (newUrl) =>
-                    updateFormData((prev) => {
-                      const floors = [...prev.floors];
-                      if (floors[fi]?.structuralElements?.[ei]?.defects?.[di]) {
-                        const elems = [...floors[fi].structuralElements!];
-                        const defects = [...elems[ei].defects];
-                        defects[di] = { ...defects[di], cuPhotoUrl: newUrl };
-                        elems[ei] = { ...elems[ei], defects };
-                        floors[fi] = { ...floors[fi], structuralElements: elems };
-                      }
-                      return { ...prev, floors };
-                    })
-                );
-              }
+              const cuList: string[] = Array.isArray(defect.cuPhotos) && defect.cuPhotos.length > 0
+                ? defect.cuPhotos
+                : (defect.cuPhotoUrl ? [defect.cuPhotoUrl] : []);
+              const codeList: string[] = Array.isArray(defect.cuPhotoCodes) && defect.cuPhotoCodes.length > 0
+                ? defect.cuPhotoCodes
+                : (defect.cuPhotoCode ? [defect.cuPhotoCode] : []);
+
+              cuList.forEach((photoUrl, pIdx) => {
+                if (photoUrl) {
+                  const pSuffix = cuList.length > 1 ? ` (Ảnh #${pIdx + 1})` : '';
+                  checkAndAdd(
+                    `floor_${fi}_elem_${ei}_defect_${di}_photo_${pIdx}`,
+                    3,
+                    s3Title,
+                    `Khuyết tật kết cấu [${dLabel}]${pSuffix} tại [${fName} > ${eLabel}]`,
+                    photoUrl,
+                    codeList[pIdx] || defect.cuPhotoCode,
+                    (newUrl) =>
+                      updateFormData((prev) => {
+                        const floors = [...prev.floors];
+                        if (floors[fi]?.structuralElements?.[ei]?.defects?.[di]) {
+                          const elems = [...floors[fi].structuralElements!];
+                          const defects = [...elems[ei].defects];
+                          const curDefect = { ...defects[di] };
+                          const nextCuPhotos = Array.isArray(curDefect.cuPhotos) && curDefect.cuPhotos.length > 0
+                            ? [...curDefect.cuPhotos]
+                            : (curDefect.cuPhotoUrl ? [curDefect.cuPhotoUrl] : []);
+                          nextCuPhotos[pIdx] = newUrl;
+                          curDefect.cuPhotos = nextCuPhotos;
+                          if (pIdx === 0) {
+                            curDefect.cuPhotoUrl = newUrl;
+                          }
+                          defects[di] = curDefect;
+                          elems[ei] = { ...elems[ei], defects };
+                          floors[fi] = { ...floors[fi], structuralElements: elems };
+                        }
+                        return { ...prev, floors };
+                      })
+                  );
+                }
+              });
             });
           }
         });

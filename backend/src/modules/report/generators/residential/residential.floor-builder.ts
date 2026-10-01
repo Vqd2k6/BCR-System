@@ -69,7 +69,10 @@ export function buildFloorSurveys(json: any, reportData: any): FloorBuildResult 
             pinX: d.pinX !== undefined ? Number(d.pinX) : undefined,
             pinY: d.pinY !== undefined ? Number(d.pinY) : undefined,
             ctxPhotoUrl: z.ctxPhotoUrl || '',
-            cuPhotoUrl: d.cuPhotoUrl || '',
+            cuPhotoUrl: (Array.isArray(d.cuPhotos) && d.cuPhotos.length > 0 ? d.cuPhotos[0] : d.cuPhotoUrl) || '',
+            cuPhotoCode: (Array.isArray(d.cuPhotoCodes) && d.cuPhotoCodes.length > 0 ? d.cuPhotoCodes[0] : d.cuPhotoCode) || '',
+            cuPhotos: Array.isArray(d.cuPhotos) && d.cuPhotos.length > 0 ? d.cuPhotos : (d.cuPhotoUrl ? [d.cuPhotoUrl] : []),
+            cuPhotoCodes: Array.isArray(d.cuPhotoCodes) && d.cuPhotoCodes.length > 0 ? d.cuPhotoCodes : (d.cuPhotoCode ? [d.cuPhotoCode] : []),
             notes: d.notes || '',
           };
         });
@@ -208,7 +211,16 @@ export function buildFloorSurveys(json: any, reportData: any): FloorBuildResult 
           hasScaleCard: d.has_scale_card !== false,
           isStructuralCritical: Boolean(d.is_structural_critical),
           ctxPhotoUrl: z.ctx_photo_url || '',
-          cuPhotoUrl: d.cu_photo_url || '',
+          cuPhotoUrl: (Array.isArray(d.cu_photos_json) && d.cu_photos_json.length > 0 ? d.cu_photos_json[0] : (Array.isArray(d.cuPhotos) && d.cuPhotos.length > 0 ? d.cuPhotos[0] : d.cu_photo_url)) || '',
+          cuPhotoCode: d.cu_photo_code || d.cuPhotoCode || '',
+          cuPhotos: Array.isArray(d.cu_photos_json) && d.cu_photos_json.length > 0
+            ? d.cu_photos_json
+            : (Array.isArray(d.cuPhotos) && d.cuPhotos.length > 0
+                ? d.cuPhotos
+                : (d.cu_photo_url ? [d.cu_photo_url] : [])),
+          cuPhotoCodes: Array.isArray(d.cuPhotoCodes) && d.cuPhotoCodes.length > 0
+            ? d.cuPhotoCodes
+            : (d.cu_photo_code ? [d.cu_photo_code] : []),
           notes: d.notes || '',
         };
       });

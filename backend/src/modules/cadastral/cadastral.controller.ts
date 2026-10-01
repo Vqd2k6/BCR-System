@@ -313,6 +313,17 @@ export class CadastralController {
       next(error);
     }
   }
+
+  static async executeAdminMutation(req: Request, res: Response, next: NextFunction) {
+    try {
+      const adminId = req.user!.userId;
+      const clientIp = req.ip || req.socket.remoteAddress;
+      const result = await CadastralService.executeAdminMutation(adminId, req.body, clientIp);
+      res.status(200).json(result);
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 

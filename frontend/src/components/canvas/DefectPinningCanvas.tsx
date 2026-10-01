@@ -1,6 +1,7 @@
-import React, { useState, useRef } from 'react';
-import { Crosshair, Trash2, Camera, AlertCircle, CheckCircle2, Ruler, Sparkles, MapPin, AlertTriangle, Eye, EyeOff } from 'lucide-react';
+import React, { useState, useRef, useMemo } from 'react';
+import { Crosshair, Trash2, Camera, AlertCircle, CheckCircle2, Ruler, Sparkles, MapPin, AlertTriangle, Eye, EyeOff, ZoomIn, Plus, RotateCcw } from 'lucide-react';
 import { PhotoCaptureInput } from '../common/PhotoCaptureInput';
+import { ImageZoomModal } from '../common/ImageZoomModal';
 import { InfoPopover } from '../../core/components/ui/InfoPopover';
 import { getNextAvailablePinCode } from './FloorCadPinningCanvas';
 
@@ -23,7 +24,11 @@ export interface DefectItem {
   isStructuralCritical: boolean;
   cuPhotoUrl: string;
   cuPhotoCode?: string;
+  cuPhotos?: string[];
+  cuPhotoCodes?: string[];
   notes?: string;
+  customizedFields?: string[];
+  syncedFromDefectCode?: string;
 }
 
 interface Props {
@@ -100,6 +105,7 @@ export const DefectPinningCanvas: React.FC<Props> = ({
   const [isAddingPin, setIsAddingPin] = useState<boolean>(true);
   const [showPins, setShowPins] = useState<boolean>(true);
   const [draggingDefectIndex, setDraggingDefectIndex] = useState<number | null>(null);
+  const [zoomModalImage, setZoomModalImage] = useState<{ url: string; title: string; code?: string } | null>(null);
   const dragMovedRef = useRef<boolean>(false);
 
   const screeningCategories = mode === 'STRUCTURAL' ? STRUCT_SCREENING_CATEGORIES : ARCH_SCREENING_CATEGORIES;
@@ -160,6 +166,19 @@ export const DefectPinningCanvas: React.FC<Props> = ({
     onChange(updated);
   };
 
+  const INHERITABLE_DEFECT_FIELDS: (keyof DefectItem)[] = [
+    'screeningCategory',
+    'customScreeningCategory',
+    'defectType',
+    'crackDirection',
+    'activityState',
+    'materialDegradationE4',
+    'structuralSignificanceE2',
+    'functionalImpactE6',
+    'hasScaleCard',
+    'isStructuralCritical',
+  ];
+
   const handleContainerClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (dragMovedRef.current) {
       dragMovedRef.current = false;
@@ -176,25 +195,36 @@ export const DefectPinningCanvas: React.FC<Props> = ({
       'D'
     );
 
-    // Khởi tạo khuyết tật mới trống hoàn toàn để surveyor bắt buộc điền thủ công
+    // Tìm điểm D gần nhất đã điền để tự động kế thừa (D_i-1 -> D_i)
+    const candidate = [...defects].reverse().find((d) => d.screeningCategory || d.defectType);
+
     const newDefect: DefectItem = {
       defectCode: newDefectCode,
       pinX: x,
       pinY: y,
-      screeningCategory: '',
-      customScreeningCategory: '',
-      defectType: '',
-      crackDirection: '',
-      widthMaxMm: '' as any,
-      lengthMm: '' as any,
-      activityState: '',
-      materialDegradationE4: '' as any,
-      structuralSignificanceE2: '' as any,
-      functionalImpactE6: '' as any,
-      hasScaleCard: true,
-      isStructuralCritical: false,
+      screeningCategory: candidate
+        ? candidate.screeningCategory
+        : mode === 'STRUCTURAL'
+        ? 'Nứt cấu kiện kết cấu chịu lực (Cột/Dầm/Sàn)'
+        : 'Nứt tường gạch / Vữa trát hoàn thiện',
+      customScreeningCategory: candidate?.customScreeningCategory || '',
+      defectType: candidate?.defectType || '',
+      crackDirection: candidate?.crackDirection || '',
+      widthMaxMm: '' as any, // Bắt buộc đo riêng từng vết nứt
+      lengthMm: '' as any,   // Bắt buộc đo riêng từng vết nứt
+      activityState: candidate?.activityState || 'S',
+      materialDegradationE4: candidate?.materialDegradationE4 ?? '',
+      structuralSignificanceE2: candidate?.structuralSignificanceE2 ?? '',
+      functionalImpactE6: candidate?.functionalImpactE6 ?? '',
+      hasScaleCard: candidate ? candidate.hasScaleCard : true,
+      isStructuralCritical: candidate ? candidate.isStructuralCritical : false,
       cuPhotoUrl: '',
+      cuPhotoCode: '',
+      cuPhotos: [],
+      cuPhotoCodes: [],
       notes: '',
+      customizedFields: [],
+      syncedFromDefectCode: candidate ? candidate.defectCode : undefined,
     };
 
     const updated = [...defects, newDefect];
@@ -220,20 +250,172 @@ export const DefectPinningCanvas: React.FC<Props> = ({
   const updateSelectedDefect = (field: keyof DefectItem, value: any) => {
     if (selectedDefectIndex === null || readOnly) return;
     const updated = [...defects];
-    updated[selectedDefectIndex] = {
-      ...updated[selectedDefectIndex],
-      [field]: value,
+    const cur = { ...updated[selectedDefectIndex] };
+    (cur as any)[field] = value;
+
+    if (INHERITABLE_DEFECT_FIELDS.includes(field)) {
+      const custom = new Set(cur.customizedFields || []);
+      custom.add(field as string);
+      cur.customizedFields = Array.from(custom);
+    }
+    updated[selectedDefectIndex] = cur;
+
+    // Dây chuyền cascade: nếu trường này thay đổi, tự động cập nhật các điểm D kế tiếp chưa tùy chỉnh
+    if (INHERITABLE_DEFECT_FIELDS.includes(field)) {
+      for (let k = selectedDefectIndex + 1; k < updated.length; k++) {
+        const nextDefect = { ...updated[k] };
+        const nextCustom = nextDefect.customizedFields || [];
+        if (!nextCustom.includes(field as string)) {
+          (nextDefect as any)[field] = value;
+          nextDefect.syncedFromDefectCode = updated[k - 1].defectCode;
+          updated[k] = nextDefect;
+        }
+      }
+    }
+
+    onChange(updated);
+  };
+
+  const handleResetFieldToPrevious = (field: keyof DefectItem) => {
+    if (selectedDefectIndex === null || selectedDefectIndex === 0 || readOnly) return;
+    const prev = defects[selectedDefectIndex - 1];
+    if (!prev) return;
+    const updated = [...defects];
+    const cur = { ...updated[selectedDefectIndex] };
+    (cur as any)[field] = (prev as any)[field];
+    cur.customizedFields = (cur.customizedFields || []).filter((f) => f !== field);
+    updated[selectedDefectIndex] = cur;
+
+    for (let k = selectedDefectIndex + 1; k < updated.length; k++) {
+      const nextDefect = { ...updated[k] };
+      if (!(nextDefect.customizedFields || []).includes(field as string)) {
+        (nextDefect as any)[field] = (prev as any)[field];
+        nextDefect.syncedFromDefectCode = updated[k - 1].defectCode;
+        updated[k] = nextDefect;
+      }
+    }
+    onChange(updated);
+  };
+
+  const handleResetAllToPrevious = () => {
+    if (selectedDefectIndex === null || selectedDefectIndex === 0 || readOnly) return;
+    const prev = defects[selectedDefectIndex - 1];
+    if (!prev) return;
+    const current = defects[selectedDefectIndex];
+    const resetDefect: DefectItem = {
+      ...current,
+      screeningCategory: prev.screeningCategory,
+      customScreeningCategory: prev.customScreeningCategory,
+      defectType: prev.defectType,
+      crackDirection: prev.crackDirection,
+      activityState: prev.activityState,
+      materialDegradationE4: prev.materialDegradationE4,
+      structuralSignificanceE2: prev.structuralSignificanceE2,
+      functionalImpactE6: prev.functionalImpactE6,
+      hasScaleCard: prev.hasScaleCard,
+      isStructuralCritical: prev.isStructuralCritical,
+      customizedFields: [],
+      syncedFromDefectCode: prev.defectCode,
     };
+    const updated = [...defects];
+    updated[selectedDefectIndex] = resetDefect;
+
+    for (let k = selectedDefectIndex + 1; k < updated.length; k++) {
+      const nextDefect = { ...updated[k] };
+      const nextCustom = nextDefect.customizedFields || [];
+      for (const f of INHERITABLE_DEFECT_FIELDS) {
+        if (!nextCustom.includes(f as string)) {
+          (nextDefect as any)[f] = (resetDefect as any)[f];
+        }
+      }
+      nextDefect.syncedFromDefectCode = updated[k - 1].defectCode;
+      updated[k] = nextDefect;
+    }
+
+    onChange(updated);
+  };
+
+  const handleBulkApplyDownstreamDefects = () => {
+    if (selectedDefectIndex === null || readOnly) return;
+    const cur = defects[selectedDefectIndex];
+    if (!cur.screeningCategory || !cur.defectType) {
+      alert('Vui lòng chọn đầy đủ Nhóm chỉ báo và Dạng nứt cho điểm D này trước khi đồng bộ!');
+      return;
+    }
+    const isRoot = selectedDefectIndex === 0;
+    const downstreamCount = defects.length - 1 - selectedDefectIndex;
+    if (downstreamCount <= 0 && !isRoot) return;
+
+    const confirmMsg = isRoot
+      ? `Bạn có chắc muốn áp dụng phân loại và chỉ số kỹ thuật của ${cur.defectCode} cho toàn bộ các điểm D còn lại trên mảng này? (Kích thước w, L và ảnh cận cảnh sẽ được giữ nguyên)`
+      : `Bạn có chắc muốn áp dụng phân loại của ${cur.defectCode} cho ${downstreamCount} điểm D phía sau? (Các điểm D phía trước sẽ được giữ nguyên 100%)`;
+
+    if (!confirm(confirmMsg)) return;
+
+    const updated = defects.map((d, idx) => {
+      // Chỉ áp dụng xuôi chiều cho các điểm phía sau idx > selectedDefectIndex
+      if (idx <= selectedDefectIndex) return d;
+      return {
+        ...d,
+        screeningCategory: cur.screeningCategory,
+        customScreeningCategory: cur.customScreeningCategory,
+        defectType: cur.defectType,
+        crackDirection: cur.crackDirection || d.crackDirection,
+        activityState: cur.activityState || d.activityState,
+        materialDegradationE4: cur.materialDegradationE4 !== '' ? cur.materialDegradationE4 : d.materialDegradationE4,
+        structuralSignificanceE2: cur.structuralSignificanceE2 !== '' ? cur.structuralSignificanceE2 : d.structuralSignificanceE2,
+        functionalImpactE6: cur.functionalImpactE6 !== '' ? cur.functionalImpactE6 : d.functionalImpactE6,
+        hasScaleCard: cur.hasScaleCard ?? d.hasScaleCard,
+        isStructuralCritical: cur.isStructuralCritical ?? d.isStructuralCritical,
+        syncedFromDefectCode: cur.defectCode,
+        customizedFields: [],
+      };
+    });
     onChange(updated);
   };
 
   const selectedDefect = selectedDefectIndex !== null ? defects[selectedDefectIndex] : null;
+  const prevDefect = selectedDefectIndex !== null && selectedDefectIndex > 0 ? defects[selectedDefectIndex - 1] : null;
+  const isStructural = mode === 'STRUCTURAL';
+  const isDefectRoot = selectedDefectIndex === 0;
+  const downstreamDefectCount = selectedDefectIndex !== null ? defects.length - 1 - selectedDefectIndex : 0;
+  const defectCustomFields = selectedDefect?.customizedFields || [];
+  const hasCustomizedDefectFields = defectCustomFields.length > 0;
+
+  const renderDefectFieldBadge = (field: keyof DefectItem) => {
+    if (!prevDefect || !selectedDefect) return null;
+    const isCustom = defectCustomFields.includes(field as string);
+    if (!isCustom) {
+      return (
+        <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 bg-emerald-100/70 px-1.5 py-0.5 rounded mt-1">
+          <Sparkles className="w-2.5 h-2.5 text-emerald-600" />
+          Đồng bộ từ {prevDefect.defectCode}
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center gap-1 text-[10px] font-medium text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded mt-1">
+        Đã chỉnh riêng cho {selectedDefect.defectCode}
+        {!readOnly && (
+          <button
+            type="button"
+            onClick={() => handleResetFieldToPrevious(field)}
+            className="text-emerald-600 hover:underline cursor-pointer ml-1 font-semibold"
+            title={`Khôi phục trường này theo ${prevDefect.defectCode}`}
+          >
+            ↺ Lấy lại
+          </button>
+        )}
+      </span>
+    );
+  };
 
   // Kiểm tra xem 1 điểm D đã điền đầy đủ mọi trường bắt buộc chưa
   const isDefectFilled = (d: DefectItem) => {
     const isCrack = isCrackRelated(d.screeningCategory, d.defectType);
+    const hasPhoto = Boolean(d.cuPhotoUrl || (Array.isArray(d.cuPhotos) && d.cuPhotos.length > 0));
     const baseOk = Boolean(
-      d.cuPhotoUrl &&
+      hasPhoto &&
       d.notes &&
       d.notes.trim().length > 0 &&
       d.screeningCategory &&
@@ -420,8 +602,17 @@ export const DefectPinningCanvas: React.FC<Props> = ({
 
       {/* Selected Defect Detail Card */}
       {selectedDefect !== null && selectedDefectIndex !== null && (
-        <div ref={detailFormRef} className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
-          <div className="flex items-center justify-between pb-2 border-b border-slate-200">
+        <div ref={detailFormRef} className="relative p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3.5 shadow-2xs">
+          {/* Top Glow Line (Emerald cho Kiến trúc, Amber cho Kết cấu) */}
+          <div
+            className={`h-[2.5px] w-full ${
+              isStructural
+                ? 'bg-gradient-to-r from-amber-400 via-orange-300 to-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.7)]'
+                : 'bg-gradient-to-r from-emerald-400 via-teal-300 to-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.7)]'
+            } rounded-full`}
+          />
+
+          <div className="flex items-center justify-between pb-2 border-b border-slate-200 flex-wrap gap-2">
             <div className="flex items-center gap-2 flex-wrap">
               <div className="flex items-center gap-1.5">
                 <span className="text-[11px] font-bold text-slate-500">Mã D:</span>
@@ -451,16 +642,35 @@ export const DefectPinningCanvas: React.FC<Props> = ({
             </div>
 
             {!readOnly && (
-              <div className="flex items-center gap-1.5">
-                {selectedDefectIndex > 0 && (
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {isDefectRoot && defects.length > 1 && (
                   <button
                     type="button"
-                    onClick={handleCloneFromPreviousDefect}
-                    className="px-2.5 py-1 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-300 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer"
-                    title="Sao chép loại khuyết tật và các chỉ số từ điểm D trước"
+                    onClick={handleBulkApplyDownstreamDefects}
+                    className={`px-2.5 py-1 ${
+                      isStructural
+                        ? 'bg-amber-600 hover:bg-amber-700 text-white'
+                        : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                    } rounded-lg text-xs font-bold flex items-center gap-1 transition-all shadow-xs cursor-pointer`}
+                    title="Đồng bộ phân loại và chỉ số kỹ thuật của D-01 cho tất cả các điểm D còn lại trên mảng này"
                   >
-                    <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>Sao chép từ D trước</span>
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>Đồng bộ cho mảng này</span>
+                  </button>
+                )}
+                {!isDefectRoot && downstreamDefectCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleBulkApplyDownstreamDefects}
+                    className={`px-2.5 py-1 ${
+                      isStructural
+                        ? 'bg-amber-600 hover:bg-amber-700 text-white'
+                        : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                    } rounded-lg text-xs font-bold flex items-center gap-1 transition-all shadow-xs cursor-pointer`}
+                    title={`Đồng bộ phân loại cho ${downstreamDefectCount} điểm D phía sau (không ảnh hưởng các điểm D phía trước)`}
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>Đồng bộ cho các D còn lại ({downstreamDefectCount})</span>
                   </button>
                 )}
                 <button
@@ -497,6 +707,7 @@ export const DefectPinningCanvas: React.FC<Props> = ({
                   </option>
                 ))}
               </select>
+              {renderDefectFieldBadge('screeningCategory')}
               {selectedDefect.screeningCategory === 'Khác' && (
                 <div className="mt-2">
                   <label className="block text-[11px] font-bold text-slate-700 mb-1">
@@ -535,6 +746,7 @@ export const DefectPinningCanvas: React.FC<Props> = ({
                   </option>
                 ))}
               </select>
+              {renderDefectFieldBadge('defectType')}
             </div>
 
             {isCrackRelated(selectedDefect.screeningCategory, selectedDefect.defectType) && (
@@ -552,6 +764,7 @@ export const DefectPinningCanvas: React.FC<Props> = ({
                   onChange={(e) => updateSelectedDefect('crackDirection', e.target.value)}
                   disabled={readOnly}
                 />
+                {renderDefectFieldBadge('crackDirection')}
               </div>
             )}
           </div>
@@ -622,6 +835,7 @@ export const DefectPinningCanvas: React.FC<Props> = ({
                   <option value="S">S - Ổn định / Nứt cũ (Stable)</option>
                   <option value="A">A - Đang phát triển / Hoạt động (Active)</option>
                 </select>
+                {renderDefectFieldBadge('activityState')}
               </div>
             </div>
           )}
@@ -759,53 +973,196 @@ export const DefectPinningCanvas: React.FC<Props> = ({
           </div>
 
           {/* Photo CU & Notes */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <PhotoCaptureInput
-              label={`Ảnh cận cảnh Photo CU kèm thước đo (${selectedDefect.defectCode}) *:`}
-              value={selectedDefect.cuPhotoUrl}
-              photoCode={selectedDefect.cuPhotoCode}
-              onChange={(url, code) => {
-                if (selectedDefectIndex !== null) {
-                  const next = [...defects];
-                  next[selectedDefectIndex] = {
-                    ...next[selectedDefectIndex],
-                    cuPhotoUrl: url,
-                    cuPhotoCode: code || next[selectedDefectIndex].cuPhotoCode,
-                  };
-                  onChange(next);
-                }
-              }}
-              recommendedOrientation="square"
-              orientationHint="Khuyến nghị: Chụp ảnh KHUNG VUÔNG (1:1) cận cảnh kèm thẻ thước đo tỷ lệ"
-              watermarkOptions={{
-                parcelCode,
-                floor: floorName,
-                zoneOrRoom: zoneOrElementCode,
-                defectCode: selectedDefect.defectCode,
-                photoType: 'CU',
-                photoIndex: 1,
-              }}
-              annotationTitle={`Vẽ & Ghi chú trên ảnh Photo CU (${selectedDefect.defectCode})`}
-              height="240px"
-              required
-            />
+          {(() => {
+            const currentCuPhotos: string[] = Array.isArray(selectedDefect.cuPhotos) && selectedDefect.cuPhotos.length > 0
+              ? selectedDefect.cuPhotos
+              : (selectedDefect.cuPhotoUrl ? [selectedDefect.cuPhotoUrl] : []);
+            const currentCuCodes: string[] = Array.isArray(selectedDefect.cuPhotoCodes) && selectedDefect.cuPhotoCodes.length > 0
+              ? selectedDefect.cuPhotoCodes
+              : (selectedDefect.cuPhotoCode ? [selectedDefect.cuPhotoCode] : []);
 
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Ghi chú chi tiết vết nứt *:
-              </label>
-              <textarea
-                rows={4}
-                placeholder="Mô tả cụ thể vị trí, hình thái nứt, mép nứt sắc cạnh hay đã trám trét..."
-                className={`w-full px-2.5 py-1.5 bg-white border rounded-lg text-xs focus:ring-1 focus:ring-emerald-500 ${
-                  !selectedDefect.notes ? 'border-amber-400 bg-amber-50/30' : 'border-emerald-500 bg-emerald-50/15'
-                }`}
-                value={selectedDefect.notes || ''}
-                onChange={(e) => updateSelectedDefect('notes', e.target.value)}
-                disabled={readOnly}
-              />
-            </div>
-          </div>
+            const handleAddCuPhoto = (url: string, code?: string) => {
+              if (selectedDefectIndex === null) return;
+              const nextPhotos = [...currentCuPhotos, url];
+              const nextCodes = [...currentCuCodes, code || ''];
+              const next = [...defects];
+              next[selectedDefectIndex] = {
+                ...next[selectedDefectIndex],
+                cuPhotos: nextPhotos,
+                cuPhotoCodes: nextCodes,
+                cuPhotoUrl: nextPhotos[0] || '',
+                cuPhotoCode: nextCodes[0] || '',
+              };
+              onChange(next);
+            };
+
+            const handleRemoveCuPhoto = (indexToRemove: number) => {
+              if (selectedDefectIndex === null || readOnly) return;
+              const nextPhotos = currentCuPhotos.filter((_, i) => i !== indexToRemove);
+              const nextCodes = currentCuCodes.filter((_, i) => i !== indexToRemove);
+              const next = [...defects];
+              next[selectedDefectIndex] = {
+                ...next[selectedDefectIndex],
+                cuPhotos: nextPhotos,
+                cuPhotoCodes: nextCodes,
+                cuPhotoUrl: nextPhotos[0] || '',
+                cuPhotoCode: nextCodes[0] || '',
+              };
+              onChange(next);
+            };
+
+            return (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {/* Cụm Multi-Photo CU */}
+                <div className="flex flex-col gap-2.5">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-bold text-slate-700">
+                      Bộ ảnh cận cảnh có thước đo ({selectedDefect.defectCode}) *:
+                    </label>
+                    <span
+                      className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${
+                        currentCuPhotos.length > 0
+                          ? 'bg-emerald-100 text-emerald-800'
+                          : 'bg-amber-100 text-amber-800'
+                      }`}
+                    >
+                      {currentCuPhotos.length > 0
+                        ? `${currentCuPhotos.length} ảnh đã chụp`
+                        : 'Chưa có ảnh (Bắt buộc)'}
+                    </span>
+                  </div>
+
+                  {/* Lưới Thumbnail các ảnh đã chụp */}
+                  {currentCuPhotos.length > 0 && (
+                    <div className="grid grid-cols-2 gap-2 p-2.5 bg-slate-50 border border-slate-200 rounded-xl">
+                      {currentCuPhotos.map((photoUrl, pIdx) => {
+                        const pCode =
+                          currentCuCodes[pIdx] ||
+                          (pIdx === 0 ? selectedDefect.cuPhotoCode : undefined);
+                        const isPrimary = pIdx === 0;
+                        return (
+                          <div
+                            key={`cu_thumb_${pIdx}`}
+                            className="group relative aspect-[4/3] rounded-lg border border-slate-200 overflow-hidden bg-slate-900 shadow-xs"
+                          >
+                            <img
+                              src={photoUrl}
+                              alt={`Ảnh cận cảnh #${pIdx + 1}`}
+                              className="w-full h-full object-cover cursor-pointer hover:scale-105 transition-transform duration-200"
+                              onClick={() =>
+                                setZoomModalImage({
+                                  url: photoUrl,
+                                  title: `Khuyết tật ${selectedDefect.defectCode} - Ảnh #${pIdx + 1}${
+                                    isPrimary ? ' (Ảnh chính)' : ''
+                                  }`,
+                                  code: pCode,
+                                })
+                              }
+                            />
+
+                            {/* Badge số thứ tự ảnh */}
+                            <div className="absolute top-1.5 left-1.5 flex items-center gap-1">
+                              <span
+                                className={`text-[10px] font-bold px-1.5 py-0.5 rounded shadow-sm ${
+                                  isPrimary
+                                    ? 'bg-emerald-600 text-white'
+                                    : 'bg-slate-900/80 backdrop-blur-xs text-white'
+                                }`}
+                              >
+                                {isPrimary ? 'Ảnh 1 (Chính)' : `Ảnh #${pIdx + 1}`}
+                              </span>
+                            </div>
+
+                            {/* Nút Xem lớn / Xóa ảnh */}
+                            <div className="absolute top-1.5 right-1.5 flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setZoomModalImage({
+                                    url: photoUrl,
+                                    title: `Khuyết tật ${selectedDefect.defectCode} - Ảnh #${pIdx + 1}${
+                                      isPrimary ? ' (Ảnh chính)' : ''
+                                    }`,
+                                    code: pCode,
+                                  })
+                                }
+                                className="p-1 rounded bg-slate-900/80 hover:bg-slate-900 text-slate-200 hover:text-white transition-colors"
+                                title="Soi phóng to nét (2 ngón tay)"
+                              >
+                                <ZoomIn className="w-3.5 h-3.5" />
+                              </button>
+                              {!readOnly && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveCuPhoto(pIdx)}
+                                  className="p-1 rounded bg-red-600/80 hover:bg-red-600 text-white transition-colors"
+                                  title="Xóa ảnh này"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
+
+                            {/* Mã Photo Code dưới đáy */}
+                            {pCode && (
+                              <div className="absolute bottom-0 inset-x-0 bg-slate-950/80 backdrop-blur-xs px-1.5 py-0.5">
+                                <p className="text-[9px] font-mono text-emerald-400 truncate">
+                                  {pCode}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Slot chụp thêm ảnh mới */}
+                  <PhotoCaptureInput
+                    key={`photo_input_${selectedDefect.defectCode}_${currentCuPhotos.length}`}
+                    label={
+                      currentCuPhotos.length === 0
+                        ? `Chụp ảnh cận cảnh Photo CU kèm thước đo (Ảnh #1 - Ảnh chính) *:`
+                        : `+ Chụp thêm ảnh cận cảnh vị trí khác (Ảnh #${currentCuPhotos.length + 1}):`
+                    }
+                    value=""
+                    onChange={(url, code) => handleAddCuPhoto(url, code)}
+                    recommendedOrientation="landscape"
+                    orientationHint="Khuyến nghị: Xoay ngang điện thoại (4:3) để chụp rõ toàn bộ vết nứt cùng thước đo tỷ lệ"
+                    watermarkOptions={{
+                      parcelCode,
+                      floor: floorName,
+                      zoneOrRoom: zoneOrElementCode,
+                      defectCode: selectedDefect.defectCode,
+                      photoType: 'CU',
+                      photoIndex: currentCuPhotos.length + 1,
+                    }}
+                    annotationTitle={`Vẽ & Ghi chú trên ảnh Photo CU (${selectedDefect.defectCode})`}
+                    height="190px"
+                    required={currentCuPhotos.length === 0}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Ghi chú chi tiết vết nứt *:
+                  </label>
+                  <textarea
+                    rows={5}
+                    placeholder="Mô tả cụ thể vị trí, hình thái nứt, mép nứt sắc cạnh hay đã trám trét..."
+                    className={`w-full px-2.5 py-1.5 bg-white border rounded-lg text-xs focus:ring-1 focus:ring-emerald-500 ${
+                      !selectedDefect.notes
+                        ? 'border-amber-400 bg-amber-50/30'
+                        : 'border-emerald-500 bg-emerald-50/15'
+                    }`}
+                    value={selectedDefect.notes || ''}
+                    onChange={(e) => updateSelectedDefect('notes', e.target.value)}
+                    disabled={readOnly}
+                  />
+                </div>
+              </div>
+            );
+          })()}
 
           {/* Action footer: Chấm điểm mới quay trở lại canvas phía trên */}
           {!readOnly && (
@@ -827,6 +1184,17 @@ export const DefectPinningCanvas: React.FC<Props> = ({
             </div>
           )}
         </div>
+      )}
+
+      {/* Lightbox soi phóng to ảnh cận cảnh vết nứt */}
+      {zoomModalImage && (
+        <ImageZoomModal
+          isOpen={Boolean(zoomModalImage)}
+          imageUrl={zoomModalImage.url}
+          title={zoomModalImage.title}
+          photoCode={zoomModalImage.code}
+          onClose={() => setZoomModalImage(null)}
+        />
       )}
     </div>
   );

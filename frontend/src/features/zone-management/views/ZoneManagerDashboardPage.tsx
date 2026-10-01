@@ -3,7 +3,9 @@ import { Card } from '../../../core/components/ui/Card';
 import { Badge } from '../../../core/components/ui/Badge';
 import { Button } from '../../../core/components/ui/Button';
 import { Users, MapPin, CheckCircle2, Clock, AlertTriangle, Filter, Download, RefreshCw, BarChart3, Building } from 'lucide-react';
-import { Phase1ExportModuleBox } from '../components/Phase1ExportModuleBox';
+// Tạm ẩn Phase1ExportModuleBox chờ hoàn thiện thiết kế mẫu in ấn A4 chuẩn Liên danh CRLG-CRSRI-TT
+// import { Phase1ExportModuleBox } from '../components/Phase1ExportModuleBox';
+import { ZoneAuditReviewQueue } from '../components/review-queue/ZoneAuditReviewQueue';
 import { METRO_22_ZONES, getZoneByCode } from '../../survey-phase1/constants/metroGisConstants';
 import { useAuth } from '../../../context/AuthContext';
 import { api } from '../../../services/api';
@@ -262,8 +264,16 @@ export const ZoneManagerDashboardPage: React.FC = () => {
         </Card>
       </div>
 
-      {/* 1. Primary Feature Module Box: Export Report Phase 1 */}
-      <Phase1ExportModuleBox initialZoneId={selectedZone} key={selectedZone} />
+      {/* Hàng Đợi Thẩm Định & Phê Duyệt Hồ Sơ Hiện Trường */}
+      <ZoneAuditReviewQueue
+        selectedZone={selectedZone}
+        onStatsNeedRefresh={() => {
+          fetchLiveStats(selectedZone);
+          fetchLivePersonnel(selectedZone);
+        }}
+      />
+
+      {/* Phân hệ Xuất Báo Cáo Phase 1 tạm ẩn chờ hoàn thiện thiết kế A4 */}
 
       {/* Bảng phân công nhân sự khảo sát & Chấm công GPS thực tế */}
       <Card>
