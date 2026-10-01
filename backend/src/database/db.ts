@@ -149,6 +149,29 @@ export class Database {
     } catch (e) {
       console.warn('⚠️ [STARTUP MIGRATION] base_survey_reports handover warning:', e);
     }
+
+    // 7. parcel_absence_logs
+    try {
+      await this.query(`
+        CREATE TABLE IF NOT EXISTS parcel_absence_logs (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            parcel_id UUID NOT NULL REFERENCES parcels(id) ON DELETE CASCADE,
+            surveyor_id UUID REFERENCES users(id),
+            attempt_number INT NOT NULL DEFAULT 1,
+            absence_reason TEXT,
+            notes TEXT,
+            photo_proof_url TEXT,
+            reschedule_date DATE,
+            owner_name VARCHAR(128),
+            owner_phone VARCHAR(32),
+            recorded_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+        CREATE INDEX IF NOT EXISTS idx_absence_logs_parcel ON parcel_absence_logs(parcel_id);
+      `);
+      console.log('✅ [STARTUP MIGRATION] parcel_absence_logs ready.');
+    } catch (e) {
+      console.warn('⚠️ [STARTUP MIGRATION] parcel_absence_logs warning:', e);
+    }
   }
 }
 

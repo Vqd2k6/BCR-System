@@ -312,16 +312,26 @@ export class AuditService {
     );
 
     // 4. Cờ cảnh báo
-    const flagsRes = await Database.query(
-      `SELECT * FROM audit_alert_items WHERE report_id = $1;`,
-      [actualReportId]
-    );
+    let flagsRes: any = { rows: [] };
+    try {
+      flagsRes = await Database.query(
+        `SELECT * FROM audit_alert_items WHERE report_id = $1;`,
+        [actualReportId]
+      );
+    } catch (e: any) {
+      console.warn('⚠️ [AUDIT SERVICE] audit_alert_items fallback:', e?.message);
+    }
 
-    // 5. Nhật ký vắng mặt nếu có
-    const absenceLogsRes = await Database.query(
-      `SELECT * FROM parcel_absence_logs WHERE parcel_id = $1 ORDER BY recorded_at DESC;`,
-      [report.parcel_id]
-    );
+    // 5. Nhật ký vắng mặt nếu có (Defensive try/catch)
+    let absenceLogsRes: any = { rows: [] };
+    try {
+      absenceLogsRes = await Database.query(
+        `SELECT * FROM parcel_absence_logs WHERE parcel_id = $1 ORDER BY recorded_at DESC;`,
+        [report.parcel_id]
+      );
+    } catch (e: any) {
+      console.warn('⚠️ [AUDIT SERVICE] parcel_absence_logs fallback:', e?.message);
+    }
 
     // 6. Truy vấn bảng ảnh nhận diện P01 - P04
     const photosRes = await Database.query(
