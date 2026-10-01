@@ -4,6 +4,7 @@ import { Badge } from '../../../core/components/ui/Badge';
 import { Button } from '../../../core/components/ui/Button';
 import { Users, MapPin, CheckCircle2, Clock, AlertTriangle, Filter, Download, RefreshCw, BarChart3, Building } from 'lucide-react';
 import { Phase1ExportModuleBox } from '../components/Phase1ExportModuleBox';
+import { ZoneAuditReviewQueue } from '../components/review-queue/ZoneAuditReviewQueue';
 import { METRO_22_ZONES, getZoneByCode } from '../../survey-phase1/constants/metroGisConstants';
 import { useAuth } from '../../../context/AuthContext';
 import { api } from '../../../services/api';
@@ -261,6 +262,15 @@ export const ZoneManagerDashboardPage: React.FC = () => {
           </div>
         </Card>
       </div>
+
+      {/* Hàng Đợi Thẩm Định & Phê Duyệt Hồ Sơ Hiện Trường */}
+      <ZoneAuditReviewQueue
+        selectedZone={selectedZone}
+        onStatsNeedRefresh={() => {
+          fetchLiveStats(selectedZone);
+          fetchLivePersonnel(selectedZone);
+        }}
+      />
 
       {/* 1. Primary Feature Module Box: Export Report Phase 1 */}
       <Phase1ExportModuleBox initialZoneId={selectedZone} key={selectedZone} />

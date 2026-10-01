@@ -362,6 +362,9 @@ export const Step6_ScopeAndGisMutation: React.FC = () => {
                     constructionAreaM2: (formData.constructionAreaM2 !== '' && formData.constructionAreaM2 !== undefined)
                       ? Number(formData.constructionAreaM2)
                       : ((activeParcel as any)?.construction_area_m2 || (activeParcel as any)?.constructionAreaM2),
+                    buildingHeightM: (formData.buildingHeightM !== '' && formData.buildingHeightM !== undefined)
+                      ? Number(formData.buildingHeightM)
+                      : ((activeParcel as any)?.building_height_m || (activeParcel as any)?.buildingHeightM),
                   }
                 : (formData.parcelCoordinates && formData.parcelCoordinates.length >= 3
                 ? ({
@@ -381,6 +384,9 @@ export const Step6_ScopeAndGisMutation: React.FC = () => {
                       : undefined,
                     constructionAreaM2: (formData.constructionAreaM2 !== '' && formData.constructionAreaM2 !== undefined)
                       ? Number(formData.constructionAreaM2)
+                      : undefined,
+                    buildingHeightM: (formData.buildingHeightM !== '' && formData.buildingHeightM !== undefined)
+                      ? Number(formData.buildingHeightM)
                       : undefined,
                   } as any)
                 : undefined)
@@ -402,6 +408,9 @@ export const Step6_ScopeAndGisMutation: React.FC = () => {
               constructionArea: (formData.constructionAreaM2 !== '' && formData.constructionAreaM2 !== undefined)
                 ? Number(formData.constructionAreaM2)
                 : undefined,
+              buildingHeight: (formData.buildingHeightM !== '' && formData.buildingHeightM !== undefined)
+                ? Number(formData.buildingHeightM)
+                : ((activeParcel as any)?.building_height_m || (activeParcel as any)?.buildingHeightM),
               frontageWidth: (activeParcel as any)?.frontage_width || (activeParcel as any)?.frontageWidth,
               lotDepth: (activeParcel as any)?.lot_depth || (activeParcel as any)?.lotDepth,
             }}

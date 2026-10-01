@@ -251,22 +251,37 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
                     notes: z.notes,
                     ctxPhotoUrl: z.photo_context_url || z.ctx_photo_url,
                     hasDamage: (z.defects && z.defects.length > 0) || Boolean(z.has_damage),
-                    defects: (z.defects || []).map((d: any) => ({
-                      id: d.id,
-                      defectCode: d.defect_code,
-                      pinX: Number(d.pin_x) || 0,
-                      pinY: Number(d.pin_y) || 0,
-                      screeningCategory: d.screening_category,
-                      defectType: d.defect_type,
-                      crackDirection: d.crack_direction,
-                      widthMaxMm: Number(d.width_max_mm) || 0,
-                      lengthMm: Number(d.length_mm) || 0,
-                      cuPhotoUrl: d.cu_photo_url,
-                      extraPhotoUrl: d.extra_photo_url,
-                      pinColor: d.pin_color || '#ef4444',
-                      hasScaleCard: d.has_scale_card ?? true,
-                      isStructuralCritical: d.is_structural_critical ?? false,
-                    })),
+                    defects: (z.defects || []).map((d: any) => {
+                      const cuList: string[] = Array.isArray(d.cu_photos_json) && d.cu_photos_json.length > 0
+                        ? d.cu_photos_json
+                        : (Array.isArray(d.cuPhotos) && d.cuPhotos.length > 0
+                            ? d.cuPhotos
+                            : (d.cu_photo_url || d.cuPhotoUrl ? [d.cu_photo_url || d.cuPhotoUrl] : []));
+                      const codeList: string[] = Array.isArray(d.cu_photo_codes_json) && d.cu_photo_codes_json.length > 0
+                        ? d.cu_photo_codes_json
+                        : (Array.isArray(d.cuPhotoCodes) && d.cuPhotoCodes.length > 0
+                            ? d.cuPhotoCodes
+                            : (d.cu_photo_code || d.cuPhotoCode ? [d.cu_photo_code || d.cuPhotoCode] : []));
+                      return {
+                        id: d.id,
+                        defectCode: d.defect_code || d.defectCode,
+                        pinX: Number(d.pin_x ?? d.pinX) || 0,
+                        pinY: Number(d.pin_y ?? d.pinY) || 0,
+                        screeningCategory: d.screening_category || d.screeningCategory,
+                        defectType: d.defect_type || d.defectType,
+                        crackDirection: d.crack_direction || d.crackDirection,
+                        widthMaxMm: Number(d.width_max_mm ?? d.widthMaxMm) || 0,
+                        lengthMm: Number(d.length_mm ?? d.lengthMm) || 0,
+                        cuPhotoUrl: cuList[0] || d.cu_photo_url || d.cuPhotoUrl || '',
+                        cuPhotoCode: codeList[0] || d.cu_photo_code || d.cuPhotoCode || '',
+                        cuPhotos: cuList,
+                        cuPhotoCodes: codeList,
+                        extraPhotoUrl: d.extra_photo_url || d.extraPhotoUrl,
+                        pinColor: d.pin_color || d.pinColor || '#ef4444',
+                        hasScaleCard: d.has_scale_card ?? d.hasScaleCard ?? true,
+                        isStructuralCritical: d.is_structural_critical ?? d.isStructuralCritical ?? false,
+                      };
+                    }),
                   });
                   return acc;
                 }, {});

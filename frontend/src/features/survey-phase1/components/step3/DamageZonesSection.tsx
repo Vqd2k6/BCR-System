@@ -7,7 +7,7 @@ import { PhotoCaptureInput } from '../../../../components/common/PhotoCaptureInp
 import { FloorCadPinningCanvas, CadZonePin } from '../../../../components/canvas/FloorCadPinningCanvas';
 import { FloorSurveyData, DamageZoneData } from '../../types/phase1.types';
 import { COMMON_ROOM_NAMES, ARCH_COMPONENT_TYPES, WALL_MATERIALS } from './step3.constants';
-import { Building, Camera, Trash2, MapPin, AlertCircle, Plus, Sparkles } from 'lucide-react';
+import { Building, Camera, Trash2, MapPin, AlertCircle, Plus, Sparkles, RotateCcw } from 'lucide-react';
 
 interface DamageZonesSectionProps {
   currentFloor: FloorSurveyData;
@@ -46,6 +46,119 @@ export const DamageZonesSection: React.FC<DamageZonesSectionProps> = ({
 }) => {
   const zones: DamageZoneData[] = currentFloor.zones || [];
   const activeZone = zones[activeZoneIndex];
+
+  const prevZone = activeZoneIndex > 0 ? zones[activeZoneIndex - 1] : undefined;
+  const customFields = activeZone?.customizedFields || [];
+  const isRoot = activeZoneIndex === 0;
+  const downstreamCount = zones.length - 1 - activeZoneIndex;
+
+  const handleSyncToEntireFloor = () => {
+    if (!activeZone.componentType && !activeZone.wallMaterial) {
+      alert('Vui lòng chọn Cấu kiện hoặc Vật liệu trước khi đồng bộ toàn tầng!');
+      return;
+    }
+    const remainingCount = zones.length - 1;
+    if (
+      !confirm(
+        `Bạn có chắc muốn áp dụng cấu kiện "${activeZone.componentType || 'hiện tại'}" và vật liệu "${activeZone.wallMaterial || 'hiện tại'}" của ${activeZone.zoneCode} cho tất cả ${remainingCount} Vùng Z còn lại trên ${currentFloor.floorName}?`
+      )
+    ) {
+      return;
+    }
+    currentFloor.zones.forEach((_, idx) => {
+      if (idx > 0) {
+        onUpdateZone(idx, {
+          componentType: activeZone.componentType || undefined,
+          customComponentType: activeZone.customComponentType || undefined,
+          wallMaterial: activeZone.wallMaterial || undefined,
+          customWallMaterial: activeZone.customWallMaterial || undefined,
+        });
+      }
+    });
+  };
+
+  const handleSyncToDownstreamZones = () => {
+    if (!activeZone.componentType && !activeZone.wallMaterial) {
+      alert('Vui lòng chọn Cấu kiện hoặc Vật liệu trước khi đồng bộ!');
+      return;
+    }
+    const downstreamZones = currentFloor.zones.slice(activeZoneIndex + 1);
+    const downstreamCodes = downstreamZones.map((z) => z.zoneCode).join(', ');
+    if (
+      !confirm(
+        `Bạn có chắc muốn áp dụng cấu kiện "${activeZone.componentType || 'hiện tại'}" và vật liệu "${activeZone.wallMaterial || 'hiện tại'}" của ${activeZone.zoneCode} cho ${downstreamCount} Vùng Z phía sau (${downstreamCodes})?\n(Các Vùng Z phía trước sẽ được giữ nguyên 100%)`
+      )
+    ) {
+      return;
+    }
+    for (let idx = activeZoneIndex + 1; idx < currentFloor.zones.length; idx++) {
+      onUpdateZone(idx, {
+        componentType: activeZone.componentType || undefined,
+        customComponentType: activeZone.customComponentType || undefined,
+        wallMaterial: activeZone.wallMaterial || undefined,
+        customWallMaterial: activeZone.customWallMaterial || undefined,
+      });
+    }
+  };
+
+  const handleResetField = (field: 'roomName' | 'componentType' | 'wallMaterial') => {
+    if (!prevZone || !activeZone) return;
+    const updater: Partial<DamageZoneData> = {};
+    if (field === 'roomName') {
+      updater.roomName = prevZone.roomName;
+      updater.customRoomName = prevZone.customRoomName || '';
+    } else if (field === 'componentType') {
+      updater.componentType = prevZone.componentType;
+      updater.customComponentType = prevZone.customComponentType || '';
+    } else if (field === 'wallMaterial') {
+      updater.wallMaterial = prevZone.wallMaterial;
+      updater.customWallMaterial = prevZone.customWallMaterial || '';
+    }
+    const newCustom = (activeZone.customizedFields || []).filter((f) => f !== field);
+    updater.customizedFields = newCustom;
+    updater.syncedFromZoneCode = prevZone.zoneCode;
+    onUpdateZone(activeZoneIndex, updater);
+  };
+
+  const handleResetAllToPrevZone = () => {
+    if (!prevZone || !activeZone) return;
+    onUpdateZone(activeZoneIndex, {
+      roomName: prevZone.roomName,
+      customRoomName: prevZone.customRoomName || '',
+      componentType: prevZone.componentType,
+      customComponentType: prevZone.customComponentType || '',
+      wallMaterial: prevZone.wallMaterial,
+      customWallMaterial: prevZone.customWallMaterial || '',
+      customizedFields: [],
+      syncedFromZoneCode: prevZone.zoneCode,
+    });
+  };
+
+  const renderZoneFieldBadge = (field: 'roomName' | 'componentType' | 'wallMaterial') => {
+    if (!prevZone || !activeZone) return null;
+    const isCustom = customFields.includes(field);
+    if (!isCustom) {
+      return (
+        <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 bg-emerald-100/70 px-1.5 py-0.5 rounded mt-1">
+          <Sparkles className="w-2.5 h-2.5 text-emerald-600" />
+          Đồng bộ từ {prevZone.zoneCode}
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center gap-1 text-[10px] font-medium text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded mt-1">
+        Đã tùy chỉnh cho {activeZone.zoneCode}
+        <button
+          type="button"
+          onClick={() => handleResetField(field)}
+          className="text-emerald-600 hover:underline cursor-pointer ml-1 font-semibold"
+          title={`Khôi phục trường này theo ${prevZone.zoneCode}`}
+        >
+          ↺ Lấy lại
+        </button>
+      </span>
+    );
+  };
 
   return (
     <Card id="step3-floor-cad-section" className="border-slate-200 bg-white space-y-4 shadow-xs">
@@ -186,125 +299,131 @@ export const DamageZonesSection: React.FC<DamageZonesSectionProps> = ({
               </button>
             </div>
 
-            {/* Thông tin thuộc tính Vùng Z */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div>
-                <Select
-                  id="select-zone-roomName"
-                  label="Tên Phòng / Không Gian *"
-                  value={activeZone.roomName}
-                  onChange={(e) => onUpdateZone(activeZoneIndex, { roomName: e.target.value })}
-                  options={[
-                    { value: '', label: '--- Chọn tên phòng / không gian ---' },
-                    ...COMMON_ROOM_NAMES.map((r) => ({ value: r, label: r })),
-                  ]}
-                />
-                {activeZone.roomName === 'Khác' && (
-                  <Input
-                    id="input-zone-customRoomName"
-                    placeholder="Nhập tên phòng..."
-                    value={activeZone.customRoomName || ''}
-                    onChange={(e) =>
-                      onUpdateZone(activeZoneIndex, { customRoomName: e.target.value })
-                    }
-                    className="mt-1.5"
-                  />
-                )}
-              </div>
+            {/* Khung Thông tin thuộc tính Vùng Z kèm Line Sáng Xanh Phản Quang */}
+            <div className="relative p-3 bg-white rounded-xl border border-slate-200/80 space-y-2.5 shadow-2xs">
+              {/* Line Sáng Xanh Phản Quang (Emerald Glow Line) */}
+              <div className="h-[2px] w-full bg-gradient-to-r from-emerald-400 via-teal-300 to-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.7)] rounded-full mb-1" />
 
-              <div>
-                <Select
-                  id="select-zone-componentType"
-                  label="Cấu Kiện Mảng Vách Kiến Trúc *"
-                  value={activeZone.componentType}
-                  onChange={(e) =>
-                    onUpdateZone(activeZoneIndex, { componentType: e.target.value })
-                  }
-                  options={[
-                    { value: '', label: '--- Chọn cấu kiện vách ---' },
-                    ...ARCH_COMPONENT_TYPES.map((c) => ({ value: c, label: c })),
-                  ]}
-                />
-                {activeZone.componentType === 'Khác' && (
-                  <Input
-                    id="input-zone-customComponentType"
-                    placeholder="Nhập loại cấu kiện..."
-                    value={activeZone.customComponentType || ''}
-                    onChange={(e) =>
-                      onUpdateZone(activeZoneIndex, { customComponentType: e.target.value })
-                    }
-                    className="mt-1.5"
-                  />
-                )}
-              </div>
+              {/* Gợi ý cho Vùng gốc nếu ở index 0 */}
+              {activeZoneIndex === 0 && zones.length > 1 && (
+                <div className="text-[11px] text-slate-500 flex items-center gap-1.5 pb-0.5">
+                  <Building className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span>
+                    Vùng gốc <strong>{activeZone.zoneCode}</strong>: Các Vùng Z kế tiếp ({zones.slice(1).map((z) => z.zoneCode).join(', ')}) sẽ tự động kế thừa thông tin từ đây.
+                  </span>
+                </div>
+              )}
 
-              <div>
-                <Select
-                  id="select-zone-wallMaterial"
-                  label="Vật Liệu Bề Mặt Hoàn Thiện *"
-                  value={activeZone.wallMaterial}
-                  onChange={(e) =>
-                    onUpdateZone(activeZoneIndex, { wallMaterial: e.target.value })
-                  }
-                  options={[
-                    { value: '', label: '--- Chọn vật liệu hoàn thiện ---' },
-                    ...WALL_MATERIALS.map((w) => ({ value: w, label: w })),
-                  ]}
-                />
-                {activeZone.wallMaterial === 'Khác' && (
-                  <Input
-                    id="input-zone-customWallMaterial"
-                    placeholder="Nhập vật liệu..."
-                    value={activeZone.customWallMaterial || ''}
-                    onChange={(e) =>
-                      onUpdateZone(activeZoneIndex, { customWallMaterial: e.target.value })
-                    }
-                    className="mt-1.5"
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <Select
+                    id="select-zone-roomName"
+                    label="Tên Phòng / Không Gian *"
+                    value={activeZone.roomName}
+                    onChange={(e) => onUpdateZone(activeZoneIndex, { roomName: e.target.value })}
+                    options={[
+                      { value: '', label: '--- Chọn tên phòng / không gian ---' },
+                      ...COMMON_ROOM_NAMES.map((r) => ({ value: r, label: r })),
+                    ]}
                   />
-                )}
-              </div>
-            </div>
-
-            {/* Nút tối ưu: Áp dụng vật liệu cho toàn tầng */}
-            {(currentFloor.zones?.length || 0) > 1 && (
-              <div className="flex items-center justify-between p-2 bg-emerald-50/70 border border-emerald-200/80 rounded-xl text-xs">
-                <span className="text-emerald-800 text-[11px] font-medium">
-                  Tiết kiệm thời gian: Áp dụng cấu kiện và vật liệu của <strong>{activeZone.zoneCode}</strong> cho {currentFloor.zones.length - 1} Vùng Z còn lại trên {currentFloor.floorName}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (!activeZone.componentType && !activeZone.wallMaterial) {
-                      alert('Vui lòng chọn Cấu kiện hoặc Vật liệu trước khi áp dụng cho toàn tầng!');
-                      return;
-                    }
-                    const count = currentFloor.zones?.length || 0;
-                    if (
-                      !confirm(
-                        `Bạn có chắc chắn muốn áp dụng cấu kiện "${activeZone.componentType || 'hiện tại'}" và vật liệu "${activeZone.wallMaterial || 'hiện tại'}" cho toàn bộ ${count} Vùng Z của ${currentFloor.floorName}?`
-                      )
-                    ) {
-                      return;
-                    }
-                    currentFloor.zones.forEach((_, idx) => {
-                      if (idx !== activeZoneIndex) {
-                        onUpdateZone(idx, {
-                          componentType: activeZone.componentType || undefined,
-                          customComponentType: activeZone.customComponentType || undefined,
-                          wallMaterial: activeZone.wallMaterial || undefined,
-                          customWallMaterial: activeZone.customWallMaterial || undefined,
-                        });
+                  {renderZoneFieldBadge('roomName')}
+                  {activeZone.roomName === 'Khác' && (
+                    <Input
+                      id="input-zone-customRoomName"
+                      placeholder="Nhập tên phòng..."
+                      value={activeZone.customRoomName || ''}
+                      onChange={(e) =>
+                        onUpdateZone(activeZoneIndex, { customRoomName: e.target.value })
                       }
-                    });
-                  }}
-                  className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-xs flex items-center gap-1 transition-all shadow-xs shrink-0 cursor-pointer"
-                  title="Đồng bộ cấu kiện và vật liệu cho tất cả Vùng Z trong tầng"
-                >
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>Áp dụng toàn tầng</span>
-                </button>
+                      className="mt-1.5"
+                    />
+                  )}
+                </div>
+
+                <div>
+                  <Select
+                    id="select-zone-componentType"
+                    label="Cấu Kiện Mảng Vách Kiến Trúc *"
+                    value={activeZone.componentType}
+                    onChange={(e) =>
+                      onUpdateZone(activeZoneIndex, { componentType: e.target.value })
+                    }
+                    options={[
+                      { value: '', label: '--- Chọn cấu kiện vách ---' },
+                      ...ARCH_COMPONENT_TYPES.map((c) => ({ value: c, label: c })),
+                    ]}
+                  />
+                  {renderZoneFieldBadge('componentType')}
+                  {activeZone.componentType === 'Khác' && (
+                    <Input
+                      id="input-zone-customComponentType"
+                      placeholder="Nhập loại cấu kiện..."
+                      value={activeZone.customComponentType || ''}
+                      onChange={(e) =>
+                        onUpdateZone(activeZoneIndex, { customComponentType: e.target.value })
+                      }
+                      className="mt-1.5"
+                    />
+                  )}
+                </div>
+
+                <div>
+                  <Select
+                    id="select-zone-wallMaterial"
+                    label="Vật Liệu Bề Mặt Hoàn Thiện *"
+                    value={activeZone.wallMaterial}
+                    onChange={(e) =>
+                      onUpdateZone(activeZoneIndex, { wallMaterial: e.target.value })
+                    }
+                    options={[
+                      { value: '', label: '--- Chọn vật liệu hoàn thiện ---' },
+                      ...WALL_MATERIALS.map((w) => ({ value: w, label: w })),
+                    ]}
+                  />
+                  {renderZoneFieldBadge('wallMaterial')}
+                  {activeZone.wallMaterial === 'Khác' && (
+                    <Input
+                      id="input-zone-customWallMaterial"
+                      placeholder="Nhập vật liệu..."
+                      value={activeZone.customWallMaterial || ''}
+                      onChange={(e) =>
+                        onUpdateZone(activeZoneIndex, { customWallMaterial: e.target.value })
+                      }
+                      className="mt-1.5"
+                    />
+                  )}
+                </div>
               </div>
-            )}
+
+              {/* Nút đồng bộ xuôi chiều tinh gọn (Mobile-friendly, không văn bản thừa) */}
+              {isRoot && zones.length > 1 && (
+                <div className="flex justify-end pt-1">
+                  <button
+                    type="button"
+                    onClick={handleSyncToEntireFloor}
+                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
+                    title="Đồng bộ cấu kiện và vật liệu của Z-01 cho toàn bộ các Vùng Z còn lại trên tầng"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>Đồng bộ cho toàn tầng</span>
+                  </button>
+                </div>
+              )}
+
+              {!isRoot && downstreamCount > 0 && (
+                <div className="flex justify-end pt-1">
+                  <button
+                    type="button"
+                    onClick={handleSyncToDownstreamZones}
+                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
+                    title={`Đồng bộ cấu kiện và vật liệu cho ${downstreamCount} Vùng Z phía sau (không ảnh hưởng các Vùng Z phía trước)`}
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>Đồng bộ cho các Z còn lại ({downstreamCount})</span>
+                  </button>
+                </div>
+              )}
+            </div>
 
             {/* Chụp nhiều ảnh tổng quan Vùng Z */}
             <div className="p-2.5 sm:p-3 bg-white rounded-xl border border-slate-200/70 space-y-2.5 shadow-2xs">

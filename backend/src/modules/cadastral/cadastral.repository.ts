@@ -77,26 +77,42 @@ export class CadastralRepository {
 
   static async listParcelsByZone(zoneId: string, status?: string): Promise<ParcelEntity[]> {
     // Map between ZONE_S1..S11 and ZONE_01..ZONE_22
-    const zoneMapping: Record<string, string> = {
-      'ZONE_S1': 'ZONE_01', 'ZONE_S2': 'ZONE_03', 'ZONE_S3': 'ZONE_05',
-      'ZONE_S4': 'ZONE_07', 'ZONE_S5': 'ZONE_09', 'ZONE_S6': 'ZONE_11',
-      'ZONE_S7': 'ZONE_13', 'ZONE_S8': 'ZONE_15', 'ZONE_S9': 'ZONE_17',
-      'ZONE_S10': 'ZONE_19', 'ZONE_S11': 'ZONE_21',
-      'ZONE_01': 'ZONE_S1', 'ZONE_03': 'ZONE_S2', 'ZONE_05': 'ZONE_S3',
-      'ZONE_07': 'ZONE_S4', 'ZONE_09': 'ZONE_S5', 'ZONE_11': 'ZONE_S6',
-      'ZONE_13': 'ZONE_S7', 'ZONE_15': 'ZONE_S8', 'ZONE_17': 'ZONE_S9',
-      'ZONE_19': 'ZONE_S10', 'ZONE_21': 'ZONE_S11',
-    };
     const target = (zoneId || 'ALL').toUpperCase();
     const isAll = target === 'ALL';
-    const altTarget = zoneMapping[target] || target;
+
+    const zoneAliases: Record<string, string[]> = {
+      'ZONE_S1': ['ZONE_S1', 'ZONE_01'],
+      'ZONE_01': ['ZONE_01', 'ZONE_S1'],
+      'ZONE_S2': ['ZONE_S2', 'ZONE_02', 'ZONE_03'],
+      'ZONE_02': ['ZONE_02', 'ZONE_S2'],
+      'ZONE_S3': ['ZONE_S3', 'ZONE_03', 'ZONE_05'],
+      'ZONE_03': ['ZONE_03', 'ZONE_S3', 'ZONE_S2'],
+      'ZONE_S4': ['ZONE_S4', 'ZONE_04', 'ZONE_07'],
+      'ZONE_04': ['ZONE_04', 'ZONE_S4'],
+      'ZONE_S5': ['ZONE_S5', 'ZONE_09', 'ZONE_05'],
+      'ZONE_05': ['ZONE_05', 'ZONE_S5', 'ZONE_S3'],
+      'ZONE_S6': ['ZONE_S6', 'ZONE_11'],
+      'ZONE_11': ['ZONE_11', 'ZONE_S6'],
+      'ZONE_S7': ['ZONE_S7', 'ZONE_13'],
+      'ZONE_13': ['ZONE_13', 'ZONE_S7'],
+      'ZONE_S8': ['ZONE_S8', 'ZONE_08', 'ZONE_15'],
+      'ZONE_08': ['ZONE_08', 'ZONE_S8'],
+      'ZONE_S9': ['ZONE_S9', 'ZONE_09', 'ZONE_17'],
+      'ZONE_09': ['ZONE_09', 'ZONE_S9', 'ZONE_S5', 'ZONE_17'],
+      'ZONE_S10': ['ZONE_S10', 'ZONE_19'],
+      'ZONE_19': ['ZONE_19', 'ZONE_S10'],
+      'ZONE_S11': ['ZONE_S11', 'ZONE_21'],
+      'ZONE_21': ['ZONE_21', 'ZONE_S11'],
+    };
+
+    const targetList = zoneAliases[target] || [target];
 
     let whereClause = `WHERE p.lifecycle_status = 'ACTIVE'`;
     const params: any[] = [];
 
     if (!isAll) {
-      whereClause += ` AND (p.zone_id = $1 OR p.zone_id = $2)`;
-      params.push(target, altTarget);
+      params.push(targetList);
+      whereClause += ` AND p.zone_id = ANY($${params.length})`;
     }
 
     if (status) {

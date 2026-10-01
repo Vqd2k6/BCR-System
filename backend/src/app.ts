@@ -163,6 +163,7 @@ export function createApp(): express.Application {
   api.post('/admin/attendance/:id/verify', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AttendanceController.verifyCheckIn);
 
   // Thẩm định Split-Pane & Động cơ Cảnh báo Gian lận
+  api.get('/admin/reports/pending-reviews', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.listPendingSubmissions);
   api.get('/admin/reports/audit-alerts', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.listAuditAlerts);
   api.get('/admin/reports/:id/audit-flags', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.getReportAuditFlags);
   api.get('/admin/reports/:id/audit-view', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.getSplitPaneAuditView);
@@ -170,6 +171,8 @@ export function createApp(): express.Application {
   api.post('/admin/reports/:id/reject', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.rejectReport);
   api.post('/admin/mutations/:id/approve', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.approveMutation);
   api.post('/admin/reports/:id/engineering-judgement', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ScoringController.applyJudgement);
+  api.put('/admin/reports/:id/audit-edit', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.applyAdminSurveyEdit);
+  api.post('/admin/reports/:id/audit-replace-photo', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.replaceReportPhoto);
 
   // Xuất Báo Cáo Phân khu & Toàn tuyến
   api.post('/reports/batch-export', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ExportController.createBatchExport);

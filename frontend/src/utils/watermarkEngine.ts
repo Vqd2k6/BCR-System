@@ -330,8 +330,8 @@ export async function applyMetroWatermark(
     throw new Error('Nguồn ảnh không hợp lệ để dập watermark.');
   }
 
-  // 2. Chuẩn hóa kích thước khung hình (giới hạn max dimension 1920px để bảo vệ RAM mobile)
-  const maxDim = 1920;
+  // 2. Chuẩn hóa kích thước khung hình (giữ độ nét tối đa 4K / 4096px, lưu trữ Cloudflare R2 không nén vỡ nét)
+  const maxDim = 4096;
   let width = src.width;
   let height = src.height;
   if (width > maxDim || height > maxDim) {
@@ -420,11 +420,11 @@ export async function applyMetroWatermark(
   ctx.fillText(photoCode, textX, line2Y);
   ctx.restore();
 
-  // 6. Xuất Binary Blob và Data URL JPEG tối ưu
+  // 6. Xuất Binary Blob và Data URL JPEG độ nét cao (0.96) cho Cloudflare R2
   const blob: Blob = await new Promise((resolve) => {
-    canvas.toBlob((b) => resolve(b || new Blob()), 'image/jpeg', 0.82);
+    canvas.toBlob((b) => resolve(b || new Blob()), 'image/jpeg', 0.96);
   });
-  const dataUrl = canvas.toDataURL('image/jpeg', 0.82);
+  const dataUrl = canvas.toDataURL('image/jpeg', 0.96);
 
   return {
     dataUrl,

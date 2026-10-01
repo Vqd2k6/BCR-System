@@ -694,6 +694,7 @@ export const usePhase1SurveyStore = create<Phase1SurveyStore>((set, get) => ({
             defects: (z.defects || []).map((d) => ({
               ...d,
               cuPhotoUrl: d.cuPhotoUrl && d.cuPhotoUrl.length > 50000 ? '' : d.cuPhotoUrl,
+              cuPhotos: (d.cuPhotos || []).map((p: string) => p && p.length > 50000 ? '' : p).filter(Boolean),
             })),
           })),
           structuralElements: (f.structuralElements || []).map((e) => ({
@@ -702,6 +703,7 @@ export const usePhase1SurveyStore = create<Phase1SurveyStore>((set, get) => ({
             defects: (e.defects || []).map((d) => ({
               ...d,
               cuPhotoUrl: d.cuPhotoUrl && d.cuPhotoUrl.length > 50000 ? '' : d.cuPhotoUrl,
+              cuPhotos: (d.cuPhotos || []).map((p: string) => p && p.length > 50000 ? '' : p).filter(Boolean),
             })),
           })),
         })),

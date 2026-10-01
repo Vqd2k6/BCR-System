@@ -17,6 +17,27 @@ export class AuditController {
     }
   }
 
+  static async listPendingSubmissions(req: Request, res: Response, next: NextFunction) {
+    try {
+      const filters = {
+        zoneId: (req.query.zoneId as string) || (req.user?.role === 'SUPER_ADMIN' ? 'ALL' : req.user?.assignedZoneId) || 'ALL',
+        status: req.query.status as string,
+        buildingType: req.query.buildingType as string,
+        search: req.query.search as string,
+        limit: req.query.limit ? Number(req.query.limit) : undefined,
+        offset: req.query.offset ? Number(req.query.offset) : undefined,
+      };
+
+      const result = await AuditService.listPendingSubmissions(filters);
+      res.status(200).json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   static async listAuditAlerts(req: Request, res: Response, next: NextFunction) {
     try {
       const filters = {
@@ -98,6 +119,30 @@ export class AuditController {
         success: true,
         data: result,
       });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async applyAdminSurveyEdit(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      const adminId = req.user!.userId;
+      const clientIp = req.ip || req.socket.remoteAddress;
+      const result = await AuditService.applyAdminSurveyEdit(id, adminId, req.body, clientIp);
+      res.status(200).json(result);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async replaceReportPhoto(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      const adminId = req.user!.userId;
+      const clientIp = req.ip || req.socket.remoteAddress;
+      const result = await AuditService.replaceReportPhoto(id, adminId, req.body, clientIp);
+      res.status(200).json(result);
     } catch (error) {
       next(error);
     }

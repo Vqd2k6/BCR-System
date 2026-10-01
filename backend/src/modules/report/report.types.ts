@@ -36,6 +36,8 @@ export interface DefectItemReport {
   ctxPhotoUrl?: string;
   cuPhotoUrl?: string;
   cuPhotoCode?: string;
+  cuPhotos?: string[];
+  cuPhotoCodes?: string[];
   extraPhotoUrl?: string;
   notes?: string;
 }

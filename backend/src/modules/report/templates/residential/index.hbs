@@ -1017,8 +1017,29 @@
             </div>
             {{/if}}
 
-            <!-- ẢNH 2: CẬN CẢNH CÓ THƯỚC ĐO NỨT CRACK GAUGE (FULL WIDTH A4) -->
-            {{#if cuPhotoUrl}}
+            <!-- ẢNH 2+: CẬN CẢNH CÓ THƯỚC ĐO NỨT CRACK GAUGE (FULL WIDTH A4) -->
+            {{#if (isNotEmpty cuPhotos)}}
+              {{#each cuPhotos}}
+              <div class="defect-card-single">
+                <div class="photo-header" style="background-color: #9a3412;">
+                  <span class="photo-tag" style="background-color: #ffedd5; color: #9a3412;">{{../defectCode}} CRACK GAUGE #{{addOne @index}}</span>
+                  <span class="photo-header-title">ẢNH CẬN CẢNH CÓ THƯỚC ĐO NỨT (VỊ TRÍ #{{addOne @index}}) &bull; w<sub>max</sub> = {{../widthMaxMm}} mm</span>
+                </div>
+                <div class="defect-evidence-full">
+                  <img src="{{this}}" alt="Ảnh cận cảnh có thước đo {{../defectCode}} (Ảnh #{{addOne @index}})">
+                </div>
+                <div class="evidence-caption-full" style="background-color: #fff7ed; color: #9a3412;">
+                  HÌNH: CẬN CẢNH ĐO ĐẠC BỀ RỘNG VẾT NỨT {{../defectCode}} - ẢNH #{{addOne @index}} (BỀ RỘNG LỚN NHẤT w<sub>max</sub> = {{../widthMaxMm}} mm, DÀI {{../lengthMm}} mm)
+                </div>
+                <div class="defect-meta-bar">
+                  <span><strong>Bề rộng w<sub>max</sub>:</strong> <span style="color: #b91c1c; font-weight: bold;">{{../widthMaxMm}} mm</span></span>
+                  <span><strong>Chiều dài:</strong> {{../lengthMm}} mm</span>
+                  <span><strong>Trạng thái:</strong> {{../activityStateLabel}}</span>
+                  <span><strong>Cờ kết cấu (E2):</strong> {{../structuralSignificanceLabel}}</span>
+                </div>
+              </div>
+              {{/each}}
+            {{else if cuPhotoUrl}}
             <div class="defect-card-single">
               <div class="photo-header" style="background-color: #9a3412;">
                 <span class="photo-tag" style="background-color: #ffedd5; color: #9a3412;">{{defectCode}} CRACK GAUGE</span>

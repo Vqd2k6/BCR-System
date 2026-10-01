@@ -91,11 +91,15 @@ export class Database {
       console.warn('⚠️ [STARTUP MIGRATION] damage_zones.ctx_photo_code warning:', e);
     }
 
-    // 3. defect_items.cu_photo_code
+    // 3. defect_items.cu_photo_code & cu_photos_json
     try {
-      await this.query(`ALTER TABLE defect_items ADD COLUMN IF NOT EXISTS cu_photo_code VARCHAR(150);`);
+      await this.query(`
+        ALTER TABLE defect_items 
+          ADD COLUMN IF NOT EXISTS cu_photo_code VARCHAR(150),
+          ADD COLUMN IF NOT EXISTS cu_photos_json JSONB DEFAULT '[]'::jsonb;
+      `);
       await this.query(`CREATE INDEX IF NOT EXISTS idx_defect_items_cu_photo_code ON defect_items(cu_photo_code);`);
-      console.log('✅ [STARTUP MIGRATION] defect_items.cu_photo_code ready.');
+      console.log('✅ [STARTUP MIGRATION] defect_items.cu_photo_code & cu_photos_json ready.');
     } catch (e) {
       console.warn('⚠️ [STARTUP MIGRATION] defect_items.cu_photo_code warning:', e);
     }

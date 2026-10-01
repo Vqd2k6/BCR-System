@@ -291,6 +291,8 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
         notes: '',
         defects: [],
         isCompleted: false,
+        customizedFields: [],
+        syncedFromZoneCode: prevZone?.zoneCode,
       };
 
       const updatedFloors = [...prev.floors];
@@ -335,6 +337,8 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
         notes: '',
         defects: [],
         isCompleted: false,
+        customizedFields: [],
+        syncedFromElementCode: prevEl?.elementCode,
       };
 
       const updatedFloors = [...prev.floors];
@@ -386,7 +390,45 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
       merged.functionalImpactRepairNeeded = false;
     }
 
+    if (zIdx > 0) {
+      const customSet = new Set(merged.customizedFields || []);
+      if (updater.roomName !== undefined || updater.customRoomName !== undefined) customSet.add('roomName');
+      if (updater.componentType !== undefined || updater.customComponentType !== undefined) customSet.add('componentType');
+      if (updater.wallMaterial !== undefined || updater.customWallMaterial !== undefined) customSet.add('wallMaterial');
+      merged.customizedFields = Array.from(customSet);
+    }
     updatedZones[zIdx] = merged;
+
+    // Dây chuyền cascade Z_i-1 -> Z_i cho các vùng tiếp theo chưa tùy chỉnh
+    for (let k = zIdx + 1; k < updatedZones.length; k++) {
+      const nextZone = { ...updatedZones[k] };
+      const nextCustom = nextZone.customizedFields || [];
+      const sourceZone = updatedZones[k - 1];
+      let nextChanged = false;
+
+      if (!nextCustom.includes('roomName') && sourceZone.roomName) {
+        nextZone.roomName = sourceZone.roomName;
+        nextZone.customRoomName = sourceZone.customRoomName || '';
+        nextZone.syncedFromZoneCode = sourceZone.zoneCode;
+        nextChanged = true;
+      }
+      if (!nextCustom.includes('componentType') && sourceZone.componentType) {
+        nextZone.componentType = sourceZone.componentType;
+        nextZone.customComponentType = sourceZone.customComponentType || '';
+        nextZone.syncedFromZoneCode = sourceZone.zoneCode;
+        nextChanged = true;
+      }
+      if (!nextCustom.includes('wallMaterial') && sourceZone.wallMaterial) {
+        nextZone.wallMaterial = sourceZone.wallMaterial;
+        nextZone.customWallMaterial = sourceZone.customWallMaterial || '';
+        nextZone.syncedFromZoneCode = sourceZone.zoneCode;
+        nextChanged = true;
+      }
+      if (nextChanged) {
+        updatedZones[k] = nextZone;
+      }
+    }
+
     const updatedFloors = [...formData.floors];
     updatedFloors[activeFloorIndex] = { ...currentFloor, zones: updatedZones };
     updateFormData({ floors: updatedFloors });
@@ -411,7 +453,47 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
   const handleUpdateElement = (eIdx: number, updater: Partial<StructuralElementData>) => {
     const updatedElements = [...structuralElements];
     if (!updatedElements[eIdx]) return;
-    updatedElements[eIdx] = { ...updatedElements[eIdx], ...updater };
+    const merged = { ...updatedElements[eIdx], ...updater };
+
+    if (eIdx > 0) {
+      const customSet = new Set(merged.customizedFields || []);
+      if (updater.roomName !== undefined || updater.customRoomName !== undefined) customSet.add('roomName');
+      if (updater.elementType !== undefined || updater.customElementType !== undefined) customSet.add('elementType');
+      if (updater.materialType !== undefined || updater.customMaterialType !== undefined) customSet.add('materialType');
+      merged.customizedFields = Array.from(customSet);
+    }
+    updatedElements[eIdx] = merged;
+
+    // Dây chuyền cascade E_i-1 -> E_i cho các vùng tiếp theo chưa tùy chỉnh
+    for (let k = eIdx + 1; k < updatedElements.length; k++) {
+      const nextEl = { ...updatedElements[k] };
+      const nextCustom = nextEl.customizedFields || [];
+      const sourceEl = updatedElements[k - 1];
+      let nextChanged = false;
+
+      if (!nextCustom.includes('roomName') && sourceEl.roomName) {
+        nextEl.roomName = sourceEl.roomName;
+        nextEl.customRoomName = sourceEl.customRoomName || '';
+        nextEl.syncedFromElementCode = sourceEl.elementCode;
+        nextChanged = true;
+      }
+      if (!nextCustom.includes('elementType') && sourceEl.elementType) {
+        nextEl.elementType = sourceEl.elementType;
+        nextEl.customElementType = sourceEl.customElementType || '';
+        nextEl.syncedFromElementCode = sourceEl.elementCode;
+        nextChanged = true;
+      }
+      if (!nextCustom.includes('materialType') && sourceEl.materialType) {
+        nextEl.materialType = sourceEl.materialType;
+        nextEl.customMaterialType = sourceEl.customMaterialType || '';
+        nextEl.syncedFromElementCode = sourceEl.elementCode;
+        nextChanged = true;
+      }
+      if (nextChanged) {
+        updatedElements[k] = nextEl;
+      }
+    }
+
     const updatedFloors = [...formData.floors];
     updatedFloors[activeFloorIndex] = { ...currentFloor, structuralElements: updatedElements };
     updateFormData({ floors: updatedFloors });

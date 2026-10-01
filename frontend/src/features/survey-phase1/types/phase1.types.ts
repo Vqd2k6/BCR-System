@@ -29,6 +29,8 @@ export interface DamageZoneData {
   notes: string;
   defects: DefectItem[];
   isCompleted?: boolean;
+  customizedFields?: string[];
+  syncedFromZoneCode?: string;
 }
 
 export interface StructuralElementData {
@@ -48,6 +50,8 @@ export interface StructuralElementData {
   notes: string;
   defects: DefectItem[];
   isCompleted?: boolean;
+  customizedFields?: string[];
+  syncedFromElementCode?: string;
 }
 
 export interface FloorSurveyData {

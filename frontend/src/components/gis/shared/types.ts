@@ -92,6 +92,7 @@ export interface CadastralParcelData {
   ownerName?: string;
   landArea?: number;
   constructionArea?: number;
+  buildingHeight?: number;
   frontageWidth?: number;
   lotDepth?: number;
   floorCount?: number;
