@@ -264,8 +264,8 @@ function loadLogo(customUrl?: string): Promise<HTMLImageElement> {
 /**
  * Đọc nguồn ảnh thành HTMLImageElement
  */
-function loadImageSource(source: HTMLImageElement | HTMLVideoElement | string): Promise<{
-  element: HTMLImageElement | HTMLVideoElement;
+function loadImageSource(source: HTMLImageElement | HTMLVideoElement | HTMLCanvasElement | string): Promise<{
+  element: HTMLImageElement | HTMLVideoElement | HTMLCanvasElement;
   width: number;
   height: number;
 }> {
@@ -291,6 +291,12 @@ function loadImageSource(source: HTMLImageElement | HTMLVideoElement | string): 
         width: source.videoWidth || 1280,
         height: source.videoHeight || 720,
       });
+    } else if (source instanceof HTMLCanvasElement) {
+      resolve({
+        element: source,
+        width: source.width,
+        height: source.height,
+      });
     } else {
       resolve({
         element: source,
@@ -312,7 +318,7 @@ export interface WatermarkResult {
  * Trả về Data URL JPEG, Binary Blob và Photo ID chuẩn hóa
  */
 export async function applyMetroWatermark(
-  imageSource: HTMLImageElement | HTMLVideoElement | string,
+  imageSource: HTMLImageElement | HTMLVideoElement | HTMLCanvasElement | string,
   options?: MetroWatermarkOptions
 ): Promise<WatermarkResult> {
   const photoCode = generateMetroPhotoCode(options || {});

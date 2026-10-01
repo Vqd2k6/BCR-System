@@ -14,6 +14,7 @@ interface ParcelListContainerProps {
   onOpenDirections: (parcel: GisParcel) => void;
   onAdminApprove: (parcel: GisParcel) => void;
   onAdminReject: (parcel: GisParcel) => void;
+  onResumeSurveyPresent?: (parcel: GisParcel) => void;
 }
 
 export const ParcelListContainer: React.FC<ParcelListContainerProps> = ({
@@ -28,6 +29,7 @@ export const ParcelListContainer: React.FC<ParcelListContainerProps> = ({
   onOpenDirections,
   onAdminApprove,
   onAdminReject,
+  onResumeSurveyPresent,
 }) => {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', paddingBottom: '4.5rem' }}>
@@ -48,6 +50,7 @@ export const ParcelListContainer: React.FC<ParcelListContainerProps> = ({
               onOpenDirections={onOpenDirections}
               onAdminApprove={onAdminApprove}
               onAdminReject={onAdminReject}
+              onResumeSurveyPresent={onResumeSurveyPresent}
             />
           ))}
 

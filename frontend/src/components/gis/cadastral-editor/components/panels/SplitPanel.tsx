@@ -526,7 +526,7 @@ export const SplitPanel: React.FC<SplitPanelProps> = ({
               boxShadow: (mutationData.residualKind !== 'NEW_BUILDING') ? '0 2px 4px rgba(5, 150, 105, 0.25)' : 'none',
             }}
           >
-            <Trees size={15} /> 🌳 1. Đất Dư / Sân Vườn (Không tạo lô mới)
+            <Trees size={15} /> 🌳 1. Khoanh Ranh Nhà (Đất dư sân vườn - Không tách thửa đất)
           </button>
 
           <button
@@ -584,18 +584,18 @@ export const SplitPanel: React.FC<SplitPanelProps> = ({
               boxShadow: (mutationData.residualKind === 'NEW_BUILDING') ? '0 2px 4px rgba(234, 88, 12, 0.25)' : 'none',
             }}
           >
-            <Home size={15} /> 🏠 2. Căn Nhà Mới Độc Lập (Tạo lô mới {dynamicCodes[0] || 'nối tiếp'})
+            <Home size={15} /> 🏠 2. Tách Thửa Nhà Mới (Căn B độc lập - Cấp mã Max Zone + 1)
           </button>
         </div>
 
         {/* THÔNG ĐIỆP HƯỚNG DẪN TƯƠNG ỨNG TỪNG NHÁNH */}
         {mutationData.residualKind !== 'NEW_BUILDING' ? (
           <div style={{ backgroundColor: '#ecfdf5', border: '1px solid #6ee7b7', borderRadius: '0.45rem', padding: '0.45rem 0.65rem', fontSize: '0.7rem', color: '#065f46', lineHeight: 1.4 }}>
-            ✓ <strong>Nhánh Phi công trình</strong>: Phần diện tích dôi dư ({calculatedAreaB} m²) được ghi nhận làm căn cứ bồi thường đất. Hệ thống <strong>KHÔNG tạo thêm lô khảo sát mới</strong>, KSV hoàn tất Căn A ({parcelData.projectParcelCode}) là xong toàn bộ thửa đất.
+            ✓ <strong>Nhánh Khoanh Ranh Nhà (Không tách thửa)</strong>: Ranh đất địa chính pháp lý trong sổ đỏ ({calculatedAreaA + calculatedAreaB} m²) được <strong>giữ nguyên vẹn 100%</strong>. Hệ thống chỉ cập nhật ranh chân đế ngôi nhà ({calculatedAreaA} m²), phần đất dư sân vườn ({calculatedAreaB} m²) được ghi nhận làm căn cứ bồi thường đất trống. Hệ thống <strong>KHÔNG tạo thêm lô khảo sát mới</strong>, KSV hoàn tất Căn A ({parcelData.projectParcelCode}) là xong toàn bộ thửa đất.
           </div>
         ) : (
           <div style={{ backgroundColor: '#fff7ed', border: '1px solid #fdba74', borderRadius: '0.45rem', padding: '0.45rem 0.65rem', fontSize: '0.7rem', color: '#9a3412', lineHeight: 1.4 }}>
-            ⚡ <strong>Nhánh Phát sinh nhà mới</strong>: Căn A giữ nguyên mã gốc [{parcelData.projectParcelCode}]. Hệ thống sẽ <strong>cấp mã mới [{dynamicCodes[0] || 'nối tiếp Max Zone'}]</strong> cho Căn B và tạo 1 lô mới trên bản đồ để KSV tiếp tục khảo sát tại chỗ!
+            ⚡ <strong>Nhánh Tách Thửa Nhà Mới</strong>: Căn A giữ nguyên mã gốc [{parcelData.projectParcelCode}]. Hệ thống sẽ <strong>cấp mã mới [{dynamicCodes[0] || 'Max Zone + 1'}]</strong> cho Căn B và tạo 1 lô mới trên bản đồ để KSV tiếp tục khảo sát tại chỗ!
           </div>
         )}
 

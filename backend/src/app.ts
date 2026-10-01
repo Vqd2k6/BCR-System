@@ -113,7 +113,10 @@ export function createApp(): express.Application {
   api.post('/parcels/:id/units', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.createUnit);
   api.patch('/parcels/:id/building-type', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.updateBuildingType);
   api.post('/parcels/:id/start-survey', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.startSurvey);
+  api.post('/parcels/:id/resume-survey', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.resumeSurvey);
   api.post('/parcels/:id/record-absence', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.recordAbsence);
+  api.get('/surveys/my-assigned-parcels', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.getMyAssignedParcels);
+  api.post('/admin/parcels/assign-surveyor', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.assignSurveyor);
   api.put('/parcels/:id/footprint', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.updateFootprint);
   api.post('/mutations/propose', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.proposeMutation);
   api.get('/parcels/:id/phase1-report', authenticateJwt, SurveyController.getPhase1ReportByParcelId);
@@ -175,7 +178,7 @@ export function createApp(): express.Application {
   // ==========================================
   // 3. SUPER ADMIN USER LIFECYCLE & GLOBAL HUB
   // ==========================================
-  api.get('/admin/users', authenticateJwt, requireRoles('SUPER_ADMIN'), UserAdminController.listUsers);
+  api.get('/admin/users', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), UserAdminController.listUsers);
   api.get('/admin/users/:id', authenticateJwt, requireRoles('SUPER_ADMIN'), UserAdminController.getUserById);
   api.post('/admin/users', authenticateJwt, requireRoles('SUPER_ADMIN'), UserAdminController.createUser);
   api.put('/admin/users/:id', authenticateJwt, requireRoles('SUPER_ADMIN'), UserAdminController.updateUser);
@@ -199,13 +202,13 @@ export function createApp(): express.Application {
   // ==========================================
   api.get('/reports/:id',              ReportController.getReportDetail);
   api.get('/reports/:id/export/pdf',   ReportController.exportResidentialPdf);
-  api.post('/reports/:id/export/pdf',  ReportController.exportResidentialPdf); // Xuất PDF có overrides (Không sửa DB)
+  api.post('/reports/:id/export/pdf',  authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportController.exportResidentialPdf); // Xuất PDF có overrides (Không sửa DB)
   api.get('/reports/:id/export/docx',  ReportController.exportResidentialDocx);
-  api.post('/reports/:id/export/docx', ReportController.exportResidentialDocx); // Xuất DOCX có overrides (Không sửa DB)
+  api.post('/reports/:id/export/docx', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportController.exportResidentialDocx); // Xuất DOCX có overrides (Không sửa DB)
   api.get('/reports/:id/preview/html', ReportController.previewResidentialHtml);
-  api.post('/reports/:id/preview/html', ReportController.previewResidentialHtml); // Xem trước HTML có overrides (Không sửa DB)
-  api.put('/reports/:id/survey-data',  ReportController.updateReportSurveyData);
-  api.patch('/reports/:id/survey-data', ReportController.updateReportSurveyData);
+  api.post('/reports/:id/preview/html', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportController.previewResidentialHtml); // Xem trước HTML có overrides (Không sửa DB)
+  api.put('/reports/:id/survey-data',  authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportController.updateReportSurveyData);
+  api.patch('/reports/:id/survey-data', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportController.updateReportSurveyData);
 
   // ==========================================
   // 6. DEV ERROR REPORTING & RUNTIME DIAGNOSTICS

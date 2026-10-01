@@ -24,7 +24,8 @@ export const useTimekeepingState = ({
 
   const [gpsLoading, setGpsLoading] = useState<boolean>(true);
   const [gpsCoordinates, setGpsCoordinates] = useState<{ lat: number; lng: number; accuracy: number } | null>(null);
-  const [distanceMeters, setDistanceMeters] = useState<number>(35);
+  const [distanceMeters, setDistanceMeters] = useState<number>(0);
+  const [gpsError, setGpsError] = useState<string | null>(null);
   const [selfieUrl, setSelfieUrl] = useState<string>('');
   const [outOfBoundsReason, setOutOfBoundsReason] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
@@ -91,54 +92,48 @@ export const useTimekeepingState = ({
   const getLiveGps = (zoneToUse?: MetroZoneCentroid) => {
     const activeZone = zoneToUse || targetZone;
     setGpsLoading(true);
+    setGpsError(null);
     if ('geolocation' in navigator) {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
-          const lat = pos.coords.latitude;
-          const lng = pos.coords.longitude;
-          const accuracy = pos.coords.accuracy;
+          const lat = Number(pos.coords.latitude.toFixed(6));
+          const lng = Number(pos.coords.longitude.toFixed(6));
+          const accuracy = Math.round(pos.coords.accuracy || 0);
           setIsSimulatedGps(false);
           setGpsCoordinates({ lat, lng, accuracy });
           const dist = calculateDistanceMeters(lat, lng, activeZone.lat, activeZone.lng);
           setDistanceMeters(dist);
           setGpsLoading(false);
         },
-        (_err) => {
-          // Người dùng chặn GPS hoặc thiết bị không hỗ trợ định vị -> Tự động chuyển tọa độ thực địa tại phân khu
-          setIsSimulatedGps(true);
-          const simLat = Number((activeZone.lat + 0.00025).toFixed(6));
-          const simLng = Number((activeZone.lng + 0.00020).toFixed(6));
-          const dist = calculateDistanceMeters(simLat, simLng, activeZone.lat, activeZone.lng);
-          setGpsCoordinates({ lat: simLat, lng: simLng, accuracy: 8 });
-          setDistanceMeters(dist);
+        (err) => {
+          console.warn('[GPS] Geolocation error:', err);
           setGpsLoading(false);
+          setGpsError(
+            err.code === 1
+              ? 'Trình duyệt bị từ chối quyền truy cập vị trí. Vui lòng bật định vị GPS trong cài đặt.'
+              : 'Không thể nhận diện vị trí GPS vệ tinh. Vui lòng ra khu vực thoáng hoặc bấm Quét lại GPS.'
+          );
         },
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
       );
     } else {
-      setIsSimulatedGps(true);
-      const simLat = Number((activeZone.lat + 0.00025).toFixed(6));
-      const simLng = Number((activeZone.lng + 0.00020).toFixed(6));
-      const dist = calculateDistanceMeters(simLat, simLng, activeZone.lat, activeZone.lng);
-      setGpsCoordinates({ lat: simLat, lng: simLng, accuracy: 10 });
-      setDistanceMeters(dist);
       setGpsLoading(false);
+      setGpsError('Thiết bị không hỗ trợ Geolocation API.');
     }
   };
 
-  // Cập nhật lại tọa độ và khoảng cách khi targetZone thay đổi
+  // Tự động quét GPS thực tế khi mở view hoặc khi đổi phân khu
   useEffect(() => {
-    if (isSimulatedGps || !gpsCoordinates) {
-      const simLat = Number((targetZone.lat + 0.00025).toFixed(6));
-      const simLng = Number((targetZone.lng + 0.00020).toFixed(6));
-      const dist = calculateDistanceMeters(simLat, simLng, targetZone.lat, targetZone.lng);
-      setGpsCoordinates({ lat: simLat, lng: simLng, accuracy: 8 });
-      setDistanceMeters(dist);
-    } else {
+    getLiveGps(targetZone);
+  }, [targetZone.zoneId]);
+
+  // Cập nhật lại khoảng cách khi gpsCoordinates hoặc targetZone thay đổi
+  useEffect(() => {
+    if (gpsCoordinates) {
       const dist = calculateDistanceMeters(gpsCoordinates.lat, gpsCoordinates.lng, targetZone.lat, targetZone.lng);
       setDistanceMeters(dist);
     }
-  }, [targetZone]);
+  }, [targetZone.lat, targetZone.lng, gpsCoordinates]);
 
   const loadCompanionData = () => {
     try {
@@ -420,6 +415,7 @@ export const useTimekeepingState = ({
     user,
     gpsLoading,
     gpsCoordinates,
+    gpsError,
     distanceMeters,
     selfieUrl,
     outOfBoundsReason,

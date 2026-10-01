@@ -1,9 +1,24 @@
-/**
- * Kiểm tra xem một khuyết tật ghi sổ D có thuộc dạng vết nứt hay không.
- * - Trả về true nếu nhóm chỉ báo hoặc loại khuyết tật chứa từ 'nứt' hoặc 'crack'.
- * - Trả về false đối với các khuyết tật phi vết nứt như: Thấm dột, Ẩm mốc, Bong rộp, Kẹt cửa, Võng dầm sàn, Vỡ bê tông...
- */
 export const isCrackRelated = (cat?: string | null, type?: string | null): boolean => {
-  const t = `${cat || ''} ${type || ''}`.toLowerCase();
-  return t.includes('nứt') || t.includes('crack');
+  const catStr = (cat || '').toLowerCase();
+  const typeStr = (type || '').toLowerCase();
+  const full = `${catStr} ${typeStr}`;
+
+  // Các nhóm thuần phi vết nứt (ẩm mốc, bong rộp, rỉ sét, kẹt cửa)
+  if (
+    full.includes('thấm dột') ||
+    full.includes('ẩm mốc') ||
+    full.includes('kẹt cửa') ||
+    full.includes('cong vênh') ||
+    full.includes('bong rộp') ||
+    full.includes('bong tróc') ||
+    full.includes('rỉ sét')
+  ) {
+    // Chỉ coi là nứt nếu cụ thể loại khuyết tật chọn là dạng nứt
+    if (typeStr.includes('nứt') || typeStr.includes('crack')) {
+      return true;
+    }
+    return false;
+  }
+
+  return full.includes('nứt') || full.includes('crack');
 };

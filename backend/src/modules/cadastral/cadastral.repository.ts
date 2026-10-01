@@ -263,6 +263,7 @@ export class CadastralRepository {
     rescheduleDate?: string | null;
     ownerName?: string | null;
     ownerPhone?: string | null;
+    surveyData?: any;
   }): Promise<void> {
     await Database.transaction(async (client) => {
       // 1. Tăng số lần vắng mặt, chuyển trạng thái sang POSTPONED_ABSENT và lưu thông tin chủ hộ/SĐT nếu có
@@ -284,7 +285,7 @@ export class CadastralRepository {
       );
       const attemptCount = countRes.rows[0]?.absence_attempt_count || 1;
 
-      // 3. Ghi log vắng nhà
+      // 3. Ghi log vắng nhà (Bảo lưu lịch sử vĩnh viễn, không bao giờ bị xóa)
       await client.query(
         `INSERT INTO survey_absence_logs (
            parcel_id, surveyor_id, absence_reason, notes, photo_proof_url,
@@ -300,6 +301,46 @@ export class CadastralRepository {
           attemptCount,
         ]
       );
+
+      // 4. Nếu có dữ liệu ngoại thất Bước 1, lưu bảo toàn vào base_survey_reports
+      if (data.surveyData) {
+        const repRes = await client.query<{ id: string }>(
+          `SELECT id FROM base_survey_reports WHERE parcel_id = $1 ORDER BY created_at DESC LIMIT 1;`,
+          [data.parcelId]
+        );
+        let repId: string;
+        if (repRes.rows[0]) {
+          repId = repRes.rows[0].id;
+          await client.query(
+            `UPDATE base_survey_reports
+             SET is_refused_or_absent = TRUE,
+                 status = 'DRAFT',
+                 survey_data_json = $2,
+                 surveyor_id = $3,
+                 updated_at = NOW()
+             WHERE id = $1;`,
+            [repId, JSON.stringify(data.surveyData), data.surveyorId]
+          );
+        } else {
+          const reportCode = `REPORT-ABSENT-${Date.now()}`;
+          const newRep = await client.query<{ id: string }>(
+            `INSERT INTO base_survey_reports (
+               parcel_id, surveyor_id, report_code, phase, status, is_refused_or_absent, survey_data_json
+             ) VALUES ($1, $2, $3, 'PHASE_1', 'DRAFT', TRUE, $4)
+             RETURNING id;`,
+            [data.parcelId, data.surveyorId, reportCode, JSON.stringify(data.surveyData)]
+          );
+          repId = newRep.rows[0].id;
+          await client.query(
+            `INSERT INTO phase1_report_details (report_id, is_historical_baseline) VALUES ($1, TRUE);`,
+            [repId]
+          );
+        }
+        await client.query(
+          `UPDATE parcels SET active_phase1_report_id = $2 WHERE id = $1;`,
+          [data.parcelId, repId]
+        );
+      }
     });
   }
 
@@ -434,6 +475,58 @@ export class CadastralRepository {
       [parcelId, buildingType, totalUnits !== undefined ? totalUnits : null]
     );
     return res.rows[0] || null;
+  }
+
+  static async getAbsenceLogsForParcel(parcelId: string): Promise<any[]> {
+    const res = await Database.query(
+      `SELECT l.*, u.full_name AS surveyor_name, u.surveyor_code
+       FROM survey_absence_logs l
+       LEFT JOIN users u ON l.surveyor_id = u.id
+       WHERE l.parcel_id = $1
+       ORDER BY l.attempt_count ASC, l.recorded_at ASC;`,
+      [parcelId]
+    );
+    return res.rows;
+  }
+
+  static async getMyAssignedParcels(surveyorId: string, lat?: number, lng?: number): Promise<ParcelEntity[]> {
+    let distanceSelect = 'NULL AS distance_to_surveyor_meters';
+    let orderBy = 'p.created_at DESC';
+    const params: any[] = [surveyorId];
+
+    if (lat !== undefined && lng !== undefined && !isNaN(lat) && !isNaN(lng)) {
+      params.push(lng, lat);
+      distanceSelect = `ST_Distance(p.location_geom::geography, ST_SetSRID(ST_MakePoint($2, $3), 4326)::geography) AS distance_to_surveyor_meters`;
+      orderBy = 'distance_to_surveyor_meters ASC NULLS LAST, p.created_at DESC';
+    }
+
+    const res = await Database.query<ParcelEntity>(
+      `SELECT p.*,
+              ST_AsGeoJSON(p.location_geom)::json AS location_geojson,
+              ST_AsGeoJSON(p.cadastral_polygon_geom)::json AS cadastral_geojson,
+              ST_AsGeoJSON(p.footprint_polygon_geom)::json AS footprint_geojson,
+              ${distanceSelect}
+       FROM parcels p
+       WHERE p.assigned_surveyor_id = $1
+         AND p.lifecycle_status = 'ACTIVE'
+         AND p.survey_status IN ('NOT_SURVEYED', 'IN_PROGRESS', 'POSTPONED_ABSENT')
+       ORDER BY ${orderBy};`,
+      params
+    );
+    return res.rows;
+  }
+
+  static async assignSurveyorToParcels(parcelIds: string[], surveyorId: string, notes?: string): Promise<number> {
+    const res = await Database.query(
+      `UPDATE parcels
+       SET assigned_surveyor_id = $1,
+           assigned_at = NOW(),
+           assignment_notes = COALESCE($2, assignment_notes),
+           updated_at = NOW()
+       WHERE id = ANY($3::uuid[]);`,
+      [surveyorId, notes || null, parcelIds]
+    );
+    return res.rowCount || 0;
   }
 }
 

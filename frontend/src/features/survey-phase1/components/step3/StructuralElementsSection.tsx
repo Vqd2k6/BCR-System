@@ -7,7 +7,7 @@ import { PhotoCaptureInput } from '../../../../components/common/PhotoCaptureInp
 import { FloorCadPinningCanvas, CadZonePin } from '../../../../components/canvas/FloorCadPinningCanvas';
 import { FloorSurveyData, StructuralElementData } from '../../types/phase1.types';
 import { COMMON_ROOM_NAMES, STRUCTURAL_ELEMENT_TYPES, STRUCTURAL_MATERIALS } from './step3.constants';
-import { Hammer, Camera, Trash2, MapPin, Plus, ShieldAlert, AlertCircle, Info } from 'lucide-react';
+import { Hammer, Camera, Trash2, MapPin, Plus, ShieldAlert, AlertCircle, Info, Sparkles } from 'lucide-react';
 
 interface StructuralElementsSectionProps {
   currentFloor: FloorSurveyData;
@@ -374,6 +374,47 @@ export const StructuralElementsSection: React.FC<StructuralElementsSectionProps>
                 )}
               </div>
             </div>
+
+            {/* Nút tối ưu: Áp dụng vật liệu kết cấu cho toàn tầng */}
+            {(currentFloor.structuralElements?.length || 0) > 1 && (
+              <div className="flex items-center justify-between p-2 bg-amber-50/70 border border-amber-200/80 rounded-xl text-xs">
+                <span className="text-amber-800 text-[11px] font-medium">
+                  Tiết kiệm thời gian: Áp dụng loại cấu kiện và vật liệu của <strong>{activeElement.elementCode}</strong> cho {(currentFloor.structuralElements?.length || 1) - 1} Cấu kiện E còn lại trên {currentFloor.floorName}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!activeElement.elementType && !activeElement.materialType) {
+                      alert('Vui lòng chọn Loại cấu kiện hoặc Vật liệu trước khi áp dụng cho toàn tầng!');
+                      return;
+                    }
+                    const count = currentFloor.structuralElements?.length || 0;
+                    if (
+                      !confirm(
+                        `Bạn có chắc chắn muốn áp dụng loại "${activeElement.elementType || 'hiện tại'}" và vật liệu "${activeElement.materialType || 'hiện tại'}" cho toàn bộ ${count} Cấu kiện E của ${currentFloor.floorName}?`
+                      )
+                    ) {
+                      return;
+                    }
+                    (currentFloor.structuralElements || []).forEach((_, idx) => {
+                      if (idx !== activeElementIndex) {
+                        onUpdateElement(idx, {
+                          elementType: activeElement.elementType || undefined,
+                          customElementType: activeElement.customElementType || undefined,
+                          materialType: activeElement.materialType || undefined,
+                          customMaterialType: activeElement.customMaterialType || undefined,
+                        });
+                      }
+                    });
+                  }}
+                  className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-bold text-xs flex items-center gap-1 transition-all shadow-xs shrink-0 cursor-pointer"
+                  title="Đồng bộ cấu kiện và vật liệu cho tất cả Cấu kiện E trong tầng"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Áp dụng toàn tầng</span>
+                </button>
+              </div>
+            )}
 
             {/* Chụp nhiều ảnh tổng quan cấu kiện E */}
             <div className="p-2.5 sm:p-3 bg-white rounded-xl border border-amber-200/60 space-y-2.5 shadow-2xs">

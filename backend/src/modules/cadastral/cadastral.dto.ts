@@ -12,6 +12,7 @@ export const RecordAbsenceDto = z.object({
   rescheduleDate: z.string().datetime().optional().nullable(),
   ownerName: z.string().optional().nullable(),
   ownerPhone: z.string().optional().nullable(),
+  surveyData: z.any().optional(),
 });
 
 export const UpdateFootprintDto = z.object({

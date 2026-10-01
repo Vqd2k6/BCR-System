@@ -16,6 +16,7 @@ interface SurveyorFilterTabsProps {
     underConstruction: number;
     notSurveyed: number;
     pendingTotal: number;
+    assignedToMe?: number;
   };
   filteredCount: number;
   showStatusHelp: boolean;
@@ -33,6 +34,9 @@ export const SurveyorFilterTabs: React.FC<SurveyorFilterTabsProps> = ({
   onToggleStatusHelp,
 }) => {
   const tabs = [
+    ...(counts.assignedToMe !== undefined && counts.assignedToMe > 0
+      ? [{ id: 'ASSIGNED_TO_ME', label: `🎯 Được giao (${counts.assignedToMe})` }]
+      : []),
     { id: 'PENDING_ONLY', label: `Cần làm (${counts.pendingTotal})` },
     { id: 'NOT_SURVEYED', label: `Chưa làm (${counts.notSurveyed})` },
     { id: 'IN_PROGRESS', label: `Đang làm dở (${counts.inProgressOnly})` },
@@ -97,7 +101,9 @@ export const SurveyorFilterTabs: React.FC<SurveyorFilterTabsProps> = ({
       {/* Task List Header with (?) CIRCLE BUTTON */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.15rem' }}>
         <span style={{ fontSize: '0.9rem', fontWeight: 800, color: '#0f172a' }}>
-          {statusFilter === 'PENDING_ONLY'
+          {statusFilter === 'ASSIGNED_TO_ME'
+            ? `Danh sách ${filteredCount} thửa đất được giao cho bạn:`
+            : statusFilter === 'PENDING_ONLY'
             ? `Danh sách ${filteredCount} thửa đất cần khảo sát:`
             : statusFilter === 'APPROVED'
             ? `Danh sách ${filteredCount} thửa đất đã duyệt Phase 1:`

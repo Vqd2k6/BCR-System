@@ -43,6 +43,24 @@ export const useSurveyorHomeState = ({
     }
   });
 
+  // Danh sách thửa đất được Zone Admin phân công riêng cho Surveyor này
+  const [assignedParcels, setAssignedParcels] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (user?.id) {
+      api.get('/surveys/my-assigned-parcels', {
+        params: userGps ? { lat: userGps.lat, lng: userGps.lng } : undefined,
+      })
+        .then((res: any) => {
+          const list = res?.data?.data || [];
+          setAssignedParcels(list);
+        })
+        .catch((err) => {
+          console.warn('[useSurveyorHomeState] Notice: could not load my-assigned-parcels:', err?.message);
+        });
+    }
+  }, [user?.id, userGps?.lat, userGps?.lng]);
+
   // Daily & Weekly Targets
   const todayTarget = 5;
   const todayCompleted = 2;
@@ -93,7 +111,10 @@ export const useSurveyorHomeState = ({
       owner.includes(sTerm);
 
     let matchesStatus = false;
-    if (statusFilter === 'PENDING_ONLY') {
+    if (statusFilter === 'ASSIGNED_TO_ME') {
+      const assignedIds = new Set(assignedParcels.map((ap) => ap.id));
+      matchesStatus = assignedIds.has(p.id) || p.assignedSurveyorId === user?.id || (p as any).assigned_surveyor_id === user?.id;
+    } else if (statusFilter === 'PENDING_ONLY') {
       matchesStatus = status !== 'APPROVED' && status !== 'SUBMITTED' && status !== 'PHASE2_COMPLETED' && status !== 'APPROVED_PHASE2';
     } else if (statusFilter === 'NOT_SURVEYED') {
       matchesStatus = status === 'NOT_SURVEYED';
@@ -263,6 +284,7 @@ export const useSurveyorHomeState = ({
       underConstruction,
       notSurveyed,
       pendingTotal,
+      assignedToMe: assignedParcels.length,
     },
     filteredParcels,
     handleSmartAbsence,

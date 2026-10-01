@@ -162,11 +162,11 @@ export const validateCondoUnitStep = (step: number, formData: Phase1SurveyFormDa
             if (!hasBaseFields || !hasCrackFields) {
               missing.push({
                 fieldId: 'step3-active-zone-card',
-                label: `3.1. Thông số chi tiết ${isCrack ? 'vết nứt' : 'khuyết tật'} ${d.defectCode} (${z.zoneCode} - ${floorTitle})`,
+                label: `3.1. Thông số chi tiết ${isCrack ? 'vết nứt' : 'khuyết tật bề mặt'} ${d.defectCode} (${z.zoneCode} - ${floorTitle})`,
                 step: 3,
                 description: isCrack
                   ? `Vết nứt ${d.defectCode} chưa điền đủ các thông số bắt buộc (ảnh cận cảnh CU, kích thước bề rộng/dài, dạng nứt hoặc ghi chú).`
-                  : `Khuyết tật ${d.defectCode} (${d.defectType || 'chưa chọn loại'}) chưa điền đủ các thông số bắt buộc (ảnh cận cảnh CU hoặc ghi chú mô tả).`,
+                  : `Khuyết tật bề mặt ${d.defectCode} (${d.defectType || 'ẩm mốc/bong tróc'}) chưa có ảnh cận cảnh CU hoặc ghi chú mô tả (không yêu cầu đo vết nứt).`,
                 isBlocking: true,
               });
             }
@@ -209,7 +209,7 @@ export const validateCondoUnitStep = (step: number, formData: Phase1SurveyFormDa
                   step: 3,
                   description: isCrack
                     ? `Vết nứt kết cấu ${d.defectCode} chưa điền đủ các thông số bắt buộc (ảnh cận cảnh CU, kích thước bề rộng/dài, dạng nứt kết cấu hoặc ghi chú).`
-                    : `Khuyết tật kết cấu ${d.defectCode} (${d.defectType || 'chưa chọn loại'}) chưa điền đủ các thông số bắt buộc (ảnh cận cảnh CU hoặc ghi chú mô tả).`,
+                    : `Khuyết tật kết cấu ${d.defectCode} (${d.defectType || 'vỡ/rỉ/biến dạng'}) chưa có ảnh cận cảnh CU hoặc ghi chú mô tả (không yêu cầu đo vết nứt).`,
                   isBlocking: true,
                 });
               }
@@ -678,12 +678,12 @@ export const validateStep = (step: number, formData: Phase1SurveyFormData): Step
             if (!hasBaseFields || !hasCrackFields) {
               missing.push({
                 fieldId: 'step3-active-zone-card',
-                label: `3.1. Thông số chi tiết ${isCrack ? 'vết nứt' : 'khuyết tật'} ${d.defectCode} (${z.zoneCode} - ${floorTitle})`,
+                label: `3.1. Thông số chi tiết ${isCrack ? 'vết nứt' : 'khuyết tật bề mặt'} ${d.defectCode} (${z.zoneCode} - ${floorTitle})`,
                 step: 3,
                 floorIndex: fIdx,
                 description: isCrack
                   ? `Vết nứt ${d.defectCode} chưa điền đủ các thông số bắt buộc (ảnh cận cảnh CU, kích thước bề rộng/dài, dạng nứt hoặc ghi chú).`
-                  : `Khuyết tật ${d.defectCode} (${d.defectType || 'chưa chọn loại'}) chưa điền đủ các thông số bắt buộc (ảnh cận cảnh CU hoặc ghi chú mô tả).`,
+                  : `Khuyết tật bề mặt ${d.defectCode} (${d.defectType || 'ẩm mốc/bong tróc'}) chưa có ảnh cận cảnh CU hoặc ghi chú mô tả (không yêu cầu đo vết nứt).`,
                 isBlocking: true,
               });
             }
@@ -732,7 +732,7 @@ export const validateStep = (step: number, formData: Phase1SurveyFormData): Step
                   floorIndex: fIdx,
                   description: isCrack
                     ? `Vết nứt kết cấu ${d.defectCode} chưa điền đủ các thông số bắt buộc (ảnh cận cảnh CU, kích thước bề rộng/dài, dạng nứt kết cấu hoặc ghi chú).`
-                    : `Khuyết tật kết cấu ${d.defectCode} (${d.defectType || 'chưa chọn loại'}) chưa điền đủ các thông số bắt buộc (ảnh cận cảnh CU hoặc ghi chú mô tả).`,
+                    : `Khuyết tật kết cấu ${d.defectCode} (${d.defectType || 'vỡ/rỉ/biến dạng'}) chưa có ảnh cận cảnh CU hoặc ghi chú mô tả (không yêu cầu đo vết nứt).`,
                   isBlocking: true,
                 });
               }

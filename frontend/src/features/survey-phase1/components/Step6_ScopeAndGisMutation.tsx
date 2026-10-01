@@ -415,12 +415,15 @@ export const Step6_ScopeAndGisMutation: React.FC = () => {
               });
             }}
             mutationData={{
+              ...formData.gisMutationConfirmed.details,
               splitReason: formData.gisMutationConfirmed.details?.splitReason || formData.gisMutationConfirmed.notes || '',
               splitCount: formData.gisMutationConfirmed.details?.splitCount || 2,
               splitChildren: formData.gisMutationConfirmed.details?.splitChildren || [],
               splitCutType: 'CUSTOM_POINTS',
               splitShapeOption: formData.gisMutationConfirmed.details?.splitShapeOption || 'CLICK_TO_DRAW',
               splitCustomPointsA: formData.gisMutationConfirmed.details?.splitCustomPointsA || [],
+              splitCustomPointsB: formData.gisMutationConfirmed.details?.splitCustomPointsB || [],
+              residualKind: formData.gisMutationConfirmed.details?.residualKind || 'NON_BUILDING',
               mergeReason: formData.gisMutationConfirmed.details?.mergeReason || '',
               mergeTargetCode: formData.gisMutationConfirmed.details?.mergeTargetCode || '',
               selectedMergeCodes: formData.gisMutationConfirmed.details?.selectedMergeCodes || [],

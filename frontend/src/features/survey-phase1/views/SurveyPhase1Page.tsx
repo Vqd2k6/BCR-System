@@ -108,20 +108,20 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
     };
   }, [readOnly]);
 
-  // Tải dữ liệu hồ sơ nếu ở chế độ xem lại (Read-Only)
+  // Tải dữ liệu hồ sơ nếu ở chế độ xem lại (Read-Only) hoặc nạp dữ liệu đã lưu từ máy chủ
   useEffect(() => {
-    if (readOnly && parcel?.id) {
+    if (parcel?.id) {
       api.get(`/parcels/${parcel.id}/phase1-report`)
         .then((res: any) => {
           const data = res?.data?.data || res?.data;
           if (data) {
-            console.log('[SurveyPhase1Page] Read-only report loaded:', data);
+            console.log('[SurveyPhase1Page] Report loaded from server:', data);
             setReportData(data);
             const rep = data.report;
             const absence = data.absenceLog;
             const updates: any = {};
 
-            // 1. Khôi phục toàn vẹn 100% dữ liệu gốc từ JSON snapshot nếu đã từng nộp
+            // 1. Khôi phục toàn vẹn 100% dữ liệu gốc từ JSON snapshot nếu đã từng nộp / lưu
             if (rep?.survey_data_json) {
               try {
                 const rawJson = typeof rep.survey_data_json === 'string'
@@ -136,12 +136,24 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
               }
             }
 
-            if (absence) {
-              updates.surveyCaseType = 'ABSENTEE';
-              updates.isAbsenteeSurvey = true;
-              updates.absenteeReason = absence.absence_reason || updates.absenteeReason || '';
-              if (absence.photo_proof_url) {
-                updates.absenteeMinutesPhotos = [absence.photo_proof_url];
+            if (readOnly) {
+              if (absence && rep?.is_refused_or_absent) {
+                updates.surveyCaseType = 'ABSENTEE';
+                updates.isAbsenteeSurvey = true;
+                updates.absenteeReason = absence.absence_reason || updates.absenteeReason || '';
+                if (absence.photo_proof_url) {
+                  updates.absenteeMinutesPhotos = [absence.photo_proof_url];
+                }
+              }
+            } else {
+              // Khi ở chế độ chỉnh sửa / tiếp tục khảo sát (Chủ nhà có mặt)
+              if (updates.resumedFromAbsentee || parcel.surveyStatus === 'IN_PROGRESS' || rep?.is_refused_or_absent === false) {
+                updates.surveyCaseType = 'NORMAL';
+                updates.isAbsenteeSurvey = false;
+                if (absence) {
+                  updates.previousAbsenceLogs = updates.previousAbsenceLogs || [absence];
+                  updates.resumedFromAbsentee = true;
+                }
               }
             }
 
@@ -309,7 +321,7 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
           }
         })
         .catch((err) => {
-          console.warn('[SurveyPhase1Page] Could not fetch phase1-report for read-only:', err);
+          console.warn('[SurveyPhase1Page] Notice: phase1-report not found or new survey:', err?.message);
         });
     }
   }, [readOnly, parcel?.id]);

@@ -67,6 +67,8 @@ export const FloorCadPinningCanvas: React.FC<Props> = ({
   const [selectedPinIndex, setSelectedPinIndex] = useState<number | null>(null);
   const [isAddingPin, setIsAddingPin] = useState<boolean>(true); // Default to pin mode for quick marking
   const [showPins, setShowPins] = useState<boolean>(true); // Toggle eye visibility
+  const [draggingPinIndex, setDraggingPinIndex] = useState<number | null>(null);
+  const dragMovedRef = useRef<boolean>(false);
 
   const isStructural = mode === 'STRUCTURAL';
   const prefix = isStructural ? 'E' : 'Z';
@@ -78,7 +80,29 @@ export const FloorCadPinningCanvas: React.FC<Props> = ({
   // Tự động tìm số thứ tự nhỏ nhất còn trống
   const nextCode = getNextAvailablePinCode(pins, prefix);
 
+  const handleContainerPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (draggingPinIndex === null || readOnly || !containerRef.current) return;
+    dragMovedRef.current = true;
+    const rect = containerRef.current.getBoundingClientRect();
+    const x = Math.max(1, Math.min(99, parseFloat((((e.clientX - rect.left) / rect.width) * 100).toFixed(2))));
+    const y = Math.max(1, Math.min(99, parseFloat((((e.clientY - rect.top) / rect.height) * 100).toFixed(2))));
+
+    const updated = [...pins];
+    if (updated[draggingPinIndex]) {
+      updated[draggingPinIndex] = {
+        ...updated[draggingPinIndex],
+        pinX: x,
+        pinY: y,
+      };
+      onChangePins(updated);
+    }
+  };
+
   const handleContainerClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (dragMovedRef.current) {
+      dragMovedRef.current = false;
+      return;
+    }
     if (readOnly || !isAddingPin || !containerRef.current || !cadPhotoUrl) return;
 
     const rect = containerRef.current.getBoundingClientRect();
@@ -267,7 +291,9 @@ export const FloorCadPinningCanvas: React.FC<Props> = ({
           <div
             ref={containerRef}
             onClick={handleContainerClick}
-            className={`relative w-full min-h-[320px] max-h-[520px] rounded-xl overflow-hidden bg-slate-100 border border-slate-300 select-none shadow-inner ${
+            onPointerMove={handleContainerPointerMove}
+            onPointerUp={() => setDraggingPinIndex(null)}
+            className={`relative w-full min-h-[320px] max-h-[520px] rounded-xl overflow-hidden bg-slate-100 border border-slate-300 select-none shadow-inner touch-none ${
               isAddingPin ? 'cursor-crosshair ring-2 ring-emerald-500/30' : 'cursor-default'
             }`}
           >
@@ -301,40 +327,69 @@ export const FloorCadPinningCanvas: React.FC<Props> = ({
             <img
               src={cadPhotoUrl}
               alt={`CAD Plan ${floorName}`}
-              className="w-full h-full object-contain block max-h-[520px] mx-auto"
+              className="w-full h-full object-contain block max-h-[520px] mx-auto pointer-events-none select-none"
             />
 
-            {/* Render Pins */}
+            {/* Render Pins with Drag & Drop support */}
             {showPins && pins.map((pin, idx) => {
               if (!pin) return null;
               const isSelected = selectedPinIndex === idx;
+              const isDragging = draggingPinIndex === idx;
 
               return (
                 <div
                   key={pin.id || idx}
                   onClick={(e) => {
                     e.stopPropagation();
+                    if (!dragMovedRef.current) {
+                      setSelectedPinIndex(idx);
+                    }
+                  }}
+                  onPointerDown={(e) => {
+                    if (readOnly) return;
+                    e.stopPropagation();
+                    dragMovedRef.current = false;
+                    setDraggingPinIndex(idx);
                     setSelectedPinIndex(idx);
+                    (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
+                  }}
+                  onPointerUp={(e) => {
+                    if (readOnly) return;
+                    e.stopPropagation();
+                    try {
+                      (e.currentTarget as HTMLElement).releasePointerCapture?.(e.pointerId);
+                    } catch (_) {}
+                    setDraggingPinIndex(null);
                   }}
                   style={{
                     position: 'absolute',
                     top: `${pin.pinY}%`,
                     left: `${pin.pinX}%`,
-                    transform: 'translate(-50%, -100%)',
-                    cursor: 'pointer',
-                    zIndex: isSelected ? 35 : 20,
+                    transform: isDragging
+                      ? 'translate(-50%, -100%) scale(1.2)'
+                      : isSelected
+                      ? 'translate(-50%, -100%) scale(1.05)'
+                      : 'translate(-50%, -100%)',
+                    cursor: readOnly ? 'default' : isDragging ? 'grabbing' : 'grab',
+                    zIndex: isDragging ? 50 : isSelected ? 35 : 20,
                     display: 'flex',
                     flexDirection: 'column',
                     alignItems: 'center',
+                    touchAction: 'none',
+                    userSelect: 'none',
+                    transition: isDragging ? 'none' : 'transform 0.15s ease',
                   }}
+                  title={readOnly ? undefined : "Chạm chọn hoặc Giữ & Kéo để di chuyển ghim"}
                 >
                   {/* Pin Tag Box */}
                   <div
                     className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-extrabold whitespace-nowrap shadow-md transition-all ${
-                      isSelected
+                      isDragging
+                        ? 'bg-sky-600 text-white ring-3 ring-sky-300 shadow-xl'
+                        : isSelected
                         ? isStructural
-                          ? 'bg-amber-600 text-white ring-2 ring-amber-300 scale-110'
-                          : 'bg-emerald-600 text-white ring-2 ring-emerald-300 scale-110'
+                          ? 'bg-amber-600 text-white ring-2 ring-amber-300'
+                          : 'bg-emerald-600 text-white ring-2 ring-emerald-300'
                         : isStructural
                         ? 'bg-amber-700 text-white'
                         : 'bg-slate-800 text-white'
@@ -346,10 +401,12 @@ export const FloorCadPinningCanvas: React.FC<Props> = ({
                   {/* Pin Point Square Badge */}
                   <div
                     className={`w-3.5 h-3.5 rounded-xs mt-0.5 border-2 border-white shadow-md ${
-                      isSelected
+                      isDragging
+                        ? 'bg-sky-400 scale-125'
+                        : isSelected
                         ? isStructural
-                          ? 'bg-amber-400 scale-110'
-                          : 'bg-emerald-400 scale-110'
+                          ? 'bg-amber-400'
+                          : 'bg-emerald-400'
                         : isStructural
                         ? 'bg-amber-600'
                         : 'bg-emerald-600'

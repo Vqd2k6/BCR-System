@@ -388,6 +388,9 @@ CREATE TABLE parcels (
     active_phase1_report_id UUID,
     active_phase2_report_id UUID,
     absence_attempt_count INT NOT NULL DEFAULT 0,
+    assigned_surveyor_id UUID REFERENCES users(id),
+    assigned_at TIMESTAMPTZ,
+    assignment_notes TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -397,9 +400,27 @@ CREATE INDEX idx_parcels_zone ON parcels(zone_id);
 CREATE INDEX idx_parcels_status ON parcels(survey_status);
 CREATE INDEX idx_parcels_lifecycle ON parcels(lifecycle_status);
 CREATE INDEX idx_parcels_building_type ON parcels(building_type);
+CREATE INDEX idx_parcels_assigned_surveyor ON parcels(assigned_surveyor_id);
 CREATE INDEX idx_parcels_location ON parcels USING GIST(location_geom);
 CREATE INDEX idx_parcels_cadastral ON parcels USING GIST(cadastral_polygon_geom);
 CREATE INDEX idx_parcels_footprint ON parcels USING GIST(footprint_polygon_geom);
+
+-- Bảng lưu vết lịch sử vắng mặt (phục vụ đối soát pháp lý khi khảo sát lại)
+CREATE TABLE IF NOT EXISTS parcel_absence_logs (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    parcel_id UUID NOT NULL REFERENCES parcels(id) ON DELETE CASCADE,
+    surveyor_id UUID NOT NULL REFERENCES users(id),
+    attempt_number INT NOT NULL DEFAULT 1,
+    absence_reason TEXT,
+    notes TEXT,
+    photo_proof_url TEXT,
+    reschedule_date DATE,
+    owner_name VARCHAR(128),
+    owner_phone VARCHAR(32),
+    recorded_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX idx_absence_logs_parcel ON parcel_absence_logs(parcel_id);
+CREATE INDEX idx_absence_logs_surveyor ON parcel_absence_logs(surveyor_id);
 
 -- ============================================================================
 -- CĂN HỘ THÀNH VIÊN TRONG CHUNG CƯ / TÒA NHÀ NHIỀU HỘ (BUILDING UNITS)
