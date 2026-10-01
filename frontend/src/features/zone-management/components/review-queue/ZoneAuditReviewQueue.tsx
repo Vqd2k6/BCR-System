@@ -19,6 +19,8 @@ import {
   User,
   MapPin,
   ExternalLink,
+  ArrowRightLeft,
+  Split,
 } from 'lucide-react';
 import { Card } from '../../../../core/components/ui/Card';
 import { Badge } from '../../../../core/components/ui/Badge';
@@ -26,6 +28,8 @@ import { Button } from '../../../../core/components/ui/Button';
 import { api } from '../../../../services/api';
 import { AuditStudioModal } from './AuditStudioModal';
 import { RejectReportModal } from './RejectReportModal';
+import { AdminReassignParcelModal } from './AdminReassignParcelModal';
+import { AdminGisMutationModal } from './AdminGisMutationModal';
 
 export interface PendingSubmissionItem {
   report_id: string | null;
@@ -59,12 +63,13 @@ interface Props {
   onStatsNeedRefresh?: () => void;
 }
 
-type TabType = 'ALL' | 'RESIDENTIAL' | 'CONDO' | 'ABSENT' | 'CRITICAL' | 'REJECTED';
+type TabType = 'ALL' | 'RESIDENTIAL' | 'CONDO' | 'ABSENT' | 'CRITICAL' | 'REJECTED' | 'APPROVED';
 
 export const ZoneAuditReviewQueue: React.FC<Props> = ({ selectedZone, onStatsNeedRefresh }) => {
   const [items, setItems] = useState<PendingSubmissionItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [toastMessage, setToastMessage] = useState('');
 
   // Filtering states
   const [activeTab, setActiveTab] = useState<TabType>('ALL');
@@ -81,7 +86,31 @@ export const ZoneAuditReviewQueue: React.FC<Props> = ({ selectedZone, onStatsNee
     surveyorName?: string;
   } | null>(null);
 
-  const [quickApprovingId, setQuickApprovingId] = useState<string | null>(null);
+  const [reassignModalData, setReassignModalData] = useState<{
+    reportId: string;
+    parcelCode: string;
+    parcelId: string;
+    houseNumber?: string;
+    street?: string;
+    surveyorName?: string;
+  } | null>(null);
+
+  const [mutationModalData, setMutationModalData] = useState<{
+    parcelId: string;
+    parcelCode: string;
+    houseNumber?: string;
+    street?: string;
+    currentAreaM2?: number;
+    reportId?: string;
+  } | null>(null);
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(''), 4500);
+    fetchSubmissions();
+    if (onStatsNeedRefresh) onStatsNeedRefresh();
+  };
+
 
   // Fetch pending submissions from API
   const fetchSubmissions = async () => {
@@ -129,6 +158,7 @@ export const ZoneAuditReviewQueue: React.FC<Props> = ({ selectedZone, onStatsNee
           Number(i.ecs_score) >= 70
       ).length,
       rejected: items.filter((i) => i.status === 'REJECTED').length,
+      approved: items.filter((i) => i.status === 'APPROVED').length,
     };
   }, [items]);
 
@@ -152,6 +182,8 @@ export const ZoneAuditReviewQueue: React.FC<Props> = ({ selectedZone, onStatsNee
         if (!isHighBurland && !hasAlerts && !isHighEcs) return false;
       } else if (activeTab === 'REJECTED') {
         if (item.status !== 'REJECTED') return false;
+      } else if (activeTab === 'APPROVED') {
+        if (item.status !== 'APPROVED') return false;
       }
 
       // Search query
@@ -168,31 +200,14 @@ export const ZoneAuditReviewQueue: React.FC<Props> = ({ selectedZone, onStatsNee
     });
   }, [items, activeTab, searchQuery]);
 
-  // Quick Approve Handler
-  const handleQuickApprove = async (item: PendingSubmissionItem) => {
-    if (!item.report_id) {
-      alert('Hồ sơ này chưa có báo cáo kỹ thuật hoàn chỉnh để phê duyệt.');
+  // Xem trước báo cáo kỹ thuật (HTML/PDF preview)
+  const handlePreviewReport = (reportId: string | null) => {
+    if (!reportId) {
+      alert('Hồ sơ này chưa có báo cáo kỹ thuật hoàn chỉnh để xem trước.');
       return;
     }
-    const confirmMsg = `Xác nhận PHÊ DUYỆT NHANH hồ sơ ${item.project_parcel_code}?\nHồ sơ sẽ được cấp dấu duyệt hợp thức của Trưởng Zone và tự động khóa bất biến.`;
-    if (!window.confirm(confirmMsg)) return;
-
-    setQuickApprovingId(item.report_id);
-    try {
-      const res = await api.post(`/admin/reports/${item.report_id}/approve`);
-      if (res.data?.success || res.status === 200) {
-        alert(`Đã phê duyệt thành công hồ sơ thửa ${item.project_parcel_code}`);
-        fetchSubmissions();
-        if (onStatsNeedRefresh) onStatsNeedRefresh();
-      } else {
-        alert(res.data?.message || 'Không thể phê duyệt hồ sơ.');
-      }
-    } catch (err: any) {
-      console.error('[ZoneAuditReviewQueue] Error quick approving:', err);
-      alert(err.response?.data?.message || err.message || 'Lỗi kết nối khi phê duyệt.');
-    } finally {
-      setQuickApprovingId(null);
-    }
+    const previewUrl = `/api/v1/reports/${reportId}/preview/html`;
+    window.open(previewUrl, '_blank', 'noopener,noreferrer');
   };
 
   // Open Audit Studio
@@ -286,6 +301,23 @@ export const ZoneAuditReviewQueue: React.FC<Props> = ({ selectedZone, onStatsNee
 
   return (
     <Card className="border-slate-200 shadow-sm bg-white overflow-hidden">
+      {/* Toast alert */}
+      {toastMessage && (
+        <div className="p-3 bg-emerald-600 text-white text-xs font-bold flex items-center justify-between animate-in fade-in">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-200" />
+            <span>{toastMessage}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setToastMessage('')}
+            className="text-emerald-200 hover:text-white"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* Header bar */}
       <div className="p-4 sm:p-5 border-b border-slate-100 bg-slate-50/60 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -417,6 +449,21 @@ export const ZoneAuditReviewQueue: React.FC<Props> = ({ selectedZone, onStatsNee
           <span>Đã trả về</span>
           <span className={`px-1.5 py-0.2 text-[10px] rounded-full ${activeTab === 'REJECTED' ? 'bg-slate-800 text-white' : 'bg-slate-200 text-slate-700'}`}>
             {tabCounts.rejected}
+          </span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('APPROVED')}
+          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5 ${
+            activeTab === 'APPROVED'
+              ? 'bg-emerald-600 text-white shadow-xs'
+              : 'text-emerald-700 hover:bg-emerald-50'
+          }`}
+        >
+          <CheckCircle2 className="w-3.5 h-3.5" />
+          <span>Đã phê duyệt</span>
+          <span className={`px-1.5 py-0.2 text-[10px] rounded-full ${activeTab === 'APPROVED' ? 'bg-emerald-700 text-white' : 'bg-emerald-100 text-emerald-800'}`}>
+            {tabCounts.approved}
           </span>
         </button>
       </div>
@@ -554,34 +601,52 @@ export const ZoneAuditReviewQueue: React.FC<Props> = ({ selectedZone, onStatsNee
                     {/* Thao Tác Thẩm Định */}
                     <td className="p-3.5 text-right whitespace-nowrap">
                       <div className="flex items-center justify-end gap-1.5">
-                        {/* Nút Thẩm Định Chính (Mở Split-Pane Studio) */}
+                        {/* Nút Thao Tác Chính (Mở Studio 9 bước / Xem hồ sơ) */}
                         <button
+                          disabled={!item.report_id}
                           onClick={() => handleOpenStudio(item.report_id)}
-                          className="px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs flex items-center gap-1 shadow-xs transition-colors"
-                          title="Mở Studio thẩm định chia đôi màn hình với kính lúp phóng đại 400%"
+                          className={`px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1 shadow-xs transition-colors ${
+                            !item.report_id
+                              ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                              : item.status === 'APPROVED'
+                              ? 'bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 cursor-pointer'
+                              : item.status === 'REJECTED'
+                              ? 'bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 cursor-pointer'
+                              : 'bg-sky-600 hover:bg-sky-700 text-white cursor-pointer'
+                          }`}
+                          title={
+                            !item.report_id
+                              ? 'Chưa có báo cáo kỹ thuật'
+                              : item.status === 'APPROVED'
+                              ? 'Xem hồ sơ kỹ thuật đã phê duyệt'
+                              : item.status === 'REJECTED'
+                              ? 'Xem chi tiết hồ sơ bị trả về'
+                              : 'Mở Studio thẩm định kỹ thuật toàn diện 9 bước'
+                          }
                         >
                           <Eye className="w-3.5 h-3.5" />
-                          <span>Thẩm định 🔍</span>
+                          <span>
+                            {item.status === 'APPROVED'
+                              ? 'Xem hồ sơ 📄'
+                              : item.status === 'REJECTED'
+                              ? 'Xem lý do 🔍'
+                              : 'Thẩm định 🔍'}
+                          </span>
                         </button>
 
-                        {/* Nút Duyệt Nhanh */}
-                        {item.status === 'SUBMITTED' && item.report_id && (
+                        {/* Nút Xem Bản In Preview HTML/PDF */}
+                        {item.report_id && (
                           <button
-                            onClick={() => handleQuickApprove(item)}
-                            disabled={quickApprovingId === item.report_id}
-                            className="p-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 transition-colors"
-                            title="Phê duyệt nhanh hồ sơ này"
+                            onClick={() => handlePreviewReport(item.report_id)}
+                            className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 transition-colors cursor-pointer"
+                            title="Xem trước bản in Báo cáo A4 (Preview HTML)"
                           >
-                            <CheckCircle2
-                              className={`w-4 h-4 ${
-                                quickApprovingId === item.report_id ? 'animate-spin' : ''
-                              }`}
-                            />
+                            <FileText className="w-4 h-4" />
                           </button>
                         )}
 
-                        {/* Nút Trả Về Nhanh */}
-                        {item.report_id && (
+                        {/* Nút Trả Về Nhanh (Chỉ hiện khi chưa duyệt) */}
+                        {item.report_id && item.status !== 'APPROVED' && (
                           <button
                             onClick={() =>
                               setRejectModalData({
@@ -590,12 +655,49 @@ export const ZoneAuditReviewQueue: React.FC<Props> = ({ selectedZone, onStatsNee
                                 surveyorName: item.surveyor_name || undefined,
                               })
                             }
-                            className="p-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 transition-colors"
+                            className="p-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 transition-colors cursor-pointer"
                             title="Yêu cầu khảo sát lại / Trả về điều chỉnh"
                           >
                             <XCircle className="w-4 h-4" />
                           </button>
                         )}
+
+                        {/* Nút Điều Chuyển / Hoán Đổi Thửa (Khắc phục tích nhầm thửa liền kề) */}
+                        {item.report_id && (
+                          <button
+                            onClick={() =>
+                              setReassignModalData({
+                                reportId: item.report_id!,
+                                parcelCode: item.project_parcel_code,
+                                parcelId: item.parcel_id,
+                                houseNumber: item.house_number,
+                                street: item.street,
+                                surveyorName: item.surveyor_name || undefined,
+                              })
+                            }
+                            className="p-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 transition-colors cursor-pointer"
+                            title="Điều chuyển hồ sơ sang thửa khác hoặc hoán đổi 2 nhà kề nhau bị tích chéo"
+                          >
+                            <ArrowRightLeft className="w-4 h-4" />
+                          </button>
+                        )}
+
+                        {/* Nút Tách / Gộp Thửa GIS Trực Tiếp */}
+                        <button
+                          onClick={() =>
+                            setMutationModalData({
+                              parcelId: item.parcel_id,
+                              parcelCode: item.project_parcel_code,
+                              houseNumber: item.house_number,
+                              street: item.street,
+                              reportId: item.report_id || undefined,
+                            })
+                          }
+                          className="p-1.5 rounded-lg bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-300 transition-colors cursor-pointer"
+                          title="Tách hoặc gộp thửa thực địa trên GIS (Zone Admin)"
+                        >
+                          <Split className="w-4 h-4" />
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -646,6 +748,37 @@ export const ZoneAuditReviewQueue: React.FC<Props> = ({ selectedZone, onStatsNee
             fetchSubmissions();
             if (onStatsNeedRefresh) onStatsNeedRefresh();
           }}
+        />
+      )}
+
+      {/* Reassign / Swap Parcel Modal */}
+      {reassignModalData && (
+        <AdminReassignParcelModal
+          isOpen={!!reassignModalData}
+          reportId={reassignModalData.reportId}
+          currentParcelCode={reassignModalData.parcelCode}
+          currentParcelId={reassignModalData.parcelId}
+          currentHouseNumber={reassignModalData.houseNumber}
+          currentStreet={reassignModalData.street}
+          surveyorName={reassignModalData.surveyorName}
+          allReports={items}
+          onClose={() => setReassignModalData(null)}
+          onSuccess={(msg) => showToast(msg)}
+        />
+      )}
+
+      {/* GIS Mutation Modal */}
+      {mutationModalData && (
+        <AdminGisMutationModal
+          isOpen={!!mutationModalData}
+          parcelId={mutationModalData.parcelId}
+          parcelCode={mutationModalData.parcelCode}
+          houseNumber={mutationModalData.houseNumber}
+          street={mutationModalData.street}
+          currentAreaM2={mutationModalData.currentAreaM2}
+          reportId={mutationModalData.reportId}
+          onClose={() => setMutationModalData(null)}
+          onSuccess={(msg) => showToast(msg)}
         />
       )}
     </Card>

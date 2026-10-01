@@ -147,4 +147,35 @@ export class AuditController {
       next(error);
     }
   }
+
+  static async reassignReportParcel(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      const { targetParcelId, reason } = req.body;
+      if (!targetParcelId) {
+        throw new BadRequestError('Thửa đất đích (targetParcelId) là bắt buộc');
+      }
+      const adminId = req.user!.userId;
+      const clientIp = req.ip || req.socket.remoteAddress;
+      const result = await AuditService.reassignReportParcel(id, targetParcelId, adminId, reason, clientIp);
+      res.status(200).json(result);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async swapReportParcels(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { reportAId, reportBId, reason } = req.body;
+      if (!reportAId || !reportBId) {
+        throw new BadRequestError('Cả reportAId và reportBId đều là bắt buộc để hoán đổi');
+      }
+      const adminId = req.user!.userId;
+      const clientIp = req.ip || req.socket.remoteAddress;
+      const result = await AuditService.swapReportParcels(reportAId, reportBId, adminId, reason, clientIp);
+      res.status(200).json(result);
+    } catch (error) {
+      next(error);
+    }
+  }
 }

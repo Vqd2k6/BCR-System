@@ -120,17 +120,19 @@ export class AuditService {
     limit?: number;
     offset?: number;
   }) {
-    let whereClause = `WHERE (r.status::text IN ('SUBMITTED', 'POSTPONED_ABSENT', 'REJECTED') OR p.survey_status::text IN ('SUBMITTED', 'POSTPONED_ABSENT', 'REJECTED'))`;
     const params: any[] = [];
+    let whereClause = '';
+
+    if (filters.status && filters.status.toUpperCase() !== 'ALL') {
+      params.push(filters.status.toUpperCase());
+      whereClause = `WHERE r.status::text = $${params.length}`;
+    } else {
+      whereClause = `WHERE r.status::text IN ('SUBMITTED', 'POSTPONED_ABSENT', 'REJECTED', 'APPROVED')`;
+    }
 
     if (filters.zoneId && filters.zoneId.toUpperCase() !== 'ALL' && filters.zoneId.toUpperCase() !== 'ALL_ZONES') {
       params.push(filters.zoneId);
       whereClause += ` AND p.zone_id = $${params.length}`;
-    }
-
-    if (filters.status && filters.status.toUpperCase() !== 'ALL') {
-      params.push(filters.status);
-      whereClause += ` AND (r.status::text = $${params.length} OR p.survey_status::text = $${params.length})`;
     }
 
     if (filters.buildingType && filters.buildingType.toUpperCase() !== 'ALL') {
@@ -161,7 +163,7 @@ export class AuditService {
         p.street,
         p.zone_id,
         p.building_type,
-        COALESCE(r.status::text, p.survey_status::text) AS status,
+        r.status::text AS status,
         p.survey_status::text AS parcel_status,
         r.is_refused_or_absent,
         p.absence_attempt_count,
@@ -200,9 +202,9 @@ export class AuditService {
           FROM audit_alert_items a 
           WHERE a.report_id = r.id AND a.is_resolved = FALSE
         ) AS alert_count
-      FROM parcels p
-      LEFT JOIN base_survey_reports r ON r.parcel_id = p.id
-      LEFT JOIN users u ON COALESCE(r.surveyor_id, p.assigned_surveyor_id) = u.id
+      FROM base_survey_reports r
+      JOIN parcels p ON r.parcel_id = p.id
+      LEFT JOIN users u ON r.surveyor_id = u.id
       LEFT JOIN risk_score_cards sc ON sc.report_id = r.id
       ${whereClause}
       ORDER BY r.updated_at DESC NULLS LAST, p.updated_at DESC
@@ -321,16 +323,135 @@ export class AuditService {
       [report.parcel_id]
     );
 
+    // 6. Truy vấn bảng ảnh nhận diện P01 - P04
+    const photosRes = await Database.query(
+      `SELECT * FROM survey_identification_photos WHERE report_id = $1;`,
+      [actualReportId]
+    );
+
+    // 7. Truy vấn thông số kết cấu công trình
+    const specsRes = await Database.query(
+      `SELECT * FROM building_specifications WHERE report_id = $1;`,
+      [actualReportId]
+    );
+
+    // 8. Truy vấn độ nhạy cảm lịch sử & 5 câu hỏi phỏng vấn
+    const historyRes = await Database.query(
+      `SELECT * FROM historical_sensitivities WHERE report_id = $1;`,
+      [actualReportId]
+    );
+
+    // 9. Truy vấn đánh giá biến dạng lún nghiêng
+    const deformRes = await Database.query(
+      `SELECT * FROM deformation_assessments WHERE report_id = $1;`,
+      [actualReportId]
+    );
+
     const surveyJson = typeof report.survey_data_json === 'string'
       ? JSON.parse(report.survey_data_json)
       : (report.survey_data_json || {});
+
+    // Chuẩn hóa bộ 4 ảnh định danh P-01 -> P-04 (kết hợp DB + survey_data_json)
+    const p01Row = photosRes.rows.find((p: any) => p.photo_type === 'P01_HOUSE_NUMBER');
+    const p02Row = photosRes.rows.find((p: any) => p.photo_type === 'P02_MAIN_FACADE');
+    const p03Row = photosRes.rows.find((p: any) => p.photo_type === 'P03_SIDE_REAR');
+    const p04Row = photosRes.rows.find((p: any) => p.photo_type === 'P04_CONTEXT_STREET');
+
+    const p01Data = surveyJson.photoP01 || {};
+    const p02Data = surveyJson.photoP02 || {};
+    const p03Data = surveyJson.photoP03 || {};
+    const p04Data = surveyJson.photoP04 || {};
+
+    const identificationPhotos = {
+      photoP01: {
+        url: p01Data.url || p01Row?.annotated_photo_url || p01Row?.raw_photo_url || null,
+        photoCode: p01Data.photoCode || p01Row?.photo_code || 'P-01',
+        notApplicable: Boolean(p01Data.notApplicable ?? p01Row?.is_not_applicable),
+        naReason: p01Data.naReason || p01Row?.na_reason || null,
+      },
+      photoP02: {
+        url: p02Data.url || p02Row?.annotated_photo_url || p02Row?.raw_photo_url || null,
+        photoCode: p02Data.photoCode || p02Row?.photo_code || 'P-02',
+        polygonPoints: p02Data.polygonPoints || p02Row?.facade_polygon_points_json || null,
+        floorSplits: p02Data.floorSplits || p02Row?.floor_split_lines_json || null,
+        widthM: p02Data.widthM || null,
+        heightM: p02Data.heightM || null,
+        notApplicable: Boolean(p02Data.notApplicable ?? p02Row?.is_not_applicable),
+      },
+      photoP03: {
+        url: p03Data.url || p03Row?.annotated_photo_url || p03Row?.raw_photo_url || null,
+        photoCode: p03Data.photoCode || p03Row?.photo_code || 'P-03',
+        tag: p03Data.tag || 'Bên hông phải',
+        additionalPhotos: Array.isArray(p03Data.additionalPhotos) ? p03Data.additionalPhotos : [],
+        notApplicable: Boolean(p03Data.notApplicable ?? p03Row?.is_not_applicable),
+      },
+      photoP04: {
+        url: p04Data.url || p04Row?.annotated_photo_url || p04Row?.raw_photo_url || null,
+        photoCode: p04Data.photoCode || p04Row?.photo_code || 'P-04',
+        notApplicable: Boolean(p04Data.notApplicable ?? p04Row?.is_not_applicable),
+      },
+    };
+
+    // Chuẩn hóa danh sách Vùng Kiến Trúc Z & Khuyết tật D (từ damage_zones DB hoặc bóc tách từ surveyJson.floors)
+    let allDamageZones = zonesRes.rows;
+    if (allDamageZones.length === 0 && Array.isArray(surveyJson.floors)) {
+      const extracted: any[] = [];
+      surveyJson.floors.forEach((fl: any) => {
+        if (Array.isArray(fl.zones)) {
+          fl.zones.forEach((z: any) => {
+            extracted.push({
+              id: z.id,
+              zone_code: z.zoneCode || z.zone_code,
+              floor_name: z.floorName || fl.floorName || 'Tầng trệt',
+              room_name: z.roomName || z.customRoomName || 'Không gian chính',
+              component_type: z.componentType || z.customComponentType || 'Tường',
+              wall_material: z.wallMaterial || z.customWallMaterial || 'Vữa trát',
+              ctx_photo_url: z.ctxPhotoUrl || (Array.isArray(z.overviewPhotos) ? z.overviewPhotos[0] : null),
+              ctx_photo_code: z.ctxPhotoCode,
+              burland_grade: z.burlandGrade,
+              functional_impact_repair_needed: z.functionalImpactRepairNeeded,
+              defects: Array.isArray(z.defects)
+                ? z.defects.map((d: any) => ({
+                    id: d.id || `${z.id}_${d.defectCode || d.defect_code}`,
+                    defectCode: d.defectCode || d.defect_code,
+                    widthMaxMm: d.widthMaxMm ?? d.width_max_mm ?? 0,
+                    lengthMm: d.lengthMm ?? d.length_mm ?? 0,
+                    hasScaleCard: Boolean(d.hasScaleCard ?? d.has_scale_card),
+                    cuPhotoUrl: d.cuPhotoUrl || (Array.isArray(d.cuPhotos) ? d.cuPhotos[0] : null),
+                    cuPhotos: Array.isArray(d.cuPhotos) && d.cuPhotos.length > 0 ? d.cuPhotos : (d.cuPhotoUrl ? [d.cuPhotoUrl] : []),
+                    screeningCategory: d.screeningCategory || d.defectType,
+                    defectType: d.defectType,
+                    crackDirection: d.crackDirection,
+                    activityState: d.activityState,
+                    isStructuralCritical: Boolean(d.isStructuralCritical),
+                    pinX: d.pinX,
+                    pinY: d.pinY,
+                  }))
+                : [],
+            });
+          });
+        }
+      });
+      allDamageZones = extracted;
+    }
+
+    // Chuẩn hóa chữ ký KSV & Chủ hộ
+    const sigJson = surveyJson.signatures || {};
+    const normalizedSignatures = {
+      surveyorSignature: report.surveyor_signature_url || sigJson.preparedBy?.photoUrl || sigJson.surveyorSignatureUrl || null,
+      surveyorName: report.surveyor_name || sigJson.preparedBy?.fullName || null,
+      ownerSignature: report.owner_signature_url || sigJson.ownerRepresentative?.photoUrl || sigJson.ownerSignatureUrl || null,
+      ownerName: report.owner_name || surveyJson.ownerName || sigJson.ownerRepresentative?.fullName || null,
+      ownerFeedback: report.owner_remarks || sigJson.ownerFeedback || sigJson.ownerRemarks || null,
+      workingMinutesPhotos: Array.isArray(sigJson.workingMinutesPhotos) ? sigJson.workingMinutesPhotos : [],
+    };
 
     return {
       reportId: report.id,
       parcelId: report.parcel_id,
       projectParcelCode: report.project_parcel_code,
-      houseNumber: report.house_number,
-      street: report.street,
+      houseNumber: report.house_number || surveyJson.houseNumber,
+      street: report.street || surveyJson.street,
       zoneId: report.zone_id,
       surveyorName: report.surveyor_name,
       surveyorPhone: report.surveyor_phone,
@@ -339,25 +460,34 @@ export class AuditService {
       isRefusedOrAbsent: report.is_refused_or_absent,
       engineeringRecommendations: report.engineering_recommendations,
       officialPdfUrl: report.official_pdf_url,
-      
+      surveyorSignatureUrl: report.surveyor_signature_url,
+      ownerSignatureUrl: report.owner_signature_url,
+      ownerRemarks: report.owner_remarks,
+
+      // Toàn bộ JSON gốc từ Surveyor để không bao giờ bị sót trường dữ liệu
+      surveyJson: surveyJson,
+      survey_data_json: surveyJson,
+      identificationPhotos: identificationPhotos,
+      signatures: normalizedSignatures,
+
       // Nửa Trái (Left Pane): Cấu kiện & Điểm số & Pháp lý
       leftPane: {
-        damageZones: zonesRes.rows,
+        damageZones: allDamageZones,
         structuralElements: elementsRes.rows,
         riskScoreCard: scoresRes.rows[0] || null,
-        buildingSpecs: surveyJson.buildingSpecs || surveyJson.specs || null,
-        deformation: surveyJson.deformation || null,
-        interview: surveyJson.interview || null,
-        signatures: surveyJson.signatures || null,
+        buildingSpecs: specsRes.rows[0] || surveyJson.buildingSpecs || surveyJson.specs || null,
+        deformation: deformRes.rows[0] || surveyJson.deformation || surveyJson.settlementTilt || null,
+        interview: historyRes.rows[0] || surveyJson.interview || surveyJson.historyInterview || null,
+        signatures: normalizedSignatures,
         absenceLogs: absenceLogsRes.rows,
       },
 
       // Nửa Phải (Right Pane): Cặp ảnh CTX + CU Multi-photo có thước đo vạch mm (Kích hoạt kính lúp 400%)
       rightPane: {
         magnifierZoomFactor: '400%',
-        identificationPhotos: surveyJson.identificationPhotos || {},
-        facadeBoundaryGeojson: surveyJson.facadeBoundaryGeojson || null,
-        photoGalleries: zonesRes.rows.map((z: any) => {
+        identificationPhotos: identificationPhotos,
+        facadeBoundaryGeojson: surveyJson.facadeBoundaryGeojson || p02Row?.facade_polygon_points_json || null,
+        photoGalleries: allDamageZones.map((z: any) => {
           const defectsList = Array.isArray(z.defects)
             ? z.defects
             : typeof z.defects === 'string'
@@ -826,6 +956,208 @@ export class AuditService {
         message: 'Đã thay thế ảnh và lưu vết kiểm toán thành công',
         oldPhotoUrl,
         newPhotoUrl: payload.newPhotoUrl,
+      };
+    });
+  }
+
+  /**
+   * Điều chuyển hồ sơ sang thửa đất khác (khi KSV tích nhầm thửa do nhà san sát)
+   */
+  static async reassignReportParcel(
+    reportId: string,
+    targetParcelId: string,
+    adminId: string,
+    reason: string,
+    clientIp?: string
+  ) {
+    return Database.transaction(async (client) => {
+      // 1. Kiểm tra hồ sơ hiện tại
+      const repRes = await client.query<{ id: string; parcel_id: string; status: string; report_code: string }>(
+        `SELECT id, parcel_id, status, report_code FROM base_survey_reports WHERE id = $1 FOR UPDATE;`,
+        [reportId]
+      );
+      const report = repRes.rows[0];
+      if (!report) {
+        throw new NotFoundError(`Không tìm thấy hồ sơ với ID: ${reportId}`);
+      }
+
+      const oldParcelId = report.parcel_id;
+      if (oldParcelId === targetParcelId) {
+        throw new BadRequestError('Thửa đất đích trùng với thửa đất hiện tại của hồ sơ');
+      }
+
+      // 2. Kiểm tra thửa đất đích
+      const targetRes = await client.query<{ id: string; project_parcel_code: string; survey_status: string }>(
+        `SELECT id, project_parcel_code, survey_status FROM parcels WHERE id = $1 FOR UPDATE;`,
+        [targetParcelId]
+      );
+      const targetParcel = targetRes.rows[0];
+      if (!targetParcel) {
+        throw new NotFoundError(`Không tìm thấy thửa đất đích với ID: ${targetParcelId}`);
+      }
+
+      // Lấy mã thửa cũ
+      const oldParcelRes = await client.query<{ project_parcel_code: string }>(
+        `SELECT project_parcel_code FROM parcels WHERE id = $1;`,
+        [oldParcelId]
+      );
+      const oldParcelCode = oldParcelRes.rows[0]?.project_parcel_code || oldParcelId;
+
+      // 3. Cập nhật hồ sơ trỏ sang thửa mới
+      await client.query(
+        `UPDATE base_survey_reports SET parcel_id = $1, updated_at = NOW() WHERE id = $2;`,
+        [targetParcelId, reportId]
+      );
+
+      // Cập nhật thửa cũ về NOT_SURVEYED nếu không còn hồ sơ nào khác
+      const otherRepsRes = await client.query<{ count: string }>(
+        `SELECT COUNT(*) as count FROM base_survey_reports WHERE parcel_id = $1 AND id != $2;`,
+        [oldParcelId, reportId]
+      );
+      if (parseInt(otherRepsRes.rows[0]?.count || '0', 10) === 0) {
+        await client.query(
+          `UPDATE parcels SET survey_status = 'NOT_SURVEYED', updated_at = NOW() WHERE id = $1;`,
+          [oldParcelId]
+        );
+      }
+
+      // Cập nhật thửa mới theo trạng thái của hồ sơ (SUBMITTED, APPROVED, ...)
+      await client.query(
+        `UPDATE parcels SET survey_status = $1, updated_at = NOW() WHERE id = $2;`,
+        [report.status, targetParcelId]
+      );
+
+      // 4. Ghi vết kiểm toán Append-only vào system_audit_logs
+      await client.query(
+        `INSERT INTO system_audit_logs (
+           entity_type, entity_id, action, performed_by_user_id, diff_payload, client_ip
+         ) VALUES ($1, $2, $3, $4, $5, $6);`,
+        [
+          'BASE_SURVEY_REPORT',
+          reportId,
+          'ZONE_ADMIN_REASSIGN_PARCEL',
+          adminId,
+          JSON.stringify({
+            reportCode: report.report_code,
+            oldParcelId,
+            oldParcelCode,
+            targetParcelId,
+            targetParcelCode: targetParcel.project_parcel_code,
+            reason: reason || 'Khảo sát viên tích nhầm thửa đất liền kề',
+            timestamp: new Date().toISOString(),
+          }),
+          clientIp || null,
+        ]
+      );
+
+      return {
+        success: true,
+        message: `Đã điều chuyển hồ sơ thành công từ thửa [${oldParcelCode}] sang thửa [${targetParcel.project_parcel_code}]`,
+        reportId,
+        oldParcelId,
+        targetParcelId,
+        newParcelCode: targetParcel.project_parcel_code,
+      };
+    });
+  }
+
+  /**
+   * Hoán đổi thửa giữa 2 hồ sơ khảo sát (khi KSV khảo sát chéo 2 nhà sát nhau)
+   */
+  static async swapReportParcels(
+    reportAId: string,
+    reportBId: string,
+    adminId: string,
+    reason: string,
+    clientIp?: string
+  ) {
+    return Database.transaction(async (client) => {
+      // 1. Kiểm tra 2 hồ sơ
+      const repARes = await client.query<{ id: string; parcel_id: string; status: string; report_code: string }>(
+        `SELECT id, parcel_id, status, report_code FROM base_survey_reports WHERE id = $1 FOR UPDATE;`,
+        [reportAId]
+      );
+      const repBRes = await client.query<{ id: string; parcel_id: string; status: string; report_code: string }>(
+        `SELECT id, parcel_id, status, report_code FROM base_survey_reports WHERE id = $1 FOR UPDATE;`,
+        [reportBId]
+      );
+
+      const repA = repARes.rows[0];
+      const repB = repBRes.rows[0];
+      if (!repA) throw new NotFoundError(`Không tìm thấy hồ sơ A với ID: ${reportAId}`);
+      if (!repB) throw new NotFoundError(`Không tìm thấy hồ sơ B với ID: ${reportBId}`);
+
+      const parcelAId = repA.parcel_id;
+      const parcelBId = repB.parcel_id;
+      if (parcelAId === parcelBId) {
+        throw new BadRequestError('Hai hồ sơ đang thuộc cùng một thửa đất, không thể hoán đổi');
+      }
+
+      // Lấy mã thửa
+      const pARes = await client.query<{ project_parcel_code: string }>(
+        `SELECT project_parcel_code FROM parcels WHERE id = $1;`,
+        [parcelAId]
+      );
+      const pBRes = await client.query<{ project_parcel_code: string }>(
+        `SELECT project_parcel_code FROM parcels WHERE id = $1;`,
+        [parcelBId]
+      );
+      const codeA = pARes.rows[0]?.project_parcel_code || parcelAId;
+      const codeB = pBRes.rows[0]?.project_parcel_code || parcelBId;
+
+      // 2. Hoán đổi parcel_id
+      await client.query(
+        `UPDATE base_survey_reports SET parcel_id = $1, updated_at = NOW() WHERE id = $2;`,
+        [parcelBId, reportAId]
+      );
+      await client.query(
+        `UPDATE base_survey_reports SET parcel_id = $1, updated_at = NOW() WHERE id = $2;`,
+        [parcelAId, reportBId]
+      );
+
+      // Cập nhật trạng thái thửa
+      await client.query(
+        `UPDATE parcels SET survey_status = $1, updated_at = NOW() WHERE id = $2;`,
+        [repA.status, parcelBId]
+      );
+      await client.query(
+        `UPDATE parcels SET survey_status = $1, updated_at = NOW() WHERE id = $2;`,
+        [repB.status, parcelAId]
+      );
+
+      // 3. Ghi vết kiểm toán
+      await client.query(
+        `INSERT INTO system_audit_logs (
+           entity_type, entity_id, action, performed_by_user_id, diff_payload, client_ip
+         ) VALUES ($1, $2, $3, $4, $5, $6);`,
+        [
+          'BASE_SURVEY_REPORT',
+          reportAId,
+          'ZONE_ADMIN_SWAP_PARCELS',
+          adminId,
+          JSON.stringify({
+            reportAId,
+            reportBId,
+            oldParcelA: { id: parcelAId, code: codeA },
+            oldParcelB: { id: parcelBId, code: codeB },
+            newParcelA: { id: parcelBId, code: codeB },
+            newParcelB: { id: parcelAId, code: codeA },
+            reason: reason || 'Hoán đổi 2 hồ sơ bị tích chéo thửa đất liền kề',
+            timestamp: new Date().toISOString(),
+          }),
+          clientIp || null,
+        ]
+      );
+
+      return {
+        success: true,
+        message: `Đã hoán đổi thành công: Hồ sơ A gán sang thửa [${codeB}], Hồ sơ B gán sang thửa [${codeA}]`,
+        reportAId,
+        reportBId,
+        swappedParcels: {
+          reportA: { newParcelId: parcelBId, newParcelCode: codeB },
+          reportB: { newParcelId: parcelAId, newParcelCode: codeA },
+        },
       };
     });
   }

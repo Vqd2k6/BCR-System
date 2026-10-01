@@ -494,6 +494,157 @@ export class CadastralService {
       parcel: updated,
     };
   }
+
+  /**
+   * Zone Admin trực tiếp thực thi Tách / Gộp Thửa trên GIS (tự động phê duyệt)
+   */
+  static async executeAdminMutation(
+    adminId: string,
+    data: {
+      mutationType: 'SPLIT' | 'MERGE';
+      sourceParcelIds: string[];
+      childParcels: Array<{
+        projectParcelCode?: string;
+        houseNumber?: string;
+        street?: string;
+        ownerName?: string;
+        ownerPhone?: string;
+        landAreaM2?: number;
+        floorCount?: number;
+        polygonGeoJson: any;
+      }>;
+      adminNotes?: string;
+      transferSurveyReportId?: string;
+    },
+    clientIp?: string
+  ) {
+    return Database.transaction(async (client) => {
+      const mutationCode = `ADM-MUT-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+      const resultParcelIds: string[] = [];
+      const createdParcels: any[] = [];
+
+      // 1. Khóa và kiểm tra các thửa nguồn
+      const srcRes = await client.query<{ id: string; zone_id: string; project_parcel_code: string; survey_status: string }>(
+        `SELECT id, zone_id, project_parcel_code, survey_status FROM parcels WHERE id = ANY($1) FOR UPDATE;`,
+        [data.sourceParcelIds]
+      );
+      if (srcRes.rows.length === 0) {
+        throw new NotFoundError('Không tìm thấy thửa đất nguồn để thực hiện biến động');
+      }
+      const zoneId = srcRes.rows[0].zone_id;
+
+      // 2. Tạo các thửa kết quả với trạng thái ACTIVE ngay
+      for (const child of data.childParcels) {
+        let code = child.projectParcelCode;
+        if (!code) {
+          code = await CadastralRepository.getNextHighRangeProjectCode(client);
+        }
+        const geoJsonStr = typeof child.polygonGeoJson === 'string' ? child.polygonGeoJson : JSON.stringify(child.polygonGeoJson);
+
+        const pRes = await client.query<{ id: string; project_parcel_code: string }>(
+          `INSERT INTO parcels (
+             zone_id, project_parcel_code, house_number, street, owner_name, owner_phone,
+             land_area_m2, floor_count, cadastral_polygon_geom, footprint_polygon_geom,
+             survey_status, lifecycle_status, mutation_type, parent_parcel_ids
+           ) VALUES (
+             $1, $2, $3, $4, $5, $6, $7, $8,
+             ST_SetSRID(ST_GeomFromGeoJSON($9), 4326),
+             ST_SetSRID(ST_GeomFromGeoJSON($9), 4326),
+             'NOT_SURVEYED', 'ACTIVE', $10, $11
+           ) RETURNING id, project_parcel_code;`,
+          [
+            zoneId,
+            code,
+            child.houseNumber || null,
+            child.street || null,
+            child.ownerName || null,
+            child.ownerPhone || null,
+            child.landAreaM2 || 0,
+            child.floorCount || 1,
+            geoJsonStr,
+            data.mutationType,
+            data.sourceParcelIds,
+          ]
+        );
+
+        resultParcelIds.push(pRes.rows[0].id);
+        createdParcels.push(pRes.rows[0]);
+      }
+
+      // 3. Đánh dấu thửa nguồn thành SPLIT_DEPRECATED hoặc MERGED_DEPRECATED
+      const depStatus = data.mutationType === 'SPLIT' ? 'SPLIT_DEPRECATED' : 'MERGED_DEPRECATED';
+      await client.query(
+        `UPDATE parcels SET lifecycle_status = $1, updated_at = NOW() WHERE id = ANY($2);`,
+        [depStatus, data.sourceParcelIds]
+      );
+
+      // 4. Lưu sự kiện biến động vào parcel_mutation_events với trạng thái APPROVED
+      const mutRes = await client.query<{ id: string }>(
+        `INSERT INTO parcel_mutation_events (
+           mutation_code, mutation_type, source_parcel_ids, result_parcel_ids,
+           surveyor_notes, surveyor_id, zone_admin_id, status, approved_at
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'APPROVED', NOW())
+         RETURNING id;`,
+        [
+          mutationCode,
+          data.mutationType,
+          data.sourceParcelIds,
+          resultParcelIds,
+          data.adminNotes || 'Zone Admin trực tiếp thực thi biến động trên GIS',
+          adminId,
+          adminId,
+        ]
+      );
+
+      // 5. Nếu có yêu cầu gán hồ sơ khảo sát sang thửa con mới
+      if (data.transferSurveyReportId && resultParcelIds.length > 0) {
+        const targetParcelId = resultParcelIds[0];
+        await client.query(
+          `UPDATE base_survey_reports SET parcel_id = $1, updated_at = NOW() WHERE id = $2;`,
+          [targetParcelId, data.transferSurveyReportId]
+        );
+        await client.query(
+          `UPDATE parcels SET survey_status = 'SUBMITTED', updated_at = NOW() WHERE id = $1;`,
+          [targetParcelId]
+        );
+      }
+
+      // 6. Ghi log kiểm toán
+      await client.query(
+        `INSERT INTO system_audit_logs (
+           entity_type, entity_id, action, performed_by_user_id, diff_payload, client_ip
+         ) VALUES ($1, $2, $3, $4, $5, $6);`,
+        [
+          'PARCEL',
+          data.sourceParcelIds[0],
+          'ZONE_ADMIN_EXECUTE_MUTATION',
+          adminId,
+          JSON.stringify({
+            mutationCode,
+            mutationType: data.mutationType,
+            sourceParcelIds: data.sourceParcelIds,
+            resultParcelIds,
+            createdParcels,
+            transferSurveyReportId: data.transferSurveyReportId || null,
+            adminNotes: data.adminNotes || null,
+            timestamp: new Date().toISOString(),
+          }),
+          clientIp || null,
+        ]
+      );
+
+      return {
+        success: true,
+        mutationEventId: mutRes.rows[0].id,
+        mutationCode,
+        mutationType: data.mutationType,
+        sourceParcelIds: data.sourceParcelIds,
+        generatedParcels: createdParcels,
+        status: 'APPROVED',
+        message: `Đã thực thi ${data.mutationType === 'SPLIT' ? 'tách thửa' : 'gộp thửa'} thành công bởi Zone Admin`,
+      };
+    });
+  }
 }
 
 

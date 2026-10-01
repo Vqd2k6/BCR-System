@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect, useId, useMemo } from 'react';
-import { Camera, Trash2, MapPin, Edit3, AlertTriangle, Image as ImageIcon, RefreshCw, RotateCw, X, ZoomIn } from 'lucide-react';
+import { Camera, Trash2, MapPin, Edit3, AlertTriangle, Image as ImageIcon, RefreshCw, RotateCw, X, MoreVertical } from 'lucide-react';
 import { ImageAnnotationModal } from './ImageAnnotationModal';
 import { api } from '../../services/api';
 import { uploadQueue } from '../../core/services/uploadQueueService';
@@ -58,6 +58,22 @@ export const PhotoCaptureInput: React.FC<Props> = ({
   const [detectedAspectRatio, setDetectedAspectRatio] = useState<'landscape' | 'portrait' | 'square' | null>(null);
   const [localPreview, setLocalPreview] = useState<string | null>(null);
   const [hasLoadError, setHasLoadError] = useState(false);
+
+  // Trạng thái mở menu thao tác phụ gọn gàng
+  const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
+  const moreMenuRef = useRef<HTMLDivElement>(null);
+
+  // Đóng menu khi click ra ngoài
+  useEffect(() => {
+    if (!isMoreMenuOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (moreMenuRef.current && !moreMenuRef.current.contains(e.target as Node)) {
+        setIsMoreMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isMoreMenuOpen]);
 
   // Trạng thái Camera Khảo Sát trực tiếp (Live Camera) với Zoom 2 ngón tay
   const [isLiveCameraOpen, setIsLiveCameraOpen] = useState(false);
@@ -793,279 +809,292 @@ export const PhotoCaptureInput: React.FC<Props> = ({
             style={{ width: '100%', height: '100%', objectFit: 'contain', cursor: 'pointer' }}
           />
 
-          {/* Cloud Upload Status Badge */}
-          {uploadStatus === 'UPLOADING' && (
-            <div
-              style={{
-                position: 'absolute',
-                bottom: '6px',
-                right: '6px',
-                backgroundColor: 'rgba(245, 158, 11, 0.95)',
-                color: '#ffffff',
-                fontSize: '0.62rem',
-                fontWeight: 600,
-                padding: '0.18rem 0.4rem',
-                borderRadius: '0.35rem',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.25rem',
-                backdropFilter: 'blur(3px)',
-                boxShadow: '0 2px 4px rgba(0, 0, 0, 0.35)',
-                zIndex: 5,
-              }}
-              title="Đang tải ảnh lên Cloudflare R2..."
-            >
-              <RefreshCw size={10} className="animate-spin" />
-              <span>Lưu R2...</span>
-            </div>
-          )}
-          {uploadStatus === 'SUCCESS' && (
-            <div
-              style={{
-                position: 'absolute',
-                bottom: '6px',
-                right: '6px',
-                width: '22px',
-                height: '22px',
-                borderRadius: '50%',
-                backgroundColor: 'rgba(16, 185, 129, 0.95)',
-                color: '#ffffff',
-                fontSize: '0.62rem',
-                fontWeight: 800,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                boxShadow: '0 2px 4px rgba(0, 0, 0, 0.35)',
-                border: '1.5px solid rgba(255, 255, 255, 0.9)',
-                zIndex: 5,
-                letterSpacing: '-0.02em',
-                userSelect: 'none',
-              }}
-              title="Đã lưu Cloudflare R2 an toàn"
-            >
-              R2
-            </div>
-          )}
-          {uploadStatus === 'ERROR' && (
-            <div
-              style={{
-                position: 'absolute',
-                bottom: '6px',
-                right: '6px',
-                backgroundColor: 'rgba(239, 68, 68, 0.95)',
-                color: '#ffffff',
-                fontSize: '0.6rem',
-                fontWeight: 600,
-                padding: '0.15rem 0.35rem',
-                borderRadius: '0.35rem',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.25rem',
-                backdropFilter: 'blur(3px)',
-                boxShadow: '0 2px 4px rgba(0, 0, 0, 0.35)',
-                zIndex: 5,
-              }}
-            >
-              <span>⚠️ Lỗi R2</span>
-              {lastBlobRef.current && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (lastBlobRef.current) {
-                      startDirectUpload(lastBlobRef.current, photoCode || displayPhotoCode);
-                    }
-                  }}
-                  style={{
-                    backgroundColor: '#ffffff',
-                    color: '#ef4444',
-                    border: 'none',
-                    borderRadius: '0.25rem',
-                    padding: '0.05rem 0.25rem',
-                    fontSize: '0.55rem',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                  }}
-                >
-                  Thử lại
-                </button>
-              )}
-            </div>
-          )}
-
-          {/* Photo ID Badge / Watermark Tag */}
+          {/* Top-Left: Minimalist Photo ID chip + Cloud Status */}
           {displayPhotoCode && (
             <div
               style={{
                 position: 'absolute',
-                bottom: '6px',
+                top: '6px',
                 left: '6px',
-                backgroundColor: 'rgba(15, 23, 42, 0.88)',
+                backgroundColor: 'rgba(15, 23, 42, 0.85)',
                 color: '#34d399',
                 fontSize: '0.65rem',
-                fontWeight: 600,
-                padding: '0.2rem 0.45rem',
-                borderRadius: '0.35rem',
+                fontWeight: 700,
+                padding: '0.2rem 0.5rem',
+                borderRadius: '9999px',
                 fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
-                backdropFilter: 'blur(3px)',
+                backdropFilter: 'blur(4px)',
                 border: '1px solid rgba(52, 211, 153, 0.35)',
-                maxWidth: '92%',
+                maxWidth: '48%',
                 whiteSpace: 'nowrap',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
                 boxShadow: '0 2px 5px rgba(0, 0, 0, 0.35)',
+                zIndex: 10,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.25rem',
               }}
-              title={`Photo ID Pháp Lý: ${displayPhotoCode}`}
+              title={`Photo ID: ${displayPhotoCode}`}
             >
-              <MapPin size={11} style={{ display: 'inline', marginRight: '4px', verticalAlign: 'middle', color: '#10b981' }} />
-              <span>{displayPhotoCode}</span>
+              <MapPin size={10} style={{ color: '#10b981', flexShrink: 0 }} />
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{displayPhotoCode}</span>
+              {uploadStatus === 'UPLOADING' && <RefreshCw size={9} className="animate-spin text-amber-400 shrink-0" />}
+              {uploadStatus === 'SUCCESS' && (
+                <span
+                  style={{
+                    width: '6px',
+                    height: '6px',
+                    borderRadius: '50%',
+                    backgroundColor: '#10b981',
+                    flexShrink: 0,
+                  }}
+                  title="Đã lưu Cloudflare R2 an toàn"
+                />
+              )}
+              {uploadStatus === 'ERROR' && (
+                <span
+                  style={{
+                    width: '6px',
+                    height: '6px',
+                    borderRadius: '50%',
+                    backgroundColor: '#ef4444',
+                    flexShrink: 0,
+                  }}
+                  title="Lỗi tải R2"
+                />
+              )}
             </div>
           )}
 
-          {/* Action floating buttons */}
-          <div style={{ position: 'absolute', top: '6px', right: '6px', display: 'flex', gap: '0.35rem' }}>
-            {/* Nút soi ảnh chi tiết bằng 2 ngón tay */}
-            <button
-              type="button"
-              onClick={() => setIsLightboxOpen(true)}
-              title="Phóng to soi chi tiết vạch thước đo nứt (hỗ trợ zoom 2 ngón tay)"
-              style={{
-                backgroundColor: 'rgba(2, 132, 199, 0.9)',
-                color: '#ffffff',
-                border: 'none',
-                borderRadius: '0.4rem',
-                padding: '0.35rem 0.55rem',
-                fontSize: '0.7rem',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.25rem',
-                cursor: 'pointer',
-                backdropFilter: 'blur(2px)',
-                fontWeight: 600,
-                boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
-              }}
-            >
-              <ZoomIn size={13} />
-              <span>Soi</span>
-            </button>
-
-            {allowAnnotation && (
-              <button
-                type="button"
-                onClick={() => setIsAnnotating(true)}
-                title="Vẽ, đánh dấu mũi tên hoặc ghi chú lên ảnh"
-                style={{
-                  backgroundColor: 'rgba(16, 185, 129, 0.9)',
-                  color: '#ffffff',
-                  border: 'none',
-                  borderRadius: '0.4rem',
-                  padding: '0.35rem 0.55rem',
-                  fontSize: '0.7rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.25rem',
-                  cursor: 'pointer',
-                  backdropFilter: 'blur(2px)',
-                  fontWeight: 600,
-                  boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
-                }}
-              >
-                <Edit3 size={13} />
-                <span>Vẽ / Chú thích</span>
-              </button>
-            )}
-
-            {/* Xoay ảnh 90 độ */}
-            <button
-              type="button"
-              onClick={handleRotate90}
-              title="Xoay ảnh 90° (nếu máy chụp ngược chiều)"
-              style={{
-                backgroundColor: 'rgba(30, 41, 59, 0.85)',
-                color: '#ffffff',
-                border: 'none',
-                borderRadius: '0.4rem',
-                padding: '0.35rem 0.55rem',
-                fontSize: '0.7rem',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.25rem',
-                cursor: 'pointer',
-                backdropFilter: 'blur(2px)',
-                fontWeight: 600,
-                boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
-              }}
-            >
-              <RotateCw size={13} />
-              <span>Xoay</span>
-            </button>
-
-            {/* Chụp lại bằng Camera (mở camera có zoom 2 ngón tay) */}
+          {/* Top-Right: Minimalist Action Cluster (Chụp Lại + Menu ⋯) */}
+          <div
+            ref={moreMenuRef}
+            style={{
+              position: 'absolute',
+              top: '6px',
+              right: '6px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.35rem',
+              zIndex: 20,
+            }}
+          >
+            {/* Nút chính Chụp Lại - Nhanh, Tiện, 1 chạm */}
             <button
               type="button"
               onClick={handleTriggerCapture}
-              title="Mở camera chụp lại (có zoom 2 ngón tay)"
+              title="Mở camera chụp lại ảnh này (có zoom 2 ngón tay)"
               style={{
                 backgroundColor: 'rgba(5, 150, 105, 0.92)',
                 color: '#ffffff',
-                border: 'none',
-                borderRadius: '0.4rem',
-                padding: '0.35rem 0.55rem',
-                fontSize: '0.7rem',
+                border: '1px solid rgba(255, 255, 255, 0.25)',
+                borderRadius: '9999px',
+                padding: '0.25rem 0.65rem',
+                fontSize: '0.72rem',
+                fontWeight: 700,
                 display: 'flex',
                 alignItems: 'center',
                 gap: '0.25rem',
                 cursor: 'pointer',
-                backdropFilter: 'blur(2px)',
-                fontWeight: 600,
+                backdropFilter: 'blur(4px)',
+                boxShadow: '0 2px 6px rgba(0, 0, 0, 0.3)',
                 userSelect: 'none',
               }}
             >
-              <Camera size={13} />
+              <Camera size={12} />
               <span>Chụp lại</span>
             </button>
 
-            {/* Đổi ảnh từ máy */}
-            <label
-              htmlFor={galleryInputId}
-              title="Chọn ảnh từ thư viện thiết bị"
-              style={{
-                backgroundColor: 'rgba(15, 23, 42, 0.85)',
-                color: '#ffffff',
-                border: 'none',
-                borderRadius: '0.4rem',
-                padding: '0.35rem 0.55rem',
-                fontSize: '0.7rem',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.25rem',
-                cursor: 'pointer',
-                backdropFilter: 'blur(2px)',
-                fontWeight: 600,
-                userSelect: 'none',
-              }}
-            >
-              <ImageIcon size={13} />
-              <span>Đổi ảnh</span>
-            </label>
+            {/* Nút ⋯ Thao tác mở rộng */}
+            <div style={{ position: 'relative' }}>
+              <button
+                type="button"
+                onClick={() => setIsMoreMenuOpen(!isMoreMenuOpen)}
+                title="Tùy chọn thao tác khác (Soi, Xoay, Vẽ, Đổi ảnh, Xóa)"
+                style={{
+                  backgroundColor: 'rgba(15, 23, 42, 0.85)',
+                  color: '#ffffff',
+                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                  borderRadius: '50%',
+                  width: '28px',
+                  height: '28px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  backdropFilter: 'blur(4px)',
+                  boxShadow: '0 2px 6px rgba(0, 0, 0, 0.3)',
+                }}
+              >
+                <MoreVertical size={14} />
+              </button>
 
-            <button
-              type="button"
-              onClick={handleClear}
-              title="Xóa ảnh"
+              {/* Dropdown Menu Tinh Tế */}
+              {isMoreMenuOpen && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: '32px',
+                    right: 0,
+                    backgroundColor: 'rgba(15, 23, 42, 0.96)',
+                    color: '#f8fafc',
+                    borderRadius: '0.65rem',
+                    padding: '0.3rem',
+                    boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5)',
+                    border: '1px solid rgba(51, 65, 85, 0.8)',
+                    minWidth: '165px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.15rem',
+                    fontSize: '0.75rem',
+                    backdropFilter: 'blur(8px)',
+                    zIndex: 30,
+                  }}
+                >
+
+                  {/* Xoay 90 độ */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsMoreMenuOpen(false);
+                      handleRotate90();
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '0.4rem 0.6rem',
+                      borderRadius: '0.4rem',
+                      border: 'none',
+                      backgroundColor: 'transparent',
+                      color: '#f8fafc',
+                      textAlign: 'left',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.45rem',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'rgba(51, 65, 85, 0.6)')}
+                    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                  >
+                    <RotateCw size={13} style={{ color: '#fbbf24' }} />
+                    <span>Xoay ảnh 90°</span>
+                  </button>
+
+                  {/* Vẽ / Chú thích */}
+                  {allowAnnotation && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsMoreMenuOpen(false);
+                        setIsAnnotating(true);
+                      }}
+                      style={{
+                        width: '100%',
+                        padding: '0.4rem 0.6rem',
+                        borderRadius: '0.4rem',
+                        border: 'none',
+                        backgroundColor: 'transparent',
+                        color: '#f8fafc',
+                        textAlign: 'left',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.45rem',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                      }}
+                      onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'rgba(51, 65, 85, 0.6)')}
+                      onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                    >
+                      <Edit3 size={13} style={{ color: '#34d399' }} />
+                      <span>Vẽ / Ghi chú nứt</span>
+                    </button>
+                  )}
+
+                  {/* Chọn ảnh từ máy */}
+                  <label
+                    htmlFor={galleryInputId}
+                    onClick={() => setIsMoreMenuOpen(false)}
+                    style={{
+                      width: '100%',
+                      padding: '0.4rem 0.6rem',
+                      borderRadius: '0.4rem',
+                      backgroundColor: 'transparent',
+                      color: '#f8fafc',
+                      textAlign: 'left',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.45rem',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      boxSizing: 'border-box',
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'rgba(51, 65, 85, 0.6)')}
+                    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                  >
+                    <ImageIcon size={13} style={{ color: '#60a5fa' }} />
+                    <span>Chọn từ thư viện máy</span>
+                  </label>
+
+                  <div style={{ borderTop: '1px solid rgba(51, 65, 85, 0.8)', margin: '0.2rem 0' }} />
+
+                  {/* Xóa ảnh */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsMoreMenuOpen(false);
+                      handleClear();
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '0.4rem 0.6rem',
+                      borderRadius: '0.4rem',
+                      border: 'none',
+                      backgroundColor: 'transparent',
+                      color: '#f87171',
+                      textAlign: 'left',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.45rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'rgba(239, 68, 68, 0.2)')}
+                    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                  >
+                    <Trash2 size={13} />
+                    <span>Xóa ảnh này</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Bottom Center: Subtle Hint */}
+          <div
+            style={{
+              position: 'absolute',
+              bottom: '6px',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              pointerEvents: 'none',
+              zIndex: 10,
+            }}
+          >
+            <span
               style={{
-                backgroundColor: 'rgba(239, 68, 68, 0.9)',
-                color: '#ffffff',
-                border: 'none',
-                borderRadius: '0.4rem',
-                padding: '0.35rem 0.5rem',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
+                fontSize: '0.62rem',
+                color: 'rgba(255, 255, 255, 0.75)',
+                backgroundColor: 'rgba(0, 0, 0, 0.45)',
+                padding: '0.15rem 0.5rem',
+                borderRadius: '9999px',
+                backdropFilter: 'blur(2px)',
+                fontWeight: 500,
+                whiteSpace: 'nowrap',
               }}
             >
-              <Trash2 size={13} />
-            </button>
+              Chạm ảnh để phóng to
+            </span>
           </div>
         </div>
       ) : (
