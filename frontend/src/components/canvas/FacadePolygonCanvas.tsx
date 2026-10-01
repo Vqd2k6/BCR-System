@@ -80,8 +80,16 @@ export const FacadePolygonCanvas: React.FC<FacadePolygonCanvasProps> = ({
   const [hoverCoords, setHoverCoords] = useState<{ x: number; y: number } | null>(null);
   const [activeLineType, setActiveLineType] = useState<'GROUND' | 'MEZZANINE' | 'FLOOR' | 'ROOF'>('FLOOR');
 
+  const [imageAspect, setImageAspect] = useState<number | null>(null);
   const [aiStatus, setAiStatus] = useState<'IDLE' | 'PROCESSING' | 'COMPLETED'>('IDLE');
   const canvasContainerRef = useRef<HTMLDivElement>(null);
+
+  const handleImageLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
+    const { naturalWidth, naturalHeight } = e.currentTarget;
+    if (naturalWidth && naturalHeight) {
+      setImageAspect(naturalWidth / naturalHeight);
+    }
+  };
 
   const notifyChange = (newPts: PolygonPoint[], newLines: FloorSplitLine[], newStrokes: FreehandStroke[]) => {
     if (onChange) onChange(newPts, newLines, newStrokes);
@@ -509,6 +517,9 @@ export const FacadePolygonCanvas: React.FC<FacadePolygonCanvasProps> = ({
             activeTool === 'PAN' ? (isPanning ? 'cursor-grabbing' : 'cursor-grab') : 'cursor-crosshair'
           }`}
           style={{
+            aspectRatio: imageAspect ? `${imageAspect}` : undefined,
+            maxHeight: '100%',
+            maxWidth: '100%',
             transform: `scale(${zoom}) translate(${pan.x / zoom}px, ${pan.y / zoom}px)`,
             transformOrigin: 'center center',
             userSelect: 'none',
@@ -517,7 +528,8 @@ export const FacadePolygonCanvas: React.FC<FacadePolygonCanvasProps> = ({
           <img
             src={activeImage}
             alt="Facade view"
-            className="max-h-[calc(100vh-210px)] max-w-full object-contain pointer-events-none rounded shadow-2xl block"
+            onLoad={handleImageLoad}
+            className="w-full h-full object-contain pointer-events-none rounded shadow-2xl block select-none"
           />
 
           {/* SVG Overlay matches exact image bounding box */}

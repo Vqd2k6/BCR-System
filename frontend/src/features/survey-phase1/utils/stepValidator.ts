@@ -1,4 +1,5 @@
 import { Phase1SurveyFormData } from '../types/phase1.types';
+import { isCrackRelated } from '../../../components/canvas/defectHelpers';
 
 export interface MissingFieldItem {
   fieldId: string;
@@ -151,6 +152,25 @@ export const validateCondoUnitStep = (step: number, formData: Phase1SurveyFormDa
               isBlocking: true,
             });
           }
+
+          // Kiểm tra chi tiết từng khuyết tật D trong Vùng Z (Căn hộ)
+          z.defects?.forEach((d) => {
+            const isCrack = isCrackRelated(d.screeningCategory, d.defectType);
+            const hasBaseFields = Boolean(d.cuPhotoUrl && d.notes?.trim() && d.defectType);
+            const hasCrackFields = isCrack ? Boolean(Number(d.widthMaxMm) > 0) : true;
+
+            if (!hasBaseFields || !hasCrackFields) {
+              missing.push({
+                fieldId: 'step3-active-zone-card',
+                label: `3.1. Thông số chi tiết ${isCrack ? 'vết nứt' : 'khuyết tật bề mặt'} ${d.defectCode} (${z.zoneCode} - ${floorTitle})`,
+                step: 3,
+                description: isCrack
+                  ? `Vết nứt ${d.defectCode} chưa điền đủ các thông số bắt buộc (ảnh cận cảnh CU, kích thước bề rộng/dài, dạng nứt hoặc ghi chú).`
+                  : `Khuyết tật bề mặt ${d.defectCode} (${d.defectType || 'ẩm mốc/bong tróc'}) chưa có ảnh cận cảnh CU hoặc ghi chú mô tả (không yêu cầu đo vết nứt).`,
+                isBlocking: true,
+              });
+            }
+          });
         });
 
         if (floor.hasStructuralElements !== false) {
@@ -175,6 +195,25 @@ export const validateCondoUnitStep = (step: number, formData: Phase1SurveyFormDa
                 isBlocking: true,
               });
             }
+
+            // Kiểm tra chi tiết từng khuyết tật D trong Cấu kiện E (Căn hộ)
+            el.defects?.forEach((d) => {
+              const isCrack = isCrackRelated(d.screeningCategory, d.defectType);
+              const hasBaseFields = Boolean(d.cuPhotoUrl && d.notes?.trim() && d.defectType);
+              const hasCrackFields = isCrack ? Boolean(Number(d.widthMaxMm) > 0) : true;
+
+              if (!hasBaseFields || !hasCrackFields) {
+                missing.push({
+                  fieldId: 'step3-active-element-card',
+                  label: `3.2. Thông số chi tiết ${isCrack ? 'vết nứt kết cấu' : 'khuyết tật kết cấu'} ${d.defectCode} (${el.elementCode} - ${floorTitle})`,
+                  step: 3,
+                  description: isCrack
+                    ? `Vết nứt kết cấu ${d.defectCode} chưa điền đủ các thông số bắt buộc (ảnh cận cảnh CU, kích thước bề rộng/dài, dạng nứt kết cấu hoặc ghi chú).`
+                    : `Khuyết tật kết cấu ${d.defectCode} (${d.defectType || 'vỡ/rỉ/biến dạng'}) chưa có ảnh cận cảnh CU hoặc ghi chú mô tả (không yêu cầu đo vết nứt).`,
+                  isBlocking: true,
+                });
+              }
+            });
           });
         }
       });
@@ -632,13 +671,19 @@ export const validateStep = (step: number, formData: Phase1SurveyFormData): Step
 
           // Kiểm tra chi tiết từng khuyết tật D trong Vùng Z
           z.defects?.forEach((d) => {
-            if (!d.cuPhotoUrl || !d.notes?.trim() || !d.defectType || !Number(d.widthMaxMm)) {
+            const isCrack = isCrackRelated(d.screeningCategory, d.defectType);
+            const hasBaseFields = Boolean(d.cuPhotoUrl && d.notes?.trim() && d.defectType);
+            const hasCrackFields = isCrack ? Boolean(Number(d.widthMaxMm) > 0) : true;
+
+            if (!hasBaseFields || !hasCrackFields) {
               missing.push({
                 fieldId: 'step3-active-zone-card',
-                label: `3.1. Thông số chi tiết vết nứt ${d.defectCode} (${z.zoneCode} - ${floorTitle})`,
+                label: `3.1. Thông số chi tiết ${isCrack ? 'vết nứt' : 'khuyết tật bề mặt'} ${d.defectCode} (${z.zoneCode} - ${floorTitle})`,
                 step: 3,
                 floorIndex: fIdx,
-                description: `Khuyết tật ${d.defectCode} chưa điền đủ các thông số bắt buộc (ảnh cận cảnh CU, kích thước bề rộng/dài, dạng nứt hoặc ghi chú).`,
+                description: isCrack
+                  ? `Vết nứt ${d.defectCode} chưa điền đủ các thông số bắt buộc (ảnh cận cảnh CU, kích thước bề rộng/dài, dạng nứt hoặc ghi chú).`
+                  : `Khuyết tật bề mặt ${d.defectCode} (${d.defectType || 'ẩm mốc/bong tróc'}) chưa có ảnh cận cảnh CU hoặc ghi chú mô tả (không yêu cầu đo vết nứt).`,
                 isBlocking: true,
               });
             }
@@ -675,13 +720,19 @@ export const validateStep = (step: number, formData: Phase1SurveyFormData): Step
 
             // Kiểm tra chi tiết từng khuyết tật D trong Cấu kiện E
             el.defects?.forEach((d) => {
-              if (!d.cuPhotoUrl || !d.notes?.trim() || !d.defectType || !Number(d.widthMaxMm)) {
+              const isCrack = isCrackRelated(d.screeningCategory, d.defectType);
+              const hasBaseFields = Boolean(d.cuPhotoUrl && d.notes?.trim() && d.defectType);
+              const hasCrackFields = isCrack ? Boolean(Number(d.widthMaxMm) > 0) : true;
+
+              if (!hasBaseFields || !hasCrackFields) {
                 missing.push({
                   fieldId: 'step3-active-element-card',
-                  label: `3.2. Thông số chi tiết vết nứt kết cấu ${d.defectCode} (${el.elementCode} - ${floorTitle})`,
+                  label: `3.2. Thông số chi tiết ${isCrack ? 'vết nứt kết cấu' : 'khuyết tật kết cấu'} ${d.defectCode} (${el.elementCode} - ${floorTitle})`,
                   step: 3,
                   floorIndex: fIdx,
-                  description: `Khuyết tật kết cấu ${d.defectCode} chưa điền đủ các thông số bắt buộc (ảnh cận cảnh CU, kích thước bề rộng/dài, dạng nứt kết cấu hoặc ghi chú).`,
+                  description: isCrack
+                    ? `Vết nứt kết cấu ${d.defectCode} chưa điền đủ các thông số bắt buộc (ảnh cận cảnh CU, kích thước bề rộng/dài, dạng nứt kết cấu hoặc ghi chú).`
+                    : `Khuyết tật kết cấu ${d.defectCode} (${d.defectType || 'vỡ/rỉ/biến dạng'}) chưa có ảnh cận cảnh CU hoặc ghi chú mô tả (không yêu cầu đo vết nứt).`,
                   isBlocking: true,
                 });
               }

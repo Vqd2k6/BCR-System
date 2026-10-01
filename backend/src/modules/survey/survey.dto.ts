@@ -272,16 +272,16 @@ export const CreateDefectItemDto = z.object({
   pinY: z.number().min(0).max(100),
   screeningCategory: z.string().min(1),
   defectType: z.string().min(1),
-  crackDirection: z.string().optional(),
-  widthMaxMm: z.number().nonnegative(),
-  lengthMm: z.number().nonnegative(),
-  activityState: z.enum(['U', 'S', 'A']).default('U'),
+  crackDirection: z.string().optional().nullable(),
+  widthMaxMm: z.number().nonnegative().optional().default(0),
+  lengthMm: z.number().nonnegative().optional().default(0),
+  activityState: z.enum(['U', 'S', 'A']).optional().default('U'),
   materialDegradationE4: z.number().int().min(0).max(4).default(0),
   structuralSignificanceE2: z.number().int().min(0).max(4).default(0),
   hasScaleCard: z.boolean().default(true),
   isStructuralCritical: z.boolean().default(false),
   cuPhotoUrl: z.string().min(1, 'Ảnh cận cảnh Photo CU bắt buộc phải có'),
-  cuPhotoCode: z.string().optional(),
+  cuPhotoCode: z.string().optional().nullable(),
 });
 
 export const DeformationDto = z.object({

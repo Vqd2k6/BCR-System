@@ -100,31 +100,12 @@ export const CheckInForm: React.FC<CheckInFormProps> = ({
           }}
         >
           <div>
-            Tọa độ thực: <strong>{gpsCoordinates ? `${gpsCoordinates.lat.toFixed(5)}, ${gpsCoordinates.lng.toFixed(5)}` : 'Đang dò...'}</strong>
+            Tọa độ thực tế: <strong>{gpsCoordinates ? `${gpsCoordinates.lat.toFixed(6)}, ${gpsCoordinates.lng.toFixed(6)} (±${gpsCoordinates.accuracy}m)` : (gpsLoading ? '📡 Đang quét vệ tinh...' : 'Chưa có tọa độ')}</strong>
           </div>
           <div>
-            Trọng tâm {targetZone.zoneName}: <strong>{targetZone.lat.toFixed(5)}, {targetZone.lng.toFixed(5)}</strong>
+            Trọng tâm {targetZone.zoneName}: <strong>{targetZone.lat.toFixed(6)}, {targetZone.lng.toFixed(6)}</strong>
           </div>
         </div>
-
-        {isSimulatedGps && (
-          <div
-            style={{
-              backgroundColor: '#eff6ff',
-              border: '1px solid #bfdbfe',
-              borderRadius: '0.5rem',
-              padding: '0.45rem 0.75rem',
-              fontSize: '0.75rem',
-              color: '#1e40af',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.4rem',
-            }}
-          >
-            <MapPin size={13} color="#2563eb" style={{ flexShrink: 0 }} />
-            <span>📍 Tọa độ mô phỏng thực địa tại <strong>{targetZone.zoneName}</strong> (~{distanceMeters}m).</span>
-          </div>
-        )}
 
         {/* Warning callout */}
         {isOutOfBounds && (

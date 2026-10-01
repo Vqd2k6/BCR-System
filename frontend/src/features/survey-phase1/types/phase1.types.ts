@@ -195,6 +195,11 @@ export interface Phase1SurveyFormData {
   vacantLandNotes?: string; // Ghi chú đất trống
   vacantLandPhotos?: string[]; // Ảnh chụp hiện trạng đất trống (nhiều ảnh)
 
+  // Khảo sát lại sau khi chủ nhà từng vắng mặt
+  resumedFromAbsentee?: boolean;
+  resumedAt?: string;
+  previousAbsenceLogs?: any[];
+
   // Thông tin mở rộng cho Tòa nhà Chung cư / Cao tầng
   unitsPerFloor?: number | ''; // Số căn mỗi tầng
   totalUnitsCount?: number | ''; // Tổng số căn hộ ước tính
@@ -304,6 +309,8 @@ export interface Phase1SurveyFormData {
       splitChildren?: any[];
       splitShapeOption?: 'DRAG_HANDLES' | 'CLICK_TO_DRAW';
       splitCustomPointsA?: [number, number][];
+      splitCustomPointsB?: [number, number][];
+      residualKind?: 'NON_BUILDING' | 'NEW_BUILDING';
       mergeReason?: string;
       mergeCustomReason?: string;
       mergeTargetCode?: string;

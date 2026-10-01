@@ -7,7 +7,7 @@ import { PhotoCaptureInput } from '../../../../components/common/PhotoCaptureInp
 import { FloorCadPinningCanvas, CadZonePin } from '../../../../components/canvas/FloorCadPinningCanvas';
 import { FloorSurveyData, DamageZoneData } from '../../types/phase1.types';
 import { COMMON_ROOM_NAMES, ARCH_COMPONENT_TYPES, WALL_MATERIALS } from './step3.constants';
-import { Building, Camera, Trash2, MapPin, AlertCircle, Plus } from 'lucide-react';
+import { Building, Camera, Trash2, MapPin, AlertCircle, Plus, Sparkles } from 'lucide-react';
 
 interface DamageZonesSectionProps {
   currentFloor: FloorSurveyData;
@@ -264,6 +264,47 @@ export const DamageZonesSection: React.FC<DamageZonesSectionProps> = ({
                 )}
               </div>
             </div>
+
+            {/* Nút tối ưu: Áp dụng vật liệu cho toàn tầng */}
+            {(currentFloor.zones?.length || 0) > 1 && (
+              <div className="flex items-center justify-between p-2 bg-emerald-50/70 border border-emerald-200/80 rounded-xl text-xs">
+                <span className="text-emerald-800 text-[11px] font-medium">
+                  Tiết kiệm thời gian: Áp dụng cấu kiện và vật liệu của <strong>{activeZone.zoneCode}</strong> cho {currentFloor.zones.length - 1} Vùng Z còn lại trên {currentFloor.floorName}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!activeZone.componentType && !activeZone.wallMaterial) {
+                      alert('Vui lòng chọn Cấu kiện hoặc Vật liệu trước khi áp dụng cho toàn tầng!');
+                      return;
+                    }
+                    const count = currentFloor.zones?.length || 0;
+                    if (
+                      !confirm(
+                        `Bạn có chắc chắn muốn áp dụng cấu kiện "${activeZone.componentType || 'hiện tại'}" và vật liệu "${activeZone.wallMaterial || 'hiện tại'}" cho toàn bộ ${count} Vùng Z của ${currentFloor.floorName}?`
+                      )
+                    ) {
+                      return;
+                    }
+                    currentFloor.zones.forEach((_, idx) => {
+                      if (idx !== activeZoneIndex) {
+                        onUpdateZone(idx, {
+                          componentType: activeZone.componentType || undefined,
+                          customComponentType: activeZone.customComponentType || undefined,
+                          wallMaterial: activeZone.wallMaterial || undefined,
+                          customWallMaterial: activeZone.customWallMaterial || undefined,
+                        });
+                      }
+                    });
+                  }}
+                  className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-xs flex items-center gap-1 transition-all shadow-xs shrink-0 cursor-pointer"
+                  title="Đồng bộ cấu kiện và vật liệu cho tất cả Vùng Z trong tầng"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Áp dụng toàn tầng</span>
+                </button>
+              </div>
+            )}
 
             {/* Chụp nhiều ảnh tổng quan Vùng Z */}
             <div className="p-2.5 sm:p-3 bg-white rounded-xl border border-slate-200/70 space-y-2.5 shadow-2xs">

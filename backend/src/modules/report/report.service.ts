@@ -1,5 +1,5 @@
 import { SurveyRepository } from '../survey/survey.repository';
-import { NotFoundError } from '../../common/errors/problem-details';
+import { NotFoundError, ForbiddenError } from '../../common/errors/problem-details';
 import { ResidentialReportGenerator } from './generators/residential.generator';
 import { PdfRenderEngine } from './engine/pdf-render.engine';
 import { DocxRenderEngine } from './engine/docx-render.engine';
@@ -122,6 +122,12 @@ export class ReportService {
     }
     if (!rawReport) {
       throw new NotFoundError(`Không tìm thấy hồ sơ khảo sát với ID: ${reportId}`);
+    }
+
+    if (rawReport.status === 'APPROVED') {
+      throw new ForbiddenError(
+        'Hồ sơ khảo sát này đã được Zone Admin phê duyệt chính thức và bị khóa bất biến, không thể chỉnh sửa dữ liệu.'
+      );
     }
 
     const realReportId = rawReport.id;

@@ -268,6 +268,51 @@ export class CadastralController {
       next(error);
     }
   }
+
+  static async resumeSurvey(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      const surveyorId = req.user!.userId;
+      const result = await CadastralService.resumeSurveyAfterAbsence(id, surveyorId);
+      res.status(200).json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async getMyAssignedParcels(req: Request, res: Response, next: NextFunction) {
+    try {
+      const surveyorId = req.user!.userId;
+      const lat = req.query.lat ? parseFloat(req.query.lat as string) : undefined;
+      const lng = req.query.lng ? parseFloat(req.query.lng as string) : undefined;
+      const result = await CadastralService.getMyAssignedParcels(surveyorId, lat, lng);
+      res.status(200).json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async assignSurveyor(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { parcelIds, surveyorId, notes } = req.body;
+      if (!Array.isArray(parcelIds) || parcelIds.length === 0 || !surveyorId) {
+        throw new BadRequestError('Danh sách parcelIds và surveyorId là bắt buộc');
+      }
+      const result = await CadastralService.assignSurveyor(parcelIds, surveyorId, notes);
+      res.status(200).json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 

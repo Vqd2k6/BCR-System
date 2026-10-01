@@ -305,12 +305,9 @@ export const App: React.FC = () => {
     );
   }
 
-  // If not logged in, render the login page or public citizen portal
+  // If not logged in, render the login page (Hệ thống nội bộ dự án Metro 2)
   if (!isAuthenticated || !user) {
-    if (showPublicPortal) {
-      return <PublicCitizenPortalPage onBackToLogin={() => setShowPublicPortal(false)} />;
-    }
-    return <LoginView onNavigatePublicPortal={() => setShowPublicPortal(true)} />;
+    return <LoginView />;
   }
 
   // If contractor or guest, render Contractor / Citizen Portal directly
@@ -385,6 +382,40 @@ export const App: React.FC = () => {
     }
   };
 
+  const handleResumeSurveyPresent = async (parcel: GisParcel) => {
+    try {
+      // 1. Gọi API mở lại hồ sơ khảo sát
+      await api.post(`/parcels/${parcel.id}/resume-survey`);
+
+      // 2. Xóa các override trạng thái cục bộ nếu có
+      try {
+        const overridesStr = localStorage.getItem('metro2_parcel_status_overrides');
+        if (overridesStr) {
+          const overrides = JSON.parse(overridesStr);
+          if (overrides[parcel.id]) {
+            delete overrides[parcel.id];
+            localStorage.setItem('metro2_parcel_status_overrides', JSON.stringify(overrides));
+          }
+        }
+      } catch (_e) {}
+
+      // 3. Cập nhật state thửa đất trong parcels list sang IN_PROGRESS
+      setParcels((prev) =>
+        prev.map((p) =>
+          p.id === parcel.id
+            ? { ...p, surveyStatus: 'IN_PROGRESS' }
+            : p
+        )
+      );
+
+      // 4. Kích hoạt wizard khảo sát Phase 1 ở chế độ chỉnh sửa
+      handleStartPhase1({ ...parcel, surveyStatus: 'IN_PROGRESS' }, false);
+    } catch (err: any) {
+      console.error('[App] Failed to resume survey:', err);
+      handleStartPhase1(parcel, false);
+    }
+  };
+
   const handleCheckInSuccess = (details: { time: string; distance: number; status: string }) => {
     setIsCheckedInToday(true);
     setCheckInDetails(details);
@@ -441,6 +472,7 @@ export const App: React.FC = () => {
             onStartUnitSurvey={handleStartUnitSurvey}
             onStartPhase2={handleStartPhase2}
             onRecordAbsence={handleRecordAbsence}
+            onResumeSurveyPresent={handleResumeSurveyPresent}
             onRefresh={loadParcels}
           />
         )}

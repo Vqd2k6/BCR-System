@@ -273,16 +273,18 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
       if (!current) return prev;
       const prevZones = current.zones || [];
       const prevZone = prevZones[prevZones.length - 1];
+      const lastFilledZone = [...prevZones].reverse().find((z) => z.componentType || z.wallMaterial);
+
       const newZone: DamageZoneData = {
         id: `zone_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
         zoneCode: pin.zoneCode,
         floorName: current.floorName,
-        roomName: prevZone?.roomName || '',
+        roomName: prevZone?.roomName || 'Phòng khách',
         customRoomName: prevZone?.customRoomName || '',
-        componentType: prevZone?.componentType || '',
-        customComponentType: prevZone?.customComponentType || '',
-        wallMaterial: prevZone?.wallMaterial || '',
-        customWallMaterial: prevZone?.customWallMaterial || '',
+        componentType: lastFilledZone?.componentType || prevZone?.componentType || 'Tường gạch ngăn phòng',
+        customComponentType: lastFilledZone?.customComponentType || prevZone?.customComponentType || '',
+        wallMaterial: lastFilledZone?.wallMaterial || prevZone?.wallMaterial || 'Vữa trát sơn nước',
+        customWallMaterial: lastFilledZone?.customWallMaterial || prevZone?.customWallMaterial || '',
         overviewPhotos: [],
         ctxPhotoUrl: '',
         hasDamage: false,
@@ -315,16 +317,18 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
       if (!current) return prev;
       const prevEls = current.structuralElements || [];
       const prevEl = prevEls[prevEls.length - 1];
+      const lastFilledEl = [...prevEls].reverse().find((e) => e.elementType || e.materialType);
+
       const newElement: StructuralElementData = {
         id: `el_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
         elementCode: pin.zoneCode,
         floorName: current.floorName,
         roomName: prevEl ? prevEl.roomName : 'Phòng khách',
         customRoomName: prevEl?.customRoomName || '',
-        elementType: prevEl ? prevEl.elementType : 'Cột BTCT',
-        customElementType: prevEl?.customElementType || '',
-        materialType: prevEl ? prevEl.materialType : 'Bê tông cốt thép (BTCT) đổ toàn khối',
-        customMaterialType: prevEl?.customMaterialType || '',
+        elementType: lastFilledEl?.elementType || prevEl?.elementType || 'Cột BTCT',
+        customElementType: lastFilledEl?.customElementType || prevEl?.customElementType || '',
+        materialType: lastFilledEl?.materialType || prevEl?.materialType || 'Bê tông cốt thép (BTCT) đổ toàn khối',
+        customMaterialType: lastFilledEl?.customMaterialType || prevEl?.customMaterialType || '',
         overviewPhotos: [],
         ctxPhotoUrl: '',
         hasDamage: false,

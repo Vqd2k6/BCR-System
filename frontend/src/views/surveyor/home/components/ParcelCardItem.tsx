@@ -12,6 +12,7 @@ import {
   HardHat,
   Eye,
   XCircle,
+  UserCheck,
 } from 'lucide-react';
 
 interface ParcelCardItemProps {
@@ -23,6 +24,7 @@ interface ParcelCardItemProps {
   onOpenDirections: (parcel: GisParcel) => void;
   onAdminApprove: (parcel: GisParcel) => void;
   onAdminReject: (parcel: GisParcel) => void;
+  onResumeSurveyPresent?: (parcel: GisParcel) => void;
 }
 
 export const ParcelCardItem: React.FC<ParcelCardItemProps> = ({
@@ -34,6 +36,7 @@ export const ParcelCardItem: React.FC<ParcelCardItemProps> = ({
   onOpenDirections,
   onAdminApprove,
   onAdminReject,
+  onResumeSurveyPresent,
 }) => {
   const status = getStatus(p);
   const buildingType = getBuildingType(p);
@@ -262,6 +265,50 @@ export const ParcelCardItem: React.FC<ParcelCardItemProps> = ({
                 Chờ Zone Admin duyệt
               </span>
             )}
+          </div>
+        ) : isAbsent ? (
+          <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', alignItems: 'center' }}>
+            <button
+              type="button"
+              onClick={() => (onResumeSurveyPresent ? onResumeSurveyPresent(p) : onStartPhase1(p))}
+              className="btn btn-sm"
+              style={{
+                fontSize: '0.775rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.35rem',
+                backgroundColor: '#059669',
+                color: '#ffffff',
+                border: '1px solid #047857',
+                fontWeight: 700,
+                cursor: 'pointer',
+                boxShadow: '0 2px 4px rgba(5, 150, 105, 0.25)',
+              }}
+              title="Chủ nhà đã có mặt, mở lại khảo sát và tiếp tục các bước trong nhà"
+            >
+              <UserCheck size={14} />
+              Khảo sát (Chủ nhà có mặt)
+            </button>
+            <button
+              type="button"
+              onClick={() => onStartPhase1(p, true)}
+              className="btn btn-sm"
+              style={{
+                fontSize: '0.775rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.35rem',
+                backgroundColor: '#f3e8ff',
+                color: '#7e22ce',
+                border: '1px solid #d8b4fe',
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+              title="Xem lại biên bản và ảnh báo vắng đã ghi nhận"
+            >
+              <Eye size={14} color="#7e22ce" />
+              Xem biên bản vắng
+            </button>
           </div>
         ) : isUnderConstruction ? (
           <button

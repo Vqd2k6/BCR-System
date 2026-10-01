@@ -132,8 +132,9 @@ async function runTest() {
       mutation_type: string;
       mutation_event_id: string;
       land_area_m2: number;
+      construction_area_m2: number;
       survey_status: string;
-    }>('SELECT project_parcel_code, mutation_type, mutation_event_id, land_area_m2, survey_status FROM parcels WHERE id = $1', [parcel1.id]);
+    }>('SELECT project_parcel_code, mutation_type, mutation_event_id, land_area_m2, construction_area_m2, survey_status FROM parcels WHERE id = $1', [parcel1.id]);
 
     const p1Row = updatedP1.rows[0];
     if (p1Row.project_parcel_code !== parcel1.project_parcel_code) {
@@ -141,12 +142,21 @@ async function runTest() {
     }
     console.log(`✅ [Xác nhận 1.2]: Căn A giữ nguyên 100% mã gốc [${p1Row.project_parcel_code}].`);
 
-    if (p1Row.mutation_type !== 'SPLIT' || !p1Row.mutation_event_id) {
-      throw new Error(`Test 1 Thất bại: mutation_type không phải SPLIT hoặc thiếu mutation_event_id.`);
+    if (p1Row.mutation_type !== 'REDRAW' || !p1Row.mutation_event_id) {
+      throw new Error(`Test 1 Thất bại: mutation_type không phải REDRAW hoặc thiếu mutation_event_id. Thực tế: ${p1Row.mutation_type}`);
     }
     mutationEventId1 = p1Row.mutation_event_id;
-    console.log(`✅ [Xác nhận 1.3]: Thửa Căn A ghi nhận mutation_type='SPLIT' và mutation_event_id='${mutationEventId1}'.`);
-    console.log(`✅ [Xác nhận 1.4]: Diện tích Căn A thu nhỏ thành ${p1Row.land_area_m2}m² (đúng diện tích Căn A).`);
+    console.log(`✅ [Xác nhận 1.3]: Thửa Căn A ghi nhận mutation_type='REDRAW' và mutation_event_id='${mutationEventId1}'.`);
+    
+    if (Number(p1Row.land_area_m2) !== Number(parcel1.land_area_m2)) {
+      throw new Error(`Test 1 Thất bại: land_area_m2 bị thay đổi! Cũ=${parcel1.land_area_m2}, Mới=${p1Row.land_area_m2}`);
+    }
+    console.log(`✅ [Xác nhận 1.4]: Diện tích thửa đất gốc Căn A bảo toàn 100% (${p1Row.land_area_m2}m²), không bị cắt xén ranh pháp lý.`);
+
+    if (Number(p1Row.construction_area_m2) !== 60) {
+      throw new Error(`Test 1 Thất bại: construction_area_m2 không đúng diện tích khoanh nhà! Cần=60, Thực tế=${p1Row.construction_area_m2}`);
+    }
+    console.log(`✅ [Xác nhận 1.5]: Diện tích xây dựng chân đế công trình cập nhật chính xác thành ${p1Row.construction_area_m2}m².`);
 
     // Kiểm tra sự kiện trong parcel_mutation_events
     const mutEvent1 = await Database.query<{
@@ -154,12 +164,13 @@ async function runTest() {
       source_parcel_ids: string[];
       result_parcel_ids: string[];
       status: string;
-    }>('SELECT mutation_code, source_parcel_ids, result_parcel_ids, status FROM parcel_mutation_events WHERE id = $1', [mutationEventId1]);
+      mutation_type: string;
+    }>('SELECT mutation_code, source_parcel_ids, result_parcel_ids, status, mutation_type FROM parcel_mutation_events WHERE id = $1', [mutationEventId1]);
 
-    if (!mutEvent1.rows[0] || mutEvent1.rows[0].result_parcel_ids.length !== 1) {
-      throw new Error(`Test 1 Thất bại: result_parcel_ids trong sự kiện biến động không hợp lệ: ${JSON.stringify(mutEvent1.rows[0])}`);
+    if (!mutEvent1.rows[0] || mutEvent1.rows[0].result_parcel_ids.length !== 1 || mutEvent1.rows[0].mutation_type !== 'REDRAW') {
+      throw new Error(`Test 1 Thất bại: sự kiện biến động không hợp lệ: ${JSON.stringify(mutEvent1.rows[0])}`);
     }
-    console.log(`✅ [Xác nhận 1.5]: Sự kiện biến động [${mutEvent1.rows[0].mutation_code}] lưu vết chuẩn xác: source=[${mutEvent1.rows[0].source_parcel_ids}] == result=[${mutEvent1.rows[0].result_parcel_ids}].`);
+    console.log(`✅ [Xác nhận 1.6]: Sự kiện biến động [${mutEvent1.rows[0].mutation_code}] (Loại: ${mutEvent1.rows[0].mutation_type}) lưu vết chuẩn xác: source=[${mutEvent1.rows[0].source_parcel_ids}] == result=[${mutEvent1.rows[0].result_parcel_ids}].`);
     console.log('>>> TEST CASE 1 HOÀN TẤT THÀNH CÔNG 100% <<<\n');
 
 

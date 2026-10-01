@@ -86,6 +86,7 @@ export class CadastralService {
       rescheduleDate: data.rescheduleDate,
       ownerName: data.ownerName,
       ownerPhone: data.ownerPhone,
+      surveyData: data.surveyData,
     });
 
     return {
@@ -94,6 +95,120 @@ export class CadastralService {
       surveyStatus: 'POSTPONED_ABSENT',
       absenceAttemptCount: parcel.absence_attempt_count + 1,
       message: 'Đã ghi nhận vắng nhà thành công, thửa đất đổi sang màu Tím trên bản đồ',
+    };
+  }
+
+  /**
+   * Khảo sát lại căn nhà từng vắng mặt khi chủ nhà đã có mặt (Bảo lưu toàn bộ lịch sử vắng mặt trước đó)
+   */
+  static async resumeSurveyAfterAbsence(parcelId: string, surveyorId: string) {
+    const parcel = await CadastralRepository.findById(parcelId);
+    if (!parcel) {
+      throw new NotFoundError(`Không tìm thấy thửa đất với ID: ${parcelId}`);
+    }
+
+    if (parcel.survey_status === 'APPROVED' || parcel.survey_status === 'SUBMITTED') {
+      throw new BadRequestError(`Thửa đất [${parcel.project_parcel_code}] đã được nộp hoặc phê duyệt chính thức, không thể khảo sát lại.`);
+    }
+
+    const previousAbsenceLogs = await CadastralRepository.getAbsenceLogsForParcel(parcelId);
+
+    return Database.transaction(async (client) => {
+      // 1. Chuyển trạng thái thửa đất sang IN_PROGRESS
+      await client.query(
+        `UPDATE parcels SET survey_status = 'IN_PROGRESS', updated_at = NOW() WHERE id = $1;`,
+        [parcelId]
+      );
+
+      // 2. Tìm hoặc nạp báo cáo gần nhất
+      const repRes = await client.query<{ id: string; survey_data_json: any }>(
+        `SELECT id, survey_data_json FROM base_survey_reports 
+         WHERE parcel_id = $1 
+         ORDER BY created_at DESC LIMIT 1 FOR UPDATE;`,
+        [parcelId]
+      );
+
+      let reportId: string;
+      if (repRes.rows[0]) {
+        reportId = repRes.rows[0].id;
+        const currentJson = repRes.rows[0].survey_data_json || {};
+        const updatedJson = {
+          ...currentJson,
+          resumedFromAbsentee: true,
+          resumedAt: new Date().toISOString(),
+          previousAbsenceLogs: previousAbsenceLogs,
+          surveyCaseType: currentJson.surveyCaseType === 'ABSENTEE' ? 'NORMAL' : (currentJson.surveyCaseType || 'NORMAL'),
+          isAbsenteeSurvey: false,
+        };
+
+        await client.query(
+          `UPDATE base_survey_reports 
+           SET status = 'DRAFT', 
+               surveyor_id = $2,
+               is_refused_or_absent = FALSE, 
+               current_step = 1,
+               survey_data_json = $3,
+               updated_at = NOW() 
+           WHERE id = $1;`,
+          [reportId, surveyorId, JSON.stringify(updatedJson)]
+        );
+      } else {
+        const reportCode = `REPORT-${parcel.project_parcel_code}-PHASE_1-${Date.now()}`;
+        const newRep = await client.query<{ id: string }>(
+          `INSERT INTO base_survey_reports (
+             parcel_id, surveyor_id, report_code, phase, status, current_step,
+             is_refused_or_absent, survey_data_json
+           ) VALUES ($1, $2, $3, 'PHASE_1', 'DRAFT', 1, FALSE, $4)
+           RETURNING id;`,
+          [
+            parcelId,
+            surveyorId,
+            reportCode,
+            JSON.stringify({
+              resumedFromAbsentee: true,
+              resumedAt: new Date().toISOString(),
+              previousAbsenceLogs: previousAbsenceLogs,
+              surveyCaseType: 'NORMAL',
+              isAbsenteeSurvey: false,
+            }),
+          ]
+        );
+        reportId = newRep.rows[0].id;
+
+        await client.query(
+          `INSERT INTO phase1_report_details (report_id, is_historical_baseline) VALUES ($1, TRUE);`,
+          [reportId]
+        );
+      }
+
+      // Cập nhật active_phase1_report_id để liên kết chặt chẽ thửa đất với báo cáo đang tiếp tục
+      await client.query(
+        `UPDATE parcels SET active_phase1_report_id = $2 WHERE id = $1;`,
+        [parcelId, reportId]
+      );
+
+      return {
+        parcelId,
+        projectParcelCode: parcel.project_parcel_code,
+        surveyStatus: 'IN_PROGRESS',
+        activeReportId: reportId,
+        previousAbsenceCount: previousAbsenceLogs.length,
+        previousAbsenceLogs,
+        message: 'Đã mở lại hồ sơ khảo sát thành công do chủ nhà có mặt (Đã bảo lưu lịch sử vắng mặt).',
+      };
+    });
+  }
+
+  static async getMyAssignedParcels(surveyorId: string, lat?: number, lng?: number) {
+    return CadastralRepository.getMyAssignedParcels(surveyorId, lat, lng);
+  }
+
+  static async assignSurveyor(parcelIds: string[], surveyorId: string, notes?: string) {
+    const updatedCount = await CadastralRepository.assignSurveyorToParcels(parcelIds, surveyorId, notes);
+    return {
+      success: true,
+      updatedCount,
+      message: `Đã phân công ${updatedCount} thửa đất cho nhân sự thành công.`,
     };
   }
 

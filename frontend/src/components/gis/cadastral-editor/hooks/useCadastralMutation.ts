@@ -398,25 +398,95 @@ export const useCadastralMutation = ({
     return Math.max(0.1, Math.round((totalLandArea - calculatedAreaA) * 10) / 10);
   }, [totalLandArea, calculatedAreaA]);
 
+  const computePolygonB = useCallback(
+    (ptsA: [number, number][]): [number, number][] => {
+      if (realActiveCoords.length < 3) return realActiveCoords;
+      if (ptsA.length >= 4) {
+        const p0 = realActiveCoords[0];
+        const p1 = realActiveCoords[1];
+        const p2 = realActiveCoords[2];
+        const p3 = realActiveCoords[3] || realActiveCoords[2];
+        const cutR = ptsA[2] || interpolatePoint(p1, p2, 0.6);
+        const cutL = ptsA[3] || interpolatePoint(p0, p3, 0.6);
+        return [cutL, cutR, p2, p3];
+      }
+      return realActiveCoords;
+    },
+    [realActiveCoords]
+  );
+
+  const updateVerticesAndSync = useCallback(
+    (updatedA: [number, number][]) => {
+      setPolyAVertices(updatedA);
+      const polyB = computePolygonB(updatedA);
+      const rawAreaA = computePolygonAreaM2(updatedA);
+      const validAreaA =
+        rawAreaA > 0 && rawAreaA < totalLandArea
+          ? rawAreaA
+          : Math.round(totalLandArea * 0.6 * 10) / 10;
+      const validAreaB = Math.max(0.1, Math.round((totalLandArea - validAreaA) * 10) / 10);
+      const isNewB = mutationData.residualKind === 'NEW_BUILDING';
+
+      const currentChildren = mutationData.splitChildren || [];
+      const child0 = currentChildren[0] || {};
+      const child1 = currentChildren[1] || {};
+
+      const updatedChildren: SplitChildData[] = [
+        {
+          ...child0,
+          label: `Căn A (Đang KS - ${parcelData.projectParcelCode})`,
+          houseNumber: parcelData.houseNumber,
+          ownerName: parcelData.ownerName || '',
+          suggestedCode: parcelData.projectParcelCode,
+          areaM2: validAreaA,
+          coordinates: updatedA,
+          functionalType: child0.functionalType || 'Nhà ở gia đình (Nhà phố / Biệt thự / Căn hộ)',
+          isResidualSurplus: false,
+        },
+        {
+          ...child1,
+          label: isNewB ? 'Căn B (Nhà mới độc lập)' : 'Phần diện tích dôi dư (Đất thừa / Sân vườn)',
+          houseNumber: child1.houseNumber || `${parcelData.houseNumber}B`,
+          ownerName: child1.ownerName || (isNewB ? 'Chủ hộ Căn B' : 'Chủ sở hữu phần đất dôi dư'),
+          suggestedCode: isNewB
+            ? (dynamicCodes[0] || child1.suggestedCode || `${parcelData.projectParcelCode}-B`)
+            : `${parcelData.projectParcelCode}-DU`,
+          areaM2: validAreaB,
+          coordinates: polyB,
+          functionalType:
+            child1.functionalType ||
+            (isNewB ? 'Nhà ở gia đình (Nhà phố / Biệt thự / Căn hộ)' : 'RESIDUAL_SURPLUS'),
+          residualKind: (isNewB ? 'NEW_BUILDING' : 'NON_BUILDING') as 'NEW_BUILDING' | 'NON_BUILDING',
+          isResidualSurplus: !isNewB,
+          residualParentParcelCode: parcelData.projectParcelCode,
+          residualParentCadastralCode: parcelData.officialCadastralCode,
+          residualParentAddress: `Số ${parcelData.houseNumber} ${parcelData.street}`,
+          residualMetadataNote: isNewB
+            ? `Nhà mới tách từ ${parcelData.projectParcelCode}`
+            : `Đất thừa tách từ ${parcelData.projectParcelCode}`,
+        },
+      ];
+
+      onMutationDataChange({
+        ...mutationData,
+        splitCustomPointsA: updatedA,
+        splitCustomPointsB: polyB,
+        splitChildren: updatedChildren,
+        isSubmitted: false,
+      });
+    },
+    [computePolygonB, totalLandArea, mutationData, parcelData, dynamicCodes, onMutationDataChange]
+  );
+
   const handleVertexDrag = (index: number, newLatLng: L.LatLng) => {
     const updated = [...polyAVertices];
     updated[index] = [newLatLng.lat, newLatLng.lng];
-    setPolyAVertices(updated);
-    onMutationDataChange({
-      ...mutationData,
-      splitCustomPointsA: updated,
-      isSubmitted: false,
-    });
+    updateVerticesAndSync(updated);
   };
 
   const handleMapClickDraw = (point: [number, number]) => {
     const updated = [...polyAVertices, point];
-    setPolyAVertices(updated);
-    onMutationDataChange({
-      ...mutationData,
-      splitCustomPointsA: updated,
-      isSubmitted: false,
-    });
+    updateVerticesAndSync(updated);
   };
 
   const handleAddMidpoint = () => {
@@ -425,43 +495,23 @@ export const useCadastralMutation = ({
     const p2 = polyAVertices[0];
     const mid = interpolatePoint(p1, p2, 0.5);
     const updated = [...polyAVertices, mid];
-    setPolyAVertices(updated);
-    onMutationDataChange({
-      ...mutationData,
-      splitCustomPointsA: updated,
-      isSubmitted: false,
-    });
+    updateVerticesAndSync(updated);
   };
 
   const handleRemovePoint = () => {
     if (polyAVertices.length === 0) return;
     const updated = polyAVertices.slice(0, -1);
-    setPolyAVertices(updated);
-    onMutationDataChange({
-      ...mutationData,
-      splitCustomPointsA: updated,
-      isSubmitted: false,
-    });
+    updateVerticesAndSync(updated);
   };
 
   const handleResetDefault = () => {
     const def = getDefaultPolygonA();
-    setPolyAVertices(def);
-    onMutationDataChange({
-      ...mutationData,
-      splitCustomPointsA: def,
-      isSubmitted: false,
-    });
+    updateVerticesAndSync(def);
   };
 
   const handleApplyLShape = () => {
     const lShape = getLShapePolygon();
-    setPolyAVertices(lShape);
-    onMutationDataChange({
-      ...mutationData,
-      splitCustomPointsA: lShape,
-      isSubmitted: false,
-    });
+    updateVerticesAndSync(lShape);
   };
 
   const selectedMergeCodes: string[] = useMemo(() => {
@@ -579,18 +629,8 @@ export const useCadastralMutation = ({
   };
 
   const getPolygonB = useCallback((): [number, number][] => {
-    if (realActiveCoords.length < 3) return realActiveCoords;
-    if (polyAVertices.length >= 4) {
-      const p0 = realActiveCoords[0];
-      const p1 = realActiveCoords[1];
-      const p2 = realActiveCoords[2];
-      const p3 = realActiveCoords[3] || realActiveCoords[2];
-      const cutR = polyAVertices[2] || interpolatePoint(p1, p2, 0.6);
-      const cutL = polyAVertices[3] || interpolatePoint(p0, p3, 0.6);
-      return [cutL, cutR, p2, p3];
-    }
-    return realActiveCoords;
-  }, [realActiveCoords, polyAVertices]);
+    return computePolygonB(polyAVertices);
+  }, [computePolygonB, polyAVertices]);
 
   const handleSaveMutationProposal = () => {
     if (boundaryStatus === 'SPLIT' && !mutationData.splitReason?.trim()) {

@@ -12,6 +12,7 @@ import { Step1CaseSelector } from './step1/Step1CaseSelector';
 import { Step1PolygonModal } from './step1/Step1PolygonModal';
 import { Step1BottomNav } from './step1/Step1BottomNav';
 import { Step1SuccessModals } from './step1/Step1SuccessModals';
+import { UserCheck } from 'lucide-react';
 
 interface Step1BuildingIdentificationProps {
   isCondoMaster?: boolean;
@@ -180,6 +181,7 @@ export const Step1_BuildingIdentification: React.FC<Step1BuildingIdentificationP
           photoProofUrl: formData.absenteeMinutesPhotos?.[0] || formData.photoP01?.url || '',
           ownerName: formData.ownerName || null,
           ownerPhone: formData.ownerPhone || null,
+          surveyData: formData,
         });
       } catch (apiErr) {
         console.error('[Phase1] API record-absence failed:', apiErr);
@@ -361,6 +363,29 @@ export const Step1_BuildingIdentification: React.FC<Step1BuildingIdentificationP
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto pb-12">
+      {/* Thông báo tiếp tục khảo sát khi chủ nhà đã có mặt */}
+      {Boolean(formData.resumedFromAbsentee) && (
+        <div className="p-4 bg-emerald-50 border-2 border-emerald-500 rounded-xl flex items-start gap-3 shadow-xs">
+          <UserCheck className="w-5 h-5 text-emerald-700 shrink-0 mt-0.5" />
+          <div className="text-sm">
+            <div className="font-bold text-emerald-950 flex items-center gap-2">
+              <span>Khảo sát tiếp tục — Chủ nhà đã có mặt</span>
+              <span className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-200 text-emerald-800 font-semibold">
+                Sử dụng bình thường
+              </span>
+            </div>
+            <p className="text-emerald-800 text-xs mt-1 leading-relaxed">
+              Toàn bộ dữ liệu định danh và ảnh ngoại thất P01–P04 đã được bảo lưu nguyên vẹn. Vui lòng rà soát lại thông tin Bước 1 và bấm <strong>"Tiếp tục: Bước 2 (Phỏng vấn chủ hộ) ➔"</strong> ở cuối trang để vào trong nhà khảo sát các tầng và cấu kiện.
+            </p>
+            {formData.previousAbsenceLogs && formData.previousAbsenceLogs.length > 0 && (
+              <div className="mt-2 text-[11px] text-emerald-900 bg-white/80 p-2 rounded-lg border border-emerald-300">
+                <strong>Lịch sử tiếp xúc:</strong> Đã từng lập biên bản vắng {formData.previousAbsenceLogs.length} lần (Lần gần nhất: {new Date((formData.previousAbsenceLogs[0] as any).attempt_date || (formData.previousAbsenceLogs[0] as any).attemptDate || Date.now()).toLocaleDateString('vi-VN')} - {(formData.previousAbsenceLogs[0] as any).notes || (formData.previousAbsenceLogs[0] as any).absence_reason || 'Chủ nhà vắng mặt'}).
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* 1.1. Thông tin định danh công trình */}
       <Step1IdentificationSection
         formData={formData}

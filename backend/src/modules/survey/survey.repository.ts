@@ -510,13 +510,13 @@ export class SurveyRepository {
           defectData.screeningCategory,
           defectData.defectType,
           defectData.crackDirection || null,
-          defectData.widthMaxMm,
-          defectData.lengthMm,
-          defectData.activityState,
-          defectData.materialDegradationE4,
-          defectData.structuralSignificanceE2,
-          defectData.hasScaleCard,
-          defectData.isStructuralCritical,
+          Number(defectData.widthMaxMm) || 0,
+          Number(defectData.lengthMm) || 0,
+          defectData.activityState || 'U',
+          Number(defectData.materialDegradationE4) || 0,
+          Number(defectData.structuralSignificanceE2) || 0,
+          defectData.hasScaleCard ?? true,
+          defectData.isStructuralCritical ?? false,
           defectData.cuPhotoUrl,
           defectData.cuPhotoCode || null,
         ]
@@ -539,13 +539,13 @@ export class SurveyRepository {
           defectData.screeningCategory,
           defectData.defectType,
           defectData.crackDirection || null,
-          defectData.widthMaxMm,
-          defectData.lengthMm,
-          defectData.activityState,
-          defectData.materialDegradationE4,
-          defectData.structuralSignificanceE2,
-          defectData.hasScaleCard,
-          defectData.isStructuralCritical,
+          Number(defectData.widthMaxMm) || 0,
+          Number(defectData.lengthMm) || 0,
+          defectData.activityState || 'U',
+          Number(defectData.materialDegradationE4) || 0,
+          Number(defectData.structuralSignificanceE2) || 0,
+          defectData.hasScaleCard ?? true,
+          defectData.isStructuralCritical ?? false,
           defectData.cuPhotoUrl,
         ]
       );
@@ -823,9 +823,11 @@ export class SurveyRepository {
         const rawMutation = parsedJson?.gisMutationConfirmed || parsedJson?.gisMutation;
         if (rawMutation && rawMutation.type === 'SPLIT') {
           await SurveyRepository.handleFieldSplitMutation(client, reportId, rawMutation);
+        } else if (rawMutation && rawMutation.type === 'MERGE') {
+          await SurveyRepository.handleFieldMergeMutation(client, reportId, rawMutation);
         }
       } catch (mutErr) {
-        console.error('[submitReport] Cảnh báo xử lý biến động tách thửa (Dữ liệu khảo sát chính vẫn được bảo toàn):', mutErr);
+        console.error('[submitReport] Cảnh báo xử lý biến động tách/gộp thửa (Dữ liệu khảo sát chính vẫn được bảo toàn):', mutErr);
       }
     });
   }
@@ -917,39 +919,77 @@ export class SurveyRepository {
     const geoJsonA = this.toGeoJsonPolygon(polyAPoints);
     const geoJsonB = this.toGeoJsonPolygon(polyBPoints);
 
-    // 1. Cập nhật Thửa Gốc Căn A: Kế thừa 100% mã gốc B-XXXXX, thu nhỏ ranh đất theo Căn A
-    if (geoJsonA) {
-      await client.query(
-        `UPDATE parcels
-         SET cadastral_polygon_geom = ST_SetSRID(ST_GeomFromGeoJSON($1), 4326),
-             footprint_polygon_geom = ST_SetSRID(ST_GeomFromGeoJSON($1), 4326),
-             location_geom = ST_Centroid(ST_SetSRID(ST_GeomFromGeoJSON($1), 4326)),
-             land_area_m2 = COALESCE($2, land_area_m2),
-             mutation_type = 'SPLIT',
-             updated_at = NOW()
-         WHERE id = $3;`,
-        [
-          JSON.stringify(geoJsonA),
-          childA.areaM2 ? Number(childA.areaM2) : null,
-          parent.parcel_id,
-        ]
-      );
+    // 1. Phân nhánh xử lý Căn A và Thửa Gốc:
+    if (residualKind === 'NEW_BUILDING') {
+      // NHÁNH 2: TÁCH THỬA PHÁT SINH CĂN NHÀ MỚI (CĂN B ĐỘC LẬP)
+      // Căn A thu nhỏ ranh đất theo Căn A, ghi nhận mutation_type = 'SPLIT'
+      if (geoJsonA) {
+        await client.query(
+          `UPDATE parcels
+           SET cadastral_polygon_geom = ST_GeometryN(ST_CollectionExtract(ST_MakeValid(ST_SetSRID(ST_GeomFromGeoJSON($1), 4326)), 3), 1),
+               footprint_polygon_geom = ST_GeometryN(ST_CollectionExtract(ST_MakeValid(ST_SetSRID(ST_GeomFromGeoJSON($1), 4326)), 3), 1),
+               location_geom = ST_Centroid(ST_SetSRID(ST_GeomFromGeoJSON($1), 4326)),
+               land_area_m2 = COALESCE($2, land_area_m2),
+               construction_area_m2 = COALESCE($2, construction_area_m2),
+               mutation_type = 'SPLIT',
+               updated_at = NOW()
+           WHERE id = $3;`,
+          [
+            JSON.stringify(geoJsonA),
+            childA.areaM2 ? Number(childA.areaM2) : null,
+            parent.parcel_id,
+          ]
+        );
+      } else {
+        await client.query(
+          `UPDATE parcels
+           SET land_area_m2 = COALESCE($1, land_area_m2),
+               construction_area_m2 = COALESCE($1, construction_area_m2),
+               mutation_type = 'SPLIT',
+               updated_at = NOW()
+           WHERE id = $2;`,
+          [
+            childA.areaM2 ? Number(childA.areaM2) : null,
+            parent.parcel_id,
+          ]
+        );
+      }
     } else {
-      await client.query(
-        `UPDATE parcels
-         SET land_area_m2 = COALESCE($1, land_area_m2),
-             mutation_type = 'SPLIT',
-             updated_at = NOW()
-         WHERE id = $2;`,
-        [
-          childA.areaM2 ? Number(childA.areaM2) : null,
-          parent.parcel_id,
-        ]
-      );
+      // NHÁNH 1: KHOANH RANH NHÀ (FOOTPRINT) - KHÔNG TÁCH THỬA ĐẤT
+      // Giữ nguyên 100% ranh thửa đất địa chính pháp lý (cadastral_polygon_geom và land_area_m2)
+      // Chỉ cập nhật ranh chân đế công trình (footprint_polygon_geom) và diện tích xây dựng (construction_area_m2)
+      if (geoJsonA) {
+        await client.query(
+          `UPDATE parcels
+           SET footprint_polygon_geom = ST_GeometryN(ST_CollectionExtract(ST_MakeValid(ST_SetSRID(ST_GeomFromGeoJSON($1), 4326)), 3), 1),
+               construction_area_m2 = COALESCE($2, construction_area_m2),
+               mutation_type = 'REDRAW',
+               updated_at = NOW()
+           WHERE id = $3;`,
+          [
+            JSON.stringify(geoJsonA),
+            childA.areaM2 ? Number(childA.areaM2) : null,
+            parent.parcel_id,
+          ]
+        );
+      } else {
+        await client.query(
+          `UPDATE parcels
+           SET construction_area_m2 = COALESCE($1, construction_area_m2),
+               mutation_type = 'REDRAW',
+               updated_at = NOW()
+           WHERE id = $2;`,
+          [
+            childA.areaM2 ? Number(childA.areaM2) : null,
+            parent.parcel_id,
+          ]
+        );
+      }
     }
 
     // 2. Tạo sự kiện biến động (Audit Trail 100%) vào bảng parcel_mutation_events
-    const mutationCode = `MUT-SPLIT-${Date.now()}`;
+    const mutationType = residualKind === 'NEW_BUILDING' ? 'SPLIT' : 'REDRAW';
+    const mutationCode = `MUT-${mutationType}-${Date.now()}`;
     const newGeoJson = {
       type: 'FeatureCollection',
       features: [
@@ -986,15 +1026,16 @@ export class SurveyRepository {
          mutation_code, mutation_type, source_parcel_ids, result_parcel_ids,
          original_geojson, new_geojson, surveyor_notes, surveyor_id, status, approved_at
        ) VALUES (
-         $1, 'SPLIT', ARRAY[$2::uuid], ARRAY[$2::uuid],
-         $3, $4, $5, $6, 'APPROVED', NOW()
+         $1, $2, ARRAY[$3::uuid], ARRAY[$3::uuid],
+         $4, $5, $6, $7, 'APPROVED', NOW()
        ) RETURNING id;`,
       [
         mutationCode,
+        mutationType,
         parent.parcel_id,
         parent.original_geom_json ? JSON.parse(parent.original_geom_json) : null,
         JSON.stringify(newGeoJson),
-        details.splitReason || rawMutation.notes || 'Tách thửa thực địa theo hiện trạng',
+        details.splitReason || rawMutation.notes || (residualKind === 'NEW_BUILDING' ? 'Tách thửa thực địa phát sinh Căn B' : 'Khoanh ranh chân đế công trình, đất dư sân vườn'),
         parent.surveyor_id,
       ]
     );
@@ -1007,7 +1048,7 @@ export class SurveyRepository {
 
     // 3. Phân nhánh xử lý Ô dôi dư
     if (residualKind === 'NEW_BUILDING') {
-      // NHÁNH 2: CĂN NHÀ MỚI ĐỘC LẬP -> Cấp mã nối tiếp theo Max của Zone (Phương án 1), tạo parcel mới, gán cho KSV làm tiếp
+      // NHÁNH 2: CĂN NHÀ MỚI ĐỘC LẬP -> Cấp mã nối tiếp theo Max của Zone + 1, tạo parcel mới, gán cho KSV làm tiếp
       const newProjectCode = await CadastralRepository.getNextHighRangeProjectCode(
         client,
         parent.zone_id,
@@ -1016,7 +1057,20 @@ export class SurveyRepository {
       const bHouseNumber = childB.houseNumber || (parent.house_number ? `${parent.house_number}B` : 'KĐ');
       const bOwnerName = childB.ownerName || `Chủ hộ Căn B (${newProjectCode})`;
       const bArea = childB.areaM2 ? Number(childB.areaM2) : null;
-      const bGeomStr = geoJsonB ? JSON.stringify(geoJsonB) : parent.original_geom_json;
+
+      // Nếu có geoJsonB thì dùng geoJsonB, nếu không có thì dùng PostGIS ST_Difference giữa thửa mẹ và Căn A
+      let bGeomQuery = `ST_GeometryN(ST_CollectionExtract(ST_MakeValid(ST_SetSRID(ST_GeomFromGeoJSON($11), 4326)), 3), 1)`;
+      let bGeomParam: any = geoJsonB ? JSON.stringify(geoJsonB) : null;
+
+      if (!bGeomParam && geoJsonA) {
+        bGeomQuery = `ST_GeometryN(ST_CollectionExtract(ST_MakeValid(ST_Difference(
+          (SELECT cadastral_polygon_geom FROM parcels WHERE id = $12),
+          ST_SetSRID(ST_GeomFromGeoJSON($11), 4326)
+        )), 3), 1)`;
+        bGeomParam = JSON.stringify(geoJsonA);
+      } else if (!bGeomParam) {
+        bGeomParam = parent.original_geom_json;
+      }
 
       const insertChildRes = await client.query<{ id: string }>(
         `INSERT INTO parcels (
@@ -1027,9 +1081,9 @@ export class SurveyRepository {
          ) VALUES (
            $1, $2, $3, $4, $5, $6,
            $7, $8, $9, $10, 1,
-           ST_SetSRID(ST_GeomFromGeoJSON($11), 4326),
-           ST_SetSRID(ST_GeomFromGeoJSON($11), 4326),
-           ST_Centroid(ST_SetSRID(ST_GeomFromGeoJSON($11), 4326)),
+           ${bGeomQuery},
+           ${bGeomQuery},
+           ST_Centroid(${bGeomQuery}),
            'NOT_SURVEYED', 'ACTIVE', 'SPLIT', ARRAY[$12::uuid], $13
          ) RETURNING id;`,
         [
@@ -1043,7 +1097,7 @@ export class SurveyRepository {
           childB.ownerPhone || null,
           bArea,
           bArea,
-          bGeomStr,
+          bGeomParam,
           parent.parcel_id,
           mutationEventId,
         ]
@@ -1083,9 +1137,241 @@ export class SurveyRepository {
 
       console.log(`[handleFieldSplitMutation] Đã kích hoạt Căn B (${newProjectCode}) độc lập và phân công cho KSV ${parent.surveyor_id}`);
     } else {
-      // NHÁNH 1: ĐẤT DƯ / SÂN VƯỜN / NGÕ ĐI -> Phi công trình, KHÔNG tạo thửa mới trong parcels
-      console.log(`[handleFieldSplitMutation] Nhánh Phi công trình (${residualKind}): Đã lưu ranh đất dôi dư phục vụ đền bù, không phát sinh lô mới.`);
+      // NHÁNH 1: ĐẤT DƯ / SÂN VƯỜN / NGÕ ĐI -> Khoanh ranh nhà (Footprint), KHÔNG tạo thửa mới trong parcels, giữ nguyên ranh đất mẹ
+      console.log(`[handleFieldSplitMutation] Nhánh Khoanh ranh nhà (${residualKind}): Đã lưu ranh chân đế công trình (${childA.areaM2}m²), giữ nguyên ranh đất mẹ, không phát sinh lô mới.`);
     }
+  }
+
+  /**
+   * Xử lý Biến động Gộp Thửa Thực Địa theo quy chuẩn liên thửa & Bảo đảm 100% Truy Vết (Audit Trail):
+   * - Thửa chính (Căn đang KS): Kế thừa diện tích gộp và đa giác PostGIS ST_Union của các thửa thành phần.
+   * - Thửa phụ (Thửa được gộp vào): Chuyển lifecycle_status = 'MERGED_DEPRECATED', mutation_type = 'MERGE'.
+   * - Ghi nhận sự kiện biến động vào parcel_mutation_events (status = 'APPROVED').
+   */
+  public static async handleFieldMergeMutation(
+    client: PoolClient,
+    reportId: string,
+    rawMutation: any
+  ): Promise<void> {
+    const pRes = await client.query<{
+      parcel_id: string;
+      surveyor_id: string;
+      zone_id: string;
+      project_parcel_code: string;
+      house_number: string;
+      street: string;
+      ward: string;
+      district: string;
+      land_area_m2: number;
+      construction_area_m2: number;
+      original_geom_json: string;
+    }>(
+      `SELECT r.parcel_id, r.surveyor_id,
+              p.zone_id, p.project_parcel_code, p.house_number, p.street, p.ward, p.district,
+              p.land_area_m2, p.construction_area_m2,
+              ST_AsGeoJSON(p.cadastral_polygon_geom) AS original_geom_json
+       FROM base_survey_reports r
+       JOIN parcels p ON r.parcel_id = p.id
+       WHERE r.id = $1;`,
+      [reportId]
+    );
+
+    const primary = pRes.rows[0];
+    if (!primary) return;
+
+    const details = rawMutation.details || rawMutation;
+    let mergeCodes: string[] = [];
+    if (Array.isArray(details.selectedMergeCodes) && details.selectedMergeCodes.length > 0) {
+      mergeCodes = details.selectedMergeCodes.filter((c: string) => c && c !== primary.project_parcel_code);
+    } else if (details.mergeTargetCode && details.mergeTargetCode !== primary.project_parcel_code) {
+      mergeCodes = [details.mergeTargetCode];
+    }
+
+    if (mergeCodes.length === 0) {
+      console.warn(`[handleFieldMergeMutation] Không tìm thấy danh sách mã thửa phụ cần gộp cho báo cáo ${reportId}`);
+      return;
+    }
+
+    const secRes = await client.query<{
+      id: string;
+      project_parcel_code: string;
+      house_number: string;
+      land_area_m2: number;
+      construction_area_m2: number;
+      original_geom_json: string;
+    }>(
+      `SELECT id, project_parcel_code, house_number, land_area_m2, construction_area_m2,
+              ST_AsGeoJSON(cadastral_polygon_geom) AS original_geom_json
+       FROM parcels
+       WHERE project_parcel_code = ANY($1) AND zone_id = $2 AND lifecycle_status = 'ACTIVE';`,
+      [mergeCodes, primary.zone_id]
+    );
+
+    const secondaryParcels = secRes.rows;
+    if (secondaryParcels.length === 0) {
+      console.warn(`[handleFieldMergeMutation] Không tìm thấy thửa phụ hợp lệ trong DB ứng với các mã: ${mergeCodes.join(', ')}`);
+      return;
+    }
+
+    const secondaryIds = secondaryParcels.map((p) => p.id);
+    const allSourceIds = [primary.parcel_id, ...secondaryIds];
+
+    const totalSecondaryArea = secondaryParcels.reduce((sum, p) => sum + (Number(p.land_area_m2) || 0), 0);
+    const calculatedTotalLandArea = Number(primary.land_area_m2 || 0) + totalSecondaryArea;
+    const finalLandArea = details.totalLandArea ? Number(details.totalLandArea) : calculatedTotalLandArea;
+
+    const finalConstructionArea = details.mergeBuildingAreaM2
+      ? Number(details.mergeBuildingAreaM2)
+      : (primary.construction_area_m2 ? Number(primary.construction_area_m2) : null);
+
+    const buildingCustomPoints = details.mergeBuildingCustomPoints;
+    const buildingGeoJson = this.toGeoJsonPolygon(buildingCustomPoints);
+
+    if (buildingGeoJson) {
+      await client.query(
+        `UPDATE parcels
+         SET cadastral_polygon_geom = ST_GeometryN(
+               ST_CollectionExtract(
+                 ST_MakeValid(
+                   ST_Union(
+                     cadastral_polygon_geom,
+                     (SELECT ST_Union(cadastral_polygon_geom) FROM parcels WHERE id = ANY($1))
+                   )
+                 ), 3
+               ), 1
+             ),
+             footprint_polygon_geom = ST_GeometryN(
+               ST_CollectionExtract(
+                 ST_MakeValid(ST_SetSRID(ST_GeomFromGeoJSON($4), 4326)), 3
+               ), 1
+             ),
+             location_geom = ST_Centroid(
+               ST_Union(
+                 cadastral_polygon_geom,
+                 (SELECT ST_Union(cadastral_polygon_geom) FROM parcels WHERE id = ANY($1))
+               )
+             ),
+             land_area_m2 = $2,
+             construction_area_m2 = COALESCE($3, construction_area_m2),
+             mutation_type = 'MERGE',
+             child_parcel_ids = array_cat(COALESCE(child_parcel_ids, '{}'), $1::uuid[]),
+             updated_at = NOW()
+         WHERE id = $5;`,
+        [secondaryIds, finalLandArea, finalConstructionArea, JSON.stringify(buildingGeoJson), primary.parcel_id]
+      );
+    } else {
+      await client.query(
+        `UPDATE parcels
+         SET cadastral_polygon_geom = ST_GeometryN(
+               ST_CollectionExtract(
+                 ST_MakeValid(
+                   ST_Union(
+                     cadastral_polygon_geom,
+                     (SELECT ST_Union(cadastral_polygon_geom) FROM parcels WHERE id = ANY($1))
+                   )
+                 ), 3
+               ), 1
+             ),
+             location_geom = ST_Centroid(
+               ST_Union(
+                 cadastral_polygon_geom,
+                 (SELECT ST_Union(cadastral_polygon_geom) FROM parcels WHERE id = ANY($1))
+               )
+             ),
+             land_area_m2 = $2,
+             construction_area_m2 = COALESCE($3, construction_area_m2),
+             mutation_type = 'MERGE',
+             child_parcel_ids = array_cat(COALESCE(child_parcel_ids, '{}'), $1::uuid[]),
+             updated_at = NOW()
+         WHERE id = $4;`,
+        [secondaryIds, finalLandArea, finalConstructionArea, primary.parcel_id]
+      );
+    }
+
+    await client.query(
+      `UPDATE parcels
+       SET lifecycle_status = 'MERGED_DEPRECATED',
+           mutation_type = 'MERGE',
+           survey_status = 'APPROVED',
+           parent_parcel_ids = array_append(COALESCE(parent_parcel_ids, '{}'), $1::uuid),
+           updated_at = NOW()
+       WHERE id = ANY($2);`,
+      [primary.parcel_id, secondaryIds]
+    );
+
+    const mergedGeomRes = await client.query<{ geom_json: string }>(
+      `SELECT ST_AsGeoJSON(cadastral_polygon_geom) AS geom_json FROM parcels WHERE id = $1;`,
+      [primary.parcel_id]
+    );
+    const mergedGeom = mergedGeomRes.rows[0]?.geom_json ? JSON.parse(mergedGeomRes.rows[0].geom_json) : null;
+
+    const mutationCode = `MUT-MERGE-${Date.now()}`;
+    const originalFeatures = [
+      primary.original_geom_json
+        ? {
+            type: 'Feature',
+            properties: { role: 'PRIMARY_ORIGINAL', code: primary.project_parcel_code, areaM2: primary.land_area_m2 },
+            geometry: JSON.parse(primary.original_geom_json),
+          }
+        : null,
+      ...secondaryParcels.map((sp) =>
+        sp.original_geom_json
+          ? {
+              type: 'Feature',
+              properties: { role: 'SECONDARY_ORIGINAL', code: sp.project_parcel_code, areaM2: sp.land_area_m2 },
+              geometry: JSON.parse(sp.original_geom_json),
+            }
+          : null
+      ),
+    ].filter(Boolean);
+
+    const newGeoJson = {
+      type: 'FeatureCollection',
+      features: [
+        mergedGeom
+          ? {
+              type: 'Feature',
+              properties: {
+                role: 'MERGED_PARCEL',
+                code: primary.project_parcel_code,
+                label: `Thửa gộp ${primary.project_parcel_code} (từ ${[primary.project_parcel_code, ...mergeCodes].join(' + ')})`,
+                areaM2: finalLandArea,
+                constructionAreaM2: finalConstructionArea,
+              },
+              geometry: mergedGeom,
+            }
+          : null,
+      ].filter(Boolean),
+    };
+
+    const mutRes = await client.query<{ id: string }>(
+      `INSERT INTO parcel_mutation_events (
+         mutation_code, mutation_type, source_parcel_ids, result_parcel_ids,
+         original_geojson, new_geojson, surveyor_notes, surveyor_id, status, approved_at
+       ) VALUES (
+         $1, 'MERGE', $2::uuid[], ARRAY[$3::uuid],
+         $4, $5, $6, $7, 'APPROVED', NOW()
+       ) RETURNING id;`,
+      [
+        mutationCode,
+        allSourceIds,
+        primary.parcel_id,
+        JSON.stringify({ type: 'FeatureCollection', features: originalFeatures }),
+        JSON.stringify(newGeoJson),
+        details.mergeReason || rawMutation.notes || `Gộp thực địa thửa ${mergeCodes.join(', ')} vào thửa ${primary.project_parcel_code}`,
+        primary.surveyor_id,
+      ]
+    );
+
+    const mutationEventId = mutRes.rows[0]?.id;
+    if (mutationEventId) {
+      await client.query(
+        `UPDATE parcels SET mutation_event_id = $1 WHERE id = ANY($2);`,
+        [mutationEventId, allSourceIds]
+      );
+    }
+
+    console.log(`[handleFieldMergeMutation] Đã gộp thành công các thửa [${mergeCodes.join(', ')}] vào [${primary.project_parcel_code}]. Diện tích mới: ${finalLandArea}m²`);
   }
 
   static async updateReportData(reportId: string, updateData: any): Promise<number> {

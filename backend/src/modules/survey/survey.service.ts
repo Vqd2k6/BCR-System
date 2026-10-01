@@ -47,6 +47,69 @@ export class SurveyService {
       parentReportId = masterRes.rows[0]?.id || parcelRes.rows[0].active_phase1_report_id || null;
     }
 
+    // 1. Kiểm tra tái sử dụng hồ sơ DRAFT hiện có để tránh sinh dòng trùng lặp trong DB
+    if (!unitId) {
+      const activeRepId = parcelRes.rows[0].active_phase1_report_id;
+      let existingDraftQuery = `SELECT id, report_code, status FROM base_survey_reports WHERE parcel_id = $1 AND unit_id IS NULL AND status = 'DRAFT' ORDER BY created_at DESC LIMIT 1;`;
+      let existingDraftParams = [parcelId];
+      if (activeRepId) {
+        existingDraftQuery = `SELECT id, report_code, status FROM base_survey_reports WHERE id = $1 AND status = 'DRAFT';`;
+        existingDraftParams = [activeRepId];
+      }
+      const existingDraft = await Database.query<{ id: string; report_code: string; status: string }>(
+        existingDraftQuery,
+        existingDraftParams
+      );
+
+      if (existingDraft.rows[0]) {
+        const foundReport = existingDraft.rows[0];
+        // Cập nhật lại surveyor_id nếu ca làm việc này do surveyor hiện tại tiếp quản
+        await Database.query(
+          `UPDATE base_survey_reports SET surveyor_id = $2, updated_at = NOW() WHERE id = $1;`,
+          [foundReport.id, surveyorId]
+        );
+        await Database.query(
+          `UPDATE parcels SET survey_status = 'IN_PROGRESS', active_phase1_report_id = $2 WHERE id = $1;`,
+          [parcelId, foundReport.id]
+        );
+        return {
+          reportId: foundReport.id,
+          reportCode: foundReport.report_code,
+          phase: 'PHASE_1',
+          status: 'DRAFT',
+          currentStep: 1,
+          unitId: null,
+          parentReportId: null,
+          reportType: actualReportType,
+          message: 'Tái sử dụng hồ sơ khảo sát hiện có, tránh sinh ID trùng lặp',
+        };
+      }
+    } else {
+      // Trường hợp căn hộ con
+      const existingUnitDraft = await Database.query<{ id: string; report_code: string; status: string }>(
+        `SELECT id, report_code, status FROM base_survey_reports WHERE parcel_id = $1 AND unit_id = $2 AND status = 'DRAFT' ORDER BY created_at DESC LIMIT 1;`,
+        [parcelId, unitId]
+      );
+      if (existingUnitDraft.rows[0]) {
+        const foundReport = existingUnitDraft.rows[0];
+        await Database.query(
+          `UPDATE base_survey_reports SET surveyor_id = $2, updated_at = NOW() WHERE id = $1;`,
+          [foundReport.id, surveyorId]
+        );
+        return {
+          reportId: foundReport.id,
+          reportCode: foundReport.report_code,
+          phase: 'PHASE_1',
+          status: 'DRAFT',
+          currentStep: 1,
+          unitId,
+          parentReportId,
+          reportType: actualReportType,
+          message: 'Tái sử dụng hồ sơ khảo sát căn hộ hiện có',
+        };
+      }
+    }
+
     const report = await SurveyRepository.createBaseReport({
       parcelId,
       surveyorId,

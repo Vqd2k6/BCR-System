@@ -40,7 +40,8 @@ interface Props {
 const ARCH_SCREENING_CATEGORIES = [
   'Nứt tường gạch / Vữa trát hoàn thiện',
   'Nứt tiếp giáp khuôn cửa / Trần',
-  'Bong rộp / Nứt gạch ốp lát',
+  'Nứt vỡ gạch ốp lát / Đá ốp',
+  'Bong rộp / Bong tróc gạch ốp lát',
   'Thấm dột / Ẩm mốc bề mặt',
   'Kẹt cửa / Cong vênh phụ kiện',
   'Khác',
@@ -79,10 +80,9 @@ const STRUCT_DEFECT_TYPES = [
   'Khác',
 ];
 
-export const isCrackRelated = (cat = '', type = '') => {
-  const t = `${cat} ${type}`.toLowerCase();
-  return t.includes('nứt') || t.includes('crack');
-};
+import { isCrackRelated } from './defectHelpers';
+export { isCrackRelated };
+
 
 export const DefectPinningCanvas: React.FC<Props> = ({
   ctxPhotoUrl,
@@ -99,6 +99,8 @@ export const DefectPinningCanvas: React.FC<Props> = ({
   const [selectedDefectIndex, setSelectedDefectIndex] = useState<number | null>(null);
   const [isAddingPin, setIsAddingPin] = useState<boolean>(true);
   const [showPins, setShowPins] = useState<boolean>(true);
+  const [draggingDefectIndex, setDraggingDefectIndex] = useState<number | null>(null);
+  const dragMovedRef = useRef<boolean>(false);
 
   const screeningCategories = mode === 'STRUCTURAL' ? STRUCT_SCREENING_CATEGORIES : ARCH_SCREENING_CATEGORIES;
   const commonDefectTypes = mode === 'STRUCTURAL' ? STRUCT_DEFECT_TYPES : ARCH_DEFECT_TYPES;
@@ -109,7 +111,60 @@ export const DefectPinningCanvas: React.FC<Props> = ({
     'D'
   );
 
+  const handleContainerPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (draggingDefectIndex === null || readOnly || !containerRef.current) return;
+    dragMovedRef.current = true;
+    const rect = containerRef.current.getBoundingClientRect();
+    const x = Math.max(1, Math.min(99, parseFloat((((e.clientX - rect.left) / rect.width) * 100).toFixed(2))));
+    const y = Math.max(1, Math.min(99, parseFloat((((e.clientY - rect.top) / rect.height) * 100).toFixed(2))));
+
+    const updated = [...defects];
+    if (updated[draggingDefectIndex]) {
+      updated[draggingDefectIndex] = {
+        ...updated[draggingDefectIndex],
+        pinX: x,
+        pinY: y,
+      };
+      onChange(updated);
+    }
+  };
+
+  const handleCloneFromPreviousDefect = () => {
+    if (selectedDefectIndex === null || readOnly) return;
+    const candidate = defects
+      .slice(0, selectedDefectIndex)
+      .reverse()
+      .find((d) => d.screeningCategory && d.defectType);
+
+    if (!candidate) {
+      alert('Chưa có khuyết tật D nào trước đó đã điền thông tin để sao chép!');
+      return;
+    }
+
+    const current = defects[selectedDefectIndex];
+    const cloned: DefectItem = {
+      ...current,
+      screeningCategory: candidate.screeningCategory,
+      customScreeningCategory: candidate.customScreeningCategory,
+      defectType: candidate.defectType,
+      materialDegradationE4: candidate.materialDegradationE4,
+      structuralSignificanceE2: candidate.structuralSignificanceE2,
+      functionalImpactE6: candidate.functionalImpactE6,
+      crackDirection: candidate.crackDirection || current.crackDirection,
+      hasScaleCard: candidate.hasScaleCard ?? current.hasScaleCard,
+      isStructuralCritical: candidate.isStructuralCritical ?? current.isStructuralCritical,
+    };
+
+    const updated = [...defects];
+    updated[selectedDefectIndex] = cloned;
+    onChange(updated);
+  };
+
   const handleContainerClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (dragMovedRef.current) {
+      dragMovedRef.current = false;
+      return;
+    }
     if (readOnly || !isAddingPin || !containerRef.current || !ctxPhotoUrl) return;
 
     const rect = containerRef.current.getBoundingClientRect();
@@ -265,19 +320,22 @@ export const DefectPinningCanvas: React.FC<Props> = ({
       <div
         ref={containerRef}
         onClick={handleContainerClick}
-        className={`relative w-full min-h-[300px] max-h-[480px] rounded-xl overflow-hidden bg-slate-100 border border-slate-300 select-none shadow-inner ${
+        onPointerMove={handleContainerPointerMove}
+        onPointerUp={() => setDraggingDefectIndex(null)}
+        className={`relative w-full min-h-[300px] max-h-[480px] rounded-xl overflow-hidden bg-slate-100 border border-slate-300 select-none shadow-inner touch-none ${
           isAddingPin ? 'cursor-crosshair ring-2 ring-emerald-500/30' : 'cursor-default'
         } flex items-center justify-center`}
       >
         <img
           src={ctxPhotoUrl}
           alt="Context Photo for Defects"
-          className="max-h-[480px] w-full object-contain pointer-events-none"
+          className="max-h-[480px] w-full object-contain pointer-events-none select-none"
         />
 
-        {/* Existing Pins */}
+        {/* Existing Pins with Drag & Drop */}
         {showPins && defects.map((d, idx) => {
           const isSelected = selectedDefectIndex === idx;
+          const isDragging = draggingDefectIndex === idx;
           const isFilled = isDefectFilled(d);
           const squareBg = isFilled ? '#10b981' : '#f59e0b';
 
@@ -286,24 +344,45 @@ export const DefectPinningCanvas: React.FC<Props> = ({
               key={idx}
               onClick={(e) => {
                 e.stopPropagation();
+                if (!dragMovedRef.current) {
+                  setSelectedDefectIndex(idx);
+                  setIsAddingPin(false);
+                  setTimeout(() => {
+                    detailFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                  }, 60);
+                }
+              }}
+              onPointerDown={(e) => {
+                if (readOnly) return;
+                e.stopPropagation();
+                dragMovedRef.current = false;
+                setDraggingDefectIndex(idx);
                 setSelectedDefectIndex(idx);
-                setIsAddingPin(false);
-                setTimeout(() => {
-                  detailFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-                }, 60);
+                (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
+              }}
+              onPointerUp={(e) => {
+                if (readOnly) return;
+                e.stopPropagation();
+                try {
+                  (e.currentTarget as HTMLElement).releasePointerCapture?.(e.pointerId);
+                } catch (_) {}
+                setDraggingDefectIndex(null);
               }}
               style={{
                 position: 'absolute',
                 left: `${d.pinX}%`,
                 top: `${d.pinY}%`,
-                transform: 'translate(-50%, -50%)',
-                cursor: 'pointer',
-                zIndex: isSelected ? 30 : 20,
+                transform: isDragging ? 'translate(-50%, -50%) scale(1.25)' : isSelected ? 'translate(-50%, -50%) scale(1.1)' : 'translate(-50%, -50%)',
+                cursor: readOnly ? 'default' : isDragging ? 'grabbing' : 'grab',
+                zIndex: isDragging ? 50 : isSelected ? 30 : 20,
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
+                touchAction: 'none',
+                userSelect: 'none',
+                transition: isDragging ? 'none' : 'transform 0.15s ease',
               }}
-              title={`${d.defectCode}: ${d.defectType || 'Chưa chọn'} (${isFilled ? 'Đã điền đủ' : 'Chưa điền đủ'})`}
+              title={readOnly ? undefined : `${d.defectCode}: ${d.defectType || 'Chưa chọn'} (Chạm chọn hoặc Giữ & Kéo để di chuyển)`}
             >
               <div
                 style={{
@@ -312,11 +391,11 @@ export const DefectPinningCanvas: React.FC<Props> = ({
                   fontFamily: 'monospace',
                   padding: '1px 5px',
                   borderRadius: '3px',
-                  backgroundColor: isSelected ? '#0284c7' : 'rgba(15, 23, 42, 0.9)',
+                  backgroundColor: isDragging ? '#0284c7' : isSelected ? '#0284c7' : 'rgba(15, 23, 42, 0.9)',
                   color: '#ffffff',
-                  border: isSelected ? '1.5px solid #ffffff' : '1px solid rgba(255,255,255,0.4)',
+                  border: isDragging ? '2px solid #38bdf8' : isSelected ? '1.5px solid #ffffff' : '1px solid rgba(255,255,255,0.4)',
                   whiteSpace: 'nowrap',
-                  boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
+                  boxShadow: isDragging ? '0 4px 10px rgba(2, 132, 199, 0.5)' : '0 2px 4px rgba(0,0,0,0.3)',
                 }}
               >
                 {d.defectCode}
@@ -324,8 +403,8 @@ export const DefectPinningCanvas: React.FC<Props> = ({
 
               <div
                 style={{
-                  width: isSelected ? '14px' : '12px',
-                  height: isSelected ? '14px' : '12px',
+                  width: isSelected || isDragging ? '14px' : '12px',
+                  height: isSelected || isDragging ? '14px' : '12px',
                   borderRadius: '2px',
                   backgroundColor: squareBg,
                   border: '2px solid #ffffff',
@@ -372,14 +451,28 @@ export const DefectPinningCanvas: React.FC<Props> = ({
             </div>
 
             {!readOnly && (
-              <button
-                type="button"
-                onClick={() => removeDefect(selectedDefectIndex)}
-                className="px-2 py-1 bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 rounded-lg text-xs font-semibold flex items-center gap-1"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                <span>Xóa điểm D này</span>
-              </button>
+              <div className="flex items-center gap-1.5">
+                {selectedDefectIndex > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleCloneFromPreviousDefect}
+                    className="px-2.5 py-1 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-300 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer"
+                    title="Sao chép loại khuyết tật và các chỉ số từ điểm D trước"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Sao chép từ D trước</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => removeDefect(selectedDefectIndex)}
+                  className="px-2.5 py-1 bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 rounded-lg text-xs font-semibold flex items-center gap-1 cursor-pointer"
+                  title="Xóa điểm D này"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Xóa</span>
+                </button>
+              </div>
             )}
           </div>
 

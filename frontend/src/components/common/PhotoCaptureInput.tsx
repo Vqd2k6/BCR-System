@@ -356,14 +356,49 @@ export const PhotoCaptureInput: React.FC<Props> = ({
     };
   }, [isLiveCameraOpen, facingMode]);
 
-  // Chụp ảnh từ luồng WebRTC kèm dập Watermark
+  // Chụp ảnh từ luồng WebRTC kèm dập Watermark và tự động crop theo khung ngắm
   const handleCaptureLiveFrame = async () => {
     if (!videoRef.current) return;
     const video = videoRef.current;
 
     try {
+      // 1. Xác định tỷ lệ mục tiêu theo hướng khuyến nghị
+      let targetRatio = 4 / 3;
+      if (recommendedOrientation === 'portrait') targetRatio = 3 / 4;
+      else if (recommendedOrientation === 'square') targetRatio = 1 / 1;
+      else if (recommendedOrientation === 'landscape') targetRatio = 4 / 3;
+
+      const vWidth = video.videoWidth || 1920;
+      const vHeight = video.videoHeight || 1080;
+      const vAspect = vWidth / vHeight;
+
+      let cropW = vWidth;
+      let cropH = vHeight;
+      let startX = 0;
+      let startY = 0;
+
+      if (vAspect > targetRatio) {
+        // Video rộng hơn khung -> crop 2 bên
+        cropW = Math.round(vHeight * targetRatio);
+        startX = Math.round((vWidth - cropW) / 2);
+      } else {
+        // Video cao hơn khung -> crop trên/dưới
+        cropH = Math.round(vWidth / targetRatio);
+        startY = Math.round((vHeight - cropH) / 2);
+      }
+
+      const cropCanvas = document.createElement('canvas');
+      cropCanvas.width = cropW;
+      cropCanvas.height = cropH;
+      const cropCtx = cropCanvas.getContext('2d');
+      if (cropCtx) {
+        cropCtx.drawImage(video, startX, startY, cropW, cropH, 0, 0, cropW, cropH);
+      }
+
+      const captureSource = cropCanvas.width > 0 ? cropCanvas : video;
+
       const { dataUrl, blob, photoCode: generatedCode } = await applyMetroWatermark(
-        video,
+        captureSource,
         effectiveWatermarkOptions
       );
       if (dataUrl) {
@@ -377,6 +412,7 @@ export const PhotoCaptureInput: React.FC<Props> = ({
         } else {
           uploadToServer(dataUrl, generatedCode);
         }
+        stopLiveCamera();
       }
     } catch (err) {
       console.warn('[WATERMARK] Fallback chụp ảnh trực tiếp:', err);
@@ -875,6 +911,32 @@ export const PhotoCaptureInput: React.FC<Props> = ({
               )}
 
               <div style={{ display: 'flex', gap: isCompact ? '0.25rem' : '0.5rem', flexWrap: 'wrap', justifyContent: 'center' }}>
+                {/* In-app live camera modal button (Primary) */}
+                <button
+                  type="button"
+                  onClick={() => setIsLiveCameraOpen(true)}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: isCompact ? '0.25rem' : '0.4rem',
+                    padding: isCompact ? '0.3rem 0.55rem' : '0.5rem 0.95rem',
+                    fontWeight: 700,
+                    backgroundColor: '#059669',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: '0.45rem',
+                    cursor: 'pointer',
+                    fontSize: isCompact ? '0.7rem' : '0.8rem',
+                    boxShadow: '0 2px 4px rgba(5, 150, 105, 0.3)',
+                    userSelect: 'none',
+                    whiteSpace: 'nowrap',
+                  }}
+                  title="Mở camera định hướng theo khung hình chuẩn báo cáo"
+                >
+                  <Video size={isCompact ? 13 : 16} />
+                  <span>{isCompact ? 'Live Cam' : 'Camera Live (Khung chuẩn)'}</span>
+                </button>
+
                 {/* Direct Hardware Camera trigger via Label */}
                 <label
                   htmlFor={cameraInputId}
@@ -883,45 +945,22 @@ export const PhotoCaptureInput: React.FC<Props> = ({
                     alignItems: 'center',
                     gap: isCompact ? '0.25rem' : '0.4rem',
                     padding: isCompact ? '0.25rem 0.45rem' : '0.45rem 0.85rem',
-                    fontWeight: 700,
-                    backgroundColor: '#059669',
-                    color: '#ffffff',
+                    fontWeight: 600,
+                    backgroundColor: '#ffffff',
+                    color: '#334155',
+                    border: '1px solid #cbd5e1',
                     borderRadius: '0.45rem',
                     cursor: 'pointer',
                     fontSize: isCompact ? '0.68rem' : '0.75rem',
-                    boxShadow: '0 1px 3px rgba(5, 150, 105, 0.25)',
+                    boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
                     userSelect: 'none',
                     whiteSpace: 'nowrap',
                   }}
+                  title="Dùng camera mặc định của hệ điều hành máy"
                 >
                   <Camera size={isCompact ? 13 : 15} />
-                  <span>{isCompact ? 'Camera' : 'Chụp Camera'}</span>
+                  <span>{isCompact ? 'Máy ảnh' : 'Camera máy'}</span>
                 </label>
-
-                {/* In-app live camera modal button */}
-                <button
-                  type="button"
-                  onClick={() => setIsLiveCameraOpen(true)}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: isCompact ? '0.25rem' : '0.4rem',
-                    padding: isCompact ? '0.25rem 0.45rem' : '0.45rem 0.85rem',
-                    fontWeight: 600,
-                    backgroundColor: '#0284c7',
-                    color: '#ffffff',
-                    border: 'none',
-                    borderRadius: '0.45rem',
-                    cursor: 'pointer',
-                    fontSize: isCompact ? '0.68rem' : '0.75rem',
-                    boxShadow: '0 1px 3px rgba(2, 132, 199, 0.2)',
-                    userSelect: 'none',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  <Video size={isCompact ? 13 : 15} />
-                  <span>{isCompact ? 'Live' : 'Camera Live'}</span>
-                </button>
 
                 {/* Gallery File input trigger via Label */}
                 <label
@@ -1070,17 +1109,98 @@ export const PhotoCaptureInput: React.FC<Props> = ({
               />
             )}
 
-            {/* Grid overlay */}
-            <div
-              style={{
-                position: 'absolute',
-                inset: 0,
-                pointerEvents: 'none',
-                border: '2px dashed rgba(255,255,255,0.2)',
-                margin: '1.5rem',
-                borderRadius: '0.75rem',
-              }}
-            />
+            {/* Viewfinder Framing Overlay */}
+            {!cameraLoading && !cameraError && (
+              <div
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  pointerEvents: 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                {/* Frame box with box shadow mask */}
+                <div
+                  style={{
+                    position: 'relative',
+                    width:
+                      recommendedOrientation === 'square'
+                        ? 'min(82vw, 340px)'
+                        : recommendedOrientation === 'portrait'
+                        ? 'min(78vw, 320px)'
+                        : 'min(92vw, 480px)',
+                    aspectRatio:
+                      recommendedOrientation === 'square'
+                        ? '1 / 1'
+                        : recommendedOrientation === 'portrait'
+                        ? '3 / 4'
+                        : '4 / 3',
+                    border: '2px solid rgba(16, 185, 129, 0.9)',
+                    borderRadius: '0.75rem',
+                    boxShadow: '0 0 0 9999px rgba(0, 0, 0, 0.45)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                    padding: '0.75rem',
+                  }}
+                >
+                  {/* Top helper text */}
+                  <div
+                    style={{
+                      alignSelf: 'center',
+                      backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                      color: '#10b981',
+                      fontSize: '0.72rem',
+                      fontWeight: 700,
+                      padding: '0.2rem 0.6rem',
+                      borderRadius: '0.35rem',
+                      border: '1px solid rgba(16, 185, 129, 0.4)',
+                    }}
+                  >
+                    {recommendedOrientation === 'square'
+                      ? '📐 Khung Vuông 1:1 (Ảnh khuyết tật D)'
+                      : recommendedOrientation === 'portrait'
+                      ? '📐 Khung Dọc 3:4 (Căn trọn nhà P-02/P-04)'
+                      : '📐 Khung Ngang 4:3 (Bao quát mặt sàn)'}
+                  </div>
+
+                  {/* Corner brackets */}
+                  <div style={{ position: 'absolute', top: '-2px', left: '-2px', width: '20px', height: '20px', borderTop: '3px solid #10b981', borderLeft: '3px solid #10b981', borderTopLeftRadius: '0.75rem' }} />
+                  <div style={{ position: 'absolute', top: '-2px', right: '-2px', width: '20px', height: '20px', borderTop: '3px solid #10b981', borderRight: '3px solid #10b981', borderTopRightRadius: '0.75rem' }} />
+                  <div style={{ position: 'absolute', bottom: '-2px', left: '-2px', width: '20px', height: '20px', borderBottom: '3px solid #10b981', borderLeft: '3px solid #10b981', borderBottomLeftRadius: '0.75rem' }} />
+                  <div style={{ position: 'absolute', bottom: '-2px', right: '-2px', width: '20px', height: '20px', borderBottom: '3px solid #10b981', borderRight: '3px solid #10b981', borderBottomRightRadius: '0.75rem' }} />
+
+                  {/* Scale card helper box for defect photos */}
+                  {recommendedOrientation === 'square' && (
+                    <div
+                      style={{
+                        position: 'absolute',
+                        bottom: '12px',
+                        right: '12px',
+                        width: '84px',
+                        height: '46px',
+                        border: '1.5px dashed #f59e0b',
+                        backgroundColor: 'rgba(245, 158, 11, 0.25)',
+                        borderRadius: '0.35rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '0.58rem',
+                        fontWeight: 800,
+                        color: '#fef3c7',
+                        textAlign: 'center',
+                        lineHeight: 1.1,
+                        padding: '2px',
+                      }}
+                    >
+                      Đặt thước tỷ lệ tại đây
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Bottom Controls */}

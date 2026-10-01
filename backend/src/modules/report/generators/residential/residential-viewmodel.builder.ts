@@ -218,11 +218,29 @@ export function buildResidentialViewModel(reportData: any): ResidentialReportVie
   }
 
   // Xử lý biến động ranh đất GIS (GIS Mutation)
-  const rawMutation = json.gisMutationConfirmed || {};
+  const rawMutation = json.gisMutationConfirmed || json.gisMutation || {};
+  const isSplit = rawMutation.type === 'SPLIT';
+  const isMerge = rawMutation.type === 'MERGE';
+  const isRedraw = rawMutation.type === 'REDRAW';
+  const isResidualNonBuilding = rawMutation.details?.residualKind === 'NON_BUILDING';
+
+  let typeLabel = 'Điều chỉnh ranh';
+  if (isMerge) {
+    typeLabel = 'Hợp thửa ranh đất (Gộp thửa)';
+  } else if (isSplit) {
+    if (isResidualNonBuilding) {
+      typeLabel = 'Khoanh ranh nhà (Đất trống/sân giữ nguyên ranh)';
+    } else {
+      typeLabel = 'Tách thửa ranh đất (Phát sinh nhà mới)';
+    }
+  } else if (isRedraw) {
+    typeLabel = 'Khoanh ranh nhà (Điều chỉnh hình học công trình)';
+  }
+
   const gisMutation: GisMutationReport = {
     isMutated: Boolean(rawMutation.type && rawMutation.type !== 'NONE'),
     type: rawMutation.type || '',
-    typeLabel: rawMutation.type === 'SPLIT' ? 'Tách thửa ranh đất' : (rawMutation.type === 'MERGE' ? 'Hợp thửa ranh đất' : 'Điều chỉnh ranh'),
+    typeLabel: Boolean(rawMutation.type && rawMutation.type !== 'NONE') ? typeLabel : 'Không biến động',
     splitReason: rawMutation.details?.splitReason || rawMutation.notes || '',
     splitChildren: (rawMutation.details?.splitChildren || []).map((c: any) => ({
       label: c.label || '',
