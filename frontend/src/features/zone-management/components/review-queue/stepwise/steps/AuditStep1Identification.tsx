@@ -15,6 +15,20 @@ interface Props {
   onOpenPhotoReplace: (params: any) => void;
 }
 
+const formatDistanceDisplay = (val: any): string => {
+  if (val === undefined || val === null || val === '') return '---';
+  const str = String(val).trim();
+  const num = parseFloat(str.replace(/[^\d.-]/g, ''));
+  if (isNaN(num)) return '---';
+  return `${num.toFixed(1)} m`;
+};
+
+const getNumericValue = (val: any): string => {
+  if (val === undefined || val === null || val === '') return '';
+  const num = parseFloat(String(val).replace(/[^\d.-]/g, ''));
+  return isNaN(num) ? '' : String(num);
+};
+
 export const AuditStep1Identification: React.FC<Props> = ({
   isEditMode,
   formState,
@@ -587,39 +601,39 @@ export const AuditStep1Identification: React.FC<Props> = ({
                 <input
                   type="number"
                   step="0.1"
-                  value={formState.metroOffsetDistance || ''}
+                  value={getNumericValue(formState.metroOffsetDistance)}
                   onChange={(e) => handleFieldChange('metroOffsetDistance', 'Cự ly tim hầm Metro', e.target.value)}
                   className="w-full px-2.5 py-1.5 bg-amber-50/40 border border-sky-300 rounded-lg text-xs font-black text-sky-900"
                   placeholder="VD: 14.5"
                 />
               ) : (
                 <div className="text-base font-black text-sky-800 font-mono">
-                  {formState.metroOffsetDistance ? `${formState.metroOffsetDistance} m` : '---'}
+                  {formatDistanceDisplay(formState.metroOffsetDistance)}
                 </div>
               )}
               <span className="text-[10px] text-slate-400 block mt-0.5">Khoảng cách đo đạc tới tim</span>
             </div>
 
-            {/* Khoảng cách ranh GPMB */}
+            {/* Khoảng cách đến đường bao ngoài (Mép ga trắng / Ranh GPMB) */}
             <div className="p-3 bg-white rounded-xl border border-sky-200">
               <label className="text-[11px] font-bold text-slate-600 block mb-1">
-                Khoảng cách ranh GPMB (m)
+                Khoảng cách đến đường bao ngoài (m) *
               </label>
               {isEditMode ? (
                 <input
                   type="number"
                   step="0.1"
-                  value={formState.clearanceOffsetDistance || ''}
-                  onChange={(e) => handleFieldChange('clearanceOffsetDistance', 'Cự ly ranh GPMB', e.target.value)}
-                  className="w-full px-2.5 py-1.5 bg-amber-50/40 border border-sky-300 rounded-lg text-xs font-bold text-slate-800"
+                  value={getNumericValue(formState.clearanceOffsetDistance)}
+                  onChange={(e) => handleFieldChange('clearanceOffsetDistance', 'Cự ly đường bao ngoài', e.target.value)}
+                  className="w-full px-2.5 py-1.5 bg-amber-50/40 border border-sky-300 rounded-lg text-xs font-black text-sky-900"
                   placeholder="VD: 5.2"
                 />
               ) : (
-                <div className="text-xs font-bold text-slate-800 font-mono">
-                  {formState.clearanceOffsetDistance ? `${formState.clearanceOffsetDistance} m` : '---'}
+                <div className="text-base font-black text-sky-800 font-mono">
+                  {formatDistanceDisplay(formState.clearanceOffsetDistance)}
                 </div>
               )}
-              <span className="text-[10px] text-slate-400 block mt-0.5">Khoảng cách tới mốc GPMB</span>
+              <span className="text-[10px] text-slate-400 block mt-0.5">Cự ly mép ga trắng / ranh GPMB</span>
             </div>
 
             {/* Lý trình thi công */}

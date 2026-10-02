@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { calculateComprehensiveMetroSpatialMetrics } from '../../../../../survey-phase1/utils/metroSpatialCalculator';
 
 export interface DiffItem {
   field: string;
@@ -30,6 +31,39 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
     const hiState = sJson.historyInterview || data.leftPane?.interview || data.historyInterview || {};
     const sigState = data.leftPane?.signatures || sJson.signatures || {};
 
+    // Tự động tính toán trắc địa không gian chuẩn nếu hồ sơ thiếu số liệu cự ly
+    let defaultMetroDist = sJson.metroOffsetDistance !== undefined && sJson.metroOffsetDistance !== ''
+      ? String(sJson.metroOffsetDistance)
+      : (data.metroOffsetDistance !== undefined && data.metroOffsetDistance !== '' ? String(data.metroOffsetDistance) : '');
+    let defaultClearanceDist = sJson.clearanceOffsetDistance !== undefined && sJson.clearanceOffsetDistance !== ''
+      ? String(sJson.clearanceOffsetDistance)
+      : (data.clearanceOffsetDistance !== undefined && data.clearanceOffsetDistance !== '' ? String(data.clearanceOffsetDistance) : '');
+
+    if ((!defaultMetroDist || !defaultClearanceDist) && (data.cadastralGeojson || data.cadastral_geojson || data.coordinates || data.parcelCoordinates)) {
+      try {
+        let pCoords: [number, number][] = [];
+        const rawGeo = data.cadastralGeojson || data.cadastral_geojson;
+        if (rawGeo) {
+          const parsed = typeof rawGeo === 'string' ? JSON.parse(rawGeo) : rawGeo;
+          if (parsed.type === 'Polygon' && Array.isArray(parsed.coordinates?.[0])) {
+            pCoords = parsed.coordinates[0].map(([lng, lat]: [number, number]) => [lat, lng]);
+          }
+        } else if (Array.isArray(data.coordinates) && data.coordinates.length >= 3) {
+          pCoords = data.coordinates;
+        } else if (Array.isArray(data.parcelCoordinates) && data.parcelCoordinates.length >= 3) {
+          pCoords = data.parcelCoordinates;
+        }
+
+        if (pCoords.length >= 3) {
+          const metrics = calculateComprehensiveMetroSpatialMetrics(pCoords);
+          if (!defaultMetroDist) defaultMetroDist = metrics.distanceToCenterlineMeters.toFixed(1);
+          if (!defaultClearanceDist) defaultClearanceDist = metrics.distanceToOuterBoundaryMeters.toFixed(1);
+        }
+      } catch (e) {
+        console.warn('Error calculating fallback spatial metrics in useAuditStepwiseForm:', e);
+      }
+    }
+
     const initial: Record<string, any> = {
       // Step 1: Identification & General Specs
       projectParcelCode: data.projectParcelCode || sJson.projectParcelCode || '',
@@ -50,8 +84,8 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
       adjacentBuildings: sJson.adjacentBuildings || bSpecs.adjacentBuildings || bSpecs.adjacent_buildings || { left: { details: '' }, right: { details: '' }, back: { details: '' } },
 
       // Spatial & GPS calculations (Allow manual override)
-      metroOffsetDistance: sJson.metroOffsetDistance !== undefined ? String(sJson.metroOffsetDistance) : (data.metroOffsetDistance !== undefined ? String(data.metroOffsetDistance) : ''),
-      clearanceOffsetDistance: sJson.clearanceOffsetDistance !== undefined ? String(sJson.clearanceOffsetDistance) : (data.clearanceOffsetDistance !== undefined ? String(data.clearanceOffsetDistance) : ''),
+      metroOffsetDistance: defaultMetroDist,
+      clearanceOffsetDistance: defaultClearanceDist,
       chainage: sJson.chainage || data.chainage || '',
 
       // Step 2: Structure & Foundation & History Interview

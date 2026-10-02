@@ -1,11 +1,12 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { MapContainer, TileLayer, Polygon, Polyline, Marker, Tooltip, ZoomControl, useMap } from 'react-leaflet';
 import L from 'leaflet';
-import { Compass, Navigation, Layers, Maximize2, ShieldAlert, CheckCircle2 } from 'lucide-react';
+import { Compass, Navigation, Layers, Building, ShieldCheck, CheckCircle2 } from 'lucide-react';
 import {
   METRO_LINE2_CENTERLINE,
-  polygonToPolylineDistance,
-  METRO_LINE2_STATIONS,
+  METRO_CORRIDOR_BOUNDARIES,
+  METRO_STATION_DETAILED_OUTLINES,
+  calculateComprehensiveMetroSpatialMetrics,
 } from '../../../../../survey-phase1/utils/metroSpatialCalculator';
 
 interface Props {
@@ -22,7 +23,7 @@ interface Props {
 }
 
 /**
- * Controller tự động fit bounds vừa vặn cả thửa đất và tim metro
+ * Controller tự động fit bounds vừa vặn cả thửa đất, tim metro và công trình ga/ranh bao ngoài
  */
 const MapAutoBounds: React.FC<{
   points: [number, number][];
@@ -31,7 +32,7 @@ const MapAutoBounds: React.FC<{
   useEffect(() => {
     if (points && points.length >= 2) {
       const bounds = L.latLngBounds(points);
-      map.fitBounds(bounds, { padding: [35, 35], maxZoom: 19 });
+      map.fitBounds(bounds, { padding: [40, 40], maxZoom: 19 });
     }
     const timer = setTimeout(() => map.invalidateSize(), 250);
     return () => clearTimeout(timer);
@@ -75,43 +76,85 @@ export const AuditMetroSpatialVisualMap: React.FC<Props> = ({
     return [latSum / effectivePolygon.length, lngSum / effectivePolygon.length];
   }, [effectivePolygon]);
 
-  // Tính toán hình chiếu vuông góc và cự ly ngắn nhất từ thửa đất đến tim Metro 2
-  const spatialResult = useMemo(() => {
-    const res = polygonToPolylineDistance(effectivePolygon, METRO_LINE2_CENTERLINE);
-    return res;
+  // Tính toán toàn diện cự ly trắc địa:
+  // 1. Cự ly tới Tim Tuyến Metro 2 (537 điểm CAD chuẩn nằm giữa 2 line xanh)
+  // 2. Cự ly tới Đường Bao Ngoài (Mép công trình ga màu trắng hoặc ranh hành lang GPMB)
+  const spatialMetrics = useMemo(() => {
+    return calculateComprehensiveMetroSpatialMetrics(effectivePolygon);
   }, [effectivePolygon]);
 
-  const { closestVertex, closestPoint, minDistance } = spatialResult;
+  const {
+    closestCenterVertex,
+    closestCenterPoint,
+    distanceToCenterlineMeters,
+    closestOuterVertex,
+    closestOuterPoint,
+    distanceToOuterBoundaryMeters,
+    outerBoundaryType,
+    closestStationName,
+    closestStationFootprint,
+  } = spatialMetrics;
 
-  // Điểm giữa của đường dóng để đặt nhãn khoảng cách
-  const midpoint = useMemo<[number, number]>(() => {
+  // Điểm giữa của đường dóng 1 (tim tuyến) để đặt nhãn khoảng cách
+  const centerMidpoint = useMemo<[number, number]>(() => {
     return [
-      (closestVertex[0] + closestPoint[0]) / 2,
-      (closestVertex[1] + closestPoint[1]) / 2,
+      (closestCenterVertex[0] + closestCenterPoint[0]) / 2,
+      (closestCenterVertex[1] + closestCenterPoint[1]) / 2,
     ];
-  }, [closestVertex, closestPoint]);
+  }, [closestCenterVertex, closestCenterPoint]);
 
-  // Toàn bộ các điểm cần fitBounds (Polygon + Closest Point trên tim tuyến)
+  // Điểm giữa của đường dóng 2 (đường bao ngoài / ga) để đặt nhãn khoảng cách
+  const outerMidpoint = useMemo<[number, number]>(() => {
+    return [
+      (closestOuterVertex[0] + closestOuterPoint[0]) / 2,
+      (closestOuterVertex[1] + closestOuterPoint[1]) / 2,
+    ];
+  }, [closestOuterVertex, closestOuterPoint]);
+
+  // Toàn bộ các điểm cần fitBounds (Polygon + Closest Point Tim + Closest Point Bao Ngoài)
   const allFitPoints = useMemo<[number, number][]>(() => {
-    return [...effectivePolygon, closestPoint, closestVertex];
-  }, [effectivePolygon, closestPoint, closestVertex]);
+    const pts = [
+      ...effectivePolygon,
+      closestCenterPoint,
+      closestCenterVertex,
+      closestOuterPoint,
+      closestOuterVertex,
+    ];
+    if (closestStationFootprint && closestStationFootprint.length > 0) {
+      // Lấy thêm 2 điểm đầu/cuối của footprint ga để góc nhìn cân đối
+      pts.push(closestStationFootprint[0], closestStationFootprint[Math.floor(closestStationFootprint.length / 2)]);
+    }
+    return pts;
+  }, [effectivePolygon, closestCenterPoint, closestCenterVertex, closestOuterPoint, closestOuterVertex, closestStationFootprint]);
+
+  // Helper bóc tách số an toàn (loại bỏ hậu tố 'm', 'm2' nếu có như "9.3m")
+  const parseCleanNumber = (val: any, fallback: number): number => {
+    if (val === undefined || val === null || val === '') return fallback;
+    if (typeof val === 'number' && !isNaN(val)) return val;
+    const cleaned = String(val).replace(/[^\d.-]/g, '');
+    const parsed = parseFloat(cleaned);
+    return isNaN(parsed) ? fallback : parsed;
+  };
+
+  // Cự ly thực tế hiển thị (chống NaN khi string có đơn vị 'm')
+  const distCenterNumber = parseCleanNumber(metroOffsetDistance, distanceToCenterlineMeters);
+  const distOuterNumber = parseCleanNumber(clearanceOffsetDistance, distanceToOuterBoundaryMeters);
 
   // Phân hạng vùng ảnh hưởng
-  const distNumber = Number(metroOffsetDistance || minDistance);
   const riskZone = useMemo(() => {
-    if (distNumber <= 10) {
+    if (distCenterNumber <= 10) {
       return {
         label: 'Zone 1 (Vùng ảnh hưởng đặc biệt ≤10m)',
         color: 'bg-red-100 text-red-800 border-red-300',
         badge: '🚨 Nguy cơ rất cao',
       };
-    } else if (distNumber <= 30) {
+    } else if (distCenterNumber <= 30) {
       return {
         label: 'Zone 2 (Vùng ảnh hưởng trực tiếp ≤30m)',
         color: 'bg-amber-100 text-amber-800 border-amber-300',
         badge: '⚠️ Vùng ảnh hưởng trực tiếp',
       };
-    } else if (distNumber <= 50) {
+    } else if (distCenterNumber <= 50) {
       return {
         label: 'Zone 3 (Vùng lân cận cự ly ≤50m)',
         color: 'bg-blue-100 text-blue-800 border-blue-300',
@@ -123,16 +166,12 @@ export const AuditMetroSpatialVisualMap: React.FC<Props> = ({
       color: 'bg-slate-100 text-slate-700 border-slate-300',
       badge: '✓ Ngoài hành lang',
     };
-  }, [distNumber]);
+  }, [distCenterNumber]);
 
-  // Custom DivIcon cho nhãn khoảng cách nổi trên đường dóng
-  const distanceLabelIcon = useMemo(() => {
-    const distText = metroOffsetDistance
-      ? `${Number(metroOffsetDistance).toFixed(1)} m`
-      : `${minDistance.toFixed(1)} m`;
-
+  // Custom DivIcon cho nhãn cự ly tim hầm (Vàng)
+  const centerDistanceLabelIcon = useMemo(() => {
     return L.divIcon({
-      className: 'custom-dist-label',
+      className: 'custom-dist-center-label',
       html: `
         <div style="
           background-color: #1e293b;
@@ -151,12 +190,42 @@ export const AuditMetroSpatialVisualMap: React.FC<Props> = ({
           gap: 4px;
         ">
           <span style="display:inline-block; width:6px; height:6px; border-radius:9999px; background-color:#facc15;"></span>
-          ${distText}
+          d_tim = ${distCenterNumber.toFixed(1)}m
         </div>
       `,
       iconSize: [0, 0],
     });
-  }, [metroOffsetDistance, minDistance]);
+  }, [distCenterNumber]);
+
+  // Custom DivIcon cho nhãn cự ly đường bao ngoài / công trình ga (Xanh ngọc / Cyan)
+  const outerDistanceLabelIcon = useMemo(() => {
+    const isStation = outerBoundaryType === 'STATION_OUTLINE';
+    return L.divIcon({
+      className: 'custom-dist-outer-label',
+      html: `
+        <div style="
+          background-color: #0c4a6e;
+          color: #bae6fd;
+          border: 1.5px solid #38bdf8;
+          border-radius: 9999px;
+          padding: 2px 7px;
+          font-family: monospace;
+          font-size: 11px;
+          font-weight: 900;
+          white-space: nowrap;
+          box-shadow: 0 4px 6px -1px rgba(0,0,0,0.3);
+          transform: translate(-50%, -50%);
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+        ">
+          <span style="display:inline-block; width:6px; height:6px; border-radius:9999px; background-color:#38bdf8;"></span>
+          ${isStation ? 'd_mép ga' : 'd_GPMB'} = ${distOuterNumber.toFixed(1)}m
+        </div>
+      `,
+      iconSize: [0, 0],
+    });
+  }, [distOuterNumber, outerBoundaryType]);
 
   // Custom DivIcon cho điểm đo GPS
   const gpsMarkerIcon = useMemo(() => {
@@ -206,8 +275,9 @@ export const AuditMetroSpatialVisualMap: React.FC<Props> = ({
               Đối Soát Cự Ly Trắc Địa & Tim Tuyến Metro Số 2
             </span>
             <span className="text-[11px] text-slate-500 block">
-              Thửa {projectParcelCode || 'hiện tại'} &bull; Lý trình:{' '}
-              <strong className="text-slate-700">{chainage || 'Km 4+800'}</strong>
+              Thửa {projectParcelCode || 'hiện tại'} &bull; Khu vực:{' '}
+              <strong className="text-sky-700">{closestStationName || 'Tuyến Metro Số 2'}</strong>
+              {chainage ? ` • ${chainage}` : ''}
             </span>
           </div>
         </div>
@@ -247,7 +317,7 @@ export const AuditMetroSpatialVisualMap: React.FC<Props> = ({
       </div>
 
       {/* Map Container */}
-      <div className="relative w-full h-[320px] bg-slate-900">
+      <div className="relative w-full h-[340px] sm:h-[400px] bg-slate-900">
         <MapContainer
           center={parcelCentroid}
           zoom={18}
@@ -277,23 +347,73 @@ export const AuditMetroSpatialVisualMap: React.FC<Props> = ({
             />
           )}
 
-          {/* 1. Tim Tuyến Metro Số 2 (Polyline đỏ rực rỡ) */}
+          {/* 1. RANH GIẢI PHÓNG MẶT BẰNG TẢ TUYẾN & HỮU TUYẾN (2 đường line nét đứt màu xanh kẹp 2 bên tim) */}
+          {METRO_CORRIDOR_BOUNDARIES.map((boundary, idx) => (
+            <Polyline
+              key={`corridor-boundary-${idx}`}
+              positions={boundary.coords}
+              pathOptions={{
+                color: '#0284c7',
+                weight: 2,
+                dashArray: '6, 5',
+                opacity: 0.85,
+              }}
+            >
+              <Tooltip sticky>
+                <div className="text-xs font-bold text-sky-800">
+                  🛡️ {boundary.name} (Ranh GPMB Tuyến Metro 2)
+                </div>
+              </Tooltip>
+            </Polyline>
+          ))}
+
+          {/* 2. CÔNG TRÌNH NHÀ GA MÀU TRẮNG (Phác họa chi tiết các nhà ga ngầm & Depot) */}
+          {METRO_STATION_DETAILED_OUTLINES.map((station, idx) => (
+            <Polygon
+              key={`station-detailed-${station.code}-${idx}`}
+              positions={station.coords}
+              pathOptions={{
+                color: '#ffffff',
+                weight: 2.5,
+                fillColor: '#ffffff',
+                fillOpacity: 0.28,
+                opacity: 0.95,
+                className: 'metro-station-white-outline',
+              }}
+            >
+              <Tooltip sticky>
+                <div className="text-xs font-bold text-slate-900">
+                  🏛️ {station.name}
+                  {station.desc && (
+                    <div className="text-[10px] text-slate-600 font-normal mt-0.5 max-w-[280px]">
+                      {station.desc}
+                    </div>
+                  )}
+                  <div className="text-[10px] text-sky-600 font-semibold mt-1">
+                    Mặt bằng công trình ga (Line viền trắng)
+                  </div>
+                </div>
+              </Tooltip>
+            </Polygon>
+          ))}
+
+          {/* 3. TIM TUYẾN METRO SỐ 2 (Polyline đỏ rực rỡ chuẩn CAD 537 điểm chạy chính giữa 2 line xanh) */}
           <Polyline
             positions={METRO_LINE2_CENTERLINE}
             pathOptions={{
               color: '#dc2626',
-              weight: 4.5,
+              weight: 4,
               opacity: 0.95,
             }}
           >
             <Tooltip direction="top" sticky>
               <div className="text-xs font-bold text-red-600">
-                🚇 Tim Tuyến Metro Số 2 (Bến Thành - Tham Lương)
+                🚇 Tim Tuyến Metro Số 2 (Chạy chính giữa 2 đường ranh nét đứt xanh)
               </div>
             </Tooltip>
           </Polyline>
 
-          {/* 2. Đa giác Thửa Đất (Polygon xanh dương) */}
+          {/* 4. ĐA GIÁC THỬA ĐẤT (Polygon xanh dương) */}
           <Polygon
             positions={effectivePolygon}
             pathOptions={{
@@ -310,9 +430,9 @@ export const AuditMetroSpatialVisualMap: React.FC<Props> = ({
             </Tooltip>
           </Polygon>
 
-          {/* 3. Đường dóng trắc địa vuông góc (Nét đứt màu vàng) */}
+          {/* 5. ĐƯỜNG DÓNG 1: TRẮC ĐỊA VUÔNG GÓC TỚI TIM HẦM (Nét đứt màu vàng) */}
           <Polyline
-            positions={[closestVertex, closestPoint]}
+            positions={[closestCenterVertex, closestCenterPoint]}
             pathOptions={{
               color: '#facc15',
               weight: 3.5,
@@ -320,11 +440,23 @@ export const AuditMetroSpatialVisualMap: React.FC<Props> = ({
               opacity: 1,
             }}
           />
+          {/* Nhãn khoảng cách tim hầm */}
+          <Marker position={centerMidpoint} icon={centerDistanceLabelIcon} />
 
-          {/* 4. Nhãn khoảng cách ở giữa đường dóng */}
-          <Marker position={midpoint} icon={distanceLabelIcon} />
+          {/* 6. ĐƯỜNG DÓNG 2: CỰ LY TỚI ĐƯỜNG BAO NGOÀI / CÔNG TRÌNH GA TRẮNG (Nét đứt màu xanh ngọc) */}
+          <Polyline
+            positions={[closestOuterVertex, closestOuterPoint]}
+            pathOptions={{
+              color: '#38bdf8',
+              weight: 3,
+              dashArray: '4, 4',
+              opacity: 1,
+            }}
+          />
+          {/* Nhãn khoảng cách đường bao ngoài */}
+          <Marker position={outerMidpoint} icon={outerDistanceLabelIcon} />
 
-          {/* 5. Điểm đo GPS thực địa */}
+          {/* 7. ĐIỂM ĐO GPS THỰC ĐỊA */}
           {gpsLocation?.lat && gpsLocation?.lng && (
             <Marker
               position={[Number(gpsLocation.lat), Number(gpsLocation.lng)]}
@@ -352,29 +484,41 @@ export const AuditMetroSpatialVisualMap: React.FC<Props> = ({
           </div>
           <div className="flex items-center gap-1.5">
             <span className="w-4 h-1 bg-red-600 inline-block rounded" />
-            <span className="text-red-700 font-bold">Tim Metro Số 2</span>
+            <span className="text-red-700 font-bold">Tim Metro (Đỏ giữa)</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="w-4 h-0.5 border-t-2 border-dashed border-sky-600 inline-block" />
+            <span className="text-sky-800">Ranh GPMB (Xanh nét đứt)</span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="w-3 h-3 rounded bg-white border border-slate-400 inline-block shadow-2xs" />
+            <span className="text-slate-800">Công trình ga (Line trắng)</span>
           </div>
           <div className="flex items-center gap-1.5">
             <span className="w-4 h-0.5 border-t-2 border-dashed border-amber-500 inline-block" />
-            <span className="text-amber-800 font-bold">Đường dóng cự ly ngắn nhất</span>
+            <span className="text-amber-800 font-bold">Dóng tim hầm</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-sky-600 border border-white shadow-xs inline-block" />
-            <span>Tọa độ GPS thực địa</span>
+            <span className="w-4 h-0.5 border-t-2 border-dashed border-sky-400 inline-block" />
+            <span className="text-sky-700 font-bold">Dóng bao ngoài/ga</span>
           </div>
         </div>
 
         {/* Số đo trắc địa chuẩn xác */}
         <div className="flex items-center gap-2 font-mono text-slate-800">
-          <span>Khoảng cách kiểm toán:</span>
-          <span className="px-2 py-0.5 rounded bg-sky-100 text-sky-900 font-black text-xs border border-sky-300">
-            {distNumber.toFixed(1)} m
+          <span className="text-slate-500 font-sans text-xs">Cự ly:</span>
+          <span
+            className="px-2 py-0.5 rounded bg-amber-50 text-amber-900 font-black text-xs border border-amber-300"
+            title="Khoảng cách vuông góc tới tim hầm Metro 2 (đường đỏ ở giữa)"
+          >
+            Tim: {distCenterNumber.toFixed(1)}m
           </span>
-          {clearanceOffsetDistance && (
-            <span className="text-slate-500 text-[10px]">
-              (GPMB: <strong>{clearanceOffsetDistance}m</strong>)
-            </span>
-          )}
+          <span
+            className="px-2 py-0.5 rounded bg-sky-50 text-sky-900 font-black text-xs border border-sky-300"
+            title={`Khoảng cách tới đường bao ngoài (${outerBoundaryType === 'STATION_OUTLINE' ? 'Mép công trình ga trắng' : 'Ranh GPMB an toàn'})`}
+          >
+            Bao ngoài: {distOuterNumber.toFixed(1)}m
+          </span>
         </div>
       </div>
     </div>

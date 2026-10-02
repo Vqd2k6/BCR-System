@@ -7,6 +7,16 @@
  * - Tọa độ tâm hình học (Centroid) cố định của thửa đất
  */
 
+import {
+  METRO_LINE2_CENTERLINE,
+  METRO_CORRIDOR_BOUNDARIES,
+  METRO_STATION_DETAILED_OUTLINES,
+  DetailedStationFootprint,
+  MetroCorridorBoundary,
+} from '../constants/metroGisConstants';
+
+export { METRO_LINE2_CENTERLINE, METRO_CORRIDOR_BOUNDARIES, METRO_STATION_DETAILED_OUTLINES };
+
 export interface StationWaypoint {
   code: string;
   name: string;
@@ -28,11 +38,6 @@ export const METRO_LINE2_STATIONS: StationWaypoint[] = [
   { code: 'ST10', name: 'Ga Phạm Văn Bạch (ST10)', km: 9.050, kmStr: 'Km 9+050', pos: [10.822124, 106.630160] },
   { code: 'ST11', name: 'Ga Tân Bình (ST11)', km: 10.100, kmStr: 'Km 10+100', pos: [10.822111, 106.626127] },
 ];
-
-/**
- * Đường tim tuyến Metro Số 2 (Tập hợp các điểm tim tuyến nối 11 ga dọc trục CMT8 - Trường Chinh)
- */
-export const METRO_LINE2_CENTERLINE: [number, number][] = METRO_LINE2_STATIONS.map((s) => s.pos);
 
 /**
  * Tính khoảng cách Haversine giữa 2 tọa độ WGS84 (đơn vị: mét)
@@ -90,7 +95,7 @@ export const pointToSegmentDistance = (
 };
 
 /**
- * Tính khoảng cách ngắn nhất từ đa giác (Polygon các đỉnh của thửa đất) đến một Polyline (tim tuyến)
+ * Tính khoảng cách ngắn nhất từ đa giác (Polygon các đỉnh của thửa đất) đến một Polyline
  */
 export const polygonToPolylineDistance = (
   polygonCoords: [number, number][],
@@ -106,7 +111,6 @@ export const polygonToPolylineDistance = (
   let segmentIndex = 0;
   let bestT = 0;
 
-  // Duyệt qua tất cả các đỉnh của đa giác thửa đất để tìm đỉnh gần tim tuyến nhất
   for (const vertex of polygonCoords) {
     for (let i = 0; i < polylineCoords.length - 1; i++) {
       const segA = polylineCoords[i];
@@ -125,11 +129,145 @@ export const polygonToPolylineDistance = (
   return { minDistance, closestPoint, closestVertex, segmentIndex, t: bestT };
 };
 
-import {
-  METRO_STATION_DETAILED_OUTLINES,
-  METRO_CORRIDOR_BOUNDARIES,
-  METRO_LINE2_CENTERLINE as RAW_CENTERLINE,
-} from '../constants/metroGisConstants';
+export interface ComprehensiveMetroSpatialMetrics {
+  closestCenterVertex: [number, number];
+  closestCenterPoint: [number, number];
+  distanceToCenterlineMeters: number;
+  closestOuterVertex: [number, number];
+  closestOuterPoint: [number, number];
+  distanceToOuterBoundaryMeters: number;
+  outerBoundaryType: 'STATION_OUTLINE' | 'CORRIDOR_BOUNDARY';
+  closestStationName: string;
+  closestStationFootprint?: [number, number][];
+}
+
+/**
+ * Tính toán toàn diện không gian trắc địa:
+ * 1. Cự ly & hình chiếu vuông góc ngắn nhất tới Tim Hầm Metro Số 2 (537 điểm CAD chuẩn nằm giữa 2 line xanh)
+ * 2. Cự ly & hình chiếu ngắn nhất tới Đường Bao Ngoài (Mép công trình nhà ga màu trắng hoặc ranh GPMB an toàn)
+ */
+export const calculateComprehensiveMetroSpatialMetrics = (
+  polygonCoords: [number, number][]
+): ComprehensiveMetroSpatialMetrics => {
+  if (!polygonCoords || polygonCoords.length === 0) {
+    return {
+      closestCenterVertex: [10.8034, 106.6385],
+      closestCenterPoint: [10.8034, 106.6385],
+      distanceToCenterlineMeters: 15.0,
+      closestOuterVertex: [10.8034, 106.6385],
+      closestOuterPoint: [10.8034, 106.6385],
+      distanceToOuterBoundaryMeters: 5.0,
+      outerBoundaryType: 'CORRIDOR_BOUNDARY',
+      closestStationName: 'Tuyến Metro Số 2',
+    };
+  }
+
+  const centerline = METRO_LINE2_CENTERLINE && METRO_LINE2_CENTERLINE.length > 1
+    ? METRO_LINE2_CENTERLINE
+    : METRO_LINE2_STATIONS.map((s) => s.pos);
+
+  const stationOutlines = METRO_STATION_DETAILED_OUTLINES || [];
+  const corridorBoundaries = METRO_CORRIDOR_BOUNDARIES || [];
+
+  // 1. Tìm điểm dóng vuông góc ngắn nhất tới Tim Hầm (Centerline)
+  let minCenterlineDist = Infinity;
+  let bestCenterPoint: [number, number] = centerline[0];
+  let bestCenterVertex: [number, number] = polygonCoords[0];
+
+  for (const vertex of polygonCoords) {
+    for (let i = 0; i < centerline.length - 1; i++) {
+      const res = pointToSegmentDistance(vertex, centerline[i], centerline[i + 1]);
+      if (res.distance < minCenterlineDist) {
+        minCenterlineDist = res.distance;
+        bestCenterPoint = res.projection;
+        bestCenterVertex = vertex;
+      }
+    }
+  }
+
+  // 2. Tìm điểm dóng ngắn nhất tới Công Trình Ga Màu Trắng (Detailed Station Footprints)
+  let minStationDist = Infinity;
+  let bestStationPoint: [number, number] = bestCenterPoint;
+  let bestStationVertex: [number, number] = bestCenterVertex;
+  let bestStationName = '';
+  let bestStationCoords: [number, number][] | undefined = undefined;
+
+  for (const station of stationOutlines) {
+    if (!station.coords || station.coords.length < 2) continue;
+    for (const vertex of polygonCoords) {
+      for (let j = 0; j < station.coords.length; j++) {
+        const p1 = station.coords[j];
+        const p2 = station.coords[(j + 1) % station.coords.length];
+        const res = pointToSegmentDistance(vertex, p1, p2);
+        if (res.distance < minStationDist) {
+          minStationDist = res.distance;
+          bestStationPoint = res.projection;
+          bestStationVertex = vertex;
+          bestStationName = station.name;
+          bestStationCoords = station.coords;
+        }
+      }
+    }
+  }
+
+  // 3. Tìm điểm dóng ngắn nhất tới Ranh Hành Lang GPMB (2 đường nét đứt màu xanh Tả Tuyến & Hữu Tuyến)
+  let minCorridorDist = Infinity;
+  let bestCorridorPoint: [number, number] = bestCenterPoint;
+  let bestCorridorVertex: [number, number] = bestCenterVertex;
+
+  for (const corridor of corridorBoundaries) {
+    if (!corridor.coords || corridor.coords.length < 2) continue;
+    for (const vertex of polygonCoords) {
+      for (let k = 0; k < corridor.coords.length - 1; k++) {
+        const res = pointToSegmentDistance(vertex, corridor.coords[k], corridor.coords[k + 1]);
+        if (res.distance < minCorridorDist) {
+          minCorridorDist = res.distance;
+          bestCorridorPoint = res.projection;
+          bestCorridorVertex = vertex;
+        }
+      }
+    }
+  }
+
+  // Quyết định đường bao ngoài phù hợp nhất:
+  // Nếu sát khu vực ga (< 180m), ưu tiên mép công trình nhà ga màu trắng
+  // Nếu ở đoạn hầm thông thường, lấy ranh hành lang an toàn GPMB
+  const isNearStation = minStationDist < 180 && minStationDist < minCorridorDist * 1.5;
+
+  let distanceToOuterBoundaryMeters: number;
+  let closestOuterVertex: [number, number];
+  let closestOuterPoint: [number, number];
+  let outerBoundaryType: 'STATION_OUTLINE' | 'CORRIDOR_BOUNDARY';
+
+  if (isNearStation && minStationDist < Infinity) {
+    distanceToOuterBoundaryMeters = minStationDist;
+    closestOuterVertex = bestStationVertex;
+    closestOuterPoint = bestStationPoint;
+    outerBoundaryType = 'STATION_OUTLINE';
+  } else if (minCorridorDist < Infinity) {
+    distanceToOuterBoundaryMeters = minCorridorDist;
+    closestOuterVertex = bestCorridorVertex;
+    closestOuterPoint = bestCorridorPoint;
+    outerBoundaryType = 'CORRIDOR_BOUNDARY';
+  } else {
+    distanceToOuterBoundaryMeters = Math.max(1.0, Math.abs(minCenterlineDist - 10.0));
+    closestOuterVertex = bestCenterVertex;
+    closestOuterPoint = bestCenterPoint;
+    outerBoundaryType = 'CORRIDOR_BOUNDARY';
+  }
+
+  return {
+    closestCenterVertex: bestCenterVertex,
+    closestCenterPoint: bestCenterPoint,
+    distanceToCenterlineMeters: minCenterlineDist,
+    closestOuterVertex,
+    closestOuterPoint,
+    distanceToOuterBoundaryMeters,
+    outerBoundaryType,
+    closestStationName: bestStationName || 'Tuyến Metro Số 2',
+    closestStationFootprint: bestStationCoords,
+  };
+};
 
 /**
  * Tìm đỉnh polygon của thửa đất gần nhất với tim hầm và khu vực ga màu trắng
@@ -142,88 +280,12 @@ export const findClosestParcelVertexToMetro = (
   distanceToOuterBoundaryMeters: number;
   closestStationName?: string;
 } => {
-  if (!polygonCoords || polygonCoords.length === 0) {
-    return {
-      closestVertex: [10.8034, 106.6385],
-      distanceToCenterlineMeters: 15.0,
-      distanceToOuterBoundaryMeters: 5.0,
-    };
-  }
-
-  const centerline =
-    RAW_CENTERLINE && RAW_CENTERLINE.length > 1 ? RAW_CENTERLINE : METRO_LINE2_CENTERLINE;
-  const stationOutlines = METRO_STATION_DETAILED_OUTLINES || [];
-  const corridorBoundaries = METRO_CORRIDOR_BOUNDARIES || [];
-
-  let bestVertex = polygonCoords[0];
-  let bestCombinedDistance = Infinity;
-  let bestDistCenter = Infinity;
-  let bestDistOuter = Infinity;
-  let bestStationName = '';
-
-  for (const vertex of polygonCoords) {
-    // 1. Khoảng cách tới tim hầm (Centerline)
-    let distCenter = Infinity;
-    for (let i = 0; i < centerline.length - 1; i++) {
-      const res = pointToSegmentDistance(vertex, centerline[i], centerline[i + 1]);
-      if (res.distance < distCenter) {
-        distCenter = res.distance;
-      }
-    }
-
-    // 2. Khoảng cách tới đường bao ngoài công trình ga màu trắng
-    let distStation = Infinity;
-    let stationName = '';
-    for (const station of stationOutlines) {
-      if (!station.coords || station.coords.length < 2) continue;
-      for (let j = 0; j < station.coords.length; j++) {
-        const p1 = station.coords[j];
-        const p2 = station.coords[(j + 1) % station.coords.length];
-        const res = pointToSegmentDistance(vertex, p1, p2);
-        if (res.distance < distStation) {
-          distStation = res.distance;
-          stationName = station.name;
-        }
-      }
-    }
-
-    // 3. Khoảng cách tới đường ranh hành lang an toàn (Corridor Boundaries)
-    let distCorridor = Infinity;
-    for (const corridor of corridorBoundaries) {
-      if (!corridor.coords || corridor.coords.length < 2) continue;
-      for (let k = 0; k < corridor.coords.length - 1; k++) {
-        const res = pointToSegmentDistance(vertex, corridor.coords[k], corridor.coords[k + 1]);
-        if (res.distance < distCorridor) {
-          distCorridor = res.distance;
-        }
-      }
-    }
-
-    // Đường bao ngoài: nếu sát ga (<150m) lấy cự ly mép ga trắng; nếu đoạn hầm lấy ranh hành lang hoặc mép hầm
-    const distOuter =
-      distStation < 150
-        ? distStation
-        : distCorridor < 80
-        ? distCorridor
-        : Math.max(1.0, Math.abs(distCenter - 10.0));
-
-    // Điểm gần nhất với tim hầm và khu vực ga màu trắng
-    const combinedScore = Math.min(distCenter, distStation);
-
-    if (combinedScore < bestCombinedDistance) {
-      bestCombinedDistance = combinedScore;
-      bestVertex = vertex;
-      bestDistCenter = distCenter;
-      bestDistOuter = distOuter;
-      bestStationName = stationName;
-    }
-  }
-
+  const metrics = calculateComprehensiveMetroSpatialMetrics(polygonCoords);
   return {
-    closestVertex: bestVertex,
-    distanceToCenterlineMeters: bestDistCenter,
-    distanceToOuterBoundaryMeters: bestDistOuter,
-    closestStationName: bestStationName,
+    closestVertex: metrics.closestCenterVertex,
+    distanceToCenterlineMeters: metrics.distanceToCenterlineMeters,
+    distanceToOuterBoundaryMeters: metrics.distanceToOuterBoundaryMeters,
+    closestStationName: metrics.closestStationName,
   };
 };
 
@@ -243,7 +305,7 @@ export interface ParcelMetroSpatialMetrics {
   closestVertex: { lat: number; lng: number };
   metroOffsetDistance: string; // VD: "12.5m"
   clearanceOffsetDistance: string; // VD: "4.8m"
-  chainage: string; // Đã loại bỏ
+  chainage: string;
   closestStation: string;
 }
 
@@ -256,7 +318,6 @@ export interface ParcelMetroSpatialMetrics {
 export const calculateParcelMetroSpatialMetrics = (
   parcelCoords: [number, number][]
 ): ParcelMetroSpatialMetrics => {
-  // 1. Tính tâm hình học (Centroid) của thửa đất
   let avgLat = 10.8034;
   let avgLng = 106.6385;
 
@@ -267,14 +328,13 @@ export const calculateParcelMetroSpatialMetrics = (
     avgLng = Number((sumLng / parcelCoords.length).toFixed(6));
   }
 
-  // 2. Phân tích đỉnh polygon gần nhất với tim hầm và công trình ga màu trắng
-  const analysis = findClosestParcelVertexToMetro(parcelCoords);
+  const analysis = calculateComprehensiveMetroSpatialMetrics(parcelCoords);
 
   return {
     centroid: { lat: avgLat, lng: avgLng },
     closestVertex: {
-      lat: Number(analysis.closestVertex[0].toFixed(6)),
-      lng: Number(analysis.closestVertex[1].toFixed(6)),
+      lat: Number(analysis.closestCenterVertex[0].toFixed(6)),
+      lng: Number(analysis.closestCenterVertex[1].toFixed(6)),
     },
     metroOffsetDistance: `${analysis.distanceToCenterlineMeters.toFixed(1)}m`,
     clearanceOffsetDistance: `${analysis.distanceToOuterBoundaryMeters.toFixed(1)}m`,
