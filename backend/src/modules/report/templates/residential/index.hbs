@@ -298,8 +298,8 @@
       <td class="font-bold" style="width: 25%;">{{distanceToTunnelMeters}} mét</td>
     </tr>
     <tr>
-      <th>Khoảng cách tĩnh không</th>
-      <td>{{#if clearanceOffsetDistanceM}}{{clearanceOffsetDistanceM}} m{{else}}Chưa đo đạc{{/if}}</td>
+      <th>Khoảng cách đến mép ga / tĩnh không</th>
+      <td>{{#if hasStationEdge}}{{clearanceOffsetDistanceM}} m{{else}}<span style="color: #b45309; font-style: italic;">Không có công trình ga trong zone</span>{{/if}}</td>
       <th>Đoạn tuyến / Ga phụ trách</th>
       <td>{{zoneName}} ({{zoneId}})</td>
     </tr>
@@ -1512,9 +1512,19 @@
       <div class="metric-label">Cấp tác động Metro (I)</div>
       <div class="metric-value">CẤP I-{{constructionImpactLevelI}}</div>
       <div style="margin-top: 4px;">
-        <span class="badge {{impactBadgeClass}}">CỰ LY {{distanceToTunnelMeters}}M</span>
+        {{#if hasStationEdge}}
+        <span class="badge {{impactBadgeClass}}">MÉP GA {{clearanceOffsetDistanceM}}M</span>
+        {{else}}
+        <span class="badge {{impactBadgeClass}}">TIM HẦM {{distanceToTunnelMeters}}M</span>
+        {{/if}}
       </div>
-      <div class="metric-desc">Khoảng cách đến tim hầm</div>
+      <div class="metric-desc">
+        {{#if hasStationEdge}}
+        Khoảng cách đến mép công trình ga
+        {{else}}
+        Không có công trình ga trong zone
+        {{/if}}
+      </div>
     </div>
 
     <div class="metric-card">
@@ -1547,8 +1557,20 @@
     <tr>
       <th style="width: 25%;">Hạng mục Metro tác động</th>
       <td style="width: 25%;">{{metroItemType}}</td>
-      <th style="width: 25%;">Khoảng cách ranh đất đến tim hầm</th>
-      <td class="font-bold" style="width: 25%;">{{distanceToTunnelMeters}} mét</td>
+      <th style="width: 25%;">Khoảng cách đến mép ga / biên hố đào</th>
+      <td class="font-bold" style="width: 25%;">
+        {{#if hasStationEdge}}
+          {{clearanceOffsetDistanceM}} mét <span class="badge badge-low" style="font-size: 7pt; margin-left: 4px;">Căn cứ Cấp I</span>
+        {{else}}
+          <span style="color: #b45309; font-style: italic;">Không có công trình ga trong zone</span>
+        {{/if}}
+      </td>
+    </tr>
+    <tr>
+      <th>Khoảng cách ranh đất đến tim hầm</th>
+      <td class="font-bold">{{distanceToTunnelMeters}} mét</td>
+      <th>Cấp tác động Metro (Impact Class I)</th>
+      <td class="font-bold"><span class="badge {{impactBadgeClass}}">CẤP I-{{constructionImpactLevelI}}</span></td>
     </tr>
     <tr>
       <th>Dự báo lún tối đa (S<sub>max</sub>)</th>
@@ -1558,9 +1580,7 @@
     </tr>
     <tr>
       <th>Vận tốc hạt đỉnh rung động (PPV)</th>
-      <td>{{vibrationPpv}} mm/s</td>
-      <th>Cấp tác động Metro (Impact Class I)</th>
-      <td class="font-bold"><span class="badge {{impactBadgeClass}}">CẤP I-{{constructionImpactLevelI}}</span></td>
+      <td colspan="3">{{vibrationPpv}} mm/s</td>
     </tr>
   </table>
 

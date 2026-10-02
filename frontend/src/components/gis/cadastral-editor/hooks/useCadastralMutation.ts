@@ -775,6 +775,16 @@ export const useCadastralMutation = ({
       mergeBuildingAreaM2: calculatedMergeBArea,
       mergeResidualAreaM2: calculatedMergeRArea,
       mergeResidualCustomPoints: realActiveCoords,
+      // Flat legacy compatibility fields
+      portionAAreaM2: calculatedAreaA,
+      portionBAreaM2: calculatedAreaB,
+      portionAPolygon: polyAVertices,
+      portionBPolygon: polyB,
+      splitType: isNewB ? 'NEW_BUILDING' : 'NON_BUILDING',
+      mergeWithParcelCodes: selectedMergeCodes,
+      finalMergedLandAreaM2: mergeSummary.totalMergedArea,
+      mergeBuildingPolygon: mergeBuildingVertices,
+      mergeResidualPolygon: realActiveCoords,
     };
 
     onMutationDataChange(updatedMutation);

@@ -451,6 +451,7 @@ export const Step6_ScopeAndGisMutation: React.FC = () => {
               updateFormData({
                 gisMutationConfirmed: {
                   ...formData.gisMutationConfirmed,
+                  type: (data.activeProposalType as any) || formData.gisMutationConfirmed.type,
                   notes: data.splitReason || data.mergeReason || formData.gisMutationConfirmed.notes,
                   details: {
                     ...formData.gisMutationConfirmed.details,

@@ -109,9 +109,24 @@ export const AdminReassignParcelModal: React.FC<Props> = ({
     (r) => r.report_id === selectedReportBId
   );
 
+  // Danh sách gợi ý thửa đất đích khi gõ trong chế độ REASSIGN
+  const targetSuggestions = useMemo(() => {
+    const raw = targetParcelCodeOrId.replace(/[\[\]"'\\]/g, '').trim().toLowerCase();
+    if (!raw || raw.length < 2) return [];
+    return candidatePool
+      .filter((c) => {
+        const code = (c.project_parcel_code || '').toLowerCase();
+        const house = (c.house_number || '').toLowerCase();
+        const street = (c.street || '').toLowerCase();
+        return code.includes(raw) || house.includes(raw) || street.includes(raw);
+      })
+      .slice(0, 5);
+  }, [candidatePool, targetParcelCodeOrId]);
+
   const handleReassignSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!targetParcelCodeOrId.trim()) {
+    const cleanedTarget = targetParcelCodeOrId.replace(/[\[\]"'\\]/g, '').trim();
+    if (!cleanedTarget) {
       setErrorMsg('Vui lòng nhập mã thửa đất đích hoặc ID thửa đất cần gán.');
       return;
     }
@@ -124,7 +139,7 @@ export const AdminReassignParcelModal: React.FC<Props> = ({
     setErrorMsg('');
     try {
       const res = await api.post(`/admin/reports/${reportId}/reassign-parcel`, {
-        targetParcelId: targetParcelCodeOrId.trim(),
+        targetParcelId: cleanedTarget,
         reason: reason.trim(),
       });
 
@@ -292,6 +307,30 @@ export const AdminReassignParcelModal: React.FC<Props> = ({
                   />
                   <Search className="w-4 h-4 text-slate-400 absolute right-2.5 top-2.5" />
                 </div>
+                {targetSuggestions.length > 0 && (
+                  <div className="p-1 rounded-xl bg-slate-50 border border-slate-200 shadow-sm space-y-1">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase px-2 block">
+                      Gợi ý thửa đất trong phân khu:
+                    </span>
+                    {targetSuggestions.map((item) => (
+                      <button
+                        key={item.report_id || item.parcel_id}
+                        type="button"
+                        onClick={() => {
+                          setTargetParcelCodeOrId(item.project_parcel_code);
+                        }}
+                        className="w-full text-left px-2.5 py-1.5 rounded-lg text-xs hover:bg-sky-50 transition-colors flex items-center justify-between cursor-pointer border border-transparent hover:border-sky-200"
+                      >
+                        <span className="font-bold text-sky-800">
+                          [{item.project_parcel_code}]
+                        </span>
+                        <span className="text-[11px] text-slate-600 truncate ml-2">
+                          {item.house_number ? `Số ${item.house_number}` : ''} {item.street || ''}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
                 <div className="p-2.5 rounded-lg bg-sky-50 border border-sky-100 text-[11px] text-sky-900 space-y-1">
                   <p className="font-semibold">
                     ✓ Cơ chế Hoán Đổi Ranh Không Gian (Spatial Geometry Swap):

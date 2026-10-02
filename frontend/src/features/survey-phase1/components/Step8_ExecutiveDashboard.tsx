@@ -41,9 +41,10 @@ export const Step8_ExecutiveDashboard: React.FC = () => {
       ? 'GIẢM NHẸ (Can thiệp KS)'
       : vi.viClass;
 
-  // 1. Tính toán Tác động thi công Metro (Impact I1 - I4) theo khoảng cách d & nhóm đối tượng
+  // 1. Tính toán Tác động thi công Metro (Impact I1 - I4) theo khoảng cách mép ga (ưu tiên) hoặc tim hầm (fallback)
   const impact = calculateConstructionImpact(
     formData.objectGroup,
+    formData.clearanceOffsetDistance,
     formData.metroOffsetDistance
   );
 
@@ -83,7 +84,16 @@ export const Step8_ExecutiveDashboard: React.FC = () => {
           <div className="flex items-center gap-2 flex-wrap">
             <Badge variant="neutral">Nhóm: {formData.objectGroup || 'GENERAL'}</Badge>
             <Badge variant="neutral">Lý trình: {formData.chainage || 'Km --+---'}</Badge>
-            <Badge variant="neutral">Tim Metro: {formData.metroOffsetDistance || '--'} m</Badge>
+            {impact.hasStationEdge ? (
+              <Badge variant="info" className="bg-sky-50 text-sky-800 border-sky-300 font-bold">
+                Mép Ga: {formData.clearanceOffsetDistance || `${impact.distance}m`}
+              </Badge>
+            ) : (
+              <Badge variant="warning" className="bg-amber-50 text-amber-900 border-amber-300 font-bold">
+                Không có công trình ga trong zone
+              </Badge>
+            )}
+            <Badge variant="neutral">Tim Metro: {formData.metroOffsetDistance || '--'}</Badge>
           </div>
         </div>
       </Card>
@@ -203,7 +213,10 @@ export const Step8_ExecutiveDashboard: React.FC = () => {
                 </span>
                 <InfoPopover title="4. Phân Cấp Tác Động Thi Công Metro (Construction Impact)" size="md">
                   <p className="text-xs leading-relaxed">
-                    <strong>Nguyên tắc phân cấp theo khoảng cách gần nhất đến tim Metro (d):</strong>
+                    <strong>Nguyên tắc phân cấp theo khoảng cách ngắn nhất đến mép ga / biên hố đào (d):</strong>
+                  </p>
+                  <p className="text-[11px] text-slate-500 mt-1 italic">
+                    * Lưu ý: Chỉ số I tính theo khoảng cách mép ga để phản ánh đúng phễu lún hố đào sâu. Nếu không có mép ga, hệ thống sẽ báo rõ là không có công trình ga trong zone và tính dự phòng theo tim hầm.
                   </p>
                   <div className="mt-2 space-y-2 text-[11px] leading-relaxed">
                     <div className="p-2 rounded bg-slate-50 border border-slate-200">
@@ -212,7 +225,7 @@ export const Step8_ExecutiveDashboard: React.FC = () => {
                         <li>d ≥ 20m ➔ <strong>I1 Low</strong> (Tác động thấp)</li>
                         <li>10m ≤ d &lt; 20m ➔ <strong>I2 Medium</strong> (Tác động trung bình)</li>
                         <li>5m ≤ d &lt; 10m ➔ <strong>I3 High</strong> (Tác động cao)</li>
-                        <li>d &lt; 5m ➔ <strong>I4 Very High</strong> (Tác động rất cao)</li>
+                        <li>d &lt; 5m (hoặc cắt qua ga: 0m) ➔ <strong>I4 Very High</strong> (Tác động rất cao)</li>
                       </ul>
                     </div>
                     <div className="p-2 rounded bg-amber-50/60 border border-amber-200">
@@ -221,7 +234,7 @@ export const Step8_ExecutiveDashboard: React.FC = () => {
                         <li>d ≥ 30m ➔ <strong>I1 Low</strong></li>
                         <li>20m ≤ d &lt; 30m ➔ <strong>I2 Medium</strong></li>
                         <li>10m ≤ d &lt; 20m ➔ <strong>I3 High</strong></li>
-                        <li>d &lt; 10m ➔ <strong>I4 Very High</strong></li>
+                        <li>d &lt; 10m (hoặc cắt qua ga: 0m) ➔ <strong>I4 Very High</strong></li>
                       </ul>
                     </div>
                   </div>
@@ -232,15 +245,28 @@ export const Step8_ExecutiveDashboard: React.FC = () => {
                 <span className={`inline-block px-3 py-1 rounded-full text-base font-black border ${impact.badgeBg}`}>
                   {impact.label}
                 </span>
+                {!impact.hasStationEdge && (
+                  <span className="block mt-1 text-[11px] font-semibold text-amber-700">
+                    ⚠️ {impact.stationNote}
+                  </span>
+                )}
               </div>
             </div>
 
             <div className="mt-2 pt-2 border-t border-slate-200 text-center text-xs">
-              <span className="font-semibold text-slate-700">
-                Khoảng cách tim: {impact.distance}m ({impact.conditionFormula})
+              <span className="font-semibold text-slate-700 block">
+                {impact.hasStationEdge ? (
+                  <>Khoảng cách mép ga: <span className="text-sky-700 font-bold">{impact.distance}m</span> ({impact.conditionFormula})</>
+                ) : (
+                  <>Dự phòng theo tim hầm: <span className="text-slate-800 font-bold">{impact.distance}m</span> ({impact.conditionFormula})</>
+                )}
               </span>
               <span className="text-[11px] text-slate-500 block mt-0.5">
-                Áp dụng chuẩn: <strong>{impact.isSpecialObject ? 'Important / Critical' : 'General'}</strong>
+                {impact.hasStationEdge ? (
+                  <>Tim Metro: {formData.metroOffsetDistance || '--'} • Chuẩn: <strong>{impact.isSpecialObject ? 'Important / Critical' : 'General'}</strong></>
+                ) : (
+                  <>Áp dụng chuẩn: <strong>{impact.isSpecialObject ? 'Important / Critical' : 'General'}</strong></>
+                )}
               </span>
             </div>
           </div>

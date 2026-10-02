@@ -162,6 +162,8 @@ export interface ResidentialReportViewModel {
   chainage: string;
   distanceToTunnelMeters: number;
   clearanceOffsetDistanceM?: string;
+  hasStationEdge?: boolean;
+  stationNote?: string;
   metroItemType: string;
   isTbm?: boolean;
   isStation?: boolean;

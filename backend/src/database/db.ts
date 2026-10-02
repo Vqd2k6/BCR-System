@@ -172,6 +172,16 @@ export class Database {
     } catch (e) {
       console.warn('⚠️ [STARTUP MIGRATION] parcel_absence_logs warning:', e);
     }
+
+    // 8. mutation_type_enum SWAP_SPATIAL
+    try {
+      await this.query(`
+        ALTER TYPE mutation_type_enum ADD VALUE IF NOT EXISTS 'SWAP_SPATIAL';
+      `);
+      console.log('✅ [STARTUP MIGRATION] mutation_type_enum SWAP_SPATIAL ready.');
+    } catch (e) {
+      console.warn('⚠️ [STARTUP MIGRATION] mutation_type_enum SWAP_SPATIAL warning:', e);
+    }
   }
 }
 

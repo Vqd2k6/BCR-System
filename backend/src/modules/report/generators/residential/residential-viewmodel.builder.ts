@@ -350,9 +350,43 @@ export function buildResidentialViewModel(reportData: any): ResidentialReportVie
     ? riskScores.overridden_vi_class
     : (json.vi?.viClass || riskScores.vi_class || 'LOW');
 
+  // Trích xuất khoảng cách mép ga (ưu tiên) và khoảng cách tim hầm (dự phòng)
+  const rawClearance = json.clearanceOffsetDistance || reportData.clearance_offset_distance_m || '';
+  const parsedEdgeDist = (() => {
+    if (!rawClearance) return null;
+    const cleaned = String(rawClearance).replace(/[^\d.]/g, '');
+    if (!cleaned) return null;
+    const num = parseFloat(cleaned);
+    return isNaN(num) ? null : num;
+  })();
+
+  const hasStationEdge = parsedEdgeDist !== null;
+  const stationNote = hasStationEdge ? '' : 'Không có công trình ga trong zone';
+
+  const rawTunnelDist = json.metroOffsetDistance || reportData.distance_to_tunnel_meters || '';
+  const parsedTunnelDist = (() => {
+    if (!rawTunnelDist) return 15.0;
+    const cleaned = String(rawTunnelDist).replace(/[^\d.]/g, '');
+    const num = parseFloat(cleaned);
+    return isNaN(num) ? 15.0 : num;
+  })();
+
   const effectiveImpactI = (isJudgementActive && riskScores.overridden_impact_level_i !== null && riskScores.overridden_impact_level_i !== undefined)
     ? Number(riskScores.overridden_impact_level_i)
-    : (json.bra?.constructionImpactLevel !== undefined ? Number(json.bra.constructionImpactLevel) : (json.executiveSummary?.constructionImpactStatus ? parseInt(json.executiveSummary.constructionImpactStatus.replace(/\D/g, '') || '2') : Number(riskScores.construction_impact_level_i || 2)));
+    : (json.bra?.constructionImpactLevel !== undefined
+        ? Number(json.bra.constructionImpactLevel)
+        : (json.executiveSummary?.constructionImpactStatus
+            ? parseInt(json.executiveSummary.constructionImpactStatus.replace(/\D/g, '') || '2')
+            : (() => {
+                // Tự động phân cấp theo cự ly mép ga (hoặc fallback tim hầm)
+                const d = hasStationEdge ? parsedEdgeDist : parsedTunnelDist;
+                const isSpecial = json.objectGroup === 'CRITICAL' || json.objectGroup === 'IMPORTANT';
+                if (isSpecial) {
+                  return d >= 30 ? 1 : d >= 20 ? 2 : d >= 10 ? 3 : 4;
+                }
+                return d >= 20 ? 1 : d >= 10 ? 2 : d >= 5 ? 3 : 4;
+              })()
+          ));
 
   const effectiveBra = (isJudgementActive && riskScores.overridden_bra)
     ? riskScores.overridden_bra
@@ -373,8 +407,10 @@ export function buildResidentialViewModel(reportData: any): ResidentialReportVie
     zoneId: reportData.zone_id || 'ZONE_01',
     zoneName: `Khu vực Ga ${reportData.zone_id || 'ZONE_01'}`,
     chainage: json.chainage || reportData.chainage || 'Km 0+000',
-    distanceToTunnelMeters: json.metroOffsetDistance ? parseFloat(json.metroOffsetDistance) : (reportData.distance_to_tunnel_meters ? Number(reportData.distance_to_tunnel_meters) : 15.0),
-    clearanceOffsetDistanceM: json.clearanceOffsetDistance || reportData.clearance_offset_distance_m || '',
+    distanceToTunnelMeters: parsedTunnelDist,
+    clearanceOffsetDistanceM: parsedEdgeDist !== null ? `${parsedEdgeDist.toFixed(1)}` : '',
+    hasStationEdge,
+    stationNote,
     metroItemType: reportData.metro_item_type || 'Đào hầm bằng khiên đào TBM ngầm',
     isTbm: (() => {
       const t = (reportData.metro_item_type || json.metroItemType || 'TBM').toLowerCase();
