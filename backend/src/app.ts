@@ -175,6 +175,8 @@ export function createApp(): express.Application {
   api.post('/admin/reports/:id/audit-replace-photo', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.replaceReportPhoto);
   api.post('/admin/reports/:id/reassign-parcel', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.reassignReportParcel);
   api.post('/admin/reports/swap-parcels', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.swapReportParcels);
+  api.get('/admin/reports/swap-candidates', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.searchSwapCandidates);
+  api.get('/admin/parcels/:id/adjacent-candidates', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.getAdjacentCandidates);
   api.post('/admin/parcels/execute-mutation', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.executeAdminMutation);
 
   // Xuất Báo Cáo Phân khu & Toàn tuyến

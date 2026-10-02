@@ -324,6 +324,19 @@ export class CadastralController {
       next(error);
     }
   }
+
+  static async getAdjacentCandidates(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      const result = await CadastralService.getAdjacentCandidates(id);
+      res.status(200).json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 

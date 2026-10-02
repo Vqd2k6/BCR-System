@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Camera, Maximize2, MapPin, AlertCircle, Compass, ShieldAlert, Building, Navigation, ShieldCheck } from 'lucide-react';
 import { Badge } from '../../../../../../core/components/ui/Badge';
 import { OBJECT_GROUPS, ADJACENT_LEFT_RIGHT, ADJACENT_REAR } from '../../../../../survey-phase1/components/step1/step1.constants';
 import { USAGE_OPTIONS } from '../../../../../survey-phase1/constants/surveyOptionsConstants';
+import { AuditMetroSpatialVisualMap } from '../components/AuditMetroSpatialVisualMap';
 
 interface Props {
   isEditMode: boolean;
@@ -13,6 +14,20 @@ interface Props {
   onOpenPhotoZoom: (url: string, title?: string, photoCode?: string) => void;
   onOpenPhotoReplace: (params: any) => void;
 }
+
+const formatDistanceDisplay = (val: any): string => {
+  if (val === undefined || val === null || val === '') return '---';
+  const str = String(val).trim();
+  const num = parseFloat(str.replace(/[^\d.-]/g, ''));
+  if (isNaN(num)) return '---';
+  return `${num.toFixed(1)} m`;
+};
+
+const getNumericValue = (val: any): string => {
+  if (val === undefined || val === null || val === '') return '';
+  const num = parseFloat(String(val).replace(/[^\d.-]/g, ''));
+  return isNaN(num) ? '' : String(num);
+};
 
 export const AuditStep1Identification: React.FC<Props> = ({
   isEditMode,
@@ -109,6 +124,35 @@ export const AuditStep1Identification: React.FC<Props> = ({
   const latDisplay = gpsCoords.latitude ?? gpsCoords.lat;
   const lngDisplay = gpsCoords.longitude ?? gpsCoords.lng;
   const accuracyDisplay = gpsCoords.accuracy;
+
+  // Trích xuất tọa độ Polygon thửa đất (từ formState, surveyJson hoặc PostGIS GeoJSON)
+  const parcelCoords = useMemo<[number, number][]>(() => {
+    if (Array.isArray(formState.parcelCoordinates) && formState.parcelCoordinates.length >= 3) {
+      return formState.parcelCoordinates;
+    }
+    if (Array.isArray(sJson.parcelCoordinates) && sJson.parcelCoordinates.length >= 3) {
+      return sJson.parcelCoordinates;
+    }
+    if (Array.isArray(data?.coordinates) && data.coordinates.length >= 3) {
+      return data.coordinates;
+    }
+    if (Array.isArray(data?.parcelCoordinates) && data.parcelCoordinates.length >= 3) {
+      return data.parcelCoordinates;
+    }
+    const rawGeojson = data?.cadastralGeojson || data?.cadastral_geojson;
+    if (rawGeojson) {
+      try {
+        const parsed = typeof rawGeojson === 'string' ? JSON.parse(rawGeojson) : rawGeojson;
+        if (parsed.type === 'Polygon' && Array.isArray(parsed.coordinates?.[0])) {
+          // Chuẩn hóa: Đảo [lng, lat] GeoJSON sang [lat, lng] cho Leaflet Map
+          return parsed.coordinates[0].map(([lng, lat]: [number, number]) => [lat, lng]);
+        }
+      } catch (e) {
+        console.warn('Failed to parse cadastralGeojson in AuditStep1:', e);
+      }
+    }
+    return [];
+  }, [formState.parcelCoordinates, sJson.parcelCoordinates, data?.coordinates, data?.parcelCoordinates, data?.cadastralGeojson, data?.cadastral_geojson]);
 
   // Adjacent Buildings Data
   const adjacent = formState.adjacentBuildings || sJson.adjacentBuildings || {
@@ -557,39 +601,52 @@ export const AuditStep1Identification: React.FC<Props> = ({
                 <input
                   type="number"
                   step="0.1"
-                  value={formState.metroOffsetDistance || ''}
+                  value={getNumericValue(formState.metroOffsetDistance)}
                   onChange={(e) => handleFieldChange('metroOffsetDistance', 'Cự ly tim hầm Metro', e.target.value)}
                   className="w-full px-2.5 py-1.5 bg-amber-50/40 border border-sky-300 rounded-lg text-xs font-black text-sky-900"
                   placeholder="VD: 14.5"
                 />
               ) : (
                 <div className="text-base font-black text-sky-800 font-mono">
-                  {formState.metroOffsetDistance ? `${formState.metroOffsetDistance} m` : '---'}
+                  {formatDistanceDisplay(formState.metroOffsetDistance)}
                 </div>
               )}
               <span className="text-[10px] text-slate-400 block mt-0.5">Khoảng cách đo đạc tới tim</span>
             </div>
 
-            {/* Khoảng cách ranh GPMB */}
+            {/* Khoảng cách đến đường bao ngoài (Mép ga trắng / Mép hố đào) */}
             <div className="p-3 bg-white rounded-xl border border-sky-200">
               <label className="text-[11px] font-bold text-slate-600 block mb-1">
-                Khoảng cách ranh GPMB (m)
+                Khoảng cách đến đường bao ngoài (m) *
               </label>
               {isEditMode ? (
                 <input
                   type="number"
                   step="0.1"
-                  value={formState.clearanceOffsetDistance || ''}
-                  onChange={(e) => handleFieldChange('clearanceOffsetDistance', 'Cự ly ranh GPMB', e.target.value)}
-                  className="w-full px-2.5 py-1.5 bg-amber-50/40 border border-sky-300 rounded-lg text-xs font-bold text-slate-800"
+                  value={getNumericValue(formState.clearanceOffsetDistance)}
+                  onChange={(e) => handleFieldChange('clearanceOffsetDistance', 'Cự ly đường bao ngoài', e.target.value)}
+                  className="w-full px-2.5 py-1.5 bg-amber-50/40 border border-sky-300 rounded-lg text-xs font-black text-sky-900"
                   placeholder="VD: 5.2"
                 />
               ) : (
-                <div className="text-xs font-bold text-slate-800 font-mono">
-                  {formState.clearanceOffsetDistance ? `${formState.clearanceOffsetDistance} m` : '---'}
+                <div className="text-base font-black text-sky-800 font-mono flex items-center gap-2">
+                  <span>{formatDistanceDisplay(formState.clearanceOffsetDistance)}</span>
+                  {parseFloat(getNumericValue(formState.clearanceOffsetDistance)) === 0 && (
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-100 text-red-700 border border-red-200">
+                      Ga cán qua
+                    </span>
+                  )}
                 </div>
               )}
-              <span className="text-[10px] text-slate-400 block mt-0.5">Khoảng cách tới mốc GPMB</span>
+              {parseFloat(getNumericValue(formState.clearanceOffsetDistance)) === 0 ? (
+                <span className="text-[10px] text-red-600 font-bold block mt-0.5">
+                  ⚠️ Nhà ga cắt qua / Nằm trong phạm vi ga
+                </span>
+              ) : (
+                <span className="text-[10px] text-slate-400 block mt-0.5">
+                  Cự ly mép ga trắng / mép hố đào
+                </span>
+              )}
             </div>
 
             {/* Lý trình thi công */}
@@ -627,6 +684,20 @@ export const AuditStep1Identification: React.FC<Props> = ({
               </span>
             </div>
           </div>
+
+          {/* Trực quan hóa Bản đồ không gian trắc địa & Tim tuyến Metro 2 */}
+          <AuditMetroSpatialVisualMap
+            parcelCoordinates={parcelCoords}
+            projectParcelCode={formState.projectParcelCode || data?.projectParcelCode}
+            metroOffsetDistance={formState.metroOffsetDistance}
+            clearanceOffsetDistance={formState.clearanceOffsetDistance}
+            chainage={formState.chainage}
+            gpsLocation={{
+              lat: Number(latDisplay || 10.79241),
+              lng: Number(lngDisplay || 106.71152),
+              accuracy: Number(accuracyDisplay || 3.5),
+            }}
+          />
         </div>
 
         {/* 1.4. CÔNG TRÌNH LIỀN KỀ THEO CÁC HƯỚNG & ADJACENT RISK RADAR */}

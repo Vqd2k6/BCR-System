@@ -221,6 +221,9 @@ export class AuditService {
   static async getSplitPaneAuditView(reportId: string) {
     const reportRes = await Database.query(
       `SELECT r.*, p.project_parcel_code, p.house_number, p.street, p.zone_id,
+              p.land_area_m2, p.construction_area_m2,
+              ST_AsGeoJSON(p.cadastral_polygon_geom) AS cadastral_geojson,
+              ST_AsGeoJSON(p.location_geom) AS location_geojson,
               u.full_name AS surveyor_name, u.phone AS surveyor_phone
        FROM base_survey_reports r
        JOIN parcels p ON r.parcel_id = p.id
@@ -479,6 +482,10 @@ export class AuditService {
       survey_data_json: surveyJson,
       identificationPhotos: identificationPhotos,
       signatures: normalizedSignatures,
+      cadastralGeojson: report.cadastral_geojson || null,
+      locationGeojson: report.location_geojson || null,
+      landAreaM2: report.land_area_m2 || null,
+      constructionAreaM2: report.construction_area_m2 || null,
 
       // Nửa Trái (Left Pane): Cấu kiện & Điểm số & Pháp lý
       leftPane: {
@@ -975,15 +982,21 @@ export class AuditService {
    */
   static async reassignReportParcel(
     reportId: string,
-    targetParcelId: string,
+    targetParcelIdOrCode: string,
     adminId: string,
     reason: string,
     clientIp?: string
   ) {
     return Database.transaction(async (client) => {
       // 1. Kiểm tra hồ sơ hiện tại
-      const repRes = await client.query<{ id: string; parcel_id: string; status: string; report_code: string }>(
-        `SELECT id, parcel_id, status, report_code FROM base_survey_reports WHERE id = $1 FOR UPDATE;`,
+      const repRes = await client.query<{
+        id: string;
+        parcel_id: string;
+        status: string;
+        report_code: string;
+        survey_data_json: any;
+      }>(
+        `SELECT id, parcel_id, status, report_code, survey_data_json FROM base_survey_reports WHERE id = $1 FOR UPDATE;`,
         [reportId]
       );
       const report = repRes.rows[0];
@@ -992,49 +1005,88 @@ export class AuditService {
       }
 
       const oldParcelId = report.parcel_id;
+      const cleanTarget = (targetParcelIdOrCode || '').trim();
+      if (!cleanTarget) {
+        throw new BadRequestError('Mã hoặc ID thửa đất đích không được để trống');
+      }
+
+      // 2. Kiểm tra thửa đất đích (hỗ trợ cả UUID lẫn project_parcel_code / official_cadastral_code)
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(cleanTarget);
+      const targetRes = await client.query<{
+        id: string;
+        project_parcel_code: string;
+        house_number: string;
+        street: string;
+        survey_status: string;
+        active_phase1_report_id: string | null;
+      }>(
+        isUuid
+          ? `SELECT id, project_parcel_code, house_number, street, survey_status, active_phase1_report_id FROM parcels WHERE id = $1 FOR UPDATE;`
+          : `SELECT id, project_parcel_code, house_number, street, survey_status, active_phase1_report_id FROM parcels WHERE (project_parcel_code = $1 OR official_cadastral_code = $1) FOR UPDATE LIMIT 1;`,
+        [cleanTarget]
+      );
+
+      const targetParcel = targetRes.rows[0];
+      if (!targetParcel) {
+        throw new NotFoundError(`Không tìm thấy thửa đất đích với thông tin: [${cleanTarget}]`);
+      }
+
+      const targetParcelId = targetParcel.id;
       if (oldParcelId === targetParcelId) {
         throw new BadRequestError('Thửa đất đích trùng với thửa đất hiện tại của hồ sơ');
       }
 
-      // 2. Kiểm tra thửa đất đích
-      const targetRes = await client.query<{ id: string; project_parcel_code: string; survey_status: string }>(
-        `SELECT id, project_parcel_code, survey_status FROM parcels WHERE id = $1 FOR UPDATE;`,
-        [targetParcelId]
-      );
-      const targetParcel = targetRes.rows[0];
-      if (!targetParcel) {
-        throw new NotFoundError(`Không tìm thấy thửa đất đích với ID: ${targetParcelId}`);
-      }
-
-      // Lấy mã thửa cũ
-      const oldParcelRes = await client.query<{ project_parcel_code: string }>(
-        `SELECT project_parcel_code FROM parcels WHERE id = $1;`,
+      // Lấy thông tin thửa cũ
+      const oldParcelRes = await client.query<{ project_parcel_code: string; house_number: string; street: string }>(
+        `SELECT project_parcel_code, house_number, street FROM parcels WHERE id = $1;`,
         [oldParcelId]
       );
       const oldParcelCode = oldParcelRes.rows[0]?.project_parcel_code || oldParcelId;
 
-      // 3. Cập nhật hồ sơ trỏ sang thửa mới
+      // Đồng bộ nội dung survey_data_json
+      let surveyData = typeof report.survey_data_json === 'string'
+        ? JSON.parse(report.survey_data_json)
+        : (report.survey_data_json || {});
+      surveyData.projectParcelCode = targetParcel.project_parcel_code;
+      if (targetParcel.house_number) surveyData.houseNumber = targetParcel.house_number;
+      if (targetParcel.street) surveyData.street = targetParcel.street;
+
+      // 3. Cập nhật hồ sơ trỏ sang thửa mới và đồng bộ JSON
       await client.query(
-        `UPDATE base_survey_reports SET parcel_id = $1, updated_at = NOW() WHERE id = $2;`,
-        [targetParcelId, reportId]
+        `UPDATE base_survey_reports 
+         SET parcel_id = $1, survey_data_json = $2, updated_at = NOW() 
+         WHERE id = $3;`,
+        [targetParcelId, JSON.stringify(surveyData), reportId]
       );
 
-      // Cập nhật thửa cũ về NOT_SURVEYED nếu không còn hồ sơ nào khác
-      const otherRepsRes = await client.query<{ count: string }>(
-        `SELECT COUNT(*) as count FROM base_survey_reports WHERE parcel_id = $1 AND id != $2;`,
+      // Cập nhật thửa cũ: Xóa active_phase1_report_id và cập nhật trạng thái
+      const otherRepsRes = await client.query<{ id: string; status: string }>(
+        `SELECT id, status FROM base_survey_reports WHERE parcel_id = $1 AND id != $2 ORDER BY updated_at DESC LIMIT 1;`,
         [oldParcelId, reportId]
       );
-      if (parseInt(otherRepsRes.rows[0]?.count || '0', 10) === 0) {
+      if (otherRepsRes.rows.length === 0) {
         await client.query(
-          `UPDATE parcels SET survey_status = 'NOT_SURVEYED', updated_at = NOW() WHERE id = $1;`,
+          `UPDATE parcels 
+           SET survey_status = 'NOT_SURVEYED', active_phase1_report_id = NULL, updated_at = NOW() 
+           WHERE id = $1;`,
           [oldParcelId]
+        );
+      } else {
+        const remainingRep = otherRepsRes.rows[0];
+        await client.query(
+          `UPDATE parcels 
+           SET survey_status = $1, active_phase1_report_id = $2, updated_at = NOW() 
+           WHERE id = $3;`,
+          [remainingRep.status, remainingRep.id, oldParcelId]
         );
       }
 
-      // Cập nhật thửa mới theo trạng thái của hồ sơ (SUBMITTED, APPROVED, ...)
+      // Cập nhật thửa mới: gán active_phase1_report_id và cập nhật trạng thái
       await client.query(
-        `UPDATE parcels SET survey_status = $1, updated_at = NOW() WHERE id = $2;`,
-        [report.status, targetParcelId]
+        `UPDATE parcels 
+         SET survey_status = $1, active_phase1_report_id = $2, updated_at = NOW() 
+         WHERE id = $3;`,
+        [report.status, reportId, targetParcelId]
       );
 
       // 4. Ghi vết kiểm toán Append-only vào system_audit_logs
@@ -1083,12 +1135,12 @@ export class AuditService {
   ) {
     return Database.transaction(async (client) => {
       // 1. Kiểm tra 2 hồ sơ
-      const repARes = await client.query<{ id: string; parcel_id: string; status: string; report_code: string }>(
-        `SELECT id, parcel_id, status, report_code FROM base_survey_reports WHERE id = $1 FOR UPDATE;`,
+      const repARes = await client.query<{ id: string; parcel_id: string; status: string; report_code: string; survey_data_json: any }>(
+        `SELECT id, parcel_id, status, report_code, survey_data_json FROM base_survey_reports WHERE id = $1 FOR UPDATE;`,
         [reportAId]
       );
-      const repBRes = await client.query<{ id: string; parcel_id: string; status: string; report_code: string }>(
-        `SELECT id, parcel_id, status, report_code FROM base_survey_reports WHERE id = $1 FOR UPDATE;`,
+      const repBRes = await client.query<{ id: string; parcel_id: string; status: string; report_code: string; survey_data_json: any }>(
+        `SELECT id, parcel_id, status, report_code, survey_data_json FROM base_survey_reports WHERE id = $1 FOR UPDATE;`,
         [reportBId]
       );
 
@@ -1103,36 +1155,57 @@ export class AuditService {
         throw new BadRequestError('Hai hồ sơ đang thuộc cùng một thửa đất, không thể hoán đổi');
       }
 
-      // Lấy mã thửa
-      const pARes = await client.query<{ project_parcel_code: string }>(
-        `SELECT project_parcel_code FROM parcels WHERE id = $1;`,
+      // Lấy thông tin 2 thửa
+      const pARes = await client.query<{ project_parcel_code: string; house_number: string; street: string }>(
+        `SELECT project_parcel_code, house_number, street FROM parcels WHERE id = $1;`,
         [parcelAId]
       );
-      const pBRes = await client.query<{ project_parcel_code: string }>(
-        `SELECT project_parcel_code FROM parcels WHERE id = $1;`,
+      const pBRes = await client.query<{ project_parcel_code: string; house_number: string; street: string }>(
+        `SELECT project_parcel_code, house_number, street FROM parcels WHERE id = $1;`,
         [parcelBId]
       );
-      const codeA = pARes.rows[0]?.project_parcel_code || parcelAId;
-      const codeB = pBRes.rows[0]?.project_parcel_code || parcelBId;
+      const pA = pARes.rows[0];
+      const pB = pBRes.rows[0];
+      const codeA = pA?.project_parcel_code || parcelAId;
+      const codeB = pB?.project_parcel_code || parcelBId;
 
-      // 2. Hoán đổi parcel_id
+      // Hoán đổi survey_data_json
+      let dataA = typeof repA.survey_data_json === 'string' ? JSON.parse(repA.survey_data_json) : (repA.survey_data_json || {});
+      dataA.projectParcelCode = codeB;
+      if (pB?.house_number) dataA.houseNumber = pB.house_number;
+      if (pB?.street) dataA.street = pB.street;
+
+      let dataB = typeof repB.survey_data_json === 'string' ? JSON.parse(repB.survey_data_json) : (repB.survey_data_json || {});
+      dataB.projectParcelCode = codeA;
+      if (pA?.house_number) dataB.houseNumber = pA.house_number;
+      if (pA?.street) dataB.street = pA.street;
+
+      // 2. Hoán đổi parcel_id và survey_data_json trên 2 hồ sơ
       await client.query(
-        `UPDATE base_survey_reports SET parcel_id = $1, updated_at = NOW() WHERE id = $2;`,
-        [parcelBId, reportAId]
+        `UPDATE base_survey_reports 
+         SET parcel_id = $1, survey_data_json = $2, updated_at = NOW() 
+         WHERE id = $3;`,
+        [parcelBId, JSON.stringify(dataA), reportAId]
       );
       await client.query(
-        `UPDATE base_survey_reports SET parcel_id = $1, updated_at = NOW() WHERE id = $2;`,
-        [parcelAId, reportBId]
+        `UPDATE base_survey_reports 
+         SET parcel_id = $1, survey_data_json = $2, updated_at = NOW() 
+         WHERE id = $3;`,
+        [parcelAId, JSON.stringify(dataB), reportBId]
       );
 
-      // Cập nhật trạng thái thửa
+      // Cập nhật 2 thửa: hoán đổi active_phase1_report_id và survey_status
       await client.query(
-        `UPDATE parcels SET survey_status = $1, updated_at = NOW() WHERE id = $2;`,
-        [repA.status, parcelBId]
+        `UPDATE parcels 
+         SET survey_status = $1, active_phase1_report_id = $2, updated_at = NOW() 
+         WHERE id = $3;`,
+        [repA.status, reportAId, parcelBId]
       );
       await client.query(
-        `UPDATE parcels SET survey_status = $1, updated_at = NOW() WHERE id = $2;`,
-        [repB.status, parcelAId]
+        `UPDATE parcels 
+         SET survey_status = $1, active_phase1_report_id = $2, updated_at = NOW() 
+         WHERE id = $3;`,
+        [repB.status, reportBId, parcelAId]
       );
 
       // 3. Ghi vết kiểm toán
@@ -1170,5 +1243,62 @@ export class AuditService {
         },
       };
     });
+  }
+
+  /**
+   * Tìm kiếm danh sách hồ sơ trong phân khu khả dĩ để hoán đổi chéo (SWAP)
+   */
+  static async searchSwapCandidates(
+    zoneId?: string,
+    excludeReportId?: string,
+    search?: string
+  ) {
+    const params: any[] = [];
+    let whereClause = `WHERE 1=1`;
+
+    if (zoneId) {
+      params.push(zoneId);
+      whereClause += ` AND p.zone_id = $${params.length}`;
+    }
+
+    if (excludeReportId) {
+      params.push(excludeReportId);
+      whereClause += ` AND r.id != $${params.length}::uuid`;
+    }
+
+    if (search && search.trim()) {
+      params.push(`%${search.trim()}%`);
+      const pIdx = params.length;
+      whereClause += ` AND (
+        p.project_parcel_code ILIKE $${pIdx} OR
+        p.official_cadastral_code ILIKE $${pIdx} OR
+        p.house_number ILIKE $${pIdx} OR
+        p.street ILIKE $${pIdx} OR
+        r.report_code ILIKE $${pIdx}
+      )`;
+    }
+
+    const query = `
+      SELECT 
+        r.id AS report_id,
+        r.report_code,
+        r.status AS report_status,
+        p.id AS parcel_id,
+        p.project_parcel_code,
+        p.house_number,
+        p.street,
+        p.ward,
+        p.district,
+        u.full_name AS surveyor_name
+      FROM base_survey_reports r
+      JOIN parcels p ON r.parcel_id = p.id
+      LEFT JOIN users u ON r.surveyor_id = u.id
+      ${whereClause}
+      ORDER BY p.project_parcel_code ASC
+      LIMIT 50;
+    `;
+
+    const res = await Database.query(query, params);
+    return res.rows;
   }
 }
