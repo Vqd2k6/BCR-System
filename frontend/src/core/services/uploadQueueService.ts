@@ -278,7 +278,7 @@ export const uploadQueue = new UploadQueueService();
  */
 export function canvasToBlobAndDispose(
   canvas: HTMLCanvasElement,
-  quality: number = 0.82
+  quality: number = 1.0
 ): Promise<Blob> {
   return new Promise((resolve, reject) => {
     canvas.toBlob(

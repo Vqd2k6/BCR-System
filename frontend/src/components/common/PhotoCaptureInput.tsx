@@ -352,7 +352,7 @@ export const PhotoCaptureInput: React.FC<Props> = ({
       ctx.rotate((90 * Math.PI) / 180);
       ctx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2);
 
-      const rotatedDataUrl = canvas.toDataURL('image/jpeg', 0.96);
+      const rotatedDataUrl = canvas.toDataURL('image/jpeg', 1.0);
       setLocalPreview(rotatedDataUrl);
       onChange(rotatedDataUrl, displayPhotoCode);
 
@@ -362,7 +362,7 @@ export const PhotoCaptureInput: React.FC<Props> = ({
         } else {
           uploadToServer(rotatedDataUrl, displayPhotoCode);
         }
-      }, 'image/jpeg', 0.96);
+      }, 'image/jpeg', 1.0);
     } catch (err) {
       console.warn('[PhotoCaptureInput] Lỗi khi xoay ảnh 90°:', err);
     }
@@ -594,7 +594,7 @@ export const PhotoCaptureInput: React.FC<Props> = ({
       ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, vw, vh);
     }
 
-    const rawBase64 = canvas.toDataURL('image/jpeg', 0.96);
+    const rawBase64 = canvas.toDataURL('image/jpeg', 1.0);
     stopLiveCamera();
     setIsLiveCameraOpen(false);
 
