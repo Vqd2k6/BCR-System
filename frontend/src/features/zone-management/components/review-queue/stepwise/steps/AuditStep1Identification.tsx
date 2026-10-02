@@ -614,7 +614,7 @@ export const AuditStep1Identification: React.FC<Props> = ({
               <span className="text-[10px] text-slate-400 block mt-0.5">Khoảng cách đo đạc tới tim</span>
             </div>
 
-            {/* Khoảng cách đến đường bao ngoài (Mép ga trắng / Ranh GPMB) */}
+            {/* Khoảng cách đến đường bao ngoài (Mép ga trắng / Mép hố đào) */}
             <div className="p-3 bg-white rounded-xl border border-sky-200">
               <label className="text-[11px] font-bold text-slate-600 block mb-1">
                 Khoảng cách đến đường bao ngoài (m) *
@@ -629,11 +629,24 @@ export const AuditStep1Identification: React.FC<Props> = ({
                   placeholder="VD: 5.2"
                 />
               ) : (
-                <div className="text-base font-black text-sky-800 font-mono">
-                  {formatDistanceDisplay(formState.clearanceOffsetDistance)}
+                <div className="text-base font-black text-sky-800 font-mono flex items-center gap-2">
+                  <span>{formatDistanceDisplay(formState.clearanceOffsetDistance)}</span>
+                  {parseFloat(getNumericValue(formState.clearanceOffsetDistance)) === 0 && (
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-red-100 text-red-700 border border-red-200">
+                      Ga cán qua
+                    </span>
+                  )}
                 </div>
               )}
-              <span className="text-[10px] text-slate-400 block mt-0.5">Cự ly mép ga trắng / ranh GPMB</span>
+              {parseFloat(getNumericValue(formState.clearanceOffsetDistance)) === 0 ? (
+                <span className="text-[10px] text-red-600 font-bold block mt-0.5">
+                  ⚠️ Nhà ga cắt qua / Nằm trong phạm vi ga
+                </span>
+              ) : (
+                <span className="text-[10px] text-slate-400 block mt-0.5">
+                  Cự ly mép ga trắng / mép hố đào
+                </span>
+              )}
             </div>
 
             {/* Lý trình thi công */}

@@ -78,7 +78,7 @@ export const AuditMetroSpatialVisualMap: React.FC<Props> = ({
 
   // Tính toán toàn diện cự ly trắc địa:
   // 1. Cự ly tới Tim Tuyến Metro 2 (537 điểm CAD chuẩn nằm giữa 2 line xanh)
-  // 2. Cự ly tới Đường Bao Ngoài (Mép công trình ga màu trắng hoặc ranh hành lang GPMB)
+  // 2. Cự ly tới Đường Bao Ngoài (Mép công trình ga màu trắng hoặc mép hố đào Tả/Hữu)
   const spatialMetrics = useMemo(() => {
     return calculateComprehensiveMetroSpatialMetrics(effectivePolygon);
   }, [effectivePolygon]);
@@ -197,16 +197,32 @@ export const AuditMetroSpatialVisualMap: React.FC<Props> = ({
     });
   }, [distCenterNumber]);
 
-  // Custom DivIcon cho nhãn cự ly đường bao ngoài / công trình ga (Xanh ngọc / Cyan)
+  // Custom DivIcon cho nhãn cự ly đường bao ngoài / công trình ga (Xanh ngọc / Cyan hoặc Đỏ Cam khi cán qua)
   const outerDistanceLabelIcon = useMemo(() => {
     const isStation = outerBoundaryType === 'STATION_OUTLINE';
+    const isZeroOrIntersects = distOuterNumber === 0 || spatialMetrics.isStationIntersectsParcel;
+
+    let badgeText = `${isStation ? 'd_mép ga' : 'd_mép hố đào'} = ${distOuterNumber.toFixed(1)}m`;
+    let bgColor = '#0c4a6e';
+    let textColor = '#bae6fd';
+    let borderColor = '#38bdf8';
+    let dotColor = '#38bdf8';
+
+    if (isZeroOrIntersects) {
+      badgeText = isStation ? 'd_ga = 0m (Ga cán qua thửa đất)' : 'd_hố đào = 0m (Trong mép hố đào)';
+      bgColor = '#7f1d1d';
+      textColor = '#fecaca';
+      borderColor = '#ef4444';
+      dotColor = '#ef4444';
+    }
+
     return L.divIcon({
       className: 'custom-dist-outer-label',
       html: `
         <div style="
-          background-color: #0c4a6e;
-          color: #bae6fd;
-          border: 1.5px solid #38bdf8;
+          background-color: ${bgColor};
+          color: ${textColor};
+          border: 1.5px solid ${borderColor};
           border-radius: 9999px;
           padding: 2px 7px;
           font-family: monospace;
@@ -219,13 +235,13 @@ export const AuditMetroSpatialVisualMap: React.FC<Props> = ({
           align-items: center;
           gap: 4px;
         ">
-          <span style="display:inline-block; width:6px; height:6px; border-radius:9999px; background-color:#38bdf8;"></span>
-          ${isStation ? 'd_mép ga' : 'd_GPMB'} = ${distOuterNumber.toFixed(1)}m
+          <span style="display:inline-block; width:6px; height:6px; border-radius:9999px; background-color:${dotColor};"></span>
+          ${badgeText}
         </div>
       `,
       iconSize: [0, 0],
     });
-  }, [distOuterNumber, outerBoundaryType]);
+  }, [distOuterNumber, outerBoundaryType, spatialMetrics.isStationIntersectsParcel]);
 
   // Custom DivIcon cho điểm đo GPS
   const gpsMarkerIcon = useMemo(() => {
@@ -347,7 +363,7 @@ export const AuditMetroSpatialVisualMap: React.FC<Props> = ({
             />
           )}
 
-          {/* 1. RANH GIẢI PHÓNG MẶT BẰNG TẢ TUYẾN & HỮU TUYẾN (2 đường line nét đứt màu xanh kẹp 2 bên tim) */}
+          {/* 1. MÉP HỐ ĐÀO TẢ TUYẾN & HỮU TUYẾN (2 đường line nét đứt màu xanh kẹp 2 bên tim) */}
           {METRO_CORRIDOR_BOUNDARIES.map((boundary, idx) => (
             <Polyline
               key={`corridor-boundary-${idx}`}
@@ -361,7 +377,7 @@ export const AuditMetroSpatialVisualMap: React.FC<Props> = ({
             >
               <Tooltip sticky>
                 <div className="text-xs font-bold text-sky-800">
-                  🛡️ {boundary.name} (Ranh GPMB Tuyến Metro 2)
+                  🛡️ {boundary.name} (Line Mép Hố Đào Tuyến Metro 2)
                 </div>
               </Tooltip>
             </Polyline>
@@ -408,7 +424,7 @@ export const AuditMetroSpatialVisualMap: React.FC<Props> = ({
           >
             <Tooltip direction="top" sticky>
               <div className="text-xs font-bold text-red-600">
-                🚇 Tim Tuyến Metro Số 2 (Chạy chính giữa 2 đường ranh nét đứt xanh)
+                🚇 Tim Tuyến Metro Số 2 (Chạy chính giữa 2 đường mép hố đào nét đứt xanh)
               </div>
             </Tooltip>
           </Polyline>
@@ -444,17 +460,22 @@ export const AuditMetroSpatialVisualMap: React.FC<Props> = ({
           <Marker position={centerMidpoint} icon={centerDistanceLabelIcon} />
 
           {/* 6. ĐƯỜNG DÓNG 2: CỰ LY TỚI ĐƯỜNG BAO NGOÀI / CÔNG TRÌNH GA TRẮNG (Nét đứt màu xanh ngọc) */}
-          <Polyline
-            positions={[closestOuterVertex, closestOuterPoint]}
-            pathOptions={{
-              color: '#38bdf8',
-              weight: 3,
-              dashArray: '4, 4',
-              opacity: 1,
-            }}
-          />
+          {distOuterNumber > 0 && (
+            <Polyline
+              positions={[closestOuterVertex, closestOuterPoint]}
+              pathOptions={{
+                color: '#38bdf8',
+                weight: 3,
+                dashArray: '4, 4',
+                opacity: 1,
+              }}
+            />
+          )}
           {/* Nhãn khoảng cách đường bao ngoài */}
-          <Marker position={outerMidpoint} icon={outerDistanceLabelIcon} />
+          <Marker
+            position={distOuterNumber > 0 ? outerMidpoint : [closestCenterVertex[0] + 0.00008, closestCenterVertex[1]]}
+            icon={outerDistanceLabelIcon}
+          />
 
           {/* 7. ĐIỂM ĐO GPS THỰC ĐỊA */}
           {gpsLocation?.lat && gpsLocation?.lng && (
@@ -488,7 +509,7 @@ export const AuditMetroSpatialVisualMap: React.FC<Props> = ({
           </div>
           <div className="flex items-center gap-1.5">
             <span className="w-4 h-0.5 border-t-2 border-dashed border-sky-600 inline-block" />
-            <span className="text-sky-800">Ranh GPMB (Xanh nét đứt)</span>
+            <span className="text-sky-800">Mép hố đào (Xanh nét đứt)</span>
           </div>
           <div className="flex items-center gap-1.5">
             <span className="w-3 h-3 rounded bg-white border border-slate-400 inline-block shadow-2xs" />
@@ -515,9 +536,9 @@ export const AuditMetroSpatialVisualMap: React.FC<Props> = ({
           </span>
           <span
             className="px-2 py-0.5 rounded bg-sky-50 text-sky-900 font-black text-xs border border-sky-300"
-            title={`Khoảng cách tới đường bao ngoài (${outerBoundaryType === 'STATION_OUTLINE' ? 'Mép công trình ga trắng' : 'Ranh GPMB an toàn'})`}
+            title={`Khoảng cách tới đường bao ngoài (${outerBoundaryType === 'STATION_OUTLINE' ? (distOuterNumber === 0 ? 'Ga cán qua thửa đất' : 'Mép công trình ga trắng') : 'Mép hố đào'})`}
           >
-            Bao ngoài: {distOuterNumber.toFixed(1)}m
+            Bao ngoài: {distOuterNumber === 0 ? '0.0m (Ga cán qua)' : `${distOuterNumber.toFixed(1)}m`}
           </span>
         </div>
       </div>

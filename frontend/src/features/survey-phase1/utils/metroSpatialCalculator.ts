@@ -95,6 +95,116 @@ export const pointToSegmentDistance = (
 };
 
 /**
+ * Thuật toán Ray-Casting: Kiểm tra tọa độ [lat, lng] có nằm trong đa giác hay không
+ */
+export const isPointInPolygon = (
+  point: [number, number],
+  polygon: [number, number][]
+): boolean => {
+  if (!polygon || polygon.length < 3) return false;
+  const [lat, lng] = point;
+  let inside = false;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const xi = polygon[i][0];
+    const yi = polygon[i][1];
+    const xj = polygon[j][0];
+    const yj = polygon[j][1];
+
+    const intersect =
+      yi > lng !== yj > lng && lat < ((xj - xi) * (lng - yi)) / (yj - yi) + xi;
+    if (intersect) inside = !inside;
+  }
+  return inside;
+};
+
+/**
+ * Kiểm tra hướng quay 3 điểm (Counter-Clockwise)
+ */
+const ccw = (a: [number, number], b: [number, number], c: [number, number]): number => {
+  return (c[0] - a[0]) * (b[1] - a[1]) - (c[1] - a[1]) * (b[0] - a[0]);
+};
+
+/**
+ * Kiểm tra 2 đoạn thẳng (p1-p2) và (p3-p4) có giao cắt nhau hay không
+ */
+export const doSegmentsIntersect = (
+  p1: [number, number],
+  p2: [number, number],
+  p3: [number, number],
+  p4: [number, number]
+): boolean => {
+  const ccw1 = ccw(p1, p2, p3);
+  const ccw2 = ccw(p1, p2, p4);
+  const ccw3 = ccw(p3, p4, p1);
+  const ccw4 = ccw(p3, p4, p2);
+
+  if (
+    ((ccw1 > 0 && ccw2 < 0) || (ccw1 < 0 && ccw2 > 0)) &&
+    ((ccw3 > 0 && ccw4 < 0) || (ccw3 < 0 && ccw4 > 0))
+  ) {
+    return true;
+  }
+
+  // Trường hợp tiếp xúc hoặc thẳng hàng (collinear):
+  const onSegment = (p: [number, number], a: [number, number], b: [number, number]): boolean => {
+    return (
+      p[0] >= Math.min(a[0], b[0]) - 1e-9 &&
+      p[0] <= Math.max(a[0], b[0]) + 1e-9 &&
+      p[1] >= Math.min(a[1], b[1]) - 1e-9 &&
+      p[1] <= Math.max(a[1], b[1]) + 1e-9
+    );
+  };
+
+  if (Math.abs(ccw1) < 1e-12 && onSegment(p3, p1, p2)) return true;
+  if (Math.abs(ccw2) < 1e-12 && onSegment(p4, p1, p2)) return true;
+  if (Math.abs(ccw3) < 1e-12 && onSegment(p1, p3, p4)) return true;
+  if (Math.abs(ccw4) < 1e-12 && onSegment(p2, p3, p4)) return true;
+
+  return false;
+};
+
+/**
+ * Kiểm tra xem đa giác thửa đất và đa giác nhà ga có giao cắt / cán qua nhau hay không
+ */
+export const checkParcelPolygonIntersection = (
+  parcelCoords: [number, number][],
+  stationCoords: [number, number][]
+): boolean => {
+  if (!parcelCoords || parcelCoords.length < 3 || !stationCoords || stationCoords.length < 3) {
+    return false;
+  }
+
+  // 1. Có đỉnh nào của thửa đất nằm trong nhà ga không
+  for (const vertex of parcelCoords) {
+    if (isPointInPolygon(vertex, stationCoords)) {
+      return true;
+    }
+  }
+
+  // 2. Có đỉnh nào của nhà ga nằm trong thửa đất không
+  for (const vertex of stationCoords) {
+    if (isPointInPolygon(vertex, parcelCoords)) {
+      return true;
+    }
+  }
+
+  // 3. Có cạnh nào của thửa đất cắt chéo cạnh của nhà ga không
+  for (let i = 0; i < parcelCoords.length; i++) {
+    const p1 = parcelCoords[i];
+    const p2 = parcelCoords[(i + 1) % parcelCoords.length];
+    for (let j = 0; j < stationCoords.length; j++) {
+      const p3 = stationCoords[j];
+      const p4 = stationCoords[(j + 1) % stationCoords.length];
+      if (doSegmentsIntersect(p1, p2, p3, p4)) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+};
+
+/**
  * Tính khoảng cách ngắn nhất từ đa giác (Polygon các đỉnh của thửa đất) đến một Polyline
  */
 export const polygonToPolylineDistance = (
@@ -139,12 +249,14 @@ export interface ComprehensiveMetroSpatialMetrics {
   outerBoundaryType: 'STATION_OUTLINE' | 'CORRIDOR_BOUNDARY';
   closestStationName: string;
   closestStationFootprint?: [number, number][];
+  isStationIntersectsParcel?: boolean;
 }
 
 /**
  * Tính toán toàn diện không gian trắc địa:
  * 1. Cự ly & hình chiếu vuông góc ngắn nhất tới Tim Hầm Metro Số 2 (537 điểm CAD chuẩn nằm giữa 2 line xanh)
- * 2. Cự ly & hình chiếu ngắn nhất tới Đường Bao Ngoài (Mép công trình nhà ga màu trắng hoặc ranh GPMB an toàn)
+ * 2. Cự ly & hình chiếu ngắn nhất tới Đường Bao Ngoài (Mép công trình nhà ga màu trắng hoặc mép hố đào Tả/Hữu)
+ * - ĐẶC BIỆT: Nếu nhà ga cán qua / cắt xén thửa đất, khoảng cách tự động = 0.0m.
  */
 export const calculateComprehensiveMetroSpatialMetrics = (
   polygonCoords: [number, number][]
@@ -156,9 +268,10 @@ export const calculateComprehensiveMetroSpatialMetrics = (
       distanceToCenterlineMeters: 15.0,
       closestOuterVertex: [10.8034, 106.6385],
       closestOuterPoint: [10.8034, 106.6385],
-      distanceToOuterBoundaryMeters: 5.0,
+      distanceToOuterBoundaryMeters: 0.0,
       outerBoundaryType: 'CORRIDOR_BOUNDARY',
       closestStationName: 'Tuyến Metro Số 2',
+      isStationIntersectsParcel: false,
     };
   }
 
@@ -185,7 +298,34 @@ export const calculateComprehensiveMetroSpatialMetrics = (
     }
   }
 
-  // 2. Tìm điểm dóng ngắn nhất tới Công Trình Ga Màu Trắng (Detailed Station Footprints)
+  // 2. KIỂM TRA ĐẶC BIỆT: Có Nhà Ga Nào Cán Qua / Cắt Xén Thửa Đất Hay Không (Spatial Intersection)
+  let intersectingStation: DetailedStationFootprint | undefined = undefined;
+  for (const station of stationOutlines) {
+    if (!station.coords || station.coords.length < 3) continue;
+    if (checkParcelPolygonIntersection(polygonCoords, station.coords)) {
+      intersectingStation = station;
+      break;
+    }
+  }
+
+  // Nếu nhà ga cán qua / giao cắt với lô đất:
+  // Khoảng cách theo nguyên lý hình học không gian bắt buộc bằng 0 mét!
+  if (intersectingStation) {
+    return {
+      closestCenterVertex: bestCenterVertex,
+      closestCenterPoint: bestCenterPoint,
+      distanceToCenterlineMeters: minCenterlineDist,
+      closestOuterVertex: polygonCoords[0] || bestCenterVertex,
+      closestOuterPoint: polygonCoords[0] || bestCenterVertex,
+      distanceToOuterBoundaryMeters: 0.0,
+      outerBoundaryType: 'STATION_OUTLINE',
+      closestStationName: intersectingStation.name,
+      closestStationFootprint: intersectingStation.coords,
+      isStationIntersectsParcel: true,
+    };
+  }
+
+  // 3. Nếu KHÔNG giao cắt: Tìm điểm dóng ngắn nhất tới Công Trình Ga Màu Trắng (Detailed Station Footprints)
   let minStationDist = Infinity;
   let bestStationPoint: [number, number] = bestCenterPoint;
   let bestStationVertex: [number, number] = bestCenterVertex;
@@ -210,7 +350,7 @@ export const calculateComprehensiveMetroSpatialMetrics = (
     }
   }
 
-  // 3. Tìm điểm dóng ngắn nhất tới Ranh Hành Lang GPMB (2 đường nét đứt màu xanh Tả Tuyến & Hữu Tuyến)
+  // 4. Tìm điểm dóng ngắn nhất tới Mép Hố Đào (2 đường nét đứt màu xanh Tả Tuyến & Hữu Tuyến)
   let minCorridorDist = Infinity;
   let bestCorridorPoint: [number, number] = bestCenterPoint;
   let bestCorridorVertex: [number, number] = bestCenterVertex;
@@ -231,7 +371,7 @@ export const calculateComprehensiveMetroSpatialMetrics = (
 
   // Quyết định đường bao ngoài phù hợp nhất:
   // Nếu sát khu vực ga (< 180m), ưu tiên mép công trình nhà ga màu trắng
-  // Nếu ở đoạn hầm thông thường, lấy ranh hành lang an toàn GPMB
+  // Nếu ở đoạn hầm thông thường, lấy mép hố đào
   const isNearStation = minStationDist < 180 && minStationDist < minCorridorDist * 1.5;
 
   let distanceToOuterBoundaryMeters: number;
@@ -266,6 +406,7 @@ export const calculateComprehensiveMetroSpatialMetrics = (
     outerBoundaryType,
     closestStationName: bestStationName || 'Tuyến Metro Số 2',
     closestStationFootprint: bestStationCoords,
+    isStationIntersectsParcel: false,
   };
 };
 

@@ -39,7 +39,7 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
       ? String(sJson.clearanceOffsetDistance)
       : (data.clearanceOffsetDistance !== undefined && data.clearanceOffsetDistance !== '' ? String(data.clearanceOffsetDistance) : '');
 
-    if ((!defaultMetroDist || !defaultClearanceDist) && (data.cadastralGeojson || data.cadastral_geojson || data.coordinates || data.parcelCoordinates)) {
+    if (data.cadastralGeojson || data.cadastral_geojson || data.coordinates || data.parcelCoordinates) {
       try {
         let pCoords: [number, number][] = [];
         const rawGeo = data.cadastralGeojson || data.cadastral_geojson;
@@ -57,7 +57,10 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
         if (pCoords.length >= 3) {
           const metrics = calculateComprehensiveMetroSpatialMetrics(pCoords);
           if (!defaultMetroDist) defaultMetroDist = metrics.distanceToCenterlineMeters.toFixed(1);
-          if (!defaultClearanceDist) defaultClearanceDist = metrics.distanceToOuterBoundaryMeters.toFixed(1);
+          // Nếu nhà ga cán qua / cắt xén thửa đất, khoảng cách bao ngoài bắt buộc là 0.0m
+          if (!defaultClearanceDist || metrics.isStationIntersectsParcel) {
+            defaultClearanceDist = metrics.distanceToOuterBoundaryMeters.toFixed(1);
+          }
         }
       } catch (e) {
         console.warn('Error calculating fallback spatial metrics in useAuditStepwiseForm:', e);
