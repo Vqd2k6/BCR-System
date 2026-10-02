@@ -371,7 +371,7 @@ export const ImageAnnotationModal: React.FC<ImageAnnotationModalProps> = ({
   const handleSave = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const base64 = canvas.toDataURL('image/jpeg', 0.92);
+    const base64 = canvas.toDataURL('image/jpeg', 1.0);
     onSave(base64);
     onClose();
   };
