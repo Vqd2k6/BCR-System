@@ -53,6 +53,14 @@ export interface SplitChildData {
   coordinates?: [number, number][]; // Tọa độ đa giác riêng của lô đất con
 }
 
+export interface MaxZoneCodeInfo {
+  currentMaxCode: string;
+  nextCode: string;
+  zoneId: string;
+  mechanism: string;
+  description?: string;
+}
+
 export interface MutationPayloadData {
   splitReason: string;
   splitCount: number;

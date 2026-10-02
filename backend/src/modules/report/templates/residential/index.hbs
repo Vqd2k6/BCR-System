@@ -1400,9 +1400,15 @@
   </table>
 
   {{#if ecsJudgementApplied}}
-  <div class="note-box note-box-warning">
-    <div class="note-title">⚖️ Đánh giá chuyên gia điều chỉnh điểm ECS (Engineering Judgement):</div>
-    Hành động can thiệp: <strong>{{ecsJudgementAction}}</strong> | Lý do giải trình: {{ecsJudgementReason}}
+  <div class="note-box note-box-warning" style="margin-top: 10px; border-left: 4px solid #7c3aed; background-color: #f5f3ff;">
+    <div class="note-title" style="color: #5b21b6;">⚖️ Phán Quyết Kỹ Sư Trưởng & Can Thiệp Chuyên Môn (Engineering Judgement Applied):</div>
+    <div style="font-size: 9pt; color: #4c1d95; margin-top: 3px;">
+      Kỹ sư thực hiện: <strong>{{judgementEngineerName}}</strong> {{#if judgementAppliedAt}}({{judgementAppliedAt}}){{/if}}
+      | Hành động: <span class="badge" style="background: #7c3aed; color: #fff;">{{ecsJudgementAction}}</span>
+    </div>
+    <div style="font-size: 9pt; margin-top: 5px; color: #1e293b; background: #fff; padding: 6px 10px; border-radius: 4px; border: 1px solid #ddd6fe;">
+      <strong>Căn cứ & Lý giải chuyên môn:</strong> {{ecsJudgementReason}}
+    </div>
   </div>
   {{/if}}
 

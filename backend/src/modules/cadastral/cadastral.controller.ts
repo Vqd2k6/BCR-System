@@ -337,6 +337,33 @@ export class CadastralController {
       next(error);
     }
   }
+
+  /**
+   * Endpoint hoán đổi ranh đất không gian GIS (Spatial Geometry Swap)
+   */
+  static async swapGeometries(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { parcelAId, parcelBId, reason } = req.body;
+      if (!parcelAId || !parcelBId) {
+        throw new BadRequestError('Vui lòng cung cấp đầy đủ thông tin thửa A (parcelAId) và thửa B (parcelBId)');
+      }
+
+      const adminId = req.user!.userId;
+      const clientIp = req.ip || req.socket.remoteAddress;
+
+      const result = await CadastralService.swapParcelGeometries(
+        parcelAId,
+        parcelBId,
+        adminId,
+        reason || '',
+        clientIp
+      );
+
+      res.status(200).json(result);
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 

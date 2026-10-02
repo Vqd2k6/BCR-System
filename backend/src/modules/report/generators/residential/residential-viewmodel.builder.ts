@@ -328,6 +328,36 @@ export function buildResidentialViewModel(reportData: any): ResidentialReportVie
   const currentObjectGroup = json.objectGroup || 'GENERAL';
   const rawBurlandStructFlag = rawBurland.structuralFlagLevel || 'NONE';
 
+  // Dashboard & Effective Scores (Ưu tiên Lớp Can Thiệp Kỹ Sư nếu có)
+  const isJudgementActive = Boolean(
+    riskScores.is_engineering_judgement_applied ||
+    (json.ecs?.engineeringJudgement?.action && json.ecs.engineeringJudgement.action !== 'KEEP')
+  );
+
+  const effectiveTotalEcs = (isJudgementActive && riskScores.overridden_total_ecs !== null && riskScores.overridden_total_ecs !== undefined)
+    ? Number(riskScores.overridden_total_ecs)
+    : (json.ecs?.totalEcs !== undefined ? Number(json.ecs.totalEcs) : Number(riskScores.total_ecs_score || 0));
+
+  const effectiveEcsClass = (isJudgementActive && riskScores.overridden_ecs_class)
+    ? riskScores.overridden_ecs_class
+    : (json.ecs?.ecsClass || riskScores.ecs_class || 'GOOD');
+
+  const effectiveAvgVi = (isJudgementActive && riskScores.overridden_avg_vi !== null && riskScores.overridden_avg_vi !== undefined)
+    ? Number(riskScores.overridden_avg_vi)
+    : (json.vi?.viAvg !== undefined ? Number(json.vi.viAvg) : Number(riskScores.avg_vi_score || 1.0));
+
+  const effectiveViClass = (isJudgementActive && riskScores.overridden_vi_class)
+    ? riskScores.overridden_vi_class
+    : (json.vi?.viClass || riskScores.vi_class || 'LOW');
+
+  const effectiveImpactI = (isJudgementActive && riskScores.overridden_impact_level_i !== null && riskScores.overridden_impact_level_i !== undefined)
+    ? Number(riskScores.overridden_impact_level_i)
+    : (json.bra?.constructionImpactLevel !== undefined ? Number(json.bra.constructionImpactLevel) : (json.executiveSummary?.constructionImpactStatus ? parseInt(json.executiveSummary.constructionImpactStatus.replace(/\D/g, '') || '2') : Number(riskScores.construction_impact_level_i || 2)));
+
+  const effectiveBra = (isJudgementActive && riskScores.overridden_bra)
+    ? riskScores.overridden_bra
+    : braValue;
+
   return {
     projectName: 'DỰ ÁN XÂY DỰNG TUYẾN ĐƯỜNG SẮT ĐÔ THỊ SỐ 2 TP. HỒ CHÍ MINH (BẾN THÀNH – THAM LƯƠNG)',
     metroLineName: 'Tuyến Metro Số 2 (Bến Thành – Tham Lương)',
@@ -372,17 +402,16 @@ export function buildResidentialViewModel(reportData: any): ResidentialReportVie
     approvedByTitle: 'Chuyên gia Phê duyệt Super Admin (Approved by)',
     facadeCoverPhotoUrl: p02.url,
 
-    // Dashboard
-    totalEcsScore: json.ecs?.totalEcs !== undefined ? Number(json.ecs.totalEcs) : Number(riskScores.total_ecs_score || 0),
-    ecsClass: json.ecs?.ecsClass || riskScores.ecs_class || 'GOOD',
-    ecsBadgeClass: getEcsBadge(json.ecs?.ecsClass || riskScores.ecs_class || 'GOOD'),
-    avgViScore: json.vi?.viAvg !== undefined ? Number(json.vi.viAvg) : Number(riskScores.avg_vi_score || 1.0),
-    viClass: json.vi?.viClass || riskScores.vi_class || 'LOW',
-    viBadgeClass: getViBadge(json.vi?.viClass || riskScores.vi_class || 'LOW'),
-    constructionImpactLevelI: json.bra?.constructionImpactLevel !== undefined ? Number(json.bra.constructionImpactLevel) : (json.executiveSummary?.constructionImpactStatus ? parseInt(json.executiveSummary.constructionImpactStatus.replace(/\D/g, '') || '2') : Number(riskScores.construction_impact_level_i || 2)),
+    totalEcsScore: effectiveTotalEcs,
+    ecsClass: effectiveEcsClass,
+    ecsBadgeClass: getEcsBadge(effectiveEcsClass),
+    avgViScore: effectiveAvgVi,
+    viClass: effectiveViClass,
+    viBadgeClass: getViBadge(effectiveViClass),
+    constructionImpactLevelI: effectiveImpactI,
     impactBadgeClass: 'badge-medium',
-    buildingRiskAssessmentBra: braValue,
-    braBadgeClass: getBraBadge(braValue),
+    buildingRiskAssessmentBra: effectiveBra,
+    braBadgeClass: getBraBadge(effectiveBra),
     predictedSettlementSmax: json.bra?.predictedSettlementSmax !== undefined ? Number(json.bra.predictedSettlementSmax) : (reportData.predicted_settlement_smax ? Number(reportData.predicted_settlement_smax) : 0),
     angularDistortion: json.bra?.angularDistortion || reportData.angular_distortion || '',
     vibrationPpv: json.bra?.vibrationPpv !== undefined ? Number(json.bra.vibrationPpv) : (reportData.vibration_ppv ? Number(reportData.vibration_ppv) : 0),
@@ -597,30 +626,36 @@ export function buildResidentialViewModel(reportData: any): ResidentialReportVie
     requiresStructuralReview: Boolean(rawBurland.needStructuralEngineerReview),
 
     // ECS (Step 6)
-    ecsE1: json.ecs?.e1 !== undefined ? Number(json.ecs.e1) : Number(riskScores.e1_burland_score || 0),
+    ecsE1: (isJudgementActive && riskScores.overridden_burland_grade !== null && riskScores.overridden_burland_grade !== undefined)
+      ? Number(riskScores.overridden_burland_grade)
+      : (json.ecs?.e1 !== undefined ? Number(json.ecs.e1) : Number(riskScores.e1_burland_score || 0)),
     ecsE2: json.ecs?.e2 !== undefined ? Number(json.ecs.e2) : Number(riskScores.e2_structure_score || 0),
     ecsE3: json.ecs?.e3 !== undefined ? Number(json.ecs.e3) : Number(riskScores.e3_deformation_score || 0),
     ecsE4: json.ecs?.e4 !== undefined ? Number(json.ecs.e4) : Number(riskScores.e4_material_score || 0),
     ecsE5: json.ecs?.e5 !== undefined ? Number(json.ecs.e5) : Number(riskScores.e5_history_score || 0),
     ecsE6: json.ecs?.e6 !== undefined ? Number(json.ecs.e6) : Number(riskScores.e6_overall_function_score || 0),
-    ecsJudgementApplied: Boolean(json.ecs?.engineeringJudgement?.action && json.ecs.engineeringJudgement.action !== 'KEEP' || riskScores.is_engineering_judgement_applied),
-    ecsJudgementAction: json.ecs?.engineeringJudgement?.action || riskScores.engineering_judgement_action || 'KEEP',
+    ecsJudgementApplied: isJudgementActive,
+    ecsJudgementAction: json.ecs?.engineeringJudgement?.action || riskScores.engineering_judgement_action || 'CUSTOM_OVERRIDE',
     ecsJudgementReason: json.ecs?.engineeringJudgement?.reason || riskScores.engineering_judgement_reason || '',
+    judgementEngineerName: riskScores.judgement_engineer_name || 'Kỹ Sư Trưởng Zone Admin',
+    judgementAppliedAt: riskScores.judgement_applied_at ? new Date(riskScores.judgement_applied_at).toLocaleDateString('vi-VN') : '',
     qualityGates: [],
     gateDecisionStatus: json.gateDecision?.decision || 'ALLOW',
     gateDecisionLabel: json.gateDecision?.decision === 'ALLOW' ? 'Đủ điều kiện chuyển tiếp (ALLOW)' : (json.gateDecision?.decision === 'CONDITIONAL' ? 'Chấp thuận có điều kiện (CONDITIONAL)' : 'Chưa đạt yêu cầu (BLOCK)'),
     gateDecisionReason: json.gateDecision?.reason || '',
 
     // VI (Step 6)
-    viV1: json.vi?.v1 !== undefined ? Number(json.vi.v1) : Number(riskScores.v1_importance_score || 1.0),
+    viV1: (isJudgementActive && riskScores.overridden_importance_score !== null && riskScores.overridden_importance_score !== undefined)
+      ? Number(riskScores.overridden_importance_score)
+      : (json.vi?.v1 !== undefined ? Number(json.vi.v1) : Number(riskScores.v1_importance_score || 1.0)),
     viV2: json.vi?.v2 !== undefined ? Number(json.vi.v2) : Number(riskScores.v2_structure_score || 1.0),
     viV3: json.vi?.v3 !== undefined ? Number(json.vi.v3) : Number(riskScores.v3_foundation_score || 1.0),
     viV4: json.vi?.v4 !== undefined ? Number(json.vi.v4) : Number(riskScores.v4_age_score || 1.0),
     viV5: json.vi?.v5 !== undefined ? Number(json.vi.v5) : Number(riskScores.v5_ecs_score || 1.0),
     viV6: json.vi?.v6 !== undefined ? Number(json.vi.v6) : Number(riskScores.v6_sensitivity_score || 1.0),
-    viJudgementApplied: Boolean(json.vi?.engineeringJudgement?.action && json.vi.engineeringJudgement.action !== 'KEEP'),
-    viJudgementAction: json.vi?.engineeringJudgement?.action || 'KEEP',
-    viJudgementReason: json.vi?.engineeringJudgement?.reason || '',
+    viJudgementApplied: isJudgementActive,
+    viJudgementAction: json.vi?.engineeringJudgement?.action || riskScores.engineering_judgement_action || 'CUSTOM_OVERRIDE',
+    viJudgementReason: json.vi?.engineeringJudgement?.reason || riskScores.engineering_judgement_reason || '',
 
     // Metro & BRA
     braMatrixCell: `V=${json.vi?.viClass || riskScores.vi_class || 'LOW'} × I=${json.executiveSummary?.constructionImpactStatus || 'I2'}`,

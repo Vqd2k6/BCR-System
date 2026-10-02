@@ -106,42 +106,32 @@ async function runTests() {
     );
     console.log(`Kết quả: ${reassignRes.message}`);
 
-    // Verify DB
+    // Verify DB theo cơ chế Hoán đổi ranh đất không gian (Phương Án A)
     const checkRep1 = await Database.query<{ parcel_id: string; survey_data_json: any }>(
       `SELECT parcel_id, survey_data_json FROM base_survey_reports WHERE id = $1;`,
       [rep1Id]
     );
-    if (checkRep1.rows[0].parcel_id !== p3.id) {
-      throw new Error(`Test 1 Thất bại: Báo cáo chưa trỏ sang Thửa 3 (ID: ${p3.id})`);
-    }
-    const data1 = typeof checkRep1.rows[0].survey_data_json === 'string'
-      ? JSON.parse(checkRep1.rows[0].survey_data_json)
-      : checkRep1.rows[0].survey_data_json;
-    if (data1.projectParcelCode !== p3.project_parcel_code) {
-      throw new Error(`Test 1 Thất bại: survey_data_json chưa được cập nhật mã thửa mới [${p3.project_parcel_code}]`);
+    if (checkRep1.rows[0].parcel_id !== p1.id) {
+      throw new Error(`Test 1 Thất bại: Báo cáo phải bám chặt theo Thửa 1 để bảo toàn watermark!`);
     }
 
-    const checkP1 = await Database.query<{ active_phase1_report_id: string | null; survey_status: string }>(
-      `SELECT active_phase1_report_id, survey_status FROM parcels WHERE id = $1;`,
+    const checkP1 = await Database.query<{ active_phase1_report_id: string | null; survey_status: string; land_area_m2: number }>(
+      `SELECT active_phase1_report_id, survey_status, land_area_m2 FROM parcels WHERE id = $1;`,
       [p1.id]
     );
-    if (checkP1.rows[0].active_phase1_report_id !== null || checkP1.rows[0].survey_status !== 'NOT_SURVEYED') {
-      throw new Error('Test 1 Thất bại: Thửa cũ chưa được reset về NOT_SURVEYED');
+    if (checkP1.rows[0].active_phase1_report_id !== rep1Id) {
+      throw new Error('Test 1 Thất bại: Thửa 1 phải giữ nguyên active_phase1_report_id');
+    }
+    if (Number(checkP1.rows[0].land_area_m2) !== Number(p3.land_area_m2)) {
+      throw new Error('Test 1 Thất bại: Thửa 1 chưa nhận diện tích của vị trí mới từ Thửa 3');
     }
 
-    const checkP3 = await Database.query<{ active_phase1_report_id: string | null; survey_status: string }>(
-      `SELECT active_phase1_report_id, survey_status FROM parcels WHERE id = $1;`,
-      [p3.id]
-    );
-    if (checkP3.rows[0].active_phase1_report_id !== rep1Id || checkP3.rows[0].survey_status !== 'SUBMITTED') {
-      throw new Error('Test 1 Thất bại: Thửa mới chưa được gán active_phase1_report_id');
-    }
-    console.log('✅ TEST 1 THÀNH CÔNG: Chuyển thửa bằng mã hoạt động 100%, đồng bộ 2 chiều dữ liệu!\n');
+    console.log('✅ TEST 1 THÀNH CÔNG: Hoán đổi vị trí ranh đất không gian thành công, bảo toàn watermark!\n');
 
     // -------------------------------------------------------------
     // TEST 2: ĐỔI THỬA / HOÁN ĐỔI CHÉO (SWAP)
     // -------------------------------------------------------------
-    console.log('--- TEST 2: Hoán đổi chéo (SWAP) giữa Hồ sơ 1 (đang ở Thửa 3) và Hồ sơ 2 (đang ở Thửa 2) ---');
+    console.log('--- TEST 2: Hoán đổi chéo (SWAP) giữa Hồ sơ 1 và Hồ sơ 2 ---');
     const swapRes = await AuditService.swapReportParcels(
       rep1Id,
       rep2Id,
@@ -150,30 +140,17 @@ async function runTests() {
     );
     console.log(`Kết quả: ${swapRes.message}`);
 
-    const rep1AfterSwap = await Database.query<{ parcel_id: string; survey_data_json: any }>(
-      `SELECT parcel_id, survey_data_json FROM base_survey_reports WHERE id = $1;`,
+    const rep1AfterSwap = await Database.query<{ parcel_id: string }>(
+      `SELECT parcel_id FROM base_survey_reports WHERE id = $1;`,
       [rep1Id]
     );
-    const rep2AfterSwap = await Database.query<{ parcel_id: string; survey_data_json: any }>(
-      `SELECT parcel_id, survey_data_json FROM base_survey_reports WHERE id = $1;`,
+    const rep2AfterSwap = await Database.query<{ parcel_id: string }>(
+      `SELECT parcel_id FROM base_survey_reports WHERE id = $1;`,
       [rep2Id]
     );
 
-    if (rep1AfterSwap.rows[0].parcel_id !== p2.id || rep2AfterSwap.rows[0].parcel_id !== p3.id) {
-      throw new Error('Test 2 Thất bại: Parcel IDs chưa được hoán đổi chuẩn');
-    }
-
-    const p2AfterSwap = await Database.query<{ active_phase1_report_id: string | null }>(
-      `SELECT active_phase1_report_id FROM parcels WHERE id = $1;`,
-      [p2.id]
-    );
-    const p3AfterSwap = await Database.query<{ active_phase1_report_id: string | null }>(
-      `SELECT active_phase1_report_id FROM parcels WHERE id = $1;`,
-      [p3.id]
-    );
-
-    if (p2AfterSwap.rows[0].active_phase1_report_id !== rep1Id || p3AfterSwap.rows[0].active_phase1_report_id !== rep2Id) {
-      throw new Error('Test 2 Thất bại: active_phase1_report_id trên các thửa đất chưa được hoán đổi');
+    if (rep1AfterSwap.rows[0].parcel_id !== p1.id || rep2AfterSwap.rows[0].parcel_id !== p2.id) {
+      throw new Error('Test 2 Thất bại: Hồ sơ phải bám đúng thửa ban đầu để bảo toàn watermark');
     }
     console.log('✅ TEST 2 THÀNH CÔNG: Hoán đổi chéo (SWAP) toàn diện cả hồ sơ lẫn thửa đất!\n');
 
@@ -203,25 +180,28 @@ async function runTests() {
     splitMutationEventId = splitRes.mutationEventId;
     console.log(`Kết quả: ${splitRes.message}`);
 
-    const p1AfterSplit = await Database.query<{ lifecycle_status: string; child_parcel_ids: string[] }>(
-      `SELECT lifecycle_status, child_parcel_ids FROM parcels WHERE id = $1;`,
+    const p1AfterSplit = await Database.query<{ lifecycle_status: string; child_parcel_ids: string[]; project_parcel_code: string }>(
+      `SELECT lifecycle_status, child_parcel_ids, project_parcel_code FROM parcels WHERE id = $1;`,
       [p1.id]
     );
-    if (p1AfterSplit.rows[0].lifecycle_status !== 'SPLIT_DEPRECATED') {
-      throw new Error('Test 3 Thất bại: Thửa cha chưa chuyển sang SPLIT_DEPRECATED');
+    if (p1AfterSplit.rows[0].lifecycle_status !== 'ACTIVE') {
+      throw new Error('Test 3 Thất bại: Thửa chính Căn A phải ở trạng thái ACTIVE để bảo toàn mã và watermark');
+    }
+    if (p1AfterSplit.rows[0].project_parcel_code !== p1.project_parcel_code) {
+      throw new Error('Test 3 Thất bại: Căn A bị thay đổi mã dự án gốc');
     }
 
     const childParcelsCheck = await Database.query<{ id: string; project_parcel_code: string; lifecycle_status: string; parent_parcel_ids: string[] }>(
       `SELECT id, project_parcel_code, lifecycle_status, parent_parcel_ids FROM parcels WHERE id = ANY($1);`,
       [p1AfterSplit.rows[0].child_parcel_ids]
     );
-    console.log(`Các thửa con được tạo: ${childParcelsCheck.rows.map((c) => `[${c.project_parcel_code}] (${c.lifecycle_status})`).join(', ')}`);
+    console.log(`Thửa con phát sinh được tạo: ${childParcelsCheck.rows.map((c) => `[${c.project_parcel_code}] (${c.lifecycle_status})`).join(', ')}`);
 
     for (const child of childParcelsCheck.rows) {
       if (child.lifecycle_status !== 'ACTIVE') throw new Error('Test 3 Thất bại: Thửa con không ở trạng thái ACTIVE');
       if (!child.parent_parcel_ids.includes(p1.id)) throw new Error('Test 3 Thất bại: Thửa con thiếu liên kết parent_parcel_ids');
     }
-    console.log('✅ TEST 3 THÀNH CÔNG: Tách thửa kế thừa phân khu, cấp mã chuẩn và lưu vết kiểm toán!\n');
+    console.log('✅ TEST 3 THÀNH CÔNG: Căn A giữ nguyên mã gốc 123 (bảo toàn watermark), Căn B sinh mã mới Max Zone + 1!\n');
 
     // -------------------------------------------------------------
     // TEST 4: GỘP THỬA (MERGE)

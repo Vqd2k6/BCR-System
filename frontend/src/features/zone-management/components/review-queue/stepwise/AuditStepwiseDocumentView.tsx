@@ -220,6 +220,8 @@ export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps>
 
         <AuditStep7EcsViScores
           data={data}
+          reportId={reportId}
+          onRefresh={onRefresh}
           onOpenEngineeringJudgement={onOpenEngineeringJudgement}
         />
 

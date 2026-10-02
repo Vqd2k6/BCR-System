@@ -195,10 +195,10 @@ export const AdminReassignParcelModal: React.FC<Props> = ({
             </div>
             <div>
               <h3 className="text-base font-black text-slate-800">
-                Xử Lý Sai Lệch Thửa Đất (Zone Admin)
+                Hoán Đổi Vị Trí Ranh Đất GIS (Zone Admin)
               </h3>
               <p className="text-xs text-slate-500">
-                Khắc phục tình trạng nhà san sát tích nhầm thửa hoặc tích chéo hồ sơ
+                Hoán đổi đa giác GIS — Bảo toàn 100% mã thửa, hồ sơ và watermark trên ảnh
               </p>
             </div>
           </div>
@@ -226,7 +226,7 @@ export const AdminReassignParcelModal: React.FC<Props> = ({
             }`}
           >
             <ArrowRight className="w-3.5 h-3.5" />
-            <span>1. Điều Chuyển Sang Thửa Mới</span>
+            <span>1. Đổi Vị Trí Ranh Đến Thửa Đích</span>
           </button>
           <button
             type="button"
@@ -241,7 +241,7 @@ export const AdminReassignParcelModal: React.FC<Props> = ({
             }`}
           >
             <ArrowRightLeft className="w-3.5 h-3.5" />
-            <span>2. Hoán Đổi Chéo 2 Hồ Sơ Kề Nhau</span>
+            <span>2. Hoán Đổi Ranh 2 Nhà Liền Kề</span>
           </button>
         </div>
 
@@ -292,19 +292,24 @@ export const AdminReassignParcelModal: React.FC<Props> = ({
                   />
                   <Search className="w-4 h-4 text-slate-400 absolute right-2.5 top-2.5" />
                 </div>
-                <p className="text-[11px] text-slate-500">
-                  Hệ thống sẽ chuyển toàn bộ biên bản khảo sát hiện trường của nhà này sang thửa đất được chỉ định. Thửa cũ [{currentParcelCode}] sẽ hoàn nguyên về trạng thái chưa khảo sát (NOT_SURVEYED).
-                </p>
+                <div className="p-2.5 rounded-lg bg-sky-50 border border-sky-100 text-[11px] text-sky-900 space-y-1">
+                  <p className="font-semibold">
+                    ✓ Cơ chế Hoán Đổi Ranh Không Gian (Spatial Geometry Swap):
+                  </p>
+                  <p className="text-slate-600">
+                    Đa giác ranh thửa và toạ độ trên GIS sẽ được tráo đổi giữa thửa hiện tại [{currentParcelCode}] và thửa đích. Toàn bộ thông tin địa chính, hồ sơ khảo sát và watermark ảnh mang mã [{currentParcelCode}] được <strong>bảo toàn nguyên vẹn 100%</strong>, không bị xáo trộn mã ảnh.
+                  </p>
+                </div>
               </div>
 
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-slate-700 block">
-                  Lý Do Điều Chuyển (Audit Log):
+                  Lý Do Điều Chuyển Ranh Đất (Audit Log):
                 </label>
                 <textarea
                   required
                   rows={2}
-                  placeholder="Ví dụ: Hiện trường nhà số 125 Trần Não bị KSV tích nhầm vào thửa 28 của nhà 123 bên cạnh. Điều chuyển sang đúng thửa 29."
+                  placeholder="Ví dụ: Hiện trường nhà số 125 Trần Não bị KSV tích nhầm vào polygon của thửa 28 bên cạnh. Hoán đổi ranh đất sang đúng thửa 29."
                   value={reason}
                   onChange={(e) => setReason(e.target.value)}
                   className="w-full p-2.5 text-xs text-slate-800 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 focus:outline-hidden"
@@ -313,7 +318,7 @@ export const AdminReassignParcelModal: React.FC<Props> = ({
 
               {/* Mã bảo mật 6 số bắt buộc */}
               <AdminSecurityChallengeConfirm
-                actionDescription={`điều chuyển hồ sơ từ thửa [${currentParcelCode}] sang thửa mới`}
+                actionDescription={`hoán đổi vị trí ranh đất GIS của thửa [${currentParcelCode}] sang thửa mới`}
                 onValidityChange={(isValid) => setIsReassignChallengeValid(isValid)}
               />
 
@@ -331,7 +336,7 @@ export const AdminReassignParcelModal: React.FC<Props> = ({
                   className="px-4 py-2 rounded-xl text-xs font-black bg-sky-600 hover:bg-sky-700 text-white shadow-md shadow-sky-600/20 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <CheckCircle2 className="w-3.5 h-3.5" />
-                  <span>{isSubmitting ? 'Đang điều chuyển...' : 'Xác Nhận Điều Chuyển Thửa'}</span>
+                  <span>{isSubmitting ? 'Đang cập nhật...' : 'Xác Nhận Đổi Vị Trí Ranh Đất'}</span>
                 </button>
               </div>
             </form>
@@ -384,20 +389,31 @@ export const AdminReassignParcelModal: React.FC<Props> = ({
               {/* Sơ đồ hoán đổi trực quan */}
               {selectedReportB && (
                 <div className="p-3.5 rounded-xl bg-amber-50/70 border border-amber-200 space-y-2">
-                  <span className="text-[11px] font-bold text-amber-900 block">
-                    Sơ đồ hoán đổi chéo:
-                  </span>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-amber-900 block">
+                      Sơ đồ hoán đổi ranh không gian GIS (Spatial Geometry Swap):
+                    </span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-200">
+                      Bảo toàn 100% Watermark
+                    </span>
+                  </div>
                   <div className="grid grid-cols-2 gap-2 text-xs">
-                    <div className="p-2 bg-white rounded-lg border border-amber-200">
-                      <span className="text-[10px] text-slate-400 block font-bold">HỒ SƠ A SẼ SANG:</span>
-                      <span className="font-black text-amber-800">
-                        Thửa [{selectedReportB.project_parcel_code}]
+                    <div className="p-2.5 bg-white rounded-lg border border-amber-200 space-y-1">
+                      <span className="text-[10px] text-slate-400 block font-bold">THỬA [{currentParcelCode}]:</span>
+                      <span className="text-[11px] text-slate-600 block">
+                        → Nhận vị trí ranh GIS của <strong className="text-amber-800">[{selectedReportB.project_parcel_code}]</strong>
+                      </span>
+                      <span className="text-[10px] text-emerald-700 block font-medium">
+                        ✓ Giữ nguyên mã [{currentParcelCode}] & watermark ảnh
                       </span>
                     </div>
-                    <div className="p-2 bg-white rounded-lg border border-amber-200">
-                      <span className="text-[10px] text-slate-400 block font-bold">HỒ SƠ B SẼ SANG:</span>
-                      <span className="font-black text-amber-800">
-                        Thửa [{currentParcelCode}]
+                    <div className="p-2.5 bg-white rounded-lg border border-amber-200 space-y-1">
+                      <span className="text-[10px] text-slate-400 block font-bold">THỬA [{selectedReportB.project_parcel_code}]:</span>
+                      <span className="text-[11px] text-slate-600 block">
+                        → Nhận vị trí ranh GIS của <strong className="text-amber-800">[{currentParcelCode}]</strong>
+                      </span>
+                      <span className="text-[10px] text-emerald-700 block font-medium">
+                        ✓ Giữ nguyên mã [{selectedReportB.project_parcel_code}] & watermark ảnh
                       </span>
                     </div>
                   </div>
@@ -406,12 +422,12 @@ export const AdminReassignParcelModal: React.FC<Props> = ({
 
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-slate-700 block">
-                  Lý Do Hoán Đổi (Audit Log):
+                  Lý Do Hoán Đổi Ranh Đất (Audit Log):
                 </label>
                 <textarea
                   required
                   rows={2}
-                  placeholder="Ví dụ: KSV khảo sát hai nhà liền vách nhưng tích chéo thửa đất. Cần hoán đổi lại đúng chủ sở hữu và số nhà."
+                  placeholder="Ví dụ: KSV khảo sát hai nhà liền vách nhưng tích chéo ranh đất trên GIS. Cần hoán đổi lại đúng vị trí thực tế."
                   value={reason}
                   onChange={(e) => setReason(e.target.value)}
                   className="w-full p-2.5 text-xs text-slate-800 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:outline-hidden"
@@ -420,7 +436,7 @@ export const AdminReassignParcelModal: React.FC<Props> = ({
 
               {/* Mã bảo mật 6 số bắt buộc */}
               <AdminSecurityChallengeConfirm
-                actionDescription={`hoán đổi chéo giữa 2 thửa [${currentParcelCode}] và [${selectedReportB?.project_parcel_code || 'được chọn'}]`}
+                actionDescription={`hoán đổi ranh đất không gian giữa 2 thửa [${currentParcelCode}] và [${selectedReportB?.project_parcel_code || 'được chọn'}]`}
                 onValidityChange={(isValid) => setIsSwapChallengeValid(isValid)}
               />
 
@@ -438,7 +454,7 @@ export const AdminReassignParcelModal: React.FC<Props> = ({
                   className="px-4 py-2 rounded-xl text-xs font-black bg-amber-600 hover:bg-amber-700 text-white shadow-md shadow-amber-600/20 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <ArrowRightLeft className="w-3.5 h-3.5" />
-                  <span>{isSubmitting ? 'Đang hoán đổi...' : 'Xác Nhận Hoán Đổi Chéo'}</span>
+                  <span>{isSubmitting ? 'Đang hoán đổi...' : 'Xác Nhận Hoán Đổi Ranh GIS'}</span>
                 </button>
               </div>
             </form>

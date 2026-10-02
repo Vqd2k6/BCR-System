@@ -379,7 +379,7 @@ export class CadastralService {
   }
 
   /**
-   * Lấy danh sách mã dự án tiếp theo dựa trên Max của chính Zone đó (Phương án 1)
+   * Lấy danh sách mã dự án tiếp theo dựa trên Max của chính Zone đó (Cơ chế Max Zone + 1)
    */
   static async getNextHighRangeCodes(count: number = 2, zoneId?: string, parcelId?: string) {
     let resolvedZoneId = zoneId;
@@ -393,23 +393,36 @@ export class CadastralService {
       }
     }
 
-    let query = `SELECT project_parcel_code FROM parcels`;
+    let parentPrefix = '';
+    if (parentParcelCode) {
+      const pMatch = parentParcelCode.match(/^(.*?)(\d+)$/);
+      if (pMatch) {
+        parentPrefix = pMatch[1];
+      }
+    }
+
+    let query = `SELECT project_parcel_code FROM parcels WHERE 1=1`;
     const params: any[] = [];
     if (resolvedZoneId) {
-      query += ` WHERE zone_id = $1`;
       params.push(resolvedZoneId);
+      query += ` AND zone_id = $${params.length}`;
     }
-    query += ` ORDER BY substring(project_parcel_code from '[0-9]+$')::integer DESC LIMIT 1;`;
+    if (parentPrefix) {
+      params.push(`${parentPrefix}%`);
+      query += ` AND project_parcel_code LIKE $${params.length}`;
+    }
+    query += ` ORDER BY substring(project_parcel_code from '[0-9]+$')::integer DESC NULLS LAST LIMIT 1;`;
 
     const res = await Database.query<{ project_parcel_code: string }>(query, params);
 
-    let prefix = 'B-';
+    let prefix = parentPrefix || 'B-';
     let padLen = 4;
     let nextNum = 1;
+    let currentMaxCode = '';
 
     if (res.rows.length > 0 && res.rows[0].project_parcel_code) {
-      const maxCode = res.rows[0].project_parcel_code;
-      const match = maxCode.match(/^(.*?)(\d+)$/);
+      currentMaxCode = res.rows[0].project_parcel_code;
+      const match = currentMaxCode.match(/^(.*?)(\d+)$/);
       if (match) {
         prefix = match[1];
         padLen = Math.max(match[2].length, 4);
@@ -432,6 +445,12 @@ export class CadastralService {
     return {
       baseNextNum: nextNum,
       codes,
+      currentMaxCode,
+      nextCode: codes[0],
+      zoneId: resolvedZoneId || 'ZONE_01',
+      parentParcelCode,
+      mechanism: 'MAX_ZONE_PLUS_1',
+      description: `Cơ chế Max Zone + 1: Mã lớn nhất hiện tại trong ${resolvedZoneId || 'phân khu'} là [${currentMaxCode || 'Chưa có'}], mã cấp mới tiếp theo là [${codes[0]}]`,
     };
   }
 
@@ -506,8 +525,10 @@ export class CadastralService {
       house_number: string;
       street: string;
       land_area_m2: number;
+      cadastral_geojson: any;
     }>(
-      `SELECT id, zone_id, project_parcel_code, house_number, street, land_area_m2
+      `SELECT id, zone_id, project_parcel_code, house_number, street, land_area_m2,
+              ST_AsGeoJSON(cadastral_polygon_geom)::json AS cadastral_geojson
        FROM parcels WHERE id = $1;`,
       [parcelId]
     );
@@ -528,6 +549,7 @@ export class CadastralService {
       floor_count: number;
       survey_status: string;
       distance_meters: number;
+      cadastral_geojson: any;
     }>(
       `SELECT id, project_parcel_code, official_cadastral_code, house_number, street,
               owner_name, land_area_m2, floor_count, survey_status,
@@ -536,7 +558,8 @@ export class CadastralService {
                   cadastral_polygon_geom::geography,
                   (SELECT cadastral_polygon_geom::geography FROM parcels WHERE id = $1)
                 )::numeric, 1
-              ) as distance_meters
+              ) as distance_meters,
+              ST_AsGeoJSON(cadastral_polygon_geom)::json AS cadastral_geojson
        FROM parcels
        WHERE zone_id = $2
          AND id != $1
@@ -549,10 +572,12 @@ export class CadastralService {
     return {
       currentParcel: {
         id: parcel.id,
+        zoneId: parcel.zone_id,
         projectParcelCode: parcel.project_parcel_code,
         houseNumber: parcel.house_number,
         street: parcel.street,
         landAreaM2: parcel.land_area_m2,
+        cadastralGeojson: parcel.cadastral_geojson,
       },
       candidates: candidatesRes.rows,
     };
@@ -765,12 +790,14 @@ export class CadastralService {
         street: string;
         ward: string;
         district: string;
+        owner_name: string;
+        owner_phone: string;
         land_area_m2: number;
         survey_status: string;
         cadastral_geojson: string;
       }>(
         `SELECT id, zone_id, project_parcel_code, house_number, street, ward, district,
-                land_area_m2, survey_status,
+                owner_name, owner_phone, land_area_m2, survey_status,
                 ST_AsGeoJSON(cadastral_polygon_geom) AS cadastral_geojson
          FROM parcels WHERE id = $1 FOR UPDATE;`,
         [data.sourceParcelIds[0]]
@@ -786,35 +813,15 @@ export class CadastralService {
       const createdParcels: any[] = [];
       const totalChildArea = data.childParcels.reduce((sum, c) => sum + (Number(c.landAreaM2) || 0), 0);
 
-      // 2. Tạo các thửa con
+      // 2. Xử lý các thửa con:
+      // - Căn A (idx === 0): Thửa chính / Nhà chính giữ nguyên ID gốc và mã dự án gốc (ví dụ [123]),
+      //   bảo toàn 100% hồ sơ và ảnh watermark đã chụp; chỉ thu nhỏ/cập nhật ranh đất PostGIS theo Căn A.
+      // - Căn B, C... (idx > 0): Sinh mã mới theo cơ chế giống KSV là Max Zone + 1, tạo mới thửa ở trạng thái NOT_SURVEYED.
+      const childParcelsCreatedOrUpdated: any[] = [];
+      const newChildIdsOnly: string[] = [];
+
       for (let idx = 0; idx < data.childParcels.length; idx++) {
         const child = data.childParcels[idx];
-        let code = child.projectParcelCode?.trim();
-
-        if (!code) {
-          const suffix = String.fromCharCode(65 + idx);
-          const candidateCode = `${parent.project_parcel_code}${suffix}`;
-          const codeExist = await client.query(`SELECT id FROM parcels WHERE project_parcel_code = $1;`, [candidateCode]);
-          if (codeExist.rows.length === 0) {
-            code = candidateCode;
-          } else {
-            code = await CadastralRepository.getNextHighRangeProjectCode(client, zoneId, parent.project_parcel_code);
-          }
-        }
-
-        const insertParams: any[] = [
-          zoneId,                        // $1
-          code,                          // $2
-          child.houseNumber || null,     // $3
-          child.street || parent.street, // $4
-          parent.ward,                   // $5
-          parent.district,               // $6
-          child.ownerName || null,       // $7
-          child.ownerPhone || null,      // $8
-          child.landAreaM2 || 0,         // $9
-          child.floorCount || 1,         // $10
-          parent.id,                     // $11
-        ];
 
         const isMockCoord =
           child.polygonGeoJson &&
@@ -823,29 +830,108 @@ export class CadastralService {
           child.polygonGeoJson.coordinates[0][0] &&
           child.polygonGeoJson.coordinates[0][0][0] === 106.71;
 
-        let geomExpr: string;
-        if (child.polygonGeoJson && !isMockCoord) {
-          insertParams.push(typeof child.polygonGeoJson === 'string' ? child.polygonGeoJson : JSON.stringify(child.polygonGeoJson));
-          const gIdx = insertParams.length;
-          geomExpr = `ST_GeometryN(ST_CollectionExtract(ST_MakeValid(ST_SetSRID(ST_GeomFromGeoJSON($${gIdx}), 4326)), 3), 1)`;
-        } else {
-          const ratio = Math.max(0.1, Math.min(0.9, (Number(child.landAreaM2) || 1) / (totalChildArea || 1)));
-          if (idx === 0) {
-            geomExpr = `COALESCE(
+        const ratio = Math.max(0.1, Math.min(0.9, (Number(child.landAreaM2) || 1) / (totalChildArea || 1)));
+
+        if (idx === 0) {
+          // ==========================================
+          // CĂN A: THỬA GỐC / NHÀ CHÍNH (GIỮ NGUYÊN MÃ MẸ & WATERMARK)
+          // ==========================================
+          let geomUpdateExpr: string;
+          const updateParams: any[] = [
+            child.landAreaM2 ? Number(child.landAreaM2) : parent.land_area_m2,
+            child.houseNumber || parent.house_number,
+            child.ownerName || parent.owner_name,
+            child.ownerPhone || parent.owner_phone,
+            parent.id,
+          ];
+
+          if (child.polygonGeoJson && !isMockCoord) {
+            updateParams.push(typeof child.polygonGeoJson === 'string' ? child.polygonGeoJson : JSON.stringify(child.polygonGeoJson));
+            const gIdx = updateParams.length;
+            geomUpdateExpr = `ST_GeometryN(ST_CollectionExtract(ST_MakeValid(ST_SetSRID(ST_GeomFromGeoJSON($${gIdx}), 4326)), 3), 1)`;
+          } else {
+            geomUpdateExpr = `COALESCE(
               ST_GeometryN(ST_CollectionExtract(ST_MakeValid(ST_Intersection(
-                (SELECT cadastral_polygon_geom FROM parcels WHERE id = $11),
+                (SELECT cadastral_polygon_geom FROM parcels WHERE id = $5),
                 ST_MakeEnvelope(
-                  ST_XMin((SELECT cadastral_polygon_geom FROM parcels WHERE id = $11)),
-                  ST_YMin((SELECT cadastral_polygon_geom FROM parcels WHERE id = $11)),
-                  ST_XMin((SELECT cadastral_polygon_geom FROM parcels WHERE id = $11)) + (ST_XMax((SELECT cadastral_polygon_geom FROM parcels WHERE id = $11)) - ST_XMin((SELECT cadastral_polygon_geom FROM parcels WHERE id = $11))) * ${ratio},
-                  ST_YMax((SELECT cadastral_polygon_geom FROM parcels WHERE id = $11)),
+                  ST_XMin((SELECT cadastral_polygon_geom FROM parcels WHERE id = $5)),
+                  ST_YMin((SELECT cadastral_polygon_geom FROM parcels WHERE id = $5)),
+                  ST_XMin((SELECT cadastral_polygon_geom FROM parcels WHERE id = $5)) + (ST_XMax((SELECT cadastral_polygon_geom FROM parcels WHERE id = $5)) - ST_XMin((SELECT cadastral_polygon_geom FROM parcels WHERE id = $5))) * ${ratio},
+                  ST_YMax((SELECT cadastral_polygon_geom FROM parcels WHERE id = $5)),
                   4326
                 )
               )), 3), 1),
-              (SELECT cadastral_polygon_geom FROM parcels WHERE id = $11)
+              (SELECT cadastral_polygon_geom FROM parcels WHERE id = $5)
             )`;
+          }
+
+          await client.query(
+            `UPDATE parcels
+             SET land_area_m2 = $1,
+                 construction_area_m2 = $1,
+                 house_number = $2,
+                 owner_name = $3,
+                 owner_phone = $4,
+                 cadastral_polygon_geom = ${geomUpdateExpr},
+                 footprint_polygon_geom = ${geomUpdateExpr},
+                 location_geom = ST_Centroid(${geomUpdateExpr}),
+                 mutation_type = 'SPLIT',
+                 lifecycle_status = 'ACTIVE',
+                 updated_at = NOW()
+             WHERE id = $5;`,
+            updateParams
+          );
+
+          resultParcelIds.push(parent.id);
+          childParcelsCreatedOrUpdated.push({
+            id: parent.id,
+            projectParcelCode: parent.project_parcel_code,
+            role: 'PRIMARY_A',
+            isRetainedParent: true,
+          });
+          createdParcels.push({
+            id: parent.id,
+            project_parcel_code: parent.project_parcel_code,
+            role: 'PRIMARY_A',
+          });
+        } else {
+          // ==========================================
+          // CĂN B, C...: THỬA PHÁT SINH MỚI (MAX ZONE + 1)
+          // ==========================================
+          let code = child.projectParcelCode?.trim();
+          if (!code) {
+            code = await CadastralRepository.getNextHighRangeProjectCode(
+              client,
+              zoneId,
+              parent.project_parcel_code
+            );
+          }
+
+          const bHouseNumber = child.houseNumber || (parent.house_number ? `${parent.house_number}${String.fromCharCode(65 + idx)}` : 'KĐ');
+          const bOwnerName = child.ownerName || `Chủ hộ Căn ${String.fromCharCode(65 + idx)} (${code})`;
+          const bArea = child.landAreaM2 ? Number(child.landAreaM2) : 0;
+
+          const insertParams: any[] = [
+            zoneId,                        // $1
+            code,                          // $2
+            bHouseNumber,                  // $3
+            child.street || parent.street, // $4
+            parent.ward,                   // $5
+            parent.district,               // $6
+            bOwnerName,                    // $7
+            child.ownerPhone || null,      // $8
+            bArea,                         // $9
+            child.floorCount || 1,         // $10
+            parent.id,                     // $11
+          ];
+
+          let bGeomExpr: string;
+          if (child.polygonGeoJson && !isMockCoord) {
+            insertParams.push(typeof child.polygonGeoJson === 'string' ? child.polygonGeoJson : JSON.stringify(child.polygonGeoJson));
+            const gIdx = insertParams.length;
+            bGeomExpr = `ST_GeometryN(ST_CollectionExtract(ST_MakeValid(ST_SetSRID(ST_GeomFromGeoJSON($${gIdx}), 4326)), 3), 1)`;
           } else {
-            geomExpr = `COALESCE(
+            bGeomExpr = `COALESCE(
               ST_GeometryN(ST_CollectionExtract(ST_MakeValid(ST_Difference(
                 (SELECT cadastral_polygon_geom FROM parcels WHERE id = $11),
                 ST_MakeEnvelope(
@@ -859,70 +945,39 @@ export class CadastralService {
               (SELECT cadastral_polygon_geom FROM parcels WHERE id = $11)
             )`;
           }
+
+          const pRes = await client.query<{ id: string; project_parcel_code: string }>(
+            `INSERT INTO parcels (
+               zone_id, project_parcel_code, house_number, street, ward, district,
+               owner_name, owner_phone, land_area_m2, construction_area_m2, floor_count,
+               cadastral_polygon_geom, footprint_polygon_geom, location_geom,
+               survey_status, lifecycle_status, mutation_type, parent_parcel_ids
+             ) VALUES (
+               $1, $2, $3, $4, $5, $6,
+               $7, $8, $9, $9, $10,
+               ${bGeomExpr},
+               ${bGeomExpr},
+               ST_Centroid(${bGeomExpr}),
+               'NOT_SURVEYED', 'ACTIVE', 'SPLIT', ARRAY[$11::uuid]
+             ) RETURNING id, project_parcel_code;`,
+            insertParams
+          );
+
+          resultParcelIds.push(pRes.rows[0].id);
+          newChildIdsOnly.push(pRes.rows[0].id);
+          createdParcels.push(pRes.rows[0]);
         }
-
-        const pRes = await client.query<{ id: string; project_parcel_code: string }>(
-          `INSERT INTO parcels (
-             zone_id, project_parcel_code, house_number, street, ward, district,
-             owner_name, owner_phone, land_area_m2, floor_count,
-             cadastral_polygon_geom, footprint_polygon_geom, location_geom,
-             survey_status, lifecycle_status, mutation_type, parent_parcel_ids
-           ) VALUES (
-             $1, $2, $3, $4, $5, $6,
-             $7, $8, $9, $10,
-             ${geomExpr},
-             ${geomExpr},
-             ST_Centroid(${geomExpr}),
-             'NOT_SURVEYED', 'ACTIVE', 'SPLIT', ARRAY[$11::uuid]
-           ) RETURNING id, project_parcel_code;`,
-          insertParams
-        );
-
-        resultParcelIds.push(pRes.rows[0].id);
-        createdParcels.push(pRes.rows[0]);
       }
 
-      // 3. Đánh dấu thửa cha thành SPLIT_DEPRECATED
-      await client.query(
-        `UPDATE parcels 
-         SET lifecycle_status = 'SPLIT_DEPRECATED',
-             mutation_type = 'SPLIT',
-             active_phase1_report_id = NULL,
-             child_parcel_ids = $1,
-             updated_at = NOW() 
-         WHERE id = $2;`,
-        [resultParcelIds, parent.id]
-      );
-
-      // 4. Nếu có yêu cầu gán hồ sơ khảo sát sang thửa con đầu tiên
-      if (data.transferSurveyReportId && resultParcelIds.length > 0) {
-        const targetParcelId = resultParcelIds[0];
-        const child1 = createdParcels[0];
-
-        const repRes = await client.query<{ status: string; survey_data_json: any }>(
-          `SELECT status, survey_data_json FROM base_survey_reports WHERE id = $1 FOR UPDATE;`,
-          [data.transferSurveyReportId]
+      // 3. Cập nhật child_parcel_ids cho thửa mẹ (Căn A)
+      if (newChildIdsOnly.length > 0) {
+        await client.query(
+          `UPDATE parcels 
+           SET child_parcel_ids = $1,
+               updated_at = NOW() 
+           WHERE id = $2;`,
+          [newChildIdsOnly, parent.id]
         );
-        if (repRes.rows[0]) {
-          const rep = repRes.rows[0];
-          let sData = typeof rep.survey_data_json === 'string' ? JSON.parse(rep.survey_data_json) : (rep.survey_data_json || {});
-          sData.projectParcelCode = child1.project_parcel_code;
-          if (data.childParcels[0]?.houseNumber) sData.houseNumber = data.childParcels[0].houseNumber;
-
-          await client.query(
-            `UPDATE base_survey_reports 
-             SET parcel_id = $1, survey_data_json = $2, updated_at = NOW() 
-             WHERE id = $3;`,
-            [targetParcelId, JSON.stringify(sData), data.transferSurveyReportId]
-          );
-
-          await client.query(
-            `UPDATE parcels 
-             SET survey_status = $1, active_phase1_report_id = $2, updated_at = NOW() 
-             WHERE id = $3;`,
-            [rep.status, data.transferSurveyReportId, targetParcelId]
-          );
-        }
       }
 
       // 5. Lưu sự kiện biến động vào parcel_mutation_events
@@ -975,6 +1030,185 @@ export class CadastralService {
         generatedParcels: createdParcels,
         status: 'APPROVED',
         message: `Đã thực thi tách thửa [${parent.project_parcel_code}] thành ${createdParcels.length} thửa con (${createdParcels.map((c) => c.project_parcel_code).join(', ')}) thành công`,
+      };
+    });
+  }
+
+  /**
+   * Hoán đổi vị trí ranh đất không gian GIS (Spatial Geometry Swap) giữa 2 thửa đất:
+   * - Bảo toàn 100% hồ sơ, mã thửa, số nhà, chủ hộ, biên bản và watermark ảnh (Phương Án A).
+   * - Tráo đổi: cadastral_polygon_geom, footprint_polygon_geom, location_geom, land_area_m2, construction_area_m2.
+   */
+  static async swapParcelGeometries(
+    parcelAIdent: string,
+    parcelBIdent: string,
+    adminId: string,
+    reason: string,
+    clientIp?: string
+  ) {
+    return Database.transaction(async (client) => {
+      // 1. Tìm thông tin thửa A và B (hỗ trợ cả UUID, project_parcel_code, official_cadastral_code)
+      const pARes = await client.query<{
+        id: string;
+        project_parcel_code: string;
+        official_cadastral_code: string;
+        house_number: string;
+        street: string;
+        poly_geojson: string;
+        foot_geojson: string;
+        loc_geojson: string;
+        land_area_m2: number;
+        construction_area_m2: number;
+      }>(
+        `SELECT id, project_parcel_code, official_cadastral_code, house_number, street,
+                ST_AsGeoJSON(cadastral_polygon_geom) AS poly_geojson,
+                ST_AsGeoJSON(footprint_polygon_geom) AS foot_geojson,
+                ST_AsGeoJSON(location_geom) AS loc_geojson,
+                land_area_m2, construction_area_m2
+         FROM parcels
+         WHERE id::text = $1 OR project_parcel_code = $1 OR official_cadastral_code = $1
+         FOR UPDATE;`,
+        [parcelAIdent]
+      );
+
+      const pBRes = await client.query<{
+        id: string;
+        project_parcel_code: string;
+        official_cadastral_code: string;
+        house_number: string;
+        street: string;
+        poly_geojson: string;
+        foot_geojson: string;
+        loc_geojson: string;
+        land_area_m2: number;
+        construction_area_m2: number;
+      }>(
+        `SELECT id, project_parcel_code, official_cadastral_code, house_number, street,
+                ST_AsGeoJSON(cadastral_polygon_geom) AS poly_geojson,
+                ST_AsGeoJSON(footprint_polygon_geom) AS foot_geojson,
+                ST_AsGeoJSON(location_geom) AS loc_geojson,
+                land_area_m2, construction_area_m2
+         FROM parcels
+         WHERE id::text = $1 OR project_parcel_code = $1 OR official_cadastral_code = $1
+         FOR UPDATE;`,
+        [parcelBIdent]
+      );
+
+      const parcelA = pARes.rows[0];
+      const parcelB = pBRes.rows[0];
+
+      if (!parcelA) {
+        throw new NotFoundError(`Không tìm thấy thửa đất A với thông tin: ${parcelAIdent}`);
+      }
+      if (!parcelB) {
+        throw new NotFoundError(`Không tìm thấy thửa đất B với thông tin: ${parcelBIdent}`);
+      }
+      if (parcelA.id === parcelB.id) {
+        throw new BadRequestError('Hai thửa đất được chọn trùng nhau, không thể hoán đổi');
+      }
+
+      // 2. Tráo đổi ranh đất không gian PostGIS giữa 2 thửa
+      // Cập nhật thửa A nhận vị trí hình học của thửa B
+      await client.query(
+        `UPDATE parcels
+         SET cadastral_polygon_geom = CASE WHEN $1::text IS NOT NULL THEN ST_SetSRID(ST_GeomFromGeoJSON($1), 4326) ELSE NULL END,
+             footprint_polygon_geom = CASE WHEN $2::text IS NOT NULL THEN ST_SetSRID(ST_GeomFromGeoJSON($2), 4326) ELSE NULL END,
+             location_geom = CASE WHEN $3::text IS NOT NULL THEN ST_SetSRID(ST_GeomFromGeoJSON($3), 4326) ELSE NULL END,
+             land_area_m2 = $4,
+             construction_area_m2 = $5,
+             updated_at = NOW()
+         WHERE id = $6;`,
+        [
+          parcelB.poly_geojson,
+          parcelB.foot_geojson,
+          parcelB.loc_geojson,
+          parcelB.land_area_m2,
+          parcelB.construction_area_m2,
+          parcelA.id,
+        ]
+      );
+
+      // Cập nhật thửa B nhận vị trí hình học của thửa A
+      await client.query(
+        `UPDATE parcels
+         SET cadastral_polygon_geom = CASE WHEN $1::text IS NOT NULL THEN ST_SetSRID(ST_GeomFromGeoJSON($1), 4326) ELSE NULL END,
+             footprint_polygon_geom = CASE WHEN $2::text IS NOT NULL THEN ST_SetSRID(ST_GeomFromGeoJSON($2), 4326) ELSE NULL END,
+             location_geom = CASE WHEN $3::text IS NOT NULL THEN ST_SetSRID(ST_GeomFromGeoJSON($3), 4326) ELSE NULL END,
+             land_area_m2 = $4,
+             construction_area_m2 = $5,
+             updated_at = NOW()
+         WHERE id = $6;`,
+        [
+          parcelA.poly_geojson,
+          parcelA.foot_geojson,
+          parcelA.loc_geojson,
+          parcelA.land_area_m2,
+          parcelA.construction_area_m2,
+          parcelB.id,
+        ]
+      );
+
+      // 3. Ghi vết lịch sử địa chính vào cadastral_history_logs
+      await client.query(
+        `INSERT INTO cadastral_history_logs (
+           parcel_id, project_parcel_code, action_type,
+           previous_geom, new_geom,
+           previous_state, new_state,
+           changed_by_user_id, change_reason
+         ) VALUES 
+         (
+           $1, $2, 'SPATIAL_GEOMETRY_SWAP',
+           CASE WHEN $3::text IS NOT NULL THEN ST_SetSRID(ST_GeomFromGeoJSON($3), 4326) ELSE NULL END,
+           CASE WHEN $4::text IS NOT NULL THEN ST_SetSRID(ST_GeomFromGeoJSON($4), 4326) ELSE NULL END,
+           $5, $6,
+           $7, $8
+         ),
+         (
+           $9, $10, 'SPATIAL_GEOMETRY_SWAP',
+           CASE WHEN $4::text IS NOT NULL THEN ST_SetSRID(ST_GeomFromGeoJSON($4), 4326) ELSE NULL END,
+           CASE WHEN $3::text IS NOT NULL THEN ST_SetSRID(ST_GeomFromGeoJSON($3), 4326) ELSE NULL END,
+           $6, $5,
+           $7, $8
+         );`,
+        [
+          parcelA.id,
+          parcelA.project_parcel_code,
+          parcelA.poly_geojson,
+          parcelB.poly_geojson,
+          JSON.stringify({ land_area_m2: parcelA.land_area_m2, house_number: parcelA.house_number }),
+          JSON.stringify({ land_area_m2: parcelB.land_area_m2, house_number: parcelB.house_number }),
+          adminId,
+          reason || `Hoán đổi vị trí ranh đất không gian GIS giữa [${parcelA.project_parcel_code}] và [${parcelB.project_parcel_code}]`,
+          parcelB.id,
+          parcelB.project_parcel_code,
+        ]
+      );
+
+      // 4. Ghi vết kiểm toán an ninh hệ thống
+      await client.query(
+        `INSERT INTO system_audit_logs (
+           entity_type, entity_id, action, performed_by_user_id, diff_payload, client_ip
+         ) VALUES ($1, $2, $3, $4, $5, $6);`,
+        [
+          'PARCEL_SPATIAL_GEOMETRY',
+          parcelA.id,
+          'ZONE_ADMIN_SPATIAL_GEOMETRY_SWAP',
+          adminId,
+          JSON.stringify({
+            parcelA: { id: parcelA.id, code: parcelA.project_parcel_code, houseNumber: parcelA.house_number },
+            parcelB: { id: parcelB.id, code: parcelB.project_parcel_code, houseNumber: parcelB.house_number },
+            reason: reason || 'Hoán đổi ranh đất không gian GIS giải quyết sai lệch vị trí',
+            timestamp: new Date().toISOString(),
+          }),
+          clientIp || null,
+        ]
+      );
+
+      return {
+        success: true,
+        message: `Đã hoán đổi ranh đất không gian GIS thành công giữa thửa [${parcelA.project_parcel_code}] và [${parcelB.project_parcel_code}]. Hồ sơ và ảnh khảo sát được bảo toàn nguyên bản 100%.`,
+        parcelA: { id: parcelA.id, code: parcelA.project_parcel_code, houseNumber: parcelA.house_number },
+        parcelB: { id: parcelB.id, code: parcelB.project_parcel_code, houseNumber: parcelB.house_number },
       };
     });
   }

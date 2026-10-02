@@ -1,6 +1,7 @@
 import { Database } from '../../database/db';
 import { NotFoundError, BadRequestError, UnauthorizedError, ForbiddenError } from '../../common/errors/problem-details';
 import { CryptoUtils } from '../../common/utils/crypto.utils';
+import { CadastralService } from '../cadastral/cadastral.service';
 
 export class AuditService {
   /**
@@ -987,144 +988,62 @@ export class AuditService {
     reason: string,
     clientIp?: string
   ) {
-    return Database.transaction(async (client) => {
-      // 1. Kiểm tra hồ sơ hiện tại
-      const repRes = await client.query<{
-        id: string;
-        parcel_id: string;
-        status: string;
-        report_code: string;
-        survey_data_json: any;
-      }>(
-        `SELECT id, parcel_id, status, report_code, survey_data_json FROM base_survey_reports WHERE id = $1 FOR UPDATE;`,
-        [reportId]
-      );
-      const report = repRes.rows[0];
-      if (!report) {
-        throw new NotFoundError(`Không tìm thấy hồ sơ với ID: ${reportId}`);
-      }
+    // 1. Kiểm tra hồ sơ hiện tại
+    const repRes = await Database.query<{ id: string; parcel_id: string }>(
+      `SELECT id, parcel_id FROM base_survey_reports WHERE id = $1;`,
+      [reportId]
+    );
+    if (!repRes.rows[0]) {
+      throw new NotFoundError(`Không tìm thấy hồ sơ với ID: ${reportId}`);
+    }
+    const oldParcelId = repRes.rows[0].parcel_id;
 
-      const oldParcelId = report.parcel_id;
-      const cleanTarget = (targetParcelIdOrCode || '').trim();
-      if (!cleanTarget) {
-        throw new BadRequestError('Mã hoặc ID thửa đất đích không được để trống');
-      }
+    const cleanTarget = (targetParcelIdOrCode || '').trim().replace(/^\[|\]$/g, '');
+    if (!cleanTarget) {
+      throw new BadRequestError('Mã hoặc ID thửa đất đích không được để trống');
+    }
 
-      // 2. Kiểm tra thửa đất đích (hỗ trợ cả UUID lẫn project_parcel_code / official_cadastral_code)
-      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(cleanTarget);
-      const targetRes = await client.query<{
-        id: string;
-        project_parcel_code: string;
-        house_number: string;
-        street: string;
-        survey_status: string;
-        active_phase1_report_id: string | null;
-      }>(
-        isUuid
-          ? `SELECT id, project_parcel_code, house_number, street, survey_status, active_phase1_report_id FROM parcels WHERE id = $1 FOR UPDATE;`
-          : `SELECT id, project_parcel_code, house_number, street, survey_status, active_phase1_report_id FROM parcels WHERE (project_parcel_code = $1 OR official_cadastral_code = $1) FOR UPDATE LIMIT 1;`,
-        [cleanTarget]
-      );
+    // 2. Tìm thửa đất đích (hỗ trợ cả UUID lẫn project_parcel_code / official_cadastral_code)
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(cleanTarget);
+    const targetRes = await Database.query<{ id: string; project_parcel_code: string }>(
+      isUuid
+        ? `SELECT id, project_parcel_code FROM parcels WHERE id = $1;`
+        : `SELECT id, project_parcel_code FROM parcels WHERE (project_parcel_code = $1 OR official_cadastral_code = $1) LIMIT 1;`,
+      [cleanTarget]
+    );
 
-      const targetParcel = targetRes.rows[0];
-      if (!targetParcel) {
-        throw new NotFoundError(`Không tìm thấy thửa đất đích với thông tin: [${cleanTarget}]`);
-      }
+    const targetParcel = targetRes.rows[0];
+    if (!targetParcel) {
+      throw new NotFoundError(`Không tìm thấy thửa đất đích với thông tin: [${cleanTarget}]`);
+    }
 
-      const targetParcelId = targetParcel.id;
-      if (oldParcelId === targetParcelId) {
-        throw new BadRequestError('Thửa đất đích trùng với thửa đất hiện tại của hồ sơ');
-      }
+    if (oldParcelId === targetParcel.id) {
+      throw new BadRequestError('Thửa đất đích trùng với thửa đất hiện tại của hồ sơ');
+    }
 
-      // Lấy thông tin thửa cũ
-      const oldParcelRes = await client.query<{ project_parcel_code: string; house_number: string; street: string }>(
-        `SELECT project_parcel_code, house_number, street FROM parcels WHERE id = $1;`,
-        [oldParcelId]
-      );
-      const oldParcelCode = oldParcelRes.rows[0]?.project_parcel_code || oldParcelId;
+    // 3. Thực hiện hoán đổi ranh đất không gian GIS (Phương Án A):
+    // Giữ nguyên 100% hồ sơ, mã thửa, số nhà, chủ hộ và watermark ảnh;
+    // Đa giác ranh không gian GIS của 2 thửa được tráo đổi cho nhau trên bản đồ.
+    const swapResult = await CadastralService.swapParcelGeometries(
+      oldParcelId,
+      targetParcel.id,
+      adminId,
+      reason || 'Điều chuyển vị trí ranh đất không gian GIS do KSV tích nhầm polygon trên bản đồ',
+      clientIp
+    );
 
-      // Đồng bộ nội dung survey_data_json
-      let surveyData = typeof report.survey_data_json === 'string'
-        ? JSON.parse(report.survey_data_json)
-        : (report.survey_data_json || {});
-      surveyData.projectParcelCode = targetParcel.project_parcel_code;
-      if (targetParcel.house_number) surveyData.houseNumber = targetParcel.house_number;
-      if (targetParcel.street) surveyData.street = targetParcel.street;
-
-      // 3. Cập nhật hồ sơ trỏ sang thửa mới và đồng bộ JSON
-      await client.query(
-        `UPDATE base_survey_reports 
-         SET parcel_id = $1, survey_data_json = $2, updated_at = NOW() 
-         WHERE id = $3;`,
-        [targetParcelId, JSON.stringify(surveyData), reportId]
-      );
-
-      // Cập nhật thửa cũ: Xóa active_phase1_report_id và cập nhật trạng thái
-      const otherRepsRes = await client.query<{ id: string; status: string }>(
-        `SELECT id, status FROM base_survey_reports WHERE parcel_id = $1 AND id != $2 ORDER BY updated_at DESC LIMIT 1;`,
-        [oldParcelId, reportId]
-      );
-      if (otherRepsRes.rows.length === 0) {
-        await client.query(
-          `UPDATE parcels 
-           SET survey_status = 'NOT_SURVEYED', active_phase1_report_id = NULL, updated_at = NOW() 
-           WHERE id = $1;`,
-          [oldParcelId]
-        );
-      } else {
-        const remainingRep = otherRepsRes.rows[0];
-        await client.query(
-          `UPDATE parcels 
-           SET survey_status = $1, active_phase1_report_id = $2, updated_at = NOW() 
-           WHERE id = $3;`,
-          [remainingRep.status, remainingRep.id, oldParcelId]
-        );
-      }
-
-      // Cập nhật thửa mới: gán active_phase1_report_id và cập nhật trạng thái
-      await client.query(
-        `UPDATE parcels 
-         SET survey_status = $1, active_phase1_report_id = $2, updated_at = NOW() 
-         WHERE id = $3;`,
-        [report.status, reportId, targetParcelId]
-      );
-
-      // 4. Ghi vết kiểm toán Append-only vào system_audit_logs
-      await client.query(
-        `INSERT INTO system_audit_logs (
-           entity_type, entity_id, action, performed_by_user_id, diff_payload, client_ip
-         ) VALUES ($1, $2, $3, $4, $5, $6);`,
-        [
-          'BASE_SURVEY_REPORT',
-          reportId,
-          'ZONE_ADMIN_REASSIGN_PARCEL',
-          adminId,
-          JSON.stringify({
-            reportCode: report.report_code,
-            oldParcelId,
-            oldParcelCode,
-            targetParcelId,
-            targetParcelCode: targetParcel.project_parcel_code,
-            reason: reason || 'Khảo sát viên tích nhầm thửa đất liền kề',
-            timestamp: new Date().toISOString(),
-          }),
-          clientIp || null,
-        ]
-      );
-
-      return {
-        success: true,
-        message: `Đã điều chuyển hồ sơ thành công từ thửa [${oldParcelCode}] sang thửa [${targetParcel.project_parcel_code}]`,
-        reportId,
-        oldParcelId,
-        targetParcelId,
-        newParcelCode: targetParcel.project_parcel_code,
-      };
-    });
+    return {
+      success: true,
+      message: swapResult.message,
+      reportId,
+      oldParcelId,
+      targetParcelId: targetParcel.id,
+      newParcelCode: swapResult.parcelA.code,
+    };
   }
 
   /**
-   * Hoán đổi thửa giữa 2 hồ sơ khảo sát (khi KSV khảo sát chéo 2 nhà sát nhau)
+   * Hoán đổi vị trí ranh đất không gian GIS giữa 2 hồ sơ khảo sát (khi KSV khảo sát chéo 2 nhà sát nhau)
    */
   static async swapReportParcels(
     reportAId: string,
@@ -1133,116 +1052,46 @@ export class AuditService {
     reason: string,
     clientIp?: string
   ) {
-    return Database.transaction(async (client) => {
-      // 1. Kiểm tra 2 hồ sơ
-      const repARes = await client.query<{ id: string; parcel_id: string; status: string; report_code: string; survey_data_json: any }>(
-        `SELECT id, parcel_id, status, report_code, survey_data_json FROM base_survey_reports WHERE id = $1 FOR UPDATE;`,
-        [reportAId]
-      );
-      const repBRes = await client.query<{ id: string; parcel_id: string; status: string; report_code: string; survey_data_json: any }>(
-        `SELECT id, parcel_id, status, report_code, survey_data_json FROM base_survey_reports WHERE id = $1 FOR UPDATE;`,
-        [reportBId]
-      );
+    // 1. Kiểm tra 2 hồ sơ
+    const repARes = await Database.query<{ id: string; parcel_id: string }>(
+      `SELECT id, parcel_id FROM base_survey_reports WHERE id = $1;`,
+      [reportAId]
+    );
+    const repBRes = await Database.query<{ id: string; parcel_id: string }>(
+      `SELECT id, parcel_id FROM base_survey_reports WHERE id = $1;`,
+      [reportBId]
+    );
 
-      const repA = repARes.rows[0];
-      const repB = repBRes.rows[0];
-      if (!repA) throw new NotFoundError(`Không tìm thấy hồ sơ A với ID: ${reportAId}`);
-      if (!repB) throw new NotFoundError(`Không tìm thấy hồ sơ B với ID: ${reportBId}`);
+    if (!repARes.rows[0]) throw new NotFoundError(`Không tìm thấy hồ sơ A với ID: ${reportAId}`);
+    if (!repBRes.rows[0]) throw new NotFoundError(`Không tìm thấy hồ sơ B với ID: ${reportBId}`);
 
-      const parcelAId = repA.parcel_id;
-      const parcelBId = repB.parcel_id;
-      if (parcelAId === parcelBId) {
-        throw new BadRequestError('Hai hồ sơ đang thuộc cùng một thửa đất, không thể hoán đổi');
-      }
+    const parcelAId = repARes.rows[0].parcel_id;
+    const parcelBId = repBRes.rows[0].parcel_id;
 
-      // Lấy thông tin 2 thửa
-      const pARes = await client.query<{ project_parcel_code: string; house_number: string; street: string }>(
-        `SELECT project_parcel_code, house_number, street FROM parcels WHERE id = $1;`,
-        [parcelAId]
-      );
-      const pBRes = await client.query<{ project_parcel_code: string; house_number: string; street: string }>(
-        `SELECT project_parcel_code, house_number, street FROM parcels WHERE id = $1;`,
-        [parcelBId]
-      );
-      const pA = pARes.rows[0];
-      const pB = pBRes.rows[0];
-      const codeA = pA?.project_parcel_code || parcelAId;
-      const codeB = pB?.project_parcel_code || parcelBId;
+    if (parcelAId === parcelBId) {
+      throw new BadRequestError('Hai hồ sơ đang thuộc cùng một thửa đất, không thể hoán đổi');
+    }
 
-      // Hoán đổi survey_data_json
-      let dataA = typeof repA.survey_data_json === 'string' ? JSON.parse(repA.survey_data_json) : (repA.survey_data_json || {});
-      dataA.projectParcelCode = codeB;
-      if (pB?.house_number) dataA.houseNumber = pB.house_number;
-      if (pB?.street) dataA.street = pB.street;
+    // 2. Thực hiện hoán đổi ranh đất không gian GIS (Phương Án A):
+    // Bảo toàn nguyên vẹn 100% mã thửa, hồ sơ và watermark ảnh của cả 2 hồ sơ.
+    const swapResult = await CadastralService.swapParcelGeometries(
+      parcelAId,
+      parcelBId,
+      adminId,
+      reason || 'Hoán đổi vị trí ranh đất không gian GIS giữa 2 hồ sơ liền kề bị tích chéo',
+      clientIp
+    );
 
-      let dataB = typeof repB.survey_data_json === 'string' ? JSON.parse(repB.survey_data_json) : (repB.survey_data_json || {});
-      dataB.projectParcelCode = codeA;
-      if (pA?.house_number) dataB.houseNumber = pA.house_number;
-      if (pA?.street) dataB.street = pA.street;
-
-      // 2. Hoán đổi parcel_id và survey_data_json trên 2 hồ sơ
-      await client.query(
-        `UPDATE base_survey_reports 
-         SET parcel_id = $1, survey_data_json = $2, updated_at = NOW() 
-         WHERE id = $3;`,
-        [parcelBId, JSON.stringify(dataA), reportAId]
-      );
-      await client.query(
-        `UPDATE base_survey_reports 
-         SET parcel_id = $1, survey_data_json = $2, updated_at = NOW() 
-         WHERE id = $3;`,
-        [parcelAId, JSON.stringify(dataB), reportBId]
-      );
-
-      // Cập nhật 2 thửa: hoán đổi active_phase1_report_id và survey_status
-      await client.query(
-        `UPDATE parcels 
-         SET survey_status = $1, active_phase1_report_id = $2, updated_at = NOW() 
-         WHERE id = $3;`,
-        [repA.status, reportAId, parcelBId]
-      );
-      await client.query(
-        `UPDATE parcels 
-         SET survey_status = $1, active_phase1_report_id = $2, updated_at = NOW() 
-         WHERE id = $3;`,
-        [repB.status, reportBId, parcelAId]
-      );
-
-      // 3. Ghi vết kiểm toán
-      await client.query(
-        `INSERT INTO system_audit_logs (
-           entity_type, entity_id, action, performed_by_user_id, diff_payload, client_ip
-         ) VALUES ($1, $2, $3, $4, $5, $6);`,
-        [
-          'BASE_SURVEY_REPORT',
-          reportAId,
-          'ZONE_ADMIN_SWAP_PARCELS',
-          adminId,
-          JSON.stringify({
-            reportAId,
-            reportBId,
-            oldParcelA: { id: parcelAId, code: codeA },
-            oldParcelB: { id: parcelBId, code: codeB },
-            newParcelA: { id: parcelBId, code: codeB },
-            newParcelB: { id: parcelAId, code: codeA },
-            reason: reason || 'Hoán đổi 2 hồ sơ bị tích chéo thửa đất liền kề',
-            timestamp: new Date().toISOString(),
-          }),
-          clientIp || null,
-        ]
-      );
-
-      return {
-        success: true,
-        message: `Đã hoán đổi thành công: Hồ sơ A gán sang thửa [${codeB}], Hồ sơ B gán sang thửa [${codeA}]`,
-        reportAId,
-        reportBId,
-        swappedParcels: {
-          reportA: { newParcelId: parcelBId, newParcelCode: codeB },
-          reportB: { newParcelId: parcelAId, newParcelCode: codeA },
-        },
-      };
-    });
+    return {
+      success: true,
+      message: swapResult.message,
+      reportAId,
+      reportBId,
+      swappedParcels: {
+        reportA: swapResult.parcelA,
+        reportB: swapResult.parcelB,
+      },
+    };
   }
 
   /**

@@ -22,6 +22,7 @@ import { uploadQueue, countBase64Images, sanitizeSurveyDataForSync } from '../..
 import { AbsenteeReviewView } from './AbsenteeReviewView';
 import { CloudPhotoSyncModal } from '../components/CloudPhotoSyncModal';
 import { auditSurveyPhotos } from '../utils/photoSyncAudit';
+import { AlertOctagon } from 'lucide-react';
 
 export interface SurveyPhase1PageProps {
   parcel?: GisParcel | null;
@@ -600,6 +601,36 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
         onReject={handleRejectFromPage}
         onBack={onBackToHome}
       />
+
+      {/* Cảnh Báo Hồ Sơ Bị Trả Về (Dành cho Surveyor khi vào sửa bổ sung) */}
+      {(parcel?.surveyStatus === 'REJECTED' || reportData?.report?.status === 'REJECTED') && (
+        <div className="bg-red-50 border-b-2 border-red-300 p-3 sm:p-4 animate-in fade-in sticky top-0 z-40 shadow-xs">
+          <div className="max-w-7xl mx-auto flex items-start gap-3">
+            <div className="p-2 bg-red-100 rounded-xl text-red-700 shrink-0 mt-0.5">
+              <AlertOctagon className="w-5 h-5" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h4 className="text-xs sm:text-sm font-black text-red-950 uppercase tracking-wide">
+                  🛑 HỒ SƠ BỊ ZONE ADMIN TRẢ VỀ YÊU CẦU ĐO ĐẠC / BỔ SUNG
+                </h4>
+                <span className="px-2 py-0.5 rounded-full bg-red-200 text-red-900 font-mono text-[10px] font-black">
+                  TRẠNG THÁI: REJECTED
+                </span>
+              </div>
+              <div className="mt-1.5 p-2.5 bg-white/90 rounded-xl border border-red-200 text-xs text-red-900">
+                <span className="font-bold text-red-700 block mb-0.5">Yêu cầu từ Zone Admin:</span>
+                <p className="font-medium italic leading-relaxed">
+                  {(reportData?.report?.engineering_recommendations || (parcel as any)?.rejectionReason || 'Vui lòng kiểm tra lại hình ảnh khuyết tật có thước đo mm và số liệu đo đạc theo yêu cầu của Kỹ sư Zone Admin.').replace(/^LÝ DO TRẢ VỀ:\s*/i, '')}
+                </p>
+              </div>
+              <p className="text-[11px] text-red-700 mt-1.5 leading-relaxed">
+                ℹ️ <strong>Khảo sát viên lưu ý:</strong> Toàn bộ dữ liệu bạn đã nhập trước đó vẫn được giữ nguyên 100%. Vui lòng kiểm tra và bổ sung đúng các mục được yêu cầu ở trên, sau đó di chuyển tới <strong>Bước 8 (Ký Biên Bản)</strong> để bấm <strong>"Nộp Lại"</strong>.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 8-Step Navigation Header */}
       <StepWizardNav

@@ -350,6 +350,8 @@ export interface ResidentialReportViewModel {
   ecsJudgementApplied: boolean;
   ecsJudgementAction: string;
   ecsJudgementReason: string;
+  judgementEngineerName?: string;
+  judgementAppliedAt?: string;
   qualityGates: QualityGateItemReport[];
   gateDecisionStatus?: string;
   gateDecisionLabel?: string;

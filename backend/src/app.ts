@@ -178,6 +178,7 @@ export function createApp(): express.Application {
   api.get('/admin/reports/swap-candidates', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.searchSwapCandidates);
   api.get('/admin/parcels/:id/adjacent-candidates', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.getAdjacentCandidates);
   api.post('/admin/parcels/execute-mutation', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.executeAdminMutation);
+  api.post('/admin/parcels/swap-geometries', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.swapGeometries);
 
   // Xuất Báo Cáo Phân khu & Toàn tuyến
   api.post('/reports/batch-export', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ExportController.createBatchExport);

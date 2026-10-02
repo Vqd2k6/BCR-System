@@ -172,15 +172,48 @@ export class ScoringService {
   /**
    * Quyền can thiệp kỹ sư (Engineering Judgement) kèm Khóa an toàn (Safety Lock)
    */
+  /**
+   * Quyền can thiệp kỹ sư (Engineering Judgement) kèm Khóa an toàn (Safety Lock)
+   */
   static async applyEngineeringJudgement(
     reportId: string,
-    action: 'KEEP' | 'UPGRADE' | 'DOWNGRADE',
-    reason: string
+    action: 'KEEP' | 'UPGRADE' | 'DOWNGRADE' | 'CUSTOM_OVERRIDE',
+    reason: string,
+    engineerName?: string,
+    overrides?: {
+      burlandGrade?: number;
+      totalEcs?: number;
+      ecsClass?: 'GOOD' | 'MEDIUM' | 'DEFICIENT' | 'CRITICAL';
+      importanceScore?: number;
+      avgVi?: number;
+      viClass?: 'LOW' | 'MEDIUM' | 'HIGH' | 'VERY_HIGH';
+      impactLevelI?: number;
+      bra?: string;
+    }
   ) {
-    const cardRes = await Database.query<{
+    let cardRes = await Database.query<{
+      e1_burland_score: number;
       e2_structure_score: number;
+      total_ecs_score: number;
       ecs_class: string;
+      v1_importance_score: number;
+      avg_vi_score: number;
+      vi_class: string;
     }>(`SELECT * FROM risk_score_cards WHERE report_id = $1;`, [reportId]);
+
+    if (!cardRes.rows[0]) {
+      // Tự động tính toán điểm cơ sở ban đầu từ hiện trường nếu chưa tồn tại bảng điểm
+      await ScoringService.calculatePhase1Scores(reportId);
+      cardRes = await Database.query<{
+        e1_burland_score: number;
+        e2_structure_score: number;
+        total_ecs_score: number;
+        ecs_class: string;
+        v1_importance_score: number;
+        avg_vi_score: number;
+        vi_class: string;
+      }>(`SELECT * FROM risk_score_cards WHERE report_id = $1;`, [reportId]);
+    }
 
     if (!cardRes.rows[0]) {
       throw new NotFoundError(`Chưa có bảng điểm rủi ro cho hồ sơ: ${reportId}`);
@@ -189,25 +222,116 @@ export class ScoringService {
     const card = cardRes.rows[0];
 
     // SAFETY LOCK: Khóa không cho phép hạ hạng ECS nếu có khuyết tật kết cấu nguy cấp E2 >= 3
-    if (action === 'DOWNGRADE' && Number(card.e2_structure_score) >= 3) {
+    if (
+      (action === 'DOWNGRADE' ||
+        overrides?.ecsClass === 'GOOD' ||
+        (overrides?.totalEcs !== undefined && overrides.totalEcs <= 5)) &&
+      Number(card.e2_structure_score) >= 3
+    ) {
       throw new BadRequestError(
         'KHÓA AN TOÀN KỸ THUẬT: Công trình có khuyết tật kết cấu mức độ Nguy cấp (E2 >= 3), không được phép hạ hạng rủi ro ECS'
       );
+    }
+
+    if (action === 'KEEP') {
+      await Database.query(
+        `UPDATE risk_score_cards
+         SET is_engineering_judgement_applied = FALSE,
+             engineering_judgement_action = 'KEEP',
+             engineering_judgement_reason = $2,
+             judgement_engineer_name = $3,
+             judgement_applied_at = NOW(),
+             overridden_burland_grade = NULL,
+             overridden_total_ecs = NULL,
+             overridden_ecs_class = NULL,
+             overridden_importance_score = NULL,
+             overridden_avg_vi = NULL,
+             overridden_vi_class = NULL,
+             overridden_impact_level_i = NULL,
+             overridden_bra = NULL
+         WHERE report_id = $1;`,
+        [reportId, reason, engineerName || 'Kỹ Sư Trưởng Zone Admin']
+      );
+
+      return {
+        reportId,
+        action: 'KEEP',
+        reason,
+        isOverridden: false,
+        message: 'Đã hoàn nguyên phán quyết về kết quả tính toán tự động từ hiện trường',
+      };
+    }
+
+    // Tự động suy diễn hạng nếu chỉ nhập điểm
+    let ecsClass = overrides?.ecsClass;
+    if (!ecsClass && overrides?.totalEcs !== undefined) {
+      if (overrides.totalEcs <= 5) ecsClass = 'GOOD';
+      else if (overrides.totalEcs <= 10) ecsClass = 'MEDIUM';
+      else if (overrides.totalEcs <= 16) ecsClass = 'DEFICIENT';
+      else ecsClass = 'CRITICAL';
+    }
+
+    let viClass = overrides?.viClass;
+    if (!viClass && overrides?.avgVi !== undefined) {
+      if (overrides.avgVi < 1.5) viClass = 'LOW';
+      else if (overrides.avgVi < 2.5) viClass = 'MEDIUM';
+      else if (overrides.avgVi < 3.5) viClass = 'HIGH';
+      else viClass = 'VERY_HIGH';
     }
 
     await Database.query(
       `UPDATE risk_score_cards
        SET is_engineering_judgement_applied = TRUE,
            engineering_judgement_action = $2,
-           engineering_judgement_reason = $3
+           engineering_judgement_reason = $3,
+           judgement_engineer_name = $4,
+           judgement_applied_at = NOW(),
+           overridden_burland_grade = $5,
+           overridden_total_ecs = $6,
+           overridden_ecs_class = $7,
+           overridden_importance_score = $8,
+           overridden_avg_vi = $9,
+           overridden_vi_class = $10,
+           overridden_impact_level_i = $11,
+           overridden_bra = $12
        WHERE report_id = $1;`,
-      [reportId, action, reason]
+      [
+        reportId,
+        action,
+        reason,
+        engineerName || 'Kỹ Sư Trưởng Zone Admin',
+        overrides?.burlandGrade !== undefined ? overrides.burlandGrade : null,
+        overrides?.totalEcs !== undefined ? overrides.totalEcs : null,
+        ecsClass || null,
+        overrides?.importanceScore !== undefined ? overrides.importanceScore : null,
+        overrides?.avgVi !== undefined ? overrides.avgVi : null,
+        viClass || null,
+        overrides?.impactLevelI !== undefined ? overrides.impactLevelI : null,
+        overrides?.bra || null,
+      ]
+    );
+
+    // Đồng thời cập nhật ghi chú chuyên gia vào base_survey_reports
+    await Database.query(
+      `UPDATE base_survey_reports
+       SET engineering_recommendations = $2,
+           updated_at = NOW()
+       WHERE id = $1;`,
+      [reportId, `[CAN THIỆP CHUYÊN GIA - ${action}]: ${reason}`]
+    );
+
+    const updatedCardRes = await Database.query(
+      `SELECT * FROM risk_score_cards WHERE report_id = $1;`,
+      [reportId]
     );
 
     return {
       reportId,
       action,
       reason,
+      engineerName: engineerName || 'Kỹ Sư Trưởng Zone Admin',
+      isOverridden: true,
+      card: updatedCardRes.rows[0],
       message: 'Đã ghi nhận quyền can thiệp kỹ sư (Engineering Judgement) thành công',
     };
   }
