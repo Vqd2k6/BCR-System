@@ -598,7 +598,10 @@ export const AuditStep6ScopeGisMutation: React.FC<Props> = ({
           currentAreaM2={data?.buildingSpecs?.landAreaM2 || formState.landAreaM2}
           reportId={reportId || data?.reportId}
           onClose={() => setIsMutationModalOpen(false)}
-          onSuccess={(msg: string) => showToast(msg)}
+          onSuccess={(msg: string) => {
+            showToast(msg);
+            if (onRefresh) onRefresh();
+          }}
         />
       )}
 
@@ -613,7 +616,10 @@ export const AuditStep6ScopeGisMutation: React.FC<Props> = ({
           currentStreet={data?.street || formState.street}
           surveyorName={data?.surveyorName || formState.surveyorName}
           onClose={() => setIsReassignModalOpen(false)}
-          onSuccess={(msg: string) => showToast(msg)}
+          onSuccess={(msg: string) => {
+            showToast(msg);
+            if (onRefresh) onRefresh();
+          }}
         />
       )}
     </section>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   X,
   ArrowRightLeft,
@@ -9,6 +9,7 @@ import {
   Home,
   ShieldAlert,
   Search,
+  Loader2,
 } from 'lucide-react';
 import { api } from '../../../../services/api';
 import { AdminSecurityChallengeConfirm } from './AdminSecurityChallengeConfirm';
@@ -48,17 +49,64 @@ export const AdminReassignParcelModal: React.FC<Props> = ({
   const [activeMode, setActiveMode] = useState<'REASSIGN' | 'SWAP'>('REASSIGN');
   const [targetParcelCodeOrId, setTargetParcelCodeOrId] = useState('');
   const [selectedReportBId, setSelectedReportBId] = useState('');
+  const [searchFilter, setSearchFilter] = useState('');
+  const [fetchedReports, setFetchedReports] = useState<any[]>([]);
+  const [isLoadingReports, setIsLoadingReports] = useState(false);
   const [reason, setReason] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [isReassignChallengeValid, setIsReassignChallengeValid] = useState(false);
   const [isSwapChallengeValid, setIsSwapChallengeValid] = useState(false);
 
-  if (!isOpen) return null;
+  useEffect(() => {
+    if (!isOpen) return;
+    const fetchSwapCandidates = async () => {
+      setIsLoadingReports(true);
+      try {
+        const res = await api.get('/admin/reports/swap-candidates', {
+          params: {
+            excludeReportId: reportId,
+            search: searchFilter.trim() || undefined,
+          },
+        });
+        if (res.data?.success && Array.isArray(res.data.data)) {
+          setFetchedReports(res.data.data);
+        }
+      } catch (err) {
+        console.error('[AdminReassignParcelModal] Error fetching swap candidates:', err);
+      } finally {
+        setIsLoadingReports(false);
+      }
+    };
+    fetchSwapCandidates();
+  }, [isOpen, reportId, searchFilter]);
+
+  // Hợp nhất danh sách từ props allReports và danh sách fetch từ API
+  const candidatePool = useMemo(() => {
+    const map = new Map<string, any>();
+    (allReports || []).forEach((r) => {
+      if (r.report_id && r.report_id !== reportId) {
+        map.set(r.report_id, r);
+      }
+    });
+    fetchedReports.forEach((fr) => {
+      if (fr.report_id && fr.report_id !== reportId) {
+        map.set(fr.report_id, {
+          report_id: fr.report_id,
+          parcel_id: fr.parcel_id,
+          project_parcel_code: fr.project_parcel_code,
+          house_number: fr.house_number,
+          street: fr.street,
+          surveyor_name: fr.surveyor_name,
+        });
+      }
+    });
+    return Array.from(map.values());
+  }, [allReports, fetchedReports, reportId]);
 
   // Tìm report B được chọn trong chế độ SWAP
-  const selectedReportB = allReports.find(
-    (r) => r.report_id === selectedReportBId && r.report_id !== reportId
+  const selectedReportB = candidatePool.find(
+    (r) => r.report_id === selectedReportBId
   );
 
   const handleReassignSubmit = async (e: React.FormEvent) => {
@@ -293,23 +341,44 @@ export const AdminReassignParcelModal: React.FC<Props> = ({
           {activeMode === 'SWAP' && (
             <form onSubmit={handleSwapSubmit} className="space-y-4">
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-700 block">
-                  Chọn Hồ Sơ B Để Hoán Đổi Chéo:
-                </label>
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-700 block">
+                    Chọn Hồ Sơ B Để Hoán Đổi Chéo:
+                  </label>
+                  <span className="text-[11px] font-semibold text-slate-500">
+                    {isLoadingReports ? 'Đang tìm kiếm...' : `${candidatePool.length} hồ sơ khả dụng`}
+                  </span>
+                </div>
+
+                {/* Ô tìm kiếm nhanh cho SWAP */}
+                <div className="relative mb-1">
+                  <input
+                    type="text"
+                    placeholder="Tìm theo mã thửa, số nhà để lọc danh sách..."
+                    value={searchFilter}
+                    onChange={(e) => setSearchFilter(e.target.value)}
+                    className="w-full pl-3 pr-8 py-1.5 text-xs text-slate-800 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-hidden"
+                  />
+                  <Search className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-2" />
+                </div>
+
                 <select
                   value={selectedReportBId}
                   onChange={(e) => setSelectedReportBId(e.target.value)}
                   className="w-full p-2.5 text-xs font-bold text-slate-800 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:outline-hidden"
                 >
                   <option value="">-- Chọn hồ sơ liền kề cần hoán đổi --</option>
-                  {allReports
-                    .filter((r) => r.report_id && r.report_id !== reportId)
-                    .map((r) => (
-                      <option key={r.report_id} value={r.report_id!}>
-                        [{r.project_parcel_code}] {r.house_number ? `Số ${r.house_number}` : ''} {r.street} (KSV: {r.surveyor_name || '---'})
-                      </option>
-                    ))}
+                  {candidatePool.map((r) => (
+                    <option key={r.report_id} value={r.report_id}>
+                      [{r.project_parcel_code}] {r.house_number ? `Số ${r.house_number}` : ''} {r.street} (KSV: {r.surveyor_name || '---'})
+                    </option>
+                  ))}
                 </select>
+                {candidatePool.length === 0 && !isLoadingReports && (
+                  <p className="text-[11px] text-amber-700 mt-1">
+                    Chưa tìm thấy hồ sơ nào khác trong phân khu. Bạn có thể xóa bộ lọc tìm kiếm để xem tất cả.
+                  </p>
+                )}
               </div>
 
               {/* Sơ đồ hoán đổi trực quan */}

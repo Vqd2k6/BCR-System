@@ -377,44 +377,49 @@ export class CadastralRepository {
   }
 
   /**
-   * Cấp mã tiếp theo cho thửa đất phát sinh (Phương án 1: Nối tiếp Max của chính Zone đó)
+   * Cấp mã tiếp theo cho thửa đất phát sinh (Nối tiếp Max của chính Zone đó và theo tiền tố của thửa cha)
    */
   static async getNextHighRangeProjectCode(
     client: PoolClient,
     zoneId?: string,
     parentCode?: string
   ): Promise<string> {
-    let query = `
-      SELECT project_parcel_code
-      FROM parcels
-    `;
+    let prefix = 'B-';
+    let padLen = 4;
+    let nextNum = 1;
+
+    let parentPrefix = '';
+    if (parentCode) {
+      const match = parentCode.match(/^(.*?)(\d+)/);
+      if (match) {
+        parentPrefix = match[1];
+        prefix = match[1];
+        padLen = Math.max(match[2].length, 4);
+        nextNum = parseInt(match[2], 10) + 1;
+      }
+    }
+
+    let query = `SELECT project_parcel_code FROM parcels WHERE 1=1`;
     const params: any[] = [];
     if (zoneId) {
-      query += ` WHERE zone_id = $1 `;
       params.push(zoneId);
+      query += ` AND zone_id = $${params.length}`;
+    }
+    if (parentPrefix) {
+      params.push(`${parentPrefix}%`);
+      query += ` AND project_parcel_code LIKE $${params.length}`;
     }
     query += `
-      ORDER BY substring(project_parcel_code from '[0-9]+$')::integer DESC
+      ORDER BY substring(project_parcel_code from '[0-9]+$')::integer DESC NULLS LAST
       LIMIT 1
       FOR UPDATE;
     `;
 
     const res = await client.query<{ project_parcel_code: string }>(query, params);
 
-    let prefix = 'B-';
-    let padLen = 4;
-    let nextNum = 1;
-
     if (res.rows.length > 0 && res.rows[0].project_parcel_code) {
       const maxCode = res.rows[0].project_parcel_code;
       const match = maxCode.match(/^(.*?)(\d+)$/);
-      if (match) {
-        prefix = match[1];
-        padLen = Math.max(match[2].length, 4);
-        nextNum = parseInt(match[2], 10) + 1;
-      }
-    } else if (parentCode) {
-      const match = parentCode.match(/^(.*?)(\d+)$/);
       if (match) {
         prefix = match[1];
         padLen = Math.max(match[2].length, 4);
