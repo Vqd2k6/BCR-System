@@ -355,27 +355,27 @@ export async function applyMetroWatermark(
   // 3. Vẽ ảnh gốc
   ctx.drawImage(src.element, 0, 0, width, height);
 
-  const isLandscape = width > height;
+  // Lấy kích thước ảnh dọc làm quy chuẩn cơ sở:
+  // Cạnh ngắn nhất luôn tương đương với bề rộng của ảnh dọc khi chụp cùng độ phân giải
+  const basePortraitWidth = Math.min(width, height);
 
   // 4. Vẽ Logo THACO-CREC ở góc trên bên phải
-  // Ảnh dọc: giữ nguyên kích thước (chiếm 43.75% chiều rộng ảnh)
-  // Ảnh ngang: tăng thêm 25% kích thước (0.4375 * 1.25 = 0.546875 chiều rộng ảnh)
+  // Quy chuẩn: Lấy ảnh dọc làm chuẩn (chiếm 43.75% chiều rộng ảnh dọc)
+  // Ảnh ngang có kích thước logo bằng đúng ảnh dọc (không phóng to theo cạnh dài)
   try {
     const logoImg = await loadLogo(options?.logoUrl);
     if (logoImg.naturalWidth > 0 && logoImg.naturalHeight > 0) {
-      const logoWidth = isLandscape
-        ? Math.round(width * 0.4375 * 1.25)
-        : Math.round(width * 0.4375);
+      const logoWidth = Math.round(basePortraitWidth * 0.4375);
       const logoHeight = Math.round(logoWidth * (logoImg.naturalHeight / logoImg.naturalWidth));
-      const paddingRight = Math.round(width * 0.025);
-      const paddingTop = Math.round(width * 0.025);
+      const paddingRight = Math.round(basePortraitWidth * 0.025);
+      const paddingTop = Math.round(basePortraitWidth * 0.025);
       const logoX = width - logoWidth - paddingRight;
       const logoY = paddingTop;
 
       ctx.save();
       // Đổ bóng mờ trắng nhẹ phía sau để logo xanh luôn sắc nét ngay cả khi chụp nền tối/vỉa hè/đêm
       ctx.shadowColor = 'rgba(255, 255, 255, 0.75)';
-      ctx.shadowBlur = Math.max(3, Math.round(width * 0.007));
+      ctx.shadowBlur = Math.max(3, Math.round(basePortraitWidth * 0.007));
       ctx.drawImage(logoImg, logoX, logoY, logoWidth, logoHeight);
       ctx.restore();
     }
@@ -384,14 +384,11 @@ export async function applyMetroWatermark(
   }
 
   // 5. Vẽ Ngày giờ + Mã định danh Photo ID ở góc dưới bên phải
-  // Ảnh dọc: giữ nguyên kích thước (3.1% chiều rộng ảnh)
-  // Ảnh ngang: giảm 25% kích thước chữ (0.031 * 0.75 = 0.02325 chiều rộng ảnh)
-  const fontSize = isLandscape
-    ? Math.max(18, Math.round(width * 0.031 * 0.75))
-    : Math.max(22, Math.round(width * 0.031));
+  // Lấy ảnh dọc làm chuẩn (3.1% chiều rộng ảnh dọc)
+  const fontSize = Math.max(22, Math.round(basePortraitWidth * 0.031));
   const lineHeight = Math.round(fontSize * 1.35);
-  const paddingRight = Math.round(width * 0.03);
-  const paddingBottom = Math.round(height * 0.035);
+  const paddingRight = Math.round(basePortraitWidth * 0.03);
+  const paddingBottom = Math.round(basePortraitWidth * 0.035);
 
   const textX = width - paddingRight;
   const line2Y = height - paddingBottom;
