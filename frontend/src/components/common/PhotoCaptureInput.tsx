@@ -237,31 +237,22 @@ export const PhotoCaptureInput: React.FC<Props> = ({
     });
   };
 
-  const processAndWatermarkImage = (file: File): Promise<{ dataUrl: string; blob?: Blob; photoCode: string }> => {
-    return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onload = async (event) => {
-        const rawBase64 = event.target?.result as string;
-        if (!rawBase64) {
-          resolve({ dataUrl: '', photoCode: '' });
-          return;
-        }
-        try {
-          // Tự động dập Logo THACO-CREC + Ngày giờ + Photo ID vào Canvas
-          const result = await applyMetroWatermark(rawBase64, effectiveWatermarkOptions);
-          resolve(result);
-        } catch (err) {
-          console.warn('[WATERMARK] Fallback nén ảnh thông thường do lỗi dập watermark:', err);
-          resolve({
-            dataUrl: rawBase64,
-            blob: file,
-            photoCode: displayPhotoCode,
-          });
-        }
+  const processAndWatermarkImage = async (file: File): Promise<{ dataUrl: string; blob: Blob; previewUrl: string; photoCode: string }> => {
+    try {
+      // Tự động dập Logo THACO-CREC + Ngày giờ + Photo ID vào Canvas trực tiếp từ File (Blob)
+      // Không dùng FileReader readAsDataURL để tiết kiệm 11.7MB RAM Heap
+      const result = await applyMetroWatermark(file, effectiveWatermarkOptions);
+      return result;
+    } catch (err) {
+      console.warn('[WATERMARK] Fallback nén ảnh thông thường do lỗi dập watermark:', err);
+      const previewUrl = URL.createObjectURL(file);
+      return {
+        dataUrl: '',
+        blob: file,
+        previewUrl,
+        photoCode: displayPhotoCode,
       };
-      reader.onerror = () => resolve({ dataUrl: '', photoCode: '' });
-      reader.readAsDataURL(file);
-    });
+    }
   };
 
   const uploadToServer = async (base64Str: string, code?: string) => {
@@ -290,28 +281,16 @@ export const PhotoCaptureInput: React.FC<Props> = ({
     if (!file) return;
 
     try {
-      const { dataUrl, blob, photoCode: generatedCode } = await processAndWatermarkImage(file);
-      if (dataUrl) {
-        setLocalPreview(dataUrl);
-        onChange(dataUrl, generatedCode);
+      const result = await processAndWatermarkImage(file);
+      if (result.blob) {
+        // Dùng previewUrl (0MB Heap) hoặc dataUrl nén nhẹ cho UI
+        setLocalPreview(result.previewUrl || result.dataUrl);
+        // Lưu dataUrl đã nén nhẹ (400KB thay vì 11.7MB) vào formData để tương thích module audit và preview
+        onChange(result.dataUrl || result.previewUrl, result.photoCode);
         if (isNotApplicable && onToggleNotApplicable) {
           onToggleNotApplicable(false);
         }
-        if (blob) {
-          startDirectUpload(blob, generatedCode);
-        } else {
-          try {
-            const byteString = atob(dataUrl.split(',')[1]);
-            const ab = new ArrayBuffer(byteString.length);
-            const ia = new Uint8Array(ab);
-            for (let i = 0; i < byteString.length; i++) {
-              ia[i] = byteString.charCodeAt(i);
-            }
-            startDirectUpload(new Blob([ab], { type: 'image/jpeg' }), generatedCode);
-          } catch (_e) {
-            uploadToServer(dataUrl, generatedCode);
-          }
-        }
+        startDirectUpload(result.blob, result.photoCode);
       }
     } catch (_err) {
       console.warn('Image processing fallback');
@@ -594,28 +573,30 @@ export const PhotoCaptureInput: React.FC<Props> = ({
       ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, vw, vh);
     }
 
-    const rawBase64 = canvas.toDataURL('image/jpeg', 1.0);
     stopLiveCamera();
     setIsLiveCameraOpen(false);
 
     try {
-      const result = await applyMetroWatermark(rawBase64, effectiveWatermarkOptions);
-      if (result.dataUrl) {
-        setLocalPreview(result.dataUrl);
-        onChange(result.dataUrl, result.photoCode);
+      // Truyền trực tiếp HTMLCanvasElement vào applyMetroWatermark (không tạo Base64 trung gian)
+      const result = await applyMetroWatermark(canvas, effectiveWatermarkOptions);
+
+      // Giải phóng Canvas chụp hình trực tiếp ngay
+      try {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        canvas.width = 0;
+        canvas.height = 0;
+      } catch (_e) {}
+
+      if (result.blob) {
+        setLocalPreview(result.previewUrl || result.dataUrl);
+        onChange(result.dataUrl || result.previewUrl, result.photoCode);
         if (isNotApplicable && onToggleNotApplicable) {
           onToggleNotApplicable(false);
         }
-        if (result.blob) {
-          startDirectUpload(result.blob, result.photoCode);
-        } else {
-          uploadToServer(result.dataUrl, result.photoCode);
-        }
+        startDirectUpload(result.blob, result.photoCode);
       }
     } catch (_err) {
-      setLocalPreview(rawBase64);
-      onChange(rawBase64, displayPhotoCode);
-      uploadToServer(rawBase64, displayPhotoCode);
+      console.warn('[PhotoCaptureInput] Lỗi khi dập watermark khung hình camera trực tiếp:', _err);
     }
   };
 
