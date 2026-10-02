@@ -170,6 +170,7 @@ export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps>
           formState={formState}
           data={data}
           handleFieldChange={handleFieldChange}
+          handleNestedFieldChange={handleNestedFieldChange}
           onOpenPhotoZoom={onOpenPhotoZoom}
           onOpenPhotoReplace={onOpenPhotoReplace}
         />
@@ -196,6 +197,7 @@ export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps>
           data={data}
           handleFieldChange={handleFieldChange}
           handleNestedFieldChange={handleNestedFieldChange}
+          onOpenPhotoZoom={onOpenPhotoZoom}
         />
 
         <AuditStep5SettlementTilt

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Layers, Maximize2, AlertTriangle, CheckCircle2, MapPin, Eye, EyeOff, Camera, ShieldAlert, Compass, Activity, FileText } from 'lucide-react';
+import { Layers, Maximize2, AlertTriangle, CheckCircle2, MapPin, Eye, EyeOff, Camera, ShieldAlert, Compass, Activity, FileText, Ruler, Sparkles } from 'lucide-react';
 import { Badge } from '../../../../../../core/components/ui/Badge';
+import { SAG_LEVEL_OPTIONS } from '../../../../../survey-phase1/constants/levelGuideConstants';
 
 interface Props {
   isEditMode: boolean;
@@ -100,6 +101,33 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
       });
       handleFieldChange('damageZones', 'Ghi chú Vùng Z', updatedZones);
     }
+  };
+
+  // 3.4. Dữ liệu võng dầm sàn & Đề xuất quan trắc
+  const st = formState.settlementTilt || {};
+  const beamSagging = currentFloor.beamSagging || st.beamSagging || {};
+  const needMonitoring = st.needAdditionalMonitoring || { required: false, notes: '' };
+
+  const handleBeamSaggingChange = (field: string, val: any) => {
+    const updatedST = {
+      ...st,
+      beamSagging: {
+        ...(st.beamSagging || {}),
+        [field]: val,
+      },
+    };
+    handleFieldChange('settlementTilt', `Võng dầm (${field})`, updatedST);
+  };
+
+  const handleMonitoringChange = (field: string, val: any) => {
+    const updatedST = {
+      ...st,
+      needAdditionalMonitoring: {
+        ...(st.needAdditionalMonitoring || {}),
+        [field]: val,
+      },
+    };
+    handleFieldChange('settlementTilt', `Đề xuất quan trắc (${field})`, updatedST);
   };
 
   // Total counts for header
@@ -396,6 +424,29 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                     )}
                   </div>
 
+                  {/* Ảnh Tổng Quan Vùng Z (nếu có nhiều hơn 1 ảnh ngoài CTX) */}
+                  {Array.isArray(z.overviewPhotos) && z.overviewPhotos.length > 0 && (
+                    <div className="p-2.5 bg-white rounded-xl border border-slate-200 space-y-1.5">
+                      <span className="text-[10px] font-bold uppercase text-slate-500 block">
+                        Ảnh Tổng Quan Vùng {zCode} ({z.overviewPhotos.length} ảnh):
+                      </span>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                        {z.overviewPhotos.map((ovUrl: string, ovIdx: number) => (
+                          <div
+                            key={ovIdx}
+                            onClick={() => onOpenPhotoZoom(ovUrl, `Ảnh tổng quan Vùng ${zCode} #${ovIdx + 1}`)}
+                            className="aspect-4/3 rounded-lg overflow-hidden border border-slate-200 cursor-pointer hover:shadow-md transition-shadow group relative"
+                          >
+                            <img src={ovUrl} alt={`Tổng quan ${ovIdx + 1}`} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                            <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                              <Maximize2 className="w-4 h-4 drop-shadow-md" />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Ảnh Ngữ Cảnh CTX (với Ghim Vết Nứt D) & Danh sách Khuyết Tật D */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     {/* Cột 1: Ảnh Ngữ Cảnh CTX kèm điểm chấm D-xx */}
@@ -552,6 +603,7 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                                     <span className="text-xs font-bold text-slate-800">
                                       Rộng: <strong className="text-red-600">{d.widthMaxMm ?? d.width_max_mm ?? 0} mm</strong>
                                       {d.lengthMm ? ` &bull; Dài ${d.lengthMm} mm` : ''}
+                                      {d.depthMm ? ` &bull; Sâu ${d.depthMm} mm` : ''}
                                     </span>
                                   )}
                                 </div>
@@ -709,6 +761,133 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
             </div>
           </div>
         )}
+
+        {/* 3.4. Hiện Trạng Võng Dầm Sàn & Đề Xuất Quan Trắc Mốc Lún Tầng */}
+        <div className="p-4 bg-violet-50/50 rounded-2xl border border-violet-200 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Ruler className="w-4 h-4 text-violet-700" />
+              <span className="text-xs font-black uppercase text-violet-950 tracking-wide">
+                3.4. Hiện Trạng Võng Dầm Sàn & Đề Xuất Quan Trắc Mốc Lún Tầng
+              </span>
+            </div>
+            <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-violet-100 text-violet-800 border border-violet-200 flex items-center gap-1">
+              <Sparkles className="w-3.5 h-3.5 text-violet-600" />
+              <span>Chỉ số E3 / Tầng: Cấp {beamSagging.level ?? 0}/4</span>
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+            {/* Cấp độ võng */}
+            <div className="p-3 bg-white rounded-xl border border-violet-200 space-y-1">
+              <span className="text-[10px] font-bold text-slate-500 uppercase block">Cấp độ uốn võng:</span>
+              {isEditMode ? (
+                <select
+                  value={beamSagging.level ?? 0}
+                  onChange={(e) => handleBeamSaggingChange('level', Number(e.target.value))}
+                  className="w-full p-1.5 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-800"
+                >
+                  {SAG_LEVEL_OPTIONS.map((opt: any) => (
+                    <option key={opt.level} value={opt.level}>
+                      Cấp {opt.level} - {opt.title}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <div className="font-bold text-slate-800">
+                  {beamSagging.level !== undefined ? `Cấp ${beamSagging.level} (${SAG_LEVEL_OPTIONS.find((o: any) => o.level === beamSagging.level)?.title || 'Bình thường'})` : 'Không phát hiện võng'}
+                </div>
+              )}
+            </div>
+
+            {/* Vị trí & Độ võng mm */}
+            <div className="p-3 bg-white rounded-xl border border-violet-200 space-y-1">
+              <span className="text-[10px] font-bold text-slate-500 uppercase block">Vị trí & Độ võng:</span>
+              {isEditMode ? (
+                <div className="space-y-1">
+                  <input
+                    type="text"
+                    value={beamSagging.position || ''}
+                    onChange={(e) => handleBeamSaggingChange('position', e.target.value)}
+                    placeholder="VD: Dầm D2 trục 2-3..."
+                    className="w-full p-1 border border-slate-300 rounded text-xs"
+                  />
+                  <input
+                    type="number"
+                    step="0.5"
+                    value={beamSagging.sagMm ?? ''}
+                    onChange={(e) => handleBeamSaggingChange('sagMm', e.target.value ? Number(e.target.value) : '')}
+                    placeholder="Độ võng mm..."
+                    className="w-full p-1 border border-slate-300 rounded text-xs font-mono font-bold"
+                  />
+                </div>
+              ) : (
+                <div>
+                  <div className="font-bold text-slate-800">
+                    {beamSagging.position || 'Chưa ghi nhận vị trí'}
+                  </div>
+                  <div className="text-[11px] text-violet-700 font-mono font-bold mt-0.5">
+                    {beamSagging.sagMm ? `Độ võng: ${beamSagging.sagMm} mm` : 'Độ võng: 0 mm'}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Đề xuất quan trắc mốc lún */}
+            <div className="p-3 bg-white rounded-xl border border-violet-200 space-y-1">
+              <span className="text-[10px] font-bold text-slate-500 uppercase block">Quan trắc mốc biến dạng:</span>
+              {isEditMode ? (
+                <div className="space-y-1">
+                  <label className="flex items-center gap-1.5 font-bold text-slate-700 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(needMonitoring.required)}
+                      onChange={(e) => handleMonitoringChange('required', e.target.checked)}
+                      className="rounded text-violet-600"
+                    />
+                    <span>Yêu cầu quan trắc mốc</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={needMonitoring.notes || ''}
+                    onChange={(e) => handleMonitoringChange('notes', e.target.value)}
+                    placeholder="Ghi chú vị trí mốc..."
+                    className="w-full p-1 border border-slate-300 rounded text-xs"
+                  />
+                </div>
+              ) : (
+                <div>
+                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold inline-block ${
+                    needMonitoring.required ? 'bg-amber-100 text-amber-900 border border-amber-300' : 'bg-emerald-100 text-emerald-900'
+                  }`}>
+                    {needMonitoring.required ? '⚠️ Cần quan trắc mốc lún' : '✓ Ổn định, không cần mốc'}
+                  </span>
+                  {needMonitoring.notes && (
+                    <div className="text-[11px] text-slate-500 italic mt-0.5">{needMonitoring.notes}</div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Ảnh dầm võng nếu có */}
+            {beamSagging.photoUrl && (
+              <div className="sm:col-span-3 pt-2">
+                <span className="text-[10px] font-bold text-slate-500 uppercase block mb-1">
+                  Ảnh chụp cấu kiện dầm sàn bị võng:
+                </span>
+                <div
+                  onClick={() => onOpenPhotoZoom(beamSagging.photoUrl, 'Ảnh dầm sàn bị võng')}
+                  className="w-32 h-24 rounded-lg overflow-hidden border border-violet-200 cursor-pointer hover:shadow-md relative group"
+                >
+                  <img src={beamSagging.photoUrl} alt="Võng dầm" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                  <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                    <Maximize2 className="w-4 h-4 drop-shadow-md" />
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     </section>
   );

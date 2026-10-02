@@ -41,15 +41,42 @@ export const AuditStep7EcsViScores: React.FC<Props> = ({
     { code: 'V6', name: 'Địa Chất & Lân Cận', score: vi.v6 ?? 1, desc: 'Ranh giáp và mức độ chèn ép' },
   ];
 
+  // Thu thập và kiểm tra thực tế dữ liệu vết nứt có thước đo mm hay không
+  const rawFloors: any[] = Array.isArray(sJson.floors) ? sJson.floors : [];
+  const rawZones: any[] = Array.isArray(sJson.damageZones) ? sJson.damageZones : [];
+  const allDefectsList: any[] = [];
+  rawFloors.forEach((fl: any) => {
+    (fl.zones || []).forEach((z: any) => {
+      (z.defects || []).forEach((d: any) => allDefectsList.push(d));
+    });
+  });
+  rawZones.forEach((z: any) => {
+    (z.defects || []).forEach((d: any) => allDefectsList.push(d));
+  });
+
+  const totalDefectsCount = allDefectsList.length;
+  const defectsWithScale = allDefectsList.filter((d) => Boolean(d.hasScaleCard ?? d.has_scale_card)).length;
+  const isScaleValid = totalDefectsCount === 0 || defectsWithScale === totalDefectsCount;
+
   // 6 Data Completeness Gate Criteria status
   const gateCriteria = [
     { title: '1. Định Danh & Cự Ly Tim Hầm', valid: Boolean(data?.houseNumber || sJson.houseNumber), note: 'Đầy đủ biển số & GPS' },
     { title: '2. Ngoại Quan Mặt Tiền P-01..P-04', valid: Boolean(sJson.p01PhotoUrl && sJson.p02PhotoUrl), note: 'Đủ 4 góc chụp ngoại quan' },
     { title: '3. Phân Loại Móng CAT', valid: Boolean(sJson.foundationType && sJson.foundationCatScore !== undefined), note: `CAT ${sJson.foundationCatScore || 3}/5` },
     { title: '4. Sơ Đồ Mặt Bằng CAD Tầng', valid: Array.isArray(sJson.floors) ? sJson.floors.length > 0 : true, note: 'Khảo sát đầy đủ tầng' },
-    { title: '5. Thước Đo Tỷ Lệ mm Khuyết Tật', valid: true, note: 'Kiểm soát tỷ lệ vết nứt' },
+    {
+      title: '5. Thước Đo Tỷ Lệ mm Khuyết Tật',
+      valid: isScaleValid,
+      note: totalDefectsCount === 0
+        ? 'Không có vết nứt'
+        : isScaleValid
+        ? `100% đạt chuẩn (${defectsWithScale}/${totalDefectsCount} vết)`
+        : `⚠️ ${totalDefectsCount - defectsWithScale}/${totalDefectsCount} vết thiếu thước đo`,
+    },
     { title: '6. Biến Dạng, Lún Nghiêng & Võng', valid: Boolean(sJson.settlementTilt), note: 'Ghi nhận lún & nghiêng' },
   ];
+
+  const isAllGateValid = gateCriteria.every((c) => c.valid);
 
   return (
     <section id="step-7" className="scroll-mt-6 bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
@@ -83,19 +110,36 @@ export const AuditStep7EcsViScores: React.FC<Props> = ({
                 Cổng Kiểm Tra Đủ Dữ Liệu Kỹ Thuật (Data Completeness Gate)
               </span>
             </div>
-            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-black bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-1">
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-              <span>ĐỦ ĐIỀU KIỆN PHÊ DUYỆT</span>
+            <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-black border flex items-center gap-1 ${
+              isAllGateValid
+                ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                : 'bg-amber-100 text-amber-900 border-amber-300'
+            }`}>
+              {isAllGateValid ? (
+                <>
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>ĐỦ ĐIỀU KIỆN PHÊ DUYỆT</span>
+                </>
+              ) : (
+                <>
+                  <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+                  <span>⚠️ CẦN RÀ SOÁT DỮ LIỆU</span>
+                </>
+              )}
             </span>
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 pt-1">
             {gateCriteria.map((c, idx) => (
               <div key={idx} className="p-2.5 bg-white rounded-xl border border-slate-200 flex items-start gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                {c.valid ? (
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                ) : (
+                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                )}
                 <div className="min-w-0">
-                  <div className="text-[11px] font-bold text-slate-800 truncate">{c.title}</div>
-                  <div className="text-[10px] text-slate-500">{c.note}</div>
+                  <div className={`text-[11px] font-bold truncate ${c.valid ? 'text-slate-800' : 'text-amber-900'}`}>{c.title}</div>
+                  <div className={`text-[10px] ${c.valid ? 'text-slate-500' : 'text-amber-700 font-semibold'}`}>{c.note}</div>
                 </div>
               </div>
             ))}
