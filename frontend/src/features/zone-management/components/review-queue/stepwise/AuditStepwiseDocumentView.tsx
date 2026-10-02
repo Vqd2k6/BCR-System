@@ -204,6 +204,7 @@ export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps>
           isEditMode={isEditMode}
           formState={formState}
           handleNestedFieldChange={handleNestedFieldChange}
+          onOpenPhotoZoom={onOpenPhotoZoom}
         />
 
         <AuditStep6ScopeGisMutation

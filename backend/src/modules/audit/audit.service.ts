@@ -221,6 +221,9 @@ export class AuditService {
   static async getSplitPaneAuditView(reportId: string) {
     const reportRes = await Database.query(
       `SELECT r.*, p.project_parcel_code, p.house_number, p.street, p.zone_id,
+              p.land_area_m2, p.construction_area_m2,
+              ST_AsGeoJSON(p.cadastral_polygon_geom) AS cadastral_geojson,
+              ST_AsGeoJSON(p.location_geom) AS location_geojson,
               u.full_name AS surveyor_name, u.phone AS surveyor_phone
        FROM base_survey_reports r
        JOIN parcels p ON r.parcel_id = p.id
@@ -479,6 +482,10 @@ export class AuditService {
       survey_data_json: surveyJson,
       identificationPhotos: identificationPhotos,
       signatures: normalizedSignatures,
+      cadastralGeojson: report.cadastral_geojson || null,
+      locationGeojson: report.location_geojson || null,
+      landAreaM2: report.land_area_m2 || null,
+      constructionAreaM2: report.construction_area_m2 || null,
 
       // Nửa Trái (Left Pane): Cấu kiện & Điểm số & Pháp lý
       leftPane: {

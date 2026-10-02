@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Camera, Maximize2, MapPin, AlertCircle, Compass, ShieldAlert, Building, Navigation, ShieldCheck } from 'lucide-react';
 import { Badge } from '../../../../../../core/components/ui/Badge';
 import { OBJECT_GROUPS, ADJACENT_LEFT_RIGHT, ADJACENT_REAR } from '../../../../../survey-phase1/components/step1/step1.constants';
 import { USAGE_OPTIONS } from '../../../../../survey-phase1/constants/surveyOptionsConstants';
+import { AuditMetroSpatialVisualMap } from '../components/AuditMetroSpatialVisualMap';
 
 interface Props {
   isEditMode: boolean;
@@ -109,6 +110,35 @@ export const AuditStep1Identification: React.FC<Props> = ({
   const latDisplay = gpsCoords.latitude ?? gpsCoords.lat;
   const lngDisplay = gpsCoords.longitude ?? gpsCoords.lng;
   const accuracyDisplay = gpsCoords.accuracy;
+
+  // Trích xuất tọa độ Polygon thửa đất (từ formState, surveyJson hoặc PostGIS GeoJSON)
+  const parcelCoords = useMemo<[number, number][]>(() => {
+    if (Array.isArray(formState.parcelCoordinates) && formState.parcelCoordinates.length >= 3) {
+      return formState.parcelCoordinates;
+    }
+    if (Array.isArray(sJson.parcelCoordinates) && sJson.parcelCoordinates.length >= 3) {
+      return sJson.parcelCoordinates;
+    }
+    if (Array.isArray(data?.coordinates) && data.coordinates.length >= 3) {
+      return data.coordinates;
+    }
+    if (Array.isArray(data?.parcelCoordinates) && data.parcelCoordinates.length >= 3) {
+      return data.parcelCoordinates;
+    }
+    const rawGeojson = data?.cadastralGeojson || data?.cadastral_geojson;
+    if (rawGeojson) {
+      try {
+        const parsed = typeof rawGeojson === 'string' ? JSON.parse(rawGeojson) : rawGeojson;
+        if (parsed.type === 'Polygon' && Array.isArray(parsed.coordinates?.[0])) {
+          // Chuẩn hóa: Đảo [lng, lat] GeoJSON sang [lat, lng] cho Leaflet Map
+          return parsed.coordinates[0].map(([lng, lat]: [number, number]) => [lat, lng]);
+        }
+      } catch (e) {
+        console.warn('Failed to parse cadastralGeojson in AuditStep1:', e);
+      }
+    }
+    return [];
+  }, [formState.parcelCoordinates, sJson.parcelCoordinates, data?.coordinates, data?.parcelCoordinates, data?.cadastralGeojson, data?.cadastral_geojson]);
 
   // Adjacent Buildings Data
   const adjacent = formState.adjacentBuildings || sJson.adjacentBuildings || {
@@ -627,6 +657,20 @@ export const AuditStep1Identification: React.FC<Props> = ({
               </span>
             </div>
           </div>
+
+          {/* Trực quan hóa Bản đồ không gian trắc địa & Tim tuyến Metro 2 */}
+          <AuditMetroSpatialVisualMap
+            parcelCoordinates={parcelCoords}
+            projectParcelCode={formState.projectParcelCode || data?.projectParcelCode}
+            metroOffsetDistance={formState.metroOffsetDistance}
+            clearanceOffsetDistance={formState.clearanceOffsetDistance}
+            chainage={formState.chainage}
+            gpsLocation={{
+              lat: Number(latDisplay || 10.79241),
+              lng: Number(lngDisplay || 106.71152),
+              accuracy: Number(accuracyDisplay || 3.5),
+            }}
+          />
         </div>
 
         {/* 1.4. CÔNG TRÌNH LIỀN KỀ THEO CÁC HƯỚNG & ADJACENT RISK RADAR */}
