@@ -8,6 +8,7 @@ interface PhotoEmptyStateProps {
   cameraInputId: string;
   galleryInputId: string;
   onTriggerCapture: () => void;
+  readOnly?: boolean;
 }
 
 export const PhotoEmptyState: React.FC<PhotoEmptyStateProps> = ({
@@ -17,6 +18,7 @@ export const PhotoEmptyState: React.FC<PhotoEmptyStateProps> = ({
   cameraInputId,
   galleryInputId,
   onTriggerCapture,
+  readOnly = false,
 }) => {
   const isCompact = typeof height === 'number' ? height <= 125 : parseInt(String(height), 10) <= 125;
 
@@ -59,6 +61,11 @@ export const PhotoEmptyState: React.FC<PhotoEmptyStateProps> = ({
         </div>
       )}
 
+      {readOnly ? (
+        <div style={{ fontSize: '0.75rem', color: '#94a3b8', fontStyle: 'italic', padding: '0.5rem' }}>
+          (Chưa có ảnh khảo sát)
+        </div>
+      ) : (
       <div style={{ display: 'flex', gap: isCompact ? '0.35rem' : '0.6rem', flexWrap: 'wrap', justifyContent: 'center' }}>
         {/* 1. NÚT CHÍNH: Chụp ảnh */}
         <button
@@ -113,6 +120,7 @@ export const PhotoEmptyState: React.FC<PhotoEmptyStateProps> = ({
           <span>{isCompact ? 'Chọn ảnh' : 'Chọn từ máy'}</span>
         </label>
       </div>
+      )}
     </div>
   );
 };

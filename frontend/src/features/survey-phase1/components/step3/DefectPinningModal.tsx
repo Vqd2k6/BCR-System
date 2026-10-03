@@ -14,7 +14,10 @@ interface DefectPinningModalProps {
   defects: DefectItem[];
   onChange: (defects: DefectItem[]) => void;
   onClose: () => void;
+  readOnly?: boolean;
 }
+
+import { usePhase1SurveyStore } from '../../store/usePhase1SurveyStore';
 
 export const DefectPinningModal: React.FC<DefectPinningModalProps> = ({
   isOpen,
@@ -27,7 +30,10 @@ export const DefectPinningModal: React.FC<DefectPinningModalProps> = ({
   defects,
   onChange,
   onClose,
+  readOnly,
 }) => {
+  const isStoreReadOnly = usePhase1SurveyStore((s) => s.isReadOnly);
+  const effectiveReadOnly = readOnly !== undefined ? readOnly : isStoreReadOnly;
   if (!isOpen || !ctxPhotoUrl) return null;
 
   const isStructural = mode === 'STRUCTURAL';
@@ -69,6 +75,7 @@ export const DefectPinningModal: React.FC<DefectPinningModalProps> = ({
             floorName={floorName}
             zoneOrElementCode={code}
             onChange={onChange}
+            readOnly={effectiveReadOnly}
           />
         </div>
 

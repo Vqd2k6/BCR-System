@@ -5,6 +5,7 @@ import { LoginView } from './views/auth/LoginView';
 import { SurveyorNavbar } from './components/layout/SurveyorNavbar';
 import { SurveyorBottomNav, NavTab } from './components/layout/SurveyorBottomNav';
 import { LeafletSweepMap, GisParcel } from './components/gis/LeafletSweepMap';
+import { getEffectiveParcelStatus } from './components/gis/sweep-map/utils/sweepMapHelpers';
 import { SurveyorHomeView } from './views/surveyor/SurveyorHomeView';
 import { TimekeepingCheckInView } from './views/surveyor/TimekeepingCheckInView';
 import { SurveyPhase1Page } from './features/survey-phase1/views/SurveyPhase1Page';
@@ -326,7 +327,19 @@ export const App: React.FC = () => {
   };
 
   const handleStartPhase1 = (parcel: GisParcel, readOnly: boolean = false) => {
-    setIsReadOnlySurvey(readOnly);
+    const effectiveStatus = getEffectiveParcelStatus(parcel);
+    const isSubmittedOrApproved =
+      effectiveStatus === 'SUBMITTED' ||
+      effectiveStatus === 'APPROVED' ||
+      effectiveStatus === 'PHASE2_COMPLETED' ||
+      effectiveStatus === 'APPROVED_PHASE2' ||
+      parcel.surveyStatus === 'SUBMITTED' ||
+      parcel.surveyStatus === 'APPROVED' ||
+      parcel.surveyStatus === 'PHASE2_COMPLETED' ||
+      parcel.surveyStatus === 'APPROVED_PHASE2';
+
+    const effectiveReadOnly = Boolean(readOnly || isSubmittedOrApproved);
+    setIsReadOnlySurvey(effectiveReadOnly);
     triggerSurveyWithCheckInGuard(() => {
       setSelectedParcelForSurvey(parcel);
       setSelectedUnitForSurvey(null);
@@ -486,6 +499,7 @@ export const App: React.FC = () => {
               onSelectZone={handleSelectZone}
               onSelectParcel={(p) => setSelectedParcelForSurvey(p)}
               onStartSurvey={handleStartPhase1}
+              onStartPhase2={handleStartPhase2}
               onOpenBuildingHub={(p) => setHubParcel(p)}
               onRecordAbsence={handleRecordAbsence}
               userGps={liveUserGps}

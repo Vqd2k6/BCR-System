@@ -9,6 +9,7 @@ import { FloorCadPinningCanvas, CadZonePin } from '../../../../components/canvas
 import { FloorSurveyData, DamageZoneData } from '../../types/phase1.types';
 import { COMMON_ROOM_NAMES, ARCH_COMPONENT_TYPES, WALL_MATERIALS } from './step3.constants';
 import { Building, Camera, Trash2, MapPin, AlertCircle, Plus, Sparkles, RotateCcw } from 'lucide-react';
+import { usePhase1SurveyStore } from '../../store/usePhase1SurveyStore';
 
 interface DamageZonesSectionProps {
   currentFloor: FloorSurveyData;
@@ -45,6 +46,7 @@ export const DamageZonesSection: React.FC<DamageZonesSectionProps> = ({
   onRequestAddNextZone,
   onOpenPinningModal,
 }) => {
+  const isReadOnly = usePhase1SurveyStore((s) => s.isReadOnly);
   const zones: DamageZoneData[] = currentFloor.zones || [];
   const activeZone = zones[activeZoneIndex];
 
@@ -197,6 +199,7 @@ export const DamageZonesSection: React.FC<DamageZonesSectionProps> = ({
         mode="ZONE"
         floorName={currentFloor.floorName}
         parcelCode={projectParcelCode}
+        readOnly={isReadOnly}
         cadTitle={`Tải lên hoặc chụp sơ đồ mặt bằng kiến trúc CAD_01 (${currentFloor.floorName}):`}
       />
 
@@ -541,8 +544,8 @@ export const DamageZonesSection: React.FC<DamageZonesSectionProps> = ({
                       }}
                     >
                       {activeZone.defects?.length > 0
-                        ? `Xem & Chỉnh sửa ${activeZone.defects.length} ghim D-xx ➔`
-                        : 'Chấm điểm & Ghi sổ khuyết tật D-xx'}
+                        ? (isReadOnly ? `Xem ${activeZone.defects.length} ghim D-xx ➔` : `Xem & Chỉnh sửa ${activeZone.defects.length} ghim D-xx ➔`)
+                        : (isReadOnly ? 'Xem sơ đồ khuyết tật D-xx' : 'Chấm điểm & Ghi sổ khuyết tật D-xx')}
                     </Button>
                   </div>
 
@@ -591,7 +594,7 @@ export const DamageZonesSection: React.FC<DamageZonesSectionProps> = ({
                   >
                     Tiếp theo: {zones[activeZoneIndex + 1]?.zoneCode} ➔
                   </Button>
-                ) : (
+                ) : !isReadOnly ? (
                   <Button
                     size="sm"
                     variant="outline"
@@ -600,7 +603,7 @@ export const DamageZonesSection: React.FC<DamageZonesSectionProps> = ({
                   >
                     Thêm Vùng Z tiếp theo
                   </Button>
-                )}
+                ) : null}
               </div>
             </div>
           </div>

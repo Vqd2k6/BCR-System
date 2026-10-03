@@ -6,18 +6,23 @@ import { PhotoCaptureInput } from '../../../../components/common/PhotoCaptureInp
 import { Camera, Maximize2, ArrowRight, Plus, Trash2 } from 'lucide-react';
 import { Phase1SurveyFormData } from '../../types/phase1.types';
 import { P03_TAGS } from './step1.constants';
+import { usePhase1SurveyStore } from '../../store/usePhase1SurveyStore';
 
 interface Step1PhotosSectionProps {
   formData: Phase1SurveyFormData;
   updateFormData: (updates: Partial<Phase1SurveyFormData>) => void;
   onOpenPolygonModal: () => void;
+  readOnly?: boolean;
 }
 
 export const Step1PhotosSection: React.FC<Step1PhotosSectionProps> = ({
   formData,
   updateFormData,
   onOpenPolygonModal,
+  readOnly: propReadOnly,
 }) => {
+  const storeReadOnly = usePhase1SurveyStore((s) => s.isReadOnly);
+  const isReadOnly = propReadOnly ?? storeReadOnly;
   return (
     <Card className="border-slate-200 bg-white shadow-xs">
       <div className="flex items-center justify-between gap-2 mb-4 pb-2 border-b border-slate-100">
@@ -141,7 +146,11 @@ export const Step1PhotosSection: React.FC<Step1PhotosSectionProps> = ({
                     icon={<Maximize2 className="w-3.5 h-3.5" />}
                     onClick={onOpenPolygonModal}
                   >
-                    {(formData.photoP02.polygonPoints?.length || 0) >= 3 ? 'Chỉnh sửa đa giác & phân tầng' : 'Chấm điểm đa giác & phân tầng *'}
+                    {isReadOnly
+                      ? 'Xem đa giác & phân tầng'
+                      : (formData.photoP02.polygonPoints?.length || 0) >= 3
+                        ? 'Chỉnh sửa đa giác & phân tầng'
+                        : 'Chấm điểm đa giác & phân tầng *'}
                   </Button>
                 </div>
               )}
@@ -233,19 +242,21 @@ export const Step1PhotosSection: React.FC<Step1PhotosSectionProps> = ({
                           options={P03_TAGS.map((t) => ({ value: t, label: t }))}
                         />
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const next = (formData.photoP03.additionalPhotos || []).filter((_, i) => i !== idx);
-                          updateFormData({
-                            photoP03: { ...formData.photoP03, additionalPhotos: next },
-                          });
-                        }}
-                        className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-md transition-colors"
-                        title="Xóa ảnh này"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      {!isReadOnly && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const next = (formData.photoP03.additionalPhotos || []).filter((_, i) => i !== idx);
+                            updateFormData({
+                              photoP03: { ...formData.photoP03, additionalPhotos: next },
+                            });
+                          }}
+                          className="p-1.5 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-md transition-colors"
+                          title="Xóa ảnh này"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
                     </div>
                   </div>
                   <PhotoCaptureInput
@@ -274,7 +285,7 @@ export const Step1PhotosSection: React.FC<Step1PhotosSectionProps> = ({
               ))}
 
               {/* Nút thêm ảnh P-03 phụ nếu chưa đạt giới hạn 3 ảnh */}
-              {(formData.photoP03.additionalPhotos || []).length < 2 && (
+              {!isReadOnly && (formData.photoP03.additionalPhotos || []).length < 2 && (
                 <button
                   type="button"
                   onClick={() => {

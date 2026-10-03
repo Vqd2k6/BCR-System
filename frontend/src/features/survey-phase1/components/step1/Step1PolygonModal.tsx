@@ -1,6 +1,7 @@
 import { X } from 'lucide-react';
 import { FacadePolygonCanvas, PolygonPoint, FloorSplitLine, FreehandStroke } from '../../../../components/canvas/FacadePolygonCanvas';
 import { Phase1SurveyFormData } from '../../types/phase1.types';
+import { usePhase1SurveyStore } from '../../store/usePhase1SurveyStore';
 
 interface Step1PolygonModalProps {
   isOpen: boolean;
@@ -11,6 +12,7 @@ interface Step1PolygonModalProps {
   onSave: (data: { polygonPoints: PolygonPoint[]; splitLines: FloorSplitLine[]; freehandStrokes?: FreehandStroke[] }) => void;
   updateFormData: (updates: Partial<Phase1SurveyFormData>) => void;
   photoP02: Phase1SurveyFormData['photoP02'];
+  readOnly?: boolean;
 }
 
 export const Step1PolygonModal: React.FC<Step1PolygonModalProps> = ({
@@ -22,7 +24,11 @@ export const Step1PolygonModal: React.FC<Step1PolygonModalProps> = ({
   onSave,
   updateFormData,
   photoP02,
+  readOnly: propReadOnly,
 }) => {
+  const storeReadOnly = usePhase1SurveyStore((s) => s.isReadOnly);
+  const effectiveReadOnly = propReadOnly ?? storeReadOnly;
+
   if (!isOpen || !photoP02Url) return null;
 
   return (
@@ -40,17 +46,23 @@ export const Step1PolygonModal: React.FC<Step1PolygonModalProps> = ({
               <span className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-emerald-600 text-white text-[10px] sm:text-[11px] flex items-center justify-center font-bold flex-shrink-0">
                 P2
               </span>
-              <span className="truncate">Vẽ Đa Giác Bao & Đường Phân Tầng (Ảnh P-02)</span>
+              <span className="truncate">
+                {effectiveReadOnly
+                  ? 'Xem Đa Giác Bao & Đường Phân Tầng (Chỉ đọc - Ảnh P-02)'
+                  : 'Vẽ Đa Giác Bao & Đường Phân Tầng (Ảnh P-02)'}
+              </span>
             </h3>
             <p className="text-[11px] text-slate-500 mt-0.5 ml-6 sm:ml-8 hidden xs:block truncate">
-              Chấm các đỉnh góc nhà để tính diện tích bao và kéo đường phân tầng
+              {effectiveReadOnly
+                ? 'Hồ sơ đã khóa chỉnh sửa • Xem chi tiết các đỉnh góc và đường phân tầng'
+                : 'Chấm các đỉnh góc nhà để tính diện tích bao và kéo đường phân tầng'}
             </p>
           </div>
           <button
             type="button"
             onClick={onClose}
             className="p-1 sm:p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors border border-slate-200 shrink-0 cursor-pointer"
-            title="Hủy / Đóng"
+            title="Đóng"
           >
             <X className="w-4 h-4 sm:w-5 sm:h-5" />
           </button>
@@ -60,7 +72,9 @@ export const Step1PolygonModal: React.FC<Step1PolygonModalProps> = ({
             imageUrl={photoP02Url}
             polygonPoints={polygonPoints}
             floorSplitLines={floorSplits}
+            readOnly={effectiveReadOnly}
             onChange={(points, splitLines) => {
+              if (effectiveReadOnly) return;
               updateFormData({
                 photoP02: {
                   ...photoP02,
@@ -70,7 +84,9 @@ export const Step1PolygonModal: React.FC<Step1PolygonModalProps> = ({
               });
             }}
             onSave={(data) => {
-              onSave(data);
+              if (!effectiveReadOnly) {
+                onSave(data);
+              }
               onClose();
             }}
           />

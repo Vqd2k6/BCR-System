@@ -9,6 +9,7 @@ import { FloorCadPinningCanvas, CadZonePin } from '../../../../components/canvas
 import { FloorSurveyData, StructuralElementData } from '../../types/phase1.types';
 import { COMMON_ROOM_NAMES, STRUCTURAL_ELEMENT_TYPES, STRUCTURAL_MATERIALS } from './step3.constants';
 import { Hammer, Camera, Trash2, MapPin, Plus, ShieldAlert, AlertCircle, Info, Sparkles, RotateCcw } from 'lucide-react';
+import { usePhase1SurveyStore } from '../../store/usePhase1SurveyStore';
 
 interface StructuralElementsSectionProps {
   currentFloor: FloorSurveyData;
@@ -47,6 +48,7 @@ export const StructuralElementsSection: React.FC<StructuralElementsSectionProps>
   onOpenPinningModal,
   onToggleHasStructuralElements,
 }) => {
+  const isReadOnly = usePhase1SurveyStore((s) => s.isReadOnly);
   const structuralElements: StructuralElementData[] = currentFloor.structuralElements || [];
   const activeElement = structuralElements[activeElementIndex];
   const hasStructuralElements = currentFloor.hasStructuralElements !== false;
@@ -208,33 +210,35 @@ export const StructuralElementsSection: React.FC<StructuralElementsSectionProps>
           </p>
         </div>
 
-        <div className="flex items-center gap-1.5 bg-white p-1 rounded-lg border border-slate-300 shadow-2xs shrink-0">
-          <button
-            type="button"
-            onClick={() => onToggleHasStructuralElements?.(true)}
-            className={`px-3 py-1.5 rounded-md font-bold text-xs flex items-center gap-1.5 transition-all ${
-              hasStructuralElements
-                ? 'bg-amber-600 text-white shadow-xs'
-                : 'text-slate-600 hover:bg-slate-100'
-            }`}
-          >
-            <span className="font-mono font-bold text-xs">✓</span>
-            <span>Có kết cấu</span>
-          </button>
+        {!isReadOnly && (
+          <div className="flex items-center gap-1.5 bg-white p-1 rounded-lg border border-slate-300 shadow-2xs shrink-0">
+            <button
+              type="button"
+              onClick={() => onToggleHasStructuralElements?.(true)}
+              className={`px-3 py-1.5 rounded-md font-bold text-xs flex items-center gap-1.5 transition-all ${
+                hasStructuralElements
+                  ? 'bg-amber-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              <span className="font-mono font-bold text-xs">✓</span>
+              <span>Có kết cấu</span>
+            </button>
 
-          <button
-            type="button"
-            onClick={() => onToggleHasStructuralElements?.(false, currentFloor.noStructuralElementsReason || 'Tầng mái / Sân thượng không có cấu kiện chịu lực riêng')}
-            className={`px-3 py-1.5 rounded-md font-bold text-xs flex items-center gap-1.5 transition-all ${
-              !hasStructuralElements
-                ? 'bg-slate-800 text-white shadow-xs'
-                : 'text-slate-600 hover:bg-slate-100'
-            }`}
-          >
-            <ShieldAlert className="w-3.5 h-3.5" />
-            <span>Không có (Miễn)</span>
-          </button>
-        </div>
+            <button
+              type="button"
+              onClick={() => onToggleHasStructuralElements?.(false, currentFloor.noStructuralElementsReason || 'Tầng mái / Sân thượng không có cấu kiện chịu lực riêng')}
+              className={`px-3 py-1.5 rounded-md font-bold text-xs flex items-center gap-1.5 transition-all ${
+                !hasStructuralElements
+                  ? 'bg-slate-800 text-white shadow-xs'
+                  : 'text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              <ShieldAlert className="w-3.5 h-3.5" />
+              <span>Không có (Miễn)</span>
+            </button>
+          </div>
+        )}
       </div>
 
       {!hasStructuralElements ? (
@@ -307,7 +311,8 @@ export const StructuralElementsSection: React.FC<StructuralElementsSectionProps>
             mode="STRUCTURAL"
             floorName={currentFloor.floorName}
             parcelCode={projectParcelCode}
-            cadTitle={`Tải lên hoặc chụp sơ đồ mặt bằng kết cấu CAD_02 (${currentFloor.floorName}):`}
+            cadTitle={`Sơ đồ mặt bằng kết cấu CAD_02 (${currentFloor.floorName}):`}
+            readOnly={isReadOnly}
           />
 
           {/* Stepper danh sách các Vùng Kết Cấu E */}
@@ -360,13 +365,15 @@ export const StructuralElementsSection: React.FC<StructuralElementsSectionProps>
             <p className="text-xs text-slate-500 max-w-sm mx-auto">
               Bấm mở Sơ đồ CAD_02 để chạm chấm các Vùng E (Cột BTCT, Dầm, Bản sàn...) trên sơ đồ kết cấu.
             </p>
-            <Button
-              size="sm"
-              className="bg-amber-600 hover:bg-amber-700 text-white"
-              onClick={onRequestAddNextElement}
-            >
-              Chấm Cấu kiện E trên sơ đồ CAD
-            </Button>
+            {!isReadOnly && (
+              <Button
+                size="sm"
+                className="bg-amber-600 hover:bg-amber-700 text-white"
+                onClick={onRequestAddNextElement}
+              >
+                Chấm Cấu kiện E trên sơ đồ CAD
+              </Button>
+            )}
           </div>
         ) : activeElement ? (
           <div id="step3-active-element-card" className="p-3 sm:p-4 bg-amber-50/20 rounded-2xl border border-amber-200/80 space-y-3.5">
@@ -374,23 +381,29 @@ export const StructuralElementsSection: React.FC<StructuralElementsSectionProps>
             <div className="flex items-center justify-between pb-2 border-b border-amber-200">
               <div className="flex items-center gap-2">
                 <div className="flex items-center gap-1">
-                  <input
-                    type="text"
-                    value={activeElement.elementCode}
-                    onChange={(e) => {
-                      const newCode = e.target.value.toUpperCase();
-                      const oldCode = activeElement.elementCode;
-                      onUpdateElement(activeElementIndex, { elementCode: newCode });
-                      if (onRenamePin) {
-                        const matchingPin = (currentFloor.cadElementPins || []).find((p) => p.zoneCode === oldCode);
-                        if (matchingPin) {
-                          onRenamePin(oldCode, newCode, { ...matchingPin, zoneCode: newCode });
+                  {isReadOnly ? (
+                    <span className="px-2 py-0.5 rounded-lg bg-amber-700 text-white font-mono text-xs font-extrabold">
+                      {activeElement.elementCode}
+                    </span>
+                  ) : (
+                    <input
+                      type="text"
+                      value={activeElement.elementCode}
+                      onChange={(e) => {
+                        const newCode = e.target.value.toUpperCase();
+                        const oldCode = activeElement.elementCode;
+                        onUpdateElement(activeElementIndex, { elementCode: newCode });
+                        if (onRenamePin) {
+                          const matchingPin = (currentFloor.cadElementPins || []).find((p) => p.zoneCode === oldCode);
+                          if (matchingPin) {
+                            onRenamePin(oldCode, newCode, { ...matchingPin, zoneCode: newCode });
+                          }
                         }
-                      }
-                    }}
-                    className="px-2 py-0.5 rounded-lg bg-amber-700 text-white font-mono text-xs font-extrabold w-20 border border-amber-500 uppercase focus:ring-1 focus:ring-amber-300"
-                    title="Mã Vùng E (đồng bộ với ghim trên sơ đồ CAD)"
-                  />
+                      }}
+                      className="px-2 py-0.5 rounded-lg bg-amber-700 text-white font-mono text-xs font-extrabold w-20 border border-amber-500 uppercase focus:ring-1 focus:ring-amber-300"
+                      title="Mã Vùng E (đồng bộ với ghim trên sơ đồ CAD)"
+                    />
+                  )}
                 </div>
                 <span className="text-sm font-bold text-slate-800">
                   Khảo Sát Kết Cấu: {activeElement.elementType} ({activeElement.roomName})
@@ -404,14 +417,16 @@ export const StructuralElementsSection: React.FC<StructuralElementsSectionProps>
                 )}
               </div>
 
-              <button
-                type="button"
-                onClick={() => onDeleteElement(activeElementIndex)}
-                className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
-                title="Xóa Vùng E"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
+              {!isReadOnly && (
+                <button
+                  type="button"
+                  onClick={() => onDeleteElement(activeElementIndex)}
+                  className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                  title="Xóa Vùng E"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              )}
             </div>
 
             {/* Thuộc tính cấu kiện chịu lực có dải phát sáng đồng bộ & tự động kế thừa */}
@@ -657,8 +672,8 @@ export const StructuralElementsSection: React.FC<StructuralElementsSectionProps>
                       }}
                     >
                       {activeElement.defects?.length > 0
-                        ? `Xem & Chỉnh sửa ${activeElement.defects.length} ghim kết cấu ➔`
-                        : 'Chấm điểm khuyết tật kết cấu D-xx'}
+                        ? (isReadOnly ? `Xem ${activeElement.defects.length} ghim kết cấu ➔` : `Xem & Chỉnh sửa ${activeElement.defects.length} ghim kết cấu ➔`)
+                        : (isReadOnly ? 'Xem khuyết tật kết cấu D-xx' : 'Chấm điểm khuyết tật kết cấu D-xx')}
                     </Button>
                   </div>
 
@@ -707,7 +722,7 @@ export const StructuralElementsSection: React.FC<StructuralElementsSectionProps>
                   >
                     Tiếp theo: {structuralElements[activeElementIndex + 1]?.elementCode} ➔
                   </Button>
-                ) : (
+                ) : !isReadOnly ? (
                   <Button
                     size="sm"
                     variant="outline"
@@ -716,7 +731,7 @@ export const StructuralElementsSection: React.FC<StructuralElementsSectionProps>
                   >
                     Thêm Kết Cấu E tiếp theo
                   </Button>
-                )}
+                ) : null}
               </div>
             </div>
           </div>

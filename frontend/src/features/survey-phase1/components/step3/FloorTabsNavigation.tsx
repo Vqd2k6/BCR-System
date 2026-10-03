@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Button } from '../../../../core/components/ui/Button';
 import { Layers, Plus, Edit2, Trash2, Check, X } from 'lucide-react';
 import { FloorSurveyData } from '../../types/phase1.types';
+import { usePhase1SurveyStore } from '../../store/usePhase1SurveyStore';
 
 interface FloorTabsNavigationProps {
   floors: FloorSurveyData[];
@@ -10,6 +11,7 @@ interface FloorTabsNavigationProps {
   onAddFloor: () => void;
   onRenameFloor: (index: number, newName: string) => void;
   onDeleteFloor: (index: number) => void;
+  readOnly?: boolean;
 }
 
 export const FloorTabsNavigation: React.FC<FloorTabsNavigationProps> = ({
@@ -19,7 +21,10 @@ export const FloorTabsNavigation: React.FC<FloorTabsNavigationProps> = ({
   onAddFloor,
   onRenameFloor,
   onDeleteFloor,
+  readOnly,
 }) => {
+  const isStoreReadOnly = usePhase1SurveyStore((s) => s.isReadOnly);
+  const effectiveReadOnly = readOnly !== undefined ? readOnly : isStoreReadOnly;
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editName, setEditName] = useState<string>('');
 
@@ -68,11 +73,13 @@ export const FloorTabsNavigation: React.FC<FloorTabsNavigationProps> = ({
           </p>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
-          <Button size="sm" icon={<Plus className="w-4 h-4" />} onClick={onAddFloor}>
-            Thêm Tầng Mới
-          </Button>
-        </div>
+        {!effectiveReadOnly && (
+          <div className="flex items-center gap-2 shrink-0">
+            <Button size="sm" icon={<Plus className="w-4 h-4" />} onClick={onAddFloor}>
+              Thêm Tầng Mới
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Tabs chọn Tầng */}
@@ -138,7 +145,7 @@ export const FloorTabsNavigation: React.FC<FloorTabsNavigationProps> = ({
               </span>
 
               {/* Quick action buttons on active tab */}
-              {isActive && (
+              {isActive && !effectiveReadOnly && (
                 <div className="flex items-center gap-1 pl-1 ml-0.5 border-l border-emerald-600/60">
                   <button
                     type="button"

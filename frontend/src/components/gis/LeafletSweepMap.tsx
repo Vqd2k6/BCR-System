@@ -21,6 +21,7 @@ export const LeafletSweepMap: React.FC<LeafletSweepMapProps> = ({
   onSelectZone,
   onSelectParcel,
   onStartSurvey,
+  onStartPhase2,
   onOpenBuildingHub,
   onRecordAbsence,
   userGps,
@@ -259,6 +260,7 @@ export const LeafletSweepMap: React.FC<LeafletSweepMapProps> = ({
         activeParcel={activeParcel}
         onClose={() => setActiveParcel(null)}
         onStartSurvey={onStartSurvey}
+        onStartPhase2={onStartPhase2}
         onOpenBuildingHub={onOpenBuildingHub}
         absenceRecordedToday={absenceRecordedToday}
         handleOpenGoogleMapsDirections={handleOpenGoogleMapsDirections}
