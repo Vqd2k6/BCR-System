@@ -15,9 +15,8 @@ import {
   CheckCircle2,
   Home,
   Trees,
-  Scissors,
 } from 'lucide-react';
-import { CadastralParcelData, MutationPayloadData, MaxZoneCodeInfo } from '../../../shared/types';
+import { CadastralParcelData, MutationPayloadData } from '../../../shared/types';
 import { MapBoundsController, MapClickListener, HelpBadge } from '../../../shared/MapControllers';
 import { createHandleIcon } from '../../../shared/geoMath';
 import {
@@ -37,19 +36,15 @@ interface SplitPanelProps {
   setSplitShapeOption: (opt: 'CLICK_TO_DRAW' | 'DRAG_HANDLES') => void;
   polyAVertices: [number, number][];
   setPolyAVertices: (pts: [number, number][]) => void;
-  polyBVertices?: [number, number][];
   calculatedAreaA: number;
   calculatedAreaB: number;
   dynamicCodes: string[];
-  maxZoneInfo?: MaxZoneCodeInfo | null;
   handleVertexDrag: (idx: number, latlng: L.LatLng) => void;
   handleMapClickDraw: (latlng: [number, number]) => void;
   handleAddMidpoint: () => void;
   handleRemovePoint: () => void;
   handleResetDefault: () => void;
   handleApplyLShape: () => void;
-  handleSplitHorizontal?: (ratio?: number) => void;
-  handleSplitVertical?: (ratio?: number) => void;
   mutationData: MutationPayloadData;
   onMutationDataChange: (data: MutationPayloadData) => void;
   customResidualType: string;
@@ -70,19 +65,15 @@ export const SplitPanel: React.FC<SplitPanelProps> = ({
   setSplitShapeOption,
   polyAVertices,
   setPolyAVertices,
-  polyBVertices,
   calculatedAreaA,
   calculatedAreaB,
   dynamicCodes,
-  maxZoneInfo,
   handleVertexDrag,
   handleMapClickDraw,
   handleAddMidpoint,
   handleRemovePoint,
   handleResetDefault,
   handleApplyLShape,
-  handleSplitHorizontal,
-  handleSplitVertical,
   mutationData,
   onMutationDataChange,
   customResidualType,
@@ -92,16 +83,11 @@ export const SplitPanel: React.FC<SplitPanelProps> = ({
   handleSaveMutationProposal,
   isSubmittingMutation,
 }) => {
-  const codeA = parcelData.projectParcelCode;
-  const codeB = mutationData.residualKind === 'NEW_BUILDING'
-    ? (maxZoneInfo?.nextCode || dynamicCodes[0] || `${parcelData.projectParcelCode}-B`)
-    : `${parcelData.projectParcelCode}-DU`;
-
   return (
     <div
       style={{
         backgroundColor: '#ffffff',
-        border: '1.5px solid #fdba74',
+        border: '1px solid #fdba74',
         borderRadius: '0.75rem',
         padding: '0.85rem',
         display: 'flex',
@@ -110,20 +96,20 @@ export const SplitPanel: React.FC<SplitPanelProps> = ({
       }}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.4rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', color: '#c2410c', fontWeight: 800, fontSize: '0.85rem' }}>
-          <Layers size={18} style={{ marginRight: '0.35rem' }} />
-          <span>Biên Tập Phân Tách Thửa Đất Trực Quan (2 Lô: Lô A Đang KS & Lô B Tách Mới)</span>
+        <div style={{ display: 'flex', alignItems: 'center', color: '#c2410c', fontWeight: 800, fontSize: '0.825rem' }}>
+          <Layers size={17} style={{ marginRight: '0.35rem' }} />
+          <span>Biên Tập Phân Tách Thửa Đất (2 Màu: Căn Đang KS & Đất Còn Dư)</span>
           <HelpBadge
-            title="Hướng dẫn Tách thửa trực quan"
-            content="Bản đồ hiển thị đồng thời cả Lô A (Màu vàng - Thửa chính đang khảo sát) và Lô B (Màu cam - Thửa con tách ra/đất dôi dư). Bạn có thể bấm các mẫu cắt nhanh (60/40, 50/50, chữ L) hoặc kéo các điểm mút trực tiếp trên bản đồ."
+            title="Hướng dẫn Tách thửa"
+            content="Option 1: Chấm trực tiếp các điểm trên bản đồ, các điểm tự link lại để tạo diện tích cho mảnh đất (nhà chữ L, đa giác tự do). Option 2: Điều chỉnh kéo nắn các điểm mút polygon. Phần diện tích còn dư tự động tính cho ô thứ 2."
           />
         </div>
         <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center' }}>
-          <span className="badge" style={{ backgroundColor: '#fef3c7', color: '#92400e', border: '1px solid #fde68a', fontSize: '0.7rem', padding: '0.25rem 0.55rem' }}>
-            Lô A (Gốc): <strong>{codeA}</strong>
-          </span>
-          <span className="badge" style={{ backgroundColor: '#ffedd5', color: '#c2410c', border: '1px solid #fed7aa', fontSize: '0.7rem', padding: '0.25rem 0.55rem' }}>
-            Lô B ({mutationData.residualKind === 'NEW_BUILDING' ? 'Max Zone + 1' : 'Đất dư'}): <strong>{codeB}</strong>
+          <span className="badge" style={{ backgroundColor: '#ffedd5', color: '#c2410c', border: '1px solid #fed7aa', fontSize: '0.675rem' }}>
+            Căn A: <strong>{parcelData.projectParcelCode}</strong> (Gốc)
+            {mutationData.residualKind === 'NEW_BUILDING' && (
+              <span> | Căn B: <strong>{dynamicCodes[0] || `${parcelData.projectParcelCode}-B`}</strong> (Mã mới)</span>
+            )}
           </span>
           <button
             type="button"
@@ -139,102 +125,13 @@ export const SplitPanel: React.FC<SplitPanelProps> = ({
               cursor: 'pointer',
             }}
           >
-            {tileMode === 'osm' ? '🛰️ Vệ tinh' : '🗺️ Bản đồ'}
+            {tileMode === 'osm' ? 'Vệ tinh' : 'Bản đồ'}
           </button>
         </div>
       </div>
 
-      {/* THANH CÔNG CỤ CẮT NHANH PHÂN RANH HÌNH HỌC */}
-      <div
-        style={{
-          display: 'flex',
-          gap: '0.35rem',
-          flexWrap: 'wrap',
-          alignItems: 'center',
-          backgroundColor: '#fffbeb',
-          padding: '0.45rem 0.65rem',
-          borderRadius: '0.5rem',
-          border: '1px solid #fef08a',
-        }}
-      >
-        <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#92400e', display: 'flex', alignItems: 'center', gap: '0.25rem', marginRight: '0.25rem' }}>
-          <Scissors size={14} color="#b45309" />
-          Phân chia ranh nhanh:
-        </span>
-        <button
-          type="button"
-          onClick={() => handleSplitHorizontal && handleSplitHorizontal(0.6)}
-          className="btn btn-secondary btn-sm"
-          style={{ fontSize: '0.675rem', padding: '0.22rem 0.5rem', backgroundColor: '#ffffff', color: '#b45309', fontWeight: 700, border: '1px solid #f59e0b' }}
-          title="Chia mặt tiền chiếm 60% diện tích, phía sau chiếm 40%"
-        >
-          ✂️ Cắt ngang 60/40 (Trước/Sau)
-        </button>
-        <button
-          type="button"
-          onClick={() => handleSplitHorizontal && handleSplitHorizontal(0.5)}
-          className="btn btn-secondary btn-sm"
-          style={{ fontSize: '0.675rem', padding: '0.22rem 0.5rem', backgroundColor: '#ffffff', color: '#b45309', fontWeight: 700, border: '1px solid #f59e0b' }}
-          title="Chia đôi ngang đều 50/50"
-        >
-          ✂️ Cắt ngang 50/50
-        </button>
-        <button
-          type="button"
-          onClick={() => handleSplitVertical && handleSplitVertical(0.5)}
-          className="btn btn-secondary btn-sm"
-          style={{ fontSize: '0.675rem', padding: '0.22rem 0.5rem', backgroundColor: '#ffffff', color: '#b45309', fontWeight: 700, border: '1px solid #f59e0b' }}
-          title="Chia dọc 50/50 theo chiều sâu (Trái / Phải)"
-        >
-          ✂️ Cắt dọc 50/50 (Trái/Phải)
-        </button>
-        <button
-          type="button"
-          onClick={handleApplyLShape}
-          className="btn btn-secondary btn-sm"
-          style={{ fontSize: '0.675rem', padding: '0.22rem 0.5rem', backgroundColor: '#fed7aa', color: '#9a3412', fontWeight: 700, border: '1px solid #ea580c' }}
-          title="Tạo hình nhà chữ L"
-        >
-          📐 Mẫu chữ L
-        </button>
-        <button
-          type="button"
-          onClick={handleResetDefault}
-          className="btn btn-secondary btn-sm"
-          style={{ fontSize: '0.675rem', padding: '0.22rem 0.5rem', backgroundColor: '#ffffff', color: '#475569', fontWeight: 600, border: '1px solid #cbd5e1' }}
-        >
-          <RefreshCw size={11} style={{ marginRight: '0.2rem' }} /> Đặt lại mặc định
-        </button>
-      </div>
-
-      {/* BỘ CHỌN 2 CHẾ ĐỘ BIÊN TẬP CHI TIẾT (CHẤM ĐIỂM HOẶC KÉO NẮN ĐIỂM) */}
+      {/* BỘ CHỌN 2 OPTION BIÊN TẬP TÁCH THỬA (OPTION 1: CHẤM ĐIỂM, OPTION 2: KÉO NẮN ĐIỂM) */}
       <div style={{ display: 'flex', gap: '0.45rem' }}>
-        <button
-          type="button"
-          onClick={() => {
-            setSplitShapeOption('DRAG_HANDLES');
-            onMutationDataChange({ ...mutationData, splitShapeOption: 'DRAG_HANDLES', isSubmitted: false });
-          }}
-          style={{
-            flex: 1,
-            padding: '0.5rem 0.65rem',
-            borderRadius: '0.5rem',
-            fontSize: '0.725rem',
-            fontWeight: splitShapeOption === 'DRAG_HANDLES' ? 800 : 600,
-            backgroundColor: splitShapeOption === 'DRAG_HANDLES' ? '#ea580c' : '#f8fafc',
-            color: splitShapeOption === 'DRAG_HANDLES' ? '#ffffff' : '#475569',
-            border: splitShapeOption === 'DRAG_HANDLES' ? 'none' : '1px solid #cbd5e1',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '0.35rem',
-            boxShadow: splitShapeOption === 'DRAG_HANDLES' ? '0 2px 4px rgba(234, 88, 12, 0.2)' : 'none',
-          }}
-        >
-          <Move size={15} /> Chế độ 1: Kéo nắn các điểm mút ranh giới (Khuyên dùng)
-        </button>
-
         <button
           type="button"
           onClick={() => {
@@ -258,7 +155,33 @@ export const SplitPanel: React.FC<SplitPanelProps> = ({
             boxShadow: splitShapeOption === 'CLICK_TO_DRAW' ? '0 2px 4px rgba(234, 88, 12, 0.2)' : 'none',
           }}
         >
-          <MousePointer size={15} /> Chế độ 2: Nhấp chuột chấm điểm tự do trên bản đồ
+          <MousePointer size={15} /> Option 1: Chấm các điểm (Tự link tạo diện tích)
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setSplitShapeOption('DRAG_HANDLES');
+            onMutationDataChange({ ...mutationData, splitShapeOption: 'DRAG_HANDLES', isSubmitted: false });
+          }}
+          style={{
+            flex: 1,
+            padding: '0.5rem 0.65rem',
+            borderRadius: '0.5rem',
+            fontSize: '0.725rem',
+            fontWeight: splitShapeOption === 'DRAG_HANDLES' ? 800 : 600,
+            backgroundColor: splitShapeOption === 'DRAG_HANDLES' ? '#ea580c' : '#f8fafc',
+            color: splitShapeOption === 'DRAG_HANDLES' ? '#ffffff' : '#475569',
+            border: splitShapeOption === 'DRAG_HANDLES' ? 'none' : '1px solid #cbd5e1',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '0.35rem',
+            boxShadow: splitShapeOption === 'DRAG_HANDLES' ? '0 2px 4px rgba(234, 88, 12, 0.2)' : 'none',
+          }}
+        >
+          <Move size={15} /> Option 2: Điều chỉnh các điểm (Kéo di chuyển chấm)
         </button>
       </div>
 
@@ -276,10 +199,46 @@ export const SplitPanel: React.FC<SplitPanelProps> = ({
           border: '1px dashed #fdba74',
         }}
       >
-        {splitShapeOption === 'DRAG_HANDLES' ? (
+        {splitShapeOption === 'CLICK_TO_DRAW' ? (
           <>
             <div style={{ fontSize: '0.725rem', color: '#9a3412', fontWeight: 700 }}>
-              Kéo trực tiếp các điểm mút tròn (1, 2, 3...) để phân chia tỷ lệ Lô A và Lô B:
+              Option 1: Nhấp trên bản đồ để chấm các đỉnh ranh ({polyAVertices.length} điểm đã chấm):
+            </div>
+            <div style={{ display: 'flex', gap: '0.25rem' }}>
+              <button
+                type="button"
+                onClick={handleApplyLShape}
+                className="btn btn-secondary btn-sm"
+                style={{ fontSize: '0.675rem', padding: '0.2rem 0.45rem', display: 'flex', alignItems: 'center', gap: '0.2rem', backgroundColor: '#fed7aa', color: '#9a3412', fontWeight: 700 }}
+              >
+                Mẫu chữ L
+              </button>
+              <button
+                type="button"
+                onClick={handleRemovePoint}
+                disabled={polyAVertices.length === 0}
+                className="btn btn-secondary btn-sm"
+                style={{ fontSize: '0.675rem', padding: '0.2rem 0.45rem', display: 'flex', alignItems: 'center', gap: '0.2rem' }}
+              >
+                <Undo size={11} /> Hoàn tác
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setPolyAVertices([]);
+                  onMutationDataChange({ ...mutationData, splitCustomPointsA: [], isSubmitted: false });
+                }}
+                className="btn btn-secondary btn-sm"
+                style={{ fontSize: '0.675rem', padding: '0.2rem 0.45rem', display: 'flex', alignItems: 'center', gap: '0.2rem', color: '#dc2626' }}
+              >
+                <Trash2 size={11} /> Xóa vẽ lại (0 điểm)
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div style={{ fontSize: '0.725rem', color: '#9a3412', fontWeight: 700 }}>
+              Option 2: Kéo trực tiếp các điểm mút tròn (1, 2, 3...) để khớp với thực tế:
             </div>
             <div style={{ display: 'flex', gap: '0.25rem' }}>
               <button
@@ -299,47 +258,27 @@ export const SplitPanel: React.FC<SplitPanelProps> = ({
               >
                 <Minus size={11} /> Bớt điểm
               </button>
-            </div>
-          </>
-        ) : (
-          <>
-            <div style={{ fontSize: '0.725rem', color: '#9a3412', fontWeight: 700 }}>
-              Nhấp trên bản đồ để chấm các đỉnh ranh giới cho Lô A ({polyAVertices.length} điểm đã chấm):
-            </div>
-            <div style={{ display: 'flex', gap: '0.25rem' }}>
               <button
                 type="button"
-                onClick={handleRemovePoint}
-                disabled={polyAVertices.length === 0}
+                onClick={handleResetDefault}
                 className="btn btn-secondary btn-sm"
                 style={{ fontSize: '0.675rem', padding: '0.2rem 0.45rem', display: 'flex', alignItems: 'center', gap: '0.2rem' }}
               >
-                <Undo size={11} /> Hoàn tác
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setPolyAVertices([]);
-                  onMutationDataChange({ ...mutationData, splitCustomPointsA: [], isSubmitted: false });
-                }}
-                className="btn btn-secondary btn-sm"
-                style={{ fontSize: '0.675rem', padding: '0.2rem 0.45rem', display: 'flex', alignItems: 'center', gap: '0.2rem', color: '#dc2626' }}
-              >
-                <Trash2 size={11} /> Xóa vẽ lại
+                <RefreshCw size={11} /> Khôi phục mặc định
               </button>
             </div>
           </>
         )}
       </div>
 
-      {/* LEAFLET MAP VISUALIZER: RENDER ĐỒNG THỜI CẢ LÔ A VÀ LÔ B */}
+      {/* LEAFLET MAP VISUALIZER: TỌA ĐỘ THẬT POSTGIS VÀ CÁC ĐIỂM INTERACTIVE */}
       <div
         style={{
           width: '100%',
-          height: '350px',
+          height: '290px',
           borderRadius: '0.65rem',
           overflow: 'hidden',
-          border: '2px solid #fdba74',
+          border: '1.5px solid #fdba74',
           position: 'relative',
         }}
       >
@@ -354,7 +293,7 @@ export const SplitPanel: React.FC<SplitPanelProps> = ({
           <MapBoundsController coords={realActiveCoords} zoom={18} />
           <ZoomControl position="bottomright" />
 
-          {/* Click listener for Option 2: Chấm điểm */}
+          {/* Click listener for Option 1: Chấm điểm */}
           <MapClickListener
             enabled={splitShapeOption === 'CLICK_TO_DRAW'}
             onMapClick={handleMapClickDraw}
@@ -377,75 +316,52 @@ export const SplitPanel: React.FC<SplitPanelProps> = ({
             />
           )}
 
-          {/* 1. NỀN RANH ĐẤT GỐC BAN ĐẦU (VIỀN NÉT ĐỨT XÁM PHÁP LÝ) */}
+          {/* PHẦN ĐẤT DƯ (MÀU 2 - CAM ĐỎ): NỀN THỬA GỐC ĐỊA CHÍNH */}
           <Polygon
             positions={realActiveCoords}
             pathOptions={{
-              color: '#64748b',
-              fillColor: '#94a3b8',
-              fillOpacity: 0.1,
-              weight: 1.5,
+              color: '#c2410c',
+              fillColor: '#ea580c',
+              fillOpacity: 0.45,
+              weight: 2.5,
               dashArray: '5, 5',
             }}
           >
             <Tooltip direction="top">
-              <div style={{ fontSize: '0.725rem', color: '#334155' }}>
-                Ranh đất gốc theo sổ đỏ: <strong>{parcelData.projectParcelCode}</strong> ({parcelData.landArea || parcelData.constructionArea || Math.round((calculatedAreaA + calculatedAreaB) * 10) / 10} m²)
+              <div style={{ fontSize: '0.725rem', fontWeight: 800, color: '#c2410c' }}>
+                Phần còn lại / Đất thừa: {dynamicCodes[1] || 'B-00109'} ({calculatedAreaB} m²)
               </div>
             </Tooltip>
           </Polygon>
 
-          {/* 2. LÔ B: PHẦN TÁCH MỚI HOẶC ĐẤT DÔI DƯ (MÀU CAM RỰC - #ea580c) */}
-          {polyBVertices && polyBVertices.length >= 3 && (
-            <Polygon
-              positions={polyBVertices}
-              pathOptions={{
-                color: '#c2410c',
-                fillColor: '#ea580c',
-                fillOpacity: 0.65,
-                weight: 3.5,
-              }}
-            >
-              <Tooltip permanent direction="center">
-                <div style={{ textAlign: 'center', fontWeight: 900, color: '#7c2d12', fontSize: '0.75rem', textShadow: '0 1px 2px #fff' }}>
-                  🟠 LÔ B ({mutationData.residualKind === 'NEW_BUILDING' ? 'TÁCH MỚI' : 'ĐẤT DƯ'})<br />
-                  <span style={{ fontSize: '0.825rem', color: '#c2410c' }}>{codeB}</span><br />
-                  ({calculatedAreaB} m²)
-                </div>
-              </Tooltip>
-            </Polygon>
-          )}
-
-          {/* 3. LÔ A: THỬA CHÍNH ĐANG KHẢO SÁT (MÀU VÀNG HỔ PHÁCH - #f59e0b) */}
+          {/* CĂN A ĐANG KHẢO SÁT (MÀU 1 - VÀNG HỔ PHÁCH): ĐA GIÁC ĐƯỢC CHẤM / NẮN ĐIỂM */}
           {polyAVertices.length >= 3 && (
             <Polygon
               positions={polyAVertices}
               pathOptions={{
-                color: '#b45309',
+                color: '#d97706',
                 fillColor: '#f59e0b',
-                fillOpacity: 0.78,
-                weight: 4,
+                fillOpacity: 0.7,
+                weight: 3.5,
               }}
             >
-              <Tooltip permanent direction="center">
-                <div style={{ textAlign: 'center', fontWeight: 900, color: '#78350f', fontSize: '0.75rem', textShadow: '0 1px 2px #fff' }}>
-                  🟡 LÔ A (ĐANG KS)<br />
-                  <span style={{ fontSize: '0.825rem', color: '#b45309' }}>{codeA}</span><br />
-                  ({calculatedAreaA} m²)
+              <Tooltip direction="top">
+                <div style={{ fontSize: '0.725rem', fontWeight: 800, color: '#92400e' }}>
+                  Căn A (Đang KS): {dynamicCodes[0] || 'B-00108'} ({calculatedAreaA} m²)
                 </div>
               </Tooltip>
             </Polygon>
           )}
 
-          {/* Polyline preview khi đang chấm < 3 điểm ở Option Chấm điểm */}
-          {polyAVertices.length > 0 && polyAVertices.length < 3 && (
+          {/* Polyline preview khi đang chấm < 3 điểm ở Option 1 */}
+          {polyAVertices.length > 0 && (
             <Polyline
               positions={polyAVertices}
-              pathOptions={{ color: '#d97706', weight: 4, dashArray: '4, 4' }}
+              pathOptions={{ color: '#d97706', weight: 4, dashArray: polyAVertices.length < 3 ? '4, 4' : undefined }}
             />
           )}
 
-          {/* DRAGGABLE VERTEX HANDLES TRONG CHẾ ĐỘ KÉO NẮN ĐIỂM */}
+          {/* DRAGGABLE VERTEX HANDLES TRONG OPTION 2 */}
           {splitShapeOption === 'DRAG_HANDLES' &&
             polyAVertices.map((vertex, idx) => (
               <Marker
@@ -461,7 +377,7 @@ export const SplitPanel: React.FC<SplitPanelProps> = ({
               />
             ))}
 
-          {/* MARKER CHẤM ĐIỂM TRONG CHẾ ĐỘ CHẤM TỰ DO */}
+          {/* MARKER CHẤM ĐIỂM TRONG OPTION 1 */}
           {splitShapeOption === 'CLICK_TO_DRAW' &&
             polyAVertices.map((vertex, idx) => (
               <Marker
@@ -472,102 +388,65 @@ export const SplitPanel: React.FC<SplitPanelProps> = ({
             ))}
         </MapContainer>
 
-        {/* Floating Legend trực quan phân biệt 2 Lô A và B */}
+        {/* Hướng dẫn khi chưa có điểm nào ở Option 1 */}
+        {splitShapeOption === 'CLICK_TO_DRAW' && polyAVertices.length === 0 && (
+          <div
+            style={{
+              position: 'absolute',
+              top: '12px',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              zIndex: 800,
+              backgroundColor: 'rgba(255, 255, 255, 0.95)',
+              color: '#c2410c',
+              padding: '0.35rem 0.85rem',
+              borderRadius: '0.5rem',
+              fontSize: '0.725rem',
+              fontWeight: 700,
+              border: '1.5px solid #fdba74',
+              boxShadow: '0 2px 6px rgba(0,0,0,0.1)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.4rem',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            <MousePointer size={14} color="#ea580c" />
+            <span>👉 Hãy nhấp lên bản đồ để chấm các đỉnh ranh giới Căn A (Cần ít nhất 3 điểm để tạo thành mảnh đất)</span>
+          </div>
+        )}
+
+        {/* Clean Floating Legend (Không che tâm thửa đất) */}
         <div
           style={{
             position: 'absolute',
             bottom: '8px',
             left: '8px',
             zIndex: 800,
-            backgroundColor: 'rgba(255, 255, 255, 0.96)',
+            backgroundColor: 'rgba(255, 255, 255, 0.95)',
             color: '#0f172a',
-            padding: '0.35rem 0.75rem',
-            borderRadius: '0.5rem',
-            fontSize: '0.7rem',
-            border: '1.5px solid #fed7aa',
-            boxShadow: '0 2px 6px rgba(0,0,0,0.12)',
+            padding: '0.3rem 0.6rem',
+            borderRadius: '0.45rem',
+            fontSize: '0.675rem',
+            border: '1px solid #fed7aa',
+            boxShadow: '0 2px 4px rgba(0,0,0,0.08)',
             display: 'flex',
-            gap: '0.85rem',
+            gap: '0.65rem',
             alignItems: 'center',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-            <span style={{ width: '12px', height: '12px', backgroundColor: '#f59e0b', border: '1.5px solid #b45309', borderRadius: '2px', display: 'inline-block' }}></span>
-            <span>Lô A (Đang KS - {codeA}): <strong>{calculatedAreaA} m²</strong></span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+            <span style={{ width: '10px', height: '10px', backgroundColor: '#f59e0b', borderRadius: '2px', display: 'inline-block' }}></span>
+            <span>Màu 1 (Căn A): <strong>{calculatedAreaA} m²</strong></span>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-            <span style={{ width: '12px', height: '12px', backgroundColor: '#ea580c', border: '1.5px solid #c2410c', borderRadius: '2px', display: 'inline-block' }}></span>
-            <span>Lô B ({mutationData.residualKind === 'NEW_BUILDING' ? 'Tách mới' : 'Đất dư'} - {codeB}): <strong>{calculatedAreaB} m²</strong></span>
-          </div>
-          <div style={{ color: '#64748b', fontSize: '0.675rem' }}>
-            Tổng: <strong>{Math.round((calculatedAreaA + calculatedAreaB) * 10) / 10} m²</strong>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+            <span style={{ width: '10px', height: '10px', backgroundColor: '#ea580c', borderRadius: '2px', display: 'inline-block' }}></span>
+            <span>Màu 2 (Đất thừa / Ô 2): <strong>{calculatedAreaB} m²</strong></span>
           </div>
         </div>
       </div>
 
-      {/* BANNER TƯỜNG MINH CƠ CHẾ MAX ZONE + 1 */}
-      <div
-        style={{
-          backgroundColor: '#fff7ed',
-          border: '2px solid #ea580c',
-          borderRadius: '0.65rem',
-          padding: '0.75rem',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '0.45rem',
-          boxShadow: '0 2px 8px rgba(234, 88, 12, 0.1)',
-        }}
-      >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.4rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#9a3412', fontWeight: 900, fontSize: '0.85rem' }}>
-            <Tag size={17} color="#ea580c" />
-            <span>MÃ SỐ HIỆU CẤP MỚI CHO THỬA CON (LÔ B):</span>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-            <span
-              style={{
-                backgroundColor: '#ea580c',
-                color: '#ffffff',
-                fontWeight: 900,
-                fontSize: '0.95rem',
-                padding: '0.25rem 0.85rem',
-                borderRadius: '0.4rem',
-                letterSpacing: '0.75px',
-                boxShadow: '0 2px 4px rgba(234, 88, 12, 0.25)',
-              }}
-            >
-              {codeB}
-            </span>
-            <span
-              style={{
-                backgroundColor: '#ffedd5',
-                color: '#c2410c',
-                fontWeight: 800,
-                fontSize: '0.7rem',
-                padding: '0.25rem 0.5rem',
-                borderRadius: '0.35rem',
-                border: '1px solid #fed7aa',
-              }}
-            >
-              {mutationData.residualKind === 'NEW_BUILDING' ? 'CƠ CHẾ: MAX ZONE + 1' : 'ĐẤT DÔI DƯ / SÂN VƯỜN'}
-            </span>
-          </div>
-        </div>
-
-        <div style={{ fontSize: '0.74rem', color: '#7c2d12', lineHeight: 1.45, backgroundColor: 'rgba(255,255,255,0.85)', padding: '0.45rem 0.65rem', borderRadius: '0.4rem', border: '1px dashed #fdba74' }}>
-          {mutationData.residualKind === 'NEW_BUILDING' ? (
-            <>
-              📌 <strong>Quy tắc cấp mã tường minh</strong>: Hệ thống quét toàn bộ phân khu <strong>{maxZoneInfo?.zoneId || parcelData.zoneId || 'ZONE_01'}</strong> trong cơ sở dữ liệu. Mã hiện có lớn nhất là <strong>[{maxZoneInfo?.currentMaxCode || 'Đang quét...'}]</strong>. Thửa mới sinh ra (Lô B) được cấp số hiệu tiếp nối là <strong>[{maxZoneInfo?.nextCode || dynamicCodes[0] || '...'}]</strong>. Khi cấp thẩm quyền phê duyệt hồ sơ, Lô B sẽ chính thức trở thành thửa đất mới trên bản đồ để KSV tiếp tục khảo sát tại chỗ.
-            </>
-          ) : (
-            <>
-              📌 <strong>Quy tắc khoanh ranh nhà</strong>: Giữ nguyên vẹn 100% ranh đất địa chính trong sổ đỏ ban đầu ({calculatedAreaA + calculatedAreaB} m²). Hệ thống chỉ khoanh vùng ranh nhà thực tế cho Lô A ({calculatedAreaA} m²), phần đất dư sân vườn ({calculatedAreaB} m²) được gán mã <strong>[{parcelData.projectParcelCode}-DU]</strong> để làm căn cứ bồi thường đất trống mà KHÔNG tạo lô khảo sát mới.
-            </>
-          )}
-        </div>
-      </div>
-
-      {/* PHÂN LOẠI CÔNG NĂNG CHO THỬA CON (LÔ B) - 2 NHÁNH LỰA CHỌN */}
+      {/* PHÂN LOẠI CÔNG NĂNG CHO Ô CÒN DƯ (MÀU 2) - 2 NHÁNH LỰA CHỌN */}
       <div
         style={{
           backgroundColor: '#ffffff',
@@ -664,12 +543,12 @@ export const SplitPanel: React.FC<SplitPanelProps> = ({
                   functionalType: 'Nhà ở gia đình (Nhà phố / Biệt thự / Căn hộ)',
                 };
               }
-              const newCode = maxZoneInfo?.nextCode || dynamicCodes[0] || `${parcelData.projectParcelCode}-B`;
+              const newCode = dynamicCodes[0] || `${parcelData.projectParcelCode}-B`;
               updatedChildren[1] = {
                 ...(updatedChildren[1] || {
-                  label: `Lô B (Nhà mới độc lập - ${newCode})`,
+                  label: 'Căn B (Nhà mới độc lập)',
                   houseNumber: `${parcelData.houseNumber}B`,
-                  ownerName: 'Chủ hộ Lô B',
+                  ownerName: 'Chủ hộ Căn B',
                 }),
                 suggestedCode: newCode,
                 areaM2: calculatedAreaB,
@@ -705,25 +584,25 @@ export const SplitPanel: React.FC<SplitPanelProps> = ({
               boxShadow: (mutationData.residualKind === 'NEW_BUILDING') ? '0 2px 4px rgba(234, 88, 12, 0.25)' : 'none',
             }}
           >
-            <Home size={15} /> 🏠 2. Tách Thửa Nhà Mới (Lô B độc lập - Cấp mã Max Zone + 1: {maxZoneInfo?.nextCode || dynamicCodes[0] || '...'})
+            <Home size={15} /> 🏠 2. Tách Thửa Nhà Mới (Căn B độc lập - Cấp mã Max Zone + 1)
           </button>
         </div>
 
         {/* THÔNG ĐIỆP HƯỚNG DẪN TƯƠNG ỨNG TỪNG NHÁNH */}
         {mutationData.residualKind !== 'NEW_BUILDING' ? (
           <div style={{ backgroundColor: '#ecfdf5', border: '1px solid #6ee7b7', borderRadius: '0.45rem', padding: '0.45rem 0.65rem', fontSize: '0.7rem', color: '#065f46', lineHeight: 1.4 }}>
-            ✓ <strong>Nhánh Khoanh Ranh Nhà (Không tách thửa)</strong>: Ranh đất địa chính pháp lý trong sổ đỏ ({calculatedAreaA + calculatedAreaB} m²) được <strong>giữ nguyên vẹn 100%</strong>. Hệ thống chỉ cập nhật ranh chân đế ngôi nhà ({calculatedAreaA} m²), phần đất dư sân vườn ({calculatedAreaB} m²) được ghi nhận làm căn cứ bồi thường đất trống. Hệ thống <strong>KHÔNG tạo thêm lô khảo sát mới</strong>, KSV hoàn tất Lô A ({parcelData.projectParcelCode}) là xong toàn bộ thửa đất.
+            ✓ <strong>Nhánh Khoanh Ranh Nhà (Không tách thửa)</strong>: Ranh đất địa chính pháp lý trong sổ đỏ ({calculatedAreaA + calculatedAreaB} m²) được <strong>giữ nguyên vẹn 100%</strong>. Hệ thống chỉ cập nhật ranh chân đế ngôi nhà ({calculatedAreaA} m²), phần đất dư sân vườn ({calculatedAreaB} m²) được ghi nhận làm căn cứ bồi thường đất trống. Hệ thống <strong>KHÔNG tạo thêm lô khảo sát mới</strong>, KSV hoàn tất Căn A ({parcelData.projectParcelCode}) là xong toàn bộ thửa đất.
           </div>
         ) : (
           <div style={{ backgroundColor: '#fff7ed', border: '1px solid #fdba74', borderRadius: '0.45rem', padding: '0.45rem 0.65rem', fontSize: '0.7rem', color: '#9a3412', lineHeight: 1.4 }}>
-            ⚡ <strong>Nhánh Tách Thửa Nhà Mới</strong>: Lô A giữ nguyên mã gốc [{parcelData.projectParcelCode}]. Hệ thống tự động <strong>cấp mã mới [{maxZoneInfo?.nextCode || dynamicCodes[0] || 'Max Zone + 1'}]</strong> cho Lô B theo cơ chế Max Zone + 1 và tạo 1 lô mới trên bản đồ để KSV tiếp tục khảo sát tại chỗ!
+            ⚡ <strong>Nhánh Tách Thửa Nhà Mới</strong>: Căn A giữ nguyên mã gốc [{parcelData.projectParcelCode}]. Hệ thống sẽ <strong>cấp mã mới [{dynamicCodes[0] || 'Max Zone + 1'}]</strong> cho Căn B và tạo 1 lô mới trên bản đồ để KSV tiếp tục khảo sát tại chỗ!
           </div>
         )}
 
-        {/* CHI TIẾT CÔNG NĂNG & THÔNG TIN LÔ B */}
+        {/* CHI TIẾT CÔNG NĂNG & THÔNG TIN CĂN B */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginTop: '0.1rem' }}>
           <label style={{ fontSize: '0.72rem', fontWeight: 700, color: '#475569', margin: 0 }}>
-            {mutationData.residualKind === 'NEW_BUILDING' ? 'Loại hình công trình Lô B:' : 'Chi tiết hiện trạng phần đất dôi dư:'}
+            {mutationData.residualKind === 'NEW_BUILDING' ? 'Loại hình công trình Căn B:' : 'Chi tiết hiện trạng phần đất dôi dư:'}
           </label>
           <select
             className="form-control"
@@ -793,12 +672,12 @@ export const SplitPanel: React.FC<SplitPanelProps> = ({
             </div>
           )}
 
-          {/* Nếu là NHÀ MỚI ĐỘC LẬP: Hiển thị thêm ô nhập số nhà và chủ hộ Lô B */}
+          {/* Nếu là NHÀ MỚI ĐỘC LẬP: Hiển thị thêm ô nhập số nhà và chủ hộ Căn B */}
           {mutationData.residualKind === 'NEW_BUILDING' && (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginTop: '0.2rem', backgroundColor: '#f8fafc', padding: '0.45rem', borderRadius: '0.4rem', border: '1px dashed #cbd5e1' }}>
               <div>
                 <label style={{ fontSize: '0.675rem', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '0.15rem' }}>
-                  Số nhà Lô B:
+                  Số nhà Căn B:
                 </label>
                 <input
                   type="text"
@@ -818,13 +697,13 @@ export const SplitPanel: React.FC<SplitPanelProps> = ({
               </div>
               <div>
                 <label style={{ fontSize: '0.675rem', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '0.15rem' }}>
-                  Chủ hộ Lô B:
+                  Chủ hộ Căn B:
                 </label>
                 <input
                   type="text"
                   className="form-control"
                   style={{ fontSize: '0.725rem' }}
-                  placeholder="Tên chủ hộ Lô B..."
+                  placeholder="Tên chủ hộ Căn B..."
                   value={mutationData.splitChildren?.[1]?.ownerName || ''}
                   onChange={(e) => {
                     const text = e.target.value;

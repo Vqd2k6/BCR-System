@@ -29,7 +29,7 @@ export const MetroGisOverlays: React.FC<MetroGisOverlaysProps> = ({
 }) => {
   return (
     <>
-      {/* 1. MÉP HỐ ĐÀO TẢ TUYẾN & HỮU TUYẾN (File gốc CAD / KML) */}
+      {/* 1. RANH GIẢI PHÓNG MẶT BẰNG TẢ TUYẾN & HỮU TUYẾN (File gốc CAD / KML) */}
       {showZonesZoi &&
         METRO_CORRIDOR_BOUNDARIES.map((boundary: any, idx: number) => (
           <Polyline

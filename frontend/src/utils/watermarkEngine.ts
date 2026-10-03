@@ -65,45 +65,6 @@ export interface MetroWatermarkOptions {
   customCode?: string; // Chuỗi mã chỉ định trực tiếp (nếu có)
   timestamp?: Date; // Mặc định: new Date()
   logoUrl?: string; // Mặc định: '/Logo_Thaco_Crec.png'
-  maxDimension?: number; // Cạnh dài tối đa (px) - Tự động chọn theo Golden Ratio nếu không truyền
-  quality?: number; // Mức chất lượng JPEG (0.1 - 1.0) - Tự động chọn theo Golden Ratio nếu không truyền
-  generateDataUrl?: boolean; // Có sinh chuỗi Base64 dataUrl không (mặc định: true để tương thích ngược)
-}
-
-export interface GoldenRatioConfig {
-  maxDimension: number;
-  quality: number;
-  category: string;
-}
-
-/**
- * CẤU HÌNH NÉN ẢNH DI ĐỘNG CHUẨN PHÁP LÝ METRO 2 (LỰA CHỌN B - PHÊ DUYỆT):
- * 1. Điểm danh GPS selfie (ATTENDANCE / SELFIE / CHECKIN): Cạnh dài 1280px (HD), Quality 0.75 (~140KB)
- * 2. Tất cả ảnh hiện trường (Cận cảnh đo nứt/lún CU, Bối cảnh CTX, Toàn cảnh OVERVIEW, Pháp lý DOC, P01-P04):
- *    Cạnh dài tối đa 2048px (2K), Quality 0.80 (80%)
- *    -> Giảm ~91% dung lượng (từ 8.4MB xuống ~750KB - 780KB)
- *    -> Bảo toàn độ sắc nét vạch chia mm của thước đo khi zoom 400%
- *    -> Tiết kiệm pin, triệt tiêu nóng máy và giải phóng bộ nhớ RAM Canvas
- */
-export function resolveGoldenRatioConfig(photoType?: MetroPhotoType): GoldenRatioConfig {
-  const typeStr = String(photoType || '').toUpperCase();
-
-  // Nhóm 1: Điểm danh GPS selfie (Tối ưu data mạng di động)
-  if (['ATTENDANCE', 'SELFIE', 'CHECKIN'].includes(typeStr)) {
-    return {
-      maxDimension: 1280, // HD (0.9 MP)
-      quality: 0.75,      // Tối ưu mạng 4G hiện trường (~140KB)
-      category: 'ATTENDANCE_SELFIE',
-    };
-  }
-
-  // Tiêu chuẩn 2K Quad-HD (Lựa chọn B - Phê duyệt):
-  // Cạnh dài tối đa 2048px, chất lượng JPEG 0.80 (80%)
-  return {
-    maxDimension: 2048,   // 2K Chuẩn (2048px)
-    quality: 0.80,        // Chuẩn nén 80%
-    category: 'STANDARD_2K_Q80',
-  };
 }
 
 /**
@@ -303,7 +264,7 @@ function loadLogo(customUrl?: string): Promise<HTMLImageElement> {
 /**
  * Đọc nguồn ảnh thành HTMLImageElement
  */
-function loadImageSource(source: HTMLImageElement | HTMLVideoElement | HTMLCanvasElement | string | Blob): Promise<{
+function loadImageSource(source: HTMLImageElement | HTMLVideoElement | HTMLCanvasElement | string): Promise<{
   element: HTMLImageElement | HTMLVideoElement | HTMLCanvasElement;
   width: number;
   height: number;
@@ -311,8 +272,8 @@ function loadImageSource(source: HTMLImageElement | HTMLVideoElement | HTMLCanva
   return new Promise((resolve, reject) => {
     if (typeof source === 'string') {
       const img = new Image();
-      // Chỉ đặt crossOrigin nếu là remote URL (không phải base64 data URL hoặc blob URL)
-      if (!source.startsWith('data:') && !source.startsWith('blob:')) {
+      // Chỉ đặt crossOrigin nếu là remote URL (không phải base64 data URL)
+      if (!source.startsWith('data:')) {
         img.crossOrigin = 'anonymous';
       }
       img.onload = () => {
@@ -324,23 +285,6 @@ function loadImageSource(source: HTMLImageElement | HTMLVideoElement | HTMLCanva
       };
       img.onerror = reject;
       img.src = source;
-    } else if (source instanceof Blob) {
-      // Tối ưu RAM: Dùng ObjectURL trực tiếp từ Blob/File thay vì đọc FileReader Base64 nặng ký
-      const objectUrl = URL.createObjectURL(source);
-      const img = new Image();
-      img.onload = () => {
-        URL.revokeObjectURL(objectUrl);
-        resolve({
-          element: img,
-          width: img.naturalWidth,
-          height: img.naturalHeight,
-        });
-      };
-      img.onerror = (err) => {
-        URL.revokeObjectURL(objectUrl);
-        reject(err);
-      };
-      img.src = objectUrl;
     } else if (source instanceof HTMLVideoElement) {
       resolve({
         element: source,
@@ -353,51 +297,41 @@ function loadImageSource(source: HTMLImageElement | HTMLVideoElement | HTMLCanva
         width: source.width,
         height: source.height,
       });
-    } else if (source instanceof HTMLImageElement) {
+    } else {
       resolve({
         element: source,
         width: source.naturalWidth,
         height: source.naturalHeight,
       });
-    } else {
-      reject(new Error('Nguồn ảnh không hợp lệ'));
     }
   });
 }
 
 export interface WatermarkResult {
   dataUrl: string;
-  blob: Blob;
-  previewUrl: string;
+  blob?: Blob;
   photoCode: string;
 }
 
 /**
  * Hàm cốt lõi: Dập Watermark Logo THACO-CREC và Photo ID vào ảnh trên Canvas
- * Áp dụng cấu hình nén GOLDEN RATIO chuẩn hóa:
- * - Tự động chọn độ phân giải và chất lượng nén theo nhóm ảnh (CU đo nứt 2.5K/85%, Bối cảnh 2K/82%, Selfie HD/75%)
- * - Giảm 90% - 95% dung lượng tải (từ ~8.4MB xuống 400KB - 740KB)
- * - Tự động thu dọn sạch RAM GPU của Canvas ngay sau khi xuất Blob
- * - Trả về previewUrl (ObjectURL) siêu nhẹ cho UI và Binary Blob cho UploadQueue
+ * Trả về Data URL JPEG, Binary Blob và Photo ID chuẩn hóa
  */
 export async function applyMetroWatermark(
-  imageSource: HTMLImageElement | HTMLVideoElement | HTMLCanvasElement | string | Blob,
+  imageSource: HTMLImageElement | HTMLVideoElement | HTMLCanvasElement | string,
   options?: MetroWatermarkOptions
 ): Promise<WatermarkResult> {
   const photoCode = generateMetroPhotoCode(options || {});
   const timeStr = formatMetroTimestamp(options?.timestamp || new Date());
 
-  // 1. Nạp nguồn ảnh (hỗ trợ cả File, Blob, URL, Base64, Canvas, Video)
+  // 1. Nạp nguồn ảnh
   const src = await loadImageSource(imageSource);
   if (!src.width || !src.height) {
     throw new Error('Nguồn ảnh không hợp lệ để dập watermark.');
   }
 
-  // 2. Xác định cấu hình nén Golden Ratio chuẩn hóa theo loại ảnh
-  const goldenConfig = resolveGoldenRatioConfig(options?.photoType);
-  const maxDim = options?.maxDimension && options.maxDimension > 0 ? options.maxDimension : goldenConfig.maxDimension;
-  const targetQuality = options?.quality !== undefined && options.quality > 0 ? options.quality : goldenConfig.quality;
-
+  // 2. Chuẩn hóa kích thước khung hình (giữ độ nét tối đa 4K / 4096px, lưu trữ Cloudflare R2 không nén vỡ nét)
+  const maxDim = 4096;
   let width = src.width;
   let height = src.height;
   if (width > maxDim || height > maxDim) {
@@ -418,32 +352,30 @@ export async function applyMetroWatermark(
     throw new Error('Không thể khởi tạo 2D Context trên Canvas.');
   }
 
-  // Kích hoạt thuật toán nội suy làm mịn cao cấp (High-Quality Lanczos/Bilinear Interpolation)
-  ctx.imageSmoothingEnabled = true;
-  ctx.imageSmoothingQuality = 'high';
-
-  // 3. Vẽ ảnh gốc (đã tự động nén kích thước sang Golden Ratio)
+  // 3. Vẽ ảnh gốc
   ctx.drawImage(src.element, 0, 0, width, height);
 
-  // Lấy kích thước ảnh dọc làm quy chuẩn cơ sở:
-  // Cạnh ngắn nhất luôn tương đương với bề rộng của ảnh dọc khi chụp cùng độ phân giải
-  const basePortraitWidth = Math.min(width, height);
+  const isLandscape = width > height;
 
   // 4. Vẽ Logo THACO-CREC ở góc trên bên phải
+  // Ảnh dọc: giữ nguyên kích thước (chiếm 43.75% chiều rộng ảnh)
+  // Ảnh ngang: tăng thêm 25% kích thước (0.4375 * 1.25 = 0.546875 chiều rộng ảnh)
   try {
     const logoImg = await loadLogo(options?.logoUrl);
     if (logoImg.naturalWidth > 0 && logoImg.naturalHeight > 0) {
-      const logoWidth = Math.round(basePortraitWidth * 0.4375);
+      const logoWidth = isLandscape
+        ? Math.round(width * 0.4375 * 1.25)
+        : Math.round(width * 0.4375);
       const logoHeight = Math.round(logoWidth * (logoImg.naturalHeight / logoImg.naturalWidth));
-      const paddingRight = Math.round(basePortraitWidth * 0.025);
-      const paddingTop = Math.round(basePortraitWidth * 0.025);
+      const paddingRight = Math.round(width * 0.025);
+      const paddingTop = Math.round(width * 0.025);
       const logoX = width - logoWidth - paddingRight;
       const logoY = paddingTop;
 
       ctx.save();
       // Đổ bóng mờ trắng nhẹ phía sau để logo xanh luôn sắc nét ngay cả khi chụp nền tối/vỉa hè/đêm
       ctx.shadowColor = 'rgba(255, 255, 255, 0.75)';
-      ctx.shadowBlur = Math.max(3, Math.round(basePortraitWidth * 0.007));
+      ctx.shadowBlur = Math.max(3, Math.round(width * 0.007));
       ctx.drawImage(logoImg, logoX, logoY, logoWidth, logoHeight);
       ctx.restore();
     }
@@ -452,10 +384,14 @@ export async function applyMetroWatermark(
   }
 
   // 5. Vẽ Ngày giờ + Mã định danh Photo ID ở góc dưới bên phải
-  const fontSize = Math.max(22, Math.round(basePortraitWidth * 0.031));
+  // Ảnh dọc: giữ nguyên kích thước (3.1% chiều rộng ảnh)
+  // Ảnh ngang: giảm 25% kích thước chữ (0.031 * 0.75 = 0.02325 chiều rộng ảnh)
+  const fontSize = isLandscape
+    ? Math.max(18, Math.round(width * 0.031 * 0.75))
+    : Math.max(22, Math.round(width * 0.031));
   const lineHeight = Math.round(fontSize * 1.35);
-  const paddingRight = Math.round(basePortraitWidth * 0.03);
-  const paddingBottom = Math.round(basePortraitWidth * 0.035);
+  const paddingRight = Math.round(width * 0.03);
+  const paddingBottom = Math.round(height * 0.035);
 
   const textX = width - paddingRight;
   const line2Y = height - paddingBottom;
@@ -484,29 +420,15 @@ export async function applyMetroWatermark(
   ctx.fillText(photoCode, textX, line2Y);
   ctx.restore();
 
-  // 6. Xuất Binary Blob chuẩn Golden Ratio cho Cloudflare R2
+  // 6. Xuất Binary Blob và Data URL JPEG độ nét cao (0.96) cho Cloudflare R2
   const blob: Blob = await new Promise((resolve) => {
-    canvas.toBlob((b) => resolve(b || new Blob()), 'image/jpeg', targetQuality);
+    canvas.toBlob((b) => resolve(b || new Blob()), 'image/jpeg', 0.96);
   });
-
-  // Tạo URL tạm thời (ObjectURL) cho UI xem trước ngay lập tức với 0MB RAM JavaScript Heap
-  const previewUrl = URL.createObjectURL(blob);
-
-  // Tạo Data URL nén nhẹ nhàng nếu caller yêu cầu (đã giảm từ 11.7MB xuống còn ~450KB - 750KB)
-  const shouldGenerateDataUrl = options?.generateDataUrl !== false;
-  const dataUrl = shouldGenerateDataUrl ? canvas.toDataURL('image/jpeg', targetQuality) : '';
-
-  // 7. Giải phóng triệt để RAM đồ họa GPU của Canvas ngay lập tức
-  try {
-    ctx.clearRect(0, 0, width, height);
-    canvas.width = 0;
-    canvas.height = 0;
-  } catch (_e) {}
+  const dataUrl = canvas.toDataURL('image/jpeg', 0.96);
 
   return {
     dataUrl,
     blob,
-    previewUrl,
     photoCode,
   };
 }

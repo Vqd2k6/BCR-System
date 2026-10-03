@@ -1,8 +1,8 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import L from 'leaflet';
 import { api } from '../../../../services/api';
-import { GisParcel, MutationPayloadData, CadastralParcelData, SplitChildData, MaxZoneCodeInfo } from '../../shared/types';
-import { computePolygonAreaM2, interpolatePoint, splitQuadHorizontal, splitQuadVertical } from '../../shared/geoMath';
+import { GisParcel, MutationPayloadData, CadastralParcelData, SplitChildData } from '../../shared/types';
+import { computePolygonAreaM2, interpolatePoint } from '../../shared/geoMath';
 
 interface UseCadastralMutationProps {
   activeParcelId: string;
@@ -252,7 +252,6 @@ export const useCadastralMutation = ({
   });
 
   const [dynamicCodes, setDynamicCodes] = useState<string[]>([]);
-  const [maxZoneInfo, setMaxZoneInfo] = useState<MaxZoneCodeInfo | null>(null);
   const [_isLoadingCodes, setIsLoadingCodes] = useState<boolean>(false);
   const [isSubmittingMutation, setIsSubmittingMutation] = useState<boolean>(false);
 
@@ -284,63 +283,43 @@ export const useCadastralMutation = ({
   }, [realActiveCoords]);
 
   const [polyAVertices, setPolyAVertices] = useState<[number, number][]>(() => {
-    if (mutationData.splitCustomPointsA && mutationData.splitCustomPointsA.length >= 3) {
+    if (mutationData.splitCustomPointsA && mutationData.splitCustomPointsA.length > 0) {
       return mutationData.splitCustomPointsA;
     }
     return [];
   });
 
-  // Tự động khởi tạo cả 2 đa giác A và B ngay khi mở tab Tách thửa để luôn nhìn thấy trên bản đồ
   useEffect(() => {
-    if (boundaryStatus === 'SPLIT' && polyAVertices.length < 3 && realActiveCoords.length >= 3) {
+    if (splitShapeOption === 'DRAG_HANDLES' && polyAVertices.length < 3) {
       const def = getDefaultPolygonA();
       setPolyAVertices(def);
-      const p0 = realActiveCoords[0];
-      const p1 = realActiveCoords[1];
-      const p2 = realActiveCoords[2];
-      const p3 = realActiveCoords[3] || realActiveCoords[2];
-      const cutL = def[3] || interpolatePoint(p0, p3, 0.6);
-      const cutR = def[2] || interpolatePoint(p1, p2, 0.6);
-      const polyB: [number, number][] = [cutL, cutR, p2, p3];
-
       onMutationDataChange({
         ...mutationData,
+        splitShapeOption: 'DRAG_HANDLES',
         splitCustomPointsA: def,
-        splitCustomPointsB: polyB,
       });
     }
-  }, [boundaryStatus, polyAVertices.length, realActiveCoords, getDefaultPolygonA]);
+  }, [splitShapeOption, getDefaultPolygonA]);
 
   useEffect(() => {
     let isMounted = true;
     const fetchCodes = async () => {
       try {
         setIsLoadingCodes(true);
-        const resolvedZone = parcel?.zoneId || (parcel as any)?.zone_id || parcelData.zoneId || 'ZONE_01';
-        const qParcel = (parcelData.id || activeParcelId) ? `&parcelId=${encodeURIComponent(parcelData.id || activeParcelId)}` : '';
-        const qZone = `&zoneId=${encodeURIComponent(resolvedZone)}`;
+        const qParcel = parcelData.id ? `&parcelId=${encodeURIComponent(parcelData.id)}` : '';
+        const qZone = parcelData.zoneId ? `&zoneId=${encodeURIComponent(parcelData.zoneId)}` : '';
         const res = await api.get(`/parcels/next-high-range-codes?count=4${qParcel}${qZone}`);
         if (isMounted && res.data?.success && res.data.data?.codes) {
           const codes = res.data.data.codes;
           setDynamicCodes(codes);
-          const zoneInfo: MaxZoneCodeInfo = {
-            currentMaxCode: res.data.data.currentMaxCode || '',
-            nextCode: res.data.data.nextCode || codes[0],
-            zoneId: res.data.data.zoneId || resolvedZone,
-            mechanism: res.data.data.mechanism || 'MAX_ZONE_PLUS_1',
-            description: res.data.data.description,
-          };
-          setMaxZoneInfo(zoneInfo);
 
           if (!mutationData.isSubmitted) {
             const currentChildren = mutationData.splitChildren || [];
             const isNewB = mutationData.residualKind === 'NEW_BUILDING';
-            const officialCodeB = zoneInfo.nextCode || codes[0] || `${parcelData.projectParcelCode}-B`;
-
             if (currentChildren.length === 0) {
               const initChildren: SplitChildData[] = [
                 {
-                  label: `Lô A (Đang KS - ${parcelData.projectParcelCode})`,
+                  label: `Căn A (Đang KS - ${parcelData.projectParcelCode})`,
                   houseNumber: parcelData.houseNumber,
                   ownerName: parcelData.ownerName || '',
                   suggestedCode: parcelData.projectParcelCode,
@@ -349,10 +328,10 @@ export const useCadastralMutation = ({
                   isResidualSurplus: false,
                 },
                 {
-                  label: isNewB ? `Lô B (Nhà mới độc lập - ${officialCodeB})` : 'Phần diện tích dôi dư (Đất thừa / Sân vườn)',
+                  label: isNewB ? 'Căn B (Nhà mới độc lập)' : 'Phần diện tích dôi dư (Đất thừa / Sân vườn)',
                   houseNumber: `${parcelData.houseNumber}B`,
-                  ownerName: isNewB ? 'Chủ hộ Lô B' : 'Chủ sở hữu phần đất dôi dư',
-                  suggestedCode: isNewB ? officialCodeB : `${parcelData.projectParcelCode}-DU`,
+                  ownerName: isNewB ? 'Chủ hộ Căn B' : 'Chủ sở hữu phần đất dôi dư',
+                  suggestedCode: isNewB ? (codes[0] || `${parcelData.projectParcelCode}-B`) : `${parcelData.projectParcelCode}-DU`,
                   areaM2: Math.round(totalLandArea * 0.4 * 10) / 10,
                   functionalType: isNewB ? 'Nhà ở gia đình (Nhà phố / Biệt thự / Căn hộ)' : 'RESIDUAL_SURPLUS',
                   residualKind: isNewB ? 'NEW_BUILDING' : 'NON_BUILDING',
@@ -377,7 +356,7 @@ export const useCadastralMutation = ({
                 }
                 return {
                   ...c,
-                  suggestedCode: isNewB ? (officialCodeB || c.suggestedCode) : `${parcelData.projectParcelCode}-DU`,
+                  suggestedCode: isNewB ? (codes[0] || c.suggestedCode || `${parcelData.projectParcelCode}-B`) : `${parcelData.projectParcelCode}-DU`,
                   residualKind: (isNewB ? 'NEW_BUILDING' : 'NON_BUILDING') as 'NON_BUILDING' | 'NEW_BUILDING',
                 };
               });
@@ -397,15 +376,7 @@ export const useCadastralMutation = ({
           `${prefix}${String(nextNum).padStart(padLen, '0')}`,
           `${prefix}${String(nextNum + 1).padStart(padLen, '0')}`,
         ];
-        if (isMounted) {
-          setDynamicCodes(fallbackCodes);
-          setMaxZoneInfo({
-            currentMaxCode: `${prefix}${String(nextNum - 1).padStart(padLen, '0')}`,
-            nextCode: fallbackCodes[0],
-            zoneId: parcelData.zoneId || 'ZONE_01',
-            mechanism: 'MAX_ZONE_PLUS_1',
-          });
-        }
+        if (isMounted) setDynamicCodes(fallbackCodes);
       } finally {
         if (isMounted) setIsLoadingCodes(false);
       }
@@ -415,7 +386,7 @@ export const useCadastralMutation = ({
     return () => {
       isMounted = false;
     };
-  }, [boundaryStatus, parcelData.projectParcelCode, parcelData.zoneId, parcel, activeParcelId]);
+  }, [boundaryStatus, parcelData.projectParcelCode]);
 
   const calculatedAreaA = useMemo(() => {
     if (polyAVertices.length < 3) {
@@ -546,24 +517,6 @@ export const useCadastralMutation = ({
     const lShape = getLShapePolygon();
     updateVerticesAndSync(lShape);
   };
-
-  const handleSplitHorizontal = (ratio: number = 0.6) => {
-    const { polyA } = splitQuadHorizontal(realActiveCoords, ratio);
-    updateVerticesAndSync(polyA);
-  };
-
-  const handleSplitVertical = (ratio: number = 0.5) => {
-    const { polyA } = splitQuadVertical(realActiveCoords, ratio);
-    updateVerticesAndSync(polyA);
-  };
-
-  const polyBVertices: [number, number][] = useMemo(() => {
-    if (mutationData.splitCustomPointsB && mutationData.splitCustomPointsB.length >= 3) {
-      return mutationData.splitCustomPointsB;
-    }
-    return computePolygonB(polyAVertices);
-  }, [mutationData.splitCustomPointsB, computePolygonB, polyAVertices]);
-
 
   const selectedMergeCodes: string[] = useMemo(() => {
     if (mutationData.selectedMergeCodes && Array.isArray(mutationData.selectedMergeCodes)) {
@@ -775,16 +728,6 @@ export const useCadastralMutation = ({
       mergeBuildingAreaM2: calculatedMergeBArea,
       mergeResidualAreaM2: calculatedMergeRArea,
       mergeResidualCustomPoints: realActiveCoords,
-      // Flat legacy compatibility fields
-      portionAAreaM2: calculatedAreaA,
-      portionBAreaM2: calculatedAreaB,
-      portionAPolygon: polyAVertices,
-      portionBPolygon: polyB,
-      splitType: isNewB ? 'NEW_BUILDING' : 'NON_BUILDING',
-      mergeWithParcelCodes: selectedMergeCodes,
-      finalMergedLandAreaM2: mergeSummary.totalMergedArea,
-      mergeBuildingPolygon: mergeBuildingVertices,
-      mergeResidualPolygon: realActiveCoords,
     };
 
     onMutationDataChange(updatedMutation);
@@ -826,11 +769,9 @@ export const useCadastralMutation = ({
     customMergeResidualType,
     setCustomMergeResidualType,
     dynamicCodes,
-    maxZoneInfo,
     isSubmittingMutation,
     polyAVertices,
     setPolyAVertices,
-    polyBVertices,
     calculatedAreaA,
     calculatedAreaB,
     handleVertexDrag,
@@ -839,8 +780,6 @@ export const useCadastralMutation = ({
     handleRemovePoint,
     handleResetDefault,
     handleApplyLShape,
-    handleSplitHorizontal,
-    handleSplitVertical,
     selectedMergeCodes,
     mergeSummary,
     handleToggleMergeParcel,

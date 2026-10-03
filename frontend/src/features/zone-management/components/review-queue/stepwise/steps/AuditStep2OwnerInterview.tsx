@@ -1,5 +1,5 @@
 import React from 'react';
-import { Layers, History, ShieldAlert, FileText, Maximize2, Sparkles, AlertCircle, Building, Ruler, Calendar } from 'lucide-react';
+import { Layers, History, ShieldAlert, FileText, Maximize2, Sparkles, AlertCircle, FileCheck, CheckCircle2 } from 'lucide-react';
 import {
   STRUCTURE_SYSTEMS,
   FOUNDATION_TYPES,
@@ -60,14 +60,9 @@ export const AuditStep2OwnerInterview: React.FC<Props> = ({
           <span className="px-2 py-0.5 rounded-lg bg-sky-600 text-white font-mono font-black text-xs">
             Bước 02
           </span>
-          <div>
-            <h3 className="text-sm sm:text-base font-black text-slate-800">
-              Kiến Trúc, Kết Cấu Chịu Lực, Nền Móng & Phỏng Vấn Chủ Hộ
-            </h3>
-            <p className="text-[11px] text-slate-500">
-              Đánh giá tải trọng, độ cứng uốn, phân loại CAT móng và tiền sử cộng hưởng hư hại
-            </p>
-          </div>
+          <h3 className="text-sm sm:text-base font-black text-slate-800">
+            Kết Cấu Chịu Lực, Giải Pháp Móng & 5 Câu Hỏi Phỏng Vấn Chủ Hộ
+          </h3>
         </div>
         <div className="flex items-center gap-2">
           <span className="px-2.5 py-1 rounded-xl text-xs font-black bg-emerald-100 text-emerald-800 border border-emerald-200">
@@ -81,137 +76,19 @@ export const AuditStep2OwnerInterview: React.FC<Props> = ({
       </div>
 
       <div className="p-5 space-y-6">
-        {/* 2.1. HÌNH HỌC QUY MÔ KIẾN TRÚC CÔNG TRÌNH */}
-        <div className="space-y-3">
-          <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-            <div className="flex items-center gap-1.5 text-xs font-black uppercase text-slate-800 tracking-wider">
-              <Building className="w-4 h-4 text-sky-600" />
-              <span>2.1. Hình Học Quy Mô Kiến Trúc Công Trình</span>
-            </div>
-            <span className="text-[11px] font-bold text-sky-700 bg-sky-50 px-2 py-0.5 rounded-md border border-sky-200">
-              Cơ sở tính tải trọng và độ cứng uốn
-            </span>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 text-xs">
-            {/* Số tầng nổi & ngầm */}
-            <div>
-              <label className="text-[11px] font-bold text-slate-500 uppercase block mb-1">
-                Số tầng (Nổi / Hầm) *
-              </label>
-              {isEditMode ? (
-                <div className="flex items-center gap-2">
-                  <input
-                    type="number"
-                    min={1}
-                    value={formState.aboveFloors ?? 1}
-                    onChange={(e) => handleFieldChange('aboveFloors', 'Tầng nổi', Number(e.target.value))}
-                    className="w-1/2 px-2.5 py-1.5 bg-amber-50/40 border border-slate-300 rounded-lg font-bold"
-                    placeholder="Nổi"
-                  />
-                  <input
-                    type="number"
-                    min={0}
-                    value={formState.undergroundFloors ?? 0}
-                    onChange={(e) => handleFieldChange('undergroundFloors', 'Tầng hầm', Number(e.target.value))}
-                    className="w-1/2 px-2.5 py-1.5 bg-amber-50/40 border border-slate-300 rounded-lg font-bold"
-                    placeholder="Hầm"
-                  />
-                </div>
-              ) : (
-                <div className="p-2 bg-slate-50 rounded-lg border border-slate-200 font-bold text-slate-800">
-                  {formState.aboveFloors || 1} tầng nổi {Number(formState.undergroundFloors) > 0 ? `+ ${formState.undergroundFloors} hầm` : ''}
-                </div>
-              )}
-            </div>
-
-            {/* Diện tích sàn xây dựng */}
-            <div>
-              <label className="text-[11px] font-bold text-slate-500 uppercase block mb-1">
-                Diện tích sàn xây dựng (m²) *
-              </label>
-              {isEditMode ? (
-                <input
-                  type="number"
-                  step="any"
-                  min={0}
-                  value={formState.constructionAreaM2 ?? ''}
-                  onChange={(e) => handleFieldChange('constructionAreaM2', 'Diện tích sàn XD', e.target.value ? Number(e.target.value) : '')}
-                  placeholder="VD: 120.5"
-                  className="w-full px-2.5 py-1.5 bg-amber-50/40 border border-slate-300 rounded-lg font-bold font-mono"
-                />
-              ) : (
-                <div className="p-2 bg-slate-50 rounded-lg border border-slate-200 font-bold text-slate-800 font-mono">
-                  {formState.constructionAreaM2 ? `${formState.constructionAreaM2} m²` : '---'}
-                </div>
-              )}
-            </div>
-
-            {/* Chiều cao công trình */}
-            <div>
-              <label className="text-[11px] font-bold text-slate-500 uppercase block mb-1">
-                Chiều cao công trình (m) *
-              </label>
-              {isEditMode ? (
-                <input
-                  type="number"
-                  step="any"
-                  min={0}
-                  value={formState.buildingHeightM ?? ''}
-                  onChange={(e) => handleFieldChange('buildingHeightM', 'Chiều cao công trình', e.target.value ? Number(e.target.value) : '')}
-                  placeholder="VD: 12.8"
-                  className="w-full px-2.5 py-1.5 bg-amber-50/40 border border-slate-300 rounded-lg font-bold font-mono"
-                />
-              ) : (
-                <div className="p-2 bg-slate-50 rounded-lg border border-slate-200 font-bold text-slate-800 font-mono">
-                  {formState.buildingHeightM ? `${formState.buildingHeightM} m` : '---'}
-                </div>
-              )}
-            </div>
-
-            {/* Năm xây dựng */}
-            <div>
-              <label className="text-[11px] font-bold text-slate-500 uppercase block mb-1">
-                Năm xây dựng / Tuổi thọ
-              </label>
-              {isEditMode ? (
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    value={formState.constructionYear || ''}
-                    onChange={(e) => handleFieldChange('constructionYear', 'Năm xây dựng', e.target.value)}
-                    placeholder="VD: 2015"
-                    className="w-2/3 px-2 py-1.5 bg-amber-50/40 border border-slate-300 rounded-lg font-bold font-mono"
-                  />
-                  <label className="flex items-center gap-1 text-[10px] text-slate-600 font-semibold cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      checked={Boolean(formState.isEstimatedYear)}
-                      onChange={(e) => handleFieldChange('isEstimatedYear', 'Năm ước lượng', e.target.checked)}
-                      className="rounded text-sky-600"
-                    />
-                    <span>Ước lượng</span>
-                  </label>
-                </div>
-              ) : (
-                <div className="p-2 bg-slate-50 rounded-lg border border-slate-200 font-bold text-slate-800">
-                  {formState.constructionYear || '---'} {formState.isEstimatedYear ? '(Ước lượng)' : ''}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* 2.2. HỆ KẾT CẤU CHỊU LỰC, NỀN MÓNG & BẢN VẼ HOÀN CÔNG */}
-        <div className="space-y-4 pt-3 border-t border-slate-100">
+        {/* 2.1. Khảo sát kiến trúc & kết cấu nền móng */}
+        <div className="space-y-4">
           <div className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center justify-between pb-2 border-b border-slate-100">
             <div className="flex items-center gap-1.5">
               <Layers className="w-4 h-4 text-emerald-600" />
-              <span>2.2. Hệ Kết Cấu Chịu Lực, Chi Tiết Nền Móng & Bản Vẽ Hoàn Công</span>
+              <span>2.1. Khảo Sát Kiến Trúc, Kết Cấu Nền Móng & Bản Vẽ Hoàn Công</span>
             </div>
-            <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-lg">
-              Phân loại CAT {catScore}/5
-            </span>
+            {isResonance && (
+              <span className="text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-lg flex items-center gap-1">
+                <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
+                Cảnh báo cộng hưởng hư hại quá khứ
+              </span>
+            )}
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
@@ -299,7 +176,7 @@ export const AuditStep2OwnerInterview: React.FC<Props> = ({
           <div className="p-3.5 bg-slate-50/80 rounded-xl border border-slate-200 grid grid-cols-1 sm:grid-cols-4 gap-3">
             <div>
               <label className="text-[11px] font-bold text-slate-500 uppercase block mb-1">
-                Chiều sâu đáy móng (m)
+                Chiều sâu móng (m)
               </label>
               {isEditMode ? (
                 <input
@@ -307,11 +184,11 @@ export const AuditStep2OwnerInterview: React.FC<Props> = ({
                   step="0.1"
                   value={formState.foundationDepthM ?? ''}
                   onChange={(e) => handleFieldChange('foundationDepthM', 'Chiều sâu móng', e.target.value ? Number(e.target.value) : '')}
-                  className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-bold font-mono"
+                  className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-bold"
                   placeholder="VD: 2.5"
                 />
               ) : (
-                <div className="text-xs font-bold text-slate-800 font-mono">
+                <div className="text-xs font-bold text-slate-800">
                   {formState.foundationDepthM ? `${formState.foundationDepthM} m` : 'Không xác định'}
                 </div>
               )}
@@ -324,14 +201,14 @@ export const AuditStep2OwnerInterview: React.FC<Props> = ({
               {isEditMode ? (
                 <input
                   type="text"
-                  value={formState.pileDimensionMm || formState.pileDimensions || ''}
+                  value={formState.pileDimensionMm || ''}
                   onChange={(e) => handleFieldChange('pileDimensionMm', 'Kích thước cọc/móng', e.target.value)}
-                  className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-bold font-mono"
-                  placeholder="VD: 250x250 mm hoặc D600"
+                  className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-bold"
+                  placeholder="VD: 25 x 25 cm hoặc D60 cm"
                 />
               ) : (
-                <div className="text-xs font-bold text-slate-800 font-mono">
-                  {formState.pileDimensionMm || formState.pileDimensions || (formState.pileWidthMm && formState.pileLengthMm ? `${formState.pileWidthMm}x${formState.pileLengthMm} mm` : '---')}
+                <div className="text-xs font-bold text-slate-800">
+                  {formState.pileDimensionMm || '---'}
                 </div>
               )}
             </div>
@@ -346,11 +223,11 @@ export const AuditStep2OwnerInterview: React.FC<Props> = ({
                   step="0.01"
                   value={formState.foundationDensity ?? ''}
                   onChange={(e) => handleFieldChange('foundationDensity', 'Mật độ móng', e.target.value ? Number(e.target.value) : '')}
-                  className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-bold font-mono"
+                  className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-bold"
                   placeholder="VD: 0.15"
                 />
               ) : (
-                <div className="text-xs font-bold text-slate-800 font-mono">
+                <div className="text-xs font-bold text-slate-800">
                   {formState.foundationDensity ? `${formState.foundationDensity} SL/m²` : '---'}
                 </div>
               )}
@@ -366,11 +243,11 @@ export const AuditStep2OwnerInterview: React.FC<Props> = ({
                   step="0.1"
                   value={formState.foundationSpacingM ?? ''}
                   onChange={(e) => handleFieldChange('foundationSpacingM', 'Khoảng cách giữa móng', e.target.value ? Number(e.target.value) : '')}
-                  className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-bold font-mono"
+                  className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-bold"
                   placeholder="VD: 3.2"
                 />
               ) : (
-                <div className="text-xs font-bold text-slate-800 font-mono">
+                <div className="text-xs font-bold text-slate-800">
                   {formState.foundationSpacingM ? `${formState.foundationSpacingM} m` : '---'}
                 </div>
               )}
@@ -451,55 +328,36 @@ export const AuditStep2OwnerInterview: React.FC<Props> = ({
           </div>
         </div>
 
-        {/* 2.3. LỊCH SỬ CẢI TẠO & 5 CÂU HỎI PHỎNG VẤN CHUẨN HÓA (ĐIỂM E5 RESONANCE) */}
+        {/* 2.2. 5 Câu hỏi phỏng vấn chuẩn hóa & Ghi chú lời khai gia chủ */}
         <div className="space-y-4 pt-4 border-t border-slate-100">
           <div className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center justify-between pb-2 border-b border-slate-100">
             <div className="flex items-center gap-1.5">
               <History className="w-4 h-4 text-sky-600" />
-              <span>2.3. Lịch Sử Sửa Chữa & Biến Dạng Quá Khứ (Điểm E5 Resonance)</span>
+              <span>2.2. Lịch Sử Sửa Chữa & Biến Dạng Quá Khứ (Điểm E5 Resonance)</span>
             </div>
-            {isResonance && (
-              <span className="text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-lg flex items-center gap-1">
-                <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
-                Cảnh báo cộng hưởng hư hại quá khứ
-              </span>
-            )}
+            <span className="text-[11px] font-bold text-slate-600">
+              Tình trạng sử dụng: <strong className="text-slate-900">{hi.usageStatus || 'Đầy đủ'}</strong>
+            </span>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
             {/* 1. Cơi nới tải trọng */}
             <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-2">
-              <div className="flex items-center justify-between">
-                <label className="text-[11px] font-bold text-slate-700 block">
-                  1. Cơi nới / Thay đổi tải trọng
-                </label>
-                {hi.renovationYear && (
-                  <span className="text-[10px] font-bold text-slate-500 bg-white px-1.5 py-0.5 rounded border border-slate-200">
-                    Năm: {hi.renovationYear}
-                  </span>
-                )}
-              </div>
+              <label className="text-[11px] font-bold text-slate-700 block">
+                1. Cơi nới / Thay đổi tải trọng
+              </label>
               {isEditMode ? (
-                <div className="space-y-1.5">
-                  <select
-                    value={hi.renovationLoad ?? 0}
-                    onChange={(e) => handleNestedFieldChange('historyInterview', 'renovationLoad', 'Cơi nới tải trọng', Number(e.target.value))}
-                    className="w-full p-1.5 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-800"
-                  >
-                    {RENOVATION_OPTIONS.map((opt: any) => (
-                      <option key={opt.score} value={opt.score}>
-                        {opt.score}đ - {opt.label}
-                      </option>
-                    ))}
-                  </select>
-                  <input
-                    type="text"
-                    value={hi.renovationYear || ''}
-                    onChange={(e) => handleNestedFieldChange('historyInterview', 'renovationYear', 'Năm cơi nới', e.target.value)}
-                    placeholder="Năm thực hiện (VD: 2020)..."
-                    className="w-full p-1 text-xs border border-slate-300 rounded font-mono"
-                  />
-                </div>
+                <select
+                  value={hi.renovationLoad ?? 0}
+                  onChange={(e) => handleNestedFieldChange('historyInterview', 'renovationLoad', 'Cơi nới tải trọng', Number(e.target.value))}
+                  className="w-full p-1.5 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-800"
+                >
+                  {RENOVATION_OPTIONS.map((opt: any) => (
+                    <option key={opt.score} value={opt.score}>
+                      {opt.score}đ - {opt.label}
+                    </option>
+                  ))}
+                </select>
               ) : (
                 <div className="text-xs font-bold text-slate-800">
                   {RENOVATION_OPTIONS.find((o: any) => o.score === hi.renovationLoad)?.label || 'Không cơi nới'}
@@ -524,37 +382,21 @@ export const AuditStep2OwnerInterview: React.FC<Props> = ({
 
             {/* 2. Sửa chữa lớn */}
             <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-2">
-              <div className="flex items-center justify-between">
-                <label className="text-[11px] font-bold text-slate-700 block">
-                  2. Sửa chữa lớn / Cải tạo kết cấu
-                </label>
-                {hi.majorRepairYear && (
-                  <span className="text-[10px] font-bold text-slate-500 bg-white px-1.5 py-0.5 rounded border border-slate-200">
-                    Năm: {hi.majorRepairYear}
-                  </span>
-                )}
-              </div>
+              <label className="text-[11px] font-bold text-slate-700 block">
+                2. Sửa chữa lớn / Cải tạo kết cấu
+              </label>
               {isEditMode ? (
-                <div className="space-y-1.5">
-                  <select
-                    value={hi.majorRepair ?? 0}
-                    onChange={(e) => handleNestedFieldChange('historyInterview', 'majorRepair', 'Sửa chữa lớn', Number(e.target.value))}
-                    className="w-full p-1.5 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-800"
-                  >
-                    {MAJOR_REPAIR_OPTIONS.map((opt: any) => (
-                      <option key={opt.score} value={opt.score}>
-                        {opt.score}đ - {opt.label}
-                      </option>
-                    ))}
-                  </select>
-                  <input
-                    type="text"
-                    value={hi.majorRepairYear || ''}
-                    onChange={(e) => handleNestedFieldChange('historyInterview', 'majorRepairYear', 'Năm sửa chữa', e.target.value)}
-                    placeholder="Năm sửa chữa (VD: 2018)..."
-                    className="w-full p-1 text-xs border border-slate-300 rounded font-mono"
-                  />
-                </div>
+                <select
+                  value={hi.majorRepair ?? 0}
+                  onChange={(e) => handleNestedFieldChange('historyInterview', 'majorRepair', 'Sửa chữa lớn', Number(e.target.value))}
+                  className="w-full p-1.5 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-800"
+                >
+                  {MAJOR_REPAIR_OPTIONS.map((opt: any) => (
+                    <option key={opt.score} value={opt.score}>
+                      {opt.score}đ - {opt.label}
+                    </option>
+                  ))}
+                </select>
               ) : (
                 <div className="text-xs font-bold text-slate-800">
                   {MAJOR_REPAIR_OPTIONS.find((o: any) => o.score === hi.majorRepair)?.label || 'Không sửa chữa lớn'}
@@ -716,3 +558,4 @@ export const AuditStep2OwnerInterview: React.FC<Props> = ({
     </section>
   );
 };
+

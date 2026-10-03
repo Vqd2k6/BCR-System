@@ -28,18 +28,10 @@ export class ScoringController {
         );
       }
 
-      const engineerName =
-        (req as any).user?.fullName ||
-        (req as any).user?.username ||
-        parsed.data.engineerName ||
-        'Kỹ Sư Trưởng Zone Admin';
-
       const result = await ScoringService.applyEngineeringJudgement(
         id,
         parsed.data.action,
-        parsed.data.reason,
-        engineerName,
-        parsed.data.overrides
+        parsed.data.reason
       );
       res.status(200).json({
         success: true,

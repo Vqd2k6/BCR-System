@@ -162,8 +162,6 @@ export interface ResidentialReportViewModel {
   chainage: string;
   distanceToTunnelMeters: number;
   clearanceOffsetDistanceM?: string;
-  hasStationEdge?: boolean;
-  stationNote?: string;
   metroItemType: string;
   isTbm?: boolean;
   isStation?: boolean;
@@ -352,8 +350,6 @@ export interface ResidentialReportViewModel {
   ecsJudgementApplied: boolean;
   ecsJudgementAction: string;
   ecsJudgementReason: string;
-  judgementEngineerName?: string;
-  judgementAppliedAt?: string;
   qualityGates: QualityGateItemReport[];
   gateDecisionStatus?: string;
   gateDecisionLabel?: string;

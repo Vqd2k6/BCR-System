@@ -53,14 +53,6 @@ export interface SplitChildData {
   coordinates?: [number, number][]; // Tọa độ đa giác riêng của lô đất con
 }
 
-export interface MaxZoneCodeInfo {
-  currentMaxCode: string;
-  nextCode: string;
-  zoneId: string;
-  mechanism: string;
-  description?: string;
-}
-
 export interface MutationPayloadData {
   splitReason: string;
   splitCount: number;
@@ -84,16 +76,6 @@ export interface MutationPayloadData {
   mergeBuildingCustomPoints?: [number, number][];
   mergeResidualCustomPoints?: [number, number][]; // Tọa độ đa giác phần đất dư ngoài công trình
   activeProposalType?: 'MATCH' | 'SPLIT' | 'MERGE' | null;
-  // Flat legacy compatibility fields
-  portionAAreaM2?: number;
-  portionBAreaM2?: number;
-  portionAPolygon?: [number, number][];
-  portionBPolygon?: [number, number][];
-  splitType?: 'NON_BUILDING' | 'NEW_BUILDING' | string;
-  mergeWithParcelCodes?: string[];
-  finalMergedLandAreaM2?: number;
-  mergeBuildingPolygon?: [number, number][];
-  mergeResidualPolygon?: [number, number][];
   isSubmitted?: boolean;
   submittedAt?: string;
   matchConfirmed?: boolean;

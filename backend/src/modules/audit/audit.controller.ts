@@ -178,20 +178,4 @@ export class AuditController {
       next(error);
     }
   }
-
-  static async searchSwapCandidates(req: Request, res: Response, next: NextFunction) {
-    try {
-      const zoneId = req.query.zoneId as string | undefined;
-      const excludeReportId = req.query.excludeReportId as string | undefined;
-      const search = req.query.search as string | undefined;
-      const results = await AuditService.searchSwapCandidates(zoneId, excludeReportId, search);
-      res.status(200).json({
-        success: true,
-        data: results,
-      });
-    } catch (error) {
-      next(error);
-    }
-  }
 }
-

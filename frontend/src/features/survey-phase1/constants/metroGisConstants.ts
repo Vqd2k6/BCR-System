@@ -41,13 +41,9 @@ export interface MetroZoneConfig {
   rawParcelCount?: number;
 }
 
-// 1. Mép Hố Đào Tả Tuyến & Hữu Tuyến (File gốc CAD/KML)
-export const METRO_CORRIDOR_BOUNDARIES: MetroCorridorBoundary[] = (
-  (rawBoundaryData.corridorBoundaries as any[]) || []
-).map((b) => ({
-  ...b,
-  name: (b.name || '').replace(/Ranh Giải Phóng Mặt Bằng/gi, 'Mép Hố Đào'),
-}));
+// 1. Ranh Giải Phóng Mặt Bằng Tả Tuyến & Hữu Tuyến (File gốc CAD/KML)
+export const METRO_CORRIDOR_BOUNDARIES: MetroCorridorBoundary[] =
+  (rawBoundaryData.corridorBoundaries as any[]) || [];
 
 // 2. Các Hộp Ga Metro (11 Hộp Ga vẽ theo CAD chuẩn của Ban QLDA ĐSĐT MAUR)
 export const METRO_STATION_POLYGONS: MetroStationPolygon[] =

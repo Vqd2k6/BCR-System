@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import {
   MapPin,
   ShieldCheck,
@@ -13,12 +13,9 @@ import {
   FileText,
   Image as ImageIcon,
   Edit3,
-  Ruler,
-  Layers,
 } from 'lucide-react';
 import { AdminGisMutationModal } from '../../AdminGisMutationModal';
 import { AdminReassignParcelModal } from '../../AdminReassignParcelModal';
-import { AuditCadastralMutationVisualMap } from '../components/AuditCadastralMutationVisualMap';
 
 interface Props {
   isEditMode: boolean;
@@ -69,39 +66,6 @@ export const AuditStep6ScopeGisMutation: React.FC<Props> = ({
   const mutation = formState.gisMutationConfirmed || {};
   const floors = formState.floors || [];
   const coords = formState.gpsLocation || formState.coordinates || {};
-
-  // Kích thước hình học thửa đất
-  const frontageWidth = formState.frontageWidth ?? data?.buildingSpecs?.frontageWidth ?? (data?.activeParcel as any)?.frontage_width;
-  const lotDepth = formState.lotDepth ?? data?.buildingSpecs?.lotDepth ?? (data?.activeParcel as any)?.lot_depth;
-  const landAreaM2 = formState.landAreaM2 ?? formState.landArea ?? data?.buildingSpecs?.landAreaM2 ?? (data?.activeParcel as any)?.land_area_m2;
-  const mutationDetails = mutation.details || {};
-  const splitChildren = Array.isArray(mutationDetails.splitChildren) ? mutationDetails.splitChildren : [];
-  const selectedMergeCodes = Array.isArray(mutationDetails.selectedMergeCodes) ? mutationDetails.selectedMergeCodes : [];
-
-  // Trích xuất tọa độ Polygon thửa đất (từ formState, surveyJson hoặc PostGIS GeoJSON)
-  const parcelCoords = useMemo<[number, number][]>(() => {
-    if (Array.isArray(formState.parcelCoordinates) && formState.parcelCoordinates.length >= 3) {
-      return formState.parcelCoordinates;
-    }
-    if (Array.isArray(data?.coordinates) && data.coordinates.length >= 3) {
-      return data.coordinates;
-    }
-    if (Array.isArray(data?.parcelCoordinates) && data.parcelCoordinates.length >= 3) {
-      return data.parcelCoordinates;
-    }
-    const rawGeojson = data?.cadastralGeojson || data?.cadastral_geojson;
-    if (rawGeojson) {
-      try {
-        const parsed = typeof rawGeojson === 'string' ? JSON.parse(rawGeojson) : rawGeojson;
-        if (parsed.type === 'Polygon' && Array.isArray(parsed.coordinates?.[0])) {
-          return parsed.coordinates[0].map(([lng, lat]: [number, number]) => [lat, lng]);
-        }
-      } catch (e) {
-        console.warn('Failed to parse cadastralGeojson in AuditStep6:', e);
-      }
-    }
-    return [];
-  }, [formState.parcelCoordinates, data?.coordinates, data?.parcelCoordinates, data?.cadastralGeojson, data?.cadastral_geojson]);
 
   // Tính khoảng cách tim hầm Metro
   const metroDistance = formState.metroDistanceM ?? formState.distanceToMetroCenterlineM ?? 15.2;
@@ -340,90 +304,13 @@ export const AuditStep6ScopeGisMutation: React.FC<Props> = ({
           </div>
         </div>
 
-        {/* 6.3. Kích thước hình học & diện tích thửa đất */}
-        <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Ruler className="w-4 h-4 text-emerald-600" />
-              <span className="text-xs font-black uppercase tracking-wider text-slate-800">
-                6.3. Kích Thước Hình Học & Diện Tích Thửa Đất Địa Chính
-              </span>
-            </div>
-            <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
-              Đối chiếu hồ sơ trắc địa
-            </span>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-            <div className="p-3 bg-white rounded-xl border border-slate-200">
-              <span className="text-[10px] font-bold text-slate-500 uppercase block mb-1">
-                Chiều Rộng Mặt Tiền (m)
-              </span>
-              {isEditMode ? (
-                <input
-                  type="number"
-                  step="0.01"
-                  value={formState.frontageWidth ?? ''}
-                  onChange={(e) => handleFieldChange && handleFieldChange('frontageWidth', 'Mặt tiền thửa', e.target.value ? Number(e.target.value) : '')}
-                  placeholder="VD: 4.5"
-                  className="w-full p-1.5 bg-amber-50/40 border border-slate-300 rounded font-mono font-bold"
-                />
-              ) : (
-                <div className="font-mono font-black text-sm text-slate-800">
-                  {frontageWidth ? `${frontageWidth} m` : '---'}
-                </div>
-              )}
-            </div>
-
-            <div className="p-3 bg-white rounded-xl border border-slate-200">
-              <span className="text-[10px] font-bold text-slate-500 uppercase block mb-1">
-                Chiều Sâu Thửa Đất (m)
-              </span>
-              {isEditMode ? (
-                <input
-                  type="number"
-                  step="0.01"
-                  value={formState.lotDepth ?? ''}
-                  onChange={(e) => handleFieldChange && handleFieldChange('lotDepth', 'Chiều sâu thửa', e.target.value ? Number(e.target.value) : '')}
-                  placeholder="VD: 18.2"
-                  className="w-full p-1.5 bg-amber-50/40 border border-slate-300 rounded font-mono font-bold"
-                />
-              ) : (
-                <div className="font-mono font-black text-sm text-slate-800">
-                  {lotDepth ? `${lotDepth} m` : '---'}
-                </div>
-              )}
-            </div>
-
-            <div className="p-3 bg-white rounded-xl border border-slate-200">
-              <span className="text-[10px] font-bold text-slate-500 uppercase block mb-1">
-                Diện Tích Khuôn Viên Đất (m²)
-              </span>
-              {isEditMode ? (
-                <input
-                  type="number"
-                  step="0.01"
-                  value={formState.landAreaM2 ?? ''}
-                  onChange={(e) => handleFieldChange && handleFieldChange('landAreaM2', 'Diện tích đất', e.target.value ? Number(e.target.value) : '')}
-                  placeholder="VD: 81.9"
-                  className="w-full p-1.5 bg-amber-50/40 border border-slate-300 rounded font-mono font-bold text-emerald-800"
-                />
-              ) : (
-                <div className="font-mono font-black text-sm text-emerald-700">
-                  {landAreaM2 ? `${landAreaM2} m²` : '---'}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* 6.4. Tọa độ GPS & Cự ly tim hầm Metro */}
+        {/* 6.3. Tọa độ GPS & Cự ly tim hầm Metro */}
         <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3.5">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Navigation className="w-4 h-4 text-sky-600" />
               <span className="text-xs font-black uppercase tracking-wider text-slate-800">
-                6.4. Tọa Độ GPS Thực Địa & Cự Ly Tim Hầm Metro 2
+                6.3. Tọa Độ GPS Thực Địa & Cự Ly Tim Hầm Metro 2
               </span>
             </div>
             <span className={`text-[11px] font-bold px-2.5 py-1 rounded-lg border ${riskBadge.color}`}>
@@ -488,13 +375,13 @@ export const AuditStep6ScopeGisMutation: React.FC<Props> = ({
           </div>
         </div>
 
-        {/* 6.5. Biến động thửa đất GIS */}
-        <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3.5">
-          <div className="flex items-center justify-between flex-wrap gap-2">
+        {/* 6.4. Biến động thửa đất GIS */}
+        <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
+          <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <MapPin className="w-4 h-4 text-blue-600" />
               <span className="text-xs font-black uppercase tracking-wider text-slate-800">
-                6.5. Tình Trạng Biến Động Ranh Thửa Thực Địa & Bản Đồ Đa Giác GIS
+                6.4. Tình Trạng Biến Động Ranh Thửa Thực Địa
               </span>
             </div>
             <span className="text-xs font-bold px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-200">
@@ -505,23 +392,6 @@ export const AuditStep6ScopeGisMutation: React.FC<Props> = ({
                 : 'Nguyên Trạng (Khớp ranh)'}
             </span>
           </div>
-
-          {/* Bản đồ trực quan đa giác ranh thửa đất (Khớp ranh, Tách căn A/B, Gộp khuôn viên) */}
-          <AuditCadastralMutationVisualMap
-            parcelCoordinates={parcelCoords}
-            projectParcelCode={data?.projectParcelCode || formState.projectParcelCode}
-            mutationType={mutation.type || 'MATCH'}
-            mutationDetails={mutation.details || {}}
-            landAreaM2={landAreaM2}
-            frontageWidth={frontageWidth}
-            lotDepth={lotDepth}
-            gpsLocation={{
-              lat: Number(coords.lat || coords.latitude || 10.79241),
-              lng: Number(coords.lng || coords.longitude || 106.71152),
-              accuracy: coords.accuracy,
-            }}
-            onOpenEditorModal={() => setIsMutationModalOpen(true)}
-          />
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
             <div className="p-3 bg-white rounded-xl border border-slate-200">
@@ -544,45 +414,6 @@ export const AuditStep6ScopeGisMutation: React.FC<Props> = ({
                 {mutation.surveyorNotes || mutation.adminNotes || 'Không có ghi nhận biến động đặc biệt từ khảo sát viên.'}
               </p>
             </div>
-
-            {/* Chi tiết các thửa con đề xuất nếu đã Tách thửa */}
-            {mutation.type === 'SPLIT' && splitChildren.length > 0 && (
-              <div className="col-span-full p-3 bg-white rounded-xl border border-blue-200 space-y-2">
-                <span className="text-[11px] font-bold text-blue-900 block uppercase">
-                  Danh Sách Các Thửa Con Tách Đề Xuất ({splitChildren.length} căn):
-                </span>
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
-                  {splitChildren.map((child: any, cIdx: number) => (
-                    <div key={cIdx} className="p-2 bg-blue-50/60 rounded-lg border border-blue-200 text-xs space-y-0.5">
-                      <div className="font-mono font-black text-blue-950">
-                        {child.parcelCode || child.code || `Căn ${cIdx === 0 ? 'A' : 'B'}`}
-                      </div>
-                      <div className="text-slate-700">
-                        DT: <strong>{child.landAreaM2 || child.areaM2 || '---'} m²</strong>
-                      </div>
-                      <div className="text-[11px] text-slate-500">
-                        Chủ: {child.ownerName || 'Chưa định danh'}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Chi tiết thửa gộp đề xuất nếu đã Gộp thửa */}
-            {mutation.type === 'MERGE' && (
-              <div className="col-span-full p-3 bg-white rounded-xl border border-blue-200 space-y-2">
-                <span className="text-[11px] font-bold text-blue-900 block uppercase">
-                  Chi Tiết Hồ Sơ Gộp Thửa:
-                </span>
-                <div className="text-xs text-slate-700 space-y-1">
-                  <div>Mã thửa đích gộp: <strong className="font-mono text-blue-800">{mutationDetails.mergeTargetCode || 'Chưa chọn'}</strong></div>
-                  {selectedMergeCodes.length > 0 && (
-                    <div>Các thửa cùng khuôn viên: <strong className="font-mono text-slate-800">{selectedMergeCodes.join(', ')}</strong></div>
-                  )}
-                </div>
-              </div>
-            )}
           </div>
         </div>
       </div>
@@ -598,10 +429,7 @@ export const AuditStep6ScopeGisMutation: React.FC<Props> = ({
           currentAreaM2={data?.buildingSpecs?.landAreaM2 || formState.landAreaM2}
           reportId={reportId || data?.reportId}
           onClose={() => setIsMutationModalOpen(false)}
-          onSuccess={(msg: string) => {
-            showToast(msg);
-            if (onRefresh) onRefresh();
-          }}
+          onSuccess={(msg: string) => showToast(msg)}
         />
       )}
 
@@ -616,10 +444,7 @@ export const AuditStep6ScopeGisMutation: React.FC<Props> = ({
           currentStreet={data?.street || formState.street}
           surveyorName={data?.surveyorName || formState.surveyorName}
           onClose={() => setIsReassignModalOpen(false)}
-          onSuccess={(msg: string) => {
-            showToast(msg);
-            if (onRefresh) onRefresh();
-          }}
+          onSuccess={(msg: string) => showToast(msg)}
         />
       )}
     </section>

@@ -377,49 +377,44 @@ export class CadastralRepository {
   }
 
   /**
-   * Cấp mã tiếp theo cho thửa đất phát sinh (Nối tiếp Max của chính Zone đó và theo tiền tố của thửa cha)
+   * Cấp mã tiếp theo cho thửa đất phát sinh (Phương án 1: Nối tiếp Max của chính Zone đó)
    */
   static async getNextHighRangeProjectCode(
     client: PoolClient,
     zoneId?: string,
     parentCode?: string
   ): Promise<string> {
-    let prefix = 'B-';
-    let padLen = 4;
-    let nextNum = 1;
-
-    let parentPrefix = '';
-    if (parentCode) {
-      const match = parentCode.match(/^(.*?)(\d+)/);
-      if (match) {
-        parentPrefix = match[1];
-        prefix = match[1];
-        padLen = Math.max(match[2].length, 4);
-        nextNum = parseInt(match[2], 10) + 1;
-      }
-    }
-
-    let query = `SELECT project_parcel_code FROM parcels WHERE 1=1`;
+    let query = `
+      SELECT project_parcel_code
+      FROM parcels
+    `;
     const params: any[] = [];
     if (zoneId) {
+      query += ` WHERE zone_id = $1 `;
       params.push(zoneId);
-      query += ` AND zone_id = $${params.length}`;
-    }
-    if (parentPrefix) {
-      params.push(`${parentPrefix}%`);
-      query += ` AND project_parcel_code LIKE $${params.length}`;
     }
     query += `
-      ORDER BY substring(project_parcel_code from '[0-9]+$')::integer DESC NULLS LAST
+      ORDER BY substring(project_parcel_code from '[0-9]+$')::integer DESC
       LIMIT 1
       FOR UPDATE;
     `;
 
     const res = await client.query<{ project_parcel_code: string }>(query, params);
 
+    let prefix = 'B-';
+    let padLen = 4;
+    let nextNum = 1;
+
     if (res.rows.length > 0 && res.rows[0].project_parcel_code) {
       const maxCode = res.rows[0].project_parcel_code;
       const match = maxCode.match(/^(.*?)(\d+)$/);
+      if (match) {
+        prefix = match[1];
+        padLen = Math.max(match[2].length, 4);
+        nextNum = parseInt(match[2], 10) + 1;
+      }
+    } else if (parentCode) {
+      const match = parentCode.match(/^(.*?)(\d+)$/);
       if (match) {
         prefix = match[1];
         padLen = Math.max(match[2].length, 4);
@@ -521,92 +516,20 @@ export class CadastralRepository {
       orderBy = 'distance_to_surveyor_meters ASC NULLS LAST, p.created_at DESC';
     }
 
-    try {
-      const res = await Database.query<ParcelEntity>(
-        `SELECT p.*,
-                ST_AsGeoJSON(p.location_geom)::json AS location_geojson,
-                ST_AsGeoJSON(p.cadastral_polygon_geom)::json AS cadastral_geojson,
-                ST_AsGeoJSON(p.footprint_polygon_geom)::json AS footprint_geojson,
-                ${distanceSelect}
-         FROM parcels p
-         WHERE (
-           p.assigned_surveyor_id = $1
-           OR EXISTS (
-             SELECT 1 FROM task_assignments ta
-             WHERE ta.parcel_id = p.id AND ta.surveyor_id = $1
-           )
-           OR EXISTS (
-             SELECT 1 FROM base_survey_reports r
-             WHERE r.parcel_id = p.id AND r.surveyor_id = $1
-           )
-         )
-           AND p.lifecycle_status = 'ACTIVE'
-           AND p.survey_status IN ('NOT_SURVEYED', 'IN_PROGRESS', 'POSTPONED_ABSENT')
-         ORDER BY ${orderBy};`,
-        params
-      );
-      return res.rows;
-    } catch (err: any) {
-      if (err?.code === '42703' || String(err?.message || '').includes('assigned_surveyor_id')) {
-        console.warn('⚠️ [CadastralRepository.getMyAssignedParcels] Missing assigned_surveyor_id column. Executing auto-heal migration...');
-        try {
-          await Database.query(`
-            ALTER TABLE parcels ADD COLUMN IF NOT EXISTS assigned_surveyor_id UUID REFERENCES users(id);
-            CREATE INDEX IF NOT EXISTS idx_parcels_assigned_surveyor ON parcels(assigned_surveyor_id);
-          `);
-          const retryRes = await Database.query<ParcelEntity>(
-            `SELECT p.*,
-                    ST_AsGeoJSON(p.location_geom)::json AS location_geojson,
-                    ST_AsGeoJSON(p.cadastral_polygon_geom)::json AS cadastral_geojson,
-                    ST_AsGeoJSON(p.footprint_polygon_geom)::json AS footprint_geojson,
-                    ${distanceSelect}
-             FROM parcels p
-             WHERE (
-               p.assigned_surveyor_id = $1
-               OR EXISTS (
-                 SELECT 1 FROM task_assignments ta
-                 WHERE ta.parcel_id = p.id AND ta.surveyor_id = $1
-               )
-               OR EXISTS (
-                 SELECT 1 FROM base_survey_reports r
-                 WHERE r.parcel_id = p.id AND r.surveyor_id = $1
-               )
-             )
-               AND p.lifecycle_status = 'ACTIVE'
-               AND p.survey_status IN ('NOT_SURVEYED', 'IN_PROGRESS', 'POSTPONED_ABSENT')
-             ORDER BY ${orderBy};`,
-            params
-          );
-          return retryRes.rows;
-        } catch (healErr) {
-          console.error('❌ [CadastralRepository.getMyAssignedParcels] Fallback query to legacy tables:', healErr);
-          const fallbackRes = await Database.query<ParcelEntity>(
-            `SELECT p.*,
-                    ST_AsGeoJSON(p.location_geom)::json AS location_geojson,
-                    ST_AsGeoJSON(p.cadastral_polygon_geom)::json AS cadastral_geojson,
-                    ST_AsGeoJSON(p.footprint_polygon_geom)::json AS footprint_geojson,
-                    ${distanceSelect}
-             FROM parcels p
-             WHERE (
-               EXISTS (
-                 SELECT 1 FROM task_assignments ta
-                 WHERE ta.parcel_id = p.id AND ta.surveyor_id = $1
-               )
-               OR EXISTS (
-                 SELECT 1 FROM base_survey_reports r
-                 WHERE r.parcel_id = p.id AND r.surveyor_id = $1
-               )
-             )
-               AND p.lifecycle_status = 'ACTIVE'
-               AND p.survey_status IN ('NOT_SURVEYED', 'IN_PROGRESS', 'POSTPONED_ABSENT')
-             ORDER BY ${orderBy};`,
-            params
-          );
-          return fallbackRes.rows;
-        }
-      }
-      throw err;
-    }
+    const res = await Database.query<ParcelEntity>(
+      `SELECT p.*,
+              ST_AsGeoJSON(p.location_geom)::json AS location_geojson,
+              ST_AsGeoJSON(p.cadastral_polygon_geom)::json AS cadastral_geojson,
+              ST_AsGeoJSON(p.footprint_polygon_geom)::json AS footprint_geojson,
+              ${distanceSelect}
+       FROM parcels p
+       WHERE p.assigned_surveyor_id = $1
+         AND p.lifecycle_status = 'ACTIVE'
+         AND p.survey_status IN ('NOT_SURVEYED', 'IN_PROGRESS', 'POSTPONED_ABSENT')
+       ORDER BY ${orderBy};`,
+      params
+    );
+    return res.rows;
   }
 
   static async assignSurveyorToParcels(parcelIds: string[], surveyorId: string, notes?: string): Promise<number> {

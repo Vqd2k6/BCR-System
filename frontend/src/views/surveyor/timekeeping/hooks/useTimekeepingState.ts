@@ -294,7 +294,7 @@ export const useTimekeepingState = ({
       const ctx = canvas.getContext('2d');
       if (ctx) {
         ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
-        const dataUrl = canvas.toDataURL('image/jpeg', 1.0);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
         setSelfieUrl(dataUrl);
       }
       handleStopCamera();
