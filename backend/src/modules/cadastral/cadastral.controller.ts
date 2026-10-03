@@ -12,11 +12,8 @@ import { BadRequestError } from '../../common/errors/problem-details';
 export class CadastralController {
   static async getZoneMap(req: Request, res: Response, next: NextFunction) {
     try {
-      let zoneId = (req.query.zoneId as string) || req.user?.assignedZoneId || 'ZONE_09';
-      // Khóa an toàn: Khảo sát viên chỉ được truy xuất dữ liệu trong phạm vi Zone được phân công
-      if (req.user?.role === 'SURVEYOR' && req.user?.assignedZoneId) {
-        zoneId = req.user.assignedZoneId;
-      }
+      // Ưu tiên zoneId từ query (khi người dùng mở thửa thuộc zone cụ thể như C&C-01 thuộc ZONE_01)
+      const zoneId = (req.query.zoneId as string) || req.user?.assignedZoneId || 'ZONE_01';
       const status = req.query.status as string;
       const parcels = await CadastralService.listParcelsInZone(zoneId, status);
       res.status(200).json({

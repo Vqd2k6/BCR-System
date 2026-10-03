@@ -352,6 +352,7 @@ export const Step6_ScopeAndGisMutation: React.FC = () => {
               activeParcel
                 ? {
                     ...activeParcel,
+                    zoneId: activeParcel.zoneId || formData.zoneId,
                     houseNumber: formData.houseNumber || activeParcel.houseNumber,
                     street: formData.street || activeParcel.street,
                     ownerName: formData.ownerName || activeParcel.ownerName,
