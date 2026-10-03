@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Download, Loader2, ZoomIn, ZoomOut } from 'lucide-react';
 import { PhotoWatermarkOverlay } from './PhotoWatermarkOverlay';
 import { downloadWatermarkedImage } from '../../../../utils/cleanImageCompressor';
-import { resolveOfflinePhotoUrl } from '../../../../core/storage/offlinePhotoStorage';
+import { resolveOfflinePhotoUrl, getSafeDisplayUrl } from '../../../../core/storage/offlinePhotoStorage';
 
 interface PhotoLightboxModalProps {
   isOpen: boolean;
@@ -44,17 +44,23 @@ export const PhotoLightboxModal: React.FC<PhotoLightboxModalProps> = ({
   onMouseUp,
 }) => {
   const [isExporting, setIsExporting] = useState(false);
-  const [displayUrl, setDisplayUrl] = useState<string>(imageUrl || '');
+  const [displayUrl, setDisplayUrl] = useState<string>(() => getSafeDisplayUrl(imageUrl));
 
   // Tự động phân giải offline blob:local:// thành Blob URL hiển thị được trên DOM
   useEffect(() => {
     let isSubscribed = true;
     if (imageUrl) {
+      const immediate = getSafeDisplayUrl(imageUrl);
+      if (immediate && isSubscribed) {
+        setDisplayUrl(immediate);
+      }
       resolveOfflinePhotoUrl(imageUrl).then((resolved) => {
         if (isSubscribed && resolved) {
           setDisplayUrl(resolved);
         }
       });
+    } else {
+      setDisplayUrl('');
     }
     return () => {
       isSubscribed = false;
@@ -63,7 +69,7 @@ export const PhotoLightboxModal: React.FC<PhotoLightboxModalProps> = ({
 
   if (!isOpen || !imageUrl) return null;
 
-  const currentDisplaySrc = displayUrl || imageUrl;
+  const currentDisplaySrc = displayUrl || getSafeDisplayUrl(imageUrl);
 
   const handleDownload = async () => {
     try {
@@ -235,20 +241,27 @@ export const PhotoLightboxModal: React.FC<PhotoLightboxModalProps> = ({
           cursor: lightboxZoom > 1.0 ? 'grab' : 'zoom-in',
         }}
       >
-        <img
-          src={currentDisplaySrc}
-          alt="Soi ảnh chi tiết"
-          draggable={false}
-          style={{
-            maxWidth: '100%',
-            maxHeight: '100%',
-            objectFit: 'contain',
-            transform: `scale(${lightboxZoom}) translate(${lightboxPan.x / lightboxZoom}px, ${lightboxPan.y / lightboxZoom}px)`,
-            transformOrigin: 'center center',
-            transition: isLightboxPinching ? 'none' : 'transform 0.1s ease-out',
-            pointerEvents: 'none',
-          }}
-        />
+        {currentDisplaySrc ? (
+          <img
+            src={currentDisplaySrc}
+            alt="Soi ảnh chi tiết"
+            draggable={false}
+            style={{
+              maxWidth: '100%',
+              maxHeight: '100%',
+              objectFit: 'contain',
+              transform: `scale(${lightboxZoom}) translate(${lightboxPan.x / lightboxZoom}px, ${lightboxPan.y / lightboxZoom}px)`,
+              transformOrigin: 'center center',
+              transition: isLightboxPinching ? 'none' : 'transform 0.1s ease-out',
+              pointerEvents: 'none',
+            }}
+          />
+        ) : (
+          <div className="flex flex-col items-center justify-center gap-2 text-slate-300">
+            <Loader2 className="w-8 h-8 animate-spin text-emerald-400" />
+            <span className="text-xs">Đang nạp ảnh chi tiết từ bộ nhớ...</span>
+          </div>
+        )}
 
         {/* Lớp phủ Watermark toàn màn hình sắc nét */}
         {photoCode && (

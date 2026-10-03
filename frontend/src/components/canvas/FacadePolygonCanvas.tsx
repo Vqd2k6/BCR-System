@@ -1,5 +1,6 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Dot, Minus, RotateCcw, Sparkles, Trash2, PenTool, AlertCircle, Check, X, Hand, ZoomIn, ZoomOut, Maximize2 } from 'lucide-react';
+import { resolveOfflinePhotoUrl, getSafeDisplayUrl } from '../../core/storage/offlinePhotoStorage';
 
 export interface PolygonPoint {
   x: number;
@@ -54,7 +55,26 @@ export const FacadePolygonCanvas: React.FC<FacadePolygonCanvasProps> = ({
   onTriggerAiRectify,
   readOnly = false,
 }) => {
-  const activeImage = imageUrl || photoUrl || '';
+  const rawImage = imageUrl || photoUrl || '';
+  const [safeImageUrl, setSafeImageUrl] = useState<string>(() => getSafeDisplayUrl(rawImage));
+
+  useEffect(() => {
+    let isSubscribed = true;
+    if (rawImage) {
+      const immediate = getSafeDisplayUrl(rawImage);
+      if (immediate && isSubscribed) setSafeImageUrl(immediate);
+      resolveOfflinePhotoUrl(rawImage).then((resolved) => {
+        if (isSubscribed && resolved) setSafeImageUrl(resolved);
+      });
+    } else {
+      setSafeImageUrl('');
+    }
+    return () => {
+      isSubscribed = false;
+    };
+  }, [rawImage]);
+
+  const activeImage = safeImageUrl || getSafeDisplayUrl(rawImage) || rawImage;
   const [activeTool, setActiveTool] = useState<'POLYGON' | 'SPLIT_LINE' | 'FREEHAND' | 'PAN'>('POLYGON');
 
   const [points, setPoints] = useState<PolygonPoint[]>(polygonPoints || []);

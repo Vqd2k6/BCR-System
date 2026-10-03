@@ -195,6 +195,35 @@ export function extractLocalIdFromUri(uri: string): string {
 }
 
 /**
+ * Trả về URL an toàn để render tức thì lên DOM (đồng bộ)
+ * - Nếu là ảnh Cloud (http...) hoặc DataURL hoặc Blob URL hợp lệ: trả về nguyên bản.
+ * - Nếu là "blob:local://{id}": tra cứu RAM ObjectURL registry. Nếu có, trả về ngay;
+ *   nếu chưa có trong RAM, trả về chuỗi rỗng '' để ngăn trình duyệt nạp scheme lạ gây lỗi ERR_UNKNOWN_URL_SCHEME.
+ */
+export function getSafeDisplayUrl(uri?: string | null): string {
+  if (!uri || typeof uri !== 'string' || uri.trim() === '') {
+    return '';
+  }
+  if (
+    uri.startsWith('http://') ||
+    uri.startsWith('https://') ||
+    uri.startsWith('/uploads') ||
+    uri.startsWith('data:') ||
+    uri.startsWith('blob:http')
+  ) {
+    return uri;
+  }
+  if (uri.startsWith('blob:local://')) {
+    const localId = extractLocalIdFromUri(uri);
+    if (activeObjectUrls.has(localId)) {
+      return activeObjectUrls.get(localId)!;
+    }
+    return '';
+  }
+  return uri;
+}
+
+/**
  * Phân giải chuỗi định danh ảnh (URI) thành URL có thể hiển thị được trên DOM
  * - Nếu là "blob:local://{id}", tra cứu trong RAM Map hoặc nạp từ IndexedDB.
  * - Nếu là URL Cloud (http...) hoặc DataURL, trả về nguyên bản.

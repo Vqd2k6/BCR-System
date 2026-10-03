@@ -11,7 +11,7 @@ import React, { useState, useEffect } from 'react';
 import { ZoomIn } from 'lucide-react';
 import { useLightbox } from './photo-capture/hooks/useLightbox';
 import { PhotoLightboxModal } from './photo-capture/components/PhotoLightboxModal';
-import { resolveOfflinePhotoUrl } from '../../core/storage/offlinePhotoStorage';
+import { resolveOfflinePhotoUrl, getSafeDisplayUrl } from '../../core/storage/offlinePhotoStorage';
 
 interface TapToZoomThumbnailProps {
   /** URL hoặc base64 của ảnh */
@@ -22,10 +22,14 @@ interface TapToZoomThumbnailProps {
   photoCode?: string;
   /** Alt text */
   alt?: string;
+  /** Tooltip hoặc tiêu đề mô tả ảnh */
+  title?: string;
   /** Các nút action overlay bổ sung khi hover (xóa, chú thích, v.v.) */
   actions?: React.ReactNode;
   /** Chiều cao khung ảnh (mặc định: aspect-video) */
   aspectClass?: string;
+  /** Tỉ lệ khung hình tiện lợi */
+  aspectRatio?: 'video' | 'square' | 'portrait' | 'auto' | string;
   /** Class bổ sung cho wrapper ngoài */
   className?: string;
 }
@@ -35,10 +39,18 @@ export const TapToZoomThumbnail: React.FC<TapToZoomThumbnailProps> = ({
   label,
   photoCode,
   alt = 'Ảnh khảo sát',
+  title,
   actions,
-  aspectClass = 'aspect-video',
+  aspectClass,
+  aspectRatio,
   className = '',
 }) => {
+  const effectiveAspect = aspectClass || (
+    aspectRatio === 'square' ? 'aspect-square' :
+    aspectRatio === 'portrait' ? 'aspect-[3/4]' :
+    aspectRatio === 'auto' ? '' :
+    'aspect-video'
+  );
   const {
     isLightboxOpen,
     setIsLightboxOpen,
@@ -58,49 +70,62 @@ export const TapToZoomThumbnail: React.FC<TapToZoomThumbnailProps> = ({
   } = useLightbox();
 
   const [imgLoaded, setImgLoaded] = useState(false);
-  const [displayUrl, setDisplayUrl] = useState<string>(src || '');
+  const [displayUrl, setDisplayUrl] = useState<string>(() => getSafeDisplayUrl(src));
 
   // Tự động phân giải offline blob:local:// thành Blob URL hiển thị được trên DOM
   useEffect(() => {
     let isSubscribed = true;
     if (src) {
+      const immediate = getSafeDisplayUrl(src);
+      if (immediate && isSubscribed) {
+        setDisplayUrl(immediate);
+      }
       resolveOfflinePhotoUrl(src).then((resolved) => {
         if (isSubscribed && resolved) {
           setDisplayUrl(resolved);
         }
       });
+    } else {
+      setDisplayUrl('');
     }
     return () => {
       isSubscribed = false;
     };
   }, [src]);
 
-  const handleOpen = () => {
+  const handleOpen = (e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
     resetLightbox();
     setIsLightboxOpen(true);
   };
 
-  const currentDisplaySrc = displayUrl || src;
+  const currentDisplaySrc = displayUrl || getSafeDisplayUrl(src);
 
   return (
     <>
       {/* Thẻ thumbnail - Nhấn vào bất kỳ đâu trên ảnh để mở zoom */}
       <div
         onClick={handleOpen}
-        className={`relative rounded-lg overflow-hidden border border-slate-300 group bg-slate-900 cursor-pointer ${aspectClass} ${className}`}
-        title="Nhấn vào để phóng to"
+        className={`relative rounded-lg overflow-hidden border border-slate-300 group bg-slate-900 cursor-pointer select-none ${effectiveAspect} ${className}`}
+        title={title || "Nhấn vào để phóng to"}
       >
-        <img
-          src={currentDisplaySrc}
-          alt={alt}
-          className="w-full h-full object-cover transition-opacity duration-200"
-          style={{ opacity: imgLoaded ? 1 : 0 }}
-          onLoad={() => setImgLoaded(true)}
-        />
+        {currentDisplaySrc ? (
+          <img
+            src={currentDisplaySrc}
+            alt={alt}
+            className="w-full h-full object-cover transition-opacity duration-200"
+            style={{ opacity: imgLoaded ? 1 : 0.85 }}
+            onLoad={() => setImgLoaded(true)}
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center bg-slate-800 text-slate-400 text-xs">
+            Đang nạp ảnh...
+          </div>
+        )}
 
         {/* Badge số thứ tự / nhãn */}
         {label && (
-          <span className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded bg-black/60 backdrop-blur-sm text-white text-[10px] font-bold pointer-events-none">
+          <span className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded bg-black/60 backdrop-blur-sm text-white text-[10px] font-bold pointer-events-none z-10">
             {label}
           </span>
         )}
@@ -108,11 +133,8 @@ export const TapToZoomThumbnail: React.FC<TapToZoomThumbnailProps> = ({
         {/* Badge "Nhấn vào để phóng to" luôn hiển thị ở dưới cùng */}
         <button
           type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            handleOpen();
-          }}
-          className="absolute bottom-0 inset-x-0 flex items-center justify-center gap-1 py-1.5 bg-black/60 hover:bg-black/80 text-white text-[10px] font-semibold transition-colors cursor-zoom-in"
+          onClick={handleOpen}
+          className="absolute bottom-0 inset-x-0 flex items-center justify-center gap-1 py-1.5 bg-black/60 hover:bg-black/80 text-white text-[10px] font-semibold transition-colors cursor-pointer z-10"
           title="Nhấn vào để phóng to"
           aria-label="Phóng to ảnh"
         >
@@ -120,12 +142,9 @@ export const TapToZoomThumbnail: React.FC<TapToZoomThumbnailProps> = ({
           <span>Nhấn vào để phóng to</span>
         </button>
 
-        {/* Overlay các action bổ sung khi hover (xóa, chú thích...) */}
+        {/* Overlay các action bổ sung: luôn giữ pointer-events-none ở wrapper để không chặn click zoom của thẻ, từng nút con tự bật pointer-events-auto */}
         {actions && (
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="absolute inset-0 pointer-events-none group-hover:pointer-events-auto"
-          >
+          <div className="absolute inset-0 pointer-events-none z-20">
             {actions}
           </div>
         )}

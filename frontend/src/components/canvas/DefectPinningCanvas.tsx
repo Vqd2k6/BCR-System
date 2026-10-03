@@ -4,7 +4,7 @@ import { PhotoCaptureInput } from '../common/PhotoCaptureInput';
 import { ImageZoomModal } from '../common/ImageZoomModal';
 import { InfoPopover } from '../../core/components/ui/InfoPopover';
 import { getNextAvailablePinCode } from './FloorCadPinningCanvas';
-import { resolveOfflinePhotoUrl } from '../../core/storage/offlinePhotoStorage';
+import { resolveOfflinePhotoUrl, getSafeDisplayUrl } from '../../core/storage/offlinePhotoStorage';
 
 export interface DefectItem {
   id?: string;
@@ -53,21 +53,25 @@ const CuPhotoThumbnailItem: React.FC<{
   onZoom: (url: string, title: string, code?: string) => void;
   onRemove: (idx: number) => void;
 }> = ({ photoUrl, pIdx, isPrimary, pCode, defectCode, readOnly, onZoom, onRemove }) => {
-  const [displayUrl, setDisplayUrl] = React.useState<string>(photoUrl || '');
+  const [displayUrl, setDisplayUrl] = React.useState<string>(() => getSafeDisplayUrl(photoUrl));
 
   React.useEffect(() => {
     let isSubscribed = true;
     if (photoUrl) {
+      const immediate = getSafeDisplayUrl(photoUrl);
+      if (immediate && isSubscribed) setDisplayUrl(immediate);
       resolveOfflinePhotoUrl(photoUrl).then((resolved) => {
         if (isSubscribed && resolved) setDisplayUrl(resolved);
       });
+    } else {
+      setDisplayUrl('');
     }
     return () => {
       isSubscribed = false;
     };
   }, [photoUrl]);
 
-  const currentSrc = displayUrl || photoUrl;
+  const currentSrc = displayUrl || getSafeDisplayUrl(photoUrl);
 
   return (
     <div
@@ -75,18 +79,24 @@ const CuPhotoThumbnailItem: React.FC<{
       className="group relative aspect-[4/3] rounded-lg border border-slate-200 overflow-hidden bg-slate-900 shadow-xs cursor-pointer"
       onClick={() =>
         onZoom(
-          currentSrc,
+          currentSrc || photoUrl,
           `Khuyết tật ${defectCode} - Ảnh #${pIdx + 1}${isPrimary ? ' (Ảnh chính)' : ''}`,
           pCode
         )
       }
       title="Nhấn vào để phóng to"
     >
-      <img
-        src={currentSrc}
-        alt={`Ảnh cận cảnh #${pIdx + 1}`}
-        className="w-full h-full object-cover hover:scale-105 transition-transform duration-200"
-      />
+      {currentSrc ? (
+        <img
+          src={currentSrc}
+          alt={`Ảnh cận cảnh #${pIdx + 1}`}
+          className="w-full h-full object-cover hover:scale-105 transition-transform duration-200"
+        />
+      ) : (
+        <div className="w-full h-full flex items-center justify-center bg-slate-900 text-slate-400 text-xs">
+          Đang nạp ảnh...
+        </div>
+      )}
 
       {/* Badge số thứ tự ảnh */}
       <div className="absolute top-1.5 left-1.5 flex items-center gap-1">
@@ -210,7 +220,24 @@ export const DefectPinningCanvas: React.FC<Props> = ({
   const [showPins, setShowPins] = useState<boolean>(true);
   const [draggingDefectIndex, setDraggingDefectIndex] = useState<number | null>(null);
   const [zoomModalImage, setZoomModalImage] = useState<{ url: string; title: string; code?: string } | null>(null);
+  const [safeCtxUrl, setSafeCtxUrl] = useState<string>(() => getSafeDisplayUrl(ctxPhotoUrl));
   const dragMovedRef = useRef<boolean>(false);
+
+  React.useEffect(() => {
+    let isSubscribed = true;
+    if (ctxPhotoUrl) {
+      const immediate = getSafeDisplayUrl(ctxPhotoUrl);
+      if (immediate && isSubscribed) setSafeCtxUrl(immediate);
+      resolveOfflinePhotoUrl(ctxPhotoUrl).then((resolved) => {
+        if (isSubscribed && resolved) setSafeCtxUrl(resolved);
+      });
+    } else {
+      setSafeCtxUrl('');
+    }
+    return () => {
+      isSubscribed = false;
+    };
+  }, [ctxPhotoUrl]);
 
   const screeningCategories = mode === 'STRUCTURAL' ? STRUCT_SCREENING_CATEGORIES : ARCH_SCREENING_CATEGORIES;
   const commonDefectTypes = mode === 'STRUCTURAL' ? STRUCT_DEFECT_TYPES : ARCH_DEFECT_TYPES;
@@ -585,6 +612,24 @@ export const DefectPinningCanvas: React.FC<Props> = ({
           </div>
 
           <div className="flex items-center gap-2">
+            {ctxPhotoUrl && (
+              <button
+                type="button"
+                onClick={() =>
+                  setZoomModalImage({
+                    url: safeCtxUrl || ctxPhotoUrl,
+                    title: `Ảnh bối cảnh - ${zoneOrElementCode || floorName || 'Bối cảnh'}`,
+                    code: zoneOrElementCode,
+                  })
+                }
+                className="px-2.5 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 transition-all shadow-2xs"
+                title="Phóng to ảnh bối cảnh để soi chi tiết"
+              >
+                <ZoomIn className="w-3.5 h-3.5 text-slate-500" />
+                <span>Phóng to bối cảnh</span>
+              </button>
+            )}
+
             {/* Eye toggle button */}
             <button
               type="button"
@@ -626,11 +671,17 @@ export const DefectPinningCanvas: React.FC<Props> = ({
           isAddingPin ? 'cursor-crosshair ring-2 ring-emerald-500/30' : 'cursor-default'
         } flex items-center justify-center`}
       >
-        <img
-          src={ctxPhotoUrl}
-          alt="Context Photo for Defects"
-          className="max-h-[480px] w-full object-contain pointer-events-none select-none"
-        />
+        {(safeCtxUrl || getSafeDisplayUrl(ctxPhotoUrl)) ? (
+          <img
+            src={safeCtxUrl || getSafeDisplayUrl(ctxPhotoUrl)}
+            alt="Context Photo for Defects"
+            className="max-h-[480px] w-full object-contain pointer-events-none select-none"
+          />
+        ) : (
+          <div className="w-full min-h-[300px] flex items-center justify-center text-slate-400 text-xs">
+            Đang tải ảnh bối cảnh...
+          </div>
+        )}
 
         {/* Existing Pins with Drag & Drop */}
         {showPins && defects.map((d, idx) => {
