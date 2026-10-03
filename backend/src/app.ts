@@ -79,6 +79,7 @@ export function createApp(): express.Application {
   // 0. STORAGE & ẢNH HIỆN TRƯỜNG (CLOUDFLARE R2)
   // ==========================================
   api.post('/storage/presign', authenticateJwt, StorageController.generatePresignedUrl);
+  api.get('/storage/photo-meta', authenticateJwt, StorageController.getPhotoMetadata);
   api.put('/storage/local-put', express.raw({ type: '*/*', limit: '50mb' }), StorageController.handleLocalPut);
   api.post('/storage/upload', authenticateJwt, upload.single('file'), StorageController.uploadFile);
   api.post('/storage/upload-base64', authenticateJwt, StorageController.uploadBase64);
@@ -175,7 +176,10 @@ export function createApp(): express.Application {
   api.post('/admin/reports/:id/audit-replace-photo', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.replaceReportPhoto);
   api.post('/admin/reports/:id/reassign-parcel', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.reassignReportParcel);
   api.post('/admin/reports/swap-parcels', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.swapReportParcels);
+  api.get('/admin/reports/swap-candidates', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.searchSwapCandidates);
+  api.get('/admin/parcels/:id/adjacent-candidates', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.getAdjacentCandidates);
   api.post('/admin/parcels/execute-mutation', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.executeAdminMutation);
+  api.post('/admin/parcels/swap-geometries', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.swapGeometries);
 
   // Xuất Báo Cáo Phân khu & Toàn tuyến
   api.post('/reports/batch-export', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ExportController.createBatchExport);

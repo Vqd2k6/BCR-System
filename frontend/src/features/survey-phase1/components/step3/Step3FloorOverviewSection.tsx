@@ -1,6 +1,7 @@
 import React from 'react';
 import { Card } from '../../../../core/components/ui/Card';
 import { PhotoCaptureInput } from '../../../../components/common/PhotoCaptureInput';
+import { TapToZoomThumbnail } from '../../../../components/common/TapToZoomThumbnail';
 import { Camera, Trash2, AlertCircle, CheckCircle2, FileText } from 'lucide-react';
 import { FloorSurveyData } from '../../types/phase1.types';
 
@@ -92,34 +93,22 @@ export const Step3FloorOverviewSection: React.FC<Step3FloorOverviewSectionProps>
             key={photo.id || pIdx}
             className="rounded-xl border border-slate-200 bg-slate-50 p-2.5 space-y-2 group shadow-2xs"
           >
-            <div className="relative aspect-video rounded-lg overflow-hidden border border-slate-200 bg-slate-900">
-              <img
-                id={photo.photoCode || undefined}
-                data-photo-code={photo.photoCode || undefined}
-                src={photo.url}
-                alt={photo.photoCode || `Tổng quan ${currentFloor.floorName} - ${pIdx + 1}`}
-                className="w-full h-full object-cover"
-              />
-              <span className="absolute top-1.5 left-1.5 px-2 py-0.5 rounded bg-black/60 backdrop-blur-xs text-white text-[10px] font-mono">
-                #{pIdx + 1}
-              </span>
-              {photo.photoCode && (
-                <span
-                  className="absolute bottom-1.5 left-1.5 px-2 py-0.5 rounded bg-slate-950/80 backdrop-blur-xs text-emerald-400 text-[9px] font-mono border border-emerald-500/30 max-w-[85%] truncate"
-                  title={photo.photoCode}
+            <TapToZoomThumbnail
+              src={photo.url}
+              label={`#${pIdx + 1}`}
+              photoCode={photo.photoCode}
+              alt={photo.photoCode || `Tổng quan ${currentFloor.floorName} - ${pIdx + 1}`}
+              actions={
+                <button
+                  type="button"
+                  onClick={() => handleRemovePhoto(photo.id)}
+                  className="absolute top-1.5 right-1.5 p-1 bg-red-600/90 hover:bg-red-700 text-white rounded-md text-xs opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer shadow-sm pointer-events-auto"
+                  title="Xóa ảnh"
                 >
-                  {photo.photoCode}
-                </span>
-              )}
-              <button
-                type="button"
-                onClick={() => handleRemovePhoto(photo.id)}
-                className="absolute top-1.5 right-1.5 p-1 bg-red-600/90 hover:bg-red-700 text-white rounded-md text-xs transition-opacity cursor-pointer shadow-sm"
-                title="Xóa ảnh"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-              </button>
-            </div>
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              }
+            />
 
             <div className="space-y-1">
               <div className="flex items-center gap-1 text-[11px] font-semibold text-slate-700">

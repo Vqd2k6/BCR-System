@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { X, ZoomIn, ZoomOut, RotateCw, Maximize2 } from 'lucide-react';
+import { resolveOfflinePhotoUrl } from '../../core/storage/offlinePhotoStorage';
 
 interface Props {
   isOpen: boolean;
@@ -23,6 +24,22 @@ export const ImageZoomModal: React.FC<Props> = ({
   const dragStartRef = useRef({ x: 0, y: 0 });
   const touchStartDistRef = useRef<number | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const [displayUrl, setDisplayUrl] = useState<string>(imageUrl || '');
+
+  // Tự động phân giải offline blob:local:// thành Blob URL hiển thị được trên DOM
+  useEffect(() => {
+    let isSubscribed = true;
+    if (imageUrl) {
+      resolveOfflinePhotoUrl(imageUrl).then((resolved) => {
+        if (isSubscribed && resolved) {
+          setDisplayUrl(resolved);
+        }
+      });
+    }
+    return () => {
+      isSubscribed = false;
+    };
+  }, [imageUrl]);
 
   // Reset transform when modal opens with a new image
   useEffect(() => {
@@ -205,7 +222,7 @@ export const ImageZoomModal: React.FC<Props> = ({
         onTouchEnd={handleTouchEnd}
       >
         <img
-          src={imageUrl}
+          src={displayUrl || imageUrl}
           alt={title}
           draggable={false}
           className="max-w-none max-h-none transition-transform duration-75 ease-out shadow-2xl pointer-events-none rounded-sm"

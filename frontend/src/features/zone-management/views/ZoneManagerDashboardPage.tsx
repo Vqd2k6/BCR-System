@@ -175,7 +175,8 @@ export const ZoneManagerDashboardPage: React.FC = () => {
 
   useEffect(() => {
     fetchLiveStats(selectedZone);
-    fetchLivePersonnel(selectedZone);
+    // Tạm ngưng gọi API nhân sự và điểm danh GPS do phân hệ này đang phát triển
+    // fetchLivePersonnel(selectedZone);
   }, [selectedZone]);
 
   return (
@@ -269,13 +270,13 @@ export const ZoneManagerDashboardPage: React.FC = () => {
         selectedZone={selectedZone}
         onStatsNeedRefresh={() => {
           fetchLiveStats(selectedZone);
-          fetchLivePersonnel(selectedZone);
         }}
       />
 
       {/* Phân hệ Xuất Báo Cáo Phase 1 tạm ẩn chờ hoàn thiện thiết kế A4 */}
 
-      {/* Bảng phân công nhân sự khảo sát & Chấm công GPS thực tế */}
+      {/* Tạm ẩn "Cán Bộ Khảo Sát & Điểm Danh GPS Phân Khu" vì logic điểm danh đang phát triển */}
+      {/*
       <Card>
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 mb-4 border-b border-slate-100">
           <div>
@@ -374,6 +375,7 @@ export const ZoneManagerDashboardPage: React.FC = () => {
           </table>
         </div>
       </Card>
+      */}
     </div>
   );
 };

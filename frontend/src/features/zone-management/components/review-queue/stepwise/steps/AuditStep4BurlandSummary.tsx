@@ -82,7 +82,14 @@ export const AuditStep4BurlandSummary: React.FC<Props> = ({
     return currGrade > maxGradeVal ? curr : maxD;
   }, null as any);
 
-  const govPhotoUrl = governingDefect?.macroPhotoUrl || governingDefect?.macro_photo_url || governingDefect?.photoUrl || '';
+  const govPhotoUrl =
+    governingDefect?.cuPhotoUrl ||
+    governingDefect?.cu_photo_url ||
+    governingDefect?.cuPhotos?.[0] ||
+    governingDefect?.macroPhotoUrl ||
+    governingDefect?.macro_photo_url ||
+    governingDefect?.photoUrl ||
+    '';
   const govCode = governingDefect?.defectCode || governingDefect?.defect_code || 'D-??';
   const govWidth = governingDefect?.widthMaxMm ?? governingDefect?.width_max_mm ?? 0;
 

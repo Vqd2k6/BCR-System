@@ -1228,3 +1228,49 @@ table.doc-control-table td.col-val {
   text-transform: uppercase;
 }
 
+/* ==========================================================================
+   DYNAMIC CSS WATERMARK OVERLAY FOR PDF EXPORT
+   Non-destructive watermarking rendered sharply via Puppeteer A4 print engine
+   ========================================================================== */
+.pdf-watermark-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.pdf-watermark-top-right {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  background: rgba(15, 23, 42, 0.82);
+  color: #ffffff;
+  padding: 3px 8px;
+  border-radius: 3px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  font-size: 6.5pt;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  border: 0.5pt solid rgba(255, 255, 255, 0.4);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+}
+
+.pdf-watermark-bottom-right {
+  position: absolute;
+  bottom: 5px;
+  right: 5px;
+  background: rgba(0, 0, 0, 0.82);
+  color: #f8fafc;
+  padding: 3px 7px;
+  border-radius: 3px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Courier New', monospace;
+  font-size: 5.5pt;
+  line-height: 1.3;
+  text-align: right;
+  border: 0.5pt solid rgba(255, 255, 255, 0.35);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+}
+

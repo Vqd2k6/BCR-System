@@ -1,5 +1,6 @@
 import { Phase1SurveyFormData } from '../types/phase1.types';
 import { uploadQueue } from '../../../core/services/uploadQueueService';
+import { getOfflinePhoto, extractLocalIdFromUri } from '../../../core/storage/offlinePhotoStorage';
 
 export interface SurveyPhotoAuditItem {
   id: string;
@@ -10,6 +11,7 @@ export interface SurveyPhotoAuditItem {
   url: string;
   isCloudUrl: boolean;
   isBase64: boolean;
+  isLocalBlob?: boolean;
   isUploading: boolean;
   isError: boolean;
   updateInStore: (newUrl: string) => void;
@@ -59,11 +61,12 @@ export function auditSurveyPhotos(
   ) => {
     if (!url || typeof url !== 'string' || url.trim() === '') return;
 
-    const isCloudUrl = url.startsWith('http') || url.startsWith('/uploads');
+    const isCloudUrl = url.startsWith('http://') || url.startsWith('https://') || url.startsWith('/uploads');
     const isBase64 = url.startsWith('data:image/') && url.length > 200;
+    const isLocalBlob = url.startsWith('blob:local://') || url.startsWith('blob:');
 
-    // Ảnh được tính nếu là URL Cloud hoặc ảnh Base64
-    if (!isCloudUrl && !isBase64) return;
+    // Ảnh được tính nếu là URL Cloud, ảnh Base64, hoặc ảnh lưu offline local
+    if (!isCloudUrl && !isBase64 && !isLocalBlob) return;
 
     allPhotos.push({
       id,
@@ -74,6 +77,7 @@ export function auditSurveyPhotos(
       url,
       isCloudUrl,
       isBase64,
+      isLocalBlob,
       isUploading: false, // sẽ cập nhật theo uploadQueue bên dưới
       isError: false,
       updateInStore,
@@ -641,7 +645,7 @@ export function auditSurveyPhotos(
     );
   }
 
-  const unsyncedPhotos = allPhotos.filter((p) => p.isBase64 && !p.isCloudUrl);
+  const unsyncedPhotos = allPhotos.filter((p) => !p.isCloudUrl);
   const syncedPhotos = allPhotos.filter((p) => p.isCloudUrl);
 
   return {
@@ -656,22 +660,37 @@ export function auditSurveyPhotos(
 }
 
 /**
- * Tải lại một ảnh Base64 lên Cloudflare R2 và tự động gán vào formData
+ * Tải lại một ảnh (Base64 hoặc Blob Offline từ IndexedDB) lên Cloudflare R2 và tự động gán vào formData
  */
 export async function retryUploadSinglePhoto(
   item: SurveyPhotoAuditItem,
   parcelCode: string
 ): Promise<string> {
-  if (!item.isBase64 || item.isCloudUrl) return item.url;
+  if (item.isCloudUrl) return item.url;
 
-  const blob = base64ToBlob(item.url);
+  let blob: Blob | null = null;
+
+  if (item.isLocalBlob) {
+    const localId = extractLocalIdFromUri(item.url);
+    const record = await getOfflinePhoto(localId);
+    if (record && record.blob) {
+      blob = record.blob;
+    }
+  } else if (item.isBase64) {
+    blob = base64ToBlob(item.url);
+  }
+
+  if (!blob) {
+    throw new Error('Không thể tìm thấy dữ liệu ảnh để tải lại lên Cloud.');
+  }
+
   const prefix = item.photoCode
     ? item.photoCode.replace(/[^a-zA-Z0-9_-]/g, '_')
     : `photo_${parcelCode || 'survey'}`;
   const filename = `${prefix}_${Date.now()}.jpg`;
 
   return new Promise((resolve, reject) => {
-    uploadQueue.enqueue(blob, filename, {
+    uploadQueue.enqueue(blob!, filename, {
       folder: `surveys/${parcelCode || 'general'}`,
       mimeType: 'image/jpeg',
       onSuccess: (publicUrl) => {

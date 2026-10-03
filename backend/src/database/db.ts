@@ -172,6 +172,72 @@ export class Database {
     } catch (e) {
       console.warn('⚠️ [STARTUP MIGRATION] parcel_absence_logs warning:', e);
     }
+
+    // 8. mutation_type_enum SWAP_SPATIAL
+    try {
+      await this.query(`
+        ALTER TYPE mutation_type_enum ADD VALUE IF NOT EXISTS 'SWAP_SPATIAL';
+      `);
+      console.log('✅ [STARTUP MIGRATION] mutation_type_enum SWAP_SPATIAL ready.');
+    } catch (e) {
+      console.warn('⚠️ [STARTUP MIGRATION] mutation_type_enum SWAP_SPATIAL warning:', e);
+    }
+
+    // 9. parcels assigned_surveyor_id & building attributes
+    try {
+      await this.query(`
+        ALTER TABLE parcels
+          ADD COLUMN IF NOT EXISTS assigned_surveyor_id UUID REFERENCES users(id),
+          ADD COLUMN IF NOT EXISTS assigned_at TIMESTAMPTZ,
+          ADD COLUMN IF NOT EXISTS assignment_notes TEXT,
+          ADD COLUMN IF NOT EXISTS building_type VARCHAR(32) NOT NULL DEFAULT 'STANDALONE',
+          ADD COLUMN IF NOT EXISTS total_units INT NOT NULL DEFAULT 1,
+          ADD COLUMN IF NOT EXISTS code_slug VARCHAR(32),
+          ADD COLUMN IF NOT EXISTS absence_attempt_count INT NOT NULL DEFAULT 0;
+
+        CREATE INDEX IF NOT EXISTS idx_parcels_assigned_surveyor ON parcels(assigned_surveyor_id);
+        CREATE INDEX IF NOT EXISTS idx_parcels_building_type ON parcels(building_type);
+      `);
+      console.log('✅ [STARTUP MIGRATION] parcels.assigned_surveyor_id & building attributes ready.');
+    } catch (e) {
+      console.warn('⚠️ [STARTUP MIGRATION] parcels.assigned_surveyor_id warning:', e);
+    }
+
+    // 10. building_units & base_survey_reports unit hierarchy
+    try {
+      await this.query(`
+        CREATE TABLE IF NOT EXISTS building_units (
+            id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+            parcel_id UUID NOT NULL REFERENCES parcels(id) ON DELETE CASCADE,
+            unit_code VARCHAR(32) NOT NULL,
+            floor_number INT NOT NULL DEFAULT 1,
+            owner_name VARCHAR(128),
+            owner_phone VARCHAR(32),
+            owner_id_card VARCHAR(32),
+            status parcel_survey_status_enum NOT NULL DEFAULT 'NOT_SURVEYED',
+            phase1_report_id UUID,
+            phase2_report_id UUID,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            CONSTRAINT uq_parcel_unit UNIQUE (parcel_id, unit_code)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_building_units_parcel ON building_units(parcel_id);
+        CREATE INDEX IF NOT EXISTS idx_building_units_status ON building_units(status);
+
+        ALTER TABLE base_survey_reports
+          ADD COLUMN IF NOT EXISTS unit_id UUID REFERENCES building_units(id) ON DELETE SET NULL,
+          ADD COLUMN IF NOT EXISTS parent_report_id UUID REFERENCES base_survey_reports(id) ON DELETE SET NULL,
+          ADD COLUMN IF NOT EXISTS report_type VARCHAR(32) NOT NULL DEFAULT 'STANDALONE';
+
+        CREATE INDEX IF NOT EXISTS idx_reports_unit ON base_survey_reports(unit_id);
+        CREATE INDEX IF NOT EXISTS idx_reports_parent ON base_survey_reports(parent_report_id);
+        CREATE INDEX IF NOT EXISTS idx_reports_type ON base_survey_reports(report_type);
+      `);
+      console.log('✅ [STARTUP MIGRATION] building_units & report hierarchy ready.');
+    } catch (e) {
+      console.warn('⚠️ [STARTUP MIGRATION] building_units warning:', e);
+    }
   }
 }
 

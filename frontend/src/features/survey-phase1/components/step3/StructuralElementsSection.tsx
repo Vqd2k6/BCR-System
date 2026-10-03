@@ -4,6 +4,7 @@ import { Button } from '../../../../core/components/ui/Button';
 import { Badge } from '../../../../core/components/ui/Badge';
 import { Input, Select } from '../../../../core/components/ui/FormControls';
 import { PhotoCaptureInput } from '../../../../components/common/PhotoCaptureInput';
+import { TapToZoomThumbnail } from '../../../../components/common/TapToZoomThumbnail';
 import { FloorCadPinningCanvas, CadZonePin } from '../../../../components/canvas/FloorCadPinningCanvas';
 import { FloorSurveyData, StructuralElementData } from '../../types/phase1.types';
 import { COMMON_ROOM_NAMES, STRUCTURAL_ELEMENT_TYPES, STRUCTURAL_MATERIALS } from './step3.constants';
@@ -555,26 +556,28 @@ export const StructuralElementsSection: React.FC<StructuralElementsSectionProps>
               {/* Grid ảnh */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {activeElement.overviewPhotos?.map((photoUrl, pIdx) => (
-                  <div
+                  <TapToZoomThumbnail
                     key={pIdx}
-                    className="relative rounded-lg overflow-hidden border border-slate-300 aspect-video group"
-                  >
-                    <img src={photoUrl} alt={`El Overview ${pIdx}`} className="w-full h-full object-cover" />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const deletedUrl = activeElement.overviewPhotos[pIdx];
-                        const updated = activeElement.overviewPhotos.filter((_, i) => i !== pIdx);
-                        const newCtx =
-                          activeElement.ctxPhotoUrl === deletedUrl ? updated[0] || '' : activeElement.ctxPhotoUrl;
-                        onUpdateElement(activeElementIndex, { overviewPhotos: updated, ctxPhotoUrl: newCtx });
-                      }}
-                      className="absolute top-1 right-1 p-1 bg-red-600 text-white rounded-md text-xs opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-                      title="Xóa ảnh"
-                    >
-                      <Trash2 className="w-3 h-3" />
-                    </button>
-                  </div>
+                    src={photoUrl}
+                    label={`#${pIdx + 1}`}
+                    alt={`Tổng quan cấu kiện ${activeElement.elementCode} - ${pIdx + 1}`}
+                    actions={
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const deletedUrl = activeElement.overviewPhotos[pIdx];
+                          const updated = activeElement.overviewPhotos.filter((_, i) => i !== pIdx);
+                          const newCtx =
+                            activeElement.ctxPhotoUrl === deletedUrl ? updated[0] || '' : activeElement.ctxPhotoUrl;
+                          onUpdateElement(activeElementIndex, { overviewPhotos: updated, ctxPhotoUrl: newCtx });
+                        }}
+                        className="absolute top-1 right-1 p-1 bg-red-600 text-white rounded-md text-xs opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer pointer-events-auto"
+                        title="Xóa ảnh"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    }
+                  />
                 ))}
 
                 <PhotoCaptureInput
@@ -645,7 +648,13 @@ export const StructuralElementsSection: React.FC<StructuralElementsSectionProps>
                       size="sm"
                       variant="danger"
                       icon={<MapPin className="w-3.5 h-3.5" />}
-                      onClick={() => onOpenPinningModal(activeElement.id)}
+                      onClick={() => {
+                        if (!activeElement.ctxPhotoUrl) {
+                          alert(`Vui lòng chụp hoặc chọn ảnh bối cảnh cấu kiện cho ${activeElement.elementCode} trước khi chấm điểm và ghi sổ khuyết tật kết cấu!`);
+                          return;
+                        }
+                        onOpenPinningModal(activeElement.id);
+                      }}
                     >
                       {activeElement.defects?.length > 0
                         ? `Xem & Chỉnh sửa ${activeElement.defects.length} ghim kết cấu ➔`

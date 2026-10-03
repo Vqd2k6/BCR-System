@@ -22,6 +22,7 @@ import { uploadQueue, countBase64Images, sanitizeSurveyDataForSync } from '../..
 import { AbsenteeReviewView } from './AbsenteeReviewView';
 import { CloudPhotoSyncModal } from '../components/CloudPhotoSyncModal';
 import { auditSurveyPhotos } from '../utils/photoSyncAudit';
+import { AlertOctagon } from 'lucide-react';
 
 export interface SurveyPhase1PageProps {
   parcel?: GisParcel | null;
@@ -241,16 +242,21 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
               } else if (rep.floorSurveys && rep.floorSurveys.length > 0) {
                 // Fallback nếu không có survey_data_json: khôi phục từ bảng floor_surveys và damage_zones
                 const zonesByFloor = (rep.damageZones || []).reduce((acc: any, z: any) => {
-                  const fid = z.floor_id;
+                  const fid = z.floor_name || z.floor_id || z.floorName || 'default';
                   if (!acc[fid]) acc[fid] = [];
                   acc[fid].push({
                     id: z.id,
-                    zoneCode: z.zone_code,
-                    zoneName: z.zone_name,
-                    componentType: z.component_type,
-                    notes: z.notes,
-                    ctxPhotoUrl: z.photo_context_url || z.ctx_photo_url,
-                    hasDamage: (z.defects && z.defects.length > 0) || Boolean(z.has_damage),
+                    zoneCode: z.zone_code || z.zoneCode,
+                    floorName: z.floor_name || z.floorName || '',
+                    roomName: z.room_name || z.zone_name || z.roomName || 'Không gian chung',
+                    componentType: z.component_type || z.componentType || 'WALL',
+                    wallMaterial: z.wall_material || z.wallMaterial || '',
+                    notes: z.notes || '',
+                    overviewPhotos: [],
+                    ctxPhotoUrl: z.ctx_photo_url || z.photo_context_url || '',
+                    ctxPhotoCode: z.ctx_photo_code || z.ctxPhotoCode || '',
+                    hasDamage: (z.defects && z.defects.length > 0) || Boolean(z.has_damage) || Boolean(z.functional_impact_repair_needed),
+                    burlandGrade: Number(z.burland_grade ?? z.burlandGrade) || 0,
                     defects: (z.defects || []).map((d: any) => {
                       const cuList: string[] = Array.isArray(d.cu_photos_json) && d.cu_photos_json.length > 0
                         ? d.cu_photos_json
@@ -267,11 +273,15 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
                         defectCode: d.defect_code || d.defectCode,
                         pinX: Number(d.pin_x ?? d.pinX) || 0,
                         pinY: Number(d.pin_y ?? d.pinY) || 0,
-                        screeningCategory: d.screening_category || d.screeningCategory,
-                        defectType: d.defect_type || d.defectType,
+                        screeningCategory: d.screening_category || d.screeningCategory || 'Nứt tường gạch / Vữa trát hoàn thiện',
+                        defectType: d.defect_type || d.defectType || 'Nứt chân chim / Mạng nhện vữa trát (<0.5mm)',
                         crackDirection: d.crack_direction || d.crackDirection,
                         widthMaxMm: Number(d.width_max_mm ?? d.widthMaxMm) || 0,
                         lengthMm: Number(d.length_mm ?? d.lengthMm) || 0,
+                        activityState: d.activity_state || d.activityState || 'S',
+                        materialDegradationE4: Number(d.material_degradation_e4 ?? d.materialDegradationE4) || 0,
+                        structuralSignificanceE2: Number(d.structural_significance_e2 ?? d.structuralSignificanceE2) || 0,
+                        functionalImpactE6: Number(d.functional_impact_e6 ?? d.functionalImpactE6) || '',
                         cuPhotoUrl: cuList[0] || d.cu_photo_url || d.cuPhotoUrl || '',
                         cuPhotoCode: codeList[0] || d.cu_photo_code || d.cuPhotoCode || '',
                         cuPhotos: cuList,
@@ -280,6 +290,7 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
                         pinColor: d.pin_color || d.pinColor || '#ef4444',
                         hasScaleCard: d.has_scale_card ?? d.hasScaleCard ?? true,
                         isStructuralCritical: d.is_structural_critical ?? d.isStructuralCritical ?? false,
+                        notes: d.notes || '',
                       };
                     }),
                   });
@@ -295,13 +306,13 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
 
                   return {
                     id: f.id,
-                    floorName: f.floor_name,
+                    floorName: f.floor_name || f.floorName,
                     overviewPhotos: normalizedPhotos,
                     cadSketchPhotoUrl: f.cad_drawing_url || f.cad_sketch_photo_url || '',
                     cadStructuralSketchPhotoUrl: f.cad_structural_drawing_url || '',
                     cadZonePins: f.cad_zone_pins_json || f.cad_zone_pins || [],
                     cadElementPins: f.cad_element_pins_json || f.cad_element_pins || [],
-                    zones: zonesByFloor[f.id] || f.zones || [],
+                    zones: zonesByFloor[f.floor_name] || zonesByFloor[f.floorName] || zonesByFloor[f.id] || f.zones || [],
                     structuralElements: f.structural_elements || [],
                   };
                 });
@@ -326,6 +337,18 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
                     photoUrl: rep.owner_signature_url || updates.signatures?.ownerRepresentative?.photoUrl || '',
                   },
                   workingMinutesPhotos: updates.signatures?.workingMinutesPhotos || [],
+                };
+              }
+              if (!updates.burlandSummary) {
+                const maxBurland = Number(rep.riskScores?.e1_burland_score || 0);
+                updates.burlandSummary = {
+                  predominantGrade: maxBurland,
+                  localMaxGrade: maxBurland,
+                  governingZoneCode: 'Z-01',
+                  governingZoneDescription: '',
+                  representativeness: 'GLOBAL',
+                  structuralFlagLevel: 'NONE',
+                  needStructuralEngineerReview: false,
                 };
               }
             }
@@ -600,6 +623,36 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
         onReject={handleRejectFromPage}
         onBack={onBackToHome}
       />
+
+      {/* Cảnh Báo Hồ Sơ Bị Trả Về (Dành cho Surveyor khi vào sửa bổ sung) */}
+      {(parcel?.surveyStatus === 'REJECTED' || reportData?.report?.status === 'REJECTED') && (
+        <div className="bg-red-50 border-b-2 border-red-300 p-3 sm:p-4 animate-in fade-in sticky top-0 z-40 shadow-xs">
+          <div className="max-w-7xl mx-auto flex items-start gap-3">
+            <div className="p-2 bg-red-100 rounded-xl text-red-700 shrink-0 mt-0.5">
+              <AlertOctagon className="w-5 h-5" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h4 className="text-xs sm:text-sm font-black text-red-950 uppercase tracking-wide">
+                  🛑 HỒ SƠ BỊ ZONE ADMIN TRẢ VỀ YÊU CẦU ĐO ĐẠC / BỔ SUNG
+                </h4>
+                <span className="px-2 py-0.5 rounded-full bg-red-200 text-red-900 font-mono text-[10px] font-black">
+                  TRẠNG THÁI: REJECTED
+                </span>
+              </div>
+              <div className="mt-1.5 p-2.5 bg-white/90 rounded-xl border border-red-200 text-xs text-red-900">
+                <span className="font-bold text-red-700 block mb-0.5">Yêu cầu từ Zone Admin:</span>
+                <p className="font-medium italic leading-relaxed">
+                  {(reportData?.report?.engineering_recommendations || (parcel as any)?.rejectionReason || 'Vui lòng kiểm tra lại hình ảnh khuyết tật có thước đo mm và số liệu đo đạc theo yêu cầu của Kỹ sư Zone Admin.').replace(/^LÝ DO TRẢ VỀ:\s*/i, '')}
+                </p>
+              </div>
+              <p className="text-[11px] text-red-700 mt-1.5 leading-relaxed">
+                ℹ️ <strong>Khảo sát viên lưu ý:</strong> Toàn bộ dữ liệu bạn đã nhập trước đó vẫn được giữ nguyên 100%. Vui lòng kiểm tra và bổ sung đúng các mục được yêu cầu ở trên, sau đó di chuyển tới <strong>Bước 8 (Ký Biên Bản)</strong> để bấm <strong>"Nộp Lại"</strong>.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 8-Step Navigation Header */}
       <StepWizardNav

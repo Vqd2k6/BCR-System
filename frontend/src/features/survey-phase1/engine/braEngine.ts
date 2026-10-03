@@ -12,6 +12,9 @@ export interface ConstructionImpactResult {
   isSpecialObject: boolean;
   colorClass: string;
   badgeBg: string;
+  hasStationEdge: boolean;
+  distanceType: 'STATION_EDGE' | 'CENTERLINE_FALLBACK';
+  stationNote: string;
 }
 
 export interface BraRiskResult {
@@ -27,17 +30,39 @@ export interface BraRiskResult {
 }
 
 /**
- * Tính toán Tác động thi công Metro (Impact I1 - I4) theo khoảng cách d đến tim hầm Metro
- * và phân nhóm công trình (General vs Critical/Important).
+ * Phân tích chuỗi khoảng cách thành số mét
+ */
+function parseMeters(val: string | number | undefined | null): number | null {
+  if (val === undefined || val === null || val === '') return null;
+  if (typeof val === 'number') return isNaN(val) ? null : val;
+  const cleaned = String(val).trim().replace(/[^\d.]/g, '');
+  if (!cleaned) return null;
+  const num = parseFloat(cleaned);
+  return isNaN(num) ? null : num;
+}
+
+/**
+ * Tính toán Tác động thi công Metro (Impact I1 - I4) theo khoảng cách d:
+ * - Ưu tiên số 1: Khoảng cách đến mép ga / biên hố đào (stationEdgeDistance / clearanceOffsetDistance).
+ * - Nếu không có mép ga: Thông báo "Không có công trình ga trong zone" và fallback tính theo khoảng cách tim hầm (centerlineDistance).
+ * - Phân nhóm đối tượng công trình: General vs Critical/Important.
  */
 export function calculateConstructionImpact(
   objectGroup: ObjectGroupType | string = 'GENERAL',
-  metroOffsetDistance: string | number = ''
+  stationEdgeDistance?: string | number,
+  centerlineDistance?: string | number
 ): ConstructionImpactResult {
-  const d =
-    typeof metroOffsetDistance === 'number'
-      ? metroOffsetDistance
-      : parseFloat(String(metroOffsetDistance || '').replace(/[^\d.]/g, '')) || 0;
+  const edgeDist = parseMeters(stationEdgeDistance);
+  const centerDist = parseMeters(centerlineDistance);
+
+  const hasStationEdge = edgeDist !== null;
+  const distanceType: 'STATION_EDGE' | 'CENTERLINE_FALLBACK' = hasStationEdge
+    ? 'STATION_EDGE'
+    : 'CENTERLINE_FALLBACK';
+  const stationNote = hasStationEdge ? '' : 'Không có công trình ga trong zone';
+
+  // Lấy cự ly tính toán d: Ưu tiên mép ga, fallback tim hầm, cuối cùng fallback 0m
+  const d = hasStationEdge ? edgeDist : (centerDist !== null ? centerDist : 0);
 
   const isSpecial = objectGroup === 'CRITICAL' || objectGroup === 'IMPORTANT';
 
@@ -120,6 +145,9 @@ export function calculateConstructionImpact(
     isSpecialObject: isSpecial,
     colorClass,
     badgeBg,
+    hasStationEdge,
+    distanceType,
+    stationNote,
   };
 }
 

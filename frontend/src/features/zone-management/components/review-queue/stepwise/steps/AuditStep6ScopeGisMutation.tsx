@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   MapPin,
   ShieldCheck,
@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { AdminGisMutationModal } from '../../AdminGisMutationModal';
 import { AdminReassignParcelModal } from '../../AdminReassignParcelModal';
+import { AuditCadastralMutationVisualMap } from '../components/AuditCadastralMutationVisualMap';
 
 interface Props {
   isEditMode: boolean;
@@ -76,6 +77,31 @@ export const AuditStep6ScopeGisMutation: React.FC<Props> = ({
   const mutationDetails = mutation.details || {};
   const splitChildren = Array.isArray(mutationDetails.splitChildren) ? mutationDetails.splitChildren : [];
   const selectedMergeCodes = Array.isArray(mutationDetails.selectedMergeCodes) ? mutationDetails.selectedMergeCodes : [];
+
+  // Trích xuất tọa độ Polygon thửa đất (từ formState, surveyJson hoặc PostGIS GeoJSON)
+  const parcelCoords = useMemo<[number, number][]>(() => {
+    if (Array.isArray(formState.parcelCoordinates) && formState.parcelCoordinates.length >= 3) {
+      return formState.parcelCoordinates;
+    }
+    if (Array.isArray(data?.coordinates) && data.coordinates.length >= 3) {
+      return data.coordinates;
+    }
+    if (Array.isArray(data?.parcelCoordinates) && data.parcelCoordinates.length >= 3) {
+      return data.parcelCoordinates;
+    }
+    const rawGeojson = data?.cadastralGeojson || data?.cadastral_geojson;
+    if (rawGeojson) {
+      try {
+        const parsed = typeof rawGeojson === 'string' ? JSON.parse(rawGeojson) : rawGeojson;
+        if (parsed.type === 'Polygon' && Array.isArray(parsed.coordinates?.[0])) {
+          return parsed.coordinates[0].map(([lng, lat]: [number, number]) => [lat, lng]);
+        }
+      } catch (e) {
+        console.warn('Failed to parse cadastralGeojson in AuditStep6:', e);
+      }
+    }
+    return [];
+  }, [formState.parcelCoordinates, data?.coordinates, data?.parcelCoordinates, data?.cadastralGeojson, data?.cadastral_geojson]);
 
   // Tính khoảng cách tim hầm Metro
   const metroDistance = formState.metroDistanceM ?? formState.distanceToMetroCenterlineM ?? 15.2;
@@ -462,13 +488,13 @@ export const AuditStep6ScopeGisMutation: React.FC<Props> = ({
           </div>
         </div>
 
-        {/* 6.4. Biến động thửa đất GIS */}
-        <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
-          <div className="flex items-center justify-between">
+        {/* 6.5. Biến động thửa đất GIS */}
+        <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3.5">
+          <div className="flex items-center justify-between flex-wrap gap-2">
             <div className="flex items-center gap-2">
               <MapPin className="w-4 h-4 text-blue-600" />
               <span className="text-xs font-black uppercase tracking-wider text-slate-800">
-                6.5. Tình Trạng Biến Động Ranh Thửa Thực Địa
+                6.5. Tình Trạng Biến Động Ranh Thửa Thực Địa & Bản Đồ Đa Giác GIS
               </span>
             </div>
             <span className="text-xs font-bold px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-200">
@@ -479,6 +505,23 @@ export const AuditStep6ScopeGisMutation: React.FC<Props> = ({
                 : 'Nguyên Trạng (Khớp ranh)'}
             </span>
           </div>
+
+          {/* Bản đồ trực quan đa giác ranh thửa đất (Khớp ranh, Tách căn A/B, Gộp khuôn viên) */}
+          <AuditCadastralMutationVisualMap
+            parcelCoordinates={parcelCoords}
+            projectParcelCode={data?.projectParcelCode || formState.projectParcelCode}
+            mutationType={mutation.type || 'MATCH'}
+            mutationDetails={mutation.details || {}}
+            landAreaM2={landAreaM2}
+            frontageWidth={frontageWidth}
+            lotDepth={lotDepth}
+            gpsLocation={{
+              lat: Number(coords.lat || coords.latitude || 10.79241),
+              lng: Number(coords.lng || coords.longitude || 106.71152),
+              accuracy: coords.accuracy,
+            }}
+            onOpenEditorModal={() => setIsMutationModalOpen(true)}
+          />
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
             <div className="p-3 bg-white rounded-xl border border-slate-200">
@@ -555,7 +598,10 @@ export const AuditStep6ScopeGisMutation: React.FC<Props> = ({
           currentAreaM2={data?.buildingSpecs?.landAreaM2 || formState.landAreaM2}
           reportId={reportId || data?.reportId}
           onClose={() => setIsMutationModalOpen(false)}
-          onSuccess={(msg: string) => showToast(msg)}
+          onSuccess={(msg: string) => {
+            showToast(msg);
+            if (onRefresh) onRefresh();
+          }}
         />
       )}
 
@@ -570,7 +616,10 @@ export const AuditStep6ScopeGisMutation: React.FC<Props> = ({
           currentStreet={data?.street || formState.street}
           surveyorName={data?.surveyorName || formState.surveyorName}
           onClose={() => setIsReassignModalOpen(false)}
-          onSuccess={(msg: string) => showToast(msg)}
+          onSuccess={(msg: string) => {
+            showToast(msg);
+            if (onRefresh) onRefresh();
+          }}
         />
       )}
     </section>

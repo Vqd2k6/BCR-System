@@ -324,10 +324,12 @@ export const AuditStudioModal: React.FC<Props> = ({
           isOpen={showJudgementModal}
           reportId={reportId}
           parcelCode={data.projectParcelCode}
-          currentBurlandGrade={riskCard?.burland_damage_category}
+          currentBurlandGrade={riskCard?.e1_burland_score !== undefined ? `Cấp ${riskCard.e1_burland_score}` : (data?.surveyJson?.ecs?.e1 !== undefined ? `Cấp ${data.surveyJson.ecs.e1}` : undefined)}
+          riskCard={riskCard}
+          data={data}
           onClose={() => setShowJudgementModal(false)}
           onSuccess={() => {
-            alert('Đã lưu can thiệp chuyên gia thành công!');
+            alert('Đã lưu phán quyết chuyên gia thành công!');
             fetchAuditData();
             onRefreshList();
           }}

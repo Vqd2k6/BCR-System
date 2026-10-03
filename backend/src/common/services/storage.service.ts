@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand, PutBucketCorsCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, PutBucketCorsCommand, HeadObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import crypto from 'crypto';
 import fs from 'fs';
@@ -326,6 +326,33 @@ export class StorageService {
       sizeBytes,
       mimeType,
     };
+  }
+
+  /**
+   * Truy xuất Metadata của file lưu trữ trên Cloudflare R2 / S3
+   */
+  public static async getPhotoMetadata(key: string): Promise<Record<string, string>> {
+    if (config.storage.type === 'r2' || config.storage.type === 's3') {
+      try {
+        const client = this.getS3Client();
+        const command = new HeadObjectCommand({
+          Bucket: config.storage.s3.bucket,
+          Key: key,
+        });
+        const response = await client.send(command);
+        return response.Metadata || {};
+      } catch (err: any) {
+        console.warn(`[STORAGE SERVICE] Không thể đọc Metadata của key "${key}":`, err?.message || err);
+        return {};
+      }
+    } else {
+      // Local fallback
+      return {
+        'uploaded-at': new Date().toISOString(),
+        project: 'METRO2_HCM',
+        note: 'local-file',
+      };
+    }
   }
 }
 

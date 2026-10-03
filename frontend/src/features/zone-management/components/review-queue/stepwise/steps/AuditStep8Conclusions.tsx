@@ -79,29 +79,40 @@ export const AuditStep8Conclusions: React.FC<Props> = ({
           <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
             <span className="text-[11px] font-bold text-slate-600 uppercase flex items-center gap-1.5">
               <Compass className="w-4 h-4 text-sky-600" />
-              Phân Cấp Tác Động Khiên Đào TBM (Impact):
+              Phân Cấp Tác Động Thi Công Metro (Impact):
             </span>
             {isEditMode ? (
               <select
                 value={exec.constructionImpactStatus || 'I1 (Tác động rất nhẹ)'}
                 onChange={(e) =>
-                  handleNestedFieldChange('executiveSummary', 'constructionImpactStatus', 'Tác động TBM', e.target.value)
+                  handleNestedFieldChange('executiveSummary', 'constructionImpactStatus', 'Tác động Metro', e.target.value)
                 }
                 className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-800"
               >
-                <option value="I1 (Tác động rất nhẹ)">I1 - Rất nhẹ (Khoảng cách d &ge; 20m)</option>
+                <option value="I1 (Tác động rất nhẹ)">I1 - Rất nhẹ (Khoảng cách mép ga d &ge; 20m)</option>
                 <option value="I2 (Tác động nhẹ)">I2 - Nhẹ (10m &le; d &lt; 20m)</option>
                 <option value="I3 (Tác động trung bình)">I3 - Trung bình (5m &le; d &lt; 10m)</option>
-                <option value="I4 (Tác động nghiêm trọng)">I4 - Nghiêm trọng (d &lt; 5m)</option>
+                <option value="I4 (Tác động nghiêm trọng)">I4 - Nghiêm trọng (d &lt; 5m hoặc cắt qua ga)</option>
               </select>
             ) : (
               <div className="text-base font-black text-sky-800">
                 {exec.constructionImpactStatus || 'I1 (Tác động rất nhẹ)'}
               </div>
             )}
-            <p className="text-[11px] text-slate-500">
-              Phân cấp theo khoảng cách từ ranh công trình tới tim đường hầm và nhóm đối tượng công trình.
-            </p>
+            <div className="text-[11px] text-slate-500 space-y-0.5">
+              <p>
+                Phân cấp theo khoảng cách từ ranh công trình tới <strong>mép ga / biên hố đào Metro</strong>.
+              </p>
+              {formState.clearanceOffsetDistance ? (
+                <p className="font-semibold text-sky-700">
+                  Cự ly mép ga ghi nhận: {formState.clearanceOffsetDistance} (Tim Metro: {formState.metroOffsetDistance || '--'})
+                </p>
+              ) : (
+                <p className="font-semibold text-amber-700">
+                  ⚠️ Không có công trình ga trong zone (Dự phòng theo tim: {formState.metroOffsetDistance || '--'})
+                </p>
+              )}
+            </div>
           </div>
         </div>
 

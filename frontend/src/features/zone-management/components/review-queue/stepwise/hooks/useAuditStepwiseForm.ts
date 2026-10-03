@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { calculateComprehensiveMetroSpatialMetrics } from '../../../../../survey-phase1/utils/metroSpatialCalculator';
 
 export interface DiffItem {
   field: string;
@@ -30,6 +31,42 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
     const hiState = sJson.historyInterview || data.leftPane?.interview || data.historyInterview || {};
     const sigState = data.leftPane?.signatures || sJson.signatures || {};
 
+    // Tự động tính toán trắc địa không gian chuẩn nếu hồ sơ thiếu số liệu cự ly
+    let defaultMetroDist = sJson.metroOffsetDistance !== undefined && sJson.metroOffsetDistance !== ''
+      ? String(sJson.metroOffsetDistance)
+      : (data.metroOffsetDistance !== undefined && data.metroOffsetDistance !== '' ? String(data.metroOffsetDistance) : '');
+    let defaultClearanceDist = sJson.clearanceOffsetDistance !== undefined && sJson.clearanceOffsetDistance !== ''
+      ? String(sJson.clearanceOffsetDistance)
+      : (data.clearanceOffsetDistance !== undefined && data.clearanceOffsetDistance !== '' ? String(data.clearanceOffsetDistance) : '');
+
+    if (data.cadastralGeojson || data.cadastral_geojson || data.coordinates || data.parcelCoordinates) {
+      try {
+        let pCoords: [number, number][] = [];
+        const rawGeo = data.cadastralGeojson || data.cadastral_geojson;
+        if (rawGeo) {
+          const parsed = typeof rawGeo === 'string' ? JSON.parse(rawGeo) : rawGeo;
+          if (parsed.type === 'Polygon' && Array.isArray(parsed.coordinates?.[0])) {
+            pCoords = parsed.coordinates[0].map(([lng, lat]: [number, number]) => [lat, lng]);
+          }
+        } else if (Array.isArray(data.coordinates) && data.coordinates.length >= 3) {
+          pCoords = data.coordinates;
+        } else if (Array.isArray(data.parcelCoordinates) && data.parcelCoordinates.length >= 3) {
+          pCoords = data.parcelCoordinates;
+        }
+
+        if (pCoords.length >= 3) {
+          const metrics = calculateComprehensiveMetroSpatialMetrics(pCoords);
+          if (!defaultMetroDist) defaultMetroDist = metrics.distanceToCenterlineMeters.toFixed(1);
+          // Nếu nhà ga cán qua / cắt xén thửa đất, khoảng cách bao ngoài bắt buộc là 0.0m
+          if (!defaultClearanceDist || metrics.isStationIntersectsParcel) {
+            defaultClearanceDist = metrics.distanceToOuterBoundaryMeters.toFixed(1);
+          }
+        }
+      } catch (e) {
+        console.warn('Error calculating fallback spatial metrics in useAuditStepwiseForm:', e);
+      }
+    }
+
     const initial: Record<string, any> = {
       // Step 1: Identification & General Specs
       projectParcelCode: data.projectParcelCode || sJson.projectParcelCode || '',
@@ -50,8 +87,8 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
       adjacentBuildings: sJson.adjacentBuildings || bSpecs.adjacentBuildings || bSpecs.adjacent_buildings || { left: { details: '' }, right: { details: '' }, back: { details: '' } },
 
       // Spatial & GPS calculations (Allow manual override)
-      metroOffsetDistance: sJson.metroOffsetDistance !== undefined ? String(sJson.metroOffsetDistance) : (data.metroOffsetDistance !== undefined ? String(data.metroOffsetDistance) : ''),
-      clearanceOffsetDistance: sJson.clearanceOffsetDistance !== undefined ? String(sJson.clearanceOffsetDistance) : (data.clearanceOffsetDistance !== undefined ? String(data.clearanceOffsetDistance) : ''),
+      metroOffsetDistance: defaultMetroDist,
+      clearanceOffsetDistance: defaultClearanceDist,
       chainage: sJson.chainage || data.chainage || '',
 
       // Step 2: Structure & Foundation & History Interview
@@ -77,8 +114,63 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
       // Step 4: Burland Summary
       burlandSummary: sJson.burlandSummary || {},
 
-      // Step 5: Tilt & Settlement
-      settlementTilt: sJson.settlementTilt || defState || {},
+      // Step 5: Tilt & Settlement (Chuẩn hóa hai chiều đầy đủ ảnh lún chênh, ảnh nghiêng, ảnh ngoại lệ)
+      settlementTilt: {
+        ...sJson.settlementTilt,
+        diffSettlement: {
+          level: sJson.settlementTilt?.diffSettlement?.level ?? defState.diff_settlement_level ?? 0,
+          position: sJson.settlementTilt?.diffSettlement?.position || defState.diff_settlement_position || '',
+          photoUrl: sJson.settlementTilt?.diffSettlement?.photoUrl || defState.diff_settlement_photo_url || '',
+          photoCode: sJson.settlementTilt?.diffSettlement?.photoCode || defState.diff_settlement_photo_code || 'SETTLE_01',
+          photos: Array.isArray(sJson.settlementTilt?.diffSettlement?.photos) && sJson.settlementTilt.diffSettlement.photos.length > 0
+            ? sJson.settlementTilt.diffSettlement.photos
+            : Array.isArray(defState.diff_settlement_photos_json) && defState.diff_settlement_photos_json.length > 0
+            ? defState.diff_settlement_photos_json
+            : (sJson.settlementTilt?.diffSettlement?.photoUrl || defState.diff_settlement_photo_url
+              ? [{ url: sJson.settlementTilt?.diffSettlement?.photoUrl || defState.diff_settlement_photo_url, photoCode: sJson.settlementTilt?.diffSettlement?.photoCode || defState.diff_settlement_photo_code || 'SETTLE_01' }]
+              : []),
+          notes: sJson.settlementTilt?.diffSettlement?.notes || defState.diff_settlement_notes || '',
+        },
+        buildingTilt: {
+          level: sJson.settlementTilt?.buildingTilt?.level ?? defState.building_tilt_level ?? 0,
+          xPermille: sJson.settlementTilt?.buildingTilt?.xPermille ?? defState.tilt_x_permille ?? 0,
+          yPermille: sJson.settlementTilt?.buildingTilt?.yPermille ?? defState.tilt_y_permille ?? 0,
+          direction: sJson.settlementTilt?.buildingTilt?.direction || defState.tilt_direction || '',
+          photoUrl: sJson.settlementTilt?.buildingTilt?.photoUrl || defState.tilt_photo_url || '',
+          photoCode: sJson.settlementTilt?.buildingTilt?.photoCode || defState.tilt_photo_code || 'TILT_01',
+          photos: Array.isArray(sJson.settlementTilt?.buildingTilt?.photos) && sJson.settlementTilt.buildingTilt.photos.length > 0
+            ? sJson.settlementTilt.buildingTilt.photos
+            : Array.isArray(defState.tilt_photos_json) && defState.tilt_photos_json.length > 0
+            ? defState.tilt_photos_json
+            : (sJson.settlementTilt?.buildingTilt?.photoUrl || defState.tilt_photo_url
+              ? [{ url: sJson.settlementTilt?.buildingTilt?.photoUrl || defState.tilt_photo_url, photoCode: sJson.settlementTilt?.buildingTilt?.photoCode || defState.tilt_photo_code || 'TILT_01' }]
+              : []),
+          notes: sJson.settlementTilt?.buildingTilt?.notes || defState.tilt_notes || '',
+        },
+        beamSagging: {
+          level: sJson.settlementTilt?.beamSagging?.level ?? defState.beam_sagging_level ?? 0,
+          sagMm: sJson.settlementTilt?.beamSagging?.sagMm ?? defState.beam_sagging_mm ?? '',
+          position: sJson.settlementTilt?.beamSagging?.position || defState.beam_sagging_position || '',
+          description: sJson.settlementTilt?.beamSagging?.description || defState.beam_sagging_description || '',
+        },
+        abnormalCase: {
+          photoUrl: sJson.settlementTilt?.abnormalCase?.photoUrl || defState.abnormal_photo_url || '',
+          photoCode: sJson.settlementTilt?.abnormalCase?.photoCode || defState.abnormal_photo_code || 'ANOMALY_01',
+          photos: Array.isArray(sJson.settlementTilt?.abnormalCase?.photos) && sJson.settlementTilt.abnormalCase.photos.length > 0
+            ? sJson.settlementTilt.abnormalCase.photos
+            : Array.isArray(defState.abnormal_photos_json) && defState.abnormal_photos_json.length > 0
+            ? defState.abnormal_photos_json
+            : (sJson.settlementTilt?.abnormalCase?.photoUrl || defState.abnormal_photo_url
+              ? [{ url: sJson.settlementTilt?.abnormalCase?.photoUrl || defState.abnormal_photo_url, photoCode: sJson.settlementTilt?.abnormalCase?.photoCode || defState.abnormal_photo_code || 'ANOMALY_01' }]
+              : []),
+          notes: sJson.settlementTilt?.abnormalCase?.notes || defState.abnormal_notes || '',
+        },
+        dataSource: Array.isArray(sJson.settlementTilt?.dataSource) ? sJson.settlementTilt.dataSource : [],
+        needAdditionalMonitoring: sJson.settlementTilt?.needAdditionalMonitoring || {
+          required: Boolean(defState.need_additional_monitoring),
+          notes: defState.monitoring_notes || '',
+        },
+      },
 
       // Step 6: Scope & GIS
       surveyScope: sJson.surveyScope || {},

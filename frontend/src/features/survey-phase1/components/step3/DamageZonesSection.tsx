@@ -4,6 +4,7 @@ import { Button } from '../../../../core/components/ui/Button';
 import { Badge } from '../../../../core/components/ui/Badge';
 import { Input, Select } from '../../../../core/components/ui/FormControls';
 import { PhotoCaptureInput } from '../../../../components/common/PhotoCaptureInput';
+import { TapToZoomThumbnail } from '../../../../components/common/TapToZoomThumbnail';
 import { FloorCadPinningCanvas, CadZonePin } from '../../../../components/canvas/FloorCadPinningCanvas';
 import { FloorSurveyData, DamageZoneData } from '../../types/phase1.types';
 import { COMMON_ROOM_NAMES, ARCH_COMPONENT_TYPES, WALL_MATERIALS } from './step3.constants';
@@ -442,26 +443,28 @@ export const DamageZonesSection: React.FC<DamageZonesSectionProps> = ({
               {/* Grid ảnh tổng quan */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 {activeZone.overviewPhotos?.map((photoUrl, pIdx) => (
-                  <div
+                  <TapToZoomThumbnail
                     key={pIdx}
-                    className="relative rounded-lg overflow-hidden border border-slate-300 aspect-video group"
-                  >
-                    <img src={photoUrl} alt={`Overview ${pIdx}`} className="w-full h-full object-cover" />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const deletedUrl = activeZone.overviewPhotos[pIdx];
-                        const updated = activeZone.overviewPhotos.filter((_, i) => i !== pIdx);
-                        const newCtx =
-                          activeZone.ctxPhotoUrl === deletedUrl ? updated[0] || '' : activeZone.ctxPhotoUrl;
-                        onUpdateZone(activeZoneIndex, { overviewPhotos: updated, ctxPhotoUrl: newCtx });
-                      }}
-                      className="absolute top-1 right-1 p-1 bg-red-600 text-white rounded-md text-xs opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-                      title="Xóa ảnh"
-                    >
-                      <Trash2 className="w-3 h-3" />
-                    </button>
-                  </div>
+                    src={photoUrl}
+                    label={`#${pIdx + 1}`}
+                    alt={`Tổng quan vùng ${activeZone.zoneCode} - ${pIdx + 1}`}
+                    actions={
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const deletedUrl = activeZone.overviewPhotos[pIdx];
+                          const updated = activeZone.overviewPhotos.filter((_, i) => i !== pIdx);
+                          const newCtx =
+                            activeZone.ctxPhotoUrl === deletedUrl ? updated[0] || '' : activeZone.ctxPhotoUrl;
+                          onUpdateZone(activeZoneIndex, { overviewPhotos: updated, ctxPhotoUrl: newCtx });
+                        }}
+                        className="absolute top-1 right-1 p-1 bg-red-600 text-white rounded-md text-xs opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer pointer-events-auto"
+                        title="Xóa ảnh"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    }
+                  />
                 ))}
 
                 <PhotoCaptureInput
@@ -529,7 +532,13 @@ export const DamageZonesSection: React.FC<DamageZonesSectionProps> = ({
                       size="sm"
                       variant="danger"
                       icon={<MapPin className="w-3.5 h-3.5" />}
-                      onClick={() => onOpenPinningModal(activeZone.id)}
+                      onClick={() => {
+                        if (!activeZone.ctxPhotoUrl) {
+                          alert(`Vui lòng chụp hoặc tải ảnh bối cảnh (Photo CTX) cho ${activeZone.zoneCode} trước khi chấm điểm và ghi sổ khuyết tật D-xx!`);
+                          return;
+                        }
+                        onOpenPinningModal(activeZone.id);
+                      }}
                     >
                       {activeZone.defects?.length > 0
                         ? `Xem & Chỉnh sửa ${activeZone.defects.length} ghim D-xx ➔`

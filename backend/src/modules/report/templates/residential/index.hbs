@@ -298,8 +298,8 @@
       <td class="font-bold" style="width: 25%;">{{distanceToTunnelMeters}} mét</td>
     </tr>
     <tr>
-      <th>Khoảng cách tĩnh không</th>
-      <td>{{#if clearanceOffsetDistanceM}}{{clearanceOffsetDistanceM}} m{{else}}Chưa đo đạc{{/if}}</td>
+      <th>Khoảng cách đến mép ga / tĩnh không</th>
+      <td>{{#if hasStationEdge}}{{clearanceOffsetDistanceM}} m{{else}}<span style="color: #b45309; font-style: italic;">Không có công trình ga trong zone</span>{{/if}}</td>
       <th>Đoạn tuyến / Ga phụ trách</th>
       <td>{{zoneName}} ({{zoneId}})</td>
     </tr>
@@ -421,6 +421,14 @@
     <div class="photo-frame-full">
       {{#if p01.url}}
         <img src="{{p01.url}}" alt="P-01 Biển số nhà">
+        <div class="pdf-watermark-overlay">
+          <div class="pdf-watermark-top-right">CRLG-CRSRI-TT &bull; METRO LINE 2</div>
+          <div class="pdf-watermark-bottom-right">
+            <div>MÃ: {{p01.photoId}}</div>
+            <div>NGÀY: {{p01.capturedAt}}</div>
+            {{#if p01.gpsLat}}<div>GPS: {{p01.gpsLat}}, {{p01.gpsLng}}</div>{{/if}}
+          </div>
+        </div>
       {{else}}
         <div class="photo-placeholder">
           {{#if p01.isNotApplicable}}
@@ -452,6 +460,14 @@
       <div class="photo-frame-vertical">
         {{#if p02.url}}
           <img src="{{p02.url}}" alt="P-02 Mặt đứng chính">
+          <div class="pdf-watermark-overlay">
+            <div class="pdf-watermark-top-right">CRLG-CRSRI-TT &bull; METRO LINE 2</div>
+            <div class="pdf-watermark-bottom-right">
+              <div>MÃ: {{p02.photoId}}</div>
+              <div>NGÀY: {{p02.capturedAt}}</div>
+              {{#if p02.gpsLat}}<div>GPS: {{p02.gpsLat}}, {{p02.gpsLng}}</div>{{/if}}
+            </div>
+          </div>
         {{else}}
           <div class="photo-placeholder">
             <div style="font-weight: bold; color: #94a3b8;">Chưa có ảnh P-02</div>
@@ -479,6 +495,13 @@
       <div class="photo-frame-vertical">
         {{#if p03.url}}
           <img src="{{p03.url}}" alt="P-03 Mặt bên hoặc phía sau">
+          <div class="pdf-watermark-overlay">
+            <div class="pdf-watermark-top-right">CRLG-CRSRI-TT &bull; METRO LINE 2</div>
+            <div class="pdf-watermark-bottom-right">
+              <div>MÃ: {{p03.photoId}}</div>
+              <div>NGÀY: {{p03.capturedAt}}</div>
+            </div>
+          </div>
         {{else}}
           <div class="photo-placeholder">
             {{#if p03.isNotApplicable}}
@@ -515,6 +538,14 @@
     <div class="photo-frame-full">
       {{#if p04.url}}
         <img src="{{p04.url}}" alt="P-04 Bối cảnh vỉa hè và tuyến Metro">
+        <div class="pdf-watermark-overlay">
+          <div class="pdf-watermark-top-right">CRLG-CRSRI-TT &bull; METRO LINE 2</div>
+          <div class="pdf-watermark-bottom-right">
+            <div>MÃ: {{p04.photoId}}</div>
+            <div>NGÀY: {{p04.capturedAt}}</div>
+            {{#if p04.gpsLat}}<div>GPS: {{p04.gpsLat}}, {{p04.gpsLng}}</div>{{/if}}
+          </div>
+        </div>
       {{else}}
         <div class="photo-placeholder">
           <div style="font-weight: bold; color: #94a3b8;">Chưa có ảnh P-04</div>
@@ -1004,6 +1035,13 @@
               </div>
               <div class="defect-evidence-full">
                 <img src="{{ctxPhotoUrl}}" alt="Ảnh bối cảnh {{defectCode}}">
+                <div class="pdf-watermark-overlay">
+                  <div class="pdf-watermark-top-right">CRLG-CRSRI-TT &bull; METRO 2</div>
+                  <div class="pdf-watermark-bottom-right">
+                    <div>VẾT NỨT: {{defectCode}} (CTX)</div>
+                    <div>VỊ TRÍ: {{../zoneCode}} &bull; {{../roomName}}</div>
+                  </div>
+                </div>
               </div>
               <div class="evidence-caption-full">
                 HÌNH: BỐI CẢNH VÙNG KIẾN TRÚC {{../zoneCode}} CHỨA KHUYẾT TẬT {{defectCode}} ({{../roomName}})
@@ -1027,6 +1065,13 @@
                 </div>
                 <div class="defect-evidence-full">
                   <img src="{{this}}" alt="Ảnh cận cảnh có thước đo {{../defectCode}} (Ảnh #{{addOne @index}})">
+                  <div class="pdf-watermark-overlay">
+                    <div class="pdf-watermark-top-right">CRLG-CRSRI-TT &bull; CRACK GAUGE</div>
+                    <div class="pdf-watermark-bottom-right">
+                      <div>VẾT NỨT: {{../defectCode}} #{{addOne @index}}</div>
+                      <div>W_MAX: {{../widthMaxMm}} mm</div>
+                    </div>
+                  </div>
                 </div>
                 <div class="evidence-caption-full" style="background-color: #fff7ed; color: #9a3412;">
                   HÌNH: CẬN CẢNH ĐO ĐẠC BỀ RỘNG VẾT NỨT {{../defectCode}} - ẢNH #{{addOne @index}} (BỀ RỘNG LỚN NHẤT w<sub>max</sub> = {{../widthMaxMm}} mm, DÀI {{../lengthMm}} mm)
@@ -1047,6 +1092,13 @@
               </div>
               <div class="defect-evidence-full">
                 <img src="{{cuPhotoUrl}}" alt="Ảnh cận cảnh có thước đo {{defectCode}}">
+                <div class="pdf-watermark-overlay">
+                  <div class="pdf-watermark-top-right">CRLG-CRSRI-TT &bull; CRACK GAUGE</div>
+                  <div class="pdf-watermark-bottom-right">
+                    <div>VẾT NỨT: {{defectCode}}</div>
+                    <div>W_MAX: {{widthMaxMm}} mm</div>
+                  </div>
+                </div>
               </div>
               <div class="evidence-caption-full" style="background-color: #fff7ed; color: #9a3412;">
                 HÌNH: CẬN CẢNH ĐO ĐẠC BỀ RỘNG VẾT NỨT {{defectCode}} (BỀ RỘNG LỚN NHẤT w<sub>max</sub> = {{widthMaxMm}} mm, DÀI {{lengthMm}} mm)
@@ -1400,9 +1452,15 @@
   </table>
 
   {{#if ecsJudgementApplied}}
-  <div class="note-box note-box-warning">
-    <div class="note-title">⚖️ Đánh giá chuyên gia điều chỉnh điểm ECS (Engineering Judgement):</div>
-    Hành động can thiệp: <strong>{{ecsJudgementAction}}</strong> | Lý do giải trình: {{ecsJudgementReason}}
+  <div class="note-box note-box-warning" style="margin-top: 10px; border-left: 4px solid #7c3aed; background-color: #f5f3ff;">
+    <div class="note-title" style="color: #5b21b6;">⚖️ Phán Quyết Kỹ Sư Trưởng & Can Thiệp Chuyên Môn (Engineering Judgement Applied):</div>
+    <div style="font-size: 9pt; color: #4c1d95; margin-top: 3px;">
+      Kỹ sư thực hiện: <strong>{{judgementEngineerName}}</strong> {{#if judgementAppliedAt}}({{judgementAppliedAt}}){{/if}}
+      | Hành động: <span class="badge" style="background: #7c3aed; color: #fff;">{{ecsJudgementAction}}</span>
+    </div>
+    <div style="font-size: 9pt; margin-top: 5px; color: #1e293b; background: #fff; padding: 6px 10px; border-radius: 4px; border: 1px solid #ddd6fe;">
+      <strong>Căn cứ & Lý giải chuyên môn:</strong> {{ecsJudgementReason}}
+    </div>
   </div>
   {{/if}}
 
@@ -1506,9 +1564,19 @@
       <div class="metric-label">Cấp tác động Metro (I)</div>
       <div class="metric-value">CẤP I-{{constructionImpactLevelI}}</div>
       <div style="margin-top: 4px;">
-        <span class="badge {{impactBadgeClass}}">CỰ LY {{distanceToTunnelMeters}}M</span>
+        {{#if hasStationEdge}}
+        <span class="badge {{impactBadgeClass}}">MÉP GA {{clearanceOffsetDistanceM}}M</span>
+        {{else}}
+        <span class="badge {{impactBadgeClass}}">TIM HẦM {{distanceToTunnelMeters}}M</span>
+        {{/if}}
       </div>
-      <div class="metric-desc">Khoảng cách đến tim hầm</div>
+      <div class="metric-desc">
+        {{#if hasStationEdge}}
+        Khoảng cách đến mép công trình ga
+        {{else}}
+        Không có công trình ga trong zone
+        {{/if}}
+      </div>
     </div>
 
     <div class="metric-card">
@@ -1541,8 +1609,20 @@
     <tr>
       <th style="width: 25%;">Hạng mục Metro tác động</th>
       <td style="width: 25%;">{{metroItemType}}</td>
-      <th style="width: 25%;">Khoảng cách ranh đất đến tim hầm</th>
-      <td class="font-bold" style="width: 25%;">{{distanceToTunnelMeters}} mét</td>
+      <th style="width: 25%;">Khoảng cách đến mép ga / biên hố đào</th>
+      <td class="font-bold" style="width: 25%;">
+        {{#if hasStationEdge}}
+          {{clearanceOffsetDistanceM}} mét <span class="badge badge-low" style="font-size: 7pt; margin-left: 4px;">Căn cứ Cấp I</span>
+        {{else}}
+          <span style="color: #b45309; font-style: italic;">Không có công trình ga trong zone</span>
+        {{/if}}
+      </td>
+    </tr>
+    <tr>
+      <th>Khoảng cách ranh đất đến tim hầm</th>
+      <td class="font-bold">{{distanceToTunnelMeters}} mét</td>
+      <th>Cấp tác động Metro (Impact Class I)</th>
+      <td class="font-bold"><span class="badge {{impactBadgeClass}}">CẤP I-{{constructionImpactLevelI}}</span></td>
     </tr>
     <tr>
       <th>Dự báo lún tối đa (S<sub>max</sub>)</th>
@@ -1552,9 +1632,7 @@
     </tr>
     <tr>
       <th>Vận tốc hạt đỉnh rung động (PPV)</th>
-      <td>{{vibrationPpv}} mm/s</td>
-      <th>Cấp tác động Metro (Impact Class I)</th>
-      <td class="font-bold"><span class="badge {{impactBadgeClass}}">CẤP I-{{constructionImpactLevelI}}</span></td>
+      <td colspan="3">{{vibrationPpv}} mm/s</td>
     </tr>
   </table>
 

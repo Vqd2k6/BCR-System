@@ -101,6 +101,7 @@ export const ZoneAuditReviewQueue: React.FC<Props> = ({ selectedZone, onStatsNee
     houseNumber?: string;
     street?: string;
     currentAreaM2?: number;
+    zoneId?: string;
     reportId?: string;
   } | null>(null);
 
@@ -145,17 +146,20 @@ export const ZoneAuditReviewQueue: React.FC<Props> = ({ selectedZone, onStatsNee
   // Tab counts
   const tabCounts = useMemo(() => {
     return {
-      all: items.length,
+      all: items.filter((i) => i.status !== 'APPROVED').length,
       residential: items.filter(
-        (i) => i.building_type === 'RESIDENTIAL' || (!i.building_type?.includes('CONDO') && !i.is_refused_or_absent)
+        (i) =>
+          i.status !== 'APPROVED' &&
+          (i.building_type === 'RESIDENTIAL' || (!i.building_type?.includes('CONDO') && !i.is_refused_or_absent))
       ).length,
-      condo: items.filter((i) => i.building_type?.includes('CONDO')).length,
+      condo: items.filter((i) => i.status !== 'APPROVED' && i.building_type?.includes('CONDO')).length,
       absent: items.filter((i) => i.status === 'POSTPONED_ABSENT' || i.is_refused_or_absent).length,
       critical: items.filter(
         (i) =>
-          ['GRADE_3', 'GRADE_4', 'GRADE_5'].includes(i.burland_damage_category || '') ||
-          Number(i.alert_count) > 0 ||
-          Number(i.ecs_score) >= 70
+          i.status !== 'APPROVED' &&
+          (['GRADE_3', 'GRADE_4', 'GRADE_5'].includes(i.burland_damage_category || '') ||
+            Number(i.alert_count) > 0 ||
+            Number(i.ecs_score) >= 70)
       ).length,
       rejected: items.filter((i) => i.status === 'REJECTED').length,
       approved: items.filter((i) => i.status === 'APPROVED').length,
@@ -166,16 +170,21 @@ export const ZoneAuditReviewQueue: React.FC<Props> = ({ selectedZone, onStatsNee
   const filteredItems = useMemo(() => {
     return items.filter((item) => {
       // Tab filter
-      if (activeTab === 'RESIDENTIAL') {
+      if (activeTab === 'ALL') {
+        if (item.status === 'APPROVED') return false;
+      } else if (activeTab === 'RESIDENTIAL') {
+        if (item.status === 'APPROVED') return false;
         const isCondo = item.building_type?.includes('CONDO');
         if (isCondo) return false;
       } else if (activeTab === 'CONDO') {
+        if (item.status === 'APPROVED') return false;
         const isCondo = item.building_type?.includes('CONDO');
         if (!isCondo) return false;
       } else if (activeTab === 'ABSENT') {
         const isAbsent = item.status === 'POSTPONED_ABSENT' || item.is_refused_or_absent;
         if (!isAbsent) return false;
       } else if (activeTab === 'CRITICAL') {
+        if (item.status === 'APPROVED') return false;
         const isHighBurland = ['GRADE_3', 'GRADE_4', 'GRADE_5'].includes(item.burland_damage_category || '');
         const hasAlerts = Number(item.alert_count) > 0;
         const isHighEcs = Number(item.ecs_score) >= 70;
@@ -690,6 +699,8 @@ export const ZoneAuditReviewQueue: React.FC<Props> = ({ selectedZone, onStatsNee
                               parcelCode: item.project_parcel_code,
                               houseNumber: item.house_number,
                               street: item.street,
+                              currentAreaM2: (item as any).land_area_m2 || 0,
+                              zoneId: item.zone_id,
                               reportId: item.report_id || undefined,
                             })
                           }
@@ -776,6 +787,7 @@ export const ZoneAuditReviewQueue: React.FC<Props> = ({ selectedZone, onStatsNee
           houseNumber={mutationModalData.houseNumber}
           street={mutationModalData.street}
           currentAreaM2={mutationModalData.currentAreaM2}
+          zoneId={mutationModalData.zoneId}
           reportId={mutationModalData.reportId}
           onClose={() => setMutationModalData(null)}
           onSuccess={(msg) => showToast(msg)}

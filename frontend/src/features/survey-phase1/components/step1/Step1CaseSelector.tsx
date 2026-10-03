@@ -3,6 +3,7 @@ import { Card } from '../../../../core/components/ui/Card';
 import { Button } from '../../../../core/components/ui/Button';
 import { Input, Select } from '../../../../core/components/ui/FormControls';
 import { PhotoCaptureInput } from '../../../../components/common/PhotoCaptureInput';
+import { TapToZoomThumbnail } from '../../../../components/common/TapToZoomThumbnail';
 import {
   Building2,
   Home,
@@ -277,23 +278,25 @@ export const Step1CaseSelector: React.FC<Step1CaseSelectorProps> = ({
 
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {formData.absenteeMinutesPhotos?.map((photoUrl, pIdx) => (
-                <div
+                <TapToZoomThumbnail
                   key={pIdx}
-                  className="relative rounded-lg overflow-hidden border border-amber-300 aspect-video group"
-                >
-                  <img src={photoUrl} alt={`Absentee Minutes ${pIdx}`} className="w-full h-full object-cover" />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const updated = formData.absenteeMinutesPhotos?.filter((_, i) => i !== pIdx) || [];
-                      updateFormData({ absenteeMinutesPhotos: updated });
-                    }}
-                    className="absolute top-1 right-1 p-1 bg-red-600 text-white rounded-md text-xs opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-                    title="Xóa ảnh"
-                  >
-                    <Trash2 className="w-3 h-3" />
-                  </button>
-                </div>
+                  src={photoUrl}
+                  label={`#${pIdx + 1}`}
+                  alt={`Biên bản vắng nhà trang ${pIdx + 1}`}
+                  actions={
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const updated = formData.absenteeMinutesPhotos?.filter((_, i) => i !== pIdx) || [];
+                        updateFormData({ absenteeMinutesPhotos: updated });
+                      }}
+                      className="absolute top-1 right-1 p-1 bg-red-600 text-white rounded-md text-xs opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer pointer-events-auto"
+                      title="Xóa ảnh"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  }
+                />
               ))}
 
               <PhotoCaptureInput
@@ -391,23 +394,25 @@ export const Step1CaseSelector: React.FC<Step1CaseSelectorProps> = ({
 
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {formData.underConstructionPhotos?.map((photoUrl, pIdx) => (
-                <div
+                <TapToZoomThumbnail
                   key={pIdx}
-                  className="relative rounded-lg overflow-hidden border border-orange-300 aspect-video group"
-                >
-                  <img src={photoUrl} alt={`Construction ${pIdx}`} className="w-full h-full object-cover" />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const updated = formData.underConstructionPhotos?.filter((_, i) => i !== pIdx) || [];
-                      updateFormData({ underConstructionPhotos: updated });
-                    }}
-                    className="absolute top-1 right-1 p-1 bg-red-600 text-white rounded-md text-xs opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-                    title="Xóa ảnh"
-                  >
-                    <Trash2 className="w-3 h-3" />
-                  </button>
-                </div>
+                  src={photoUrl}
+                  label={`#${pIdx + 1}`}
+                  alt={`Hiện trạng thi công ${pIdx + 1}`}
+                  actions={
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const updated = formData.underConstructionPhotos?.filter((_, i) => i !== pIdx) || [];
+                        updateFormData({ underConstructionPhotos: updated });
+                      }}
+                      className="absolute top-1 right-1 p-1 bg-red-600 text-white rounded-md text-xs opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer pointer-events-auto"
+                      title="Xóa ảnh"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  }
+                />
               ))}
 
               <PhotoCaptureInput
@@ -545,23 +550,25 @@ export const Step1CaseSelector: React.FC<Step1CaseSelectorProps> = ({
 
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {formData.vacantLandPhotos?.map((photoUrl, pIdx) => (
-                <div
+                <TapToZoomThumbnail
                   key={pIdx}
-                  className="relative rounded-lg overflow-hidden border border-teal-300 aspect-video group"
-                >
-                  <img src={photoUrl} alt={`Vacant Land ${pIdx}`} className="w-full h-full object-cover" />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const updated = formData.vacantLandPhotos?.filter((_, i) => i !== pIdx) || [];
-                      updateFormData({ vacantLandPhotos: updated });
-                    }}
-                    className="absolute top-1 right-1 p-1 bg-red-600 text-white rounded-md text-xs opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-                    title="Xóa ảnh"
-                  >
-                    <Trash2 className="w-3 h-3" />
-                  </button>
-                </div>
+                  src={photoUrl}
+                  label={`#${pIdx + 1}`}
+                  alt={`Hiện trạng đất trống ${pIdx + 1}`}
+                  actions={
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const updated = formData.vacantLandPhotos?.filter((_, i) => i !== pIdx) || [];
+                        updateFormData({ vacantLandPhotos: updated });
+                      }}
+                      className="absolute top-1 right-1 p-1 bg-red-600 text-white rounded-md text-xs opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer pointer-events-auto"
+                      title="Xóa ảnh"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  }
+                />
               ))}
 
               <PhotoCaptureInput

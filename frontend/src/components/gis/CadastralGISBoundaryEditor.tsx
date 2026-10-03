@@ -49,9 +49,11 @@ export const CadastralGISBoundaryEditor: React.FC<CadastralBoundaryEditorProps> 
     customMergeResidualType,
     setCustomMergeResidualType,
     dynamicCodes,
+    maxZoneInfo,
     isSubmittingMutation,
     polyAVertices,
     setPolyAVertices,
+    polyBVertices,
     calculatedAreaA,
     calculatedAreaB,
     handleVertexDrag,
@@ -60,6 +62,8 @@ export const CadastralGISBoundaryEditor: React.FC<CadastralBoundaryEditorProps> 
     handleRemovePoint,
     handleResetDefault,
     handleApplyLShape,
+    handleSplitHorizontal,
+    handleSplitVertical,
     selectedMergeCodes,
     mergeSummary,
     handleToggleMergeParcel,
@@ -70,6 +74,7 @@ export const CadastralGISBoundaryEditor: React.FC<CadastralBoundaryEditorProps> 
     handleMergeRemoveLastPoint,
     handleMergeClearDraw,
     handleSaveMutationProposal,
+    zoneParcels,
   } = useCadastralMutation({
     activeParcelId,
     parcelData,
@@ -109,7 +114,7 @@ export const CadastralGISBoundaryEditor: React.FC<CadastralBoundaryEditorProps> 
         />
       )}
 
-      {/* 3. SPLIT Panel (Tách thửa - Option 1 chấm điểm / Option 2 kéo nắn) */}
+      {/* 3. SPLIT Panel (Tách thửa trực quan - Render cả 2 Lô A/B & Max Zone + 1) */}
       {boundaryStatus === 'SPLIT' && (
         <SplitPanel
           parcelData={parcelData}
@@ -121,15 +126,19 @@ export const CadastralGISBoundaryEditor: React.FC<CadastralBoundaryEditorProps> 
           setSplitShapeOption={setSplitShapeOption}
           polyAVertices={polyAVertices}
           setPolyAVertices={setPolyAVertices}
+          polyBVertices={polyBVertices}
           calculatedAreaA={calculatedAreaA}
           calculatedAreaB={calculatedAreaB}
           dynamicCodes={dynamicCodes}
+          maxZoneInfo={maxZoneInfo}
           handleVertexDrag={handleVertexDrag}
           handleMapClickDraw={handleMapClickDraw}
           handleAddMidpoint={handleAddMidpoint}
           handleRemovePoint={handleRemovePoint}
           handleResetDefault={handleResetDefault}
           handleApplyLShape={handleApplyLShape}
+          handleSplitHorizontal={handleSplitHorizontal}
+          handleSplitVertical={handleSplitVertical}
           mutationData={mutationData}
           onMutationDataChange={onMutationDataChange}
           customResidualType={customResidualType}
@@ -141,7 +150,7 @@ export const CadastralGISBoundaryEditor: React.FC<CadastralBoundaryEditorProps> 
         />
       )}
 
-      {/* 4. MERGE Panel (Gộp thửa & Khoanh vùng công trình) */}
+      {/* 4. MERGE Panel (Gộp thửa & Bản đồ toàn Zone tương tác Click-to-Merge) */}
       {boundaryStatus === 'MERGE' && (
         <MergePanel
           parcelData={parcelData}
@@ -150,6 +159,7 @@ export const CadastralGISBoundaryEditor: React.FC<CadastralBoundaryEditorProps> 
           activeCentroid={activeCentroid}
           tileMode={tileMode}
           setTileMode={setTileMode}
+          zoneParcels={zoneParcels}
           currentZoneMergeParcels={currentZoneMergeParcels}
           filteredMergeParcels={filteredMergeParcels}
           selectedMergeCodes={selectedMergeCodes}
