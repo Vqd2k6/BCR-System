@@ -43,6 +43,7 @@ export function useLiveCamera({
     if (videoRef.current) {
       videoRef.current.srcObject = null;
     }
+    setCameraLoading(false);
   };
 
   const applyHardwareZoom = (zoom: number) => {
@@ -119,10 +120,17 @@ export function useLiveCamera({
         videoRef.current.srcObject = stream;
         try {
           await videoRef.current.play();
+          setCameraLoading(false);
         } catch (playErr) {
           console.warn('[LiveCamera] Chờ onLoadedMetadata để tự động play:', playErr);
         }
       }
+
+      // Đã nhận luồng camera thành công, giải phóng màn hình loading
+      setCameraLoading(false);
+      setTimeout(() => {
+        setCameraLoading(false);
+      }, 500);
     } catch (err: any) {
       console.warn('[LiveCamera] Không thể mở camera trực tiếp:', err);
       setCameraError('Không thể mở camera trực tiếp trên trình duyệt. Bạn có thể bấm nút bên dưới để mở Máy ảnh hệ thống.');
@@ -135,9 +143,14 @@ export function useLiveCamera({
       if (videoRef.current.srcObject !== mediaStream) {
         videoRef.current.srcObject = mediaStream;
       }
-      videoRef.current.play().catch((err) => {
-        console.warn('[LiveCamera] Autoplay bị chặn hoặc đang tải:', err);
-      });
+      videoRef.current
+        .play()
+        .then(() => {
+          setCameraLoading(false);
+        })
+        .catch((err) => {
+          console.warn('[LiveCamera] Autoplay bị chặn hoặc đang tải:', err);
+        });
     }
   }, [isLiveCameraOpen, mediaStream]);
 
@@ -272,6 +285,10 @@ export function useLiveCamera({
     }
   };
 
+  const handleVideoReady = () => {
+    setCameraLoading(false);
+  };
+
   return {
     isLiveCameraOpen,
     setIsLiveCameraOpen,
@@ -287,6 +304,7 @@ export function useLiveCamera({
     applyHardwareZoom,
     handleTriggerNativeCamera,
     handleTriggerCapture,
+    handleVideoReady,
     handleCameraTouchStart,
     handleCameraTouchMove,
     handleCameraTouchEnd,

@@ -106,6 +106,7 @@ export const PhotoCaptureInput: React.FC<PhotoCaptureProps> = ({
     isLiveCameraOpen,
     setIsLiveCameraOpen,
     cameraLoading,
+    setCameraLoading,
     cameraError,
     zoomLevel,
     setZoomLevel,
@@ -114,6 +115,7 @@ export const PhotoCaptureInput: React.FC<PhotoCaptureProps> = ({
     applyHardwareZoom,
     handleTriggerNativeCamera,
     handleTriggerCapture,
+    handleVideoReady,
     handleCameraTouchStart,
     handleCameraTouchMove,
     handleCameraTouchEnd,
@@ -404,6 +406,8 @@ export const PhotoCaptureInput: React.FC<PhotoCaptureProps> = ({
         onSwitchCamera={() => setFacingMode((prev) => (prev === 'environment' ? 'user' : 'environment'))}
         onTriggerNativeCamera={handleTriggerNativeCamera}
         onCaptureFrame={handleCaptureLiveFrame}
+        onVideoReady={handleVideoReady}
+        onDismissLoading={() => setCameraLoading(false)}
         onTouchStart={handleCameraTouchStart}
         onTouchMove={handleCameraTouchMove}
         onTouchEnd={handleCameraTouchEnd}
