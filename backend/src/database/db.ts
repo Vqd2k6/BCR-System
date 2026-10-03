@@ -238,6 +238,16 @@ export class Database {
     } catch (e) {
       console.warn('⚠️ [STARTUP MIGRATION] building_units warning:', e);
     }
+
+    // 11. role_enum GUEST (Chủ Đầu Tư MAUR)
+    try {
+      await this.query(`
+        ALTER TYPE role_enum ADD VALUE IF NOT EXISTS 'GUEST';
+      `);
+      console.log('✅ [STARTUP MIGRATION] role_enum GUEST ready.');
+    } catch (e) {
+      console.warn('⚠️ [STARTUP MIGRATION] role_enum GUEST warning:', e);
+    }
   }
 }
 
