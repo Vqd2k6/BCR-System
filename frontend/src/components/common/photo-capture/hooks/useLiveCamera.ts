@@ -83,13 +83,13 @@ export function useLiveCamera({
         stream = await navigator.mediaDevices.getUserMedia({
           video: {
             facingMode: { ideal: facingMode },
-            width: { ideal: 2560 },
-            height: { ideal: 1920 },
+            width: { ideal: 2048 },
+            height: { ideal: 1536 },
           },
           audio: false,
         });
       } catch (firstErr) {
-        console.warn('[LiveCamera] Ràng buộc 2560x1920 không được hỗ trợ, chuyển sang chuẩn 1080p:', firstErr);
+        console.warn('[LiveCamera] Ràng buộc 2048x1536 không được hỗ trợ, chuyển sang chuẩn 1080p:', firstErr);
         try {
           stream = await navigator.mediaDevices.getUserMedia({
             video: {
@@ -265,7 +265,7 @@ export function useLiveCamera({
           }
         },
         'image/jpeg',
-        0.90
+        0.85
       );
     } catch (_err) {
       console.warn('[PhotoCaptureInput] Lỗi khi chụp khung hình camera trực tiếp:', _err);

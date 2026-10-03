@@ -181,7 +181,8 @@ export function usePhotoUpload({
   };
 
   /**
-   * Xử lý nén ảnh sạch chuẩn 2560px @ 0.90 (Không dập text vào pixel)
+   * Xử lý nén ảnh sạch chuẩn 2048px @ 0.80 (Không dập text vào pixel)
+   * Cân bằng tối ưu: giảm 75% - 80% dung lượng, upload 4G siêu tốc, nhẹ máy cho KSV
    * và lưu trữ nhị phân an toàn vào IndexedDB
    */
   const processAndStoreCleanPhoto = async (
@@ -189,10 +190,13 @@ export function usePhotoUpload({
   ): Promise<{ blobUrl: string; localId: string; blob: Blob; photoCode: string }> => {
     const photoCode = displayPhotoCode || generateMetroPhotoCode(effectiveWatermarkOptions || {});
     
-    // 1. Nén ảnh sạch 2560px @ 0.90 (< 80ms)
+    // 1. Nén ảnh sạch 2048px @ 0.80 (< 60ms, dung lượng tối ưu ~500-750KB)
+    const targetMaxDim = effectiveWatermarkOptions?.maxDimension || 2048;
+    const targetQuality = effectiveWatermarkOptions?.quality !== undefined ? effectiveWatermarkOptions.quality : 0.80;
+
     const cleanResult = await compressCleanImage(fileOrBlob, {
-      maxDimension: 2560,
-      quality: 0.90, // Chuẩn siêu nét theo yêu cầu
+      maxDimension: targetMaxDim,
+      quality: targetQuality,
       mimeType: 'image/jpeg',
     });
 

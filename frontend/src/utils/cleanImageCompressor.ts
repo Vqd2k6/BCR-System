@@ -1,16 +1,18 @@
 /**
  * BỘ NÉN ẢNH SẠCH SIÊU TỐC METRO 2 (CLEAN IMAGE COMPRESSOR)
- * Tiêu chuẩn: 2560px (2.5K Quad-HD) @ 0.90 (90% Quality)
+ * Tiêu chuẩn: 2048px (2K) @ 0.80 (80% Quality)
  *
  * Tính chất kỹ thuật:
  * - KHÔNG dập logo hay chữ lên pixel ảnh (Bảo toàn 100% chi tiết hiện trường gốc).
- * - Tốc độ nén tức thì (< 80ms), máy mát lạnh, không gây sụt pin.
+ * - Cân bằng tối ưu: Giảm 75% - 80% dung lượng (từ ~2.5MB xuống ~500KB - 750KB/ảnh).
+ * - Tốc độ nén tức thì (< 60ms), máy mát lạnh, tiết kiệm pin cho Surveyor ngoài hiện trường.
+ * - Bảo toàn độ sắc nét vạch chia mm của thước đo khi phóng to phục vụ thẩm định/báo cáo.
  * - Giải phóng triệt để RAM GPU và bộ nhớ Canvas ngay lập tức sau khi xuất Blob.
  */
 
 export interface CleanCompressionOptions {
-  maxDimension?: number; // Mặc định: 2560px (2.5K Quad-HD)
-  quality?: number;      // Mặc định: 0.90 (90% theo chỉ đạo người dùng)
+  maxDimension?: number; // Mặc định: 2048px (2K)
+  quality?: number;      // Mặc định: 0.80 (80% cân bằng dung lượng & độ nét)
   mimeType?: string;     // Mặc định: 'image/jpeg'
 }
 
@@ -24,8 +26,8 @@ export interface CleanCompressionResult {
   compressionTimeMs: number;
 }
 
-const DEFAULT_MAX_DIMENSION = 2560; // 2.5K Quad-HD
-const DEFAULT_QUALITY = 0.90;       // 90% siêu nét
+const DEFAULT_MAX_DIMENSION = 2048; // 2K chuẩn di động
+const DEFAULT_QUALITY = 0.80;       // 80% cân bằng tối ưu dung lượng & độ nét vạch đo mm
 
 /**
  * Đọc File/Blob nguồn thành HTMLImageElement để đo kích thước và vẽ
@@ -47,7 +49,7 @@ function readImageElement(source: File | Blob): Promise<HTMLImageElement> {
 }
 
 /**
- * Nén ảnh gốc thành ảnh sạch chuẩn 2560px @ 0.90
+ * Nén ảnh gốc thành ảnh sạch chuẩn 2048px @ 0.80
  */
 export async function compressCleanImage(
   fileOrBlob: File | Blob,
@@ -67,7 +69,7 @@ export async function compressCleanImage(
     throw new Error('Không thể xác định kích thước ảnh nguồn.');
   }
 
-  // 2. Tính toán tỉ lệ cạnh dài tối đa 2560px (giữ nguyên aspect ratio)
+  // 2. Tính toán tỉ lệ cạnh dài tối đa (mặc định 2048px, giữ nguyên aspect ratio)
   let targetWidth = origWidth;
   let targetHeight = origHeight;
 
@@ -238,7 +240,7 @@ export async function exportWatermarkedJpeg(
     ctx.fillText(l, boxX + metaPadding, boxY + metaPadding + idx * lineHeight + metaFontSize / 2);
   });
 
-  // 5. Xuất Blob 0.90
+  // 5. Xuất Blob 0.82
   return new Promise((resolve, reject) => {
     canvas.toBlob(
       (b) => {
@@ -252,7 +254,7 @@ export async function exportWatermarkedJpeg(
         else reject(new Error('Xuất Blob ảnh có watermark thất bại'));
       },
       'image/jpeg',
-      0.90
+      0.82
     );
   });
 }
