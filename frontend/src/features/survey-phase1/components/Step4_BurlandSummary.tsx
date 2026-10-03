@@ -17,10 +17,18 @@ const STRUCTURAL_FLAG_LEVELS = [
 
 export const Step4_BurlandSummary: React.FC = () => {
   const { formData, updateFormData, nextStep, prevStep } = usePhase1SurveyStore();
-  const bs = formData.burlandSummary;
+  const bs = formData.burlandSummary || {
+    predominantGrade: 0,
+    localMaxGrade: 0,
+    governingZoneCode: 'Z-01',
+    governingZoneDescription: '',
+    representativeness: 'GLOBAL',
+    structuralFlagLevel: 'NONE',
+    needStructuralEngineerReview: false,
+  };
 
   // Lấy danh sách tất cả các mã Zone Z-xx hiện có
-  const allZones = formData.floors.flatMap((f) => f.zones || []);
+  const allZones = (formData.floors || []).flatMap((f) => f.zones || []);
 
   // Hàm tính cấp Burland từ bề rộng vết nứt (mm)
   const getBurlandGradeFromWidth = (w: number): number => {
@@ -75,7 +83,11 @@ export const Step4_BurlandSummary: React.FC = () => {
 
   // Tự động áp dụng giá trị kế thừa từ Vùng Z khi chưa khởi tạo
   React.useEffect(() => {
-    if (zDefects.length > 0 && bs.predominantGrade === undefined && bs.localMaxGrade === undefined) {
+    if (
+      zDefects.length > 0 &&
+      (bs.predominantGrade === undefined || bs.predominantGrade === null) &&
+      (bs.localMaxGrade === undefined || bs.localMaxGrade === null)
+    ) {
       updateFormData({
         burlandSummary: {
           ...bs,
@@ -308,7 +320,7 @@ export const Step4_BurlandSummary: React.FC = () => {
             </div>
             <Select
               id="select-burland-representativeness"
-              value={bs.representativeness}
+              value={bs.representativeness || 'GLOBAL'}
               onChange={(e) =>
                 updateFormData({
                   burlandSummary: {
@@ -382,7 +394,7 @@ export const Step4_BurlandSummary: React.FC = () => {
 
         <div className="space-y-2">
           {STRUCTURAL_FLAG_LEVELS.map((flag) => {
-            const isSelected = bs.structuralFlagLevel === flag.value;
+            const isSelected = (bs.structuralFlagLevel || 'NONE') === flag.value;
             return (
               <label
                 key={flag.value}

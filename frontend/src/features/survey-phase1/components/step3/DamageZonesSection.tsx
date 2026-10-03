@@ -532,7 +532,13 @@ export const DamageZonesSection: React.FC<DamageZonesSectionProps> = ({
                       size="sm"
                       variant="danger"
                       icon={<MapPin className="w-3.5 h-3.5" />}
-                      onClick={() => onOpenPinningModal(activeZone.id)}
+                      onClick={() => {
+                        if (!activeZone.ctxPhotoUrl) {
+                          alert(`Vui lòng chụp hoặc tải ảnh bối cảnh (Photo CTX) cho ${activeZone.zoneCode} trước khi chấm điểm và ghi sổ khuyết tật D-xx!`);
+                          return;
+                        }
+                        onOpenPinningModal(activeZone.id);
+                      }}
                     >
                       {activeZone.defects?.length > 0
                         ? `Xem & Chỉnh sửa ${activeZone.defects.length} ghim D-xx ➔`

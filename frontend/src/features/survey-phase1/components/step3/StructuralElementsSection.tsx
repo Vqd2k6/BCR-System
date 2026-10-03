@@ -648,7 +648,13 @@ export const StructuralElementsSection: React.FC<StructuralElementsSectionProps>
                       size="sm"
                       variant="danger"
                       icon={<MapPin className="w-3.5 h-3.5" />}
-                      onClick={() => onOpenPinningModal(activeElement.id)}
+                      onClick={() => {
+                        if (!activeElement.ctxPhotoUrl) {
+                          alert(`Vui lòng chụp hoặc chọn ảnh bối cảnh cấu kiện cho ${activeElement.elementCode} trước khi chấm điểm và ghi sổ khuyết tật kết cấu!`);
+                          return;
+                        }
+                        onOpenPinningModal(activeElement.id);
+                      }}
                     >
                       {activeElement.defects?.length > 0
                         ? `Xem & Chỉnh sửa ${activeElement.defects.length} ghim kết cấu ➔`

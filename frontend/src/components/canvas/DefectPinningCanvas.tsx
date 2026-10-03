@@ -478,13 +478,27 @@ export const DefectPinningCanvas: React.FC<Props> = ({
     onChange(updated);
   };
 
-  const selectedDefect = selectedDefectIndex !== null ? defects[selectedDefectIndex] : null;
+  const selectedDefect =
+    selectedDefectIndex !== null && selectedDefectIndex >= 0 && selectedDefectIndex < defects.length
+      ? defects[selectedDefectIndex] || null
+      : null;
   const prevDefect = selectedDefectIndex !== null && selectedDefectIndex > 0 ? defects[selectedDefectIndex - 1] : null;
   const isStructural = mode === 'STRUCTURAL';
   const isDefectRoot = selectedDefectIndex === 0;
   const downstreamDefectCount = selectedDefectIndex !== null ? defects.length - 1 - selectedDefectIndex : 0;
   const defectCustomFields = selectedDefect?.customizedFields || [];
   const hasCustomizedDefectFields = defectCustomFields.length > 0;
+
+  // Đảm bảo selectedDefectIndex luôn đồng bộ và an toàn với kích thước mảng defects
+  React.useEffect(() => {
+    if (selectedDefectIndex !== null) {
+      if (defects.length === 0) {
+        setSelectedDefectIndex(null);
+      } else if (selectedDefectIndex >= defects.length) {
+        setSelectedDefectIndex(defects.length - 1);
+      }
+    }
+  }, [defects.length, selectedDefectIndex]);
 
   const renderDefectFieldBadge = (field: keyof DefectItem) => {
     if (!prevDefect || !selectedDefect) return null;
@@ -705,7 +719,7 @@ export const DefectPinningCanvas: React.FC<Props> = ({
       </div>
 
       {/* Selected Defect Detail Card */}
-      {selectedDefect !== null && selectedDefectIndex !== null && (
+      {selectedDefect && selectedDefectIndex !== null && (
         <div ref={detailFormRef} className="relative p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3.5 shadow-2xs">
           {/* Top Glow Line (Emerald cho Kiến trúc, Amber cho Kết cấu) */}
           <div
