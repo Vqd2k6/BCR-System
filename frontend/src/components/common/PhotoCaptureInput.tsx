@@ -13,6 +13,7 @@ import { LiveCameraModal } from './photo-capture/components/LiveCameraModal';
 import { PhotoLightboxModal } from './photo-capture/components/PhotoLightboxModal';
 import { PhotoPreviewCard } from './photo-capture/components/PhotoPreviewCard';
 import { PhotoEmptyState } from './photo-capture/components/PhotoEmptyState';
+import { usePhase1SurveyStore } from '../../features/survey-phase1/store/usePhase1SurveyStore';
 
 export type { PhotoCaptureProps };
 
@@ -35,7 +36,10 @@ export const PhotoCaptureInput: React.FC<PhotoCaptureProps> = ({
   allowAnnotation = true,
   annotationTitle,
   initialAnnotationTool,
+  readOnly,
 }) => {
+  const storeReadOnly = usePhase1SurveyStore ? usePhase1SurveyStore((s) => s.isReadOnly) : false;
+  const effectiveReadOnly = readOnly !== undefined ? readOnly : storeReadOnly;
   const uniqueId = useId().replace(/:/g, '_');
   const cameraInputId = `cam_${uniqueId}`;
   const galleryInputId = `gal_${uniqueId}`;
@@ -265,7 +269,7 @@ export const PhotoCaptureInput: React.FC<PhotoCaptureProps> = ({
           )}
         </div>
 
-        {allowNotApplicable && onToggleNotApplicable && (
+        {allowNotApplicable && onToggleNotApplicable && !effectiveReadOnly && (
           <label
             style={{
               fontSize: '0.75rem',
@@ -279,6 +283,7 @@ export const PhotoCaptureInput: React.FC<PhotoCaptureProps> = ({
             <input
               type="checkbox"
               checked={isNotApplicable}
+              disabled={effectiveReadOnly}
               onChange={(e) => {
                 onToggleNotApplicable(e.target.checked);
                 if (e.target.checked) onChange('');
@@ -335,6 +340,7 @@ export const PhotoCaptureInput: React.FC<PhotoCaptureProps> = ({
             className="form-control"
             placeholder="Ví dụ: Nhà không gắn biển số / Bị nhà đối diện che khuất hoàn toàn..."
             value={naReason}
+            disabled={effectiveReadOnly}
             onChange={(e) => onNaReasonChange && onNaReasonChange(e.target.value)}
             style={{ fontSize: '0.775rem' }}
           />
@@ -351,7 +357,8 @@ export const PhotoCaptureInput: React.FC<PhotoCaptureProps> = ({
           displayPhotoCode={displayPhotoCode}
           label={label}
           uploadStatus={uploadStatus}
-          allowAnnotation={allowAnnotation}
+          allowAnnotation={allowAnnotation && !effectiveReadOnly}
+          readOnly={effectiveReadOnly}
           cameraInputId={cameraInputId}
           galleryInputId={galleryInputId}
           onOpenLightbox={() => setIsLightboxOpen(true)}
@@ -370,6 +377,7 @@ export const PhotoCaptureInput: React.FC<PhotoCaptureProps> = ({
           cameraInputId={cameraInputId}
           galleryInputId={galleryInputId}
           onTriggerCapture={handleTriggerCapture}
+          readOnly={effectiveReadOnly}
         />
       )}
 

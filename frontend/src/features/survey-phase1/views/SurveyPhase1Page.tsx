@@ -23,6 +23,7 @@ import { AbsenteeReviewView } from './AbsenteeReviewView';
 import { CloudPhotoSyncModal } from '../components/CloudPhotoSyncModal';
 import { auditSurveyPhotos } from '../utils/photoSyncAudit';
 import { AlertOctagon } from 'lucide-react';
+import { getEffectiveParcelStatus } from '../../../components/gis/sweep-map/utils/sweepMapHelpers';
 
 export interface SurveyPhase1PageProps {
   parcel?: GisParcel | null;
@@ -71,6 +72,25 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
   const [isPhotoSyncModalOpen, setIsPhotoSyncModalOpen] = useState(false);
   const [isPhotoSyncFromSubmit, setIsPhotoSyncFromSubmit] = useState(false);
 
+  // Tính toán trạng thái chỉ đọc (Triple-lock read-only protection)
+  const effectiveStatus = parcel ? getEffectiveParcelStatus(parcel) : null;
+  const serverStatus = reportData?.report?.status;
+  const isSubmittedOrApproved =
+    effectiveStatus === 'SUBMITTED' ||
+    effectiveStatus === 'APPROVED' ||
+    effectiveStatus === 'PHASE2_COMPLETED' ||
+    effectiveStatus === 'APPROVED_PHASE2' ||
+    parcel?.surveyStatus === 'SUBMITTED' ||
+    parcel?.surveyStatus === 'APPROVED' ||
+    parcel?.surveyStatus === 'PHASE2_COMPLETED' ||
+    parcel?.surveyStatus === 'APPROVED_PHASE2' ||
+    serverStatus === 'SUBMITTED' ||
+    serverStatus === 'APPROVED' ||
+    serverStatus === 'PHASE2_COMPLETED' ||
+    serverStatus === 'APPROVED_PHASE2';
+
+  const effectiveReadOnly = Boolean(readOnly || isSubmittedOrApproved);
+
   // Khởi tạo form khi parcel thay đổi
   useEffect(() => {
     if (parcel) {
@@ -78,15 +98,15 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
     }
   }, [parcel?.id, unit?.id]);
 
-  // Sync readOnly prop vào Zustand store để toàn bộ wizard hiểu chế độ xem lại
+  // Sync effectiveReadOnly prop vào Zustand store để toàn bộ wizard hiểu chế độ xem lại
   useEffect(() => {
-    setIsReadOnly(readOnly);
+    setIsReadOnly(effectiveReadOnly);
     return () => setIsReadOnly(false); // cleanup khi unmount
-  }, [readOnly]);
+  }, [effectiveReadOnly]);
 
   // Định kỳ 2 phút tự động đồng bộ bản nháp lên máy chủ nếu có thay đổi (isDirty === true)
   useEffect(() => {
-    if (readOnly) return;
+    if (effectiveReadOnly) return;
     const interval = setInterval(() => {
       const state = usePhase1SurveyStore.getState();
       if (state.isDirty && !state.isReadOnly) {
@@ -107,7 +127,7 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
       clearInterval(interval);
       window.removeEventListener('beforeunload', handleBeforeUnloadSync);
     };
-  }, [readOnly]);
+  }, [effectiveReadOnly]);
 
   // Tải dữ liệu hồ sơ nếu ở chế độ xem lại (Read-Only) hoặc nạp dữ liệu đã lưu từ máy chủ
   useEffect(() => {
@@ -121,6 +141,16 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
             const rep = data.report;
             const absence = data.absenceLog;
             const updates: any = {};
+
+            // Nếu hồ sơ trên máy chủ đã nộp hoặc phê duyệt, kích hoạt ngay chế độ chỉ xem
+            if (
+              rep?.status === 'SUBMITTED' ||
+              rep?.status === 'APPROVED' ||
+              rep?.status === 'PHASE2_COMPLETED' ||
+              rep?.status === 'APPROVED_PHASE2'
+            ) {
+              setIsReadOnly(true);
+            }
 
             // 1. Khôi phục toàn vẹn 100% dữ liệu gốc từ JSON snapshot nếu đã từng nộp / lưu
             if (rep?.survey_data_json) {
@@ -137,7 +167,7 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
               }
             }
 
-            if (readOnly) {
+            if (effectiveReadOnly) {
               if (absence && rep?.is_refused_or_absent) {
                 updates.surveyCaseType = 'ABSENTEE';
                 updates.isAbsenteeSurvey = true;
@@ -362,13 +392,13 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
           console.warn('[SurveyPhase1Page] Notice: phase1-report not found or new survey:', err?.message);
         });
     }
-  }, [readOnly, parcel?.id]);
+  }, [effectiveReadOnly, parcel?.id]);
 
   // Chặn thao tác reload / đóng tab ngoài ý muốn
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
       const store = usePhase1SurveyStore.getState();
-      if (store.isSubmitted || readOnly) {
+      if (store.isSubmitted || effectiveReadOnly) {
         return;
       }
       saveDraftToStorage();
@@ -378,7 +408,7 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
     };
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [readOnly, saveDraftToStorage]);
+  }, [effectiveReadOnly, saveDraftToStorage]);
 
   // Chặn thao tác back trình duyệt / vuốt back trên điện thoại
   useEffect(() => {
@@ -386,7 +416,7 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
 
     const handlePopState = () => {
       const store = usePhase1SurveyStore.getState();
-      if (store.isSubmitted || readOnly) {
+      if (store.isSubmitted || effectiveReadOnly) {
         onBackToHome();
         return;
       }
@@ -403,12 +433,12 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
 
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, [onBackToHome, readOnly, saveDraftToStorage]);
+  }, [onBackToHome, effectiveReadOnly, saveDraftToStorage]);
 
   // Quay về an toàn có xác nhận và lưu nháp
   const handleSafeBackToHome = () => {
     const store = usePhase1SurveyStore.getState();
-    if (store.isSubmitted || readOnly) {
+    if (store.isSubmitted || effectiveReadOnly) {
       onBackToHome();
       return;
     }
@@ -516,8 +546,11 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
   };
 
 
-  const isPendingApproval = parcel?.surveyStatus === 'SUBMITTED' || reportData?.report?.status === 'SUBMITTED';
-  const canApproveOrReject = (user?.role === 'ZONE_ADMIN' || user?.role === 'SUPER_ADMIN') && readOnly && isPendingApproval;
+  const isPendingApproval =
+    parcel?.surveyStatus === 'SUBMITTED' ||
+    effectiveStatus === 'SUBMITTED' ||
+    reportData?.report?.status === 'SUBMITTED';
+  const canApproveOrReject = (user?.role === 'ZONE_ADMIN' || user?.role === 'SUPER_ADMIN') && effectiveReadOnly && isPendingApproval;
 
   const handleApproveFromPage = async () => {
     if (!parcel?.id) return;
@@ -598,12 +631,12 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
     reportData?.report?.survey_status === 'POSTPONED_ABSENT' ||
     Boolean(reportData?.absenceLog);
 
-  if (readOnly && isAbsenteeReport) {
+  if (effectiveReadOnly && isAbsenteeReport) {
     return (
       <AbsenteeReviewView
         parcel={parcel}
         unit={unit}
-        readOnly={readOnly}
+        readOnly={effectiveReadOnly}
         canApproveOrReject={Boolean(canApproveOrReject)}
         onApprove={handleApproveFromPage}
         onReject={handleRejectFromPage}
@@ -616,7 +649,7 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
     <div className="min-h-screen bg-slate-50/50 flex flex-col">
       {/* Read-Only Mode Banner */}
       <SurveyReviewBanner
-        readOnly={readOnly}
+        readOnly={effectiveReadOnly}
         canApproveOrReject={canApproveOrReject}
         targetCode={parcel?.projectParcelCode || parcel?.officialCadastralCode || parcel?.id || ''}
         onApprove={handleApproveFromPage}
@@ -664,7 +697,29 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
       />
 
       {/* Main Step Content Container */}
-      <main className="flex-1 px-3 sm:px-6 py-6">
+      <main
+        className="flex-1 px-3 sm:px-6 py-6"
+        data-survey-readonly={effectiveReadOnly ? 'true' : undefined}
+      >
+        {effectiveReadOnly && (
+          <style>{`
+            [data-survey-readonly="true"] input:not([type="button"]):not([type="submit"]):not([type="checkbox"]):not([type="radio"]),
+            [data-survey-readonly="true"] textarea,
+            [data-survey-readonly="true"] select {
+              pointer-events: none !important;
+              background-color: #f8fafc !important;
+              border-color: #cbd5e1 !important;
+              color: #334155 !important;
+              cursor: default !important;
+              user-select: text !important;
+            }
+            [data-survey-readonly="true"] input[type="checkbox"],
+            [data-survey-readonly="true"] input[type="radio"] {
+              pointer-events: none !important;
+              cursor: default !important;
+            }
+          `}</style>
+        )}
         {currentStep === 1 && (
           <Step1_BuildingIdentification
             onFinished={onFinished}
@@ -681,7 +736,7 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
           <Step9_FieldSignatures
             onSubmitFinal={handleSubmitFinal}
             isSubmitting={isSubmitting}
-            readOnly={readOnly}
+            readOnly={effectiveReadOnly}
           />
         )}
       </main>

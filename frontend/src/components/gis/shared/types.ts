@@ -136,6 +136,7 @@ export interface LeafletSweepMapProps {
   onSelectZone: (zone: string) => void;
   onSelectParcel: (parcel: GisParcel) => void;
   onStartSurvey?: (parcel: GisParcel, readOnly?: boolean) => void;
+  onStartPhase2?: (parcel: GisParcel) => void;
   onOpenBuildingHub?: (parcel: GisParcel) => void;
   onRecordAbsence?: (parcel: GisParcel) => void;
   onProposeSplit?: (parcel: GisParcel) => void;

@@ -17,6 +17,7 @@ interface ParcelDetailBottomSheetProps {
   activeParcel: GisParcel | null;
   onClose: () => void;
   onStartSurvey?: (parcel: GisParcel, readOnly?: boolean) => void;
+  onStartPhase2?: (parcel: GisParcel) => void;
   onOpenBuildingHub?: (parcel: GisParcel) => void;
   absenceRecordedToday: { [parcelId: string]: string };
   handleOpenGoogleMapsDirections: (parcel: GisParcel) => void;
@@ -26,6 +27,7 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
   activeParcel,
   onClose,
   onStartSurvey,
+  onStartPhase2,
   onOpenBuildingHub,
   absenceRecordedToday,
   handleOpenGoogleMapsDirections,
@@ -176,50 +178,99 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
         {(() => {
           if (activeEffectiveStatus === 'APPROVED') {
             return (
-              <button
-                type="button"
-                className="btn btn-sm"
-                onClick={() => onStartSurvey && onStartSurvey(activeParcel)}
-                style={{
-                  flex: 1.5,
-                  minWidth: '150px',
-                  backgroundColor: '#7c3aed',
-                  color: '#ffffff',
-                  fontWeight: 700,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '0.35rem',
-                  padding: '0.5rem',
-                  boxShadow: '0 2px 6px rgba(124, 58, 237, 0.25)',
-                }}
-              >
-                <Sparkles size={14} />
-                Khảo sát Phase 2 (Trước thi công)
-              </button>
+              <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', flex: 1.5 }}>
+                <button
+                  type="button"
+                  className="btn btn-sm"
+                  onClick={() => onStartPhase2 ? onStartPhase2(activeParcel) : (onStartSurvey && onStartSurvey(activeParcel, true))}
+                  style={{
+                    flex: 1,
+                    minWidth: '140px',
+                    backgroundColor: '#7c3aed',
+                    color: '#ffffff',
+                    fontWeight: 700,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.35rem',
+                    padding: '0.5rem',
+                    boxShadow: '0 2px 6px rgba(124, 58, 237, 0.25)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <Sparkles size={14} />
+                  Khảo sát Phase 2 (Trước thi công)
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-sm"
+                  onClick={() => onStartSurvey && onStartSurvey(activeParcel, true)}
+                  style={{
+                    minWidth: '95px',
+                    backgroundColor: '#f3e8ff',
+                    color: '#6b21a8',
+                    border: '1px solid #d8b4fe',
+                    fontWeight: 600,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.3rem',
+                    padding: '0.5rem',
+                    cursor: 'pointer',
+                  }}
+                  title="Xem lại hồ sơ khảo sát Phase 1 đã duyệt (Chế độ chỉ xem)"
+                >
+                  <Eye size={13} color="#6b21a8" />
+                  Xem Phase 1
+                </button>
+              </div>
             );
           }
           if (activeEffectiveStatus === 'PHASE2_COMPLETED' || activeEffectiveStatus === 'APPROVED_PHASE2') {
             return (
-              <div
-                style={{
-                  flex: 1.5,
-                  minWidth: '150px',
-                  backgroundColor: '#dbeafe',
-                  color: '#1d4ed8',
-                  padding: '0.45rem 0.65rem',
-                  borderRadius: '0.5rem',
-                  fontSize: '0.775rem',
-                  fontWeight: 700,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '0.35rem',
-                  border: '1px solid #93c5fd',
-                }}
-              >
-                <CheckCircle2 size={14} color="#2563eb" />
-                Đã Hoàn Tất Khảo Sát Phase 2
+              <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', flex: 1.5 }}>
+                <div
+                  style={{
+                    flex: 1,
+                    minWidth: '140px',
+                    backgroundColor: '#dbeafe',
+                    color: '#1d4ed8',
+                    padding: '0.45rem 0.65rem',
+                    borderRadius: '0.5rem',
+                    fontSize: '0.775rem',
+                    fontWeight: 700,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.35rem',
+                    border: '1px solid #93c5fd',
+                  }}
+                >
+                  <CheckCircle2 size={14} color="#2563eb" />
+                  Đã Hoàn Tất Khảo Sát Phase 2
+                </div>
+                <button
+                  type="button"
+                  className="btn btn-sm"
+                  onClick={() => onStartSurvey && onStartSurvey(activeParcel, true)}
+                  style={{
+                    minWidth: '95px',
+                    backgroundColor: '#e0f2fe',
+                    color: '#0369a1',
+                    border: '1px solid #7dd3fc',
+                    fontWeight: 600,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.3rem',
+                    padding: '0.5rem',
+                    cursor: 'pointer',
+                  }}
+                  title="Xem lại hồ sơ khảo sát Phase 1 (Chế độ chỉ xem)"
+                >
+                  <Eye size={13} color="#0284c7" />
+                  Xem Phase 1
+                </button>
               </div>
             );
           }
@@ -228,7 +279,7 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
               <button
                 type="button"
                 className="btn btn-sm"
-                onClick={() => onStartSurvey && onStartSurvey(activeParcel)}
+                onClick={() => onStartSurvey && onStartSurvey(activeParcel, true)}
                 style={{
                   flex: 1.5,
                   minWidth: '150px',
@@ -243,10 +294,10 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
                   padding: '0.5rem',
                   cursor: 'pointer',
                 }}
-                title="Hồ sơ đã gửi Zone Admin, nhấp để xem chi tiết"
+                title="Hồ sơ đã nộp chờ Zone Admin duyệt, nhấp để xem lại biểu mẫu (Chế độ chỉ xem)"
               >
-                <Clock size={14} color="#0284c7" />
-                Hồ sơ đã nộp (Chờ duyệt)
+                <Eye size={14} color="#0284c7" />
+                Hồ sơ đã nộp (Xem lại)
               </button>
             );
           }

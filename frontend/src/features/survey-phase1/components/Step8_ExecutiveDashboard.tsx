@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 
 export const Step8_ExecutiveDashboard: React.FC = () => {
-  const { formData, updateFormData, nextStep, prevStep } = usePhase1SurveyStore();
+  const { formData, updateFormData, nextStep, prevStep, isReadOnly } = usePhase1SurveyStore();
   const ecs = formData.ecs;
   const vi = formData.vi;
   const ex = formData.executiveSummary;
@@ -53,8 +53,9 @@ export const Step8_ExecutiveDashboard: React.FC = () => {
   // 2. Tính toán Đánh giá rủi ro cơ sở BRA theo ma trận 4x4 sử dụng phân hạng VI hiệu lực
   const bra = calculateBraRisk(effectiveViClass, impact.code);
 
-  // Tự động đồng bộ kết quả vào executiveSummary nếu trạng thái thay đổi
+  // Tự động đồng bộ kết quả vào executiveSummary nếu trạng thái thay đổi (chỉ khi không ở chế độ chỉ đọc)
   useEffect(() => {
+    if (isReadOnly) return;
     if (ex.constructionImpactStatus !== impact.code || ex.braStatus !== bra.riskLevel) {
       updateFormData({
         executiveSummary: {
@@ -64,7 +65,7 @@ export const Step8_ExecutiveDashboard: React.FC = () => {
         },
       });
     }
-  }, [impact.code, bra.riskLevel]);
+  }, [impact.code, bra.riskLevel, isReadOnly]);
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto pb-12">

@@ -19,6 +19,7 @@ export interface PhotoCaptureProps {
   allowAnnotation?: boolean;
   annotationTitle?: string;
   initialAnnotationTool?: 'ARROW' | 'PEN' | 'CIRCLE' | 'RECT' | 'TEXT';
+  readOnly?: boolean;
 }
 
 export type UploadStatus = 'IDLE' | 'UPLOADING' | 'SUCCESS' | 'ERROR';

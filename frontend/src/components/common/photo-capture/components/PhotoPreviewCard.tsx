@@ -25,6 +25,7 @@ interface PhotoPreviewCardProps {
   label?: string;
   uploadStatus: UploadStatus;
   allowAnnotation?: boolean;
+  readOnly?: boolean;
   cameraInputId: string;
   galleryInputId: string;
   onOpenLightbox: () => void;
@@ -46,6 +47,7 @@ export const PhotoPreviewCard: React.FC<PhotoPreviewCardProps> = ({
   label,
   uploadStatus,
   allowAnnotation = true,
+  readOnly = false,
   cameraInputId,
   galleryInputId,
   onOpenLightbox,
@@ -250,18 +252,19 @@ export const PhotoPreviewCard: React.FC<PhotoPreviewCardProps> = ({
       </div>
 
       {/* Top-Right: Minimalist Action Cluster (Chụp Lại + Menu ⋯) */}
-      <div
-        ref={moreMenuRef}
-        style={{
-          position: 'absolute',
-          top: '6px',
-          right: '6px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '0.35rem',
-          zIndex: 20,
-        }}
-      >
+      {!readOnly && (
+        <div
+          ref={moreMenuRef}
+          style={{
+            position: 'absolute',
+            top: '6px',
+            right: '6px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.35rem',
+            zIndex: 20,
+          }}
+        >
         <button
           type="button"
           onClick={(e) => {
@@ -510,6 +513,7 @@ export const PhotoPreviewCard: React.FC<PhotoPreviewCardProps> = ({
           )}
         </div>
       </div>
+      )}
 
       {/* Bottom Center: Nút Nhấn vào để phóng to */}
       <div

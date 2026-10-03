@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { Phase1SurveyFormData } from '../../types/phase1.types';
 import { ABSENTEE_REASONS } from './step1.constants';
+import { usePhase1SurveyStore } from '../../store/usePhase1SurveyStore';
 
 export const VACANT_LAND_STATUSES = [
   'Đất trống chưa xây dựng',
@@ -51,6 +52,7 @@ interface Step1CaseSelectorProps {
   onSubmitUnderConstruction: () => void;
   isSubmittingVacantLand?: boolean;
   onSubmitVacantLand?: () => void;
+  readOnly?: boolean;
 }
 
 export const Step1CaseSelector: React.FC<Step1CaseSelectorProps> = ({
@@ -68,7 +70,11 @@ export const Step1CaseSelector: React.FC<Step1CaseSelectorProps> = ({
   onSubmitUnderConstruction,
   isSubmittingVacantLand = false,
   onSubmitVacantLand,
+  readOnly: propReadOnly,
 }) => {
+  const storeReadOnly = usePhase1SurveyStore((s) => s.isReadOnly);
+  const effectiveReadOnly = propReadOnly ?? storeReadOnly;
+
   if (isCondoMaster) return null;
 
   return (
@@ -91,8 +97,10 @@ export const Step1CaseSelector: React.FC<Step1CaseSelectorProps> = ({
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {/* Option 1: Nhà dân thông thường */}
         <div
-          onClick={() => onSelectCase('NORMAL')}
-          className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${
+          onClick={() => !effectiveReadOnly && onSelectCase('NORMAL')}
+          className={`p-4 rounded-xl border-2 transition-all ${
+            effectiveReadOnly ? 'cursor-default' : 'cursor-pointer'
+          } ${
             currentCase === 'NORMAL'
               ? 'bg-white border-emerald-600 shadow-sm ring-2 ring-emerald-500/20'
               : 'bg-white/80 border-slate-200 hover:border-slate-300'
@@ -113,8 +121,10 @@ export const Step1CaseSelector: React.FC<Step1CaseSelectorProps> = ({
 
         {/* Option 2: Vắng nhà */}
         <div
-          onClick={() => onSelectCase('ABSENTEE')}
-          className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${
+          onClick={() => !effectiveReadOnly && onSelectCase('ABSENTEE')}
+          className={`p-4 rounded-xl border-2 transition-all ${
+            effectiveReadOnly ? 'cursor-default' : 'cursor-pointer'
+          } ${
             currentCase === 'ABSENTEE'
               ? 'bg-amber-50/90 border-amber-600 shadow-sm ring-2 ring-amber-500/20'
               : 'bg-white/80 border-slate-200 hover:border-slate-300'
@@ -135,8 +145,10 @@ export const Step1CaseSelector: React.FC<Step1CaseSelectorProps> = ({
 
         {/* Option 3: Chung cư */}
         <div
-          onClick={() => onSelectCase('APARTMENT')}
-          className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${
+          onClick={() => !effectiveReadOnly && onSelectCase('APARTMENT')}
+          className={`p-4 rounded-xl border-2 transition-all ${
+            effectiveReadOnly ? 'cursor-default' : 'cursor-pointer'
+          } ${
             currentCase === 'APARTMENT'
               ? 'bg-blue-50/90 border-blue-600 shadow-sm ring-2 ring-blue-500/20'
               : 'bg-white/80 border-slate-200 hover:border-slate-300'
@@ -157,8 +169,10 @@ export const Step1CaseSelector: React.FC<Step1CaseSelectorProps> = ({
 
         {/* Option 4: Nhà đang xây */}
         <div
-          onClick={() => onSelectCase('UNDER_CONSTRUCTION')}
-          className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${
+          onClick={() => !effectiveReadOnly && onSelectCase('UNDER_CONSTRUCTION')}
+          className={`p-4 rounded-xl border-2 transition-all ${
+            effectiveReadOnly ? 'cursor-default' : 'cursor-pointer'
+          } ${
             currentCase === 'UNDER_CONSTRUCTION'
               ? 'bg-orange-50/90 border-orange-600 shadow-sm ring-2 ring-orange-500/20'
               : 'bg-white/80 border-slate-200 hover:border-slate-300'
@@ -179,8 +193,10 @@ export const Step1CaseSelector: React.FC<Step1CaseSelectorProps> = ({
 
         {/* Option 5: Đất trống */}
         <div
-          onClick={() => onSelectCase('VACANT_LAND')}
-          className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${
+          onClick={() => !effectiveReadOnly && onSelectCase('VACANT_LAND')}
+          className={`p-4 rounded-xl border-2 transition-all ${
+            effectiveReadOnly ? 'cursor-default' : 'cursor-pointer'
+          } ${
             currentCase === 'VACANT_LAND'
               ? 'bg-teal-50/90 border-teal-600 shadow-sm ring-2 ring-teal-500/20'
               : 'bg-white/80 border-slate-200 hover:border-slate-300'
@@ -284,39 +300,43 @@ export const Step1CaseSelector: React.FC<Step1CaseSelectorProps> = ({
                   label={`#${pIdx + 1}`}
                   alt={`Biên bản vắng nhà trang ${pIdx + 1}`}
                   actions={
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const updated = formData.absenteeMinutesPhotos?.filter((_, i) => i !== pIdx) || [];
-                        updateFormData({ absenteeMinutesPhotos: updated });
-                      }}
-                      className="absolute top-1 right-1 p-1 bg-red-600 text-white rounded-md text-xs opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer pointer-events-auto"
-                      title="Xóa ảnh"
-                    >
-                      <Trash2 className="w-3 h-3" />
-                    </button>
+                    !effectiveReadOnly ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const updated = formData.absenteeMinutesPhotos?.filter((_, i) => i !== pIdx) || [];
+                          updateFormData({ absenteeMinutesPhotos: updated });
+                        }}
+                        className="absolute top-1 right-1 p-1 bg-red-600 text-white rounded-md text-xs opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer pointer-events-auto"
+                        title="Xóa ảnh"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    ) : undefined
                   }
                 />
               ))}
 
-              <PhotoCaptureInput
-                label="Thêm ảnh biên bản vắng"
-                value=""
-                onChange={(url) => {
-                  if (url) {
-                    const updated = [...(formData.absenteeMinutesPhotos || []), url];
-                    updateFormData({ absenteeMinutesPhotos: updated });
-                  }
-                }}
-                watermarkOptions={{
-                  parcelCode: formData.projectParcelCode,
-                  floor: 'DOC',
-                  zoneOrRoom: 'ABSENTEE',
-                  photoType: 'MINUTES',
-                  photoIndex: (formData.absenteeMinutesPhotos?.length || 0) + 1,
-                }}
-                height="85px"
-              />
+              {!effectiveReadOnly && (
+                <PhotoCaptureInput
+                  label="Thêm ảnh biên bản vắng"
+                  value=""
+                  onChange={(url) => {
+                    if (url) {
+                      const updated = [...(formData.absenteeMinutesPhotos || []), url];
+                      updateFormData({ absenteeMinutesPhotos: updated });
+                    }
+                  }}
+                  watermarkOptions={{
+                    parcelCode: formData.projectParcelCode,
+                    floor: 'DOC',
+                    zoneOrRoom: 'ABSENTEE',
+                    photoType: 'MINUTES',
+                    photoIndex: (formData.absenteeMinutesPhotos?.length || 0) + 1,
+                  }}
+                  height="85px"
+                />
+              )}
             </div>
           </div>
 
@@ -335,15 +355,21 @@ export const Step1CaseSelector: React.FC<Step1CaseSelectorProps> = ({
                 </>
               )}
             </span>
-            <Button
-              variant="danger"
-              size="lg"
-              disabled={!completeness.isFullyComplete || isSubmittingAbsentee}
-              onClick={onSubmitAbsentee}
-              icon={<Send className="w-4 h-4" />}
-            >
-              {isSubmittingAbsentee ? 'Đang gửi hồ sơ vắng...' : 'Xác Nhận & Nộp Hồ Sơ Vắng Nhà'}
-            </Button>
+            {!effectiveReadOnly ? (
+              <Button
+                variant="danger"
+                size="lg"
+                disabled={!completeness.isFullyComplete || isSubmittingAbsentee}
+                onClick={onSubmitAbsentee}
+                icon={<Send className="w-4 h-4" />}
+              >
+                {isSubmittingAbsentee ? 'Đang gửi hồ sơ vắng...' : 'Xác Nhận & Nộp Hồ Sơ Vắng Nhà'}
+              </Button>
+            ) : (
+              <div className="px-3 py-1.5 rounded-lg bg-amber-100 text-amber-900 text-xs font-bold border border-amber-300">
+                Hồ sơ vắng nhà đã nộp (Chỉ đọc)
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -361,15 +387,21 @@ export const Step1CaseSelector: React.FC<Step1CaseSelectorProps> = ({
             • <strong>Các căn hộ con trong toà:</strong> Được quản lý độc lập theo danh sách căn hộ (Building Units) trong Hub Chung Cư và sẽ được khảo sát riêng từng căn.
           </p>
           <div className="pt-2 flex justify-end">
-            <Button
-              size="md"
-              className="bg-blue-600 hover:bg-blue-700 text-white"
-              disabled={isConfirmingApartment}
-              onClick={onConfirmApartment}
-              icon={<Building2 className="w-4 h-4" />}
-            >
-              {isConfirmingApartment ? 'Đang gửi xác nhận...' : 'Xác nhận Chung cư/Toàn nhiều căn hộ'}
-            </Button>
+            {!effectiveReadOnly ? (
+              <Button
+                size="md"
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+                disabled={isConfirmingApartment}
+                onClick={onConfirmApartment}
+                icon={<Building2 className="w-4 h-4" />}
+              >
+                {isConfirmingApartment ? 'Đang gửi xác nhận...' : 'Xác nhận Chung cư/Toàn nhiều căn hộ'}
+              </Button>
+            ) : (
+              <div className="px-3 py-1.5 rounded-lg bg-blue-100 text-blue-900 text-xs font-bold border border-blue-300">
+                Hồ sơ chung cư đã xác nhận (Chỉ đọc)
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -400,39 +432,43 @@ export const Step1CaseSelector: React.FC<Step1CaseSelectorProps> = ({
                   label={`#${pIdx + 1}`}
                   alt={`Hiện trạng thi công ${pIdx + 1}`}
                   actions={
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const updated = formData.underConstructionPhotos?.filter((_, i) => i !== pIdx) || [];
-                        updateFormData({ underConstructionPhotos: updated });
-                      }}
-                      className="absolute top-1 right-1 p-1 bg-red-600 text-white rounded-md text-xs opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer pointer-events-auto"
-                      title="Xóa ảnh"
-                    >
-                      <Trash2 className="w-3 h-3" />
-                    </button>
+                    !effectiveReadOnly ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const updated = formData.underConstructionPhotos?.filter((_, i) => i !== pIdx) || [];
+                          updateFormData({ underConstructionPhotos: updated });
+                        }}
+                        className="absolute top-1 right-1 p-1 bg-red-600 text-white rounded-md text-xs opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer pointer-events-auto"
+                        title="Xóa ảnh"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    ) : undefined
                   }
                 />
               ))}
 
-              <PhotoCaptureInput
-                label="Thêm ảnh công trình"
-                value=""
-                onChange={(url) => {
-                  if (url) {
-                    const updated = [...(formData.underConstructionPhotos || []), url];
-                    updateFormData({ underConstructionPhotos: updated });
-                  }
-                }}
-                watermarkOptions={{
-                  parcelCode: formData.projectParcelCode,
-                  floor: 'EXT',
-                  zoneOrRoom: 'CONSTRUCT',
-                  photoType: 'OVERVIEW',
-                  photoIndex: (formData.underConstructionPhotos?.length || 0) + 1,
-                }}
-                height="85px"
-              />
+              {!effectiveReadOnly && (
+                <PhotoCaptureInput
+                  label="Thêm ảnh công trình"
+                  value=""
+                  onChange={(url) => {
+                    if (url) {
+                      const updated = [...(formData.underConstructionPhotos || []), url];
+                      updateFormData({ underConstructionPhotos: updated });
+                    }
+                  }}
+                  watermarkOptions={{
+                    parcelCode: formData.projectParcelCode,
+                    floor: 'EXT',
+                    zoneOrRoom: 'CONSTRUCT',
+                    photoType: 'OVERVIEW',
+                    photoIndex: (formData.underConstructionPhotos?.length || 0) + 1,
+                  }}
+                  height="85px"
+                />
+              )}
             </div>
           </div>
 
@@ -454,15 +490,21 @@ export const Step1CaseSelector: React.FC<Step1CaseSelectorProps> = ({
             <span className="text-xs text-orange-900">
               Ghi nhận hiện trạng ngoại quan công trình xây dựng để làm cơ sở pháp lý trước khi Metro đào hầm.
             </span>
-            <Button
-              size="lg"
-              className="bg-orange-600 hover:bg-orange-700 text-white"
-              disabled={isSubmittingUnderConstruction}
-              onClick={onSubmitUnderConstruction}
-              icon={<Send className="w-4 h-4" />}
-            >
-              {isSubmittingUnderConstruction ? 'Đang gửi hồ sơ...' : 'Hoàn Tất Hồ Sơ Nhà Đang Xây'}
-            </Button>
+            {!effectiveReadOnly ? (
+              <Button
+                size="lg"
+                className="bg-orange-600 hover:bg-orange-700 text-white"
+                disabled={isSubmittingUnderConstruction}
+                onClick={onSubmitUnderConstruction}
+                icon={<Send className="w-4 h-4" />}
+              >
+                {isSubmittingUnderConstruction ? 'Đang gửi hồ sơ...' : 'Hoàn Tất Hồ Sơ Nhà Đang Xây'}
+              </Button>
+            ) : (
+              <div className="px-3 py-1.5 rounded-lg bg-orange-100 text-orange-900 text-xs font-bold border border-orange-300">
+                Hồ sơ nhà đang xây đã hoàn tất (Chỉ đọc)
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -556,39 +598,43 @@ export const Step1CaseSelector: React.FC<Step1CaseSelectorProps> = ({
                   label={`#${pIdx + 1}`}
                   alt={`Hiện trạng đất trống ${pIdx + 1}`}
                   actions={
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const updated = formData.vacantLandPhotos?.filter((_, i) => i !== pIdx) || [];
-                        updateFormData({ vacantLandPhotos: updated });
-                      }}
-                      className="absolute top-1 right-1 p-1 bg-red-600 text-white rounded-md text-xs opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer pointer-events-auto"
-                      title="Xóa ảnh"
-                    >
-                      <Trash2 className="w-3 h-3" />
-                    </button>
+                    !effectiveReadOnly ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const updated = formData.vacantLandPhotos?.filter((_, i) => i !== pIdx) || [];
+                          updateFormData({ vacantLandPhotos: updated });
+                        }}
+                        className="absolute top-1 right-1 p-1 bg-red-600 text-white rounded-md text-xs opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer pointer-events-auto"
+                        title="Xóa ảnh"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    ) : undefined
                   }
                 />
               ))}
 
-              <PhotoCaptureInput
-                label="Thêm ảnh đất trống"
-                value=""
-                onChange={(url) => {
-                  if (url) {
-                    const updated = [...(formData.vacantLandPhotos || []), url];
-                    updateFormData({ vacantLandPhotos: updated });
-                  }
-                }}
-                watermarkOptions={{
-                  parcelCode: formData.projectParcelCode,
-                  floor: 'EXT',
-                  zoneOrRoom: 'VACANT',
-                  photoType: 'OVERVIEW',
-                  photoIndex: (formData.vacantLandPhotos?.length || 0) + 1,
-                }}
-                height="85px"
-              />
+              {!effectiveReadOnly && (
+                <PhotoCaptureInput
+                  label="Thêm ảnh đất trống"
+                  value=""
+                  onChange={(url) => {
+                    if (url) {
+                      const updated = [...(formData.vacantLandPhotos || []), url];
+                      updateFormData({ vacantLandPhotos: updated });
+                    }
+                  }}
+                  watermarkOptions={{
+                    parcelCode: formData.projectParcelCode,
+                    floor: 'EXT',
+                    zoneOrRoom: 'VACANT',
+                    photoType: 'OVERVIEW',
+                    photoIndex: (formData.vacantLandPhotos?.length || 0) + 1,
+                  }}
+                  height="85px"
+                />
+              )}
             </div>
           </div>
 
@@ -597,15 +643,21 @@ export const Step1CaseSelector: React.FC<Step1CaseSelectorProps> = ({
             <span className="text-xs text-teal-900">
               Gửi biểu mẫu đất trống về cho Admin và kết thúc khảo sát.
             </span>
-            <Button
-              size="lg"
-              className="bg-teal-600 hover:bg-teal-700 text-white"
-              disabled={isSubmittingVacantLand}
-              onClick={onSubmitVacantLand}
-              icon={<Send className="w-4 h-4" />}
-            >
-              {isSubmittingVacantLand ? 'Đang gửi hồ sơ đất trống...' : 'Xác Nhận & Nộp Hồ Sơ Đất Trống'}
-            </Button>
+            {!effectiveReadOnly ? (
+              <Button
+                size="lg"
+                className="bg-teal-600 hover:bg-teal-700 text-white"
+                disabled={isSubmittingVacantLand}
+                onClick={onSubmitVacantLand}
+                icon={<Send className="w-4 h-4" />}
+              >
+                {isSubmittingVacantLand ? 'Đang gửi hồ sơ đất trống...' : 'Xác Nhận & Nộp Hồ Sơ Đất Trống'}
+              </Button>
+            ) : (
+              <div className="px-3 py-1.5 rounded-lg bg-teal-100 text-teal-900 text-xs font-bold border border-teal-300">
+                Hồ sơ đất trống đã nộp (Chỉ đọc)
+              </div>
+            )}
           </div>
         </div>
       )}
