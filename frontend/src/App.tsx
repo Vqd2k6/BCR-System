@@ -236,6 +236,7 @@ export const App: React.FC = () => {
       assignedSurveyorName: p.assigned_surveyor_name || p.assignedSurveyorName || undefined,
       assignedSurveyorCode: p.assigned_surveyor_code || p.assignedSurveyorCode || undefined,
       assignedSurveyorPhone: p.assigned_surveyor_phone || p.assignedSurveyorPhone || undefined,
+      zoneId: p.zone_id || p.zoneId || undefined,
     };
   };
 
