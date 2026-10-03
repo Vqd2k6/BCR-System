@@ -17,6 +17,8 @@ interface LiveCameraModalProps {
   onTouchMove: (e: React.TouchEvent<HTMLDivElement>) => void;
   onTouchEnd: () => void;
   onWheel: (e: React.WheelEvent<HTMLDivElement>) => void;
+  onVideoReady?: () => void;
+  onDismissLoading?: () => void;
 }
 
 export const LiveCameraModal: React.FC<LiveCameraModalProps> = ({
@@ -35,6 +37,8 @@ export const LiveCameraModal: React.FC<LiveCameraModalProps> = ({
   onTouchMove,
   onTouchEnd,
   onWheel,
+  onVideoReady,
+  onDismissLoading,
 }) => {
   if (!isOpen) return null;
 
@@ -149,6 +153,10 @@ export const LiveCameraModal: React.FC<LiveCameraModalProps> = ({
           autoPlay
           playsInline
           muted
+          onLoadedMetadata={onVideoReady}
+          onCanPlay={onVideoReady}
+          onPlaying={onVideoReady}
+          {...({ 'webkit-playsinline': 'true' } as any)}
           style={{
             width: '100%',
             height: '100%',
@@ -163,6 +171,7 @@ export const LiveCameraModal: React.FC<LiveCameraModalProps> = ({
         {/* Loading Overlay */}
         {cameraLoading && !cameraError && (
           <div
+            onClick={onDismissLoading}
             style={{
               position: 'absolute',
               inset: 0,
@@ -176,6 +185,7 @@ export const LiveCameraModal: React.FC<LiveCameraModalProps> = ({
               justifyContent: 'center',
               gap: '0.65rem',
               zIndex: 15,
+              cursor: 'pointer',
             }}
           >
             <RefreshCw size={28} className="animate-spin text-emerald-400" />
