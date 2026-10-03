@@ -521,20 +521,92 @@ export class CadastralRepository {
       orderBy = 'distance_to_surveyor_meters ASC NULLS LAST, p.created_at DESC';
     }
 
-    const res = await Database.query<ParcelEntity>(
-      `SELECT p.*,
-              ST_AsGeoJSON(p.location_geom)::json AS location_geojson,
-              ST_AsGeoJSON(p.cadastral_polygon_geom)::json AS cadastral_geojson,
-              ST_AsGeoJSON(p.footprint_polygon_geom)::json AS footprint_geojson,
-              ${distanceSelect}
-       FROM parcels p
-       WHERE p.assigned_surveyor_id = $1
-         AND p.lifecycle_status = 'ACTIVE'
-         AND p.survey_status IN ('NOT_SURVEYED', 'IN_PROGRESS', 'POSTPONED_ABSENT')
-       ORDER BY ${orderBy};`,
-      params
-    );
-    return res.rows;
+    try {
+      const res = await Database.query<ParcelEntity>(
+        `SELECT p.*,
+                ST_AsGeoJSON(p.location_geom)::json AS location_geojson,
+                ST_AsGeoJSON(p.cadastral_polygon_geom)::json AS cadastral_geojson,
+                ST_AsGeoJSON(p.footprint_polygon_geom)::json AS footprint_geojson,
+                ${distanceSelect}
+         FROM parcels p
+         WHERE (
+           p.assigned_surveyor_id = $1
+           OR EXISTS (
+             SELECT 1 FROM task_assignments ta
+             WHERE ta.parcel_id = p.id AND ta.surveyor_id = $1
+           )
+           OR EXISTS (
+             SELECT 1 FROM base_survey_reports r
+             WHERE r.parcel_id = p.id AND r.surveyor_id = $1
+           )
+         )
+           AND p.lifecycle_status = 'ACTIVE'
+           AND p.survey_status IN ('NOT_SURVEYED', 'IN_PROGRESS', 'POSTPONED_ABSENT')
+         ORDER BY ${orderBy};`,
+        params
+      );
+      return res.rows;
+    } catch (err: any) {
+      if (err?.code === '42703' || String(err?.message || '').includes('assigned_surveyor_id')) {
+        console.warn('⚠️ [CadastralRepository.getMyAssignedParcels] Missing assigned_surveyor_id column. Executing auto-heal migration...');
+        try {
+          await Database.query(`
+            ALTER TABLE parcels ADD COLUMN IF NOT EXISTS assigned_surveyor_id UUID REFERENCES users(id);
+            CREATE INDEX IF NOT EXISTS idx_parcels_assigned_surveyor ON parcels(assigned_surveyor_id);
+          `);
+          const retryRes = await Database.query<ParcelEntity>(
+            `SELECT p.*,
+                    ST_AsGeoJSON(p.location_geom)::json AS location_geojson,
+                    ST_AsGeoJSON(p.cadastral_polygon_geom)::json AS cadastral_geojson,
+                    ST_AsGeoJSON(p.footprint_polygon_geom)::json AS footprint_geojson,
+                    ${distanceSelect}
+             FROM parcels p
+             WHERE (
+               p.assigned_surveyor_id = $1
+               OR EXISTS (
+                 SELECT 1 FROM task_assignments ta
+                 WHERE ta.parcel_id = p.id AND ta.surveyor_id = $1
+               )
+               OR EXISTS (
+                 SELECT 1 FROM base_survey_reports r
+                 WHERE r.parcel_id = p.id AND r.surveyor_id = $1
+               )
+             )
+               AND p.lifecycle_status = 'ACTIVE'
+               AND p.survey_status IN ('NOT_SURVEYED', 'IN_PROGRESS', 'POSTPONED_ABSENT')
+             ORDER BY ${orderBy};`,
+            params
+          );
+          return retryRes.rows;
+        } catch (healErr) {
+          console.error('❌ [CadastralRepository.getMyAssignedParcels] Fallback query to legacy tables:', healErr);
+          const fallbackRes = await Database.query<ParcelEntity>(
+            `SELECT p.*,
+                    ST_AsGeoJSON(p.location_geom)::json AS location_geojson,
+                    ST_AsGeoJSON(p.cadastral_polygon_geom)::json AS cadastral_geojson,
+                    ST_AsGeoJSON(p.footprint_polygon_geom)::json AS footprint_geojson,
+                    ${distanceSelect}
+             FROM parcels p
+             WHERE (
+               EXISTS (
+                 SELECT 1 FROM task_assignments ta
+                 WHERE ta.parcel_id = p.id AND ta.surveyor_id = $1
+               )
+               OR EXISTS (
+                 SELECT 1 FROM base_survey_reports r
+                 WHERE r.parcel_id = p.id AND r.surveyor_id = $1
+               )
+             )
+               AND p.lifecycle_status = 'ACTIVE'
+               AND p.survey_status IN ('NOT_SURVEYED', 'IN_PROGRESS', 'POSTPONED_ABSENT')
+             ORDER BY ${orderBy};`,
+            params
+          );
+          return fallbackRes.rows;
+        }
+      }
+      throw err;
+    }
   }
 
   static async assignSurveyorToParcels(parcelIds: string[], surveyorId: string, notes?: string): Promise<number> {
