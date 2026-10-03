@@ -106,30 +106,36 @@ export const GuestDashboardPage: React.FC<GuestDashboardPageProps> = ({
     <div className="flex flex-col w-full h-screen overflow-hidden bg-slate-100 font-sans text-slate-800">
       {/* ─── 1. TOP EXECUTIVE HEADER ─── */}
       <header className="h-16 bg-slate-900 text-white px-5 flex items-center justify-between border-b border-slate-800 shadow-md shrink-0 z-30">
-        {/* Brand & Project Info */}
-        <div className="flex items-center gap-3.5">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white shadow-inner font-black text-lg tracking-wider">
-            M2
+        {/* Brand & Official Project Logo */}
+        <div className="flex items-center gap-3">
+          {/* Logo chính thức của dự án Metro 2 */}
+          <div className="h-10 px-2.5 py-1 bg-white/10 backdrop-blur-xs rounded-xl border border-white/15 flex items-center justify-center shadow-xs">
+            <img
+              src="/logo.png"
+              alt="Logo Dự Án Tuyến Metro Số 2"
+              className="h-7 max-w-[100px] object-contain"
+            />
           </div>
+
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-base font-bold tracking-tight text-white flex items-center gap-1.5">
+              <h1 className="text-sm font-black tracking-tight text-white flex items-center gap-2">
                 <span>DỰ ÁN TUYẾN METRO SỐ 2</span>
-                <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30 font-medium">
+                <span className="text-[11px] px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30 font-medium">
                   Bến Thành – Tham Lương
                 </span>
               </h1>
             </div>
-            <p className="text-[11px] text-slate-400 font-normal">
-              Cổng Điều Hành & Giám Sát Khảo Sát Hiện Trạng Công Trình (BCS Phase 1)
+            <p className="text-[10px] text-slate-400 font-medium tracking-wide">
+              Ban Quản Lý Đường Sắt Đô Thị (MAUR) • Hệ Thống Khảo Sát Hiện Trạng BCR Phase 1
             </p>
           </div>
         </div>
 
         {/* Center: Zone Selector (Chủ đầu tư chọn khu vực giám sát) */}
-        <div className="flex items-center gap-2 bg-slate-800/80 border border-slate-700 rounded-xl px-3 py-1.5">
-          <MapPin size={16} className="text-blue-400 shrink-0" />
-          <span className="text-xs text-slate-400 font-medium whitespace-nowrap">Khu vực giám sát:</span>
+        <div className="flex items-center gap-2 bg-slate-800/80 border border-slate-700 rounded-xl px-3 py-1.5 shadow-2xs">
+          <MapPin size={15} className="text-blue-400 shrink-0" />
+          <span className="text-xs text-slate-400 font-medium whitespace-nowrap">Khu vực:</span>
           {isAssignedSpecificZone ? (
             <span className="text-xs font-bold text-amber-300 bg-amber-950/60 px-2 py-0.5 rounded border border-amber-800">
               {selectedZone} (Được phân công)
@@ -162,7 +168,7 @@ export const GuestDashboardPage: React.FC<GuestDashboardPageProps> = ({
               title="Làm mới dữ liệu từ máy chủ"
               className="p-1 hover:bg-slate-700 text-slate-300 hover:text-white rounded-lg transition-colors ml-1 cursor-pointer"
             >
-              <RefreshCw size={14} />
+              <RefreshCw size={13} />
             </button>
           )}
         </div>
@@ -170,7 +176,7 @@ export const GuestDashboardPage: React.FC<GuestDashboardPageProps> = ({
         {/* Right: User Profile & Security Badge */}
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2.5 bg-slate-800/60 border border-slate-700/80 px-3 py-1.5 rounded-xl">
-            <div className="w-8 h-8 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center font-bold text-xs">
+            <div className="w-8 h-8 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center font-bold text-xs shrink-0">
               <ShieldCheck size={16} />
             </div>
             <div className="text-left">
@@ -203,10 +209,10 @@ export const GuestDashboardPage: React.FC<GuestDashboardPageProps> = ({
       {/* ─── 2. SPLIT-SCREEN MAIN CONTENT ─── */}
       <div className="flex flex-1 w-full overflow-hidden">
         {/* ─── LEFT PANEL (42% Width): Executive Dashboard & Parcel List ─── */}
-        <aside className="w-[42%] min-w-[420px] max-w-[560px] h-full flex flex-col bg-white border-r border-slate-200 shadow-sm shrink-0 overflow-hidden z-10">
+        <aside className="w-[42%] min-w-[420px] max-w-[560px] h-full flex flex-col bg-slate-50 border-r border-slate-200/90 shadow-xs shrink-0 overflow-hidden z-10">
           {/* Scrollable Container for KPI, Donut, Table */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
-            {/* 2.1 KPI Tiến Độ Tổng Thể */}
+          <div className="flex-1 overflow-y-auto p-3.5 space-y-3.5">
+            {/* 2.1 KPI Tiến Độ Tổng Thể (Được thiết kế 3 cột thoáng, không bị cắt chữ) */}
             <GuestKpiSummaryCard
               stats={kpiStats}
               selectedFilter={statusFilter}
@@ -220,7 +226,7 @@ export const GuestDashboardPage: React.FC<GuestDashboardPageProps> = ({
               onSelectRiskFilter={(risk) => setBraFilter(risk)}
             />
 
-            {/* 2.3 Bảng Danh Sách Thửa Đất Có Tìm Kiếm & Lọc */}
+            {/* 2.3 Bảng Danh Sách Thửa Đất (Chỉ render 50 mục đầu + Nút tải thêm) */}
             <GuestParcelListTable
               parcels={maskedParcels}
               activeParcel={activeParcel}
@@ -232,7 +238,7 @@ export const GuestDashboardPage: React.FC<GuestDashboardPageProps> = ({
 
           {/* 2.4 Bottom Pinned: Focused Parcel Detail Card */}
           {activeParcel && (
-            <div className="p-3 bg-slate-50 border-t border-slate-200 shrink-0">
+            <div className="p-3 bg-white border-t border-slate-200 shadow-md shrink-0">
               <GuestFocusedParcelCard
                 parcel={activeParcel}
                 onClose={() => setActiveParcel(null)}
@@ -252,7 +258,7 @@ export const GuestDashboardPage: React.FC<GuestDashboardPageProps> = ({
             />
           </div>
 
-          {/* Leaflet GIS Map */}
+          {/* Leaflet GIS Map: Ẩn hoàn toàn BottomSheet của surveyor qua hideBottomSheet={true} */}
           <LeafletSweepMap
             parcels={maskedParcels}
             selectedZone={selectedZone}
@@ -260,6 +266,7 @@ export const GuestDashboardPage: React.FC<GuestDashboardPageProps> = ({
             onSelectParcel={handleSelectParcel}
             onStartSurvey={handleOpenDetailModal}
             thematicMode={thematicMode}
+            hideBottomSheet={true}
           />
         </section>
       </div>

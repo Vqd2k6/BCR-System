@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { GisParcel } from '../../../components/gis/shared/types';
 import {
   getEffectiveParcelStatus,
@@ -9,7 +9,7 @@ import {
   getBraBadgeStyle,
   BraRiskLevel,
 } from '../utils/guestPortalHelpers';
-import { Search, MapPin, Building, ChevronRight } from 'lucide-react';
+import { Search, MapPin, Building, ChevronRight, Plus, ChevronDown } from 'lucide-react';
 
 interface Props {
   parcels: GisParcel[];
@@ -27,6 +27,12 @@ export const GuestParcelListTable: React.FC<Props> = ({
   riskFilter,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
+  const [visibleCount, setVisibleCount] = useState<number>(50);
+
+  // Reset pagination when filter or search changes
+  useEffect(() => {
+    setVisibleCount(50);
+  }, [statusFilter, riskFilter, searchTerm]);
 
   // Filtered parcels
   const filtered = useMemo(() => {
@@ -63,6 +69,11 @@ export const GuestParcelListTable: React.FC<Props> = ({
       return true;
     });
   }, [parcels, statusFilter, riskFilter, searchTerm]);
+
+  // Max 50 items initially, then expand with load more
+  const displayed = useMemo(() => {
+    return filtered.slice(0, visibleCount);
+  }, [filtered, visibleCount]);
 
   const getStatusLabel = (effStatus: string) => {
     switch (effStatus) {
@@ -117,57 +128,78 @@ export const GuestParcelListTable: React.FC<Props> = ({
             Không tìm thấy công trình nào phù hợp với bộ lọc hiện tại.
           </div>
         ) : (
-          filtered.map((parcel) => {
-            const isSelected = activeParcel?.id === parcel.id;
-            const effStatus = getEffectiveParcelStatus(parcel);
-            const statusColor = getStatusColor(effStatus);
-            const braLevel = getParcelBraRiskLevel(parcel);
-            const braStyle = getBraBadgeStyle(braLevel);
+          <>
+            {displayed.map((parcel) => {
+              const isSelected = activeParcel?.id === parcel.id;
+              const effStatus = getEffectiveParcelStatus(parcel);
+              const statusColor = getStatusColor(effStatus);
+              const braLevel = getParcelBraRiskLevel(parcel);
+              const braStyle = getBraBadgeStyle(braLevel);
 
-            return (
-              <div
-                key={parcel.id}
-                onClick={() => onSelectParcel(parcel)}
-                className={`px-3.5 py-2.5 flex items-center justify-between gap-2 cursor-pointer transition-colors ${
-                  isSelected
-                    ? 'bg-sky-50/80 border-l-4 border-l-sky-600'
-                    : 'hover:bg-slate-50 border-l-4 border-l-transparent'
-                }`}
-              >
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-xs font-bold text-slate-900 truncate">
-                      {parcel.projectParcelCode}
-                    </span>
+              return (
+                <div
+                  key={parcel.id}
+                  onClick={() => onSelectParcel(parcel)}
+                  className={`px-3.5 py-2.5 flex items-center justify-between gap-2 cursor-pointer transition-colors ${
+                    isSelected
+                      ? 'bg-sky-50/80 border-l-4 border-l-sky-600'
+                      : 'hover:bg-slate-50 border-l-4 border-l-transparent'
+                  }`}
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-xs font-bold text-slate-900 truncate">
+                        {parcel.projectParcelCode}
+                      </span>
+                      <span
+                        className="px-1.5 py-0.5 rounded text-[10px] font-bold text-white shrink-0"
+                        style={{ backgroundColor: statusColor }}
+                      >
+                        {getStatusLabel(effStatus)}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 mt-0.5 text-xs text-slate-600 truncate">
+                      <MapPin size={11} className="text-slate-400 shrink-0" />
+                      <span className="truncate">
+                        {parcel.houseNumber ? `${parcel.houseNumber} ` : ''}
+                        {parcel.street || 'Đang cập nhật địa chỉ'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Right side: BRA risk badge & Action chevron */}
+                  <div className="flex items-center gap-2 shrink-0">
                     <span
-                      className="px-1.5 py-0.5 rounded text-[10px] font-bold text-white shrink-0"
-                      style={{ backgroundColor: statusColor }}
+                      className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${braStyle.bg} ${braStyle.text} ${braStyle.border}`}
                     >
-                      {getStatusLabel(effStatus)}
+                      {braStyle.label.split(' ')[0]}
                     </span>
-                  </div>
-
-                  <div className="flex items-center gap-1.5 mt-0.5 text-xs text-slate-600 truncate">
-                    <MapPin size={11} className="text-slate-400 shrink-0" />
-                    <span className="truncate">
-                      {parcel.houseNumber ? `${parcel.houseNumber} ` : ''}
-                      {parcel.street || 'Đang cập nhật địa chỉ'}
-                    </span>
+                    <ChevronRight size={14} className="text-slate-300" />
                   </div>
                 </div>
+              );
+            })}
 
-                {/* Right side: BRA risk badge & Action chevron */}
-                <div className="flex items-center gap-2 shrink-0">
-                  <span
-                    className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${braStyle.bg} ${braStyle.text} ${braStyle.border}`}
-                  >
-                    {braStyle.label.split(' ')[0]}
+            {/* Load More (+50) Controls */}
+            {filtered.length > visibleCount && (
+              <div className="p-2.5 bg-slate-50 border-t border-slate-100 flex items-center justify-between gap-2">
+                <button
+                  type="button"
+                  onClick={() => setVisibleCount((prev) => prev + 50)}
+                  className="flex-1 py-1.5 px-3 rounded-lg bg-white border border-slate-200 hover:bg-sky-50 hover:border-sky-300 text-sky-700 text-xs font-bold flex items-center justify-center gap-1.5 shadow-2xs transition-all cursor-pointer"
+                >
+                  <Plus size={14} className="text-sky-600" />
+                  <span>
+                    Xem thêm {Math.min(50, filtered.length - visibleCount)} công trình tiếp theo
                   </span>
-                  <ChevronRight size={14} className="text-slate-300" />
-                </div>
+                </button>
+                <span className="text-[11px] text-slate-400 font-mono font-medium shrink-0">
+                  {displayed.length}/{filtered.length}
+                </span>
               </div>
-            );
-          })
+            )}
+          </>
         )}
       </div>
     </div>

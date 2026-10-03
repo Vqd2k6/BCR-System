@@ -27,6 +27,7 @@ export const LeafletSweepMap: React.FC<LeafletSweepMapProps> = ({
   onProposeSplit,
   userGps,
   thematicMode,
+  hideBottomSheet = false,
 }) => {
   const {
     currentZoneConfig,
@@ -258,16 +259,18 @@ export const LeafletSweepMap: React.FC<LeafletSweepMapProps> = ({
         </div>
       )}
 
-      {/* 5. Selected Parcel Bottom Drawer */}
-      <ParcelDetailBottomSheet
-        activeParcel={activeParcel}
-        onClose={() => setActiveParcel(null)}
-        onStartSurvey={onStartSurvey}
-        onStartPhase2={onStartPhase2}
-        onOpenBuildingHub={onOpenBuildingHub}
-        absenceRecordedToday={absenceRecordedToday}
-        handleOpenGoogleMapsDirections={handleOpenGoogleMapsDirections}
-      />
+      {/* 5. Selected Parcel Bottom Drawer (Disabled in Guest view to prevent showing Surveyor action buttons) */}
+      {!hideBottomSheet && (
+        <ParcelDetailBottomSheet
+          activeParcel={activeParcel}
+          onClose={() => setActiveParcel(null)}
+          onStartSurvey={onStartSurvey}
+          onStartPhase2={onStartPhase2}
+          onOpenBuildingHub={onOpenBuildingHub}
+          absenceRecordedToday={absenceRecordedToday}
+          handleOpenGoogleMapsDirections={handleOpenGoogleMapsDirections}
+        />
+      )}
     </div>
   );
 };
