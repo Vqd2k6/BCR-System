@@ -26,20 +26,22 @@ export const Step8_ExecutiveDashboard: React.FC = () => {
   const ex = formData.executiveSummary;
   const burland = formData.burlandSummary;
 
-  // Tính toán hạng sau can thiệp kỹ sư
-  const effectiveEcsClass =
-    ecs.engineeringJudgement.action === 'UPGRADE'
-      ? 'TĂNG NẶNG (Can thiệp KS)'
-      : ecs.engineeringJudgement.action === 'DOWNGRADE'
-      ? 'GIẢM NHẸ (Can thiệp KS)'
-      : ecs.ecsClass;
+  // Tính toán hạng & điểm sau can thiệp kỹ sư (Engineering Judgement)
+  const isEcsAdjusted = Boolean(ecs.engineeringJudgement?.action && ecs.engineeringJudgement.action !== 'KEEP');
+  const effectiveEcsScore = isEcsAdjusted && ecs.engineeringJudgement.adjustedScore !== undefined
+    ? ecs.engineeringJudgement.adjustedScore
+    : ecs.totalEcs;
+  const effectiveEcsClass = isEcsAdjusted && ecs.engineeringJudgement.adjustedClass
+    ? ecs.engineeringJudgement.adjustedClass
+    : ecs.ecsClass;
 
-  const effectiveViClass =
-    vi.engineeringJudgement?.action === 'UPGRADE'
-      ? 'TĂNG NẶNG (Can thiệp KS)'
-      : vi.engineeringJudgement?.action === 'DOWNGRADE'
-      ? 'GIẢM NHẸ (Can thiệp KS)'
-      : vi.viClass;
+  const isViAdjusted = Boolean(vi.engineeringJudgement?.action && vi.engineeringJudgement.action !== 'KEEP');
+  const effectiveViAvg = isViAdjusted && vi.engineeringJudgement?.adjustedScore !== undefined
+    ? Number((vi.engineeringJudgement.adjustedScore / 6).toFixed(2))
+    : vi.viAvg;
+  const effectiveViClass = isViAdjusted && vi.engineeringJudgement?.adjustedClass
+    ? vi.engineeringJudgement.adjustedClass
+    : vi.viClass;
 
   // 1. Tính toán Tác động thi công Metro (Impact I1 - I4) theo khoảng cách mép ga (ưu tiên) hoặc tim hầm (fallback)
   const impact = calculateConstructionImpact(
@@ -48,7 +50,7 @@ export const Step8_ExecutiveDashboard: React.FC = () => {
     formData.metroOffsetDistance
   );
 
-  // 2. Tính toán Đánh giá rủi ro cơ sở BRA theo ma trận 4x4
+  // 2. Tính toán Đánh giá rủi ro cơ sở BRA theo ma trận 4x4 sử dụng phân hạng VI hiệu lực
   const bra = calculateBraRisk(effectiveViClass, impact.code);
 
   // Tự động đồng bộ kết quả vào executiveSummary nếu trạng thái thay đổi
@@ -128,13 +130,17 @@ export const Step8_ExecutiveDashboard: React.FC = () => {
                 </InfoPopover>
               </div>
               <div className="text-center my-1">
-                <span className="text-2xl font-black text-slate-800">{ecs.totalEcs} <span className="text-sm font-normal text-slate-400">/24</span></span>
+                <span className="text-2xl font-black text-slate-800">
+                  {effectiveEcsScore} <span className="text-sm font-normal text-slate-400">/24</span>
+                </span>
               </div>
             </div>
             <div className="mt-2 pt-2 border-t border-slate-100 text-center">
-              <span className="text-xs font-bold text-emerald-700 block">{effectiveEcsClass}</span>
-              {ecs.engineeringJudgement.action !== 'KEEP' && (
-                <span className="text-[10px] text-amber-600 block italic">Gốc: {ecs.ecsClass}</span>
+              <span className="text-xs font-bold text-emerald-700 block">
+                {effectiveEcsClass} {isEcsAdjusted && <span className="text-[11px] text-amber-600">(Đã can thiệp)</span>}
+              </span>
+              {isEcsAdjusted && (
+                <span className="text-[10px] text-slate-500 block italic">Gốc: {ecs.totalEcs}/24 ({ecs.ecsClass})</span>
               )}
             </div>
           </div>
@@ -189,13 +195,15 @@ export const Step8_ExecutiveDashboard: React.FC = () => {
                 </InfoPopover>
               </div>
               <div className="text-center my-1">
-                <span className="text-2xl font-black text-purple-700">{vi.viAvg} <span className="text-sm font-normal text-slate-400">/4</span></span>
+                <span className="text-2xl font-black text-purple-700">{effectiveViAvg} <span className="text-sm font-normal text-slate-400">/4</span></span>
               </div>
             </div>
             <div className="mt-2 pt-2 border-t border-slate-100 text-center">
-              <span className="text-xs font-bold text-purple-800 block">{bra.vLabel}</span>
-              {vi.engineeringJudgement?.action !== 'KEEP' && (
-                <span className="text-[10px] text-amber-600 block italic">Gốc: {vi.viClass}</span>
+              <span className="text-xs font-bold text-purple-800 block">
+                {bra.vLabel} {isViAdjusted && <span className="text-[11px] text-amber-600">(Đã can thiệp: {effectiveViClass})</span>}
+              </span>
+              {isViAdjusted && (
+                <span className="text-[10px] text-slate-500 block italic">Gốc: {vi.viAvg}/4 ({vi.viClass})</span>
               )}
             </div>
           </div>

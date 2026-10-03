@@ -19,6 +19,7 @@ import {
   resolveOfflinePhotoUrl,
 } from '../../../../core/storage/offlinePhotoStorage';
 import { UploadStatus } from '../types';
+import { usePhase1SurveyStore } from '../../../../features/survey-phase1/store/usePhase1SurveyStore';
 
 interface UsePhotoUploadProps {
   value: string;
@@ -98,10 +99,34 @@ export function usePhotoUpload({
     let pType = effectiveWatermarkOptions?.photoType || '';
     const fullCode = code || displayPhotoCode || '';
 
+    // Hàm kiểm tra mã công trình hợp lệ: Tuyệt đối không nhận các tiền tố kỹ thuật cấu kiện / CAD làm mã công trình
+    const isInvalidBuildingCode = (c?: string): boolean => {
+      if (!c) return true;
+      const clean = c.replace(/^\[|\]$/g, '').trim().toUpperCase();
+      return (
+        clean.length < 3 ||
+        clean.startsWith('STRUCTURAL') ||
+        clean.startsWith('CAD') ||
+        clean.startsWith('ZONE') ||
+        clean.startsWith('DEFECT') ||
+        clean.startsWith('OVERVIEW') ||
+        clean.startsWith('PHOTO') ||
+        clean.startsWith('CONDO') ||
+        clean.startsWith('PHASE') ||
+        clean.startsWith('KYXACNHAN') ||
+        clean.startsWith('SIGN')
+      );
+    };
+
+    if (isInvalidBuildingCode(buildingCode)) {
+      buildingCode = '';
+    }
+
+    // 1. Trích xuất mã từ fullCode (chuẩn Metro 2 dạng HCM_M2.[PARCEL_CODE]_...)
     if (!buildingCode && fullCode) {
       const cleanCode = fullCode.replace(/^HCM_M2[._]/i, '');
       const bracketMatch = cleanCode.match(/^\[([^\]]+)\]/);
-      if (bracketMatch) {
+      if (bracketMatch && !isInvalidBuildingCode(bracketMatch[1])) {
         buildingCode = bracketMatch[1];
         const rest = cleanCode.substring(bracketMatch[0].length).replace(/^_+/, '');
         const parts = rest.split('_');
@@ -109,13 +134,54 @@ export function usePhotoUpload({
           pType = parts[parts.length - 2] || parts[0];
         }
       } else {
-        const parts = cleanCode.split(/[._]/);
-        if (parts[0] && parts[0].length >= 3) {
-          buildingCode = parts[0];
+        // Hỗ trợ dạng ngăn cách bằng ký tự '|' (VD: "STRUCTURAL | C&C-05-B-0113")
+        if (cleanCode.includes('|')) {
+          const pipeParts = cleanCode.split('|').map((s) => s.trim());
+          const found = pipeParts.find((s) => !isInvalidBuildingCode(s));
+          if (found) {
+            buildingCode = found;
+          }
         }
-        if (!pType && parts[1]) {
-          pType = parts[1];
+        // Fallback theo dấu chấm / gạch dưới
+        if (!buildingCode) {
+          const parts = cleanCode.split(/[._]/);
+          if (parts[0] && !isInvalidBuildingCode(parts[0])) {
+            buildingCode = parts[0];
+          }
         }
+      }
+    }
+
+    // 2. Nếu vẫn thiếu buildingCode, tự động lấy từ Zustand Store của cuộc khảo sát hiện tại
+    if (!buildingCode) {
+      try {
+        const storeParcel = usePhase1SurveyStore.getState()?.formData?.projectParcelCode;
+        if (storeParcel && !isInvalidBuildingCode(storeParcel)) {
+          buildingCode = storeParcel;
+        }
+      } catch (_e) {}
+    }
+
+    // 3. Nếu hoàn toàn không xác định được mã công trình, gom vào 'general' thay vì tạo folder rác
+    if (!buildingCode || isInvalidBuildingCode(buildingCode)) {
+      buildingCode = 'general';
+    }
+
+    // Tự động nhận diện loại ảnh pType nếu chưa được khai báo
+    if (!pType && fullCode) {
+      const upper = fullCode.toUpperCase();
+      if (upper.includes('STRUCTURAL') || upper.includes('CAD_STRUCT') || upper.includes('CAD-E')) {
+        pType = 'CAD_STRUCT';
+      } else if (upper.includes('CAD_ARCH') || upper.includes('CAD-Z')) {
+        pType = 'CAD_ARCH';
+      } else if (upper.includes('CTX')) {
+        pType = 'CTX';
+      } else if (upper.includes('CU')) {
+        pType = 'CU';
+      } else if (upper.includes('OVERVIEW')) {
+        pType = 'OVERVIEW';
+      } else if (upper.includes('MINUTES') || upper.includes('DOC') || upper.includes('KÝ XÁC NHẬN')) {
+        pType = 'DOC';
       }
     }
 
@@ -340,6 +406,33 @@ export function usePhotoUpload({
     }
   };
 
+  const handleRetryUpload = async () => {
+    setUploadStatus('UPLOADING');
+    if (lastBlobRef.current) {
+      startDirectUpload(lastBlobRef.current, displayPhotoCode, currentLocalIdRef.current || undefined);
+      return;
+    }
+    if (value && isLocalBlobUri(value)) {
+      const localId = extractLocalIdFromUri(value);
+      try {
+        const item = await getOfflinePhoto(localId);
+        if (item && item.blob) {
+          startDirectUpload(item.blob, item.photoCode || displayPhotoCode, localId);
+          return;
+        }
+      } catch (_e) {}
+    }
+    if (localPreview && localPreview.startsWith('blob:')) {
+      try {
+        const res = await fetch(localPreview);
+        const b = await res.blob();
+        startDirectUpload(b, displayPhotoCode, currentLocalIdRef.current || undefined);
+        return;
+      } catch (_e) {}
+    }
+    uploadQueue.resumePendingOfflineUploads();
+  };
+
   return {
     uploadStatus,
     localPreview,
@@ -352,5 +445,6 @@ export function usePhotoUpload({
     handleFileChange,
     handleClear,
     handleRotate90,
+    handleRetryUpload,
   };
 }

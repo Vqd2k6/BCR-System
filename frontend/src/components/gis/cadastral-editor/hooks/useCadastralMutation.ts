@@ -305,6 +305,7 @@ export const useCadastralMutation = ({
 
       onMutationDataChange({
         ...mutationData,
+        activeProposalType: 'SPLIT',
         splitCustomPointsA: def,
         splitCustomPointsB: polyB,
       });

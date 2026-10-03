@@ -8,7 +8,7 @@
  * - Nhấn vào bất kỳ đâu trên ảnh hoặc badge để phóng to
  */
 import React, { useState, useEffect } from 'react';
-import { ZoomIn } from 'lucide-react';
+import { ZoomIn, RefreshCw } from 'lucide-react';
 import { useLightbox } from './photo-capture/hooks/useLightbox';
 import { PhotoLightboxModal } from './photo-capture/components/PhotoLightboxModal';
 import { resolveOfflinePhotoUrl, getSafeDisplayUrl } from '../../core/storage/offlinePhotoStorage';
@@ -32,6 +32,10 @@ interface TapToZoomThumbnailProps {
   aspectRatio?: 'video' | 'square' | 'portrait' | 'auto' | string;
   /** Class bổ sung cho wrapper ngoài */
   className?: string;
+  /** Trạng thái upload R2 nếu có */
+  uploadStatus?: 'UPLOADING' | 'SUCCESS' | 'ERROR' | 'IDLE';
+  /** Hàm thử lại upload R2 */
+  onRetryUpload?: () => void;
 }
 
 export const TapToZoomThumbnail: React.FC<TapToZoomThumbnailProps> = ({
@@ -44,6 +48,8 @@ export const TapToZoomThumbnail: React.FC<TapToZoomThumbnailProps> = ({
   aspectClass,
   aspectRatio,
   className = '',
+  uploadStatus,
+  onRetryUpload,
 }) => {
   const effectiveAspect = aspectClass || (
     aspectRatio === 'square' ? 'aspect-square' :
@@ -100,6 +106,9 @@ export const TapToZoomThumbnail: React.FC<TapToZoomThumbnailProps> = ({
   };
 
   const currentDisplaySrc = displayUrl || getSafeDisplayUrl(src);
+  const isR2Synced = uploadStatus === 'SUCCESS' || (src && (src.startsWith('http') || src.startsWith('/uploads')));
+  const isR2Uploading = uploadStatus === 'UPLOADING';
+  const isR2Error = uploadStatus === 'ERROR';
 
   return (
     <>
@@ -123,12 +132,49 @@ export const TapToZoomThumbnail: React.FC<TapToZoomThumbnailProps> = ({
           </div>
         )}
 
-        {/* Badge số thứ tự / nhãn */}
-        {label && (
-          <span className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded bg-black/60 backdrop-blur-sm text-white text-[10px] font-bold pointer-events-none z-10">
-            {label}
-          </span>
-        )}
+        {/* Top-Left: Badge số thứ tự + Trạng thái Cloudflare R2 */}
+        <div className="absolute top-1.5 left-1.5 flex items-center gap-1 z-10">
+          {label && (
+            <span className="px-1.5 py-0.5 rounded bg-black/60 backdrop-blur-xs text-white text-[10px] font-bold pointer-events-none">
+              {label}
+            </span>
+          )}
+
+          {isR2Uploading && (
+            <span
+              className="px-1.5 py-0.5 rounded-full bg-amber-950/80 border border-amber-500/40 text-amber-300 text-[9px] font-bold flex items-center gap-1 shadow-xs backdrop-blur-xs pointer-events-none"
+              title="Đang đồng bộ ngầm lên Cloudflare R2..."
+            >
+              <RefreshCw size={8} className="animate-spin text-amber-400" />
+              <span>R2...</span>
+            </span>
+          )}
+
+          {isR2Synced && !isR2Uploading && (
+            <span
+              className="px-1.5 py-0.5 rounded-full bg-emerald-950/80 border border-emerald-500/40 text-emerald-400 text-[9px] font-bold flex items-center gap-1 shadow-xs backdrop-blur-xs pointer-events-none"
+              title="Đã lưu Cloudflare R2 an toàn"
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+              <span>✓ R2</span>
+            </span>
+          )}
+
+          {isR2Error && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (onRetryUpload) onRetryUpload();
+              }}
+              className="px-2 py-0.5 rounded-full bg-red-600 hover:bg-red-700 text-white text-[9px] font-bold flex items-center gap-1 shadow-xs pointer-events-auto cursor-pointer animate-pulse"
+              title="Lỗi đồng bộ R2 - Nhấn để thử lại"
+            >
+              <RefreshCw size={8} />
+              <span>Thử lại R2</span>
+            </button>
+          )}
+        </div>
 
         {/* Badge "Nhấn vào để phóng to" luôn hiển thị ở dưới cùng */}
         <button

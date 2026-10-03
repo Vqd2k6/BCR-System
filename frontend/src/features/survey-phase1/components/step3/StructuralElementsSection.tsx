@@ -665,13 +665,22 @@ export const StructuralElementsSection: React.FC<StructuralElementsSectionProps>
                   <PhotoCaptureInput
                     label={`Ảnh bối cảnh cấu kiện để thả ghim cho ${activeElement.elementCode}:`}
                     value={activeElement.ctxPhotoUrl || ''}
-                    onChange={(url) =>
-                      onUpdateElement(activeElementIndex, { ctxPhotoUrl: url })
+                    onChange={(url, code) =>
+                      onUpdateElement(activeElementIndex, {
+                        ctxPhotoUrl: url,
+                        ctxPhotoCode: code || activeElement.ctxPhotoCode,
+                      })
                     }
                     recommendedOrientation="landscape"
                     orientationHint="Khuyến nghị: Chụp ảnh bao quát toàn bộ cấu kiện chịu lực"
                     annotationTitle={`Vẽ & Ghi chú trên ảnh bối cảnh Cấu kiện ${activeElement.elementCode}`}
-                    watermarkText={`STRUCTURAL | ${activeElement.elementCode}`}
+                    watermarkOptions={{
+                      parcelCode: projectParcelCode,
+                      floor: currentFloor.floorName,
+                      zoneOrRoom: activeElement.elementCode,
+                      photoType: 'CTX',
+                      photoIndex: 1,
+                    }}
                     height="140px"
                   />
                 </div>

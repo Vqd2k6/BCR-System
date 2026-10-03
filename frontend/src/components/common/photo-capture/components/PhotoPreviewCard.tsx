@@ -32,6 +32,7 @@ interface PhotoPreviewCardProps {
   onRotate90: () => void;
   onStartAnnotating: () => void;
   onClear: () => void;
+  onRetryUpload?: () => void;
 }
 
 export const PhotoPreviewCard: React.FC<PhotoPreviewCardProps> = ({
@@ -52,6 +53,7 @@ export const PhotoPreviewCard: React.FC<PhotoPreviewCardProps> = ({
   onRotate90,
   onStartAnnotating,
   onClear,
+  onRetryUpload,
 }) => {
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
   const moreMenuRef = useRef<HTMLDivElement>(null);
@@ -77,7 +79,6 @@ export const PhotoPreviewCard: React.FC<PhotoPreviewCardProps> = ({
         width: '100%',
         height,
         borderRadius: '0.65rem',
-        overflow: 'hidden',
         border: '1px solid #cbd5e1',
         backgroundColor: '#0f172a',
         cursor: 'pointer',
@@ -85,89 +86,168 @@ export const PhotoPreviewCard: React.FC<PhotoPreviewCardProps> = ({
       }}
       title="Nhấn vào để phóng to soi vạch thước đo nứt"
     >
-      {safeSrc ? (
-        <img
-          id={photoCode || displayPhotoCode || undefined}
-          data-photo-code={photoCode || displayPhotoCode || undefined}
-          src={safeSrc}
-          alt={displayPhotoCode || label || 'Photo preview'}
-          onError={() => {
-            if (safeSrc && !hasLoadError) {
-              onSetHasLoadError(true);
-            }
-          }}
-          style={{ width: '100%', height: '100%', objectFit: 'contain', pointerEvents: 'none' }}
+      {/* Khung nội dung ảnh và Watermark overlay được bo góc & clip riêng biệt */}
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          borderRadius: '0.65rem',
+          overflow: 'hidden',
+          pointerEvents: 'none',
+        }}
+      >
+        {safeSrc ? (
+          <img
+            id={photoCode || displayPhotoCode || undefined}
+            data-photo-code={photoCode || displayPhotoCode || undefined}
+            src={safeSrc}
+            alt={displayPhotoCode || label || 'Photo preview'}
+            onError={() => {
+              if (safeSrc && !hasLoadError) {
+                onSetHasLoadError(true);
+              }
+            }}
+            style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+          />
+        ) : (
+          <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: '0.75rem' }}>
+            Đang nạp ảnh...
+          </div>
+        )}
+
+        {/* Lớp phủ Watermark động bằng CSS thuần không tốn RAM Canvas */}
+        <PhotoWatermarkOverlay
+          photoCode={photoCode || displayPhotoCode}
+          variant="compact"
         />
-      ) : (
-        <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: '0.75rem' }}>
-          Đang nạp ảnh...
-        </div>
-      )}
+      </div>
 
-      {/* Lớp phủ Watermark động bằng CSS thuần không tốn RAM Canvas */}
-      <PhotoWatermarkOverlay
-        photoCode={photoCode || displayPhotoCode}
-        variant="compact"
-      />
+      {/* Top-Left: Photo ID chip + Cloudflare R2 Status & Nút thử lại */}
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          position: 'absolute',
+          top: '6px',
+          left: '6px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.3rem',
+          maxWidth: '60%',
+          zIndex: 20,
+        }}
+      >
+        {displayPhotoCode && (
+          <div
+            style={{
+              backgroundColor: 'rgba(15, 23, 42, 0.88)',
+              color: '#34d399',
+              fontSize: '0.65rem',
+              fontWeight: 700,
+              padding: '0.2rem 0.5rem',
+              borderRadius: '9999px',
+              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+              backdropFilter: 'blur(4px)',
+              border: '1px solid rgba(52, 211, 153, 0.35)',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              boxShadow: '0 2px 5px rgba(0, 0, 0, 0.35)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.25rem',
+            }}
+            title={`Photo ID: ${displayPhotoCode}`}
+          >
+            <MapPin size={10} style={{ color: '#10b981', flexShrink: 0 }} />
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{displayPhotoCode}</span>
+          </div>
+        )}
 
-      {/* Top-Left: Minimalist Photo ID chip + Cloud Status */}
-      {displayPhotoCode && (
-        <div
-          onClick={(e) => e.stopPropagation()}
-          style={{
-            position: 'absolute',
-            top: '6px',
-            left: '6px',
-            backgroundColor: 'rgba(15, 23, 42, 0.85)',
-            color: '#34d399',
-            fontSize: '0.65rem',
-            fontWeight: 700,
-            padding: '0.2rem 0.5rem',
-            borderRadius: '9999px',
-            fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
-            backdropFilter: 'blur(4px)',
-            border: '1px solid rgba(52, 211, 153, 0.35)',
-            maxWidth: '48%',
-            whiteSpace: 'nowrap',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            boxShadow: '0 2px 5px rgba(0, 0, 0, 0.35)',
-            zIndex: 10,
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.25rem',
-          }}
-          title={`Photo ID: ${displayPhotoCode}`}
-        >
-          <MapPin size={10} style={{ color: '#10b981', flexShrink: 0 }} />
-          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{displayPhotoCode}</span>
-          {uploadStatus === 'UPLOADING' && <RefreshCw size={9} className="animate-spin text-amber-400 shrink-0" />}
-          {uploadStatus === 'SUCCESS' && (
+        {/* Cloudflare R2 Status Badge */}
+        {uploadStatus === 'UPLOADING' && (
+          <span
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.25rem',
+              backgroundColor: 'rgba(217, 119, 6, 0.9)',
+              color: '#ffffff',
+              fontSize: '0.625rem',
+              fontWeight: 700,
+              padding: '0.18rem 0.45rem',
+              borderRadius: '9999px',
+              backdropFilter: 'blur(4px)',
+              boxShadow: '0 2px 5px rgba(0, 0, 0, 0.35)',
+              whiteSpace: 'nowrap',
+            }}
+            title="Đang đồng bộ ngầm lên Cloudflare R2..."
+          >
+            <RefreshCw size={9} className="animate-spin shrink-0" />
+            <span>R2...</span>
+          </span>
+        )}
+
+        {(uploadStatus === 'SUCCESS' || (value && (value.startsWith('http') || value.startsWith('/uploads')))) && uploadStatus !== 'UPLOADING' && (
+          <span
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.2rem',
+              backgroundColor: 'rgba(6, 78, 59, 0.9)',
+              border: '1px solid rgba(52, 211, 153, 0.5)',
+              color: '#34d399',
+              fontSize: '0.625rem',
+              fontWeight: 700,
+              padding: '0.18rem 0.45rem',
+              borderRadius: '9999px',
+              backdropFilter: 'blur(4px)',
+              boxShadow: '0 2px 5px rgba(0, 0, 0, 0.35)',
+              whiteSpace: 'nowrap',
+            }}
+            title="Đã lưu Cloudflare R2 an toàn"
+          >
             <span
               style={{
-                width: '6px',
-                height: '6px',
+                width: '5px',
+                height: '5px',
                 borderRadius: '50%',
-                backgroundColor: '#10b981',
+                backgroundColor: '#34d399',
                 flexShrink: 0,
               }}
-              title="Đã lưu Cloudflare R2 an toàn"
             />
-          )}
-          {uploadStatus === 'ERROR' && (
-            <span
-              style={{
-                width: '6px',
-                height: '6px',
-                borderRadius: '50%',
-                backgroundColor: '#ef4444',
-                flexShrink: 0,
-              }}
-              title="Lỗi tải R2"
-            />
-          )}
-        </div>
-      )}
+            <span>✓ R2</span>
+          </span>
+        )}
+
+        {uploadStatus === 'ERROR' && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (onRetryUpload) onRetryUpload();
+            }}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.25rem',
+              backgroundColor: '#dc2626',
+              border: '1px solid rgba(254, 202, 202, 0.5)',
+              color: '#ffffff',
+              fontSize: '0.625rem',
+              fontWeight: 700,
+              padding: '0.2rem 0.5rem',
+              borderRadius: '9999px',
+              cursor: 'pointer',
+              boxShadow: '0 2px 6px rgba(220, 38, 38, 0.4)',
+              whiteSpace: 'nowrap',
+            }}
+            title="Lỗi đồng bộ R2. Nhấn vào đây để thử lại ngay!"
+          >
+            <RefreshCw size={9} />
+            <span>Thử lại R2</span>
+          </button>
+        )}
+      </div>
 
       {/* Top-Right: Minimalist Action Cluster (Chụp Lại + Menu ⋯) */}
       <div
@@ -245,18 +325,50 @@ export const PhotoPreviewCard: React.FC<PhotoPreviewCardProps> = ({
                 backgroundColor: 'rgba(15, 23, 42, 0.96)',
                 color: '#f8fafc',
                 borderRadius: '0.65rem',
-                padding: '0.3rem',
+                padding: '0.35rem',
                 boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5)',
                 border: '1px solid rgba(51, 65, 85, 0.8)',
-                minWidth: '165px',
+                minWidth: '180px',
+                maxHeight: '220px',
+                overflowY: 'auto',
+                overscrollBehavior: 'contain',
                 display: 'flex',
                 flexDirection: 'column',
-                gap: '0.15rem',
+                gap: '0.2rem',
                 fontSize: '0.75rem',
                 backdropFilter: 'blur(8px)',
-                zIndex: 30,
+                zIndex: 60,
               }}
             >
+              {/* Thử lại R2 trong menu */}
+              {uploadStatus !== 'SUCCESS' && onRetryUpload && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsMoreMenuOpen(false);
+                    onRetryUpload();
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '0.4rem 0.6rem',
+                    borderRadius: '0.4rem',
+                    border: 'none',
+                    backgroundColor: 'transparent',
+                    color: '#38bdf8',
+                    textAlign: 'left',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.45rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'rgba(51, 65, 85, 0.6)')}
+                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                >
+                  <RefreshCw size={13} style={{ color: '#38bdf8' }} />
+                  <span>Đồng bộ lại lên R2</span>
+                </button>
+              )}
               {/* Xoay 90 độ */}
               <button
                 type="button"

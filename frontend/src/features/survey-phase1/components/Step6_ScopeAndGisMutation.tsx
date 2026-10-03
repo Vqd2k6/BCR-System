@@ -420,6 +420,10 @@ export const Step6_ScopeAndGisMutation: React.FC = () => {
                 gisMutationConfirmed: {
                   ...formData.gisMutationConfirmed,
                   type: status,
+                  details: {
+                    ...formData.gisMutationConfirmed.details,
+                    activeProposalType: status,
+                  },
                 },
               });
             }}
@@ -445,17 +449,19 @@ export const Step6_ScopeAndGisMutation: React.FC = () => {
               isSubmitted: formData.gisMutationConfirmed.details?.isSubmitted || false,
               submittedAt: formData.gisMutationConfirmed.details?.submittedAt || '',
               matchConfirmed: formData.gisMutationConfirmed.details?.matchConfirmed || (formData.gisMutationConfirmed.type === 'MATCH'),
-              activeProposalType: formData.gisMutationConfirmed.details?.activeProposalType ?? (formData.gisMutationConfirmed.details?.isSubmitted ? formData.gisMutationConfirmed.type : (formData.gisMutationConfirmed.type === 'MATCH' ? 'MATCH' : null)),
+              activeProposalType: formData.gisMutationConfirmed.details?.activeProposalType || formData.gisMutationConfirmed.type,
             }}
             onMutationDataChange={(data) => {
+              const nextType = data.activeProposalType || formData.gisMutationConfirmed.type;
               updateFormData({
                 gisMutationConfirmed: {
                   ...formData.gisMutationConfirmed,
-                  type: (data.activeProposalType as any) || formData.gisMutationConfirmed.type,
+                  type: nextType,
                   notes: data.splitReason || data.mergeReason || formData.gisMutationConfirmed.notes,
                   details: {
                     ...formData.gisMutationConfirmed.details,
                     ...data,
+                    activeProposalType: nextType,
                   },
                 },
               });
