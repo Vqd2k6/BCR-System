@@ -420,11 +420,11 @@ export async function applyMetroWatermark(
   ctx.fillText(photoCode, textX, line2Y);
   ctx.restore();
 
-  // 6. Xuất Binary Blob và Data URL JPEG độ nét cao (0.96) cho Cloudflare R2
+  // 6. Xuất Binary Blob và Data URL JPEG độ nét tối đa 100% (quality = 1.0 - Zero Compression loss) cho Cloudflare R2
   const blob: Blob = await new Promise((resolve) => {
-    canvas.toBlob((b) => resolve(b || new Blob()), 'image/jpeg', 0.96);
+    canvas.toBlob((b) => resolve(b || new Blob()), 'image/jpeg', 1.0);
   });
-  const dataUrl = canvas.toDataURL('image/jpeg', 0.96);
+  const dataUrl = canvas.toDataURL('image/jpeg', 1.0);
 
   return {
     dataUrl,

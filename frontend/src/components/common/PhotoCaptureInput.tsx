@@ -352,7 +352,7 @@ export const PhotoCaptureInput: React.FC<Props> = ({
       ctx.rotate((90 * Math.PI) / 180);
       ctx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2);
 
-      const rotatedDataUrl = canvas.toDataURL('image/jpeg', 0.96);
+      const rotatedDataUrl = canvas.toDataURL('image/jpeg', 1.0);
       setLocalPreview(rotatedDataUrl);
       onChange(rotatedDataUrl, displayPhotoCode);
 
@@ -362,11 +362,14 @@ export const PhotoCaptureInput: React.FC<Props> = ({
         } else {
           uploadToServer(rotatedDataUrl, displayPhotoCode);
         }
-      }, 'image/jpeg', 0.96);
+      }, 'image/jpeg', 1.0);
     } catch (err) {
       console.warn('[PhotoCaptureInput] Lỗi khi xoay ảnh 90°:', err);
     }
   };
+
+  // Trạng thái luồng MediaStream trực tiếp
+  const [mediaStream, setMediaStream] = useState<MediaStream | null>(null);
 
   // Dọn dẹp tài nguyên Live Camera
   const stopLiveCamera = () => {
@@ -378,6 +381,7 @@ export const PhotoCaptureInput: React.FC<Props> = ({
       });
       streamRef.current = null;
     }
+    setMediaStream(null);
     if (videoRef.current) {
       videoRef.current.srcObject = null;
     }
@@ -399,7 +403,7 @@ export const PhotoCaptureInput: React.FC<Props> = ({
     } catch (_e) {}
   };
 
-  // Khởi động Camera trực tiếp
+  // Khởi động Camera trực tiếp (có cơ chế đa tầng fallback để tránh OverconstrainedError)
   const startLiveCamera = async () => {
     setCameraLoading(true);
     setCameraError(null);
@@ -407,26 +411,96 @@ export const PhotoCaptureInput: React.FC<Props> = ({
     initialPinchDistRef.current = 0;
     initialZoomRef.current = 1.0;
 
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: { ideal: facingMode },
-          width: { ideal: 2560 },
-          height: { ideal: 1920 },
-        },
-        audio: false,
+    // Dừng luồng cũ nếu có
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => {
+        try {
+          track.stop();
+        } catch (_e) {}
       });
+      streamRef.current = null;
+    }
+
+    try {
+      let stream: MediaStream | null = null;
+
+      // 1. Thử khởi tạo độ nét cao 4:3 (chuẩn ảnh báo cáo Metro 2)
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { ideal: facingMode },
+            width: { ideal: 2560 },
+            height: { ideal: 1920 },
+          },
+          audio: false,
+        });
+      } catch (firstErr) {
+        console.warn('[LiveCamera] Ràng buộc 2560x1920 không được hỗ trợ, chuyển sang chuẩn 1080p:', firstErr);
+        // 2. Thử mức chuẩn 1080p
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: {
+              facingMode: facingMode === 'environment' ? { ideal: 'environment' } : 'user',
+              width: { ideal: 1920 },
+              height: { ideal: 1080 },
+            },
+            audio: false,
+          });
+        } catch (secondErr) {
+          console.warn('[LiveCamera] Ràng buộc 1080p không được hỗ trợ, dùng fallback cơ bản:', secondErr);
+          // 3. Fallback video generic không ràng buộc
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: true,
+            audio: false,
+          });
+        }
+      }
+
+      if (!stream) {
+        throw new Error('Không thể khởi tạo luồng camera.');
+      }
+
       streamRef.current = stream;
+      setMediaStream(stream);
+
+      // Gán trực tiếp vào video element nếu đã sẵn sàng
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        await videoRef.current.play();
+        try {
+          await videoRef.current.play();
+        } catch (playErr) {
+          console.warn('[LiveCamera] Chờ onLoadedMetadata để tự động play:', playErr);
+        }
       }
-      setCameraLoading(false);
     } catch (err: any) {
       console.warn('[LiveCamera] Không thể mở camera trực tiếp:', err);
-      setCameraError('Không thể mở camera trực tiếp. Bạn có thể bấm nút bên dưới để mở camera hệ thống.');
+      setCameraError('Không thể mở camera trực tiếp trên trình duyệt. Bạn có thể bấm nút bên dưới để mở Máy ảnh hệ thống.');
       setCameraLoading(false);
     }
+  };
+
+  // Đồng bộ luồng MediaStream vào thẻ video đảm bảo không bao giờ bị đen màn hình
+  useEffect(() => {
+    if (isLiveCameraOpen && videoRef.current && mediaStream) {
+      if (videoRef.current.srcObject !== mediaStream) {
+        videoRef.current.srcObject = mediaStream;
+      }
+      videoRef.current.play().catch((err) => {
+        console.warn('[LiveCamera] Autoplay bị chặn hoặc đang tải:', err);
+      });
+    }
+  }, [isLiveCameraOpen, mediaStream]);
+
+  // Chuyển mượt mà sang Máy ảnh hệ điều hành (Native Camera) không bị race condition
+  const handleTriggerNativeCamera = () => {
+    stopLiveCamera();
+    setIsLiveCameraOpen(false);
+    setTimeout(() => {
+      const inputEl = document.getElementById(cameraInputId) as HTMLInputElement | null;
+      if (inputEl) {
+        inputEl.click();
+      }
+    }, 80);
   };
 
   useEffect(() => {
@@ -489,8 +563,13 @@ export const PhotoCaptureInput: React.FC<Props> = ({
   const handleCaptureLiveFrame = async () => {
     if (!videoRef.current) return;
     const video = videoRef.current;
-    const vw = video.videoWidth || 1920;
-    const vh = video.videoHeight || 1440;
+    const vw = video.videoWidth;
+    const vh = video.videoHeight;
+
+    if (!vw || !vh) {
+      alert('Camera đang khởi động luồng ảnh. Vui lòng đợi 1 giây rồi bấm chụp lại.');
+      return;
+    }
 
     const track = streamRef.current?.getVideoTracks()[0];
     const caps = (track?.getCapabilities ? track.getCapabilities() : {}) as any;
@@ -515,7 +594,7 @@ export const PhotoCaptureInput: React.FC<Props> = ({
       ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, vw, vh);
     }
 
-    const rawBase64 = canvas.toDataURL('image/jpeg', 0.96);
+    const rawBase64 = canvas.toDataURL('image/jpeg', 1.0);
     stopLiveCamera();
     setIsLiveCameraOpen(false);
 
@@ -1011,6 +1090,31 @@ export const PhotoCaptureInput: React.FC<Props> = ({
                     </button>
                   )}
 
+                  {/* Chụp bằng máy ảnh máy (Native 12MP/48MP/Flash/Macro) */}
+                  <label
+                    htmlFor={cameraInputId}
+                    onClick={() => setIsMoreMenuOpen(false)}
+                    style={{
+                      width: '100%',
+                      padding: '0.4rem 0.6rem',
+                      borderRadius: '0.4rem',
+                      backgroundColor: 'transparent',
+                      color: '#f8fafc',
+                      textAlign: 'left',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.45rem',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      boxSizing: 'border-box',
+                    }}
+                    onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'rgba(51, 65, 85, 0.6)')}
+                    onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                  >
+                    <Camera size={13} style={{ color: '#38bdf8' }} />
+                    <span>Dùng máy ảnh máy (Native)</span>
+                  </label>
+
                   {/* Chọn ảnh từ máy */}
                   <label
                     htmlFor={galleryInputId}
@@ -1098,7 +1202,7 @@ export const PhotoCaptureInput: React.FC<Props> = ({
           </div>
         </div>
       ) : (
-        /* Empty State with direct Camera, Live Camera, and Gallery options */
+        /* Empty State with 3 clear ergonomic options */
         (() => {
           const isCompact = typeof height === 'number' ? height <= 125 : parseInt(String(height), 10) <= 125;
           return (
@@ -1140,49 +1244,75 @@ export const PhotoCaptureInput: React.FC<Props> = ({
                 </div>
               )}
 
-              <div style={{ display: 'flex', gap: isCompact ? '0.35rem' : '0.65rem', flexWrap: 'wrap', justifyContent: 'center' }}>
-                {/* 1. NÚT CHÍNH: Chụp ảnh bằng camera khảo sát (hỗ trợ zoom 2 ngón tay) */}
+              <div style={{ display: 'flex', gap: isCompact ? '0.3rem' : '0.5rem', flexWrap: 'wrap', justifyContent: 'center' }}>
+                {/* 1. NÚT CHÍNH: Live Camera (Khung ngắm 4:3, zoom 2 ngón tay) */}
                 <button
                   type="button"
                   onClick={handleTriggerCapture}
                   style={{
                     display: 'inline-flex',
                     alignItems: 'center',
-                    gap: isCompact ? '0.25rem' : '0.45rem',
-                    padding: isCompact ? '0.35rem 0.65rem' : '0.5rem 1.05rem',
+                    gap: isCompact ? '0.2rem' : '0.4rem',
+                    padding: isCompact ? '0.35rem 0.55rem' : '0.45rem 0.85rem',
                     fontWeight: 700,
                     backgroundColor: '#059669',
                     color: '#ffffff',
                     border: 'none',
                     borderRadius: '0.45rem',
                     cursor: 'pointer',
-                    fontSize: isCompact ? '0.72rem' : '0.8rem',
+                    fontSize: isCompact ? '0.7rem' : '0.775rem',
                     boxShadow: '0 2px 4px rgba(5, 150, 105, 0.25)',
                     userSelect: 'none',
                     whiteSpace: 'nowrap',
                     transition: 'all 0.15s ease',
                   }}
-                  title="Mở camera khảo sát (hỗ trợ zoom 2 ngón tay)"
+                  title="Mở camera trực tiếp (hỗ trợ khung ngắm 4:3 và zoom 2 ngón tay)"
                 >
-                  <Camera size={isCompact ? 14 : 16} />
-                  <span>Chụp ảnh</span>
+                  <Camera size={isCompact ? 13 : 15} />
+                  <span>{isCompact ? 'Live' : 'Camera Live'}</span>
                 </button>
 
-                {/* 2. NÚT PHỤ: Chọn ảnh từ thư viện máy */}
+                {/* 2. NÚT CHÍNH 2: Máy ảnh máy (Native Camera: 12MP/48MP, Flash, Macro thước đo) */}
+                <label
+                  htmlFor={cameraInputId}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: isCompact ? '0.2rem' : '0.4rem',
+                    padding: isCompact ? '0.35rem 0.55rem' : '0.45rem 0.85rem',
+                    fontWeight: 700,
+                    backgroundColor: '#0284c7',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: '0.45rem',
+                    cursor: 'pointer',
+                    fontSize: isCompact ? '0.7rem' : '0.775rem',
+                    boxShadow: '0 2px 4px rgba(2, 132, 199, 0.25)',
+                    userSelect: 'none',
+                    whiteSpace: 'nowrap',
+                    transition: 'all 0.15s ease',
+                  }}
+                  title="Mở ứng dụng máy ảnh mặc định của điện thoại (chụp sắc nét 12MP/48MP, có đèn Flash & Macro soi thước đo)"
+                >
+                  <Camera size={isCompact ? 13 : 15} />
+                  <span>{isCompact ? 'Máy ảnh' : 'Máy ảnh máy'}</span>
+                </label>
+
+                {/* 3. NÚT PHỤ: Chọn ảnh từ thư viện máy */}
                 <label
                   htmlFor={galleryInputId}
                   style={{
                     display: 'inline-flex',
                     alignItems: 'center',
-                    gap: isCompact ? '0.25rem' : '0.45rem',
-                    padding: isCompact ? '0.35rem 0.65rem' : '0.5rem 0.95rem',
+                    gap: isCompact ? '0.2rem' : '0.4rem',
+                    padding: isCompact ? '0.35rem 0.55rem' : '0.45rem 0.75rem',
                     fontWeight: 600,
                     backgroundColor: '#ffffff',
                     color: '#334155',
                     border: '1px solid #cbd5e1',
                     borderRadius: '0.45rem',
                     cursor: 'pointer',
-                    fontSize: isCompact ? '0.72rem' : '0.775rem',
+                    fontSize: isCompact ? '0.7rem' : '0.75rem',
                     boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
                     userSelect: 'none',
                     whiteSpace: 'nowrap',
@@ -1190,8 +1320,8 @@ export const PhotoCaptureInput: React.FC<Props> = ({
                   }}
                   title="Chọn ảnh đã chụp sẵn từ thư viện thiết bị"
                 >
-                  <ImageIcon size={isCompact ? 14 : 15} color="#64748b" />
-                  <span>{isCompact ? 'Thư viện' : 'Chọn từ máy'}</span>
+                  <ImageIcon size={isCompact ? 13 : 14} color="#64748b" />
+                  <span>{isCompact ? 'Album' : 'Chọn từ máy'}</span>
                 </label>
               </div>
             </div>
@@ -1326,46 +1456,97 @@ export const PhotoCaptureInput: React.FC<Props> = ({
               backgroundColor: '#000000',
             }}
           >
-            {cameraLoading ? (
-              <div style={{ color: '#94a3b8', fontSize: '0.85rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem' }}>
-                <RefreshCw size={24} className="animate-spin text-emerald-400" />
-                <span>Đang khởi động camera...</span>
+            {/* Thẻ <video> LUÔN LUÔN được mount trong DOM để videoRef.current không bao giờ bị null */}
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              muted
+              onLoadedMetadata={() => {
+                setCameraLoading(false);
+                if (videoRef.current) {
+                  videoRef.current.play().catch(console.warn);
+                }
+              }}
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
+                transform: `scale(${zoomLevel})`,
+                transformOrigin: 'center center',
+                transition: isPinching ? 'none' : 'transform 0.1s ease-out',
+                display: cameraError ? 'none' : 'block',
+              }}
+            />
+
+            {/* Loading Overlay hiển thị mờ đè lên trên khi đang kết nối luồng camera */}
+            {cameraLoading && !cameraError && (
+              <div
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  backgroundColor: 'rgba(0, 0, 0, 0.75)',
+                  backdropFilter: 'blur(6px)',
+                  color: '#ffffff',
+                  fontSize: '0.85rem',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.65rem',
+                  zIndex: 15,
+                }}
+              >
+                <RefreshCw size={28} className="animate-spin text-emerald-400" />
+                <span style={{ fontWeight: 600 }}>Đang khởi động camera...</span>
+                <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>
+                  Vui lòng cho phép quyền truy cập camera nếu trình duyệt yêu cầu
+                </span>
               </div>
-            ) : cameraError ? (
-              <div style={{ color: '#f87171', padding: '1.5rem', textAlign: 'center', maxWidth: '320px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem' }}>
-                <AlertTriangle size={32} />
-                <div style={{ fontSize: '0.8rem' }}>{cameraError}</div>
-                <label
-                  htmlFor={cameraInputId}
-                  onClick={() => setIsLiveCameraOpen(false)}
+            )}
+
+            {/* Error State */}
+            {cameraError && (
+              <div
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  backgroundColor: '#0f172a',
+                  color: '#f87171',
+                  padding: '1.5rem',
+                  textAlign: 'center',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.85rem',
+                  zIndex: 20,
+                }}
+              >
+                <AlertTriangle size={36} />
+                <div style={{ fontSize: '0.85rem', maxWidth: '300px', lineHeight: 1.4 }}>{cameraError}</div>
+                <button
+                  type="button"
+                  onClick={handleTriggerNativeCamera}
                   style={{
-                    backgroundColor: '#059669',
+                    backgroundColor: '#0284c7',
                     color: '#ffffff',
-                    padding: '0.5rem 1rem',
+                    padding: '0.55rem 1.25rem',
                     borderRadius: '0.5rem',
                     fontSize: '0.8rem',
                     fontWeight: 700,
                     cursor: 'pointer',
+                    border: 'none',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '0.4rem',
+                    boxShadow: '0 2px 8px rgba(2, 132, 199, 0.4)',
                   }}
                 >
-                  Mở máy ảnh hệ thống
-                </label>
+                  <Camera size={16} />
+                  <span>Mở Máy ảnh hệ thống</span>
+                </button>
               </div>
-            ) : (
-              <video
-                ref={videoRef}
-                autoPlay
-                playsInline
-                muted
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  objectFit: 'cover',
-                  transform: `scale(${zoomLevel})`,
-                  transformOrigin: 'center center',
-                  transition: isPinching ? 'none' : 'transform 0.1s ease-out',
-                }}
-              />
             )}
 
             {/* Khung hướng dẫn 4:3 và Gợi ý cử chỉ zoom 2 ngón tay */}
@@ -1427,13 +1608,13 @@ export const PhotoCaptureInput: React.FC<Props> = ({
             }}
           >
             {/* Nút dùng máy ảnh hệ thống */}
-            <label
-              htmlFor={cameraInputId}
-              onClick={() => setIsLiveCameraOpen(false)}
-              title="Dùng camera hệ điều hành"
+            <button
+              type="button"
+              onClick={handleTriggerNativeCamera}
+              title="Chuyển sang Máy ảnh hệ điều hành (12MP/48MP, có Flash & Macro)"
               style={{
-                background: 'rgba(255,255,255,0.15)',
-                border: 'none',
+                background: 'rgba(255,255,255,0.18)',
+                border: '1px solid rgba(255,255,255,0.25)',
                 borderRadius: '50%',
                 width: '44px',
                 height: '44px',
@@ -1442,10 +1623,11 @@ export const PhotoCaptureInput: React.FC<Props> = ({
                 alignItems: 'center',
                 justifyContent: 'center',
                 cursor: 'pointer',
+                backdropFilter: 'blur(4px)',
               }}
             >
               <Camera size={20} />
-            </label>
+            </button>
 
             {/* Shutter Button */}
             <button

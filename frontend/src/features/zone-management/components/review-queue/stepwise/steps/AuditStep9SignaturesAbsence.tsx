@@ -47,6 +47,12 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
   const ownerPhone = sigs.ownerPhone || formState.ownerPhone || formState.ownerInterview?.phone;
   const surveyDate = formState.surveyDate || data?.surveyDate;
 
+  // Witness / Local Authority Info
+  const witnessName = sigs.witnessName || formState.witnessName || formState.witnessInfo?.name;
+  const witnessRole = sigs.witnessRole || formState.witnessRole || formState.witnessInfo?.role || 'Tổ trưởng tổ dân phố / Cán bộ địa chính';
+  const witnessPhone = sigs.witnessPhone || formState.witnessPhone || formState.witnessInfo?.phone;
+  const witnessSignature = sigs.witnessSignature || formState.witnessSignature || formState.witnessInfo?.signature;
+
   const getPhotoUrl = (p: any): string => {
     if (!p) return '';
     if (typeof p === 'string') return p;
@@ -74,7 +80,7 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
 
       <div className="p-5 space-y-6">
         {/* Khối Thông Tin Đại Diện Các Bên */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {/* Cán bộ Khảo Sát Viên */}
           <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
             <div className="flex items-center gap-2 pb-2 border-b border-slate-200">
@@ -181,6 +187,87 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
               ) : (
                 <div className="h-14 flex items-center justify-center text-xs text-slate-400 italic bg-white rounded-lg border border-dashed border-slate-200">
                   {isAbsentee ? 'Vắng mặt chủ hộ (Không có chữ ký)' : 'Chưa thu thập chữ ký chủ hộ'}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Người Làm Chứng / Xác Nhận Địa Phương */}
+          <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
+            <div className="flex items-center gap-2 pb-2 border-b border-slate-200">
+              <ShieldCheck className="w-4 h-4 text-purple-700" />
+              <span className="text-xs font-black uppercase text-slate-800">
+                3. Người Làm Chứng / Đại Diện Địa Phương
+              </span>
+            </div>
+
+            <div className="space-y-2 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500 font-semibold">Người làm chứng:</span>
+                {isEditMode && handleFieldChange ? (
+                  <input
+                    type="text"
+                    value={witnessName || ''}
+                    onChange={(e) => handleFieldChange('witnessName', 'Người làm chứng', e.target.value)}
+                    placeholder="Họ tên người làm chứng..."
+                    className="p-1 text-xs font-bold text-slate-800 bg-white border border-slate-300 rounded text-right"
+                  />
+                ) : (
+                  <span className="font-bold text-slate-800">{witnessName || (isAbsentee ? 'Cán bộ TDP / Địa chính' : 'Không yêu cầu người làm chứng')}</span>
+                )}
+              </div>
+
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500 font-semibold">Chức vụ / Đơn vị:</span>
+                {isEditMode && handleFieldChange ? (
+                  <input
+                    type="text"
+                    value={witnessRole || ''}
+                    onChange={(e) => handleFieldChange('witnessRole', 'Chức vụ người làm chứng', e.target.value)}
+                    placeholder="VD: Tổ trưởng TDP 12"
+                    className="p-1 text-xs font-bold text-slate-800 bg-white border border-slate-300 rounded text-right"
+                  />
+                ) : (
+                  <span className="text-slate-700">{witnessRole || '---'}</span>
+                )}
+              </div>
+
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500 font-semibold">Số điện thoại:</span>
+                {isEditMode && handleFieldChange ? (
+                  <input
+                    type="text"
+                    value={witnessPhone || ''}
+                    onChange={(e) => handleFieldChange('witnessPhone', 'SĐT người làm chứng', e.target.value)}
+                    placeholder="SĐT..."
+                    className="p-1 text-xs font-mono text-slate-800 bg-white border border-slate-300 rounded text-right"
+                  />
+                ) : (
+                  <span className="font-mono text-slate-700">{witnessPhone || '---'}</span>
+                )}
+              </div>
+            </div>
+
+            {/* Chữ ký Người làm chứng */}
+            <div className="pt-2 border-t border-slate-200 text-center">
+              <span className="text-[10px] font-bold text-slate-400 block mb-1">
+                Chữ Ký / Xác Nhận Người Làm Chứng:
+              </span>
+              {witnessSignature ? (
+                <div
+                  onClick={() => onOpenPhotoZoom(witnessSignature, 'Chữ ký Người Làm Chứng')}
+                  className="bg-white rounded-lg p-2 border border-slate-200 cursor-pointer hover:border-purple-400 inline-block transition-colors"
+                >
+                  <img
+                    src={witnessSignature}
+                    alt="Chữ ký Người làm chứng"
+                    className="h-16 mx-auto object-contain hover:scale-105 transition-transform"
+                  />
+                  <span className="text-[9px] text-slate-400 block mt-0.5">Click để phóng to</span>
+                </div>
+              ) : (
+                <div className="h-14 flex items-center justify-center text-xs text-slate-400 italic bg-white rounded-lg border border-dashed border-slate-200">
+                  {isAbsentee ? 'Chưa đính kèm chữ ký người làm chứng' : 'Không áp dụng khi chủ hộ có mặt'}
                 </div>
               )}
             </div>
