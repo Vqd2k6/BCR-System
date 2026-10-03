@@ -13,6 +13,7 @@ import {
   FileSignature,
 } from 'lucide-react';
 import { AdminUser, userService, CreateUserPayload, UpdateUserPayload } from '../../../services/userService';
+import { UserRole } from '../../../core/types/domain.types';
 import { METRO_22_ZONES } from '../../survey-phase1/constants/metroGisConstants';
 
 interface Props {
@@ -35,7 +36,7 @@ export const UserEditModal: React.FC<Props> = ({
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
-  const [role, setRole] = useState<'SUPER_ADMIN' | 'ZONE_ADMIN' | 'SURVEYOR' | 'CONTRACTOR'>('SURVEYOR');
+  const [role, setRole] = useState<UserRole>('SURVEYOR');
   const [assignedZoneId, setAssignedZoneId] = useState<string>('ZONE_01');
   const [signatureImageUrl, setSignatureImageUrl] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -120,7 +121,12 @@ export const UserEditModal: React.FC<Props> = ({
       return;
     }
 
-    const effectiveZoneId = role === 'SUPER_ADMIN' || role === 'CONTRACTOR' ? null : assignedZoneId;
+    const effectiveZoneId =
+      role === 'SUPER_ADMIN' || role === 'CONTRACTOR'
+        ? null
+        : assignedZoneId === 'ALL_ZONES'
+        ? null
+        : assignedZoneId;
 
     setIsLoading(true);
     try {
@@ -164,6 +170,8 @@ export const UserEditModal: React.FC<Props> = ({
         return 'Quản trị nhân sự và kiểm duyệt hồ sơ khảo sát của Phân khu/Ga được phân công.';
       case 'SURVEYOR':
         return 'Cán bộ hiện trường: Điểm danh GPS, nhập số liệu khảo sát 8 bước, chụp ảnh và lấy chữ ký.';
+      case 'GUEST':
+        return 'Chủ đầu tư / Lãnh đạo Ban Quản lý (MAUR): Xem Executive Dashboard tiến độ và bản đồ GIS rủi ro BRA dạng Chỉ Đọc (Read-only, PII masked, không tải file).';
       case 'CONTRACTOR':
         return 'Nhà thầu/Khách tra cứu: Chỉ xem bản đồ tiến độ thi công và tra cứu hồ sơ hiện trạng đã duyệt.';
       default:
@@ -282,7 +290,8 @@ export const UserEditModal: React.FC<Props> = ({
               <option value="SURVEYOR">Điều Tra Viên Hiện Trường (SURVEYOR)</option>
               <option value="ZONE_ADMIN">Tổ Trưởng Phân Khu (ZONE_ADMIN)</option>
               <option value="SUPER_ADMIN">Lãnh Đạo Ban MAUR (SUPER_ADMIN)</option>
-              <option value="CONTRACTOR">Đại Diện Nhà Thầu / Khách (CONTRACTOR)</option>
+              <option value="GUEST">Chủ Đầu Tư / Ban Quản Lý (GUEST)</option>
+              <option value="CONTRACTOR">Đại Diện Nhà Thầu (CONTRACTOR)</option>
             </select>
             <p className="text-[11px] text-slate-500 mt-1.5 italic bg-slate-50 p-2 rounded-lg border border-slate-100">
               💡 {getRoleDesc(role)}
@@ -290,17 +299,20 @@ export const UserEditModal: React.FC<Props> = ({
           </div>
 
           {/* Phân bổ Zone */}
-          {(role === 'ZONE_ADMIN' || role === 'SURVEYOR') && (
+          {(role === 'ZONE_ADMIN' || role === 'SURVEYOR' || role === 'GUEST') && (
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1.5 flex items-center gap-1.5">
                 <MapPin size={14} className="text-sky-600" />
-                <span>Ga / Phân khu Zone phụ trách *</span>
+                <span>Ga / Phân khu Zone phụ trách {role === 'GUEST' ? '(hoặc Toàn tuyến)' : '*'}</span>
               </label>
               <select
-                value={assignedZoneId}
+                value={assignedZoneId || (role === 'GUEST' ? 'ALL_ZONES' : 'ZONE_01')}
                 onChange={(e) => setAssignedZoneId(e.target.value)}
                 className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 shadow-sm"
               >
+                {role === 'GUEST' && (
+                  <option value="ALL_ZONES">-- Toàn tuyến (Tất cả 22 Ga/Zone) --</option>
+                )}
                 <optgroup label="⭐ 5 Phân đoạn dữ liệu chuẩn">
                   {METRO_22_ZONES.filter((z) => z.isDataReady).map((z) => (
                     <option key={z.code} value={z.code}>

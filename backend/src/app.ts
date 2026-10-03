@@ -211,9 +211,9 @@ export function createApp(): express.Application {
   // 5. TECHNICAL BCS REPORT EXPORT (PDF, DOCX & PREVIEW)
   // ==========================================
   api.get('/reports/:id',              ReportController.getReportDetail);
-  api.get('/reports/:id/export/pdf',   ReportController.exportResidentialPdf);
+  api.get('/reports/:id/export/pdf',   authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportController.exportResidentialPdf);
   api.post('/reports/:id/export/pdf',  authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportController.exportResidentialPdf); // Xuất PDF có overrides (Không sửa DB)
-  api.get('/reports/:id/export/docx',  ReportController.exportResidentialDocx);
+  api.get('/reports/:id/export/docx',  authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportController.exportResidentialDocx);
   api.post('/reports/:id/export/docx', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportController.exportResidentialDocx); // Xuất DOCX có overrides (Không sửa DB)
   api.get('/reports/:id/preview/html', ReportController.previewResidentialHtml);
   api.post('/reports/:id/preview/html', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportController.previewResidentialHtml); // Xem trước HTML có overrides (Không sửa DB)

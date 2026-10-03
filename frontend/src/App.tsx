@@ -18,6 +18,7 @@ import { Phase1ExportModuleBox } from './features/zone-management/components/Pha
 import { ZoneManagerDashboardPage } from './features/zone-management/views/ZoneManagerDashboardPage';
 import { AdminDashboardPage } from './features/admin-portal/views/AdminDashboardPage';
 import { PublicCitizenPortalPage } from './features/guest-portal/views/PublicCitizenPortalPage';
+import { GuestDashboardPage } from './features/guest-portal/views/GuestDashboardPage';
 import { AdminTopNav } from './components/layout/AdminTopNav';
 import { MapPin, Camera } from 'lucide-react';
 
@@ -312,9 +313,51 @@ export const App: React.FC = () => {
     return <LoginView />;
   }
 
-  // If contractor or guest, render Contractor / Citizen Portal directly
+  // If contractor, render Contractor / Citizen Portal directly
   if (user?.role === 'CONTRACTOR') {
     return <PublicCitizenPortalPage />;
+  }
+
+  // If role is GUEST (Chủ Đầu Tư MAUR / Ban Quản Lý ĐSĐT)
+  if (user?.role === 'GUEST') {
+    if (activeTab === 'phase1' && selectedParcelForSurvey) {
+      return (
+        <SurveyPhase1Page
+          parcel={selectedParcelForSurvey}
+          unit={selectedUnitForSurvey}
+          readOnly={true}
+          onBackToHome={() => {
+            setIsReadOnlySurvey(false);
+            setSelectedParcelForSurvey(null);
+            setSelectedUnitForSurvey(null);
+            setActiveTab('home');
+            loadParcels();
+          }}
+          onFinished={() => {
+            setIsReadOnlySurvey(false);
+            setSelectedParcelForSurvey(null);
+            setSelectedUnitForSurvey(null);
+            setActiveTab('home');
+            loadParcels();
+          }}
+        />
+      );
+    }
+
+    return (
+      <GuestDashboardPage
+        parcels={parcels}
+        selectedZone={selectedZone}
+        onSelectZone={handleSelectZone}
+        onRefreshParcels={loadParcels}
+        onStartSurveyDetail={(parcel) => {
+          setSelectedParcelForSurvey(parcel);
+          setSelectedUnitForSurvey(null);
+          setIsReadOnlySurvey(true);
+          setActiveTab('phase1');
+        }}
+      />
+    );
   }
 
   const triggerSurveyWithCheckInGuard = (surveyFn: () => void) => {

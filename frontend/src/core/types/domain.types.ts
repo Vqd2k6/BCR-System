@@ -1,6 +1,6 @@
 // Core Domain Types for Metro Survey System
 
-export type UserRole = 'SUPER_ADMIN' | 'ZONE_ADMIN' | 'SURVEYOR' | 'CONTRACTOR';
+export type UserRole = 'SUPER_ADMIN' | 'ZONE_ADMIN' | 'SURVEYOR' | 'CONTRACTOR' | 'GUEST';
 
 export interface UserProfile {
   id: string;

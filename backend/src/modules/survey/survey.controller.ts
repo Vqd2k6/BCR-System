@@ -19,6 +19,7 @@ import {
 import { SurveyPackageMapper } from './survey-package.mapper';
 import { Database } from '../../database/db';
 import { BadRequestError } from '../../common/errors/problem-details';
+import { maskReportPii } from '../../common/utils/pii.utils';
 
 export class SurveyController {
   // Phase 1
@@ -49,9 +50,10 @@ export class SurveyController {
     try {
       const { id } = req.params;
       const report = await SurveyService.getReportDetail(id);
+      const isGuest = req.user?.role === 'GUEST';
       res.status(200).json({
         success: true,
-        data: report,
+        data: isGuest ? maskReportPii(report) : report,
       });
     } catch (error) {
       next(error);
@@ -376,9 +378,10 @@ export class SurveyController {
     try {
       const { id } = req.params;
       const report = await SurveyService.getPhase1ReportByParcelId(id);
+      const isGuest = req.user?.role === 'GUEST';
       res.status(200).json({
         success: true,
-        data: report,
+        data: isGuest ? maskReportPii(report) : report,
       });
     } catch (error) {
       next(error);

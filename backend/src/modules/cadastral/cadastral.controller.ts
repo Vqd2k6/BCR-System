@@ -8,17 +8,23 @@ import {
   ApproveMutationDto,
 } from './cadastral.dto';
 import { BadRequestError } from '../../common/errors/problem-details';
+import { maskParcelPii } from '../../common/utils/pii.utils';
 
 export class CadastralController {
   static async getZoneMap(req: Request, res: Response, next: NextFunction) {
     try {
-      // Ưu tiên zoneId từ query (khi người dùng mở thửa thuộc zone cụ thể như C&C-01 thuộc ZONE_01)
-      const zoneId = (req.query.zoneId as string) || req.user?.assignedZoneId || 'ZONE_01';
+      const isGuest = req.user?.role === 'GUEST';
+      let zoneId = (req.query.zoneId as string) || req.user?.assignedZoneId || 'ZONE_01';
+      // Nếu là GUEST và đã được gán Zone cụ thể thì bắt buộc theo Zone đó
+      if (isGuest && req.user?.assignedZoneId) {
+        zoneId = req.user.assignedZoneId;
+      }
       const status = req.query.status as string;
       const parcels = await CadastralService.listParcelsInZone(zoneId, status);
+      const data = isGuest ? parcels.map(maskParcelPii) : parcels;
       res.status(200).json({
         success: true,
-        data: parcels,
+        data,
       });
     } catch (error) {
       next(error);
@@ -73,9 +79,10 @@ export class CadastralController {
     try {
       const { id } = req.params;
       const parcel = await CadastralService.getParcelById(id);
+      const isGuest = req.user?.role === 'GUEST';
       res.status(200).json({
         success: true,
-        data: parcel,
+        data: isGuest ? maskParcelPii(parcel) : parcel,
       });
     } catch (error) {
       next(error);

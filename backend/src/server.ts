@@ -21,7 +21,7 @@ async function bootstrap() {
     console.log(`🚀 METRO 2 SURVEY BACKEND API SERVICE IS RUNNING`);
     console.log(`📡 URL: http://localhost:${config.port}${config.apiPrefix}`);
     console.log(`🩺 HEALTH: http://localhost:${config.port}/health`);
-    console.log(`🔒 RBAC ROLES: SUPER_ADMIN, ZONE_ADMIN, SURVEYOR, CONTRACTOR`);
+    console.log(`🔒 RBAC ROLES: SUPER_ADMIN, ZONE_ADMIN, SURVEYOR, CONTRACTOR, GUEST`);
     console.log(`📦 ENVIRONMENT: ${config.env}`);
     console.log(`================================================================`);
   });

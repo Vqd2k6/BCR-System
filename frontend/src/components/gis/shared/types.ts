@@ -141,4 +141,6 @@ export interface LeafletSweepMapProps {
   onRecordAbsence?: (parcel: GisParcel) => void;
   onProposeSplit?: (parcel: GisParcel) => void;
   userGps?: { lat: number; lng: number; accuracy?: number } | null;
+  thematicMode?: 'WORKFLOW' | 'BRA_RISK';
+  hideBottomSheet?: boolean;
 }

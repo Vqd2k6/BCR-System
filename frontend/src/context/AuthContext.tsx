@@ -1,11 +1,12 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import api from '../services/api';
+import { UserRole } from '../core/types/domain.types';
 
 export interface UserProfile {
   id: string;
   username: string;
   fullName: string;
-  role: 'SUPER_ADMIN' | 'ZONE_ADMIN' | 'SURVEYOR' | 'CONTRACTOR';
+  role: UserRole;
   assignedZoneId?: string | null;
   status: string;
   phone?: string | null;
