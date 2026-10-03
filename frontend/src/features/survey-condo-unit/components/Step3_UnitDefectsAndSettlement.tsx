@@ -4,6 +4,7 @@ import { Card } from '../../../core/components/ui/Card';
 import { Button } from '../../../core/components/ui/Button';
 import { Input, Select } from '../../../core/components/ui/FormControls';
 import { PhotoCaptureInput } from '../../../components/common/PhotoCaptureInput';
+import { TapToZoomThumbnail } from '../../../components/common/TapToZoomThumbnail';
 import {
   AlertTriangle,
   Plus,
@@ -115,7 +116,15 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
               >
                 <div className="flex items-center gap-3 min-w-0">
                   {d.photoUrl ? (
-                    <img src={d.photoUrl} alt={d.location} className="w-12 h-12 object-cover rounded-lg shrink-0 border" />
+                    <div className="w-12 h-12 shrink-0">
+                      <TapToZoomThumbnail
+                        src={d.photoUrl}
+                        alt={d.location}
+                        title={`Khuyết tật #${idx + 1}: ${d.location}`}
+                        aspectRatio="square"
+                        className="w-12 h-12 rounded-lg"
+                      />
+                    </div>
                   ) : (
                     <div className="w-12 h-12 rounded-lg bg-slate-200 flex items-center justify-center text-slate-400 shrink-0">
                       <Camera className="w-5 h-5" />

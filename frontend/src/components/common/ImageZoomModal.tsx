@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { X, ZoomIn, ZoomOut, RotateCw, Maximize2 } from 'lucide-react';
-import { resolveOfflinePhotoUrl } from '../../core/storage/offlinePhotoStorage';
+import { X, ZoomIn, ZoomOut, RotateCw, Maximize2, Loader2 } from 'lucide-react';
+import { resolveOfflinePhotoUrl, getSafeDisplayUrl } from '../../core/storage/offlinePhotoStorage';
 
 interface Props {
   isOpen: boolean;
@@ -24,17 +24,23 @@ export const ImageZoomModal: React.FC<Props> = ({
   const dragStartRef = useRef({ x: 0, y: 0 });
   const touchStartDistRef = useRef<number | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const [displayUrl, setDisplayUrl] = useState<string>(imageUrl || '');
+  const [displayUrl, setDisplayUrl] = useState<string>(() => getSafeDisplayUrl(imageUrl));
 
   // Tự động phân giải offline blob:local:// thành Blob URL hiển thị được trên DOM
   useEffect(() => {
     let isSubscribed = true;
     if (imageUrl) {
+      const immediate = getSafeDisplayUrl(imageUrl);
+      if (immediate && isSubscribed) {
+        setDisplayUrl(immediate);
+      }
       resolveOfflinePhotoUrl(imageUrl).then((resolved) => {
         if (isSubscribed && resolved) {
           setDisplayUrl(resolved);
         }
       });
+    } else {
+      setDisplayUrl('');
     }
     return () => {
       isSubscribed = false;
@@ -221,16 +227,23 @@ export const ImageZoomModal: React.FC<Props> = ({
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
       >
-        <img
-          src={displayUrl || imageUrl}
-          alt={title}
-          draggable={false}
-          className="max-w-none max-h-none transition-transform duration-75 ease-out shadow-2xl pointer-events-none rounded-sm"
-          style={{
-            transform: `translate(${position.x}px, ${position.y}px) scale(${scale}) rotate(${rotation}deg)`,
-            transformOrigin: 'center center',
-          }}
-        />
+        {(displayUrl || getSafeDisplayUrl(imageUrl)) ? (
+          <img
+            src={displayUrl || getSafeDisplayUrl(imageUrl)}
+            alt={title}
+            draggable={false}
+            className="max-w-none max-h-none transition-transform duration-75 ease-out shadow-2xl pointer-events-none rounded-sm"
+            style={{
+              transform: `translate(${position.x}px, ${position.y}px) scale(${scale}) rotate(${rotation}deg)`,
+              transformOrigin: 'center center',
+            }}
+          />
+        ) : (
+          <div className="flex flex-col items-center justify-center gap-2 text-slate-300">
+            <Loader2 className="w-8 h-8 animate-spin text-emerald-400" />
+            <span className="text-xs">Đang nạp ảnh chi tiết từ bộ nhớ...</span>
+          </div>
+        )}
 
         {/* Scroll zoom helper pill */}
         <div className="absolute bottom-4 left-1/2 -translate-x-1/2 px-4 py-1.5 rounded-full bg-slate-900/90 backdrop-blur-md border border-slate-700 text-slate-200 text-xs flex items-center gap-2 pointer-events-none shadow-xl">

@@ -16,18 +16,180 @@ import {
   Eye,
   Edit3,
   FileText,
+  ZoomIn,
 } from 'lucide-react';
 import { ImageAnnotationModal } from '../../../components/common/ImageAnnotationModal';
 import { PhotoLightboxModal } from '../../../components/common/photo-capture/components/PhotoLightboxModal';
 import { useLightbox } from '../../../components/common/photo-capture/hooks/useLightbox';
 import { applyMetroWatermark } from '../../../utils/watermarkEngine';
 import { uploadQueue } from '../../../core/services/uploadQueueService';
+import { resolveOfflinePhotoUrl, getSafeDisplayUrl } from '../../../core/storage/offlinePhotoStorage';
 
 interface Step9Props {
   onSubmitFinal: () => void;
   isSubmitting?: boolean;
   readOnly?: boolean;
 }
+
+const MinutesPhotoCardItem: React.FC<{
+  photoUrl: string;
+  idx: number;
+  pageCode: string;
+  readOnly: boolean;
+  isUploading: boolean;
+  isSuccess: boolean;
+  isError: boolean;
+  onRemove: (idx: number) => void;
+  onRetry: (url: string) => void;
+  onOpenLightbox: (url: string) => void;
+  onAnnotate: (idx: number) => void;
+}> = ({
+  photoUrl,
+  idx,
+  pageCode,
+  readOnly,
+  isUploading,
+  isSuccess,
+  isError,
+  onRemove,
+  onRetry,
+  onOpenLightbox,
+  onAnnotate,
+}) => {
+  const [displayUrl, setDisplayUrl] = React.useState<string>(() => getSafeDisplayUrl(photoUrl));
+
+  React.useEffect(() => {
+    let isSubscribed = true;
+    if (photoUrl) {
+      const immediate = getSafeDisplayUrl(photoUrl);
+      if (immediate && isSubscribed) setDisplayUrl(immediate);
+      resolveOfflinePhotoUrl(photoUrl).then((resolved) => {
+        if (isSubscribed && resolved) setDisplayUrl(resolved);
+      });
+    } else {
+      setDisplayUrl('');
+    }
+    return () => {
+      isSubscribed = false;
+    };
+  }, [photoUrl]);
+
+  const currentSrc = displayUrl || getSafeDisplayUrl(photoUrl);
+
+  return (
+    <div
+      key={idx}
+      className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs hover:shadow-md transition-shadow flex flex-col"
+    >
+      {/* Header card */}
+      <div className="flex items-center justify-between px-3 py-2 bg-slate-50 border-b border-slate-100 text-xs">
+        <div className="flex items-center gap-1.5 font-bold text-slate-700">
+          <span className="bg-blue-100 text-blue-800 px-2 py-0.5 rounded text-[11px]">
+            Trang {idx + 1}
+          </span>
+          <span className="text-[10px] font-mono text-slate-500 truncate max-w-[150px]" title={pageCode}>
+            {pageCode}
+          </span>
+        </div>
+        {!readOnly && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onRemove(idx);
+            }}
+            className="text-slate-400 hover:text-red-600 p-1 rounded hover:bg-red-50 transition-colors"
+            title="Xóa trang này"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        )}
+      </div>
+
+      {/* Preview Image Box - Tap anywhere to zoom */}
+      <div
+        onClick={() => onOpenLightbox(currentSrc || photoUrl)}
+        className="relative aspect-[3/4] bg-slate-950 flex items-center justify-center overflow-hidden group cursor-pointer"
+        title="Nhấn vào để phóng to xem biên bản"
+      >
+        {currentSrc ? (
+          <img
+            src={currentSrc}
+            alt={`Biên bản trang ${idx + 1}`}
+            className="w-full h-full object-contain hover:scale-102 transition-transform duration-200"
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center text-slate-400 text-xs">
+            Đang nạp ảnh...
+          </div>
+        )}
+
+        {/* Badge "Nhấn để phóng to" */}
+        <div className="absolute top-2 left-2 z-10 pointer-events-none">
+          <span className="bg-slate-900/80 backdrop-blur-xs text-white text-[10px] font-medium px-2 py-0.5 rounded-full flex items-center gap-1 shadow-xs">
+            <ZoomIn className="w-2.5 h-2.5" />
+            Phóng to
+          </span>
+        </div>
+
+        {/* R2 Cloud Status Badge */}
+        <div className="absolute bottom-2 right-2 z-10 pointer-events-auto" onClick={(e) => e.stopPropagation()}>
+          {isUploading && (
+            <span className="bg-amber-500/95 text-white text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 shadow-md animate-pulse">
+              <RefreshCw className="w-2.5 h-2.5 animate-spin" />
+              Lưu R2...
+            </span>
+          )}
+          {isSuccess && (
+            <span className="bg-emerald-600/95 text-white text-[10px] font-black px-2 py-0.5 rounded-full flex items-center gap-1 shadow-md border border-white/40">
+              <span className="font-mono font-bold text-[10px]">✓</span>
+              <span>R2</span>
+            </span>
+          )}
+          {isError && (
+            <button
+              type="button"
+              onClick={() => onRetry(photoUrl)}
+              className="bg-red-600 hover:bg-red-700 text-white text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 shadow-md transition-colors"
+              title="Bấm để thử lại tải lên Cloudflare R2"
+            >
+              <AlertCircle className="w-2.5 h-2.5" />
+              Thử lại R2
+            </button>
+          )}
+        </div>
+
+        {/* Hover Action Overlay */}
+        <div className="absolute inset-0 bg-slate-900/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 p-2">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpenLightbox(currentSrc || photoUrl);
+            }}
+            className="bg-white/90 hover:bg-white text-slate-800 text-xs font-bold px-2.5 py-1.5 rounded-lg flex items-center gap-1 shadow-sm transition-transform active:scale-95"
+          >
+            <Eye className="w-3.5 h-3.5 text-blue-600" />
+            Xem lớn
+          </button>
+          {!readOnly && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onAnnotate(idx);
+              }}
+              className="bg-emerald-600/90 hover:bg-emerald-600 text-white text-xs font-bold px-2.5 py-1.5 rounded-lg flex items-center gap-1 shadow-sm transition-transform active:scale-95"
+            >
+              <Edit3 className="w-3.5 h-3.5" />
+              Chú thích
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
 
 export const Step9_FieldSignatures: React.FC<Step9Props> = ({ onSubmitFinal, isSubmitting = false, readOnly = false }) => {
   const { formData, updateFormData, prevStep } = usePhase1SurveyStore();
@@ -503,93 +665,23 @@ export const Step9_FieldSignatures: React.FC<Step9Props> = ({ onSubmitFinal, isS
                 .toUpperCase()}]_DOC_MINUTES_${String(idx + 1).padStart(2, '0')}`;
 
               return (
-                <div
+                <MinutesPhotoCardItem
                   key={idx}
-                  className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs hover:shadow-md transition-shadow flex flex-col"
-                >
-                  {/* Header card */}
-                  <div className="flex items-center justify-between px-3 py-2 bg-slate-50 border-b border-slate-100 text-xs">
-                    <div className="flex items-center gap-1.5 font-bold text-slate-700">
-                      <span className="bg-blue-100 text-blue-800 px-2 py-0.5 rounded text-[11px]">
-                        Trang {idx + 1}
-                      </span>
-                      <span className="text-[10px] font-mono text-slate-500 truncate max-w-[150px]" title={pageCode}>
-                        {pageCode}
-                      </span>
-                    </div>
-                    {!readOnly && (
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveMinutesPhoto(idx)}
-                        className="text-slate-400 hover:text-red-600 p-1 rounded hover:bg-red-50 transition-colors"
-                        title="Xóa trang này"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Preview Image Box */}
-                  <div className="relative aspect-[3/4] bg-slate-950 flex items-center justify-center overflow-hidden group">
-                    <img
-                      src={photoUrl}
-                      alt={`Biên bản trang ${idx + 1}`}
-                      className="w-full h-full object-contain"
-                    />
-
-                    {/* R2 Cloud Status Badge */}
-                    <div className="absolute bottom-2 right-2 z-10 pointer-events-auto">
-                      {isUploading && (
-                        <span className="bg-amber-500/95 text-white text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 shadow-md animate-pulse">
-                          <RefreshCw className="w-2.5 h-2.5 animate-spin" />
-                          Lưu R2...
-                        </span>
-                      )}
-                      {isSuccess && (
-                        <span className="bg-emerald-600/95 text-white text-[10px] font-black px-2 py-0.5 rounded-full flex items-center gap-1 shadow-md border border-white/40">
-                          <span className="font-mono font-bold text-[10px]">✓</span>
-                          <span>R2</span>
-                        </span>
-                      )}
-                      {isError && (
-                        <button
-                          type="button"
-                          onClick={() => handleRetryUpload(photoUrl)}
-                          className="bg-red-600 hover:bg-red-700 text-white text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 shadow-md transition-colors"
-                          title="Bấm để thử lại tải lên Cloudflare R2"
-                        >
-                          <AlertCircle className="w-2.5 h-2.5" />
-                          Thử lại R2
-                        </button>
-                      )}
-                    </div>
-
-                    {/* Hover Action Overlay */}
-                    <div className="absolute inset-0 bg-slate-900/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 p-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          resetLightbox();
-                          setLightboxUrl(photoUrl);
-                        }}
-                        className="bg-white/90 hover:bg-white text-slate-800 text-xs font-bold px-2.5 py-1.5 rounded-lg flex items-center gap-1 shadow-sm transition-transform active:scale-95"
-                      >
-                        <Eye className="w-3.5 h-3.5 text-blue-600" />
-                        Xem lớn
-                      </button>
-                      {!readOnly && (
-                        <button
-                          type="button"
-                          onClick={() => setAnnotatingIndex(idx)}
-                          className="bg-emerald-600/90 hover:bg-emerald-600 text-white text-xs font-bold px-2.5 py-1.5 rounded-lg flex items-center gap-1 shadow-sm transition-transform active:scale-95"
-                        >
-                          <Edit3 className="w-3.5 h-3.5" />
-                          Chú thích
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </div>
+                  photoUrl={photoUrl}
+                  idx={idx}
+                  pageCode={pageCode}
+                  readOnly={readOnly}
+                  isUploading={isUploading}
+                  isSuccess={isSuccess}
+                  isError={isError}
+                  onRemove={handleRemoveMinutesPhoto}
+                  onRetry={handleRetryUpload}
+                  onOpenLightbox={(url) => {
+                    resetLightbox();
+                    setLightboxUrl(url);
+                  }}
+                  onAnnotate={setAnnotatingIndex}
+                />
               );
             })}
           </div>

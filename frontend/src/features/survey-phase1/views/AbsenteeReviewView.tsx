@@ -5,6 +5,7 @@ import { Card } from '../../../core/components/ui/Card';
 import { Button } from '../../../core/components/ui/Button';
 import { Badge } from '../../../core/components/ui/Badge';
 import { GisParcel, BuildingUnit } from '../../../core/types/domain.types';
+import { TapToZoomThumbnail } from '../../../components/common/TapToZoomThumbnail';
 import {
   Building,
   UserX,
@@ -38,7 +39,6 @@ export const AbsenteeReviewView: React.FC<AbsenteeReviewViewProps> = ({
   onBackToHome,
 }) => {
   const { formData } = usePhase1SurveyStore();
-  const [selectedPhotoModal, setSelectedPhotoModal] = useState<{ url: string; title: string } | null>(null);
 
   const parcelCode =
     formData.projectParcelCode ||
@@ -159,28 +159,14 @@ export const AbsenteeReviewView: React.FC<AbsenteeReviewViewProps> = ({
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 {minutesPhotos.map((photoUrl, idx) => (
-                  <div
+                  <TapToZoomThumbnail
                     key={idx}
-                    className="relative group rounded-xl overflow-hidden border border-slate-200 aspect-video bg-slate-100 cursor-pointer shadow-2xs hover:shadow-sm transition-all"
-                    onClick={() =>
-                      setSelectedPhotoModal({
-                        url: photoUrl,
-                        title: `Biên bản vắng mặt #${idx + 1} - ${parcelCode}`,
-                      })
-                    }
-                  >
-                    <img
-                      src={photoUrl}
-                      alt={`Biên bản ${idx + 1}`}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
-                    />
-                    <div className="absolute inset-0 bg-slate-900/30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                      <Maximize2 className="w-5 h-5 text-white drop-shadow-md" />
-                    </div>
-                    <span className="absolute bottom-1 left-1 px-1.5 py-0.5 rounded bg-slate-900/70 text-white text-[10px] font-mono">
-                      Ảnh #{idx + 1}
-                    </span>
-                  </div>
+                    src={photoUrl}
+                    alt={`Biên bản ${idx + 1}`}
+                    label={`Trang #${idx + 1}`}
+                    title={`Biên bản vắng mặt #${idx + 1} - ${parcelCode}`}
+                    aspectRatio="video"
+                  />
                 ))}
               </div>
             )}
@@ -268,20 +254,14 @@ export const AbsenteeReviewView: React.FC<AbsenteeReviewViewProps> = ({
                 {formData.photoP01?.notApplicable && <Badge variant="neutral">Không áp dụng</Badge>}
               </div>
               {formData.photoP01?.url ? (
-                <div
-                  className="relative rounded-lg overflow-hidden border border-slate-300 aspect-video group cursor-pointer"
-                  onClick={() =>
-                    setSelectedPhotoModal({
-                      url: formData.photoP01?.url || '',
-                      title: 'Ảnh P-01: Biển Số Nhà',
-                    })
-                  }
-                >
-                  <img src={formData.photoP01.url} alt="P01" className="w-full h-full object-cover" />
-                  <div className="absolute inset-0 bg-slate-900/30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                    <Maximize2 className="w-5 h-5 text-white" />
-                  </div>
-                </div>
+                <TapToZoomThumbnail
+                  src={formData.photoP01.url}
+                  alt="Ảnh P-01: Biển Số Nhà"
+                  label="P-01"
+                  photoCode="P-01"
+                  title="Ảnh P-01: Biển Số Nhà"
+                  aspectRatio="video"
+                />
               ) : (
                 <div className="aspect-video bg-slate-100 rounded-lg flex items-center justify-center text-xs text-slate-400 border border-dashed border-slate-300">
                   Chưa có ảnh P-01
@@ -296,20 +276,14 @@ export const AbsenteeReviewView: React.FC<AbsenteeReviewViewProps> = ({
                 {formData.photoP02?.notApplicable && <Badge variant="neutral">Không áp dụng</Badge>}
               </div>
               {formData.photoP02?.url ? (
-                <div
-                  className="relative rounded-lg overflow-hidden border border-slate-300 aspect-video group cursor-pointer"
-                  onClick={() =>
-                    setSelectedPhotoModal({
-                      url: formData.photoP02?.url || '',
-                      title: 'Ảnh P-02: Mặt Đứng Chính',
-                    })
-                  }
-                >
-                  <img src={formData.photoP02.url} alt="P02" className="w-full h-full object-cover" />
-                  <div className="absolute inset-0 bg-slate-900/30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                    <Maximize2 className="w-5 h-5 text-white" />
-                  </div>
-                </div>
+                <TapToZoomThumbnail
+                  src={formData.photoP02.url}
+                  alt="Ảnh P-02: Mặt Đứng Chính"
+                  label="P-02"
+                  photoCode="P-02"
+                  title="Ảnh P-02: Mặt Đứng Chính"
+                  aspectRatio="video"
+                />
               ) : (
                 <div className="aspect-video bg-slate-100 rounded-lg flex items-center justify-center text-xs text-slate-400 border border-dashed border-slate-300">
                   Chưa có ảnh P-02
@@ -324,20 +298,14 @@ export const AbsenteeReviewView: React.FC<AbsenteeReviewViewProps> = ({
                 {formData.photoP03?.notApplicable && <Badge variant="neutral">Không áp dụng</Badge>}
               </div>
               {formData.photoP03?.url ? (
-                <div
-                  className="relative rounded-lg overflow-hidden border border-slate-300 aspect-video group cursor-pointer"
-                  onClick={() =>
-                    setSelectedPhotoModal({
-                      url: formData.photoP03?.url || '',
-                      title: 'Ảnh P-03: Mặt Hông / Sau',
-                    })
-                  }
-                >
-                  <img src={formData.photoP03.url} alt="P03" className="w-full h-full object-cover" />
-                  <div className="absolute inset-0 bg-slate-900/30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                    <Maximize2 className="w-5 h-5 text-white" />
-                  </div>
-                </div>
+                <TapToZoomThumbnail
+                  src={formData.photoP03.url}
+                  alt="Ảnh P-03: Mặt Hông / Sau"
+                  label="P-03"
+                  photoCode="P-03"
+                  title="Ảnh P-03: Mặt Hông / Sau"
+                  aspectRatio="video"
+                />
               ) : (
                 <div className="aspect-video bg-slate-100 rounded-lg flex items-center justify-center text-xs text-slate-400 border border-dashed border-slate-300">
                   Chưa có ảnh P-03
@@ -352,20 +320,14 @@ export const AbsenteeReviewView: React.FC<AbsenteeReviewViewProps> = ({
                 {formData.photoP04?.notApplicable && <Badge variant="neutral">Không áp dụng</Badge>}
               </div>
               {formData.photoP04?.url ? (
-                <div
-                  className="relative rounded-lg overflow-hidden border border-slate-300 aspect-video group cursor-pointer"
-                  onClick={() =>
-                    setSelectedPhotoModal({
-                      url: formData.photoP04?.url || '',
-                      title: 'Ảnh P-04: Bối Cảnh Tuyến Đường',
-                    })
-                  }
-                >
-                  <img src={formData.photoP04.url} alt="P04" className="w-full h-full object-cover" />
-                  <div className="absolute inset-0 bg-slate-900/30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                    <Maximize2 className="w-5 h-5 text-white" />
-                  </div>
-                </div>
+                <TapToZoomThumbnail
+                  src={formData.photoP04.url}
+                  alt="Ảnh P-04: Bối Cảnh Tuyến Đường"
+                  label="P-04"
+                  photoCode="P-04"
+                  title="Ảnh P-04: Bối Cảnh Tuyến Đường"
+                  aspectRatio="video"
+                />
               ) : (
                 <div className="aspect-video bg-slate-100 rounded-lg flex items-center justify-center text-xs text-slate-400 border border-dashed border-slate-300">
                   Chưa có ảnh P-04
@@ -413,31 +375,6 @@ export const AbsenteeReviewView: React.FC<AbsenteeReviewViewProps> = ({
           </div>
         </div>
       </main>
-
-      {/* Modal Phóng To Ảnh */}
-      {selectedPhotoModal && (
-        <div className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-xs flex items-center justify-center p-3 animate-in fade-in">
-          <div className="bg-white rounded-2xl overflow-hidden max-w-3xl w-full shadow-2xl flex flex-col max-h-[90vh]">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 bg-slate-50">
-              <span className="text-sm font-bold text-slate-800">{selectedPhotoModal.title}</span>
-              <button
-                type="button"
-                onClick={() => setSelectedPhotoModal(null)}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200 cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="flex-1 p-2 bg-slate-950 flex items-center justify-center overflow-hidden">
-              <img
-                src={selectedPhotoModal.url}
-                alt={selectedPhotoModal.title}
-                className="max-w-full max-h-[75vh] object-contain rounded-lg"
-              />
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

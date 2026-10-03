@@ -1,6 +1,8 @@
 import React, { useState, useRef } from 'react';
-import { MapPin, Plus, Trash2, Crosshair, AlertCircle, Layers, CheckCircle2, Sparkles, Eye, EyeOff, Camera, RefreshCw } from 'lucide-react';
+import { MapPin, Plus, Trash2, Crosshair, AlertCircle, Layers, CheckCircle2, Sparkles, Eye, EyeOff, Camera, RefreshCw, ZoomIn } from 'lucide-react';
 import { PhotoCaptureInput } from '../common/PhotoCaptureInput';
+import { ImageZoomModal } from '../common/ImageZoomModal';
+import { resolveOfflinePhotoUrl, getSafeDisplayUrl } from '../../core/storage/offlinePhotoStorage';
 
 export interface CadZonePin {
   id: string;
@@ -68,7 +70,25 @@ export const FloorCadPinningCanvas: React.FC<Props> = ({
   const [isAddingPin, setIsAddingPin] = useState<boolean>(true); // Default to pin mode for quick marking
   const [showPins, setShowPins] = useState<boolean>(true); // Toggle eye visibility
   const [draggingPinIndex, setDraggingPinIndex] = useState<number | null>(null);
+  const [safeCadUrl, setSafeCadUrl] = useState<string>(() => getSafeDisplayUrl(cadPhotoUrl));
+  const [isZoomOpen, setIsZoomOpen] = useState(false);
   const dragMovedRef = useRef<boolean>(false);
+
+  React.useEffect(() => {
+    let isSubscribed = true;
+    if (cadPhotoUrl) {
+      const immediate = getSafeDisplayUrl(cadPhotoUrl);
+      if (immediate && isSubscribed) setSafeCadUrl(immediate);
+      resolveOfflinePhotoUrl(cadPhotoUrl).then((resolved) => {
+        if (isSubscribed && resolved) setSafeCadUrl(resolved);
+      });
+    } else {
+      setSafeCadUrl('');
+    }
+    return () => {
+      isSubscribed = false;
+    };
+  }, [cadPhotoUrl]);
 
   const isStructural = mode === 'STRUCTURAL';
   const prefix = isStructural ? 'E' : 'Z';
@@ -298,37 +318,54 @@ export const FloorCadPinningCanvas: React.FC<Props> = ({
             }`}
           >
             {/* Quick floating actions on top-right of canvas */}
-            {!readOnly && (
-              <div
-                className="absolute top-2.5 right-2.5 flex items-center gap-1.5 z-40 bg-slate-900/80 backdrop-blur-xs p-1 rounded-lg border border-white/20 shadow-md"
-                onClick={(e) => e.stopPropagation()}
+            <div
+              className="absolute top-2.5 right-2.5 flex items-center gap-1.5 z-40 bg-slate-900/80 backdrop-blur-xs p-1 rounded-lg border border-white/20 shadow-md"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                type="button"
+                onClick={() => setIsZoomOpen(true)}
+                className="px-2 py-1 bg-white/10 hover:bg-white/20 text-white rounded text-[11px] font-medium flex items-center gap-1 transition-all"
+                title="Phóng to sơ đồ CAD mặt bằng"
               >
-                <button
-                  type="button"
-                  onClick={() => handleDeleteOrRetakeCadPhoto(true)}
-                  className="px-2 py-1 bg-white/10 hover:bg-white/20 text-white rounded text-[11px] font-medium flex items-center gap-1 transition-all"
-                  title="Đổi hoặc chụp lại sơ đồ CAD"
-                >
-                  <Camera className="w-3 h-3 text-blue-300" />
-                  <span>Đổi ảnh</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleDeleteOrRetakeCadPhoto(false)}
-                  className="px-2 py-1 bg-red-600/70 hover:bg-red-600 text-white rounded text-[11px] font-medium flex items-center gap-1 transition-all"
-                  title="Xóa ảnh sơ đồ CAD này"
-                >
-                  <Trash2 className="w-3 h-3 text-red-200" />
-                  <span>Xóa ảnh</span>
-                </button>
+                <ZoomIn className="w-3 h-3 text-emerald-300" />
+                <span>Phóng to CAD</span>
+              </button>
+              {!readOnly && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteOrRetakeCadPhoto(true)}
+                    className="px-2 py-1 bg-white/10 hover:bg-white/20 text-white rounded text-[11px] font-medium flex items-center gap-1 transition-all"
+                    title="Đổi hoặc chụp lại sơ đồ CAD"
+                  >
+                    <Camera className="w-3 h-3 text-blue-300" />
+                    <span>Đổi ảnh</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteOrRetakeCadPhoto(false)}
+                    className="px-2 py-1 bg-red-600/70 hover:bg-red-600 text-white rounded text-[11px] font-medium flex items-center gap-1 transition-all"
+                    title="Xóa ảnh sơ đồ CAD này"
+                  >
+                    <Trash2 className="w-3 h-3 text-red-200" />
+                    <span>Xóa ảnh</span>
+                  </button>
+                </>
+              )}
+            </div>
+
+            {(safeCadUrl || getSafeDisplayUrl(cadPhotoUrl)) ? (
+              <img
+                src={safeCadUrl || getSafeDisplayUrl(cadPhotoUrl)}
+                alt={`CAD Plan ${floorName}`}
+                className="w-full h-full object-contain block max-h-[520px] mx-auto pointer-events-none select-none"
+              />
+            ) : (
+              <div className="w-full min-h-[320px] flex items-center justify-center text-slate-400 text-xs">
+                Đang nạp sơ đồ CAD...
               </div>
             )}
-
-            <img
-              src={cadPhotoUrl}
-              alt={`CAD Plan ${floorName}`}
-              className="w-full h-full object-contain block max-h-[520px] mx-auto pointer-events-none select-none"
-            />
 
             {/* Render Pins with Drag & Drop support */}
             {showPins && pins.map((pin, idx) => {
@@ -458,6 +495,15 @@ export const FloorCadPinningCanvas: React.FC<Props> = ({
             </div>
           )}
         </div>
+      )}
+
+      {isZoomOpen && (
+        <ImageZoomModal
+          isOpen={isZoomOpen}
+          imageUrl={safeCadUrl || cadPhotoUrl}
+          title={`Sơ đồ CAD mặt bằng ${floorName}`}
+          onClose={() => setIsZoomOpen(false)}
+        />
       )}
     </div>
   );

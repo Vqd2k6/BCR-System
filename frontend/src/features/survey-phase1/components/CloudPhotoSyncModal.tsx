@@ -17,6 +17,8 @@ import {
   retryUploadSinglePhoto,
 } from '../utils/photoSyncAudit';
 import { uploadQueue } from '../../../core/services/uploadQueueService';
+import { ImageZoomModal } from '../../../components/common/ImageZoomModal';
+import { resolveOfflinePhotoUrl, getSafeDisplayUrl } from '../../../core/storage/offlinePhotoStorage';
 
 interface CloudPhotoSyncModalProps {
   isOpen: boolean;
@@ -29,6 +31,55 @@ interface CloudPhotoSyncModalProps {
   isFromSubmitAttempt?: boolean;
   onProceedSubmitAnyway?: () => void;
 }
+
+const SyncPhotoThumbnailItem: React.FC<{
+  url: string;
+  fieldTitle: string;
+  onClick: () => void;
+}> = ({ url, fieldTitle, onClick }) => {
+  const [displayUrl, setDisplayUrl] = useState<string>(() => getSafeDisplayUrl(url));
+
+  useEffect(() => {
+    let isSubscribed = true;
+    if (url) {
+      const immediate = getSafeDisplayUrl(url);
+      if (immediate && isSubscribed) setDisplayUrl(immediate);
+      resolveOfflinePhotoUrl(url).then((resolved) => {
+        if (isSubscribed && resolved) setDisplayUrl(resolved);
+      });
+    } else {
+      setDisplayUrl('');
+    }
+    return () => {
+      isSubscribed = false;
+    };
+  }, [url]);
+
+  const currentSrc = displayUrl || getSafeDisplayUrl(url);
+
+  return (
+    <div
+      onClick={onClick}
+      className="relative w-14 h-14 rounded-lg bg-slate-100 border border-slate-200 overflow-hidden shrink-0 cursor-pointer group"
+      title="Bấm để xem ảnh phóng to"
+    >
+      {currentSrc ? (
+        <img
+          src={currentSrc}
+          alt={fieldTitle}
+          className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+        />
+      ) : (
+        <div className="w-full h-full flex items-center justify-center text-slate-400 text-[10px]">
+          Nạp...
+        </div>
+      )}
+      <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+        <ImageIcon size={14} />
+      </div>
+    </div>
+  );
+};
 
 export const CloudPhotoSyncModal: React.FC<CloudPhotoSyncModalProps> = ({
   isOpen,
@@ -44,7 +95,7 @@ export const CloudPhotoSyncModal: React.FC<CloudPhotoSyncModalProps> = ({
   const [activeTab, setActiveTab] = useState<'UNSYNCED' | 'SYNCED' | 'ALL'>('UNSYNCED');
   const [retryingId, setRetryingId] = useState<string | null>(null);
   const [isRetryingAll, setIsRetryingAll] = useState(false);
-  const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
+  const [previewImage, setPreviewImage] = useState<{ url: string; title: string; code?: string } | null>(null);
 
   // Mặc định chọn tab UNSYNCED nếu có ảnh chưa đồng bộ, ngược lại chọn ALL
   useEffect(() => {
@@ -250,20 +301,17 @@ export const CloudPhotoSyncModal: React.FC<CloudPhotoSyncModalProps> = ({
                   {/* Photo Thumbnail + Info */}
                   <div className="flex items-start gap-3 min-w-0 flex-1">
                     {/* Thumbnail Preview */}
-                    <div
-                      onClick={() => setPreviewImageUrl(item.url)}
-                      className="relative w-14 h-14 rounded-lg bg-slate-100 border border-slate-200 overflow-hidden shrink-0 cursor-pointer group"
-                      title="Bấm để xem ảnh phóng to"
-                    >
-                      <img
-                        src={item.url}
-                        alt={item.fieldTitle}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                      />
-                      <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
-                        <ImageIcon size={14} />
-                      </div>
-                    </div>
+                    <SyncPhotoThumbnailItem
+                      url={item.url}
+                      fieldTitle={item.fieldTitle}
+                      onClick={() =>
+                        setPreviewImage({
+                          url: item.url,
+                          title: item.fieldTitle,
+                          code: item.photoCode,
+                        })
+                      }
+                    />
 
                     {/* Metadata Details */}
                     <div className="min-w-0 flex-1">
@@ -351,26 +399,15 @@ export const CloudPhotoSyncModal: React.FC<CloudPhotoSyncModalProps> = ({
         </div>
       </div>
 
-      {/* Lightbox Preview Modal */}
-      {previewImageUrl && (
-        <div
-          className="fixed inset-0 z-[100000] bg-black/80 flex items-center justify-center p-4 cursor-pointer"
-          onClick={() => setPreviewImageUrl(null)}
-        >
-          <div className="relative max-w-3xl max-h-[85vh] bg-slate-900 rounded-2xl overflow-hidden shadow-2xl p-2">
-            <button
-              onClick={() => setPreviewImageUrl(null)}
-              className="absolute top-4 right-4 z-10 p-2 bg-black/60 text-white rounded-full hover:bg-black/80"
-            >
-              <X size={18} />
-            </button>
-            <img
-              src={previewImageUrl}
-              alt="Preview"
-              className="max-w-full max-h-[80vh] object-contain rounded-xl"
-            />
-          </div>
-        </div>
+      {/* Lightbox Preview Modal with Zoom, Pan, Rotate */}
+      {previewImage && (
+        <ImageZoomModal
+          isOpen={Boolean(previewImage)}
+          imageUrl={previewImage.url}
+          title={previewImage.title}
+          photoCode={previewImage.code}
+          onClose={() => setPreviewImage(null)}
+        />
       )}
     </div>
   );

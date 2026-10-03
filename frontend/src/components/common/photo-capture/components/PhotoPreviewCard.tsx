@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { UploadStatus } from '../types';
 import { PhotoWatermarkOverlay } from './PhotoWatermarkOverlay';
+import { getSafeDisplayUrl } from '../../../../core/storage/offlinePhotoStorage';
 
 interface PhotoPreviewCardProps {
   value: string;
@@ -66,8 +67,11 @@ export const PhotoPreviewCard: React.FC<PhotoPreviewCardProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isMoreMenuOpen]);
 
+  const safeSrc = localPreview || getSafeDisplayUrl(value);
+
   return (
     <div
+      onClick={onOpenLightbox}
       style={{
         position: 'relative',
         width: '100%',
@@ -76,22 +80,29 @@ export const PhotoPreviewCard: React.FC<PhotoPreviewCardProps> = ({
         overflow: 'hidden',
         border: '1px solid #cbd5e1',
         backgroundColor: '#0f172a',
+        cursor: 'pointer',
+        userSelect: 'none',
       }}
+      title="Nhấn vào để phóng to soi vạch thước đo nứt"
     >
-      <img
-        id={photoCode || displayPhotoCode || undefined}
-        data-photo-code={photoCode || displayPhotoCode || undefined}
-        src={localPreview || (hasLoadError ? '' : value)}
-        alt={displayPhotoCode || label || 'Photo preview'}
-        onError={() => {
-          if (localPreview && !hasLoadError) {
-            onSetHasLoadError(true);
-          }
-        }}
-        onClick={onOpenLightbox}
-        title="Nhấn vào để phóng to soi vạch thước đo nứt (2 ngón tay)"
-        style={{ width: '100%', height: '100%', objectFit: 'contain', cursor: 'pointer' }}
-      />
+      {safeSrc ? (
+        <img
+          id={photoCode || displayPhotoCode || undefined}
+          data-photo-code={photoCode || displayPhotoCode || undefined}
+          src={safeSrc}
+          alt={displayPhotoCode || label || 'Photo preview'}
+          onError={() => {
+            if (safeSrc && !hasLoadError) {
+              onSetHasLoadError(true);
+            }
+          }}
+          style={{ width: '100%', height: '100%', objectFit: 'contain', pointerEvents: 'none' }}
+        />
+      ) : (
+        <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: '0.75rem' }}>
+          Đang nạp ảnh...
+        </div>
+      )}
 
       {/* Lớp phủ Watermark động bằng CSS thuần không tốn RAM Canvas */}
       <PhotoWatermarkOverlay
@@ -102,6 +113,7 @@ export const PhotoPreviewCard: React.FC<PhotoPreviewCardProps> = ({
       {/* Top-Left: Minimalist Photo ID chip + Cloud Status */}
       {displayPhotoCode && (
         <div
+          onClick={(e) => e.stopPropagation()}
           style={{
             position: 'absolute',
             top: '6px',
@@ -172,7 +184,10 @@ export const PhotoPreviewCard: React.FC<PhotoPreviewCardProps> = ({
       >
         <button
           type="button"
-          onClick={onTriggerCapture}
+          onClick={(e) => {
+            e.stopPropagation();
+            onTriggerCapture();
+          }}
           title="Mở camera chụp lại ảnh này (có zoom 2 ngón tay)"
           style={{
             backgroundColor: 'rgba(5, 150, 105, 0.92)',
@@ -195,10 +210,13 @@ export const PhotoPreviewCard: React.FC<PhotoPreviewCardProps> = ({
           <span>Chụp lại</span>
         </button>
 
-        <div style={{ position: 'relative' }}>
+        <div style={{ position: 'relative' }} onClick={(e) => e.stopPropagation()}>
           <button
             type="button"
-            onClick={() => setIsMoreMenuOpen(!isMoreMenuOpen)}
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsMoreMenuOpen(!isMoreMenuOpen);
+            }}
             title="Tùy chọn thao tác khác (Soi, Xoay, Vẽ, Đổi ảnh, Xóa)"
             style={{
               backgroundColor: 'rgba(15, 23, 42, 0.85)',
