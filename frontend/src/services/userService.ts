@@ -1,4 +1,5 @@
 import api from './api';
+import { UserRole } from '../core/types/domain.types';
 
 export interface AdminUser {
   id: string;
@@ -6,7 +7,7 @@ export interface AdminUser {
   fullName: string;
   email?: string | null;
   phone?: string | null;
-  role: 'SUPER_ADMIN' | 'ZONE_ADMIN' | 'SURVEYOR' | 'CONTRACTOR';
+  role: UserRole;
   assignedZoneId?: string | null;
   status: 'ACTIVE' | 'SUSPENDED' | 'LOCKED';
   statusReason?: string | null;
@@ -41,7 +42,7 @@ export interface CreateUserPayload {
   fullName: string;
   email?: string | null;
   phone?: string | null;
-  role: 'SUPER_ADMIN' | 'ZONE_ADMIN' | 'SURVEYOR' | 'CONTRACTOR';
+  role: UserRole;
   assignedZoneId?: string | null;
   signatureImageUrl?: string | null;
 }
@@ -50,7 +51,7 @@ export interface UpdateUserPayload {
   fullName?: string;
   email?: string | null;
   phone?: string | null;
-  role?: 'SUPER_ADMIN' | 'ZONE_ADMIN' | 'SURVEYOR' | 'CONTRACTOR';
+  role?: UserRole;
   assignedZoneId?: string | null;
   signatureImageUrl?: string | null;
 }

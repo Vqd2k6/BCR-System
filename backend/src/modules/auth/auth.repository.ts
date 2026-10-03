@@ -7,7 +7,7 @@ export interface UserEntity {
   full_name: string;
   email: string | null;
   phone: string | null;
-  role: 'SUPER_ADMIN' | 'ZONE_ADMIN' | 'SURVEYOR' | 'CONTRACTOR';
+  role: 'SUPER_ADMIN' | 'ZONE_ADMIN' | 'SURVEYOR' | 'CONTRACTOR' | 'GUEST';
   assigned_zone_id: string | null;
   status: 'ACTIVE' | 'SUSPENDED' | 'LOCKED';
   status_reason: string | null;

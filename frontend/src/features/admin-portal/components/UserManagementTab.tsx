@@ -115,6 +115,8 @@ export const UserManagementTab: React.FC = () => {
         return <Badge variant="warning">Tổ Trưởng Zone</Badge>;
       case 'SURVEYOR':
         return <Badge variant="info">Khảo Sát Hiện Trường</Badge>;
+      case 'GUEST':
+        return <Badge variant="neutral">Chủ Đầu Tư (Guest)</Badge>;
       case 'CONTRACTOR':
         return <Badge variant="purple">Nhà Thầu / Đối tác</Badge>;
       default:
@@ -230,6 +232,7 @@ export const UserManagementTab: React.FC = () => {
           <option value="SUPER_ADMIN">Lãnh đạo MAUR (Super Admin)</option>
           <option value="ZONE_ADMIN">Tổ Trưởng Zone</option>
           <option value="SURVEYOR">Khảo Sát Hiện Trường</option>
+          <option value="GUEST">Chủ Đầu Tư (Guest)</option>
           <option value="CONTRACTOR">Nhà Thầu / Khách</option>
         </select>
 

@@ -15,7 +15,7 @@ export const CreateUserDto = z.object({
   fullName: z.string().min(2, 'Họ tên không được để trống').max(128),
   email: z.string().email('Email không đúng định dạng').optional().nullable(),
   phone: z.string().min(8, 'Số điện thoại không hợp lệ').max(20).optional().nullable(),
-  role: z.enum(['SUPER_ADMIN', 'ZONE_ADMIN', 'SURVEYOR', 'CONTRACTOR']),
+  role: z.enum(['SUPER_ADMIN', 'ZONE_ADMIN', 'SURVEYOR', 'CONTRACTOR', 'GUEST']),
   assignedZoneId: z.string().max(32).optional().nullable(),
   signatureImageUrl: z.string().optional().nullable(),
   createdByUserId: z.string().uuid().optional().nullable(),
@@ -25,7 +25,7 @@ export const UpdateUserDto = z.object({
   fullName: z.string().min(2).max(128).optional(),
   email: z.string().email().optional().nullable(),
   phone: z.string().min(8).max(20).optional().nullable(),
-  role: z.enum(['SUPER_ADMIN', 'ZONE_ADMIN', 'SURVEYOR', 'CONTRACTOR']).optional(),
+  role: z.enum(['SUPER_ADMIN', 'ZONE_ADMIN', 'SURVEYOR', 'CONTRACTOR', 'GUEST']).optional(),
   assignedZoneId: z.string().max(32).optional().nullable(),
   signatureImageUrl: z.string().optional().nullable(),
 });

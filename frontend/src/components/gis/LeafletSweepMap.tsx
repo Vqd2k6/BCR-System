@@ -24,7 +24,9 @@ export const LeafletSweepMap: React.FC<LeafletSweepMapProps> = ({
   onStartPhase2,
   onOpenBuildingHub,
   onRecordAbsence,
+  onProposeSplit,
   userGps,
+  thematicMode,
 }) => {
   const {
     currentZoneConfig,
@@ -176,6 +178,7 @@ export const LeafletSweepMap: React.FC<LeafletSweepMapProps> = ({
             activeParcel={activeParcel}
             setActiveParcel={setActiveParcel}
             onSelectParcel={onSelectParcel}
+            thematicMode={thematicMode}
           />
         </MapContainer>
 

@@ -6,7 +6,7 @@ import { UnauthorizedError, ForbiddenError } from '../errors/problem-details';
 export interface JwtPayload {
   userId: string;
   username: string;
-  role: 'SUPER_ADMIN' | 'ZONE_ADMIN' | 'SURVEYOR' | 'CONTRACTOR';
+  role: 'SUPER_ADMIN' | 'ZONE_ADMIN' | 'SURVEYOR' | 'CONTRACTOR' | 'GUEST';
   assignedZoneId?: string | null;
   fullName: string;
 }
@@ -44,7 +44,7 @@ export function authenticateJwt(req: Request, _res: Response, next: NextFunction
 /**
  * Middleware kiểm tra quyền RBAC (Role-Based Access Control)
  */
-export function requireRoles(...allowedRoles: Array<'SUPER_ADMIN' | 'ZONE_ADMIN' | 'SURVEYOR' | 'CONTRACTOR'>) {
+export function requireRoles(...allowedRoles: Array<'SUPER_ADMIN' | 'ZONE_ADMIN' | 'SURVEYOR' | 'CONTRACTOR' | 'GUEST'>) {
   return (req: Request, _res: Response, next: NextFunction): void => {
     if (!req.user) {
       return next(new UnauthorizedError('Người dùng chưa xác thực'));

@@ -18,7 +18,8 @@ CREATE TYPE role_enum AS ENUM (
     'SUPER_ADMIN', 
     'ZONE_ADMIN', 
     'SURVEYOR', 
-    'CONTRACTOR'
+    'CONTRACTOR',
+    'GUEST'
 );
 
 CREATE TYPE user_status_enum AS ENUM (
