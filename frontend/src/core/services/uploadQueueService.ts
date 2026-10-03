@@ -3,6 +3,11 @@
  * Tối ưu hóa cho quy mô 50 - 200 ảnh trên Render Free và mạng di động 4G hiện trường
  */
 import { api } from '../../services/api';
+import {
+  getAllPendingPhotos,
+  deleteOfflinePhoto,
+  revokeManagedBlobUrl,
+} from '../storage/offlinePhotoStorage';
 
 export type UploadStatus = 'QUEUED' | 'UPLOADING' | 'SUCCESS' | 'ERROR';
 
@@ -37,6 +42,50 @@ class UploadQueueService {
   private maxConcurrent: number = 2; // Giới hạn tối đa 2 luồng tải song song để bảo vệ băng thông 4G
   private maxRetries: number = 3;
   private listeners: Set<QueueListener> = new Set();
+
+  constructor() {
+    if (typeof window !== 'undefined') {
+      window.addEventListener('online', () => {
+        console.log('[UploadQueue] Phát hiện có mạng kết nối trở lại, tự động quét ảnh offline...');
+        this.resumePendingOfflineUploads();
+      });
+      // Tự động quét khi khởi động ứng dụng
+      setTimeout(() => {
+        this.resumePendingOfflineUploads();
+      }, 1500);
+    }
+  }
+
+  /**
+   * Tự động quét IndexedDB và tiếp tục tải các ảnh offline chưa hoàn tất
+   */
+  public async resumePendingOfflineUploads(): Promise<number> {
+    try {
+      const pending = await getAllPendingPhotos();
+      if (!pending || pending.length === 0) return 0;
+      let count = 0;
+      for (const item of pending) {
+        const targetFolder = item.metadata?.['building-code']
+          ? (item.metadata?.['photo-type'] ? `surveys/${item.metadata['building-code']}/${item.metadata['photo-type']}` : `surveys/${item.metadata['building-code']}`)
+          : 'surveys';
+        this.enqueue(item.blob, item.filename, {
+          id: item.id,
+          folder: targetFolder,
+          mimeType: item.mimeType || 'image/jpeg',
+          metadata: item.metadata,
+          onSuccess: async () => {
+            await deleteOfflinePhoto(item.id);
+            revokeManagedBlobUrl(item.id);
+          },
+        });
+        count++;
+      }
+      return count;
+    } catch (err) {
+      console.warn('[UploadQueue] Lỗi quét ảnh offline pending:', err);
+      return 0;
+    }
+  }
 
   /**
    * Đăng ký lắng nghe biến động trạng thái của hàng đợi (cho UI hiển thị tiến trình)

@@ -421,6 +421,14 @@
     <div class="photo-frame-full">
       {{#if p01.url}}
         <img src="{{p01.url}}" alt="P-01 Biển số nhà">
+        <div class="pdf-watermark-overlay">
+          <div class="pdf-watermark-top-right">CRLG-CRSRI-TT &bull; METRO LINE 2</div>
+          <div class="pdf-watermark-bottom-right">
+            <div>MÃ: {{p01.photoId}}</div>
+            <div>NGÀY: {{p01.capturedAt}}</div>
+            {{#if p01.gpsLat}}<div>GPS: {{p01.gpsLat}}, {{p01.gpsLng}}</div>{{/if}}
+          </div>
+        </div>
       {{else}}
         <div class="photo-placeholder">
           {{#if p01.isNotApplicable}}
@@ -452,6 +460,14 @@
       <div class="photo-frame-vertical">
         {{#if p02.url}}
           <img src="{{p02.url}}" alt="P-02 Mặt đứng chính">
+          <div class="pdf-watermark-overlay">
+            <div class="pdf-watermark-top-right">CRLG-CRSRI-TT &bull; METRO LINE 2</div>
+            <div class="pdf-watermark-bottom-right">
+              <div>MÃ: {{p02.photoId}}</div>
+              <div>NGÀY: {{p02.capturedAt}}</div>
+              {{#if p02.gpsLat}}<div>GPS: {{p02.gpsLat}}, {{p02.gpsLng}}</div>{{/if}}
+            </div>
+          </div>
         {{else}}
           <div class="photo-placeholder">
             <div style="font-weight: bold; color: #94a3b8;">Chưa có ảnh P-02</div>
@@ -479,6 +495,13 @@
       <div class="photo-frame-vertical">
         {{#if p03.url}}
           <img src="{{p03.url}}" alt="P-03 Mặt bên hoặc phía sau">
+          <div class="pdf-watermark-overlay">
+            <div class="pdf-watermark-top-right">CRLG-CRSRI-TT &bull; METRO LINE 2</div>
+            <div class="pdf-watermark-bottom-right">
+              <div>MÃ: {{p03.photoId}}</div>
+              <div>NGÀY: {{p03.capturedAt}}</div>
+            </div>
+          </div>
         {{else}}
           <div class="photo-placeholder">
             {{#if p03.isNotApplicable}}
@@ -515,6 +538,14 @@
     <div class="photo-frame-full">
       {{#if p04.url}}
         <img src="{{p04.url}}" alt="P-04 Bối cảnh vỉa hè và tuyến Metro">
+        <div class="pdf-watermark-overlay">
+          <div class="pdf-watermark-top-right">CRLG-CRSRI-TT &bull; METRO LINE 2</div>
+          <div class="pdf-watermark-bottom-right">
+            <div>MÃ: {{p04.photoId}}</div>
+            <div>NGÀY: {{p04.capturedAt}}</div>
+            {{#if p04.gpsLat}}<div>GPS: {{p04.gpsLat}}, {{p04.gpsLng}}</div>{{/if}}
+          </div>
+        </div>
       {{else}}
         <div class="photo-placeholder">
           <div style="font-weight: bold; color: #94a3b8;">Chưa có ảnh P-04</div>
@@ -1004,6 +1035,13 @@
               </div>
               <div class="defect-evidence-full">
                 <img src="{{ctxPhotoUrl}}" alt="Ảnh bối cảnh {{defectCode}}">
+                <div class="pdf-watermark-overlay">
+                  <div class="pdf-watermark-top-right">CRLG-CRSRI-TT &bull; METRO 2</div>
+                  <div class="pdf-watermark-bottom-right">
+                    <div>VẾT NỨT: {{defectCode}} (CTX)</div>
+                    <div>VỊ TRÍ: {{../zoneCode}} &bull; {{../roomName}}</div>
+                  </div>
+                </div>
               </div>
               <div class="evidence-caption-full">
                 HÌNH: BỐI CẢNH VÙNG KIẾN TRÚC {{../zoneCode}} CHỨA KHUYẾT TẬT {{defectCode}} ({{../roomName}})
@@ -1027,6 +1065,13 @@
                 </div>
                 <div class="defect-evidence-full">
                   <img src="{{this}}" alt="Ảnh cận cảnh có thước đo {{../defectCode}} (Ảnh #{{addOne @index}})">
+                  <div class="pdf-watermark-overlay">
+                    <div class="pdf-watermark-top-right">CRLG-CRSRI-TT &bull; CRACK GAUGE</div>
+                    <div class="pdf-watermark-bottom-right">
+                      <div>VẾT NỨT: {{../defectCode}} #{{addOne @index}}</div>
+                      <div>W_MAX: {{../widthMaxMm}} mm</div>
+                    </div>
+                  </div>
                 </div>
                 <div class="evidence-caption-full" style="background-color: #fff7ed; color: #9a3412;">
                   HÌNH: CẬN CẢNH ĐO ĐẠC BỀ RỘNG VẾT NỨT {{../defectCode}} - ẢNH #{{addOne @index}} (BỀ RỘNG LỚN NHẤT w<sub>max</sub> = {{../widthMaxMm}} mm, DÀI {{../lengthMm}} mm)
@@ -1047,6 +1092,13 @@
               </div>
               <div class="defect-evidence-full">
                 <img src="{{cuPhotoUrl}}" alt="Ảnh cận cảnh có thước đo {{defectCode}}">
+                <div class="pdf-watermark-overlay">
+                  <div class="pdf-watermark-top-right">CRLG-CRSRI-TT &bull; CRACK GAUGE</div>
+                  <div class="pdf-watermark-bottom-right">
+                    <div>VẾT NỨT: {{defectCode}}</div>
+                    <div>W_MAX: {{widthMaxMm}} mm</div>
+                  </div>
+                </div>
               </div>
               <div class="evidence-caption-full" style="background-color: #fff7ed; color: #9a3412;">
                 HÌNH: CẬN CẢNH ĐO ĐẠC BỀ RỘNG VẾT NỨT {{defectCode}} (BỀ RỘNG LỚN NHẤT w<sub>max</sub> = {{widthMaxMm}} mm, DÀI {{lengthMm}} mm)

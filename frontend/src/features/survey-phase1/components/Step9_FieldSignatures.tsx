@@ -15,10 +15,11 @@ import {
   AlertCircle,
   Eye,
   Edit3,
-  X,
   FileText,
 } from 'lucide-react';
 import { ImageAnnotationModal } from '../../../components/common/ImageAnnotationModal';
+import { PhotoLightboxModal } from '../../../components/common/photo-capture/components/PhotoLightboxModal';
+import { useLightbox } from '../../../components/common/photo-capture/hooks/useLightbox';
 import { applyMetroWatermark } from '../../../utils/watermarkEngine';
 import { uploadQueue } from '../../../core/services/uploadQueueService';
 
@@ -42,8 +43,18 @@ export const Step9_FieldSignatures: React.FC<Step9Props> = ({ onSubmitFinal, isS
   // Trạng thái upload R2 cho từng URL: UPLOADING | SUCCESS | ERROR
   const [uploadStatusMap, setUploadStatusMap] = useState<Record<string, 'UPLOADING' | 'SUCCESS' | 'ERROR'>>({});
 
-  // Lightbox & Chú thích Modal
-  const [previewModalUrl, setPreviewModalUrl] = useState<string | null>(null);
+  // Lightbox phóng to ảnh biên bản (pinch-to-zoom + pan)
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const {
+    lightboxZoom,
+    lightboxPan,
+    isLightboxPinching,
+    resetLightbox,
+    handleLightboxTouchStart,
+    handleLightboxTouchMove,
+    handleLightboxTouchEnd,
+    handleLightboxWheel,
+  } = useLightbox();
   const [annotatingIndex, setAnnotatingIndex] = useState<number | null>(null);
 
   // Thống kê nhanh toàn bộ hồ sơ
@@ -552,7 +563,10 @@ export const Step9_FieldSignatures: React.FC<Step9Props> = ({ onSubmitFinal, isS
                     <div className="absolute inset-0 bg-slate-900/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 p-2">
                       <button
                         type="button"
-                        onClick={() => setPreviewModalUrl(photoUrl)}
+                        onClick={() => {
+                          resetLightbox();
+                          setLightboxUrl(photoUrl);
+                        }}
                         className="bg-white/90 hover:bg-white text-slate-800 text-xs font-bold px-2.5 py-1.5 rounded-lg flex items-center gap-1 shadow-sm transition-transform active:scale-95"
                       >
                         <Eye className="w-3.5 h-3.5 text-blue-600" />
@@ -577,38 +591,23 @@ export const Step9_FieldSignatures: React.FC<Step9Props> = ({ onSubmitFinal, isS
         )}
       </Card>
 
-      {/* Lightbox xem lớn ảnh biên bản */}
-      {previewModalUrl && (
-        <div
-          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4"
-          onClick={() => setPreviewModalUrl(null)}
-        >
-          <div
-            className="relative max-w-4xl max-h-[90vh] bg-slate-900 rounded-2xl overflow-hidden shadow-2xl p-2 flex flex-col"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between p-2 text-white">
-              <span className="text-xs font-bold font-mono text-emerald-400">
-                Chi tiết ảnh biên bản hiện trường (Watermark chuẩn Metro 2)
-              </span>
-              <button
-                type="button"
-                onClick={() => setPreviewModalUrl(null)}
-                className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <div className="flex-1 overflow-auto flex items-center justify-center p-2">
-              <img
-                src={previewModalUrl}
-                alt="Biên bản xem lớn"
-                className="max-h-[80vh] w-auto object-contain rounded-lg shadow-lg"
-              />
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Lightbox xem lớn ảnh biên bản — pinch-to-zoom 2 ngón tay */}
+      <PhotoLightboxModal
+        isOpen={lightboxUrl !== null}
+        onClose={() => {
+          setLightboxUrl(null);
+          resetLightbox();
+        }}
+        imageUrl={lightboxUrl || ''}
+        lightboxZoom={lightboxZoom}
+        lightboxPan={lightboxPan}
+        isLightboxPinching={isLightboxPinching}
+        onResetZoom={resetLightbox}
+        onTouchStart={handleLightboxTouchStart}
+        onTouchMove={handleLightboxTouchMove}
+        onTouchEnd={handleLightboxTouchEnd}
+        onWheel={handleLightboxWheel}
+      />
 
       {/* Modal chú thích / vẽ trên ảnh */}
       {annotatingIndex !== null && minutesPhotos[annotatingIndex] && (

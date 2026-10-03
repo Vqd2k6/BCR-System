@@ -128,5 +128,29 @@ export class StorageController {
       next(error);
     }
   }
+
+  /**
+   * Lấy Metadata lưu trữ của ảnh (S3/Cloudflare R2 Custom Headers)
+   */
+  static async getPhotoMetadata(req: Request, res: Response, next: NextFunction) {
+    try {
+      const key = (req.query.key as string) || (req.params.key as string);
+      if (!key) {
+        throw new BadRequestError('Tham số "key" là bắt buộc');
+      }
+
+      const metadata = await StorageService.getPhotoMetadata(key);
+      res.status(200).json({
+        success: true,
+        data: {
+          key,
+          metadata,
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
+
 

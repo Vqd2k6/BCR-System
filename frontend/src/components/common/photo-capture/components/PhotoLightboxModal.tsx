@@ -1,10 +1,13 @@
-import React from 'react';
-import { X } from 'lucide-react';
+import React, { useState } from 'react';
+import { X, Download, Loader2 } from 'lucide-react';
+import { PhotoWatermarkOverlay } from './PhotoWatermarkOverlay';
+import { downloadWatermarkedImage } from '../../../../utils/cleanImageCompressor';
 
 interface PhotoLightboxModalProps {
   isOpen: boolean;
   onClose: () => void;
   imageUrl: string;
+  photoCode?: string;
   lightboxZoom: number;
   lightboxPan: { x: number; y: number };
   isLightboxPinching: boolean;
@@ -19,6 +22,7 @@ export const PhotoLightboxModal: React.FC<PhotoLightboxModalProps> = ({
   isOpen,
   onClose,
   imageUrl,
+  photoCode,
   lightboxZoom,
   lightboxPan,
   isLightboxPinching,
@@ -28,7 +32,23 @@ export const PhotoLightboxModal: React.FC<PhotoLightboxModalProps> = ({
   onTouchEnd,
   onWheel,
 }) => {
+  const [isExporting, setIsExporting] = useState(false);
   if (!isOpen || !imageUrl) return null;
+
+  const handleDownload = async () => {
+    try {
+      setIsExporting(true);
+      const filename = `${photoCode || 'photo'}_${Date.now()}.jpg`;
+      await downloadWatermarkedImage(imageUrl, filename, {
+        photoCode,
+        timestamp: new Date().toLocaleString('vi-VN'),
+      });
+    } catch (err) {
+      console.error('Không thể xuất ảnh có watermark:', err);
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   return (
     <div
@@ -54,23 +74,48 @@ export const PhotoLightboxModal: React.FC<PhotoLightboxModalProps> = ({
           zIndex: 30,
         }}
       >
-        <button
-          type="button"
-          onClick={onResetZoom}
-          style={{
-            backgroundColor: lightboxZoom > 1.0 ? 'rgba(16, 185, 129, 0.9)' : 'rgba(255, 255, 255, 0.15)',
-            color: '#ffffff',
-            border: 'none',
-            borderRadius: '9999px',
-            padding: '0.3rem 0.85rem',
-            fontSize: '0.85rem',
-            fontWeight: 800,
-            cursor: 'pointer',
-          }}
-          title="Chạm để đặt lại 1.0x"
-        >
-          <span>{lightboxZoom.toFixed(1)}x (Chạm để về 1.0x)</span>
-        </button>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <button
+            type="button"
+            onClick={onResetZoom}
+            style={{
+              backgroundColor: lightboxZoom > 1.0 ? 'rgba(16, 185, 129, 0.9)' : 'rgba(255, 255, 255, 0.15)',
+              color: '#ffffff',
+              border: 'none',
+              borderRadius: '9999px',
+              padding: '0.3rem 0.85rem',
+              fontSize: '0.85rem',
+              fontWeight: 800,
+              cursor: 'pointer',
+            }}
+            title="Chạm để đặt lại 1.0x"
+          >
+            <span>{lightboxZoom.toFixed(1)}x (Chạm về 1.0x)</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleDownload}
+            disabled={isExporting}
+            style={{
+              backgroundColor: 'rgba(37, 99, 235, 0.85)',
+              color: '#ffffff',
+              border: 'none',
+              borderRadius: '9999px',
+              padding: '0.3rem 0.85rem',
+              fontSize: '0.82rem',
+              fontWeight: 700,
+              cursor: isExporting ? 'wait' : 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+            }}
+            title="Tải ảnh JPEG có dập sẵn dấu chuẩn CRLG-CRSRI-TT"
+          >
+            {isExporting ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
+            <span>{isExporting ? 'Đang xuất...' : 'Tải ảnh có dấu (JPG)'}</span>
+          </button>
+        </div>
 
         <button
           type="button"
@@ -121,6 +166,14 @@ export const PhotoLightboxModal: React.FC<PhotoLightboxModalProps> = ({
             cursor: lightboxZoom > 1 ? 'grab' : 'zoom-in',
           }}
         />
+
+        {/* Lớp phủ Watermark toàn màn hình sắc nét */}
+        {photoCode && (
+          <PhotoWatermarkOverlay
+            photoCode={photoCode}
+            variant="full"
+          />
+        )}
 
         {/* Gợi ý thao tác dưới chân Lightbox */}
         <div

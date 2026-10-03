@@ -85,6 +85,7 @@ export const PhotoCaptureInput: React.FC<PhotoCaptureProps> = ({
     setHasLoadError,
     startDirectUpload,
     uploadToServer,
+    processAndStoreCleanPhoto,
     handleFileChange,
     handleClear,
     handleRotate90,
@@ -121,13 +122,18 @@ export const PhotoCaptureInput: React.FC<PhotoCaptureProps> = ({
   } = useLiveCamera({
     effectiveWatermarkOptions,
     cameraInputId,
-    onSuccessCapture: (result) => {
-      setLocalPreview(result.previewUrl || result.dataUrl);
-      onChange(result.dataUrl || result.previewUrl, result.photoCode);
-      if (isNotApplicable && onToggleNotApplicable) {
-        onToggleNotApplicable(false);
+    onSuccessCapture: async ({ blob, photoCode }) => {
+      try {
+        const { blobUrl, localId } = await processAndStoreCleanPhoto(blob);
+        setLocalPreview(blobUrl);
+        onChange(blobUrl, photoCode);
+        if (isNotApplicable && onToggleNotApplicable) {
+          onToggleNotApplicable(false);
+        }
+        startDirectUpload(blob, photoCode, localId);
+      } catch (err) {
+        console.warn('[PhotoCaptureInput] Lỗi lưu ảnh camera:', err);
       }
-      startDirectUpload(result.blob, result.photoCode);
     },
   });
 
@@ -404,6 +410,7 @@ export const PhotoCaptureInput: React.FC<PhotoCaptureProps> = ({
           resetLightbox();
         }}
         imageUrl={hasLoadError && localPreview ? localPreview : value}
+        photoCode={displayPhotoCode}
         lightboxZoom={lightboxZoom}
         lightboxPan={lightboxPan}
         isLightboxPinching={isLightboxPinching}

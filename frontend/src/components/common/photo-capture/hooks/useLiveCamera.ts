@@ -1,13 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
-  applyMetroWatermark,
+  generateMetroPhotoCode,
   MetroWatermarkOptions,
 } from '../../../../utils/watermarkEngine';
 
 interface UseLiveCameraProps {
   effectiveWatermarkOptions?: MetroWatermarkOptions;
   cameraInputId: string;
-  onSuccessCapture: (result: { dataUrl: string; blob: Blob; previewUrl: string; photoCode: string }) => void;
+  onSuccessCapture: (result: { blob: Blob; photoCode: string }) => void;
 }
 
 export function useLiveCamera({
@@ -251,19 +251,24 @@ export function useLiveCamera({
     setIsLiveCameraOpen(false);
 
     try {
-      const result = await applyMetroWatermark(canvas, effectiveWatermarkOptions);
+      const photoCode = generateMetroPhotoCode(effectiveWatermarkOptions || {});
+      canvas.toBlob(
+        (blob) => {
+          try {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            canvas.width = 0;
+            canvas.height = 0;
+          } catch (_e) {}
 
-      try {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        canvas.width = 0;
-        canvas.height = 0;
-      } catch (_e) {}
-
-      if (result.blob) {
-        onSuccessCapture(result);
-      }
+          if (blob) {
+            onSuccessCapture({ blob, photoCode });
+          }
+        },
+        'image/jpeg',
+        0.90
+      );
     } catch (_err) {
-      console.warn('[PhotoCaptureInput] Lỗi khi dập watermark khung hình camera trực tiếp:', _err);
+      console.warn('[PhotoCaptureInput] Lỗi khi chụp khung hình camera trực tiếp:', _err);
     }
   };
 

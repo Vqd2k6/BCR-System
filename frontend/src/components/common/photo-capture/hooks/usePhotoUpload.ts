@@ -2,9 +2,21 @@ import { useState, useRef, useEffect } from 'react';
 import { api } from '../../../../services/api';
 import { uploadQueue } from '../../../../core/services/uploadQueueService';
 import {
-  applyMetroWatermark,
+  generateMetroPhotoCode,
   MetroWatermarkOptions,
 } from '../../../../utils/watermarkEngine';
+import {
+  compressCleanImage,
+} from '../../../../utils/cleanImageCompressor';
+import {
+  saveOfflinePhoto,
+  deleteOfflinePhoto,
+  getOfflinePhoto,
+  createManagedBlobUrl,
+  revokeManagedBlobUrl,
+  isLocalBlobUri,
+  extractLocalIdFromUri,
+} from '../../../../core/storage/offlinePhotoStorage';
 import { UploadStatus } from '../types';
 
 interface UsePhotoUploadProps {
@@ -32,15 +44,30 @@ export function usePhotoUpload({
   const [localPreview, setLocalPreview] = useState<string | null>(null);
   const [hasLoadError, setHasLoadError] = useState(false);
   const lastBlobRef = useRef<Blob | null>(null);
+  const currentLocalIdRef = useRef<string | null>(null);
 
   // Tự động reset trạng thái lỗi khi value thay đổi
   useEffect(() => {
     setHasLoadError(false);
   }, [value]);
 
+  // Kiểm tra trạng thái value và khôi phục preview từ IndexedDB nếu cần
   useEffect(() => {
     if (value && (value.startsWith('http') || value.startsWith('/uploads'))) {
       setUploadStatus('SUCCESS');
+    } else if (value && isLocalBlobUri(value)) {
+      setUploadStatus('UPLOADING');
+      // Nếu là local blob ID, thử nạp lại Blob từ IndexedDB để khôi phục preview
+      const localId = extractLocalIdFromUri(value);
+      currentLocalIdRef.current = localId;
+      if (!localPreview) {
+        getOfflinePhoto(localId).then((record) => {
+          if (record && record.blob) {
+            const blobUrl = createManagedBlobUrl(localId, record.blob);
+            setLocalPreview(blobUrl);
+          }
+        }).catch((_e) => {});
+      }
     } else if (value && value.startsWith('data:image')) {
       if (uploadStatus === 'IDLE') {
         setUploadStatus('UPLOADING');
@@ -107,7 +134,10 @@ export function usePhotoUpload({
     return { buildingCode, photoType: pType, targetFolder, metadata };
   };
 
-  const startDirectUpload = (blob: Blob, code?: string) => {
+  /**
+   * Bắt đầu tải ảnh sạch trực tiếp lên Cloudflare R2
+   */
+  const startDirectUpload = (blob: Blob, code?: string, localId?: string) => {
     lastBlobRef.current = blob;
     setUploadStatus('UPLOADING');
 
@@ -119,31 +149,57 @@ export function usePhotoUpload({
       folder: targetFolder,
       mimeType: 'image/jpeg',
       metadata,
-      onSuccess: (publicUrl) => {
+      onSuccess: async (publicUrl) => {
         setUploadStatus('SUCCESS');
         onChange(publicUrl, code);
+        // Khi tải lên Cloudflare R2 thành công, dọn dẹp IndexedDB và revoke blob URL
+        if (localId) {
+          await deleteOfflinePhoto(localId);
+          revokeManagedBlobUrl(localId);
+        }
       },
       onError: (err) => {
-        console.warn('[PhotoCaptureInput] Direct upload failed, will retry or fallback:', err);
+        console.warn('[PhotoCaptureInput] Direct upload failed, keeping in offline storage:', err);
         setUploadStatus('ERROR');
       },
     });
   };
 
-  const processAndWatermarkImage = async (file: File): Promise<{ dataUrl: string; blob: Blob; previewUrl: string; photoCode: string }> => {
-    try {
-      const result = await applyMetroWatermark(file, effectiveWatermarkOptions);
-      return result;
-    } catch (err) {
-      console.warn('[WATERMARK] Fallback nén ảnh thông thường do lỗi dập watermark:', err);
-      const previewUrl = URL.createObjectURL(file);
-      return {
-        dataUrl: '',
-        blob: file,
-        previewUrl,
-        photoCode: displayPhotoCode,
-      };
-    }
+  /**
+   * Xử lý nén ảnh sạch chuẩn 2560px @ 0.90 (Không dập text vào pixel)
+   * và lưu trữ nhị phân an toàn vào IndexedDB
+   */
+  const processAndStoreCleanPhoto = async (
+    fileOrBlob: File | Blob
+  ): Promise<{ blobUrl: string; localId: string; blob: Blob; photoCode: string }> => {
+    const photoCode = displayPhotoCode || generateMetroPhotoCode(effectiveWatermarkOptions || {});
+    
+    // 1. Nén ảnh sạch 2560px @ 0.90 (< 80ms)
+    const cleanResult = await compressCleanImage(fileOrBlob, {
+      maxDimension: 2560,
+      quality: 0.90, // Chuẩn siêu nét theo yêu cầu
+      mimeType: 'image/jpeg',
+    });
+
+    // 2. Tạo ID offline duy nhất
+    const localId = `photo_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    currentLocalIdRef.current = localId;
+
+    // 3. Trích xuất metadata pháp lý
+    const { metadata } = extractPhotoDetails(photoCode);
+
+    // 4. Cất Binary Blob vào IndexedDB (0% RAM Heap)
+    await saveOfflinePhoto(localId, cleanResult.blob, photoCode, metadata);
+
+    // 5. Tạo ObjectURL tạm thời để hiển thị preview mượt mà
+    const blobUrl = createManagedBlobUrl(localId, cleanResult.blob);
+
+    return {
+      blobUrl,
+      localId,
+      blob: cleanResult.blob,
+      photoCode,
+    };
   };
 
   const uploadToServer = async (base64Str: string, code?: string) => {
@@ -162,7 +218,7 @@ export function usePhotoUpload({
         onChange(uploadedUrl, code);
       }
     } catch (err) {
-      console.warn('[PhotoCaptureInput] Background upload to server failed, keeping local base64:', err);
+      console.warn('[PhotoCaptureInput] Background upload to server failed:', err);
       setUploadStatus('ERROR');
     }
   };
@@ -172,22 +228,28 @@ export function usePhotoUpload({
     if (!file) return;
 
     try {
-      const result = await processAndWatermarkImage(file);
-      if (result.blob) {
-        setLocalPreview(result.previewUrl || result.dataUrl);
-        onChange(result.dataUrl || result.previewUrl, result.photoCode);
-        if (isNotApplicable && onToggleNotApplicable) {
-          onToggleNotApplicable(false);
-        }
-        startDirectUpload(result.blob, result.photoCode);
+      const { blobUrl, localId, blob, photoCode } = await processAndStoreCleanPhoto(file);
+      setLocalPreview(blobUrl);
+      onChange(blobUrl, photoCode);
+
+      if (isNotApplicable && onToggleNotApplicable) {
+        onToggleNotApplicable(false);
       }
-    } catch (_err) {
-      console.warn('Image processing fallback');
+
+      startDirectUpload(blob, photoCode, localId);
+    } catch (err) {
+      console.warn('[PhotoCaptureInput] Lỗi xử lý nén ảnh sạch:', err);
+      setUploadStatus('ERROR');
     }
     e.target.value = '';
   };
 
   const handleClear = () => {
+    if (currentLocalIdRef.current) {
+      deleteOfflinePhoto(currentLocalIdRef.current);
+      revokeManagedBlobUrl(currentLocalIdRef.current);
+      currentLocalIdRef.current = null;
+    }
     setLocalPreview(null);
     setHasLoadError(false);
     onChange('', '');
@@ -201,7 +263,7 @@ export function usePhotoUpload({
     if (!currentImgUrl) return;
     try {
       const img = new Image();
-      if (!currentImgUrl.startsWith('data:')) {
+      if (!currentImgUrl.startsWith('data:') && !currentImgUrl.startsWith('blob:')) {
         img.crossOrigin = 'anonymous';
       }
       await new Promise((resolve, reject) => {
@@ -220,17 +282,32 @@ export function usePhotoUpload({
       ctx.rotate((90 * Math.PI) / 180);
       ctx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2);
 
-      const rotatedDataUrl = canvas.toDataURL('image/jpeg', 1.0);
-      setLocalPreview(rotatedDataUrl);
-      onChange(rotatedDataUrl, displayPhotoCode);
+      const rotatedBlob: Blob = await new Promise((resolve, reject) => {
+        canvas.toBlob(
+          (b) => {
+            if (b) resolve(b);
+            else reject(new Error('Xuất blob xoay thất bại'));
+          },
+          'image/jpeg',
+          0.90
+        );
+      });
 
-      canvas.toBlob((b) => {
-        if (b) {
-          startDirectUpload(b, displayPhotoCode);
-        } else {
-          uploadToServer(rotatedDataUrl, displayPhotoCode);
-        }
-      }, 'image/jpeg', 1.0);
+      try {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        canvas.width = 0;
+        canvas.height = 0;
+      } catch (_e) {}
+
+      const localId = `photo_rot_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+      currentLocalIdRef.current = localId;
+      const { metadata } = extractPhotoDetails(displayPhotoCode);
+      await saveOfflinePhoto(localId, rotatedBlob, displayPhotoCode, metadata);
+
+      const blobUrl = createManagedBlobUrl(localId, rotatedBlob);
+      setLocalPreview(blobUrl);
+      onChange(blobUrl, displayPhotoCode);
+      startDirectUpload(rotatedBlob, displayPhotoCode, localId);
     } catch (err) {
       console.warn('[PhotoCaptureInput] Lỗi khi xoay ảnh 90°:', err);
     }
@@ -244,7 +321,7 @@ export function usePhotoUpload({
     setHasLoadError,
     startDirectUpload,
     uploadToServer,
-    processAndWatermarkImage,
+    processAndStoreCleanPhoto,
     handleFileChange,
     handleClear,
     handleRotate90,

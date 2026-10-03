@@ -10,6 +10,7 @@ import {
   MoreVertical,
 } from 'lucide-react';
 import { UploadStatus } from '../types';
+import { PhotoWatermarkOverlay } from './PhotoWatermarkOverlay';
 
 interface PhotoPreviewCardProps {
   value: string;
@@ -89,6 +90,12 @@ export const PhotoPreviewCard: React.FC<PhotoPreviewCardProps> = ({
         onClick={onOpenLightbox}
         title="Chạm vào ảnh để phóng to soi vạch thước đo nứt (2 ngón tay)"
         style={{ width: '100%', height: '100%', objectFit: 'contain', cursor: 'pointer' }}
+      />
+
+      {/* Lớp phủ Watermark động bằng CSS thuần không tốn RAM Canvas */}
+      <PhotoWatermarkOverlay
+        photoCode={photoCode || displayPhotoCode}
+        variant="compact"
       />
 
       {/* Top-Left: Minimalist Photo ID chip + Cloud Status */}

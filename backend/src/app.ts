@@ -79,6 +79,7 @@ export function createApp(): express.Application {
   // 0. STORAGE & ẢNH HIỆN TRƯỜNG (CLOUDFLARE R2)
   // ==========================================
   api.post('/storage/presign', authenticateJwt, StorageController.generatePresignedUrl);
+  api.get('/storage/photo-meta', authenticateJwt, StorageController.getPhotoMetadata);
   api.put('/storage/local-put', express.raw({ type: '*/*', limit: '50mb' }), StorageController.handleLocalPut);
   api.post('/storage/upload', authenticateJwt, upload.single('file'), StorageController.uploadFile);
   api.post('/storage/upload-base64', authenticateJwt, StorageController.uploadBase64);
