@@ -6,6 +6,9 @@ export interface MissingFieldItem {
   label: string;
   step: number;
   floorIndex?: number;
+  zoneIndex?: number;
+  elementIndex?: number;
+  subSection?: 'overview' | 'cad-zone' | 'cad-element' | 'zones' | 'elements' | 'sagging';
   description?: string;
   isBlocking?: boolean;
 }
@@ -88,6 +91,7 @@ export const validateCondoUnitStep = (step: number, formData: Phase1SurveyFormDa
             label: `Ảnh chụp tổng quan (${floorTitle}) *`,
             step: 3,
             floorIndex: fIdx,
+            subSection: 'overview',
             description: `Chưa có ảnh chụp tổng quan cho ${floorTitle}. Bắt buộc phải chụp ít nhất 1 ảnh tổng quan tầng.`,
             isBlocking: true,
           });
@@ -98,6 +102,8 @@ export const validateCondoUnitStep = (step: number, formData: Phase1SurveyFormDa
             fieldId: 'step3-floor-cad-section',
             label: `3.1. Điểm chấm Vùng Z (${floorTitle})`,
             step: 3,
+            floorIndex: fIdx,
+            subSection: 'cad-zone',
             description: `Chưa có điểm chấm Vùng kiến trúc (Z) nào trên sơ đồ CAD_01 của ${floorTitle}. Vui lòng chấm ít nhất 1 Vùng Z.`,
             isBlocking: true,
           });
@@ -106,6 +112,8 @@ export const validateCondoUnitStep = (step: number, formData: Phase1SurveyFormDa
             fieldId: 'step3-floor-cad-section',
             label: `3.1. Khớp số lượng Vùng Z (${floorTitle})`,
             step: 3,
+            floorIndex: fIdx,
+            subSection: 'cad-zone',
             description: `Số lượng điểm ghim CAD_01 (${cadZonePins.length}) chưa khớp với số Vùng Z (${zones.length}) của ${floorTitle}.`,
             isBlocking: true,
           });
@@ -117,6 +125,8 @@ export const validateCondoUnitStep = (step: number, formData: Phase1SurveyFormDa
               fieldId: 'step3-structure-cad-section',
               label: `3.2. Điểm chấm Cấu kiện E (${floorTitle})`,
               step: 3,
+              floorIndex: fIdx,
+              subSection: 'cad-element',
               description: `Chưa có điểm chấm Cấu kiện kết cấu chịu lực (E) nào trên sơ đồ CAD_02 của ${floorTitle}. Vui lòng chấm ít nhất 1 Cấu kiện E hoặc chọn "Miễn khảo sát kết cấu" nếu là tầng mái.`,
               isBlocking: true,
             });
@@ -125,13 +135,15 @@ export const validateCondoUnitStep = (step: number, formData: Phase1SurveyFormDa
               fieldId: 'step3-structure-cad-section',
               label: `3.2. Khớp số lượng Cấu kiện E (${floorTitle})`,
               step: 3,
+              floorIndex: fIdx,
+              subSection: 'cad-element',
               description: `Số lượng điểm ghim CAD_02 (${cadElementPins.length}) chưa khớp với số Cấu kiện E (${structuralElements.length}) của ${floorTitle}.`,
               isBlocking: true,
             });
           }
         }
 
-        zones.forEach((z) => {
+        zones.forEach((z, zIdx) => {
           const hasDamageMarked = z.hasDamage || (z.defects && z.defects.length > 0);
           const defectCount = z.defects ? z.defects.length : 0;
           if (hasDamageMarked && defectCount === 0) {
@@ -139,6 +151,9 @@ export const validateCondoUnitStep = (step: number, formData: Phase1SurveyFormDa
               fieldId: 'step3-active-zone-card',
               label: `3.1. Ghi sổ khuyết tật D cho Vùng ${z.zoneCode} (${floorTitle})`,
               step: 3,
+              floorIndex: fIdx,
+              zoneIndex: zIdx,
+              subSection: 'zones',
               description: `Vùng ${z.zoneCode} được đánh dấu CÓ vết nứt/hư hỏng nhưng chưa có điểm khuyết tật D nào được ghi sổ.`,
               isBlocking: true,
             });
@@ -148,6 +163,9 @@ export const validateCondoUnitStep = (step: number, formData: Phase1SurveyFormDa
               fieldId: 'step3-active-zone-card',
               label: `3.1. Ảnh bối cảnh khuyết tật Vùng ${z.zoneCode} (${floorTitle})`,
               step: 3,
+              floorIndex: fIdx,
+              zoneIndex: zIdx,
+              subSection: 'zones',
               description: `Vùng ${z.zoneCode} có ${defectCount} khuyết tật D nhưng chưa có ảnh bối cảnh chính để định vị.`,
               isBlocking: true,
             });
@@ -165,6 +183,9 @@ export const validateCondoUnitStep = (step: number, formData: Phase1SurveyFormDa
                 fieldId: 'step3-active-zone-card',
                 label: `3.1. Thông số chi tiết ${isCrack ? 'vết nứt' : 'khuyết tật bề mặt'} ${d.defectCode} (${z.zoneCode} - ${floorTitle})`,
                 step: 3,
+                floorIndex: fIdx,
+                zoneIndex: zIdx,
+                subSection: 'zones',
                 description: isCrack
                   ? `Vết nứt ${d.defectCode} chưa điền đủ các thông số bắt buộc (ảnh cận cảnh CU, kích thước bề rộng/dài, dạng nứt hoặc ghi chú).`
                   : `Khuyết tật bề mặt ${d.defectCode} (${d.defectType || 'ẩm mốc/bong tróc'}) chưa có ảnh cận cảnh CU hoặc ghi chú mô tả (không yêu cầu đo vết nứt).`,
@@ -175,7 +196,7 @@ export const validateCondoUnitStep = (step: number, formData: Phase1SurveyFormDa
         });
 
         if (floor.hasStructuralElements !== false) {
-          structuralElements.forEach((el) => {
+          structuralElements.forEach((el, elIdx) => {
             const hasDamageMarked = el.hasDamage || (el.defects && el.defects.length > 0);
             const defectCount = el.defects ? el.defects.length : 0;
             if (hasDamageMarked && defectCount === 0) {
@@ -183,6 +204,9 @@ export const validateCondoUnitStep = (step: number, formData: Phase1SurveyFormDa
                 fieldId: 'step3-active-element-card',
                 label: `3.2. Ghi sổ khuyết tật D cho Cấu kiện ${el.elementCode} (${floorTitle})`,
                 step: 3,
+                floorIndex: fIdx,
+                elementIndex: elIdx,
+                subSection: 'elements',
                 description: `Cấu kiện ${el.elementCode} được đánh dấu CÓ nứt kết cấu nhưng chưa có điểm khuyết tật D nào được ghi sổ.`,
                 isBlocking: true,
               });
@@ -192,6 +216,9 @@ export const validateCondoUnitStep = (step: number, formData: Phase1SurveyFormDa
                 fieldId: 'step3-active-element-card',
                 label: `3.2. Ảnh bối cảnh khuyết tật Cấu kiện ${el.elementCode} (${floorTitle})`,
                 step: 3,
+                floorIndex: fIdx,
+                elementIndex: elIdx,
+                subSection: 'elements',
                 description: `Cấu kiện ${el.elementCode} có ${defectCount} khuyết tật D nhưng chưa có ảnh bối cảnh cấu kiện để định vị.`,
                 isBlocking: true,
               });
@@ -209,6 +236,9 @@ export const validateCondoUnitStep = (step: number, formData: Phase1SurveyFormDa
                   fieldId: 'step3-active-element-card',
                   label: `3.2. Thông số chi tiết ${isCrack ? 'vết nứt kết cấu' : 'khuyết tật kết cấu'} ${d.defectCode} (${el.elementCode} - ${floorTitle})`,
                   step: 3,
+                  floorIndex: fIdx,
+                  elementIndex: elIdx,
+                  subSection: 'elements',
                   description: isCrack
                     ? `Vết nứt kết cấu ${d.defectCode} chưa điền đủ các thông số bắt buộc (ảnh cận cảnh CU, kích thước bề rộng/dài, dạng nứt kết cấu hoặc ghi chú).`
                     : `Khuyết tật kết cấu ${d.defectCode} (${d.defectType || 'vỡ/rỉ/biến dạng'}) chưa có ảnh cận cảnh CU hoặc ghi chú mô tả (không yêu cầu đo vết nứt).`,
@@ -562,6 +592,7 @@ export const validateStep = (step: number, formData: Phase1SurveyFormData): Step
             label: `Ảnh chụp tổng quan (${floorTitle}) *`,
             step: 3,
             floorIndex: fIdx,
+            subSection: 'overview',
             description: `Chưa có ảnh chụp tổng quan cho ${floorTitle}. Bắt buộc phải chụp ít nhất 1 ảnh tổng quan tầng.`,
             isBlocking: true,
           });
@@ -574,6 +605,7 @@ export const validateStep = (step: number, formData: Phase1SurveyFormData): Step
             label: `3.1. Điểm chấm Vùng Z (${floorTitle})`,
             step: 3,
             floorIndex: fIdx,
+            subSection: 'cad-zone',
             description: `Chưa có điểm chấm Vùng kiến trúc (Z) nào trên sơ đồ CAD_01 của ${floorTitle}. Vui lòng chấm ít nhất 1 Vùng Z.`,
             isBlocking: true,
           });
@@ -583,6 +615,7 @@ export const validateStep = (step: number, formData: Phase1SurveyFormData): Step
             label: `3.1. Khớp số lượng Vùng Z (${floorTitle})`,
             step: 3,
             floorIndex: fIdx,
+            subSection: 'cad-zone',
             description: `Số lượng điểm ghim CAD_01 (${cadZonePins.length}) chưa khớp với số Vùng Z (${zones.length}) của ${floorTitle}. Vui lòng kiểm tra lại.`,
             isBlocking: true,
           });
@@ -596,6 +629,7 @@ export const validateStep = (step: number, formData: Phase1SurveyFormData): Step
               label: `3.2. Điểm chấm Cấu kiện E (${floorTitle})`,
               step: 3,
               floorIndex: fIdx,
+              subSection: 'cad-element',
               description: `Chưa có điểm chấm Cấu kiện kết cấu chịu lực (E) nào trên sơ đồ CAD_02 của ${floorTitle}. Vui lòng chấm ít nhất 1 Cấu kiện E hoặc chọn "Miễn khảo sát kết cấu" nếu là tầng mái.`,
               isBlocking: true,
             });
@@ -605,6 +639,7 @@ export const validateStep = (step: number, formData: Phase1SurveyFormData): Step
               label: `3.2. Khớp số lượng Cấu kiện E (${floorTitle})`,
               step: 3,
               floorIndex: fIdx,
+              subSection: 'cad-element',
               description: `Số lượng điểm ghim CAD_02 (${cadElementPins.length}) chưa khớp với số Cấu kiện E (${structuralElements.length}) của ${floorTitle}. Vui lòng kiểm tra lại.`,
               isBlocking: true,
             });
@@ -612,13 +647,15 @@ export const validateStep = (step: number, formData: Phase1SurveyFormData): Step
         }
 
         // 3. Kiểm tra thuộc tính bắt buộc của Vùng Z (Tên phòng, cấu kiện, vật liệu) & khuyết tật D
-        zones.forEach((z) => {
+        zones.forEach((z, zIdx) => {
           if (!z.roomName?.trim() || (z.roomName === 'Khác' && !z.customRoomName?.trim())) {
             missing.push({
               fieldId: 'select-zone-roomName',
               label: `3.1. Tên phòng / không gian Vùng ${z.zoneCode} (${floorTitle}) *`,
               step: 3,
               floorIndex: fIdx,
+              zoneIndex: zIdx,
+              subSection: 'zones',
               description: `Vui lòng chọn hoặc nhập tên phòng cho Vùng ${z.zoneCode}.`,
               isBlocking: true,
             });
@@ -630,6 +667,8 @@ export const validateStep = (step: number, formData: Phase1SurveyFormData): Step
               label: `3.1. Cấu kiện vách kiến trúc Vùng ${z.zoneCode} (${floorTitle}) *`,
               step: 3,
               floorIndex: fIdx,
+              zoneIndex: zIdx,
+              subSection: 'zones',
               description: `Vui lòng chọn hoặc nhập loại cấu kiện mảng vách cho Vùng ${z.zoneCode}.`,
               isBlocking: true,
             });
@@ -641,6 +680,8 @@ export const validateStep = (step: number, formData: Phase1SurveyFormData): Step
               label: `3.1. Vật liệu bề mặt hoàn thiện Vùng ${z.zoneCode} (${floorTitle}) *`,
               step: 3,
               floorIndex: fIdx,
+              zoneIndex: zIdx,
+              subSection: 'zones',
               description: `Vui lòng chọn hoặc nhập vật liệu bề mặt hoàn thiện cho Vùng ${z.zoneCode}.`,
               isBlocking: true,
             });
@@ -655,6 +696,8 @@ export const validateStep = (step: number, formData: Phase1SurveyFormData): Step
               label: `3.1. Ghi sổ khuyết tật D cho Vùng ${z.zoneCode} (${floorTitle})`,
               step: 3,
               floorIndex: fIdx,
+              zoneIndex: zIdx,
+              subSection: 'zones',
               description: `Vui lòng chấm ít nhất 1 khuyết tật D cho Vùng ${z.zoneCode}.`,
               isBlocking: true,
             });
@@ -666,6 +709,8 @@ export const validateStep = (step: number, formData: Phase1SurveyFormData): Step
               label: `3.1. Ảnh bối cảnh khuyết tật Vùng ${z.zoneCode} (${floorTitle})`,
               step: 3,
               floorIndex: fIdx,
+              zoneIndex: zIdx,
+              subSection: 'zones',
               description: `Vùng ${z.zoneCode} có ${defectCount} khuyết tật D nhưng chưa có ảnh bối cảnh chính để định vị. Vui lòng chụp/chọn ảnh bối cảnh.`,
               isBlocking: true,
             });
@@ -684,6 +729,8 @@ export const validateStep = (step: number, formData: Phase1SurveyFormData): Step
                 label: `3.1. Thông số chi tiết ${isCrack ? 'vết nứt' : 'khuyết tật bề mặt'} ${d.defectCode} (${z.zoneCode} - ${floorTitle})`,
                 step: 3,
                 floorIndex: fIdx,
+                zoneIndex: zIdx,
+                subSection: 'zones',
                 description: isCrack
                   ? `Vết nứt ${d.defectCode} chưa điền đủ các thông số bắt buộc (ảnh cận cảnh CU, kích thước bề rộng/dài, dạng nứt hoặc ghi chú).`
                   : `Khuyết tật bề mặt ${d.defectCode} (${d.defectType || 'ẩm mốc/bong tróc'}) chưa có ảnh cận cảnh CU hoặc ghi chú mô tả (không yêu cầu đo vết nứt).`,
@@ -695,7 +742,7 @@ export const validateStep = (step: number, formData: Phase1SurveyFormData): Step
 
         // 4. Kiểm tra khuyết tật D so với Cấu kiện E (Nếu tầng có cấu kiện kết cấu riêng)
         if (floor.hasStructuralElements !== false) {
-          structuralElements.forEach((el) => {
+          structuralElements.forEach((el, elIdx) => {
             const hasDamageMarked = el.hasDamage || (el.defects && el.defects.length > 0);
             const defectCount = el.defects ? el.defects.length : 0;
 
@@ -705,6 +752,8 @@ export const validateStep = (step: number, formData: Phase1SurveyFormData): Step
                 label: `3.2. Ghi sổ khuyết tật D cho Cấu kiện ${el.elementCode} (${floorTitle})`,
                 step: 3,
                 floorIndex: fIdx,
+                elementIndex: elIdx,
+                subSection: 'elements',
                 description: `Cấu kiện ${el.elementCode} được đánh dấu CÓ nứt kết cấu/võng nhưng chưa có điểm khuyết tật D nào được ghi sổ. Vui lòng chấm điểm ghi sổ D-xx hoặc bỏ chọn mục hư hỏng.`,
                 isBlocking: true,
               });
@@ -716,6 +765,8 @@ export const validateStep = (step: number, formData: Phase1SurveyFormData): Step
                 label: `3.2. Ảnh bối cảnh khuyết tật Cấu kiện ${el.elementCode} (${floorTitle})`,
                 step: 3,
                 floorIndex: fIdx,
+                elementIndex: elIdx,
+                subSection: 'elements',
                 description: `Cấu kiện ${el.elementCode} có ${defectCount} khuyết tật D nhưng chưa có ảnh bối cảnh cấu kiện để định vị. Vui lòng chụp/chọn ảnh bối cảnh.`,
                 isBlocking: true,
               });
@@ -734,6 +785,8 @@ export const validateStep = (step: number, formData: Phase1SurveyFormData): Step
                   label: `3.2. Thông số chi tiết ${isCrack ? 'vết nứt kết cấu' : 'khuyết tật kết cấu'} ${d.defectCode} (${el.elementCode} - ${floorTitle})`,
                   step: 3,
                   floorIndex: fIdx,
+                  elementIndex: elIdx,
+                  subSection: 'elements',
                   description: isCrack
                     ? `Vết nứt kết cấu ${d.defectCode} chưa điền đủ các thông số bắt buộc (ảnh cận cảnh CU, kích thước bề rộng/dài, dạng nứt kết cấu hoặc ghi chú).`
                     : `Khuyết tật kết cấu ${d.defectCode} (${d.defectType || 'vỡ/rỉ/biến dạng'}) chưa có ảnh cận cảnh CU hoặc ghi chú mô tả (không yêu cầu đo vết nứt).`,

@@ -38,16 +38,62 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
   const zones: DamageZoneData[] = currentFloor.zones || [];
   const structuralElements: StructuralElementData[] = currentFloor.structuralElements || [];
 
-  // Lắng nghe sự kiện chuyển tầng từ modal cảnh báo thiếu thông tin
+  // Lắng nghe sự kiện chuyển tầng & phân cấp chi tiết từ modal cảnh báo thiếu thông tin
   useEffect(() => {
+    const handleFocusHierarchy = (e: any) => {
+      const { floorIndex, zoneIndex, elementIndex, subSection, fieldId } = e.detail || {};
+      if (typeof floorIndex === 'number' && floorIndex >= 0 && floorIndex < formData.floors.length) {
+        setActiveFloorIndex(floorIndex);
+      }
+      if (typeof zoneIndex === 'number' && zoneIndex >= 0) {
+        setActiveZoneIndex(zoneIndex);
+      }
+      if (typeof elementIndex === 'number' && elementIndex >= 0) {
+        setActiveElementIndex(elementIndex);
+      }
+
+      // Tự động cuộn đến phân mục mục tiêu sau khi state cập nhật
+      setTimeout(() => {
+        let targetId = fieldId;
+        if (!targetId || !document.getElementById(targetId)) {
+          if (subSection === 'overview' && typeof floorIndex === 'number') {
+            targetId = `step3-floor-overview-section-${floorIndex}`;
+          } else if (subSection === 'cad-zone') {
+            targetId = 'step3-floor-cad-section';
+          } else if (subSection === 'cad-element') {
+            targetId = 'step3-structure-cad-section';
+          } else if (subSection === 'zones') {
+            targetId = 'step3-active-zone-card';
+          } else if (subSection === 'elements') {
+            targetId = 'step3-active-element-card';
+          }
+        }
+        if (targetId) {
+          const el = document.getElementById(targetId);
+          if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            el.classList.add('ring-4', 'ring-red-400', 'bg-red-50/50', 'transition-all', 'duration-300');
+            setTimeout(() => {
+              el?.classList.remove('ring-4', 'ring-red-400', 'bg-red-50/50', 'transition-all', 'duration-300');
+            }, 3500);
+          }
+        }
+      }, 200);
+    };
+
     const handleFocusFloor = (e: any) => {
       const fIdx = e.detail?.floorIndex;
       if (typeof fIdx === 'number' && fIdx >= 0 && fIdx < formData.floors.length) {
         setActiveFloorIndex(fIdx);
       }
     };
+
+    window.addEventListener('ksqh-focus-step3-hierarchy', handleFocusHierarchy);
     window.addEventListener('ksqh-focus-floor', handleFocusFloor);
-    return () => window.removeEventListener('ksqh-focus-floor', handleFocusFloor);
+    return () => {
+      window.removeEventListener('ksqh-focus-step3-hierarchy', handleFocusHierarchy);
+      window.removeEventListener('ksqh-focus-floor', handleFocusFloor);
+    };
   }, [formData.floors.length]);
 
   // Thêm Tầng Mới

@@ -59,75 +59,49 @@ export const PhotoEmptyState: React.FC<PhotoEmptyStateProps> = ({
         </div>
       )}
 
-      <div style={{ display: 'flex', gap: isCompact ? '0.3rem' : '0.5rem', flexWrap: 'wrap', justifyContent: 'center' }}>
-        {/* 1. NÚT CHÍNH: Live Camera */}
+      <div style={{ display: 'flex', gap: isCompact ? '0.35rem' : '0.6rem', flexWrap: 'wrap', justifyContent: 'center' }}>
+        {/* 1. NÚT CHÍNH: Chụp ảnh */}
         <button
           type="button"
           onClick={onTriggerCapture}
           style={{
             display: 'inline-flex',
             alignItems: 'center',
-            gap: isCompact ? '0.2rem' : '0.4rem',
-            padding: isCompact ? '0.35rem 0.55rem' : '0.45rem 0.85rem',
+            gap: isCompact ? '0.25rem' : '0.45rem',
+            padding: isCompact ? '0.4rem 0.65rem' : '0.5rem 0.95rem',
             fontWeight: 700,
             backgroundColor: '#059669',
             color: '#ffffff',
             border: 'none',
-            borderRadius: '0.45rem',
+            borderRadius: '0.5rem',
             cursor: 'pointer',
-            fontSize: isCompact ? '0.7rem' : '0.775rem',
+            fontSize: isCompact ? '0.72rem' : '0.8rem',
             boxShadow: '0 2px 4px rgba(5, 150, 105, 0.25)',
             userSelect: 'none',
             whiteSpace: 'nowrap',
             transition: 'all 0.15s ease',
           }}
-          title="Mở camera trực tiếp (hỗ trợ khung ngắm 4:3 và zoom 2 ngón tay)"
+          title="Mở máy ảnh chụp trực tiếp (có khung ngắm chuẩn & zoom 2 ngón tay)"
         >
           <Camera size={isCompact ? 13 : 15} />
-          <span>{isCompact ? 'Live' : 'Camera Live'}</span>
+          <span>{isCompact ? 'Chụp ảnh' : 'Chụp ảnh'}</span>
         </button>
 
-        {/* 2. NÚT CHÍNH 2: Máy ảnh máy (Native Camera: 12MP/48MP, Flash, Macro) */}
-        <label
-          htmlFor={cameraInputId}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: isCompact ? '0.2rem' : '0.4rem',
-            padding: isCompact ? '0.35rem 0.55rem' : '0.45rem 0.85rem',
-            fontWeight: 700,
-            backgroundColor: '#0284c7',
-            color: '#ffffff',
-            border: 'none',
-            borderRadius: '0.45rem',
-            cursor: 'pointer',
-            fontSize: isCompact ? '0.7rem' : '0.775rem',
-            boxShadow: '0 2px 4px rgba(2, 132, 199, 0.25)',
-            userSelect: 'none',
-            whiteSpace: 'nowrap',
-            transition: 'all 0.15s ease',
-          }}
-          title="Mở ứng dụng máy ảnh mặc định của điện thoại (chụp sắc nét 12MP/48MP, có đèn Flash & Macro soi thước đo)"
-        >
-          <Camera size={isCompact ? 13 : 15} />
-          <span>{isCompact ? 'Máy ảnh' : 'Máy ảnh máy'}</span>
-        </label>
-
-        {/* 3. NÚT PHỤ: Chọn ảnh từ thư viện máy */}
+        {/* 2. NÚT PHỤ: Chọn từ máy */}
         <label
           htmlFor={galleryInputId}
           style={{
             display: 'inline-flex',
             alignItems: 'center',
-            gap: isCompact ? '0.2rem' : '0.4rem',
-            padding: isCompact ? '0.35rem 0.55rem' : '0.45rem 0.75rem',
+            gap: isCompact ? '0.25rem' : '0.45rem',
+            padding: isCompact ? '0.4rem 0.65rem' : '0.5rem 0.85rem',
             fontWeight: 600,
             backgroundColor: '#ffffff',
             color: '#334155',
             border: '1px solid #cbd5e1',
-            borderRadius: '0.45rem',
+            borderRadius: '0.5rem',
             cursor: 'pointer',
-            fontSize: isCompact ? '0.7rem' : '0.75rem',
+            fontSize: isCompact ? '0.72rem' : '0.775rem',
             boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
             userSelect: 'none',
             whiteSpace: 'nowrap',
@@ -136,7 +110,7 @@ export const PhotoEmptyState: React.FC<PhotoEmptyStateProps> = ({
           title="Chọn ảnh đã chụp sẵn từ thư viện thiết bị"
         >
           <ImageIcon size={isCompact ? 13 : 14} color="#64748b" />
-          <span>{isCompact ? 'Album' : 'Chọn từ máy'}</span>
+          <span>{isCompact ? 'Chọn ảnh' : 'Chọn từ máy'}</span>
         </label>
       </div>
     </div>

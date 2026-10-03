@@ -21,7 +21,8 @@ import {
 import { ImageAnnotationModal } from '../../../components/common/ImageAnnotationModal';
 import { PhotoLightboxModal } from '../../../components/common/photo-capture/components/PhotoLightboxModal';
 import { useLightbox } from '../../../components/common/photo-capture/hooks/useLightbox';
-import { applyMetroWatermark } from '../../../utils/watermarkEngine';
+import { compressCleanImage } from '../../../utils/cleanImageCompressor';
+import { PhotoWatermarkOverlay } from '../../../components/common/photo-capture/components/PhotoWatermarkOverlay';
 import { uploadQueue } from '../../../core/services/uploadQueueService';
 import { resolveOfflinePhotoUrl, getSafeDisplayUrl } from '../../../core/storage/offlinePhotoStorage';
 
@@ -123,6 +124,12 @@ const MinutesPhotoCardItem: React.FC<{
             Đang nạp ảnh...
           </div>
         )}
+
+        {/* Lớp phủ Watermark bằng CSS thuần sắc nét không can thiệp pixel gốc */}
+        <PhotoWatermarkOverlay
+          photoCode={pageCode}
+          variant="compact"
+        />
 
         {/* Badge "Nhấn để phóng to" */}
         <div className="absolute top-2 left-2 z-10 pointer-events-none">
@@ -254,30 +261,24 @@ export const Step9_FieldSignatures: React.FC<Step9Props> = ({ onSubmitFinal, isS
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
       try {
-        // 1. Đọc file sang Base64
-        const rawDataUrl = await new Promise<string>((resolve, reject) => {
+        // 1. Nén ảnh sạch 2K @ 0.80 bảo toàn pixel gốc (KHÔNG dập canvas lên ảnh)
+        const compRes = await compressCleanImage(file, { maxDimension: 2048, quality: 0.80 });
+        const uploadBlob = compRes.blob;
+
+        // 2. Tính số thứ tự và sinh Photo Code chuẩn
+        const currentList = (usePhase1SurveyStore.getState().formData.signatures.workingMinutesPhotos || []).filter(Boolean);
+        const photoIndex = currentList.length + 1;
+        const photoCode = `HCM_M2.[${cleanParcel}]_DOC_MINUTES_${String(photoIndex).padStart(2, '0')}`;
+
+        // Đọc sang Data URL để preview tức thì
+        const localDataUrl = await new Promise<string>((resolve, reject) => {
           const reader = new FileReader();
           reader.onload = () => resolve(reader.result as string);
           reader.onerror = reject;
-          reader.readAsDataURL(file);
+          reader.readAsDataURL(uploadBlob);
         });
 
-        // 2. Tính số thứ tự và dập Watermark Metro 2
-        const currentList = (usePhase1SurveyStore.getState().formData.signatures.workingMinutesPhotos || []).filter(Boolean);
-        const photoIndex = currentList.length + 1;
-
-        const watermarked = await applyMetroWatermark(rawDataUrl, {
-          parcelCode,
-          floor: 'DOC',
-          zoneOrRoom: 'MINUTES',
-          photoType: 'MINUTES',
-          photoIndex,
-        });
-
-        const localDataUrl = watermarked.dataUrl;
-        const photoCode = watermarked.photoCode || `HCM_M2.[${cleanParcel}]_DOC_MINUTES_${String(photoIndex).padStart(2, '0')}`;
-
-        // 3. Cập nhật ngay preview Base64 có Watermark vào Store để KSV nhìn thấy tức thì
+        // 3. Cập nhật ngay preview ảnh sạch vào Store để KSV nhìn thấy tức thì
         const updatedList = [...currentList, localDataUrl];
         updateFormData({
           signatures: {
@@ -300,18 +301,6 @@ export const Step9_FieldSignatures: React.FC<Step9Props> = ({ onSubmitFinal, isS
           'project': 'METRO2_HCM',
           'captured-at': new Date().toISOString(),
         };
-
-        // 5. Chuẩn bị Blob và lưu vào bộ nhớ tạm để phục vụ Retry nếu cần
-        let uploadBlob = watermarked.blob;
-        if (!uploadBlob) {
-          const byteString = atob(localDataUrl.split(',')[1]);
-          const ab = new ArrayBuffer(byteString.length);
-          const ia = new Uint8Array(ab);
-          for (let j = 0; j < byteString.length; j++) {
-            ia[j] = byteString.charCodeAt(j);
-          }
-          uploadBlob = new Blob([ab], { type: 'image/jpeg' });
-        }
 
         blobsRef.current.set(localDataUrl, {
           blob: uploadBlob,

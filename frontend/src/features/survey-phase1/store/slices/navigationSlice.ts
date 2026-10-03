@@ -94,7 +94,22 @@ export const createNavigationSlice: StateCreator<
       get().setCurrentStep(item.step);
     }
 
-    // Nếu trường còn thiếu thuộc tầng cụ thể (floorIndex), phát sự kiện chuyển tab tầng trước
+    // Nếu là bước 3 (Khảo sát tầng/không gian chi tiết), phát sự kiện chuyển phân cấp sâu
+    if (item.step === 3) {
+      window.dispatchEvent(
+        new CustomEvent('ksqh-focus-step3-hierarchy', {
+          detail: {
+            floorIndex: item.floorIndex,
+            zoneIndex: item.zoneIndex,
+            elementIndex: item.elementIndex,
+            subSection: item.subSection,
+            fieldId: item.fieldId,
+          },
+        })
+      );
+    }
+
+    // Nếu trường còn thiếu thuộc tầng cụ thể (floorIndex), phát sự kiện chuyển tab tầng trước (tương thích ngược)
     if (item.floorIndex !== undefined) {
       window.dispatchEvent(
         new CustomEvent('ksqh-focus-floor', {
@@ -123,7 +138,7 @@ export const createNavigationSlice: StateCreator<
           if (childInput) childInput.focus();
         }
       }
-    }, item.floorIndex !== undefined ? 400 : 250);
+    }, item.floorIndex !== undefined || item.zoneIndex !== undefined ? 450 : 250);
   },
 
   validateForFinalSubmit: () => {

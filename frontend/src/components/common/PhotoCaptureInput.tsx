@@ -89,6 +89,7 @@ export const PhotoCaptureInput: React.FC<PhotoCaptureProps> = ({
     handleFileChange,
     handleClear,
     handleRotate90,
+    handleRetryUpload,
   } = usePhotoUpload({
     value,
     onChange,
@@ -356,6 +357,7 @@ export const PhotoCaptureInput: React.FC<PhotoCaptureProps> = ({
           onRotate90={handleRotate90}
           onStartAnnotating={() => setIsAnnotating(true)}
           onClear={handleClear}
+          onRetryUpload={handleRetryUpload}
         />
       ) : (
         /* Empty State */
