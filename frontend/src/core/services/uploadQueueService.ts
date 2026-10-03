@@ -7,6 +7,7 @@ import {
   getAllPendingPhotos,
   deleteOfflinePhoto,
   revokeManagedBlobUrl,
+  replaceLocalUriInObject,
 } from '../storage/offlinePhotoStorage';
 
 export type UploadStatus = 'QUEUED' | 'UPLOADING' | 'SUCCESS' | 'ERROR';
@@ -73,9 +74,30 @@ class UploadQueueService {
           folder: targetFolder,
           mimeType: item.mimeType || 'image/jpeg',
           metadata: item.metadata,
-          onSuccess: async () => {
+          onSuccess: async (publicUrl) => {
             await deleteOfflinePhoto(item.id);
             revokeManagedBlobUrl(item.id);
+
+            // Tự động thăng cấp URL trong Zustand Store nếu đang mở form khảo sát
+            try {
+              const { usePhase1SurveyStore } = await import('../../features/survey-phase1/store/usePhase1SurveyStore');
+              const storeState = usePhase1SurveyStore.getState();
+              if (storeState && storeState.formData) {
+                const updated = replaceLocalUriInObject(storeState.formData, item.id, publicUrl);
+                storeState.updateFormData(updated);
+              }
+            } catch (_err) {
+              console.warn('[UploadQueue] Không thể thăng cấp URL trong Store:', _err);
+            }
+
+            // Phát sự kiện ra toàn bộ UI
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(
+                new CustomEvent('metro2:photo-promoted', {
+                  detail: { localId: item.id, publicUrl },
+                })
+              );
+            }
           },
         });
         count++;

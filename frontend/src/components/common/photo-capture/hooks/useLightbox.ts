@@ -11,9 +11,25 @@ export function useLightbox() {
   const lightboxDragStartRef = useRef<{ x: number; y: number } | null>(null);
   const lightboxInitialPanRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
 
+  const isMouseDownRef = useRef(false);
+
   const resetLightbox = () => {
     setLightboxZoom(1.0);
     setLightboxPan({ x: 0, y: 0 });
+    isMouseDownRef.current = false;
+    lightboxDragStartRef.current = null;
+  };
+
+  const handleZoomIn = () => {
+    setLightboxZoom((prev) => Math.min(4.0, Math.round((prev + 0.5) * 10) / 10));
+  };
+
+  const handleZoomOut = () => {
+    setLightboxZoom((prev) => {
+      const next = Math.max(1.0, Math.round((prev - 0.5) * 10) / 10);
+      if (next === 1.0) setLightboxPan({ x: 0, y: 0 });
+      return next;
+    });
   };
 
   const handleLightboxTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
@@ -59,6 +75,28 @@ export function useLightbox() {
     setIsLightboxPinching(false);
   };
 
+  const handleLightboxMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.button !== 0 || lightboxZoom <= 1.0) return;
+    isMouseDownRef.current = true;
+    lightboxDragStartRef.current = { x: e.clientX, y: e.clientY };
+    lightboxInitialPanRef.current = { ...lightboxPan };
+  };
+
+  const handleLightboxMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isMouseDownRef.current || !lightboxDragStartRef.current || lightboxZoom <= 1.0) return;
+    const dx = e.clientX - lightboxDragStartRef.current.x;
+    const dy = e.clientY - lightboxDragStartRef.current.y;
+    setLightboxPan({
+      x: lightboxInitialPanRef.current.x + dx,
+      y: lightboxInitialPanRef.current.y + dy,
+    });
+  };
+
+  const handleLightboxMouseUp = () => {
+    isMouseDownRef.current = false;
+    lightboxDragStartRef.current = null;
+  };
+
   const handleLightboxWheel = (e: React.WheelEvent<HTMLDivElement>) => {
     e.preventDefault();
     const delta = e.deltaY < 0 ? 0.2 : -0.2;
@@ -78,9 +116,14 @@ export function useLightbox() {
     setLightboxPan,
     isLightboxPinching,
     resetLightbox,
+    handleZoomIn,
+    handleZoomOut,
     handleLightboxTouchStart,
     handleLightboxTouchMove,
     handleLightboxTouchEnd,
+    handleLightboxMouseDown,
+    handleLightboxMouseMove,
+    handleLightboxMouseUp,
     handleLightboxWheel,
   };
 }

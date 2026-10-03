@@ -50,9 +50,14 @@ export const Step9_FieldSignatures: React.FC<Step9Props> = ({ onSubmitFinal, isS
     lightboxPan,
     isLightboxPinching,
     resetLightbox,
+    handleZoomIn,
+    handleZoomOut,
     handleLightboxTouchStart,
     handleLightboxTouchMove,
     handleLightboxTouchEnd,
+    handleLightboxMouseDown,
+    handleLightboxMouseMove,
+    handleLightboxMouseUp,
     handleLightboxWheel,
   } = useLightbox();
   const [annotatingIndex, setAnnotatingIndex] = useState<number | null>(null);
@@ -591,7 +596,7 @@ export const Step9_FieldSignatures: React.FC<Step9Props> = ({ onSubmitFinal, isS
         )}
       </Card>
 
-      {/* Lightbox xem lớn ảnh biên bản — pinch-to-zoom 2 ngón tay */}
+      {/* Lightbox xem lớn ảnh biên bản — pinch-to-zoom 2 ngón tay & cuộn chuột */}
       <PhotoLightboxModal
         isOpen={lightboxUrl !== null}
         onClose={() => {
@@ -603,9 +608,14 @@ export const Step9_FieldSignatures: React.FC<Step9Props> = ({ onSubmitFinal, isS
         lightboxPan={lightboxPan}
         isLightboxPinching={isLightboxPinching}
         onResetZoom={resetLightbox}
+        onZoomIn={handleZoomIn}
+        onZoomOut={handleZoomOut}
         onTouchStart={handleLightboxTouchStart}
         onTouchMove={handleLightboxTouchMove}
         onTouchEnd={handleLightboxTouchEnd}
+        onMouseDown={handleLightboxMouseDown}
+        onMouseMove={handleLightboxMouseMove}
+        onMouseUp={handleLightboxMouseUp}
         onWheel={handleLightboxWheel}
       />
 

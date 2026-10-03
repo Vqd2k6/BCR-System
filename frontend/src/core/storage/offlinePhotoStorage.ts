@@ -193,3 +193,78 @@ export function extractLocalIdFromUri(uri: string): string {
   }
   return uri;
 }
+
+/**
+ * Phân giải chuỗi định danh ảnh (URI) thành URL có thể hiển thị được trên DOM
+ * - Nếu là "blob:local://{id}", tra cứu trong RAM Map hoặc nạp từ IndexedDB.
+ * - Nếu là URL Cloud (http...) hoặc DataURL, trả về nguyên bản.
+ */
+export async function resolveOfflinePhotoUrl(uri?: string | null): Promise<string> {
+  if (!uri || typeof uri !== 'string' || uri.trim() === '') {
+    return '';
+  }
+
+  // 1. Nếu là ảnh Cloud hoặc Base64, hiển thị trực tiếp
+  if (uri.startsWith('http://') || uri.startsWith('https://') || uri.startsWith('/uploads') || uri.startsWith('data:')) {
+    return uri;
+  }
+
+  // 2. Nếu là Blob URL thông thường còn active
+  if (uri.startsWith('blob:http')) {
+    return uri;
+  }
+
+  // 3. Nếu là mã định danh bền vững blob:local://{id}
+  if (uri.startsWith('blob:local://')) {
+    const localId = extractLocalIdFromUri(uri);
+    // Kiểm tra trong RAM registry trước
+    if (activeObjectUrls.has(localId)) {
+      return activeObjectUrls.get(localId)!;
+    }
+
+    // Nếu chưa có trong RAM (ví dụ sau khi F5), khôi phục từ IndexedDB
+    try {
+      const record = await getOfflinePhoto(localId);
+      if (record && record.blob) {
+        return createManagedBlobUrl(localId, record.blob);
+      }
+    } catch (err) {
+      console.warn(`[OfflinePhotoStorage] Không thể khôi phục ảnh offline ${localId}:`, err);
+    }
+    return '';
+  }
+
+  return uri;
+}
+
+/**
+ * Quét đệ quy đối tượng dữ liệu (Form Data / Object / Array) và thay thế
+ * mã tạm "blob:local://${localId}" thành URL Cloud chính thức sau khi tải lên Cloudflare R2
+ */
+export function replaceLocalUriInObject(target: any, localId: string, cloudUrl: string): any {
+  if (target === null || target === undefined) return target;
+
+  const targetUri = `blob:local://${localId}`;
+
+  if (typeof target === 'string') {
+    if (target === targetUri || target.startsWith(`${targetUri}?`)) {
+      return cloudUrl;
+    }
+    return target;
+  }
+
+  if (Array.isArray(target)) {
+    return target.map((item) => replaceLocalUriInObject(item, localId, cloudUrl));
+  }
+
+  if (typeof target === 'object') {
+    const updated: Record<string, any> = {};
+    for (const key of Object.keys(target)) {
+      updated[key] = replaceLocalUriInObject(target[key], localId, cloudUrl);
+    }
+    return updated;
+  }
+
+  return target;
+}
+

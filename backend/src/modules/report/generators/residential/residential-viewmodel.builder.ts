@@ -43,7 +43,8 @@ export function buildResidentialViewModel(reportData: any): ResidentialReportVie
   const getPhotoFromSurveyJson = (jsonObj: any, photoType: string): ReportPhotoItem | null => {
     if (!jsonObj) return null;
     const url = typeof jsonObj === 'string' ? jsonObj : jsonObj.url;
-    if (!url) return null;
+    // Tuyệt đối không nạp URL blob: tạm thời của client vào Chromium server
+    if (!url || typeof url !== 'string' || url.startsWith('blob:')) return null;
     return {
       photoId: photoType.substring(0, 8),
       photoType: photoType as any,

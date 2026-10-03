@@ -4,6 +4,7 @@ import { PhotoCaptureInput } from '../common/PhotoCaptureInput';
 import { ImageZoomModal } from '../common/ImageZoomModal';
 import { InfoPopover } from '../../core/components/ui/InfoPopover';
 import { getNextAvailablePinCode } from './FloorCadPinningCanvas';
+import { resolveOfflinePhotoUrl } from '../../core/storage/offlinePhotoStorage';
 
 export interface DefectItem {
   id?: string;
@@ -41,6 +42,109 @@ interface Props {
   floorName?: string;
   zoneOrElementCode?: string;
 }
+
+const CuPhotoThumbnailItem: React.FC<{
+  photoUrl: string;
+  pIdx: number;
+  isPrimary: boolean;
+  pCode?: string;
+  defectCode: string;
+  readOnly?: boolean;
+  onZoom: (url: string, title: string, code?: string) => void;
+  onRemove: (idx: number) => void;
+}> = ({ photoUrl, pIdx, isPrimary, pCode, defectCode, readOnly, onZoom, onRemove }) => {
+  const [displayUrl, setDisplayUrl] = React.useState<string>(photoUrl || '');
+
+  React.useEffect(() => {
+    let isSubscribed = true;
+    if (photoUrl) {
+      resolveOfflinePhotoUrl(photoUrl).then((resolved) => {
+        if (isSubscribed && resolved) setDisplayUrl(resolved);
+      });
+    }
+    return () => {
+      isSubscribed = false;
+    };
+  }, [photoUrl]);
+
+  const currentSrc = displayUrl || photoUrl;
+
+  return (
+    <div
+      key={`cu_thumb_${pIdx}`}
+      className="group relative aspect-[4/3] rounded-lg border border-slate-200 overflow-hidden bg-slate-900 shadow-xs cursor-pointer"
+      onClick={() =>
+        onZoom(
+          currentSrc,
+          `Khuyết tật ${defectCode} - Ảnh #${pIdx + 1}${isPrimary ? ' (Ảnh chính)' : ''}`,
+          pCode
+        )
+      }
+      title="Nhấn vào để phóng to"
+    >
+      <img
+        src={currentSrc}
+        alt={`Ảnh cận cảnh #${pIdx + 1}`}
+        className="w-full h-full object-cover hover:scale-105 transition-transform duration-200"
+      />
+
+      {/* Badge số thứ tự ảnh */}
+      <div className="absolute top-1.5 left-1.5 flex items-center gap-1">
+        <span
+          className={`text-[10px] font-bold px-1.5 py-0.5 rounded shadow-sm ${
+            isPrimary
+              ? 'bg-emerald-600 text-white'
+              : 'bg-slate-900/80 backdrop-blur-xs text-white'
+          }`}
+        >
+          {isPrimary ? 'Ảnh 1 (Chính)' : `Ảnh #${pIdx + 1}`}
+        </span>
+      </div>
+
+      {/* Nút Xem lớn / Xóa ảnh */}
+      <div className="absolute top-1.5 right-1.5 flex items-center gap-1">
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onZoom(
+              currentSrc,
+              `Khuyết tật ${defectCode} - Ảnh #${pIdx + 1}${isPrimary ? ' (Ảnh chính)' : ''}`,
+              pCode
+            );
+          }}
+          className="p-1 rounded bg-slate-900/80 hover:bg-slate-900 text-slate-200 hover:text-white transition-colors"
+          title="Nhấn vào để phóng to"
+        >
+          <ZoomIn className="w-3.5 h-3.5" />
+        </button>
+        {!readOnly && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onRemove(pIdx);
+            }}
+            className="p-1 rounded bg-red-600/80 hover:bg-red-600 text-white transition-colors"
+            title="Xóa ảnh này"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        )}
+      </div>
+
+      {/* Badge Nhấn vào để phóng to ở dưới cùng */}
+      <div className="absolute bottom-0 inset-x-0 bg-slate-950/85 backdrop-blur-xs px-1.5 py-0.5 flex items-center justify-between">
+        <p className="text-[9px] font-mono text-emerald-400 truncate">
+          {pCode || 'PHOTO_CU'}
+        </p>
+        <span className="text-[8px] text-slate-300 font-medium flex items-center gap-0.5 shrink-0">
+          <ZoomIn className="w-2.5 h-2.5" /> Phóng to
+        </span>
+      </div>
+    </div>
+  );
+};
 
 const ARCH_SCREENING_CATEGORIES = [
   'Nứt tường gạch / Vữa trát hoàn thiện',
@@ -1041,77 +1145,19 @@ export const DefectPinningCanvas: React.FC<Props> = ({
                           (pIdx === 0 ? selectedDefect.cuPhotoCode : undefined);
                         const isPrimary = pIdx === 0;
                         return (
-                          <div
+                          <CuPhotoThumbnailItem
                             key={`cu_thumb_${pIdx}`}
-                            className="group relative aspect-[4/3] rounded-lg border border-slate-200 overflow-hidden bg-slate-900 shadow-xs"
-                          >
-                            <img
-                              src={photoUrl}
-                              alt={`Ảnh cận cảnh #${pIdx + 1}`}
-                              className="w-full h-full object-cover cursor-pointer hover:scale-105 transition-transform duration-200"
-                              onClick={() =>
-                                setZoomModalImage({
-                                  url: photoUrl,
-                                  title: `Khuyết tật ${selectedDefect.defectCode} - Ảnh #${pIdx + 1}${
-                                    isPrimary ? ' (Ảnh chính)' : ''
-                                  }`,
-                                  code: pCode,
-                                })
-                              }
-                            />
-
-                            {/* Badge số thứ tự ảnh */}
-                            <div className="absolute top-1.5 left-1.5 flex items-center gap-1">
-                              <span
-                                className={`text-[10px] font-bold px-1.5 py-0.5 rounded shadow-sm ${
-                                  isPrimary
-                                    ? 'bg-emerald-600 text-white'
-                                    : 'bg-slate-900/80 backdrop-blur-xs text-white'
-                                }`}
-                              >
-                                {isPrimary ? 'Ảnh 1 (Chính)' : `Ảnh #${pIdx + 1}`}
-                              </span>
-                            </div>
-
-                            {/* Nút Xem lớn / Xóa ảnh */}
-                            <div className="absolute top-1.5 right-1.5 flex items-center gap-1">
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setZoomModalImage({
-                                    url: photoUrl,
-                                    title: `Khuyết tật ${selectedDefect.defectCode} - Ảnh #${pIdx + 1}${
-                                      isPrimary ? ' (Ảnh chính)' : ''
-                                    }`,
-                                    code: pCode,
-                                  })
-                                }
-                                className="p-1 rounded bg-slate-900/80 hover:bg-slate-900 text-slate-200 hover:text-white transition-colors"
-                                title="Soi phóng to nét (2 ngón tay)"
-                              >
-                                <ZoomIn className="w-3.5 h-3.5" />
-                              </button>
-                              {!readOnly && (
-                                <button
-                                  type="button"
-                                  onClick={() => handleRemoveCuPhoto(pIdx)}
-                                  className="p-1 rounded bg-red-600/80 hover:bg-red-600 text-white transition-colors"
-                                  title="Xóa ảnh này"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              )}
-                            </div>
-
-                            {/* Mã Photo Code dưới đáy */}
-                            {pCode && (
-                              <div className="absolute bottom-0 inset-x-0 bg-slate-950/80 backdrop-blur-xs px-1.5 py-0.5">
-                                <p className="text-[9px] font-mono text-emerald-400 truncate">
-                                  {pCode}
-                                </p>
-                              </div>
-                            )}
-                          </div>
+                            photoUrl={photoUrl}
+                            pIdx={pIdx}
+                            isPrimary={isPrimary}
+                            pCode={pCode}
+                            defectCode={selectedDefect.defectCode}
+                            readOnly={readOnly}
+                            onZoom={(url, title, code) =>
+                              setZoomModalImage({ url, title, code })
+                            }
+                            onRemove={handleRemoveCuPhoto}
+                          />
                         );
                       })}
                     </div>

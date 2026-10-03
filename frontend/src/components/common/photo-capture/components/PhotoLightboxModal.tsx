@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
-import { X, Download, Loader2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, Download, Loader2, ZoomIn, ZoomOut } from 'lucide-react';
 import { PhotoWatermarkOverlay } from './PhotoWatermarkOverlay';
 import { downloadWatermarkedImage } from '../../../../utils/cleanImageCompressor';
+import { resolveOfflinePhotoUrl } from '../../../../core/storage/offlinePhotoStorage';
 
 interface PhotoLightboxModalProps {
   isOpen: boolean;
@@ -12,10 +13,15 @@ interface PhotoLightboxModalProps {
   lightboxPan: { x: number; y: number };
   isLightboxPinching: boolean;
   onResetZoom: () => void;
+  onZoomIn?: () => void;
+  onZoomOut?: () => void;
   onTouchStart: (e: React.TouchEvent<HTMLDivElement>) => void;
   onTouchMove: (e: React.TouchEvent<HTMLDivElement>) => void;
   onTouchEnd: () => void;
   onWheel: (e: React.WheelEvent<HTMLDivElement>) => void;
+  onMouseDown?: (e: React.MouseEvent<HTMLDivElement>) => void;
+  onMouseMove?: (e: React.MouseEvent<HTMLDivElement>) => void;
+  onMouseUp?: () => void;
 }
 
 export const PhotoLightboxModal: React.FC<PhotoLightboxModalProps> = ({
@@ -27,19 +33,43 @@ export const PhotoLightboxModal: React.FC<PhotoLightboxModalProps> = ({
   lightboxPan,
   isLightboxPinching,
   onResetZoom,
+  onZoomIn,
+  onZoomOut,
   onTouchStart,
   onTouchMove,
   onTouchEnd,
   onWheel,
+  onMouseDown,
+  onMouseMove,
+  onMouseUp,
 }) => {
   const [isExporting, setIsExporting] = useState(false);
+  const [displayUrl, setDisplayUrl] = useState<string>(imageUrl || '');
+
+  // Tự động phân giải offline blob:local:// thành Blob URL hiển thị được trên DOM
+  useEffect(() => {
+    let isSubscribed = true;
+    if (imageUrl) {
+      resolveOfflinePhotoUrl(imageUrl).then((resolved) => {
+        if (isSubscribed && resolved) {
+          setDisplayUrl(resolved);
+        }
+      });
+    }
+    return () => {
+      isSubscribed = false;
+    };
+  }, [imageUrl]);
+
   if (!isOpen || !imageUrl) return null;
+
+  const currentDisplaySrc = displayUrl || imageUrl;
 
   const handleDownload = async () => {
     try {
       setIsExporting(true);
       const filename = `${photoCode || 'photo'}_${Date.now()}.jpg`;
-      await downloadWatermarkedImage(imageUrl, filename, {
+      await downloadWatermarkedImage(currentDisplaySrc, filename, {
         photoCode,
         timestamp: new Date().toLocaleString('vi-VN'),
       });
@@ -75,6 +105,30 @@ export const PhotoLightboxModal: React.FC<PhotoLightboxModalProps> = ({
         }}
       >
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          {onZoomOut && (
+            <button
+              type="button"
+              onClick={onZoomOut}
+              disabled={lightboxZoom <= 1.0}
+              style={{
+                backgroundColor: 'rgba(255, 255, 255, 0.15)',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: '50%',
+                width: '32px',
+                height: '32px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: lightboxZoom <= 1.0 ? 'not-allowed' : 'pointer',
+                opacity: lightboxZoom <= 1.0 ? 0.4 : 1,
+              }}
+              title="Thu nhỏ"
+            >
+              <ZoomOut size={16} />
+            </button>
+          )}
+
           <button
             type="button"
             onClick={onResetZoom}
@@ -90,8 +144,32 @@ export const PhotoLightboxModal: React.FC<PhotoLightboxModalProps> = ({
             }}
             title="Chạm để đặt lại 1.0x"
           >
-            <span>{lightboxZoom.toFixed(1)}x (Chạm về 1.0x)</span>
+            <span>{lightboxZoom.toFixed(1)}x (Về 1.0x)</span>
           </button>
+
+          {onZoomIn && (
+            <button
+              type="button"
+              onClick={onZoomIn}
+              disabled={lightboxZoom >= 4.0}
+              style={{
+                backgroundColor: 'rgba(255, 255, 255, 0.15)',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: '50%',
+                width: '32px',
+                height: '32px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: lightboxZoom >= 4.0 ? 'not-allowed' : 'pointer',
+                opacity: lightboxZoom >= 4.0 ? 0.4 : 1,
+              }}
+              title="Phóng to"
+            >
+              <ZoomIn size={16} />
+            </button>
+          )}
 
           <button
             type="button"
@@ -138,12 +216,15 @@ export const PhotoLightboxModal: React.FC<PhotoLightboxModalProps> = ({
         </button>
       </div>
 
-      {/* Vùng cảm ứng zoom 2 ngón tay và kéo rê */}
+      {/* Vùng cảm ứng zoom 2 ngón tay và kéo rê (Mobile Touch + Desktop Mouse) */}
       <div
         onTouchStart={onTouchStart}
         onTouchMove={onTouchMove}
         onTouchEnd={onTouchEnd}
         onWheel={onWheel}
+        onMouseDown={onMouseDown}
+        onMouseMove={onMouseMove}
+        onMouseUp={onMouseUp}
         style={{
           position: 'relative',
           flex: 1,
@@ -151,11 +232,13 @@ export const PhotoLightboxModal: React.FC<PhotoLightboxModalProps> = ({
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
+          cursor: lightboxZoom > 1.0 ? 'grab' : 'zoom-in',
         }}
       >
         <img
-          src={imageUrl}
+          src={currentDisplaySrc}
           alt="Soi ảnh chi tiết"
+          draggable={false}
           style={{
             maxWidth: '100%',
             maxHeight: '100%',
@@ -163,7 +246,7 @@ export const PhotoLightboxModal: React.FC<PhotoLightboxModalProps> = ({
             transform: `scale(${lightboxZoom}) translate(${lightboxPan.x / lightboxZoom}px, ${lightboxPan.y / lightboxZoom}px)`,
             transformOrigin: 'center center',
             transition: isLightboxPinching ? 'none' : 'transform 0.1s ease-out',
-            cursor: lightboxZoom > 1 ? 'grab' : 'zoom-in',
+            pointerEvents: 'none',
           }}
         />
 
@@ -192,7 +275,7 @@ export const PhotoLightboxModal: React.FC<PhotoLightboxModalProps> = ({
             zIndex: 10,
           }}
         >
-          Chụm 2 ngón tay để phóng to soi vạch thước đo • Kéo để di chuyển
+          Chụm 2 ngón tay hoặc cuộn chuột để phóng to soi vạch thước đo • Kéo để di chuyển
         </div>
       </div>
     </div>

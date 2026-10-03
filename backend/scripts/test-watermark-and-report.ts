@@ -87,9 +87,69 @@ try {
 
   if (hasOverlay && hasBadgeTr && hasBadgeBr && hasP01Tag && hasDefectOverlay) {
     console.log('🎉 [DEBUG/QA AGENT] TẤT CẢ KIỂM THỬ TEMPLATE PDF WATERMARK ĐỀU ĐẠT CHUẨN 100%!');
-    process.exit(0);
   } else {
     console.error('❌ [DEBUG/QA AGENT] Một số kiểm thử watermark không đạt!');
+    process.exit(1);
+  }
+
+  // TEST CASE 2: Kiểm thử phòng vệ lọc bỏ chuỗi blob:local:// từ bản nháp
+  console.log('🧪 [STRICT AUDITOR] Kiểm tra phòng vệ: Lọc bỏ blob:local:// từ bản nháp DB...');
+  const mockDraftDataWithLocalBlobs: any = {
+    docCode: 'BCS-P1-CRLG-002',
+    survey_date: '03/10/2026',
+    survey_data_json: {
+      photoP01: { url: 'blob:local://photo_temp_001', notApplicable: false },
+      photoP02: { url: 'https://cdn.metro2.vn/real_p02.jpg' },
+      floors: [
+        {
+          floorCode: 'FL-01',
+          floorName: 'Tầng 1',
+          zones: [
+            {
+              zoneCode: 'Z-01',
+              ctxPhotoUrl: 'blob:local://photo_temp_ctx',
+              defects: [
+                {
+                  defectCode: 'D-01',
+                  cuPhotoUrl: 'blob:local://photo_temp_cu',
+                  cuPhotos: ['blob:local://photo_temp_cu_array', 'https://cdn.metro2.vn/real_cu.jpg'],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    },
+    identificationPhotos: [
+      {
+        photo_type: 'P01_HOUSE_NUMBER',
+        raw_photo_url: 'https://cdn.metro2.vn/relational_p01.jpg',
+      },
+    ],
+  };
+
+  const processedViewModel = ResidentialReportGenerator.buildViewModel(mockDraftDataWithLocalBlobs);
+
+  // 1. P01 mang blob:local:// phải được tự động fallback sang ảnh relational (Cloud URL)
+  const p01Url = processedViewModel.p01.url;
+  const p01FallbackSuccess = p01Url === 'https://cdn.metro2.vn/relational_p01.jpg';
+  console.log(`- P01 fallback từ blob:local:// sang Relational Cloud URL: ${p01FallbackSuccess ? '✅ ĐẠT' : '❌ LỖI'} (${p01Url})`);
+
+  // 2. Zone ctxPhotoUrl mang blob:local:// phải được lọc thành rỗng
+  const zone0 = processedViewModel.floors[0]?.zones[0];
+  const ctxCleaned = zone0?.ctxPhotoUrl === '';
+  console.log(`- Zone ctxPhotoUrl lọc sạch chuỗi blob:local://: ${ctxCleaned ? '✅ ĐẠT' : '❌ LỖI'}`);
+
+  // 3. Defect cuPhotos phải chỉ còn ảnh Cloud thật
+  const defect0 = zone0?.defects[0];
+  const cuPhotosFiltered = defect0?.cuPhotos?.length === 1 && defect0?.cuPhotos[0] === 'https://cdn.metro2.vn/real_cu.jpg';
+  console.log(`- Defect cuPhotos chỉ giữ URL Cloud, loại bỏ blob: ${cuPhotosFiltered ? '✅ ĐẠT' : '❌ LỖI'}`);
+
+  if (p01FallbackSuccess && ctxCleaned && cuPhotosFiltered) {
+    console.log('🏆 [STRICT AUDITOR] NGHIỆM THU ĐẠT 100%: PHÒNG VỆ PUPPETEER HOẠT ĐỘNG HOÀN HẢO!');
+    process.exit(0);
+  } else {
+    console.error('❌ [STRICT AUDITOR] Thất bại trong việc nghiệm thu phòng vệ blob:local!');
     process.exit(1);
   }
 } catch (error) {

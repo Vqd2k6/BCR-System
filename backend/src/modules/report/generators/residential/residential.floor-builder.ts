@@ -68,10 +68,14 @@ export function buildFloorSurveys(json: any, reportData: any): FloorBuildResult 
             isStructuralCritical: Boolean(d.isStructuralCritical),
             pinX: d.pinX !== undefined ? Number(d.pinX) : undefined,
             pinY: d.pinY !== undefined ? Number(d.pinY) : undefined,
-            ctxPhotoUrl: z.ctxPhotoUrl || '',
-            cuPhotoUrl: (Array.isArray(d.cuPhotos) && d.cuPhotos.length > 0 ? d.cuPhotos[0] : d.cuPhotoUrl) || '',
+            ctxPhotoUrl: (z.ctxPhotoUrl && typeof z.ctxPhotoUrl === 'string' && !z.ctxPhotoUrl.startsWith('blob:')) ? z.ctxPhotoUrl : '',
+            cuPhotoUrl: (() => {
+              const raw = Array.isArray(d.cuPhotos) && d.cuPhotos.length > 0 ? d.cuPhotos[0] : d.cuPhotoUrl;
+              return (raw && typeof raw === 'string' && !raw.startsWith('blob:')) ? raw : '';
+            })(),
             cuPhotoCode: (Array.isArray(d.cuPhotoCodes) && d.cuPhotoCodes.length > 0 ? d.cuPhotoCodes[0] : d.cuPhotoCode) || '',
-            cuPhotos: Array.isArray(d.cuPhotos) && d.cuPhotos.length > 0 ? d.cuPhotos : (d.cuPhotoUrl ? [d.cuPhotoUrl] : []),
+            cuPhotos: (Array.isArray(d.cuPhotos) && d.cuPhotos.length > 0 ? d.cuPhotos : (d.cuPhotoUrl ? [d.cuPhotoUrl] : []))
+              .filter((p: string) => p && typeof p === 'string' && !p.startsWith('blob:')),
             cuPhotoCodes: Array.isArray(d.cuPhotoCodes) && d.cuPhotoCodes.length > 0 ? d.cuPhotoCodes : (d.cuPhotoCode ? [d.cuPhotoCode] : []),
             notes: d.notes || '',
           };
@@ -89,7 +93,7 @@ export function buildFloorSurveys(json: any, reportData: any): FloorBuildResult 
           burlandGrade: Number(z.burlandGrade || 0),
           burlandLabel: burlandLabels[Number(z.burlandGrade || 0)] || 'Grade 0',
           notes: z.notes || '',
-          ctxPhotoUrl: z.ctxPhotoUrl || '',
+          ctxPhotoUrl: (z.ctxPhotoUrl && typeof z.ctxPhotoUrl === 'string' && !z.ctxPhotoUrl.startsWith('blob:')) ? z.ctxPhotoUrl : '',
           overviewPhotos: uniqueZonePhotos,
           hasDamage: Boolean(z.hasDamage || zDefects.length > 0),
           defects: zDefects,
@@ -108,7 +112,7 @@ export function buildFloorSurveys(json: any, reportData: any): FloorBuildResult 
           floorName,
           hasDamage: Boolean(el.hasDamage),
           notes: el.notes || '',
-          ctxPhotoUrl: el.ctxPhotoUrl || '',
+          ctxPhotoUrl: (el.ctxPhotoUrl && typeof el.ctxPhotoUrl === 'string' && !el.ctxPhotoUrl.startsWith('blob:')) ? el.ctxPhotoUrl : '',
           overviewPhotos: uniqueElPhotos,
         };
       });
@@ -119,7 +123,7 @@ export function buildFloorSurveys(json: any, reportData: any): FloorBuildResult 
         url: typeof p === 'string' ? p : p.url,
         caption: p.caption || '',
         isPortrait: isPortraitImage(typeof p === 'string' ? p : p.url),
-      })).filter((p: any) => Boolean(p.url));
+      })).filter((p: any) => Boolean(p.url) && typeof p.url === 'string' && !p.url.startsWith('blob:'));
 
       const isDualPortrait = overviewPhotos.length === 2 && (overviewPhotos.every((p: any) => p.isPortrait) || overviewPhotos.length === 2);
 

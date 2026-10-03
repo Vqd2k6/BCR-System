@@ -8,6 +8,7 @@ import {
   RefreshCw,
   RotateCw,
   MoreVertical,
+  ZoomIn,
 } from 'lucide-react';
 import { UploadStatus } from '../types';
 import { PhotoWatermarkOverlay } from './PhotoWatermarkOverlay';
@@ -80,7 +81,7 @@ export const PhotoPreviewCard: React.FC<PhotoPreviewCardProps> = ({
       <img
         id={photoCode || displayPhotoCode || undefined}
         data-photo-code={photoCode || displayPhotoCode || undefined}
-        src={hasLoadError && localPreview ? localPreview : value}
+        src={localPreview || (hasLoadError ? '' : value)}
         alt={displayPhotoCode || label || 'Photo preview'}
         onError={() => {
           if (localPreview && !hasLoadError) {
@@ -88,7 +89,7 @@ export const PhotoPreviewCard: React.FC<PhotoPreviewCardProps> = ({
           }
         }}
         onClick={onOpenLightbox}
-        title="Chạm vào ảnh để phóng to soi vạch thước đo nứt (2 ngón tay)"
+        title="Nhấn vào để phóng to soi vạch thước đo nứt (2 ngón tay)"
         style={{ width: '100%', height: '100%', objectFit: 'contain', cursor: 'pointer' }}
       />
 
@@ -380,31 +381,43 @@ export const PhotoPreviewCard: React.FC<PhotoPreviewCardProps> = ({
         </div>
       </div>
 
-      {/* Bottom Center: Hint */}
+      {/* Bottom Center: Nút Nhấn vào để phóng to */}
       <div
         style={{
           position: 'absolute',
           bottom: '6px',
           left: '50%',
           transform: 'translateX(-50%)',
-          pointerEvents: 'none',
           zIndex: 10,
         }}
       >
-        <span
-          style={{
-            fontSize: '0.62rem',
-            color: 'rgba(255, 255, 255, 0.75)',
-            backgroundColor: 'rgba(0, 0, 0, 0.45)',
-            padding: '0.15rem 0.5rem',
-            borderRadius: '9999px',
-            backdropFilter: 'blur(2px)',
-            fontWeight: 500,
-            whiteSpace: 'nowrap',
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onOpenLightbox();
           }}
+          style={{
+            fontSize: '0.65rem',
+            color: 'rgba(255, 255, 255, 0.95)',
+            backgroundColor: 'rgba(0, 0, 0, 0.6)',
+            padding: '0.2rem 0.65rem',
+            borderRadius: '9999px',
+            backdropFilter: 'blur(3px)',
+            fontWeight: 600,
+            whiteSpace: 'nowrap',
+            border: '1px solid rgba(255, 255, 255, 0.25)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.25rem',
+            cursor: 'pointer',
+          }}
+          title="Nhấn vào để phóng to ảnh soi chi tiết vạch thước đo nứt"
+          aria-label="Phóng to ảnh"
         >
-          Chạm ảnh để phóng to
-        </span>
+          <ZoomIn size={11} strokeWidth={2.5} />
+          <span>Nhấn vào để phóng to</span>
+        </button>
       </div>
     </div>
   );

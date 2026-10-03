@@ -126,7 +126,8 @@ export const PhotoCaptureInput: React.FC<PhotoCaptureProps> = ({
       try {
         const { blobUrl, localId } = await processAndStoreCleanPhoto(blob);
         setLocalPreview(blobUrl);
-        onChange(blobUrl, photoCode);
+        const localUri = `blob:local://${localId}`;
+        onChange(localUri, photoCode);
         if (isNotApplicable && onToggleNotApplicable) {
           onToggleNotApplicable(false);
         }
@@ -147,9 +148,14 @@ export const PhotoCaptureInput: React.FC<PhotoCaptureProps> = ({
     setLightboxPan,
     isLightboxPinching,
     resetLightbox,
+    handleZoomIn,
+    handleZoomOut,
     handleLightboxTouchStart,
     handleLightboxTouchMove,
     handleLightboxTouchEnd,
+    handleLightboxMouseDown,
+    handleLightboxMouseMove,
+    handleLightboxMouseUp,
     handleLightboxWheel,
   } = useLightbox();
 
@@ -409,16 +415,21 @@ export const PhotoCaptureInput: React.FC<PhotoCaptureProps> = ({
           setIsLightboxOpen(false);
           resetLightbox();
         }}
-        imageUrl={hasLoadError && localPreview ? localPreview : value}
+        imageUrl={localPreview || value}
         photoCode={displayPhotoCode}
         lightboxZoom={lightboxZoom}
         lightboxPan={lightboxPan}
         isLightboxPinching={isLightboxPinching}
         onResetZoom={resetLightbox}
+        onZoomIn={handleZoomIn}
+        onZoomOut={handleZoomOut}
         onTouchStart={handleLightboxTouchStart}
         onTouchMove={handleLightboxTouchMove}
         onTouchEnd={handleLightboxTouchEnd}
         onWheel={handleLightboxWheel}
+        onMouseDown={handleLightboxMouseDown}
+        onMouseMove={handleLightboxMouseMove}
+        onMouseUp={handleLightboxMouseUp}
       />
     </div>
   );

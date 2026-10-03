@@ -16,6 +16,7 @@ import {
   revokeManagedBlobUrl,
   isLocalBlobUri,
   extractLocalIdFromUri,
+  resolveOfflinePhotoUrl,
 } from '../../../../core/storage/offlinePhotoStorage';
 import { UploadStatus } from '../types';
 
@@ -51,29 +52,43 @@ export function usePhotoUpload({
     setHasLoadError(false);
   }, [value]);
 
+  // Lắng nghe sự kiện ảnh được đồng bộ ngầm lên Cloud
+  useEffect(() => {
+    const handlePhotoPromoted = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail && detail.localId === currentLocalIdRef.current) {
+        setUploadStatus('SUCCESS');
+        if (detail.publicUrl) {
+          onChange(detail.publicUrl, displayPhotoCode);
+        }
+      }
+    };
+
+    window.addEventListener('metro2:photo-promoted', handlePhotoPromoted);
+    return () => window.removeEventListener('metro2:photo-promoted', handlePhotoPromoted);
+  }, [displayPhotoCode, onChange]);
+
   // Kiểm tra trạng thái value và khôi phục preview từ IndexedDB nếu cần
   useEffect(() => {
     if (value && (value.startsWith('http') || value.startsWith('/uploads'))) {
       setUploadStatus('SUCCESS');
+      setLocalPreview(null); // Có URL Cloud xịn thì giải phóng preview tạm thời
     } else if (value && isLocalBlobUri(value)) {
       setUploadStatus('UPLOADING');
-      // Nếu là local blob ID, thử nạp lại Blob từ IndexedDB để khôi phục preview
       const localId = extractLocalIdFromUri(value);
       currentLocalIdRef.current = localId;
-      if (!localPreview) {
-        getOfflinePhoto(localId).then((record) => {
-          if (record && record.blob) {
-            const blobUrl = createManagedBlobUrl(localId, record.blob);
-            setLocalPreview(blobUrl);
-          }
-        }).catch((_e) => {});
-      }
+      resolveOfflinePhotoUrl(value).then((resolvedUrl) => {
+        if (resolvedUrl) {
+          setLocalPreview(resolvedUrl);
+        }
+      }).catch((_e) => {});
     } else if (value && value.startsWith('data:image')) {
       if (uploadStatus === 'IDLE') {
         setUploadStatus('UPLOADING');
       }
     } else {
       setUploadStatus('IDLE');
+      setLocalPreview(null);
     }
   }, [value]);
 
@@ -230,7 +245,8 @@ export function usePhotoUpload({
     try {
       const { blobUrl, localId, blob, photoCode } = await processAndStoreCleanPhoto(file);
       setLocalPreview(blobUrl);
-      onChange(blobUrl, photoCode);
+      const localUri = `blob:local://${localId}`;
+      onChange(localUri, photoCode);
 
       if (isNotApplicable && onToggleNotApplicable) {
         onToggleNotApplicable(false);
@@ -299,6 +315,12 @@ export function usePhotoUpload({
         canvas.height = 0;
       } catch (_e) {}
 
+      // Xóa bản ghi và Object URL cũ trước khi gán ảnh xoay mới
+      if (currentLocalIdRef.current) {
+        deleteOfflinePhoto(currentLocalIdRef.current).catch(() => {});
+        revokeManagedBlobUrl(currentLocalIdRef.current);
+      }
+
       const localId = `photo_rot_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
       currentLocalIdRef.current = localId;
       const { metadata } = extractPhotoDetails(displayPhotoCode);
@@ -306,7 +328,8 @@ export function usePhotoUpload({
 
       const blobUrl = createManagedBlobUrl(localId, rotatedBlob);
       setLocalPreview(blobUrl);
-      onChange(blobUrl, displayPhotoCode);
+      const localUri = `blob:local://${localId}`;
+      onChange(localUri, displayPhotoCode);
       startDirectUpload(rotatedBlob, displayPhotoCode, localId);
     } catch (err) {
       console.warn('[PhotoCaptureInput] Lỗi khi xoay ảnh 90°:', err);
