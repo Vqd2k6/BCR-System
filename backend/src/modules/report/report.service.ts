@@ -17,20 +17,31 @@ export class ReportService {
   /**
    * Xuất Báo cáo Hiện trạng Nhà Dân cư độc lập ra PDF buffer
    */
+  /**
+   * Phân giải hồ sơ khảo sát theo reportId, parcelId, hoặc mã thửa đất (projectParcelCode)
+   */
+  public static async resolveReport(identifier: string): Promise<any> {
+    if (!identifier || typeof identifier !== 'string') {
+      throw new NotFoundError('Mã định danh hồ sơ không hợp lệ');
+    }
+    let rawReport = await SurveyRepository.findReportById(identifier);
+    if (!rawReport) {
+      const p = await SurveyRepository.findLatestPhase1ReportByParcelId(identifier);
+      rawReport = p?.report || null;
+    }
+    if (!rawReport || !rawReport.id) {
+      throw new NotFoundError(`Không tìm thấy hồ sơ khảo sát với ID hoặc mã thửa: ${identifier}`);
+    }
+    return rawReport;
+  }
+
   static async generateResidentialPdf(reportId: string, overrides?: any): Promise<{
     pdfBuffer: Buffer;
     reportCode: string;
     checksum?: string;
     viewModel: any;
   }> {
-    let rawReport = await SurveyRepository.findReportById(reportId);
-    if (!rawReport) {
-      const p = await SurveyRepository.findLatestPhase1ReportByParcelId(reportId);
-      rawReport = p?.report || p;
-    }
-    if (!rawReport) {
-      throw new NotFoundError(`Không tìm thấy hồ sơ khảo sát với ID: ${reportId}`);
-    }
+    const rawReport = await ReportService.resolveReport(reportId);
 
     // Áp dụng overrides nếu có (in-memory, không lưu DB)
     const activeReport = ReportService.applyOverridesToReport(rawReport, overrides);
@@ -62,14 +73,7 @@ export class ReportService {
     docxBuffer: Buffer;
     reportCode: string;
   }> {
-    let rawReport = await SurveyRepository.findReportById(reportId);
-    if (!rawReport) {
-      const p = await SurveyRepository.findLatestPhase1ReportByParcelId(reportId);
-      rawReport = p?.report || p;
-    }
-    if (!rawReport) {
-      throw new NotFoundError(`Không tìm thấy hồ sơ khảo sát với ID: ${reportId}`);
-    }
+    const rawReport = await ReportService.resolveReport(reportId);
 
     // Áp dụng overrides nếu có (in-memory, không lưu DB)
     const activeReport = ReportService.applyOverridesToReport(rawReport, overrides);
@@ -90,14 +94,7 @@ export class ReportService {
    * Xem trước mã HTML của Báo cáo Nhà Dân cư độc lập (Hỗ trợ overrides in-memory)
    */
   static async previewResidentialHtml(reportId: string, overrides?: any): Promise<string> {
-    let rawReport = await SurveyRepository.findReportById(reportId);
-    if (!rawReport) {
-      const p = await SurveyRepository.findLatestPhase1ReportByParcelId(reportId);
-      rawReport = p?.report || p;
-    }
-    if (!rawReport) {
-      throw new NotFoundError(`Không tìm thấy hồ sơ khảo sát với ID: ${reportId}`);
-    }
+    const rawReport = await ReportService.resolveReport(reportId);
 
     // Áp dụng overrides nếu có (in-memory, không lưu DB)
     const activeReport = ReportService.applyOverridesToReport(rawReport, overrides);
@@ -115,14 +112,7 @@ export class ReportService {
     exportRevision: number;
     message: string;
   }> {
-    let rawReport = await SurveyRepository.findReportById(reportId);
-    if (!rawReport) {
-      const p = await SurveyRepository.findLatestPhase1ReportByParcelId(reportId);
-      rawReport = p?.report || p;
-    }
-    if (!rawReport) {
-      throw new NotFoundError(`Không tìm thấy hồ sơ khảo sát với ID: ${reportId}`);
-    }
+    const rawReport = await ReportService.resolveReport(reportId);
 
     if (rawReport.status === 'APPROVED') {
       throw new ForbiddenError(
@@ -231,14 +221,6 @@ export class ReportService {
    * Lấy chi tiết raw report data theo ID hoặc code
    */
   static async getReportDetail(reportId: string): Promise<any> {
-    let rawReport = await SurveyRepository.findReportById(reportId);
-    if (!rawReport) {
-      const p = await SurveyRepository.findLatestPhase1ReportByParcelId(reportId);
-      rawReport = p?.report || p;
-    }
-    if (!rawReport) {
-      throw new NotFoundError(`Không tìm thấy hồ sơ khảo sát với ID: ${reportId}`);
-    }
-    return rawReport;
+    return await ReportService.resolveReport(reportId);
   }
 }

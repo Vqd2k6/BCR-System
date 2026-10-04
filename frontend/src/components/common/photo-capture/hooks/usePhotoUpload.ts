@@ -75,18 +75,24 @@ export function usePhotoUpload({
       setUploadStatus('SUCCESS');
       setLocalPreview(null); // Có URL Cloud xịn thì giải phóng preview tạm thời
     } else if (value && isLocalBlobUri(value)) {
-      setUploadStatus('UPLOADING');
       const localId = extractLocalIdFromUri(value);
       currentLocalIdRef.current = localId;
-      resolveOfflinePhotoUrl(value).then((resolvedUrl) => {
-        if (resolvedUrl) {
-          setLocalPreview(resolvedUrl);
-        }
-      }).catch((_e) => {});
+      resolveOfflinePhotoUrl(value)
+        .then((resolvedUrl) => {
+          if (resolvedUrl) {
+            setLocalPreview(resolvedUrl);
+            setUploadStatus('UPLOADING');
+          } else {
+            // Không tìm thấy ảnh trong IndexedDB trên thiết bị này (Guest hoặc thiết bị khác)
+            setUploadStatus('IDLE');
+          }
+        })
+        .catch((_e) => {
+          setUploadStatus('IDLE');
+        });
     } else if (value && value.startsWith('data:image')) {
-      if (uploadStatus === 'IDLE') {
-        setUploadStatus('UPLOADING');
-      }
+      setLocalPreview(value);
+      setUploadStatus('IDLE');
     } else {
       setUploadStatus('IDLE');
       setLocalPreview(null);
