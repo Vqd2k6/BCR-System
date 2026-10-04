@@ -138,7 +138,7 @@ export const CloudPhotoSyncModal: React.FC<CloudPhotoSyncModalProps> = ({
     try {
       const store = usePhase1SurveyStore.getState();
       store.saveDraftToStorage();
-      const targetId = store.formData.parcelId || parcelCode;
+      const targetId = store.formData.parcelId || store.activeParcel?.id || parcelCode;
       if (targetId) {
         await api.patch(`/reports/${targetId}/survey-data`, {
           surveyDataJson: store.formData,
@@ -180,6 +180,7 @@ export const CloudPhotoSyncModal: React.FC<CloudPhotoSyncModalProps> = ({
       }
       if (successCount > 0) {
         await persistSyncedPhotosToServer();
+        alert(`Đã tải thành công ${successCount} ảnh lên Cloudflare R2 an toàn!`);
       }
       if (failCount > 0 && successCount === 0) {
         alert(

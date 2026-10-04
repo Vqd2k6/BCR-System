@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { Card } from '../../../../core/components/ui/Card';
 import { Button } from '../../../../core/components/ui/Button';
 import { Badge } from '../../../../core/components/ui/Badge';
@@ -10,6 +10,7 @@ import { FloorSurveyData, StructuralElementData } from '../../types/phase1.types
 import { COMMON_ROOM_NAMES, STRUCTURAL_ELEMENT_TYPES, STRUCTURAL_MATERIALS } from './step3.constants';
 import { Hammer, Camera, Trash2, MapPin, Plus, ShieldAlert, AlertCircle, Info, Sparkles, RotateCcw } from 'lucide-react';
 import { usePhase1SurveyStore } from '../../store/usePhase1SurveyStore';
+import { isLocalBlobUri } from '../../../../core/storage/offlinePhotoStorage';
 
 interface StructuralElementsSectionProps {
   currentFloor: FloorSurveyData;
@@ -49,6 +50,7 @@ export const StructuralElementsSection: React.FC<StructuralElementsSectionProps>
   onToggleHasStructuralElements,
 }) => {
   const isReadOnly = usePhase1SurveyStore((s) => s.isReadOnly);
+  const lastTempOverviewUriRef = useRef<string | null>(null);
   const structuralElements: StructuralElementData[] = currentFloor.structuralElements || [];
   const activeElement = structuralElements[activeElementIndex];
   const hasStructuralElements = currentFloor.hasStructuralElements !== false;
@@ -598,12 +600,30 @@ export const StructuralElementsSection: React.FC<StructuralElementsSectionProps>
                 <PhotoCaptureInput
                   label="Thêm ảnh cấu kiện"
                   value=""
-                  onChange={(url) => {
+                  onChange={(url, code) => {
                     if (url) {
-                      const updated = [...(activeElement.overviewPhotos || []), url];
+                      let updated = [...(activeElement.overviewPhotos || [])];
+                      const prevTemp = lastTempOverviewUriRef.current;
+                      if (prevTemp && updated.includes(prevTemp)) {
+                        updated = updated.map((p) => (p === prevTemp ? url : p));
+                        if (!isLocalBlobUri(url)) {
+                          lastTempOverviewUriRef.current = null;
+                        }
+                      } else {
+                        updated.push(url);
+                        if (isLocalBlobUri(url)) {
+                          lastTempOverviewUriRef.current = url;
+                        }
+                      }
+
+                      let newCtx = activeElement.ctxPhotoUrl;
+                      if (!newCtx || (prevTemp && newCtx === prevTemp)) {
+                        newCtx = url;
+                      }
+
                       onUpdateElement(activeElementIndex, {
                         overviewPhotos: updated,
-                        ctxPhotoUrl: activeElement.ctxPhotoUrl || url,
+                        ctxPhotoUrl: newCtx,
                       });
                     }
                   }}

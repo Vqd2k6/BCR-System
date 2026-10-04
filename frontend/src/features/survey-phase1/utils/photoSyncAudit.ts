@@ -365,7 +365,14 @@ export function auditSurveyPhotos(
                   const floors = [...prev.floors];
                   if (floors[fi]?.zones?.[zi]) {
                     const zones = [...floors[fi].zones];
-                    zones[zi] = { ...zones[zi], ctxPhotoUrl: newUrl };
+                    const curZone = { ...zones[zi], ctxPhotoUrl: newUrl };
+                    // Nếu overviewPhotos[0] dùng chung ảnh với CTX, đồng bộ luôn overviewPhotos[0]
+                    if (Array.isArray(curZone.overviewPhotos) && (curZone.overviewPhotos[0] === zone.ctxPhotoUrl || !curZone.overviewPhotos[0])) {
+                      const ovs = [...curZone.overviewPhotos];
+                      ovs[0] = newUrl;
+                      curZone.overviewPhotos = ovs;
+                    }
+                    zones[zi] = curZone;
                     floors[fi] = { ...floors[fi], zones };
                   }
                   return { ...prev, floors };
@@ -390,7 +397,12 @@ export function auditSurveyPhotos(
                       const zones = [...floors[fi].zones];
                       const ovs = [...zones[zi].overviewPhotos];
                       ovs[pi] = newUrl;
-                      zones[zi] = { ...zones[zi], overviewPhotos: ovs };
+                      const curZone = { ...zones[zi], overviewPhotos: ovs };
+                      // Nếu là ảnh #1 và ctxPhotoUrl dùng chung ảnh này, cập nhật cả ctxPhotoUrl
+                      if (pi === 0 && (!curZone.ctxPhotoUrl || curZone.ctxPhotoUrl === ovUrl)) {
+                        curZone.ctxPhotoUrl = newUrl;
+                      }
+                      zones[zi] = curZone;
                       floors[fi] = { ...floors[fi], zones };
                     }
                     return { ...prev, floors };
@@ -467,12 +479,48 @@ export function auditSurveyPhotos(
                   const floors = [...prev.floors];
                   if (floors[fi]?.structuralElements?.[ei]) {
                     const elems = [...floors[fi].structuralElements!];
-                    elems[ei] = { ...elems[ei], ctxPhotoUrl: newUrl };
+                    const curElem = { ...elems[ei], ctxPhotoUrl: newUrl };
+                    if (Array.isArray(curElem.overviewPhotos) && (curElem.overviewPhotos[0] === elem.ctxPhotoUrl || !curElem.overviewPhotos[0])) {
+                      const ovs = [...curElem.overviewPhotos];
+                      ovs[0] = newUrl;
+                      curElem.overviewPhotos = ovs;
+                    }
+                    elems[ei] = curElem;
                     floors[fi] = { ...floors[fi], structuralElements: elems };
                   }
                   return { ...prev, floors };
                 })
             );
+          }
+
+          // Ảnh tổng quan cấu kiện E
+          if (Array.isArray(elem.overviewPhotos)) {
+            elem.overviewPhotos.forEach((ovUrl, pi) => {
+              checkAndAdd(
+                `floor_${fi}_elem_${ei}_ov_${pi}`,
+                3,
+                s3Title,
+                `Ảnh tổng quan cấu kiện [${fName}] > [${eLabel}] #${pi + 1}`,
+                ovUrl,
+                undefined,
+                (newUrl) =>
+                  updateFormData((prev) => {
+                    const floors = [...prev.floors];
+                    if (floors[fi]?.structuralElements?.[ei]?.overviewPhotos) {
+                      const elems = [...floors[fi].structuralElements!];
+                      const ovs = [...elems[ei].overviewPhotos];
+                      ovs[pi] = newUrl;
+                      const curElem = { ...elems[ei], overviewPhotos: ovs };
+                      if (pi === 0 && (!curElem.ctxPhotoUrl || curElem.ctxPhotoUrl === ovUrl)) {
+                        curElem.ctxPhotoUrl = newUrl;
+                      }
+                      elems[ei] = curElem;
+                      floors[fi] = { ...floors[fi], structuralElements: elems };
+                    }
+                    return { ...prev, floors };
+                  })
+              );
+            });
           }
 
           if (Array.isArray(elem.defects)) {
@@ -675,6 +723,13 @@ export async function retryUploadSinglePhoto(
     const record = await getOfflinePhoto(localId);
     if (record && record.blob) {
       blob = record.blob;
+    } else if (item.url.startsWith('blob:')) {
+      try {
+        const resp = await fetch(item.url);
+        if (resp.ok) {
+          blob = await resp.blob();
+        }
+      } catch (_e) {}
     }
   } else if (item.isBase64) {
     blob = base64ToBlob(item.url);

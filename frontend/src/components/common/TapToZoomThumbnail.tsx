@@ -127,8 +127,9 @@ export const TapToZoomThumbnail: React.FC<TapToZoomThumbnailProps> = ({
             onLoad={() => setImgLoaded(true)}
           />
         ) : (
-          <div className="w-full h-full flex items-center justify-center bg-slate-800 text-slate-400 text-xs">
-            Đang nạp ảnh...
+          <div className="w-full h-full flex flex-col items-center justify-center bg-slate-800 text-slate-400 text-[10px] p-1 text-center leading-tight">
+            <span>Chưa có trên máy</span>
+            <span className="text-[8px] text-slate-500 mt-0.5">(Cần KSV đẩy lên Cloud)</span>
           </div>
         )}
 

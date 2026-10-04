@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { Card } from '../../../../core/components/ui/Card';
 import { PhotoCaptureInput } from '../../../../components/common/PhotoCaptureInput';
 import { TapToZoomThumbnail } from '../../../../components/common/TapToZoomThumbnail';
 import { Camera, Trash2, AlertCircle, CheckCircle2, FileText } from 'lucide-react';
 import { FloorSurveyData } from '../../types/phase1.types';
+import { isLocalBlobUri } from '../../../../core/storage/offlinePhotoStorage';
 
 interface Step3FloorOverviewSectionProps {
   currentFloor: FloorSurveyData;
@@ -18,6 +19,7 @@ export const Step3FloorOverviewSection: React.FC<Step3FloorOverviewSectionProps>
   projectParcelCode,
   onUpdateOverviewPhotos,
 }) => {
+  const lastTempPhotoIdRef = useRef<string | null>(null);
   const rawPhotos = currentFloor.overviewPhotos || [];
   const photos = rawPhotos.map((p: any, idx: number) => {
     if (typeof p === 'string') {
@@ -33,13 +35,29 @@ export const Step3FloorOverviewSection: React.FC<Step3FloorOverviewSectionProps>
 
   const handleAddPhoto = (url: string, code?: string) => {
     if (!url) return;
-    const newPhoto = {
-      id: `fl_ov_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
-      url,
-      caption: '',
-      photoCode: code || '',
-    };
-    onUpdateOverviewPhotos([...photos, newPhoto]);
+    const prevTempId = lastTempPhotoIdRef.current;
+    if (prevTempId && photos.some((p) => p.id === prevTempId)) {
+      // Thay thế ảnh tạm blob:local:// bằng URL Cloudflare R2 chính thức
+      const updated = photos.map((p) =>
+        p.id === prevTempId ? { ...p, url, photoCode: code || p.photoCode } : p
+      );
+      if (!isLocalBlobUri(url)) {
+        lastTempPhotoIdRef.current = null;
+      }
+      onUpdateOverviewPhotos(updated);
+    } else {
+      const newId = `fl_ov_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
+      if (isLocalBlobUri(url)) {
+        lastTempPhotoIdRef.current = newId;
+      }
+      const newPhoto = {
+        id: newId,
+        url,
+        caption: '',
+        photoCode: code || '',
+      };
+      onUpdateOverviewPhotos([...photos, newPhoto]);
+    }
   };
 
   const handleRemovePhoto = (photoId: string) => {

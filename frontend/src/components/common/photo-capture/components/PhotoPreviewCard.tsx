@@ -112,8 +112,9 @@ export const PhotoPreviewCard: React.FC<PhotoPreviewCardProps> = ({
             style={{ width: '100%', height: '100%', objectFit: 'contain' }}
           />
         ) : (
-          <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: '0.75rem' }}>
-            Đang nạp ảnh...
+          <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: '0.75rem', gap: '0.25rem', padding: '0.5rem', textAlign: 'center' }}>
+            <span>{uploadStatus === 'UPLOADING' ? 'Đang nạp ảnh từ bộ nhớ thiết bị...' : 'Ảnh chưa được đồng bộ từ thiết bị KSV'}</span>
+            <span style={{ fontSize: '0.65rem', color: '#64748b' }}>(Cần mở trên điện thoại KSV đã chụp để đẩy lên Cloud)</span>
           </div>
         )}
 
@@ -218,6 +219,38 @@ export const PhotoPreviewCard: React.FC<PhotoPreviewCardProps> = ({
               }}
             />
             <span>✓ R2</span>
+          </span>
+        )}
+
+        {value && !(uploadStatus === 'SUCCESS' || (value && (value.startsWith('http') || value.startsWith('/uploads')))) && uploadStatus !== 'UPLOADING' && uploadStatus !== 'ERROR' && (
+          <span
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.2rem',
+              backgroundColor: 'rgba(120, 53, 15, 0.9)',
+              border: '1px solid rgba(251, 191, 36, 0.5)',
+              color: '#fde68a',
+              fontSize: '0.625rem',
+              fontWeight: 700,
+              padding: '0.18rem 0.45rem',
+              borderRadius: '9999px',
+              backdropFilter: 'blur(4px)',
+              boxShadow: '0 2px 5px rgba(0, 0, 0, 0.35)',
+              whiteSpace: 'nowrap',
+            }}
+            title="Chưa đồng bộ lên Cloudflare R2 (Lưu tạm trên thiết bị)"
+          >
+            <span
+              style={{
+                width: '5px',
+                height: '5px',
+                borderRadius: '50%',
+                backgroundColor: '#fbbf24',
+                flexShrink: 0,
+              }}
+            />
+            <span>Chưa lên Cloud</span>
           </span>
         )}
 
