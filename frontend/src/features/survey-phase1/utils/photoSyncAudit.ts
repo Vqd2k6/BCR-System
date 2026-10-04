@@ -681,7 +681,9 @@ export async function retryUploadSinglePhoto(
   }
 
   if (!blob) {
-    throw new Error('Không thể tìm thấy dữ liệu ảnh để tải lại lên Cloud.');
+    throw new Error(
+      'Dữ liệu ảnh gốc không có trên thiết bị này. Ảnh đang lưu tạm trong bộ nhớ của thiết bị (điện thoại) đã chụp khảo sát. Vui lòng mở lại hồ sơ trên thiết bị đó để tải lên Cloud.'
+    );
   }
 
   const prefix = item.photoCode
