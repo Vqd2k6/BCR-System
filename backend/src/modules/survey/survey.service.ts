@@ -47,13 +47,13 @@ export class SurveyService {
       parentReportId = masterRes.rows[0]?.id || parcelRes.rows[0].active_phase1_report_id || null;
     }
 
-    // 1. Kiểm tra tái sử dụng hồ sơ DRAFT hiện có để tránh sinh dòng trùng lặp trong DB
+    // 1. Kiểm tra tái sử dụng hồ sơ DRAFT hoặc REJECTED hiện có để tránh sinh dòng trùng lặp trong DB
     if (!unitId) {
       const activeRepId = parcelRes.rows[0].active_phase1_report_id;
-      let existingDraftQuery = `SELECT id, report_code, status FROM base_survey_reports WHERE parcel_id = $1 AND unit_id IS NULL AND status = 'DRAFT' ORDER BY created_at DESC LIMIT 1;`;
+      let existingDraftQuery = `SELECT id, report_code, status FROM base_survey_reports WHERE parcel_id = $1 AND unit_id IS NULL AND (status = 'DRAFT' OR status = 'REJECTED') ORDER BY created_at DESC LIMIT 1;`;
       let existingDraftParams = [parcelId];
       if (activeRepId) {
-        existingDraftQuery = `SELECT id, report_code, status FROM base_survey_reports WHERE id = $1 AND status = 'DRAFT';`;
+        existingDraftQuery = `SELECT id, report_code, status FROM base_survey_reports WHERE id = $1 AND (status = 'DRAFT' OR status = 'REJECTED');`;
         existingDraftParams = [activeRepId];
       }
       const existingDraft = await Database.query<{ id: string; report_code: string; status: string }>(
@@ -87,7 +87,7 @@ export class SurveyService {
     } else {
       // Trường hợp căn hộ con
       const existingUnitDraft = await Database.query<{ id: string; report_code: string; status: string }>(
-        `SELECT id, report_code, status FROM base_survey_reports WHERE parcel_id = $1 AND unit_id = $2 AND status = 'DRAFT' ORDER BY created_at DESC LIMIT 1;`,
+        `SELECT id, report_code, status FROM base_survey_reports WHERE parcel_id = $1 AND unit_id = $2 AND (status = 'DRAFT' OR status = 'REJECTED') ORDER BY created_at DESC LIMIT 1;`,
         [parcelId, unitId]
       );
       if (existingUnitDraft.rows[0]) {

@@ -24,7 +24,7 @@ export class SurveyDraftRepository {
       JOIN users u ON r.surveyor_id = u.id
       LEFT JOIN users le ON r.last_edited_by_id = le.id
       JOIN parcels p ON r.parcel_id = p.id
-      WHERE r.parcel_id = $1 AND r.phase = $2 AND r.status = 'DRAFT'
+      WHERE r.parcel_id = $1 AND r.phase = $2 AND (r.status = 'DRAFT' OR r.status = 'REJECTED')
     `;
     const params: any[] = [resolvedId, phase];
 
