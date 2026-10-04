@@ -19,6 +19,8 @@ import {
 import { uploadQueue } from '../../../core/services/uploadQueueService';
 import { ImageZoomModal } from '../../../components/common/ImageZoomModal';
 import { resolveOfflinePhotoUrl, getSafeDisplayUrl } from '../../../core/storage/offlinePhotoStorage';
+import api from '../../../services/api';
+import { usePhase1SurveyStore } from '../store/usePhase1SurveyStore';
 
 interface CloudPhotoSyncModalProps {
   isOpen: boolean;
@@ -38,17 +40,29 @@ const SyncPhotoThumbnailItem: React.FC<{
   onClick: () => void;
 }> = ({ url, fieldTitle, onClick }) => {
   const [displayUrl, setDisplayUrl] = useState<string>(() => getSafeDisplayUrl(url));
+  const [isResolving, setIsResolving] = useState<boolean>(true);
 
   useEffect(() => {
     let isSubscribed = true;
     if (url) {
       const immediate = getSafeDisplayUrl(url);
-      if (immediate && isSubscribed) setDisplayUrl(immediate);
-      resolveOfflinePhotoUrl(url).then((resolved) => {
-        if (isSubscribed && resolved) setDisplayUrl(resolved);
-      });
+      if (immediate && isSubscribed) {
+        setDisplayUrl(immediate);
+        setIsResolving(false);
+      }
+      resolveOfflinePhotoUrl(url)
+        .then((resolved) => {
+          if (isSubscribed) {
+            if (resolved) setDisplayUrl(resolved);
+            setIsResolving(false);
+          }
+        })
+        .catch(() => {
+          if (isSubscribed) setIsResolving(false);
+        });
     } else {
       setDisplayUrl('');
+      setIsResolving(false);
     }
     return () => {
       isSubscribed = false;
@@ -70,8 +84,8 @@ const SyncPhotoThumbnailItem: React.FC<{
           className="w-full h-full object-cover group-hover:scale-105 transition-transform"
         />
       ) : (
-        <div className="w-full h-full flex items-center justify-center text-slate-400 text-[10px]">
-          Nạp...
+        <div className="w-full h-full flex items-center justify-center text-slate-400 text-[10px] text-center p-1 leading-tight">
+          {isResolving ? 'Nạp...' : 'Chưa có trên máy'}
         </div>
       )}
       <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
@@ -120,10 +134,26 @@ export const CloudPhotoSyncModal: React.FC<CloudPhotoSyncModalProps> = ({
       ? syncedPhotos
       : allPhotos;
 
+  const persistSyncedPhotosToServer = async () => {
+    try {
+      const store = usePhase1SurveyStore.getState();
+      store.saveDraftToStorage();
+      const targetId = store.formData.parcelId || parcelCode;
+      if (targetId) {
+        await api.patch(`/reports/${targetId}/survey-data`, {
+          surveyDataJson: store.formData,
+        });
+      }
+    } catch (persistErr) {
+      console.warn('[CloudPhotoSyncModal] Tự động cập nhật survey-data lên máy chủ:', persistErr);
+    }
+  };
+
   const handleRetrySingle = async (item: SurveyPhotoAuditItem) => {
     setRetryingId(item.id);
     try {
       await retryUploadSinglePhoto(item, parcelCode);
+      await persistSyncedPhotosToServer();
     } catch (err: any) {
       alert(`Không thể tải lại ảnh: ${err?.message || 'Lỗi mạng hoặc Cloudflare R2'}`);
     } finally {
@@ -133,10 +163,29 @@ export const CloudPhotoSyncModal: React.FC<CloudPhotoSyncModalProps> = ({
 
   const handleRetryAll = async () => {
     setIsRetryingAll(true);
+    let successCount = 0;
+    let failCount = 0;
+    let lastErrorMsg = '';
+
     try {
       for (const item of unsyncedPhotos) {
-        await retryUploadSinglePhoto(item, parcelCode).catch((e) =>
-          console.warn('Lỗi tải lại ảnh đơn:', e)
+        try {
+          await retryUploadSinglePhoto(item, parcelCode);
+          successCount++;
+        } catch (e: any) {
+          failCount++;
+          lastErrorMsg = e?.message || '';
+          console.warn('Lỗi tải lại ảnh đơn:', e);
+        }
+      }
+      if (successCount > 0) {
+        await persistSyncedPhotosToServer();
+      }
+      if (failCount > 0 && successCount === 0) {
+        alert(
+          `Không thể tải lên ${failCount} ảnh thiếu.\n\nNguyên nhân: ${
+            lastErrorMsg || 'Dữ liệu ảnh gốc không có trên thiết bị này.'
+          }`
         );
       }
     } finally {
@@ -287,7 +336,7 @@ export const CloudPhotoSyncModal: React.FC<CloudPhotoSyncModalProps> = ({
           ) : (
             displayedList.map((item) => {
               const isRetrying = retryingId === item.id;
-              const isMissingCloud = item.isBase64 && !item.isCloudUrl;
+              const isMissingCloud = !item.isCloudUrl;
 
               return (
                 <div
@@ -335,7 +384,9 @@ export const CloudPhotoSyncModal: React.FC<CloudPhotoSyncModalProps> = ({
                         {isMissingCloud ? (
                           <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-700">
                             <AlertCircle size={12} className="text-amber-600" />
-                            Chưa lên Cloud (Lưu tạm Base64 trên máy)
+                            {item.isBase64
+                              ? 'Chưa lên Cloud (Lưu tạm Base64 trên máy)'
+                              : 'Chưa lên Cloud (Lưu tạm Offline trên thiết bị)'}
                           </span>
                         ) : (
                           <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700">

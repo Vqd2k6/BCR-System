@@ -160,6 +160,16 @@ export const TapToZoomThumbnail: React.FC<TapToZoomThumbnailProps> = ({
             </span>
           )}
 
+          {!isR2Synced && !isR2Uploading && !isR2Error && (
+            <span
+              className="px-1.5 py-0.5 rounded-full bg-amber-950/80 border border-amber-500/40 text-amber-300 text-[9px] font-bold flex items-center gap-1 shadow-xs backdrop-blur-xs pointer-events-none"
+              title="Chưa đồng bộ lên Cloudflare R2 (Lưu tạm trên thiết bị)"
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+              <span>Chưa lên Cloud</span>
+            </span>
+          )}
+
           {isR2Error && (
             <button
               type="button"
