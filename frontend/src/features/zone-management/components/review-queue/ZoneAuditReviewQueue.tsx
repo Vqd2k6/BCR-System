@@ -215,7 +215,7 @@ export const ZoneAuditReviewQueue: React.FC<Props> = ({ selectedZone, onStatsNee
       alert('Hồ sơ này chưa có báo cáo kỹ thuật hoàn chỉnh để xem trước.');
       return;
     }
-    const previewUrl = `/api/v1/reports/${reportId}/preview/html`;
+    const previewUrl = `/api/v1/v2/reports/${reportId}/preview/html`;
     window.open(previewUrl, '_blank', 'noopener,noreferrer');
   };
 

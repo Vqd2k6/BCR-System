@@ -1,0 +1,1210 @@
+PROJECT
+TITLE:
+Tuyến Metro Số 2 TPHCM (Bến Thành- Tham Lương)
+Ho Chi Minh City Mass Rapid Transit Line 2
+Ben Thanh – Tham Luong Route
+EPC Contract
+Khảo sát và Đánh giá hiện trạng tòa nhà
+Báo cáo Giai Đoạn 1
+Building Condition Survey and Assessment
+Phase 1 Report
+Mã công trình/Building ID: B-01064-C&amp;C  |  Mã khảo sát/Survey ID: P-6789
+ĐỊA CHỈ: SỐ 544 CÁCH MẠNG THÁNG 8, P. NHIÊU LỘC, TPHCM, VIỆT NAM
+ADD: NO. 544 CACH MANG THANG 8 STR., NHIEU LOC WARD, HO CHI MINH CITY, VIET NAM
+THỜI GIAN/TIME：26/09/2026
+NGƯỜI LẬP PREPARED BY
+NGƯỜI KIỂM TRA CHECKED BY
+NGƯỜI PHÊ DUYỆT APPROVED BY
+HỌ TÊN FULL NAME
+Nguyễn Trọng Tuấn
+Trưởng nhóm khảo sát
+CHỮ KÝ SIGNATURE
+NGÀY
+DATE
+26/09/2026
+MỤC LỤC
+TABLE OF CONTENTS
+I. THÔNG TIN CHUNG - GENERAL INFORMATION3
+II. THÔNG TIN CƠ BẢN VỀ TÒA NHÀ - BASIC BUILDING INFORMATION3
+III. LỊCH SỬ VÀ TÌNH TRẠNG SỬ DỤNG - BUILDING HISTORY AND OCCUPANCY5
+IV. ĐẶC ĐIỂM KẾT CẤU VÀ MÓNG - STRUCTURAL AND FOUNDATION CHARACTERISTICS5
+V. ĐỘ NGHIÊNG/LÚN - GHI NHẬN SƠ BỘ - PRELIMINARY TILT/SETTLEMENT INDICATORS6
+VI. TÓM TẮT TÌNH TRẠNG ĐIỀU TRA LỖI - SUMMARY OF DEFECT INVESTIGATION7
+VII. PHÂN LOẠI MỨC ĐỘ HƯ HẠI THEO BURLAND - BURLAND DAMAGE CLASSIFICATION8
+VIII. ĐÁNH GIÁ TÌNH TRẠNG CÔNG TRÌNH - BUILDING CONDITION ASSESSMENT10
+1.Đánh giá theo ma trận rủi ro-Risk Matrix Assessment10
+2.Chấm điểm đánh giá rủi ro công trình-Building Risk Assessment Scoring10
+3. Cấp độ rủi ro tổng thể Overall Risk Grade11
+4. Đánh giá bổ sung theo phương pháp Giai đoạn 1 (*) - Supplementary Phase 1 assessment (ECS / VI / BRA V×I)11
+IX. KẾT LUẬN VÀ KIẾN NGHỊ CONCLUSION AND RECOMMENDATION13
+PHỤ LỤC 1: BẢN VẼ MẶT ĐỨNG NGOÀI CÔNG TRÌNH15
+APPENDIX 1 BUILDING EXTERIOR ELEVATION DRAWINGS15
+PHỤ LỤC 2: THỐNG KÊ KHUYẾT TẬT TRÊN MẶT BẰNG TẦNG17
+APPENDIX 2 FLOOR PLAN DEFECT STATISTICS17
+Tầng trệt - G Floor17
+Tầng lửng - Mezzanine Floor26
+PHỤ LỤC 3: BIÊN BẢN KHẢO SÁT HIỆN TRƯỜNG (*)28
+APPENDIX 3 SIGNED SITE-SURVEY RECORD28
+PHỤ LỤC 4: THIẾT BỊ VÀ PHẠM VI TIẾP CẬN (*)31
+APPENDIX 4 EQUIPMENT AND ACCESS31
+I. THÔNG TIN CHUNG - GENERAL INFORMATION
+Dự án
+Project
+Tuyến Metro Số 2 TPHCM (Bến Thành - Tham Lương)
+Ho Chi Minh City Mass Rapid Transit Line 2, Ben Thanh - Tham Luong Route
+Mã công trình
+Building ID
+B-01064-C&amp;C
+Mã khảo sát (*)
+Survey ID
+P-6789
+Số hiệu báo cáo (*)
+Report No.
+REPORT-B-01064-C&amp;C-PHASE1-1790480320866 (Rev. 00)
+Tên công trình
+Building Name
+Nhà phố thương mại (cửa hàng, quán ăn)
+Commercial shophouse (shop / eatery)
+Địa chỉ
+Address
+Số 544 Cách Mạng Tháng 8, P. Nhiêu Lộc, TP Hồ Chí Minh, Việt Nam (hồ sơ phần mềm: Phường 11, Quận 3)
+No. 544 Cach Mang Thang 8 St., Nhieu Loc Ward, Ho Chi Minh City, Viet Nam (software record: Ward 11, District 3)
+Mã địa chính (*)
+Cadastral code
+271330130431
+Chủ sở hữu/Người sử dụng
+Owner-Occupant
+Nguyễn Thị Ngân Giang
+Nguyen Thi Ngan Giang
+Số điện thoại liên hệ (*)
+Contact phone
+Không ghi nhận trong hồ sơ phần mềm
+Not recorded in the software
+Đơn vị khảo sát
+Survey Consultant
+Liên danh CRLG – CRSRI – TT
+CRLG – CRSRI – TT Joint Venture
+Nhà thầu EPC (*)
+EPC Contractor
+THACO - CREC
+Đoạn tuyến / Khu vực (*)
+Section / Zone
+Khu vực ga ZONE_09 (biên bản giấy: S1.05)
+Station area ZONE_09 (signed record: S1.05)
+Hạng mục Metro liên quan (*)
+Related Metro works
+☒ TBM   ☐ Ga ngầm   ☐ Cut &amp; Cover   ☐ Khác
+☒ TBM   ☐ Underground station   ☐ Cut &amp; Cover   ☐ Other
+Tọa độ GPS (*)
+GPS (WGS-84)
+10.7769, 106.7009
+Ngày khảo sát
+Survey Date
+26/09/2026 (10:20)
+26/09/2026 (10:20)
+II. THÔNG TIN CƠ BẢN VỀ TÒA NHÀ - BASIC BUILDING INFORMATION
+Công năng sử dụng
+Use
+Cửa hàng / bách hóa (theo hồ sơ); ảnh hiện trường cho thấy đang kinh doanh quán ăn
+Shop / grocery (as recorded); site photos show an eatery in operation
+Số tầng
+Storeys
+Nổi: 1 (+ tầng lửng)
+Above ground: 1 (+ mezzanine)
+Hầm: 0
+Basement: 0
+Diện tích sàn (m²)
+Total floor area (m²)
+116
+Diện tích xây dựng (m²): chưa ghi nhận
+Footprint (m²): not recorded
+Kích thước chính
+Main dimensions
+Chưa ghi nhận (xem sơ đồ phác tay tại Phụ lục 2)
+Not recorded (see hand sketches in Appendix 2)
+Chiều cao
+Height
+Cao nhất (m): 4
+Max height (m): 4
+Tầng điển hình (m): chưa ghi nhận
+Typical storey (m): not recorded
+Năm xây dựng
+Year constructed
+1992
+Khoảng cách đến công trình metro
+Distance to metro works
+Tim tuyến (m): 30
+Alignment (m): 30
+Biên kết cấu (m): chưa ghi nhận
+Structure edge (m): not recorded
+Khoảng cách tĩnh không (*)
+Clearance (*)
+5.2 m
+Nhóm đối tượng khảo sát (*)
+Survey category (*)
+Công trình thông thường – khảo sát bình thường (từ móng đến mái)
+General building – normal survey (foundation to roof)
+Ranh thửa đất theo GIS (*) - Cadastral boundary check (GIS)
+Trạng thái: tách thửa do sai lệch ranh đo đạc địa chính hiện trường. - Status: parcel split due to cadastral boundary deviation on site.
+Phân đoạn
+Portion
+Mã gợi ý
+Suggested ID
+Diện tích (m²)
+Area (m²)
+Chủ sở hữu ghi nhận
+Owner recorded
+Công năng
+Use
+Căn A (mặt tiền, đang khảo sát)
+Unit A (frontage, surveyed)
+B-00001
+69.6
+Nguyễn Thị Ngân Giang
+Nhà ở gia đình
+Family house
+Căn B (phần diện tích còn dư)
+Unit B (remaining area)
+B-00002
+46.4
+Chủ phần đất dôi dư
+Owner of remaining portion
+Quán ăn / cafe
+Eatery / café
+III. LỊCH SỬ VÀ TÌNH TRẠNG SỬ DỤNG - BUILDING HISTORY AND OCCUPANCY
+Thay đổi công năng
+Change of use
+Chưa ghi nhận
+Not recorded
+Cơi nới, mở rộng
+Extension
+Có - nhẹ, đã ổn định
+Yes - minor, stabilised
+Cải tạo kết cấu
+Structural alteration
+Chưa ghi nhận
+Not recorded
+Sửa chữa lớn
+Major repair
+Có - nhẹ, đã xử lý
+Yes - minor, treated
+Hỏa hoạn
+Fire history
+Không
+No
+Ngập nước
+Flooding
+Không
+No
+Lún/nghiêng trước đây
+Previous settlement-tilt
+Có - nhẹ, đã ổn định
+Yes - minor, stabilised
+Tình trạng sử dụng
+Occupancy
+Đang sử dụng (100%)
+In use (100%)
+Thiết bị/vật dụng nhạy cảm
+Sensitive equipment
+Không
+No
+Yêu cầu vận hành liên tục
+Continuous operation
+Chưa ghi nhận
+Not recorded
+Hư hỏng do công trình lân cận (*)
+Damage by adjacent works (*)
+Có - nhẹ, đã được bồi thường
+Yes - minor, compensated
+Nguồn thông tin
+Information source
+Phỏng vấn chủ nhà, Quan sát hiện trường
+Owner interview, Site observation
+IV. ĐẶC ĐIỂM KẾT CẤU VÀ MÓNG - STRUCTURAL AND FOUNDATION CHARACTERISTICS
+Hệ kết cấu chính
+Structural type
+Tường gạch chịu lực (ghi nhận thêm 12 cột BTCT)
+Load-bearing masonry (12 RC columns also recorded)
+Dạng chịu lực
+Structural form
+Tường
+Wall
+Loại móng
+Foundation type
+Móng nông (băng/đơn/bè)
+Shallow (strip/pad/raft)
+Quy cách / tiết diện cọc (*)
+Pile size (*)
+22 x 25 mm (theo hồ sơ; có thể là 22x25 cm)
+22 x 25 mm (as recorded; likely 22x25 cm)
+Mật độ / khoảng cách móng (*)
+Footing density / spacing (*)
+Không ghi nhận
+Not recorded
+Chiều sâu móng
+Foundation depth
+0.4 m
+Tình trạng kết cấu nhìn thấy
+Visible structural condition
+Ổn định - 12 cột BTCT nguyên vẹn
+Stable - 12 RC columns intact
+Công trình liền kề
+Adjacent buildings
+Trái: khác ("Kinh"); Phải: cao tầng/chung cư; Sau: nhà phố - tiếp giáp trực tiếp
+Left: other ("Kinh"); Right: high-rise; Rear: townhouse - directly adjoining
+Điều kiện nền xung quanh
+Surrounding ground
+Chưa ghi nhận
+Not recorded
+Cơ sở xác định móng
+Foundation evidence
+Bản vẽ hoàn công; mức tin cậy CAT 4/5 (*)
+As-built drawing; information category CAT 4/5 (*)
+Ghi chú
+Remarks
+Hồ sơ gốc ghi thêm: "Móng cọc BTCT 22x25 cm sâu 0,4 m, liên kết đài giằng; đã kiểm tra bổ sung hiện trường" - mâu thuẫn với loại móng nông, cần xác minh.
+Source also states "RC piles 22x25 cm, depth 0.4 m, with pile caps/tie beams; checked on site" - conflicts with shallow foundation; to be verified.
+V. ĐỘ NGHIÊNG/LÚN - GHI NHẬN SƠ BỘ - PRELIMINARY TILT/SETTLEMENT INDICATORS
+Bằng chứng về hiện tượng lún lệch
+Evidence of differential settlement
+Không thấy/
+Not Observed
+Vị trí
+Location
+/
+Sự xuống cấp của cấu kiện
+Component deterioration
+Không thấy/
+Not Observed
+Vị trí
+Location
+/
+Bằng chứng về việc sửa chữa
+Evidence of repairs
+Có dấu hiệu/
+Signs Observed
+Vị trí
+Location
+Vết nứt D-01 đã được trám một phần (tầng trệt, Z-08)
+Crack D-01 partly filled (ground floor, Z-08)
+Sụp đổ
+Collapse
+Không thấy/
+Not Observed
+Vị trí
+Location
+/
+Độ nghiêng của công trình
+Building inclination
+Không thấy/
+Not Observed
+Nếu có đo đạc
+If measured
+X = 0‰ ; Y = 0‰
+Độ nghiêng của bản sàn
+Floor-slab inclination
+Chưa ghi nhận/
+Not recorded
+Nếu có đo đạc
+If measured
+/
+Độ võng dầm/sàn (*)
+Beam/slab deflection (*)
+Không thấy/
+Not Observed
+Nếu có đo đạc
+If measured
+Tầng trệt 0,0 mm; tầng lửng 0,0 mm
+GF 0.0 mm; mezzanine 0.0 mm
+Cơ sở xác định
+Basis of determination
+Quan sát/
+Site Observed
+Độ tin cậy
+Reliability
+Chưa ghi nhận
+Not recorded
+Ghi chú
+Remarks
+Độ nghiêng ghi 0‰ nhưng phương pháp là quan sát trực quan - cần đo bằng máy đo nghiêng. Ảnh kiểm tra nghiêng: P-05 (Phụ lục 1).
+Tilt recorded as 0‰ by visual observation - to be measured with an inclinometer. Tilt check photo: P-05 (Appendix 1).
+VI. TÓM TẮT TÌNH TRẠNG ĐIỀU TRA LỖI - SUMMARY OF DEFECT INVESTIGATION
+Loại khuyết tật-Defect Type
+Số lượng lỗi-Number of defects
+Vết nứt lớp hoàn thiện bề mặt-Surface finish cracks
+1
+Vết nứt kết cấu-Structural cracks
+0
+Hư hại-Damage
+0
+Bong tróc lớp hoàn thiện-Spalling of finish
+0
+Gạch bị nứt-Cracked tiles
+0
+Rò rỉ-Leakage
+0
+Hư hại trần nhà-Ceiling damage
+0
+Bê tông bị bong tróc và lộ cốt thép-Concrete spalling and exposed reinforcement
+0
+Sàn bị nghiêng-Sloping floor
+0
+Ghi chú: D-01 là vết nứt ziczac theo mạch vữa trên tường gạch trát (cờ kết cấu N/A) nên xếp vào nhóm nứt lớp hoàn thiện. - Note: D-01 is a zigzag crack along mortar joints of a plastered brick wall (structural flag N/A), classified as a surface finish crack.
+Bảng kiểm dấu hiệu hiện trạng (BCS) (*) - Condition indicator checklist (BCS)
+Nhóm
+Group
+Hiện tượng
+Indicator
+Ghi nhận
+Recorded
+Vị trí - mức độ
+Location - severity
+Nứt
+Cracking
+Nứt tường/khối xây/lớp hoàn thiện
+Cracks in walls/masonry/finishes
+Có
+Yes
+1 vết nứt (D-01, tầng trệt Z-08)
+1 crack (D-01, GF Z-08)
+Nứt
+Cracking
+Nứt cấu kiện kết cấu
+Cracks in structural members
+Có*
+Yes*
+Theo hồ sơ: cờ kết cấu E2 = 2/4 (*)
+As recorded: structural flag E2 = 2/4 (*)
+Biến dạng
+Deformation
+Lún/nghiêng/võng
+Settlement/tilt/deflection
+Không
+No
+Chưa ghi nhận bất thường
+No abnormality
+Nước
+Water
+Thấm/rò nước
+Seepage/leakage
+Không
+No
+Tường khô ráo
+Walls dry
+Suy giảm
+Deterioration
+Bong tróc/rỉ sét/lộ thép
+Spalling/corrosion/exposed rebar
+Không
+No
+Bề mặt bình thường
+Surfaces normal
+Hư hỏng
+Damage
+Mất tiết diện/hư liên kết
+Loss of section/connection damage
+Không
+No
+Liên kết dầm cột bình thường
+Beam-column joints normal
+Khác
+Other
+Kẹt cửa/mất chức năng
+Sticking doors/loss of function
+Không
+No
+Cửa đóng mở bình thường
+Doors operate normally
+Khác
+Other
+Nứt phát triển/tái nứt
+Progressing/re-cracking
+Không
+No
+Chưa có dấu hiệu tái phát
+No sign of re-cracking
+* Mâu thuẫn: D-01 là nứt khối xây (cờ kết cấu N/A) và 12 cột BTCT đều ổn định - cần xác minh. - Inconsistent: D-01 is a masonry crack (flag N/A) and all 12 RC columns are stable - to be verified.
+VII. PHÂN LOẠI MỨC ĐỘ HƯ HẠI THEO BURLAND - BURLAND DAMAGE CLASSIFICATION
+Phân loại Burland-
+Burland classification
+Mô tả-
+Describe
+Số lượng lỗi-
+Number of defects
+2
+Nhẹ-Slight
+1
+Tổng hợp theo vùng khảo sát (*) - Summary by surveyed zone
+Vùng
+Zone
+Vị trí
+Location
+Vật liệu tường
+Wall material
+wmax (mm)
+Số vết nứt
+No. of cracks
+Cấp Burland
+Burland grade
+Trệt Z-01
+Bếp/Ăn
+Kitchen/Dining
+Gạch trát vữa
+Plastered brick
+–
+0
+0
+Trệt Z-02
+Cầu thang/HL
+Stair/Corridor
+Gạch trát vữa
+Plastered brick
+–
+0
+0
+Trệt Z-03
+Vệ sinh
+WC
+Gạch trát vữa
+Plastered brick
+–
+0
+0
+Trệt Z-04
+Cầu thang/HL
+Stair/Corridor
+Vách thạch cao
+Plasterboard
+–
+0
+0
+Trệt Z-05
+Bếp/Ăn
+Kitchen/Dining
+Vách thạch cao
+Plasterboard
+–
+0
+0
+Trệt Z-06
+Bếp/Ăn
+Kitchen/Dining
+Gạch trát vữa
+Plastered brick
+–
+0
+0
+Trệt Z-07
+Bếp/Ăn
+Kitchen/Dining
+Gạch trát vữa
+Plastered brick
+–
+0
+0
+Trệt Z-08
+Bếp/Ăn
+Kitchen/Dining
+Gạch trát vữa
+Plastered brick
+4
+1
+2
+Trệt Z-09
+Bếp/Ăn
+Kitchen/Dining
+Gạch trát vữa
+Plastered brick
+–
+0
+0
+Lửng Z-01
+Phòng ngủ 1
+Bedroom 1
+Gạch trát vữa
+Plastered brick
+–
+0
+0
+Lửng Z-02
+Phòng ngủ 1
+Bedroom 1
+Gạch trát vữa
+Plastered brick
+–
+0
+0
+Lửng Z-03
+Phòng ngủ 1
+Bedroom 1
+Gạch trát vữa
+Plastered brick
+–
+0
+0
+Cấp Burland chủ đạo
+Predominant grade
+Cấp 0 - Không đáng kể (11/12 vùng)
+Grade 0 - Negligible (11/12 zones)
+Cấp Burland cục bộ lớn nhất
+Local maximum grade
+Cấp 2 - Nhẹ (vùng Z-08, vết nứt D-01)
+Grade 2 - Slight (zone Z-08, crack D-01)
+Vùng chi phối rủi ro (*)
+Governing zone
+Trệt Z-08 (nứt tiếp giáp 2 tường)
+GF Z-08 (crack at junction of 2 walls)
+Tính đại diện của hư hỏng (*)
+Representativeness
+Cục bộ (chỉ xuất hiện tại một vài khu vực)
+Local (only at a few areas)
+Cờ khuyết tật kết cấu (*)
+Structural defect flag
+Trung bình (2 điểm)
+Moderate (2 points)
+Thẩm tra kỹ sư kết cấu (*)
+Structural engineer review
+Không yêu cầu
+Not required
+VIII. ĐÁNH GIÁ TÌNH TRẠNG CÔNG TRÌNH - BUILDING CONDITION ASSESSMENT
+1.Đánh giá theo ma trận rủi ro-Risk Matrix Assessment
+Mức độ hư hỏng
+Damage Grade
+Tốt
+Good
+Trung Bình
+Moderate
+Kém
+Poor
+Nguy hiểm
+Dangerous
+Không đáng kể (B-0)
+Negligible (B-0)
+1 -An toàn/ Safe
+1 -An toàn/ Safe
+1 -An toàn/ Safe
+2 – Rủi ro thấp/Low Risk
+Rất nhẹ (B-1)
+Very Slight (B-1)
+1 -An toàn/ Safe
+1 -An toàn/ Safe
+2 – Rủi ro thấp/Low Risk
+2 – Rủi ro thấp/Low Risk
+Nhẹ (B-2)
+Slight (B-2)
+2 – Rủi ro thấp/Low Risk
+[ 2 – Rủi ro thấp/Low Risk ]
+3 – Rủi ro trung bình/Medium Risk
+3 – Rủi ro trung bình/Medium Risk
+Trung bình (B-3)
+Moderate (B-3)
+3 – Rủi ro trung bình/Medium Risk
+3 – Rủi ro trung bình/Medium Risk
+4 – Rủi ro cao/High Risk
+4 – Rủi ro cao/High Risk
+Nặng/Rất nặng
+Severe / Very Severe (B-4, B-5)
+4 – Rủi ro cao/High Risk
+4 – Rủi ro cao/High Risk
+4 – Rủi ro cao/High Risk
+4 – Rủi ro cao/High Risk
+-Cấp ECS hiện tại: Trung bình (Moderate). Chưa có dự báo hư hỏng được phê duyệt (hồ sơ ghi Smax = 0 mm, PPV = 0 mm/s); tạm lấy cấp Burland hiện hữu lớn nhất B-2. Dựa trên ma trận, mức độ rủi ro cơ sở tạm xác định là: Rủi ro thấp.
+-Current ECS grade: Moderate. No approved damage prediction is available (source shows Smax = 0 mm, PPV = 0 mm/s); the existing maximum Burland grade B-2 is used provisionally. Based on the matrix, the baseline risk level is provisionally determined to be: Low Risk.
+2.Chấm điểm đánh giá rủi ro công trình-Building Risk Assessment Scoring
+Chỉ số đánh giá
+Assessment Indicator
+Cơ sở chấm điểm cho công trình này
+Basis for this building
+Giá trị điểm
+Score value
+Điểm số
+Score
+A - Tác động thi công / Hư hỏng dự đoán
+Construction Impact / Predicted Damage
+Chưa có dự báo lún/biến dạng được phê duyệt (Smax = 0 mm, PPV = 0 mm/s có dạng giá trị mặc định).
+No approved settlement/distortion prediction (Smax = 0 mm, PPV = 0 mm/s appear to be defaults).
+35
+Chờ
+Pending
+B - Tình trạng công trình
+Building Condition
+ECS = Trung bình → 8 điểm.
+ECS = Moderate → 8 points.
+25
+8
+C - Móng và độ nhạy địa kỹ thuật
+Foundation and Geotechnical Sensitivity
+Móng nông, tình trạng tốt → 5 điểm (hồ sơ mâu thuẫn móng nông/cọc; nếu xếp "móng hỗn hợp/không rõ" thì 10 điểm).
+Shallow foundation in good condition → 5 points (conflicting records; 10 points if treated as mixed/unknown).
+15
+5
+D - Mức độ tiếp xúc / Khoảng cách
+Exposure / Distance
+Cách tim hầm TBM 30 m → tạm xếp "trong vùng ảnh hưởng lún" = 10 điểm (cần xác nhận theo vùng ảnh hưởng thiết kế).
+30 m from TBM axis → provisionally "within the settlement-impact zone" = 10 points (to be confirmed against the design impact zone).
+15
+10
+E - Mức độ nghiêm trọng của hậu quả / Tầm quan trọng
+Consequence Severity / Importance
+Công trình dân dụng/thương mại thông thường → 3 điểm.
+Ordinary residential/commercial building → 3 points.
+10
+3
+Điểm BRA
+BRA Score
+B + C + D + E = 26; cộng thêm A khi có dự báo.
+B + C + D + E = 26; A to be added when predicted.
+100
+26 + A
+-Điểm BRA hiện tại: 26/100 khi chưa tính điểm A; điểm A sẽ được bổ sung khi có dự báo hư hỏng được phê duyệt.
+-Current BRA score: 26/100 excluding score A; score A will be added once an approved damage prediction is available.
+3. Cấp độ rủi ro tổng thể Overall Risk Grade
+Dựa trên kết quả đánh giá nêu trên, cấp độ rủi ro của công trình là: Rủi ro thấp (ma trận Burland × ECS và ma trận V × I cùng cho kết quả Thấp); sẽ rà soát lại khi có dự báo hư hỏng được phê duyệt.
+Based on the above results, the building's risk grade is: Low Risk (both the Burland × ECS and V × I matrices give Low); to be reviewed once an approved damage prediction is available.
+4. Đánh giá bổ sung theo phương pháp Giai đoạn 1 (*) - Supplementary Phase 1 assessment (ECS / VI / BRA V×I)
+Mã
+Code
+Tiêu chí ECS
+ECS criterion
+Căn cứ
+Basis
+Thang
+Scale
+Điểm
+Score
+E1
+Hư hỏng nhìn thấy tường/khối xây
+Visible damage to walls/masonry
+Burland cục bộ lớn nhất cấp 2
+Local max Burland grade 2
+0–4
+1
+E2
+Khuyết tật kết cấu
+Structural defects
+Cờ kết cấu Trung bình
+Structural flag Moderate
+0–4
+2
+E3
+Lún/nghiêng/võng
+Settlement/tilt/deflection
+Nghiêng 0‰, võng 0 mm
+Tilt 0‰, deflection 0 mm
+0–4
+0
+E4
+Suy giảm vật liệu
+Material deterioration
+Không rỉ, phong hóa, thấm
+No corrosion, weathering, leakage
+0–4
+0
+E5
+Lịch sử/cơi nới/sự cố
+History/extension/incident
+Cơi nới, sửa chữa, lún cũ mức nhẹ
+Minor extension, repair, old settlement
+0–4
+1
+E6
+Chức năng/tổng thể
+Functional/overall
+Vận hành, kín nước
+Operability, watertightness
+0–4
+1
+Tổng ECS
+Total ECS
+5/24 – Trung bình
+5/24 – Moderate
+Đánh giá chuyên gia điều chỉnh
+Engineering judgement
+OVERRIDE – lý do: ít cột chịu lực (chưa ghi nâng hay hạ)
+OVERRIDE – reason: few load-bearing columns (direction not stated)
+Mã
+Code
+Yếu tố VI (theo phần mềm)
+VI factor (software)
+Căn cứ
+Basis
+Thang
+Scale
+Điểm
+Score
+V1
+Năm xây dựng
+Year of construction
+1992
+1–4
+2
+V2
+Hệ kết cấu
+Structural system
+Tường gạch chịu lực
+Load-bearing brick
+1–4
+3
+V3
+Móng / mức chắc chắn thông tin
+Foundation / certainty
+CAT 4
+1–4
+3
+V4
+Chiều cao / số tầng
+Height / storeys
+1 tầng, 4 m
+1 storey, 4 m
+1–4
+3
+V5
+Công trình liền kề
+Adjoining buildings
+Tiếp giáp nhà liền kề
+Contact with neighbours
+1–4
+1
+V6
+Sử dụng &amp; nhạy cảm
+Use &amp; sensitivity
+Thiết bị nhạy rung: không
+Vibration-sensitive equipment: none
+1–4
+1
+VI trung bình
+Average VI
+13/24 → 2,17 – Trung bình
+13/24 → 2.17 – Medium
+-Ma trận Giai đoạn 1: VI Trung bình (V2) × Cấp tác động I1 → BRA = Thấp. Duy trì quan trắc định kỳ theo kiến nghị tại mục IX.
+-Phase 1 matrix: VI Medium (V2) × Impact I1 → BRA = Low. Periodic monitoring is maintained as recommended in Section IX.
+IX. KẾT LUẬN VÀ KIẾN NGHỊ CONCLUSION AND RECOMMENDATION
+-Sau khi hoàn thành công tác khảo sát hiện trường và đánh giá hiện trạng, công trình đang sử dụng ổn định; ghi nhận một vết nứt nhẹ phi kết cấu (D-01, rộng 4 mm, dài 2,2 m, Burland cấp 2) trên tường gạch khu bếp/ăn tầng trệt. Không ghi nhận lún, nghiêng, võng bất thường.
+-Following the on-site survey and condition assessment, the building is in stable use; one slight non-structural crack (D-01, 4 mm wide, 2.2 m long, Burland grade 2) was recorded on a brick wall of the ground-floor kitchen/dining area. No abnormal settlement, tilt or deflection was observed.
+-Cấp độ rủi ro tổng thể: Rủi ro thấp (ma trận Burland × ECS và V × I); sẽ rà soát lại khi có dự báo hư hỏng được phê duyệt.
+-Overall risk grade: Low Risk (Burland × ECS and V × I matrices); to be reviewed once an approved damage prediction is available.
+-Khảo sát được thực hiện với sự chứng kiến của chủ nhà và đại diện Khu phố 10; chủ nhà đã kiểm tra lại các ghi chú vết nứt, đồng ý và không có ý kiến bổ sung.
+-The survey was witnessed by the owner and the representative of Neighbourhood 10; the owner reviewed the crack notes, agreed and had no additional comments.
+-Hạn chế: chưa ghi nhận phần mái và độ nghiêng sàn; độ nghiêng thân nhà được đánh giá bằng quan sát; thông tin móng chưa thống nhất.
+-Limitations: the roof and floor-slab inclination were not recorded; building tilt was assessed visually; foundation information is inconsistent.
+-Kiến nghị thiết lập hồ sơ hiện trạng ban đầu, lắp đặt mốc quan trắc biến dạng và quan trắc định kỳ độ lún, độ nghiêng trong suốt quá trình đào hầm TBM; theo dõi vết nứt D-01 bằng mốc/thước đo nứt.
+-It is recommended to establish the baseline record, install deformation monitoring points and periodically monitor settlement and inclination throughout TBM tunnelling; monitor crack D-01 with a tell-tale/crack gauge.
+-Báo cáo Giai đoạn 1 là hồ sơ khảo sát và sàng lọc ban đầu; hồ sơ pháp lý xác nhận hiện trạng trước thi công được thực hiện theo quy trình Giai đoạn 2 và các yêu cầu được dự án/Tư vấn phê duyệt.
+-This Phase 1 report is a preliminary survey and screening record; the legal pre-construction condition record is established under the Phase 2 procedure and the requirements approved by the Project/Engineer.
+Nội dung cần bổ sung từ hiện trường / thiết kế (*) - Items pending field or design data
+• Cờ kết cấu E2 = 2 (Trung bình) chưa có khuyết tật kết cấu tương ứng – kỹ sư hiện trường xác nhận lại. - Structural flag E2 = 2 has no matching structural defect – to be reconfirmed by the field engineer.
+• Hệ kết cấu và móng (tường gạch + 12 cột BTCT; móng nông hay cọc 22x25 cm) – xác minh theo bản vẽ hoàn công. - Structure and foundation type – to be verified against the as-built drawing.
+• Dự báo lún Smax, PPV, biến dạng góc và điểm A – lấy từ thiết kế / đánh giá tác động được phê duyệt. - Predicted Smax, PPV, angular distortion and score A – from the approved design / impact assessment.
+PHỤ LỤC 1: BẢN VẼ MẶT ĐỨNG NGOÀI CÔNG TRÌNH
+APPENDIX 1 BUILDING EXTERIOR ELEVATION DRAWINGS
+P-02 (P02_MAIN) Mặt đứng chính toàn cảnh
+Overall view of the main facade
+P-03 (P03_SIDE) Mặt bên (hông trái)
+Side facade (left)
+P-01 (P01_HOUS) Biển số nhà / tên công trình
+House number / signboard
+P-04 (P04_CONT) Bối cảnh đường phố &amp; tuyến Metro
+Street context &amp; Metro alignment
+P-05 Kiểm tra độ nghiêng mặt tiền
+Facade tilt check
+Ảnh P-01 – P-04 chụp ngày 26/09/2026, tọa độ GPS 10.7769, 106.7009; mã trong ngoặc là mã ảnh gốc trên phần mềm. - Photos P-01 – P-04 taken on 26/09/2026 at GPS 10.7769, 106.7009; codes in brackets are the original software photo IDs.
+PHỤ LỤC 2: THỐNG KÊ KHUYẾT TẬT TRÊN MẶT BẰNG TẦNG
+APPENDIX 2 FLOOR PLAN DEFECT STATISTICS
+Tầng trệt - G Floor
+Sơ đồ hư hỏng (ghim vùng Z &amp; khuyết tật D)
+Damage map (Z &amp; D pins)
+Sơ đồ bố trí kết cấu (ghim cấu kiện E)
+Structural layout (E pins)
+Bảng tổng hợp các khiếm khuyết của tầng này
+Defect Summary Table for This Floor
+No.
+Defect ID
+Location
+Defect
+Type
+Width
+Length
+Burland Damage
+Category
+Description
+1
+D-01
+G - Bếp/Ăn, tường Z-08
+G - Kitchen/Dining wall Z-08
+Nứt ziczac mạch vữa
+Finish crack (zigzag)
+4 mm
+2.2 m
+2
+Slight
+Phương 85°
+Trạng thái: chưa rõ (Unknown)
+Cờ KC: N/A
+Đã trám 1 phần
+Sơ đồ vị trí các khiếm khuyết của tầng này
+Defect Map for This Floor
+Finish Crack-D-01 (bối cảnh / context)
+Tường Z-08 bếp/ăn - phương 85°, đã trám một phần
+Finish Crack-D-01 (cận cảnh có thước / close-up)
+wmax = 4 mm, L = 2.2 m
+Hiện trạng các vùng (Z) và cấu kiện chịu lực (E) của tầng này (*)
+Condition of Zones (Z) and Structural Elements (E) for This Floor
+Mã
+Code
+Vị trí
+Location
+Cấu kiện / vật liệu
+Member / material
+Tình trạng
+Condition
+Ảnh
+Photo
+Z-01
+Bếp/Ăn
+Kitchen/Dining
+Tường gạch trát vữa quét vôi
+Plastered, lime-washed brick wall
+Bình thường (B-0)
+Normal (B-0)
+P-11
+Z-02
+Cầu thang/HL
+Stair/Corridor
+Tường gạch trát vữa quét vôi
+Plastered, lime-washed brick wall
+Bình thường (B-0)
+Normal (B-0)
+P-12,13
+Z-03
+Vệ sinh
+WC
+Tường gạch trát vữa quét vôi
+Plastered, lime-washed brick wall
+Bình thường (B-0)
+Normal (B-0)
+P-14,15
+Z-04
+Cầu thang/HL
+Stair/Corridor
+Vách thạch cao / tấm nhẹ
+Plasterboard partition
+Bình thường (B-0)
+Normal (B-0)
+P-16,17
+Z-05
+Bếp/Ăn
+Kitchen/Dining
+Vách thạch cao / tấm nhẹ
+Plasterboard partition
+Bình thường (B-0)
+Normal (B-0)
+P-18,19
+Z-06
+Bếp/Ăn
+Kitchen/Dining
+Tường gạch trát vữa quét vôi
+Plastered, lime-washed brick wall
+Bình thường (B-0)
+Normal (B-0)
+P-20
+Z-07
+Bếp/Ăn
+Kitchen/Dining
+Tường gạch trát vữa quét vôi
+Plastered, lime-washed brick wall
+Bình thường (B-0)
+Normal (B-0)
+P-21,22
+Z-08
+Bếp/Ăn
+Kitchen/Dining
+Tường gạch trát vữa quét vôi
+Plastered, lime-washed brick wall
+Nhẹ (B-2) - D-01
+Slight (B-2) - D-01
+P-23,24
+Z-09
+Bếp/Ăn
+Kitchen/Dining
+Tường gạch trát vữa quét vôi
+Plastered, lime-washed brick wall
+Bình thường (B-0)
+Normal (B-0)
+P-25–28
+E-01
+Bếp/Ăn
+Kitchen/Dining
+Cột BTCT đổ toàn khối
+Cast-in-situ RC column
+Ổn định, nguyên vẹn
+Stable, intact
+P-29
+E-02
+Vệ sinh
+WC
+Cột BTCT đổ toàn khối
+Cast-in-situ RC column
+Ổn định, nguyên vẹn
+Stable, intact
+P-30
+E-03 – E-05
+Cầu thang/HL
+Stair/Corridor
+Cột BTCT đổ toàn khối
+Cast-in-situ RC column
+Ổn định, nguyên vẹn
+Stable, intact
+P-31–33
+E-06 – E-09
+Bếp/Ăn
+Kitchen/Dining
+Cột BTCT đổ toàn khối
+Cast-in-situ RC column
+Ổn định, nguyên vẹn
+Stable, intact
+P-34–37
+–
+Toàn tầng
+Whole floor
+Độ võng dầm/sàn lớn nhất; quan trắc bổ sung: không yêu cầu
+Max. beam/slab deflection; extra monitoring: not required
+0,0 mm
+–
+P-06 Tổng quan tầng trệt
+Ground floor overview
+P-07 Tổng quan tầng trệt
+Ground floor overview
+P-11 Z-01 Bếp/Ăn
+Kitchen/Dining
+P-12 Z-02 Cầu thang/HL (bối cảnh)
+Stair/Corridor (context)
+P-13 Z-02 Cầu thang/HL (toàn cảnh)
+Stair/Corridor (overview)
+P-14 Z-03 Vệ sinh (bối cảnh)
+WC (context)
+P-15 Z-03 Vệ sinh (toàn cảnh)
+WC (overview)
+P-16 Z-04 Cầu thang/HL (bối cảnh)
+Stair/Corridor (context)
+P-17 Z-04 Cầu thang/HL (toàn cảnh)
+Stair/Corridor (overview)
+P-18 Z-05 Bếp/Ăn (bối cảnh)
+Kitchen/Dining (context)
+P-19 Z-05 Bếp/Ăn (toàn cảnh)
+Kitchen/Dining (overview)
+P-20 Z-06 Bếp/Ăn
+Kitchen/Dining
+P-21 Z-07 Bếp/Ăn (bối cảnh)
+Kitchen/Dining (context)
+P-22 Z-07 Bếp/Ăn (toàn cảnh)
+Kitchen/Dining (overview)
+P-23 Z-08 Bếp/Ăn (bối cảnh)
+Kitchen/Dining (context)
+P-24 Z-08 Bếp/Ăn (toàn cảnh)
+Kitchen/Dining (overview)
+P-25 Z-09 Bếp/Ăn (bối cảnh)
+Kitchen/Dining (context)
+P-26 Z-09 Bếp/Ăn (toàn cảnh 1)
+Kitchen/Dining (overview 1)
+P-27 Z-09 Bếp/Ăn (toàn cảnh 2)
+Kitchen/Dining (overview 2)
+P-28 Z-09 Bếp/Ăn (toàn cảnh 3)
+Kitchen/Dining (overview 3)
+P-29 E-01 Cột BTCT - Bếp/Ăn
+RC column - stable
+P-30 E-02 Cột BTCT - Vệ sinh
+RC column - stable
+P-31 E-03 Cột BTCT - Cầu thang
+RC column - stable
+P-32 E-04 Cột BTCT - Cầu thang
+RC column - stable
+P-33 E-05 Cột BTCT - Cầu thang
+RC column - stable
+P-34 E-06 Cột BTCT - Bếp/Ăn
+RC column - stable
+P-35 E-07 Cột BTCT - Bếp/Ăn
+RC column - stable
+P-36 E-08 Cột BTCT - Bếp/Ăn
+RC column - stable
+P-37 E-09 Cột BTCT - Bếp/Ăn
+RC column - stable
+Tầng lửng - Mezzanine Floor
+Sơ đồ hư hỏng (ghim vùng Z &amp; khuyết tật D)
+Damage map (Z &amp; D pins)
+Sơ đồ bố trí kết cấu (ghim cấu kiện E)
+Structural layout (E pins)
+Bảng tổng hợp các khiếm khuyết của tầng này
+Defect Summary Table for This Floor
+No.
+Defect ID
+Location
+Defect
+Type
+Width
+Length
+Burland Damage
+Category
+Description
+Không phát hiện khuyết tật nứt hoặc hư hỏng đáng kể tại tầng lửng.
+No significant cracks or damage found at the mezzanine.
+Hiện trạng các vùng (Z) và cấu kiện chịu lực (E) của tầng này (*)
+Condition of Zones (Z) and Structural Elements (E) for This Floor
+Mã
+Code
+Vị trí
+Location
+Cấu kiện / vật liệu
+Member / material
+Tình trạng
+Condition
+Ảnh
+Photo
+Z-01 – Z-03
+Phòng ngủ 1
+Bedroom 1
+Tường gạch trát vữa quét vôi
+Plastered, lime-washed brick wall
+Bình thường (B-0)
+Normal (B-0)
+P-38–40
+E-01 – E-03
+Phòng ngủ 1
+Bedroom 1
+Cột BTCT đổ toàn khối
+Cast-in-situ RC column
+Ổn định, nguyên vẹn
+Stable, intact
+P-41–43
+–
+Toàn tầng
+Whole floor
+Độ võng dầm/sàn lớn nhất; quan trắc bổ sung: không yêu cầu
+Max. beam/slab deflection; extra monitoring: not required
+0,0 mm
+–
+P-10 Tổng quan tầng lửng
+Mezzanine overview
+P-38 Z-01 Phòng ngủ 1
+Bedroom 1
+P-39 Z-02 Phòng ngủ 1
+Bedroom 1
+P-40 Z-03 Phòng ngủ 1
+Bedroom 1
+P-41 E-01 Cột BTCT
+RC column - stable
+P-42 E-02 Cột BTCT
+RC column - stable
+P-43 E-03 Cột BTCT
+RC column - stable
+PHỤ LỤC 3: BIÊN BẢN KHẢO SÁT HIỆN TRƯỜNG (*)
+APPENDIX 3 SIGNED SITE-SURVEY RECORD
+Thời gian khảo sát
+Survey time
+10:20, 26/09/2026
+Chủ sở hữu / Người đại diện
+Owner / representative
+Nguyễn Thị Ngân Giang - Chủ nhà
+Owner
+Đại diện chính quyền địa phương
+Local authority
+Lê Văn Sơn - Trưởng khu phố 10
+Head of Neighbourhood 10
+Tư vấn giám sát
+Supervision consultant
+Không có mặt / chưa ký
+Not present / not signed
+Đơn vị khảo sát
+Survey unit
+Nguyễn Trọng Tuấn - Trưởng nhóm KS, Liên danh CRLG – CRSRI – TT
+Survey team leader, CRLG – CRSRI – TT JV
+Ý kiến tại hiện trường
+Field comments
+Không có ý kiến bổ sung
+No additional comments
+Ký xác nhận điện tử trên phần mềm (*)
+Electronic sign-off in software
+Khảo sát viên: Nguyễn Văn Khảo Sát (Cập nhật); Chủ sở hữu: Nguyễn Thị Ngân Giang (đã ký xác nhận); Giám sát/phê duyệt: Nguyễn Văn Kiểm Duyệt (đã ký) – ngày 26/09/2026
+Surveyor, owner (signed) and supervisor (signed) – 26/09/2026
+Nguồn dữ liệu báo cáo (*)
+Data source
+Bản xuất phần mềm REPORT-B-01064-C&amp;C-PHASE1-1790480320866, 58 trang, xuất lúc 19:33:45 ngày 27/09/2026
+Software export, 58 pages, exported 19:33:45 on 27/09/2026
+Biên bản xác nhận khảo sát hiện trạng - trang 1/2 - Signed site-survey record - page 1/2
+Biên bản xác nhận khảo sát hiện trạng - trang 2/2 - Signed site-survey record - page 2/2
+PHỤ LỤC 4: THIẾT BỊ VÀ PHẠM VI TIẾP CẬN (*)
+APPENDIX 4 EQUIPMENT AND ACCESS
+STT
+No.
+Thiết bị
+Equipment
+Thông số kỹ thuật (theo phần mềm)
+Specification (software)
+Mục đích sử dụng
+Purpose
+1
+Máy ảnh số có GPS
+Digital camera with GPS
+≥ 12MP, tọa độ EXIF WGS-84
+≥ 12 MP, EXIF WGS-84
+Ảnh định danh P-01 – P-04, bối cảnh vết nứt
+Identification photos, crack context
+2
+Thước đo bề rộng nứt
+Crack width gauge
+Vạch chia 0,1 – 5,0 mm
+0.1 – 5.0 mm
+Đo bề rộng lớn nhất wmax
+Measure wmax
+3
+Thước laser / thước thép
+Laser / steel tape
+± 1,5 mm, tầm đo 40 m
+± 1.5 mm, 40 m range
+Chiều dài nứt, kích thước phòng
+Crack length, room size
+4
+Máy đo nghiêng / thước bọt nước
+Inclinometer / spirit level
+Độ chính xác 0,1‰ (cần kiểm tra)
+Accuracy 0.1‰ (to be checked)
+Nghiêng thân nhà X/Y, võng dầm sàn
+Building tilt X/Y, deflection
+Model, số serial và chứng chỉ hiệu chuẩn chưa có trong hồ sơ - Model, serial number and calibration certificate not provided.
+Khu vực
+Area
+Đã tiếp cận
+Accessed
+Không tiếp cận
+Not accessed
+Ghi chú
+Remark
+Mặt ngoài
+Exterior
+☒
+☐
+P-01 – P-04
+Tầng trệt
+Ground floor
+☒
+☐
+9 vùng Z, 9 cấu kiện E
+9 zones, 9 elements
+Tầng lửng
+Mezzanine
+☒
+☐
+3 vùng Z, 3 cấu kiện E
+3 zones, 3 elements
+Mái
+Roof
+☐
+☐
+Chưa ghi nhận
+Not recorded
+Tầng hầm
+Basement
+N/A
+N/A
+Không có tầng hầm
+No basement
+Phân loại tiếp cận: không hạn chế (100%). - Access classification: no restriction (100%).

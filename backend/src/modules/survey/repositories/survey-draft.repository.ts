@@ -21,7 +21,7 @@ export class SurveyDraftRepository {
              p.house_number,
              p.street
       FROM base_survey_reports r
-      JOIN users u ON r.surveyor_id = u.id
+      LEFT JOIN users u ON r.surveyor_id = u.id
       LEFT JOIN users le ON r.last_edited_by_id = le.id
       JOIN parcels p ON r.parcel_id = p.id
       WHERE r.parcel_id = $1 AND r.phase = $2 AND (r.status = 'DRAFT' OR r.status = 'REJECTED')

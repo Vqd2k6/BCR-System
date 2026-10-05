@@ -89,7 +89,21 @@ export class SurveyBaseRepository {
               COALESCE(bu.owner_name, p.owner_name) AS owner_name,
               COALESCE(bu.owner_phone, p.owner_phone) AS owner_phone,
               bu.unit_code, bu.floor_number AS unit_floor_number,
-              p.zone_id, p.building_type,
+              p.zone_id, p.building_type, p.segment_type,
+              p.land_area_m2, p.construction_area_m2 AS parcel_construction_area_m2, p.floor_count AS parcel_floor_count,
+              ms.segment_name AS metro_segment_name,
+              ms.construction_type AS metro_construction_type,
+              ms.start_chainage_km AS metro_start_chainage,
+              ms.end_chainage_km AS metro_end_chainage,
+              ROUND(ST_Distance(COALESCE(p.footprint_polygon_geom, p.cadastral_polygon_geom)::geography, ms.centerline_geom::geography)::numeric, 1) AS distance_to_centerline_m,
+              ROUND((ST_Distance(
+                ST_PointN(ST_ExteriorRing(ST_OrientedEnvelope(p.cadastral_polygon_geom)), 1)::geography,
+                ST_PointN(ST_ExteriorRing(ST_OrientedEnvelope(p.cadastral_polygon_geom)), 2)::geography
+              ))::numeric, 1) AS parcel_side_a_m,
+              ROUND((ST_Distance(
+                ST_PointN(ST_ExteriorRing(ST_OrientedEnvelope(p.cadastral_polygon_geom)), 2)::geography,
+                ST_PointN(ST_ExteriorRing(ST_OrientedEnvelope(p.cadastral_polygon_geom)), 3)::geography
+              ))::numeric, 1) AS parcel_side_b_m,
               u.full_name AS surveyor_name,
               u.phone AS surveyor_phone,
               u.surveyor_code,
@@ -100,7 +114,8 @@ export class SurveyBaseRepository {
               COALESCE(sa.signature_image_url, default_sa.signature_image_url) AS super_admin_signature_img
        FROM base_survey_reports r
        JOIN parcels p ON r.parcel_id = p.id
-       JOIN users u ON r.surveyor_id = u.id
+       LEFT JOIN metro_segments ms ON ms.segment_code = p.zone_id
+       LEFT JOIN users u ON r.surveyor_id = u.id
        LEFT JOIN users za ON r.zone_admin_id = za.id
        LEFT JOIN users sa ON za.created_by_user_id = sa.id
        LEFT JOIN LATERAL (

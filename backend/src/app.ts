@@ -19,6 +19,7 @@ import { AuditController } from './modules/audit/audit.controller';
 import { ExportController } from './modules/export/export.controller';
 import { StorageController } from './modules/storage/storage.controller';
 import { ReportController } from './modules/report/report.controller';
+import { ReportV2Controller } from './modules/report_v2/report-v2.controller';
 import { DevController } from './modules/dev/dev.controller';
 import { Database } from './database/db';
 import multer from 'multer';
@@ -219,6 +220,14 @@ export function createApp(): express.Application {
   api.post('/reports/:id/preview/html', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportController.previewResidentialHtml); // Xem trước HTML có overrides (Không sửa DB)
   api.put('/reports/:id/survey-data',  authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), ReportController.updateReportSurveyData);
   api.patch('/reports/:id/survey-data', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), ReportController.updateReportSurveyData);
+
+  // ==========================================
+  // 5.1. TECHNICAL BCS REPORT V2 (PHASE 1 - 0410 TEMPLATE)
+  // ==========================================
+  api.get('/v2/reports/:id/export/pdf',   authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportV2Controller.exportResidentialPdf);
+  api.post('/v2/reports/:id/export/pdf',  authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportV2Controller.exportResidentialPdf);
+  api.get('/v2/reports/:id/preview/html', ReportV2Controller.previewResidentialHtml);
+  api.post('/v2/reports/:id/preview/html', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportV2Controller.previewResidentialHtml);
 
   // ==========================================
   // 6. DEV ERROR REPORTING & RUNTIME DIAGNOSTICS

@@ -79,6 +79,8 @@ export const Phase1ExportModuleBox: React.FC<Phase1ExportModuleBoxProps> = ({
     setDefectFilterQuery,
     modalFeedback,
     setModalFeedback,
+    reportVersion,
+    handleSwitchVersion,
     handleOpenPreview,
     handleUpdateFormField,
     handleUpdateDefectField,
@@ -158,6 +160,8 @@ export const Phase1ExportModuleBox: React.FC<Phase1ExportModuleBoxProps> = ({
         setDefectFilterQuery={setDefectFilterQuery}
         modalFeedback={modalFeedback}
         setModalFeedback={setModalFeedback}
+        reportVersion={reportVersion}
+        handleSwitchVersion={handleSwitchVersion}
         handleOpenPreview={handleOpenPreview}
         handleUpdateFormField={handleUpdateFormField}
         handleUpdateDefectField={handleUpdateDefectField}

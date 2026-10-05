@@ -24,6 +24,8 @@ backend/.env.local
 logs/
 backend/logs/
 backend/reports/
+backend/sample_export/
+backend/temp_*.html
 
 # Flutter & Dart (Mobile App)
 mobile_app/.dart_tool/
