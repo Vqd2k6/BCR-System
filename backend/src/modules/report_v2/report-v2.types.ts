@@ -425,6 +425,18 @@ export interface Appendix1PhotoItem {
   capturedAt: string;
   gpsCoords: string;
   originalTag?: string;
+  alreadyWatermarked?: boolean;
+}
+
+export interface CadPinOverlayItem {
+  id?: string;
+  code: string;                      // Z-01, E-01, D-01
+  label?: string;
+  pinX: number;                      // 0 - 100 (%)
+  pinY: number;                      // 0 - 100 (%)
+  type: 'ZONE' | 'STRUCTURAL' | 'DEFECT';
+  typeLower: 'zone' | 'element' | 'defect';
+  description?: string;
 }
 
 export interface DefectPairPhotoItem {
@@ -433,9 +445,13 @@ export interface DefectPairPhotoItem {
   contextPhotoUrl?: string;
   contextPhotoBase64?: string;
   contextCaption: BilingualText;
+  contextAlreadyWatermarked?: boolean;
+  contextPhotoCode?: string;
   closeUpPhotoUrl?: string;
   closeUpPhotoBase64?: string;
   closeUpCaption: BilingualText;
+  closeUpAlreadyWatermarked?: boolean;
+  closeUpPhotoCode?: string;
   hasCrackGauge: boolean;
   wmaxMm: number | string;
   lengthM: number | string;
@@ -443,7 +459,13 @@ export interface DefectPairPhotoItem {
   extraCloseUpPhotoUrl?: string;
   extraCloseUpPhotoBase64?: string;
   extraCloseUpCaption?: BilingualText;
+  extraCloseUpAlreadyWatermarked?: boolean;
+  extraCloseUpPhotoCode?: string;
   hasExtraCloseUp?: boolean;
+  activityState?: string;            // S hoặc A
+  activityStateDisplay?: BilingualText;
+  notes?: string;                    // Ghi chú hiện trường KSV
+  cadPinRef?: string;                // e.g. "D-01 trên CAD_01"
 }
 
 export interface RoomOverviewPhotoItem {
@@ -457,6 +479,7 @@ export interface RoomOverviewPhotoItem {
     isNormal: boolean;
     text: BilingualText;
   };
+  alreadyWatermarked?: boolean;
 }
 
 export interface FloorOverviewPageViewModel {
@@ -485,6 +508,7 @@ export interface FloorDefectSummaryRow {
   burlandDamageCategory: BilingualText;
   burlandGrade: number;
   description: BilingualText;
+  cadPinRef?: string;
 }
 
 export interface FloorPlanDefectReport {
@@ -497,6 +521,8 @@ export interface FloorPlanDefectReport {
   hasStructuralCadMap: boolean;      // True nếu có bản vẽ kết cấu riêng biệt với bản vẽ kiến trúc
   hasDefects: boolean;               // True nếu tầng có ít nhất 1 khuyết tật
   zeroDefectsNotice?: BilingualText; // Thông báo kỹ thuật khi tầng nguyên vẹn không có vết nứt
+  cadPins?: CadPinOverlayItem[];     // Ghim Z, E, D trên bản vẽ kiến trúc CAD_01
+  cadStructuralPins?: CadPinOverlayItem[]; // Ghim E, D trên bản vẽ kết cấu CAD_02
   defectSummaryRows: FloorDefectSummaryRow[];
   defectPairPhotos: DefectPairPhotoItem[];
   defectPairPages?: Array<{

@@ -231,7 +231,7 @@ export class RiskScoringCalculator {
       {
         code: 'V2',
         title: { vi: 'Hệ kết cấu chịu lực', en: 'Structural system' },
-        basis: { vi: structSys ? `Kết cấu: ${structSys}` : 'Khung bê tông cốt thép toàn khối', en: structSys ? `System: ${structSys}` : 'Reinforced concrete frame' },
+        basis: { vi: structSys ? `Kết cấu: ${structSys}` : 'Chưa xác định hệ kết cấu', en: structSys ? `System: ${structSys}` : 'Unverified structural system' },
         scale: '1–4',
         score: v2,
       },

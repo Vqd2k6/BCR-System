@@ -89,8 +89,8 @@ export class BurlandCalculator {
         const zCode = z.zoneCode || 'Z-01';
         const locVi = z.roomName || 'Khu vực chính';
         const locEn = z.roomNameEn || locVi;
-        const wallMatVi = z.wallMaterial || 'Gạch trát vữa quét vôi';
-        const wallMatEn = z.wallMaterialEn || 'Plastered brick';
+        const wallMatVi = z.wallMaterial || 'Chưa ghi nhận vật liệu';
+        const wallMatEn = z.wallMaterialEn || (z.wallMaterial ? z.wallMaterial : 'Not recorded');
 
         const defects: any[] = z.defects || [];
         let maxW = 0;

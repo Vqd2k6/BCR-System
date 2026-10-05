@@ -3,7 +3,9 @@
  * FLOOR DEFECT MAPPER & PAIR PHOTO BINDER
  * Gom nhóm khuyết tật theo từng tầng (Phụ lục 2),
  * Ghép cặp ảnh đối chiếu (Bối cảnh vs Cận cảnh có thước đo nứt),
- * Thống kê hiện trạng vùng Z và cấu kiện E.
+ * Thống kê hiện trạng vùng Z và cấu kiện E,
+ * Xây dựng danh sách điểm ghim Z, E, D (CadPinOverlayItem) hiển thị trên CAD,
+ * Kiểm tra trạng thái Watermark tự động cho từng bức ảnh.
  * ============================================================================
  */
 
@@ -14,9 +16,26 @@ import {
   FloorConditionZoneElementItem,
   RoomOverviewPhotoItem,
   FloorOverviewPageViewModel,
+  CadPinOverlayItem,
 } from '../report-v2.types';
 import { BurlandCalculator } from './burland-calculator';
 import { ReportImageResolver } from '../services/report-image-resolver.service';
+
+/**
+ * Kiểm tra xem một bức ảnh đã được nhúng watermark từ thiết bị/hệ thống hay chưa
+ */
+function isPhotoAlreadyWatermarked(url?: string, photoObj?: any): boolean {
+  if (!url && !photoObj) return false;
+  if (photoObj?.hasWatermark === true || photoObj?.isWatermarked === true) return true;
+  const u = (url || photoObj?.url || '').toLowerCase();
+  return (
+    u.includes('_wm_') ||
+    u.includes('watermark') ||
+    u.includes('annotated') ||
+    u.includes('_wm.') ||
+    u.includes('-wm.')
+  );
+}
 
 export class FloorDefectMapper {
   public static mapFloors(rawFloors: any[], photoCounter: { current: number } = { current: 5 }): FloorPlanDefectReport[] {
@@ -35,7 +54,7 @@ export class FloorDefectMapper {
         `Floor ${floorIndex}`
       );
 
-      // 1. Sơ đồ CAD hư hỏng & kết cấu (Hỗ trợ cả cadSketchPhotoUrl từ Mobile/PWA và cad_drawing_url từ CSDL)
+      // 1. Sơ đồ CAD hư hỏng & kết cấu
       const damageMapUrl = fl.damageMapUrl || fl.cadSketchPhotoUrl || fl.cad_drawing_url || fl.cadArchUrl || fl.cadDrawingUrl || '';
       const damageMapBase64 = damageMapUrl ? ReportImageResolver.resolveToBase64(damageMapUrl) : undefined;
       const explicitStructuralMapUrl = fl.structuralMapUrl || fl.cadStructuralSketchPhotoUrl || fl.cad_structural_drawing_url || fl.cadStructuralDrawingUrl || '';
@@ -43,7 +62,53 @@ export class FloorDefectMapper {
       const structuralMapUrl = hasStructuralCadMap ? explicitStructuralMapUrl : '';
       const structuralMapBase64 = hasStructuralCadMap && structuralMapUrl ? ReportImageResolver.resolveToBase64(structuralMapUrl) : undefined;
 
-      // 2. Thu thập ảnh tổng thể các phòng và gom khuyết tật
+      // 2. Thu thập các điểm ghim Vùng Z và Cấu kiện E trên sơ đồ CAD
+      const cadPins: CadPinOverlayItem[] = [];
+      const cadStructuralPins: CadPinOverlayItem[] = [];
+
+      // Vùng Z từ fl.cadZonePins
+      if (Array.isArray(fl.cadZonePins)) {
+        for (const p of fl.cadZonePins) {
+          if (p && p.pinX !== undefined && p.pinY !== undefined) {
+            const code = p.zoneCode || p.label || 'Z';
+            cadPins.push({
+              id: p.id,
+              code,
+              label: p.label || code,
+              pinX: Number(p.pinX),
+              pinY: Number(p.pinY),
+              type: 'ZONE',
+              typeLower: 'zone',
+              description: `Vùng kiến trúc ${code}`,
+            });
+          }
+        }
+      }
+
+      // Cấu kiện E từ fl.cadElementPins
+      if (Array.isArray(fl.cadElementPins)) {
+        for (const p of fl.cadElementPins) {
+          if (p && p.pinX !== undefined && p.pinY !== undefined) {
+            const code = p.zoneCode || p.elementCode || p.label || 'E';
+            const item: CadPinOverlayItem = {
+              id: p.id,
+              code,
+              label: p.label || code,
+              pinX: Number(p.pinX),
+              pinY: Number(p.pinY),
+              type: 'STRUCTURAL',
+              typeLower: 'element',
+              description: `Cấu kiện kết cấu ${code}`,
+            };
+            cadStructuralPins.push(item);
+            if (!hasStructuralCadMap) {
+              cadPins.push(item);
+            }
+          }
+        }
+      }
+
+      // 3. Thu thập ảnh tổng thể các phòng và gom khuyết tật
       const floorOverviewPhotos: RoomOverviewPhotoItem[] = [];
       const seenPhotoUrls = new Set<string>();
 
@@ -54,7 +119,8 @@ export class FloorDefectMapper {
         roomEn: string,
         isNormal: boolean,
         captionVi?: string,
-        captionEn?: string
+        captionEn?: string,
+        photoCode?: string
       ) => {
         if (!rawUrl || typeof rawUrl !== 'string') return;
         const cleanUrl = rawUrl.trim();
@@ -63,7 +129,7 @@ export class FloorDefectMapper {
 
         const base64 = ReportImageResolver.resolveToBase64(cleanUrl);
         photoCounter.current++;
-        const photoId = `P-${photoCounter.current.toString().padStart(2, '0')}`;
+        const photoId = photoCode || `P-${photoCounter.current.toString().padStart(2, '0')}`;
 
         floorOverviewPhotos.push({
           photoId,
@@ -81,6 +147,7 @@ export class FloorDefectMapper {
               ? { vi: '✓ Bình thường / Ổn định', en: '✓ Normal / Stable' }
               : { vi: '⚠️ Ghi nhận khuyết tật', en: '⚠️ Defect observed' },
           },
+          alreadyWatermarked: isPhotoAlreadyWatermarked(cleanUrl),
         });
       };
 
@@ -95,7 +162,8 @@ export class FloorDefectMapper {
             `${flNameEn} Overview`,
             true,
             `Ảnh toàn cảnh tầng ${flNameVi} (góc ${idx + 1})`,
-            `Floor ${flNameEn} overall view (angle ${idx + 1})`
+            `Floor ${flNameEn} overall view (angle ${idx + 1})`,
+            item?.photoCode
           );
         });
       }
@@ -106,7 +174,6 @@ export class FloorDefectMapper {
 
       let defectNo = 0;
 
-      // Hỗ trợ cả cấu trúc zones lồng nhau hoặc defects trực tiếp trên floor
       const rawZones = (fl.zones && fl.zones.length > 0)
         ? fl.zones
         : (Array.isArray(fl.defects) && fl.defects.length > 0)
@@ -118,15 +185,14 @@ export class FloorDefectMapper {
         const zCode = z.zoneCode || 'Z-01';
         const roomVi = z.roomName || 'Khu vực chung';
         const roomEn = z.roomNameEn || roomVi;
-        const wallMatVi = z.wallMaterial || 'Tường gạch trát vữa quét vôi';
-        const wallMatEn = z.wallMaterialEn || 'Plastered, lime-washed brick wall';
+        const wallMatVi = z.wallMaterial || 'Chưa ghi nhận vật liệu';
+        const wallMatEn = z.wallMaterialEn || (z.wallMaterial ? z.wallMaterial : 'Not recorded');
 
         const defects = z.defects || [];
         let maxZoneW = 0;
         let zoneConditionVi = 'Bình thường (B-0)';
         let zoneConditionEn = 'Normal (B-0)';
 
-        // Tăng photo index cho ảnh zone nếu có
         photoCounter.current++;
         const pZoneLabel = `P-${photoCounter.current.toString().padStart(2, '0')}`;
 
@@ -143,22 +209,43 @@ export class FloorDefectMapper {
             const bCatVi = BurlandCalculator.getBurlandGradeLabelVi(bGrade);
             const bCatEn = BurlandCalculator.getBurlandGradeLabelEn(bGrade);
 
-            const typeVi = d.defectType || 'Nứt ziczac mạch vữa';
-            const typeEn = d.defectTypeEn || 'Finish crack (zigzag)';
+            const typeVi = d.defectType || 'Vết nứt bề mặt tường';
+            const typeEn = d.defectTypeEn || 'Wall surface crack';
+
+            // Thu thập điểm ghim khuyết tật D lên sơ đồ CAD
+            if (d.pinX !== undefined && d.pinY !== undefined && !isNaN(Number(d.pinX)) && !isNaN(Number(d.pinY))) {
+              cadPins.push({
+                id: d.id,
+                code: dCode,
+                label: dCode,
+                pinX: Number(d.pinX),
+                pinY: Number(d.pinY),
+                type: 'DEFECT',
+                typeLower: 'defect',
+                description: `${typeVi} (${dCode})`,
+              });
+            }
 
             const descPartsVi: string[] = [];
             const descPartsEn: string[] = [];
+            if (d.notes && d.notes.trim()) {
+              descPartsVi.push(d.notes.trim());
+              descPartsEn.push(d.notes.trim());
+            }
             if (d.azimuth || d.crackDirection) {
               descPartsVi.push(`Phương ${d.azimuth || d.crackDirection}`);
               descPartsEn.push(`Direction ${d.azimuth || d.crackDirection}`);
             }
-            if (d.repairStatus) {
-              descPartsVi.push(d.repairStatus);
-              descPartsEn.push(d.repairStatus);
-            } else {
-              descPartsVi.push('Trạng thái: chưa rõ');
-              descPartsEn.push('Status: unknown');
-            }
+            const actState = d.activityState || 'S';
+            const actStateDisplay = actState === 'A'
+              ? { vi: 'Đang phát triển (A)', en: 'Active (A)' }
+              : { vi: 'Ổn định (S)', en: 'Stable (S)' };
+            descPartsVi.push(`Trạng thái: ${actStateDisplay.vi}`);
+            descPartsEn.push(`Status: ${actStateDisplay.en}`);
+
+            const cadPinRefStr = (d.pinX !== undefined && d.pinY !== undefined)
+              ? `[Ghim CAD: ${dCode} tại ${zCode}]`
+              : undefined;
 
             defectSummaryRows.push({
               no: defectNo,
@@ -176,13 +263,13 @@ export class FloorDefectMapper {
                 vi: descPartsVi.join(', '),
                 en: descPartsEn.join(', '),
               },
+              cadPinRef: cadPinRefStr,
             });
 
             // Cặp ảnh đối chiếu (Context & Close-up với thước đo nứt)
             const cuUrl = d.closeUpPhotoUrl || d.cuPhotoUrl || (Array.isArray(d.cuPhotos) ? d.cuPhotos[0] : '') || '';
             const ctxUrl = d.contextPhotoUrl || d.ctxPhotoUrl || z.ctxPhotoUrl || (Array.isArray(z.overviewPhotos) ? z.overviewPhotos[0] : '') || '';
 
-            // Ảnh cận cảnh thứ 2 (ảnh macro có thước đo nứt chuyên dụng)
             const extraCuUrl = (Array.isArray(d.cuPhotos) && d.cuPhotos.length > 1 ? d.cuPhotos[1] : undefined) ||
               d.extraPhotoUrl || d.extraCuPhotoUrl || undefined;
 
@@ -197,6 +284,9 @@ export class FloorDefectMapper {
             const resolvedCuBase64 = rawCuBase64 && !rawCuBase64.startsWith('blob:') ? rawCuBase64 : undefined;
             const resolvedExtraCuBase64 = rawExtraCuBase64 && !rawExtraCuBase64.startsWith('blob:') ? rawExtraCuBase64 : undefined;
 
+            const cuPhotoCode = d.cuPhotoCode || (Array.isArray(d.cuPhotoCodes) ? d.cuPhotoCodes[0] : undefined) || `${dCode}_CU_01`;
+            const extraCuPhotoCode = (Array.isArray(d.cuPhotoCodes) && d.cuPhotoCodes.length > 1 ? d.cuPhotoCodes[1] : undefined) || `${dCode}_CU_02`;
+
             defectPairPhotos.push({
               defectId: dCode,
               defectType: { vi: typeVi, en: typeEn },
@@ -206,22 +296,36 @@ export class FloorDefectMapper {
                 vi: `${typeVi}-${dCode} (bối cảnh / context): Tường ${zCode} ${roomVi}`,
                 en: `${typeEn}-${dCode} (context): Wall ${zCode} ${roomEn}`,
               },
+              contextAlreadyWatermarked: isPhotoAlreadyWatermarked(ctxUrl),
+              contextPhotoCode: z.ctxPhotoCode || `${zCode}_CTX`,
+
               closeUpPhotoUrl: (cuUrl && !cuUrl.startsWith('blob:')) ? cuUrl : undefined,
               closeUpPhotoBase64: resolvedCuBase64,
               closeUpCaption: {
                 vi: `${typeVi}-${dCode} (cận cảnh / close-up): ${dimVi}`,
                 en: `${typeEn}-${dCode} (close-up): ${dimEn}`,
               },
+              closeUpAlreadyWatermarked: isPhotoAlreadyWatermarked(cuUrl),
+              closeUpPhotoCode: cuPhotoCode,
+
               hasCrackGauge: Boolean(d.hasCrackGauge ?? d.hasScaleCard ?? true),
               wmaxMm: w,
               lengthM: l,
+
               extraCloseUpPhotoUrl: (extraCuUrl && !extraCuUrl.startsWith('blob:')) ? extraCuUrl : undefined,
               extraCloseUpPhotoBase64: resolvedExtraCuBase64,
               extraCloseUpCaption: extraCuUrl ? {
                 vi: `${typeVi}-${dCode} (thước đo chi tiết / crack gauge): wmax = ${w} mm`,
                 en: `${typeEn}-${dCode} (macro crack gauge): wmax = ${w} mm`,
               } : undefined,
+              extraCloseUpAlreadyWatermarked: isPhotoAlreadyWatermarked(extraCuUrl),
+              extraCloseUpPhotoCode: extraCuPhotoCode,
               hasExtraCloseUp: Boolean(extraCuUrl),
+
+              activityState: actState,
+              activityStateDisplay: actStateDisplay,
+              notes: d.notes || '',
+              cadPinRef: cadPinRefStr,
             });
           }
 
@@ -242,7 +346,7 @@ export class FloorDefectMapper {
           photoBase64: zPhotoUrl ? ReportImageResolver.resolveToBase64(zPhotoUrl) : undefined,
         });
 
-        // Thu thập toàn bộ ảnh tổng thể phòng và bối cảnh phòng làm bằng chứng khảo sát
+        // Thu thập ảnh tổng thể phòng
         if (Array.isArray(z.overviewPhotos)) {
           z.overviewPhotos.forEach((item: any, idx: number) => {
             const url = typeof item === 'string' ? item : item?.url;
@@ -253,7 +357,8 @@ export class FloorDefectMapper {
               roomEn,
               defects.length === 0,
               `Ảnh tổng thể không gian ${roomVi} (${zCode}) - góc ${idx + 1}`,
-              `Overall view of ${roomEn} (${zCode}) - angle ${idx + 1}`
+              `Overall view of ${roomEn} (${zCode}) - angle ${idx + 1}`,
+              item?.photoCode
             );
           });
         }
@@ -265,7 +370,8 @@ export class FloorDefectMapper {
             roomEn,
             defects.length === 0,
             `Hiện trạng bề mặt tường ${roomVi} (${zCode})`,
-            `Surface condition of ${roomEn} (${zCode})`
+            `Surface condition of ${roomEn} (${zCode})`,
+            z.ctxPhotoCode
           );
         }
       }
@@ -278,8 +384,8 @@ export class FloorDefectMapper {
         const eCode = e.elementCode || 'E-01';
         const eRoomVi = e.roomName || 'Khu vực chính';
         const eRoomEn = e.roomNameEn || eRoomVi;
-        const eMatVi = e.materialType || e.elementType || 'Cột BTCT đổ toàn khối';
-        const eMatEn = e.materialTypeEn || 'Cast-in-situ RC column';
+        const eMatVi = e.materialType || e.elementType || 'Cấu kiện kết cấu';
+        const eMatEn = e.materialTypeEn || 'Structural member';
         const ePhotoUrl = e.photoUrl || e.ctxPhotoUrl || '';
 
         const eDefects = e.defects || [];
@@ -300,19 +406,46 @@ export class FloorDefectMapper {
             const bCatVi = BurlandCalculator.getBurlandGradeLabelVi(bGrade);
             const bCatEn = BurlandCalculator.getBurlandGradeLabelEn(bGrade);
 
-            const typeVi = d.defectType || 'Nứt dọc thân cột bê tông';
+            const typeVi = d.defectType || 'Nứt dọc thân cấu kiện kết cấu';
             const typeEn = d.defectTypeEn || 'Structural crack in concrete member';
+
+            if (d.pinX !== undefined && d.pinY !== undefined && !isNaN(Number(d.pinX)) && !isNaN(Number(d.pinY))) {
+              const defectPin: CadPinOverlayItem = {
+                id: d.id,
+                code: dCode,
+                label: dCode,
+                pinX: Number(d.pinX),
+                pinY: Number(d.pinY),
+                type: 'DEFECT',
+                typeLower: 'defect',
+                description: `${typeVi} (${dCode})`,
+              };
+              cadPins.push(defectPin);
+              if (hasStructuralCadMap) {
+                cadStructuralPins.push(defectPin);
+              }
+            }
 
             const descPartsVi: string[] = [];
             const descPartsEn: string[] = [];
-            if (d.notes) {
-              descPartsVi.push(d.notes);
-              descPartsEn.push(d.notes);
+            if (d.notes && d.notes.trim()) {
+              descPartsVi.push(d.notes.trim());
+              descPartsEn.push(d.notes.trim());
             }
             if (d.azimuth || d.crackDirection) {
               descPartsVi.push(`Phương ${d.azimuth || d.crackDirection}`);
               descPartsEn.push(`Direction ${d.azimuth || d.crackDirection}`);
             }
+            const actState = d.activityState || 'S';
+            const actStateDisplay = actState === 'A'
+              ? { vi: 'Đang phát triển (A)', en: 'Active (A)' }
+              : { vi: 'Ổn định (S)', en: 'Stable (S)' };
+            descPartsVi.push(`Trạng thái: ${actStateDisplay.vi}`);
+            descPartsEn.push(`Status: ${actStateDisplay.en}`);
+
+            const cadPinRefStr = (d.pinX !== undefined && d.pinY !== undefined)
+              ? `[Ghim CAD: ${dCode} tại ${eCode}]`
+              : undefined;
 
             defectSummaryRows.push({
               no: defectNo,
@@ -330,6 +463,7 @@ export class FloorDefectMapper {
                 vi: descPartsVi.length > 0 ? descPartsVi.join(', ') : 'Nứt cấu kiện kết cấu chịu lực',
                 en: descPartsEn.length > 0 ? descPartsEn.join(', ') : 'Structural member crack',
               },
+              cadPinRef: cadPinRefStr,
             });
 
             // Cặp ảnh đối chiếu của cấu kiện E
@@ -345,6 +479,9 @@ export class FloorDefectMapper {
             const rawCuBase64 = cuUrl ? ReportImageResolver.resolveToBase64(cuUrl) : '';
             const rawExtraCuBase64 = extraCuUrl ? ReportImageResolver.resolveToBase64(extraCuUrl) : '';
 
+            const cuPhotoCode = d.cuPhotoCode || (Array.isArray(d.cuPhotoCodes) ? d.cuPhotoCodes[0] : undefined) || `${dCode}_CU_01`;
+            const extraCuPhotoCode = (Array.isArray(d.cuPhotoCodes) && d.cuPhotoCodes.length > 1 ? d.cuPhotoCodes[1] : undefined) || `${dCode}_CU_02`;
+
             defectPairPhotos.push({
               defectId: dCode,
               defectType: { vi: typeVi, en: typeEn },
@@ -354,22 +491,36 @@ export class FloorDefectMapper {
                 vi: `${typeVi}-${dCode} (bối cảnh / context): Cấu kiện ${eCode} ${eRoomVi}`,
                 en: `${typeEn}-${dCode} (context): Member ${eCode} ${eRoomEn}`,
               },
+              contextAlreadyWatermarked: isPhotoAlreadyWatermarked(ctxUrl),
+              contextPhotoCode: e.ctxPhotoCode || `${eCode}_CTX`,
+
               closeUpPhotoUrl: (cuUrl && !cuUrl.startsWith('blob:')) ? cuUrl : undefined,
               closeUpPhotoBase64: rawCuBase64 && !rawCuBase64.startsWith('blob:') ? rawCuBase64 : undefined,
               closeUpCaption: {
                 vi: `${typeVi}-${dCode} (cận cảnh / close-up): ${dimVi}`,
                 en: `${typeEn}-${dCode} (close-up): ${dimEn}`,
               },
+              closeUpAlreadyWatermarked: isPhotoAlreadyWatermarked(cuUrl),
+              closeUpPhotoCode: cuPhotoCode,
+
               hasCrackGauge: Boolean(d.hasCrackGauge ?? d.hasScaleCard ?? true),
               wmaxMm: w,
               lengthM: l,
+
               extraCloseUpPhotoUrl: (extraCuUrl && !extraCuUrl.startsWith('blob:')) ? extraCuUrl : undefined,
               extraCloseUpPhotoBase64: rawExtraCuBase64 && !rawExtraCuBase64.startsWith('blob:') ? rawExtraCuBase64 : undefined,
               extraCloseUpCaption: extraCuUrl ? {
                 vi: `${typeVi}-${dCode} (thước đo chi tiết / crack gauge): wmax = ${w} mm`,
                 en: `${typeEn}-${dCode} (macro crack gauge): wmax = ${w} mm`,
               } : undefined,
+              extraCloseUpAlreadyWatermarked: isPhotoAlreadyWatermarked(extraCuUrl),
+              extraCloseUpPhotoCode: extraCuPhotoCode,
               hasExtraCloseUp: Boolean(extraCuUrl),
+
+              activityState: actState,
+              activityStateDisplay: actStateDisplay,
+              notes: d.notes || '',
+              cadPinRef: cadPinRefStr,
             });
           }
 
@@ -399,7 +550,8 @@ export class FloorDefectMapper {
               eRoomEn,
               eDefects.length === 0,
               `Ảnh tổng thể cấu kiện ${eMatVi} (${eCode})`,
-              `Structural member ${eMatEn} (${eCode})`
+              `Structural member ${eMatEn} (${eCode})`,
+              item?.photoCode
             );
           });
         }
@@ -411,7 +563,8 @@ export class FloorDefectMapper {
             eRoomEn,
             eDefects.length === 0,
             `Hiện trạng cấu kiện ${eMatVi} (${eCode})`,
-            `Condition of ${eMatEn} (${eCode})`
+            `Condition of ${eMatEn} (${eCode})`,
+            e.ctxPhotoCode
           );
         }
       }
@@ -456,6 +609,8 @@ export class FloorDefectMapper {
           vi: 'Khảo sát hiện trường không phát hiện vết nứt, biến dạng hoặc khuyết tật kết cấu trên mặt bằng tầng.',
           en: 'Field survey recorded no cracks, deformation or structural defects on this floor plan.',
         },
+        cadPins,
+        cadStructuralPins,
         defectSummaryRows,
         defectPairPhotos,
         defectPairPages,
