@@ -33,7 +33,11 @@ export const Step6_ScopeAndGisMutation: React.FC = () => {
   const scope = formData.surveyScope;
   const access = formData.accessLimitation;
 
-  const [customRestrictedArea, setCustomRestrictedArea] = useState('');
+  const [customRestrictedArea, setCustomRestrictedArea] = useState(() => {
+    if ((access as any)?.customRestrictedArea) return (access as any).customRestrictedArea;
+    const match = (access?.notes || '').match(/\[Khu vực khác:\s*(.+?)\]/);
+    return match ? match[1] : '';
+  });
   const [customMainReason, setCustomMainReason] = useState('');
 
   // Tự động nhận diện danh sách tầng của công trình:
@@ -185,13 +189,15 @@ export const Step6_ScopeAndGisMutation: React.FC = () => {
                       placeholder="Mô tả cụ thể khu vực bị hạn chế tiếp cận..."
                       value={customRestrictedArea}
                       onChange={(e) => {
-                        setCustomRestrictedArea(e.target.value);
+                        const val = e.target.value;
+                        setCustomRestrictedArea(val);
+                        const curNotes = (access.notes || '').replace(/\[Khu vực khác:\s*.*?\]/g, '').trim();
+                        const newNotes = val ? (curNotes ? `${curNotes} [Khu vực khác: ${val}]` : `[Khu vực khác: ${val}]`) : curNotes;
                         updateFormData({
                           accessLimitation: {
                             ...access,
-                            notes: access.notes
-                              ? `${access.notes} [Khu vực khác: ${e.target.value}]`
-                              : `[Khu vực khác: ${e.target.value}]`,
+                            customRestrictedArea: val,
+                            notes: newNotes,
                           },
                         });
                       }}
