@@ -296,6 +296,13 @@
                         [ Ảnh bối cảnh ]
                       </div>
                     {{/if}}
+                    {{#if this.hasPin}}
+                      <div class="photo-defect-pin" style="left: {{this.pinX}}%; top: {{this.pinY}}%;" title="Vị trí khuyết tật {{this.defectId}}">
+                        <div class="photo-defect-pin-badge">{{this.defectId}}</div>
+                        <div class="photo-defect-pin-pointer"></div>
+                        <div class="photo-defect-pin-target"></div>
+                      </div>
+                    {{/if}}
                     {{#if this.contextPhotoUrl}}
                       {{#if @root.enableWatermark}}
                         {{#unless this.contextAlreadyWatermarked}}
@@ -396,6 +403,13 @@
                     {{else}}
                       <div style="height: 230px; display: flex; align-items: center; justify-content: center; background: #f8fafc; color: #64748b; font-size: 8pt; border: 1px dashed #cbd5e1; text-align: center; padding: 12px;">
                         [ Ảnh bối cảnh lưu trên thiết bị KSV / Device local cache ]
+                      </div>
+                    {{/if}}
+                    {{#if this.hasPin}}
+                      <div class="photo-defect-pin" style="left: {{this.pinX}}%; top: {{this.pinY}}%;" title="Vị trí khuyết tật {{this.defectId}}">
+                        <div class="photo-defect-pin-badge">{{this.defectId}}</div>
+                        <div class="photo-defect-pin-pointer"></div>
+                        <div class="photo-defect-pin-target"></div>
                       </div>
                     {{/if}}
                     {{#if this.contextPhotoUrl}}

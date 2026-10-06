@@ -9,6 +9,7 @@ import { Appendix1PhotoItem, Appendix1PhotoPage } from '../../report-v2.types';
 import { ReportImageResolver } from '../../services/report-image-resolver.service';
 import { isPhotoAlreadyWatermarked } from '../floor-defect.mapper';
 import { extractPhotoDateTime } from '../formatters.mapper';
+import { isPortraitImage } from '../../../report/generators/residential/residential.image-sniff';
 
 export interface Appendix1Result {
   appendix1: Appendix1PhotoItem[];
@@ -246,15 +247,21 @@ export class Appendix1PhotoMapper {
       });
     }
 
+    // Phân loại: Xếp các ảnh chụp ngang (Landscape) hiển thị trước, các ảnh chụp dọc (Portrait) hiển thị sau
+    // để trong cùng 1 hàng 2 cột A4, các ảnh luôn đồng đều chiều cao, triệt tiêu khoảng trống sole
+    const landscapes = appendix1.filter((p) => !isPortraitImage(p.url || ''));
+    const portraits = appendix1.filter((p) => isPortraitImage(p.url || ''));
+    const sortedAppendix1 = [...landscapes, ...portraits];
+
     // Phân trang tự động cho Phụ lục 1: Tối đa 4 ảnh / trang A4 để chống vỡ khung in
     const PHOTOS_PER_PAGE = 4;
     const appendix1Pages: Appendix1PhotoPage[] = [];
-    const totalApp1Pages = Math.ceil(appendix1.length / PHOTOS_PER_PAGE) || 1;
-    for (let i = 0; i < appendix1.length; i += PHOTOS_PER_PAGE) {
+    const totalApp1Pages = Math.ceil(sortedAppendix1.length / PHOTOS_PER_PAGE) || 1;
+    for (let i = 0; i < sortedAppendix1.length; i += PHOTOS_PER_PAGE) {
       appendix1Pages.push({
         pageIndex: Math.floor(i / PHOTOS_PER_PAGE) + 1,
         totalPages: totalApp1Pages,
-        photos: appendix1.slice(i, i + PHOTOS_PER_PAGE),
+        photos: sortedAppendix1.slice(i, i + PHOTOS_PER_PAGE),
       });
     }
 

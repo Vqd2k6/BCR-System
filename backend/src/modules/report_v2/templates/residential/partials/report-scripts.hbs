@@ -77,8 +77,8 @@
           if (k === img) {
             k.classList.add('photo-main');
             stage.appendChild(k);
-          } else if (cls.indexOf('watermark') !== -1) {
-            hasWatermark = true;
+          } else if (cls.indexOf('watermark') !== -1 || cls.indexOf('photo-defect-pin') !== -1) {
+            if (cls.indexOf('watermark') !== -1) hasWatermark = true;
             stage.appendChild(k);
           }
         });

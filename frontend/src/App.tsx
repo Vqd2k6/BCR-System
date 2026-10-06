@@ -72,7 +72,22 @@ export const App: React.FC = () => {
   const [showCompanionCheckInModal, setShowCompanionCheckInModal] = useState<boolean>(false);
   const [pendingSurveyFn, setPendingSurveyFn] = useState<(() => void) | null>(null);
   const [isReadOnlySurvey, setIsReadOnlySurvey] = useState<boolean>(false);
-  const [guestViewingReportParcel, setGuestViewingReportParcel] = useState<GisParcel | null>(null);
+  const [guestViewingReportParcel, setGuestViewingReportParcel] = useState<GisParcel | null>(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const urlId = params.get('reportParcelId') || params.get('parcelId');
+      const savedData = sessionStorage.getItem('metro2_guest_viewing_parcel_data');
+      if (savedData) {
+        const parsed = JSON.parse(savedData);
+        if (!urlId || parsed.id === urlId || parsed.projectParcelCode === urlId) {
+          return parsed;
+        }
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  });
 
   // Dynamic Check-In state for surveyor with localStorage persistence (Requirement 5)
   const [isCheckedInToday, setIsCheckedInToday] = useState<boolean>(() => {
@@ -301,6 +316,86 @@ export const App: React.FC = () => {
     loadParcels();
   }, [isAuthenticated, user, selectedZone]);
 
+  // ─── Xử lý điều hướng & duy trì trạng thái Xem Báo Cáo cho GUEST (F5 / Reload Persistence) ───
+  const handleOpenGuestReport = (parcel: GisParcel) => {
+    setGuestViewingReportParcel(parcel);
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set('reportParcelId', parcel.id);
+      window.history.pushState({ reportParcelId: parcel.id }, '', url.toString());
+      sessionStorage.setItem('metro2_guest_viewing_parcel_id', parcel.id);
+      sessionStorage.setItem('metro2_guest_viewing_parcel_data', JSON.stringify(parcel));
+    } catch (_e) {}
+  };
+
+  const handleBackFromGuestReport = () => {
+    setGuestViewingReportParcel(null);
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('reportParcelId');
+      url.searchParams.delete('parcelId');
+      window.history.pushState(null, '', url.toString());
+      sessionStorage.removeItem('metro2_guest_viewing_parcel_id');
+      sessionStorage.removeItem('metro2_guest_viewing_parcel_data');
+    } catch (_e) {}
+  };
+
+  // Khôi phục báo cáo khi reload hoặc mở link trực tiếp có query ?reportParcelId=...
+  useEffect(() => {
+    if (guestViewingReportParcel) return;
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const urlId = params.get('reportParcelId') || params.get('parcelId') || sessionStorage.getItem('metro2_guest_viewing_parcel_id');
+      if (!urlId) return;
+
+      // 1. Tìm trong danh sách parcels hiện có
+      if (parcels.length > 0) {
+        const found = parcels.find((p) => p.id === urlId || p.projectParcelCode === urlId);
+        if (found) {
+          handleOpenGuestReport(found);
+          return;
+        }
+      }
+
+      // 2. Nếu chưa có trong parcels (do đang load hoặc khác zone), fetch trực tiếp từ API
+      let isCancelled = false;
+      api.get(`/parcels/${encodeURIComponent(urlId)}`).then((res) => {
+        if (isCancelled) return;
+        const raw = res.data?.data || res.data;
+        if (raw) {
+          const normalized = normalizeParcel(raw);
+          handleOpenGuestReport(normalized);
+        }
+      }).catch((err) => {
+        console.warn('[Metro2] Không thể khôi phục thửa đất từ URL sau khi reload:', err);
+      });
+
+      return () => {
+        isCancelled = true;
+      };
+    } catch (_e) {}
+  }, [parcels, guestViewingReportParcel]);
+
+  // Lắng nghe sự kiện Back / Forward của trình duyệt
+  useEffect(() => {
+    const handlePopState = () => {
+      const params = new URLSearchParams(window.location.search);
+      const urlId = params.get('reportParcelId') || params.get('parcelId');
+      if (!urlId) {
+        setGuestViewingReportParcel(null);
+        sessionStorage.removeItem('metro2_guest_viewing_parcel_id');
+        sessionStorage.removeItem('metro2_guest_viewing_parcel_data');
+      } else if (parcels.length > 0) {
+        const found = parcels.find((p) => p.id === urlId || p.projectParcelCode === urlId);
+        if (found) {
+          setGuestViewingReportParcel(found);
+        }
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [parcels]);
+
   // If loading session
   if (isLoading) {
     return (
@@ -327,7 +422,7 @@ export const App: React.FC = () => {
       return (
         <GuestReportPreviewPage
           parcel={guestViewingReportParcel}
-          onBack={() => setGuestViewingReportParcel(null)}
+          onBack={handleBackFromGuestReport}
         />
       );
     }
@@ -338,9 +433,7 @@ export const App: React.FC = () => {
         selectedZone={selectedZone}
         onSelectZone={handleSelectZone}
         onRefreshParcels={loadParcels}
-        onViewReportPreview={(parcel) => {
-          setGuestViewingReportParcel(parcel);
-        }}
+        onViewReportPreview={handleOpenGuestReport}
       />
     );
   }

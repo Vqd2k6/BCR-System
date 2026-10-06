@@ -196,7 +196,6 @@ export const Step6_ScopeAndGisMutation: React.FC = () => {
                         updateFormData({
                           accessLimitation: {
                             ...access,
-                            customRestrictedArea: val,
                             notes: newNotes,
                           },
                         });

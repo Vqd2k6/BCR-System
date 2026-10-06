@@ -20,6 +20,7 @@ import {
 } from '../report-v2.types';
 import { BurlandCalculator } from './burland-calculator';
 import { ReportImageResolver } from '../services/report-image-resolver.service';
+import { isPortraitImage } from '../../report/generators/residential/residential.image-sniff';
 
 /**
  * Kiểm tra xem một bức ảnh đã được nhúng watermark từ thiết bị/hệ thống hay chưa
@@ -298,6 +299,10 @@ export class FloorDefectMapper {
             const cuPhotoCode = d.cuPhotoCode || (Array.isArray(d.cuPhotoCodes) ? d.cuPhotoCodes[0] : undefined) || `${dCode}_CU_01`;
             const extraCuPhotoCode = (Array.isArray(d.cuPhotoCodes) && d.cuPhotoCodes.length > 1 ? d.cuPhotoCodes[1] : undefined) || `${dCode}_CU_02`;
 
+            const pinX = d.pinX !== undefined ? Number(d.pinX) : (d.pin_x !== undefined ? Number(d.pin_x) : undefined);
+            const pinY = d.pinY !== undefined ? Number(d.pinY) : (d.pin_y !== undefined ? Number(d.pin_y) : undefined);
+            const hasPin = pinX !== undefined && pinY !== undefined && !isNaN(pinX) && !isNaN(pinY);
+
             defectPairPhotos.push({
               defectId: dCode,
               defectType: { vi: typeVi, en: typeEn },
@@ -337,6 +342,10 @@ export class FloorDefectMapper {
               activityStateDisplay: actStateDisplay,
               notes: d.notes || '',
               cadPinRef: cadPinRefStr,
+              pinX,
+              pinY,
+              pinColor: d.pinColor || d.pin_color || '#ef4444',
+              hasPin,
             });
           }
 
@@ -357,18 +366,30 @@ export class FloorDefectMapper {
           photoBase64: zPhotoUrl ? ReportImageResolver.resolveToBase64(zPhotoUrl) : undefined,
         });
 
-        // Thu thập ảnh tổng thể phòng (Vùng Z - Ảnh ngang)
+        // Thu thập ảnh tổng thể phòng (Vùng Z)
         if (Array.isArray(z.overviewPhotos)) {
           z.overviewPhotos.forEach((item: any, idx: number) => {
             const url = typeof item === 'string' ? item : item?.url;
+            const isFirstOverview = idx === 0;
+            const captionVi = isFirstOverview
+              ? `Ảnh không gian tổng thể ${roomVi} (${zCode})`
+              : (defects.length > 0
+                  ? `Ghi nhận hiện trạng hư hỏng mảng tường ${roomVi} (${zCode}) - vị trí ${idx + 1}`
+                  : `Ảnh hiện trạng không gian ${roomVi} (${zCode}) - góc ${idx + 1}`);
+            const captionEn = isFirstOverview
+              ? `Overall space view of ${roomEn} (${zCode})`
+              : (defects.length > 0
+                  ? `Observed wall condition / damage in ${roomEn} (${zCode}) - angle ${idx + 1}`
+                  : `Condition of ${roomEn} (${zCode}) - angle ${idx + 1}`);
+
             addPhotoIfUnique(
               url,
               zCode,
               roomVi,
               roomEn,
               defects.length === 0,
-              `Ảnh tổng thể không gian ${roomVi} (${zCode}) - góc ${idx + 1}`,
-              `Overall view of ${roomEn} (${zCode}) - angle ${idx + 1}`,
+              captionVi,
+              captionEn,
               item?.photoCode,
               false
             );
@@ -574,18 +595,26 @@ export class FloorDefectMapper {
       }
 
       // 4. Phân cụm ảnh: Tách riêng ảnh phòng (Vùng Z) và ảnh cấu kiện (Cột/Dầm E)
-      // Chuẩn A4: Tối đa 2 hàng × 2 cột = 4 ảnh / trang để ảnh to rõ và không vượt quá 2 ảnh / hàng
+      // Bố cục chuẩn: Sắp xếp các ảnh chụp ngang (Landscape) hiển thị trước, các ảnh chụp dọc (Portrait) hiển thị sau
+      // để trong cùng 1 hàng 2 cột A4, các ảnh luôn đồng nhất tỷ lệ & chiều cao, triệt tiêu khoảng trống sole
+      const sortLandscapeFirst = (items: RoomOverviewPhotoItem[]): RoomOverviewPhotoItem[] => {
+        const landscapes = items.filter((it) => !isPortraitImage(it.url || ''));
+        const portraits = items.filter((it) => isPortraitImage(it.url || ''));
+        return [...landscapes, ...portraits];
+      };
+
       const PHOTOS_PER_OVERVIEW_PAGE = 4;
-      const buildBalancedPages = <T,>(items: T[]): FloorOverviewPageViewModel[] => {
-        const pageCount = Math.ceil(items.length / PHOTOS_PER_OVERVIEW_PAGE);
+      const buildBalancedPages = (items: RoomOverviewPhotoItem[]): FloorOverviewPageViewModel[] => {
+        const sortedItems = sortLandscapeFirst(items);
+        const pageCount = Math.ceil(sortedItems.length / PHOTOS_PER_OVERVIEW_PAGE);
         if (pageCount === 0) return [];
-        const perPage = Math.ceil(items.length / pageCount);
+        const perPage = Math.ceil(sortedItems.length / pageCount);
         const pages: FloorOverviewPageViewModel[] = [];
         for (let p = 0; p < pageCount; p++) {
           pages.push({
             pageIndexInFloor: p + 1,
             totalOverviewPagesInFloor: pageCount,
-            photos: items.slice(p * perPage, (p + 1) * perPage) as any,
+            photos: sortedItems.slice(p * perPage, (p + 1) * perPage),
           });
         }
         return pages;

@@ -476,6 +476,11 @@ export interface DefectPairPhotoItem {
   activityStateDisplay?: BilingualText;
   notes?: string;                    // Ghi chú hiện trường KSV
   cadPinRef?: string;                // e.g. "D-01 trên CAD_01"
+  // Tọa độ và trạng thái ghim khuyết tật D trên ảnh bối cảnh của Vùng Z (chấm từ DefectPinningCanvas)
+  pinX?: number;
+  pinY?: number;
+  pinColor?: string;
+  hasPin?: boolean;
 }
 
 export interface RoomOverviewPhotoItem {
