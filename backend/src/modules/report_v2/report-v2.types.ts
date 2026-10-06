@@ -41,6 +41,7 @@ export interface ReportV2Metadata {
   headerLogoBase64?: string;
   surveyDateFormatted?: string;
   watermarkDateTime?: string;
+  coverWatermarkDateTime?: string;
   totalExpectedPages?: number;
 }
 
@@ -486,6 +487,9 @@ export interface RoomOverviewPhotoItem {
     text: BilingualText;
   };
   alreadyWatermarked?: boolean;
+  watermarkDateTime?: string;
+  metroPhotoCode?: string;
+  isStructuralElement?: boolean;
 }
 
 export interface FloorOverviewPageViewModel {
@@ -527,16 +531,18 @@ export interface FloorPlanDefectReport {
   hasStructuralCadMap: boolean;      // True nếu có bản vẽ kết cấu riêng biệt với bản vẽ kiến trúc
   hasDefects: boolean;               // True nếu tầng có ít nhất 1 khuyết tật
   zeroDefectsNotice?: BilingualText; // Thông báo kỹ thuật khi tầng nguyên vẹn không có vết nứt
-  cadPins?: CadPinOverlayItem[];     // Ghim Z, E, D trên bản vẽ kiến trúc CAD_01
-  cadStructuralPins?: CadPinOverlayItem[]; // Ghim E, D trên bản vẽ kết cấu CAD_02
+  cadPins?: CadPinOverlayItem[];     // Ghim Z, E trên bản vẽ kiến trúc CAD_01
+  cadStructuralPins?: CadPinOverlayItem[]; // Ghim E trên bản vẽ kết cấu CAD_02
   defectSummaryRows: FloorDefectSummaryRow[];
   defectPairPhotos: DefectPairPhotoItem[];
   defectPairPages?: Array<{
     pageIndex: number;
     pairs: DefectPairPhotoItem[];
   }>;
-  // BỔ SUNG: Toàn bộ ảnh tổng thể các phòng theo từng tầng (6 ảnh/trang)
+  // BỔ SUNG: Ảnh tổng thể không gian các phòng (Vùng Z - Ảnh ngang)
   overviewPages?: FloorOverviewPageViewModel[];
+  // BỔ SUNG: Ảnh cấu kiện kết cấu chịu lực riêng biệt (Cột/Dầm E - Ảnh dọc)
+  elementOverviewPages?: FloorOverviewPageViewModel[];
   zoneAndElementConditions: FloorConditionZoneElementItem[];
   beamDeflectionRow?: {
     location: BilingualText;

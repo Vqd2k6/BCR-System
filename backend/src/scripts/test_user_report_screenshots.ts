@@ -33,36 +33,53 @@ async function main() {
     const pageSheets = await page.$$('.a4-page-sheet');
     console.log(`Found ${pageSheets.length} pages in document`);
 
-    // 1. Cover page
+    // 1. Cover page (Page 1)
     if (pageSheets[0]) {
       const coverPath = path.join(exportDir, 'verify_01_cover_centered.png');
       await pageSheets[0].screenshot({ path: coverPath });
       console.log(`Saved: ${coverPath}`);
     }
 
-    // Loop through remaining pages to identify Appendix 1, Appendix 2 CAD, Appendix 2 Defects
-    for (let i = 1; i < pageSheets.length; i++) {
+    // 2. Text page (Chapter I & II - Page 2)
+    if (pageSheets[1]) {
+      const pPath = path.join(exportDir, 'verify_02_text_margins.png');
+      await pageSheets[1].screenshot({ path: pPath });
+      console.log(`Saved Text Page 2: ${pPath}`);
+    }
+
+    // Loop through remaining pages to identify Appendix 1, CAD, Defects, Rooms Z, Elements E
+    for (let i = 2; i < pageSheets.length; i++) {
+      const text = await page.evaluate(el => el.textContent || '', pageSheets[i]);
       const hasPhotoGridExt = await page.evaluate(el => !!el.querySelector('.photo-grid-exterior'), pageSheets[i]);
-      if (hasPhotoGridExt) {
-        const pPath = path.join(exportDir, 'verify_02_appendix1.png');
+
+      if (hasPhotoGridExt && !fs.existsSync(path.join(exportDir, 'verify_03_appendix1.png'))) {
+        const pPath = path.join(exportDir, 'verify_03_appendix1.png');
         await pageSheets[i].screenshot({ path: pPath });
         console.log(`Saved Appendix 1 (Page ${i + 1}): ${pPath}`);
       }
-      const text = await page.evaluate(el => el.textContent || '', pageSheets[i]);
+
       if (text.includes('PHỤ LỤC 2: THỐNG KÊ KHUYẾT TẬT TRÊN MẶT BẰNG TẦNG') && text.includes('Sơ đồ mặt bằng kiến trúc')) {
-        const pPath = path.join(exportDir, 'verify_03_appendix2_cad.png');
+        const pPath = path.join(exportDir, 'verify_04_appendix2_cad.png');
         await pageSheets[i].screenshot({ path: pPath });
         console.log(`Saved Appendix 2 CAD (Page ${i + 1}): ${pPath}`);
       }
-      if (text.includes('PHỤ LỤC 2: HỒ SƠ ẢNH ĐỐI CHIẾU KHUYẾT TẬT')) {
-        const pPath = path.join(exportDir, 'verify_04_appendix2_defects.png');
+
+      if (text.includes('HỒ SƠ ẢNH ĐỐI CHIẾU KHUYẾT TẬT') && !fs.existsSync(path.join(exportDir, 'verify_07_appendix2_defects.png'))) {
+        const pPath = path.join(exportDir, 'verify_07_appendix2_defects.png');
         await pageSheets[i].screenshot({ path: pPath });
         console.log(`Saved Appendix 2 Defects (Page ${i + 1}): ${pPath}`);
       }
-      if (text.includes('HỒ SƠ ẢNH TỔNG THỂ KHÔNG GIAN CÁC PHÒNG') && text.includes('Trang 1/5')) {
-        const pPath = path.join(exportDir, 'verify_05_appendix2_rooms.png');
+
+      if (text.includes('HỒ SƠ ẢNH KHÔNG GIAN KIẾN TRÚC CÁC PHÒNG (VÙNG Z') && !fs.existsSync(path.join(exportDir, 'verify_05_appendix2_rooms_z.png'))) {
+        const pPath = path.join(exportDir, 'verify_05_appendix2_rooms_z.png');
         await pageSheets[i].screenshot({ path: pPath });
-        console.log(`Saved Appendix 2 Rooms (Page ${i + 1}): ${pPath}`);
+        console.log(`Saved Appendix 2 Rooms Z (Page ${i + 1}): ${pPath}`);
+      }
+
+      if (text.includes('HỒ SƠ ẢNH CẤU KIỆN KẾT CẤU CHỊU LỰC (CỘT/DẦM E') && !fs.existsSync(path.join(exportDir, 'verify_06_appendix2_elements_e.png'))) {
+        const pPath = path.join(exportDir, 'verify_06_appendix2_elements_e.png');
+        await pageSheets[i].screenshot({ path: pPath });
+        console.log(`Saved Appendix 2 Elements E (Page ${i + 1}): ${pPath}`);
       }
     }
   } finally {

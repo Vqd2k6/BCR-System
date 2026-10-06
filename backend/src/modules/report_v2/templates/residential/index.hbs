@@ -1176,15 +1176,26 @@
         <div class="photo-grid-exterior">
           {{#each this.photos}}
             <div class="photo-card">
-              {{#if this.base64}}
-                <img src="{{this.base64}}" alt="{{this.name.vi}}">
-              {{else if this.url}}
-                <img src="{{this.url}}" alt="{{this.name.vi}}">
-              {{/if}}
+              <div class="photo-card-img-wrapper">
+                {{#if this.base64}}
+                  <img src="{{this.base64}}" class="photo-card-main-img" alt="{{this.name.vi}}">
+                {{else if this.url}}
+                  <img src="{{this.url}}" class="photo-card-main-img" alt="{{this.name.vi}}">
+                {{/if}}
+                {{#unless this.alreadyWatermarked}}
+                  {{#if ../../metadata.headerLogoBase64}}
+                    <img src="{{../../metadata.headerLogoBase64}}" class="watermark-logo-top-right watermark-logo-sm" alt="THACO REG">
+                  {{/if}}
+                  <div class="watermark-text-bottom-right watermark-text-sm">
+                    <div class="watermark-datetime">{{#if this.watermarkDateTime}}{{this.watermarkDateTime}}{{else if ../../metadata.watermarkDateTime}}{{../../metadata.watermarkDateTime}}{{else}}{{this.capturedAt}}{{/if}}</div>
+                    <div class="watermark-code">{{#if this.metroPhotoCode}}{{this.metroPhotoCode}}{{else if this.originalTag}}{{this.originalTag}}{{else}}HCM_M2.[{{../../metadata.buildingId}}]_{{this.photoCode}}{{/if}}</div>
+                  </div>
+                {{/unless}}
+              </div>
               <div class="photo-caption">
                 <strong>{{this.photoCode}} ({{#if this.originalTag}}{{this.originalTag}}{{else}}{{this.photoCode}}{{/if}}):</strong> {{this.name.vi}}<br>
                 <span class="text-muted">{{this.name.en}}</span><br>
-                <span style="font-size: 7pt; color: #64748b;">GPS: {{this.gpsCoords}} | Ngày chụp: {{this.capturedAt}}</span>
+                <span style="font-size: 7.5pt; color: #475569;">GPS: {{this.gpsCoords}} | Ngày chụp: {{#if this.watermarkDateTime}}{{this.watermarkDateTime}}{{else}}{{this.capturedAt}}{{/if}}</span>
               </div>
             </div>
           {{/each}}
@@ -1215,15 +1226,15 @@
           <div class="photo-card">
             <div class="photo-card-img-wrapper">
               {{#if this.base64}}
-                <img src="{{this.base64}}" alt="{{this.name.vi}}">
+                <img src="{{this.base64}}" class="photo-card-main-img" alt="{{this.name.vi}}">
               {{else if this.url}}
-                <img src="{{this.url}}" alt="{{this.name.vi}}">
+                <img src="{{this.url}}" class="photo-card-main-img" alt="{{this.name.vi}}">
               {{/if}}
               {{#unless this.alreadyWatermarked}}
                 {{#if ../metadata.headerLogoBase64}}
-                  <img src="{{../metadata.headerLogoBase64}}" class="watermark-logo-top-right" alt="THACO REG">
+                  <img src="{{../metadata.headerLogoBase64}}" class="watermark-logo-top-right watermark-logo-sm" alt="THACO REG">
                 {{/if}}
-                <div class="watermark-text-bottom-right">
+                <div class="watermark-text-bottom-right watermark-text-sm">
                   <div class="watermark-datetime">{{#if this.watermarkDateTime}}{{this.watermarkDateTime}}{{else if ../metadata.watermarkDateTime}}{{../metadata.watermarkDateTime}}{{else}}{{this.capturedAt}}{{/if}}</div>
                   <div class="watermark-code">{{#if this.metroPhotoCode}}{{this.metroPhotoCode}}{{else if this.originalTag}}{{this.originalTag}}{{else}}HCM_M2.[{{../metadata.buildingId}}]_{{this.photoCode}}{{/if}}</div>
                 </div>
@@ -1256,14 +1267,14 @@
         APPENDIX 2 FLOOR PLAN DEFECT STATISTICS - {{this.floorName.vi}} ({{this.floorName.en}})
       </div>
 
-      <!-- Sơ đồ CAD mặt bằng & kết cấu có ghim điểm Z, E, D -->
+      <!-- Sơ đồ CAD mặt bằng kiến trúc (Z) & kết cấu (E) theo quy ước khổ dọc -->
       {{#if this.hasStructuralCadMap}}
         <div class="cad-map-dual-grid">
           <div class="cad-map-col cad-map-col-arch">
-            <div class="cad-map-title">Sơ đồ mặt bằng kiến trúc & ghim Z, E, D / Architectural Plan & Pins</div>
+            <div class="cad-map-title">Sơ đồ mặt bằng kiến trúc & ghim Z (Khổ dọc) / Architectural Plan & Zone Pins (Portrait)</div>
             <div class="cad-map-pinning-wrapper">
               <div class="cad-map-tight-box">
-                <img src="{{#if this.damageMapBase64}}{{this.damageMapBase64}}{{else}}{{this.damageMapUrl}}{{/if}}" alt="Mặt bằng kiến trúc" class="cad-map-image photo-conv-z">
+                <img src="{{#if this.damageMapBase64}}{{this.damageMapBase64}}{{else}}{{this.damageMapUrl}}{{/if}}" alt="Mặt bằng kiến trúc" class="cad-map-image photo-conv-cad-portrait">
                 {{#each this.cadPins}}
                   <div class="cad-pin-marker cad-pin-{{this.typeLower}}" style="left: {{this.pinX}}%; top: {{this.pinY}}%;" title="{{this.code}}: {{this.label}}">
                     <span class="cad-pin-badge">{{this.code}}</span>
@@ -1274,10 +1285,10 @@
             </div>
           </div>
           <div class="cad-map-col cad-map-col-struct">
-            <div class="cad-map-title">Sơ đồ kết cấu & cấu kiện E / Structural Members Plan</div>
+            <div class="cad-map-title">Sơ đồ kết cấu & ghim E (Khổ dọc) / Structural Members Plan & Element Pins (Portrait)</div>
             <div class="cad-map-pinning-wrapper">
               <div class="cad-map-tight-box">
-                <img src="{{#if this.structuralMapBase64}}{{this.structuralMapBase64}}{{else}}{{this.structuralMapUrl}}{{/if}}" alt="Mặt bằng kết cấu" class="cad-map-image photo-conv-e">
+                <img src="{{#if this.structuralMapBase64}}{{this.structuralMapBase64}}{{else}}{{this.structuralMapUrl}}{{/if}}" alt="Mặt bằng kết cấu" class="cad-map-image photo-conv-cad-portrait">
                 {{#each this.cadStructuralPins}}
                   <div class="cad-pin-marker cad-pin-{{this.typeLower}}" style="left: {{this.pinX}}%; top: {{this.pinY}}%;" title="{{this.code}}: {{this.label}}">
                     <span class="cad-pin-badge">{{this.code}}</span>
@@ -1290,10 +1301,10 @@
         </div>
       {{else if this.damageMapBase64}}
         <div class="cad-map-container full-width">
-          <div class="cad-map-title">Sơ đồ mặt bằng kiến trúc & vị trí ghim khuyết tật / Floor Plan & Defect Pins</div>
+          <div class="cad-map-title">Sơ đồ mặt bằng kiến trúc & vị trí ghim Z (Khổ dọc) / Floor Plan & Zone Pins (Portrait)</div>
           <div class="cad-map-pinning-wrapper">
             <div class="cad-map-tight-box">
-              <img src="{{this.damageMapBase64}}" alt="Sơ đồ mặt bằng" class="cad-map-image photo-conv-z">
+              <img src="{{this.damageMapBase64}}" alt="Sơ đồ mặt bằng" class="cad-map-image photo-conv-cad-portrait">
               {{#each this.cadPins}}
                 <div class="cad-pin-marker cad-pin-{{this.typeLower}}" style="left: {{this.pinX}}%; top: {{this.pinY}}%;" title="{{this.code}}: {{this.label}}">
                   <span class="cad-pin-badge">{{this.code}}</span>
@@ -1305,10 +1316,10 @@
         </div>
       {{else if this.damageMapUrl}}
         <div class="cad-map-container full-width">
-          <div class="cad-map-title">Sơ đồ mặt bằng kiến trúc & vị trí ghim khuyết tật / Floor Plan & Defect Pins</div>
+          <div class="cad-map-title">Sơ đồ mặt bằng kiến trúc & vị trí ghim Z (Khổ dọc) / Floor Plan & Zone Pins (Portrait)</div>
           <div class="cad-map-pinning-wrapper">
             <div class="cad-map-tight-box">
-              <img src="{{this.damageMapUrl}}" alt="Sơ đồ mặt bằng" class="cad-map-image photo-conv-z">
+              <img src="{{this.damageMapUrl}}" alt="Sơ đồ mặt bằng" class="cad-map-image photo-conv-cad-portrait">
               {{#each this.cadPins}}
                 <div class="cad-pin-marker cad-pin-{{this.typeLower}}" style="left: {{this.pinX}}%; top: {{this.pinY}}%;" title="{{this.code}}: {{this.label}}">
                   <span class="cad-pin-badge">{{this.code}}</span>
@@ -1325,7 +1336,6 @@
           <span class="legend-title">Chú giải tọa độ ghim trên CAD:</span>
           <span class="legend-item"><span class="legend-dot dot-zone"></span> Vùng phòng (Z)</span>
           <span class="legend-item"><span class="legend-dot dot-element"></span> Cấu kiện kết cấu (E)</span>
-          <span class="legend-item"><span class="legend-dot dot-defect"></span> Vết nứt / Khuyết tật (D)</span>
         </div>
       {{/if}}
 
@@ -1372,7 +1382,7 @@
       {{/if}}
     </div>
 
-    <!-- Các trang Hồ sơ ảnh tổng thể các phòng theo tầng (Lưới 6 ảnh / trang A4) -->
+    <!-- Các trang Hồ sơ ảnh không gian kiến trúc các phòng (Vùng Z - Ảnh ngang) -->
     {{#if this.overviewPages.length}}
       {{#each this.overviewPages}}
         <div class="a4-page-sheet">
@@ -1381,9 +1391,9 @@
             <span>{{../../metadata.buildingId}} | {{../../metadata.reportNo}}</span>
           </div>
 
-          <h2 class="chapter-header">PHỤ LỤC 2: HỒ SƠ ẢNH TỔNG THỂ KHÔNG GIAN CÁC PHÒNG - {{../floorName.vi}} (Trang {{this.pageIndexInFloor}}/{{this.totalOverviewPagesInFloor}})</h2>
+          <h2 class="chapter-header">PHỤ LỤC 2: HỒ SƠ ẢNH KHÔNG GIAN KIẾN TRÚC CÁC PHÒNG (VÙNG Z - ẢNH NGANG) - {{../floorName.vi}} (Trang {{this.pageIndexInFloor}}/{{this.totalOverviewPagesInFloor}})</h2>
           <div style="font-size: 8.5pt; font-weight: bold; color: #475569; margin-bottom: 6px;">
-            APPENDIX 2 INDOOR ROOM & SPACE OVERVIEW DOSSIER - {{../floorName.en}} (Sheet {{this.pageIndexInFloor}}/{{this.totalOverviewPagesInFloor}})
+            APPENDIX 2 INDOOR ARCHITECTURAL ROOM & SPACE OVERVIEW (ZONE Z - LANDSCAPE) - {{../floorName.en}} (Sheet {{this.pageIndexInFloor}}/{{this.totalOverviewPagesInFloor}})
           </div>
 
           <div class="room-overview-grid">
@@ -1405,8 +1415,68 @@
                         <img src="{{../../../metadata.headerLogoBase64}}" class="watermark-logo-top-right watermark-logo-sm" alt="THACO REG">
                       {{/if}}
                       <div class="watermark-text-bottom-right watermark-text-sm">
-                        <div class="watermark-datetime">{{#if ../../../metadata.watermarkDateTime}}{{../../../metadata.watermarkDateTime}}{{else}}{{../../../metadata.surveyDateFormatted}}{{/if}}</div>
-                        <div class="watermark-code">HCM_M2.[{{../../../metadata.buildingId}}]_{{this.photoId}}_{{this.zoneCode}}</div>
+                        <div class="watermark-datetime">{{#if this.watermarkDateTime}}{{this.watermarkDateTime}}{{else if ../../../metadata.watermarkDateTime}}{{../../../metadata.watermarkDateTime}}{{else}}{{../../../metadata.surveyDateFormatted}}{{/if}}</div>
+                        <div class="watermark-code">{{#if this.metroPhotoCode}}{{this.metroPhotoCode}}{{else}}HCM_M2.[{{../../../metadata.buildingId}}]_{{this.photoId}}_{{this.zoneCode}}{{/if}}</div>
+                      </div>
+                    {{/unless}}
+                  {{/if}}
+                </div>
+                <div class="room-photo-meta">
+                  <div class="room-photo-header">
+                    <span style="font-weight: bold; color: #0f172a;">{{this.photoId}} | {{this.roomName.vi}} ({{this.zoneCode}})</span>
+                    {{#if this.statusBadge.isNormal}}
+                      <span class="status-badge-normal">{{this.statusBadge.text.vi}}</span>
+                    {{else}}
+                      <span class="status-badge-defect">{{this.statusBadge.text.vi}}</span>
+                    {{/if}}
+                  </div>
+                  <div style="color: #475569; font-size: 7pt;">
+                    {{this.caption.vi}}<br>
+                    <span class="text-muted">{{this.caption.en}}</span>
+                  </div>
+                </div>
+              </div>
+            {{/each}}
+          </div>
+        </div>
+      {{/each}}
+    {{/if}}
+
+    <!-- Các trang Hồ sơ ảnh cấu kiện kết cấu chịu lực (Cột / Dầm E - Ảnh dọc) -->
+    {{#if this.elementOverviewPages.length}}
+      {{#each this.elementOverviewPages}}
+        <div class="a4-page-sheet">
+          <div class="report-subpage-topbar">
+            <span>LIÊN DANH CRLG – CRSRI – TT | TUYẾN METRO 2 BẾN THÀNH - THAM LƯƠNG</span>
+            <span>{{../../metadata.buildingId}} | {{../../metadata.reportNo}}</span>
+          </div>
+
+          <h2 class="chapter-header">PHỤ LỤC 2: HỒ SƠ ẢNH CẤU KIỆN KẾT CẤU CHỊU LỰC (CỘT/DẦM E - ẢNH DỌC) - {{../floorName.vi}} (Trang {{this.pageIndexInFloor}}/{{this.totalOverviewPagesInFloor}})</h2>
+          <div style="font-size: 8.5pt; font-weight: bold; color: #475569; margin-bottom: 6px;">
+            APPENDIX 2 STRUCTURAL LOAD-BEARING MEMBERS OVERVIEW (ELEMENT E - PORTRAIT) - {{../floorName.en}} (Sheet {{this.pageIndexInFloor}}/{{this.totalOverviewPagesInFloor}})
+          </div>
+
+          <div class="room-overview-grid element-overview-grid">
+            {{#each this.photos}}
+              <div class="room-photo-card">
+                <div class="room-photo-wrapper">
+                  {{#if this.base64}}
+                    <img src="{{this.base64}}" class="room-photo-img photo-conv-e" alt="{{this.roomName.vi}}">
+                  {{else if this.url}}
+                    <img src="{{this.url}}" class="room-photo-img photo-conv-e" alt="{{this.roomName.vi}}">
+                  {{else}}
+                    <div style="font-size: 7.5pt; color: #64748b; text-align: center; padding: 10px;">
+                      [ Ảnh lưu trên thiết bị KSV / Local cache ]
+                    </div>
+                  {{/if}}
+                  {{#if this.url}}
+                    {{#unless this.alreadyWatermarked}}
+                      {{#if ../../../metadata.headerLogoBase64}}
+                        <img src="{{../../../metadata.headerLogoBase64}}" class="watermark-logo-top-right watermark-logo-sm" alt="THACO REG">
+                      {{/if}}
+                      <div class="watermark-text-bottom-right watermark-text-sm">
+                        <div class="watermark-datetime">{{#if this.watermarkDateTime}}{{this.watermarkDateTime}}{{else if ../../../metadata.watermarkDateTime}}{{../../../metadata.watermarkDateTime}}{{else}}{{../../../metadata.surveyDateFormatted}}{{/if}}</div>
+                        <div class="watermark-code">{{#if this.metroPhotoCode}}{{this.metroPhotoCode}}{{else}}HCM_M2.[{{../../../metadata.buildingId}}]_{{this.photoId}}_{{this.zoneCode}}{{/if}}</div>
                       </div>
                     {{/unless}}
                   {{/if}}
@@ -1780,7 +1850,7 @@
           img.style.maxHeight = 'none';
           img.style.transform = 'rotate(' + angleDeg + 'deg)';
           img.style.transformOrigin = 'center center';
-          img.style.objectFit = 'cover';
+          img.style.objectFit = 'contain';
         } else {
           img.style.transform = 'rotate(' + angleDeg + 'deg)';
           img.style.transformOrigin = 'center center';
@@ -1788,6 +1858,17 @@
       }
 
       function enforceConventions() {
+        // 0. Quy ước Sơ đồ CAD: LUÔN LÀ ẢNH DỌC. Nếu bản vẽ CAD ngang thì xoay 90 độ sang dọc
+        document.querySelectorAll('img.photo-conv-cad-portrait').forEach(function(img) {
+          if (img.complete && img.naturalWidth > 0) {
+            if (img.naturalWidth > img.naturalHeight) rotateImage(img, 90);
+          } else {
+            img.addEventListener('load', function() {
+              if (img.naturalWidth > img.naturalHeight) rotateImage(img, 90);
+            });
+          }
+        });
+
         // 1. Quy ước Z (Vùng phòng / kiến trúc): LUÔN LÀ ẢNH NGANG. Nếu chụp dọc thì xoay 90 độ cho nó ngang.
         document.querySelectorAll('img.photo-conv-z').forEach(function(img) {
           if (img.complete && img.naturalWidth > 0) {

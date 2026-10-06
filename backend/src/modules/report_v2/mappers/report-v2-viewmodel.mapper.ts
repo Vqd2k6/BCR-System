@@ -72,6 +72,23 @@ export function formatWatermarkDateTime(dateVal: any): string {
   return `${day} thg ${month}, ${year} ${hours}:${mins}:${secs}`;
 }
 
+export function extractPhotoDateTime(photoUrl?: string, itemShotAt?: any, fallbackDate?: any): string {
+  if (itemShotAt) {
+    const formatted = formatWatermarkDateTime(itemShotAt);
+    if (formatted) return formatted;
+  }
+  if (photoUrl && typeof photoUrl === 'string') {
+    const match = photoUrl.match(/_(\d{13})_/);
+    if (match) {
+      const epoch = parseInt(match[1], 10);
+      if (!isNaN(epoch) && epoch > 1500000000000 && epoch < 2500000000000) {
+        return formatWatermarkDateTime(new Date(epoch));
+      }
+    }
+  }
+  return formatWatermarkDateTime(fallbackDate) || '';
+}
+
 export class ReportV2ViewModelMapper {
   public static buildViewModel(rawReport: any, overrides?: any): ReportV2ViewModel {
     const json = rawReport.survey_data_json || {};
@@ -151,6 +168,7 @@ export class ReportV2ViewModelMapper {
       coverPhotoUrl = json.vacantLandPhotos[0];
     }
     const coverPhotoBase64 = coverPhotoUrl ? ReportImageResolver.resolveToBase64(coverPhotoUrl) : undefined;
+    const coverWatermarkDateTime = extractPhotoDateTime(coverPhotoUrl, p02Item?.shot_at || p02Item?.created_at, rawSurveyDate);
 
     // Metadata
     const metadata: ReportV2Metadata = {
@@ -163,7 +181,7 @@ export class ReportV2ViewModelMapper {
       projectTitleVi: 'Tuyến Metro Số 2 TPHCM (Bến Thành - Tham Lương)',
       projectTitleEn: 'Ho Chi Minh City Mass Rapid Transit Line 2, Ben Thanh – Tham Luong Route',
       reportTitleVi: 'Khảo sát và Đánh giá hiện trạng tòa nhà - Báo cáo Giai Đoạn 1',
-      reportTitleEn: 'Building Condition Survey and Assessment - Phase 1 Report',
+      reportTitleEn: 'Building Condition Survey and Assessment - Report',
       generatedAt: formatDateVi(new Date()),
       coverPhotoUrl,
       coverPhotoBase64,
@@ -171,6 +189,7 @@ export class ReportV2ViewModelMapper {
       headerLogoBase64: LOGO_THACO_REC_BASE64,
       surveyDateFormatted,
       watermarkDateTime,
+      coverWatermarkDateTime,
     };
 
     // Khung ký 3 bên trang bìa: Chỉ hiển thị tên khi có dữ liệu thực tế trong DB / JSON snapshot.
@@ -473,7 +492,7 @@ export class ReportV2ViewModelMapper {
         ? json.floors
         : [];
 
-    const appendix2 = FloorDefectMapper.mapFloors(rawFloors);
+    const appendix2 = FloorDefectMapper.mapFloors(rawFloors, { current: 5 }, buildingId, rawSurveyDate);
 
     // CHƯƠNG VI: TÓM TẮT ĐIỀU TRA LỖI & BCS CHECKLIST (ĐỘNG TỪ PHỤ LỤC 2 & STEP 3/4)
     const allDefectRows = appendix2.flatMap((f) => f.defectSummaryRows);
@@ -1459,7 +1478,7 @@ export class ReportV2ViewModelMapper {
         gpsCoords: `${defaultLat}, ${defaultLng}`,
         originalTag: 'P01_HOUS',
         metroPhotoCode: `HCM_M2.[${buildingId}]_P01_HOUS`,
-        watermarkDateTime,
+        watermarkDateTime: extractPhotoDateTime(p01Url, p01Item?.shot_at || p01Item?.created_at, rawSurveyDate),
         alreadyWatermarked: isPhotoAlreadyWatermarked(p01Url),
       });
     }
@@ -1481,7 +1500,7 @@ export class ReportV2ViewModelMapper {
         gpsCoords: `${defaultLat}, ${defaultLng}`,
         originalTag: 'P02_MAIN',
         metroPhotoCode: `HCM_M2.[${buildingId}]_P02_MAIN`,
-        watermarkDateTime,
+        watermarkDateTime: extractPhotoDateTime(p02Url, p02Item?.shot_at || p02Item?.created_at, rawSurveyDate),
         alreadyWatermarked: isPhotoAlreadyWatermarked(p02Url),
       });
     }
@@ -1512,8 +1531,7 @@ export class ReportV2ViewModelMapper {
                       item.photo_code?.includes('SAU') ? 'Rear facade' : `Side facade #${idx + 1}`;
         const origTag = item.photo_code || `P03_0${idx + 1}`;
         const mCode = origTag.startsWith('HCM_M2.') ? origTag : `HCM_M2.[${buildingId}]_${origTag}`;
-        const itemShotAt = item.shot_at || item.created_at;
-        const itemDt = itemShotAt ? formatWatermarkDateTime(itemShotAt) : watermarkDateTime;
+        const itemDt = extractPhotoDateTime(u, item.shot_at || item.created_at, rawSurveyDate);
         appendix1.push({
           photoCode: 'P-03',
           name: { vi: `Mặt bên (${tag})`, en: tagEn },
@@ -1537,7 +1555,7 @@ export class ReportV2ViewModelMapper {
         gpsCoords: `${defaultLat}, ${defaultLng}`,
         originalTag: 'P03_SIDE',
         metroPhotoCode: `HCM_M2.[${buildingId}]_P03_SIDE`,
-        watermarkDateTime,
+        watermarkDateTime: extractPhotoDateTime(singleP03Url, null, rawSurveyDate),
         alreadyWatermarked: isPhotoAlreadyWatermarked(singleP03Url),
       });
     }
@@ -1559,7 +1577,7 @@ export class ReportV2ViewModelMapper {
         gpsCoords: `${defaultLat}, ${defaultLng}`,
         originalTag: 'P04_CONT',
         metroPhotoCode: `HCM_M2.[${buildingId}]_P04_CONT`,
-        watermarkDateTime,
+        watermarkDateTime: extractPhotoDateTime(p04Url, null, rawSurveyDate),
         alreadyWatermarked: isPhotoAlreadyWatermarked(p04Url),
       });
     }
@@ -1576,7 +1594,7 @@ export class ReportV2ViewModelMapper {
         gpsCoords: `${defaultLat}, ${defaultLng}`,
         originalTag: tiltTag,
         metroPhotoCode: tiltTag.startsWith('HCM_M2.') ? tiltTag : `HCM_M2.[${buildingId}]_${tiltTag}`,
-        watermarkDateTime,
+        watermarkDateTime: extractPhotoDateTime(p05Url, tiltPhotoObj?.shot_at, rawSurveyDate),
         alreadyWatermarked: isPhotoAlreadyWatermarked(p05Url),
       });
     }
@@ -1593,7 +1611,7 @@ export class ReportV2ViewModelMapper {
         gpsCoords: `${defaultLat}, ${defaultLng}`,
         originalTag: settleTag,
         metroPhotoCode: settleTag.startsWith('HCM_M2.') ? settleTag : `HCM_M2.[${buildingId}]_${settleTag}`,
-        watermarkDateTime,
+        watermarkDateTime: extractPhotoDateTime(p06Url, settlePhotoObj?.shot_at, rawSurveyDate),
         alreadyWatermarked: isPhotoAlreadyWatermarked(p06Url),
       });
     }
@@ -1615,7 +1633,7 @@ export class ReportV2ViewModelMapper {
         gpsCoords: `${defaultLat}, ${defaultLng}`,
         originalTag: anomalyTag,
         metroPhotoCode: anomalyTag.startsWith('HCM_M2.') ? anomalyTag : `HCM_M2.[${buildingId}]_${anomalyTag}`,
-        watermarkDateTime,
+        watermarkDateTime: extractPhotoDateTime(p07Url, anomalyPhotoObj?.shot_at, rawSurveyDate),
         alreadyWatermarked: isPhotoAlreadyWatermarked(p07Url),
       });
     }
