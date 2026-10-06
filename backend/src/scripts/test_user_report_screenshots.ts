@@ -33,6 +33,40 @@ async function main() {
     const pageSheets = await page.$$('.a4-page-sheet');
     console.log(`Found ${pageSheets.length} pages in document`);
 
+    // ===== KIỂM TRA TỰ ĐỘNG LAYOUT ẢNH / WATERMARK / SỐ TRANG =====
+    const checks = await page.evaluate(() => {
+      const issues: string[] = [];
+      document.querySelectorAll('.photo-stage').forEach((stage) => {
+        const img = stage.querySelector('img.photo-main') as HTMLImageElement | null;
+        if (!img) return;
+        const rotated = stage.classList.contains('is-rotated');
+        const nativeAr = rotated ? img.naturalHeight / img.naturalWidth : img.naturalWidth / img.naturalHeight;
+        const r = (stage as HTMLElement).getBoundingClientRect();
+        const stageAr = r.width / r.height;
+        if (Math.abs(nativeAr - stageAr) / nativeAr > 0.02) {
+          issues.push(`Sai tỉ lệ khung: native=${nativeAr.toFixed(3)} stage=${stageAr.toFixed(3)}`);
+        }
+        if (img.classList.contains('photo-conv-z') || img.classList.contains('photo-conv-d')) {
+          if (r.width < r.height) issues.push('Ảnh Z/D không ngang');
+        }
+        if (img.classList.contains('photo-conv-e')) {
+          if (r.height < r.width) issues.push('Ảnh E không dọc');
+        }
+      });
+      const bodyText = document.body.innerText;
+      if (bodyText.includes('00:00:00')) issues.push('Còn timestamp 00:00:00');
+      if (/Structural member Structural member/i.test(bodyText)) issues.push('Caption còn lặp "Structural member"');
+      if (/Assessment\s*-\s*Phase 1 Report/i.test(bodyText)) issues.push('Còn tiêu đề cũ "... - Phase 1 Report"');
+      const sheets = document.querySelectorAll('.a4-page-sheet').length;
+      const totalEl = document.getElementById('report-total-pages');
+      if (totalEl && Number(totalEl.textContent) !== sheets) issues.push(`Header tổng trang ${totalEl.textContent} != ${sheets}`);
+      const wmOutside = document.querySelectorAll('.photo-wrapper-fit > .watermark-logo-top-right, .photo-wrapper-fit > .watermark-text-bottom-right').length;
+      if (wmOutside > 0) issues.push(`Có ${wmOutside} watermark nằm ngoài khung ảnh`);
+      return { issues, stages: document.querySelectorAll('.photo-stage').length };
+    });
+    console.log(`PHOTO-STAGE count: ${checks.stages}`);
+    console.log(checks.issues.length ? `LAYOUT ISSUES:\n - ${checks.issues.join('\n - ')}` : 'LAYOUT CHECKS: ALL PASS');
+
     // 1. Cover page (Page 1)
     if (pageSheets[0]) {
       const coverPath = path.join(exportDir, 'verify_01_cover_centered.png');

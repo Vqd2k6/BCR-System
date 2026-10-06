@@ -63,13 +63,18 @@ export function formatWatermarkDateTime(dateVal: any): string {
   if (isNaN(d.getTime())) {
     return String(dateVal);
   }
-  const day = d.getDate();
-  const month = d.getMonth() + 1;
+  // Định dạng chuẩn frontend (PhotoWatermarkOverlay): DD/MM/YYYY HH:mm:ss
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
   const year = d.getFullYear();
+  // Thiếu metadata giờ (00:00:00) -> chỉ hiện ngày, không in giờ giả
+  if (d.getHours() === 0 && d.getMinutes() === 0 && d.getSeconds() === 0) {
+    return `${day}/${month}/${year}`;
+  }
   const hours = String(d.getHours()).padStart(2, '0');
   const mins = String(d.getMinutes()).padStart(2, '0');
   const secs = String(d.getSeconds()).padStart(2, '0');
-  return `${day} thg ${month}, ${year} ${hours}:${mins}:${secs}`;
+  return `${day}/${month}/${year} ${hours}:${mins}:${secs}`;
 }
 
 export function extractPhotoDateTime(photoUrl?: string, itemShotAt?: any, fallbackDate?: any): string {
@@ -1798,7 +1803,8 @@ export class ReportV2ViewModelMapper {
     let appendix2PageCount = 0;
     for (const fl of appendix2) {
       appendix2PageCount += 1; // 1 trang sơ đồ CAD + tổng hợp / xác nhận an toàn
-      appendix2PageCount += fl.overviewPages ? fl.overviewPages.length : 0; // Các trang ảnh tổng thể không gian các phòng
+      appendix2PageCount += fl.overviewPages ? fl.overviewPages.length : 0; // Các trang ảnh tổng thể không gian các phòng (Z)
+      appendix2PageCount += fl.elementOverviewPages ? fl.elementOverviewPages.length : 0; // Các trang ảnh cấu kiện kết cấu (E)
       appendix2PageCount += fl.defectPairPages ? fl.defectPairPages.length : 0; // Các trang cặp ảnh khuyết tật
     }
 

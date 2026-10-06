@@ -34,7 +34,7 @@
         <strong>Doc.No:</strong> {{metadata.reportNo}}<br>
         <strong>Date:</strong> {{metadata.surveyDateFormatted}}<br>
         <strong>Rev No:</strong> {{metadata.revision}}<br>
-        <strong>Page:</strong> 1 of {{metadata.totalExpectedPages}}
+        <strong>Page:</strong> 1 of <span id="report-total-pages">{{metadata.totalExpectedPages}}</span>
       </td>
     </tr>
   </table>
@@ -1193,9 +1193,9 @@
                 {{/unless}}
               </div>
               <div class="photo-caption">
-                <strong>{{this.photoCode}} ({{#if this.originalTag}}{{this.originalTag}}{{else}}{{this.photoCode}}{{/if}}):</strong> {{this.name.vi}}<br>
+                <strong>{{this.photoCode}}:</strong> {{this.name.vi}}<br>
                 <span class="text-muted">{{this.name.en}}</span><br>
-                <span style="font-size: 7.5pt; color: #475569;">GPS: {{this.gpsCoords}} | Ngày chụp: {{#if this.watermarkDateTime}}{{this.watermarkDateTime}}{{else}}{{this.capturedAt}}{{/if}}</span>
+                <span style="font-size: 7.5pt; color: #475569;">Ngày chụp: {{#if this.watermarkDateTime}}{{this.watermarkDateTime}}{{else}}{{this.capturedAt}}{{/if}}</span>
               </div>
             </div>
           {{/each}}
@@ -1241,9 +1241,9 @@
               {{/unless}}
             </div>
             <div class="photo-caption">
-              <strong>{{this.photoCode}} ({{#if this.originalTag}}{{this.originalTag}}{{else}}{{this.photoCode}}{{/if}}):</strong> {{this.name.vi}}<br>
+              <strong>{{this.photoCode}}:</strong> {{this.name.vi}}<br>
               <span class="text-muted">{{this.name.en}}</span><br>
-              <span style="font-size: 7pt; color: #64748b;">GPS: {{this.gpsCoords}} | Ngày chụp: {{this.capturedAt}}</span>
+              <span style="font-size: 7pt; color: #64748b;">Ngày chụp: {{this.capturedAt}}</span>
             </div>
           </div>
         {{/each}}
@@ -1437,6 +1437,13 @@
                 </div>
               </div>
             {{/each}}
+            {{#if (eq this.pageIndexInFloor this.totalOverviewPagesInFloor)}}
+              <div class="review-note-card">
+                <div class="review-note-title">Ghi chú kiểm tra / Review notes</div>
+                <div class="review-note-lines"></div>
+                <div class="review-note-sign"><span>Người kiểm tra / Checked by:</span><span>Ngày / Date:</span></div>
+              </div>
+            {{/if}}
           </div>
         </div>
       {{/each}}
@@ -1497,6 +1504,13 @@
                 </div>
               </div>
             {{/each}}
+            {{#if (eq this.pageIndexInFloor this.totalOverviewPagesInFloor)}}
+              <div class="review-note-card">
+                <div class="review-note-title">Ghi chú kiểm tra / Review notes</div>
+                <div class="review-note-lines"></div>
+                <div class="review-note-sign"><span>Người kiểm tra / Checked by:</span><span>Ngày / Date:</span></div>
+              </div>
+            {{/if}}
           </div>
         </div>
       {{/each}}
@@ -1537,7 +1551,7 @@
                           <img src="{{../../../metadata.headerLogoBase64}}" class="watermark-logo-top-right watermark-logo-sm" alt="THACO REG">
                         {{/if}}
                         <div class="watermark-text-bottom-right watermark-text-sm">
-                          <div class="watermark-datetime">{{#if ../../../metadata.watermarkDateTime}}{{../../../metadata.watermarkDateTime}}{{else}}{{../../../metadata.surveyDateFormatted}}{{/if}}</div>
+                          <div class="watermark-datetime">{{#if this.contextDateTime}}{{this.contextDateTime}}{{else if ../../../metadata.watermarkDateTime}}{{../../../metadata.watermarkDateTime}}{{else}}{{../../../metadata.surveyDateFormatted}}{{/if}}</div>
                           <div class="watermark-code">HCM_M2.[{{../../../metadata.buildingId}}]_{{this.defectId}}_CTX</div>
                         </div>
                       {{/unless}}
@@ -1563,7 +1577,7 @@
                           <img src="{{../../../metadata.headerLogoBase64}}" class="watermark-logo-top-right watermark-logo-sm" alt="THACO REG">
                         {{/if}}
                         <div class="watermark-text-bottom-right watermark-text-sm">
-                          <div class="watermark-datetime">{{#if ../../../metadata.watermarkDateTime}}{{../../../metadata.watermarkDateTime}}{{else}}{{../../../metadata.surveyDateFormatted}}{{/if}}</div>
+                          <div class="watermark-datetime">{{#if this.closeUpDateTime}}{{this.closeUpDateTime}}{{else if ../../../metadata.watermarkDateTime}}{{../../../metadata.watermarkDateTime}}{{else}}{{../../../metadata.surveyDateFormatted}}{{/if}}</div>
                           <div class="watermark-code">HCM_M2.[{{../../../metadata.buildingId}}]_{{this.defectId}}_CU</div>
                         </div>
                       {{/unless}}
@@ -1589,7 +1603,7 @@
                           <img src="{{../../../metadata.headerLogoBase64}}" class="watermark-logo-top-right watermark-logo-sm" alt="THACO REG">
                         {{/if}}
                         <div class="watermark-text-bottom-right watermark-text-sm">
-                          <div class="watermark-datetime">{{#if ../../../metadata.watermarkDateTime}}{{../../../metadata.watermarkDateTime}}{{else}}{{../../../metadata.surveyDateFormatted}}{{/if}}</div>
+                          <div class="watermark-datetime">{{#if this.extraCloseUpDateTime}}{{this.extraCloseUpDateTime}}{{else if ../../../metadata.watermarkDateTime}}{{../../../metadata.watermarkDateTime}}{{else}}{{../../../metadata.surveyDateFormatted}}{{/if}}</div>
                           <div class="watermark-code">HCM_M2.[{{../../../metadata.buildingId}}]_{{this.defectId}}_GAUGE</div>
                         </div>
                       {{/unless}}
@@ -1633,7 +1647,7 @@
                           <img src="{{../../../metadata.headerLogoBase64}}" class="watermark-logo-top-right watermark-logo-sm" alt="THACO REG">
                         {{/if}}
                         <div class="watermark-text-bottom-right watermark-text-sm">
-                          <div class="watermark-datetime">{{#if ../../../metadata.watermarkDateTime}}{{../../../metadata.watermarkDateTime}}{{else}}{{../../../metadata.surveyDateFormatted}}{{/if}}</div>
+                          <div class="watermark-datetime">{{#if this.contextDateTime}}{{this.contextDateTime}}{{else if ../../../metadata.watermarkDateTime}}{{../../../metadata.watermarkDateTime}}{{else}}{{../../../metadata.surveyDateFormatted}}{{/if}}</div>
                           <div class="watermark-code">HCM_M2.[{{../../../metadata.buildingId}}]_{{this.defectId}}_CTX</div>
                         </div>
                       {{/unless}}
@@ -1659,7 +1673,7 @@
                           <img src="{{../../../metadata.headerLogoBase64}}" class="watermark-logo-top-right watermark-logo-sm" alt="THACO REG">
                         {{/if}}
                         <div class="watermark-text-bottom-right watermark-text-sm">
-                          <div class="watermark-datetime">{{#if ../../../metadata.watermarkDateTime}}{{../../../metadata.watermarkDateTime}}{{else}}{{../../../metadata.surveyDateFormatted}}{{/if}}</div>
+                          <div class="watermark-datetime">{{#if this.closeUpDateTime}}{{this.closeUpDateTime}}{{else if ../../../metadata.watermarkDateTime}}{{../../../metadata.watermarkDateTime}}{{else}}{{../../../metadata.surveyDateFormatted}}{{/if}}</div>
                           <div class="watermark-code">HCM_M2.[{{../../../metadata.buildingId}}]_{{this.defectId}}_CU</div>
                         </div>
                       {{/unless}}
@@ -1812,101 +1826,107 @@
 
   <script>
     (function() {
-      function rotateImage(img, angleDeg) {
+      // ---- 1. Xoay riêng cho sơ đồ CAD (canvas, vì ghim Z/E phủ lên đúng khung ảnh) ----
+      function rotateCadImage(img) {
         if (!img || img.__hasRotated) return;
         img.__hasRotated = true;
-
-        var parent = img.parentElement;
-        var pWidth = parent ? parent.clientWidth : 0;
-        var pHeight = parent ? parent.clientHeight : 0;
-
         try {
           var canvas = document.createElement('canvas');
           var ctx = canvas.getContext('2d');
           if (!ctx) throw new Error('No context');
-
-          if (Math.abs(angleDeg) === 90 || Math.abs(angleDeg) === 270) {
-            canvas.width = img.naturalHeight;
-            canvas.height = img.naturalWidth;
-          } else {
-            canvas.width = img.naturalWidth;
-            canvas.height = img.naturalHeight;
-          }
-
+          canvas.width = img.naturalHeight;
+          canvas.height = img.naturalWidth;
           ctx.translate(canvas.width / 2, canvas.height / 2);
-          ctx.rotate((angleDeg * Math.PI) / 180);
+          ctx.rotate(Math.PI / 2);
           ctx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2);
-
-          img.src = canvas.toDataURL('image/jpeg', 0.95);
-          return;
+          img.src = canvas.toDataURL('image/jpeg', 0.97);
         } catch (e) {
-          // Fallback CSS swapping nếu canvas bị tainted
-        }
-
-        if (pWidth > 0 && pHeight > 0) {
-          img.style.width = pHeight + 'px';
-          img.style.height = pWidth + 'px';
-          img.style.maxWidth = 'none';
-          img.style.maxHeight = 'none';
-          img.style.transform = 'rotate(' + angleDeg + 'deg)';
-          img.style.transformOrigin = 'center center';
-          img.style.objectFit = 'contain';
-        } else {
-          img.style.transform = 'rotate(' + angleDeg + 'deg)';
-          img.style.transformOrigin = 'center center';
+          img.style.transform = 'rotate(90deg)';
         }
       }
 
-      function enforceConventions() {
-        // 0. Quy ước Sơ đồ CAD: LUÔN LÀ ẢNH DỌC. Nếu bản vẽ CAD ngang thì xoay 90 độ sang dọc
+      function whenLoaded(img) {
+        return new Promise(function(resolve) {
+          if (img.complete && img.naturalWidth > 0) return resolve();
+          img.addEventListener('load', function() { resolve(); }, { once: true });
+          img.addEventListener('error', function() { resolve(); }, { once: true });
+        });
+      }
+
+      // ---- 2. Quy ước hướng ảnh: Z, D = ngang; E = dọc (xoay 90 độ bằng CSS, giữ nguyên ảnh gốc) ----
+      function targetOrientation(img) {
+        if (img.classList.contains('photo-conv-e')) return 'portrait';
+        if (img.classList.contains('photo-conv-z') || img.classList.contains('photo-conv-d')) return 'landscape';
+        return null;
+      }
+
+      function buildStage(wrapper, img) {
+        if (!img.naturalWidth || !img.naturalHeight || wrapper.querySelector('.photo-stage')) return;
+        var nw = img.naturalWidth, nh = img.naturalHeight;
+        var want = targetOrientation(img);
+        var rotate = (want === 'landscape' && nh > nw) || (want === 'portrait' && nw > nh);
+        var ar = rotate ? nh / nw : nw / nh;
+
+        var stage = document.createElement('div');
+        stage.className = 'photo-stage ' + (ar >= 1 ? 'is-landscape' : 'is-portrait') + (rotate ? ' is-rotated' : '');
+        stage.style.setProperty('--ar', ar.toFixed(4));
+
+        var kids = Array.prototype.slice.call(wrapper.children);
+        wrapper.insertBefore(stage, img);
+        var hasWatermark = false;
+        kids.forEach(function(k) {
+          var cls = (k.className && k.className.toString()) || '';
+          if (k === img) {
+            k.classList.add('photo-main');
+            stage.appendChild(k);
+          } else if (cls.indexOf('watermark') !== -1) {
+            hasWatermark = true;
+            stage.appendChild(k);
+          }
+        });
+        if (hasWatermark) stage.classList.add('has-watermark');
+        wrapper.classList.add('photo-wrapper-fit');
+      }
+
+      function numberPages() {
+        var sheets = document.querySelectorAll('.a4-page-sheet');
+        var total = sheets.length;
+        var codeEl = document.querySelector('.report-subpage-topbar span:last-child');
+        var code = codeEl ? codeEl.textContent.trim() : '';
+        sheets.forEach(function(sheet, idx) {
+          var footer = sheet.querySelector('.page-number-footer');
+          if (!footer) return;
+          footer.innerHTML = '<span class="pf-code">' + code + '</span>' +
+            '<span class="pf-page">Trang ' + (idx + 1) + ' / ' + total + '</span>' +
+            '<span class="pf-ctrl">TÀI LIỆU KIỂM SOÁT</span>';
+        });
+        var totalEl = document.getElementById('report-total-pages');
+        if (totalEl) totalEl.textContent = String(total);
+      }
+
+      function run() {
+        var jobs = [];
         document.querySelectorAll('img.photo-conv-cad-portrait').forEach(function(img) {
-          if (img.complete && img.naturalWidth > 0) {
-            if (img.naturalWidth > img.naturalHeight) rotateImage(img, 90);
-          } else {
-            img.addEventListener('load', function() {
-              if (img.naturalWidth > img.naturalHeight) rotateImage(img, 90);
-            });
-          }
+          jobs.push(whenLoaded(img).then(function() {
+            if (img.naturalWidth > img.naturalHeight) rotateCadImage(img);
+          }));
         });
-
-        // 1. Quy ước Z (Vùng phòng / kiến trúc): LUÔN LÀ ẢNH NGANG. Nếu chụp dọc thì xoay 90 độ cho nó ngang.
-        document.querySelectorAll('img.photo-conv-z').forEach(function(img) {
-          if (img.complete && img.naturalWidth > 0) {
-            if (img.naturalHeight > img.naturalWidth) rotateImage(img, 90);
-          } else {
-            img.addEventListener('load', function() {
-              if (img.naturalHeight > img.naturalWidth) rotateImage(img, 90);
-            });
-          }
+        document.querySelectorAll('.photo-card-img-wrapper, .room-photo-wrapper, .defect-photo-wrapper').forEach(function(wrapper) {
+          var img = wrapper.querySelector('img:not([class*="watermark"])');
+          if (!img) return;
+          jobs.push(whenLoaded(img).then(function() { buildStage(wrapper, img); }));
         });
-
-        // 2. Quy ước E (Cấu kiện kết cấu / cột dầm vách): LUÔN LÀ ẢNH DỌC. Nếu chụp ngang thì xoay 90 độ cho nó dọc.
-        document.querySelectorAll('img.photo-conv-e').forEach(function(img) {
-          if (img.complete && img.naturalWidth > 0) {
-            if (img.naturalWidth > img.naturalHeight) rotateImage(img, 90);
-          } else {
-            img.addEventListener('load', function() {
-              if (img.naturalWidth > img.naturalHeight) rotateImage(img, 90);
-            });
-          }
-        });
-
-        // 3. Quy ước D (Khuyết tật / vết nứt): LUÔN LÀ ẢNH NGANG. Nếu chụp dọc thì xoay 90 độ cho nó ngang.
-        document.querySelectorAll('img.photo-conv-d').forEach(function(img) {
-          if (img.complete && img.naturalWidth > 0) {
-            if (img.naturalHeight > img.naturalWidth) rotateImage(img, 90);
-          } else {
-            img.addEventListener('load', function() {
-              if (img.naturalHeight > img.naturalWidth) rotateImage(img, 90);
-            });
-          }
+        Promise.all(jobs).then(function() {
+          numberPages();
+          window.__reportReady = true;
+          document.body.setAttribute('data-report-ready', '1');
         });
       }
 
       if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', enforceConventions);
+        document.addEventListener('DOMContentLoaded', run);
       } else {
-        enforceConventions();
+        run();
       }
     })();
   </script>

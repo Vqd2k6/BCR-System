@@ -459,6 +459,9 @@ export interface DefectPairPhotoItem {
   closeUpCaption: BilingualText;
   closeUpAlreadyWatermarked?: boolean;
   closeUpPhotoCode?: string;
+  contextDateTime?: string;
+  closeUpDateTime?: string;
+  extraCloseUpDateTime?: string;
   hasCrackGauge: boolean;
   wmaxMm: number | string;
   lengthM: number | string;

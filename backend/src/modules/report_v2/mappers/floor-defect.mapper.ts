@@ -494,6 +494,9 @@ export class FloorDefectMapper {
               },
               contextAlreadyWatermarked: isPhotoAlreadyWatermarked(ctxUrl),
               contextPhotoCode: e.ctxPhotoCode || `${eCode}_CTX`,
+              contextDateTime: extractPhotoDateTime(ctxUrl, null, rawSurveyDate),
+              closeUpDateTime: extractPhotoDateTime(cuUrl, null, rawSurveyDate),
+              extraCloseUpDateTime: extractPhotoDateTime(extraCuUrl, null, rawSurveyDate),
 
               closeUpPhotoUrl: (cuUrl && !cuUrl.startsWith('blob:')) ? cuUrl : undefined,
               closeUpPhotoBase64: rawCuBase64 && !rawCuBase64.startsWith('blob:') ? rawCuBase64 : undefined,
@@ -552,7 +555,7 @@ export class FloorDefectMapper {
               eRoomEn,
               eDefects.length === 0,
               `Ảnh tổng thể cấu kiện ${eMatVi} (${eCode})`,
-              `Structural member ${eMatEn} (${eCode})`,
+              /^structural member/i.test(eMatEn) ? `${eMatEn} (${eCode})` : `Structural member - ${eMatEn} (${eCode})`,
               item?.photoCode,
               true
             );
@@ -574,35 +577,32 @@ export class FloorDefectMapper {
       }
 
       // 4. Phân cụm ảnh: Tách riêng ảnh phòng (Vùng Z - Ảnh ngang) và ảnh cấu kiện (Cột/Dầm E - Ảnh dọc)
+      // Chia cân bằng giữa các trang để tránh trang cuối chỉ còn 1-2 ảnh (vd 8 ảnh -> 4 + 4)
       const PHOTOS_PER_OVERVIEW_PAGE = 6;
-      const overviewPages: FloorOverviewPageViewModel[] = [];
-      const totalOverviewPages = Math.ceil(roomOverviewPhotos.length / PHOTOS_PER_OVERVIEW_PAGE);
-
-      for (let i = 0; i < roomOverviewPhotos.length; i += PHOTOS_PER_OVERVIEW_PAGE) {
-        overviewPages.push({
-          pageIndexInFloor: Math.floor(i / PHOTOS_PER_OVERVIEW_PAGE) + 1,
-          totalOverviewPagesInFloor: totalOverviewPages,
-          photos: roomOverviewPhotos.slice(i, i + PHOTOS_PER_OVERVIEW_PAGE),
-        });
-      }
-
-      const elementOverviewPages: FloorOverviewPageViewModel[] = [];
-      const totalElementPages = Math.ceil(elementOverviewPhotos.length / PHOTOS_PER_OVERVIEW_PAGE);
-      for (let i = 0; i < elementOverviewPhotos.length; i += PHOTOS_PER_OVERVIEW_PAGE) {
-        elementOverviewPages.push({
-          pageIndexInFloor: Math.floor(i / PHOTOS_PER_OVERVIEW_PAGE) + 1,
-          totalOverviewPagesInFloor: totalElementPages,
-          photos: elementOverviewPhotos.slice(i, i + PHOTOS_PER_OVERVIEW_PAGE),
-        });
-      }
+      const buildBalancedPages = <T,>(items: T[]): FloorOverviewPageViewModel[] => {
+        const pageCount = Math.ceil(items.length / PHOTOS_PER_OVERVIEW_PAGE);
+        if (pageCount === 0) return [];
+        const perPage = Math.ceil(items.length / pageCount);
+        const pages: FloorOverviewPageViewModel[] = [];
+        for (let p = 0; p < pageCount; p++) {
+          pages.push({
+            pageIndexInFloor: p + 1,
+            totalOverviewPagesInFloor: pageCount,
+            photos: items.slice(p * perPage, (p + 1) * perPage) as any,
+          });
+        }
+        return pages;
+      };
+      const overviewPages: FloorOverviewPageViewModel[] = buildBalancedPages(roomOverviewPhotos);
+      const elementOverviewPages: FloorOverviewPageViewModel[] = buildBalancedPages(elementOverviewPhotos);
 
       // Độ võng dầm sàn của tầng
       const beamDeflectionMm = fl.beamDeflectionMm || 0.0;
       const hasDefects = defectSummaryRows.length > 0;
 
-      // Phân cụm các cặp ảnh khuyết tật: Mỗi trang A4 chứa tối đa 2 cặp ảnh để chống tràn trang
+      // Phân cụm các cặp ảnh khuyết tật: mỗi khuyết tật một trang A4 để ảnh đủ lớn, thước đo rõ
       const defectPairPages: Array<{ pageIndex: number; pairs: DefectPairPhotoItem[] }> = [];
-      const PAIRS_PER_PAGE = 2;
+      const PAIRS_PER_PAGE = 1;
       for (let i = 0; i < defectPairPhotos.length; i += PAIRS_PER_PAGE) {
         defectPairPages.push({
           pageIndex: Math.floor(i / PAIRS_PER_PAGE) + 1,
