@@ -40,6 +40,7 @@ export interface ReportV2Metadata {
   coverAlreadyWatermarked?: boolean;
   headerLogoBase64?: string;
   surveyDateFormatted?: string;
+  watermarkDateTime?: string;
   totalExpectedPages?: number;
 }
 
@@ -428,6 +429,8 @@ export interface Appendix1PhotoItem {
   capturedAt: string;
   gpsCoords: string;
   originalTag?: string;
+  metroPhotoCode?: string;
+  watermarkDateTime?: string;
   alreadyWatermarked?: boolean;
 }
 

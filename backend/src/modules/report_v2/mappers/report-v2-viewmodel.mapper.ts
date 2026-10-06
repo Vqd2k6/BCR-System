@@ -57,6 +57,21 @@ export function formatDateVi(dateVal: any, includeTime: boolean = false): string
   return `${day}/${month}/${year}`;
 }
 
+export function formatWatermarkDateTime(dateVal: any): string {
+  if (!dateVal) return '';
+  const d = new Date(dateVal);
+  if (isNaN(d.getTime())) {
+    return String(dateVal);
+  }
+  const day = d.getDate();
+  const month = d.getMonth() + 1;
+  const year = d.getFullYear();
+  const hours = String(d.getHours()).padStart(2, '0');
+  const mins = String(d.getMinutes()).padStart(2, '0');
+  const secs = String(d.getSeconds()).padStart(2, '0');
+  return `${day} thg ${month}, ${year} ${hours}:${mins}:${secs}`;
+}
+
 export class ReportV2ViewModelMapper {
   public static buildViewModel(rawReport: any, overrides?: any): ReportV2ViewModel {
     const json = rawReport.survey_data_json || {};
@@ -78,6 +93,7 @@ export class ReportV2ViewModelMapper {
       rawReport.created_at;
     const surveyDateFormatted = formatDateVi(rawSurveyDate) || '';
     const surveyDateWithTime = formatDateVi(rawSurveyDate, true) || surveyDateFormatted;
+    const watermarkDateTime = formatWatermarkDateTime(rawSurveyDate) || surveyDateWithTime || surveyDateFormatted;
 
     // 1. Chuẩn hóa 7 chỉ số định danh
     const rawParcelCode = rawReport.project_parcel_code || json.projectParcelCode || '';
@@ -154,6 +170,7 @@ export class ReportV2ViewModelMapper {
       coverAlreadyWatermarked: isPhotoAlreadyWatermarked(coverPhotoUrl),
       headerLogoBase64: LOGO_THACO_REC_BASE64,
       surveyDateFormatted,
+      watermarkDateTime,
     };
 
     // Khung ký 3 bên trang bìa: Chỉ hiển thị tên khi có dữ liệu thực tế trong DB / JSON snapshot.
@@ -1441,6 +1458,8 @@ export class ReportV2ViewModelMapper {
         capturedAt: surveyDateFormatted,
         gpsCoords: `${defaultLat}, ${defaultLng}`,
         originalTag: 'P01_HOUS',
+        metroPhotoCode: `HCM_M2.[${buildingId}]_P01_HOUS`,
+        watermarkDateTime,
         alreadyWatermarked: isPhotoAlreadyWatermarked(p01Url),
       });
     }
@@ -1461,6 +1480,8 @@ export class ReportV2ViewModelMapper {
         capturedAt: surveyDateFormatted,
         gpsCoords: `${defaultLat}, ${defaultLng}`,
         originalTag: 'P02_MAIN',
+        metroPhotoCode: `HCM_M2.[${buildingId}]_P02_MAIN`,
+        watermarkDateTime,
         alreadyWatermarked: isPhotoAlreadyWatermarked(p02Url),
       });
     }
@@ -1489,6 +1510,10 @@ export class ReportV2ViewModelMapper {
         const tagEn = item.photo_code?.includes('PHI') ? 'Side facade (right)' :
                       item.photo_code?.includes('TRI') ? 'Side facade (left)' :
                       item.photo_code?.includes('SAU') ? 'Rear facade' : `Side facade #${idx + 1}`;
+        const origTag = item.photo_code || `P03_0${idx + 1}`;
+        const mCode = origTag.startsWith('HCM_M2.') ? origTag : `HCM_M2.[${buildingId}]_${origTag}`;
+        const itemShotAt = item.shot_at || item.created_at;
+        const itemDt = itemShotAt ? formatWatermarkDateTime(itemShotAt) : watermarkDateTime;
         appendix1.push({
           photoCode: 'P-03',
           name: { vi: `Mặt bên (${tag})`, en: tagEn },
@@ -1496,7 +1521,9 @@ export class ReportV2ViewModelMapper {
           base64: ReportImageResolver.resolveToBase64(u),
           capturedAt: surveyDateFormatted,
           gpsCoords: `${defaultLat}, ${defaultLng}`,
-          originalTag: item.photo_code || `P03_0${idx + 1}`,
+          originalTag: origTag,
+          metroPhotoCode: mCode,
+          watermarkDateTime: itemDt,
           alreadyWatermarked: isPhotoAlreadyWatermarked(u),
         });
       });
@@ -1509,6 +1536,8 @@ export class ReportV2ViewModelMapper {
         capturedAt: surveyDateFormatted,
         gpsCoords: `${defaultLat}, ${defaultLng}`,
         originalTag: 'P03_SIDE',
+        metroPhotoCode: `HCM_M2.[${buildingId}]_P03_SIDE`,
+        watermarkDateTime,
         alreadyWatermarked: isPhotoAlreadyWatermarked(singleP03Url),
       });
     }
@@ -1529,12 +1558,15 @@ export class ReportV2ViewModelMapper {
         capturedAt: surveyDateFormatted,
         gpsCoords: `${defaultLat}, ${defaultLng}`,
         originalTag: 'P04_CONT',
+        metroPhotoCode: `HCM_M2.[${buildingId}]_P04_CONT`,
+        watermarkDateTime,
         alreadyWatermarked: isPhotoAlreadyWatermarked(p04Url),
       });
     }
 
     // 5. P-05: Kiểm tra độ nghiêng công trình (từ deformation_assessments hoặc settlementTilt)
     if (p05Url) {
+      const tiltTag = tiltPhotoObj?.photoCode || 'EXT_TILT_01';
       appendix1.push({
         photoCode: 'P-05',
         name: { vi: 'Kiểm tra độ nghiêng công trình', en: 'Building inclination check' },
@@ -1542,13 +1574,16 @@ export class ReportV2ViewModelMapper {
         base64: ReportImageResolver.resolveToBase64(p05Url),
         capturedAt: surveyDateFormatted,
         gpsCoords: `${defaultLat}, ${defaultLng}`,
-        originalTag: tiltPhotoObj?.photoCode || 'EXT_TILT_01',
+        originalTag: tiltTag,
+        metroPhotoCode: tiltTag.startsWith('HCM_M2.') ? tiltTag : `HCM_M2.[${buildingId}]_${tiltTag}`,
+        watermarkDateTime,
         alreadyWatermarked: isPhotoAlreadyWatermarked(p05Url),
       });
     }
 
     // 6. P-06: Khảo sát lún móng & nền công trình
     if (p06Url) {
+      const settleTag = settlePhotoObj?.photoCode || 'FOUND_SETTLE_01';
       appendix1.push({
         photoCode: 'P-06',
         name: { vi: 'Khảo sát lún móng & nền công trình', en: 'Foundation & settlement survey' },
@@ -1556,7 +1591,9 @@ export class ReportV2ViewModelMapper {
         base64: ReportImageResolver.resolveToBase64(p06Url),
         capturedAt: surveyDateFormatted,
         gpsCoords: `${defaultLat}, ${defaultLng}`,
-        originalTag: settlePhotoObj?.photoCode || 'FOUND_SETTLE_01',
+        originalTag: settleTag,
+        metroPhotoCode: settleTag.startsWith('HCM_M2.') ? settleTag : `HCM_M2.[${buildingId}]_${settleTag}`,
+        watermarkDateTime,
         alreadyWatermarked: isPhotoAlreadyWatermarked(p06Url),
       });
     }
@@ -1568,6 +1605,7 @@ export class ReportV2ViewModelMapper {
       deform.abnormalCase?.photoUrl ||
       findPhoto(['EXT_ANOMALY', 'ANOMALY', 'P07', 'P-07']);
     if (p07Url) {
+      const anomalyTag = anomalyPhotoObj?.photoCode || 'EXT_ANOMALY_01';
       appendix1.push({
         photoCode: 'P-07',
         name: { vi: 'Dấu hiệu bất thường ngoại quan', en: 'Exterior visual anomaly check' },
@@ -1575,7 +1613,9 @@ export class ReportV2ViewModelMapper {
         base64: ReportImageResolver.resolveToBase64(p07Url),
         capturedAt: surveyDateFormatted,
         gpsCoords: `${defaultLat}, ${defaultLng}`,
-        originalTag: anomalyPhotoObj?.photoCode || 'EXT_ANOMALY_01',
+        originalTag: anomalyTag,
+        metroPhotoCode: anomalyTag.startsWith('HCM_M2.') ? anomalyTag : `HCM_M2.[${buildingId}]_${anomalyTag}`,
+        watermarkDateTime,
         alreadyWatermarked: isPhotoAlreadyWatermarked(p07Url),
       });
     }

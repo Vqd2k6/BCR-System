@@ -67,27 +67,29 @@
       </div>
 
       <!-- ẢNH MẶT TIỀN TRUNG TÂM TRANG BÌA (P-02) -->
-      <!-- ẢNH MẶT TIỀN TRUNG TÂM TRANG BÌA (P-02) -->
-      <div class="cover-facade-container" style="position: relative; display: inline-block; margin: 8px auto;">
-        {{#if metadata.coverPhotoBase64}}
-          <img src="{{metadata.coverPhotoBase64}}" class="cover-facade-photo" alt="Ảnh mặt tiền chính công trình">
-        {{else if metadata.coverPhotoUrl}}
-          <img src="{{metadata.coverPhotoUrl}}" class="cover-facade-photo" alt="Ảnh mặt tiền chính công trình">
-        {{else}}
-          <div class="photo-placeholder" style="width: 300px; height: 180px; margin: 0 auto;">
-            [ Chưa có ảnh mặt tiền chính P-02 ]
-          </div>
-        {{/if}}
-        {{#if metadata.coverPhotoUrl}}
-          {{#unless metadata.coverAlreadyWatermarked}}
-            <div class="legal-watermark-overlay">
-              <div class="watermark-top-right">CRLG – CRSRI – TT | METRO 2</div>
-              <div class="watermark-bottom-bar">
-                <span>CT: {{metadata.buildingId}} | P-02 | GPS: {{section1.gpsCoords.formatted}} | {{metadata.surveyDateFormatted}}</span>
-              </div>
+      <div class="cover-facade-section">
+        <div class="cover-facade-wrapper">
+          {{#if metadata.coverPhotoBase64}}
+            <img src="{{metadata.coverPhotoBase64}}" class="cover-facade-photo" alt="Ảnh mặt tiền chính công trình">
+          {{else if metadata.coverPhotoUrl}}
+            <img src="{{metadata.coverPhotoUrl}}" class="cover-facade-photo" alt="Ảnh mặt tiền chính công trình">
+          {{else}}
+            <div class="photo-placeholder" style="width: 320px; height: 200px; margin: 0 auto;">
+              [ Chưa có ảnh mặt tiền chính P-02 ]
             </div>
-          {{/unless}}
-        {{/if}}
+          {{/if}}
+          {{#if metadata.coverPhotoUrl}}
+            {{#unless metadata.coverAlreadyWatermarked}}
+              {{#if metadata.headerLogoBase64}}
+                <img src="{{metadata.headerLogoBase64}}" class="watermark-logo-top-right" alt="THACO REG">
+              {{/if}}
+              <div class="watermark-text-bottom-right">
+                <div class="watermark-datetime">{{#if metadata.watermarkDateTime}}{{metadata.watermarkDateTime}}{{else}}{{metadata.surveyDateFormatted}}{{/if}}</div>
+                <div class="watermark-code">HCM_M2.[{{metadata.buildingId}}]_P02_MAIN</div>
+              </div>
+            {{/unless}}
+          {{/if}}
+        </div>
       </div>
 
       <!-- ĐỊA CHỈ VÀ THỜI GIAN KHẢO SÁT -->
@@ -1218,11 +1220,12 @@
                 <img src="{{this.url}}" alt="{{this.name.vi}}">
               {{/if}}
               {{#unless this.alreadyWatermarked}}
-                <div class="legal-watermark-overlay">
-                  <div class="watermark-top-right">CRLG – CRSRI – TT | METRO 2</div>
-                  <div class="watermark-bottom-bar">
-                    <span>CT: {{../metadata.buildingId}} | {{this.photoCode}} | GPS: {{this.gpsCoords}} | {{this.capturedAt}}</span>
-                  </div>
+                {{#if ../metadata.headerLogoBase64}}
+                  <img src="{{../metadata.headerLogoBase64}}" class="watermark-logo-top-right" alt="THACO REG">
+                {{/if}}
+                <div class="watermark-text-bottom-right">
+                  <div class="watermark-datetime">{{#if this.watermarkDateTime}}{{this.watermarkDateTime}}{{else if ../metadata.watermarkDateTime}}{{../metadata.watermarkDateTime}}{{else}}{{this.capturedAt}}{{/if}}</div>
+                  <div class="watermark-code">{{#if this.metroPhotoCode}}{{this.metroPhotoCode}}{{else if this.originalTag}}{{this.originalTag}}{{else}}HCM_M2.[{{../metadata.buildingId}}]_{{this.photoCode}}{{/if}}</div>
                 </div>
               {{/unless}}
             </div>
@@ -1255,11 +1258,42 @@
 
       <!-- Sơ đồ CAD mặt bằng & kết cấu có ghim điểm Z, E, D -->
       {{#if this.hasStructuralCadMap}}
-        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 6px 0 6px 0;">
-          <div class="cad-map-container">
-            <div style="font-size: 8pt; font-weight: bold; margin-bottom: 3px; color: #003366;">Sơ đồ mặt bằng kiến trúc & ghim Z, E, D / Architectural Plan & Pins</div>
+        <div class="cad-map-dual-grid">
+          <div class="cad-map-col cad-map-col-arch">
+            <div class="cad-map-title">Sơ đồ mặt bằng kiến trúc & ghim Z, E, D / Architectural Plan & Pins</div>
             <div class="cad-map-pinning-wrapper">
-              <img src="{{#if this.damageMapBase64}}{{this.damageMapBase64}}{{else}}{{this.damageMapUrl}}{{/if}}" alt="Mặt bằng kiến trúc" class="cad-map-image">
+              <div class="cad-map-tight-box">
+                <img src="{{#if this.damageMapBase64}}{{this.damageMapBase64}}{{else}}{{this.damageMapUrl}}{{/if}}" alt="Mặt bằng kiến trúc" class="cad-map-image photo-conv-z">
+                {{#each this.cadPins}}
+                  <div class="cad-pin-marker cad-pin-{{this.typeLower}}" style="left: {{this.pinX}}%; top: {{this.pinY}}%;" title="{{this.code}}: {{this.label}}">
+                    <span class="cad-pin-badge">{{this.code}}</span>
+                    <div class="cad-pin-pointer"></div>
+                  </div>
+                {{/each}}
+              </div>
+            </div>
+          </div>
+          <div class="cad-map-col cad-map-col-struct">
+            <div class="cad-map-title">Sơ đồ kết cấu & cấu kiện E / Structural Members Plan</div>
+            <div class="cad-map-pinning-wrapper">
+              <div class="cad-map-tight-box">
+                <img src="{{#if this.structuralMapBase64}}{{this.structuralMapBase64}}{{else}}{{this.structuralMapUrl}}{{/if}}" alt="Mặt bằng kết cấu" class="cad-map-image photo-conv-e">
+                {{#each this.cadStructuralPins}}
+                  <div class="cad-pin-marker cad-pin-{{this.typeLower}}" style="left: {{this.pinX}}%; top: {{this.pinY}}%;" title="{{this.code}}: {{this.label}}">
+                    <span class="cad-pin-badge">{{this.code}}</span>
+                    <div class="cad-pin-pointer"></div>
+                  </div>
+                {{/each}}
+              </div>
+            </div>
+          </div>
+        </div>
+      {{else if this.damageMapBase64}}
+        <div class="cad-map-container full-width">
+          <div class="cad-map-title">Sơ đồ mặt bằng kiến trúc & vị trí ghim khuyết tật / Floor Plan & Defect Pins</div>
+          <div class="cad-map-pinning-wrapper">
+            <div class="cad-map-tight-box">
+              <img src="{{this.damageMapBase64}}" alt="Sơ đồ mặt bằng" class="cad-map-image photo-conv-z">
               {{#each this.cadPins}}
                 <div class="cad-pin-marker cad-pin-{{this.typeLower}}" style="left: {{this.pinX}}%; top: {{this.pinY}}%;" title="{{this.code}}: {{this.label}}">
                   <span class="cad-pin-badge">{{this.code}}</span>
@@ -1268,43 +1302,20 @@
               {{/each}}
             </div>
           </div>
-          <div class="cad-map-container">
-            <div style="font-size: 8pt; font-weight: bold; margin-bottom: 3px; color: #003366;">Sơ đồ kết cấu & cấu kiện E / Structural Members Plan</div>
-            <div class="cad-map-pinning-wrapper">
-              <img src="{{#if this.structuralMapBase64}}{{this.structuralMapBase64}}{{else}}{{this.structuralMapUrl}}{{/if}}" alt="Mặt bằng kết cấu" class="cad-map-image">
-              {{#each this.cadStructuralPins}}
+        </div>
+      {{else if this.damageMapUrl}}
+        <div class="cad-map-container full-width">
+          <div class="cad-map-title">Sơ đồ mặt bằng kiến trúc & vị trí ghim khuyết tật / Floor Plan & Defect Pins</div>
+          <div class="cad-map-pinning-wrapper">
+            <div class="cad-map-tight-box">
+              <img src="{{this.damageMapUrl}}" alt="Sơ đồ mặt bằng" class="cad-map-image photo-conv-z">
+              {{#each this.cadPins}}
                 <div class="cad-pin-marker cad-pin-{{this.typeLower}}" style="left: {{this.pinX}}%; top: {{this.pinY}}%;" title="{{this.code}}: {{this.label}}">
                   <span class="cad-pin-badge">{{this.code}}</span>
                   <div class="cad-pin-pointer"></div>
                 </div>
               {{/each}}
             </div>
-          </div>
-        </div>
-      {{else if this.damageMapBase64}}
-        <div class="cad-map-container full-width">
-          <div style="font-size: 8pt; font-weight: bold; margin-bottom: 3px; color: #003366;">Sơ đồ mặt bằng kiến trúc & vị trí ghim khuyết tật / Floor Plan & Defect Pins</div>
-          <div class="cad-map-pinning-wrapper">
-            <img src="{{this.damageMapBase64}}" alt="Sơ đồ mặt bằng" class="cad-map-image">
-            {{#each this.cadPins}}
-              <div class="cad-pin-marker cad-pin-{{this.typeLower}}" style="left: {{this.pinX}}%; top: {{this.pinY}}%;" title="{{this.code}}: {{this.label}}">
-                <span class="cad-pin-badge">{{this.code}}</span>
-                <div class="cad-pin-pointer"></div>
-              </div>
-            {{/each}}
-          </div>
-        </div>
-      {{else if this.damageMapUrl}}
-        <div class="cad-map-container full-width">
-          <div style="font-size: 8pt; font-weight: bold; margin-bottom: 3px; color: #003366;">Sơ đồ mặt bằng kiến trúc & vị trí ghim khuyết tật / Floor Plan & Defect Pins</div>
-          <div class="cad-map-pinning-wrapper">
-            <img src="{{this.damageMapUrl}}" alt="Sơ đồ mặt bằng" class="cad-map-image">
-            {{#each this.cadPins}}
-              <div class="cad-pin-marker cad-pin-{{this.typeLower}}" style="left: {{this.pinX}}%; top: {{this.pinY}}%;" title="{{this.code}}: {{this.label}}">
-                <span class="cad-pin-badge">{{this.code}}</span>
-                <div class="cad-pin-pointer"></div>
-              </div>
-            {{/each}}
           </div>
         </div>
       {{/if}}
@@ -1380,9 +1391,9 @@
               <div class="room-photo-card">
                 <div class="room-photo-wrapper">
                   {{#if this.base64}}
-                    <img src="{{this.base64}}" class="room-photo-img" alt="{{this.roomName.vi}}">
+                    <img src="{{this.base64}}" class="room-photo-img photo-conv-z" alt="{{this.roomName.vi}}">
                   {{else if this.url}}
-                    <img src="{{this.url}}" class="room-photo-img" alt="{{this.roomName.vi}}">
+                    <img src="{{this.url}}" class="room-photo-img photo-conv-z" alt="{{this.roomName.vi}}">
                   {{else}}
                     <div style="font-size: 7.5pt; color: #64748b; text-align: center; padding: 10px;">
                       [ Ảnh lưu trên thiết bị KSV / Local cache ]
@@ -1390,11 +1401,12 @@
                   {{/if}}
                   {{#if this.url}}
                     {{#unless this.alreadyWatermarked}}
-                      <div class="legal-watermark-overlay">
-                        <div class="watermark-top-right">CRLG – CRSRI – TT</div>
-                        <div class="watermark-bottom-bar">
-                          <span>CT: {{../../../metadata.buildingId}} | {{this.photoId}} | {{this.zoneCode}}</span>
-                        </div>
+                      {{#if ../../../metadata.headerLogoBase64}}
+                        <img src="{{../../../metadata.headerLogoBase64}}" class="watermark-logo-top-right watermark-logo-sm" alt="THACO REG">
+                      {{/if}}
+                      <div class="watermark-text-bottom-right watermark-text-sm">
+                        <div class="watermark-datetime">{{#if ../../../metadata.watermarkDateTime}}{{../../../metadata.watermarkDateTime}}{{else}}{{../../../metadata.surveyDateFormatted}}{{/if}}</div>
+                        <div class="watermark-code">HCM_M2.[{{../../../metadata.buildingId}}]_{{this.photoId}}_{{this.zoneCode}}</div>
                       </div>
                     {{/unless}}
                   {{/if}}
@@ -1439,11 +1451,11 @@
               <!-- Bộ 3 ảnh đối chiếu khi khuyết tật có thêm ảnh thước đo chuyên dụng -->
               <div class="defect-trio-container" style="margin-bottom: 6px;">
                 <div class="photo-card">
-                  <div class="photo-card-img-wrapper">
+                  <div class="defect-photo-wrapper" style="height: 195px;">
                     {{#if this.contextPhotoBase64}}
-                      <img src="{{this.contextPhotoBase64}}" alt="Bối cảnh" style="max-height: 195px; object-fit: contain;">
+                      <img src="{{this.contextPhotoBase64}}" alt="Bối cảnh" class="defect-pair-img photo-conv-d">
                     {{else if this.contextPhotoUrl}}
-                      <img src="{{this.contextPhotoUrl}}" alt="Bối cảnh" style="max-height: 195px; object-fit: contain;">
+                      <img src="{{this.contextPhotoUrl}}" alt="Bối cảnh" class="defect-pair-img photo-conv-d">
                     {{else}}
                       <div style="height: 195px; display: flex; align-items: center; justify-content: center; background: #f8fafc; color: #64748b; font-size: 8pt; border: 1px dashed #cbd5e1; text-align: center; padding: 8px;">
                         [ Ảnh bối cảnh ]
@@ -1451,11 +1463,12 @@
                     {{/if}}
                     {{#if this.contextPhotoUrl}}
                       {{#unless this.contextAlreadyWatermarked}}
-                        <div class="legal-watermark-overlay">
-                          <div class="watermark-top-right">CRLG – CRSRI – TT</div>
-                          <div class="watermark-bottom-bar">
-                            <span>CT: {{../../../metadata.buildingId}} | {{this.contextPhotoCode}} | {{this.defectId}}</span>
-                          </div>
+                        {{#if ../../../metadata.headerLogoBase64}}
+                          <img src="{{../../../metadata.headerLogoBase64}}" class="watermark-logo-top-right watermark-logo-sm" alt="THACO REG">
+                        {{/if}}
+                        <div class="watermark-text-bottom-right watermark-text-sm">
+                          <div class="watermark-datetime">{{#if ../../../metadata.watermarkDateTime}}{{../../../metadata.watermarkDateTime}}{{else}}{{../../../metadata.surveyDateFormatted}}{{/if}}</div>
+                          <div class="watermark-code">HCM_M2.[{{../../../metadata.buildingId}}]_{{this.defectId}}_CTX</div>
                         </div>
                       {{/unless}}
                     {{/if}}
@@ -1464,11 +1477,11 @@
                 </div>
 
                 <div class="photo-card">
-                  <div class="photo-card-img-wrapper">
+                  <div class="defect-photo-wrapper" style="height: 195px;">
                     {{#if this.closeUpPhotoBase64}}
-                      <img src="{{this.closeUpPhotoBase64}}" alt="Cận cảnh 1" style="max-height: 195px; object-fit: contain;">
+                      <img src="{{this.closeUpPhotoBase64}}" alt="Cận cảnh 1" class="defect-pair-img photo-conv-d">
                     {{else if this.closeUpPhotoUrl}}
-                      <img src="{{this.closeUpPhotoUrl}}" alt="Cận cảnh 1" style="max-height: 195px; object-fit: contain;">
+                      <img src="{{this.closeUpPhotoUrl}}" alt="Cận cảnh 1" class="defect-pair-img photo-conv-d">
                     {{else}}
                       <div style="height: 195px; display: flex; align-items: center; justify-content: center; background: #f8fafc; color: #64748b; font-size: 8pt; border: 1px dashed #cbd5e1; text-align: center; padding: 8px;">
                         [ Cận cảnh 1 ]
@@ -1476,11 +1489,12 @@
                     {{/if}}
                     {{#if this.closeUpPhotoUrl}}
                       {{#unless this.closeUpAlreadyWatermarked}}
-                        <div class="legal-watermark-overlay">
-                          <div class="watermark-top-right">CRLG – CRSRI – TT</div>
-                          <div class="watermark-bottom-bar">
-                            <span>CT: {{../../../metadata.buildingId}} | {{this.closeUpPhotoCode}} | {{this.defectId}}</span>
-                          </div>
+                        {{#if ../../../metadata.headerLogoBase64}}
+                          <img src="{{../../../metadata.headerLogoBase64}}" class="watermark-logo-top-right watermark-logo-sm" alt="THACO REG">
+                        {{/if}}
+                        <div class="watermark-text-bottom-right watermark-text-sm">
+                          <div class="watermark-datetime">{{#if ../../../metadata.watermarkDateTime}}{{../../../metadata.watermarkDateTime}}{{else}}{{../../../metadata.surveyDateFormatted}}{{/if}}</div>
+                          <div class="watermark-code">HCM_M2.[{{../../../metadata.buildingId}}]_{{this.defectId}}_CU</div>
                         </div>
                       {{/unless}}
                     {{/if}}
@@ -1489,11 +1503,11 @@
                 </div>
 
                 <div class="photo-card">
-                  <div class="photo-card-img-wrapper">
+                  <div class="defect-photo-wrapper" style="height: 195px;">
                     {{#if this.extraCloseUpPhotoBase64}}
-                      <img src="{{this.extraCloseUpPhotoBase64}}" alt="Thước đo nứt" style="max-height: 195px; object-fit: contain;">
+                      <img src="{{this.extraCloseUpPhotoBase64}}" alt="Thước đo nứt" class="defect-pair-img photo-conv-d">
                     {{else if this.extraCloseUpPhotoUrl}}
-                      <img src="{{this.extraCloseUpPhotoUrl}}" alt="Thước đo nứt" style="max-height: 195px; object-fit: contain;">
+                      <img src="{{this.extraCloseUpPhotoUrl}}" alt="Thước đo nứt" class="defect-pair-img photo-conv-d">
                     {{else}}
                       <div style="height: 195px; display: flex; align-items: center; justify-content: center; background: #f8fafc; color: #64748b; font-size: 8pt; border: 1px dashed #cbd5e1; text-align: center; padding: 8px;">
                         [ Thước đo nứt ]
@@ -1501,11 +1515,12 @@
                     {{/if}}
                     {{#if this.extraCloseUpPhotoUrl}}
                       {{#unless this.extraCloseUpAlreadyWatermarked}}
-                        <div class="legal-watermark-overlay">
-                          <div class="watermark-top-right">CRLG – CRSRI – TT</div>
-                          <div class="watermark-bottom-bar">
-                            <span>CT: {{../../../metadata.buildingId}} | {{this.extraCloseUpPhotoCode}} | {{this.defectId}}</span>
-                          </div>
+                        {{#if ../../../metadata.headerLogoBase64}}
+                          <img src="{{../../../metadata.headerLogoBase64}}" class="watermark-logo-top-right watermark-logo-sm" alt="THACO REG">
+                        {{/if}}
+                        <div class="watermark-text-bottom-right watermark-text-sm">
+                          <div class="watermark-datetime">{{#if ../../../metadata.watermarkDateTime}}{{../../../metadata.watermarkDateTime}}{{else}}{{../../../metadata.surveyDateFormatted}}{{/if}}</div>
+                          <div class="watermark-code">HCM_M2.[{{../../../metadata.buildingId}}]_{{this.defectId}}_GAUGE</div>
                         </div>
                       {{/unless}}
                     {{/if}}
@@ -1532,11 +1547,11 @@
               <div class="defect-pair-container" style="margin-bottom: 6px;">
                 <!-- Ảnh bối cảnh -->
                 <div class="photo-card">
-                  <div class="photo-card-img-wrapper" style="height: 230px;">
+                  <div class="defect-photo-wrapper">
                     {{#if this.contextPhotoBase64}}
-                      <img src="{{this.contextPhotoBase64}}" alt="Bối cảnh" style="max-height: 230px; object-fit: contain;">
+                      <img src="{{this.contextPhotoBase64}}" alt="Bối cảnh" class="defect-pair-img photo-conv-d">
                     {{else if this.contextPhotoUrl}}
-                      <img src="{{this.contextPhotoUrl}}" alt="Bối cảnh" style="max-height: 230px; object-fit: contain;">
+                      <img src="{{this.contextPhotoUrl}}" alt="Bối cảnh" class="defect-pair-img photo-conv-d">
                     {{else}}
                       <div style="height: 230px; display: flex; align-items: center; justify-content: center; background: #f8fafc; color: #64748b; font-size: 8pt; border: 1px dashed #cbd5e1; text-align: center; padding: 12px;">
                         [ Ảnh bối cảnh lưu trên thiết bị KSV / Device local cache ]
@@ -1544,11 +1559,12 @@
                     {{/if}}
                     {{#if this.contextPhotoUrl}}
                       {{#unless this.contextAlreadyWatermarked}}
-                        <div class="legal-watermark-overlay">
-                          <div class="watermark-top-right">CRLG – CRSRI – TT</div>
-                          <div class="watermark-bottom-bar">
-                            <span>CT: {{../../../metadata.buildingId}} | {{this.contextPhotoCode}} | {{this.defectId}}</span>
-                          </div>
+                        {{#if ../../../metadata.headerLogoBase64}}
+                          <img src="{{../../../metadata.headerLogoBase64}}" class="watermark-logo-top-right watermark-logo-sm" alt="THACO REG">
+                        {{/if}}
+                        <div class="watermark-text-bottom-right watermark-text-sm">
+                          <div class="watermark-datetime">{{#if ../../../metadata.watermarkDateTime}}{{../../../metadata.watermarkDateTime}}{{else}}{{../../../metadata.surveyDateFormatted}}{{/if}}</div>
+                          <div class="watermark-code">HCM_M2.[{{../../../metadata.buildingId}}]_{{this.defectId}}_CTX</div>
                         </div>
                       {{/unless}}
                     {{/if}}
@@ -1557,11 +1573,11 @@
                 </div>
                 <!-- Ảnh cận cảnh có thước đo nứt -->
                 <div class="photo-card">
-                  <div class="photo-card-img-wrapper" style="height: 230px;">
+                  <div class="defect-photo-wrapper">
                     {{#if this.closeUpPhotoBase64}}
-                      <img src="{{this.closeUpPhotoBase64}}" alt="Cận cảnh thước đo" style="max-height: 230px; object-fit: contain;">
+                      <img src="{{this.closeUpPhotoBase64}}" alt="Cận cảnh thước đo" class="defect-pair-img photo-conv-d">
                     {{else if this.closeUpPhotoUrl}}
-                      <img src="{{this.closeUpPhotoUrl}}" alt="Cận cảnh thước đo" style="max-height: 230px; object-fit: contain;">
+                      <img src="{{this.closeUpPhotoUrl}}" alt="Cận cảnh thước đo" class="defect-pair-img photo-conv-d">
                     {{else}}
                       <div style="height: 230px; display: flex; align-items: center; justify-content: center; background: #f8fafc; color: #64748b; font-size: 8pt; border: 1px dashed #cbd5e1; text-align: center; padding: 12px;">
                         [ Ảnh cận cảnh lưu trên thiết bị KSV / Device local cache ]
@@ -1569,11 +1585,12 @@
                     {{/if}}
                     {{#if this.closeUpPhotoUrl}}
                       {{#unless this.closeUpAlreadyWatermarked}}
-                        <div class="legal-watermark-overlay">
-                          <div class="watermark-top-right">CRLG – CRSRI – TT</div>
-                          <div class="watermark-bottom-bar">
-                            <span>CT: {{../../../metadata.buildingId}} | {{this.closeUpPhotoCode}} | {{this.defectId}}</span>
-                          </div>
+                        {{#if ../../../metadata.headerLogoBase64}}
+                          <img src="{{../../../metadata.headerLogoBase64}}" class="watermark-logo-top-right watermark-logo-sm" alt="THACO REG">
+                        {{/if}}
+                        <div class="watermark-text-bottom-right watermark-text-sm">
+                          <div class="watermark-datetime">{{#if ../../../metadata.watermarkDateTime}}{{../../../metadata.watermarkDateTime}}{{else}}{{../../../metadata.surveyDateFormatted}}{{/if}}</div>
+                          <div class="watermark-code">HCM_M2.[{{../../../metadata.buildingId}}]_{{this.defectId}}_CU</div>
                         </div>
                       {{/unless}}
                     {{/if}}
@@ -1723,5 +1740,94 @@
     <div class="page-number-footer">{{tocPageNumbers.appendix4}}</div>
   </div>
 
+  <script>
+    (function() {
+      function rotateImage(img, angleDeg) {
+        if (!img || img.__hasRotated) return;
+        img.__hasRotated = true;
+
+        var parent = img.parentElement;
+        var pWidth = parent ? parent.clientWidth : 0;
+        var pHeight = parent ? parent.clientHeight : 0;
+
+        try {
+          var canvas = document.createElement('canvas');
+          var ctx = canvas.getContext('2d');
+          if (!ctx) throw new Error('No context');
+
+          if (Math.abs(angleDeg) === 90 || Math.abs(angleDeg) === 270) {
+            canvas.width = img.naturalHeight;
+            canvas.height = img.naturalWidth;
+          } else {
+            canvas.width = img.naturalWidth;
+            canvas.height = img.naturalHeight;
+          }
+
+          ctx.translate(canvas.width / 2, canvas.height / 2);
+          ctx.rotate((angleDeg * Math.PI) / 180);
+          ctx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2);
+
+          img.src = canvas.toDataURL('image/jpeg', 0.95);
+          return;
+        } catch (e) {
+          // Fallback CSS swapping nếu canvas bị tainted
+        }
+
+        if (pWidth > 0 && pHeight > 0) {
+          img.style.width = pHeight + 'px';
+          img.style.height = pWidth + 'px';
+          img.style.maxWidth = 'none';
+          img.style.maxHeight = 'none';
+          img.style.transform = 'rotate(' + angleDeg + 'deg)';
+          img.style.transformOrigin = 'center center';
+          img.style.objectFit = 'cover';
+        } else {
+          img.style.transform = 'rotate(' + angleDeg + 'deg)';
+          img.style.transformOrigin = 'center center';
+        }
+      }
+
+      function enforceConventions() {
+        // 1. Quy ước Z (Vùng phòng / kiến trúc): LUÔN LÀ ẢNH NGANG. Nếu chụp dọc thì xoay 90 độ cho nó ngang.
+        document.querySelectorAll('img.photo-conv-z').forEach(function(img) {
+          if (img.complete && img.naturalWidth > 0) {
+            if (img.naturalHeight > img.naturalWidth) rotateImage(img, 90);
+          } else {
+            img.addEventListener('load', function() {
+              if (img.naturalHeight > img.naturalWidth) rotateImage(img, 90);
+            });
+          }
+        });
+
+        // 2. Quy ước E (Cấu kiện kết cấu / cột dầm vách): LUÔN LÀ ẢNH DỌC. Nếu chụp ngang thì xoay 90 độ cho nó dọc.
+        document.querySelectorAll('img.photo-conv-e').forEach(function(img) {
+          if (img.complete && img.naturalWidth > 0) {
+            if (img.naturalWidth > img.naturalHeight) rotateImage(img, 90);
+          } else {
+            img.addEventListener('load', function() {
+              if (img.naturalWidth > img.naturalHeight) rotateImage(img, 90);
+            });
+          }
+        });
+
+        // 3. Quy ước D (Khuyết tật / vết nứt): LUÔN LÀ ẢNH NGANG. Nếu chụp dọc thì xoay 90 độ cho nó ngang.
+        document.querySelectorAll('img.photo-conv-d').forEach(function(img) {
+          if (img.complete && img.naturalWidth > 0) {
+            if (img.naturalHeight > img.naturalWidth) rotateImage(img, 90);
+          } else {
+            img.addEventListener('load', function() {
+              if (img.naturalHeight > img.naturalWidth) rotateImage(img, 90);
+            });
+          }
+        });
+      }
+
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', enforceConventions);
+      } else {
+        enforceConventions();
+      }
+    })();
+  </script>
 </body>
 </html>

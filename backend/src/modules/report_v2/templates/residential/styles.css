@@ -295,24 +295,33 @@ body {
 }
 
 /* Khung ảnh mặt tiền trung tâm trang bìa */
-.cover-facade-container {
+.cover-facade-section {
   width: 100%;
   display: flex;
   justify-content: center;
   align-items: center;
-  margin: 8px 0 12px 0;
+  margin: 10px auto 14px auto;
+  text-align: center;
+}
+
+.cover-facade-wrapper {
+  position: relative;
+  display: inline-block;
+  margin: 0 auto;
+  line-height: 0;
+  border: 1px solid #64748b;
+  border-radius: 3px;
+  overflow: hidden;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.15);
+  background-color: #0f172a;
 }
 
 .cover-facade-photo {
-  max-width: 320px;
-  max-height: 230px;
+  max-width: 360px;
+  max-height: 245px;
   width: auto;
   height: auto;
-  border: 1px solid #64748b;
-  border-radius: 2px;
   object-fit: contain;
-  background-color: #f8fafc;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
   display: block;
 }
 
@@ -532,8 +541,8 @@ table.tech-table td.val-col {
 .photo-card-img-wrapper {
   position: relative;
   width: 100%;
-  height: 200px;
-  background-color: #f8fafc;
+  height: 250px;
+  background-color: #0f172a;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -541,13 +550,11 @@ table.tech-table td.val-col {
 }
 
 .photo-card img {
-  max-width: 100%;
-  max-height: 200px;
-  width: auto;
-  height: auto;
-  object-fit: contain;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
   display: block;
-  margin: 0 auto;
 }
 
 .photo-placeholder {
@@ -585,34 +592,92 @@ table.tech-table td.val-col {
   break-inside: avoid;
 }
 
-/* Sơ đồ CAD tầng và Pinning Overlay Z, E, D */
-.cad-map-container {
-  border: 1px solid #94a3b8;
-  padding: 6px;
-  background-color: #ffffff;
-  margin: 6px 0 10px 0;
-  text-align: center;
-  page-break-inside: avoid;
-  break-inside: avoid;
+.defect-photo-wrapper {
+  position: relative;
+  width: 100%;
+  height: 230px;
+  background-color: #0f172a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.defect-pair-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  display: block;
+}
+
+.cad-map-dual-grid {
+  display: grid;
+  grid-template-columns: 1.35fr 0.85fr;
+  gap: 10px;
+  margin: 6px 0 8px 0;
+  align-items: stretch;
+}
+
+.cad-map-col {
+  display: flex;
+  flex-direction: column;
+}
+
+.cad-map-title {
+  font-size: 8pt;
+  font-weight: bold;
+  margin-bottom: 4px;
+  color: #0f3b6c;
+  line-height: 1.25;
 }
 
 .cad-map-pinning-wrapper {
   position: relative;
   width: 100%;
-  display: inline-block;
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
   background-color: #f8fafc;
   border: 1px solid #cbd5e1;
-  border-radius: 3px;
+  border-radius: 4px;
+  padding: 4px;
+  box-sizing: border-box;
   overflow: hidden;
-  text-align: center;
+  min-height: 250px;
+}
+
+.cad-map-tight-box {
+  position: relative;
+  display: inline-block;
+  margin: 0 auto;
+  line-height: 0;
+  max-width: 100%;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+}
+
+.cad-map-col-arch .cad-map-image {
+  max-width: 100%;
+  max-height: 310px;
+  width: auto;
+  height: auto;
+  display: block;
+}
+
+.cad-map-col-struct .cad-map-image {
+  max-width: 100%;
+  max-height: 340px;
+  width: auto;
+  height: auto;
+  display: block;
 }
 
 .cad-map-image {
   max-width: 100%;
-  max-height: 280px;
+  max-height: 310px;
   width: auto;
   height: auto;
-  object-fit: contain;
   display: block;
   margin: 0 auto;
 }
@@ -706,42 +771,66 @@ table.tech-table td.val-col {
 .dot-element { background-color: #047857; }
 .dot-defect { background-color: #c2410c; }
 
-/* Smart Legal Watermark Overlay */
-.legal-watermark-overlay {
+/* Smart Legal Watermark Overlay - Chuẩn Liên danh CRLG - CRSRI - TT (Metro 2) */
+.watermark-logo-top-right {
   position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  top: 8px;
+  right: 10px;
+  height: 26px;
+  width: auto;
+  max-width: 140px;
+  display: block;
+  z-index: 15;
   pointer-events: none;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  z-index: 5;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.7));
 }
 
-.watermark-top-right {
-  align-self: flex-end;
-  padding: 1px 5px;
-  background: rgba(0, 51, 102, 0.45);
-  color: #ffffff;
-  font-size: 5.5pt;
-  font-weight: bold;
-  border-bottom-left-radius: 2px;
-  letter-spacing: 0.3px;
+.watermark-logo-sm {
+  top: 6px;
+  right: 8px;
+  height: 18px;
+  max-width: 90px;
 }
 
-.watermark-bottom-bar {
-  width: 100%;
-  padding: 2px 4px;
-  background: rgba(15, 23, 42, 0.65);
-  color: #ffffff;
-  font-size: 5.5pt;
-  font-family: monospace;
+.watermark-text-bottom-right {
+  position: absolute;
+  bottom: 8px;
+  right: 10px;
   text-align: right;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  color: #ffffff;
+  font-family: Arial, "Helvetica Neue", Helvetica, sans-serif;
+  font-weight: bold;
+  font-size: 8pt;
+  line-height: 1.35;
+  pointer-events: none;
+  z-index: 15;
+  text-shadow: 1px 1px 2px #000, -1px -1px 2px #000, 1px -1px 2px #000, -1px 1px 2px #000, 0 0 4px #000;
+  letter-spacing: 0.2px;
+}
+
+.watermark-text-sm {
+  bottom: 6px;
+  right: 8px;
+  font-size: 6.5pt;
+  line-height: 1.25;
+}
+
+.watermark-datetime {
+  font-size: 7.5pt;
+  font-weight: bold;
+}
+
+.watermark-text-sm .watermark-datetime {
+  font-size: 6.5pt;
+}
+
+.watermark-code {
+  font-size: 8pt;
+  font-weight: bold;
+}
+
+.watermark-text-sm .watermark-code {
+  font-size: 6.5pt;
 }
 
 /* Dải nhãn thông số kỹ thuật dưới ảnh nứt */
@@ -807,8 +896,8 @@ table.tech-table td.val-col {
 .room-photo-wrapper {
   position: relative;
   width: 100%;
-  height: 155px;
-  background-color: #f8fafc;
+  height: 165px;
+  background-color: #0f172a;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -816,13 +905,11 @@ table.tech-table td.val-col {
 }
 
 .room-photo-img {
-  max-width: 100%;
-  max-height: 100%;
-  width: auto;
-  height: auto;
-  object-fit: contain;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
   display: block;
-  margin: 0 auto;
 }
 
 .room-photo-meta {
