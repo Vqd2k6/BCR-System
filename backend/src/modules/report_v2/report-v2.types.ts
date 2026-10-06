@@ -37,6 +37,7 @@ export interface ReportV2Metadata {
   checksumSha256?: string;
   coverPhotoBase64?: string;
   coverPhotoUrl?: string;
+  coverAlreadyWatermarked?: boolean;
   headerLogoBase64?: string;
   surveyDateFormatted?: string;
   totalExpectedPages?: number;
@@ -175,11 +176,13 @@ export interface Section5TiltSettlement {
     url: string;
     base64?: string;
     caption: BilingualText;
+    alreadyWatermarked?: boolean;
   };
   settlementPhoto?: {
     url: string;
     base64?: string;
     caption: BilingualText;
+    alreadyWatermarked?: boolean;
   };
 }
 

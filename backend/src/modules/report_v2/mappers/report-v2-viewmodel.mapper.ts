@@ -28,7 +28,7 @@ import {
 import { CadastralInfoMapper } from './cadastral-info.mapper';
 import { BurlandCalculator } from './burland-calculator';
 import { RiskScoringCalculator } from './risk-scoring-calculator';
-import { FloorDefectMapper } from './floor-defect.mapper';
+import { FloorDefectMapper, isPhotoAlreadyWatermarked } from './floor-defect.mapper';
 import { ReportImageResolver } from '../services/report-image-resolver.service';
 import { LOGO_THACO_REC_BASE64 } from '../assets/report-logos';
 
@@ -76,27 +76,27 @@ export class ReportV2ViewModelMapper {
       json.signatures?.preparedBy?.date ||
       json.signatures?.ownerRepresentative?.date ||
       rawReport.created_at;
-    const surveyDateFormatted = formatDateVi(rawSurveyDate) || '26/09/2026';
+    const surveyDateFormatted = formatDateVi(rawSurveyDate) || '';
     const surveyDateWithTime = formatDateVi(rawSurveyDate, true) || surveyDateFormatted;
 
     // 1. Chuẩn hóa 7 chỉ số định danh
-    const rawParcelCode = rawReport.project_parcel_code || json.projectParcelCode || 'C&C-01-B-01064';
-    const buildingId = overrides?.buildingId || CadastralInfoMapper.formatBuildingId(
+    const rawParcelCode = rawReport.project_parcel_code || json.projectParcelCode || '';
+    const buildingId = overrides?.buildingId || (rawParcelCode ? CadastralInfoMapper.formatBuildingId(
       rawParcelCode,
       rawReport.zone_id || 'ZONE_09',
       rawReport.segment_type || 'C&C'
-    );
-    const surveyId = rawReport.id ? `P-${rawReport.id.substring(0, 4).toUpperCase()}` : (json.surveyId || 'P-6789');
+    ) : 'CHƯA_ĐỊNH_DANH');
+    const surveyId = rawReport.id ? `P-${rawReport.id.substring(0, 4).toUpperCase()}` : (json.surveyId || '');
     const revision = overrides?.revision || rawReport.revision || '00';
-    const reportNo = overrides?.reportNo || CadastralInfoMapper.formatReportNo(
+    const reportNo = overrides?.reportNo || (rawParcelCode ? CadastralInfoMapper.formatReportNo(
       buildingId,
       rawParcelCode,
       rawReport.segment_type,
       rawReport.zone_id,
       revision
-    );
+    ) : 'BC-CHƯA_SỐ');
     const filingNo = overrides?.filingNo || CadastralInfoMapper.formatFilingNo(buildingId);
-    const cadastralCode = rawReport.official_cadastral_code || json.officialCadastralCode || '271330130431';
+    const cadastralCode = rawReport.official_cadastral_code || json.officialCadastralCode || '';
 
     // Ảnh mặt tiền chính cho trang bìa (P-02) có cơ chế fallback thông minh:
     const p02Item = identPhotos.find((p: any) =>
@@ -151,18 +151,20 @@ export class ReportV2ViewModelMapper {
       generatedAt: formatDateVi(new Date()),
       coverPhotoUrl,
       coverPhotoBase64,
+      coverAlreadyWatermarked: isPhotoAlreadyWatermarked(coverPhotoUrl),
       headerLogoBase64: LOGO_THACO_REC_BASE64,
       surveyDateFormatted,
     };
 
-    // Khung ký 3 bên trang bìa
-    const surveyorName = rawReport.surveyor_name || json.signatures?.preparedBy?.fullName || 'Nguyễn Trọng Tuấn';
-    const zoneAdminName = rawReport.zone_admin_name || json.signatures?.checkedBy?.fullName || 'Lê Văn Kiểm';
-    const superAdminName = rawReport.super_admin_name || 'Trần Đình Duyệt';
+    // Khung ký 3 bên trang bìa: Chỉ hiển thị tên khi có dữ liệu thực tế trong DB / JSON snapshot.
+    // Khi chưa duyệt / chưa ký số, để trống fullName và ô ký để ký sống bằng tay.
+    const surveyorName = rawReport.surveyor_name || json.signatures?.preparedBy?.fullName || '';
+    const zoneAdminName = rawReport.zone_admin_name || json.signatures?.checkedBy?.fullName || '';
+    const superAdminName = rawReport.super_admin_name || json.signatures?.approvedBy?.fullName || '';
 
     const surveyorSigUrl = rawReport.surveyor_signature_img || json.signatures?.preparedBy?.signatureImg;
     const zoneAdminSigUrl = rawReport.zone_admin_signature_img || json.signatures?.checkedBy?.signatureImg;
-    const superAdminSigUrl = rawReport.super_admin_signature_img;
+    const superAdminSigUrl = rawReport.super_admin_signature_img || json.signatures?.approvedBy?.signatureImg;
 
     const signatures3Party: ApprovalSignatureItem[] = [
       {
@@ -261,8 +263,34 @@ export class ReportV2ViewModelMapper {
         en: bldgNameEn,
       },
       address: {
-        vi: `Số ${rawReport.house_number || json.houseNumber || '338'} ${rawReport.street || json.street || 'Cách Mạng Tháng 8'}, P. ${rawReport.ward || json.ward || '11'}, Q. ${rawReport.district || json.district || '3'}, TP Hồ Chí Minh, Việt Nam`,
-        en: `No. ${rawReport.house_number || json.houseNumber || '338'} ${rawReport.street || json.street || 'Cach Mang Thang Tam St.'}, Ward ${rawReport.ward || json.ward || '11'}, Dist. ${rawReport.district || json.district || '3'}, Ho Chi Minh City, Viet Nam`,
+        vi: (() => {
+          const parts: string[] = [];
+          if (rawReport.house_number || json.houseNumber) parts.push(`Số ${rawReport.house_number || json.houseNumber}`);
+          if (rawReport.street || json.street) {
+            const st = rawReport.street || json.street;
+            parts.push(st.startsWith('đường') || st.startsWith('Đường') ? st : `đường ${st}`);
+          }
+          if (rawReport.ward || json.ward) {
+            const w = rawReport.ward || json.ward;
+            parts.push(w.startsWith('P.') || w.startsWith('Phường') ? w : `P. ${w}`);
+          }
+          if (rawReport.district || json.district) {
+            const d = rawReport.district || json.district;
+            parts.push(d.startsWith('Q.') || d.startsWith('Quận') ? d : `Q. ${d}`);
+          }
+          parts.push(rawReport.city || json.city || 'TP Hồ Chí Minh');
+          parts.push('Việt Nam');
+          return parts.length > 2 ? parts.join(', ') : (rawReport.address_combined || 'Chưa ghi nhận địa chỉ chi tiết');
+        })(),
+        en: (() => {
+          const parts: string[] = [];
+          if (rawReport.house_number || json.houseNumber) parts.push(`No. ${rawReport.house_number || json.houseNumber}`);
+          if (rawReport.street || json.street) parts.push(`${rawReport.street || json.street} St.`);
+          if (rawReport.ward || json.ward) parts.push(`Ward ${rawReport.ward || json.ward}`);
+          if (rawReport.district || json.district) parts.push(`Dist. ${rawReport.district || json.district}`);
+          parts.push('Ho Chi Minh City, Viet Nam');
+          return parts.length > 2 ? parts.join(', ') : (rawReport.address_combined || 'Address unrecorded');
+        })(),
       },
       cadastralCode,
       ownerOccupant: {
@@ -293,34 +321,32 @@ export class ReportV2ViewModelMapper {
     const storeysBasement = specs.undergroundFloors || json.undergroundFloors || specs.underground_floors || specs.basement_count || 0;
 
     // 1. Diện tích đất ban đầu (parcels.land_area_m2)
-    const landAreaM2 = Number(rawReport.land_area_m2 || 58.1).toFixed(1);
+    const rawLandArea = rawReport.land_area_m2 ?? json.landAreaM2;
+    const landAreaM2 = (rawLandArea !== undefined && rawLandArea !== null && rawLandArea !== '' && !isNaN(Number(rawLandArea)))
+      ? Number(rawLandArea).toFixed(1)
+      : '';
 
     // 2. Diện tích xây dựng tầng trệt do KSV thu thập (specs.construction_area_m2)
-    const footprintM2 = Number(
-      specs.constructionAreaM2 ||
-      json.constructionAreaM2 ||
-      specs.construction_area_m2 ||
-      rawReport.parcel_construction_area_m2 ||
-      53.0
-    ).toFixed(1);
+    const rawFootprint = specs.constructionAreaM2 || json.constructionAreaM2 || specs.construction_area_m2 || rawReport.parcel_construction_area_m2;
+    const footprintM2 = (rawFootprint !== undefined && rawFootprint !== null && rawFootprint !== '' && !isNaN(Number(rawFootprint)))
+      ? Number(rawFootprint).toFixed(1)
+      : '';
 
     // 3. Tổng diện tích sàn (GFA = Footprint tầng trệt * số tầng)
-    const totalFloorAreaM2 = (Number(footprintM2) * Number(storeysAbove)).toFixed(1);
+    const totalFloorAreaM2 = (footprintM2 && storeysAbove) ? (Number(footprintM2) * Number(storeysAbove)).toFixed(1) : '';
 
     const floorAreaDisplay: BilingualText = {
-      vi: `Tổng diện tích sàn: ${totalFloorAreaM2} m² (Diện tích đất: ${landAreaM2} m² | Diện tích xây dựng tầng trệt: ${footprintM2} m²)`,
-      en: `Total floor area: ${totalFloorAreaM2} m² (Land plot area: ${landAreaM2} m² | Ground floor footprint: ${footprintM2} m²)`,
+      vi: totalFloorAreaM2
+        ? `Tổng diện tích sàn: ${totalFloorAreaM2} m² (Diện tích đất: ${landAreaM2 || '–'} m² | Diện tích xây dựng tầng trệt: ${footprintM2} m²)`
+        : (landAreaM2 ? `Diện tích đất: ${landAreaM2} m²` : 'Chưa có số liệu diện tích đo đạc'),
+      en: totalFloorAreaM2
+        ? `Total floor area: ${totalFloorAreaM2} m² (Land plot area: ${landAreaM2 || '–'} m² | Ground floor footprint: ${footprintM2} m²)`
+        : (landAreaM2 ? `Land plot area: ${landAreaM2} m²` : 'Area data unrecorded'),
     };
 
     // Kích thước chính trích xuất từ đa giác ranh thửa đất ban đầu (PostGIS ST_OrientedEnvelope)
-    let side1 = Number(rawReport.parcel_side_a_m);
-    let side2 = Number(rawReport.parcel_side_b_m);
-    if (!side1 || isNaN(side1) || !side2 || isNaN(side2)) {
-      side1 = 16.6;
-      side2 = 3.5;
-    }
-    const widthM = Math.min(side1, side2).toFixed(1);
-    const lengthM = Math.max(side1, side2).toFixed(1);
+    const rawSide1 = Number(rawReport.parcel_side_a_m);
+    const rawSide2 = Number(rawReport.parcel_side_b_m);
     const rawHeight = Number(specs.buildingHeightM || json.buildingHeightM || specs.building_height_m || 0);
     let maxHeightM: string;
     let typicalStoreyM: string;
@@ -331,34 +357,65 @@ export class ReportV2ViewModelMapper {
       maxHeightM = rawHeight.toFixed(1);
       typicalStoreyM = (rawHeight / Number(storeysAbove)).toFixed(1);
     } else {
-      typicalStoreyM = '3.5';
-      maxHeightM = (3.5 * Number(storeysAbove)).toFixed(1);
+      typicalStoreyM = '–';
+      maxHeightM = '–';
     }
 
-    const mainDimensions: BilingualText = {
-      vi: `Mặt tiền ${widthM} m × Chiều sâu ${lengthM} m (Chiều cao: ${maxHeightM} m)`,
-      en: `Width ${widthM} m × Length ${lengthM} m (Height: ${maxHeightM} m)`,
-    };
+    let mainDimensions: BilingualText;
+    if (rawSide1 > 0 && rawSide2 > 0) {
+      const widthM = Math.min(rawSide1, rawSide2).toFixed(1);
+      const lengthM = Math.max(rawSide1, rawSide2).toFixed(1);
+      mainDimensions = {
+        vi: `Mặt tiền ${widthM} m × Chiều sâu ${lengthM} m${maxHeightM !== '–' ? ` (Chiều cao: ${maxHeightM} m)` : ''}`,
+        en: `Width ${widthM} m × Length ${lengthM} m${maxHeightM !== '–' ? ` (Height: ${maxHeightM} m)` : ''}`,
+      };
+    } else {
+      mainDimensions = {
+        vi: `Chưa đo đạc kích thước ranh thửa${maxHeightM !== '–' ? ` (Chiều cao: ${maxHeightM} m)` : ''}`,
+        en: `Plot dimensions unrecorded${maxHeightM !== '–' ? ` (Height: ${maxHeightM} m)` : ''}`,
+      };
+    }
 
     // Khoảng cách đến Metro: Tim tuyến & Biên kết cấu hố đào
-    const distCenterlineRaw = rawReport.distance_to_centerline_m || json.metroOffsetDistance || 31.4;
-    const distanceToMetroAlignmentM = Number(distCenterlineRaw).toFixed(1);
-    const distanceToMetroEdgeM = Math.max(0, Number(distanceToMetroAlignmentM) - 15.0).toFixed(1);
-    const distanceToMetroDisplay: BilingualText = {
-      vi: `Tim tuyến: ${distanceToMetroAlignmentM} m | Biên hố đào/kết cấu: ${distanceToMetroEdgeM} m`,
-      en: `To alignment centerline: ${distanceToMetroAlignmentM} m | To excavation boundary: ${distanceToMetroEdgeM} m`,
-    };
+    const distCenterlineRaw = rawReport.distance_to_centerline_m ?? json.metroOffsetDistance;
+    let distanceToMetroAlignmentM: string = '';
+    let distanceToMetroEdgeM: string = '';
+    let distanceToMetroDisplay: BilingualText;
+    if (distCenterlineRaw !== undefined && distCenterlineRaw !== null && distCenterlineRaw !== '' && !isNaN(Number(distCenterlineRaw))) {
+      distanceToMetroAlignmentM = Number(distCenterlineRaw).toFixed(1);
+      distanceToMetroEdgeM = Math.max(0, Number(distanceToMetroAlignmentM) - 15.0).toFixed(1);
+      distanceToMetroDisplay = {
+        vi: `Tim tuyến: ${distanceToMetroAlignmentM} m | Biên hố đào/kết cấu: ${distanceToMetroEdgeM} m`,
+        en: `To alignment centerline: ${distanceToMetroAlignmentM} m | To excavation boundary: ${distanceToMetroEdgeM} m`,
+      };
+    } else {
+      distanceToMetroDisplay = {
+        vi: 'Chưa xác định khoảng cách đến Metro',
+        en: 'Distance to Metro alignment unrecorded',
+      };
+    }
 
-    // Khoảng cách tĩnh không: Tuyến Metro khoan ngầm âm 25m dưới lòng đất
-    const foundationDepthM = Number(json.foundationDepthM || specs.foundation_depth_m || 3.0);
-    const clearanceVerticalM = Math.max(0, 25.0 - foundationDepthM).toFixed(1);
-    const clearance3DM = Math.sqrt(
-      Math.pow(Number(distanceToMetroAlignmentM), 2) + Math.pow(Number(clearanceVerticalM), 2)
-    ).toFixed(1);
-    const clearanceDisplay: BilingualText = {
-      vi: `Tĩnh không đứng: ${clearanceVerticalM} m (Đỉnh hầm: -25.0 m, Đáy móng: -${foundationDepthM.toFixed(1)} m) | Tĩnh không 3D: ${clearance3DM} m`,
-      en: `Vertical clearance: ${clearanceVerticalM} m (Tunnel depth: -25.0 m, Foundation: -${foundationDepthM.toFixed(1)} m) | 3D clearance: ${clearance3DM} m`,
-    };
+    // Khoảng cách tĩnh không: Tuyến Metro khoan ngầm
+    const rawFoundDepth = json.foundationDepthM ?? specs.foundation_depth_m;
+    let clearanceVerticalM: string = '';
+    let clearance3DM: string = '';
+    let clearanceDisplay: BilingualText;
+    if (distanceToMetroAlignmentM && rawFoundDepth !== undefined && rawFoundDepth !== null && rawFoundDepth !== '' && !isNaN(Number(rawFoundDepth))) {
+      const foundationDepthM = Number(rawFoundDepth);
+      clearanceVerticalM = Math.max(0, 25.0 - foundationDepthM).toFixed(1);
+      clearance3DM = Math.sqrt(
+        Math.pow(Number(distanceToMetroAlignmentM), 2) + Math.pow(Number(clearanceVerticalM), 2)
+      ).toFixed(1);
+      clearanceDisplay = {
+        vi: `Tĩnh không đứng: ${clearanceVerticalM} m (Đỉnh hầm dự kiến: -25.0 m, Đáy móng: -${foundationDepthM.toFixed(1)} m) | Tĩnh không 3D: ${clearance3DM} m`,
+        en: `Vertical clearance: ${clearanceVerticalM} m (Tunnel depth: -25.0 m, Foundation: -${foundationDepthM.toFixed(1)} m) | 3D clearance: ${clearance3DM} m`,
+      };
+    } else {
+      clearanceDisplay = {
+        vi: 'Chưa có số liệu tính tĩnh không',
+        en: 'Clearance data unrecorded',
+      };
+    }
 
     const section2: Section2BasicBuildingInfo = {
       use: {
@@ -378,7 +435,7 @@ export class ReportV2ViewModelMapper {
       mainDimensions,
       maxHeightM,
       typicalStoreyHeightM: `${typicalStoreyM} m`,
-      yearConstructed: specs.constructionYear || json.constructionYear || specs.year_of_construction || 2013,
+      yearConstructed: specs.constructionYear || json.constructionYear || specs.year_of_construction || '–',
       isEstimatedYear: Boolean(specs.isEstimatedYear || json.isEstimatedYear || specs.is_year_estimated),
       distanceToMetroAlignmentM,
       distanceToMetroEdgeM,
@@ -877,7 +934,6 @@ export class ReportV2ViewModelMapper {
     }
 
     // 5. Độ sâu móng
-    const rawFoundDepth = json.foundationDepthM ?? specs.foundation_depth_m;
     let foundDepthVi = 'Chưa xác định độ sâu đáy móng';
     let foundDepthEn = 'Unverified foundation depth';
     if (rawFoundDepth !== undefined && rawFoundDepth !== null && rawFoundDepth !== '' && Number(rawFoundDepth) > 0) {
@@ -907,27 +963,74 @@ export class ReportV2ViewModelMapper {
       visibleStructEn = 'Main load-bearing elements intact; minor aesthetic plaster cracks observed';
     }
 
-    // 8. Công trình liền kề
-    let adjLeftVi = 'Nhà phố / Nhà dân';
-    let adjRightVi = 'Nhà phố / Nhà dân';
-    let adjBackVi = 'Nhà phố / Nhà dân';
-    const rawAdj = json.adjacentBuildings || specs.adjacent_buildings;
+    // 8. Công trình liền kề (Trái, Phải, Sau)
+    let adjLeftVi = '';
+    let adjRightVi = '';
+    let adjBackVi = '';
+    const rawAdj = json.adjacentBuildings || specs.adjacent_buildings || specs.adjacentBuildings;
     if (rawAdj) {
       try {
         const parsedAdj = typeof rawAdj === 'string' ? JSON.parse(rawAdj) : rawAdj;
-        adjLeftVi = parsedAdj.left?.details || parsedAdj.left?.type || adjLeftVi;
-        adjRightVi = parsedAdj.right?.details || parsedAdj.right?.type || adjRightVi;
-        adjBackVi = parsedAdj.back?.details || parsedAdj.back?.type || adjBackVi;
+        if (parsedAdj.left) {
+          const lType = parsedAdj.left.type || parsedAdj.left.details || '';
+          const lFloors = parsedAdj.left.floors ? `${parsedAdj.left.floors} tầng` : '';
+          const lContact = parsedAdj.left.contact || '';
+          const lNotes = parsedAdj.left.notes || '';
+          adjLeftVi = [lType, lFloors, lContact, lNotes].filter(Boolean).join(' - ');
+        }
+        if (parsedAdj.right) {
+          const rType = parsedAdj.right.type || parsedAdj.right.details || '';
+          const rFloors = parsedAdj.right.floors ? `${parsedAdj.right.floors} tầng` : '';
+          const rContact = parsedAdj.right.contact || '';
+          const rNotes = parsedAdj.right.notes || '';
+          adjRightVi = [rType, rFloors, rContact, rNotes].filter(Boolean).join(' - ');
+        }
+        if (parsedAdj.back || parsedAdj.rear) {
+          const bObj = parsedAdj.back || parsedAdj.rear;
+          const bType = bObj.type || bObj.details || '';
+          const bFloors = bObj.floors ? `${bObj.floors} tầng` : '';
+          const bContact = bObj.contact || '';
+          const bNotes = bObj.notes || '';
+          adjBackVi = [bType, bFloors, bContact, bNotes].filter(Boolean).join(' - ');
+        }
       } catch (e) {
         // Fallback
       }
     }
+
     const translateAdj = (text: string) => {
-      if (text.includes('Nhà')) return 'Residential Townhouse';
+      if (!text) return '';
+      if (text.includes('Nhà') || text.includes('TOWN_HOUSE')) return 'Residential Townhouse';
       if (text.includes('Hẻm') || text.includes('Đường')) return 'Alley / Internal Road';
-      if (text.includes('Đất')) return 'Vacant Land';
-      return 'Adjacent Structure';
+      if (text.includes('Đất') || text.includes('VACANT_LAND')) return 'Vacant Land';
+      return text;
     };
+
+    let adjSummaryVi = 'Chưa ghi nhận thông tin công trình liền kề';
+    let adjSummaryEn = 'Adjacent buildings data unrecorded';
+    if (adjLeftVi || adjRightVi || adjBackVi) {
+      const pVi: string[] = [];
+      const pEn: string[] = [];
+      if (adjLeftVi) { pVi.push(`Trái: ${adjLeftVi}`); pEn.push(`Left: ${translateAdj(adjLeftVi)}`); }
+      if (adjRightVi) { pVi.push(`Phải: ${adjRightVi}`); pEn.push(`Right: ${translateAdj(adjRightVi)}`); }
+      if (adjBackVi) { pVi.push(`Sau: ${adjBackVi}`); pEn.push(`Rear: ${translateAdj(adjBackVi)}`); }
+      adjSummaryVi = pVi.join(' | ');
+      adjSummaryEn = pEn.join(' | ');
+    }
+
+    // Footing density and spacing
+    const rawFDensity = json.foundationDensity || specs.foundation_density || specs.footingDensity;
+    const rawFSpacing = json.foundationSpacingM || specs.foundation_spacing_m || specs.footingSpacing;
+    let footingDensitySpacingVi = 'Chưa ghi nhận';
+    let footingDensitySpacingEn = 'Not recorded';
+    if (rawFDensity || rawFSpacing) {
+      const fdPartsVi: string[] = [];
+      const fdPartsEn: string[] = [];
+      if (rawFDensity) { fdPartsVi.push(`Mật độ: ${rawFDensity}`); fdPartsEn.push(`Density: ${rawFDensity}`); }
+      if (rawFSpacing) { fdPartsVi.push(`Khoảng cách tim: ${rawFSpacing} m`); fdPartsEn.push(`Spacing: ${rawFSpacing} m`); }
+      footingDensitySpacingVi = fdPartsVi.join(' | ');
+      footingDensitySpacingEn = fdPartsEn.join(' | ');
+    }
 
     // 9. Ghi chú kỹ thuật
     const rawFNotes = json.foundationNotes || specs.foundation_notes;
@@ -943,12 +1046,12 @@ export class ReportV2ViewModelMapper {
       structuralForm: { vi: structFormVi, en: structFormEn },
       foundationType: { vi: foundTypeVi, en: foundTypeEn },
       pileSize: { vi: pileSizeVi, en: pileSizeEn },
-      footingDensitySpacing: { vi: 'Không ghi nhận', en: 'Not recorded' },
+      footingDensitySpacing: { vi: footingDensitySpacingVi, en: footingDensitySpacingEn },
       foundationDepth: { vi: foundDepthVi, en: foundDepthEn },
       visibleStructuralCondition: { vi: visibleStructVi, en: visibleStructEn },
       adjacentBuildings: {
-        vi: `Trái: ${adjLeftVi}; Phải: ${adjRightVi}; Sau: ${adjBackVi} - tiếp giáp trực tiếp`,
-        en: `Left: ${translateAdj(adjLeftVi)}; Right: ${translateAdj(adjRightVi)}; Rear: ${translateAdj(adjBackVi)} - directly adjoining`,
+        vi: adjSummaryVi,
+        en: adjSummaryEn,
       },
       foundationEvidence: foundEvidence,
       remarks: { vi: remarksVi, en: remarksEn },
@@ -1134,11 +1237,13 @@ export class ReportV2ViewModelMapper {
         url: p05Url,
         base64: ReportImageResolver.resolveToBase64(p05Url),
         caption: { vi: 'Thực tế kiểm tra độ nghiêng thân nhà (P-05)', en: 'Building inclination check (P-05)' },
+        alreadyWatermarked: isPhotoAlreadyWatermarked(p05Url),
       } : undefined,
       settlementPhoto: p06Url ? {
         url: p06Url,
         base64: ReportImageResolver.resolveToBase64(p06Url),
         caption: { vi: 'Thực tế kiểm tra lún móng & nền công trình (P-06)', en: 'Foundation & settlement survey (P-06)' },
+        alreadyWatermarked: isPhotoAlreadyWatermarked(p06Url),
       } : undefined,
     };
 
@@ -1336,6 +1441,7 @@ export class ReportV2ViewModelMapper {
         capturedAt: surveyDateFormatted,
         gpsCoords: `${defaultLat}, ${defaultLng}`,
         originalTag: 'P01_HOUS',
+        alreadyWatermarked: isPhotoAlreadyWatermarked(p01Url),
       });
     }
 
@@ -1355,6 +1461,7 @@ export class ReportV2ViewModelMapper {
         capturedAt: surveyDateFormatted,
         gpsCoords: `${defaultLat}, ${defaultLng}`,
         originalTag: 'P02_MAIN',
+        alreadyWatermarked: isPhotoAlreadyWatermarked(p02Url),
       });
     }
 
@@ -1390,6 +1497,7 @@ export class ReportV2ViewModelMapper {
           capturedAt: surveyDateFormatted,
           gpsCoords: `${defaultLat}, ${defaultLng}`,
           originalTag: item.photo_code || `P03_0${idx + 1}`,
+          alreadyWatermarked: isPhotoAlreadyWatermarked(u),
         });
       });
     } else if (singleP03Url) {
@@ -1401,6 +1509,7 @@ export class ReportV2ViewModelMapper {
         capturedAt: surveyDateFormatted,
         gpsCoords: `${defaultLat}, ${defaultLng}`,
         originalTag: 'P03_SIDE',
+        alreadyWatermarked: isPhotoAlreadyWatermarked(singleP03Url),
       });
     }
 
@@ -1420,6 +1529,7 @@ export class ReportV2ViewModelMapper {
         capturedAt: surveyDateFormatted,
         gpsCoords: `${defaultLat}, ${defaultLng}`,
         originalTag: 'P04_CONT',
+        alreadyWatermarked: isPhotoAlreadyWatermarked(p04Url),
       });
     }
 
@@ -1433,6 +1543,7 @@ export class ReportV2ViewModelMapper {
         capturedAt: surveyDateFormatted,
         gpsCoords: `${defaultLat}, ${defaultLng}`,
         originalTag: tiltPhotoObj?.photoCode || 'EXT_TILT_01',
+        alreadyWatermarked: isPhotoAlreadyWatermarked(p05Url),
       });
     }
 
@@ -1446,6 +1557,7 @@ export class ReportV2ViewModelMapper {
         capturedAt: surveyDateFormatted,
         gpsCoords: `${defaultLat}, ${defaultLng}`,
         originalTag: settlePhotoObj?.photoCode || 'FOUND_SETTLE_01',
+        alreadyWatermarked: isPhotoAlreadyWatermarked(p06Url),
       });
     }
 
@@ -1464,6 +1576,7 @@ export class ReportV2ViewModelMapper {
         capturedAt: surveyDateFormatted,
         gpsCoords: `${defaultLat}, ${defaultLng}`,
         originalTag: anomalyPhotoObj?.photoCode || 'EXT_ANOMALY_01',
+        alreadyWatermarked: isPhotoAlreadyWatermarked(p07Url),
       });
     }
 
@@ -1491,27 +1604,39 @@ export class ReportV2ViewModelMapper {
         en: `${rawReport.owner_name || json.signatures?.ownerRepresentative?.fullName || json.ownerName || 'Property Owner'} - Owner`,
       },
       localAuthority: {
-        vi: 'Lê Văn Sơn - Trưởng khu phố 10 (theo hồ sơ)',
-        en: 'Le Van Son - Head of Neighbourhood 10 (as recorded)',
+        vi: json.signatures?.localAuthority?.fullName
+          ? `${json.signatures.localAuthority.fullName}${json.signatures.localAuthority.title ? ` - ${json.signatures.localAuthority.title}` : ''}`
+          : 'Đại diện chính quyền địa phương (chưa ký)',
+        en: json.signatures?.localAuthority?.fullName
+          ? `${json.signatures.localAuthority.fullName}${json.signatures.localAuthority.title ? ` - ${json.signatures.localAuthority.title}` : ''}`
+          : 'Local authority representative (unsigned)',
       },
       supervisionConsultant: {
-        vi: 'Đang mời tham gia xác nhận hiện trường',
-        en: 'Invited to site witness',
+        vi: json.signatures?.supervisionConsultant?.fullName
+          ? `${json.signatures.supervisionConsultant.fullName}${json.signatures.supervisionConsultant.title ? ` - ${json.signatures.supervisionConsultant.title}` : ''}`
+          : 'Đang mời tham gia xác nhận hiện trường',
+        en: json.signatures?.supervisionConsultant?.fullName
+          ? `${json.signatures.supervisionConsultant.fullName}${json.signatures.supervisionConsultant.title ? ` - ${json.signatures.supervisionConsultant.title}` : ''}`
+          : 'Invited to site witness',
       },
       surveyUnit: {
-        vi: `${surveyorName} - Kỹ sư khảo sát hiện trường, Liên danh CRLG – CRSRI – TT`,
-        en: `${surveyorName} - Field survey engineer, CRLG – CRSRI – TT JV`,
+        vi: surveyorName
+          ? `${surveyorName} - Kỹ sư khảo sát hiện trường, Liên danh CRLG – CRSRI – TT`
+          : 'Kỹ sư khảo sát hiện trường, Liên danh CRLG – CRSRI – TT',
+        en: surveyorName
+          ? `${surveyorName} - Field survey engineer, CRLG – CRSRI – TT JV`
+          : 'Field survey engineer, CRLG – CRSRI – TT JV',
       },
       fieldComments: {
         vi: ownerFeedbackText || 'Không có ý kiến bổ sung',
         en: ownerFeedbackText || 'No additional comments',
       },
       electronicSignOff: {
-        vi: `Khảo sát viên: ${surveyorName}; Chủ sở hữu: ${rawReport.owner_name || json.ownerName || 'Chủ hộ'} (đã ký); Quản trị phân khu: ${zoneAdminName} – ngày ${surveyDateFormatted}`,
-        en: `Surveyor, owner (signed) and zone admin – ${surveyDateFormatted}`,
+        vi: `Khảo sát viên: ${surveyorName || 'Chưa ghi nhận'}; Chủ sở hữu: ${rawReport.owner_name || json.ownerName || 'Chủ hộ'} (đã ký); Quản trị phân khu: ${zoneAdminName || 'Chưa duyệt'} – ngày ${surveyDateFormatted || '–'}`,
+        en: `Surveyor: ${surveyorName || 'Unrecorded'}; Owner: ${rawReport.owner_name || json.ownerName || 'Property owner'} (signed); Zone admin: ${zoneAdminName || 'Pending'} – ${surveyDateFormatted || '–'}`,
       },
       dataSource: {
-        vi: `Bản xuất phần mềm ${reportNo}, xuất lúc ${new Date().toLocaleTimeString('vi-VN')} ngày ${surveyDateFormatted}`,
+        vi: `Bản xuất phần mềm ${reportNo}, xuất lúc ${new Date().toLocaleTimeString('vi-VN')} ngày ${surveyDateFormatted || '–'}`,
         en: `Software export ${reportNo}, exported at ${new Date().toISOString()}`,
       },
       signedRecordPages: minutesPhotos.map((url: string, idx: number) => ({

@@ -24,7 +24,7 @@ import { ReportImageResolver } from '../services/report-image-resolver.service';
 /**
  * Kiểm tra xem một bức ảnh đã được nhúng watermark từ thiết bị/hệ thống hay chưa
  */
-function isPhotoAlreadyWatermarked(url?: string, photoObj?: any): boolean {
+export function isPhotoAlreadyWatermarked(url?: string, photoObj?: any): boolean {
   if (!url && !photoObj) return false;
   if (photoObj?.hasWatermark === true || photoObj?.isWatermarked === true) return true;
   const u = (url || photoObj?.url || '').toLowerCase();

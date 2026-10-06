@@ -306,9 +306,12 @@ body {
 .cover-facade-photo {
   max-width: 320px;
   max-height: 230px;
+  width: auto;
+  height: auto;
   border: 1px solid #64748b;
   border-radius: 2px;
-  object-fit: cover;
+  object-fit: contain;
+  background-color: #f8fafc;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
   display: block;
 }
@@ -523,13 +526,28 @@ table.tech-table td.val-col {
   background-color: #ffffff;
   page-break-inside: avoid;
   break-inside: avoid;
+  position: relative;
+}
+
+.photo-card-img-wrapper {
+  position: relative;
+  width: 100%;
+  height: 200px;
+  background-color: #f8fafc;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
 }
 
 .photo-card img {
-  width: 100%;
-  height: 200px;
-  object-fit: cover;
+  max-width: 100%;
+  max-height: 200px;
+  width: auto;
+  height: auto;
+  object-fit: contain;
   display: block;
+  margin: 0 auto;
 }
 
 .photo-placeholder {
@@ -567,7 +585,7 @@ table.tech-table td.val-col {
   break-inside: avoid;
 }
 
-/* Sơ đồ CAD tầng */
+/* Sơ đồ CAD tầng và Pinning Overlay Z, E, D */
 .cad-map-container {
   border: 1px solid #94a3b8;
   padding: 6px;
@@ -578,12 +596,179 @@ table.tech-table td.val-col {
   break-inside: avoid;
 }
 
-.cad-map-container img {
+.cad-map-pinning-wrapper {
+  position: relative;
+  width: 100%;
+  display: inline-block;
+  background-color: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 3px;
+  overflow: hidden;
+  text-align: center;
+}
+
+.cad-map-image {
   max-width: 100%;
   max-height: 280px;
+  width: auto;
+  height: auto;
   object-fit: contain;
   display: block;
   margin: 0 auto;
+}
+
+.cad-pin-marker {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.cad-pin-badge {
+  padding: 1px 4px;
+  font-size: 6pt;
+  font-weight: bold;
+  font-family: Arial, sans-serif;
+  border-radius: 2px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+  white-space: nowrap;
+  line-height: 1.1;
+}
+
+.cad-pin-pointer {
+  width: 0;
+  height: 0;
+  border-left: 3px solid transparent;
+  border-right: 3px solid transparent;
+  margin-top: -1px;
+}
+
+.cad-pin-zone .cad-pin-badge {
+  background-color: #1e40af;
+  color: #ffffff;
+  border: 1px solid #ffffff;
+}
+.cad-pin-zone .cad-pin-pointer {
+  border-top: 4px solid #1e40af;
+}
+
+.cad-pin-element .cad-pin-badge {
+  background-color: #047857;
+  color: #ffffff;
+  border: 1px solid #ffffff;
+}
+.cad-pin-element .cad-pin-pointer {
+  border-top: 4px solid #047857;
+}
+
+.cad-pin-defect .cad-pin-badge {
+  background-color: #c2410c;
+  color: #ffffff;
+  border: 1px solid #ffffff;
+}
+.cad-pin-defect .cad-pin-pointer {
+  border-top: 4px solid #c2410c;
+}
+
+.cad-pin-legend {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  padding: 3px 6px;
+  background-color: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  border-top: none;
+  font-size: 7pt;
+  color: #334155;
+}
+
+.legend-title {
+  font-weight: bold;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.legend-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.dot-zone { background-color: #1e40af; }
+.dot-element { background-color: #047857; }
+.dot-defect { background-color: #c2410c; }
+
+/* Smart Legal Watermark Overlay */
+.legal-watermark-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  z-index: 5;
+}
+
+.watermark-top-right {
+  align-self: flex-end;
+  padding: 1px 5px;
+  background: rgba(0, 51, 102, 0.45);
+  color: #ffffff;
+  font-size: 5.5pt;
+  font-weight: bold;
+  border-bottom-left-radius: 2px;
+  letter-spacing: 0.3px;
+}
+
+.watermark-bottom-bar {
+  width: 100%;
+  padding: 2px 4px;
+  background: rgba(15, 23, 42, 0.65);
+  color: #ffffff;
+  font-size: 5.5pt;
+  font-family: monospace;
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Dải nhãn thông số kỹ thuật dưới ảnh nứt */
+.defect-meta-strip {
+  padding: 4px 6px;
+  background-color: #f8fafc;
+  border-top: 1px solid #cbd5e1;
+  font-size: 7pt;
+  line-height: 1.3;
+}
+
+.meta-strip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 2px;
+}
+
+.meta-item {
+  color: #334155;
+}
+
+.meta-strip-notes {
+  color: #475569;
+  font-style: italic;
+  margin-top: 1px;
 }
 
 /* Footer hiển thị số trang */
@@ -623,7 +808,7 @@ table.tech-table td.val-col {
   position: relative;
   width: 100%;
   height: 155px;
-  background-color: #f1f5f9;
+  background-color: #f8fafc;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -631,10 +816,13 @@ table.tech-table td.val-col {
 }
 
 .room-photo-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  object-fit: contain;
   display: block;
+  margin: 0 auto;
 }
 
 .room-photo-meta {
@@ -700,11 +888,25 @@ table.tech-table td.val-col {
   background: #ffffff;
 }
 
-.deformation-proof-img {
+.deformation-proof-img-wrapper {
+  position: relative;
   width: 100%;
-  height: 130px;
-  object-fit: cover;
+  height: 140px;
+  background-color: #f8fafc;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.deformation-proof-img {
+  max-width: 100%;
+  max-height: 140px;
+  width: auto;
+  height: auto;
+  object-fit: contain;
   display: block;
+  margin: 0 auto;
 }
 
 .deformation-proof-caption {
