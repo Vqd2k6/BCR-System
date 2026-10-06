@@ -16,6 +16,23 @@ import { applyOverridesToReportV2 } from './utils/report-override-v2.utils';
 import { ReportV2ViewModel } from './report-v2.types';
 import { ReportWatermarkCanvasService } from './services/report-watermark-canvas.service';
 import { maskReportPii } from '../../common/utils/pii.utils';
+import { preloadImageOrientations } from '../report/generators/residential/residential.image-sniff';
+
+function extractAllImageUrls(obj: any, urls: Set<string> = new Set()): string[] {
+  if (!obj) return [];
+  if (typeof obj === 'string') {
+    if (obj.startsWith('http://') || obj.startsWith('https://') || obj.startsWith('/uploads/') || obj.startsWith('uploads/')) {
+      if (/\.(jpg|jpeg|png|webp)/i.test(obj) || obj.includes('/surveys/')) {
+        urls.add(obj);
+      }
+    }
+  } else if (Array.isArray(obj)) {
+    for (const item of obj) extractAllImageUrls(item, urls);
+  } else if (typeof obj === 'object') {
+    for (const key of Object.keys(obj)) extractAllImageUrls(obj[key], urls);
+  }
+  return Array.from(urls);
+}
 
 export class ReportV2Service {
   private static cachedTemplate: Handlebars.TemplateDelegate | null = null;
@@ -118,7 +135,11 @@ export class ReportV2Service {
       activeReport = maskReportPii(activeReport);
     }
 
-    // 1. Chuyển đổi và tính toán toàn bộ ViewModel
+    // 1. Phân tích trước tỷ lệ khung ảnh (Portrait / Landscape) cho 100% ảnh khảo sát (bao gồm cả Cloud R2)
+    const allPhotoUrls = extractAllImageUrls(activeReport);
+    await preloadImageOrientations(allPhotoUrls);
+
+    // 2. Chuyển đổi và tính toán toàn bộ ViewModel
     const viewModel = ReportV2ViewModelMapper.buildViewModel(activeReport, overrides);
     if (maskPii) {
       (viewModel as any).isPiiMasked = true;
