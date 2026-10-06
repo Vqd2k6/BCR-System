@@ -42,6 +42,27 @@ export function authenticateJwt(req: Request, _res: Response, next: NextFunction
 }
 
 /**
+ * Middleware xác thực JWT Access Token tùy chọn (Optional JWT)
+ * Nếu có Authorization header hợp lệ, giải mã và gán req.user.
+ * Nếu không có token hoặc token không hợp lệ, vẫn cho request đi tiếp mà không ném lỗi 401.
+ */
+export function optionalAuthenticateJwt(req: Request, _res: Response, next: NextFunction): void {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return next();
+  }
+
+  const token = authHeader.split(' ')[1];
+  try {
+    const decoded = jwt.verify(token, config.jwt.secret) as JwtPayload;
+    req.user = decoded;
+  } catch (_error: any) {
+    // Không ném lỗi nếu token không hợp lệ ở middleware tùy chọn
+  }
+  next();
+}
+
+/**
  * Middleware kiểm tra quyền RBAC (Role-Based Access Control)
  */
 export function requireRoles(...allowedRoles: Array<'SUPER_ADMIN' | 'ZONE_ADMIN' | 'SURVEYOR' | 'CONTRACTOR' | 'GUEST'>) {

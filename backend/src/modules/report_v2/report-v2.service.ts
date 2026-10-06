@@ -14,15 +14,49 @@ import { ReportV2ViewModelMapper } from './mappers/report-v2-viewmodel.mapper';
 import { PdfRenderV2Engine } from './engine/pdf-render-v2.engine';
 import { applyOverridesToReportV2 } from './utils/report-override-v2.utils';
 import { ReportV2ViewModel } from './report-v2.types';
+import { ReportWatermarkCanvasService } from './services/report-watermark-canvas.service';
+import { maskReportPii } from '../../common/utils/pii.utils';
 
 export class ReportV2Service {
   private static cachedTemplate: Handlebars.TemplateDelegate | null = null;
   private static cachedStyles: string | null = null;
+  private static partialsRegistered = false;
+
+  /**
+   * Đăng ký các helper và partials Handlebars cần thiết
+   */
+  public static registerHelpersAndPartials(baseDir?: string): void {
+    Handlebars.registerHelper('eq', (a, b) => a === b);
+    Handlebars.registerHelper('ne', (a, b) => a !== b);
+    Handlebars.registerHelper('gt', (a, b) => Number(a) > Number(b));
+    Handlebars.registerHelper('gte', (a, b) => Number(a) >= Number(b));
+    Handlebars.registerHelper('lt', (a, b) => Number(a) < Number(b));
+    Handlebars.registerHelper('lte', (a, b) => Number(a) <= Number(b));
+    Handlebars.registerHelper('or', function(...args: any[]) {
+      args.pop();
+      return args.some(Boolean);
+    });
+    Handlebars.registerHelper('and', function(...args: any[]) {
+      args.pop();
+      return args.every(Boolean);
+    });
+
+    const partialsDir = baseDir || path.join(__dirname, 'templates/residential/partials');
+    if (fs.existsSync(partialsDir)) {
+      const partialFiles = fs.readdirSync(partialsDir).filter((f) => f.endsWith('.hbs'));
+      for (const file of partialFiles) {
+        const partialName = file.replace(/\.hbs$/, '');
+        const content = fs.readFileSync(path.join(partialsDir, file), 'utf8');
+        Handlebars.registerPartial(partialName, content);
+      }
+    }
+    this.partialsRegistered = true;
+  }
 
   /**
    * Khởi tạo hoặc lấy template Handlebars đã biên dịch
    */
-  private static getCompiledTemplate(): {
+  public static getCompiledTemplate(): {
     template: Handlebars.TemplateDelegate;
     styles: string;
   } {
@@ -37,16 +71,10 @@ export class ReportV2Service {
         throw new Error(`Không tìm thấy file CSS Paged Media tại: ${stylesPath}`);
       }
 
+      this.registerHelpersAndPartials();
+
       const templateSource = fs.readFileSync(templatePath, 'utf8');
       this.cachedStyles = fs.readFileSync(stylesPath, 'utf8');
-
-      // Đăng ký các helper Handlebars cần thiết
-      Handlebars.registerHelper('eq', (a, b) => a === b);
-      Handlebars.registerHelper('ne', (a, b) => a !== b);
-      Handlebars.registerHelper('gt', (a, b) => Number(a) > Number(b));
-      Handlebars.registerHelper('gte', (a, b) => Number(a) >= Number(b));
-      Handlebars.registerHelper('lt', (a, b) => Number(a) < Number(b));
-      Handlebars.registerHelper('lte', (a, b) => Number(a) <= Number(b));
 
       this.cachedTemplate = Handlebars.compile(templateSource);
     }
@@ -80,19 +108,36 @@ export class ReportV2Service {
    */
   public static async generateResidentialHtml(
     identifier: string,
-    overrides?: any
+    overrides?: any,
+    maskPii: boolean = false,
+    enableWatermark: boolean = true
   ): Promise<{ html: string; viewModel: ReportV2ViewModel }> {
     const rawReport = await this.resolveReport(identifier);
-    const activeReport = applyOverridesToReportV2(rawReport, overrides);
+    let activeReport = applyOverridesToReportV2(rawReport, overrides);
+    if (maskPii) {
+      activeReport = maskReportPii(activeReport);
+    }
 
     // 1. Chuyển đổi và tính toán toàn bộ ViewModel
     const viewModel = ReportV2ViewModelMapper.buildViewModel(activeReport, overrides);
+    if (maskPii) {
+      (viewModel as any).isPiiMasked = true;
+    }
 
-    // 2. Biên dịch mã HTML
+    // 2. Dập watermark in-memory theo chuẩn commit 3ff0fab cho các ảnh chưa có dấu nếu enableWatermark = true
+    const effectiveWatermark = maskPii ? true : enableWatermark;
+    if (effectiveWatermark) {
+      await ReportWatermarkCanvasService.applyWatermarksToViewModel(viewModel);
+    }
+
+    // 3. Biên dịch mã HTML
     const { template, styles } = this.getCompiledTemplate();
     const html = template({
       ...viewModel,
       styles,
+      isPiiMasked: maskPii,
+      isGuestWatermark: maskPii,
+      enableWatermark: effectiveWatermark,
     });
 
     return { html, viewModel };
@@ -103,14 +148,15 @@ export class ReportV2Service {
    */
   public static async generateResidentialPdf(
     identifier: string,
-    overrides?: any
+    overrides?: any,
+    enableWatermark: boolean = true
   ): Promise<{
     pdfBuffer: Buffer;
     reportNo: string;
     buildingId: string;
     viewModel: ReportV2ViewModel;
   }> {
-    const { html, viewModel } = await this.generateResidentialHtml(identifier, overrides);
+    const { html, viewModel } = await this.generateResidentialHtml(identifier, overrides, false, enableWatermark);
 
     const pdfBuffer = await PdfRenderV2Engine.renderHtmlToPdf(html, {
       buildingId: viewModel.metadata.buildingId,

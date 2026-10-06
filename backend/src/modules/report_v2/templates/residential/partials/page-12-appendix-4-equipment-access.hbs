@@ -1,0 +1,45 @@
+  <!-- =====================================================================
+       TRANG 12: PHỤ LỤC 4 (THIẾT BỊ VÀ PHẠM VI TIẾP CẬN)
+       ===================================================================== -->
+  <div class="a4-page-sheet">
+    
+  <div class="report-subpage-topbar">
+    <span>LIÊN DANH CRLG – CRSRI – TT | TUYẾN METRO 2 BẾN THÀNH - THAM LƯƠNG</span>
+    <span>{{metadata.buildingId}} | {{metadata.reportNo}}</span>
+  </div>
+
+
+    <h2 class="chapter-header">PHỤ LỤC 4: THIẾT BỊ VÀ PHẠM VI TIẾP CẬN (*)</h2>
+    <div style="font-size: 8.5pt; font-weight: bold; color: #475569; margin-bottom: 6px;">
+      APPENDIX 4 EQUIPMENT AND ACCESS
+    </div>
+
+    <table class="tech-table">
+      <thead>
+        <tr>
+          <th style="width: 8%; text-align: center;">STT</th>
+          <th style="width: 28%;">Thiết bị đo đạc / Equipment</th>
+          <th style="width: 32%;">Thông số kỹ thuật / Specification</th>
+          <th style="width: 32%;">Mục đích sử dụng / Purpose</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each appendix4.equipmentList}}
+          <tr>
+            <td class="text-center font-bold">{{this.no}}</td>
+            <td class="font-bold">{{this.equipment.vi}}<br><span class="text-muted">{{this.equipment.en}}</span></td>
+            <td>{{this.specs.vi}}<br><span class="text-muted">{{this.specs.en}}</span></td>
+            <td>{{this.purpose.vi}}<br><span class="text-muted">{{this.purpose.en}}</span></td>
+          </tr>
+        {{/each}}
+      </tbody>
+    </table>
+
+    <div style="background-color: #f8fafc; border: 1px solid #cbd5e1; padding: 8px 10px; margin-top: 10px; border-radius: 2px;">
+      <strong>Ghi chú hiệu chuẩn thiết bị / Calibration Notes:</strong><br>
+      - {{appendix4.calibrationNotes.vi}}<br>
+      <span class="text-muted">- {{appendix4.calibrationNotes.en}}</span>
+    </div>
+
+    <div class="page-number-footer">{{tocPageNumbers.appendix4}}</div>
+  </div>

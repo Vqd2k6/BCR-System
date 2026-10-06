@@ -18,8 +18,9 @@ export class ReportV2Controller {
     try {
       const identifier = req.params.id;
       const overrides = req.body?.overrides || (req.method === 'POST' ? req.body : undefined);
+      const enableWatermark = req.query.watermark !== 'false' && req.query.watermark !== '0' && req.body?.enableWatermark !== false;
 
-      const { pdfBuffer, reportNo, buildingId } = await ReportV2Service.generateResidentialPdf(identifier, overrides);
+      const { pdfBuffer, reportNo, buildingId } = await ReportV2Service.generateResidentialPdf(identifier, overrides, enableWatermark);
 
       const safeFilename = `${reportNo.replace(/[/\\?%*:|"<>]/g, '_')}.pdf`;
 
@@ -43,10 +44,13 @@ export class ReportV2Controller {
     try {
       const identifier = req.params.id;
       const overrides = req.body?.overrides || (req.method === 'POST' ? req.body : undefined);
+      const isGuest = req.user?.role === 'GUEST' || req.query.isGuest === 'true' || req.query.maskPii === 'true';
+      const enableWatermark = isGuest || (req.query.watermark !== 'false' && req.query.watermark !== '0' && req.body?.enableWatermark !== false);
 
-      const { html, viewModel } = await ReportV2Service.generateResidentialHtml(identifier, overrides);
+      const { html, viewModel } = await ReportV2Service.generateResidentialHtml(identifier, overrides, isGuest, enableWatermark);
 
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      res.setHeader('Content-Security-Policy', "default-src * 'unsafe-inline' 'unsafe-eval' data: blob:; img-src * data: blob: https:; script-src * 'unsafe-inline' 'unsafe-eval'; style-src * 'unsafe-inline' https:;");
       res.setHeader('X-Report-No', viewModel.metadata.reportNo);
       res.setHeader('X-Building-ID', encodeURIComponent(viewModel.metadata.buildingId));
 

@@ -30,6 +30,7 @@ export const usePhase1ReportPreview = ({
   const [defectFilterQuery, setDefectFilterQuery] = useState<string>('');
   const [modalFeedback, setModalFeedback] = useState<ModalFeedbackMessage | null>(null);
   const [reportVersion, setReportVersion] = useState<'v2' | 'v1'>('v2');
+  const [enableWatermark, setEnableWatermark] = useState<boolean>(true);
 
   // Manage Blob URL for HTML preview
   useEffect(() => {
@@ -331,6 +332,50 @@ export const usePhase1ReportPreview = ({
     }
   };
 
+  const handleToggleWatermark = async (enabled: boolean) => {
+    setEnableWatermark(enabled);
+    if (!previewParcel) return;
+    const reportId = previewParcel.activePhase1ReportId || parcelIdOrFallback(previewParcel) || previewParcel.projectParcelCode;
+    setIsPreviewLoading(true);
+    try {
+      const endpoint = reportVersion === 'v2'
+        ? `/v2/reports/${encodeURIComponent(reportId)}/preview/html`
+        : `/reports/${encodeURIComponent(reportId)}/preview/html`;
+
+      let htmlRes;
+      if (hasUnsavedChanges && editFormData) {
+        const payload = {
+          ...buildReportPayload(editFormData, previewReportData),
+          enableWatermark: enabled,
+        };
+        htmlRes = await api.post(endpoint, payload, {
+          params: { watermark: String(enabled) },
+          responseType: 'text',
+        });
+      } else {
+        htmlRes = await api.get(endpoint, {
+          params: { watermark: String(enabled) },
+          responseType: 'text',
+        });
+      }
+
+      const html = htmlRes.data;
+      setPreviewHtmlContent(typeof html === 'string' ? html : JSON.stringify(html));
+      setPreviewRenderKey((k) => k + 1);
+      setModalFeedback({
+        type: 'info',
+        text: enabled
+          ? 'Đã BẬT tính năng dập con dấu bản quyền THACO/CREC và ngày giờ lên ảnh.'
+          : 'Đã TẮT tính năng nhúng watermark (giữ ảnh nguyên bản, chống trùng lặp con dấu).',
+        timestamp: new Date().toLocaleTimeString('vi-VN'),
+      });
+    } catch (err: any) {
+      console.warn('Lỗi khi đổi trạng thái watermark:', err);
+    } finally {
+      setIsPreviewLoading(false);
+    }
+  };
+
   const handleExportSingleDocx = async (parcel: ExportParcelItem, overrides?: any) => {
     const rawId = parcel.activePhase1ReportId || parcel.id || parcel.projectParcelCode;
     const reportId = encodeURIComponent(rawId);
@@ -384,8 +429,8 @@ export const usePhase1ReportPreview = ({
         : `/reports/${reportId}/export/pdf`;
 
       const response = overrides
-        ? await api.post(endpoint, overrides, { responseType: 'blob' })
-        : await api.get(endpoint, { responseType: 'blob' });
+        ? await api.post(endpoint, { ...overrides, enableWatermark }, { params: { watermark: String(enableWatermark) }, responseType: 'blob' })
+        : await api.get(endpoint, { params: { watermark: String(enableWatermark) }, responseType: 'blob' });
 
       const blob = new Blob([response.data], { type: 'application/pdf' });
       const downloadUrl = window.URL.createObjectURL(blob);
@@ -432,6 +477,9 @@ export const usePhase1ReportPreview = ({
     setModalFeedback,
     reportVersion,
     setReportVersion,
+    enableWatermark,
+    setEnableWatermark,
+    handleToggleWatermark,
     handleSwitchVersion,
     handleOpenPreview,
     handleUpdateFormField,

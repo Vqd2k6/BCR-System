@@ -10,6 +10,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Sliders,
+  Stamp,
 } from 'lucide-react';
 import { ExportParcelItem, EditFormData } from '../../types';
 import { buildReportPayload } from '../../utils/reportDataTransformers';
@@ -30,6 +31,8 @@ interface Phase1HtmlTabProps {
   previewReportData: any;
   reportVersion?: 'v2' | 'v1';
   handleDirectPrint?: () => void;
+  enableWatermark?: boolean;
+  handleToggleWatermark?: (enabled: boolean) => void;
 }
 
 export const Phase1HtmlTab: React.FC<Phase1HtmlTabProps> = ({
@@ -48,6 +51,8 @@ export const Phase1HtmlTab: React.FC<Phase1HtmlTabProps> = ({
   previewReportData,
   reportVersion = 'v2',
   handleDirectPrint,
+  enableWatermark = true,
+  handleToggleWatermark,
 }) => {
   // Trạng thái hiển thị thanh điều khiển bên trái (mặc định mở, có thể thu gọn để xem Full A4)
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -138,6 +143,35 @@ export const Phase1HtmlTab: React.FC<Phase1HtmlTabProps> = ({
               <Edit3 size={13} className="text-amber-600" />
               <span>Sửa Dữ Liệu / Ghi Chú</span>
             </button>
+          </div>
+
+          {/* Nhóm Tính Năng Watermark (Bật / Tắt Con Dấu) */}
+          <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold text-slate-800 flex items-center gap-1.5">
+                <Stamp size={14} className={enableWatermark ? "text-sky-600" : "text-slate-400"} />
+                <span>Nhúng Watermark</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => handleToggleWatermark?.(!enableWatermark)}
+                className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                  enableWatermark ? 'bg-sky-600' : 'bg-slate-300'
+                }`}
+                title={enableWatermark ? "Đang BẬT: Nhấp để TẮT nhúng watermark" : "Đã TẮT: Nhấp để BẬT nhúng watermark"}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                    enableWatermark ? 'translate-x-4' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+            </div>
+            <p className="text-[10px] text-slate-500 leading-tight">
+              {enableWatermark
+                ? "Đang BẬT: Dập dấu THACO/CREC và ngày giờ lên ảnh."
+                : "Đã TẮT: Giữ ảnh gốc sạch (dành cho ảnh đã có sẵn timestamp hiện trường)."}
+            </p>
           </div>
 
           {/* Nhóm Thu Phóng Khung Nhìn A4 (Zoom Controls) */}

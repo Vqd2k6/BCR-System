@@ -57,6 +57,8 @@ interface Phase1PreviewModalProps {
   handleDirectPrint: () => void;
   handleExportSingleDocx: (parcel: ExportParcelItem, overrides?: any) => void;
   handleExportSinglePdf: (parcel: ExportParcelItem, overrides?: any) => void;
+  enableWatermark?: boolean;
+  handleToggleWatermark?: (enabled: boolean) => void;
 }
 
 export const Phase1PreviewModal: React.FC<Phase1PreviewModalProps> = ({
@@ -91,6 +93,8 @@ export const Phase1PreviewModal: React.FC<Phase1PreviewModalProps> = ({
   handleDirectPrint,
   handleExportSingleDocx,
   handleExportSinglePdf,
+  enableWatermark = true,
+  handleToggleWatermark,
 }) => {
   if (!previewParcel) return null;
 
@@ -253,6 +257,8 @@ export const Phase1PreviewModal: React.FC<Phase1PreviewModalProps> = ({
               previewReportData={previewReportData}
               reportVersion={reportVersion}
               handleDirectPrint={handleDirectPrint}
+              enableWatermark={enableWatermark}
+              handleToggleWatermark={handleToggleWatermark}
             />
           ) : previewTab === 'edit' && editFormData ? (
             <Phase1EditFormTab

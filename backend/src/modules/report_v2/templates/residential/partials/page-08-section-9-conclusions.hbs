@@ -1,0 +1,52 @@
+  <!-- =====================================================================
+       TRANG 8: CHƯƠNG IX (KẾT LUẬN VÀ KIẾN NGHỊ)
+       ===================================================================== -->
+  <div class="a4-page-sheet">
+    
+  <div class="report-subpage-topbar">
+    <span>LIÊN DANH CRLG – CRSRI – TT | TUYẾN METRO 2 BẾN THÀNH - THAM LƯƠNG</span>
+    <span>{{metadata.buildingId}} | {{metadata.reportNo}}</span>
+  </div>
+
+
+    <h2 class="chapter-header">IX. KẾT LUẬN VÀ KIẾN NGHỊ - CONCLUSION AND RECOMMENDATION</h2>
+
+    {{#if section9.hasWarningConclusion}}
+      <div style="background-color: transparent; border: 1.5px solid #ea580c; padding: 8px 12px; margin-bottom: 10px; border-radius: 3px;">
+        <div style="font-weight: bold; color: #ea580c; font-size: 8.5pt; margin-bottom: 2px;">
+          ⚠️ {{section9.warningBadge.vi}}
+        </div>
+        <div style="font-size: 7.5pt; color: #ea580c; font-style: italic;">
+          {{section9.warningBadge.en}}
+        </div>
+      </div>
+    {{/if}}
+
+    <div style="margin-bottom: 8px;">
+      {{#each section9.conclusions}}
+        <p>- {{this.vi}}<br><span class="text-muted">- {{this.en}}</span></p>
+      {{/each}}
+      <p>- {{section9.witnessNarrative.vi}}<br><span class="text-muted">- {{section9.witnessNarrative.en}}</span></p>
+    </div>
+
+    <h3 class="section-header" style="color: #b45309;">Hạn chế khảo sát / Limitations:</h3>
+    {{#if section9.limitations.length}}
+      {{#each section9.limitations}}
+        <p style="color: #b45309;">- {{this.vi}}<br><span class="text-muted">- {{this.en}}</span></p>
+      {{/each}}
+    {{else}}
+      <p style="color: #b45309;">- Không<br><span class="text-muted">- None</span></p>
+    {{/if}}
+
+    <h3 class="section-header">Kiến nghị kỹ thuật / Recommendations:</h3>
+    {{#each section9.recommendations}}
+      <p>- {{this.vi}}<br><span class="text-muted">- {{this.en}}</span></p>
+    {{/each}}
+
+    <h3 class="section-header" style="color: #0369a1;">Nội dung cần bổ sung từ hiện trường / thiết kế (*) - Items pending field or design data</h3>
+    {{#each section9.pendingFieldDesignItems}}
+      <p style="color: #0369a1;">- {{this.vi}}<br><span class="text-muted">- {{this.en}}</span></p>
+    {{/each}}
+
+    <div class="page-number-footer">{{tocPageNumbers.section9}}</div>
+  </div>

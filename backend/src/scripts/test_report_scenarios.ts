@@ -6,6 +6,7 @@ import fs from 'fs';
 import path from 'path';
 import Handlebars from 'handlebars';
 import { ReportV2ViewModelMapper } from '../modules/report_v2/mappers/report-v2-viewmodel.mapper';
+import { ReportV2Service } from '../modules/report_v2/report-v2.service';
 import { PdfRenderV2Engine } from '../modules/report_v2/engine/pdf-render-v2.engine';
 
 function assert(condition: boolean, message: string) {
@@ -20,17 +21,7 @@ function assert(condition: boolean, message: string) {
 async function runScenarioMatrixTests() {
   console.log('🚀 Bắt đầu Kiểm thử Ma trận Kịch bản Bố cục (Adaptive Scenarios Matrix)...');
 
-  const templatePath = path.join(__dirname, '../modules/report_v2/templates/residential/index.hbs');
-  const stylesPath = path.join(__dirname, '../modules/report_v2/templates/residential/styles.css');
-
-  assert(fs.existsSync(templatePath), 'Template index.hbs tồn tại');
-  assert(fs.existsSync(stylesPath), 'Styles styles.css tồn tại');
-
-  const templateSource = fs.readFileSync(templatePath, 'utf8');
-  const stylesSource = fs.readFileSync(stylesPath, 'utf8');
-
-  Handlebars.registerHelper('eq', (a, b) => a === b);
-  const compiled = Handlebars.compile(templateSource);
+  const { template: compiled, styles: stylesSource } = ReportV2Service.getCompiledTemplate();
 
   // =========================================================================
   // KỊCH BẢN 1: BÁO CÁO TOÀN DIỆN (FULL DATA SCENARIO)

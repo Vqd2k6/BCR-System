@@ -49,7 +49,7 @@ export class PdfRenderV2Engine {
     );
   }
 
-  private static async getBrowser(): Promise<Browser> {
+  public static async getBrowser(): Promise<Browser> {
     if (this.browserInstance && this.browserInstance.isConnected()) {
       return this.browserInstance;
     }

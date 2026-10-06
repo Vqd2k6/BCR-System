@@ -574,6 +574,9 @@ export interface Appendix3SignedRecord {
     title: BilingualText;
     url: string;
     base64?: string;
+    metroPhotoCode?: string;
+    watermarkDateTime?: string;
+    alreadyWatermarked?: boolean;
   }>;
 }
 

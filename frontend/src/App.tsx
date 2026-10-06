@@ -19,6 +19,7 @@ import { ZoneManagerDashboardPage } from './features/zone-management/views/ZoneM
 import { AdminDashboardPage } from './features/admin-portal/views/AdminDashboardPage';
 import { PublicCitizenPortalPage } from './features/guest-portal/views/PublicCitizenPortalPage';
 import { GuestDashboardPage } from './features/guest-portal/views/GuestDashboardPage';
+import { GuestReportPreviewPage } from './features/guest-portal/views/GuestReportPreviewPage';
 import { AdminTopNav } from './components/layout/AdminTopNav';
 import { MapPin, Camera } from 'lucide-react';
 
@@ -71,6 +72,7 @@ export const App: React.FC = () => {
   const [showCompanionCheckInModal, setShowCompanionCheckInModal] = useState<boolean>(false);
   const [pendingSurveyFn, setPendingSurveyFn] = useState<(() => void) | null>(null);
   const [isReadOnlySurvey, setIsReadOnlySurvey] = useState<boolean>(false);
+  const [guestViewingReportParcel, setGuestViewingReportParcel] = useState<GisParcel | null>(null);
 
   // Dynamic Check-In state for surveyor with localStorage persistence (Requirement 5)
   const [isCheckedInToday, setIsCheckedInToday] = useState<boolean>(() => {
@@ -320,26 +322,12 @@ export const App: React.FC = () => {
 
   // If role is GUEST (Chủ Đầu Tư MAUR / Ban Quản Lý ĐSĐT)
   if (user?.role === 'GUEST') {
-    if (activeTab === 'phase1' && selectedParcelForSurvey) {
+    // Chế độ Xem Trước Báo Cáo Kỹ Thuật (Full-page View-Only)
+    if (guestViewingReportParcel) {
       return (
-        <SurveyPhase1Page
-          parcel={selectedParcelForSurvey}
-          unit={selectedUnitForSurvey}
-          readOnly={true}
-          onBackToHome={() => {
-            setIsReadOnlySurvey(false);
-            setSelectedParcelForSurvey(null);
-            setSelectedUnitForSurvey(null);
-            setActiveTab('home');
-            loadParcels();
-          }}
-          onFinished={() => {
-            setIsReadOnlySurvey(false);
-            setSelectedParcelForSurvey(null);
-            setSelectedUnitForSurvey(null);
-            setActiveTab('home');
-            loadParcels();
-          }}
+        <GuestReportPreviewPage
+          parcel={guestViewingReportParcel}
+          onBack={() => setGuestViewingReportParcel(null)}
         />
       );
     }
@@ -350,11 +338,8 @@ export const App: React.FC = () => {
         selectedZone={selectedZone}
         onSelectZone={handleSelectZone}
         onRefreshParcels={loadParcels}
-        onStartSurveyDetail={(parcel) => {
-          setSelectedParcelForSurvey(parcel);
-          setSelectedUnitForSurvey(null);
-          setIsReadOnlySurvey(true);
-          setActiveTab('phase1');
+        onViewReportPreview={(parcel) => {
+          setGuestViewingReportParcel(parcel);
         }}
       />
     );

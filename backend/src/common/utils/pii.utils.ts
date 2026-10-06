@@ -42,6 +42,24 @@ export function maskReportPii(report: any): any {
   try {
     const deepCloned = JSON.parse(JSON.stringify(report));
 
+    // 1. Root-level properties (Direct SQL columns on base_survey_reports / parcels)
+    if (deepCloned.owner_name) {
+      deepCloned.owner_name = maskName(deepCloned.owner_name);
+    }
+    if (deepCloned.owner_phone) {
+      deepCloned.owner_phone = maskPii(deepCloned.owner_phone, 3, 3);
+    }
+    if (deepCloned.owner_id_card) {
+      deepCloned.owner_id_card = maskPii(deepCloned.owner_id_card, 3, 0);
+    }
+    if (deepCloned.owner_signature_url) {
+      deepCloned.owner_signature_url = null;
+    }
+    if (deepCloned.owner_signature_img) {
+      deepCloned.owner_signature_img = null;
+    }
+
+    // 2. Nested report object (if wrapped as { report: ... })
     if (deepCloned.report) {
       if (deepCloned.report.owner_name) {
         deepCloned.report.owner_name = maskName(deepCloned.report.owner_name);
@@ -52,31 +70,54 @@ export function maskReportPii(report: any): any {
       if (deepCloned.report.owner_id_card) {
         deepCloned.report.owner_id_card = maskPii(deepCloned.report.owner_id_card, 3, 0);
       }
-    }
-
-    if (deepCloned.surveyData) {
-      if (deepCloned.surveyData.ownerName) {
-        deepCloned.surveyData.ownerName = maskName(deepCloned.surveyData.ownerName);
+      if (deepCloned.report.owner_signature_url) {
+        deepCloned.report.owner_signature_url = null;
       }
-      if (deepCloned.surveyData.ownerPhone) {
-        deepCloned.surveyData.ownerPhone = maskPii(deepCloned.surveyData.ownerPhone, 3, 3);
-      }
-      if (deepCloned.surveyData.ownerIdNumber) {
-        deepCloned.surveyData.ownerIdNumber = maskPii(deepCloned.surveyData.ownerIdNumber, 3, 0);
-      }
-      if (deepCloned.surveyData.interviews) {
-        if (deepCloned.surveyData.interviews.intervieweeName) {
-          deepCloned.surveyData.interviews.intervieweeName = maskName(deepCloned.surveyData.interviews.intervieweeName);
-        }
-        if (deepCloned.surveyData.interviews.contactPhone) {
-          deepCloned.surveyData.interviews.contactPhone = maskPii(deepCloned.surveyData.interviews.contactPhone, 3, 3);
-        }
-        if (deepCloned.surveyData.interviews.idCardNumber) {
-          deepCloned.surveyData.interviews.idCardNumber = maskPii(deepCloned.surveyData.interviews.idCardNumber, 3, 0);
-        }
+      if (deepCloned.report.owner_signature_img) {
+        deepCloned.report.owner_signature_img = null;
       }
     }
 
+    // 3. survey_data_json / surveyData JSON payload
+    const sData = deepCloned.survey_data_json || deepCloned.surveyData;
+    if (sData) {
+      if (sData.ownerName) {
+        sData.ownerName = maskName(sData.ownerName);
+      }
+      if (sData.ownerPhone) {
+        sData.ownerPhone = maskPii(sData.ownerPhone, 3, 3);
+      }
+      if (sData.ownerIdNumber) {
+        sData.ownerIdNumber = maskPii(sData.ownerIdNumber, 3, 0);
+      }
+      if (sData.signatures?.ownerRepresentative) {
+        if (sData.signatures.ownerRepresentative.fullName) {
+          sData.signatures.ownerRepresentative.fullName = maskName(sData.signatures.ownerRepresentative.fullName);
+        }
+        if (sData.signatures.ownerRepresentative.phone) {
+          sData.signatures.ownerRepresentative.phone = maskPii(sData.signatures.ownerRepresentative.phone, 3, 3);
+        }
+        if (sData.signatures.ownerRepresentative.signatureImg) {
+          sData.signatures.ownerRepresentative.signatureImg = null;
+        }
+        if (sData.signatures.ownerRepresentative.signatureImageUrl) {
+          sData.signatures.ownerRepresentative.signatureImageUrl = null;
+        }
+      }
+      if (sData.interviews) {
+        if (sData.interviews.intervieweeName) {
+          sData.interviews.intervieweeName = maskName(sData.interviews.intervieweeName);
+        }
+        if (sData.interviews.contactPhone) {
+          sData.interviews.contactPhone = maskPii(sData.interviews.contactPhone, 3, 3);
+        }
+        if (sData.interviews.idCardNumber) {
+          sData.interviews.idCardNumber = maskPii(sData.interviews.idCardNumber, 3, 0);
+        }
+      }
+    }
+
+    deepCloned.isPiiMasked = true;
     return deepCloned;
   } catch (err) {
     return report;

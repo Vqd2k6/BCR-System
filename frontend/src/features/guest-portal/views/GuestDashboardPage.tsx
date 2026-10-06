@@ -26,7 +26,8 @@ interface GuestDashboardPageProps {
   selectedZone: string;
   onSelectZone: (zone: string) => void;
   onRefreshParcels?: () => void;
-  onStartSurveyDetail: (parcel: GisParcel, readOnly: boolean) => void;
+  onViewReportPreview?: (parcel: GisParcel) => void;
+  onStartSurveyDetail?: (parcel: GisParcel, readOnly: boolean) => void;
 }
 
 const AVAILABLE_ZONES = Array.from({ length: 22 }, (_, i) => {
@@ -39,6 +40,7 @@ export const GuestDashboardPage: React.FC<GuestDashboardPageProps> = ({
   selectedZone,
   onSelectZone,
   onRefreshParcels,
+  onViewReportPreview,
   onStartSurveyDetail,
 }) => {
   const { user, logout } = useAuth();
@@ -97,9 +99,12 @@ export const GuestDashboardPage: React.FC<GuestDashboardPageProps> = ({
     setActiveParcel(parcel);
   };
 
-  const handleOpenDetailModal = (parcel: GisParcel) => {
-    // Mở SurveyPhase1Page với cờ readOnly: true (Triple-Lock Read-Only)
-    onStartSurveyDetail(parcel, true);
+  const handleOpenReportPreview = (parcel: GisParcel) => {
+    if (onViewReportPreview) {
+      onViewReportPreview(parcel);
+    } else if (onStartSurveyDetail) {
+      onStartSurveyDetail(parcel, true);
+    }
   };
 
   return (
@@ -242,7 +247,7 @@ export const GuestDashboardPage: React.FC<GuestDashboardPageProps> = ({
               <GuestFocusedParcelCard
                 parcel={activeParcel}
                 onClose={() => setActiveParcel(null)}
-                onOpenSurveyDetail={handleOpenDetailModal}
+                onViewReportPreview={handleOpenReportPreview}
               />
             </div>
           )}
@@ -264,7 +269,7 @@ export const GuestDashboardPage: React.FC<GuestDashboardPageProps> = ({
             selectedZone={selectedZone}
             onSelectZone={onSelectZone}
             onSelectParcel={handleSelectParcel}
-            onStartSurvey={handleOpenDetailModal}
+            onStartSurvey={handleOpenReportPreview}
             thematicMode={thematicMode}
             hideBottomSheet={true}
           />

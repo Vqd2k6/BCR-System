@@ -5,6 +5,7 @@ import fs from 'fs';
 import path from 'path';
 import Handlebars from 'handlebars';
 import { ReportV2ViewModelMapper } from '../modules/report_v2/mappers/report-v2-viewmodel.mapper';
+import { ReportV2Service } from '../modules/report_v2/report-v2.service';
 
 function assert(condition: boolean, message: string) {
   if (!condition) {
@@ -23,11 +24,8 @@ async function runTemplateTest() {
   assert(fs.existsSync(templatePath), `index.hbs tồn tại tại ${templatePath}`);
   assert(fs.existsSync(stylesPath), `styles.css tồn tại tại ${stylesPath}`);
 
-  console.log('\n--- 2. Đọc và chuẩn bị Helpers Handlebars ---');
-  const templateSource = fs.readFileSync(templatePath, 'utf8');
-  const stylesSource = fs.readFileSync(stylesPath, 'utf8');
-
-  Handlebars.registerHelper('eq', (a, b) => a === b);
+  console.log('\n--- 2. Đọc và chuẩn bị Helpers & Partials từ ReportV2Service ---');
+  const { template: compiled, styles: stylesSource } = ReportV2Service.getCompiledTemplate();
 
   console.log('\n--- 3. Chuẩn bị Mock Data từ ViewModelMapper ---');
   const mockReport = {
@@ -46,7 +44,6 @@ async function runTemplateTest() {
   const viewModel = ReportV2ViewModelMapper.buildViewModel(mockReport);
 
   console.log('\n--- 4. Biên dịch Handlebars Template sang HTML ---');
-  const compiled = Handlebars.compile(templateSource);
   const htmlOutput = compiled({
     ...viewModel,
     styles: stylesSource,

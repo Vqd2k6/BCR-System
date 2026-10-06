@@ -6,7 +6,7 @@ import fs from 'fs';
 import path from 'path';
 import { config } from './config';
 import { problemDetailsErrorHandler } from './common/errors/problem-details';
-import { authenticateJwt, requireRoles } from './common/guards/auth.guard';
+import { authenticateJwt, requireRoles, optionalAuthenticateJwt } from './common/guards/auth.guard';
 
 // Controllers
 import { AuthController } from './modules/auth/auth.controller';
@@ -216,7 +216,7 @@ export function createApp(): express.Application {
   api.post('/reports/:id/export/pdf',  authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportController.exportResidentialPdf); // Xuất PDF có overrides (Không sửa DB)
   api.get('/reports/:id/export/docx',  authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportController.exportResidentialDocx);
   api.post('/reports/:id/export/docx', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportController.exportResidentialDocx); // Xuất DOCX có overrides (Không sửa DB)
-  api.get('/reports/:id/preview/html', ReportController.previewResidentialHtml);
+  api.get('/reports/:id/preview/html', optionalAuthenticateJwt, ReportController.previewResidentialHtml);
   api.post('/reports/:id/preview/html', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportController.previewResidentialHtml); // Xem trước HTML có overrides (Không sửa DB)
   api.put('/reports/:id/survey-data',  authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), ReportController.updateReportSurveyData);
   api.patch('/reports/:id/survey-data', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), ReportController.updateReportSurveyData);
@@ -226,7 +226,7 @@ export function createApp(): express.Application {
   // ==========================================
   api.get('/v2/reports/:id/export/pdf',   authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportV2Controller.exportResidentialPdf);
   api.post('/v2/reports/:id/export/pdf',  authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportV2Controller.exportResidentialPdf);
-  api.get('/v2/reports/:id/preview/html', ReportV2Controller.previewResidentialHtml);
+  api.get('/v2/reports/:id/preview/html', optionalAuthenticateJwt, ReportV2Controller.previewResidentialHtml);
   api.post('/v2/reports/:id/preview/html', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportV2Controller.previewResidentialHtml);
 
   // ==========================================

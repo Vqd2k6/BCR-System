@@ -1,0 +1,465 @@
+  <!-- =====================================================================
+       PHỤ LỤC 2: THỐNG KÊ KHUYẾT TẬT TRÊN MẶT BẰNG TẦNG (TÁCH SHEET CHUẨN A4)
+       ===================================================================== -->
+  {{#each appendix2}}
+    <!-- Trang 1 của Tầng: Sơ đồ CAD và Bảng thống kê khuyết tật -->
+    <div class="a4-page-sheet">
+      <div class="report-subpage-topbar">
+        <span>LIÊN DANH CRLG – CRSRI – TT | TUYẾN METRO 2 BẾN THÀNH - THAM LƯƠNG</span>
+        <span>{{../metadata.buildingId}} | {{../metadata.reportNo}}</span>
+      </div>
+
+      <h2 class="chapter-header">PHỤ LỤC 2: THỐNG KÊ KHUYẾT TẬT TRÊN MẶT BẰNG TẦNG</h2>
+      <div style="font-size: 8.5pt; font-weight: bold; color: #475569; margin-bottom: 6px;">
+        APPENDIX 2 FLOOR PLAN DEFECT STATISTICS - {{this.floorName.vi}} ({{this.floorName.en}})
+      </div>
+
+      <!-- Sơ đồ CAD mặt bằng kiến trúc (Z) & kết cấu (E) theo quy ước khổ dọc -->
+      {{#if this.hasStructuralCadMap}}
+        <div class="cad-map-dual-grid">
+          <div class="cad-map-col cad-map-col-arch">
+            <div class="cad-map-title">Sơ đồ mặt bằng kiến trúc & ghim Z (Khổ dọc) / Architectural Plan & Zone Pins (Portrait)</div>
+            <div class="cad-map-pinning-wrapper">
+              <div class="cad-map-tight-box">
+                <img crossorigin="anonymous" src="{{#if this.damageMapBase64}}{{this.damageMapBase64}}{{else}}{{this.damageMapUrl}}{{/if}}" alt="Mặt bằng kiến trúc" class="cad-map-image photo-conv-cad-portrait">
+                {{#each this.cadPins}}
+                  <div class="cad-pin-marker cad-pin-{{this.typeLower}}" style="left: {{this.pinX}}%; top: {{this.pinY}}%;" title="{{this.code}}: {{this.label}}">
+                    <span class="cad-pin-badge">{{this.code}}</span>
+                    <div class="cad-pin-pointer"></div>
+                  </div>
+                {{/each}}
+              </div>
+            </div>
+          </div>
+          <div class="cad-map-col cad-map-col-struct">
+            <div class="cad-map-title">Sơ đồ kết cấu & ghim E (Khổ dọc) / Structural Members Plan & Element Pins (Portrait)</div>
+            <div class="cad-map-pinning-wrapper">
+              <div class="cad-map-tight-box">
+                <img crossorigin="anonymous" src="{{#if this.structuralMapBase64}}{{this.structuralMapBase64}}{{else}}{{this.structuralMapUrl}}{{/if}}" alt="Mặt bằng kết cấu" class="cad-map-image photo-conv-cad-portrait">
+                {{#each this.cadStructuralPins}}
+                  <div class="cad-pin-marker cad-pin-{{this.typeLower}}" style="left: {{this.pinX}}%; top: {{this.pinY}}%;" title="{{this.code}}: {{this.label}}">
+                    <span class="cad-pin-badge">{{this.code}}</span>
+                    <div class="cad-pin-pointer"></div>
+                  </div>
+                {{/each}}
+              </div>
+            </div>
+          </div>
+        </div>
+      {{else if this.damageMapBase64}}
+        <div class="cad-map-container full-width">
+          <div class="cad-map-title">Sơ đồ mặt bằng kiến trúc & vị trí ghim Z (Khổ dọc) / Floor Plan & Zone Pins (Portrait)</div>
+          <div class="cad-map-pinning-wrapper">
+            <div class="cad-map-tight-box">
+              <img crossorigin="anonymous" src="{{this.damageMapBase64}}" alt="Sơ đồ mặt bằng" class="cad-map-image photo-conv-cad-portrait">
+              {{#each this.cadPins}}
+                <div class="cad-pin-marker cad-pin-{{this.typeLower}}" style="left: {{this.pinX}}%; top: {{this.pinY}}%;" title="{{this.code}}: {{this.label}}">
+                  <span class="cad-pin-badge">{{this.code}}</span>
+                  <div class="cad-pin-pointer"></div>
+                </div>
+              {{/each}}
+            </div>
+          </div>
+        </div>
+      {{else if this.damageMapUrl}}
+        <div class="cad-map-container full-width">
+          <div class="cad-map-title">Sơ đồ mặt bằng kiến trúc & vị trí ghim Z (Khổ dọc) / Floor Plan & Zone Pins (Portrait)</div>
+          <div class="cad-map-pinning-wrapper">
+            <div class="cad-map-tight-box">
+              <img crossorigin="anonymous" src="{{this.damageMapUrl}}" alt="Sơ đồ mặt bằng" class="cad-map-image photo-conv-cad-portrait">
+              {{#each this.cadPins}}
+                <div class="cad-pin-marker cad-pin-{{this.typeLower}}" style="left: {{this.pinX}}%; top: {{this.pinY}}%;" title="{{this.code}}: {{this.label}}">
+                  <span class="cad-pin-badge">{{this.code}}</span>
+                  <div class="cad-pin-pointer"></div>
+                </div>
+              {{/each}}
+            </div>
+          </div>
+        </div>
+      {{/if}}
+
+      {{#if this.cadPins.length}}
+        <div class="cad-pin-legend">
+          <span class="legend-title">Chú giải tọa độ ghim trên CAD:</span>
+          <span class="legend-item"><span class="legend-dot dot-zone"></span> Vùng phòng (Z)</span>
+          <span class="legend-item"><span class="legend-dot dot-element"></span> Cấu kiện kết cấu (E)</span>
+        </div>
+      {{/if}}
+
+      <!-- Bảng tổng hợp khuyết tật của tầng -->
+      {{#if this.hasDefects}}
+        <h3 class="section-header">Bảng tổng hợp khuyết tật tầng / Defect Summary Table</h3>
+        <table class="tech-table">
+          <thead>
+            <tr>
+              <th style="width: 5%;">No.</th>
+              <th style="width: 12%;">Mã lỗi / Pin</th>
+              <th style="width: 24%;">Vị trí / Location</th>
+              <th style="width: 15%;">Loại khuyết tật</th>
+              <th style="width: 12%;">W / L</th>
+              <th style="width: 11%; text-align: center;">Burland</th>
+              <th style="width: 21%;">Ghi chú</th>
+            </tr>
+          </thead>
+          <tbody>
+            {{#each this.defectSummaryRows}}
+              <tr>
+                <td class="text-center">{{this.no}}</td>
+                <td class="font-bold" style="color: #0f3b6c;">
+                  {{this.defectId}}
+                  {{#if this.cadPinRef}}<br><span style="font-size: 6.5pt; color: #64748b; font-weight: normal;">[{{this.cadPinRef}}]</span>{{/if}}
+                </td>
+                <td>{{this.location.vi}}</td>
+                <td>{{this.defectType.vi}}</td>
+                <td>{{this.widthMm}} / {{this.lengthM}}</td>
+                <td class="font-bold text-center">{{this.burlandGrade}} ({{this.burlandDamageCategory.en}})</td>
+                <td>{{this.description.vi}}</td>
+              </tr>
+            {{/each}}
+          </tbody>
+        </table>
+      {{else}}
+        <!-- Banner xác nhận kết cấu nguyên vẹn -->
+        <div class="zero-defects-banner">
+          <div>
+            <strong>✓ Đánh giá hiện trạng mặt bằng:</strong> {{#if this.zeroDefectsNotice}}{{this.zeroDefectsNotice.vi}}{{else}}Khảo sát hiện trường không phát hiện vết nứt hoặc khuyết tật kết cấu tại tầng này.{{/if}}<br>
+            <span style="font-size: 7.5pt; color: #15803d;"><em>{{#if this.zeroDefectsNotice}}{{this.zeroDefectsNotice.en}}{{else}}Field survey recorded no cracks or structural defects on this floor plan.{{/if}}</em></span>
+          </div>
+        </div>
+      {{/if}}
+    </div>
+
+    <!-- Các trang Hồ sơ ảnh không gian kiến trúc các phòng (Vùng Z - Ảnh ngang) -->
+    {{#if this.overviewPages.length}}
+      {{#each this.overviewPages}}
+        <div class="a4-page-sheet">
+          <div class="report-subpage-topbar">
+            <span>LIÊN DANH CRLG – CRSRI – TT | TUYẾN METRO 2 BẾN THÀNH - THAM LƯƠNG</span>
+            <span>{{../../metadata.buildingId}} | {{../../metadata.reportNo}}</span>
+          </div>
+
+          <h2 class="chapter-header">PHỤ LỤC 2: HỒ SƠ ẢNH KHÔNG GIAN KIẾN TRÚC CÁC PHÒNG (VÙNG Z) - {{../floorName.vi}} (Trang {{this.pageIndexInFloor}}/{{this.totalOverviewPagesInFloor}})</h2>
+          <div style="font-size: 8.5pt; font-weight: bold; color: #475569; margin-bottom: 6px;">
+            APPENDIX 2 INDOOR ARCHITECTURAL ROOM & SPACE OVERVIEW (ZONE Z) - {{../floorName.en}} (Sheet {{this.pageIndexInFloor}}/{{this.totalOverviewPagesInFloor}})
+          </div>
+
+          <div class="room-overview-grid">
+            {{#each this.photos}}
+              <div class="room-photo-card">
+                <div class="room-photo-wrapper">
+                  {{#if this.base64}}
+                    <img src="{{this.base64}}" class="room-photo-img photo-conv-z" alt="{{this.roomName.vi}}">
+                  {{else if this.url}}
+                    <img src="{{this.url}}" class="room-photo-img photo-conv-z" alt="{{this.roomName.vi}}">
+                  {{else}}
+                    <div style="font-size: 7.5pt; color: #64748b; text-align: center; padding: 10px;">
+                      [ Ảnh lưu trên thiết bị KSV / Local cache ]
+                    </div>
+                  {{/if}}
+                  {{#if this.url}}
+                    {{#if @root.enableWatermark}}
+                      {{#unless this.alreadyWatermarked}}
+                        {{#if @root.metadata.headerLogoBase64}}
+                          <img src="{{@root.metadata.headerLogoBase64}}" class="watermark-logo-top-right watermark-logo-sm" alt="THACO REG">
+                        {{/if}}
+                        <div class="watermark-text-bottom-right watermark-text-sm">
+                          <div class="watermark-datetime">{{#if this.watermarkDateTime}}{{this.watermarkDateTime}}{{else if @root.metadata.watermarkDateTime}}{{@root.metadata.watermarkDateTime}}{{else}}{{@root.metadata.surveyDateFormatted}}{{/if}}</div>
+                          <div class="watermark-code">{{#if this.metroPhotoCode}}{{this.metroPhotoCode}}{{else}}HCM_M2.[{{@root.metadata.buildingId}}]_{{this.photoId}}_{{this.zoneCode}}{{/if}}</div>
+                        </div>
+                      {{/unless}}
+                    {{/if}}
+                  {{/if}}
+                </div>
+                <div class="room-photo-meta">
+                  <div class="room-photo-header">
+                    <span style="font-weight: bold; color: #0f172a;">{{this.photoId}} | {{this.roomName.vi}} ({{this.zoneCode}})</span>
+                    {{#if this.statusBadge.isNormal}}
+                      <span class="status-badge-normal">{{this.statusBadge.text.vi}}</span>
+                    {{else}}
+                      <span class="status-badge-defect">{{this.statusBadge.text.vi}}</span>
+                    {{/if}}
+                  </div>
+                  <div style="color: #475569; font-size: 7pt;">
+                    {{this.caption.vi}}<br>
+                    <span class="text-muted">{{this.caption.en}}</span>
+                  </div>
+                </div>
+              </div>
+            {{/each}}
+            {{#if (eq this.pageIndexInFloor this.totalOverviewPagesInFloor)}}
+              <div class="review-note-card">
+                <div class="review-note-title">Ghi chú kiểm tra / Review notes</div>
+                <div class="review-note-lines"></div>
+                <div class="review-note-sign"><span>Người kiểm tra / Checked by:</span><span>Ngày / Date:</span></div>
+              </div>
+            {{/if}}
+          </div>
+        </div>
+      {{/each}}
+    {{/if}}
+
+    <!-- Các trang Hồ sơ ảnh cấu kiện kết cấu chịu lực (Cột / Dầm E - Ảnh dọc) -->
+    {{#if this.elementOverviewPages.length}}
+      {{#each this.elementOverviewPages}}
+        <div class="a4-page-sheet">
+          <div class="report-subpage-topbar">
+            <span>LIÊN DANH CRLG – CRSRI – TT | TUYẾN METRO 2 BẾN THÀNH - THAM LƯƠNG</span>
+            <span>{{../../metadata.buildingId}} | {{../../metadata.reportNo}}</span>
+          </div>
+
+          <h2 class="chapter-header">PHỤ LỤC 2: HỒ SƠ ẢNH CẤU KIỆN KẾT CẤU CHỊU LỰC (CỘT/DẦM E) - {{../floorName.vi}} (Trang {{this.pageIndexInFloor}}/{{this.totalOverviewPagesInFloor}})</h2>
+          <div style="font-size: 8.5pt; font-weight: bold; color: #475569; margin-bottom: 6px;">
+            APPENDIX 2 STRUCTURAL LOAD-BEARING MEMBERS OVERVIEW (ELEMENT E) - {{../floorName.en}} (Sheet {{this.pageIndexInFloor}}/{{this.totalOverviewPagesInFloor}})
+          </div>
+
+          <div class="room-overview-grid element-overview-grid">
+            {{#each this.photos}}
+              <div class="room-photo-card">
+                <div class="room-photo-wrapper">
+                  {{#if this.base64}}
+                    <img src="{{this.base64}}" class="room-photo-img photo-conv-e" alt="{{this.roomName.vi}}">
+                  {{else if this.url}}
+                    <img src="{{this.url}}" class="room-photo-img photo-conv-e" alt="{{this.roomName.vi}}">
+                  {{else}}
+                    <div style="font-size: 7.5pt; color: #64748b; text-align: center; padding: 10px;">
+                      [ Ảnh lưu trên thiết bị KSV / Local cache ]
+                    </div>
+                  {{/if}}
+                  {{#if this.url}}
+                    {{#if @root.enableWatermark}}
+                      {{#unless this.alreadyWatermarked}}
+                        {{#if @root.metadata.headerLogoBase64}}
+                          <img src="{{@root.metadata.headerLogoBase64}}" class="watermark-logo-top-right watermark-logo-sm" alt="THACO REG">
+                        {{/if}}
+                        <div class="watermark-text-bottom-right watermark-text-sm">
+                          <div class="watermark-datetime">{{#if this.watermarkDateTime}}{{this.watermarkDateTime}}{{else if @root.metadata.watermarkDateTime}}{{@root.metadata.watermarkDateTime}}{{else}}{{@root.metadata.surveyDateFormatted}}{{/if}}</div>
+                          <div class="watermark-code">{{#if this.metroPhotoCode}}{{this.metroPhotoCode}}{{else}}HCM_M2.[{{@root.metadata.buildingId}}]_{{this.photoId}}_{{this.zoneCode}}{{/if}}</div>
+                        </div>
+                      {{/unless}}
+                    {{/if}}
+                  {{/if}}
+                </div>
+                <div class="room-photo-meta">
+                  <div class="room-photo-header">
+                    <span style="font-weight: bold; color: #0f172a;">{{this.photoId}} | {{this.roomName.vi}} ({{this.zoneCode}})</span>
+                    {{#if this.statusBadge.isNormal}}
+                      <span class="status-badge-normal">{{this.statusBadge.text.vi}}</span>
+                    {{else}}
+                      <span class="status-badge-defect">{{this.statusBadge.text.vi}}</span>
+                    {{/if}}
+                  </div>
+                  <div style="color: #475569; font-size: 7pt;">
+                    {{this.caption.vi}}<br>
+                    <span class="text-muted">{{this.caption.en}}</span>
+                  </div>
+                </div>
+              </div>
+            {{/each}}
+            {{#if (eq this.pageIndexInFloor this.totalOverviewPagesInFloor)}}
+              <div class="review-note-card">
+                <div class="review-note-title">Ghi chú kiểm tra / Review notes</div>
+                <div class="review-note-lines"></div>
+                <div class="review-note-sign"><span>Người kiểm tra / Checked by:</span><span>Ngày / Date:</span></div>
+              </div>
+            {{/if}}
+          </div>
+        </div>
+      {{/each}}
+    {{/if}}
+
+    <!-- Các trang tiếp theo của Tầng: Cặp ảnh đối chiếu có thước đo (Mỗi trang tối đa 2 cặp ảnh để chống tràn A4) -->
+    {{#if this.defectPairPages.length}}
+      {{#each this.defectPairPages}}
+        <div class="a4-page-sheet">
+          <div class="report-subpage-topbar">
+            <span>LIÊN DANH CRLG – CRSRI – TT | TUYẾN METRO 2 BẾN THÀNH - THAM LƯƠNG</span>
+            <span>{{../../metadata.buildingId}} | {{../../metadata.reportNo}}</span>
+          </div>
+
+          <h2 class="chapter-header">PHỤ LỤC 2: HỒ SƠ ẢNH KHUYẾT TẬT CÓ THƯỚC ĐO - {{../floorName.vi}} (Trang {{this.pageIndex}})</h2>
+          <div style="font-size: 8.5pt; font-weight: bold; color: #475569; margin-bottom: 8px;">
+            APPENDIX 2 CRACK COMPARISON PHOTOS WITH GAUGE - {{../floorName.en}} (Sheet {{this.pageIndex}})
+          </div>
+
+          {{#each this.pairs}}
+            {{#if this.hasExtraCloseUp}}
+              <!-- Bộ 3 ảnh đối chiếu khi khuyết tật có thêm ảnh thước đo chuyên dụng -->
+              <div class="defect-trio-container" style="margin-bottom: 6px;">
+                <div class="photo-card">
+                  <div class="defect-photo-wrapper" style="height: 195px;">
+                    {{#if this.contextPhotoBase64}}
+                      <img src="{{this.contextPhotoBase64}}" alt="Bối cảnh" class="defect-pair-img photo-conv-d">
+                    {{else if this.contextPhotoUrl}}
+                      <img src="{{this.contextPhotoUrl}}" alt="Bối cảnh" class="defect-pair-img photo-conv-d">
+                    {{else}}
+                      <div style="height: 195px; display: flex; align-items: center; justify-content: center; background: #f8fafc; color: #64748b; font-size: 8pt; border: 1px dashed #cbd5e1; text-align: center; padding: 8px;">
+                        [ Ảnh bối cảnh ]
+                      </div>
+                    {{/if}}
+                    {{#if this.contextPhotoUrl}}
+                      {{#if @root.enableWatermark}}
+                        {{#unless this.contextAlreadyWatermarked}}
+                          {{#if @root.metadata.headerLogoBase64}}
+                            <img src="{{@root.metadata.headerLogoBase64}}" class="watermark-logo-top-right watermark-logo-sm" alt="THACO REG">
+                          {{/if}}
+                          <div class="watermark-text-bottom-right watermark-text-sm">
+                            <div class="watermark-datetime">{{#if this.contextDateTime}}{{this.contextDateTime}}{{else if @root.metadata.watermarkDateTime}}{{@root.metadata.watermarkDateTime}}{{else}}{{@root.metadata.surveyDateFormatted}}{{/if}}</div>
+                            <div class="watermark-code">HCM_M2.[{{@root.metadata.buildingId}}]_{{this.defectId}}_CTX</div>
+                          </div>
+                        {{/unless}}
+                      {{/if}}
+                    {{/if}}
+                  </div>
+                  <div class="photo-caption">{{this.contextCaption.vi}}</div>
+                </div>
+
+                <div class="photo-card">
+                  <div class="defect-photo-wrapper" style="height: 195px;">
+                    {{#if this.closeUpPhotoBase64}}
+                      <img src="{{this.closeUpPhotoBase64}}" alt="Cận cảnh 1" class="defect-pair-img photo-conv-d">
+                    {{else if this.closeUpPhotoUrl}}
+                      <img src="{{this.closeUpPhotoUrl}}" alt="Cận cảnh 1" class="defect-pair-img photo-conv-d">
+                    {{else}}
+                      <div style="height: 195px; display: flex; align-items: center; justify-content: center; background: #f8fafc; color: #64748b; font-size: 8pt; border: 1px dashed #cbd5e1; text-align: center; padding: 8px;">
+                        [ Cận cảnh 1 ]
+                      </div>
+                    {{/if}}
+                    {{#if this.closeUpPhotoUrl}}
+                      {{#if @root.enableWatermark}}
+                        {{#unless this.closeUpAlreadyWatermarked}}
+                          {{#if @root.metadata.headerLogoBase64}}
+                            <img src="{{@root.metadata.headerLogoBase64}}" class="watermark-logo-top-right watermark-logo-sm" alt="THACO REG">
+                          {{/if}}
+                          <div class="watermark-text-bottom-right watermark-text-sm">
+                            <div class="watermark-datetime">{{#if this.closeUpDateTime}}{{this.closeUpDateTime}}{{else if @root.metadata.watermarkDateTime}}{{@root.metadata.watermarkDateTime}}{{else}}{{@root.metadata.surveyDateFormatted}}{{/if}}</div>
+                            <div class="watermark-code">HCM_M2.[{{@root.metadata.buildingId}}]_{{this.defectId}}_CU</div>
+                          </div>
+                        {{/unless}}
+                      {{/if}}
+                    {{/if}}
+                  </div>
+                  <div class="photo-caption font-bold" style="color: #0f3b6c;">{{this.closeUpCaption.vi}}</div>
+                </div>
+
+                <div class="photo-card">
+                  <div class="defect-photo-wrapper" style="height: 195px;">
+                    {{#if this.extraCloseUpPhotoBase64}}
+                      <img src="{{this.extraCloseUpPhotoBase64}}" alt="Thước đo nứt" class="defect-pair-img photo-conv-d">
+                    {{else if this.extraCloseUpPhotoUrl}}
+                      <img src="{{this.extraCloseUpPhotoUrl}}" alt="Thước đo nứt" class="defect-pair-img photo-conv-d">
+                    {{else}}
+                      <div style="height: 195px; display: flex; align-items: center; justify-content: center; background: #f8fafc; color: #64748b; font-size: 8pt; border: 1px dashed #cbd5e1; text-align: center; padding: 8px;">
+                        [ Thước đo nứt ]
+                      </div>
+                    {{/if}}
+                    {{#if this.extraCloseUpPhotoUrl}}
+                      {{#if @root.enableWatermark}}
+                        {{#unless this.extraCloseUpAlreadyWatermarked}}
+                          {{#if @root.metadata.headerLogoBase64}}
+                            <img src="{{@root.metadata.headerLogoBase64}}" class="watermark-logo-top-right watermark-logo-sm" alt="THACO REG">
+                          {{/if}}
+                          <div class="watermark-text-bottom-right watermark-text-sm">
+                            <div class="watermark-datetime">{{#if this.extraCloseUpDateTime}}{{this.extraCloseUpDateTime}}{{else if @root.metadata.watermarkDateTime}}{{@root.metadata.watermarkDateTime}}{{else}}{{@root.metadata.surveyDateFormatted}}{{/if}}</div>
+                            <div class="watermark-code">HCM_M2.[{{@root.metadata.buildingId}}]_{{this.defectId}}_GAUGE</div>
+                          </div>
+                        {{/unless}}
+                      {{/if}}
+                    {{/if}}
+                  </div>
+                  <div class="photo-caption font-bold" style="color: #ea580c;">{{this.extraCloseUpCaption.vi}}</div>
+                </div>
+              </div>
+
+              <!-- Dải thông số kỹ thuật thước đo & trạng thái -->
+              <div class="defect-meta-strip" style="margin-bottom: 12px; border-bottom: 1px dashed #cbd5e1; padding-bottom: 6px;">
+                <div class="meta-strip-row">
+                  <span class="meta-item"><strong style="color: #c2410c;">Mã lỗi:</strong> {{this.defectId}}</span>
+                  <span class="meta-item"><strong>Thước đo:</strong> {{#if this.hasCrackGauge}}Đã áp thước chuẩn{{else}}Quan sát ngoại quan{{/if}}</span>
+                  <span class="meta-item"><strong>Kích thước:</strong> wmax = {{this.wmaxMm}} mm | L = {{this.lengthM}} m</span>
+                  {{#if this.activityStateDisplay}}<span class="meta-item"><strong>Trạng thái:</strong> {{this.activityStateDisplay.vi}}</span>{{/if}}
+                  {{#if this.cadPinRef}}<span class="meta-item"><strong>Vị trí CAD:</strong> {{this.cadPinRef}}</span>{{/if}}
+                </div>
+                {{#if this.notes}}
+                  <div class="meta-strip-notes"><strong>Ghi chú KSV:</strong> {{this.notes}}</div>
+                {{/if}}
+              </div>
+            {{else}}
+              <!-- Cặp 2 ảnh truyền thống -->
+              <div class="defect-pair-container" style="margin-bottom: 6px;">
+                <!-- Ảnh bối cảnh -->
+                <div class="photo-card">
+                  <div class="defect-photo-wrapper">
+                    {{#if this.contextPhotoBase64}}
+                      <img src="{{this.contextPhotoBase64}}" alt="Bối cảnh" class="defect-pair-img photo-conv-d">
+                    {{else if this.contextPhotoUrl}}
+                      <img src="{{this.contextPhotoUrl}}" alt="Bối cảnh" class="defect-pair-img photo-conv-d">
+                    {{else}}
+                      <div style="height: 230px; display: flex; align-items: center; justify-content: center; background: #f8fafc; color: #64748b; font-size: 8pt; border: 1px dashed #cbd5e1; text-align: center; padding: 12px;">
+                        [ Ảnh bối cảnh lưu trên thiết bị KSV / Device local cache ]
+                      </div>
+                    {{/if}}
+                    {{#if this.contextPhotoUrl}}
+                      {{#if @root.enableWatermark}}
+                        {{#unless this.contextAlreadyWatermarked}}
+                          {{#if @root.metadata.headerLogoBase64}}
+                            <img src="{{@root.metadata.headerLogoBase64}}" class="watermark-logo-top-right watermark-logo-sm" alt="THACO REG">
+                          {{/if}}
+                          <div class="watermark-text-bottom-right watermark-text-sm">
+                            <div class="watermark-datetime">{{#if this.contextDateTime}}{{this.contextDateTime}}{{else if @root.metadata.watermarkDateTime}}{{@root.metadata.watermarkDateTime}}{{else}}{{@root.metadata.surveyDateFormatted}}{{/if}}</div>
+                            <div class="watermark-code">HCM_M2.[{{@root.metadata.buildingId}}]_{{this.defectId}}_CTX</div>
+                          </div>
+                        {{/unless}}
+                      {{/if}}
+                    {{/if}}
+                  </div>
+                  <div class="photo-caption">{{this.contextCaption.vi}}</div>
+                </div>
+                <!-- Ảnh cận cảnh có thước đo nứt -->
+                <div class="photo-card">
+                  <div class="defect-photo-wrapper">
+                    {{#if this.closeUpPhotoBase64}}
+                      <img src="{{this.closeUpPhotoBase64}}" alt="Cận cảnh thước đo" class="defect-pair-img photo-conv-d">
+                    {{else if this.closeUpPhotoUrl}}
+                      <img src="{{this.closeUpPhotoUrl}}" alt="Cận cảnh thước đo" class="defect-pair-img photo-conv-d">
+                    {{else}}
+                      <div style="height: 230px; display: flex; align-items: center; justify-content: center; background: #f8fafc; color: #64748b; font-size: 8pt; border: 1px dashed #cbd5e1; text-align: center; padding: 12px;">
+                        [ Ảnh cận cảnh lưu trên thiết bị KSV / Device local cache ]
+                      </div>
+                    {{/if}}
+                    {{#if this.closeUpPhotoUrl}}
+                      {{#if @root.enableWatermark}}
+                        {{#unless this.closeUpAlreadyWatermarked}}
+                          {{#if @root.metadata.headerLogoBase64}}
+                            <img src="{{@root.metadata.headerLogoBase64}}" class="watermark-logo-top-right watermark-logo-sm" alt="THACO REG">
+                          {{/if}}
+                          <div class="watermark-text-bottom-right watermark-text-sm">
+                            <div class="watermark-datetime">{{#if this.closeUpDateTime}}{{this.closeUpDateTime}}{{else if @root.metadata.watermarkDateTime}}{{@root.metadata.watermarkDateTime}}{{else}}{{@root.metadata.surveyDateFormatted}}{{/if}}</div>
+                            <div class="watermark-code">HCM_M2.[{{@root.metadata.buildingId}}]_{{this.defectId}}_CU</div>
+                          </div>
+                        {{/unless}}
+                      {{/if}}
+                    {{/if}}
+                  </div>
+                  <div class="photo-caption font-bold" style="color: #ea580c;">{{this.closeUpCaption.vi}}</div>
+                </div>
+              </div>
+
+              <!-- Dải thông số kỹ thuật thước đo & trạng thái -->
+              <div class="defect-meta-strip" style="margin-bottom: 12px; border-bottom: 1px dashed #cbd5e1; padding-bottom: 6px;">
+                <div class="meta-strip-row">
+                  <span class="meta-item"><strong style="color: #c2410c;">Mã lỗi:</strong> {{this.defectId}}</span>
+                  <span class="meta-item"><strong>Thước đo:</strong> {{#if this.hasCrackGauge}}Đã áp thước chuẩn{{else}}Quan sát ngoại quan{{/if}}</span>
+                  <span class="meta-item"><strong>Kích thước:</strong> wmax = {{this.wmaxMm}} mm | L = {{this.lengthM}} m</span>
+                  {{#if this.activityStateDisplay}}<span class="meta-item"><strong>Trạng thái:</strong> {{this.activityStateDisplay.vi}}</span>{{/if}}
+                  {{#if this.cadPinRef}}<span class="meta-item"><strong>Vị trí CAD:</strong> {{this.cadPinRef}}</span>{{/if}}
+                </div>
+                {{#if this.notes}}
+                  <div class="meta-strip-notes"><strong>Ghi chú KSV:</strong> {{this.notes}}</div>
+                {{/if}}
+              </div>
+            {{/if}}
+          {{/each}}
+        </div>
+      {{/each}}
+    {{/if}}
+  {{/each}}

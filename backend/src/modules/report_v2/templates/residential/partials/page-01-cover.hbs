@@ -1,0 +1,138 @@
+  <!-- =====================================================================
+       TRANG 1: TRANG BÌA BÁO CÁO (COVER PAGE)
+       ===================================================================== -->
+  <div class="a4-page-sheet">
+    
+  <!-- HEADER CHUẨN 3 CỘT (LIÊN DANH THACO REC - METRO 2) -->
+  <table class="report-running-header">
+    <tr>
+      <td class="col-logo">
+        {{#if metadata.headerLogoBase64}}
+          <img src="{{metadata.headerLogoBase64}}" alt="Logo THACO REC">
+        {{else}}
+          <div style="font-weight: bold; font-size: 11pt; color: #003366;">THACO REC</div>
+        {{/if}}
+      </td>
+      <td class="col-title">
+        <div class="main-title">Ho Chi Minh City Mass Rapid Transit Line2</div>
+        <div class="sub-title">Ben Thanh - Tham Luong Route</div>
+        <div class="doc-kind">Building Condition Survey and Assessment</div>
+      </td>
+      <td class="col-meta">
+        <strong>Doc.No:</strong> {{metadata.reportNo}}<br>
+        <strong>Date:</strong> {{metadata.surveyDateFormatted}}<br>
+        <strong>Rev No:</strong> {{metadata.revision}}<br>
+        <strong>Page:</strong> 1 of <span id="report-total-pages">{{metadata.totalExpectedPages}}</span>
+      </td>
+    </tr>
+  </table>
+
+
+    <div class="cover-page-border">
+      <!-- TIÊU ĐỀ DỰ ÁN (PROJECT TITLE) -->
+      <div class="cover-project-box">
+        <div style="font-size: 9pt; font-weight: bold; color: #000000; margin-bottom: 2px;">
+          PROJECT TITLE:
+        </div>
+        <div style="font-size: 9.5pt; font-weight: bold; color: #000000; margin-bottom: 2px;">
+          {{metadata.projectTitleVi}}
+        </div>
+        <div style="font-size: 9pt; color: #334155; margin-bottom: 2px;">
+          {{metadata.projectTitleEn}}
+        </div>
+        <div style="font-size: 8.5pt; font-weight: bold; color: #475569;">
+          EPC Contract
+        </div>
+      </div>
+
+      <!-- TIÊU ĐỀ CHÍNH BÁO CÁO -->
+      <div class="cover-doc-title-box">
+        <h1>{{metadata.reportTitleVi}}</h1>
+        <h2>{{metadata.reportTitleEn}}</h2>
+        <div class="cover-id-badge">
+          Mã công trình/Building ID: {{metadata.buildingId}} &nbsp;|&nbsp; Mã khảo sát/Survey ID: {{metadata.surveyId}}
+        </div>
+      </div>
+
+      <!-- ẢNH MẶT TIỀN TRUNG TÂM TRANG BÌA (P-02) -->
+      <div class="cover-facade-section">
+        <div class="cover-facade-wrapper">
+          {{#if metadata.coverPhotoBase64}}
+            <img src="{{metadata.coverPhotoBase64}}" class="cover-facade-photo" alt="Ảnh mặt tiền chính công trình">
+          {{else if metadata.coverPhotoUrl}}
+            <img src="{{metadata.coverPhotoUrl}}" class="cover-facade-photo" alt="Ảnh mặt tiền chính công trình">
+          {{else}}
+            <div class="photo-placeholder" style="width: 320px; height: 200px; margin: 0 auto;">
+              [ Chưa có ảnh mặt tiền chính P-02 ]
+            </div>
+          {{/if}}
+          {{#if (or metadata.coverPhotoBase64 metadata.coverPhotoUrl)}}
+            {{#if @root.enableWatermark}}
+              {{#unless metadata.coverAlreadyWatermarked}}
+                {{#if metadata.headerLogoBase64}}
+                  <img src="{{metadata.headerLogoBase64}}" class="watermark-logo-top-right watermark-logo-sm" alt="THACO REG">
+                {{/if}}
+                <div class="watermark-text-bottom-right watermark-text-sm">
+                  <div class="watermark-datetime">{{#if metadata.coverWatermarkDateTime}}{{metadata.coverWatermarkDateTime}}{{else}}{{metadata.watermarkDateTime}}{{/if}}</div>
+                  <div class="watermark-code">HCM_M2.[{{metadata.buildingId}}]_P02_MAIN</div>
+                </div>
+              {{/unless}}
+            {{/if}}
+          {{/if}}
+        </div>
+      </div>
+
+      <!-- ĐỊA CHỈ VÀ THỜI GIAN KHẢO SÁT -->
+      <div class="cover-address-section">
+        ĐỊA CHỈ: {{section1.address.vi}}<br>
+        ADD: {{section1.address.en}}
+      </div>
+
+      <div class="cover-time-section">
+        THỜI GIAN/TIME: {{metadata.surveyDateFormatted}}
+      </div>
+
+      <!-- BẢNG KÝ DUYỆT 3 BÊN -->
+      <table class="signature-table">
+        <thead>
+          <tr>
+            {{#each signatures3Party}}
+              <th>{{this.roleVi}}<br><span style="font-size: 7.5pt; font-weight: normal;">{{this.roleEn}}</span></th>
+            {{/each}}
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            {{#each signatures3Party}}
+              <td>
+                <div style="font-size: 7.5pt; color: #475569; margin-bottom: 2px;">HỌ TÊN / FULL NAME</div>
+                <div class="font-bold" style="font-size: 9pt; color: #000000; min-height: 14px; margin-bottom: 2px;">
+                  {{#if this.fullName}}{{this.fullName}}{{else}}&nbsp;{{/if}}
+                </div>
+                <div style="font-size: 7.5pt; color: #64748b; margin-bottom: 4px;">{{this.titleVi}}</div>
+                
+                <div style="font-size: 7.5pt; color: #475569; margin-bottom: 2px;">CHỮ KÝ / SIGNATURE</div>
+                <div class="signature-box">
+                  {{#if this.signatureBase64}}
+                    <img src="{{this.signatureBase64}}" alt="Chữ ký">
+                  {{else if this.signatureUrl}}
+                    <img src="{{this.signatureUrl}}" alt="Chữ ký">
+                  {{else if this.fullName}}
+                    <span style="color: #94a3b8; font-style: italic; font-size: 7.5pt;">[ Đã ký điện tử ]</span>
+                  {{else}}
+                    <span style="color: #cbd5e1; font-style: italic; font-size: 7pt;">(Ký sống)</span>
+                  {{/if}}
+                </div>
+
+                <div style="font-size: 7.5pt; color: #000000; font-weight: bold; border-top: 1px dotted #cbd5e1; padding-top: 4px;">
+                  NGÀY / DATE: {{#if this.date}}{{this.date}}{{else}}&nbsp;{{/if}}
+                </div>
+              </td>
+            {{/each}}
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="page-number-footer">1</div>
+  </div>

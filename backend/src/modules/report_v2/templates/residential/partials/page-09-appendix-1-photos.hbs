@@ -1,0 +1,106 @@
+  <!-- =====================================================================
+       PHỤ LỤC 1: BẢN VẼ MẶT ĐỨNG NGOÀI & BỘ ẢNH ĐỊNH DANH (P-01 ĐẾN P-07)
+       ===================================================================== -->
+  {{#if appendix1Pages.length}}
+    {{#each appendix1Pages}}
+      <div class="a4-page-sheet">
+        <div class="report-subpage-topbar">
+          <span>LIÊN DANH CRLG – CRSRI – TT | TUYẾN METRO 2 BẾN THÀNH - THAM LƯƠNG</span>
+          <span>{{../metadata.buildingId}} | {{../metadata.reportNo}}</span>
+        </div>
+
+        <h2 class="chapter-header">PHỤ LỤC 1: BẢN VẼ MẶT ĐỨNG NGOÀI & BỘ ẢNH ĐỊNH DANH {{#if (gt this.totalPages 1)}}(Trang {{this.pageIndex}}/{{this.totalPages}}){{/if}}</h2>
+        <div style="font-size: 8.5pt; font-weight: bold; color: #475569; margin-bottom: 8px;">
+          APPENDIX 1 BUILDING EXTERIOR ELEVATION DRAWINGS & IDENTIFICATION PHOTOS
+        </div>
+
+        {{#if (eq this.pageIndex 1)}}
+          {{#if (eq ../scenarioFlags.exteriorPhotoLayout 'party_wall_3')}}
+            <div class="party-wall-notice">
+              <strong>📌 Đặc điểm tiếp cận ngoại thất:</strong> Công trình dạng nhà liên kế / nhà ống giáp ranh hai bên (tường chung hoặc tường sát), phía sau giáp công trình khác. Do đó không thể tiếp cận và không có ảnh chụp mặt bên (hông trái, hông phải) và mặt sau.<br>
+              <em><strong>Exterior access characteristics:</strong> Attached shophouse / rowhouse flanked by adjacent party walls on both sides and rear. Side and rear facades are inaccessible.</em>
+            </div>
+          {{/if}}
+        {{/if}}
+
+        <div class="photo-grid-exterior">
+          {{#each this.photos}}
+            <div class="photo-card">
+              <div class="photo-card-img-wrapper">
+                {{#if this.base64}}
+                  <img src="{{this.base64}}" class="photo-card-main-img" alt="{{this.name.vi}}">
+                {{else if this.url}}
+                  <img src="{{this.url}}" class="photo-card-main-img" alt="{{this.name.vi}}">
+                {{/if}}
+                {{#if @root.enableWatermark}}
+                  {{#unless this.alreadyWatermarked}}
+                    {{#if @root.metadata.headerLogoBase64}}
+                      <img src="{{@root.metadata.headerLogoBase64}}" class="watermark-logo-top-right watermark-logo-sm" alt="THACO REG">
+                    {{/if}}
+                    <div class="watermark-text-bottom-right watermark-text-sm">
+                      <div class="watermark-datetime">{{#if this.watermarkDateTime}}{{this.watermarkDateTime}}{{else if @root.metadata.watermarkDateTime}}{{@root.metadata.watermarkDateTime}}{{else}}{{this.capturedAt}}{{/if}}</div>
+                      <div class="watermark-code">{{#if this.metroPhotoCode}}{{this.metroPhotoCode}}{{else if this.originalTag}}{{this.originalTag}}{{else}}HCM_M2.[{{@root.metadata.buildingId}}]_{{this.photoCode}}{{/if}}</div>
+                    </div>
+                  {{/unless}}
+                {{/if}}
+              </div>
+              <div class="photo-caption">
+                <strong>{{this.photoCode}}:</strong> {{this.name.vi}}<br>
+                <span class="text-muted">{{this.name.en}}</span><br>
+                <span style="font-size: 7.5pt; color: #475569;">Ngày chụp: {{#if this.watermarkDateTime}}{{this.watermarkDateTime}}{{else}}{{this.capturedAt}}{{/if}}</span>
+              </div>
+            </div>
+          {{/each}}
+        </div>
+      </div>
+    {{/each}}
+  {{else}}
+    <div class="a4-page-sheet">
+      <div class="report-subpage-topbar">
+        <span>LIÊN DANH CRLG – CRSRI – TT | TUYẾN METRO 2 BẾN THÀNH - THAM LƯƠNG</span>
+        <span>{{metadata.buildingId}} | {{metadata.reportNo}}</span>
+      </div>
+
+      <h2 class="chapter-header">PHỤ LỤC 1: BẢN VẼ MẶT ĐỨNG NGOÀI CÔNG TRÌNH</h2>
+      <div style="font-size: 8.5pt; font-weight: bold; color: #475569; margin-bottom: 8px;">
+        APPENDIX 1 BUILDING EXTERIOR ELEVATION DRAWINGS
+      </div>
+
+      {{#if (eq scenarioFlags.exteriorPhotoLayout 'party_wall_3')}}
+        <div class="party-wall-notice">
+          <strong>📌 Đặc điểm tiếp cận ngoại thất:</strong> Công trình dạng nhà liên kế / nhà ống giáp ranh hai bên (tường chung hoặc tường sát), phía sau giáp công trình khác. Do đó không thể tiếp cận và không có ảnh chụp mặt bên (hông trái, hông phải) và mặt sau.<br>
+          <em><strong>Exterior access characteristics:</strong> Attached shophouse / rowhouse flanked by adjacent party walls on both sides and rear. Side and rear facades are inaccessible.</em>
+        </div>
+      {{/if}}
+
+      <div class="photo-grid-exterior">
+        {{#each appendix1}}
+          <div class="photo-card">
+            <div class="photo-card-img-wrapper">
+              {{#if this.base64}}
+                <img src="{{this.base64}}" class="photo-card-main-img" alt="{{this.name.vi}}">
+              {{else if this.url}}
+                <img src="{{this.url}}" class="photo-card-main-img" alt="{{this.name.vi}}">
+              {{/if}}
+              {{#if @root.enableWatermark}}
+                {{#unless this.alreadyWatermarked}}
+                  {{#if @root.metadata.headerLogoBase64}}
+                    <img src="{{@root.metadata.headerLogoBase64}}" class="watermark-logo-top-right watermark-logo-sm" alt="THACO REG">
+                  {{/if}}
+                  <div class="watermark-text-bottom-right watermark-text-sm">
+                    <div class="watermark-datetime">{{#if this.watermarkDateTime}}{{this.watermarkDateTime}}{{else if @root.metadata.watermarkDateTime}}{{@root.metadata.watermarkDateTime}}{{else}}{{this.capturedAt}}{{/if}}</div>
+                    <div class="watermark-code">{{#if this.metroPhotoCode}}{{this.metroPhotoCode}}{{else if this.originalTag}}{{this.originalTag}}{{else}}HCM_M2.[{{@root.metadata.buildingId}}]_{{this.photoCode}}{{/if}}</div>
+                  </div>
+                {{/unless}}
+              {{/if}}
+            </div>
+            <div class="photo-caption">
+              <strong>{{this.photoCode}}:</strong> {{this.name.vi}}<br>
+              <span class="text-muted">{{this.name.en}}</span><br>
+              <span style="font-size: 7pt; color: #64748b;">Ngày chụp: {{this.capturedAt}}</span>
+            </div>
+          </div>
+        {{/each}}
+      </div>
+    </div>
+  {{/if}}

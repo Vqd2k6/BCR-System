@@ -5,6 +5,7 @@ import fs from 'fs';
 import path from 'path';
 import Handlebars from 'handlebars';
 import { ReportV2ViewModelMapper } from '../modules/report_v2/mappers/report-v2-viewmodel.mapper';
+import { ReportV2Service } from '../modules/report_v2/report-v2.service';
 import { PdfRenderV2Engine } from '../modules/report_v2/engine/pdf-render-v2.engine';
 
 function assert(condition: boolean, message: string) {
@@ -18,13 +19,7 @@ function assert(condition: boolean, message: string) {
 
 async function testPdfRender() {
   console.log('--- 1. Chuẩn bị ViewModel & HTML ---');
-  const templatePath = path.join(__dirname, '../modules/report_v2/templates/residential/index.hbs');
-  const stylesPath = path.join(__dirname, '../modules/report_v2/templates/residential/styles.css');
-
-  const templateSource = fs.readFileSync(templatePath, 'utf8');
-  const stylesSource = fs.readFileSync(stylesPath, 'utf8');
-
-  Handlebars.registerHelper('eq', (a, b) => a === b);
+  const { template: compiled, styles: stylesSource } = ReportV2Service.getCompiledTemplate();
 
   const mockReport = {
     project_parcel_code: 'C&C-01-B-01064',
@@ -40,7 +35,6 @@ async function testPdfRender() {
   };
 
   const viewModel = ReportV2ViewModelMapper.buildViewModel(mockReport);
-  const compiled = Handlebars.compile(templateSource);
   const htmlOutput = compiled({
     ...viewModel,
     styles: stylesSource,

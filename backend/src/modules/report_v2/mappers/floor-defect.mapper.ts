@@ -26,7 +26,7 @@ import { ReportImageResolver } from '../services/report-image-resolver.service';
  */
 export function isPhotoAlreadyWatermarked(url?: string, photoObj?: any): boolean {
   if (!url && !photoObj) return false;
-  if (photoObj?.hasWatermark === true || photoObj?.isWatermarked === true) return true;
+  if (photoObj?.hasWatermark === true || photoObj?.isWatermarked === true || photoObj?.alreadyWatermarked === true) return true;
   const u = (url || photoObj?.url || '').toLowerCase();
   return (
     u.includes('_wm_') ||
@@ -37,7 +37,7 @@ export function isPhotoAlreadyWatermarked(url?: string, photoObj?: any): boolean
   );
 }
 
-import { extractPhotoDateTime } from './report-v2-viewmodel.mapper';
+import { extractPhotoDateTime } from './formatters.mapper';
 
 export class FloorDefectMapper {
   public static mapFloors(
@@ -73,20 +73,17 @@ export class FloorDefectMapper {
       const cadPins: CadPinOverlayItem[] = [];
       const cadStructuralPins: CadPinOverlayItem[] = [];
 
-      // Vùng Z từ fl.cadZonePins: Sơ đồ CAD quy ước là ảnh dọc, chuyển đổi toạ độ xoay 90° CW từ ảnh ngang sang ảnh dọc
+      // Vùng Z từ fl.cadZonePins: Toạ độ chuẩn tỷ lệ % trên sơ đồ CAD kiến trúc (1:1 theo dữ liệu khảo sát)
       if (Array.isArray(fl.cadZonePins)) {
         for (const p of fl.cadZonePins) {
           if (p && p.pinX !== undefined && p.pinY !== undefined) {
             const code = p.zoneCode || p.label || 'Z';
-            // Chuyển đổi toạ độ 90° CW: x_new = 100 - y_old, y_new = x_old
-            const rotX = Number((100 - Number(p.pinY)).toFixed(2));
-            const rotY = Number(Number(p.pinX).toFixed(2));
             cadPins.push({
               id: p.id,
               code,
               label: p.label || code,
-              pinX: rotX,
-              pinY: rotY,
+              pinX: Number(p.pinX),
+              pinY: Number(p.pinY),
               type: 'ZONE',
               typeLower: 'zone',
               description: `Vùng kiến trúc ${code}`,
@@ -576,9 +573,9 @@ export class FloorDefectMapper {
         }
       }
 
-      // 4. Phân cụm ảnh: Tách riêng ảnh phòng (Vùng Z - Ảnh ngang) và ảnh cấu kiện (Cột/Dầm E - Ảnh dọc)
-      // Chia cân bằng giữa các trang để tránh trang cuối chỉ còn 1-2 ảnh (vd 8 ảnh -> 4 + 4)
-      const PHOTOS_PER_OVERVIEW_PAGE = 6;
+      // 4. Phân cụm ảnh: Tách riêng ảnh phòng (Vùng Z) và ảnh cấu kiện (Cột/Dầm E)
+      // Chuẩn A4: Tối đa 2 hàng × 2 cột = 4 ảnh / trang để ảnh to rõ và không vượt quá 2 ảnh / hàng
+      const PHOTOS_PER_OVERVIEW_PAGE = 4;
       const buildBalancedPages = <T,>(items: T[]): FloorOverviewPageViewModel[] => {
         const pageCount = Math.ceil(items.length / PHOTOS_PER_OVERVIEW_PAGE);
         if (pageCount === 0) return [];

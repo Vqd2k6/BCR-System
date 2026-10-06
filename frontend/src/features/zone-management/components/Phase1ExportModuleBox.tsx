@@ -92,6 +92,8 @@ export const Phase1ExportModuleBox: React.FC<Phase1ExportModuleBoxProps> = ({
     handleDirectPrint,
     handleExportSingleDocx,
     handleExportSinglePdf,
+    enableWatermark,
+    handleToggleWatermark,
   } = usePhase1ReportPreview({
     setActionMessage,
   });
@@ -173,6 +175,8 @@ export const Phase1ExportModuleBox: React.FC<Phase1ExportModuleBoxProps> = ({
         handleDirectPrint={handleDirectPrint}
         handleExportSingleDocx={handleExportSingleDocx}
         handleExportSinglePdf={handleExportSinglePdf}
+        enableWatermark={enableWatermark}
+        handleToggleWatermark={handleToggleWatermark}
       />
     </div>
   );
