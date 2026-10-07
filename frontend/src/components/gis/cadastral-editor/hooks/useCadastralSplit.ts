@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import L from 'leaflet';
 import { api } from '../../../../services/api';
 import { GisParcel, MutationPayloadData, CadastralParcelData, SplitChildData, MaxZoneCodeInfo } from '../../shared/types';
-import { computePolygonAreaM2, interpolatePoint, splitQuadHorizontal, splitQuadVertical } from '../../shared/geoMath';
+import { computePolygonAreaM2, interpolatePoint, splitQuadHorizontal, splitQuadVertical, cleanPolygonRing } from '../../shared/geoMath';
 
 interface UseCadastralSplitProps {
   realActiveCoords: [number, number][];
@@ -35,11 +35,12 @@ export const useCadastralSplit = ({
   const [_isLoadingCodes, setIsLoadingCodes] = useState<boolean>(false);
 
   const getDefaultPolygonA = useCallback((): [number, number][] => {
-    if (realActiveCoords.length < 3) return realActiveCoords;
-    const p0 = realActiveCoords[0];
-    const p1 = realActiveCoords[1];
-    const p2 = realActiveCoords[2];
-    const p3 = realActiveCoords[3] || realActiveCoords[2];
+    const clean = cleanPolygonRing(realActiveCoords);
+    if (clean.length < 3) return clean;
+    const p0 = clean[0];
+    const p1 = clean[1];
+    const p2 = clean[2];
+    const p3 = clean[3] || clean[2];
 
     const cutL = interpolatePoint(p0, p3, 0.6);
     const cutR = interpolatePoint(p1, p2, 0.6);
@@ -47,11 +48,12 @@ export const useCadastralSplit = ({
   }, [realActiveCoords]);
 
   const getLShapePolygon = useCallback((): [number, number][] => {
-    if (realActiveCoords.length < 3) return realActiveCoords;
-    const p0 = realActiveCoords[0];
-    const p1 = realActiveCoords[1];
-    const p2 = realActiveCoords[2];
-    const p3 = realActiveCoords[3] || realActiveCoords[2];
+    const clean = cleanPolygonRing(realActiveCoords);
+    if (clean.length < 3) return clean;
+    const p0 = clean[0];
+    const p1 = clean[1];
+    const p2 = clean[2];
+    const p3 = clean[3] || clean[2];
 
     const cutL = interpolatePoint(p0, p3, 0.65);
     const cutR = interpolatePoint(p1, p2, 0.65);
@@ -77,17 +79,18 @@ export const useCadastralSplit = ({
 
   // Tự động khởi tạo cả 2 đa giác A và B ngay khi mở tab Tách thửa để luôn nhìn thấy trên bản đồ
   useEffect(() => {
-    if (boundaryStatus === 'SPLIT' && polyAVertices.length < 3 && realActiveCoords.length >= 3) {
+    const clean = cleanPolygonRing(realActiveCoords);
+    if (boundaryStatus === 'SPLIT' && polyAVertices.length < 3 && clean.length >= 3) {
       if (mutationData.splitCustomPointsA && mutationData.splitCustomPointsA.length >= 3) {
         setPolyAVertices(mutationData.splitCustomPointsA);
         return;
       }
       const def = getDefaultPolygonA();
       setPolyAVertices(def);
-      const p0 = realActiveCoords[0];
-      const p1 = realActiveCoords[1];
-      const p2 = realActiveCoords[2];
-      const p3 = realActiveCoords[3] || realActiveCoords[2];
+      const p0 = clean[0];
+      const p1 = clean[1];
+      const p2 = clean[2];
+      const p3 = clean[3] || clean[2];
       const cutL = def[3] || interpolatePoint(p0, p3, 0.6);
       const cutR = def[2] || interpolatePoint(p1, p2, 0.6);
       const polyB: [number, number][] = [cutL, cutR, p2, p3];
@@ -224,22 +227,22 @@ export const useCadastralSplit = ({
 
   const computePolygonB = useCallback(
     (ptsA: [number, number][]): [number, number][] => {
-      if (realActiveCoords.length < 3) return realActiveCoords;
+      const clean = cleanPolygonRing(realActiveCoords);
+      if (clean.length < 3) return clean;
       if (ptsA.length >= 4) {
-        const p0 = realActiveCoords[0];
-        const p1 = realActiveCoords[1];
-        const p2 = realActiveCoords[2];
-        const p3 = realActiveCoords[3] || realActiveCoords[2];
+        const p0 = clean[0];
+        const p1 = clean[1];
+        const p2 = clean[2];
+        const p3 = clean[3] || clean[2];
         const cutR = ptsA[2] || interpolatePoint(p1, p2, 0.6);
         const cutL = ptsA[3] || interpolatePoint(p0, p3, 0.6);
-        if (realActiveCoords.length <= 4) {
+        if (clean.length <= 4) {
           return [cutL, cutR, p2, p3];
         }
-        const remaining = realActiveCoords.slice(2, realActiveCoords.length - 1);
-        const last = realActiveCoords[realActiveCoords.length - 1];
-        return [cutL, cutR, ...remaining, last];
+        const remaining = clean.slice(2);
+        return [cutL, cutR, ...remaining];
       }
-      return realActiveCoords;
+      return clean;
     },
     [realActiveCoords]
   );

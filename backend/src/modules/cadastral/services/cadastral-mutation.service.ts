@@ -99,7 +99,15 @@ export class CadastralMutationService {
 
     if (params.customGeomJson) {
       const geoStr = typeof params.customGeomJson === 'string' ? params.customGeomJson : JSON.stringify(params.customGeomJson);
-      geomExpr = `ST_GeometryN(ST_CollectionExtract(ST_MakeValid(ST_SetSRID(ST_GeomFromGeoJSON($12), 4326)), 3), 1)`;
+      geomExpr = `COALESCE(
+        (
+          SELECT geom 
+          FROM ST_Dump(ST_CollectionExtract(ST_MakeValid(ST_SetSRID(ST_GeomFromGeoJSON($12), 4326)), 3))
+          ORDER BY ST_Area(geom::geography) DESC 
+          LIMIT 1
+        ),
+        (SELECT cadastral_polygon_geom FROM parcels WHERE id = $11)
+      )`;
       queryParams = [
         params.zoneId,
         residualParcelCode,
@@ -657,6 +665,105 @@ export class CadastralMutationService {
       const childParcelsCreatedOrUpdated: any[] = [];
       const newChildIdsOnly: string[] = [];
 
+      // Pre-compute PostGIS partition cho trường hợp tách 2 thửa (Lô A + Lô B/Dôi dư) để triệt tiêu lỗi thắt nơ và khoảng hở
+      const is2ChildSplit = data.childParcels.length === 2;
+      let precomputedGeomA: string | null = null;
+      let precomputedGeomB: string | null = null;
+
+      if (is2ChildSplit) {
+        const childA = data.childParcels[0];
+        const isMockCoordA =
+          childA.polygonGeoJson &&
+          childA.polygonGeoJson.coordinates &&
+          childA.polygonGeoJson.coordinates[0] &&
+          childA.polygonGeoJson.coordinates[0][0] &&
+          childA.polygonGeoJson.coordinates[0][0][0] === 106.71;
+
+        const geoAStr =
+          childA.polygonGeoJson && !isMockCoordA
+            ? typeof childA.polygonGeoJson === 'string'
+              ? childA.polygonGeoJson
+              : JSON.stringify(childA.polygonGeoJson)
+            : null;
+
+        const partitionRes = await client.query<{
+          geom_a_json: string;
+          geom_b_json: string;
+          area_a_m2: number;
+          area_b_m2: number;
+        }>(
+          `WITH parent_data AS (
+             SELECT cadastral_polygon_geom AS parent_geom FROM parcels WHERE id = $1
+           ),
+           split_a AS (
+             SELECT 
+               COALESCE(
+                 CASE 
+                   WHEN $2::text IS NOT NULL THEN (
+                     SELECT geom 
+                     FROM ST_Dump(ST_CollectionExtract(ST_MakeValid(ST_Intersection(p.parent_geom, ST_SetSRID(ST_GeomFromGeoJSON($2), 4326))), 3))
+                     ORDER BY ST_Area(geom::geography) DESC 
+                     LIMIT 1
+                   )
+                   ELSE NULL
+                 END,
+                 ST_GeometryN(ST_CollectionExtract(ST_MakeValid(ST_Intersection(
+                   p.parent_geom,
+                   ST_MakeEnvelope(
+                     ST_XMin(p.parent_geom),
+                     ST_YMin(p.parent_geom),
+                     ST_XMin(p.parent_geom) + (ST_XMax(p.parent_geom) - ST_XMin(p.parent_geom)) * 0.6,
+                     ST_YMax(p.parent_geom),
+                     4326
+                   )
+                 )), 3), 1),
+                 p.parent_geom
+               ) AS geom_a
+             FROM parent_data p
+           ),
+           split_b AS (
+             SELECT 
+               COALESCE(
+                 (
+                   SELECT geom 
+                   FROM ST_Dump(ST_CollectionExtract(ST_MakeValid(ST_Difference(p.parent_geom, a.geom_a)), 3))
+                   ORDER BY ST_Area(geom::geography) DESC 
+                   LIMIT 1
+                 ),
+                 p.parent_geom
+               ) AS geom_b
+             FROM parent_data p, split_a a
+           )
+           SELECT 
+             ST_AsGeoJSON(a.geom_a) AS geom_a_json,
+             ST_AsGeoJSON(b.geom_b) AS geom_b_json,
+             ROUND(ST_Area(a.geom_a::geography)::numeric, 1) AS area_a_m2,
+             ROUND(ST_Area(b.geom_b::geography)::numeric, 1) AS area_b_m2
+           FROM split_a a, split_b b;`,
+          [parent.id, geoAStr]
+        );
+
+        if (partitionRes.rows.length > 0) {
+          const row = partitionRes.rows[0];
+          if (row.area_b_m2 < 0.2) {
+            throw new BadRequestError(
+              'Đa giác Lô A bao phủ gần như toàn bộ thửa đất gốc. Vui lòng điều chỉnh lại ranh giới để Lô B có diện tích hợp lệ.'
+            );
+          }
+          precomputedGeomA = row.geom_a_json;
+          precomputedGeomB = row.geom_b_json;
+          if (
+            !data.childParcels[0].landAreaM2 ||
+            Number(data.childParcels[0].landAreaM2) === Number(parent.land_area_m2)
+          ) {
+            data.childParcels[0].landAreaM2 = row.area_a_m2;
+          }
+          if (!data.childParcels[1].landAreaM2 || Number(data.childParcels[1].landAreaM2) <= 0) {
+            data.childParcels[1].landAreaM2 = row.area_b_m2;
+          }
+        }
+      }
+
       for (let idx = 0; idx < data.childParcels.length; idx++) {
         const child = data.childParcels[idx];
 
@@ -680,10 +787,26 @@ export class CadastralMutationService {
             parent.id,
           ];
 
-          if (child.polygonGeoJson && !isMockCoord) {
-            updateParams.push(typeof child.polygonGeoJson === 'string' ? child.polygonGeoJson : JSON.stringify(child.polygonGeoJson));
+          if (precomputedGeomA) {
+            updateParams.push(precomputedGeomA);
             const gIdx = updateParams.length;
-            geomUpdateExpr = `ST_GeometryN(ST_CollectionExtract(ST_MakeValid(ST_SetSRID(ST_GeomFromGeoJSON($${gIdx}), 4326)), 3), 1)`;
+            geomUpdateExpr = `ST_SetSRID(ST_GeomFromGeoJSON($${gIdx}), 4326)`;
+          } else if (child.polygonGeoJson && !isMockCoord) {
+            updateParams.push(
+              typeof child.polygonGeoJson === 'string'
+                ? child.polygonGeoJson
+                : JSON.stringify(child.polygonGeoJson)
+            );
+            const gIdx = updateParams.length;
+            geomUpdateExpr = `COALESCE(
+              (
+                SELECT geom 
+                FROM ST_Dump(ST_CollectionExtract(ST_MakeValid(ST_SetSRID(ST_GeomFromGeoJSON($${gIdx}), 4326)), 3))
+                ORDER BY ST_Area(geom::geography) DESC 
+                LIMIT 1
+              ),
+              (SELECT cadastral_polygon_geom FROM parcels WHERE id = $5)
+            )`;
           } else {
             geomUpdateExpr = `COALESCE(
               ST_GeometryN(ST_CollectionExtract(ST_MakeValid(ST_Intersection(
@@ -749,7 +872,7 @@ export class CadastralMutationService {
               parentDistrict: parent.district,
               residualAreaM2: bArea,
               mutationType: 'SPLIT',
-              customGeomJson: child.polygonGeoJson && !isMockCoord ? child.polygonGeoJson : undefined,
+              customGeomJson: precomputedGeomB || (child.polygonGeoJson && !isMockCoord ? child.polygonGeoJson : undefined),
             });
 
             resultParcelIds.push(residualResult.id);
@@ -789,10 +912,26 @@ export class CadastralMutationService {
             ];
 
             let bGeomExpr: string;
-            if (child.polygonGeoJson && !isMockCoord) {
-              insertParams.push(typeof child.polygonGeoJson === 'string' ? child.polygonGeoJson : JSON.stringify(child.polygonGeoJson));
+            if (precomputedGeomB) {
+              insertParams.push(precomputedGeomB);
               const gIdx = insertParams.length;
-              bGeomExpr = `ST_GeometryN(ST_CollectionExtract(ST_MakeValid(ST_SetSRID(ST_GeomFromGeoJSON($${gIdx}), 4326)), 3), 1)`;
+              bGeomExpr = `ST_SetSRID(ST_GeomFromGeoJSON($${gIdx}), 4326)`;
+            } else if (child.polygonGeoJson && !isMockCoord) {
+              insertParams.push(
+                typeof child.polygonGeoJson === 'string'
+                  ? child.polygonGeoJson
+                  : JSON.stringify(child.polygonGeoJson)
+              );
+              const gIdx = insertParams.length;
+              bGeomExpr = `COALESCE(
+                (
+                  SELECT geom 
+                  FROM ST_Dump(ST_CollectionExtract(ST_MakeValid(ST_SetSRID(ST_GeomFromGeoJSON($${gIdx}), 4326)), 3))
+                  ORDER BY ST_Area(geom::geography) DESC 
+                  LIMIT 1
+                ),
+                (SELECT cadastral_polygon_geom FROM parcels WHERE id = $12)
+              )`;
             } else {
               bGeomExpr = `COALESCE(
                 ST_GeometryN(ST_CollectionExtract(ST_MakeValid(ST_Difference(

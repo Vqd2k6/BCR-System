@@ -69,19 +69,33 @@ export const computeCentroid = (coords: [number, number][]): [number, number] =>
 };
 
 /**
+ * Loại bỏ điểm đóng vòng lặp lại ở cuối (GeoJSON closed ring) để giữ đúng số lượng đỉnh thực của đa giác
+ */
+export const cleanPolygonRing = (coords: [number, number][]): [number, number][] => {
+  if (!coords || coords.length < 3) return coords || [];
+  const first = coords[0];
+  const last = coords[coords.length - 1];
+  if (Math.abs(first[0] - last[0]) < 1e-7 && Math.abs(first[1] - last[1]) < 1e-7) {
+    return coords.slice(0, coords.length - 1);
+  }
+  return coords;
+};
+
+/**
  * Split quad into Horizontal A (front) and B (rear)
  */
 export const splitQuadHorizontal = (
   coords: [number, number][],
   ratio: number = 0.6
 ): { polyA: [number, number][]; polyB: [number, number][] } => {
-  if (!coords || coords.length < 3) {
-    return { polyA: coords || [], polyB: coords || [] };
+  const clean = cleanPolygonRing(coords);
+  if (!clean || clean.length < 3) {
+    return { polyA: clean || [], polyB: clean || [] };
   }
-  const p0 = coords[0];
-  const p1 = coords[1];
-  const p2 = coords[2];
-  const p3 = coords[3] || coords[2];
+  const p0 = clean[0];
+  const p1 = clean[1];
+  const p2 = clean[2];
+  const p3 = clean[3] || clean[2];
 
   const cutL = interpolatePoint(p0, p3, ratio);
   const cutR = interpolatePoint(p1, p2, ratio);
@@ -99,13 +113,14 @@ export const splitQuadVertical = (
   coords: [number, number][],
   ratio: number = 0.5
 ): { polyA: [number, number][]; polyB: [number, number][] } => {
-  if (!coords || coords.length < 3) {
-    return { polyA: coords || [], polyB: coords || [] };
+  const clean = cleanPolygonRing(coords);
+  if (!clean || clean.length < 3) {
+    return { polyA: clean || [], polyB: clean || [] };
   }
-  const p0 = coords[0];
-  const p1 = coords[1];
-  const p2 = coords[2];
-  const p3 = coords[3] || coords[2];
+  const p0 = clean[0];
+  const p1 = clean[1];
+  const p2 = clean[2];
+  const p3 = clean[3] || clean[2];
 
   const cutTop = interpolatePoint(p0, p1, ratio);
   const cutBottom = interpolatePoint(p3, p2, ratio);

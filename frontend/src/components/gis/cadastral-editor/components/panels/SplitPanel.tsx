@@ -406,11 +406,9 @@ export const SplitPanel: React.FC<SplitPanelProps> = ({
                 weight: 3.5,
               }}
             >
-              <Tooltip permanent direction="center">
-                <div style={{ textAlign: 'center', fontWeight: 900, color: '#7c2d12', fontSize: '0.75rem', textShadow: '0 1px 2px #fff' }}>
-                  🟠 LÔ B ({mutationData.residualKind === 'NEW_BUILDING' ? 'TÁCH MỚI' : 'ĐẤT DƯ'})<br />
-                  <span style={{ fontSize: '0.825rem', color: '#c2410c' }}>{codeB}</span><br />
-                  ({calculatedAreaB} m²)
+              <Tooltip direction="top" opacity={0.9}>
+                <div style={{ textAlign: 'center', fontWeight: 800, color: '#7c2d12', fontSize: '0.725rem' }}>
+                  🟠 LÔ B ({mutationData.residualKind === 'NEW_BUILDING' ? 'TÁCH MỚI' : 'ĐẤT DƯ'}): {codeB} ({calculatedAreaB} m²)
                 </div>
               </Tooltip>
             </Polygon>
@@ -427,11 +425,9 @@ export const SplitPanel: React.FC<SplitPanelProps> = ({
                 weight: 4,
               }}
             >
-              <Tooltip permanent direction="center">
-                <div style={{ textAlign: 'center', fontWeight: 900, color: '#78350f', fontSize: '0.75rem', textShadow: '0 1px 2px #fff' }}>
-                  🟡 LÔ A (ĐANG KS)<br />
-                  <span style={{ fontSize: '0.825rem', color: '#b45309' }}>{codeA}</span><br />
-                  ({calculatedAreaA} m²)
+              <Tooltip direction="top" opacity={0.9}>
+                <div style={{ textAlign: 'center', fontWeight: 800, color: '#78350f', fontSize: '0.725rem' }}>
+                  🟡 LÔ A (ĐANG KS): {codeA} ({calculatedAreaA} m²)
                 </div>
               </Tooltip>
             </Polygon>

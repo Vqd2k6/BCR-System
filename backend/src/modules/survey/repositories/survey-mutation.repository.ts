@@ -221,6 +221,41 @@ export class SurveyMutationRepository {
         (origHouseNumber ? `${origHouseNumber}B` : '');
 
       const fallbackGeom = geomB || originalGeom;
+      let bGeomExpr = `ST_SetSRID(ST_GeomFromGeoJSON($14), 4326)`;
+      const insertParams: any[] = [
+        zoneId,
+        portionBCode,
+        officialBCode,
+        houseBNum,
+        origStreet,
+        origWard,
+        origDistrict,
+        ownerBName,
+        ownerBPhone,
+        areaB,
+        surveyorId,
+        mutationEventId,
+        originalParcelId,
+        JSON.stringify(fallbackGeom),
+      ];
+
+      if (geomA && origGeomJson) {
+        insertParams.push(origGeomJson, JSON.stringify(geomA));
+        const idxOrig = insertParams.length - 1;
+        const idxGeomA = insertParams.length;
+        bGeomExpr = `COALESCE(
+          (
+            SELECT geom 
+            FROM ST_Dump(ST_CollectionExtract(ST_MakeValid(ST_Difference(
+              ST_SetSRID(ST_GeomFromGeoJSON($${idxOrig}), 4326),
+              ST_SetSRID(ST_GeomFromGeoJSON($${idxGeomA}), 4326)
+            )), 3))
+            ORDER BY ST_Area(geom::geography) DESC 
+            LIMIT 1
+          ),
+          ST_SetSRID(ST_GeomFromGeoJSON($14), 4326)
+        )`;
+      }
 
       const newParcelRes = await client.query<{ id: string }>(
         `INSERT INTO parcels (
@@ -238,26 +273,11 @@ export class SurveyMutationRepository {
            $10, $10,
            $11, 'ASSIGNED_TO_ME', 'ACTIVE',
            'SPLIT', $12, ARRAY[$13::uuid],
-           ST_SetSRID(ST_GeomFromGeoJSON($14), 4326),
-           ST_SetSRID(ST_GeomFromGeoJSON($14), 4326),
-           ST_Centroid(ST_SetSRID(ST_GeomFromGeoJSON($14), 4326))
+           ${bGeomExpr},
+           ${bGeomExpr},
+           ST_Centroid(${bGeomExpr})
          ) RETURNING id;`,
-        [
-          zoneId,
-          portionBCode,
-          officialBCode,
-          houseBNum,
-          origStreet,
-          origWard,
-          origDistrict,
-          ownerBName,
-          ownerBPhone,
-          areaB,
-          surveyorId,
-          mutationEventId,
-          originalParcelId,
-          JSON.stringify(fallbackGeom),
-        ]
+        insertParams
       );
 
       const newParcelBId = newParcelRes.rows[0].id;
