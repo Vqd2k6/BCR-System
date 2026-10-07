@@ -34,6 +34,8 @@ import { AuditStudioModal } from './AuditStudioModal';
 import { RejectReportModal } from './RejectReportModal';
 import { AdminReassignParcelModal } from './AdminReassignParcelModal';
 import { UnifiedGisMutationModal } from '../../../../components/gis/cadastral-editor/UnifiedGisMutationModal';
+import { CadastralBoundaryReshapeModal } from '../../../../components/gis/cadastral-editor/components/CadastralBoundaryReshapeModal';
+import { GisParcel } from '../../../../components/gis/shared/types';
 import { ReviewQueueTableRow } from './ReviewQueueTableRow';
 
 export interface PendingSubmissionItem {
@@ -116,6 +118,7 @@ export const ZoneAuditReviewQueue: React.FC<Props> = ({
     houseNumber?: string;
     street?: string;
     surveyorName?: string;
+    zoneId?: string;
   } | null>(null);
 
   const [mutationModalData, setMutationModalData] = useState<{
@@ -127,6 +130,46 @@ export const ZoneAuditReviewQueue: React.FC<Props> = ({
     zoneId?: string;
     reportId?: string;
   } | null>(null);
+
+  const [reshapeModalParcel, setReshapeModalParcel] = useState<GisParcel | null>(null);
+  const [isLoadingReshapeParcel, setIsLoadingReshapeParcel] = useState(false);
+
+  const handleOpenReshape = async (item: PendingSubmissionItem) => {
+    setIsLoadingReshapeParcel(true);
+    try {
+      const res = await api.get(`/parcels/${item.parcel_id}`);
+      if (res.data?.success && res.data.data) {
+        const raw = res.data.data;
+        let coords: [number, number][] = [];
+        if (raw.cadastral_geojson?.coordinates?.[0]) {
+          coords = raw.cadastral_geojson.coordinates[0].map(([lng, lat]: [number, number]) => [lat, lng]);
+        } else if (raw.coordinates && Array.isArray(raw.coordinates)) {
+          coords = raw.coordinates;
+        }
+
+        setReshapeModalParcel({
+          id: raw.id,
+          projectParcelCode: raw.project_parcel_code || item.project_parcel_code,
+          officialCadastralCode: raw.official_cadastral_code || '',
+          houseNumber: raw.house_number || item.house_number || '',
+          street: raw.street || item.street || '',
+          ownerName: raw.owner_name || (item as any).owner_name || '',
+          surveyStatus: raw.survey_status || item.status,
+          coordinates: coords,
+          landArea: Number(raw.land_area_m2 || (item as any).land_area_m2 || 0),
+          constructionArea: Number(raw.construction_area_m2 || raw.land_area_m2 || 0),
+          floorCount: Number(raw.floor_count || 1),
+          buildingType: raw.building_type || 'STANDALONE',
+          zoneId: raw.zone_id || selectedZone,
+        });
+      }
+    } catch (err) {
+      console.error('[ZoneAuditReviewQueue] Lỗi tải chi tiết thửa để nắn chỉnh:', err);
+      showToast('Không thể tải dữ liệu thửa đất để nắn chỉnh.');
+    } finally {
+      setIsLoadingReshapeParcel(false);
+    }
+  };
 
   // Debounce search input (300ms)
   useEffect(() => {
@@ -542,6 +585,7 @@ export const ZoneAuditReviewQueue: React.FC<Props> = ({
                       houseNumber: it.house_number,
                       street: it.street,
                       surveyorName: it.surveyor_name || undefined,
+                      zoneId: it.zone_id,
                     })
                   }
                   onOpenMutationModal={(it) =>
@@ -555,6 +599,7 @@ export const ZoneAuditReviewQueue: React.FC<Props> = ({
                       reportId: it.report_id || undefined,
                     })
                   }
+                  onOpenReshapeModal={handleOpenReshape}
                 />
               ))
             )}
@@ -664,7 +709,7 @@ export const ZoneAuditReviewQueue: React.FC<Props> = ({
         />
       )}
 
-      {/* Reassign Parcel Modal */}
+      {/* Reassign / Spatial Swap Modal */}
       {reassignModalData && (
         <AdminReassignParcelModal
           isOpen={!!reassignModalData}
@@ -674,10 +719,12 @@ export const ZoneAuditReviewQueue: React.FC<Props> = ({
           currentHouseNumber={reassignModalData.houseNumber}
           currentStreet={reassignModalData.street}
           surveyorName={reassignModalData.surveyorName}
+          zoneId={reassignModalData.zoneId || selectedZone || 'ZONE_01'}
           onClose={() => setReassignModalData(null)}
           onSuccess={(msg) => {
-            showToast(msg || 'Đã điều chuyển hoặc hoán đổi thửa đất thành công.');
+            showToast(msg || 'Đã hoán đổi vị trí ranh đất GIS thành công.');
             setReassignModalData(null);
+            fetchSubmissions();
           }}
         />
       )}
@@ -697,6 +744,20 @@ export const ZoneAuditReviewQueue: React.FC<Props> = ({
           onSuccess={(msg?: string) => {
             showToast(msg || 'Đã thực hiện biến động ranh đất GIS thành công.');
             setMutationModalData(null);
+          }}
+        />
+      )}
+
+      {/* Cadastral Boundary Reshape Modal */}
+      {reshapeModalParcel && (
+        <CadastralBoundaryReshapeModal
+          isOpen={!!reshapeModalParcel}
+          parcel={reshapeModalParcel}
+          onClose={() => setReshapeModalParcel(null)}
+          onSuccess={(res) => {
+            showToast(res?.message || 'Đã nắn chỉnh ranh giới thửa đất thành công.');
+            setReshapeModalParcel(null);
+            fetchSubmissions();
           }}
         />
       )}

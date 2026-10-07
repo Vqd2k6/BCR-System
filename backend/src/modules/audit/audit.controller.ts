@@ -173,13 +173,22 @@ export class AuditController {
 
   static async swapReportParcels(req: Request, res: Response, next: NextFunction) {
     try {
-      const { reportAId, reportBId, reason } = req.body;
-      if (!reportAId || !reportBId) {
-        throw new BadRequestError('Cả reportAId và reportBId đều là bắt buộc để hoán đổi');
+      const { reportAId, reportBId, targetParcelId, reason } = req.body;
+      if (!reportAId) {
+        throw new BadRequestError('Mã hồ sơ gốc (reportAId) là bắt buộc để hoán đổi');
+      }
+      if (!reportBId && !targetParcelId) {
+        throw new BadRequestError('Cần cung cấp mã hồ sơ B (reportBId) hoặc thửa đất đích (targetParcelId) để hoán đổi');
       }
       const adminId = req.user!.userId;
       const clientIp = req.ip || req.socket.remoteAddress;
-      const result = await AuditService.swapReportParcels(reportAId, reportBId, adminId, reason, clientIp);
+
+      let result;
+      if (reportBId) {
+        result = await AuditService.swapReportParcels(reportAId, reportBId, adminId, reason, clientIp);
+      } else {
+        result = await AuditService.reassignReportParcel(reportAId, targetParcelId, adminId, reason, clientIp);
+      }
       res.status(200).json(result);
     } catch (error) {
       next(error);
@@ -190,8 +199,9 @@ export class AuditController {
     try {
       const zoneId = req.query.zoneId as string | undefined;
       const excludeReportId = req.query.excludeReportId as string | undefined;
+      const excludeParcelId = req.query.excludeParcelId as string | undefined;
       const search = req.query.search as string | undefined;
-      const results = await AuditService.searchSwapCandidates(zoneId, excludeReportId, search);
+      const results = await AuditService.searchSwapCandidates(zoneId, excludeReportId, search, excludeParcelId);
       res.status(200).json({
         success: true,
         data: results,

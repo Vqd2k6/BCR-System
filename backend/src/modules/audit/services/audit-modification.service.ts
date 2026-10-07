@@ -622,57 +622,113 @@ export class AuditModificationService {
   }
 
   /**
-   * Tìm kiếm danh sách hồ sơ trong phân khu khả dĩ để hoán đổi chéo (SWAP)
+   * Tìm kiếm danh sách ứng viên thửa đất trong phân khu khả dĩ để hoán đổi ranh không gian GIS
+   * Hỗ trợ 100% tất cả thửa đất trong phân khu (cả chưa khảo sát lẫn đã khảo sát).
+   * Hỗ trợ tìm kiếm tiếng Việt không dấu (unaccent) trên:
+   * - Mã dự án (project_parcel_code)
+   * - Số tờ/số thửa (official_cadastral_code)
+   * - Số nhà (house_number)
+   * - Tên đường (street)
+   * - Tên chủ hộ (owner_name)
+   * - Mã báo cáo (report_code)
+   * - Tên KSV (surveyor_name)
    */
   static async searchSwapCandidates(
     zoneId?: string,
     excludeReportId?: string,
-    search?: string
+    search?: string,
+    excludeParcelId?: string
   ) {
     const params: any[] = [];
-    let whereClause = `WHERE 1=1`;
+    const whereConditions: string[] = ['1=1'];
 
-    if (zoneId) {
-      params.push(zoneId);
-      whereClause += ` AND p.zone_id = $${params.length}`;
+    // 1. Phân giải zoneId: nếu không truyền trực tiếp, tự động tra cứu từ excludeReportId hoặc excludeParcelId
+    let resolvedZoneId = zoneId;
+    if (!resolvedZoneId && excludeReportId) {
+      const zRes = await Database.query<{ zone_id: string }>(
+        `SELECT p.zone_id FROM base_survey_reports r JOIN parcels p ON r.parcel_id = p.id WHERE r.id = $1::uuid;`,
+        [excludeReportId]
+      );
+      if (zRes.rows[0]?.zone_id) {
+        resolvedZoneId = zRes.rows[0].zone_id;
+      }
+    } else if (!resolvedZoneId && excludeParcelId) {
+      const zRes = await Database.query<{ zone_id: string }>(
+        `SELECT zone_id FROM parcels WHERE id = $1::uuid;`,
+        [excludeParcelId]
+      );
+      if (zRes.rows[0]?.zone_id) {
+        resolvedZoneId = zRes.rows[0].zone_id;
+      }
     }
 
+    if (resolvedZoneId) {
+      params.push(resolvedZoneId);
+      whereConditions.push(`p.zone_id = $${params.length}`);
+    }
+
+    // 2. Loại trừ chính thửa / hồ sơ hiện tại
     if (excludeReportId) {
       params.push(excludeReportId);
-      whereClause += ` AND r.id != $${params.length}::uuid`;
+      const repIdx = params.length;
+      whereConditions.push(`p.id != COALESCE((SELECT parcel_id FROM base_survey_reports WHERE id = $${repIdx}::uuid), '00000000-0000-0000-0000-000000000000'::uuid)`);
     }
 
+    if (excludeParcelId) {
+      params.push(excludeParcelId);
+      whereConditions.push(`p.id != $${params.length}::uuid`);
+    }
+
+    // 3. Xử lý từ khóa tìm kiếm (hỗ trợ cả có dấu và không dấu qua unaccent)
     const cleanedSearch = (search || '').trim().replace(/[\[\]"'\\]/g, '').trim();
     if (cleanedSearch) {
-      params.push(`%${cleanedSearch}%`);
+      params.push(cleanedSearch);
       const pIdx = params.length;
-      whereClause += ` AND (
-        p.project_parcel_code ILIKE $${pIdx} OR
-        p.official_cadastral_code ILIKE $${pIdx} OR
-        p.house_number ILIKE $${pIdx} OR
-        p.street ILIKE $${pIdx} OR
-        r.report_code ILIKE $${pIdx}
-      )`;
+      whereConditions.push(`(
+        p.project_parcel_code ILIKE ('%' || $${pIdx} || '%') OR
+        p.official_cadastral_code ILIKE ('%' || $${pIdx} || '%') OR
+        p.house_number ILIKE ('%' || $${pIdx} || '%') OR
+        unaccent(COALESCE(p.street, '')) ILIKE unaccent('%' || $${pIdx} || '%') OR
+        unaccent(COALESCE(p.owner_name, '')) ILIKE unaccent('%' || $${pIdx} || '%') OR
+        COALESCE(r.report_code, '') ILIKE ('%' || $${pIdx} || '%') OR
+        unaccent(COALESCE(u.full_name, u_p.full_name, '')) ILIKE unaccent('%' || $${pIdx} || '%')
+      )`);
     }
+
+    const whereClause = `WHERE ${whereConditions.join(' AND ')}`;
 
     const query = `
       SELECT 
-        r.id AS report_id,
-        r.report_code,
-        r.status AS report_status,
         p.id AS parcel_id,
         p.project_parcel_code,
+        p.official_cadastral_code,
         p.house_number,
         p.street,
         p.ward,
         p.district,
-        u.full_name AS surveyor_name
-      FROM base_survey_reports r
-      JOIN parcels p ON r.parcel_id = p.id
+        p.owner_name,
+        p.owner_phone,
+        p.land_area_m2,
+        p.construction_area_m2,
+        p.survey_status,
+        r.id AS report_id,
+        r.report_code,
+        r.status AS report_status,
+        COALESCE(u.full_name, u_p.full_name) AS surveyor_name
+      FROM parcels p
+      LEFT JOIN LATERAL (
+        SELECT id, report_code, status, surveyor_id 
+        FROM base_survey_reports 
+        WHERE parcel_id = p.id 
+        ORDER BY updated_at DESC LIMIT 1
+      ) r ON true
       LEFT JOIN users u ON r.surveyor_id = u.id
+      LEFT JOIN users u_p ON p.assigned_surveyor_id = u_p.id
       ${whereClause}
-      ORDER BY p.project_parcel_code ASC
-      LIMIT 50;
+      ORDER BY 
+        (CASE WHEN r.id IS NOT NULL THEN 0 ELSE 1 END) ASC,
+        p.project_parcel_code ASC
+      LIMIT 80;
     `;
 
     const res = await Database.query(query, params);

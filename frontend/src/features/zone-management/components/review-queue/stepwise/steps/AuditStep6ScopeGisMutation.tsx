@@ -15,9 +15,12 @@ import {
   Edit3,
   Ruler,
   Layers,
+  Move,
 } from 'lucide-react';
 import { UnifiedGisMutationModal } from '../../../../../../components/gis/cadastral-editor/UnifiedGisMutationModal';
 import { AdminReassignParcelModal } from '../../AdminReassignParcelModal';
+import { CadastralBoundaryReshapeModal } from '../../../../../../components/gis/cadastral-editor/components/CadastralBoundaryReshapeModal';
+import { GisParcel } from '../../../../../../components/gis/shared/types';
 import { AuditCadastralMutationVisualMap } from '../components/AuditCadastralMutationVisualMap';
 
 interface Props {
@@ -63,6 +66,7 @@ export const AuditStep6ScopeGisMutation: React.FC<Props> = ({
 }) => {
   const [isMutationModalOpen, setIsMutationModalOpen] = useState(false);
   const [isReassignModalOpen, setIsReassignModalOpen] = useState(false);
+  const [isReshapeModalOpen, setIsReshapeModalOpen] = useState(false);
   const [successToast, setSuccessToast] = useState('');
 
   const access = formState.accessLimitation || {};
@@ -102,6 +106,26 @@ export const AuditStep6ScopeGisMutation: React.FC<Props> = ({
     }
     return [];
   }, [formState.parcelCoordinates, data?.coordinates, data?.parcelCoordinates, data?.cadastralGeojson, data?.cadastral_geojson]);
+
+  const reshapeParcel = useMemo<GisParcel | null>(() => {
+    const pId = data?.parcelId || formState.parcelId || (data?.activeParcel as any)?.id;
+    if (!pId) return null;
+    return {
+      id: pId,
+      projectParcelCode: data?.projectParcelCode || formState.projectParcelCode || '',
+      officialCadastralCode: data?.officialCadastralCode || formState.officialCadastralCode || '',
+      houseNumber: data?.houseNumber || formState.houseNumber || '',
+      street: data?.street || formState.street || '',
+      ownerName: data?.ownerName || formState.ownerName || '',
+      surveyStatus: data?.surveyStatus || formState.surveyStatus || 'SUBMITTED',
+      coordinates: parcelCoords,
+      landArea: Number(landAreaM2 || 0),
+      constructionArea: Number(data?.buildingSpecs?.constructionAreaM2 || landAreaM2 || 0),
+      floorCount: Number(data?.buildingSpecs?.floorCount || 1),
+      buildingType: data?.buildingSpecs?.buildingType || 'STANDALONE',
+      zoneId: data?.zoneId || formState.zoneId || 'ZONE_01',
+    };
+  }, [data, formState, parcelCoords, landAreaM2]);
 
   // Tính khoảng cách tim hầm Metro
   const metroDistance = formState.metroDistanceM ?? formState.distanceToMetroCenterlineM ?? 15.2;
@@ -171,7 +195,7 @@ export const AuditStep6ScopeGisMutation: React.FC<Props> = ({
             title="Điều chuyển hồ sơ sang thửa khác hoặc hoán đổi 2 nhà kề nhau bị tích chéo"
           >
             <ArrowRightLeft className="w-3.5 h-3.5 text-amber-600" />
-            <span>Điều Chuyển Thửa</span>
+            <span>Hoán Đổi Ranh GIS</span>
           </button>
 
           <button
@@ -182,6 +206,16 @@ export const AuditStep6ScopeGisMutation: React.FC<Props> = ({
           >
             <Split className="w-3.5 h-3.5" />
             <span>Tách / Gộp Thửa GIS</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setIsReshapeModalOpen(true)}
+            className="px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-300 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+            title="Kéo thả mốc đỉnh để nắn chỉnh đa giác ranh thửa đất khớp ảnh vệ tinh"
+          >
+            <Move className="w-3.5 h-3.5 text-indigo-600" />
+            <span>Nắn Chỉnh Ranh Đất</span>
           </button>
         </div>
       </div>
@@ -652,7 +686,7 @@ export const AuditStep6ScopeGisMutation: React.FC<Props> = ({
         />
       )}
 
-      {/* Modal Điều chuyển thửa */}
+      {/* Modal Hoán đổi ranh GIS */}
       {isReassignModalOpen && (
         <AdminReassignParcelModal
           isOpen={isReassignModalOpen}
@@ -662,9 +696,23 @@ export const AuditStep6ScopeGisMutation: React.FC<Props> = ({
           currentHouseNumber={data?.houseNumber || formState.houseNumber}
           currentStreet={data?.street || formState.street}
           surveyorName={data?.surveyorName || formState.surveyorName}
+          zoneId={data?.zoneId || formState?.zoneId || data?.zone_id || 'ZONE_01'}
           onClose={() => setIsReassignModalOpen(false)}
           onSuccess={(msg: string) => {
             showToast(msg);
+            if (onRefresh) onRefresh();
+          }}
+        />
+      )}
+
+      {/* Modal Nắn chỉnh ranh đất GIS */}
+      {isReshapeModalOpen && reshapeParcel && (
+        <CadastralBoundaryReshapeModal
+          isOpen={isReshapeModalOpen}
+          parcel={reshapeParcel}
+          onClose={() => setIsReshapeModalOpen(false)}
+          onSuccess={(res) => {
+            showToast(res?.message || 'Đã nắn chỉnh ranh giới thửa đất thành công.');
             if (onRefresh) onRefresh();
           }}
         />

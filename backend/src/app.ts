@@ -183,6 +183,8 @@ export function createApp(): express.Application {
   api.get('/parcels/:id/adjacent-candidates', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.getAdjacentCandidates);
   api.post('/admin/parcels/execute-mutation', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.executeAdminMutation);
   api.post('/admin/parcels/swap-geometries', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.swapGeometries);
+  api.put('/parcels/:id/reshape-geometry', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.reshapeGeometry);
+  api.put('/admin/parcels/:id/reshape-geometry', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.reshapeGeometry);
 
   // Lịch sử biến động địa chính kiểm toán (Bảo mật nghiêm ngặt: DUY NHẤT SUPER_ADMIN)
   api.get('/parcels/:id/mutation-history', authenticateJwt, requireRoles('SUPER_ADMIN'), CadastralController.getParcelMutationHistory);

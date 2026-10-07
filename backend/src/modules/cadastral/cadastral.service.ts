@@ -250,6 +250,24 @@ export class CadastralService {
     return CadastralGeometryService.swapParcelGeometries(parcelAIdent, parcelBIdent, adminId, reason, clientIp);
   }
 
+  static async reshapeParcelGeometry(
+    parcelId: string,
+    newCoordinates: [number, number][],
+    userId: string,
+    reason: string,
+    updateFootprint: boolean = true,
+    clientIp?: string
+  ) {
+    return CadastralGeometryService.reshapeParcelGeometry(
+      parcelId,
+      newCoordinates,
+      userId,
+      reason,
+      updateFootprint,
+      clientIp
+    );
+  }
+
   // --- BIẾN ĐỘNG ĐỊA CHÍNH (TÁCH / GỘP THỬA) ---
   static async proposeMutation(surveyorId: string, data: any) {
     return CadastralMutationService.proposeMutation(surveyorId, data);
