@@ -625,7 +625,12 @@ export const App: React.FC = () => {
               onStartPhase2={handleStartPhase2}
               onOpenBuildingHub={(p) => setHubParcel(p)}
               onRecordAbsence={handleRecordAbsence}
-              onProposeSplit={(p) => setMutationStudioParcel(p)}
+              onProposeSplit={(p) => {
+                if (user?.role === 'ZONE_ADMIN' || user?.role === 'SUPER_ADMIN') {
+                  setMutationStudioParcel(p);
+                }
+              }}
+              onSwapSuccess={() => loadParcels()}
               userGps={liveUserGps}
             />
           </div>

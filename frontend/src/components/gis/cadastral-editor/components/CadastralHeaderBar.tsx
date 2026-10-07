@@ -1,7 +1,9 @@
-import React from 'react';
-import { Ruler, CheckCircle, Layers, GitCompare } from 'lucide-react';
+import React, { useState } from 'react';
+import { Ruler, CheckCircle, Layers, GitCompare, History } from 'lucide-react';
 import { GisParcel, CadastralParcelData } from '../../shared/types';
 import { HelpBadge } from '../../shared/MapControllers';
+import { useAuth } from '../../../../context/AuthContext';
+import { ParcelMutationHistoryModal } from './ParcelMutationHistoryModal';
 
 interface CadastralHeaderBarProps {
   parcelData: CadastralParcelData;
@@ -24,6 +26,8 @@ export const CadastralHeaderBar: React.FC<CadastralHeaderBarProps> = ({
   totalLandArea,
   buildingHeight,
 }) => {
+  const { user } = useAuth();
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
   return (
     <>
       {/* 1. THÔNG TIN KÍCH THƯỚC THỬA ĐẤT BAN ĐẦU */}
@@ -69,7 +73,30 @@ export const CadastralHeaderBar: React.FC<CadastralHeaderBarProps> = ({
             </div>
           </div>
 
-          <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', alignItems: 'center' }}>
+            {user?.role === 'SUPER_ADMIN' && (
+              <button
+                type="button"
+                onClick={() => setShowHistoryModal(true)}
+                style={{
+                  backgroundColor: '#f1f5f9',
+                  border: '1px solid #cbd5e1',
+                  padding: '0.2rem 0.55rem',
+                  borderRadius: '0.4rem',
+                  fontSize: '0.725rem',
+                  color: '#0f172a',
+                  fontWeight: 700,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.3rem',
+                  cursor: 'pointer',
+                }}
+                title="Xem lịch sử biến động thửa đất (Super Admin Only)"
+              >
+                <History size={13} color="#475569" />
+                Lịch sử
+              </button>
+            )}
             <span
               style={{
                 backgroundColor: '#f8fafc',
@@ -194,6 +221,16 @@ export const CadastralHeaderBar: React.FC<CadastralHeaderBarProps> = ({
           </div>
         </button>
       </div>
+
+      {/* Modal Lịch sử biến động (Super Admin Only) */}
+      {user?.role === 'SUPER_ADMIN' && (
+        <ParcelMutationHistoryModal
+          parcelId={parcel?.id || (parcelData as any)?.id}
+          parcelCode={parcelData.projectParcelCode}
+          isOpen={showHistoryModal}
+          onClose={() => setShowHistoryModal(false)}
+        />
+      )}
     </>
   );
 };

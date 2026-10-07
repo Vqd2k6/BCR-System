@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   X,
   Building2,
@@ -10,31 +10,44 @@ import {
   Eye,
   Navigation,
   Split,
+  History,
+  ArrowLeftRight,
 } from 'lucide-react';
+import { useAuth } from '../../../../context/AuthContext';
+import { ParcelMutationHistoryModal } from '../../cadastral-editor/components/ParcelMutationHistoryModal';
+import { CadastralSpatialSwapModal } from '../../cadastral-editor/components/CadastralSpatialSwapModal';
 import { GisParcel } from '../../shared/types';
-import { getEffectiveParcelStatus, getStatusBadge } from '../utils/sweepMapHelpers';
+import { getEffectiveParcelStatus, getStatusBadge, isNonBuildingParcel } from '../utils/sweepMapHelpers';
 
 interface ParcelDetailBottomSheetProps {
   activeParcel: GisParcel | null;
+  availableParcels?: GisParcel[];
   onClose: () => void;
   onStartSurvey?: (parcel: GisParcel, readOnly?: boolean) => void;
   onStartPhase2?: (parcel: GisParcel) => void;
   onOpenBuildingHub?: (parcel: GisParcel) => void;
   onProposeSplit?: (parcel: GisParcel) => void;
+  onSwapSuccess?: () => void;
   absenceRecordedToday: { [parcelId: string]: string };
   handleOpenGoogleMapsDirections: (parcel: GisParcel) => void;
 }
 
 export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = ({
   activeParcel,
+  availableParcels = [],
   onClose,
   onStartSurvey,
   onStartPhase2,
   onOpenBuildingHub,
   onProposeSplit,
+  onSwapSuccess,
   absenceRecordedToday,
   handleOpenGoogleMapsDirections,
 }) => {
+  const { user } = useAuth();
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [showSwapModal, setShowSwapModal] = useState(false);
+
   if (!activeParcel) return null;
 
   const activeEffectiveStatus = getEffectiveParcelStatus(activeParcel);
@@ -429,6 +442,31 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
               </button>
             );
           }
+          if (isNonBuildingParcel(activeParcel)) {
+            return (
+              <div
+                style={{
+                  flex: 1.5,
+                  minWidth: '150px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.35rem',
+                  padding: '0.45rem 0.65rem',
+                  fontSize: '0.725rem',
+                  fontWeight: 700,
+                  backgroundColor: '#f8fafc',
+                  color: '#475569',
+                  border: '1px dashed #cbd5e1',
+                  borderRadius: '0.375rem',
+                  textAlign: 'center',
+                }}
+                title="Đất dôi dư hoặc ngoài ranh công trình - Không yêu cầu lập Báo cáo khảo sát kết cấu Phase 1"
+              >
+                <span>🌿 Đất dôi dư / Sân vườn (Không yêu cầu khảo sát)</span>
+              </div>
+            );
+          }
           return (
             <button
               type="button"
@@ -453,8 +491,8 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
           );
         })()}
 
-        {/* Nút Tách / Gộp Thửa Đất GIS */}
-        {onProposeSplit && (
+        {/* Nút Tách / Gộp Thửa Đất GIS (CHỈ CHO PHÉP ZONE_ADMIN & SUPER_ADMIN - ẨN VỚI GUEST VÀ SURVEYOR) */}
+        {onProposeSplit && (user?.role === 'ZONE_ADMIN' || user?.role === 'SUPER_ADMIN') && (
           <button
             type="button"
             className="btn btn-sm"
@@ -472,10 +510,62 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
               fontWeight: 700,
               cursor: 'pointer',
             }}
-            title="Mở Studio Tách / Gộp Thửa Đất GIS"
+            title="Mở Studio Tách / Gộp Thửa Đất GIS (Admin Only)"
           >
             <Split size={14} color="#c2410c" />
             Tách / Gộp Thửa
+          </button>
+        )}
+
+        {/* Nút Chuyển Vị Trí GIS (CHỈ CHO PHÉP ZONE_ADMIN & SUPER_ADMIN) */}
+        {(user?.role === 'ZONE_ADMIN' || user?.role === 'SUPER_ADMIN') && (
+          <button
+            type="button"
+            className="btn btn-sm"
+            onClick={() => setShowSwapModal(true)}
+            style={{
+              fontSize: '0.775rem',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '0.35rem',
+              color: '#0284c7',
+              borderColor: '#bae6fd',
+              backgroundColor: '#f0f9ff',
+              padding: '0.5rem 0.75rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+            }}
+            title="Chuyển / Hoán đổi vị trí ranh giới không gian giữa 2 thửa đất (Admin Only)"
+          >
+            <ArrowLeftRight size={14} color="#0284c7" />
+            Chuyển vị trí
+          </button>
+        )}
+
+        {/* Nút Lịch Sử Biến Động (Bảo mật: DUY NHẤT SUPER_ADMIN) */}
+        {user?.role === 'SUPER_ADMIN' && (
+          <button
+            type="button"
+            className="btn btn-sm"
+            onClick={() => setShowHistoryModal(true)}
+            style={{
+              fontSize: '0.775rem',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '0.35rem',
+              color: '#0f172a',
+              borderColor: '#cbd5e1',
+              backgroundColor: '#f8fafc',
+              padding: '0.5rem 0.75rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+            }}
+            title="Xem nhật ký kiểm toán và lịch sử biến động thửa đất (Chỉ dành cho Super Admin)"
+          >
+            <History size={14} color="#64748b" />
+            Lịch sử
           </button>
         )}
 
@@ -502,6 +592,29 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
           Chỉ đường
         </button>
       </div>
+
+      {/* Modal Chuyển / Hoán đổi vị trí (Admin Only) */}
+      {(user?.role === 'ZONE_ADMIN' || user?.role === 'SUPER_ADMIN') && (
+        <CadastralSpatialSwapModal
+          activeParcel={activeParcel}
+          availableParcels={availableParcels}
+          isOpen={showSwapModal}
+          onClose={() => setShowSwapModal(false)}
+          onSuccess={() => {
+            onSwapSuccess?.();
+          }}
+        />
+      )}
+
+      {/* Modal Lịch sử biến động (Super Admin Only) */}
+      {user?.role === 'SUPER_ADMIN' && (
+        <ParcelMutationHistoryModal
+          parcelId={activeParcel.id}
+          parcelCode={activeParcel.projectParcelCode}
+          isOpen={showHistoryModal}
+          onClose={() => setShowHistoryModal(false)}
+        />
+      )}
     </div>
   );
 };

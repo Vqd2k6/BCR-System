@@ -542,7 +542,7 @@ export const Step9_FieldSignatures: React.FC<Step9Props> = ({ onSubmitFinal, isS
               <span className="flex items-center gap-1.5">
                 <span>🔗 Xác nhận Gộp thửa thực địa:</span>
                 <span className="bg-blue-600 text-white font-mono px-2 py-0.5 rounded text-[11px]">
-                  Thửa chính: {formData.gisMutationConfirmed?.details?.mergeTargetCode || formData.projectParcelCode}-XD
+                  Thửa chính: {formData.gisMutationConfirmed?.details?.mergeTargetCode || formData.projectParcelCode}
                 </span>
               </span>
               <span className="text-[11px] text-blue-700">Lý do: {formData.gisMutationConfirmed?.details?.mergeReason || 'Xây thông thửa'}</span>

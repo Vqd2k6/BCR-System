@@ -304,7 +304,18 @@ export class SurveyMutationRepository {
       console.log(`[handleFieldSplitMutation] Nhánh 2: Đã tạo thành công lô Căn B mới [${portionBCode}] (ID: ${newParcelBId}) và phân công cho KSV: ${surveyorId}`);
     } else {
       // --- NHÁNH 1: ĐẤT DƯ / SÂN VƯỜN (Mã {Mã}-DU theo Quy chuẩn Kiến trúc 3.3) ---
-      const fallbackGeom = geomB || originalGeom;
+      let residualGeom = geomB;
+      if (!residualGeom && geomA && origGeomJson) {
+        const diffRes = await client.query<{ diff_json: string }>(
+          `SELECT ST_AsGeoJSON(ST_GeometryN(ST_CollectionExtract(ST_MakeValid(ST_Difference(
+             ST_SetSRID(ST_GeomFromGeoJSON($1), 4326),
+             ST_SetSRID(ST_GeomFromGeoJSON($2), 4326)
+           )), 3), 1)) as diff_json;`,
+          [origGeomJson, JSON.stringify(geomA)]
+        );
+        residualGeom = diffRes.rows[0]?.diff_json || null;
+      }
+      const fallbackGeom = residualGeom || geomB || originalGeom;
       const residualResult = await CadastralMutationService.upsertResidualLandParcel(client, {
         zoneId,
         parentParcelId: originalParcelId,
@@ -519,6 +530,98 @@ export class SurveyMutationRepository {
 
     // 8. Nếu "Xây dựng 1 phần có đất dư": Tự động sinh Thửa đất dư {Mã}-DU
     if (hasPartialBuilding && residualAreaM2 > 0) {
+      let residualGeomJson: any = null;
+      const ratio = Math.max(0.05, Math.min(0.95, finalPrimaryArea / (finalPrimaryArea + residualAreaM2)));
+      const rawBuildingPoints = (rawMutation as any).mergeBuildingPolygon || (rawMutation as any).mergeBuildingCustomPoints;
+      const buildingGeoJson = rawBuildingPoints
+        ? CadastralMutationService.toGeoJsonPolygon(rawBuildingPoints)
+        : null;
+      const buildingGeoStr = buildingGeoJson ? JSON.stringify(buildingGeoJson) : null;
+
+      const partitionMergeRes = await client.query<{
+        geom_chinh_json: string;
+        geom_du_json: string;
+      }>(
+        `WITH merged AS (
+           SELECT ST_GeometryN(ST_CollectionExtract(ST_MakeValid(ST_Union(cadastral_polygon_geom)), 3), 1) as full_geom
+           FROM parcels WHERE id = ANY($1)
+         ),
+         cut_step AS (
+           SELECT 
+             m.full_geom,
+             COALESCE(
+               CASE 
+                 WHEN $2::text IS NOT NULL THEN (
+                   SELECT geom FROM ST_Dump(ST_CollectionExtract(ST_MakeValid(
+                     ST_Intersection(m.full_geom, ST_SetSRID(ST_GeomFromGeoJSON($2), 4326))
+                   ), 3)) ORDER BY ST_Area(geom::geography) DESC LIMIT 1
+                 )
+                 ELSE NULL
+               END,
+               CASE 
+                 WHEN (ST_XMax(m.full_geom) - ST_XMin(m.full_geom)) >= (ST_YMax(m.full_geom) - ST_YMin(m.full_geom)) THEN
+                   ST_GeometryN(ST_CollectionExtract(ST_MakeValid(ST_Intersection(
+                     m.full_geom,
+                     ST_MakeEnvelope(
+                       ST_XMin(m.full_geom),
+                       ST_YMin(m.full_geom),
+                       ST_XMin(m.full_geom) + (ST_XMax(m.full_geom) - ST_XMin(m.full_geom)) * $3::float,
+                       ST_YMax(m.full_geom),
+                       4326
+                     )
+                   )), 3), 1)
+                 ELSE
+                   ST_GeometryN(ST_CollectionExtract(ST_MakeValid(ST_Intersection(
+                     m.full_geom,
+                     ST_MakeEnvelope(
+                       ST_XMin(m.full_geom),
+                       ST_YMin(m.full_geom),
+                       ST_XMax(m.full_geom),
+                       ST_YMin(m.full_geom) + (ST_YMax(m.full_geom) - ST_YMin(m.full_geom)) * $3::float,
+                       4326
+                     )
+                   )), 3), 1)
+               END
+             ) as geom_chinh
+           FROM merged m
+         ),
+         diff_step AS (
+           SELECT 
+             c.geom_chinh,
+             (
+               SELECT geom FROM ST_Dump(ST_CollectionExtract(ST_MakeValid(
+                 ST_Difference(c.full_geom, c.geom_chinh)
+               ), 3)) ORDER BY ST_Area(geom::geography) DESC LIMIT 1
+             ) as geom_du
+           FROM cut_step c
+         )
+         SELECT 
+           ST_AsGeoJSON(geom_chinh) as geom_chinh_json,
+           ST_AsGeoJSON(geom_du) as geom_du_json
+         FROM diff_step;`,
+        [allSourceIds, buildingGeoStr, ratio]
+      );
+
+      if (
+        partitionMergeRes.rows.length > 0 &&
+        partitionMergeRes.rows[0].geom_chinh_json &&
+        partitionMergeRes.rows[0].geom_du_json
+      ) {
+        const pRow = partitionMergeRes.rows[0];
+        residualGeomJson = pRow.geom_du_json;
+        await client.query(
+          `UPDATE parcels
+           SET land_area_m2 = $1,
+               construction_area_m2 = $1,
+               cadastral_polygon_geom = ST_SetSRID(ST_GeomFromGeoJSON($2), 4326),
+               footprint_polygon_geom = ST_SetSRID(ST_GeomFromGeoJSON($2), 4326),
+               location_geom = ST_Centroid(ST_SetSRID(ST_GeomFromGeoJSON($2), 4326)),
+               updated_at = NOW()
+           WHERE id = $3;`,
+          [finalPrimaryArea, pRow.geom_chinh_json, primary.parcel_id]
+        );
+      }
+
       const residualResult = await CadastralMutationService.upsertResidualLandParcel(client, {
         zoneId: primary.zone_id,
         parentParcelId: primary.parcel_id,
@@ -531,7 +634,7 @@ export class SurveyMutationRepository {
         residualAreaM2,
         mutationType: 'MERGE',
         mutationEventId,
-        customGeomJson: rawMergedGeom || undefined,
+        customGeomJson: residualGeomJson || rawMergedGeom || undefined,
       });
 
       resultParcelIds.push(residualResult.id);

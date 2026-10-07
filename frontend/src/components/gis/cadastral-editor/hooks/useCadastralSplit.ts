@@ -2,7 +2,13 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import L from 'leaflet';
 import { api } from '../../../../services/api';
 import { GisParcel, MutationPayloadData, CadastralParcelData, SplitChildData, MaxZoneCodeInfo } from '../../shared/types';
-import { computePolygonAreaM2, interpolatePoint, splitQuadHorizontal, splitQuadVertical, cleanPolygonRing } from '../../shared/geoMath';
+import {
+  computePolygonAreaM2,
+  interpolatePoint,
+  splitQuadHorizontal,
+  splitQuadVertical,
+  cleanPolygonRing,
+} from '../../shared/geoMath';
 
 interface UseCadastralSplitProps {
   realActiveCoords: [number, number][];
@@ -34,33 +40,10 @@ export const useCadastralSplit = ({
   const [maxZoneInfo, setMaxZoneInfo] = useState<MaxZoneCodeInfo | null>(null);
   const [_isLoadingCodes, setIsLoadingCodes] = useState<boolean>(false);
 
-  const getDefaultPolygonA = useCallback((): [number, number][] => {
-    const clean = cleanPolygonRing(realActiveCoords);
-    if (clean.length < 3) return clean;
-    const p0 = clean[0];
-    const p1 = clean[1];
-    const p2 = clean[2];
-    const p3 = clean[3] || clean[2];
+  const [activeTarget, setActiveTarget] = useState<'A' | 'B'>('A');
 
-    const cutL = interpolatePoint(p0, p3, 0.6);
-    const cutR = interpolatePoint(p1, p2, 0.6);
-    return [p0, p1, cutR, cutL];
-  }, [realActiveCoords]);
-
-  const getLShapePolygon = useCallback((): [number, number][] => {
-    const clean = cleanPolygonRing(realActiveCoords);
-    if (clean.length < 3) return clean;
-    const p0 = clean[0];
-    const p1 = clean[1];
-    const p2 = clean[2];
-    const p3 = clean[3] || clean[2];
-
-    const cutL = interpolatePoint(p0, p3, 0.65);
-    const cutR = interpolatePoint(p1, p2, 0.65);
-    const cornerPoint = interpolatePoint(cutL, cutR, 0.6);
-    const frontCut = interpolatePoint(p0, p1, 0.6);
-
-    return [p0, frontCut, cornerPoint, cutR, p2, p3];
+  const getDefaultPolygons = useCallback((): { polyA: [number, number][]; polyB: [number, number][] } => {
+    return splitQuadHorizontal(realActiveCoords, 0.6);
   }, [realActiveCoords]);
 
   const [polyAVertices, setPolyAVertices] = useState<[number, number][]>(() => {
@@ -70,39 +53,46 @@ export const useCadastralSplit = ({
     return [];
   });
 
+  const [polyBVertices, setPolyBVertices] = useState<[number, number][]>(() => {
+    if (mutationData.splitCustomPointsB && mutationData.splitCustomPointsB.length >= 3) {
+      return mutationData.splitCustomPointsB;
+    }
+    return [];
+  });
+
   // Đồng bộ hai chiều khi dữ liệu nháp được nạp từ IndexedDB / Store
   useEffect(() => {
     if (mutationData.splitCustomPointsA && mutationData.splitCustomPointsA.length >= 3) {
       setPolyAVertices(mutationData.splitCustomPointsA);
     }
-  }, [mutationData.splitCustomPointsA]);
+    if (mutationData.splitCustomPointsB && mutationData.splitCustomPointsB.length >= 3) {
+      setPolyBVertices(mutationData.splitCustomPointsB);
+    }
+  }, [mutationData.splitCustomPointsA, mutationData.splitCustomPointsB]);
 
   // Tự động khởi tạo cả 2 đa giác A và B ngay khi mở tab Tách thửa để luôn nhìn thấy trên bản đồ
   useEffect(() => {
     const clean = cleanPolygonRing(realActiveCoords);
-    if (boundaryStatus === 'SPLIT' && polyAVertices.length < 3 && clean.length >= 3) {
-      if (mutationData.splitCustomPointsA && mutationData.splitCustomPointsA.length >= 3) {
-        setPolyAVertices(mutationData.splitCustomPointsA);
-        return;
-      }
-      const def = getDefaultPolygonA();
-      setPolyAVertices(def);
-      const p0 = clean[0];
-      const p1 = clean[1];
-      const p2 = clean[2];
-      const p3 = clean[3] || clean[2];
-      const cutL = def[3] || interpolatePoint(p0, p3, 0.6);
-      const cutR = def[2] || interpolatePoint(p1, p2, 0.6);
-      const polyB: [number, number][] = [cutL, cutR, p2, p3];
+    if (boundaryStatus === 'SPLIT' && clean.length >= 3) {
+      const hasA = polyAVertices.length >= 3 || (mutationData.splitCustomPointsA && mutationData.splitCustomPointsA.length >= 3);
+      const hasB = polyBVertices.length >= 3 || (mutationData.splitCustomPointsB && mutationData.splitCustomPointsB.length >= 3);
+      if (!hasA || !hasB) {
+        const { polyA, polyB } = getDefaultPolygons();
+        const finalA = hasA ? (polyAVertices.length >= 3 ? polyAVertices : mutationData.splitCustomPointsA!) : polyA;
+        const finalB = hasB ? (polyBVertices.length >= 3 ? polyBVertices : mutationData.splitCustomPointsB!) : polyB;
 
-      onMutationDataChange({
-        ...mutationData,
-        activeProposalType: 'SPLIT',
-        splitCustomPointsA: def,
-        splitCustomPointsB: polyB,
-      });
+        setPolyAVertices(finalA);
+        setPolyBVertices(finalB);
+
+        onMutationDataChange({
+          ...mutationData,
+          activeProposalType: 'SPLIT',
+          splitCustomPointsA: finalA,
+          splitCustomPointsB: finalB,
+        });
+      }
     }
-  }, [boundaryStatus, polyAVertices.length, realActiveCoords, getDefaultPolygonA, mutationData.splitCustomPointsA]);
+  }, [boundaryStatus, realActiveCoords, getDefaultPolygons, polyAVertices.length, polyBVertices.length]);
 
   // Lấy mã dự án mở rộng Max Zone + 1
   useEffect(() => {
@@ -212,51 +202,33 @@ export const useCadastralSplit = ({
   }, [boundaryStatus, parcelData.projectParcelCode, parcelData.zoneId, parcel, activeParcelId]);
 
   const calculatedAreaA = useMemo(() => {
-    if (polyAVertices.length < 3) {
-      return 0;
-    }
+    if (polyAVertices.length < 3) return 0;
     const raw = computePolygonAreaM2(polyAVertices);
-    if (raw > 0 && raw < totalLandArea) return raw;
+    if (raw > 0) return raw;
     return Math.round(totalLandArea * 0.6 * 10) / 10;
   }, [polyAVertices, totalLandArea]);
 
   const calculatedAreaB = useMemo(() => {
-    if (calculatedAreaA <= 0) return totalLandArea;
-    return Math.max(0.1, Math.round((totalLandArea - calculatedAreaA) * 10) / 10);
-  }, [totalLandArea, calculatedAreaA]);
-
-  const computePolygonB = useCallback(
-    (ptsA: [number, number][]): [number, number][] => {
-      const clean = cleanPolygonRing(realActiveCoords);
-      if (clean.length < 3) return clean;
-      if (ptsA.length >= 4) {
-        const p0 = clean[0];
-        const p1 = clean[1];
-        const p2 = clean[2];
-        const p3 = clean[3] || clean[2];
-        const cutR = ptsA[2] || interpolatePoint(p1, p2, 0.6);
-        const cutL = ptsA[3] || interpolatePoint(p0, p3, 0.6);
-        if (clean.length <= 4) {
-          return [cutL, cutR, p2, p3];
-        }
-        const remaining = clean.slice(2);
-        return [cutL, cutR, ...remaining];
+    if (polyBVertices.length < 3) {
+      if (calculatedAreaA > 0) {
+        return Math.max(0.1, Math.round((totalLandArea - calculatedAreaA) * 10) / 10);
       }
-      return clean;
-    },
-    [realActiveCoords]
-  );
+      return totalLandArea;
+    }
+    const raw = computePolygonAreaM2(polyBVertices);
+    if (raw > 0) return raw;
+    return Math.max(0.1, Math.round((totalLandArea - calculatedAreaA) * 10) / 10);
+  }, [polyBVertices, totalLandArea, calculatedAreaA]);
 
-  const updateVerticesAndSync = useCallback(
-    (updatedA: [number, number][]) => {
-      setPolyAVertices(updatedA);
-      const polyB = computePolygonB(updatedA);
-      const rawAreaA = computePolygonAreaM2(updatedA);
-      const validAreaA =
-        rawAreaA > 0 && rawAreaA < totalLandArea
-          ? rawAreaA
-          : Math.round(totalLandArea * 0.6 * 10) / 10;
-      const validAreaB = Math.max(0.1, Math.round((totalLandArea - validAreaA) * 10) / 10);
+  const syncPolygonsToMutation = useCallback(
+    (ptsA: [number, number][], ptsB: [number, number][]) => {
+      setPolyAVertices(ptsA);
+      setPolyBVertices(ptsB);
+
+      const rawAreaA = computePolygonAreaM2(ptsA);
+      const rawAreaB = computePolygonAreaM2(ptsB);
+      const validAreaA = rawAreaA > 0 ? rawAreaA : Math.round(totalLandArea * 0.6 * 10) / 10;
+      const validAreaB = rawAreaB > 0 ? rawAreaB : Math.max(0.1, Math.round((totalLandArea - validAreaA) * 10) / 10);
       const isNewB = mutationData.residualKind === 'NEW_BUILDING';
 
       const currentChildren = mutationData.splitChildren || [];
@@ -271,7 +243,7 @@ export const useCadastralSplit = ({
           ownerName: parcelData.ownerName || '',
           suggestedCode: parcelData.projectParcelCode,
           areaM2: validAreaA,
-          coordinates: updatedA,
+          coordinates: ptsA,
           functionalType: child0.functionalType || 'Nhà ở gia đình (Nhà phố / Biệt thự / Căn hộ)',
           isResidualSurplus: false,
         },
@@ -284,7 +256,7 @@ export const useCadastralSplit = ({
             ? (dynamicCodes[0] || child1.suggestedCode || `${parcelData.projectParcelCode}-B`)
             : `${parcelData.projectParcelCode}-DU`,
           areaM2: validAreaB,
-          coordinates: polyB,
+          coordinates: ptsB,
           functionalType:
             child1.functionalType ||
             (isNewB ? 'Nhà ở gia đình (Nhà phố / Biệt thự / Căn hộ)' : 'RESIDUAL_SURPLUS'),
@@ -301,71 +273,99 @@ export const useCadastralSplit = ({
 
       onMutationDataChange({
         ...mutationData,
-        splitCustomPointsA: updatedA,
-        splitCustomPointsB: polyB,
+        splitCustomPointsA: ptsA,
+        splitCustomPointsB: ptsB,
         splitChildren: updatedChildren,
         isSubmitted: false,
       });
     },
-    [computePolygonB, totalLandArea, mutationData, parcelData, dynamicCodes, onMutationDataChange]
+    [totalLandArea, mutationData, parcelData, dynamicCodes, onMutationDataChange]
   );
 
-  const handleVertexDrag = (index: number, newLatLng: L.LatLng) => {
-    const updated = [...polyAVertices];
-    updated[index] = [newLatLng.lat, newLatLng.lng];
-    updateVerticesAndSync(updated);
+  const handleVertexDrag = (index: number, newLatLng: L.LatLng, target: 'A' | 'B' = activeTarget) => {
+    if (target === 'A') {
+      const updatedA = [...polyAVertices];
+      updatedA[index] = [newLatLng.lat, newLatLng.lng];
+      syncPolygonsToMutation(updatedA, polyBVertices);
+    } else {
+      const updatedB = [...polyBVertices];
+      updatedB[index] = [newLatLng.lat, newLatLng.lng];
+      syncPolygonsToMutation(polyAVertices, updatedB);
+    }
   };
 
-  const handleMapClickDraw = (point: [number, number]) => {
-    const updated = [...polyAVertices, point];
-    updateVerticesAndSync(updated);
+  const handleMapClickDraw = (point: [number, number], target: 'A' | 'B' = activeTarget) => {
+    if (target === 'A') {
+      const updatedA = [...polyAVertices, point];
+      syncPolygonsToMutation(updatedA, polyBVertices);
+    } else {
+      const updatedB = [...polyBVertices, point];
+      syncPolygonsToMutation(polyAVertices, updatedB);
+    }
   };
 
-  const handleAddMidpoint = () => {
-    if (polyAVertices.length < 2) return;
-    const p1 = polyAVertices[polyAVertices.length - 1];
-    const p2 = polyAVertices[0];
+  const handleAddMidpoint = (target: 'A' | 'B' = activeTarget) => {
+    const list = target === 'A' ? polyAVertices : polyBVertices;
+    if (list.length < 2) return;
+    const p1 = list[list.length - 1];
+    const p2 = list[0];
     const mid = interpolatePoint(p1, p2, 0.5);
-    const updated = [...polyAVertices, mid];
-    updateVerticesAndSync(updated);
+    if (target === 'A') {
+      syncPolygonsToMutation([...polyAVertices, mid], polyBVertices);
+    } else {
+      syncPolygonsToMutation(polyAVertices, [...polyBVertices, mid]);
+    }
   };
 
-  const handleRemovePoint = () => {
-    if (polyAVertices.length === 0) return;
-    const updated = polyAVertices.slice(0, -1);
-    updateVerticesAndSync(updated);
+  const handleRemovePoint = (target: 'A' | 'B' = activeTarget) => {
+    if (target === 'A') {
+      if (polyAVertices.length === 0) return;
+      syncPolygonsToMutation(polyAVertices.slice(0, -1), polyBVertices);
+    } else {
+      if (polyBVertices.length === 0) return;
+      syncPolygonsToMutation(polyAVertices, polyBVertices.slice(0, -1));
+    }
+  };
+
+  const handleResetTarget = (target: 'A' | 'B' = activeTarget) => {
+    if (target === 'A') {
+      setPolyAVertices([]);
+      syncPolygonsToMutation([], polyBVertices);
+    } else {
+      setPolyBVertices([]);
+      syncPolygonsToMutation(polyAVertices, []);
+    }
   };
 
   const handleResetDefault = () => {
-    const def = getDefaultPolygonA();
-    updateVerticesAndSync(def);
-  };
-
-  const handleApplyLShape = () => {
-    const lShape = getLShapePolygon();
-    updateVerticesAndSync(lShape);
+    const { polyA, polyB } = getDefaultPolygons();
+    syncPolygonsToMutation(polyA, polyB);
   };
 
   const handleSplitHorizontal = (ratio: number = 0.6) => {
-    const { polyA } = splitQuadHorizontal(realActiveCoords, ratio);
-    updateVerticesAndSync(polyA);
+    const { polyA, polyB } = splitQuadHorizontal(realActiveCoords, ratio);
+    syncPolygonsToMutation(polyA, polyB);
   };
 
   const handleSplitVertical = (ratio: number = 0.5) => {
-    const { polyA } = splitQuadVertical(realActiveCoords, ratio);
-    updateVerticesAndSync(polyA);
+    const { polyA, polyB } = splitQuadVertical(realActiveCoords, ratio);
+    syncPolygonsToMutation(polyA, polyB);
   };
 
-  const polyBVertices: [number, number][] = useMemo(() => {
-    if (mutationData.splitCustomPointsB && mutationData.splitCustomPointsB.length >= 3) {
-      return mutationData.splitCustomPointsB;
-    }
-    return computePolygonB(polyAVertices);
-  }, [mutationData.splitCustomPointsB, computePolygonB, polyAVertices]);
+  const computePolygonB = useCallback(
+    (_ptsA: [number, number][]): [number, number][] => {
+      if (polyBVertices.length >= 3) return polyBVertices;
+      const { polyB } = splitQuadHorizontal(realActiveCoords, 0.6);
+      return polyB;
+    },
+    [polyBVertices, realActiveCoords]
+  );
 
   return {
     splitShapeOption,
     setSplitShapeOption,
+    activeTarget,
+    setActiveTarget,
     customResidualType,
     setCustomResidualType,
     customSplitReason,
@@ -375,17 +375,18 @@ export const useCadastralSplit = ({
     polyAVertices,
     setPolyAVertices,
     polyBVertices,
+    setPolyBVertices,
     calculatedAreaA,
     calculatedAreaB,
-    getDefaultPolygonA,
-    getLShapePolygon,
+    getDefaultPolygons,
     computePolygonB,
+    syncPolygonsToMutation,
     handleVertexDrag,
     handleMapClickDraw,
     handleAddMidpoint,
     handleRemovePoint,
+    handleResetTarget,
     handleResetDefault,
-    handleApplyLShape,
     handleSplitHorizontal,
     handleSplitVertical,
   };

@@ -114,9 +114,8 @@ export const MatchPanel: React.FC<MatchPanelProps> = ({
             />
           ) : (
             <TileLayer
-              attribution="&copy; OpenStreetMap contributors &copy; CARTO"
-              url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
-              subdomains="abcd"
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
               maxNativeZoom={19}
               maxZoom={22}
             />

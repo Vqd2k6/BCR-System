@@ -57,6 +57,7 @@ export const AdminReassignParcelModal: React.FC<Props> = ({
   const [errorMsg, setErrorMsg] = useState('');
   const [isReassignChallengeValid, setIsReassignChallengeValid] = useState(false);
   const [isSwapChallengeValid, setIsSwapChallengeValid] = useState(false);
+  const [isInputFocused, setIsInputFocused] = useState(false);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -112,16 +113,36 @@ export const AdminReassignParcelModal: React.FC<Props> = ({
   // Danh sách gợi ý thửa đất đích khi gõ trong chế độ REASSIGN
   const targetSuggestions = useMemo(() => {
     const raw = targetParcelCodeOrId.replace(/[\[\]"'\\]/g, '').trim().toLowerCase();
-    if (!raw || raw.length < 2) return [];
-    return candidatePool
-      .filter((c) => {
+    if (!raw && !isInputFocused) return [];
+    let list = candidatePool;
+    if (raw) {
+      list = candidatePool.filter((c) => {
         const code = (c.project_parcel_code || '').toLowerCase();
         const house = (c.house_number || '').toLowerCase();
         const street = (c.street || '').toLowerCase();
         return code.includes(raw) || house.includes(raw) || street.includes(raw);
-      })
-      .slice(0, 5);
-  }, [candidatePool, targetParcelCodeOrId]);
+      });
+    }
+    return list.slice(0, 8);
+  }, [candidatePool, targetParcelCodeOrId, isInputFocused]);
+
+  // Danh sách ứng viên cho chế độ SWAP sau khi lọc tìm kiếm
+  const swapFilteredCandidates = useMemo(() => {
+    const raw = searchFilter.trim().toLowerCase();
+    if (!raw) return candidatePool;
+    return candidatePool.filter((c) => {
+      const code = (c.project_parcel_code || '').toLowerCase();
+      const house = (c.house_number || '').toLowerCase();
+      const street = (c.street || '').toLowerCase();
+      const surveyor = (c.surveyor_name || '').toLowerCase();
+      return (
+        code.includes(raw) ||
+        house.includes(raw) ||
+        street.includes(raw) ||
+        surveyor.includes(raw)
+      );
+    });
+  }, [candidatePool, searchFilter]);
 
   const handleReassignSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -302,26 +323,38 @@ export const AdminReassignParcelModal: React.FC<Props> = ({
                     required
                     placeholder="Ví dụ: B-0042 hoặc paste UUID thửa đất..."
                     value={targetParcelCodeOrId}
-                    onChange={(e) => setTargetParcelCodeOrId(e.target.value)}
+                    onFocus={() => setIsInputFocused(true)}
+                    onChange={(e) => {
+                      setTargetParcelCodeOrId(e.target.value);
+                      setIsInputFocused(true);
+                    }}
                     className="w-full pl-3 pr-8 py-2 text-xs font-bold text-slate-800 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 focus:outline-hidden uppercase"
                   />
-                  <Search className="w-4 h-4 text-slate-400 absolute right-2.5 top-2.5" />
+                  <Search className="w-4 h-4 text-slate-400 absolute right-2.5 top-2.5 pointer-events-none" />
                 </div>
-                {targetSuggestions.length > 0 && (
-                  <div className="p-1 rounded-xl bg-slate-50 border border-slate-200 shadow-sm space-y-1">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase px-2 block">
-                      Gợi ý thửa đất trong phân khu:
-                    </span>
+                {isInputFocused && targetSuggestions.length > 0 && (
+                  <div className="p-1 rounded-xl bg-white border border-slate-300 shadow-xl space-y-1 max-h-56 overflow-y-auto">
+                    <div className="flex items-center justify-between px-2 py-0.5 text-[10px] font-bold text-slate-400 uppercase">
+                      <span>Gợi ý thửa đất trong phân khu ({targetSuggestions.length}):</span>
+                      <button
+                        type="button"
+                        onClick={() => setIsInputFocused(false)}
+                        className="text-slate-400 hover:text-slate-600 text-[10px]"
+                      >
+                        Đóng ✕
+                      </button>
+                    </div>
                     {targetSuggestions.map((item) => (
                       <button
                         key={item.report_id || item.parcel_id}
                         type="button"
                         onClick={() => {
                           setTargetParcelCodeOrId(item.project_parcel_code);
+                          setIsInputFocused(false);
                         }}
                         className="w-full text-left px-2.5 py-1.5 rounded-lg text-xs hover:bg-sky-50 transition-colors flex items-center justify-between cursor-pointer border border-transparent hover:border-sky-200"
                       >
-                        <span className="font-bold text-sky-800">
+                        <span className="font-bold text-sky-800 font-mono">
                           [{item.project_parcel_code}]
                         </span>
                         <span className="text-[11px] text-slate-600 truncate ml-2">
@@ -406,18 +439,49 @@ export const AdminReassignParcelModal: React.FC<Props> = ({
                   <Search className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-2" />
                 </div>
 
-                <select
-                  value={selectedReportBId}
-                  onChange={(e) => setSelectedReportBId(e.target.value)}
-                  className="w-full p-2.5 text-xs font-bold text-slate-800 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:outline-hidden"
-                >
-                  <option value="">-- Chọn hồ sơ liền kề cần hoán đổi --</option>
-                  {candidatePool.map((r) => (
-                    <option key={r.report_id} value={r.report_id}>
-                      [{r.project_parcel_code}] {r.house_number ? `Số ${r.house_number}` : ''} {r.street} (KSV: {r.surveyor_name || '---'})
-                    </option>
-                  ))}
-                </select>
+                {/* DANH SÁCH THẺ GỢI Ý THÔNG MINH (THAY THẾ SELECT HOA MẮT) */}
+                <div className="p-1 rounded-xl bg-slate-50 border border-slate-200 max-h-48 overflow-y-auto space-y-1 custom-scrollbar">
+                  {swapFilteredCandidates.length === 0 ? (
+                    <div className="py-4 text-center text-xs text-slate-500">
+                      {isLoadingReports
+                        ? 'Đang tải danh sách hồ sơ...'
+                        : 'Không tìm thấy hồ sơ nào phù hợp với bộ lọc tìm kiếm.'}
+                    </div>
+                  ) : (
+                    swapFilteredCandidates.map((r) => {
+                      const isSelected = selectedReportBId === r.report_id;
+                      return (
+                        <button
+                          key={r.report_id}
+                          type="button"
+                          onClick={() => setSelectedReportBId(r.report_id)}
+                          className={`w-full text-left p-2 rounded-lg text-xs transition-all flex items-center justify-between cursor-pointer border ${
+                            isSelected
+                              ? 'bg-amber-50 border-amber-300 shadow-xs'
+                              : 'bg-white hover:bg-slate-100 border-slate-200/80 hover:border-slate-300'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className={`font-mono font-bold ${isSelected ? 'text-amber-900' : 'text-slate-800'}`}>
+                              [{r.project_parcel_code}]
+                            </span>
+                            <span className="text-[11px] text-slate-600 truncate max-w-[220px]">
+                              {r.house_number ? `Số ${r.house_number}` : ''} {r.street || ''}
+                            </span>
+                            {r.surveyor_name && (
+                              <span className="px-1.5 py-0.2 rounded text-[9px] font-medium bg-slate-100 text-slate-600">
+                                KSV: {r.surveyor_name}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {isSelected && <CheckCircle2 className="w-4 h-4 text-amber-600 shrink-0" />}
+                          </div>
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
                 {candidatePool.length === 0 && !isLoadingReports && (
                   <p className="text-[11px] text-amber-700 mt-1">
                     Chưa tìm thấy hồ sơ nào khác trong phân khu. Bạn có thể xóa bộ lọc tìm kiếm để xem tất cả.

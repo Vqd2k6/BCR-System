@@ -142,10 +142,16 @@ export class CadastralController {
         );
       }
 
+      const userId = req.user?.userId;
+      const clientIp = (req.headers['x-forwarded-for'] as string) || req.ip || req.socket?.remoteAddress;
+
       const result = await CadastralService.updateFootprint(
         id,
         parsed.data.footprintPolygonGeoJson,
-        parsed.data.measuredConstructionAreaM2
+        parsed.data.measuredConstructionAreaM2,
+        userId,
+        parsed.data.reason,
+        clientIp
       );
       res.status(200).json({
         success: true,
@@ -364,6 +370,39 @@ export class CadastralController {
       );
 
       res.status(200).json(result);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async getParcelMutationHistory(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      const result = await CadastralService.getParcelMutationHistory(id);
+      res.status(200).json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async getZoneMutationHistory(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { zoneId } = req.query;
+      const limit = parseInt(req.query.limit as string, 10) || 50;
+      const offset = parseInt(req.query.offset as string, 10) || 0;
+
+      if (!zoneId) {
+        throw new BadRequestError('Vui lòng cung cấp mã zoneId để tra cứu lịch sử');
+      }
+
+      const result = await CadastralService.getZoneMutationHistory(zoneId as string, limit, offset);
+      res.status(200).json({
+        success: true,
+        data: result,
+      });
     } catch (error) {
       next(error);
     }

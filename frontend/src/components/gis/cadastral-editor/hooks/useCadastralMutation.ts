@@ -71,6 +71,8 @@ export const useCadastralMutation = ({
     realActiveCoords: geom.realActiveCoords,
     activeCentroid: geom.activeCentroid,
     parcelData,
+    parcel,
+    activeParcelId,
     totalLandArea,
     mutationData,
     onMutationDataChange,
@@ -79,6 +81,9 @@ export const useCadastralMutation = ({
   });
 
   const getPolygonB = useCallback((): [number, number][] => {
+    if (split.polyBVertices && split.polyBVertices.length >= 3) {
+      return split.polyBVertices;
+    }
     return split.computePolygonB(split.polyAVertices);
   }, [split]);
 
@@ -169,6 +174,7 @@ export const useCadastralMutation = ({
       splitCustomPointsA: split.polyAVertices,
       splitCustomPointsB: polyB,
       splitChildren: updatedChildren,
+      primaryMergeCode: merge.mergeSummary.keptCode,
       mergeBuildingCustomPoints: merge.mergeBuildingVertices,
       mergeResidualParcelCode: mutationData.mergeResidualParcelCode || `${merge.mergeSummary.keptCode}-DU`,
       mergeBuildingAreaM2: merge.calculatedMergeBArea,
@@ -216,6 +222,8 @@ export const useCadastralMutation = ({
     setMergeSearchTerm: merge.setMergeSearchTerm,
     splitShapeOption: split.splitShapeOption,
     setSplitShapeOption: split.setSplitShapeOption,
+    activeTarget: split.activeTarget,
+    setActiveTarget: split.setActiveTarget,
     customResidualType: split.customResidualType,
     setCustomResidualType: split.setCustomResidualType,
     customSplitReason: split.customSplitReason,
@@ -230,19 +238,23 @@ export const useCadastralMutation = ({
     polyAVertices: split.polyAVertices,
     setPolyAVertices: split.setPolyAVertices,
     polyBVertices: split.polyBVertices,
+    setPolyBVertices: split.setPolyBVertices,
     calculatedAreaA: split.calculatedAreaA,
     calculatedAreaB: split.calculatedAreaB,
     handleVertexDrag: split.handleVertexDrag,
     handleMapClickDraw: split.handleMapClickDraw,
     handleAddMidpoint: split.handleAddMidpoint,
     handleRemovePoint: split.handleRemovePoint,
+    handleResetTarget: split.handleResetTarget,
     handleResetDefault: split.handleResetDefault,
-    handleApplyLShape: split.handleApplyLShape,
     handleSplitHorizontal: split.handleSplitHorizontal,
     handleSplitVertical: split.handleSplitVertical,
     selectedMergeCodes: merge.selectedMergeCodes,
     mergeSummary: merge.mergeSummary,
     handleToggleMergeParcel: merge.handleToggleMergeParcel,
+    handleSetPrimaryMergeCode: merge.handleSetPrimaryMergeCode,
+    isSurveyedParcel: merge.isSurveyedParcel,
+    getSurveyBadgeInfo: merge.getSurveyBadgeInfo,
     mergeBuildingVertices: merge.mergeBuildingVertices,
     setMergeBuildingVertices: merge.setMergeBuildingVertices,
     calculatedMergeBArea: merge.calculatedMergeBArea,
@@ -250,6 +262,12 @@ export const useCadastralMutation = ({
     handleMergeMapClickDraw: merge.handleMergeMapClickDraw,
     handleMergeRemoveLastPoint: merge.handleMergeRemoveLastPoint,
     handleMergeClearDraw: merge.handleMergeClearDraw,
+    mergeDynamicCodes: merge.dynamicCodes,
+    mergeMaxZoneInfo: merge.maxZoneInfo,
+    mergePartitionKind: merge.mergePartitionKind,
+    mergeSecondaryOfficialCode: merge.mergeSecondaryOfficialCode,
+    handleSetMergePartitionKind: merge.handleSetMergePartitionKind,
+    handleUpdateMergeSecondaryField: merge.handleUpdateMergeSecondaryField,
     handleSaveMutationProposal,
   };
 };

@@ -184,6 +184,10 @@ export function createApp(): express.Application {
   api.post('/admin/parcels/execute-mutation', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.executeAdminMutation);
   api.post('/admin/parcels/swap-geometries', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.swapGeometries);
 
+  // Lịch sử biến động địa chính kiểm toán (Bảo mật nghiêm ngặt: DUY NHẤT SUPER_ADMIN)
+  api.get('/parcels/:id/mutation-history', authenticateJwt, requireRoles('SUPER_ADMIN'), CadastralController.getParcelMutationHistory);
+  api.get('/admin/mutations/history', authenticateJwt, requireRoles('SUPER_ADMIN'), CadastralController.getZoneMutationHistory);
+
   // Xuất Báo Cáo Phân khu & Toàn tuyến
   api.post('/reports/batch-export', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ExportController.createBatchExport);
   api.get('/reports/batch-export/:batchId/status', authenticateJwt, ExportController.getBatchStatus);

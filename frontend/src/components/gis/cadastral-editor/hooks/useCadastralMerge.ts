@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
-import { GisParcel, MutationPayloadData, CadastralParcelData } from '../../shared/types';
+import { api } from '../../../../services/api';
+import { GisParcel, MutationPayloadData, CadastralParcelData, MaxZoneCodeInfo } from '../../shared/types';
 import { computePolygonAreaM2 } from '../../shared/geoMath';
 
 interface UseCadastralMergeProps {
@@ -8,6 +9,8 @@ interface UseCadastralMergeProps {
   realActiveCoords: [number, number][];
   activeCentroid: [number, number];
   parcelData: CadastralParcelData;
+  parcel?: GisParcel | any;
+  activeParcelId?: string;
   totalLandArea: number;
   mutationData: MutationPayloadData;
   onMutationDataChange: (data: MutationPayloadData) => void;
@@ -25,6 +28,8 @@ export const useCadastralMerge = ({
   realActiveCoords,
   activeCentroid,
   parcelData,
+  parcel,
+  activeParcelId,
   totalLandArea,
   mutationData,
   onMutationDataChange,
@@ -39,6 +44,44 @@ export const useCadastralMerge = ({
   const [mergeBuildingVertices, setMergeBuildingVertices] = useState<[number, number][]>(() => {
     return mutationData.mergeBuildingCustomPoints || [];
   });
+  const [dynamicCodes, setDynamicCodes] = useState<string[]>([]);
+  const [maxZoneInfo, setMaxZoneInfo] = useState<MaxZoneCodeInfo | null>(null);
+  const [_isLoadingCodes, setIsLoadingCodes] = useState<boolean>(false);
+
+  // Fetch dynamic codes for NEW_BUILDING branch (Max Zone + 1)
+  useEffect(() => {
+    let isMounted = true;
+    const fetchCodes = async () => {
+      try {
+        setIsLoadingCodes(true);
+        const resolvedZone = parcel?.zoneId || (parcel as any)?.zone_id || parcelData.zoneId || 'ZONE_01';
+        const pId = parcelData.id || activeParcelId;
+        const qParcel = pId ? `&parcelId=${encodeURIComponent(pId)}` : '';
+        const qZone = `&zoneId=${encodeURIComponent(resolvedZone)}`;
+        const res = await api.get(`/parcels/next-high-range-codes?count=4${qParcel}${qZone}`);
+        if (isMounted && res.data?.success && res.data.data?.codes) {
+          const codes = res.data.data.codes;
+          setDynamicCodes(codes);
+          const zoneInfo: MaxZoneCodeInfo = {
+            currentMaxCode: res.data.data.currentMaxCode || '',
+            nextCode: res.data.data.nextCode || codes[0],
+            zoneId: res.data.data.zoneId || resolvedZone,
+            mechanism: res.data.data.mechanism || 'MAX_ZONE_PLUS_1',
+            description: res.data.data.description,
+          };
+          setMaxZoneInfo(zoneInfo);
+        }
+      } catch (err) {
+        console.warn('[useCadastralMerge] Could not fetch next high range codes:', err);
+      } finally {
+        if (isMounted) setIsLoadingCodes(false);
+      }
+    };
+    fetchCodes();
+    return () => {
+      isMounted = false;
+    };
+  }, [parcel?.zoneId, parcelData.zoneId, parcelData.id, activeParcelId]);
 
   useEffect(() => {
     const pts = mutationData.mergeBuildingCustomPoints || mutationData.mergeBuildingPolygon;
@@ -109,35 +152,156 @@ export const useCadastralMerge = ({
     return [];
   }, [mutationData.selectedMergeCodes, mutationData.mergeTargetCode]);
 
+  const isSurveyedParcel = (code: string): boolean => {
+    if (code === parcelData.projectParcelCode) {
+      const st = parcelData.surveyStatus;
+      return st === 'APPROVED' || st === 'SUBMITTED' || st === 'IN_PROGRESS' || st === 'PHASE2_COMPLETED' || st === 'APPROVED_PHASE2';
+    }
+    const p = currentZoneMergeParcels.find((zp) => zp.projectParcelCode === code);
+    if (!p) return false;
+    const st = (p.surveyStatus || (p as any)?.survey_status) as string;
+    return st === 'APPROVED' || st === 'SUBMITTED' || st === 'IN_PROGRESS' || st === 'PHASE2_COMPLETED' || st === 'APPROVED_PHASE2';
+  };
+
+  const getSurveyBadgeInfo = (code: string): { label: string; bg: string; color: string; border: string } => {
+    let st: string | undefined;
+    if (code === parcelData.projectParcelCode) {
+      st = parcelData.surveyStatus;
+    } else {
+      const p = currentZoneMergeParcels.find((zp) => zp.projectParcelCode === code);
+      st = (p?.surveyStatus || (p as any)?.survey_status) as string;
+    }
+
+    switch (st) {
+      case 'IN_PROGRESS':
+        return { label: 'Đang KS', bg: '#fef3c7', color: '#b45309', border: '#fde68a' };
+      case 'SUBMITTED':
+        return { label: 'Đã nộp (Chờ duyệt)', bg: '#e0f2fe', color: '#0369a1', border: '#bae6fd' };
+      case 'APPROVED':
+        return { label: 'Đã duyệt', bg: '#dcfce7', color: '#15803d', border: '#86efac' };
+      case 'PHASE2_COMPLETED':
+      case 'APPROVED_PHASE2':
+        return { label: 'Phase 2', bg: '#f3e8ff', color: '#7e22ce', border: '#d8b4fe' };
+      case 'REJECTED':
+        return { label: 'Bị từ chối', bg: '#fee2e2', color: '#b91c1c', border: '#fca5a5' };
+      case 'POSTPONED_ABSENT':
+        return { label: 'Vắng chủ', bg: '#f1f5f9', color: '#475569', border: '#cbd5e1' };
+      default:
+        return { label: 'Chưa KS', bg: '#f1f5f9', color: '#64748b', border: '#cbd5e1' };
+    }
+  };
+
   const mergeSummary = useMemo(() => {
     const allMergeCodes = Array.from(new Set([parcelData.projectParcelCode, ...selectedMergeCodes]));
-    allMergeCodes.sort();
-    const keptCode = allMergeCodes[0] || parcelData.projectParcelCode;
+
+    // XÁC ĐỊNH THỬA ĐẠI DIỆN CHÍNH THỨC (KEPT CODE)
+    let keptCode = parcelData.projectParcelCode;
+    if (mutationData.primaryMergeCode && allMergeCodes.includes(mutationData.primaryMergeCode)) {
+      // 1. Người dùng / Admin đã chủ động click chọn
+      keptCode = mutationData.primaryMergeCode;
+    } else {
+      // 2. Logic nghiệp vụ tự động:
+      // - Nếu thửa đang mở thao tác là thửa đang KS hoặc đã KS -> giữ lại làm gốc
+      // - Nếu không, ưu tiên thửa nào trong nhóm đã được khảo sát
+      const surveyedCodes = allMergeCodes.filter(isSurveyedParcel);
+      if (surveyedCodes.includes(parcelData.projectParcelCode)) {
+        keptCode = parcelData.projectParcelCode;
+      } else if (surveyedCodes.length > 0) {
+        keptCode = surveyedCodes[0];
+      } else {
+        // Cả 2 đều chưa khảo sát: Giữ nguyên thửa gốc ban đầu mở editor
+        keptCode = parcelData.projectParcelCode;
+      }
+    }
+
     const deprecatedCodes = allMergeCodes.filter((c) => c !== keptCode);
 
-    let totalMergedArea = totalLandArea;
+    // Ép kiểu số học Number() triệt để tránh lỗi chuỗi: "58" + "35.00" = "5835 m²"
+    let totalMergedArea = Number(totalLandArea) || 0;
     selectedMergeCodes.forEach((code) => {
       const p = currentZoneMergeParcels.find((zp) => zp.projectParcelCode === code);
-      const approxArea = (p as any)?.land_area_m2 || 75.0;
+      const approxArea = Number(p?.landArea || (p as any)?.land_area_m2) || 75.0;
       totalMergedArea += approxArea;
     });
 
+    const surveyedCount = allMergeCodes.filter(isSurveyedParcel).length;
+    const hasSurveyConflict = surveyedCount >= 2;
+
     return {
+      allMergeCodes,
       keptCode,
       deprecatedCodes,
       totalMergedArea: Math.round(totalMergedArea * 10) / 10,
+      hasSurveyConflict,
     };
-  }, [selectedMergeCodes, parcelData.projectParcelCode, totalLandArea, currentZoneMergeParcels]);
+  }, [
+    selectedMergeCodes,
+    parcelData.projectParcelCode,
+    parcelData.surveyStatus,
+    totalLandArea,
+    currentZoneMergeParcels,
+    mutationData.primaryMergeCode,
+  ]);
 
   const handleToggleMergeParcel = (code: string) => {
     if (code === parcelData.projectParcelCode) return;
     const current = selectedMergeCodes;
     const next = current.includes(code) ? current.filter((c) => c !== code) : [...current, code];
+    const nextPrimary = mutationData.primaryMergeCode === code ? parcelData.projectParcelCode : mutationData.primaryMergeCode;
 
     onMutationDataChange({
       ...mutationData,
       selectedMergeCodes: next,
       mergeTargetCode: next[0] || '',
+      primaryMergeCode: nextPrimary,
+      isSubmitted: false,
+    });
+  };
+
+  const mergePartitionKind: 'NON_BUILDING' | 'NEW_BUILDING' = mutationData.mergePartitionKind || 'NON_BUILDING';
+
+  const mergeSecondaryOfficialCode = useMemo(() => {
+    if (mergePartitionKind === 'NEW_BUILDING') {
+      return mutationData.mergeSecondaryParcelCode || dynamicCodes[0] || (maxZoneInfo?.nextCode) || `${mergeSummary.keptCode}-B`;
+    }
+    return `${mergeSummary.keptCode}-DU`;
+  }, [mergePartitionKind, mutationData.mergeSecondaryParcelCode, dynamicCodes, maxZoneInfo, mergeSummary.keptCode]);
+
+  const handleSetMergePartitionKind = (kind: 'NON_BUILDING' | 'NEW_BUILDING') => {
+    const nextCode = kind === 'NEW_BUILDING'
+      ? (dynamicCodes[0] || maxZoneInfo?.nextCode || `${mergeSummary.keptCode}-B`)
+      : `${mergeSummary.keptCode}-DU`;
+
+    onMutationDataChange({
+      ...mutationData,
+      mergePartitionKind: kind,
+      mergeResidualParcelCode: nextCode,
+      mergeSecondaryParcelCode: nextCode,
+      mergeSecondaryHouseNumber: mutationData.mergeSecondaryHouseNumber || `${parcelData.houseNumber}B`,
+      mergeSecondaryOwnerName: mutationData.mergeSecondaryOwnerName || (kind === 'NEW_BUILDING' ? 'Chủ hộ mới' : 'Chủ sở hữu đất dôi dư'),
+      mergeSecondaryFunctionalType: mutationData.mergeSecondaryFunctionalType || (kind === 'NEW_BUILDING' ? 'Nhà ở gia đình (Nhà phố / Biệt thự / Căn hộ)' : 'RESIDUAL_SURPLUS'),
+      isSubmitted: false,
+    });
+  };
+
+  const handleUpdateMergeSecondaryField = (field: string, value: any) => {
+    onMutationDataChange({
+      ...mutationData,
+      [field]: value,
+      isSubmitted: false,
+    });
+  };
+
+  const handleSetPrimaryMergeCode = (code: string) => {
+    const allMergeCodes = Array.from(new Set([parcelData.projectParcelCode, ...selectedMergeCodes]));
+    if (!allMergeCodes.includes(code)) return;
+    const isNew = mutationData.mergePartitionKind === 'NEW_BUILDING';
+    const secondaryCode = isNew ? (dynamicCodes[0] || `${code}-B`) : `${code}-DU`;
+    onMutationDataChange({
+      ...mutationData,
+      primaryMergeCode: code,
+      mergeResidualParcelCode: secondaryCode,
+      mergeSecondaryParcelCode: secondaryCode,
       isSubmitted: false,
     });
   };
@@ -176,7 +340,8 @@ export const useCadastralMerge = ({
       mergeBuildingCustomPoints: updated,
       mergeBuildingAreaM2: validBArea,
       mergeResidualAreaM2: rArea,
-      mergeResidualParcelCode: `${mergeSummary.keptCode}-DU`,
+      mergeResidualParcelCode: mergeSecondaryOfficialCode,
+      mergeSecondaryParcelCode: mergeSecondaryOfficialCode,
       isSubmitted: false,
     });
   };
@@ -194,7 +359,8 @@ export const useCadastralMerge = ({
       mergeBuildingCustomPoints: updated,
       mergeBuildingAreaM2: validBArea,
       mergeResidualAreaM2: rArea,
-      mergeResidualParcelCode: `${mergeSummary.keptCode}-P2`,
+      mergeResidualParcelCode: mergeSecondaryOfficialCode,
+      mergeSecondaryParcelCode: mergeSecondaryOfficialCode,
       isSubmitted: false,
     });
   };
@@ -209,7 +375,8 @@ export const useCadastralMerge = ({
       mergeBuildingCustomPoints: [],
       mergeBuildingAreaM2: bArea,
       mergeResidualAreaM2: rArea,
-      mergeResidualParcelCode: `${mergeSummary.keptCode}-P2`,
+      mergeResidualParcelCode: mergeSecondaryOfficialCode,
+      mergeSecondaryParcelCode: mergeSecondaryOfficialCode,
       isSubmitted: false,
     });
   };
@@ -228,10 +395,19 @@ export const useCadastralMerge = ({
     selectedMergeCodes,
     mergeSummary,
     handleToggleMergeParcel,
+    handleSetPrimaryMergeCode,
+    isSurveyedParcel,
+    getSurveyBadgeInfo,
     calculatedMergeBArea,
     calculatedMergeRArea,
     handleMergeMapClickDraw,
     handleMergeRemoveLastPoint,
     handleMergeClearDraw,
+    dynamicCodes,
+    maxZoneInfo,
+    mergePartitionKind,
+    mergeSecondaryOfficialCode,
+    handleSetMergePartitionKind,
+    handleUpdateMergeSecondaryField,
   };
 };

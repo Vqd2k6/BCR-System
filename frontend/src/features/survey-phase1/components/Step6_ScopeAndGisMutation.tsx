@@ -419,6 +419,7 @@ export const Step6_ScopeAndGisMutation: React.FC = () => {
                 : ((activeParcel as any)?.building_height_m || (activeParcel as any)?.buildingHeightM),
               frontageWidth: (activeParcel as any)?.frontage_width || (activeParcel as any)?.frontageWidth,
               lotDepth: (activeParcel as any)?.lot_depth || (activeParcel as any)?.lotDepth,
+              surveyStatus: 'IN_PROGRESS',
             }}
             boundaryStatus={formData.gisMutationConfirmed.type}
             onStatusChange={(status) => {

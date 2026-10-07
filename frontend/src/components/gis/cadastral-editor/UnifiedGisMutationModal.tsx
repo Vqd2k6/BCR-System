@@ -143,9 +143,15 @@ export const UnifiedGisMutationModal: React.FC<Props> = ({
       constructionArea: activeParcel?.constructionArea || activeParcel?.landArea || propAreaM2 || 0,
       floorCount: activeParcel?.floorCount || 1,
       zoneId: activeZoneId,
+      surveyStatus:
+        activeParcel?.surveyStatus ||
+        (activeParcel as any)?.survey_status ||
+        initialParcel?.surveyStatus ||
+        (initialParcel as any)?.survey_status ||
+        'NOT_SURVEYED',
       coordinates: activeParcel?.coordinates || [],
     };
-  }, [parcelId, activeParcel, propParcelCode, propHouseNumber, propStreet, propAreaM2, activeZoneId]);
+  }, [parcelId, activeParcel, propParcelCode, propHouseNumber, propStreet, propAreaM2, activeZoneId, initialParcel]);
 
   const handleToast = (msg: string) => {
     setToastMsg(msg);
@@ -233,12 +239,47 @@ export const UnifiedGisMutationModal: React.FC<Props> = ({
           .map((code) => allParcelsInZone.find((p: any) => (p.project_parcel_code || p.projectParcelCode) === code)?.id)
           .filter((id): id is string => !!id);
 
+        if (candidateIds.length === 0) {
+          setSubmitError('Không tìm thấy thông tin thửa đất liền kề đã chọn trong phân khu. Vui lòng kiểm tra lại bản đồ.');
+          setIsSubmitting(false);
+          return;
+        }
+
+        const rawSourceIds = Array.from(new Set([parcelId, ...candidateIds].filter(Boolean)));
+        if (rawSourceIds.length < 2) {
+          setSubmitError('Thao tác gộp thửa yêu cầu ít nhất 2 thửa đất hợp lệ khác nhau.');
+          setIsSubmitting(false);
+          return;
+        }
+
+        const primaryCode = mutationData.primaryMergeCode || cadastralParcelData.projectParcelCode || '';
+        let primaryParcelId = parcelId;
+        if (primaryCode && primaryCode !== cadastralParcelData.projectParcelCode) {
+          const matched = allParcelsInZone.find((p: any) => (p.project_parcel_code || p.projectParcelCode) === primaryCode);
+          if (matched?.id) {
+            primaryParcelId = matched.id;
+          }
+        }
+
         payload = {
           mutationType: 'MERGE',
-          sourceParcelIds: [parcelId, ...candidateIds],
+          sourceParcelIds: rawSourceIds,
+          primaryParcelId,
+          primaryProjectParcelCode: primaryCode,
           mergeHasPartialBuilding: mutationData.mergeHasPartialBuilding ?? false,
           mergeBuildingAreaM2: mutationData.mergeBuildingAreaM2,
           mergeResidualAreaM2: mutationData.mergeResidualAreaM2,
+          mergeBuildingCustomPoints: mutationData.mergeBuildingCustomPoints && mutationData.mergeBuildingCustomPoints.length >= 3
+            ? leafletCoordsToGeoJsonPolygon(mutationData.mergeBuildingCustomPoints)
+            : undefined,
+          mergePartitionKind: mutationData.mergePartitionKind || 'NON_BUILDING',
+          mergeSecondaryParcelCode: mutationData.mergeSecondaryParcelCode || mutationData.mergeResidualParcelCode || (mutationData.mergePartitionKind === 'NEW_BUILDING' ? undefined : `${primaryCode}-DU`),
+          mergeSecondaryHouseNumber: mutationData.mergeSecondaryHouseNumber,
+          mergeSecondaryOwnerName: mutationData.mergeSecondaryOwnerName,
+          mergeSecondaryPhone: mutationData.mergeSecondaryPhone,
+          mergeSecondaryFloorCount: mutationData.mergeSecondaryFloorCount,
+          mergeSecondaryFunctionalType: mutationData.mergeSecondaryFunctionalType || mutationData.mergeResidualType,
+          mergeResidualType: mutationData.mergeResidualType,
           adminNotes: adminNotes.trim(),
           transferSurveyReportId: reportId || undefined,
         };
@@ -254,11 +295,12 @@ export const UnifiedGisMutationModal: React.FC<Props> = ({
       }
     } catch (err: any) {
       console.error('[UnifiedGisMutationModal] Submit error:', err);
-      setSubmitError(
+      const serverMsg =
         err.response?.data?.message ||
         err.response?.data?.detail ||
-        'Lỗi thực thi biến động thửa đất trên hệ thống CSDL PostGIS.'
-      );
+        err.message ||
+        'Lỗi thực thi biến động thửa đất trên hệ thống CSDL PostGIS.';
+      setSubmitError(serverMsg);
     } finally {
       setIsSubmitting(false);
     }
@@ -267,8 +309,8 @@ export const UnifiedGisMutationModal: React.FC<Props> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
-      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-5xl overflow-hidden flex flex-col max-h-[94vh]">
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-2 sm:p-4 bg-slate-900/75 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-5xl overflow-hidden flex flex-col max-h-[96vh]">
         {/* Header Bar */}
         <div className="p-4 sm:p-5 bg-slate-50 border-b border-slate-200 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
