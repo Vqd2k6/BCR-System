@@ -410,6 +410,21 @@ export const AuditStep2OwnerInterview: React.FC<Props> = ({
               </span>
             </div>
 
+            {isEditMode && (
+              <div className="p-2.5 bg-white rounded-lg border border-emerald-300 space-y-1.5">
+                <label className="text-[11px] font-bold text-emerald-900 block">
+                  Đường dẫn (URL) bản vẽ hoàn công / sơ đồ kết cấu:
+                </label>
+                <input
+                  type="text"
+                  value={formState.asBuiltDrawingPhotoUrl || (asBuiltPhotos[0]?.url || '')}
+                  onChange={(e) => handleFieldChange('asBuiltDrawingPhotoUrl', 'URL bản vẽ hoàn công', e.target.value)}
+                  placeholder="https://... hoặc đường dẫn ảnh bản vẽ hoàn công"
+                  className="w-full p-1.5 text-xs border border-emerald-300 rounded font-mono"
+                />
+              </div>
+            )}
+
             {asBuiltPhotos.length > 0 ? (
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
                 {asBuiltPhotos.map((photo, idx) => (
@@ -444,9 +459,11 @@ export const AuditStep2OwnerInterview: React.FC<Props> = ({
                 ))}
               </div>
             ) : (
-              <div className="p-4 bg-white/80 rounded-lg border border-dashed border-emerald-300 text-center text-xs text-slate-500">
-                Công trình này không có bản vẽ hoàn công hoặc chưa được tải lên từ hiện trường.
-              </div>
+              !isEditMode && (
+                <div className="p-4 bg-white/80 rounded-lg border border-dashed border-emerald-300 text-center text-xs text-slate-500">
+                  Công trình này không có bản vẽ hoàn công hoặc chưa được tải lên từ hiện trường.
+                </div>
+              )
             )}
           </div>
         </div>
@@ -700,15 +717,102 @@ export const AuditStep2OwnerInterview: React.FC<Props> = ({
                   {hi.sensitiveEquipment?.has ? 'CÓ' : 'KHÔNG'}
                 </span>
               </div>
-              <div className="text-[11px] text-slate-600">
-                {hi.sensitiveEquipment?.has ? (
-                  <span className="text-purple-900 font-semibold">
-                    {hi.sensitiveEquipment?.description || 'Có thiết bị nhạy cảm (Lab, Y tế, Server...)'}
-                  </span>
-                ) : (
-                  'Không có thiết bị chính xác hoặc máy móc nhạy cảm rung chấn.'
-                )}
+              {isEditMode ? (
+                <div className="space-y-1.5">
+                  <label className="flex items-center gap-1.5 text-xs font-bold text-purple-900 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(hi.sensitiveEquipment?.has)}
+                      onChange={(e) =>
+                        handleNestedFieldChange('historyInterview', 'sensitiveEquipment', 'Thiết bị nhạy cảm', {
+                          ...hi.sensitiveEquipment,
+                          has: e.target.checked,
+                        })
+                      }
+                      className="rounded text-purple-600"
+                    />
+                    <span>Có thiết bị nhạy cảm</span>
+                  </label>
+                  {hi.sensitiveEquipment?.has && (
+                    <input
+                      type="text"
+                      value={hi.sensitiveEquipment?.description || ''}
+                      onChange={(e) =>
+                        handleNestedFieldChange('historyInterview', 'sensitiveEquipment', 'Mô tả thiết bị', {
+                          ...hi.sensitiveEquipment,
+                          description: e.target.value,
+                        })
+                      }
+                      placeholder="Mô tả thiết bị (VD: Máy cộng hưởng từ, kính hiển vi điện tử...)"
+                      className="w-full p-1 bg-white border border-purple-300 rounded text-xs text-purple-950"
+                    />
+                  )}
+                </div>
+              ) : (
+                <div className="text-[11px] text-slate-600">
+                  {hi.sensitiveEquipment?.has ? (
+                    <span className="text-purple-900 font-semibold">
+                      {hi.sensitiveEquipment?.description || 'Có thiết bị nhạy cảm (Lab, Y tế, Server...)'}
+                    </span>
+                  ) : (
+                    'Không có thiết bị chính xác hoặc máy móc nhạy cảm rung chấn.'
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Hoạt động sản xuất / Vận hành 24/7 */}
+            <div className="p-3 bg-amber-50/50 rounded-xl border border-amber-200 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-amber-900 block">
+                  Vận Hành / Sản Xuất 24/7
+                </span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-200 text-amber-900">
+                  {hi.continuousOperation247?.has ? 'CÓ' : 'KHÔNG'}
+                </span>
               </div>
+              {isEditMode ? (
+                <div className="space-y-1.5">
+                  <label className="flex items-center gap-1.5 text-xs font-bold text-amber-900 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(hi.continuousOperation247?.has)}
+                      onChange={(e) =>
+                        handleNestedFieldChange('historyInterview', 'continuousOperation247', 'Vận hành 24/7', {
+                          ...hi.continuousOperation247,
+                          has: e.target.checked,
+                        })
+                      }
+                      className="rounded text-amber-600"
+                    />
+                    <span>Hoạt động sản xuất liên tục 24/7</span>
+                  </label>
+                  {hi.continuousOperation247?.has && (
+                    <input
+                      type="text"
+                      value={hi.continuousOperation247?.notes || ''}
+                      onChange={(e) =>
+                        handleNestedFieldChange('historyInterview', 'continuousOperation247', 'Ghi chú vận hành', {
+                          ...hi.continuousOperation247,
+                          notes: e.target.value,
+                        })
+                      }
+                      placeholder="Chi tiết ca kíp, dây chuyền hoạt động..."
+                      className="w-full p-1 bg-white border border-amber-300 rounded text-xs text-amber-950"
+                    />
+                  )}
+                </div>
+              ) : (
+                <div className="text-[11px] text-slate-600">
+                  {hi.continuousOperation247?.has ? (
+                    <span className="text-amber-900 font-semibold">
+                      {hi.continuousOperation247?.notes || 'Công trình duy trì hoạt động sản xuất hoặc phục vụ liên tục 24/7'}
+                    </span>
+                  ) : (
+                    'Không có yêu cầu vận hành hoặc sản xuất đặc biệt 24/7.'
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>

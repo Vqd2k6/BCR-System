@@ -28,6 +28,8 @@ export class AuditService {
     status?: string;
     buildingType?: string;
     search?: string;
+    burlandFilter?: string;
+    slaFilter?: string;
     limit?: number;
     offset?: number;
   }) {

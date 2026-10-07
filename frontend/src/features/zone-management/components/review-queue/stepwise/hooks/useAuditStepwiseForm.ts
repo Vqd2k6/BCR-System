@@ -67,11 +67,19 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
       }
     }
 
+    const rawGps = sJson.gpsCoords || data.coordinates || {};
+    const latInit = rawGps.latitude ?? rawGps.lat ?? (Array.isArray(data.coordinates) ? data.coordinates[0] : 10.79241);
+    const lngInit = rawGps.longitude ?? rawGps.lng ?? (Array.isArray(data.coordinates) ? data.coordinates[1] : 106.71152);
+    const accInit = rawGps.accuracy ?? 3.5;
+
     const initial: Record<string, any> = {
       // Step 1: Identification & General Specs
       projectParcelCode: data.projectParcelCode || sJson.projectParcelCode || '',
       houseNumber: data.houseNumber || sJson.houseNumber || '',
       street: data.street || sJson.street || '',
+      ward: data.ward || sJson.ward || 'Phường 5',
+      district: data.district || sJson.district || 'Quận Tân Bình',
+      buildingName: sJson.buildingName || data.buildingName || 'Nhà ở dân dụng',
       ownerName: sJson.ownerName || data.ownerName || bSpecs.ownerName || '',
       ownerPhone: sJson.ownerPhone || data.ownerPhone || bSpecs.ownerPhone || '',
       officialCadastralCode: sJson.officialCadastralCode || data.officialCadastralCode || '',
@@ -86,9 +94,20 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
       buildingHeightM: sJson.buildingHeightM || bSpecs.buildingHeightM || bSpecs.building_height_m || '',
       adjacentBuildings: sJson.adjacentBuildings || bSpecs.adjacentBuildings || bSpecs.adjacent_buildings || { left: { details: '' }, right: { details: '' }, back: { details: '' } },
 
+      // Survey Case Type & Special Case Notes
+      surveyCaseType: sJson.surveyCaseType || (data.isRefusedOrAbsent ? 'ABSENTEE' : 'NORMAL'),
+      vacantLandNotes: sJson.vacantLandNotes || '',
+      constructionStageNotes: sJson.constructionStageNotes || '',
+      unitCode: data.unitCode || sJson.unitCode || '',
+      unitFloorNumber: data.unitFloorNumber || sJson.unitFloorNumber || '',
+      managementContactName: sJson.managementContactName || '',
+      managementContactPhone: sJson.managementContactPhone || '',
+
       // Spatial & GPS calculations (Allow manual override)
+      gpsCoords: { lat: Number(latInit), lng: Number(lngInit), accuracy: Number(accInit) },
       metroOffsetDistance: defaultMetroDist,
       clearanceOffsetDistance: defaultClearanceDist,
+      manualMetroDistanceM: sJson.manualMetroDistanceM ?? data.manualMetroDistanceM ?? '',
       chainage: sJson.chainage || data.chainage || '',
 
       // Step 2: Structure & Foundation & History Interview
@@ -166,6 +185,7 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
           notes: sJson.settlementTilt?.abnormalCase?.notes || defState.abnormal_notes || '',
         },
         dataSource: Array.isArray(sJson.settlementTilt?.dataSource) ? sJson.settlementTilt.dataSource : [],
+        reliability: sJson.settlementTilt?.reliability || 'MEDIUM',
         needAdditionalMonitoring: sJson.settlementTilt?.needAdditionalMonitoring || {
           required: Boolean(defState.need_additional_monitoring),
           notes: defState.monitoring_notes || '',
@@ -173,9 +193,18 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
       },
 
       // Step 6: Scope & GIS
-      surveyScope: sJson.surveyScope || {},
+      surveyScope: sJson.surveyScope || {
+        externalFront: true,
+        surveyedFloors: [],
+        roofTerrace: false,
+        basement: false,
+        backyardOuthouse: false,
+      },
       accessLimitation: sJson.accessLimitation || {},
       gisMutationConfirmed: sJson.gisMutationConfirmed || {},
+      frontageWidth: sJson.frontageWidth ?? data.frontageWidth ?? bSpecs.frontageWidth ?? '',
+      lotDepth: sJson.lotDepth ?? data.lotDepth ?? bSpecs.lotDepth ?? '',
+      landAreaM2: sJson.landAreaM2 ?? data.landAreaM2 ?? bSpecs.landAreaM2 ?? '',
 
       // Step 7: Technical Scores & Completeness Gate
       ecs: sJson.ecs || {},
@@ -184,18 +213,29 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
 
       // Step 8: Conclusions & BRA
       executiveSummary: sJson.executiveSummary || {
-        braStatus: data.braStatus,
-        summaryConclusions: data.summaryConclusions,
-        recommendations: data.engineeringRecommendations,
+        braStatus: data.braStatus || 'LOW',
+        constructionImpactStatus: 'I1 (Tác động rất nhẹ)',
+        keyRisksDefectsText: '',
+        specificRecommendationsText: data.engineeringRecommendations || '',
+        summaryConclusions: data.summaryConclusions || '',
       },
+      summaryConclusions: sJson.summaryConclusions || data.summaryConclusions || '',
 
       // Step 9: Signatures & Absence
+      surveyDate: data.surveyDate || sJson.surveyDate || '',
+      surveyorPhone: data.surveyorPhone || sJson.surveyorPhone || '',
       signatures: {
         surveyorSignature: sigState.surveyorSignature || sigState.preparedBy?.photoUrl || data.surveyorSignatureUrl || null,
         surveyorName: sigState.surveyorName || sigState.preparedBy?.fullName || data.surveyorName || '',
+        surveyorPhone: sigState.surveyorPhone || data.surveyorPhone || '',
         ownerSignature: sigState.ownerSignature || sigState.ownerRepresentative?.photoUrl || data.ownerSignatureUrl || null,
         ownerName: sigState.ownerName || sigState.ownerRepresentative?.fullName || data.ownerName || sJson.ownerName || '',
+        ownerPhone: sigState.ownerPhone || sJson.ownerPhone || data.ownerPhone || '',
         ownerFeedback: sigState.ownerFeedback || sigState.ownerRemarks || data.ownerRemarks || '',
+        witnessName: sigState.witnessName || sJson.witnessName || '',
+        witnessRole: sigState.witnessRole || sJson.witnessRole || 'Tổ trưởng tổ dân phố / Cán bộ địa chính',
+        witnessPhone: sigState.witnessPhone || sJson.witnessPhone || '',
+        witnessSignature: sigState.witnessSignature || sJson.witnessSignature || null,
         workingMinutesPhotos: sigState.workingMinutesPhotos || [],
       },
       absenceLogs: data.leftPane?.absenceLogs || [],

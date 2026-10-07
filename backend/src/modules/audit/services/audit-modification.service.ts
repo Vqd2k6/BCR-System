@@ -2,6 +2,7 @@ import { Database } from '../../../database/db';
 import { NotFoundError, BadRequestError, UnauthorizedError, ForbiddenError } from '../../../common/errors/problem-details';
 import { CryptoUtils } from '../../../common/utils/crypto.utils';
 import { CadastralService } from '../../cadastral/cadastral.service';
+import { normalizeComponentType } from '../../survey/survey.dto';
 
 export class AuditModificationService {
   /**
@@ -82,27 +83,256 @@ export class AuditModificationService {
       );
 
       const u = payload.updates;
-      if (u.houseNumber || u.street || u.ownerName || u.ownerPhone || u.constructionAreaM2 || u.aboveFloors) {
+
+      // 4.1. Cập nhật parcels đầy đủ các trường
+      const latVal = u.gpsCoords?.lat ?? u.gpsCoords?.latitude ?? u.coordinates?.[0];
+      const lngVal = u.gpsCoords?.lng ?? u.gpsCoords?.longitude ?? u.coordinates?.[1];
+
+      await client.query(
+        `UPDATE parcels SET
+           house_number = COALESCE($1, house_number),
+           street = COALESCE($2, street),
+           ward = COALESCE($3, ward),
+           district = COALESCE($4, district),
+           owner_name = COALESCE($5, owner_name),
+           owner_phone = COALESCE($6, owner_phone),
+           official_cadastral_code = COALESCE($7, official_cadastral_code),
+           frontage_width = COALESCE($8, frontage_width),
+           lot_depth = COALESCE($9, lot_depth),
+           land_area_m2 = COALESCE($10, land_area_m2),
+           construction_area_m2 = COALESCE($11, construction_area_m2),
+           floor_count = COALESCE($12, floor_count),
+           location_geom = CASE 
+             WHEN $13::float IS NOT NULL AND $14::float IS NOT NULL 
+             THEN ST_SetSRID(ST_Point($14::float, $13::float), 4326) 
+             ELSE location_geom 
+           END,
+           updated_at = NOW()
+         WHERE id = $15;`,
+        [
+          u.houseNumber !== undefined && u.houseNumber !== '' ? u.houseNumber : null,
+          u.street !== undefined && u.street !== '' ? u.street : null,
+          u.ward !== undefined && u.ward !== '' ? u.ward : null,
+          u.district !== undefined && u.district !== '' ? u.district : null,
+          u.ownerName !== undefined && u.ownerName !== '' ? u.ownerName : null,
+          u.ownerPhone !== undefined && u.ownerPhone !== '' ? u.ownerPhone : null,
+          u.officialCadastralCode !== undefined && u.officialCadastralCode !== '' ? u.officialCadastralCode : null,
+          u.frontageWidth !== undefined && u.frontageWidth !== '' ? Number(u.frontageWidth) : null,
+          u.lotDepth !== undefined && u.lotDepth !== '' ? Number(u.lotDepth) : null,
+          u.landAreaM2 !== undefined && u.landAreaM2 !== '' ? Number(u.landAreaM2) : null,
+          u.constructionAreaM2 !== undefined && u.constructionAreaM2 !== '' ? Number(u.constructionAreaM2) : null,
+          u.aboveFloors !== undefined && u.aboveFloors !== '' ? Number(u.aboveFloors) : null,
+          latVal !== undefined && latVal !== '' ? Number(latVal) : null,
+          lngVal !== undefined && lngVal !== '' ? Number(lngVal) : null,
+          report.parcel_id,
+        ]
+      );
+
+      // 4.2. Cập nhật base_survey_reports metadata nếu có
+      const sigs = u.signatures || {};
+      const exec = u.executiveSummary || {};
+      await client.query(
+        `UPDATE base_survey_reports SET
+           surveyor_name = COALESCE($1, surveyor_name),
+           surveyor_phone = COALESCE($2, surveyor_phone),
+           survey_date = COALESCE($3, survey_date),
+           surveyor_signature_url = COALESCE($4, surveyor_signature_url),
+           owner_signature_url = COALESCE($5, owner_signature_url),
+           owner_remarks = COALESCE($6, owner_remarks),
+           engineering_recommendations = COALESCE($7, engineering_recommendations)
+         WHERE id = $8;`,
+        [
+          sigs.surveyorName || u.surveyorName || null,
+          sigs.surveyorPhone || u.surveyorPhone || null,
+          u.surveyDate || null,
+          sigs.surveyorSignature || null,
+          sigs.ownerSignature || null,
+          sigs.ownerFeedback || u.ownerRemarks || null,
+          exec.specificRecommendationsText || u.engineeringRecommendations || null,
+          actualReportId,
+        ]
+      );
+
+      // 4.3. Cập nhật building_specifications
+      await client.query(
+        `UPDATE building_specifications SET
+           building_name = COALESCE($1, building_name),
+           floor_count = COALESCE($2, floor_count),
+           basement_count = COALESCE($3, basement_count),
+           land_use_function = COALESCE($4, land_use_function),
+           year_of_construction = COALESCE($5, year_of_construction),
+           is_year_estimated = COALESCE($6, is_year_estimated),
+           foundation_depth_m = COALESCE($7, foundation_depth_m),
+           foundation_density = COALESCE($8, foundation_density),
+           foundation_spacing_m = COALESCE($9, foundation_spacing_m),
+           foundation_notes = COALESCE($10, foundation_notes),
+           adjacent_buildings = COALESCE($11, adjacent_buildings)
+         WHERE report_id = $12;`,
+        [
+          u.buildingName !== undefined ? u.buildingName : null,
+          u.aboveFloors !== undefined && u.aboveFloors !== '' ? Number(u.aboveFloors) : null,
+          u.undergroundFloors !== undefined && u.undergroundFloors !== '' ? Number(u.undergroundFloors) : null,
+          u.usageFunction !== undefined ? u.usageFunction : null,
+          u.constructionYear !== undefined && u.constructionYear !== '' ? Number(u.constructionYear) : null,
+          u.isEstimatedYear !== undefined ? Boolean(u.isEstimatedYear) : null,
+          u.foundationDepthM !== undefined && u.foundationDepthM !== '' ? Number(u.foundationDepthM) : null,
+          u.foundationDensity !== undefined && u.foundationDensity !== '' ? Number(u.foundationDensity) : null,
+          u.foundationSpacingM !== undefined && u.foundationSpacingM !== '' ? Number(u.foundationSpacingM) : null,
+          u.foundationNotes !== undefined ? u.foundationNotes : null,
+          u.adjacentBuildings ? (typeof u.adjacentBuildings === 'object' ? JSON.stringify(u.adjacentBuildings) : u.adjacentBuildings) : null,
+          actualReportId,
+        ]
+      );
+
+      // 4.4. Cập nhật historical_sensitivities
+      const hi = u.historyInterview;
+      if (hi) {
+        const qScores = [
+          hi.renovationLoad ?? 0,
+          hi.majorRepair ?? 0,
+          hi.pastSettlement ?? 0,
+          hi.neighborDamage ?? 0,
+          hi.fireFloodIncident ?? 0,
+        ];
+        const maxQ = Math.max(...qScores.map(Number));
+        const countHigh = qScores.filter((s) => Number(s) > 2).length;
+        const e5Score = countHigh >= 2 ? 4 : maxQ;
+
         await client.query(
-          `UPDATE parcels SET
-             house_number = COALESCE($1, house_number),
-             street = COALESCE($2, street),
-             owner_name = COALESCE($3, owner_name),
-             owner_phone = COALESCE($4, owner_phone),
-             construction_area_m2 = COALESCE($5, construction_area_m2),
-             floor_count = COALESCE($6, floor_count),
-             updated_at = NOW()
-           WHERE id = $7;`,
+          `UPDATE historical_sensitivities SET
+             extended_or_renovated = COALESCE($1, extended_or_renovated),
+             previous_settlement_or_tilt = COALESCE($2, previous_settlement_or_tilt),
+             fire_or_accident = COALESCE($3, fire_or_accident),
+             sensitive_equipment_present = COALESCE($4, sensitive_equipment_present),
+             details = COALESCE($5, details),
+             e5_history_score = COALESCE($6, e5_history_score)
+           WHERE report_id = $7;`,
           [
-            u.houseNumber !== undefined ? u.houseNumber : null,
-            u.street !== undefined ? u.street : null,
-            u.ownerName !== undefined ? u.ownerName : null,
-            u.ownerPhone !== undefined ? u.ownerPhone : null,
-            u.constructionAreaM2 !== undefined ? Number(u.constructionAreaM2) : null,
-            u.aboveFloors !== undefined ? Number(u.aboveFloors) : null,
-            report.parcel_id,
+            hi.renovationLoad !== undefined ? Number(hi.renovationLoad) > 0 : null,
+            hi.pastSettlement !== undefined ? Number(hi.pastSettlement) > 0 : null,
+            hi.fireFloodIncident !== undefined ? Number(hi.fireFloodIncident) > 0 : null,
+            hi.sensitiveEquipment?.has !== undefined ? Boolean(hi.sensitiveEquipment.has) : null,
+            hi.renovationNotes || hi.majorRepairNotes || hi.pastSettlementNotes || null,
+            e5Score,
+            actualReportId,
           ]
         );
+      }
+
+      // 4.5. Cập nhật deformation_assessments
+      const st = u.settlementTilt;
+      if (st) {
+        const tilt = st.buildingTilt || {};
+        const beam = st.beamSagging || {};
+        const diff = st.diffSettlement || {};
+        const lDiff = Number(diff.level) || 0;
+        const lTilt = Number(tilt.level) || 0;
+        const lSag = Number(beam.level) || 0;
+        const e3Score = Math.min(4, Math.max(lDiff, lTilt, lSag));
+
+        await client.query(
+          `UPDATE deformation_assessments SET
+             tilt_angle_x = COALESCE($1, tilt_angle_x),
+             tilt_angle_y = COALESCE($2, tilt_angle_y),
+             tilt_direction = COALESCE($3, tilt_direction),
+             beam_deflection_mm = COALESCE($4, beam_deflection_mm),
+             measurement_reliability = COALESCE($5, measurement_reliability),
+             e3_deformation_score = COALESCE($6, e3_deformation_score)
+           WHERE report_id = $7;`,
+          [
+            tilt.xPermille !== undefined && tilt.xPermille !== '' ? Number(tilt.xPermille) / 10 : null,
+            tilt.yPermille !== undefined && tilt.yPermille !== '' ? Number(tilt.yPermille) / 10 : null,
+            tilt.direction || null,
+            beam.sagMm !== undefined && beam.sagMm !== '' ? Number(beam.sagMm) : null,
+            st.reliability || null,
+            e3Score,
+            actualReportId,
+          ]
+        );
+      }
+
+      // 4.6. Đồng bộ damage_zones & defect_items nếu floors hoặc damageZones thay đổi
+      if (u.floors || u.damageZones) {
+        const floorsToSync = Array.isArray(u.floors) && u.floors.length > 0
+          ? u.floors
+          : (Array.isArray(u.damageZones) && u.damageZones.length > 0 ? [{ floorName: 'Tầng trệt', zones: u.damageZones }] : []);
+
+        if (floorsToSync.length > 0) {
+          await client.query(`DELETE FROM damage_zones WHERE report_id = $1;`, [actualReportId]);
+
+          for (const f of floorsToSync) {
+            const zones = Array.isArray(f.zones) ? f.zones : [];
+            for (const z of zones) {
+              const compType = normalizeComponentType(z.componentType || z.customComponentType);
+              const zRes = await client.query<{ id: string }>(
+                `INSERT INTO damage_zones (
+                   report_id, zone_code, floor_name, room_name, component_type,
+                   wall_material, functional_impact_repair_needed, burland_grade,
+                   ctx_photo_url, notes
+                 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                 RETURNING id;`,
+                [
+                  actualReportId,
+                  z.zoneCode || z.zone_code || 'Z-01',
+                  z.floorName || z.floor_name || f.floorName || 'Tầng trệt',
+                  z.roomName || z.room_name || 'Không gian chính',
+                  compType,
+                  z.wallMaterial || z.wall_material || null,
+                  Boolean(z.functionalImpactRepairNeeded),
+                  Number(z.burlandGrade ?? z.burland_grade) || 0,
+                  z.ctxPhotoUrl || z.ctx_photo_url || '',
+                  z.notes || null,
+                ]
+              );
+
+              const zoneId = zRes.rows[0]?.id;
+              const defects = Array.isArray(z.defects) ? z.defects : [];
+              if (zoneId && defects.length > 0) {
+                for (const d of defects) {
+                  const actState = ['A', 'S', 'U'].includes(d.activityState) ? d.activityState : 'U';
+                  const primaryCuUrl = d.cuPhotos?.[0] || d.cuPhotoUrl || d.cu_photo_url || '';
+                  const extraCuUrl = d.cuPhotos?.[1] || d.extraPhotoUrl || null;
+                  const cuPhotosList = Array.isArray(d.cuPhotos) && d.cuPhotos.length > 0
+                    ? d.cuPhotos
+                    : (primaryCuUrl ? [primaryCuUrl] : []);
+                  const cuPhotosJson = JSON.stringify(cuPhotosList);
+                  const primaryCuCode = d.cuPhotoCodes?.[0] || d.cuPhotoCode || d.cu_photo_code || null;
+
+                  await client.query(
+                    `INSERT INTO defect_items (
+                       zone_id, defect_code, pin_x, pin_y, screening_category, defect_type,
+                       crack_direction, width_max_mm, length_mm, activity_state,
+                       material_degradation_e4, structural_significance_e2, has_scale_card,
+                       is_structural_critical, cu_photo_url, extra_photo_url, pin_color,
+                       cu_photo_code, cu_photos_json
+                     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19);`,
+                    [
+                      zoneId,
+                      d.defectCode || d.defect_code || 'D-01',
+                      Number(d.pinX ?? d.pin_x) || 0,
+                      Number(d.pinY ?? d.pin_y) || 0,
+                      d.screeningCategory || d.defectType || 'CRACK',
+                      d.defectType || 'HAIRLINE',
+                      d.crackDirection || null,
+                      Number(d.widthMaxMm ?? d.width_max_mm) || 0,
+                      Number(d.lengthMm ?? d.length_mm) || 0,
+                      actState,
+                      Number(d.materialDegradationE4) || 0,
+                      Number(d.structuralSignificanceE2) || 0,
+                      d.hasScaleCard ?? d.has_scale_card ?? true,
+                      d.isStructuralCritical ?? false,
+                      primaryCuUrl,
+                      extraCuUrl,
+                      d.pinColor || '#ef4444',
+                      primaryCuCode,
+                      cuPhotosJson,
+                    ]
+                  );
+                }
+              }
+            }
+          }
+        }
       }
 
       await client.query(

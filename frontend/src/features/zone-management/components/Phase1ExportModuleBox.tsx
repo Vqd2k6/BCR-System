@@ -31,6 +31,7 @@ export type {
 export const Phase1ExportModuleBox: React.FC<Phase1ExportModuleBoxProps> = ({
   initialZoneId = 'ZONE_01',
   className = '',
+  hideZoneSelect = false,
 }) => {
   const { user, token } = useAuth();
 
@@ -122,6 +123,7 @@ export const Phase1ExportModuleBox: React.FC<Phase1ExportModuleBoxProps> = ({
         selectedCount={selectedParcelIds.length}
         totalFilteredCount={filteredParcels.length}
         onCreateBatchExport={handleCreateBatchExport}
+        hideZoneSelect={hideZoneSelect}
       />
 
       {/* 3. Thẻ kết quả mẻ xuất tập hợp (nếu có) */}

@@ -219,8 +219,12 @@ export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps>
         />
 
         <AuditStep7EcsViScores
+          isEditMode={isEditMode}
+          formState={formState}
           data={data}
           reportId={reportId}
+          handleFieldChange={handleFieldChange}
+          handleNestedFieldChange={handleNestedFieldChange}
           onRefresh={onRefresh}
           onOpenEngineeringJudgement={onOpenEngineeringJudgement}
         />
@@ -229,6 +233,7 @@ export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps>
           isEditMode={isEditMode}
           formState={formState}
           handleNestedFieldChange={handleNestedFieldChange}
+          handleFieldChange={handleFieldChange}
         />
 
         <AuditStep9SignaturesAbsence

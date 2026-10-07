@@ -82,24 +82,104 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
     }
   };
 
-  // Handle changing zone notes
-  const handleZoneNoteChange = (zoneId: string, noteVal: string) => {
+  // Handle changing zone fields
+  const handleZoneFieldChange = (zoneId: string, field: string, val: any, fieldLabel: string) => {
     if (hasFloors) {
       const updatedFloors = rawFloors.map((fl: any, fi: number) => {
         if (fi !== activeFloorIndex && fl.id !== currentFloor.id) return fl;
         const zones = (fl.zones || []).map((z: any) => {
           if (z.id !== zoneId) return z;
-          return { ...z, notes: noteVal };
+          return { ...z, [field]: val };
         });
         return { ...fl, zones };
       });
-      handleFieldChange('floors', 'Ghi chú Vùng Z', updatedFloors);
+      handleFieldChange('floors', `Vùng Z (${fieldLabel})`, updatedFloors);
     } else {
       const updatedZones = rawDamageZones.map((z: any) => {
         if (z.id !== zoneId) return z;
-        return { ...z, notes: noteVal };
+        return { ...z, [field]: val };
       });
-      handleFieldChange('damageZones', 'Ghi chú Vùng Z', updatedZones);
+      handleFieldChange('damageZones', `Vùng Z (${fieldLabel})`, updatedZones);
+    }
+  };
+
+  // Add new defect to a zone
+  const handleAddDefect = (zoneId: string) => {
+    const newDefectId = `D-${Date.now().toString().slice(-4)}`;
+    const newDefect = {
+      id: newDefectId,
+      defectCode: newDefectId,
+      defectType: 'Vết nứt tường',
+      screeningCategory: 'Vết nứt tường',
+      widthMaxMm: 0.2,
+      lengthMm: 100,
+      depthMm: 5,
+      isStructuralCritical: false,
+      crackDirection: 'Ngang',
+      activityState: 'S',
+      hasScaleCard: true,
+      notes: '',
+      cuPhotos: [],
+    };
+
+    if (hasFloors) {
+      const updatedFloors = rawFloors.map((fl: any, fi: number) => {
+        if (fi !== activeFloorIndex && fl.id !== currentFloor.id) return fl;
+        const zones = (fl.zones || []).map((z: any) => {
+          if (z.id !== zoneId) return z;
+          const currentDefects = Array.isArray(z.defects) ? z.defects : [];
+          return { ...z, defects: [...currentDefects, newDefect] };
+        });
+        return { ...fl, zones };
+      });
+      handleFieldChange('floors', `Thêm khuyết tật ${newDefectId}`, updatedFloors);
+    } else {
+      const updatedZones = rawDamageZones.map((z: any) => {
+        if (z.id !== zoneId) return z;
+        const currentDefects = Array.isArray(z.defects) ? z.defects : [];
+        return { ...z, defects: [...currentDefects, newDefect] };
+      });
+      handleFieldChange('damageZones', `Thêm khuyết tật ${newDefectId}`, updatedZones);
+    }
+  };
+
+  // Remove defect from a zone
+  const handleRemoveDefect = (zoneId: string, defectId: string) => {
+    if (!window.confirm('Bạn có chắc chắn muốn xóa khuyết tật này khỏi hồ sơ?')) return;
+
+    if (hasFloors) {
+      const updatedFloors = rawFloors.map((fl: any, fi: number) => {
+        if (fi !== activeFloorIndex && fl.id !== currentFloor.id) return fl;
+        const zones = (fl.zones || []).map((z: any) => {
+          if (z.id !== zoneId) return z;
+          const defects = (z.defects || []).filter((d: any) => d.id !== defectId && d.defectCode !== defectId);
+          return { ...z, defects };
+        });
+        return { ...fl, zones };
+      });
+      handleFieldChange('floors', `Xóa khuyết tật`, updatedFloors);
+    } else {
+      const updatedZones = rawDamageZones.map((z: any) => {
+        if (z.id !== zoneId) return z;
+        const defects = (z.defects || []).filter((d: any) => d.id !== defectId && d.defectCode !== defectId);
+        return { ...z, defects };
+      });
+      handleFieldChange('damageZones', `Xóa khuyết tật`, updatedZones);
+    }
+  };
+
+  // Handle changing element fields
+  const handleElementFieldChange = (elemId: string, field: string, val: any, fieldLabel: string) => {
+    if (hasFloors) {
+      const updatedFloors = rawFloors.map((fl: any, fi: number) => {
+        if (fi !== activeFloorIndex && fl.id !== currentFloor.id) return fl;
+        const structuralElements = (fl.structuralElements || []).map((e: any) => {
+          if (e.id !== elemId && e.elementCode !== elemId) return e;
+          return { ...e, [field]: val };
+        });
+        return { ...fl, structuralElements };
+      });
+      handleFieldChange('floors', `Cấu kiện E (${fieldLabel})`, updatedFloors);
     }
   };
 
@@ -376,27 +456,93 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                 >
                   {/* Header Vùng Z */}
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-200">
-                    <div>
-                      <div className="flex items-center gap-2">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className="px-2 py-0.5 rounded-md bg-slate-800 text-white font-mono font-black text-xs">
                           {zCode}
                         </span>
-                        <span className="text-xs font-bold text-slate-800">
-                          {z.floorName || z.floor_name || currentFloor.floorName || 'Tầng trệt'} &bull;{' '}
-                          {z.roomName || z.room_name || 'Không gian chính'}
-                        </span>
+                        {isEditMode ? (
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <input
+                              type="text"
+                              value={z.floorName || currentFloor.floorName || ''}
+                              onChange={(e) => handleZoneFieldChange(z.id, 'floorName', e.target.value, 'Tên tầng')}
+                              placeholder="Tên tầng (VD: Tầng trệt)"
+                              className="p-1 text-xs border border-amber-300 bg-amber-50/50 rounded font-bold"
+                            />
+                            <span>&bull;</span>
+                            <input
+                              type="text"
+                              value={z.roomName || ''}
+                              onChange={(e) => handleZoneFieldChange(z.id, 'roomName', e.target.value, 'Tên phòng/không gian')}
+                              placeholder="Phòng (VD: Phòng khách)"
+                              className="p-1 text-xs border border-amber-300 bg-amber-50/50 rounded font-bold"
+                            />
+                          </div>
+                        ) : (
+                          <span className="text-xs font-bold text-slate-800">
+                            {z.floorName || z.floor_name || currentFloor.floorName || 'Tầng trệt'} &bull;{' '}
+                            {z.roomName || z.room_name || 'Không gian chính'}
+                          </span>
+                        )}
                       </div>
-                      <div className="text-[11px] text-slate-500 mt-0.5">
-                        Cấu kiện: <strong>{z.componentType || z.component_type || 'Tường gạch'}</strong> &bull; Vật liệu:{' '}
-                        {z.wallMaterial || z.wall_material || 'Vữa trát xi măng'}
+                      <div className="text-[11px] text-slate-500 mt-1 flex items-center gap-2 flex-wrap">
+                        {isEditMode ? (
+                          <>
+                            <label className="font-semibold text-slate-600">Cấu kiện:</label>
+                            <select
+                              value={z.componentType || 'Tường gạch'}
+                              onChange={(e) => handleZoneFieldChange(z.id, 'componentType', e.target.value, 'Loại cấu kiện')}
+                              className="p-1 text-xs border border-slate-300 rounded bg-white"
+                            >
+                              <option value="Tường gạch">Tường gạch</option>
+                              <option value="Cột BTCT">Cột BTCT</option>
+                              <option value="Dầm BTCT">Dầm BTCT</option>
+                              <option value="Sàn BTCT">Sàn BTCT</option>
+                              <option value="Vách ngăn thạch cao">Vách ngăn thạch cao</option>
+                              <option value="Lan can / Ban công">Lan can / Ban công</option>
+                              <option value="Móng / Chân tường">Móng / Chân tường</option>
+                            </select>
+
+                            <label className="font-semibold text-slate-600">Vật liệu:</label>
+                            <select
+                              value={z.wallMaterial || 'Vữa trát xi măng'}
+                              onChange={(e) => handleZoneFieldChange(z.id, 'wallMaterial', e.target.value, 'Vật liệu tường')}
+                              className="p-1 text-xs border border-slate-300 rounded bg-white"
+                            >
+                              <option value="Vữa trát xi măng">Vữa trát xi măng</option>
+                              <option value="Bê tông cốt thép">Bê tông cốt thép</option>
+                              <option value="Gạch men / Ốp đá">Gạch men / Ốp đá</option>
+                              <option value="Tấm thạch cao">Tấm thạch cao</option>
+                              <option value="Gạch đất nung không trát">Gạch đất nung không trát</option>
+                            </select>
+                          </>
+                        ) : (
+                          <>
+                            Cấu kiện: <strong>{z.componentType || z.component_type || 'Tường gạch'}</strong> &bull; Vật liệu:{' '}
+                            {z.wallMaterial || z.wall_material || 'Vữa trát xi măng'}
+                          </>
+                        )}
                       </div>
                     </div>
 
                     <div className="flex items-center gap-2">
-                      {z.functionalImpactRepairNeeded && (
-                        <span className="px-2 py-0.5 rounded-lg bg-amber-100 text-amber-800 border border-amber-200 text-[10px] font-bold">
-                          ⚠️ Cần sửa chữa / Ảnh hưởng CN
-                        </span>
+                      {isEditMode ? (
+                        <label className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-amber-50 border border-amber-300 text-xs font-bold text-amber-900 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={Boolean(z.functionalImpactRepairNeeded)}
+                            onChange={(e) => handleZoneFieldChange(z.id, 'functionalImpactRepairNeeded', e.target.checked, 'Cần sửa chữa')}
+                            className="rounded text-amber-600"
+                          />
+                          <span>Ảnh hưởng CN / Cần sửa chữa</span>
+                        </label>
+                      ) : (
+                        z.functionalImpactRepairNeeded && (
+                          <span className="px-2 py-0.5 rounded-lg bg-amber-100 text-amber-800 border border-amber-200 text-[10px] font-bold">
+                            ⚠️ Cần sửa chữa / Ảnh hưởng CN
+                          </span>
+                        )
                       )}
                       <Badge variant={defectsList.length > 0 ? 'warning' : 'success'} size="sm">
                         {defectsList.length} khuyết tật nứt
@@ -413,7 +559,7 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                       <input
                         type="text"
                         value={z.notes || ''}
-                        onChange={(e) => handleZoneNoteChange(z.id, e.target.value)}
+                        onChange={(e) => handleZoneFieldChange(z.id, 'notes', e.target.value, 'Ghi chú')}
                         className="w-full p-1.5 bg-amber-50/40 border border-amber-300 rounded-lg text-xs"
                         placeholder="Ghi chú chi tiết hiện trạng mảng tường, vị trí, mức ẩm..."
                       />
@@ -533,9 +679,20 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
 
                     {/* Cột 2 & 3: Danh sách các Khuyết Tật Nứt D chi tiết */}
                     <div className="md:col-span-2 space-y-3">
-                      <span className="text-[11px] font-bold text-slate-600 block">
-                        Danh sách Khuyết Tật Nứt ({zCode}):
-                      </span>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-bold text-slate-600 block">
+                          Danh sách Khuyết Tật Nứt ({zCode}):
+                        </span>
+                        {isEditMode && (
+                          <button
+                            type="button"
+                            onClick={() => handleAddDefect(z.id)}
+                            className="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-xs font-bold transition-colors shadow-2xs cursor-pointer"
+                          >
+                            + Thêm Khuyết Tật D
+                          </button>
+                        )}
+                      </div>
 
                       {defectsList.length === 0 ? (
                         <div className="p-4 bg-white rounded-xl border border-slate-200 text-center text-xs text-slate-400">
@@ -564,18 +721,50 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                                   <span className="px-2 py-0.5 rounded bg-red-100 text-red-800 font-mono font-black text-xs">
                                     {dCode}
                                   </span>
-                                  <span className="text-xs font-bold text-slate-800">
-                                    {d.screeningCategory || d.defectType || 'Vết nứt tường'}
-                                  </span>
-                                  {d.isStructuralCritical && (
-                                    <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-red-600 text-white flex items-center gap-1">
-                                      <ShieldAlert className="w-3 h-3" />
-                                      Cờ kết cấu
-                                    </span>
+                                  {isEditMode ? (
+                                    <div className="flex items-center gap-2">
+                                      <select
+                                        value={d.screeningCategory || d.defectType || 'Vết nứt tường'}
+                                        onChange={(e) =>
+                                          handleDefectChange(z.id, d.id, 'screeningCategory', e.target.value, `${dCode} Phân loại`)
+                                        }
+                                        className="p-1 border border-slate-300 rounded text-xs font-bold bg-white"
+                                      >
+                                        <option value="Vết nứt tường">Vết nứt tường</option>
+                                        <option value="Vết nứt dầm/cột">Vết nứt dầm/cột</option>
+                                        <option value="Bong tróc vữa/sơn">Bong tróc vữa/sơn</option>
+                                        <option value="Thấm dột ẩm mốc">Thấm dột ẩm mốc</option>
+                                        <option value="Lún sụt / Nứt sàn">Lún sụt / Nứt sàn</option>
+                                        <option value="Nứt tiếp giáp cấu kiện">Nứt tiếp giáp cấu kiện</option>
+                                      </select>
+                                      <label className="flex items-center gap-1 text-[11px] font-bold text-red-700 cursor-pointer">
+                                        <input
+                                          type="checkbox"
+                                          checked={Boolean(d.isStructuralCritical)}
+                                          onChange={(e) =>
+                                            handleDefectChange(z.id, d.id, 'isStructuralCritical', e.target.checked, `${dCode} Cờ kết cấu`)
+                                          }
+                                          className="rounded text-red-600"
+                                        />
+                                        <span>Cờ kết cấu</span>
+                                      </label>
+                                    </div>
+                                  ) : (
+                                    <>
+                                      <span className="text-xs font-bold text-slate-800">
+                                        {d.screeningCategory || d.defectType || 'Vết nứt tường'}
+                                      </span>
+                                      {d.isStructuralCritical && (
+                                        <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-red-600 text-white flex items-center gap-1">
+                                          <ShieldAlert className="w-3 h-3" />
+                                          Cờ kết cấu
+                                        </span>
+                                      )}
+                                    </>
                                   )}
                                 </div>
 
-                                {/* Thông số Bề rộng & Chiều dài */}
+                                {/* Thông số Bề rộng & Chiều dài + Nút xóa */}
                                 <div className="flex items-center gap-2">
                                   {isEditMode ? (
                                     <div className="flex items-center gap-2 text-xs">
@@ -598,6 +787,14 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                                         }
                                         className="w-16 px-1.5 py-0.5 border border-amber-300 rounded bg-amber-50/50 text-xs font-bold"
                                       />
+                                      <button
+                                        type="button"
+                                        onClick={() => handleRemoveDefect(z.id, d.id)}
+                                        className="px-2 py-0.5 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded text-[11px] font-bold transition-colors cursor-pointer"
+                                        title="Xóa khuyết tật này"
+                                      >
+                                        Xóa
+                                      </button>
                                     </div>
                                   ) : (
                                     <span className="text-xs font-bold text-slate-800">
@@ -609,28 +806,79 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                                 </div>
                               </div>
 
-                              {/* Thông số phụ: Hướng nứt, Trạng thái hoạt động, Thước đo tỷ lệ */}
-                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px] bg-slate-50/80 p-2 rounded-lg border border-slate-100">
+                              {/* Thông số phụ: Hướng nứt, Trạng thái hoạt động, Độ sâu, Thước đo tỷ lệ */}
+                              <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 text-[11px] bg-slate-50/80 p-2 rounded-lg border border-slate-100">
                                 <div>
-                                  <span className="text-slate-500 font-semibold">Hướng nứt: </span>
-                                  <span className="font-bold text-slate-800">
-                                    {d.crackDirection || 'Không ghi nhận'}
-                                  </span>
-                                </div>
-                                <div>
-                                  <span className="text-slate-500 font-semibold">Trạng thái: </span>
-                                  <span className="font-bold text-slate-800">
-                                    {d.activityState === 'S'
-                                      ? 'Ổn định (S)'
-                                      : d.activityState === 'A'
-                                      ? 'Đang phát triển (A)'
-                                      : 'Chưa xác định (U)'}
-                                  </span>
-                                </div>
-                                <div>
-                                  <span className="text-slate-500 font-semibold">Thước đo mm: </span>
+                                  <span className="text-slate-500 font-semibold block mb-0.5">Hướng nứt:</span>
                                   {isEditMode ? (
-                                    <label className="inline-flex items-center gap-1 font-bold text-slate-700 cursor-pointer">
+                                    <select
+                                      value={d.crackDirection || 'Ngang'}
+                                      onChange={(e) =>
+                                        handleDefectChange(z.id, d.id, 'crackDirection', e.target.value, `${dCode} Hướng nứt`)
+                                      }
+                                      className="w-full p-1 bg-white border border-slate-300 rounded text-[11px] font-bold"
+                                    >
+                                      <option value="Ngang">Ngang</option>
+                                      <option value="Dọc">Dọc</option>
+                                      <option value="Chéo 45 độ">Chéo 45 độ</option>
+                                      <option value="Chân chim">Chân chim</option>
+                                      <option value="Hỗn hợp">Hỗn hợp</option>
+                                    </select>
+                                  ) : (
+                                    <span className="font-bold text-slate-800">
+                                      {d.crackDirection || 'Không ghi nhận'}
+                                    </span>
+                                  )}
+                                </div>
+
+                                <div>
+                                  <span className="text-slate-500 font-semibold block mb-0.5">Trạng thái:</span>
+                                  {isEditMode ? (
+                                    <select
+                                      value={d.activityState || 'S'}
+                                      onChange={(e) =>
+                                        handleDefectChange(z.id, d.id, 'activityState', e.target.value, `${dCode} Trạng thái`)
+                                      }
+                                      className="w-full p-1 bg-white border border-slate-300 rounded text-[11px] font-bold"
+                                    >
+                                      <option value="S">Ổn định (S)</option>
+                                      <option value="A">Đang phát triển (A)</option>
+                                      <option value="U">Chưa xác định (U)</option>
+                                    </select>
+                                  ) : (
+                                    <span className="font-bold text-slate-800">
+                                      {d.activityState === 'S'
+                                        ? 'Ổn định (S)'
+                                        : d.activityState === 'A'
+                                        ? 'Đang phát triển (A)'
+                                        : 'Chưa xác định (U)'}
+                                    </span>
+                                  )}
+                                </div>
+
+                                <div>
+                                  <span className="text-slate-500 font-semibold block mb-0.5">Độ sâu nứt (mm):</span>
+                                  {isEditMode ? (
+                                    <input
+                                      type="number"
+                                      value={d.depthMm ?? ''}
+                                      onChange={(e) =>
+                                        handleDefectChange(z.id, d.id, 'depthMm', e.target.value ? Number(e.target.value) : '', `${dCode} Độ sâu`)
+                                      }
+                                      placeholder="VD: 5"
+                                      className="w-full p-1 bg-white border border-slate-300 rounded text-[11px] font-bold"
+                                    />
+                                  ) : (
+                                    <span className="font-bold text-slate-800">
+                                      {d.depthMm ? `${d.depthMm} mm` : 'Nông bề mặt'}
+                                    </span>
+                                  )}
+                                </div>
+
+                                <div>
+                                  <span className="text-slate-500 font-semibold block mb-0.5">Thước đo mm:</span>
+                                  {isEditMode ? (
+                                    <label className="inline-flex items-center gap-1 font-bold text-slate-700 cursor-pointer pt-1">
                                       <input
                                         type="checkbox"
                                         checked={Boolean(d.hasScaleCard ?? d.has_scale_card)}
@@ -739,22 +987,52 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                 return (
                   <div key={elem.id || eCode} className="p-3 bg-amber-50/40 rounded-xl border border-amber-200 space-y-2">
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap flex-1">
                         <span className="px-2 py-0.5 rounded bg-amber-700 text-white font-mono font-black text-xs">
                           {eCode}
                         </span>
-                        <span className="text-xs font-bold text-slate-800">
-                          {elem.elementType || 'Cột/Dầm BTCT'} &bull; {elem.materialType || 'BTCT'}
-                        </span>
+                        {isEditMode ? (
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <input
+                              type="text"
+                              value={elem.elementType || ''}
+                              onChange={(e) => handleElementFieldChange(elem.id, 'elementType', e.target.value, 'Loại cấu kiện')}
+                              placeholder="Cột/Dầm/Sàn..."
+                              className="p-1 text-xs border border-amber-300 rounded font-bold bg-white"
+                            />
+                            <span>&bull;</span>
+                            <input
+                              type="text"
+                              value={elem.materialType || ''}
+                              onChange={(e) => handleElementFieldChange(elem.id, 'materialType', e.target.value, 'Vật liệu')}
+                              placeholder="BTCT, Thép..."
+                              className="p-1 text-xs border border-amber-300 rounded font-bold bg-white"
+                            />
+                          </div>
+                        ) : (
+                          <span className="text-xs font-bold text-slate-800">
+                            {elem.elementType || 'Cột/Dầm BTCT'} &bull; {elem.materialType || 'BTCT'}
+                          </span>
+                        )}
                       </div>
                       <Badge variant={eDefects.length > 0 ? 'warning' : 'success'} size="sm">
                         {eDefects.length} khuyết tật kết cấu
                       </Badge>
                     </div>
 
-                    <div className="text-xs text-slate-700 italic">
-                      {elem.notes || 'Không có ghi chú cấu kiện kết cấu.'}
-                    </div>
+                    {isEditMode ? (
+                      <input
+                        type="text"
+                        value={elem.notes || ''}
+                        onChange={(e) => handleElementFieldChange(elem.id, 'notes', e.target.value, 'Ghi chú')}
+                        placeholder="Ghi chú cấu kiện kết cấu chịu lực..."
+                        className="w-full p-1.5 text-xs bg-white border border-amber-300 rounded"
+                      />
+                    ) : (
+                      <div className="text-xs text-slate-700 italic">
+                        {elem.notes || 'Không có ghi chú cấu kiện kết cấu.'}
+                      </div>
+                    )}
                   </div>
                 );
               })}

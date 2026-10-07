@@ -15,6 +15,7 @@ interface Phase1FilterToolbarProps {
   selectedCount: number;
   totalFilteredCount: number;
   onCreateBatchExport: () => void;
+  hideZoneSelect?: boolean;
 }
 
 export const Phase1FilterToolbar: React.FC<Phase1FilterToolbarProps> = ({
@@ -30,35 +31,45 @@ export const Phase1FilterToolbar: React.FC<Phase1FilterToolbarProps> = ({
   selectedCount,
   totalFilteredCount,
   onCreateBatchExport,
+  hideZoneSelect = false,
 }) => {
   return (
     <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
       <div className="flex flex-wrap items-center gap-3">
         {/* Phân Khu (Zone) */}
-        <div className="flex items-center gap-2">
-          <Layers size={16} className="text-slate-400" />
-          <select
-            value={selectedZone}
-            onChange={(e) => setSelectedZone(e.target.value)}
-            className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
-          >
-            <option value="ALL">🌐 Tất cả các Phân khu (Toàn tuyến Metro 2 - 1.227 thửa)</option>
-            <optgroup label="⭐ 5 Phân đoạn dữ liệu chuẩn (Đã có số liệu khảo sát)">
-              {METRO_22_ZONES.filter((z: MetroZoneConfig) => z.isDataReady).map((z: MetroZoneConfig) => (
-                <option key={z.code} value={z.code}>
-                  {z.name} ({z.rawParcelCount} thửa)
-                </option>
-              ))}
-            </optgroup>
-            <optgroup label="Tất cả 22 Phân đoạn toàn tuyến">
-              {METRO_22_ZONES.map((z: MetroZoneConfig) => (
-                <option key={z.code} value={z.code}>
-                  {z.name}
-                </option>
-              ))}
-            </optgroup>
-          </select>
-        </div>
+        {hideZoneSelect ? (
+          <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-indigo-50/80 border border-indigo-200/80 text-xs font-bold text-indigo-700">
+            <Layers size={14} className="text-indigo-600" />
+            <span>
+              Phân khu: <strong className="font-mono">{selectedZone === 'ALL' ? 'Toàn Tuyến' : selectedZone}</strong>
+            </span>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            <Layers size={16} className="text-slate-400" />
+            <select
+              value={selectedZone}
+              onChange={(e) => setSelectedZone(e.target.value)}
+              className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
+            >
+              <option value="ALL">🌐 Tất cả các Phân khu (Toàn tuyến Metro 2 - 1.227 thửa)</option>
+              <optgroup label="⭐ 5 Phân đoạn dữ liệu chuẩn (Đã có số liệu khảo sát)">
+                {METRO_22_ZONES.filter((z: MetroZoneConfig) => z.isDataReady).map((z: MetroZoneConfig) => (
+                  <option key={z.code} value={z.code}>
+                    {z.name} ({z.rawParcelCount} thửa)
+                  </option>
+                ))}
+              </optgroup>
+              <optgroup label="Tất cả 22 Phân đoạn toàn tuyến">
+                {METRO_22_ZONES.map((z: MetroZoneConfig) => (
+                  <option key={z.code} value={z.code}>
+                    {z.name}
+                  </option>
+                ))}
+              </optgroup>
+            </select>
+          </div>
+        )}
 
         {/* Trạng thái Lô */}
         <div className="flex items-center gap-2">

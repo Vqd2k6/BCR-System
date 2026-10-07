@@ -194,24 +194,42 @@ export const AuditStep1Identification: React.FC<Props> = ({
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {caseType !== 'NORMAL' && (
-            <span className={`px-2.5 py-1 rounded-lg text-xs font-bold ${
-              caseType === 'VACANT_LAND'
-                ? 'bg-amber-100 text-amber-800 border border-amber-300'
-                : caseType === 'UNDER_CONSTRUCTION'
-                ? 'bg-blue-100 text-blue-800 border border-blue-300'
-                : caseType === 'ABSENTEE'
-                ? 'bg-purple-100 text-purple-800 border border-purple-300'
-                : 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-            }`}>
-              {caseType === 'VACANT_LAND'
-                ? 'Đất Trống Chưa XD'
-                : caseType === 'UNDER_CONSTRUCTION'
-                ? 'Công Trình Đang XD'
-                : caseType === 'ABSENTEE'
-                ? 'Vắng Mặt Chủ Hộ'
-                : 'Chung Cư / Căn Hộ'}
-            </span>
+          {isEditMode ? (
+            <div className="flex items-center gap-1.5">
+              <label className="text-[10px] font-bold text-slate-500 uppercase">Loại hình:</label>
+              <select
+                value={caseType}
+                onChange={(e) => handleFieldChange('surveyCaseType', 'Loại hình khảo sát', e.target.value)}
+                className="px-2 py-1 rounded-lg text-xs font-bold bg-amber-50 border border-amber-300 text-slate-800"
+              >
+                <option value="NORMAL">Nhà dân liền thổ thông thường</option>
+                <option value="VACANT_LAND">Đất trống chưa xây dựng</option>
+                <option value="UNDER_CONSTRUCTION">Công trình đang xây dựng dở dang</option>
+                <option value="APARTMENT_CHILD">Căn hộ / Chung cư con</option>
+                <option value="APARTMENT_PARENT">Tòa nhà chung cư tổng thể</option>
+                <option value="ABSENTEE">Vắng mặt chủ hộ</option>
+              </select>
+            </div>
+          ) : (
+            caseType !== 'NORMAL' && (
+              <span className={`px-2.5 py-1 rounded-lg text-xs font-bold ${
+                caseType === 'VACANT_LAND'
+                  ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                  : caseType === 'UNDER_CONSTRUCTION'
+                  ? 'bg-blue-100 text-blue-800 border border-blue-300'
+                  : caseType === 'ABSENTEE'
+                  ? 'bg-purple-100 text-purple-800 border border-purple-300'
+                  : 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+              }`}>
+                {caseType === 'VACANT_LAND'
+                  ? 'Đất Trống Chưa XD'
+                  : caseType === 'UNDER_CONSTRUCTION'
+                  ? 'Công Trình Đang XD'
+                  : caseType === 'ABSENTEE'
+                  ? 'Vắng Mặt Chủ Hộ'
+                  : 'Chung Cư / Căn Hộ'}
+              </span>
+            )
           )}
           <Badge variant="default" size="sm">
             Mã Thửa: {formState.projectParcelCode || data.projectParcelCode}
@@ -317,47 +335,143 @@ export const AuditStep1Identification: React.FC<Props> = ({
           </div>
         </div>
 
-        {/* Khối Ảnh Đặc Thù: Đất Trống / Công Trình Đang Xây Dựng */}
-        {caseType === 'VACANT_LAND' && vacantLandPhotos.length > 0 && (
+        {/* Khối Ảnh & Thông Tin Đặc Thù: Đất Trống / Công Trình Đang Xây Dựng / Căn Hộ */}
+        {caseType === 'VACANT_LAND' && (
           <div className="p-4 rounded-xl bg-amber-50/70 border border-amber-200 space-y-2.5">
             <span className="text-xs font-black uppercase text-amber-900 block">
-              Ảnh Hiện Trạng Đất Trống ({vacantLandPhotos.length} ảnh)
+              Hiện Trạng Đất Trống ({vacantLandPhotos.length} ảnh hiện trường)
             </span>
-            {sJson.vacantLandNotes && (
-              <p className="text-xs text-slate-700 italic">{sJson.vacantLandNotes}</p>
+            {isEditMode ? (
+              <div>
+                <label className="text-[11px] font-bold text-amber-800 block mb-1">Ghi chú hiện trạng đất trống:</label>
+                <textarea
+                  rows={2}
+                  value={formState.vacantLandNotes || sJson.vacantLandNotes || ''}
+                  onChange={(e) => handleFieldChange('vacantLandNotes', 'Ghi chú đất trống', e.target.value)}
+                  placeholder="Ghi chú hiện trạng đất trống (rào chắn, cỏ dại, vật liệu tập kết...)"
+                  className="w-full p-2 bg-white border border-amber-300 rounded-lg text-xs"
+                />
+              </div>
+            ) : (
+              (formState.vacantLandNotes || sJson.vacantLandNotes) && (
+                <p className="text-xs text-slate-700 italic">{formState.vacantLandNotes || sJson.vacantLandNotes}</p>
+              )
             )}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-              {vacantLandPhotos.map((vUrl: string, idx: number) => (
-                <div
-                  key={idx}
-                  onClick={() => onOpenPhotoZoom(vUrl, `Ảnh đất trống ${idx + 1}`)}
-                  className="rounded-lg overflow-hidden border border-amber-200 aspect-4/3 cursor-pointer hover:shadow-md transition-shadow"
-                >
-                  <img src={vUrl} alt={`Đất trống ${idx + 1}`} className="w-full h-full object-cover" />
-                </div>
-              ))}
-            </div>
+            {vacantLandPhotos.length > 0 && (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                {vacantLandPhotos.map((vUrl: string, idx: number) => (
+                  <div
+                    key={idx}
+                    onClick={() => onOpenPhotoZoom(vUrl, `Ảnh đất trống ${idx + 1}`)}
+                    className="rounded-lg overflow-hidden border border-amber-200 aspect-4/3 cursor-pointer hover:shadow-md transition-shadow"
+                  >
+                    <img src={vUrl} alt={`Đất trống ${idx + 1}`} className="w-full h-full object-cover" />
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
-        {caseType === 'UNDER_CONSTRUCTION' && underConstructionPhotos.length > 0 && (
+        {caseType === 'UNDER_CONSTRUCTION' && (
           <div className="p-4 rounded-xl bg-blue-50/70 border border-blue-200 space-y-2.5">
             <span className="text-xs font-black uppercase text-blue-900 block">
-              Ảnh Công Trình Đang Xây Dựng ({underConstructionPhotos.length} ảnh)
+              Hiện Trạng Công Trình Đang Xây Dựng ({underConstructionPhotos.length} ảnh hiện trường)
             </span>
-            {sJson.constructionStageNotes && (
-              <p className="text-xs text-slate-700 italic">{sJson.constructionStageNotes}</p>
+            {isEditMode ? (
+              <div>
+                <label className="text-[11px] font-bold text-blue-800 block mb-1">Giai đoạn thi công hiện tại:</label>
+                <textarea
+                  rows={2}
+                  value={formState.constructionStageNotes || sJson.constructionStageNotes || ''}
+                  onChange={(e) => handleFieldChange('constructionStageNotes', 'Giai đoạn thi công', e.target.value)}
+                  placeholder="Ghi chú giai đoạn thi công (đang ép cọc, thi công móng, đổ sàn tầng...)"
+                  className="w-full p-2 bg-white border border-blue-300 rounded-lg text-xs"
+                />
+              </div>
+            ) : (
+              (formState.constructionStageNotes || sJson.constructionStageNotes) && (
+                <p className="text-xs text-slate-700 italic">{formState.constructionStageNotes || sJson.constructionStageNotes}</p>
+              )
             )}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-              {underConstructionPhotos.map((uUrl: string, idx: number) => (
-                <div
-                  key={idx}
-                  onClick={() => onOpenPhotoZoom(uUrl, `Ảnh xây dựng dở dang ${idx + 1}`)}
-                  className="rounded-lg overflow-hidden border border-blue-200 aspect-4/3 cursor-pointer hover:shadow-md transition-shadow"
-                >
-                  <img src={uUrl} alt={`Xây dựng dở dang ${idx + 1}`} className="w-full h-full object-cover" />
-                </div>
-              ))}
+            {underConstructionPhotos.length > 0 && (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                {underConstructionPhotos.map((uUrl: string, idx: number) => (
+                  <div
+                    key={idx}
+                    onClick={() => onOpenPhotoZoom(uUrl, `Ảnh xây dựng dở dang ${idx + 1}`)}
+                    className="rounded-lg overflow-hidden border border-blue-200 aspect-4/3 cursor-pointer hover:shadow-md transition-shadow"
+                  >
+                    <img src={uUrl} alt={`Xây dựng dở dang ${idx + 1}`} className="w-full h-full object-cover" />
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {caseType === 'APARTMENT_CHILD' && (
+          <div className="p-4 rounded-xl bg-emerald-50/70 border border-emerald-200 space-y-3">
+            <span className="text-xs font-black uppercase text-emerald-900 block">
+              Thông Tin Định Danh Căn Hộ Con / Chung Cư
+            </span>
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 text-xs">
+              <div>
+                <label className="text-[11px] font-bold text-emerald-800 block mb-1">Mã căn hộ *</label>
+                {isEditMode ? (
+                  <input
+                    type="text"
+                    value={formState.unitCode || ''}
+                    onChange={(e) => handleFieldChange('unitCode', 'Mã căn hộ', e.target.value)}
+                    placeholder="VD: Căn 402, P.12B"
+                    className="w-full p-1.5 bg-white border border-emerald-300 rounded font-bold"
+                  />
+                ) : (
+                  <div className="p-1.5 bg-white rounded border border-emerald-200 font-bold">{formState.unitCode || '---'}</div>
+                )}
+              </div>
+              <div>
+                <label className="text-[11px] font-bold text-emerald-800 block mb-1">Số tầng căn hộ</label>
+                {isEditMode ? (
+                  <input
+                    type="number"
+                    value={formState.unitFloorNumber ?? ''}
+                    onChange={(e) => handleFieldChange('unitFloorNumber', 'Tầng căn hộ', e.target.value ? Number(e.target.value) : '')}
+                    placeholder="VD: 4"
+                    className="w-full p-1.5 bg-white border border-emerald-300 rounded font-bold"
+                  />
+                ) : (
+                  <div className="p-1.5 bg-white rounded border border-emerald-200 font-bold">{formState.unitFloorNumber !== undefined ? `Tầng ${formState.unitFloorNumber}` : '---'}</div>
+                )}
+              </div>
+              <div>
+                <label className="text-[11px] font-bold text-emerald-800 block mb-1">Đại diện BQL / Ban QT</label>
+                {isEditMode ? (
+                  <input
+                    type="text"
+                    value={formState.managementContactName || ''}
+                    onChange={(e) => handleFieldChange('managementContactName', 'Liên hệ BQL', e.target.value)}
+                    placeholder="VD: Nguyễn Văn A (Trưởng BQT)"
+                    className="w-full p-1.5 bg-white border border-emerald-300 rounded font-bold"
+                  />
+                ) : (
+                  <div className="p-1.5 bg-white rounded border border-emerald-200 font-bold">{formState.managementContactName || '---'}</div>
+                )}
+              </div>
+              <div>
+                <label className="text-[11px] font-bold text-emerald-800 block mb-1">SĐT Ban Quản Lý</label>
+                {isEditMode ? (
+                  <input
+                    type="text"
+                    value={formState.managementContactPhone || ''}
+                    onChange={(e) => handleFieldChange('managementContactPhone', 'SĐT BQL', e.target.value)}
+                    placeholder="VD: 0901234567"
+                    className="w-full p-1.5 bg-white border border-emerald-300 rounded font-mono"
+                  />
+                ) : (
+                  <div className="p-1.5 bg-white rounded border border-emerald-200 font-mono">{formState.managementContactPhone || '---'}</div>
+                )}
+              </div>
             </div>
           </div>
         )}
@@ -576,6 +690,69 @@ export const AuditStep1Identification: React.FC<Props> = ({
                 </div>
               )}
             </div>
+
+            {/* Bề rộng mặt tiền */}
+            <div>
+              <label className="text-[11px] font-bold text-slate-500 uppercase block mb-1">
+                Bề rộng mặt tiền (m)
+              </label>
+              {isEditMode ? (
+                <input
+                  type="number"
+                  step="0.01"
+                  value={formState.frontageWidth ?? ''}
+                  onChange={(e) => handleFieldChange('frontageWidth', 'Bề rộng mặt tiền', e.target.value ? Number(e.target.value) : '')}
+                  placeholder="VD: 4.5"
+                  className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg font-mono font-bold"
+                />
+              ) : (
+                <div className="p-1.5 bg-white rounded-lg border border-slate-200 font-mono font-bold text-slate-800">
+                  {formState.frontageWidth ? `${formState.frontageWidth} m` : '---'}
+                </div>
+              )}
+            </div>
+
+            {/* Chiều sâu thửa */}
+            <div>
+              <label className="text-[11px] font-bold text-slate-500 uppercase block mb-1">
+                Chiều sâu thửa đất (m)
+              </label>
+              {isEditMode ? (
+                <input
+                  type="number"
+                  step="0.01"
+                  value={formState.lotDepth ?? ''}
+                  onChange={(e) => handleFieldChange('lotDepth', 'Chiều sâu thửa', e.target.value ? Number(e.target.value) : '')}
+                  placeholder="VD: 18.2"
+                  className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg font-mono font-bold"
+                />
+              ) : (
+                <div className="p-1.5 bg-white rounded-lg border border-slate-200 font-mono font-bold text-slate-800">
+                  {formState.lotDepth ? `${formState.lotDepth} m` : '---'}
+                </div>
+              )}
+            </div>
+
+            {/* Diện tích khuôn viên */}
+            <div className="sm:col-span-2">
+              <label className="text-[11px] font-bold text-slate-500 uppercase block mb-1">
+                Diện tích khuôn viên đất (m²)
+              </label>
+              {isEditMode ? (
+                <input
+                  type="number"
+                  step="0.01"
+                  value={formState.landAreaM2 ?? ''}
+                  onChange={(e) => handleFieldChange('landAreaM2', 'Diện tích đất', e.target.value ? Number(e.target.value) : '')}
+                  placeholder="VD: 81.9"
+                  className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg font-mono font-bold text-emerald-800"
+                />
+              ) : (
+                <div className="p-1.5 bg-white rounded-lg border border-slate-200 font-mono font-bold text-emerald-700">
+                  {formState.landAreaM2 ? `${formState.landAreaM2} m²` : '---'}
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -676,12 +853,70 @@ export const AuditStep1Identification: React.FC<Props> = ({
                 <Navigation className="w-3.5 h-3.5 text-sky-600" />
                 <span>Tọa độ GPS thực địa</span>
               </label>
-              <div className="text-xs font-mono font-bold text-slate-800">
-                {latDisplay ? `${Number(latDisplay).toFixed(6)}, ${Number(lngDisplay).toFixed(6)}` : '10.792410, 106.711520'}
-              </div>
-              <span className="text-[10px] text-slate-500 block mt-0.5">
-                Độ chính xác: ±{accuracyDisplay || 3.5}m
-              </span>
+              {isEditMode ? (
+                <div className="space-y-1">
+                  <div className="flex items-center gap-1">
+                    <span className="text-[10px] font-bold text-slate-400">Lat:</span>
+                    <input
+                      type="number"
+                      step="any"
+                      value={latDisplay ?? ''}
+                      onChange={(e) => {
+                        const newLat = e.target.value ? Number(e.target.value) : '';
+                        handleFieldChange('gpsCoords', 'Tọa độ GPS', {
+                          ...gpsCoords,
+                          lat: newLat,
+                          latitude: newLat,
+                        });
+                      }}
+                      className="w-full p-1 text-xs font-mono font-bold bg-amber-50 border border-amber-300 rounded"
+                    />
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="text-[10px] font-bold text-slate-400">Lng:</span>
+                    <input
+                      type="number"
+                      step="any"
+                      value={lngDisplay ?? ''}
+                      onChange={(e) => {
+                        const newLng = e.target.value ? Number(e.target.value) : '';
+                        handleFieldChange('gpsCoords', 'Tọa độ GPS', {
+                          ...gpsCoords,
+                          lng: newLng,
+                          longitude: newLng,
+                        });
+                      }}
+                      className="w-full p-1 text-xs font-mono font-bold bg-amber-50 border border-amber-300 rounded"
+                    />
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <span className="text-[10px] font-bold text-slate-400">±m:</span>
+                    <input
+                      type="number"
+                      step="0.1"
+                      value={accuracyDisplay ?? ''}
+                      onChange={(e) => {
+                        const newAcc = e.target.value ? Number(e.target.value) : '';
+                        handleFieldChange('gpsCoords', 'Sai số GPS', {
+                          ...gpsCoords,
+                          accuracy: newAcc,
+                        });
+                      }}
+                      placeholder="Sai số m"
+                      className="w-full p-1 text-[11px] font-mono bg-white border border-slate-300 rounded"
+                    />
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="text-xs font-mono font-bold text-slate-800">
+                    {latDisplay ? `${Number(latDisplay).toFixed(6)}, ${Number(lngDisplay).toFixed(6)}` : '10.792410, 106.711520'}
+                  </div>
+                  <span className="text-[10px] text-slate-500 block mt-0.5">
+                    Độ chính xác: ±{accuracyDisplay || 3.5}m
+                  </span>
+                </>
+              )}
             </div>
           </div>
 

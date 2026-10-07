@@ -276,15 +276,30 @@ export const AuditStep6ScopeGisMutation: React.FC<Props> = ({
                 Nguyên nhân chính hạn chế:
               </label>
               {isEditMode ? (
-                <input
-                  type="text"
-                  value={access.mainReason || ''}
-                  onChange={(e) =>
-                    handleNestedFieldChange('accessLimitation', 'mainReason', 'Nguyên nhân hạn chế', e.target.value)
-                  }
-                  placeholder="Ví dụ: Chủ nhà khóa cửa phòng ngủ, kết cấu sân thượng nguy hiểm..."
-                  className="w-full p-2 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-800"
-                />
+                <div className="space-y-1">
+                  <select
+                    value={ACCESS_LIMIT_PRESETS.includes(access.mainReason) ? access.mainReason : 'Khác (Nhập chi tiết...)'}
+                    onChange={(e) => {
+                      if (e.target.value !== 'Khác (Nhập chi tiết...)') {
+                        handleNestedFieldChange('accessLimitation', 'mainReason', 'Nguyên nhân hạn chế', e.target.value);
+                      }
+                    }}
+                    className="w-full p-2 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-800"
+                  >
+                    {ACCESS_LIMIT_PRESETS.map((p) => (
+                      <option key={p} value={p}>{p}</option>
+                    ))}
+                  </select>
+                  <input
+                    type="text"
+                    value={access.mainReason || ''}
+                    onChange={(e) =>
+                      handleNestedFieldChange('accessLimitation', 'mainReason', 'Nguyên nhân hạn chế', e.target.value)
+                    }
+                    placeholder="Nhập chi tiết nguyên nhân nếu chọn khác..."
+                    className="w-full p-1.5 bg-white border border-slate-300 rounded-lg text-xs"
+                  />
+                </div>
               ) : (
                 <div className="p-2.5 rounded-xl bg-white border border-slate-200 text-xs font-semibold text-slate-800">
                   {access.mainReason || 'Không có ghi nhận nguyên nhân'}
@@ -299,21 +314,51 @@ export const AuditStep6ScopeGisMutation: React.FC<Props> = ({
               <span className="text-[11px] font-bold text-amber-950 block">
                 Khu vực cụ thể không tiếp cận được:
               </span>
-              <div className="flex flex-wrap gap-2">
-                {(access.restrictedAreas || []).map((area: string, idx: number) => (
-                  <span
-                    key={idx}
-                    className="px-2.5 py-1 rounded-lg bg-white border border-amber-300 text-xs font-bold text-amber-900 shadow-xs"
-                  >
-                    • {area}
-                  </span>
-                ))}
-                {(!access.restrictedAreas || access.restrictedAreas.length === 0) && (
-                  <span className="text-xs text-amber-700 italic">
-                    Chưa liệt kê cụ thể các phòng bị hạn chế.
-                  </span>
-                )}
-              </div>
+              {isEditMode ? (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {RESTRICTED_AREAS_PRESETS.map((area) => {
+                    const currentAreas: string[] = Array.isArray(access.restrictedAreas) ? access.restrictedAreas : [];
+                    const isSelected = currentAreas.includes(area);
+                    return (
+                      <label
+                        key={area}
+                        className={`flex items-center gap-2 p-1.5 rounded-lg border text-xs cursor-pointer select-none ${
+                          isSelected ? 'bg-amber-100 border-amber-400 text-amber-950 font-bold' : 'bg-white border-slate-200 text-slate-700'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={(e) => {
+                            const updated = e.target.checked
+                              ? [...currentAreas, area]
+                              : currentAreas.filter((a) => a !== area);
+                            handleNestedFieldChange('accessLimitation', 'restrictedAreas', 'Khu vực hạn chế', updated);
+                          }}
+                          className="rounded text-amber-600"
+                        />
+                        <span>{area}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {(access.restrictedAreas || []).map((area: string, idx: number) => (
+                    <span
+                      key={idx}
+                      className="px-2.5 py-1 rounded-lg bg-white border border-amber-300 text-xs font-bold text-amber-900 shadow-xs"
+                    >
+                      • {area}
+                    </span>
+                  ))}
+                  {(!access.restrictedAreas || access.restrictedAreas.length === 0) && (
+                    <span className="text-xs text-amber-700 italic">
+                      Chưa liệt kê cụ thể các phòng bị hạn chế.
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
