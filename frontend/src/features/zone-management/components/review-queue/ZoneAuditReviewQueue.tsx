@@ -13,7 +13,10 @@ import {
   Home,
   UserX,
   RefreshCw,
+  ChevronLeft,
   ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
   Layers,
   FileText,
   User,
@@ -21,6 +24,7 @@ import {
   ExternalLink,
   ArrowRightLeft,
   Split,
+  SlidersHorizontal,
 } from 'lucide-react';
 import { Card } from '../../../../core/components/ui/Card';
 import { Badge } from '../../../../core/components/ui/Badge';
@@ -30,6 +34,7 @@ import { AuditStudioModal } from './AuditStudioModal';
 import { RejectReportModal } from './RejectReportModal';
 import { AdminReassignParcelModal } from './AdminReassignParcelModal';
 import { UnifiedGisMutationModal } from '../../../../components/gis/cadastral-editor/UnifiedGisMutationModal';
+import { ReviewQueueTableRow } from './ReviewQueueTableRow';
 
 export interface PendingSubmissionItem {
   report_id: string | null;
@@ -58,23 +63,41 @@ export interface PendingSubmissionItem {
   alert_count: number;
 }
 
+export type TabType = 'ALL' | 'RESIDENTIAL' | 'CONDO' | 'ABSENT' | 'CRITICAL' | 'REJECTED' | 'APPROVED';
+
 interface Props {
   selectedZone: string;
   onStatsNeedRefresh?: () => void;
+  externalFilterCategory?: string;
+  externalFilterValue?: string;
+  onClearExternalFilter?: () => void;
+  defaultTab?: TabType;
+  title?: string;
 }
 
-type TabType = 'ALL' | 'RESIDENTIAL' | 'CONDO' | 'ABSENT' | 'CRITICAL' | 'REJECTED' | 'APPROVED';
-
-export const ZoneAuditReviewQueue: React.FC<Props> = ({ selectedZone, onStatsNeedRefresh }) => {
+export const ZoneAuditReviewQueue: React.FC<Props> = ({
+  selectedZone,
+  onStatsNeedRefresh,
+  externalFilterCategory,
+  externalFilterValue,
+  onClearExternalFilter,
+  defaultTab = 'ALL',
+  title,
+}) => {
   const [items, setItems] = useState<PendingSubmissionItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [toastMessage, setToastMessage] = useState('');
 
   // Filtering states
-  const [activeTab, setActiveTab] = useState<TabType>('ALL');
-  const [searchQuery, setSearchQuery] = useState('');
+  const [activeTab, setActiveTab] = useState<TabType>(defaultTab);
+  const [searchInput, setSearchInput] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
+
+  // Pagination states (25, 50, 100 rows)
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
 
   // Modal states
   const [selectedAuditReportId, setSelectedAuditReportId] = useState<string | null>(null);
@@ -105,13 +128,26 @@ export const ZoneAuditReviewQueue: React.FC<Props> = ({ selectedZone, onStatsNee
     reportId?: string;
   } | null>(null);
 
+  // Debounce search input (300ms)
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(searchInput);
+      setCurrentPage(1);
+    }, 300);
+    return () => clearTimeout(handler);
+  }, [searchInput]);
+
+  // Reset page when zone or filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedZone, activeTab, externalFilterCategory, externalFilterValue]);
+
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(''), 4500);
     fetchSubmissions();
     if (onStatsNeedRefresh) onStatsNeedRefresh();
   };
-
 
   // Fetch pending submissions from API
   const fetchSubmissions = async () => {
@@ -122,12 +158,14 @@ export const ZoneAuditReviewQueue: React.FC<Props> = ({ selectedZone, onStatsNee
         params: {
           zoneId: selectedZone,
           status: statusFilter !== 'ALL' ? statusFilter : undefined,
-          limit: 100,
+          limit: 200,
         },
       });
 
       if (res.data?.success && Array.isArray(res.data.data)) {
         setItems(res.data.data);
+      } else if (res.data?.success && Array.isArray(res.data.data?.items)) {
+        setItems(res.data.data.items);
       } else {
         setItems([]);
       }
@@ -166,38 +204,67 @@ export const ZoneAuditReviewQueue: React.FC<Props> = ({ selectedZone, onStatsNee
     };
   }, [items]);
 
-  // Filtered Items
+  // Filtered Items (Client-side memory cache with instant feedback)
   const filteredItems = useMemo(() => {
     return items.filter((item) => {
-      // Tab filter
-      if (activeTab === 'ALL') {
-        if (item.status === 'APPROVED') return false;
-      } else if (activeTab === 'RESIDENTIAL') {
-        if (item.status === 'APPROVED') return false;
-        const isCondo = item.building_type?.includes('CONDO');
-        if (isCondo) return false;
-      } else if (activeTab === 'CONDO') {
-        if (item.status === 'APPROVED') return false;
-        const isCondo = item.building_type?.includes('CONDO');
-        if (!isCondo) return false;
-      } else if (activeTab === 'ABSENT') {
-        const isAbsent = item.status === 'POSTPONED_ABSENT' || item.is_refused_or_absent;
-        if (!isAbsent) return false;
-      } else if (activeTab === 'CRITICAL') {
+      // 1. External filter từ Dashboard click-to-filter
+      if (externalFilterCategory === 'CRITICAL') {
         if (item.status === 'APPROVED') return false;
         const isHighBurland = ['GRADE_3', 'GRADE_4', 'GRADE_5'].includes(item.burland_damage_category || '');
         const hasAlerts = Number(item.alert_count) > 0;
-        const isHighEcs = Number(item.ecs_score) >= 70;
-        if (!isHighBurland && !hasAlerts && !isHighEcs) return false;
-      } else if (activeTab === 'REJECTED') {
-        if (item.status !== 'REJECTED') return false;
-      } else if (activeTab === 'APPROVED') {
-        if (item.status !== 'APPROVED') return false;
+        const isEcsHigh = Number(item.ecs_score) >= 70;
+        if (!isHighBurland && !hasAlerts && !isEcsHigh) return false;
+      } else if (externalFilterCategory === 'BURLAND') {
+        if (externalFilterValue === 'GRADE_4_5') {
+          if (item.burland_damage_category !== 'GRADE_4' && item.burland_damage_category !== 'GRADE_5') return false;
+        } else if (externalFilterValue === 'GRADE_3') {
+          if (item.burland_damage_category !== 'GRADE_3') return false;
+        } else if (externalFilterValue === 'GRADE_1_2') {
+          if (item.burland_damage_category !== 'GRADE_1' && item.burland_damage_category !== 'GRADE_2') return false;
+        }
+      } else if (externalFilterCategory === 'SLA') {
+        const itemTime = new Date(item.updated_at || item.created_at).getTime();
+        const diffHours = (Date.now() - itemTime) / (3600 * 1000);
+        if (externalFilterValue === 'OVERDUE_48H') {
+          if (item.status !== 'SUBMITTED' || diffHours < 48) return false;
+        } else if (externalFilterValue === 'WARNING_24H') {
+          if (item.status !== 'SUBMITTED' || diffHours < 24 || diffHours >= 48) return false;
+        }
+      } else if (externalFilterCategory === 'STATUS') {
+        if (externalFilterValue && item.status !== externalFilterValue) return false;
       }
 
-      // Search query
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase().trim();
+      // 2. Tab filter
+      if (!externalFilterCategory) {
+        if (activeTab === 'ALL') {
+          if (item.status === 'APPROVED') return false;
+        } else if (activeTab === 'RESIDENTIAL') {
+          if (item.status === 'APPROVED') return false;
+          const isCondo = item.building_type?.includes('CONDO');
+          if (isCondo) return false;
+        } else if (activeTab === 'CONDO') {
+          if (item.status === 'APPROVED') return false;
+          const isCondo = item.building_type?.includes('CONDO');
+          if (!isCondo) return false;
+        } else if (activeTab === 'ABSENT') {
+          const isAbsent = item.status === 'POSTPONED_ABSENT' || item.is_refused_or_absent;
+          if (!isAbsent) return false;
+        } else if (activeTab === 'CRITICAL') {
+          if (item.status === 'APPROVED') return false;
+          const isHighBurland = ['GRADE_3', 'GRADE_4', 'GRADE_5'].includes(item.burland_damage_category || '');
+          const hasAlerts = Number(item.alert_count) > 0;
+          const isHighEcs = Number(item.ecs_score) >= 70;
+          if (!isHighBurland && !hasAlerts && !isHighEcs) return false;
+        } else if (activeTab === 'REJECTED') {
+          if (item.status !== 'REJECTED') return false;
+        } else if (activeTab === 'APPROVED') {
+          if (item.status !== 'APPROVED') return false;
+        }
+      }
+
+      // 3. Search query
+      if (debouncedSearch.trim()) {
+        const q = debouncedSearch.toLowerCase().trim();
         const codeMatch = item.project_parcel_code?.toLowerCase().includes(q);
         const streetMatch = `${item.house_number || ''} ${item.street || ''}`.toLowerCase().includes(q);
         const surveyorMatch = item.surveyor_name?.toLowerCase().includes(q);
@@ -207,7 +274,16 @@ export const ZoneAuditReviewQueue: React.FC<Props> = ({ selectedZone, onStatsNee
 
       return true;
     });
-  }, [items, activeTab, searchQuery]);
+  }, [items, activeTab, debouncedSearch, externalFilterCategory, externalFilterValue]);
+
+  // Pagination calculation
+  const totalFilteredCount = filteredItems.length;
+  const totalPages = Math.max(1, Math.ceil(totalFilteredCount / pageSize));
+  const startIndex = (currentPage - 1) * pageSize;
+  const endIndex = Math.min(startIndex + pageSize, totalFilteredCount);
+  const paginatedItems = useMemo(() => {
+    return filteredItems.slice(startIndex, endIndex);
+  }, [filteredItems, startIndex, endIndex]);
 
   // Xem trước báo cáo kỹ thuật (HTML/PDF preview)
   const handlePreviewReport = (reportId: string | null) => {
@@ -229,143 +305,62 @@ export const ZoneAuditReviewQueue: React.FC<Props> = ({ selectedZone, onStatsNee
     setAuditStudioOpen(true);
   };
 
-  // Helper render Burland Badge
-  const renderBurlandBadge = (cat?: string | null, width?: number | null) => {
-    if (!cat) return <span className="text-slate-400 font-mono text-[11px]">Chưa tính</span>;
-    switch (cat) {
-      case 'GRADE_0':
-        return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
-            Cấp 0 (Không đáng kể)
-          </span>
-        );
-      case 'GRADE_1':
-        return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
-            Cấp 1 (Rất nhẹ {width ? `~${width}mm` : ''})
-          </span>
-        );
-      case 'GRADE_2':
-        return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
-            Cấp 2 (Nhẹ {width ? `~${width}mm` : ''})
-          </span>
-        );
-      case 'GRADE_3':
-        return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold bg-orange-100 text-orange-800 border border-orange-300">
-            ⚠️ Cấp 3 (Trung bình {width ? `~${width}mm` : ''})
-          </span>
-        );
-      case 'GRADE_4':
-        return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold bg-red-100 text-red-800 border border-red-300 animate-pulse">
-            🚨 Cấp 4 (Nặng {width ? `~${width}mm` : ''})
-          </span>
-        );
-      case 'GRADE_5':
-        return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-black bg-red-600 text-white border border-red-700 animate-pulse">
-            💥 Cấp 5 (Rất nặng / Nguy cấp)
-          </span>
-        );
-      default:
-        return <span className="text-slate-600 text-[11px]">{cat}</span>;
-    }
-  };
-
-  // Helper render Status Badge
-  const renderStatusBadge = (item: PendingSubmissionItem) => {
-    if (item.status === 'POSTPONED_ABSENT' || item.is_refused_or_absent) {
-      return (
-        <Badge variant="warning" dot className="font-bold">
-          <UserX className="w-3 h-3 mr-0.5 inline" />
-          Vắng chủ hộ (Lần {item.absence_attempt_count || 1})
-        </Badge>
-      );
-    }
-    if (item.status === 'REJECTED') {
-      return (
-        <Badge variant="danger" dot className="font-bold">
-          <AlertTriangle className="w-3 h-3 mr-0.5 inline" />
-          Đã trả về sửa
-        </Badge>
-      );
-    }
-    if (item.status === 'APPROVED') {
-      return (
-        <Badge variant="success" dot className="font-bold">
-          <CheckCircle2 className="w-3 h-3 mr-0.5 inline" />
-          Đã phê duyệt
-        </Badge>
-      );
-    }
-    return (
-      <Badge variant="info" dot className="font-bold">
-        <Clock className="w-3 h-3 mr-0.5 inline" />
-        Chờ thẩm định
-      </Badge>
-    );
-  };
-
   return (
-    <Card className="border-slate-200 shadow-sm bg-white overflow-hidden">
-      {/* Toast alert */}
+    <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+      {/* Toast Notification */}
       {toastMessage && (
-        <div className="p-3 bg-emerald-600 text-white text-xs font-bold flex items-center justify-between animate-in fade-in">
+        <div className="bg-emerald-600 text-white px-4 py-2.5 text-xs font-bold flex items-center justify-between animate-in fade-in">
           <div className="flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 text-emerald-200" />
+            <CheckCircle2 className="w-4 h-4" />
             <span>{toastMessage}</span>
           </div>
-          <button
-            type="button"
-            onClick={() => setToastMessage('')}
-            className="text-emerald-200 hover:text-white"
-          >
-            ✕
-          </button>
         </div>
       )}
 
-      {/* Header bar */}
-      <div className="p-4 sm:p-5 border-b border-slate-100 bg-slate-50/60 flex flex-col md:flex-row md:items-center justify-between gap-4">
+      {/* Header Bar */}
+      <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-50/50">
         <div>
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-sky-600 flex items-center justify-center text-white shadow-sm">
-              <FileCheck2 className="w-4 h-4" />
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 bg-indigo-50 text-indigo-700 rounded-xl border border-indigo-200">
+              <FileText className="w-5 h-5 text-indigo-600" />
             </div>
-            <h2 className="text-base sm:text-lg font-bold text-slate-800">
-              Hàng Đợi Thẩm Định & Phê Duyệt Hồ Sơ Hiện Trường
-            </h2>
-            <Badge variant="info" size="sm">
-              {filteredItems.length} hồ sơ
-            </Badge>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-base font-black text-slate-800">
+                  {title || 'Hàng Đợi Thẩm Định & Phê Duyệt Hồ Sơ'}
+                </h3>
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-100 text-indigo-800 border border-indigo-200">
+                  {totalFilteredCount} hồ sơ
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Quy trình kiểm soát chất lượng 2 lớp cho Trưởng Zone: Kiểm tra ảnh có thước đo tỷ lệ, đối soát hiện trạng nứt và cấp duyệt báo cáo BCS.
+              </p>
+            </div>
           </div>
-          <p className="text-xs text-slate-500 mt-1">
-            Quy trình kiểm soát chất lượng 2 lớp cho Trưởng Zone: Kiểm tra ảnh có thước đo tỷ lệ, đối soát hiện trạng nứt và cấp duyệt báo cáo BCS.
-          </p>
         </div>
 
-        <div className="flex items-center gap-2">
-          {/* Search Box */}
-          <div className="relative min-w-[220px]">
+        {/* Search Box & Controls */}
+        <div className="flex items-center gap-2.5 flex-wrap">
+          <div className="relative min-w-[240px]">
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
             <input
               type="text"
               placeholder="Tìm mã thửa, địa chỉ, KSV..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              className="w-full pl-9 pr-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-2xs"
             />
           </div>
 
           <button
+            type="button"
             onClick={fetchSubmissions}
             disabled={loading}
-            className="p-2 bg-white hover:bg-slate-100 text-slate-600 rounded-xl border border-slate-200 transition-colors shadow-xs"
+            className="p-2 bg-white hover:bg-slate-100 text-slate-600 rounded-xl border border-slate-200 transition-colors shadow-2xs cursor-pointer"
             title="Làm mới hàng đợi"
           >
-            <RefreshCw size={14} className={loading ? 'animate-spin text-sky-600' : ''} />
+            <RefreshCw size={14} className={loading ? 'animate-spin text-indigo-600' : ''} />
           </button>
         </div>
       </div>
@@ -373,52 +368,56 @@ export const ZoneAuditReviewQueue: React.FC<Props> = ({ selectedZone, onStatsNee
       {/* Filter Tabs */}
       <div className="px-4 border-b border-slate-100 flex items-center gap-2 overflow-x-auto bg-white py-2 scrollbar-none">
         <button
+          type="button"
           onClick={() => setActiveTab('ALL')}
-          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5 ${
+          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5 cursor-pointer ${
             activeTab === 'ALL'
-              ? 'bg-sky-600 text-white shadow-xs'
+              ? 'bg-indigo-600 text-white shadow-xs'
               : 'text-slate-600 hover:bg-slate-100'
           }`}
         >
           <span>Tất cả chờ xử lý</span>
-          <span className={`px-1.5 py-0.2 text-[10px] rounded-full ${activeTab === 'ALL' ? 'bg-sky-700 text-white' : 'bg-slate-200 text-slate-700'}`}>
+          <span className={`px-1.5 py-0.2 text-[10px] rounded-full ${activeTab === 'ALL' ? 'bg-indigo-700 text-white' : 'bg-slate-200 text-slate-700'}`}>
             {tabCounts.all}
           </span>
         </button>
 
         <button
+          type="button"
           onClick={() => setActiveTab('RESIDENTIAL')}
-          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5 ${
+          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5 cursor-pointer ${
             activeTab === 'RESIDENTIAL'
-              ? 'bg-sky-600 text-white shadow-xs'
+              ? 'bg-indigo-600 text-white shadow-xs'
               : 'text-slate-600 hover:bg-slate-100'
           }`}
         >
           <Home className="w-3.5 h-3.5" />
           <span>Nhà dân Phase 1</span>
-          <span className={`px-1.5 py-0.2 text-[10px] rounded-full ${activeTab === 'RESIDENTIAL' ? 'bg-sky-700 text-white' : 'bg-slate-200 text-slate-700'}`}>
+          <span className={`px-1.5 py-0.2 text-[10px] rounded-full ${activeTab === 'RESIDENTIAL' ? 'bg-indigo-700 text-white' : 'bg-slate-200 text-slate-700'}`}>
             {tabCounts.residential}
           </span>
         </button>
 
         <button
+          type="button"
           onClick={() => setActiveTab('CONDO')}
-          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5 ${
+          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5 cursor-pointer ${
             activeTab === 'CONDO'
-              ? 'bg-sky-600 text-white shadow-xs'
+              ? 'bg-indigo-600 text-white shadow-xs'
               : 'text-slate-600 hover:bg-slate-100'
           }`}
         >
           <Building className="w-3.5 h-3.5" />
           <span>Chung cư con</span>
-          <span className={`px-1.5 py-0.2 text-[10px] rounded-full ${activeTab === 'CONDO' ? 'bg-sky-700 text-white' : 'bg-slate-200 text-slate-700'}`}>
+          <span className={`px-1.5 py-0.2 text-[10px] rounded-full ${activeTab === 'CONDO' ? 'bg-indigo-700 text-white' : 'bg-slate-200 text-slate-700'}`}>
             {tabCounts.condo}
           </span>
         </button>
 
         <button
+          type="button"
           onClick={() => setActiveTab('ABSENT')}
-          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5 ${
+          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5 cursor-pointer ${
             activeTab === 'ABSENT'
               ? 'bg-amber-600 text-white shadow-xs'
               : 'text-amber-800 hover:bg-amber-50'
@@ -432,8 +431,9 @@ export const ZoneAuditReviewQueue: React.FC<Props> = ({ selectedZone, onStatsNee
         </button>
 
         <button
+          type="button"
           onClick={() => setActiveTab('CRITICAL')}
-          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5 ${
+          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5 cursor-pointer ${
             activeTab === 'CRITICAL'
               ? 'bg-red-600 text-white shadow-xs'
               : 'text-red-700 hover:bg-red-50'
@@ -447,8 +447,9 @@ export const ZoneAuditReviewQueue: React.FC<Props> = ({ selectedZone, onStatsNee
         </button>
 
         <button
+          type="button"
           onClick={() => setActiveTab('REJECTED')}
-          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5 ${
+          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5 cursor-pointer ${
             activeTab === 'REJECTED'
               ? 'bg-slate-700 text-white shadow-xs'
               : 'text-slate-600 hover:bg-slate-100'
@@ -462,8 +463,9 @@ export const ZoneAuditReviewQueue: React.FC<Props> = ({ selectedZone, onStatsNee
         </button>
 
         <button
+          type="button"
           onClick={() => setActiveTab('APPROVED')}
-          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5 ${
+          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5 cursor-pointer ${
             activeTab === 'APPROVED'
               ? 'bg-emerald-600 text-white shadow-xs'
               : 'text-emerald-700 hover:bg-emerald-50'
@@ -485,19 +487,19 @@ export const ZoneAuditReviewQueue: React.FC<Props> = ({ selectedZone, onStatsNee
         </div>
       )}
 
-      {/* Content Table / Cards */}
+      {/* High-Performance Paginated Table */}
       <div className="overflow-x-auto">
         <table className="w-full text-xs text-left">
-          <thead className="bg-slate-50 text-slate-600 font-bold uppercase border-b border-slate-200">
+          <thead className="bg-slate-50 text-slate-700 font-bold uppercase border-b border-slate-200 select-none text-[11px] tracking-wide">
             <tr>
-              <th className="p-3.5">Mã Thửa / Công Trình</th>
-              <th className="p-3.5">Địa chỉ & Loại CT</th>
-              <th className="p-3.5">Khảo Sát Viên</th>
-              <th className="p-3.5 text-center">Trạng Thái Hồ Sơ</th>
-              <th className="p-3.5 text-center">Cấp Nguy Cơ (Burland)</th>
-              <th className="p-3.5 text-center">Khuyết Tật</th>
-              <th className="p-3.5 text-center">Cảnh Báo Kỹ Thuật</th>
-              <th className="p-3.5 text-right">Thao Tác Thẩm Định</th>
+              <th className="p-3.5 whitespace-nowrap">Mã Thửa / Phân Khu</th>
+              <th className="p-3.5 min-w-[200px]">Địa Chỉ & Loại CT</th>
+              <th className="p-3.5 whitespace-nowrap">Khảo Sát Viên</th>
+              <th className="p-3.5 text-center whitespace-nowrap">Trạng Thái Hồ Sơ</th>
+              <th className="p-3.5 text-center whitespace-nowrap">Cấp Nguy Cơ (Burland)</th>
+              <th className="p-3.5 text-center whitespace-nowrap">Khuyết Tật</th>
+              <th className="p-3.5 text-center whitespace-nowrap">Cảnh Báo Kỹ Thuật</th>
+              <th className="p-3.5 text-right whitespace-nowrap">Thao Tác Thẩm Định</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -508,225 +510,126 @@ export const ZoneAuditReviewQueue: React.FC<Props> = ({ selectedZone, onStatsNee
                   <span className="font-semibold">Đang tải danh sách hồ sơ cần thẩm định...</span>
                 </td>
               </tr>
-            ) : filteredItems.length === 0 ? (
+            ) : paginatedItems.length === 0 ? (
               <tr>
                 <td colSpan={8} className="p-10 text-center text-slate-400">
                   <FileCheck2 className="w-8 h-8 mx-auto text-slate-300 mb-2" />
-                  <div className="text-sm font-bold text-slate-600">Không có hồ sơ nào trong hàng đợi</div>
+                  <div className="text-sm font-bold text-slate-600">Không có hồ sơ nào thỏa mãn điều kiện lọc</div>
                   <p className="text-xs text-slate-400 mt-1">
-                    Tất cả hồ sơ trong phân khu {selectedZone === 'ALL' ? 'toàn tuyến' : selectedZone} đã được xử lý hoặc chưa có đợt gửi mới.
+                    Thử thay đổi từ khóa tìm kiếm hoặc chọn bộ lọc trạng thái khác.
                   </p>
                 </td>
               </tr>
             ) : (
-              filteredItems.map((item) => {
-                const isCriticalBurland = ['GRADE_3', 'GRADE_4', 'GRADE_5'].includes(
-                  item.burland_damage_category || ''
-                );
-                const hasAlerts = Number(item.alert_count) > 0;
-
-                return (
-                  <tr
-                    key={item.parcel_id}
-                    className={`hover:bg-slate-50/80 transition-colors ${
-                      isCriticalBurland ? 'bg-orange-50/30' : hasAlerts ? 'bg-amber-50/20' : ''
-                    }`}
-                  >
-                    {/* Mã Thửa */}
-                    <td className="p-3.5">
-                      <div className="font-mono font-black text-slate-900 text-sm flex items-center gap-1.5">
-                        <span>{item.project_parcel_code}</span>
-                      </div>
-                      <div className="text-[11px] text-slate-500 font-mono mt-0.5">
-                        Phân khu: <strong className="text-slate-700">{item.zone_id}</strong>
-                      </div>
-                    </td>
-
-                    {/* Địa chỉ & Loại CT */}
-                    <td className="p-3.5">
-                      <div className="font-semibold text-slate-800 max-w-[200px] truncate" title={`${item.house_number || ''} ${item.street || ''}`}>
-                        {item.house_number ? `${item.house_number} ` : ''}
-                        {item.street || 'Chưa cập nhật địa chỉ'}
-                      </div>
-                      <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1.5">
-                        {item.building_type?.includes('CONDO') ? (
-                          <span className="text-purple-700 font-medium flex items-center gap-0.5">
-                            <Building className="w-3 h-3" /> Chung cư
-                          </span>
-                        ) : (
-                          <span className="text-slate-600 flex items-center gap-0.5">
-                            <Home className="w-3 h-3" /> Nhà liền thổ
-                          </span>
-                        )}
-                      </div>
-                    </td>
-
-                    {/* Khảo Sát Viên */}
-                    <td className="p-3.5">
-                      <div className="font-bold text-slate-800 flex items-center gap-1">
-                        <User className="w-3.5 h-3.5 text-slate-400" />
-                        <span>{item.surveyor_name || 'Khảo sát viên'}</span>
-                      </div>
-                      <div className="text-[11px] text-slate-500 font-mono mt-0.5">
-                        {item.surveyor_code && <span>Mã: {item.surveyor_code}</span>}
-                        {item.updated_at && (
-                          <span className="ml-1 text-slate-400">
-                            • {new Date(item.updated_at).toLocaleDateString('vi-VN')}
-                          </span>
-                        )}
-                      </div>
-                    </td>
-
-                    {/* Trạng Thái Hồ Sơ */}
-                    <td className="p-3.5 text-center">{renderStatusBadge(item)}</td>
-
-                    {/* Cấp Nguy Cơ (Burland) */}
-                    <td className="p-3.5 text-center">
-                      {renderBurlandBadge(item.burland_damage_category, item.burland_max_crack_width_mm)}
-                    </td>
-
-                    {/* Khuyết Tật */}
-                    <td className="p-3.5 text-center">
-                      <span className="font-black text-slate-800 text-sm">
-                        {item.defect_count || 0}
-                      </span>
-                      <span className="text-[11px] text-slate-500 block">vết nứt / D</span>
-                    </td>
-
-                    {/* Cảnh Báo Kỹ Thuật */}
-                    <td className="p-3.5 text-center">
-                      {Number(item.alert_count) > 0 ? (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-red-100 text-red-700 border border-red-300">
-                          <AlertTriangle className="w-3 h-3 text-red-600" />
-                          {item.alert_count} cờ kiểm soát
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 text-[11px] text-emerald-600 font-semibold">
-                          <CheckCircle2 className="w-3.5 h-3.5" /> Chuẩn quy cách
-                        </span>
-                      )}
-                    </td>
-
-                    {/* Thao Tác Thẩm Định */}
-                    <td className="p-3.5 text-right whitespace-nowrap">
-                      <div className="flex items-center justify-end gap-1.5">
-                        {/* Nút Thao Tác Chính (Mở Studio 9 bước / Xem hồ sơ) */}
-                        <button
-                          disabled={!item.report_id}
-                          onClick={() => handleOpenStudio(item.report_id)}
-                          className={`px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1 shadow-xs transition-colors ${
-                            !item.report_id
-                              ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
-                              : item.status === 'APPROVED'
-                              ? 'bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 cursor-pointer'
-                              : item.status === 'REJECTED'
-                              ? 'bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 cursor-pointer'
-                              : 'bg-sky-600 hover:bg-sky-700 text-white cursor-pointer'
-                          }`}
-                          title={
-                            !item.report_id
-                              ? 'Chưa có báo cáo kỹ thuật'
-                              : item.status === 'APPROVED'
-                              ? 'Xem hồ sơ kỹ thuật đã phê duyệt'
-                              : item.status === 'REJECTED'
-                              ? 'Xem chi tiết hồ sơ bị trả về'
-                              : 'Mở Studio thẩm định kỹ thuật toàn diện 9 bước'
-                          }
-                        >
-                          <Eye className="w-3.5 h-3.5" />
-                          <span>
-                            {item.status === 'APPROVED'
-                              ? 'Xem hồ sơ 📄'
-                              : item.status === 'REJECTED'
-                              ? 'Xem lý do 🔍'
-                              : 'Thẩm định 🔍'}
-                          </span>
-                        </button>
-
-                        {/* Nút Xem Bản In Preview HTML/PDF */}
-                        {item.report_id && (
-                          <button
-                            onClick={() => handlePreviewReport(item.report_id)}
-                            className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 transition-colors cursor-pointer"
-                            title="Xem trước bản in Báo cáo A4 (Preview HTML)"
-                          >
-                            <FileText className="w-4 h-4" />
-                          </button>
-                        )}
-
-                        {/* Nút Trả Về Nhanh (Chỉ hiện khi chưa duyệt) */}
-                        {item.report_id && item.status !== 'APPROVED' && (
-                          <button
-                            onClick={() =>
-                              setRejectModalData({
-                                reportId: item.report_id!,
-                                parcelCode: item.project_parcel_code,
-                                surveyorName: item.surveyor_name || undefined,
-                              })
-                            }
-                            className="p-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 transition-colors cursor-pointer"
-                            title="Yêu cầu khảo sát lại / Trả về điều chỉnh"
-                          >
-                            <XCircle className="w-4 h-4" />
-                          </button>
-                        )}
-
-                        {/* Nút Điều Chuyển / Hoán Đổi Thửa (Khắc phục tích nhầm thửa liền kề) */}
-                        {item.report_id && (
-                          <button
-                            onClick={() =>
-                              setReassignModalData({
-                                reportId: item.report_id!,
-                                parcelCode: item.project_parcel_code,
-                                parcelId: item.parcel_id,
-                                houseNumber: item.house_number,
-                                street: item.street,
-                                surveyorName: item.surveyor_name || undefined,
-                              })
-                            }
-                            className="p-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 transition-colors cursor-pointer"
-                            title="Điều chuyển hồ sơ sang thửa khác hoặc hoán đổi 2 nhà kề nhau bị tích chéo"
-                          >
-                            <ArrowRightLeft className="w-4 h-4" />
-                          </button>
-                        )}
-
-                        {/* Nút Tách / Gộp Thửa GIS Trực Tiếp */}
-                        <button
-                          onClick={() =>
-                            setMutationModalData({
-                              parcelId: item.parcel_id,
-                              parcelCode: item.project_parcel_code,
-                              houseNumber: item.house_number,
-                              street: item.street,
-                              currentAreaM2: (item as any).land_area_m2 || 0,
-                              zoneId: item.zone_id,
-                              reportId: item.report_id || undefined,
-                            })
-                          }
-                          className="p-1.5 rounded-lg bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-300 transition-colors cursor-pointer"
-                          title="Tách hoặc gộp thửa thực địa trên GIS (Zone Admin)"
-                        >
-                          <Split className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })
+              paginatedItems.map((item) => (
+                <ReviewQueueTableRow
+                  key={item.parcel_id}
+                  item={item}
+                  onOpenStudio={handleOpenStudio}
+                  onPreviewReport={handlePreviewReport}
+                  onOpenRejectModal={(it) =>
+                    setRejectModalData({
+                      reportId: it.report_id!,
+                      parcelCode: it.project_parcel_code,
+                      surveyorName: it.surveyor_name || undefined,
+                    })
+                  }
+                  onOpenReassignModal={(it) =>
+                    setReassignModalData({
+                      reportId: it.report_id!,
+                      parcelCode: it.project_parcel_code,
+                      parcelId: it.parcel_id,
+                      houseNumber: it.house_number,
+                      street: it.street,
+                      surveyorName: it.surveyor_name || undefined,
+                    })
+                  }
+                  onOpenMutationModal={(it) =>
+                    setMutationModalData({
+                      parcelId: it.parcel_id,
+                      parcelCode: it.project_parcel_code,
+                      houseNumber: it.house_number,
+                      street: it.street,
+                      currentAreaM2: (it as any).land_area_m2 || 0,
+                      zoneId: it.zone_id,
+                      reportId: it.report_id || undefined,
+                    })
+                  }
+                />
+              ))
             )}
           </tbody>
         </table>
       </div>
 
-      {/* Footer Info */}
-      <div className="p-3 bg-slate-50 border-t border-slate-200 text-xs text-slate-500 flex flex-col sm:flex-row items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <span className="font-semibold text-slate-700">Quy tắc thẩm định:</span>
-          <span>Bắt buộc có thước đo tỷ lệ nứt (Scale Card), ảnh GPS không lệch quá 300m, đối soát chữ ký chủ hộ.</span>
+      {/* Pagination Footer Controls */}
+      <div className="p-3 sm:p-4 bg-slate-50 border-t border-slate-200 text-xs text-slate-600 flex flex-col sm:flex-row items-center justify-between gap-3">
+        {/* Left summary & Page Size selector */}
+        <div className="flex items-center gap-3 flex-wrap">
+          <span className="font-medium text-slate-500">
+            Hiển thị <strong>{totalFilteredCount > 0 ? startIndex + 1 : 0}</strong> - <strong>{endIndex}</strong> / <strong>{totalFilteredCount}</strong> hồ sơ
+          </span>
+
+          <div className="flex items-center gap-1.5 pl-3 border-l border-slate-200">
+            <span className="text-slate-400 text-[11px]">Số dòng:</span>
+            <select
+              value={pageSize}
+              onChange={(e) => {
+                setPageSize(Number(e.target.value));
+                setCurrentPage(1);
+              }}
+              className="bg-white border border-slate-300 rounded-lg px-2 py-1 text-xs font-bold text-slate-700 focus:outline-none focus:ring-1 focus:ring-sky-500 cursor-pointer"
+            >
+              <option value={25}>25 / trang</option>
+              <option value={50}>50 / trang</option>
+              <option value={100}>100 / trang</option>
+            </select>
+          </div>
         </div>
-        <div className="text-slate-400 font-mono text-[11px]">
-          Hiển thị {filteredItems.length} / {items.length} hồ sơ
+
+        {/* Right Pagination Buttons */}
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            disabled={currentPage <= 1}
+            onClick={() => setCurrentPage(1)}
+            className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed text-slate-600 transition-colors"
+            title="Về trang đầu"
+          >
+            <ChevronsLeft size={14} />
+          </button>
+          <button
+            type="button"
+            disabled={currentPage <= 1}
+            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+            className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed text-slate-600 transition-colors"
+            title="Trang trước"
+          >
+            <ChevronLeft size={14} />
+          </button>
+
+          <span className="px-3 py-1 font-bold font-mono text-xs text-slate-800 bg-white border border-slate-200 rounded-lg">
+            Trang {currentPage} / {totalPages}
+          </span>
+
+          <button
+            type="button"
+            disabled={currentPage >= totalPages}
+            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+            className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed text-slate-600 transition-colors"
+            title="Trang sau"
+          >
+            <ChevronRight size={14} />
+          </button>
+          <button
+            type="button"
+            disabled={currentPage >= totalPages}
+            onClick={() => setCurrentPage(totalPages)}
+            className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed text-slate-600 transition-colors"
+            title="Đến trang cuối"
+          >
+            <ChevronsRight size={14} />
+          </button>
         </div>
       </div>
 
@@ -754,35 +657,35 @@ export const ZoneAuditReviewQueue: React.FC<Props> = ({ selectedZone, onStatsNee
           parcelCode={rejectModalData.parcelCode}
           surveyorName={rejectModalData.surveyorName}
           onClose={() => setRejectModalData(null)}
-          onSuccess={() => {
+          onSuccess={(msg) => {
+            showToast(msg || 'Đã trả về báo cáo khảo sát yêu cầu đo lại.');
             setRejectModalData(null);
-            fetchSubmissions();
-            if (onStatsNeedRefresh) onStatsNeedRefresh();
           }}
         />
       )}
 
-      {/* Reassign / Swap Parcel Modal */}
+      {/* Reassign Parcel Modal */}
       {reassignModalData && (
         <AdminReassignParcelModal
           isOpen={!!reassignModalData}
           reportId={reassignModalData.reportId}
-          currentParcelCode={reassignModalData.parcelCode}
           currentParcelId={reassignModalData.parcelId}
+          currentParcelCode={reassignModalData.parcelCode}
           currentHouseNumber={reassignModalData.houseNumber}
           currentStreet={reassignModalData.street}
           surveyorName={reassignModalData.surveyorName}
-          allReports={items}
           onClose={() => setReassignModalData(null)}
-          onSuccess={(msg) => showToast(msg)}
+          onSuccess={(msg) => {
+            showToast(msg || 'Đã điều chuyển hoặc hoán đổi thửa đất thành công.');
+            setReassignModalData(null);
+          }}
         />
       )}
 
-      {/* GIS Mutation Modal */}
+      {/* Unified GIS Mutation Modal */}
       {mutationModalData && (
         <UnifiedGisMutationModal
           isOpen={!!mutationModalData}
-          role="ZONE_ADMIN"
           parcelId={mutationModalData.parcelId}
           parcelCode={mutationModalData.parcelCode}
           houseNumber={mutationModalData.houseNumber}
@@ -791,9 +694,12 @@ export const ZoneAuditReviewQueue: React.FC<Props> = ({ selectedZone, onStatsNee
           initialZoneId={mutationModalData.zoneId}
           reportId={mutationModalData.reportId}
           onClose={() => setMutationModalData(null)}
-          onSuccess={(msg) => showToast(msg)}
+          onSuccess={(msg?: string) => {
+            showToast(msg || 'Đã thực hiện biến động ranh đất GIS thành công.');
+            setMutationModalData(null);
+          }}
         />
       )}
-    </Card>
+    </div>
   );
 };

@@ -93,17 +93,46 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
             <div className="space-y-2 text-xs">
               <div className="flex items-center justify-between">
                 <span className="text-slate-500 font-semibold">Họ và tên:</span>
-                <span className="font-bold text-slate-800">{surveyorName || 'Cán bộ hiện trường'}</span>
+                {isEditMode && handleFieldChange ? (
+                  <input
+                    type="text"
+                    value={surveyorName || ''}
+                    onChange={(e) => handleFieldChange('surveyorName', 'Họ tên KSV', e.target.value)}
+                    placeholder="Tên KSV..."
+                    className="p-1 text-xs font-bold text-slate-800 bg-white border border-slate-300 rounded text-right"
+                  />
+                ) : (
+                  <span className="font-bold text-slate-800">{surveyorName || 'Cán bộ hiện trường'}</span>
+                )}
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-slate-500 font-semibold">Số điện thoại liên hệ:</span>
-                <span className="font-mono font-bold text-slate-700">{surveyorPhone || '---'}</span>
+                {isEditMode && handleFieldChange ? (
+                  <input
+                    type="text"
+                    value={surveyorPhone || ''}
+                    onChange={(e) => handleFieldChange('surveyorPhone', 'SĐT KSV', e.target.value)}
+                    placeholder="SĐT KSV..."
+                    className="p-1 text-xs font-mono font-bold text-slate-700 bg-white border border-slate-300 rounded text-right"
+                  />
+                ) : (
+                  <span className="font-mono font-bold text-slate-700">{surveyorPhone || '---'}</span>
+                )}
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-slate-500 font-semibold">Ngày ký biên bản:</span>
-                <span className="font-mono font-semibold text-slate-600">
-                  {surveyDate ? new Date(surveyDate).toLocaleDateString('vi-VN') : 'Tại thời điểm khảo sát'}
-                </span>
+                {isEditMode && handleFieldChange ? (
+                  <input
+                    type="date"
+                    value={surveyDate ? new Date(surveyDate).toISOString().slice(0, 10) : ''}
+                    onChange={(e) => handleFieldChange('surveyDate', 'Ngày khảo sát', e.target.value)}
+                    className="p-1 text-xs font-mono text-slate-700 bg-white border border-slate-300 rounded text-right"
+                  />
+                ) : (
+                  <span className="font-mono font-semibold text-slate-600">
+                    {surveyDate ? new Date(surveyDate).toLocaleDateString('vi-VN') : 'Tại thời điểm khảo sát'}
+                  </span>
+                )}
               </div>
             </div>
 
@@ -157,7 +186,17 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-slate-500 font-semibold">Số điện thoại liên hệ:</span>
-                <span className="font-mono font-bold text-slate-700">{ownerPhone || '---'}</span>
+                {isEditMode && handleFieldChange ? (
+                  <input
+                    type="text"
+                    value={ownerPhone || ''}
+                    onChange={(e) => handleFieldChange('ownerPhone', 'SĐT chủ hộ', e.target.value)}
+                    placeholder="SĐT chủ hộ..."
+                    className="p-1 text-xs font-mono font-bold text-slate-700 bg-white border border-slate-300 rounded text-right"
+                  />
+                ) : (
+                  <span className="font-mono font-bold text-slate-700">{ownerPhone || '---'}</span>
+                )}
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-slate-500 font-semibold">Tình trạng tiếp cận:</span>
@@ -275,17 +314,25 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
         </div>
 
         {/* Ý kiến phản hồi của chủ hộ (nếu có) */}
-        {ownerFeedback && (
-          <div className="p-4 rounded-xl bg-blue-50/60 border border-blue-200 space-y-1.5">
-            <div className="flex items-center gap-1.5 text-blue-900 font-bold text-xs">
-              <MessageSquare className="w-4 h-4 text-blue-700" />
-              <span>Ý Kiến & Ghi Chú Phản Hồi Của Chủ Hộ Khi Khảo Sát:</span>
-            </div>
-            <p className="text-xs text-slate-800 whitespace-pre-wrap pl-5 bg-white p-3 rounded-lg border border-blue-100 font-medium">
-              {ownerFeedback}
-            </p>
+        <div className="p-4 rounded-xl bg-blue-50/60 border border-blue-200 space-y-1.5">
+          <div className="flex items-center gap-1.5 text-blue-900 font-bold text-xs">
+            <MessageSquare className="w-4 h-4 text-blue-700" />
+            <span>Ý Kiến & Ghi Chú Phản Hồi Của Chủ Hộ Khi Khảo Sát:</span>
           </div>
-        )}
+          {isEditMode && handleFieldChange ? (
+            <textarea
+              rows={2}
+              value={ownerFeedback || ''}
+              onChange={(e) => handleFieldChange('ownerFeedback', 'Ý kiến chủ hộ', e.target.value)}
+              placeholder="Nhập ý kiến phản hồi hoặc cam kết của chủ hộ..."
+              className="w-full p-2.5 text-xs text-slate-800 bg-white border border-blue-300 rounded-lg"
+            />
+          ) : (
+            <p className="text-xs text-slate-800 whitespace-pre-wrap pl-5 bg-white p-3 rounded-lg border border-blue-100 font-medium">
+              {ownerFeedback || 'Không có ý kiến phản hồi hay khiếu nại thêm từ chủ hộ.'}
+            </p>
+          )}
+        </div>
 
         {/* Khối Ảnh Biên Bản Làm Việc & Pháp Lý Đi Kèm */}
         {workingMinutesPhotos.length > 0 && (

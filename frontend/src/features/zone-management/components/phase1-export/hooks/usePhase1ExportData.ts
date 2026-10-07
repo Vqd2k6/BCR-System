@@ -2,7 +2,6 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { api } from '../../../../../services/api';
 import { METRO_22_ZONES, getZoneByCode, MetroZoneConfig } from '../../../../survey-phase1/constants/metroGisConstants';
 import { ExportParcelItem, BatchResultData, ActionFeedbackMessage } from '../types';
-import { getMockDemoParcels } from '../utils/mockData';
 
 export interface UsePhase1ExportDataProps {
   initialZoneId?: string;
@@ -29,16 +28,16 @@ export const usePhase1ExportData = ({
   }, []);
 
   const [selectedZone, setSelectedZone] = useState<string>(() => {
-    return resolveInitialZone(assignedZoneId || initialZoneId);
+    return resolveInitialZone(initialZoneId || assignedZoneId);
   });
 
   useEffect(() => {
-    if (assignedZoneId) {
-      setSelectedZone(resolveInitialZone(assignedZoneId));
-    } else if (initialZoneId) {
+    if (initialZoneId) {
       setSelectedZone(resolveInitialZone(initialZoneId));
+    } else if (assignedZoneId) {
+      setSelectedZone(resolveInitialZone(assignedZoneId));
     }
-  }, [assignedZoneId, initialZoneId, resolveInitialZone]);
+  }, [initialZoneId, assignedZoneId, resolveInitialZone]);
 
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -51,7 +50,7 @@ export const usePhase1ExportData = ({
   const [isBatchExporting, setIsBatchExporting] = useState<boolean>(false);
   const [batchResult, setBatchResult] = useState<BatchResultData | null>(null);
 
-  // Load list of parcels & report statuses from backend API
+  // Load real list of parcels & report statuses from backend API
   const fetchExportableParcels = useCallback(async () => {
     setIsLoading(true);
     setActionMessage(null);
@@ -60,32 +59,40 @@ export const usePhase1ExportData = ({
         params: { zoneId: selectedZone },
       });
 
+      let rawList: any[] = [];
       if (res.data?.success && Array.isArray(res.data.data)) {
-        const rawList = res.data.data;
-        const mapped: ExportParcelItem[] = rawList.map((item: any) => ({
-          id: item.id,
-          projectParcelCode: item.project_parcel_code || item.projectParcelCode || 'CHƯA_CÓ_MÃ',
-          officialCadastralCode: item.official_cadastral_code || item.officialCadastralCode || '',
-          houseNumber: item.house_number || item.houseNumber || '',
-          street: item.street || '',
-          ownerName: item.owner_name || item.ownerName || 'Chưa cập nhật',
-          surveyStatus: item.survey_status || item.surveyStatus || 'NOT_SURVEYED',
-          buildingType: item.building_type || item.buildingType || 'STANDALONE',
-          floorCount: Number(item.floor_count ?? item.floorCount ?? 1),
-          activePhase1ReportId: item.active_phase1_report_id || item.activePhase1ReportId || item.id,
-          ecsClass: item.ecs_class || 'GOOD',
-          viClass: item.vi_class || 'LOW',
-          braClass: item.bra_class || 'LOW',
-          updatedAt: item.updated_at || item.updatedAt,
-        }));
-
-        setParcels(mapped);
-      } else {
-        setParcels(getMockDemoParcels(selectedZone));
+        rawList = res.data.data;
+      } else if (Array.isArray(res.data)) {
+        rawList = res.data;
+      } else if (res.data?.data?.items && Array.isArray(res.data.data.items)) {
+        rawList = res.data.data.items;
       }
+
+      const mapped: ExportParcelItem[] = rawList.map((item: any) => ({
+        id: item.id,
+        projectParcelCode: item.project_parcel_code || item.projectParcelCode || 'CHƯA_CÓ_MÃ',
+        officialCadastralCode: item.official_cadastral_code || item.officialCadastralCode || '',
+        houseNumber: item.house_number || item.houseNumber || '',
+        street: item.street || '',
+        ownerName: item.owner_name || item.ownerName || 'Chưa cập nhật',
+        surveyStatus: item.survey_status || item.surveyStatus || 'NOT_SURVEYED',
+        buildingType: item.building_type || item.buildingType || 'STANDALONE',
+        floorCount: Number(item.floor_count ?? item.floorCount ?? 1),
+        activePhase1ReportId: item.active_phase1_report_id || item.activePhase1ReportId || item.id,
+        ecsClass: item.ecs_class || 'GOOD',
+        viClass: item.vi_class || 'LOW',
+        braClass: item.bra_class || 'LOW',
+        updatedAt: item.updated_at || item.updatedAt,
+      }));
+
+      setParcels(mapped);
     } catch (err: any) {
-      console.warn('[Phase1ExportModule] API call failed, loading fallback test data:', err?.message);
-      setParcels(getMockDemoParcels(selectedZone));
+      console.error('[Phase1ExportModule] API call failed:', err?.message);
+      setParcels([]);
+      setActionMessage({
+        type: 'error',
+        text: err.response?.data?.message || 'Không thể tải danh sách thửa đất thực tế từ máy chủ CSDL.',
+      });
     } finally {
       setIsLoading(false);
     }
@@ -129,18 +136,18 @@ export const usePhase1ExportData = ({
 
   const handleCreateBatchExport = async () => {
     setIsBatchExporting(true);
-    setActionMessage({ type: 'info', text: 'Đang tổng hợp các báo cáo Phase 1 và tạo mã băm SHA-256 Checksum...' });
+    setActionMessage({ type: 'info', text: 'Đang gửi lệnh đóng gói hồ sơ Phase 1 lên máy chủ...' });
 
     try {
       const payload = {
         zoneId: selectedZone,
-        exportScope: selectedParcelIds.length > 0 ? 'SELECTED_PARCELS' : 'ZONE_FULL',
+        exportScope: selectedParcelIds.length > 0 ? 'SELECTED_LIST' : 'FILTER_CRITERIA',
         selectedReportIds: selectedParcelIds,
-        exportFormat: 'PDF_MERGED',
+        exportFormat: 'PDF_BOOK_COMPILATION',
         includeGisOverviewMap: true,
         includeEcsSummaryTable: true,
         filterCriteria: {
-          surveyStatus: statusFilter,
+          status: statusFilter !== 'ALL' ? statusFilter : undefined,
         },
       };
 
@@ -148,29 +155,25 @@ export const usePhase1ExportData = ({
       if (res.data?.success && res.data?.data) {
         const d = res.data.data;
         setBatchResult({
-          batchCode: d.batchCode || `BATCH-${selectedZone}-${Date.now()}`,
-          downloadUrl: d.downloadUrl || '#',
-          checksumSha256: d.checksumSha256 || 'a3f89d812e4b09c891f740e53a218d6e94a02c38410294fe71109485721a99bc',
-          totalReportsCompiled: d.totalReportsCompiled || (selectedParcelIds.length || filteredParcels.length),
-          expiresAt: d.expiresAt || new Date(Date.now() + 7 * 86400000).toLocaleString('vi-VN'),
+          batchCode: d.batchCode || d.batch_code || `BATCH-${selectedZone}-${Date.now()}`,
+          downloadUrl: d.downloadUrl || d.download_url || '#',
+          checksumSha256: d.checksumSha256 || d.checksum_sha256 || '',
+          totalReportsCompiled: d.totalReportsCompiled || d.total_reports_compiled || (selectedParcelIds.length || filteredParcels.length),
+          expiresAt: d.expiresAt ? new Date(d.expiresAt).toLocaleDateString('vi-VN') : new Date(Date.now() + 7 * 86400000).toLocaleDateString('vi-VN'),
         });
         setActionMessage({
           type: 'success',
-          text: `Đóng gói mẻ xuất thành công! Tổng cộng ${d.totalReportsCompiled || (selectedParcelIds.length || filteredParcels.length)} hồ sơ đã được tích hợp.`,
+          text: `Đóng gói mẻ xuất thành công! Tổng cộng ${d.totalReportsCompiled || d.total_reports_compiled || selectedParcelIds.length} hồ sơ đã được tích hợp.`,
         });
+      } else {
+        throw new Error(res.data?.message || 'Máy chủ không phản hồi kết quả mẻ xuất.');
       }
-    } catch (_err) {
-      const mockBatchCode = `BATCH-${selectedZone}-${Date.now().toString().slice(-6)}`;
-      setBatchResult({
-        batchCode: mockBatchCode,
-        downloadUrl: `https://storage.metro2.vn/exports/${mockBatchCode}.pdf`,
-        checksumSha256: '9f83a214b7e80d99318c4e09f5117a32b0051e948c21a4f02e5b881a742c0199',
-        totalReportsCompiled: selectedParcelIds.length || filteredParcels.length || 12,
-        expiresAt: new Date(Date.now() + 7 * 86400000).toLocaleDateString('vi-VN'),
-      });
+    } catch (err: any) {
+      console.error('[BatchExport] Error executing batch export:', err);
+      setBatchResult(null);
       setActionMessage({
-        type: 'success',
-        text: `[Test Backend] Đã khởi tạo mẻ xuất thành công cho Zone ${selectedZone}!`,
+        type: 'error',
+        text: err.response?.data?.message || err.message || 'Không thể tạo mẻ xuất hồ sơ. Vui lòng kiểm tra quyền Zone Admin hoặc thử lại.',
       });
     } finally {
       setIsBatchExporting(false);

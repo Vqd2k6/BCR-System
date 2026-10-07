@@ -40,6 +40,8 @@ export interface GisParcel {
   assignedSurveyorName?: string;
   assignedSurveyorCode?: string;
   assignedSurveyorPhone?: string;
+  activePhase1ReportId?: string;
+  activePhase2ReportId?: string;
 }
 
 export interface SplitChildData {

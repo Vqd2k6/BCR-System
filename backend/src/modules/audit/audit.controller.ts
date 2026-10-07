@@ -24,6 +24,8 @@ export class AuditController {
         status: req.query.status as string,
         buildingType: req.query.buildingType as string,
         search: req.query.search as string,
+        burlandFilter: req.query.burlandFilter as string,
+        slaFilter: req.query.slaFilter as string,
         limit: req.query.limit ? Number(req.query.limit) : undefined,
         offset: req.query.offset ? Number(req.query.offset) : undefined,
       };
@@ -31,7 +33,12 @@ export class AuditController {
       const result = await AuditService.listPendingSubmissions(filters);
       res.status(200).json({
         success: true,
-        data: result,
+        data: result.items,
+        pagination: {
+          totalCount: result.totalCount,
+          limit: filters.limit || 50,
+          offset: filters.offset || 0,
+        },
       });
     } catch (error) {
       next(error);

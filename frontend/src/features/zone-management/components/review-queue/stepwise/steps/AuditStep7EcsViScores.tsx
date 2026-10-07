@@ -3,22 +3,30 @@ import { Award, ShieldCheck, CheckCircle2, AlertTriangle, Sparkles, Scale, Refre
 import { api } from '../../../../../../services/api';
 
 interface Props {
+  isEditMode?: boolean;
+  formState?: Record<string, any>;
   data: any;
   reportId?: string;
+  handleFieldChange?: (fieldKey: string, label: string, val: any) => void;
+  handleNestedFieldChange?: (parentKey: string, childKey: string, label: string, val: any) => void;
   onRefresh?: () => void;
   onOpenEngineeringJudgement: () => void;
 }
 
 export const AuditStep7EcsViScores: React.FC<Props> = ({
+  isEditMode = false,
+  formState = {},
   data,
   reportId,
+  handleFieldChange,
+  handleNestedFieldChange,
   onRefresh,
   onOpenEngineeringJudgement,
 }) => {
   const sJson = data?.surveyJson || data?.survey_data_json || {};
   const riskCard = data?.leftPane?.riskScoreCard || {};
-  const ecs = sJson.ecs || {};
-  const vi = sJson.vi || {};
+  const ecs = formState.ecs || sJson.ecs || {};
+  const vi = formState.vi || sJson.vi || {};
 
   const [isReverting, setIsReverting] = useState(false);
 
@@ -172,30 +180,45 @@ export const AuditStep7EcsViScores: React.FC<Props> = ({
       <div className="p-5 space-y-6">
         {/* Khối Cổng Kiểm Tra Đủ Dữ Liệu Hiện Trường (Data Completeness Gate) */}
         <div className="p-4 rounded-xl border border-sky-200 bg-sky-50/40 space-y-3">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <ShieldCheck className="w-4 h-4 text-sky-700" />
               <span className="text-xs font-black text-sky-950 uppercase tracking-wide">
                 Cổng Kiểm Tra Đủ Dữ Liệu Kỹ Thuật (Data Completeness Gate)
               </span>
             </div>
-            <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-black border flex items-center gap-1 ${
-              isAllGateValid
-                ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
-                : 'bg-amber-100 text-amber-900 border-amber-300'
-            }`}>
-              {isAllGateValid ? (
-                <>
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>ĐỦ ĐIỀU KIỆN PHÊ DUYỆT</span>
-                </>
-              ) : (
-                <>
-                  <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
-                  <span>⚠️ CẦN RÀ SOÁT DỮ LIỆU</span>
-                </>
-              )}
-            </span>
+            {isEditMode ? (
+              <div className="flex items-center gap-2">
+                <label className="text-[11px] font-bold text-slate-700">Quyết định Cổng:</label>
+                <select
+                  value={formState.gateDecision || (isAllGateValid ? 'ALLOW' : 'CONDITIONAL')}
+                  onChange={(e) => handleFieldChange && handleFieldChange('gateDecision', 'Quyết định Cổng', e.target.value)}
+                  className="p-1 text-xs font-bold bg-white border border-slate-300 rounded"
+                >
+                  <option value="ALLOW">✓ Cho phép phê duyệt (ALLOW)</option>
+                  <option value="CONDITIONAL">⚠️ Phê duyệt có điều kiện (CONDITIONAL)</option>
+                  <option value="REJECT">✕ Từ chối / Yêu cầu khảo sát lại (REJECT)</option>
+                </select>
+              </div>
+            ) : (
+              <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-black border flex items-center gap-1 ${
+                isAllGateValid
+                  ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                  : 'bg-amber-100 text-amber-900 border-amber-300'
+              }`}>
+                {isAllGateValid ? (
+                  <>
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>ĐỦ ĐIỀU KIỆN PHÊ DUYỆT</span>
+                  </>
+                ) : (
+                  <>
+                    <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+                    <span>⚠️ CẦN RÀ SOÁT DỮ LIỆU</span>
+                  </>
+                )}
+              </span>
+            )}
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 pt-1">
@@ -213,6 +236,19 @@ export const AuditStep7EcsViScores: React.FC<Props> = ({
               </div>
             ))}
           </div>
+
+          {isEditMode && (
+            <div className="pt-2">
+              <label className="text-[11px] font-bold text-slate-700 block mb-1">Ghi chú điều kiện / Cổng dữ liệu:</label>
+              <input
+                type="text"
+                value={formState.gateNotes || ''}
+                onChange={(e) => handleFieldChange && handleFieldChange('gateNotes', 'Ghi chú Cổng dữ liệu', e.target.value)}
+                placeholder="Ghi chú điều kiện phê duyệt hoặc yêu cầu bổ sung hồ sơ..."
+                className="w-full p-1.5 text-xs bg-white border border-slate-300 rounded-lg"
+              />
+            </div>
+          )}
         </div>
 
         {/* 2 Khối Điểm Tổng ECS & VI (Hiển thị Effective Score + Baseline đối chứng) */}
@@ -431,20 +467,36 @@ export const AuditStep7EcsViScores: React.FC<Props> = ({
             Chi Tiết 6 Tiêu Chí Điểm Hư Hỏng ECS (E1 &rarr; E6):
           </span>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-            {ecsItems.map((item) => (
-              <div key={item.code} className={`p-3 rounded-xl border space-y-1 ${item.isOverridden ? 'bg-purple-50/70 border-purple-300' : 'bg-slate-50 border-slate-200'}`}>
-                <div className="flex items-center justify-between">
-                  <span className={`px-1.5 py-0.5 rounded font-mono font-black text-[10px] ${item.isOverridden ? 'bg-purple-200 text-purple-900' : 'bg-sky-100 text-sky-800'}`}>
-                    {item.code}
-                  </span>
-                  <span className={`text-base font-black ${item.isOverridden ? 'text-purple-950 font-mono' : 'text-slate-900'}`}>
-                    {item.score}/4
-                  </span>
+            {ecsItems.map((item) => {
+              const eKey = item.code.toLowerCase();
+              return (
+                <div key={item.code} className={`p-3 rounded-xl border space-y-1 ${item.isOverridden ? 'bg-purple-50/70 border-purple-300' : 'bg-slate-50 border-slate-200'}`}>
+                  <div className="flex items-center justify-between">
+                    <span className={`px-1.5 py-0.5 rounded font-mono font-black text-[10px] ${item.isOverridden ? 'bg-purple-200 text-purple-900' : 'bg-sky-100 text-sky-800'}`}>
+                      {item.code}
+                    </span>
+                    {isEditMode && handleNestedFieldChange ? (
+                      <input
+                        type="number"
+                        min={0}
+                        max={4}
+                        value={ecs[eKey] ?? item.score}
+                        onChange={(e) =>
+                          handleNestedFieldChange('ecs', eKey, `Điểm ${item.code}`, Number(e.target.value))
+                        }
+                        className="w-12 p-0.5 text-center font-mono font-bold text-xs bg-white border border-amber-300 rounded"
+                      />
+                    ) : (
+                      <span className={`text-base font-black ${item.isOverridden ? 'text-purple-950 font-mono' : 'text-slate-900'}`}>
+                        {item.score}/4
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-[11px] font-bold text-slate-700 truncate">{item.name}</div>
+                  <div className="text-[10px] text-slate-500 line-clamp-1">{item.desc}</div>
                 </div>
-                <div className="text-[11px] font-bold text-slate-700 truncate">{item.name}</div>
-                <div className="text-[10px] text-slate-500 line-clamp-1">{item.desc}</div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
 
@@ -454,20 +506,37 @@ export const AuditStep7EcsViScores: React.FC<Props> = ({
             Chi Tiết 6 Tiêu Chí Độ Nhạy Cảm VI (V1 &rarr; V6):
           </span>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-            {viItems.map((item) => (
-              <div key={item.code} className={`p-3 rounded-xl border space-y-1 ${item.isOverridden ? 'bg-purple-50/70 border-purple-300' : 'bg-slate-50 border-slate-200'}`}>
-                <div className="flex items-center justify-between">
-                  <span className={`px-1.5 py-0.5 rounded font-mono font-black text-[10px] ${item.isOverridden ? 'bg-purple-200 text-purple-900' : 'bg-purple-100 text-purple-800'}`}>
-                    {item.code}
-                  </span>
-                  <span className={`text-base font-black ${item.isOverridden ? 'text-purple-950 font-mono' : 'text-purple-900'}`}>
-                    {item.score}đ
-                  </span>
+            {viItems.map((item) => {
+              const vKey = item.code.toLowerCase();
+              return (
+                <div key={item.code} className={`p-3 rounded-xl border space-y-1 ${item.isOverridden ? 'bg-purple-50/70 border-purple-300' : 'bg-slate-50 border-slate-200'}`}>
+                  <div className="flex items-center justify-between">
+                    <span className={`px-1.5 py-0.5 rounded font-mono font-black text-[10px] ${item.isOverridden ? 'bg-purple-200 text-purple-900' : 'bg-purple-100 text-purple-800'}`}>
+                      {item.code}
+                    </span>
+                    {isEditMode && handleNestedFieldChange ? (
+                      <input
+                        type="number"
+                        step="0.5"
+                        min={0}
+                        max={5}
+                        value={vi[vKey] ?? item.score}
+                        onChange={(e) =>
+                          handleNestedFieldChange('vi', vKey, `Điểm ${item.code}`, Number(e.target.value))
+                        }
+                        className="w-12 p-0.5 text-center font-mono font-bold text-xs bg-white border border-amber-300 rounded"
+                      />
+                    ) : (
+                      <span className={`text-base font-black ${item.isOverridden ? 'text-purple-950 font-mono' : 'text-purple-900'}`}>
+                        {item.score}đ
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-[11px] font-bold text-slate-700 truncate">{item.name}</div>
+                  <div className="text-[10px] text-slate-500 line-clamp-1">{item.desc}</div>
                 </div>
-                <div className="text-[11px] font-bold text-slate-700 truncate">{item.name}</div>
-                <div className="text-[10px] text-slate-500 line-clamp-1">{item.desc}</div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>

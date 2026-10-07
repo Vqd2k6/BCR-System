@@ -478,32 +478,83 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
           </div>
         </div>
 
-        {/* 5.3. NGUỒN XÁC ĐỊNH DỮ LIỆU NGOẠI QUAN */}
-        <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/60 space-y-2">
-          <div className="flex items-center gap-1.5">
-            <Layers className="w-3.5 h-3.5 text-slate-600" />
-            <span className="text-xs font-bold text-slate-700 uppercase">
-              5.3. Nguồn Xác Định Dữ Liệu Ngoại Quan
-            </span>
-          </div>
-
-          <div className="flex flex-wrap gap-2 pt-1">
-            {dataSources.length > 0 ? (
-              dataSources.map((src, sIdx) => (
-                <span
-                  key={sIdx}
-                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-semibold"
+        {/* 5.3. NGUỒN XÁC ĐỊNH DỮ LIỆU NGOẠI QUAN & ĐỘ TIN CẬY */}
+        <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/60 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5">
+              <Layers className="w-3.5 h-3.5 text-slate-600" />
+              <span className="text-xs font-bold text-slate-700 uppercase">
+                5.3. Nguồn Xác Định Dữ Liệu Ngoại Quan & Độ Tin Cậy
+              </span>
+            </div>
+            {isEditMode ? (
+              <div className="flex items-center gap-1.5">
+                <label className="text-[11px] font-bold text-slate-600">Độ tin cậy:</label>
+                <select
+                  value={st.reliability || 'HIGH'}
+                  onChange={(e) =>
+                    handleNestedFieldChange('settlementTilt', 'reliability', 'Độ tin cậy dữ liệu', e.target.value)
+                  }
+                  className="p-1 text-xs border border-slate-300 rounded bg-white font-bold"
                 >
-                  <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                  <span>{src}</span>
-                </span>
-              ))
+                  <option value="HIGH">Cao (Quan trắc máy / Thiết bị chuẩn)</option>
+                  <option value="MEDIUM">Trung bình (Thước dây / Mắt thường)</option>
+                  <option value="LOW">Thấp (Chủ nhà nhớ khai / Ước lượng)</option>
+                </select>
+              </div>
             ) : (
-              <span className="text-xs text-slate-400 italic">
-                Quan sát trực tiếp tại hiện trường & Thước laser
+              <span className="text-[11px] font-bold px-2 py-0.5 rounded bg-sky-100 text-sky-800">
+                Độ tin cậy: {st.reliability === 'LOW' ? 'Thấp' : st.reliability === 'MEDIUM' ? 'Trung bình' : 'Cao'}
               </span>
             )}
           </div>
+
+          {isEditMode ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 pt-1">
+              {DATA_SOURCES_LIST.map((src) => {
+                const isChecked = dataSources.includes(src);
+                return (
+                  <label
+                    key={src}
+                    className={`flex items-center gap-2 p-2 rounded-lg border text-xs cursor-pointer select-none transition-colors ${
+                      isChecked ? 'bg-emerald-50 border-emerald-300 text-emerald-950 font-bold' : 'bg-white border-slate-200 text-slate-700'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={isChecked}
+                      onChange={(e) => {
+                        const updated = e.target.checked
+                          ? [...dataSources, src]
+                          : dataSources.filter((s) => s !== src);
+                        handleNestedFieldChange('settlementTilt', 'dataSource', 'Nguồn dữ liệu', updated);
+                      }}
+                      className="rounded text-emerald-600"
+                    />
+                    <span>{src}</span>
+                  </label>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="flex flex-wrap gap-2 pt-1">
+              {dataSources.length > 0 ? (
+                dataSources.map((src, sIdx) => (
+                  <span
+                    key={sIdx}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-semibold"
+                  >
+                    <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                    <span>{src}</span>
+                  </span>
+                ))
+              ) : (
+                <span className="text-xs text-slate-400 italic">
+                  Quan sát trực tiếp tại hiện trường & Thước laser
+                </span>
+              )}
+            </div>
+          )}
         </div>
 
         {/* 5.4. ĐỀ XUẤT QUAN TRẮC MỐC LÚN NGHIÊNG */}

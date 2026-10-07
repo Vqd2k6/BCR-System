@@ -182,4 +182,5 @@ export interface ModalFeedbackMessage {
 export interface Phase1ExportModuleBoxProps {
   initialZoneId?: string;
   className?: string;
+  hideZoneSelect?: boolean;
 }

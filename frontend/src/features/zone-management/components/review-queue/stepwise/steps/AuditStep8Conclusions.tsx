@@ -6,12 +6,14 @@ interface Props {
   isEditMode: boolean;
   formState: Record<string, any>;
   handleNestedFieldChange: (parentKey: string, childKey: string, label: string, val: any) => void;
+  handleFieldChange?: (fieldKey: string, label: string, val: any) => void;
 }
 
 export const AuditStep8Conclusions: React.FC<Props> = ({
   isEditMode,
   formState,
   handleNestedFieldChange,
+  handleFieldChange,
 }) => {
   const exec = formState.executiveSummary || {};
   const currentBra = (exec.braStatus || 'LOW').toUpperCase();
@@ -20,6 +22,9 @@ export const AuditStep8Conclusions: React.FC<Props> = ({
 
   // Map braStatus to code
   const vCode: 'V1' | 'V2' | 'V3' | 'V4' = currentBra === 'VERY_HIGH' ? 'V4' : currentBra === 'HIGH' ? 'V3' : currentBra === 'MEDIUM' ? 'V2' : 'V1';
+
+  const summaryConclusions = formState.summaryConclusions || exec.summaryConclusions || '';
+  const keyRisksDefectsText = formState.keyRisksDefectsText || exec.keyRisksDefectsText || '';
 
   return (
     <section id="step-8" className="scroll-mt-6 bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
@@ -175,7 +180,53 @@ export const AuditStep8Conclusions: React.FC<Props> = ({
           </div>
         </div>
 
-        {/* Khối 3: Khuyến nghị kỹ thuật của Kỹ sư Zone */}
+        {/* Khối 3: Tổng hợp khuyết tật chính & Rủi ro */}
+        <div>
+          <label className="text-[11px] font-bold text-slate-500 uppercase block mb-1">
+            Tổng Hợp Khuyết Tật & Nguy Cơ Kết Cấu Chính Ghi Nhận
+          </label>
+          {isEditMode ? (
+            <textarea
+              rows={2}
+              value={keyRisksDefectsText}
+              onChange={(e) => {
+                if (handleFieldChange) handleFieldChange('keyRisksDefectsText', 'Tổng hợp khuyết tật', e.target.value);
+                handleNestedFieldChange('executiveSummary', 'keyRisksDefectsText', 'Tổng hợp khuyết tật', e.target.value);
+              }}
+              className="w-full p-2.5 bg-amber-50/50 border border-amber-300 rounded-xl text-xs text-slate-800"
+              placeholder="Tóm tắt các khuyết tật đáng lưu ý (vết nứt lớn, võng dầm, lún lệch chân tường...)"
+            />
+          ) : (
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs text-slate-800">
+              {keyRisksDefectsText || 'Chưa ghi nhận khuyết tật nguy hiểm đe dọa trực tiếp đến an toàn chịu lực của công trình.'}
+            </div>
+          )}
+        </div>
+
+        {/* Khối 4: Kết luận tóm tắt tổng thể hiện trạng */}
+        <div>
+          <label className="text-[11px] font-bold text-slate-500 uppercase block mb-1">
+            Kết Luận Tóm Tắt Hiện Trạng Toàn Diện
+          </label>
+          {isEditMode ? (
+            <textarea
+              rows={2}
+              value={summaryConclusions}
+              onChange={(e) => {
+                if (handleFieldChange) handleFieldChange('summaryConclusions', 'Kết luận tổng thể', e.target.value);
+                handleNestedFieldChange('executiveSummary', 'summaryConclusions', 'Kết luận tổng thể', e.target.value);
+              }}
+              className="w-full p-2.5 bg-amber-50/50 border border-amber-300 rounded-xl text-xs text-slate-800"
+              placeholder="Kết luận tổng quan về hiện trạng công trình trước khi thi công tuyến Metro..."
+            />
+          ) : (
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs text-slate-800">
+              {summaryConclusions || 'Công trình đủ điều kiện an toàn, duy trì trạng thái ổn định trước khi triển khai thi công đoạn hầm lân cận.'}
+            </div>
+          )}
+        </div>
+
+        {/* Khối 5: Khuyến nghị kỹ thuật của Kỹ sư Zone */}
         <div>
           <label className="text-[11px] font-bold text-slate-500 uppercase block mb-1">
             Khuyến Nghị Kỹ Thuật Của Kỹ Sư Zone Phụ Trách Thẩm Định

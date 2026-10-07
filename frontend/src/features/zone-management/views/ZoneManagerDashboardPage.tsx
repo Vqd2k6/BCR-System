@@ -1,31 +1,45 @@
-import React, { useState, useEffect } from 'react';
-import { Card } from '../../../core/components/ui/Card';
-import { Badge } from '../../../core/components/ui/Badge';
-import { Button } from '../../../core/components/ui/Button';
-import { Users, MapPin, CheckCircle2, Clock, AlertTriangle, Filter, Download, RefreshCw, BarChart3, Building, FileSpreadsheet } from 'lucide-react';
-import { Phase1ExportModuleBox } from '../components/Phase1ExportModuleBox';
-import { ZoneAuditReviewQueue } from '../components/review-queue/ZoneAuditReviewQueue';
-import { METRO_22_ZONES, getZoneByCode } from '../../survey-phase1/constants/metroGisConstants';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../../context/AuthContext';
 import { api } from '../../../services/api';
-import { userService, AdminUser } from '../../../services/userService';
+import { METRO_22_ZONES, getZoneByCode } from '../../survey-phase1/constants/metroGisConstants';
+import { ZoneAdminAppShell } from '../components/layout/ZoneAdminAppShell';
+import { ZoneNavView } from '../components/layout/ZoneAdminSidebar';
+import { ZoneIntelligenceDashboard, ZoneIntelligenceStats } from '../components/dashboard/ZoneIntelligenceDashboard';
+import { ZoneAuditReviewQueue } from '../components/review-queue/ZoneAuditReviewQueue';
+import { ZoneParcelsDataGrid } from '../components/parcels/ZoneParcelsDataGrid';
+import { Phase1ExportModuleBox } from '../components/Phase1ExportModuleBox';
+import { LeafletSweepMap } from '../../../components/gis/LeafletSweepMap';
+import { GisParcel } from '../../../components/gis/shared/types';
 
-interface ZoneSurveyorState {
-  id: string;
-  name: string;
-  surveyorCode?: string | null;
-  phone?: string | null;
-  isCheckedInToday: boolean;
-  checkInTime?: string | null;
-  distanceMeters?: number | null;
-  verificationStatus?: string | null;
-  assignedCount: number;
-  completedCount: number;
+interface Props {
+  parcels?: GisParcel[];
+  onSelectParcelForSurvey?: (parcel: GisParcel) => void;
+  onStartPhase1?: (parcel: GisParcel, isReadOnly?: boolean) => void;
+  onStartPhase2?: (parcel: GisParcel) => void;
+  onOpenBuildingHub?: (parcel: GisParcel) => void;
+  onRecordAbsence?: (parcel: GisParcel) => void;
+  onProposeSplit?: (parcel: GisParcel) => void;
+  onReloadParcels?: () => void;
+  userGps?: { lat: number; lng: number; accuracy?: number } | null;
+  onNavigateToMap?: () => void;
+  onNavigateToParcels?: () => void;
 }
 
-export const ZoneManagerDashboardPage: React.FC = () => {
+export const ZoneManagerDashboardPage: React.FC<Props> = ({
+  parcels = [],
+  onSelectParcelForSurvey,
+  onStartPhase1,
+  onStartPhase2,
+  onOpenBuildingHub,
+  onRecordAbsence,
+  onProposeSplit,
+  onReloadParcels,
+  userGps,
+  onNavigateToMap,
+  onNavigateToParcels,
+}) => {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<'review' | 'export'>('review');
+  const [activeNav, setActiveNav] = useState<ZoneNavView>('dashboard');
 
   const resolveDefaultZone = (zoneId?: string | null): string => {
     if (!zoneId) return 'ZONE_01';
@@ -40,22 +54,37 @@ export const ZoneManagerDashboardPage: React.FC = () => {
     return resolveDefaultZone(user?.assignedZoneId);
   });
 
-  const [stats, setStats] = useState({
+  // Intelligence stats state
+  const [stats, setStats] = useState<ZoneIntelligenceStats>({
     totalParcels: 0,
     approved: 0,
     submitted: 0,
     inProgress: 0,
     absent: 0,
+    rejected: 0,
     notSurveyed: 0,
+    burlandGrade0: 0,
+    burlandGrade12: 0,
+    burlandGrade3: 0,
+    burlandGrade45: 0,
+    totalCriticalBurland: 0,
+    slaOverdue48h: 0,
+    slaWarning24h: 0,
+    absentAttempt1: 0,
+    absentAttempt2: 0,
+    absentAttempt3Plus: 0,
+    velocityPerDay: 1.5,
+    estimatedCompletionDays: 30,
   });
-  const [isStatsLoading, setIsStatsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
-  // Live Personnel State
-  const [personnelList, setPersonnelList] = useState<ZoneSurveyorState[]>([]);
-  const [isPersonnelLoading, setIsPersonnelLoading] = useState(false);
+  // Click-to-filter state from Dashboard to Review Queue
+  const [activeFilterCategory, setActiveFilterCategory] = useState<string | undefined>(undefined);
+  const [activeFilterValue, setActiveFilterValue] = useState<string | undefined>(undefined);
+  const [activeFilterLabel, setActiveFilterLabel] = useState<string | undefined>(undefined);
 
-  const fetchLiveStats = async (zone: string) => {
-    setIsStatsLoading(true);
+  const fetchLiveIntelligence = useCallback(async (zone: string) => {
+    setIsLoading(true);
     try {
       const res = await api.get('/admin/analytics/progress', {
         params: { zoneId: zone },
@@ -68,348 +97,188 @@ export const ZoneManagerDashboardPage: React.FC = () => {
           submitted: Number(d.submitted_count || 0),
           inProgress: Number(d.in_progress_count || 0),
           absent: Number(d.absent_count || 0),
+          rejected: Number(d.rejected_count || 0),
           notSurveyed: Number(d.not_surveyed_count || 0),
+          burlandGrade0: Number(d.burland_grade_0_count || 0),
+          burlandGrade12: Number(d.burland_grade_1_2_count || 0),
+          burlandGrade3: Number(d.burland_grade_3_count || 0),
+          burlandGrade45: Number(d.burland_grade_4_5_count || 0),
+          totalCriticalBurland: Number(d.total_critical_burland || 0),
+          slaOverdue48h: Number(d.sla_overdue_48h_count || 0),
+          slaWarning24h: Number(d.sla_warning_24h_count || 0),
+          absentAttempt1: Number(d.absent_attempt_1_count || 0),
+          absentAttempt2: Number(d.absent_attempt_2_count || 0),
+          absentAttempt3Plus: Number(d.absent_attempt_3_plus_count || 0),
+          velocityPerDay: Number(d.velocity_per_day || 1.5),
+          estimatedCompletionDays: Number(d.estimated_completion_days || 30),
         });
       }
     } catch (e) {
       console.warn('[ZoneManager] Failed to fetch live analytics:', e);
     } finally {
-      setIsStatsLoading(false);
+      setIsLoading(false);
     }
-  };
-
-  const fetchLivePersonnel = async (zone: string) => {
-    setIsPersonnelLoading(true);
-    try {
-      const todayStr = new Date().toISOString().split('T')[0];
-      const [usersRes, attendanceRes] = await Promise.allSettled([
-        userService.listUsers({
-          role: 'SURVEYOR',
-          zoneId: zone !== 'ALL' ? zone : undefined,
-          limit: 50,
-        }),
-        api.get('/admin/attendance', {
-          params: {
-            zoneId: zone !== 'ALL' ? zone : undefined,
-            startDate: todayStr,
-            endDate: todayStr,
-            limit: 100,
-          },
-        }),
-      ]);
-
-      const surveyors: AdminUser[] =
-        usersRes.status === 'fulfilled' && usersRes.value?.data ? usersRes.value.data : [];
-
-      const checkIns: any[] =
-        attendanceRes.status === 'fulfilled' && attendanceRes.value?.data?.data
-          ? attendanceRes.value.data.data
-          : [];
-
-      if (surveyors.length > 0) {
-        const mapped: ZoneSurveyorState[] = surveyors.map((sv, idx) => {
-          const matchedCheckin = checkIns.find(
-            (c) =>
-              c.surveyor_id === sv.id ||
-              c.username === sv.username ||
-              (c.checkin_time && c.checkin_time.startsWith(todayStr))
-          );
-
-          // Phân bổ ước lượng số thửa dựa trên tổng số thửa của zone
-          const totalPerSurveyor = Math.max(10, Math.round((stats.totalParcels || 50) / Math.max(1, surveyors.length)));
-          const completedPerSurveyor = Math.round((stats.approved || 0) / Math.max(1, surveyors.length));
-
-          return {
-            id: sv.id,
-            name: sv.fullName,
-            surveyorCode: sv.surveyorCode || `P-${1000 + idx}`,
-            phone: sv.phone,
-            isCheckedInToday: !!matchedCheckin,
-            checkInTime: matchedCheckin?.checkin_time
-              ? new Date(matchedCheckin.checkin_time).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
-              : null,
-            distanceMeters: matchedCheckin?.distance_to_zone_center_meters
-              ? Math.round(matchedCheckin.distance_to_zone_center_meters)
-              : null,
-            verificationStatus: matchedCheckin?.verification_status || (matchedCheckin ? 'APPROVED' : null),
-            assignedCount: totalPerSurveyor,
-            completedCount: Math.min(completedPerSurveyor, totalPerSurveyor),
-          };
-        });
-        setPersonnelList(mapped);
-      } else {
-        // Fallback danh sách nhân sự mẫu của Zone_01 nếu DB chưa seed nhiều surveyor
-        setPersonnelList([
-          {
-            id: 'b0000000-0000-0000-0000-000000000003',
-            name: 'Nguyễn Văn Khảo Sát',
-            surveyorCode: 'P-6789',
-            phone: '0903456789',
-            isCheckedInToday: true,
-            checkInTime: '07:45',
-            distanceMeters: 45,
-            verificationStatus: 'APPROVED',
-            assignedCount: 45,
-            completedCount: 32,
-          },
-          {
-            id: 'b0000000-0000-0000-0000-000000000004',
-            name: 'Trần Văn B (Khảo sát viên Ga S1)',
-            surveyorCode: 'P-7890',
-            phone: '0904567890',
-            isCheckedInToday: true,
-            checkInTime: '08:12',
-            distanceMeters: 80,
-            verificationStatus: 'APPROVED',
-            assignedCount: 40,
-            completedCount: 26,
-          },
-        ]);
-      }
-    } catch (err) {
-      console.warn('Lỗi khi tải nhân sự zone:', err);
-    } finally {
-      setIsPersonnelLoading(false);
-    }
-  };
+  }, []);
 
   useEffect(() => {
-    fetchLiveStats(selectedZone);
-    // Tạm ngưng gọi API nhân sự và điểm danh GPS do phân hệ này đang phát triển
-    // fetchLivePersonnel(selectedZone);
-  }, [selectedZone]);
+    fetchLiveIntelligence(selectedZone);
+  }, [selectedZone, fetchLiveIntelligence]);
+
+  // Handle click-to-filter from Dashboard
+  const handleDashboardFilterClick = (cat: string, val: string, label: string) => {
+    setActiveFilterCategory(cat);
+    setActiveFilterValue(val);
+    setActiveFilterLabel(label);
+    // Tự động chuyển sang xem Hàng Đợi Thẩm Định
+    setActiveNav('review');
+  };
+
+  const handleClearFilter = () => {
+    setActiveFilterCategory(undefined);
+    setActiveFilterValue(undefined);
+    setActiveFilterLabel(undefined);
+  };
+
+  const handleNavChange = (nav: ZoneNavView) => {
+    setActiveNav(nav);
+  };
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto p-4 sm:p-6 pb-20">
-      {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-        <div>
-          <span className="text-xs font-bold text-emerald-600 uppercase tracking-wider">
-            Phân hệ Quản trị Khu vực
-          </span>
-          <h1 className="text-xl sm:text-2xl font-black text-slate-800 flex items-center gap-2 mt-0.5">
-            <Users className="w-6 h-6 text-emerald-600" />
-            <span>Dashboard Trưởng Zone / Điều Phối Viên</span>
-          </h1>
-          <p className="text-xs text-slate-500 mt-1">
-            Theo dõi tiến độ khảo sát thực tế, thẩm định hồ sơ và phê duyệt xuất báo cáo hiện trường.
-          </p>
-        </div>
+    <ZoneAdminAppShell
+      activeNav={activeNav}
+      onChangeNav={handleNavChange}
+      selectedZone={selectedZone}
+      onSelectZone={(z) => {
+        setSelectedZone(z);
+        handleClearFilter();
+      }}
+      pendingCount={stats.submitted}
+      criticalAlertCount={stats.totalCriticalBurland + stats.slaOverdue48h}
+      isLoading={isLoading}
+      onRefresh={() => fetchLiveIntelligence(selectedZone)}
+    >
+      {/* View 1: Dashboard Chỉ Huy & Toàn Cảnh Tiến Độ */}
+      {activeNav === 'dashboard' && (
+        <div className="space-y-6 animate-in fade-in duration-200">
+          <ZoneIntelligenceDashboard
+            stats={stats}
+            selectedZone={selectedZone}
+            onFilterClick={handleDashboardFilterClick}
+            activeFilterLabel={activeFilterLabel}
+            onClearFilter={handleClearFilter}
+          />
 
-        <div className="flex items-center gap-2">
-          <select
-            value={selectedZone}
-            onChange={(e) => setSelectedZone(e.target.value)}
-            className="rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-xs sm:text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
-          >
-            <option value="ALL">🌐 Tất cả các Phân khu (Toàn tuyến Metro 2 - 1.227 thửa)</option>
-            <optgroup label="⭐ 5 Phân đoạn dữ liệu chuẩn (Đã có khảo sát)">
-              {METRO_22_ZONES.filter((z) => z.isDataReady).map((z) => (
-                <option key={z.code} value={z.code}>
-                  {z.name} ({z.rawParcelCount} thửa)
-                </option>
-              ))}
-            </optgroup>
-            <optgroup label="Tất cả 22 Phân đoạn toàn tuyến">
-              {METRO_22_ZONES.map((z) => (
-                <option key={z.code} value={z.code}>
-                  {z.name}
-                </option>
-              ))}
-            </optgroup>
-          </select>
-          <button
-            onClick={() => {
-              fetchLiveStats(selectedZone);
-              fetchLivePersonnel(selectedZone);
+          {/* Quick Review Queue Summary underneath */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm font-black text-slate-800 uppercase tracking-wider">
+                  Hồ Sơ Cần Kiểm Soát Khẩn Cấp (Burland ≥ 3 / Cờ Lỗi)
+                </h2>
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                  {stats.totalCriticalBurland} ca cần xử lý
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  handleClearFilter();
+                  setActiveNav('review');
+                }}
+                className="text-xs font-bold text-indigo-600 hover:text-indigo-700 cursor-pointer flex items-center gap-1 hover:underline"
+              >
+                <span>Xem toàn bộ hàng đợi ({stats.submitted})</span>
+                <span>➔</span>
+              </button>
+            </div>
+
+            <ZoneAuditReviewQueue
+              selectedZone={selectedZone}
+              onStatsNeedRefresh={() => fetchLiveIntelligence(selectedZone)}
+              externalFilterCategory={activeFilterCategory || 'CRITICAL'}
+              externalFilterValue={activeFilterValue}
+              onClearExternalFilter={handleClearFilter}
+              defaultTab="CRITICAL"
+              title="Hồ Sơ Ưu Tiên Kiểm Soát Khẩn Cấp (Burland ≥ 3 / Cờ Lỗi)"
+            />
+          </div>
+        </div>
+      )}
+
+      {/* View 2: Hàng Đợi Thẩm Định Độc Lập */}
+      {activeNav === 'review' && (
+        <div className="space-y-4 animate-in fade-in duration-200">
+          {activeFilterLabel && (
+            <div className="flex items-center justify-between px-4 py-2.5 rounded-xl bg-indigo-50 border border-indigo-200 text-xs font-bold text-indigo-900">
+              <span>Đang lọc theo chỉ số: <strong className="text-indigo-700">{activeFilterLabel}</strong></span>
+              <button
+                type="button"
+                onClick={handleClearFilter}
+                className="px-2.5 py-1 rounded-lg bg-white border border-indigo-200 text-indigo-700 hover:bg-indigo-100 text-[11px] font-bold cursor-pointer transition-colors"
+              >
+                Xóa bộ lọc
+              </button>
+            </div>
+          )}
+
+          <ZoneAuditReviewQueue
+            selectedZone={selectedZone}
+            onStatsNeedRefresh={() => fetchLiveIntelligence(selectedZone)}
+            externalFilterCategory={activeFilterCategory}
+            externalFilterValue={activeFilterValue}
+            onClearExternalFilter={handleClearFilter}
+          />
+        </div>
+      )}
+
+      {/* View 3: Bản Đồ Số Không Gian GIS Tuyến (Nhúng hoàn toàn trong AppShell) */}
+      {activeNav === 'map' && (
+        <div className="w-full h-[calc(100vh-64px)] relative">
+          <LeafletSweepMap
+            parcels={parcels}
+            selectedZone={selectedZone}
+            onSelectZone={(z) => setSelectedZone(z)}
+            onSelectParcel={(p) => {
+              onSelectParcelForSurvey?.(p);
             }}
-            disabled={isStatsLoading || isPersonnelLoading}
-            className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-colors"
-            title="Làm mới chỉ số tiến độ"
-          >
-            <RefreshCw size={15} className={isStatsLoading || isPersonnelLoading ? 'animate-spin text-emerald-600' : ''} />
-          </button>
+            onStartSurvey={onStartPhase1 || (() => {})}
+            onStartPhase2={onStartPhase2 || (() => {})}
+            onOpenBuildingHub={onOpenBuildingHub || (() => {})}
+            onRecordAbsence={onRecordAbsence || (() => {})}
+            onProposeSplit={onProposeSplit || (() => {})}
+            onSwapSuccess={onReloadParcels}
+            userGps={userGps}
+          />
         </div>
-      </div>
-
-      {/* 4 Thống kê tiến độ thực tế từ Database */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <Card className="border-slate-200 bg-white">
-          <span className="text-xs font-bold text-slate-500 uppercase block mb-1">Tổng số thửa đất</span>
-          <span className="text-2xl font-black text-slate-800">{stats.totalParcels}</span>
-          <div className="mt-2 text-xs text-slate-500">100% ranh quy hoạch khu vực</div>
-        </Card>
-
-        <Card className="border-emerald-200 bg-emerald-50/50">
-          <span className="text-xs font-bold text-emerald-700 uppercase block mb-1">Đã phê duyệt (Approved)</span>
-          <span className="text-2xl font-black text-emerald-800">{stats.approved}</span>
-          <div className="mt-2 text-xs text-emerald-600 font-bold">
-            {stats.totalParcels > 0
-              ? `${((stats.approved / stats.totalParcels) * 100).toFixed(1)}% hoàn thành`
-              : '0% hoàn thành'}
-          </div>
-        </Card>
-
-        <Card className="border-sky-200 bg-sky-50/50">
-          <span className="text-xs font-bold text-sky-700 uppercase block mb-1">Chờ duyệt (Submitted)</span>
-          <span className="text-2xl font-black text-sky-800">{stats.submitted}</span>
-          <div className="mt-2 text-xs text-sky-600">Đã nộp từ hiện trường</div>
-        </Card>
-
-        <Card className="border-amber-200 bg-amber-50/50">
-          <span className="text-xs font-bold text-amber-700 uppercase block mb-1">Đang khảo sát dở</span>
-          <span className="text-2xl font-black text-amber-800">{stats.inProgress}</span>
-          <div className="mt-2 text-xs text-amber-600">
-            {stats.absent > 0 ? `+ ${stats.absent} vắng mặt` : 'Khảo sát viên đang làm'}
-          </div>
-        </Card>
-      </div>
-
-      {/* Sub-tab navigation: Review Queue vs Phase 1 Export */}
-      <div className="flex items-center gap-2 border-b border-slate-200 pb-2 overflow-x-auto no-scrollbar">
-        <button
-          onClick={() => setActiveTab('review')}
-          className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all border ${
-            activeTab === 'review'
-              ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
-              : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
-          }`}
-        >
-          <CheckCircle2 className="w-4 h-4" />
-          <span>Hàng Đợi Thẩm Định & Duyệt Hồ Sơ</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('export')}
-          className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all border ${
-            activeTab === 'export'
-              ? 'bg-sky-600 text-white border-sky-600 shadow-sm'
-              : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
-          }`}
-        >
-          <FileSpreadsheet className="w-4 h-4" />
-          <span>Xuất Báo Cáo Phase 1 (Mẫu 0410 Song Ngữ V2)</span>
-          <span className="text-[10px] bg-amber-400 text-amber-950 px-1.5 py-0.5 rounded-full font-black">Mới</span>
-        </button>
-      </div>
-
-      {/* Tab 1: Hàng Đợi Thẩm Định & Phê Duyệt Hồ Sơ Hiện Trường */}
-      {activeTab === 'review' && (
-        <ZoneAuditReviewQueue
-          selectedZone={selectedZone}
-          onStatsNeedRefresh={() => {
-            fetchLiveStats(selectedZone);
-          }}
-        />
       )}
 
-      {/* Tab 2: Phân hệ Xuất Báo Cáo Phase 1 Chuẩn CRLG-CRSRI-TT */}
-      {activeTab === 'export' && (
-        <Phase1ExportModuleBox initialZoneId={selectedZone} />
+      {/* View 4: Sổ Quản Trị Địa Chính Phân Khu (Desktop Data Grid) */}
+      {activeNav === 'parcels' && (
+        <div className="animate-in fade-in duration-200">
+          <ZoneParcelsDataGrid
+            selectedZone={selectedZone}
+            initialParcels={parcels}
+            onNavigateToMap={(parcel) => {
+              onSelectParcelForSurvey?.(parcel);
+              setActiveNav('map');
+            }}
+            onViewSurvey={(parcel) => {
+              setActiveFilterCategory('SEARCH');
+              setActiveFilterValue(parcel.projectParcelCode || parcel.officialCadastralCode);
+              setActiveFilterLabel(`Thửa đất ${parcel.projectParcelCode || parcel.id}`);
+              setActiveNav('review');
+            }}
+            onRefreshStats={() => fetchLiveIntelligence(selectedZone)}
+          />
+        </div>
       )}
 
-      {/* Tạm ẩn "Cán Bộ Khảo Sát & Điểm Danh GPS Phân Khu" vì logic điểm danh đang phát triển */}
-      {/*
-      <Card>
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 mb-4 border-b border-slate-100">
-          <div>
-            <h2 className="text-base font-bold text-slate-800 flex items-center gap-2">
-              <Users className="w-5 h-5 text-emerald-600" />
-              <span>Cán Bộ Khảo Sát & Điểm Danh GPS Phân Khu</span>
-            </h2>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Theo dõi tình trạng điểm danh đầu ngày, khoảng cách so với tâm ga và tiến độ giao khoán thửa đất.
-            </p>
-          </div>
-          <span className="text-xs font-bold text-slate-600 bg-slate-100 px-3 py-1 rounded-full">
-            {personnelList.length} nhân sự thuộc {selectedZone === 'ALL' ? 'Toàn tuyến' : selectedZone}
-          </span>
+      {/* View 5: Phân Hệ Xuất Báo Cáo Phase 1 (Mẫu 0410 Song Ngữ) */}
+      {activeNav === 'export' && (
+        <div className="animate-in fade-in duration-200">
+          <Phase1ExportModuleBox initialZoneId={selectedZone} hideZoneSelect={true} />
         </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs text-left">
-            <thead className="bg-slate-50 text-slate-600 font-bold uppercase border-b border-slate-200">
-              <tr>
-                <th className="p-3">Cán bộ khảo sát</th>
-                <th className="p-3 text-center">Điểm danh GPS hôm nay</th>
-                <th className="p-3 text-center">Cự ly tâm Ga</th>
-                <th className="p-3 text-center">Thửa hoàn thành</th>
-                <th className="p-3 text-center">Tỷ lệ</th>
-                <th className="p-3 text-right">Trạng thái hồ sơ</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {isPersonnelLoading ? (
-                <tr>
-                  <td colSpan={6} className="p-6 text-center text-slate-400">
-                    <RefreshCw className="w-5 h-5 mx-auto animate-spin mb-1 text-emerald-600" />
-                    <span>Đang cập nhật trạng thái nhân sự...</span>
-                  </td>
-                </tr>
-              ) : personnelList.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="p-6 text-center text-slate-400">
-                    Chưa có nhân sự nào được gán cho phân khu này
-                  </td>
-                </tr>
-              ) : (
-                personnelList.map((s) => (
-                  <tr key={s.id} className="hover:bg-slate-50/50 transition-colors">
-                    <td className="p-3">
-                      <div className="font-bold text-slate-800">{s.name}</div>
-                      <div className="text-[11px] text-slate-500 font-mono mt-0.5 flex items-center gap-2">
-                        <span>Mã ID: <strong>{s.surveyorCode}</strong></span>
-                        {s.phone && <span>• SĐT: {s.phone}</span>}
-                      </div>
-                    </td>
-                    <td className="p-3 text-center">
-                      {s.isCheckedInToday ? (
-                        <div className="inline-flex flex-col items-center">
-                          <Badge variant="success" dot>
-                            Đã check-in ({s.checkInTime})
-                          </Badge>
-                        </div>
-                      ) : (
-                        <Badge variant="warning">Chưa điểm danh</Badge>
-                      )}
-                    </td>
-                    <td className="p-3 text-center font-mono text-slate-700">
-                      {s.distanceMeters !== null && s.distanceMeters !== undefined ? (
-                        <span className="font-bold text-emerald-700">{s.distanceMeters} m</span>
-                      ) : (
-                        <span className="text-slate-400">--</span>
-                      )}
-                    </td>
-                    <td className="p-3 text-center font-bold text-slate-800">
-                      <span className="text-emerald-700">{s.completedCount}</span> / {s.assignedCount} thửa
-                    </td>
-                    <td className="p-3 text-center">
-                      <div className="w-24 bg-slate-200 h-2 rounded-full mx-auto overflow-hidden">
-                        <div
-                          className="bg-emerald-600 h-full rounded-full transition-all"
-                          style={{
-                            width: `${Math.min(100, Math.round((s.completedCount / Math.max(1, s.assignedCount)) * 100))}%`,
-                          }}
-                        />
-                      </div>
-                      <span className="text-[10px] text-slate-500 mt-1 inline-block">
-                        {Math.round((s.completedCount / Math.max(1, s.assignedCount)) * 100)}%
-                      </span>
-                    </td>
-                    <td className="p-3 text-right">
-                      <Badge variant={s.completedCount > 0 ? 'info' : 'default'}>
-                        {s.completedCount > 0 ? 'Đang tiến hành' : 'Chờ triển khai'}
-                      </Badge>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </Card>
-      */}
-    </div>
+      )}
+    </ZoneAdminAppShell>
   );
 };
-

@@ -10,6 +10,8 @@ export class AuditReviewService {
     status?: string;
     buildingType?: string;
     search?: string;
+    burlandFilter?: string;
+    slaFilter?: string;
     limit?: number;
     offset?: number;
   }) {
@@ -44,9 +46,41 @@ export class AuditReviewService {
       )`;
     }
 
+    // Bộ lọc thông minh từ Dashboard Click-to-filter
+    if (filters.burlandFilter === 'CRITICAL') {
+      whereClause += ` AND sc.e1_burland_score >= 3`;
+    } else if (filters.burlandFilter === 'GRADE_4_5') {
+      whereClause += ` AND sc.e1_burland_score >= 4`;
+    } else if (filters.burlandFilter === 'GRADE_3') {
+      whereClause += ` AND sc.e1_burland_score = 3`;
+    } else if (filters.burlandFilter === 'GRADE_1_2') {
+      whereClause += ` AND sc.e1_burland_score IN (1, 2)`;
+    } else if (filters.burlandFilter === 'GRADE_0') {
+      whereClause += ` AND sc.e1_burland_score = 0`;
+    }
+
+    if (filters.slaFilter === 'OVERDUE_48H') {
+      whereClause += ` AND r.status = 'SUBMITTED' AND r.updated_at < NOW() - INTERVAL '48 HOURS'`;
+    } else if (filters.slaFilter === 'WARNING_24H') {
+      whereClause += ` AND r.status = 'SUBMITTED' AND r.updated_at >= NOW() - INTERVAL '48 HOURS' AND r.updated_at < NOW() - INTERVAL '24 HOURS'`;
+    }
+
     const limit = Math.min(Math.max(Number(filters.limit) || 50, 1), 200);
     const offset = Math.max(Number(filters.offset) || 0, 0);
 
+    // 1. Đếm tổng số bản ghi thỏa điều kiện
+    const countQuery = `
+      SELECT COUNT(*) AS total_count
+      FROM base_survey_reports r
+      JOIN parcels p ON r.parcel_id = p.id
+      LEFT JOIN users u ON r.surveyor_id = u.id
+      LEFT JOIN risk_score_cards sc ON sc.report_id = r.id
+      ${whereClause};
+    `;
+    const countRes = await Database.query(countQuery, params);
+    const totalCount = Number(countRes.rows[0]?.total_count || 0);
+
+    // 2. Truy vấn trang dữ liệu với LIMIT và OFFSET
     const query = `
       SELECT 
         r.id AS report_id,
@@ -105,7 +139,10 @@ export class AuditReviewService {
     `;
 
     const res = await Database.query(query, params);
-    return res.rows;
+    return {
+      items: res.rows,
+      totalCount,
+    };
   }
 
   /**
@@ -446,6 +483,50 @@ export class AuditReviewService {
       },
 
       auditFlags: flagsRes.rows,
+      auditHistory: await (async () => {
+        try {
+          const logsRes = await Database.query(
+            `SELECT l.id,
+                    l.action,
+                    l.diff_payload,
+                    l.client_ip,
+                    l.created_at,
+                    u.full_name AS performed_by_name,
+                    u.role AS performed_by_role
+             FROM system_audit_logs l
+             LEFT JOIN users u ON l.performed_by_user_id = u.id
+             WHERE (l.entity_type = 'BASE_SURVEY_REPORT' AND l.entity_id = $1)
+                OR (l.entity_type = 'PARCEL' AND l.entity_id = $2)
+             ORDER BY l.created_at DESC
+             LIMIT 50;`,
+            [actualReportId, report.parcel_id]
+          );
+          return logsRes.rows.map((row: any) => {
+            let parsedDiff = row.diff_payload;
+            if (typeof parsedDiff === 'string') {
+              try {
+                parsedDiff = JSON.parse(parsedDiff);
+              } catch {
+                parsedDiff = {};
+              }
+            }
+            return {
+              id: row.id,
+              action: row.action,
+              performedByName: row.performed_by_name || 'Hệ thống / Quản trị viên',
+              performedByRole: row.performed_by_role || 'ADMIN',
+              createdAt: row.created_at,
+              clientIp: row.client_ip,
+              editReason: parsedDiff?.editReason || parsedDiff?.reason || null,
+              diff: Array.isArray(parsedDiff?.diff) ? parsedDiff.diff : (Array.isArray(parsedDiff?.diffPayload) ? parsedDiff.diffPayload : []),
+              rawPayload: parsedDiff,
+            };
+          });
+        } catch (e: any) {
+          console.warn('⚠️ [AUDIT SERVICE] system_audit_logs query fallback:', e?.message);
+          return [];
+        }
+      })(),
     };
   }
 
@@ -573,6 +654,7 @@ export class AuditReviewService {
     };
 
     let whereClause = ``;
+    let reportWhereClause = ``;
     const params: any[] = [];
     const target = (zoneId || 'ALL').toUpperCase();
     const isAll = target === 'ALL' || target === 'ALL_ZONES';
@@ -580,23 +662,82 @@ export class AuditReviewService {
     if (!isAll) {
       const altTarget = zoneMapping[target] || target;
       params.push(target, altTarget);
-      whereClause = `WHERE (zone_id = $1 OR zone_id = $2)`;
+      whereClause = `WHERE (p.zone_id = $1 OR p.zone_id = $2)`;
+      reportWhereClause = `AND (p.zone_id = $1 OR p.zone_id = $2)`;
     }
 
-    const res = await Database.query(
+    const parcelStatsRes = await Database.query(
       `SELECT 
          COUNT(*) AS total_parcels,
-         COUNT(*) FILTER (WHERE survey_status = 'APPROVED') AS approved_count,
-         COUNT(*) FILTER (WHERE survey_status = 'SUBMITTED') AS submitted_count,
-         COUNT(*) FILTER (WHERE survey_status = 'IN_PROGRESS') AS in_progress_count,
-         COUNT(*) FILTER (WHERE survey_status = 'POSTPONED_ABSENT') AS absent_count,
-         COUNT(*) FILTER (WHERE survey_status = 'REJECTED') AS rejected_count,
-         COUNT(*) FILTER (WHERE survey_status = 'NOT_SURVEYED') AS not_surveyed_count
-       FROM parcels
+         COUNT(*) FILTER (WHERE p.survey_status = 'APPROVED') AS approved_count,
+         COUNT(*) FILTER (WHERE p.survey_status = 'SUBMITTED') AS submitted_count,
+         COUNT(*) FILTER (WHERE p.survey_status = 'IN_PROGRESS') AS in_progress_count,
+         COUNT(*) FILTER (WHERE p.survey_status = 'POSTPONED_ABSENT') AS absent_count,
+         COUNT(*) FILTER (WHERE p.survey_status = 'REJECTED') AS rejected_count,
+         COUNT(*) FILTER (WHERE p.survey_status = 'NOT_SURVEYED') AS not_surveyed_count,
+         COUNT(*) FILTER (WHERE p.absence_attempt_count = 1) AS absent_attempt_1,
+         COUNT(*) FILTER (WHERE p.absence_attempt_count = 2) AS absent_attempt_2,
+         COUNT(*) FILTER (WHERE p.absence_attempt_count >= 3) AS absent_attempt_3_plus
+       FROM parcels p
        ${whereClause};`,
       params
     );
 
-    return res.rows[0];
+    const reportStatsRes = await Database.query(
+      `SELECT
+         COUNT(*) FILTER (WHERE sc.e1_burland_score = 0) AS burland_grade_0,
+         COUNT(*) FILTER (WHERE sc.e1_burland_score IN (1, 2)) AS burland_grade_1_2,
+         COUNT(*) FILTER (WHERE sc.e1_burland_score = 3) AS burland_grade_3,
+         COUNT(*) FILTER (WHERE sc.e1_burland_score >= 4) AS burland_grade_4_5,
+         COUNT(*) FILTER (WHERE sc.e1_burland_score >= 3) AS total_critical_burland,
+         COUNT(*) FILTER (WHERE r.status = 'SUBMITTED' AND r.updated_at < NOW() - INTERVAL '48 HOURS') AS sla_overdue_48h,
+         COUNT(*) FILTER (WHERE r.status = 'SUBMITTED' AND r.updated_at >= NOW() - INTERVAL '48 HOURS' AND r.updated_at < NOW() - INTERVAL '24 HOURS') AS sla_warning_24h,
+         COUNT(*) FILTER (WHERE r.created_at >= NOW() - INTERVAL '7 DAYS') AS recent_7days_count
+       FROM base_survey_reports r
+       JOIN parcels p ON r.parcel_id = p.id
+       LEFT JOIN risk_score_cards sc ON sc.report_id = r.id
+       WHERE 1=1 ${reportWhereClause};`,
+      params
+    );
+
+    const pRow = parcelStatsRes.rows[0] || {};
+    const rRow = reportStatsRes.rows[0] || {};
+
+    const totalParcels = Number(pRow.total_parcels || 0);
+    const approvedCount = Number(pRow.approved_count || 0);
+    const recent7Days = Number(rRow.recent_7days_count || 0);
+    const velocityPerDay = recent7Days > 0 ? Number((recent7Days / 7).toFixed(1)) : 1.5;
+    const remainingParcels = Math.max(0, totalParcels - approvedCount);
+    const estCompletionDays = velocityPerDay > 0 ? Math.ceil(remainingParcels / velocityPerDay) : 0;
+
+    return {
+      total_parcels: totalParcels,
+      approved_count: approvedCount,
+      submitted_count: Number(pRow.submitted_count || 0),
+      in_progress_count: Number(pRow.in_progress_count || 0),
+      absent_count: Number(pRow.absent_count || 0),
+      rejected_count: Number(pRow.rejected_count || 0),
+      not_surveyed_count: Number(pRow.not_surveyed_count || 0),
+
+      // Burland Severity
+      burland_grade_0_count: Number(rRow.burland_grade_0 || 0),
+      burland_grade_1_2_count: Number(rRow.burland_grade_1_2 || 0),
+      burland_grade_3_count: Number(rRow.burland_grade_3 || 0),
+      burland_grade_4_5_count: Number(rRow.burland_grade_4_5 || 0),
+      total_critical_burland: Number(rRow.total_critical_burland || 0),
+
+      // SLA Bottleneck
+      sla_overdue_48h_count: Number(rRow.sla_overdue_48h || 0),
+      sla_warning_24h_count: Number(rRow.sla_warning_24h || 0),
+
+      // Absent breakdown
+      absent_attempt_1_count: Number(pRow.absent_attempt_1 || 0),
+      absent_attempt_2_count: Number(pRow.absent_attempt_2 || 0),
+      absent_attempt_3_plus_count: Number(pRow.absent_attempt_3_plus || 0),
+
+      // Velocity & Burndown
+      velocity_per_day: velocityPerDay,
+      estimated_completion_days: estCompletionDays,
+    };
   }
 }

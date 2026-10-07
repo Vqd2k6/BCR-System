@@ -7,6 +7,7 @@ import {
   ShieldAlert,
   ShieldCheck,
   RefreshCw,
+  History,
 } from 'lucide-react';
 import { api } from '../../../../services/api';
 import { RejectReportModal } from './RejectReportModal';
@@ -15,6 +16,7 @@ import { ImageZoomModal } from '../../../../components/common/ImageZoomModal';
 import { AuditStepwiseDocumentView } from './stepwise/AuditStepwiseDocumentView';
 import { AuditDiffConfirmModal } from './AuditDiffConfirmModal';
 import { AuditPhotoReplaceModal } from './AuditPhotoReplaceModal';
+import { AuditHistoryModal } from './AuditHistoryModal';
 
 interface Props {
   isOpen: boolean;
@@ -59,6 +61,9 @@ export const AuditStudioModal: React.FC<Props> = ({
     currentPhotoUrl: string;
     photoTitle?: string;
   }>({ isOpen: false, targetPhotoType: 'OTHER', currentPhotoUrl: '' });
+
+  // Audit History Modal State
+  const [showAuditHistory, setShowAuditHistory] = useState(false);
 
   const fetchAuditData = async () => {
     setLoading(true);
@@ -163,6 +168,22 @@ export const AuditStudioModal: React.FC<Props> = ({
           </div>
 
           <div className="flex items-center gap-2">
+            {data?.auditHistory && (
+              <button
+                type="button"
+                onClick={() => setShowAuditHistory(true)}
+                className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border ${
+                  data.auditHistory.length > 0
+                    ? 'bg-sky-500/20 text-sky-300 border-sky-500/40 hover:bg-sky-500/30'
+                    : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-slate-300'
+                }`}
+                title="Xem nhật ký kiểm toán và lịch sử sửa đổi"
+              >
+                <History className="w-3.5 h-3.5 text-sky-400" />
+                <span>Nhật ký ({data.auditHistory.length})</span>
+              </button>
+            )}
+
             {auditFlags.length > 0 && (
               <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 flex items-center gap-1.5">
                 <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
@@ -382,6 +403,16 @@ export const AuditStudioModal: React.FC<Props> = ({
             fetchAuditData();
             onRefreshList();
           }}
+        />
+      )}
+
+      {showAuditHistory && (
+        <AuditHistoryModal
+          isOpen={showAuditHistory}
+          onClose={() => setShowAuditHistory(false)}
+          reportCode={data?.reportCode}
+          parcelCode={data?.projectParcelCode}
+          logs={data?.auditHistory || []}
         />
       )}
     </div>

@@ -558,12 +558,23 @@ export const App: React.FC = () => {
     setCheckInDetails(details);
   };
 
+  const navigateBackFromSurvey = () => {
+    if (user?.role === 'ZONE_ADMIN' || user?.role === 'SUPER_ADMIN') {
+      setActiveTab('admin-export');
+    } else {
+      setActiveTab('home');
+    }
+  };
+
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: '#f8fafc', color: '#0f172a' }}>
-      {/* Top Header: AdminTopNav cho Quản trị viên (Desktop/Tablet) hoặc SurveyorNavbar cho Khảo sát viên (Mobile PWA) */}
+      {/* Top Header: AdminTopNav cho Super Admin (Desktop/Tablet) hoặc SurveyorNavbar cho Khảo sát viên (Mobile PWA) */}
       {activeTab !== 'phase1' && activeTab !== 'condo-master' && activeTab !== 'condo-unit' && (
-        user?.role === 'SUPER_ADMIN' || user?.role === 'ZONE_ADMIN' ? (
+        user?.role === 'SUPER_ADMIN' ? (
           <AdminTopNav activeTab={activeTab} onChangeTab={setActiveTab} />
+        ) : user?.role === 'ZONE_ADMIN' ? (
+          /* Zone Admin luôn ở trong ZoneAdminAppShell chuyên nghiệp, KHÔNG render AdminTopNav hay SurveyorNavbar! */
+          null
         ) : (
           <SurveyorNavbar
             title={
@@ -585,14 +596,25 @@ export const App: React.FC = () => {
 
       {/* Main Viewport Content */}
       <main style={{ flex: 1, position: 'relative' }}>
-        {activeTab === 'admin-export' && (
-          user?.role === 'SUPER_ADMIN' ? (
-            <AdminDashboardPage />
-          ) : (
-            <ZoneManagerDashboardPage />
-          )
+        {user?.role === 'ZONE_ADMIN' && activeTab !== 'phase1' && activeTab !== 'condo-master' && activeTab !== 'condo-unit' && (
+          <ZoneManagerDashboardPage
+            parcels={parcels}
+            onSelectParcelForSurvey={(p) => setSelectedParcelForSurvey(p)}
+            onStartPhase1={handleStartPhase1}
+            onStartPhase2={handleStartPhase2}
+            onOpenBuildingHub={(p) => setHubParcel(p)}
+            onRecordAbsence={handleRecordAbsence}
+            onProposeSplit={(p) => setMutationStudioParcel(p)}
+            onReloadParcels={loadParcels}
+            userGps={liveUserGps}
+          />
         )}
-        {activeTab === 'home' && (
+
+        {user?.role !== 'ZONE_ADMIN' && activeTab === 'admin-export' && (
+          <AdminDashboardPage />
+        )}
+
+        {user?.role !== 'ZONE_ADMIN' && activeTab === 'home' && (
           <SurveyorHomeView
             parcels={parcels}
             isCheckedInToday={isCheckedInToday}
@@ -614,7 +636,7 @@ export const App: React.FC = () => {
           />
         )}
 
-        {activeTab === 'map' && (
+        {user?.role !== 'ZONE_ADMIN' && activeTab === 'map' && (
           <div style={{ width: '100%', height: 'calc(100vh - 90px)', padding: 0 }}>
             <LeafletSweepMap
               parcels={parcels}
@@ -650,13 +672,13 @@ export const App: React.FC = () => {
             readOnly={isReadOnlySurvey}
             onBackToHome={() => {
               setIsReadOnlySurvey(false);
-              setActiveTab('home');
+              navigateBackFromSurvey();
               loadParcels();
             }}
             onFinished={() => {
               setIsReadOnlySurvey(false);
               setSelectedUnitForSurvey(null);
-              setActiveTab('home');
+              navigateBackFromSurvey();
               loadParcels();
             }}
           />
@@ -666,11 +688,11 @@ export const App: React.FC = () => {
           <SurveyCondoMasterPage
             parcel={selectedParcelForSurvey}
             onBackToHome={() => {
-              setActiveTab('home');
+              navigateBackFromSurvey();
               setHubParcel(selectedParcelForSurvey);
             }}
             onFinished={() => {
-              setActiveTab('home');
+              navigateBackFromSurvey();
               loadParcels();
             }}
           />
@@ -681,12 +703,12 @@ export const App: React.FC = () => {
             parcel={selectedParcelForSurvey}
             unit={selectedUnitForSurvey}
             onBackToHome={() => {
-              setActiveTab('home');
+              navigateBackFromSurvey();
               setHubParcel(selectedParcelForSurvey);
             }}
             onFinished={() => {
               setSelectedUnitForSurvey(null);
-              setActiveTab('home');
+              navigateBackFromSurvey();
               loadParcels();
             }}
           />
