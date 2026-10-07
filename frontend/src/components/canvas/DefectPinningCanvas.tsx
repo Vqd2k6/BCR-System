@@ -214,6 +214,7 @@ export const DefectPinningCanvas: React.FC<Props> = ({
   zoneOrElementCode,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const tightBoxRef = useRef<HTMLDivElement>(null);
   const detailFormRef = useRef<HTMLDivElement>(null);
   const [selectedDefectIndex, setSelectedDefectIndex] = useState<number | null>(null);
   const [isAddingPin, setIsAddingPin] = useState<boolean>(true);
@@ -248,10 +249,10 @@ export const DefectPinningCanvas: React.FC<Props> = ({
     'D'
   );
 
-  const handleContainerPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (draggingDefectIndex === null || readOnly || !containerRef.current) return;
+  const handleTightBoxPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (draggingDefectIndex === null || readOnly || !tightBoxRef.current) return;
     dragMovedRef.current = true;
-    const rect = containerRef.current.getBoundingClientRect();
+    const rect = tightBoxRef.current.getBoundingClientRect();
     const x = Math.max(1, Math.min(99, parseFloat((((e.clientX - rect.left) / rect.width) * 100).toFixed(2))));
     const y = Math.max(1, Math.min(99, parseFloat((((e.clientY - rect.top) / rect.height) * 100).toFixed(2))));
 
@@ -310,16 +311,16 @@ export const DefectPinningCanvas: React.FC<Props> = ({
     'isStructuralCritical',
   ];
 
-  const handleContainerClick = (e: React.MouseEvent<HTMLDivElement>) => {
+  const handleTightBoxClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (dragMovedRef.current) {
       dragMovedRef.current = false;
       return;
     }
-    if (readOnly || !isAddingPin || !containerRef.current || !ctxPhotoUrl) return;
+    if (readOnly || !isAddingPin || !tightBoxRef.current || !ctxPhotoUrl) return;
 
-    const rect = containerRef.current.getBoundingClientRect();
-    const x = parseFloat((((e.clientX - rect.left) / rect.width) * 100).toFixed(2));
-    const y = parseFloat((((e.clientY - rect.top) / rect.height) * 100).toFixed(2));
+    const rect = tightBoxRef.current.getBoundingClientRect();
+    const x = Math.max(1, Math.min(99, parseFloat((((e.clientX - rect.left) / rect.width) * 100).toFixed(2))));
+    const y = Math.max(1, Math.min(99, parseFloat((((e.clientY - rect.top) / rect.height) * 100).toFixed(2))));
 
     const newDefectCode = getNextAvailablePinCode(
       defects.map((d) => ({ zoneCode: d.defectCode })),
@@ -664,109 +665,116 @@ export const DefectPinningCanvas: React.FC<Props> = ({
       {/* Pinning Canvas - Clean Light Theme */}
       <div
         ref={containerRef}
-        onClick={handleContainerClick}
-        onPointerMove={handleContainerPointerMove}
-        onPointerUp={() => setDraggingDefectIndex(null)}
-        className={`relative w-full min-h-[300px] max-h-[480px] rounded-xl overflow-hidden bg-slate-100 border border-slate-300 select-none shadow-inner touch-none ${
-          isAddingPin ? 'cursor-crosshair ring-2 ring-emerald-500/30' : 'cursor-default'
-        } flex items-center justify-center`}
+        className={`relative w-full min-h-[300px] max-h-[500px] rounded-xl overflow-hidden bg-slate-100 border border-slate-300 select-none shadow-inner flex items-center justify-center p-1 sm:p-2 ${
+          isAddingPin ? 'ring-2 ring-emerald-500/30' : ''
+        }`}
       >
         {(safeCtxUrl || getSafeDisplayUrl(ctxPhotoUrl)) ? (
-          <img
-            src={safeCtxUrl || getSafeDisplayUrl(ctxPhotoUrl)}
-            alt="Context Photo for Defects"
-            className="max-h-[480px] w-full object-contain pointer-events-none select-none"
-          />
+          <div
+            ref={tightBoxRef}
+            onClick={handleTightBoxClick}
+            onPointerMove={handleTightBoxPointerMove}
+            onPointerUp={() => setDraggingDefectIndex(null)}
+            className={`relative inline-block max-w-full leading-none mx-auto select-none touch-none ${
+              isAddingPin ? 'cursor-crosshair' : 'cursor-default'
+            }`}
+          >
+            <img
+              src={safeCtxUrl || getSafeDisplayUrl(ctxPhotoUrl)}
+              alt="Context Photo for Defects"
+              className="max-h-[480px] max-w-full w-auto h-auto block mx-auto pointer-events-none select-none shadow-sm"
+            />
+
+            {/* Existing Pins with Drag & Drop */}
+            {showPins && defects.map((d, idx) => {
+              const isSelected = selectedDefectIndex === idx;
+              const isDragging = draggingDefectIndex === idx;
+              const isFilled = isDefectFilled(d);
+              const squareBg = isFilled ? '#10b981' : '#f59e0b';
+
+              return (
+                <div
+                  key={idx}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (!dragMovedRef.current) {
+                      setSelectedDefectIndex(idx);
+                      setIsAddingPin(false);
+                      setTimeout(() => {
+                        detailFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                      }, 60);
+                    }
+                  }}
+                  onPointerDown={(e) => {
+                    if (readOnly) return;
+                    e.stopPropagation();
+                    dragMovedRef.current = false;
+                    setDraggingDefectIndex(idx);
+                    setSelectedDefectIndex(idx);
+                    (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
+                  }}
+                  onPointerUp={(e) => {
+                    if (readOnly) return;
+                    e.stopPropagation();
+                    try {
+                      (e.currentTarget as HTMLElement).releasePointerCapture?.(e.pointerId);
+                    } catch (_) {}
+                    setDraggingDefectIndex(null);
+                  }}
+                  style={{
+                    position: 'absolute',
+                    left: `${d.pinX}%`,
+                    top: `${d.pinY}%`,
+                    transform: isDragging ? 'translate(-50%, -50%) scale(1.25)' : isSelected ? 'translate(-50%, -50%) scale(1.1)' : 'translate(-50%, -50%)',
+                    cursor: readOnly ? 'default' : isDragging ? 'grabbing' : 'grab',
+                    zIndex: isDragging ? 50 : isSelected ? 30 : 20,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    touchAction: 'none',
+                    userSelect: 'none',
+                    transition: isDragging ? 'none' : 'transform 0.15s ease',
+                  }}
+                  title={readOnly ? undefined : `${d.defectCode}: ${d.defectType || 'Chưa chọn'} (Chạm chọn hoặc Giữ & Kéo để di chuyển)`}
+                >
+                  <div
+                    style={{
+                      fontSize: '0.65rem',
+                      fontWeight: 800,
+                      fontFamily: 'monospace',
+                      padding: '1px 5px',
+                      borderRadius: '3px',
+                      backgroundColor: isDragging ? '#0284c7' : isSelected ? '#0284c7' : 'rgba(15, 23, 42, 0.9)',
+                      color: '#ffffff',
+                      border: isDragging ? '2px solid #38bdf8' : isSelected ? '1.5px solid #ffffff' : '1px solid rgba(255,255,255,0.4)',
+                      whiteSpace: 'nowrap',
+                      boxShadow: isDragging ? '0 4px 10px rgba(2, 132, 199, 0.5)' : '0 2px 4px rgba(0,0,0,0.3)',
+                    }}
+                  >
+                    {d.defectCode}
+                  </div>
+
+                  <div
+                    style={{
+                      width: isSelected || isDragging ? '14px' : '12px',
+                      height: isSelected || isDragging ? '14px' : '12px',
+                      borderRadius: '2px',
+                      backgroundColor: squareBg,
+                      border: '2px solid #ffffff',
+                      boxShadow: '0 0 6px rgba(0,0,0,0.4)',
+                      marginTop: '1px',
+                      transition: 'transform 0.15s ease',
+                    }}
+                  />
+                </div>
+              );
+            })}
+          </div>
         ) : (
           <div className="w-full min-h-[300px] flex items-center justify-center text-slate-400 text-xs">
             Đang tải ảnh bối cảnh...
           </div>
         )}
-
-        {/* Existing Pins with Drag & Drop */}
-        {showPins && defects.map((d, idx) => {
-          const isSelected = selectedDefectIndex === idx;
-          const isDragging = draggingDefectIndex === idx;
-          const isFilled = isDefectFilled(d);
-          const squareBg = isFilled ? '#10b981' : '#f59e0b';
-
-          return (
-            <div
-              key={idx}
-              onClick={(e) => {
-                e.stopPropagation();
-                if (!dragMovedRef.current) {
-                  setSelectedDefectIndex(idx);
-                  setIsAddingPin(false);
-                  setTimeout(() => {
-                    detailFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-                  }, 60);
-                }
-              }}
-              onPointerDown={(e) => {
-                if (readOnly) return;
-                e.stopPropagation();
-                dragMovedRef.current = false;
-                setDraggingDefectIndex(idx);
-                setSelectedDefectIndex(idx);
-                (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
-              }}
-              onPointerUp={(e) => {
-                if (readOnly) return;
-                e.stopPropagation();
-                try {
-                  (e.currentTarget as HTMLElement).releasePointerCapture?.(e.pointerId);
-                } catch (_) {}
-                setDraggingDefectIndex(null);
-              }}
-              style={{
-                position: 'absolute',
-                left: `${d.pinX}%`,
-                top: `${d.pinY}%`,
-                transform: isDragging ? 'translate(-50%, -50%) scale(1.25)' : isSelected ? 'translate(-50%, -50%) scale(1.1)' : 'translate(-50%, -50%)',
-                cursor: readOnly ? 'default' : isDragging ? 'grabbing' : 'grab',
-                zIndex: isDragging ? 50 : isSelected ? 30 : 20,
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                touchAction: 'none',
-                userSelect: 'none',
-                transition: isDragging ? 'none' : 'transform 0.15s ease',
-              }}
-              title={readOnly ? undefined : `${d.defectCode}: ${d.defectType || 'Chưa chọn'} (Chạm chọn hoặc Giữ & Kéo để di chuyển)`}
-            >
-              <div
-                style={{
-                  fontSize: '0.65rem',
-                  fontWeight: 800,
-                  fontFamily: 'monospace',
-                  padding: '1px 5px',
-                  borderRadius: '3px',
-                  backgroundColor: isDragging ? '#0284c7' : isSelected ? '#0284c7' : 'rgba(15, 23, 42, 0.9)',
-                  color: '#ffffff',
-                  border: isDragging ? '2px solid #38bdf8' : isSelected ? '1.5px solid #ffffff' : '1px solid rgba(255,255,255,0.4)',
-                  whiteSpace: 'nowrap',
-                  boxShadow: isDragging ? '0 4px 10px rgba(2, 132, 199, 0.5)' : '0 2px 4px rgba(0,0,0,0.3)',
-                }}
-              >
-                {d.defectCode}
-              </div>
-
-              <div
-                style={{
-                  width: isSelected || isDragging ? '14px' : '12px',
-                  height: isSelected || isDragging ? '14px' : '12px',
-                  borderRadius: '2px',
-                  backgroundColor: squareBg,
-                  border: '2px solid #ffffff',
-                  boxShadow: '0 0 6px rgba(0,0,0,0.4)',
-                  marginTop: '1px',
-                  transition: 'transform 0.15s ease',
-                }}
-              />
-            </div>
-          );
-        })}
       </div>
 
       {/* Selected Defect Detail Card */}

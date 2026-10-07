@@ -7,16 +7,72 @@ export class CadastralGeometryService {
     return CadastralRepository.findNearbyParcels(lat, lng, radius);
   }
 
-  static async updateFootprint(parcelId: string, footprintGeoJson: any, constructionAreaM2?: number) {
+  static async updateFootprint(
+    parcelId: string,
+    footprintGeoJson: any,
+    constructionAreaM2?: number,
+    userId?: string,
+    reason?: string,
+    clientIp?: string
+  ) {
     const parcel = await CadastralRepository.findById(parcelId);
     if (!parcel) {
       throw new NotFoundError(`Không tìm thấy thửa đất với ID: ${parcelId}`);
     }
 
+    const oldArea = parcel.construction_area_m2;
+    const effectiveReason = reason || 'Chỉnh sửa / vẽ lại đa giác ranh nhà footprint trên GIS';
+
     await CadastralRepository.updateFootprint(parcelId, footprintGeoJson, constructionAreaM2);
+
+    const redrawCode = `REDRAW-GIS-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`;
+
+    if (userId) {
+      try {
+        await Database.query(
+          `INSERT INTO parcel_mutation_events (
+             mutation_code, mutation_type, source_parcel_ids, result_parcel_ids,
+             new_geojson, surveyor_notes, surveyor_id, zone_admin_id, status, approved_at
+           ) VALUES ($1, 'REDRAW', ARRAY[$2::uuid], ARRAY[$2::uuid], $3, $4, $5, $5, 'APPROVED', NOW());`,
+          [
+            redrawCode,
+            parcelId,
+            typeof footprintGeoJson === 'string' ? footprintGeoJson : JSON.stringify(footprintGeoJson),
+            effectiveReason,
+            userId,
+          ]
+        );
+
+        await Database.query(
+          `INSERT INTO system_audit_logs (
+             entity_type, entity_id, action, performed_by_user_id, diff_payload, client_ip
+           ) VALUES ($1, $2, $3, $4, $5, $6);`,
+          [
+            'PARCEL',
+            parcelId,
+            'PARCEL_FOOTPRINT_REDRAW',
+            userId,
+            JSON.stringify({
+              mutationCode: redrawCode,
+              parcelId,
+              projectParcelCode: parcel.project_parcel_code,
+              oldConstructionAreaM2: oldArea,
+              newConstructionAreaM2: constructionAreaM2 ?? oldArea,
+              reason: effectiveReason,
+              timestamp: new Date().toISOString(),
+            }),
+            clientIp || null,
+          ]
+        );
+      } catch (logErr) {
+        console.error('[CadastralGeometryService] Lỗi ghi nhận audit log cho updateFootprint:', logErr);
+      }
+    }
+
     return {
       parcelId,
-      message: 'Đã cập nhật đa giác ranh nhà footprint thành công trên GIS',
+      mutationCode: redrawCode,
+      message: 'Đã cập nhật đa giác ranh nhà footprint và ghi nhận lịch sử biến động thành công',
     };
   }
 
@@ -43,6 +99,7 @@ export class CadastralGeometryService {
     }>(
       `SELECT p.id, p.project_parcel_code, p.official_cadastral_code, p.house_number, p.street,
               p.owner_name, p.land_area_m2, p.survey_status,
+              ST_AsGeoJSON(p.cadastral_polygon_geom)::json AS cadastral_geojson,
               ROUND(ST_Distance(p.cadastral_polygon_geom::geography, target.cadastral_polygon_geom::geography)::numeric, 1) AS distance_meters,
               ST_Touches(p.cadastral_polygon_geom, target.cadastral_polygon_geom) AS is_touching
        FROM parcels p,
@@ -62,6 +119,18 @@ export class CadastralGeometryService {
     return {
       targetParcelId: parcelId,
       targetProjectCode: parent.project_parcel_code,
+      currentParcel: {
+        id: parent.id,
+        projectParcelCode: parent.project_parcel_code,
+        officialCadastralCode: parent.official_cadastral_code,
+        zoneId: parent.zone_id,
+        houseNumber: parent.house_number,
+        street: parent.street,
+        ownerName: parent.owner_name,
+        ownerPhone: parent.owner_phone,
+        landAreaM2: parent.land_area_m2,
+        cadastralGeojson: parent.cadastral_geojson,
+      },
       candidates: res.rows,
     };
   }

@@ -26,11 +26,78 @@ export class StorageService {
   private static s3Client: S3Client | null = null;
 
   /**
+   * Xác định chính xác kiểu lưu trữ hiệu lực (Local Disk vs Cloudflare R2/S3).
+   * 
+   * NGUYÊN TẮC BẢO VỆ TOÀN VẸN CHO SURVEYOR & CLOUD PRODUCTION:
+   * 1. Khi chạy trên Cloud Production (Render, Vercel, hoặc máy chủ có DATABASE_URL trỏ tới Cloud):
+   *    -> NẾU CẤU HÌNH STORAGE_TYPE=r2 HOẶC s3: 100% BẮT BUỘC SỬ DỤNG CLOUDFLARE R2!
+   *    -> Tuyệt đối KHÔNG BAO GIỜ bị Safety Guard ép về local disk (tránh mất ảnh khi Render restart).
+   * 2. Chỉ kích hoạt Safety Guard khi thực sự chạy trên máy tính cá nhân của lập trình viên:
+   *    -> Nhận diện: DB_HOST là 'localhost' hoặc '127.0.0.1', hoặc không có DATABASE_URL và không chạy trên Render/Vercel.
+   *    -> Khi đó, nếu lập trình viên vô tình để STORAGE_TYPE=r2 mà không có ALLOW_PROD_R2_IN_DEV=true,
+   *       hệ thống mới bảo vệ bucket R2 khỏi ảnh test rác.
+   * 3. Mặc định ở máy local, backend/.env đã để sẵn STORAGE_TYPE=local nên tự động an toàn.
+   */
+  public static getEffectiveStorageType(): 'local' | 'r2' | 's3' {
+    if (config.storage.type === 'local') {
+      return 'local';
+    }
+
+    // Nhận diện môi trường Cloud Production thực tế
+    const isCloudHosted = Boolean(
+      process.env.RENDER ||
+      process.env.VERCEL ||
+      (process.env.DATABASE_URL && !process.env.DATABASE_URL.includes('localhost') && !process.env.DATABASE_URL.includes('127.0.0.1'))
+    );
+    const isExplicitProd = process.env.NODE_ENV === 'production' || config.env === 'production';
+
+    // Nếu chạy trên Cloud Production -> 100% tin tưởng cấu hình R2/S3
+    if (isCloudHosted || isExplicitProd) {
+      return config.storage.type;
+    }
+
+    // Nếu chạy tại máy Local của lập trình viên
+    const isLocalMachine = (
+      process.env.DB_HOST === 'localhost' ||
+      process.env.DB_HOST === '127.0.0.1' ||
+      !process.env.DATABASE_URL
+    );
+    const isForcedR2InDev = process.env.ALLOW_PROD_R2_IN_DEV === 'true';
+
+    if (isLocalMachine && config.storage.type === 'r2' && !isForcedR2InDev) {
+      console.warn('⚠️ [SAFETY GUARD] Môi trường Local DEV đang để STORAGE_TYPE=r2! Tự động fallback về Local Storage để bảo vệ bucket Cloudflare R2 của dự án. (Đặt ALLOW_PROD_R2_IN_DEV=true nếu bạn thực sự muốn đẩy lên R2).');
+      return 'local';
+    }
+
+    return config.storage.type;
+  }
+
+  /**
+   * Truy xuất thông tin cấu hình lưu trữ hiện tại của hệ thống (Local vs Cloudflare R2)
+   */
+  public static getStorageInfo() {
+    const effectiveStorageType = this.getEffectiveStorageType();
+    const isLocal = effectiveStorageType === 'local';
+    const isGuarded = config.storage.type === 'r2' && effectiveStorageType === 'local';
+
+    return {
+      storageType: effectiveStorageType,
+      configuredType: config.storage.type,
+      isLocal,
+      isGuarded,
+      providerName: isLocal ? 'Bộ nhớ Cục bộ (Local Disk)' : 'Cloudflare R2 Storage',
+      publicBaseUrl: isLocal ? '/uploads' : (config.storage.s3.publicUrl || config.storage.s3.endpoint || ''),
+      bucket: isLocal ? undefined : config.storage.s3.bucket,
+    };
+  }
+
+  /**
    * Tự động kiểm tra và cấu hình CORS cho bucket Cloudflare R2
    * Cho phép trình duyệt PWA gửi trực tiếp lệnh PUT nhị phân lên bucket
    */
   public static async autoConfigureR2Cors(): Promise<void> {
-    if (config.storage.type !== 'r2' && config.storage.type !== 's3') {
+    const effectiveStorageType = this.getEffectiveStorageType();
+    if (effectiveStorageType !== 'r2' && effectiveStorageType !== 's3') {
       return;
     }
 
@@ -167,7 +234,8 @@ export class StorageService {
       ...sanitizedMeta,
     };
 
-    if (config.storage.type === 'r2' || config.storage.type === 's3') {
+    const effectiveStorageType = this.getEffectiveStorageType();
+    if (effectiveStorageType === 'r2' || effectiveStorageType === 's3') {
       const client = this.getS3Client();
       await client.send(
         new PutObjectCommand({
@@ -263,7 +331,9 @@ export class StorageService {
       headers[`x-amz-meta-${k}`] = v;
     }
 
-    if (config.storage.type === 'r2' || config.storage.type === 's3') {
+    const effectiveStorageType = this.getEffectiveStorageType();
+
+    if (effectiveStorageType === 'r2' || effectiveStorageType === 's3') {
       const client = this.getS3Client();
       const command = new PutObjectCommand({
         Bucket: config.storage.s3.bucket,
@@ -332,7 +402,8 @@ export class StorageService {
    * Truy xuất Metadata của file lưu trữ trên Cloudflare R2 / S3
    */
   public static async getPhotoMetadata(key: string): Promise<Record<string, string>> {
-    if (config.storage.type === 'r2' || config.storage.type === 's3') {
+    const effectiveStorageType = this.getEffectiveStorageType();
+    if (effectiveStorageType === 'r2' || effectiveStorageType === 's3') {
       try {
         const client = this.getS3Client();
         const command = new HeadObjectCommand({

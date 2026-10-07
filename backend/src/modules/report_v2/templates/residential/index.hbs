@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>{{metadata.reportTitleVi}} - {{metadata.buildingId}}</title>
+  <style>
+    {{{styles}}}
+  </style>
+</head>
+<body{{#if isGuestWatermark}} class="guest-watermark-mode"{{else if isPiiMasked}} class="guest-watermark-mode"{{/if}}>
+
+  {{> page-01-cover}}
+  {{> page-02-signatures-notice}}
+  {{> page-03-toc-and-sections-1-2}}
+  {{> page-04-sections-3-4}}
+  {{> page-05-sections-5-6-summary}}
+  {{> page-06-bcs-checklist-and-section-7}}
+  {{> page-07-section-8-risk-bra}}
+  {{> page-08-section-9-conclusions}}
+  {{> page-09-appendix-1-photos}}
+  {{> page-10-appendix-2-floor-defects}}
+  {{> page-11-appendix-3-signed-record}}
+  {{> page-12-appendix-4-equipment-access}}
+
+  {{> report-scripts}}
+
+</body>
+</html>

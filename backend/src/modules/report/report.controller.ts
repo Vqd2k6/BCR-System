@@ -50,7 +50,8 @@ export class ReportController {
     try {
       const { id } = req.params;
       const overrides = req.method === 'POST' ? req.body : undefined;
-      const html = await ReportService.previewResidentialHtml(id, overrides);
+      const isGuest = (req as any).user?.role === 'GUEST' || req.query.isGuest === 'true' || req.query.maskPii === 'true';
+      const html = await ReportService.previewResidentialHtml(id, overrides, isGuest);
 
       res.setHeader('Content-Type', 'text/html; charset=utf-8');
       res.status(200).send(html);

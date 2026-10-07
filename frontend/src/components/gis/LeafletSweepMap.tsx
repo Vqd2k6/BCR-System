@@ -28,6 +28,7 @@ export const LeafletSweepMap: React.FC<LeafletSweepMapProps> = ({
   userGps,
   thematicMode,
   hideBottomSheet = false,
+  onSwapSuccess,
 }) => {
   const {
     currentZoneConfig,
@@ -148,9 +149,8 @@ export const LeafletSweepMap: React.FC<LeafletSweepMapProps> = ({
             />
           ) : mapMode === 'osm' ? (
             <TileLayer
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>'
-              url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
-              subdomains="abcd"
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
               maxNativeZoom={19}
               maxZoom={23}
             />
@@ -263,10 +263,19 @@ export const LeafletSweepMap: React.FC<LeafletSweepMapProps> = ({
       {!hideBottomSheet && (
         <ParcelDetailBottomSheet
           activeParcel={activeParcel}
+          availableParcels={parcels}
           onClose={() => setActiveParcel(null)}
           onStartSurvey={onStartSurvey}
           onStartPhase2={onStartPhase2}
           onOpenBuildingHub={onOpenBuildingHub}
+          onProposeSplit={(p) => {
+            setActiveParcel(null);
+            onProposeSplit?.(p);
+          }}
+          onSwapSuccess={() => {
+            setActiveParcel(null);
+            onSwapSuccess?.();
+          }}
           absenceRecordedToday={absenceRecordedToday}
           handleOpenGoogleMapsDirections={handleOpenGoogleMapsDirections}
         />

@@ -15,7 +15,13 @@ export interface GisParcel {
     | 'POSTPONED_ABSENT'
     | 'UNDER_CONSTRUCTION'
     | 'PHASE2_COMPLETED'
-    | 'APPROVED_PHASE2';
+    | 'APPROVED_PHASE2'
+    | 'SPLIT_DEPRECATED'
+    | 'MERGED_DEPRECATED';
+  lifecycleStatus?: 'ACTIVE' | 'PENDING_MUTATION_APPROVAL' | 'SPLIT_DEPRECATED' | 'MERGED_DEPRECATED';
+  mutationType?: 'SPLIT' | 'MERGE' | null;
+  parentParcelIds?: string[];
+  childParcelIds?: string[];
   absenceAttemptCount?: number;
   coordinates: [number, number][]; // LatLng polygon
   distanceMeters?: number;
@@ -74,6 +80,7 @@ export interface MutationPayloadData {
   mergeReason: string;
   mergeTargetCode?: string;
   selectedMergeCodes?: string[];
+  primaryMergeCode?: string; // Mã thửa được chọn làm thửa đại diện chính thức (giữ lại)
   mergeHasPartialBuilding?: boolean;
   mergeBuildingAreaM2?: number;
   mergeResidualAreaM2?: number;
@@ -83,6 +90,13 @@ export interface MutationPayloadData {
   mergeResidualParcelCode?: string;
   mergeBuildingCustomPoints?: [number, number][];
   mergeResidualCustomPoints?: [number, number][]; // Tọa độ đa giác phần đất dư ngoài công trình
+  mergePartitionKind?: 'NON_BUILDING' | 'NEW_BUILDING';
+  mergeSecondaryParcelCode?: string;
+  mergeSecondaryHouseNumber?: string;
+  mergeSecondaryOwnerName?: string;
+  mergeSecondaryPhone?: string;
+  mergeSecondaryFloorCount?: number;
+  mergeSecondaryFunctionalType?: string;
   activeProposalType?: 'MATCH' | 'SPLIT' | 'MERGE' | null;
   // Flat legacy compatibility fields
   portionAAreaM2?: number;
@@ -116,6 +130,7 @@ export interface CadastralParcelData {
   floorCount?: number;
   gpsCoords?: string;
   zoneId?: string;
+  surveyStatus?: string;
   coordinates?: [number, number][];
 }
 
@@ -143,4 +158,5 @@ export interface LeafletSweepMapProps {
   userGps?: { lat: number; lng: number; accuracy?: number } | null;
   thematicMode?: 'WORKFLOW' | 'BRA_RISK';
   hideBottomSheet?: boolean;
+  onSwapSuccess?: () => void;
 }

@@ -120,12 +120,25 @@ async function runTest() {
     console.log('[Test 1] Tiến hành nộp hồ sơ Phase 1 kèm Tách thửa Nhánh 1...');
     await SurveyService.submitPhase1Report(reportId1, submitPayload1);
 
-    // 3. Kiểm tra kết quả trong CSDL
+    // 3. Kiểm tra kết quả trong CSDL: Nhánh 1 sinh thửa {Mã}-DU (tổng số parcels tăng 1)
     const countParcelsAfter1 = await Database.query<{ count: string }>('SELECT COUNT(*)::text as count FROM parcels');
-    if (countParcelsBefore1.rows[0].count !== countParcelsAfter1.rows[0].count) {
-      throw new Error(`Test 1 Thất bại: Số lượng parcels thay đổi! Nhánh NON_BUILDING không được tạo parcel mới. Trước=${countParcelsBefore1.rows[0].count}, Sau=${countParcelsAfter1.rows[0].count}`);
+    if (Number(countParcelsAfter1.rows[0].count) !== Number(countParcelsBefore1.rows[0].count) + 1) {
+      throw new Error(`Test 1 Thất bại: Số lượng parcels không tăng 1! Trước=${countParcelsBefore1.rows[0].count}, Sau=${countParcelsAfter1.rows[0].count}`);
     }
-    console.log('✅ [Xác nhận 1.1]: Số lượng parcels KHÔNG ĐỔI (Đúng chuẩn không phát sinh lô rác).');
+    console.log('✅ [Xác nhận 1.1]: Số lượng parcels tăng 1 (Đã sinh thực thể đất dôi dư {Mã}-DU).');
+
+    // Kiểm tra thửa đất dôi dư {Mã}-DU
+    const duParcel = await Database.query<{
+      id: string;
+      project_parcel_code: string;
+      land_area_m2: number;
+      survey_status: string;
+      lifecycle_status: string;
+    }>('SELECT id, project_parcel_code, land_area_m2, survey_status, lifecycle_status FROM parcels WHERE project_parcel_code = $1', [`${parcel1.project_parcel_code}-DU`]);
+    if (!duParcel.rows[0]) {
+      throw new Error(`Test 1 Thất bại: Không tìm thấy parcel ${parcel1.project_parcel_code}-DU!`);
+    }
+    console.log(`✅ [Xác nhận 1.2]: Đã sinh thành công thửa [${duParcel.rows[0].project_parcel_code}] (${duParcel.rows[0].land_area_m2}m²), status=${duParcel.rows[0].survey_status}, lifecycle=${duParcel.rows[0].lifecycle_status}.`);
 
     const updatedP1 = await Database.query<{
       project_parcel_code: string;
@@ -140,23 +153,18 @@ async function runTest() {
     if (p1Row.project_parcel_code !== parcel1.project_parcel_code) {
       throw new Error(`Test 1 Thất bại: Căn A bị đổi mã! Cũ=${parcel1.project_parcel_code}, Mới=${p1Row.project_parcel_code}`);
     }
-    console.log(`✅ [Xác nhận 1.2]: Căn A giữ nguyên 100% mã gốc [${p1Row.project_parcel_code}].`);
+    console.log(`✅ [Xác nhận 1.3]: Căn A giữ nguyên 100% mã gốc [${p1Row.project_parcel_code}].`);
 
-    if (p1Row.mutation_type !== 'REDRAW' || !p1Row.mutation_event_id) {
-      throw new Error(`Test 1 Thất bại: mutation_type không phải REDRAW hoặc thiếu mutation_event_id. Thực tế: ${p1Row.mutation_type}`);
+    if (p1Row.mutation_type !== 'SPLIT' || !p1Row.mutation_event_id) {
+      throw new Error(`Test 1 Thất bại: mutation_type không phải SPLIT hoặc thiếu mutation_event_id. Thực tế: ${p1Row.mutation_type}`);
     }
     mutationEventId1 = p1Row.mutation_event_id;
-    console.log(`✅ [Xác nhận 1.3]: Thửa Căn A ghi nhận mutation_type='REDRAW' và mutation_event_id='${mutationEventId1}'.`);
+    console.log(`✅ [Xác nhận 1.4]: Thửa Căn A ghi nhận mutation_type='SPLIT' và mutation_event_id='${mutationEventId1}'.`);
     
-    if (Number(p1Row.land_area_m2) !== Number(parcel1.land_area_m2)) {
-      throw new Error(`Test 1 Thất bại: land_area_m2 bị thay đổi! Cũ=${parcel1.land_area_m2}, Mới=${p1Row.land_area_m2}`);
+    if (Number(p1Row.land_area_m2) !== 60) {
+      throw new Error(`Test 1 Thất bại: land_area_m2 không đúng 60m²! Thực tế=${p1Row.land_area_m2}`);
     }
-    console.log(`✅ [Xác nhận 1.4]: Diện tích thửa đất gốc Căn A bảo toàn 100% (${p1Row.land_area_m2}m²), không bị cắt xén ranh pháp lý.`);
-
-    if (Number(p1Row.construction_area_m2) !== 60) {
-      throw new Error(`Test 1 Thất bại: construction_area_m2 không đúng diện tích khoanh nhà! Cần=60, Thực tế=${p1Row.construction_area_m2}`);
-    }
-    console.log(`✅ [Xác nhận 1.5]: Diện tích xây dựng chân đế công trình cập nhật chính xác thành ${p1Row.construction_area_m2}m².`);
+    console.log(`✅ [Xác nhận 1.5]: Diện tích thửa Căn A cập nhật chính xác thành ${p1Row.land_area_m2}m².`);
 
     // Kiểm tra sự kiện trong parcel_mutation_events
     const mutEvent1 = await Database.query<{
@@ -167,10 +175,10 @@ async function runTest() {
       mutation_type: string;
     }>('SELECT mutation_code, source_parcel_ids, result_parcel_ids, status, mutation_type FROM parcel_mutation_events WHERE id = $1', [mutationEventId1]);
 
-    if (!mutEvent1.rows[0] || mutEvent1.rows[0].result_parcel_ids.length !== 1 || mutEvent1.rows[0].mutation_type !== 'REDRAW') {
+    if (!mutEvent1.rows[0] || mutEvent1.rows[0].mutation_type !== 'SPLIT') {
       throw new Error(`Test 1 Thất bại: sự kiện biến động không hợp lệ: ${JSON.stringify(mutEvent1.rows[0])}`);
     }
-    console.log(`✅ [Xác nhận 1.6]: Sự kiện biến động [${mutEvent1.rows[0].mutation_code}] (Loại: ${mutEvent1.rows[0].mutation_type}) lưu vết chuẩn xác: source=[${mutEvent1.rows[0].source_parcel_ids}] == result=[${mutEvent1.rows[0].result_parcel_ids}].`);
+    console.log(`✅ [Xác nhận 1.6]: Sự kiện biến động [${mutEvent1.rows[0].mutation_code}] (Loại: ${mutEvent1.rows[0].mutation_type}) lưu vết chuẩn xác: status=${mutEvent1.rows[0].status}.`);
     console.log('>>> TEST CASE 1 HOÀN TẤT THÀNH CÔNG 100% <<<\n');
 
 
@@ -341,6 +349,9 @@ async function runTest() {
     if (createdChildParcelId) {
       await Database.query('DELETE FROM task_assignments WHERE parcel_id = $1', [createdChildParcelId]);
       await Database.query('DELETE FROM parcels WHERE id = $1', [createdChildParcelId]);
+    }
+    if (parcel1) {
+      await Database.query('DELETE FROM parcels WHERE project_parcel_code = $1', [`${parcel1.project_parcel_code}-DU`]);
     }
     if (mutationEventId1) {
       await Database.query('DELETE FROM parcel_mutation_events WHERE id = $1', [mutationEventId1]);

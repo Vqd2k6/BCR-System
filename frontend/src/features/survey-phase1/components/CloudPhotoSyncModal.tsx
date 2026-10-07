@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Cloud,
+  HardDrive,
   AlertTriangle,
   RefreshCw,
   ArrowRight,
@@ -10,6 +11,7 @@ import {
   ShieldCheck,
   AlertCircle,
 } from 'lucide-react';
+import { useStorageInfo } from '../../../core/services/storageInfoService';
 import { Button } from '../../../core/components/ui/Button';
 import { Badge } from '../../../core/components/ui/Badge';
 import {
@@ -106,6 +108,7 @@ export const CloudPhotoSyncModal: React.FC<CloudPhotoSyncModalProps> = ({
   isFromSubmitAttempt = false,
   onProceedSubmitAnyway,
 }) => {
+  const storageInfo = useStorageInfo();
   const [activeTab, setActiveTab] = useState<'UNSYNCED' | 'SYNCED' | 'ALL'>('UNSYNCED');
   const [retryingId, setRetryingId] = useState<string | null>(null);
   const [isRetryingAll, setIsRetryingAll] = useState(false);
@@ -155,7 +158,7 @@ export const CloudPhotoSyncModal: React.FC<CloudPhotoSyncModalProps> = ({
       await retryUploadSinglePhoto(item, parcelCode);
       await persistSyncedPhotosToServer();
     } catch (err: any) {
-      alert(`Không thể tải lại ảnh: ${err?.message || 'Lỗi mạng hoặc Cloudflare R2'}`);
+      alert(`Không thể tải lại ảnh: ${err?.message || 'Lỗi lưu trữ ảnh'}`);
     } finally {
       setRetryingId(null);
     }
@@ -180,7 +183,7 @@ export const CloudPhotoSyncModal: React.FC<CloudPhotoSyncModalProps> = ({
       }
       if (successCount > 0) {
         await persistSyncedPhotosToServer();
-        alert(`Đã tải thành công ${successCount} ảnh lên Cloudflare R2 an toàn!`);
+        alert(`Đã lưu thành công ${successCount} ảnh vào ${storageInfo.providerLabel} an toàn!`);
       }
       if (failCount > 0 && successCount === 0) {
         alert(
@@ -199,6 +202,8 @@ export const CloudPhotoSyncModal: React.FC<CloudPhotoSyncModalProps> = ({
     onNavigateToStep(step);
   };
 
+  const StorageHeaderIcon = storageInfo.isLocal ? HardDrive : Cloud;
+
   return (
     <div className="fixed inset-0 z-[99999] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
       <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] shadow-2xl border border-slate-200 flex flex-col overflow-hidden animate-in fade-in zoom-in-95">
@@ -209,14 +214,16 @@ export const CloudPhotoSyncModal: React.FC<CloudPhotoSyncModalProps> = ({
               className={`p-2.5 rounded-xl ${
                 unsyncedCount > 0
                   ? 'bg-amber-100 text-amber-700'
+                  : storageInfo.isLocal
+                  ? 'bg-indigo-100 text-indigo-700'
                   : 'bg-emerald-100 text-emerald-700'
               }`}
             >
-              <Cloud className="w-6 h-6" />
+              <StorageHeaderIcon className="w-6 h-6" />
             </div>
             <div>
               <h3 className="font-bold text-base text-slate-800 flex items-center gap-2">
-                Kiểm Tra Ảnh Đã Lên Cloudflare R2
+                Kiểm Tra Ảnh Đã Lưu Trữ
                 {unsyncedCount > 0 ? (
                   <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800">
                     Thiếu {unsyncedCount} ảnh
@@ -228,7 +235,7 @@ export const CloudPhotoSyncModal: React.FC<CloudPhotoSyncModalProps> = ({
                 )}
               </h3>
               <p className="text-xs text-slate-500 mt-0.5">
-                Mã thửa: <span className="font-mono font-bold text-slate-700">{parcelCode}</span> • Giúp bạn biết chính xác ảnh nào chưa lên Cloud và vị trí ở bước nào
+                Mã thửa: <span className="font-mono font-bold text-slate-700">{parcelCode}</span> • Nơi lưu: <span className="font-semibold text-slate-700">{storageInfo.providerLabel}</span>
               </p>
             </div>
           </div>
@@ -243,7 +250,7 @@ export const CloudPhotoSyncModal: React.FC<CloudPhotoSyncModalProps> = ({
         {/* Progress Bar & Summary Banner */}
         <div className="px-4 sm:px-5 py-3 border-b border-slate-100 bg-white space-y-2">
           <div className="flex items-center justify-between text-xs font-medium text-slate-600">
-            <span>Tiến độ tải ảnh lên Cloudflare R2:</span>
+            <span>Tiến độ lưu ảnh ({storageInfo.providerLabel}):</span>
             <span className="font-bold font-mono">
               {syncedCount}/{total} ảnh ({percent}%)
             </span>
@@ -265,9 +272,9 @@ export const CloudPhotoSyncModal: React.FC<CloudPhotoSyncModalProps> = ({
             <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2.5 text-amber-800 text-xs mt-2">
               <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
               <div>
-                <p className="font-bold text-amber-900">CHƯA THỂ NỘP HỒ SƠ DO CÒN ẢNH CHƯA LÊN CLOUD</p>
+                <p className="font-bold text-amber-900">CHƯA THỂ NỘP HỒ SƠ DO CÒN ẢNH CHƯA ĐỒNG BỘ</p>
                 <p className="mt-0.5 leading-relaxed text-amber-800">
-                  Hệ thống phát hiện <strong>{unsyncedCount} ảnh</strong> mới chỉ lưu tạm trên thiết bị (chưa lên Cloudflare R2). Hãy bấm <strong>"Tải lại ảnh này"</strong> hoặc bấm <strong>"Đi tới bước này"</strong> để kiểm tra lại ảnh trước khi nộp.
+                  Hệ thống phát hiện <strong>{unsyncedCount} ảnh</strong> mới chỉ lưu tạm trên thiết bị (chưa lưu vào {storageInfo.providerLabel}). Hãy bấm <strong>"Tải lại ảnh này"</strong> hoặc bấm <strong>"Đi tới bước này"</strong> để kiểm tra lại ảnh trước khi nộp.
                 </p>
               </div>
             </div>
@@ -285,7 +292,7 @@ export const CloudPhotoSyncModal: React.FC<CloudPhotoSyncModalProps> = ({
                   : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
               }`}
             >
-              Chưa lên Cloud ({unsyncedCount})
+              {storageInfo.unsyncedText} ({unsyncedCount})
             </button>
             <button
               onClick={() => setActiveTab('SYNCED')}
@@ -295,7 +302,7 @@ export const CloudPhotoSyncModal: React.FC<CloudPhotoSyncModalProps> = ({
                   : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
               }`}
             >
-              Đã lên Cloud ({syncedCount})
+              {storageInfo.isLocal ? 'Đã lưu Local' : 'Đã lên Cloud'} ({syncedCount})
             </button>
             <button
               onClick={() => setActiveTab('ALL')}
@@ -329,9 +336,9 @@ export const CloudPhotoSyncModal: React.FC<CloudPhotoSyncModalProps> = ({
               <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-700 font-mono text-xl font-bold flex items-center justify-center mx-auto mb-2">
                 ✓
               </div>
-              <p className="font-bold text-sm text-slate-700">Tuyệt vời! Không có ảnh nào chưa lên Cloud</p>
+              <p className="font-bold text-sm text-slate-700">Tuyệt vời! Không có ảnh nào chưa lưu trữ</p>
               <p className="text-xs text-slate-500 mt-1">
-                Tất cả hình ảnh đã được dập watermark và đồng bộ an toàn trên Cloudflare R2.
+                Tất cả hình ảnh đã được dập watermark và đồng bộ an toàn trên {storageInfo.providerLabel}.
               </p>
             </div>
           ) : (
@@ -386,13 +393,13 @@ export const CloudPhotoSyncModal: React.FC<CloudPhotoSyncModalProps> = ({
                           <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-700">
                             <AlertCircle size={12} className="text-amber-600" />
                             {item.isBase64
-                              ? 'Chưa lên Cloud (Lưu tạm Base64 trên máy)'
-                              : 'Chưa lên Cloud (Lưu tạm Offline trên thiết bị)'}
+                              ? `Chưa đồng bộ (Lưu tạm Base64 trên máy)`
+                              : `Chưa đồng bộ (Lưu tạm Offline trên thiết bị)`}
                           </span>
                         ) : (
                           <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700">
                             <ShieldCheck size={12} className="text-emerald-600" />
-                            Đã lưu Cloudflare R2 an toàn
+                            {storageInfo.syncedText}
                           </span>
                         )}
                       </div>
@@ -445,7 +452,7 @@ export const CloudPhotoSyncModal: React.FC<CloudPhotoSyncModalProps> = ({
               onClick={onProceedSubmitAnyway}
               className="border-red-200 text-red-700 hover:bg-red-50 text-xs font-semibold"
             >
-              Vẫn nộp ngay (Bỏ qua ảnh chưa lên Cloud)
+              Vẫn nộp ngay (Bỏ qua ảnh chưa đồng bộ)
             </Button>
           )}
         </div>

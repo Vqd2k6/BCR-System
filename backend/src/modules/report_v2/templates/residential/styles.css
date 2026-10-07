@@ -1,0 +1,1551 @@
+/**
+ * ============================================================================
+ * STYLES FOR REPORT V2 (METRO 2 BUILDING CONDITION SURVEY - PHASE 1)
+ * Chuẩn in ấn CSS Paged Media A4 Portrait (210mm x 297mm)
+ * Phong cách màu sáng (Light Theme), thanh lịch, chuẩn Liên danh CRLG - CRSRI - TT
+ * ============================================================================
+ */
+
+@page {
+  size: A4 portrait;
+  margin: 18mm 15mm 18mm 15mm;
+}
+
+@page landscape-section {
+  size: A4 landscape;
+  margin: 15mm 15mm 15mm 15mm;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: Arial, "Helvetica Neue", Helvetica, sans-serif;
+  font-size: 12pt;
+  line-height: 1.45;
+  color: #0f172a;
+  background-color: transparent;
+  margin: 0;
+  padding: 0;
+}
+
+/* ==========================================================================
+   CHẾ ĐỘ XEM TRƯỚC MÀN HÌNH (SCREEN PREVIEW - TỪNG TỜ GIẤY IN A4 RỜI)
+   Nền xám sáng nhẹ (#f1f5f9), từng trang A4 là tờ giấy độc lập chuẩn Adobe Reader
+   ========================================================================== */
+@media screen {
+  html {
+    background-color: #f1f5f9;
+    padding: 50px 0 30px 0;
+    min-height: 100%;
+  }
+
+  body {
+    background-color: transparent;
+    margin: 0;
+    padding: 0;
+  }
+
+  .a4-page-sheet {
+    width: 210mm;
+    min-height: 297mm;
+    margin: 0 auto 28px auto;
+    padding: 18mm 15mm 18mm 15mm;
+    background-color: #ffffff;
+    box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.08), 0 2px 6px -1px rgba(0, 0, 0, 0.04);
+    border: 1px solid #cbd5e1;
+    border-radius: 2px;
+    box-sizing: border-box;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+  }
+}
+
+/* ==========================================================================
+   CHẾ ĐỘ IN ẤN VÀ XUẤT PDF (PRINT MEDIA - KHÔNG MARGIN NGOÀI, NGẮT TRANG CHUẨN)
+   ========================================================================== */
+@media print {
+  html, body {
+    background: transparent !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  .a4-page-sheet {
+    width: 100% !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    page-break-after: always !important;
+    break-after: page !important;
+  }
+}
+
+/* ==========================================================================
+   DÒNG SUBPAGE TOPBAR CHO CÁC TRANG SAU TRANG BÌA (PAGES 2..END)
+   ========================================================================== */
+.report-subpage-topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 7pt;
+  color: #64748b;
+  border-bottom: 1px solid #e2e8f0;
+  padding-bottom: 3px;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+/* ==========================================================================
+   CÁC LỚP BỐ CỤC THÍCH ỨNG THEO MA TRẬN KỊCH BẢN (N CHẬP K)
+   ========================================================================== */
+/* Khung thông báo nhà ống liền kề giáp ranh hai bên (không có mặt thoáng P-03) */
+.party-wall-notice {
+  margin: 6px 0 10px 0;
+  padding: 8px 12px;
+  background-color: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-left: 4px solid #0284c7;
+  border-radius: 3px;
+  font-size: 8pt;
+  color: #334155;
+  line-height: 1.4;
+}
+
+.party-wall-notice strong {
+  color: #0f172a;
+}
+
+/* Sơ đồ CAD mở rộng toàn chiều ngang khi không có CAD kết cấu riêng */
+.cad-map-container.full-width {
+  border: 1px solid #94a3b8;
+  padding: 8px;
+  background-color: #ffffff;
+  margin: 6px 0 10px 0;
+  text-align: center;
+}
+
+.cad-map-container.full-width img {
+  max-width: 100%;
+  max-height: 480px;
+  object-fit: contain;
+  display: block;
+  margin: 0 auto;
+}
+
+/* Banner xác nhận kết cấu nguyên vẹn, không có vết nứt (Grade 0) */
+.zero-defects-banner {
+  margin: 8px 0 12px 0;
+  padding: 10px 14px;
+  background-color: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-left: 4px solid #16a34a;
+  border-radius: 4px;
+  color: #166534;
+  font-size: 8.5pt;
+  line-height: 1.45;
+}
+
+.zero-defects-banner strong {
+  color: #14532d;
+}
+    page-break-after: always;
+    break-after: page;
+  }
+
+  .a4-page-sheet:last-child {
+    page-break-after: avoid;
+    break-after: avoid;
+  }
+}
+
+/* Utilities ngắt trang */
+.page-break {
+  page-break-before: always;
+  break-before: page;
+}
+
+.avoid-break {
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
+
+/* ==========================================================================
+   HEADER BÁO CÁO 3 CỘT (REPORT RUNNING HEADER CHUẨN ĐẦU MỖI TRANG)
+   Cột 1: Logo THACO REC | Cột 2: Tuyến Metro 2 & BCS | Cột 3: Doc No, Date, Page
+   ========================================================================== */
+.report-running-header {
+  width: 100%;
+  border-collapse: collapse;
+  border: 1px solid #cbd5e1;
+  margin-bottom: 10px;
+  background-color: #ffffff;
+}
+
+.report-running-header td {
+  border: 1px solid #cbd5e1;
+  padding: 3px 6px;
+  vertical-align: middle;
+}
+
+.report-running-header .col-logo {
+  width: 130px;
+  text-align: center;
+  padding: 3px;
+}
+
+.report-running-header .col-logo img {
+  max-width: 120px;
+  max-height: 38px;
+  object-fit: contain;
+  display: block;
+  margin: 0 auto;
+}
+
+.report-running-header .col-title {
+  text-align: center;
+  font-family: Arial, "Helvetica Neue", sans-serif;
+}
+
+.report-running-header .col-title .main-title {
+  font-size: 8pt;
+  font-weight: bold;
+  color: #000000;
+  line-height: 1.25;
+}
+
+.report-running-header .col-title .sub-title {
+  font-size: 8pt;
+  font-weight: bold;
+  color: #000000;
+  margin-top: 1px;
+}
+
+.report-running-header .col-title .doc-kind {
+  font-size: 8.5pt;
+  font-weight: bold;
+  color: #000000;
+  margin-top: 2px;
+}
+
+.report-running-header .col-meta {
+  width: 165px;
+  font-size: 7.5pt;
+  line-height: 1.35;
+  color: #000000;
+  font-family: Arial, "Helvetica Neue", sans-serif;
+}
+
+/* ==========================================================================
+   KHUNG BÌA BÁO CÁO (COVER PAGE BORDER FRAME)
+   ========================================================================== */
+.cover-page-border {
+  border: 1.5px solid #0f3b6c;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  flex-grow: 1;
+  box-sizing: border-box;
+  text-align: center;
+}
+
+.cover-project-box {
+  border-bottom: 1px solid #cbd5e1;
+  padding-bottom: 8px;
+  text-align: left;
+}
+
+.cover-doc-title-box {
+  margin: 12px 0 8px 0;
+}
+
+.cover-doc-title-box h1 {
+  font-size: 14pt;
+  font-weight: bold;
+  color: #0f3b6c;
+  margin: 0 0 4px 0;
+  line-height: 1.25;
+}
+
+.cover-doc-title-box h2 {
+  font-size: 12pt;
+  font-weight: bold;
+  color: #1e293b;
+  margin: 0 0 6px 0;
+  line-height: 1.25;
+}
+
+.cover-id-badge {
+  display: inline-block;
+  font-size: 8.5pt;
+  font-weight: bold;
+  color: #0f3b6c;
+  padding: 3px 10px;
+  border: 1px solid #bfdbfe;
+  background-color: #eff6ff;
+  border-radius: 4px;
+  margin: 4px 0 10px 0;
+}
+
+/* Khung ảnh mặt tiền trung tâm trang bìa */
+.cover-facade-section {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin: 10px auto 14px auto;
+  text-align: center;
+}
+
+.cover-facade-wrapper {
+  position: relative;
+  display: inline-block;
+  margin: 0 auto;
+  line-height: 0;
+  border: 1px solid #64748b;
+  border-radius: 3px;
+  overflow: hidden;
+  box-shadow: none !important;
+  background-color: #0b0f19;
+}
+
+.cover-facade-photo {
+  max-width: 360px;
+  max-height: 275px;
+  width: auto;
+  height: auto;
+  object-fit: contain !important;
+  display: block;
+  margin: 0 auto;
+}
+
+.cover-address-section {
+  border-top: 1px solid #000000;
+  border-bottom: 1px solid #000000;
+  padding: 6px 4px;
+  font-size: 10pt;
+  font-weight: bold;
+  line-height: 1.35;
+  text-align: center;
+}
+
+.cover-time-section {
+  padding: 6px 4px;
+  font-size: 10pt;
+  font-weight: bold;
+  text-align: center;
+}
+
+/* ==========================================================================
+   BẢNG KÝ DUYỆT 3 BÊN (APPROVAL TABLE TRANG BÌA)
+   ========================================================================== */
+table.signature-table {
+  width: 100%;
+  border-collapse: collapse;
+  border: 1px solid #cbd5e1;
+  margin-top: 6px;
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
+
+table.signature-table th {
+  background-color: #f8fafc;
+  color: #0f3b6c;
+  padding: 5px 4px;
+  font-size: 9.5pt;
+  font-weight: bold;
+  text-transform: uppercase;
+  border: 1px solid #cbd5e1;
+  text-align: center;
+  width: 33.33%;
+}
+
+table.signature-table td {
+  border: 1px solid #cbd5e1;
+  padding: 6px 8px;
+  text-align: center;
+  vertical-align: top;
+  width: 33.33%;
+  font-size: 9.5pt;
+}
+
+.signature-box {
+  height: 65px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 4px 0;
+}
+
+.signature-box img {
+  max-height: 60px;
+  max-width: 130px;
+  object-fit: contain;
+}
+
+/* ==========================================================================
+   MỤC LỤC BÁO CÁO (TABLE OF CONTENTS)
+   ========================================================================== */
+.toc-container {
+  width: 100%;
+  margin-top: 8px;
+}
+
+.toc-title {
+  text-align: center;
+  font-size: 13pt;
+  font-weight: bold;
+  color: #0f3b6c;
+  margin: 0 0 14px 0;
+}
+
+.toc-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.toc-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  padding: 4px 0;
+  font-size: 8.5pt;
+  font-weight: bold;
+  color: #1e293b;
+  border-bottom: 1px dotted #cbd5e1;
+}
+
+.toc-item.appendix {
+  color: #0f3b6c;
+}
+
+.toc-item.sub {
+  padding-left: 20px;
+  font-weight: normal;
+  color: #334155;
+}
+
+/* ==========================================================================
+   BẢNG BIỂU KỸ THUẬT (TECHNICAL TABLES)
+   ========================================================================== */
+h2.chapter-header {
+  font-size: 12pt;
+  font-weight: bold;
+  color: #0f3b6c;
+  border-bottom: 2px solid #0f3b6c;
+  padding-bottom: 3px;
+  margin: 10px 0 6px 0;
+  text-transform: uppercase;
+  page-break-after: avoid;
+  break-after: avoid;
+}
+
+h3.section-header {
+  font-size: 10.5pt;
+  font-weight: bold;
+  color: #0f3b6c;
+  margin: 8px 0 4px 0;
+  page-break-after: avoid;
+  break-after: avoid;
+}
+
+table.tech-table {
+  width: 100%;
+  border-collapse: collapse;
+  border: 1px solid #cbd5e1;
+  margin-bottom: 8px;
+  font-size: 9.5pt;
+  page-break-inside: auto;
+}
+
+table.tech-table tr {
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
+
+table.tech-table th {
+  background-color: #f8fafc;
+  color: #0f3b6c;
+  font-weight: bold;
+  font-size: 9pt;
+  text-align: left;
+  padding: 4px 6px;
+  border: 1px solid #cbd5e1;
+  vertical-align: middle;
+}
+
+table.tech-table td {
+  padding: 4px 6px;
+  border: 1px solid #cbd5e1;
+  vertical-align: top;
+  color: #1e293b;
+  font-size: 9.5pt;
+}
+
+table.tech-table td.label-col {
+  width: 28%;
+  background-color: #f8fafc;
+  font-weight: 600;
+  color: #334155;
+  font-size: 9.5pt;
+}
+
+table.tech-table td.val-col {
+  width: 72%;
+  font-size: 9.5pt;
+}
+
+.text-muted {
+  color: #64748b;
+  font-size: 7.5pt;
+  display: block;
+}
+
+.font-bold {
+  font-weight: bold;
+}
+
+.text-center {
+  text-align: center;
+}
+
+/* Huy hiệu Burland */
+.badge-grade-0 { background: transparent; color: #166534; border: 1px solid #166534; padding: 1.5px 5px; border-radius: 3px; font-weight: bold; }
+.badge-grade-1 { background: transparent; color: #0284c7; border: 1px solid #0284c7; padding: 1.5px 5px; border-radius: 3px; font-weight: bold; }
+.badge-grade-2 { background: transparent; color: #d97706; border: 1px solid #d97706; padding: 1.5px 5px; border-radius: 3px; font-weight: bold; }
+.badge-grade-3 { background: transparent; color: #ea580c; border: 1px solid #ea580c; padding: 1.5px 5px; border-radius: 3px; font-weight: bold; }
+.badge-grade-4 { background: transparent; color: #ea580c; border: 1px solid #ea580c; padding: 1.5px 5px; border-radius: 3px; font-weight: bold; }
+
+/* ==========================================================================
+   PHỤ LỤC 1 & 2: HÌNH ẢNH HIỆN TRƯỜNG & SƠ ĐỒ CAD
+   ========================================================================== */
+.photo-grid-exterior {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px 14px;
+  margin: 8px 0;
+}
+
+.photo-card {
+  border: 1px solid #94a3b8;
+  border-radius: 3px;
+  overflow: hidden;
+  background-color: #ffffff;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  page-break-inside: avoid;
+  break-inside: avoid;
+  position: relative;
+}
+
+.photo-card-img-wrapper {
+  position: relative;
+  width: 100%;
+  height: 240px;
+  background-color: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.photo-card-img-wrapper > img.photo-card-main-img,
+.photo-card-img-wrapper > img:first-child {
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  object-fit: contain !important;
+  display: block;
+  margin: 0 auto;
+}
+
+.photo-placeholder {
+  width: 100%;
+  height: 200px;
+  background-color: #f1f5f9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+  font-size: 8.5pt;
+  text-align: center;
+  padding: 10px;
+}
+
+.photo-caption {
+  padding: 4px 6px;
+  background-color: #f8fafc;
+  font-size: 7.5pt;
+  border-top: 1px solid #cbd5e1;
+  line-height: 1.25;
+}
+
+.photo-caption strong {
+  color: #000000;
+}
+
+/* Cặp Ảnh Đối Chiếu Có Thước Đo Nứt */
+.defect-pair-container {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin: 6px 0 10px 0;
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
+
+.defect-photo-wrapper {
+  position: relative;
+  width: 100%;
+  height: 200px;
+  background-color: #0b0f19;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.defect-pair-img {
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  object-fit: contain !important;
+  display: block;
+  margin: 0 auto;
+}
+
+.cad-map-dual-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin: 6px 0 8px 0;
+  align-items: stretch;
+}
+
+.cad-map-col {
+  display: flex;
+  flex-direction: column;
+}
+
+.cad-map-title {
+  font-size: 8.5pt;
+  font-weight: bold;
+  margin-bottom: 4px;
+  color: #0f3b6c;
+  line-height: 1.25;
+  text-align: center;
+}
+
+.cad-map-pinning-wrapper {
+  position: relative;
+  width: 100%;
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  padding: 4px;
+  box-sizing: border-box;
+  overflow: hidden;
+  min-height: 380px;
+}
+
+.cad-map-tight-box {
+  position: relative;
+  display: inline-block;
+  margin: 0 auto;
+  line-height: 0;
+  max-width: 100%;
+  box-shadow: none;
+}
+
+.cad-map-col-arch .cad-map-image {
+  max-width: 100%;
+  max-height: 440px;
+  width: auto;
+  height: auto;
+  object-fit: contain !important;
+  display: block;
+  margin: 0 auto;
+}
+
+.cad-map-col-struct .cad-map-image {
+  max-width: 100%;
+  max-height: 440px;
+  width: auto;
+  height: auto;
+  object-fit: contain !important;
+  display: block;
+  margin: 0 auto;
+}
+
+.cad-map-image {
+  max-width: 100%;
+  max-height: 440px;
+  width: auto;
+  height: auto;
+  object-fit: contain !important;
+  display: block;
+  margin: 0 auto;
+}
+
+.cad-pin-marker {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.cad-pin-badge {
+  padding: 1px 4px;
+  font-size: 6pt;
+  font-weight: bold;
+  font-family: Arial, sans-serif;
+  border-radius: 2px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+  white-space: nowrap;
+  line-height: 1.1;
+}
+
+.cad-pin-pointer {
+  width: 0;
+  height: 0;
+  border-left: 3px solid transparent;
+  border-right: 3px solid transparent;
+  margin-top: -1px;
+}
+
+.cad-pin-zone .cad-pin-badge {
+  background-color: #1e40af;
+  color: #ffffff;
+  border: 1px solid #ffffff;
+}
+.cad-pin-zone .cad-pin-pointer {
+  border-top: 4px solid #1e40af;
+}
+
+.cad-pin-element .cad-pin-badge {
+  background-color: #047857;
+  color: #ffffff;
+  border: 1px solid #ffffff;
+}
+.cad-pin-element .cad-pin-pointer {
+  border-top: 4px solid #047857;
+}
+
+.cad-pin-defect .cad-pin-badge {
+  background-color: #c2410c;
+  color: #ffffff;
+  border: 1px solid #ffffff;
+}
+.cad-pin-defect .cad-pin-pointer {
+  border-top: 4px solid #c2410c;
+}
+
+.cad-pin-legend {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  padding: 3px 6px;
+  background-color: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  border-top: none;
+  font-size: 7pt;
+  color: #334155;
+}
+
+.legend-title {
+  font-weight: bold;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.legend-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+.dot-zone { background-color: #1e40af; }
+.dot-element { background-color: #047857; }
+.dot-defect { background-color: #c2410c; }
+
+/* Smart Legal Watermark Overlay - Chuẩn Liên danh CRLG - CRSRI - TT (Metro 2) */
+img.watermark-logo-top-right,
+.watermark-logo-top-right {
+  position: absolute !important;
+  top: 6px !important;
+  right: 6px !important;
+  height: 22px !important;
+  max-height: 22px !important;
+  width: auto !important;
+  max-width: 120px !important;
+  display: block !important;
+  z-index: 15 !important;
+  pointer-events: none !important;
+  background: transparent !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  border: none !important;
+  box-shadow: none !important;
+  filter: drop-shadow(0 1px 2px rgba(255, 255, 255, 0.45)) !important;
+  object-fit: contain !important;
+}
+
+img.watermark-logo-sm,
+.watermark-logo-sm {
+  top: 5px !important;
+  right: 5px !important;
+  height: 18px !important;
+  max-height: 18px !important;
+  max-width: 95px !important;
+  padding: 0 !important;
+}
+
+.watermark-text-bottom-right {
+  position: absolute !important;
+  bottom: 6px !important;
+  right: 6px !important;
+  text-align: right !important;
+  color: #ffffff !important;
+  font-family: Arial, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif !important;
+  pointer-events: none !important;
+  z-index: 15 !important;
+  background: transparent !important;
+  padding: 0 !important;
+  box-shadow: none !important;
+  filter: none !important;
+  line-height: 1.25 !important;
+  letter-spacing: 0.2px !important;
+  /* Viền đen chống chìm chữ trên nền giấy trắng/bản vẽ/phiếu khảo sát */
+  text-shadow:
+    -1.2px -1.2px 0 #000000,
+     1.2px -1.2px 0 #000000,
+    -1.2px  1.2px 0 #000000,
+     1.2px  1.2px 0 #000000,
+     0 1.5px 3px rgba(0, 0, 0, 0.9) !important;
+  -webkit-text-stroke: 0.5px rgba(0, 0, 0, 0.9) !important;
+}
+
+.watermark-text-sm {
+  bottom: 6px !important;
+  right: 6px !important;
+  padding: 0 !important;
+  font-size: 6.5pt !important;
+  line-height: 1.2 !important;
+}
+
+.watermark-datetime {
+  font-size: 8pt !important;
+  font-weight: 700 !important;
+  color: #ffffff !important;
+  letter-spacing: 0.02em !important;
+}
+
+.watermark-text-sm .watermark-datetime {
+  font-size: 7pt !important;
+}
+
+.watermark-code {
+  font-size: 7.5pt !important;
+  font-weight: 800 !important;
+  color: #ffffff !important;
+  letter-spacing: 0.03em !important;
+}
+
+.watermark-text-sm .watermark-code {
+  font-size: 5.6pt !important;
+  white-space: nowrap !important;
+}
+
+/* Dải nhãn thông số kỹ thuật dưới ảnh nứt */
+.defect-meta-strip {
+  padding: 4px 6px;
+  background-color: #f8fafc;
+  border-top: 1px solid #cbd5e1;
+  font-size: 7pt;
+  line-height: 1.3;
+}
+
+.meta-strip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 2px;
+}
+
+.meta-item {
+  color: #334155;
+}
+
+.meta-strip-notes {
+  color: #475569;
+  font-style: italic;
+  margin-top: 1px;
+}
+
+/* Footer hiển thị số trang */
+.page-number-footer {
+  text-align: center;
+  font-size: 8pt;
+  color: #64748b;
+  margin-top: auto;
+  padding-top: 6px;
+}
+
+/* ==========================================================================
+   LƯỚI ẢNH TỔNG THỂ KHÔNG GIAN CÁC PHÒNG & CẤU KIỆN (CHUẨN 2 CỘT A4)
+   Chuẩn A4: 2 hàng × 2 cột = tối đa 4 ảnh / trang, tỉ lệ tự nhiên, hộp thông tin sắc nét
+   ========================================================================== */
+.room-overview-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px 14px;
+  margin-top: 6px;
+  margin-bottom: 8px;
+}
+
+.room-photo-card {
+  border: 1px solid #94a3b8;
+  border-radius: 3px;
+  background-color: #ffffff;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
+
+.room-photo-wrapper {
+  position: relative;
+  width: 100%;
+  height: 240px;
+  background-color: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.element-overview-grid .room-photo-wrapper {
+  height: 240px;
+}
+
+.room-photo-img {
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  object-fit: contain !important;
+  display: block;
+  margin: 0 auto;
+}
+
+.room-photo-meta {
+  padding: 4px 6px;
+  background-color: #f8fafc;
+  border-top: 1px solid #cbd5e1;
+  font-size: 7.5pt;
+  line-height: 1.25;
+}
+
+.room-photo-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2px;
+}
+
+.status-badge-normal {
+  display: inline-block;
+  background-color: transparent;
+  border: 1px solid #15803d;
+  color: #15803d;
+  font-weight: bold;
+  font-size: 6.5pt;
+  padding: 1px 4px;
+  border-radius: 2px;
+}
+
+.status-badge-defect {
+  display: inline-block;
+  background-color: transparent;
+  border: 1px solid #ea580c;
+  color: #ea580c;
+  font-weight: bold;
+  font-size: 6.5pt;
+  padding: 1px 4px;
+  border-radius: 2px;
+}
+
+/* Khung ảnh đối chiếu khi khuyết tật có ảnh cận cảnh thứ 2: Tối đa 2 cột */
+.defect-trio-container {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr) !important;
+  gap: 10px 14px;
+  margin: 6px 0 10px 0;
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
+
+/* Ảnh minh chứng đo nghiêng & lún trong Chương V */
+.deformation-proof-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 8px;
+  margin-bottom: 8px;
+}
+
+.deformation-proof-card {
+  border: 1px solid #94a3b8;
+  border-radius: 3px;
+  overflow: hidden;
+  background: #ffffff;
+}
+
+.deformation-proof-img-wrapper {
+  position: relative;
+  width: 100%;
+  height: 140px;
+  background-color: #f8fafc;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.deformation-proof-img {
+  max-width: 100%;
+  max-height: 140px;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  display: block;
+  margin: 0 auto;
+}
+
+.deformation-proof-caption {
+  padding: 4px 6px;
+  background-color: #f8fafc;
+  font-size: 7.5pt;
+  border-top: 1px solid #cbd5e1;
+}
+
+/* ==========================================================================
+   MỤC VI: DASHBOARD 4 NHÓM KHUYẾT TẬT & MA TRẬN PHÂN BỐ TẦNG
+   ========================================================================== */
+.defect-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  margin: 6px 0;
+}
+
+.defect-kpi-card {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  border-radius: 3px;
+  padding: 4px 6px;
+  text-align: center;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+
+.defect-kpi-card.structural {
+  border-top: 2.5px solid #ea580c;
+  background-color: #ffffff;
+}
+
+.defect-kpi-card.masonry {
+  border-top: 2.5px solid #d97706;
+  background-color: #ffffff;
+}
+
+.defect-kpi-card.moisture {
+  border-top: 2.5px solid #0284c7;
+  background-color: #ffffff;
+}
+
+.defect-kpi-card.spalling {
+  border-top: 2.5px solid #64748b;
+  background-color: #ffffff;
+}
+
+.defect-kpi-count {
+  font-size: 13pt;
+  font-weight: bold;
+  line-height: 1.1;
+  margin-bottom: 1px;
+}
+
+.defect-kpi-card.structural .defect-kpi-count { color: #ea580c; }
+.defect-kpi-card.masonry .defect-kpi-count { color: #b45309; }
+.defect-kpi-card.moisture .defect-kpi-count { color: #0369a1; }
+.defect-kpi-card.spalling .defect-kpi-count { color: #334155; }
+
+.defect-kpi-label {
+  font-size: 6.8pt;
+  font-weight: 600;
+  color: #1e293b;
+  line-height: 1.15;
+}
+
+.defect-summary-banner {
+  background-color: #f8fafc;
+  border: 1px solid #cbd5e1;
+  border-radius: 3px;
+  padding: 4px 8px;
+  margin-bottom: 6px;
+  font-size: 7.5pt;
+  line-height: 1.35;
+  color: #1e293b;
+}
+
+/* ==========================================================================
+   MỤC VII: BỐ CỤC 2 CỘT CHO BẢNG BURLAND VÀ MA TRẬN PHÂN BỔ
+   ========================================================================== */
+.burland-duo-container {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+  margin-bottom: 8px;
+  align-items: stretch;
+}
+
+.burland-col-left {
+  flex: 0 0 60%;
+}
+
+.burland-col-right {
+  flex: 0 0 38%;
+}
+
+.loss-adjuster-card {
+  background-color: transparent;
+  border: 1px solid #cbd5e1;
+  border-radius: 3px;
+  padding: 6px 10px;
+  font-size: 8.5pt;
+  line-height: 1.35;
+  color: #1e293b;
+}
+
+.loss-adjuster-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3px 12px;
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.loss-adjuster-item {
+  font-size: 8pt;
+}
+
+.loss-adjuster-item strong {
+  color: #0f172a;
+}
+
+/* Bảng kỹ thuật định dạng gọn gàng chống tràn trang */
+table.tech-table.compact-table {
+  font-size: 8.5pt;
+  margin-bottom: 4px;
+}
+
+table.tech-table.compact-table td {
+  padding: 2.5px 5px;
+  line-height: 1.25;
+}
+
+table.tech-table.compact-table th {
+  padding: 3px 5px;
+  line-height: 1.25;
+}
+
+table.tech-table.compact-table td .text-muted {
+  font-size: 7.5pt;
+  line-height: 1.15;
+  display: block;
+}
+
+/* ==========================================================================
+   MỤC VIII: BRA MATRIX VÀ SUMMARY CARD (BASELINE RISK ASSESSMENT)
+   ========================================================================== */
+table.tech-table.bra-matrix-table th {
+  text-align: center;
+  background-color: #f8fafc;
+  color: #0f3b6c;
+  border: 1px solid #cbd5e1;
+}
+
+table.tech-table.bra-matrix-table td {
+  vertical-align: middle;
+  border: 1px solid #cbd5e1;
+  background-color: #ffffff;
+}
+
+/* DUY NHẤT ô giao điểm hiện tại được highlight theo màu ngữ nghĩa cấp độ rủi ro */
+table.tech-table.bra-matrix-table td.highlight-cell {
+  font-weight: bold;
+}
+
+table.tech-table.bra-matrix-table td.highlight-cell.risk-low {
+  background-color: #ffffff !important;
+  border: 2px solid #16a34a !important;
+  color: #166534 !important;
+}
+
+table.tech-table.bra-matrix-table td.highlight-cell.risk-medium {
+  background-color: #ffffff !important;
+  border: 2px solid #d97706 !important;
+  color: #b45309 !important;
+}
+
+table.tech-table.bra-matrix-table td.highlight-cell.risk-high {
+  background-color: #ffffff !important;
+  border: 2px solid #ea580c !important;
+  color: #ea580c !important;
+}
+
+table.tech-table.bra-matrix-table td.highlight-cell.risk-very-high {
+  background-color: #ffffff !important;
+  border: 2px solid #ea580c !important;
+  color: #ea580c !important;
+}
+
+/* Khung tóm tắt kết luận BRA: Không tô nền, viền xám thanh lịch */
+.bra-summary-card {
+  background-color: transparent;
+  border: 1px solid #cbd5e1;
+  border-radius: 3px;
+  padding: 6px 10px;
+  font-size: 8.5pt;
+  line-height: 1.35;
+  color: #1e293b;
+  margin-top: 4px;
+}
+
+/* ==========================================================================
+   BẢNG TỔNG KẾT ĐÁNH GIÁ ECS VÀ VI (SUMMARY BLOCKS CHAPTER VIII)
+   ========================================================================== */
+table.tech-table.ecs-summary-table,
+table.tech-table.vi-summary-table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+table.tech-table.ecs-summary-table td,
+table.tech-table.vi-summary-table td {
+  padding: 3px 6px;
+  line-height: 1.3;
+  font-size: 8.5pt;
+  border: 1px solid #cbd5e1;
+  background-color: #ffffff;
+  color: #1e293b;
+  vertical-align: middle;
+}
+
+.summary-label {
+  font-weight: bold;
+  color: #0f3b6c;
+  margin-right: 4px;
+}
+
+.summary-choice-group {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.summary-choice-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  color: #64748b;
+}
+
+.summary-choice-item.active {
+  font-weight: bold;
+  color: #0f3b6c;
+}
+
+/* Nhãn trạng thái phân cấp (Risk Badges): Không tô màu nền, chỉ tô khung và chữ */
+.risk-badge {
+  display: inline-block;
+  padding: 1.5px 6px;
+  border-radius: 3px;
+  font-weight: bold;
+  font-size: 7.2pt;
+  line-height: 1.25;
+  background-color: transparent;
+}
+
+.risk-badge.risk-low {
+  background-color: transparent;
+  border: 1px solid #16a34a;
+  color: #166534;
+}
+
+.risk-badge.risk-medium {
+  background-color: transparent;
+  border: 1px solid #d97706;
+  color: #b45309;
+}
+
+.risk-badge.risk-high {
+  background-color: transparent;
+  border: 1px solid #ea580c;
+  color: #ea580c;
+}
+
+.risk-badge.risk-very-high {
+  background-color: transparent;
+  border: 1px solid #ea580c;
+  color: #ea580c;
+}
+
+
+
+/* ==========================================================================
+   KHUNG ẢNH TỰ CO THEO TỈ LỆ GỐC (PHOTO STAGE)
+   - Khung bám sát ảnh thật, không dải đen, không crop.
+   - Watermark nằm TRONG khung nên luôn đè trên vùng ảnh thật.
+   - Ảnh cần xoay (Z/D ngang, E dọc) xoay bằng CSS (không nén lại ảnh gốc).
+   ========================================================================== */
+.photo-wrapper-fit {
+  height: 240px;
+  min-height: 240px;
+  background-color: #f8fafc !important;
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.photo-card-img-wrapper,
+.room-photo-wrapper {
+  height: 240px;
+  background-color: #ffffff !important;
+  border-bottom: 1px solid #f1f5f9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.defect-photo-wrapper {
+  height: 200px;
+  background-color: #ffffff !important;
+  border-bottom: 1px solid #f1f5f9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Ghim vị trí khuyết tật D trên ảnh bối cảnh Vùng Z (chấm từ DefectPinningCanvas) */
+.photo-defect-pin {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  z-index: 15;
+  pointer-events: none;
+}
+
+.photo-defect-pin-badge {
+  font-size: 7.5pt;
+  font-weight: 800;
+  font-family: 'SF Pro Text', -apple-system, BlinkMacSystemFont, monospace;
+  padding: 1.5px 5px;
+  border-radius: 3px;
+  background-color: #ef4444;
+  color: #ffffff;
+  border: 1.5px solid #ffffff;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.45);
+  white-space: nowrap;
+  line-height: 1.2;
+}
+
+.photo-defect-pin-pointer {
+  width: 0;
+  height: 0;
+  border-left: 4.5px solid transparent;
+  border-right: 4.5px solid transparent;
+  border-top: 5.5px solid #ef4444;
+  margin-top: -1px;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
+}
+
+.photo-defect-pin-target {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 2px solid #ef4444;
+  box-shadow: 0 0 0 1.5px rgba(0, 0, 0, 0.35);
+  margin-top: 1px;
+}
+
+/* Ảnh chiều dọc: Cho phép chiều cao lớn hơn (315px) để khớp kích thước và triệt tiêu khoảng trắng thừa */
+.photo-card-img-wrapper.is-portrait,
+.room-photo-wrapper.is-portrait,
+.photo-wrapper-fit.is-portrait {
+  height: 315px !important;
+  min-height: 315px !important;
+}
+
+.defect-photo-wrapper.is-portrait {
+  height: 230px !important;
+  min-height: 230px !important;
+}
+
+.signed-record-img-wrapper {
+  height: auto !important;
+  min-height: 0 !important;
+  background-color: transparent !important;
+  border-bottom: none !important;
+}
+
+.photo-stage {
+  position: relative;
+  display: inline-flex;
+  max-width: 100%;
+  max-height: 100%;
+  line-height: 0;
+  margin: 0 auto;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background-color: transparent;
+}
+
+.photo-stage > img.photo-main {
+  position: relative;
+  max-width: 100% !important;
+  max-height: 100% !important;
+  width: auto !important;
+  height: auto !important;
+  object-fit: contain !important;
+  margin: 0 auto !important;
+  display: block;
+  z-index: 1;
+}
+
+/* Watermark trong suốt hoàn toàn: không lớp nền/gradient trên ảnh */
+.photo-stage.has-watermark::after { content: none; }
+
+/* Lưới ảnh cấu kiện E: 2 cột chuẩn A4 (tối đa 2 ảnh/hàng) */
+.element-overview-grid {
+  grid-template-columns: repeat(2, 1fr) !important;
+  grid-template-rows: none;
+  align-items: start;
+}
+.room-overview-grid { align-items: start; }
+.room-photo-header { flex-wrap: wrap; gap: 3px; }
+.element-overview-grid .room-photo-meta { font-size: 7.5pt; }
+
+/* Ẩn toàn bộ watermark khi tắt tính năng (chỉ áp dụng cho ảnh chụp của Admin) */
+body.no-watermark:not(.guest-watermark-mode) .watermark-logo-top-right,
+body.no-watermark:not(.guest-watermark-mode) .watermark-text-bottom-right,
+body.no-watermark:not(.guest-watermark-mode) .watermark-logo-overlay,
+body.no-watermark:not(.guest-watermark-mode) .watermark-layer,
+body.no-watermark:not(.guest-watermark-mode) [class*="watermark"]:not(.guest-watermark-shield) {
+  display: none !important;
+}
+
+/* ==========================================================================
+   WATERMARK BẢO MẬT TOÀN BỘ TRANG A4 DÀNH RIÊNG CHO TÀI KHOẢN GUEST
+   Tự động phủ con dấu chìm đa tầng nghiêng chéo trên mọi trang của báo cáo
+   ========================================================================== */
+body.guest-watermark-mode .a4-page-sheet {
+  position: relative;
+}
+
+body.guest-watermark-mode .a4-page-sheet::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 999;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='500' height='380' viewBox='0 0 500 380'><g transform='rotate(-32 250 190)'><text x='250' y='140' text-anchor='middle' font-family='Arial, sans-serif' font-weight='900' font-size='22' fill='rgba(2,132,199,0.13)' letter-spacing='2'>BẢN XEM TRƯỚC - GUEST ONLY</text><text x='250' y='175' text-anchor='middle' font-family='Arial, sans-serif' font-weight='bold' font-size='14' fill='rgba(15,23,42,0.10)' letter-spacing='1'>LIÊN DANH CRLG – CRSRI – TT</text><text x='250' y='200' text-anchor='middle' font-family='Arial, sans-serif' font-weight='600' font-size='11' fill='rgba(100,116,139,0.09)'>TUYẾN METRO 2 • BẢN DỰ THẢO KHÔNG DÙNG NGHIỆM THU</text></g></svg>");
+  background-repeat: repeat;
+  background-position: center center;
+}
+
+/* Khối ghi chú kiểm tra lấp chỗ trống cuối mục */
+.review-note-card {
+  grid-column: span 1;
+  border: 1px dashed #94a3b8;
+  border-radius: 3px;
+  padding: 6px 10px 8px;
+  min-height: 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background-color: #f8fafc;
+  page-break-inside: avoid;
+  break-inside: avoid;
+}
+.review-note-card:only-child,
+.room-overview-grid > .review-note-card:nth-child(2n + 1):last-child {
+  grid-column: 1 / -1;
+  min-height: 96px;
+}
+.review-note-title { font-weight: bold; font-size: 8.5pt; color: #0f3b6c; }
+.review-note-lines {
+  flex: 1;
+  min-height: 40px;
+  background-image: repeating-linear-gradient(to bottom, transparent 0, transparent 17px, #cbd5e1 17px, #cbd5e1 18px);
+}
+.review-note-sign { display: flex; justify-content: space-between; font-size: 8pt; color: #334155; }
+
+/* Footer kiểm soát tài liệu: mã báo cáo | Trang X/Y | TÀI LIỆU KIỂM SOÁT */
+.page-number-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-top: 1px solid #e2e8f0;
+  text-align: left;
+}
+.page-number-footer .pf-ctrl { font-weight: 700; letter-spacing: 0.6px; color: #b91c1c; }
+.page-number-footer .pf-page { font-weight: 600; color: #334155; }
+
+.cover-facade-wrapper::after { content: none; }
+
+@media print {
+  .page-number-footer { display: none !important; }
+  .report-subpage-topbar { display: none !important; }
+}

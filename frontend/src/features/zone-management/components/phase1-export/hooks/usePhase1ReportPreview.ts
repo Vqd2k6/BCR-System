@@ -29,6 +29,8 @@ export const usePhase1ReportPreview = ({
   const [editFormData, setEditFormData] = useState<EditFormData | null>(null);
   const [defectFilterQuery, setDefectFilterQuery] = useState<string>('');
   const [modalFeedback, setModalFeedback] = useState<ModalFeedbackMessage | null>(null);
+  const [reportVersion, setReportVersion] = useState<'v2' | 'v1'>('v2');
+  const [enableWatermark, setEnableWatermark] = useState<boolean>(true);
 
   // Manage Blob URL for HTML preview
   useEffect(() => {
@@ -50,7 +52,8 @@ export const usePhase1ReportPreview = ({
 
   const parcelIdOrFallback = (p: ExportParcelItem) => p.activePhase1ReportId || p.id;
 
-  const handleOpenPreview = async (parcel: ExportParcelItem) => {
+  const handleOpenPreview = async (parcel: ExportParcelItem, versionOverride?: 'v2' | 'v1') => {
+    const ver = versionOverride || reportVersion;
     setPreviewParcel(parcel);
     setIsPreviewLoading(true);
     setPreviewTab('html');
@@ -58,9 +61,13 @@ export const usePhase1ReportPreview = ({
     setPreviewReportData(null);
 
     const reportId = parcel.activePhase1ReportId || parcel.id || parcel.projectParcelCode;
+    const previewEndpoint = ver === 'v2'
+      ? `/v2/reports/${encodeURIComponent(reportId)}/preview/html`
+      : `/reports/${encodeURIComponent(reportId)}/preview/html`;
+
     try {
       const [htmlResResult, dataResResult] = await Promise.allSettled([
-        api.get(`/reports/${encodeURIComponent(reportId)}/preview/html`, {
+        api.get(previewEndpoint, {
           responseType: 'text',
         }),
         api.get(`/reports/${encodeURIComponent(reportId)}`),
@@ -71,7 +78,7 @@ export const usePhase1ReportPreview = ({
         setPreviewHtmlContent(typeof html === 'string' ? html : JSON.stringify(html));
         setPreviewRenderKey((k) => k + 1);
       } else {
-        console.warn('[Preview] Lỗi khi nạp HTML template:', htmlResResult.reason);
+        console.warn(`[Preview] Lỗi khi nạp HTML template (${ver}):`, htmlResResult.reason);
       }
 
       let repData = null;
@@ -96,6 +103,44 @@ export const usePhase1ReportPreview = ({
       setActionMessage({
         type: 'error',
         text: `Không thể nạp HTML xem trước cho lô ${parcel.projectParcelCode}: ${err?.message || 'Lỗi kết nối'}`,
+      });
+    } finally {
+      setIsPreviewLoading(false);
+    }
+  };
+
+  const handleSwitchVersion = async (targetVersion: 'v2' | 'v1') => {
+    setReportVersion(targetVersion);
+    if (!previewParcel) return;
+    const reportId = previewParcel.activePhase1ReportId || parcelIdOrFallback(previewParcel) || previewParcel.projectParcelCode;
+    setIsPreviewLoading(true);
+    try {
+      const endpoint = targetVersion === 'v2'
+        ? `/v2/reports/${encodeURIComponent(reportId)}/preview/html`
+        : `/reports/${encodeURIComponent(reportId)}/preview/html`;
+      
+      let htmlRes;
+      if (hasUnsavedChanges && editFormData) {
+        const payload = buildReportPayload(editFormData, previewReportData);
+        htmlRes = await api.post(endpoint, payload, { responseType: 'text' });
+      } else {
+        htmlRes = await api.get(endpoint, { responseType: 'text' });
+      }
+
+      const html = htmlRes.data;
+      setPreviewHtmlContent(typeof html === 'string' ? html : JSON.stringify(html));
+      setPreviewRenderKey((k) => k + 1);
+      setModalFeedback({
+        type: 'info',
+        text: `Đã chuyển sang mẫu báo cáo: ${targetVersion === 'v2' ? 'Mẫu Mới 0410 Song Ngữ (V2)' : 'Mẫu Cũ (V1)'}`,
+        timestamp: new Date().toLocaleTimeString('vi-VN'),
+      });
+    } catch (err: any) {
+      console.warn(`[Preview] Lỗi khi đổi phiên bản ${targetVersion}:`, err);
+      setModalFeedback({
+        type: 'error',
+        text: `Không thể tải phiên bản ${targetVersion}: ${err?.message || 'Lỗi server'}`,
+        timestamp: new Date().toLocaleTimeString('vi-VN'),
       });
     } finally {
       setIsPreviewLoading(false);
@@ -170,7 +215,11 @@ export const usePhase1ReportPreview = ({
         isNewRevision,
       });
 
-      const htmlRes = await api.get(`/reports/${encodeURIComponent(reportId)}/preview/html`, {
+      const previewEndpoint = reportVersion === 'v2'
+        ? `/v2/reports/${encodeURIComponent(reportId)}/preview/html`
+        : `/reports/${encodeURIComponent(reportId)}/preview/html`;
+
+      const htmlRes = await api.get(previewEndpoint, {
         responseType: 'text',
       });
       setPreviewHtmlContent(typeof htmlRes.data === 'string' ? htmlRes.data : JSON.stringify(htmlRes.data));
@@ -200,7 +249,11 @@ export const usePhase1ReportPreview = ({
     const timeStr = new Date().toLocaleTimeString('vi-VN');
     try {
       const payload = buildReportPayload(editFormData, previewReportData);
-      const htmlRes = await api.post(`/reports/${encodeURIComponent(reportId)}/preview/html`, payload, {
+      const endpoint = reportVersion === 'v2'
+        ? `/v2/reports/${encodeURIComponent(reportId)}/preview/html`
+        : `/reports/${encodeURIComponent(reportId)}/preview/html`;
+
+      const htmlRes = await api.post(endpoint, payload, {
         responseType: 'text',
       });
 
@@ -209,7 +262,7 @@ export const usePhase1ReportPreview = ({
       setPreviewRenderKey((k) => k + 1);
       setPreviewTab('html');
 
-      const successText = `⚡ Đã cập nhật bản in với thông số mới thành công (Lúc ${timeStr})! Bản in A4 đã được làm mới. Dữ liệu trong Database được bảo vệ 100% không đổi.`;
+      const successText = `⚡ Đã cập nhật bản in với thông số mới thành công (Lúc ${timeStr})! Bản in A4 đã được làm mới (${reportVersion === 'v2' ? 'Mẫu Mới 0410' : 'Mẫu Cũ V1'}). Dữ liệu trong Database được bảo vệ 100% không đổi.`;
       setModalFeedback({
         type: 'success',
         text: successText,
@@ -253,7 +306,8 @@ export const usePhase1ReportPreview = ({
       window.open(blobUrl, '_blank');
     } else {
       const activeReportId = previewParcel?.activePhase1ReportId || (previewParcel ? parcelIdOrFallback(previewParcel) : '') || (previewParcel?.projectParcelCode || '');
-      window.open(`/api/v1/reports/${encodeURIComponent(activeReportId)}/preview/html`, '_blank');
+      const prefix = reportVersion === 'v2' ? '/api/v1/v2/reports' : '/api/v1/reports';
+      window.open(`${prefix}/${encodeURIComponent(activeReportId)}/preview/html`, '_blank');
     }
   };
 
@@ -275,6 +329,50 @@ export const usePhase1ReportPreview = ({
       setTimeout(() => {
         printWindow.print();
       }, 500);
+    }
+  };
+
+  const handleToggleWatermark = async (enabled: boolean) => {
+    setEnableWatermark(enabled);
+    if (!previewParcel) return;
+    const reportId = previewParcel.activePhase1ReportId || parcelIdOrFallback(previewParcel) || previewParcel.projectParcelCode;
+    setIsPreviewLoading(true);
+    try {
+      const endpoint = reportVersion === 'v2'
+        ? `/v2/reports/${encodeURIComponent(reportId)}/preview/html`
+        : `/reports/${encodeURIComponent(reportId)}/preview/html`;
+
+      let htmlRes;
+      if (hasUnsavedChanges && editFormData) {
+        const payload = {
+          ...buildReportPayload(editFormData, previewReportData),
+          enableWatermark: enabled,
+        };
+        htmlRes = await api.post(endpoint, payload, {
+          params: { watermark: String(enabled) },
+          responseType: 'text',
+        });
+      } else {
+        htmlRes = await api.get(endpoint, {
+          params: { watermark: String(enabled) },
+          responseType: 'text',
+        });
+      }
+
+      const html = htmlRes.data;
+      setPreviewHtmlContent(typeof html === 'string' ? html : JSON.stringify(html));
+      setPreviewRenderKey((k) => k + 1);
+      setModalFeedback({
+        type: 'info',
+        text: enabled
+          ? 'Đã BẬT tính năng dập con dấu bản quyền THACO/CREC và ngày giờ lên ảnh.'
+          : 'Đã TẮT tính năng nhúng watermark (giữ ảnh nguyên bản, chống trùng lặp con dấu).',
+        timestamp: new Date().toLocaleTimeString('vi-VN'),
+      });
+    } catch (err: any) {
+      console.warn('Lỗi khi đổi trạng thái watermark:', err);
+    } finally {
+      setIsPreviewLoading(false);
     }
   };
 
@@ -312,21 +410,35 @@ export const usePhase1ReportPreview = ({
     }
   };
 
-  const handleExportSinglePdf = async (parcel: ExportParcelItem, overrides?: any) => {
+  const handleExportSinglePdf = async (parcel: ExportParcelItem, overrides?: any, versionOverride?: 'v2' | 'v1') => {
+    const ver = versionOverride || reportVersion;
     const rawId = parcel.activePhase1ReportId || parcel.id || parcel.projectParcelCode;
     const reportId = encodeURIComponent(rawId);
-    setActionMessage({ type: 'info', text: `Đang kết nối backend và tạo tập tin PDF A4 cho lô ${parcel.projectParcelCode}...` });
+    const isV2 = ver === 'v2';
+
+    setActionMessage({
+      type: 'info',
+      text: isV2
+        ? `Đang kết nối backend và tạo PDF Song Ngữ chuẩn 0410 (V2) cho lô ${parcel.projectParcelCode}...`
+        : `Đang kết nối backend và tạo tập tin PDF A4 cho lô ${parcel.projectParcelCode}...`,
+    });
 
     try {
+      const endpoint = isV2
+        ? `/v2/reports/${reportId}/export/pdf`
+        : `/reports/${reportId}/export/pdf`;
+
       const response = overrides
-        ? await api.post(`/reports/${reportId}/export/pdf`, overrides, { responseType: 'blob' })
-        : await api.get(`/reports/${reportId}/export/pdf`, { responseType: 'blob' });
+        ? await api.post(endpoint, { ...overrides, enableWatermark }, { params: { watermark: String(enableWatermark) }, responseType: 'blob' })
+        : await api.get(endpoint, { params: { watermark: String(enableWatermark) }, responseType: 'blob' });
 
       const blob = new Blob([response.data], { type: 'application/pdf' });
       const downloadUrl = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = downloadUrl;
-      link.download = `BaoCao_KhaoSat_Phase1_${parcel.projectParcelCode}.pdf`;
+      link.download = isV2
+        ? `BaoCao_SongNgu_Phase1_V2_${parcel.projectParcelCode}.pdf`
+        : `BaoCao_KhaoSat_Phase1_${parcel.projectParcelCode}.pdf`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -334,7 +446,7 @@ export const usePhase1ReportPreview = ({
 
       setActionMessage({
         type: 'success',
-        text: `Tải xuống thành công Báo cáo PDF A4 cho lô ${parcel.projectParcelCode}!`,
+        text: `Tải xuống thành công Báo cáo PDF ${isV2 ? 'Song Ngữ (Mẫu 0410 V2)' : 'A4 (Mẫu V1)'} cho lô ${parcel.projectParcelCode}!`,
       });
     } catch (err: any) {
       setActionMessage({
@@ -363,6 +475,12 @@ export const usePhase1ReportPreview = ({
     setDefectFilterQuery,
     modalFeedback,
     setModalFeedback,
+    reportVersion,
+    setReportVersion,
+    enableWatermark,
+    setEnableWatermark,
+    handleToggleWatermark,
+    handleSwitchVersion,
     handleOpenPreview,
     handleUpdateFormField,
     handleUpdateDefectField,

@@ -7,7 +7,7 @@
     {{{styles}}}
   </style>
 </head>
-<body>
+<body{{#if isPiiMasked}} class="guest-watermark-mode"{{else if isGuestWatermark}} class="guest-watermark-mode"{{/if}}>
 
   <!-- =====================================================================
        TRANG BÌA (COVER PAGE)

@@ -4,7 +4,7 @@
   "description": "Backend API Service for Metro 2 Building Condition Assessment & Survey Platform",
   "main": "dist/server.js",
   "scripts": {
-    "build": "tsc && mkdir -p dist/modules/report && cp -r src/modules/report/templates dist/modules/report/",
+    "build": "tsc && mkdir -p dist/modules/report dist/modules/report_v2 && cp -r src/modules/report/templates dist/modules/report/ && cp -r src/modules/report_v2/templates dist/modules/report_v2/",
     "start": "node dist/server.js",
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
     "test": "ts-node scripts/test-apis.ts",
@@ -13,7 +13,9 @@
     "migrate:docker-to-supabase": "ts-node src/scripts/migrate_docker_to_supabase.ts",
     "reset:clean-production": "ts-node src/scripts/reset_clean_production.ts",
     "reset:clean-parcels": "ts-node src/scripts/clean_reset_production_preserving_parcels.ts",
-    "deploy:5zones-cloud": "ts-node src/scripts/deploy_5zones_to_cloud.ts"
+    "deploy:5zones-cloud": "ts-node src/scripts/deploy_5zones_to_cloud.ts",
+    "sync:from-cloud": "ts-node src/scripts/sync_from_cloud.ts",
+    "sync:snapshot-only": "ts-node src/scripts/sync_from_cloud.ts --file-only"
   },
   "keywords": [
     "metro2",

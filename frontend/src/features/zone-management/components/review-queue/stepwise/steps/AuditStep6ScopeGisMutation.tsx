@@ -16,7 +16,7 @@ import {
   Ruler,
   Layers,
 } from 'lucide-react';
-import { AdminGisMutationModal } from '../../AdminGisMutationModal';
+import { UnifiedGisMutationModal } from '../../../../../../components/gis/cadastral-editor/UnifiedGisMutationModal';
 import { AdminReassignParcelModal } from '../../AdminReassignParcelModal';
 import { AuditCadastralMutationVisualMap } from '../components/AuditCadastralMutationVisualMap';
 
@@ -589,13 +589,15 @@ export const AuditStep6ScopeGisMutation: React.FC<Props> = ({
 
       {/* Modal Tách/Gộp thửa GIS */}
       {isMutationModalOpen && (
-        <AdminGisMutationModal
+        <UnifiedGisMutationModal
           isOpen={isMutationModalOpen}
+          role="ZONE_ADMIN"
           parcelId={data?.parcelId || formState.parcelId}
           parcelCode={data?.projectParcelCode || formState.projectParcelCode}
           houseNumber={data?.houseNumber || formState.houseNumber}
           street={data?.street || formState.street}
           currentAreaM2={data?.buildingSpecs?.landAreaM2 || formState.landAreaM2}
+          initialZoneId={data?.zoneId || formState.zoneId}
           reportId={reportId || data?.reportId}
           onClose={() => setIsMutationModalOpen(false)}
           onSuccess={(msg: string) => {

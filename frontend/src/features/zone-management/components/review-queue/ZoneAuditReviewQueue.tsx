@@ -29,7 +29,7 @@ import { api } from '../../../../services/api';
 import { AuditStudioModal } from './AuditStudioModal';
 import { RejectReportModal } from './RejectReportModal';
 import { AdminReassignParcelModal } from './AdminReassignParcelModal';
-import { AdminGisMutationModal } from './AdminGisMutationModal';
+import { UnifiedGisMutationModal } from '../../../../components/gis/cadastral-editor/UnifiedGisMutationModal';
 
 export interface PendingSubmissionItem {
   report_id: string | null;
@@ -215,7 +215,7 @@ export const ZoneAuditReviewQueue: React.FC<Props> = ({ selectedZone, onStatsNee
       alert('Hồ sơ này chưa có báo cáo kỹ thuật hoàn chỉnh để xem trước.');
       return;
     }
-    const previewUrl = `/api/v1/reports/${reportId}/preview/html`;
+    const previewUrl = `/api/v1/v2/reports/${reportId}/preview/html`;
     window.open(previewUrl, '_blank', 'noopener,noreferrer');
   };
 
@@ -780,14 +780,15 @@ export const ZoneAuditReviewQueue: React.FC<Props> = ({ selectedZone, onStatsNee
 
       {/* GIS Mutation Modal */}
       {mutationModalData && (
-        <AdminGisMutationModal
+        <UnifiedGisMutationModal
           isOpen={!!mutationModalData}
+          role="ZONE_ADMIN"
           parcelId={mutationModalData.parcelId}
           parcelCode={mutationModalData.parcelCode}
           houseNumber={mutationModalData.houseNumber}
           street={mutationModalData.street}
           currentAreaM2={mutationModalData.currentAreaM2}
-          zoneId={mutationModalData.zoneId}
+          initialZoneId={mutationModalData.zoneId}
           reportId={mutationModalData.reportId}
           onClose={() => setMutationModalData(null)}
           onSuccess={(msg) => showToast(msg)}

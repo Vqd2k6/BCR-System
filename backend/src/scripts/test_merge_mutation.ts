@@ -26,7 +26,9 @@ async function runMergeTest() {
   }>(
     `SELECT id, project_parcel_code, zone_id, land_area_m2, construction_area_m2
      FROM parcels
-     WHERE lifecycle_status = 'ACTIVE' AND zone_id IS NOT NULL
+     WHERE lifecycle_status = 'ACTIVE' AND zone_id = (
+       SELECT zone_id FROM parcels WHERE lifecycle_status = 'ACTIVE' AND zone_id IS NOT NULL GROUP BY zone_id HAVING count(*) >= 2 LIMIT 1
+     )
      ORDER BY created_at ASC
      LIMIT 2;`
   );
@@ -66,7 +68,7 @@ async function runMergeTest() {
     };
 
     await Database.transaction(async (client) => {
-      await SurveyRepository.handleFieldMergeMutation(client, testReportId, rawMutation);
+      await SurveyRepository.handleFieldMergeMutation(client, testReportId!, rawMutation);
     });
 
     console.log('✓ handleFieldMergeMutation executed successfully without errors!\n');

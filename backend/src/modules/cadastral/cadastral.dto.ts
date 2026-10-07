@@ -18,6 +18,7 @@ export const RecordAbsenceDto = z.object({
 export const UpdateFootprintDto = z.object({
   footprintPolygonGeoJson: z.any(),
   measuredConstructionAreaM2: z.number().positive().optional(),
+  reason: z.string().min(2, 'Lý do điều chỉnh tối thiểu 2 ký tự').optional(),
 });
 
 export const ProposeMutationDto = z.object({

@@ -14,11 +14,13 @@ import { SurveyCondoUnitPage } from './features/survey-condo-unit/views/SurveyCo
 import { SurveyPhase2View } from './views/surveyor/SurveyPhase2View';
 import { BuildingHubModal } from './components/survey/BuildingHubModal';
 import { CompanionCheckInModal } from './components/attendance/CompanionCheckInModal';
+import { UnifiedGisMutationModal } from './components/gis/cadastral-editor/UnifiedGisMutationModal';
 import { Phase1ExportModuleBox } from './features/zone-management/components/Phase1ExportModuleBox';
 import { ZoneManagerDashboardPage } from './features/zone-management/views/ZoneManagerDashboardPage';
 import { AdminDashboardPage } from './features/admin-portal/views/AdminDashboardPage';
 import { PublicCitizenPortalPage } from './features/guest-portal/views/PublicCitizenPortalPage';
 import { GuestDashboardPage } from './features/guest-portal/views/GuestDashboardPage';
+import { GuestReportPreviewPage } from './features/guest-portal/views/GuestReportPreviewPage';
 import { AdminTopNav } from './components/layout/AdminTopNav';
 import { MapPin, Camera } from 'lucide-react';
 
@@ -67,10 +69,27 @@ export const App: React.FC = () => {
   const [selectedParcelForSurvey, setSelectedParcelForSurvey] = useState<GisParcel | null>(null);
   const [selectedUnitForSurvey, setSelectedUnitForSurvey] = useState<any | null>(null);
   const [hubParcel, setHubParcel] = useState<GisParcel | null>(null);
+  const [mutationStudioParcel, setMutationStudioParcel] = useState<GisParcel | null>(null);
   const [showAttendanceWarningModal, setShowAttendanceWarningModal] = useState<boolean>(false);
   const [showCompanionCheckInModal, setShowCompanionCheckInModal] = useState<boolean>(false);
   const [pendingSurveyFn, setPendingSurveyFn] = useState<(() => void) | null>(null);
   const [isReadOnlySurvey, setIsReadOnlySurvey] = useState<boolean>(false);
+  const [guestViewingReportParcel, setGuestViewingReportParcel] = useState<GisParcel | null>(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const urlId = params.get('reportParcelId') || params.get('parcelId');
+      const savedData = sessionStorage.getItem('metro2_guest_viewing_parcel_data');
+      if (savedData) {
+        const parsed = JSON.parse(savedData);
+        if (!urlId || parsed.id === urlId || parsed.projectParcelCode === urlId) {
+          return parsed;
+        }
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  });
 
   // Dynamic Check-In state for surveyor with localStorage persistence (Requirement 5)
   const [isCheckedInToday, setIsCheckedInToday] = useState<boolean>(() => {
@@ -299,6 +318,86 @@ export const App: React.FC = () => {
     loadParcels();
   }, [isAuthenticated, user, selectedZone]);
 
+  // ─── Xử lý điều hướng & duy trì trạng thái Xem Báo Cáo cho GUEST (F5 / Reload Persistence) ───
+  const handleOpenGuestReport = (parcel: GisParcel) => {
+    setGuestViewingReportParcel(parcel);
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.set('reportParcelId', parcel.id);
+      window.history.pushState({ reportParcelId: parcel.id }, '', url.toString());
+      sessionStorage.setItem('metro2_guest_viewing_parcel_id', parcel.id);
+      sessionStorage.setItem('metro2_guest_viewing_parcel_data', JSON.stringify(parcel));
+    } catch (_e) {}
+  };
+
+  const handleBackFromGuestReport = () => {
+    setGuestViewingReportParcel(null);
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('reportParcelId');
+      url.searchParams.delete('parcelId');
+      window.history.pushState(null, '', url.toString());
+      sessionStorage.removeItem('metro2_guest_viewing_parcel_id');
+      sessionStorage.removeItem('metro2_guest_viewing_parcel_data');
+    } catch (_e) {}
+  };
+
+  // Khôi phục báo cáo khi reload hoặc mở link trực tiếp có query ?reportParcelId=...
+  useEffect(() => {
+    if (guestViewingReportParcel) return;
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const urlId = params.get('reportParcelId') || params.get('parcelId') || sessionStorage.getItem('metro2_guest_viewing_parcel_id');
+      if (!urlId) return;
+
+      // 1. Tìm trong danh sách parcels hiện có
+      if (parcels.length > 0) {
+        const found = parcels.find((p) => p.id === urlId || p.projectParcelCode === urlId);
+        if (found) {
+          handleOpenGuestReport(found);
+          return;
+        }
+      }
+
+      // 2. Nếu chưa có trong parcels (do đang load hoặc khác zone), fetch trực tiếp từ API
+      let isCancelled = false;
+      api.get(`/parcels/${encodeURIComponent(urlId)}`).then((res) => {
+        if (isCancelled) return;
+        const raw = res.data?.data || res.data;
+        if (raw) {
+          const normalized = normalizeParcel(raw);
+          handleOpenGuestReport(normalized);
+        }
+      }).catch((err) => {
+        console.warn('[Metro2] Không thể khôi phục thửa đất từ URL sau khi reload:', err);
+      });
+
+      return () => {
+        isCancelled = true;
+      };
+    } catch (_e) {}
+  }, [parcels, guestViewingReportParcel]);
+
+  // Lắng nghe sự kiện Back / Forward của trình duyệt
+  useEffect(() => {
+    const handlePopState = () => {
+      const params = new URLSearchParams(window.location.search);
+      const urlId = params.get('reportParcelId') || params.get('parcelId');
+      if (!urlId) {
+        setGuestViewingReportParcel(null);
+        sessionStorage.removeItem('metro2_guest_viewing_parcel_id');
+        sessionStorage.removeItem('metro2_guest_viewing_parcel_data');
+      } else if (parcels.length > 0) {
+        const found = parcels.find((p) => p.id === urlId || p.projectParcelCode === urlId);
+        if (found) {
+          setGuestViewingReportParcel(found);
+        }
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [parcels]);
+
   // If loading session
   if (isLoading) {
     return (
@@ -320,26 +419,12 @@ export const App: React.FC = () => {
 
   // If role is GUEST (Chủ Đầu Tư MAUR / Ban Quản Lý ĐSĐT)
   if (user?.role === 'GUEST') {
-    if (activeTab === 'phase1' && selectedParcelForSurvey) {
+    // Chế độ Xem Trước Báo Cáo Kỹ Thuật (Full-page View-Only)
+    if (guestViewingReportParcel) {
       return (
-        <SurveyPhase1Page
-          parcel={selectedParcelForSurvey}
-          unit={selectedUnitForSurvey}
-          readOnly={true}
-          onBackToHome={() => {
-            setIsReadOnlySurvey(false);
-            setSelectedParcelForSurvey(null);
-            setSelectedUnitForSurvey(null);
-            setActiveTab('home');
-            loadParcels();
-          }}
-          onFinished={() => {
-            setIsReadOnlySurvey(false);
-            setSelectedParcelForSurvey(null);
-            setSelectedUnitForSurvey(null);
-            setActiveTab('home');
-            loadParcels();
-          }}
+        <GuestReportPreviewPage
+          parcel={guestViewingReportParcel}
+          onBack={handleBackFromGuestReport}
         />
       );
     }
@@ -350,12 +435,7 @@ export const App: React.FC = () => {
         selectedZone={selectedZone}
         onSelectZone={handleSelectZone}
         onRefreshParcels={loadParcels}
-        onStartSurveyDetail={(parcel) => {
-          setSelectedParcelForSurvey(parcel);
-          setSelectedUnitForSurvey(null);
-          setIsReadOnlySurvey(true);
-          setActiveTab('phase1');
-        }}
+        onViewReportPreview={handleOpenGuestReport}
       />
     );
   }
@@ -545,6 +625,12 @@ export const App: React.FC = () => {
               onStartPhase2={handleStartPhase2}
               onOpenBuildingHub={(p) => setHubParcel(p)}
               onRecordAbsence={handleRecordAbsence}
+              onProposeSplit={(p) => {
+                if (user?.role === 'ZONE_ADMIN' || user?.role === 'SUPER_ADMIN') {
+                  setMutationStudioParcel(p);
+                }
+              }}
+              onSwapSuccess={() => loadParcels()}
               userGps={liveUserGps}
             />
           </div>
@@ -627,6 +713,26 @@ export const App: React.FC = () => {
             }
           }}
           onUnitsUpdated={() => {
+            loadParcels();
+          }}
+        />
+      )}
+
+      {/* Global Unified GIS Mutation Studio Modal */}
+      {mutationStudioParcel && (
+        <UnifiedGisMutationModal
+          isOpen={!!mutationStudioParcel}
+          parcelId={mutationStudioParcel.id}
+          initialParcel={mutationStudioParcel}
+          initialZoneId={mutationStudioParcel.zoneId || selectedZone}
+          parcelCode={mutationStudioParcel.projectParcelCode}
+          houseNumber={mutationStudioParcel.houseNumber}
+          street={mutationStudioParcel.street}
+          currentAreaM2={mutationStudioParcel.landArea}
+          role={user?.role === 'SUPER_ADMIN' ? 'SUPER_ADMIN' : user?.role === 'ZONE_ADMIN' ? 'ZONE_ADMIN' : 'SURVEYOR'}
+          onClose={() => setMutationStudioParcel(null)}
+          onSuccess={() => {
+            setMutationStudioParcel(null);
             loadParcels();
           }}
         />

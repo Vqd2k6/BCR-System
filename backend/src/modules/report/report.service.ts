@@ -4,6 +4,7 @@ import { ResidentialReportGenerator } from './generators/residential.generator';
 import { PdfRenderEngine } from './engine/pdf-render.engine';
 import { DocxRenderEngine } from './engine/docx-render.engine';
 import { applyOverridesToReport } from './utils/report-override.utils';
+import { maskReportPii } from '../../common/utils/pii.utils';
 
 export class ReportService {
   /**
@@ -93,13 +94,20 @@ export class ReportService {
   /**
    * Xem trước mã HTML của Báo cáo Nhà Dân cư độc lập (Hỗ trợ overrides in-memory)
    */
-  static async previewResidentialHtml(reportId: string, overrides?: any): Promise<string> {
+  static async previewResidentialHtml(reportId: string, overrides?: any, maskPii: boolean = false): Promise<string> {
     const rawReport = await ReportService.resolveReport(reportId);
 
     // Áp dụng overrides nếu có (in-memory, không lưu DB)
-    const activeReport = ReportService.applyOverridesToReport(rawReport, overrides);
+    let activeReport = ReportService.applyOverridesToReport(rawReport, overrides);
+    if (maskPii) {
+      activeReport = maskReportPii(activeReport);
+    }
 
     const viewModel = ResidentialReportGenerator.buildViewModel(activeReport);
+    if (maskPii) {
+      (viewModel as any).isPiiMasked = true;
+      (viewModel as any).isGuestWatermark = true;
+    }
     return ResidentialReportGenerator.generateHtml(viewModel);
   }
 

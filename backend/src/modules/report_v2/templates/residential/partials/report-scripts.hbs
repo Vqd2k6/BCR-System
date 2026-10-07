@@ -1,0 +1,160 @@
+  <script>
+    (function() {
+      // ---- 1. Xoay riêng cho sơ đồ CAD (canvas, vì ghim Z/E phủ lên đúng khung ảnh) ----
+      function rotateCadImage(img) {
+        if (!img || img.__hasRotated) return;
+        img.__hasRotated = true;
+        var box = img.closest('.cad-map-tight-box');
+
+        try {
+          var canvas = document.createElement('canvas');
+          var ctx = canvas.getContext('2d');
+          if (!ctx) throw new Error('No 2d context');
+          canvas.width = img.naturalHeight;
+          canvas.height = img.naturalWidth;
+          ctx.translate(canvas.width / 2, canvas.height / 2);
+          ctx.rotate(Math.PI / 2);
+          ctx.drawImage(img, -img.naturalWidth / 2, -img.naturalHeight / 2);
+          img.src = canvas.toDataURL('image/jpeg', 0.97);
+
+          // Đồng bộ toạ độ tất cả các ghim (cả Z và E) theo góc xoay 90° CW của ảnh:
+          // newLeft = 100 - oldTop, newTop = oldLeft
+          if (box) {
+            box.querySelectorAll('.cad-pin-marker').forEach(function(marker) {
+              var left = parseFloat(marker.style.left);
+              var top = parseFloat(marker.style.top);
+              if (!isNaN(left) && !isNaN(top)) {
+                marker.style.left = (100 - top).toFixed(2) + '%';
+                marker.style.top = left.toFixed(2) + '%';
+              }
+            });
+          }
+        } catch (e) {
+          console.warn('[Report] Canvas rotateCadImage fallback:', e);
+          if (box) {
+            box.querySelectorAll('.cad-pin-marker').forEach(function(marker) {
+              var left = parseFloat(marker.style.left);
+              var top = parseFloat(marker.style.top);
+              if (!isNaN(left) && !isNaN(top)) {
+                marker.style.left = (100 - top).toFixed(2) + '%';
+                marker.style.top = left.toFixed(2) + '%';
+              }
+            });
+          }
+          img.style.transform = 'rotate(90deg)';
+        }
+      }
+
+      function whenLoaded(img) {
+        return new Promise(function(resolve) {
+          if (img.complete && img.naturalWidth > 0) return resolve();
+          img.addEventListener('load', function() { resolve(); }, { once: true });
+          img.addEventListener('error', function() { resolve(); }, { once: true });
+        });
+      }
+
+      // ---- 2. Xử lý khung ảnh & Watermark: Giữ nguyên hướng ảnh thực tế, không tự ý xoay 90 độ ----
+      function buildStage(wrapper, img) {
+        if (!img.naturalWidth || !img.naturalHeight || wrapper.querySelector('.photo-stage')) return;
+
+        var isPortrait = (img.naturalHeight / img.naturalWidth) > 1.05;
+        if (isPortrait) {
+          wrapper.classList.add('is-portrait');
+          var card = wrapper.closest('.photo-card, .room-photo-card');
+          if (card) card.classList.add('is-portrait-card');
+        } else {
+          wrapper.classList.add('is-landscape');
+        }
+
+        var stage = document.createElement('div');
+        stage.className = 'photo-stage' + (isPortrait ? ' is-portrait' : '');
+
+        var kids = Array.prototype.slice.call(wrapper.children);
+        wrapper.insertBefore(stage, img);
+        var hasWatermark = false;
+        kids.forEach(function(k) {
+          var cls = (k.className && k.className.toString()) || '';
+          if (k === img) {
+            k.classList.add('photo-main');
+            stage.appendChild(k);
+          } else if (cls.indexOf('watermark') !== -1 || cls.indexOf('photo-defect-pin') !== -1) {
+            if (cls.indexOf('watermark') !== -1) hasWatermark = true;
+            stage.appendChild(k);
+          }
+        });
+        if (hasWatermark) stage.classList.add('has-watermark');
+        wrapper.classList.add('photo-wrapper-fit');
+
+        function syncStageBounds() {
+          var w = img.clientWidth || img.offsetWidth;
+          var h = img.clientHeight || img.offsetHeight;
+          if (w > 0 && h > 0) {
+            stage.style.width = Math.round(w) + 'px';
+            stage.style.height = Math.round(h) + 'px';
+          }
+        }
+        syncStageBounds();
+        if (window.requestAnimationFrame) {
+          window.requestAnimationFrame(syncStageBounds);
+        }
+        setTimeout(syncStageBounds, 80);
+      }
+
+      function numberPages() {
+        var sheets = document.querySelectorAll('.a4-page-sheet');
+        var total = sheets.length;
+        var codeEl = document.querySelector('.report-subpage-topbar span:last-child');
+        var code = codeEl ? codeEl.textContent.trim() : '';
+        sheets.forEach(function(sheet, idx) {
+          var footer = sheet.querySelector('.page-number-footer');
+          if (!footer) return;
+          footer.innerHTML = '<span class="pf-code">' + code + '</span>' +
+            '<span class="pf-page">Trang ' + (idx + 1) + ' / ' + total + '</span>' +
+            '<span class="pf-ctrl">TÀI LIỆU KIỂM SOÁT</span>';
+        });
+        var totalEl = document.getElementById('report-total-pages');
+        if (totalEl) totalEl.textContent = String(total);
+      }
+
+      function run() {
+        var jobs = [];
+        document.querySelectorAll('img.photo-conv-cad-portrait').forEach(function(img) {
+          jobs.push(whenLoaded(img).then(function() {
+            if (img.naturalWidth > img.naturalHeight) rotateCadImage(img);
+          }));
+        });
+        document.querySelectorAll('.photo-card-img-wrapper, .room-photo-wrapper, .defect-photo-wrapper').forEach(function(wrapper) {
+          var img = wrapper.querySelector('img:not([class*="watermark"])');
+          if (!img) return;
+          jobs.push(whenLoaded(img).then(function() { buildStage(wrapper, img); }));
+        });
+        Promise.all(jobs).then(function() {
+          numberPages();
+          window.__reportReady = true;
+          document.body.setAttribute('data-report-ready', '1');
+        });
+      }
+
+      // Hỗ trợ kiểm tra cờ watermark qua URL hoặc postMessage từ giao diện cha
+      try {
+        if (window.location.search.indexOf('watermark=false') !== -1 || window.location.search.indexOf('watermark=0') !== -1) {
+          document.body.classList.add('no-watermark');
+        }
+        window.addEventListener('message', function(evt) {
+          if (evt.data && evt.data.type === 'SET_WATERMARK') {
+            if (evt.data.enableWatermark === false) {
+              document.body.classList.add('no-watermark');
+            } else {
+              document.body.classList.remove('no-watermark');
+            }
+          }
+        });
+      } catch (e) {}
+
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', run);
+      } else {
+        run();
+      }
+    })();
+  </script>

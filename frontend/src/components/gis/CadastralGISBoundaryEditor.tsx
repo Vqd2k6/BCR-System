@@ -40,6 +40,8 @@ export const CadastralGISBoundaryEditor: React.FC<CadastralBoundaryEditorProps> 
     setMergeSearchTerm,
     splitShapeOption,
     setSplitShapeOption,
+    activeTarget,
+    setActiveTarget,
     customResidualType,
     setCustomResidualType,
     customSplitReason,
@@ -54,19 +56,23 @@ export const CadastralGISBoundaryEditor: React.FC<CadastralBoundaryEditorProps> 
     polyAVertices,
     setPolyAVertices,
     polyBVertices,
+    setPolyBVertices,
     calculatedAreaA,
     calculatedAreaB,
     handleVertexDrag,
     handleMapClickDraw,
     handleAddMidpoint,
     handleRemovePoint,
+    handleResetTarget,
     handleResetDefault,
-    handleApplyLShape,
     handleSplitHorizontal,
     handleSplitVertical,
     selectedMergeCodes,
     mergeSummary,
     handleToggleMergeParcel,
+    handleSetPrimaryMergeCode,
+    isSurveyedParcel,
+    getSurveyBadgeInfo,
     mergeBuildingVertices,
     calculatedMergeBArea,
     calculatedMergeRArea,
@@ -75,6 +81,12 @@ export const CadastralGISBoundaryEditor: React.FC<CadastralBoundaryEditorProps> 
     handleMergeClearDraw,
     handleSaveMutationProposal,
     zoneParcels,
+    mergeDynamicCodes,
+    mergeMaxZoneInfo,
+    mergePartitionKind,
+    mergeSecondaryOfficialCode,
+    handleSetMergePartitionKind,
+    handleUpdateMergeSecondaryField,
   } = useCadastralMutation({
     activeParcelId,
     parcelData,
@@ -124,9 +136,12 @@ export const CadastralGISBoundaryEditor: React.FC<CadastralBoundaryEditorProps> 
           setTileMode={setTileMode}
           splitShapeOption={splitShapeOption}
           setSplitShapeOption={setSplitShapeOption}
+          activeTarget={activeTarget}
+          setActiveTarget={setActiveTarget}
           polyAVertices={polyAVertices}
           setPolyAVertices={setPolyAVertices}
           polyBVertices={polyBVertices}
+          setPolyBVertices={setPolyBVertices}
           calculatedAreaA={calculatedAreaA}
           calculatedAreaB={calculatedAreaB}
           dynamicCodes={dynamicCodes}
@@ -135,8 +150,8 @@ export const CadastralGISBoundaryEditor: React.FC<CadastralBoundaryEditorProps> 
           handleMapClickDraw={handleMapClickDraw}
           handleAddMidpoint={handleAddMidpoint}
           handleRemovePoint={handleRemovePoint}
+          handleResetTarget={handleResetTarget}
           handleResetDefault={handleResetDefault}
-          handleApplyLShape={handleApplyLShape}
           handleSplitHorizontal={handleSplitHorizontal}
           handleSplitVertical={handleSplitVertical}
           mutationData={mutationData}
@@ -166,6 +181,9 @@ export const CadastralGISBoundaryEditor: React.FC<CadastralBoundaryEditorProps> 
           mergeSearchTerm={mergeSearchTerm}
           setMergeSearchTerm={setMergeSearchTerm}
           handleToggleMergeParcel={handleToggleMergeParcel}
+          handleSetPrimaryMergeCode={handleSetPrimaryMergeCode}
+          isSurveyedParcel={isSurveyedParcel}
+          getSurveyBadgeInfo={getSurveyBadgeInfo}
           mergeSummary={mergeSummary}
           mutationData={mutationData}
           onMutationDataChange={onMutationDataChange}
@@ -181,6 +199,12 @@ export const CadastralGISBoundaryEditor: React.FC<CadastralBoundaryEditorProps> 
           handleMergeClearDraw={handleMergeClearDraw}
           handleSaveMutationProposal={handleSaveMutationProposal}
           isSubmittingMutation={isSubmittingMutation}
+          dynamicCodes={mergeDynamicCodes}
+          maxZoneInfo={mergeMaxZoneInfo}
+          mergePartitionKind={mergePartitionKind}
+          mergeSecondaryOfficialCode={mergeSecondaryOfficialCode}
+          handleSetMergePartitionKind={handleSetMergePartitionKind}
+          handleUpdateMergeSecondaryField={handleUpdateMergeSecondaryField}
         />
       )}
     </div>

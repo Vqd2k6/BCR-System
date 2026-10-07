@@ -1,0 +1,235 @@
+  <!-- =====================================================================
+       TRANG 7: CHƯƠNG VIII (ĐÁNH GIÁ TÌNH TRẠNG & MA TRẬN RỦI RO)
+       ===================================================================== -->
+  <div class="a4-page-sheet">
+    
+  <div class="report-subpage-topbar">
+    <span>LIÊN DANH CRLG – CRSRI – TT | TUYẾN METRO 2 BẾN THÀNH - THAM LƯƠNG</span>
+    <span>{{metadata.buildingId}} | {{metadata.reportNo}}</span>
+  </div>
+
+
+    <h2 class="chapter-header">VIII. ĐÁNH GIÁ TÌNH TRẠNG CÔNG TRÌNH - BUILDING CONDITION ASSESSMENT</h2>
+
+    <!-- BẢNG VIII.1: BẢNG ĐIỂM HIỆN TRẠNG ECS -->
+    <div style="font-size: 8pt; font-weight: bold; margin: 4px 0 2px 0; color: #0f172a;">
+      Bảng VIII.1: Đánh giá điểm hiện trạng công trình (ECS - Existing Condition Score)
+    </div>
+    <table class="tech-table compact-table" style="margin-bottom: 4px;">
+      <thead>
+        <tr>
+          <th style="width: 8%; text-align: center;">Mã</th>
+          <th style="width: 36%;">Tiêu chí đánh giá / Criteria</th>
+          <th style="width: 38%;">Căn cứ tính điểm hiện trường / Basis</th>
+          <th style="width: 8%; text-align: center;">Thang</th>
+          <th style="width: 10%; text-align: center;">Điểm / Score</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each section8.ecs.items}}
+          <tr>
+            <td class="font-bold text-center">{{this.code}}</td>
+            <td>{{this.title.vi}}<br><span class="text-muted">{{this.title.en}}</span></td>
+            <td>{{this.basis.vi}}<br><span class="text-muted">{{this.basis.en}}</span></td>
+            <td class="text-center text-muted">{{this.scale}}</td>
+            <td class="text-center font-bold">{{this.score}}</td>
+          </tr>
+        {{/each}}
+      </tbody>
+    </table>
+    <!-- BẢNG TỔNG KẾT ECS THEO QUY CHUẨN THIẾT KẾ -->
+    <table class="tech-table compact-table ecs-summary-table" style="margin-top: -1px; margin-bottom: 5px;">
+      <tbody>
+        <tr>
+          <td style="width: 50%;">
+            <span class="summary-label">Tổng ECS:</span> <strong>ΣE = {{section8.ecs.totalScore}} / 24</strong>
+          </td>
+          <td style="width: 50%;">
+            <span class="summary-label">ECS Class:</span>
+            <span class="summary-choice-group">
+              <span class="summary-choice-item {{#if (eq section8.ecs.classGrade.en 'Good')}}active{{/if}}">{{#if (eq section8.ecs.classGrade.en 'Good')}}☑{{else}}☐{{/if}} Good</span>
+              <span class="summary-choice-item {{#if (eq section8.ecs.classGrade.en 'Medium')}}active{{/if}}">{{#if (eq section8.ecs.classGrade.en 'Medium')}}☑{{else}}☐{{/if}} Medium</span>
+              <span class="summary-choice-item {{#if (eq section8.ecs.classGrade.en 'Deficient')}}active{{/if}}">{{#if (eq section8.ecs.classGrade.en 'Deficient')}}☑{{else}}☐{{/if}} Deficient</span>
+              <span class="summary-choice-item {{#if (eq section8.ecs.classGrade.en 'Critical')}}active{{/if}}">{{#if (eq section8.ecs.classGrade.en 'Critical')}}☑{{else}}☐{{/if}} Critical</span>
+            </span>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <span class="summary-label">Quy đổi đề xuất:</span> 0–5 Good | 6–10 Medium | 11–16 Deficient | 17–24 Critical
+          </td>
+          <td>
+            <span class="summary-label">Structural flag:</span>
+            <span class="summary-choice-group">
+              <span class="summary-choice-item {{#if (eq section8.ecs.structuralFlag 'None')}}active{{/if}}">{{#if (eq section8.ecs.structuralFlag 'None')}}☑{{else}}☐{{/if}} None</span>
+              <span class="summary-choice-item {{#if (eq section8.ecs.structuralFlag 'Low')}}active{{/if}}">{{#if (eq section8.ecs.structuralFlag 'Low')}}☑{{else}}☐{{/if}} Low</span>
+              <span class="summary-choice-item {{#if (eq section8.ecs.structuralFlag 'Moderate')}}active{{/if}}">{{#if (eq section8.ecs.structuralFlag 'Moderate')}}☑{{else}}☐{{/if}} Moderate</span>
+              <span class="summary-choice-item {{#if (eq section8.ecs.structuralFlag 'High')}}active{{/if}}">{{#if (eq section8.ecs.structuralFlag 'High')}}☑{{else}}☐{{/if}} High</span>
+              <span class="summary-choice-item {{#if (eq section8.ecs.structuralFlag 'Critical')}}active{{/if}}">{{#if (eq section8.ecs.structuralFlag 'Critical')}}☑{{else}}☐{{/if}} Critical</span>
+            </span>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <span class="summary-label">Burland predominant:</span> Grade {{section8.ecs.burlandPredominantGrade}}
+          </td>
+          <td>
+            <span class="summary-label">Burland local max:</span> Grade {{section8.ecs.burlandLocalMaxGrade}}
+          </td>
+        </tr>
+        <tr>
+          <td style="width: 45%;">
+            <span class="summary-label">Engineering judgement:</span>
+            <span class="summary-choice-group">
+              <span class="summary-choice-item {{#if (eq section8.ecs.engineeringJudgement.action 'KEEP')}}active{{/if}}">{{#if (eq section8.ecs.engineeringJudgement.action 'KEEP')}}☑{{else}}☐{{/if}} Giữ</span>
+              <span class="summary-choice-item {{#if (eq section8.ecs.engineeringJudgement.action 'UPGRADE')}}active{{/if}}">{{#if (eq section8.ecs.engineeringJudgement.action 'UPGRADE')}}☑{{else}}☐{{/if}} Nâng</span>
+              <span class="summary-choice-item {{#if (eq section8.ecs.engineeringJudgement.action 'DOWNGRADE')}}active{{/if}}">{{#if (eq section8.ecs.engineeringJudgement.action 'DOWNGRADE')}}☑{{else}}☐{{/if}} Hạ</span>
+            </span>
+          </td>
+          <td style="width: 55%;">
+            <span class="summary-label">Lý do (Reason):</span>
+            <span style="font-weight: 500; color: #1e293b;">
+              {{#if section8.ecs.engineeringJudgement.reason}}
+                {{section8.ecs.engineeringJudgement.reason}}
+              {{else}}
+                Không điều chỉnh (Giữ nguyên theo tính toán hiện trường)
+              {{/if}}
+            </span>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- BẢNG VIII.2: CHỈ SỐ TÍNH DỄ BỊ TỔN THƯƠNG VI -->
+    <div style="font-size: 8pt; font-weight: bold; margin: 4px 0 2px 0; color: #0f3b6c;">
+      Bảng VIII.2: Chỉ số tính dễ bị tổn thương (VI - Vulnerability Index)
+    </div>
+    <table class="tech-table compact-table" style="margin-bottom: 0;">
+      <thead>
+        <tr>
+          <th style="width: 8%; text-align: center;">Mã</th>
+          <th style="width: 36%;">Yếu tố đánh giá / Vulnerability Factor</th>
+          <th style="width: 38%;">Thông số công trình / Building Parameter</th>
+          <th style="width: 8%; text-align: center;">Thang</th>
+          <th style="width: 10%; text-align: center;">Điểm / Score</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each section8.vi.items}}
+          <tr>
+            <td class="font-bold text-center">{{this.code}}</td>
+            <td>{{this.title.vi}}<br><span class="text-muted">{{this.title.en}}</span></td>
+            <td>{{this.basis.vi}}<br><span class="text-muted">{{this.basis.en}}</span></td>
+            <td class="text-center text-muted">{{this.scale}}</td>
+            <td class="text-center font-bold">{{this.score}}</td>
+          </tr>
+        {{/each}}
+      </tbody>
+    </table>
+    <!-- BẢNG TỔNG KẾT VI THEO QUY CHUẨN THIẾT KẾ -->
+    <table class="tech-table compact-table vi-summary-table" style="margin-top: -1px; margin-bottom: 5px;">
+      <tbody>
+        <tr>
+          <td style="width: 50%;">
+            <span class="summary-label">Tổng điểm VI:</span> <strong>ΣV = {{section8.vi.totalScore}} / 24</strong>
+          </td>
+          <td style="width: 50%;">
+            <span class="summary-label">Điểm TB:</span> <strong>VIavg = {{section8.vi.averageScore}}</strong>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <span class="summary-label">VI Class:</span>
+            <span class="summary-choice-group">
+              <span class="summary-choice-item {{#if (eq section8.vi.classGrade.en 'Low')}}active{{/if}}">{{#if (eq section8.vi.classGrade.en 'Low')}}☑{{else}}☐{{/if}} Low</span>
+              <span class="summary-choice-item {{#if (eq section8.vi.classGrade.en 'Medium')}}active{{/if}}">{{#if (eq section8.vi.classGrade.en 'Medium')}}☑{{else}}☐{{/if}} Medium</span>
+              <span class="summary-choice-item {{#if (eq section8.vi.classGrade.en 'High')}}active{{/if}}">{{#if (eq section8.vi.classGrade.en 'High')}}☑{{else}}☐{{/if}} High</span>
+              <span class="summary-choice-item {{#if (eq section8.vi.classGrade.en 'Very High')}}active{{/if}}">{{#if (eq section8.vi.classGrade.en 'Very High')}}☑{{else}}☐{{/if}} Very High</span>
+            </span>
+          </td>
+          <td>
+            <span class="summary-label">Phân loại đề xuất:</span> Low ≤ 1.5 | Medium > 1.5–2.5 | High > 2.5–3.25 | Very High > 3.25
+          </td>
+        </tr>
+        <tr>
+          <td colspan="2">
+            <span class="summary-label">CAT móng:</span> Cat {{section8.vi.foundationCatScore}} / 5
+            <span class="text-muted" style="margin-left: 10px; font-size: 6.8pt;">(Căn cứ tài liệu khảo sát &amp; hoàn công móng)</span>
+          </td>
+        </tr>
+        <tr>
+          <td style="width: 45%;">
+            <span class="summary-label">Engineering judgement:</span>
+            <span class="summary-choice-group">
+              <span class="summary-choice-item {{#if (eq section8.vi.engineeringJudgement.action 'KEEP')}}active{{/if}}">{{#if (eq section8.vi.engineeringJudgement.action 'KEEP')}}☑{{else}}☐{{/if}} Giữ</span>
+              <span class="summary-choice-item {{#if (eq section8.vi.engineeringJudgement.action 'UPGRADE')}}active{{/if}}">{{#if (eq section8.vi.engineeringJudgement.action 'UPGRADE')}}☑{{else}}☐{{/if}} Nâng</span>
+              <span class="summary-choice-item {{#if (eq section8.vi.engineeringJudgement.action 'DOWNGRADE')}}active{{/if}}">{{#if (eq section8.vi.engineeringJudgement.action 'DOWNGRADE')}}☑{{else}}☐{{/if}} Hạ</span>
+            </span>
+          </td>
+          <td style="width: 55%;">
+            <span class="summary-label">Lý do (Reason):</span>
+            <span style="font-weight: 500; color: #1e293b;">
+              {{#if section8.vi.engineeringJudgement.reason}}
+                {{section8.vi.engineeringJudgement.reason}}
+              {{else}}
+                Không điều chỉnh (Giữ nguyên theo tính toán hiện trường)
+              {{/if}}
+            </span>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- BẢNG VIII.3: MA TRẬN PHÂN CẤP RỦI RO BRA = V x I (CÓ HIGHLIGHT Ô HIỆN TẠI) -->
+    <div style="font-size: 8pt; font-weight: bold; margin: 4px 0 2px 0; color: #0f3b6c;">
+      Bảng VIII.3: Ma trận phân cấp rủi ro công trình trước thi công (BRA = V × I Matrix)
+    </div>
+    <table class="tech-table compact-table bra-matrix-table" style="margin-bottom: 4px;">
+      <thead>
+        <tr>
+          <th style="width: 32%;">Chỉ số tổn thương V \ Cấp tác động I</th>
+          <th style="width: 17%; text-align: center;">I1 (Thấp / Low)</th>
+          <th style="width: 17%; text-align: center;">I2 (Trung bình / Med)</th>
+          <th style="width: 17%; text-align: center;">I3 (Cao / High)</th>
+          <th style="width: 17%; text-align: center;">I4 (Rất cao / V.High)</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each section8.braMatrix.rows}}
+          <tr>
+            <td class="font-bold">
+              {{this.vLabel.vi}}<br>
+              <span class="text-muted">{{this.vLabel.en}}</span>
+            </td>
+            {{#each this.cells}}
+              <td class="text-center {{#if this.isCurrent}}highlight-cell {{#if (eq this.riskLevel 'Low')}}risk-low{{else if (eq this.riskLevel 'Medium')}}risk-medium{{else if (eq this.riskLevel 'High')}}risk-high{{else}}risk-very-high{{/if}}{{else}}matrix-cell{{/if}}">
+                {{#if this.isCurrent}}
+                  <span style="font-weight: bold; font-size: 7.2pt;">☒ {{this.riskLevelVi}}</span><br>
+                  <span style="font-size: 6.2pt; font-weight: bold; opacity: 0.9;">({{this.riskLevelEn}})</span>
+                {{else}}
+                  <span style="font-size: 6.8pt; color: #475569;">{{this.riskLevelVi}}</span><br>
+                  <span class="text-muted" style="font-size: 6pt;">({{this.riskLevelEn}})</span>
+                {{/if}}
+              </td>
+            {{/each}}
+          </tr>
+        {{/each}}
+      </tbody>
+    </table>
+
+    <!-- KHUNG KẾT LUẬN ĐÁNH GIÁ RỦI RO TRƯỚC THI CÔNG (BRA) -->
+    <div class="bra-summary-card">
+      <div style="font-weight: bold; font-size: 8pt; margin-bottom: 3px; text-transform: uppercase; color: #0f3b6c;">
+        Kết luận đánh giá rủi ro trước thi công (Pre-construction Building Risk Assessment)
+      </div>
+      <div style="font-size: 7.5pt; line-height: 1.35; color: #1e293b;">
+        - <strong>Cấp độ rủi ro tổng thể (BRA Grade):</strong> 
+          <span class="risk-badge {{#if (eq section8.overallRisk.grade.en 'Low Risk')}}risk-low{{else if (eq section8.overallRisk.grade.en 'Medium Risk')}}risk-medium{{else if (eq section8.overallRisk.grade.en 'High Risk')}}risk-high{{else}}risk-very-high{{/if}}" style="margin: 0 4px;">
+            {{section8.overallRisk.grade.vi}} ({{section8.overallRisk.grade.en}})
+          </span> — Xác định tại giao điểm [{{section8.braMatrix.vCode}} × {{section8.braMatrix.iCode}}].<br>
+        - <strong>Tác động thi công Metro:</strong> Cấp {{section8.impact.code}} ({{section8.impact.levelText.vi}} / {{section8.impact.levelText.en}}), {{#if section8.impact.distanceLabel.vi}}{{section8.impact.distanceLabel.vi}}{{else}}khoảng cách đến tim tuyến hầm Metro{{/if}} là <strong>{{section8.impact.distanceM}} m</strong>.
+      </div>
+    </div>
+
+    <div class="page-number-footer">{{tocPageNumbers.section8}}</div>
+  </div>

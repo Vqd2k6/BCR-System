@@ -1,10 +1,204 @@
+import { PoolClient } from 'pg';
 import { CadastralRepository } from '../cadastral.repository';
 import { Database } from '../../../database/db';
 import { NotFoundError, BadRequestError } from '../../../common/errors/problem-details';
 
 export class CadastralMutationService {
   /**
-   * Đề xuất Tách/Gộp thửa đất với kho số mở rộng B-07001 -> B-99999
+   * Chuẩn hóa tọa độ mảng đỉnh thành Polygon GeoJSON hợp lệ (khép kín vòng và chuẩn [lng, lat])
+   */
+  public static toGeoJsonPolygon(points: any): any {
+    if (!points) return null;
+    if (points.type === 'Polygon' && Array.isArray(points.coordinates)) {
+      return points;
+    }
+    if (!Array.isArray(points) || points.length < 3) {
+      return null;
+    }
+
+    const ring = points
+      .map((p: any) => {
+        if (!Array.isArray(p) || p.length < 2) return null;
+        const a = Number(p[0]);
+        const b = Number(p[1]);
+        if (isNaN(a) || isNaN(b)) return null;
+        // Chuẩn tọa độ Việt Nam: Lat ~ 8-23, Lng ~ 102-110
+        if (a < 50 && b > 50) {
+          return [b, a]; // Đảo [lat, lng] -> [lng, lat] cho PostGIS
+        }
+        return [a, b];
+      })
+      .filter((p): p is [number, number] => p !== null);
+
+    if (ring.length < 3) return null;
+
+    // Khép kín polygon nếu điểm đầu khác điểm cuối
+    const first = ring[0];
+    const last = ring[ring.length - 1];
+    if (first[0] !== last[0] || first[1] !== last[1]) {
+      ring.push([first[0], first[1]]);
+    }
+
+    return {
+      type: 'Polygon',
+      coordinates: [ring],
+    };
+  }
+
+  /**
+   * Primitive: Tạo mới hoặc cập nhật thực thể Đất dôi dư {Mã}-DU (NON_BUILDING)
+   * Đảm bảo tính nhất quán 100% giữa thực thi của Surveyor và Admin
+   */
+  public static async upsertResidualLandParcel(
+    client: PoolClient,
+    params: {
+      zoneId: string;
+      parentParcelId: string;
+      parentProjectCode: string;
+      parentOfficialCode?: string;
+      parentHouseNumber: string;
+      parentStreet: string;
+      parentWard?: string;
+      parentDistrict?: string;
+      residualAreaM2: number;
+      mutationType: 'SPLIT' | 'MERGE';
+      mutationEventId?: string;
+      customGeomJson?: any;
+    }
+  ): Promise<{ id: string; projectParcelCode: string }> {
+    const residualParcelCode = `${params.parentProjectCode}-DU`;
+    const residualOfficialCode = `${params.parentOfficialCode || params.parentProjectCode}-DU`;
+    const isMerge = params.mutationType === 'MERGE';
+
+    const houseNumberSuffix = isMerge ? '(Đất dư sau gộp)' : '(Đất dư)';
+    const ownerNameSuffix = isMerge
+      ? `Chủ sở hữu đất dôi dư sau gộp (${params.parentProjectCode})`
+      : `Chủ sở hữu đất dôi dư (${params.parentProjectCode})`;
+
+    const checkExisting = await client.query<{ id: string }>(
+      `SELECT id FROM parcels WHERE project_parcel_code = $1;`,
+      [residualParcelCode]
+    );
+
+    if (checkExisting.rows[0]) {
+      let updateGeomClause = '';
+      const updateParams: any[] = [
+        params.residualAreaM2,
+        params.mutationType,
+        params.mutationEventId || null,
+      ];
+
+      if (params.customGeomJson) {
+        const geoStr =
+          typeof params.customGeomJson === 'string'
+            ? params.customGeomJson
+            : JSON.stringify(params.customGeomJson);
+        updateParams.push(geoStr);
+        const gIdx = updateParams.length;
+        updateGeomClause = `,
+             cadastral_polygon_geom = COALESCE(
+               (SELECT geom FROM ST_Dump(ST_CollectionExtract(ST_MakeValid(ST_SetSRID(ST_GeomFromGeoJSON($${gIdx}), 4326)), 3)) ORDER BY ST_Area(geom::geography) DESC LIMIT 1),
+               cadastral_polygon_geom
+             ),
+             footprint_polygon_geom = COALESCE(
+               (SELECT geom FROM ST_Dump(ST_CollectionExtract(ST_MakeValid(ST_SetSRID(ST_GeomFromGeoJSON($${gIdx}), 4326)), 3)) ORDER BY ST_Area(geom::geography) DESC LIMIT 1),
+               footprint_polygon_geom
+             ),
+             location_geom = ST_Centroid(COALESCE(
+               (SELECT geom FROM ST_Dump(ST_CollectionExtract(ST_MakeValid(ST_SetSRID(ST_GeomFromGeoJSON($${gIdx}), 4326)), 3)) ORDER BY ST_Area(geom::geography) DESC LIMIT 1),
+               cadastral_polygon_geom
+             ))`;
+      }
+
+      updateParams.push(checkExisting.rows[0].id);
+      const idIdx = updateParams.length;
+
+      await client.query(
+        `UPDATE parcels
+         SET land_area_m2 = $1,
+             construction_area_m2 = 0,
+             mutation_type = $2,
+             mutation_event_id = COALESCE($3, mutation_event_id),
+             updated_at = NOW()${updateGeomClause}
+         WHERE id = $${idIdx};`,
+        updateParams
+      );
+      return { id: checkExisting.rows[0].id, projectParcelCode: residualParcelCode };
+    }
+
+    let geomExpr: string;
+    let queryParams: any[];
+
+    if (params.customGeomJson) {
+      const geoStr = typeof params.customGeomJson === 'string' ? params.customGeomJson : JSON.stringify(params.customGeomJson);
+      geomExpr = `COALESCE(
+        (
+          SELECT geom 
+          FROM ST_Dump(ST_CollectionExtract(ST_MakeValid(ST_SetSRID(ST_GeomFromGeoJSON($12), 4326)), 3))
+          ORDER BY ST_Area(geom::geography) DESC 
+          LIMIT 1
+        ),
+        (SELECT cadastral_polygon_geom FROM parcels WHERE id = $11)
+      )`;
+      queryParams = [
+        params.zoneId,
+        residualParcelCode,
+        residualOfficialCode,
+        `${params.parentHouseNumber} ${houseNumberSuffix}`.trim(),
+        params.parentStreet,
+        params.parentWard || '',
+        params.parentDistrict || '',
+        ownerNameSuffix,
+        params.residualAreaM2,
+        params.mutationEventId || null,
+        params.parentParcelId,
+        geoStr,
+      ];
+    } else {
+      geomExpr = `(SELECT cadastral_polygon_geom FROM parcels WHERE id = $11)`;
+      queryParams = [
+        params.zoneId,
+        residualParcelCode,
+        residualOfficialCode,
+        `${params.parentHouseNumber} ${houseNumberSuffix}`.trim(),
+        params.parentStreet,
+        params.parentWard || '',
+        params.parentDistrict || '',
+        ownerNameSuffix,
+        params.residualAreaM2,
+        params.mutationEventId || null,
+        params.parentParcelId,
+      ];
+    }
+
+    const resParcel = await client.query<{ id: string }>(
+      `INSERT INTO parcels (
+         zone_id, project_parcel_code, official_cadastral_code,
+         house_number, street, ward, district,
+         owner_name, owner_phone,
+         land_area_m2, construction_area_m2,
+         survey_status, lifecycle_status,
+         mutation_type, mutation_event_id, parent_parcel_ids,
+         cadastral_polygon_geom, footprint_polygon_geom, location_geom
+       ) VALUES (
+         $1, $2, $3,
+         $4, $5, $6, $7,
+         $8, '',
+         $9, 0,
+         'NOT_SURVEYED', 'ACTIVE',
+         '${params.mutationType}', $10, ARRAY[$11::uuid],
+         ${geomExpr},
+         ${geomExpr},
+         ST_Centroid(${geomExpr})
+       ) RETURNING id;`,
+      queryParams
+    );
+
+    return { id: resParcel.rows[0].id, projectParcelCode: residualParcelCode };
+  }
+
+  /**
+   * @deprecated Giai đoạn prototype cũ. Hiện tại quy trình biến động hiện trường được nộp kèm qua Phase 1 Survey Report và quản trị viên thực thi trực tiếp qua executeAdminMutation.
    */
   static async proposeMutation(surveyorId: string, data: any) {
     return Database.transaction(async (client) => {
@@ -237,6 +431,8 @@ export class CadastralMutationService {
     data: {
       mutationType: 'SPLIT' | 'MERGE';
       sourceParcelIds: string[];
+      primaryParcelId?: string;
+      primaryProjectParcelCode?: string;
       childParcels?: Array<{
         projectParcelCode?: string;
         houseNumber?: string;
@@ -246,15 +442,29 @@ export class CadastralMutationService {
         landAreaM2?: number;
         floorCount?: number;
         polygonGeoJson?: any;
+        residualKind?: 'NON_BUILDING' | 'NEW_BUILDING';
       }>;
       adminNotes?: string;
       transferSurveyReportId?: string;
+      mergeHasPartialBuilding?: boolean;
+      mergeBuildingAreaM2?: number;
+      mergeResidualAreaM2?: number;
+      mergeBuildingCustomPoints?: any;
+      mergePartitionKind?: 'NON_BUILDING' | 'NEW_BUILDING';
+      mergeSecondaryParcelCode?: string;
+      mergeSecondaryHouseNumber?: string;
+      mergeSecondaryOwnerName?: string;
+      mergeSecondaryPhone?: string;
+      mergeSecondaryFloorCount?: number;
+      mergeSecondaryFunctionalType?: string;
+      mergeResidualType?: string;
     },
     clientIp?: string
   ) {
     return Database.transaction(async (client) => {
       const mutationCode = `ADM-MUT-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 
+      data.sourceParcelIds = Array.from(new Set((data.sourceParcelIds || []).filter(Boolean)));
       if (!data.sourceParcelIds || data.sourceParcelIds.length === 0) {
         throw new BadRequestError('Danh sách thửa đất nguồn (sourceParcelIds) không được để trống');
       }
@@ -272,6 +482,7 @@ export class CadastralMutationService {
           id: string;
           zone_id: string;
           project_parcel_code: string;
+          official_cadastral_code: string;
           house_number: string;
           street: string;
           ward: string;
@@ -280,7 +491,7 @@ export class CadastralMutationService {
           survey_status: string;
           active_phase1_report_id: string | null;
         }>(
-          `SELECT id, zone_id, project_parcel_code, house_number, street, ward, district,
+          `SELECT id, zone_id, project_parcel_code, official_cadastral_code, house_number, street, ward, district,
                   land_area_m2, survey_status, active_phase1_report_id
            FROM parcels
            WHERE id = ANY($1) FOR UPDATE;`,
@@ -296,50 +507,329 @@ export class CadastralMutationService {
           throw new BadRequestError('Tất cả các thửa đất gộp phải thuộc cùng một phân khu (zone)');
         }
 
-        // 2. Xác định Thửa chính (ưu tiên thửa đang gắn báo cáo khảo sát, hoặc thửa có mã nhỏ nhất)
-        let primaryParcel = srcRes.rows.find(
-          (r) => data.transferSurveyReportId && r.active_phase1_report_id === data.transferSurveyReportId
-        );
-        if (!primaryParcel) {
-          primaryParcel = srcRes.rows.find((r) => r.active_phase1_report_id != null);
+        // 2. Xác định Thửa chính (Primary Parcel) theo ma trận ưu tiên:
+        // - Ưu tiên 1: Client chỉ định tường minh primaryParcelId
+        // - Ưu tiên 2: Client chỉ định tường minh primaryProjectParcelCode
+        // - Ưu tiên 3: Thửa gắn báo cáo khảo sát chuyển giao (transferSurveyReportId)
+        // - Ưu tiên 4: Thửa đã có hồ sơ khảo sát (active_phase1_report_id != null hoặc survey_status IN ('COMPLETED', 'APPROVED', 'SUBMITTED', 'IN_PROGRESS'))
+        // - Ưu tiên 5 (Fallback): Thửa gốc ban đầu mở thao tác (sourceParcelIds[0]). TUYỆT ĐỐI KHÔNG DÙNG sort() chuỗi ký tự!
+        let primaryParcel: typeof srcRes.rows[0] | undefined;
+
+        if (data.primaryParcelId) {
+          primaryParcel = srcRes.rows.find((r) => r.id === data.primaryParcelId);
+        }
+        if (!primaryParcel && data.primaryProjectParcelCode) {
+          primaryParcel = srcRes.rows.find((r) => r.project_parcel_code === data.primaryProjectParcelCode);
+        }
+        if (!primaryParcel && data.transferSurveyReportId) {
+          primaryParcel = srcRes.rows.find((r) => r.active_phase1_report_id === data.transferSurveyReportId);
         }
         if (!primaryParcel) {
-          primaryParcel = [...srcRes.rows].sort((a, b) =>
-            a.project_parcel_code.localeCompare(b.project_parcel_code, undefined, { numeric: true })
-          )[0];
+          primaryParcel = srcRes.rows.find(
+            (r) =>
+              r.active_phase1_report_id != null ||
+              ['COMPLETED', 'APPROVED', 'SUBMITTED', 'IN_PROGRESS'].includes(r.survey_status)
+          );
+        }
+        if (!primaryParcel) {
+          primaryParcel = srcRes.rows.find((r) => r.id === data.sourceParcelIds[0]) || srcRes.rows[0];
         }
 
         const secondaryParcels = srcRes.rows.filter((r) => r.id !== primaryParcel!.id);
         const secondaryParcelIds = secondaryParcels.map((r) => r.id);
         const totalLandArea = srcRes.rows.reduce((sum, r) => sum + (Number(r.land_area_m2) || 0), 0);
 
-        // 3. Cập nhật Thửa chính: Hợp nhất đa giác ST_Union và cộng dồn diện tích
-        await client.query(
-          `UPDATE parcels
-           SET cadastral_polygon_geom = COALESCE(
-                 (SELECT ST_GeometryN(ST_CollectionExtract(ST_MakeValid(ST_Union(cadastral_polygon_geom)), 3), 1)
-                  FROM parcels WHERE id = ANY($1)),
-                 cadastral_polygon_geom
-               ),
-               footprint_polygon_geom = COALESCE(
-                 (SELECT ST_GeometryN(ST_CollectionExtract(ST_MakeValid(ST_Union(footprint_polygon_geom)), 3), 1)
-                  FROM parcels WHERE id = ANY($1)),
-                 footprint_polygon_geom
-               ),
-               location_geom = COALESCE(
-                 (SELECT ST_Centroid(ST_Union(cadastral_polygon_geom))
-                  FROM parcels WHERE id = ANY($1)),
-                 location_geom
-               ),
-               land_area_m2 = $2,
-               mutation_type = 'MERGE',
-               child_parcel_ids = $3,
-               updated_at = NOW()
-           WHERE id = $4;`,
-          [data.sourceParcelIds, totalLandArea, secondaryParcelIds, primaryParcel.id]
-        );
+        // 3. Phân tích tùy chọn "Có đất dôi dư"
+        const hasPartialBuilding = data.mergeHasPartialBuilding === true;
+        let finalPrimaryArea = totalLandArea;
+        let residualAreaM2 = 0;
 
-        // 4. Đánh dấu các thửa phụ thành MERGED_DEPRECATED
+        if (hasPartialBuilding) {
+          finalPrimaryArea = Number(data.mergeBuildingAreaM2) || Math.round(totalLandArea * 0.65 * 10) / 10;
+          residualAreaM2 = Number(data.mergeResidualAreaM2) || Math.max(0.1, Math.round((totalLandArea - finalPrimaryArea) * 10) / 10);
+        }
+
+        // 4. Phân chia không gian PostGIS (Partition Engine):
+        // Nếu có đất dôi dư hoặc căn nhà mới độc lập: Cắt ranh giữa Thửa chính và Thửa phụ, cam kết overlap = 0.0 m²
+        let residualGeomJson: any = null;
+        let primaryGeomJson: string | null = null;
+
+        if (hasPartialBuilding && residualAreaM2 > 0) {
+          const rawBuildingPoints = data.mergeBuildingCustomPoints || (data as any).mergeBuildingGeoJson;
+          const buildingGeoJson = rawBuildingPoints
+            ? CadastralMutationService.toGeoJsonPolygon(rawBuildingPoints)
+            : null;
+          const buildingGeoStr = buildingGeoJson ? JSON.stringify(buildingGeoJson) : null;
+          const ratio = Math.max(0.05, Math.min(0.95, finalPrimaryArea / (finalPrimaryArea + residualAreaM2)));
+
+          const partitionMergeRes = await client.query<{
+            geom_chinh_json: string;
+            geom_du_json: string;
+            area_chinh: number;
+            area_du: number;
+          }>(
+            `WITH raw_union AS (
+               SELECT ST_UnaryUnion(ST_Collect(ST_MakeValid(cadastral_polygon_geom))) AS u_geom
+               FROM parcels WHERE id = ANY($1)
+             ),
+             merged AS (
+               SELECT COALESCE(
+                 ST_GeometryN(ST_CollectionExtract(
+                   ST_MakeValid(
+                     ST_Buffer(ST_Buffer(u_geom, 0.000005, 'join=mitre'), -0.000005, 'join=mitre')
+                   ), 3
+                 ), 1),
+                 ST_GeometryN(ST_CollectionExtract(ST_MakeValid(u_geom), 3), 1)
+               ) AS full_geom
+               FROM raw_union
+             ),
+             cut_step AS (
+               SELECT 
+                 m.full_geom,
+                 COALESCE(
+                   CASE 
+                     WHEN $2::text IS NOT NULL THEN (
+                       SELECT geom FROM ST_Dump(ST_CollectionExtract(ST_MakeValid(
+                         ST_Intersection(m.full_geom, ST_SetSRID(ST_GeomFromGeoJSON($2), 4326))
+                       ), 3)) ORDER BY ST_Area(geom::geography) DESC LIMIT 1
+                     )
+                     ELSE NULL
+                   END,
+                   CASE 
+                     WHEN (ST_XMax(m.full_geom) - ST_XMin(m.full_geom)) >= (ST_YMax(m.full_geom) - ST_YMin(m.full_geom)) THEN
+                       ST_GeometryN(ST_CollectionExtract(ST_MakeValid(ST_Intersection(
+                         m.full_geom,
+                         ST_MakeEnvelope(
+                           ST_XMin(m.full_geom),
+                           ST_YMin(m.full_geom),
+                           ST_XMin(m.full_geom) + (ST_XMax(m.full_geom) - ST_XMin(m.full_geom)) * $3::float,
+                           ST_YMax(m.full_geom),
+                           4326
+                         )
+                       )), 3), 1)
+                     ELSE
+                       ST_GeometryN(ST_CollectionExtract(ST_MakeValid(ST_Intersection(
+                         m.full_geom,
+                         ST_MakeEnvelope(
+                           ST_XMin(m.full_geom),
+                           ST_YMin(m.full_geom),
+                           ST_XMax(m.full_geom),
+                           ST_YMin(m.full_geom) + (ST_YMax(m.full_geom) - ST_YMin(m.full_geom)) * $3::float,
+                           4326
+                         )
+                       )), 3), 1)
+                   END
+                 ) as geom_chinh
+               FROM merged m
+             ),
+             diff_step AS (
+               SELECT 
+                 c.geom_chinh,
+                 (
+                   SELECT geom FROM ST_Dump(ST_CollectionExtract(ST_MakeValid(
+                     ST_Difference(c.full_geom, c.geom_chinh)
+                   ), 3)) ORDER BY ST_Area(geom::geography) DESC LIMIT 1
+                 ) as geom_du
+               FROM cut_step c
+             )
+             SELECT 
+               ST_AsGeoJSON(geom_chinh) as geom_chinh_json,
+               ST_AsGeoJSON(geom_du) as geom_du_json,
+               ROUND(ST_Area(geom_chinh::geography)::numeric, 1) as area_chinh,
+               ROUND(ST_Area(geom_du::geography)::numeric, 1) as area_du
+             FROM diff_step;`,
+            [data.sourceParcelIds, buildingGeoStr, ratio]
+          );
+
+          if (
+            partitionMergeRes.rows.length > 0 &&
+            partitionMergeRes.rows[0].geom_chinh_json &&
+            partitionMergeRes.rows[0].geom_du_json
+          ) {
+            const pRow = partitionMergeRes.rows[0];
+            residualGeomJson = pRow.geom_du_json;
+            primaryGeomJson = pRow.geom_chinh_json;
+          }
+        }
+
+        // Nếu không phân tách khuôn viên, tính toán hợp nhất không gian liền mạch (ST_UnaryUnion + micro-gap buffer)
+        if (!primaryGeomJson) {
+          const unionRes = await client.query<{ geom_json: string }>(
+            `WITH raw_union AS (
+               SELECT ST_UnaryUnion(ST_Collect(ST_MakeValid(cadastral_polygon_geom))) AS u_geom
+               FROM parcels WHERE id = ANY($1)
+             ),
+             merged AS (
+               SELECT COALESCE(
+                 ST_GeometryN(ST_CollectionExtract(
+                   ST_MakeValid(
+                     ST_Buffer(ST_Buffer(u_geom, 0.000005, 'join=mitre'), -0.000005, 'join=mitre')
+                   ), 3
+                 ), 1),
+                 ST_GeometryN(ST_CollectionExtract(ST_MakeValid(u_geom), 3), 1)
+               ) AS full_geom
+               FROM raw_union
+             )
+             SELECT ST_AsGeoJSON(full_geom) as geom_json FROM merged;`,
+            [data.sourceParcelIds]
+          );
+          if (unionRes.rows[0]?.geom_json) {
+            primaryGeomJson = unionRes.rows[0].geom_json;
+          }
+        }
+
+        // Cập nhật Thửa chính chuẩn hóa 100% tham số PostGIS
+        if (primaryGeomJson) {
+          await client.query(
+            `UPDATE parcels
+             SET cadastral_polygon_geom = ST_SetSRID(ST_GeomFromGeoJSON($1), 4326),
+                 footprint_polygon_geom = ST_SetSRID(ST_GeomFromGeoJSON($1), 4326),
+                 location_geom = ST_Centroid(ST_SetSRID(ST_GeomFromGeoJSON($1), 4326)),
+                 land_area_m2 = $2,
+                 construction_area_m2 = $2,
+                 mutation_type = 'MERGE',
+                 child_parcel_ids = $3,
+                 updated_at = NOW()
+             WHERE id = $4;`,
+            [primaryGeomJson, finalPrimaryArea, secondaryParcelIds, primaryParcel.id]
+          );
+        } else {
+          await client.query(
+            `UPDATE parcels
+             SET land_area_m2 = $1,
+                 construction_area_m2 = $1,
+                 mutation_type = 'MERGE',
+                 child_parcel_ids = $2,
+                 updated_at = NOW()
+             WHERE id = $3;`,
+            [finalPrimaryArea, secondaryParcelIds, primaryParcel.id]
+          );
+        }
+
+        const resultParcelIds: string[] = [primaryParcel.id];
+
+        // 5. Nếu "Xây dựng 1 phần có đất dôi dư hoặc nhà mới":
+        if (hasPartialBuilding && residualAreaM2 > 0) {
+          const isNewBuilding = data.mergePartitionKind === 'NEW_BUILDING';
+
+          if (isNewBuilding) {
+            // Nhánh 2A: Căn nhà mới độc lập (NEW_BUILDING) -> Cấp mã chính quy Max Zone + 1
+            let newBuildingCode = data.mergeSecondaryParcelCode;
+            if (!newBuildingCode) {
+              newBuildingCode = await CadastralRepository.getNextHighRangeProjectCode(
+                client,
+                primaryParcel.zone_id,
+                primaryParcel.project_parcel_code
+              );
+            }
+            const newHouseNumber = (data.mergeSecondaryHouseNumber || `${primaryParcel.house_number}B`).trim();
+            const newOwnerName = (data.mergeSecondaryOwnerName || 'Chủ hộ mới').trim();
+            const newOwnerPhone = (data.mergeSecondaryPhone || '').trim();
+            const newFloorCount = Number(data.mergeSecondaryFloorCount) || 1;
+            let newOfficialCode = `${primaryParcel.official_cadastral_code || primaryParcel.project_parcel_code}-B`;
+            const checkOff = await client.query<{ id: string }>(
+              `SELECT id FROM parcels WHERE official_cadastral_code = $1;`,
+              [newOfficialCode]
+            );
+            if (checkOff.rows.length > 0) {
+              newOfficialCode = `${primaryParcel.official_cadastral_code || primaryParcel.project_parcel_code}-${Date.now().toString().slice(-4)}`;
+            }
+
+            let geomInsertExpr: string;
+            let insertParams: any[];
+
+            if (residualGeomJson) {
+              const geoStr = typeof residualGeomJson === 'string' ? residualGeomJson : JSON.stringify(residualGeomJson);
+              geomInsertExpr = `COALESCE(
+                (
+                  SELECT geom FROM ST_Dump(ST_CollectionExtract(ST_MakeValid(ST_SetSRID(ST_GeomFromGeoJSON($13), 4326)), 3))
+                  ORDER BY ST_Area(geom::geography) DESC LIMIT 1
+                ),
+                (SELECT cadastral_polygon_geom FROM parcels WHERE id = $12)
+              )`;
+              insertParams = [
+                primaryParcel.zone_id,
+                newBuildingCode,
+                newOfficialCode,
+                newHouseNumber,
+                primaryParcel.street,
+                primaryParcel.ward || '',
+                primaryParcel.district || '',
+                newOwnerName,
+                newOwnerPhone,
+                residualAreaM2,
+                newFloorCount,
+                primaryParcel.id,
+                geoStr,
+              ];
+            } else {
+              geomInsertExpr = `(SELECT cadastral_polygon_geom FROM parcels WHERE id = $12)`;
+              insertParams = [
+                primaryParcel.zone_id,
+                newBuildingCode,
+                newOfficialCode,
+                newHouseNumber,
+                primaryParcel.street,
+                primaryParcel.ward || '',
+                primaryParcel.district || '',
+                newOwnerName,
+                newOwnerPhone,
+                residualAreaM2,
+                newFloorCount,
+                primaryParcel.id,
+              ];
+            }
+
+            const newParcelRes = await client.query<{ id: string }>(
+              `INSERT INTO parcels (
+                 zone_id, project_parcel_code, official_cadastral_code,
+                 house_number, street, ward, district,
+                 owner_name, owner_phone,
+                 land_area_m2, construction_area_m2, floor_count,
+                 survey_status, lifecycle_status,
+                 mutation_type, parent_parcel_ids,
+                 cadastral_polygon_geom, footprint_polygon_geom, location_geom,
+                 created_at, updated_at
+               ) VALUES (
+                 $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10, $11,
+                 'NOT_SURVEYED', 'ACTIVE',
+                 'MERGE', ARRAY[$12::uuid],
+                 ${geomInsertExpr}, ${geomInsertExpr}, ST_Centroid(${geomInsertExpr}),
+                 NOW(), NOW()
+               )
+               ON CONFLICT (project_parcel_code) DO UPDATE
+               SET land_area_m2 = EXCLUDED.land_area_m2,
+                   construction_area_m2 = EXCLUDED.construction_area_m2,
+                   house_number = EXCLUDED.house_number,
+                   owner_name = EXCLUDED.owner_name,
+                   cadastral_polygon_geom = EXCLUDED.cadastral_polygon_geom,
+                   footprint_polygon_geom = EXCLUDED.footprint_polygon_geom,
+                   location_geom = EXCLUDED.location_geom,
+                   updated_at = NOW()
+               RETURNING id;`,
+              insertParams
+            );
+            resultParcelIds.push(newParcelRes.rows[0].id);
+          } else {
+            // Nhánh 2B: Đất dôi dư / Sân vườn (NON_BUILDING) -> Giữ mã {Mã}-DU
+            const residualResult = await CadastralMutationService.upsertResidualLandParcel(client, {
+              zoneId: primaryParcel.zone_id,
+              parentParcelId: primaryParcel.id,
+              parentProjectCode: primaryParcel.project_parcel_code,
+              parentOfficialCode: primaryParcel.official_cadastral_code,
+              parentHouseNumber: primaryParcel.house_number,
+              parentStreet: primaryParcel.street,
+              parentWard: primaryParcel.ward,
+              parentDistrict: primaryParcel.district,
+              residualAreaM2,
+              mutationType: 'MERGE',
+              customGeomJson: residualGeomJson,
+            });
+            resultParcelIds.push(residualResult.id);
+          }
+        }
+
+        // 6. Đánh dấu các thửa phụ thành MERGED_DEPRECATED
         await client.query(
           `UPDATE parcels
            SET lifecycle_status = 'MERGED_DEPRECATED',
@@ -351,7 +841,21 @@ export class CadastralMutationService {
           [primaryParcel.id, secondaryParcelIds]
         );
 
-        // 5. Nếu có hồ sơ khảo sát cần gán hoặc di chuyển sang thửa chính
+        // 6.1 Cập nhật quan hệ 2 chiều: Đảm bảo Thửa chính lưu đầy đủ danh sách con (gồm cả thửa bị gộp và thửa con mới sinh)
+        if (resultParcelIds.length > 1) {
+          const secondaryChildId = resultParcelIds[1];
+          await client.query(
+            `UPDATE parcels
+             SET child_parcel_ids = array_cat(
+               child_parcel_ids,
+               ARRAY[$1::uuid]
+             )
+             WHERE id = $2 AND NOT ($1::uuid = ANY(child_parcel_ids));`,
+            [secondaryChildId, primaryParcel.id]
+          );
+        }
+
+        // 7. Nếu có hồ sơ khảo sát cần gán hoặc di chuyển sang thửa chính
         if (data.transferSurveyReportId) {
           await client.query(
             `UPDATE base_survey_reports SET parcel_id = $1, updated_at = NOW() WHERE id = $2;`,
@@ -363,23 +867,23 @@ export class CadastralMutationService {
           );
         }
 
-        // 6. Ghi vết parcel_mutation_events
+        // 8. Ghi vết parcel_mutation_events
         const mutRes = await client.query<{ id: string }>(
           `INSERT INTO parcel_mutation_events (
              mutation_code, mutation_type, source_parcel_ids, result_parcel_ids,
              surveyor_notes, surveyor_id, zone_admin_id, status, approved_at
-           ) VALUES ($1, 'MERGE', $2, ARRAY[$3::uuid], $4, $5, $5, 'APPROVED', NOW())
+           ) VALUES ($1, 'MERGE', $2, $3, $4, $5, $5, 'APPROVED', NOW())
            RETURNING id;`,
           [
             mutationCode,
             data.sourceParcelIds,
-            primaryParcel.id,
+            resultParcelIds,
             data.adminNotes || `Zone Admin gộp ${data.sourceParcelIds.length} thửa thành 1 thửa đại diện [${primaryParcel.project_parcel_code}]`,
             adminId,
           ]
         );
 
-        // 7. Ghi log kiểm toán
+        // 9. Ghi log kiểm toán
         await client.query(
           `INSERT INTO system_audit_logs (
              entity_type, entity_id, action, performed_by_user_id, diff_payload, client_ip
@@ -397,6 +901,8 @@ export class CadastralMutationService {
               primaryParcelCode: primaryParcel.project_parcel_code,
               secondaryParcelIds,
               totalLandArea,
+              hasPartialBuilding,
+              residualAreaM2,
               adminNotes: data.adminNotes || null,
               timestamp: new Date().toISOString(),
             }),
@@ -413,10 +919,10 @@ export class CadastralMutationService {
           primaryParcel: {
             id: primaryParcel.id,
             projectParcelCode: primaryParcel.project_parcel_code,
-            totalLandArea,
+            totalLandArea: finalPrimaryArea,
           },
           status: 'APPROVED',
-          message: `Đã gộp thành công ${data.sourceParcelIds.length} thửa đất vào thửa đại diện [${primaryParcel.project_parcel_code}] (${totalLandArea} m²)`,
+          message: `Đã gộp thành công ${data.sourceParcelIds.length} thửa đất vào thửa đại diện [${primaryParcel.project_parcel_code}] (${finalPrimaryArea} m²)${hasPartialBuilding ? ` kèm đất dôi dư (${residualAreaM2} m²)` : ''}`,
         };
       }
 
@@ -465,6 +971,151 @@ export class CadastralMutationService {
       const childParcelsCreatedOrUpdated: any[] = [];
       const newChildIdsOnly: string[] = [];
 
+      // Pre-compute PostGIS partition cho trường hợp tách 2 thửa (Lô A + Lô B/Dôi dư) để triệt tiêu lỗi thắt nơ và khoảng hở
+      const is2ChildSplit = data.childParcels.length === 2;
+      let precomputedGeomA: string | null = null;
+      let precomputedGeomB: string | null = null;
+
+      if (is2ChildSplit) {
+        const childA = data.childParcels[0];
+        const isMockCoordA =
+          childA.polygonGeoJson &&
+          childA.polygonGeoJson.coordinates &&
+          childA.polygonGeoJson.coordinates[0] &&
+          childA.polygonGeoJson.coordinates[0][0] &&
+          childA.polygonGeoJson.coordinates[0][0][0] === 106.71;
+
+        const geoAStr =
+          childA.polygonGeoJson && !isMockCoordA
+            ? typeof childA.polygonGeoJson === 'string'
+              ? childA.polygonGeoJson
+              : JSON.stringify(childA.polygonGeoJson)
+            : null;
+
+        const rawAreaA = Number(data.childParcels[0].landAreaM2) || 0;
+        const rawAreaB = Number(data.childParcels[1].landAreaM2) || 0;
+        const totalA_B = rawAreaA + rawAreaB;
+        const dynamicRatio = totalA_B > 0 ? Math.max(0.05, Math.min(0.95, rawAreaA / totalA_B)) : 0.6;
+
+        const partitionRes = await client.query<{
+          geom_a_json: string;
+          geom_b_json: string;
+          area_a_m2: number;
+          area_b_m2: number;
+        }>(
+          `WITH parent_data AS (
+             SELECT cadastral_polygon_geom AS parent_geom FROM parcels WHERE id = $1
+           ),
+           cut_ratio AS (
+             SELECT $3::float as r
+           ),
+           split_a AS (
+             SELECT 
+               COALESCE(
+                 CASE 
+                   WHEN $2::text IS NOT NULL THEN (
+                     SELECT geom 
+                     FROM ST_Dump(ST_CollectionExtract(ST_MakeValid(ST_Intersection(p.parent_geom, ST_SetSRID(ST_GeomFromGeoJSON($2), 4326))), 3))
+                     ORDER BY ST_Area(geom::geography) DESC 
+                     LIMIT 1
+                   )
+                   ELSE NULL
+                 END,
+                 CASE 
+                   WHEN (ST_XMax(p.parent_geom) - ST_XMin(p.parent_geom)) >= (ST_YMax(p.parent_geom) - ST_YMin(p.parent_geom)) THEN
+                     ST_GeometryN(ST_CollectionExtract(ST_MakeValid(ST_Intersection(
+                       p.parent_geom,
+                       ST_MakeEnvelope(
+                         ST_XMin(p.parent_geom),
+                         ST_YMin(p.parent_geom),
+                         ST_XMin(p.parent_geom) + (ST_XMax(p.parent_geom) - ST_XMin(p.parent_geom)) * (SELECT r FROM cut_ratio),
+                         ST_YMax(p.parent_geom),
+                         4326
+                       )
+                     )), 3), 1)
+                   ELSE
+                     ST_GeometryN(ST_CollectionExtract(ST_MakeValid(ST_Intersection(
+                       p.parent_geom,
+                       ST_MakeEnvelope(
+                         ST_XMin(p.parent_geom),
+                         ST_YMin(p.parent_geom),
+                         ST_XMax(p.parent_geom),
+                         ST_YMin(p.parent_geom) + (ST_YMax(p.parent_geom) - ST_YMin(p.parent_geom)) * (SELECT r FROM cut_ratio),
+                         4326
+                       )
+                     )), 3), 1)
+                 END
+               ) AS geom_a,
+               p.parent_geom
+             FROM parent_data p
+           ),
+           split_b AS (
+             SELECT 
+               a.geom_a,
+               COALESCE(
+                 (
+                   SELECT geom 
+                   FROM ST_Dump(ST_CollectionExtract(ST_MakeValid(ST_Difference(a.parent_geom, a.geom_a)), 3))
+                   ORDER BY ST_Area(geom::geography) DESC 
+                   LIMIT 1
+                 ),
+                 CASE 
+                   WHEN (ST_XMax(a.parent_geom) - ST_XMin(a.parent_geom)) >= (ST_YMax(a.parent_geom) - ST_YMin(a.parent_geom)) THEN
+                     ST_GeometryN(ST_CollectionExtract(ST_MakeValid(ST_Intersection(
+                       a.parent_geom,
+                       ST_MakeEnvelope(
+                         ST_XMin(a.parent_geom) + (ST_XMax(a.parent_geom) - ST_XMin(a.parent_geom)) * (SELECT r FROM cut_ratio),
+                         ST_YMin(a.parent_geom),
+                         ST_XMax(a.parent_geom),
+                         ST_YMax(a.parent_geom),
+                         4326
+                       )
+                     )), 3), 1)
+                   ELSE
+                     ST_GeometryN(ST_CollectionExtract(ST_MakeValid(ST_Intersection(
+                       a.parent_geom,
+                       ST_MakeEnvelope(
+                         ST_XMin(a.parent_geom),
+                         ST_YMin(a.parent_geom) + (ST_YMax(a.parent_geom) - ST_YMin(a.parent_geom)) * (SELECT r FROM cut_ratio),
+                         ST_XMax(a.parent_geom),
+                         ST_YMax(a.parent_geom),
+                         4326
+                       )
+                     )), 3), 1)
+                 END
+               ) AS geom_b
+             FROM split_a a
+           )
+           SELECT 
+             ST_AsGeoJSON(a.geom_a) AS geom_a_json,
+             ST_AsGeoJSON(a.geom_b) AS geom_b_json,
+             ROUND(ST_Area(a.geom_a::geography)::numeric, 1) AS area_a_m2,
+             ROUND(ST_Area(a.geom_b::geography)::numeric, 1) AS area_b_m2
+           FROM split_b a;`,
+          [parent.id, geoAStr, dynamicRatio]
+        );
+
+        if (partitionRes.rows.length > 0) {
+          const row = partitionRes.rows[0];
+          if (row.area_b_m2 < 0.2) {
+            throw new BadRequestError(
+              'Đa giác Lô A bao phủ gần như toàn bộ thửa đất gốc. Vui lòng điều chỉnh lại ranh giới để Lô B có diện tích hợp lệ.'
+            );
+          }
+          precomputedGeomA = row.geom_a_json;
+          precomputedGeomB = row.geom_b_json;
+          if (
+            !data.childParcels[0].landAreaM2 ||
+            Number(data.childParcels[0].landAreaM2) === Number(parent.land_area_m2)
+          ) {
+            data.childParcels[0].landAreaM2 = row.area_a_m2;
+          }
+          if (!data.childParcels[1].landAreaM2 || Number(data.childParcels[1].landAreaM2) <= 0) {
+            data.childParcels[1].landAreaM2 = row.area_b_m2;
+          }
+        }
+      }
+
       for (let idx = 0; idx < data.childParcels.length; idx++) {
         const child = data.childParcels[idx];
 
@@ -488,10 +1139,26 @@ export class CadastralMutationService {
             parent.id,
           ];
 
-          if (child.polygonGeoJson && !isMockCoord) {
-            updateParams.push(typeof child.polygonGeoJson === 'string' ? child.polygonGeoJson : JSON.stringify(child.polygonGeoJson));
+          if (precomputedGeomA) {
+            updateParams.push(precomputedGeomA);
             const gIdx = updateParams.length;
-            geomUpdateExpr = `ST_GeometryN(ST_CollectionExtract(ST_MakeValid(ST_SetSRID(ST_GeomFromGeoJSON($${gIdx}), 4326)), 3), 1)`;
+            geomUpdateExpr = `ST_SetSRID(ST_GeomFromGeoJSON($${gIdx}), 4326)`;
+          } else if (child.polygonGeoJson && !isMockCoord) {
+            updateParams.push(
+              typeof child.polygonGeoJson === 'string'
+                ? child.polygonGeoJson
+                : JSON.stringify(child.polygonGeoJson)
+            );
+            const gIdx = updateParams.length;
+            geomUpdateExpr = `COALESCE(
+              (
+                SELECT geom 
+                FROM ST_Dump(ST_CollectionExtract(ST_MakeValid(ST_SetSRID(ST_GeomFromGeoJSON($${gIdx}), 4326)), 3))
+                ORDER BY ST_Area(geom::geography) DESC 
+                LIMIT 1
+              ),
+              (SELECT cadastral_polygon_geom FROM parcels WHERE id = $5)
+            )`;
           } else {
             geomUpdateExpr = `COALESCE(
               ST_GeometryN(ST_CollectionExtract(ST_MakeValid(ST_Intersection(
@@ -538,75 +1205,143 @@ export class CadastralMutationService {
             role: 'PRIMARY_A',
           });
         } else {
-          // CĂN B, C...: THỬA PHÁT SINH MỚI (MAX ZONE + 1)
-          let code = child.projectParcelCode?.trim();
-          if (!code) {
-            code = await CadastralRepository.getNextHighRangeProjectCode(
-              client,
-              zoneId,
-              parent.project_parcel_code
-            );
-          }
+          // CĂN B, C...: THỬA PHÁT SINH MỚI
+          const isResidualLand =
+            child.residualKind === 'NON_BUILDING' ||
+            (child.projectParcelCode && child.projectParcelCode.endsWith('-DU'));
 
-          const bHouseNumber = child.houseNumber || (parent.house_number ? `${parent.house_number}${String.fromCharCode(65 + idx)}` : 'KĐ');
-          const bOwnerName = child.ownerName || `Chủ hộ Căn ${String.fromCharCode(65 + idx)} (${code})`;
           const bArea = child.landAreaM2 ? Number(child.landAreaM2) : 0;
 
-          const insertParams: any[] = [
-            zoneId,                        // $1
-            code,                          // $2
-            bHouseNumber,                  // $3
-            child.street || parent.street, // $4
-            parent.ward,                   // $5
-            parent.district,               // $6
-            bOwnerName,                    // $7
-            child.ownerPhone || null,      // $8
-            bArea,                         // $9
-            child.floorCount || 1,         // $10
-            parent.id,                     // $11
-          ];
+          if (isResidualLand) {
+            const residualResult = await CadastralMutationService.upsertResidualLandParcel(client, {
+              zoneId,
+              parentParcelId: parent.id,
+              parentProjectCode: parent.project_parcel_code,
+              parentOfficialCode: parent.project_parcel_code,
+              parentHouseNumber: parent.house_number,
+              parentStreet: child.street || parent.street,
+              parentWard: parent.ward,
+              parentDistrict: parent.district,
+              residualAreaM2: bArea,
+              mutationType: 'SPLIT',
+              customGeomJson: precomputedGeomB || (child.polygonGeoJson && !isMockCoord ? child.polygonGeoJson : undefined),
+            });
 
-          let bGeomExpr: string;
-          if (child.polygonGeoJson && !isMockCoord) {
-            insertParams.push(typeof child.polygonGeoJson === 'string' ? child.polygonGeoJson : JSON.stringify(child.polygonGeoJson));
-            const gIdx = insertParams.length;
-            bGeomExpr = `ST_GeometryN(ST_CollectionExtract(ST_MakeValid(ST_SetSRID(ST_GeomFromGeoJSON($${gIdx}), 4326)), 3), 1)`;
+            resultParcelIds.push(residualResult.id);
+            newChildIdsOnly.push(residualResult.id);
+            createdParcels.push({
+              id: residualResult.id,
+              project_parcel_code: residualResult.projectParcelCode,
+            });
           } else {
-            bGeomExpr = `COALESCE(
-              ST_GeometryN(ST_CollectionExtract(ST_MakeValid(ST_Difference(
-                (SELECT cadastral_polygon_geom FROM parcels WHERE id = $11),
-                ST_MakeEnvelope(
-                  ST_XMin((SELECT cadastral_polygon_geom FROM parcels WHERE id = $11)),
-                  ST_YMin((SELECT cadastral_polygon_geom FROM parcels WHERE id = $11)),
-                  ST_XMin((SELECT cadastral_polygon_geom FROM parcels WHERE id = $11)) + (ST_XMax((SELECT cadastral_polygon_geom FROM parcels WHERE id = $11)) - ST_XMin((SELECT cadastral_polygon_geom FROM parcels WHERE id = $11))) * (1 - ${ratio}),
-                  ST_YMax((SELECT cadastral_polygon_geom FROM parcels WHERE id = $11)),
-                  4326
-                )
-              )), 3), 1),
-              (SELECT cadastral_polygon_geom FROM parcels WHERE id = $11)
-            )`;
+            let code = child.projectParcelCode?.trim();
+            if (!code) {
+              code = await CadastralRepository.getNextHighRangeProjectCode(
+                client,
+                zoneId,
+                parent.project_parcel_code
+              );
+            }
+
+            const bHouseNumber = child.houseNumber || (parent.house_number ? `${parent.house_number}${String.fromCharCode(65 + idx)}` : 'KĐ');
+            const bOwnerName = child.ownerName || `Chủ hộ Căn ${String.fromCharCode(65 + idx)} (${code})`;
+            const bConstructionArea = bArea;
+            const bFloorCount = child.floorCount || 1;
+
+            const insertParams: any[] = [
+              zoneId,                        // $1
+              code,                          // $2
+              bHouseNumber,                  // $3
+              child.street || parent.street, // $4
+              parent.ward,                   // $5
+              parent.district,               // $6
+              bOwnerName,                    // $7
+              child.ownerPhone || null,      // $8
+              bArea,                         // $9
+              bConstructionArea,             // $10
+              bFloorCount,                   // $11
+              parent.id,                     // $12
+            ];
+
+            let bGeomExpr: string;
+            if (precomputedGeomB) {
+              insertParams.push(precomputedGeomB);
+              const gIdx = insertParams.length;
+              bGeomExpr = `ST_SetSRID(ST_GeomFromGeoJSON($${gIdx}), 4326)`;
+            } else if (child.polygonGeoJson && !isMockCoord) {
+              insertParams.push(
+                typeof child.polygonGeoJson === 'string'
+                  ? child.polygonGeoJson
+                  : JSON.stringify(child.polygonGeoJson)
+              );
+              const gIdx = insertParams.length;
+              bGeomExpr = `COALESCE(
+                (
+                  SELECT geom 
+                  FROM ST_Dump(ST_CollectionExtract(ST_MakeValid(ST_SetSRID(ST_GeomFromGeoJSON($${gIdx}), 4326)), 3))
+                  ORDER BY ST_Area(geom::geography) DESC 
+                  LIMIT 1
+                ),
+                (SELECT cadastral_polygon_geom FROM parcels WHERE id = $12)
+              )`;
+            } else {
+              bGeomExpr = `COALESCE(
+                ST_GeometryN(ST_CollectionExtract(ST_MakeValid(ST_Difference(
+                  (SELECT cadastral_polygon_geom FROM parcels WHERE id = $12),
+                  ST_MakeEnvelope(
+                    ST_XMin((SELECT cadastral_polygon_geom FROM parcels WHERE id = $12)),
+                    ST_YMin((SELECT cadastral_polygon_geom FROM parcels WHERE id = $12)),
+                    ST_XMin((SELECT cadastral_polygon_geom FROM parcels WHERE id = $12)) + (ST_XMax((SELECT cadastral_polygon_geom FROM parcels WHERE id = $12)) - ST_XMin((SELECT cadastral_polygon_geom FROM parcels WHERE id = $12))) * (1 - ${ratio}),
+                    ST_YMax((SELECT cadastral_polygon_geom FROM parcels WHERE id = $12)),
+                    4326
+                  )
+                )), 3), 1),
+                (SELECT cadastral_polygon_geom FROM parcels WHERE id = $12)
+              )`;
+            }
+
+            const pRes = await client.query<{ id: string; project_parcel_code: string }>(
+              `INSERT INTO parcels (
+                 zone_id, project_parcel_code, house_number, street, ward, district,
+                 owner_name, owner_phone, land_area_m2, construction_area_m2, floor_count,
+                 cadastral_polygon_geom, footprint_polygon_geom, location_geom,
+                 survey_status, lifecycle_status, mutation_type, parent_parcel_ids
+               ) VALUES (
+                 $1, $2, $3, $4, $5, $6,
+                 $7, $8, $9, $10, $11,
+                 ${bGeomExpr},
+                 ${bGeomExpr},
+                 ST_Centroid(${bGeomExpr}),
+                 'NOT_SURVEYED', 'ACTIVE', 'SPLIT', ARRAY[$12::uuid]
+               ) RETURNING id, project_parcel_code;`,
+              insertParams
+            );
+
+            const newChildId = pRes.rows[0].id;
+            resultParcelIds.push(newChildId);
+            newChildIdsOnly.push(newChildId);
+            createdParcels.push(pRes.rows[0]);
+
+            // Nếu là căn nhà mới độc lập và thửa cha có surveyor phân công, tự động tạo task assignment
+            const surveyorRes = await client.query<{ assigned_surveyor_id: string }>(
+              `SELECT assigned_surveyor_id FROM parcels WHERE id = $1;`,
+              [parent.id]
+            );
+            const assignedSurveyorId = surveyorRes.rows[0]?.assigned_surveyor_id;
+            if (assignedSurveyorId) {
+              await client.query(
+                `INSERT INTO task_assignments (
+                   parcel_id, surveyor_id, assigned_by_admin_id, deadline, status, notes
+                 ) VALUES ($1, $2, $3, NOW() + INTERVAL '7 days', 'ASSIGNED', $4);`,
+                [
+                  newChildId,
+                  assignedSurveyorId,
+                  adminId,
+                  `Zone Admin phân công khảo sát Căn B mới [${code}] phát sinh từ tách thửa [${parent.project_parcel_code}]`,
+                ]
+              );
+            }
           }
-
-          const pRes = await client.query<{ id: string; project_parcel_code: string }>(
-            `INSERT INTO parcels (
-               zone_id, project_parcel_code, house_number, street, ward, district,
-               owner_name, owner_phone, land_area_m2, construction_area_m2, floor_count,
-               cadastral_polygon_geom, footprint_polygon_geom, location_geom,
-               survey_status, lifecycle_status, mutation_type, parent_parcel_ids
-             ) VALUES (
-               $1, $2, $3, $4, $5, $6,
-               $7, $8, $9, $9, $10,
-               ${bGeomExpr},
-               ${bGeomExpr},
-               ST_Centroid(${bGeomExpr}),
-               'NOT_SURVEYED', 'ACTIVE', 'SPLIT', ARRAY[$11::uuid]
-             ) RETURNING id, project_parcel_code;`,
-            insertParams
-          );
-
-          resultParcelIds.push(pRes.rows[0].id);
-          newChildIdsOnly.push(pRes.rows[0].id);
-          createdParcels.push(pRes.rows[0]);
         }
       }
 

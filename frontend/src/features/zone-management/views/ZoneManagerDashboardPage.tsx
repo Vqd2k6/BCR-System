@@ -2,9 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Card } from '../../../core/components/ui/Card';
 import { Badge } from '../../../core/components/ui/Badge';
 import { Button } from '../../../core/components/ui/Button';
-import { Users, MapPin, CheckCircle2, Clock, AlertTriangle, Filter, Download, RefreshCw, BarChart3, Building } from 'lucide-react';
-// Tạm ẩn Phase1ExportModuleBox chờ hoàn thiện thiết kế mẫu in ấn A4 chuẩn Liên danh CRLG-CRSRI-TT
-// import { Phase1ExportModuleBox } from '../components/Phase1ExportModuleBox';
+import { Users, MapPin, CheckCircle2, Clock, AlertTriangle, Filter, Download, RefreshCw, BarChart3, Building, FileSpreadsheet } from 'lucide-react';
+import { Phase1ExportModuleBox } from '../components/Phase1ExportModuleBox';
 import { ZoneAuditReviewQueue } from '../components/review-queue/ZoneAuditReviewQueue';
 import { METRO_22_ZONES, getZoneByCode } from '../../survey-phase1/constants/metroGisConstants';
 import { useAuth } from '../../../context/AuthContext';
@@ -26,6 +25,7 @@ interface ZoneSurveyorState {
 
 export const ZoneManagerDashboardPage: React.FC = () => {
   const { user } = useAuth();
+  const [activeTab, setActiveTab] = useState<'review' | 'export'>('review');
 
   const resolveDefaultZone = (zoneId?: string | null): string => {
     if (!zoneId) return 'ZONE_01';
@@ -265,15 +265,48 @@ export const ZoneManagerDashboardPage: React.FC = () => {
         </Card>
       </div>
 
-      {/* Hàng Đợi Thẩm Định & Phê Duyệt Hồ Sơ Hiện Trường */}
-      <ZoneAuditReviewQueue
-        selectedZone={selectedZone}
-        onStatsNeedRefresh={() => {
-          fetchLiveStats(selectedZone);
-        }}
-      />
+      {/* Sub-tab navigation: Review Queue vs Phase 1 Export */}
+      <div className="flex items-center gap-2 border-b border-slate-200 pb-2 overflow-x-auto no-scrollbar">
+        <button
+          onClick={() => setActiveTab('review')}
+          className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all border ${
+            activeTab === 'review'
+              ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+              : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+          }`}
+        >
+          <CheckCircle2 className="w-4 h-4" />
+          <span>Hàng Đợi Thẩm Định & Duyệt Hồ Sơ</span>
+        </button>
 
-      {/* Phân hệ Xuất Báo Cáo Phase 1 tạm ẩn chờ hoàn thiện thiết kế A4 */}
+        <button
+          onClick={() => setActiveTab('export')}
+          className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all border ${
+            activeTab === 'export'
+              ? 'bg-sky-600 text-white border-sky-600 shadow-sm'
+              : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+          }`}
+        >
+          <FileSpreadsheet className="w-4 h-4" />
+          <span>Xuất Báo Cáo Phase 1 (Mẫu 0410 Song Ngữ V2)</span>
+          <span className="text-[10px] bg-amber-400 text-amber-950 px-1.5 py-0.5 rounded-full font-black">Mới</span>
+        </button>
+      </div>
+
+      {/* Tab 1: Hàng Đợi Thẩm Định & Phê Duyệt Hồ Sơ Hiện Trường */}
+      {activeTab === 'review' && (
+        <ZoneAuditReviewQueue
+          selectedZone={selectedZone}
+          onStatsNeedRefresh={() => {
+            fetchLiveStats(selectedZone);
+          }}
+        />
+      )}
+
+      {/* Tab 2: Phân hệ Xuất Báo Cáo Phase 1 Chuẩn CRLG-CRSRI-TT */}
+      {activeTab === 'export' && (
+        <Phase1ExportModuleBox initialZoneId={selectedZone} />
+      )}
 
       {/* Tạm ẩn "Cán Bộ Khảo Sát & Điểm Danh GPS Phân Khu" vì logic điểm danh đang phát triển */}
       {/*

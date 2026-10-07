@@ -1,0 +1,175 @@
+  <!-- =====================================================================
+       TRANG 5: CHƯƠNG V & VI (ĐỘ NGHIÊNG/LÚN & TÓM TẮT ĐIỀU TRA LỖI)
+       ===================================================================== -->
+  <div class="a4-page-sheet">
+    
+  <div class="report-subpage-topbar">
+    <span>LIÊN DANH CRLG – CRSRI – TT | TUYẾN METRO 2 BẾN THÀNH - THAM LƯƠNG</span>
+    <span>{{metadata.buildingId}} | {{metadata.reportNo}}</span>
+  </div>
+
+
+    <h2 class="chapter-header">V. ĐỘ NGHIÊNG/LÚN - GHI NHẬN SƠ BỘ - PRELIMINARY TILT/SETTLEMENT INDICATORS</h2>
+    <table class="tech-table compact-table">
+      <thead>
+        <tr>
+          <th style="width: 32%;">Chỉ tiêu đánh giá<br><span class="text-muted">Assessment Criteria</span></th>
+          <th style="width: 18%; text-align: center;">Hiện tượng<br><span class="text-muted">Observed</span></th>
+          <th style="width: 50%;">Vị trí & Chi tiết ghi nhận<br><span class="text-muted">Location & Remarks</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Lún lệch quan sát được<br><span class="text-muted">Differential settlement</span></td>
+          <td class="text-center">{{section5.differentialSettlement.observedDisplay.vi}} / <span class="text-muted">{{section5.differentialSettlement.observedDisplay.en}}</span></td>
+          <td>
+            {{section5.differentialSettlement.location.vi}}<br>
+            <span class="text-muted">{{section5.differentialSettlement.location.en}}</span>
+          </td>
+        </tr>
+        <tr>
+          <td>Suy thoái cấu kiện kết cấu<br><span class="text-muted">Component deterioration</span></td>
+          <td class="text-center">{{section5.componentDeterioration.observedDisplay.vi}} / <span class="text-muted">{{section5.componentDeterioration.observedDisplay.en}}</span></td>
+          <td>
+            {{section5.componentDeterioration.location.vi}}<br>
+            <span class="text-muted">{{section5.componentDeterioration.location.en}}</span>
+          </td>
+        </tr>
+        <tr>
+          <td>Dấu hiệu sửa chữa trước đây<br><span class="text-muted">Evidence of repairs</span></td>
+          <td class="text-center">{{section5.evidenceOfRepairs.observedDisplay.vi}} / <span class="text-muted">{{section5.evidenceOfRepairs.observedDisplay.en}}</span></td>
+          <td>
+            {{section5.evidenceOfRepairs.location.vi}}<br>
+            <span class="text-muted">{{section5.evidenceOfRepairs.location.en}}</span>
+          </td>
+        </tr>
+        <tr>
+          <td>Sụp đổ / Hư hỏng nghiêm trọng<br><span class="text-muted">Collapse / Severe Failure</span></td>
+          <td class="text-center">{{section5.collapse.observedDisplay.vi}} / <span class="text-muted">{{section5.collapse.observedDisplay.en}}</span></td>
+          <td>
+            {{section5.collapse.location.vi}}<br>
+            <span class="text-muted">{{section5.collapse.location.en}}</span>
+          </td>
+        </tr>
+        <tr>
+          <td>Độ nghiêng thân nhà<br><span class="text-muted">Building inclination</span></td>
+          <td class="text-center">{{section5.buildingInclination.observedDisplay.vi}} / <span class="text-muted">{{section5.buildingInclination.observedDisplay.en}}</span></td>
+          <td>
+            <strong>{{section5.buildingInclination.measured}}</strong><br>
+            {{section5.buildingInclination.location.vi}}<br>
+            <span class="text-muted">{{section5.buildingInclination.location.en}}</span>
+          </td>
+        </tr>
+        <tr>
+          <td>Độ võng dầm / sàn<br><span class="text-muted">Deflection of beam/floor</span></td>
+          <td class="text-center">{{section5.beamDeflection.observedDisplay.vi}} / <span class="text-muted">{{section5.beamDeflection.observedDisplay.en}}</span></td>
+          <td>
+            <strong>{{section5.beamDeflection.measured}}</strong><br>
+            {{section5.beamDeflection.location.vi}}<br>
+            <span class="text-muted">{{section5.beamDeflection.location.en}}</span>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2 class="chapter-header">VI. TỔNG HỢP VÀ PHÂN TÍCH HIỆN TRẠNG KHUYẾT TẬT - SUMMARY OF DEFECT INVESTIGATION</h2>
+    <!-- BẢNG VI.1: MA TRẬN PHÂN BỐ KHUYẾT TẬT THEO TỪNG TẦNG -->
+    <div style="font-size: 8.5pt; font-weight: bold; margin: 6px 0 4px 0; color: #0f172a;">
+      Bảng VI.1: Ma trận phân bố khuyết tật theo từng tầng - Defect Distribution Matrix by Floor
+    </div>
+    <table class="tech-table compact-table">
+      <thead>
+        <tr>
+          <th style="width: 14%;">Tầng / Floor</th>
+          <th style="width: 9%; text-align: center;">Đối tượng</th>
+          <th style="width: 9%; text-align: center;">Nứt K.Cấu</th>
+          <th style="width: 9%; text-align: center;">Nứt Tường</th>
+          <th style="width: 8%; text-align: center;">Thấm ẩm</th>
+          <th style="width: 11%; text-align: center;">Bong rộp & Khác</th>
+          <th style="width: 9%; text-align: center;">wmax</th>
+          <th style="width: 31%;">Nhận định tình trạng tầng / Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each section6.floorDistribution}}
+          <tr>
+            <td class="font-bold">
+              {{#if this.floorName.vi}}
+                {{this.floorName.vi}}<br><span class="text-muted">{{this.floorName.en}}</span>
+              {{else}}
+                {{this.floorName}}
+              {{/if}}
+            </td>
+            <td class="text-center">{{this.surveyedObjectsCount}}</td>
+            <td class="text-center font-bold" style="{{#if this.structuralCracksCount}}color: #ea580c;{{/if}}">{{this.structuralCracksCount}}</td>
+            <td class="text-center font-bold" style="{{#if this.masonryPlasterCracksCount}}color: #b45309;{{/if}}">{{this.masonryPlasterCracksCount}}</td>
+            <td class="text-center font-bold" style="{{#if this.moistureCount}}color: #0369a1;{{/if}}">{{this.moistureCount}}</td>
+            <td class="text-center font-bold" style="{{#if this.spallingCount}}color: #475569;{{/if}}">{{this.spallingCount}}</td>
+            <td class="text-center font-bold">{{this.maxCrackWidthMm}}</td>
+            <td>
+              {{#if (eq this.conditionStatus.vi 'Không')}}
+                Không / <span class="text-muted">None</span>
+              {{else}}
+                {{this.conditionStatus.vi}}<br>
+                <span class="text-muted">{{this.conditionStatus.en}}</span>
+              {{/if}}
+            </td>
+          </tr>
+        {{/each}}
+        <!-- DÒNG TỔNG CỘNG -->
+        <tr style="background-color: #f8fafc; font-weight: bold; border-top: 1.5px solid #0f3b6c;">
+          <td style="color: #0f3b6c;">Tổng / Total</td>
+          <td class="text-center">{{section6.totalSurveyedObjects}}</td>
+          <td class="text-center" style="{{#if section6.structuralCracksCount}}color: #ea580c;{{/if}}">{{section6.structuralCracksCount}}</td>
+          <td class="text-center" style="{{#if section6.masonryPlasterCracksCount}}color: #b45309;{{/if}}">{{section6.masonryPlasterCracksCount}}</td>
+          <td class="text-center" style="{{#if section6.moistureDefectsCount}}color: #0369a1;{{/if}}">{{section6.moistureDefectsCount}}</td>
+          <td class="text-center" style="{{#if section6.spallingDefectsCount}}color: #475569;{{/if}}">{{section6.spallingDefectsCount}}</td>
+          <td class="text-center">{{section6.totalMaxCrackWidthDisplay}}</td>
+          <td>
+            {{#if section6.totalDefects}}
+              Tổng cộng {{section6.totalDefects}} khuyết tật<br>
+              <span class="text-muted">Total {{section6.totalDefects}} defect(s)</span>
+            {{else}}
+              Không / <span class="text-muted">None</span>
+            {{/if}}
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- BẢNG VI.2: DANH MỤC 8 NHÓM BCS CHECKLIST CHUẨN QUỐC TẾ -->
+    <div style="font-size: 8.5pt; font-weight: bold; margin: 6px 0 3px 0; color: #0f172a;">
+      Bảng VI.2: Bảng kiểm tra toàn diện danh mục 8 nhóm BCS Checklist - BCS Comprehensive Checklist
+    </div>
+    <table class="tech-table compact-table">
+      <thead>
+        <tr>
+          <th style="width: 14%;">Nhóm / Group</th>
+          <th style="width: 34%;">Chỉ báo khuyết tật / Defect indicator</th>
+          <th style="width: 10%; text-align: center;">Ghi nhận</th>
+          <th style="width: 42%;">Vị trí, chi tiết & Mức độ / Location & Severity</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each section6.checklist}}
+          <tr>
+            <td class="font-bold">{{this.groupVi}}<br><span class="text-muted">{{this.groupEn}}</span></td>
+            <td>{{this.indicatorVi}}<br><span class="text-muted">{{this.indicatorEn}}</span></td>
+            <td class="text-center font-bold" style="{{#if this.recorded}}color: #ea580c;{{/if}}">
+              {{this.recordedLabel.vi}} / <span class="text-muted">{{this.recordedLabel.en}}</span>
+            </td>
+            <td>
+              {{#if this.recorded}}
+                {{this.locationSeverity.vi}}<br>
+                <span class="text-muted">{{this.locationSeverity.en}}</span>
+              {{else}}
+                Không / <span class="text-muted">None</span>
+              {{/if}}
+            </td>
+          </tr>
+        {{/each}}
+      </tbody>
+    </table>
+
+    <div class="page-number-footer">{{tocPageNumbers.section5}}</div>
+  </div>

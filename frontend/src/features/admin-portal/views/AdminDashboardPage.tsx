@@ -3,12 +3,13 @@ import { Card } from '../../../core/components/ui/Card';
 import { Badge } from '../../../core/components/ui/Badge';
 import { Button } from '../../../core/components/ui/Button';
 import { Input, Select } from '../../../core/components/ui/FormControls';
-import { ShieldCheck, Users, Settings, FileSpreadsheet, Database, Lock, Search } from 'lucide-react';
+import { ShieldCheck, Users, Settings, FileSpreadsheet, Database, Lock, Search, Split } from 'lucide-react';
 import { Phase1ExportModuleBox } from '../../zone-management/components/Phase1ExportModuleBox';
 import { UserManagementTab } from '../components/UserManagementTab';
+import { AdminGisMutationTab } from '../components/AdminGisMutationTab';
 
 export const AdminDashboardPage: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'users' | 'export' | 'audit' | 'config'>('export');
+  const [activeTab, setActiveTab] = useState<'export' | 'gis-mutation' | 'users' | 'audit' | 'config'>('export');
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto p-4 sm:p-6 pb-20">
@@ -33,6 +34,7 @@ export const AdminDashboardPage: React.FC = () => {
       <div className="flex items-center gap-2 border-b border-slate-200 pb-2 overflow-x-auto no-scrollbar">
         {[
           { key: 'export', label: 'Xuất Báo Cáo Phase 1 (BCS Export Module Box)', icon: <FileSpreadsheet className="w-4 h-4" /> },
+          { key: 'gis-mutation', label: 'Biên Tập Ranh & Tách/Gộp Thửa GIS', icon: <Split className="w-4 h-4" /> },
           { key: 'users', label: 'Quản lý Người dùng & Phân quyền', icon: <Users className="w-4 h-4" /> },
           { key: 'audit', label: 'Nhật Ký Hệ Thống (Audit Logs)', icon: <Database className="w-4 h-4" /> },
           { key: 'config', label: 'Cấu Hình Tham Số BRA & Metro', icon: <Settings className="w-4 h-4" /> },
@@ -55,6 +57,11 @@ export const AdminDashboardPage: React.FC = () => {
       {/* Tab Export: Phase1ExportModuleBox */}
       {activeTab === 'export' && (
         <Phase1ExportModuleBox initialZoneId="ALL" />
+      )}
+
+      {/* Tab GIS Mutation Studio */}
+      {activeTab === 'gis-mutation' && (
+        <AdminGisMutationTab />
       )}
 
       {/* Tab Users: Dynamic UserManagementTab */}

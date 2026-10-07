@@ -66,6 +66,7 @@ export const FloorCadPinningCanvas: React.FC<Props> = ({
   readOnly = false,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
+  const tightBoxRef = useRef<HTMLDivElement>(null);
   const [selectedPinIndex, setSelectedPinIndex] = useState<number | null>(null);
   const [isAddingPin, setIsAddingPin] = useState<boolean>(true); // Default to pin mode for quick marking
   const [showPins, setShowPins] = useState<boolean>(true); // Toggle eye visibility
@@ -100,10 +101,10 @@ export const FloorCadPinningCanvas: React.FC<Props> = ({
   // Tự động tìm số thứ tự nhỏ nhất còn trống
   const nextCode = getNextAvailablePinCode(pins, prefix);
 
-  const handleContainerPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (draggingPinIndex === null || readOnly || !containerRef.current) return;
+  const handleTightBoxPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (draggingPinIndex === null || readOnly || !tightBoxRef.current) return;
     dragMovedRef.current = true;
-    const rect = containerRef.current.getBoundingClientRect();
+    const rect = tightBoxRef.current.getBoundingClientRect();
     const x = Math.max(1, Math.min(99, parseFloat((((e.clientX - rect.left) / rect.width) * 100).toFixed(2))));
     const y = Math.max(1, Math.min(99, parseFloat((((e.clientY - rect.top) / rect.height) * 100).toFixed(2))));
 
@@ -118,16 +119,16 @@ export const FloorCadPinningCanvas: React.FC<Props> = ({
     }
   };
 
-  const handleContainerClick = (e: React.MouseEvent<HTMLDivElement>) => {
+  const handleTightBoxClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (dragMovedRef.current) {
       dragMovedRef.current = false;
       return;
     }
-    if (readOnly || !isAddingPin || !containerRef.current || !cadPhotoUrl) return;
+    if (readOnly || !isAddingPin || !tightBoxRef.current || !cadPhotoUrl) return;
 
-    const rect = containerRef.current.getBoundingClientRect();
-    const x = parseFloat((((e.clientX - rect.left) / rect.width) * 100).toFixed(2));
-    const y = parseFloat((((e.clientY - rect.top) / rect.height) * 100).toFixed(2));
+    const rect = tightBoxRef.current.getBoundingClientRect();
+    const x = Math.max(1, Math.min(99, parseFloat((((e.clientX - rect.left) / rect.width) * 100).toFixed(2))));
+    const y = Math.max(1, Math.min(99, parseFloat((((e.clientY - rect.top) / rect.height) * 100).toFixed(2))));
 
     const newPinCode = getNextAvailablePinCode(pins, prefix);
     const newPin: CadZonePin = {
@@ -310,11 +311,8 @@ export const FloorCadPinningCanvas: React.FC<Props> = ({
           {/* Interactive CAD Canvas - Clean Light Theme */}
           <div
             ref={containerRef}
-            onClick={handleContainerClick}
-            onPointerMove={handleContainerPointerMove}
-            onPointerUp={() => setDraggingPinIndex(null)}
-            className={`relative w-full min-h-[320px] max-h-[520px] rounded-xl overflow-hidden bg-slate-100 border border-slate-300 select-none shadow-inner touch-none ${
-              isAddingPin ? 'cursor-crosshair ring-2 ring-emerald-500/30' : 'cursor-default'
+            className={`relative w-full min-h-[320px] max-h-[560px] rounded-xl overflow-hidden bg-slate-100 border border-slate-300 select-none shadow-inner flex items-center justify-center p-1 sm:p-2 ${
+              isAddingPin ? 'ring-2 ring-emerald-500/30' : ''
             }`}
           >
             {/* Quick floating actions on top-right of canvas */}
@@ -356,102 +354,112 @@ export const FloorCadPinningCanvas: React.FC<Props> = ({
             </div>
 
             {(safeCadUrl || getSafeDisplayUrl(cadPhotoUrl)) ? (
-              <img
-                src={safeCadUrl || getSafeDisplayUrl(cadPhotoUrl)}
-                alt={`CAD Plan ${floorName}`}
-                className="w-full h-full object-contain block max-h-[520px] mx-auto pointer-events-none select-none"
-              />
+              <div
+                ref={tightBoxRef}
+                onClick={handleTightBoxClick}
+                onPointerMove={handleTightBoxPointerMove}
+                onPointerUp={() => setDraggingPinIndex(null)}
+                className={`relative inline-block max-w-full leading-none mx-auto select-none touch-none ${
+                  isAddingPin ? 'cursor-crosshair' : 'cursor-default'
+                }`}
+              >
+                <img
+                  src={safeCadUrl || getSafeDisplayUrl(cadPhotoUrl)}
+                  alt={`CAD Plan ${floorName}`}
+                  className="max-w-full max-h-[520px] w-auto h-auto block mx-auto pointer-events-none select-none shadow-sm"
+                />
+
+                {/* Render Pins with Drag & Drop support */}
+                {showPins && pins.map((pin, idx) => {
+                  if (!pin) return null;
+                  const isSelected = selectedPinIndex === idx;
+                  const isDragging = draggingPinIndex === idx;
+
+                  return (
+                    <div
+                      key={pin.id || idx}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (!dragMovedRef.current) {
+                          setSelectedPinIndex(idx);
+                        }
+                      }}
+                      onPointerDown={(e) => {
+                        if (readOnly) return;
+                        e.stopPropagation();
+                        dragMovedRef.current = false;
+                        setDraggingPinIndex(idx);
+                        setSelectedPinIndex(idx);
+                        (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
+                      }}
+                      onPointerUp={(e) => {
+                        if (readOnly) return;
+                        e.stopPropagation();
+                        try {
+                          (e.currentTarget as HTMLElement).releasePointerCapture?.(e.pointerId);
+                        } catch (_) {}
+                        setDraggingPinIndex(null);
+                      }}
+                      style={{
+                        position: 'absolute',
+                        top: `${pin.pinY}%`,
+                        left: `${pin.pinX}%`,
+                        transform: isDragging
+                          ? 'translate(-50%, -100%) scale(1.2)'
+                          : isSelected
+                          ? 'translate(-50%, -100%) scale(1.05)'
+                          : 'translate(-50%, -100%)',
+                        cursor: readOnly ? 'default' : isDragging ? 'grabbing' : 'grab',
+                        zIndex: isDragging ? 50 : isSelected ? 35 : 20,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        touchAction: 'none',
+                        userSelect: 'none',
+                        transition: isDragging ? 'none' : 'transform 0.15s ease',
+                      }}
+                      title={readOnly ? undefined : "Chạm chọn hoặc Giữ & Kéo để di chuyển ghim"}
+                    >
+                      {/* Pin Tag Box */}
+                      <div
+                        className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-extrabold whitespace-nowrap shadow-md transition-all ${
+                          isDragging
+                            ? 'bg-sky-600 text-white ring-3 ring-sky-300 shadow-xl'
+                            : isSelected
+                            ? isStructural
+                              ? 'bg-amber-600 text-white ring-2 ring-amber-300'
+                              : 'bg-emerald-600 text-white ring-2 ring-emerald-300'
+                            : isStructural
+                            ? 'bg-amber-700 text-white'
+                            : 'bg-slate-800 text-white'
+                        }`}
+                      >
+                        {pin.zoneCode || `${prefix}-${idx + 1}`}
+                      </div>
+
+                      {/* Pin Point Square Badge */}
+                      <div
+                        className={`w-3.5 h-3.5 rounded-xs mt-0.5 border-2 border-white shadow-md ${
+                          isDragging
+                            ? 'bg-sky-400 scale-125'
+                            : isSelected
+                            ? isStructural
+                              ? 'bg-amber-400'
+                              : 'bg-emerald-400'
+                            : isStructural
+                            ? 'bg-amber-600'
+                            : 'bg-emerald-600'
+                        }`}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
             ) : (
               <div className="w-full min-h-[320px] flex items-center justify-center text-slate-400 text-xs">
                 Đang nạp sơ đồ CAD...
               </div>
             )}
-
-            {/* Render Pins with Drag & Drop support */}
-            {showPins && pins.map((pin, idx) => {
-              if (!pin) return null;
-              const isSelected = selectedPinIndex === idx;
-              const isDragging = draggingPinIndex === idx;
-
-              return (
-                <div
-                  key={pin.id || idx}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (!dragMovedRef.current) {
-                      setSelectedPinIndex(idx);
-                    }
-                  }}
-                  onPointerDown={(e) => {
-                    if (readOnly) return;
-                    e.stopPropagation();
-                    dragMovedRef.current = false;
-                    setDraggingPinIndex(idx);
-                    setSelectedPinIndex(idx);
-                    (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
-                  }}
-                  onPointerUp={(e) => {
-                    if (readOnly) return;
-                    e.stopPropagation();
-                    try {
-                      (e.currentTarget as HTMLElement).releasePointerCapture?.(e.pointerId);
-                    } catch (_) {}
-                    setDraggingPinIndex(null);
-                  }}
-                  style={{
-                    position: 'absolute',
-                    top: `${pin.pinY}%`,
-                    left: `${pin.pinX}%`,
-                    transform: isDragging
-                      ? 'translate(-50%, -100%) scale(1.2)'
-                      : isSelected
-                      ? 'translate(-50%, -100%) scale(1.05)'
-                      : 'translate(-50%, -100%)',
-                    cursor: readOnly ? 'default' : isDragging ? 'grabbing' : 'grab',
-                    zIndex: isDragging ? 50 : isSelected ? 35 : 20,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    touchAction: 'none',
-                    userSelect: 'none',
-                    transition: isDragging ? 'none' : 'transform 0.15s ease',
-                  }}
-                  title={readOnly ? undefined : "Chạm chọn hoặc Giữ & Kéo để di chuyển ghim"}
-                >
-                  {/* Pin Tag Box */}
-                  <div
-                    className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-extrabold whitespace-nowrap shadow-md transition-all ${
-                      isDragging
-                        ? 'bg-sky-600 text-white ring-3 ring-sky-300 shadow-xl'
-                        : isSelected
-                        ? isStructural
-                          ? 'bg-amber-600 text-white ring-2 ring-amber-300'
-                          : 'bg-emerald-600 text-white ring-2 ring-emerald-300'
-                        : isStructural
-                        ? 'bg-amber-700 text-white'
-                        : 'bg-slate-800 text-white'
-                    }`}
-                  >
-                    {pin.zoneCode || `${prefix}-${idx + 1}`}
-                  </div>
-
-                  {/* Pin Point Square Badge */}
-                  <div
-                    className={`w-3.5 h-3.5 rounded-xs mt-0.5 border-2 border-white shadow-md ${
-                      isDragging
-                        ? 'bg-sky-400 scale-125'
-                        : isSelected
-                        ? isStructural
-                          ? 'bg-amber-400'
-                          : 'bg-emerald-400'
-                        : isStructural
-                        ? 'bg-amber-600'
-                        : 'bg-emerald-600'
-                    }`}
-                  />
-                </div>
-              );
-            })}
           </div>
 
           {/* Selected Pin Details Box */}

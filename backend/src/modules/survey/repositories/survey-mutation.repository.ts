@@ -1,47 +1,15 @@
 import { PoolClient } from 'pg';
 import { Database } from '../../../database/db';
+import { CadastralMutationService } from '../../cadastral/services/cadastral-mutation.service';
 
 export class SurveyMutationRepository {
   /**
-   * Chuẩn hóa tọa độ mảng đỉnh thành Polygon GeoJSON hợp lệ (khép kín vòng và chuẩn [lng, lat])
+   * Chuẩn hóa tọa độ mảng đỉnh thành Polygon GeoJSON hợp lệ (kế thừa từ CadastralMutationService)
    */
   public static toGeoJsonPolygon(points: any): any {
-    if (!points) return null;
-    if (points.type === 'Polygon' && Array.isArray(points.coordinates)) {
-      return points;
-    }
-    if (!Array.isArray(points) || points.length < 3) {
-      return null;
-    }
-
-    const ring = points
-      .map((p: any) => {
-        if (!Array.isArray(p) || p.length < 2) return null;
-        const a = Number(p[0]);
-        const b = Number(p[1]);
-        if (isNaN(a) || isNaN(b)) return null;
-        // Chuẩn tọa độ Việt Nam: Lat ~ 8-23, Lng ~ 102-110
-        if (a < 50 && b > 50) {
-          return [b, a]; // Đảo [lat, lng] -> [lng, lat] cho PostGIS
-        }
-        return [a, b];
-      })
-      .filter((p): p is [number, number] => p !== null);
-
-    if (ring.length < 3) return null;
-
-    // Khép kín polygon nếu điểm đầu khác điểm cuối
-    const first = ring[0];
-    const last = ring[ring.length - 1];
-    if (first[0] !== last[0] || first[1] !== last[1]) {
-      ring.push([first[0], first[1]]);
-    }
-
-    return {
-      type: 'Polygon',
-      coordinates: [ring],
-    };
+    return CadastralMutationService.toGeoJsonPolygon(points);
   }
+
 
   /**
    * Lấy mã dự án kế tiếp cho Zone (Cơ chế Max Zone + 1)
@@ -179,8 +147,8 @@ export class SurveyMutationRepository {
     const mutEventRes = await client.query<{ id: string }>(
       `INSERT INTO parcel_mutation_events (
          mutation_code, mutation_type, source_parcel_ids, result_parcel_ids,
-         surveyor_notes, surveyor_id, status
-       ) VALUES ($1, 'SPLIT', $2, $3, $4, $5, 'PROPOSED_BY_SURVEYOR')
+         surveyor_notes, surveyor_id, status, approved_at
+       ) VALUES ($1, 'SPLIT', $2, $3, $4, $5, 'APPROVED', NOW())
        RETURNING id;`,
       [
         mutationCode,
@@ -253,6 +221,41 @@ export class SurveyMutationRepository {
         (origHouseNumber ? `${origHouseNumber}B` : '');
 
       const fallbackGeom = geomB || originalGeom;
+      let bGeomExpr = `ST_SetSRID(ST_GeomFromGeoJSON($14), 4326)`;
+      const insertParams: any[] = [
+        zoneId,
+        portionBCode,
+        officialBCode,
+        houseBNum,
+        origStreet,
+        origWard,
+        origDistrict,
+        ownerBName,
+        ownerBPhone,
+        areaB,
+        surveyorId,
+        mutationEventId,
+        originalParcelId,
+        JSON.stringify(fallbackGeom),
+      ];
+
+      if (geomA && origGeomJson) {
+        insertParams.push(origGeomJson, JSON.stringify(geomA));
+        const idxOrig = insertParams.length - 1;
+        const idxGeomA = insertParams.length;
+        bGeomExpr = `COALESCE(
+          (
+            SELECT geom 
+            FROM ST_Dump(ST_CollectionExtract(ST_MakeValid(ST_Difference(
+              ST_SetSRID(ST_GeomFromGeoJSON($${idxOrig}), 4326),
+              ST_SetSRID(ST_GeomFromGeoJSON($${idxGeomA}), 4326)
+            )), 3))
+            ORDER BY ST_Area(geom::geography) DESC 
+            LIMIT 1
+          ),
+          ST_SetSRID(ST_GeomFromGeoJSON($14), 4326)
+        )`;
+      }
 
       const newParcelRes = await client.query<{ id: string }>(
         `INSERT INTO parcels (
@@ -270,98 +273,66 @@ export class SurveyMutationRepository {
            $10, $10,
            $11, 'ASSIGNED_TO_ME', 'ACTIVE',
            'SPLIT', $12, ARRAY[$13::uuid],
-           ST_SetSRID(ST_GeomFromGeoJSON($14), 4326),
-           ST_SetSRID(ST_GeomFromGeoJSON($14), 4326),
-           ST_Centroid(ST_SetSRID(ST_GeomFromGeoJSON($14), 4326))
+           ${bGeomExpr},
+           ${bGeomExpr},
+           ST_Centroid(${bGeomExpr})
          ) RETURNING id;`,
-        [
-          zoneId,
-          portionBCode,
-          officialBCode,
-          houseBNum,
-          origStreet,
-          origWard,
-          origDistrict,
-          ownerBName,
-          ownerBPhone,
-          areaB,
-          surveyorId,
-          mutationEventId,
-          originalParcelId,
-          JSON.stringify(fallbackGeom),
-        ]
+        insertParams
       );
 
       const newParcelBId = newParcelRes.rows[0].id;
       resultParcelIds.push(newParcelBId);
+
+      // Tự động tạo task_assignment cho chính KSV đang khảo sát để tiếp tục thực hiện
+      const adminRes = await client.query<{ id: string }>(
+        `SELECT id FROM users WHERE role IN ('ZONE_ADMIN', 'SUPER_ADMIN') LIMIT 1;`
+      );
+      const assignerAdminId = adminRes.rows[0]?.id || surveyorId;
+
+      await client.query(
+        `INSERT INTO task_assignments (
+           parcel_id, surveyor_id, assigned_by_admin_id, deadline, status, notes
+         ) VALUES ($1, $2, $3, NOW() + INTERVAL '7 days', 'ASSIGNED', $4);`,
+        [
+          newParcelBId,
+          surveyorId,
+          assignerAdminId,
+          `Tự động phân công khảo sát Căn B mới [${portionBCode}] phát sinh từ tách thửa [${originalProjectParcelCode}]`,
+        ]
+      );
+
       console.log(`[handleFieldSplitMutation] Nhánh 2: Đã tạo thành công lô Căn B mới [${portionBCode}] (ID: ${newParcelBId}) và phân công cho KSV: ${surveyorId}`);
     } else {
       // --- NHÁNH 1: ĐẤT DƯ / SÂN VƯỜN (Mã {Mã}-DU theo Quy chuẩn Kiến trúc 3.3) ---
-      const residualParcelCode = `${originalProjectParcelCode}-DU`;
-      const residualOfficialCode = `${origOfficialCode || originalProjectParcelCode}-DU`;
-      const fallbackGeom = geomB || originalGeom;
-
-      // Kiểm tra xem đã có thửa đất dư này chưa để tránh trùng lặp
-      const checkExisting = await client.query<{ id: string }>(
-        `SELECT id FROM parcels WHERE project_parcel_code = $1;`,
-        [residualParcelCode]
-      );
-
-      if (checkExisting.rows[0]) {
-        await client.query(
-          `UPDATE parcels
-           SET land_area_m2 = $1,
-               construction_area_m2 = 0,
-               cadastral_polygon_geom = ST_SetSRID(ST_GeomFromGeoJSON($2), 4326),
-               footprint_polygon_geom = ST_SetSRID(ST_GeomFromGeoJSON($2), 4326),
-               location_geom = ST_Centroid(ST_SetSRID(ST_GeomFromGeoJSON($2), 4326)),
-               mutation_event_id = $3,
-               updated_at = NOW()
-           WHERE id = $4;`,
-          [areaB, JSON.stringify(fallbackGeom), mutationEventId, checkExisting.rows[0].id]
+      let residualGeom = geomB;
+      if (!residualGeom && geomA && origGeomJson) {
+        const diffRes = await client.query<{ diff_json: string }>(
+          `SELECT ST_AsGeoJSON(ST_GeometryN(ST_CollectionExtract(ST_MakeValid(ST_Difference(
+             ST_SetSRID(ST_GeomFromGeoJSON($1), 4326),
+             ST_SetSRID(ST_GeomFromGeoJSON($2), 4326)
+           )), 3), 1)) as diff_json;`,
+          [origGeomJson, JSON.stringify(geomA)]
         );
-        resultParcelIds.push(checkExisting.rows[0].id);
-      } else {
-        const residualParcelRes = await client.query<{ id: string }>(
-          `INSERT INTO parcels (
-             zone_id, project_parcel_code, official_cadastral_code,
-             house_number, street, ward, district,
-             owner_name, owner_phone,
-             land_area_m2, construction_area_m2,
-             survey_status, lifecycle_status,
-             mutation_type, mutation_event_id, parent_parcel_ids,
-             cadastral_polygon_geom, footprint_polygon_geom, location_geom
-           ) VALUES (
-             $1, $2, $3,
-             $4, $5, $6, $7,
-             $8, $9,
-             $10, 0,
-             'NOT_SURVEYED', 'ACTIVE',
-             'SPLIT', $11, ARRAY[$12::uuid],
-             ST_SetSRID(ST_GeomFromGeoJSON($13), 4326),
-             ST_SetSRID(ST_GeomFromGeoJSON($13), 4326),
-             ST_Centroid(ST_SetSRID(ST_GeomFromGeoJSON($13), 4326))
-           ) RETURNING id;`,
-          [
-            zoneId,
-            residualParcelCode,
-            residualOfficialCode,
-            `${origHouseNumber} (Đất dư)`,
-            origStreet,
-            origWard,
-            origDistrict,
-            `Chủ sở hữu đất dôi dư (${originalProjectParcelCode})`,
-            '',
-            areaB,
-            mutationEventId,
-            originalParcelId,
-            JSON.stringify(fallbackGeom),
-          ]
-        );
-        resultParcelIds.push(residualParcelRes.rows[0].id);
+        residualGeom = diffRes.rows[0]?.diff_json || null;
       }
+      const fallbackGeom = residualGeom || geomB || originalGeom;
+      const residualResult = await CadastralMutationService.upsertResidualLandParcel(client, {
+        zoneId,
+        parentParcelId: originalParcelId,
+        parentProjectCode: originalProjectParcelCode,
+        parentOfficialCode: origOfficialCode,
+        parentHouseNumber: origHouseNumber,
+        parentStreet: origStreet,
+        parentWard: origWard,
+        parentDistrict: origDistrict,
+        residualAreaM2: areaB,
+        mutationType: 'SPLIT',
+        mutationEventId,
+        customGeomJson: fallbackGeom,
+      });
 
-      console.log(`[handleFieldSplitMutation] Nhánh 1: Đã tạo/cập nhật thành công thực thể đất dôi dư [${residualParcelCode}] (${areaB}m²).`);
+      resultParcelIds.push(residualResult.id);
+      console.log(`[handleFieldSplitMutation] Nhánh 1: Đã tạo/cập nhật thành công thực thể đất dôi dư [${residualResult.projectParcelCode}] (${areaB}m²).`);
     }
 
     // 7. Cập nhật danh sách các thửa kết quả vào sự kiện biến động
@@ -481,8 +452,8 @@ export class SurveyMutationRepository {
     const mutRes = await client.query<{ id: string }>(
       `INSERT INTO parcel_mutation_events (
          mutation_code, mutation_type, source_parcel_ids, result_parcel_ids,
-         surveyor_notes, surveyor_id, status
-       ) VALUES ($1, 'MERGE', $2, $3, $4, $5, 'PROPOSED_BY_SURVEYOR')
+         surveyor_notes, surveyor_id, status, approved_at
+       ) VALUES ($1, 'MERGE', $2, $3, $4, $5, 'APPROVED', NOW())
        RETURNING id;`,
       [
         mutationCode,
@@ -534,12 +505,12 @@ export class SurveyMutationRepository {
          SET land_area_m2 = $1,
              construction_area_m2 = $1,
              cadastral_polygon_geom = COALESCE(
-               (SELECT ST_GeometryN(ST_CollectionExtract(ST_MakeValid(ST_Union(cadastral_polygon_geom)), 3), 1)
+               (SELECT ST_CollectionExtract(ST_MakeValid(ST_Union(cadastral_polygon_geom)), 3)
                 FROM parcels WHERE id = ANY($2)),
                cadastral_polygon_geom
              ),
              footprint_polygon_geom = COALESCE(
-               (SELECT ST_GeometryN(ST_CollectionExtract(ST_MakeValid(ST_Union(footprint_polygon_geom)), 3), 1)
+               (SELECT ST_CollectionExtract(ST_MakeValid(ST_Union(footprint_polygon_geom)), 3)
                 FROM parcels WHERE id = ANY($2)),
                footprint_polygon_geom
              ),
@@ -559,64 +530,115 @@ export class SurveyMutationRepository {
 
     // 8. Nếu "Xây dựng 1 phần có đất dư": Tự động sinh Thửa đất dư {Mã}-DU
     if (hasPartialBuilding && residualAreaM2 > 0) {
-      const residualParcelCode = `${primary.project_parcel_code}-DU`;
-      const residualOfficialCode = `${primary.official_cadastral_code || primary.project_parcel_code}-DU`;
+      let residualGeomJson: any = null;
+      const ratio = Math.max(0.05, Math.min(0.95, finalPrimaryArea / (finalPrimaryArea + residualAreaM2)));
+      const rawBuildingPoints = (rawMutation as any).mergeBuildingPolygon || (rawMutation as any).mergeBuildingCustomPoints;
+      const buildingGeoJson = rawBuildingPoints
+        ? CadastralMutationService.toGeoJsonPolygon(rawBuildingPoints)
+        : null;
+      const buildingGeoStr = buildingGeoJson ? JSON.stringify(buildingGeoJson) : null;
 
-      const checkExisting = await client.query<{ id: string }>(
-        `SELECT id FROM parcels WHERE project_parcel_code = $1;`,
-        [residualParcelCode]
+      const partitionMergeRes = await client.query<{
+        geom_chinh_json: string;
+        geom_du_json: string;
+      }>(
+        `WITH merged AS (
+           SELECT ST_GeometryN(ST_CollectionExtract(ST_MakeValid(ST_Union(cadastral_polygon_geom)), 3), 1) as full_geom
+           FROM parcels WHERE id = ANY($1)
+         ),
+         cut_step AS (
+           SELECT 
+             m.full_geom,
+             COALESCE(
+               CASE 
+                 WHEN $2::text IS NOT NULL THEN (
+                   SELECT geom FROM ST_Dump(ST_CollectionExtract(ST_MakeValid(
+                     ST_Intersection(m.full_geom, ST_SetSRID(ST_GeomFromGeoJSON($2), 4326))
+                   ), 3)) ORDER BY ST_Area(geom::geography) DESC LIMIT 1
+                 )
+                 ELSE NULL
+               END,
+               CASE 
+                 WHEN (ST_XMax(m.full_geom) - ST_XMin(m.full_geom)) >= (ST_YMax(m.full_geom) - ST_YMin(m.full_geom)) THEN
+                   ST_GeometryN(ST_CollectionExtract(ST_MakeValid(ST_Intersection(
+                     m.full_geom,
+                     ST_MakeEnvelope(
+                       ST_XMin(m.full_geom),
+                       ST_YMin(m.full_geom),
+                       ST_XMin(m.full_geom) + (ST_XMax(m.full_geom) - ST_XMin(m.full_geom)) * $3::float,
+                       ST_YMax(m.full_geom),
+                       4326
+                     )
+                   )), 3), 1)
+                 ELSE
+                   ST_GeometryN(ST_CollectionExtract(ST_MakeValid(ST_Intersection(
+                     m.full_geom,
+                     ST_MakeEnvelope(
+                       ST_XMin(m.full_geom),
+                       ST_YMin(m.full_geom),
+                       ST_XMax(m.full_geom),
+                       ST_YMin(m.full_geom) + (ST_YMax(m.full_geom) - ST_YMin(m.full_geom)) * $3::float,
+                       4326
+                     )
+                   )), 3), 1)
+               END
+             ) as geom_chinh
+           FROM merged m
+         ),
+         diff_step AS (
+           SELECT 
+             c.geom_chinh,
+             (
+               SELECT geom FROM ST_Dump(ST_CollectionExtract(ST_MakeValid(
+                 ST_Difference(c.full_geom, c.geom_chinh)
+               ), 3)) ORDER BY ST_Area(geom::geography) DESC LIMIT 1
+             ) as geom_du
+           FROM cut_step c
+         )
+         SELECT 
+           ST_AsGeoJSON(geom_chinh) as geom_chinh_json,
+           ST_AsGeoJSON(geom_du) as geom_du_json
+         FROM diff_step;`,
+        [allSourceIds, buildingGeoStr, ratio]
       );
 
-      if (checkExisting.rows[0]) {
+      if (
+        partitionMergeRes.rows.length > 0 &&
+        partitionMergeRes.rows[0].geom_chinh_json &&
+        partitionMergeRes.rows[0].geom_du_json
+      ) {
+        const pRow = partitionMergeRes.rows[0];
+        residualGeomJson = pRow.geom_du_json;
         await client.query(
           `UPDATE parcels
            SET land_area_m2 = $1,
-               construction_area_m2 = 0,
-               mutation_event_id = $2,
+               construction_area_m2 = $1,
+               cadastral_polygon_geom = ST_SetSRID(ST_GeomFromGeoJSON($2), 4326),
+               footprint_polygon_geom = ST_SetSRID(ST_GeomFromGeoJSON($2), 4326),
+               location_geom = ST_Centroid(ST_SetSRID(ST_GeomFromGeoJSON($2), 4326)),
                updated_at = NOW()
            WHERE id = $3;`,
-          [residualAreaM2, mutationEventId, checkExisting.rows[0].id]
+          [finalPrimaryArea, pRow.geom_chinh_json, primary.parcel_id]
         );
-        resultParcelIds.push(checkExisting.rows[0].id);
-      } else {
-        const resParcel = await client.query<{ id: string }>(
-          `INSERT INTO parcels (
-             zone_id, project_parcel_code, official_cadastral_code,
-             house_number, street, ward, district,
-             owner_name, owner_phone,
-             land_area_m2, construction_area_m2,
-             survey_status, lifecycle_status,
-             mutation_type, mutation_event_id, parent_parcel_ids,
-             cadastral_polygon_geom, footprint_polygon_geom, location_geom
-           ) VALUES (
-             $1, $2, $3,
-             $4, $5, $6, $7,
-             $8, $9,
-             $10, 0,
-             'NOT_SURVEYED', 'ACTIVE',
-             'MERGE', $11, ARRAY[$12::uuid],
-             (SELECT cadastral_polygon_geom FROM parcels WHERE id = $12),
-             (SELECT footprint_polygon_geom FROM parcels WHERE id = $12),
-             (SELECT location_geom FROM parcels WHERE id = $12)
-           ) RETURNING id;`,
-          [
-            primary.zone_id,
-            residualParcelCode,
-            residualOfficialCode,
-            `${primary.house_number} (Đất dư sau gộp)`,
-            primary.street,
-            primary.ward,
-            primary.district,
-            `Chủ sở hữu đất dôi dư sau gộp (${primary.project_parcel_code})`,
-            '',
-            residualAreaM2,
-            mutationEventId,
-            primary.parcel_id,
-          ]
-        );
-        resultParcelIds.push(resParcel.rows[0].id);
       }
-      console.log(`[handleFieldMergeMutation] Đã tạo/cập nhật thành công thực thể đất dôi dư sau gộp [${residualParcelCode}] (${residualAreaM2}m²).`);
+
+      const residualResult = await CadastralMutationService.upsertResidualLandParcel(client, {
+        zoneId: primary.zone_id,
+        parentParcelId: primary.parcel_id,
+        parentProjectCode: primary.project_parcel_code,
+        parentOfficialCode: primary.official_cadastral_code,
+        parentHouseNumber: primary.house_number,
+        parentStreet: primary.street,
+        parentWard: primary.ward,
+        parentDistrict: primary.district,
+        residualAreaM2,
+        mutationType: 'MERGE',
+        mutationEventId,
+        customGeomJson: residualGeomJson || rawMergedGeom || undefined,
+      });
+
+      resultParcelIds.push(residualResult.id);
+      console.log(`[handleFieldMergeMutation] Đã tạo/cập nhật thành công thực thể đất dôi dư sau gộp [${residualResult.projectParcelCode}] (${residualAreaM2}m²).`);
     }
 
     // 9. Vô hiệu hóa các thửa phụ bị sáp nhập sang MERGED_DEPRECATED

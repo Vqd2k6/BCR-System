@@ -1,0 +1,199 @@
+  <!-- =====================================================================
+       TRANG 3: CHƯƠNG I & II (THÔNG TIN CHUNG & THÔNG TIN CƠ BẢN TÒA NHÀ)
+       ===================================================================== -->
+  <div class="a4-page-sheet">
+    
+  <div class="report-subpage-topbar">
+    <span>LIÊN DANH CRLG – CRSRI – TT | TUYẾN METRO 2 BẾN THÀNH - THAM LƯƠNG</span>
+    <span>{{metadata.buildingId}} | {{metadata.reportNo}}</span>
+  </div>
+
+
+    <h2 class="chapter-header">I. THÔNG TIN CHUNG - GENERAL INFORMATION</h2>
+    <table class="tech-table">
+      <tr>
+        <td class="label-col">Dự án<br><span class="text-muted">Project</span></td>
+        <td class="val-col font-bold">
+          {{section1.projectTitleVi}}<br>
+          <span class="text-muted">{{section1.projectTitleEn}}</span>
+        </td>
+      </tr>
+      <tr>
+        <td class="label-col">Mã công trình<br><span class="text-muted">Building ID</span></td>
+        <td class="val-col font-bold" style="color: #0f3b6c;">{{section1.buildingId}}</td>
+      </tr>
+      <tr>
+        <td class="label-col">Mã khảo sát (*)<br><span class="text-muted">Survey ID</span></td>
+        <td class="val-col">{{section1.surveyId}}</td>
+      </tr>
+      <tr>
+        <td class="label-col">Số hiệu báo cáo (*)<br><span class="text-muted">Report No.</span></td>
+        <td class="val-col font-bold">{{section1.reportNo}}</td>
+      </tr>
+      <tr>
+        <td class="label-col">Tên công trình<br><span class="text-muted">Building Name</span></td>
+        <td class="val-col">
+          {{section1.buildingName.vi}}<br>
+          <span class="text-muted">{{section1.buildingName.en}}</span>
+        </td>
+      </tr>
+      <tr>
+        <td class="label-col">Địa chỉ<br><span class="text-muted">Address</span></td>
+        <td class="val-col">
+          {{section1.address.vi}}<br>
+          <span class="text-muted">{{section1.address.en}}</span>
+        </td>
+      <tr>
+        <td class="label-col">Chủ sở hữu / Người sử dụng<br><span class="text-muted">Owner-Occupant</span></td>
+        <td class="val-col">
+          {{section1.ownerOccupant.vi}}<br>
+          <span class="text-muted">{{section1.ownerOccupant.en}}</span>
+        </td>
+      </tr>
+      <tr>
+        <td class="label-col">Số điện thoại liên hệ (*)<br><span class="text-muted">Contact phone</span></td>
+        <td class="val-col">{{section1.contactPhone}}</td>
+      </tr>
+      <tr>
+        <td class="label-col">Đơn vị khảo sát<br><span class="text-muted">Survey Consultant</span></td>
+        <td class="val-col font-bold">
+          {{section1.surveyConsultant.vi}}<br>
+          <span class="text-muted">{{section1.surveyConsultant.en}}</span>
+        </td>
+      </tr>
+      <tr>
+        <td class="label-col">Nhà thầu EPC (*)<br><span class="text-muted">EPC Contractor</span></td>
+        <td class="val-col">{{section1.epcContractor}}</td>
+      </tr>
+      <tr>
+        <td class="label-col">Đoạn tuyến / Khu vực (*)<br><span class="text-muted">Section / Zone</span></td>
+        <td class="val-col">
+          {{section1.sectionZone.vi}}<br>
+          <span class="text-muted">{{section1.sectionZone.en}}</span>
+        </td>
+      </tr>
+      <tr>
+        <td class="label-col">Hạng mục Metro liên quan (*)<br><span class="text-muted">Related Metro works</span></td>
+        <td class="val-col">
+          {{#if section1.relatedMetroWorks.isCutCover}}☒{{else}}☐{{/if}} C&amp;C (Đào hở / Cut-and-Cover) &nbsp;&nbsp;
+          {{#if section1.relatedMetroWorks.isBoredTunnel}}☒{{else}}☐{{/if}} POR (Hầm khoan ngầm / Bored/Portal) &nbsp;&nbsp;
+          {{#if section1.relatedMetroWorks.isElevated}}☒{{else}}☐{{/if}} ELV (Cầu cạn / Elevated) &nbsp;&nbsp;
+          {{#if section1.relatedMetroWorks.isDepot}}☒{{else}}☐{{/if}} DEP (Depot Tham Lương)
+        </td>
+      </tr>
+      <tr>
+        <td class="label-col">Tọa độ GPS (*)<br><span class="text-muted">GPS Coordinates</span></td>
+        <td class="val-col font-mono">{{section1.gpsCoords.formatted}}</td>
+      </tr>
+      <tr>
+        <td class="label-col">Ngày khảo sát<br><span class="text-muted">Survey Date</span></td>
+        <td class="val-col font-bold">{{section1.surveyDate}}</td>
+      </tr>
+    </table>
+
+    <h2 class="chapter-header">II. THÔNG TIN CƠ BẢN VỀ TÒA NHÀ - BASIC BUILDING INFORMATION</h2>
+    <table class="tech-table">
+      <tr>
+        <td class="label-col">Công năng sử dụng<br><span class="text-muted">Building Use</span></td>
+        <td class="val-col">
+          {{section2.use.vi}}<br>
+          <span class="text-muted">{{section2.use.en}}</span>
+        </td>
+      </tr>
+      <tr>
+        <td class="label-col">Số tầng<br><span class="text-muted">Storeys</span></td>
+        <td class="val-col">
+          {{section2.storeysDisplay.vi}}<br>
+          <span class="text-muted">{{section2.storeysDisplay.en}}</span>
+        </td>
+      </tr>
+      <tr>
+        <td class="label-col">Diện tích sàn (m²)<br><span class="text-muted">Total floor area</span></td>
+        <td class="val-col">
+          <strong style="color: #0f3b6c;">{{section2.floorAreaDisplay.vi}}</strong><br>
+          <span class="text-muted">{{section2.floorAreaDisplay.en}}</span>
+        </td>
+      </tr>
+      <tr>
+        <td class="label-col">Kích thước chính<br><span class="text-muted">Main dimensions</span></td>
+        <td class="val-col font-bold">
+          {{section2.mainDimensions.vi}}<br>
+          <span class="text-muted" style="font-weight: normal;">{{section2.mainDimensions.en}}</span>
+        </td>
+      </tr>
+      <tr>
+        <td class="label-col">Chiều cao (m)<br><span class="text-muted">Height</span></td>
+        <td class="val-col">
+          Cao nhất: {{section2.maxHeightM}} m &nbsp;|&nbsp; Tầng điển hình: {{section2.typicalStoreyHeightM}}<br>
+          <span class="text-muted">Max height: {{section2.maxHeightM}} m &nbsp;|&nbsp; Typical storey: {{section2.typicalStoreyHeightM}}</span>
+        </td>
+      </tr>
+      <tr>
+        <td class="label-col">Năm xây dựng<br><span class="text-muted">Year constructed</span></td>
+        <td class="val-col">
+          {{#if (and section2.yearConstructed (ne section2.yearConstructed '–'))}}
+            {{section2.yearConstructed}} {{#if section2.isEstimatedYear}}(Ước tính){{else}}(Xác thực){{/if}}<br>
+            <span class="text-muted">{{section2.yearConstructed}} {{#if section2.isEstimatedYear}}(Estimated){{else}}(Verified){{/if}}</span>
+          {{else}}
+            Chưa ghi nhận năm XD<br>
+            <span class="text-muted">Year unrecorded</span>
+          {{/if}}
+        </td>
+      </tr>
+      <tr>
+        <td class="label-col">Khoảng cách đến Metro (m)<br><span class="text-muted">Distance to Metro works</span></td>
+        <td class="val-col">
+          {{section2.distanceToMetroDisplay.vi}}<br>
+          <span class="text-muted">{{section2.distanceToMetroDisplay.en}}</span>
+        </td>
+      </tr>
+      <tr>
+        <td class="label-col">Khoảng cách tĩnh không (*)<br><span class="text-muted">Clearance</span></td>
+        <td class="val-col">
+          <strong style="color: #0f3b6c;">{{section2.clearanceDisplay.vi}}</strong><br>
+          <span class="text-muted">{{section2.clearanceDisplay.en}}</span>
+        </td>
+      </tr>
+      <tr>
+        <td class="label-col">Nhóm đối tượng khảo sát (*)<br><span class="text-muted">Survey category</span></td>
+        <td class="val-col font-bold">
+          {{section2.surveyCategory.vi}}<br>
+          <span class="text-muted">{{section2.surveyCategory.en}}</span>
+        </td>
+      </tr>
+      {{#if section2.vacantLandStatus}}
+      <tr style="background: #f0fdf4;">
+        <td class="label-col" style="color: #166534;">Hiện trạng khu đất<br><span class="text-muted">Land plot status</span></td>
+        <td class="val-col font-bold" style="color: #166534;">
+          {{section2.vacantLandStatus.vi}}<br>
+          <span class="text-muted" style="font-weight: normal;">{{section2.vacantLandStatus.en}}</span>
+          {{#if section2.vacantLandNotes}}
+            <div style="font-size: 8pt; margin-top: 2px; color: #15803d; font-weight: normal;">
+              {{section2.vacantLandNotes.vi}}
+            </div>
+          {{/if}}
+        </td>
+      </tr>
+      {{/if}}
+      {{#if section2.constructionStageNotes}}
+      <tr style="background: #fffbeb;">
+        <td class="label-col" style="color: #92400e;">Giai đoạn thi công<br><span class="text-muted">Construction stage</span></td>
+        <td class="val-col font-bold" style="color: #b45309;">
+          {{section2.constructionStageNotes.vi}}<br>
+          <span class="text-muted" style="font-weight: normal;">{{section2.constructionStageNotes.en}}</span>
+        </td>
+      </tr>
+      {{/if}}
+      {{#if section2.gisMergedInfo}}
+      <tr style="background: #eff6ff;">
+        <td class="label-col" style="color: #1e40af;">Hiện trạng biến động GIS<br><span class="text-muted">GIS mutation info</span></td>
+        <td class="val-col" style="color: #1e3a8a;">
+          {{section2.gisMergedInfo.vi}}<br>
+          <span class="text-muted">{{section2.gisMergedInfo.en}}</span>
+        </td>
+      </tr>
+      {{/if}}
+    </table>
+
+    <div class="page-number-footer">{{tocPageNumbers.section1}}</div>
+  </div>

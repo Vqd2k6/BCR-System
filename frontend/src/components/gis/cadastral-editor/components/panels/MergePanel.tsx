@@ -9,6 +9,8 @@ import {
   Undo,
   Trash2,
   Crosshair,
+  Home,
+  Trees,
 } from 'lucide-react';
 import { GisParcel, CadastralParcelData, MutationPayloadData } from '../../../shared/types';
 import { MapBoundsController, MapClickListener, HelpBadge } from '../../../shared/MapControllers';
@@ -29,10 +31,15 @@ interface MergePanelProps {
   mergeSearchTerm: string;
   setMergeSearchTerm: (term: string) => void;
   handleToggleMergeParcel: (code: string) => void;
+  handleSetPrimaryMergeCode?: (code: string) => void;
+  isSurveyedParcel?: (code: string) => boolean;
+  getSurveyBadgeInfo?: (code: string) => { label: string; bg: string; color: string; border: string };
   mergeSummary: {
     keptCode: string;
     totalMergedArea: number;
     deprecatedCodes?: string[];
+    allMergeCodes?: string[];
+    hasSurveyConflict?: boolean;
   };
   mutationData: MutationPayloadData;
   onMutationDataChange: (data: MutationPayloadData) => void;
@@ -48,6 +55,12 @@ interface MergePanelProps {
   handleMergeClearDraw: () => void;
   handleSaveMutationProposal: () => void;
   isSubmittingMutation: boolean;
+  dynamicCodes?: string[];
+  maxZoneInfo?: any;
+  mergePartitionKind?: 'NON_BUILDING' | 'NEW_BUILDING';
+  mergeSecondaryOfficialCode?: string;
+  handleSetMergePartitionKind?: (kind: 'NON_BUILDING' | 'NEW_BUILDING') => void;
+  handleUpdateMergeSecondaryField?: (field: string, value: any) => void;
 }
 
 export const MergePanel: React.FC<MergePanelProps> = ({
@@ -64,6 +77,9 @@ export const MergePanel: React.FC<MergePanelProps> = ({
   mergeSearchTerm,
   setMergeSearchTerm,
   handleToggleMergeParcel,
+  handleSetPrimaryMergeCode,
+  isSurveyedParcel,
+  getSurveyBadgeInfo,
   mergeSummary,
   mutationData,
   onMutationDataChange,
@@ -79,6 +95,12 @@ export const MergePanel: React.FC<MergePanelProps> = ({
   handleMergeClearDraw,
   handleSaveMutationProposal,
   isSubmittingMutation,
+  dynamicCodes = [],
+  maxZoneInfo,
+  mergePartitionKind = 'NON_BUILDING',
+  mergeSecondaryOfficialCode,
+  handleSetMergePartitionKind,
+  handleUpdateMergeSecondaryField,
 }) => {
   const [mapViewMode, setMapViewMode] = React.useState<'CLUSTER' | 'ALL_ZONE'>('CLUSTER');
 
@@ -132,7 +154,7 @@ export const MergePanel: React.FC<MergePanelProps> = ({
           <span>Bản Đồ Gộp Thửa Tương Tác Phân Khu (Click Thửa Đất Để Gộp)</span>
           <HelpBadge
             title="Quy tắc Gộp thửa trên Bản đồ GIS"
-            content="Nhấp chuột trực tiếp vào bất kỳ thửa đất nào trong Zone trên bản đồ để chọn gộp hoặc hủy gộp. Thửa được chọn sẽ chuyển sang màu xanh lục, hệ thống tự động cộng dồn diện tích và xác định mã đại diện chính thức (Mã nhỏ nhất trong nhóm)."
+            content="Nhấp chuột trực tiếp vào bất kỳ thửa đất nào trong Zone trên bản đồ để chọn gộp hoặc hủy gộp. Thửa được chọn sẽ chuyển sang màu xanh lục, hệ thống tự động cộng dồn diện tích chuẩn xác và ưu tiên thửa đang/đã khảo sát làm mã đại diện chính thức. Bạn cũng có thể bấm chọn thửa đại diện theo ý muốn."
           />
         </div>
         <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center' }}>
@@ -283,9 +305,8 @@ export const MergePanel: React.FC<MergePanelProps> = ({
           ) : (
             <TileLayer
               key="osm"
-              attribution="&copy; OpenStreetMap contributors &copy; CARTO"
-              url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
-              subdomains="abcd"
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
               maxNativeZoom={19}
               maxZoom={22}
             />
@@ -416,42 +437,154 @@ export const MergePanel: React.FC<MergePanelProps> = ({
           </div>
         </div>
 
-        {/* Danh sách các chip thửa đất đã chọn gộp */}
+        {/* Danh sách các chip thửa đất đã chọn gộp kèm nút chọn Thửa Đại Diện */}
         <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', alignItems: 'center' }}>
-          <span
-            style={{
-              backgroundColor: '#fef3c7',
-              border: '1.5px solid #f59e0b',
-              color: '#92400e',
-              padding: '0.25rem 0.65rem',
-              borderRadius: '0.4rem',
-              fontSize: '0.725rem',
-              fontWeight: 800,
-            }}
-          >
-            ⭐ Thửa gốc: {parcelData.projectParcelCode} ({totalLandArea} m²)
-          </span>
-
-          {selectedMergeCodes.map((code) => {
-            const p = currentZoneMergeParcels.find((x) => x.projectParcelCode === code);
-            const area = p?.landArea || (p as any)?.land_area_m2 || 75;
+          {/* 1. Thửa gốc ban đầu mở Editor */}
+          {(() => {
+            const isBasePrimary = mergeSummary.keptCode === parcelData.projectParcelCode;
+            const isSurveyed = isSurveyedParcel ? isSurveyedParcel(parcelData.projectParcelCode) : true;
             return (
-              <span
-                key={code}
+              <div
                 style={{
-                  backgroundColor: '#dcfce7',
-                  border: '1.5px solid #22c55e',
-                  color: '#15803d',
+                  backgroundColor: isBasePrimary ? '#fef3c7' : '#f8fafc',
+                  border: isBasePrimary ? '2px solid #f59e0b' : '1px solid #cbd5e1',
+                  color: isBasePrimary ? '#92400e' : '#334155',
                   padding: '0.25rem 0.65rem',
                   borderRadius: '0.4rem',
                   fontSize: '0.725rem',
                   fontWeight: 800,
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '0.4rem',
+                  gap: '0.45rem',
+                  boxShadow: isBasePrimary ? '0 1px 3px rgba(245, 158, 11, 0.25)' : 'none',
                 }}
               >
-                <span>✓ Gộp: {code} ({area} m²)</span>
+                <span>
+                  {isBasePrimary ? '👑 ĐẠI DIỆN: ' : 'Thửa gốc: '}
+                  <strong>{parcelData.projectParcelCode}</strong> ({Number(totalLandArea) || 0} m²)
+                </span>
+                {(() => {
+                  const badge = getSurveyBadgeInfo
+                    ? getSurveyBadgeInfo(parcelData.projectParcelCode)
+                    : {
+                        label: isSurveyed ? 'Đã/Đang KS' : 'Chưa KS',
+                        bg: isSurveyed ? '#dbeafe' : '#f1f5f9',
+                        color: isSurveyed ? '#1d4ed8' : '#64748b',
+                        border: isSurveyed ? '#93c5fd' : '#cbd5e1',
+                      };
+                  return (
+                    <span
+                      style={{
+                        fontSize: '0.625rem',
+                        padding: '1px 6px',
+                        borderRadius: '4px',
+                        fontWeight: 700,
+                        backgroundColor: badge.bg,
+                        color: badge.color,
+                        border: `1px solid ${badge.border}`,
+                      }}
+                    >
+                      {badge.label}
+                    </span>
+                  );
+                })()}
+                {!isBasePrimary && handleSetPrimaryMergeCode && (
+                  <button
+                    type="button"
+                    onClick={() => handleSetPrimaryMergeCode(parcelData.projectParcelCode)}
+                    style={{
+                      border: '1px solid #f59e0b',
+                      backgroundColor: '#fffbeb',
+                      color: '#b45309',
+                      borderRadius: '4px',
+                      padding: '1px 6px',
+                      fontSize: '0.65rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                    }}
+                    title="Đặt thửa gốc này làm Thửa Đại Diện giữ lại"
+                  >
+                    ⭐ Đặt làm đại diện
+                  </button>
+                )}
+              </div>
+            );
+          })()}
+
+          {/* 2. Các thửa được chọn gộp thêm */}
+          {selectedMergeCodes.map((code) => {
+            const p = currentZoneMergeParcels.find((x) => x.projectParcelCode === code);
+            const area = Number(p?.landArea || (p as any)?.land_area_m2) || 75;
+            const isPrimary = mergeSummary.keptCode === code;
+            const isSurveyed = isSurveyedParcel ? isSurveyedParcel(code) : false;
+
+            return (
+              <div
+                key={code}
+                style={{
+                  backgroundColor: isPrimary ? '#fef3c7' : '#dcfce7',
+                  border: isPrimary ? '2px solid #f59e0b' : '1.5px solid #22c55e',
+                  color: isPrimary ? '#92400e' : '#15803d',
+                  padding: '0.25rem 0.65rem',
+                  borderRadius: '0.4rem',
+                  fontSize: '0.725rem',
+                  fontWeight: 800,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.45rem',
+                  boxShadow: isPrimary ? '0 1px 3px rgba(245, 158, 11, 0.25)' : 'none',
+                }}
+              >
+                <span>
+                  {isPrimary ? '👑 ĐẠI DIỆN: ' : '✓ Gộp: '}
+                  <strong>{code}</strong> ({area} m²)
+                </span>
+                {(() => {
+                  const badge = getSurveyBadgeInfo
+                    ? getSurveyBadgeInfo(code)
+                    : {
+                        label: isSurveyed ? 'Đã KS' : 'Chưa KS',
+                        bg: isSurveyed ? '#dbeafe' : '#f1f5f9',
+                        color: isSurveyed ? '#1d4ed8' : '#64748b',
+                        border: isSurveyed ? '#93c5fd' : '#cbd5e1',
+                      };
+                  return (
+                    <span
+                      style={{
+                        fontSize: '0.625rem',
+                        padding: '1px 6px',
+                        borderRadius: '4px',
+                        fontWeight: 700,
+                        backgroundColor: badge.bg,
+                        color: badge.color,
+                        border: `1px solid ${badge.border}`,
+                      }}
+                    >
+                      {badge.label}
+                    </span>
+                  );
+                })()}
+
+                {!isPrimary && handleSetPrimaryMergeCode && (
+                  <button
+                    type="button"
+                    onClick={() => handleSetPrimaryMergeCode(code)}
+                    style={{
+                      border: '1px solid #f59e0b',
+                      backgroundColor: '#fffbeb',
+                      color: '#b45309',
+                      borderRadius: '4px',
+                      padding: '1px 6px',
+                      fontSize: '0.65rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                    }}
+                    title="Đặt thửa này làm Thửa Đại Diện chính thức"
+                  >
+                    ⭐ Đặt làm đại diện
+                  </button>
+                )}
+
                 <button
                   type="button"
                   onClick={() => handleToggleMergeParcel(code)}
@@ -460,16 +593,16 @@ export const MergePanel: React.FC<MergePanelProps> = ({
                     background: 'none',
                     color: '#dc2626',
                     cursor: 'pointer',
-                    padding: 0,
+                    padding: '0 2px',
                     fontWeight: 900,
-                    fontSize: '0.8rem',
+                    fontSize: '0.85rem',
                     lineHeight: 1,
                   }}
                   title="Hủy gộp thửa này"
                 >
                   ✕
                 </button>
-              </span>
+              </div>
             );
           })}
 
@@ -479,6 +612,23 @@ export const MergePanel: React.FC<MergePanelProps> = ({
             </span>
           )}
         </div>
+
+        {/* CẢNH BÁO XUNG ĐỘT KHẢO SÁT NẾU CÓ TỪ 2 THỬA ĐÃ KHẢO SÁT */}
+        {mergeSummary.hasSurveyConflict && (
+          <div
+            style={{
+              backgroundColor: '#fffbeb',
+              border: '1.5px solid #f59e0b',
+              borderRadius: '0.45rem',
+              padding: '0.5rem 0.75rem',
+              fontSize: '0.725rem',
+              color: '#92400e',
+              lineHeight: 1.45,
+            }}
+          >
+            ⚠️ <strong>Lưu ý xung đột hồ sơ:</strong> Khối gộp có từ 2 thửa đất trở lên đã có hồ sơ khảo sát độc lập. Vui lòng bấm <code>[⭐ Đặt làm đại diện]</code> trên thửa có hồ sơ chuẩn xác nhất để giữ lại làm hồ sơ chính thức. Hồ sơ của thửa sáp nhập sẽ được chuyển thành tài liệu tham chiếu lưu trữ.
+          </div>
+        )}
 
         {/* Hộp Thông Tin Pháp Lý Của Khối Gộp */}
         {selectedMergeCodes.length > 0 && (
@@ -493,7 +643,9 @@ export const MergePanel: React.FC<MergePanelProps> = ({
               lineHeight: 1.45,
             }}
           >
-            ✓ <strong>Mã đại diện chính thức (giữ lại):</strong> <strong style={{ color: '#0284c7', fontSize: '0.775rem' }}>[{mergeSummary.keptCode}]</strong> (Được chọn tự động theo mã nhỏ nhất trong nhóm).
+            ✓ <strong>Mã đại diện chính thức (giữ lại):</strong>{' '}
+            <strong style={{ color: '#0284c7', fontSize: '0.775rem' }}>[{mergeSummary.keptCode}]</strong>{' '}
+            (Thửa đại diện bảo toàn thông tin pháp lý & hồ sơ khảo sát).
             <br />
             ✓ <strong>Mã bị sát nhập / thu hồi:</strong> [{mergeSummary.deprecatedCodes?.join(', ') || 'Không có'}]. Khi phê duyệt, các mã này sẽ chuyển sang trạng thái <code>MERGED_DEPRECATED</code> và trỏ dữ liệu về mã đại diện.
           </div>
@@ -637,7 +789,7 @@ export const MergePanel: React.FC<MergePanelProps> = ({
                 mergeBuildingAreaM2: mutationData.mergeBuildingAreaM2 || undefined,
                 mergeResidualAreaM2: mutationData.mergeResidualAreaM2 || undefined,
                 mergeResidualType: mutationData.mergeResidualType || '',
-                mergeResidualParcelCode: `${mergeSummary.keptCode}-P2`,
+                mergeResidualParcelCode: `${mergeSummary.keptCode}-DU`,
                 isSubmitted: false,
               });
             }}
@@ -679,6 +831,68 @@ export const MergePanel: React.FC<MergePanelProps> = ({
               gap: '0.6rem',
             }}
           >
+            {/* Nhập số đo diện tích xây dựng thực tế (S_xd) */}
+            <div
+              style={{
+                backgroundColor: '#fff7ed',
+                border: '1.5px solid #fdba74',
+                borderRadius: '0.5rem',
+                padding: '0.65rem 0.75rem',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.4rem',
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.3rem' }}>
+                <label style={{ fontSize: '0.75rem', fontWeight: 800, color: '#9a3412', margin: 0 }}>
+                  📐 Diện tích xây dựng thực tế của ngôi nhà (S_xd):
+                  <span style={{ color: '#ea580c', marginLeft: '4px' }}>* (m²)</span>
+                </label>
+                <span style={{ fontSize: '0.7rem', color: '#c2410c', fontWeight: 700 }}>
+                  Tổng khuôn viên gộp: <strong>{mergeSummary.totalMergedArea} m²</strong>
+                </span>
+              </div>
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                <input
+                  type="number"
+                  step="0.1"
+                  min="0.1"
+                  max={Math.max(0.1, mergeSummary.totalMergedArea - 0.1)}
+                  className="form-control"
+                  style={{
+                    fontSize: '0.85rem',
+                    fontWeight: 700,
+                    color: '#0f172a',
+                    maxWidth: '180px',
+                    borderColor: '#ea580c',
+                  }}
+                  placeholder="VD: 85.5"
+                  value={mutationData.mergeBuildingAreaM2 !== undefined ? mutationData.mergeBuildingAreaM2 : (calculatedMergeBArea || '')}
+                  onChange={(e) => {
+                    const rawVal = e.target.value;
+                    const val = rawVal === '' ? undefined : parseFloat(rawVal);
+                    const total = mergeSummary.totalMergedArea;
+                    const residual = (val !== undefined && !isNaN(val))
+                      ? Math.max(0, Math.round((total - val) * 10) / 10)
+                      : undefined;
+                    onMutationDataChange({
+                      ...mutationData,
+                      mergeBuildingAreaM2: val,
+                      mergeResidualAreaM2: residual,
+                      mergeResidualParcelCode: `${mergeSummary.keptCode}-DU`,
+                      isSubmitted: false,
+                    });
+                  }}
+                />
+                <span style={{ fontSize: '0.75rem', color: '#64748b' }}>m²</span>
+                <div style={{ fontSize: '0.7rem', color: '#166534', backgroundColor: '#f0fdf4', padding: '0.3rem 0.6rem', borderRadius: '0.35rem', border: '1px solid #bbf7d0', marginLeft: 'auto' }}>
+                  🌳 Đất dôi dư tự tính (S_du): <strong>{calculatedMergeRArea} m²</strong>
+                </div>
+              </div>
+              <div style={{ fontSize: '0.65rem', color: '#9a3412', fontStyle: 'italic' }}>
+                💡 Nhập diện tích xây dựng thực tế theo đo đạc laser / sổ đỏ. Bạn cũng có thể nhấp trên bản đồ bên dưới để khoanh vùng toạ độ công trình toà nhà.
+              </div>
+            </div>
             <div style={{ fontSize: '0.7rem', color: '#9a3412', fontWeight: 700, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span>⚡ Nhấp trên bản đồ để khoanh vùng công trình toà nhà ({mergeBuildingVertices.length} điểm đã chấm):</span>
               <div style={{ display: 'flex', gap: '0.35rem' }}>
@@ -741,9 +955,8 @@ export const MergePanel: React.FC<MergePanelProps> = ({
                   />
                 ) : (
                   <TileLayer
-                    attribution="&copy; OpenStreetMap contributors &copy; CARTO"
-                    url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
-                    subdomains="abcd"
+                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                     maxNativeZoom={19}
                     maxZoom={22}
                   />
@@ -791,7 +1004,7 @@ export const MergePanel: React.FC<MergePanelProps> = ({
                   >
                     <Tooltip direction="top">
                       <div style={{ fontSize: '0.725rem', fontWeight: 800, color: '#9a3412' }}>
-                        Công trình nhà: {mergeSummary.keptCode}-P1 ({calculatedMergeBArea} m²)
+                        Công trình nhà: {mergeSummary.keptCode} ({calculatedMergeBArea} m²)
                       </div>
                     </Tooltip>
                   </Polygon>
@@ -841,30 +1054,145 @@ export const MergePanel: React.FC<MergePanelProps> = ({
               )}
             </div>
 
-            {/* Mục đích sử dụng phần đất dư */}
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '3px' }}>
-                <label style={{ display: 'block', fontSize: '0.725rem', fontWeight: 800, color: '#334155', margin: 0 }}>
-                  Chức năng / mục đích sử dụng phần đất dư:
-                  <span style={{ color: '#ea580c', marginLeft: '4px' }}>* (Chọn thực tế)</span>
+            {/* BỘ CHỌN 2 NHÁNH NGHIỆP VỤ CHO THỬA THỨ HAI (TƯƠNG ĐƯƠNG SPLIT PANEL) */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <label style={{ display: 'block', fontSize: '0.725rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>
+                  Quy chuẩn định danh thửa đất thứ hai (Phát sinh sau gộp):
                 </label>
-                {!mutationData.mergeResidualType && mergeBuildingVertices.length >= 3 && (
-                  <span style={{ fontSize: '0.65rem', color: '#c2410c', fontWeight: 700, backgroundColor: '#ffedd5', padding: '0.1rem 0.4rem', borderRadius: '0.25rem' }}>
-                    Cần chọn chức năng
-                  </span>
-                )}
+                <span className="badge" style={{ backgroundColor: mergePartitionKind === 'NEW_BUILDING' ? '#ffedd5' : '#dcfce7', color: mergePartitionKind === 'NEW_BUILDING' ? '#c2410c' : '#15803d', fontSize: '0.675rem' }}>
+                  {mergePartitionKind === 'NEW_BUILDING' ? 'CƠ CHẾ: MAX ZONE + 1' : 'ĐẤT DÔI DƯ / SÂN VƯỜN (-DU)'}
+                </span>
               </div>
-              <select
-                className="form-control"
-                style={{
-                  fontSize: '0.725rem',
-                  backgroundColor: mutationData.mergeResidualType ? '#ffffff' : '#fff7ed',
-                  border: mutationData.mergeResidualType ? '1px solid #cbd5e1' : '1.5px solid #ea580c',
-                  color: mutationData.mergeResidualType ? '#1e293b' : '#9a3412',
-                  fontWeight: 600,
-                }}
-                value={
-                  [
+
+              {/* 2 Nút Toggle */}
+              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (handleSetMergePartitionKind) handleSetMergePartitionKind('NON_BUILDING');
+                  }}
+                  style={{
+                    flex: '1 1 200px',
+                    padding: '0.5rem 0.65rem',
+                    borderRadius: '0.5rem',
+                    fontSize: '0.725rem',
+                    fontWeight: mergePartitionKind !== 'NEW_BUILDING' ? 800 : 600,
+                    backgroundColor: mergePartitionKind !== 'NEW_BUILDING' ? '#059669' : '#f8fafc',
+                    color: mergePartitionKind !== 'NEW_BUILDING' ? '#ffffff' : '#475569',
+                    border: mergePartitionKind !== 'NEW_BUILDING' ? 'none' : '1px solid #cbd5e1',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.35rem',
+                    boxShadow: mergePartitionKind !== 'NEW_BUILDING' ? '0 2px 4px rgba(5, 150, 105, 0.25)' : 'none',
+                  }}
+                >
+                  <Trees size={15} /> 🌳 1. Đất dôi dư / Sân vườn (Mã: {mergeSummary.keptCode}-DU)
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (handleSetMergePartitionKind) handleSetMergePartitionKind('NEW_BUILDING');
+                  }}
+                  style={{
+                    flex: '1 1 200px',
+                    padding: '0.5rem 0.65rem',
+                    borderRadius: '0.5rem',
+                    fontSize: '0.725rem',
+                    fontWeight: mergePartitionKind === 'NEW_BUILDING' ? 800 : 600,
+                    backgroundColor: mergePartitionKind === 'NEW_BUILDING' ? '#ea580c' : '#f8fafc',
+                    color: mergePartitionKind === 'NEW_BUILDING' ? '#ffffff' : '#475569',
+                    border: mergePartitionKind === 'NEW_BUILDING' ? 'none' : '1px solid #cbd5e1',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '0.35rem',
+                    boxShadow: mergePartitionKind === 'NEW_BUILDING' ? '0 2px 4px rgba(234, 88, 12, 0.25)' : 'none',
+                  }}
+                >
+                  <Home size={15} /> 🏠 2. Căn nhà mới độc lập (Cấp mã Max Zone + 1: {mergeSecondaryOfficialCode || dynamicCodes[0] || '...'})
+                </button>
+              </div>
+            </div>
+
+            {/* Chi tiết cho Nhánh 1: NON_BUILDING (Sân vườn, đất trống) */}
+            {mergePartitionKind !== 'NEW_BUILDING' ? (
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '3px' }}>
+                  <label style={{ display: 'block', fontSize: '0.725rem', fontWeight: 800, color: '#334155', margin: 0 }}>
+                    Chức năng / mục đích sử dụng phần đất dư ({mergeSummary.keptCode}-DU):
+                    <span style={{ color: '#ea580c', marginLeft: '4px' }}>* (Chọn thực tế)</span>
+                  </label>
+                  {!mutationData.mergeResidualType && mergeBuildingVertices.length >= 3 && (
+                    <span style={{ fontSize: '0.65rem', color: '#c2410c', fontWeight: 700, backgroundColor: '#ffedd5', padding: '0.1rem 0.4rem', borderRadius: '0.25rem' }}>
+                      Cần chọn chức năng
+                    </span>
+                  )}
+                </div>
+                <select
+                  className="form-control"
+                  style={{
+                    fontSize: '0.725rem',
+                    backgroundColor: mutationData.mergeResidualType ? '#ffffff' : '#fff7ed',
+                    border: mutationData.mergeResidualType ? '1px solid #cbd5e1' : '1.5px solid #ea580c',
+                    color: mutationData.mergeResidualType ? '#1e293b' : '#9a3412',
+                    fontWeight: 600,
+                  }}
+                  value={
+                    [
+                      'Sân vườn / Cây cảnh (Khoảng lùi sinh thái)',
+                      'Sân trước / Sân sau lát gạch',
+                      'Đất trống chưa xây dựng (Để dành)',
+                      'Kho bãi tạm / Gara ô tô ngoài trời',
+                      'Lối đi riêng / Ngõ phụ tiếp giáp',
+                      'Công trình phụ / Bếp / Nhà xe tạm',
+                      'Đất dôi dư ngoài ranh xây dựng',
+                    ].includes(mutationData.mergeResidualType || '')
+                      ? mutationData.mergeResidualType
+                      : mutationData.mergeResidualType ? 'OTHER' : ''
+                  }
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (!val) {
+                      onMutationDataChange({
+                        ...mutationData,
+                        mergeResidualType: '',
+                        isSubmitted: false,
+                      });
+                    } else if (val === 'OTHER') {
+                      onMutationDataChange({
+                        ...mutationData,
+                        mergeResidualType: customMergeResidualType ? `Khác: ${customMergeResidualType}` : 'Khác: ',
+                        isSubmitted: false,
+                      });
+                    } else {
+                      onMutationDataChange({
+                        ...mutationData,
+                        mergeResidualType: val,
+                        isSubmitted: false,
+                      });
+                    }
+                  }}
+                >
+                  <option value="">-- Vui lòng chọn chức năng thực tế của phần đất dư --</option>
+                  <option value="Sân vườn / Cây cảnh (Khoảng lùi sinh thái)">1. Sân vườn / Cây cảnh (Khoảng lùi sinh thái)</option>
+                  <option value="Sân trước / Sân sau lát gạch">2. Sân trước / Sân sau lát gạch</option>
+                  <option value="Đất trống chưa xây dựng (Để dành)">3. Đất trống chưa xây dựng (Để dành)</option>
+                  <option value="Kho bãi tạm / Gara ô tô ngoài trời">4. Kho bãi tạm / Gara ô tô ngoài trời</option>
+                  <option value="Lối đi riêng / Ngõ phụ tiếp giáp">5. Lối đi riêng / Ngõ phụ tiếp giáp</option>
+                  <option value="Công trình phụ / Bếp / Nhà xe tạm">6. Công trình phụ / Bếp / Nhà xe tạm</option>
+                  <option value="Đất dôi dư ngoài ranh xây dựng">7. Đất dôi dư ngoài ranh xây dựng</option>
+                  <option value="OTHER">8. Khác (Nhập mục đích sử dụng thực tế...)</option>
+                </select>
+
+                {/* Text input cho Khác */}
+                {(mutationData.mergeResidualType === 'Khác' ||
+                  mutationData.mergeResidualType?.startsWith('Khác') ||
+                  (![
                     'Sân vườn / Cây cảnh (Khoảng lùi sinh thái)',
                     'Sân trước / Sân sau lát gạch',
                     'Đất trống chưa xây dựng (Để dành)',
@@ -872,82 +1200,131 @@ export const MergePanel: React.FC<MergePanelProps> = ({
                     'Lối đi riêng / Ngõ phụ tiếp giáp',
                     'Công trình phụ / Bếp / Nhà xe tạm',
                     'Đất dôi dư ngoài ranh xây dựng',
-                  ].includes(mutationData.mergeResidualType || '')
-                    ? mutationData.mergeResidualType
-                    : mutationData.mergeResidualType ? 'OTHER' : ''
-                }
-                onChange={(e) => {
-                  const val = e.target.value;
-                  if (!val) {
-                    onMutationDataChange({
-                      ...mutationData,
-                      mergeResidualType: '',
-                      isSubmitted: false,
-                    });
-                  } else if (val === 'OTHER') {
-                    onMutationDataChange({
-                      ...mutationData,
-                      mergeResidualType: customMergeResidualType ? `Khác: ${customMergeResidualType}` : 'Khác: ',
-                      isSubmitted: false,
-                    });
-                  } else {
-                    onMutationDataChange({
-                      ...mutationData,
-                      mergeResidualType: val,
-                      isSubmitted: false,
-                    });
-                  }
+                  ].includes(mutationData.mergeResidualType || '') && mutationData.mergeResidualType)) && (
+                  <div style={{ marginTop: '0.35rem' }}>
+                    <input
+                      type="text"
+                      className="form-control"
+                      style={{ fontSize: '0.725rem', border: '1px solid #fdba74' }}
+                      placeholder="Nhập mục đích sử dụng phần đất dư thực tế..."
+                      value={
+                        customMergeResidualType ||
+                        (mutationData.mergeResidualType?.startsWith('Khác: ')
+                          ? mutationData.mergeResidualType.replace('Khác: ', '')
+                          : mutationData.customMergeResidualType || '')
+                      }
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setCustomMergeResidualType(val);
+                        onMutationDataChange({
+                          ...mutationData,
+                          mergeResidualType: val ? `Khác: ${val}` : 'Khác: ',
+                          customMergeResidualType: val,
+                          isSubmitted: false,
+                        });
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
+            ) : (
+              /* Chi tiết cho Nhánh 2: NEW_BUILDING (Căn nhà mới độc lập) */
+              <div
+                style={{
+                  backgroundColor: '#fff7ed',
+                  border: '1.5px solid #fed7aa',
+                  borderRadius: '0.5rem',
+                  padding: '0.65rem',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.5rem',
                 }}
               >
-                <option value="">-- Vui lòng chọn chức năng thực tế của phần đất dư --</option>
-                <option value="Sân vườn / Cây cảnh (Khoảng lùi sinh thái)">1. Sân vườn / Cây cảnh (Khoảng lùi sinh thái)</option>
-                <option value="Sân trước / Sân sau lát gạch">2. Sân trước / Sân sau lát gạch</option>
-                <option value="Đất trống chưa xây dựng (Để dành)">3. Đất trống chưa xây dựng (Để dành)</option>
-                <option value="Kho bãi tạm / Gara ô tô ngoài trời">4. Kho bãi tạm / Gara ô tô ngoài trời</option>
-                <option value="Lối đi riêng / Ngõ phụ tiếp giáp">5. Lối đi riêng / Ngõ phụ tiếp giáp</option>
-                <option value="Công trình phụ / Bếp / Nhà xe tạm">6. Công trình phụ / Bếp / Nhà xe tạm</option>
-                <option value="Đất dôi dư ngoài ranh xây dựng">7. Đất dôi dư ngoài ranh xây dựng</option>
-                <option value="OTHER">8. Khác (Nhập mục đích sử dụng thực tế...)</option>
-              </select>
-
-              {/* Text input cho Khác */}
-              {(mutationData.mergeResidualType === 'Khác' ||
-                mutationData.mergeResidualType?.startsWith('Khác') ||
-                (![
-                  'Sân vườn / Cây cảnh (Khoảng lùi sinh thái)',
-                  'Sân trước / Sân sau lát gạch',
-                  'Đất trống chưa xây dựng (Để dành)',
-                  'Kho bãi tạm / Gara ô tô ngoài trời',
-                  'Lối đi riêng / Ngõ phụ tiếp giáp',
-                  'Công trình phụ / Bếp / Nhà xe tạm',
-                  'Đất dôi dư ngoài ranh xây dựng',
-                ].includes(mutationData.mergeResidualType || '') && mutationData.mergeResidualType)) && (
-                <div style={{ marginTop: '0.35rem' }}>
-                  <input
-                    type="text"
-                    className="form-control"
-                    style={{ fontSize: '0.725rem', border: '1px solid #fdba74' }}
-                    placeholder="Nhập mục đích sử dụng phần đất dư thực tế..."
-                    value={
-                      customMergeResidualType ||
-                      (mutationData.mergeResidualType?.startsWith('Khác: ')
-                        ? mutationData.mergeResidualType.replace('Khác: ', '')
-                        : mutationData.customMergeResidualType || '')
-                    }
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setCustomMergeResidualType(val);
-                      onMutationDataChange({
-                        ...mutationData,
-                        mergeResidualType: val ? `Khác: ${val}` : 'Khác: ',
-                        customMergeResidualType: val,
-                        isSubmitted: false,
-                      });
-                    }}
-                  />
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#c2410c' }}>
+                    🏠 Thông tin Căn nhà mới ({mergeSecondaryOfficialCode})
+                  </span>
+                  <span className="badge" style={{ backgroundColor: '#ea580c', color: '#fff', fontSize: '0.675rem' }}>
+                    Mã Zone: {mergeSecondaryOfficialCode}
+                  </span>
                 </div>
-              )}
-            </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.45rem' }}>
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 700, color: '#475569', marginBottom: '2px' }}>
+                      Số nhà mới:
+                    </label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      style={{ fontSize: '0.725rem', border: '1px solid #cbd5e1' }}
+                      placeholder="Ví dụ: 205B"
+                      value={mutationData.mergeSecondaryHouseNumber ?? `${parcelData.houseNumber}B`}
+                      onChange={(e) => {
+                        if (handleUpdateMergeSecondaryField) {
+                          handleUpdateMergeSecondaryField('mergeSecondaryHouseNumber', e.target.value);
+                        }
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 700, color: '#475569', marginBottom: '2px' }}>
+                      Tên chủ hộ mới:
+                    </label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      style={{ fontSize: '0.725rem', border: '1px solid #cbd5e1' }}
+                      placeholder="Ví dụ: Nguyễn Văn B"
+                      value={mutationData.mergeSecondaryOwnerName ?? 'Chủ hộ mới'}
+                      onChange={(e) => {
+                        if (handleUpdateMergeSecondaryField) {
+                          handleUpdateMergeSecondaryField('mergeSecondaryOwnerName', e.target.value);
+                        }
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 700, color: '#475569', marginBottom: '2px' }}>
+                      Số điện thoại:
+                    </label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      style={{ fontSize: '0.725rem', border: '1px solid #cbd5e1' }}
+                      placeholder="Số điện thoại liên hệ"
+                      value={mutationData.mergeSecondaryPhone ?? ''}
+                      onChange={(e) => {
+                        if (handleUpdateMergeSecondaryField) {
+                          handleUpdateMergeSecondaryField('mergeSecondaryPhone', e.target.value);
+                        }
+                      }}
+                    />
+                  </div>
+
+                  <div>
+                    <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 700, color: '#475569', marginBottom: '2px' }}>
+                      Số tầng công trình:
+                    </label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={20}
+                      className="form-control"
+                      style={{ fontSize: '0.725rem', border: '1px solid #cbd5e1' }}
+                      value={mutationData.mergeSecondaryFloorCount ?? 1}
+                      onChange={(e) => {
+                        if (handleUpdateMergeSecondaryField) {
+                          handleUpdateMergeSecondaryField('mergeSecondaryFloorCount', Number(e.target.value) || 1);
+                        }
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* 2 Thẻ phân vùng bóc tách */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.5rem', marginTop: '0.2rem' }}>
@@ -962,8 +1339,8 @@ export const MergePanel: React.FC<MergePanelProps> = ({
                 }}
               >
                 <div style={{ fontWeight: 800, color: '#c2410c', display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
-                  <span>🏠 1. Mảnh đất ngôi nhà (Khảo sát)</span>
-                  <span className="badge" style={{ backgroundColor: '#ea580c', color: '#fff' }}>{mergeSummary.keptCode}-P1</span>
+                  <span>🏠 1. Thửa Đại Diện Chính (Khảo sát)</span>
+                  <span className="badge" style={{ backgroundColor: '#ea580c', color: '#fff' }}>{mergeSummary.keptCode}</span>
                 </div>
                 <div style={{ color: '#475569', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
                   <span>Diện tích xây dựng thực tế:</span>
@@ -971,28 +1348,32 @@ export const MergePanel: React.FC<MergePanelProps> = ({
                 </div>
               </div>
 
-              {/* Mảnh 2: Đất dư */}
+              {/* Mảnh 2: Thửa thứ hai */}
               <div
                 style={{
-                  backgroundColor: '#f0fdf4',
-                  border: '1.5px solid #86efac',
+                  backgroundColor: mergePartitionKind === 'NEW_BUILDING' ? '#fff7ed' : '#f0fdf4',
+                  border: mergePartitionKind === 'NEW_BUILDING' ? '1.5px solid #fed7aa' : '1.5px solid #86efac',
                   borderRadius: '0.5rem',
                   padding: '0.5rem 0.65rem',
                   fontSize: '0.7rem',
                 }}
               >
-                <div style={{ fontWeight: 800, color: '#166534', display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
-                  <span>🌳 2. Mảnh đất dư (Chủ nhà mới)</span>
-                  <span className="badge" style={{ backgroundColor: '#16a34a', color: '#fff' }}>
-                    {mutationData.mergeResidualParcelCode || `${mergeSummary.keptCode}-P2`}
+                <div style={{ fontWeight: 800, color: mergePartitionKind === 'NEW_BUILDING' ? '#c2410c' : '#166534', display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
+                  <span>{mergePartitionKind === 'NEW_BUILDING' ? '🏠 2. Căn nhà mới độc lập' : '🌳 2. Phần đất dôi dư / Sân vườn'}</span>
+                  <span className="badge" style={{ backgroundColor: mergePartitionKind === 'NEW_BUILDING' ? '#ea580c' : '#16a34a', color: '#fff' }}>
+                    {mergeSecondaryOfficialCode || `${mergeSummary.keptCode}-DU`}
                   </span>
                 </div>
                 <div style={{ color: '#475569', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
-                  <span>Diện tích đất dư:</span>
-                  <strong style={{ color: '#166534', fontSize: '0.75rem' }}>{calculatedMergeRArea} m²</strong>
+                  <span>{mergePartitionKind === 'NEW_BUILDING' ? 'Diện tích đất nhà mới:' : 'Diện tích đất dôi dư:'}</span>
+                  <strong style={{ color: mergePartitionKind === 'NEW_BUILDING' ? '#c2410c' : '#166534', fontSize: '0.75rem' }}>{calculatedMergeRArea} m²</strong>
                 </div>
                 <div style={{ fontSize: '0.65rem', color: '#64748b', marginTop: '2px' }}>
-                  Loại: <em>{mutationData.mergeResidualType || 'Chưa chọn công năng'}</em>
+                  {mergePartitionKind === 'NEW_BUILDING' ? (
+                    <span>Số nhà: <strong>{mutationData.mergeSecondaryHouseNumber ?? `${parcelData.houseNumber}B`}</strong> • Khảo sát độc lập</span>
+                  ) : (
+                    <span>Loại: <em>{mutationData.mergeResidualType || 'Chưa chọn công năng'}</em></span>
+                  )}
                 </div>
               </div>
             </div>

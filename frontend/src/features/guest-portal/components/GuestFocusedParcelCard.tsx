@@ -17,6 +17,7 @@ import {
   Phone,
   Ruler,
   FileText,
+  FileCheck,
   X,
   ShieldAlert,
 } from 'lucide-react';
@@ -24,12 +25,14 @@ import {
 interface Props {
   parcel: GisParcel;
   onClose: () => void;
-  onOpenSurveyDetail: (parcel: GisParcel) => void;
+  onViewReportPreview?: (parcel: GisParcel) => void;
+  onOpenSurveyDetail?: (parcel: GisParcel) => void;
 }
 
 export const GuestFocusedParcelCard: React.FC<Props> = ({
   parcel,
   onClose,
+  onViewReportPreview,
   onOpenSurveyDetail,
 }) => {
   const effStatus = getEffectiveParcelStatus(parcel);
@@ -121,14 +124,20 @@ export const GuestFocusedParcelCard: React.FC<Props> = ({
         </div>
       </div>
 
-      {/* Action Button: Mở Form Khảo Sát Toàn Cảnh (Chỉ Đọc) */}
+      {/* Action Button: Mở Xem Trước Báo Cáo Kỹ Thuật (View-Only) */}
       <button
         type="button"
-        onClick={() => onOpenSurveyDetail(parcel)}
-        className="w-full py-2.5 px-4 rounded-xl text-xs font-bold flex items-center justify-center gap-2 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-700 hover:to-indigo-700 text-white shadow-sm shadow-sky-600/25 transition-all cursor-pointer"
+        onClick={() => {
+          if (onViewReportPreview) {
+            onViewReportPreview(parcel);
+          } else if (onOpenSurveyDetail) {
+            onOpenSurveyDetail(parcel);
+          }
+        }}
+        className="w-full py-2.5 px-4 rounded-xl text-xs font-bold flex items-center justify-center gap-2 bg-gradient-to-r from-sky-600 to-blue-700 hover:from-sky-700 hover:to-blue-800 text-white shadow-sm shadow-sky-600/25 transition-all cursor-pointer active:scale-[0.99]"
       >
-        <FileText size={14} />
-        <span>Xem Hồ Sơ Khảo Sát Hiện Trường Chi Tiết (Chỉ Đọc) ➔</span>
+        <FileCheck size={15} />
+        <span>Xem Trước Báo Cáo Kỹ Thuật (Preview BCS Report) ➔</span>
       </button>
     </div>
   );

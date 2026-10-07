@@ -5,6 +5,10 @@ import { GisParcel } from '../../shared/types';
 
 // Check if a parcel is a road / waterway / canal / empty non-building parcel
 export const isNonBuildingParcel = (parcel: GisParcel | any): boolean => {
+  const code = String(parcel.projectParcelCode || parcel.project_parcel_code || '').toUpperCase();
+  // Residual plot from cadastral split/merge or explicit residual type
+  if (code.endsWith('-DU') || parcel.parcelType === 'RESIDUAL' || parcel.parcel_type === 'RESIDUAL') return true;
+
   const owner = String(parcel.ownerName || parcel.owner_name || '').toLowerCase();
   const street = String(parcel.street || '').toLowerCase();
   const houseNum = String(parcel.houseNumber || parcel.house_number || '').trim().toLowerCase();
@@ -213,6 +217,16 @@ export const getStatusBadge = (status: GisParcel['surveyStatus'], parcel?: GisPa
       );
     case 'NOT_SURVEYED':
     default:
+      if (parcel && isNonBuildingParcel(parcel)) {
+        return (
+          <span
+            className="badge"
+            style={{ backgroundColor: '#f0fdf4', color: '#166534', border: '1px solid #86efac', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+          >
+            🌿 Đất dôi dư / Sân vườn
+          </span>
+        );
+      }
       return (
         <span
           className="badge"

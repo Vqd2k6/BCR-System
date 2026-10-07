@@ -218,8 +218,22 @@ export class CadastralService {
   }
 
   // --- FOOTPRINT & HÌNH HỌC GIS ---
-  static async updateFootprint(parcelId: string, footprintGeoJson: any, constructionAreaM2?: number) {
-    return CadastralGeometryService.updateFootprint(parcelId, footprintGeoJson, constructionAreaM2);
+  static async updateFootprint(
+    parcelId: string,
+    footprintGeoJson: any,
+    constructionAreaM2?: number,
+    userId?: string,
+    reason?: string,
+    clientIp?: string
+  ) {
+    return CadastralGeometryService.updateFootprint(
+      parcelId,
+      footprintGeoJson,
+      constructionAreaM2,
+      userId,
+      reason,
+      clientIp
+    );
   }
 
   static async getAdjacentCandidates(parcelId: string) {
@@ -259,6 +273,8 @@ export class CadastralService {
     data: {
       mutationType: 'SPLIT' | 'MERGE';
       sourceParcelIds: string[];
+      primaryParcelId?: string;
+      primaryProjectParcelCode?: string;
       childParcels?: Array<{
         projectParcelCode?: string;
         houseNumber?: string;
@@ -336,5 +352,16 @@ export class CadastralService {
       message: `Đã cập nhật loại hình công trình thành ${buildingType}`,
       parcel: updated,
     };
+  }
+
+  // --- LỊCH SỬ BIẾN ĐỘNG (SUPER_ADMIN ONLY) ---
+  static async getParcelMutationHistory(parcelId: string) {
+    const { CadastralHistoryService } = await import('./services/cadastral-history.service');
+    return CadastralHistoryService.getParcelMutationHistory(parcelId);
+  }
+
+  static async getZoneMutationHistory(zoneId: string, limit?: number, offset?: number) {
+    const { CadastralHistoryService } = await import('./services/cadastral-history.service');
+    return CadastralHistoryService.getZoneMutationHistory(zoneId, limit, offset);
   }
 }

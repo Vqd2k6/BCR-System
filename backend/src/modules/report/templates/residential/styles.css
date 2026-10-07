@@ -1272,5 +1272,28 @@ table.doc-control-table td.col-val {
   text-align: right;
   border: 0.5pt solid rgba(255, 255, 255, 0.35);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+/* ==========================================================================
+   WATERMARK BẢO MẬT TOÀN BỘ TRANG A4 DÀNH RIÊNG CHO TÀI KHOẢN GUEST (V1)
+   ========================================================================== */
+body.guest-watermark-mode .cover-page,
+body.guest-watermark-mode .report-page,
+body.guest-watermark-mode .a4-page-sheet {
+  position: relative;
+}
+
+body.guest-watermark-mode .cover-page::before,
+body.guest-watermark-mode .report-page::before,
+body.guest-watermark-mode .a4-page-sheet::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 999;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='500' height='380' viewBox='0 0 500 380'><g transform='rotate(-32 250 190)'><text x='250' y='140' text-anchor='middle' font-family='Arial, sans-serif' font-weight='900' font-size='22' fill='rgba(2,132,199,0.13)' letter-spacing='2'>BẢN XEM TRƯỚC - GUEST ONLY</text><text x='250' y='175' text-anchor='middle' font-family='Arial, sans-serif' font-weight='bold' font-size='14' fill='rgba(15,23,42,0.10)' letter-spacing='1'>LIÊN DANH CRLG – CRSRI – TT</text><text x='250' y='200' text-anchor='middle' font-family='Arial, sans-serif' font-weight='600' font-size='11' fill='rgba(100,116,139,0.09)'>TUYẾN METRO 2 • BẢN DỰ THẢO KHÔNG DÙNG NGHIỆM THU</text></g></svg>");
+  background-repeat: repeat;
+  background-position: center center;
 }
 

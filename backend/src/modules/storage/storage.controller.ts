@@ -151,6 +151,21 @@ export class StorageController {
       next(error);
     }
   }
+
+  /**
+   * Lấy thông tin cấu hình lưu trữ hiện tại (Local vs Cloudflare R2)
+   */
+  static async getStorageInfo(_req: Request, res: Response, next: NextFunction) {
+    try {
+      const info = StorageService.getStorageInfo();
+      res.status(200).json({
+        success: true,
+        data: info,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 

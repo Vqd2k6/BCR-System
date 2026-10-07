@@ -189,36 +189,23 @@ export const Phase1ParcelsTable: React.FC<Phase1ParcelsTableProps> = ({
                         <button
                           onClick={() => onOpenPreview(parcel)}
                           className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-[11px] font-bold transition-colors flex items-center gap-1"
-                          title="Xem trước HTML template & Test dữ liệu nạp vào report"
+                          title="Xem trước Báo cáo A4 Song Ngữ chuẩn 0410"
                         >
                           <Eye size={13} />
-                          <span>Preview</span>
+                          <span>Xem Trước</span>
                         </button>
 
                         <button
                           onClick={() => onExportSinglePdf(parcel)}
-                          className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-colors flex items-center gap-1 ${
+                          className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-colors flex items-center gap-1.5 ${
                             isPhase1Ready
                               ? 'bg-sky-600 hover:bg-sky-700 text-white shadow-sm'
                               : 'bg-slate-200 text-slate-500 hover:bg-slate-300'
                           }`}
-                          title="Xuất file Báo cáo PDF A4"
+                          title="Xuất file Báo cáo PDF A4 Song Ngữ chuẩn 0410 (Phase 1 BCS)"
                         >
                           <Download size={13} />
-                          <span>Xuất PDF</span>
-                        </button>
-
-                        <button
-                          onClick={() => onExportSingleDocx(parcel)}
-                          className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-colors flex items-center gap-1 ${
-                            isPhase1Ready
-                              ? 'bg-violet-600 hover:bg-violet-700 text-white shadow-sm'
-                              : 'bg-slate-200 text-slate-500 hover:bg-slate-300'
-                          }`}
-                          title="Xuất file Báo cáo Word (DOCX)"
-                        >
-                          <FileType size={13} />
-                          <span>Xuất DOCX</span>
+                          <span>Xuất PDF Báo Cáo</span>
                         </button>
                       </div>
                     </td>

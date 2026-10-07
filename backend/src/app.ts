@@ -6,7 +6,7 @@ import fs from 'fs';
 import path from 'path';
 import { config } from './config';
 import { problemDetailsErrorHandler } from './common/errors/problem-details';
-import { authenticateJwt, requireRoles } from './common/guards/auth.guard';
+import { authenticateJwt, requireRoles, optionalAuthenticateJwt } from './common/guards/auth.guard';
 
 // Controllers
 import { AuthController } from './modules/auth/auth.controller';
@@ -19,6 +19,7 @@ import { AuditController } from './modules/audit/audit.controller';
 import { ExportController } from './modules/export/export.controller';
 import { StorageController } from './modules/storage/storage.controller';
 import { ReportController } from './modules/report/report.controller';
+import { ReportV2Controller } from './modules/report_v2/report-v2.controller';
 import { DevController } from './modules/dev/dev.controller';
 import { Database } from './database/db';
 import multer from 'multer';
@@ -76,8 +77,9 @@ export function createApp(): express.Application {
   const api = express.Router();
 
   // ==========================================
-  // 0. STORAGE & ẢNH HIỆN TRƯỜNG (CLOUDFLARE R2)
+  // 0. STORAGE & ẢNH HIỆN TRƯỜNG (CLOUDFLARE R2 & LOCAL)
   // ==========================================
+  api.get('/storage/info', StorageController.getStorageInfo);
   api.post('/storage/presign', authenticateJwt, StorageController.generatePresignedUrl);
   api.get('/storage/photo-meta', authenticateJwt, StorageController.getPhotoMetadata);
   api.put('/storage/local-put', express.raw({ type: '*/*', limit: '50mb' }), StorageController.handleLocalPut);
@@ -177,9 +179,14 @@ export function createApp(): express.Application {
   api.post('/admin/reports/:id/reassign-parcel', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.reassignReportParcel);
   api.post('/admin/reports/swap-parcels', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.swapReportParcels);
   api.get('/admin/reports/swap-candidates', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.searchSwapCandidates);
-  api.get('/admin/parcels/:id/adjacent-candidates', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.getAdjacentCandidates);
+  api.get('/admin/parcels/:id/adjacent-candidates', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.getAdjacentCandidates);
+  api.get('/parcels/:id/adjacent-candidates', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.getAdjacentCandidates);
   api.post('/admin/parcels/execute-mutation', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.executeAdminMutation);
   api.post('/admin/parcels/swap-geometries', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.swapGeometries);
+
+  // Lịch sử biến động địa chính kiểm toán (Bảo mật nghiêm ngặt: DUY NHẤT SUPER_ADMIN)
+  api.get('/parcels/:id/mutation-history', authenticateJwt, requireRoles('SUPER_ADMIN'), CadastralController.getParcelMutationHistory);
+  api.get('/admin/mutations/history', authenticateJwt, requireRoles('SUPER_ADMIN'), CadastralController.getZoneMutationHistory);
 
   // Xuất Báo Cáo Phân khu & Toàn tuyến
   api.post('/reports/batch-export', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ExportController.createBatchExport);
@@ -215,10 +222,18 @@ export function createApp(): express.Application {
   api.post('/reports/:id/export/pdf',  authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportController.exportResidentialPdf); // Xuất PDF có overrides (Không sửa DB)
   api.get('/reports/:id/export/docx',  authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportController.exportResidentialDocx);
   api.post('/reports/:id/export/docx', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportController.exportResidentialDocx); // Xuất DOCX có overrides (Không sửa DB)
-  api.get('/reports/:id/preview/html', ReportController.previewResidentialHtml);
+  api.get('/reports/:id/preview/html', optionalAuthenticateJwt, ReportController.previewResidentialHtml);
   api.post('/reports/:id/preview/html', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportController.previewResidentialHtml); // Xem trước HTML có overrides (Không sửa DB)
   api.put('/reports/:id/survey-data',  authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), ReportController.updateReportSurveyData);
   api.patch('/reports/:id/survey-data', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), ReportController.updateReportSurveyData);
+
+  // ==========================================
+  // 5.1. TECHNICAL BCS REPORT V2 (PHASE 1 - 0410 TEMPLATE)
+  // ==========================================
+  api.get('/v2/reports/:id/export/pdf',   authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportV2Controller.exportResidentialPdf);
+  api.post('/v2/reports/:id/export/pdf',  authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportV2Controller.exportResidentialPdf);
+  api.get('/v2/reports/:id/preview/html', optionalAuthenticateJwt, ReportV2Controller.previewResidentialHtml);
+  api.post('/v2/reports/:id/preview/html', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ReportV2Controller.previewResidentialHtml);
 
   // ==========================================
   // 6. DEV ERROR REPORTING & RUNTIME DIAGNOSTICS
