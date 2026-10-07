@@ -97,6 +97,10 @@ export interface Section2BasicBuildingInfo {
   clearance3DM: number | string;
   clearanceDisplay: BilingualText;
   surveyCategory: BilingualText;
+  vacantLandStatus?: BilingualText;
+  vacantLandNotes?: BilingualText;
+  constructionStageNotes?: BilingualText;
+  gisMergedInfo?: BilingualText;
 }
 
 export interface Section3HistoryOccupancy {
@@ -537,14 +541,24 @@ export interface FloorPlanDefectReport {
   structuralMapUrl?: string;
   structuralMapBase64?: string;
   hasStructuralCadMap: boolean;      // True nếu có bản vẽ kết cấu riêng biệt với bản vẽ kiến trúc
+  hasCadMap?: boolean;               // True nếu tầng có ít nhất 1 bản vẽ CAD (kiến trúc hoặc kết cấu)
   hasDefects: boolean;               // True nếu tầng có ít nhất 1 khuyết tật
+  hasStructuralElements?: boolean;   // False nếu tầng được miễn khảo sát cấu kiện riêng
+  noStructuralElementsReason?: BilingualText; // Lý do miễn khảo sát cấu kiện riêng (ví dụ tầng mái/tum)
   zeroDefectsNotice?: BilingualText; // Thông báo kỹ thuật khi tầng nguyên vẹn không có vết nứt
   cadPins?: CadPinOverlayItem[];     // Ghim Z, E trên bản vẽ kiến trúc CAD_01
   cadStructuralPins?: CadPinOverlayItem[]; // Ghim E trên bản vẽ kết cấu CAD_02
   defectSummaryRows: FloorDefectSummaryRow[];
+  hasSeparateDefectTableSheets?: boolean;
+  defectSummaryPages?: Array<{
+    pageIndex: number;
+    totalPages: number;
+    rows: FloorDefectSummaryRow[];
+  }>;
   defectPairPhotos: DefectPairPhotoItem[];
   defectPairPages?: Array<{
     pageIndex: number;
+    totalPages?: number;
     pairs: DefectPairPhotoItem[];
   }>;
   // BỔ SUNG: Ảnh tổng thể không gian các phòng (Vùng Z - Ảnh ngang)
@@ -605,12 +619,15 @@ export interface Appendix4EquipmentAndAccess {
 export interface ReportScenarioFlags {
   isAbsenteeSurvey: boolean;          // Khảo sát vắng mặt
   isVacantLand: boolean;              // Đất trống
+  isUnderConstruction?: boolean;       // Công trình đang thi công
+  isGisMerged?: boolean;              // Gộp thửa
+  isGisSplit?: boolean;               // Tách thửa
   hasMainFacadePhoto: boolean;        // Có ảnh P-02
   hasSideOrRearPhotos: boolean;       // Có ảnh P-03
   hasTiltPhoto: boolean;              // Có ảnh P-05
   hasStructuralCadMap: boolean;       // Có CAD kết cấu riêng (CAD_STRUCT)
   hasAnyDefects: boolean;             // Có khuyết tật nứt (defects count > 0)
-  exteriorPhotoLayout: 'grid_6' | 'party_wall_3' | 'minimal_2'; // Kiểu bố cục ngoại thất
+  exteriorPhotoLayout: 'grid_6' | 'party_wall_3' | 'minimal_2' | 'vacant_land_grid'; // Kiểu bố cục ngoại thất
 }
 
 export interface Appendix1PhotoPage {

@@ -826,6 +826,61 @@ export const validateStep = (step: number, formData: Phase1SurveyFormData): Step
         isBlocking: true,
       });
     }
+
+    const isMerge =
+      formData.gisMutationConfirmed?.type === 'MERGE' || (formData as any).gisMutation?.type === 'MERGE';
+    const mergeDetails = formData.gisMutationConfirmed?.details || (formData as any).gisMutation?.details || {};
+    const selectedMergeCodes = mergeDetails.selectedMergeCodes || (formData as any).gisMutation?.selectedMergeCodes || [];
+    const mergeReason =
+      mergeDetails.mergeReason ||
+      formData.gisMutationConfirmed?.notes ||
+      (formData as any).gisMutation?.mergeReason;
+
+    if (isMerge) {
+      if (!Array.isArray(selectedMergeCodes) || selectedMergeCodes.length === 0) {
+        missing.push({
+          fieldId: 'input-mergeParcels',
+          label: '5.3. Thửa đất liền kề để gộp',
+          step: 5,
+          description: 'Khi chọn biến động Gộp thửa, bắt buộc phải chọn ít nhất 1 thửa đất liền kề trên bản đồ.',
+          isBlocking: true,
+        });
+      }
+
+      if (!mergeReason?.trim()) {
+        missing.push({
+          fieldId: 'input-mergeReason',
+          label: '5.3. Lý do gộp thửa đất',
+          step: 5,
+          description: 'Bắt buộc phải chọn hoặc nhập lý do gộp thửa đất thực tế.',
+          isBlocking: true,
+        });
+      }
+
+      if (mergeDetails.mergeHasPartialBuilding) {
+        const bArea = mergeDetails.mergeBuildingAreaM2;
+        if (bArea === undefined || Number(bArea) <= 0) {
+          missing.push({
+            fieldId: 'input-mergeBuildingArea',
+            label: '5.3. Diện tích xây dựng thực tế (S_xd)',
+            step: 5,
+            description: 'Khi chọn nhà xây một phần có đất dư, bắt buộc phải nhập diện tích xây dựng thực tế lớn hơn 0.',
+            isBlocking: true,
+          });
+        }
+
+        const rType = mergeDetails.mergeResidualType;
+        if (!rType?.trim()) {
+          missing.push({
+            fieldId: 'input-mergeResidualType',
+            label: '5.3. Chức năng sử dụng phần đất dư',
+            step: 5,
+            description: 'Bắt buộc phải chọn chức năng hoặc mục đích sử dụng phần đất dôi dư.',
+            isBlocking: true,
+          });
+        }
+      }
+    }
   }
 
   if (step === 6) {

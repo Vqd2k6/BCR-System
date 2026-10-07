@@ -66,7 +66,7 @@ async function runMergeTest() {
     };
 
     await Database.transaction(async (client) => {
-      await SurveyRepository.handleFieldMergeMutation(client, testReportId, rawMutation);
+      await SurveyRepository.handleFieldMergeMutation(client, testReportId!, rawMutation);
     });
 
     console.log('✓ handleFieldMergeMutation executed successfully without errors!\n');

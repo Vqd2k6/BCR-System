@@ -637,7 +637,7 @@ export const MergePanel: React.FC<MergePanelProps> = ({
                 mergeBuildingAreaM2: mutationData.mergeBuildingAreaM2 || undefined,
                 mergeResidualAreaM2: mutationData.mergeResidualAreaM2 || undefined,
                 mergeResidualType: mutationData.mergeResidualType || '',
-                mergeResidualParcelCode: `${mergeSummary.keptCode}-P2`,
+                mergeResidualParcelCode: `${mergeSummary.keptCode}-DU`,
                 isSubmitted: false,
               });
             }}
@@ -679,6 +679,68 @@ export const MergePanel: React.FC<MergePanelProps> = ({
               gap: '0.6rem',
             }}
           >
+            {/* Nhập số đo diện tích xây dựng thực tế (S_xd) */}
+            <div
+              style={{
+                backgroundColor: '#fff7ed',
+                border: '1.5px solid #fdba74',
+                borderRadius: '0.5rem',
+                padding: '0.65rem 0.75rem',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '0.4rem',
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.3rem' }}>
+                <label style={{ fontSize: '0.75rem', fontWeight: 800, color: '#9a3412', margin: 0 }}>
+                  📐 Diện tích xây dựng thực tế của ngôi nhà (S_xd):
+                  <span style={{ color: '#ea580c', marginLeft: '4px' }}>* (m²)</span>
+                </label>
+                <span style={{ fontSize: '0.7rem', color: '#c2410c', fontWeight: 700 }}>
+                  Tổng khuôn viên gộp: <strong>{mergeSummary.totalMergedArea} m²</strong>
+                </span>
+              </div>
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                <input
+                  type="number"
+                  step="0.1"
+                  min="0.1"
+                  max={Math.max(0.1, mergeSummary.totalMergedArea - 0.1)}
+                  className="form-control"
+                  style={{
+                    fontSize: '0.85rem',
+                    fontWeight: 700,
+                    color: '#0f172a',
+                    maxWidth: '180px',
+                    borderColor: '#ea580c',
+                  }}
+                  placeholder="VD: 85.5"
+                  value={mutationData.mergeBuildingAreaM2 !== undefined ? mutationData.mergeBuildingAreaM2 : (calculatedMergeBArea || '')}
+                  onChange={(e) => {
+                    const rawVal = e.target.value;
+                    const val = rawVal === '' ? undefined : parseFloat(rawVal);
+                    const total = mergeSummary.totalMergedArea;
+                    const residual = (val !== undefined && !isNaN(val))
+                      ? Math.max(0, Math.round((total - val) * 10) / 10)
+                      : undefined;
+                    onMutationDataChange({
+                      ...mutationData,
+                      mergeBuildingAreaM2: val,
+                      mergeResidualAreaM2: residual,
+                      mergeResidualParcelCode: `${mergeSummary.keptCode}-DU`,
+                      isSubmitted: false,
+                    });
+                  }}
+                />
+                <span style={{ fontSize: '0.75rem', color: '#64748b' }}>m²</span>
+                <div style={{ fontSize: '0.7rem', color: '#166534', backgroundColor: '#f0fdf4', padding: '0.3rem 0.6rem', borderRadius: '0.35rem', border: '1px solid #bbf7d0', marginLeft: 'auto' }}>
+                  🌳 Đất dôi dư tự tính (S_du): <strong>{calculatedMergeRArea} m²</strong>
+                </div>
+              </div>
+              <div style={{ fontSize: '0.65rem', color: '#9a3412', fontStyle: 'italic' }}>
+                💡 Nhập diện tích xây dựng thực tế theo đo đạc laser / sổ đỏ. Bạn cũng có thể nhấp trên bản đồ bên dưới để khoanh vùng toạ độ công trình toà nhà.
+              </div>
+            </div>
             <div style={{ fontSize: '0.7rem', color: '#9a3412', fontWeight: 700, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span>⚡ Nhấp trên bản đồ để khoanh vùng công trình toà nhà ({mergeBuildingVertices.length} điểm đã chấm):</span>
               <div style={{ display: 'flex', gap: '0.35rem' }}>
@@ -791,7 +853,7 @@ export const MergePanel: React.FC<MergePanelProps> = ({
                   >
                     <Tooltip direction="top">
                       <div style={{ fontSize: '0.725rem', fontWeight: 800, color: '#9a3412' }}>
-                        Công trình nhà: {mergeSummary.keptCode}-P1 ({calculatedMergeBArea} m²)
+                        Công trình nhà: {mergeSummary.keptCode}-XD ({calculatedMergeBArea} m²)
                       </div>
                     </Tooltip>
                   </Polygon>
@@ -963,7 +1025,7 @@ export const MergePanel: React.FC<MergePanelProps> = ({
               >
                 <div style={{ fontWeight: 800, color: '#c2410c', display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
                   <span>🏠 1. Mảnh đất ngôi nhà (Khảo sát)</span>
-                  <span className="badge" style={{ backgroundColor: '#ea580c', color: '#fff' }}>{mergeSummary.keptCode}-P1</span>
+                  <span className="badge" style={{ backgroundColor: '#ea580c', color: '#fff' }}>{mergeSummary.keptCode}-XD</span>
                 </div>
                 <div style={{ color: '#475569', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
                   <span>Diện tích xây dựng thực tế:</span>
@@ -984,7 +1046,7 @@ export const MergePanel: React.FC<MergePanelProps> = ({
                 <div style={{ fontWeight: 800, color: '#166534', display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
                   <span>🌳 2. Mảnh đất dư (Chủ nhà mới)</span>
                   <span className="badge" style={{ backgroundColor: '#16a34a', color: '#fff' }}>
-                    {mutationData.mergeResidualParcelCode || `${mergeSummary.keptCode}-P2`}
+                    {mutationData.mergeResidualParcelCode || `${mergeSummary.keptCode}-DU`}
                   </span>
                 </div>
                 <div style={{ color: '#475569', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>

@@ -77,8 +77,9 @@ export function createApp(): express.Application {
   const api = express.Router();
 
   // ==========================================
-  // 0. STORAGE & ẢNH HIỆN TRƯỜNG (CLOUDFLARE R2)
+  // 0. STORAGE & ẢNH HIỆN TRƯỜNG (CLOUDFLARE R2 & LOCAL)
   // ==========================================
+  api.get('/storage/info', StorageController.getStorageInfo);
   api.post('/storage/presign', authenticateJwt, StorageController.generatePresignedUrl);
   api.get('/storage/photo-meta', authenticateJwt, StorageController.getPhotoMetadata);
   api.put('/storage/local-put', express.raw({ type: '*/*', limit: '50mb' }), StorageController.handleLocalPut);
@@ -178,7 +179,8 @@ export function createApp(): express.Application {
   api.post('/admin/reports/:id/reassign-parcel', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.reassignReportParcel);
   api.post('/admin/reports/swap-parcels', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.swapReportParcels);
   api.get('/admin/reports/swap-candidates', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.searchSwapCandidates);
-  api.get('/admin/parcels/:id/adjacent-candidates', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.getAdjacentCandidates);
+  api.get('/admin/parcels/:id/adjacent-candidates', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.getAdjacentCandidates);
+  api.get('/parcels/:id/adjacent-candidates', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.getAdjacentCandidates);
   api.post('/admin/parcels/execute-mutation', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.executeAdminMutation);
   api.post('/admin/parcels/swap-geometries', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.swapGeometries);
 

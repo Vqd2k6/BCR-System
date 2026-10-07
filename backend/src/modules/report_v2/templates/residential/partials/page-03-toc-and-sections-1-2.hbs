@@ -43,11 +43,6 @@
           {{section1.address.vi}}<br>
           <span class="text-muted">{{section1.address.en}}</span>
         </td>
-      </tr>
-      <tr>
-        <td class="label-col">Mã địa chính (*)<br><span class="text-muted">Cadastral code</span></td>
-        <td class="val-col font-bold">{{section1.cadastralCode}}</td>
-      </tr>
       <tr>
         <td class="label-col">Chủ sở hữu / Người sử dụng<br><span class="text-muted">Owner-Occupant</span></td>
         <td class="val-col">
@@ -136,8 +131,13 @@
       <tr>
         <td class="label-col">Năm xây dựng<br><span class="text-muted">Year constructed</span></td>
         <td class="val-col">
-          {{section2.yearConstructed}} {{#if section2.isEstimatedYear}}(Ước tính){{else}}(Xác thực){{/if}}<br>
-          <span class="text-muted">{{section2.yearConstructed}} {{#if section2.isEstimatedYear}}(Estimated){{else}}(Verified){{/if}}</span>
+          {{#if (and section2.yearConstructed (ne section2.yearConstructed '–'))}}
+            {{section2.yearConstructed}} {{#if section2.isEstimatedYear}}(Ước tính){{else}}(Xác thực){{/if}}<br>
+            <span class="text-muted">{{section2.yearConstructed}} {{#if section2.isEstimatedYear}}(Estimated){{else}}(Verified){{/if}}</span>
+          {{else}}
+            Chưa ghi nhận năm XD<br>
+            <span class="text-muted">Year unrecorded</span>
+          {{/if}}
         </td>
       </tr>
       <tr>
@@ -161,6 +161,38 @@
           <span class="text-muted">{{section2.surveyCategory.en}}</span>
         </td>
       </tr>
+      {{#if section2.vacantLandStatus}}
+      <tr style="background: #f0fdf4;">
+        <td class="label-col" style="color: #166534;">Hiện trạng khu đất<br><span class="text-muted">Land plot status</span></td>
+        <td class="val-col font-bold" style="color: #166534;">
+          {{section2.vacantLandStatus.vi}}<br>
+          <span class="text-muted" style="font-weight: normal;">{{section2.vacantLandStatus.en}}</span>
+          {{#if section2.vacantLandNotes}}
+            <div style="font-size: 8pt; margin-top: 2px; color: #15803d; font-weight: normal;">
+              {{section2.vacantLandNotes.vi}}
+            </div>
+          {{/if}}
+        </td>
+      </tr>
+      {{/if}}
+      {{#if section2.constructionStageNotes}}
+      <tr style="background: #fffbeb;">
+        <td class="label-col" style="color: #92400e;">Giai đoạn thi công<br><span class="text-muted">Construction stage</span></td>
+        <td class="val-col font-bold" style="color: #b45309;">
+          {{section2.constructionStageNotes.vi}}<br>
+          <span class="text-muted" style="font-weight: normal;">{{section2.constructionStageNotes.en}}</span>
+        </td>
+      </tr>
+      {{/if}}
+      {{#if section2.gisMergedInfo}}
+      <tr style="background: #eff6ff;">
+        <td class="label-col" style="color: #1e40af;">Hiện trạng biến động GIS<br><span class="text-muted">GIS mutation info</span></td>
+        <td class="val-col" style="color: #1e3a8a;">
+          {{section2.gisMergedInfo.vi}}<br>
+          <span class="text-muted">{{section2.gisMergedInfo.en}}</span>
+        </td>
+      </tr>
+      {{/if}}
     </table>
 
     <div class="page-number-footer">{{tocPageNumbers.section1}}</div>

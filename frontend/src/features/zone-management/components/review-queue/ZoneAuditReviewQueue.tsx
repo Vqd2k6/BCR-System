@@ -29,7 +29,7 @@ import { api } from '../../../../services/api';
 import { AuditStudioModal } from './AuditStudioModal';
 import { RejectReportModal } from './RejectReportModal';
 import { AdminReassignParcelModal } from './AdminReassignParcelModal';
-import { AdminGisMutationModal } from './AdminGisMutationModal';
+import { UnifiedGisMutationModal } from '../../../../components/gis/cadastral-editor/UnifiedGisMutationModal';
 
 export interface PendingSubmissionItem {
   report_id: string | null;
@@ -780,14 +780,15 @@ export const ZoneAuditReviewQueue: React.FC<Props> = ({ selectedZone, onStatsNee
 
       {/* GIS Mutation Modal */}
       {mutationModalData && (
-        <AdminGisMutationModal
+        <UnifiedGisMutationModal
           isOpen={!!mutationModalData}
+          role="ZONE_ADMIN"
           parcelId={mutationModalData.parcelId}
           parcelCode={mutationModalData.parcelCode}
           houseNumber={mutationModalData.houseNumber}
           street={mutationModalData.street}
           currentAreaM2={mutationModalData.currentAreaM2}
-          zoneId={mutationModalData.zoneId}
+          initialZoneId={mutationModalData.zoneId}
           reportId={mutationModalData.reportId}
           onClose={() => setMutationModalData(null)}
           onSuccess={(msg) => showToast(msg)}

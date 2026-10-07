@@ -14,7 +14,11 @@
       APPENDIX 4 EQUIPMENT AND ACCESS
     </div>
 
-    <table class="tech-table">
+    <!-- BẢNG 1: THIẾT BỊ KHẢO SÁT CHUYÊN DỤNG -->
+    <div style="font-size: 8pt; font-weight: bold; margin: 4px 0 2px 0; color: #0f172a;">
+      1. Danh mục thiết bị khảo sát chuyên dụng - Dedicated Survey Equipment
+    </div>
+    <table class="tech-table compact-table" style="margin-bottom: 6px;">
       <thead>
         <tr>
           <th style="width: 8%; text-align: center;">STT</th>
@@ -35,10 +39,54 @@
       </tbody>
     </table>
 
-    <div style="background-color: #f8fafc; border: 1px solid #cbd5e1; padding: 8px 10px; margin-top: 10px; border-radius: 2px;">
-      <strong>Ghi chú hiệu chuẩn thiết bị / Calibration Notes:</strong><br>
-      - {{appendix4.calibrationNotes.vi}}<br>
-      <span class="text-muted">- {{appendix4.calibrationNotes.en}}</span>
+    <!-- BẢNG 2: PHẠM VI TIẾP CẬN CÔNG TRÌNH -->
+    <div style="font-size: 8pt; font-weight: bold; margin: 6px 0 2px 0; color: #0f172a;">
+      2. Phạm vi tiếp cận khảo sát các khu vực - Building Survey Access Scope
+    </div>
+    <table class="tech-table compact-table" style="margin-bottom: 6px;">
+      <thead>
+        <tr>
+          <th style="width: 28%;">Khu vực công trình / Building Area</th>
+          <th style="width: 18%; text-align: center;">Tiếp cận / Accessed</th>
+          <th style="width: 54%;">Ghi chú hiện trạng / Field Remarks</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each appendix4.accessAreas}}
+          <tr>
+            <td class="font-bold">
+              {{this.area.vi}}<br>
+              <span class="text-muted">{{this.area.en}}</span>
+            </td>
+            <td class="text-center font-bold">
+              {{#if this.accessed}}
+                <span style="color: #166534;">☑ Có / Yes</span>
+              {{else if this.notAccessed}}
+                <span style="color: #dc2626;">☒ Không / No</span>
+              {{else}}
+                <span style="color: #64748b;">– N/A</span>
+              {{/if}}
+            </td>
+            <td>
+              {{this.remark.vi}}<br>
+              <span class="text-muted">{{this.remark.en}}</span>
+            </td>
+          </tr>
+        {{/each}}
+      </tbody>
+    </table>
+
+    <!-- KHUNG ĐÁNH GIÁ & HIỆU CHUẨN -->
+    <div style="background-color: #f8fafc; border: 1px solid #cbd5e1; padding: 6px 10px; margin-top: 6px; border-radius: 2px; font-size: 7.5pt; line-height: 1.35;">
+      <div style="margin-bottom: 3px;">
+        <strong>Phân loại tiếp cận (Access classification):</strong>
+        <span style="color: #0f3b6c; font-weight: bold; margin-left: 4px;">{{appendix4.accessClassification.vi}}</span>
+        <span class="text-muted" style="margin-left: 4px;">({{appendix4.accessClassification.en}})</span>
+      </div>
+      <div>
+        <strong>Hiệu chuẩn thiết bị (Calibration notes):</strong>
+        <span style="color: #475569; margin-left: 4px;">{{appendix4.calibrationNotes.vi}}</span>
+      </div>
     </div>
 
     <div class="page-number-footer">{{tocPageNumbers.appendix4}}</div>

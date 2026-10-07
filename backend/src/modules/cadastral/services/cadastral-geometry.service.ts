@@ -43,6 +43,7 @@ export class CadastralGeometryService {
     }>(
       `SELECT p.id, p.project_parcel_code, p.official_cadastral_code, p.house_number, p.street,
               p.owner_name, p.land_area_m2, p.survey_status,
+              ST_AsGeoJSON(p.cadastral_polygon_geom)::json AS cadastral_geojson,
               ROUND(ST_Distance(p.cadastral_polygon_geom::geography, target.cadastral_polygon_geom::geography)::numeric, 1) AS distance_meters,
               ST_Touches(p.cadastral_polygon_geom, target.cadastral_polygon_geom) AS is_touching
        FROM parcels p,
@@ -62,6 +63,18 @@ export class CadastralGeometryService {
     return {
       targetParcelId: parcelId,
       targetProjectCode: parent.project_parcel_code,
+      currentParcel: {
+        id: parent.id,
+        projectParcelCode: parent.project_parcel_code,
+        officialCadastralCode: parent.official_cadastral_code,
+        zoneId: parent.zone_id,
+        houseNumber: parent.house_number,
+        street: parent.street,
+        ownerName: parent.owner_name,
+        ownerPhone: parent.owner_phone,
+        landAreaM2: parent.land_area_m2,
+        cadastralGeojson: parent.cadastral_geojson,
+      },
       candidates: res.rows,
     };
   }

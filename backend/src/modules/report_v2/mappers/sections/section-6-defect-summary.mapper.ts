@@ -316,8 +316,8 @@ export class Section6DefectSummaryMapper {
         },
       ],
       notes: {
-        vi: `Tổng hợp ghi nhận ${allDefectRows.length} khuyết tật trên ${appendix2.length} tầng khảo sát (${structuralCracksCount} nứt kết cấu, ${surfaceCracksCount} nứt tường/vữa, ${moistureDefects.length} vị trí ẩm mốc, ${spallingAndOtherDefects.length} vị trí bong rộp & khác). 100% khuyết tật được định vị trên bản vẽ CAD và ghép cặp ảnh đối chiếu có thước đo tại Phụ lục 2.`,
-        en: `A total of ${allDefectRows.length} defects recorded across ${appendix2.length} surveyed floors (${structuralCracksCount} structural cracks, ${surfaceCracksCount} masonry cracks, ${moistureDefects.length} dampness spots, ${spallingAndOtherDefects.length} spalling & other spots). 100% of defects are mapped on CAD floor plans and paired with crack-gauge photos in Appendix 2.`,
+        vi: `Tổng hợp ghi nhận ${allDefectRows.length} khuyết tật trên ${appendix2.length} tầng khảo sát (${structuralCracksCount} nứt kết cấu, ${surfaceCracksCount} nứt tường/vữa, ${moistureDefects.length} vị trí ẩm mốc, ${spallingAndOtherDefects.length} vị trí bong rộp & khác). Các không gian khảo sát (vùng Z) và cấu kiện chịu lực (cột/dầm E) được định vị trên sơ đồ mặt bằng; các khuyết tật nứt được kiểm tra thông số và lưu trữ hồ sơ đối chiếu tại Phụ lục 2.`,
+        en: `A total of ${allDefectRows.length} defects recorded across ${appendix2.length} surveyed floors (${structuralCracksCount} structural cracks, ${surfaceCracksCount} masonry cracks, ${moistureDefects.length} dampness spots, ${spallingAndOtherDefects.length} spalling & other spots). Surveyed zones (Z) and structural elements (E) are mapped on floor plans; crack defects are measured and archived in Appendix 2.`,
       },
       discrepancyNote: {
         vi: 'Khảo sát hiện trường đã kiểm tra toàn bộ bề mặt kiến trúc và cấu kiện kết cấu theo danh mục BCS Checklist.',

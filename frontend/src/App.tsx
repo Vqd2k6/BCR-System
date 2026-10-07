@@ -14,6 +14,7 @@ import { SurveyCondoUnitPage } from './features/survey-condo-unit/views/SurveyCo
 import { SurveyPhase2View } from './views/surveyor/SurveyPhase2View';
 import { BuildingHubModal } from './components/survey/BuildingHubModal';
 import { CompanionCheckInModal } from './components/attendance/CompanionCheckInModal';
+import { UnifiedGisMutationModal } from './components/gis/cadastral-editor/UnifiedGisMutationModal';
 import { Phase1ExportModuleBox } from './features/zone-management/components/Phase1ExportModuleBox';
 import { ZoneManagerDashboardPage } from './features/zone-management/views/ZoneManagerDashboardPage';
 import { AdminDashboardPage } from './features/admin-portal/views/AdminDashboardPage';
@@ -68,6 +69,7 @@ export const App: React.FC = () => {
   const [selectedParcelForSurvey, setSelectedParcelForSurvey] = useState<GisParcel | null>(null);
   const [selectedUnitForSurvey, setSelectedUnitForSurvey] = useState<any | null>(null);
   const [hubParcel, setHubParcel] = useState<GisParcel | null>(null);
+  const [mutationStudioParcel, setMutationStudioParcel] = useState<GisParcel | null>(null);
   const [showAttendanceWarningModal, setShowAttendanceWarningModal] = useState<boolean>(false);
   const [showCompanionCheckInModal, setShowCompanionCheckInModal] = useState<boolean>(false);
   const [pendingSurveyFn, setPendingSurveyFn] = useState<(() => void) | null>(null);
@@ -623,6 +625,7 @@ export const App: React.FC = () => {
               onStartPhase2={handleStartPhase2}
               onOpenBuildingHub={(p) => setHubParcel(p)}
               onRecordAbsence={handleRecordAbsence}
+              onProposeSplit={(p) => setMutationStudioParcel(p)}
               userGps={liveUserGps}
             />
           </div>
@@ -705,6 +708,26 @@ export const App: React.FC = () => {
             }
           }}
           onUnitsUpdated={() => {
+            loadParcels();
+          }}
+        />
+      )}
+
+      {/* Global Unified GIS Mutation Studio Modal */}
+      {mutationStudioParcel && (
+        <UnifiedGisMutationModal
+          isOpen={!!mutationStudioParcel}
+          parcelId={mutationStudioParcel.id}
+          initialParcel={mutationStudioParcel}
+          initialZoneId={mutationStudioParcel.zoneId || selectedZone}
+          parcelCode={mutationStudioParcel.projectParcelCode}
+          houseNumber={mutationStudioParcel.houseNumber}
+          street={mutationStudioParcel.street}
+          currentAreaM2={mutationStudioParcel.landArea}
+          role={user?.role === 'SUPER_ADMIN' ? 'SUPER_ADMIN' : user?.role === 'ZONE_ADMIN' ? 'ZONE_ADMIN' : 'SURVEYOR'}
+          onClose={() => setMutationStudioParcel(null)}
+          onSuccess={() => {
+            setMutationStudioParcel(null);
             loadParcels();
           }}
         />

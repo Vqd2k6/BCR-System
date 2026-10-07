@@ -116,3 +116,53 @@ export const splitQuadVertical = (
   return { polyA, polyB };
 };
 
+/**
+ * Chuyển mảng đỉnh Leaflet [lat, lng][] sang GeoJSON Polygon chuẩn PostGIS ([lng, lat])
+ */
+export const leafletCoordsToGeoJsonPolygon = (
+  coords: [number, number][]
+): { type: 'Polygon'; coordinates: [number, number][][] } | null => {
+  if (!coords || coords.length < 3) return null;
+  const ring: [number, number][] = coords.map(([lat, lng]) => [lng, lat]);
+  // Khép kín vòng nếu cần
+  if (
+    ring[0][0] !== ring[ring.length - 1][0] ||
+    ring[0][1] !== ring[ring.length - 1][1]
+  ) {
+    ring.push([ring[0][0], ring[0][1]]);
+  }
+  return {
+    type: 'Polygon',
+    coordinates: [ring],
+  };
+};
+
+/**
+ * Trích xuất tọa độ an toàn từ GeoJSON Polygon hoặc MultiPolygon sang mảng Leaflet [lat, lng][]
+ */
+export const parseCoordinatesFromGeoJson = (p: any): [number, number][] => {
+  if (!p) return [];
+  let coords: [number, number][] = [];
+  let geo = p.cadastral_geojson || p.cadastralGeojson || p.polygonGeoJson || p;
+  if (typeof geo === 'string') {
+    try {
+      geo = JSON.parse(geo);
+    } catch (_) {}
+  }
+  if (geo && typeof geo === 'object') {
+    if (geo.type === 'Polygon' && Array.isArray(geo.coordinates?.[0])) {
+      coords = (geo.coordinates[0] as [number, number][]).map(
+        ([lng, lat]) => [lat, lng] as [number, number]
+      );
+    } else if (geo.type === 'MultiPolygon' && Array.isArray(geo.coordinates?.[0]?.[0])) {
+      coords = (geo.coordinates[0][0] as [number, number][]).map(
+        ([lng, lat]) => [lat, lng] as [number, number]
+      );
+    }
+  }
+  if (coords.length < 3 && p.coordinates && Array.isArray(p.coordinates) && p.coordinates.length >= 3) {
+    coords = p.coordinates;
+  }
+  return coords;
+};
+

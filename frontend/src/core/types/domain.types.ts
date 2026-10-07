@@ -26,7 +26,9 @@ export type SurveyStatus =
   | 'REFUSED'
   | 'EXPORTED'
   | 'PHASE2_COMPLETED'
-  | 'APPROVED_PHASE2';
+  | 'APPROVED_PHASE2'
+  | 'SPLIT_DEPRECATED'
+  | 'MERGED_DEPRECATED';
 
 export interface GisParcel {
   id: string;

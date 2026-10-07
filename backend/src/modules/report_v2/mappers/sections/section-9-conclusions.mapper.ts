@@ -30,21 +30,60 @@ export class Section9ConclusionMapper {
         en: `Surveyor field conclusion: ${surveyorConclusionText}`,
       });
     } else {
+      const crackCount = allDefectRows.filter((d) => d.widthMm !== '–').length;
+      const otherCount = allDefectRows.length - crackCount;
+      const deformInit = json.settlementTilt || rawReport.deformation || {};
+      const hasDeform = (deformInit.buildingTilt?.level ?? 0) > 0 ||
+                        (deformInit.diffSettlement?.level ?? 0) > 0 ||
+                        Boolean(deformInit.diffSettlement?.notes?.trim()) ||
+                        (deformInit.beamSagging?.level ?? 0) > 0;
+
+      const defectSummaryStrVi = allDefectRows.length > 0
+        ? `Ghi nhận tổng cộng ${allDefectRows.length} khuyết tật (${crackCount} vết nứt${otherCount > 0 ? `, ${otherCount} vị trí thấm ẩm/bong rộp` : ''}; chi tiết tại Phụ lục 2).`
+        : 'Không ghi nhận khuyết tật nứt hoặc thấm ẩm rõ rệt.';
+      const defectSummaryStrEn = allDefectRows.length > 0
+        ? `A total of ${allDefectRows.length} defect(s) were recorded (${crackCount} crack(s)${otherCount > 0 ? `, ${otherCount} dampness/spalling spot(s)` : ''}; detailed in Appendix 2).`
+        : 'No noticeable cracks or dampness defects recorded.';
+
+      const deformSummaryStrVi = hasDeform
+        ? 'Ghi nhận biến dạng đo đạc tại hiện trường (chi tiết Mục V).'
+        : 'Không phát hiện lún, nghiêng, võng bất thường bằng trực quan.';
+      const deformSummaryStrEn = hasDeform
+        ? 'Measured deformation was recorded on-site (detailed in Section V).'
+        : 'No abnormal visual settlement, tilt, or deflection was observed.';
+
       conclusionsList.push({
-        vi: `Sau khi hoàn thành công tác khảo sát hiện trường và đánh giá hiện trạng, công trình đang sử dụng ổn định. Ghi nhận tổng cộng ${allDefectRows.length} khuyết tật nứt (chi tiết tại Phụ lục 2). Không ghi nhận lún, nghiêng, võng bất thường.`,
-        en: `Following on-site survey and assessment, the building is in stable use. A total of ${allDefectRows.length} cracks were recorded (detailed in Appendix 2). No abnormal settlement, tilt or deflection was observed.`,
+        vi: `Sau khi hoàn thành công tác khảo sát hiện trường và đánh giá hiện trạng, công trình đang sử dụng ổn định. ${defectSummaryStrVi} ${deformSummaryStrVi}`,
+        en: `Following on-site survey and condition assessment, the building is in stable use. ${defectSummaryStrEn} ${deformSummaryStrEn}`,
       });
     }
 
-    const witnessNarrative: BilingualText = ownerFeedbackText
-      ? {
-          vi: `Khảo sát được thực hiện với sự chứng kiến của chủ nhà (${rawReport.owner_name || json.ownerName || 'Chủ hộ'}). Ý kiến ghi nhận từ chủ nhà: "${ownerFeedbackText}".`,
-          en: `The survey was witnessed by the owner. Owner's statement: "${ownerFeedbackText}".`,
-        }
-      : {
-          vi: `Khảo sát được thực hiện với sự chứng kiến của chủ nhà (${rawReport.owner_name || json.ownerName || 'Chủ hộ'}); chủ nhà đồng ý với kết quả khảo sát và ký biên bản hiện trường.`,
-          en: 'The survey was witnessed by the property owner, who agreed with the survey results and signed the field record.',
-        };
+    const isAbsentee = Boolean(json.isAbsenteeSurvey || rawReport.is_absentee_survey);
+    const ownerName = rawReport.owner_name || json.ownerName || 'Chủ hộ';
+    const isOwnerSigned = Boolean(rawReport.owner_signature_img || json.signatures?.ownerRepresentative?.signatureImg);
+
+    let witnessNarrative: BilingualText;
+    if (isAbsentee) {
+      witnessNarrative = {
+        vi: 'Khảo sát được thực hiện theo quy trình hiện trường đối với trường hợp chủ nhà vắng mặt (Khảo sát vắng chủ; ghi nhận biên bản độc lập).',
+        en: 'The survey was conducted under the field protocol for absentee property owner (independent site record).',
+      };
+    } else if (ownerFeedbackText) {
+      witnessNarrative = {
+        vi: `Khảo sát được thực hiện với sự chứng kiến của chủ nhà (${ownerName}). Ý kiến ghi nhận từ chủ nhà: "${ownerFeedbackText}".`,
+        en: `The survey was witnessed by the owner. Owner's statement: "${ownerFeedbackText}".`,
+      };
+    } else if (isOwnerSigned) {
+      witnessNarrative = {
+        vi: `Khảo sát được thực hiện với sự chứng kiến của chủ nhà (${ownerName}); chủ nhà đồng ý với kết quả khảo sát và ký biên bản hiện trường.`,
+        en: 'The survey was witnessed by the property owner, who agreed with the survey results and signed the field record.',
+      };
+    } else {
+      witnessNarrative = {
+        vi: `Khảo sát được thực hiện với sự chứng kiến của đại diện chủ hộ (${ownerName}); biên bản hiện trường được lập theo quy trình khảo sát.`,
+        en: 'The survey was conducted in the presence of the property owner; the field record was prepared according to survey procedures.',
+      };
+    }
 
     const conclusionFullText = (rawReport.summary_conclusions || json.summaryConclusions || '').toLowerCase();
     const hasWarningConclusion =
@@ -105,6 +144,15 @@ export class Section9ConclusionMapper {
           en: `Inaccessible survey areas: ${areaStr.trim()}`,
         });
       }
+    }
+
+    const restrictedFloors = json.accessLimitation?.restrictedFloorLevels;
+    if (Array.isArray(restrictedFloors) && restrictedFloors.length > 0) {
+      const flStr = restrictedFloors.join(', ');
+      limitationsList.push({
+        vi: `Tầng không thể tiếp cận: ${flStr}`,
+        en: `Inaccessible floor levels: ${flStr}`,
+      });
     }
 
     let accessNotes = rawReport.accessibility_limitations || json.accessLimitation?.notes || json.accessLimitation?.mainReason;

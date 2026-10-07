@@ -362,7 +362,7 @@ CREATE TABLE parcels (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     zone_id VARCHAR(32) NOT NULL,
     official_cadastral_code VARCHAR(64),          -- Mã địa chính gốc KS003 / Số tờ số thửa
-    project_parcel_code VARCHAR(16) UNIQUE NOT NULL, -- Mã B-XXXXX BẤT BIẾN (VD: 'B-00105', 'B-07001')
+    project_parcel_code VARCHAR(32) UNIQUE NOT NULL, -- Mã B-XXXXX BẤT BIẾN (VD: 'B-00105', 'B-07001', '{Mã}-DU')
     field_survey_code VARCHAR(32),                 -- Mã khảo sát thực địa (VD: 'KS004')
     house_number VARCHAR(64),
     street VARCHAR(128),
@@ -376,8 +376,8 @@ CREATE TABLE parcels (
     importance_group importance_group_enum NOT NULL DEFAULT 'GENERAL',
     adjacent_type adjacent_structure_enum NOT NULL DEFAULT 'TOWNHOUSE',
     location_geom GEOMETRY(Point, 4326),
-    cadastral_polygon_geom GEOMETRY(Polygon, 4326),
-    footprint_polygon_geom GEOMETRY(Polygon, 4326),
+    cadastral_polygon_geom GEOMETRY(Geometry, 4326),
+    footprint_polygon_geom GEOMETRY(Geometry, 4326),
     survey_status parcel_survey_status_enum NOT NULL DEFAULT 'NOT_SURVEYED',
     lifecycle_status parcel_lifecycle_enum NOT NULL DEFAULT 'ACTIVE',
     building_type VARCHAR(32) NOT NULL DEFAULT 'STANDALONE', -- 'STANDALONE' | 'CONDOMINIUM' | 'ROW_HOUSE'

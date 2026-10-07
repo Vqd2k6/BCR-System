@@ -25,6 +25,7 @@ import { compressCleanImage } from '../../../utils/cleanImageCompressor';
 import { PhotoWatermarkOverlay } from '../../../components/common/photo-capture/components/PhotoWatermarkOverlay';
 import { uploadQueue } from '../../../core/services/uploadQueueService';
 import { resolveOfflinePhotoUrl, getSafeDisplayUrl } from '../../../core/storage/offlinePhotoStorage';
+import { useStorageInfo } from '../../../core/services/storageInfoService';
 
 interface Step9Props {
   onSubmitFinal: () => void;
@@ -57,6 +58,7 @@ const MinutesPhotoCardItem: React.FC<{
   onOpenLightbox,
   onAnnotate,
 }) => {
+  const storageInfo = useStorageInfo();
   const [displayUrl, setDisplayUrl] = React.useState<string>(() => getSafeDisplayUrl(photoUrl));
 
   React.useEffect(() => {
@@ -139,18 +141,20 @@ const MinutesPhotoCardItem: React.FC<{
           </span>
         </div>
 
-        {/* R2 Cloud Status Badge */}
+        {/* Storage Status Badge */}
         <div className="absolute bottom-2 right-2 z-10 pointer-events-auto" onClick={(e) => e.stopPropagation()}>
           {isUploading && (
             <span className="bg-amber-500/95 text-white text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 shadow-md animate-pulse">
               <RefreshCw className="w-2.5 h-2.5 animate-spin" />
-              Lưu R2...
+              {storageInfo.shortUploadingBadge}
             </span>
           )}
           {isSuccess && (
-            <span className="bg-emerald-600/95 text-white text-[10px] font-black px-2 py-0.5 rounded-full flex items-center gap-1 shadow-md border border-white/40">
+            <span className={`text-white text-[10px] font-black px-2 py-0.5 rounded-full flex items-center gap-1 shadow-md border border-white/40 ${
+              storageInfo.isLocal ? 'bg-indigo-600/95' : 'bg-emerald-600/95'
+            }`}>
               <span className="font-mono font-bold text-[10px]">✓</span>
-              <span>R2</span>
+              <span>{storageInfo.isLocal ? 'Local' : 'R2'}</span>
             </span>
           )}
           {isError && (
@@ -158,10 +162,10 @@ const MinutesPhotoCardItem: React.FC<{
               type="button"
               onClick={() => onRetry(photoUrl)}
               className="bg-red-600 hover:bg-red-700 text-white text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 shadow-md transition-colors"
-              title="Bấm để thử lại tải lên Cloudflare R2"
+              title={`Bấm để thử lại tải lên ${storageInfo.providerLabel}`}
             >
               <AlertCircle className="w-2.5 h-2.5" />
-              Thử lại R2
+              Thử lại
             </button>
           )}
         </div>
@@ -200,6 +204,7 @@ const MinutesPhotoCardItem: React.FC<{
 
 export const Step9_FieldSignatures: React.FC<Step9Props> = ({ onSubmitFinal, isSubmitting = false, readOnly = false }) => {
   const { formData, updateFormData, prevStep } = usePhase1SurveyStore();
+  const storageInfo = useStorageInfo();
   const sigs = formData.signatures;
 
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -504,6 +509,67 @@ export const Step9_FieldSignatures: React.FC<Step9Props> = ({ onSubmitFinal, isS
           </div>
         </div>
 
+        {/* Khung Chi tiết Biến động Địa chính để Chủ hộ & KSV đối soát trước khi ký */}
+        {formData.gisMutationConfirmed?.type === 'SPLIT' && (
+          <div className="p-3.5 bg-amber-50 rounded-xl border border-amber-200 text-xs space-y-2">
+            <div className="flex items-center justify-between font-bold text-amber-900 border-b border-amber-200 pb-1.5">
+              <span className="flex items-center gap-1.5">
+                <span>✂️ Xác nhận Tách thửa thực địa:</span>
+                <span className="bg-amber-600 text-white font-mono px-2 py-0.5 rounded text-[11px]">
+                  {formData.gisMutationConfirmed?.details?.residualKind === 'NEW_BUILDING' ? 'Tách Căn nhà mới độc lập' : 'Tách Đất dôi dư / Sân vườn'}
+                </span>
+              </span>
+              <span className="text-[11px] text-amber-700">Lý do: {formData.gisMutationConfirmed?.details?.splitReason || 'Theo thực địa'}</span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-slate-700 pt-1">
+              <div className="p-2 bg-white rounded-lg border border-amber-100 flex justify-between items-center">
+                <span>🏠 <strong>Căn A</strong> (Công trình đang KS):</span>
+                <span className="font-bold text-amber-900">{formData.gisMutationConfirmed?.details?.splitChildren?.[0]?.areaM2 || (Number(formData.constructionAreaM2) || 'Đã khoanh')} m²</span>
+              </div>
+              <div className="p-2 bg-white rounded-lg border border-amber-100 flex justify-between items-center">
+                <span>
+                  {formData.gisMutationConfirmed?.details?.residualKind === 'NEW_BUILDING' ? '🏡 Căn B mới (Phân công lại):' : `🌳 Đất dôi dư (${formData.projectParcelCode}-DU):`}
+                </span>
+                <span className="font-bold text-amber-900">{formData.gisMutationConfirmed?.details?.splitChildren?.[1]?.areaM2 || 'Đã phân định'} m²</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {formData.gisMutationConfirmed?.type === 'MERGE' && (
+          <div className="p-3.5 bg-blue-50 rounded-xl border border-blue-200 text-xs space-y-2">
+            <div className="flex items-center justify-between font-bold text-blue-900 border-b border-blue-200 pb-1.5">
+              <span className="flex items-center gap-1.5">
+                <span>🔗 Xác nhận Gộp thửa thực địa:</span>
+                <span className="bg-blue-600 text-white font-mono px-2 py-0.5 rounded text-[11px]">
+                  Thửa chính: {formData.gisMutationConfirmed?.details?.mergeTargetCode || formData.projectParcelCode}-XD
+                </span>
+              </span>
+              <span className="text-[11px] text-blue-700">Lý do: {formData.gisMutationConfirmed?.details?.mergeReason || 'Xây thông thửa'}</span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-slate-700 pt-1">
+              <div className="p-2 bg-white rounded-lg border border-blue-100">
+                <div className="text-[11px] text-slate-500">Các thửa gộp chung:</div>
+                <div className="font-bold text-blue-900 mt-0.5">
+                  {[formData.projectParcelCode, ...(formData.gisMutationConfirmed?.details?.selectedMergeCodes || [])].join(' + ')}
+                </div>
+              </div>
+              <div className="p-2 bg-white rounded-lg border border-blue-100 flex flex-col justify-center">
+                <div className="flex justify-between items-center">
+                  <span>Diện tích xây dựng thực tế (S_xd):</span>
+                  <strong className="text-blue-900">{formData.gisMutationConfirmed?.details?.mergeBuildingAreaM2 || formData.constructionAreaM2 || 'Toàn bộ'} m²</strong>
+                </div>
+                {formData.gisMutationConfirmed?.details?.mergeHasPartialBuilding && (
+                  <div className="flex justify-between items-center mt-1 text-emerald-700 border-t border-slate-100 pt-1">
+                    <span>Đất dôi dư ({formData.projectParcelCode}-DU):</span>
+                    <strong>{formData.gisMutationConfirmed?.details?.mergeResidualAreaM2 || '0'} m²</strong>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         <Textarea
           id="input-ownerFeedback"
           label="Ý Kiến / Phản Hồi Của Chủ Sở Hữu (Ghi nhận nguyên văn ý kiến hiện trường) *"
@@ -541,7 +607,7 @@ export const Step9_FieldSignatures: React.FC<Step9Props> = ({ onSubmitFinal, isS
                 )}
               </div>
               <p className="text-xs text-slate-500 mt-0.5">
-                Bắt buộc đính kèm ảnh chụp các trang biên bản khảo sát giấy hoặc biên bản làm việc có chữ ký tươi. Tự động dập watermark <code className="text-blue-700 font-bold">HCM_M2.[MÃ THỬA]_DOC_MINUTES_xx</code> và lưu trữ Cloudflare R2.
+                Bắt buộc đính kèm ảnh chụp các trang biên bản khảo sát giấy hoặc biên bản làm việc có chữ ký tươi. Tự động dập watermark <code className="text-blue-700 font-bold">HCM_M2.[MÃ THỬA]_DOC_MINUTES_xx</code> và lưu trữ an toàn ({storageInfo.providerLabel}).
               </p>
             </div>
           </div>
@@ -613,7 +679,7 @@ export const Step9_FieldSignatures: React.FC<Step9Props> = ({ onSubmitFinal, isS
             <div>
               <h4 className="text-sm font-bold text-slate-700">Chưa có ảnh biên bản làm việc hiện trường</h4>
               <p className="text-xs text-slate-500 mt-1 max-w-md">
-                Bắt buộc chụp hoặc tải ít nhất 1 ảnh biên bản khảo sát giấy có chữ ký xác nhận của các bên. Ảnh sẽ được tự động dập watermark pháp lý và lưu an toàn trên Cloudflare R2.
+                Bắt buộc chụp hoặc tải ít nhất 1 ảnh biên bản khảo sát giấy có chữ ký xác nhận của các bên. Ảnh sẽ được tự động dập watermark pháp lý và lưu an toàn trên {storageInfo.providerLabel}.
               </p>
             </div>
             {!readOnly && (

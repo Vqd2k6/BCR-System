@@ -173,14 +173,30 @@ export class RiskScoringCalculator {
     const v2 = viData.v2 !== undefined ? Number(viData.v2) : v2Calc;
 
     // V3: Loại móng & Nền đất (Cat 1-2: 1đ, Cat 3: 2đ, Cat 4: 3đ, Cat 5: 4đ)
-    const catScore = json.foundationCatScore ?? specs.foundationCatScore ?? 3;
+    const catScore = json.foundationCatScore ?? specs.foundationCatScore ?? 5;
     let v3Calc = catScore <= 2 ? 1 : catScore === 3 ? 2 : catScore === 4 ? 3 : 4;
     const v3 = viData.v3 !== undefined ? Number(viData.v3) : v3Calc;
 
     // V4: Tuổi đời / Cơi nới (<10n: 1, 10-25n: 2, 25-40n: 3, >40n: 4)
-    const constrYear = parseInt(specs.constructionYear || specs.year_of_construction || json.constructionYear || '2013', 10);
-    const ageYears = new Date().getFullYear() - (isNaN(constrYear) ? 2013 : constrYear);
-    let v4Calc = ageYears < 10 ? 1 : ageYears <= 25 ? 2 : ageYears <= 40 ? 3 : 4;
+    const rawConstrYear = specs.constructionYear || specs.year_of_construction || json.constructionYear;
+    let constrYear: number | null = null;
+    let ageYears: number | null = null;
+    let v4BasisVi = '';
+    let v4BasisEn = '';
+    if (rawConstrYear && !isNaN(parseInt(rawConstrYear, 10)) && parseInt(rawConstrYear, 10) > 1900) {
+      constrYear = parseInt(rawConstrYear, 10);
+      ageYears = new Date().getFullYear() - constrYear;
+      v4BasisVi = `Năm XD ~${constrYear} (~${ageYears} năm)`;
+      v4BasisEn = `Built ~${constrYear} (~${ageYears} yrs)`;
+    } else {
+      v4BasisVi = 'Chưa có dữ liệu năm XD (ước tính niên hạn 10–25 năm)';
+      v4BasisEn = 'Built year unrecorded (estimated 10–25 yrs)';
+    }
+
+    let v4Calc = 2; // Tạm tính theo niên hạn phổ biến 10-25 năm
+    if (ageYears !== null) {
+      v4Calc = ageYears < 10 ? 1 : ageYears <= 25 ? 2 : ageYears <= 40 ? 3 : 4;
+    }
     if ((json.historyInterview?.renovationLoad ?? 0) >= 3) v4Calc = 4;
     const v4 = viData.v4 !== undefined ? Number(viData.v4) : v4Calc;
 
@@ -245,7 +261,7 @@ export class RiskScoringCalculator {
       {
         code: 'V4',
         title: { vi: 'Tuổi đời & Cơi nới', en: 'Building age & extension' },
-        basis: { vi: `Năm XD ~${constrYear} (~${ageYears} năm)`, en: `Built ~${constrYear} (~${ageYears} yrs)` },
+        basis: { vi: v4BasisVi, en: v4BasisEn },
         scale: '1–4',
         score: v4,
       },

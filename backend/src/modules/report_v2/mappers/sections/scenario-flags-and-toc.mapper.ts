@@ -14,6 +14,8 @@ import {
   Appendix3SignedRecord,
 } from '../../report-v2.types';
 
+import { ScenarioResolver } from '../scenario-resolver';
+
 export class ScenarioFlagsAndTocMapper {
   public static mapScenarioFlags(
     json: any,
@@ -24,26 +26,24 @@ export class ScenarioFlagsAndTocMapper {
     p05Url: string | undefined,
     appendix2: FloorPlanDefectReport[]
   ): ReportScenarioFlags {
-    const hasMainFacadePhoto = Boolean(p02Url);
-    const hasSideOrRearPhotos = p03List.length > 0 || Boolean(singleP03Url);
-    const hasTiltPhoto = Boolean(p05Url);
-    const hasStructuralCadMap = appendix2.some((f) => f.hasStructuralCadMap);
-    const hasAnyDefects = appendix2.some((f) => f.hasDefects);
+    const resolved = ScenarioResolver.resolve(
+      json,
+      rawReport,
+      appendix2,
+      p02Url,
+      p03List,
+      singleP03Url,
+      p05Url
+    );
 
-    const exteriorPhotoLayout: 'grid_6' | 'party_wall_3' | 'minimal_2' =
-      hasSideOrRearPhotos ? 'grid_6' :
-      hasMainFacadePhoto ? 'party_wall_3' : 'minimal_2';
-
-    return {
-      isAbsenteeSurvey: Boolean(json.isAbsenteeSurvey || rawReport.is_absentee_survey),
-      isVacantLand: Boolean(json.isVacantLand || rawReport.is_vacant_land),
-      hasMainFacadePhoto,
-      hasSideOrRearPhotos,
-      hasTiltPhoto,
-      hasStructuralCadMap,
-      hasAnyDefects,
-      exteriorPhotoLayout,
-    };
+    return ScenarioResolver.toScenarioFlags(
+      resolved,
+      Boolean(p02Url),
+      p03List.length > 0 || Boolean(singleP03Url),
+      Boolean(p05Url),
+      appendix2.some((f) => f.hasStructuralCadMap),
+      appendix2.some((f) => f.hasDefects)
+    );
   }
 
   public static calculateTocPageNumbers(

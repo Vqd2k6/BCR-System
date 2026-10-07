@@ -12,6 +12,7 @@ import { ZoomIn, RefreshCw } from 'lucide-react';
 import { useLightbox } from './photo-capture/hooks/useLightbox';
 import { PhotoLightboxModal } from './photo-capture/components/PhotoLightboxModal';
 import { resolveOfflinePhotoUrl, getSafeDisplayUrl } from '../../core/storage/offlinePhotoStorage';
+import { useStorageInfo } from '../../core/services/storageInfoService';
 
 interface TapToZoomThumbnailProps {
   /** URL hoặc base64 của ảnh */
@@ -51,6 +52,7 @@ export const TapToZoomThumbnail: React.FC<TapToZoomThumbnailProps> = ({
   uploadStatus,
   onRetryUpload,
 }) => {
+  const storageInfo = useStorageInfo();
   const effectiveAspect = aspectClass || (
     aspectRatio === 'square' ? 'aspect-square' :
     aspectRatio === 'portrait' ? 'aspect-[3/4]' :
@@ -144,30 +146,34 @@ export const TapToZoomThumbnail: React.FC<TapToZoomThumbnailProps> = ({
           {isR2Uploading && (
             <span
               className="px-1.5 py-0.5 rounded-full bg-amber-950/80 border border-amber-500/40 text-amber-300 text-[9px] font-bold flex items-center gap-1 shadow-xs backdrop-blur-xs pointer-events-none"
-              title="Đang đồng bộ ngầm lên Cloudflare R2..."
+              title={storageInfo.syncingText}
             >
               <RefreshCw size={8} className="animate-spin text-amber-400" />
-              <span>R2...</span>
+              <span>{storageInfo.shortUploadingBadge}</span>
             </span>
           )}
 
           {isR2Synced && !isR2Uploading && (
             <span
-              className="px-1.5 py-0.5 rounded-full bg-emerald-950/80 border border-emerald-500/40 text-emerald-400 text-[9px] font-bold flex items-center gap-1 shadow-xs backdrop-blur-xs pointer-events-none"
-              title="Đã lưu Cloudflare R2 an toàn"
+              className={`px-1.5 py-0.5 rounded-full border text-[9px] font-bold flex items-center gap-1 shadow-xs backdrop-blur-xs pointer-events-none ${
+                storageInfo.isLocal
+                  ? 'bg-slate-950/80 border-indigo-500/40 text-indigo-300'
+                  : 'bg-emerald-950/80 border-emerald-500/40 text-emerald-400'
+              }`}
+              title={storageInfo.syncedText}
             >
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-              <span>✓ R2</span>
+              <span className={`w-1.5 h-1.5 rounded-full ${storageInfo.isLocal ? 'bg-indigo-400' : 'bg-emerald-400'}`} />
+              <span>{storageInfo.shortBadge}</span>
             </span>
           )}
 
           {!isR2Synced && !isR2Uploading && !isR2Error && (
             <span
               className="px-1.5 py-0.5 rounded-full bg-amber-950/80 border border-amber-500/40 text-amber-300 text-[9px] font-bold flex items-center gap-1 shadow-xs backdrop-blur-xs pointer-events-none"
-              title="Chưa đồng bộ lên Cloudflare R2 (Lưu tạm trên thiết bị)"
+              title={`Chưa lưu vào ${storageInfo.providerLabel} (Lưu tạm trên thiết bị)`}
             >
               <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-              <span>Chưa lên Cloud</span>
+              <span>{storageInfo.unsyncedText}</span>
             </span>
           )}
 

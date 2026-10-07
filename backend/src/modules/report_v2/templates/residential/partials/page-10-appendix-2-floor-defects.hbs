@@ -76,7 +76,23 @@
             </div>
           </div>
         </div>
+      {{else}}
+        <div style="border: 1px dashed #cbd5e1; background: #f8fafc; border-radius: 4px; padding: 12px; margin: 8px 0; text-align: center; color: #64748b;">
+          <div style="font-weight: bold; font-size: 8.5pt; color: #475569; margin-bottom: 2px;">
+            📌 Chưa số hóa sơ đồ CAD mặt bằng tầng / CAD floor plan drawing not uploaded
+          </div>
+          <div style="font-size: 7.5pt;">
+            Vị trí khảo sát và khuyết tật được định vị chi tiết theo mã phân vùng (Zone Z / Element E) trong các bảng và hồ sơ ảnh đối chiếu bên dưới.
+          </div>
+        </div>
       {{/if}}
+
+      {{#unless this.hasStructuralElements}}
+        <div style="background: #f8fafc; border-left: 3px solid #64748b; padding: 6px 10px; margin: 6px 0; font-size: 8pt; color: #334155;">
+          <strong>ℹ️ Đặc điểm kết cấu tầng:</strong> {{this.noStructuralElementsReason.vi}}<br>
+          <span class="text-muted" style="font-size: 7pt;"><strong>Structural Feature:</strong> {{this.noStructuralElementsReason.en}}</span>
+        </div>
+      {{/unless}}
 
       {{#if this.cadPins.length}}
         <div class="cad-pin-legend">
@@ -88,36 +104,47 @@
 
       <!-- Bảng tổng hợp khuyết tật của tầng -->
       {{#if this.hasDefects}}
-        <h3 class="section-header">Bảng tổng hợp khuyết tật tầng / Defect Summary Table</h3>
-        <table class="tech-table">
-          <thead>
-            <tr>
-              <th style="width: 5%;">No.</th>
-              <th style="width: 12%;">Mã lỗi / Pin</th>
-              <th style="width: 24%;">Vị trí / Location</th>
-              <th style="width: 15%;">Loại khuyết tật</th>
-              <th style="width: 12%;">W / L</th>
-              <th style="width: 11%; text-align: center;">Burland</th>
-              <th style="width: 21%;">Ghi chú</th>
-            </tr>
-          </thead>
-          <tbody>
-            {{#each this.defectSummaryRows}}
+        {{#if this.hasSeparateDefectTableSheets}}
+          <div style="background: #f8fafc; border: 1.5px solid #0284c7; border-radius: 4px; padding: 10px 14px; margin-top: 10px;">
+            <div style="font-weight: bold; color: #0369a1; font-size: 8.5pt; margin-bottom: 2px;">
+              📋 BẢNG TỔNG HỢP KHUYẾT TẬT MẶT BẰNG TẦNG ({{this.defectSummaryRows.length}} khuyết tật ghi nhận)
+            </div>
+            <div style="font-size: 7.5pt; color: #475569; line-height: 1.4;">
+              Do số lượng khuyết tật lớn, toàn bộ bảng thống kê thông số kỹ thuật (vị trí, loại khuyết tật, bề rộng wmax, chiều dài L, phân cấp Burland) được trình bày chi tiết tại <strong>{{this.defectSummaryPages.length}} trang bảng biểu riêng biệt</strong> ngay sau trang sơ đồ CAD này.
+            </div>
+          </div>
+        {{else}}
+          <h3 class="section-header">Bảng tổng hợp khuyết tật tầng / Defect Summary Table</h3>
+          <table class="tech-table">
+            <thead>
               <tr>
-                <td class="text-center">{{this.no}}</td>
-                <td class="font-bold" style="color: #0f3b6c;">
-                  {{this.defectId}}
-                  {{#if this.cadPinRef}}<br><span style="font-size: 6.5pt; color: #64748b; font-weight: normal;">[{{this.cadPinRef}}]</span>{{/if}}
-                </td>
-                <td>{{this.location.vi}}</td>
-                <td>{{this.defectType.vi}}</td>
-                <td>{{this.widthMm}} / {{this.lengthM}}</td>
-                <td class="font-bold text-center">{{this.burlandGrade}} ({{this.burlandDamageCategory.en}})</td>
-                <td>{{this.description.vi}}</td>
+                <th style="width: 5%;">No.</th>
+                <th style="width: 12%;">Mã lỗi / Pin</th>
+                <th style="width: 24%;">Vị trí / Location</th>
+                <th style="width: 15%;">Loại khuyết tật</th>
+                <th style="width: 12%;">W / L</th>
+                <th style="width: 11%; text-align: center;">Burland</th>
+                <th style="width: 21%;">Ghi chú</th>
               </tr>
-            {{/each}}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {{#each this.defectSummaryRows}}
+                <tr>
+                  <td class="text-center">{{this.no}}</td>
+                  <td class="font-bold" style="color: #0f3b6c;">
+                    {{this.defectId}}
+                    {{#if this.cadPinRef}}<br><span style="font-size: 6.5pt; color: #64748b; font-weight: normal;">[{{this.cadPinRef}}]</span>{{/if}}
+                  </td>
+                  <td>{{this.location.vi}}</td>
+                  <td>{{this.defectType.vi}}</td>
+                  <td>{{this.widthMm}} / {{this.lengthM}}</td>
+                  <td class="font-bold text-center">{{this.burlandGrade}} ({{this.burlandDamageCategory.en}})</td>
+                  <td>{{this.description.vi}}</td>
+                </tr>
+              {{/each}}
+            </tbody>
+          </table>
+        {{/if}}
       {{else}}
         <!-- Banner xác nhận kết cấu nguyên vẹn -->
         <div class="zero-defects-banner">
@@ -128,6 +155,53 @@
         </div>
       {{/if}}
     </div>
+
+    <!-- Các trang Bảng kê chi tiết khuyết tật (Khi số lượng > 5 khuyết tật/tầng) -->
+    {{#if this.hasSeparateDefectTableSheets}}
+      {{#each this.defectSummaryPages}}
+        <div class="a4-page-sheet">
+          <div class="report-subpage-topbar">
+            <span>LIÊN DANH CRLG – CRSRI – TT | TUYẾN METRO 2 BẾN THÀNH - THAM LƯƠNG</span>
+            <span>{{../metadata.buildingId}} | {{../metadata.reportNo}}</span>
+          </div>
+
+          <h2 class="chapter-header">PHỤ LỤC 2: BẢNG THỐNG KÊ CHI TIẾT KHUYẾT TẬT TẦNG - {{../floorName.vi}} (Trang {{this.pageIndex}}/{{this.totalPages}})</h2>
+          <div style="font-size: 8.5pt; font-weight: bold; color: #475569; margin-bottom: 8px;">
+            APPENDIX 2 DETAILED FLOOR DEFECT SPECIFICATION TABLE - {{../floorName.en}} (Sheet {{this.pageIndex}}/{{this.totalPages}})
+          </div>
+
+          <table class="tech-table">
+            <thead>
+              <tr>
+                <th style="width: 5%;">No.</th>
+                <th style="width: 12%;">Mã lỗi / Pin</th>
+                <th style="width: 24%;">Vị trí / Location</th>
+                <th style="width: 15%;">Loại khuyết tật</th>
+                <th style="width: 12%;">W / L</th>
+                <th style="width: 11%; text-align: center;">Burland</th>
+                <th style="width: 21%;">Ghi chú</th>
+              </tr>
+            </thead>
+            <tbody>
+              {{#each this.rows}}
+                <tr>
+                  <td class="text-center">{{this.no}}</td>
+                  <td class="font-bold" style="color: #0f3b6c;">
+                    {{this.defectId}}
+                    {{#if this.cadPinRef}}<br><span style="font-size: 6.5pt; color: #64748b; font-weight: normal;">[{{this.cadPinRef}}]</span>{{/if}}
+                  </td>
+                  <td>{{this.location.vi}}</td>
+                  <td>{{this.defectType.vi}}</td>
+                  <td>{{this.widthMm}} / {{this.lengthM}}</td>
+                  <td class="font-bold text-center">{{this.burlandGrade}} ({{this.burlandDamageCategory.en}})</td>
+                  <td>{{this.description.vi}}</td>
+                </tr>
+              {{/each}}
+            </tbody>
+          </table>
+        </div>
+      {{/each}}
+    {{/if}}
 
     <!-- Các trang Hồ sơ ảnh không gian kiến trúc các phòng (Vùng Z - Ảnh ngang) -->
     {{#if this.overviewPages.length}}
@@ -276,9 +350,9 @@
             <span>{{../../metadata.buildingId}} | {{../../metadata.reportNo}}</span>
           </div>
 
-          <h2 class="chapter-header">PHỤ LỤC 2: HỒ SƠ ẢNH KHUYẾT TẬT CÓ THƯỚC ĐO - {{../floorName.vi}} (Trang {{this.pageIndex}})</h2>
+          <h2 class="chapter-header">PHỤ LỤC 2: HỒ SƠ ẢNH KHUYẾT TẬT CÓ THƯỚC ĐO - {{../floorName.vi}} (Trang {{this.pageIndex}}/{{this.totalPages}})</h2>
           <div style="font-size: 8.5pt; font-weight: bold; color: #475569; margin-bottom: 8px;">
-            APPENDIX 2 CRACK COMPARISON PHOTOS WITH GAUGE - {{../floorName.en}} (Sheet {{this.pageIndex}})
+            APPENDIX 2 CRACK COMPARISON PHOTOS WITH GAUGE - {{../floorName.en}} (Sheet {{this.pageIndex}}/{{this.totalPages}})
           </div>
 
           {{#each this.pairs}}
@@ -401,7 +475,7 @@
                     {{else if this.contextPhotoUrl}}
                       <img src="{{this.contextPhotoUrl}}" alt="Bối cảnh" class="defect-pair-img photo-conv-d">
                     {{else}}
-                      <div style="height: 230px; display: flex; align-items: center; justify-content: center; background: #f8fafc; color: #64748b; font-size: 8pt; border: 1px dashed #cbd5e1; text-align: center; padding: 12px;">
+                      <div style="height: 200px; display: flex; align-items: center; justify-content: center; background: #f8fafc; color: #64748b; font-size: 8pt; border: 1px dashed #cbd5e1; text-align: center; padding: 12px;">
                         [ Ảnh bối cảnh lưu trên thiết bị KSV / Device local cache ]
                       </div>
                     {{/if}}
@@ -436,7 +510,7 @@
                     {{else if this.closeUpPhotoUrl}}
                       <img src="{{this.closeUpPhotoUrl}}" alt="Cận cảnh thước đo" class="defect-pair-img photo-conv-d">
                     {{else}}
-                      <div style="height: 230px; display: flex; align-items: center; justify-content: center; background: #f8fafc; color: #64748b; font-size: 8pt; border: 1px dashed #cbd5e1; text-align: center; padding: 12px;">
+                      <div style="height: 200px; display: flex; align-items: center; justify-content: center; background: #f8fafc; color: #64748b; font-size: 8pt; border: 1px dashed #cbd5e1; text-align: center; padding: 12px;">
                         [ Ảnh cận cảnh lưu trên thiết bị KSV / Device local cache ]
                       </div>
                     {{/if}}

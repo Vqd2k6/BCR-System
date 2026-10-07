@@ -13,6 +13,7 @@ import {
 import { UploadStatus } from '../types';
 import { PhotoWatermarkOverlay } from './PhotoWatermarkOverlay';
 import { getSafeDisplayUrl } from '../../../../core/storage/offlinePhotoStorage';
+import { useStorageInfo } from '../../../../core/services/storageInfoService';
 
 interface PhotoPreviewCardProps {
   value: string;
@@ -57,6 +58,7 @@ export const PhotoPreviewCard: React.FC<PhotoPreviewCardProps> = ({
   onClear,
   onRetryUpload,
 }) => {
+  const storageInfo = useStorageInfo();
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
   const moreMenuRef = useRef<HTMLDivElement>(null);
 
@@ -166,7 +168,7 @@ export const PhotoPreviewCard: React.FC<PhotoPreviewCardProps> = ({
           </div>
         )}
 
-        {/* Cloudflare R2 Status Badge */}
+        {/* Storage Status Badge (Dynamic Local vs R2) */}
         {uploadStatus === 'UPLOADING' && (
           <span
             style={{
@@ -183,10 +185,10 @@ export const PhotoPreviewCard: React.FC<PhotoPreviewCardProps> = ({
               boxShadow: '0 2px 5px rgba(0, 0, 0, 0.35)',
               whiteSpace: 'nowrap',
             }}
-            title="Đang đồng bộ ngầm lên Cloudflare R2..."
+            title={storageInfo.syncingText}
           >
             <RefreshCw size={9} className="animate-spin shrink-0" />
-            <span>R2...</span>
+            <span>{storageInfo.shortUploadingBadge}</span>
           </span>
         )}
 
@@ -196,9 +198,9 @@ export const PhotoPreviewCard: React.FC<PhotoPreviewCardProps> = ({
               display: 'inline-flex',
               alignItems: 'center',
               gap: '0.2rem',
-              backgroundColor: 'rgba(6, 78, 59, 0.9)',
-              border: '1px solid rgba(52, 211, 153, 0.5)',
-              color: '#34d399',
+              backgroundColor: storageInfo.isLocal ? 'rgba(30, 41, 59, 0.9)' : 'rgba(6, 78, 59, 0.9)',
+              border: storageInfo.isLocal ? '1px solid rgba(129, 140, 248, 0.5)' : '1px solid rgba(52, 211, 153, 0.5)',
+              color: storageInfo.isLocal ? '#a5b4fc' : '#34d399',
               fontSize: '0.625rem',
               fontWeight: 700,
               padding: '0.18rem 0.45rem',
@@ -207,18 +209,18 @@ export const PhotoPreviewCard: React.FC<PhotoPreviewCardProps> = ({
               boxShadow: '0 2px 5px rgba(0, 0, 0, 0.35)',
               whiteSpace: 'nowrap',
             }}
-            title="Đã lưu Cloudflare R2 an toàn"
+            title={storageInfo.syncedText}
           >
             <span
               style={{
                 width: '5px',
                 height: '5px',
                 borderRadius: '50%',
-                backgroundColor: '#34d399',
+                backgroundColor: storageInfo.isLocal ? '#818cf8' : '#34d399',
                 flexShrink: 0,
               }}
             />
-            <span>✓ R2</span>
+            <span>{storageInfo.shortBadge}</span>
           </span>
         )}
 
@@ -239,7 +241,7 @@ export const PhotoPreviewCard: React.FC<PhotoPreviewCardProps> = ({
               boxShadow: '0 2px 5px rgba(0, 0, 0, 0.35)',
               whiteSpace: 'nowrap',
             }}
-            title="Chưa đồng bộ lên Cloudflare R2 (Lưu tạm trên thiết bị)"
+            title={`Chưa lưu vào ${storageInfo.providerLabel} (Lưu tạm trên thiết bị)`}
           >
             <span
               style={{
@@ -250,7 +252,7 @@ export const PhotoPreviewCard: React.FC<PhotoPreviewCardProps> = ({
                 flexShrink: 0,
               }}
             />
-            <span>Chưa lên Cloud</span>
+            <span>{storageInfo.unsyncedText}</span>
           </span>
         )}
 

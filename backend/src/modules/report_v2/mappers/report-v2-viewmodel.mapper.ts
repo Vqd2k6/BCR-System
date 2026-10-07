@@ -194,7 +194,7 @@ export class ReportV2ViewModelMapper {
       buildingId,
       rawSurveyDate
     );
-    const appendix4 = Appendix3And4Mapper.mapAppendix4(appendix1, appendix2);
+    const appendix4 = Appendix3And4Mapper.mapAppendix4(appendix1, appendix2, rawReport, json);
 
     // 12. Bộ cờ kịch bản thích ứng & Mục lục động
     const scenarioFlags = ScenarioFlagsAndTocMapper.mapScenarioFlags(

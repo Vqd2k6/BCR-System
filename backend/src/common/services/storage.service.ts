@@ -26,6 +26,28 @@ export class StorageService {
   private static s3Client: S3Client | null = null;
 
   /**
+   * Truy xuất thông tin cấu hình lưu trữ hiện tại của hệ thống (Local vs Cloudflare R2)
+   */
+  public static getStorageInfo() {
+    const isDevEnv = config.env === 'development' || process.env.NODE_ENV !== 'production';
+    const isForcedR2InDev = process.env.ALLOW_PROD_R2_IN_DEV === 'true';
+    const effectiveStorageType = (isDevEnv && config.storage.type === 'r2' && !isForcedR2InDev)
+      ? 'local'
+      : config.storage.type;
+
+    const isLocal = effectiveStorageType === 'local';
+    return {
+      storageType: effectiveStorageType,
+      configuredType: config.storage.type,
+      isLocal,
+      isGuarded: isDevEnv && config.storage.type === 'r2' && !isForcedR2InDev,
+      providerName: isLocal ? 'Bộ nhớ Cục bộ (Local Disk)' : 'Cloudflare R2 Storage',
+      publicBaseUrl: isLocal ? '/uploads' : (config.storage.s3.publicUrl || config.storage.s3.endpoint || ''),
+      bucket: isLocal ? undefined : config.storage.s3.bucket,
+    };
+  }
+
+  /**
    * Tự động kiểm tra và cấu hình CORS cho bucket Cloudflare R2
    * Cho phép trình duyệt PWA gửi trực tiếp lệnh PUT nhị phân lên bucket
    */
@@ -263,7 +285,18 @@ export class StorageService {
       headers[`x-amz-meta-${k}`] = v;
     }
 
-    if (config.storage.type === 'r2' || config.storage.type === 's3') {
+    // Safety Guard: Ngăn chặn vô tình đẩy ảnh rác từ máy Local lên Cloudflare R2 Production
+    const isDevEnv = config.env === 'development' || process.env.NODE_ENV !== 'production';
+    const isForcedR2InDev = process.env.ALLOW_PROD_R2_IN_DEV === 'true';
+    const effectiveStorageType = (isDevEnv && config.storage.type === 'r2' && !isForcedR2InDev)
+      ? 'local'
+      : config.storage.type;
+
+    if (isDevEnv && config.storage.type === 'r2' && !isForcedR2InDev) {
+      console.warn('⚠️ [SAFETY GUARD] Môi trường DEV đang để STORAGE_TYPE=r2! Tự động fallback về Local Storage để bảo vệ bucket Cloudflare R2 của dự án. (Đặt ALLOW_PROD_R2_IN_DEV=true nếu bạn thực sự muốn đẩy lên R2).');
+    }
+
+    if (effectiveStorageType === 'r2' || effectiveStorageType === 's3') {
       const client = this.getS3Client();
       const command = new PutObjectCommand({
         Bucket: config.storage.s3.bucket,

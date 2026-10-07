@@ -608,7 +608,7 @@ table.tech-table td.val-col {
 .defect-photo-wrapper {
   position: relative;
   width: 100%;
-  height: 230px;
+  height: 200px;
   background-color: #0b0f19;
   display: flex;
   align-items: center;
@@ -1361,7 +1361,7 @@ table.tech-table.vi-summary-table td {
 }
 
 .defect-photo-wrapper {
-  height: 230px;
+  height: 200px;
   background-color: #ffffff !important;
   border-bottom: 1px solid #f1f5f9;
   display: flex;
@@ -1425,8 +1425,8 @@ table.tech-table.vi-summary-table td {
 }
 
 .defect-photo-wrapper.is-portrait {
-  height: 280px !important;
-  min-height: 280px !important;
+  height: 230px !important;
+  min-height: 230px !important;
 }
 
 .signed-record-img-wrapper {

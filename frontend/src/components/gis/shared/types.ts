@@ -15,7 +15,13 @@ export interface GisParcel {
     | 'POSTPONED_ABSENT'
     | 'UNDER_CONSTRUCTION'
     | 'PHASE2_COMPLETED'
-    | 'APPROVED_PHASE2';
+    | 'APPROVED_PHASE2'
+    | 'SPLIT_DEPRECATED'
+    | 'MERGED_DEPRECATED';
+  lifecycleStatus?: 'ACTIVE' | 'PENDING_MUTATION_APPROVAL' | 'SPLIT_DEPRECATED' | 'MERGED_DEPRECATED';
+  mutationType?: 'SPLIT' | 'MERGE' | null;
+  parentParcelIds?: string[];
+  childParcelIds?: string[];
   absenceAttemptCount?: number;
   coordinates: [number, number][]; // LatLng polygon
   distanceMeters?: number;

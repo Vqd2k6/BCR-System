@@ -96,6 +96,7 @@ export class SurveyBaseRepository {
               ms.start_chainage_km AS metro_start_chainage,
               ms.end_chainage_km AS metro_end_chainage,
               ROUND(ST_Distance(COALESCE(p.footprint_polygon_geom, p.cadastral_polygon_geom)::geography, ms.centerline_geom::geography)::numeric, 1) AS distance_to_centerline_m,
+              ST_AsGeoJSON(COALESCE(p.footprint_polygon_geom, p.cadastral_polygon_geom)) AS parcel_polygon_geojson,
               ROUND((ST_Distance(
                 ST_PointN(ST_ExteriorRing(ST_OrientedEnvelope(p.cadastral_polygon_geom)), 1)::geography,
                 ST_PointN(ST_ExteriorRing(ST_OrientedEnvelope(p.cadastral_polygon_geom)), 2)::geography
@@ -268,7 +269,7 @@ export class SurveyBaseRepository {
         );
       }
 
-      // XỬ LÝ BIẾN ĐỘNG TÁCH THỬA THỰC ĐỊA (SPLIT MUTATION 2 NHÁNH & TRUY VẾT)
+      // XỬ LÝ BIẾN ĐỘNG TÁCH/GỘP THỬA THỰC ĐỊA (SPLIT/MERGE FIELD MUTATION)
       try {
         const parsedJson = typeof submitData.surveyDataJson === 'string'
           ? JSON.parse(submitData.surveyDataJson)
@@ -280,8 +281,10 @@ export class SurveyBaseRepository {
         } else if (rawMutation && mutationType === 'MERGE') {
           await SurveyMutationRepository.handleFieldMergeMutation(client, reportId, rawMutation);
         }
-      } catch (mutErr) {
-        console.error('[submitReport] Cảnh báo xử lý biến động tách/gộp thửa (Dữ liệu khảo sát chính vẫn được bảo toàn):', mutErr);
+      } catch (mutErr: any) {
+        console.error('[submitReport] Lỗi xử lý biến động địa chính thực địa:', mutErr);
+        const errMsg = mutErr?.message || 'Lỗi không xác định khi xử lý ranh thửa biến động';
+        throw new Error(`[Biến động Địa chính] Không thể nộp hồ sơ do lỗi ranh thửa: ${errMsg}`);
       }
     });
   }

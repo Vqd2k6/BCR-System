@@ -267,6 +267,7 @@ export const LeafletSweepMap: React.FC<LeafletSweepMapProps> = ({
           onStartSurvey={onStartSurvey}
           onStartPhase2={onStartPhase2}
           onOpenBuildingHub={onOpenBuildingHub}
+          onProposeSplit={onProposeSplit}
           absenceRecordedToday={absenceRecordedToday}
           handleOpenGoogleMapsDirections={handleOpenGoogleMapsDirections}
         />

@@ -17,6 +17,7 @@ import { ReportV2ViewModel } from './report-v2.types';
 import { ReportWatermarkCanvasService } from './services/report-watermark-canvas.service';
 import { maskReportPii } from '../../common/utils/pii.utils';
 import { preloadImageOrientations } from '../report/generators/residential/residential.image-sniff';
+import { ReportImageResolver } from './services/report-image-resolver.service';
 
 function extractAllImageUrls(obj: any, urls: Set<string> = new Set()): string[] {
   if (!obj) return [];
@@ -135,9 +136,10 @@ export class ReportV2Service {
       activeReport = maskReportPii(activeReport);
     }
 
-    // 1. Phân tích trước tỷ lệ khung ảnh (Portrait / Landscape) cho 100% ảnh khảo sát (bao gồm cả Cloud R2)
+    // 1. Phân tích trước tỷ lệ khung ảnh và nhúng Base64 100% ảnh khảo sát (bao gồm cả Cloud R2)
     const allPhotoUrls = extractAllImageUrls(activeReport);
     await preloadImageOrientations(allPhotoUrls);
+    await ReportImageResolver.preloadAndResolveAll(allPhotoUrls);
 
     // 2. Chuyển đổi và tính toán toàn bộ ViewModel
     const viewModel = ReportV2ViewModelMapper.buildViewModel(activeReport, overrides);

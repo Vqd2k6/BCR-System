@@ -9,6 +9,7 @@ import {
   PlusCircle,
   Eye,
   Navigation,
+  Split,
 } from 'lucide-react';
 import { GisParcel } from '../../shared/types';
 import { getEffectiveParcelStatus, getStatusBadge } from '../utils/sweepMapHelpers';
@@ -19,6 +20,7 @@ interface ParcelDetailBottomSheetProps {
   onStartSurvey?: (parcel: GisParcel, readOnly?: boolean) => void;
   onStartPhase2?: (parcel: GisParcel) => void;
   onOpenBuildingHub?: (parcel: GisParcel) => void;
+  onProposeSplit?: (parcel: GisParcel) => void;
   absenceRecordedToday: { [parcelId: string]: string };
   handleOpenGoogleMapsDirections: (parcel: GisParcel) => void;
 }
@@ -29,6 +31,7 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
   onStartSurvey,
   onStartPhase2,
   onOpenBuildingHub,
+  onProposeSplit,
   absenceRecordedToday,
   handleOpenGoogleMapsDirections,
 }) => {
@@ -449,6 +452,32 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
             </button>
           );
         })()}
+
+        {/* Nút Tách / Gộp Thửa Đất GIS */}
+        {onProposeSplit && (
+          <button
+            type="button"
+            className="btn btn-sm"
+            onClick={() => onProposeSplit(activeParcel)}
+            style={{
+              fontSize: '0.775rem',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '0.35rem',
+              color: '#c2410c',
+              borderColor: '#fed7aa',
+              backgroundColor: '#fff7ed',
+              padding: '0.5rem 0.75rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+            }}
+            title="Mở Studio Tách / Gộp Thửa Đất GIS"
+          >
+            <Split size={14} color="#c2410c" />
+            Tách / Gộp Thửa
+          </button>
+        )}
 
         {/* Chỉ đường button linking to Google Maps */}
         <button
