@@ -265,7 +265,7 @@ CREATE TYPE export_status_enum AS ENUM (
 
 CREATE TABLE users (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    username VARCHAR(64) UNIQUE NOT NULL,
+    username VARCHAR(64) NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
     full_name VARCHAR(128) NOT NULL,
     email VARCHAR(128),
@@ -275,15 +275,20 @@ CREATE TABLE users (
     status user_status_enum NOT NULL DEFAULT 'ACTIVE',
     status_reason TEXT,
     avatar_url TEXT,
+    signature_image_url TEXT,
+    created_by_user_id UUID REFERENCES users(id),
+    surveyor_code VARCHAR(16),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     deleted_at TIMESTAMPTZ
 );
 
-CREATE INDEX idx_users_username ON users(username);
+CREATE UNIQUE INDEX idx_users_username_active_unique ON users(LOWER(username)) WHERE deleted_at IS NULL;
 CREATE INDEX idx_users_role ON users(role);
 CREATE INDEX idx_users_status ON users(status);
 CREATE INDEX idx_users_zone ON users(assigned_zone_id);
+CREATE INDEX idx_users_surveyor_code ON users(surveyor_code);
+CREATE INDEX idx_users_phone ON users(phone);
 
 CREATE TABLE user_sessions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -389,7 +394,7 @@ CREATE TABLE parcels (
     active_phase1_report_id UUID,
     active_phase2_report_id UUID,
     absence_attempt_count INT NOT NULL DEFAULT 0,
-    assigned_surveyor_id UUID REFERENCES users(id),
+    assigned_surveyor_id UUID REFERENCES users(id) ON DELETE SET NULL,
     assigned_at TIMESTAMPTZ,
     assignment_notes TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),

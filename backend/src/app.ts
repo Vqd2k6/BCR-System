@@ -208,7 +208,6 @@ export function createApp(): express.Application {
   api.put('/admin/users/:id/status', authenticateJwt, requireRoles('SUPER_ADMIN'), UserAdminController.updateStatus);
   api.post('/admin/users/:id/reset-password', authenticateJwt, requireRoles('SUPER_ADMIN'), UserAdminController.resetPassword);
   api.delete('/admin/users/:id', authenticateJwt, requireRoles('SUPER_ADMIN'), UserAdminController.deleteUser);
-  api.post('/admin/maintenance/clean-reset', authenticateJwt, requireRoles('SUPER_ADMIN'), UserAdminController.cleanResetDatabase);
 
   api.post('/admin/reports/batch-export', authenticateJwt, requireRoles('SUPER_ADMIN'), ExportController.createBatchExport);
   api.get('/admin/reports/exports', authenticateJwt, requireRoles('SUPER_ADMIN'), ExportController.listAllExportBatches);

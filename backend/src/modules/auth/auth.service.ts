@@ -9,6 +9,43 @@ import {
   ConflictError,
 } from '../../common/errors/problem-details';
 import { JwtPayload } from '../../common/guards/auth.guard';
+import { Database } from '../../database/db';
+
+export interface SafeUserDto {
+  id: string;
+  username: string;
+  fullName: string;
+  email: string | null;
+  phone: string | null;
+  role: 'SUPER_ADMIN' | 'ZONE_ADMIN' | 'SURVEYOR' | 'CONTRACTOR' | 'GUEST';
+  assignedZoneId: string | null;
+  status: 'ACTIVE' | 'SUSPENDED' | 'LOCKED';
+  statusReason: string | null;
+  avatarUrl: string | null;
+  signatureImageUrl: string | null;
+  surveyorCode: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export function toSafeUserDto(user: any): SafeUserDto {
+  return {
+    id: user.id,
+    username: user.username,
+    fullName: user.full_name || user.fullName || '',
+    email: user.email || null,
+    phone: user.phone || null,
+    role: user.role,
+    assignedZoneId: user.assigned_zone_id || user.assignedZoneId || null,
+    status: user.status,
+    statusReason: user.status_reason || user.statusReason || null,
+    avatarUrl: user.avatar_url || user.avatarUrl || null,
+    signatureImageUrl: user.signature_image_url || user.signatureImageUrl || null,
+    surveyorCode: user.surveyor_code || user.surveyorCode || null,
+    createdAt: user.created_at ? new Date(user.created_at).toISOString() : new Date().toISOString(),
+    updatedAt: user.updated_at ? new Date(user.updated_at).toISOString() : new Date().toISOString(),
+  };
+}
 
 export class AuthService {
   static async login(
@@ -21,6 +58,12 @@ export class AuthService {
 
     // If user not in database, check demo accounts list and auto-seed
     if (!user) {
+      // Kiểm tra xem tài khoản có bị soft-delete không trước khi thử auto-seed
+      const existingDeleted = await AuthRepository.findRawByUsername(username);
+      if (existingDeleted && existingDeleted.deleted_at !== null) {
+        throw new UnauthorizedError('Tài khoản đã bị vô hiệu hóa hoặc thu hồi quyền truy cập');
+      }
+
       const demoUsersMap: Record<string, { id: string; fullName: string; role: any; zoneId: string | null; defaultPass: string }> = {
         surveyor_s9_01: {
           id: 'b0000000-0000-0000-0000-000000000003',
@@ -149,33 +192,44 @@ export class AuthService {
       accessToken,
       refreshToken: rawRefreshToken,
       expiresIn: 604800, // 7 ngày tính theo giây
-      user: {
-        id: user.id,
-        username: user.username,
-        fullName: user.full_name,
-        role: user.role,
-        assignedZoneId: user.assigned_zone_id,
-        status: user.status,
-        phone: user.phone || null,
-        surveyorCode: user.surveyor_code || null,
-        signatureImageUrl: user.signature_image_url || null,
-      },
+      user: toSafeUserDto(user),
     };
   }
 
   static async refreshToken(rawRefreshToken: string) {
     const refreshTokenHash = CryptoUtils.sha256(rawRefreshToken);
-    const isActive = await AuthRepository.isSessionActive(refreshTokenHash);
-    if (!isActive) {
-      throw new UnauthorizedError('Refresh token không hợp lệ hoặc đã bị thu hồi');
+    const sessionRes = await Database.query<{
+      user_id: string;
+      is_revoked: boolean;
+      expires_at: Date;
+    }>(
+      `SELECT user_id, is_revoked, expires_at FROM user_sessions WHERE refresh_token_hash = $1 LIMIT 1;`,
+      [refreshTokenHash]
+    );
+
+    if (!sessionRes.rows[0] || sessionRes.rows[0].is_revoked || new Date(sessionRes.rows[0].expires_at) < new Date()) {
+      throw new UnauthorizedError('Refresh token không hợp lệ hoặc đã hết hạn');
     }
 
-    // Lấy thông tin user từ session
-    const userRes = await AuthRepository.findByUsername(''); // Hoặc query từ session
-    // Ở đây decode hoặc query theo refreshTokenHash
-    // Triển khai cấp mới
+    const user = await AuthRepository.findById(sessionRes.rows[0].user_id);
+    if (!user || user.deleted_at !== null || user.status === 'LOCKED' || user.status === 'SUSPENDED') {
+      throw new UnauthorizedError('Tài khoản người dùng đã bị khóa hoặc không tồn tại');
+    }
+
+    const payload: JwtPayload = {
+      userId: user.id,
+      username: user.username,
+      role: user.role,
+      assignedZoneId: user.assigned_zone_id,
+      fullName: user.full_name,
+    };
+
+    const accessToken = jwt.sign(payload, config.jwt.secret, {
+      expiresIn: config.jwt.expiresIn as any,
+    });
+
     return {
-      accessToken: 'new_access_token',
+      accessToken,
       expiresIn: 604800,
     };
   }
@@ -192,15 +246,7 @@ export class AuthService {
     if (!user) {
       throw new NotFoundError('Không tìm thấy thông tin người dùng');
     }
-    const { password_hash, ...safeUser } = user;
-    return {
-      ...safeUser,
-      fullName: safeUser.full_name,
-      assignedZoneId: safeUser.assigned_zone_id,
-      phone: safeUser.phone,
-      surveyorCode: safeUser.surveyor_code,
-      signatureImageUrl: safeUser.signature_image_url,
-    };
+    return toSafeUserDto(user);
   }
 
   static async updateProfile(
@@ -216,21 +262,17 @@ export class AuthService {
     if (!user) {
       throw new NotFoundError('Không tìm thấy tài khoản người dùng');
     }
-    const { password_hash, ...safeUser } = user;
-    return {
-      ...safeUser,
-      fullName: safeUser.full_name,
-      assignedZoneId: safeUser.assigned_zone_id,
-      phone: safeUser.phone,
-      surveyorCode: safeUser.surveyor_code,
-      signatureImageUrl: safeUser.signature_image_url,
-    };
+    return toSafeUserDto(user);
   }
 
   // --- SUPER ADMIN USER LIFECYCLE ---
 
   static async listUsers(filters: any) {
-    return AuthRepository.listUsers(filters);
+    const result = await AuthRepository.listUsers(filters);
+    return {
+      users: result.users.map(toSafeUserDto),
+      total: result.total,
+    };
   }
 
   static async getUserById(id: string) {
@@ -238,8 +280,7 @@ export class AuthService {
     if (!user) {
       throw new NotFoundError(`Không tìm thấy tài khoản với ID: ${id}`);
     }
-    const { password_hash, ...safeUser } = user;
-    return safeUser;
+    return toSafeUserDto(user);
   }
 
   static async createUser(userData: {
@@ -253,9 +294,41 @@ export class AuthService {
     signatureImageUrl?: string | null;
     createdByUserId?: string | null;
   }) {
-    const existing = await AuthRepository.findByUsername(userData.username);
+    const existing = await AuthRepository.findRawByUsername(userData.username);
     if (existing) {
-      throw new ConflictError(`Tên đăng nhập [${userData.username}] đã tồn tại trong hệ thống`);
+      if (existing.deleted_at === null) {
+        throw new ConflictError(`Tên đăng nhập [${userData.username}] đã tồn tại trong hệ thống`);
+      }
+
+      // PHƯƠNG ÁN B: Kích hoạt lại (Restore) tài khoản cũ đã bị soft-delete
+      const passwordHash = await CryptoUtils.hashPassword(userData.password);
+      let surveyorCode = existing.surveyor_code;
+      if (userData.role === 'SURVEYOR' && !surveyorCode) {
+        surveyorCode = await AuthRepository.generateUniqueSurveyorCode();
+      } else if (userData.role !== 'SURVEYOR') {
+        surveyorCode = null;
+      }
+
+      const restoredUser = await AuthRepository.restoreAndOverwriteUser(existing.id, {
+        passwordHash,
+        fullName: userData.fullName,
+        email: userData.email,
+        phone: userData.phone,
+        role: userData.role,
+        assignedZoneId: userData.assignedZoneId,
+        signatureImageUrl: userData.signatureImageUrl || existing.signature_image_url || null,
+        surveyorCode,
+      });
+
+      await AuthRepository.logSystemAudit({
+        entityType: 'USER',
+        entityId: existing.id,
+        action: 'USER_RESTORED_ON_RECREATE',
+        performedByUserId: userData.createdByUserId || null,
+        diffPayload: { username: userData.username, role: userData.role, restored: true },
+      });
+
+      return toSafeUserDto(restoredUser);
     }
 
     const passwordHash = await CryptoUtils.hashPassword(userData.password);
@@ -271,8 +344,15 @@ export class AuthService {
       createdByUserId: userData.createdByUserId,
     });
 
-    const { password_hash, ...safeUser } = user;
-    return safeUser;
+    await AuthRepository.logSystemAudit({
+      entityType: 'USER',
+      entityId: user.id,
+      action: 'USER_CREATED',
+      performedByUserId: userData.createdByUserId || null,
+      diffPayload: { username: user.username, role: user.role },
+    });
+
+    return toSafeUserDto(user);
   }
 
   static async updateUser(
@@ -284,17 +364,26 @@ export class AuthService {
       role?: string;
       assignedZoneId?: string | null;
       signatureImageUrl?: string | null;
-    }
+    },
+    performedByUserId?: string | null
   ) {
     const user = await AuthRepository.updateUser(id, data);
     if (!user) {
       throw new NotFoundError(`Không tìm thấy tài khoản với ID: ${id}`);
     }
-    const { password_hash, ...safeUser } = user;
-    return safeUser;
+
+    await AuthRepository.logSystemAudit({
+      entityType: 'USER',
+      entityId: id,
+      action: 'USER_UPDATED',
+      performedByUserId: performedByUserId || null,
+      diffPayload: data,
+    });
+
+    return toSafeUserDto(user);
   }
 
-  static async updateStatus(id: string, status: string, reason?: string) {
+  static async updateStatus(id: string, status: string, reason?: string, performedByUserId?: string | null) {
     const user = await AuthRepository.updateStatus(id, status, reason);
     if (!user) {
       throw new NotFoundError(`Không tìm thấy tài khoản với ID: ${id}`);
@@ -302,11 +391,19 @@ export class AuthService {
     if (status === 'LOCKED' || status === 'SUSPENDED') {
       await AuthRepository.revokeUserSessions(id);
     }
-    const { password_hash, ...safeUser } = user;
-    return safeUser;
+
+    await AuthRepository.logSystemAudit({
+      entityType: 'USER',
+      entityId: id,
+      action: 'USER_STATUS_CHANGED',
+      performedByUserId: performedByUserId || null,
+      diffPayload: { status, reason },
+    });
+
+    return toSafeUserDto(user);
   }
 
-  static async resetPassword(id: string, newPassword: string) {
+  static async resetPassword(id: string, newPassword: string, performedByUserId?: string | null) {
     const user = await AuthRepository.findById(id);
     if (!user) {
       throw new NotFoundError(`Không tìm thấy tài khoản với ID: ${id}`);
@@ -314,16 +411,35 @@ export class AuthService {
     const passwordHash = await CryptoUtils.hashPassword(newPassword);
     await AuthRepository.updatePassword(id, passwordHash);
     await AuthRepository.revokeUserSessions(id);
+
+    await AuthRepository.logSystemAudit({
+      entityType: 'USER',
+      entityId: id,
+      action: 'PASSWORD_RESET',
+      performedByUserId: performedByUserId || null,
+      diffPayload: { username: user.username },
+    });
+
     return { message: 'Đặt lại mật khẩu thành công' };
   }
 
-  static async deleteUser(id: string) {
+  static async deleteUser(id: string, performedByUserId?: string | null) {
     const user = await AuthRepository.findById(id);
     if (!user) {
       throw new NotFoundError(`Không tìm thấy tài khoản với ID: ${id}`);
     }
     await AuthRepository.softDeleteUser(id);
     await AuthRepository.revokeUserSessions(id);
+
+    await AuthRepository.logSystemAudit({
+      entityType: 'USER',
+      entityId: id,
+      action: 'USER_DELETED',
+      performedByUserId: performedByUserId || null,
+      diffPayload: { username: user.username },
+    });
+
     return { message: 'Đã vô hiệu hóa tài khoản thành công (Bảo toàn lịch sử)' };
   }
 }
+

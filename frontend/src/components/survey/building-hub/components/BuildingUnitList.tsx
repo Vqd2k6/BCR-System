@@ -5,6 +5,7 @@ import {
   Search,
   X,
   RefreshCw,
+  Building2,
 } from 'lucide-react';
 import { GisParcel } from '../../../gis/LeafletSweepMap';
 import { BuildingUnit } from '../types';
@@ -93,77 +94,79 @@ export const BuildingUnitList: React.FC<BuildingUnitListProps> = ({
         </button>
       </div>
 
-      {/* Search & Dynamic Filter Bar (Collapse on focus) */}
-      <div className="bg-white p-2.5 sm:p-3 rounded-xl border border-slate-200 flex items-center gap-2.5 shadow-sm">
-        {/* Search Input */}
-        <div
-          className={`relative transition-all duration-300 ease-in-out ${
-            isSearchFocused || searchTerm ? 'flex-1' : 'w-48 sm:w-64'
-          }`}
-        >
-          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input
-            type="text"
-            placeholder="Tìm phòng (P.101) hoặc chủ hộ..."
-            value={searchTerm}
-            onFocus={() => setIsSearchFocused(true)}
-            onBlur={() => {
-              if (!searchTerm) setIsSearchFocused(false);
-            }}
-            onChange={(e) => onSearchChange(e.target.value)}
-            className="w-full pl-9 pr-8 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 transition-all"
-          />
-          {searchTerm && (
-            <button
-              type="button"
-              onClick={() => {
-                onSearchChange('');
-                setIsSearchFocused(false);
+      {/* Search & Dynamic Filter Bar (Only show when building has units) */}
+      {units.length > 0 && (
+        <div className="bg-white p-2.5 sm:p-3 rounded-xl border border-slate-200 flex items-center gap-2.5 shadow-sm">
+          {/* Search Input */}
+          <div
+            className={`relative transition-all duration-300 ease-in-out ${
+              isSearchFocused || searchTerm ? 'flex-1' : 'w-48 sm:w-64'
+            }`}
+          >
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Tìm phòng (P.101) hoặc chủ hộ..."
+              value={searchTerm}
+              onFocus={() => setIsSearchFocused(true)}
+              onBlur={() => {
+                if (!searchTerm) setIsSearchFocused(false);
               }}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
-            >
-              <X size={13} />
-            </button>
+              onChange={(e) => onSearchChange(e.target.value)}
+              className="w-full pl-9 pr-8 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 transition-all"
+            />
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={() => {
+                  onSearchChange('');
+                  setIsSearchFocused(false);
+                }}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
+              >
+                <X size={13} />
+              </button>
+            )}
+          </div>
+
+          {/* Filters (Hidden when search is focused) */}
+          {!(isSearchFocused || searchTerm) && (
+            <div className="flex items-center gap-2 animate-in fade-in duration-200">
+              {/* Floor Filter */}
+              <div className="flex items-center gap-1.5">
+                <select
+                  value={selectedFloor}
+                  onChange={(e) => onSelectedFloorChange(e.target.value === 'ALL' ? 'ALL' : parseInt(e.target.value, 10))}
+                  className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500"
+                >
+                  <option value="ALL">Tất cả tầng ({units.length})</option>
+                  {availableFloors.map((fl) => (
+                    <option key={fl} value={fl}>
+                      Lầu {fl}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Status Filter */}
+              <div className="flex items-center gap-1.5">
+                <select
+                  value={selectedStatus}
+                  onChange={(e) => onSelectedStatusChange(e.target.value)}
+                  className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500"
+                >
+                  <option value="ALL">Tất cả trạng thái</option>
+                  <option value="APPROVED">Đã duyệt P1</option>
+                  <option value="SUBMITTED">Chờ duyệt P1</option>
+                  <option value="IN_PROGRESS">Đang làm P1</option>
+                  <option value="ABSENT">Chủ hộ vắng mặt</option>
+                  <option value="NOT_SURVEYED">Chưa khảo sát</option>
+                </select>
+              </div>
+            </div>
           )}
         </div>
-
-        {/* Filters (Hidden when search is focused) */}
-        {!(isSearchFocused || searchTerm) && (
-          <div className="flex items-center gap-2 animate-in fade-in duration-200">
-            {/* Floor Filter */}
-            <div className="flex items-center gap-1.5">
-              <select
-                value={selectedFloor}
-                onChange={(e) => onSelectedFloorChange(e.target.value === 'ALL' ? 'ALL' : parseInt(e.target.value, 10))}
-                className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500"
-              >
-                <option value="ALL">Tất cả tầng ({units.length})</option>
-                {availableFloors.map((fl) => (
-                  <option key={fl} value={fl}>
-                    Lầu {fl}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Status Filter */}
-            <div className="flex items-center gap-1.5">
-              <select
-                value={selectedStatus}
-                onChange={(e) => onSelectedStatusChange(e.target.value)}
-                className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500"
-              >
-                <option value="ALL">Tất cả trạng thái</option>
-                <option value="APPROVED">Đã duyệt P1</option>
-                <option value="SUBMITTED">Chờ duyệt P1</option>
-                <option value="IN_PROGRESS">Đang làm P1</option>
-                <option value="ABSENT">Chủ hộ vắng mặt</option>
-                <option value="NOT_SURVEYED">Chưa khảo sát</option>
-              </select>
-            </div>
-          </div>
-        )}
-      </div>
+      )}
 
       {/* Inline Form: Thêm căn hộ mới */}
       {showAddModal && (
@@ -239,9 +242,42 @@ export const BuildingUnitList: React.FC<BuildingUnitListProps> = ({
           <RefreshCw size={20} className="text-sky-600 animate-spin" />
           <span>Đang tải danh sách căn hộ...</span>
         </div>
+      ) : units.length === 0 ? (
+        <div className="py-14 sm:py-16 px-4 text-center bg-white rounded-2xl border-2 border-dashed border-sky-200/80 flex flex-col items-center justify-center gap-3.5 shadow-2xs">
+          <div className="w-16 h-16 rounded-2xl bg-sky-50 border border-sky-200 flex items-center justify-center text-sky-600 shadow-inner">
+            <Building2 size={32} />
+          </div>
+          <div className="max-w-md">
+            <h4 className="text-sm sm:text-base font-extrabold text-slate-800">
+              Tòa nhà chưa có căn hộ con nào
+            </h4>
+            <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+              Tòa nhà chung cư này chưa có danh sách căn hộ. Bạn có thể bấm nút bên dưới để tạo căn hộ con đầu tiên và tiến hành khảo sát thực tế.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => onToggleAddModal(true)}
+            className="mt-1.5 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold shadow-md shadow-sky-600/25 transition-all cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
+          >
+            <Plus size={16} />
+            <span>+ Thêm Căn Hộ Mới Đầu Tiên</span>
+          </button>
+        </div>
       ) : filteredUnits.length === 0 ? (
-        <div className="py-12 text-center bg-white rounded-xl border border-dashed border-slate-300 text-xs text-slate-500">
-          Không tìm thấy căn hộ nào phù hợp với bộ lọc tìm kiếm.
+        <div className="py-12 px-4 text-center bg-white rounded-xl border border-dashed border-slate-300 flex flex-col items-center justify-center gap-2 text-xs text-slate-500">
+          <span>Không tìm thấy căn hộ nào phù hợp với bộ lọc tìm kiếm.</span>
+          <button
+            type="button"
+            onClick={() => {
+              onSearchChange('');
+              onSelectedFloorChange('ALL');
+              onSelectedStatusChange('ALL');
+            }}
+            className="text-sky-600 font-bold hover:underline cursor-pointer"
+          >
+            Đặt lại bộ lọc tìm kiếm
+          </button>
         </div>
       ) : (
         <div className="flex flex-col gap-4">

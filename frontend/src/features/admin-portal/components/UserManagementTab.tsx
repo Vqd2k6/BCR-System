@@ -18,30 +18,34 @@ import {
   Phone,
   CheckCircle2,
   AlertTriangle,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { AdminUser, userService } from '../../../services/userService';
 import { UserEditModal } from './UserEditModal';
 import { ResetPasswordModal } from './ResetPasswordModal';
-import { CleanResetModal } from './CleanResetModal';
 import { METRO_22_ZONES } from '../../survey-phase1/constants/metroGisConstants';
+import { useAuth } from '../../../context/AuthContext';
 
 export const UserManagementTab: React.FC = () => {
+  const { user: currentUser } = useAuth();
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [total, setTotal] = useState<number>(0);
 
-  // Filters
+  // Filters & Pagination
   const [search, setSearch] = useState<string>('');
   const [roleFilter, setRoleFilter] = useState<string>('ALL');
   const [zoneFilter, setZoneFilter] = useState<string>('ALL');
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const pageSize = 15;
 
   // Modals state
   const [selectedUserForEdit, setSelectedUserForEdit] = useState<AdminUser | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState<boolean>(false);
   const [selectedUserForPassword, setSelectedUserForPassword] = useState<AdminUser | null>(null);
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState<boolean>(false);
-  const [isResetModalOpen, setIsResetModalOpen] = useState<boolean>(false);
 
   // Feedback banner
   const [bannerMsg, setBannerMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -54,8 +58,8 @@ export const UserManagementTab: React.FC = () => {
         role: roleFilter !== 'ALL' ? roleFilter : undefined,
         zoneId: zoneFilter !== 'ALL' ? zoneFilter : undefined,
         status: statusFilter !== 'ALL' ? statusFilter : undefined,
-        limit: 100,
-        offset: 0,
+        limit: pageSize,
+        offset: (currentPage - 1) * pageSize,
       });
 
       if (res && res.data) {
@@ -66,7 +70,10 @@ export const UserManagementTab: React.FC = () => {
       console.error('Lỗi khi tải danh sách người dùng:', err);
       setUsers([]);
       setTotal(0);
-      setBannerMsg({ type: 'error', text: err?.message || 'Không thể kết nối đến máy chủ để tải danh sách tài khoản' });
+      setBannerMsg({
+        type: 'error',
+        text: err?.response?.data?.detail || err?.response?.data?.message || err?.message || 'Không thể kết nối đến máy chủ để tải danh sách tài khoản',
+      });
     } finally {
       setIsLoading(false);
     }
@@ -74,14 +81,20 @@ export const UserManagementTab: React.FC = () => {
 
   useEffect(() => {
     fetchUsers();
-  }, [roleFilter, zoneFilter, statusFilter]);
+  }, [roleFilter, zoneFilter, statusFilter, currentPage]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setCurrentPage(1);
     fetchUsers();
   };
 
   const handleToggleStatus = async (user: AdminUser) => {
+    if (user.id === currentUser?.id) {
+      alert('Bạn không thể tự khóa tài khoản của chính mình!');
+      return;
+    }
+
     const nextStatus = user.status === 'ACTIVE' ? 'LOCKED' : 'ACTIVE';
     const actionName = nextStatus === 'ACTIVE' ? 'mở khóa' : 'khóa';
     if (!window.confirm(`Bạn có chắc muốn ${actionName} tài khoản [${user.username}]?`)) return;
@@ -91,19 +104,30 @@ export const UserManagementTab: React.FC = () => {
       setBannerMsg({ type: 'success', text: `Đã ${actionName} thành công tài khoản [${user.username}]` });
       fetchUsers();
     } catch (err: any) {
-      setBannerMsg({ type: 'error', text: err?.message || `Không thể ${actionName} tài khoản` });
+      setBannerMsg({
+        type: 'error',
+        text: err?.response?.data?.detail || err?.response?.data?.message || err?.message || `Không thể ${actionName} tài khoản`,
+      });
     }
   };
 
   const handleDeleteUser = async (user: AdminUser) => {
-    if (!window.confirm(`Xác nhận vô hiệu hóa tài khoản [${user.username}]? Toàn bộ hồ sơ khảo sát đã lập sẽ được bảo tồn.`)) return;
+    if (user.id === currentUser?.id) {
+      alert('Bạn không thể tự vô hiệu hóa tài khoản của chính mình!');
+      return;
+    }
+
+    if (!window.confirm(`Xác nhận vô hiệu hóa tài khoản [${user.username}]? Toàn bộ hồ sơ khảo sát đã lập sẽ được bảo tồn an toàn.`)) return;
 
     try {
       await userService.deleteUser(user.id);
       setBannerMsg({ type: 'success', text: `Đã vô hiệu hóa tài khoản [${user.username}] thành công` });
       fetchUsers();
     } catch (err: any) {
-      setBannerMsg({ type: 'error', text: err?.message || 'Không thể xóa tài khoản' });
+      setBannerMsg({
+        type: 'error',
+        text: err?.response?.data?.detail || err?.response?.data?.message || err?.message || 'Không thể xóa tài khoản',
+      });
     }
   };
 
@@ -136,6 +160,8 @@ export const UserManagementTab: React.FC = () => {
         return <Badge variant="default">{status}</Badge>;
     }
   };
+
+  const totalPages = Math.ceil(total / pageSize) || 1;
 
   return (
     <Card className="border-slate-200">
@@ -177,15 +203,6 @@ export const UserManagementTab: React.FC = () => {
           >
             Làm mới
           </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => setIsResetModalOpen(true)}
-            icon={<Trash2 size={14} className="text-red-500" />}
-            className="border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300"
-          >
-            🧹 Dọn Sạch DB Về Ban Đầu
-          </Button>
         </div>
       </div>
 
@@ -214,7 +231,7 @@ export const UserManagementTab: React.FC = () => {
         <form onSubmit={handleSearchSubmit} className="relative">
           <input
             type="text"
-            placeholder="Tìm theo tên, username, SĐT..."
+            placeholder="Tìm theo tên, username, SĐT, mã KSV..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full pl-8 pr-3 py-1.5 rounded-lg border border-slate-200 bg-white text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
@@ -225,7 +242,10 @@ export const UserManagementTab: React.FC = () => {
         {/* Lọc Role */}
         <select
           value={roleFilter}
-          onChange={(e) => setRoleFilter(e.target.value)}
+          onChange={(e) => {
+            setRoleFilter(e.target.value);
+            setCurrentPage(1);
+          }}
           className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
         >
           <option value="ALL">Tất cả Vai trò</option>
@@ -239,7 +259,10 @@ export const UserManagementTab: React.FC = () => {
         {/* Lọc Zone */}
         <select
           value={zoneFilter}
-          onChange={(e) => setZoneFilter(e.target.value)}
+          onChange={(e) => {
+            setZoneFilter(e.target.value);
+            setCurrentPage(1);
+          }}
           className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
         >
           <option value="ALL">Tất cả Ga / Phân khu</option>
@@ -253,7 +276,10 @@ export const UserManagementTab: React.FC = () => {
         {/* Lọc Trạng thái */}
         <select
           value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
+          onChange={(e) => {
+            setStatusFilter(e.target.value);
+            setCurrentPage(1);
+          }}
           className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
         >
           <option value="ALL">Tất cả Trạng thái</option>
@@ -292,93 +318,155 @@ export const UserManagementTab: React.FC = () => {
                 </td>
               </tr>
             ) : (
-              users.map((u) => (
-                <tr key={u.id} className="hover:bg-slate-50/60 transition-colors">
-                  <td className="p-3 font-bold text-slate-800">
-                    <div>{u.fullName}</div>
-                    {u.phone && (
-                      <div className="text-[11px] font-normal text-slate-500 flex items-center gap-1 mt-0.5">
-                        <Phone size={11} />
-                        <span>{u.phone}</span>
+              users.map((u) => {
+                const fullName = u.fullName || (u as any).full_name || '---';
+                const assignedZone = u.assignedZoneId || (u as any).assigned_zone_id;
+                const surveyorCode = u.surveyorCode || (u as any).surveyor_code;
+                const isSelf = u.id === currentUser?.id;
+
+                return (
+                  <tr key={u.id} className="hover:bg-slate-50/60 transition-colors">
+                    <td className="p-3 font-bold text-slate-800">
+                      <div className="flex items-center gap-1.5">
+                        <span>{fullName}</span>
+                        {isSelf && (
+                          <span className="px-1.5 py-0.2 rounded text-[10px] bg-emerald-100 text-emerald-800 font-semibold">
+                            (Bạn)
+                          </span>
+                        )}
                       </div>
-                    )}
-                  </td>
-                  <td className="p-3">
-                    <div className="font-mono font-semibold text-slate-700">{u.username}</div>
-                    {u.surveyorCode && (
-                      <span className="inline-block mt-0.5 text-[10px] font-mono px-1.5 py-0.2 bg-sky-50 text-sky-700 border border-sky-200 rounded">
-                        ID: {u.surveyorCode}
-                      </span>
-                    )}
-                  </td>
-                  <td className="p-3">{getRoleBadge(u.role)}</td>
-                  <td className="p-3">
-                    {u.role === 'SUPER_ADMIN' ? (
-                      <span className="font-semibold text-emerald-700">Toàn tuyến (22 Zones)</span>
-                    ) : u.assignedZoneId ? (
-                      <span className="font-semibold text-slate-700 flex items-center gap-1">
-                        <MapPin size={12} className="text-sky-600 flex-shrink-0" />
-                        <span>{u.assignedZoneId}</span>
-                      </span>
-                    ) : (
-                      <span className="text-slate-400 italic">Chưa phân bổ</span>
-                    )}
-                  </td>
-                  <td className="p-3 text-center">{getStatusBadge(u.status)}</td>
-                  <td className="p-3 text-right">
-                    <div className="flex items-center justify-end gap-1">
-                      {/* Sửa thông tin */}
-                      <button
-                        title="Chỉnh sửa thông tin"
-                        onClick={() => {
-                          setSelectedUserForEdit(u);
-                          setIsEditModalOpen(true);
-                        }}
-                        className="p-1.5 text-slate-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors"
-                      >
-                        <Edit2 size={14} />
-                      </button>
+                      {u.phone && (
+                        <div className="text-[11px] font-normal text-slate-500 flex items-center gap-1 mt-0.5">
+                          <Phone size={11} />
+                          <span>{u.phone}</span>
+                        </div>
+                      )}
+                    </td>
+                    <td className="p-3">
+                      <div className="font-mono font-semibold text-slate-700">{u.username}</div>
+                      {surveyorCode && (
+                        <span className="inline-block mt-0.5 text-[10px] font-mono px-1.5 py-0.2 bg-sky-50 text-sky-700 border border-sky-200 rounded">
+                          ID: {surveyorCode}
+                        </span>
+                      )}
+                    </td>
+                    <td className="p-3">{getRoleBadge(u.role)}</td>
+                    <td className="p-3">
+                      {u.role === 'SUPER_ADMIN' || assignedZone === 'ALL' || assignedZone === 'ALL_ZONES' ? (
+                        <span className="font-semibold text-emerald-700">Toàn tuyến (22 Zones)</span>
+                      ) : assignedZone ? (
+                        <span className="font-semibold text-slate-700 flex items-center gap-1">
+                          <MapPin size={12} className="text-sky-600 flex-shrink-0" />
+                          <span>{assignedZone}</span>
+                        </span>
+                      ) : (
+                        <span className="text-slate-400 italic">Chưa phân bổ</span>
+                      )}
+                    </td>
+                    <td className="p-3 text-center">{getStatusBadge(u.status)}</td>
+                    <td className="p-3 text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        {/* Sửa thông tin */}
+                        <button
+                          title="Chỉnh sửa thông tin"
+                          onClick={() => {
+                            setSelectedUserForEdit(u);
+                            setIsEditModalOpen(true);
+                          }}
+                          className="p-1.5 text-slate-600 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-colors"
+                        >
+                          <Edit2 size={14} />
+                        </button>
 
-                      {/* Đổi mật khẩu */}
-                      <button
-                        title="Đặt lại mật khẩu"
-                        onClick={() => {
-                          setSelectedUserForPassword(u);
-                          setIsPasswordModalOpen(true);
-                        }}
-                        className="p-1.5 text-slate-600 hover:text-amber-700 hover:bg-amber-50 rounded-lg transition-colors"
-                      >
-                        <KeyRound size={14} />
-                      </button>
+                        {/* Đổi mật khẩu */}
+                        <button
+                          title="Đặt lại mật khẩu"
+                          onClick={() => {
+                            setSelectedUserForPassword(u);
+                            setIsPasswordModalOpen(true);
+                          }}
+                          className="p-1.5 text-slate-600 hover:text-amber-700 hover:bg-amber-50 rounded-lg transition-colors"
+                        >
+                          <KeyRound size={14} />
+                        </button>
 
-                      {/* Khóa/Mở khóa */}
-                      <button
-                        title={u.status === 'ACTIVE' ? 'Khóa tài khoản' : 'Mở khóa tài khoản'}
-                        onClick={() => handleToggleStatus(u)}
-                        className={`p-1.5 rounded-lg transition-colors ${
-                          u.status === 'ACTIVE'
-                            ? 'text-slate-500 hover:text-red-700 hover:bg-red-50'
-                            : 'text-red-600 hover:text-emerald-700 hover:bg-emerald-50'
-                        }`}
-                      >
-                        {u.status === 'ACTIVE' ? <Lock size={14} /> : <Unlock size={14} />}
-                      </button>
+                        {/* Khóa/Mở khóa */}
+                        <button
+                          title={
+                            isSelf
+                              ? 'Không thể tự khóa tài khoản của chính mình'
+                              : u.status === 'ACTIVE'
+                              ? 'Khóa tài khoản'
+                              : 'Mở khóa tài khoản'
+                          }
+                          disabled={isSelf}
+                          onClick={() => handleToggleStatus(u)}
+                          className={`p-1.5 rounded-lg transition-colors ${
+                            isSelf
+                              ? 'opacity-30 cursor-not-allowed text-slate-400'
+                              : u.status === 'ACTIVE'
+                              ? 'text-slate-500 hover:text-red-700 hover:bg-red-50'
+                              : 'text-red-600 hover:text-emerald-700 hover:bg-emerald-50'
+                          }`}
+                        >
+                          {u.status === 'ACTIVE' ? <Lock size={14} /> : <Unlock size={14} />}
+                        </button>
 
-                      {/* Xóa/Vô hiệu hóa */}
-                      <button
-                        title="Vô hiệu hóa tài khoản"
-                        onClick={() => handleDeleteUser(u)}
-                        className="p-1.5 text-slate-400 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))
+                        {/* Xóa/Vô hiệu hóa */}
+                        <button
+                          title={isSelf ? 'Không thể tự vô hiệu hóa tài khoản của chính mình' : 'Vô hiệu hóa tài khoản'}
+                          disabled={isSelf}
+                          onClick={() => handleDeleteUser(u)}
+                          className={`p-1.5 rounded-lg transition-colors ${
+                            isSelf
+                              ? 'opacity-30 cursor-not-allowed text-slate-400'
+                              : 'text-slate-400 hover:text-red-700 hover:bg-red-50'
+                          }`}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>
+
+        {/* Thanh Phân Trang (Pagination Controls) */}
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-3 bg-slate-50/70 border-t border-slate-200 text-xs text-slate-600">
+          <div>
+            <span>
+              Hiển thị từ <strong>{total === 0 ? 0 : (currentPage - 1) * pageSize + 1}</strong> đến{' '}
+              <strong>{Math.min(currentPage * pageSize, total)}</strong> trong tổng số <strong>{total}</strong> tài khoản
+            </span>
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+              disabled={currentPage <= 1 || isLoading}
+              className="px-2.5 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1 font-semibold transition-colors"
+            >
+              <ChevronLeft size={13} />
+              <span>Trước</span>
+            </button>
+
+            <span className="px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 font-bold border border-emerald-200">
+              Trang {currentPage} / {totalPages}
+            </span>
+
+            <button
+              onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
+              disabled={currentPage >= totalPages || isLoading}
+              className="px-2.5 py-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1 font-semibold transition-colors"
+            >
+              <span>Sau</span>
+              <ChevronRight size={13} />
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Edit / Create User Modal */}
@@ -405,19 +493,6 @@ export const UserManagementTab: React.FC = () => {
             type: 'success',
             text: `Đã đổi mật khẩu thành công cho tài khoản ${selectedUserForPassword?.username}!`,
           });
-        }}
-      />
-
-      {/* Clean Reset Database Modal */}
-      <CleanResetModal
-        isOpen={isResetModalOpen}
-        onClose={() => setIsResetModalOpen(false)}
-        onSuccess={(stats) => {
-          setBannerMsg({
-            type: 'success',
-            text: `🎉 Đã dọn sạch DB thành công! ${stats?.totalParcels || 1643} thửa đất đã chuẩn hóa mã số & sẵn sàng khảo sát (0 báo cáo). Chỉ còn duy nhất tài khoản Super Admin (superadmin / Admin@123).`,
-          });
-          fetchUsers();
         }}
       />
     </Card>

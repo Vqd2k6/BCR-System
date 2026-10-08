@@ -60,41 +60,19 @@ export const useBuildingHubState = ({ parcel, onUnitsUpdated }: UseBuildingHubSt
   const [newFloorNumber, setNewFloorNumber] = useState<number | ''>(1);
   const [isSubmittingUnit, setIsSubmittingUnit] = useState<boolean>(false);
 
-  // Load units from API or robust default dataset
+  // Load units from API
   const fetchUnits = async () => {
     try {
       setLoading(true);
       const res = await api.get(`/parcels/${parcel.id}/units`);
-      if (res.data?.data?.units && Array.isArray(res.data.data.units) && res.data.data.units.length > 0) {
+      if (res.data?.data?.units && Array.isArray(res.data.data.units)) {
         setUnits(res.data.data.units);
       } else {
-        // Sample standard units across 4 floors with clear Phase 1 & Phase 2 progression
-        const defaultUnits: BuildingUnit[] = [
-          { id: 'c0000000-0000-0000-0000-000000000101', parcel_id: parcel.id, unit_code: 'P.101', floor_number: 1, owner_name: 'Nguyễn Văn An', owner_phone: '0901 234 567', status: 'APPROVED', phase1_report_id: 'rep-p1-101' },
-          { id: 'c0000000-0000-0000-0000-000000000102', parcel_id: parcel.id, unit_code: 'P.102', floor_number: 1, owner_name: 'Trần Thị Bích', owner_phone: '0912 345 678', status: 'SUBMITTED', phase1_report_id: 'rep-p1-102' },
-          { id: 'c0000000-0000-0000-0000-000000000103', parcel_id: parcel.id, unit_code: 'P.103', floor_number: 1, owner_name: 'Vũ Đức Thịnh', owner_phone: '0933 111 222', status: 'IN_PROGRESS' },
-          { id: 'c0000000-0000-0000-0000-000000000104', parcel_id: parcel.id, unit_code: 'P.104', floor_number: 1, owner_name: 'Hoàng Minh Châu', owner_phone: '0977 444 555', status: 'NOT_SURVEYED' },
-          { id: 'c0000000-0000-0000-0000-000000000201', parcel_id: parcel.id, unit_code: 'P.201', floor_number: 2, owner_name: 'Lê Hoàng Cường', owner_phone: '0988 765 432', status: 'APPROVED', phase1_report_id: 'rep-p1-201', phase2_report_id: 'rep-p2-201' },
-          { id: 'c0000000-0000-0000-0000-000000000202', parcel_id: parcel.id, unit_code: 'P.202', floor_number: 2, owner_name: 'Phạm Ngọc Dũng', owner_phone: '0977 123 987', status: 'POSTPONED_ABSENT' },
-          { id: 'c0000000-0000-0000-0000-000000000203', parcel_id: parcel.id, unit_code: 'P.203', floor_number: 2, owner_name: 'Đặng Mai Phương', owner_phone: '0918 888 999', status: 'IN_PROGRESS' },
-          { id: 'c0000000-0000-0000-0000-000000000204', parcel_id: parcel.id, unit_code: 'P.204', floor_number: 2, owner_name: 'Bùi Anh Tuấn', owner_phone: '0909 333 444', status: 'NOT_SURVEYED' },
-          { id: 'c0000000-0000-0000-0000-000000000301', parcel_id: parcel.id, unit_code: 'P.301', floor_number: 3, owner_name: 'Võ Thanh Tùng', owner_phone: '0933 555 888', status: 'APPROVED', phase1_report_id: 'rep-p1-301' },
-          { id: 'c0000000-0000-0000-0000-000000000302', parcel_id: parcel.id, unit_code: 'P.302', floor_number: 3, owner_name: 'Ngô Hải Yến', owner_phone: '0944 666 777', status: 'SUBMITTED', phase1_report_id: 'rep-p1-302' },
-          { id: 'c0000000-0000-0000-0000-000000000303', parcel_id: parcel.id, unit_code: 'P.303', floor_number: 3, owner_name: 'Dương Quốc Bảo', owner_phone: '0982 123 456', status: 'POSTPONED_ABSENT' },
-          { id: 'c0000000-0000-0000-0000-000000000304', parcel_id: parcel.id, unit_code: 'P.304', floor_number: 3, owner_name: 'Lý Kim Ngân', owner_phone: '0908 999 111', status: 'NOT_SURVEYED' },
-          { id: 'c0000000-0000-0000-0000-000000000401', parcel_id: parcel.id, unit_code: 'P.401', floor_number: 4, owner_name: 'Trịnh Gia Huy', owner_phone: '0911 222 333', status: 'NOT_SURVEYED' },
-          { id: 'c0000000-0000-0000-0000-000000000402', parcel_id: parcel.id, unit_code: 'P.402', floor_number: 4, owner_name: 'Cao Thùy Linh', owner_phone: '0978 555 666', status: 'NOT_SURVEYED' },
-        ];
-        setUnits(defaultUnits);
+        setUnits([]);
       }
-    } catch (_err) {
-      setUnits([
-        { id: 'c0000000-0000-0000-0000-000000000101', parcel_id: parcel.id, unit_code: 'P.101', floor_number: 1, owner_name: 'Nguyễn Văn An', owner_phone: '0901 234 567', status: 'APPROVED', phase1_report_id: 'rep-p1-101' },
-        { id: 'c0000000-0000-0000-0000-000000000102', parcel_id: parcel.id, unit_code: 'P.102', floor_number: 1, owner_name: 'Trần Thị Bích', owner_phone: '0912 345 678', status: 'SUBMITTED', phase1_report_id: 'rep-p1-102' },
-        { id: 'c0000000-0000-0000-0000-000000000201', parcel_id: parcel.id, unit_code: 'P.201', floor_number: 2, owner_name: 'Lê Hoàng Cường', owner_phone: '0988 765 432', status: 'IN_PROGRESS' },
-        { id: 'c0000000-0000-0000-0000-000000000202', parcel_id: parcel.id, unit_code: 'P.202', floor_number: 2, owner_name: 'Phạm Ngọc Dũng', owner_phone: '0977 123 987', status: 'POSTPONED_ABSENT' },
-        { id: 'c0000000-0000-0000-0000-000000000301', parcel_id: parcel.id, unit_code: 'P.301', floor_number: 3, owner_name: 'Võ Thanh Tùng', owner_phone: '0933 555 888', status: 'NOT_SURVEYED' },
-      ]);
+    } catch (err) {
+      console.warn('[BuildingHub] Không thể nạp danh sách căn hộ hoặc chưa có dữ liệu:', err);
+      setUnits([]);
     } finally {
       setLoading(false);
     }
@@ -138,35 +116,16 @@ export const useBuildingHubState = ({ parcel, onUnitsUpdated }: UseBuildingHubSt
       if (res.data?.data?.unit) {
         setUnits((prev) => [...prev, res.data.data.unit]);
       } else {
-        const fakeUnit: BuildingUnit = {
-          id: `u-${Date.now()}`,
-          parcel_id: parcel.id,
-          unit_code: newUnitCode.trim(),
-          floor_number: parsedFloor,
-          owner_name: 'Chưa cập nhật',
-          owner_phone: '',
-          status: 'NOT_SURVEYED',
-        };
-        setUnits((prev) => [...prev, fakeUnit]);
+        // Fallback nạp lại danh sách từ server
+        await fetchUnits();
       }
       setShowAddModal(false);
       setNewUnitCode('');
       setNewFloorNumber(1);
       if (onUnitsUpdated) onUnitsUpdated();
-    } catch (_err) {
-      const fakeUnit: BuildingUnit = {
-        id: `u-${Date.now()}`,
-        parcel_id: parcel.id,
-        unit_code: newUnitCode.trim(),
-        floor_number: parsedFloor,
-        owner_name: 'Chưa cập nhật',
-        owner_phone: '',
-        status: 'NOT_SURVEYED',
-      };
-      setUnits((prev) => [...prev, fakeUnit]);
-      setShowAddModal(false);
-      setNewUnitCode('');
-      setNewFloorNumber(1);
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || err?.message || 'Có lỗi xảy ra khi tạo căn hộ';
+      alert(`Không thể thêm căn hộ: ${msg}`);
     } finally {
       setIsSubmittingUnit(false);
     }

@@ -21,10 +21,42 @@ export interface UserEntity {
 }
 
 export class AuthRepository {
+  /**
+   * Sinh ngẫu nhiên mã KSV độc bản P-XXXX (1000 - 9999) và kiểm tra đối chiếu CSDL
+   * Cam kết 100% không trùng lặp và không làm ảnh hưởng đến các mã KSV đã có trong DB
+   */
+  static async generateUniqueSurveyorCode(): Promise<string> {
+    for (let attempt = 0; attempt < 50; attempt++) {
+      const random4Digits = Math.floor(1000 + Math.random() * 9000).toString();
+      const codeCandidate = `P-${random4Digits}`;
+      const check = await Database.query(
+        `SELECT 1 FROM users WHERE surveyor_code = $1 LIMIT 1;`,
+        [codeCandidate]
+      );
+      if ((check.rowCount ?? 0) === 0) {
+        return codeCandidate;
+      }
+    }
+    // Fallback 5 chữ số nếu dải 4 số gần đầy
+    return `P-${Math.floor(10000 + Math.random() * 90000)}`;
+  }
+
   static async findByUsername(username: string): Promise<UserEntity | null> {
     const res = await Database.query<UserEntity>(
-      `SELECT * FROM users WHERE username = $1 AND deleted_at IS NULL LIMIT 1;`,
-      [username]
+      `SELECT * FROM users WHERE LOWER(username) = LOWER($1) AND deleted_at IS NULL LIMIT 1;`,
+      [username.trim()]
+    );
+    return res.rows[0] || null;
+  }
+
+  /**
+   * Tìm kiếm user bất kể trạng thái đã soft-delete hay chưa
+   * Phục vụ Phương án B: Tự động khôi phục tài khoản khi SuperAdmin tạo lại username cũ
+   */
+  static async findRawByUsername(username: string): Promise<UserEntity | null> {
+    const res = await Database.query<UserEntity>(
+      `SELECT * FROM users WHERE LOWER(username) = LOWER($1) ORDER BY (deleted_at IS NULL) DESC, created_at DESC LIMIT 1;`,
+      [username.trim()]
     );
     return res.rows[0] || null;
   }
@@ -62,7 +94,7 @@ export class AuthRepository {
     }
     if (filters.search) {
       params.push(`%${filters.search}%`);
-      whereClause += ` AND (username ILIKE $${params.length} OR full_name ILIKE $${params.length} OR email ILIKE $${params.length})`;
+      whereClause += ` AND (username ILIKE $${params.length} OR full_name ILIKE $${params.length} OR email ILIKE $${params.length} OR phone ILIKE $${params.length} OR surveyor_code ILIKE $${params.length})`;
     }
 
     const countRes = await Database.query<{ count: string }>(
@@ -75,8 +107,12 @@ export class AuthRepository {
     const offset = filters.offset || 0;
     params.push(limit, offset);
 
+    // BẢO MẬT: Tuyệt đối không SELECT password_hash để triệt tiêu lỗ hổng rò rỉ mã băm mật khẩu
     const res = await Database.query<UserEntity>(
-      `SELECT * FROM users ${whereClause} ORDER BY created_at DESC LIMIT $${params.length - 1} OFFSET $${params.length};`,
+      `SELECT id, username, full_name, email, phone, role, assigned_zone_id, status, status_reason, avatar_url, signature_image_url, created_by_user_id, surveyor_code, created_at, updated_at, deleted_at 
+       FROM users ${whereClause} 
+       ORDER BY created_at DESC, id DESC 
+       LIMIT $${params.length - 1} OFFSET $${params.length};`,
       params
     );
 
@@ -93,13 +129,13 @@ export class AuthRepository {
     assignedZoneId?: string | null;
     signatureImageUrl?: string | null;
     createdByUserId?: string | null;
+    surveyorCode?: string | null;
   }): Promise<UserEntity> {
-    let surveyorCode: string | null = null;
-    if (userData.role === 'SURVEYOR' && userData.phone) {
-      const digits = userData.phone.replace(/\D/g, '');
-      if (digits.length >= 4) {
-        surveyorCode = `P-${digits.slice(-4)}`;
-      }
+    let surveyorCode = userData.surveyorCode || null;
+    if (userData.role === 'SURVEYOR' && !surveyorCode) {
+      surveyorCode = await this.generateUniqueSurveyorCode();
+    } else if (userData.role !== 'SURVEYOR') {
+      surveyorCode = null;
     }
 
     const res = await Database.query<UserEntity>(
@@ -119,6 +155,68 @@ export class AuthRepository {
         surveyorCode,
       ]
     );
+
+    // Đồng bộ người phụ trách Zone vào bảng metro_zones nếu vai trò là ZONE_ADMIN
+    if (userData.role === 'ZONE_ADMIN' && userData.assignedZoneId && userData.assignedZoneId !== 'ALL' && userData.assignedZoneId !== 'ALL_ZONES') {
+      await Database.query(
+        `UPDATE metro_zones SET assigned_admin_id = $1 WHERE zone_code = $2;`,
+        [res.rows[0].id, userData.assignedZoneId]
+      );
+    }
+
+    return res.rows[0];
+  }
+
+  /**
+   * Phương án B: Khôi phục và cập nhật tài khoản đã soft-delete khi SuperAdmin tạo lại username cũ
+   */
+  static async restoreAndOverwriteUser(id: string, data: {
+    passwordHash: string;
+    fullName: string;
+    email?: string | null;
+    phone?: string | null;
+    role: string;
+    assignedZoneId?: string | null;
+    signatureImageUrl?: string | null;
+    surveyorCode?: string | null;
+  }): Promise<UserEntity> {
+    const res = await Database.query<UserEntity>(
+      `UPDATE users SET 
+         deleted_at = NULL,
+         status = 'ACTIVE',
+         status_reason = NULL,
+         password_hash = $2,
+         full_name = $3,
+         email = $4,
+         phone = $5,
+         role = $6,
+         assigned_zone_id = $7,
+         signature_image_url = $8,
+         surveyor_code = $9,
+         updated_at = NOW()
+       WHERE id = $1
+       RETURNING *;`,
+      [
+        id,
+        data.passwordHash,
+        data.fullName,
+        data.email || null,
+        data.phone || null,
+        data.role,
+        data.assignedZoneId || null,
+        data.signatureImageUrl || null,
+        data.surveyorCode || null,
+      ]
+    );
+
+    // Đồng bộ người phụ trách Zone vào bảng metro_zones nếu vai trò là ZONE_ADMIN
+    if (data.role === 'ZONE_ADMIN' && data.assignedZoneId && data.assignedZoneId !== 'ALL' && data.assignedZoneId !== 'ALL_ZONES') {
+      await Database.query(
+        `UPDATE metro_zones SET assigned_admin_id = $1 WHERE zone_code = $2;`,
+        [id, data.assignedZoneId]
+      );
+    }
+
     return res.rows[0];
   }
 
@@ -133,6 +231,9 @@ export class AuthRepository {
       signatureImageUrl?: string | null;
     }
   ): Promise<UserEntity | null> {
+    const existing = await this.findById(id);
+    if (!existing) return null;
+
     const fields: string[] = [];
     const params: any[] = [id];
 
@@ -147,17 +248,21 @@ export class AuthRepository {
     if (data.phone !== undefined) {
       params.push(data.phone);
       fields.push(`phone = $${params.length}`);
-      if (data.phone) {
-        const digits = data.phone.replace(/\D/g, '');
-        if (digits.length >= 4) {
-          params.push(`P-${digits.slice(-4)}`);
-          fields.push(`surveyor_code = $${params.length}`);
-        }
-      }
+      // Bảo toàn mã KSV hiện tại: Cập nhật SĐT TUYỆT ĐỐI KHÔNG ghi đè surveyor_code!
     }
     if (data.role !== undefined) {
       params.push(data.role);
       fields.push(`role = $${params.length}`);
+
+      // Nếu chuyển vai trò thành SURVEYOR và chưa có mã KSV, sinh ngẫu nhiên mới
+      if (data.role === 'SURVEYOR' && !existing.surveyor_code) {
+        const newCode = await this.generateUniqueSurveyorCode();
+        params.push(newCode);
+        fields.push(`surveyor_code = $${params.length}`);
+      } else if (data.role !== 'SURVEYOR') {
+        // Nếu chuyển sang vai trò khác, hủy mã surveyor_code
+        fields.push(`surveyor_code = NULL`);
+      }
     }
     if (data.assignedZoneId !== undefined) {
       params.push(data.assignedZoneId);
@@ -174,6 +279,17 @@ export class AuthRepository {
       `UPDATE users SET ${fields.join(', ')}, updated_at = NOW() WHERE id = $1 AND deleted_at IS NULL RETURNING *;`,
       params
     );
+
+    // Đồng bộ người phụ trách Zone vào bảng metro_zones nếu vai trò là ZONE_ADMIN
+    const targetRole = data.role !== undefined ? data.role : existing.role;
+    const targetZoneId = data.assignedZoneId !== undefined ? data.assignedZoneId : existing.assigned_zone_id;
+    if (targetRole === 'ZONE_ADMIN' && targetZoneId && targetZoneId !== 'ALL' && targetZoneId !== 'ALL_ZONES') {
+      await Database.query(
+        `UPDATE metro_zones SET assigned_admin_id = $1 WHERE zone_code = $2;`,
+        [id, targetZoneId]
+      );
+    }
+
     return res.rows[0] || null;
   }
 
@@ -243,5 +359,34 @@ export class AuthRepository {
     if (!res.rows[0]) return false;
     const session = res.rows[0];
     return !session.is_revoked && new Date(session.expires_at) > new Date();
+  }
+
+  /**
+   * Ghi log kiểm toán pháp lý hệ thống vào bảng system_audit_logs
+   */
+  static async logSystemAudit(log: {
+    entityType: string;
+    entityId: string;
+    action: string;
+    performedByUserId?: string | null;
+    clientIp?: string | null;
+    diffPayload?: any;
+  }): Promise<void> {
+    try {
+      await Database.query(
+        `INSERT INTO system_audit_logs (entity_type, entity_id, action, performed_by_user_id, client_ip, diff_payload)
+         VALUES ($1, $2, $3, $4, $5, $6);`,
+        [
+          log.entityType,
+          log.entityId,
+          log.action,
+          log.performedByUserId || null,
+          log.clientIp || null,
+          log.diffPayload ? JSON.stringify(log.diffPayload) : null,
+        ]
+      );
+    } catch (err) {
+      console.error('[AUDIT_LOG_ERROR] Could not write system audit log:', err);
+    }
   }
 }

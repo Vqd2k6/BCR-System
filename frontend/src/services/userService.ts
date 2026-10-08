@@ -56,25 +56,52 @@ export interface UpdateUserPayload {
   signatureImageUrl?: string | null;
 }
 
+function normalizeAdminUser(u: any): AdminUser {
+  return {
+    id: u.id,
+    username: u.username,
+    fullName: u.fullName || u.full_name || '',
+    email: u.email || null,
+    phone: u.phone || null,
+    role: u.role,
+    assignedZoneId: u.assignedZoneId || u.assigned_zone_id || null,
+    status: u.status,
+    statusReason: u.statusReason || u.status_reason || null,
+    surveyorCode: u.surveyorCode || u.surveyor_code || null,
+    signatureImageUrl: u.signatureImageUrl || u.signature_image_url || null,
+    createdAt: u.createdAt || u.created_at,
+    updatedAt: u.updatedAt || u.updated_at,
+  };
+}
+
 export const userService = {
   listUsers: async (params?: ListUsersParams): Promise<ListUsersResponse> => {
     const res = await api.get('/admin/users', { params });
-    return res.data;
+    const rawData = res.data?.data || [];
+    return {
+      success: res.data?.success ?? true,
+      data: rawData.map(normalizeAdminUser),
+      pagination: res.data?.pagination || {
+        total: rawData.length,
+        limit: params?.limit || 20,
+        offset: params?.offset || 0,
+      },
+    };
   },
 
   getUserById: async (id: string): Promise<AdminUser> => {
     const res = await api.get(`/admin/users/${id}`);
-    return res.data?.data;
+    return normalizeAdminUser(res.data?.data);
   },
 
   createUser: async (payload: CreateUserPayload): Promise<AdminUser> => {
     const res = await api.post('/admin/users', payload);
-    return res.data?.data;
+    return normalizeAdminUser(res.data?.data);
   },
 
   updateUser: async (id: string, payload: UpdateUserPayload): Promise<AdminUser> => {
     const res = await api.put(`/admin/users/${id}`, payload);
-    return res.data?.data;
+    return normalizeAdminUser(res.data?.data);
   },
 
   updateStatus: async (
@@ -83,7 +110,7 @@ export const userService = {
     reason?: string
   ): Promise<AdminUser> => {
     const res = await api.put(`/admin/users/${id}/status`, { status, reason });
-    return res.data?.data;
+    return normalizeAdminUser(res.data?.data);
   },
 
   resetPassword: async (id: string, newPassword: string): Promise<{ message: string }> => {
@@ -95,27 +122,7 @@ export const userService = {
     const res = await api.delete(`/admin/users/${id}`);
     return res.data;
   },
-
-  cleanResetDatabase: async (): Promise<{
-    success: boolean;
-    message: string;
-    stats: {
-      totalParcels: number;
-      unstartedParcels: number;
-      totalReports: number;
-      totalZones: number;
-      totalUsers: number;
-      totalStandardized: number;
-    };
-    adminAccount: {
-      username: string;
-      role: string;
-      note: string;
-    };
-  }> => {
-    const res = await api.post('/admin/maintenance/clean-reset');
-    return res.data;
-  },
 };
 
 export default userService;
+
