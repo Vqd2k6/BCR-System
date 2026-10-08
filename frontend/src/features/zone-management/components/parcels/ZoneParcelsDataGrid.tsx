@@ -22,9 +22,11 @@ import {
   Home,
   Phone,
   User,
+  Move,
 } from 'lucide-react';
 import { api } from '../../../../services/api';
 import { GisParcel } from '../../../../components/gis/shared/types';
+import { CadastralBoundaryReshapeModal } from '../../../../components/gis/cadastral-editor/components/CadastralBoundaryReshapeModal';
 
 interface ZoneParcelsDataGridProps {
   selectedZone: string;
@@ -106,6 +108,9 @@ export const ZoneParcelsDataGrid: React.FC<ZoneParcelsDataGridProps> = ({
 
   // Selected row for detail drawer
   const [inspectParcel, setInspectParcel] = useState<GisParcel | null>(null);
+
+  // Reshape Modal state
+  const [reshapeModalParcel, setReshapeModalParcel] = useState<GisParcel | null>(null);
 
   // Debounce search input (300ms)
   useEffect(() => {
@@ -655,6 +660,15 @@ export const ZoneParcelsDataGrid: React.FC<ZoneParcelsDataGridProps> = ({
                             </button>
                           )}
 
+                          <button
+                            type="button"
+                            onClick={() => setReshapeModalParcel(parcel)}
+                            className="p-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 transition-colors cursor-pointer"
+                            title="Nắn chỉnh đa giác ranh thửa đất khớp bờ tường/mái nhà vệ tinh"
+                          >
+                            <Move size={14} />
+                          </button>
+
                           {onViewSurvey && (
                             <button
                               type="button"
@@ -837,7 +851,19 @@ export const ZoneParcelsDataGrid: React.FC<ZoneParcelsDataGridProps> = ({
               </div>
             </div>
 
-            <div className="pt-2 flex items-center justify-end gap-2">
+            <div className="pt-2 flex items-center justify-end gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={() => {
+                  setReshapeModalParcel(inspectParcel);
+                  setInspectParcel(null);
+                }}
+                className="px-3 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border border-indigo-200"
+              >
+                <Move size={14} />
+                <span>Nắn Chỉnh Đa Giác</span>
+              </button>
+
               {onNavigateToMap && (
                 <button
                   type="button"
@@ -867,6 +893,19 @@ export const ZoneParcelsDataGrid: React.FC<ZoneParcelsDataGridProps> = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Cadastral Boundary Reshape Modal */}
+      {reshapeModalParcel && (
+        <CadastralBoundaryReshapeModal
+          isOpen={!!reshapeModalParcel}
+          parcel={reshapeModalParcel}
+          onClose={() => setReshapeModalParcel(null)}
+          onSuccess={() => {
+            fetchZoneParcels();
+            if (onRefreshStats) onRefreshStats();
+          }}
+        />
       )}
     </div>
   );

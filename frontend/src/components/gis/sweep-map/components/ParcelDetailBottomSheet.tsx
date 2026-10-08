@@ -12,10 +12,12 @@ import {
   Split,
   History,
   ArrowLeftRight,
+  Move,
 } from 'lucide-react';
 import { useAuth } from '../../../../context/AuthContext';
 import { ParcelMutationHistoryModal } from '../../cadastral-editor/components/ParcelMutationHistoryModal';
 import { CadastralSpatialSwapModal } from '../../cadastral-editor/components/CadastralSpatialSwapModal';
+import { CadastralBoundaryReshapeModal } from '../../cadastral-editor/components/CadastralBoundaryReshapeModal';
 import { GisParcel } from '../../shared/types';
 import { getEffectiveParcelStatus, getStatusBadge, isNonBuildingParcel } from '../utils/sweepMapHelpers';
 
@@ -47,6 +49,7 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
   const { user } = useAuth();
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [showSwapModal, setShowSwapModal] = useState(false);
+  const [showReshapeModal, setShowReshapeModal] = useState(false);
 
   if (!activeParcel) return null;
 
@@ -543,6 +546,32 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
           </button>
         )}
 
+        {/* Nút Nắn Chỉnh Ranh Đất GIS (CHỈ CHO PHÉP ZONE_ADMIN & SUPER_ADMIN) */}
+        {(user?.role === 'ZONE_ADMIN' || user?.role === 'SUPER_ADMIN') && (
+          <button
+            type="button"
+            className="btn btn-sm"
+            onClick={() => setShowReshapeModal(true)}
+            style={{
+              fontSize: '0.775rem',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '0.35rem',
+              color: '#4f46e5',
+              borderColor: '#c7d2fe',
+              backgroundColor: '#eef2ff',
+              padding: '0.5rem 0.75rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+            }}
+            title="Kéo thả mốc đỉnh để nắn chỉnh đa giác ranh thửa đất khớp ảnh vệ tinh (Admin Only)"
+          >
+            <Move size={14} color="#4f46e5" />
+            Nắn Chỉnh Đa Giác
+          </button>
+        )}
+
         {/* Nút Lịch Sử Biến Động (Bảo mật: DUY NHẤT SUPER_ADMIN) */}
         {user?.role === 'SUPER_ADMIN' && (
           <button
@@ -600,6 +629,18 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
           availableParcels={availableParcels}
           isOpen={showSwapModal}
           onClose={() => setShowSwapModal(false)}
+          onSuccess={() => {
+            onSwapSuccess?.();
+          }}
+        />
+      )}
+
+      {/* Modal Nắn chỉnh ranh giới đa giác thửa đất (Admin Only) */}
+      {(user?.role === 'ZONE_ADMIN' || user?.role === 'SUPER_ADMIN') && (
+        <CadastralBoundaryReshapeModal
+          parcel={activeParcel}
+          isOpen={showReshapeModal}
+          onClose={() => setShowReshapeModal(false)}
           onSuccess={() => {
             onSwapSuccess?.();
           }}

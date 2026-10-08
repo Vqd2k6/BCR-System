@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useId, useMemo } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { ImageAnnotationModal } from './ImageAnnotationModal';
+import { PdfFloorPlanPickerModal } from './PdfFloorPlanPickerModal';
 import {
   generateMetroPhotoCode,
   MetroWatermarkOptions,
@@ -37,6 +38,8 @@ export const PhotoCaptureInput: React.FC<PhotoCaptureProps> = ({
   annotationTitle,
   initialAnnotationTool,
   readOnly,
+  allowPdf = false,
+  pdfFloorName,
 }) => {
   const storeReadOnly = usePhase1SurveyStore ? usePhase1SurveyStore((s) => s.isReadOnly) : false;
   const effectiveReadOnly = readOnly !== undefined ? readOnly : storeReadOnly;
@@ -46,6 +49,8 @@ export const PhotoCaptureInput: React.FC<PhotoCaptureProps> = ({
 
   const [isAnnotating, setIsAnnotating] = useState(false);
   const [detectedAspectRatio, setDetectedAspectRatio] = useState<AspectRatioType | null>(null);
+  const [pdfFileToPick, setPdfFileToPick] = useState<File | null>(null);
+  const [isPdfPickerOpen, setIsPdfPickerOpen] = useState(false);
 
   // Tính toán options watermark hợp nhất (ưu tiên watermarkOptions, fallback watermarkText)
   const effectiveWatermarkOptions = useMemo<MetroWatermarkOptions | undefined>(() => {
@@ -90,6 +95,7 @@ export const PhotoCaptureInput: React.FC<PhotoCaptureProps> = ({
     startDirectUpload,
     uploadToServer,
     processAndStoreCleanPhoto,
+    storePrecompressedPhoto,
     handleFileChange,
     handleClear,
     handleRotate90,
@@ -116,6 +122,14 @@ export const PhotoCaptureInput: React.FC<PhotoCaptureProps> = ({
     setZoomLevel,
     isPinching,
     videoRef,
+    activeLensMode,
+    hasUltraWide,
+    isTorchSupported,
+    isTorchOn,
+    torchMessage,
+    switchLensMode,
+    toggleTorch,
+    dismissTorchMessage,
     applyHardwareZoom,
     handleTriggerNativeCamera,
     handleTriggerCapture,
@@ -131,7 +145,8 @@ export const PhotoCaptureInput: React.FC<PhotoCaptureProps> = ({
     cameraInputId,
     onSuccessCapture: async ({ blob, photoCode }) => {
       try {
-        const { blobUrl, localId } = await processAndStoreCleanPhoto(blob);
+        // Lưu trực tiếp blob đã nén chất lượng cao từ LiveCamera, không nén kép 2 lần
+        const { blobUrl, localId } = await storePrecompressedPhoto(blob, photoCode);
         setLocalPreview(blobUrl);
         const localUri = `blob:local://${localId}`;
         onChange(localUri, photoCode);
@@ -174,6 +189,35 @@ export const PhotoCaptureInput: React.FC<PhotoCaptureProps> = ({
       ? detectedAspectRatio !== 'square'
       : detectedAspectRatio !== 'square' && detectedAspectRatio !== recommendedOrientation);
 
+  const handleCustomFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (allowPdf && (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf'))) {
+      setPdfFileToPick(file);
+      setIsPdfPickerOpen(true);
+      e.target.value = '';
+      return;
+    }
+
+    handleFileChange(e);
+  };
+
+  const handleConfirmPdfPage = async (imageBlob: Blob) => {
+    try {
+      const { blobUrl, localId, blob, photoCode: pCode } = await processAndStoreCleanPhoto(imageBlob);
+      setLocalPreview(blobUrl);
+      const localUri = `blob:local://${localId}`;
+      onChange(localUri, pCode);
+      if (isNotApplicable && onToggleNotApplicable) {
+        onToggleNotApplicable(false);
+      }
+      startDirectUpload(blob, pCode, localId);
+    } catch (err) {
+      console.warn('[PhotoCaptureInput] Lỗi xử lý ảnh từ PDF:', err);
+    }
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', width: '100%' }}>
       {/* 1. Hardware Camera Input (capture="environment") */}
@@ -198,12 +242,12 @@ export const PhotoCaptureInput: React.FC<PhotoCaptureProps> = ({
         }}
       />
 
-      {/* 2. Gallery Input */}
+      {/* 2. Gallery Input (Hỗ trợ cả PDF nếu allowPdf=true) */}
       <input
         id={galleryInputId}
         type="file"
-        accept="image/*"
-        onChange={handleFileChange}
+        accept={allowPdf ? 'image/*,application/pdf' : 'image/*'}
+        onChange={handleCustomFileChange}
         style={{
           position: 'absolute',
           width: '1px',
@@ -378,6 +422,7 @@ export const PhotoCaptureInput: React.FC<PhotoCaptureProps> = ({
           galleryInputId={galleryInputId}
           onTriggerCapture={handleTriggerCapture}
           readOnly={effectiveReadOnly}
+          allowPdf={allowPdf}
         />
       )}
 
@@ -410,6 +455,7 @@ export const PhotoCaptureInput: React.FC<PhotoCaptureProps> = ({
         onResetZoom={() => {
           setZoomLevel(1.0);
           applyHardwareZoom(1.0);
+          switchLensMode('1.0x');
         }}
         onSwitchCamera={() => setFacingMode((prev) => (prev === 'environment' ? 'user' : 'environment'))}
         onTriggerNativeCamera={handleTriggerNativeCamera}
@@ -420,6 +466,14 @@ export const PhotoCaptureInput: React.FC<PhotoCaptureProps> = ({
         onTouchMove={handleCameraTouchMove}
         onTouchEnd={handleCameraTouchEnd}
         onWheel={handleCameraWheel}
+        activeLensMode={activeLensMode}
+        hasUltraWide={hasUltraWide}
+        onSelectLensMode={switchLensMode}
+        isTorchOn={isTorchOn}
+        isTorchSupported={isTorchSupported}
+        onToggleTorch={toggleTorch}
+        torchMessage={torchMessage}
+        onDismissTorchMessage={dismissTorchMessage}
       />
 
       {/* Lightbox Soi Ảnh Chi Tiết */}
@@ -445,6 +499,20 @@ export const PhotoCaptureInput: React.FC<PhotoCaptureProps> = ({
         onMouseMove={handleLightboxMouseMove}
         onMouseUp={handleLightboxMouseUp}
       />
+
+      {/* Modal Chọn Trang Bản Vẽ Từ File PDF */}
+      {isPdfPickerOpen && pdfFileToPick && (
+        <PdfFloorPlanPickerModal
+          isOpen={isPdfPickerOpen}
+          file={pdfFileToPick}
+          floorName={pdfFloorName || label || 'Tầng hiện tại'}
+          onClose={() => {
+            setIsPdfPickerOpen(false);
+            setPdfFileToPick(null);
+          }}
+          onConfirmPage={handleConfirmPdfPage}
+        />
+      )}
     </div>
   );
 };

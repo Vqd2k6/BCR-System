@@ -73,6 +73,14 @@ export class Database {
    * Từng khối lệnh được cô lập trong try/catch độc lập để lỗi ở một bảng không làm gián đoạn bảng khác.
    */
   static async runStartupMigrations(): Promise<void> {
+    // 0. PostgreSQL unaccent extension (Hỗ trợ tìm kiếm tiếng Việt không dấu)
+    try {
+      await this.query(`CREATE EXTENSION IF NOT EXISTS unaccent;`);
+      console.log('✅ [STARTUP MIGRATION] PostgreSQL unaccent extension ready.');
+    } catch (e) {
+      console.warn('⚠️ [STARTUP MIGRATION] unaccent extension warning:', e);
+    }
+
     // 1. survey_identification_photos.photo_code (Ưu tiên số 1)
     try {
       await this.query(`ALTER TABLE survey_identification_photos ADD COLUMN IF NOT EXISTS photo_code VARCHAR(150);`);

@@ -1,10 +1,15 @@
 import React, { useState, useRef, useMemo } from 'react';
-import { Crosshair, Trash2, Camera, AlertCircle, CheckCircle2, Ruler, Sparkles, MapPin, AlertTriangle, Eye, EyeOff, ZoomIn, Plus, RotateCcw } from 'lucide-react';
+import { Crosshair, Trash2, Camera, AlertCircle, CheckCircle2, Ruler, Sparkles, MapPin, AlertTriangle, Eye, EyeOff, ZoomIn, Plus, RotateCcw, PenTool } from 'lucide-react';
 import { PhotoCaptureInput } from '../common/PhotoCaptureInput';
 import { ImageZoomModal } from '../common/ImageZoomModal';
+import { ImageAnnotationModal } from '../common/ImageAnnotationModal';
 import { InfoPopover } from '../../core/components/ui/InfoPopover';
 import { getNextAvailablePinCode } from './FloorCadPinningCanvas';
-import { resolveOfflinePhotoUrl, getSafeDisplayUrl } from '../../core/storage/offlinePhotoStorage';
+import { resolveOfflinePhotoUrl, getSafeDisplayUrl, saveOfflinePhoto, deleteOfflinePhoto, revokeManagedBlobUrl } from '../../core/storage/offlinePhotoStorage';
+import { useInteractiveCanvasZoom } from './useInteractiveCanvasZoom';
+import { CanvasZoomToolbar } from './CanvasZoomToolbar';
+import { base64ToBlob } from '../../features/survey-phase1/utils/photoSyncAudit';
+import { uploadQueue } from '../../core/services/uploadQueueService';
 
 export interface DefectItem {
   id?: string;
@@ -51,8 +56,9 @@ const CuPhotoThumbnailItem: React.FC<{
   defectCode: string;
   readOnly?: boolean;
   onZoom: (url: string, title: string, code?: string) => void;
+  onAnnotate?: (pIdx: number, url: string, code?: string) => void;
   onRemove: (idx: number) => void;
-}> = ({ photoUrl, pIdx, isPrimary, pCode, defectCode, readOnly, onZoom, onRemove }) => {
+}> = ({ photoUrl, pIdx, isPrimary, pCode, defectCode, readOnly, onZoom, onAnnotate, onRemove }) => {
   const [displayUrl, setDisplayUrl] = React.useState<string>(() => getSafeDisplayUrl(photoUrl));
 
   React.useEffect(() => {
@@ -99,7 +105,7 @@ const CuPhotoThumbnailItem: React.FC<{
       )}
 
       {/* Badge số thứ tự ảnh */}
-      <div className="absolute top-1.5 left-1.5 flex items-center gap-1">
+      <div className="absolute top-1.5 left-1.5 flex items-center gap-1 z-10">
         <span
           className={`text-[10px] font-bold px-1.5 py-0.5 rounded shadow-sm ${
             isPrimary
@@ -111,19 +117,32 @@ const CuPhotoThumbnailItem: React.FC<{
         </span>
       </div>
 
-      {/* Nút Xem lớn / Xóa ảnh */}
-      <div className="absolute top-1.5 right-1.5 flex items-center gap-1">
+      {/* Cụm nút thao tác trên góc phải: Vẽ / Soi / Xóa */}
+      <div className="absolute top-1.5 right-1.5 flex items-center gap-1 z-10">
+        {onAnnotate && !readOnly && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onAnnotate(pIdx, currentSrc || photoUrl, pCode);
+            }}
+            className="p-1 rounded bg-sky-600 hover:bg-sky-500 text-white transition-colors shadow-xs cursor-pointer"
+            title="Vẽ nét nứt / Đánh dấu ghi chú"
+          >
+            <PenTool className="w-3.5 h-3.5" />
+          </button>
+        )}
         <button
           type="button"
           onClick={(e) => {
             e.stopPropagation();
             onZoom(
-              currentSrc,
+              currentSrc || photoUrl,
               `Khuyết tật ${defectCode} - Ảnh #${pIdx + 1}${isPrimary ? ' (Ảnh chính)' : ''}`,
               pCode
             );
           }}
-          className="p-1 rounded bg-slate-900/80 hover:bg-slate-900 text-slate-200 hover:text-white transition-colors"
+          className="p-1 rounded bg-slate-900/80 hover:bg-slate-900 text-slate-200 hover:text-white transition-colors cursor-pointer"
           title="Nhấn vào để phóng to"
         >
           <ZoomIn className="w-3.5 h-3.5" />
@@ -135,7 +154,7 @@ const CuPhotoThumbnailItem: React.FC<{
               e.stopPropagation();
               onRemove(pIdx);
             }}
-            className="p-1 rounded bg-red-600/80 hover:bg-red-600 text-white transition-colors"
+            className="p-1 rounded bg-red-600/80 hover:bg-red-600 text-white transition-colors cursor-pointer"
             title="Xóa ảnh này"
           >
             <Trash2 className="w-3.5 h-3.5" />
@@ -143,14 +162,30 @@ const CuPhotoThumbnailItem: React.FC<{
         )}
       </div>
 
-      {/* Badge Nhấn vào để phóng to ở dưới cùng */}
-      <div className="absolute bottom-0 inset-x-0 bg-slate-950/85 backdrop-blur-xs px-1.5 py-0.5 flex items-center justify-between">
-        <p className="text-[9px] font-mono text-emerald-400 truncate">
+      {/* Thanh chân thẻ: Mã ảnh & Nút to Vẽ nứt */}
+      <div className="absolute bottom-0 inset-x-0 bg-slate-950/85 backdrop-blur-xs px-2 py-1 flex items-center justify-between z-10">
+        <p className="text-[9px] font-mono text-emerald-400 truncate max-w-[50%]">
           {pCode || 'PHOTO_CU'}
         </p>
-        <span className="text-[8px] text-slate-300 font-medium flex items-center gap-0.5 shrink-0">
-          <ZoomIn className="w-2.5 h-2.5" /> Phóng to
-        </span>
+        <div className="flex items-center gap-1.5 shrink-0">
+          {onAnnotate && !readOnly && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onAnnotate(pIdx, currentSrc || photoUrl, pCode);
+              }}
+              className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-sky-600 hover:bg-sky-500 text-white text-[9px] font-bold shadow-xs transition-colors cursor-pointer"
+              title="Vẽ nét nứt / Mũi tên chỉ vị trí"
+            >
+              <PenTool className="w-2.5 h-2.5" />
+              <span>Vẽ nứt</span>
+            </button>
+          )}
+          <span className="text-[8px] text-slate-300 font-medium flex items-center gap-0.5">
+            <ZoomIn className="w-2.5 h-2.5" /> Soi
+          </span>
+        </div>
       </div>
     </div>
   );
@@ -213,16 +248,37 @@ export const DefectPinningCanvas: React.FC<Props> = ({
   floorName,
   zoneOrElementCode,
 }) => {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const tightBoxRef = useRef<HTMLDivElement>(null);
   const detailFormRef = useRef<HTMLDivElement>(null);
   const [selectedDefectIndex, setSelectedDefectIndex] = useState<number | null>(null);
   const [isAddingPin, setIsAddingPin] = useState<boolean>(true);
   const [showPins, setShowPins] = useState<boolean>(true);
   const [draggingDefectIndex, setDraggingDefectIndex] = useState<number | null>(null);
-  const [zoomModalImage, setZoomModalImage] = useState<{ url: string; title: string; code?: string } | null>(null);
+  const [zoomModalImage, setZoomModalImage] = useState<{ url: string; title: string; code?: string; pIdx?: number } | null>(null);
+  const [annotatingCuPhoto, setAnnotatingCuPhoto] = useState<{ pIdx: number; url: string; code?: string } | null>(null);
   const [safeCtxUrl, setSafeCtxUrl] = useState<string>(() => getSafeDisplayUrl(ctxPhotoUrl));
+  const [isImageLoaded, setIsImageLoaded] = useState<boolean>(false);
   const dragMovedRef = useRef<boolean>(false);
+
+  // Hook Zoom & Pan Tương tác Bất biến Tọa độ
+  const {
+    zoomScale,
+    containerRef,
+    tightBoxRef,
+    handleZoomIn,
+    handleZoomOut,
+    handleResetZoom,
+    handleSetZoomPreset,
+    handleWheel,
+    handleTouchStart,
+    handleTouchMove,
+    handleTouchEnd,
+    startPan,
+    updatePan,
+    endPan,
+    calculateNormalizedCoords,
+    transformStyle,
+    pinCounterScale,
+  } = useInteractiveCanvasZoom();
 
   React.useEffect(() => {
     let isSubscribed = true;
@@ -250,21 +306,37 @@ export const DefectPinningCanvas: React.FC<Props> = ({
   );
 
   const handleTightBoxPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (draggingDefectIndex === null || readOnly || !tightBoxRef.current) return;
-    dragMovedRef.current = true;
-    const rect = tightBoxRef.current.getBoundingClientRect();
-    const x = Math.max(1, Math.min(99, parseFloat((((e.clientX - rect.left) / rect.width) * 100).toFixed(2))));
-    const y = Math.max(1, Math.min(99, parseFloat((((e.clientY - rect.top) / rect.height) * 100).toFixed(2))));
+    if (draggingDefectIndex !== null && !readOnly) {
+      dragMovedRef.current = true;
+      const coords = calculateNormalizedCoords(e.clientX, e.clientY);
+      if (!coords) return;
 
-    const updated = [...defects];
-    if (updated[draggingDefectIndex]) {
-      updated[draggingDefectIndex] = {
-        ...updated[draggingDefectIndex],
-        pinX: x,
-        pinY: y,
-      };
-      onChange(updated);
+      const updated = [...defects];
+      if (updated[draggingDefectIndex]) {
+        updated[draggingDefectIndex] = {
+          ...updated[draggingDefectIndex],
+          pinX: coords.x,
+          pinY: coords.y,
+        };
+        onChange(updated);
+      }
+      return;
     }
+
+    if (!isAddingPin) {
+      updatePan(e.clientX, e.clientY);
+    }
+  };
+
+  const handleTightBoxPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isAddingPin && draggingDefectIndex === null) {
+      startPan(e.clientX, e.clientY);
+    }
+  };
+
+  const handleTightBoxPointerUp = () => {
+    setDraggingDefectIndex(null);
+    endPan();
   };
 
   const handleCloneFromPreviousDefect = () => {
@@ -316,11 +388,10 @@ export const DefectPinningCanvas: React.FC<Props> = ({
       dragMovedRef.current = false;
       return;
     }
-    if (readOnly || !isAddingPin || !tightBoxRef.current || !ctxPhotoUrl) return;
+    if (readOnly || !isAddingPin || !ctxPhotoUrl) return;
 
-    const rect = tightBoxRef.current.getBoundingClientRect();
-    const x = Math.max(1, Math.min(99, parseFloat((((e.clientX - rect.left) / rect.width) * 100).toFixed(2))));
-    const y = Math.max(1, Math.min(99, parseFloat((((e.clientY - rect.top) / rect.height) * 100).toFixed(2))));
+    const coords = calculateNormalizedCoords(e.clientX, e.clientY);
+    if (!coords) return;
 
     const newDefectCode = getNextAvailablePinCode(
       defects.map((d) => ({ zoneCode: d.defectCode })),
@@ -332,8 +403,8 @@ export const DefectPinningCanvas: React.FC<Props> = ({
 
     const newDefect: DefectItem = {
       defectCode: newDefectCode,
-      pinX: x,
-      pinY: y,
+      pinX: coords.x,
+      pinY: coords.y,
       screeningCategory: candidate
         ? candidate.screeningCategory
         : mode === 'STRUCTURAL'
@@ -510,6 +581,88 @@ export const DefectPinningCanvas: React.FC<Props> = ({
     selectedDefectIndex !== null && selectedDefectIndex >= 0 && selectedDefectIndex < defects.length
       ? defects[selectedDefectIndex] || null
       : null;
+
+  const handleSaveAnnotatedCuPhoto = async (
+    targetPIdx: number,
+    annotatedBase64: string,
+    photoCode?: string
+  ) => {
+    if (selectedDefectIndex === null || readOnly) return;
+    const cur = defects[selectedDefectIndex];
+    if (!cur) return;
+
+    try {
+      // 1. Chuyển chuỗi Base64 sang nhị phân Blob
+      const blob = base64ToBlob(annotatedBase64);
+
+      // 2. Lưu IndexedDB offline an toàn với định danh cục bộ (ngăn lỗi OOM trên iOS Safari)
+      const localId = `cu_ann_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+      const localUri = `blob:local://${localId}`;
+      const effectiveCode = photoCode || `${cur.defectCode}_CU_${targetPIdx + 1}`;
+
+      await saveOfflinePhoto(
+        localId,
+        blob,
+        effectiveCode,
+        {
+          defectCode: cur.defectCode,
+          photoIndex: String(targetPIdx + 1),
+          floor: floorName || '',
+          zoneOrRoom: zoneOrElementCode || '',
+          annotated: 'true',
+        },
+        `${effectiveCode}.jpg`
+      );
+
+      // 3. Cập nhật mảng ảnh trong defects ngay lập tức với localUri để giao diện cập nhật 0ms
+      const curPhotos = Array.isArray(cur.cuPhotos) && cur.cuPhotos.length > 0
+        ? [...cur.cuPhotos]
+        : (cur.cuPhotoUrl ? [cur.cuPhotoUrl] : []);
+
+      curPhotos[targetPIdx] = localUri;
+
+      const next = [...defects];
+      next[selectedDefectIndex] = {
+        ...next[selectedDefectIndex],
+        cuPhotos: curPhotos,
+        cuPhotoUrl: curPhotos[0] || '',
+      };
+      onChange(next);
+
+      // 4. Đẩy vào hàng đợi upload ngầm lên Cloudflare R2 / S3
+      const filename = `${effectiveCode.replace(/[^a-zA-Z0-9_-]/g, '_')}_${Date.now()}.jpg`;
+      uploadQueue.enqueue(blob, filename, {
+        folder: `projects/${parcelCode || 'metro2'}/defects/${cur.defectCode}`,
+        mimeType: 'image/jpeg',
+        metadata: {
+          defectCode: cur.defectCode,
+          photoCode: effectiveCode,
+          floor: floorName || '',
+          zoneOrRoom: zoneOrElementCode || '',
+        },
+        onSuccess: async (publicUrl) => {
+          const currentFresh = [...defects];
+          if (currentFresh[selectedDefectIndex]) {
+            const photos = [...(currentFresh[selectedDefectIndex].cuPhotos || [])];
+            photos[targetPIdx] = publicUrl;
+            currentFresh[selectedDefectIndex] = {
+              ...currentFresh[selectedDefectIndex],
+              cuPhotos: photos,
+              cuPhotoUrl: photos[0] || '',
+            };
+            onChange(currentFresh);
+          }
+          await deleteOfflinePhoto(localId);
+          revokeManagedBlobUrl(localId);
+        },
+        onError: (err) => {
+          console.warn('[DefectPinningCanvas] Upload ảnh vẽ thất bại, giữ an toàn trong offline store:', err);
+        },
+      });
+    } catch (err) {
+      console.error('[DefectPinningCanvas] Lỗi lưu ảnh vẽ vết nứt:', err);
+    }
+  };
   const prevDefect = selectedDefectIndex !== null && selectedDefectIndex > 0 ? defects[selectedDefectIndex - 1] : null;
   const isStructural = mode === 'STRUCTURAL';
   const isDefectRoot = selectedDefectIndex === 0;
@@ -665,6 +818,10 @@ export const DefectPinningCanvas: React.FC<Props> = ({
       {/* Pinning Canvas - Clean Light Theme */}
       <div
         ref={containerRef}
+        onWheel={handleWheel}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
         className={`relative w-full min-h-[300px] max-h-[500px] rounded-xl overflow-hidden bg-slate-100 border border-slate-300 select-none shadow-inner flex items-center justify-center p-1 sm:p-2 ${
           isAddingPin ? 'ring-2 ring-emerald-500/30' : ''
         }`}
@@ -673,15 +830,18 @@ export const DefectPinningCanvas: React.FC<Props> = ({
           <div
             ref={tightBoxRef}
             onClick={handleTightBoxClick}
+            onPointerDown={handleTightBoxPointerDown}
             onPointerMove={handleTightBoxPointerMove}
-            onPointerUp={() => setDraggingDefectIndex(null)}
+            onPointerUp={handleTightBoxPointerUp}
+            style={transformStyle}
             className={`relative inline-block max-w-full leading-none mx-auto select-none touch-none ${
-              isAddingPin ? 'cursor-crosshair' : 'cursor-default'
+              isAddingPin ? 'cursor-crosshair' : 'cursor-grab'
             }`}
           >
             <img
               src={safeCtxUrl || getSafeDisplayUrl(ctxPhotoUrl)}
               alt="Context Photo for Defects"
+              onLoad={() => setIsImageLoaded(true)}
               className="max-h-[480px] max-w-full w-auto h-auto block mx-auto pointer-events-none select-none shadow-sm"
             />
 
@@ -725,7 +885,11 @@ export const DefectPinningCanvas: React.FC<Props> = ({
                     position: 'absolute',
                     left: `${d.pinX}%`,
                     top: `${d.pinY}%`,
-                    transform: isDragging ? 'translate(-50%, -50%) scale(1.25)' : isSelected ? 'translate(-50%, -50%) scale(1.1)' : 'translate(-50%, -50%)',
+                    transform: isDragging
+                      ? `translate(-50%, -100%) scale(${(1.2 * pinCounterScale).toFixed(3)})`
+                      : isSelected
+                      ? `translate(-50%, -100%) scale(${(1.05 * pinCounterScale).toFixed(3)})`
+                      : `translate(-50%, -100%) scale(${pinCounterScale.toFixed(3)})`,
                     cursor: readOnly ? 'default' : isDragging ? 'grabbing' : 'grab',
                     zIndex: isDragging ? 50 : isSelected ? 30 : 20,
                     display: 'flex',
@@ -737,33 +901,41 @@ export const DefectPinningCanvas: React.FC<Props> = ({
                   }}
                   title={readOnly ? undefined : `${d.defectCode}: ${d.defectType || 'Chưa chọn'} (Chạm chọn hoặc Giữ & Kéo để di chuyển)`}
                 >
+                  {/* Badge mã khuyết tật */}
                   <div
-                    style={{
-                      fontSize: '0.65rem',
-                      fontWeight: 800,
-                      fontFamily: 'monospace',
-                      padding: '1px 5px',
-                      borderRadius: '3px',
-                      backgroundColor: isDragging ? '#0284c7' : isSelected ? '#0284c7' : 'rgba(15, 23, 42, 0.9)',
-                      color: '#ffffff',
-                      border: isDragging ? '2px solid #38bdf8' : isSelected ? '1.5px solid #ffffff' : '1px solid rgba(255,255,255,0.4)',
-                      whiteSpace: 'nowrap',
-                      boxShadow: isDragging ? '0 4px 10px rgba(2, 132, 199, 0.5)' : '0 2px 4px rgba(0,0,0,0.3)',
-                    }}
+                    className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-extrabold whitespace-nowrap shadow-md transition-all ${
+                      isDragging
+                        ? 'bg-sky-600 text-white ring-3 ring-sky-300 shadow-xl'
+                        : isSelected
+                        ? 'bg-red-600 text-white ring-2 ring-red-300'
+                        : 'bg-slate-900 text-white border border-white/30'
+                    }`}
                   >
                     {d.defectCode}
                   </div>
 
+                  {/* Mũi nhọn tam giác trỏ xuống */}
                   <div
                     style={{
-                      width: isSelected || isDragging ? '14px' : '12px',
-                      height: isSelected || isDragging ? '14px' : '12px',
-                      borderRadius: '2px',
-                      backgroundColor: squareBg,
-                      border: '2px solid #ffffff',
-                      boxShadow: '0 0 6px rgba(0,0,0,0.4)',
-                      marginTop: '1px',
-                      transition: 'transform 0.15s ease',
+                      width: 0,
+                      height: 0,
+                      borderLeft: '4.5px solid transparent',
+                      borderRight: '4.5px solid transparent',
+                      borderTop: `6px solid ${isSelected || isDragging ? '#dc2626' : squareBg}`,
+                      marginTop: '-1px',
+                    }}
+                  />
+
+                  {/* Tâm ngắm tròn tại đỉnh nhọn */}
+                  <div
+                    style={{
+                      width: '6px',
+                      height: '6px',
+                      borderRadius: '50%',
+                      backgroundColor: '#ffffff',
+                      border: `2px solid ${isSelected || isDragging ? '#dc2626' : squareBg}`,
+                      boxShadow: '0 0 4px rgba(0,0,0,0.5)',
+                      marginTop: '-2px',
                     }}
                   />
                 </div>
@@ -774,6 +946,20 @@ export const DefectPinningCanvas: React.FC<Props> = ({
           <div className="w-full min-h-[300px] flex items-center justify-center text-slate-400 text-xs">
             Đang tải ảnh bối cảnh...
           </div>
+        )}
+
+        {/* Bottom-left Interactive Zoom & Pan Toolbar */}
+        {Boolean(safeCtxUrl || ctxPhotoUrl) && (
+          <CanvasZoomToolbar
+            zoomScale={zoomScale}
+            onZoomIn={handleZoomIn}
+            onZoomOut={handleZoomOut}
+            onResetZoom={handleResetZoom}
+            onSelectPreset={handleSetZoomPreset}
+            isPinMode={isAddingPin}
+            onTogglePinMode={() => setIsAddingPin(!isAddingPin)}
+            pinModeLabel="Chấm khuyết tật"
+          />
         )}
       </div>
 
@@ -1227,7 +1413,10 @@ export const DefectPinningCanvas: React.FC<Props> = ({
                             defectCode={selectedDefect.defectCode}
                             readOnly={readOnly}
                             onZoom={(url, title, code) =>
-                              setZoomModalImage({ url, title, code })
+                              setZoomModalImage({ url, title, code, pIdx })
+                            }
+                            onAnnotate={(idx, url, code) =>
+                              setAnnotatingCuPhoto({ pIdx: idx, url, code })
                             }
                             onRemove={handleRemoveCuPhoto}
                           />
@@ -1313,6 +1502,37 @@ export const DefectPinningCanvas: React.FC<Props> = ({
           title={zoomModalImage.title}
           photoCode={zoomModalImage.code}
           onClose={() => setZoomModalImage(null)}
+          onAnnotate={
+            !readOnly && zoomModalImage.pIdx !== undefined
+              ? () => {
+                  const targetPIdx = zoomModalImage.pIdx!;
+                  setAnnotatingCuPhoto({
+                    pIdx: targetPIdx,
+                    url: zoomModalImage.url,
+                    code: zoomModalImage.code,
+                  });
+                }
+              : undefined
+          }
+        />
+      )}
+
+      {/* Modal vẽ & đánh dấu vết nứt trực tiếp lên ảnh cận cảnh Photo CU */}
+      {annotatingCuPhoto && selectedDefect && (
+        <ImageAnnotationModal
+          isOpen={Boolean(annotatingCuPhoto)}
+          imageUrl={annotatingCuPhoto.url}
+          title={`Vẽ & Đánh dấu vết nứt (${selectedDefect.defectCode} - Ảnh #${annotatingCuPhoto.pIdx + 1})`}
+          initialTool="PEN"
+          onSave={(annotatedBase64) => {
+            handleSaveAnnotatedCuPhoto(
+              annotatingCuPhoto.pIdx,
+              annotatedBase64,
+              annotatingCuPhoto.code
+            );
+            setAnnotatingCuPhoto(null);
+          }}
+          onClose={() => setAnnotatingCuPhoto(null)}
         />
       )}
     </div>

@@ -303,4 +303,188 @@ export class CadastralGeometryService {
       };
     });
   }
+
+  /**
+   * Nắn chỉnh đa giác ranh thửa đất (Cadastral Boundary Reshaping & Calibration)
+   * Cho phép Zone Admin kéo thả các đỉnh mốc polygon để khớp đúng với ranh giới bờ tường, mái nhà thực địa.
+   * - Tự động validate tính hợp lệ hình học (ST_IsValid)
+   * - Tự động tính lại diện tích chuẩn PostGIS ST_Area(geom::geography)
+   * - Cập nhật vị trí tâm thửa ST_Centroid(geom)
+   * - Ghi nhận lịch sử biến động REDRAW và log kiểm toán system_audit_logs
+   */
+  static async reshapeParcelGeometry(
+    parcelId: string,
+    newCoordinates: [number, number][], // [lat, lng][] từ Leaflet
+    userId: string,
+    reason: string,
+    updateFootprint: boolean = true,
+    clientIp?: string
+  ) {
+    if (!newCoordinates || !Array.isArray(newCoordinates) || newCoordinates.length < 3) {
+      throw new BadRequestError('Tọa độ đa giác nắn chỉnh không hợp lệ: phải có tối thiểu 3 đỉnh.');
+    }
+
+    if (!reason || !reason.trim()) {
+      throw new BadRequestError('Vui lòng nhập lý do nắn chỉnh ranh giới thửa đất.');
+    }
+
+    return Database.transaction(async (client) => {
+      // 1. Kiểm tra thửa đất hiện tại
+      const parcelRes = await client.query<{
+        id: string;
+        project_parcel_code: string;
+        official_cadastral_code: string;
+        house_number: string;
+        street: string;
+        land_area_m2: number;
+        construction_area_m2: number;
+        original_geojson: string;
+        original_footprint_geojson: string;
+      }>(
+        `SELECT id, project_parcel_code, official_cadastral_code, house_number, street,
+                land_area_m2, construction_area_m2,
+                ST_AsGeoJSON(cadastral_polygon_geom) as original_geojson,
+                ST_AsGeoJSON(footprint_polygon_geom) as original_footprint_geojson
+         FROM parcels WHERE id = $1 FOR UPDATE;`,
+        [parcelId]
+      );
+
+      if (parcelRes.rows.length === 0) {
+        throw new NotFoundError(`Không tìm thấy thửa đất với ID: ${parcelId}`);
+      }
+
+      const parcel = parcelRes.rows[0];
+
+      // 2. Chuyển đổi từ Leaflet [lat, lng][] sang GeoJSON Polygon coordinates [[lng, lat], ...] khép kín
+      const ringCoords: [number, number][] = newCoordinates.map(pt => [pt[1], pt[0]]);
+      const firstPt = ringCoords[0];
+      const lastPt = ringCoords[ringCoords.length - 1];
+      if (firstPt[0] !== lastPt[0] || firstPt[1] !== lastPt[1]) {
+        ringCoords.push([firstPt[0], firstPt[1]]);
+      }
+
+      const geoJsonPolygon = {
+        type: 'Polygon',
+        coordinates: [ringCoords],
+      };
+      const geoJsonStr = JSON.stringify(geoJsonPolygon);
+
+      // 3. Kiểm định tính hợp lệ PostGIS & tính diện tích chuẩn mét vuông
+      const validRes = await client.query<{
+        is_valid: boolean;
+        invalid_reason: string | null;
+        calculated_area_m2: number;
+      }>(
+        `SELECT 
+           ST_IsValid(ST_SetSRID(ST_GeomFromGeoJSON($1), 4326)) as is_valid,
+           ST_IsValidReason(ST_SetSRID(ST_GeomFromGeoJSON($1), 4326)) as invalid_reason,
+           ROUND(ST_Area(ST_SetSRID(ST_GeomFromGeoJSON($1), 4326)::geography)::numeric, 2) as calculated_area_m2;`,
+        [geoJsonStr]
+      );
+
+      const { is_valid, invalid_reason, calculated_area_m2 } = validRes.rows[0];
+      if (!is_valid) {
+        throw new BadRequestError(`Đa giác ranh đất sau khi nắn chỉnh bị lỗi hình học (tự cắt chéo hoặc nút thắt): ${invalid_reason || 'Không hợp lệ'}`);
+      }
+
+      const newAreaM2 = Number(calculated_area_m2);
+      if (newAreaM2 <= 0) {
+        throw new BadRequestError('Diện tích đa giác tính toán không hợp lệ (nhỏ hơn hoặc bằng 0 m²).');
+      }
+
+      const oldAreaM2 = Number(parcel.land_area_m2) || 0;
+      const deltaAreaM2 = Math.round((newAreaM2 - oldAreaM2) * 100) / 100;
+      const reshapeMutationCode = `RESHAPE-GIS-${Date.now()}-${Math.floor(100 + Math.random() * 900)}`;
+
+      // 4. Tạo bản ghi biến động parcel_mutation_events
+      const mutRes = await client.query<{ id: string }>(
+        `INSERT INTO parcel_mutation_events (
+           mutation_code, mutation_type, source_parcel_ids, result_parcel_ids,
+           original_geojson, new_geojson, surveyor_notes, surveyor_id, zone_admin_id, status, approved_at
+         ) VALUES ($1, 'REDRAW', ARRAY[$2::uuid], ARRAY[$2::uuid], $3, $4, $5, $6, $6, 'APPROVED', NOW())
+         RETURNING id;`,
+        [
+          reshapeMutationCode,
+          parcelId,
+          parcel.original_geojson ? JSON.parse(parcel.original_geojson) : null,
+          geoJsonPolygon,
+          `Nắn chỉnh ranh giới đa giác thửa đất [${parcel.project_parcel_code}]. Diện tích: ${oldAreaM2} m² -> ${newAreaM2} m² (Δ: ${deltaAreaM2 > 0 ? '+' : ''}${deltaAreaM2} m²). Lý do: ${reason.trim()}`,
+          userId,
+        ]
+      );
+
+      const mutationEventId = mutRes.rows[0].id;
+
+      // 5. Cập nhật bảng parcels
+      if (updateFootprint) {
+        await client.query(
+          `UPDATE parcels
+           SET cadastral_polygon_geom = ST_SetSRID(ST_GeomFromGeoJSON($1), 4326),
+               footprint_polygon_geom = ST_SetSRID(ST_GeomFromGeoJSON($1), 4326),
+               location_geom = ST_Centroid(ST_SetSRID(ST_GeomFromGeoJSON($1), 4326)),
+               land_area_m2 = $2,
+               construction_area_m2 = $2,
+               mutation_type = 'REDRAW',
+               mutation_event_id = $3,
+               updated_at = NOW()
+           WHERE id = $4;`,
+          [geoJsonStr, newAreaM2, mutationEventId, parcelId]
+        );
+      } else {
+        await client.query(
+          `UPDATE parcels
+           SET cadastral_polygon_geom = ST_SetSRID(ST_GeomFromGeoJSON($1), 4326),
+               location_geom = ST_Centroid(ST_SetSRID(ST_GeomFromGeoJSON($1), 4326)),
+               land_area_m2 = $2,
+               mutation_type = 'REDRAW',
+               mutation_event_id = $3,
+               updated_at = NOW()
+           WHERE id = $4;`,
+          [geoJsonStr, newAreaM2, mutationEventId, parcelId]
+        );
+      }
+
+      // 6. Ghi log kiểm toán toàn trình
+      await client.query(
+        `INSERT INTO system_audit_logs (
+           entity_type, entity_id, action, performed_by_user_id, diff_payload, client_ip
+         ) VALUES ($1, $2, $3, $4, $5, $6);`,
+        [
+          'PARCEL',
+          parcelId,
+          'PARCEL_GEOMETRY_RESHAPE',
+          userId,
+          JSON.stringify({
+            mutationCode: reshapeMutationCode,
+            parcelId,
+            projectParcelCode: parcel.project_parcel_code,
+            officialCadastralCode: parcel.official_cadastral_code,
+            houseNumber: parcel.house_number,
+            street: parcel.street,
+            oldAreaM2,
+            newAreaM2,
+            deltaAreaM2,
+            vertexCount: newCoordinates.length,
+            updateFootprint,
+            reason: reason.trim(),
+            timestamp: new Date().toISOString(),
+          }),
+          clientIp || null,
+        ]
+      );
+
+      return {
+        success: true,
+        mutationCode: reshapeMutationCode,
+        mutationEventId,
+        parcelId,
+        projectParcelCode: parcel.project_parcel_code,
+        oldAreaM2,
+        newAreaM2,
+        deltaAreaM2,
+        newGeoJson: geoJsonPolygon,
+        message: `Đã nắn chỉnh ranh giới thửa đất [${parcel.project_parcel_code}] thành công. Diện tích mới: ${newAreaM2} m² (${deltaAreaM2 >= 0 ? '+' : ''}${deltaAreaM2} m²).`,
+      };
+    });
+  }
 }

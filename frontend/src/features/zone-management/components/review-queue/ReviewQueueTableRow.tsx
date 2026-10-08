@@ -12,6 +12,7 @@ import {
   User,
   Clock,
   MoreHorizontal,
+  Move,
 } from 'lucide-react';
 import { PendingSubmissionItem } from './ZoneAuditReviewQueue';
 
@@ -22,6 +23,7 @@ interface Props {
   onOpenRejectModal: (item: PendingSubmissionItem) => void;
   onOpenReassignModal: (item: PendingSubmissionItem) => void;
   onOpenMutationModal: (item: PendingSubmissionItem) => void;
+  onOpenReshapeModal?: (item: PendingSubmissionItem) => void;
 }
 
 export const ReviewQueueTableRow: React.FC<Props> = React.memo(({
@@ -31,6 +33,7 @@ export const ReviewQueueTableRow: React.FC<Props> = React.memo(({
   onOpenRejectModal,
   onOpenReassignModal,
   onOpenMutationModal,
+  onOpenReshapeModal,
 }) => {
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuPos, setMenuPos] = useState<'down' | 'up'>('down');
@@ -305,7 +308,7 @@ export const ReviewQueueTableRow: React.FC<Props> = React.memo(({
                   </button>
                 )}
 
-                {/* Hoán đổi thửa */}
+                {/* Hoán đổi ranh GIS */}
                 {item.report_id && (
                   <button
                     type="button"
@@ -316,7 +319,7 @@ export const ReviewQueueTableRow: React.FC<Props> = React.memo(({
                     className="w-full px-3 py-2 text-xs font-semibold text-amber-800 hover:bg-amber-50 flex items-center gap-2 transition-colors cursor-pointer"
                   >
                     <ArrowRightLeft className="w-4 h-4 text-amber-600 shrink-0" />
-                    <span>Hoán đổi / Chuyển thửa</span>
+                    <span>Hoán đổi vị trí ranh GIS</span>
                   </button>
                 )}
 
@@ -332,6 +335,21 @@ export const ReviewQueueTableRow: React.FC<Props> = React.memo(({
                   <Split className="w-4 h-4 text-indigo-600 shrink-0" />
                   <span>Tách / Gộp thửa trên GIS</span>
                 </button>
+
+                {/* Nắn chỉnh đa giác ranh GIS */}
+                {onOpenReshapeModal && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      onOpenReshapeModal(item);
+                    }}
+                    className="w-full px-3 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-50 flex items-center gap-2 transition-colors cursor-pointer"
+                  >
+                    <Move className="w-4 h-4 text-blue-600 shrink-0" />
+                    <span>Nắn chỉnh đa giác ranh GIS</span>
+                  </button>
+                )}
               </div>
             )}
           </div>

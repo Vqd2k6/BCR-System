@@ -9,6 +9,7 @@ interface PhotoEmptyStateProps {
   galleryInputId: string;
   onTriggerCapture: () => void;
   readOnly?: boolean;
+  allowPdf?: boolean;
 }
 
 export const PhotoEmptyState: React.FC<PhotoEmptyStateProps> = ({
@@ -19,6 +20,7 @@ export const PhotoEmptyState: React.FC<PhotoEmptyStateProps> = ({
   galleryInputId,
   onTriggerCapture,
   readOnly = false,
+  allowPdf = false,
 }) => {
   const isCompact = typeof height === 'number' ? height <= 125 : parseInt(String(height), 10) <= 125;
 
@@ -67,7 +69,7 @@ export const PhotoEmptyState: React.FC<PhotoEmptyStateProps> = ({
         </div>
       ) : (
       <div style={{ display: 'flex', gap: isCompact ? '0.35rem' : '0.6rem', flexWrap: 'wrap', justifyContent: 'center' }}>
-        {/* 1. NÚT CHÍNH: Chụp ảnh */}
+        {/* 1. NÚT CHÍNH: Chụp Live trực tiếp */}
         <button
           type="button"
           onClick={onTriggerCapture}
@@ -88,13 +90,39 @@ export const PhotoEmptyState: React.FC<PhotoEmptyStateProps> = ({
             whiteSpace: 'nowrap',
             transition: 'all 0.15s ease',
           }}
-          title="Mở máy ảnh chụp trực tiếp (có khung ngắm chuẩn & zoom 2 ngón tay)"
+          title="Mở máy ảnh trực tiếp trên web (khung ngắm 0.5x, zoom 2 ngón tay)"
         >
           <Camera size={isCompact ? 13 : 15} />
-          <span>{isCompact ? 'Chụp ảnh' : 'Chụp ảnh'}</span>
+          <span>{isCompact ? 'Chụp Live' : 'Chụp Live'}</span>
         </button>
 
-        {/* 2. NÚT PHỤ: Chọn từ máy */}
+        {/* 2. NÚT CAMERA GỐC: Mát máy & tận dụng 100% cảm biến phần cứng */}
+        <label
+          htmlFor={cameraInputId}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: isCompact ? '0.25rem' : '0.4rem',
+            padding: isCompact ? '0.4rem 0.65rem' : '0.5rem 0.85rem',
+            fontWeight: 600,
+            backgroundColor: '#f0fdf4',
+            color: '#166534',
+            border: '1px solid #bbf7d0',
+            borderRadius: '0.5rem',
+            cursor: 'pointer',
+            fontSize: isCompact ? '0.72rem' : '0.775rem',
+            boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
+            userSelect: 'none',
+            whiteSpace: 'nowrap',
+            transition: 'all 0.15s ease',
+          }}
+          title="Mở máy ảnh gốc hệ điều hành (mát máy ngoài trời, tận dụng Flash phần cứng & AI của hãng)"
+        >
+          <Camera size={isCompact ? 12 : 14} color="#166534" />
+          <span>{isCompact ? 'Cam gốc' : 'Máy ảnh gốc'}</span>
+        </label>
+
+        {/* 3. NÚT PHỤ: Chọn từ thư viện thiết bị / PDF */}
         <label
           htmlFor={galleryInputId}
           style={{
@@ -114,10 +142,10 @@ export const PhotoEmptyState: React.FC<PhotoEmptyStateProps> = ({
             whiteSpace: 'nowrap',
             transition: 'all 0.15s ease',
           }}
-          title="Chọn ảnh đã chụp sẵn từ thư viện thiết bị"
+          title={allowPdf ? 'Chọn ảnh sơ đồ hoặc file PDF bản vẽ thiết kế/hoàn công' : 'Chọn ảnh đã chụp sẵn từ thư viện thiết bị'}
         >
           <ImageIcon size={isCompact ? 13 : 14} color="#64748b" />
-          <span>{isCompact ? 'Chọn ảnh' : 'Chọn từ máy'}</span>
+          <span>{allowPdf ? (isCompact ? 'Ảnh / PDF' : 'Tải ảnh / PDF') : isCompact ? 'Thư viện' : 'Chọn từ máy'}</span>
         </label>
       </div>
       )}

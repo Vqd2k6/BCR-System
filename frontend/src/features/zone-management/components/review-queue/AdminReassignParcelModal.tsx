@@ -1,18 +1,35 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   X,
   ArrowRightLeft,
-  ArrowRight,
   AlertTriangle,
   CheckCircle2,
-  Building,
-  Home,
-  ShieldAlert,
   Search,
   Loader2,
+  User,
+  Info,
 } from 'lucide-react';
 import { api } from '../../../../services/api';
 import { AdminSecurityChallengeConfirm } from './AdminSecurityChallengeConfirm';
+
+export interface SwapCandidateParcel {
+  parcel_id: string;
+  project_parcel_code: string;
+  official_cadastral_code?: string;
+  house_number?: string;
+  street?: string;
+  ward?: string;
+  district?: string;
+  owner_name?: string;
+  owner_phone?: string;
+  land_area_m2?: number;
+  construction_area_m2?: number;
+  survey_status?: string;
+  report_id?: string | null;
+  report_code?: string | null;
+  report_status?: string | null;
+  surveyor_name?: string | null;
+}
 
 interface Props {
   isOpen: boolean;
@@ -22,14 +39,8 @@ interface Props {
   currentHouseNumber?: string;
   currentStreet?: string;
   surveyorName?: string;
-  allReports?: Array<{
-    report_id: string | null;
-    parcel_id: string;
-    project_parcel_code: string;
-    house_number: string;
-    street: string;
-    surveyor_name: string | null;
-  }>;
+  zoneId?: string;
+  allReports?: any[];
   onClose: () => void;
   onSuccess: (message: string) => void;
 }
@@ -42,154 +53,96 @@ export const AdminReassignParcelModal: React.FC<Props> = ({
   currentHouseNumber,
   currentStreet,
   surveyorName,
-  allReports = [],
+  zoneId,
   onClose,
   onSuccess,
 }) => {
-  const [activeMode, setActiveMode] = useState<'REASSIGN' | 'SWAP'>('REASSIGN');
-  const [targetParcelCodeOrId, setTargetParcelCodeOrId] = useState('');
-  const [selectedReportBId, setSelectedReportBId] = useState('');
-  const [searchFilter, setSearchFilter] = useState('');
-  const [fetchedReports, setFetchedReports] = useState<any[]>([]);
-  const [isLoadingReports, setIsLoadingReports] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedTargetParcel, setSelectedTargetParcel] = useState<SwapCandidateParcel | null>(null);
+  const [candidates, setCandidates] = useState<SwapCandidateParcel[]>([]);
+  const [isLoadingCandidates, setIsLoadingCandidates] = useState(false);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [reason, setReason] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
-  const [isReassignChallengeValid, setIsReassignChallengeValid] = useState(false);
-  const [isSwapChallengeValid, setIsSwapChallengeValid] = useState(false);
-  const [isInputFocused, setIsInputFocused] = useState(false);
+  const [isChallengeValid, setIsChallengeValid] = useState(false);
 
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Reset modal state when opening
+  useEffect(() => {
+    if (isOpen) {
+      setSearchTerm('');
+      setSelectedTargetParcel(null);
+      setReason('');
+      setErrorMsg('');
+      setIsChallengeValid(false);
+      setIsDropdownOpen(false);
+    }
+  }, [isOpen]);
+
+  // Debounced search for candidates across ALL parcels in the zone
   useEffect(() => {
     if (!isOpen) return;
-    const fetchSwapCandidates = async () => {
-      setIsLoadingReports(true);
+
+    let isMounted = true;
+    const timer = setTimeout(async () => {
+      setIsLoadingCandidates(true);
       try {
         const res = await api.get('/admin/reports/swap-candidates', {
           params: {
+            zoneId: zoneId || undefined,
             excludeReportId: reportId,
-            search: searchFilter.trim() || undefined,
+            excludeParcelId: currentParcelId || undefined,
+            search: searchTerm.trim() || undefined,
           },
         });
-        if (res.data?.success && Array.isArray(res.data.data)) {
-          setFetchedReports(res.data.data);
+
+        if (isMounted && res.data?.success && Array.isArray(res.data.data)) {
+          setCandidates(res.data.data);
         }
       } catch (err) {
         console.error('[AdminReassignParcelModal] Error fetching swap candidates:', err);
       } finally {
-        setIsLoadingReports(false);
+        if (isMounted) setIsLoadingCandidates(false);
+      }
+    }, 200);
+
+    return () => {
+      isMounted = false;
+      clearTimeout(timer);
+    };
+  }, [isOpen, reportId, currentParcelId, zoneId, searchTerm]);
+
+  // Close dropdown on click outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(e.target as Node) &&
+        searchInputRef.current &&
+        !searchInputRef.current.contains(e.target as Node)
+      ) {
+        setIsDropdownOpen(false);
       }
     };
-    fetchSwapCandidates();
-  }, [isOpen, reportId, searchFilter]);
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
-  // Hợp nhất danh sách từ props allReports và danh sách fetch từ API
-  const candidatePool = useMemo(() => {
-    const map = new Map<string, any>();
-    (allReports || []).forEach((r) => {
-      if (r.report_id && r.report_id !== reportId) {
-        map.set(r.report_id, r);
-      }
-    });
-    fetchedReports.forEach((fr) => {
-      if (fr.report_id && fr.report_id !== reportId) {
-        map.set(fr.report_id, {
-          report_id: fr.report_id,
-          parcel_id: fr.parcel_id,
-          project_parcel_code: fr.project_parcel_code,
-          house_number: fr.house_number,
-          street: fr.street,
-          surveyor_name: fr.surveyor_name,
-        });
-      }
-    });
-    return Array.from(map.values());
-  }, [allReports, fetchedReports, reportId]);
-
-  // Tìm report B được chọn trong chế độ SWAP
-  const selectedReportB = candidatePool.find(
-    (r) => r.report_id === selectedReportBId
-  );
-
-  // Danh sách gợi ý thửa đất đích khi gõ trong chế độ REASSIGN
-  const targetSuggestions = useMemo(() => {
-    const raw = targetParcelCodeOrId.replace(/[\[\]"'\\]/g, '').trim().toLowerCase();
-    if (!raw && !isInputFocused) return [];
-    let list = candidatePool;
-    if (raw) {
-      list = candidatePool.filter((c) => {
-        const code = (c.project_parcel_code || '').toLowerCase();
-        const house = (c.house_number || '').toLowerCase();
-        const street = (c.street || '').toLowerCase();
-        return code.includes(raw) || house.includes(raw) || street.includes(raw);
-      });
-    }
-    return list.slice(0, 8);
-  }, [candidatePool, targetParcelCodeOrId, isInputFocused]);
-
-  // Danh sách ứng viên cho chế độ SWAP sau khi lọc tìm kiếm
-  const swapFilteredCandidates = useMemo(() => {
-    const raw = searchFilter.trim().toLowerCase();
-    if (!raw) return candidatePool;
-    return candidatePool.filter((c) => {
-      const code = (c.project_parcel_code || '').toLowerCase();
-      const house = (c.house_number || '').toLowerCase();
-      const street = (c.street || '').toLowerCase();
-      const surveyor = (c.surveyor_name || '').toLowerCase();
-      return (
-        code.includes(raw) ||
-        house.includes(raw) ||
-        street.includes(raw) ||
-        surveyor.includes(raw)
-      );
-    });
-  }, [candidatePool, searchFilter]);
-
-  const handleReassignSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const cleanedTarget = targetParcelCodeOrId.replace(/[\[\]"'\\]/g, '').trim();
-    if (!cleanedTarget) {
-      setErrorMsg('Vui lòng nhập mã thửa đất đích hoặc ID thửa đất cần gán.');
+    if (!selectedTargetParcel) {
+      setErrorMsg('Vui lòng tìm và chọn một thửa đất cần hoán đổi ranh giới.');
       return;
     }
-    if (!reason.trim()) {
-      setErrorMsg('Vui lòng nhập lý do điều chuyển thửa để ghi nhận vào nhật ký kiểm toán.');
+    if (!reason.trim() || reason.trim().length < 5) {
+      setErrorMsg('Vui lòng nhập lý do hoán đổi ranh đất chi tiết (tối thiểu 5 ký tự) để lưu vết kiểm toán.');
       return;
     }
-
-    setIsSubmitting(true);
-    setErrorMsg('');
-    try {
-      const res = await api.post(`/admin/reports/${reportId}/reassign-parcel`, {
-        targetParcelId: cleanedTarget,
-        reason: reason.trim(),
-      });
-
-      if (res.data?.success) {
-        onSuccess(res.data.message || 'Đã điều chuyển hồ sơ sang thửa đất mới thành công');
-        onClose();
-      } else {
-        setErrorMsg(res.data?.message || 'Không thể điều chuyển thửa đất');
-      }
-    } catch (err: any) {
-      console.error('[AdminReassignParcelModal] Reassign error:', err);
-      setErrorMsg(
-        err.response?.data?.message ||
-        err.response?.data?.detail ||
-        'Lỗi điều chuyển thửa đất. Vui lòng kiểm tra lại mã thửa đích.'
-      );
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleSwapSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedReportBId) {
-      setErrorMsg('Vui lòng chọn hồ sơ B cần hoán đổi thửa.');
-      return;
-    }
-    if (!reason.trim()) {
-      setErrorMsg('Vui lòng nhập lý do hoán đổi để lưu vết nhật ký kiểm toán.');
+    if (!isChallengeValid) {
+      setErrorMsg('Vui lòng nhập chính xác mã xác nhận bảo mật 6 số trước khi thực hiện.');
       return;
     }
 
@@ -198,27 +151,33 @@ export const AdminReassignParcelModal: React.FC<Props> = ({
     try {
       const res = await api.post('/admin/reports/swap-parcels', {
         reportAId: reportId,
-        reportBId: selectedReportBId,
+        reportBId: selectedTargetParcel.report_id || undefined,
+        targetParcelId: selectedTargetParcel.parcel_id,
         reason: reason.trim(),
       });
 
       if (res.data?.success) {
-        onSuccess(res.data.message || 'Đã hoán đổi 2 thửa đất thành công');
+        onSuccess(
+          res.data.message ||
+            `Đã hoán đổi ranh GIS giữa [${currentParcelCode}] và [${selectedTargetParcel.project_parcel_code}] thành công.`
+        );
         onClose();
       } else {
         setErrorMsg(res.data?.message || 'Không thể hoán đổi thửa đất');
       }
     } catch (err: any) {
-      console.error('[AdminReassignParcelModal] Swap error:', err);
+      console.error('[AdminReassignParcelModal] Swap submission error:', err);
       setErrorMsg(
         err.response?.data?.message ||
-        err.response?.data?.detail ||
-        'Lỗi hoán đổi thửa đất. Vui lòng kiểm tra lại trạng thái 2 hồ sơ.'
+          err.response?.data?.detail ||
+          'Lỗi thực thi hoán đổi ranh đất GIS. Vui lòng kiểm tra lại trạng thái thửa đất.'
       );
     } finally {
       setIsSubmitting(false);
     }
   };
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
@@ -226,7 +185,7 @@ export const AdminReassignParcelModal: React.FC<Props> = ({
         {/* Header */}
         <div className="p-4 sm:p-5 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl bg-amber-100 text-amber-800">
+            <div className="p-2 rounded-xl bg-indigo-50 text-indigo-700 border border-indigo-100">
               <ArrowRightLeft className="w-5 h-5" />
             </div>
             <div>
@@ -234,7 +193,7 @@ export const AdminReassignParcelModal: React.FC<Props> = ({
                 Hoán Đổi Vị Trí Ranh Đất GIS (Zone Admin)
               </h3>
               <p className="text-xs text-slate-500">
-                Hoán đổi đa giác GIS — Bảo toàn 100% mã thửa, hồ sơ và watermark trên ảnh
+                Tráo đổi đa giác GIS — Bảo toàn 100% hồ sơ, mã thửa và dấu watermark ảnh
               </p>
             </div>
           </div>
@@ -247,58 +206,29 @@ export const AdminReassignParcelModal: React.FC<Props> = ({
           </button>
         </div>
 
-        {/* Tab switch */}
-        <div className="flex border-b border-slate-200 bg-slate-100/60 p-1">
-          <button
-            type="button"
-            onClick={() => {
-              setActiveMode('REASSIGN');
-              setErrorMsg('');
-            }}
-            className={`flex-1 py-2 text-xs font-black rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-              activeMode === 'REASSIGN'
-                ? 'bg-white text-slate-800 shadow-xs'
-                : 'text-slate-500 hover:text-slate-700'
-            }`}
-          >
-            <ArrowRight className="w-3.5 h-3.5" />
-            <span>1. Đổi Vị Trí Ranh Đến Thửa Đích</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setActiveMode('SWAP');
-              setErrorMsg('');
-            }}
-            className={`flex-1 py-2 text-xs font-black rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-              activeMode === 'SWAP'
-                ? 'bg-white text-slate-800 shadow-xs'
-                : 'text-slate-500 hover:text-slate-700'
-            }`}
-          >
-            <ArrowRightLeft className="w-3.5 h-3.5" />
-            <span>2. Hoán Đổi Ranh 2 Nhà Liền Kề</span>
-          </button>
-        </div>
-
         {/* Form Body */}
-        <div className="p-5 overflow-y-auto space-y-4">
+        <form onSubmit={handleSubmit} className="p-5 overflow-y-auto space-y-4">
           {/* Card Hồ Sơ Hiện Tại (Report A) */}
-          <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-1.5">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
-              Hồ Sơ Đang Chọn (Hồ Sơ A)
-            </span>
+          <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+                1. Hồ Sơ Đang Chọn (Thửa A)
+              </span>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-100">
+                Đang thẩm định
+              </span>
+            </div>
             <div className="flex items-center justify-between">
               <div>
-                <span className="text-sm font-black text-sky-700 font-mono">
+                <span className="text-sm font-black text-indigo-700 font-mono">
                   [{currentParcelCode}]
                 </span>
                 <span className="text-xs font-bold text-slate-700 ml-2">
                   {currentHouseNumber ? `Số ${currentHouseNumber}` : ''} {currentStreet || ''}
                 </span>
               </div>
-              <span className="text-[11px] text-slate-500">
-                KSV: {surveyorName || '---'}
+              <span className="text-[11px] text-slate-500 font-medium">
+                KSV: <strong className="text-slate-700">{surveyorName || '---'}</strong>
               </span>
             </div>
           </div>
@@ -310,259 +240,244 @@ export const AdminReassignParcelModal: React.FC<Props> = ({
             </div>
           )}
 
-          {/* Mode 1: REASSIGN */}
-          {activeMode === 'REASSIGN' && (
-            <form onSubmit={handleReassignSubmit} className="space-y-4">
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-700 block">
-                  Nhập Mã Dự Án Hoặc UUID Thửa Đích (Target Parcel):
-                </label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    required
-                    placeholder="Ví dụ: B-0042 hoặc paste UUID thửa đất..."
-                    value={targetParcelCodeOrId}
-                    onFocus={() => setIsInputFocused(true)}
-                    onChange={(e) => {
-                      setTargetParcelCodeOrId(e.target.value);
-                      setIsInputFocused(true);
+          {/* Ô Tìm Kiếm Thửa Đất Đích (Thửa B) */}
+          <div className="space-y-1.5 relative">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold text-slate-700 block">
+                2. Chọn Thửa Đất Cần Hoán Đổi Ranh GIS (Thửa B):
+              </label>
+              <span className="text-[11px] text-slate-400">
+                Tìm theo mã thửa, số nhà, đường, chủ hộ (không dấu)
+              </span>
+            </div>
+
+            <div className="relative">
+              <input
+                ref={searchInputRef}
+                type="text"
+                placeholder="Gõ mã thửa (vd: 0180), số nhà (vd: 658/1), tên đường (vd: cach mang)..."
+                value={selectedTargetParcel ? `[${selectedTargetParcel.project_parcel_code}] - Số ${selectedTargetParcel.house_number || '---'} ${selectedTargetParcel.street || ''}` : searchTerm}
+                onFocus={() => {
+                  if (selectedTargetParcel) {
+                    setSearchTerm(selectedTargetParcel.project_parcel_code);
+                  }
+                  setIsDropdownOpen(true);
+                }}
+                onChange={(e) => {
+                  setSelectedTargetParcel(null);
+                  setSearchTerm(e.target.value);
+                  setIsDropdownOpen(true);
+                }}
+                className="w-full pl-3 pr-10 py-2.5 text-xs font-bold text-slate-800 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
+              />
+              <div className="absolute right-2.5 top-2.5 flex items-center gap-1.5 text-slate-400">
+                {isLoadingCandidates ? (
+                  <Loader2 className="w-4 h-4 animate-spin text-indigo-600" />
+                ) : (
+                  <Search className="w-4 h-4" />
+                )}
+                {selectedTargetParcel && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedTargetParcel(null);
+                      setSearchTerm('');
+                      setIsDropdownOpen(true);
+                      searchInputRef.current?.focus();
                     }}
-                    className="w-full pl-3 pr-8 py-2 text-xs font-bold text-slate-800 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 focus:outline-hidden uppercase"
-                  />
-                  <Search className="w-4 h-4 text-slate-400 absolute right-2.5 top-2.5 pointer-events-none" />
+                    className="hover:text-slate-600 p-0.5 cursor-pointer"
+                    title="Xóa lựa chọn"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Dropdown Gợi Ý Thửa Đất Thông Minh */}
+            {isDropdownOpen && (
+              <div
+                ref={dropdownRef}
+                className="absolute z-20 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl max-h-56 overflow-y-auto divide-y divide-slate-100"
+              >
+                <div className="px-3 py-1.5 bg-slate-50 flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase tracking-wider sticky top-0 border-b border-slate-100">
+                  <span>Ứng viên trong phân khu ({candidates.length} thửa):</span>
+                  <button
+                    type="button"
+                    onClick={() => setIsDropdownOpen(false)}
+                    className="text-slate-400 hover:text-slate-600 cursor-pointer"
+                  >
+                    Đóng ✕
+                  </button>
                 </div>
-                {isInputFocused && targetSuggestions.length > 0 && (
-                  <div className="p-1 rounded-xl bg-white border border-slate-300 shadow-xl space-y-1 max-h-56 overflow-y-auto">
-                    <div className="flex items-center justify-between px-2 py-0.5 text-[10px] font-bold text-slate-400 uppercase">
-                      <span>Gợi ý thửa đất trong phân khu ({targetSuggestions.length}):</span>
+
+                {candidates.length === 0 ? (
+                  <div className="p-4 text-center text-xs text-slate-500 italic">
+                    {isLoadingCandidates
+                      ? 'Đang tìm kiếm trong toàn bộ phân khu...'
+                      : 'Không tìm thấy thửa đất nào phù hợp với từ khóa.'}
+                  </div>
+                ) : (
+                  candidates.map((item) => {
+                    const isSurveyed = !!item.report_id;
+                    return (
                       <button
-                        type="button"
-                        onClick={() => setIsInputFocused(false)}
-                        className="text-slate-400 hover:text-slate-600 text-[10px]"
-                      >
-                        Đóng ✕
-                      </button>
-                    </div>
-                    {targetSuggestions.map((item) => (
-                      <button
-                        key={item.report_id || item.parcel_id}
+                        key={item.parcel_id}
                         type="button"
                         onClick={() => {
-                          setTargetParcelCodeOrId(item.project_parcel_code);
-                          setIsInputFocused(false);
+                          setSelectedTargetParcel(item);
+                          setIsDropdownOpen(false);
                         }}
-                        className="w-full text-left px-2.5 py-1.5 rounded-lg text-xs hover:bg-sky-50 transition-colors flex items-center justify-between cursor-pointer border border-transparent hover:border-sky-200"
+                        className="w-full text-left p-2.5 hover:bg-indigo-50/70 transition-colors flex items-center justify-between gap-3 cursor-pointer group"
                       >
-                        <span className="font-bold text-sky-800 font-mono">
-                          [{item.project_parcel_code}]
-                        </span>
-                        <span className="text-[11px] text-slate-600 truncate ml-2">
-                          {item.house_number ? `Số ${item.house_number}` : ''} {item.street || ''}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-                <div className="p-2.5 rounded-lg bg-sky-50 border border-sky-100 text-[11px] text-sky-900 space-y-1">
-                  <p className="font-semibold">
-                    ✓ Cơ chế Hoán Đổi Ranh Không Gian (Spatial Geometry Swap):
-                  </p>
-                  <p className="text-slate-600">
-                    Đa giác ranh thửa và toạ độ trên GIS sẽ được tráo đổi giữa thửa hiện tại [{currentParcelCode}] và thửa đích. Toàn bộ thông tin địa chính, hồ sơ khảo sát và watermark ảnh mang mã [{currentParcelCode}] được <strong>bảo toàn nguyên vẹn 100%</strong>, không bị xáo trộn mã ảnh.
-                  </p>
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-700 block">
-                  Lý Do Điều Chuyển Ranh Đất (Audit Log):
-                </label>
-                <textarea
-                  required
-                  rows={2}
-                  placeholder="Ví dụ: Hiện trường nhà số 125 Trần Não bị KSV tích nhầm vào polygon của thửa 28 bên cạnh. Hoán đổi ranh đất sang đúng thửa 29."
-                  value={reason}
-                  onChange={(e) => setReason(e.target.value)}
-                  className="w-full p-2.5 text-xs text-slate-800 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 focus:outline-hidden"
-                />
-              </div>
-
-              {/* Mã bảo mật 6 số bắt buộc */}
-              <AdminSecurityChallengeConfirm
-                actionDescription={`hoán đổi vị trí ranh đất GIS của thửa [${currentParcelCode}] sang thửa mới`}
-                onValidityChange={(isValid) => setIsReassignChallengeValid(isValid)}
-              />
-
-              <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
-                >
-                  Đóng
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting || !isReassignChallengeValid}
-                  className="px-4 py-2 rounded-xl text-xs font-black bg-sky-600 hover:bg-sky-700 text-white shadow-md shadow-sky-600/20 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                  <span>{isSubmitting ? 'Đang cập nhật...' : 'Xác Nhận Đổi Vị Trí Ranh Đất'}</span>
-                </button>
-              </div>
-            </form>
-          )}
-
-          {/* Mode 2: SWAP */}
-          {activeMode === 'SWAP' && (
-            <form onSubmit={handleSwapSubmit} className="space-y-4">
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold text-slate-700 block">
-                    Chọn Hồ Sơ B Để Hoán Đổi Chéo:
-                  </label>
-                  <span className="text-[11px] font-semibold text-slate-500">
-                    {isLoadingReports ? 'Đang tìm kiếm...' : `${candidatePool.length} hồ sơ khả dụng`}
-                  </span>
-                </div>
-
-                {/* Ô tìm kiếm nhanh cho SWAP */}
-                <div className="relative mb-1">
-                  <input
-                    type="text"
-                    placeholder="Tìm theo mã thửa, số nhà để lọc danh sách..."
-                    value={searchFilter}
-                    onChange={(e) => setSearchFilter(e.target.value)}
-                    className="w-full pl-3 pr-8 py-1.5 text-xs text-slate-800 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-hidden"
-                  />
-                  <Search className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-2" />
-                </div>
-
-                {/* DANH SÁCH THẺ GỢI Ý THÔNG MINH (THAY THẾ SELECT HOA MẮT) */}
-                <div className="p-1 rounded-xl bg-slate-50 border border-slate-200 max-h-48 overflow-y-auto space-y-1 custom-scrollbar">
-                  {swapFilteredCandidates.length === 0 ? (
-                    <div className="py-4 text-center text-xs text-slate-500">
-                      {isLoadingReports
-                        ? 'Đang tải danh sách hồ sơ...'
-                        : 'Không tìm thấy hồ sơ nào phù hợp với bộ lọc tìm kiếm.'}
-                    </div>
-                  ) : (
-                    swapFilteredCandidates.map((r) => {
-                      const isSelected = selectedReportBId === r.report_id;
-                      return (
-                        <button
-                          key={r.report_id}
-                          type="button"
-                          onClick={() => setSelectedReportBId(r.report_id)}
-                          className={`w-full text-left p-2 rounded-lg text-xs transition-all flex items-center justify-between cursor-pointer border ${
-                            isSelected
-                              ? 'bg-amber-50 border-amber-300 shadow-xs'
-                              : 'bg-white hover:bg-slate-100 border-slate-200/80 hover:border-slate-300'
-                          }`}
-                        >
+                        <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2">
-                            <span className={`font-mono font-bold ${isSelected ? 'text-amber-900' : 'text-slate-800'}`}>
-                              [{r.project_parcel_code}]
+                            <span className="text-xs font-mono font-black text-indigo-700 group-hover:text-indigo-900">
+                              [{item.project_parcel_code}]
                             </span>
-                            <span className="text-[11px] text-slate-600 truncate max-w-[220px]">
-                              {r.house_number ? `Số ${r.house_number}` : ''} {r.street || ''}
+                            <span className="text-xs font-bold text-slate-800 truncate">
+                              Số {item.house_number || '---'} {item.street || ''}
                             </span>
-                            {r.surveyor_name && (
-                              <span className="px-1.5 py-0.2 rounded text-[9px] font-medium bg-slate-100 text-slate-600">
-                                KSV: {r.surveyor_name}
+                          </div>
+                          <div className="flex items-center gap-3 text-[11px] text-slate-500 mt-0.5">
+                            {item.owner_name && (
+                              <span className="truncate flex items-center gap-1">
+                                <User className="w-3 h-3 text-slate-400" />
+                                {item.owner_name}
                               </span>
                             )}
+                            {item.land_area_m2 ? (
+                              <span>S: {item.land_area_m2} m²</span>
+                            ) : null}
                           </div>
-                          <div className="flex items-center gap-2">
-                            {isSelected && <CheckCircle2 className="w-4 h-4 text-amber-600 shrink-0" />}
-                          </div>
-                        </button>
-                      );
-                    })
-                  )}
-                </div>
-                {candidatePool.length === 0 && !isLoadingReports && (
-                  <p className="text-[11px] text-amber-700 mt-1">
-                    Chưa tìm thấy hồ sơ nào khác trong phân khu. Bạn có thể xóa bộ lọc tìm kiếm để xem tất cả.
-                  </p>
+                        </div>
+
+                        {/* Huy hiệu trạng thái */}
+                        <div className="shrink-0 text-right">
+                          {isSurveyed ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                              <CheckCircle2 className="w-3 h-3" />
+                              <span>Đã có hồ sơ</span>
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-slate-100 text-slate-600 border border-slate-200">
+                              <span>Chưa khảo sát</span>
+                            </span>
+                          )}
+                          {item.surveyor_name && (
+                            <span className="block text-[10px] text-slate-400 mt-0.5">
+                              KSV: {item.surveyor_name}
+                            </span>
+                          )}
+                        </div>
+                      </button>
+                    );
+                  })
                 )}
               </div>
+            )}
 
-              {/* Sơ đồ hoán đổi trực quan */}
-              {selectedReportB && (
-                <div className="p-3.5 rounded-xl bg-amber-50/70 border border-amber-200 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-bold text-amber-900 block">
-                      Sơ đồ hoán đổi ranh không gian GIS (Spatial Geometry Swap):
-                    </span>
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-200">
-                      Bảo toàn 100% Watermark
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 text-xs">
-                    <div className="p-2.5 bg-white rounded-lg border border-amber-200 space-y-1">
-                      <span className="text-[10px] text-slate-400 block font-bold">THỬA [{currentParcelCode}]:</span>
-                      <span className="text-[11px] text-slate-600 block">
-                        → Nhận vị trí ranh GIS của <strong className="text-amber-800">[{selectedReportB.project_parcel_code}]</strong>
-                      </span>
-                      <span className="text-[10px] text-emerald-700 block font-medium">
-                        ✓ Giữ nguyên mã [{currentParcelCode}] & watermark ảnh
-                      </span>
-                    </div>
-                    <div className="p-2.5 bg-white rounded-lg border border-amber-200 space-y-1">
-                      <span className="text-[10px] text-slate-400 block font-bold">THỬA [{selectedReportB.project_parcel_code}]:</span>
-                      <span className="text-[11px] text-slate-600 block">
-                        → Nhận vị trí ranh GIS của <strong className="text-amber-800">[{currentParcelCode}]</strong>
-                      </span>
-                      <span className="text-[10px] text-emerald-700 block font-medium">
-                        ✓ Giữ nguyên mã [{selectedReportB.project_parcel_code}] & watermark ảnh
-                      </span>
-                    </div>
-                  </div>
+            {/* Hộp Thông Báo Ngữ Cảnh Nghiệp Vụ Tự Động */}
+            {selectedTargetParcel && (
+              <div className="p-3 rounded-xl bg-indigo-50/80 border border-indigo-100 text-xs space-y-1.5 animate-in fade-in duration-150">
+                <div className="flex items-center gap-1.5 font-bold text-indigo-900">
+                  <Info className="w-4 h-4 text-indigo-600 shrink-0" />
+                  <span>
+                    {selectedTargetParcel.report_id
+                      ? '✓ Hoán đổi chéo 2 hồ sơ đã khảo sát (Swap)'
+                      : '✓ Chuyển hồ sơ sang thửa đích chưa khảo sát (Reassign)'}
+                  </span>
                 </div>
-              )}
-
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-700 block">
-                  Lý Do Hoán Đổi Ranh Đất (Audit Log):
-                </label>
-                <textarea
-                  required
-                  rows={2}
-                  placeholder="Ví dụ: KSV khảo sát hai nhà liền vách nhưng tích chéo ranh đất trên GIS. Cần hoán đổi lại đúng vị trí thực tế."
-                  value={reason}
-                  onChange={(e) => setReason(e.target.value)}
-                  className="w-full p-2.5 text-xs text-slate-800 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:outline-hidden"
-                />
+                <p className="text-[11px] text-slate-600 leading-relaxed">
+                  {selectedTargetParcel.report_id ? (
+                    <>
+                      Cả hai thửa <strong>[{currentParcelCode}]</strong> và{' '}
+                      <strong>[{selectedTargetParcel.project_parcel_code}]</strong> đều đã được khảo sát.
+                      Đa giác GIS của 2 nhà sẽ được <strong>tráo đổi cho nhau</strong> để đưa cả 2 về đúng
+                      vị trí hiện trạng thực tế. Toàn bộ chữ ký, hồ sơ và watermark ảnh của cả 2 nhà được
+                      bảo toàn nguyên vẹn 100%.
+                    </>
+                  ) : (
+                    <>
+                      Thửa đích <strong>[{selectedTargetParcel.project_parcel_code}]</strong> hiện chưa được khảo sát.
+                      Toàn bộ hồ sơ khảo sát và ảnh watermark của <strong>[{currentParcelCode}]</strong> sẽ chuyển sang
+                      vị trí tọa độ của thửa đích. Thửa đích sẽ nhận lại vị trí tọa độ cũ của{' '}
+                      <strong>[{currentParcelCode}]</strong> và tiếp tục ở trạng thái chưa khảo sát.
+                    </>
+                  )}
+                </p>
               </div>
+            )}
+          </div>
 
-              {/* Mã bảo mật 6 số bắt buộc */}
-              <AdminSecurityChallengeConfirm
-                actionDescription={`hoán đổi ranh đất không gian giữa 2 thửa [${currentParcelCode}] và [${selectedReportB?.project_parcel_code || 'được chọn'}]`}
-                onValidityChange={(isValid) => setIsSwapChallengeValid(isValid)}
-              />
+          {/* Sơ đồ hoán đổi trực quan 2 chiều */}
+          <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between text-xs">
+            <div className="flex-1 text-center">
+              <span className="text-[10px] font-bold text-slate-400 block uppercase">Thửa A (Hiện tại)</span>
+              <span className="font-mono font-black text-indigo-700 text-xs">[{currentParcelCode}]</span>
+              <span className="block text-[11px] text-slate-600 truncate">
+                {currentHouseNumber ? `Số ${currentHouseNumber}` : ''}
+              </span>
+            </div>
 
-              <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
-                >
-                  Đóng
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting || !selectedReportBId || !isSwapChallengeValid}
-                  className="px-4 py-2 rounded-xl text-xs font-black bg-amber-600 hover:bg-amber-700 text-white shadow-md shadow-amber-600/20 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <ArrowRightLeft className="w-3.5 h-3.5" />
-                  <span>{isSubmitting ? 'Đang hoán đổi...' : 'Xác Nhận Hoán Đổi Ranh GIS'}</span>
-                </button>
+            <div className="px-3 flex flex-col items-center justify-center shrink-0">
+              <div className="p-1.5 rounded-full bg-indigo-100 text-indigo-700">
+                <ArrowRightLeft className="w-4 h-4" />
               </div>
-            </form>
-          )}
-        </div>
+              <span className="text-[9px] font-bold text-indigo-600 mt-0.5">Hoán đổi GIS</span>
+            </div>
+
+            <div className="flex-1 text-center">
+              <span className="text-[10px] font-bold text-slate-400 block uppercase">Thửa B (Hoán đổi)</span>
+              <span className="font-mono font-black text-indigo-700 text-xs">
+                {selectedTargetParcel ? `[${selectedTargetParcel.project_parcel_code}]` : '[Chưa chọn]'}
+              </span>
+              <span className="block text-[11px] text-slate-600 truncate">
+                {selectedTargetParcel?.house_number ? `Số ${selectedTargetParcel.house_number}` : '---'}
+              </span>
+            </div>
+          </div>
+
+          {/* Lý do hoán đổi (Audit Log) */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-slate-700 block">
+              3. Lý Do Hoán Đổi Ranh Đất (Bắt buộc ghi nhận vào Nhật ký kiểm toán):
+            </label>
+            <textarea
+              required
+              rows={2}
+              placeholder="Ví dụ: KSV khảo sát thực tế nhà 658/1B nhưng tích nhầm polygon của thửa 658/1. Cần hoán đổi lại đúng hiện trạng thực tế..."
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              className="w-full p-2.5 text-xs text-slate-800 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
+            />
+          </div>
+
+          {/* Mã bảo mật 6 số bắt buộc */}
+          <AdminSecurityChallengeConfirm
+            actionDescription={`hoán đổi ranh đất GIS của thửa [${currentParcelCode}] sang thửa [${selectedTargetParcel?.project_parcel_code || 'được chọn'}]`}
+            onValidityChange={(isValid) => setIsChallengeValid(isValid)}
+          />
+
+          {/* Buttons Footer */}
+          <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+            >
+              Hủy Bỏ
+            </button>
+            <button
+              type="submit"
+              disabled={isSubmitting || !selectedTargetParcel || !isChallengeValid}
+              className="px-4 py-2 rounded-xl text-xs font-black bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-600/20 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              <span>{isSubmitting ? 'Đang thực thi...' : 'Xác Nhận Hoán Đổi Ranh GIS'}</span>
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );

@@ -138,18 +138,28 @@ export const CadastralSpatialSwapModal: React.FC<CadastralSpatialSwapModalProps>
     return Array.from(map.values());
   }, [activeParcel, adjacentCandidates, availableParcels]);
 
+const stripVietnameseTones = (str: string): string => {
+  return (str || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D')
+    .toLowerCase()
+    .trim();
+};
+
   // Tab 1: Autocomplete suggestions when typing in Target Parcel input
   const targetSuggestions = useMemo(() => {
-    const raw = targetParcelCodeOrId.replace(/[\[\]"'\\]/g, '').trim().toLowerCase();
+    const raw = stripVietnameseTones(targetParcelCodeOrId.replace(/[\[\]"'\\]/g, ''));
     if (!raw && !isInputFocused) return [];
 
     let list = candidatePool;
     if (raw) {
       list = candidatePool.filter((c) => {
-        const code = (c.project_parcel_code || '').toLowerCase();
-        const house = (c.house_number || '').toLowerCase();
-        const street = (c.street || '').toLowerCase();
-        const owner = (c.owner_name || '').toLowerCase();
+        const code = stripVietnameseTones(c.project_parcel_code || '');
+        const house = stripVietnameseTones(c.house_number || '');
+        const street = stripVietnameseTones(c.street || '');
+        const owner = stripVietnameseTones(c.owner_name || '');
         return code.includes(raw) || house.includes(raw) || street.includes(raw) || owner.includes(raw);
       });
     }
@@ -168,14 +178,14 @@ export const CadastralSpatialSwapModal: React.FC<CadastralSpatialSwapModalProps>
 
   // Tab 2: Filtered candidates for adjacent swap (Smart selector)
   const swapFilteredCandidates = useMemo(() => {
-    const raw = swapSearchFilter.trim().toLowerCase();
+    const raw = stripVietnameseTones(swapSearchFilter);
     let list = candidatePool;
     if (raw) {
       list = candidatePool.filter((c) => {
-        const code = (c.project_parcel_code || '').toLowerCase();
-        const house = (c.house_number || '').toLowerCase();
-        const street = (c.street || '').toLowerCase();
-        const owner = (c.owner_name || '').toLowerCase();
+        const code = stripVietnameseTones(c.project_parcel_code || '');
+        const house = stripVietnameseTones(c.house_number || '');
+        const street = stripVietnameseTones(c.street || '');
+        const owner = stripVietnameseTones(c.owner_name || '');
         return code.includes(raw) || house.includes(raw) || street.includes(raw) || owner.includes(raw);
       });
     }

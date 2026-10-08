@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, RefreshCw, Camera, AlertTriangle } from 'lucide-react';
+import { X, RefreshCw, Camera, AlertTriangle, Zap, ZapOff, Sparkles } from 'lucide-react';
 
 interface LiveCameraModalProps {
   isOpen: boolean;
@@ -19,6 +19,15 @@ interface LiveCameraModalProps {
   onWheel: (e: React.WheelEvent<HTMLDivElement>) => void;
   onVideoReady?: () => void;
   onDismissLoading?: () => void;
+  // Props mở rộng cho 0.5x và Flash
+  activeLensMode?: '0.5x' | '1.0x';
+  hasUltraWide?: boolean;
+  onSelectLensMode?: (mode: '0.5x' | '1.0x') => void;
+  isTorchOn?: boolean;
+  isTorchSupported?: boolean;
+  onToggleTorch?: () => void;
+  torchMessage?: string | null;
+  onDismissTorchMessage?: () => void;
 }
 
 export const LiveCameraModal: React.FC<LiveCameraModalProps> = ({
@@ -39,6 +48,14 @@ export const LiveCameraModal: React.FC<LiveCameraModalProps> = ({
   onWheel,
   onVideoReady,
   onDismissLoading,
+  activeLensMode = '1.0x',
+  hasUltraWide = false,
+  onSelectLensMode,
+  isTorchOn = false,
+  isTorchSupported = false,
+  onToggleTorch,
+  torchMessage,
+  onDismissTorchMessage,
 }) => {
   if (!isOpen) return null;
 
@@ -56,17 +73,19 @@ export const LiveCameraModal: React.FC<LiveCameraModalProps> = ({
         touchAction: 'none',
       }}
     >
-      {/* Top Bar: Đóng, Chỉ số Zoom (chạm để về 1.0x), Đổi camera */}
+      {/* Top Bar: Đóng, Nút chọn nhanh ống kính 0.5x / 1.0x / Zoom, Bật Flash, Đổi Camera */}
       <div
         style={{
           padding: '0.75rem 1rem',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          backgroundColor: 'rgba(0, 0, 0, 0.65)',
-          zIndex: 20,
+          backgroundColor: 'rgba(0, 0, 0, 0.75)',
+          zIndex: 30,
+          backdropFilter: 'blur(8px)',
         }}
       >
+        {/* Nút đóng camera */}
         <button
           type="button"
           onClick={onClose}
@@ -87,52 +106,184 @@ export const LiveCameraModal: React.FC<LiveCameraModalProps> = ({
           <X size={20} />
         </button>
 
-        {/* Floating Zoom Indicator - Chạm vào để về ngay 1.0x */}
-        <button
-          type="button"
-          onClick={onResetZoom}
+        {/* Center: Cụm nút chọn nhanh ống kính [ 0.5x | 1.0x | 2.0x ] */}
+        <div
           style={{
-            backgroundColor: zoomLevel > 1.0 ? 'rgba(16, 185, 129, 0.9)' : 'rgba(255, 255, 255, 0.15)',
-            color: '#ffffff',
-            border: 'none',
-            borderRadius: '9999px',
-            padding: '0.3rem 0.85rem',
-            fontSize: '0.85rem',
-            fontWeight: 800,
-            cursor: 'pointer',
             display: 'inline-flex',
             alignItems: 'center',
-            gap: '0.25rem',
-            boxShadow: '0 2px 4px rgba(0,0,0,0.3)',
+            backgroundColor: 'rgba(30, 41, 59, 0.85)',
+            borderRadius: '9999px',
+            padding: '3px',
+            border: '1px solid rgba(255, 255, 255, 0.2)',
+            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.4)',
           }}
-          title="Chạm để đưa về 1.0x"
         >
-          <span>{zoomLevel.toFixed(1)}x</span>
-        </button>
+          {/* Nút 0.5x Ultra-Wide */}
+          <button
+            type="button"
+            onClick={() => onSelectLensMode && onSelectLensMode('0.5x')}
+            style={{
+              padding: '0.25rem 0.65rem',
+              borderRadius: '9999px',
+              fontSize: '0.75rem',
+              fontWeight: 800,
+              backgroundColor: activeLensMode === '0.5x' || zoomLevel === 0.5 ? '#10b981' : 'transparent',
+              color: '#ffffff',
+              border: 'none',
+              cursor: 'pointer',
+              transition: 'all 0.15s ease',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '2px',
+            }}
+            title="Góc siêu rộng 0.5x (Chụm 2 ngón tay thu nhỏ để kích hoạt)"
+          >
+            <span>0.5x</span>
+            {hasUltraWide && (
+              <span style={{ fontSize: '9px', opacity: 0.85 }}>•</span>
+            )}
+          </button>
 
-        {/* Switch Camera trước/sau */}
-        <button
-          type="button"
-          onClick={onSwitchCamera}
-          style={{
-            background: 'rgba(255, 255, 255, 0.2)',
-            border: 'none',
-            borderRadius: '50%',
-            width: '40px',
-            height: '40px',
-            color: '#ffffff',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer',
-          }}
-          title="Đổi camera trước / sau"
-        >
-          <RefreshCw size={18} />
-        </button>
+          {/* Nút 1.0x Standard Wide */}
+          <button
+            type="button"
+            onClick={() => onSelectLensMode && onSelectLensMode('1.0x')}
+            style={{
+              padding: '0.25rem 0.65rem',
+              borderRadius: '9999px',
+              fontSize: '0.75rem',
+              fontWeight: 800,
+              backgroundColor: activeLensMode === '1.0x' && zoomLevel === 1.0 ? '#10b981' : 'transparent',
+              color: '#ffffff',
+              border: 'none',
+              cursor: 'pointer',
+              transition: 'all 0.15s ease',
+            }}
+            title="Ống kính chuẩn 1.0x"
+          >
+            1.0x
+          </button>
+
+          {/* Nút Zoom số (2.0x hoặc mức zoom hiện tại) */}
+          <button
+            type="button"
+            onClick={onResetZoom}
+            style={{
+              padding: '0.25rem 0.65rem',
+              borderRadius: '9999px',
+              fontSize: '0.75rem',
+              fontWeight: 800,
+              backgroundColor: zoomLevel > 1.0 ? '#0284c7' : 'transparent',
+              color: zoomLevel > 1.0 ? '#ffffff' : '#94a3b8',
+              border: 'none',
+              cursor: 'pointer',
+              transition: 'all 0.15s ease',
+            }}
+            title={zoomLevel > 1.0 ? 'Chạm để đưa về 1.0x' : 'Zoom 2.0x'}
+          >
+            {zoomLevel > 1.0 ? `${zoomLevel.toFixed(1)}x` : '2.0x'}
+          </button>
+        </div>
+
+        {/* Right Cluster: Bật Đèn Flash & Đổi Camera */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          {/* Nút Flash (Torch) */}
+          <button
+            type="button"
+            onClick={onToggleTorch}
+            style={{
+              background: isTorchOn ? '#facc15' : 'rgba(255, 255, 255, 0.2)',
+              border: isTorchOn ? '2px solid #eab308' : '1px solid rgba(255, 255, 255, 0.25)',
+              borderRadius: '50%',
+              width: '40px',
+              height: '40px',
+              color: isTorchOn ? '#0f172a' : '#ffffff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              boxShadow: isTorchOn ? '0 0 12px rgba(250, 204, 21, 0.8)' : 'none',
+              transition: 'all 0.15s ease',
+            }}
+            title={
+              isTorchSupported
+                ? isTorchOn
+                  ? 'Tắt đèn Flash LED'
+                  : 'Bật đèn Flash LED'
+                : 'Đèn Flash (Bấm để xem hướng dẫn)'
+            }
+          >
+            {isTorchOn ? <Zap size={18} fill="#0f172a" /> : <ZapOff size={18} />}
+          </button>
+
+          {/* Switch Camera trước/sau */}
+          <button
+            type="button"
+            onClick={onSwitchCamera}
+            style={{
+              background: 'rgba(255, 255, 255, 0.2)',
+              border: 'none',
+              borderRadius: '50%',
+              width: '40px',
+              height: '40px',
+              color: '#ffffff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+            }}
+            title="Đổi camera trước / sau"
+          >
+            <RefreshCw size={18} />
+          </button>
+        </div>
       </div>
 
-      {/* Viewfinder cảm ứng 2 ngón tay Pinch-to-zoom */}
+      {/* Thông báo hướng dẫn Flash trên iOS Safari nếu có */}
+      {torchMessage && (
+        <div
+          style={{
+            position: 'absolute',
+            top: '64px',
+            left: '12px',
+            right: '12px',
+            backgroundColor: 'rgba(15, 23, 42, 0.95)',
+            border: '1px solid #38bdf8',
+            borderRadius: '0.75rem',
+            padding: '0.65rem 0.85rem',
+            color: '#f8fafc',
+            fontSize: '0.75rem',
+            lineHeight: 1.4,
+            display: 'flex',
+            alignItems: 'flex-start',
+            justifyContent: 'space-between',
+            gap: '0.5rem',
+            zIndex: 40,
+            boxShadow: '0 4px 15px rgba(0,0,0,0.5)',
+            backdropFilter: 'blur(8px)',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.4rem' }}>
+            <AlertTriangle size={15} className="text-amber-400 shrink-0 mt-0.5" />
+            <span>{torchMessage}</span>
+          </div>
+          <button
+            type="button"
+            onClick={onDismissTorchMessage}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: '#94a3b8',
+              cursor: 'pointer',
+              padding: '2px',
+            }}
+          >
+            <X size={15} />
+          </button>
+        </div>
+      )}
+
+      {/* Viewfinder cảm ứng 2 ngón tay Pinch-to-zoom & chuyển 0.5x */}
       <div
         onTouchStart={onTouchStart}
         onTouchMove={onTouchMove}
@@ -161,7 +312,7 @@ export const LiveCameraModal: React.FC<LiveCameraModalProps> = ({
             width: '100%',
             height: '100%',
             objectFit: 'cover',
-            transform: `scale(${zoomLevel})`,
+            transform: zoomLevel > 1.0 ? `scale(${zoomLevel})` : 'scale(1)',
             transformOrigin: 'center center',
             transition: isPinching ? 'none' : 'transform 0.1s ease-out',
             display: cameraError ? 'none' : 'block',
@@ -240,7 +391,7 @@ export const LiveCameraModal: React.FC<LiveCameraModalProps> = ({
           </div>
         )}
 
-        {/* Khung hướng dẫn 4:3 và Gợi ý cử chỉ zoom 2 ngón tay */}
+        {/* Khung hướng dẫn 4:3 và Gợi ý cử chỉ pinch 0.5x */}
         {!cameraLoading && !cameraError && (
           <div
             style={{
@@ -264,22 +415,44 @@ export const LiveCameraModal: React.FC<LiveCameraModalProps> = ({
               }}
             />
 
+            {/* Floating Live Zoom Indicator */}
+            {activeLensMode === '0.5x' && (
+              <div
+                style={{
+                  marginTop: '0.5rem',
+                  backgroundColor: 'rgba(16, 185, 129, 0.9)',
+                  color: '#ffffff',
+                  fontSize: '0.72rem',
+                  fontWeight: 800,
+                  padding: '0.2rem 0.65rem',
+                  borderRadius: '9999px',
+                  boxShadow: '0 2px 6px rgba(0,0,0,0.4)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.25rem',
+                }}
+              >
+                <Sparkles size={11} />
+                <span>GÓC SIÊU RỘNG 0.5x</span>
+              </div>
+            )}
+
             <div
               style={{
                 marginTop: 'auto',
                 marginBottom: '0.5rem',
-                backgroundColor: 'rgba(0, 0, 0, 0.6)',
+                backgroundColor: 'rgba(0, 0, 0, 0.65)',
                 color: '#f8fafc',
                 fontSize: '0.72rem',
                 fontWeight: 600,
-                padding: '0.25rem 0.75rem',
+                padding: '0.25rem 0.85rem',
                 borderRadius: '9999px',
-                backdropFilter: 'blur(3px)',
+                backdropFilter: 'blur(4px)',
                 border: '1px solid rgba(255, 255, 255, 0.2)',
                 zIndex: 10,
               }}
             >
-              Chụm / mở 2 ngón tay để zoom
+              Chụm 2 ngón tay thu nhỏ để kích hoạt 0.5x | Mở để zoom
             </div>
           </div>
         )}
@@ -296,26 +469,30 @@ export const LiveCameraModal: React.FC<LiveCameraModalProps> = ({
           zIndex: 20,
         }}
       >
-        <button
-          type="button"
-          onClick={onTriggerNativeCamera}
-          title="Chuyển sang Máy ảnh hệ điều hành (12MP/48MP, có Flash & Macro)"
-          style={{
-            background: 'rgba(255,255,255,0.18)',
-            border: '1px solid rgba(255,255,255,0.25)',
-            borderRadius: '50%',
-            width: '44px',
-            height: '44px',
-            color: '#ffffff',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer',
-            backdropFilter: 'blur(4px)',
-          }}
-        >
-          <Camera size={20} />
-        </button>
+        {/* Nút mở Máy ảnh hệ thống (Native Camera - Mát máy ngoài trời) */}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px' }}>
+          <button
+            type="button"
+            onClick={onTriggerNativeCamera}
+            title="Chuyển sang Máy ảnh hệ điều hành (chống nóng máy, có Flash phần cứng)"
+            style={{
+              background: 'rgba(255,255,255,0.18)',
+              border: '1px solid rgba(255,255,255,0.25)',
+              borderRadius: '50%',
+              width: '46px',
+              height: '46px',
+              color: '#ffffff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              backdropFilter: 'blur(4px)',
+            }}
+          >
+            <Camera size={20} />
+          </button>
+          <span style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 600 }}>Cam gốc</span>
+        </div>
 
         {/* Shutter Button */}
         <button
@@ -323,8 +500,8 @@ export const LiveCameraModal: React.FC<LiveCameraModalProps> = ({
           onClick={onCaptureFrame}
           disabled={cameraLoading || !!cameraError}
           style={{
-            width: '72px',
-            height: '72px',
+            width: '74px',
+            height: '74px',
             borderRadius: '50%',
             backgroundColor: '#ffffff',
             border: '4px solid #10b981',
@@ -332,7 +509,7 @@ export const LiveCameraModal: React.FC<LiveCameraModalProps> = ({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            boxShadow: '0 0 18px rgba(16, 185, 129, 0.55)',
+            boxShadow: '0 0 20px rgba(16, 185, 129, 0.6)',
             transition: 'transform 0.1s ease',
           }}
           onPointerDown={(e) => (e.currentTarget.style.transform = 'scale(0.94)')}
@@ -340,15 +517,34 @@ export const LiveCameraModal: React.FC<LiveCameraModalProps> = ({
         >
           <div
             style={{
-              width: '56px',
-              height: '56px',
+              width: '58px',
+              height: '58px',
               borderRadius: '50%',
               backgroundColor: '#10b981',
             }}
           />
         </button>
 
-        <div style={{ width: '44px', height: '44px' }} />
+        {/* Lens badge góc phải */}
+        <div
+          style={{
+            width: '46px',
+            height: '46px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: activeLensMode === '0.5x' ? '#34d399' : '#94a3b8',
+            fontFamily: 'monospace',
+            fontWeight: 800,
+            fontSize: '0.8rem',
+            background: 'rgba(255,255,255,0.1)',
+            borderRadius: '50%',
+            border: '1px solid rgba(255,255,255,0.15)',
+          }}
+          title="Chế độ ống kính hiện tại"
+        >
+          {activeLensMode === '0.5x' ? '0.5x' : `${zoomLevel.toFixed(1)}x`}
+        </div>
       </div>
     </div>
   );

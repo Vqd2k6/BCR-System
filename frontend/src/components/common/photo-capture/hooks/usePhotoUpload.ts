@@ -262,9 +262,9 @@ export function usePhotoUpload({
   ): Promise<{ blobUrl: string; localId: string; blob: Blob; photoCode: string }> => {
     const photoCode = displayPhotoCode || generateMetroPhotoCode(effectiveWatermarkOptions || {});
     
-    // 1. Nén ảnh sạch 2048px @ 0.80 (< 60ms, dung lượng tối ưu ~500-750KB)
+    // 1. Nén ảnh sạch 2048px @ 0.95 (Chất lượng cực cao Near-Lossless, bảo toàn 100% độ nét vết nứt & vạch thước đo)
     const targetMaxDim = effectiveWatermarkOptions?.maxDimension || 2048;
-    const targetQuality = effectiveWatermarkOptions?.quality !== undefined ? effectiveWatermarkOptions.quality : 0.80;
+    const targetQuality = effectiveWatermarkOptions?.quality !== undefined ? effectiveWatermarkOptions.quality : 0.95;
 
     const cleanResult = await compressCleanImage(fileOrBlob, {
       maxDimension: targetMaxDim,
@@ -289,6 +289,29 @@ export function usePhotoUpload({
       blobUrl,
       localId,
       blob: cleanResult.blob,
+      photoCode,
+    };
+  };
+
+  /**
+   * Lưu ảnh trực tiếp đã được nén chuẩn từ LiveCamera (Tránh Double-Compression gây nóng máy)
+   */
+  const storePrecompressedPhoto = async (
+    blob: Blob,
+    overrideCode?: string
+  ): Promise<{ blobUrl: string; localId: string; blob: Blob; photoCode: string }> => {
+    const photoCode = overrideCode || displayPhotoCode || generateMetroPhotoCode(effectiveWatermarkOptions || {});
+    const localId = `photo_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    currentLocalIdRef.current = localId;
+
+    const { metadata } = extractPhotoDetails(photoCode);
+    await saveOfflinePhoto(localId, blob, photoCode, metadata);
+    const blobUrl = createManagedBlobUrl(localId, blob);
+
+    return {
+      blobUrl,
+      localId,
+      blob,
       photoCode,
     };
   };
@@ -448,6 +471,7 @@ export function usePhotoUpload({
     startDirectUpload,
     uploadToServer,
     processAndStoreCleanPhoto,
+    storePrecompressedPhoto,
     handleFileChange,
     handleClear,
     handleRotate90,

@@ -108,8 +108,9 @@ export class AuditService {
   static searchSwapCandidates(
     zoneId?: string,
     excludeReportId?: string,
-    search?: string
+    search?: string,
+    excludeParcelId?: string
   ) {
-    return AuditModificationService.searchSwapCandidates(zoneId, excludeReportId, search);
+    return AuditModificationService.searchSwapCandidates(zoneId, excludeReportId, search, excludeParcelId);
   }
 }

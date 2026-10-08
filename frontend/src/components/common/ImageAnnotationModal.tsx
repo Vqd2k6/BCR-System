@@ -11,6 +11,7 @@ import {
   X,
   Sparkles,
 } from 'lucide-react';
+import { resolveOfflinePhotoUrl, getSafeDisplayUrl } from '../../core/storage/offlinePhotoStorage';
 
 export interface ImageAnnotationModalProps {
   isOpen: boolean;
@@ -47,6 +48,7 @@ export const ImageAnnotationModal: React.FC<ImageAnnotationModalProps> = ({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [imageLoaded, setImageLoaded] = useState(false);
   const imageObjRef = useRef<HTMLImageElement | null>(null);
+  const [canvasDimensions, setCanvasDimensions] = useState<{ width: number; height: number }>({ width: 800, height: 600 });
 
   const [activeTool, setActiveTool] = useState<'ARROW' | 'PEN' | 'CIRCLE' | 'RECT' | 'TEXT'>(initialTool);
   const [selectedColor, setSelectedColor] = useState<string>('#ef4444');
@@ -56,24 +58,62 @@ export const ImageAnnotationModal: React.FC<ImageAnnotationModalProps> = ({
   const [annotations, setAnnotations] = useState<AnnotationType[]>([]);
   const [isDrawing, setIsDrawing] = useState(false);
   const [startPos, setStartPos] = useState<{ x: number; y: number } | null>(null);
-  const [currentPenPoints, setCurrentPenPoints] = useState<{ x: number; y: number }[]>([]);
+  const penPointsRef = useRef<{ x: number; y: number }[]>([]);
+  const rafIdRef = useRef<number | null>(null);
   const [previewPos, setPreviewPos] = useState<{ x: number; y: number } | null>(null);
 
-  // Load Image when modal opens
+  // Load Image when modal opens (hỗ trợ cả URL Cloud, Base64 và offline blob:local://)
   useEffect(() => {
     if (!isOpen || !imageUrl) return;
 
+    let isSubscribed = true;
     setImageLoaded(false);
     setAnnotations([]);
     setActiveTool(initialTool);
 
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => {
-      imageObjRef.current = img;
-      setImageLoaded(true);
+    const loadImage = (srcUrl: string) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        if (!isSubscribed) return;
+        imageObjRef.current = img;
+
+        const origW = img.naturalWidth || 800;
+        const origH = img.naturalHeight || 600;
+
+        // Bảo toàn 100% độ phân giải gốc của ảnh khảo sát (ngưỡng an toàn tối đa 4096px theo chuẩn GPU WebGL tránh crash Safari)
+        const MAX_SAFE_CANVAS_DIM = 4096;
+        let targetW = origW;
+        let targetH = origH;
+        if (origW > MAX_SAFE_CANVAS_DIM || origH > MAX_SAFE_CANVAS_DIM) {
+          if (origW > origH) {
+            targetH = Math.round((origH * MAX_SAFE_CANVAS_DIM) / origW);
+            targetW = MAX_SAFE_CANVAS_DIM;
+          } else {
+            targetW = Math.round((origW * MAX_SAFE_CANVAS_DIM) / origH);
+            targetH = MAX_SAFE_CANVAS_DIM;
+          }
+        }
+
+        setCanvasDimensions({ width: targetW, height: targetH });
+        setImageLoaded(true);
+      };
+      img.onerror = (err) => {
+        console.warn('[ImageAnnotationModal] Lỗi nạp ảnh:', err);
+      };
+      img.src = srcUrl;
     };
-    img.src = imageUrl;
+
+    resolveOfflinePhotoUrl(imageUrl).then((resolved) => {
+      if (!isSubscribed) return;
+      const targetUrl = resolved || getSafeDisplayUrl(imageUrl) || imageUrl;
+      loadImage(targetUrl);
+    });
+
+    return () => {
+      isSubscribed = false;
+      if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
+    };
   }, [isOpen, imageUrl, initialTool]);
 
   // Redraw Canvas whenever annotations or preview changes
@@ -94,20 +134,9 @@ export const ImageAnnotationModal: React.FC<ImageAnnotationModalProps> = ({
       drawSingleAnnotation(ctx, item);
     });
 
-    // Draw active drawing preview
+    // Draw active drawing preview (cho Arrow, Rect, Circle)
     if (isDrawing && startPos && previewPos) {
-      if (activeTool === 'PEN' && currentPenPoints.length > 1) {
-        ctx.beginPath();
-        ctx.strokeStyle = selectedColor;
-        ctx.lineWidth = lineWidth;
-        ctx.lineCap = 'round';
-        ctx.lineJoin = 'round';
-        ctx.moveTo(currentPenPoints[0].x, currentPenPoints[0].y);
-        for (let i = 1; i < currentPenPoints.length; i++) {
-          ctx.lineTo(currentPenPoints[i].x, currentPenPoints[i].y);
-        }
-        ctx.stroke();
-      } else if (activeTool === 'ARROW') {
+      if (activeTool === 'ARROW') {
         drawArrow(ctx, startPos.x, startPos.y, previewPos.x, previewPos.y, selectedColor, lineWidth);
       } else if (activeTool === 'RECT') {
         const x = Math.min(startPos.x, previewPos.x);
@@ -136,7 +165,7 @@ export const ImageAnnotationModal: React.FC<ImageAnnotationModalProps> = ({
     if (imageLoaded) {
       redraw();
     }
-  }, [imageLoaded, annotations, isDrawing, previewPos, currentPenPoints]);
+  }, [imageLoaded, annotations, isDrawing, previewPos]);
 
   const drawSingleAnnotation = (ctx: CanvasRenderingContext2D, item: AnnotationType) => {
     ctx.save();
@@ -270,37 +299,76 @@ export const ImageAnnotationModal: React.FC<ImageAnnotationModalProps> = ({
     setPreviewPos(coords);
 
     if (activeTool === 'PEN') {
-      setCurrentPenPoints([coords]);
+      penPointsRef.current = [coords];
     }
   };
 
   const handlePointerMove = (e: any) => {
     if (!isDrawing) return;
     const coords = getCanvasCoords(e);
-    setPreviewPos(coords);
 
     if (activeTool === 'PEN') {
-      setCurrentPenPoints((prev) => [...prev, coords]);
+      penPointsRef.current.push(coords);
+      // Vẽ trực tiếp đoạn nối nét vẽ ngay trên GPU (0% React re-render, cực mượt và máy mát lạnh)
+      const canvas = canvasRef.current;
+      if (canvas && penPointsRef.current.length >= 2) {
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          const prev = penPointsRef.current[penPointsRef.current.length - 2];
+          ctx.save();
+          ctx.beginPath();
+          ctx.strokeStyle = selectedColor;
+          ctx.lineWidth = lineWidth;
+          ctx.lineCap = 'round';
+          ctx.lineJoin = 'round';
+          ctx.moveTo(prev.x, prev.y);
+          ctx.lineTo(coords.x, coords.y);
+          ctx.stroke();
+          ctx.restore();
+        }
+      }
+    } else {
+      // Đối với ARROW, RECT, CIRCLE: Dùng requestAnimationFrame để throttle, chống nghẽn luồng
+      if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
+      rafIdRef.current = requestAnimationFrame(() => {
+        setPreviewPos(coords);
+      });
     }
   };
 
   const handlePointerUp = () => {
-    if (!isDrawing || !startPos || !previewPos) {
+    if (!isDrawing || !startPos) {
       setIsDrawing(false);
       return;
     }
 
-    if (activeTool === 'PEN' && currentPenPoints.length > 1) {
-      setAnnotations((prev) => [
-        ...prev,
-        {
-          type: 'PEN',
-          points: currentPenPoints,
-          color: selectedColor,
-          width: lineWidth,
-        },
-      ]);
-    } else if (activeTool === 'ARROW') {
+    if (activeTool === 'PEN') {
+      if (penPointsRef.current.length > 1) {
+        const savedPoints = [...penPointsRef.current];
+        penPointsRef.current = [];
+        setAnnotations((prev) => [
+          ...prev,
+          {
+            type: 'PEN',
+            points: savedPoints,
+            color: selectedColor,
+            width: lineWidth,
+          },
+        ]);
+      }
+      setIsDrawing(false);
+      setStartPos(null);
+      setPreviewPos(null);
+      return;
+    }
+
+    if (!previewPos) {
+      setIsDrawing(false);
+      setStartPos(null);
+      return;
+    }
+
+    if (activeTool === 'ARROW') {
       const dist = Math.hypot(previewPos.x - startPos.x, previewPos.y - startPos.y);
       if (dist > 10) {
         setAnnotations((prev) => [
@@ -336,9 +404,9 @@ export const ImageAnnotationModal: React.FC<ImageAnnotationModalProps> = ({
     } else if (activeTool === 'CIRCLE') {
       const rx = Math.abs(previewPos.x - startPos.x) / 2;
       const ry = Math.abs(previewPos.y - startPos.y) / 2;
-      const cx = Math.min(startPos.x, previewPos.x) + rx;
-      const cy = Math.min(startPos.y, previewPos.y) + ry;
       if (rx > 3 && ry > 3) {
+        const cx = Math.min(startPos.x, previewPos.x) + rx;
+        const cy = Math.min(startPos.y, previewPos.y) + ry;
         setAnnotations((prev) => [
           ...prev,
           {
@@ -357,7 +425,6 @@ export const ImageAnnotationModal: React.FC<ImageAnnotationModalProps> = ({
     setIsDrawing(false);
     setStartPos(null);
     setPreviewPos(null);
-    setCurrentPenPoints([]);
   };
 
   const handleUndo = () => {
@@ -371,7 +438,7 @@ export const ImageAnnotationModal: React.FC<ImageAnnotationModalProps> = ({
   const handleSave = () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const base64 = canvas.toDataURL('image/jpeg', 1.0);
+    const base64 = canvas.toDataURL('image/jpeg', 1.0); // 100% chất lượng gốc không suy hao theo đúng yêu cầu bảo toàn dữ liệu khảo sát
     onSave(base64);
     onClose();
   };
@@ -531,8 +598,8 @@ export const ImageAnnotationModal: React.FC<ImageAnnotationModalProps> = ({
           {imageObjRef.current && (
             <canvas
               ref={canvasRef}
-              width={imageObjRef.current.naturalWidth || 800}
-              height={imageObjRef.current.naturalHeight || 600}
+              width={canvasDimensions.width}
+              height={canvasDimensions.height}
               onMouseDown={handlePointerDown}
               onMouseMove={handlePointerMove}
               onMouseUp={handlePointerUp}

@@ -375,6 +375,43 @@ export class CadastralController {
     }
   }
 
+  /**
+   * Endpoint nắn chỉnh đa giác thửa đất (Cadastral Boundary Reshaping & Calibration)
+   * PUT /api/v1/parcels/:id/reshape-geometry
+   */
+  static async reshapeGeometry(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      const { coordinates, reason, updateFootprint } = req.body;
+
+      if (!id) {
+        throw new BadRequestError('Vui lòng cung cấp mã định danh thửa đất (id)');
+      }
+      if (!coordinates || !Array.isArray(coordinates) || coordinates.length < 3) {
+        throw new BadRequestError('Tọa độ đa giác nắn chỉnh không hợp lệ: phải có tối thiểu 3 đỉnh [lat, lng]');
+      }
+      if (!reason || !reason.trim()) {
+        throw new BadRequestError('Vui lòng nhập lý do nắn chỉnh ranh giới thửa đất');
+      }
+
+      const adminId = req.user!.userId;
+      const clientIp = req.ip || req.socket.remoteAddress;
+
+      const result = await CadastralService.reshapeParcelGeometry(
+        id,
+        coordinates,
+        adminId,
+        reason,
+        updateFootprint !== false,
+        clientIp
+      );
+
+      res.status(200).json(result);
+    } catch (error) {
+      next(error);
+    }
+  }
+
   static async getParcelMutationHistory(req: Request, res: Response, next: NextFunction) {
     try {
       const { id } = req.params;
