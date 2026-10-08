@@ -11,6 +11,7 @@ import {
   X,
   Sparkles,
 } from 'lucide-react';
+import { resolveOfflinePhotoUrl, getSafeDisplayUrl } from '../../core/storage/offlinePhotoStorage';
 
 export interface ImageAnnotationModalProps {
   isOpen: boolean;
@@ -59,21 +60,38 @@ export const ImageAnnotationModal: React.FC<ImageAnnotationModalProps> = ({
   const [currentPenPoints, setCurrentPenPoints] = useState<{ x: number; y: number }[]>([]);
   const [previewPos, setPreviewPos] = useState<{ x: number; y: number } | null>(null);
 
-  // Load Image when modal opens
+  // Load Image when modal opens (hỗ trợ cả URL Cloud, Base64 và offline blob:local://)
   useEffect(() => {
     if (!isOpen || !imageUrl) return;
 
+    let isSubscribed = true;
     setImageLoaded(false);
     setAnnotations([]);
     setActiveTool(initialTool);
 
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => {
-      imageObjRef.current = img;
-      setImageLoaded(true);
+    const loadImage = (srcUrl: string) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        if (!isSubscribed) return;
+        imageObjRef.current = img;
+        setImageLoaded(true);
+      };
+      img.onerror = (err) => {
+        console.warn('[ImageAnnotationModal] Lỗi nạp ảnh:', err);
+      };
+      img.src = srcUrl;
     };
-    img.src = imageUrl;
+
+    resolveOfflinePhotoUrl(imageUrl).then((resolved) => {
+      if (!isSubscribed) return;
+      const targetUrl = resolved || getSafeDisplayUrl(imageUrl) || imageUrl;
+      loadImage(targetUrl);
+    });
+
+    return () => {
+      isSubscribed = false;
+    };
   }, [isOpen, imageUrl, initialTool]);
 
   // Redraw Canvas whenever annotations or preview changes

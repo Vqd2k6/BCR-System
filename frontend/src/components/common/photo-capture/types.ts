@@ -20,6 +20,8 @@ export interface PhotoCaptureProps {
   annotationTitle?: string;
   initialAnnotationTool?: 'ARROW' | 'PEN' | 'CIRCLE' | 'RECT' | 'TEXT';
   readOnly?: boolean;
+  allowPdf?: boolean;
+  pdfFloorName?: string;
 }
 
 export type UploadStatus = 'IDLE' | 'UPLOADING' | 'SUCCESS' | 'ERROR';

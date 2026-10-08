@@ -30,18 +30,8 @@
             });
           }
         } catch (e) {
-          console.warn('[Report] Canvas rotateCadImage fallback:', e);
-          if (box) {
-            box.querySelectorAll('.cad-pin-marker').forEach(function(marker) {
-              var left = parseFloat(marker.style.left);
-              var top = parseFloat(marker.style.top);
-              if (!isNaN(left) && !isNaN(top)) {
-                marker.style.left = (100 - top).toFixed(2) + '%';
-                marker.style.top = left.toFixed(2) + '%';
-              }
-            });
-          }
-          img.style.transform = 'rotate(90deg)';
+          console.warn('[Report] Canvas rotateCadImage failed:', e);
+          // Không áp dụng img.style.transform = 'rotate(90deg)' vì làm sai lệch bounding box và vị trí ghim
         }
       }
 
@@ -120,7 +110,11 @@
         var jobs = [];
         document.querySelectorAll('img.photo-conv-cad-portrait').forEach(function(img) {
           jobs.push(whenLoaded(img).then(function() {
-            if (img.naturalWidth > img.naturalHeight) rotateCadImage(img);
+            // Chỉ xoay 90° ảnh CAD khi nằm trong lưới song song 2 cột (.cad-map-dual-grid)
+            // để nén vừa khổ dọc hẹp; với sơ đồ CAD đơn khổ rộng (full-width), giữ nguyên tỉ lệ gốc
+            if (img.naturalWidth > img.naturalHeight && img.closest('.cad-map-dual-grid')) {
+              rotateCadImage(img);
+            }
           }));
         });
         document.querySelectorAll('.photo-card-img-wrapper, .room-photo-wrapper, .defect-photo-wrapper').forEach(function(wrapper) {

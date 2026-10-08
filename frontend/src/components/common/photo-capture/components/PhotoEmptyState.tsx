@@ -9,6 +9,7 @@ interface PhotoEmptyStateProps {
   galleryInputId: string;
   onTriggerCapture: () => void;
   readOnly?: boolean;
+  allowPdf?: boolean;
 }
 
 export const PhotoEmptyState: React.FC<PhotoEmptyStateProps> = ({
@@ -19,6 +20,7 @@ export const PhotoEmptyState: React.FC<PhotoEmptyStateProps> = ({
   galleryInputId,
   onTriggerCapture,
   readOnly = false,
+  allowPdf = false,
 }) => {
   const isCompact = typeof height === 'number' ? height <= 125 : parseInt(String(height), 10) <= 125;
 
@@ -114,10 +116,10 @@ export const PhotoEmptyState: React.FC<PhotoEmptyStateProps> = ({
             whiteSpace: 'nowrap',
             transition: 'all 0.15s ease',
           }}
-          title="Chọn ảnh đã chụp sẵn từ thư viện thiết bị"
+          title={allowPdf ? 'Chọn ảnh sơ đồ hoặc file PDF bản vẽ thiết kế/hoàn công' : 'Chọn ảnh đã chụp sẵn từ thư viện thiết bị'}
         >
           <ImageIcon size={isCompact ? 13 : 14} color="#64748b" />
-          <span>{isCompact ? 'Chọn ảnh' : 'Chọn từ máy'}</span>
+          <span>{allowPdf ? (isCompact ? 'Ảnh / PDF' : 'Tải ảnh / PDF') : isCompact ? 'Chọn ảnh' : 'Chọn từ máy'}</span>
         </label>
       </div>
       )}

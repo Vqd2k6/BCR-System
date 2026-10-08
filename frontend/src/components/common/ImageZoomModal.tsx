@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { X, ZoomIn, ZoomOut, RotateCw, Maximize2, Loader2 } from 'lucide-react';
+import { X, ZoomIn, ZoomOut, RotateCw, Maximize2, Loader2, PenTool } from 'lucide-react';
 import { resolveOfflinePhotoUrl, getSafeDisplayUrl } from '../../core/storage/offlinePhotoStorage';
 
 interface Props {
@@ -8,6 +8,7 @@ interface Props {
   title?: string;
   photoCode?: string;
   onClose: () => void;
+  onAnnotate?: () => void;
 }
 
 export const ImageZoomModal: React.FC<Props> = ({
@@ -16,6 +17,7 @@ export const ImageZoomModal: React.FC<Props> = ({
   title = 'Soi nét chi tiết ảnh hiện trường',
   photoCode,
   onClose,
+  onAnnotate,
 }) => {
   const [scale, setScale] = useState(1);
   const [position, setPosition] = useState({ x: 0, y: 0 });
@@ -168,6 +170,20 @@ export const ImageZoomModal: React.FC<Props> = ({
 
         {/* Zoom & Transform Controls */}
         <div className="flex items-center gap-1.5 sm:gap-2">
+          {onAnnotate && (
+            <button
+              type="button"
+              onClick={() => {
+                onClose();
+                onAnnotate();
+              }}
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold shadow-md transition-colors mr-1 sm:mr-2 cursor-pointer"
+              title="Vẽ & Đánh dấu lên ảnh này"
+            >
+              <PenTool className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Vẽ đánh dấu</span>
+            </button>
+          )}
           <div className="px-2.5 py-1 rounded-lg bg-slate-800 text-xs font-mono font-bold text-sky-400 border border-slate-700">
             {Math.round(scale * 100)}%
           </div>

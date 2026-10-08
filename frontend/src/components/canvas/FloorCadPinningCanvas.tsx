@@ -4,6 +4,9 @@ import { PhotoCaptureInput } from '../common/PhotoCaptureInput';
 import { ImageZoomModal } from '../common/ImageZoomModal';
 import { resolveOfflinePhotoUrl, getSafeDisplayUrl } from '../../core/storage/offlinePhotoStorage';
 
+import { useInteractiveCanvasZoom } from './useInteractiveCanvasZoom';
+import { CanvasZoomToolbar } from './CanvasZoomToolbar';
+
 export interface CadZonePin {
   id: string;
   zoneCode: string; // Z-01 hoặc E-01
@@ -65,15 +68,35 @@ export const FloorCadPinningCanvas: React.FC<Props> = ({
   cadTitle,
   readOnly = false,
 }) => {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const tightBoxRef = useRef<HTMLDivElement>(null);
   const [selectedPinIndex, setSelectedPinIndex] = useState<number | null>(null);
   const [isAddingPin, setIsAddingPin] = useState<boolean>(true); // Default to pin mode for quick marking
   const [showPins, setShowPins] = useState<boolean>(true); // Toggle eye visibility
   const [draggingPinIndex, setDraggingPinIndex] = useState<number | null>(null);
   const [safeCadUrl, setSafeCadUrl] = useState<string>(() => getSafeDisplayUrl(cadPhotoUrl));
   const [isZoomOpen, setIsZoomOpen] = useState(false);
+  const [isImageLoaded, setIsImageLoaded] = useState(false);
   const dragMovedRef = useRef<boolean>(false);
+
+  // Hook Zoom & Pan Tương tác Bất biến Tọa độ
+  const {
+    zoomScale,
+    containerRef,
+    tightBoxRef,
+    handleZoomIn,
+    handleZoomOut,
+    handleResetZoom,
+    handleSetZoomPreset,
+    handleWheel,
+    handleTouchStart,
+    handleTouchMove,
+    handleTouchEnd,
+    startPan,
+    updatePan,
+    endPan,
+    calculateNormalizedCoords,
+    transformStyle,
+    pinCounterScale,
+  } = useInteractiveCanvasZoom();
 
   React.useEffect(() => {
     let isSubscribed = true;
@@ -102,21 +125,38 @@ export const FloorCadPinningCanvas: React.FC<Props> = ({
   const nextCode = getNextAvailablePinCode(pins, prefix);
 
   const handleTightBoxPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (draggingPinIndex === null || readOnly || !tightBoxRef.current) return;
-    dragMovedRef.current = true;
-    const rect = tightBoxRef.current.getBoundingClientRect();
-    const x = Math.max(1, Math.min(99, parseFloat((((e.clientX - rect.left) / rect.width) * 100).toFixed(2))));
-    const y = Math.max(1, Math.min(99, parseFloat((((e.clientY - rect.top) / rect.height) * 100).toFixed(2))));
+    if (draggingPinIndex !== null && !readOnly) {
+      dragMovedRef.current = true;
+      const coords = calculateNormalizedCoords(e.clientX, e.clientY);
+      if (!coords) return;
 
-    const updated = [...pins];
-    if (updated[draggingPinIndex]) {
-      updated[draggingPinIndex] = {
-        ...updated[draggingPinIndex],
-        pinX: x,
-        pinY: y,
-      };
-      onChangePins(updated);
+      const updated = [...pins];
+      if (updated[draggingPinIndex]) {
+        updated[draggingPinIndex] = {
+          ...updated[draggingPinIndex],
+          pinX: coords.x,
+          pinY: coords.y,
+        };
+        onChangePins(updated);
+      }
+      return;
     }
+
+    // Nếu không kéo pin và không ở chế độ thêm ghim -> hỗ trợ kéo rê (Pan) ảnh
+    if (!isAddingPin) {
+      updatePan(e.clientX, e.clientY);
+    }
+  };
+
+  const handleTightBoxPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isAddingPin && draggingPinIndex === null) {
+      startPan(e.clientX, e.clientY);
+    }
+  };
+
+  const handleTightBoxPointerUp = () => {
+    setDraggingPinIndex(null);
+    endPan();
   };
 
   const handleTightBoxClick = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -124,18 +164,17 @@ export const FloorCadPinningCanvas: React.FC<Props> = ({
       dragMovedRef.current = false;
       return;
     }
-    if (readOnly || !isAddingPin || !tightBoxRef.current || !cadPhotoUrl) return;
+    if (readOnly || !isAddingPin || !cadPhotoUrl) return;
 
-    const rect = tightBoxRef.current.getBoundingClientRect();
-    const x = Math.max(1, Math.min(99, parseFloat((((e.clientX - rect.left) / rect.width) * 100).toFixed(2))));
-    const y = Math.max(1, Math.min(99, parseFloat((((e.clientY - rect.top) / rect.height) * 100).toFixed(2))));
+    const coords = calculateNormalizedCoords(e.clientX, e.clientY);
+    if (!coords) return;
 
     const newPinCode = getNextAvailablePinCode(pins, prefix);
     const newPin: CadZonePin = {
       id: `pin-${prefix.toLowerCase()}-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
       zoneCode: newPinCode,
-      pinX: x,
-      pinY: y,
+      pinX: coords.x,
+      pinY: coords.y,
       label: newPinCode,
       type: mode,
     };
@@ -210,6 +249,8 @@ export const FloorCadPinningCanvas: React.FC<Props> = ({
             photoIndex: 1,
           }}
           height="160px"
+          allowPdf={true}
+          pdfFloorName={floorName}
         />
       ) : (
         <div className="flex flex-col gap-2.5">
@@ -311,6 +352,10 @@ export const FloorCadPinningCanvas: React.FC<Props> = ({
           {/* Interactive CAD Canvas - Clean Light Theme */}
           <div
             ref={containerRef}
+            onWheel={handleWheel}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
             className={`relative w-full min-h-[320px] max-h-[560px] rounded-xl overflow-hidden bg-slate-100 border border-slate-300 select-none shadow-inner flex items-center justify-center p-1 sm:p-2 ${
               isAddingPin ? 'ring-2 ring-emerald-500/30' : ''
             }`}
@@ -357,15 +402,18 @@ export const FloorCadPinningCanvas: React.FC<Props> = ({
               <div
                 ref={tightBoxRef}
                 onClick={handleTightBoxClick}
+                onPointerDown={handleTightBoxPointerDown}
                 onPointerMove={handleTightBoxPointerMove}
-                onPointerUp={() => setDraggingPinIndex(null)}
+                onPointerUp={handleTightBoxPointerUp}
+                style={transformStyle}
                 className={`relative inline-block max-w-full leading-none mx-auto select-none touch-none ${
-                  isAddingPin ? 'cursor-crosshair' : 'cursor-default'
+                  isAddingPin ? 'cursor-crosshair' : 'cursor-grab'
                 }`}
               >
                 <img
                   src={safeCadUrl || getSafeDisplayUrl(cadPhotoUrl)}
                   alt={`CAD Plan ${floorName}`}
+                  onLoad={() => setIsImageLoaded(true)}
                   className="max-w-full max-h-[520px] w-auto h-auto block mx-auto pointer-events-none select-none shadow-sm"
                 />
 
@@ -405,10 +453,10 @@ export const FloorCadPinningCanvas: React.FC<Props> = ({
                         top: `${pin.pinY}%`,
                         left: `${pin.pinX}%`,
                         transform: isDragging
-                          ? 'translate(-50%, -100%) scale(1.2)'
+                          ? `translate(-50%, -100%) scale(${(1.2 * pinCounterScale).toFixed(3)})`
                           : isSelected
-                          ? 'translate(-50%, -100%) scale(1.05)'
-                          : 'translate(-50%, -100%)',
+                          ? `translate(-50%, -100%) scale(${(1.05 * pinCounterScale).toFixed(3)})`
+                          : `translate(-50%, -100%) scale(${pinCounterScale.toFixed(3)})`,
                         cursor: readOnly ? 'default' : isDragging ? 'grabbing' : 'grab',
                         zIndex: isDragging ? 50 : isSelected ? 35 : 20,
                         display: 'flex',
@@ -459,6 +507,20 @@ export const FloorCadPinningCanvas: React.FC<Props> = ({
               <div className="w-full min-h-[320px] flex items-center justify-center text-slate-400 text-xs">
                 Đang nạp sơ đồ CAD...
               </div>
+            )}
+
+            {/* Bottom-left Interactive Zoom & Pan Toolbar */}
+            {Boolean(safeCadUrl || cadPhotoUrl) && (
+              <CanvasZoomToolbar
+                zoomScale={zoomScale}
+                onZoomIn={handleZoomIn}
+                onZoomOut={handleZoomOut}
+                onResetZoom={handleResetZoom}
+                onSelectPreset={handleSetZoomPreset}
+                isPinMode={isAddingPin}
+                onTogglePinMode={() => setIsAddingPin(!isAddingPin)}
+                pinModeLabel="Chấm ghim"
+              />
             )}
           </div>
 
