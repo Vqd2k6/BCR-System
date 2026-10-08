@@ -266,6 +266,8 @@ export class Database {
           ADD COLUMN IF NOT EXISTS cad_polygon JSONB,
           ADD COLUMN IF NOT EXISTS unit_cad_url TEXT,
           ADD COLUMN IF NOT EXISTS resident_status VARCHAR(32) DEFAULT 'CHỦ_HỘ_Ở';
+
+        CREATE INDEX IF NOT EXISTS idx_building_units_floor_plan ON building_units(floor_plan_id);
       `);
       console.log('✅ [STARTUP MIGRATION] building_units, floor_plans & report hierarchy ready.');
     } catch (e) {
