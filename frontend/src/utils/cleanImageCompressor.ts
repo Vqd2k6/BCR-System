@@ -12,7 +12,7 @@
 
 export interface CleanCompressionOptions {
   maxDimension?: number; // Mặc định: 2048px (2K)
-  quality?: number;      // Mặc định: 0.80 (80% cân bằng dung lượng & độ nét)
+  quality?: number;      // Mặc định: 0.88 (Nâng cao độ sắc nét vạch đo mm và chi tiết nứt)
   mimeType?: string;     // Mặc định: 'image/jpeg'
 }
 
@@ -27,7 +27,7 @@ export interface CleanCompressionResult {
 }
 
 const DEFAULT_MAX_DIMENSION = 2048; // 2K chuẩn di động
-const DEFAULT_QUALITY = 0.80;       // 80% cân bằng tối ưu dung lượng & độ nét vạch đo mm
+const DEFAULT_QUALITY = 0.95;       // 95% chất lượng cực cao (Near-Lossless), bảo toàn 100% độ sắc nét chi tiết khảo sát
 
 /**
  * Đọc File/Blob nguồn thành HTMLImageElement để đo kích thước và vẽ

@@ -50,8 +50,16 @@ export function useLiveCamera({
 
   const isSwitchingLensRef = useRef<boolean>(false);
   const torchTimeoutRef = useRef<any>(null);
+  const torchThermalTimerRef = useRef<any>(null);
+  const isPausedByVisibilityRef = useRef<boolean>(false);
 
   const stopLiveCamera = () => {
+    // Xóa bộ đếm an toàn nhiệt cho Flash
+    if (torchThermalTimerRef.current) {
+      clearTimeout(torchThermalTimerRef.current);
+      torchThermalTimerRef.current = null;
+    }
+
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((track) => {
         try {
@@ -198,8 +206,9 @@ export function useLiveCamera({
           stream = await navigator.mediaDevices.getUserMedia({
             video: {
               deviceId: { exact: targetDeviceId },
-              width: { ideal: 2048 },
-              height: { ideal: 1536 },
+              width: { ideal: 2048, max: 2560 },
+              height: { ideal: 1536, max: 1920 },
+              frameRate: { ideal: 24, max: 30 }, // Giới hạn 24-30 FPS để bảo vệ GPU và chống nóng máy
             },
             audio: false,
           });
@@ -214,8 +223,9 @@ export function useLiveCamera({
           stream = await navigator.mediaDevices.getUserMedia({
             video: {
               facingMode: { ideal: facingMode },
-              width: { ideal: 2048 },
-              height: { ideal: 1536 },
+              width: { ideal: 2048, max: 2560 },
+              height: { ideal: 1536, max: 1920 },
+              frameRate: { ideal: 24, max: 30 }, // Giới hạn 24-30 FPS để hạ nhiệt phần cứng
             },
             audio: false,
           });
@@ -227,13 +237,16 @@ export function useLiveCamera({
                 facingMode: facingMode === 'environment' ? { ideal: 'environment' } : 'user',
                 width: { ideal: 1920 },
                 height: { ideal: 1080 },
+                frameRate: { ideal: 24, max: 30 },
               },
               audio: false,
             });
           } catch (secondErr) {
             console.warn('[LiveCamera] Ràng buộc 1080p không được hỗ trợ, dùng fallback cơ bản:', secondErr);
             stream = await navigator.mediaDevices.getUserMedia({
-              video: true,
+              video: {
+                frameRate: { ideal: 24, max: 30 },
+              },
               audio: false,
             });
           }
@@ -337,6 +350,30 @@ export function useLiveCamera({
         advanced: [{ torch: nextState }],
       });
       setIsTorchOn(nextState);
+
+      // Quản lý bộ đếm bảo vệ nhiệt độ cho đèn Flash LED
+      if (torchThermalTimerRef.current) {
+        clearTimeout(torchThermalTimerRef.current);
+        torchThermalTimerRef.current = null;
+      }
+
+      if (nextState) {
+        // Tự động ngắt sau 45 giây liên tục để tránh quá nhiệt LED & pin
+        torchThermalTimerRef.current = setTimeout(async () => {
+          try {
+            const currentTrack = streamRef.current?.getVideoTracks()[0];
+            if (currentTrack) {
+              await (currentTrack as any).applyConstraints({
+                advanced: [{ torch: false }],
+              });
+            }
+          } catch (_) {}
+          setIsTorchOn(false);
+          setTorchMessage('Đèn Flash đã tự tắt sau 45s để hạ nhiệt thiết bị. Bấm lại nếu cần tiếp tục soi sáng.');
+          if (torchTimeoutRef.current) clearTimeout(torchTimeoutRef.current);
+          torchTimeoutRef.current = setTimeout(() => setTorchMessage(null), 5000);
+        }, 45000);
+      }
     } catch (err) {
       console.warn('[LiveCamera] Lỗi điều khiển đèn flash:', err);
       setTorchMessage('Không thể bật đèn flash trên thiết bị này.');
@@ -372,6 +409,48 @@ export function useLiveCamera({
     }
     return () => {
       stopLiveCamera();
+    };
+  }, [isLiveCameraOpen, facingMode]);
+
+  // Ngắt camera khi tắt màn hình (khóa máy) hoặc chuyển ứng dụng để chống Zombie Stream gây nóng máy trong túi quần
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        if (streamRef.current && isLiveCameraOpen) {
+          isPausedByVisibilityRef.current = true;
+          if (streamRef.current) {
+            streamRef.current.getTracks().forEach((track) => {
+              try {
+                track.stop();
+              } catch (_) {}
+            });
+            streamRef.current = null;
+          }
+          setMediaStream(null);
+          setIsTorchOn(false);
+          if (videoRef.current) {
+            videoRef.current.srcObject = null;
+          }
+        }
+      } else {
+        if (isPausedByVisibilityRef.current && isLiveCameraOpen) {
+          isPausedByVisibilityRef.current = false;
+          startLiveCamera();
+        }
+      }
+    };
+
+    const handlePageHide = () => {
+      if (streamRef.current) {
+        stopLiveCamera();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('pagehide', handlePageHide);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('pagehide', handlePageHide);
     };
   }, [isLiveCameraOpen, facingMode]);
 
@@ -511,7 +590,7 @@ export function useLiveCamera({
           }
         },
         'image/jpeg',
-        0.85
+        0.95 // Chất lượng 95% cực cao (Near-Lossless), bảo toàn 100% độ sắc nét chi tiết khảo sát
       );
     } catch (_err) {
       console.warn('[PhotoCaptureInput] Lỗi khi chụp khung hình camera trực tiếp:', _err);

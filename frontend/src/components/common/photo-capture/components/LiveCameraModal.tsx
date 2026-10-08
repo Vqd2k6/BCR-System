@@ -469,27 +469,30 @@ export const LiveCameraModal: React.FC<LiveCameraModalProps> = ({
           zIndex: 20,
         }}
       >
-        {/* Nút mở Máy ảnh hệ thống (Native Camera) */}
-        <button
-          type="button"
-          onClick={onTriggerNativeCamera}
-          title="Chuyển sang Máy ảnh hệ điều hành (12MP/48MP, có Flash phần cứng & Macro)"
-          style={{
-            background: 'rgba(255,255,255,0.18)',
-            border: '1px solid rgba(255,255,255,0.25)',
-            borderRadius: '50%',
-            width: '46px',
-            height: '46px',
-            color: '#ffffff',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer',
-            backdropFilter: 'blur(4px)',
-          }}
-        >
-          <Camera size={20} />
-        </button>
+        {/* Nút mở Máy ảnh hệ thống (Native Camera - Mát máy ngoài trời) */}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px' }}>
+          <button
+            type="button"
+            onClick={onTriggerNativeCamera}
+            title="Chuyển sang Máy ảnh hệ điều hành (chống nóng máy, có Flash phần cứng)"
+            style={{
+              background: 'rgba(255,255,255,0.18)',
+              border: '1px solid rgba(255,255,255,0.25)',
+              borderRadius: '50%',
+              width: '46px',
+              height: '46px',
+              color: '#ffffff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              backdropFilter: 'blur(4px)',
+            }}
+          >
+            <Camera size={20} />
+          </button>
+          <span style={{ fontSize: '10px', color: '#94a3b8', fontWeight: 600 }}>Cam gốc</span>
+        </div>
 
         {/* Shutter Button */}
         <button

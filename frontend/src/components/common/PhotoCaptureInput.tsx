@@ -95,6 +95,7 @@ export const PhotoCaptureInput: React.FC<PhotoCaptureProps> = ({
     startDirectUpload,
     uploadToServer,
     processAndStoreCleanPhoto,
+    storePrecompressedPhoto,
     handleFileChange,
     handleClear,
     handleRotate90,
@@ -144,7 +145,8 @@ export const PhotoCaptureInput: React.FC<PhotoCaptureProps> = ({
     cameraInputId,
     onSuccessCapture: async ({ blob, photoCode }) => {
       try {
-        const { blobUrl, localId } = await processAndStoreCleanPhoto(blob);
+        // Lưu trực tiếp blob đã nén chất lượng cao từ LiveCamera, không nén kép 2 lần
+        const { blobUrl, localId } = await storePrecompressedPhoto(blob, photoCode);
         setLocalPreview(blobUrl);
         const localUri = `blob:local://${localId}`;
         onChange(localUri, photoCode);
