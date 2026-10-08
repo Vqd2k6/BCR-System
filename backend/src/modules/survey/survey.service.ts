@@ -29,7 +29,7 @@ export class SurveyService {
     let reportCode = `REPORT-${projectCode}-PHASE1-${Date.now()}`;
 
     if (unitId) {
-      actualReportType = 'UNIT_CHILD';
+      actualReportType = reportType || 'CONDO_UNIT';
       const unitRes = await Database.query<{ unit_code: string }>(
         `SELECT unit_code FROM building_units WHERE id = $1;`,
         [unitId]

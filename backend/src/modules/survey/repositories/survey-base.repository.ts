@@ -232,38 +232,51 @@ export class SurveyBaseRepository {
         ]
       );
 
-      // Cập nhật thông tin thực tế hiện trường vào bảng parcels
-      await client.query(
-        `UPDATE parcels
-         SET house_number = COALESCE($1, house_number),
-             street = COALESCE($2, street),
-             owner_name = COALESCE($3, owner_name),
-             owner_phone = COALESCE($4, owner_phone),
-             construction_area_m2 = COALESCE($5, construction_area_m2),
-             survey_status = 'SUBMITTED', 
-             updated_at = NOW()
-         WHERE id = (SELECT parcel_id FROM base_survey_reports WHERE id = $6);`,
-        [
-          submitData.houseNumber || null,
-          submitData.street || null,
-          submitData.ownerName || null,
-          submitData.ownerPhone || null,
-          submitData.constructionAreaM2 !== undefined && submitData.constructionAreaM2 !== null && submitData.constructionAreaM2 !== '' ? Number(submitData.constructionAreaM2) : null,
-          reportId,
-        ]
+      // Phân tách nghiệp vụ cập nhật: Căn hộ con độc lập vs Khối tháp Master / Nhà riêng lẻ
+      const reportRow = await client.query<{ unit_id: string | null; report_type: string }>(
+        `SELECT unit_id, report_type FROM base_survey_reports WHERE id = $1;`,
+        [reportId]
       );
+      const isChildUnit = Boolean(reportRow.rows[0]?.unit_id) || reportRow.rows[0]?.report_type === 'CONDO_UNIT' || reportRow.rows[0]?.report_type === 'UNIT_CHILD';
 
-      // Nếu là căn hộ con thuộc chung cư (có unit_id), cập nhật luôn thông tin chủ căn hộ vào bảng building_units
-      if (submitData.ownerName || submitData.ownerPhone) {
+      if (!isChildUnit) {
+        // Chỉ cập nhật bảng parcels khi là Master hoặc Standalone (Không ghi đè dữ liệu tòa mẹ khi nộp căn con)
+        await client.query(
+          `UPDATE parcels
+           SET house_number = COALESCE($1, house_number),
+               street = COALESCE($2, street),
+               owner_name = COALESCE($3, owner_name),
+               owner_phone = COALESCE($4, owner_phone),
+               construction_area_m2 = COALESCE($5, construction_area_m2),
+               survey_status = 'SUBMITTED', 
+               updated_at = NOW()
+           WHERE id = (SELECT parcel_id FROM base_survey_reports WHERE id = $6);`,
+          [
+            submitData.houseNumber || null,
+            submitData.street || null,
+            submitData.ownerName || null,
+            submitData.ownerPhone || null,
+            submitData.constructionAreaM2 !== undefined && submitData.constructionAreaM2 !== null && submitData.constructionAreaM2 !== '' ? Number(submitData.constructionAreaM2) : null,
+            reportId,
+          ]
+        );
+      } else {
+        // Căn hộ con: Cập nhật thông tin chủ hộ, CCCD, trạng thái cư trú và chuyển status sang 'SUBMITTED'
         await client.query(
           `UPDATE building_units
            SET owner_name = COALESCE($1, owner_name),
                owner_phone = COALESCE($2, owner_phone),
+               owner_id_card = COALESCE($3, owner_id_card),
+               resident_status = COALESCE($4, resident_status),
+               status = 'SUBMITTED',
+               phase1_report_id = $5,
                updated_at = NOW()
-           WHERE id = (SELECT unit_id FROM base_survey_reports WHERE id = $3 AND unit_id IS NOT NULL);`,
+           WHERE id = (SELECT unit_id FROM base_survey_reports WHERE id = $5 AND unit_id IS NOT NULL);`,
           [
             submitData.ownerName || null,
             submitData.ownerPhone || null,
+            submitData.ownerIdCard || null,
+            submitData.residentStatus || null,
             reportId,
           ]
         );

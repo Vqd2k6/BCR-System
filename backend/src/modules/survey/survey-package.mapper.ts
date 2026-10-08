@@ -144,6 +144,8 @@ export class SurveyPackageMapper {
       street: surveyData?.street,
       ownerName: surveyData?.ownerName || surveyData?.signatures?.ownerRepresentative?.fullName || null,
       ownerPhone: surveyData?.ownerPhone || null,
+      ownerIdCard: surveyData?.ownerIdCard || surveyData?.ownerId || null,
+      residentStatus: surveyData?.residentStatus || null,
       constructionAreaM2: surveyData?.constructionAreaM2 !== '' && surveyData?.constructionAreaM2 !== undefined ? Number(surveyData.constructionAreaM2) : null,
       surveyDataJson: surveyData || null,
     };

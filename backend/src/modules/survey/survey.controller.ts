@@ -196,7 +196,7 @@ export class SurveyController {
 
   static async submitPhase1FullPackage(req: Request, res: Response, next: NextFunction) {
     try {
-      const { parcelId, unitId, surveyData } = req.body;
+      const { parcelId, unitId, surveyData, reportType: rawReportType } = req.body;
       if (!parcelId) {
         throw new BadRequestError('parcelId là bắt buộc');
       }
@@ -222,12 +222,20 @@ export class SurveyController {
         }
       }
 
+      // Chuẩn hóa loại hình báo cáo: BUILDING_MASTER, CONDO_UNIT, hoặc STANDALONE
+      const resolvedReportType =
+        rawReportType === 'BUILDING_MASTER'
+          ? 'BUILDING_MASTER'
+          : (rawReportType === 'CONDO_UNIT' || rawReportType === 'UNIT_CHILD' || cleanUnitId)
+            ? 'CONDO_UNIT'
+            : 'STANDALONE';
+
       // Khởi tạo report nếu chưa có
       const initResult = await SurveyService.createPhase1Report(
         parcelId,
         surveyorId,
         cleanUnitId || undefined,
-        cleanUnitId ? 'UNIT_CHILD' : 'STANDALONE'
+        resolvedReportType
       );
       const reportId = initResult.reportId;
 
