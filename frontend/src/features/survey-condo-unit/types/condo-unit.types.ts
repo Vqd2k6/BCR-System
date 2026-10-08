@@ -1,13 +1,15 @@
-import { GisParcel, BuildingUnit } from '../../../core/types/domain.types';
-
 export interface UnitDefectItem {
   id: string;
+  defectCode?: string; // D-01, D-02...
+  pinX?: number; // 0..100% on CAD
+  pinY?: number; // 0..100% on CAD
   location: string; // VD: Tường phòng khách, Góc cửa sổ phòng ngủ, Dầm trần bếp
   type: 'CRACK' | 'WATER_LEAKAGE' | 'PEELING' | 'OTHER';
   crackWidthMm: number;
   crackLengthM: number;
   description: string;
   photoUrl: string;
+  hasScaleCard?: boolean;
 }
 
 export interface CondoUnitFormData {
@@ -26,25 +28,35 @@ export interface CondoUnitFormData {
   };
 
   // 2. Thông tin riêng của căn hộ con (OOP Child attributes)
-  unitCode: string; // VD: 'P.1204'
-  floorNumber: number; // Lầu 12
+  unitCode: string; // VD: '03.03'
+  floorNumber: number; // Lầu 3
   ownerName: string;
   ownerPhone: string;
   ownerIdCard: string;
+  residentStatus: 'CHỦ_HỘ_Ở' | 'CHO_THUÊ' | 'BỎ_TRỐNG_CHƯA_VỀ_Ở' | 'VẮNG_MẶT_KHÓA_CỬA';
   unitAreaM2: number | '';
-  bedroomCount: number | '';
-  balconyFacingMetro: 'YES' | 'NO' | 'UNKNOWN';
 
-  // Bộ ảnh nhận diện căn hộ con: chỉ cần P01 và P04 theo yêu cầu
-  photoP01: { url: string; notApplicable: boolean }; // Cửa chính căn hộ từ hành lang
-  photoP04: { url: string; notApplicable: boolean }; // Toàn cảnh không gian chính / phòng khách
+  // Bộ ảnh nhận diện căn hộ con: P01 biển số phòng & P04 tổng quan cửa + lối đi hành lang
+  photoP01: { url: string; photoCode?: string; notApplicable: boolean };
+  photoP04: { url: string; photoCode?: string; notApplicable: boolean };
 
   // Thiết bị & Hoạt động nhạy cảm riêng tại căn hộ
   hasSensitiveEquipment: boolean;
   sensitiveEquipmentDesc: string;
+  interiorRenovationHistory?: { hasRenovated: boolean; description?: string };
 
-  // 3. Khuyết tật và lún nứt riêng của căn con
+  // 3. Bản vẽ CAD riêng của căn & Khuyết tật nứt, thấm trần, kẹt cửa
+  unitCadUrl?: string;
+  cadBbox?: { x: number; y: number; width: number; height: number } | null;
+  cadPolygon?: { x: number; y: number }[] | null;
   localDefects: UnitDefectItem[];
+  upperFloorWaterLeakage: {
+    has: boolean;
+    location?: string;
+    description?: string;
+    photoUrl?: string;
+  };
+  doorJammingStatus: 'NORMAL' | 'JAMMED' | 'RUBBING_FLOOR' | 'CRACKED_GLASS';
   settlementObserved: 'NONE' | 'SLIGHT' | 'NOTICEABLE' | 'SEVERE';
   settlementNotes: string;
 
@@ -53,4 +65,5 @@ export interface CondoUnitFormData {
   ownerSignature: string;
   ownerFeedback: string;
   surveyDate: string;
+  workingMinutesPhotos?: string[];
 }

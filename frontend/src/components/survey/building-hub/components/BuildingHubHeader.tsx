@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowLeft, Building2 } from 'lucide-react';
+import { ArrowLeft, Building2, Layers } from 'lucide-react';
 import { GisParcel } from '../../../gis/LeafletSweepMap';
 
 interface BuildingHubHeaderProps {
@@ -7,6 +7,7 @@ interface BuildingHubHeaderProps {
   isHeaderVisible: boolean;
   onClose: () => void;
   onOpenMasterView: () => void;
+  onOpenCadManagement?: () => void;
 }
 
 export const BuildingHubHeader: React.FC<BuildingHubHeaderProps> = ({
@@ -14,6 +15,7 @@ export const BuildingHubHeader: React.FC<BuildingHubHeaderProps> = ({
   isHeaderVisible,
   onClose,
   onOpenMasterView,
+  onOpenCadManagement,
 }) => {
   return (
     <header
@@ -50,8 +52,19 @@ export const BuildingHubHeader: React.FC<BuildingHubHeaderProps> = ({
         </div>
       </div>
 
-      {/* Right: Icon-only "Hạng mục chung" Button */}
+      {/* Right: Actions */}
       <div className="flex items-center gap-2">
+        {onOpenCadManagement && (
+          <button
+            type="button"
+            onClick={onOpenCadManagement}
+            className="px-2.5 py-1.5 rounded-lg bg-teal-50 hover:bg-teal-100 active:bg-teal-200 border border-teal-200 text-teal-700 text-xs font-bold transition-all shadow-2xs flex items-center gap-1.5 cursor-pointer"
+            title="Quản lý bản vẽ CAD & Chia cắt ô căn hộ tầng"
+          >
+            <Layers size={16} className="text-teal-600" />
+            <span className="hidden sm:inline">Bản Vẽ CAD Tầng</span>
+          </button>
+        )}
         <button
           type="button"
           onClick={onOpenMasterView}

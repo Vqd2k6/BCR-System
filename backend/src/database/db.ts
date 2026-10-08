@@ -241,8 +241,33 @@ export class Database {
         CREATE INDEX IF NOT EXISTS idx_reports_unit ON base_survey_reports(unit_id);
         CREATE INDEX IF NOT EXISTS idx_reports_parent ON base_survey_reports(parent_report_id);
         CREATE INDEX IF NOT EXISTS idx_reports_type ON base_survey_reports(report_type);
+
+        -- 10.1 building_floor_plans & unit cad partition
+        CREATE TABLE IF NOT EXISTS building_floor_plans (
+            id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+            parcel_id UUID NOT NULL REFERENCES parcels(id) ON DELETE CASCADE,
+            floor_number INT NOT NULL,
+            floor_name VARCHAR(64) NOT NULL,
+            applicable_floors INT[] DEFAULT '{}',
+            cad_photo_url TEXT NOT NULL,
+            cad_photo_code VARCHAR(32),
+            image_width INT,
+            image_height INT,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            CONSTRAINT uq_parcel_floor_number UNIQUE (parcel_id, floor_number)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_floor_plans_parcel ON building_floor_plans(parcel_id);
+
+        ALTER TABLE building_units
+          ADD COLUMN IF NOT EXISTS floor_plan_id UUID REFERENCES building_floor_plans(id) ON DELETE SET NULL,
+          ADD COLUMN IF NOT EXISTS cad_bbox JSONB,
+          ADD COLUMN IF NOT EXISTS cad_polygon JSONB,
+          ADD COLUMN IF NOT EXISTS unit_cad_url TEXT,
+          ADD COLUMN IF NOT EXISTS resident_status VARCHAR(32) DEFAULT 'CHỦ_HỘ_Ở';
       `);
-      console.log('✅ [STARTUP MIGRATION] building_units & report hierarchy ready.');
+      console.log('✅ [STARTUP MIGRATION] building_units, floor_plans & report hierarchy ready.');
     } catch (e) {
       console.warn('⚠️ [STARTUP MIGRATION] building_units warning:', e);
     }

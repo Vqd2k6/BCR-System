@@ -372,6 +372,74 @@ export class CadastralService {
     };
   }
 
+  static async listFloorPlansForParcel(parcelId: string) {
+    const parcel = await CadastralRepository.findById(parcelId);
+    if (!parcel) {
+      throw new NotFoundError(`Không tìm thấy thửa đất với ID: ${parcelId}`);
+    }
+    const plans = await CadastralRepository.findFloorPlansByParcelId(parcelId);
+    return {
+      parcelId,
+      projectParcelCode: parcel.project_parcel_code,
+      plans,
+    };
+  }
+
+  static async getFloorPlanByFloor(parcelId: string, floorNumber: number) {
+    const plan = await CadastralRepository.findFloorPlanByFloor(parcelId, floorNumber);
+    const units = await CadastralRepository.findUnitsByParcelId(parcelId);
+    const floorUnits = units.filter((u) => u.floor_number === floorNumber);
+    return {
+      plan,
+      floorNumber,
+      units: floorUnits,
+    };
+  }
+
+  static async upsertFloorPlan(parcelId: string, data: {
+    floorNumber: number;
+    floorName: string;
+    applicableFloors?: number[];
+    cadPhotoUrl: string;
+    cadPhotoCode?: string;
+    imageWidth?: number;
+    imageHeight?: number;
+  }) {
+    const parcel = await CadastralRepository.findById(parcelId);
+    if (!parcel) {
+      throw new NotFoundError(`Không tìm thấy thửa đất với ID: ${parcelId}`);
+    }
+    const plan = await CadastralRepository.upsertFloorPlan({
+      parcelId,
+      ...data,
+    });
+    return {
+      message: `Đã lưu bản vẽ CAD mặt bằng ${data.floorName}`,
+      plan,
+    };
+  }
+
+  static async saveFloorPartitions(parcelId: string, data: {
+    floorNumber: number;
+    floorPlanId?: string | null;
+    partitions: { unitCode: string; floorNumber?: number; bbox?: any; polygon?: any; unitCadUrl?: string }[];
+  }) {
+    const parcel = await CadastralRepository.findById(parcelId);
+    if (!parcel) {
+      throw new NotFoundError(`Không tìm thấy thửa đất với ID: ${parcelId}`);
+    }
+    const units = await CadastralRepository.saveUnitPartitions(
+      parcelId,
+      data.floorNumber,
+      data.floorPlanId || null,
+      data.partitions
+    );
+    return {
+      message: `Đã lưu phân chia CAD cho ${units.length} căn hộ Tầng ${data.floorNumber}`,
+      units,
+    };
+  }
+
   // --- LỊCH SỬ BIẾN ĐỘNG (SUPER_ADMIN ONLY) ---
   static async getParcelMutationHistory(parcelId: string) {
     const { CadastralHistoryService } = await import('./services/cadastral-history.service');

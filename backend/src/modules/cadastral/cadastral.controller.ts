@@ -243,6 +243,79 @@ export class CadastralController {
     }
   }
 
+  static async getFloorPlans(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      const result = await CadastralService.listFloorPlansForParcel(id);
+      res.status(200).json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async getFloorPlanByFloor(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id, floor } = req.params;
+      const floorNum = parseInt(floor, 10);
+      const result = await CadastralService.getFloorPlanByFloor(id, floorNum);
+      res.status(200).json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async upsertFloorPlan(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      const { floorNumber, floorName, applicableFloors, cadPhotoUrl, cadPhotoCode, imageWidth, imageHeight } = req.body;
+      if (!floorNumber || !cadPhotoUrl) {
+        throw new BadRequestError('floorNumber và cadPhotoUrl là bắt buộc');
+      }
+      const result = await CadastralService.upsertFloorPlan(id, {
+        floorNumber: parseInt(floorNumber, 10),
+        floorName: floorName || `Tầng ${floorNumber}`,
+        applicableFloors,
+        cadPhotoUrl,
+        cadPhotoCode,
+        imageWidth,
+        imageHeight,
+      });
+      res.status(200).json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async saveFloorPartitions(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      const { floorNumber, floorPlanId, partitions } = req.body;
+      if (!floorNumber || !Array.isArray(partitions)) {
+        throw new BadRequestError('floorNumber và danh sách partitions (mảng) là bắt buộc');
+      }
+      const result = await CadastralService.saveFloorPartitions(id, {
+        floorNumber: parseInt(floorNumber, 10),
+        floorPlanId,
+        partitions,
+      });
+      res.status(200).json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   static async getNextHighRangeProjectCodes(req: Request, res: Response, next: NextFunction) {
     try {
       const count = req.query.count ? parseInt(req.query.count as string, 10) : 2;

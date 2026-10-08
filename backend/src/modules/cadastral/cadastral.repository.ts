@@ -48,6 +48,25 @@ export interface BuildingUnitEntity {
   status: string;
   phase1_report_id: string | null;
   phase2_report_id: string | null;
+  floor_plan_id?: string | null;
+  cad_bbox?: { x: number; y: number; width: number; height: number } | null;
+  cad_polygon?: { x: number; y: number }[] | null;
+  unit_cad_url?: string | null;
+  resident_status?: string | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface BuildingFloorPlanEntity {
+  id: string;
+  parcel_id: string;
+  floor_number: number;
+  floor_name: string;
+  applicable_floors: number[];
+  cad_photo_url: string;
+  cad_photo_code: string | null;
+  image_width: number | null;
+  image_height: number | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -496,6 +515,115 @@ export class CadastralRepository {
       [parcelId, buildingType, totalUnits !== undefined ? totalUnits : null]
     );
     return res.rows[0] || null;
+  }
+
+  static async findFloorPlansByParcelId(parcelId: string): Promise<BuildingFloorPlanEntity[]> {
+    const res = await Database.query<BuildingFloorPlanEntity>(
+      `SELECT * FROM building_floor_plans WHERE parcel_id = $1 ORDER BY floor_number ASC;`,
+      [parcelId]
+    );
+    return res.rows;
+  }
+
+  static async findFloorPlanByFloor(parcelId: string, floorNumber: number): Promise<BuildingFloorPlanEntity | null> {
+    const res = await Database.query<BuildingFloorPlanEntity>(
+      `SELECT * FROM building_floor_plans 
+       WHERE parcel_id = $1 AND (floor_number = $2 OR $2 = ANY(applicable_floors))
+       LIMIT 1;`,
+      [parcelId, floorNumber]
+    );
+    return res.rows[0] || null;
+  }
+
+  static async upsertFloorPlan(data: {
+    parcelId: string;
+    floorNumber: number;
+    floorName: string;
+    applicableFloors?: number[];
+    cadPhotoUrl: string;
+    cadPhotoCode?: string;
+    imageWidth?: number;
+    imageHeight?: number;
+  }): Promise<BuildingFloorPlanEntity> {
+    const applicable = data.applicableFloors && data.applicableFloors.length > 0 
+      ? data.applicableFloors 
+      : [data.floorNumber];
+
+    const res = await Database.query<BuildingFloorPlanEntity>(
+      `INSERT INTO building_floor_plans (
+        parcel_id, floor_number, floor_name, applicable_floors, cad_photo_url, cad_photo_code, image_width, image_height, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+      ON CONFLICT (parcel_id, floor_number) DO UPDATE SET
+        floor_name = EXCLUDED.floor_name,
+        applicable_floors = EXCLUDED.applicable_floors,
+        cad_photo_url = EXCLUDED.cad_photo_url,
+        cad_photo_code = EXCLUDED.cad_photo_code,
+        image_width = EXCLUDED.image_width,
+        image_height = EXCLUDED.image_height,
+        updated_at = NOW()
+      RETURNING *;`,
+      [
+        data.parcelId,
+        data.floorNumber,
+        data.floorName,
+        applicable,
+        data.cadPhotoUrl,
+        data.cadPhotoCode || null,
+        data.imageWidth || null,
+        data.imageHeight || null,
+      ]
+    );
+    return res.rows[0];
+  }
+
+  static async saveUnitPartitions(
+    parcelId: string,
+    floorNumber: number,
+    floorPlanId: string | null,
+    partitions: { unitCode: string; floorNumber?: number; bbox?: any; polygon?: any; unitCadUrl?: string }[]
+  ): Promise<BuildingUnitEntity[]> {
+    const savedUnits: BuildingUnitEntity[] = [];
+
+    for (const part of partitions) {
+      const uFloor = part.floorNumber !== undefined ? part.floorNumber : floorNumber;
+      const res = await Database.query<BuildingUnitEntity>(
+        `INSERT INTO building_units (
+          parcel_id, unit_code, floor_number, floor_plan_id, cad_bbox, cad_polygon, unit_cad_url, updated_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+        ON CONFLICT (parcel_id, unit_code) DO UPDATE SET
+          floor_number = EXCLUDED.floor_number,
+          floor_plan_id = COALESCE(EXCLUDED.floor_plan_id, building_units.floor_plan_id),
+          cad_bbox = COALESCE(EXCLUDED.cad_bbox, building_units.cad_bbox),
+          cad_polygon = COALESCE(EXCLUDED.cad_polygon, building_units.cad_polygon),
+          unit_cad_url = COALESCE(EXCLUDED.unit_cad_url, building_units.unit_cad_url),
+          updated_at = NOW()
+        RETURNING *;`,
+        [
+          parcelId,
+          part.unitCode,
+          uFloor,
+          floorPlanId,
+          part.bbox ? JSON.stringify(part.bbox) : null,
+          part.polygon ? JSON.stringify(part.polygon) : null,
+          part.unitCadUrl || null,
+        ]
+      );
+      if (res.rows[0]) {
+        savedUnits.push(res.rows[0]);
+      }
+    }
+
+    // Cập nhật total_units và building_type = 'CONDOMINIUM'
+    await Database.query(
+      `UPDATE parcels 
+       SET total_units = (SELECT COUNT(*) FROM building_units WHERE parcel_id = $1),
+           building_type = 'CONDOMINIUM',
+           updated_at = NOW()
+       WHERE id = $1;`,
+      [parcelId]
+    );
+
+    return savedUnits;
   }
 
   static async getAbsenceLogsForParcel(parcelId: string): Promise<any[]> {

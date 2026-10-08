@@ -110,11 +110,84 @@ CREATE INDEX IF NOT EXISTS idx_reports_parent ON base_survey_reports(parent_repo
 CREATE INDEX IF NOT EXISTS idx_reports_type ON base_survey_reports(report_type);
 ```
 
+### 2.4. Bảng Mặt Bằng Tầng & Phân Chia CAD: `building_floor_plans`
+```sql
+CREATE TABLE IF NOT EXISTS building_floor_plans (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    parcel_id UUID NOT NULL REFERENCES parcels(id) ON DELETE CASCADE,
+    floor_number INT NOT NULL,                  -- Số tầng đại diện (VD: 3)
+    floor_name VARCHAR(64) NOT NULL,            -- VD: "Tầng 3" hoặc "Tầng điển hình 3-10"
+    applicable_floors INT[] DEFAULT '{}',       -- Danh sách các tầng áp dụng layout này (ARRAY[3,4,5,6,7,8])
+    cad_photo_url TEXT NOT NULL,                -- URL ảnh bản vẽ CAD mặt bằng tầng
+    cad_photo_code VARCHAR(32),                 -- Mã ảnh P_CAD_F03
+    image_width INT,                            -- Chiều rộng ảnh (px)
+    image_height INT,                           -- Chiều cao ảnh (px)
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT uq_parcel_floor_number UNIQUE (parcel_id, floor_number)
+);
+
+CREATE INDEX IF NOT EXISTS idx_floor_plans_parcel ON building_floor_plans(parcel_id);
+
+-- Mở rộng bảng building_units lưu thông tin phân chia CAD của từng căn
+ALTER TABLE building_units
+  ADD COLUMN IF NOT EXISTS floor_plan_id UUID REFERENCES building_floor_plans(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS cad_bbox JSONB,       -- Khung bao { x, y, width, height } (% tương đối)
+  ADD COLUMN IF NOT EXISTS cad_polygon JSONB,    -- Tọa độ đa giác [{x, y}, ...] cho căn góc
+  ADD COLUMN IF NOT EXISTS unit_cad_url TEXT,    -- URL ảnh bản vẽ CAD đã crop của riêng căn này
+  ADD COLUMN IF NOT EXISTS resident_status VARCHAR(32) DEFAULT 'CHỦ_HỘ_Ở';
+```
+
 ---
 
 ## 3. DANH MỤC API RESTFUL ĐIỀU PHỐI (API CONTRACTS)
 
-### 3.1. Nhóm API Quản Lý Căn Hộ Thuộc Tòa Nhà (Building Units API)
+### 3.1. Nhóm API Quản Lý Bản Vẽ Mặt Bằng Tầng & CAD Slicer (Floor Plans API)
+
+#### 1. Upload & lưu cấu hình bản vẽ CAD tầng
+* **Endpoint:** `POST /api/v1/parcels/:id/floor-plans`
+* **Quyền hạn:** `SURVEYOR`, `ZONE_ADMIN`, `SUPER_ADMIN`
+* **Payload:**
+```json
+{
+  "floorNumber": 3,
+  "floorName": "Tầng điển hình 3-8",
+  "applicableFloors": [3, 4, 5, 6, 7, 8],
+  "cadPhotoUrl": "https://.../cad_typical_floor_3_8.png",
+  "imageWidth": 2400,
+  "imageHeight": 1600
+}
+```
+
+#### 2. Lấy thông tin bản vẽ và danh sách ô phân chia căn hộ của tầng
+* **Endpoint:** `GET /api/v1/parcels/:id/floor-plans/:floor`
+* **Response (200 OK):** Trả về chi tiết `floorPlan` kèm danh sách căn hộ và tọa độ `cad_bbox` / `cad_polygon`.
+
+#### 3. Lưu danh sách phân chia ô căn hộ (CAD Slicer Partitions)
+* **Endpoint:** `POST /api/v1/parcels/:id/floor-plans/partitions`
+* **Payload:**
+```json
+{
+  "floorNumber": 3,
+  "partitions": [
+    {
+      "unitCode": "03.01",
+      "bbox": { "x": 10.5, "y": 20.0, "width": 15.0, "height": 18.0 },
+      "unitCadUrl": "https://.../cad_crop_03_01.png"
+    },
+    {
+      "unitCode": "03.02",
+      "bbox": { "x": 26.0, "y": 20.0, "width": 14.5, "height": 18.0 },
+      "unitCadUrl": "https://.../cad_crop_03_02.png"
+    }
+  ]
+}
+```
+* **Hành vi hệ thống:** Cập nhật tọa độ ô cắt vào `building_units`. Nếu căn hộ chưa tồn tại trong CSDL, hệ thống **tự động tạo mới bản ghi `building_units`** theo mã `mm.nn`!
+
+---
+
+### 3.2. Nhóm API Quản Lý Căn Hộ Thuộc Tòa Nhà (Building Units API)
 
 #### 1. Lấy danh sách căn hộ theo tòa nhà
 * **Endpoint:** `GET /api/v1/parcels/:id/units`

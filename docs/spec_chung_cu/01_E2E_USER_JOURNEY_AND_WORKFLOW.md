@@ -271,78 +271,53 @@ Khắc phục triệt để sự trùng lặp và lãng phí thời gian hiện 
 ---
 
 ### Chặng 4: Khảo Sát Từng Căn Hộ Con (Condo Child Unit Fast-Survey)
-Sau khi bấm "Khảo sát căn này" trên Building Hub, giao diện kích hoạt chế độ **Fast-Survey 7 bước**:
+Sau khi bấm "Khảo sát căn này" trên Building Hub, giao diện kích hoạt chế độ **Fast-Survey 4 bước siêu tốc (5 - 8 phút/căn)**:
 
 ```mermaid
 graph LR
-    S1["Bước 1: Xác Nhận<br/>Kế Thừa Tòa Mẹ"] --> S2["Bước 2: Thông Tin Căn,<br/>Phỏng Vấn & 4 Ảnh"]
-    S2 --> S3["Bước 3: Phân Phòng<br/>& Pinning CAD"]
-    S3 --> S4["Bước 4: Sổ Khuyết Tật<br/>& Burland 1977"]
-    S4 --> S5["Bước 5: Đánh Giá<br/>Kỹ Thuật ECS/VI"]
-    S5 --> S6["Bước 6: Cổng Kiểm Tra<br/>Completeness Gate"]
-    S6 --> S7["Bước 7: Ký Biên Bản<br/>Chủ Căn Hộ"]
+    S1["Bước 1: Kế Thừa Tòa Mẹ<br/>& Bộ 2 Ảnh (P01/P04)"] --> S2["Bước 2: Thông Số Căn<br/>& Thiết Bị Nhạy Cảm"]
+    S2 --> S3["Bước 3: 1-Click Import CAD<br/>& Ghim Nứt/Thấm Trần"]
+    S3 --> S4["Bước 4: Ký Xác Nhận<br/>Chủ Căn Hộ"]
 ```
 
-#### Bước 1: Xác Nhận Kế Thừa Dữ Liệu Tòa Mẹ (Parent Inheritance Confirmation)
-* Hiển thị bảng tổng kết read-only: Mã quản lý dự án mẹ, địa chỉ tòa nhà, lý trình tuyến Metro, cự ly tim hầm Metro, hệ móng cọc, độ nghiêng tổng thể tòa nhà.
-* Surveyor đối soát nhanh thông tin và nhấn nút xác nhận để sang Bước 2 (không nhập lại các trường này).
+#### Bước 1: Xác Nhận Kế Thừa Dữ Liệu Tòa Mẹ & Bộ 2 Ảnh Nhận Diện
+* **Bảng tổng kết read-only:** Mã dự án cha (`B-XXXXX-YYY`), tên tòa nhà, địa chỉ số nhà, lý trình Metro, cự ly hầm Metro, hệ móng cọc, cấp rủi ro BRA của tòa nhà. KSV bấm xác nhận để đi tiếp.
+* **Quy chuẩn Bộ 2 ảnh nhận diện căn hộ con:**
+  * `P-01`: **Biển số phòng gắn trên cửa căn hộ** (*Bắt buộc chụp cận cảnh thấy rõ số phòng, VD: `03.03`*).
+  * `P-04`: **Tổng quan cửa căn hộ thấy rõ số nhà và lối đi hành lang** (*Chụp góc rộng đứng từ hành lang chung bao quát cửa chính căn hộ và hành lang đi lại tiếp cận*).
+  * `P-02` & `P-03`: *Mặc định miễn trừ (N/A) vì căn hộ tầng cao không chụp mặt tiền toàn tháp*.
 
-#### Bước 2: Thông Tin Riêng Biệt Của Căn Hộ & Phỏng Vấn Chủ Hộ
-* **Định danh căn hộ:**
-  * Mã căn hộ (VD: `P.402`, `A-12.05`).
-  * Loại hình: Căn hộ 1 tầng tiêu chuẩn hoặc Căn hộ 2 tầng thông tầng (Duplex / Penthouse).
-  * Cao trình tầng: Tầng dưới, Tầng trên (nếu là Duplex).
+#### Bước 2: Thông Số Riêng Của Căn Hộ & Phỏng Vấn Chủ Hộ
+* **Định danh căn hộ chuẩn hóa:**
+  * Mã căn hộ theo quy ước: **`mm.nn`** (`mm`: số tầng, `nn`: số phòng. VD: Tầng 3 phòng 03 $\rightarrow$ `03.03` $\rightarrow$ Mã đầy đủ toàn hệ thống: `B-XXXXX-YYY-U03.03`).
+  * Số tầng / lầu (`floorNumber`): `3`.
 * **Thông tin chủ sở hữu / Người đang cư ngụ:**
-  * Họ và tên chủ hộ, Số điện thoại liên lạc, Số CCCD / CMND.
-* **Phỏng vấn lịch sử & tình trạng khai thác (Chỉ số $E_5$ Cộng Hưởng):**
-  * Đập thông tường ngăn phòng, thay đổi vị trí bếp/WC, cơi nới ban công.
-  * Tiền sử nứt tường, lún võng sàn trước đây.
-  * Trang thiết bị nhạy cảm với rung động (phòng lab tư nhân, đàn dương cầm giá trị cao).
-* **Quy chuẩn Bộ 4 ảnh căn hộ con:**
-  * `P-01`: Cửa chính căn hộ & Biển số phòng (*Bắt buộc chụp rõ nét*).
-  * `P-02`: Mặt đứng khối tháp (*Mặc định tick N/A - Kế thừa từ Tòa nhà mẹ*).
-  * `P-03`: Ban công / Logia riêng (*Mặc định tick N/A hoặc chụp nếu có ban công*).
-  * `P-04`: Toàn cảnh nội thất phòng khách (*Bắt buộc chụp góc rộng*).
-* **Chỉ tiêu đặc thù chung cư cao tầng:**
-  * **Hiện tượng thấm dột từ căn hộ tầng trên:** Kiểm tra trần thạch cao, hộp kỹ thuật vệ sinh, xung quanh phễu thu sàn toilet tầng trên.
-  * **Đo độ võng cục bộ dầm sàn căn hộ:** Đo độ võng dầm nhịp lớn bằng thước laser (nếu có dấu hiệu nứt võng).
+  * Họ và tên chủ hộ, Số điện thoại liên lạc, Số CCCD / CMND / Passport.
+  * Tình trạng cư trú: `CHỦ_HỘ_Ở`, `CHO_THUÊ`, `BỎ_TRỐNG_CHƯA_VỀ_Ở`, `VẮNG_MẶT_KHÓA_CỬA`.
+* **Thông số căn hộ & Thiết bị nhạy cảm:**
+  * Diện tích thông thủy căn hộ ($m^2$) theo sổ hồng hoặc hợp đồng mua bán.
+  * Trang thiết bị nhạy cảm rung chấn: Đàn piano cơ lớn, dàn âm thanh đắt tiền, bể cá thủy sinh lớn...
+  * Lịch sử sửa chữa nội thất riêng: Có đập/dời tường ngăn, cải tạo nền gạch/trần thạch cao mới không.
+  * *(Lược bỏ hoàn toàn: Số phòng ngủ, số WC, Hướng ban công Metro)*.
 
-#### Bước 3: Phân Vùng Kiến Trúc & Ghim Khuyết Tật (CAD Floor Damage Map)
-* Khởi tạo danh mục không gian sở hữu riêng: `Phòng khách`, `Bếp`, `Phòng ngủ Master`, `Phòng ngủ 2`, `Toilet 1`, `Toilet 2`, `Ban công`.
-* Tải mặt bằng bố trí căn hộ (hoặc vẽ phác họa trên Canvas màn hình).
-* Ghim các mã định danh kỹ thuật ngắn gọn:
-  * Mã Vùng: `Z-01` (Phòng khách), `Z-02` (Phòng ngủ).
-  * Mã Cấu Kiện: `E-01` (Tường ngăn gạch), `E-02` (Dầm trần bê tông).
-  * Mã Khuyết Tật: `D-01` (Vết nứt chéo), `D-02` (Vệt ố thấm nước).
-* **Quy tắc Cặp ảnh đối chiếu (Pair Comparison):** Mỗi khuyết tật phải có 2 ảnh:
-  * *Ảnh bối cảnh (CTX):* Chụp toàn cảnh mảng tường để thấy rõ vị trí tương quan.
-  * *Ảnh cận cảnh (CU):* Chụp trực diện có đặt **thước đo bề rộng vết nứt (Crack Scale Card $\ge 0.1\text{mm}$)**.
+#### Bước 3: 1-Click Import CAD Mặt Bằng Căn Hộ & Chấm Điểm Thả Ghim Khuyết Tật
+* **Cơ chế Import CAD Siêu Tốc (Không Cần Vẽ Lại):**
+  * Hệ thống tự động nạp bản vẽ CAD riêng của căn hộ `03.03` đã được cắt mảnh từ bản vẽ mặt bằng Tầng 3 (thực hiện ở Master CAD Slicer).
+  * Nếu mở từ bản đồ tầng: KSV chạm ngón tay vào ô `03.03` trên sơ đồ Tầng 3 $\rightarrow$ Bấm **"📥 Import CAD Căn 03.03"** $\rightarrow$ Mặt bằng căn hộ hiện ra ngay lập tức trên canvas.
+* **Chấm điểm thả ghim khuyết tật & kiểm tra biến dạng:**
+  * **Ghim nứt tường / dầm sàn ($D_{01}, D_{02}$):** Chạm trực tiếp lên mặt bằng CAD $\rightarrow$ Nhập bề rộng vết nứt $w$ (mm) $\rightarrow$ Chụp ảnh cận cảnh $CU \ge 0.1\text{mm}$ có thước đo Crack Scale Card.
+  * **Thấm dột từ căn hộ tầng trên (`upperFloorWaterLeakage`):** Ghi nhận các vết ố vàng, rò rỉ nước từ sàn nhà vệ sinh/ban công của căn hộ tầng trên dội xuống (phân định rõ nguyên nhân do sinh hoạt tầng trên, không phải do chấn động Metro).
+  * **Kẹt cửa / biến dạng (`doorJammingStatus`):** Kiểm tra cửa chính, cửa ban công có bị xệ cánh, cạ nền hoặc kẹt khung nhôm kính do biến dạng không.
 
-#### Bước 4: Sổ Khuyết Tật (Defect Register) & Phân Cấp Burland 1977
-* Tổng hợp bảng danh mục khuyết tật trong căn hộ: Vị trí, mô tả, chiều dài ($L$), bề rộng vết nứt tối đa ($w_{\text{max}}$).
-* Đánh giá cấp độ tổn thương theo tiêu chuẩn quốc tế Burland (1977):
-  * Cấp độ chủ đạo (Predominant Damage Category): Từ Cấp 0 (Không đáng kể) đến Cấp 2 (Nhẹ).
-  * Cấp độ cục bộ tối đa (Local Maximum Damage Category): Ghi nhận vết nứt cá biệt nghiêm trọng nhất.
-
-#### Bước 5: Đánh Giá Kỹ Thuật (ECS, VI & Ma Trận Rủi Ro BRA Căn Hộ)
-* Đánh giá hiện trạng căn hộ ECS ($E_1 \rightarrow E_6$, tối đa 24 điểm).
-* Đánh giá chỉ số dễ tổn thương VI ($V_1 \rightarrow V_6$, tối đa 24 điểm).
-* Cấp tác động thi công tuyến Metro ($I$): Kế thừa theo cự ly tim hầm của tòa mẹ ($I_1 \rightarrow I_4$).
-* Tính toán Ma trận Rủi ro Cơ sở:
-  $$\text{Risk Level} = V \times I \implies \{\text{LOW}, \text{MEDIUM}, \text{HIGH}, \text{VERY\_HIGH}\}$$
-
-#### Bước 6: Cổng Kiểm Tra Dữ Liệu Hiện Trường (Completeness Gate)
-* Hệ thống tự động kiểm tra toàn bộ dữ liệu form căn hộ:
-  * Trạng thái **`ALLOW`**: Đầy đủ 100% trường bắt buộc (Mã căn, Chủ hộ, SĐT, P-01, P-04, Bản vẽ phòng, Tọa độ GPS). Cho phép nộp hồ sơ ngay.
-  * Trạng thái **`CONDITIONAL`**: Thiếu một số mục phụ (ví dụ: Chủ nhà khóa cửa phòng ngủ phụ không cho vào). Bắt buộc Surveyor phải nhập chuỗi giải trình lý do kỹ thuật trước khi mở nút nộp.
-
-#### Bước 7: Ký Biên Bản 3 Bên Hiện Trường & Nộp Hồ Sơ
-* Ký số trực tiếp trên màn hình cảm ứng:
+#### Bước 4: Ký Biên Bản 2 Bên Hiện Trường & Nộp Hồ Sơ
+* **Ý kiến chủ hộ:** Ghi nhận ngắn gọn ý kiến/nguyện vọng của chủ hộ vào mục `ownerRemarks`.
+* **Ký số trực tiếp trên màn hình cảm ứng PWA:**
   1. **Chủ sở hữu căn hộ / Người cư ngụ thực tế**: Ký và ghi rõ họ tên.
   2. **Khảo sát viên hiện trường**: Ký xác nhận số liệu đo đạc.
+* Chụp 1-2 ảnh Biên bản giấy có chữ ký tay hai bên (`workingMinutesPhotos`) nếu lập biên bản giấy tại hiện trường.
 * Bấm **"Nộp Hồ Sơ Khảo Sát Căn Hộ"**:
-  * PWA gửi payload lên Backend qua `POST /api/v1/surveys/phase1/submit` kèm cờ `reportType = 'UNIT_CHILD'`.
-  * Trạng thái của căn hộ trong CSDL chuyển thành `SUBMITTED`.
+  * Payload được gửi lên Backend qua `POST /api/v1/surveys/phase1/submit` kèm cờ `reportType = 'CONDO_UNIT'`.
+  * Trạng thái căn hộ trong CSDL chuyển thành `SUBMITTED`.
   * Building Hub cập nhật tức thì tỷ lệ hoàn thành trên Executive Dashboard.
 
 ---

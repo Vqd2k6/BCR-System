@@ -77,12 +77,21 @@ Gồm 4 thẻ chỉ số KPI phản ánh tiến độ thời gian thực:
      * Chọn tầng: `floorNumber` (VD: `4`).
    * Bấm Lưu $\rightarrow$ Gọi API `POST /api/v1/parcels/:id/units` $\rightarrow$ Thẻ căn hộ xuất hiện ngay trên lưới.
 3. **Thẻ Căn Hộ Thành Viên (Unit Card):**
-   * *Góc trái:* Huy hiệu số phòng nổi bật (`P.402`) kèm biểu tượng tầng lầu.
+   * *Góc trái:* Huy hiệu số phòng nổi bật (`03.03`) kèm biểu tượng tầng lầu.
    * *Thông tin thân thẻ:* Tên chủ hộ, Số điện thoại (nếu có), trạng thái khảo sát.
    * *Nút hành động theo ngữ cảnh:*
      * Chưa khảo sát / Đang làm: Nút **"Khảo Sát Căn Này"** (màu xanh thương hiệu).
      * Đã nộp / Đã duyệt: Nút **"Xem Hồ Sơ"** hoặc **"Xuất Báo Cáo Căn"**.
      * Vắng mặt: Nút **"Ghi nhận vắng mặt"** hoặc **"Khảo sát lại"**.
+
+### 2.5. Công Cụ Quản Lý Mặt Bằng Tầng & Chia Cắt Căn Hộ (Floor Plan CAD Slicer)
+* **Vị trí kích hoạt:** Nút biểu tượng **"📐 Bản Vẽ Tầng & CAD"** đặt cạnh bộ lọc tầng trên Building Hub.
+* **Mục đích nghiệp vụ:** 
+  * Cho phép Kỹ sư Master / Quản trị viên tải lên 1 bản vẽ CAD mặt bằng chung cho toàn bộ một tầng (hoặc một dải tầng điển hình, ví dụ Tầng 3 đến Tầng 8).
+  * Công cụ **CAD Slicer (Floor Partition Canvas)** cho phép kéo thả các ô bao chữ nhật hoặc vẽ đa giác bao quanh từng căn hộ (`03.01`, `03.02`, `03.03`...).
+  * **Tự động sinh căn hộ con:** Khi lưu các ô phân chia, hệ thống tự động tạo các bản ghi `building_units` tương ứng với mã chuẩn `mm.nn`.
+  * **Tự động Crop CAD Căn Hộ:** Trình duyệt sử dụng Canvas ngầm crop vùng mặt bằng của riêng từng căn $\rightarrow$ lưu thành `unit_cad_url`.
+  * Khi KSV bước vào khảo sát căn `03.03`, bản vẽ CAD riêng của căn đã sẵn sàng, KSV chỉ việc chấm điểm nứt/thấm ngay mà **không cần vẽ lại hay tìm file upload**.
 
 ---
 

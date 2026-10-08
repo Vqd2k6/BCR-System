@@ -7,6 +7,7 @@ import { BuildingExecutiveDashboard } from './building-hub/components/BuildingEx
 import { BuildingUnitList } from './building-hub/components/BuildingUnitList';
 import { MasterSurveyViewModal } from './building-hub/components/MasterSurveyViewModal';
 import { FloorProgressPopover } from './building-hub/components/FloorProgressPopover';
+import { FloorPlanCadManagementModal } from './building-hub/components/FloorPlanCadManagementModal';
 
 export type { BuildingUnit, BuildingHubModalProps };
 
@@ -55,6 +56,7 @@ export const BuildingHubModal: React.FC<BuildingHubModalProps> = ({
     displayedUnits,
     kpi,
   } = useBuildingHubState({ parcel, onUnitsUpdated });
+  const [showCadModal, setShowCadModal] = React.useState(false);
 
   return (
     <div className="fixed inset-0 z-[99999] bg-slate-100 flex flex-col w-full h-full overflow-hidden animate-in fade-in duration-150">
@@ -64,6 +66,7 @@ export const BuildingHubModal: React.FC<BuildingHubModalProps> = ({
         isHeaderVisible={isHeaderVisible}
         onClose={onClose}
         onOpenMasterView={() => setShowMasterViewModal(true)}
+        onOpenCadManagement={() => setShowCadModal(true)}
       />
 
       {/* 2. Main Scrollable Container */}
@@ -145,6 +148,15 @@ export const BuildingHubModal: React.FC<BuildingHubModalProps> = ({
         availableFloors={availableFloors}
         units={units}
       />
+
+      {/* Modal: Quản lý bản vẽ CAD tầng & chia cắt căn hộ */}
+      {showCadModal && (
+        <FloorPlanCadManagementModal
+          parcel={parcel}
+          onClose={() => setShowCadModal(false)}
+          onUnitsUpdated={onUnitsUpdated}
+        />
+      )}
     </div>
   );
 };

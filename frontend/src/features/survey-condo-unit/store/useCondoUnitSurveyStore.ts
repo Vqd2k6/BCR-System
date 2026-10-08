@@ -29,25 +29,36 @@ const getDefaultCondoUnitFormData = (parcelId: string, unitId: string): CondoUni
     metroOffsetDistance: '15.0m',
     isConfirmed: false,
   },
-  unitCode: 'P.101',
+  unitCode: '01.01',
   floorNumber: 1,
   ownerName: '',
   ownerPhone: '',
   ownerIdCard: '',
+  residentStatus: 'CHỦ_HỘ_Ở',
   unitAreaM2: 65,
-  bedroomCount: 2,
-  balconyFacingMetro: 'YES',
   photoP01: { url: '', notApplicable: false },
   photoP04: { url: '', notApplicable: false },
   hasSensitiveEquipment: false,
   sensitiveEquipmentDesc: '',
+  interiorRenovationHistory: { hasRenovated: false, description: '' },
+  unitCadUrl: '',
+  cadBbox: null,
+  cadPolygon: null,
   localDefects: [],
+  upperFloorWaterLeakage: {
+    has: false,
+    location: '',
+    description: '',
+    photoUrl: '',
+  },
+  doorJammingStatus: 'NORMAL',
   settlementObserved: 'NONE',
   settlementNotes: '',
   surveyorSignature: '',
   ownerSignature: '',
   ownerFeedback: 'Đồng ý với hiện trạng ghi nhận tại căn hộ',
   surveyDate: new Date().toLocaleDateString('vi-VN'),
+  workingMinutesPhotos: [],
 });
 
 export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) => ({
@@ -81,6 +92,10 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
       data.ownerName = (unit as any).owner_name || unit.ownerName || '';
       data.ownerPhone = (unit as any).owner_phone || unit.ownerPhone || '';
       data.ownerIdCard = (unit as any).owner_id_card || (unit as any).ownerIdCard || '';
+      if ((unit as any).unit_cad_url) data.unitCadUrl = (unit as any).unit_cad_url;
+      if ((unit as any).cad_bbox) data.cadBbox = (unit as any).cad_bbox;
+      if ((unit as any).cad_polygon) data.cadPolygon = (unit as any).cad_polygon;
+      if ((unit as any).resident_status) data.residentStatus = (unit as any).resident_status;
     }
 
     // Khôi phục bản nháp nếu có
