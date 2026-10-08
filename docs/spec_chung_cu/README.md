@@ -85,8 +85,8 @@ Bộ tài liệu đặc tả được cấu trúc thành 5 tập chuyên môn h�
 
 ## 4. THUẬT NGỮ CHUẨN HÓA (GLOSSARY)
 
-* **Building Master (`GisParcel` / `BuildingMaster`):** Khối tháp chung cư mẹ đại diện cho thửa đất quy hoạch, mang mã quản lý `B-XXXXX`.
-* **Building Unit (`BuildingUnit`):** Căn hộ thành viên trực thuộc tòa nhà mẹ, mang mã định danh mở rộng `B-XXXXX-U[SốPhòng]` (VD: `B-00120-U402`).
+* **Building Master (`GisParcel` / `BuildingMaster`):** Khối tháp chung cư mẹ đại diện cho thửa đất quy hoạch, mang mã quản lý chuẩn Metro 2 `B-XXXXX-YYY` (VD: `B-00120-POR`, `B-00105-C&C`).
+* **Building Unit (`BuildingUnit`):** Căn hộ thành viên trực thuộc tòa nhà mẹ, mang mã định danh mở rộng `B-XXXXX-YYY-U[SốPhòng]` (VD: `B-00120-POR-U402`).
 * **Building Hub:** Giao diện điều phối tập trung cấp tòa nhà, quản lý danh sách căn hộ theo tầng và theo dõi tỷ lệ hoàn thành khảo sát.
 * **Inheritance Engine:** Bộ máy kế thừa tự động truyền tải các thuộc tính nền tảng của tòa nhà mẹ vào từng căn hộ con mà không yêu cầu nhập liệu lại.
 * **Floor Matrix:** Ma trận tổng hợp tiến độ khảo sát và phân loại mức độ an toàn kết cấu theo từng cao trình tầng lầu của khối tháp.

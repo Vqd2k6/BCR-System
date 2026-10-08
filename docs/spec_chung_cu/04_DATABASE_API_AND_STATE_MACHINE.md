@@ -24,7 +24,7 @@ erDiagram
 
     parcels {
         uuid id PK
-        varchar project_parcel_code "B-XXXXX"
+        varchar project_parcel_code "B-XXXXX-YYY"
         varchar official_cadastral_code "Mã địa chính"
         varchar building_type "STANDALONE | CONDOMINIUM"
         int total_units "Tổng số căn"
@@ -125,7 +125,7 @@ CREATE INDEX IF NOT EXISTS idx_reports_type ON base_survey_reports(report_type);
   "success": true,
   "data": {
     "parcelId": "c4d5e6f7-1111-2222-3333-444455556666",
-    "projectParcelCode": "B-00120",
+    "projectParcelCode": "B-00120-POR",
     "buildingName": "Chung cư Miếu Nổi Lô A",
     "totalUnits": 14,
     "completedUnitsCount": 8,
@@ -163,7 +163,7 @@ CREATE INDEX IF NOT EXISTS idx_reports_type ON base_survey_reports(report_type);
 {
   "success": true,
   "data": {
-    "message": "Đã tạo thành công căn hộ P.402 cho tòa nhà B-00120",
+    "message": "Đã tạo thành công căn hộ P.402 cho tòa nhà B-00120-POR",
     "unit": {
       "id": "new-unit-uuid",
       "parcel_id": "c4d5e6f7-1111-2222-3333-444455556666",

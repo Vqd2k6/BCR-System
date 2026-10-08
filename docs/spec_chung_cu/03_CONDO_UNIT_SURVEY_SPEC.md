@@ -37,7 +37,7 @@ graph TD
 ### BƯỚC 1: XÁC NHẬN KẾ THỪA DỮ LIỆU TÒA MẸ (STEP 1 - PARENT INHERITANCE CONFIRMATION)
 * **Giao diện:** Thẻ thông tin Clean Light nền trắng, đường viền xám kỹ thuật, huy hiệu xanh ngọc (Teal).
 * **Nội dung hiển thị dạng Read-only:**
-  1. *Mã Quản Lý Dự Án (Parent Parcel Code):* `B-XXXXX` (Font Monospace đậm).
+  1. *Mã Quản Lý Dự Án (Parent Parcel Code):* `B-XXXXX-YYY` (Font Monospace đậm, VD: `B-00120-POR`, `B-00105-C&C`).
   2. *Mã Địa Chính Gốc:* Số tờ / Số thửa địa chính.
   3. *Tên Tòa Nhà / Khối Tháp Chung Cư:* Ví dụ: *Chung cư Miếu Nổi - Lô A*.
   4. *Địa Chỉ Thực Tế Tòa Nhà:* Số nhà, tên đường, Phường, Quận.
@@ -54,6 +54,7 @@ graph TD
 
 #### 2.1. Định Danh Căn Hộ & Cấu Hình Tầng Lầu
 * **Mã số căn hộ (`unitCode`):** Bắt buộc nhập (VD: `P.402`, `A-12.05`).
+* **Mã định danh đầy đủ của căn hộ:** `B-XXXXX-YYY-U[SốPhòng]` (VD: `B-00120-POR-U402`, `B-00105-C&C-U12.05`).
 * **Loại hình căn hộ:**
   * *Căn hộ 1 tầng tiêu chuẩn (Mặc định):* Khảo sát 1 mặt bằng duy nhất.
   * *Căn hộ 2 tầng thông tầng (Duplex / Penthouse):* Cho phép nhập tầng dưới (VD: `18`) và tầng trên (VD: `19`). Store tự động sinh 2 mặt bằng tầng con để ghim khuyết tật độc lập.
