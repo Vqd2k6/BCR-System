@@ -19,11 +19,12 @@ export interface CadZonePin {
 /**
  * Thuật toán tự bù số thứ tự nhỏ nhất còn trống cho mã ghim (Z-xx, E-xx, D-xx)
  */
-export function getNextAvailablePinCode(pins: { zoneCode?: string }[], prefix: string): string {
+export function getNextAvailablePinCode(pins: { zoneCode?: string }[] | undefined | null, prefix: string): string {
+  const safePins = Array.isArray(pins) ? pins : [];
   const usedNumbers = new Set<number>();
   const regex = new RegExp(`^${prefix}-(\\d+)`, 'i');
-  for (const p of pins) {
-    if (p.zoneCode) {
+  for (const p of safePins) {
+    if (p && typeof p.zoneCode === 'string') {
       const match = p.zoneCode.match(regex);
       if (match) {
         usedNumbers.add(parseInt(match[1], 10));
