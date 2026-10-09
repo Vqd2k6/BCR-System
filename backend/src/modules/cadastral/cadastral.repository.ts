@@ -22,6 +22,7 @@ export interface ParcelEntity {
   lifecycle_status: 'ACTIVE' | 'PENDING_MUTATION_APPROVAL' | 'SPLIT_DEPRECATED' | 'MERGED_DEPRECATED' | 'MUTATION_VOID';
   building_type?: string;
   total_units?: number;
+  deleted_floors?: number[];
   active_phase1_report_id?: string | null;
   mutation_type: string;
   parent_parcel_ids: string[];
@@ -686,15 +687,46 @@ export class CadastralRepository {
       `UPDATE parcels 
        SET total_units = (SELECT COUNT(*) FROM building_units WHERE parcel_id = $1),
            building_type = 'CONDOMINIUM',
+           deleted_floors = array_remove(COALESCE(deleted_floors, '{}'), $2::int),
            updated_at = NOW()
        WHERE id = $1;`,
-      [parcelId]
+      [parcelId, floorNumber]
     );
 
     return savedUnits;
   }
 
-  static async deleteFloorPlan(parcelId: string, floorNumber: number): Promise<boolean> {
+  static async getSurveyedUnitsOnFloor(
+    parcelId: string, 
+    floorNumber: number
+  ): Promise<{ unit_code: string; status: string }[]> {
+    const res = await Database.query<{ unit_code: string; status: string }>(
+      `SELECT unit_code, status 
+       FROM building_units 
+       WHERE parcel_id = $1 AND floor_number = $2 
+         AND (phase1_report_id IS NOT NULL OR status NOT IN ('NOT_SURVEYED'));`,
+      [parcelId, floorNumber]
+    );
+    return res.rows;
+  }
+
+  static async restoreFloor(parcelId: string, floorNumber: number): Promise<boolean> {
+    await Database.query(
+      `UPDATE parcels 
+       SET deleted_floors = array_remove(COALESCE(deleted_floors, '{}'), $2::int),
+           updated_at = NOW()
+       WHERE id = $1;`,
+      [parcelId, floorNumber]
+    );
+    return true;
+  }
+
+  static async deleteFloorPlan(
+    parcelId: string, 
+    floorNumber: number,
+    mode: 'CLEAR_CAD' | 'DELETE_FLOOR' = 'DELETE_FLOOR',
+    surveyedCount = 0
+  ): Promise<{ message: string; floorNumber: number; mode: string; surveyedCount: number }> {
     // 1. Xóa các unit nháp của tầng này chưa khảo sát
     await Database.query(
       `DELETE FROM building_units 
@@ -725,16 +757,38 @@ export class CadastralRepository {
       [parcelId, floorNumber]
     );
 
-    // 5. Đồng bộ lại tổng số căn hộ/khu vực của thửa
-    await Database.query(
-      `UPDATE parcels 
-       SET total_units = (SELECT COUNT(*) FROM building_units WHERE parcel_id = $1),
-           updated_at = NOW()
-       WHERE id = $1;`,
-      [parcelId]
-    );
+    // 5. Nếu là DELETE_FLOOR (và đã qua bước chặn surveyedCount === 0), đưa tầng vào parcels.deleted_floors
+    if (mode === 'DELETE_FLOOR') {
+      await Database.query(
+        `UPDATE parcels 
+         SET deleted_floors = array_append(COALESCE(deleted_floors, '{}'), $2::int),
+             total_units = (SELECT COUNT(*) FROM building_units WHERE parcel_id = $1),
+             updated_at = NOW()
+         WHERE id = $1 AND NOT ($2::int = ANY(COALESCE(deleted_floors, '{}')));`,
+        [parcelId, floorNumber]
+      );
+    } else {
+      await Database.query(
+        `UPDATE parcels 
+         SET total_units = (SELECT COUNT(*) FROM building_units WHERE parcel_id = $1),
+             updated_at = NOW()
+         WHERE id = $1;`,
+        [parcelId]
+      );
+    }
 
-    return true;
+    const message = mode === 'DELETE_FLOOR'
+      ? `Đã xóa thành công Tầng ${floorNumber} khỏi tòa nhà.`
+      : surveyedCount > 0
+      ? `Đã xóa bản vẽ CAD và giải phóng phân chia của Tầng ${floorNumber}. Dữ liệu ${surveyedCount} căn hộ khảo sát vẫn được bảo toàn nguyên vẹn.`
+      : `Đã xóa bản vẽ CAD và giải phóng phân chia của Tầng ${floorNumber}.`;
+
+    return {
+      message,
+      floorNumber,
+      mode,
+      surveyedCount,
+    };
   }
 
   static async getAbsenceLogsForParcel(parcelId: string): Promise<any[]> {

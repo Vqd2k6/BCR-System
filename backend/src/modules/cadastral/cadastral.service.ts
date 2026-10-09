@@ -493,16 +493,31 @@ export class CadastralService {
     };
   }
 
-  static async deleteFloorPlan(parcelId: string, floorNumber: number) {
+  static async deleteFloorPlan(
+    parcelId: string, 
+    floorNumber: number, 
+    mode: 'CLEAR_CAD' | 'DELETE_FLOOR' = 'DELETE_FLOOR'
+  ) {
     const parcel = await CadastralRepository.findById(parcelId);
     if (!parcel) {
       throw new NotFoundError(`Không tìm thấy thửa đất với ID: ${parcelId}`);
     }
-    await CadastralRepository.deleteFloorPlan(parcelId, floorNumber);
-    return {
-      message: `Đã xóa thành công bản vẽ và giải phóng phân chia của Tầng ${floorNumber}`,
-      floorNumber,
-    };
+
+    // 1. Kiểm tra các căn hộ đã hoặc đang khảo sát trên tầng này
+    const surveyedUnits = await CadastralRepository.getSurveyedUnitsOnFloor(parcelId, floorNumber);
+    const surveyedCount = surveyedUnits.length;
+
+    // RÀO CHẮN BẢO VỆ PHÁP LÝ (Safety Guard):
+    // Nếu tầng đã có căn hộ được khảo sát, TUYỆT ĐỐI CHẶN thao tác xóa cả tầng
+    if (surveyedCount > 0 && mode === 'DELETE_FLOOR') {
+      const codeList = surveyedUnits.map((u) => u.unit_code).slice(0, 5).join(', ');
+      const moreText = surveyedCount > 5 ? ` và ${surveyedCount - 5} căn khác` : '';
+      throw new BadRequestError(
+        `Không thể xóa Tầng ${floorNumber} khỏi cấu trúc tòa nhà vì tầng này đang có ${surveyedCount} căn hộ (${codeList}${moreText}) đã/đang được khảo sát hiện trường mang tính pháp lý bồi thường. Bạn chỉ có thể chọn "Xóa bản vẽ CAD" để làm mới mặt bằng mà vẫn bảo toàn 100% hồ sơ khảo sát.`
+      );
+    }
+
+    return CadastralRepository.deleteFloorPlan(parcelId, floorNumber, mode, surveyedCount);
   }
 
   // --- LỊCH SỬ BIẾN ĐỘNG (SUPER_ADMIN ONLY) ---

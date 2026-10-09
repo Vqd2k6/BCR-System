@@ -201,7 +201,8 @@ export class Database {
           ADD COLUMN IF NOT EXISTS building_type VARCHAR(32) NOT NULL DEFAULT 'STANDALONE',
           ADD COLUMN IF NOT EXISTS total_units INT NOT NULL DEFAULT 1,
           ADD COLUMN IF NOT EXISTS code_slug VARCHAR(32),
-          ADD COLUMN IF NOT EXISTS absence_attempt_count INT NOT NULL DEFAULT 0;
+          ADD COLUMN IF NOT EXISTS absence_attempt_count INT NOT NULL DEFAULT 0,
+          ADD COLUMN IF NOT EXISTS deleted_floors INT[] DEFAULT '{}';
 
         CREATE INDEX IF NOT EXISTS idx_parcels_assigned_surveyor ON parcels(assigned_surveyor_id);
         CREATE INDEX IF NOT EXISTS idx_parcels_building_type ON parcels(building_type);

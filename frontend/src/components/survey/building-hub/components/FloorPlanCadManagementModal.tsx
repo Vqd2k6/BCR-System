@@ -15,6 +15,7 @@ import {
   Home,
   Save,
   AlertTriangle,
+  RefreshCw,
 } from 'lucide-react';
 import type { GisParcel } from '../../../gis/LeafletSweepMap';
 import { CadBlueprintUploader } from './CadBlueprintUploader';
@@ -66,6 +67,9 @@ interface CadUnitItem {
   cad_polygon?: { x: number; y: number }[];
   unit_cad_url?: string;
   unit_type?: 'UNIT' | 'MASTER';
+  status?: string;
+  phase1_report_id?: string | null;
+  phase2_report_id?: string | null;
 }
 
 interface BuildingFloorItem {
@@ -127,13 +131,15 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
   const [isFloorDirty, setIsFloorDirty] = useState<boolean>(false);
   const [pendingFloorSwitch, setPendingFloorSwitch] = useState<number | null>(null);
   const [showUnsavedConfirmModal, setShowUnsavedConfirmModal] = useState<boolean>(false);
-  const [deletedFloorNumbers, setDeletedFloorNumbers] = useState<number[]>([]);
+  const [deletedFloorNumbers, setDeletedFloorNumbers] = useState<number[]>(
+    parcel.deletedFloors || parcel.deleted_floors || []
+  );
 
   // 1. Tải toàn bộ Floor Plans & Units của thửa đất
   const fetchAllFloorData = useCallback(async () => {
     try {
       setIsLoading(true);
-      const [plansRes, unitsRes] = await Promise.all([
+      const [plansRes, unitsRes, parcelRes] = await Promise.all([
         api.get(`/parcels/${parcelId}/floor-plans`).catch((err) => {
           console.warn('[FloorPlanCadModal:getFloorPlans] Lỗi nạp floor plans:', err);
           return { data: { data: { plans: [] } } };
@@ -142,10 +148,18 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
           console.warn('[FloorPlanCadModal:getUnits] Lỗi nạp danh sách căn hộ:', err);
           return { data: { data: { units: [] } } };
         }),
+        api.get(`/parcels/${parcelId}`).catch((err) => {
+          console.warn('[FloorPlanCadModal:getParcel] Lỗi nạp thông tin thửa:', err);
+          return { data: { data: null } };
+        }),
       ]);
 
       const plans: FloorPlanItem[] = plansRes.data?.data?.plans || [];
       const units: CadUnitItem[] = unitsRes.data?.data?.units || [];
+      const latestDeleted = parcelRes.data?.data?.deleted_floors;
+      if (Array.isArray(latestDeleted)) {
+        setDeletedFloorNumbers(latestDeleted);
+      }
 
       setExistingFloorPlans(plans);
       setAllUnits(units);
@@ -492,23 +506,80 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
     }
   };
 
-  // 5. Xóa tầng khỏi hệ thống (Yêu cầu tính năng mới: Xóa tầng)
-  const handleDeleteCurrentFloor = async () => {
+  // Căn hộ đã hoặc đang khảo sát trên tầng đang active
+  const surveyedUnitsOnActiveFloor = useMemo(() => {
+    return allUnits.filter(
+      (u) =>
+        (u.floor_number ?? 1) === activeFloor &&
+        (Boolean(u.phase1_report_id) || (Boolean(u.status) && u.status !== 'NOT_SURVEYED'))
+    );
+  }, [allUnits, activeFloor]);
+  const hasSurveyedUnits = surveyedUnitsOnActiveFloor.length > 0;
+
+  // 5. Xóa bản vẽ CAD của tầng (Clear CAD Blueprint) - Cho phép làm mới CAD mà bảo toàn 100% hồ sơ khảo sát
+  const handleClearCadOnly = async () => {
     const confirmed = window.confirm(
-      `⚠️ CẢNH BÁO XÓA BẢN VẼ TẦNG ${activeFloor}!\n\nBạn có chắc chắn muốn xóa bản vẽ CAD và hủy toàn bộ các ô phân chia của Tầng ${activeFloor}?\nThao tác này sẽ giải phóng trạng thái phân chia của tầng này.`
+      `⚠️ BẠN CÓ CHẮC MUỐN XÓA BẢN VẼ CAD TẦNG ${activeFloor}?\n\n` +
+      `• Bản vẽ CAD và các ô phân vùng CAD của Tầng ${activeFloor} sẽ được xóa để bạn tải lại file CAD mới.\n` +
+      (hasSurveyedUnits
+        ? `• ĐẶC BIỆT: ${surveyedUnitsOnActiveFloor.length} căn hộ đã khảo sát (${surveyedUnitsOnActiveFloor.map((u) => u.unit_code).slice(0, 3).join(', ')}) VẪN ĐƯỢC BẢO TOÀN NGUYÊN VẸN 100% trong CSDL.\n`
+        : `• Tầng ${activeFloor} vẫn tồn tại trong tòa nhà, chỉ làm mới bản vẽ.\n`) +
+      `\nTiếp tục xóa bản vẽ CAD?`
+    );
+    if (!confirmed) return;
+
+    try {
+      setIsSaving(true);
+      const floorTarget = activeFloor;
+      const res = await api.delete(`/parcels/${parcelId}/floor-plans/${floorTarget}?mode=CLEAR_CAD`);
+      setCadUrl('');
+      setPartitions([]);
+      setIsFloorDirty(false);
+      setSaveSuccessMsg(res.data?.data?.message || `Đã xóa bản vẽ CAD của Tầng ${floorTarget}!`);
+
+      if (onUnitsUpdated) {
+        onUnitsUpdated();
+      }
+      await fetchAllFloorData();
+    } catch (err: unknown) {
+      console.error('[FloorPlanCadModal:handleClearCadOnly] Lỗi khi xóa bản vẽ CAD:', err);
+      alert(`Không thể xóa bản vẽ CAD: ${getErrorMessage(err, 'Lỗi kết nối máy chủ')}`);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // 6. Xóa vĩnh viễn cả Tầng khỏi Tòa Nhà (Delete Entire Floor) - CHỈ CHO PHÉP KHI CHƯA CÓ CĂN NÀO KHẢO SÁT
+  const handleDeleteEntireFloor = async () => {
+    if (hasSurveyedUnits) {
+      alert(
+        `❌ KHÔNG THỂ XÓA TẦNG ${activeFloor} KHỎI TÒA NHÀ!\n\n` +
+        `Tầng này đang có ${surveyedUnitsOnActiveFloor.length} căn hộ (${surveyedUnitsOnActiveFloor.map((u) => u.unit_code).slice(0, 5).join(', ')}) đã hoặc đang được khảo sát hiện trường mang tính pháp lý bồi thường Metro 2.\n\n` +
+        `👉 Nếu bạn muốn đổi bản vẽ hoặc chia lại các căn hộ, vui lòng dùng nút "Xóa Bản Vẽ CAD" để làm mới mà vẫn bảo toàn 100% hồ sơ khảo sát.`
+      );
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `🗑️ CẢNH BÁO XÓA HOÀN TOÀN TẦNG ${activeFloor} KHỎI TÒA NHÀ!\n\n` +
+      `• Tầng ${activeFloor} sẽ bị xóa khỏi cấu trúc tòa nhà.\n` +
+      `• Toàn bộ bản vẽ CAD và các căn hộ nháp của tầng này sẽ được dọn sạch.\n` +
+      `• Các tầng khác (ví dụ Tầng ${activeFloor + 1}, Tầng ${activeFloor - 1}) vẫn GIỮ NGUYÊN số tầng, TUYỆT ĐỐI không bị dồn số.\n` +
+      `• Bạn có thể thêm lại tầng này bất kỳ lúc nào bằng nút "Thêm tầng mới".\n\n` +
+      `Bạn có chắc chắn muốn xóa Tầng ${activeFloor}?`
     );
     if (!confirmed) return;
 
     try {
       setIsSaving(true);
       const floorToDelete = activeFloor;
-      await api.delete(`/parcels/${parcelId}/floor-plans/${floorToDelete}`);
+      const res = await api.delete(`/parcels/${parcelId}/floor-plans/${floorToDelete}?mode=DELETE_FLOOR`);
       setCadUrl('');
       setPartitions([]);
       setIsFloorDirty(false);
       setCustomFloors((prev) => prev.filter((f) => f !== floorToDelete));
       setDeletedFloorNumbers((prev) => [...prev, floorToDelete]);
-      setSaveSuccessMsg(`Đã xóa thành công bản vẽ và giải phóng phân chia của Tầng ${floorToDelete}!`);
+      setSaveSuccessMsg(res.data?.data?.message || `Đã xóa thành công Tầng ${floorToDelete} khỏi tòa nhà!`);
 
       if (onUnitsUpdated) {
         onUnitsUpdated();
@@ -525,8 +596,8 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
         loadActiveFloorDetails(nextFloor);
       }
     } catch (err: unknown) {
-      console.error('[FloorPlanCadModal:handleDeleteCurrentFloor] Lỗi khi xóa bản vẽ tầng:', err);
-      alert(`Không thể xóa bản vẽ tầng: ${getErrorMessage(err, 'Lỗi kết nối máy chủ')}`);
+      console.error('[FloorPlanCadModal:handleDeleteEntireFloor] Lỗi khi xóa tầng:', err);
+      alert(`Không thể xóa tầng: ${getErrorMessage(err, 'Lỗi kết nối máy chủ')}`);
     } finally {
       setIsSaving(false);
     }
@@ -858,33 +929,45 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
               )}
             </div>
 
-            {/* Các hành động trên tầng: Đổi CAD & XÓA BẢN VẼ TẦNG */}
+            {/* Các hành động trên tầng: Xóa CAD & XÓA TẦNG */}
             {!readOnly && (
               <div className="flex items-center gap-2">
+                {hasSurveyedUnits && (
+                  <span className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-lg font-semibold flex items-center gap-1 shadow-2xs">
+                    <span>⚠️</span>
+                    <span>{surveyedUnitsOnActiveFloor.length} căn đã khảo sát</span>
+                  </span>
+                )}
+
                 {cadUrl && (
                   <button
                     type="button"
-                    onClick={() => {
-                      if (confirm('Bạn có chắc muốn đổi file ảnh/PDF bản vẽ CAD khác cho tầng này?')) {
-                        setCadUrl('');
-                        setIsFloorDirty(true);
-                      }
-                    }}
-                    className="text-xs text-slate-500 hover:text-slate-800 underline cursor-pointer"
+                    onClick={handleClearCadOnly}
+                    className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-300 text-xs font-bold transition-all cursor-pointer shadow-2xs"
+                    title="Xóa bản vẽ CAD để tải lại hoặc chia lại căn hộ (Bảo toàn 100% hồ sơ khảo sát)"
                   >
-                    Đổi file CAD
+                    <RefreshCw className="w-3.5 h-3.5 text-slate-600" />
+                    <span>Xóa bản vẽ CAD</span>
                   </button>
                 )}
 
-                {/* Nút XÓA TẦNG (Tính năng mới theo yêu cầu) */}
+                {/* Nút XÓA TẦNG KHỎI TÒA NHÀ (Tính năng mới theo yêu cầu) */}
                 <button
                   type="button"
-                  onClick={handleDeleteCurrentFloor}
-                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold transition-colors cursor-pointer"
-                  title="Xóa bản vẽ CAD và giải phóng toàn bộ phân chia của tầng này"
+                  onClick={handleDeleteEntireFloor}
+                  className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer shadow-2xs ${
+                    hasSurveyedUnits
+                      ? 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed'
+                      : 'bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200'
+                  }`}
+                  title={
+                    hasSurveyedUnits
+                      ? 'Không thể xóa tầng vì đang có căn hộ đã khảo sát mang tính pháp lý'
+                      : 'Xóa hoàn toàn tầng này khỏi tòa nhà (Không làm dồn số các tầng khác)'
+                  }
                 >
-                  <Trash2 className="w-3.5 h-3.5 text-rose-600" />
-                  <span>Xóa bản vẽ tầng</span>
+                  <Trash2 className={`w-3.5 h-3.5 ${hasSurveyedUnits ? 'text-slate-400' : 'text-rose-600'}`} />
+                  <span>Xóa tầng này</span>
                 </button>
               </div>
             )}

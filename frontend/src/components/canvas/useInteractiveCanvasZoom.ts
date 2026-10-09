@@ -16,6 +16,18 @@ export function useInteractiveCanvasZoom(options: UseInteractiveCanvasZoomOption
   const containerRef = useRef<HTMLDivElement>(null);
   const tightBoxRef = useRef<HTMLDivElement>(null);
 
+  // Synchronized refs để các event listener ngoài React cycle luôn đọc được state mới nhất
+  const zoomScaleRef = useRef<number>(initialZoom);
+  const panOffsetRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+
+  useEffect(() => {
+    zoomScaleRef.current = zoomScale;
+  }, [zoomScale]);
+
+  useEffect(() => {
+    panOffsetRef.current = panOffset;
+  }, [panOffset]);
+
   // Lưu trữ trạng thái gesture
   const panStartRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const initialPanOffsetRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
@@ -65,33 +77,35 @@ export function useInteractiveCanvasZoom(options: UseInteractiveCanvasZoomOption
       const step = 0.15;
       const delta = e.deltaY < 0 ? step : -step;
 
-      setZoomScale((prevScale) => {
-        const nextScale = Math.max(minZoom, Math.min(maxZoom, Math.round((prevScale + delta) * 100) / 100));
-        if (nextScale === prevScale) return prevScale;
+      const prevScale = zoomScaleRef.current;
+      const nextScale = Math.max(minZoom, Math.min(maxZoom, Math.round((prevScale + delta) * 100) / 100));
+      if (nextScale === prevScale) return;
 
-        if (nextScale <= 1.0) {
-          setPanOffset({ x: 0, y: 0 });
-        } else {
-          // Focal point math: Phóng to / thu nhỏ hướng về con trỏ chuột
-          const rect = container.getBoundingClientRect();
-          const cx = rect.left + rect.width / 2;
-          const cy = rect.top + rect.height / 2;
-          const cursorRelX = e.clientX - cx;
-          const cursorRelY = e.clientY - cy;
+      zoomScaleRef.current = nextScale;
+      setZoomScale(nextScale);
 
-          setPanOffset((prevPan) => {
-            const ratio = nextScale / prevScale;
-            const nextPanX = prevPan.x - (cursorRelX - prevPan.x) * (ratio - 1);
-            const nextPanY = prevPan.y - (cursorRelY - prevPan.y) * (ratio - 1);
-            return {
-              x: Math.round(nextPanX * 10) / 10,
-              y: Math.round(nextPanY * 10) / 10,
-            };
-          });
-        }
+      if (nextScale <= 1.0) {
+        panOffsetRef.current = { x: 0, y: 0 };
+        setPanOffset({ x: 0, y: 0 });
+      } else {
+        // Focal point math: Phóng to / thu nhỏ hướng về con trỏ chuột
+        const rect = container.getBoundingClientRect();
+        const cx = rect.left + rect.width / 2;
+        const cy = rect.top + rect.height / 2;
+        const cursorRelX = e.clientX - cx;
+        const cursorRelY = e.clientY - cy;
 
-        return nextScale;
-      });
+        const prevPan = panOffsetRef.current;
+        const ratio = nextScale / prevScale;
+        const nextPanX = prevPan.x - (cursorRelX - prevPan.x) * (ratio - 1);
+        const nextPanY = prevPan.y - (cursorRelY - prevPan.y) * (ratio - 1);
+        const nextPan = {
+          x: Math.round(nextPanX * 10) / 10,
+          y: Math.round(nextPanY * 10) / 10,
+        };
+        panOffsetRef.current = nextPan;
+        setPanOffset(nextPan);
+      }
     };
 
     container.addEventListener('wheel', onNativeWheel, { passive: false });

@@ -322,11 +322,12 @@ export class CadastralController {
   static async deleteFloorPlan(req: Request, res: Response, next: NextFunction) {
     try {
       const { id, floor } = req.params;
+      const mode = (req.query.mode as string)?.toUpperCase() === 'CLEAR_CAD' ? 'CLEAR_CAD' : 'DELETE_FLOOR';
       const floorNum = parseInt(floor, 10);
       if (isNaN(floorNum)) {
         throw new BadRequestError('floor phải là số');
       }
-      const result = await CadastralService.deleteFloorPlan(id, floorNum);
+      const result = await CadastralService.deleteFloorPlan(id, floorNum, mode);
       res.status(200).json({
         success: true,
         data: result,

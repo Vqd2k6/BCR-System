@@ -89,6 +89,8 @@ export interface GisParcel {
   total_units?: number;
   completedUnits?: number;
   completed_units?: number;
+  deletedFloors?: number[];
+  deleted_floors?: number[];
   distanceMeters?: number;
   distance_meters?: number;
   distance_to_centerline_m?: number;
