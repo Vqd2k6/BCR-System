@@ -79,6 +79,10 @@ export const SurveyCondoMasterAreaModal: React.FC<Props> = ({
   const unitCode = unit.unit_code || unit.unitCode || 'MASTER-AREA';
   const floorNumber = unit.floor_number ?? unit.floorNumber ?? 1;
 
+  const existingReportId = unit.phase1_report_id || (unit as any).phase1ReportId;
+  const isReadOnly = readOnly || unit.status === 'SUBMITTED' || unit.status === 'APPROVED';
+  const [isLoadingReport, setIsLoadingReport] = useState<boolean>(Boolean(existingReportId));
+
   // Active Tab: 1. CAD_LOCATE (Vị trí CAD & Zone Highlight), 2. PHOTOS, 3. DEFECTS, 4. SIGN_SUBMIT
   const [activeTab, setActiveTab] = useState<'CAD_LOCATE' | 'PHOTOS' | 'DEFECTS' | 'SIGN_SUBMIT'>('CAD_LOCATE');
 
@@ -125,6 +129,65 @@ export const SurveyCondoMasterAreaModal: React.FC<Props> = ({
       isSubscribed = false;
     };
   }, [parcelId, floorNumber]);
+
+  // Nạp dữ liệu báo cáo khảo sát cũ nếu khu vực này đã từng khảo sát (Read-Only)
+  useEffect(() => {
+    let isSubscribed = true;
+    if (!existingReportId) {
+      setIsLoadingReport(false);
+      return;
+    }
+    const fetchExistingReport = async () => {
+      try {
+        setIsLoadingReport(true);
+        const res = await api.get(`/reports/phase1/${existingReportId}`);
+        if (isSubscribed && res.data?.success && res.data.data) {
+          const report = res.data.data;
+          let sData: any = {};
+          if (report.survey_data_json) {
+            try {
+              sData = typeof report.survey_data_json === 'string'
+                ? JSON.parse(report.survey_data_json)
+                : report.survey_data_json;
+            } catch (pErr) {
+              console.warn('[SurveyCondoMasterAreaModal] Lỗi parse survey_data_json:', pErr);
+            }
+          }
+          if (sData.overviewPhotoUrl) setOverviewPhotoUrl(sData.overviewPhotoUrl);
+          else if (report.identificationPhotos?.[0]?.photo_url) {
+            setOverviewPhotoUrl(report.identificationPhotos[0].photo_url);
+          }
+          if (Array.isArray(sData.defects)) setDefects(sData.defects);
+          if (sData.deformation?.saggingMm !== undefined && sData.deformation?.saggingMm !== '') {
+            setE3SaggingMm(sData.deformation.saggingMm);
+          } else if (report.deformation?.max_sagging_mm !== undefined) {
+            setE3SaggingMm(report.deformation.max_sagging_mm);
+          }
+          if (sData.deformation?.inclinationPercent !== undefined && sData.deformation?.inclinationPercent !== '') {
+            setE3InclinationPercent(sData.deformation.inclinationPercent);
+          } else if (report.deformation?.max_tilt_percent !== undefined) {
+            setE3InclinationPercent(report.deformation.max_tilt_percent);
+          }
+          if (sData.surveyorRemarks) setSurveyorNotes(sData.surveyorRemarks);
+          else if (report.surveyor_remarks || report.owner_remarks) {
+            setSurveyorNotes(report.surveyor_remarks || report.owner_remarks);
+          }
+          if (sData.surveyorSignatureUrl) setSurveyorSignatureUrl(sData.surveyorSignatureUrl);
+          else if (report.surveyor_signature_url) {
+            setSurveyorSignatureUrl(report.surveyor_signature_url);
+          }
+        }
+      } catch (err) {
+        console.error('[SurveyCondoMasterAreaModal] Lỗi nạp hồ sơ khảo sát cũ:', err);
+      } finally {
+        if (isSubscribed) setIsLoadingReport(false);
+      }
+    };
+    fetchExistingReport();
+    return () => {
+      isSubscribed = false;
+    };
+  }, [existingReportId]);
 
   // Hook Zoom & Pan cho màn hình xác định vị trí CAD
   const {
@@ -269,6 +332,16 @@ export const SurveyCondoMasterAreaModal: React.FC<Props> = ({
                 <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800 border border-indigo-200">
                   KHU VỰC MASTER
                 </span>
+                {isReadOnly && (
+                  <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs">
+                    ✓ ĐÃ HOÀN THÀNH (CHỈ ĐỌC)
+                  </span>
+                )}
+                {isLoadingReport && (
+                  <span className="text-[10px] font-medium text-slate-500 flex items-center gap-1 animate-pulse">
+                    <Loader2 className="w-3 h-3 animate-spin text-indigo-600" /> Đang tải dữ liệu cũ...
+                  </span>
+                )}
                 <h2 className="text-sm sm:text-base font-extrabold text-slate-900">
                   Khảo Sát Hiện Trạng: <span className="font-mono text-indigo-700">{unitCode}</span>
                 </h2>
@@ -498,7 +571,7 @@ export const SurveyCondoMasterAreaModal: React.FC<Props> = ({
                     label={`Ảnh toàn cảnh ${unitCode}`}
                     value={overviewPhotoUrl}
                     onChange={(url: string) => setOverviewPhotoUrl(url)}
-                    readOnly={readOnly}
+                    readOnly={isReadOnly}
                   />
                 </div>
               </div>
@@ -530,7 +603,7 @@ export const SurveyCondoMasterAreaModal: React.FC<Props> = ({
           {activeTab === 'DEFECTS' && (
             <div className="flex flex-col gap-4">
               {/* Form thêm khuyết tật mới */}
-              {!readOnly && (
+              {!isReadOnly && (
                 <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col gap-3">
                   <h3 className="text-xs font-bold text-slate-900 flex items-center gap-2">
                     <Plus className="w-4 h-4 text-indigo-600" />
@@ -682,7 +755,7 @@ export const SurveyCondoMasterAreaModal: React.FC<Props> = ({
                           </div>
                         </div>
 
-                        {!readOnly && (
+                        {!isReadOnly && (
                           <button
                             type="button"
                             onClick={() => handleRemoveDefect(d.id)}
@@ -709,9 +782,12 @@ export const SurveyCondoMasterAreaModal: React.FC<Props> = ({
                       type="number"
                       step="0.5"
                       placeholder="0"
+                      disabled={isReadOnly}
                       value={e3SaggingMm}
                       onChange={(e) => setE3SaggingMm(e.target.value === '' ? '' : Number(e.target.value))}
-                      className="w-full px-2.5 py-1.5 rounded-lg bg-slate-50 border border-slate-300 font-mono font-bold text-slate-900"
+                      className={`w-full px-2.5 py-1.5 rounded-lg border font-mono font-bold text-slate-900 ${
+                        isReadOnly ? 'bg-slate-100 border-slate-200 cursor-not-allowed' : 'bg-slate-50 border-slate-300'
+                      }`}
                     />
                   </div>
                   <div>
@@ -720,9 +796,12 @@ export const SurveyCondoMasterAreaModal: React.FC<Props> = ({
                       type="number"
                       step="0.1"
                       placeholder="0"
+                      disabled={isReadOnly}
                       value={e3InclinationPercent}
                       onChange={(e) => setE3InclinationPercent(e.target.value === '' ? '' : Number(e.target.value))}
-                      className="w-full px-2.5 py-1.5 rounded-lg bg-slate-50 border border-slate-300 font-mono font-bold text-slate-900"
+                      className={`w-full px-2.5 py-1.5 rounded-lg border font-mono font-bold text-slate-900 ${
+                        isReadOnly ? 'bg-slate-100 border-slate-200 cursor-not-allowed' : 'bg-slate-50 border-slate-300'
+                      }`}
                     />
                   </div>
                 </div>
@@ -749,9 +828,12 @@ export const SurveyCondoMasterAreaModal: React.FC<Props> = ({
                   <textarea
                     rows={2}
                     value={surveyorNotes}
+                    disabled={isReadOnly}
                     onChange={(e) => setSurveyorNotes(e.target.value)}
                     placeholder="Ghi chú thêm về điều kiện quan trắc hoặc đề xuất theo dõi..."
-                    className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-300 text-xs text-slate-800"
+                    className={`w-full px-3 py-2 rounded-xl border text-xs text-slate-800 ${
+                      isReadOnly ? 'bg-slate-100 border-slate-200 cursor-not-allowed' : 'bg-slate-50 border-slate-300'
+                    }`}
                   />
                 </div>
 
@@ -762,7 +844,7 @@ export const SurveyCondoMasterAreaModal: React.FC<Props> = ({
                     role="Kỹ sư hiện trường"
                     initialSignatureUrl={surveyorSignatureUrl}
                     onSave={(dataUrl) => setSurveyorSignatureUrl(dataUrl)}
-                    readOnly={readOnly}
+                    readOnly={isReadOnly}
                   />
                 </div>
               </div>
@@ -778,7 +860,16 @@ export const SurveyCondoMasterAreaModal: React.FC<Props> = ({
                   <span>Quay lại cấu kiện</span>
                 </button>
 
-                {!readOnly && (
+                {isReadOnly ? (
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="px-6 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs shadow-md flex items-center gap-2 cursor-pointer transition-all"
+                  >
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                    <span>Hồ Sơ Đã Hoàn Tất (Đóng)</span>
+                  </button>
+                ) : (
                   <button
                     type="button"
                     disabled={isSubmitting || !overviewPhotoUrl || !surveyorSignatureUrl}

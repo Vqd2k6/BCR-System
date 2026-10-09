@@ -268,6 +268,7 @@ export const BuildingUnitList: React.FC<BuildingUnitListProps> = ({
                 isMasterSurveyDone={isMasterSurveyDone}
                 onClose={onClose}
                 onStartUnitSurvey={onStartUnitSurvey}
+                onStartMasterAreaSurvey={onStartMasterAreaSurvey}
               />
             ))}
           </div>

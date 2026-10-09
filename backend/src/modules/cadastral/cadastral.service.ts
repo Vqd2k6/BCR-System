@@ -498,10 +498,7 @@ export class CadastralService {
     if (!parcel) {
       throw new NotFoundError(`Không tìm thấy thửa đất với ID: ${parcelId}`);
     }
-    const success = await CadastralRepository.deleteFloorPlan(parcelId, floorNumber);
-    if (!success) {
-      throw new NotFoundError(`Không tìm thấy bản vẽ tầng ${floorNumber} để xóa`);
-    }
+    await CadastralRepository.deleteFloorPlan(parcelId, floorNumber);
     return {
       message: `Đã xóa thành công bản vẽ và giải phóng phân chia của Tầng ${floorNumber}`,
       floorNumber,

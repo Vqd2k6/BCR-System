@@ -398,7 +398,7 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
       // Tự động tính toán scope chính xác từ danh sách partition
       const hasUnit = targetPartitions.some((p) => (p.partitionType || 'UNIT') === 'UNIT');
       const hasMaster = targetPartitions.some((p) => p.partitionType === 'MASTER');
-      const calculatedScope: FloorScope = (hasUnit && hasMaster) ? 'BOTH' : hasMaster ? 'MASTER' : 'UNIT';
+      const calculatedScope: FloorScope = (hasUnit && hasMaster) ? 'BOTH' : hasMaster ? 'MASTER' : hasUnit ? 'UNIT' : floorScope;
 
       // 1. Lưu bản vẽ Floor Plan
       const planRes = await api.post(`/parcels/${parcelId}/floor-plans`, {
@@ -482,11 +482,13 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
 
     try {
       setIsSaving(true);
-      await api.delete(`/parcels/${parcelId}/floor-plans/${activeFloor}`);
+      const floorToDelete = activeFloor;
+      await api.delete(`/parcels/${parcelId}/floor-plans/${floorToDelete}`);
       setCadUrl('');
       setPartitions([]);
       setIsFloorDirty(false);
-      setSaveSuccessMsg(`Đã xóa thành công bản vẽ và giải phóng phân chia của Tầng ${activeFloor}!`);
+      setCustomFloors((prev) => prev.filter((f) => f !== floorToDelete));
+      setSaveSuccessMsg(`Đã xóa thành công bản vẽ và giải phóng phân chia của Tầng ${floorToDelete}!`);
 
       if (onUnitsUpdated) {
         onUnitsUpdated();

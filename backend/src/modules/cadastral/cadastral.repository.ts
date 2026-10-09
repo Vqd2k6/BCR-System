@@ -710,13 +710,22 @@ export class CadastralRepository {
       [parcelId, floorNumber]
     );
 
-    // 3. Xóa bản ghi bản vẽ tầng trong building_floor_plans
-    const res = await Database.query(
+    // 3. Xóa bản ghi bản vẽ tầng trong building_floor_plans nếu có
+    await Database.query(
       `DELETE FROM building_floor_plans WHERE parcel_id = $1 AND floor_number = $2;`,
       [parcelId, floorNumber]
     );
 
-    // 4. Đồng bộ lại tổng số căn hộ/khu vực của thửa
+    // 4. Gỡ số tầng khỏi danh sách áp dụng (applicable_floors) của bất kỳ bản vẽ tầng nào khác
+    await Database.query(
+      `UPDATE building_floor_plans 
+       SET applicable_floors = array_remove(applicable_floors, $2::int),
+           updated_at = NOW()
+       WHERE parcel_id = $1 AND $2::int = ANY(applicable_floors);`,
+      [parcelId, floorNumber]
+    );
+
+    // 5. Đồng bộ lại tổng số căn hộ/khu vực của thửa
     await Database.query(
       `UPDATE parcels 
        SET total_units = (SELECT COUNT(*) FROM building_units WHERE parcel_id = $1),
@@ -725,7 +734,7 @@ export class CadastralRepository {
       [parcelId]
     );
 
-    return (res.rowCount ?? 0) > 0;
+    return true;
   }
 
   static async getAbsenceLogsForParcel(parcelId: string): Promise<any[]> {
