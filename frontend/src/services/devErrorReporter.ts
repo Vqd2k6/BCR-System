@@ -102,8 +102,8 @@ export function isIgnoredError(message: string, stack?: string, source?: string)
  * Gửi payload lỗi về backend endpoint /api/dev/report-error
  */
 export async function sendDevError(payload: DevErrorPayload): Promise<void> {
-  // Chỉ chạy trong môi trường Development của Vite
-  if (!import.meta.env.DEV) {
+  // Cho phép gửi các lỗi crash giao diện nghiêm trọng (REACT_ERROR_BOUNDARY) về server ngay cả trên production để hỗ trợ hiện trường
+  if (!import.meta.env.DEV && payload.errorType !== 'REACT_ERROR_BOUNDARY') {
     return;
   }
 

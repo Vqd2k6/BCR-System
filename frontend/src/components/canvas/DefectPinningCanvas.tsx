@@ -266,7 +266,7 @@ export { isCrackRelated };
 
 export const DefectPinningCanvas: React.FC<Props> = ({
   ctxPhotoUrl,
-  defects,
+  defects = [],
   onChange,
   readOnly = false,
   mode = 'ARCHITECTURAL',
@@ -284,6 +284,12 @@ export const DefectPinningCanvas: React.FC<Props> = ({
   const [safeCtxUrl, setSafeCtxUrl] = useState<string>(() => getSafeDisplayUrl(ctxPhotoUrl));
   const [isImageLoaded, setIsImageLoaded] = useState<boolean>(false);
   const dragMovedRef = useRef<boolean>(false);
+
+  // Bọc mảng safeDefects phòng thủ tuyệt đối chống null/undefined hoặc object lạ
+  const safeDefects = useMemo(() => {
+    if (!Array.isArray(defects)) return [];
+    return defects.filter((d): d is DefectItem => Boolean(d && typeof d === 'object'));
+  }, [defects]);
 
   // Hook Zoom & Pan Tương tác Bất biến Tọa độ
   const {
@@ -325,9 +331,9 @@ export const DefectPinningCanvas: React.FC<Props> = ({
   const screeningCategories = mode === 'STRUCTURAL' ? STRUCT_SCREENING_CATEGORIES : ARCH_SCREENING_CATEGORIES;
   const commonDefectTypes = mode === 'STRUCTURAL' ? STRUCT_DEFECT_TYPES : ARCH_DEFECT_TYPES;
 
-  // Tự động tìm số thứ tự nhỏ nhất còn trống cho D-xx
+  // Tự động tìm số thứ tự nhỏ nhất còn trống cho D-xx từ mảng safeDefects
   const nextDefectCode = getNextAvailablePinCode(
-    defects.map((d) => ({ zoneCode: d.defectCode })),
+    safeDefects.map((d) => ({ zoneCode: d.defectCode })),
     'D'
   );
 
@@ -337,7 +343,7 @@ export const DefectPinningCanvas: React.FC<Props> = ({
       const coords = calculateNormalizedCoords(e.clientX, e.clientY);
       if (!coords) return;
 
-      const updated = [...defects];
+      const updated = [...safeDefects];
       if (updated[draggingDefectIndex]) {
         updated[draggingDefectIndex] = {
           ...updated[draggingDefectIndex],
@@ -367,7 +373,7 @@ export const DefectPinningCanvas: React.FC<Props> = ({
 
   const handleCloneFromPreviousDefect = () => {
     if (selectedDefectIndex === null || readOnly) return;
-    const candidate = defects
+    const candidate = safeDefects
       .slice(0, selectedDefectIndex)
       .reverse()
       .find((d) => d.screeningCategory && d.defectType);
@@ -377,7 +383,8 @@ export const DefectPinningCanvas: React.FC<Props> = ({
       return;
     }
 
-    const current = defects[selectedDefectIndex];
+    const current = safeDefects[selectedDefectIndex];
+    if (!current) return;
     const cloned: DefectItem = {
       ...current,
       screeningCategory: candidate.screeningCategory,
@@ -391,7 +398,7 @@ export const DefectPinningCanvas: React.FC<Props> = ({
       isStructuralCritical: candidate.isStructuralCritical ?? current.isStructuralCritical,
     };
 
-    const updated = [...defects];
+    const updated = [...safeDefects];
     updated[selectedDefectIndex] = cloned;
     onChange(updated);
   };
@@ -420,12 +427,12 @@ export const DefectPinningCanvas: React.FC<Props> = ({
     if (!coords) return;
 
     const newDefectCode = getNextAvailablePinCode(
-      defects.map((d) => ({ zoneCode: d.defectCode })),
+      safeDefects.map((d) => ({ zoneCode: d.defectCode })),
       'D'
     );
 
     // Tìm điểm D gần nhất đã điền để tự động kế thừa (D_i-1 -> D_i)
-    const candidate = [...defects].reverse().find((d) => d.screeningCategory || d.defectType);
+    const candidate = [...safeDefects].reverse().find((d) => d.screeningCategory || d.defectType);
 
     const newDefect: DefectItem = {
       defectCode: newDefectCode,
@@ -456,7 +463,7 @@ export const DefectPinningCanvas: React.FC<Props> = ({
       syncedFromDefectCode: candidate ? candidate.defectCode : undefined,
     };
 
-    const updated = [...defects, newDefect];
+    const updated = [...safeDefects, newDefect];
     onChange(updated);
     setSelectedDefectIndex(updated.length - 1);
     setIsAddingPin(false);
@@ -467,7 +474,7 @@ export const DefectPinningCanvas: React.FC<Props> = ({
 
   const removeDefect = (index: number) => {
     if (readOnly) return;
-    const updated = defects.filter((_, i) => i !== index);
+    const updated = safeDefects.filter((_, i) => i !== index);
     onChange(updated);
     if (selectedDefectIndex === index) {
       setSelectedDefectIndex(null);
@@ -478,7 +485,8 @@ export const DefectPinningCanvas: React.FC<Props> = ({
 
   const updateSelectedDefect = <K extends keyof DefectItem>(field: K, value: DefectItem[K]) => {
     if (selectedDefectIndex === null || readOnly) return;
-    const updated = [...defects];
+    const updated = [...safeDefects];
+    if (!updated[selectedDefectIndex]) return;
     const cur = { ...updated[selectedDefectIndex], [field]: value };
 
     if (INHERITABLE_DEFECT_FIELDS.includes(field)) {
@@ -506,9 +514,9 @@ export const DefectPinningCanvas: React.FC<Props> = ({
 
   const handleResetFieldToPrevious = (field: keyof DefectItem) => {
     if (selectedDefectIndex === null || selectedDefectIndex === 0 || readOnly) return;
-    const prev = defects[selectedDefectIndex - 1];
+    const prev = safeDefects[selectedDefectIndex - 1];
     if (!prev) return;
-    const updated = [...defects];
+    const updated = [...safeDefects];
     const cur = { ...updated[selectedDefectIndex], [field]: prev[field] };
     cur.customizedFields = (cur.customizedFields || []).filter((f) => f !== field);
     updated[selectedDefectIndex] = cur;
@@ -526,9 +534,10 @@ export const DefectPinningCanvas: React.FC<Props> = ({
 
   const handleResetAllToPrevious = () => {
     if (selectedDefectIndex === null || selectedDefectIndex === 0 || readOnly) return;
-    const prev = defects[selectedDefectIndex - 1];
+    const prev = safeDefects[selectedDefectIndex - 1];
     if (!prev) return;
-    const current = defects[selectedDefectIndex];
+    const current = safeDefects[selectedDefectIndex];
+    if (!current) return;
     const resetDefect: DefectItem = {
       ...current,
       screeningCategory: prev.screeningCategory,
@@ -544,7 +553,7 @@ export const DefectPinningCanvas: React.FC<Props> = ({
       customizedFields: [],
       syncedFromDefectCode: prev.defectCode,
     };
-    const updated = [...defects];
+    const updated = [...safeDefects];
     updated[selectedDefectIndex] = resetDefect;
 
     for (let k = selectedDefectIndex + 1; k < updated.length; k++) {
@@ -564,13 +573,14 @@ export const DefectPinningCanvas: React.FC<Props> = ({
 
   const handleBulkApplyDownstreamDefects = () => {
     if (selectedDefectIndex === null || readOnly) return;
-    const cur = defects[selectedDefectIndex];
+    const cur = safeDefects[selectedDefectIndex];
+    if (!cur) return;
     if (!cur.screeningCategory || !cur.defectType) {
       alert('Vui lòng chọn đầy đủ Nhóm chỉ báo và Dạng nứt cho điểm D này trước khi đồng bộ!');
       return;
     }
     const isRoot = selectedDefectIndex === 0;
-    const downstreamCount = defects.length - 1 - selectedDefectIndex;
+    const downstreamCount = safeDefects.length - 1 - selectedDefectIndex;
     if (downstreamCount <= 0 && !isRoot) return;
 
     const confirmMsg = isRoot
@@ -579,7 +589,7 @@ export const DefectPinningCanvas: React.FC<Props> = ({
 
     if (!confirm(confirmMsg)) return;
 
-    const updated = defects.map((d, idx) => {
+    const updated = safeDefects.map((d, idx) => {
       // Chỉ áp dụng xuôi chiều cho các điểm phía sau idx > selectedDefectIndex
       if (idx <= selectedDefectIndex) return d;
       return {
@@ -602,8 +612,8 @@ export const DefectPinningCanvas: React.FC<Props> = ({
   };
 
   const selectedDefect =
-    selectedDefectIndex !== null && selectedDefectIndex >= 0 && selectedDefectIndex < defects.length
-      ? defects[selectedDefectIndex] || null
+    selectedDefectIndex !== null && selectedDefectIndex >= 0 && selectedDefectIndex < safeDefects.length
+      ? safeDefects[selectedDefectIndex] || null
       : null;
 
   const handleSaveAnnotatedCuPhoto = async (
@@ -612,7 +622,7 @@ export const DefectPinningCanvas: React.FC<Props> = ({
     photoCode?: string
   ) => {
     if (selectedDefectIndex === null || readOnly) return;
-    const cur = defects[selectedDefectIndex];
+    const cur = safeDefects[selectedDefectIndex];
     if (!cur) return;
 
     try {
@@ -645,7 +655,7 @@ export const DefectPinningCanvas: React.FC<Props> = ({
 
       curPhotos[targetPIdx] = localUri;
 
-      const next = [...defects];
+      const next = [...safeDefects];
       next[selectedDefectIndex] = {
         ...next[selectedDefectIndex],
         cuPhotos: curPhotos,
@@ -665,7 +675,7 @@ export const DefectPinningCanvas: React.FC<Props> = ({
           zoneOrRoom: zoneOrElementCode || '',
         },
         onSuccess: async (publicUrl) => {
-          const currentFresh = [...defects];
+          const currentFresh = [...safeDefects];
           if (currentFresh[selectedDefectIndex]) {
             const photos = [...(currentFresh[selectedDefectIndex].cuPhotos || [])];
             photos[targetPIdx] = publicUrl;
@@ -687,23 +697,23 @@ export const DefectPinningCanvas: React.FC<Props> = ({
       console.error('[DefectPinningCanvas] Lỗi lưu ảnh vẽ vết nứt:', err);
     }
   };
-  const prevDefect = selectedDefectIndex !== null && selectedDefectIndex > 0 ? defects[selectedDefectIndex - 1] : null;
+  const prevDefect = selectedDefectIndex !== null && selectedDefectIndex > 0 ? safeDefects[selectedDefectIndex - 1] : null;
   const isStructural = mode === 'STRUCTURAL';
   const isDefectRoot = selectedDefectIndex === 0;
-  const downstreamDefectCount = selectedDefectIndex !== null ? defects.length - 1 - selectedDefectIndex : 0;
+  const downstreamDefectCount = selectedDefectIndex !== null ? safeDefects.length - 1 - selectedDefectIndex : 0;
   const defectCustomFields = selectedDefect?.customizedFields || [];
   const hasCustomizedDefectFields = defectCustomFields.length > 0;
 
-  // Đảm bảo selectedDefectIndex luôn đồng bộ và an toàn với kích thước mảng defects
+  // Đảm bảo selectedDefectIndex luôn đồng bộ và an toàn với kích thước mảng safeDefects
   React.useEffect(() => {
     if (selectedDefectIndex !== null) {
-      if (defects.length === 0) {
+      if (safeDefects.length === 0) {
         setSelectedDefectIndex(null);
-      } else if (selectedDefectIndex >= defects.length) {
-        setSelectedDefectIndex(defects.length - 1);
+      } else if (selectedDefectIndex >= safeDefects.length) {
+        setSelectedDefectIndex(safeDefects.length - 1);
       }
     }
-  }, [defects.length, selectedDefectIndex]);
+  }, [safeDefects.length, selectedDefectIndex]);
 
   const renderDefectFieldBadge = (field: keyof DefectItem) => {
     if (!prevDefect || !selectedDefect) return null;
@@ -773,18 +783,18 @@ export const DefectPinningCanvas: React.FC<Props> = ({
             <div className="flex items-center gap-1.5">
               <MapPin className="w-4 h-4 text-emerald-600" />
               <span className="font-bold text-slate-800">
-                Ghi sổ khuyết tật ({defects.length} điểm D):
+                Ghi sổ khuyết tật ({safeDefects.length} điểm D):
               </span>
             </div>
 
             <div className="flex items-center gap-2 text-[11px]">
               <span className="flex items-center gap-1 text-emerald-700 font-medium">
                 <span className="w-2 h-2 rounded-xs bg-emerald-500 inline-block" />
-                Đã điền đủ ({defects.filter(isDefectFilled).length})
+                Đã điền đủ ({safeDefects.filter(isDefectFilled).length})
               </span>
               <span className="flex items-center gap-1 text-amber-700 font-medium">
                 <span className="w-2 h-2 rounded-xs bg-amber-500 inline-block" />
-                Chưa đủ thông số ({defects.filter((d) => !isDefectFilled(d)).length})
+                Chưa đủ thông số ({safeDefects.filter((d) => !isDefectFilled(d)).length})
               </span>
             </div>
           </div>
@@ -870,7 +880,7 @@ export const DefectPinningCanvas: React.FC<Props> = ({
             />
 
             {/* Existing Pins with Drag & Drop */}
-            {showPins && defects.map((d, idx) => {
+            {showPins && safeDefects.map((d, idx) => {
               const isSelected = selectedDefectIndex === idx;
               const isDragging = draggingDefectIndex === idx;
               const isFilled = isDefectFilled(d);
@@ -988,7 +998,7 @@ export const DefectPinningCanvas: React.FC<Props> = ({
       </div>
 
       {/* Selected Defect Detail Card */}
-      {selectedDefect && selectedDefectIndex !== null && (
+      {Boolean(selectedDefect) && selectedDefect && selectedDefectIndex !== null && (
         <div ref={detailFormRef} className="relative p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3.5 shadow-2xs">
           {/* Top Glow Line (Emerald cho Kiến trúc, Amber cho Kết cấu) */}
           <div
@@ -1030,7 +1040,7 @@ export const DefectPinningCanvas: React.FC<Props> = ({
 
             {!readOnly && (
               <div className="flex items-center gap-1.5 flex-wrap">
-                {isDefectRoot && defects.length > 1 && (
+                {isDefectRoot && safeDefects.length > 1 && (
                   <button
                     type="button"
                     onClick={handleBulkApplyDownstreamDefects}
@@ -1372,7 +1382,7 @@ export const DefectPinningCanvas: React.FC<Props> = ({
               if (selectedDefectIndex === null) return;
               const nextPhotos = [...currentCuPhotos, url];
               const nextCodes = [...currentCuCodes, code || ''];
-              const next = [...defects];
+              const next = [...safeDefects];
               next[selectedDefectIndex] = {
                 ...next[selectedDefectIndex],
                 cuPhotos: nextPhotos,
@@ -1387,7 +1397,7 @@ export const DefectPinningCanvas: React.FC<Props> = ({
               if (selectedDefectIndex === null || readOnly) return;
               const nextPhotos = currentCuPhotos.filter((_, i) => i !== indexToRemove);
               const nextCodes = currentCuCodes.filter((_, i) => i !== indexToRemove);
-              const next = [...defects];
+              const next = [...safeDefects];
               next[selectedDefectIndex] = {
                 ...next[selectedDefectIndex],
                 cuPhotos: nextPhotos,

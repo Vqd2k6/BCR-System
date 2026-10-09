@@ -72,9 +72,16 @@ class DevErrorBoundary extends React.Component<{ children: React.ReactNode }, Er
           <p style={{ color: '#881337', fontSize: '14px', marginTop: '12px', lineHeight: 1.5 }}>
             Lỗi này đã được <strong>tự động bắt và ghi vào <code>app_errors.log</code></strong> tại thư mục gốc dự án để hỗ trợ agent phân tích và sửa mã nguồn.
           </p>
-          <pre style={{ background: '#ffffff', padding: '14px', borderRadius: '8px', overflowX: 'auto', border: '1px solid #fda4af', color: '#9f1239', fontSize: '12px', lineHeight: 1.5 }}>
-            {this.state.error?.stack || this.state.error?.message}
-          </pre>
+          <div style={{ background: '#ffffff', padding: '14px', borderRadius: '8px', border: '1px solid #fda4af' }}>
+            <div style={{ color: '#be123c', fontWeight: 700, fontSize: '13px', marginBottom: '8px' }}>
+              {this.state.error?.name || 'Lỗi Ứng Dụng'}: {this.state.error?.message || 'Không có mô tả lỗi cụ thể'}
+            </div>
+            {this.state.error?.stack && (
+              <pre style={{ margin: 0, color: '#9f1239', fontSize: '11px', lineHeight: 1.4, overflowX: 'auto' }}>
+                {this.state.error.stack}
+              </pre>
+            )}
+          </div>
           <button
             onClick={() => {
               this.setState({ hasError: false, error: null });
