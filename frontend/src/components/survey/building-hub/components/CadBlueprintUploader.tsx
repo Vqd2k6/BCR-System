@@ -335,20 +335,20 @@ export const CadBlueprintUploader: React.FC<CadBlueprintUploaderProps> = ({
                 : `Tải Lên Bản Vẽ CAD Mặt Bằng ${floorName || `Tầng ${floorNumber}`}`}
             </h3>
 
-            <p className="text-xs sm:text-sm text-slate-500 max-w-md mb-4 leading-relaxed">
-              Kéo thả hoặc nhấp để chọn tệp từ máy tính. Hỗ trợ tệp <strong>Ảnh kiến trúc (PNG, JPG, WEBP, SVG)</strong>{' '}
-              hoặc <strong>Hồ sơ thiết kế PDF</strong> (hỗ trợ chọn trang).
+            <p className="text-xs sm:text-sm text-slate-500 max-w-md mb-3 leading-relaxed">
+              Kéo thả hoặc nhấp để chọn tệp từ máy tính.
             </p>
 
-            <div className="flex items-center gap-2 flex-wrap justify-center text-[11px] font-medium text-slate-500">
-              <span className="px-2.5 py-1 rounded-lg bg-slate-100 text-teal-800 border border-slate-200">
-                📄 PDF Hồ sơ thiết kế
-              </span>
-              <span className="px-2.5 py-1 rounded-lg bg-slate-100 text-sky-800 border border-slate-200">
-                🖼️ PNG / JPG / SVG
-              </span>
-              <span className="px-2.5 py-1 rounded-lg bg-slate-100 text-indigo-800 border border-slate-200">
-                ⚡ Tự động trích xuất độ phân giải cao
+            <div className="flex flex-col items-center gap-2">
+              <button
+                type="button"
+                className="px-5 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold shadow-xs transition-all flex items-center gap-2 cursor-pointer active:scale-95"
+              >
+                <FileText className="w-4 h-4" />
+                <span>Chọn Tệp PDF Hồ Sơ Thiết Kế (hoặc ảnh PNG, JPG, SVG)</span>
+              </button>
+              <span className="text-[11px] text-slate-500 text-center max-w-md">
+                ℹ️ Định dạng hỗ trợ: PDF thiết kế hoàn công (chọn trang), PNG, JPG, WEBP, SVG. Tự động trích xuất bản vẽ kỹ thuật số độ nét cao 2048px.
               </span>
             </div>
           </div>

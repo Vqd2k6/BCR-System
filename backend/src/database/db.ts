@@ -263,9 +263,11 @@ export class Database {
 
         ALTER TABLE building_floor_plans
           ADD COLUMN IF NOT EXISTS scope VARCHAR(32) DEFAULT 'UNIT',
-          ADD COLUMN IF NOT EXISTS area_type VARCHAR(64) DEFAULT 'TYPICAL_UNIT';
+          ADD COLUMN IF NOT EXISTS area_type VARCHAR(64) DEFAULT 'TYPICAL_UNIT',
+          ADD COLUMN IF NOT EXISTS floor_code VARCHAR(32);
 
         CREATE INDEX IF NOT EXISTS idx_floor_plans_scope ON building_floor_plans(parcel_id, scope);
+        CREATE INDEX IF NOT EXISTS idx_floor_plans_floor_code ON building_floor_plans(parcel_id, floor_code);
 
         ALTER TABLE building_units
           ADD COLUMN IF NOT EXISTS floor_plan_id UUID REFERENCES building_floor_plans(id) ON DELETE SET NULL,

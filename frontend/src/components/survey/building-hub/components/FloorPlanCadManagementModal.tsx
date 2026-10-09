@@ -49,10 +49,38 @@ export const detectDefaultFloorScope = (
   return { scope: 'UNIT', areaType: 'TYPICAL_UNIT' };
 };
 
+export const STANDARD_FLOOR_CODE_OPTIONS = [
+  { code: 'G', label: 'Trệt / Sảnh (G)', defaultScope: 'BOTH' as FloorScope, defaultArea: 'GROUND_LOBBY' },
+  { code: 'MEZZ', label: 'Tầng Lửng Trệt (MEZZ)', defaultScope: 'BOTH' as FloorScope, defaultArea: 'MEZZANINE' },
+  { code: 'B01', label: 'Tầng Hầm 1 (B01)', defaultScope: 'MASTER' as FloorScope, defaultArea: 'BASEMENT' },
+  { code: 'B02', label: 'Tầng Hầm 2 (B02)', defaultScope: 'MASTER' as FloorScope, defaultArea: 'BASEMENT' },
+  { code: 'SB', label: 'Tầng Bán Hầm (SB)', defaultScope: 'MASTER' as FloorScope, defaultArea: 'SEMI_BASEMENT' },
+  { code: 'TECH', label: 'Tầng Kỹ Thuật (TECH)', defaultScope: 'MASTER' as FloorScope, defaultArea: 'TECHNICAL' },
+  { code: 'REF', label: 'Tầng Lánh Nạn (REF)', defaultScope: 'MASTER' as FloorScope, defaultArea: 'REFUGE' },
+  { code: 'TUM', label: 'Tầng Tum (TUM)', defaultScope: 'BOTH' as FloorScope, defaultArea: 'TUM' },
+  { code: 'TERRACE', label: 'Sân Thượng (TERRACE)', defaultScope: 'MASTER' as FloorScope, defaultArea: 'ROOFTOP' },
+  { code: 'ROOF', label: 'Tầng Mái (ROOF)', defaultScope: 'MASTER' as FloorScope, defaultArea: 'ROOFTOP' },
+];
+
+export const getDefaultFloorCode = (floorNum: number, floorName?: string): string => {
+  const lower = (floorName || '').toLowerCase();
+  if (lower.includes('lửng') || lower.includes('mezzanine')) return 'MEZZ';
+  if (lower.includes('bán hầm')) return 'SB';
+  if (lower.includes('kỹ thuật')) return 'TECH';
+  if (lower.includes('lánh nạn')) return 'REF';
+  if (lower.includes('tum')) return 'TUM';
+  if (lower.includes('sân thượng')) return 'TERRACE';
+  if (lower.includes('mái') || lower.includes('roof')) return 'ROOF';
+  if (floorNum === 0 || lower.includes('trệt')) return 'G';
+  if (floorNum < 0) return `B${String(Math.abs(floorNum)).padStart(2, '0')}`;
+  return `F${String(floorNum).padStart(2, '0')}`;
+};
+
 interface FloorPlanItem {
   id: string;
   floor_number: number;
   floor_name: string;
+  floor_code?: string;
   cad_photo_url: string;
   applicable_floors?: number[];
   scope?: FloorScope;
@@ -75,6 +103,7 @@ interface CadUnitItem {
 interface BuildingFloorItem {
   floorNumber: number;
   floorName: string;
+  floorCode: string;
   hasCad: boolean;
   cadPhotoUrl?: string;
   applicableFloors?: number[];
@@ -108,6 +137,7 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
   // Danh sách tầng tùy chỉnh bổ sung bởi người dùng
   const [customFloors, setCustomFloors] = useState<number[]>([]);
   const [newFloorInput, setNewFloorInput] = useState<string>('');
+  const [newFloorCodeInput, setNewFloorCodeInput] = useState<string>('');
   const [showAddFloorInput, setShowAddFloorInput] = useState<boolean>(false);
 
   // Dữ liệu từ API
@@ -120,6 +150,7 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
   // Tầng đang được chọn thao tác
   const [activeFloor, setActiveFloor] = useState<number>(1);
   const [floorName, setFloorName] = useState<string>('Tầng 1');
+  const [floorCode, setFloorCode] = useState<string>('F01');
   const [cadUrl, setCadUrl] = useState<string>('');
   const [applicableFloors, setApplicableFloors] = useState<number[]>([1]);
   const [floorScope, setFloorScope] = useState<FloorScope>('UNIT');
@@ -231,6 +262,7 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
 
       // QUAN TRỌNG: Tên hiển thị của tầng phải là tên riêng hoặc tên mặc định của chính tầng này, KHÔNG lấy chuỗi của tầng nguồn
       const floorDisplayName = directPlan?.floor_name || defaultName;
+      const effectiveFloorCode = directPlan?.floor_code || getDefaultFloorCode(flNum, floorDisplayName);
 
       // Tính scope tự động: Nếu tầng này đang active thì ưu tiên scope từ các partitions hiện tại
       let effectiveScope: FloorScope = 'UNIT';
@@ -249,6 +281,7 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
       return {
         floorNumber: flNum,
         floorName: floorDisplayName,
+        floorCode: effectiveFloorCode,
         hasCad: hasDirectCad || isInherited,
         cadPhotoUrl: effectivePlan?.cad_photo_url,
         applicableFloors: effectivePlan?.applicable_floors,
@@ -270,6 +303,7 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
           if (plan) {
             setCadUrl(plan.cad_photo_url || '');
             setFloorName(plan.floor_name || `Tầng ${floorNum}`);
+            setFloorCode(plan.floor_code || getDefaultFloorCode(floorNum, plan.floor_name || `Tầng ${floorNum}`));
             setApplicableFloors(plan.applicable_floors || [floorNum]);
             const detected = detectDefaultFloorScope(floorNum, plan.floor_name || `Tầng ${floorNum}`);
             setFloorScope(plan.scope || detected.scope);
@@ -282,6 +316,7 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
               setCadUrl(sharedPlan.cad_photo_url || '');
               const defName = floorNum === 0 ? 'Tầng Trệt / G' : floorNum < 0 ? `Hầm B${Math.abs(floorNum)}` : `Tầng ${floorNum}`;
               setFloorName(defName);
+              setFloorCode(sharedPlan.floor_code || getDefaultFloorCode(floorNum, defName));
               setApplicableFloors(sharedPlan.applicable_floors || [sharedPlan.floor_number]);
               const detected = detectDefaultFloorScope(floorNum, defName);
               setFloorScope(sharedPlan.scope || detected.scope);
@@ -289,6 +324,7 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
               setCadUrl('');
               const defName = floorNum === 0 ? 'Tầng Trệt / G' : floorNum < 0 ? `Hầm B${Math.abs(floorNum)}` : `Tầng ${floorNum}`;
               setFloorName(defName);
+              setFloorCode(getDefaultFloorCode(floorNum, defName));
               setApplicableFloors([floorNum]);
               const detected = detectDefaultFloorScope(floorNum, defName);
               setFloorScope(detected.scope);
@@ -370,7 +406,10 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
         }
         setCustomFloors((prev) => (prev.includes(parsed) ? prev : [...prev, parsed]));
         setActiveFloor(parsed);
+        const assignedCode = newFloorCodeInput.trim() || getDefaultFloorCode(parsed);
+        setFloorCode(assignedCode);
         setNewFloorInput('');
+        setNewFloorCodeInput('');
         setShowAddFloorInput(false);
         loadActiveFloorDetails(parsed);
       }
@@ -384,15 +423,17 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
     // Lấy partitions của tầng nguồn nếu có
     const sourceUnits = allUnits.filter((u) => (u.floor_number ?? 1) === sourceFloor.floorNumber);
     if (sourceUnits.length > 0) {
-      const mm = String(activeFloor).padStart(2, '0');
+      const mm = floorCode.trim() || String(activeFloor).padStart(2, '0');
       const copiedBoxes: UnitPartitionBox[] = sourceUnits
         .filter((u) => Boolean(u.cad_bbox))
         .map((u) => {
           const parts = u.unit_code.split('.');
           const nn = parts.length > 1 ? parts[1] : u.unit_code;
+          const isMaster = (u.unit_type || 'UNIT') === 'MASTER';
+          const prefix = isMaster ? (mm.startsWith('T') ? mm : `T${mm.replace(/^F/i, '')}`) : mm.replace(/^F/i, '');
           return {
             id: `unit_box_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
-            unitCode: `${mm}.${nn}`,
+            unitCode: `${prefix}.${nn}`,
             partitionType: u.unit_type || 'UNIT',
             x: u.cad_bbox?.x ?? 0,
             y: u.cad_bbox?.y ?? 0,
@@ -437,6 +478,7 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
       const planRes = await api.post(`/parcels/${parcelId}/floor-plans`, {
         floorNumber: activeFloor,
         floorName: floorName || `Tầng ${activeFloor}`,
+        floorCode: floorCode.trim() || getDefaultFloorCode(activeFloor, floorName),
         applicableFloors: targetApplicableFloors,
         cadPhotoUrl: cadUrl,
         scope: calculatedScope,
@@ -454,14 +496,17 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
       }[] = [];
 
       for (const fl of targetApplicableFloors) {
-        let mm = String(fl).padStart(2, '0');
-        if (fl === 0) mm = 'G';
-        if (fl < 0) mm = `B${Math.abs(fl)}`;
+        const targetFloorItem = buildingFloors.find((b) => b.floorNumber === fl);
+        const mm = fl === activeFloor
+          ? (floorCode.trim() || getDefaultFloorCode(fl, floorName))
+          : (targetFloorItem?.floorCode || getDefaultFloorCode(fl));
 
         for (const p of targetPartitions) {
           const parts = p.unitCode.split('.');
           const nn = parts.length > 1 ? parts[1] : p.unitCode;
-          const uCode = `${mm}.${nn}`;
+          const isMaster = (p.partitionType || 'UNIT') === 'MASTER';
+          const prefix = isMaster ? (mm.startsWith('T') ? mm : `T${mm.replace(/^F/i, '')}`) : mm.replace(/^F/i, '');
+          const uCode = `${prefix}.${nn}`;
 
           allFloorPartitions.push({
             unitCode: uCode,
@@ -752,23 +797,68 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
               )}
             </div>
 
-            {/* Ô thêm tầng nhanh */}
+            {/* Ô thêm tầng nhanh kèm Mã Tầng */}
             {showAddFloorInput && (
-              <div className="p-2 bg-slate-50 border-b border-slate-200 flex items-center gap-1.5">
-                <input
-                  type="number"
-                  placeholder="Số tầng (VD: 9, -1)"
-                  value={newFloorInput}
-                  onChange={(e) => setNewFloorInput(e.target.value)}
-                  className="flex-1 px-2 py-1 rounded-lg bg-white border border-slate-300 text-xs font-bold text-slate-900 focus:outline-none focus:border-teal-500"
-                />
-                <button
-                  type="button"
-                  onClick={handleAddCustomFloor}
-                  className="px-2.5 py-1 rounded-lg bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold cursor-pointer"
-                >
-                  Thêm
-                </button>
+              <div className="p-2.5 bg-slate-50 border-b border-slate-200 flex flex-col gap-2">
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="number"
+                    placeholder="Số tầng (VD: 9, 0, -1)"
+                    value={newFloorInput}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setNewFloorInput(val);
+                      if (val.trim() !== '') {
+                        const parsed = parseFloat(val);
+                        if (!isNaN(parsed)) {
+                          setNewFloorCodeInput(getDefaultFloorCode(parsed));
+                        }
+                      }
+                    }}
+                    className="w-24 px-2 py-1 rounded-lg bg-white border border-slate-300 text-xs font-bold text-slate-900 focus:outline-none focus:border-teal-500"
+                  />
+                  <input
+                    type="text"
+                    placeholder="Mã tầng (VD: MEZZ)"
+                    value={newFloorCodeInput}
+                    onChange={(e) => setNewFloorCodeInput(e.target.value.toUpperCase())}
+                    className="flex-1 px-2 py-1 rounded-lg bg-white border border-slate-300 text-xs font-mono font-bold text-teal-800 focus:outline-none focus:border-teal-500"
+                  />
+                </div>
+                <div className="flex items-center justify-between gap-1">
+                  <select
+                    value={STANDARD_FLOOR_CODE_OPTIONS.some((o) => o.code === newFloorCodeInput) ? newFloorCodeInput : ''}
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        setNewFloorCodeInput(e.target.value);
+                      }
+                    }}
+                    className="text-[11px] bg-white border border-slate-300 rounded px-1.5 py-0.5 text-slate-600 cursor-pointer max-w-[125px]"
+                  >
+                    <option value="">Gợi ý mẫu...</option>
+                    {STANDARD_FLOOR_CODE_OPTIONS.map((o) => (
+                      <option key={o.code} value={o.code}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setShowAddFloorInput(false)}
+                      className="px-2 py-1 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold cursor-pointer"
+                    >
+                      Hủy
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleAddCustomFloor}
+                      className="px-2.5 py-1 rounded-lg bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold cursor-pointer"
+                    >
+                      Thêm
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
 
@@ -796,6 +886,10 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <span className={`text-xs font-bold truncate ${isActive ? 'text-teal-950' : 'text-slate-800'}`}>
                             {fl.floorName}
+                          </span>
+                          {/* Mã tầng quy chuẩn */}
+                          <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded bg-slate-100 text-teal-900 border border-slate-200">
+                            {fl.floorCode}
                           </span>
                           {/* Scope badge tự động cập nhật theo bản vẽ */}
                           {fl.scope === 'MASTER' && (
@@ -881,6 +975,52 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
                     placeholder={`Tầng ${activeFloor}`}
                     className="px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-300 text-xs font-bold text-teal-800 focus:outline-none focus:border-teal-600 w-36 sm:w-44"
                   />
+                )}
+              </div>
+
+              {/* Mã tầng (Floor Code) - Nhập trực tiếp hoặc chọn mẫu */}
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs font-bold text-slate-600">Mã tầng:</span>
+                {readOnly ? (
+                  <span className="text-xs font-mono font-bold text-teal-900 px-2 py-0.5 rounded-lg bg-teal-50 border border-teal-200">
+                    {floorCode}
+                  </span>
+                ) : (
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="text"
+                      value={floorCode}
+                      onChange={(e) => {
+                        setFloorCode(e.target.value.toUpperCase());
+                        setIsFloorDirty(true);
+                      }}
+                      placeholder="VD: MEZZ, B01"
+                      className="px-2 py-1 rounded-lg bg-slate-50 border border-slate-300 text-xs font-mono font-bold text-teal-900 focus:outline-none focus:border-teal-600 w-20 text-center"
+                      title="Mã tầng quy ước chuẩn (VD: MEZZ, B01, G, F08, TECH, ROOF)"
+                    />
+                    <select
+                      value={STANDARD_FLOOR_CODE_OPTIONS.some((o) => o.code === floorCode) ? floorCode : ''}
+                      onChange={(e) => {
+                        if (e.target.value) {
+                          setFloorCode(e.target.value);
+                          const opt = STANDARD_FLOOR_CODE_OPTIONS.find((o) => o.code === e.target.value);
+                          if (opt) {
+                            setFloorScope(opt.defaultScope);
+                          }
+                          setIsFloorDirty(true);
+                        }
+                      }}
+                      className="px-1.5 py-1 rounded-lg bg-slate-50 border border-slate-300 text-[11px] text-slate-600 focus:outline-none focus:border-teal-600 cursor-pointer"
+                      title="Chọn nhanh từ danh mục tầng chuẩn"
+                    >
+                      <option value="">-- Mẫu --</option>
+                      {STANDARD_FLOOR_CODE_OPTIONS.map((opt) => (
+                        <option key={opt.code} value={opt.code}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 )}
               </div>
 
@@ -1019,6 +1159,7 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
               <FloorPlanCadPartitionCanvas
                 cadPhotoUrl={cadUrl}
                 floorNumber={activeFloor}
+                floorCode={floorCode}
                 initialPartitions={partitions}
                 onChangePartitions={(newParts) => {
                   setPartitions(newParts);

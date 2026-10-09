@@ -274,13 +274,14 @@ export class CadastralController {
   static async upsertFloorPlan(req: Request, res: Response, next: NextFunction) {
     try {
       const { id } = req.params;
-      const { floorNumber, floorName, applicableFloors, cadPhotoUrl, cadPhotoCode, imageWidth, imageHeight, scope, areaType } = req.body;
-      if (!floorNumber || !cadPhotoUrl) {
+      const { floorNumber, floorName, floorCode, applicableFloors, cadPhotoUrl, cadPhotoCode, imageWidth, imageHeight, scope, areaType } = req.body;
+      if (floorNumber === undefined || floorNumber === null || !cadPhotoUrl) {
         throw new BadRequestError('floorNumber và cadPhotoUrl là bắt buộc');
       }
       const result = await CadastralService.upsertFloorPlan(id, {
         floorNumber: parseInt(floorNumber, 10),
         floorName: floorName || `Tầng ${floorNumber}`,
+        floorCode: floorCode ? String(floorCode).trim() : undefined,
         applicableFloors,
         cadPhotoUrl,
         cadPhotoCode,

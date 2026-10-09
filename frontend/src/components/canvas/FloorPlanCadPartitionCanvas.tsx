@@ -30,6 +30,7 @@ export interface UnitPartitionBox {
 interface Props {
   cadPhotoUrl: string;
   floorNumber: number;
+  floorCode?: string;
   initialPartitions?: UnitPartitionBox[];
   onChangePartitions?: (partitions: UnitPartitionBox[]) => void;
   onSave?: (partitions: UnitPartitionBox[]) => void;
@@ -91,6 +92,7 @@ export async function cropImageBoundingBox(
 export const FloorPlanCadPartitionCanvas: React.FC<Props> = ({
   cadPhotoUrl,
   floorNumber,
+  floorCode,
   initialPartitions = [],
   onChangePartitions,
   onSave: _onSave,
@@ -192,9 +194,18 @@ export const FloorPlanCadPartitionCanvas: React.FC<Props> = ({
 
   // Sinh mã phòng tiếp theo theo quy ước mm.nn cho Căn hộ con
   const getNextUnitCode = useCallback((): string => {
-    const mm = String(floorNumber).padStart(2, '0');
+    let mm = (floorCode || '').trim();
+    if (!mm) {
+      if (floorNumber === 0) mm = 'G';
+      else if (floorNumber < 0) mm = `B${String(Math.abs(floorNumber)).padStart(2, '0')}`;
+      else mm = String(floorNumber).padStart(2, '0');
+    }
+    const numMatch = mm.match(/^F(\d+)$/i);
+    const effectivePrefix = numMatch ? numMatch[1] : mm;
+
     const usedNumbers = new Set<number>();
-    const regex = new RegExp(`^${mm}\\.(\\d+)`, 'i');
+    const escapedPrefix = effectivePrefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`^${escapedPrefix}\\.(\\d+)`, 'i');
     for (const p of partitions) {
       if ((p.partitionType || 'UNIT') === 'UNIT') {
         const match = p.unitCode.match(regex);
@@ -207,17 +218,23 @@ export const FloorPlanCadPartitionCanvas: React.FC<Props> = ({
     while (usedNumbers.has(nn)) {
       nn++;
     }
-    return `${mm}.${String(nn).padStart(2, '0')}`;
-  }, [floorNumber, partitions]);
+    return `${effectivePrefix}.${String(nn).padStart(2, '0')}`;
+  }, [floorNumber, floorCode, partitions]);
 
   // Sinh mã tiếp theo cho Khu vực Dùng chung (Master)
   const getNextMasterCode = useCallback((): string => {
-    let prefix = `T${floorNumber}`;
-    if (floorNumber === 0) prefix = 'G';
-    else if (floorNumber < 0) prefix = `B${Math.abs(floorNumber)}`;
+    let rawCode = (floorCode || '').trim();
+    if (!rawCode) {
+      if (floorNumber === 0) rawCode = 'G';
+      else if (floorNumber < 0) rawCode = `B${String(Math.abs(floorNumber)).padStart(2, '0')}`;
+      else rawCode = String(floorNumber).padStart(2, '0');
+    }
+
+    const prefix = rawCode.startsWith('T') ? rawCode : `T${rawCode.replace(/^F/i, '')}`;
 
     const usedNumbers = new Set<number>();
-    const regex = new RegExp(`^${prefix}\\.(\\d+)`, 'i');
+    const escapedPrefix = prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`^${escapedPrefix}\\.(\\d+)`, 'i');
     for (const p of partitions) {
       if (p.partitionType === 'MASTER') {
         const match = p.unitCode.match(regex);
@@ -231,7 +248,7 @@ export const FloorPlanCadPartitionCanvas: React.FC<Props> = ({
       nn++;
     }
     return `${prefix}.${String(nn).padStart(2, '0')}`;
-  }, [floorNumber, partitions]);
+  }, [floorNumber, floorCode, partitions]);
 
   // Bắt đầu kéo vẽ ô hoặc di chuyển
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {

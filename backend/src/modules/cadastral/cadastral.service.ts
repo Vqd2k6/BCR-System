@@ -450,6 +450,7 @@ export class CadastralService {
   static async upsertFloorPlan(parcelId: string, data: {
     floorNumber: number;
     floorName: string;
+    floorCode?: string;
     applicableFloors?: number[];
     cadPhotoUrl: string;
     cadPhotoCode?: string;

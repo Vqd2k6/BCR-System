@@ -65,6 +65,7 @@ export interface BuildingFloorPlanEntity {
   parcel_id: string;
   floor_number: number;
   floor_name: string;
+  floor_code?: string | null;
   applicable_floors: number[];
   cad_photo_url: string;
   cad_photo_code: string | null;
@@ -565,6 +566,7 @@ export class CadastralRepository {
     parcelId: string;
     floorNumber: number;
     floorName: string;
+    floorCode?: string;
     applicableFloors?: number[];
     cadPhotoUrl: string;
     cadPhotoCode?: string;
@@ -576,6 +578,26 @@ export class CadastralRepository {
     const applicable = data.applicableFloors && data.applicableFloors.length > 0 
       ? data.applicableFloors 
       : [data.floorNumber];
+
+    // Xác định floorCode chuẩn nếu client chưa truyền
+    let floorCode = (data.floorCode || '').trim();
+    if (!floorCode) {
+      if (data.floorNumber < 0) {
+        floorCode = `B${String(Math.abs(data.floorNumber)).padStart(2, '0')}`;
+      } else if (data.floorNumber === 0) {
+        floorCode = 'G';
+      } else {
+        const lower = data.floorName.toLowerCase();
+        if (lower.includes('lửng') || lower.includes('mezzanine')) floorCode = 'MEZZ';
+        else if (lower.includes('bán hầm')) floorCode = 'SB';
+        else if (lower.includes('kỹ thuật')) floorCode = 'TECH';
+        else if (lower.includes('lánh nạn')) floorCode = 'REF';
+        else if (lower.includes('tum')) floorCode = 'TUM';
+        else if (lower.includes('mái') || lower.includes('roof')) floorCode = 'ROOF';
+        else if (lower.includes('sân thượng')) floorCode = 'TERRACE';
+        else floorCode = `F${String(data.floorNumber).padStart(2, '0')}`;
+      }
+    }
 
     // Tự động nhận diện thông minh scope & areaType nếu chưa truyền
     let scope = data.scope;
@@ -602,10 +624,11 @@ export class CadastralRepository {
 
     const res = await Database.query<BuildingFloorPlanEntity>(
       `INSERT INTO building_floor_plans (
-        parcel_id, floor_number, floor_name, applicable_floors, cad_photo_url, cad_photo_code, image_width, image_height, scope, area_type, updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
+        parcel_id, floor_number, floor_name, floor_code, applicable_floors, cad_photo_url, cad_photo_code, image_width, image_height, scope, area_type, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())
       ON CONFLICT (parcel_id, floor_number) DO UPDATE SET
         floor_name = EXCLUDED.floor_name,
+        floor_code = COALESCE(EXCLUDED.floor_code, building_floor_plans.floor_code),
         applicable_floors = EXCLUDED.applicable_floors,
         cad_photo_url = EXCLUDED.cad_photo_url,
         cad_photo_code = EXCLUDED.cad_photo_code,
@@ -619,6 +642,7 @@ export class CadastralRepository {
         data.parcelId,
         data.floorNumber,
         data.floorName,
+        floorCode,
         applicable,
         data.cadPhotoUrl,
         data.cadPhotoCode || null,
