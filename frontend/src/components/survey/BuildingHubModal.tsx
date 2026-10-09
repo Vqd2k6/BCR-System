@@ -9,6 +9,7 @@ import { MasterSurveyViewModal } from './building-hub/components/MasterSurveyVie
 import { FloorProgressPopover } from './building-hub/components/FloorProgressPopover';
 import { FloorPlanCadManagementModal } from './building-hub/components/FloorPlanCadManagementModal';
 import { SurveyorCadReadOnlyModal } from './building-hub/components/SurveyorCadReadOnlyModal';
+import { SurveyCondoMasterAreaModal } from '../../features/survey-condo-master/components/SurveyCondoMasterAreaModal';
 import { useAuth } from '../../context/AuthContext';
 
 export type { BuildingUnit, BuildingHubModalProps };
@@ -56,11 +57,17 @@ export const BuildingHubModal: React.FC<BuildingHubModalProps> = ({
     handleAddUnit,
     handleSendMasterUpdate,
     availableFloors,
+    activeHubTab,
+    setActiveHubTab,
+    unitItemsCount,
+    masterItemsCount,
     filteredUnits,
     displayedUnits,
+    refetchUnits,
     kpi,
   } = useBuildingHubState({ parcel, onUnitsUpdated });
   const [showCadModal, setShowCadModal] = React.useState(false);
+  const [selectedMasterAreaUnit, setSelectedMasterAreaUnit] = React.useState<BuildingUnit | null>(null);
 
   return (
     <div className="fixed inset-0 z-[99999] bg-slate-100 flex flex-col w-full h-full overflow-hidden animate-in fade-in duration-150">
@@ -96,7 +103,7 @@ export const BuildingHubModal: React.FC<BuildingHubModalProps> = ({
           onOpenFloorProgress={() => setShowFloorProgressPopover(true)}
         />
 
-        {/* Quản lý & Danh sách căn hộ con */}
+        {/* Quản lý & Danh sách căn hộ con / khu vực dùng chung */}
         <BuildingUnitList
           parcel={parcel}
           units={units}
@@ -125,7 +132,12 @@ export const BuildingHubModal: React.FC<BuildingHubModalProps> = ({
           isMasterSurveyDone={isMasterSurveyDone}
           onClose={onClose}
           onStartUnitSurvey={onStartUnitSurvey}
+          onStartMasterAreaSurvey={(_p, u) => setSelectedMasterAreaUnit(u)}
           onOpenCadManagement={() => setShowCadModal(true)}
+          activeHubTab={activeHubTab}
+          onTabChange={setActiveHubTab}
+          unitItemsCount={unitItemsCount}
+          masterItemsCount={masterItemsCount}
         />
       </main>
 
@@ -169,6 +181,20 @@ export const BuildingHubModal: React.FC<BuildingHubModalProps> = ({
             onClose={() => setShowCadModal(false)}
           />
         )
+      )}
+
+      {/* Modal: Khảo sát chi tiết phân vùng dùng chung (Master Area) với CAD Highlight */}
+      {selectedMasterAreaUnit && (
+        <SurveyCondoMasterAreaModal
+          parcel={parcel as any}
+          unit={selectedMasterAreaUnit as any}
+          onClose={() => setSelectedMasterAreaUnit(null)}
+          onSurveyCompleted={() => {
+            setSelectedMasterAreaUnit(null);
+            refetchUnits();
+            if (onUnitsUpdated) onUnitsUpdated();
+          }}
+        />
       )}
     </div>
   );

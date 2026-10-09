@@ -117,6 +117,7 @@ export function createApp(): express.Application {
   api.get('/parcels/:id/floor-plans', authenticateJwt, CadastralController.getFloorPlans);
   api.get('/parcels/:id/floor-plans/:floor', authenticateJwt, CadastralController.getFloorPlanByFloor);
   api.post('/parcels/:id/floor-plans', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.upsertFloorPlan);
+  api.delete('/parcels/:id/floor-plans/:floor', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.deleteFloorPlan);
   api.post('/parcels/:id/floor-plans/partitions', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.saveFloorPartitions);
   api.patch('/parcels/:id/building-type', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.updateBuildingType);
   api.post('/parcels/:id/start-survey', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.startSurvey);

@@ -8,6 +8,8 @@ import {
   Eye,
   EyeOff,
   Layers,
+  Home,
+  Building2,
 } from 'lucide-react';
 import { useInteractiveCanvasZoom } from './useInteractiveCanvasZoom';
 import { CanvasZoomToolbar } from './CanvasZoomToolbar';
@@ -15,7 +17,8 @@ import { getSafeDisplayUrl, resolveOfflinePhotoUrl } from '../../core/storage/of
 
 export interface UnitPartitionBox {
   id: string;
-  unitCode: string; // VD: "03.01"
+  unitCode: string; // VD: "03.01" hoặc "B1.01"
+  partitionType?: 'UNIT' | 'MASTER';
   x: number; // 0..100% (tỷ lệ chuẩn hóa)
   y: number; // 0..100%
   width: number; // 0..100%
@@ -95,7 +98,7 @@ export const FloorPlanCadPartitionCanvas: React.FC<Props> = ({
   readOnly = false,
 }) => {
   const [partitions, setPartitions] = useState<UnitPartitionBox[]>(initialPartitions);
-  const [activeTool, setActiveTool] = useState<'BOX' | 'PAN'>(readOnly ? 'PAN' : 'BOX');
+  const [activeTool, setActiveTool] = useState<'DRAW_UNIT' | 'DRAW_MASTER' | 'PAN'>(readOnly ? 'PAN' : 'DRAW_UNIT');
   const [selectedBoxId, setSelectedBoxId] = useState<string | null>(null);
   const [showBoxes, setShowBoxes] = useState<boolean>(true);
   const [showUnitList, setShowUnitList] = useState<boolean>(true);
@@ -176,15 +179,28 @@ export const FloorPlanCadPartitionCanvas: React.FC<Props> = ({
     }
   }, [duplicateBoxIds, onValidationChange]);
 
-  // Sinh mã phòng tiếp theo theo quy ước mm.nn
+  // Thống kê phân chia theo loại căn hộ / master area
+  const floorScopeSummary = useMemo(() => {
+    const unitCount = partitions.filter((p) => (p.partitionType || 'UNIT') === 'UNIT').length;
+    const masterCount = partitions.filter((p) => p.partitionType === 'MASTER').length;
+    let scope: 'UNIT' | 'MASTER' | 'BOTH' | 'EMPTY' = 'EMPTY';
+    if (unitCount > 0 && masterCount > 0) scope = 'BOTH';
+    else if (masterCount > 0) scope = 'MASTER';
+    else if (unitCount > 0) scope = 'UNIT';
+    return { unitCount, masterCount, scope };
+  }, [partitions]);
+
+  // Sinh mã phòng tiếp theo theo quy ước mm.nn cho Căn hộ con
   const getNextUnitCode = useCallback((): string => {
     const mm = String(floorNumber).padStart(2, '0');
     const usedNumbers = new Set<number>();
     const regex = new RegExp(`^${mm}\\.(\\d+)`, 'i');
     for (const p of partitions) {
-      const match = p.unitCode.match(regex);
-      if (match) {
-        usedNumbers.add(parseInt(match[1], 10));
+      if ((p.partitionType || 'UNIT') === 'UNIT') {
+        const match = p.unitCode.match(regex);
+        if (match) {
+          usedNumbers.add(parseInt(match[1], 10));
+        }
       }
     }
     let nn = 1;
@@ -194,6 +210,29 @@ export const FloorPlanCadPartitionCanvas: React.FC<Props> = ({
     return `${mm}.${String(nn).padStart(2, '0')}`;
   }, [floorNumber, partitions]);
 
+  // Sinh mã tiếp theo cho Khu vực Dùng chung (Master)
+  const getNextMasterCode = useCallback((): string => {
+    let prefix = `T${floorNumber}`;
+    if (floorNumber === 0) prefix = 'G';
+    else if (floorNumber < 0) prefix = `B${Math.abs(floorNumber)}`;
+
+    const usedNumbers = new Set<number>();
+    const regex = new RegExp(`^${prefix}\\.(\\d+)`, 'i');
+    for (const p of partitions) {
+      if (p.partitionType === 'MASTER') {
+        const match = p.unitCode.match(regex);
+        if (match) {
+          usedNumbers.add(parseInt(match[1], 10));
+        }
+      }
+    }
+    let nn = 1;
+    while (usedNumbers.has(nn)) {
+      nn++;
+    }
+    return `${prefix}.${String(nn).padStart(2, '0')}`;
+  }, [floorNumber, partitions]);
+
   // Bắt đầu kéo vẽ ô hoặc di chuyển
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (readOnly || activeTool === 'PAN' || e.button === 1 || e.buttons === 4) {
@@ -201,7 +240,7 @@ export const FloorPlanCadPartitionCanvas: React.FC<Props> = ({
       return;
     }
 
-    if (activeTool === 'BOX') {
+    if (activeTool === 'DRAW_UNIT' || activeTool === 'DRAW_MASTER') {
       const coords = calculateNormalizedCoords(e.clientX, e.clientY);
       if (coords) {
         isDrawingRef.current = true;
@@ -242,24 +281,26 @@ export const FloorPlanCadPartitionCanvas: React.FC<Props> = ({
       const width = maxX - minX;
       const height = maxY - minY;
 
-      // Chỉ chấp nhận nếu kích thước ô kéo vẽ lớn hơn 2% chiều rộng/chiều cao
-      if (width >= 2 && height >= 2) {
-        const nextCode = getNextUnitCode();
+      // Chỉ chấp nhận nếu kích thước ô kéo vẽ lớn hơn 1.5% chiều rộng/chiều cao
+      if (width >= 1.5 && height >= 1.5) {
+        const isMaster = activeTool === 'DRAW_MASTER';
+        const nextCode = isMaster ? getNextMasterCode() : getNextUnitCode();
         const newBox: UnitPartitionBox = {
           id: `unit_box_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
           unitCode: nextCode,
+          partitionType: isMaster ? 'MASTER' : 'UNIT',
           x: Math.round(minX * 10) / 10,
           y: Math.round(minY * 10) / 10,
           width: Math.round(width * 10) / 10,
           height: Math.round(height * 10) / 10,
         };
 
-        // Tự động tạo ảnh crop ngầm cho căn hộ này
+        // Tự động tạo ảnh crop ngầm cho vùng này
         try {
           const cropped = await cropImageBoundingBox(safeCadUrl || cadPhotoUrl, newBox);
           newBox.unitCadUrl = cropped;
         } catch (cropErr: unknown) {
-          console.warn('[FloorPlanCad:cropBoundingBox] Không thể crop ảnh căn hộ mới vẽ:', cropErr);
+          console.warn('[FloorPlanCad:cropBoundingBox] Không thể crop ảnh vùng mới vẽ:', cropErr);
         }
 
         const updated = [...partitions, newBox];
@@ -287,29 +328,56 @@ export const FloorPlanCadPartitionCanvas: React.FC<Props> = ({
     if (onChangePartitions) onChangePartitions(updated);
   };
 
+  const handleTogglePartitionType = (id: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    const updated = partitions.map((p) => {
+      if (p.id === id) {
+        const nextType: 'UNIT' | 'MASTER' = (p.partitionType || 'UNIT') === 'UNIT' ? 'MASTER' : 'UNIT';
+        return { ...p, partitionType: nextType };
+      }
+      return p;
+    });
+    setPartitions(updated);
+    if (onChangePartitions) onChangePartitions(updated);
+  };
+
   return (
     <div className="flex flex-col h-full bg-slate-100 rounded-2xl overflow-hidden border border-slate-200 shadow-xl select-none">
       {/* 1. Header Toolbar (Light Theme) */}
-      <div className="flex items-center justify-between px-4 py-2.5 bg-white border-b border-slate-200 text-slate-800">
+      <div className="flex items-center justify-between px-4 py-2 bg-white border-b border-slate-200 text-slate-800 shrink-0">
         <div className="flex items-center gap-3">
           <div className="p-1.5 rounded-lg bg-teal-50 text-teal-600 border border-teal-200">
             <Square className="w-4 h-4" />
           </div>
           <div>
-            <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+            <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2 flex-wrap">
               Chia Cắt Mặt Bằng CAD • Tầng {floorNumber}
-              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-teal-100 text-teal-800 border border-teal-200">
-                {partitions.length} Căn Hộ
-              </span>
+              {floorScopeSummary.unitCount > 0 && (
+                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-teal-100 text-teal-800 border border-teal-200 flex items-center gap-1">
+                  <Home className="w-3 h-3" />
+                  {floorScopeSummary.unitCount} Căn Hộ
+                </span>
+              )}
+              {floorScopeSummary.masterCount > 0 && (
+                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800 border border-indigo-200 flex items-center gap-1">
+                  <Building2 className="w-3 h-3" />
+                  {floorScopeSummary.masterCount} Khu Vực Master
+                </span>
+              )}
+              {floorScopeSummary.scope === 'BOTH' && (
+                <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-amber-50 text-amber-700 border border-amber-200">
+                  Hỗn hợp
+                </span>
+              )}
               {duplicateBoxIds.size > 0 && (
                 <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 border border-rose-200 flex items-center gap-1">
                   <AlertCircle className="w-3 h-3 text-rose-600" />
-                  {duplicateBoxIds.size} căn trùng/thiếu mã
+                  {duplicateBoxIds.size} vị trí trùng/thiếu mã
                 </span>
               )}
             </h3>
             <p className="text-[11px] text-slate-500">
-              Kéo thả các khung chữ nhật bao quanh từng căn hộ theo quy ước <code className="text-teal-700 font-mono font-bold bg-teal-50 px-1 rounded">mm.nn</code>
+              Chọn công cụ bên phải và kéo chuột tạo ô: <strong className="text-teal-700 font-bold">Căn hộ</strong> (xanh ngọc) hoặc <strong className="text-indigo-700 font-bold">Khu vực dùng chung</strong> (chàm)
             </p>
           </div>
         </div>
@@ -320,24 +388,39 @@ export const FloorPlanCadPartitionCanvas: React.FC<Props> = ({
             <div className="flex bg-slate-100 p-0.5 rounded-xl border border-slate-200">
               <button
                 type="button"
-                onClick={() => setActiveTool('BOX')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                  activeTool === 'BOX'
+                onClick={() => setActiveTool('DRAW_UNIT')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer ${
+                  activeTool === 'DRAW_UNIT'
                     ? 'bg-teal-600 text-white shadow-xs'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
                 }`}
+                title="Vẽ căn hộ con riêng lẻ (Teal)"
               >
-                <Square className="w-3.5 h-3.5" />
-                Vẽ Ô Căn
+                <Home className="w-3.5 h-3.5" />
+                Vẽ Căn Hộ
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTool('DRAW_MASTER')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer ${
+                  activeTool === 'DRAW_MASTER'
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                }`}
+                title="Vẽ khu vực dùng chung của toà mẹ: Hầm, sảnh, mái, kỹ thuật (Indigo)"
+              >
+                <Building2 className="w-3.5 h-3.5" />
+                Vẽ Khu Chung
               </button>
               <button
                 type="button"
                 onClick={() => setActiveTool('PAN')}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer ${
                   activeTool === 'PAN'
-                    ? 'bg-teal-600 text-white shadow-xs'
+                    ? 'bg-slate-700 text-white shadow-xs'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
                 }`}
+                title="Cuộn / Di chuyển góc nhìn"
               >
                 <Hand className="w-3.5 h-3.5" />
                 Di Chuyển
@@ -348,12 +431,12 @@ export const FloorPlanCadPartitionCanvas: React.FC<Props> = ({
           <button
             type="button"
             onClick={() => setShowBoxes(!showBoxes)}
-            className={`p-1.5 rounded-lg border text-xs font-medium transition-all cursor-pointer ${
+            className={`p-1.5 rounded-lg border text-xs font-medium cursor-pointer ${
               showBoxes
                 ? 'bg-teal-50 text-teal-700 border-teal-300 shadow-2xs'
                 : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50 hover:text-slate-800'
             }`}
-            title={showBoxes ? 'Ẩn các ô căn hộ' : 'Hiện các ô căn hộ'}
+            title={showBoxes ? 'Ẩn các ô phân chia' : 'Hiện các ô phân chia'}
           >
             {showBoxes ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
           </button>
@@ -361,15 +444,15 @@ export const FloorPlanCadPartitionCanvas: React.FC<Props> = ({
           <button
             type="button"
             onClick={() => setShowUnitList(!showUnitList)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-bold transition-all cursor-pointer ${
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-bold cursor-pointer ${
               showUnitList
                 ? 'bg-teal-50 text-teal-700 border-teal-300 shadow-2xs'
                 : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50 hover:text-slate-800'
             }`}
-            title={showUnitList ? 'Ẩn danh sách căn hộ' : 'Hiện danh sách căn hộ'}
+            title={showUnitList ? 'Ẩn danh sách phân chia' : 'Hiện danh sách phân chia'}
           >
             <Layers className="w-3.5 h-3.5" />
-            <span>DS Căn ({partitions.length})</span>
+            <span>DS Vị Trí ({partitions.length})</span>
           </button>
         </div>
       </div>
@@ -402,11 +485,12 @@ export const FloorPlanCadPartitionCanvas: React.FC<Props> = ({
               className="block max-w-full max-h-[70vh] sm:max-h-[78vh] object-contain pointer-events-none select-none rounded-lg bg-white shadow-md border border-slate-300"
             />
 
-            {/* Lớp các ô phân chia căn hộ đã vẽ */}
+            {/* Lớp các ô phân chia căn hộ / khu vực đã vẽ */}
             {showBoxes &&
               partitions.map((box) => {
                 const isSelected = selectedBoxId === box.id;
                 const isDuplicate = duplicateBoxIds.has(box.id);
+                const isMaster = box.partitionType === 'MASTER';
                 return (
                   <div
                     key={box.id}
@@ -420,24 +504,29 @@ export const FloorPlanCadPartitionCanvas: React.FC<Props> = ({
                       width: `${box.width}%`,
                       height: `${box.height}%`,
                     }}
-                    className={`absolute rounded-md border-2 transition-all cursor-pointer flex flex-col justify-between p-1 ${
+                    className={`absolute rounded-md border-2 cursor-pointer flex flex-col justify-between p-1 select-none ${
                       isDuplicate
                         ? 'border-rose-500 bg-rose-500/25 ring-2 ring-rose-400/60 z-25'
                         : isSelected
-                        ? 'border-amber-500 bg-amber-400/25 ring-2 ring-amber-400/50 z-20 shadow-md'
+                        ? 'border-amber-500 bg-amber-400/30 ring-2 ring-amber-400/60 z-20 shadow-md'
+                        : isMaster
+                        ? 'border-indigo-600 bg-indigo-500/25 hover:bg-indigo-500/35 z-10'
                         : 'border-teal-500 bg-teal-500/20 hover:bg-teal-500/30 z-10'
                     }`}
                   >
-                    {/* Badge số căn mm.nn */}
+                    {/* Badge số căn mm.nn hoặc vị trí master */}
                     <div className="flex items-center justify-between gap-1">
                       <span
                         style={{ transform: `scale(${pinCounterScale})`, transformOrigin: 'top left' }}
-                        className={`px-1.5 py-0.5 rounded font-mono font-bold text-[10px] sm:text-xs shadow-sm ${
+                        className={`px-1.5 py-0.5 rounded font-mono font-bold text-[10px] sm:text-xs shadow-sm flex items-center gap-1 ${
                           isDuplicate
                             ? 'bg-rose-600 text-white border border-rose-700'
+                            : isMaster
+                            ? 'bg-indigo-900 text-white border border-indigo-700'
                             : 'bg-white/95 text-slate-900 border border-teal-600 backdrop-blur-xs'
                         }`}
                       >
+                        {isMaster ? <Building2 className="w-2.5 h-2.5 inline" /> : <Home className="w-2.5 h-2.5 inline" />}
                         {box.unitCode || 'Chưa đặt mã'}
                       </span>
                       {!readOnly && isSelected && (
@@ -445,7 +534,7 @@ export const FloorPlanCadPartitionCanvas: React.FC<Props> = ({
                           type="button"
                           onClick={(e) => handleDeleteBox(box.id, e)}
                           className="p-1 rounded bg-rose-600 hover:bg-rose-500 text-white shadow-xs transition-transform hover:scale-110 cursor-pointer"
-                          title="Xóa ô căn này"
+                          title="Xóa ô này"
                         >
                           <Trash2 className="w-3 h-3" />
                         </button>
@@ -460,7 +549,7 @@ export const FloorPlanCadPartitionCanvas: React.FC<Props> = ({
                         </span>
                       )}
                       {box.unitCadUrl && (
-                        <span className="text-[9px] font-bold px-1 rounded bg-teal-700 text-white">
+                        <span className={`text-[9px] font-bold px-1 rounded text-white ${isMaster ? 'bg-indigo-700' : 'bg-teal-700'}`}>
                           CAD ✓
                         </span>
                       )}
@@ -469,7 +558,7 @@ export const FloorPlanCadPartitionCanvas: React.FC<Props> = ({
                 );
               })}
 
-            {/* Preview ô đang kéo vẽ dở */}
+            {/* Preview ô đang kéo vẽ dở (Không animate-pulse để tránh nhấp nháy/giật kích thước) */}
             {!readOnly && dragStart && currentDrag && (
               <div
                 style={{
@@ -478,11 +567,18 @@ export const FloorPlanCadPartitionCanvas: React.FC<Props> = ({
                   width: `${Math.abs(currentDrag.x - dragStart.x)}%`,
                   height: `${Math.abs(currentDrag.y - dragStart.y)}%`,
                 }}
-                className="absolute border-2 border-dashed border-teal-500 bg-teal-500/20 rounded-md pointer-events-none z-30 animate-pulse"
+                className={`absolute border-2 border-dashed rounded-md pointer-events-none z-30 ${
+                  activeTool === 'DRAW_MASTER'
+                    ? 'border-indigo-600 bg-indigo-500/20'
+                    : 'border-teal-500 bg-teal-500/20'
+                }`}
               >
                 <div className="p-1">
-                  <span className="px-1.5 py-0.5 rounded font-mono text-[10px] font-bold bg-teal-600 text-white shadow-xs">
-                    {getNextUnitCode()}
+                  <span className={`px-1.5 py-0.5 rounded font-mono text-[10px] font-bold text-white shadow-xs flex items-center gap-1 w-fit ${
+                    activeTool === 'DRAW_MASTER' ? 'bg-indigo-600' : 'bg-teal-600'
+                  }`}>
+                    {activeTool === 'DRAW_MASTER' ? <Building2 className="w-2.5 h-2.5 inline" /> : <Home className="w-2.5 h-2.5 inline" />}
+                    {activeTool === 'DRAW_MASTER' ? getNextMasterCode() : getNextUnitCode()}
                   </span>
                 </div>
               </div>
@@ -507,29 +603,30 @@ export const FloorPlanCadPartitionCanvas: React.FC<Props> = ({
             <div className="px-3.5 py-2.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between text-xs font-bold text-slate-700">
               <span className="flex items-center gap-1.5">
                 <Layers className="w-3.5 h-3.5 text-teal-600" />
-                Căn Hộ Tầng {floorNumber}
+                Vị Trí Tầng {floorNumber}
               </span>
-              <span className="px-2 py-0.5 rounded-full bg-teal-100 text-teal-800 font-mono text-[11px] border border-teal-200">
-                {partitions.length} căn
+              <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-800 font-mono text-[11px] border border-slate-200">
+                {partitions.length} vị trí
               </span>
             </div>
 
             {duplicateBoxIds.size > 0 && (
               <div className="px-3 py-2 bg-rose-50 border-b border-rose-200 text-rose-700 text-xs flex items-center gap-1.5">
                 <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
-                <span className="font-semibold">Phát hiện {duplicateBoxIds.size} căn trùng hoặc thiếu mã!</span>
+                <span className="font-semibold">Phát hiện {duplicateBoxIds.size} ô trùng hoặc thiếu mã!</span>
               </div>
             )}
 
             <div className="flex-1 overflow-y-auto p-2.5 space-y-2">
               {partitions.length === 0 ? (
                 <div className="p-6 text-center text-xs text-slate-400 leading-relaxed">
-                  Chưa có ô căn hộ nào.<br />Chọn công cụ <strong className="text-teal-700">[Vẽ Ô Căn]</strong> và kéo thả chuột trên bản vẽ để tạo.
+                  Chưa có ô phân chia nào.<br />Chọn công cụ <strong className="text-teal-700">[Vẽ Căn Hộ]</strong> hoặc <strong className="text-indigo-700">[Vẽ Khu Chung]</strong> rồi kéo thả chuột trên bản vẽ để tạo.
                 </div>
               ) : (
                 partitions.map((box, idx) => {
                   const isSelected = selectedBoxId === box.id;
                   const isDuplicate = duplicateBoxIds.has(box.id);
+                  const isMaster = box.partitionType === 'MASTER';
                   return (
                     <div
                       key={box.id}
@@ -539,16 +636,20 @@ export const FloorPlanCadPartitionCanvas: React.FC<Props> = ({
                           ? 'border-rose-400 bg-rose-50/80 text-rose-900 ring-1 ring-rose-400/60 shadow-xs'
                           : isSelected
                           ? 'border-amber-400 bg-amber-50/80 text-slate-900 ring-1 ring-amber-400/60 shadow-xs'
+                          : isMaster
+                          ? 'border-indigo-200 bg-indigo-50/40 hover:bg-indigo-50/80 text-slate-800 hover:border-indigo-300'
                           : 'border-slate-200 bg-slate-50/60 hover:bg-slate-100/80 text-slate-800 hover:border-slate-300'
                       }`}
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <span className="w-5 h-5 rounded-md bg-white border border-slate-200 text-[10px] font-mono font-bold text-slate-500 flex items-center justify-center shadow-2xs">
+                          <span className={`w-5 h-5 rounded-md border text-[10px] font-mono font-bold flex items-center justify-center shadow-2xs ${
+                            isMaster ? 'bg-indigo-100 border-indigo-200 text-indigo-800' : 'bg-white border-slate-200 text-slate-600'
+                          }`}>
                             {idx + 1}
                           </span>
                           {readOnly ? (
-                            <span className="font-mono font-bold text-xs text-teal-700">
+                            <span className={`font-mono font-bold text-xs ${isMaster ? 'text-indigo-700' : 'text-teal-700'}`}>
                               {box.unitCode}
                             </span>
                           ) : (
@@ -557,10 +658,12 @@ export const FloorPlanCadPartitionCanvas: React.FC<Props> = ({
                               value={box.unitCode}
                               onClick={(e) => e.stopPropagation()}
                               onChange={(e) => handleRenameBox(box.id, e.target.value)}
-                              placeholder="Mã căn..."
-                              className={`w-24 px-1.5 py-0.5 rounded font-mono font-bold text-xs focus:outline-none transition-colors ${
+                              placeholder="Mã..."
+                              className={`w-28 px-1.5 py-0.5 rounded font-mono font-bold text-xs focus:outline-none transition-colors ${
                                 isDuplicate
                                   ? 'bg-rose-100 border border-rose-300 text-rose-800 focus:border-rose-500'
+                                  : isMaster
+                                  ? 'bg-white border border-indigo-300 text-indigo-900 focus:border-indigo-600'
                                   : 'bg-white border border-slate-300 text-slate-900 focus:border-teal-600'
                               }`}
                             />
@@ -572,7 +675,7 @@ export const FloorPlanCadPartitionCanvas: React.FC<Props> = ({
                             type="button"
                             onClick={(e) => handleDeleteBox(box.id, e)}
                             className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-100/50 transition-colors cursor-pointer"
-                            title="Xóa ô căn này"
+                            title="Xóa ô này"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
@@ -582,18 +685,50 @@ export const FloorPlanCadPartitionCanvas: React.FC<Props> = ({
                       {isDuplicate && (
                         <div className="text-[10px] text-rose-600 font-bold flex items-center gap-1">
                           <AlertCircle className="w-3 h-3 text-rose-600" />
-                          <span>Mã căn bị trùng hoặc để trống!</span>
+                          <span>Mã bị trùng hoặc để trống!</span>
                         </div>
                       )}
 
-                      <div className="flex items-center justify-between text-[10px] text-slate-500 pt-0.5 border-t border-slate-200/60">
-                        <span>
-                          KT: {box.width}% × {box.height}% (Tọa độ: {box.x}%, {box.y}%)
-                        </span>
-                        {box.unitCadUrl ? (
-                          <span className="text-teal-700 font-bold">CAD ✓</span>
+                      {/* Phân loại & Trạng thái CAD (Đã bỏ KT & Toạ độ theo yêu cầu) */}
+                      <div className="flex items-center justify-between text-[11px] pt-1 border-t border-slate-200/60">
+                        {!readOnly ? (
+                          <button
+                            type="button"
+                            onClick={(e) => handleTogglePartitionType(box.id, e)}
+                            className={`px-2 py-0.5 rounded-md font-semibold text-[10px] flex items-center gap-1 border transition-colors cursor-pointer ${
+                              isMaster
+                                ? 'bg-indigo-50 text-indigo-700 border-indigo-300 hover:bg-indigo-100'
+                                : 'bg-teal-50 text-teal-700 border-teal-300 hover:bg-teal-100'
+                            }`}
+                            title="Nhấp để đổi giữa Căn hộ và Khu vực Master"
+                          >
+                            {isMaster ? (
+                              <>
+                                <Building2 className="w-3 h-3 text-indigo-600" />
+                                <span>Khu Master</span>
+                              </>
+                            ) : (
+                              <>
+                                <Home className="w-3 h-3 text-teal-600" />
+                                <span>Căn Hộ</span>
+                              </>
+                            )}
+                          </button>
                         ) : (
-                          <span className="text-slate-400">Chờ crop</span>
+                          <span className={`text-[10px] font-semibold flex items-center gap-1 ${
+                            isMaster ? 'text-indigo-700' : 'text-teal-700'
+                          }`}>
+                            {isMaster ? <Building2 className="w-3 h-3" /> : <Home className="w-3 h-3" />}
+                            {isMaster ? 'Khu Master' : 'Căn Hộ'}
+                          </span>
+                        )}
+
+                        {box.unitCadUrl ? (
+                          <span className={`font-bold text-[10px] ${isMaster ? 'text-indigo-700' : 'text-teal-700'}`}>
+                            CAD ✓
+                          </span>
+                        ) : (
+                          <span className="text-slate-400 text-[10px]">Chờ crop</span>
                         )}
                       </div>
                     </div>

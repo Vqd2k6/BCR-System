@@ -236,6 +236,11 @@ export const Step9_FieldSignatures: React.FC<Step9Props> = ({ onSubmitFinal, isS
   } = useLightbox();
   const [annotatingIndex, setAnnotatingIndex] = useState<number | null>(null);
 
+  const isCondoMaster =
+    (formData.surveyCaseType === 'APARTMENT' ||
+      (formData as unknown as { survey_case_type?: string }).survey_case_type === 'APARTMENT') &&
+    !formData.unitId;
+
   // Thống kê nhanh toàn bộ hồ sơ
   const totalFloors = formData.floors.length;
   const totalZoneZ = formData.floors.reduce((acc, f) => acc + (f.zones?.length || 0), 0);
@@ -780,7 +785,11 @@ export const Step9_FieldSignatures: React.FC<Step9Props> = ({ onSubmitFinal, isS
       {/* Final Submit Buttons */}
       <div className="flex justify-between items-center pt-4">
         <Button variant="outline" onClick={prevStep}>
-          {formData.unitId ? '⬅️ Quay lại Bước 6 (Dashboard)' : '⬅️ Quay lại Bước 7'}
+          {isCondoMaster
+            ? '⬅️ Quay lại Bước 4 (Ranh GIS toà mẹ)'
+            : formData.unitId
+            ? '⬅️ Quay lại Bước 6 (Dashboard)'
+            : '⬅️ Quay lại Bước 7'}
         </Button>
         {readOnly ? (
           <div className="flex items-center gap-2">

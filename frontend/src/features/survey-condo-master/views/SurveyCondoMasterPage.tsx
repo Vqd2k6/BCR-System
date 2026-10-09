@@ -3,12 +3,9 @@ import React, { useEffect, useState } from 'react';
 import { usePhase1SurveyStore } from '../../survey-phase1/store/usePhase1SurveyStore';
 import { CondoMasterWizardNav } from '../components/CondoMasterWizardNav';
 import { Step1_BuildingIdentification } from '../../survey-phase1/components/Step1_BuildingIdentification';
-import { Step2_CondoMasterInterview } from '../components/Step2_CondoMasterInterview';
-import { Step3_CondoMasterCommonAreasSurvey } from '../components/Step3_CondoMasterCommonAreasSurvey';
-import { Step4_BurlandSummary } from '../../survey-phase1/components/Step4_BurlandSummary';
+import { Step2_CondoMasterScaleAndCat } from '../components/Step2_CondoMasterScaleAndCat';
+import { Step3_CondoMasterHistoryAndManagement } from '../components/Step3_CondoMasterHistoryAndManagement';
 import { Step6_ScopeAndGisMutation } from '../../survey-phase1/components/Step6_ScopeAndGisMutation';
-import { Step7_TechnicalCalculations } from '../../survey-phase1/components/Step7_TechnicalCalculations';
-import { Step8_ExecutiveDashboard } from '../../survey-phase1/components/Step8_ExecutiveDashboard';
 import { Step9_FieldSignatures } from '../../survey-phase1/components/Step9_FieldSignatures';
 import { MissingFieldsModal } from '../../survey-phase1/components/MissingFieldsModal';
 import { HandoverTakeoverModal } from '../../survey-phase1/components/HandoverTakeoverModal';
@@ -191,13 +188,10 @@ export const SurveyCondoMasterPage: React.FC<SurveyCondoMasterPageProps> = ({
       {/* Main Step Content Container */}
       <main className="flex-1 px-3 sm:px-6 py-6">
         {currentStep === 1 && <Step1_BuildingIdentification isCondoMaster={true} />}
-        {currentStep === 2 && <Step2_CondoMasterInterview />}
-        {currentStep === 3 && <Step3_CondoMasterCommonAreasSurvey />}
-        {currentStep === 4 && <Step4_BurlandSummary />}
-        {currentStep === 5 && <Step6_ScopeAndGisMutation />}
-        {currentStep === 6 && <Step7_TechnicalCalculations />}
-        {currentStep === 7 && <Step8_ExecutiveDashboard />}
-        {currentStep === 8 && (
+        {currentStep === 2 && <Step2_CondoMasterScaleAndCat />}
+        {currentStep === 3 && <Step3_CondoMasterHistoryAndManagement />}
+        {currentStep === 4 && <Step6_ScopeAndGisMutation />}
+        {currentStep === 5 && (
           <Step9_FieldSignatures
             onSubmitFinal={handleSubmitFinal}
             isSubmitting={isSubmitting}

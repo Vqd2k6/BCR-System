@@ -60,6 +60,7 @@ export const useBuildingHubState = ({ parcel, onUnitsUpdated }: UseBuildingHubSt
   const [newUnitCode, setNewUnitCode] = useState<string>('');
   const [newFloorNumber, setNewFloorNumber] = useState<number | ''>(1);
   const [isSubmittingUnit, setIsSubmittingUnit] = useState<boolean>(false);
+  const [activeHubTab, setActiveHubTab] = useState<'UNIT' | 'MASTER'>('UNIT');
 
   // Load units from API
   const fetchUnits = async () => {
@@ -113,6 +114,7 @@ export const useBuildingHubState = ({ parcel, onUnitsUpdated }: UseBuildingHubSt
       const res = await api.post(`/parcels/${parcel.id}/units`, {
         unitCode: newUnitCode.trim(),
         floorNumber: parsedFloor,
+        unitType: activeHubTab,
       });
       if (res.data?.data?.unit) {
         setUnits((prev) => [...prev, res.data.data.unit]);
@@ -125,8 +127,8 @@ export const useBuildingHubState = ({ parcel, onUnitsUpdated }: UseBuildingHubSt
       setNewFloorNumber(1);
       if (onUnitsUpdated) onUnitsUpdated();
     } catch (err: unknown) {
-      const msg = getErrorMessage(err, 'Có lỗi xảy ra khi tạo căn hộ');
-      alert(`Không thể thêm căn hộ: ${msg}`);
+      const msg = getErrorMessage(err, 'Có lỗi xảy ra khi tạo vị trí');
+      alert(`Không thể thêm vị trí: ${msg}`);
     } finally {
       setIsSubmittingUnit(false);
     }
@@ -142,26 +144,45 @@ export const useBuildingHubState = ({ parcel, onUnitsUpdated }: UseBuildingHubSt
 
   const availableFloors = Array.from(new Set(units.map((u) => u.floor_number ?? u.floorNumber ?? 1))).sort((a, b) => a - b);
 
-  const filteredUnits = units.filter((u) => {
-    const code = u.unit_code || u.unitCode || '';
-    const owner = u.owner_name || u.ownerName || '';
-    const matchesSearch =
-      !searchTerm.trim() ||
-      code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      owner.toLowerCase().includes(searchTerm.toLowerCase());
+  // Đếm theo từng tab
+  const unitItemsCount = units.filter((u) => (u.unit_type || u.unitType || 'UNIT') === 'UNIT').length;
+  const masterItemsCount = units.filter((u) => (u.unit_type || u.unitType) === 'MASTER').length;
 
-    const floor = u.floor_number ?? u.floorNumber ?? 1;
-    const matchesFloor = selectedFloor === 'ALL' || floor === selectedFloor;
-    const matchesStatus =
-      selectedStatus === 'ALL' ||
-      (selectedStatus === 'APPROVED' && u.status === 'APPROVED') ||
-      (selectedStatus === 'SUBMITTED' && u.status === 'SUBMITTED') ||
-      (selectedStatus === 'IN_PROGRESS' && u.status === 'IN_PROGRESS') ||
-      (selectedStatus === 'ABSENT' && u.status === 'POSTPONED_ABSENT') ||
-      (selectedStatus === 'NOT_SURVEYED' && (!u.status || u.status === 'NOT_SURVEYED'));
+  const filteredUnits = units
+    .filter((u) => {
+      // Phân tách 2 tab rõ ràng
+      const isMaster = (u.unit_type || u.unitType) === 'MASTER';
+      if (activeHubTab === 'MASTER' && !isMaster) return false;
+      if (activeHubTab === 'UNIT' && isMaster) return false;
 
-    return matchesSearch && matchesFloor && matchesStatus;
-  });
+      const code = u.unit_code || u.unitCode || '';
+      const owner = u.owner_name || u.ownerName || '';
+      const matchesSearch =
+        !searchTerm.trim() ||
+        code.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        owner.toLowerCase().includes(searchTerm.toLowerCase());
+
+      const floor = u.floor_number ?? u.floorNumber ?? 1;
+      const matchesFloor = selectedFloor === 'ALL' || floor === selectedFloor;
+      const matchesStatus =
+        selectedStatus === 'ALL' ||
+        (selectedStatus === 'APPROVED' && u.status === 'APPROVED') ||
+        (selectedStatus === 'SUBMITTED' && u.status === 'SUBMITTED') ||
+        (selectedStatus === 'IN_PROGRESS' && u.status === 'IN_PROGRESS') ||
+        (selectedStatus === 'ABSENT' && u.status === 'POSTPONED_ABSENT') ||
+        (selectedStatus === 'NOT_SURVEYED' && (!u.status || u.status === 'NOT_SURVEYED'));
+
+      return matchesSearch && matchesFloor && matchesStatus;
+    })
+    .sort((a, b) => {
+      // Sắp xếp tăng dần theo tầng (Thấp -> Cao: B2, B1, 1, 2, 3...)
+      const floorA = a.floor_number ?? a.floorNumber ?? 1;
+      const floorB = b.floor_number ?? b.floorNumber ?? 1;
+      if (floorA !== floorB) return floorA - floorB;
+      const codeA = a.unit_code || a.unitCode || '';
+      const codeB = b.unit_code || b.unitCode || '';
+      return codeA.localeCompare(codeB, undefined, { numeric: true });
+    });
 
   const displayedUnits = filteredUnits.slice(0, visibleCount);
 
@@ -206,8 +227,13 @@ export const useBuildingHubState = ({ parcel, onUnitsUpdated }: UseBuildingHubSt
     handleAddUnit,
     handleSendMasterUpdate,
     availableFloors,
+    activeHubTab,
+    setActiveHubTab,
+    unitItemsCount,
+    masterItemsCount,
     filteredUnits,
     displayedUnits,
+    refetchUnits: fetchUnits,
     kpi: {
       completedCount,
       pendingApprovalCount,

@@ -30,6 +30,11 @@ export const Step6_ScopeAndGisMutation: React.FC = () => {
   const { formData, updateFormData, nextStep, prevStep, activeParcel } = usePhase1SurveyStore();
   const [extraFloorsCount, setExtraFloorsCount] = useState(0);
 
+  const isCondoMaster =
+    (formData.surveyCaseType === 'APARTMENT' ||
+      (formData as unknown as { survey_case_type?: string }).survey_case_type === 'APARTMENT') &&
+    !formData.unitId;
+
   const scope = formData.surveyScope;
   const access = formData.accessLimitation;
 
@@ -480,10 +485,12 @@ export const Step6_ScopeAndGisMutation: React.FC = () => {
       {/* Navigation */}
       <div className="flex justify-between pt-4">
         <Button variant="outline" onClick={prevStep}>
-          ⬅️ Quay lại Bước 4
+          {isCondoMaster ? '⬅️ Quay lại Bước 3 (Lịch sử & BQL)' : '⬅️ Quay lại Bước 4'}
         </Button>
         <Button onClick={nextStep}>
-          Tiếp tục: Bước 6 (Bảng Điểm ECS & VI) ➔
+          {isCondoMaster
+            ? 'Tiếp tục: Bước 5 (Ký biên bản BQL) ➔'
+            : 'Tiếp tục: Bước 6 (Bảng Điểm ECS & VI) ➔'}
         </Button>
       </div>
     </div>

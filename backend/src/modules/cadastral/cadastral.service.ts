@@ -333,6 +333,7 @@ export class CadastralService {
     ownerName?: string;
     ownerPhone?: string;
     ownerIdCard?: string;
+    unitType?: 'UNIT' | 'MASTER';
   }) {
     const parcel = await CadastralRepository.findById(parcelId);
     if (!parcel) {
@@ -345,9 +346,10 @@ export class CadastralService {
       ownerName: data.ownerName,
       ownerPhone: data.ownerPhone,
       ownerIdCard: data.ownerIdCard,
+      unitType: data.unitType,
     });
     return {
-      message: `Đã tạo thành công căn hộ ${data.unitCode} cho tòa nhà ${parcel.project_parcel_code}`,
+      message: `Đã tạo thành công căn hộ/khu vực ${data.unitCode} cho tòa nhà ${parcel.project_parcel_code}`,
       unit,
     };
   }
@@ -473,7 +475,7 @@ export class CadastralService {
   static async saveFloorPartitions(parcelId: string, data: {
     floorNumber: number;
     floorPlanId?: string | null;
-    partitions: { unitCode: string; floorNumber?: number; bbox?: any; polygon?: any; unitCadUrl?: string }[];
+    partitions: { unitCode: string; floorNumber?: number; bbox?: any; polygon?: any; unitCadUrl?: string; unitType?: 'UNIT' | 'MASTER' }[];
   }) {
     const parcel = await CadastralRepository.findById(parcelId);
     if (!parcel) {
@@ -486,8 +488,23 @@ export class CadastralService {
       data.partitions
     );
     return {
-      message: `Đã lưu phân chia CAD cho ${units.length} căn hộ Tầng ${data.floorNumber}`,
+      message: `Đã lưu phân chia CAD cho ${units.length} vị trí Tầng ${data.floorNumber}`,
       units,
+    };
+  }
+
+  static async deleteFloorPlan(parcelId: string, floorNumber: number) {
+    const parcel = await CadastralRepository.findById(parcelId);
+    if (!parcel) {
+      throw new NotFoundError(`Không tìm thấy thửa đất với ID: ${parcelId}`);
+    }
+    const success = await CadastralRepository.deleteFloorPlan(parcelId, floorNumber);
+    if (!success) {
+      throw new NotFoundError(`Không tìm thấy bản vẽ tầng ${floorNumber} để xóa`);
+    }
+    return {
+      message: `Đã xóa thành công bản vẽ và giải phóng phân chia của Tầng ${floorNumber}`,
+      floorNumber,
     };
   }
 

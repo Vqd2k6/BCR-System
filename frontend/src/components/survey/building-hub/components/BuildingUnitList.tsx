@@ -39,7 +39,12 @@ interface BuildingUnitListProps {
   isMasterSurveyDone: boolean;
   onClose: () => void;
   onStartUnitSurvey: (parcel: GisParcel, unit: BuildingUnit, phase?: 1 | 2) => void;
+  onStartMasterAreaSurvey?: (parcel: GisParcel, unit: BuildingUnit) => void;
   onOpenCadManagement?: () => void;
+  activeHubTab: 'UNIT' | 'MASTER';
+  onTabChange: (tab: 'UNIT' | 'MASTER') => void;
+  unitItemsCount: number;
+  masterItemsCount: number;
 }
 
 export const BuildingUnitList: React.FC<BuildingUnitListProps> = ({
@@ -70,19 +75,65 @@ export const BuildingUnitList: React.FC<BuildingUnitListProps> = ({
   isMasterSurveyDone,
   onClose,
   onStartUnitSurvey,
+  onStartMasterAreaSurvey,
   onOpenCadManagement,
+  activeHubTab,
+  onTabChange,
+  unitItemsCount,
+  masterItemsCount,
 }) => {
+  const isMasterTab = activeHubTab === 'MASTER';
+
   return (
     <section className="flex flex-col gap-3">
-      {/* Header */}
+      {/* 2 Main Icon Tabs (Căn Hộ Con vs Khu Vực Dùng Chung) */}
+      <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
+        <button
+          type="button"
+          onClick={() => onTabChange('UNIT')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-xs sm:text-sm transition-all cursor-pointer ${
+            !isMasterTab
+              ? 'bg-teal-600 text-white shadow-xs'
+              : 'bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 border border-slate-200'
+          }`}
+        >
+          <Home className="w-4 h-4" />
+          <span>Căn Hộ Con ({unitItemsCount})</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => onTabChange('MASTER')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-xs sm:text-sm transition-all cursor-pointer ${
+            isMasterTab
+              ? 'bg-indigo-600 text-white shadow-xs'
+              : 'bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 border border-slate-200'
+          }`}
+        >
+          <Building2 className="w-4 h-4" />
+          <span>Khu Vực Dùng Chung Master ({masterItemsCount})</span>
+        </button>
+      </div>
+
+      {/* Header Info */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h3 className="text-sm sm:text-base font-extrabold text-slate-900 flex items-center gap-2">
-            <Home size={18} className="text-sky-600" />
-            <span>Danh Sách Căn Hộ Con ({units.length} căn)</span>
+            {isMasterTab ? (
+              <>
+                <Building2 size={18} className="text-indigo-600" />
+                <span>Danh Sách Khu Vực Dùng Chung ({masterItemsCount} vị trí)</span>
+              </>
+            ) : (
+              <>
+                <Home size={18} className="text-teal-600" />
+                <span>Danh Sách Căn Hộ Con ({unitItemsCount} căn)</span>
+              </>
+            )}
           </h3>
           <p className="text-xs text-slate-500 mt-0.5">
-            Căn hộ con được phân chia theo bản vẽ CAD mặt bằng tầng và khảo sát độc lập.
+            {isMasterTab
+              ? 'Các khu vực dùng chung (Hầm, Sảnh, Mái, Kỹ thuật) được phân chia trên bản vẽ CAD và khảo sát độc lập.'
+              : 'Căn hộ con được phân chia theo bản vẽ CAD mặt bằng tầng và khảo sát độc lập.'}
           </p>
         </div>
       </div>

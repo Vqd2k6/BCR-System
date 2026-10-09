@@ -223,7 +223,7 @@ export class CadastralController {
   static async createUnit(req: Request, res: Response, next: NextFunction) {
     try {
       const { id } = req.params;
-      const { unitCode, floorNumber, ownerName, ownerPhone, ownerIdCard } = req.body;
+      const { unitCode, floorNumber, ownerName, ownerPhone, ownerIdCard, unitType } = req.body;
       if (!unitCode) {
         throw new BadRequestError('Mã số căn hộ (unitCode) là bắt buộc');
       }
@@ -233,6 +233,7 @@ export class CadastralController {
         ownerName,
         ownerPhone,
         ownerIdCard,
+        unitType,
       });
       res.status(201).json({
         success: true,
@@ -309,6 +310,23 @@ export class CadastralController {
         floorPlanId,
         partitions,
       });
+      res.status(200).json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async deleteFloorPlan(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id, floor } = req.params;
+      const floorNum = parseInt(floor, 10);
+      if (isNaN(floorNum)) {
+        throw new BadRequestError('floor phải là số');
+      }
+      const result = await CadastralService.deleteFloorPlan(id, floorNum);
       res.status(200).json({
         success: true,
         data: result,

@@ -54,6 +54,7 @@ export interface BuildingUnitEntity {
   cad_polygon?: { x: number; y: number }[] | null;
   unit_cad_url?: string | null;
   resident_status?: string | null;
+  unit_type?: 'UNIT' | 'MASTER' | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -477,10 +478,11 @@ export class CadastralRepository {
     ownerName?: string;
     ownerPhone?: string;
     ownerIdCard?: string;
+    unitType?: 'UNIT' | 'MASTER';
   }): Promise<BuildingUnitEntity> {
     const res = await Database.query<BuildingUnitEntity>(
-      `INSERT INTO building_units (parcel_id, unit_code, floor_number, owner_name, owner_phone, owner_id_card)
-       VALUES ($1, $2, $3, $4, $5, $6)
+      `INSERT INTO building_units (parcel_id, unit_code, floor_number, owner_name, owner_phone, owner_id_card, unit_type)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING *;`,
       [
         data.parcelId,
@@ -489,6 +491,7 @@ export class CadastralRepository {
         data.ownerName || null,
         data.ownerPhone || null,
         data.ownerIdCard || null,
+        data.unitType || 'UNIT',
       ]
     );
     // Cập nhật total_units và building_type trong parcels
@@ -631,22 +634,24 @@ export class CadastralRepository {
     parcelId: string,
     floorNumber: number,
     floorPlanId: string | null,
-    partitions: { unitCode: string; floorNumber?: number; bbox?: any; polygon?: any; unitCadUrl?: string }[]
+    partitions: { unitCode: string; floorNumber?: number; bbox?: any; polygon?: any; unitCadUrl?: string; unitType?: 'UNIT' | 'MASTER' }[]
   ): Promise<BuildingUnitEntity[]> {
     const savedUnits: BuildingUnitEntity[] = [];
 
     for (const part of partitions) {
       const uFloor = part.floorNumber !== undefined ? part.floorNumber : floorNumber;
+      const uType = part.unitType || 'UNIT';
       const res = await Database.query<BuildingUnitEntity>(
         `INSERT INTO building_units (
-          parcel_id, unit_code, floor_number, floor_plan_id, cad_bbox, cad_polygon, unit_cad_url, updated_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
+          parcel_id, unit_code, floor_number, floor_plan_id, cad_bbox, cad_polygon, unit_cad_url, unit_type, updated_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
         ON CONFLICT (parcel_id, unit_code) DO UPDATE SET
           floor_number = EXCLUDED.floor_number,
           floor_plan_id = COALESCE(EXCLUDED.floor_plan_id, building_units.floor_plan_id),
           cad_bbox = COALESCE(EXCLUDED.cad_bbox, building_units.cad_bbox),
           cad_polygon = COALESCE(EXCLUDED.cad_polygon, building_units.cad_polygon),
           unit_cad_url = COALESCE(EXCLUDED.unit_cad_url, building_units.unit_cad_url),
+          unit_type = COALESCE(EXCLUDED.unit_type, building_units.unit_type, 'UNIT'),
           updated_at = NOW()
         RETURNING *;`,
         [
@@ -657,11 +662,23 @@ export class CadastralRepository {
           part.bbox ? JSON.stringify(part.bbox) : null,
           part.polygon ? JSON.stringify(part.polygon) : null,
           part.unitCadUrl || null,
+          uType,
         ]
       );
       if (res.rows[0]) {
         savedUnits.push(res.rows[0]);
       }
+    }
+
+    // Tự động tính toán và cập nhật scope của floor plan nếu có floorPlanId
+    if (floorPlanId && partitions.length > 0) {
+      const hasUnit = partitions.some(p => (p.unitType || 'UNIT') === 'UNIT');
+      const hasMaster = partitions.some(p => p.unitType === 'MASTER');
+      const scope: 'UNIT' | 'MASTER' | 'BOTH' = (hasUnit && hasMaster) ? 'BOTH' : (hasMaster ? 'MASTER' : 'UNIT');
+      await Database.query(
+        `UPDATE building_floor_plans SET scope = $2, updated_at = NOW() WHERE id = $1;`,
+        [floorPlanId, scope]
+      );
     }
 
     // Cập nhật total_units và building_type = 'CONDOMINIUM'
@@ -675,6 +692,40 @@ export class CadastralRepository {
     );
 
     return savedUnits;
+  }
+
+  static async deleteFloorPlan(parcelId: string, floorNumber: number): Promise<boolean> {
+    // 1. Xóa các unit nháp của tầng này chưa khảo sát
+    await Database.query(
+      `DELETE FROM building_units 
+       WHERE parcel_id = $1 AND floor_number = $2 AND phase1_report_id IS NULL AND (status = 'NOT_SURVEYED' OR status IS NULL);`,
+      [parcelId, floorNumber]
+    );
+
+    // 2. Gỡ liên kết CAD đối với các unit đã có báo cáo khảo sát
+    await Database.query(
+      `UPDATE building_units 
+       SET floor_plan_id = NULL, cad_bbox = NULL, cad_polygon = NULL, unit_cad_url = NULL 
+       WHERE parcel_id = $1 AND floor_number = $2;`,
+      [parcelId, floorNumber]
+    );
+
+    // 3. Xóa bản ghi bản vẽ tầng trong building_floor_plans
+    const res = await Database.query(
+      `DELETE FROM building_floor_plans WHERE parcel_id = $1 AND floor_number = $2;`,
+      [parcelId, floorNumber]
+    );
+
+    // 4. Đồng bộ lại tổng số căn hộ/khu vực của thửa
+    await Database.query(
+      `UPDATE parcels 
+       SET total_units = (SELECT COUNT(*) FROM building_units WHERE parcel_id = $1),
+           updated_at = NOW()
+       WHERE id = $1;`,
+      [parcelId]
+    );
+
+    return (res.rowCount ?? 0) > 0;
   }
 
   static async getAbsenceLogsForParcel(parcelId: string): Promise<any[]> {

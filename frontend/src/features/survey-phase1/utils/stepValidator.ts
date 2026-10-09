@@ -537,124 +537,37 @@ export const validateCondoMasterStep = (step: number, formData: Phase1SurveyForm
   }
 
   if (step === 3) {
-    if (!formData.floors || formData.floors.length === 0) {
+    // 3.1 & 3.2 Lịch sử & Ban Quản Lý toà nhà
+    if (!formData.managementContactName?.trim()) {
       missing.push({
-        fieldId: 'step3-floor-cad-section',
-        label: '3. Khảo sát không gian dùng chung',
+        fieldId: 'input-managementContactName',
+        label: '3.2. Họ tên Trưởng Ban Quản Lý / Đại diện BQT',
         step: 3,
-        description: 'Cần có ít nhất 1 tầng/không gian dùng chung (Hầm, Trệt, Kỹ thuật...) trong danh sách.',
-        isBlocking: true,
-      });
-    } else {
-      formData.floors.forEach((floor, fIdx) => {
-        const floorTitle = floor.floorName || `Không gian ${fIdx + 1}`;
-        const cadZonePins = floor.cadZonePins || [];
-        const zones = floor.zones || [];
-        const cadElementPins = floor.cadElementPins || [];
-        const structuralElements = floor.structuralElements || [];
-
-        // Ảnh chụp tổng quan tầng
-        if (!floor.overviewPhotos || floor.overviewPhotos.length === 0) {
-          missing.push({
-            fieldId: `step3-floor-overview-section-${fIdx}`,
-            label: `Ảnh chụp tổng quan (${floorTitle}) *`,
-            step: 3,
-            floorIndex: fIdx,
-            subSection: 'overview',
-            description: `Chưa có ảnh chụp tổng quan cho ${floorTitle}. Bắt buộc phải chụp ít nhất 1 ảnh tổng quan tầng.`,
-            isBlocking: true,
-          });
-        }
-
-        if (cadZonePins.length === 0 && zones.length === 0) {
-          missing.push({
-            fieldId: 'step3-floor-cad-section',
-            label: `3.1. Điểm chấm Vùng Z (${floorTitle})`,
-            step: 3,
-            floorIndex: fIdx,
-            subSection: 'cad-zone',
-            description: `Chưa có điểm chấm Vùng kiến trúc (Z) nào trên sơ đồ CAD_01 của ${floorTitle}.`,
-            isBlocking: true,
-          });
-        } else if (cadZonePins.length !== zones.length) {
-          missing.push({
-            fieldId: 'step3-floor-cad-section',
-            label: `3.1. Khớp số lượng Vùng Z (${floorTitle})`,
-            step: 3,
-            floorIndex: fIdx,
-            subSection: 'cad-zone',
-            description: `Số lượng điểm ghim CAD_01 (${cadZonePins.length}) chưa khớp với số Vùng Z (${zones.length}) của ${floorTitle}.`,
-            isBlocking: true,
-          });
-        }
-
-        if (floor.hasStructuralElements !== false) {
-          if (cadElementPins.length === 0 && structuralElements.length === 0) {
-            missing.push({
-              fieldId: 'step3-structure-cad-section',
-              label: `3.2. Điểm chấm Cấu kiện E (${floorTitle})`,
-              step: 3,
-              floorIndex: fIdx,
-              subSection: 'cad-element',
-              description: `Chưa có điểm chấm Cấu kiện kết cấu chịu lực (E) nào trên sơ đồ CAD_02 của ${floorTitle}.`,
-              isBlocking: true,
-            });
-          } else if (cadElementPins.length !== structuralElements.length) {
-            missing.push({
-              fieldId: 'step3-structure-cad-section',
-              label: `3.2. Khớp số lượng Cấu kiện E (${floorTitle})`,
-              step: 3,
-              floorIndex: fIdx,
-              subSection: 'cad-element',
-              description: `Số lượng điểm ghim CAD_02 (${cadElementPins.length}) chưa khớp với số Cấu kiện E (${structuralElements.length}) của ${floorTitle}.`,
-              isBlocking: true,
-            });
-          }
-        }
+        description: 'Vui lòng bổ sung họ tên đại diện Ban Quản Lý / BQT tòa nhà.',
+        isBlocking: false,
       });
     }
   }
 
   if (step === 4) {
-    // Burland toà
-  }
-
-  if (step === 5) {
-    // Scope & GIS mutation
+    // 4.1 Scope & GIS mutation
     if (!formData.surveyScope?.surveyedFloors || formData.surveyScope.surveyedFloors.length === 0) {
       missing.push({
         fieldId: 'input-surveyedFloors',
-        label: '5.1. Danh sách tầng được khảo sát',
-        step: 5,
+        label: '4.1. Danh sách tầng được khảo sát',
+        step: 4,
         description: 'Vui lòng chọn ít nhất 1 tầng nằm trong phạm vi khảo sát.',
       });
     }
   }
 
-  if (step === 6) {
-    // Điểm ECS/VI
-    if (
-      formData.ecs?.engineeringJudgement?.action &&
-      formData.ecs.engineeringJudgement.action !== 'KEEP' &&
-      !formData.ecs.engineeringJudgement.reason?.trim()
-    ) {
-      missing.push({
-        fieldId: 'input-ecs-reason',
-        label: '6.1. Lý do can thiệp kỹ sư (ECS)',
-        step: 6,
-        description: 'Khi kỹ sư can thiệp Nâng hoặc Hạ hạng ECS, bắt buộc phải giải trình căn cứ kỹ thuật.',
-        isBlocking: true,
-      });
-    }
-  }
-
-  if (step === 8) {
-    // Ký số BQL
+  if (step === 5) {
+    // 5.1 & 5.2 Ký số BQL & Biên bản làm việc
     if (!formData.signatures?.ownerFeedback?.trim() && !formData.ownerRemarks?.trim()) {
       missing.push({
         fieldId: 'input-ownerFeedback',
-        label: '8.1. Ý kiến / phản hồi của BQL toà nhà *',
-        step: 8,
+        label: '5.1. Ý kiến / phản hồi của BQL toà nhà *',
+        step: 5,
         description: 'Vui lòng ghi nhận ý kiến phản hồi thực tế của Ban Quản Lý / BQT toà nhà.',
         isBlocking: true,
       });
@@ -663,8 +576,8 @@ export const validateCondoMasterStep = (step: number, formData: Phase1SurveyForm
     if (!formData.signatures?.workingMinutesPhotos || formData.signatures.workingMinutesPhotos.length === 0) {
       missing.push({
         fieldId: 'working-minutes-section',
-        label: '8.2. Ảnh chụp biên bản làm việc hiện trường *',
-        step: 8,
+        label: '5.2. Ảnh chụp biên bản làm việc hiện trường *',
+        step: 5,
         description: 'Vui lòng chụp ít nhất 1 ảnh biên bản làm việc hiện trường có chữ ký xác nhận của BQL toà nhà.',
         isBlocking: true,
       });
@@ -1353,6 +1266,22 @@ export const validateAllSteps = (formData: Phase1SurveyFormData): StepValidation
   if (formData.surveyCaseType === 'ABSENTEE' || formData.surveyCaseType === 'UNDER_CONSTRUCTION') {
     const step1Res = validateStep(1, formData);
     return step1Res;
+  }
+
+  const isCondoMaster =
+    (formData.surveyCaseType === 'APARTMENT' ||
+      (formData as unknown as { survey_case_type?: string }).survey_case_type === 'APARTMENT') &&
+    !formData.unitId;
+
+  if (isCondoMaster) {
+    for (let s = 1; s <= 5; s++) {
+      const res = validateCondoMasterStep(s, formData);
+      allMissing.push(...res.missingFields);
+    }
+    return {
+      isValid: allMissing.length === 0,
+      missingFields: allMissing,
+    };
   }
 
   for (let s = 1; s <= 8; s++) {
