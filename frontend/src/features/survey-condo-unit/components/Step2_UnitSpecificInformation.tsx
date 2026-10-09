@@ -1,5 +1,6 @@
 import React from 'react';
 import { useCondoUnitSurveyStore } from '../store/useCondoUnitSurveyStore';
+import { isResidentStatus } from '../types/condo-unit.types';
 import { Card } from '../../../core/components/ui/Card';
 import { Button } from '../../../core/components/ui/Button';
 import { Input, Select } from '../../../core/components/ui/FormControls';
@@ -90,7 +91,12 @@ export const Step2_UnitSpecificInformation: React.FC = () => {
           <Select
             label="Tình Trạng Cư Trú / Sử Dụng Hiện Tại *"
             value={formData.residentStatus}
-            onChange={(e) => updateFormData({ residentStatus: e.target.value as any })}
+            onChange={(e) => {
+              const val = e.target.value;
+              if (isResidentStatus(val)) {
+                updateFormData({ residentStatus: val });
+              }
+            }}
             options={[
               { value: 'CHỦ_HỘ_Ở', label: 'Chủ sở hữu đang sinh sống trực tiếp' },
               { value: 'CHO_THUÊ', label: 'Cho thuê nguyên căn' },

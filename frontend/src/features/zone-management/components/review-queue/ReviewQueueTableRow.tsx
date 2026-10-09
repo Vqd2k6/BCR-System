@@ -14,7 +14,7 @@ import {
   MoreHorizontal,
   Move,
 } from 'lucide-react';
-import { PendingSubmissionItem } from './ZoneAuditReviewQueue';
+import type { PendingSubmissionItem } from './ZoneAuditReviewQueue';
 
 interface Props {
   item: PendingSubmissionItem;

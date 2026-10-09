@@ -1,6 +1,6 @@
 import React from 'react';
 import { ArrowLeft, Building2, Layers } from 'lucide-react';
-import { GisParcel } from '../../../gis/LeafletSweepMap';
+import type { GisParcel } from '../../../gis/LeafletSweepMap';
 
 interface BuildingHubHeaderProps {
   parcel: GisParcel;

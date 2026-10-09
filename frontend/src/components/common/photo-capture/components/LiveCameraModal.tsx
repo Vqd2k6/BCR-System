@@ -307,7 +307,7 @@ export const LiveCameraModal: React.FC<LiveCameraModalProps> = ({
           onLoadedMetadata={onVideoReady}
           onCanPlay={onVideoReady}
           onPlaying={onVideoReady}
-          {...({ 'webkit-playsinline': 'true' } as any)}
+          {...({ 'webkit-playsinline': 'true' } as Record<string, string>)}
           style={{
             width: '100%',
             height: '100%',

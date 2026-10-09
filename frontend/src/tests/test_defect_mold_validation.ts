@@ -1,5 +1,7 @@
 import { validateStep } from '../features/survey-phase1/utils/stepValidator';
 import { isCrackRelated } from '../components/canvas/defectHelpers';
+import type { Phase1SurveyFormData } from '../features/survey-phase1/types/phase1.types';
+import { getDefaultInitialFormData } from '../features/survey-phase1/store/initialFormData';
 
 console.log('====================================================================');
 console.log('KIỂM THỬ: THẨM ĐỊNH KHUYẾT TẬT D LOẠI ẨM MỐC & VẾT NỨT TẠI BƯỚC 3');
@@ -38,13 +40,15 @@ console.assert(
 console.log('✅ Nứt xiên 45 độ dầm cột -> isCrackRelated = true\n');
 
 // 2. Tạo Mock FormData cho Bước 3
-const baseFormData: any = {
+const baseFormData: Phase1SurveyFormData = {
+  ...getDefaultInitialFormData('test-parcel'),
   floors: [
     {
-      floorNumber: 1,
+      id: 'fl-1',
       floorName: 'Tầng 1 (Trệt)',
-      overviewPhotos: ['https://example.com/overview.jpg'],
-      cadZonePins: [{ pinNumber: 1, pinCode: 'Z1', pinX: 50, pinY: 50 }],
+      cadSketchPhotoUrl: '',
+      overviewPhotos: [{ id: 'p1', url: 'https://example.com/overview.jpg' }],
+      cadZonePins: [{ zoneCode: 'Z1', pinX: 50, pinY: 50 }],
       cadElementPins: [],
       hasStructuralElements: false, // Miễn khảo sát E
       zones: [
@@ -57,6 +61,7 @@ const baseFormData: any = {
           wallMaterial: 'Vữa trát sơn nước',
           hasDamage: true,
           ctxPhotoUrl: 'https://example.com/ctx.jpg',
+          overviewPhotos: [],
           notes: 'Khu vực tường phòng khách',
           defects: [],
         },

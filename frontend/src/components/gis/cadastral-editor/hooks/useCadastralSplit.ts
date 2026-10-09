@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import L from 'leaflet';
 import { api } from '../../../../services/api';
-import { GisParcel, MutationPayloadData, CadastralParcelData, SplitChildData, MaxZoneCodeInfo } from '../../shared/types';
+import type { GisParcel, MutationPayloadData, CadastralParcelData, SplitChildData, MaxZoneCodeInfo } from '../../shared/types';
 import {
   computePolygonAreaM2,
   interpolatePoint,
@@ -13,7 +13,7 @@ import {
 interface UseCadastralSplitProps {
   realActiveCoords: [number, number][];
   parcelData: CadastralParcelData;
-  parcel?: GisParcel | any;
+  parcel?: GisParcel | null;
   activeParcelId: string;
   totalLandArea: number;
   boundaryStatus: 'MATCH' | 'SPLIT' | 'MERGE';
@@ -100,7 +100,7 @@ export const useCadastralSplit = ({
     const fetchCodes = async () => {
       try {
         setIsLoadingCodes(true);
-        const resolvedZone = parcel?.zoneId || (parcel as any)?.zone_id || parcelData.zoneId || 'ZONE_01';
+        const resolvedZone = parcel?.zoneId || parcel?.zone_id || parcelData.zoneId || 'ZONE_01';
         const qParcel = (parcelData.id || activeParcelId) ? `&parcelId=${encodeURIComponent(parcelData.id || activeParcelId)}` : '';
         const qZone = `&zoneId=${encodeURIComponent(resolvedZone)}`;
         const res = await api.get(`/parcels/next-high-range-codes?count=4${qParcel}${qZone}`);

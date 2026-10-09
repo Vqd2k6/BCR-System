@@ -20,15 +20,30 @@ import {
   Download,
   Upload,
 } from 'lucide-react';
-import { UnitDefectItem } from '../types/condo-unit.types';
+import { isDoorJammingStatus, type UnitDefectItem, type CadBbox, type CadPolygon, type CondoUnitFormData } from '../types/condo-unit.types';
 import { api } from '../../../services/api';
+
+interface FloorPlanUnitItem {
+  id: string;
+  unit_code: string;
+  unit_cad_url?: string;
+  cad_bbox?: CadBbox | null;
+  cad_polygon?: CadPolygon | null;
+}
+
+interface FloorPlanData {
+  plan?: {
+    cad_photo_url?: string;
+  };
+  units?: FloorPlanUnitItem[];
+}
 
 export const Step3_UnitDefectsAndSettlement: React.FC = () => {
   const { formData, updateFormData, addDefect, removeDefect, nextStep, prevStep } =
     useCondoUnitSurveyStore();
 
   const [isLoadingFloorPlan, setIsLoadingFloorPlan] = useState<boolean>(false);
-  const [floorPlanData, setFloorPlanData] = useState<any>(null);
+  const [floorPlanData, setFloorPlanData] = useState<FloorPlanData | null>(null);
   const [showFloorPickerModal, setShowFloorPickerModal] = useState<boolean>(false);
 
   // New defect state
@@ -56,7 +71,7 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
         if (units && units.length > 0) {
           // Tìm căn hộ trùng khớp mã căn unitCode
           const matched = units.find(
-            (u: any) => u.unit_code === formData.unitCode || u.unit_code.endsWith(formData.unitCode)
+            (u: FloorPlanUnitItem) => u.unit_code === formData.unitCode || u.unit_code?.endsWith(formData.unitCode)
           );
           if (matched && matched.unit_cad_url) {
             updateFormData({
@@ -74,7 +89,7 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
     }
   };
 
-  const handleManualImportCad = (unitCadUrl: string, bbox?: any) => {
+  const handleManualImportCad = (unitCadUrl: string, bbox?: CadBbox | null) => {
     updateFormData({
       unitCadUrl,
       cadBbox: bbox || null,
@@ -266,7 +281,12 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
           <Select
             label="Trạng thái đóng mở cửa *"
             value={formData.doorJammingStatus || 'NORMAL'}
-            onChange={(e) => updateFormData({ doorJammingStatus: e.target.value as any })}
+            onChange={(e) => {
+              const val = e.target.value;
+              if (isDoorJammingStatus(val)) {
+                updateFormData({ doorJammingStatus: val });
+              }
+            }}
             options={[
               { value: 'NORMAL', label: 'Bình thường: Đóng mở nhẹ nhàng, không cạ nền' },
               { value: 'JAMMED', label: 'Bị kẹt cánh / khó đóng mở do khung bao biến dạng' },
@@ -447,19 +467,27 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
                     />
 
                     {/* Highlight partitions */}
-                    {floorPlanData.units?.map((u: any) => {
+                    {floorPlanData.units?.map((u: FloorPlanUnitItem) => {
                       if (!u.cad_bbox) return null;
                       const isTarget = u.unit_code === formData.unitCode;
-                      return (
-                        <div
-                          key={u.id}
-                          onClick={() => handleManualImportCad(u.unit_cad_url || floorPlanData.plan.cad_photo_url, u.cad_bbox)}
-                          style={{
+                      const style = Array.isArray(u.cad_bbox)
+                        ? {
+                            left: `${u.cad_bbox[0]}%`,
+                            top: `${u.cad_bbox[1]}%`,
+                            width: `${u.cad_bbox[2] - u.cad_bbox[0]}%`,
+                            height: `${u.cad_bbox[3] - u.cad_bbox[1]}%`,
+                          }
+                        : {
                             left: `${u.cad_bbox.x}%`,
                             top: `${u.cad_bbox.y}%`,
                             width: `${u.cad_bbox.width}%`,
                             height: `${u.cad_bbox.height}%`,
-                          }}
+                          };
+                      return (
+                        <div
+                          key={u.id}
+                          onClick={() => handleManualImportCad(u.unit_cad_url || floorPlanData.plan?.cad_photo_url || '', u.cad_bbox)}
+                          style={style}
                           className={`absolute rounded cursor-pointer border-2 transition-all flex items-center justify-center ${
                             isTarget
                               ? 'border-teal-400 bg-teal-500/40 ring-2 ring-teal-400 z-20'
@@ -476,11 +504,11 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
 
                   {/* Danh sách các ô căn có CAD để click */}
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    {floorPlanData.units?.map((u: any) => (
+                    {floorPlanData.units?.map((u: FloorPlanUnitItem) => (
                       <button
                         key={u.id}
                         type="button"
-                        onClick={() => handleManualImportCad(u.unit_cad_url || floorPlanData.plan.cad_photo_url, u.cad_bbox)}
+                        onClick={() => handleManualImportCad(u.unit_cad_url || floorPlanData.plan?.cad_photo_url || '', u.cad_bbox)}
                         className={`p-2.5 rounded-xl border text-left text-xs font-bold flex items-center justify-between transition-all ${
                           u.unit_code === formData.unitCode
                             ? 'bg-teal-600 text-white border-teal-500 shadow-md'

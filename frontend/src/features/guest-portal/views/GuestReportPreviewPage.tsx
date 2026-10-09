@@ -1,5 +1,6 @@
+import { getErrorMessage, getErrorStatus, isNotFoundError } from '@/utils/errorUtils';
 import React, { useState, useEffect } from 'react';
-import { GisParcel } from '../../../components/gis/shared/types';
+import type { GisParcel } from '../../../components/gis/shared/types';
 import { api } from '../../../services/api';
 import {
   ArrowLeft,
@@ -56,7 +57,7 @@ export const GuestReportPreviewPage: React.FC<GuestReportPreviewPageProps> = ({
       return;
     }
 
-    const reportId = (parcel as any).activePhase1ReportId || parcel.id || parcel.projectParcelCode;
+    const reportId = parcel.activePhase1ReportId || parcel.id || parcel.projectParcelCode;
 
     try {
       // 1. Thử gọi endpoint V2 (Mẫu Song Ngữ Chuẩn 0410 CRLG-CRSRI-TT)
@@ -71,9 +72,9 @@ export const GuestReportPreviewPage: React.FC<GuestReportPreviewPageProps> = ({
           setIsLoading(false);
           return;
         }
-      } catch (errV2: any) {
+      } catch (errV2: unknown) {
         // Nếu là 404, thử fallback sang V1
-        if (errV2.response?.status !== 404) {
+        if (!isNotFoundError(errV2)) {
           console.warn('[GuestPreview] Lỗi khi nạp report V2, thử fallback V1:', errV2);
         }
       }
@@ -89,15 +90,13 @@ export const GuestReportPreviewPage: React.FC<GuestReportPreviewPageProps> = ({
       } else {
         throw new Error('Dữ liệu HTML rỗng từ máy chủ');
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.warn('[GuestPreview] Không thể tải bản xem trước báo cáo:', err);
-      if (err.response?.status === 404) {
+      if (isNotFoundError(err)) {
         setIsNotSurveyedYet(true);
       } else {
         setErrorMessage(
-          err.response?.data?.detail ||
-          err.message ||
-          'Không thể kết nối máy chủ để nạp bản in báo cáo.'
+          getErrorMessage(err, 'Không thể kết nối máy chủ để nạp bản in báo cáo.')
         );
       }
     } finally {

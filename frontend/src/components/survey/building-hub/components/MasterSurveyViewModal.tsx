@@ -7,14 +7,15 @@ import {
   ShieldCheck,
   Send,
 } from 'lucide-react';
-import { GisParcel } from '../../../gis/LeafletSweepMap';
+import type { GisParcel } from '../../../gis/LeafletSweepMap';
+import type { MasterReportData } from '../types';
 
 interface MasterSurveyViewModalProps {
   isOpen: boolean;
   onClose: () => void;
   parcel: GisParcel;
   isMasterSurveyDone: boolean;
-  masterReportData: any;
+  masterReportData: MasterReportData | null;
   isUpdatePending: boolean;
   updateNotes: string;
   setUpdateNotes: (notes: string) => void;

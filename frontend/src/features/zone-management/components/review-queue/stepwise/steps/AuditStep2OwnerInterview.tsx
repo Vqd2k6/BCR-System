@@ -12,11 +12,13 @@ import {
   FIRE_FLOOD_OPTIONS,
 } from '../../../../../survey-phase1/constants/historyInterviewConstants';
 
+import type { AuditStepwiseFormState, StepwiseHistoryInterview } from '../types';
+
 interface Props {
   isEditMode: boolean;
-  formState: Record<string, any>;
-  handleFieldChange: (key: string, label: string, val: any) => void;
-  handleNestedFieldChange: (parentKey: string, childKey: string, label: string, val: any) => void;
+  formState: AuditStepwiseFormState;
+  handleFieldChange: (key: string, label: string, val: unknown) => void;
+  handleNestedFieldChange: (parentKey: string, childKey: string, label: string, val: unknown) => void;
   onOpenPhotoZoom?: (url: string, title?: string, photoCode?: string) => void;
 }
 
@@ -27,7 +29,7 @@ export const AuditStep2OwnerInterview: React.FC<Props> = ({
   handleNestedFieldChange,
   onOpenPhotoZoom,
 }) => {
-  const hi = formState.historyInterview || {};
+  const hi: StepwiseHistoryInterview = formState.historyInterview || {};
 
   // E5 Resonance score calculation
   const qScores = [
@@ -227,7 +229,7 @@ export const AuditStep2OwnerInterview: React.FC<Props> = ({
                   className="w-full px-2.5 py-1.5 bg-amber-50/50 border border-amber-300 rounded-xl text-xs font-bold text-slate-800"
                 >
                   <option value="">--- Chọn kết cấu chịu lực ---</option>
-                  {STRUCTURE_SYSTEMS.map((s: any) => (
+                  {STRUCTURE_SYSTEMS.map((s: string) => (
                     <option key={s} value={s}>
                       {s}
                     </option>
@@ -252,7 +254,7 @@ export const AuditStep2OwnerInterview: React.FC<Props> = ({
                   className="w-full px-2.5 py-1.5 bg-amber-50/50 border border-amber-300 rounded-xl text-xs font-bold text-slate-800"
                 >
                   <option value="">--- Chọn giải pháp móng ---</option>
-                  {FOUNDATION_TYPES.map((f: any) => (
+                  {FOUNDATION_TYPES.map((f: string) => (
                     <option key={f} value={f}>
                       {f}
                     </option>
@@ -503,7 +505,7 @@ export const AuditStep2OwnerInterview: React.FC<Props> = ({
                     onChange={(e) => handleNestedFieldChange('historyInterview', 'renovationLoad', 'Cơi nới tải trọng', Number(e.target.value))}
                     className="w-full p-1.5 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-800"
                   >
-                    {RENOVATION_OPTIONS.map((opt: any) => (
+                    {RENOVATION_OPTIONS.map((opt: { score: number; label: string }) => (
                       <option key={opt.score} value={opt.score}>
                         {opt.score}đ - {opt.label}
                       </option>
@@ -519,7 +521,7 @@ export const AuditStep2OwnerInterview: React.FC<Props> = ({
                 </div>
               ) : (
                 <div className="text-xs font-bold text-slate-800">
-                  {RENOVATION_OPTIONS.find((o: any) => o.score === hi.renovationLoad)?.label || 'Không cơi nới'}
+                  {RENOVATION_OPTIONS.find((o: { score: number; label: string }) => o.score === hi.renovationLoad)?.label || 'Không cơi nới'}
                 </div>
               )}
               {/* Ghi chú lời khai */}
@@ -558,7 +560,7 @@ export const AuditStep2OwnerInterview: React.FC<Props> = ({
                     onChange={(e) => handleNestedFieldChange('historyInterview', 'majorRepair', 'Sửa chữa lớn', Number(e.target.value))}
                     className="w-full p-1.5 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-800"
                   >
-                    {MAJOR_REPAIR_OPTIONS.map((opt: any) => (
+                    {MAJOR_REPAIR_OPTIONS.map((opt: { score: number; label: string }) => (
                       <option key={opt.score} value={opt.score}>
                         {opt.score}đ - {opt.label}
                       </option>
@@ -574,7 +576,7 @@ export const AuditStep2OwnerInterview: React.FC<Props> = ({
                 </div>
               ) : (
                 <div className="text-xs font-bold text-slate-800">
-                  {MAJOR_REPAIR_OPTIONS.find((o: any) => o.score === hi.majorRepair)?.label || 'Không sửa chữa lớn'}
+                  {MAJOR_REPAIR_OPTIONS.find((o: { score: number; label: string }) => o.score === hi.majorRepair)?.label || 'Không sửa chữa lớn'}
                 </div>
               )}
               <div className="text-[11px] text-slate-500 bg-white p-2 rounded-lg border border-slate-200">
@@ -604,7 +606,7 @@ export const AuditStep2OwnerInterview: React.FC<Props> = ({
                   onChange={(e) => handleNestedFieldChange('historyInterview', 'pastSettlement', 'Lún nứt quá khứ', Number(e.target.value))}
                   className="w-full p-1.5 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-800"
                 >
-                  {PAST_SETTLEMENT_OPTIONS.map((opt: any) => (
+                  {PAST_SETTLEMENT_OPTIONS.map((opt: { score: number; label: string }) => (
                     <option key={opt.score} value={opt.score}>
                       {opt.score}đ - {opt.label}
                     </option>
@@ -612,7 +614,7 @@ export const AuditStep2OwnerInterview: React.FC<Props> = ({
                 </select>
               ) : (
                 <div className="text-xs font-bold text-slate-800">
-                  {PAST_SETTLEMENT_OPTIONS.find((o: any) => o.score === hi.pastSettlement)?.label || 'Không có tiền sử lún nứt'}
+                  {PAST_SETTLEMENT_OPTIONS.find((o: { score: number; label: string }) => o.score === hi.pastSettlement)?.label || 'Không có tiền sử lún nứt'}
                 </div>
               )}
               <div className="text-[11px] text-slate-500 bg-white p-2 rounded-lg border border-slate-200">
@@ -642,7 +644,7 @@ export const AuditStep2OwnerInterview: React.FC<Props> = ({
                   onChange={(e) => handleNestedFieldChange('historyInterview', 'neighborDamage', 'Hư hại lân cận', Number(e.target.value))}
                   className="w-full p-1.5 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-800"
                 >
-                  {NEIGHBOR_DAMAGE_OPTIONS.map((opt: any) => (
+                  {NEIGHBOR_DAMAGE_OPTIONS.map((opt: { score: number; label: string }) => (
                     <option key={opt.score} value={opt.score}>
                       {opt.score}đ - {opt.label}
                     </option>
@@ -650,7 +652,7 @@ export const AuditStep2OwnerInterview: React.FC<Props> = ({
                 </select>
               ) : (
                 <div className="text-xs font-bold text-slate-800">
-                  {NEIGHBOR_DAMAGE_OPTIONS.find((o: any) => o.score === hi.neighborDamage)?.label || 'Không bị ảnh hưởng lân cận'}
+                  {NEIGHBOR_DAMAGE_OPTIONS.find((o: { score: number; label: string }) => o.score === hi.neighborDamage)?.label || 'Không bị ảnh hưởng lân cận'}
                 </div>
               )}
               <div className="text-[11px] text-slate-500 bg-white p-2 rounded-lg border border-slate-200">
@@ -680,7 +682,7 @@ export const AuditStep2OwnerInterview: React.FC<Props> = ({
                   onChange={(e) => handleNestedFieldChange('historyInterview', 'fireFloodIncident', 'Sự cố nghiêm trọng', Number(e.target.value))}
                   className="w-full p-1.5 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-800"
                 >
-                  {FIRE_FLOOD_OPTIONS.map((opt: any) => (
+                  {FIRE_FLOOD_OPTIONS.map((opt: { score: number; label: string }) => (
                     <option key={opt.score} value={opt.score}>
                       {opt.score}đ - {opt.label}
                     </option>
@@ -688,7 +690,7 @@ export const AuditStep2OwnerInterview: React.FC<Props> = ({
                 </select>
               ) : (
                 <div className="text-xs font-bold text-slate-800">
-                  {FIRE_FLOOD_OPTIONS.find((o: any) => o.score === hi.fireFloodIncident)?.label || 'Không có sự cố'}
+                  {FIRE_FLOOD_OPTIONS.find((o: { score: number; label: string }) => o.score === hi.fireFloodIncident)?.label || 'Không có sự cố'}
                 </div>
               )}
               <div className="text-[11px] text-slate-500 bg-white p-2 rounded-lg border border-slate-200">

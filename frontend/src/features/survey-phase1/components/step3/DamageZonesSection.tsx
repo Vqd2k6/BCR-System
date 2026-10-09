@@ -5,8 +5,11 @@ import { Badge } from '../../../../core/components/ui/Badge';
 import { Input, Select } from '../../../../core/components/ui/FormControls';
 import { PhotoCaptureInput } from '../../../../components/common/PhotoCaptureInput';
 import { TapToZoomThumbnail } from '../../../../components/common/TapToZoomThumbnail';
-import { FloorCadPinningCanvas, CadZonePin } from '../../../../components/canvas/FloorCadPinningCanvas';
-import { FloorSurveyData, DamageZoneData } from '../../types/phase1.types';
+import {
+  FloorCadPinningCanvas,
+  type CadZonePin,
+} from '../../../../components/canvas/FloorCadPinningCanvas';
+import type { FloorSurveyData, DamageZoneData } from '../../types/phase1.types';
 import { COMMON_ROOM_NAMES, ARCH_COMPONENT_TYPES, WALL_MATERIALS } from './step3.constants';
 import { Building, Camera, Trash2, MapPin, AlertCircle, Plus, Sparkles, RotateCcw } from 'lucide-react';
 import { usePhase1SurveyStore } from '../../store/usePhase1SurveyStore';

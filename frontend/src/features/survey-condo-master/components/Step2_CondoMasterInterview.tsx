@@ -19,12 +19,13 @@ import {
   CONDO_USAGE_FUNCTIONS,
   CONDO_FOUNDATION_TYPES,
   CONDO_STRUCTURAL_SYSTEMS,
+  isCondoStructuralSystem,
 } from '../types/condo-master.types';
 
 export const Step2_CondoMasterInterview: React.FC = () => {
   const { formData, updateFormData, nextStep, prevStep } = usePhase1SurveyStore();
   const [customStructural, setCustomStructural] = useState(
-    CONDO_STRUCTURAL_SYSTEMS.includes(formData.structureSystem as any) ? '' : formData.structureSystem
+    isCondoStructuralSystem(formData.structureSystem) ? '' : formData.structureSystem
   );
 
   return (
@@ -157,7 +158,7 @@ export const Step2_CondoMasterInterview: React.FC = () => {
         <div className="space-y-3">
           <Select
             label="Hệ kết cấu chịu lực chính *"
-            value={CONDO_STRUCTURAL_SYSTEMS.includes(formData.structureSystem as any) ? formData.structureSystem : 'Khác'}
+            value={isCondoStructuralSystem(formData.structureSystem) ? formData.structureSystem : 'Khác'}
             onChange={(e) => {
               if (e.target.value === 'Khác') {
                 updateFormData({ structureSystem: customStructural || 'Kết cấu đặc biệt khác' });
@@ -168,7 +169,7 @@ export const Step2_CondoMasterInterview: React.FC = () => {
             options={CONDO_STRUCTURAL_SYSTEMS.map((s) => ({ value: s, label: s }))}
           />
 
-          {(formData.structureSystem === 'Khác' || !CONDO_STRUCTURAL_SYSTEMS.includes(formData.structureSystem as any)) && (
+          {(formData.structureSystem === 'Khác' || !isCondoStructuralSystem(formData.structureSystem)) && (
             <Input
               label="Mô tả chi tiết hệ kết cấu chịu lực khác *"
               placeholder="VD: Khung dầm BTCT kết hợp sàn bóng dự ứng lực..."

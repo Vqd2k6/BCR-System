@@ -1,6 +1,6 @@
 import React from 'react';
 import { Clock, User, BadgeCheck } from 'lucide-react';
-import { CompanionRecord } from '../types';
+import type { CompanionRecord } from '../types';
 
 interface CompanionHistoryListProps {
   companionHistory: CompanionRecord[];

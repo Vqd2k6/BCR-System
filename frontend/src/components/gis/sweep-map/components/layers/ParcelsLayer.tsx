@@ -1,6 +1,6 @@
 import React from 'react';
 import { Polygon } from 'react-leaflet';
-import { GisParcel } from '../../../shared/types';
+import type { GisParcel } from '../../../shared/types';
 import { getEffectiveParcelStatus, getStatusColor } from '../../utils/sweepMapHelpers';
 import { getParcelBraRiskLevel, getBraColor } from '../../../../../features/guest-portal/utils/guestPortalHelpers';
 

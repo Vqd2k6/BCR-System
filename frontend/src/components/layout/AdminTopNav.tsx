@@ -15,7 +15,7 @@ import { UserProfileModal } from '../profile/UserProfileModal';
 
 interface Props {
   activeTab: string;
-  onChangeTab: (tab: any) => void;
+  onChangeTab: (tab: string) => void;
 }
 
 export const AdminTopNav: React.FC<Props> = ({ activeTab, onChangeTab }) => {

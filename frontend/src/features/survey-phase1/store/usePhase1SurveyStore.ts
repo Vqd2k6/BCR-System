@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Phase1SurveyStore } from './types';
+import type { Phase1SurveyStore } from './types';
 import { getDefaultInitialFormData } from './initialFormData';
 import { createNavigationSlice } from './slices/navigationSlice';
 import { createSyncSlice } from './slices/syncSlice';

@@ -1,6 +1,6 @@
 import React from 'react';
 import { CheckSquare, Square, AlertCircle, FileCheck, FileSignature } from 'lucide-react';
-import { EditFormData } from '../../../types';
+import type { EditFormData } from '../../../types';
 
 interface RiskAssessmentAndConclusionsSectionProps {
   editFormData: EditFormData;

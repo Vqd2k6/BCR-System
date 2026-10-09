@@ -1,3 +1,4 @@
+import { getErrorMessage, getErrorStatus, isNotFoundError } from '@/utils/errorUtils';
 import React, { useState, useEffect } from 'react';
 import {
   X,
@@ -13,13 +14,29 @@ import {
   Eye,
   FileCheck,
 } from 'lucide-react';
-import { GisParcel } from '../../../gis/LeafletSweepMap';
+import type { GisParcel } from '../../../gis/LeafletSweepMap';
 import { PhotoCaptureInput } from '../../../common/PhotoCaptureInput';
 import {
   FloorPlanCadPartitionCanvas,
-  UnitPartitionBox,
+  type UnitPartitionBox,
 } from '../../../canvas/FloorPlanCadPartitionCanvas';
 import { api } from '../../../../services/api';
+
+interface FloorPlanItem {
+  id: string;
+  floor_number: number;
+  floor_name: string;
+  cad_photo_url: string;
+  applicable_floors?: number[];
+}
+
+interface CadUnitItem {
+  id: string;
+  unit_code: string;
+  cad_bbox?: { x: number; y: number; width: number; height: number };
+  cad_polygon?: { x: number; y: number }[];
+  unit_cad_url?: string;
+}
 
 interface Props {
   parcel: GisParcel;
@@ -33,7 +50,7 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
   onUnitsUpdated,
 }) => {
   const parcelId = parcel.id;
-  const projectCode = parcel.projectParcelCode || (parcel as any).project_parcel_code || 'B-XXXXX';
+  const projectCode = parcel.projectParcelCode || parcel.project_parcel_code || 'B-XXXXX';
 
   const [activeFloor, setActiveFloor] = useState<number>(3);
   const [floorName, setFloorName] = useState<string>('Tầng 3');
@@ -42,7 +59,7 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
   const [partitions, setPartitions] = useState<UnitPartitionBox[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isSaving, setIsSaving] = useState<boolean>(false);
-  const [existingFloorPlans, setExistingFloorPlans] = useState<any[]>([]);
+  const [existingFloorPlans, setExistingFloorPlans] = useState<FloorPlanItem[]>([]);
   const [saveSuccessMsg, setSaveSuccessMsg] = useState<string>('');
 
   // Tải danh sách floor plans hiện có
@@ -53,7 +70,7 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
       if (res.data?.success && res.data.data?.plans) {
         setExistingFloorPlans(res.data.data.plans);
         // Nếu đã có plan cho activeFloor, nạp vào state
-        const current = res.data.data.plans.find((p: any) => p.floor_number === activeFloor);
+        const current = res.data.data.plans.find((p: FloorPlanItem) => p.floor_number === activeFloor);
         if (current) {
           setCadUrl(current.cad_photo_url);
           setFloorName(current.floor_name);
@@ -83,15 +100,15 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
           }
         }
         if (units && units.length > 0) {
-          const boxes: UnitPartitionBox[] = units
-            .filter((u: any) => u.cad_bbox)
-            .map((u: any) => ({
+          const boxes: UnitPartitionBox[] = (units as CadUnitItem[])
+            .filter((u: CadUnitItem) => Boolean(u.cad_bbox))
+            .map((u: CadUnitItem) => ({
               id: u.id,
               unitCode: u.unit_code,
-              x: u.cad_bbox.x,
-              y: u.cad_bbox.y,
-              width: u.cad_bbox.width,
-              height: u.cad_bbox.height,
+              x: u.cad_bbox?.x ?? 0,
+              y: u.cad_bbox?.y ?? 0,
+              width: u.cad_bbox?.width ?? 0,
+              height: u.cad_bbox?.height ?? 0,
               polygon: u.cad_polygon || undefined,
               unitCadUrl: u.unit_cad_url || undefined,
             }));
@@ -149,7 +166,7 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
       const allFloorPartitions: {
         unitCode: string;
         floorNumber: number;
-        bbox: any;
+        bbox: { x: number; y: number; width: number; height: number };
         unitCadUrl?: string;
       }[] = [];
 
@@ -190,8 +207,8 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
         onUnitsUpdated();
       }
       loadFloorPlans();
-    } catch (err: any) {
-      alert(`Lỗi khi lưu phân chia mặt bằng: ${err.message || 'Lỗi mạng'}`);
+    } catch (err: unknown) {
+      alert(`Lỗi khi lưu phân chia mặt bằng: ${getErrorMessage(err, 'Lỗi mạng')}`);
     } finally {
       setIsSaving(false);
     }

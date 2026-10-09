@@ -14,12 +14,14 @@ import {
   Building2,
 } from 'lucide-react';
 
+import type { AuditStepwiseFormState, AuditStepwiseData, StepwiseSignatures } from '../types';
+
 interface Props {
   isEditMode?: boolean;
-  formState: Record<string, any>;
-  data?: any;
-  handleFieldChange?: (fieldKey: string, label: string, val: any) => void;
-  handleNestedFieldChange?: (parentKey: string, childKey: string, label: string, val: any) => void;
+  formState: AuditStepwiseFormState;
+  data?: AuditStepwiseData;
+  handleFieldChange?: (fieldKey: string, label: string, val: unknown) => void;
+  handleNestedFieldChange?: (parentKey: string, childKey: string, label: string, val: unknown) => void;
   onOpenPhotoZoom: (url: string, title?: string, photoCode?: string) => void;
   onConfirmAbsenteeSurvey?: () => void;
 }
@@ -33,27 +35,27 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
   onOpenPhotoZoom,
   onConfirmAbsenteeSurvey,
 }) => {
-  const sigs = formState.signatures || {};
+  const sigs: StepwiseSignatures = formState.signatures || {};
   const absenceLogs = formState.absenceLogs || data?.leftPane?.absenceLogs || [];
   const isAbsentee = formState.isRefusedOrAbsent || formState.status === 'POSTPONED_ABSENT' || absenceLogs.length > 0;
 
   // Working minutes photos
-  const workingMinutesPhotos: any[] = sigs.workingMinutesPhotos || formState.workingMinutesPhotos || [];
+  const workingMinutesPhotos: (string | { url?: string; photoUrl?: string; photoCode?: string })[] = sigs.workingMinutesPhotos || formState.workingMinutesPhotos || [];
   const ownerFeedback = sigs.ownerFeedback || formState.ownerFeedback || formState.ownerRemarks;
 
   const surveyorName = sigs.surveyorName || formState.surveyorName || data?.surveyorName;
   const surveyorPhone = sigs.surveyorPhone || formState.surveyorPhone || data?.surveyorPhone;
   const ownerName = sigs.ownerName || formState.ownerName || data?.ownerName;
-  const ownerPhone = sigs.ownerPhone || formState.ownerPhone || formState.ownerInterview?.phone;
+  const ownerPhone = sigs.ownerPhone || formState.ownerPhone || (formState.ownerInterview?.phone as string | undefined);
   const surveyDate = formState.surveyDate || data?.surveyDate;
 
   // Witness / Local Authority Info
-  const witnessName = sigs.witnessName || formState.witnessName || formState.witnessInfo?.name;
-  const witnessRole = sigs.witnessRole || formState.witnessRole || formState.witnessInfo?.role || 'Tổ trưởng tổ dân phố / Cán bộ địa chính';
-  const witnessPhone = sigs.witnessPhone || formState.witnessPhone || formState.witnessInfo?.phone;
-  const witnessSignature = sigs.witnessSignature || formState.witnessSignature || formState.witnessInfo?.signature;
+  const witnessName = sigs.witnessName || formState.witnessName || (formState.witnessInfo?.name as string | undefined);
+  const witnessRole = sigs.witnessRole || formState.witnessRole || (formState.witnessInfo?.role as string | undefined) || 'Tổ trưởng tổ dân phố / Cán bộ địa chính';
+  const witnessPhone = sigs.witnessPhone || formState.witnessPhone || (formState.witnessInfo?.phone as string | undefined);
+  const witnessSignature = sigs.witnessSignature || formState.witnessSignature || (formState.witnessInfo?.signature as string | undefined);
 
-  const getPhotoUrl = (p: any): string => {
+  const getPhotoUrl = (p: string | { url?: string; photoUrl?: string; raw_photo_url?: string; annotated_photo_url?: string }): string => {
     if (!p) return '';
     if (typeof p === 'string') return p;
     return p.url || p.photoUrl || p.raw_photo_url || '';
@@ -143,7 +145,7 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
               </span>
               {sigs.surveyorSignature ? (
                 <div
-                  onClick={() => onOpenPhotoZoom(sigs.surveyorSignature, 'Chữ ký Khảo Sát Viên')}
+                  onClick={() => onOpenPhotoZoom(sigs.surveyorSignature || '', 'Chữ ký Khảo Sát Viên')}
                   className="bg-white rounded-lg p-2 border border-slate-200 cursor-pointer hover:border-sky-400 inline-block transition-colors"
                 >
                   <img
@@ -213,7 +215,7 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
               </span>
               {sigs.ownerSignature ? (
                 <div
-                  onClick={() => onOpenPhotoZoom(sigs.ownerSignature, 'Chữ ký Chủ Hộ')}
+                  onClick={() => onOpenPhotoZoom(sigs.ownerSignature || '', 'Chữ ký Chủ Hộ')}
                   className="bg-white rounded-lg p-2 border border-slate-200 cursor-pointer hover:border-emerald-400 inline-block transition-colors"
                 >
                   <img
@@ -345,7 +347,7 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-              {workingMinutesPhotos.map((photoItem: any, idx: number) => {
+              {workingMinutesPhotos.map((photoItem: string | { url?: string; photoUrl?: string; photoCode?: string; caption?: string }, idx: number) => {
                 const url = getPhotoUrl(photoItem);
                 const caption =
                   typeof photoItem === 'object'
@@ -356,7 +358,7 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
                 return (
                   <div
                     key={idx}
-                    onClick={() => onOpenPhotoZoom(url, caption, photoItem?.photoCode)}
+                    onClick={() => onOpenPhotoZoom(url, caption, typeof photoItem === 'object' ? photoItem.photoCode : undefined)}
                     className="group relative rounded-xl border border-slate-200 overflow-hidden bg-white hover:border-sky-400 hover:shadow-md transition-all cursor-pointer aspect-4/3"
                   >
                     <img
@@ -402,14 +404,14 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
               </div>
             ) : (
               <div className="space-y-2">
-                {absenceLogs.map((log: any, idx: number) => (
+                {absenceLogs.map((log, idx: number) => (
                   <div
                     key={log.id || idx}
                     className="p-3 bg-white rounded-xl border border-purple-100 flex items-center justify-between text-xs"
                   >
                     <div>
                       <span className="font-bold text-slate-800">
-                        Lần {log.attempt_number || idx + 1}: {log.reason || 'Chủ hộ đi vắng'}
+                        Lần {log.attempt_number || log.attemptNumber || idx + 1}: {log.reason || 'Chủ hộ đi vắng'}
                       </span>
                       {log.notes && <p className="text-[11px] text-slate-500 mt-0.5">{log.notes}</p>}
                     </div>

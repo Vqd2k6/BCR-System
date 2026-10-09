@@ -216,31 +216,42 @@ export const leafletCoordsToGeoJsonPolygon = (
   };
 };
 
+export interface GeoJsonCoordinateSource {
+  cadastral_geojson?: unknown;
+  cadastralGeojson?: unknown;
+  polygonGeoJson?: unknown;
+  coordinates?: [number, number][];
+  type?: string;
+  [key: string]: unknown;
+}
+
 /**
  * Trích xuất tọa độ an toàn từ GeoJSON Polygon hoặc MultiPolygon sang mảng Leaflet [lat, lng][]
  */
-export const parseCoordinatesFromGeoJson = (p: any): [number, number][] => {
-  if (!p) return [];
+export const parseCoordinatesFromGeoJson = (p: unknown): [number, number][] => {
+  if (!p || typeof p !== 'object') return [];
+  const src = p as GeoJsonCoordinateSource;
   let coords: [number, number][] = [];
-  let geo = p.cadastral_geojson || p.cadastralGeojson || p.polygonGeoJson || p;
+  let geo: unknown = src.cadastral_geojson || src.cadastralGeojson || src.polygonGeoJson || p;
   if (typeof geo === 'string') {
     try {
       geo = JSON.parse(geo);
     } catch (_) {}
   }
   if (geo && typeof geo === 'object') {
-    if (geo.type === 'Polygon' && Array.isArray(geo.coordinates?.[0])) {
-      coords = (geo.coordinates[0] as [number, number][]).map(
+    const geoObj = geo as { type?: string; coordinates?: unknown };
+    if (geoObj.type === 'Polygon' && Array.isArray(geoObj.coordinates) && Array.isArray(geoObj.coordinates[0])) {
+      coords = (geoObj.coordinates[0] as [number, number][]).map(
         ([lng, lat]) => [lat, lng] as [number, number]
       );
-    } else if (geo.type === 'MultiPolygon' && Array.isArray(geo.coordinates?.[0]?.[0])) {
-      coords = (geo.coordinates[0][0] as [number, number][]).map(
+    } else if (geoObj.type === 'MultiPolygon' && Array.isArray(geoObj.coordinates) && Array.isArray(geoObj.coordinates[0]) && Array.isArray(geoObj.coordinates[0][0])) {
+      coords = (geoObj.coordinates[0][0] as [number, number][]).map(
         ([lng, lat]) => [lat, lng] as [number, number]
       );
     }
   }
-  if (coords.length < 3 && p.coordinates && Array.isArray(p.coordinates) && p.coordinates.length >= 3) {
-    coords = p.coordinates;
+  if (coords.length < 3 && Array.isArray(src.coordinates) && src.coordinates.length >= 3) {
+    coords = src.coordinates;
   }
   return coords;
 };

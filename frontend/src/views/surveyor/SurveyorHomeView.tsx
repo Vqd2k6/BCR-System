@@ -1,6 +1,9 @@
 import React from 'react';
-import { GisParcel } from '../../components/gis/LeafletSweepMap';
-import { BuildingHubModal, BuildingUnit } from '../../components/survey/BuildingHubModal';
+import type { GisParcel } from '../../components/gis/LeafletSweepMap';
+import {
+  BuildingHubModal,
+  type BuildingUnit,
+} from '../../components/survey/BuildingHubModal';
 import { useSurveyorHomeState } from './home/hooks/useSurveyorHomeState';
 import { SurveyorBanner } from './home/components/SurveyorBanner';
 import { SurveyorFilterTabs } from './home/components/SurveyorFilterTabs';

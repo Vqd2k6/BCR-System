@@ -32,16 +32,16 @@ export const AdminDashboardPage: React.FC = () => {
 
       {/* Admin Navigation Tabs */}
       <div className="flex items-center gap-2 border-b border-slate-200 pb-2 overflow-x-auto no-scrollbar">
-        {[
+        {([
           { key: 'export', label: 'Xuất Báo Cáo Phase 1 (BCS Export Module Box)', icon: <FileSpreadsheet className="w-4 h-4" /> },
           { key: 'gis-mutation', label: 'Biên Tập Ranh & Tách/Gộp Thửa GIS', icon: <Split className="w-4 h-4" /> },
           { key: 'users', label: 'Quản lý Người dùng & Phân quyền', icon: <Users className="w-4 h-4" /> },
           { key: 'audit', label: 'Nhật Ký Hệ Thống (Audit Logs)', icon: <Database className="w-4 h-4" /> },
           { key: 'config', label: 'Cấu Hình Tham Số BRA & Metro', icon: <Settings className="w-4 h-4" /> },
-        ].map((tab) => (
+        ] as const).map((tab) => (
           <button
             key={tab.key}
-            onClick={() => setActiveTab(tab.key as any)}
+            onClick={() => setActiveTab(tab.key)}
             className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all border ${
               activeTab === tab.key
                 ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'

@@ -1,6 +1,9 @@
 import React from 'react';
 import { Layers, Search, RefreshCw, Download } from 'lucide-react';
-import { METRO_22_ZONES, MetroZoneConfig } from '../../../../survey-phase1/constants/metroGisConstants';
+import {
+  METRO_22_ZONES,
+  type MetroZoneConfig,
+} from '../../../../survey-phase1/constants/metroGisConstants';
 
 interface Phase1FilterToolbarProps {
   selectedZone: string;

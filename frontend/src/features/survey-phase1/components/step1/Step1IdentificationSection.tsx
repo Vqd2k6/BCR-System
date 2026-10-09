@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Card } from '../../../../core/components/ui/Card';
 import { Input } from '../../../../core/components/ui/FormControls';
 import { Building } from 'lucide-react';
-import { Phase1SurveyFormData } from '../../types/phase1.types';
+import type { Phase1SurveyFormData } from '../../types/phase1.types';
 
 interface Step1IdentificationSectionProps {
   formData: Phase1SurveyFormData;

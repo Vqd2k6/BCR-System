@@ -8,12 +8,15 @@ import {
   BadgeCheck,
 } from 'lucide-react';
 
+import type { User as DomainUser } from '../../../../core/types/domain.types';
+import type { AttendanceRecord, CompanionRecord } from '../types';
+
 interface AttendanceHistoryTableProps {
   historyTab: 'surveyor' | 'companion';
   setHistoryTab: (tab: 'surveyor' | 'companion') => void;
-  history: any[];
-  companionHistory: any[];
-  user: any;
+  history: AttendanceRecord[];
+  companionHistory: CompanionRecord[];
+  user: DomainUser | null;
 }
 
 export const AttendanceHistoryTable: React.FC<AttendanceHistoryTableProps> = ({

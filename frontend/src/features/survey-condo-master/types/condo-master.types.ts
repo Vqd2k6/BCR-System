@@ -1,6 +1,4 @@
-import {
-  Phase1SurveyFormData,
-} from '../../survey-phase1/types/phase1.types';
+import type { Phase1SurveyFormData } from '../../survey-phase1/types/phase1.types';
 
 export const CONDO_USAGE_FUNCTIONS = [
   'Chung cư/ Toà nhiều căn hộ',
@@ -26,6 +24,10 @@ export const CONDO_STRUCTURAL_SYSTEMS = [
   'Khung bê tông cốt thép toàn khối thông thường',
   'Khác',
 ] as const;
+
+export type CondoStructuralSystem = (typeof CONDO_STRUCTURAL_SYSTEMS)[number];
+export const isCondoStructuralSystem = (val: string): val is CondoStructuralSystem =>
+  (CONDO_STRUCTURAL_SYSTEMS as readonly string[]).includes(val);
 
 export interface CondoMasterFormData extends Omit<Phase1SurveyFormData, 'usageFunction'> {
   usageFunction: string;

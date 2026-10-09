@@ -17,7 +17,7 @@ import {
   Send,
   Trees,
 } from 'lucide-react';
-import { Phase1SurveyFormData } from '../../types/phase1.types';
+import type { Phase1SurveyFormData } from '../../types/phase1.types';
 import { ABSENTEE_REASONS } from './step1.constants';
 import { usePhase1SurveyStore } from '../../store/usePhase1SurveyStore';
 

@@ -1,8 +1,27 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   generateMetroPhotoCode,
-  MetroWatermarkOptions,
+  type MetroWatermarkOptions,
 } from '../../../../utils/watermarkEngine';
+
+interface ExtendedMediaTrackCapabilities extends MediaTrackCapabilities {
+  torch?: boolean;
+  zoom?: { min?: number; max?: number; step?: number };
+}
+
+interface ExtendedMediaTrackConstraintSet extends MediaTrackConstraintSet {
+  torch?: boolean;
+  zoom?: number;
+}
+
+interface ExtendedMediaTrackConstraints extends MediaTrackConstraints {
+  advanced?: ExtendedMediaTrackConstraintSet[];
+}
+
+type ExtendedTrack = MediaStreamTrack & {
+  applyConstraints: (c: ExtendedMediaTrackConstraints) => Promise<void>;
+  getCapabilities?: () => ExtendedMediaTrackCapabilities;
+};
 
 interface UseLiveCameraProps {
   effectiveWatermarkOptions?: MetroWatermarkOptions;
@@ -49,8 +68,8 @@ export function useLiveCamera({
   activeLensModeRef.current = activeLensMode;
 
   const isSwitchingLensRef = useRef<boolean>(false);
-  const torchTimeoutRef = useRef<any>(null);
-  const torchThermalTimerRef = useRef<any>(null);
+  const torchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const torchThermalTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isPausedByVisibilityRef = useRef<boolean>(false);
 
   const stopLiveCamera = () => {
@@ -66,7 +85,7 @@ export function useLiveCamera({
           // Tắt torch nếu đang bật trước khi dừng track
           if (isTorchOn) {
             try {
-              (track as any).applyConstraints({ advanced: [{ torch: false }] });
+              (track as ExtendedTrack).applyConstraints({ advanced: [{ torch: false }] });
             } catch (_) {}
           }
           track.stop();
@@ -84,14 +103,14 @@ export function useLiveCamera({
 
   const applyHardwareZoom = (zoom: number) => {
     try {
-      const track = streamRef.current?.getVideoTracks()[0];
+      const track = streamRef.current?.getVideoTracks()[0] as ExtendedTrack | undefined;
       if (track) {
-        const caps = (track.getCapabilities ? track.getCapabilities() : {}) as any;
+        const caps: ExtendedMediaTrackCapabilities = track.getCapabilities ? track.getCapabilities() : {};
         if (caps.zoom) {
           const min = caps.zoom.min || 1;
           const max = caps.zoom.max || 5;
           const target = Math.min(max, Math.max(min, zoom));
-          track.applyConstraints({ advanced: [{ zoom: target } as any] }).catch(() => {});
+          track.applyConstraints({ advanced: [{ zoom: target }] }).catch(() => {});
         }
       }
     } catch (_e) {}
@@ -106,7 +125,8 @@ export function useLiveCamera({
 
       // Kiểm tra zoom phần cứng của track hiện tại (một số máy Android cho zoom.min <= 0.6)
       if (currentTrack) {
-        const caps = (currentTrack.getCapabilities ? currentTrack.getCapabilities() : {}) as any;
+        const extTrack = currentTrack as ExtendedTrack;
+        const caps: ExtendedMediaTrackCapabilities = extTrack.getCapabilities ? extTrack.getCapabilities() : {};
         if (caps.zoom && typeof caps.zoom.min === 'number' && caps.zoom.min <= 0.65) {
           setHasUltraWide(true);
         }
@@ -287,7 +307,7 @@ export function useLiveCamera({
       setTimeout(() => {
         setCameraLoading(false);
       }, 400);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.warn('[LiveCamera] Không thể mở camera trực tiếp:', err);
       setCameraError('Không thể mở camera trực tiếp trên trình duyệt. Bạn có thể bấm nút bên dưới để mở Máy ảnh hệ thống.');
       setCameraLoading(false);
@@ -328,12 +348,11 @@ export function useLiveCamera({
     }
   }, [ultraWideDeviceId, mainDeviceId]);
 
-  // Bật / Tắt Đèn Flash (Torch Mode)
   const toggleTorch = async () => {
-    const track = streamRef.current?.getVideoTracks()[0];
+    const track = streamRef.current?.getVideoTracks()[0] as ExtendedTrack | undefined;
     if (!track) return;
 
-    const caps = (track.getCapabilities ? track.getCapabilities() : {}) as any;
+    const caps: ExtendedMediaTrackCapabilities = track.getCapabilities ? track.getCapabilities() : {};
     if (!caps.torch) {
       // Thiết bị không hỗ trợ Torch (ví dụ iOS Safari)
       setTorchMessage('Trình duyệt iOS/thiết bị này không cho phép bật Flash qua web. Vui lòng bấm icon Máy ảnh ở góc dưới để mở Máy ảnh hệ thống dùng Flash.');
@@ -346,7 +365,7 @@ export function useLiveCamera({
 
     try {
       const nextState = !isTorchOn;
-      await (track as any).applyConstraints({
+      await track.applyConstraints({
         advanced: [{ torch: nextState }],
       });
       setIsTorchOn(nextState);
@@ -361,9 +380,9 @@ export function useLiveCamera({
         // Tự động ngắt sau 45 giây liên tục để tránh quá nhiệt LED & pin
         torchThermalTimerRef.current = setTimeout(async () => {
           try {
-            const currentTrack = streamRef.current?.getVideoTracks()[0];
+            const currentTrack = streamRef.current?.getVideoTracks()[0] as ExtendedTrack | undefined;
             if (currentTrack) {
-              await (currentTrack as any).applyConstraints({
+              await currentTrack.applyConstraints({
                 advanced: [{ torch: false }],
               });
             }
@@ -548,8 +567,8 @@ export function useLiveCamera({
       return;
     }
 
-    const track = streamRef.current?.getVideoTracks()[0];
-    const caps = (track?.getCapabilities ? track.getCapabilities() : {}) as any;
+    const track = streamRef.current?.getVideoTracks()[0] as ExtendedTrack | undefined;
+    const caps: ExtendedMediaTrackCapabilities = track?.getCapabilities ? track.getCapabilities() : {};
     const hasHardwareZoom = !!caps.zoom;
 
     const canvas = document.createElement('canvas');

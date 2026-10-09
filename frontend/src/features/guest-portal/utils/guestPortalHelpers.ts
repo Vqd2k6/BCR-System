@@ -1,4 +1,4 @@
-import { GisParcel } from '../../../components/gis/shared/types';
+import type { GisParcel } from '../../../components/gis/shared/types';
 import { getEffectiveParcelStatus } from '../../../components/gis/sweep-map/utils/sweepMapHelpers';
 
 export type BraRiskLevel = 'VERY_HIGH' | 'HIGH' | 'MEDIUM' | 'LOW' | 'UNASSESSED';
@@ -30,7 +30,7 @@ export interface GuestBraStats {
  * và trạng thái khảo sát hiện trạng.
  */
 export function getParcelBraRiskLevel(parcel: GisParcel): BraRiskLevel {
-  const explicit = (parcel as any).braRiskLevel || (parcel as any).braStatus;
+  const explicit = parcel.braRiskLevel || parcel.bra_risk_level || parcel.braStatus || parcel.bra_status;
   if (explicit) {
     const upper = String(explicit).toUpperCase();
     if (upper.includes('VERY_HIGH') || upper.includes('RẤT CAO') || upper === 'IV') return 'VERY_HIGH';

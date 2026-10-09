@@ -5,11 +5,12 @@ import { PhotoCaptureInput } from '../../../../components/common/PhotoCaptureInp
 import { LevelSelectorWithGuide } from '../LevelSelectorWithGuide';
 import { SAG_LEVEL_OPTIONS } from '../../constants/levelGuideConstants';
 import { Ruler, Sparkles } from 'lucide-react';
+import type { SettlementTiltState } from '../../types/phase1.types';
 
 interface SaggingMonitoringSectionProps {
-  settlementTilt: any;
+  settlementTilt: SettlementTiltState;
   projectParcelCode: string;
-  onUpdateSettlementTilt: (updater: any) => void;
+  onUpdateSettlementTilt: (updater: Partial<SettlementTiltState>) => void;
 }
 
 export const SaggingMonitoringSection: React.FC<SaggingMonitoringSectionProps> = ({

@@ -1,3 +1,4 @@
+import { getErrorMessage, getErrorStatus, isNotFoundError } from '@/utils/errorUtils';
 import React, { useState, useEffect } from 'react';
 import {
   Cloud,
@@ -15,7 +16,7 @@ import { useStorageInfo } from '../../../core/services/storageInfoService';
 import { Button } from '../../../core/components/ui/Button';
 import { Badge } from '../../../core/components/ui/Badge';
 import {
-  SurveyPhotoAuditItem,
+  type SurveyPhotoAuditItem,
   retryUploadSinglePhoto,
 } from '../utils/photoSyncAudit';
 import { uploadQueue } from '../../../core/services/uploadQueueService';
@@ -157,8 +158,8 @@ export const CloudPhotoSyncModal: React.FC<CloudPhotoSyncModalProps> = ({
     try {
       await retryUploadSinglePhoto(item, parcelCode);
       await persistSyncedPhotosToServer();
-    } catch (err: any) {
-      alert(`Không thể tải lại ảnh: ${err?.message || 'Lỗi lưu trữ ảnh'}`);
+    } catch (err: unknown) {
+      alert(`Không thể tải lại ảnh: ${getErrorMessage(err, 'Lỗi lưu trữ ảnh')}`);
     } finally {
       setRetryingId(null);
     }
@@ -175,9 +176,9 @@ export const CloudPhotoSyncModal: React.FC<CloudPhotoSyncModalProps> = ({
         try {
           await retryUploadSinglePhoto(item, parcelCode);
           successCount++;
-        } catch (e: any) {
+        } catch (e: unknown) {
           failCount++;
-          lastErrorMsg = e?.message || '';
+          lastErrorMsg = getErrorMessage(e, '');
           console.warn('Lỗi tải lại ảnh đơn:', e);
         }
       }

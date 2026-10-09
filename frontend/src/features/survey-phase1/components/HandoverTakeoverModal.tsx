@@ -1,3 +1,4 @@
+import { getErrorMessage, getErrorStatus, isNotFoundError } from '@/utils/errorUtils';
 import React, { useState } from 'react';
 import { Users, ShieldCheck, ArrowRight, X, AlertCircle, RefreshCw, KeyRound } from 'lucide-react';
 
@@ -71,8 +72,8 @@ export const HandoverTakeoverModal: React.FC<HandoverTakeoverModalProps> = ({
       if (success) {
         closeAction();
       }
-    } catch (err: any) {
-      setErrorMsg(err?.response?.data?.message || err?.message || 'Tiếp quản thất bại');
+    } catch (err: unknown) {
+      setErrorMsg(getErrorMessage(err, 'Tiếp quản thất bại'));
     } finally {
       setIsSubmitting(false);
     }

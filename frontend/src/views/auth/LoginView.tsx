@@ -1,3 +1,4 @@
+import { getErrorMessage, getErrorStatus, isNotFoundError } from '@/utils/errorUtils';
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { Lock, User, ShieldCheck, ArrowRight } from 'lucide-react';
@@ -19,8 +20,8 @@ export const LoginView: React.FC<Props> = ({ onNavigatePublicPortal }) => {
     setErrorMessage(null);
     try {
       await login(username, password);
-    } catch (err: any) {
-      setErrorMessage(err.response?.data?.detail || err.response?.data?.message || 'Đăng nhập không thành công. Vui lòng kiểm tra lại tài khoản.');
+    } catch (err: unknown) {
+      setErrorMessage(getErrorMessage(err, 'Đăng nhập không thành công. Vui lòng kiểm tra lại tài khoản.'));
     } finally {
       setLoading(false);
     }

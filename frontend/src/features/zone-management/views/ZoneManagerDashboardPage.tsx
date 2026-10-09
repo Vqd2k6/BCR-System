@@ -3,13 +3,16 @@ import { useAuth } from '../../../context/AuthContext';
 import { api } from '../../../services/api';
 import { METRO_22_ZONES, getZoneByCode } from '../../survey-phase1/constants/metroGisConstants';
 import { ZoneAdminAppShell } from '../components/layout/ZoneAdminAppShell';
-import { ZoneNavView } from '../components/layout/ZoneAdminSidebar';
-import { ZoneIntelligenceDashboard, ZoneIntelligenceStats } from '../components/dashboard/ZoneIntelligenceDashboard';
+import type { ZoneNavView } from '../components/layout/ZoneAdminSidebar';
+import {
+  ZoneIntelligenceDashboard,
+  type ZoneIntelligenceStats,
+} from '../components/dashboard/ZoneIntelligenceDashboard';
 import { ZoneAuditReviewQueue } from '../components/review-queue/ZoneAuditReviewQueue';
 import { ZoneParcelsDataGrid } from '../components/parcels/ZoneParcelsDataGrid';
 import { Phase1ExportModuleBox } from '../components/Phase1ExportModuleBox';
 import { LeafletSweepMap } from '../../../components/gis/LeafletSweepMap';
-import { GisParcel } from '../../../components/gis/shared/types';
+import type { GisParcel } from '../../../components/gis/shared/types';
 
 interface Props {
   parcels?: GisParcel[];

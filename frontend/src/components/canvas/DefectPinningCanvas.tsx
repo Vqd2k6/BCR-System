@@ -14,27 +14,53 @@ import { uploadQueue } from '../../core/services/uploadQueueService';
 export interface DefectItem {
   id?: string;
   defectCode: string;
+  defect_code?: string;
   pinX: number; // 0 to 100%
+  pin_x?: number;
   pinY: number; // 0 to 100%
+  pin_y?: number;
   screeningCategory: string;
   customScreeningCategory?: string;
   defectType: string;
   crackDirection?: string;
   widthMaxMm: number | '';
+  width_max_mm?: number | '';
   lengthMm: number | '';
+  length_mm?: number | '';
+  depthMm?: number | '';
+  depth_mm?: number | '';
   activityState: 'U' | 'S' | 'A' | '';
+  activity_state?: 'U' | 'S' | 'A' | '';
   materialDegradationE4: number | '';
   structuralSignificanceE2: number | '';
   functionalImpactE6?: number | '';
   hasScaleCard: boolean;
+  has_scale_card?: boolean;
   isStructuralCritical: boolean;
+  is_structural_critical?: boolean;
   cuPhotoUrl: string;
+  cu_photo_url?: string;
   cuPhotoCode?: string;
+  cu_photo_code?: string;
+  macroPhotoUrl?: string;
+  macro_photo_url?: string;
+  extraPhotoUrl?: string;
+  extra_photo_url?: string;
+  photoUrl?: string;
+  photo_url?: string;
   cuPhotos?: string[];
   cuPhotoCodes?: string[];
   notes?: string;
+  floorName?: string;
+  floor_name?: string;
+  zoneCode?: string;
+  zone_code?: string;
+  burlandGrade?: number;
+  burland_grade?: number;
   customizedFields?: string[];
   syncedFromDefectCode?: string;
+  pinColor?: string;
+  pin_color?: string;
 }
 
 interface Props {
@@ -413,8 +439,8 @@ export const DefectPinningCanvas: React.FC<Props> = ({
       customScreeningCategory: candidate?.customScreeningCategory || '',
       defectType: candidate?.defectType || '',
       crackDirection: candidate?.crackDirection || '',
-      widthMaxMm: '' as any, // Bắt buộc đo riêng từng vết nứt
-      lengthMm: '' as any,   // Bắt buộc đo riêng từng vết nứt
+      widthMaxMm: '', // Bắt buộc đo riêng từng vết nứt
+      lengthMm: '',   // Bắt buộc đo riêng từng vết nứt
       activityState: candidate?.activityState || 'S',
       materialDegradationE4: candidate?.materialDegradationE4 ?? '',
       structuralSignificanceE2: candidate?.structuralSignificanceE2 ?? '',
@@ -450,11 +476,10 @@ export const DefectPinningCanvas: React.FC<Props> = ({
     }
   };
 
-  const updateSelectedDefect = (field: keyof DefectItem, value: any) => {
+  const updateSelectedDefect = <K extends keyof DefectItem>(field: K, value: DefectItem[K]) => {
     if (selectedDefectIndex === null || readOnly) return;
     const updated = [...defects];
-    const cur = { ...updated[selectedDefectIndex] };
-    (cur as any)[field] = value;
+    const cur = { ...updated[selectedDefectIndex], [field]: value };
 
     if (INHERITABLE_DEFECT_FIELDS.includes(field)) {
       const custom = new Set(cur.customizedFields || []);
@@ -469,7 +494,7 @@ export const DefectPinningCanvas: React.FC<Props> = ({
         const nextDefect = { ...updated[k] };
         const nextCustom = nextDefect.customizedFields || [];
         if (!nextCustom.includes(field as string)) {
-          (nextDefect as any)[field] = value;
+          (nextDefect as Record<string, unknown>)[field as string] = value;
           nextDefect.syncedFromDefectCode = updated[k - 1].defectCode;
           updated[k] = nextDefect;
         }
@@ -484,15 +509,14 @@ export const DefectPinningCanvas: React.FC<Props> = ({
     const prev = defects[selectedDefectIndex - 1];
     if (!prev) return;
     const updated = [...defects];
-    const cur = { ...updated[selectedDefectIndex] };
-    (cur as any)[field] = (prev as any)[field];
+    const cur = { ...updated[selectedDefectIndex], [field]: prev[field] };
     cur.customizedFields = (cur.customizedFields || []).filter((f) => f !== field);
     updated[selectedDefectIndex] = cur;
 
     for (let k = selectedDefectIndex + 1; k < updated.length; k++) {
       const nextDefect = { ...updated[k] };
       if (!(nextDefect.customizedFields || []).includes(field as string)) {
-        (nextDefect as any)[field] = (prev as any)[field];
+        (nextDefect as Record<string, unknown>)[field as string] = prev[field];
         nextDefect.syncedFromDefectCode = updated[k - 1].defectCode;
         updated[k] = nextDefect;
       }
@@ -528,7 +552,7 @@ export const DefectPinningCanvas: React.FC<Props> = ({
       const nextCustom = nextDefect.customizedFields || [];
       for (const f of INHERITABLE_DEFECT_FIELDS) {
         if (!nextCustom.includes(f as string)) {
-          (nextDefect as any)[f] = (resetDefect as any)[f];
+          (nextDefect as unknown as Record<string, unknown>)[f] = (resetDefect as unknown as Record<string, unknown>)[f];
         }
       }
       nextDefect.syncedFromDefectCode = updated[k - 1].defectCode;
@@ -1151,7 +1175,7 @@ export const DefectPinningCanvas: React.FC<Props> = ({
                   onChange={(e) =>
                     updateSelectedDefect(
                       'widthMaxMm',
-                      e.target.value === '' ? ('' as any) : parseFloat(e.target.value) || 0
+                      e.target.value === '' ? '' : parseFloat(e.target.value) || 0
                     )
                   }
                   disabled={readOnly}
@@ -1174,7 +1198,7 @@ export const DefectPinningCanvas: React.FC<Props> = ({
                   onChange={(e) =>
                     updateSelectedDefect(
                       'lengthMm',
-                      e.target.value === '' ? ('' as any) : parseFloat(e.target.value) || 0
+                      e.target.value === '' ? '' : parseFloat(e.target.value) || 0
                     )
                   }
                   disabled={readOnly}
@@ -1190,7 +1214,7 @@ export const DefectPinningCanvas: React.FC<Props> = ({
                     !selectedDefect.activityState ? 'border-amber-400 bg-amber-50/30' : 'border-emerald-500 bg-emerald-50/15'
                   }`}
                   value={selectedDefect.activityState}
-                  onChange={(e) => updateSelectedDefect('activityState', e.target.value)}
+                  onChange={(e) => updateSelectedDefect('activityState', e.target.value as DefectItem['activityState'])}
                   disabled={readOnly}
                 >
                   <option value="">--- Chọn trạng thái hoạt động ---</option>

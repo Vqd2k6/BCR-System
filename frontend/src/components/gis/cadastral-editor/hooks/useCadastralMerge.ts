@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { api } from '../../../../services/api';
-import { GisParcel, MutationPayloadData, CadastralParcelData, MaxZoneCodeInfo } from '../../shared/types';
+import type { GisParcel, MutationPayloadData, CadastralParcelData, MaxZoneCodeInfo } from '../../shared/types';
 import { computePolygonAreaM2 } from '../../shared/geoMath';
 
 interface UseCadastralMergeProps {
@@ -9,7 +9,7 @@ interface UseCadastralMergeProps {
   realActiveCoords: [number, number][];
   activeCentroid: [number, number];
   parcelData: CadastralParcelData;
-  parcel?: GisParcel | any;
+  parcel?: GisParcel | null;
   activeParcelId?: string;
   totalLandArea: number;
   mutationData: MutationPayloadData;
@@ -54,7 +54,7 @@ export const useCadastralMerge = ({
     const fetchCodes = async () => {
       try {
         setIsLoadingCodes(true);
-        const resolvedZone = parcel?.zoneId || (parcel as any)?.zone_id || parcelData.zoneId || 'ZONE_01';
+        const resolvedZone = parcel?.zoneId || parcel?.zone_id || parcelData.zoneId || 'ZONE_01';
         const pId = parcelData.id || activeParcelId;
         const qParcel = pId ? `&parcelId=${encodeURIComponent(pId)}` : '';
         const qZone = `&zoneId=${encodeURIComponent(resolvedZone)}`;
@@ -127,7 +127,7 @@ export const useCadastralMerge = ({
         const dist = Math.round(calcDistanceMeters(activeCentroid[0], activeCentroid[1], pCenterLat, pCenterLng));
         return { ...zp, distanceMeters: dist };
       })
-      .sort((a, b) => ((a as any).distanceMeters || 0) - ((b as any).distanceMeters || 0));
+      .sort((a, b) => ((a.distanceMeters || a.distance_meters || 0) - (b.distanceMeters || b.distance_meters || 0)));
   }, [zoneParcels, nearby30mParcels, realActiveCoords, activeCentroid, parcelData.projectParcelCode, parcelData.street, calcDistanceMeters, generateFallbackNeighbors]);
 
   const filteredMergeParcels: GisParcel[] = useMemo(() => {
@@ -159,7 +159,7 @@ export const useCadastralMerge = ({
     }
     const p = currentZoneMergeParcels.find((zp) => zp.projectParcelCode === code);
     if (!p) return false;
-    const st = (p.surveyStatus || (p as any)?.survey_status) as string;
+    const st = (p.surveyStatus || p.survey_status) as string;
     return st === 'APPROVED' || st === 'SUBMITTED' || st === 'IN_PROGRESS' || st === 'PHASE2_COMPLETED' || st === 'APPROVED_PHASE2';
   };
 
@@ -169,7 +169,7 @@ export const useCadastralMerge = ({
       st = parcelData.surveyStatus;
     } else {
       const p = currentZoneMergeParcels.find((zp) => zp.projectParcelCode === code);
-      st = (p?.surveyStatus || (p as any)?.survey_status) as string;
+      st = (p?.surveyStatus || p?.survey_status) as string;
     }
 
     switch (st) {
@@ -220,7 +220,7 @@ export const useCadastralMerge = ({
     let totalMergedArea = Number(totalLandArea) || 0;
     selectedMergeCodes.forEach((code) => {
       const p = currentZoneMergeParcels.find((zp) => zp.projectParcelCode === code);
-      const approxArea = Number(p?.landArea || (p as any)?.land_area_m2) || 75.0;
+      const approxArea = Number(p?.landArea || p?.land_area_m2) || 75.0;
       totalMergedArea += approxArea;
     });
 
@@ -284,7 +284,7 @@ export const useCadastralMerge = ({
     });
   };
 
-  const handleUpdateMergeSecondaryField = (field: string, value: any) => {
+  const handleUpdateMergeSecondaryField = <K extends keyof MutationPayloadData>(field: K, value: MutationPayloadData[K]) => {
     onMutationDataChange({
       ...mutationData,
       [field]: value,

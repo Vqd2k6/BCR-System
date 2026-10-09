@@ -1,10 +1,17 @@
+import { getErrorMessage, getErrorStatus, isNotFoundError } from '@/utils/errorUtils';
 import React, { useState, useEffect } from 'react';
 import { useAuth } from './context/AuthContext';
 import { api } from './services/api';
 import { LoginView } from './views/auth/LoginView';
 import { SurveyorNavbar } from './components/layout/SurveyorNavbar';
-import { SurveyorBottomNav, NavTab } from './components/layout/SurveyorBottomNav';
-import { LeafletSweepMap, GisParcel } from './components/gis/LeafletSweepMap';
+import {
+  SurveyorBottomNav,
+  type NavTab,
+} from './components/layout/SurveyorBottomNav';
+import {
+  LeafletSweepMap,
+  type GisParcel,
+} from './components/gis/LeafletSweepMap';
 import { getEffectiveParcelStatus } from './components/gis/sweep-map/utils/sweepMapHelpers';
 import { SurveyorHomeView } from './views/surveyor/SurveyorHomeView';
 import { TimekeepingCheckInView } from './views/surveyor/TimekeepingCheckInView';
@@ -12,7 +19,7 @@ import { SurveyPhase1Page } from './features/survey-phase1/views/SurveyPhase1Pag
 import { SurveyCondoMasterPage } from './features/survey-condo-master/views/SurveyCondoMasterPage';
 import { SurveyCondoUnitPage } from './features/survey-condo-unit/views/SurveyCondoUnitPage';
 import { SurveyPhase2View } from './views/surveyor/SurveyPhase2View';
-import { BuildingHubModal } from './components/survey/BuildingHubModal';
+import { BuildingHubModal, type BuildingUnit } from './components/survey/BuildingHubModal';
 import { CompanionCheckInModal } from './components/attendance/CompanionCheckInModal';
 import { UnifiedGisMutationModal } from './components/gis/cadastral-editor/UnifiedGisMutationModal';
 import { Phase1ExportModuleBox } from './features/zone-management/components/Phase1ExportModuleBox';
@@ -67,7 +74,7 @@ export const App: React.FC = () => {
 
   const [parcels, setParcels] = useState<GisParcel[]>([]);
   const [selectedParcelForSurvey, setSelectedParcelForSurvey] = useState<GisParcel | null>(null);
-  const [selectedUnitForSurvey, setSelectedUnitForSurvey] = useState<any | null>(null);
+  const [selectedUnitForSurvey, setSelectedUnitForSurvey] = useState<BuildingUnit | null>(null);
   const [hubParcel, setHubParcel] = useState<GisParcel | null>(null);
   const [mutationStudioParcel, setMutationStudioParcel] = useState<GisParcel | null>(null);
   const [showAttendanceWarningModal, setShowAttendanceWarningModal] = useState<boolean>(false);
@@ -154,7 +161,12 @@ export const App: React.FC = () => {
   }, []);
 
   // ─── Chuẩn hóa dữ liệu thửa đất từ API ────────────────────────────────────
-  const normalizeParcel = (p: any): GisParcel => {
+  interface RawParcelData extends Partial<GisParcel> {
+    cadastral_geojson?: { coordinates?: [number, number][][] };
+    completed_units_count?: number;
+  }
+
+  const normalizeParcel = (p: RawParcelData): GisParcel => {
     let coords: [number, number][] = [];
 
     // Ưu tiên cadastral_geojson (GeoJSON Polygon) từ PostGIS
@@ -234,7 +246,7 @@ export const App: React.FC = () => {
     }
 
     return {
-      id: p.id,
+      id: p.id || '',
       projectParcelCode: p.project_parcel_code || p.projectParcelCode || '',
       officialCadastralCode: p.official_cadastral_code || p.officialCadastralCode || '',
       houseNumber: p.house_number || p.houseNumber || '',
@@ -252,7 +264,7 @@ export const App: React.FC = () => {
       buildingType: effectiveBuildingType,
       totalUnits: Number(p.total_units ?? p.totalUnits ?? 1),
       completedUnits: Number(p.completed_units_count ?? p.completedUnits ?? 0),
-      updatedAt: parcelUpdatedAt,
+      updatedAt: parcelUpdatedAt || undefined,
       assignedSurveyorId: p.assigned_surveyor_id || p.assignedSurveyorId || undefined,
       assignedSurveyorName: p.assigned_surveyor_name || p.assignedSurveyorName || undefined,
       assignedSurveyorCode: p.assigned_surveyor_code || p.assignedSurveyorCode || undefined,
@@ -276,8 +288,8 @@ export const App: React.FC = () => {
         console.warn('[Metro2] API returned empty parcel list for zone:', selectedZone);
         setParcels([]);
       }
-    } catch (err: any) {
-      console.error('[Metro2] Failed to load parcels:', err?.response?.data || err?.message);
+    } catch (err: unknown) {
+      console.error('[Metro2] Failed to load parcels:', getErrorMessage(err));
       setParcels([]);
     }
   };
@@ -291,7 +303,7 @@ export const App: React.FC = () => {
         const todayStr = new Date().toISOString().split('T')[0];
         const res = await api.get('/attendance/my-history');
         if (res.data && res.data.data && Array.isArray(res.data.data)) {
-          const todayRecord = res.data.data.find((item: any) => {
+          const todayRecord = res.data.data.find((item: { checkin_time: string; distance_to_zone_center_meters?: number; distance_meters?: number; verification_status?: string }) => {
             const itemDate = new Date(item.checkin_time).toISOString().split('T')[0];
             return itemDate === todayStr;
           });
@@ -478,7 +490,7 @@ export const App: React.FC = () => {
     });
   };
 
-  const handleStartCondoUnit = (parcel: GisParcel, unit: any) => {
+  const handleStartCondoUnit = (parcel: GisParcel, unit: BuildingUnit) => {
     triggerSurveyWithCheckInGuard(() => {
       setSelectedParcelForSurvey(parcel);
       setSelectedUnitForSurvey(unit);
@@ -486,7 +498,7 @@ export const App: React.FC = () => {
     });
   };
 
-  const handleStartUnitSurvey = (parcel: GisParcel, unit: any, phase: 1 | 2 = 1) => {
+  const handleStartUnitSurvey = (parcel: GisParcel, unit: BuildingUnit, phase: 1 | 2 = 1) => {
     triggerSurveyWithCheckInGuard(() => {
       setSelectedParcelForSurvey(parcel);
       setSelectedUnitForSurvey(unit);
@@ -547,7 +559,7 @@ export const App: React.FC = () => {
 
       // 4. Kích hoạt wizard khảo sát Phase 1 ở chế độ chỉnh sửa
       handleStartPhase1({ ...parcel, surveyStatus: 'IN_PROGRESS' }, false);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('[App] Failed to resume survey:', err);
       handleStartPhase1(parcel, false);
     }
@@ -571,7 +583,7 @@ export const App: React.FC = () => {
       {/* Top Header: AdminTopNav cho Super Admin (Desktop/Tablet) hoặc SurveyorNavbar cho Khảo sát viên (Mobile PWA) */}
       {activeTab !== 'phase1' && activeTab !== 'condo-master' && activeTab !== 'condo-unit' && (
         user?.role === 'SUPER_ADMIN' ? (
-          <AdminTopNav activeTab={activeTab} onChangeTab={setActiveTab} />
+          <AdminTopNav activeTab={activeTab} onChangeTab={(tab) => setActiveTab(tab as NavTab)} />
         ) : user?.role === 'ZONE_ADMIN' ? (
           /* Zone Admin luôn ở trong ZoneAdminAppShell chuyên nghiệp, KHÔNG render AdminTopNav hay SurveyorNavbar! */
           null

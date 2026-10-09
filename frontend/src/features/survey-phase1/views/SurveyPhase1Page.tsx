@@ -1,3 +1,4 @@
+import { getErrorMessage, getErrorStatus, isNotFoundError } from '@/utils/errorUtils';
 import React, { useEffect, useState } from 'react';
 import { usePhase1SurveyStore } from '../store/usePhase1SurveyStore';
 import { StepWizardNav } from '../components/StepWizardNav';
@@ -13,7 +14,15 @@ import { MissingFieldsModal } from '../components/MissingFieldsModal';
 import { SurveyReviewBanner } from '../components/SurveyReviewBanner';
 import { HandoverTakeoverModal } from '../components/HandoverTakeoverModal';
 import { ActiveSurveyorLockedModal } from '../components/ActiveSurveyorLockedModal';
-import { GisParcel, BuildingUnit } from '../../../core/types/domain.types';
+import type { GisParcel, BuildingUnit, SurveyStatus } from '../../../core/types/domain.types';
+import type {
+  Phase1SurveyFormData,
+  FloorSurveyData,
+  DamageZoneData,
+  DefectItem,
+  PolygonPoint,
+  FloorSplitLine,
+} from '../types/phase1.types';
 import { api } from '../../../services/api';
 import { useAuth } from '../../../context/AuthContext';
 import confetti from 'canvas-confetti';
@@ -24,6 +33,162 @@ import { CloudPhotoSyncModal } from '../components/CloudPhotoSyncModal';
 import { auditSurveyPhotos } from '../utils/photoSyncAudit';
 import { AlertOctagon } from 'lucide-react';
 import { getEffectiveParcelStatus } from '../../../components/gis/sweep-map/utils/sweepMapHelpers';
+
+interface IdentificationPhotoBackend {
+  photo_type: string;
+  raw_photo_url?: string;
+  is_not_applicable?: boolean;
+  facade_polygon_points_json?: PolygonPoint[];
+  floor_split_lines_json?: FloorSplitLine[];
+}
+
+interface BackendDefectRecord {
+  id: string;
+  defect_code?: string;
+  defectCode?: string;
+  pin_x?: number;
+  pinX?: number;
+  pin_y?: number;
+  pinY?: number;
+  screening_category?: string;
+  screeningCategory?: string;
+  defect_type?: string;
+  defectType?: string;
+  crack_direction?: string;
+  crackDirection?: string;
+  width_max_mm?: number;
+  widthMaxMm?: number;
+  length_mm?: number;
+  lengthMm?: number;
+  activity_state?: 'S' | 'A' | 'D' | 'N';
+  activityState?: 'S' | 'A' | 'D' | 'N';
+  material_degradation_e4?: number;
+  materialDegradationE4?: number;
+  structural_significance_e2?: number;
+  structuralSignificanceE2?: number;
+  functional_impact_e6?: number | string;
+  functionalImpactE6?: number | string;
+  cu_photo_url?: string;
+  cuPhotoUrl?: string;
+  cu_photo_code?: string;
+  cuPhotoCode?: string;
+  cu_photos_json?: string[];
+  cuPhotos?: string[];
+  cu_photo_codes_json?: string[];
+  cuPhotoCodes?: string[];
+  extra_photo_url?: string;
+  extraPhotoUrl?: string;
+  pin_color?: string;
+  pinColor?: string;
+  has_scale_card?: boolean;
+  hasScaleCard?: boolean;
+  is_structural_critical?: boolean;
+  isStructuralCritical?: boolean;
+  notes?: string;
+}
+
+interface BackendDamageZoneRecord {
+  id: string;
+  zone_code?: string;
+  zoneCode?: string;
+  floor_name?: string;
+  floor_id?: string;
+  floorName?: string;
+  room_name?: string;
+  zone_name?: string;
+  roomName?: string;
+  component_type?: string;
+  componentType?: string;
+  wall_material?: string;
+  wallMaterial?: string;
+  notes?: string;
+  ctx_photo_url?: string;
+  photo_context_url?: string;
+  ctx_photo_code?: string;
+  ctxPhotoCode?: string;
+  has_damage?: boolean;
+  functional_impact_repair_needed?: boolean;
+  burland_grade?: number;
+  burlandGrade?: number;
+  defects?: BackendDefectRecord[];
+}
+
+interface BackendFloorSurveyRecord {
+  id: string;
+  floor_name?: string;
+  floorName?: string;
+  overview_photos_json?: Array<string | { id?: string; url?: string; caption?: string }>;
+  overview_photos?: Array<string | { id?: string; url?: string; caption?: string }>;
+  cad_drawing_url?: string;
+  cad_sketch_photo_url?: string;
+  cad_structural_drawing_url?: string;
+  cad_zone_pins_json?: Array<Record<string, unknown>>;
+  cad_zone_pins?: Array<Record<string, unknown>>;
+  cad_element_pins_json?: Array<Record<string, unknown>>;
+  cad_element_pins?: Array<Record<string, unknown>>;
+  zones?: DamageZoneData[];
+  structural_elements?: Array<Record<string, unknown>>;
+}
+
+interface Phase1ServerReportResponse {
+  report?: {
+    status?: SurveyStatus;
+    survey_data_json?: string | Record<string, unknown>;
+    engineering_recommendations?: string;
+    owner_name?: string;
+    owner_phone?: string;
+    house_number?: string;
+    street?: string;
+    is_refused_or_absent?: boolean;
+    buildingSpecs?: {
+      building_name?: string;
+      land_use_function?: string;
+      floor_count?: number;
+      basement_count?: number;
+      construction_area_m2?: number;
+      building_height_m?: number;
+      year_of_construction?: number;
+      is_year_estimated?: boolean;
+      structural_system?: string;
+      foundation_category?: string;
+    };
+    identificationPhotos?: IdentificationPhotoBackend[];
+    historicalSensitivity?: {
+      renovation_load?: number;
+      major_repair?: number;
+      past_settlement?: number;
+      neighbor_damage?: number;
+      fire_flood_incident?: number;
+      has_sensitive_equipment?: boolean;
+      sensitive_equipment_desc?: string;
+      usage_status?: string;
+      continuous_operation_247?: boolean;
+    };
+    floorSurveys?: BackendFloorSurveyRecord[];
+    damageZones?: BackendDamageZoneRecord[];
+    owner_remarks?: string;
+    surveyor_name?: string;
+    surveyor_signature_url?: string;
+    surveyor_signature_img?: string;
+    submitted_at?: string;
+    owner_signature_url?: string;
+    survey_status?: SurveyStatus;
+    riskScores?: {
+      e1_burland_score?: number;
+      e2_structural_score?: number;
+      e3_settlement_score?: number;
+      e4_deterioration_score?: number;
+      e5_history_score?: number;
+      e6_functional_score?: number;
+      [key: string]: unknown;
+    };
+  };
+  absenceLog?: {
+    absence_reason?: string;
+    photo_proof_url?: string;
+    [key: string]: unknown;
+  };
+}
 
 export interface SurveyPhase1PageProps {
   parcel?: GisParcel | null;
@@ -68,7 +233,7 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
   } = usePhase1SurveyStore();
   const { user } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [reportData, setReportData] = useState<any>(null);
+  const [reportData, setReportData] = useState<Phase1ServerReportResponse | null>(null);
   const [isPhotoSyncModalOpen, setIsPhotoSyncModalOpen] = useState(false);
   const [isPhotoSyncFromSubmit, setIsPhotoSyncFromSubmit] = useState(false);
 
@@ -132,15 +297,15 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
   // Tải dữ liệu hồ sơ nếu ở chế độ xem lại (Read-Only) hoặc nạp dữ liệu đã lưu từ máy chủ
   useEffect(() => {
     if (parcel?.id) {
-      api.get(`/parcels/${parcel.id}/phase1-report`)
-        .then((res: any) => {
-          const data = res?.data?.data || res?.data;
+      api.get<Phase1ServerReportResponse>(`/parcels/${parcel.id}/phase1-report`)
+        .then((res) => {
+          const data = (res?.data && 'data' in res.data ? (res.data as { data?: Phase1ServerReportResponse }).data : res?.data) || null;
           if (data) {
             console.log('[SurveyPhase1Page] Report loaded from server:', data);
             setReportData(data);
             const rep = data.report;
-            const absence = data.absenceLog;
-            const updates: any = {};
+            const absence = data.absenceLog as { absence_reason?: string; photo_proof_url?: string } | undefined;
+            const updates: Partial<Phase1SurveyFormData> = {};
 
             // Nếu hồ sơ trên máy chủ đã nộp hoặc phê duyệt, kích hoạt ngay chế độ chỉ xem
             if (
@@ -208,23 +373,23 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
                 if (s.foundation_category) updates.foundationType = s.foundation_category;
               }
               if (rep.identificationPhotos && Array.isArray(rep.identificationPhotos) && rep.identificationPhotos.length > 0) {
-                rep.identificationPhotos.forEach((p: any) => {
+                rep.identificationPhotos.forEach((p) => {
                   if (p.photo_type === 'P01_HOUSE_NUMBER') {
-                    updates.photoP01 = { url: p.raw_photo_url || '', notApplicable: p.is_not_applicable };
+                    updates.photoP01 = { url: p.raw_photo_url || '', notApplicable: Boolean(p.is_not_applicable) };
                   } else if (p.photo_type === 'P02_MAIN_FACADE') {
                     updates.photoP02 = {
                       ...(updates.photoP02 || {}),
                       url: p.raw_photo_url || '',
-                      notApplicable: p.is_not_applicable,
+                      notApplicable: Boolean(p.is_not_applicable),
                       polygonPoints: p.facade_polygon_points_json || updates.photoP02?.polygonPoints || [],
                       floorSplits: p.floor_split_lines_json || updates.photoP02?.floorSplits || [],
                       widthM: updates.photoP02?.widthM || '',
                       heightM: updates.photoP02?.heightM || '',
                     };
                   } else if (p.photo_type === 'P03_SIDE_OR_REAR') {
-                    updates.photoP03 = { ...(updates.photoP03 || {}), url: p.raw_photo_url || '', notApplicable: p.is_not_applicable };
+                    updates.photoP03 = { ...(updates.photoP03 || {}), url: p.raw_photo_url || '', notApplicable: Boolean(p.is_not_applicable) };
                   } else if (p.photo_type === 'P04_CONTEXT_STREET') {
-                    updates.photoP04 = { ...(updates.photoP04 || {}), url: p.raw_photo_url || '', notApplicable: p.is_not_applicable };
+                    updates.photoP04 = { ...(updates.photoP04 || {}), url: p.raw_photo_url || '', notApplicable: Boolean(p.is_not_applicable) };
                   }
                 });
               }
@@ -247,13 +412,13 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
               }
               if (updates.floors && Array.isArray(updates.floors) && updates.floors.length > 0) {
                 // Đã khôi phục từ snapshot survey_data_json -> Chuẩn hóa ảnh và bảo toàn dữ liệu zones, pins, CAD
-                updates.floors = updates.floors.map((fl: any, idx: number) => {
+                updates.floors = updates.floors.map((fl, idx) => {
                   const beFloor = rep.floorSurveys?.[idx];
                   const rawPhotos = fl.overviewPhotos && fl.overviewPhotos.length > 0 
                     ? fl.overviewPhotos 
                     : (beFloor?.overview_photos_json || beFloor?.overview_photos || []);
                   
-                  const normalizedPhotos = (Array.isArray(rawPhotos) ? rawPhotos : []).map((p: any, pIdx: number) => {
+                  const normalizedPhotos = (Array.isArray(rawPhotos) ? rawPhotos : []).map((p, pIdx) => {
                     if (typeof p === 'string') return { id: `fl_ov_${pIdx}`, url: p, caption: '' };
                     return { id: p.id || `fl_ov_${pIdx}`, url: p.url || '', caption: p.caption || '' };
                   });
@@ -262,21 +427,21 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
                     ...fl,
                     overviewPhotos: normalizedPhotos,
                     cadSketchPhotoUrl: fl.cadSketchPhotoUrl || beFloor?.cad_drawing_url || beFloor?.cad_sketch_photo_url || '',
-                    cadStructuralSketchPhotoUrl: fl.cadStructuralSketchPhotoUrl || fl.cadStructuralDrawingUrl || beFloor?.cad_structural_drawing_url || '',
-                    cadZonePins: fl.cadZonePins || beFloor?.cad_zone_pins_json || beFloor?.cad_zone_pins || [],
-                    cadElementPins: fl.cadElementPins || beFloor?.cad_element_pins_json || beFloor?.cad_element_pins || [],
+                    cadStructuralSketchPhotoUrl: fl.cadStructuralSketchPhotoUrl || fl.cad_structural_drawing_url || beFloor?.cad_structural_drawing_url || '',
+                    cadZonePins: (fl.cadZonePins || beFloor?.cad_zone_pins_json || beFloor?.cad_zone_pins || []) as unknown as FloorSurveyData['cadZonePins'],
+                    cadElementPins: (fl.cadElementPins || beFloor?.cad_element_pins_json || beFloor?.cad_element_pins || []) as unknown as FloorSurveyData['cadElementPins'],
                     zones: fl.zones || [],
                     structuralElements: fl.structuralElements || [],
                   };
                 });
               } else if (rep.floorSurveys && rep.floorSurveys.length > 0) {
                 // Fallback nếu không có survey_data_json: khôi phục từ bảng floor_surveys và damage_zones
-                const zonesByFloor = (rep.damageZones || []).reduce((acc: any, z: any) => {
+                const zonesByFloor = (rep.damageZones || []).reduce<Record<string, DamageZoneData[]>>((acc, z) => {
                   const fid = z.floor_name || z.floor_id || z.floorName || 'default';
                   if (!acc[fid]) acc[fid] = [];
                   acc[fid].push({
                     id: z.id,
-                    zoneCode: z.zone_code || z.zoneCode,
+                    zoneCode: z.zone_code || z.zoneCode || 'Z-01',
                     floorName: z.floor_name || z.floorName || '',
                     roomName: z.room_name || z.zone_name || z.roomName || 'Không gian chung',
                     componentType: z.component_type || z.componentType || 'WALL',
@@ -287,31 +452,31 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
                     ctxPhotoCode: z.ctx_photo_code || z.ctxPhotoCode || '',
                     hasDamage: (z.defects && z.defects.length > 0) || Boolean(z.has_damage) || Boolean(z.functional_impact_repair_needed),
                     burlandGrade: Number(z.burland_grade ?? z.burlandGrade) || 0,
-                    defects: (z.defects || []).map((d: any) => {
+                    defects: (z.defects || []).map((d): DefectItem => {
                       const cuList: string[] = Array.isArray(d.cu_photos_json) && d.cu_photos_json.length > 0
                         ? d.cu_photos_json
                         : (Array.isArray(d.cuPhotos) && d.cuPhotos.length > 0
                             ? d.cuPhotos
-                            : (d.cu_photo_url || d.cuPhotoUrl ? [d.cu_photo_url || d.cuPhotoUrl] : []));
+                            : (d.cu_photo_url || d.cuPhotoUrl ? [d.cu_photo_url || d.cuPhotoUrl || ''] : []));
                       const codeList: string[] = Array.isArray(d.cu_photo_codes_json) && d.cu_photo_codes_json.length > 0
                         ? d.cu_photo_codes_json
                         : (Array.isArray(d.cuPhotoCodes) && d.cuPhotoCodes.length > 0
                             ? d.cuPhotoCodes
-                            : (d.cu_photo_code || d.cuPhotoCode ? [d.cu_photo_code || d.cuPhotoCode] : []));
+                            : (d.cu_photo_code || d.cuPhotoCode ? [d.cu_photo_code || d.cuPhotoCode || ''] : []));
                       return {
                         id: d.id,
-                        defectCode: d.defect_code || d.defectCode,
+                        defectCode: d.defect_code || d.defectCode || 'D-01',
                         pinX: Number(d.pin_x ?? d.pinX) || 0,
                         pinY: Number(d.pin_y ?? d.pinY) || 0,
                         screeningCategory: d.screening_category || d.screeningCategory || 'Nứt tường gạch / Vữa trát hoàn thiện',
                         defectType: d.defect_type || d.defectType || 'Nứt chân chim / Mạng nhện vữa trát (<0.5mm)',
-                        crackDirection: d.crack_direction || d.crackDirection,
+                        crackDirection: (d.crack_direction || d.crackDirection) as DefectItem['crackDirection'],
                         widthMaxMm: Number(d.width_max_mm ?? d.widthMaxMm) || 0,
                         lengthMm: Number(d.length_mm ?? d.lengthMm) || 0,
-                        activityState: d.activity_state || d.activityState || 'S',
+                        activityState: (d.activity_state || d.activityState || 'S') as DefectItem['activityState'],
                         materialDegradationE4: Number(d.material_degradation_e4 ?? d.materialDegradationE4) || 0,
                         structuralSignificanceE2: Number(d.structural_significance_e2 ?? d.structuralSignificanceE2) || 0,
-                        functionalImpactE6: Number(d.functional_impact_e6 ?? d.functionalImpactE6) || '',
+                        functionalImpactE6: (d.functional_impact_e6 ?? d.functionalImpactE6 ?? '') as DefectItem['functionalImpactE6'],
                         cuPhotoUrl: cuList[0] || d.cu_photo_url || d.cuPhotoUrl || '',
                         cuPhotoCode: codeList[0] || d.cu_photo_code || d.cuPhotoCode || '',
                         cuPhotos: cuList,
@@ -327,23 +492,23 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
                   return acc;
                 }, {});
 
-                updates.floors = rep.floorSurveys.map((f: any) => {
+                updates.floors = rep.floorSurveys.map((f): FloorSurveyData => {
                   const rawPhotos = f.overview_photos_json || f.overview_photos || [];
-                  const normalizedPhotos = (Array.isArray(rawPhotos) ? rawPhotos : []).map((p: any, pIdx: number) => {
+                  const normalizedPhotos = (Array.isArray(rawPhotos) ? rawPhotos : []).map((p, pIdx) => {
                     if (typeof p === 'string') return { id: `fl_ov_${pIdx}`, url: p, caption: '' };
                     return { id: p.id || `fl_ov_${pIdx}`, url: p.url || '', caption: p.caption || '' };
                   });
 
                   return {
                     id: f.id,
-                    floorName: f.floor_name || f.floorName,
+                    floorName: f.floor_name || f.floorName || 'Tầng',
                     overviewPhotos: normalizedPhotos,
                     cadSketchPhotoUrl: f.cad_drawing_url || f.cad_sketch_photo_url || '',
                     cadStructuralSketchPhotoUrl: f.cad_structural_drawing_url || '',
-                    cadZonePins: f.cad_zone_pins_json || f.cad_zone_pins || [],
-                    cadElementPins: f.cad_element_pins_json || f.cad_element_pins || [],
-                    zones: zonesByFloor[f.floor_name] || zonesByFloor[f.floorName] || zonesByFloor[f.id] || f.zones || [],
-                    structuralElements: f.structural_elements || [],
+                    cadZonePins: (f.cad_zone_pins_json || f.cad_zone_pins || []) as unknown as FloorSurveyData['cadZonePins'],
+                    cadElementPins: (f.cad_element_pins_json || f.cad_element_pins || []) as unknown as FloorSurveyData['cadElementPins'],
+                    zones: zonesByFloor[f.floor_name || ''] || zonesByFloor[f.floorName || ''] || zonesByFloor[f.id] || f.zones || [],
+                    structuralElements: (f.structural_elements || []) as unknown as FloorSurveyData['structuralElements'],
                   };
                 });
               }
@@ -389,7 +554,7 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
           }
         })
         .catch((err) => {
-          console.warn('[SurveyPhase1Page] Notice: phase1-report not found or new survey:', err?.message);
+          console.warn('[SurveyPhase1Page] Notice: phase1-report not found or new survey:', getErrorMessage(err));
         });
     }
   }, [effectiveReadOnly, parcel?.id]);
@@ -497,11 +662,11 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
         // Server trả 2xx nhưng success=false
         throw new Error(response.data?.message || 'Server báo lỗi không xác định');
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('[Phase1] Failed to submit survey:', err);
       // ❌ Lỗi thực sự - KHÔNG báo thành công, hiển thị thông báo lỗi rõ ràng
-      const statusCode = err?.response?.status;
-      const serverMsg = err?.response?.data?.detail || err?.response?.data?.message || err?.message;
+      const statusCode = getErrorStatus(err);
+      const serverMsg = getErrorMessage(err);
 
       if (statusCode === 500) {
         alert(
@@ -573,8 +738,8 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
 
       try {
         await api.post(`/admin/reports/${parcel.id}/approve`, {});
-      } catch (err: any) {
-        console.warn('Backend approve API notice:', err?.response?.data || err?.message);
+      } catch (err: unknown) {
+        console.warn('Backend approve API notice:', getErrorMessage(err));
       }
 
       alert(`Đã phê duyệt thành công hồ sơ thửa [${parcel.projectParcelCode || parcel.officialCadastralCode || parcel.id}]!`);
@@ -612,8 +777,8 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
         await api.post(`/admin/reports/${parcel.id}/reject`, {
           rejectionReason: reason.trim(),
         });
-      } catch (err: any) {
-        console.warn('Backend reject API notice:', err?.response?.data || err?.message);
+      } catch (err: unknown) {
+        console.warn('Backend reject API notice:', getErrorMessage(err));
       }
 
       alert(`Đã trả về hồ sơ thửa [${parcel.projectParcelCode || parcel.officialCadastralCode || parcel.id}] với yêu cầu bổ sung: "${reason.trim()}".`);
@@ -676,7 +841,7 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
               <div className="mt-1.5 p-2.5 bg-white/90 rounded-xl border border-red-200 text-xs text-red-900">
                 <span className="font-bold text-red-700 block mb-0.5">Yêu cầu từ Zone Admin:</span>
                 <p className="font-medium italic leading-relaxed">
-                  {(reportData?.report?.engineering_recommendations || (parcel as any)?.rejectionReason || 'Vui lòng kiểm tra lại hình ảnh khuyết tật có thước đo mm và số liệu đo đạc theo yêu cầu của Kỹ sư Zone Admin.').replace(/^LÝ DO TRẢ VỀ:\s*/i, '')}
+                  {(reportData?.report?.engineering_recommendations || parcel?.rejectionReason || 'Vui lòng kiểm tra lại hình ảnh khuyết tật có thước đo mm và số liệu đo đạc theo yêu cầu của Kỹ sư Zone Admin.').replace(/^LÝ DO TRẢ VỀ:\s*/i, '')}
                 </p>
               </div>
               <p className="text-[11px] text-red-700 mt-1.5 leading-relaxed">

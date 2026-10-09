@@ -1,6 +1,6 @@
 import React from 'react';
 import { AlertTriangle, Building2 } from 'lucide-react';
-import { GisParcel } from '../../../gis/LeafletSweepMap';
+import type { GisParcel } from '../../../gis/LeafletSweepMap';
 
 interface MasterWarningBannerProps {
   parcel: GisParcel;

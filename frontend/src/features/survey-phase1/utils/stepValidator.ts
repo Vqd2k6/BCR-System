@@ -1,4 +1,4 @@
-import { Phase1SurveyFormData } from '../types/phase1.types';
+import type { Phase1SurveyFormData } from '../types/phase1.types';
 import { isCrackRelated } from '../../../components/canvas/defectHelpers';
 
 export interface MissingFieldItem {
@@ -493,7 +493,7 @@ export const validateStep = (step: number, formData: Phase1SurveyFormData): Step
       });
     }
 
-    if (formData.aboveFloors === undefined || formData.aboveFloors === null || (formData.aboveFloors as any) === '') {
+    if (formData.aboveFloors === undefined || formData.aboveFloors === null || formData.aboveFloors === '') {
       missing.push({
         fieldId: 'input-aboveFloors',
         label: '2.1. Số tầng nổi *',
@@ -811,11 +811,11 @@ export const validateStep = (step: number, formData: Phase1SurveyFormData): Step
     }
 
     const isSplit =
-      formData.gisMutationConfirmed?.type === 'SPLIT' || (formData as any).gisMutation?.type === 'SPLIT';
+      formData.gisMutationConfirmed?.type === 'SPLIT' || formData.gisMutation?.type === 'SPLIT';
     const splitReason =
       formData.gisMutationConfirmed?.details?.splitReason ||
       formData.gisMutationConfirmed?.notes ||
-      (formData as any).gisMutation?.splitReason;
+      formData.gisMutation?.splitReason;
 
     if (isSplit && !splitReason?.trim()) {
       missing.push({
@@ -828,13 +828,13 @@ export const validateStep = (step: number, formData: Phase1SurveyFormData): Step
     }
 
     const isMerge =
-      formData.gisMutationConfirmed?.type === 'MERGE' || (formData as any).gisMutation?.type === 'MERGE';
-    const mergeDetails = formData.gisMutationConfirmed?.details || (formData as any).gisMutation?.details || {};
-    const selectedMergeCodes = mergeDetails.selectedMergeCodes || (formData as any).gisMutation?.selectedMergeCodes || [];
+      formData.gisMutationConfirmed?.type === 'MERGE' || formData.gisMutation?.type === 'MERGE';
+    const mergeDetails = formData.gisMutationConfirmed?.details || formData.gisMutation?.details || {};
+    const selectedMergeCodes = mergeDetails.selectedMergeCodes || formData.gisMutation?.selectedMergeCodes || [];
     const mergeReason =
       mergeDetails.mergeReason ||
       formData.gisMutationConfirmed?.notes ||
-      (formData as any).gisMutation?.mergeReason;
+      formData.gisMutation?.mergeReason;
 
     if (isMerge) {
       if (!Array.isArray(selectedMergeCodes) || selectedMergeCodes.length === 0) {
@@ -870,7 +870,7 @@ export const validateStep = (step: number, formData: Phase1SurveyFormData): Step
         }
 
         const rType = mergeDetails.mergeResidualType;
-        if (!rType?.trim()) {
+        if (typeof rType !== 'string' || !rType.trim()) {
           missing.push({
             fieldId: 'input-mergeResidualType',
             label: '5.3. Chức năng sử dụng phần đất dư',

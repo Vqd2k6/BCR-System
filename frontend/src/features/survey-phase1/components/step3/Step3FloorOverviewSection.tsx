@@ -3,7 +3,7 @@ import { Card } from '../../../../core/components/ui/Card';
 import { PhotoCaptureInput } from '../../../../components/common/PhotoCaptureInput';
 import { TapToZoomThumbnail } from '../../../../components/common/TapToZoomThumbnail';
 import { Camera, Trash2, AlertCircle, CheckCircle2, FileText } from 'lucide-react';
-import { FloorSurveyData } from '../../types/phase1.types';
+import type { FloorSurveyData } from '../../types/phase1.types';
 import { isLocalBlobUri } from '../../../../core/storage/offlinePhotoStorage';
 
 interface Step3FloorOverviewSectionProps {
@@ -21,7 +21,7 @@ export const Step3FloorOverviewSection: React.FC<Step3FloorOverviewSectionProps>
 }) => {
   const lastTempPhotoIdRef = useRef<string | null>(null);
   const rawPhotos = currentFloor.overviewPhotos || [];
-  const photos = rawPhotos.map((p: any, idx: number) => {
+  const photos = rawPhotos.map((p: string | { id?: string; url?: string; caption?: string; photoCode?: string }, idx: number) => {
     if (typeof p === 'string') {
       return { id: `fl_ov_${idx}`, url: p, caption: '', photoCode: '' };
     }

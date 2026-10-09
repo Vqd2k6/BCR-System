@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { GisParcel } from '../../shared/types';
+import type { GisParcel } from '../../shared/types';
 import {
   METRO_22_ZONES,
   getZoneByCode,
@@ -119,11 +119,11 @@ export const useSweepMapState = ({
   const searchSuggestions = (displayedParcels || []).filter((p) => {
     if (!searchQuery.trim()) return false;
     const query = searchQuery.toLowerCase().trim();
-    const code = String(p.projectParcelCode || (p as any).project_parcel_code || '').toLowerCase();
-    const cadastral = String(p.officialCadastralCode || (p as any).official_cadastral_code || '').toLowerCase();
-    const house = String(p.houseNumber || (p as any).house_number || '').toLowerCase();
+    const code = String(p.projectParcelCode || p.project_parcel_code || '').toLowerCase();
+    const cadastral = String(p.officialCadastralCode || p.official_cadastral_code || '').toLowerCase();
+    const house = String(p.houseNumber || p.house_number || '').toLowerCase();
     const street = String(p.street || '').toLowerCase();
-    const owner = String(p.ownerName || (p as any).owner_name || '').toLowerCase();
+    const owner = String(p.ownerName || p.owner_name || '').toLowerCase();
 
     return (
       code.includes(query) ||

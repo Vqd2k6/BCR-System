@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { GisParcel } from '../../../components/gis/shared/types';
+import type { GisParcel } from '../../../components/gis/shared/types';
 import {
   getEffectiveParcelStatus,
   getStatusColor,
@@ -7,7 +7,7 @@ import {
 import {
   getParcelBraRiskLevel,
   getBraBadgeStyle,
-  BraRiskLevel,
+  type BraRiskLevel,
 } from '../utils/guestPortalHelpers';
 import { Search, MapPin, Building, ChevronRight, Plus, ChevronDown } from 'lucide-react';
 
@@ -155,7 +155,7 @@ export const GuestParcelListTable: React.FC<Props> = ({
                         className="px-1.5 py-0.5 rounded text-[10px] font-bold text-white shrink-0"
                         style={{ backgroundColor: statusColor }}
                       >
-                        {getStatusLabel(effStatus)}
+                        {getStatusLabel(effStatus || 'NOT_SURVEYED')}
                       </span>
                     </div>
 

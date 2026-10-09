@@ -12,6 +12,35 @@ export interface UnitDefectItem {
   hasScaleCard?: boolean;
 }
 
+export type CadBbox = { x: number; y: number; width: number; height: number } | [number, number, number, number];
+export type CadPolygon = { x: number; y: number }[] | [number, number][];
+
+export type ResidentStatus = 'CHỦ_HỘ_Ở' | 'CHO_THUÊ' | 'BỎ_TRỐNG_CHƯA_VỀ_Ở' | 'VẮNG_MẶT_KHÓA_CỬA';
+
+export const VALID_RESIDENT_STATUSES: readonly ResidentStatus[] = [
+  'CHỦ_HỘ_Ở',
+  'CHO_THUÊ',
+  'BỎ_TRỐNG_CHƯA_VỀ_Ở',
+  'VẮNG_MẶT_KHÓA_CỬA'
+];
+
+export function isResidentStatus(val: unknown): val is ResidentStatus {
+  return typeof val === 'string' && VALID_RESIDENT_STATUSES.includes(val as ResidentStatus);
+}
+
+export type DoorJammingStatus = 'NORMAL' | 'JAMMED' | 'RUBBING_FLOOR' | 'CRACKED_GLASS';
+
+export const VALID_DOOR_JAMMING_STATUSES: readonly DoorJammingStatus[] = [
+  'NORMAL',
+  'JAMMED',
+  'RUBBING_FLOOR',
+  'CRACKED_GLASS'
+];
+
+export function isDoorJammingStatus(val: unknown): val is DoorJammingStatus {
+  return typeof val === 'string' && VALID_DOOR_JAMMING_STATUSES.includes(val as DoorJammingStatus);
+}
+
 export interface CondoUnitFormData {
   parcelId: string;
   unitId: string;
@@ -33,7 +62,7 @@ export interface CondoUnitFormData {
   ownerName: string;
   ownerPhone: string;
   ownerIdCard: string;
-  residentStatus: 'CHỦ_HỘ_Ở' | 'CHO_THUÊ' | 'BỎ_TRỐNG_CHƯA_VỀ_Ở' | 'VẮNG_MẶT_KHÓA_CỬA';
+  residentStatus: ResidentStatus;
   unitAreaM2: number | '';
 
   // Bộ ảnh nhận diện căn hộ con: P01 biển số phòng & P04 tổng quan cửa + lối đi hành lang
@@ -47,8 +76,8 @@ export interface CondoUnitFormData {
 
   // 3. Bản vẽ CAD riêng của căn & Khuyết tật nứt, thấm trần, kẹt cửa
   unitCadUrl?: string;
-  cadBbox?: { x: number; y: number; width: number; height: number } | null;
-  cadPolygon?: { x: number; y: number }[] | null;
+  cadBbox?: CadBbox | null;
+  cadPolygon?: CadPolygon | null;
   localDefects: UnitDefectItem[];
   upperFloorWaterLeakage: {
     has: boolean;
@@ -56,7 +85,7 @@ export interface CondoUnitFormData {
     description?: string;
     photoUrl?: string;
   };
-  doorJammingStatus: 'NORMAL' | 'JAMMED' | 'RUBBING_FLOOR' | 'CRACKED_GLASS';
+  doorJammingStatus: DoorJammingStatus;
   settlementObserved: 'NONE' | 'SLIGHT' | 'NOTICEABLE' | 'SEVERE';
   settlementNotes: string;
 

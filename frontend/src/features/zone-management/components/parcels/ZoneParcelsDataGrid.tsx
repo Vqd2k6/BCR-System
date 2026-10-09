@@ -25,7 +25,7 @@ import {
   Move,
 } from 'lucide-react';
 import { api } from '../../../../services/api';
-import { GisParcel } from '../../../../components/gis/shared/types';
+import type { GisParcel } from '../../../../components/gis/shared/types';
 import { CadastralBoundaryReshapeModal } from '../../../../components/gis/cadastral-editor/components/CadastralBoundaryReshapeModal';
 
 interface ZoneParcelsDataGridProps {
@@ -134,27 +134,27 @@ export const ZoneParcelsDataGrid: React.FC<ZoneParcelsDataGridProps> = ({
         ? res.data
         : [];
 
-      const mapped: GisParcel[] = rawList.map((raw: any) => ({
-        id: raw.id,
-        projectParcelCode: raw.project_parcel_code || raw.projectParcelCode || 'CHƯA_GÁN',
-        officialCadastralCode: raw.official_cadastral_code || raw.officialCadastralCode || '',
-        houseNumber: raw.house_number || raw.houseNumber || '',
-        street: raw.street || '',
-        ownerName: raw.owner_name || raw.ownerName || '',
-        ownerPhone: raw.owner_phone || raw.ownerPhone || '',
-        surveyStatus: raw.survey_status || raw.surveyStatus || 'NOT_SURVEYED',
-        buildingType: raw.building_type || raw.buildingType || 'STANDALONE',
+      const mapped: GisParcel[] = (rawList as Record<string, unknown>[]).map((raw) => ({
+        ...raw,
+        id: String(raw.id || ''),
+        projectParcelCode: String(raw.project_parcel_code || raw.projectParcelCode || 'CHƯA_GÁN'),
+        officialCadastralCode: String(raw.official_cadastral_code || raw.officialCadastralCode || ''),
+        houseNumber: String(raw.house_number || raw.houseNumber || ''),
+        street: String(raw.street || ''),
+        ownerName: String(raw.owner_name || raw.ownerName || ''),
+        ownerPhone: String(raw.owner_phone || raw.ownerPhone || ''),
+        surveyStatus: (raw.survey_status || raw.surveyStatus || 'NOT_SURVEYED') as GisParcel['surveyStatus'],
+        buildingType: (raw.building_type || raw.buildingType || 'STANDALONE') as GisParcel['buildingType'],
         floorCount: Number(raw.floor_count ?? raw.floorCount ?? 1),
         constructionArea: Number(raw.construction_area_m2 ?? raw.constructionArea ?? 0),
         landArea: Number(raw.land_area_m2 ?? raw.landArea ?? 0),
-        zoneId: raw.zone_id || raw.zoneId || selectedZone,
-        assignedSurveyorName: raw.assigned_surveyor_name || raw.assignedSurveyorName || '',
-        assignedSurveyorCode: raw.assigned_surveyor_code || raw.assignedSurveyorCode || '',
-        assignedSurveyorPhone: raw.assigned_surveyor_phone || raw.assignedSurveyorPhone || '',
+        zoneId: String(raw.zone_id || raw.zoneId || selectedZone),
+        assignedSurveyorName: String(raw.assigned_surveyor_name || raw.assignedSurveyorName || ''),
+        assignedSurveyorCode: String(raw.assigned_surveyor_code || raw.assignedSurveyorCode || ''),
+        assignedSurveyorPhone: String(raw.assigned_surveyor_phone || raw.assignedSurveyorPhone || ''),
         absenceAttemptCount: Number(raw.absence_attempt_count ?? raw.absenceAttemptCount ?? 0),
-        activePhase1ReportId: raw.active_phase1_report_id || raw.activePhase1ReportId,
-        coordinates: raw.coordinates || [],
-        ...raw,
+        activePhase1ReportId: (raw.active_phase1_report_id || raw.activePhase1ReportId) as string | undefined,
+        coordinates: (Array.isArray(raw.coordinates) ? raw.coordinates : []) as [number, number][],
       }));
 
       setParcels(mapped);
@@ -598,8 +598,8 @@ export const ZoneParcelsDataGrid: React.FC<ZoneParcelsDataGridProps> = ({
                           </span>
                         </div>
                         <div className="text-[11px] text-slate-400 mt-0.5 whitespace-nowrap">
-                          {(parcel as any).ward ? `P. ${(parcel as any).ward}, ` : ''}
-                          {(parcel as any).district ? `Q. ${(parcel as any).district} • ` : ''}
+                          {parcel.ward ? `P. ${parcel.ward}, ` : ''}
+                          {parcel.district ? `Q. ${parcel.district} • ` : ''}
                           Phân khu: <strong className="text-indigo-600">{parcel.zoneId || selectedZone}</strong>
                         </div>
                       </td>
@@ -792,9 +792,9 @@ export const ZoneParcelsDataGrid: React.FC<ZoneParcelsDataGridProps> = ({
                   {inspectParcel.houseNumber ? `${inspectParcel.houseNumber}, ` : ''}
                   {inspectParcel.street || 'Đoạn tuyến chính'}
                 </h3>
-                {((inspectParcel as any).ward || (inspectParcel as any).district) && (
+                {(inspectParcel.ward || inspectParcel.district) && (
                   <p className="text-xs text-slate-500 mt-0.5">
-                    {[(inspectParcel as any).ward ? `Phường ${(inspectParcel as any).ward}` : '', (inspectParcel as any).district ? `Quận ${(inspectParcel as any).district}` : ''].filter(Boolean).join(', ')}
+                    {[inspectParcel.ward ? `Phường ${inspectParcel.ward}` : '', inspectParcel.district ? `Quận ${inspectParcel.district}` : ''].filter(Boolean).join(', ')}
                   </p>
                 )}
               </div>

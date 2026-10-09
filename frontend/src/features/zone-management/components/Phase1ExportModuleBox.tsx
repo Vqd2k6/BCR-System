@@ -7,15 +7,7 @@ import { Phase1ParcelsTable } from './phase1-export/components/Phase1ParcelsTabl
 import { Phase1PreviewModal } from './phase1-export/components/modals/Phase1PreviewModal';
 import { usePhase1ExportData } from './phase1-export/hooks/usePhase1ExportData';
 import { usePhase1ReportPreview } from './phase1-export/hooks/usePhase1ReportPreview';
-import {
-  Phase1ExportModuleBoxProps,
-  EditFormDefectItem,
-  EditFormData,
-  ExportParcelItem,
-  BatchResultData,
-  ActionFeedbackMessage,
-  ModalFeedbackMessage,
-} from './phase1-export/types';
+import type { Phase1ExportModuleBoxProps, EditFormDefectItem, EditFormData, ExportParcelItem, BatchResultData, ActionFeedbackMessage, ModalFeedbackMessage } from './phase1-export/types';
 
 // Re-export all types so existing consumers don't break
 export type {

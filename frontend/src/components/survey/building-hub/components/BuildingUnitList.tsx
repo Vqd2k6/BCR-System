@@ -7,8 +7,8 @@ import {
   RefreshCw,
   Building2,
 } from 'lucide-react';
-import { GisParcel } from '../../../gis/LeafletSweepMap';
-import { BuildingUnit } from '../types';
+import type { GisParcel } from '../../../gis/LeafletSweepMap';
+import type { BuildingUnit } from '../types';
 import { BuildingUnitCard } from './BuildingUnitCard';
 
 interface BuildingUnitListProps {

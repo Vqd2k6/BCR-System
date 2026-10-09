@@ -1,3 +1,4 @@
+import { getErrorMessage, getErrorStatus, isNotFoundError } from '@/utils/errorUtils';
 import React, { useState, useEffect, useRef } from 'react';
 import {
   X,
@@ -40,7 +41,7 @@ interface Props {
   currentStreet?: string;
   surveyorName?: string;
   zoneId?: string;
-  allReports?: any[];
+  allReports?: unknown[];
   onClose: () => void;
   onSuccess: (message: string) => void;
 }
@@ -165,12 +166,10 @@ export const AdminReassignParcelModal: React.FC<Props> = ({
       } else {
         setErrorMsg(res.data?.message || 'Không thể hoán đổi thửa đất');
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('[AdminReassignParcelModal] Swap submission error:', err);
       setErrorMsg(
-        err.response?.data?.message ||
-          err.response?.data?.detail ||
-          'Lỗi thực thi hoán đổi ranh đất GIS. Vui lòng kiểm tra lại trạng thái thửa đất.'
+        getErrorMessage(err, 'Lỗi thực thi hoán đổi ranh đất GIS. Vui lòng kiểm tra lại trạng thái thửa đất.')
       );
     } finally {
       setIsSubmitting(false);

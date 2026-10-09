@@ -1,3 +1,4 @@
+import { getErrorMessage, getErrorStatus, isNotFoundError } from '@/utils/errorUtils';
 import React, { useEffect, useState } from 'react';
 import { usePhase1SurveyStore } from '../../survey-phase1/store/usePhase1SurveyStore';
 import { CondoMasterWizardNav } from '../components/CondoMasterWizardNav';
@@ -12,7 +13,7 @@ import { Step9_FieldSignatures } from '../../survey-phase1/components/Step9_Fiel
 import { MissingFieldsModal } from '../../survey-phase1/components/MissingFieldsModal';
 import { HandoverTakeoverModal } from '../../survey-phase1/components/HandoverTakeoverModal';
 import { ActiveSurveyorLockedModal } from '../../survey-phase1/components/ActiveSurveyorLockedModal';
-import { GisParcel } from '../../../core/types/domain.types';
+import type { GisParcel } from '../../../core/types/domain.types';
 import { api } from '../../../services/api';
 
 export interface SurveyCondoMasterPageProps {
@@ -139,10 +140,10 @@ export const SurveyCondoMasterPage: React.FC<SurveyCondoMasterPageProps> = ({
       } else {
         throw new Error(response.data?.message || 'Server báo lỗi không xác định');
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('[CondoMaster] Failed to submit master survey:', err);
-      const statusCode = err?.response?.status;
-      const serverMsg = err?.response?.data?.detail || err?.response?.data?.message || err?.message;
+      const statusCode = getErrorStatus(err);
+      const serverMsg = getErrorMessage(err);
 
       if (statusCode === 500) {
         alert(

@@ -1,3 +1,4 @@
+import { getErrorMessage, getErrorStatus, isNotFoundError } from '@/utils/errorUtils';
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import L from 'leaflet';
 import { MapContainer, TileLayer, Polygon, Marker, Tooltip, ZoomControl } from 'react-leaflet';
@@ -18,7 +19,7 @@ import {
   Maximize2,
   Ruler,
 } from 'lucide-react';
-import { GisParcel } from '../../shared/types';
+import type { GisParcel } from '../../shared/types';
 import { api } from '../../../../services/api';
 import { MapBoundsController } from '../../shared/MapControllers';
 import {
@@ -34,7 +35,7 @@ interface CadastralBoundaryReshapeModalProps {
   isOpen: boolean;
   parcel: GisParcel | null;
   onClose: () => void;
-  onSuccess: (updatedResult?: any) => void;
+  onSuccess: (updatedResult?: { message?: string; [key: string]: unknown }) => void;
 }
 
 export const CadastralBoundaryReshapeModal: React.FC<CadastralBoundaryReshapeModalProps> = ({
@@ -80,7 +81,7 @@ export const CadastralBoundaryReshapeModal: React.FC<CadastralBoundaryReshapeMod
             initialPts = parcel.coordinates as [number, number][];
           } else {
             // Ngược lại nếu là [lng, lat]
-            initialPts = parcel.coordinates.map((pt: any) => [pt[1], pt[0]]);
+            initialPts = parcel.coordinates.map((pt) => [pt[1], pt[0]]);
           }
         }
       }
@@ -214,9 +215,9 @@ export const CadastralBoundaryReshapeModal: React.FC<CadastralBoundaryReshapeMod
       } else {
         setErrorMessage(res.data?.message || 'Có lỗi xảy ra khi nắn chỉnh ranh đất.');
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('[CadastralBoundaryReshapeModal] Submit error:', err);
-      const msg = err.response?.data?.message || err.message || 'Lỗi kết nối máy chủ.';
+      const msg = getErrorMessage(err, 'Lỗi kết nối máy chủ.');
       setErrorMessage(msg);
     } finally {
       setIsSubmitting(false);

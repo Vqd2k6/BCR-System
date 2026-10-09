@@ -5,7 +5,7 @@ import {
   AlertTriangle,
   RotateCcw,
 } from 'lucide-react';
-import { CompanionRecord } from '../types';
+import type { CompanionRecord } from '../types';
 
 interface CompanionVerifiedSummaryProps {
   checkInData: CompanionRecord;

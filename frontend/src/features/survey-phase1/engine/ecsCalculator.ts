@@ -1,4 +1,4 @@
-import { Phase1SurveyFormData, EcsScoreState } from '../types/phase1.types';
+import type { Phase1SurveyFormData, EcsScoreState } from '../types/phase1.types';
 
 /**
  * Thuật toán tính toán chỉ số ECS (Existing Condition Score - 11. Docx)
@@ -100,8 +100,8 @@ export function calculateEcsScore(formData: Partial<Phase1SurveyFormData>): EcsS
       if (zn.functionalImpactRepairNeeded || (zn.burlandGrade && zn.burlandGrade >= 3)) {
         damagedZoneCount++;
       }
-      zn.defects?.forEach((df: any) => {
-        let val = df.functionalImpactE6 ?? 0;
+      zn.defects?.forEach((df) => {
+        let val = typeof df.functionalImpactE6 === 'number' ? df.functionalImpactE6 : 0;
         if (val === 5) val = 2; // Kẹt cửa: tính 2 điểm ảnh hưởng chức năng
         if (val > maxDefectE6) maxDefectE6 = val;
       });
@@ -110,8 +110,8 @@ export function calculateEcsScore(formData: Partial<Phase1SurveyFormData>): EcsS
       if (el.hasDamage || (el.defects && el.defects.length > 0)) {
         damagedZoneCount++;
       }
-      el.defects?.forEach((df: any) => {
-        let val = df.functionalImpactE6 ?? 0;
+      el.defects?.forEach((df) => {
+        let val = typeof df.functionalImpactE6 === 'number' ? df.functionalImpactE6 : 0;
         if (val === 5) val = 2; // Kẹt cửa: tính 2 điểm ảnh hưởng chức năng
         if (val > maxDefectE6) maxDefectE6 = val;
       });

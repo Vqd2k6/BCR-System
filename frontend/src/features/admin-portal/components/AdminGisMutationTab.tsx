@@ -1,3 +1,4 @@
+import { getErrorMessage, getErrorStatus, isNotFoundError } from '@/utils/errorUtils';
 import React, { useState, useEffect, useMemo } from 'react';
 import { Card } from '../../../core/components/ui/Card';
 import { Badge } from '../../../core/components/ui/Badge';
@@ -19,11 +20,11 @@ import {
 import { api } from '../../../services/api';
 import { METRO_22_ZONES, getZoneByCode } from '../../survey-phase1/constants/metroGisConstants';
 import { UnifiedGisMutationModal } from '../../../components/gis/cadastral-editor/UnifiedGisMutationModal';
-import { GisParcel } from '../../../components/gis/shared/types';
+import type { GisParcel } from '../../../components/gis/shared/types';
 
 export const AdminGisMutationTab: React.FC = () => {
   const [selectedZoneId, setSelectedZoneId] = useState<string>('ZONE_09');
-  const [parcels, setParcels] = useState<any[]>([]);
+  const [parcels, setParcels] = useState<GisParcel[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [errorMsg, setErrorMsg] = useState<string>('');
   const [bannerMsg, setBannerMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -33,7 +34,7 @@ export const AdminGisMutationTab: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'SURVEYED' | 'NOT_SURVEYED' | 'DEPRECATED'>('ALL');
 
   // Mutation Modal State
-  const [selectedParcel, setSelectedParcel] = useState<any | null>(null);
+  const [selectedParcel, setSelectedParcel] = useState<GisParcel | null>(null);
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
 
   const fetchParcels = async () => {
@@ -48,9 +49,9 @@ export const AdminGisMutationTab: React.FC = () => {
       } else {
         setParcels([]);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('[AdminGisMutationTab] Fetch error:', err);
-      setErrorMsg(err.response?.data?.message || 'Không thể tải danh sách thửa đất của phân khu.');
+      setErrorMsg(getErrorMessage(err, 'Không thể tải danh sách thửa đất của phân khu.'));
     } finally {
       setIsLoading(false);
     }
@@ -139,7 +140,7 @@ export const AdminGisMutationTab: React.FC = () => {
 
   const zoneInfo = getZoneByCode(selectedZoneId);
 
-  const handleOpenMutation = (parcel: any) => {
+  const handleOpenMutation = (parcel: GisParcel) => {
     setSelectedParcel(parcel);
     setIsModalOpen(true);
   };
@@ -282,17 +283,17 @@ export const AdminGisMutationTab: React.FC = () => {
             <span className="text-xs font-bold text-slate-500 mr-1 flex items-center gap-1">
               <Filter className="w-3.5 h-3.5" /> Lọc:
             </span>
-            {[
+            {([
               { key: 'ALL', label: 'Tất cả' },
               { key: 'ACTIVE', label: 'Đang hoạt động' },
               { key: 'SURVEYED', label: 'Đã khảo sát' },
               { key: 'NOT_SURVEYED', label: 'Chưa khảo sát' },
               { key: 'DEPRECATED', label: 'Lịch sử biến động' },
-            ].map((btn) => (
+            ] as const).map((btn) => (
               <button
                 key={btn.key}
                 type="button"
-                onClick={() => setStatusFilter(btn.key as any)}
+                onClick={() => setStatusFilter(btn.key)}
                 className={`text-xs px-2.5 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
                   statusFilter === btn.key
                     ? 'bg-sky-600 text-white shadow-xs'

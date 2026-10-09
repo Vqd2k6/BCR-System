@@ -1,6 +1,6 @@
 import { create } from 'zustand';
-import { GisParcel, BuildingUnit } from '../../../core/types/domain.types';
-import { CondoUnitFormData, UnitDefectItem } from '../types/condo-unit.types';
+import type { GisParcel, BuildingUnit } from '../../../core/types/domain.types';
+import { isResidentStatus, type CondoUnitFormData, type UnitDefectItem } from '../types/condo-unit.types';
 
 interface CondoUnitSurveyStore {
   currentStep: number;
@@ -75,27 +75,28 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
 
     // Kế thừa thông tin toà nhà cha
     data.parentInfo = {
-      projectParcelCode: parcel.projectParcelCode || (parcel as any).project_parcel_code || 'B-001',
-      officialCadastralCode: parcel.officialCadastralCode || (parcel as any).official_cadastral_code || 'DC-001',
-      buildingName: (parcel as any).buildingName || 'Tòa nhà Chung Cư',
+      projectParcelCode: parcel.projectParcelCode || parcel.project_parcel_code || 'B-001',
+      officialCadastralCode: parcel.officialCadastralCode || parcel.official_cadastral_code || 'DC-001',
+      buildingName: parcel.buildingName || parcel.building_name || 'Tòa nhà Chung Cư',
       address: `${parcel.houseNumber ? `${parcel.houseNumber}, ` : ''}${parcel.street || ''}`,
       chainage: 'Km 3+450',
-      metroOffsetDistance: `${(parcel as any).distanceMeters || 12.5}m`,
+      metroOffsetDistance: `${parcel.distanceMeters || parcel.distance_meters || 12.5}m`,
       isConfirmed: false,
     };
 
     // Gán thông tin căn hộ
     if (unit) {
-      data.unitCode = (unit as any).unit_code || unit.unitCode || data.unitCode;
-      const parsedFloor = parseInt(String((unit as any).floor_number || (unit as any).floorLevel || '1').replace(/\D/g, ''), 10);
+      data.unitCode = unit.unit_code || unit.unitCode || data.unitCode;
+      const parsedFloor = parseInt(String(unit.floor_number ?? unit.floorNumber ?? unit.floorLevel ?? unit.floor_level ?? '1').replace(/\D/g, ''), 10);
       data.floorNumber = isNaN(parsedFloor) ? 1 : parsedFloor;
-      data.ownerName = (unit as any).owner_name || unit.ownerName || '';
-      data.ownerPhone = (unit as any).owner_phone || unit.ownerPhone || '';
-      data.ownerIdCard = (unit as any).owner_id_card || (unit as any).ownerIdCard || '';
-      if ((unit as any).unit_cad_url) data.unitCadUrl = (unit as any).unit_cad_url;
-      if ((unit as any).cad_bbox) data.cadBbox = (unit as any).cad_bbox;
-      if ((unit as any).cad_polygon) data.cadPolygon = (unit as any).cad_polygon;
-      if ((unit as any).resident_status) data.residentStatus = (unit as any).resident_status;
+      data.ownerName = unit.owner_name || unit.ownerName || '';
+      data.ownerPhone = unit.owner_phone || unit.ownerPhone || '';
+      data.ownerIdCard = unit.owner_id_card || unit.ownerIdCard || '';
+      if (unit.unit_cad_url || unit.unitCadUrl) data.unitCadUrl = unit.unit_cad_url || unit.unitCadUrl || '';
+      if (unit.cad_bbox || unit.cadBbox) data.cadBbox = unit.cad_bbox ?? unit.cadBbox ?? null;
+      if (unit.cad_polygon || unit.cadPolygon) data.cadPolygon = unit.cad_polygon ?? unit.cadPolygon ?? null;
+      const resStatus = unit.resident_status || unit.residentStatus;
+      if (resStatus && isResidentStatus(resStatus)) data.residentStatus = resStatus;
     }
 
     // Khôi phục bản nháp nếu có

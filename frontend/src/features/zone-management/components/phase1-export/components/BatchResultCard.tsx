@@ -1,6 +1,6 @@
 import React from 'react';
 import { CheckCircle2, Download, X } from 'lucide-react';
-import { BatchResultData } from '../types';
+import type { BatchResultData } from '../types';
 
 interface BatchResultCardProps {
   batchResult: BatchResultData | null;

@@ -1,7 +1,8 @@
+import { getErrorMessage, getErrorStatus, isNotFoundError } from '@/utils/errorUtils';
 import { useState, useEffect, useRef } from 'react';
 import { api } from '../../../../services/api';
-import { GisParcel } from '../../../gis/LeafletSweepMap';
-import { BuildingUnit } from '../types';
+import type { GisParcel } from '../../../gis/LeafletSweepMap';
+import type { BuildingUnit, MasterReportData } from '../types';
 
 interface UseBuildingHubStateProps {
   parcel: GisParcel;
@@ -33,7 +34,7 @@ export const useBuildingHubState = ({ parcel, onUnitsUpdated }: UseBuildingHubSt
     }
   });
 
-  const [masterReportData, setMasterReportData] = useState<any>(null);
+  const [masterReportData, setMasterReportData] = useState<MasterReportData | null>(null);
 
   const [isUpdatePending, setIsUpdatePending] = useState<boolean>(() => {
     return localStorage.getItem(masterUpdateKey) === 'true';
@@ -82,8 +83,8 @@ export const useBuildingHubState = ({ parcel, onUnitsUpdated }: UseBuildingHubSt
     fetchUnits();
 
     // Kiểm tra hồ sơ khảo sát toà mẹ thực tế từ backend
-    api.get(`/parcels/${parcel.id}/phase1-report`)
-      .then((res: any) => {
+    api.get<{ data?: { report?: MasterReportData }; report?: MasterReportData }>(`/parcels/${parcel.id}/phase1-report`)
+      .then((res) => {
         const data = res?.data?.data || res?.data;
         if (data?.report && (data.report.status === 'SUBMITTED' || data.report.status === 'APPROVED')) {
           setIsMasterSurveyDone(true);
@@ -123,8 +124,8 @@ export const useBuildingHubState = ({ parcel, onUnitsUpdated }: UseBuildingHubSt
       setNewUnitCode('');
       setNewFloorNumber(1);
       if (onUnitsUpdated) onUnitsUpdated();
-    } catch (err: any) {
-      const msg = err?.response?.data?.message || err?.message || 'Có lỗi xảy ra khi tạo căn hộ';
+    } catch (err: unknown) {
+      const msg = getErrorMessage(err, 'Có lỗi xảy ra khi tạo căn hộ');
       alert(`Không thể thêm căn hộ: ${msg}`);
     } finally {
       setIsSubmittingUnit(false);
@@ -139,15 +140,18 @@ export const useBuildingHubState = ({ parcel, onUnitsUpdated }: UseBuildingHubSt
     alert('Đã gửi bản cập nhật thông số chung tòa nhà! Đang chờ Quản trị viên (Zone Admin) phê duyệt.');
   };
 
-  const availableFloors = Array.from(new Set(units.map((u) => u.floor_number))).sort((a, b) => a - b);
+  const availableFloors = Array.from(new Set(units.map((u) => u.floor_number ?? u.floorNumber ?? 1))).sort((a, b) => a - b);
 
   const filteredUnits = units.filter((u) => {
+    const code = u.unit_code || u.unitCode || '';
+    const owner = u.owner_name || u.ownerName || '';
     const matchesSearch =
       !searchTerm.trim() ||
-      u.unit_code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (u.owner_name && u.owner_name.toLowerCase().includes(searchTerm.toLowerCase()));
+      code.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      owner.toLowerCase().includes(searchTerm.toLowerCase());
 
-    const matchesFloor = selectedFloor === 'ALL' || u.floor_number === selectedFloor;
+    const floor = u.floor_number ?? u.floorNumber ?? 1;
+    const matchesFloor = selectedFloor === 'ALL' || floor === selectedFloor;
     const matchesStatus =
       selectedStatus === 'ALL' ||
       (selectedStatus === 'APPROVED' && u.status === 'APPROVED') ||

@@ -17,7 +17,7 @@ import {
   Trees,
   Scissors,
 } from 'lucide-react';
-import { CadastralParcelData, MutationPayloadData, MaxZoneCodeInfo } from '../../../shared/types';
+import type { CadastralParcelData, MutationPayloadData, MaxZoneCodeInfo } from '../../../shared/types';
 import { MapBoundsController, MapClickListener, HelpBadge } from '../../../shared/MapControllers';
 import { createHandleIcon } from '../../../shared/geoMath';
 import {

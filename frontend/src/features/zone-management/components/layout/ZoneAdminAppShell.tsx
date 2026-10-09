@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { ZoneAdminSidebar, ZoneNavView } from './ZoneAdminSidebar';
+import {
+  ZoneAdminSidebar,
+  type ZoneNavView,
+} from './ZoneAdminSidebar';
 import { ZoneAdminTopBar } from './ZoneAdminTopBar';
 import { useAuth } from '../../../../context/AuthContext';
 

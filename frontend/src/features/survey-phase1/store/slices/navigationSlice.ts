@@ -1,6 +1,10 @@
-import { StateCreator } from 'zustand';
-import { Phase1SurveyStore, NavigationSlice } from '../types';
-import { validateStep, validateAllSteps, MissingFieldItem } from '../../utils/stepValidator';
+import type { StateCreator } from 'zustand';
+import type { Phase1SurveyStore, NavigationSlice } from '../types';
+import {
+  validateStep,
+  validateAllSteps,
+  type MissingFieldItem,
+} from '../../utils/stepValidator';
 
 export const createNavigationSlice: StateCreator<
   Phase1SurveyStore,

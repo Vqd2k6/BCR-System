@@ -7,7 +7,7 @@ import {
   AlertTriangle,
   UserCheck,
 } from 'lucide-react';
-import { MetroZoneCentroid } from '../../../../core/utils/metroZoneUtils';
+import type { MetroZoneCentroid } from '../../../../core/utils/metroZoneUtils';
 
 interface CompanionCheckInFormProps {
   changeCount: number;

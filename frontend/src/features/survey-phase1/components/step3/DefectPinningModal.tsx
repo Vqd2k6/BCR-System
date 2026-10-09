@@ -1,6 +1,9 @@
 import React from 'react';
 import { Button } from '../../../../core/components/ui/Button';
-import { DefectPinningCanvas, DefectItem } from '../../../../components/canvas/DefectPinningCanvas';
+import {
+  DefectPinningCanvas,
+  type DefectItem,
+} from '../../../../components/canvas/DefectPinningCanvas';
 import { X } from 'lucide-react';
 
 interface DefectPinningModalProps {

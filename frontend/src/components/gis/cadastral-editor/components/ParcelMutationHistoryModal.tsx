@@ -1,3 +1,4 @@
+import { getErrorMessage, getErrorStatus, isNotFoundError } from '@/utils/errorUtils';
 import React, { useState, useEffect } from 'react';
 import {
   X,
@@ -43,7 +44,11 @@ interface CadastralMutationHistoryItem {
   clientIp?: string;
   sourceParcels: HistoryParcel[];
   resultParcels: HistoryParcel[];
-  details?: Record<string, any>;
+  details?: {
+    totalLandArea?: number | string;
+    residualAreaM2?: number | string;
+    [key: string]: unknown;
+  };
 }
 
 interface ParcelMutationHistoryModalProps {
@@ -107,8 +112,8 @@ export const ParcelMutationHistoryModal: React.FC<ParcelMutationHistoryModalProp
         } else {
           throw new Error(json.message || 'Không thể lấy dữ liệu lịch sử');
         }
-      } catch (err: any) {
-        setError(err.message || 'Đã có lỗi xảy ra khi truy vấn lịch sử biến động');
+      } catch (err: unknown) {
+        setError(getErrorMessage(err, 'Đã có lỗi xảy ra khi truy vấn lịch sử biến động'));
       } finally {
         setLoading(false);
       }
@@ -349,11 +354,11 @@ export const ParcelMutationHistoryModal: React.FC<ParcelMutationHistoryModalProp
                           )}
 
                           {/* Extra Diff Details (Nếu có) */}
-                          {ev.details && ev.details.totalLandArea && (
+                          {Boolean(ev.details?.totalLandArea) && (
                             <div className="text-[11px] text-slate-400 bg-slate-900/30 px-3 py-1.5 rounded-lg flex items-center gap-4">
-                              <span>Tổng diện tích sau gộp: <strong className="text-slate-200">{ev.details.totalLandArea} m²</strong></span>
-                              {ev.details.residualAreaM2 && (
-                                <span>Phần dư: <strong className="text-amber-300">{ev.details.residualAreaM2} m²</strong></span>
+                              <span>Tổng diện tích sau gộp: <strong className="text-slate-200">{String(ev.details?.totalLandArea)} m²</strong></span>
+                              {Boolean(ev.details?.residualAreaM2) && (
+                                <span>Phần dư: <strong className="text-amber-300">{String(ev.details?.residualAreaM2)} m²</strong></span>
                               )}
                             </div>
                           )}

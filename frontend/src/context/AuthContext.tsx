@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import api from '../services/api';
-import { UserRole } from '../core/types/domain.types';
+import type { UserRole } from '../core/types/domain.types';
 
 export interface UserProfile {
   id: string;

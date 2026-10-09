@@ -1,4 +1,4 @@
-import { Phase1SurveyFormData } from '../types/phase1.types';
+import type { Phase1SurveyFormData } from '../types/phase1.types';
 
 export interface GateVerificationResult {
   foundationInfo: { passed: boolean; label: string; score: number };

@@ -1,3 +1,4 @@
+import { getErrorMessage, getErrorStatus, isNotFoundError } from '@/utils/errorUtils';
 import React, { useState } from 'react';
 import { usePhase1SurveyStore } from '../store/usePhase1SurveyStore';
 import { api } from '../../../services/api';
@@ -240,7 +241,7 @@ export const Step1_BuildingIdentification: React.FC<Step1BuildingIdentificationP
           parcelId: formData.parcelId,
           surveyData: {
             ...formData,
-            targetGroup: (formData as any).targetGroup || formData.objectGroup || 'GENERAL',
+            targetGroup: formData.targetGroup || formData.objectGroup || 'GENERAL',
             summaryConclusions: `Công trình đang xây dựng: ${formData.constructionStageNotes || ''}`,
           },
           status: 'SUBMITTED',
@@ -300,7 +301,7 @@ export const Step1_BuildingIdentification: React.FC<Step1BuildingIdentificationP
             buildingCategory: 'Đất trống',
             isVacantLand: true,
             usageFunction: 'Đất trống',
-            targetGroup: (formData as any).targetGroup || formData.objectGroup || 'GENERAL',
+            targetGroup: formData.targetGroup || formData.objectGroup || 'GENERAL',
             summaryConclusions: `Thửa đất trống: ${formData.vacantLandStatus || 'Đất trống chưa xây dựng'}. ${formData.vacantLandNotes || ''}`,
           },
           status: 'SUBMITTED',
@@ -351,9 +352,9 @@ export const Step1_BuildingIdentification: React.FC<Step1BuildingIdentificationP
       } catch (_e) {}
 
       setShowApartmentSuccessModal(true);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Lỗi xác nhận chung cư:', err);
-      alert('Có lỗi khi xác nhận loại hình chung cư: ' + (err?.message || 'Vui lòng thử lại'));
+      alert('Có lỗi khi xác nhận loại hình chung cư: ' + (getErrorMessage(err, 'Vui lòng thử lại')));
     } finally {
       setIsConfirmingApartment(false);
     }
@@ -379,7 +380,7 @@ export const Step1_BuildingIdentification: React.FC<Step1BuildingIdentificationP
             </p>
             {formData.previousAbsenceLogs && formData.previousAbsenceLogs.length > 0 && (
               <div className="mt-2 text-[11px] text-emerald-900 bg-white/80 p-2 rounded-lg border border-emerald-300">
-                <strong>Lịch sử tiếp xúc:</strong> Đã từng lập biên bản vắng {formData.previousAbsenceLogs.length} lần (Lần gần nhất: {new Date((formData.previousAbsenceLogs[0] as any).attempt_date || (formData.previousAbsenceLogs[0] as any).attemptDate || Date.now()).toLocaleDateString('vi-VN')} - {(formData.previousAbsenceLogs[0] as any).notes || (formData.previousAbsenceLogs[0] as any).absence_reason || 'Chủ nhà vắng mặt'}).
+                <strong>Lịch sử tiếp xúc:</strong> Đã từng lập biên bản vắng {formData.previousAbsenceLogs.length} lần (Lần gần nhất: {new Date(formData.previousAbsenceLogs[0].attempt_date || formData.previousAbsenceLogs[0].attemptDate || Date.now()).toLocaleDateString('vi-VN')} - {formData.previousAbsenceLogs[0].notes || formData.previousAbsenceLogs[0].absence_reason || 'Chủ nhà vắng mặt'}).
               </div>
             )}
           </div>
@@ -425,7 +426,7 @@ export const Step1_BuildingIdentification: React.FC<Step1BuildingIdentificationP
       <Step1CaseSelector
         formData={formData}
         updateFormData={updateFormData}
-        currentCase={currentCase as any}
+        currentCase={currentCase}
         onSelectCase={handleSelectCase}
         isCondoMaster={isCondoMaster}
         completeness={completeness}

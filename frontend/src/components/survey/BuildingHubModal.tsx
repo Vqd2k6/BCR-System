@@ -1,5 +1,5 @@
 import React from 'react';
-import { BuildingUnit, BuildingHubModalProps } from './building-hub/types';
+import type { BuildingUnit, BuildingHubModalProps } from './building-hub/types';
 import { useBuildingHubState } from './building-hub/hooks/useBuildingHubState';
 import { BuildingHubHeader } from './building-hub/components/BuildingHubHeader';
 import { MasterWarningBanner } from './building-hub/components/MasterWarningBanner';

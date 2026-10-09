@@ -1,10 +1,10 @@
 import React from 'react';
 import L from 'leaflet';
 import { CheckCircle2, Clock, AlertCircle, HardHat } from 'lucide-react';
-import { GisParcel } from '../../shared/types';
+import type { GisParcel } from '../../shared/types';
 
 // Check if a parcel is a road / waterway / canal / empty non-building parcel
-export const isNonBuildingParcel = (parcel: GisParcel | any): boolean => {
+export const isNonBuildingParcel = (parcel: GisParcel): boolean => {
   const code = String(parcel.projectParcelCode || parcel.project_parcel_code || '').toUpperCase();
   // Residual plot from cadastral split/merge or explicit residual type
   if (code.endsWith('-DU') || parcel.parcelType === 'RESIDUAL' || parcel.parcel_type === 'RESIDUAL') return true;
@@ -46,7 +46,7 @@ export const getParcelCenter = (parcel: GisParcel, fallbackCenter: [number, numb
 };
 
 // Helper xác định trạng thái thực tế thời gian thực (hỗ trợ bản nháp dở dang local)
-export const getEffectiveParcelStatus = (parcel: GisParcel | any): GisParcel['surveyStatus'] => {
+export const getEffectiveParcelStatus = (parcel: GisParcel): GisParcel['surveyStatus'] => {
   if (!parcel) return 'NOT_SURVEYED';
   const baseStatus = parcel.surveyStatus || parcel.survey_status || 'NOT_SURVEYED';
   if (baseStatus === 'APPROVED' || baseStatus === 'PHASE2_COMPLETED' || baseStatus === 'APPROVED_PHASE2' || baseStatus === 'SUBMITTED') {
@@ -170,7 +170,7 @@ export const getStatusBadge = (status: GisParcel['surveyStatus'], parcel?: GisPa
         </span>
       );
     case 'POSTPONED_ABSENT': {
-      const dateVal = parcel?.updatedAt || (parcel as any)?.updated_at || (parcel as any)?.postponed_at;
+      const dateVal = parcel?.updatedAt || parcel?.updated_at || parcel?.postponed_at;
       let daysText = '0 ngày trước';
       if (dateVal) {
         const d = new Date(dateVal);

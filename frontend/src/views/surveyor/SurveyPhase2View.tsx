@@ -3,8 +3,15 @@ import { api } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { SignaturePad } from '../../components/canvas/SignaturePad';
 import { PhotoCaptureInput } from '../../components/common/PhotoCaptureInput';
-import { FacadePolygonCanvas, PolygonPoint, FloorSplitLine } from '../../components/canvas/FacadePolygonCanvas';
-import { DefectPinningCanvas, DefectItem } from '../../components/canvas/DefectPinningCanvas';
+import {
+  FacadePolygonCanvas,
+  type PolygonPoint,
+  type FloorSplitLine,
+} from '../../components/canvas/FacadePolygonCanvas';
+import {
+  DefectPinningCanvas,
+  type DefectItem,
+} from '../../components/canvas/DefectPinningCanvas';
 import {
   FileCheck,
   CheckCircle,

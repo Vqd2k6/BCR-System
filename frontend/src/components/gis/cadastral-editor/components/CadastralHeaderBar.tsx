@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import { Ruler, CheckCircle, Layers, GitCompare, History } from 'lucide-react';
-import { GisParcel, CadastralParcelData } from '../../shared/types';
+import type { GisParcel, CadastralParcelData } from '../../shared/types';
 import { HelpBadge } from '../../shared/MapControllers';
 import { useAuth } from '../../../../context/AuthContext';
 import { ParcelMutationHistoryModal } from './ParcelMutationHistoryModal';
 
 interface CadastralHeaderBarProps {
   parcelData: CadastralParcelData;
-  parcel?: GisParcel | any;
+  parcel?: GisParcel | null;
   boundaryStatus: 'MATCH' | 'SPLIT' | 'MERGE';
   onStatusChange: (status: 'MATCH' | 'SPLIT' | 'MERGE') => void;
   frontage?: number;
@@ -107,7 +107,7 @@ export const CadastralHeaderBar: React.FC<CadastralHeaderBarProps> = ({
                 color: '#334155',
               }}
             >
-              Chiều cao: <strong style={{ color: '#0284c7' }}>{buildingHeight !== undefined && buildingHeight !== null && (buildingHeight as any) !== '' ? `${buildingHeight}m` : '—'}</strong>
+              Chiều cao: <strong style={{ color: '#0284c7' }}>{buildingHeight !== undefined && buildingHeight !== null && String(buildingHeight).trim() !== '' ? `${buildingHeight}m` : '—'}</strong>
             </span>
             <span
               style={{
@@ -138,12 +138,12 @@ export const CadastralHeaderBar: React.FC<CadastralHeaderBarProps> = ({
               } else if (hn) {
                 fullAddr = hn.toLowerCase().startsWith('số') ? hn : `Số ${hn}`;
               }
-              const ward = parcelData.ward || (parcel as any)?.ward || 'Phường 15';
-              const dist = parcelData.district || (parcel as any)?.district || 'Quận Tân Bình';
+              const ward = parcelData.ward || parcel?.ward || 'Phường 15';
+              const dist = parcelData.district || parcel?.district || 'Quận Tân Bình';
               return fullAddr ? `${fullAddr}, ${ward}, ${dist}` : `${ward}, ${dist}`;
             })()}</strong>
           </span>
-          <span>Chủ hộ: <strong>{parcelData.ownerName || (parcel as any)?.owner_name || parcel?.ownerName || 'Chưa cập nhật'}</strong></span>
+          <span>Chủ hộ: <strong>{parcelData.ownerName || parcel?.owner_name || parcel?.ownerName || 'Chưa cập nhật'}</strong></span>
         </div>
       </div>
 
@@ -225,7 +225,7 @@ export const CadastralHeaderBar: React.FC<CadastralHeaderBarProps> = ({
       {/* Modal Lịch sử biến động (Super Admin Only) */}
       {user?.role === 'SUPER_ADMIN' && (
         <ParcelMutationHistoryModal
-          parcelId={parcel?.id || (parcelData as any)?.id}
+          parcelId={parcel?.id || parcelData.id || null}
           parcelCode={parcelData.projectParcelCode}
           isOpen={showHistoryModal}
           onClose={() => setShowHistoryModal(false)}

@@ -1,3 +1,4 @@
+import { getErrorMessage, getErrorStatus, isNotFoundError } from '@/utils/errorUtils';
 import React, { useState, useEffect } from 'react';
 import {
   X,
@@ -17,6 +18,7 @@ import { AuditStepwiseDocumentView } from './stepwise/AuditStepwiseDocumentView'
 import { AuditDiffConfirmModal } from './AuditDiffConfirmModal';
 import { AuditPhotoReplaceModal } from './AuditPhotoReplaceModal';
 import { AuditHistoryModal } from './AuditHistoryModal';
+import type { AuditStepwiseData, DiffItem } from './stepwise/types';
 
 interface Props {
   isOpen: boolean;
@@ -32,7 +34,7 @@ export const AuditStudioModal: React.FC<Props> = ({
   onRefreshList,
 }) => {
   const [loading, setLoading] = useState(true);
-  const [data, setData] = useState<any>(null);
+  const [data, setData] = useState<AuditStepwiseData | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
 
   // Modals state
@@ -46,8 +48,8 @@ export const AuditStudioModal: React.FC<Props> = ({
   // Diff Confirmation Modal State
   const [diffModalData, setDiffModalData] = useState<{
     isOpen: boolean;
-    diffItems: any[];
-    updates: any;
+    diffItems: DiffItem[];
+    updates: Record<string, unknown>;
   }>({ isOpen: false, diffItems: [], updates: {} });
 
   // Photo Replace Modal State (With 6-digit random code)
@@ -75,9 +77,9 @@ export const AuditStudioModal: React.FC<Props> = ({
       } else {
         setErrorMsg('Không thể tải dữ liệu hồ sơ.');
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('[AuditStudioModal] Failed to fetch audit view:', err);
-      setErrorMsg(err.response?.data?.message || err.message || 'Lỗi kết nối khi tải hồ sơ.');
+      setErrorMsg(getErrorMessage(err, 'Lỗi kết nối khi tải hồ sơ.'));
     } finally {
       setLoading(false);
     }
@@ -107,9 +109,9 @@ export const AuditStudioModal: React.FC<Props> = ({
       } else {
         alert(res.data?.message || 'Không thể phê duyệt hồ sơ.');
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('[AuditStudioModal] Error approving:', err);
-      alert(err.response?.data?.message || err.message || 'Lỗi kết nối khi phê duyệt.');
+      alert(getErrorMessage(err, 'Lỗi kết nối khi phê duyệt.'));
     } finally {
       setIsApproving(false);
     }
@@ -230,7 +232,7 @@ export const AuditStudioModal: React.FC<Props> = ({
         ) : (
           <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-100/70">
             <AuditStepwiseDocumentView
-              data={data}
+              data={data || {}}
               reportId={reportId}
               onRefresh={fetchAuditData}
               onOpenPhotoZoom={(url, title) => {
@@ -329,7 +331,7 @@ export const AuditStudioModal: React.FC<Props> = ({
         <RejectReportModal
           isOpen={showRejectModal}
           reportId={reportId}
-          parcelCode={data.projectParcelCode}
+          parcelCode={data.projectParcelCode || ''}
           surveyorName={data.surveyorName}
           onClose={() => setShowRejectModal(false)}
           onSuccess={() => {
@@ -344,7 +346,7 @@ export const AuditStudioModal: React.FC<Props> = ({
         <EngineeringJudgementModal
           isOpen={showJudgementModal}
           reportId={reportId}
-          parcelCode={data.projectParcelCode}
+          parcelCode={data.projectParcelCode || ''}
           currentBurlandGrade={riskCard?.e1_burland_score !== undefined ? `Cấp ${riskCard.e1_burland_score}` : (data?.surveyJson?.ecs?.e1 !== undefined ? `Cấp ${data.surveyJson.ecs.e1}` : undefined)}
           riskCard={riskCard}
           data={data}
@@ -410,8 +412,8 @@ export const AuditStudioModal: React.FC<Props> = ({
         <AuditHistoryModal
           isOpen={showAuditHistory}
           onClose={() => setShowAuditHistory(false)}
-          reportCode={data?.reportCode}
-          parcelCode={data?.projectParcelCode}
+          reportCode={data?.reportCode || undefined}
+          parcelCode={data?.projectParcelCode || undefined}
           logs={data?.auditHistory || []}
         />
       )}

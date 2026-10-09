@@ -1,6 +1,6 @@
 import React from 'react';
 import { Box, AlertCircle, FileSignature, Compass } from 'lucide-react';
-import { EditFormData } from '../../../types';
+import type { EditFormData } from '../../../types';
 
 interface AdjacentAndDeformationSectionProps {
   editFormData: EditFormData;

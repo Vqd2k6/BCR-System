@@ -13,11 +13,12 @@ import {
 } from 'lucide-react';
 import { SETTLEMENT_LEVEL_OPTIONS, TILT_LEVEL_OPTIONS } from '../../../../../survey-phase1/components/step1/step1.constants';
 import { SAG_LEVEL_OPTIONS } from '../../../../../survey-phase1/constants/levelGuideConstants';
+import type { AuditStepwiseFormState, StepwiseSettlementTilt } from '../types';
 
 interface Props {
   isEditMode: boolean;
-  formState: Record<string, any>;
-  handleNestedFieldChange: (parentKey: string, childKey: string, label: string, val: any) => void;
+  formState: AuditStepwiseFormState;
+  handleNestedFieldChange: (parentKey: string, childKey: string, label: string, val: unknown) => void;
   onOpenPhotoZoom?: (url: string, title?: string, photoCode?: string) => void;
 }
 
@@ -36,7 +37,7 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
   handleNestedFieldChange,
   onOpenPhotoZoom,
 }) => {
-  const st = formState.settlementTilt || {};
+  const st: StepwiseSettlementTilt = formState.settlementTilt || {};
   const tilt = st.buildingTilt || {};
   const beam = st.beamSagging || {};
   const diff = st.diffSettlement || {};
@@ -73,7 +74,7 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
       : [];
 
   // Danh sách nguồn xác định dữ liệu
-  const dataSources: string[] = Array.isArray(st.dataSource) ? st.dataSource : [];
+  const dataSources: string[] = Array.isArray(st.dataSource) ? (st.dataSource as string[]) : [];
 
   return (
     <section id="step-5" className="scroll-mt-6 bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
@@ -126,7 +127,7 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                   }
                   className="w-full p-1.5 bg-white border border-slate-300 rounded-lg text-xs font-bold"
                 >
-                  {SETTLEMENT_LEVEL_OPTIONS.map((opt: any) => (
+                  {SETTLEMENT_LEVEL_OPTIONS.map((opt: { level: number; title: string; desc?: string }) => (
                     <option key={opt.level} value={opt.level}>
                       Cấp {opt.level} - {opt.title}
                     </option>
@@ -135,7 +136,7 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
               ) : (
                 <div className="text-xs font-bold text-slate-800">
                   {diff.level !== undefined
-                    ? `Cấp ${diff.level} (${SETTLEMENT_LEVEL_OPTIONS.find((o: any) => o.level === diff.level)?.title || 'Bình thường'})`
+                    ? `Cấp ${diff.level} (${SETTLEMENT_LEVEL_OPTIONS.find((o: { level: number; title: string; desc?: string }) => o.level === diff.level)?.title || 'Bình thường'})`
                     : 'Không phát hiện lún lệch'}
                 </div>
               )}
@@ -349,7 +350,7 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                       }
                       className="flex-1 p-1 bg-white border border-slate-300 rounded text-xs font-bold"
                     >
-                      {SAG_LEVEL_OPTIONS.map((opt: any) => (
+                      {SAG_LEVEL_OPTIONS.map((opt: { level: number; title: string; desc?: string }) => (
                         <option key={opt.level} value={opt.level}>
                           Cấp {opt.level} - {opt.title}
                         </option>

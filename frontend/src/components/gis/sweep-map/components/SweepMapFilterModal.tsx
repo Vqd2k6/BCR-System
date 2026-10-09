@@ -1,7 +1,7 @@
 import React from 'react';
 import { Filter, X, Layers, EyeOff, Check } from 'lucide-react';
-import { GisParcel } from '../../shared/types';
-import { AppliedFiltersState } from '../hooks/useSweepMapState';
+import type { GisParcel } from '../../shared/types';
+import type { AppliedFiltersState } from '../hooks/useSweepMapState';
 
 interface SweepMapFilterModalProps {
   showFilterModal: boolean;

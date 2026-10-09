@@ -93,10 +93,10 @@ class DevErrorBoundary extends React.Component<{ children: React.ReactNode }, Er
 
 // Lưu tham chiếu Root trên window để HMR không tạo đè root mới gây lỗi ReactDOMClient.createRoot
 const container = document.getElementById('root') as HTMLElement;
-let root = (window as any).__metro2_react_root__ as ReactDOM.Root | undefined;
+let root = window.__metro2_react_root__;
 if (!root) {
   root = ReactDOM.createRoot(container);
-  (window as any).__metro2_react_root__ = root;
+  window.__metro2_react_root__ = root;
 }
 
 root.render(

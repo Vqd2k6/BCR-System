@@ -1,3 +1,4 @@
+import { getErrorMessage, getErrorStatus, isNotFoundError } from '@/utils/errorUtils';
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   Search,
@@ -35,7 +36,7 @@ import { RejectReportModal } from './RejectReportModal';
 import { AdminReassignParcelModal } from './AdminReassignParcelModal';
 import { UnifiedGisMutationModal } from '../../../../components/gis/cadastral-editor/UnifiedGisMutationModal';
 import { CadastralBoundaryReshapeModal } from '../../../../components/gis/cadastral-editor/components/CadastralBoundaryReshapeModal';
-import { GisParcel } from '../../../../components/gis/shared/types';
+import type { GisParcel } from '../../../../components/gis/shared/types';
 import { ReviewQueueTableRow } from './ReviewQueueTableRow';
 
 export interface PendingSubmissionItem {
@@ -63,6 +64,8 @@ export interface PendingSubmissionItem {
   vi_score: number | null;
   defect_count: number;
   alert_count: number;
+  owner_name?: string | null;
+  land_area_m2?: number | null;
 }
 
 export type TabType = 'ALL' | 'RESIDENTIAL' | 'CONDO' | 'ABSENT' | 'CRITICAL' | 'REJECTED' | 'APPROVED';
@@ -153,10 +156,10 @@ export const ZoneAuditReviewQueue: React.FC<Props> = ({
           officialCadastralCode: raw.official_cadastral_code || '',
           houseNumber: raw.house_number || item.house_number || '',
           street: raw.street || item.street || '',
-          ownerName: raw.owner_name || (item as any).owner_name || '',
+          ownerName: raw.owner_name || item.owner_name || '',
           surveyStatus: raw.survey_status || item.status,
           coordinates: coords,
-          landArea: Number(raw.land_area_m2 || (item as any).land_area_m2 || 0),
+          landArea: Number(raw.land_area_m2 || item.land_area_m2 || 0),
           constructionArea: Number(raw.construction_area_m2 || raw.land_area_m2 || 0),
           floorCount: Number(raw.floor_count || 1),
           buildingType: raw.building_type || 'STANDALONE',
@@ -212,9 +215,9 @@ export const ZoneAuditReviewQueue: React.FC<Props> = ({
       } else {
         setItems([]);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('[ZoneAuditReviewQueue] Error loading submissions:', err);
-      setErrorMsg(err.response?.data?.message || err.message || 'Không thể tải danh sách hồ sơ chờ duyệt.');
+      setErrorMsg(getErrorMessage(err, 'Không thể tải danh sách hồ sơ chờ duyệt.'));
     } finally {
       setLoading(false);
     }
@@ -594,7 +597,7 @@ export const ZoneAuditReviewQueue: React.FC<Props> = ({
                       parcelCode: it.project_parcel_code,
                       houseNumber: it.house_number,
                       street: it.street,
-                      currentAreaM2: (it as any).land_area_m2 || 0,
+                      currentAreaM2: it.land_area_m2 || 0,
                       zoneId: it.zone_id,
                       reportId: it.report_id || undefined,
                     })

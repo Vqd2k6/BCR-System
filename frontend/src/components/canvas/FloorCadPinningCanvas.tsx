@@ -8,10 +8,17 @@ import { useInteractiveCanvasZoom } from './useInteractiveCanvasZoom';
 import { CanvasZoomToolbar } from './CanvasZoomToolbar';
 
 export interface CadZonePin {
-  id: string;
+  id?: string;
   zoneCode: string; // Z-01 hoặc E-01
+  zone_code?: string;
+  pinCode?: string;
+  pinNumber?: number;
   pinX: number; // 0 to 100%
+  pin_x?: number;
   pinY: number; // 0 to 100%
+  pin_y?: number;
+  x?: number;
+  y?: number;
   label?: string;
   type?: 'ZONE' | 'STRUCTURAL';
 }
@@ -203,7 +210,7 @@ export const FloorCadPinningCanvas: React.FC<Props> = ({
     setSelectedPinIndex(null);
   };
 
-  const updateSelectedPin = (field: keyof CadZonePin, value: any) => {
+  const updateSelectedPin = <K extends keyof CadZonePin>(field: K, value: CadZonePin[K]) => {
     if (selectedPinIndex === null || readOnly) return;
     const prevPin = pins[selectedPinIndex];
     const updated = [...pins];
@@ -211,7 +218,7 @@ export const FloorCadPinningCanvas: React.FC<Props> = ({
     updated[selectedPinIndex] = updatedPin;
     onChangePins(updated);
 
-    if (field === 'zoneCode' && onRenamePin && prevPin.zoneCode !== value) {
+    if (field === 'zoneCode' && onRenamePin && prevPin.zoneCode !== value && typeof value === 'string') {
       onRenamePin(prevPin.zoneCode, value, updatedPin);
     }
   };

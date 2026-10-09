@@ -1,14 +1,17 @@
+import type { FloorSurveyData, DamageZoneData, DefectItem } from '../../../../../survey-phase1/types/phase1.types';
+import type { AuditStepwiseFormState, AuditStepwiseData, StepwiseEcs, StepwiseVi, RiskCardData } from '../types';
+import { getErrorMessage, getErrorStatus, isNotFoundError } from '@/utils/errorUtils';
 import React, { useState } from 'react';
 import { Award, ShieldCheck, CheckCircle2, AlertTriangle, Sparkles, Scale, RefreshCw, Undo2 } from 'lucide-react';
 import { api } from '../../../../../../services/api';
 
 interface Props {
   isEditMode?: boolean;
-  formState?: Record<string, any>;
-  data: any;
+  formState?: AuditStepwiseFormState;
+  data?: AuditStepwiseData;
   reportId?: string;
-  handleFieldChange?: (fieldKey: string, label: string, val: any) => void;
-  handleNestedFieldChange?: (parentKey: string, childKey: string, label: string, val: any) => void;
+  handleFieldChange?: (fieldKey: string, label: string, val: unknown) => void;
+  handleNestedFieldChange?: (parentKey: string, childKey: string, label: string, val: unknown) => void;
   onRefresh?: () => void;
   onOpenEngineeringJudgement: () => void;
 }
@@ -24,9 +27,9 @@ export const AuditStep7EcsViScores: React.FC<Props> = ({
   onOpenEngineeringJudgement,
 }) => {
   const sJson = data?.surveyJson || data?.survey_data_json || {};
-  const riskCard = data?.leftPane?.riskScoreCard || {};
-  const ecs = formState.ecs || sJson.ecs || {};
-  const vi = formState.vi || sJson.vi || {};
+  const riskCard: RiskCardData = data?.leftPane?.riskScoreCard || {};
+  const ecs: StepwiseEcs = formState.ecs || sJson.ecs || {};
+  const vi: StepwiseVi = formState.vi || sJson.vi || {};
 
   const [isReverting, setIsReverting] = useState(false);
 
@@ -80,16 +83,16 @@ export const AuditStep7EcsViScores: React.FC<Props> = ({
   ];
 
   // Thu thập và kiểm tra thực tế dữ liệu vết nứt có thước đo mm
-  const rawFloors: any[] = Array.isArray(sJson.floors) ? sJson.floors : [];
-  const rawZones: any[] = Array.isArray(sJson.damageZones) ? sJson.damageZones : [];
-  const allDefectsList: any[] = [];
-  rawFloors.forEach((fl: any) => {
-    (fl.zones || []).forEach((z: any) => {
-      (z.defects || []).forEach((d: any) => allDefectsList.push(d));
+  const rawFloors: FloorSurveyData[] = Array.isArray(sJson.floors) ? sJson.floors : [];
+  const rawZones: DamageZoneData[] = Array.isArray(sJson.damageZones) ? sJson.damageZones : [];
+  const allDefectsList: DefectItem[] = [];
+  rawFloors.forEach((fl: FloorSurveyData) => {
+    (fl.zones || []).forEach((z: DamageZoneData) => {
+      (z.defects || []).forEach((d: DefectItem) => allDefectsList.push(d));
     });
   });
-  rawZones.forEach((z: any) => {
-    (z.defects || []).forEach((d: any) => allDefectsList.push(d));
+  rawZones.forEach((z: DamageZoneData) => {
+    (z.defects || []).forEach((d: DefectItem) => allDefectsList.push(d));
   });
 
   const totalDefectsCount = allDefectsList.length;
@@ -130,8 +133,8 @@ export const AuditStep7EcsViScores: React.FC<Props> = ({
       });
       alert('Đã hoàn nguyên về điểm gốc hiện trường thành công!');
       if (onRefresh) onRefresh();
-    } catch (err: any) {
-      alert(err.response?.data?.message || err.message || 'Lỗi khi hoàn nguyên điểm số.');
+    } catch (err: unknown) {
+      alert(getErrorMessage(err, 'Lỗi khi hoàn nguyên điểm số.'));
     } finally {
       setIsReverting(false);
     }
@@ -191,7 +194,7 @@ export const AuditStep7EcsViScores: React.FC<Props> = ({
               <div className="flex items-center gap-2">
                 <label className="text-[11px] font-bold text-slate-700">Quyết định Cổng:</label>
                 <select
-                  value={formState.gateDecision || (isAllGateValid ? 'ALLOW' : 'CONDITIONAL')}
+                  value={typeof formState.gateDecision === 'string' ? formState.gateDecision : formState.gateDecision?.decision || (isAllGateValid ? 'ALLOW' : 'CONDITIONAL')}
                   onChange={(e) => handleFieldChange && handleFieldChange('gateDecision', 'Quyết định Cổng', e.target.value)}
                   className="p-1 text-xs font-bold bg-white border border-slate-300 rounded"
                 >
@@ -428,11 +431,11 @@ export const AuditStep7EcsViScores: React.FC<Props> = ({
                   <span>
                     Kỹ sư trưởng thực hiện: <strong className="text-purple-900">{riskCard.judgement_engineer_name || 'Kỹ Sư Trưởng Zone Admin'}</strong>
                   </span>
-                  {riskCard.judgement_applied_at && (
+                  {riskCard.judgement_applied_at ? (
                     <span>
-                      Thời gian áp dụng: <strong>{new Date(riskCard.judgement_applied_at).toLocaleString('vi-VN')}</strong>
+                      Thời gian áp dụng: <strong>{new Date(riskCard.judgement_applied_at as string).toLocaleString('vi-VN')}</strong>
                     </span>
-                  )}
+                  ) : null}
                   <span className="px-2 py-0.5 rounded bg-purple-100 text-purple-800 font-bold text-[10px]">
                     Hành động: {riskCard.engineering_judgement_action}
                   </span>
@@ -480,7 +483,7 @@ export const AuditStep7EcsViScores: React.FC<Props> = ({
                         type="number"
                         min={0}
                         max={4}
-                        value={ecs[eKey] ?? item.score}
+                        value={Number(ecs[eKey] ?? item.score)}
                         onChange={(e) =>
                           handleNestedFieldChange('ecs', eKey, `Điểm ${item.code}`, Number(e.target.value))
                         }
@@ -488,7 +491,7 @@ export const AuditStep7EcsViScores: React.FC<Props> = ({
                       />
                     ) : (
                       <span className={`text-base font-black ${item.isOverridden ? 'text-purple-950 font-mono' : 'text-slate-900'}`}>
-                        {item.score}/4
+                        {Number(item.score)}/4
                       </span>
                     )}
                   </div>
@@ -520,7 +523,7 @@ export const AuditStep7EcsViScores: React.FC<Props> = ({
                         step="0.5"
                         min={0}
                         max={5}
-                        value={vi[vKey] ?? item.score}
+                        value={Number(vi[vKey] ?? item.score)}
                         onChange={(e) =>
                           handleNestedFieldChange('vi', vKey, `Điểm ${item.code}`, Number(e.target.value))
                         }
@@ -528,7 +531,7 @@ export const AuditStep7EcsViScores: React.FC<Props> = ({
                       />
                     ) : (
                       <span className={`text-base font-black ${item.isOverridden ? 'text-purple-950 font-mono' : 'text-purple-900'}`}>
-                        {item.score}đ
+                        {Number(item.score)}đ
                       </span>
                     )}
                   </div>

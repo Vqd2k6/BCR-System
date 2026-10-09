@@ -1,8 +1,12 @@
+import { getErrorMessage, getErrorStatus, isNotFoundError } from '@/utils/errorUtils';
 import React, { useState } from 'react';
 import { Button } from '../../../core/components/ui/Button';
 import { Input } from '../../../core/components/ui/FormControls';
 import { KeyRound, X, AlertCircle, CheckCircle2 } from 'lucide-react';
-import { AdminUser, userService } from '../../../services/userService';
+import {
+  type AdminUser,
+  userService,
+} from '../../../services/userService';
 
 interface Props {
   isOpen: boolean;
@@ -43,8 +47,8 @@ export const ResetPasswordModal: React.FC<Props> = ({
       await userService.resetPassword(user.id, newPassword);
       onSuccess();
       onClose();
-    } catch (err: any) {
-      const msg = err?.response?.data?.detail || err?.response?.data?.message || err?.message || 'Không thể đặt lại mật khẩu';
+    } catch (err: unknown) {
+      const msg = getErrorMessage(err, 'Không thể đặt lại mật khẩu');
       setError(msg);
     } finally {
       setIsLoading(false);

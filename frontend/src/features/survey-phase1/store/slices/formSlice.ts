@@ -1,7 +1,8 @@
-import { StateCreator } from 'zustand';
-import { Phase1SurveyStore, FormSlice } from '../types';
+import type { StateCreator } from 'zustand';
+import type { Phase1SurveyStore, FormSlice } from '../types';
+import type { Phase1SurveyFormData } from '../../types/phase1.types';
 import { getDefaultInitialFormData } from '../initialFormData';
-import { GisParcel, BuildingUnit } from '../../../../core/types/domain.types';
+import type { GisParcel, BuildingUnit } from '../../../../core/types/domain.types';
 import { calculateEcsScore } from '../../engine/ecsCalculator';
 import { calculateViScore } from '../../engine/viCalculator';
 import { calculateParcelMetroSpatialMetrics } from '../../utils/metroSpatialCalculator';
@@ -54,18 +55,18 @@ export const createFormSlice: StateCreator<
     // 2. Map các thông tin định danh thửa đất (nếu draft chưa có hoặc là default thì lấy từ parcel)
     initialData.parcelId = parcel.id;
     initialData.parcelCoordinates = parcel.coordinates;
-    initialData.zoneId = parcel.zoneId || (parcel as any).zone_id;
-    const realProjectCode = parcel.projectParcelCode || (parcel as any).project_parcel_code || (parcel as any).projectCode;
+    initialData.zoneId = parcel.zoneId || parcel.zone_id;
+    const realProjectCode = parcel.projectParcelCode || parcel.project_parcel_code || parcel.projectCode;
     if (realProjectCode && (!initialData.projectParcelCode || initialData.projectParcelCode === 'B-XXXXX')) {
       initialData.projectParcelCode = realProjectCode;
     } else if (!initialData.projectParcelCode) {
       initialData.projectParcelCode = realProjectCode || 'B-XXXXX';
     }
-    initialData.officialCadastralCode = initialData.officialCadastralCode || parcel.officialCadastralCode || (parcel as any).official_cadastral_code || '';
-    initialData.houseNumber = initialData.houseNumber || parcel.houseNumber || (parcel as any).house_number || '';
+    initialData.officialCadastralCode = initialData.officialCadastralCode || parcel.officialCadastralCode || parcel.official_cadastral_code || '';
+    initialData.houseNumber = initialData.houseNumber || parcel.houseNumber || parcel.house_number || '';
     initialData.street = initialData.street || parcel.street || '';
-    initialData.ownerName = initialData.ownerName || unit?.ownerName || parcel.ownerName || (parcel as any).owner_name || '';
-    initialData.ownerPhone = initialData.ownerPhone || (unit as any)?.ownerPhone || (unit as any)?.owner_phone || parcel.ownerPhone || (parcel as any).owner_phone || '';
+    initialData.ownerName = initialData.ownerName || unit?.ownerName || parcel.ownerName || parcel.owner_name || '';
+    initialData.ownerPhone = initialData.ownerPhone || unit?.ownerPhone || unit?.owner_phone || parcel.ownerPhone || parcel.owner_phone || '';
     if (initialData.aboveFloors === undefined || initialData.aboveFloors === null || initialData.aboveFloors === 0 || initialData.aboveFloors === '') {
       initialData.aboveFloors = parcel.floorCount ? parcel.floorCount : '';
     }
@@ -81,8 +82,8 @@ export const createFormSlice: StateCreator<
 
     // Khởi tạo thông tin riêng cho Căn hộ con nếu có unit
     if (unit) {
-      const uCode = (unit as any).unitCode || (unit as any).unit_code || '';
-      const rawFloor = (unit as any).floorNumber ?? (unit as any).floor_number ?? (unit as any).floorLevel ?? 1;
+      const uCode = unit.unitCode || unit.unit_code || '';
+      const rawFloor = unit.floorNumber ?? unit.floor_number ?? unit.floorLevel ?? 1;
       const floorNum = typeof rawFloor === 'number' ? rawFloor : (parseInt(String(rawFloor).replace(/\D/g, ''), 10) || 1);
 
       initialData.unitId = unit.id;
@@ -107,7 +108,7 @@ export const createFormSlice: StateCreator<
       }
 
       initialData.parentBuildingInfo = {
-        buildingName: (parcel as any).buildingName || parcel.projectParcelCode || 'Tòa Nhà Chung Cư Cao Tầng',
+        buildingName: parcel.buildingName || parcel.projectParcelCode || 'Tòa Nhà Chung Cư Cao Tầng',
         projectParcelCode: parcel.projectParcelCode || '',
         officialCadastralCode: parcel.officialCadastralCode || '',
         address: (parcel.houseNumber ? `${parcel.houseNumber}, ` : '') + (parcel.street || ''),
@@ -137,10 +138,10 @@ export const createFormSlice: StateCreator<
     });
 
     // 3. Tải bất đồng bộ draft đầy đủ từ IndexedDB
-    loadSurveyDraft<any>(draftKey)
+    loadSurveyDraft<Phase1SurveyFormData & { _savedStep?: number }>(draftKey)
       .then((fullDraft) => {
         if (fullDraft && fullDraft.parcelId === parcel.id) {
-          const targetStep = fullDraft._savedStep >= 1 && fullDraft._savedStep <= 8 ? fullDraft._savedStep : undefined;
+          const targetStep = fullDraft._savedStep !== undefined && fullDraft._savedStep >= 1 && fullDraft._savedStep <= 8 ? fullDraft._savedStep : undefined;
           set((state) => {
             const merged = { ...state.formData, ...fullDraft };
             const recalculatedEcs = calculateEcsScore(merged);

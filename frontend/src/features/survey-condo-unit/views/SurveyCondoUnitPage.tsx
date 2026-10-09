@@ -1,3 +1,4 @@
+import { getErrorMessage, getErrorStatus, isNotFoundError } from '@/utils/errorUtils';
 import React, { useEffect, useState } from 'react';
 import { useCondoUnitSurveyStore } from '../store/useCondoUnitSurveyStore';
 import { CondoUnitWizardNav } from '../components/CondoUnitWizardNav';
@@ -5,7 +6,7 @@ import { Step1_ParentInheritanceConfirmation } from '../components/Step1_ParentI
 import { Step2_UnitSpecificInformation } from '../components/Step2_UnitSpecificInformation';
 import { Step3_UnitDefectsAndSettlement } from '../components/Step3_UnitDefectsAndSettlement';
 import { Step4_UnitSignatures } from '../components/Step4_UnitSignatures';
-import { GisParcel, BuildingUnit } from '../../../core/types/domain.types';
+import type { GisParcel, BuildingUnit } from '../../../core/types/domain.types';
 import { api } from '../../../services/api';
 
 export interface SurveyCondoUnitPageProps {
@@ -113,10 +114,10 @@ export const SurveyCondoUnitPage: React.FC<SurveyCondoUnitPageProps> = ({
       } else {
         onBackToHome();
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('[CondoUnit] Error submitting unit survey:', err);
-      const statusCode = err?.response?.status;
-      const serverMsg = err?.response?.data?.detail || err?.response?.data?.message || err?.message;
+      const statusCode = getErrorStatus(err);
+      const serverMsg = getErrorMessage(err);
       alert(`❌ Nộp hồ sơ thất bại (${statusCode || 'Lỗi mạng'}): ${serverMsg || 'Vui lòng kiểm tra lại'}`);
     } finally {
       setIsSubmitting(false);

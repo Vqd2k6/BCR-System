@@ -1,10 +1,5 @@
 import { useState, useCallback } from 'react';
-import {
-  GisParcel,
-  MutationPayloadData,
-  CadastralParcelData,
-  SplitChildData,
-} from '../../shared/types';
+import type { GisParcel, MutationPayloadData, CadastralParcelData, SplitChildData } from '../../shared/types';
 import { useCadastralGeometry } from './useCadastralGeometry';
 import { useCadastralSplit } from './useCadastralSplit';
 import { useCadastralMerge } from './useCadastralMerge';
@@ -12,7 +7,7 @@ import { useCadastralMerge } from './useCadastralMerge';
 interface UseCadastralMutationProps {
   activeParcelId: string;
   parcelData: CadastralParcelData;
-  parcel?: GisParcel | any;
+  parcel?: GisParcel | null;
   boundaryStatus: 'MATCH' | 'SPLIT' | 'MERGE';
   mutationData: MutationPayloadData;
   onMutationDataChange: (data: MutationPayloadData) => void;
@@ -37,9 +32,9 @@ export const useCadastralMutation = ({
   const frontage = parcelData.frontageWidth || 4.2;
   const depth = parcelData.lotDepth || 18.5;
   const buildingHeight =
-    parcelData.buildingHeight !== undefined && parcelData.buildingHeight !== null && (parcelData.buildingHeight as any) !== ''
+    parcelData.buildingHeight !== undefined && parcelData.buildingHeight !== null && String(parcelData.buildingHeight).trim() !== ''
       ? Number(parcelData.buildingHeight)
-      : (parcel?.buildingHeightM || (parcel as any)?.building_height_m ? Number(parcel?.buildingHeightM || (parcel as any)?.building_height_m) : undefined);
+      : (parcel?.buildingHeightM || parcel?.building_height_m ? Number(parcel?.buildingHeightM || parcel?.building_height_m) : undefined);
   const totalLandArea =
     parcelData.constructionArea || parcelData.landArea || Math.round(frontage * depth * 10) / 10 || 68.5;
 

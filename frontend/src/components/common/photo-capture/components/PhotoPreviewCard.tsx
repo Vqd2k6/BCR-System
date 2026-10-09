@@ -10,7 +10,7 @@ import {
   MoreVertical,
   ZoomIn,
 } from 'lucide-react';
-import { UploadStatus } from '../types';
+import type { UploadStatus } from '../types';
 import { PhotoWatermarkOverlay } from './PhotoWatermarkOverlay';
 import { getSafeDisplayUrl } from '../../../../core/storage/offlinePhotoStorage';
 import { useStorageInfo } from '../../../../core/services/storageInfoService';

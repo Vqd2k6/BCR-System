@@ -1,3 +1,4 @@
+import { getErrorMessage, getErrorStatus, isNotFoundError } from '@/utils/errorUtils';
 /**
  * DỊCH VỤ HÀNG ĐỢI TẢI ẢNH ĐA LUỒNG & TRỰC TIẾP LÊN CLOUDFLARE R2
  * Tối ưu hóa cho quy mô 50 - 200 ảnh trên Render Free và mạng di động 4G hiện trường
@@ -236,7 +237,7 @@ class UploadQueueService {
           console.log(`[UploadQueue] Retrying task ${nextTask.id} (lần ${nextTask.retryCount}/${this.maxRetries})...`);
         } else {
           nextTask.status = 'ERROR';
-          nextTask.error = err?.message || 'Upload failed after retries';
+          nextTask.error = getErrorMessage(err, 'Upload failed after retries');
           if (nextTask.onError) {
             nextTask.onError(err);
           }
@@ -335,8 +336,8 @@ class UploadQueueService {
       }
 
       return { publicUrl, key };
-    } catch (directError: any) {
-      console.warn(`[UploadQueue] Direct PUT lên R2 thất bại (${directError?.message}), tự động chuyển hướng qua Backend fallback...`);
+    } catch (directError: unknown) {
+      console.warn(`[UploadQueue] Direct PUT lên R2 thất bại (${getErrorMessage(directError)}), tự động chuyển hướng qua Backend fallback...`);
       return this.executeBackendFallback(task);
     }
   }
@@ -379,7 +380,7 @@ export function canvasToBlobAndDispose(
 /**
  * Đếm số lượng ảnh còn tồn tại dưới dạng chuỗi Base64
  */
-export function countBase64Images(obj: any): number {
+export function countBase64Images(obj: unknown): number {
   if (!obj) return 0;
   let count = 0;
   if (typeof obj === 'string') {
@@ -395,8 +396,9 @@ export function countBase64Images(obj: any): number {
     return count;
   }
   if (typeof obj === 'object') {
-    for (const key of Object.keys(obj)) {
-      count += countBase64Images(obj[key]);
+    const record = obj as Record<string, unknown>;
+    for (const key of Object.keys(record)) {
+      count += countBase64Images(record[key]);
     }
   }
   return count;
@@ -407,23 +409,24 @@ export function countBase64Images(obj: any): number {
  * Thay thế các chuỗi Base64 dài (ảnh chưa upload xong) bằng chuỗi rỗng hoặc giữ nguyên URL Cloud.
  * Đảm bảo kích thước payload draft luôn < 100KB, tuyệt đối không làm tràn RAM Render hay Supabase!
  */
-export function sanitizeSurveyDataForSync(obj: any): any {
+export function sanitizeSurveyDataForSync<T>(obj: T): T {
   if (obj === null || obj === undefined) return obj;
   if (typeof obj === 'string') {
     if (obj.startsWith('data:image/') && obj.length > 500) {
-      return ''; // Lọc bỏ chuỗi Base64 nặng ký
+      return '' as unknown as T; // Lọc bỏ chuỗi Base64 nặng ký
     }
     return obj;
   }
   if (Array.isArray(obj)) {
-    return obj.map((item) => sanitizeSurveyDataForSync(item));
+    return obj.map((item) => sanitizeSurveyDataForSync(item)) as unknown as T;
   }
   if (typeof obj === 'object') {
-    const clean: Record<string, any> = {};
-    for (const key of Object.keys(obj)) {
-      clean[key] = sanitizeSurveyDataForSync(obj[key]);
+    const clean: Record<string, unknown> = {};
+    const record = obj as Record<string, unknown>;
+    for (const key of Object.keys(record)) {
+      clean[key] = sanitizeSurveyDataForSync(record[key]);
     }
-    return clean;
+    return clean as T;
   }
   return obj;
 }

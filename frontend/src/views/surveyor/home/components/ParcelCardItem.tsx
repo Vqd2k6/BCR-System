@@ -1,5 +1,5 @@
 import React from 'react';
-import { GisParcel } from '../../../../components/gis/LeafletSweepMap';
+import type { GisParcel } from '../../../../components/gis/LeafletSweepMap';
 import { getStatus, getBuildingType, getStatusBadge } from '../utils/surveyorHomeHelpers';
 import {
   CheckCircle2,
@@ -79,7 +79,7 @@ export const ParcelCardItem: React.FC<ParcelCardItemProps> = ({
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
             <span style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0284c7' }}>
-              {p.projectParcelCode || (p as any).project_parcel_code}
+              {p.projectParcelCode || p.project_parcel_code}
             </span>
             {getStatusBadge(status, p)}
             {buildingType === 'CONDOMINIUM' && (
@@ -107,7 +107,7 @@ export const ParcelCardItem: React.FC<ParcelCardItemProps> = ({
           </div>
 
           <div style={{ fontSize: '0.875rem', fontWeight: 700, color: '#0f172a', marginTop: '0.2rem' }}>
-            Số {p.houseNumber || (p as any).house_number} {p.street}
+            Số {p.houseNumber || p.house_number} {p.street}
           </div>
 
           {buildingType === 'CONDOMINIUM' && (
@@ -132,10 +132,10 @@ export const ParcelCardItem: React.FC<ParcelCardItemProps> = ({
 
       <div style={{ fontSize: '0.775rem', color: '#64748b', display: 'flex', flexWrap: 'wrap', gap: '0.75rem' }}>
         <span>
-          Chủ sở hữu: <strong>{p.ownerName || (p as any).owner_name || 'Chưa cập nhật'}</strong>
+          Chủ sở hữu: <strong>{p.ownerName || p.owner_name || 'Chưa cập nhật'}</strong>
         </span>
         <span>
-          Mã địa chính: <strong>{p.officialCadastralCode || (p as any).official_cadastral_code || 'Chưa có'}</strong>
+          Mã địa chính: <strong>{p.officialCadastralCode || p.official_cadastral_code || 'Chưa có'}</strong>
         </span>
       </div>
 

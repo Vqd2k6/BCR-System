@@ -1,11 +1,5 @@
 import React from 'react';
-import {
-  GisParcel,
-  SplitChildData,
-  MutationPayloadData,
-  CadastralParcelData,
-  CadastralBoundaryEditorProps,
-} from './shared/types';
+import type { GisParcel, SplitChildData, MutationPayloadData, CadastralParcelData, CadastralBoundaryEditorProps } from './shared/types';
 import { useCadastralMutation } from './cadastral-editor/hooks/useCadastralMutation';
 import { CadastralHeaderBar } from './cadastral-editor/components/CadastralHeaderBar';
 import { MatchPanel } from './cadastral-editor/components/panels/MatchPanel';

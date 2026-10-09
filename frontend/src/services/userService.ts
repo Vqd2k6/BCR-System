@@ -1,18 +1,22 @@
 import api from './api';
-import { UserRole } from '../core/types/domain.types';
+import type { UserRole } from '../core/types/domain.types';
 
 export interface AdminUser {
   id: string;
   username: string;
   fullName: string;
+  full_name?: string;
   email?: string | null;
   phone?: string | null;
   role: UserRole;
   assignedZoneId?: string | null;
+  assigned_zone_id?: string | null;
   status: 'ACTIVE' | 'SUSPENDED' | 'LOCKED';
   statusReason?: string | null;
   surveyorCode?: string | null;
+  surveyor_code?: string | null;
   signatureImageUrl?: string | null;
+  signature_image_url?: string | null;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -56,7 +60,30 @@ export interface UpdateUserPayload {
   signatureImageUrl?: string | null;
 }
 
-function normalizeAdminUser(u: any): AdminUser {
+export interface RawAdminUser {
+  id: string;
+  username: string;
+  fullName?: string;
+  full_name?: string;
+  email?: string | null;
+  phone?: string | null;
+  role: UserRole;
+  assignedZoneId?: string | null;
+  assigned_zone_id?: string | null;
+  status: 'ACTIVE' | 'SUSPENDED' | 'LOCKED';
+  statusReason?: string | null;
+  status_reason?: string | null;
+  surveyorCode?: string | null;
+  surveyor_code?: string | null;
+  signatureImageUrl?: string | null;
+  signature_image_url?: string | null;
+  createdAt?: string;
+  created_at?: string;
+  updatedAt?: string;
+  updated_at?: string;
+}
+
+function normalizeAdminUser(u: RawAdminUser): AdminUser {
   return {
     id: u.id,
     username: u.username,

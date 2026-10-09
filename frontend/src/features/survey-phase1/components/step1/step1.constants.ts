@@ -1,5 +1,5 @@
-import { ObjectGroupType } from '../../types/phase1.types';
-import { LevelOptionGuide } from '../LevelSelectorWithGuide';
+import type { ObjectGroupType } from '../../types/phase1.types';
+import type { LevelOptionGuide } from '../LevelSelectorWithGuide';
 
 export const OBJECT_GROUPS: { value: ObjectGroupType; label: string; desc: string; badgeColor: string }[] = [
   {

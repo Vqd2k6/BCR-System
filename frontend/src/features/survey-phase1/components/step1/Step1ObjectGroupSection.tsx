@@ -2,7 +2,7 @@ import React from 'react';
 import { Card } from '../../../../core/components/ui/Card';
 import { InfoPopover } from '../../../../core/components/ui/InfoPopover';
 import { ShieldAlert } from 'lucide-react';
-import { Phase1SurveyFormData } from '../../types/phase1.types';
+import type { Phase1SurveyFormData } from '../../types/phase1.types';
 import { OBJECT_GROUPS } from './step1.constants';
 
 interface Step1ObjectGroupSectionProps {

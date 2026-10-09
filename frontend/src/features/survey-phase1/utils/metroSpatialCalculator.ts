@@ -11,8 +11,8 @@ import {
   METRO_LINE2_CENTERLINE,
   METRO_CORRIDOR_BOUNDARIES,
   METRO_STATION_DETAILED_OUTLINES,
-  DetailedStationFootprint,
-  MetroCorridorBoundary,
+  type DetailedStationFootprint,
+  type MetroCorridorBoundary,
 } from '../constants/metroGisConstants';
 
 export { METRO_LINE2_CENTERLINE, METRO_CORRIDOR_BOUNDARIES, METRO_STATION_DETAILED_OUTLINES };

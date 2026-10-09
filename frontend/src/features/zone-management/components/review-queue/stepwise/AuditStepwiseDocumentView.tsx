@@ -25,14 +25,15 @@ import { AuditStep6ScopeGisMutation } from './steps/AuditStep6ScopeGisMutation';
 import { AuditStep7EcsViScores } from './steps/AuditStep7EcsViScores';
 import { AuditStep8Conclusions } from './steps/AuditStep8Conclusions';
 import { AuditStep9SignaturesAbsence } from './steps/AuditStep9SignaturesAbsence';
+import type { DiffItem, AuditStepwiseData, PhotoReplaceParams } from './types';
 
 export interface AuditStepwiseDocumentViewProps {
-  data: any;
+  data: AuditStepwiseData | Record<string, unknown>;
   reportId: string;
   onRefresh: () => void;
   onOpenPhotoZoom: (url: string, title?: string, photoCode?: string) => void;
-  onOpenPhotoReplace: (params: any) => void;
-  onOpenDiffModal: (diffItems: any[], updates: any) => void;
+  onOpenPhotoReplace: (params: PhotoReplaceParams) => void;
+  onOpenDiffModal: (diffItems: DiffItem[], updates: Record<string, unknown>) => void;
   onOpenEngineeringJudgement: () => void;
 }
 

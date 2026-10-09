@@ -270,28 +270,29 @@ export async function resolveOfflinePhotoUrl(uri?: string | null): Promise<strin
  * Quét đệ quy đối tượng dữ liệu (Form Data / Object / Array) và thay thế
  * mã tạm "blob:local://${localId}" thành URL Cloud chính thức sau khi tải lên Cloudflare R2
  */
-export function replaceLocalUriInObject(target: any, localId: string, cloudUrl: string): any {
+export function replaceLocalUriInObject<T>(target: T, localId: string, cloudUrl: string): T {
   if (target === null || target === undefined) return target;
 
   const targetUri = `blob:local://${localId}`;
 
   if (typeof target === 'string') {
     if (target === targetUri || target.startsWith(`${targetUri}?`)) {
-      return cloudUrl;
+      return cloudUrl as unknown as T;
     }
     return target;
   }
 
   if (Array.isArray(target)) {
-    return target.map((item) => replaceLocalUriInObject(item, localId, cloudUrl));
+    return target.map((item) => replaceLocalUriInObject(item, localId, cloudUrl)) as unknown as T;
   }
 
   if (typeof target === 'object') {
-    const updated: Record<string, any> = {};
-    for (const key of Object.keys(target)) {
-      updated[key] = replaceLocalUriInObject(target[key], localId, cloudUrl);
+    const updated: Record<string, unknown> = {};
+    const obj = target as Record<string, unknown>;
+    for (const key of Object.keys(obj)) {
+      updated[key] = replaceLocalUriInObject(obj[key], localId, cloudUrl);
     }
-    return updated;
+    return updated as T;
   }
 
   return target;

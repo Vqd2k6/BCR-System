@@ -1,5 +1,9 @@
 import React from 'react';
-import { GuestBraStats, BraRiskLevel, getBraColor } from '../utils/guestPortalHelpers';
+import {
+  type GuestBraStats,
+  type BraRiskLevel,
+  getBraColor,
+} from '../utils/guestPortalHelpers';
 import { ShieldAlert, Info } from 'lucide-react';
 
 interface Props {

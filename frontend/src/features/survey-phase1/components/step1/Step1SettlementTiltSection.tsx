@@ -4,7 +4,7 @@ import { Input } from '../../../../core/components/ui/FormControls';
 import { PhotoCaptureInput } from '../../../../components/common/PhotoCaptureInput';
 import { LevelSelectorWithGuide } from '../LevelSelectorWithGuide';
 import { Building, Plus, Trash2 } from 'lucide-react';
-import { Phase1SurveyFormData, EvidencePhotoItem } from '../../types/phase1.types';
+import type { Phase1SurveyFormData, EvidencePhotoItem } from '../../types/phase1.types';
 import { SETTLEMENT_LEVEL_OPTIONS, TILT_LEVEL_OPTIONS, DATA_SOURCES } from './step1.constants';
 
 interface MultiEvidencePhotoInputProps {

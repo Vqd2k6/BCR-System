@@ -1,9 +1,10 @@
 import React from 'react';
 import { Box, ShieldCheck, FileText, Info, X } from 'lucide-react';
-import { ActionFeedbackMessage } from '../types';
+import type { ActionFeedbackMessage } from '../types';
+import type { User } from '@/core/types/domain.types';
 
 interface Phase1ExportHeaderProps {
-  user: any;
+  user: User | null;
   token: string | null;
   actionMessage: ActionFeedbackMessage | null;
   onDismissActionMessage: () => void;

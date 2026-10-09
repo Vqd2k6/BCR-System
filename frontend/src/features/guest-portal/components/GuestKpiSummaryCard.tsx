@@ -1,5 +1,5 @@
 import React from 'react';
-import { GuestKpiStats } from '../utils/guestPortalHelpers';
+import type { GuestKpiStats } from '../utils/guestPortalHelpers';
 import {
   CheckCircle2,
   Clock,

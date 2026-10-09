@@ -10,8 +10,8 @@ import {
   ArrowRight,
   Sparkles,
 } from 'lucide-react';
-import { GisParcel } from '../../../gis/LeafletSweepMap';
-import { BuildingUnit } from '../types';
+import type { GisParcel } from '../../../gis/LeafletSweepMap';
+import type { BuildingUnit } from '../types';
 
 interface BuildingUnitCardProps {
   unit: BuildingUnit;

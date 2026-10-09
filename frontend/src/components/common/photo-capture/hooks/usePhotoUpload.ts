@@ -3,7 +3,7 @@ import { api } from '../../../../services/api';
 import { uploadQueue } from '../../../../core/services/uploadQueueService';
 import {
   generateMetroPhotoCode,
-  MetroWatermarkOptions,
+  type MetroWatermarkOptions,
 } from '../../../../utils/watermarkEngine';
 import {
   compressCleanImage,
@@ -18,7 +18,7 @@ import {
   extractLocalIdFromUri,
   resolveOfflinePhotoUrl,
 } from '../../../../core/storage/offlinePhotoStorage';
-import { UploadStatus } from '../types';
+import type { UploadStatus } from '../types';
 import { usePhase1SurveyStore } from '../../../../features/survey-phase1/store/usePhase1SurveyStore';
 
 interface UsePhotoUploadProps {

@@ -1,3 +1,4 @@
+import { getErrorMessage, getErrorStatus, isNotFoundError } from '@/utils/errorUtils';
 import React, { useState, useEffect } from 'react';
 import { Card } from '../../../core/components/ui/Card';
 import { Badge } from '../../../core/components/ui/Badge';
@@ -21,7 +22,10 @@ import {
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
-import { AdminUser, userService } from '../../../services/userService';
+import {
+  type AdminUser,
+  userService,
+} from '../../../services/userService';
 import { UserEditModal } from './UserEditModal';
 import { ResetPasswordModal } from './ResetPasswordModal';
 import { METRO_22_ZONES } from '../../survey-phase1/constants/metroGisConstants';
@@ -66,13 +70,13 @@ export const UserManagementTab: React.FC = () => {
         setUsers(res.data);
         setTotal(res.pagination?.total ?? res.data.length);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Lỗi khi tải danh sách người dùng:', err);
       setUsers([]);
       setTotal(0);
       setBannerMsg({
         type: 'error',
-        text: err?.response?.data?.detail || err?.response?.data?.message || err?.message || 'Không thể kết nối đến máy chủ để tải danh sách tài khoản',
+        text: getErrorMessage(err, 'Không thể kết nối đến máy chủ để tải danh sách tài khoản'),
       });
     } finally {
       setIsLoading(false);
@@ -103,10 +107,10 @@ export const UserManagementTab: React.FC = () => {
       await userService.updateStatus(user.id, nextStatus, `Thao tác bởi Quản trị viên lúc ${new Date().toLocaleTimeString()}`);
       setBannerMsg({ type: 'success', text: `Đã ${actionName} thành công tài khoản [${user.username}]` });
       fetchUsers();
-    } catch (err: any) {
+    } catch (err: unknown) {
       setBannerMsg({
         type: 'error',
-        text: err?.response?.data?.detail || err?.response?.data?.message || err?.message || `Không thể ${actionName} tài khoản`,
+        text: getErrorMessage(err, `Không thể ${actionName} tài khoản`),
       });
     }
   };
@@ -123,10 +127,10 @@ export const UserManagementTab: React.FC = () => {
       await userService.deleteUser(user.id);
       setBannerMsg({ type: 'success', text: `Đã vô hiệu hóa tài khoản [${user.username}] thành công` });
       fetchUsers();
-    } catch (err: any) {
+    } catch (err: unknown) {
       setBannerMsg({
         type: 'error',
-        text: err?.response?.data?.detail || err?.response?.data?.message || err?.message || 'Không thể xóa tài khoản',
+        text: getErrorMessage(err, 'Không thể xóa tài khoản'),
       });
     }
   };
@@ -319,9 +323,9 @@ export const UserManagementTab: React.FC = () => {
               </tr>
             ) : (
               users.map((u) => {
-                const fullName = u.fullName || (u as any).full_name || '---';
-                const assignedZone = u.assignedZoneId || (u as any).assigned_zone_id;
-                const surveyorCode = u.surveyorCode || (u as any).surveyor_code;
+                const fullName = u.fullName || u.full_name || '---';
+                const assignedZone = u.assignedZoneId || u.assigned_zone_id;
+                const surveyorCode = u.surveyorCode || u.surveyor_code;
                 const isSelf = u.id === currentUser?.id;
 
                 return (

@@ -1,3 +1,4 @@
+import { getErrorMessage, getErrorStatus, isNotFoundError } from '@/utils/errorUtils';
 import React, { useState } from 'react';
 import { X, AlertTriangle, Send, CheckSquare, Square } from 'lucide-react';
 import { api } from '../../../../services/api';
@@ -69,10 +70,10 @@ export const RejectReportModal: React.FC<Props> = ({
       } else {
         setErrorMsg(res.data?.message || 'Không thể gửi yêu cầu bổ sung.');
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('[RejectReportModal] Error rejecting report:', err);
       setErrorMsg(
-        err.response?.data?.message || err.message || 'Lỗi kết nối khi gửi yêu cầu bổ sung.'
+        getErrorMessage(err, 'Lỗi kết nối khi gửi yêu cầu bổ sung.')
       );
     } finally {
       setIsSubmitting(false);

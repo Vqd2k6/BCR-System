@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../../../context/AuthContext';
 import { getZoneCentroid, calculateDistanceMeters } from '../../../../core/utils/metroZoneUtils';
-import { CompanionRecord } from '../types';
+import type { CompanionRecord } from '../types';
 
 interface UseCompanionCheckInStateProps {
   isOpen: boolean;
-  onSuccess?: (data: any) => void;
+  onSuccess?: (data: CompanionRecord) => void;
 }
 
 export const useCompanionCheckInState = ({ isOpen, onSuccess }: UseCompanionCheckInStateProps) => {
@@ -274,7 +274,7 @@ export const useCompanionCheckInState = ({ isOpen, onSuccess }: UseCompanionChec
       setHasCheckedIn(true);
       setCheckInData(newRecord);
       if (onSuccess) onSuccess(newRecord);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Submit companion error:', err);
     } finally {
       setIsSubmitting(false);

@@ -1,4 +1,5 @@
-import { GisParcel } from '../../../../components/gis/LeafletSweepMap';
+import type { GisParcel } from '../../../../components/gis/LeafletSweepMap';
+import type { User } from '../../../../core/types/domain.types';
 import { getStatus } from './surveyorHomeHelpers';
 
 export interface WorkProgressItem {
@@ -95,7 +96,8 @@ export const formatRelativeUpdateTime = (dateInput: string | Date | number | nul
  * Trích xuất thời điểm cập nhật chính xác nhất từ Parcel (kết hợp CSDL và LocalStorage draft)
  */
 export const getEffectiveUpdatedAt = (parcel: GisParcel): Date | null => {
-  let effectiveDateStr: string | null = parcel.updatedAt || (parcel as any).updated_at || null;
+  const rawUpdated = parcel.updatedAt || parcel.updated_at || null;
+  let effectiveDateStr: string | null = rawUpdated instanceof Date ? rawUpdated.toISOString() : (rawUpdated ? String(rawUpdated) : null);
 
   // Kiểm tra override hoặc draft trong LocalStorage nếu có
   if (parcel.id) {
@@ -143,7 +145,7 @@ export interface FilteredWorkProgress {
  */
 export const filterParcelsByWorkProgress = (
   parcels: GisParcel[],
-  currentUser?: any
+  currentUser?: User | null
 ): FilteredWorkProgress => {
   const inProgressToday: WorkProgressItem[] = [];
   const inProgressThisWeek: WorkProgressItem[] = [];

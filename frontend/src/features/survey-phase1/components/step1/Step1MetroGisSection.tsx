@@ -2,7 +2,7 @@ import React from 'react';
 import { Card } from '../../../../core/components/ui/Card';
 import { InfoPopover } from '../../../../core/components/ui/InfoPopover';
 import { MapPin } from 'lucide-react';
-import { Phase1SurveyFormData } from '../../types/phase1.types';
+import type { Phase1SurveyFormData } from '../../types/phase1.types';
 
 interface Step1MetroGisSectionProps {
   formData: Phase1SurveyFormData;

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Edit3, AlertCircle, Check, RefreshCw, Eye, Printer, ShieldCheck } from 'lucide-react';
-import { EditFormData, EditFormDefectItem } from '../../types';
+import type { EditFormData, EditFormDefectItem } from '../../types';
 import { GeneralAndFoundationSection } from './edit-form/GeneralAndFoundationSection';
 import { AdjacentAndDeformationSection } from './edit-form/AdjacentAndDeformationSection';
 import { BurlandAndDefectsSection } from './edit-form/BurlandAndDefectsSection';
@@ -13,7 +13,7 @@ interface Phase1EditFormTabProps {
   defectFilterQuery: string;
   setDefectFilterQuery: (query: string) => void;
   handleUpdateFormField: <K extends keyof EditFormData>(field: K, value: EditFormData[K]) => void;
-  handleUpdateDefectField: (defectId: string, field: keyof EditFormDefectItem, value: any) => void;
+  handleUpdateDefectField: <K extends keyof EditFormDefectItem>(defectId: string, field: K, value: EditFormDefectItem[K]) => void;
   handleAddDefect: () => void;
   handleDeleteDefect: (defectId: string) => void;
   handleApplyPreviewWithoutSaving: () => void;

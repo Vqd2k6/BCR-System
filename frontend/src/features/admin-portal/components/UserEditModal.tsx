@@ -1,3 +1,4 @@
+import { getErrorMessage, getErrorStatus, isNotFoundError } from '@/utils/errorUtils';
 import React, { useState, useEffect } from 'react';
 import { Button } from '../../../core/components/ui/Button';
 import { Input } from '../../../core/components/ui/FormControls';
@@ -13,8 +14,13 @@ import {
   FileSignature,
 } from 'lucide-react';
 import api from '../../../services/api';
-import { AdminUser, userService, CreateUserPayload, UpdateUserPayload } from '../../../services/userService';
-import { UserRole } from '../../../core/types/domain.types';
+import {
+  type AdminUser,
+  userService,
+  type CreateUserPayload,
+  type UpdateUserPayload,
+} from '../../../services/userService';
+import type { UserRole } from '../../../core/types/domain.types';
 import { METRO_22_ZONES } from '../../survey-phase1/constants/metroGisConstants';
 
 interface Props {
@@ -46,13 +52,13 @@ export const UserEditModal: React.FC<Props> = ({
   useEffect(() => {
     if (user) {
       setUsername(user.username || '');
-      setFullName(user.fullName || (user as any).full_name || '');
+      setFullName(user.fullName || user.full_name || '');
       setEmail(user.email || '');
       setPhone(user.phone || '');
       setRole(user.role);
-      const userZone = user.assignedZoneId || (user as any).assigned_zone_id;
+      const userZone = user.assignedZoneId || user.assigned_zone_id;
       setAssignedZoneId(userZone || (user.role === 'ZONE_ADMIN' || user.role === 'GUEST' ? 'ALL_ZONES' : 'ZONE_01'));
-      setSignatureImageUrl(user.signatureImageUrl || (user as any).signature_image_url || null);
+      setSignatureImageUrl(user.signatureImageUrl || user.signature_image_url || null);
       setPassword('');
     } else {
       setUsername('');
@@ -166,12 +172,9 @@ export const UserEditModal: React.FC<Props> = ({
       }
       onSuccess();
       onClose();
-    } catch (err: any) {
+    } catch (err: unknown) {
       const errorMsg =
-        err?.response?.data?.detail ||
-        err?.response?.data?.message ||
-        err?.message ||
-        'Có lỗi xảy ra khi lưu thông tin người dùng';
+        getErrorMessage(err, 'Có lỗi xảy ra khi lưu thông tin người dùng');
       setError(errorMsg);
     } finally {
       setIsLoading(false);
@@ -195,7 +198,7 @@ export const UserEditModal: React.FC<Props> = ({
     }
   };
 
-  const existingSurveyorCode = user?.surveyorCode || (user as any)?.surveyor_code;
+  const existingSurveyorCode = user?.surveyorCode || user?.surveyor_code;
 
   return (
     <div className="fixed inset-0 z-[99999] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
@@ -311,7 +314,7 @@ export const UserEditModal: React.FC<Props> = ({
             </label>
             <select
               value={role}
-              onChange={(e) => setRole(e.target.value as any)}
+              onChange={(e) => setRole(e.target.value as UserRole)}
               className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 shadow-sm"
             >
               <option value="SURVEYOR">Điều Tra Viên Hiện Trường (SURVEYOR)</option>

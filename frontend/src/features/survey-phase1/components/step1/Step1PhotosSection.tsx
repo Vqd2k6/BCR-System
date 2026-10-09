@@ -4,7 +4,7 @@ import { Button } from '../../../../core/components/ui/Button';
 import { Select } from '../../../../core/components/ui/FormControls';
 import { PhotoCaptureInput } from '../../../../components/common/PhotoCaptureInput';
 import { Camera, Maximize2, ArrowRight, Plus, Trash2 } from 'lucide-react';
-import { Phase1SurveyFormData } from '../../types/phase1.types';
+import type { Phase1SurveyFormData } from '../../types/phase1.types';
 import { P03_TAGS } from './step1.constants';
 import { usePhase1SurveyStore } from '../../store/usePhase1SurveyStore';
 

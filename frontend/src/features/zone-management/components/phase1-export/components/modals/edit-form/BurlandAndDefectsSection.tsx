@@ -1,13 +1,13 @@
 import React from 'react';
 import { ShieldCheck, FileSpreadsheet, Search, Plus, Trash2 } from 'lucide-react';
-import { EditFormData, EditFormDefectItem } from '../../../types';
+import type { EditFormData, EditFormDefectItem } from '../../../types';
 
 interface BurlandAndDefectsSectionProps {
   editFormData: EditFormData;
   defectFilterQuery: string;
   setDefectFilterQuery: (query: string) => void;
   handleUpdateFormField: <K extends keyof EditFormData>(field: K, value: EditFormData[K]) => void;
-  handleUpdateDefectField: (defectId: string, field: keyof EditFormDefectItem, value: any) => void;
+  handleUpdateDefectField: <K extends keyof EditFormDefectItem>(defectId: string, field: K, value: EditFormDefectItem[K]) => void;
   handleAddDefect: () => void;
   handleDeleteDefect: (defectId: string) => void;
 }
@@ -275,7 +275,7 @@ export const BurlandAndDefectsSection: React.FC<BurlandAndDefectsSectionProps> =
                     <label className="text-[10px] font-bold text-slate-600 block mb-0.5">Cấp Burland Z</label>
                     <select
                       value={defect.burlandGrade}
-                      onChange={(e) => handleUpdateDefectField(defect.id, 'burlandGrade', e.target.value)}
+                      onChange={(e) => handleUpdateDefectField(defect.id, 'burlandGrade', Number(e.target.value))}
                       className="w-full bg-white border border-slate-300 rounded-md p-1.5 text-xs text-slate-800 focus:border-sky-500 outline-none"
                     >
                       <option value="0">Grade 0</option>

@@ -18,7 +18,7 @@ import { useAuth } from '../../../../context/AuthContext';
 import { ParcelMutationHistoryModal } from '../../cadastral-editor/components/ParcelMutationHistoryModal';
 import { CadastralSpatialSwapModal } from '../../cadastral-editor/components/CadastralSpatialSwapModal';
 import { CadastralBoundaryReshapeModal } from '../../cadastral-editor/components/CadastralBoundaryReshapeModal';
-import { GisParcel } from '../../shared/types';
+import type { GisParcel } from '../../shared/types';
 import { getEffectiveParcelStatus, getStatusBadge, isNonBuildingParcel } from '../utils/sweepMapHelpers';
 
 interface ParcelDetailBottomSheetProps {

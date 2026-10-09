@@ -128,7 +128,7 @@ export const AuditMetroSpatialVisualMap: React.FC<Props> = ({
   }, [effectivePolygon, closestCenterPoint, closestCenterVertex, closestOuterPoint, closestOuterVertex, closestStationFootprint]);
 
   // Helper bóc tách số an toàn (loại bỏ hậu tố 'm', 'm2' nếu có như "9.3m")
-  const parseCleanNumber = (val: any, fallback: number): number => {
+  const parseCleanNumber = (val: unknown, fallback: number): number => {
     if (val === undefined || val === null || val === '') return fallback;
     if (typeof val === 'number' && !isNaN(val)) return val;
     const cleaned = String(val).replace(/[^\d.-]/g, '');
