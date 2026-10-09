@@ -1,26 +1,29 @@
-import { getErrorMessage, getErrorStatus, isNotFoundError } from '@/utils/errorUtils';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   X,
   Layers,
-  Upload,
-  Square,
-  Sparkles,
+  Building2,
   CheckCircle2,
   AlertCircle,
-  Copy,
   Plus,
   Trash2,
-  Eye,
-  FileCheck,
+  Copy,
+  ChevronRight,
+  ExternalLink,
+  Sparkles,
+  Link as LinkIcon,
+  RefreshCw,
+  Loader2,
 } from 'lucide-react';
 import type { GisParcel } from '../../../gis/LeafletSweepMap';
-import { PhotoCaptureInput } from '../../../common/PhotoCaptureInput';
+import { CadBlueprintUploader } from './CadBlueprintUploader';
+import { TypicalFloorsSelectorModal } from './TypicalFloorsSelectorModal';
 import {
   FloorPlanCadPartitionCanvas,
   type UnitPartitionBox,
 } from '../../../canvas/FloorPlanCadPartitionCanvas';
 import { api } from '../../../../services/api';
+import { getErrorMessage } from '@/utils/errorUtils';
 
 interface FloorPlanItem {
   id: string;
@@ -33,9 +36,21 @@ interface FloorPlanItem {
 interface CadUnitItem {
   id: string;
   unit_code: string;
+  floor_number?: number;
   cad_bbox?: { x: number; y: number; width: number; height: number };
   cad_polygon?: { x: number; y: number }[];
   unit_cad_url?: string;
+}
+
+interface BuildingFloorItem {
+  floorNumber: number;
+  floorName: string;
+  hasCad: boolean;
+  cadPhotoUrl?: string;
+  applicableFloors?: number[];
+  unitCount: number;
+  isInherited: boolean;
+  inheritedFromFloor?: number;
 }
 
 interface Props {
@@ -53,118 +68,249 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
 }) => {
   const parcelId = parcel.id;
   const projectCode = parcel.projectParcelCode || parcel.project_parcel_code || 'B-XXXXX';
+  const initialFloorCount = parcel.floorCount || parcel.floor_count || 5;
 
-  const [activeFloor, setActiveFloor] = useState<number>(3);
-  const [floorName, setFloorName] = useState<string>('Tầng 3');
-  const [cadUrl, setCadUrl] = useState<string>('');
-  const [applicableFloorsStr, setApplicableFloorsStr] = useState<string>('3, 4, 5, 6, 7, 8');
-  const [partitions, setPartitions] = useState<UnitPartitionBox[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [isSaving, setIsSaving] = useState<boolean>(false);
+  // Danh sách tầng tùy chỉnh bổ sung bởi người dùng (nếu có tầng hầm hoặc tầng phát sinh)
+  const [customFloors, setCustomFloors] = useState<number[]>([]);
+  const [newFloorInput, setNewFloorInput] = useState<string>('');
+  const [showAddFloorInput, setShowAddFloorInput] = useState<boolean>(false);
+
+  // Dữ liệu từ API
   const [existingFloorPlans, setExistingFloorPlans] = useState<FloorPlanItem[]>([]);
+  const [allUnits, setAllUnits] = useState<CadUnitItem[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isSaving, setIsSaving] = useState<boolean>(false);
   const [saveSuccessMsg, setSaveSuccessMsg] = useState<string>('');
 
-  // Tải danh sách floor plans hiện có
-  const loadFloorPlans = async () => {
+  // Tầng đang được chọn thao tác
+  const [activeFloor, setActiveFloor] = useState<number>(1);
+  const [floorName, setFloorName] = useState<string>('Tầng 1');
+  const [cadUrl, setCadUrl] = useState<string>('');
+  const [applicableFloors, setApplicableFloors] = useState<number[]>([1]);
+  const [partitions, setPartitions] = useState<UnitPartitionBox[]>([]);
+  const [isTypicalModalOpen, setIsTypicalModalOpen] = useState<boolean>(false);
+
+  // 1. Tải toàn bộ Floor Plans & Units của thửa đất
+  const fetchAllFloorData = useCallback(async () => {
     try {
       setIsLoading(true);
-      const res = await api.get(`/parcels/${parcelId}/floor-plans`);
-      if (res.data?.success && res.data.data?.plans) {
-        setExistingFloorPlans(res.data.data.plans);
-        // Nếu đã có plan cho activeFloor, nạp vào state
-        const current = res.data.data.plans.find((p: FloorPlanItem) => p.floor_number === activeFloor);
-        if (current) {
-          setCadUrl(current.cad_photo_url);
-          setFloorName(current.floor_name);
-          if (current.applicable_floors) {
-            setApplicableFloorsStr(current.applicable_floors.join(', '));
-          }
-        }
+      const [plansRes, unitsRes] = await Promise.all([
+        api.get(`/parcels/${parcelId}/floor-plans`).catch((err) => {
+          console.warn('[FloorPlanCadModal:getFloorPlans] Lỗi nạp floor plans:', err);
+          return { data: { data: { plans: [] } } };
+        }),
+        api.get(`/parcels/${parcelId}/units`).catch((err) => {
+          console.warn('[FloorPlanCadModal:getUnits] Lỗi nạp danh sách căn hộ:', err);
+          return { data: { data: { units: [] } } };
+        }),
+      ]);
+
+      const plans: FloorPlanItem[] = plansRes.data?.data?.plans || [];
+      const units: CadUnitItem[] = unitsRes.data?.data?.units || [];
+
+      setExistingFloorPlans(plans);
+      setAllUnits(units);
+
+      // Nếu đã có plans, tự động chọn tầng đầu tiên có CAD hoặc Tầng 1
+      if (plans.length > 0) {
+        const first = plans[0];
+        setActiveFloor(first.floor_number);
+        setCadUrl(first.cad_photo_url);
+        setFloorName(first.floor_name);
+        setApplicableFloors(first.applicable_floors || [first.floor_number]);
       }
-    } catch (_err) {
-      console.warn('Chưa có floor plans hoặc lỗi kết nối');
+    } catch (err) {
+      console.warn('[FloorPlanCad] Lỗi nạp dữ liệu tòa nhà:', err);
     } finally {
       setIsLoading(false);
     }
-  };
-
-  // Tải danh sách partitions của activeFloor
-  const loadFloorDetails = async (floor: number) => {
-    try {
-      const res = await api.get(`/parcels/${parcelId}/floor-plans/${floor}`);
-      if (res.data?.success) {
-        const { plan, units } = res.data.data;
-        if (plan) {
-          setCadUrl(plan.cad_photo_url);
-          setFloorName(plan.floor_name);
-          if (plan.applicable_floors) {
-            setApplicableFloorsStr(plan.applicable_floors.join(', '));
-          }
-        }
-        if (units && units.length > 0) {
-          const boxes: UnitPartitionBox[] = (units as CadUnitItem[])
-            .filter((u: CadUnitItem) => Boolean(u.cad_bbox))
-            .map((u: CadUnitItem) => ({
-              id: u.id,
-              unitCode: u.unit_code,
-              x: u.cad_bbox?.x ?? 0,
-              y: u.cad_bbox?.y ?? 0,
-              width: u.cad_bbox?.width ?? 0,
-              height: u.cad_bbox?.height ?? 0,
-              polygon: u.cad_polygon || undefined,
-              unitCadUrl: u.unit_cad_url || undefined,
-            }));
-          setPartitions(boxes);
-        } else {
-          setPartitions([]);
-        }
-      }
-    } catch (_err) {
-      console.warn('Lỗi tải chi tiết tầng');
-    }
-  };
-
-  useEffect(() => {
-    loadFloorPlans();
   }, [parcelId]);
 
   useEffect(() => {
-    loadFloorDetails(activeFloor);
-  }, [activeFloor]);
+    fetchAllFloorData();
+  }, [fetchAllFloorData]);
 
-  // Xử lý lưu mặt bằng CAD và phân chia căn hộ
+  // 2. Tính toán danh sách đầy đủ các tầng của tòa nhà
+  const buildingFloors = useMemo<BuildingFloorItem[]>(() => {
+    const floorSet = new Set<number>();
+
+    // Sinh các tầng từ 1 đến initialFloorCount
+    for (let i = 1; i <= Math.max(1, initialFloorCount); i++) {
+      floorSet.add(i);
+    }
+
+    // Bổ sung các tầng từ existingFloorPlans
+    for (const p of existingFloorPlans) {
+      floorSet.add(p.floor_number);
+      if (p.applicable_floors) {
+        p.applicable_floors.forEach((f) => floorSet.add(f));
+      }
+    }
+
+    // Bổ sung các tầng tùy chỉnh
+    customFloors.forEach((f) => floorSet.add(f));
+
+    // Sắp xếp tầng từ cao xuống thấp (Top to Bottom)
+    const sortedFloors = Array.from(floorSet).sort((a, b) => b - a);
+
+    return sortedFloors.map((flNum) => {
+      // Tìm plan riêng của tầng
+      const directPlan = existingFloorPlans.find((p) => p.floor_number === flNum);
+
+      // Nếu không có plan riêng, kiểm tra xem có tầng nào dùng chung cho tầng này không
+      const sharedPlan = existingFloorPlans.find(
+        (p) => p.floor_number !== flNum && p.applicable_floors && p.applicable_floors.includes(flNum)
+      );
+
+      const hasDirectCad = Boolean(directPlan?.cad_photo_url);
+      const isInherited = !hasDirectCad && Boolean(sharedPlan?.cad_photo_url);
+
+      const effectivePlan = directPlan || sharedPlan;
+      const unitCount = allUnits.filter((u) => (u.floor_number ?? 1) === flNum).length;
+
+      let defaultName = `Tầng ${flNum}`;
+      if (flNum === 0) defaultName = 'Tầng Trệt / G';
+      if (flNum < 0) defaultName = `Hầm B${Math.abs(flNum)}`;
+
+      return {
+        floorNumber: flNum,
+        floorName: effectivePlan?.floor_name || defaultName,
+        hasCad: hasDirectCad || isInherited,
+        cadPhotoUrl: effectivePlan?.cad_photo_url,
+        applicableFloors: effectivePlan?.applicable_floors,
+        unitCount,
+        isInherited,
+        inheritedFromFloor: isInherited ? sharedPlan?.floor_number : undefined,
+      };
+    });
+  }, [initialFloorCount, existingFloorPlans, customFloors, allUnits]);
+
+  // 3. Tải chi tiết tầng đang chọn (partitions & CAD)
+  const loadActiveFloorDetails = useCallback(
+    async (floorNum: number) => {
+      try {
+        const res = await api.get(`/parcels/${parcelId}/floor-plans/${floorNum}`);
+        if (res.data?.success) {
+          const { plan, units } = res.data.data;
+          if (plan) {
+            setCadUrl(plan.cad_photo_url || '');
+            setFloorName(plan.floor_name || `Tầng ${floorNum}`);
+            setApplicableFloors(plan.applicable_floors || [floorNum]);
+          } else {
+            // Kiểm tra xem tầng này có đang thừa hưởng từ tầng điển hình nào không
+            const sharedPlan = existingFloorPlans.find(
+              (p) => p.applicable_floors && p.applicable_floors.includes(floorNum)
+            );
+            if (sharedPlan) {
+              setCadUrl(sharedPlan.cad_photo_url || '');
+              setFloorName(`Tầng ${floorNum} (Dùng chung ${sharedPlan.floor_name})`);
+              setApplicableFloors(sharedPlan.applicable_floors || [sharedPlan.floor_number]);
+            } else {
+              setCadUrl('');
+              setFloorName(`Tầng ${floorNum}`);
+              setApplicableFloors([floorNum]);
+            }
+          }
+
+          if (units && Array.isArray(units) && units.length > 0) {
+            const boxes: UnitPartitionBox[] = (units as CadUnitItem[])
+              .filter((u) => Boolean(u.cad_bbox))
+              .map((u) => ({
+                id: u.id,
+                unitCode: u.unit_code,
+                x: u.cad_bbox?.x ?? 0,
+                y: u.cad_bbox?.y ?? 0,
+                width: u.cad_bbox?.width ?? 0,
+                height: u.cad_bbox?.height ?? 0,
+                polygon: u.cad_polygon || undefined,
+                unitCadUrl: u.unit_cad_url || undefined,
+              }));
+            setPartitions(boxes);
+          } else {
+            setPartitions([]);
+          }
+        }
+      } catch (err) {
+        console.warn(`[FloorPlanCad] Lỗi tải chi tiết Tầng ${floorNum}:`, err);
+      }
+    },
+    [parcelId, existingFloorPlans]
+  );
+
+  // Chuyển tầng
+  const handleSelectFloor = (floorNum: number) => {
+    setActiveFloor(floorNum);
+    setSaveSuccessMsg('');
+    loadActiveFloorDetails(floorNum);
+  };
+
+  // Thêm tầng mới vào danh sách
+  const handleAddCustomFloor = () => {
+    const parsed = parseInt(newFloorInput.trim(), 10);
+    if (!isNaN(parsed) && !buildingFloors.some((f) => f.floorNumber === parsed)) {
+      setCustomFloors((prev) => [...prev, parsed]);
+      setActiveFloor(parsed);
+      setNewFloorInput('');
+      setShowAddFloorInput(false);
+      loadActiveFloorDetails(parsed);
+    }
+  };
+
+  // Kế thừa CAD từ tầng khác
+  const handleCopyCadFromFloor = (sourceFloor: { floorNumber: number; floorName: string; cadPhotoUrl: string }) => {
+    setCadUrl(sourceFloor.cadPhotoUrl);
+    setFloorName(`Tầng ${activeFloor} (Theo ${sourceFloor.floorName})`);
+    // Lấy partitions của tầng nguồn nếu có
+    const sourceUnits = allUnits.filter((u) => (u.floor_number ?? 1) === sourceFloor.floorNumber);
+    if (sourceUnits.length > 0) {
+      const mm = String(activeFloor).padStart(2, '0');
+      const copiedBoxes: UnitPartitionBox[] = sourceUnits
+        .filter((u) => Boolean(u.cad_bbox))
+        .map((u) => {
+          const parts = u.unit_code.split('.');
+          const nn = parts.length > 1 ? parts[1] : u.unit_code;
+          return {
+            id: `unit_box_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+            unitCode: `${mm}.${nn}`,
+            x: u.cad_bbox?.x ?? 0,
+            y: u.cad_bbox?.y ?? 0,
+            width: u.cad_bbox?.width ?? 0,
+            height: u.cad_bbox?.height ?? 0,
+            polygon: u.cad_polygon || undefined,
+            unitCadUrl: u.unit_cad_url || undefined,
+          };
+        });
+      setPartitions(copiedBoxes);
+    }
+  };
+
+  // 4. Lưu Floor Plan & Đồng bộ Partitions
   const handleSaveFloorPlanAndPartitions = async (newPartitions?: UnitPartitionBox[]) => {
     if (!cadUrl) {
-      alert('Vui lòng upload ảnh bản vẽ CAD mặt bằng tầng trước khi lưu!');
+      alert('Vui lòng tải lên bản vẽ CAD cho tầng này trước khi lưu!');
       return;
     }
 
     const targetPartitions = newPartitions || partitions;
-
     setIsSaving(true);
     setSaveSuccessMsg('');
+
     try {
-      // 1. Parse danh sách tầng áp dụng
-      const applicableFloors = applicableFloorsStr
-        .split(',')
-        .map((s) => parseInt(s.trim(), 10))
-        .filter((n) => !isNaN(n));
+      const targetApplicableFloors = applicableFloors.includes(activeFloor)
+        ? applicableFloors
+        : [...applicableFloors, activeFloor].sort((a, b) => a - b);
 
-      if (!applicableFloors.includes(activeFloor)) {
-        applicableFloors.push(activeFloor);
-      }
-
-      // 2. Lưu floor plan
+      // 1. Lưu bản vẽ Floor Plan
       const planRes = await api.post(`/parcels/${parcelId}/floor-plans`, {
         floorNumber: activeFloor,
         floorName: floorName || `Tầng ${activeFloor}`,
-        applicableFloors,
+        applicableFloors: targetApplicableFloors,
         cadPhotoUrl: cadUrl,
       });
 
       const floorPlanId = planRes.data?.data?.plan?.id;
 
-      // 3. Chuẩn bị partitions cho tầng hiện tại và các tầng điển hình nếu áp dụng
+      // 2. Chuẩn bị partitions cho tầng gốc và tất cả các tầng điển hình
       const allFloorPartitions: {
         unitCode: string;
         floorNumber: number;
@@ -172,10 +318,12 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
         unitCadUrl?: string;
       }[] = [];
 
-      for (const fl of applicableFloors) {
-        const mm = String(fl).padStart(2, '0');
+      for (const fl of targetApplicableFloors) {
+        let mm = String(fl).padStart(2, '0');
+        if (fl === 0) mm = 'G';
+        if (fl < 0) mm = `B${Math.abs(fl)}`;
+
         for (const p of targetPartitions) {
-          // Trích xuất số phòng nn từ mã căn (VD: 03.05 -> nn = 05)
           const parts = p.unitCode.split('.');
           const nn = parts.length > 1 ? parts[1] : p.unitCode;
           const uCode = `${mm}.${nn}`;
@@ -194,7 +342,7 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
         }
       }
 
-      // 4. Lưu partitions
+      // 3. Lưu partitions vào CSDL
       await api.post(`/parcels/${parcelId}/floor-plans/partitions`, {
         floorNumber: activeFloor,
         floorPlanId,
@@ -202,45 +350,69 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
       });
 
       setSaveSuccessMsg(
-        `Đã lưu thành công bản vẽ CAD và tự động sinh ${allFloorPartitions.length} căn hộ cho các tầng [${applicableFloors.join(', ')}]!`
+        `Đã lưu thành công bản vẽ CAD và đồng bộ ${allFloorPartitions.length} căn hộ cho các tầng [${targetApplicableFloors.join(
+          ', '
+        )}]!`
       );
 
       if (onUnitsUpdated) {
         onUnitsUpdated();
       }
-      loadFloorPlans();
+      fetchAllFloorData();
     } catch (err: unknown) {
-      alert(`Lỗi khi lưu phân chia mặt bằng: ${getErrorMessage(err, 'Lỗi mạng')}`);
+      console.error('[FloorPlanCadModal:handleSaveFloorPlanAndPartitions] Lỗi khi lưu phân chia mặt bằng:', err);
+      alert(`Lỗi khi lưu phân chia mặt bằng: ${getErrorMessage(err, 'Lỗi kết nối')}`);
     } finally {
       setIsSaving(false);
     }
   };
 
+  // Tìm tầng hiện tại trong buildingFloors
+  const currentFloorItem = buildingFloors.find((f) => f.floorNumber === activeFloor);
+
+  // Danh sách các tầng khác đã có CAD để gợi ý kế thừa
+  const otherFloorsWithCad = useMemo(() => {
+    return buildingFloors
+      .filter((f) => f.floorNumber !== activeFloor && f.hasCad && f.cadPhotoUrl)
+      .map((f) => ({
+        floorNumber: f.floorNumber,
+        floorName: f.floorName,
+        cadPhotoUrl: f.cadPhotoUrl!,
+        unitCount: f.unitCount,
+      }));
+  }, [buildingFloors, activeFloor]);
+
   return (
-    <div className="fixed inset-0 z-[100001] bg-slate-900/80 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 animate-in fade-in duration-150">
-      <div className="bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl w-full max-w-6xl max-h-[96vh] flex flex-col overflow-hidden text-white">
-        {/* Header Modal */}
-        <div className="flex items-center justify-between px-5 py-3.5 bg-slate-850 border-b border-slate-800">
+    <div className="fixed inset-0 z-[100001] bg-slate-950/85 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 animate-in fade-in duration-150">
+      <div className="bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl w-full max-w-7xl h-[95vh] flex flex-col overflow-hidden text-white">
+        {/* ========================================================= */}
+        {/* 1. Header Studio Bar */}
+        {/* ========================================================= */}
+        <div className="flex items-center justify-between px-5 py-3.5 bg-slate-850 border-b border-slate-800 shrink-0">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-xl bg-teal-500/20 text-teal-400 border border-teal-500/30">
-              <Layers className="w-5 h-5" />
+            <div className="p-2.5 rounded-2xl bg-teal-500/20 text-teal-400 border border-teal-500/30 shadow-md">
+              <Building2 className="w-5 h-5" />
             </div>
             <div>
               <h2 className="text-base font-bold text-white flex items-center gap-2">
-                {readOnly ? 'Sơ Đồ Mặt Bằng & Căn Hộ Tầng CAD (Chỉ Đọc)' : 'Quản Lý Mặt Bằng Tầng CAD & Chia Cắt Căn Hộ'}
-                <span className="text-xs font-mono font-bold px-2 py-0.5 rounded-full bg-teal-950 text-teal-300 border border-teal-700">
+                Quản Lý Bản Vẽ CAD & Phân Chia Mặt Bằng Chung Cư
+                <span className="text-xs font-mono font-bold px-2.5 py-0.5 rounded-full bg-teal-950 text-teal-300 border border-teal-700">
                   {projectCode}
                 </span>
                 {readOnly && (
                   <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-sky-950 text-sky-300 border border-sky-700">
-                    Khảo Sát Viên
+                    Khảo Sát Viên (Chỉ Đọc)
                   </span>
                 )}
               </h2>
-              <p className="text-xs text-slate-400">
-                {readOnly
-                  ? 'Xem sơ đồ kiến trúc mặt bằng tầng và định vị ô căn hộ đã được Zone Admin cấu hình.'
-                  : 'Upload bản vẽ CAD mặt bằng tầng và kéo thả chia cắt các ô căn hộ để tự động import khi khảo sát căn con.'}
+              <p className="text-xs text-slate-400 flex items-center gap-2">
+                <span>Quy mô: <strong>{buildingFloors.length} tầng</strong></span>
+                <span>•</span>
+                <span>Tổng số căn hộ hiện có: <strong className="text-teal-300">{allUnits.length} căn</strong></span>
+                <span>•</span>
+                <span>
+                  Địa chỉ: {[parcel.houseNumber, parcel.street].filter(Boolean).join(' ') || 'Đang cập nhật'}
+                </span>
               </p>
             </div>
           </div>
@@ -254,158 +426,226 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
           </button>
         </div>
 
-        {/* Content Body */}
-        <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4">
-          {/* Controls Bar: Chọn tầng, Tên mặt bằng, Dải tầng áp dụng */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-3 bg-slate-850 p-3.5 rounded-2xl border border-slate-800">
-            <div>
-              <label className="block text-xs font-bold text-slate-300 mb-1">
-                Tầng đang thao tác:
-              </label>
-              <div className="flex items-center gap-2">
-                <input
-                  type="number"
-                  min={1}
-                  max={99}
-                  value={activeFloor}
-                  onChange={(e) => setActiveFloor(parseInt(e.target.value, 10) || 1)}
-                  className="w-20 px-3 py-1.5 rounded-xl bg-slate-800 border border-slate-700 text-sm font-bold text-teal-400 focus:outline-none focus:border-teal-500"
-                />
-                <span className="text-xs text-slate-400">
-                  {existingFloorPlans.some((p) => p.floor_number === activeFloor) ? (
-                    <span className="text-emerald-400 font-bold">✓ Đã có CAD</span>
-                  ) : (
-                    <span className="text-amber-400">Chưa có CAD</span>
-                  )}
-                </span>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-300 mb-1">
-                Tên mặt bằng / Mô tả:
-              </label>
-              {readOnly ? (
-                <div className="px-3 py-1.5 rounded-xl bg-slate-800/80 border border-slate-750 text-xs font-medium text-slate-200 truncate">
-                  {floorName || `Tầng ${activeFloor}`}
-                </div>
-              ) : (
-                <input
-                  type="text"
-                  value={floorName}
-                  onChange={(e) => setFloorName(e.target.value)}
-                  placeholder="VD: Tầng điển hình 3-8"
-                  className="w-full px-3 py-1.5 rounded-xl bg-slate-800 border border-slate-700 text-xs font-medium text-white focus:outline-none focus:border-teal-500"
-                />
-              )}
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-slate-300 mb-1">
-                Áp dụng dải tầng điển hình:
-              </label>
-              {readOnly ? (
-                <div className="px-3 py-1.5 rounded-xl bg-slate-800/80 border border-slate-750 text-xs font-mono text-teal-300 truncate">
-                  {applicableFloorsStr || String(activeFloor)}
-                </div>
-              ) : (
-                <input
-                  type="text"
-                  value={applicableFloorsStr}
-                  onChange={(e) => setApplicableFloorsStr(e.target.value)}
-                  placeholder="VD: 3, 4, 5, 6, 7, 8"
-                  className="w-full px-3 py-1.5 rounded-xl bg-slate-800 border border-slate-700 text-xs font-mono text-teal-300 focus:outline-none focus:border-teal-500"
-                />
-              )}
-            </div>
-
-            <div className="flex items-end">
-              {readOnly ? (
-                <div className="w-full flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-slate-800 text-teal-300 border border-teal-500/30 text-xs font-bold">
-                  <Layers className="w-3.5 h-3.5 text-teal-400" />
-                  <span>Sơ Đồ Tham Khảo</span>
-                </div>
-              ) : (
+        {/* ========================================================= */}
+        {/* 2. Main Studio Body: 2-Column Split */}
+        {/* ========================================================= */}
+        <div className="flex-1 flex overflow-hidden">
+          {/* ------------------------------------------------------- */}
+          {/* CỘT TRÁI: Floor Navigation Sidebar (Quản lý các tầng) */}
+          {/* ------------------------------------------------------- */}
+          <div className="w-64 sm:w-72 bg-slate-850/90 border-r border-slate-800 flex flex-col shrink-0 overflow-hidden">
+            {/* Sidebar Header */}
+            <div className="p-3 border-b border-slate-800 flex items-center justify-between text-xs font-bold text-slate-300">
+              <span className="flex items-center gap-1.5">
+                <Layers className="w-4 h-4 text-teal-400" />
+                Danh Sách Tầng ({buildingFloors.length})
+              </span>
+              {!readOnly && (
                 <button
                   type="button"
-                  disabled={isSaving || !cadUrl}
-                  onClick={() => handleSaveFloorPlanAndPartitions()}
-                  className="w-full flex items-center justify-center gap-2 py-2 px-4 rounded-xl bg-teal-600 hover:bg-teal-500 disabled:opacity-50 text-white text-xs font-bold shadow-lg transition-all active:scale-95 cursor-pointer"
+                  onClick={() => setShowAddFloorInput(!showAddFloorInput)}
+                  className="flex items-center gap-1 px-2 py-1 rounded-lg bg-teal-950 hover:bg-teal-900 text-teal-300 border border-teal-700/60 text-[11px] transition-colors cursor-pointer"
                 >
-                  {isSaving ? (
-                    <span>Đang xử lý & crop ảnh...</span>
-                  ) : (
-                    <>
-                      <CheckCircle2 className="w-4 h-4" />
-                      Lưu & Đồng Bộ Căn Hộ
-                    </>
-                  )}
+                  <Plus className="w-3 h-3" />
+                  <span>Thêm tầng</span>
                 </button>
+              )}
+            </div>
+
+            {/* Ô thêm tầng nhanh */}
+            {showAddFloorInput && (
+              <div className="p-2.5 bg-slate-800/80 border-b border-slate-750 flex items-center gap-2 animate-in slide-in-from-top-2">
+                <input
+                  type="number"
+                  placeholder="Số tầng (VD: 9, -1)"
+                  value={newFloorInput}
+                  onChange={(e) => setNewFloorInput(e.target.value)}
+                  className="flex-1 px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700 text-xs font-bold text-white focus:outline-none focus:border-teal-500"
+                />
+                <button
+                  type="button"
+                  onClick={handleAddCustomFloor}
+                  className="px-2.5 py-1 rounded-lg bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold transition-colors cursor-pointer"
+                >
+                  Thêm
+                </button>
+              </div>
+            )}
+
+            {/* Danh sách các tầng */}
+            <div className="flex-1 overflow-y-auto p-2 space-y-1">
+              {isLoading ? (
+                <div className="p-6 text-center text-xs text-slate-500 flex flex-col items-center gap-2">
+                  <Loader2 className="w-5 h-5 animate-spin text-teal-400" />
+                  <span>Đang nạp cấu trúc tòa nhà...</span>
+                </div>
+              ) : (
+                buildingFloors.map((fl) => {
+                  const isActive = fl.floorNumber === activeFloor;
+                  return (
+                    <div
+                      key={fl.floorNumber}
+                      onClick={() => handleSelectFloor(fl.floorNumber)}
+                      className={`p-2.5 rounded-xl border transition-all cursor-pointer flex items-center justify-between group ${
+                        isActive
+                          ? 'border-teal-400 bg-teal-950/60 text-white shadow-md ring-1 ring-teal-400/40'
+                          : 'border-slate-800/80 bg-slate-900/40 hover:bg-slate-800 text-slate-300 hover:border-slate-700'
+                      }`}
+                    >
+                      <div className="flex flex-col min-w-0">
+                        <span className={`text-xs font-bold truncate ${isActive ? 'text-teal-200' : 'text-slate-200'}`}>
+                          {fl.floorName}
+                        </span>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          {fl.isInherited ? (
+                            <span className="text-[10px] text-teal-400 flex items-center gap-0.5 font-medium">
+                              <LinkIcon className="w-2.5 h-2.5" /> Dùng chung T{fl.inheritedFromFloor}
+                            </span>
+                          ) : fl.hasCad ? (
+                            <span className="text-[10px] text-emerald-400 font-medium">
+                              ✓ Có CAD riêng
+                            </span>
+                          ) : (
+                            <span className="text-[10px] text-slate-500">
+                              Chưa có CAD
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1 shrink-0">
+                        {fl.unitCount > 0 ? (
+                          <span
+                            className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-md ${
+                              isActive
+                                ? 'bg-teal-800 text-teal-100 border border-teal-600'
+                                : 'bg-slate-800 text-slate-400 border border-slate-700'
+                            }`}
+                          >
+                            {fl.unitCount} căn
+                          </span>
+                        ) : null}
+                        <ChevronRight
+                          className={`w-3.5 h-3.5 transition-transform ${
+                            isActive ? 'text-teal-300 translate-x-0.5' : 'text-slate-600 group-hover:text-slate-400'
+                          }`}
+                        />
+                      </div>
+                    </div>
+                  );
+                })
               )}
             </div>
           </div>
 
-          {/* Success Banner */}
-          {saveSuccessMsg && (
-            <div className="p-3 bg-emerald-950/70 border border-emerald-500/50 rounded-xl text-emerald-300 text-xs font-medium flex items-center gap-2 animate-in fade-in">
-              <CheckCircle2 className="w-4 h-4 shrink-0" />
-              <span>{saveSuccessMsg}</span>
-            </div>
-          )}
-
-          {/* Upload ảnh CAD nếu chưa có */}
-          {!cadUrl ? (
-            <div className="bg-slate-850 p-6 rounded-2xl border-2 border-dashed border-slate-700 flex flex-col items-center justify-center text-center space-y-3">
-              <div className="p-3 rounded-2xl bg-teal-500/10 text-teal-400 border border-teal-500/20">
-                <Upload className="w-8 h-8" />
-              </div>
-              <div>
-                <h4 className="text-sm font-bold text-white">Chưa Có Bản Vẽ CAD Mặt Bằng Tầng {activeFloor}</h4>
-                <p className="text-xs text-slate-400 mt-1 max-w-md">
-                  {readOnly
-                    ? 'Tầng này hiện chưa được cấu hình bản vẽ CAD mặt bằng kiến trúc. Vui lòng liên hệ Zone Admin cập nhật trên Cổng Quản Trị.'
-                    : 'Vui lòng tải lên ảnh bản vẽ CAD mặt bằng kiến trúc toàn tầng (PNG/JPG/SVG) do Ban Quản Lý tòa nhà hoặc hồ sơ thiết kế cung cấp.'}
-                </p>
-              </div>
-              {!readOnly && (
-                <div className="w-full max-w-sm">
-                  <PhotoCaptureInput
-                    value=""
-                    onChange={(url) => setCadUrl(url)}
-                    label={`Tải lên bản vẽ CAD Tầng ${activeFloor}`}
-                    allowPdf={true}
-                  />
+          {/* ------------------------------------------------------- */}
+          {/* CỘT PHẢI: Main CAD Workspace cho Active Floor */}
+          {/* ------------------------------------------------------- */}
+          <div className="flex-1 flex flex-col bg-slate-900 overflow-hidden">
+            {/* Sub-header Bar: Thông tin tầng, tên mặt bằng & Dải tầng áp dụng */}
+            <div className="px-5 py-3 bg-slate-850 border-b border-slate-800 flex items-center justify-between gap-3 flex-wrap shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs font-bold text-slate-400">Tên mặt bằng:</span>
+                  {readOnly ? (
+                    <span className="text-xs font-bold text-white px-2.5 py-1 rounded-lg bg-slate-800 border border-slate-700">
+                      {floorName}
+                    </span>
+                  ) : (
+                    <input
+                      type="text"
+                      value={floorName}
+                      onChange={(e) => setFloorName(e.target.value)}
+                      placeholder={`Tầng ${activeFloor}`}
+                      className="px-2.5 py-1 rounded-lg bg-slate-800 border border-slate-700 text-xs font-bold text-teal-300 focus:outline-none focus:border-teal-500 w-44 sm:w-56"
+                    />
+                  )}
                 </div>
-              )}
-            </div>
-          ) : (
-            /* Interactive Canvas Slicer */
-            <div className="flex-1 flex flex-col min-h-[500px] h-[65vh]">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs text-slate-400 flex items-center gap-1.5">
-                  <Square className="w-3.5 h-3.5 text-teal-400" />
-                  {readOnly
-                    ? 'Nhấp/chạm vào ô căn hộ để xem chi tiết mã phòng và kích thước. Sử dụng chuột/cảm ứng để phóng to/thu nhỏ/di chuyển.'
-                    : 'Kéo thả chuột trên bản vẽ để tạo ô căn hộ mới theo quy ước mm.nn.'}
-                </span>
+
                 {!readOnly && (
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (confirm('Bạn có chắc muốn đổi file ảnh bản vẽ CAD khác?')) {
-                          setCadUrl('');
-                        }
-                      }}
-                      className="text-[11px] text-slate-400 hover:text-white underline cursor-pointer"
-                    >
-                      Đổi file CAD khác
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsTypicalModalOpen(true)}
+                    className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-slate-800 hover:bg-teal-950 text-slate-200 hover:text-teal-300 border border-slate-700 hover:border-teal-500/50 text-xs font-bold transition-all cursor-pointer shadow-xs"
+                    title="Chọn các tầng có cùng mặt bằng để nhân bản tự động"
+                  >
+                    <Layers className="w-3.5 h-3.5 text-teal-400" />
+                    <span>Dải tầng dùng chung ({applicableFloors.length} tầng)</span>
+                  </button>
                 )}
               </div>
 
-              <div className="flex-1">
+              {/* Nút hành động bản vẽ */}
+              {!readOnly && cadUrl && (
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (confirm('Bạn có chắc muốn đổi file ảnh/PDF bản vẽ CAD khác cho tầng này?')) {
+                        setCadUrl('');
+                      }
+                    }}
+                    className="text-xs text-slate-400 hover:text-white underline cursor-pointer"
+                  >
+                    Đổi file CAD khác
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (confirm('Bạn có chắc muốn xóa bản vẽ CAD và các ô phân chia của tầng này?')) {
+                        setCadUrl('');
+                        setPartitions([]);
+                      }
+                    }}
+                    className="p-1.5 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-rose-950/40 transition-colors cursor-pointer"
+                    title="Xóa CAD tầng này"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Thông báo kế thừa nếu tầng này đang là Follower */}
+            {currentFloorItem?.isInherited && (
+              <div className="px-5 py-2 bg-teal-950/50 border-b border-teal-800/60 text-xs text-teal-300 flex items-center justify-between shrink-0">
+                <span className="flex items-center gap-1.5">
+                  <LinkIcon className="w-3.5 h-3.5 text-teal-400" />
+                  Tầng {activeFloor} đang dùng chung mặt bằng và phân chia từ{' '}
+                  <strong className="text-white">Tầng {currentFloorItem.inheritedFromFloor}</strong>.
+                </span>
+                <button
+                  type="button"
+                  onClick={() => handleSelectFloor(currentFloorItem.inheritedFromFloor!)}
+                  className="text-xs text-teal-200 hover:text-white underline font-bold cursor-pointer"
+                >
+                  Chuyển sang Tầng {currentFloorItem.inheritedFromFloor} để sửa gốc
+                </button>
+              </div>
+            )}
+
+            {/* Banner Lưu thành công */}
+            {saveSuccessMsg && (
+              <div className="mx-4 mt-3 p-3 bg-emerald-950/80 border border-emerald-500/50 rounded-xl text-emerald-300 text-xs font-medium flex items-center gap-2 animate-in fade-in shrink-0">
+                <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
+                <span>{saveSuccessMsg}</span>
+              </div>
+            )}
+
+            {/* Không gian hiển thị Canvas hoặc Uploader */}
+            <div className="flex-1 flex flex-col overflow-hidden relative">
+              {!cadUrl ? (
+                /* CHƯA CÓ CAD: Hiển thị bộ tải bản vẽ chuyên dụng */
+                <CadBlueprintUploader
+                  floorNumber={activeFloor}
+                  floorName={floorName}
+                  onUploadSuccess={(url) => setCadUrl(url)}
+                  onCopyFromOtherFloor={handleCopyCadFromFloor}
+                  otherFloorsWithCad={otherFloorsWithCad}
+                  readOnly={readOnly}
+                />
+              ) : (
+                /* ĐÃ CÓ CAD: Hiển thị Interactive Partition Canvas */
                 <FloorPlanCadPartitionCanvas
                   cadPhotoUrl={cadUrl}
                   floorNumber={activeFloor}
@@ -414,11 +654,73 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
                   onSave={readOnly ? undefined : handleSaveFloorPlanAndPartitions}
                   readOnly={readOnly}
                 />
-              </div>
+              )}
             </div>
-          )}
+          </div>
+        </div>
+
+        {/* ========================================================= */}
+        {/* 3. Footer Actions Studio */}
+        {/* ========================================================= */}
+        <div className="px-5 py-3.5 bg-slate-850 border-t border-slate-800 flex items-center justify-between text-xs shrink-0">
+          <div className="text-slate-400 flex items-center gap-2">
+            <span>Tầng {activeFloor}: <strong className="text-teal-300 font-mono">{partitions.length} căn</strong></span>
+            <span>•</span>
+            <span>
+              Áp dụng cho dải tầng [{applicableFloors.join(', ')}] $\rightarrow${' '}
+              <strong className="text-white font-mono">{partitions.length * applicableFloors.length} căn hộ con</strong>
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2.5">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition-colors cursor-pointer"
+            >
+              Đóng
+            </button>
+
+            {!readOnly && (
+              <button
+                type="button"
+                disabled={isSaving || !cadUrl}
+                onClick={() => handleSaveFloorPlanAndPartitions()}
+                className="px-5 py-2 rounded-xl bg-teal-600 hover:bg-teal-500 disabled:opacity-50 text-white text-xs font-bold shadow-lg transition-all active:scale-95 flex items-center gap-2 cursor-pointer"
+              >
+                {isSaving ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Đang lưu & đồng bộ...</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>Lưu & Đồng Bộ Toàn Bộ Căn Hộ</span>
+                  </>
+                )}
+              </button>
+            )}
+          </div>
         </div>
       </div>
+
+      {/* Modal Chọn dải tầng điển hình */}
+      {isTypicalModalOpen && (
+        <TypicalFloorsSelectorModal
+          isOpen={isTypicalModalOpen}
+          baseFloorNumber={activeFloor}
+          baseFloorName={floorName}
+          allBuildingFloors={buildingFloors.map((f) => ({
+            floorNumber: f.floorNumber,
+            floorName: f.floorName,
+            hasOwnCad: f.hasCad && !f.isInherited,
+          }))}
+          currentApplicableFloors={applicableFloors}
+          onConfirm={(selected) => setApplicableFloors(selected)}
+          onClose={() => setIsTypicalModalOpen(false)}
+        />
+      )}
     </div>
   );
 };
