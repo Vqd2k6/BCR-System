@@ -19,7 +19,6 @@ import { useAuth } from '../../../../context/AuthContext';
 import { ParcelMutationHistoryModal } from '../../cadastral-editor/components/ParcelMutationHistoryModal';
 import { CadastralSpatialSwapModal } from '../../cadastral-editor/components/CadastralSpatialSwapModal';
 import { CadastralBoundaryReshapeModal } from '../../cadastral-editor/components/CadastralBoundaryReshapeModal';
-import { FloorPlanCadManagementModal } from '../../../survey/building-hub/components/FloorPlanCadManagementModal';
 import { api } from '../../../../services/api';
 import { getErrorMessage } from '@/utils/errorUtils';
 import type { GisParcel } from '../../shared/types';
@@ -54,8 +53,9 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [showSwapModal, setShowSwapModal] = useState(false);
   const [showReshapeModal, setShowReshapeModal] = useState(false);
-  const [showCadModal, setShowCadModal] = useState(false);
   const [showCondoConfirmModal, setShowCondoConfirmModal] = useState(false);
+  const [condoConfirmCode, setCondoConfirmCode] = useState<string>('');
+  const [condoInputCode, setCondoInputCode] = useState<string>('');
   const [isConvertingCondo, setIsConvertingCondo] = useState(false);
 
   if (!activeParcel) return null;
@@ -79,6 +79,13 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
     return '';
   };
 
+  const handleOpenCondoConfirm = () => {
+    const randomCode = Math.floor(100000 + Math.random() * 900000).toString();
+    setCondoConfirmCode(randomCode);
+    setCondoInputCode('');
+    setShowCondoConfirmModal(true);
+  };
+
   const handleConvertToCondo = async () => {
     if (!activeParcel) return;
     setIsConvertingCondo(true);
@@ -96,12 +103,17 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
           updatedAt: new Date().toISOString(),
         };
         localStorage.setItem('metro2_parcel_status_overrides', JSON.stringify(overrides));
-      } catch (_e) {}
+      } catch (storageErr) {
+        console.warn('[ParcelDetailBottomSheet:handleConvertToCondo] Lỗi ghi override localStorage:', storageErr);
+      }
 
       setShowCondoConfirmModal(false);
       onSwapSuccess?.();
-      setShowCadModal(true);
+      if (onOpenBuildingHub) {
+        onOpenBuildingHub(activeParcel);
+      }
     } catch (err: unknown) {
+      console.error('[ParcelDetailBottomSheet:handleConvertToCondo] Thất bại chuyển đổi chung cư:', err);
       alert(`Lỗi khi chuyển đổi sang chung cư: ${getErrorMessage(err, 'Lỗi kết nối')}`);
     } finally {
       setIsConvertingCondo(false);
@@ -575,37 +587,14 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
           </button>
         )}
 
-        {/* Nút Quản Lý CAD Mặt Bằng (Nếu đã là Chung cư) HOẶC Chuyển đổi sang Chung cư (CHỈ CHO PHÉP ZONE_ADMIN & SUPER_ADMIN) */}
-        {(user?.role === 'ZONE_ADMIN' || user?.role === 'SUPER_ADMIN') && (
-          activeParcel.buildingType === 'CONDOMINIUM' ? (
-            <button
-              type="button"
-              className="btn btn-sm"
-              onClick={() => setShowCadModal(true)}
-              style={{
-                fontSize: '0.775rem',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '0.35rem',
-                color: '#0f766e',
-                borderColor: '#99f6e4',
-                backgroundColor: '#f0fdfa',
-                padding: '0.5rem 0.75rem',
-                fontWeight: 700,
-                cursor: 'pointer',
-              }}
-              title="Quản lý bản vẽ CAD & phân chia mặt bằng căn hộ (Admin Only)"
-            >
-              <Layers size={14} color="#0f766e" />
-              Quản lý CAD
-            </button>
-          ) : (
+        {/* Nút Chuyển đổi sang Chung cư (CHỈ CHO PHÉP ZONE_ADMIN & SUPER_ADMIN KHI CHƯA LÀ CHUNG CƯ) */}
+        {(user?.role === 'ZONE_ADMIN' || user?.role === 'SUPER_ADMIN') &&
+          activeParcel.buildingType !== 'CONDOMINIUM' && (
             <button
               type="button"
               className="btn btn-sm"
               disabled={!isEligibleForCondoConversion}
-              onClick={() => setShowCondoConfirmModal(true)}
+              onClick={handleOpenCondoConfirm}
               style={{
                 fontSize: '0.775rem',
                 display: 'flex',
@@ -622,15 +611,14 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
               }}
               title={
                 isEligibleForCondoConversion
-                  ? 'Chuyển đổi thửa đất sang mô hình Chung cư / Tập thể và nạp CAD tầng (Admin Only)'
+                  ? 'Chuyển đổi thửa đất sang mô hình Chung cư / Tập thể (Admin Only)'
                   : getIneligibilityReason()
               }
             >
               <Building2 size={14} color={isEligibleForCondoConversion ? '#6d28d9' : '#94a3b8'} />
               Chuyển Chung Cư
             </button>
-          )
-        )}
+          )}
 
         {/* Nút Chuyển Vị Trí GIS (CHỈ CHO PHÉP ZONE_ADMIN & SUPER_ADMIN) */}
         {(user?.role === 'ZONE_ADMIN' || user?.role === 'SUPER_ADMIN') && (
@@ -770,18 +758,7 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
       )}
 
       {/* Modal Quản lý CAD Mặt Bằng (Admin Only) */}
-      {showCadModal && (
-        <FloorPlanCadManagementModal
-          parcel={activeParcel}
-          onClose={() => setShowCadModal(false)}
-          readOnly={false}
-          onUnitsUpdated={() => {
-            onSwapSuccess?.();
-          }}
-        />
-      )}
-
-      {/* Modal Xác nhận Chuyển đổi sang Chung cư */}
+      {/* Modal Xác nhận Chuyển đổi sang Chung cư (Yêu cầu nhập mã 6 số ngẫu nhiên) */}
       {showCondoConfirmModal && (
         <div
           style={{
@@ -804,8 +781,8 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
           <div
             style={{
               backgroundColor: '#ffffff',
-              borderRadius: '0.75rem',
-              maxWidth: '460px',
+              borderRadius: '1rem',
+              maxWidth: '480px',
               width: '100%',
               padding: '1.5rem',
               boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.2)',
@@ -815,9 +792,9 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
               <div
                 style={{
-                  width: '40px',
-                  height: '40px',
-                  borderRadius: '50%',
+                  width: '42px',
+                  height: '42px',
+                  borderRadius: '0.75rem',
                   backgroundColor: '#f5f3ff',
                   color: '#7c3aed',
                   display: 'flex',
@@ -826,14 +803,14 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
                   fontWeight: 'bold',
                 }}
               >
-                <Building2 size={22} />
+                <Building2 size={24} />
               </div>
               <div>
-                <h4 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: '#1e293b' }}>
-                  Chuyển đổi sang Chung cư
+                <h4 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, color: '#0f172a' }}>
+                  Xác Nhận Chuyển Đổi Sang Chung Cư
                 </h4>
                 <p style={{ margin: 0, fontSize: '0.8rem', color: '#64748b' }}>
-                  Thửa đất: <strong>{activeParcel.projectParcelCode}</strong>
+                  Mã thửa đất: <strong style={{ color: '#0284c7' }}>{activeParcel.projectParcelCode}</strong>
                 </p>
               </div>
             </div>
@@ -842,22 +819,79 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
               style={{
                 backgroundColor: '#eff6ff',
                 border: '1px solid #bfdbfe',
-                borderRadius: '0.5rem',
+                borderRadius: '0.625rem',
                 padding: '0.875rem',
-                fontSize: '0.825rem',
+                fontSize: '0.8rem',
                 color: '#1e40af',
                 marginBottom: '1rem',
                 lineHeight: 1.5,
               }}
             >
-              <p style={{ margin: '0 0 0.5rem 0', fontWeight: 600 }}>
-                Quy trình sau khi chuyển đổi:
+              <p style={{ margin: '0 0 0.4rem 0', fontWeight: 700 }}>
+                • Quy trình sau khi chuyển đổi:
               </p>
               <ul style={{ margin: 0, paddingLeft: '1.25rem' }}>
-                <li>Thửa đất sẽ đổi loại hình sang <strong>Chung cư / Tập thể</strong> (màu tím trên bản đồ GIS).</li>
-                <li>Hệ thống tự động mở cửa sổ <strong>Quản lý CAD mặt bằng</strong> để Zone Admin nạp bản vẽ các tầng và phân chia căn hộ con.</li>
-                <li>Sau đó điều phối viên sẽ khảo sát Khối tháp Master và từng Căn hộ con (Unit).</li>
+                <li>Loại hình công trình chuyển thành <strong>Chung cư / Tòa nhà nhiều căn</strong>.</li>
+                <li>Hệ thống sẽ mở <strong>Hub Chung Cư</strong> để quản lý bản vẽ CAD và phân chia căn hộ con.</li>
+                <li>Thao tác này làm thay đổi cấu trúc dữ liệu khảo sát và cần được xác thực kỹ lưỡng.</li>
               </ul>
+            </div>
+
+            {/* Random 6-digit confirmation code block */}
+            <div
+              style={{
+                backgroundColor: '#f8fafc',
+                border: '1px solid #e2e8f0',
+                borderRadius: '0.625rem',
+                padding: '0.875rem',
+                marginBottom: '1.25rem',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#475569' }}>
+                  MÃ XÁC NHẬN BẢO MẬT:
+                </span>
+                <span
+                  style={{
+                    fontFamily: 'monospace',
+                    fontSize: '1.2rem',
+                    fontWeight: 900,
+                    letterSpacing: '0.25rem',
+                    color: '#6d28d9',
+                    backgroundColor: '#ede9fe',
+                    padding: '0.2rem 0.6rem',
+                    borderRadius: '0.375rem',
+                    border: '1px solid #ddd6fe',
+                  }}
+                >
+                  {condoConfirmCode}
+                </span>
+              </div>
+              <p style={{ margin: '0 0 0.5rem 0', fontSize: '0.75rem', color: '#64748b' }}>
+                Vui lòng nhập đúng dãy 6 số trên để mở khóa nút xác nhận:
+              </p>
+              <input
+                type="text"
+                maxLength={6}
+                value={condoInputCode}
+                onChange={(e) => setCondoInputCode(e.target.value.replace(/\D/g, ''))}
+                placeholder="Nhập 6 số..."
+                autoFocus
+                style={{
+                  width: '100%',
+                  padding: '0.55rem 0.75rem',
+                  fontSize: '1rem',
+                  fontFamily: 'monospace',
+                  letterSpacing: '0.2rem',
+                  fontWeight: 700,
+                  borderRadius: '0.5rem',
+                  border: condoInputCode === condoConfirmCode ? '2px solid #10b981' : '1px solid #cbd5e1',
+                  backgroundColor: condoInputCode === condoConfirmCode ? '#f0fdf4' : '#ffffff',
+                  color: condoInputCode === condoConfirmCode ? '#166534' : '#0f172a',
+                  outline: 'none',
+                  boxSizing: 'border-box',
+                }}
+              />
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
@@ -868,9 +902,10 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
                 onClick={() => setShowCondoConfirmModal(false)}
                 style={{
                   padding: '0.5rem 1rem',
-                  fontSize: '0.875rem',
-                  borderRadius: '0.375rem',
+                  fontSize: '0.85rem',
+                  borderRadius: '0.5rem',
                   fontWeight: 600,
+                  cursor: 'pointer',
                 }}
               >
                 Hủy bỏ
@@ -878,18 +913,20 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
               <button
                 type="button"
                 className="btn btn-primary btn-sm"
-                disabled={isConvertingCondo}
+                disabled={isConvertingCondo || condoInputCode.trim() !== condoConfirmCode}
                 onClick={handleConvertToCondo}
                 style={{
                   padding: '0.5rem 1.25rem',
-                  fontSize: '0.875rem',
-                  borderRadius: '0.375rem',
+                  fontSize: '0.85rem',
+                  borderRadius: '0.5rem',
                   fontWeight: 700,
-                  backgroundColor: '#7c3aed',
-                  borderColor: '#6d28d9',
+                  backgroundColor: condoInputCode.trim() === condoConfirmCode ? '#7c3aed' : '#cbd5e1',
+                  borderColor: condoInputCode.trim() === condoConfirmCode ? '#6d28d9' : '#cbd5e1',
+                  color: condoInputCode.trim() === condoConfirmCode ? '#ffffff' : '#94a3b8',
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: '0.4rem',
+                  cursor: condoInputCode.trim() === condoConfirmCode ? 'pointer' : 'not-allowed',
                 }}
               >
                 {isConvertingCondo ? 'Đang chuyển đổi...' : 'Xác nhận Chuyển đổi'}

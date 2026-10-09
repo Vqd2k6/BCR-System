@@ -124,6 +124,7 @@ export const BuildingHubModal: React.FC<BuildingHubModalProps> = ({
           isMasterSurveyDone={isMasterSurveyDone}
           onClose={onClose}
           onStartUnitSurvey={onStartUnitSurvey}
+          onOpenCadManagement={() => setShowCadModal(true)}
         />
       </main>
 

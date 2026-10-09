@@ -6,7 +6,10 @@
   "scripts": {
     "dev": "vite --host",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "check:zero-any": "node scripts/check-zero-any.js",
+    "check:ui": "node scripts/check-ui-interactions.js",
+    "check:catch": "node scripts/check-catch-clauses.js"
   },
   "dependencies": {
     "axios": "^1.6.8",

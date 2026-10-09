@@ -118,7 +118,15 @@ export const ZoneParcelsDataGrid: React.FC<ZoneParcelsDataGridProps> = ({
   // Condo CAD & Unit Partition Modal state
   const [cadModalParcel, setCadModalParcel] = useState<GisParcel | null>(null);
   const [condoConversionTarget, setCondoConversionTarget] = useState<GisParcel | null>(null);
+  const [condoConfirmCode, setCondoConfirmCode] = useState<string>('');
+  const [condoInputCode, setCondoInputCode] = useState<string>('');
   const [isConvertingCondo, setIsConvertingCondo] = useState<boolean>(false);
+
+  const handleOpenCondoModal = (parcel: GisParcel) => {
+    setCondoConversionTarget(parcel);
+    setCondoConfirmCode(Math.floor(100000 + Math.random() * 900000).toString());
+    setCondoInputCode('');
+  };
 
   // Tiền điều kiện chuyển đổi sang Chung cư (Precondition Guards)
   const isEligibleForCondo = (parcel: GisParcel): boolean => {
@@ -721,7 +729,7 @@ export const ZoneParcelsDataGrid: React.FC<ZoneParcelsDataGridProps> = ({
                             <button
                               type="button"
                               disabled={!isEligibleForCondo(parcel)}
-                              onClick={() => setCondoConversionTarget(parcel)}
+                              onClick={() => handleOpenCondoModal(parcel)}
                               className={`p-1.5 rounded-lg border transition-colors ${
                                 isEligibleForCondo(parcel)
                                   ? 'bg-slate-50 hover:bg-purple-50 text-slate-500 hover:text-purple-700 border-slate-200 hover:border-purple-200 cursor-pointer'
@@ -958,7 +966,7 @@ export const ZoneParcelsDataGrid: React.FC<ZoneParcelsDataGridProps> = ({
                   type="button"
                   disabled={!isEligibleForCondo(inspectParcel)}
                   onClick={() => {
-                    setCondoConversionTarget(inspectParcel);
+                    handleOpenCondoModal(inspectParcel);
                     setInspectParcel(null);
                   }}
                   className={`px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border ${
@@ -1051,7 +1059,7 @@ export const ZoneParcelsDataGrid: React.FC<ZoneParcelsDataGridProps> = ({
         <div className="fixed inset-0 z-[100000] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
           <div className="bg-white border border-slate-200 rounded-2xl shadow-2xl max-w-md w-full p-6 text-slate-800 space-y-4">
             <div className="flex items-center gap-3">
-              <div className="p-3 rounded-xl bg-blue-100 text-blue-700">
+              <div className="p-3 rounded-xl bg-purple-100 text-purple-700">
                 <Building2 className="w-6 h-6" />
               </div>
               <div>
@@ -1067,11 +1075,37 @@ export const ZoneParcelsDataGrid: React.FC<ZoneParcelsDataGridProps> = ({
             <p className="text-xs text-slate-600 leading-relaxed">
               Bạn có chắc chắn muốn chuyển đổi thửa đất này thành <strong>Chung cư / Tòa nhà nhiều căn hộ (CONDOMINIUM)</strong>?
             </p>
-            <div className="p-3 bg-blue-50/70 border border-blue-200 rounded-xl text-xs text-blue-900 space-y-1">
+            <div className="p-3 bg-purple-50/70 border border-purple-200 rounded-xl text-xs text-purple-900 space-y-1">
               <p className="font-bold">• Sau khi chuyển đổi:</p>
               <p>1. Loại hình công trình được cập nhật thành CONDOMINIUM.</p>
               <p>2. Màn hình quản lý CAD mặt bằng tầng sẽ mở ra để bạn tải bản vẽ kiến trúc và chia cắt các ô căn hộ con.</p>
               <p>3. Khảo sát viên sẽ được phân bổ khảo sát khối tháp dùng chung và các căn hộ con độc lập.</p>
+            </div>
+
+            {/* Random 6-digit confirmation code block */}
+            <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-slate-600">MÃ XÁC NHẬN BẢO MẬT:</span>
+                <span className="font-mono text-base font-black tracking-widest text-purple-700 bg-purple-100 px-2 py-0.5 rounded border border-purple-200">
+                  {condoConfirmCode}
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500">
+                Nhập đúng dãy 6 số trên để mở khóa nút xác nhận:
+              </p>
+              <input
+                type="text"
+                maxLength={6}
+                value={condoInputCode}
+                onChange={(e) => setCondoInputCode(e.target.value.replace(/\D/g, ''))}
+                placeholder="Nhập 6 số xác nhận..."
+                autoFocus
+                className={`w-full px-3 py-2 text-sm font-mono tracking-widest font-bold rounded-lg border outline-none transition-all ${
+                  condoInputCode === condoConfirmCode
+                    ? 'border-emerald-500 bg-emerald-50 text-emerald-800 ring-1 ring-emerald-500'
+                    : 'border-slate-300 bg-white text-slate-800 focus:border-purple-500'
+                }`}
+              />
             </div>
 
             <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
@@ -1085,9 +1119,13 @@ export const ZoneParcelsDataGrid: React.FC<ZoneParcelsDataGridProps> = ({
               </button>
               <button
                 type="button"
-                disabled={isConvertingCondo}
+                disabled={isConvertingCondo || condoInputCode.trim() !== condoConfirmCode}
                 onClick={() => handleConvertToCondo(condoConversionTarget)}
-                className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 ${
+                  condoInputCode.trim() === condoConfirmCode
+                    ? 'bg-purple-600 hover:bg-purple-700 text-white cursor-pointer'
+                    : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                }`}
               >
                 {isConvertingCondo ? (
                   <span>Đang xử lý...</span>

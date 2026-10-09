@@ -4,7 +4,43 @@ trigger: model_decision
 
 # HỆ THỐNG QUY TRÌNH TOÀN TRÌNH (SYSTEM WORKFLOWS) - METRO 2 BCS PLATFORM
 
-Tài liệu này định nghĩa chi tiết **4 Quy trình Vận hành & Phát triển Cốt lõi (Core Workflows)** của nền tảng, thiết lập các chốt chặn chất lượng để đảm bảo tính đồng bộ toàn trình, tính bất biến pháp lý và hiệu năng hệ thống.
+Tài liệu này định nghĩa chi tiết **5 Quy trình Vận hành & Phát triển Cốt lõi (Core Workflows)** của nền tảng, thiết lập các chốt chặn chất lượng để đảm bảo tính đồng bộ toàn trình, tính bất biến pháp lý và hiệu năng hệ thống.
+
+---
+
+## 📐 WORKFLOW 0: GIAO THỨC THIẾT KẾ THEO HỢP ĐỒNG (PRE/POSTCONDITIONS & INVARIANTS PROTOCOL)
+*(Áp dụng BẮT BUỘC trước khi triển khai bất kỳ tính năng hoặc thực hiện một phần nhiệm vụ nào)*
+
+Trước khi viết bất kỳ dòng mã nào hoặc thực thi câu lệnh thay đổi CSDL, Agent **BẮT BUỘC** phải công bố và phân tích rõ 4 thành tố sau trong kế hoạch:
+
+```mermaid
+graph LR
+    Pre["1. Preconditions<br/>(Tiền điều kiện)"] --> Inv["2. Invariants<br/>(Ràng buộc bất biến)"]
+    Inv --> Post["3. Postconditions<br/>(Hậu điều kiện)"]
+    Post --> Test["4. Test Strategy<br/>(Kiểm thử toàn diện)"]
+```
+
+### 1. Preconditions (Tiền Điều Kiện)
+* **Xác thực vai trò & quyền hạn (RBAC)**: Tác vụ này thuộc thẩm quyền của ai (`Super Admin`, `Zone Admin`, `Surveyor`, hay `Guest`)?
+* **Dữ liệu & CSDL tiền đề**: Bảng, cột, trigger nào trong PostgreSQL phải tồn tại? Khóa ngoại và quan hệ cha con (`parcels` $\to$ `building_units`) đã sẵn sàng chưa?
+* **Trạng thái hệ thống**: Form đang ở trạng thái nào (`DRAFT`, `SUBMITTED`, `APPROVED`)? Component đang ở chế độ nào (`readOnly=true` hay `false`)?
+
+### 2. Postconditions (Hậu Điều Kiện)
+* **Trạng thái sau khi hoàn thành**:
+  * **Thành công (Happy Path)**: Bản ghi nào được tạo/cập nhật trong DB? Cột nào nhận giá trị gì? Store Zustand lưu state nào? Giao diện hiển thị thông báo/toast gì? Có chuyển step hay đóng modal không?
+  * **Thất bại (Error Path)**: Nếu mạng đứt, payload sai schema hoặc DB rollback, hệ thống xử lý ra sao? Lỗi có được hiển thị bằng ngôn ngữ tự nhiên không? Lỗi **bắt buộc** phải được `console.error('[ContextTag] ...', err)` xuất ra console F12 kèm đối tượng lỗi gốc. Tuyệt đối cấm khối `catch` rỗng hoặc nuốt lỗi âm thầm. Dữ liệu đã nhập trên form có được bảo toàn nguyên vẹn trong store/IndexedDB không?
+
+### 3. Invariants & Safety Constraints (Ràng Buộc Bất Biến & An Toàn)
+* **Bảo vệ CSDL**: Tuyệt đối không xóa cứng dữ liệu (`deleted_at IS NULL`), câu lệnh SQL phải dùng tham số hóa `$1..$N`, các tác vụ đa bảng bắt buộc nằm trong `BEGIN ... COMMIT ... ROLLBACK`.
+* **Kỷ luật Mã nguồn**: Tuyệt đối 0 `any`, 0 `as any`, không dùng `process.env`, `import type` chuẩn mực.
+* **Kỷ luật Bắt lỗi**: Không có khối catch rỗng; mọi khối catch phải có `console.error` hoặc `throw`.
+* **Bảo vệ ranh giới UI**: Surveyor tuyệt đối không được cấp nút thao tác ghi trong các component dùng chung. Toàn bộ nút bấm phải có `cursor-pointer`.
+* **Toàn vẹn Không gian**: Giữ chuẩn toạ độ WGS84 (EPSG:4326), không nghịch đảo `[lat, lng]`.
+
+### 4. Verification & Comprehensive Test Strategy (Chiến Lược Kiểm Thử Toàn Diện)
+* Kịch bản Happy Path (kiểm tra đầy đủ luồng nghiệp vụ chuẩn).
+* Kịch bản Edge Cases (dữ liệu rỗng, vượt giới hạn ký tự, mất mạng, token hết hạn).
+* Bộ lệnh kiểm thử tự động bắt buộc: `npm run build`, `npm run check:zero-any`, `npm run check:ui`, `npm run check:catch`.
 
 ---
 
@@ -167,24 +203,36 @@ sequenceDiagram
 
 ## 🛡️ WORKFLOW 4: QUY TRÌNH KIỂM SOÁT CHẤT LƯỢNG & BÀN GIAO (PRE-RELEASE VERIFICATION GATEWAY)
 
-Trước khi nghiệm thu bất kỳ tính năng hoặc bugfix nào, Agent và Kỹ sư phải thực hiện đúng 4 bước kiểm thử nghiêm ngặt:
+Trước khi nghiệm thu bất kỳ tính năng hoặc bugfix nào, Agent và Kỹ sư phải thực hiện đúng **8 bước kiểm thử nghiêm ngặt**:
 
 1. **Kiểm tra TypeScript & Clean Build**:
-   * Chạy kiểm tra Frontend:
-     ```bash
-     cd frontend && npm run build
-     ```
-     *Yêu cầu: Exit code = 0, không có bất kỳ lỗi type `TSxxxx` nào.*
-   * Chạy kiểm tra Backend:
-     ```bash
-     cd backend && npm run build
-     ```
-     *Yêu cầu: Exit code = 0, dist bundle sinh đầy đủ template báo cáo.*
-2. **Kiểm tra Tính toàn vẹn CSDL (Migration Idempotency)**:
+   * Frontend: `cd frontend && npm run build` (Exit code = 0, dist bundle sinh đầy đủ).
+   * Backend: `cd backend && npm run build` (Exit code = 0).
+
+2. **Kiểm tra Kỷ luật Zero-Any (AST Scan)**:
+   * Chạy script: `cd frontend && npm run check:zero-any`
+   * *Yêu cầu bắt buộc:* `Total AnyKeyword count: 0` và `Total as any matches: 0`.
+
+3. **Kiểm tra Kỷ Luật Bắt Lỗi & Minh Bạch Observability (Catch Clause Audit)**:
+   * Chạy script: `cd frontend && npm run check:catch`
+   * *Yêu cầu bắt buộc:* Không để phát sinh khối `catch` rỗng mới, mọi khối `catch` phải có `console.error('[ContextTag] ...', err)` hoặc `throw err`.
+
+4. **Kiểm tra Tương Tác UI & Con Trỏ Chuột (`cursor-pointer`)**:
+   * Chạy script: `cd frontend && npm run check:ui`
+   * *Yêu cầu bắt buộc:* 100% các nút `<button>` và phần tử có `onClick` phải có class `cursor-pointer`.
+
+5. **Kiểm tra Phân Quyền Giao Diện (UI RBAC & ReadOnly Audit)**:
+   * Đối với các component/modal dùng chung: Kiểm thử mở với `readOnly=true` (vai trò Surveyor).
+   * Xác nhận không còn nút upload ảnh/CAD, nút xóa, nút sửa tên hoặc nút Submit/Lưu nào xuất hiện.
+
+6. **Kiểm tra Tính Toàn Vẹn CSDL & An Toàn Migration (Database Safety)**:
    * Mọi câu lệnh SQL thêm cột phải có mệnh đề phòng vệ: `ADD COLUMN IF NOT EXISTS`.
-   * Kiểm tra tương thích dữ liệu cũ: Các bản ghi cũ không được bị gãy vỡ khi cột mới có giá trị `NULL`.
-3. **Kiểm tra Không có Lỗi Hồi quy (Zero Regression)**:
+   * Tuyệt đối không có lệnh `DROP TABLE`, `TRUNCATE`, `DELETE` cứng.
+   * Các tác vụ ghi nhiều bảng bắt buộc nằm trong Transaction (`BEGIN ... COMMIT ... ROLLBACK`).
+
+7. **Kiểm tra Không có Lỗi Hồi quy (Zero Regression)**:
    * Xác nhận tính tương thích với cả 3 luồng: Nhà dân thông thường, Tòa nhà chung cư mẹ, và Căn hộ con.
    * Xác nhận 5 module GPS không bị ảnh hưởng chéo.
-4. **Chuẩn hóa Commit**:
-   * Tuân thủ chuẩn Conventional Commits (ví dụ: `feat(survey): sync foundation depth field e2e`, `fix(report): prevent page break inside defect photos`).
+
+8. **Chuẩn hóa Commit**:
+   * Tuân thủ chuẩn Conventional Commits (ví dụ: `feat(survey): sync foundation depth field e2e`, `fix(ui): enforce cursor pointer and readOnly mode`).

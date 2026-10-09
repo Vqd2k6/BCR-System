@@ -1,4 +1,3 @@
-import React from 'react';
 import {
   Home,
   Plus,
@@ -6,6 +5,7 @@ import {
   X,
   RefreshCw,
   Building2,
+  Layers,
 } from 'lucide-react';
 import type { GisParcel } from '../../../gis/LeafletSweepMap';
 import type { BuildingUnit } from '../types';
@@ -24,14 +24,14 @@ interface BuildingUnitListProps {
   availableFloors: number[];
   selectedStatus: string;
   onSelectedStatusChange: (status: string) => void;
-  showAddModal: boolean;
-  onToggleAddModal: (show: boolean) => void;
-  newUnitCode: string;
-  setNewUnitCode: (code: string) => void;
-  newFloorNumber: number | '';
-  setNewFloorNumber: (floor: number | '') => void;
-  isSubmittingUnit: boolean;
-  onAddUnitSubmit: (e: React.FormEvent) => void;
+  showAddModal?: boolean;
+  onToggleAddModal?: (show: boolean) => void;
+  newUnitCode?: string;
+  setNewUnitCode?: (code: string) => void;
+  newFloorNumber?: number | '';
+  setNewFloorNumber?: (floor: number | '') => void;
+  isSubmittingUnit?: boolean;
+  onAddUnitSubmit?: (e: React.FormEvent) => void;
   displayedUnits: BuildingUnit[];
   filteredUnits: BuildingUnit[];
   visibleCount: number;
@@ -39,6 +39,7 @@ interface BuildingUnitListProps {
   isMasterSurveyDone: boolean;
   onClose: () => void;
   onStartUnitSurvey: (parcel: GisParcel, unit: BuildingUnit, phase?: 1 | 2) => void;
+  onOpenCadManagement?: () => void;
 }
 
 export const BuildingUnitList: React.FC<BuildingUnitListProps> = ({
@@ -69,10 +70,11 @@ export const BuildingUnitList: React.FC<BuildingUnitListProps> = ({
   isMasterSurveyDone,
   onClose,
   onStartUnitSurvey,
+  onOpenCadManagement,
 }) => {
   return (
     <section className="flex flex-col gap-3">
-      {/* Header & Add Unit Button */}
+      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h3 className="text-sm sm:text-base font-extrabold text-slate-900 flex items-center gap-2">
@@ -80,18 +82,9 @@ export const BuildingUnitList: React.FC<BuildingUnitListProps> = ({
             <span>Danh Sách Căn Hộ Con ({units.length} căn)</span>
           </h3>
           <p className="text-xs text-slate-500 mt-0.5">
-            Khảo sát chi tiết từng căn hộ con theo Phase 1 (Hiện trạng kết cấu) và Phase 2 (Nội thất chi tiết).
+            Căn hộ con được phân chia theo bản vẽ CAD mặt bằng tầng và khảo sát độc lập.
           </p>
         </div>
-
-        <button
-          type="button"
-          onClick={() => onToggleAddModal(true)}
-          className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold shadow-sm shadow-sky-600/20 transition-all self-start sm:self-auto cursor-pointer"
-        >
-          <Plus size={15} />
-          <span>Thêm Căn Hộ Mới</span>
-        </button>
       </div>
 
       {/* Search & Dynamic Filter Bar (Only show when building has units) */}
@@ -168,74 +161,6 @@ export const BuildingUnitList: React.FC<BuildingUnitListProps> = ({
         </div>
       )}
 
-      {/* Inline Form: Thêm căn hộ mới */}
-      {showAddModal && (
-        <form
-          onSubmit={onAddUnitSubmit}
-          className="bg-sky-50/80 border border-sky-200 rounded-xl p-4 flex flex-col gap-3 animate-in fade-in"
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-sky-900">
-              + Thêm căn hộ mới vào tòa nhà
-            </span>
-            <button
-              type="button"
-              onClick={() => onToggleAddModal(false)}
-              className="text-slate-400 hover:text-slate-600 cursor-pointer"
-            >
-              <X size={16} />
-            </button>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                Mã / Số phòng (*):
-              </label>
-              <input
-                type="text"
-                required
-                placeholder="VD: P.402, A-12..."
-                value={newUnitCode}
-                onChange={(e) => setNewUnitCode(e.target.value)}
-                className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-sky-500"
-              />
-            </div>
-            <div>
-              <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                Tầng / Lầu (*):
-              </label>
-              <input
-                type="number"
-                required
-                min="1"
-                max="80"
-                value={newFloorNumber}
-                onChange={(e) => setNewFloorNumber(e.target.value === '' ? '' : parseInt(e.target.value, 10))}
-                className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-sky-500"
-              />
-            </div>
-          </div>
-
-          <div className="flex justify-end gap-2 pt-1">
-            <button
-              type="button"
-              onClick={() => onToggleAddModal(false)}
-              className="px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs text-slate-600 font-medium hover:bg-slate-50 cursor-pointer"
-            >
-              Hủy
-            </button>
-            <button
-              type="submit"
-              disabled={isSubmittingUnit}
-              className="px-4 py-1.5 bg-sky-600 text-white rounded-lg text-xs font-bold hover:bg-sky-700 disabled:opacity-50 shadow-sm cursor-pointer"
-            >
-              {isSubmittingUnit ? 'Đang lưu...' : 'Lưu Căn Hộ'}
-            </button>
-          </div>
-        </form>
-      )}
-
       {/* Units Grid with Phase 1 vs Phase 2 Logic & 10-item pagination */}
       {loading ? (
         <div className="py-16 text-center text-xs text-slate-500 flex flex-col items-center justify-center gap-2 bg-white rounded-xl border border-slate-200">
@@ -243,8 +168,8 @@ export const BuildingUnitList: React.FC<BuildingUnitListProps> = ({
           <span>Đang tải danh sách căn hộ...</span>
         </div>
       ) : units.length === 0 ? (
-        <div className="py-14 sm:py-16 px-4 text-center bg-white rounded-2xl border-2 border-dashed border-sky-200/80 flex flex-col items-center justify-center gap-3.5 shadow-2xs">
-          <div className="w-16 h-16 rounded-2xl bg-sky-50 border border-sky-200 flex items-center justify-center text-sky-600 shadow-inner">
+        <div className="py-14 sm:py-16 px-4 text-center bg-white rounded-2xl border-2 border-dashed border-teal-200/80 flex flex-col items-center justify-center gap-3.5 shadow-2xs">
+          <div className="w-16 h-16 rounded-2xl bg-teal-50 border border-teal-200 flex items-center justify-center text-teal-600 shadow-inner">
             <Building2 size={32} />
           </div>
           <div className="max-w-md">
@@ -252,17 +177,19 @@ export const BuildingUnitList: React.FC<BuildingUnitListProps> = ({
               Tòa nhà chưa có căn hộ con nào
             </h4>
             <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-              Tòa nhà chung cư này chưa có danh sách căn hộ. Bạn có thể bấm nút bên dưới để tạo căn hộ con đầu tiên và tiến hành khảo sát thực tế.
+              Các căn hộ con cần được phân chia trực tiếp từ bản vẽ mặt bằng CAD tầng. Quản trị viên vui lòng mở Studio Quản Lý CAD để nạp bản vẽ và chia cắt các ô căn hộ con.
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => onToggleAddModal(true)}
-            className="mt-1.5 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold shadow-md shadow-sky-600/25 transition-all cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
-          >
-            <Plus size={16} />
-            <span>+ Thêm Căn Hộ Mới Đầu Tiên</span>
-          </button>
+          {onOpenCadManagement && (
+            <button
+              type="button"
+              onClick={onOpenCadManagement}
+              className="mt-1.5 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold shadow-md shadow-teal-600/25 transition-all cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
+            >
+              <Layers size={16} />
+              <span>📐 Mở Quản Lý Bản Vẽ CAD Tầng</span>
+            </button>
+          )}
         </div>
       ) : filteredUnits.length === 0 ? (
         <div className="py-12 px-4 text-center bg-white rounded-xl border border-dashed border-slate-300 flex flex-col items-center justify-center gap-2 text-xs text-slate-500">

@@ -45,12 +45,61 @@ Khi xảy ra sự cố dữ liệu (sai lệch giá trị, form bị reset, API 
 
 ---
 
-## 🛑 BƯỚC 3: QUY TẮC BẤT DI BẤT DỊCH "TRUY VẾT TẬN GỐC - KHÔNG SỬA VÁ" (ROOT CAUSE OVER BAND-AID)
+## 🛑 BƯỚC 3: KỶ LUẬT TRY-CATCH & MINH BẠCH LỖI HỆ THỐNG (ERROR TRANSPARENCY MANDATE)
 
-* **CẤM nuốt ngoại lệ (Swallowing Exceptions)**: Tuyệt đối không bao giờ bọc `try ... catch` rỗng hoặc chỉ `console.log` mà không ném lỗi ra ngoài hoặc không có biện pháp phục hồi dữ liệu.
-* **CẤM gán fallback giả mạo (Fake Fallback)**: Không bao giờ tự tiện gán giá trị mặc định (như `value || 0`, `value || "Bình thường"`) đối với các chỉ số đo đạc kết cấu nứt lún. Số liệu hiện trường là căn cứ pháp lý, gán sai có thể dẫn đến kiện tụng đền bù hàng tỷ đồng.
-* **CẤM vô hiệu hóa kiểm tra (Validation Bypass)**: Không được xóa bỏ các điều kiện kiểm tra dữ liệu chỉ để form vượt qua được cổng Completeness Gate.
-* **Bắt buộc viết giải pháp đồng bộ**: Sửa lỗi ở tầng nào thì phải rà soát các tầng phụ thuộc (ví dụ sửa kiểu dữ liệu ở BE thì phải sửa cả Type FE và câu lệnh SQL).
+> **MỤC ĐÍCH CỐT LÕI:** `try ... catch` sinh ra là để phục hồi có kiểm soát hoặc ném lỗi có ngữ cảnh. **TUYỆT ĐỐI KHÔNG ĐƯỢC DÙNG ĐỂ GIẤU LỖI.** Lỗi phải luôn được hiển thị minh bạch trên Console để có thể khoanh vùng và sửa chữa ngay lập tức.
+
+### 1. Bốn Điều Cấm Tuyệt Đối (The 4 Strict Prohibitions):
+* ❌ **CẤM Empty Catch Block**: Không bao giờ được viết `catch (e) {}` hoặc `catch { /* ignore */ }`.
+* ❌ **CẤM Silent Swallow**: Không được bắt lỗi rồi âm thầm trả về giá trị mặc định (`return null;`, `return [];`, `return false;`) mà không có ít nhất một dòng `console.error` hoặc `console.warn` ghi nhận sự cố.
+* ❌ **CẤM Vague Logging**: Không được ghi log chung chung vô danh như: `console.log("error")`, `console.error(e)`. Phải luôn có Tag ngữ cảnh cụ thể: `[TênModule:HànhĐộng]`.
+* ❌ **CẤM Alert-Only Swallowing**: Bắt lỗi và chỉ gọi `alert("Lỗi")` hoặc toast mà không log chi tiết đối tượng lỗi ra console. Người dùng thấy báo lỗi nhưng Dev F12 không thấy stack trace để debug.
+* ❌ **CẤM gán fallback giả mạo (Fake Fallback)**: Không bao giờ tự tiện gán giá trị mặc định (như `value || 0`, `value || "Bình thường"`) đối với các chỉ số đo đạc kết cấu nứt lún. Số liệu hiện trường là căn cứ pháp lý, gán sai có thể dẫn đến kiện tụng đền bù hàng tỷ đồng.
+* ❌ **CẤM vô hiệu hóa kiểm tra (Validation Bypass)**: Không được xóa bỏ các điều kiện kiểm tra dữ liệu chỉ để form vượt qua được cổng Completeness Gate.
+
+### 2. Ba Mô Hình Xử Lý Bắt Lỗi Chuẩn Mực (Approved Catch Patterns):
+
+#### Mô hình 1: Bắt lỗi ở UI Layer (Log Console + Toast/Alert người dùng)
+```typescript
+try {
+  setIsSubmitting(true);
+  await api.post('/api/survey/submit', payload);
+  showToast('Nộp hồ sơ thành công', 'success');
+} catch (err: unknown) {
+  // BẮT BUỘC log đầy đủ Tag ngữ cảnh và đối tượng lỗi
+  console.error('[SurveySubmit:handleSubmit] Gặp lỗi khi nộp hồ sơ khảo sát:', err);
+  const userMessage = getErrorMessage(err, 'Lỗi kết nối máy chủ');
+  showToast(`Không thể nộp hồ sơ: ${userMessage}`, 'error');
+} finally {
+  setIsSubmitting(false);
+}
+```
+
+#### Mô hình 2: Bắt lỗi ở Service/Utility Layer (Log Console + Rethrow có ngữ cảnh)
+```typescript
+export async function fetchCadFloorPlans(parcelId: string): Promise<FloorPlanItem[]> {
+  try {
+    const res = await api.get(`/api/parcels/${parcelId}/cad-plans`);
+    return res.data.plans;
+  } catch (err: unknown) {
+    console.error(`[CadService:fetchCadFloorPlans] Thất bại khi tải bản vẽ CAD cho thửa ${parcelId}:`, err);
+    // Ném tiếp lỗi ra ngoài để tầng UI biết và xử lý giao diện
+    throw err;
+  }
+}
+```
+
+#### Mô hình 3: Xử lý ngoại lệ thứ yếu (Non-fatal / Fallback có kiểm soát)
+*Chỉ áp dụng khi tính năng thất bại KHÔNG ảnh hưởng đến luồng chính (VD: Đọc cache IndexedDB thất bại thì fallback về gọi API).*
+```typescript
+try {
+  return await readOfflineCache(cacheKey);
+} catch (cacheErr: unknown) {
+  // BẮT BUỘC log warning giải trình lý do fallback
+  console.warn(`[CacheService:read] Đọc cache offline thất bại cho key "${cacheKey}", chuyển hướng tải từ Server:`, cacheErr);
+  return await fetchFreshDataFromServer(cacheKey);
+}
+```
 
 ---
 

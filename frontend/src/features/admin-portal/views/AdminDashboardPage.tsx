@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card } from '../../../core/components/ui/Card';
 import { Badge } from '../../../core/components/ui/Badge';
 import { Button } from '../../../core/components/ui/Button';
@@ -7,9 +7,30 @@ import { ShieldCheck, Users, Settings, FileSpreadsheet, Database, Lock, Search, 
 import { Phase1ExportModuleBox } from '../../zone-management/components/Phase1ExportModuleBox';
 import { UserManagementTab } from '../components/UserManagementTab';
 import { AdminGisMutationTab } from '../components/AdminGisMutationTab';
+import { getNavigationFromUrl, updateNavigationUrl, type AdminTab } from '../../../utils/navigationSync';
 
 export const AdminDashboardPage: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'export' | 'gis-mutation' | 'users' | 'audit' | 'config'>('export');
+  const [activeTab, setActiveTab] = useState<AdminTab>(() => {
+    const nav = getNavigationFromUrl();
+    if (nav.adminTab) return nav.adminTab;
+    return 'export';
+  });
+
+  const handleTabChange = (newTab: AdminTab) => {
+    setActiveTab(newTab);
+    updateNavigationUrl({ adminTab: newTab });
+  };
+
+  useEffect(() => {
+    const handlePopState = () => {
+      const nav = getNavigationFromUrl();
+      if (nav.adminTab && nav.adminTab !== activeTab) {
+        setActiveTab(nav.adminTab);
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [activeTab]);
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto p-4 sm:p-6 pb-20">
@@ -41,8 +62,9 @@ export const AdminDashboardPage: React.FC = () => {
         ] as const).map((tab) => (
           <button
             key={tab.key}
-            onClick={() => setActiveTab(tab.key)}
-            className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all border ${
+            type="button"
+            onClick={() => handleTabChange(tab.key)}
+            className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all border cursor-pointer ${
               activeTab === tab.key
                 ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
                 : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'

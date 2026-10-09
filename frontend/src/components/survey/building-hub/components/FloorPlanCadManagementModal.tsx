@@ -88,6 +88,7 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
   const [cadUrl, setCadUrl] = useState<string>('');
   const [applicableFloors, setApplicableFloors] = useState<number[]>([1]);
   const [partitions, setPartitions] = useState<UnitPartitionBox[]>([]);
+  const [isPartitionsValid, setIsPartitionsValid] = useState<boolean>(true);
   const [isTypicalModalOpen, setIsTypicalModalOpen] = useState<boolean>(false);
 
   // 1. Tải toàn bộ Floor Plans & Units của thửa đất
@@ -291,6 +292,11 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
       return;
     }
 
+    if (!isPartitionsValid) {
+      alert('Vui lòng kiểm tra lại: Có ô căn hộ đang bị trùng lặp hoặc chưa đặt mã!');
+      return;
+    }
+
     const targetPartitions = newPartitions || partitions;
     setIsSaving(true);
     setSaveSuccessMsg('');
@@ -383,32 +389,32 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
   }, [buildingFloors, activeFloor]);
 
   return (
-    <div className="fixed inset-0 z-[100001] bg-slate-950/85 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 animate-in fade-in duration-150">
-      <div className="bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl w-full max-w-7xl h-[95vh] flex flex-col overflow-hidden text-white">
+    <div className="fixed inset-0 z-[100001] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 animate-in fade-in duration-150">
+      <div className="bg-white border border-slate-200 rounded-3xl shadow-2xl w-full max-w-7xl h-[95vh] flex flex-col overflow-hidden text-slate-800">
         {/* ========================================================= */}
-        {/* 1. Header Studio Bar */}
+        {/* 1. Header Studio Bar (Light Theme) */}
         {/* ========================================================= */}
-        <div className="flex items-center justify-between px-5 py-3.5 bg-slate-850 border-b border-slate-800 shrink-0">
+        <div className="flex items-center justify-between px-5 py-3.5 bg-slate-50 border-b border-slate-200 shrink-0">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-2xl bg-teal-500/20 text-teal-400 border border-teal-500/30 shadow-md">
+            <div className="p-2.5 rounded-2xl bg-teal-50 text-teal-600 border border-teal-200 shadow-sm">
               <Building2 className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="text-base font-bold text-white flex items-center gap-2">
+              <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
                 Quản Lý Bản Vẽ CAD & Phân Chia Mặt Bằng Chung Cư
-                <span className="text-xs font-mono font-bold px-2.5 py-0.5 rounded-full bg-teal-950 text-teal-300 border border-teal-700">
+                <span className="text-xs font-mono font-bold px-2.5 py-0.5 rounded-full bg-teal-50 text-teal-800 border border-teal-200">
                   {projectCode}
                 </span>
                 {readOnly && (
-                  <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-sky-950 text-sky-300 border border-sky-700">
+                  <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-sky-50 text-sky-800 border border-sky-200">
                     Khảo Sát Viên (Chỉ Đọc)
                   </span>
                 )}
               </h2>
-              <p className="text-xs text-slate-400 flex items-center gap-2">
+              <p className="text-xs text-slate-500 flex items-center gap-2">
                 <span>Quy mô: <strong>{buildingFloors.length} tầng</strong></span>
                 <span>•</span>
-                <span>Tổng số căn hộ hiện có: <strong className="text-teal-300">{allUnits.length} căn</strong></span>
+                <span>Tổng số căn hộ hiện có: <strong className="text-teal-700">{allUnits.length} căn</strong></span>
                 <span>•</span>
                 <span>
                   Địa chỉ: {[parcel.houseNumber, parcel.street].filter(Boolean).join(' ') || 'Đang cập nhật'}
@@ -420,7 +426,7 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
           <button
             type="button"
             onClick={onClose}
-            className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors cursor-pointer"
+            className="p-2 rounded-xl bg-white hover:bg-slate-100 text-slate-400 hover:text-slate-700 border border-slate-200 transition-colors cursor-pointer shadow-2xs"
           >
             <X className="w-5 h-5" />
           </button>
@@ -433,18 +439,18 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
           {/* ------------------------------------------------------- */}
           {/* CỘT TRÁI: Floor Navigation Sidebar (Quản lý các tầng) */}
           {/* ------------------------------------------------------- */}
-          <div className="w-64 sm:w-72 bg-slate-850/90 border-r border-slate-800 flex flex-col shrink-0 overflow-hidden">
+          <div className="w-64 sm:w-72 bg-slate-50 border-r border-slate-200 flex flex-col shrink-0 overflow-hidden">
             {/* Sidebar Header */}
-            <div className="p-3 border-b border-slate-800 flex items-center justify-between text-xs font-bold text-slate-300">
+            <div className="p-3 border-b border-slate-200 flex items-center justify-between text-xs font-bold text-slate-700">
               <span className="flex items-center gap-1.5">
-                <Layers className="w-4 h-4 text-teal-400" />
+                <Layers className="w-4 h-4 text-teal-600" />
                 Danh Sách Tầng ({buildingFloors.length})
               </span>
               {!readOnly && (
                 <button
                   type="button"
                   onClick={() => setShowAddFloorInput(!showAddFloorInput)}
-                  className="flex items-center gap-1 px-2 py-1 rounded-lg bg-teal-950 hover:bg-teal-900 text-teal-300 border border-teal-700/60 text-[11px] transition-colors cursor-pointer"
+                  className="flex items-center gap-1 px-2 py-1 rounded-lg bg-teal-50 hover:bg-teal-100 text-teal-700 border border-teal-200 text-[11px] font-bold transition-colors cursor-pointer"
                 >
                   <Plus className="w-3 h-3" />
                   <span>Thêm tầng</span>
@@ -454,18 +460,18 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
 
             {/* Ô thêm tầng nhanh */}
             {showAddFloorInput && (
-              <div className="p-2.5 bg-slate-800/80 border-b border-slate-750 flex items-center gap-2 animate-in slide-in-from-top-2">
+              <div className="p-2.5 bg-white border-b border-slate-200 flex items-center gap-2 animate-in slide-in-from-top-2">
                 <input
                   type="number"
                   placeholder="Số tầng (VD: 9, -1)"
                   value={newFloorInput}
                   onChange={(e) => setNewFloorInput(e.target.value)}
-                  className="flex-1 px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700 text-xs font-bold text-white focus:outline-none focus:border-teal-500"
+                  className="flex-1 px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-300 text-xs font-bold text-slate-900 focus:outline-none focus:border-teal-500"
                 />
                 <button
                   type="button"
                   onClick={handleAddCustomFloor}
-                  className="px-2.5 py-1 rounded-lg bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold transition-colors cursor-pointer"
+                  className="px-2.5 py-1 rounded-lg bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold transition-colors cursor-pointer"
                 >
                   Thêm
                 </button>
@@ -476,7 +482,7 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
             <div className="flex-1 overflow-y-auto p-2 space-y-1">
               {isLoading ? (
                 <div className="p-6 text-center text-xs text-slate-500 flex flex-col items-center gap-2">
-                  <Loader2 className="w-5 h-5 animate-spin text-teal-400" />
+                  <Loader2 className="w-5 h-5 animate-spin text-teal-600" />
                   <span>Đang nạp cấu trúc tòa nhà...</span>
                 </div>
               ) : (
@@ -488,25 +494,25 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
                       onClick={() => handleSelectFloor(fl.floorNumber)}
                       className={`p-2.5 rounded-xl border transition-all cursor-pointer flex items-center justify-between group ${
                         isActive
-                          ? 'border-teal-400 bg-teal-950/60 text-white shadow-md ring-1 ring-teal-400/40'
-                          : 'border-slate-800/80 bg-slate-900/40 hover:bg-slate-800 text-slate-300 hover:border-slate-700'
+                          ? 'border-teal-500 bg-teal-50 text-teal-950 shadow-sm ring-1 ring-teal-400/40'
+                          : 'border-slate-200 bg-white hover:bg-slate-100/70 text-slate-700'
                       }`}
                     >
                       <div className="flex flex-col min-w-0">
-                        <span className={`text-xs font-bold truncate ${isActive ? 'text-teal-200' : 'text-slate-200'}`}>
+                        <span className={`text-xs font-bold truncate ${isActive ? 'text-teal-900' : 'text-slate-800'}`}>
                           {fl.floorName}
                         </span>
                         <div className="flex items-center gap-1.5 mt-0.5">
                           {fl.isInherited ? (
-                            <span className="text-[10px] text-teal-400 flex items-center gap-0.5 font-medium">
+                            <span className="text-[10px] text-teal-700 flex items-center gap-0.5 font-medium">
                               <LinkIcon className="w-2.5 h-2.5" /> Dùng chung T{fl.inheritedFromFloor}
                             </span>
                           ) : fl.hasCad ? (
-                            <span className="text-[10px] text-emerald-400 font-medium">
+                            <span className="text-[10px] text-emerald-700 font-medium">
                               ✓ Có CAD riêng
                             </span>
                           ) : (
-                            <span className="text-[10px] text-slate-500">
+                            <span className="text-[10px] text-slate-400">
                               Chưa có CAD
                             </span>
                           )}
@@ -518,8 +524,8 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
                           <span
                             className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-md ${
                               isActive
-                                ? 'bg-teal-800 text-teal-100 border border-teal-600'
-                                : 'bg-slate-800 text-slate-400 border border-slate-700'
+                                ? 'bg-teal-700 text-white'
+                                : 'bg-slate-100 text-slate-600 border border-slate-200'
                             }`}
                           >
                             {fl.unitCount} căn
@@ -527,7 +533,7 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
                         ) : null}
                         <ChevronRight
                           className={`w-3.5 h-3.5 transition-transform ${
-                            isActive ? 'text-teal-300 translate-x-0.5' : 'text-slate-600 group-hover:text-slate-400'
+                            isActive ? 'text-teal-700 translate-x-0.5' : 'text-slate-400 group-hover:text-slate-600'
                           }`}
                         />
                       </div>
@@ -541,14 +547,14 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
           {/* ------------------------------------------------------- */}
           {/* CỘT PHẢI: Main CAD Workspace cho Active Floor */}
           {/* ------------------------------------------------------- */}
-          <div className="flex-1 flex flex-col bg-slate-900 overflow-hidden">
+          <div className="flex-1 flex flex-col bg-slate-100 overflow-hidden">
             {/* Sub-header Bar: Thông tin tầng, tên mặt bằng & Dải tầng áp dụng */}
-            <div className="px-5 py-3 bg-slate-850 border-b border-slate-800 flex items-center justify-between gap-3 flex-wrap shrink-0">
+            <div className="px-5 py-3 bg-white border-b border-slate-200 flex items-center justify-between gap-3 flex-wrap shrink-0">
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-1.5">
-                  <span className="text-xs font-bold text-slate-400">Tên mặt bằng:</span>
+                  <span className="text-xs font-bold text-slate-600">Tên mặt bằng:</span>
                   {readOnly ? (
-                    <span className="text-xs font-bold text-white px-2.5 py-1 rounded-lg bg-slate-800 border border-slate-700">
+                    <span className="text-xs font-bold text-slate-800 px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-200">
                       {floorName}
                     </span>
                   ) : (
@@ -557,7 +563,7 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
                       value={floorName}
                       onChange={(e) => setFloorName(e.target.value)}
                       placeholder={`Tầng ${activeFloor}`}
-                      className="px-2.5 py-1 rounded-lg bg-slate-800 border border-slate-700 text-xs font-bold text-teal-300 focus:outline-none focus:border-teal-500 w-44 sm:w-56"
+                      className="px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-300 text-xs font-bold text-teal-800 focus:outline-none focus:border-teal-600 w-44 sm:w-56"
                     />
                   )}
                 </div>
@@ -566,10 +572,10 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
                   <button
                     type="button"
                     onClick={() => setIsTypicalModalOpen(true)}
-                    className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-slate-800 hover:bg-teal-950 text-slate-200 hover:text-teal-300 border border-slate-700 hover:border-teal-500/50 text-xs font-bold transition-all cursor-pointer shadow-xs"
+                    className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-slate-100 hover:bg-teal-50 text-slate-700 hover:text-teal-800 border border-slate-200 hover:border-teal-300 text-xs font-bold transition-all cursor-pointer shadow-2xs"
                     title="Chọn các tầng có cùng mặt bằng để nhân bản tự động"
                   >
-                    <Layers className="w-3.5 h-3.5 text-teal-400" />
+                    <Layers className="w-3.5 h-3.5 text-teal-600" />
                     <span>Dải tầng dùng chung ({applicableFloors.length} tầng)</span>
                   </button>
                 )}
@@ -585,7 +591,7 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
                         setCadUrl('');
                       }
                     }}
-                    className="text-xs text-slate-400 hover:text-white underline cursor-pointer"
+                    className="text-xs text-slate-500 hover:text-slate-800 underline cursor-pointer"
                   >
                     Đổi file CAD khác
                   </button>
@@ -597,7 +603,7 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
                         setPartitions([]);
                       }
                     }}
-                    className="p-1.5 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-rose-950/40 transition-colors cursor-pointer"
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
                     title="Xóa CAD tầng này"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
@@ -608,16 +614,16 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
 
             {/* Thông báo kế thừa nếu tầng này đang là Follower */}
             {currentFloorItem?.isInherited && (
-              <div className="px-5 py-2 bg-teal-950/50 border-b border-teal-800/60 text-xs text-teal-300 flex items-center justify-between shrink-0">
+              <div className="px-5 py-2 bg-teal-50 border-b border-teal-200 text-xs text-teal-800 flex items-center justify-between shrink-0">
                 <span className="flex items-center gap-1.5">
-                  <LinkIcon className="w-3.5 h-3.5 text-teal-400" />
+                  <LinkIcon className="w-3.5 h-3.5 text-teal-600" />
                   Tầng {activeFloor} đang dùng chung mặt bằng và phân chia từ{' '}
-                  <strong className="text-white">Tầng {currentFloorItem.inheritedFromFloor}</strong>.
+                  <strong className="text-teal-950 font-bold">Tầng {currentFloorItem.inheritedFromFloor}</strong>.
                 </span>
                 <button
                   type="button"
                   onClick={() => handleSelectFloor(currentFloorItem.inheritedFromFloor!)}
-                  className="text-xs text-teal-200 hover:text-white underline font-bold cursor-pointer"
+                  className="text-xs text-teal-700 hover:text-teal-900 underline font-bold cursor-pointer"
                 >
                   Chuyển sang Tầng {currentFloorItem.inheritedFromFloor} để sửa gốc
                 </button>
@@ -626,8 +632,8 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
 
             {/* Banner Lưu thành công */}
             {saveSuccessMsg && (
-              <div className="mx-4 mt-3 p-3 bg-emerald-950/80 border border-emerald-500/50 rounded-xl text-emerald-300 text-xs font-medium flex items-center gap-2 animate-in fade-in shrink-0">
-                <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
+              <div className="mx-4 mt-3 p-3 bg-emerald-50 border border-emerald-300 rounded-xl text-emerald-800 text-xs font-medium flex items-center gap-2 animate-in fade-in shrink-0">
+                <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
                 <span>{saveSuccessMsg}</span>
               </div>
             )}
@@ -651,7 +657,7 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
                   floorNumber={activeFloor}
                   initialPartitions={partitions}
                   onChangePartitions={setPartitions}
-                  onSave={readOnly ? undefined : handleSaveFloorPlanAndPartitions}
+                  onValidationChange={setIsPartitionsValid}
                   readOnly={readOnly}
                 />
               )}
@@ -660,23 +666,29 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
         </div>
 
         {/* ========================================================= */}
-        {/* 3. Footer Actions Studio */}
+        {/* 3. Footer Actions Studio (Light Theme) */}
         {/* ========================================================= */}
-        <div className="px-5 py-3.5 bg-slate-850 border-t border-slate-800 flex items-center justify-between text-xs shrink-0">
-          <div className="text-slate-400 flex items-center gap-2">
-            <span>Tầng {activeFloor}: <strong className="text-teal-300 font-mono">{partitions.length} căn</strong></span>
+        <div className="px-5 py-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-xs shrink-0">
+          <div className="text-slate-600 flex items-center gap-2">
+            <span>Tầng {activeFloor}: <strong className="text-teal-700 font-mono">{partitions.length} căn</strong></span>
             <span>•</span>
             <span>
               Áp dụng cho dải tầng [{applicableFloors.join(', ')}] $\rightarrow${' '}
-              <strong className="text-white font-mono">{partitions.length * applicableFloors.length} căn hộ con</strong>
+              <strong className="text-slate-900 font-mono">{partitions.length * applicableFloors.length} căn hộ con</strong>
             </span>
+            {!isPartitionsValid && (
+              <span className="ml-2 px-2 py-0.5 rounded bg-rose-100 text-rose-700 font-bold border border-rose-200 flex items-center gap-1">
+                <AlertCircle className="w-3.5 h-3.5 text-rose-600" />
+                Mã căn bị trùng hoặc trống
+              </span>
+            )}
           </div>
 
           <div className="flex items-center gap-2.5">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition-colors cursor-pointer"
+              className="px-4 py-2 rounded-xl bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 text-xs font-bold transition-colors cursor-pointer"
             >
               Đóng
             </button>
@@ -684,9 +696,10 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
             {!readOnly && (
               <button
                 type="button"
-                disabled={isSaving || !cadUrl}
+                disabled={isSaving || !cadUrl || !isPartitionsValid}
                 onClick={() => handleSaveFloorPlanAndPartitions()}
-                className="px-5 py-2 rounded-xl bg-teal-600 hover:bg-teal-500 disabled:opacity-50 text-white text-xs font-bold shadow-lg transition-all active:scale-95 flex items-center gap-2 cursor-pointer"
+                className="px-5 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white text-xs font-bold shadow-md transition-all active:scale-95 flex items-center gap-2 cursor-pointer"
+                title={!isPartitionsValid ? 'Vui lòng sửa các mã căn bị trùng lặp hoặc để trống trước khi lưu' : undefined}
               >
                 {isSaving ? (
                   <>

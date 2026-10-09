@@ -50,24 +50,24 @@ export const TypicalFloorsSelectorModal: React.FC<TypicalFloorsSelectorModalProp
 
   return (
     <div
-      className="fixed inset-0 z-[100005] bg-slate-950/80 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-150"
+      className="fixed inset-0 z-[100005] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-150"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="bg-slate-900 border border-slate-750 rounded-3xl shadow-2xl max-w-lg w-full flex flex-col overflow-hidden text-white animate-in zoom-in-95 duration-150">
+      <div className="bg-white border border-slate-200 rounded-3xl shadow-2xl max-w-lg w-full flex flex-col overflow-hidden text-slate-800 animate-in zoom-in-95 duration-150">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 bg-slate-850 border-b border-slate-800">
+        <div className="flex items-center justify-between px-5 py-4 bg-slate-50 border-b border-slate-200">
           <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl bg-teal-500/20 text-teal-400">
+            <div className="p-2 rounded-xl bg-teal-50 text-teal-600 border border-teal-200">
               <Layers className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-white">
+              <h3 className="text-base font-bold text-slate-900">
                 Thiết Lập Dải Tầng Điển Hình
               </h3>
-              <p className="text-xs text-slate-400">
-                Sơ đồ kiến trúc <strong className="text-teal-300">{baseFloorName || `Tầng ${baseFloorNumber}`}</strong>{' '}
+              <p className="text-xs text-slate-500">
+                Sơ đồ kiến trúc <strong className="text-teal-700">{baseFloorName || `Tầng ${baseFloorNumber}`}</strong>{' '}
                 sẽ được dùng chung cho các tầng sau:
               </p>
             </div>
@@ -75,30 +75,30 @@ export const TypicalFloorsSelectorModal: React.FC<TypicalFloorsSelectorModalProp
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Quick Toolbar */}
-        <div className="flex items-center justify-between px-5 py-2.5 bg-slate-850/50 border-b border-slate-800/80 text-xs">
-          <span className="text-slate-400 font-medium">
-            Đã chọn: <strong className="text-teal-300 font-mono">{selectedFloors.length} tầng</strong>
+        <div className="flex items-center justify-between px-5 py-2.5 bg-slate-50/50 border-b border-slate-200 text-xs">
+          <span className="text-slate-600 font-medium">
+            Đã chọn: <strong className="text-teal-700 font-mono">{selectedFloors.length} tầng</strong>
           </span>
           <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={handleSelectAllAbove}
-              className="text-teal-400 hover:text-teal-300 hover:underline font-bold cursor-pointer"
+              className="text-teal-600 hover:text-teal-700 hover:underline font-bold cursor-pointer"
             >
               + Chọn tất cả tầng trên
             </button>
-            <span className="text-slate-600">•</span>
+            <span className="text-slate-400">•</span>
             <button
               type="button"
               onClick={handleClearOthers}
-              className="text-slate-400 hover:text-slate-200 hover:underline cursor-pointer"
+              className="text-slate-500 hover:text-slate-800 hover:underline cursor-pointer"
             >
               Chỉ tầng gốc
             </button>
@@ -118,23 +118,23 @@ export const TypicalFloorsSelectorModal: React.FC<TypicalFloorsSelectorModalProp
                   onClick={() => toggleFloor(fl.floorNumber)}
                   className={`p-3 rounded-2xl border-2 flex items-center justify-between transition-all select-none ${
                     isBase
-                      ? 'border-teal-400 bg-teal-950/60 text-teal-200 cursor-default shadow-xs'
+                      ? 'border-teal-500 bg-teal-50 text-teal-900 cursor-default shadow-xs'
                       : isChecked
-                      ? 'border-teal-500/80 bg-teal-950/30 text-white cursor-pointer hover:border-teal-400'
-                      : 'border-slate-800 bg-slate-850 text-slate-400 cursor-pointer hover:border-slate-700 hover:text-slate-200'
+                      ? 'border-teal-500 bg-teal-50/70 text-teal-950 cursor-pointer hover:border-teal-600'
+                      : 'border-slate-200 bg-white text-slate-700 cursor-pointer hover:border-slate-300 hover:bg-slate-50'
                   }`}
                 >
                   <div className="flex flex-col">
                     <span className="text-xs font-bold flex items-center gap-1.5">
                       {fl.floorName || `Tầng ${fl.floorNumber}`}
                       {isBase && (
-                        <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-teal-800 text-teal-200 font-normal">
+                        <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-teal-200 text-teal-800 font-normal">
                           Gốc
                         </span>
                       )}
                     </span>
                     {!isBase && fl.hasOwnCad && isChecked && (
-                      <span className="text-[10px] text-amber-400 font-medium flex items-center gap-0.5 mt-0.5">
+                      <span className="text-[10px] text-amber-600 font-medium flex items-center gap-0.5 mt-0.5">
                         <AlertTriangle className="w-2.5 h-2.5" /> Ghi đè CAD
                       </span>
                     )}
@@ -146,7 +146,7 @@ export const TypicalFloorsSelectorModal: React.FC<TypicalFloorsSelectorModalProp
                         <Check className="w-3.5 h-3.5 stroke-[3]" />
                       </div>
                     ) : (
-                      <div className="w-5 h-5 rounded-md border border-slate-700 bg-slate-800" />
+                      <div className="w-5 h-5 rounded-md border border-slate-300 bg-slate-50" />
                     )}
                   </div>
                 </div>
@@ -156,8 +156,8 @@ export const TypicalFloorsSelectorModal: React.FC<TypicalFloorsSelectorModalProp
         </div>
 
         {/* Footer Actions */}
-        <div className="flex items-center justify-between px-5 py-3.5 bg-slate-850 border-t border-slate-800">
-          <span className="text-xs text-slate-400 truncate max-w-[200px] font-mono">
+        <div className="flex items-center justify-between px-5 py-3.5 bg-slate-50 border-t border-slate-200">
+          <span className="text-xs text-slate-500 truncate max-w-[200px] font-mono">
             [{selectedFloors.join(', ')}]
           </span>
 
@@ -165,7 +165,7 @@ export const TypicalFloorsSelectorModal: React.FC<TypicalFloorsSelectorModalProp
             <button
               type="button"
               onClick={onClose}
-              className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition-colors cursor-pointer"
+              className="px-3.5 py-2 rounded-xl bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 text-xs font-bold transition-colors cursor-pointer"
             >
               Hủy
             </button>
@@ -175,7 +175,7 @@ export const TypicalFloorsSelectorModal: React.FC<TypicalFloorsSelectorModalProp
                 onConfirm(selectedFloors);
                 onClose();
               }}
-              className="px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold shadow-lg transition-all active:scale-95 cursor-pointer"
+              className="px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold shadow-sm transition-all active:scale-95 cursor-pointer"
             >
               Áp Dụng Cho {selectedFloors.length} Tầng
             </button>

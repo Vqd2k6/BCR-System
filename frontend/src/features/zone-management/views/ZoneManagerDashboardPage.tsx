@@ -13,6 +13,7 @@ import { ZoneParcelsDataGrid } from '../components/parcels/ZoneParcelsDataGrid';
 import { Phase1ExportModuleBox } from '../components/Phase1ExportModuleBox';
 import { LeafletSweepMap } from '../../../components/gis/LeafletSweepMap';
 import type { GisParcel } from '../../../components/gis/shared/types';
+import { getNavigationFromUrl, updateNavigationUrl } from '../../../utils/navigationSync';
 
 interface Props {
   parcels?: GisParcel[];
@@ -42,7 +43,11 @@ export const ZoneManagerDashboardPage: React.FC<Props> = ({
   onNavigateToParcels,
 }) => {
   const { user } = useAuth();
-  const [activeNav, setActiveNav] = useState<ZoneNavView>('dashboard');
+  const [activeNav, setActiveNav] = useState<ZoneNavView>(() => {
+    const nav = getNavigationFromUrl();
+    if (nav.nav) return nav.nav;
+    return 'dashboard';
+  });
 
   const resolveDefaultZone = (zoneId?: string | null): string => {
     if (!zoneId) return 'ZONE_01';
@@ -54,6 +59,8 @@ export const ZoneManagerDashboardPage: React.FC<Props> = ({
   };
 
   const [selectedZone, setSelectedZone] = useState<string>(() => {
+    const nav = getNavigationFromUrl();
+    if (nav.zone) return nav.zone.toUpperCase();
     return resolveDefaultZone(user?.assignedZoneId);
   });
 
@@ -133,7 +140,7 @@ export const ZoneManagerDashboardPage: React.FC<Props> = ({
     setActiveFilterValue(val);
     setActiveFilterLabel(label);
     // Tự động chuyển sang xem Hàng Đợi Thẩm Định
-    setActiveNav('review');
+    handleNavChange('review');
   };
 
   const handleClearFilter = () => {
@@ -144,7 +151,23 @@ export const ZoneManagerDashboardPage: React.FC<Props> = ({
 
   const handleNavChange = (nav: ZoneNavView) => {
     setActiveNav(nav);
+    updateNavigationUrl({ nav });
   };
+
+  // Đồng bộ popstate nếu người dùng dùng phím Back / Forward trong Zone Portal
+  useEffect(() => {
+    const handlePopState = () => {
+      const nav = getNavigationFromUrl();
+      if (nav.nav && nav.nav !== activeNav) {
+        setActiveNav(nav.nav);
+      }
+      if (nav.zone && nav.zone !== selectedZone) {
+        setSelectedZone(nav.zone);
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [activeNav, selectedZone]);
 
   return (
     <ZoneAdminAppShell
@@ -153,6 +176,7 @@ export const ZoneManagerDashboardPage: React.FC<Props> = ({
       selectedZone={selectedZone}
       onSelectZone={(z) => {
         setSelectedZone(z);
+        updateNavigationUrl({ zone: z });
         handleClearFilter();
       }}
       pendingCount={stats.submitted}
