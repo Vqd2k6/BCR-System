@@ -13,6 +13,7 @@ import { ZoneParcelsDataGrid } from '../components/parcels/ZoneParcelsDataGrid';
 import { Phase1ExportModuleBox } from '../components/Phase1ExportModuleBox';
 import { LeafletSweepMap } from '../../../components/gis/LeafletSweepMap';
 import type { GisParcel } from '../../../components/gis/shared/types';
+import { ShieldAlert } from 'lucide-react';
 import { getNavigationFromUrl, updateNavigationUrl } from '../../../utils/navigationSync';
 
 interface Props {
@@ -43,6 +44,23 @@ export const ZoneManagerDashboardPage: React.FC<Props> = ({
   onNavigateToParcels,
 }) => {
   const { user } = useAuth();
+
+  // Chốt chặn an ninh nội bộ: Chỉ ZONE_ADMIN và SUPER_ADMIN mới có quyền xem màn hình này
+  if (user?.role !== 'ZONE_ADMIN' && user?.role !== 'SUPER_ADMIN') {
+    return (
+      <div className="max-w-2xl mx-auto my-12 p-8 bg-rose-50 border border-rose-200 rounded-2xl text-center space-y-4 shadow-sm">
+        <div className="w-14 h-14 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mx-auto border border-rose-200 shadow-inner">
+          <ShieldAlert size={32} />
+        </div>
+        <h2 className="text-lg font-bold text-rose-900">Quyền Truy Cập Bị Từ Chối (403 Forbidden)</h2>
+        <p className="text-xs text-rose-700 leading-relaxed max-w-md mx-auto">
+          Phân hệ Điều hành Zone này dành riêng cho <strong>Quản Trị Viên Phân Khu (Zone Admin)</strong> và Lãnh đạo Ban Quản Lý ĐSĐT. 
+          Tài khoản hiện tại của bạn không có đặc quyền truy cập trang này.
+        </p>
+      </div>
+    );
+  }
+
   const [activeNav, setActiveNav] = useState<ZoneNavView>(() => {
     const nav = getNavigationFromUrl();
     if (nav.nav) return nav.nav;

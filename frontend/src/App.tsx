@@ -35,6 +35,11 @@ import {
   updateNavigationUrl,
   clearSurveyParamsFromUrl,
 } from './utils/navigationSync';
+import {
+  isTabAllowedForRole,
+  getDefaultTabForRole,
+  sanitizeNavigationForRole,
+} from './utils/rbacNavigationGuard';
 
 export const App: React.FC = () => {
   const { user, isAuthenticated, isLoading } = useAuth();
@@ -45,24 +50,37 @@ export const App: React.FC = () => {
   });
   const [showPublicPortal, setShowPublicPortal] = useState<boolean>(false);
 
-  // Khôi phục tab từ URL sau reload, hoặc chỉ fallback khi URL chưa có tab hợp lệ
+  // Khôi phục và chuẩn hóa tab từ URL theo Ma trận Phân quyền RBAC (Role-based Navigation Guard)
   useEffect(() => {
     if (!isAuthenticated || !user) return;
-    const nav = getNavigationFromUrl();
-    if (nav.tab) {
-      if (activeTab !== nav.tab) {
-        setActiveTab(nav.tab);
+    const currentNav = getNavigationFromUrl();
+
+    // Kiểm tra tính hợp lệ của tham số điều hướng với vai trò hiện tại
+    const { safeTab, wasSanitized } = sanitizeNavigationForRole(currentNav, user.role);
+
+    if (wasSanitized) {
+      console.warn(
+        `[App:RBACGuard] Phát hiện tham số điều hướng không hợp lệ với vai trò [${user.role}]. Đã chuẩn hóa về tab an toàn: [${safeTab}]`
+      );
+      setActiveTab(safeTab);
+      updateNavigationUrl(
+        { tab: safeTab, adminTab: undefined, nav: undefined },
+        { replace: true }
+      );
+      return;
+    }
+
+    if (currentNav.tab) {
+      if (activeTab !== currentNav.tab) {
+        setActiveTab(currentNav.tab);
       }
       return;
     }
 
-    if (user.role === 'ZONE_ADMIN' || user.role === 'SUPER_ADMIN') {
-      setActiveTab('admin-export');
-      updateNavigationUrl({ tab: 'admin-export' }, { replace: true });
-    } else {
-      setActiveTab('home');
-      updateNavigationUrl({ tab: 'home' }, { replace: true });
-    }
+    // Nếu URL chưa có tab hợp lệ, tự động gán tab mặc định theo vai trò
+    const defaultTab = getDefaultTabForRole(user.role);
+    setActiveTab(defaultTab);
+    updateNavigationUrl({ tab: defaultTab }, { replace: true });
   }, [user?.id, user?.role, isAuthenticated]);
 
   const [selectedZone, setSelectedZone] = useState<string>(() => {
@@ -295,7 +313,9 @@ export const App: React.FC = () => {
               localStorage.setItem('metro2_parcel_status_overrides', JSON.stringify(overrides));
             }
           }
-        } catch (_e) {}
+        } catch (_e: unknown) {
+          console.warn('[App:normalizeParcel] Lỗi dọn dẹp nháp cũ đã nộp:', _e);
+        }
       } else {
         // 2. Chỉ đọc override & nháp khi server CHƯA ghi nhận SUBMITTED/APPROVED
         try {
@@ -312,7 +332,9 @@ export const App: React.FC = () => {
               parcelUpdatedAt = overrides[p.id].updatedAt;
             }
           }
-        } catch (_e) {}
+        } catch (_e: unknown) {
+          console.warn('[App:normalizeParcel] Lỗi đọc overrides trạng thái:', _e);
+        }
 
         if (effectiveStatus !== 'APPROVED' && effectiveStatus !== 'PHASE2_COMPLETED' && effectiveStatus !== 'APPROVED_PHASE2' && effectiveStatus !== 'SUBMITTED') {
           try {
@@ -332,7 +354,9 @@ export const App: React.FC = () => {
                 parcelUpdatedAt = parsed.lastSavedAt || parsed.updatedAt || parcelUpdatedAt;
               }
             }
-          } catch (_e) {}
+          } catch (_e: unknown) {
+            console.warn('[App:normalizeParcel] Lỗi đọc bản nháp phase1:', _e);
+          }
         }
       }
     }
@@ -410,11 +434,13 @@ export const App: React.FC = () => {
             setCheckInDetails(details);
             try {
               localStorage.setItem(`metro2_today_checkin_${todayStr}`, JSON.stringify(details));
-            } catch (_e) {}
+            } catch (_e: unknown) {
+              console.warn('[App:syncTodayAttendance] Lỗi lưu checkin details vào localStorage:', _e);
+            }
           }
         }
-      } catch (err) {
-        console.warn('Sync attendance error:', err);
+      } catch (err: unknown) {
+        console.warn('[App:syncTodayAttendance] Sync attendance error:', err);
       }
     };
 
@@ -431,7 +457,9 @@ export const App: React.FC = () => {
       window.history.pushState({ reportParcelId: parcel.id }, '', url.toString());
       sessionStorage.setItem('metro2_guest_viewing_parcel_id', parcel.id);
       sessionStorage.setItem('metro2_guest_viewing_parcel_data', JSON.stringify(parcel));
-    } catch (_e) {}
+    } catch (_e: unknown) {
+      console.warn('[App:handleOpenGuestReport] Lỗi lưu session guest viewing:', _e);
+    }
   };
 
   const handleBackFromGuestReport = () => {
@@ -443,7 +471,9 @@ export const App: React.FC = () => {
       window.history.pushState(null, '', url.toString());
       sessionStorage.removeItem('metro2_guest_viewing_parcel_id');
       sessionStorage.removeItem('metro2_guest_viewing_parcel_data');
-    } catch (_e) {}
+    } catch (_e: unknown) {
+      console.warn('[App:handleBackFromGuestReport] Lỗi dọn dẹp URL/session guest viewing:', _e);
+    }
   };
 
   // Khôi phục báo cáo khi reload hoặc mở link trực tiếp có query ?reportParcelId=...
@@ -479,7 +509,9 @@ export const App: React.FC = () => {
       return () => {
         isCancelled = true;
       };
-    } catch (_e) {}
+    } catch (_e: unknown) {
+      console.warn('[App:guestReportSync] Lỗi khôi phục báo cáo khách:', _e);
+    }
   }, [parcels, guestViewingReportParcel]);
 
   // ─── Khôi phục Thửa đất & Căn hộ cho các tab Khảo sát khi reload trực tiếp từ URL ───
@@ -589,6 +621,10 @@ export const App: React.FC = () => {
   }, [activeTab, selectedZone, parcels]);
 
   const handleChangeTab = (newTab: NavTab) => {
+    if (user && !isTabAllowedForRole(newTab, user.role)) {
+      console.warn(`[App:handleChangeTab] Chặn chuyển tab trái phép [${newTab}] cho vai trò [${user.role}]`);
+      return;
+    }
     setActiveTab(newTab);
     if (newTab === 'home' || newTab === 'map' || newTab === 'attendance' || newTab === 'admin-export') {
       clearSurveyParamsFromUrl();
@@ -650,6 +686,12 @@ export const App: React.FC = () => {
   };
 
   const handleStartPhase1 = (parcel: GisParcel, readOnly: boolean = false) => {
+    // Thửa đất Chung cư bắt buộc quản lý trong Hub, không mở khảo sát lẻ ở ngoài
+    if (parcel.buildingType === 'CONDOMINIUM') {
+      setHubParcel(parcel);
+      return;
+    }
+
     const effectiveStatus = getEffectiveParcelStatus(parcel);
     const isSubmittedOrApproved =
       effectiveStatus === 'SUBMITTED' ||
@@ -765,7 +807,9 @@ export const App: React.FC = () => {
             localStorage.setItem('metro2_parcel_status_overrides', JSON.stringify(overrides));
           }
         }
-      } catch (_e) {}
+      } catch (_e: unknown) {
+        console.warn('[App:handleResumeSurveyPresent] Lỗi xóa overrides trạng thái:', _e);
+      }
 
       // 3. Cập nhật state thửa đất trong parcels list sang IN_PROGRESS
       setParcels((prev) =>
@@ -794,13 +838,9 @@ export const App: React.FC = () => {
     updateSelectedParcel(null);
     updateSelectedUnit(null);
     clearSurveyParamsFromUrl();
-    if (user?.role === 'ZONE_ADMIN' || user?.role === 'SUPER_ADMIN') {
-      setActiveTab('admin-export');
-      updateNavigationUrl({ tab: 'admin-export' });
-    } else {
-      setActiveTab('home');
-      updateNavigationUrl({ tab: 'home' });
-    }
+    const fallbackTab = getDefaultTabForRole(user?.role);
+    setActiveTab(fallbackTab);
+    updateNavigationUrl({ tab: fallbackTab });
   };
 
   return (
@@ -847,7 +887,7 @@ export const App: React.FC = () => {
           />
         )}
 
-        {user?.role !== 'ZONE_ADMIN' && activeTab === 'admin-export' && (
+        {user?.role === 'SUPER_ADMIN' && activeTab === 'admin-export' && (
           <AdminDashboardPage />
         )}
 

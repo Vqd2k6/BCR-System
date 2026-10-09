@@ -8,6 +8,7 @@ import { BuildingUnitList } from './building-hub/components/BuildingUnitList';
 import { MasterSurveyViewModal } from './building-hub/components/MasterSurveyViewModal';
 import { FloorProgressPopover } from './building-hub/components/FloorProgressPopover';
 import { FloorPlanCadManagementModal } from './building-hub/components/FloorPlanCadManagementModal';
+import { SurveyorCadReadOnlyModal } from './building-hub/components/SurveyorCadReadOnlyModal';
 import { useAuth } from '../../context/AuthContext';
 
 export type { BuildingUnit, BuildingHubModalProps };
@@ -155,12 +156,19 @@ export const BuildingHubModal: React.FC<BuildingHubModalProps> = ({
 
       {/* Modal: Quản lý bản vẽ CAD tầng & chia cắt căn hộ */}
       {showCadModal && (
-        <FloorPlanCadManagementModal
-          parcel={parcel}
-          onClose={() => setShowCadModal(false)}
-          onUnitsUpdated={onUnitsUpdated}
-          readOnly={!isAdmin}
-        />
+        isAdmin ? (
+          <FloorPlanCadManagementModal
+            parcel={parcel}
+            onClose={() => setShowCadModal(false)}
+            onUnitsUpdated={onUnitsUpdated}
+            readOnly={false}
+          />
+        ) : (
+          <SurveyorCadReadOnlyModal
+            parcel={parcel}
+            onClose={() => setShowCadModal(false)}
+          />
+        )
       )}
     </div>
   );

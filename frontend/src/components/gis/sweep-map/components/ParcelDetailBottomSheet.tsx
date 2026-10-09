@@ -415,52 +415,29 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
           }
           if (activeParcel.buildingType === 'CONDOMINIUM') {
             return (
-              <>
-                <button
-                  type="button"
-                  className="btn btn-sm"
-                  onClick={() => onOpenBuildingHub && onOpenBuildingHub(activeParcel)}
-                  style={{
-                    flex: 1.5,
-                    minWidth: '160px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '0.35rem',
-                    padding: '0.5rem',
-                    fontWeight: 700,
-                    backgroundColor: '#4338ca',
-                    color: '#ffffff',
-                    border: '1px solid #3730a3',
-                    cursor: 'pointer',
-                    boxShadow: '0 2px 4px rgba(67, 56, 202, 0.25)',
-                  }}
-                >
-                  <Building2 size={14} />
-                  Mở Hub Căn Hộ ({activeParcel.completedUnits || 0}/{activeParcel.totalUnits || 1})
-                </button>
-
-                <button
-                  type="button"
-                  className="btn btn-primary btn-sm"
-                  onClick={() => onStartSurvey && onStartSurvey(activeParcel)}
-                  style={{
-                    flex: 1,
-                    minWidth: '130px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '0.35rem',
-                    padding: '0.5rem',
-                    fontWeight: 700,
-                    backgroundColor: '#0284c7',
-                    borderColor: '#0369a1',
-                  }}
-                >
-                  <PlusCircle size={14} />
-                  Khảo sát Tòa Nhà
-                </button>
-              </>
+              <button
+                type="button"
+                className="btn btn-sm"
+                onClick={() => onOpenBuildingHub && onOpenBuildingHub(activeParcel)}
+                style={{
+                  flex: 1,
+                  width: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.4rem',
+                  padding: '0.6rem 1rem',
+                  fontWeight: 700,
+                  backgroundColor: '#4338ca',
+                  color: '#ffffff',
+                  border: '1px solid #3730a3',
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 4px rgba(67, 56, 202, 0.25)',
+                }}
+              >
+                <Building2 size={16} />
+                Mở Hub Căn Hộ ({activeParcel.completedUnits || 0}/{activeParcel.totalUnits || 1})
+              </button>
             );
           }
           if (activeEffectiveStatus === 'UNDER_CONSTRUCTION') {

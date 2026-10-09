@@ -68,7 +68,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setToken(savedToken);
           // Đồng bộ thông tin mới nhất (phone, surveyorCode, signatureImageUrl) từ database
           syncUserProfileFromApi();
-        } catch (_e) {
+        } catch (_e: unknown) {
+          console.warn('[AuthContext:initSession] Lỗi đọc session lưu trữ:', _e);
           localStorage.removeItem('metro2_user_profile');
           localStorage.removeItem('metro2_access_token');
         }
@@ -125,12 +126,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.removeItem('metro2_access_token');
     localStorage.removeItem('metro2_user_profile');
     localStorage.removeItem('metro2_absence_log');
+    // Dọn dẹp trạng thái điều hướng và parcel đã chọn trong sessionStorage
+    sessionStorage.removeItem('metro2_nav_state');
+    sessionStorage.removeItem('metro2_last_active_parcel');
+    sessionStorage.removeItem('metro2_last_active_unit');
+    sessionStorage.removeItem('metro2_guest_viewing_parcel_id');
+    sessionStorage.removeItem('metro2_guest_viewing_parcel_data');
     // Clear all today check-in keys
     Object.keys(localStorage).forEach((k) => {
       if (k.startsWith('metro2_today_checkin_') || k.startsWith('metro2_attendance_')) {
         localStorage.removeItem(k);
       }
     });
+
+    // Làm sạch thanh địa chỉ URL về trang gốc không chứa query parameters
+    if (typeof window !== 'undefined') {
+      try {
+        window.history.replaceState({}, '', window.location.pathname);
+      } catch (_err: unknown) {
+        console.warn('[AuthContext:logout] Lỗi làm sạch URL:', _err);
+      }
+    }
   };
 
   return (

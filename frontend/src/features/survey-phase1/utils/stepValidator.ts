@@ -279,9 +279,416 @@ export const validateCondoUnitStep = (step: number, formData: Phase1SurveyFormDa
   };
 };
 
+export const validateCondoMasterStep = (step: number, formData: Phase1SurveyFormData): StepValidationResult => {
+  const missing: MissingFieldItem[] = [];
+
+  if (step === 1) {
+    // 1.1 Project Parcel Code
+    if (!formData.projectParcelCode?.trim()) {
+      missing.push({
+        fieldId: 'input-projectParcelCode',
+        label: '1.1. Mã quản lý dự án (Project Parcel Code) *',
+        step: 1,
+        description: 'Vui lòng kiểm tra mã quản lý dự án B-XXXXX.',
+        isBlocking: true,
+      });
+    }
+
+    // 1.1 Cadastral Code
+    if (!formData.officialCadastralCode?.trim()) {
+      missing.push({
+        fieldId: 'input-officialCadastralCode',
+        label: '1.1. Mã địa chính gốc (Cadastral Code) *',
+        step: 1,
+        description: 'Vui lòng kiểm tra số tờ - số thửa bản đồ địa chính.',
+        isBlocking: true,
+      });
+    }
+
+    // 1.1 Building Name
+    if (!formData.buildingName?.trim()) {
+      missing.push({
+        fieldId: 'input-buildingName',
+        label: '1.1. Tên toà nhà chung cư *',
+        step: 1,
+        description: 'Vui lòng nhập tên toà nhà hoặc khối tháp chung cư.',
+        isBlocking: true,
+      });
+    }
+
+    // 1.1 Address
+    if (!formData.houseNumber?.trim() && !formData.street?.trim()) {
+      missing.push({
+        fieldId: 'input-address',
+        label: '1.1. Địa chỉ thực tế toà nhà *',
+        step: 1,
+        description: 'Vui lòng nhập số nhà hoặc tên đường thực tế của toà nhà.',
+        isBlocking: true,
+      });
+    }
+
+    // 1.1 Owner / Management Name
+    if (!formData.ownerName?.trim() && !formData.managementContactName?.trim()) {
+      missing.push({
+        fieldId: 'input-ownerName',
+        label: '1.1. Chủ đầu tư / Ban Quản Lý toà nhà *',
+        step: 1,
+        description: 'Vui lòng nhập tên Chủ đầu tư hoặc đại diện Ban Quản Lý toà nhà.',
+        isBlocking: true,
+      });
+    }
+
+    // 1.4 Adjacent Buildings (3 hướng liền kề)
+    if (!formData.adjacentBuildings?.left?.details?.trim()) {
+      missing.push({
+        fieldId: 'input-adjacentLeft',
+        label: '1.4. Công trình liền kề bên trái *',
+        step: 1,
+        description: 'Vui lòng chọn hiện trạng công trình liền kề bên trái.',
+        isBlocking: true,
+      });
+    }
+    if (!formData.adjacentBuildings?.right?.details?.trim()) {
+      missing.push({
+        fieldId: 'input-adjacentRight',
+        label: '1.4. Công trình liền kề bên phải *',
+        step: 1,
+        description: 'Vui lòng chọn hiện trạng công trình liền kề bên phải.',
+        isBlocking: true,
+      });
+    }
+    if (!formData.adjacentBuildings?.back?.details?.trim()) {
+      missing.push({
+        fieldId: 'input-adjacentBack',
+        label: '1.4. Công trình liền kề phía sau *',
+        step: 1,
+        description: 'Vui lòng chọn hiện trạng công trình liền kề phía sau tiếp giáp.',
+        isBlocking: true,
+      });
+    }
+
+    // 1.5 Photos
+    if (!formData.photoP01?.url && !formData.photoP01?.notApplicable) {
+      missing.push({
+        fieldId: 'photo-p01-section',
+        label: '1.5. Ảnh P-01 (Biển toà nhà / Số nhà) *',
+        step: 1,
+        description: 'Vui lòng chụp ảnh biển tên toà nhà hoặc đánh dấu N/A.',
+        isBlocking: true,
+      });
+    }
+
+    if (!formData.photoP02?.url && !formData.photoP02?.notApplicable) {
+      missing.push({
+        fieldId: 'photo-p02-section',
+        label: '1.5. Ảnh P-02 (Mặt đứng chính toà nhà) *',
+        step: 1,
+        description: 'Vui lòng chụp ảnh mặt đứng chính của toà nhà hoặc đánh dấu N/A.',
+        isBlocking: true,
+      });
+    }
+
+    if (
+      formData.photoP02?.url &&
+      !formData.photoP02?.notApplicable &&
+      (!formData.photoP02?.polygonPoints || formData.photoP02.polygonPoints.length < 3)
+    ) {
+      missing.push({
+        fieldId: 'photo-p02-section',
+        label: '1.5. Khoanh đa giác ranh mặt đứng toà nhà (Ảnh P-02) *',
+        step: 1,
+        description: 'Vui lòng chấm tối thiểu 3 điểm đỉnh đa giác bao quanh mặt đứng toà nhà khi có ảnh P-02.',
+        isBlocking: true,
+      });
+    }
+
+    if (!formData.photoP03?.url && !formData.photoP03?.notApplicable) {
+      missing.push({
+        fieldId: 'photo-p03-section',
+        label: '1.5. Ảnh P-03 (Mặt bên hoặc mặt sau toà nhà) *',
+        step: 1,
+        description: 'Vui lòng chụp ảnh mặt hông/sau hoặc đánh dấu N/A.',
+        isBlocking: true,
+      });
+    }
+
+    if (!formData.photoP04?.url && !formData.photoP04?.notApplicable) {
+      missing.push({
+        fieldId: 'photo-p04-section',
+        label: '1.5. Ảnh P-04 (Bối cảnh tổng thể toà nhà và đường phố) *',
+        step: 1,
+        description: 'Vui lòng chụp ảnh bối cảnh đường hoặc đánh dấu N/A.',
+        isBlocking: true,
+      });
+    }
+
+    // 1.6 Data source
+    if (!formData.settlementTilt?.dataSource || formData.settlementTilt.dataSource.length === 0) {
+      missing.push({
+        fieldId: 'section-settlement-datasource',
+        label: '1.6. Nguồn xác định dữ liệu ngoại quan *',
+        step: 1,
+        description: 'Vui lòng chọn ít nhất 1 nguồn xác định dữ liệu ngoại quan.',
+        isBlocking: true,
+      });
+    }
+  }
+
+  if (step === 2) {
+    if (!formData.usageFunction?.trim()) {
+      missing.push({
+        fieldId: 'input-usageFunction',
+        label: '2.1. Công năng sử dụng *',
+        step: 2,
+        description: 'Vui lòng chọn hoặc nhập công năng sử dụng của tòa nhà.',
+        isBlocking: true,
+      });
+    }
+
+    if (
+      formData.aboveFloors === undefined ||
+      formData.aboveFloors === null ||
+      formData.aboveFloors === '' ||
+      Number(formData.aboveFloors) <= 0
+    ) {
+      missing.push({
+        fieldId: 'input-aboveFloors',
+        label: '2.1. Số tầng nổi *',
+        step: 2,
+        description: 'Vui lòng nhập số tầng nổi của tòa nhà (> 0).',
+        isBlocking: true,
+      });
+    }
+
+    if (!formData.unitsPerFloor || Number(formData.unitsPerFloor) <= 0) {
+      missing.push({
+        fieldId: 'input-unitsPerFloor',
+        label: '2.1. Số căn mỗi tầng *',
+        step: 2,
+        description: 'Vui lòng nhập số căn hộ mỗi tầng (> 0).',
+        isBlocking: true,
+      });
+    }
+
+    if (!formData.constructionAreaM2 || Number(formData.constructionAreaM2) <= 0) {
+      missing.push({
+        fieldId: 'input-constructionAreaM2',
+        label: '2.1. Diện tích sàn xây dựng *',
+        step: 2,
+        description: 'Vui lòng nhập tổng diện tích sàn xây dựng của tòa nhà (> 0 m²).',
+        isBlocking: true,
+      });
+    }
+
+    if (!formData.buildingHeightM || Number(formData.buildingHeightM) <= 0) {
+      missing.push({
+        fieldId: 'input-buildingHeightM',
+        label: '2.1. Chiều cao công trình *',
+        step: 2,
+        description: 'Vui lòng nhập chiều cao công trình (> 0 m).',
+        isBlocking: true,
+      });
+    }
+
+    if (!formData.structureSystem?.trim()) {
+      missing.push({
+        fieldId: 'input-structureSystem',
+        label: '2.2. Hệ kết cấu chịu lực *',
+        step: 2,
+        description: 'Vui lòng chọn hệ kết cấu chịu lực của tòa nhà.',
+        isBlocking: true,
+      });
+    }
+
+    if (!formData.foundationType?.trim()) {
+      missing.push({
+        fieldId: 'input-foundationType',
+        label: '2.2. Loại móng *',
+        step: 2,
+        description: 'Vui lòng chọn giải pháp móng công trình.',
+        isBlocking: true,
+      });
+    }
+
+    if (formData.foundationCatScore === 1 || formData.foundationCatScore === 2) {
+      const hasDrawing =
+        (formData.asBuiltDrawingPhotos && formData.asBuiltDrawingPhotos.some((p) => Boolean(p.url))) ||
+        Boolean(formData.asBuiltDrawingPhotoUrl);
+      if (!hasDrawing) {
+        missing.push({
+          fieldId: 'as-built-drawing-section',
+          label: '2.3. Bản vẽ hoàn công / kết cấu *',
+          step: 2,
+          description: 'Vui lòng tải lên ít nhất 1 ảnh bản vẽ hoàn công khi chọn Trường hợp A (Có bản vẽ).',
+          isBlocking: true,
+        });
+      }
+    }
+
+    if (!formData.constructionYear) {
+      missing.push({
+        fieldId: 'input-constructionYear',
+        label: '2.1. Năm xây dựng / hoàn công',
+        step: 2,
+        description: 'Vui lòng bổ sung năm xây dựng hoặc tích chọn Ước tính.',
+        isBlocking: false,
+      });
+    }
+  }
+
+  if (step === 3) {
+    if (!formData.floors || formData.floors.length === 0) {
+      missing.push({
+        fieldId: 'step3-floor-cad-section',
+        label: '3. Khảo sát không gian dùng chung',
+        step: 3,
+        description: 'Cần có ít nhất 1 tầng/không gian dùng chung (Hầm, Trệt, Kỹ thuật...) trong danh sách.',
+        isBlocking: true,
+      });
+    } else {
+      formData.floors.forEach((floor, fIdx) => {
+        const floorTitle = floor.floorName || `Không gian ${fIdx + 1}`;
+        const cadZonePins = floor.cadZonePins || [];
+        const zones = floor.zones || [];
+        const cadElementPins = floor.cadElementPins || [];
+        const structuralElements = floor.structuralElements || [];
+
+        // Ảnh chụp tổng quan tầng
+        if (!floor.overviewPhotos || floor.overviewPhotos.length === 0) {
+          missing.push({
+            fieldId: `step3-floor-overview-section-${fIdx}`,
+            label: `Ảnh chụp tổng quan (${floorTitle}) *`,
+            step: 3,
+            floorIndex: fIdx,
+            subSection: 'overview',
+            description: `Chưa có ảnh chụp tổng quan cho ${floorTitle}. Bắt buộc phải chụp ít nhất 1 ảnh tổng quan tầng.`,
+            isBlocking: true,
+          });
+        }
+
+        if (cadZonePins.length === 0 && zones.length === 0) {
+          missing.push({
+            fieldId: 'step3-floor-cad-section',
+            label: `3.1. Điểm chấm Vùng Z (${floorTitle})`,
+            step: 3,
+            floorIndex: fIdx,
+            subSection: 'cad-zone',
+            description: `Chưa có điểm chấm Vùng kiến trúc (Z) nào trên sơ đồ CAD_01 của ${floorTitle}.`,
+            isBlocking: true,
+          });
+        } else if (cadZonePins.length !== zones.length) {
+          missing.push({
+            fieldId: 'step3-floor-cad-section',
+            label: `3.1. Khớp số lượng Vùng Z (${floorTitle})`,
+            step: 3,
+            floorIndex: fIdx,
+            subSection: 'cad-zone',
+            description: `Số lượng điểm ghim CAD_01 (${cadZonePins.length}) chưa khớp với số Vùng Z (${zones.length}) của ${floorTitle}.`,
+            isBlocking: true,
+          });
+        }
+
+        if (floor.hasStructuralElements !== false) {
+          if (cadElementPins.length === 0 && structuralElements.length === 0) {
+            missing.push({
+              fieldId: 'step3-structure-cad-section',
+              label: `3.2. Điểm chấm Cấu kiện E (${floorTitle})`,
+              step: 3,
+              floorIndex: fIdx,
+              subSection: 'cad-element',
+              description: `Chưa có điểm chấm Cấu kiện kết cấu chịu lực (E) nào trên sơ đồ CAD_02 của ${floorTitle}.`,
+              isBlocking: true,
+            });
+          } else if (cadElementPins.length !== structuralElements.length) {
+            missing.push({
+              fieldId: 'step3-structure-cad-section',
+              label: `3.2. Khớp số lượng Cấu kiện E (${floorTitle})`,
+              step: 3,
+              floorIndex: fIdx,
+              subSection: 'cad-element',
+              description: `Số lượng điểm ghim CAD_02 (${cadElementPins.length}) chưa khớp với số Cấu kiện E (${structuralElements.length}) của ${floorTitle}.`,
+              isBlocking: true,
+            });
+          }
+        }
+      });
+    }
+  }
+
+  if (step === 4) {
+    // Burland toà
+  }
+
+  if (step === 5) {
+    // Scope & GIS mutation
+    if (!formData.surveyScope?.surveyedFloors || formData.surveyScope.surveyedFloors.length === 0) {
+      missing.push({
+        fieldId: 'input-surveyedFloors',
+        label: '5.1. Danh sách tầng được khảo sát',
+        step: 5,
+        description: 'Vui lòng chọn ít nhất 1 tầng nằm trong phạm vi khảo sát.',
+      });
+    }
+  }
+
+  if (step === 6) {
+    // Điểm ECS/VI
+    if (
+      formData.ecs?.engineeringJudgement?.action &&
+      formData.ecs.engineeringJudgement.action !== 'KEEP' &&
+      !formData.ecs.engineeringJudgement.reason?.trim()
+    ) {
+      missing.push({
+        fieldId: 'input-ecs-reason',
+        label: '6.1. Lý do can thiệp kỹ sư (ECS)',
+        step: 6,
+        description: 'Khi kỹ sư can thiệp Nâng hoặc Hạ hạng ECS, bắt buộc phải giải trình căn cứ kỹ thuật.',
+        isBlocking: true,
+      });
+    }
+  }
+
+  if (step === 8) {
+    // Ký số BQL
+    if (!formData.signatures?.ownerFeedback?.trim() && !formData.ownerRemarks?.trim()) {
+      missing.push({
+        fieldId: 'input-ownerFeedback',
+        label: '8.1. Ý kiến / phản hồi của BQL toà nhà *',
+        step: 8,
+        description: 'Vui lòng ghi nhận ý kiến phản hồi thực tế của Ban Quản Lý / BQT toà nhà.',
+        isBlocking: true,
+      });
+    }
+
+    if (!formData.signatures?.workingMinutesPhotos || formData.signatures.workingMinutesPhotos.length === 0) {
+      missing.push({
+        fieldId: 'working-minutes-section',
+        label: '8.2. Ảnh chụp biên bản làm việc hiện trường *',
+        step: 8,
+        description: 'Vui lòng chụp ít nhất 1 ảnh biên bản làm việc hiện trường có chữ ký xác nhận của BQL toà nhà.',
+        isBlocking: true,
+      });
+    }
+  }
+
+  return {
+    isValid: missing.length === 0,
+    missingFields: missing,
+  };
+};
+
 export const validateStep = (step: number, formData: Phase1SurveyFormData): StepValidationResult => {
   if (Boolean(formData.unitId)) {
     return validateCondoUnitStep(step, formData);
+  }
+
+  const isCondoMaster =
+    (formData.surveyCaseType === 'APARTMENT' ||
+      (formData as unknown as { survey_case_type?: string }).survey_case_type === 'APARTMENT') &&
+    !formData.unitId;
+
+  if (isCondoMaster) {
+    return validateCondoMasterStep(step, formData);
   }
 
   const missing: MissingFieldItem[] = [];
