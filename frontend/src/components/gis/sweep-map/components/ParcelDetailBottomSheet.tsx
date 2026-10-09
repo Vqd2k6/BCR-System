@@ -13,11 +13,15 @@ import {
   History,
   ArrowLeftRight,
   Move,
+  Layers,
 } from 'lucide-react';
 import { useAuth } from '../../../../context/AuthContext';
 import { ParcelMutationHistoryModal } from '../../cadastral-editor/components/ParcelMutationHistoryModal';
 import { CadastralSpatialSwapModal } from '../../cadastral-editor/components/CadastralSpatialSwapModal';
 import { CadastralBoundaryReshapeModal } from '../../cadastral-editor/components/CadastralBoundaryReshapeModal';
+import { FloorPlanCadManagementModal } from '../../../survey/building-hub/components/FloorPlanCadManagementModal';
+import { api } from '../../../../services/api';
+import { getErrorMessage } from '@/utils/errorUtils';
 import type { GisParcel } from '../../shared/types';
 import { getEffectiveParcelStatus, getStatusBadge, isNonBuildingParcel } from '../utils/sweepMapHelpers';
 
@@ -50,8 +54,59 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [showSwapModal, setShowSwapModal] = useState(false);
   const [showReshapeModal, setShowReshapeModal] = useState(false);
+  const [showCadModal, setShowCadModal] = useState(false);
+  const [showCondoConfirmModal, setShowCondoConfirmModal] = useState(false);
+  const [isConvertingCondo, setIsConvertingCondo] = useState(false);
 
   if (!activeParcel) return null;
+
+  // Tiền điều kiện chuyển đổi sang Chung cư (Precondition Gate)
+  const isEligibleForCondoConversion =
+    (activeParcel.surveyStatus === 'NOT_SURVEYED' || !activeParcel.surveyStatus) &&
+    !activeParcel.activePhase1ReportId &&
+    (!activeParcel.lifecycleStatus || activeParcel.lifecycleStatus === 'ACTIVE');
+
+  const getIneligibilityReason = (): string => {
+    if (activeParcel.surveyStatus && activeParcel.surveyStatus !== 'NOT_SURVEYED') {
+      return `Không thể chuyển đổi: Thửa đất đang hoặc đã khảo sát (${activeParcel.surveyStatus})`;
+    }
+    if (activeParcel.activePhase1ReportId) {
+      return 'Không thể chuyển đổi: Thửa đất đã có hồ sơ khảo sát liên kết';
+    }
+    if (activeParcel.lifecycleStatus && activeParcel.lifecycleStatus !== 'ACTIVE') {
+      return `Không thể chuyển đổi: Thửa đất đang có biến động (${activeParcel.lifecycleStatus})`;
+    }
+    return '';
+  };
+
+  const handleConvertToCondo = async () => {
+    if (!activeParcel) return;
+    setIsConvertingCondo(true);
+    try {
+      await api.patch(`/parcels/${activeParcel.id}/building-type`, {
+        buildingType: 'CONDOMINIUM',
+      });
+      // Lưu override ngoại tuyến vào LocalStorage để map cập nhật ngay tức thì
+      try {
+        const overrides = JSON.parse(localStorage.getItem('metro2_parcel_status_overrides') || '{}');
+        overrides[activeParcel.id] = {
+          ...(overrides[activeParcel.id] || {}),
+          buildingType: 'CONDOMINIUM',
+          surveyCaseType: 'APARTMENT',
+          updatedAt: new Date().toISOString(),
+        };
+        localStorage.setItem('metro2_parcel_status_overrides', JSON.stringify(overrides));
+      } catch (_e) {}
+
+      setShowCondoConfirmModal(false);
+      onSwapSuccess?.();
+      setShowCadModal(true);
+    } catch (err: unknown) {
+      alert(`Lỗi khi chuyển đổi sang chung cư: ${getErrorMessage(err, 'Lỗi kết nối')}`);
+    } finally {
+      setIsConvertingCondo(false);
+    }
+  };
 
   const activeEffectiveStatus = getEffectiveParcelStatus(activeParcel);
 
@@ -520,6 +575,63 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
           </button>
         )}
 
+        {/* Nút Quản Lý CAD Mặt Bằng (Nếu đã là Chung cư) HOẶC Chuyển đổi sang Chung cư (CHỈ CHO PHÉP ZONE_ADMIN & SUPER_ADMIN) */}
+        {(user?.role === 'ZONE_ADMIN' || user?.role === 'SUPER_ADMIN') && (
+          activeParcel.buildingType === 'CONDOMINIUM' ? (
+            <button
+              type="button"
+              className="btn btn-sm"
+              onClick={() => setShowCadModal(true)}
+              style={{
+                fontSize: '0.775rem',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.35rem',
+                color: '#0f766e',
+                borderColor: '#99f6e4',
+                backgroundColor: '#f0fdfa',
+                padding: '0.5rem 0.75rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+              }}
+              title="Quản lý bản vẽ CAD & phân chia mặt bằng căn hộ (Admin Only)"
+            >
+              <Layers size={14} color="#0f766e" />
+              Quản lý CAD
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="btn btn-sm"
+              disabled={!isEligibleForCondoConversion}
+              onClick={() => setShowCondoConfirmModal(true)}
+              style={{
+                fontSize: '0.775rem',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.35rem',
+                color: isEligibleForCondoConversion ? '#6d28d9' : '#94a3b8',
+                borderColor: isEligibleForCondoConversion ? '#ddd6fe' : '#e2e8f0',
+                backgroundColor: isEligibleForCondoConversion ? '#f5f3ff' : '#f8fafc',
+                padding: '0.5rem 0.75rem',
+                fontWeight: 700,
+                cursor: isEligibleForCondoConversion ? 'pointer' : 'not-allowed',
+                opacity: isEligibleForCondoConversion ? 1 : 0.6,
+              }}
+              title={
+                isEligibleForCondoConversion
+                  ? 'Chuyển đổi thửa đất sang mô hình Chung cư / Tập thể và nạp CAD tầng (Admin Only)'
+                  : getIneligibilityReason()
+              }
+            >
+              <Building2 size={14} color={isEligibleForCondoConversion ? '#6d28d9' : '#94a3b8'} />
+              Chuyển Chung Cư
+            </button>
+          )
+        )}
+
         {/* Nút Chuyển Vị Trí GIS (CHỈ CHO PHÉP ZONE_ADMIN & SUPER_ADMIN) */}
         {(user?.role === 'ZONE_ADMIN' || user?.role === 'SUPER_ADMIN') && (
           <button
@@ -655,6 +767,136 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
           isOpen={showHistoryModal}
           onClose={() => setShowHistoryModal(false)}
         />
+      )}
+
+      {/* Modal Quản lý CAD Mặt Bằng (Admin Only) */}
+      {showCadModal && (
+        <FloorPlanCadManagementModal
+          parcel={activeParcel}
+          onClose={() => setShowCadModal(false)}
+          readOnly={false}
+          onUnitsUpdated={() => {
+            onSwapSuccess?.();
+          }}
+        />
+      )}
+
+      {/* Modal Xác nhận Chuyển đổi sang Chung cư */}
+      {showCondoConfirmModal && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(15, 23, 42, 0.65)',
+            backdropFilter: 'blur(3px)',
+            zIndex: 99999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '1rem',
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget && !isConvertingCondo) {
+              setShowCondoConfirmModal(false);
+            }
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: '#ffffff',
+              borderRadius: '0.75rem',
+              maxWidth: '460px',
+              width: '100%',
+              padding: '1.5rem',
+              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.2)',
+              border: '1px solid #e2e8f0',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
+              <div
+                style={{
+                  width: '40px',
+                  height: '40px',
+                  borderRadius: '50%',
+                  backgroundColor: '#f5f3ff',
+                  color: '#7c3aed',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontWeight: 'bold',
+                }}
+              >
+                <Building2 size={22} />
+              </div>
+              <div>
+                <h4 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: '#1e293b' }}>
+                  Chuyển đổi sang Chung cư
+                </h4>
+                <p style={{ margin: 0, fontSize: '0.8rem', color: '#64748b' }}>
+                  Thửa đất: <strong>{activeParcel.projectParcelCode}</strong>
+                </p>
+              </div>
+            </div>
+
+            <div
+              style={{
+                backgroundColor: '#eff6ff',
+                border: '1px solid #bfdbfe',
+                borderRadius: '0.5rem',
+                padding: '0.875rem',
+                fontSize: '0.825rem',
+                color: '#1e40af',
+                marginBottom: '1rem',
+                lineHeight: 1.5,
+              }}
+            >
+              <p style={{ margin: '0 0 0.5rem 0', fontWeight: 600 }}>
+                Quy trình sau khi chuyển đổi:
+              </p>
+              <ul style={{ margin: 0, paddingLeft: '1.25rem' }}>
+                <li>Thửa đất sẽ đổi loại hình sang <strong>Chung cư / Tập thể</strong> (màu tím trên bản đồ GIS).</li>
+                <li>Hệ thống tự động mở cửa sổ <strong>Quản lý CAD mặt bằng</strong> để Zone Admin nạp bản vẽ các tầng và phân chia căn hộ con.</li>
+                <li>Sau đó điều phối viên sẽ khảo sát Khối tháp Master và từng Căn hộ con (Unit).</li>
+              </ul>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                disabled={isConvertingCondo}
+                onClick={() => setShowCondoConfirmModal(false)}
+                style={{
+                  padding: '0.5rem 1rem',
+                  fontSize: '0.875rem',
+                  borderRadius: '0.375rem',
+                  fontWeight: 600,
+                }}
+              >
+                Hủy bỏ
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary btn-sm"
+                disabled={isConvertingCondo}
+                onClick={handleConvertToCondo}
+                style={{
+                  padding: '0.5rem 1.25rem',
+                  fontSize: '0.875rem',
+                  borderRadius: '0.375rem',
+                  fontWeight: 700,
+                  backgroundColor: '#7c3aed',
+                  borderColor: '#6d28d9',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                }}
+              >
+                {isConvertingCondo ? 'Đang chuyển đổi...' : 'Xác nhận Chuyển đổi'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

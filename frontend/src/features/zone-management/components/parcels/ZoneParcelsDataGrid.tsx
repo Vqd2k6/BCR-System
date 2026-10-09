@@ -120,8 +120,35 @@ export const ZoneParcelsDataGrid: React.FC<ZoneParcelsDataGridProps> = ({
   const [condoConversionTarget, setCondoConversionTarget] = useState<GisParcel | null>(null);
   const [isConvertingCondo, setIsConvertingCondo] = useState<boolean>(false);
 
+  // Tiền điều kiện chuyển đổi sang Chung cư (Precondition Guards)
+  const isEligibleForCondo = (parcel: GisParcel): boolean => {
+    const isEligibleStatus = parcel.surveyStatus === 'NOT_SURVEYED' || !parcel.surveyStatus;
+    return (
+      isEligibleStatus &&
+      !parcel.activePhase1ReportId &&
+      (!parcel.lifecycleStatus || parcel.lifecycleStatus === 'ACTIVE')
+    );
+  };
+
+  const getCondoIneligibilityReason = (parcel: GisParcel): string => {
+    if (parcel.surveyStatus && parcel.surveyStatus !== 'NOT_SURVEYED') {
+      return `Không thể chuyển đổi: Thửa đất đang hoặc đã khảo sát (${parcel.surveyStatus})`;
+    }
+    if (parcel.activePhase1ReportId) {
+      return 'Không thể chuyển đổi: Thửa đất đã có hồ sơ khảo sát liên kết';
+    }
+    if (parcel.lifecycleStatus && parcel.lifecycleStatus !== 'ACTIVE') {
+      return `Không thể chuyển đổi: Thửa đất đang có biến động (${parcel.lifecycleStatus})`;
+    }
+    return '';
+  };
+
   // Chuyển đổi thửa đất sang Chung cư
   const handleConvertToCondo = async (parcel: GisParcel) => {
+    if (!isEligibleForCondo(parcel)) {
+      alert(getCondoIneligibilityReason(parcel));
+      return;
+    }
     setIsConvertingCondo(true);
     try {
       await api.patch(`/parcels/${parcel.id}/building-type`, {
@@ -693,9 +720,18 @@ export const ZoneParcelsDataGrid: React.FC<ZoneParcelsDataGridProps> = ({
                           ) : (
                             <button
                               type="button"
+                              disabled={!isEligibleForCondo(parcel)}
                               onClick={() => setCondoConversionTarget(parcel)}
-                              className="p-1.5 rounded-lg bg-slate-50 hover:bg-blue-50 text-slate-500 hover:text-blue-700 border border-slate-200 hover:border-blue-200 transition-colors cursor-pointer"
-                              title="Chuyển đổi thành Chung cư (CONDOMINIUM)"
+                              className={`p-1.5 rounded-lg border transition-colors ${
+                                isEligibleForCondo(parcel)
+                                  ? 'bg-slate-50 hover:bg-purple-50 text-slate-500 hover:text-purple-700 border-slate-200 hover:border-purple-200 cursor-pointer'
+                                  : 'bg-slate-100 text-slate-300 border-slate-200 cursor-not-allowed'
+                              }`}
+                              title={
+                                isEligibleForCondo(parcel)
+                                  ? 'Chuyển đổi thành Chung cư (CONDOMINIUM)'
+                                  : getCondoIneligibilityReason(parcel)
+                              }
                             >
                               <Building2 size={14} />
                             </button>
@@ -920,14 +956,23 @@ export const ZoneParcelsDataGrid: React.FC<ZoneParcelsDataGridProps> = ({
               ) : (
                 <button
                   type="button"
+                  disabled={!isEligibleForCondo(inspectParcel)}
                   onClick={() => {
                     setCondoConversionTarget(inspectParcel);
                     setInspectParcel(null);
                   }}
-                  className="px-3 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border border-blue-200"
-                  title="Chuyển đổi thửa đất sang Chung cư"
+                  className={`px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border ${
+                    isEligibleForCondo(inspectParcel)
+                      ? 'bg-purple-50 hover:bg-purple-100 text-purple-700 border-purple-200 cursor-pointer'
+                      : 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed opacity-60'
+                  }`}
+                  title={
+                    isEligibleForCondo(inspectParcel)
+                      ? 'Chuyển đổi thửa đất sang Chung cư'
+                      : getCondoIneligibilityReason(inspectParcel)
+                  }
                 >
-                  <Building2 size={14} className="text-blue-600" />
+                  <Building2 size={14} className={isEligibleForCondo(inspectParcel) ? 'text-purple-600' : 'text-slate-400'} />
                   <span>Chuyển Sang Chung Cư</span>
                 </button>
               )}

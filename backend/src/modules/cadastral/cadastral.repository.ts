@@ -22,6 +22,7 @@ export interface ParcelEntity {
   lifecycle_status: 'ACTIVE' | 'PENDING_MUTATION_APPROVAL' | 'SPLIT_DEPRECATED' | 'MERGED_DEPRECATED' | 'MUTATION_VOID';
   building_type?: string;
   total_units?: number;
+  active_phase1_report_id?: string | null;
   mutation_type: string;
   parent_parcel_ids: string[];
   child_parcel_ids: string[];
@@ -515,6 +516,25 @@ export class CadastralRepository {
       [parcelId, buildingType, totalUnits !== undefined ? totalUnits : null]
     );
     return res.rows[0] || null;
+  }
+
+  static async countReportsByParcelId(parcelId: string): Promise<number> {
+    const res = await Database.query<{ count: string }>(
+      `SELECT COUNT(*) as count FROM base_survey_reports WHERE parcel_id = $1;`,
+      [parcelId]
+    );
+    return parseInt(res.rows[0]?.count || '0', 10);
+  }
+
+  static async countUnitReportsByParcelId(parcelId: string): Promise<number> {
+    const res = await Database.query<{ count: string }>(
+      `SELECT COUNT(*) as count 
+       FROM base_survey_reports r
+       JOIN building_units u ON r.unit_id = u.id
+       WHERE u.parcel_id = $1;`,
+      [parcelId]
+    );
+    return parseInt(res.rows[0]?.count || '0', 10);
   }
 
   static async findFloorPlansByParcelId(parcelId: string): Promise<BuildingFloorPlanEntity[]> {

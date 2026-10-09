@@ -361,6 +361,55 @@ export class CadastralService {
     if (!parcel) {
       throw new NotFoundError(`Không tìm thấy thửa đất với ID: ${parcelId}`);
     }
+
+    // 1. Kiểm tra Precondition: Trạng thái khảo sát cấm chuyển đổi
+    const blockedStatuses = [
+      'IN_PROGRESS',
+      'POSTPONED_ABSENT',
+      'SUBMITTED',
+      'APPROVED',
+      'REJECTED',
+      'APPROVED_PHASE2',
+      'PHASE2_COMPLETED',
+    ];
+    if (blockedStatuses.includes(parcel.survey_status)) {
+      throw new BadRequestError(
+        `Không thể chuyển đổi loại hình công trình vì thửa đất đang ở trạng thái khảo sát '${parcel.survey_status}'. Chỉ cho phép chuyển đổi thửa đất chưa khảo sát (NOT_SURVEYED hoặc ASSIGNED_TO_ME).`
+      );
+    }
+
+    // 2. Kiểm tra Precondition: active_phase1_report_id
+    if (parcel.active_phase1_report_id) {
+      throw new BadRequestError(
+        `Không thể chuyển đổi loại hình: Thửa đất đã có hồ sơ khảo sát liên kết (ID: ${parcel.active_phase1_report_id}).`
+      );
+    }
+
+    // 3. Kiểm tra Precondition: Có báo cáo khảo sát nào trong base_survey_reports không
+    const reportCount = await CadastralRepository.countReportsByParcelId(parcelId);
+    if (reportCount > 0) {
+      throw new BadRequestError(
+        `Không thể chuyển đổi loại hình: Thửa đất đã có ${reportCount} báo cáo khảo sát hiện hữu trong CSDL.`
+      );
+    }
+
+    // 4. Kiểm tra Precondition: Lifecycle status
+    if (parcel.lifecycle_status && parcel.lifecycle_status !== 'ACTIVE') {
+      throw new BadRequestError(
+        `Không thể chuyển đổi loại hình: Thửa đất đang trong quy trình biến động hoặc đã bị vô hiệu hóa (${parcel.lifecycle_status}).`
+      );
+    }
+
+    // 5. Kiểm tra Last-condition / Reversion Rule: Chuyển từ CONDOMINIUM về STANDALONE
+    if (buildingType === 'STANDALONE' && parcel.building_type === 'CONDOMINIUM') {
+      const unitReportCount = await CadastralRepository.countUnitReportsByParcelId(parcelId);
+      if (unitReportCount > 0) {
+        throw new BadRequestError(
+          `Không thể hoàn nguyên về Nhà riêng lẻ: Đã có ${unitReportCount} căn hộ con đã lập hồ sơ khảo sát trong tòa nhà.`
+        );
+      }
+    }
+
     const updated = await CadastralRepository.updateBuildingType(
       parcelId,
       buildingType,
