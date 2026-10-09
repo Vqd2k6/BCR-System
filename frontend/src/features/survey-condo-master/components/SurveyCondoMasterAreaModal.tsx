@@ -59,6 +59,17 @@ export interface MasterAreaDefect {
   burlandGrade?: number; // 0..5
 }
 
+interface MasterSurveyDataPayload {
+  overviewPhotoUrl?: string;
+  defects?: MasterAreaDefect[];
+  deformation?: {
+    saggingMm?: number | '';
+    inclinationPercent?: number | '';
+  };
+  surveyorRemarks?: string;
+  surveyorSignatureUrl?: string;
+}
+
 interface Props {
   parcel: GisParcel;
   unit: BuildingUnit;
@@ -79,7 +90,7 @@ export const SurveyCondoMasterAreaModal: React.FC<Props> = ({
   const unitCode = unit.unit_code || unit.unitCode || 'MASTER-AREA';
   const floorNumber = unit.floor_number ?? unit.floorNumber ?? 1;
 
-  const existingReportId = unit.phase1_report_id || (unit as any).phase1ReportId;
+  const existingReportId = unit.phase1_report_id || unit.phase1ReportId;
   const isReadOnly = readOnly || unit.status === 'SUBMITTED' || unit.status === 'APPROVED';
   const [isLoadingReport, setIsLoadingReport] = useState<boolean>(Boolean(existingReportId));
 
@@ -143,12 +154,12 @@ export const SurveyCondoMasterAreaModal: React.FC<Props> = ({
         const res = await api.get(`/reports/phase1/${existingReportId}`);
         if (isSubscribed && res.data?.success && res.data.data) {
           const report = res.data.data;
-          let sData: any = {};
+          let sData: MasterSurveyDataPayload = {};
           if (report.survey_data_json) {
             try {
-              sData = typeof report.survey_data_json === 'string'
+              sData = (typeof report.survey_data_json === 'string'
                 ? JSON.parse(report.survey_data_json)
-                : report.survey_data_json;
+                : report.survey_data_json) as MasterSurveyDataPayload;
             } catch (pErr) {
               console.warn('[SurveyCondoMasterAreaModal] Lỗi parse survey_data_json:', pErr);
             }

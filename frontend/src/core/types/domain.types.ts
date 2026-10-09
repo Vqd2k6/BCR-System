@@ -156,7 +156,9 @@ export interface BuildingUnit {
   surveyStatus?: SurveyStatus;
   survey_status?: SurveyStatus;
   phase1_report_id?: string | null;
+  phase1ReportId?: string | null;
   phase2_report_id?: string | null;
+  phase2ReportId?: string | null;
   created_at?: string;
   updatedAt?: string;
   updated_at?: string;

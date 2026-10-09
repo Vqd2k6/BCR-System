@@ -127,6 +127,7 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
   const [isFloorDirty, setIsFloorDirty] = useState<boolean>(false);
   const [pendingFloorSwitch, setPendingFloorSwitch] = useState<number | null>(null);
   const [showUnsavedConfirmModal, setShowUnsavedConfirmModal] = useState<boolean>(false);
+  const [deletedFloorNumbers, setDeletedFloorNumbers] = useState<number[]>([]);
 
   // 1. Tải toàn bộ Floor Plans & Units của thửa đất
   const fetchAllFloorData = useCallback(async () => {
@@ -190,8 +191,10 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
     // Bổ sung các tầng tùy chỉnh
     customFloors.forEach((f) => floorSet.add(f));
 
-    // Sắp xếp tầng từ cao xuống thấp (Top to Bottom)
-    const sortedFloors = Array.from(floorSet).sort((a, b) => b - a);
+    // Sắp xếp tầng từ cao xuống thấp (Top to Bottom) và loại trừ các tầng đã bị xóa
+    const sortedFloors = Array.from(floorSet)
+      .filter((f) => !deletedFloorNumbers.includes(f))
+      .sort((a, b) => b - a);
 
     return sortedFloors.map((flNum) => {
       // Tìm plan riêng của tầng
@@ -221,6 +224,8 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
         const hasUnit = partitions.some((p) => (p.partitionType || 'UNIT') === 'UNIT');
         const hasMaster = partitions.some((p) => p.partitionType === 'MASTER');
         effectiveScope = hasUnit && hasMaster ? 'BOTH' : hasMaster ? 'MASTER' : 'UNIT';
+      } else if (flNum === activeFloor) {
+        effectiveScope = floorScope;
       } else if (effectivePlan?.scope) {
         effectiveScope = effectivePlan.scope;
       } else {
@@ -239,7 +244,7 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
         scope: effectiveScope,
       };
     });
-  }, [initialFloorCount, existingFloorPlans, customFloors, allUnits, activeFloor, partitions]);
+  }, [initialFloorCount, existingFloorPlans, customFloors, allUnits, activeFloor, partitions, floorScope, deletedFloorNumbers]);
 
   // 3. Tải chi tiết tầng đang chọn (partitions & CAD)
   const loadActiveFloorDetails = useCallback(
@@ -306,6 +311,11 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
 
   // Chuyển tầng có bảo vệ dữ liệu chưa lưu
   const executeFloorSwitch = (floorNum: number) => {
+    if (!buildingFloors.some((f) => f.floorNumber === floorNum)) {
+      setCustomFloors((prev) => (prev.includes(floorNum) ? prev : [...prev, floorNum]));
+      setNewFloorInput('');
+      setShowAddFloorInput(false);
+    }
     setActiveFloor(floorNum);
     setIsFloorDirty(false);
     setSaveSuccessMsg('');
@@ -335,12 +345,21 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
   // Thêm tầng mới vào danh sách
   const handleAddCustomFloor = () => {
     const parsed = parseInt(newFloorInput.trim(), 10);
-    if (!isNaN(parsed) && !buildingFloors.some((f) => f.floorNumber === parsed)) {
-      setCustomFloors((prev) => [...prev, parsed]);
-      setActiveFloor(parsed);
-      setNewFloorInput('');
-      setShowAddFloorInput(false);
-      loadActiveFloorDetails(parsed);
+    if (!isNaN(parsed)) {
+      // Phục hồi tầng nếu trước đó nằm trong danh sách đã xóa
+      setDeletedFloorNumbers((prev) => prev.filter((f) => f !== parsed));
+      if (!buildingFloors.some((f) => f.floorNumber === parsed)) {
+        if (isFloorDirty) {
+          setPendingFloorSwitch(parsed);
+          setShowUnsavedConfirmModal(true);
+          return;
+        }
+        setCustomFloors((prev) => (prev.includes(parsed) ? prev : [...prev, parsed]));
+        setActiveFloor(parsed);
+        setNewFloorInput('');
+        setShowAddFloorInput(false);
+        loadActiveFloorDetails(parsed);
+      }
     }
   };
 
@@ -488,14 +507,25 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
       setPartitions([]);
       setIsFloorDirty(false);
       setCustomFloors((prev) => prev.filter((f) => f !== floorToDelete));
+      setDeletedFloorNumbers((prev) => [...prev, floorToDelete]);
       setSaveSuccessMsg(`Đã xóa thành công bản vẽ và giải phóng phân chia của Tầng ${floorToDelete}!`);
 
       if (onUnitsUpdated) {
         onUnitsUpdated();
       }
       await fetchAllFloorData();
+
+      // Tự động chuyển sang tầng hợp lệ còn lại sau khi xóa
+      const remainingFloors = buildingFloors.filter(
+        (f) => f.floorNumber !== floorToDelete && !deletedFloorNumbers.includes(f.floorNumber)
+      );
+      if (remainingFloors.length > 0) {
+        const nextFloor = remainingFloors[0].floorNumber;
+        setActiveFloor(nextFloor);
+        loadActiveFloorDetails(nextFloor);
+      }
     } catch (err: unknown) {
-      console.error('Lỗi khi xóa bản vẽ tầng:', err);
+      console.error('[FloorPlanCadModal:handleDeleteCurrentFloor] Lỗi khi xóa bản vẽ tầng:', err);
       alert(`Không thể xóa bản vẽ tầng: ${getErrorMessage(err, 'Lỗi kết nối máy chủ')}`);
     } finally {
       setIsSaving(false);

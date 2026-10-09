@@ -186,8 +186,8 @@ export const BuildingHubModal: React.FC<BuildingHubModalProps> = ({
       {/* Modal: Khảo sát chi tiết phân vùng dùng chung (Master Area) với CAD Highlight */}
       {selectedMasterAreaUnit && (
         <SurveyCondoMasterAreaModal
-          parcel={parcel as any}
-          unit={selectedMasterAreaUnit as any}
+          parcel={parcel}
+          unit={selectedMasterAreaUnit}
           onClose={() => setSelectedMasterAreaUnit(null)}
           onSurveyCompleted={() => {
             setSelectedMasterAreaUnit(null);
