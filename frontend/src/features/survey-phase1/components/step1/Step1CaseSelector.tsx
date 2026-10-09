@@ -20,6 +20,7 @@ import {
 import type { Phase1SurveyFormData } from '../../types/phase1.types';
 import { ABSENTEE_REASONS } from './step1.constants';
 import { usePhase1SurveyStore } from '../../store/usePhase1SurveyStore';
+import { useAuth } from '../../../../context/AuthContext';
 
 export const VACANT_LAND_STATUSES = [
   'Đất trống chưa xây dựng',
@@ -74,6 +75,8 @@ export const Step1CaseSelector: React.FC<Step1CaseSelectorProps> = ({
 }) => {
   const storeReadOnly = usePhase1SurveyStore((s) => s.isReadOnly);
   const effectiveReadOnly = propReadOnly ?? storeReadOnly;
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'ZONE_ADMIN' || user?.role === 'SUPER_ADMIN';
 
   if (isCondoMaster) return null;
 
@@ -386,23 +389,39 @@ export const Step1CaseSelector: React.FC<Step1CaseSelectorProps> = ({
             • Khảo sát tập trung vào các <strong>Không gian & Kết cấu dùng chung</strong>: Tầng hầm để xe, Mái/Sân thượng, Sảnh đón, Thang bộ/Thang máy, Trục kỹ thuật chung.<br />
             • <strong>Các căn hộ con trong toà:</strong> Được quản lý độc lập theo danh sách căn hộ (Building Units) trong Hub Chung Cư và sẽ được khảo sát riêng từng căn.
           </p>
-          <div className="pt-2 flex justify-end">
-            {!effectiveReadOnly ? (
-              <Button
-                size="md"
-                className="bg-blue-600 hover:bg-blue-700 text-white"
-                disabled={isConfirmingApartment}
-                onClick={onConfirmApartment}
-                icon={<Building2 className="w-4 h-4" />}
-              >
-                {isConfirmingApartment ? 'Đang gửi xác nhận...' : 'Xác nhận Chung cư/Toàn nhiều căn hộ'}
-              </Button>
-            ) : (
-              <div className="px-3 py-1.5 rounded-lg bg-blue-100 text-blue-900 text-xs font-bold border border-blue-300">
-                Hồ sơ chung cư đã xác nhận (Chỉ đọc)
+
+          {!isAdmin ? (
+            <div className="p-3 bg-amber-50 border border-amber-300 rounded-xl flex items-start gap-2.5 text-amber-900 text-xs">
+              <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <p className="font-bold text-amber-950">Quy Trình Quản Trị: Chuyển đổi Chung Cư trên Desktop</p>
+                <p className="text-amber-800 leading-relaxed">
+                  Để đảm bảo tính chính xác khi số hóa CAD và cấu trúc danh sách căn hộ con, quy trình chuyển đổi thửa đất sang <strong>Chung cư (CONDOMINIUM)</strong> và tải bản vẽ tầng được phân quyền tập trung cho <strong>Zone Admin</strong> thao tác trên Cổng Quản Trị màn hình lớn.
+                </p>
+                <p className="font-semibold text-slate-700">
+                  Khảo sát viên vui lòng liên hệ Zone Admin để thiết lập mặt bằng CAD trước khi tiến hành khảo sát căn hộ.
+                </p>
               </div>
-            )}
-          </div>
+            </div>
+          ) : (
+            <div className="pt-2 flex justify-end">
+              {!effectiveReadOnly ? (
+                <Button
+                  size="md"
+                  className="bg-blue-600 hover:bg-blue-700 text-white cursor-pointer"
+                  disabled={isConfirmingApartment}
+                  onClick={onConfirmApartment}
+                  icon={<Building2 className="w-4 h-4" />}
+                >
+                  {isConfirmingApartment ? 'Đang gửi xác nhận...' : 'Xác nhận Chung cư / Tòa nhiều căn hộ'}
+                </Button>
+              ) : (
+                <div className="px-3 py-1.5 rounded-lg bg-blue-100 text-blue-900 text-xs font-bold border border-blue-300">
+                  Hồ sơ chung cư đã xác nhận (Chỉ đọc)
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 

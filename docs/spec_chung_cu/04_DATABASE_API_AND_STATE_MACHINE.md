@@ -218,33 +218,64 @@ ALTER TABLE building_units
 }
 ```
 
-#### 2. Thêm căn hộ mới tại hiện trường
-* **Endpoint:** `POST /api/v1/parcels/:id/units`
-* **Quyền hạn:** `SURVEYOR`, `ZONE_ADMIN`, `SUPER_ADMIN`
+#### 2. Cập nhật Loại hình Công trình (Building Type Mutation)
+* **Endpoint:** `PATCH /api/v1/parcels/:id/building-type`
+* **Quyền hạn:** `ZONE_ADMIN`, `SUPER_ADMIN` (Khóa đối với `SURVEYOR` để bảo đảm chuẩn hóa số liệu trên Desktop)
 * **Payload:**
 ```json
 {
-  "unitCode": "P.402",
-  "floorNumber": 4,
+  "buildingType": "CONDOMINIUM",
+  "totalUnits": 50
+}
+```
+
+#### 3. Upload Bản vẽ CAD Mặt bằng Toàn tầng
+* **Endpoint:** `POST /api/v1/parcels/:id/floor-plans`
+* **Quyền hạn:** `ZONE_ADMIN`, `SUPER_ADMIN`
+* **Payload:**
+```json
+{
+  "floorNumber": 3,
+  "floorName": "Tầng điển hình 3-8",
+  "applicableFloors": [3, 4, 5, 6, 7, 8],
+  "cadPhotoUrl": "https://r2.metro2-survey.vn/cad/floor_3_plan.png"
+}
+```
+
+#### 4. Phân chia Cắt Căn hộ CAD & Đồng bộ Tầng điển hình
+* **Endpoint:** `POST /api/v1/parcels/:id/floor-plans/partitions`
+* **Quyền hạn:** `ZONE_ADMIN`, `SUPER_ADMIN`
+* **Payload:**
+```json
+{
+  "floorNumber": 3,
+  "floorPlanId": "fp-uuid-1234",
+  "partitions": [
+    {
+      "unitCode": "03.01",
+      "floorNumber": 3,
+      "bbox": { "x": 10.5, "y": 15.2, "width": 25.0, "height": 30.0 },
+      "unitCadUrl": "https://r2.metro2-survey.vn/cad/crop_03_01.jpg"
+    }
+  ]
+}
+```
+
+#### 5. Truy vấn Bản vẽ CAD & Sơ đồ Tầng (Client / Fieldwork)
+* **Endpoint:** `GET /api/v1/parcels/:id/floor-plans` & `GET /api/v1/parcels/:id/floor-plans/:floor`
+* **Quyền hạn:** `SURVEYOR`, `ZONE_ADMIN`, `SUPER_ADMIN` (KSV sử dụng ở chế độ Read-Only)
+
+#### 6. Thêm căn hộ đơn lẻ thủ công
+* **Endpoint:** `POST /api/v1/parcels/:id/units`
+* **Quyền hạn:** `ZONE_ADMIN`, `SUPER_ADMIN`
+* **Payload:**
+```json
+{
+  "unitCode": "03.02",
+  "floorNumber": 3,
   "ownerName": "Trần Thị Bích",
   "ownerPhone": "0912345678",
   "ownerIdCard": "079088123456"
-}
-```
-* **Response (201 Created):**
-```json
-{
-  "success": true,
-  "data": {
-    "message": "Đã tạo thành công căn hộ P.402 cho tòa nhà B-00120-POR",
-    "unit": {
-      "id": "new-unit-uuid",
-      "parcel_id": "c4d5e6f7-1111-2222-3333-444455556666",
-      "unit_code": "P.402",
-      "floor_number": 4,
-      "status": "NOT_SURVEYED"
-    }
-  }
 }
 ```
 

@@ -8,6 +8,7 @@ import { BuildingUnitList } from './building-hub/components/BuildingUnitList';
 import { MasterSurveyViewModal } from './building-hub/components/MasterSurveyViewModal';
 import { FloorProgressPopover } from './building-hub/components/FloorProgressPopover';
 import { FloorPlanCadManagementModal } from './building-hub/components/FloorPlanCadManagementModal';
+import { useAuth } from '../../context/AuthContext';
 
 export type { BuildingUnit, BuildingHubModalProps };
 
@@ -18,6 +19,8 @@ export const BuildingHubModal: React.FC<BuildingHubModalProps> = ({
   onStartUnitSurvey,
   onUnitsUpdated,
 }) => {
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'ZONE_ADMIN' || user?.role === 'SUPER_ADMIN';
   const {
     isMasterSurveyDone,
     masterReportData,
@@ -155,6 +158,7 @@ export const BuildingHubModal: React.FC<BuildingHubModalProps> = ({
           parcel={parcel}
           onClose={() => setShowCadModal(false)}
           onUnitsUpdated={onUnitsUpdated}
+          readOnly={!isAdmin}
         />
       )}
     </div>

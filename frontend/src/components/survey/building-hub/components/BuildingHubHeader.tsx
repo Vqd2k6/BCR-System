@@ -1,6 +1,7 @@
 import React from 'react';
 import { ArrowLeft, Building2, Layers } from 'lucide-react';
 import type { GisParcel } from '../../../gis/LeafletSweepMap';
+import { useAuth } from '../../../../context/AuthContext';
 
 interface BuildingHubHeaderProps {
   parcel: GisParcel;
@@ -17,6 +18,8 @@ export const BuildingHubHeader: React.FC<BuildingHubHeaderProps> = ({
   onOpenMasterView,
   onOpenCadManagement,
 }) => {
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'ZONE_ADMIN' || user?.role === 'SUPER_ADMIN';
   return (
     <header
       className={`bg-white border-b border-slate-200 px-3.5 sm:px-6 py-2.5 flex items-center justify-between shadow-sm flex-shrink-0 transition-all duration-300 ease-in-out z-50 ${
@@ -59,10 +62,16 @@ export const BuildingHubHeader: React.FC<BuildingHubHeaderProps> = ({
             type="button"
             onClick={onOpenCadManagement}
             className="px-2.5 py-1.5 rounded-lg bg-teal-50 hover:bg-teal-100 active:bg-teal-200 border border-teal-200 text-teal-700 text-xs font-bold transition-all shadow-2xs flex items-center gap-1.5 cursor-pointer"
-            title="Quản lý bản vẽ CAD & Chia cắt ô căn hộ tầng"
+            title={
+              isAdmin
+                ? 'Quản lý bản vẽ CAD & Chia cắt ô căn hộ tầng (Zone Admin)'
+                : 'Xem sơ đồ CAD và vị trí căn hộ trên mặt bằng (Chỉ đọc)'
+            }
           >
             <Layers size={16} className="text-teal-600" />
-            <span className="hidden sm:inline">Bản Vẽ CAD Tầng</span>
+            <span className="hidden sm:inline">
+              {isAdmin ? 'Quản Lý CAD Tầng' : 'Xem Sơ Đồ CAD'}
+            </span>
           </button>
         )}
         <button

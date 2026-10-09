@@ -98,10 +98,16 @@ export const FloorPlanCadPartitionCanvas: React.FC<Props> = ({
   readOnly = false,
 }) => {
   const [partitions, setPartitions] = useState<UnitPartitionBox[]>(initialPartitions);
-  const [activeTool, setActiveTool] = useState<'BOX' | 'PAN'>('BOX');
+  const [activeTool, setActiveTool] = useState<'BOX' | 'PAN'>(readOnly ? 'PAN' : 'BOX');
   const [selectedBoxId, setSelectedBoxId] = useState<string | null>(null);
   const [showBoxes, setShowBoxes] = useState<boolean>(true);
   const [safeCadUrl, setSafeCadUrl] = useState<string>(() => getSafeDisplayUrl(cadPhotoUrl));
+
+  useEffect(() => {
+    if (readOnly) {
+      setActiveTool('PAN');
+    }
+  }, [readOnly]);
 
   // State cho việc kéo vẽ ô chữ nhật mới
   const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(null);
@@ -165,10 +171,9 @@ export const FloorPlanCadPartitionCanvas: React.FC<Props> = ({
     return `${mm}.${String(nn).padStart(2, '0')}`;
   }, [floorNumber, partitions]);
 
-  // Bắt đầu kéo vẽ ô
+  // Bắt đầu kéo vẽ ô hoặc di chuyển
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (readOnly) return;
-    if (activeTool === 'PAN' || e.button === 1 || e.buttons === 4) {
+    if (readOnly || activeTool === 'PAN' || e.button === 1 || e.buttons === 4) {
       startPan(e.clientX, e.clientY);
       return;
     }
@@ -184,7 +189,7 @@ export const FloorPlanCadPartitionCanvas: React.FC<Props> = ({
   };
 
   const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (activeTool === 'PAN' || e.buttons === 4) {
+    if (readOnly || activeTool === 'PAN' || e.buttons === 4) {
       updatePan(e.clientX, e.clientY);
       return;
     }
@@ -198,7 +203,7 @@ export const FloorPlanCadPartitionCanvas: React.FC<Props> = ({
   };
 
   const handlePointerUp = async (e: React.PointerEvent<HTMLDivElement>) => {
-    if (activeTool === 'PAN' || e.buttons === 4) {
+    if (readOnly || activeTool === 'PAN' || e.buttons === 4) {
       endPan();
       return;
     }
@@ -365,7 +370,7 @@ export const FloorPlanCadPartitionCanvas: React.FC<Props> = ({
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         className={`relative flex-1 overflow-hidden bg-slate-950 flex items-center justify-center ${
-          activeTool === 'PAN' ? 'cursor-grab active:cursor-grabbing' : 'cursor-crosshair'
+          readOnly || activeTool === 'PAN' ? 'cursor-grab active:cursor-grabbing' : 'cursor-crosshair'
         }`}
       >
         <div
@@ -437,7 +442,7 @@ export const FloorPlanCadPartitionCanvas: React.FC<Props> = ({
             })}
 
           {/* Preview ô đang kéo vẽ dở */}
-          {dragStart && currentDrag && (
+          {!readOnly && dragStart && currentDrag && (
             <div
               style={{
                 left: `${Math.min(dragStart.x, currentDrag.x)}%`,
@@ -478,13 +483,19 @@ export const FloorPlanCadPartitionCanvas: React.FC<Props> = ({
               <div className="flex items-center gap-4 w-full">
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-slate-400">Đang chọn căn:</span>
-                  <input
-                    type="text"
-                    value={activeBox.unitCode}
-                    onChange={(e) => handleRenameBox(activeBox.id, e.target.value)}
-                    className="w-24 px-2 py-1 rounded bg-slate-800 border border-slate-600 font-mono font-bold text-xs text-teal-300 focus:outline-none focus:border-teal-500"
-                    placeholder="03.01"
-                  />
+                  {readOnly ? (
+                    <span className="px-2.5 py-1 rounded bg-teal-900/60 border border-teal-500/50 font-mono font-bold text-xs text-teal-300">
+                      {activeBox.unitCode}
+                    </span>
+                  ) : (
+                    <input
+                      type="text"
+                      value={activeBox.unitCode}
+                      onChange={(e) => handleRenameBox(activeBox.id, e.target.value)}
+                      className="w-24 px-2 py-1 rounded bg-slate-800 border border-slate-600 font-mono font-bold text-xs text-teal-300 focus:outline-none focus:border-teal-500"
+                      placeholder="03.01"
+                    />
+                  )}
                 </div>
 
                 <div className="text-xs text-slate-400 flex items-center gap-3">
@@ -498,18 +509,20 @@ export const FloorPlanCadPartitionCanvas: React.FC<Props> = ({
                 </div>
 
                 <div className="ml-auto flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => handleDeleteBox(activeBox.id)}
-                    className="flex items-center gap-1 px-2.5 py-1 rounded bg-rose-900/60 hover:bg-rose-800 text-rose-200 text-xs font-bold border border-rose-700/60 transition-colors"
-                  >
-                    <Trash2 className="w-3 h-3" />
-                    Xóa Ô Này
-                  </button>
+                  {!readOnly && (
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteBox(activeBox.id)}
+                      className="flex items-center gap-1 px-2.5 py-1 rounded bg-rose-900/60 hover:bg-rose-800 text-rose-200 text-xs font-bold border border-rose-700/60 transition-colors cursor-pointer"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                      Xóa Ô Này
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => setSelectedBoxId(null)}
-                    className="px-2.5 py-1 rounded bg-slate-750 hover:bg-slate-700 text-xs font-bold text-slate-300 transition-colors"
+                    className="px-2.5 py-1 rounded bg-slate-750 hover:bg-slate-700 text-xs font-bold text-slate-300 transition-colors cursor-pointer"
                   >
                     Đóng
                   </button>

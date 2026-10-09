@@ -42,12 +42,14 @@ interface Props {
   parcel: GisParcel;
   onClose: () => void;
   onUnitsUpdated?: () => void;
+  readOnly?: boolean;
 }
 
 export const FloorPlanCadManagementModal: React.FC<Props> = ({
   parcel,
   onClose,
   onUnitsUpdated,
+  readOnly = false,
 }) => {
   const parcelId = parcel.id;
   const projectCode = parcel.projectParcelCode || parcel.project_parcel_code || 'B-XXXXX';
@@ -225,13 +227,20 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
             </div>
             <div>
               <h2 className="text-base font-bold text-white flex items-center gap-2">
-                Quản Lý Mặt Bằng Tầng CAD & Chia Cắt Căn Hộ
+                {readOnly ? 'Sơ Đồ Mặt Bằng & Căn Hộ Tầng CAD (Chỉ Đọc)' : 'Quản Lý Mặt Bằng Tầng CAD & Chia Cắt Căn Hộ'}
                 <span className="text-xs font-mono font-bold px-2 py-0.5 rounded-full bg-teal-950 text-teal-300 border border-teal-700">
                   {projectCode}
                 </span>
+                {readOnly && (
+                  <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-sky-950 text-sky-300 border border-sky-700">
+                    Khảo Sát Viên
+                  </span>
+                )}
               </h2>
               <p className="text-xs text-slate-400">
-                Upload bản vẽ CAD mặt bằng tầng và kéo thả chia cắt các ô căn hộ để tự động import khi khảo sát căn con
+                {readOnly
+                  ? 'Xem sơ đồ kiến trúc mặt bằng tầng và định vị ô căn hộ đã được Zone Admin cấu hình.'
+                  : 'Upload bản vẽ CAD mặt bằng tầng và kéo thả chia cắt các ô căn hộ để tự động import khi khảo sát căn con.'}
               </p>
             </div>
           </div>
@@ -239,7 +248,7 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
           <button
             type="button"
             onClick={onClose}
-            className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors"
+            className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -276,44 +285,63 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
               <label className="block text-xs font-bold text-slate-300 mb-1">
                 Tên mặt bằng / Mô tả:
               </label>
-              <input
-                type="text"
-                value={floorName}
-                onChange={(e) => setFloorName(e.target.value)}
-                placeholder="VD: Tầng điển hình 3-8"
-                className="w-full px-3 py-1.5 rounded-xl bg-slate-800 border border-slate-700 text-xs font-medium text-white focus:outline-none focus:border-teal-500"
-              />
+              {readOnly ? (
+                <div className="px-3 py-1.5 rounded-xl bg-slate-800/80 border border-slate-750 text-xs font-medium text-slate-200 truncate">
+                  {floorName || `Tầng ${activeFloor}`}
+                </div>
+              ) : (
+                <input
+                  type="text"
+                  value={floorName}
+                  onChange={(e) => setFloorName(e.target.value)}
+                  placeholder="VD: Tầng điển hình 3-8"
+                  className="w-full px-3 py-1.5 rounded-xl bg-slate-800 border border-slate-700 text-xs font-medium text-white focus:outline-none focus:border-teal-500"
+                />
+              )}
             </div>
 
             <div>
               <label className="block text-xs font-bold text-slate-300 mb-1">
                 Áp dụng dải tầng điển hình:
               </label>
-              <input
-                type="text"
-                value={applicableFloorsStr}
-                onChange={(e) => setApplicableFloorsStr(e.target.value)}
-                placeholder="VD: 3, 4, 5, 6, 7, 8"
-                className="w-full px-3 py-1.5 rounded-xl bg-slate-800 border border-slate-700 text-xs font-mono text-teal-300 focus:outline-none focus:border-teal-500"
-              />
+              {readOnly ? (
+                <div className="px-3 py-1.5 rounded-xl bg-slate-800/80 border border-slate-750 text-xs font-mono text-teal-300 truncate">
+                  {applicableFloorsStr || String(activeFloor)}
+                </div>
+              ) : (
+                <input
+                  type="text"
+                  value={applicableFloorsStr}
+                  onChange={(e) => setApplicableFloorsStr(e.target.value)}
+                  placeholder="VD: 3, 4, 5, 6, 7, 8"
+                  className="w-full px-3 py-1.5 rounded-xl bg-slate-800 border border-slate-700 text-xs font-mono text-teal-300 focus:outline-none focus:border-teal-500"
+                />
+              )}
             </div>
 
             <div className="flex items-end">
-              <button
-                type="button"
-                disabled={isSaving || !cadUrl}
-                onClick={() => handleSaveFloorPlanAndPartitions()}
-                className="w-full flex items-center justify-center gap-2 py-2 px-4 rounded-xl bg-teal-600 hover:bg-teal-500 disabled:opacity-50 text-white text-xs font-bold shadow-lg transition-all active:scale-95"
-              >
-                {isSaving ? (
-                  <span>Đang xử lý & crop ảnh...</span>
-                ) : (
-                  <>
-                    <CheckCircle2 className="w-4 h-4" />
-                    Lưu & Đồng Bộ Căn Hộ
-                  </>
-                )}
-              </button>
+              {readOnly ? (
+                <div className="w-full flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-slate-800 text-teal-300 border border-teal-500/30 text-xs font-bold">
+                  <Layers className="w-3.5 h-3.5 text-teal-400" />
+                  <span>Sơ Đồ Tham Khảo</span>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  disabled={isSaving || !cadUrl}
+                  onClick={() => handleSaveFloorPlanAndPartitions()}
+                  className="w-full flex items-center justify-center gap-2 py-2 px-4 rounded-xl bg-teal-600 hover:bg-teal-500 disabled:opacity-50 text-white text-xs font-bold shadow-lg transition-all active:scale-95 cursor-pointer"
+                >
+                  {isSaving ? (
+                    <span>Đang xử lý & crop ảnh...</span>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="w-4 h-4" />
+                      Lưu & Đồng Bộ Căn Hộ
+                    </>
+                  )}
+                </button>
+              )}
             </div>
           </div>
 
@@ -334,17 +362,21 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
               <div>
                 <h4 className="text-sm font-bold text-white">Chưa Có Bản Vẽ CAD Mặt Bằng Tầng {activeFloor}</h4>
                 <p className="text-xs text-slate-400 mt-1 max-w-md">
-                  Vui lòng tải lên ảnh bản vẽ CAD mặt bằng kiến trúc toàn tầng (PNG/JPG/SVG) do Ban Quản Lý tòa nhà hoặc hồ sơ thiết kế cung cấp.
+                  {readOnly
+                    ? 'Tầng này hiện chưa được cấu hình bản vẽ CAD mặt bằng kiến trúc. Vui lòng liên hệ Zone Admin cập nhật trên Cổng Quản Trị.'
+                    : 'Vui lòng tải lên ảnh bản vẽ CAD mặt bằng kiến trúc toàn tầng (PNG/JPG/SVG) do Ban Quản Lý tòa nhà hoặc hồ sơ thiết kế cung cấp.'}
                 </p>
               </div>
-              <div className="w-full max-w-sm">
-                <PhotoCaptureInput
-                  value=""
-                  onChange={(url) => setCadUrl(url)}
-                  label={`Tải lên bản vẽ CAD Tầng ${activeFloor}`}
-                  allowPdf={true}
-                />
-              </div>
+              {!readOnly && (
+                <div className="w-full max-w-sm">
+                  <PhotoCaptureInput
+                    value=""
+                    onChange={(url) => setCadUrl(url)}
+                    label={`Tải lên bản vẽ CAD Tầng ${activeFloor}`}
+                    allowPdf={true}
+                  />
+                </div>
+              )}
             </div>
           ) : (
             /* Interactive Canvas Slicer */
@@ -352,21 +384,25 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs text-slate-400 flex items-center gap-1.5">
                   <Square className="w-3.5 h-3.5 text-teal-400" />
-                  Kéo thả chuột trên bản vẽ để tạo ô căn hộ mới theo quy ước <code className="text-teal-300 font-mono">mm.nn</code>.
+                  {readOnly
+                    ? 'Nhấp/chạm vào ô căn hộ để xem chi tiết mã phòng và kích thước. Sử dụng chuột/cảm ứng để phóng to/thu nhỏ/di chuyển.'
+                    : 'Kéo thả chuột trên bản vẽ để tạo ô căn hộ mới theo quy ước mm.nn.'}
                 </span>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (confirm('Bạn có chắc muốn đổi file ảnh bản vẽ CAD khác?')) {
-                        setCadUrl('');
-                      }
-                    }}
-                    className="text-[11px] text-slate-400 hover:text-white underline"
-                  >
-                    Đổi file CAD khác
-                  </button>
-                </div>
+                {!readOnly && (
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (confirm('Bạn có chắc muốn đổi file ảnh bản vẽ CAD khác?')) {
+                          setCadUrl('');
+                        }
+                      }}
+                      className="text-[11px] text-slate-400 hover:text-white underline cursor-pointer"
+                    >
+                      Đổi file CAD khác
+                    </button>
+                  </div>
+                )}
               </div>
 
               <div className="flex-1">
@@ -375,7 +411,8 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
                   floorNumber={activeFloor}
                   initialPartitions={partitions}
                   onChangePartitions={setPartitions}
-                  onSave={handleSaveFloorPlanAndPartitions}
+                  onSave={readOnly ? undefined : handleSaveFloorPlanAndPartitions}
+                  readOnly={readOnly}
                 />
               </div>
             </div>

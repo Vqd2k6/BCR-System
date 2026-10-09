@@ -98,92 +98,62 @@ sequenceDiagram
      * Thẻ hiển thị huy hiệu `🏢 Chung cư ({completedUnits}/{totalUnits} căn)`.
      * Khi Surveyor bấm vào thẻ, ứng dụng không mở form đơn lẻ mà kích hoạt trực tiếp `onOpenBuildingHub(parcel)`.
 
-   #### 3.3. Trường hợp B: Công trình bị phân loại nhầm là Nhà riêng lẻ (`STANDALONE` $\rightarrow$ `CONDOMINIUM`)
-   Khi thửa đất ban đầu mang kiểu `STANDALONE`, KSV bấm khảo sát và đang ở trong form Phase 1 thông thường. Quy trình chuyển đổi 4 tầng được thực hiện như sau:
+   #### 3.3. Trường hợp B: Công trình ban đầu là Nhà riêng lẻ được chuyển đổi sang Chung cư (`STANDALONE` $\rightarrow$ `CONDOMINIUM`)
+   
+   Nhằm bảo đảm tính toàn vẹn dữ liệu kỹ thuật và tối ưu công năng thao tác, hệ thống phân định rõ ranh giới trách nhiệm:
+   * **Khảo sát viên (KSV) ngoài hiện trường (Mobile PWA):** Sử dụng điện thoại di động trong điều kiện nắng gió ngoài hiện trường, thao tác kéo vẽ CAD phức tạp trên màn hình nhỏ rất khó chuẩn xác và tiềm ẩn rủi ro phá vỡ cấu trúc địa chính. Do đó, KSV được phân quyền **Chỉ Đọc (Read-Only)** đối với bản vẽ CAD tầng và không được tự ý chuyển đổi ranh thửa sang Chung cư. Nếu phát hiện công trình là chung cư tại mục 1.7 (`Step1CaseSelector.tsx`), hệ thống sẽ hiển thị thông báo hướng dẫn KSV liên hệ Zone Admin để cấu hình mặt bằng trên Cổng Quản Trị.
+   * **Quản trị viên phân khu (Zone Admin) trên Desktop Portal:** Sử dụng màn hình lớn, chuột và bàn phím để chuyển đổi loại hình công trình, tải lên bản vẽ CAD mặt bằng kiến trúc toàn tầng và dùng công cụ **CAD Slicer** để phân chia các ô căn hộ con một cách chuẩn xác trước khi phân bổ cho KSV.
 
 ```mermaid
 sequenceDiagram
     autonumber
-    actor SV as Khảo Sát Viên (PWA)
-    participant Form as Step1_BuildingIdentification
-    participant Local as LocalStorage Cache
-    participant API as Cadastral API (/parcels/:id/building-type)
-    participant DB as PostgreSQL (parcels table)
-    participant Hub as BuildingHubModal
+    actor ZA as Quản Trị Viên Phân Khu (Zone Admin - Desktop)
+    actor SV as Khảo Sát Viên (Surveyor - Mobile PWA)
+    participant Grid as ZoneParcelsDataGrid (Desktop)
+    participant CadModal as FloorPlanCadManagementModal
+    participant API as Cadastral API (/parcels/:id/...)
+    participant DB as PostgreSQL (parcels, floor_plans, units)
+    participant Hub as BuildingHubModal (Mobile)
+    participant UnitForm as SurveyCondoUnitPage
 
-    SV->>Form: Mục 1.7: Chọn "Chung cư / Tòa nhà nhiều căn hộ" (APARTMENT)
-    Form-->>SV: Hiển thị hộp thoại cảnh báo chuyển đổi kiến trúc
-    SV->>Form: Bấm "Xác nhận chuyển đổi thành Chung Cư"
-    
-    rect rgb(240, 253, 250)
-    Note over Form,DB: TẦNG 1 & 2: GIAO TIẾP MẠNG & CẬP NHẬT CSDL
-    Form->>API: PATCH /api/v1/parcels/:id/building-type { buildingType: 'CONDOMINIUM' }
-    API->>DB: UPDATE parcels SET building_type = 'CONDOMINIUM', updated_at = NOW() WHERE id = $1
-    DB-->>API: 200 OK (Bản ghi parcel đã cập nhật)
-    API-->>Form: Trả về { success: true, parcel }
-    end
+    Note over ZA,Grid: GIAI ĐOẠN 1: THIẾT LẬP & PHÂN RÃ CĂN HỘ TRÊN DESKTOP
+    ZA->>Grid: Tìm thửa đất, bấm nút "Chuyển Sang Chung Cư"
+    Grid-->>ZA: Hiển thị hộp thoại xác nhận chuyển đổi loại hình
+    ZA->>Grid: Bấm "Xác Nhận Chuyển Đổi"
+    Grid->>API: PATCH /api/v1/parcels/:id/building-type { buildingType: 'CONDOMINIUM' }
+    API->>DB: UPDATE parcels SET building_type = 'CONDOMINIUM' WHERE id = $1
+    DB-->>API: 200 OK
+    API-->>Grid: Cập nhật thành công
+    Grid->>CadModal: Tự động mở Modal Quản Lý CAD & Phân Cắt Căn Hộ
+    ZA->>CadModal: Tải lên bản vẽ CAD tầng, chọn dải tầng điển hình (VD: 3, 4, 5, 6, 7, 8)
+    ZA->>CadModal: Kéo chuột vẽ các ô căn hộ theo quy ước mm.nn (VD: 03.01, 03.02...)
+    ZA->>CadModal: Bấm "Lưu & Đồng Bộ Căn Hộ"
+    CadModal->>API: POST /api/v1/parcels/:id/floor-plans (Lưu CAD mặt bằng)
+    CadModal->>API: POST /api/v1/parcels/:id/floor-plans/partitions (Lưu danh sách căn hộ & ảnh crop)
+    API->>DB: INSERT/UPDATE building_floor_plans & building_units
+    DB-->>API: 200 OK
+    API-->>CadModal: Đồng bộ thành công toàn bộ căn hộ cho các tầng
 
-    rect rgb(254, 243, 199)
-    Note over Form,Local: TẦNG 3: BẢO VỆ NGOẠI TUYẾN (OFFLINE-FIRST OVERRIDE)
-    Form->>Local: Lưu override vào 'metro2_parcel_status_overrides': { buildingType: 'CONDOMINIUM', surveyCaseType: 'APARTMENT' }
-    Form->>Local: Lưu cờ mở Hub: 'metro2_open_hub_parcel_id' = parcelId
-    end
-
-    rect rgb(238, 242, 255)
-    Note over Form,Hub: TẦNG 4: CHUYỂN TIẾP GIAO DIỆN & MỞ BUILDING HUB
-    Form-->>SV: Hiển thị Step1SuccessModal (Xác nhận thành công)
-    SV->>Form: Bấm "Mở ngay Hub Chung Cư"
-    Form->>Form: Xóa bản nháp form đơn lẻ (clearDraft(true))
-    Form->>Hub: Kích hoạt BuildingHubModal với thửa đất vừa chuyển đổi
-    end
+    Note over SV,UnitForm: GIAI ĐOẠN 2: KHẢO SÁT HIỆN TRƯỜNG NHẸ NHÀNG TRÊN MOBILE
+    SV->>Hub: Mở Hub Chung Cư trên điện thoại
+    SV->>Hub: Bấm "Xem Sơ Đồ CAD" (Mở FloorPlanCadManagementModal ở chế độ Read-Only)
+    Hub-->>SV: Cho phép zoom/pan xem vị trí các căn hộ, khóa toàn bộ tính năng sửa/xóa/upload
+    SV->>Hub: Bấm chọn căn hộ cần khảo sát (VD: Căn 03.02)
+    Hub->>UnitForm: Mở form khảo sát căn hộ con
+    UnitForm->>UnitForm: Tự động nạp bản vẽ CAD đã được crop sẵn của căn 03.02 (1-Click Import)
+    SV->>UnitForm: Chỉ cần chấm điểm khuyết tật (pinning) và hoàn tất khảo sát nhanh
 ```
 
-   * **Chi tiết 4 bước thực thi chuyển đổi:**
-     1. **Vị trí thao tác trên giao diện:**
-        * Nằm tại **Bước 1 (Định danh công trình)**, mục **1.7 "Nhận định loại công trình"** (`Step1CaseSelector.tsx`).
-        * KSV chọn radio button: `🏢 Chung cư / Tòa nhà nhiều căn hộ` (`caseType = 'APARTMENT'`).
-        * Nút hành động xuất hiện: **"Xác nhận chuyển đổi sang Chung cư & Mở Hub điều phối"**.
-     2. **Tầng API & CSDL (Network & Database Mutation):**
-        * Endpoint: `PATCH /api/v1/parcels/:id/building-type`.
-        * Headers: `Authorization: Bearer <JWT>` (Yêu cầu role `SURVEYOR`, `ZONE_ADMIN` hoặc `SUPER_ADMIN`).
-        * Payload:
-          ```json
-          {
-            "buildingType": "CONDOMINIUM"
-          }
-          ```
-        * Xử lý Backend (`CadastralService.updateBuildingType`):
-          * Kiểm tra sự tồn tại của `parcelId`.
-          * Chạy truy vấn SQL:
-            ```sql
-            UPDATE parcels 
-            SET building_type = 'CONDOMINIUM', 
-                updated_at = NOW() 
-            WHERE id = $1 
-            RETURNING *;
-            ```
-          * Ghi nhận một sự kiện vào `audit_logs` để lưu vết lịch sử biến động loại hình công trình.
-     3. **Tầng Bộ nhớ Đệm Ngoại Tuyến (Offline-First Storage Cache):**
-        * Để đảm bảo trong điều kiện sóng di động 4G tại hiện trường bị chập chờn, PWA lưu ngay lập tức trạng thái mới vào LocalStorage dưới key `metro2_parcel_status_overrides`:
-          ```typescript
-          const overrides = JSON.parse(localStorage.getItem('metro2_parcel_status_overrides') || '{}');
-          overrides[parcelId] = {
-            ...overrides[parcelId],
-            buildingType: 'CONDOMINIUM',
-            surveyCaseType: 'APARTMENT',
-            updatedAt: new Date().toISOString(),
-          };
-          localStorage.setItem('metro2_parcel_status_overrides', JSON.stringify(overrides));
-          ```
-        * Điều này đảm bảo khi người dùng tải lại trang hoặc mất mạng, thửa đất trên bản đồ vẫn giữ nguyên trạng thái `CONDOMINIUM` mà không bị giật lùi về `STANDALONE`.
-     4. **Tầng Chuyển Tiếp Giao Diện & Dọn Dẹp Bản Nháp (UI Transit & Draft Cleanup):**
-        * Component `Step1SuccessModals.tsx` kích hoạt modal chúc mừng:
-          * Tiêu đề: *"Đã chuyển đổi thành công sang Mô hình Chung Cư!"*
-          * Nội dung giải thích: *"Thửa đất B-00120-POR đã được chuyển sang chế độ quản lý đa hộ. Dữ liệu 4 ảnh P01-P04 ngoại thất vừa chụp sẽ được tự động chuyển giao vào hồ sơ Khối dùng chung (Master), đồng thời dọn dẹp bản nháp nhà riêng lẻ để mở Building Hub."*
-        * Khi Surveyor bấm **"Mở ngay Hub Chung Cư"**:
-          * Gọi `clearDraft(true)` để giải phóng bộ nhớ IndexedDB của form khảo sát nhà dân cũ.
-          * Lưu cờ `localStorage.setItem('metro2_open_hub_parcel_id', parcelId)`.
-          * Đóng form Phase 1 và kích hoạt `BuildingHubModal` hiển thị ngay trên màn hình. KSV có thể bắt tay ngay vào khảo sát Khối dùng chung hoặc tạo danh sách căn hộ theo tầng.
+   * **Quy chuẩn kỹ thuật và kiểm soát an toàn:**
+     1. **Rào chắn phân quyền Backend (RBAC Enforcement):**
+        * Endpoint `PATCH /api/v1/parcels/:id/building-type`: Yêu cầu quyền `ZONE_ADMIN` hoặc `SUPER_ADMIN`.
+        * Endpoint `POST /api/v1/parcels/:id/floor-plans`: Yêu cầu quyền `ZONE_ADMIN` hoặc `SUPER_ADMIN`.
+        * Endpoint `POST /api/v1/parcels/:id/floor-plans/partitions`: Yêu cầu quyền `ZONE_ADMIN` hoặc `SUPER_ADMIN`.
+        * Các endpoint truy vấn `GET /parcels/:id/floor-plans`, `GET /parcels/:id/units`: Mở quyền cho `SURVEYOR` để nạp dữ liệu khảo sát và hiển thị sơ đồ mặt bằng tham chiếu.
+     2. **Cơ chế khóa giao diện trên Mobile PWA:**
+        * Tại `Step1CaseSelector.tsx`: Option 3 "Chung cư" hiển thị nhãn "Zone Admin". Khi KSV chọn option này, nút xác nhận chuyển đổi bị khóa, thay vào đó hiển thị hộp cảnh báo giải thích quy trình chuẩn hóa CAD của Zone Admin.
+        * Tại `BuildingHubHeader.tsx`: Nút mở CAD trên thanh tiêu đề hiển thị nhãn **"Xem Sơ Đồ CAD"** và truyền thuộc tính `readOnly={true}` vào `FloorPlanCadManagementModal`.
+        * Tại `FloorPlanCadManagementModal.tsx`: Khi `readOnly = true`, ẩn nút upload CAD, ẩn nút đổi file, ẩn nút "Lưu Phân Chia Căn Hộ", ẩn input sửa tên phòng và nút xóa ô căn hộ; cho phép KSV chạm/click vào từng ô để xem thông tin chi tiết và thao tác zoom/pan mượt mà.
 
 ---
 

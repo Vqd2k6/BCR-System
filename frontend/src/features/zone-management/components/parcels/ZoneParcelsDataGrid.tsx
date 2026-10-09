@@ -23,10 +23,13 @@ import {
   Phone,
   User,
   Move,
+  Building2,
 } from 'lucide-react';
 import { api } from '../../../../services/api';
 import type { GisParcel } from '../../../../components/gis/shared/types';
 import { CadastralBoundaryReshapeModal } from '../../../../components/gis/cadastral-editor/components/CadastralBoundaryReshapeModal';
+import { FloorPlanCadManagementModal } from '../../../../components/survey/building-hub/components/FloorPlanCadManagementModal';
+import { getErrorMessage } from '@/utils/errorUtils';
 
 interface ZoneParcelsDataGridProps {
   selectedZone: string;
@@ -111,6 +114,33 @@ export const ZoneParcelsDataGrid: React.FC<ZoneParcelsDataGridProps> = ({
 
   // Reshape Modal state
   const [reshapeModalParcel, setReshapeModalParcel] = useState<GisParcel | null>(null);
+
+  // Condo CAD & Unit Partition Modal state
+  const [cadModalParcel, setCadModalParcel] = useState<GisParcel | null>(null);
+  const [condoConversionTarget, setCondoConversionTarget] = useState<GisParcel | null>(null);
+  const [isConvertingCondo, setIsConvertingCondo] = useState<boolean>(false);
+
+  // Chuyển đổi thửa đất sang Chung cư
+  const handleConvertToCondo = async (parcel: GisParcel) => {
+    setIsConvertingCondo(true);
+    try {
+      await api.patch(`/parcels/${parcel.id}/building-type`, {
+        buildingType: 'CONDOMINIUM',
+      });
+      // Cập nhật state thửa đất
+      setParcels((prev) =>
+        prev.map((p) => (p.id === parcel.id ? { ...p, buildingType: 'CONDOMINIUM' } : p))
+      );
+      if (onRefreshStats) onRefreshStats();
+      setCondoConversionTarget(null);
+      // Mở ngay modal upload CAD để Zone Admin cấu hình
+      setCadModalParcel({ ...parcel, buildingType: 'CONDOMINIUM' });
+    } catch (err: unknown) {
+      alert(`Lỗi khi chuyển đổi sang chung cư: ${getErrorMessage(err, 'Lỗi mạng')}`);
+    } finally {
+      setIsConvertingCondo(false);
+    }
+  };
 
   // Debounce search input (300ms)
   useEffect(() => {
@@ -649,6 +679,28 @@ export const ZoneParcelsDataGrid: React.FC<ZoneParcelsDataGridProps> = ({
                       {/* Cột 7: Thao Tác Quản Trị */}
                       <td className="py-3.5 px-4 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-1.5">
+                          {/* Nút CAD nếu là chung cư, hoặc chuyển đổi nếu là nhà riêng lẻ */}
+                          {parcel.buildingType === 'CONDOMINIUM' ? (
+                            <button
+                              type="button"
+                              onClick={() => setCadModalParcel(parcel)}
+                              className="px-2 py-1.5 rounded-lg bg-teal-50 hover:bg-teal-100 text-teal-700 border border-teal-200 transition-colors cursor-pointer flex items-center gap-1 text-xs font-bold shadow-2xs"
+                              title="Quản lý mặt bằng CAD & chia cắt căn hộ (Zone Admin)"
+                            >
+                              <Layers size={13} className="text-teal-600" />
+                              <span className="hidden xl:inline">CAD Tầng</span>
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => setCondoConversionTarget(parcel)}
+                              className="p-1.5 rounded-lg bg-slate-50 hover:bg-blue-50 text-slate-500 hover:text-blue-700 border border-slate-200 hover:border-blue-200 transition-colors cursor-pointer"
+                              title="Chuyển đổi thành Chung cư (CONDOMINIUM)"
+                            >
+                              <Building2 size={14} />
+                            </button>
+                          )}
+
                           {onNavigateToMap && (
                             <button
                               type="button"
@@ -852,6 +904,34 @@ export const ZoneParcelsDataGrid: React.FC<ZoneParcelsDataGridProps> = ({
             </div>
 
             <div className="pt-2 flex items-center justify-end gap-2 flex-wrap">
+              {inspectParcel.buildingType === 'CONDOMINIUM' ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCadModalParcel(inspectParcel);
+                    setInspectParcel(null);
+                  }}
+                  className="px-3 py-2 rounded-xl bg-teal-50 hover:bg-teal-100 text-teal-700 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border border-teal-200"
+                  title="Quản lý bản vẽ CAD và phân chia căn hộ"
+                >
+                  <Layers size={14} className="text-teal-600" />
+                  <span>Quản Lý CAD & Phân Căn</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCondoConversionTarget(inspectParcel);
+                    setInspectParcel(null);
+                  }}
+                  className="px-3 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border border-blue-200"
+                  title="Chuyển đổi thửa đất sang Chung cư"
+                >
+                  <Building2 size={14} className="text-blue-600" />
+                  <span>Chuyển Sang Chung Cư</span>
+                </button>
+              )}
+
               <button
                 type="button"
                 onClick={() => {
@@ -906,6 +986,76 @@ export const ZoneParcelsDataGrid: React.FC<ZoneParcelsDataGridProps> = ({
             if (onRefreshStats) onRefreshStats();
           }}
         />
+      )}
+
+      {/* Floor Plan CAD Management Modal (Zone Admin Desktop) */}
+      {cadModalParcel && (
+        <FloorPlanCadManagementModal
+          parcel={cadModalParcel}
+          onClose={() => setCadModalParcel(null)}
+          onUnitsUpdated={() => {
+            fetchZoneParcels();
+            if (onRefreshStats) onRefreshStats();
+          }}
+          readOnly={false}
+        />
+      )}
+
+      {/* Confirmation Modal: Convert Parcel to Condominium */}
+      {condoConversionTarget && (
+        <div className="fixed inset-0 z-[100000] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
+          <div className="bg-white border border-slate-200 rounded-2xl shadow-2xl max-w-md w-full p-6 text-slate-800 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="p-3 rounded-xl bg-blue-100 text-blue-700">
+                <Building2 className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900">
+                  Chuyển Đổi Sang Chung Cư
+                </h3>
+                <p className="text-xs text-slate-500 font-mono">
+                  Mã thửa: {condoConversionTarget.projectParcelCode || condoConversionTarget.id}
+                </p>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Bạn có chắc chắn muốn chuyển đổi thửa đất này thành <strong>Chung cư / Tòa nhà nhiều căn hộ (CONDOMINIUM)</strong>?
+            </p>
+            <div className="p-3 bg-blue-50/70 border border-blue-200 rounded-xl text-xs text-blue-900 space-y-1">
+              <p className="font-bold">• Sau khi chuyển đổi:</p>
+              <p>1. Loại hình công trình được cập nhật thành CONDOMINIUM.</p>
+              <p>2. Màn hình quản lý CAD mặt bằng tầng sẽ mở ra để bạn tải bản vẽ kiến trúc và chia cắt các ô căn hộ con.</p>
+              <p>3. Khảo sát viên sẽ được phân bổ khảo sát khối tháp dùng chung và các căn hộ con độc lập.</p>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                disabled={isConvertingCondo}
+                onClick={() => setCondoConversionTarget(null)}
+                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-colors cursor-pointer"
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                disabled={isConvertingCondo}
+                onClick={() => handleConvertToCondo(condoConversionTarget)}
+                className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
+              >
+                {isConvertingCondo ? (
+                  <span>Đang xử lý...</span>
+                ) : (
+                  <>
+                    <Building2 className="w-4 h-4" />
+                    <span>Xác Nhận Chuyển Đổi</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
