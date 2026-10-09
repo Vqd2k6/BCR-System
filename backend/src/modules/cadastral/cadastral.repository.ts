@@ -68,6 +68,8 @@ export interface BuildingFloorPlanEntity {
   cad_photo_code: string | null;
   image_width: number | null;
   image_height: number | null;
+  scope?: 'MASTER' | 'UNIT' | 'BOTH';
+  area_type?: string | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -564,15 +566,40 @@ export class CadastralRepository {
     cadPhotoCode?: string;
     imageWidth?: number;
     imageHeight?: number;
+    scope?: 'MASTER' | 'UNIT' | 'BOTH';
+    areaType?: string;
   }): Promise<BuildingFloorPlanEntity> {
     const applicable = data.applicableFloors && data.applicableFloors.length > 0 
       ? data.applicableFloors 
       : [data.floorNumber];
 
+    // Tự động nhận diện thông minh scope & areaType nếu chưa truyền
+    let scope = data.scope;
+    let areaType = data.areaType;
+    if (!scope) {
+      const lowerName = data.floorName.toLowerCase();
+      if (data.floorNumber < 0) {
+        scope = 'MASTER';
+        areaType = areaType || 'BASEMENT';
+      } else if (lowerName.includes('mái') || lowerName.includes('thượng') || lowerName.includes('rooftop')) {
+        scope = 'MASTER';
+        areaType = areaType || 'ROOFTOP';
+      } else if (lowerName.includes('kỹ thuật') || lowerName.includes('lánh nạn')) {
+        scope = 'MASTER';
+        areaType = areaType || 'TECHNICAL_REFUGE';
+      } else if (lowerName.includes('trệt') || lowerName.includes('sảnh') || lowerName.includes('lobby')) {
+        scope = 'BOTH';
+        areaType = areaType || 'GROUND_LOBBY';
+      } else {
+        scope = 'UNIT';
+        areaType = areaType || 'TYPICAL_UNIT';
+      }
+    }
+
     const res = await Database.query<BuildingFloorPlanEntity>(
       `INSERT INTO building_floor_plans (
-        parcel_id, floor_number, floor_name, applicable_floors, cad_photo_url, cad_photo_code, image_width, image_height, updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+        parcel_id, floor_number, floor_name, applicable_floors, cad_photo_url, cad_photo_code, image_width, image_height, scope, area_type, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
       ON CONFLICT (parcel_id, floor_number) DO UPDATE SET
         floor_name = EXCLUDED.floor_name,
         applicable_floors = EXCLUDED.applicable_floors,
@@ -580,6 +607,8 @@ export class CadastralRepository {
         cad_photo_code = EXCLUDED.cad_photo_code,
         image_width = EXCLUDED.image_width,
         image_height = EXCLUDED.image_height,
+        scope = COALESCE(EXCLUDED.scope, building_floor_plans.scope),
+        area_type = COALESCE(EXCLUDED.area_type, building_floor_plans.area_type),
         updated_at = NOW()
       RETURNING *;`,
       [
@@ -591,6 +620,8 @@ export class CadastralRepository {
         data.cadPhotoCode || null,
         data.imageWidth || null,
         data.imageHeight || null,
+        scope,
+        areaType || null,
       ]
     );
     return res.rows[0];

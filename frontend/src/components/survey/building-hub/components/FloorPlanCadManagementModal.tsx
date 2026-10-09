@@ -25,12 +25,36 @@ import {
 import { api } from '../../../../services/api';
 import { getErrorMessage } from '@/utils/errorUtils';
 
+export type FloorScope = 'MASTER' | 'UNIT' | 'BOTH';
+
+export const detectDefaultFloorScope = (
+  floorNum: number,
+  name: string
+): { scope: FloorScope; areaType: string } => {
+  const lower = name.toLowerCase();
+  if (floorNum < 0 || lower.includes('hầm') || lower.includes('basement')) {
+    return { scope: 'MASTER', areaType: 'BASEMENT' };
+  }
+  if (lower.includes('mái') || lower.includes('thượng') || lower.includes('rooftop')) {
+    return { scope: 'MASTER', areaType: 'ROOFTOP' };
+  }
+  if (lower.includes('kỹ thuật') || lower.includes('lánh nạn') || lower.includes('refuge')) {
+    return { scope: 'MASTER', areaType: 'TECHNICAL_REFUGE' };
+  }
+  if (floorNum === 0 || lower.includes('trệt') || lower.includes('sảnh') || lower.includes('lobby')) {
+    return { scope: 'BOTH', areaType: 'GROUND_LOBBY' };
+  }
+  return { scope: 'UNIT', areaType: 'TYPICAL_UNIT' };
+};
+
 interface FloorPlanItem {
   id: string;
   floor_number: number;
   floor_name: string;
   cad_photo_url: string;
   applicable_floors?: number[];
+  scope?: FloorScope;
+  area_type?: string;
 }
 
 interface CadUnitItem {
@@ -51,6 +75,8 @@ interface BuildingFloorItem {
   unitCount: number;
   isInherited: boolean;
   inheritedFromFloor?: number;
+  scope: FloorScope;
+  areaType?: string;
 }
 
 interface Props {
@@ -87,6 +113,8 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
   const [floorName, setFloorName] = useState<string>('Tầng 1');
   const [cadUrl, setCadUrl] = useState<string>('');
   const [applicableFloors, setApplicableFloors] = useState<number[]>([1]);
+  const [floorScope, setFloorScope] = useState<FloorScope>('UNIT');
+  const [floorAreaType, setFloorAreaType] = useState<string>('TYPICAL_UNIT');
   const [partitions, setPartitions] = useState<UnitPartitionBox[]>([]);
   const [isPartitionsValid, setIsPartitionsValid] = useState<boolean>(true);
   const [isTypicalModalOpen, setIsTypicalModalOpen] = useState<boolean>(false);
@@ -119,6 +147,9 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
         setCadUrl(first.cad_photo_url);
         setFloorName(first.floor_name);
         setApplicableFloors(first.applicable_floors || [first.floor_number]);
+        const detected = detectDefaultFloorScope(first.floor_number, first.floor_name);
+        setFloorScope(first.scope || detected.scope);
+        setFloorAreaType(first.area_type || detected.areaType);
       }
     } catch (err) {
       console.warn('[FloorPlanCad] Lỗi nạp dữ liệu tòa nhà:', err);
@@ -173,6 +204,10 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
       if (flNum === 0) defaultName = 'Tầng Trệt / G';
       if (flNum < 0) defaultName = `Hầm B${Math.abs(flNum)}`;
 
+      const detected = detectDefaultFloorScope(flNum, effectivePlan?.floor_name || defaultName);
+      const effectiveScope: FloorScope = effectivePlan?.scope || detected.scope;
+      const effectiveAreaType = effectivePlan?.area_type || detected.areaType;
+
       return {
         floorNumber: flNum,
         floorName: effectivePlan?.floor_name || defaultName,
@@ -182,6 +217,8 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
         unitCount,
         isInherited,
         inheritedFromFloor: isInherited ? sharedPlan?.floor_number : undefined,
+        scope: effectiveScope,
+        areaType: effectiveAreaType,
       };
     });
   }, [initialFloorCount, existingFloorPlans, customFloors, allUnits]);
@@ -197,6 +234,9 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
             setCadUrl(plan.cad_photo_url || '');
             setFloorName(plan.floor_name || `Tầng ${floorNum}`);
             setApplicableFloors(plan.applicable_floors || [floorNum]);
+            const detected = detectDefaultFloorScope(floorNum, plan.floor_name || `Tầng ${floorNum}`);
+            setFloorScope(plan.scope || detected.scope);
+            setFloorAreaType(plan.area_type || detected.areaType);
           } else {
             // Kiểm tra xem tầng này có đang thừa hưởng từ tầng điển hình nào không
             const sharedPlan = existingFloorPlans.find(
@@ -206,10 +246,17 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
               setCadUrl(sharedPlan.cad_photo_url || '');
               setFloorName(`Tầng ${floorNum} (Dùng chung ${sharedPlan.floor_name})`);
               setApplicableFloors(sharedPlan.applicable_floors || [sharedPlan.floor_number]);
+              const detected = detectDefaultFloorScope(floorNum, sharedPlan.floor_name);
+              setFloorScope(sharedPlan.scope || detected.scope);
+              setFloorAreaType(sharedPlan.area_type || detected.areaType);
             } else {
               setCadUrl('');
-              setFloorName(`Tầng ${floorNum}`);
+              const defName = floorNum === 0 ? 'Tầng Trệt / G' : floorNum < 0 ? `Hầm B${Math.abs(floorNum)}` : `Tầng ${floorNum}`;
+              setFloorName(defName);
               setApplicableFloors([floorNum]);
+              const detected = detectDefaultFloorScope(floorNum, defName);
+              setFloorScope(detected.scope);
+              setFloorAreaType(detected.areaType);
             }
           }
 
@@ -312,6 +359,8 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
         floorName: floorName || `Tầng ${activeFloor}`,
         applicableFloors: targetApplicableFloors,
         cadPhotoUrl: cadUrl,
+        scope: floorScope,
+        areaType: floorAreaType,
       });
 
       const floorPlanId = planRes.data?.data?.plan?.id;
@@ -499,9 +548,27 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
                       }`}
                     >
                       <div className="flex flex-col min-w-0">
-                        <span className={`text-xs font-bold truncate ${isActive ? 'text-teal-900' : 'text-slate-800'}`}>
-                          {fl.floorName}
-                        </span>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className={`text-xs font-bold truncate ${isActive ? 'text-teal-900' : 'text-slate-800'}`}>
+                            {fl.floorName}
+                          </span>
+                          {/* Scope badge */}
+                          {fl.scope === 'MASTER' && (
+                            <span className="text-[10px] font-semibold px-1.5 py-0.2 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">
+                              Master
+                            </span>
+                          )}
+                          {fl.scope === 'UNIT' && (
+                            <span className="text-[10px] font-semibold px-1.5 py-0.2 rounded bg-purple-50 text-purple-700 border border-purple-200">
+                              Unit
+                            </span>
+                          )}
+                          {fl.scope === 'BOTH' && (
+                            <span className="text-[10px] font-semibold px-1.5 py-0.2 rounded bg-teal-50 text-teal-700 border border-teal-200">
+                              Hỗn hợp
+                            </span>
+                          )}
+                        </div>
                         <div className="flex items-center gap-1.5 mt-0.5">
                           {fl.isInherited ? (
                             <span className="text-[10px] text-teal-700 flex items-center gap-0.5 font-medium">
@@ -550,7 +617,7 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
           <div className="flex-1 flex flex-col bg-slate-100 overflow-hidden">
             {/* Sub-header Bar: Thông tin tầng, tên mặt bằng & Dải tầng áp dụng */}
             <div className="px-5 py-3 bg-white border-b border-slate-200 flex items-center justify-between gap-3 flex-wrap shrink-0">
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3 flex-wrap">
                 <div className="flex items-center gap-1.5">
                   <span className="text-xs font-bold text-slate-600">Tên mặt bằng:</span>
                   {readOnly ? (
@@ -563,8 +630,80 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
                       value={floorName}
                       onChange={(e) => setFloorName(e.target.value)}
                       placeholder={`Tầng ${activeFloor}`}
-                      className="px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-300 text-xs font-bold text-teal-800 focus:outline-none focus:border-teal-600 w-44 sm:w-56"
+                      className="px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-300 text-xs font-bold text-teal-800 focus:outline-none focus:border-teal-600 w-36 sm:w-44"
                     />
+                  )}
+                </div>
+
+                {/* Scope selector */}
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs font-bold text-slate-600">Phạm vi:</span>
+                  {readOnly ? (
+                    <span className={`text-xs font-semibold px-2.5 py-1 rounded-lg border ${
+                      floorScope === 'MASTER'
+                        ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                        : floorScope === 'BOTH'
+                        ? 'bg-teal-50 text-teal-700 border-teal-200'
+                        : 'bg-purple-50 text-purple-700 border-purple-200'
+                    }`}>
+                      {floorScope === 'MASTER' ? '🏢 Tòa mẹ (Dùng chung)' : floorScope === 'BOTH' ? '🔄 Hỗn hợp' : '🏠 Căn hộ con (Unit)'}
+                    </span>
+                  ) : (
+                    <select
+                      value={floorScope}
+                      onChange={(e) => {
+                        const nextScope = e.target.value as FloorScope;
+                        setFloorScope(nextScope);
+                        if (nextScope === 'MASTER' && (floorAreaType === 'TYPICAL_UNIT' || !floorAreaType)) {
+                          setFloorAreaType(activeFloor < 0 ? 'BASEMENT' : 'ROOFTOP');
+                        } else if (nextScope === 'UNIT') {
+                          setFloorAreaType('TYPICAL_UNIT');
+                        } else if (nextScope === 'BOTH') {
+                          setFloorAreaType('GROUND_LOBBY');
+                        }
+                      }}
+                      className="px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-300 text-xs font-bold text-slate-800 focus:outline-none focus:border-teal-600 cursor-pointer"
+                    >
+                      <option value="UNIT">🏠 Căn hộ con (Unit)</option>
+                      <option value="MASTER">🏢 Tòa mẹ / Dùng chung (Master)</option>
+                      <option value="BOTH">🔄 Hỗn hợp (Master + Unit)</option>
+                    </select>
+                  )}
+                </div>
+
+                {/* Phân loại khu vực / Area type */}
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs font-bold text-slate-600">Phân loại:</span>
+                  {readOnly ? (
+                    <span className="text-xs font-medium px-2 py-1 rounded-lg bg-slate-100 border border-slate-200 text-slate-700">
+                      {floorAreaType}
+                    </span>
+                  ) : (
+                    <select
+                      value={floorAreaType}
+                      onChange={(e) => setFloorAreaType(e.target.value)}
+                      className="px-2.5 py-1 rounded-lg bg-slate-50 border border-slate-300 text-xs font-medium text-slate-700 focus:outline-none focus:border-teal-600 cursor-pointer"
+                    >
+                      {floorScope === 'MASTER' ? (
+                        <>
+                          <option value="BASEMENT">Hầm để xe (Basement)</option>
+                          <option value="ROOFTOP">Sân thượng / Mái (Rooftop)</option>
+                          <option value="TECHNICAL_REFUGE">Tầng kỹ thuật / Lánh nạn</option>
+                          <option value="PODIUM_FACILITY">Khối đế / Tiện ích chung</option>
+                          <option value="OTHER_COMMON">Khu vực dùng chung khác</option>
+                        </>
+                      ) : floorScope === 'BOTH' ? (
+                        <>
+                          <option value="GROUND_LOBBY">Sảnh chính & Căn hộ (Ground Lobby)</option>
+                          <option value="MIXED_USE">Tầng hỗn hợp TM-DV & Căn hộ</option>
+                        </>
+                      ) : (
+                        <>
+                          <option value="TYPICAL_UNIT">Tầng căn hộ điển hình</option>
+                          <option value="SPECIAL_UNIT">Tầng căn hộ đặc biệt / Penthouse</option>
+                        </>
+                      )}
+                    </select>
                   )}
                 </div>
 

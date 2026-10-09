@@ -37,6 +37,12 @@ export const Step2_CondoMasterInterview: React.FC = () => {
   const { formData, updateFormData, nextStep, prevStep } = usePhase1SurveyStore();
   const hi = formData.historyInterview;
 
+  React.useEffect(() => {
+    if (!formData.usageFunction) {
+      updateFormData({ usageFunction: 'Chung cư / Toà nhiều căn hộ' });
+    }
+  }, []);
+
   const isCustomUsage =
     Boolean(formData.usageFunction) &&
     !USAGE_OPTIONS.slice(0, USAGE_OPTIONS.length - 1).includes(formData.usageFunction);
@@ -432,7 +438,7 @@ export const Step2_CondoMasterInterview: React.FC = () => {
           <div className="flex items-center gap-2">
             <FileCheck className="w-5 h-5 text-indigo-600" />
             <h2 className="text-base sm:text-lg font-bold text-slate-800">
-              2.3. Bản Vẽ Hoàn Công / Kết Cấu Móng (Chỉ Số V3)
+              2.3. Đánh Giá CAT
             </h2>
           </div>
           <div className="flex items-center gap-2">

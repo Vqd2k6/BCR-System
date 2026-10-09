@@ -260,6 +260,12 @@ export class Database {
 
         CREATE INDEX IF NOT EXISTS idx_floor_plans_parcel ON building_floor_plans(parcel_id);
 
+        ALTER TABLE building_floor_plans
+          ADD COLUMN IF NOT EXISTS scope VARCHAR(32) DEFAULT 'UNIT',
+          ADD COLUMN IF NOT EXISTS area_type VARCHAR(64) DEFAULT 'TYPICAL_UNIT';
+
+        CREATE INDEX IF NOT EXISTS idx_floor_plans_scope ON building_floor_plans(parcel_id, scope);
+
         ALTER TABLE building_units
           ADD COLUMN IF NOT EXISTS floor_plan_id UUID REFERENCES building_floor_plans(id) ON DELETE SET NULL,
           ADD COLUMN IF NOT EXISTS cad_bbox JSONB,
@@ -269,7 +275,7 @@ export class Database {
 
         CREATE INDEX IF NOT EXISTS idx_building_units_floor_plan ON building_units(floor_plan_id);
       `);
-      console.log('✅ [STARTUP MIGRATION] building_units, floor_plans & report hierarchy ready.');
+      console.log('✅ [STARTUP MIGRATION] building_units, floor_plans (scope/area_type) & report hierarchy ready.');
     } catch (e) {
       console.warn('⚠️ [STARTUP MIGRATION] building_units warning:', e);
     }

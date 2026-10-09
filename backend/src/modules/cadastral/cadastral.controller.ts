@@ -273,7 +273,7 @@ export class CadastralController {
   static async upsertFloorPlan(req: Request, res: Response, next: NextFunction) {
     try {
       const { id } = req.params;
-      const { floorNumber, floorName, applicableFloors, cadPhotoUrl, cadPhotoCode, imageWidth, imageHeight } = req.body;
+      const { floorNumber, floorName, applicableFloors, cadPhotoUrl, cadPhotoCode, imageWidth, imageHeight, scope, areaType } = req.body;
       if (!floorNumber || !cadPhotoUrl) {
         throw new BadRequestError('floorNumber và cadPhotoUrl là bắt buộc');
       }
@@ -285,6 +285,8 @@ export class CadastralController {
         cadPhotoCode,
         imageWidth,
         imageHeight,
+        scope,
+        areaType,
       });
       res.status(200).json({
         success: true,

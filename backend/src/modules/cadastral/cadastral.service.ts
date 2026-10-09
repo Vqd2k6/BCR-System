@@ -453,6 +453,8 @@ export class CadastralService {
     cadPhotoCode?: string;
     imageWidth?: number;
     imageHeight?: number;
+    scope?: 'MASTER' | 'UNIT' | 'BOTH';
+    areaType?: string;
   }) {
     const parcel = await CadastralRepository.findById(parcelId);
     if (!parcel) {
