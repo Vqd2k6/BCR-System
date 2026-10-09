@@ -62,7 +62,12 @@ export const createFormSlice: StateCreator<
     } else if (!initialData.projectParcelCode) {
       initialData.projectParcelCode = realProjectCode || 'B-XXXXX';
     }
-    initialData.officialCadastralCode = initialData.officialCadastralCode || parcel.officialCadastralCode || parcel.official_cadastral_code || '';
+    const realCadastralCode = parcel.officialCadastralCode || parcel.official_cadastral_code || (parcel as unknown as { cadastralCode?: string; cadastral_code?: string }).cadastralCode || (parcel as unknown as { cadastralCode?: string; cadastral_code?: string }).cadastral_code;
+    if (realCadastralCode) {
+      initialData.officialCadastralCode = realCadastralCode;
+    } else if (!initialData.officialCadastralCode) {
+      initialData.officialCadastralCode = '';
+    }
     initialData.houseNumber = initialData.houseNumber || parcel.houseNumber || parcel.house_number || '';
     initialData.street = initialData.street || parcel.street || '';
     initialData.ownerName = initialData.ownerName || unit?.ownerName || parcel.ownerName || parcel.owner_name || '';

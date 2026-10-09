@@ -33,7 +33,7 @@ export const MasterWarningBanner: React.FC<MasterWarningBannerProps> = ({
             </span>
           </div>
           <p className="text-xs text-amber-800 mt-1 leading-relaxed max-w-2xl">
-            Công trình mới chỉ được thiết lập loại hình Chung cư từ bản đồ thửa đất ban đầu. Theo quy chuẩn kỹ thuật Metro 2, cần hoàn thành <strong>Khảo sát tổng quan tòa nhà</strong> (kết cấu chịu lực, móng, bộ 4 ảnh mặt đứng P01–P04, không gian dùng chung) để phục vụ kế thừa dữ liệu cho các căn hộ con.
+            Khối tháp dùng chung có thể được khảo sát song song độc lập với các căn hộ con. Khảo sát viên có thể thực hiện <strong>Khảo sát tổng quan tòa nhà</strong> (kết cấu chịu lực, móng, bộ 4 ảnh mặt đứng P01–P04, không gian dùng chung) để hệ thống tự động liên kết khi xuất báo cáo.
           </p>
         </div>
       </div>

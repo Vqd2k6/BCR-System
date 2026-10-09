@@ -398,6 +398,7 @@ export const Step1_BuildingIdentification: React.FC<Step1BuildingIdentificationP
       <Step1ObjectGroupSection
         formData={formData}
         updateFormData={updateFormData}
+        isCondoMaster={isCondoMaster}
       />
 
       {/* 1.3. Thông tin tuyến Metro & GIS */}

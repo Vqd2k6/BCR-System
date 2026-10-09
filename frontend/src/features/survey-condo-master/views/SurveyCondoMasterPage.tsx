@@ -55,10 +55,17 @@ export const SurveyCondoMasterPage: React.FC<SurveyCondoMasterPageProps> = ({
   useEffect(() => {
     if (parcel) {
       initializeForm(parcel, null);
+      const cadastralCode =
+        parcel.officialCadastralCode ||
+        parcel.official_cadastral_code ||
+        (parcel as unknown as { cadastralCode?: string; cadastral_code?: string }).cadastralCode ||
+        (parcel as unknown as { cadastralCode?: string; cadastral_code?: string }).cadastral_code ||
+        '';
       updateFormData({
         surveyCaseType: 'APARTMENT',
         objectGroup: 'IMPORTANT',
         usageFunction: 'Chung cư / Toà nhiều căn hộ',
+        officialCadastralCode: cadastralCode,
       });
       // Bắt đầu từ Bước 1 để người dùng confirm thông tin định danh
       setCurrentStep(1);

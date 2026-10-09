@@ -33,17 +33,17 @@ export const Step1_ParentInheritanceConfirmation: React.FC = () => {
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto pb-12 animate-in fade-in">
-      {/* Banner Giới thiệu nguyên tắc OOP Kế Thừa */}
+      {/* Banner Giới thiệu nguyên tắc Khảo Sát Độc Lập & Kế Thừa Dữ Liệu Tòa Nhà Mẹ */}
       <div className="p-4 bg-teal-50 border border-teal-200 rounded-2xl flex items-start gap-3 shadow-2xs">
         <div className="p-2 rounded-xl bg-teal-100 text-teal-700 shrink-0 mt-0.5">
           <ShieldCheck className="w-5 h-5" />
         </div>
         <div className="text-xs text-teal-900 leading-relaxed space-y-1">
           <p className="font-bold text-sm text-teal-950">
-            Nguyên Tắc Kế Thừa Dữ Liệu Tòa Nhà Mẹ (Parent-Child Inheritance)
+            Khảo Sát Độc Lập & Tự Động Liên Kết Khi Xuất Báo Cáo
           </p>
           <p>
-            Căn hộ con nằm trong cùng một khối tháp chịu tác động chung về tuyến hầm Metro Line 2, kết cấu móng và lý trình. Toàn bộ thông số móng cọc, cự ly hầm và cấp rủi ro BRA được kế thừa tự động từ khối tháp Master.
+            Căn hộ con có thể tiến hành khảo sát hiện trường độc lập ngay lập tức mà không cần chờ khảo sát khối tháp dùng chung hoàn tất. Toàn bộ thông số móng cọc, cự ly hầm Metro và bộ ảnh mặt đứng tòa nhà sẽ được hệ thống tự động truy xuất và nhúng vào báo cáo khi xuất bản (Phase 1 BCS Report).
           </p>
         </div>
       </div>

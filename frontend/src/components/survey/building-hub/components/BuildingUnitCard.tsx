@@ -5,7 +5,6 @@ import {
   AlertCircle,
   User,
   Phone,
-  Lock,
   Check,
   ArrowRight,
   Sparkles,
@@ -28,7 +27,6 @@ export const BuildingUnitCard: React.FC<BuildingUnitCardProps> = ({
   onClose,
   onStartUnitSurvey,
 }) => {
-  const isUnitLocked = !isMasterSurveyDone;
   const isPhase1Done = unit.status === 'APPROVED' || unit.status === 'SUBMITTED' || !!unit.phase1_report_id;
   const isPhase2Done = !!unit.phase2_report_id || unit.status === 'PHASE2_COMPLETED';
 
@@ -126,16 +124,7 @@ export const BuildingUnitCard: React.FC<BuildingUnitCardProps> = ({
       </div>
 
       {/* Dynamic Survey Phase Action Button */}
-      {isUnitLocked ? (
-        <button
-          type="button"
-          disabled
-          className="w-full py-2 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed"
-        >
-          <Lock size={13} />
-          <span>Chưa mở (Cần khảo sát chung)</span>
-        </button>
-      ) : isPhase2Done ? (
+      {isPhase2Done ? (
         <button
           type="button"
           onClick={() => {

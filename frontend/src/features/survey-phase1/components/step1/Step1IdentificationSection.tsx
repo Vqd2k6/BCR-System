@@ -83,10 +83,10 @@ export const Step1IdentificationSection: React.FC<Step1IdentificationSectionProp
         />
         <Input
           id="input-officialCadastralCode"
-          label="Mã Địa Chính Gốc (Cadastral Code) *"
-          value={formData.officialCadastralCode}
+          label="Mã Địa Chính Gốc (Cadastral Code) * (Cố định từ GIS)"
+          value={formData.officialCadastralCode || 'Đang đồng bộ từ bản đồ GIS...'}
           disabled
-          hint="Số tờ - Số thửa bản đồ địa chính nhà nước"
+          hint="Số tờ - Số thửa bản đồ địa chính nhà nước (Cố định, không cho phép thay đổi)"
         />
 
         <Input
