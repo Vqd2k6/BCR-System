@@ -164,21 +164,21 @@ export const MasterSurveyViewModal: React.FC<MasterSurveyViewModalProps> = ({
                       onParentClose();
                       onStartMasterSurvey(parcel, !isZoneAdmin);
                     }}
-                    className={`inline-flex items-center gap-1.5 px-3.5 py-2.5 min-h-[44px] rounded-lg border text-xs font-bold transition-all cursor-pointer ${
+                    className={`inline-flex items-center gap-1.5 px-4 py-2.5 min-h-[44px] rounded-xl text-xs font-bold transition-all cursor-pointer shadow-xs active:scale-95 ${
                       isZoneAdmin
-                        ? 'border-indigo-300 bg-indigo-50 hover:bg-indigo-100 text-indigo-800'
-                        : 'border-slate-300 bg-white hover:bg-slate-50 text-slate-700'
+                        ? 'border border-indigo-300 bg-indigo-50 hover:bg-indigo-100 text-indigo-800'
+                        : 'border border-emerald-400 bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/20'
                     }`}
                   >
                     {isZoneAdmin ? (
                       <>
-                        <Edit3 size={14} className="text-indigo-600" />
+                        <Edit3 size={15} className="text-indigo-600" />
                         <span>Điều Chỉnh Biểu Mẫu Khảo Sát Tòa Nhà (Zone Admin)</span>
                       </>
                     ) : (
                       <>
-                        <Eye size={14} className="text-sky-600" />
-                        <span>Xem Lại Biểu Mẫu Khảo Sát Tòa Nhà (Chỉ Đọc)</span>
+                        <Eye size={15} className="text-white" />
+                        <span>Xem Lại Biểu Mẫu Khảo Sát Tòa Mẹ (Chỉ Đọc)</span>
                       </>
                     )}
                   </button>

@@ -78,13 +78,33 @@ export const BuildingHubHeader: React.FC<BuildingHubHeaderProps> = ({
           className={`min-h-[40px] px-2.5 sm:px-3 py-1.5 rounded-xl border transition-all shadow-2xs flex items-center gap-1.5 cursor-pointer active:scale-95 ${
             isMasterSurveyDone
               ? 'bg-emerald-50 hover:bg-emerald-100 active:bg-emerald-200 border-emerald-300 text-emerald-800'
-              : 'bg-sky-50 hover:bg-sky-100 active:bg-sky-200 border-sky-200 text-sky-700'
+              : 'bg-amber-50 hover:bg-amber-100 active:bg-amber-200 border-amber-300 text-amber-900'
           }`}
-          title="Khảo sát & Hồ sơ hạng mục dùng chung tòa nhà"
+          title={
+            isMasterSurveyDone
+              ? 'Hồ sơ Tòa Mẹ đã khảo sát hoàn tất (Bấm để xem lại)'
+              : 'Khối tháp Tòa Mẹ chưa khảo sát (Bấm để khảo sát)'
+          }
         >
-          <Building2 size={16} className={isMasterSurveyDone ? 'text-emerald-600' : 'text-sky-600'} />
-          <span className="hidden sm:inline text-xs font-bold">
-            {isMasterSurveyDone ? 'Tòa Mẹ (Đã Khảo Sát)' : 'Tòa Mẹ'}
+          <Building2
+            size={16}
+            className={`shrink-0 ${isMasterSurveyDone ? 'text-emerald-600' : 'text-amber-600'}`}
+          />
+          <span
+            className={`text-xs font-bold whitespace-nowrap ${
+              isMasterSurveyDone ? 'text-emerald-800' : 'text-amber-900'
+            }`}
+          >
+            Tòa Mẹ
+          </span>
+          <span
+            className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded leading-none border ${
+              isMasterSurveyDone
+                ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                : 'bg-amber-100 text-amber-800 border-amber-300'
+            }`}
+          >
+            {isMasterSurveyDone ? 'Đã KS' : 'Chưa KS'}
           </span>
         </button>
       </div>
