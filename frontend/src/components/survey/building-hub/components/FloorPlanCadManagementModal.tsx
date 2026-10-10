@@ -205,16 +205,23 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
       // Ưu tiên tầng initialFloor (nếu được truyền từ Hub), nếu không thì chọn tầng có plan đầu tiên hoặc Tầng 1
       let targetFloorNum = initialFloor !== undefined ? initialFloor : (plans.length > 0 ? plans[0].floor_number : 1);
 
-      const targetPlan = plans.find((p) => p.floor_number === targetFloorNum) || (plans.length > 0 ? plans[0] : null);
+      // QUAN TRỌNG: Nếu initialFloor được chỉ định, không fallback về plans[0] để tránh cướp tầng
+      const directPlan = plans.find((p) => p.floor_number === targetFloorNum);
+      const sharedPlan = plans.find((p) => p.floor_number !== targetFloorNum && p.applicable_floors && p.applicable_floors.includes(targetFloorNum));
+      const targetPlan = directPlan || sharedPlan || (initialFloor === undefined && plans.length > 0 ? plans[0] : null);
+
       if (targetPlan) {
-        targetFloorNum = targetPlan.floor_number;
-        setActiveFloor(targetPlan.floor_number);
+        const effectiveFloorNum = directPlan ? directPlan.floor_number : targetFloorNum;
+        targetFloorNum = effectiveFloorNum;
+        setActiveFloor(effectiveFloorNum);
         setCadUrl(targetPlan.cad_photo_url || '');
-        setFloorName(targetPlan.floor_name || `Tầng ${targetPlan.floor_number}`);
-        const assignedCode = targetPlan.floor_code || getDefaultFloorCode(targetPlan.floor_number, targetPlan.floor_name);
+        const defName = effectiveFloorNum === 0 ? 'Tầng Trệt / G' : effectiveFloorNum < 0 ? `Hầm B${Math.abs(effectiveFloorNum)}` : `Tầng ${effectiveFloorNum}`;
+        const effName = directPlan?.floor_name || defName;
+        setFloorName(effName);
+        const assignedCode = directPlan?.floor_code || getDefaultFloorCode(effectiveFloorNum, effName);
         setFloorCode(assignedCode);
-        setApplicableFloors(targetPlan.applicable_floors || [targetPlan.floor_number]);
-        const detected = detectDefaultFloorScope(targetPlan.floor_number, targetPlan.floor_name);
+        setApplicableFloors(targetPlan.applicable_floors || [effectiveFloorNum]);
+        const detected = detectDefaultFloorScope(effectiveFloorNum, effName);
         setFloorScope(targetPlan.scope || detected.scope);
       } else {
         setActiveFloor(targetFloorNum);
@@ -345,7 +352,8 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
           if (plan) {
             setCadUrl(plan.cad_photo_url || '');
             setFloorName(plan.floor_name || `Tầng ${floorNum}`);
-            setFloorCode(plan.floor_code || getDefaultFloorCode(floorNum, plan.floor_name || `Tầng ${floorNum}`));
+            const assignedCode = plan.floor_code || getDefaultFloorCode(floorNum, plan.floor_name || `Tầng ${floorNum}`);
+            setFloorCode(assignedCode);
             setApplicableFloors(plan.applicable_floors || [floorNum]);
             const detected = detectDefaultFloorScope(floorNum, plan.floor_name || `Tầng ${floorNum}`);
             setFloorScope(plan.scope || detected.scope);
@@ -358,7 +366,8 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
               setCadUrl(sharedPlan.cad_photo_url || '');
               const defName = floorNum === 0 ? 'Tầng Trệt / G' : floorNum < 0 ? `Hầm B${Math.abs(floorNum)}` : `Tầng ${floorNum}`;
               setFloorName(defName);
-              setFloorCode(sharedPlan.floor_code || getDefaultFloorCode(floorNum, defName));
+              const assignedCode = sharedPlan.floor_code || getDefaultFloorCode(floorNum, defName);
+              setFloorCode(assignedCode);
               setApplicableFloors(sharedPlan.applicable_floors || [sharedPlan.floor_number]);
               const detected = detectDefaultFloorScope(floorNum, defName);
               setFloorScope(sharedPlan.scope || detected.scope);
@@ -366,7 +375,9 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
               setCadUrl('');
               const defName = floorNum === 0 ? 'Tầng Trệt / G' : floorNum < 0 ? `Hầm B${Math.abs(floorNum)}` : `Tầng ${floorNum}`;
               setFloorName(defName);
-              setFloorCode(getDefaultFloorCode(floorNum, defName));
+              const existingFloorInfo = buildingFloors.find((b) => b.floorNumber === floorNum);
+              const assignedCode = existingFloorInfo?.floorCode || getDefaultFloorCode(floorNum, defName);
+              setFloorCode(assignedCode);
               setApplicableFloors([floorNum]);
               const detected = detectDefaultFloorScope(floorNum, defName);
               setFloorScope(detected.scope);
@@ -389,7 +400,22 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
               }));
             setPartitions(boxes);
           } else {
-            setPartitions([]);
+            const fallbackUnits = allUnits.filter((u) => (u.floor_number ?? 1) === floorNum && Boolean(u.cad_bbox));
+            if (fallbackUnits.length > 0) {
+              setPartitions(fallbackUnits.map((u) => ({
+                id: u.id,
+                unitCode: u.unit_code,
+                partitionType: u.unit_type || 'UNIT',
+                x: u.cad_bbox?.x ?? 0,
+                y: u.cad_bbox?.y ?? 0,
+                width: u.cad_bbox?.width ?? 0,
+                height: u.cad_bbox?.height ?? 0,
+                polygon: u.cad_polygon || undefined,
+                unitCadUrl: u.unit_cad_url || undefined,
+              })));
+            } else {
+              setPartitions([]);
+            }
           }
         }
       } catch (err) {
@@ -398,10 +424,10 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
         setIsFloorDirty(false);
       }
     },
-    [parcelId, existingFloorPlans]
+    [parcelId, existingFloorPlans, buildingFloors, allUnits]
   );
 
-  // Chuyển tầng có bảo vệ dữ liệu chưa lưu
+  // Chuyển tầng có bảo vệ dữ liệu chưa lưu và pre-cache partitions
   const executeFloorSwitch = (floorNum: number) => {
     if (!buildingFloors.some((f) => f.floorNumber === floorNum)) {
       setCustomFloors((prev) => (prev.includes(floorNum) ? prev : [...prev, floorNum]));
@@ -411,6 +437,32 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
     setActiveFloor(floorNum);
     setIsFloorDirty(false);
     setSaveSuccessMsg('');
+
+    // Pre-cache thông tin tầng từ buildingFloors để giao diện không bị giật
+    const floorInfo = buildingFloors.find((f) => f.floorNumber === floorNum);
+    if (floorInfo) {
+      setFloorName(floorInfo.floorName);
+      setFloorCode(floorInfo.floorCode);
+      setCadUrl(floorInfo.cadPhotoUrl || '');
+      setFloorScope(floorInfo.scope);
+    }
+    const cachedBoxes = allUnits
+      .filter((u) => (u.floor_number ?? 1) === floorNum && Boolean(u.cad_bbox))
+      .map((u) => ({
+        id: u.id,
+        unitCode: u.unit_code,
+        partitionType: u.unit_type || 'UNIT',
+        x: u.cad_bbox?.x ?? 0,
+        y: u.cad_bbox?.y ?? 0,
+        width: u.cad_bbox?.width ?? 0,
+        height: u.cad_bbox?.height ?? 0,
+        polygon: u.cad_polygon || undefined,
+        unitCadUrl: u.unit_cad_url || undefined,
+      }));
+    if (cachedBoxes.length > 0) {
+      setPartitions(cachedBoxes);
+    }
+
     loadActiveFloorDetails(floorNum);
   };
 
@@ -455,10 +507,13 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
         setActiveFloor(parsed);
         const assignedCode = newFloorCodeInput.trim() || getDefaultFloorCode(parsed);
         setFloorCode(assignedCode);
+        const defName = parsed === 0 ? 'Tầng Trệt / G' : parsed < 0 ? `Hầm B${Math.abs(parsed)}` : `Tầng ${parsed}`;
+        setFloorName(defName);
+        setCadUrl('');
+        setPartitions([]);
         setNewFloorInput('');
         setNewFloorCodeInput('');
         setShowAddFloorInput(false);
-        loadActiveFloorDetails(parsed);
       }
     }
   };
@@ -1233,6 +1288,7 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
             ) : (
               /* ĐÃ CÓ CAD: Hiển thị Interactive Partition Canvas */
               <FloorPlanCadPartitionCanvas
+                key={`canvas_fl_${activeFloor}_${cadUrl ? encodeURIComponent(cadUrl).slice(-16) : 'none'}`}
                 cadPhotoUrl={cadUrl}
                 floorNumber={activeFloor}
                 floorCode={floorCode}

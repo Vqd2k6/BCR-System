@@ -193,7 +193,7 @@ export const FloorCadSurveySection: React.FC<FloorCadSurveySectionProps> = ({
 
               const isMaster = (unit.unit_type || unit.unitType) === 'MASTER';
               const isSelected = selectedUnitId === unit.id;
-              const shortCode = formatShortUnitDisplay(unit.unit_code);
+              const shortCode = formatShortUnitDisplay(unit.unit_code, isMaster ? 'MASTER' : 'UNIT');
 
               return (
                 <div
@@ -282,7 +282,7 @@ export const FloorCadSurveySection: React.FC<FloorCadSurveySectionProps> = ({
           floor.units.map((u) => {
             const isMaster = (u.unit_type || u.unitType) === 'MASTER';
             const isSelected = selectedUnitId === u.id;
-            const shortCode = formatShortUnitDisplay(u.unit_code);
+            const shortCode = formatShortUnitDisplay(u.unit_code, isMaster ? 'MASTER' : 'UNIT');
 
             return (
               <button

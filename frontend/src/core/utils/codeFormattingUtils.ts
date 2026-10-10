@@ -18,22 +18,36 @@
  * formatShortUnitDisplay('P.402')   => 'P.402'
  * formatShortUnitDisplay('402')     => '402'
  */
-export function formatShortUnitDisplay(unitCode?: string | null): string {
+export function formatShortUnitDisplay(
+  unitCode?: string | null,
+  unitType?: 'UNIT' | 'MASTER'
+): string {
   if (!unitCode) return '';
   const trimmed = unitCode.trim();
+
+  // Đã có tiền tố M dạng M01, M02
+  if (/^M\d+$/i.test(trimmed)) {
+    return trimmed.toUpperCase();
+  }
+
   const parts = trimmed.split('.');
 
   if (parts.length > 1) {
     const prefix = parts[0].toUpperCase();
     const suffix = parts.slice(1).join('.');
 
-    // Nếu là khu vực dùng chung (có tiền tố T ví dụ TB01.01, T08.01)
-    if (prefix.startsWith('T')) {
-      return `M${suffix}`;
+    // Nếu là khu vực dùng chung (có tiền tố T ví dụ TB01.01, T08.01 hoặc unitType là MASTER)
+    if (prefix.startsWith('T') || unitType === 'MASTER') {
+      const cleanSuffix = suffix.replace(/^M/i, '');
+      return `M${cleanSuffix}`;
     }
 
-    // Căn hộ thông thường (ví dụ 08.01, MEZZ.02)
+    // Căn hộ thông thường (ví dụ 08.01, MEZZ.02, B01.01)
     return suffix;
+  }
+
+  if (unitType === 'MASTER') {
+    return trimmed.toUpperCase().startsWith('M') ? trimmed.toUpperCase() : `M${trimmed}`;
   }
 
   // Trường hợp không có dấu chấm (ví dụ tên riêng phòng "402")

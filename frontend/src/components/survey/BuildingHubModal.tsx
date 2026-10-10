@@ -74,7 +74,10 @@ export const BuildingHubModal: React.FC<BuildingHubModalProps> = ({
   const [selectedMasterAreaUnit, setSelectedMasterAreaUnit] = React.useState<BuildingUnit | null>(null);
 
   const handleOpenCad = (floorNum?: number) => {
-    setCadModalInitialFloor(floorNum);
+    const targetFloor = floorNum !== undefined
+      ? floorNum
+      : (allFloorsData.length > 0 ? allFloorsData[0].floorNumber : (availableFloors.length > 0 ? availableFloors[0] : 1));
+    setCadModalInitialFloor(targetFloor);
     setShowCadModal(true);
   };
 

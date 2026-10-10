@@ -150,7 +150,7 @@ export const BuildingUnitList: React.FC<BuildingUnitListProps> = ({
             {onOpenCadManagement && (
               <button
                 type="button"
-                onClick={() => onOpenCadManagement?.()}
+                onClick={() => onOpenCadManagement?.(typeof selectedFloor === 'number' ? selectedFloor : undefined)}
                 className="px-3.5 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs shrink-0"
                 title="Mở Quản lý / Nạp bản vẽ CAD các tầng"
               >
