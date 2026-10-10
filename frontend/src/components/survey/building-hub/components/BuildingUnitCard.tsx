@@ -30,7 +30,6 @@ export const BuildingUnitCard: React.FC<BuildingUnitCardProps> = ({
   onStartUnitSurvey,
   onStartMasterAreaSurvey,
 }) => {
-  const isPhase1Done = unit.status === 'APPROVED' || unit.status === 'SUBMITTED' || !!unit.phase1_report_id;
   const isPhase2Done = !!unit.phase2_report_id || unit.status === 'PHASE2_COMPLETED';
 
   const renderUnitStatusBadge = () => {
@@ -43,7 +42,7 @@ export const BuildingUnitCard: React.FC<BuildingUnitCardProps> = ({
       );
     }
 
-    if (unit.status === 'APPROVED' || (isPhase1Done && unit.status !== 'SUBMITTED')) {
+    if (unit.status === 'APPROVED') {
       return (
         <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
           <CheckCircle2 size={12} />
@@ -63,7 +62,7 @@ export const BuildingUnitCard: React.FC<BuildingUnitCardProps> = ({
 
     if (unit.status === 'IN_PROGRESS') {
       return (
-        <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+        <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 animate-pulse">
           <Clock size={12} />
           Đang làm P1
         </span>
@@ -74,7 +73,7 @@ export const BuildingUnitCard: React.FC<BuildingUnitCardProps> = ({
       return (
         <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200">
           <AlertCircle size={12} />
-          Vắng mặt
+          Tạm hoãn / Vắng
         </span>
       );
     }
@@ -96,8 +95,14 @@ export const BuildingUnitCard: React.FC<BuildingUnitCardProps> = ({
       className={`bg-white rounded-xl border p-4 flex flex-col justify-between gap-3 shadow-sm hover:shadow-md transition-all ${
         isPhase2Done
           ? 'border-emerald-200 bg-emerald-50/10'
-          : isPhase1Done
-          ? isMaster ? 'border-indigo-300 bg-indigo-50/20' : 'border-sky-200 bg-sky-50/10'
+          : unit.status === 'APPROVED'
+          ? isMaster ? 'border-indigo-300 bg-indigo-50/20' : 'border-emerald-200 bg-emerald-50/10'
+          : unit.status === 'SUBMITTED'
+          ? isMaster ? 'border-indigo-200 bg-sky-50/10' : 'border-sky-200 bg-sky-50/10'
+          : unit.status === 'IN_PROGRESS'
+          ? 'border-amber-300 bg-amber-50/20 ring-1 ring-amber-300/50'
+          : unit.status === 'POSTPONED_ABSENT'
+          ? 'border-purple-300 bg-purple-50/20'
           : isMaster
           ? 'border-indigo-200 bg-indigo-50/5'
           : 'border-slate-200'
@@ -158,17 +163,29 @@ export const BuildingUnitCard: React.FC<BuildingUnitCardProps> = ({
 
       {/* Dynamic Survey Phase Action Button */}
       {isMaster ? (
-        isPhase1Done ? (
+        unit.status === 'APPROVED' ? (
           <button
             type="button"
             onClick={() => {
               if (onStartMasterAreaSurvey) onStartMasterAreaSurvey(parcel, unit);
               else onStartUnitSurvey(parcel, unit, 1);
             }}
-            className="w-full py-2 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 transition-all cursor-pointer"
+            className="w-full py-2 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 transition-all cursor-pointer"
           >
             <Check size={14} className="text-emerald-600" />
-            <span>Xem Khảo Sát Master</span>
+            <span>Xem Khảo Sát Master (Đã duyệt)</span>
+          </button>
+        ) : unit.status === 'SUBMITTED' ? (
+          <button
+            type="button"
+            onClick={() => {
+              if (onStartMasterAreaSurvey) onStartMasterAreaSurvey(parcel, unit);
+              else onStartUnitSurvey(parcel, unit, 1);
+            }}
+            className="w-full py-2 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 transition-all cursor-pointer"
+          >
+            <Clock size={14} className="text-sky-600" />
+            <span>Xem Lại Hồ Sơ (Chờ duyệt)</span>
           </button>
         ) : unit.status === 'IN_PROGRESS' ? (
           <button
@@ -177,10 +194,22 @@ export const BuildingUnitCard: React.FC<BuildingUnitCardProps> = ({
               if (onStartMasterAreaSurvey) onStartMasterAreaSurvey(parcel, unit);
               else onStartUnitSurvey(parcel, unit, 1);
             }}
-            className="w-full py-2 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white shadow-sm transition-all cursor-pointer"
+            className="w-full py-2 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white shadow-sm shadow-amber-500/20 transition-all cursor-pointer"
           >
             <Clock size={14} />
             <span>Tiếp Tục Khảo Sát Master</span>
+          </button>
+        ) : unit.status === 'POSTPONED_ABSENT' ? (
+          <button
+            type="button"
+            onClick={() => {
+              if (onStartMasterAreaSurvey) onStartMasterAreaSurvey(parcel, unit);
+              else onStartUnitSurvey(parcel, unit, 1);
+            }}
+            className="w-full py-2 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 bg-purple-600 hover:bg-purple-700 text-white shadow-sm shadow-purple-600/20 transition-all cursor-pointer"
+          >
+            <Sparkles size={14} />
+            <span>Tiếp Tục / Khảo Sát Lại</span>
           </button>
         ) : (
           <button
@@ -189,7 +218,7 @@ export const BuildingUnitCard: React.FC<BuildingUnitCardProps> = ({
               if (onStartMasterAreaSurvey) onStartMasterAreaSurvey(parcel, unit);
               else onStartUnitSurvey(parcel, unit, 1);
             }}
-            className="w-full py-2 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm transition-all cursor-pointer"
+            className="w-full py-2 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm shadow-indigo-600/20 transition-all cursor-pointer"
           >
             <Building2 size={14} />
             <span>Khảo Sát Khu Vực Master</span>
@@ -207,17 +236,29 @@ export const BuildingUnitCard: React.FC<BuildingUnitCardProps> = ({
           <Check size={14} className="text-emerald-600" />
           <span>Xem Chi Tiết / Đo Bổ Sung</span>
         </button>
-      ) : isPhase1Done ? (
+      ) : unit.status === 'APPROVED' ? (
         <button
           type="button"
           onClick={() => {
             onClose();
             onStartUnitSurvey(parcel, unit, 2);
           }}
-          className="w-full py-2 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 bg-sky-600 hover:bg-sky-700 active:bg-sky-800 text-white shadow-sm shadow-sky-600/20 transition-all cursor-pointer"
+          className="w-full py-2 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white shadow-sm shadow-emerald-600/20 transition-all cursor-pointer"
         >
           <ArrowRight size={14} />
           <span>Khảo Sát Phase 2 (Nội Thất)</span>
+        </button>
+      ) : unit.status === 'SUBMITTED' ? (
+        <button
+          type="button"
+          onClick={() => {
+            onClose();
+            onStartUnitSurvey(parcel, unit, 1);
+          }}
+          className="w-full py-2 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 bg-sky-50 hover:bg-sky-100 text-sky-700 border border-sky-200 transition-all cursor-pointer"
+        >
+          <Clock size={14} className="text-sky-600" />
+          <span>Xem Lại Hồ Sơ (Chờ duyệt)</span>
         </button>
       ) : unit.status === 'IN_PROGRESS' ? (
         <button

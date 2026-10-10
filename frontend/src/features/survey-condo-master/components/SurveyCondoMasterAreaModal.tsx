@@ -9,6 +9,7 @@ import {
   RefreshCw,
   Layers,
   ShieldAlert,
+  Lock,
 } from 'lucide-react';
 import { ImageZoomModal } from '../../../components/common/ImageZoomModal';
 import { DefectPinningModal } from '../../survey-phase1/components/step3/DefectPinningModal';
@@ -34,6 +35,11 @@ import { Step5_SummaryAndSubmit } from './master-area/Step5_SummaryAndSubmit';
 // 2 Modals bổ trợ
 import { CadAreaCropModal } from './master-area/CadAreaCropModal';
 import { MasterAreaPhotoAuditModal } from './master-area/MasterAreaPhotoAuditModal';
+
+// Modals an toàn: Khóa phiên, Bàn giao ca và Tạm hoãn
+import { ActiveSurveyorLockedModal } from '../../survey-phase1/components/ActiveSurveyorLockedModal';
+import { HandoverTakeoverModal } from '../../survey-phase1/components/HandoverTakeoverModal';
+import { MasterAreaAbsentModal } from './master-area/MasterAreaAbsentModal';
 
 // Re-exports for backward compatibility
 export type { NormalizedBbox, MasterAreaSurveyPayload, FloorPlanItem, AreaSurveySyncStatus };
@@ -141,14 +147,29 @@ export const SurveyCondoMasterAreaModal: React.FC<Props> = ({
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={onClose}
-          className="p-1.5 sm:p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
-          title="Đóng biểu mẫu"
-        >
-          <X className="w-5 h-5" />
-        </button>
+        <div className="flex items-center gap-2">
+          {!state.isReadOnly && (
+            <button
+              type="button"
+              onClick={() => state.setIsAbsentModalOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 transition-all cursor-pointer shadow-2xs"
+              title="Ghi nhận khu vực bị khóa cửa, chưa được vào hoặc cần tạm hoãn"
+            >
+              <Lock className="w-3.5 h-3.5 text-purple-600" />
+              <span className="hidden sm:inline">Tạm hoãn / Khóa cửa</span>
+              <span className="sm:hidden">Tạm hoãn</span>
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={state.handleClose}
+            className="p-1.5 sm:p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+            title="Đóng biểu mẫu"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
       </div>
 
       {/* =============================================================== */}
@@ -449,6 +470,37 @@ export const SurveyCondoMasterAreaModal: React.FC<Props> = ({
           title="Xem Phóng To Ảnh Khu Vực"
         />
       )}
+
+      {/* =============================================================== */}
+      {/* MODAL CẢNH BÁO KHÓA PHIÊN KHẢO SÁT (ACTIVE SURVEYOR LOCK) */}
+      {/* =============================================================== */}
+      <ActiveSurveyorLockedModal
+        isOpen={state.isLockedByOther}
+        lockedInfo={state.lockedInfo}
+        onClose={state.handleClose}
+      />
+
+      {/* =============================================================== */}
+      {/* MODAL TIẾP QUẢN CA KHẢO SÁT (SHIFT HANDOVER TAKEOVER) */}
+      {/* =============================================================== */}
+      <HandoverTakeoverModal
+        isOpen={state.isHandoverModalOpen}
+        handoverInfo={state.handoverInfo}
+        onTakeover={state.handleTakeoverDraft}
+        onCancel={state.handleClose}
+      />
+
+      {/* =============================================================== */}
+      {/* MODAL GHI NHẬN TẠM HOÃN / VẮNG MẶT / CỬA KHÓA */}
+      {/* =============================================================== */}
+      <MasterAreaAbsentModal
+        isOpen={state.isAbsentModalOpen}
+        unitCode={state.unitCode}
+        floorName={state.floorName}
+        watermarkOptions={state.watermarkOptions}
+        onClose={() => state.setIsAbsentModalOpen(false)}
+        onSubmit={state.handleRecordAbsence}
+      />
     </div>
   );
 };

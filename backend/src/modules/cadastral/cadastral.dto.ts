@@ -6,13 +6,14 @@ export const StartSurveyDto = z.object({
 });
 
 export const RecordAbsenceDto = z.object({
+  unitId: z.string().uuid().optional().nullable(),
   absenceReason: z.enum(['HOMEOWNER_ABSENT', 'LOCKED_GATE', 'REFUSED_ACCESS']),
   notes: z.string().optional().nullable(),
   photoProofUrl: z.string().optional().nullable(),
   rescheduleDate: z.string().datetime().optional().nullable(),
   ownerName: z.string().optional().nullable(),
   ownerPhone: z.string().optional().nullable(),
-  surveyData: z.any().optional(),
+  surveyData: z.unknown().optional(),
 });
 
 export const UpdateFootprintDto = z.object({

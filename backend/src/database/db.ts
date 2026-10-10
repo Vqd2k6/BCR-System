@@ -305,6 +305,18 @@ export class Database {
     } catch (e) {
       console.warn('⚠️ [STARTUP MIGRATION] role_enum GUEST warning:', e);
     }
+
+    // 12. survey_absence_logs.unit_id (Hỗ trợ vắng mặt/tạm hoãn khảo sát Master Area & Căn hộ con)
+    try {
+      await this.query(`
+        ALTER TABLE survey_absence_logs
+          ADD COLUMN IF NOT EXISTS unit_id UUID REFERENCES building_units(id) ON DELETE SET NULL;
+        CREATE INDEX IF NOT EXISTS idx_absence_unit ON survey_absence_logs(unit_id);
+      `);
+      console.log('✅ [STARTUP MIGRATION] survey_absence_logs.unit_id ready.');
+    } catch (e) {
+      console.warn('⚠️ [STARTUP MIGRATION] survey_absence_logs.unit_id warning:', e);
+    }
     } finally {
       if (lockAcquired) {
         try {
