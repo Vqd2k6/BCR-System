@@ -355,6 +355,30 @@ export class CadastralService {
     };
   }
 
+  static async deleteUnit(parcelId: string, unitId: string) {
+    const parcel = await CadastralRepository.findById(parcelId);
+    if (!parcel) {
+      throw new NotFoundError(`Không tìm thấy thửa đất với ID: ${parcelId}`);
+    }
+    const unit = await CadastralRepository.findUnitById(unitId);
+    if (!unit) {
+      throw new NotFoundError(`Không tìm thấy căn hộ / vị trí với ID: ${unitId}`);
+    }
+    if (unit.parcel_id !== parcelId) {
+      throw new BadRequestError(`Căn hộ không thuộc thửa đất ${parcelId}`);
+    }
+    if (unit.phase1_report_id || (unit.status && unit.status !== 'NOT_SURVEYED')) {
+      throw new BadRequestError(
+        `Không thể xóa căn hộ ${unit.unit_code} vì đã có hồ sơ khảo sát hiện trường mang tính pháp lý!`
+      );
+    }
+    await CadastralRepository.deleteUnit(parcelId, unitId);
+    return {
+      message: `Đã xóa căn hộ / vị trí ${unit.unit_code}`,
+      deletedUnitId: unitId,
+    };
+  }
+
   static async updateBuildingType(
     parcelId: string,
     buildingType: string,

@@ -24,6 +24,7 @@ import {
   FloorPlanCadPartitionCanvas,
   type UnitPartitionBox,
 } from '../../../canvas/FloorPlanCadPartitionCanvas';
+import { generateNextPartitionCode } from '../../../../core/utils/codeFormattingUtils';
 import { api } from '../../../../services/api';
 import { getErrorMessage } from '@/utils/errorUtils';
 
@@ -525,18 +526,33 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
     // Lấy partitions của tầng nguồn nếu có
     const sourceUnits = allUnits.filter((u) => (u.floor_number ?? 1) === sourceFloor.floorNumber);
     if (sourceUnits.length > 0) {
-      const mm = floorCode.trim() || String(activeFloor).padStart(2, '0');
+      const currentPool = [
+        ...allUnits.map((u) => ({
+          unitCode: u.unit_code,
+          partitionType: (u.unit_type || 'UNIT') as 'UNIT' | 'MASTER',
+        })),
+      ];
+
       const copiedBoxes: UnitPartitionBox[] = sourceUnits
         .filter((u) => Boolean(u.cad_bbox))
         .map((u) => {
-          const parts = u.unit_code.split('.');
-          const nn = parts.length > 1 ? parts[1] : u.unit_code;
-          const isMaster = (u.unit_type || 'UNIT') === 'MASTER';
-          const prefix = isMaster ? (mm.startsWith('T') ? mm : `T${mm.replace(/^F/i, '')}`) : mm.replace(/^F/i, '');
+          const uType: 'UNIT' | 'MASTER' = u.unit_type || 'UNIT';
+          let newCode = '';
+          if (/^[UM][-_]\d+$/i.test(u.unit_code.trim())) {
+            newCode = generateNextPartitionCode(currentPool, uType);
+          } else {
+            const mm = floorCode.trim() || getDefaultFloorCode(activeFloor);
+            const parts = u.unit_code.split('.');
+            const nn = parts.length > 1 ? parts[1] : u.unit_code;
+            const prefix = uType === 'MASTER' ? (mm.startsWith('T') ? mm : `T${mm.replace(/^F/i, '')}`) : mm.replace(/^F/i, '');
+            newCode = `${prefix}.${nn}`;
+          }
+          currentPool.push({ unitCode: newCode, partitionType: uType });
+
           return {
             id: `unit_box_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
-            unitCode: `${prefix}.${nn}`,
-            partitionType: u.unit_type || 'UNIT',
+            unitCode: newCode,
+            partitionType: uType,
             x: u.cad_bbox?.x ?? 0,
             y: u.cad_bbox?.y ?? 0,
             width: u.cad_bbox?.width ?? 0,
@@ -597,24 +613,70 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
         unitType: 'UNIT' | 'MASTER';
       }[] = [];
 
-      for (const fl of targetApplicableFloors) {
-        const targetFloorItem = buildingFloors.find((b) => b.floorNumber === fl);
-        const mm = fl === activeFloor
-          ? (floorCode.trim() || getDefaultFloorCode(fl, floorName))
-          : (targetFloorItem?.floorCode || getDefaultFloorCode(fl));
+      // Pool theo dõi các mã đã sử dụng trong toàn bộ tòa nhà
+      const allocatedUnitsPool: Array<{ unitCode: string; partitionType: 'UNIT' | 'MASTER' }> = [
+        ...allUnits
+          .filter((u) => !targetApplicableFloors.includes(u.floor_number ?? 1))
+          .map((u) => ({
+            unitCode: u.unit_code,
+            partitionType: (u.unit_type || 'UNIT') as 'UNIT' | 'MASTER',
+          })),
+      ];
 
-        for (const p of targetPartitions) {
-          const parts = p.unitCode.split('.');
-          let nn = parts.length > 1 ? parts[1] : p.unitCode;
-          const isMaster = (p.partitionType || 'UNIT') === 'MASTER';
-          if (isMaster && /^M\d+$/i.test(nn)) {
-            nn = nn.replace(/^M/i, '');
+      // Đưa các partition của tầng active vào trước (giữ nguyên 100% mã do người dùng đặt)
+      for (const p of targetPartitions) {
+        const uType: 'UNIT' | 'MASTER' = p.partitionType || 'UNIT';
+        allFloorPartitions.push({
+          unitCode: p.unitCode.trim(),
+          floorNumber: activeFloor,
+          bbox: {
+            x: p.x,
+            y: p.y,
+            width: p.width,
+            height: p.height,
+          },
+          unitCadUrl: p.unitCadUrl,
+          unitType: uType,
+        });
+        allocatedUnitsPool.push({
+          unitCode: p.unitCode.trim(),
+          partitionType: uType,
+        });
+      }
+
+      // Xử lý các tầng khác trong dải tầng điển hình (nếu có)
+      const otherFloors = targetApplicableFloors.filter((fl) => fl !== activeFloor).sort((a, b) => a - b);
+      for (const fl of otherFloors) {
+        const existingOnFl = allUnits.filter((u) => (u.floor_number ?? 1) === fl);
+
+        for (let i = 0; i < targetPartitions.length; i++) {
+          const p = targetPartitions[i];
+          const uType: 'UNIT' | 'MASTER' = p.partitionType || 'UNIT';
+
+          // Nếu tầng này đã có căn hộ thứ i tương ứng và đã được khảo sát -> giữ nguyên mã của căn đó
+          const matchedExisting = existingOnFl[i];
+          let assignedCode = '';
+
+          if (matchedExisting && matchedExisting.status && matchedExisting.status !== 'NOT_SURVEYED') {
+            assignedCode = matchedExisting.unit_code;
+          } else if (/^[UM][-_]\d+$/i.test(p.unitCode.trim())) {
+            // Tịnh tiến mã tiếp theo theo chuẩn U-XXX hoặc M-XXX toàn tòa
+            assignedCode = generateNextPartitionCode(allocatedUnitsPool, uType);
+          } else {
+            // Trường hợp mã cũ có tiền tố tầng dạng mm.nn
+            const targetFloorItem = buildingFloors.find((b) => b.floorNumber === fl);
+            const mm = targetFloorItem?.floorCode || getDefaultFloorCode(fl);
+            const parts = p.unitCode.split('.');
+            let nn = parts.length > 1 ? parts[1] : p.unitCode;
+            if (uType === 'MASTER' && /^M\d+$/i.test(nn)) {
+              nn = nn.replace(/^M/i, '');
+            }
+            const prefix = uType === 'MASTER' ? (mm.startsWith('T') ? mm : `T${mm.replace(/^F/i, '')}`) : mm.replace(/^F/i, '');
+            assignedCode = `${prefix}.${nn}`;
           }
-          const prefix = isMaster ? (mm.startsWith('T') ? mm : `T${mm.replace(/^F/i, '')}`) : mm.replace(/^F/i, '');
-          const uCode = `${prefix}.${nn}`;
 
           allFloorPartitions.push({
-            unitCode: uCode,
+            unitCode: assignedCode,
             floorNumber: fl,
             bbox: {
               x: p.x,
@@ -623,7 +685,12 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
               height: p.height,
             },
             unitCadUrl: p.unitCadUrl,
-            unitType: p.partitionType || 'UNIT',
+            unitType: uType,
+          });
+
+          allocatedUnitsPool.push({
+            unitCode: assignedCode,
+            partitionType: uType,
           });
         }
       }
@@ -1305,6 +1372,7 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
                 }}
                 onValidationChange={setIsPartitionsValid}
                 readOnly={readOnly}
+                allBuildingUnits={allUnits}
               />
             )}
           </div>

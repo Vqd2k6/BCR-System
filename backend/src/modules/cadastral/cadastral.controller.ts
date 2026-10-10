@@ -244,6 +244,19 @@ export class CadastralController {
     }
   }
 
+  static async deleteUnit(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id, unitId } = req.params;
+      const result = await CadastralService.deleteUnit(id, unitId);
+      res.status(200).json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
   static async getFloorPlans(req: Request, res: Response, next: NextFunction) {
     try {
       const { id } = req.params;

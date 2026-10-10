@@ -14,11 +14,23 @@ import {
 import { useInteractiveCanvasZoom } from './useInteractiveCanvasZoom';
 import { CanvasZoomToolbar } from './CanvasZoomToolbar';
 import { getSafeDisplayUrl, resolveOfflinePhotoUrl } from '../../core/storage/offlinePhotoStorage';
-import { formatShortUnitDisplay } from '../../core/utils/codeFormattingUtils';
+import { formatShortUnitDisplay, generateNextPartitionCode } from '../../core/utils/codeFormattingUtils';
+
+export interface BuildingUnitReference {
+  id?: string;
+  unit_code?: string;
+  unitCode?: string;
+  floor_number?: number;
+  floorNumber?: number;
+  unit_type?: 'UNIT' | 'MASTER';
+  unitType?: 'UNIT' | 'MASTER';
+  status?: string;
+  phase1_report_id?: string | null;
+}
 
 export interface UnitPartitionBox {
   id: string;
-  unitCode: string; // VD: "03.01" hoặc "B1.01"
+  unitCode: string; // VD: "U-001" hoặc "M-001"
   partitionType?: 'UNIT' | 'MASTER';
   x: number; // 0..100% (tỷ lệ chuẩn hóa)
   y: number; // 0..100%
@@ -37,6 +49,7 @@ interface Props {
   onSave?: (partitions: UnitPartitionBox[]) => void;
   onValidationChange?: (isValid: boolean) => void;
   readOnly?: boolean;
+  allBuildingUnits?: BuildingUnitReference[];
 }
 
 /**
@@ -93,12 +106,13 @@ export async function cropImageBoundingBox(
 export const FloorPlanCadPartitionCanvas: React.FC<Props> = ({
   cadPhotoUrl,
   floorNumber,
-  floorCode,
+  floorCode: _floorCode,
   initialPartitions = [],
   onChangePartitions,
   onSave: _onSave,
   onValidationChange,
   readOnly = false,
+  allBuildingUnits = [],
 }) => {
   const [partitions, setPartitions] = useState<UnitPartitionBox[]>(initialPartitions);
   const [activeTool, setActiveTool] = useState<'DRAW_UNIT' | 'DRAW_MASTER' | 'PAN'>(readOnly ? 'PAN' : 'DRAW_UNIT');
@@ -155,8 +169,26 @@ export const FloorPlanCadPartitionCanvas: React.FC<Props> = ({
     pinCounterScale,
   } = useInteractiveCanvasZoom();
 
-  // Kiểm tra trùng lặp hoặc để trống mã căn
-  const duplicateBoxIds = useMemo(() => {
+  // Tìm các căn đã được khảo sát trên tầng hiện tại để khóa không cho sửa đổi mã (Bảo vệ tính bất biến pháp lý)
+  const surveyedUnitIds = useMemo(() => {
+    const set = new Set<string>();
+    (allBuildingUnits || []).forEach((u) => {
+      const uFl = u.floor_number ?? u.floorNumber ?? 1;
+      if (uFl === floorNumber) {
+        const isSurveyed = u.status && u.status !== 'NOT_SURVEYED';
+        const hasReport = Boolean(u.phase1_report_id);
+        if (isSurveyed || hasReport) {
+          if (u.id) set.add(u.id);
+          const c = (u.unit_code || u.unitCode || '').trim().toLowerCase();
+          if (c) set.add(c);
+        }
+      }
+    });
+    return set;
+  }, [allBuildingUnits, floorNumber]);
+
+  // Kiểm tra trùng lặp hoặc để trống mã căn (bao gồm cả các tầng khác trong tòa nhà)
+  const { duplicateBoxIds, duplicateErrors } = useMemo(() => {
     const counts = new Map<string, number>();
     partitions.forEach((p) => {
       const code = p.unitCode.trim().toLowerCase();
@@ -164,15 +196,37 @@ export const FloorPlanCadPartitionCanvas: React.FC<Props> = ({
         counts.set(code, (counts.get(code) || 0) + 1);
       }
     });
-    const ids = new Set<string>();
-    partitions.forEach((p) => {
-      const code = p.unitCode.trim().toLowerCase();
-      if (!code || (counts.get(code) || 0) > 1) {
-        ids.add(p.id);
+
+    const otherFloorsCodeMap = new Map<string, number>();
+    (allBuildingUnits || []).forEach((u) => {
+      const uFl = u.floor_number ?? u.floorNumber ?? 1;
+      if (uFl !== floorNumber) {
+        const c = (u.unit_code || u.unitCode || '').trim().toLowerCase();
+        if (c) {
+          otherFloorsCodeMap.set(c, uFl);
+        }
       }
     });
-    return ids;
-  }, [partitions]);
+
+    const ids = new Set<string>();
+    const errors = new Map<string, string>();
+
+    partitions.forEach((p) => {
+      const code = p.unitCode.trim().toLowerCase();
+      if (!code) {
+        ids.add(p.id);
+        errors.set(p.id, 'Chưa đặt mã vị trí');
+      } else if ((counts.get(code) || 0) > 1) {
+        ids.add(p.id);
+        errors.set(p.id, 'Trùng mã trên tầng này');
+      } else if (otherFloorsCodeMap.has(code)) {
+        ids.add(p.id);
+        const conflictFloor = otherFloorsCodeMap.get(code);
+        errors.set(p.id, `Trùng mã ở Tầng ${conflictFloor}`);
+      }
+    });
+    return { duplicateBoxIds: ids, duplicateErrors: errors };
+  }, [partitions, allBuildingUnits, floorNumber]);
 
   useEffect(() => {
     if (onValidationChange) {
@@ -191,63 +245,34 @@ export const FloorPlanCadPartitionCanvas: React.FC<Props> = ({
     return { unitCount, masterCount, scope };
   }, [partitions]);
 
-  // Sinh mã phòng tiếp theo theo quy ước mm.nn cho Căn hộ con
+  // Tổng hợp danh sách căn hộ / master toàn tòa nhà (các tầng khác + canvas hiện tại)
+  const combinedBuildingUnits = useMemo(() => {
+    const otherUnits = (allBuildingUnits || []).filter((u) => {
+      const uFl = u.floor_number ?? u.floorNumber ?? 1;
+      return uFl !== floorNumber;
+    });
+
+    return [
+      ...otherUnits.map((u) => ({
+        unitCode: u.unit_code || u.unitCode || '',
+        partitionType: (u.unit_type || u.unitType || 'UNIT') as 'UNIT' | 'MASTER',
+      })),
+      ...partitions.map((p) => ({
+        unitCode: p.unitCode,
+        partitionType: (p.partitionType || 'UNIT') as 'UNIT' | 'MASTER',
+      })),
+    ];
+  }, [allBuildingUnits, floorNumber, partitions]);
+
+  // Sinh mã tiếp theo cho Căn hộ con (U-XXX tăng dần toàn tòa)
   const getNextUnitCode = useCallback((): string => {
-    let mm = (floorCode || '').trim();
-    if (!mm) {
-      if (floorNumber === 0) mm = 'G';
-      else if (floorNumber < 0) mm = `B${String(Math.abs(floorNumber)).padStart(2, '0')}`;
-      else mm = String(floorNumber).padStart(2, '0');
-    }
-    const numMatch = mm.match(/^F(\d+)$/i);
-    const effectivePrefix = numMatch ? numMatch[1] : mm;
+    return generateNextPartitionCode(combinedBuildingUnits, 'UNIT');
+  }, [combinedBuildingUnits]);
 
-    const usedNumbers = new Set<number>();
-    const escapedPrefix = effectivePrefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const regex = new RegExp(`^${escapedPrefix}\\.(\\d+)`, 'i');
-    for (const p of partitions) {
-      if ((p.partitionType || 'UNIT') === 'UNIT') {
-        const match = p.unitCode.match(regex);
-        if (match) {
-          usedNumbers.add(parseInt(match[1], 10));
-        }
-      }
-    }
-    let nn = 1;
-    while (usedNumbers.has(nn)) {
-      nn++;
-    }
-    return `${effectivePrefix}.${String(nn).padStart(2, '0')}`;
-  }, [floorNumber, floorCode, partitions]);
-
-  // Sinh mã tiếp theo cho Khu vực Dùng chung (Master)
+  // Sinh mã tiếp theo cho Khu vực Dùng chung (M-XXX tăng dần toàn tòa)
   const getNextMasterCode = useCallback((): string => {
-    let rawCode = (floorCode || '').trim();
-    if (!rawCode) {
-      if (floorNumber === 0) rawCode = 'G';
-      else if (floorNumber < 0) rawCode = `B${String(Math.abs(floorNumber)).padStart(2, '0')}`;
-      else rawCode = String(floorNumber).padStart(2, '0');
-    }
-
-    const prefix = rawCode.startsWith('T') ? rawCode : `T${rawCode.replace(/^F/i, '')}`;
-
-    const usedNumbers = new Set<number>();
-    const escapedPrefix = prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const regex = new RegExp(`^${escapedPrefix}\\.(\\d+)`, 'i');
-    for (const p of partitions) {
-      if (p.partitionType === 'MASTER') {
-        const match = p.unitCode.match(regex);
-        if (match) {
-          usedNumbers.add(parseInt(match[1], 10));
-        }
-      }
-    }
-    let nn = 1;
-    while (usedNumbers.has(nn)) {
-      nn++;
-    }
-    return `${prefix}.${String(nn).padStart(2, '0')}`;
-  }, [floorNumber, floorCode, partitions]);
+    return generateNextPartitionCode(combinedBuildingUnits, 'MASTER');
+  }, [combinedBuildingUnits]);
 
   // Bắt đầu kéo vẽ ô hoặc di chuyển
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -349,7 +374,13 @@ export const FloorPlanCadPartitionCanvas: React.FC<Props> = ({
     const updated = partitions.map((p) => {
       if (p.id === id) {
         const nextType: 'UNIT' | 'MASTER' = (p.partitionType || 'UNIT') === 'UNIT' ? 'MASTER' : 'UNIT';
-        return { ...p, partitionType: nextType };
+        let newCode = p.unitCode;
+        if (nextType === 'MASTER' && /^U[-_]\d+$/i.test(p.unitCode.trim())) {
+          newCode = generateNextPartitionCode(combinedBuildingUnits, 'MASTER');
+        } else if (nextType === 'UNIT' && /^M[-_]\d+$/i.test(p.unitCode.trim())) {
+          newCode = generateNextPartitionCode(combinedBuildingUnits, 'UNIT');
+        }
+        return { ...p, partitionType: nextType, unitCode: newCode };
       }
       return p;
     });
@@ -677,9 +708,14 @@ export const FloorPlanCadPartitionCanvas: React.FC<Props> = ({
                             <span>{formatShortUnitDisplay(box.unitCode, box.partitionType) || '---'}</span>
                           </span>
 
-                          {readOnly ? (
-                            <span className="font-mono text-[11px] text-slate-500 font-semibold truncate" title={`Mã CSDL: ${box.unitCode}`}>
-                              ({box.unitCode})
+                          {readOnly || surveyedUnitIds.has(box.id) || surveyedUnitIds.has(box.unitCode.trim().toLowerCase()) ? (
+                            <span className="font-mono text-[11px] text-slate-500 font-semibold truncate flex items-center gap-1" title={`Mã CSDL: ${box.unitCode}`}>
+                              <span>({box.unitCode})</span>
+                              {(surveyedUnitIds.has(box.id) || surveyedUnitIds.has(box.unitCode.trim().toLowerCase())) && (
+                                <span className="text-[9px] px-1 py-0.2 rounded bg-amber-100 text-amber-800 border border-amber-300 font-sans font-bold">
+                                  Khóa
+                                </span>
+                              )}
                             </span>
                           ) : (
                             <input
@@ -687,7 +723,7 @@ export const FloorPlanCadPartitionCanvas: React.FC<Props> = ({
                               value={box.unitCode}
                               onClick={(e) => e.stopPropagation()}
                               onChange={(e) => handleRenameBox(box.id, e.target.value)}
-                              placeholder={isMaster ? 'Mã (VD: M01)' : 'Mã (VD: 01)'}
+                              placeholder={isMaster ? 'M-001' : 'U-001'}
                               title={`Mã hệ thống / CSDL: ${box.unitCode}`}
                               className={`w-24 px-1.5 py-0.5 rounded font-mono font-bold text-xs focus:outline-none transition-colors ${
                                 isDuplicate
@@ -700,7 +736,7 @@ export const FloorPlanCadPartitionCanvas: React.FC<Props> = ({
                           )}
                         </div>
 
-                        {!readOnly && (
+                        {!readOnly && !surveyedUnitIds.has(box.id) && !surveyedUnitIds.has(box.unitCode.trim().toLowerCase()) && (
                           <button
                             type="button"
                             onClick={(e) => handleDeleteBox(box.id, e)}
@@ -715,7 +751,7 @@ export const FloorPlanCadPartitionCanvas: React.FC<Props> = ({
                       {isDuplicate && (
                         <div className="text-[10px] text-rose-600 font-bold flex items-center gap-1">
                           <AlertCircle className="w-3 h-3 text-rose-600" />
-                          <span>Mã bị trùng hoặc để trống!</span>
+                          <span>{duplicateErrors.get(box.id) || 'Mã bị trùng hoặc để trống!'}</span>
                         </div>
                       )}
 

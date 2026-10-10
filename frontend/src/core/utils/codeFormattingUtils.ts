@@ -25,6 +25,11 @@ export function formatShortUnitDisplay(
   if (!unitCode) return '';
   const trimmed = unitCode.trim();
 
+  // Chuẩn định dạng mới U-XXX hoặc M-XXX (ví dụ: U-001, M-001)
+  if (/^[UM][-_]\d+$/i.test(trimmed)) {
+    return trimmed.toUpperCase().replace('_', '-');
+  }
+
   // Đã có tiền tố M dạng M01, M02
   if (/^M\d+$/i.test(trimmed)) {
     return trimmed.toUpperCase();
@@ -36,13 +41,14 @@ export function formatShortUnitDisplay(
     const prefix = parts[0].toUpperCase();
     const suffix = parts.slice(1).join('.');
 
-    // Nếu là khu vực dùng chung (có tiền tố T ví dụ TB01.01, T08.01 hoặc unitType là MASTER)
-    if (prefix.startsWith('T') || unitType === 'MASTER') {
+    // Chỉ coi là Master nếu unitType là MASTER hoặc tiền tố rõ ràng là Master (TB01, T08, TROOF...) và KHÔNG PHẢI là UNIT
+    const isMasterPrefix = /^T(B\d+|\d+|MEZZ|KT|TECH|ROOF|REF|UM)/i.test(prefix);
+    if (unitType === 'MASTER' || (unitType !== 'UNIT' && isMasterPrefix)) {
       const cleanSuffix = suffix.replace(/^M/i, '');
       return `M${cleanSuffix}`;
     }
 
-    // Căn hộ thông thường (ví dụ 08.01, MEZZ.02, B01.01)
+    // Căn hộ thông thường (ví dụ 08.01, MEZZ.02, B01.01, TECH.01)
     return suffix;
   }
 
@@ -52,6 +58,41 @@ export function formatShortUnitDisplay(
 
   // Trường hợp không có dấu chấm (ví dụ tên riêng phòng "402")
   return trimmed;
+}
+
+/**
+ * Tự động sinh mã tiếp theo cho Căn hộ (U-XXX) hoặc Khu vực Master (M-XXX)
+ * dựa trên danh sách các căn hộ / khu vực đã có trong toàn bộ toà nhà.
+ * Tìm max(U) + 1 hoặc max(M) + 1, bắt đầu từ 001.
+ *
+ * @example
+ * generateNextPartitionCode([{ unitCode: 'U-001' }, { unitCode: 'U-007' }], 'UNIT') => 'U-008'
+ * generateNextPartitionCode([{ unitCode: 'M-001' }], 'MASTER') => 'M-002'
+ * generateNextPartitionCode([], 'UNIT') => 'U-001'
+ */
+export function generateNextPartitionCode(
+  existingUnits: Array<{ unitCode?: string; unit_code?: string; partitionType?: string; unit_type?: string }>,
+  type: 'UNIT' | 'MASTER'
+): string {
+  const prefix = type === 'UNIT' ? 'U' : 'M';
+  const regex = new RegExp(`^${prefix}[-_](\\d+)$`, 'i');
+  let maxNum = 0;
+
+  for (const item of existingUnits) {
+    const rawCode = (item.unitCode || item.unit_code || '').trim();
+    if (!rawCode) continue;
+    const match = rawCode.match(regex);
+    if (match) {
+      const val = parseInt(match[1], 10);
+      if (!isNaN(val) && val > maxNum) {
+        maxNum = val;
+      }
+    }
+  }
+
+  const nextNum = maxNum + 1;
+  const padded = nextNum < 1000 ? String(nextNum).padStart(3, '0') : String(nextNum);
+  return `${prefix}-${padded}`;
 }
 
 /**
