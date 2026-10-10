@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 
 export const Step3_CondoMasterHistoryAndManagement: React.FC = () => {
-  const { formData, updateFormData, nextStep, prevStep } = usePhase1SurveyStore();
+  const { formData, updateFormData, nextStep, prevStep, isReadOnly } = usePhase1SurveyStore();
   const hi = formData.historyInterview;
 
   // Tính toán chỉ số cộng hưởng E5
@@ -80,6 +80,7 @@ export const Step3_CondoMasterHistoryAndManagement: React.FC = () => {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Select
             label="1. Cơi nới - Thay đổi tải trọng trong quá khứ"
+            disabled={isReadOnly}
             value={hi?.renovationLoad ?? 0}
             onChange={(e) =>
               updateFormData({
@@ -91,6 +92,7 @@ export const Step3_CondoMasterHistoryAndManagement: React.FC = () => {
 
           <Select
             label="2. Sửa chữa lớn - Cải tạo kết cấu tòa nhà"
+            disabled={isReadOnly}
             value={hi?.majorRepair ?? 0}
             onChange={(e) =>
               updateFormData({
@@ -102,6 +104,7 @@ export const Step3_CondoMasterHistoryAndManagement: React.FC = () => {
 
           <Select
             label="3. Lún - Nghiêng ghi nhận trước đây"
+            disabled={isReadOnly}
             value={hi?.pastSettlement ?? 0}
             onChange={(e) =>
               updateFormData({
@@ -113,6 +116,7 @@ export const Step3_CondoMasterHistoryAndManagement: React.FC = () => {
 
           <Select
             label="4. Hư hỏng do công trình lân cận gây ra"
+            disabled={isReadOnly}
             value={hi?.neighborDamage ?? 0}
             onChange={(e) =>
               updateFormData({
@@ -124,6 +128,7 @@ export const Step3_CondoMasterHistoryAndManagement: React.FC = () => {
 
           <Select
             label="5. Sự cố nghiêm trọng (Hỏa hoạn - Ngập lụt - Nổ)"
+            disabled={isReadOnly}
             value={hi?.fireFloodIncident ?? 0}
             onChange={(e) =>
               updateFormData({
@@ -135,6 +140,7 @@ export const Step3_CondoMasterHistoryAndManagement: React.FC = () => {
 
           <Select
             label="Tình trạng sử dụng hiện tại (Occupancy Status)"
+            disabled={isReadOnly}
             value={hi?.usageStatus || 'Đầy đủ'}
             onChange={(e) =>
               updateFormData({
@@ -154,6 +160,7 @@ export const Step3_CondoMasterHistoryAndManagement: React.FC = () => {
           <label className="flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer select-none">
             <input
               type="checkbox"
+              disabled={isReadOnly}
               checked={Boolean(hi?.sensitiveEquipment?.has)}
               onChange={(e) =>
                 updateFormData({
@@ -166,7 +173,7 @@ export const Step3_CondoMasterHistoryAndManagement: React.FC = () => {
                   },
                 })
               }
-              className="rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+              className="rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer disabled:opacity-50"
             />
             <span>Có Thiết bị - Hoạt động nhạy cảm rung chấn (Server phòng IT, máy phát điện, trạm biến áp, thang máy tốc độ cao...)</span>
           </label>
@@ -175,6 +182,7 @@ export const Step3_CondoMasterHistoryAndManagement: React.FC = () => {
             <div className="p-3 bg-indigo-50/40 rounded-xl border border-indigo-200">
               <Input
                 label="Mô tả thiết bị / khu vực kỹ thuật nhạy cảm:"
+                disabled={isReadOnly}
                 placeholder="VD: Phòng máy chủ trung tâm tầng hầm, hệ thống thang máy Mitshubishi, trạm biến áp 2000kVA..."
                 value={hi.sensitiveEquipment.description}
                 onChange={(e) =>
@@ -205,6 +213,7 @@ export const Step3_CondoMasterHistoryAndManagement: React.FC = () => {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Input
             label="Họ tên Trưởng Ban Quản Lý / Đại diện BQT"
+            disabled={isReadOnly}
             placeholder="VD: Ông Nguyễn Văn An - Trưởng BQL Savills"
             value={formData.managementContactName || ''}
             onChange={(e) => updateFormData({ managementContactName: e.target.value })}
@@ -212,6 +221,7 @@ export const Step3_CondoMasterHistoryAndManagement: React.FC = () => {
 
           <Input
             label="Số điện thoại liên hệ BQL / Phòng kỹ thuật"
+            disabled={isReadOnly}
             placeholder="VD: 028 3822 xxxx / 0903 xxx xxx"
             value={formData.managementContactPhone || ''}
             onChange={(e) => updateFormData({ managementContactPhone: e.target.value })}

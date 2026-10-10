@@ -31,6 +31,16 @@ export const Step1_ParentInheritanceConfirmation: React.FC = () => {
     formData.photoP01?.url || formData.photoP01?.notApplicable
   );
 
+  const bCode = parent.projectParcelCode || 'GENERAL';
+  const fNum = Number(formData.floorNumber);
+  const floorCode = isNaN(fNum)
+    ? String(formData.floorNumber || 'F01')
+    : fNum < 0
+      ? `B${String(Math.abs(fNum)).padStart(2, '0')}`
+      : fNum === 0
+        ? 'G'
+        : `F${String(fNum).padStart(2, '0')}`;
+
   return (
     <div className="space-y-6 max-w-4xl mx-auto pb-12 animate-in fade-in">
       {/* Banner Giới thiệu nguyên tắc Khảo Sát Độc Lập & Kế Thừa Dữ Liệu Tòa Nhà Mẹ */}
@@ -155,8 +165,19 @@ export const Step1_ParentInheritanceConfirmation: React.FC = () => {
             <PhotoCaptureInput
               label="Chụp / Tải ảnh P01"
               value={formData.photoP01?.url || ''}
-              onChange={(url) => updateFormData({ photoP01: { ...formData.photoP01, url } })}
-              watermarkText={`CONDO_P01 | Căn ${formData.unitCode} | Tầng ${formData.floorNumber}`}
+              photoCode={formData.photoP01?.photoCode}
+              onChange={(url, code) => updateFormData({ photoP01: { ...formData.photoP01, url, photoCode: code } })}
+              watermarkOptions={{
+                parcelCode: bCode,
+                buildingCode: bCode,
+                floorCode,
+                floor: floorCode,
+                unitCode: formData.unitCode,
+                areaType: 'CONDO_UNIT',
+                category: 'identification',
+                photoType: 'P01',
+                photoIndex: 1,
+              }}
               height="150px"
             />
           </div>
@@ -188,8 +209,19 @@ export const Step1_ParentInheritanceConfirmation: React.FC = () => {
             <PhotoCaptureInput
               label="Chụp / Tải ảnh P04"
               value={formData.photoP04?.url || ''}
-              onChange={(url) => updateFormData({ photoP04: { ...formData.photoP04, url } })}
-              watermarkText={`CONDO_P04 | Căn ${formData.unitCode} | Tầng ${formData.floorNumber}`}
+              photoCode={formData.photoP04?.photoCode}
+              onChange={(url, code) => updateFormData({ photoP04: { ...formData.photoP04, url, photoCode: code } })}
+              watermarkOptions={{
+                parcelCode: bCode,
+                buildingCode: bCode,
+                floorCode,
+                floor: floorCode,
+                unitCode: formData.unitCode,
+                areaType: 'CONDO_UNIT',
+                category: 'identification',
+                photoType: 'P04',
+                photoIndex: 1,
+              }}
               height="150px"
             />
           </div>

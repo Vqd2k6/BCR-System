@@ -57,7 +57,12 @@ export interface MetroWatermarkOptions {
   prefix?: string; // Mặc định: 'HCM_M2'
   stationCode?: string; // Ví dụ: 'ST02'
   parcelCode?: string; // Ví dụ: 'C&C-01-B-0001' hoặc 'B-0001'
-  floor?: MetroFloorType; // Ví dụ: 'Tầng 1 (Trệt)' -> 'F00', 'Tầng 2' -> 'F02', 'DOC', 'EXT', 'FOUND'
+  buildingCode?: string; // Ví dụ: 'CC-05-B-0001'
+  floorCode?: string; // Mã tầng chính thức theo thiết lập CAD (B03, B01, SB, G, MEZZ, F01-F99, TECH, REF, ROOF...)
+  floor?: MetroFloorType; // Tên tầng hiển thị hoặc mã tầng
+  unitCode?: string; // Mã căn hộ hoặc khu vực dùng chung (ví dụ: 'TG.01', 'TB01.01', '08.01')
+  areaType?: 'MASTER_AREA' | 'CONDO_UNIT' | 'PRIVATE_HOUSE' | 'GENERAL_TOWER' | 'CAD_BLUEPRINT'; // Phân loại khảo sát
+  category?: string; // Phân mục lưu trữ cụ thể (settlement, tilt, anomalies, exterior, etc.)
   zoneOrRoom?: string; // Ví dụ: 'Z-01', 'E-01', 'HOANCONG', 'ABSENTEE'
   defectCode?: string; // Ví dụ: 'D-01'
   photoType?: MetroPhotoType; // Ví dụ: 'CU', 'CTX', 'SETTLE', 'TILT', 'MINUTES'
@@ -68,6 +73,12 @@ export interface MetroWatermarkOptions {
   maxDimension?: number; // Cạnh dài tối đa (px) - Tự động chọn theo Golden Ratio nếu không truyền
   quality?: number; // Mức chất lượng JPEG (0.1 - 1.0) - Tự động chọn theo Golden Ratio nếu không truyền
   generateDataUrl?: boolean; // Có sinh chuỗi Base64 dataUrl không (mặc định: true để tương thích ngược)
+  // Tọa độ định danh địa lý
+  gpsLat?: number; // Vĩ độ GPS thực tế từ thiết bị di động
+  gpsLng?: number; // Kinh độ GPS thực tế từ thiết bị di động
+  gpsAccuracy?: number; // Sai số GPS (mét)
+  gisLat?: number; // Vĩ độ tâm thửa đất quy hoạch GIS
+  gisLng?: number; // Kinh độ tâm thửa đất quy hoạch GIS
 }
 
 export interface GoldenRatioConfig {

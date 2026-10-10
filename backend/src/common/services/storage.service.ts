@@ -202,13 +202,19 @@ export class StorageService {
   public static buildUniqueKey(filename: string, folder: string = 'surveys'): string {
     const ext = path.extname(filename) || '.jpg';
     const cleanBasename = path.basename(filename, ext).replace(/[^a-zA-Z0-9_.-]/g, '_');
+    const cleanFolder = folder.replace(/^\/+|\/+$/g, '') || 'surveys';
+
+    // Nếu filename đã là chuẩn Tamper-Proof Self-Describing (bắt đầu bằng M2__)
+    if (cleanBasename.startsWith('M2__')) {
+      const shortHash = crypto.randomUUID().slice(0, 4);
+      return `${cleanFolder}/${cleanBasename}_${shortHash}${ext}`;
+    }
     
     // Nếu cleanBasename đã có timestamp hoặc suffix dài, chỉ thêm random hash ngắn
     const shortHash = crypto.randomUUID().slice(0, 6);
     const hasSuffix = /[0-9]{8,}/.test(cleanBasename);
     const finalBasename = hasSuffix ? `${cleanBasename}_${shortHash}` : `${cleanBasename}_${Date.now()}_${shortHash}`;
     
-    const cleanFolder = folder.replace(/^\/+|\/+$/g, '') || 'surveys';
     return `${cleanFolder}/${finalBasename}${ext}`;
   }
 

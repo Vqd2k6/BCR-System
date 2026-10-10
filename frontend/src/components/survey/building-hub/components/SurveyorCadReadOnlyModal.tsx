@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { X, Layers, Building2, CheckCircle2, Eye } from 'lucide-react';
 import type { GisParcel } from '../../../gis/shared/types';
 import { api } from '../../../../services/api';
+import { formatShortUnitDisplay } from '../../../../core/utils/codeFormattingUtils';
 
 interface SurveyorCadReadOnlyModalProps {
   parcel: GisParcel;
@@ -272,10 +273,13 @@ export const SurveyorCadReadOnlyModal: React.FC<SurveyorCadReadOnlyModalProps> =
                               width: `${bbox.width}%`,
                               height: `${bbox.height}%`,
                             }}
-                            className="border-2 border-teal-600 bg-teal-500/20 rounded flex items-center justify-center shadow-xs"
+                            className="border-2 border-teal-600 bg-teal-500/20 rounded flex items-center justify-center shadow-xs overflow-hidden"
                           >
-                            <span className="px-1.5 py-0.5 rounded bg-teal-900/90 text-white font-mono font-black text-[10px] sm:text-xs shadow-xs tracking-wider">
-                              {unit.unit_code}
+                            <span
+                              title={`Mã căn ngầm: ${unit.unit_code}`}
+                              className="px-1 py-0.5 rounded bg-teal-900/90 text-white font-mono font-black text-[9px] sm:text-xs shadow-xs tracking-wider max-w-[92%] truncate text-center"
+                            >
+                              {formatShortUnitDisplay(unit.unit_code)}
                             </span>
                           </div>
                         );
@@ -297,9 +301,10 @@ export const SurveyorCadReadOnlyModal: React.FC<SurveyorCadReadOnlyModalProps> =
                   {floor.units.map((u) => (
                     <span
                       key={u.id}
+                      title={`Mã căn ngầm: ${u.unit_code}`}
                       className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 font-mono font-bold text-[11px] border border-slate-200"
                     >
-                      {u.unit_code}
+                      {formatShortUnitDisplay(u.unit_code)}
                     </span>
                   ))}
                 </div>

@@ -419,7 +419,10 @@ export class SurveyBaseRepository {
     return newRevision;
   }
 
-  static async findLatestPhase1ReportByParcelId(parcelId: string): Promise<any | null> {
+  static async findLatestPhase1ReportByParcelId(
+    parcelId: string,
+    options?: { reportType?: string; unitId?: string | null }
+  ): Promise<any | null> {
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(parcelId);
     let resolvedParcelId = parcelId;
 
@@ -432,12 +435,19 @@ export class SurveyBaseRepository {
       resolvedParcelId = pRes.rows[0].id;
     }
 
-    const reportRes = await Database.query<{ id: string }>(
-      `SELECT id FROM base_survey_reports
-       WHERE parcel_id = $1 AND phase = 'PHASE_1'
-       ORDER BY created_at DESC LIMIT 1;`,
-      [resolvedParcelId]
-    );
+    let reportQuery = `SELECT id FROM base_survey_reports WHERE parcel_id = $1 AND phase = 'PHASE_1'`;
+    const reportParams: any[] = [resolvedParcelId];
+
+    if (options?.unitId) {
+      reportParams.push(options.unitId);
+      reportQuery += ` AND unit_id = $${reportParams.length}`;
+    } else if (options?.reportType === 'BUILDING_MASTER' || options?.unitId === null) {
+      reportQuery += ` AND (report_type = 'BUILDING_MASTER' OR unit_id IS NULL)`;
+    }
+
+    reportQuery += ` ORDER BY created_at DESC LIMIT 1;`;
+
+    const reportRes = await Database.query<{ id: string }>(reportQuery, reportParams);
 
     let report = null;
     if (reportRes.rows[0]) {

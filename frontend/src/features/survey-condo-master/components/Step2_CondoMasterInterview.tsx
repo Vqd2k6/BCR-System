@@ -586,10 +586,13 @@ export const Step2_CondoMasterInterview: React.FC = () => {
                         onChange={(url, code) => handleUpdateDrawing(idx, url, code)}
                         watermarkOptions={{
                           parcelCode: formData.projectParcelCode,
+                          buildingCode: formData.projectParcelCode,
                           floor: 'DOC',
                           zoneOrRoom: 'HOANCONG',
                           photoType: 'DRAWING',
                           photoIndex: idx + 1,
+                          areaType: 'GENERAL_TOWER',
+                          category: 'foundation-drawings',
                         }}
                         height="130px"
                       />

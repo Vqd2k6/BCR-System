@@ -1,8 +1,34 @@
-import { getErrorMessage, getErrorStatus, isNotFoundError } from '@/utils/errorUtils';
-import { useState, useEffect, useRef } from 'react';
+import { getErrorMessage } from '@/utils/errorUtils';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { api } from '../../../../services/api';
 import type { GisParcel } from '../../../gis/LeafletSweepMap';
 import type { BuildingUnit, MasterReportData } from '../types';
+
+export interface FloorPlanData {
+  id: string;
+  floor_number: number;
+  floor_name: string;
+  floor_code?: string;
+  cad_photo_url: string;
+  applicable_floors?: number[];
+  scope?: string;
+  area_type?: string;
+}
+
+export interface FloorGroupData {
+  floorNumber: number;
+  floorLabel: string;
+  floorName: string;
+  floorCode: string;
+  cadUrl: string;
+  isInherited: boolean;
+  inheritedFromFloor?: number;
+  units: BuildingUnit[];
+  totalUnits: number;
+  completedCount: number;
+  unitCount: number;
+  masterCount: number;
+}
 
 interface UseBuildingHubStateProps {
   parcel: GisParcel;
@@ -41,12 +67,14 @@ export const useBuildingHubState = ({ parcel, onUnitsUpdated }: UseBuildingHubSt
   });
 
   const [units, setUnits] = useState<BuildingUnit[]>([]);
+  const [floorPlans, setFloorPlans] = useState<FloorPlanData[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [isSearchFocused, setIsSearchFocused] = useState<boolean>(false);
   const [selectedFloor, setSelectedFloor] = useState<number | 'ALL'>('ALL');
   const [selectedStatus, setSelectedStatus] = useState<string>('ALL');
   const [visibleCount, setVisibleCount] = useState<number>(10);
+  const [inspectedUnit, setInspectedUnit] = useState<BuildingUnit | null>(null);
 
   // Scroll listener state to auto-hide top navbar on scroll down
   const [isHeaderVisible, setIsHeaderVisible] = useState<boolean>(true);
@@ -80,8 +108,24 @@ export const useBuildingHubState = ({ parcel, onUnitsUpdated }: UseBuildingHubSt
     }
   };
 
+  // Load floor plans from API
+  const fetchFloorPlans = async () => {
+    try {
+      const res = await api.get(`/parcels/${parcel.id}/floor-plans`);
+      if (res.data?.data?.plans && Array.isArray(res.data.data.plans)) {
+        setFloorPlans(res.data.data.plans);
+      } else {
+        setFloorPlans([]);
+      }
+    } catch (err) {
+      console.warn('[BuildingHub] Không thể nạp sơ đồ CAD các tầng:', err);
+      setFloorPlans([]);
+    }
+  };
+
   useEffect(() => {
     fetchUnits();
+    fetchFloorPlans();
 
     // Kiểm tra hồ sơ khảo sát toà mẹ thực tế từ backend
     api.get<{ data?: { report?: MasterReportData }; report?: MasterReportData }>(`/parcels/${parcel.id}/phase1-report`)
@@ -142,7 +186,127 @@ export const useBuildingHubState = ({ parcel, onUnitsUpdated }: UseBuildingHubSt
     alert('Đã gửi bản cập nhật thông số chung tòa nhà! Đang chờ Quản trị viên (Zone Admin) phê duyệt.');
   };
 
-  const availableFloors = Array.from(new Set(units.map((u) => u.floor_number ?? u.floorNumber ?? 1))).sort((a, b) => a - b);
+  const availableFloors = useMemo(() => {
+    const floorSet = new Set<number>();
+    const rawFloorCount = Number(parcel.floorCount ?? 1);
+    if (!isNaN(rawFloorCount) && rawFloorCount > 0) {
+      for (let f = 1; f <= rawFloorCount; f++) floorSet.add(f);
+    }
+    floorPlans.forEach((p) => {
+      floorSet.add(p.floor_number);
+      if (Array.isArray(p.applicable_floors)) {
+        p.applicable_floors.forEach((af) => floorSet.add(af));
+      }
+    });
+    units.forEach((u) => {
+      const fn = u.floor_number ?? u.floorNumber;
+      if (typeof fn === 'number' && !isNaN(fn)) floorSet.add(fn);
+    });
+    if (floorSet.size === 0) floorSet.add(1);
+    return Array.from(floorSet).sort((a, b) => a - b);
+  }, [parcel.floorCount, floorPlans, units]);
+
+  // Cấu trúc gom nhóm theo từng tầng (Floor-by-Floor Grouping)
+  const allFloorsData = useMemo<FloorGroupData[]>(() => {
+    return availableFloors.map((flNum) => {
+      const directPlan = floorPlans.find((p) => p.floor_number === flNum);
+      const sharedPlan = floorPlans.find(
+        (p) => Array.isArray(p.applicable_floors) && p.applicable_floors.includes(flNum)
+      );
+      const effectivePlan = directPlan || sharedPlan;
+      const isInherited = !directPlan && Boolean(sharedPlan);
+
+      const floorUnits = units.filter((u) => {
+        const fn = u.floor_number ?? u.floorNumber ?? 1;
+        return fn === flNum;
+      });
+
+      let defaultLabel = `Tầng ${flNum}`;
+      if (flNum === 0) defaultLabel = 'Tầng Trệt / Sảnh';
+      else if (flNum < 0) defaultLabel = `Tầng Hầm B${Math.abs(flNum)}`;
+
+      const effectiveCode =
+        effectivePlan?.floor_code ||
+        (flNum === 0
+          ? 'G'
+          : flNum < 0
+          ? `B${String(Math.abs(flNum)).padStart(2, '0')}`
+          : `F${String(flNum).padStart(2, '0')}`);
+
+      const unitCount = floorUnits.filter(
+        (u) => (u.unit_type || u.unitType || 'UNIT') === 'UNIT'
+      ).length;
+      const masterCount = floorUnits.filter(
+        (u) => (u.unit_type || u.unitType) === 'MASTER'
+      ).length;
+      const completedCount = floorUnits.filter(
+        (u) => u.status === 'APPROVED' || Boolean(u.phase2_report_id)
+      ).length;
+
+      return {
+        floorNumber: flNum,
+        floorLabel: defaultLabel,
+        floorName: effectivePlan?.floor_name || defaultLabel,
+        floorCode: effectiveCode,
+        cadUrl: effectivePlan?.cad_photo_url || '',
+        isInherited,
+        inheritedFromFloor: sharedPlan?.floor_number,
+        units: floorUnits,
+        totalUnits: floorUnits.length,
+        completedCount,
+        unitCount,
+        masterCount,
+      };
+    });
+  }, [availableFloors, floorPlans, units]);
+
+  // Lọc tầng hiển thị theo selectedFloor, searchTerm, selectedStatus
+  const displayedFloorsData = useMemo(() => {
+    let result = allFloorsData;
+
+    // Lọc theo tầng đã chọn
+    if (selectedFloor !== 'ALL') {
+      result = result.filter((f) => f.floorNumber === selectedFloor);
+    }
+
+    // Lọc theo từ khóa tìm kiếm (chỉ hiện các tầng có căn khớp tìm kiếm)
+    if (searchTerm.trim()) {
+      const q = searchTerm.trim().toLowerCase();
+      result = result
+        .map((fl) => {
+          const matchedUnits = fl.units.filter((u) => {
+            const code = (u.unit_code || u.unitCode || '').toLowerCase();
+            const owner = (u.owner_name || u.ownerName || '').toLowerCase();
+            return code.includes(q) || owner.includes(q);
+          });
+          return {
+            ...fl,
+            units: matchedUnits,
+          };
+        })
+        .filter((fl) => fl.units.length > 0);
+    }
+
+    // Lọc theo trạng thái khảo sát
+    if (selectedStatus !== 'ALL') {
+      result = result.map((fl) => {
+        const matchedUnits = fl.units.filter((u) => {
+          if (selectedStatus === 'APPROVED') return u.status === 'APPROVED' || Boolean(u.phase2_report_id);
+          if (selectedStatus === 'SUBMITTED') return u.status === 'SUBMITTED';
+          if (selectedStatus === 'IN_PROGRESS') return u.status === 'IN_PROGRESS';
+          if (selectedStatus === 'ABSENT') return u.status === 'POSTPONED_ABSENT';
+          if (selectedStatus === 'NOT_SURVEYED') return !u.status || u.status === 'NOT_SURVEYED';
+          return true;
+        });
+        return {
+          ...fl,
+          units: matchedUnits,
+        };
+      });
+    }
+
+    return result;
+  }, [allFloorsData, selectedFloor, searchTerm, selectedStatus]);
 
   // Đếm theo từng tab
   const unitItemsCount = units.filter((u) => (u.unit_type || u.unitType || 'UNIT') === 'UNIT').length;
@@ -150,7 +314,6 @@ export const useBuildingHubState = ({ parcel, onUnitsUpdated }: UseBuildingHubSt
 
   const filteredUnits = units
     .filter((u) => {
-      // Phân tách 2 tab rõ ràng
       const isMaster = (u.unit_type || u.unitType) === 'MASTER';
       if (activeHubTab === 'MASTER' && !isMaster) return false;
       if (activeHubTab === 'UNIT' && isMaster) return false;
@@ -175,7 +338,6 @@ export const useBuildingHubState = ({ parcel, onUnitsUpdated }: UseBuildingHubSt
       return matchesSearch && matchesFloor && matchesStatus;
     })
     .sort((a, b) => {
-      // Sắp xếp tăng dần theo tầng (Thấp -> Cao: B2, B1, 1, 2, 3...)
       const floorA = a.floor_number ?? a.floorNumber ?? 1;
       const floorB = b.floor_number ?? b.floorNumber ?? 1;
       if (floorA !== floorB) return floorA - floorB;
@@ -187,7 +349,7 @@ export const useBuildingHubState = ({ parcel, onUnitsUpdated }: UseBuildingHubSt
   const displayedUnits = filteredUnits.slice(0, visibleCount);
 
   // Status metrics
-  const completedCount = units.filter((u) => u.status === 'APPROVED' || !!u.phase2_report_id).length;
+  const completedCount = units.filter((u) => u.status === 'APPROVED' || Boolean(u.phase2_report_id)).length;
   const pendingApprovalCount = units.filter((u) => u.status === 'SUBMITTED').length;
   const inProgressCount = units.filter((u) => u.status === 'IN_PROGRESS').length;
   const absentCount = units.filter((u) => u.status === 'POSTPONED_ABSENT').length;
@@ -198,6 +360,11 @@ export const useBuildingHubState = ({ parcel, onUnitsUpdated }: UseBuildingHubSt
     masterReportData,
     isUpdatePending,
     units,
+    floorPlans,
+    floorsData: displayedFloorsData,
+    allFloorsData,
+    inspectedUnit,
+    setInspectedUnit,
     loading,
     searchTerm,
     setSearchTerm,
@@ -234,6 +401,7 @@ export const useBuildingHubState = ({ parcel, onUnitsUpdated }: UseBuildingHubSt
     filteredUnits,
     displayedUnits,
     refetchUnits: fetchUnits,
+    refetchFloorPlans: fetchFloorPlans,
     kpi: {
       completedCount,
       pendingApprovalCount,

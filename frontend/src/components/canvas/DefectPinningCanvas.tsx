@@ -10,6 +10,7 @@ import { useInteractiveCanvasZoom } from './useInteractiveCanvasZoom';
 import { CanvasZoomToolbar } from './CanvasZoomToolbar';
 import { base64ToBlob } from '../../features/survey-phase1/utils/photoSyncAudit';
 import { uploadQueue } from '../../core/services/uploadQueueService';
+import type { MetroWatermarkOptions } from '../../utils/watermarkEngine';
 
 export interface DefectItem {
   id?: string;
@@ -72,6 +73,7 @@ interface Props {
   parcelCode?: string;
   floorName?: string;
   zoneOrElementCode?: string;
+  watermarkOptions?: Partial<MetroWatermarkOptions>;
 }
 
 const CuPhotoThumbnailItem: React.FC<{
@@ -273,6 +275,7 @@ export const DefectPinningCanvas: React.FC<Props> = ({
   parcelCode,
   floorName,
   zoneOrElementCode,
+  watermarkOptions,
 }) => {
   const detailFormRef = useRef<HTMLDivElement>(null);
   const [selectedDefectIndex, setSelectedDefectIndex] = useState<number | null>(null);
@@ -644,6 +647,10 @@ export const DefectPinningCanvas: React.FC<Props> = ({
           floor: floorName || '',
           zoneOrRoom: zoneOrElementCode || '',
           annotated: 'true',
+          ...(watermarkOptions?.buildingCode ? { buildingCode: watermarkOptions.buildingCode } : {}),
+          ...(watermarkOptions?.floorCode ? { floorCode: watermarkOptions.floorCode } : {}),
+          ...(watermarkOptions?.unitCode ? { unitCode: watermarkOptions.unitCode } : {}),
+          ...(watermarkOptions?.areaType ? { areaType: watermarkOptions.areaType } : {}),
         },
         `${effectiveCode}.jpg`
       );
@@ -664,16 +671,59 @@ export const DefectPinningCanvas: React.FC<Props> = ({
       onChange(next);
 
       // 4. Đẩy vào hàng đợi upload ngầm lên Cloudflare R2 / S3
-      const filename = `${effectiveCode.replace(/[^a-zA-Z0-9_-]/g, '_')}_${Date.now()}.jpg`;
-      uploadQueue.enqueue(blob, filename, {
-        folder: `projects/${parcelCode || 'metro2'}/defects/${cur.defectCode}`,
+      let targetFolder = `projects/${parcelCode || 'metro2'}/defects/${cur.defectCode}`;
+      let targetFilename = `${effectiveCode.replace(/[^a-zA-Z0-9_-]/g, '_')}_${Date.now()}.jpg`;
+      let targetMetadata: Record<string, string> = {
+        defectCode: cur.defectCode,
+        photoCode: effectiveCode,
+        floor: floorName || '',
+        zoneOrRoom: zoneOrElementCode || '',
+        annotated: 'true',
+      };
+
+      if (watermarkOptions?.areaType === 'MASTER_AREA' || watermarkOptions?.areaType === 'CONDO_UNIT') {
+        const buildingCode = (watermarkOptions.buildingCode || parcelCode || 'GENERAL').replace(/[^a-zA-Z0-9_-]/g, '').toUpperCase();
+        const rawFloorCode = watermarkOptions.floorCode || watermarkOptions.floor || floorName || '';
+        const cleanFloorCode = String(rawFloorCode).replace(/[^a-zA-Z0-9_-]/g, '').toUpperCase();
+        const cleanUnitCode = String(watermarkOptions.unitCode || '').replace(/[^a-zA-Z0-9_.-]/g, '_').toUpperCase();
+        const subEntity = (zoneOrElementCode || watermarkOptions.zoneOrRoom || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+        const areaFolder = watermarkOptions.areaType === 'MASTER_AREA' ? 'master-areas' : 'condo-units';
+
+        targetFolder = `projects/METRO2_HCM/buildings/${buildingCode}/${areaFolder}/${cleanUnitCode || 'general'}/PHOTOS`;
+        const nameParts = ['M2', buildingCode];
+        if (cleanFloorCode) nameParts.push(cleanFloorCode);
+        if (cleanUnitCode) nameParts.push(cleanUnitCode);
+        if (subEntity) nameParts.push(subEntity);
+        nameParts.push(cur.defectCode.replace(/[^a-zA-Z0-9_-]/g, ''));
+        nameParts.push('CU_ANN');
+        nameParts.push(String(Date.now()));
+        targetFilename = `${nameParts.join('__')}.jpg`;
+
+        targetMetadata = {
+          'photo-code': effectiveCode,
+          'building-code': buildingCode,
+          'floor-code': cleanFloorCode,
+          'unit-code': cleanUnitCode,
+          'sub-entity': subEntity,
+          'defect-code': cur.defectCode,
+          'photo-type': 'CU_ANNOTATED',
+          'area-type': watermarkOptions.areaType,
+          'survey-phase': 'PHASE_1',
+          'project': 'METRO2_HCM',
+          'captured-at': new Date().toISOString(),
+          ...(watermarkOptions.gpsLat !== undefined ? { 'gps-lat': String(watermarkOptions.gpsLat) } : {}),
+          ...(watermarkOptions.gpsLng !== undefined ? { 'gps-lng': String(watermarkOptions.gpsLng) } : {}),
+          ...(watermarkOptions.gpsAccuracy !== undefined ? { 'gps-accuracy': String(watermarkOptions.gpsAccuracy) } : {}),
+          ...(watermarkOptions.gisLat !== undefined ? { 'gis-parcel-lat': String(watermarkOptions.gisLat) } : {}),
+          ...(watermarkOptions.gisLng !== undefined ? { 'gis-parcel-lng': String(watermarkOptions.gisLng) } : {}),
+          annotated: 'true',
+        };
+      }
+
+      uploadQueue.enqueue(blob, targetFilename, {
+        folder: targetFolder,
         mimeType: 'image/jpeg',
-        metadata: {
-          defectCode: cur.defectCode,
-          photoCode: effectiveCode,
-          floor: floorName || '',
-          zoneOrRoom: zoneOrElementCode || '',
-        },
+        metadata: targetMetadata,
         onSuccess: async (publicUrl) => {
           const currentFresh = [...safeDefects];
           if (currentFresh[selectedDefectIndex]) {
@@ -1472,9 +1522,11 @@ export const DefectPinningCanvas: React.FC<Props> = ({
                     recommendedOrientation="landscape"
                     orientationHint="Khuyến nghị: Xoay ngang điện thoại (4:3) để chụp rõ toàn bộ vết nứt cùng thước đo tỷ lệ"
                     watermarkOptions={{
-                      parcelCode,
-                      floor: floorName,
-                      zoneOrRoom: zoneOrElementCode,
+                      ...(watermarkOptions || {}),
+                      parcelCode: watermarkOptions?.parcelCode || parcelCode,
+                      floor: watermarkOptions?.floor || floorName,
+                      floorCode: watermarkOptions?.floorCode || (watermarkOptions?.floor as string) || floorName,
+                      zoneOrRoom: watermarkOptions?.zoneOrRoom || zoneOrElementCode,
                       defectCode: selectedDefect.defectCode,
                       photoType: 'CU',
                       photoIndex: currentCuPhotos.length + 1,

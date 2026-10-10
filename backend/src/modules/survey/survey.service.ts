@@ -447,8 +447,11 @@ export class SurveyService {
     };
   }
 
-  static async getPhase1ReportByParcelId(parcelId: string) {
-    return await SurveyRepository.findLatestPhase1ReportByParcelId(parcelId);
+  static async getPhase1ReportByParcelId(
+    parcelId: string,
+    options?: { reportType?: string; unitId?: string | null }
+  ) {
+    return await SurveyRepository.findLatestPhase1ReportByParcelId(parcelId, options);
   }
 
   static async getSurveyDraft(

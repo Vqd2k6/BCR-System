@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 
 export const Step2_CondoMasterScaleAndCat: React.FC = () => {
-  const { formData, updateFormData, nextStep, prevStep } = usePhase1SurveyStore();
+  const { formData, updateFormData, nextStep, prevStep, isReadOnly } = usePhase1SurveyStore();
 
   React.useEffect(() => {
     if (!formData.usageFunction) {
@@ -48,6 +48,7 @@ export const Step2_CondoMasterScaleAndCat: React.FC = () => {
   );
 
   const handleSelectCatScore = (score: number) => {
+    if (isReadOnly) return;
     updateFormData({ foundationCatScore: score });
   };
 
@@ -101,6 +102,7 @@ export const Step2_CondoMasterScaleAndCat: React.FC = () => {
           <div>
             <Select
               label="Công Năng Sử Dụng (Use) *"
+              disabled={isReadOnly}
               value={isCustomUsage ? 'Khác' : formData.usageFunction || 'Chung cư / Toà nhiều căn hộ'}
               onChange={(e) => {
                 if (e.target.value === 'Khác') {
@@ -114,6 +116,7 @@ export const Step2_CondoMasterScaleAndCat: React.FC = () => {
             {isCustomUsage && (
               <Input
                 label="Công năng chi tiết khác:"
+                disabled={isReadOnly}
                 className="mt-2"
                 placeholder="Nhập công năng tòa nhà..."
                 value={formData.usageFunction || ''}
@@ -128,15 +131,17 @@ export const Step2_CondoMasterScaleAndCat: React.FC = () => {
               <label className="flex items-center gap-1.5 text-xs text-slate-500 cursor-pointer select-none">
                 <input
                   type="checkbox"
+                  disabled={isReadOnly}
                   checked={Boolean(formData.isEstimatedYear)}
                   onChange={(e) => updateFormData({ isEstimatedYear: e.target.checked })}
-                  className="rounded text-indigo-600 focus:ring-indigo-500"
+                  className="rounded text-indigo-600 focus:ring-indigo-500 disabled:opacity-50"
                 />
                 <span>Ước tính</span>
               </label>
             </div>
             <Input
               type="number"
+              disabled={isReadOnly}
               placeholder="VD: 2018"
               value={formData.constructionYear || ''}
               onChange={(e) =>
@@ -151,6 +156,7 @@ export const Step2_CondoMasterScaleAndCat: React.FC = () => {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4">
           <Input
             label="Số Tầng Nổi (Above Floors) *"
+            disabled={isReadOnly}
             type="number"
             min={1}
             placeholder="VD: 25"
@@ -160,6 +166,7 @@ export const Step2_CondoMasterScaleAndCat: React.FC = () => {
 
           <Input
             label="Số Tầng Hầm (Basements) *"
+            disabled={isReadOnly}
             type="number"
             min={0}
             placeholder="VD: 2"
@@ -173,6 +180,7 @@ export const Step2_CondoMasterScaleAndCat: React.FC = () => {
 
           <Input
             label="Số Căn / Tầng (Trung bình) *"
+            disabled={isReadOnly}
             type="number"
             min={1}
             placeholder="VD: 12"
@@ -201,6 +209,7 @@ export const Step2_CondoMasterScaleAndCat: React.FC = () => {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
           <Input
             label="Tổng Diện Tích Sàn Xây Dựng (m²) *"
+            disabled={isReadOnly}
             type="number"
             placeholder="VD: 32000"
             value={formData.constructionAreaM2 ?? ''}
@@ -213,6 +222,7 @@ export const Step2_CondoMasterScaleAndCat: React.FC = () => {
 
           <Input
             label="Chiều Cao Công Trình (m) *"
+            disabled={isReadOnly}
             type="number"
             step="0.1"
             placeholder="VD: 85.5"
@@ -226,13 +236,13 @@ export const Step2_CondoMasterScaleAndCat: React.FC = () => {
         </div>
       </Card>
 
-      {/* 2.2. Kết cấu chịu lực & Loại móng */}
+      {/* 2.2. Kết cấu chịu lực & Khảo sát móng chi tiết */}
       <Card className="border-indigo-200 bg-white shadow-xs">
         <div className="flex items-center justify-between gap-2 mb-4 pb-2 border-b border-indigo-100">
           <div className="flex items-center gap-2">
             <Layers className="w-5 h-5 text-indigo-600" />
             <h2 className="text-base sm:text-lg font-bold text-slate-800">
-              2.2. Kết Cấu Chịu Lực (E1) & Loại Móng (V2)
+              2.2. Kết Cấu Chịu Lực (E1) & Khảo Sát Móng Chi Tiết (V2)
             </h2>
           </div>
         </div>
@@ -240,7 +250,9 @@ export const Step2_CondoMasterScaleAndCat: React.FC = () => {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
             <Select
+              id="input-structureSystem"
               label="Hệ Kết Cấu Chịu Lực Chính (E1) *"
+              disabled={isReadOnly}
               value={isCustomStructure ? 'Khác' : formData.structureSystem || ''}
               onChange={(e) => {
                 if (e.target.value === 'Khác') {
@@ -254,6 +266,7 @@ export const Step2_CondoMasterScaleAndCat: React.FC = () => {
             {isCustomStructure && (
               <Input
                 label="Hệ kết cấu chi tiết khác:"
+                disabled={isReadOnly}
                 className="mt-2"
                 placeholder="Nhập hệ kết cấu toà nhà..."
                 value={formData.structureSystem || ''}
@@ -264,11 +277,133 @@ export const Step2_CondoMasterScaleAndCat: React.FC = () => {
 
           <div>
             <Select
+              id="input-foundationType"
               label="Giải Pháp Kết Cấu Móng (V2) *"
+              disabled={isReadOnly}
               value={formData.foundationType || ''}
               onChange={(e) => updateFormData({ foundationType: e.target.value })}
               options={FOUNDATION_TYPES.map((f) => ({ value: f, label: f }))}
             />
+          </div>
+
+          <div>
+            <Select
+              id="input-foundationSource"
+              label="Nguồn Thông Tin Xác Định Móng"
+              disabled={isReadOnly}
+              value={formData.foundationSource || 'Bản vẽ hoàn công'}
+              onChange={(e) => updateFormData({ foundationSource: e.target.value })}
+              options={[
+                { value: 'Bản vẽ hoàn công', label: 'Bản vẽ hoàn công' },
+                { value: 'Hồ sơ thiết kế kết cấu', label: 'Hồ sơ thiết kế kết cấu' },
+                { value: 'Ban Quản Lý / CĐT cung cấp', label: 'Ban Quản Lý / CĐT cung cấp' },
+                { value: 'Quan sát hiện trường / Suy đoán', label: 'Quan sát hiện trường / Suy đoán' },
+                { value: 'Không rõ thông tin', label: 'Không rõ thông tin' },
+              ]}
+            />
+          </div>
+
+          <div>
+            <label className="text-xs font-bold text-slate-700 block mb-1">
+              Kích Thước Cọc / Móng / Tường Vây (Dài x Rộng)
+            </label>
+            <div className="flex items-center gap-1.5">
+              <Input
+                type="number"
+                disabled={isReadOnly}
+                placeholder="Rộng"
+                value={formData.pileWidthMm === '' || formData.pileWidthMm === undefined ? '' : formData.pileWidthMm}
+                onChange={(e) => {
+                  const val = e.target.value === '' ? '' : Number(e.target.value);
+                  const other = formData.pileLengthMm ?? '';
+                  updateFormData({
+                    pileWidthMm: val,
+                    pileDimensionMm: val && other ? `${val} x ${other} cm` : val ? `${val} cm` : '',
+                  });
+                }}
+              />
+              <span className="text-slate-400 font-bold px-1">✕</span>
+              <Input
+                type="number"
+                disabled={isReadOnly}
+                placeholder="Dài / Sâu"
+                value={formData.pileLengthMm === '' || formData.pileLengthMm === undefined ? '' : formData.pileLengthMm}
+                onChange={(e) => {
+                  const val = e.target.value === '' ? '' : Number(e.target.value);
+                  const other = formData.pileWidthMm ?? '';
+                  updateFormData({
+                    pileLengthMm: val,
+                    pileDimensionMm: other && val ? `${other} x ${val} cm` : val ? `${val} cm` : '',
+                  });
+                }}
+              />
+              <span className="text-xs font-bold text-slate-500 whitespace-nowrap pl-1">cm</span>
+            </div>
+            <span className="text-[11px] text-slate-400 italic">
+              VD: Cọc khoan nhồi D1000 mm (100 cm), barrette 80 x 280 cm (để trống nếu không rõ)
+            </span>
+          </div>
+
+          {/* Thông số móng bổ sung */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:col-span-2 p-3.5 bg-slate-50/80 rounded-xl border border-slate-200">
+            <div>
+              <Input
+                id="input-foundationDepthM"
+                label="Chiều Sâu Đáy Móng / Hầm (m)"
+                disabled={isReadOnly}
+                type="number"
+                step="any"
+                min={0}
+                placeholder="VD: 18.5"
+                value={formData.foundationDepthM === '' || formData.foundationDepthM === undefined ? '' : formData.foundationDepthM}
+                onChange={(e) =>
+                  updateFormData({ foundationDepthM: e.target.value === '' ? '' : Number(e.target.value) })
+                }
+                hint="Chiều sâu đáy đài móng / sàn hầm"
+              />
+            </div>
+            <div>
+              <Input
+                id="input-foundationDensity"
+                label="Mật Độ Cọc / Móng (SL/m²)"
+                disabled={isReadOnly}
+                type="number"
+                step="any"
+                min={0}
+                placeholder="VD: 0.08"
+                value={formData.foundationDensity === '' || formData.foundationDensity === undefined ? '' : formData.foundationDensity}
+                onChange={(e) =>
+                  updateFormData({ foundationDensity: e.target.value === '' ? '' : Number(e.target.value) })
+                }
+                hint="Số lượng cọc/đài trên m²"
+              />
+            </div>
+            <div>
+              <Input
+                id="input-foundationSpacingM"
+                label="Khoảng Cách Giữa Móng (m)"
+                disabled={isReadOnly}
+                type="number"
+                step="any"
+                min={0}
+                placeholder="VD: 3.5"
+                value={formData.foundationSpacingM === '' || formData.foundationSpacingM === undefined ? '' : formData.foundationSpacingM}
+                onChange={(e) =>
+                  updateFormData({ foundationSpacingM: e.target.value === '' ? '' : Number(e.target.value) })
+                }
+                hint="Khoảng cách tim cọc hoặc bước móng (m)"
+              />
+            </div>
+            <div className="sm:col-span-3 mt-1">
+              <Input
+                id="input-foundationNotes"
+                label="Ghi Chú Về Móng & Địa Tầng"
+                disabled={isReadOnly}
+                placeholder="Ghi chú chi tiết về cọc khoan nhồi, tầng cát cuội sỏi, biện pháp thi công hầm, đài móng toà nhà..."
+                value={formData.foundationNotes || ''}
+                onChange={(e) => updateFormData({ foundationNotes: e.target.value })}
+              />
+            </div>
           </div>
         </div>
       </Card>
@@ -296,11 +431,15 @@ export const Step2_CondoMasterScaleAndCat: React.FC = () => {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
           <button
             type="button"
+            disabled={isReadOnly}
             onClick={() => {
+              if (isReadOnly) return;
               setHasDrawingOption('HAS_DRAWING');
               handleSelectCatScore(1);
             }}
-            className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col gap-1 ${
+            className={`p-3 rounded-xl border text-left transition-all flex flex-col gap-1 ${
+              isReadOnly ? 'cursor-default' : 'cursor-pointer'
+            } ${
               hasDrawingOption === 'HAS_DRAWING'
                 ? 'bg-emerald-50 border-emerald-400 text-emerald-900 ring-2 ring-emerald-500/20 shadow-xs'
                 : 'border-slate-200 hover:bg-slate-50 text-slate-700'
@@ -317,11 +456,15 @@ export const Step2_CondoMasterScaleAndCat: React.FC = () => {
 
           <button
             type="button"
+            disabled={isReadOnly}
             onClick={() => {
+              if (isReadOnly) return;
               setHasDrawingOption('NO_DRAWING');
               handleSelectCatScore(3);
             }}
-            className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col gap-1 ${
+            className={`p-3 rounded-xl border text-left transition-all flex flex-col gap-1 ${
+              isReadOnly ? 'cursor-default' : 'cursor-pointer'
+            } ${
               hasDrawingOption === 'NO_DRAWING'
                 ? 'bg-amber-50 border-amber-400 text-amber-900 ring-2 ring-amber-500/20 shadow-xs'
                 : 'border-slate-200 hover:bg-slate-50 text-slate-700'
@@ -338,11 +481,15 @@ export const Step2_CondoMasterScaleAndCat: React.FC = () => {
 
           <button
             type="button"
+            disabled={isReadOnly}
             onClick={() => {
+              if (isReadOnly) return;
               setHasDrawingOption('UNKNOWN');
               handleSelectCatScore(5);
             }}
-            className={`p-3 rounded-xl border text-left transition-all cursor-pointer flex flex-col gap-1 ${
+            className={`p-3 rounded-xl border text-left transition-all flex flex-col gap-1 ${
+              isReadOnly ? 'cursor-default' : 'cursor-pointer'
+            } ${
               hasDrawingOption === 'UNKNOWN'
                 ? 'bg-red-50 border-red-400 text-red-900 ring-2 ring-red-500/20 shadow-xs'
                 : 'border-slate-200 hover:bg-slate-50 text-slate-700'
@@ -367,8 +514,11 @@ export const Step2_CondoMasterScaleAndCat: React.FC = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               <button
                 type="button"
+                disabled={isReadOnly}
                 onClick={() => handleSelectCatScore(1)}
-                className={`p-2.5 rounded-lg border text-left transition-all cursor-pointer ${
+                className={`p-2.5 rounded-lg border text-left transition-all ${
+                  isReadOnly ? 'cursor-default' : 'cursor-pointer'
+                } ${
                   formData.foundationCatScore === 1
                     ? 'bg-white border-emerald-500 text-emerald-950 shadow-xs font-bold'
                     : 'bg-white/80 border-emerald-200 text-slate-700 hover:bg-white'
@@ -382,8 +532,11 @@ export const Step2_CondoMasterScaleAndCat: React.FC = () => {
 
               <button
                 type="button"
+                disabled={isReadOnly}
                 onClick={() => handleSelectCatScore(2)}
-                className={`p-2.5 rounded-lg border text-left transition-all cursor-pointer ${
+                className={`p-2.5 rounded-lg border text-left transition-all ${
+                  isReadOnly ? 'cursor-default' : 'cursor-pointer'
+                } ${
                   formData.foundationCatScore === 2
                     ? 'bg-white border-emerald-500 text-emerald-950 shadow-xs font-bold'
                     : 'bg-white/80 border-emerald-200 text-slate-700 hover:bg-white'
@@ -402,25 +555,27 @@ export const Step2_CondoMasterScaleAndCat: React.FC = () => {
                 <span className="text-xs font-bold text-slate-700">
                   Ảnh chụp bản vẽ hoàn công / kết cấu móng tòa nhà:
                 </span>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  icon={<Plus className="w-3.5 h-3.5" />}
-                  onClick={() => {
-                    const current = formData.asBuiltDrawingPhotos || [];
-                    updateFormData({
-                      asBuiltDrawingPhotos: [
-                        ...current,
-                        {
-                          url: '',
-                          notes: `Bản vẽ móng trang ${current.length + 1}`,
-                        },
-                      ],
-                    });
-                  }}
-                >
-                  Thêm Trang Bản Vẽ
-                </Button>
+                {!isReadOnly && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    icon={<Plus className="w-3.5 h-3.5" />}
+                    onClick={() => {
+                      const current = formData.asBuiltDrawingPhotos || [];
+                      updateFormData({
+                        asBuiltDrawingPhotos: [
+                          ...current,
+                          {
+                            url: '',
+                            notes: `Bản vẽ móng trang ${current.length + 1}`,
+                          },
+                        ],
+                      });
+                    }}
+                  >
+                    Thêm Trang Bản Vẽ
+                  </Button>
+                )}
               </div>
 
               {/* Danh sách ảnh chụp bản vẽ */}
@@ -429,12 +584,23 @@ export const Step2_CondoMasterScaleAndCat: React.FC = () => {
                   <PhotoCaptureInput
                     label="Chụp / Tải lên bản vẽ hoàn công trang 1"
                     value={formData.asBuiltDrawingPhotoUrl || ''}
-                    onChange={(url: string) => {
+                    readOnly={isReadOnly}
+                    watermarkOptions={{
+                      parcelCode: formData.projectParcelCode || 'GENERAL',
+                      buildingCode: formData.projectParcelCode || 'GENERAL',
+                      floor: 'FOUND',
+                      photoType: 'DRAWING',
+                      photoIndex: 1,
+                      areaType: 'GENERAL_TOWER',
+                      category: 'foundation-drawings',
+                    }}
+                    onChange={(url: string, code?: string) => {
                       updateFormData({
                         asBuiltDrawingPhotoUrl: url,
                         asBuiltDrawingPhotos: [
                           {
                             url,
+                            photoCode: code,
                             notes: 'Bản vẽ móng toà nhà - Trang 1',
                           },
                         ],
@@ -450,28 +616,42 @@ export const Step2_CondoMasterScaleAndCat: React.FC = () => {
                     <div key={idx} className="p-3 bg-white rounded-xl border border-emerald-200 relative space-y-2">
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-bold text-emerald-800">Trang {idx + 1}</span>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const updated = (formData.asBuiltDrawingPhotos || []).filter((_, i) => i !== idx);
-                            updateFormData({ asBuiltDrawingPhotos: updated });
-                          }}
-                          className="text-red-500 hover:text-red-700 p-1 cursor-pointer"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
+                        {!isReadOnly && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const updated = (formData.asBuiltDrawingPhotos || []).filter((_, i) => i !== idx);
+                              updateFormData({ asBuiltDrawingPhotos: updated });
+                            }}
+                            className="text-red-500 hover:text-red-700 p-1 cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
                       </div>
                       <PhotoCaptureInput
                         label={`Bản vẽ trang ${idx + 1}`}
                         value={photo.url}
-                        onChange={(url: string) => {
+                        photoCode={photo.photoCode}
+                        readOnly={isReadOnly}
+                        watermarkOptions={{
+                          parcelCode: formData.projectParcelCode || 'GENERAL',
+                          buildingCode: formData.projectParcelCode || 'GENERAL',
+                          floor: 'FOUND',
+                          photoType: 'DRAWING',
+                          photoIndex: idx + 1,
+                          areaType: 'GENERAL_TOWER',
+                          category: 'foundation-drawings',
+                        }}
+                        onChange={(url: string, code?: string) => {
                           const updated = [...(formData.asBuiltDrawingPhotos || [])];
-                          updated[idx] = { ...updated[idx], url };
+                          updated[idx] = { ...updated[idx], url, photoCode: code };
                           updateFormData({ asBuiltDrawingPhotos: updated });
                         }}
                       />
                       <Input
                         placeholder="Mô tả bản vẽ (VD: Mặt bằng đài cọc tầng hầm B2)"
+                        disabled={isReadOnly}
                         value={photo.notes || ''}
                         onChange={(e) => {
                           const updated = [...(formData.asBuiltDrawingPhotos || [])];

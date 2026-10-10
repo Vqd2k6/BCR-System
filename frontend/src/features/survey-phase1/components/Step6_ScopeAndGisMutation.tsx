@@ -27,7 +27,7 @@ const RESTRICTED_AREAS_PRESETS = [
 ];
 
 export const Step6_ScopeAndGisMutation: React.FC = () => {
-  const { formData, updateFormData, nextStep, prevStep, activeParcel } = usePhase1SurveyStore();
+  const { formData, updateFormData, nextStep, prevStep, activeParcel, isReadOnly } = usePhase1SurveyStore();
   const [extraFloorsCount, setExtraFloorsCount] = useState(0);
 
   const isCondoMaster =
@@ -134,13 +134,15 @@ export const Step6_ScopeAndGisMutation: React.FC = () => {
                 <input
                   type="radio"
                   name="accessType"
+                  disabled={isReadOnly}
                   checked={access.type === opt.value}
-                  onChange={() =>
+                  onChange={() => {
+                    if (isReadOnly) return;
                     updateFormData({
                       accessLimitation: { ...access, type: opt.value as "FULL_100" | "LIMITED" | "ABSENT_REFUSED" },
-                    })
-                  }
-                  className="text-amber-600 focus:ring-amber-500"
+                    });
+                  }}
+                  className="text-amber-600 focus:ring-amber-500 disabled:opacity-50"
                 />
                 <span>{opt.label}</span>
               </label>
@@ -168,8 +170,10 @@ export const Step6_ScopeAndGisMutation: React.FC = () => {
                       >
                         <input
                           type="checkbox"
+                          disabled={isReadOnly}
                           checked={isChecked}
                           onChange={(e) => {
+                            if (isReadOnly) return;
                             const cur = access.restrictedAreas || [];
                             const next = e.target.checked
                               ? [...cur, area]
@@ -178,7 +182,7 @@ export const Step6_ScopeAndGisMutation: React.FC = () => {
                               accessLimitation: { ...access, restrictedAreas: next },
                             });
                           }}
-                          className="rounded text-amber-600 focus:ring-amber-500"
+                          className="rounded text-amber-600 focus:ring-amber-500 disabled:opacity-50"
                         />
                         <span>{area}</span>
                       </label>
@@ -355,7 +359,7 @@ export const Step6_ScopeAndGisMutation: React.FC = () => {
         </div>
 
         {/* Trình biên tập GIS hiển thị trực tiếp inline */}
-        <div className="rounded-xl overflow-hidden border border-slate-200 min-h-[520px]">
+        <div className={`rounded-xl overflow-hidden border border-slate-200 min-h-[520px] ${isReadOnly ? 'pointer-events-none opacity-90' : ''}`}>
           <CadastralGISBoundaryEditor
             activeParcelId={formData.parcelId}
             parcel={

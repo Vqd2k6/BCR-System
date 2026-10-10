@@ -61,9 +61,12 @@ export const BuildingHubModal: React.FC<BuildingHubModalProps> = ({
     setActiveHubTab,
     unitItemsCount,
     masterItemsCount,
-    filteredUnits,
-    displayedUnits,
+    floorsData,
+    allFloorsData,
+    inspectedUnit,
+    setInspectedUnit,
     refetchUnits,
+    refetchFloorPlans,
     kpi,
   } = useBuildingHubState({ parcel, onUnitsUpdated });
   const [showCadModal, setShowCadModal] = React.useState(false);
@@ -103,7 +106,7 @@ export const BuildingHubModal: React.FC<BuildingHubModalProps> = ({
           onOpenFloorProgress={() => setShowFloorProgressPopover(true)}
         />
 
-        {/* Quản lý & Danh sách căn hộ con / khu vực dùng chung */}
+        {/* Quản lý & Danh sách căn hộ con / khu vực dùng chung theo tầng (Spatial CAD Hub) */}
         <BuildingUnitList
           parcel={parcel}
           units={units}
@@ -117,6 +120,11 @@ export const BuildingHubModal: React.FC<BuildingHubModalProps> = ({
           availableFloors={availableFloors}
           selectedStatus={selectedStatus}
           onSelectedStatusChange={setSelectedStatus}
+          floorsData={floorsData}
+          allFloorsData={allFloorsData}
+          inspectedUnit={inspectedUnit}
+          onSelectInspectedUnit={setInspectedUnit}
+          isAdmin={isAdmin}
           showAddModal={showAddModal}
           onToggleAddModal={setShowAddModal}
           newUnitCode={newUnitCode}
@@ -125,10 +133,6 @@ export const BuildingHubModal: React.FC<BuildingHubModalProps> = ({
           setNewFloorNumber={setNewFloorNumber}
           isSubmittingUnit={isSubmittingUnit}
           onAddUnitSubmit={handleAddUnit}
-          displayedUnits={displayedUnits}
-          filteredUnits={filteredUnits}
-          visibleCount={visibleCount}
-          onLoadMore={() => setVisibleCount((prev) => prev + 10)}
           isMasterSurveyDone={isMasterSurveyDone}
           onClose={onClose}
           onStartUnitSurvey={onStartUnitSurvey}
@@ -171,14 +175,24 @@ export const BuildingHubModal: React.FC<BuildingHubModalProps> = ({
         isAdmin ? (
           <FloorPlanCadManagementModal
             parcel={parcel}
-            onClose={() => setShowCadModal(false)}
-            onUnitsUpdated={onUnitsUpdated}
+            onClose={() => {
+              setShowCadModal(false);
+              refetchFloorPlans();
+            }}
+            onUnitsUpdated={() => {
+              refetchUnits();
+              refetchFloorPlans();
+              if (onUnitsUpdated) onUnitsUpdated();
+            }}
             readOnly={false}
           />
         ) : (
           <SurveyorCadReadOnlyModal
             parcel={parcel}
-            onClose={() => setShowCadModal(false)}
+            onClose={() => {
+              setShowCadModal(false);
+              refetchFloorPlans();
+            }}
           />
         )
       )}
@@ -188,6 +202,11 @@ export const BuildingHubModal: React.FC<BuildingHubModalProps> = ({
         <SurveyCondoMasterAreaModal
           parcel={parcel}
           unit={selectedMasterAreaUnit}
+          floorCadUrl={
+            allFloorsData.find(
+              (f) => f.floorNumber === (selectedMasterAreaUnit.floor_number ?? selectedMasterAreaUnit.floorNumber)
+            )?.cadUrl
+          }
           onClose={() => setSelectedMasterAreaUnit(null)}
           onSurveyCompleted={() => {
             setSelectedMasterAreaUnit(null);

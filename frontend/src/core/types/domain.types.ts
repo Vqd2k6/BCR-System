@@ -140,6 +140,8 @@ export interface BuildingUnit {
   floor_level?: string;
   floorNumber?: number;
   floor_number?: number;
+  floorCode?: string;
+  floor_code?: string;
   ownerName?: string;
   owner_name?: string;
   ownerPhone?: string;

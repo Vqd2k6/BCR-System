@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { isDoorJammingStatus, type UnitDefectItem, type CadBbox, type CadPolygon, type CondoUnitFormData } from '../types/condo-unit.types';
 import { api } from '../../../services/api';
+import { formatShortUnitDisplay } from '../../../core/utils/codeFormattingUtils';
 
 interface FloorPlanUnitItem {
   id: string;
@@ -53,6 +54,16 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
   const [newLength, setNewLength] = useState<number | ''>('');
   const [newDesc, setNewDesc] = useState('');
   const [newPhoto, setNewPhoto] = useState('');
+
+  const bCode = formData.parentInfo?.projectParcelCode || 'GENERAL';
+  const fNum = Number(formData.floorNumber);
+  const floorCode = isNaN(fNum)
+    ? String(formData.floorNumber || 'F01')
+    : fNum < 0
+      ? `B${String(Math.abs(fNum)).padStart(2, '0')}`
+      : fNum === 0
+        ? 'G'
+        : `F${String(fNum).padStart(2, '0')}`;
 
   // Tự động kiểm tra và import CAD từ Tầng nếu căn con chưa có CAD URL
   useEffect(() => {
@@ -238,32 +249,59 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
           </div>
 
           {formData.upperFloorWaterLeakage?.has && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-              <Input
-                label="Vị trí trần bị thấm dột"
-                placeholder="VD: Trần thạch cao phòng khách, Cạnh hộp gen toilet..."
-                value={formData.upperFloorWaterLeakage?.location || ''}
-                onChange={(e) =>
+            <div className="space-y-3 pt-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <Input
+                  label="Vị trí trần bị thấm dột"
+                  placeholder="VD: Trần thạch cao phòng khách, Cạnh hộp gen toilet..."
+                  value={formData.upperFloorWaterLeakage?.location || ''}
+                  onChange={(e) =>
+                    updateFormData({
+                      upperFloorWaterLeakage: {
+                        ...formData.upperFloorWaterLeakage,
+                        location: e.target.value,
+                      },
+                    })
+                  }
+                />
+                <Input
+                  label="Mô tả mức độ ố vàng / bong tróc"
+                  placeholder="VD: Ố vàng loang lổ diện tích 0.5m2, bong tróc sơn..."
+                  value={formData.upperFloorWaterLeakage?.description || ''}
+                  onChange={(e) =>
+                    updateFormData({
+                      upperFloorWaterLeakage: {
+                        ...formData.upperFloorWaterLeakage,
+                        description: e.target.value,
+                      },
+                    })
+                  }
+                />
+              </div>
+              <PhotoCaptureInput
+                label="Ảnh chụp hiện trạng thấm dột trần lầu trên dội xuống (WATER_LEAK)"
+                value={formData.upperFloorWaterLeakage?.photoUrl || ''}
+                onChange={(url) =>
                   updateFormData({
                     upperFloorWaterLeakage: {
                       ...formData.upperFloorWaterLeakage,
-                      location: e.target.value,
+                      photoUrl: url,
                     },
                   })
                 }
-              />
-              <Input
-                label="Mô tả mức độ ố vàng / bong tróc"
-                placeholder="VD: Ố vàng loang lổ diện tích 0.5m2, bong tróc sơn..."
-                value={formData.upperFloorWaterLeakage?.description || ''}
-                onChange={(e) =>
-                  updateFormData({
-                    upperFloorWaterLeakage: {
-                      ...formData.upperFloorWaterLeakage,
-                      description: e.target.value,
-                    },
-                  })
-                }
+                watermarkOptions={{
+                  parcelCode: bCode,
+                  buildingCode: bCode,
+                  floorCode,
+                  floor: floorCode,
+                  unitCode: formData.unitCode,
+                  areaType: 'CONDO_UNIT',
+                  category: 'water-leaks',
+                  photoType: 'WATER_LEAK',
+                  photoIndex: 1,
+                  zoneOrRoom: formData.upperFloorWaterLeakage?.location || undefined,
+                }}
+                height="120px"
               />
             </div>
           )}
@@ -402,7 +440,18 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
                 label="Ảnh cận cảnh vết nứt có thước đo (CU >= 0.1mm)"
                 value={newPhoto}
                 onChange={setNewPhoto}
-                watermarkText={`CU | Căn ${formData.unitCode} | ${newLocation || 'CRACK'}`}
+                watermarkOptions={{
+                  parcelCode: bCode,
+                  buildingCode: bCode,
+                  floorCode,
+                  floor: floorCode,
+                  unitCode: formData.unitCode,
+                  areaType: 'CONDO_UNIT',
+                  category: 'defects',
+                  photoType: 'CU',
+                  defectCode: `D-${String(formData.localDefects.length + 1).padStart(2, '0')}`,
+                  zoneOrRoom: newLocation || undefined,
+                }}
                 height="100px"
               />
             </div>
@@ -488,14 +537,17 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
                           key={u.id}
                           onClick={() => handleManualImportCad(u.unit_cad_url || floorPlanData.plan?.cad_photo_url || '', u.cad_bbox)}
                           style={style}
-                          className={`absolute rounded cursor-pointer border-2 transition-all flex items-center justify-center ${
+                          className={`absolute rounded cursor-pointer border-2 transition-all flex items-center justify-center overflow-hidden ${
                             isTarget
                               ? 'border-teal-400 bg-teal-500/40 ring-2 ring-teal-400 z-20'
                               : 'border-slate-500 bg-slate-800/40 hover:bg-slate-700/60 z-10'
                           }`}
                         >
-                          <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-900 text-white">
-                            {u.unit_code}
+                          <span
+                            title={`Mã căn ngầm: ${u.unit_code}`}
+                            className="px-1 py-0.5 rounded text-[9px] sm:text-[10px] font-mono font-bold bg-slate-900 text-white max-w-[92%] truncate text-center"
+                          >
+                            {formatShortUnitDisplay(u.unit_code)}
                           </span>
                         </div>
                       );
@@ -515,7 +567,7 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
                             : 'bg-slate-800 hover:bg-slate-750 text-slate-300 border-slate-700'
                         }`}
                       >
-                        <span>Căn {u.unit_code}</span>
+                        <span title={`Mã căn ngầm: ${u.unit_code}`}>Căn {formatShortUnitDisplay(u.unit_code)}</span>
                         {u.unit_cad_url && <span className="text-[10px] text-teal-300">CAD ✓</span>}
                       </button>
                     ))}

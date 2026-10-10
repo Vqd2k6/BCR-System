@@ -415,12 +415,14 @@ export const Step1_BuildingIdentification: React.FC<Step1BuildingIdentificationP
         formData={formData}
         updateFormData={updateFormData}
         onOpenPolygonModal={() => setIsDrawingPolygon(true)}
+        isCondoMaster={isCondoMaster}
       />
 
       {/* 1.6. Khảo sát trực quan Lún chênh & Nghiêng ngoài nhà */}
       <Step1SettlementTiltSection
         formData={formData}
         updateFormData={updateFormData}
+        isCondoMaster={isCondoMaster}
       />
 
       {/* 1.7. Nhận định loại công trình (Ẩn khi là Toà Chung cư mẹ) */}

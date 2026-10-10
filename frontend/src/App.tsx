@@ -718,8 +718,17 @@ export const App: React.FC = () => {
     });
   };
 
-  const handleStartCondoMaster = (parcel: GisParcel) => {
+  const handleStartCondoMaster = (parcel: GisParcel, readOnly?: boolean) => {
     triggerSurveyWithCheckInGuard(() => {
+      const isSubmitted =
+        parcel.surveyStatus === 'SUBMITTED' ||
+        parcel.surveyStatus === 'APPROVED' ||
+        (parcel as unknown as { survey_status?: string }).survey_status === 'SUBMITTED' ||
+        (parcel as unknown as { survey_status?: string }).survey_status === 'APPROVED';
+      const isSurveyor = user?.role === 'SURVEYOR';
+      const effectiveReadOnly = readOnly !== undefined ? readOnly : Boolean(isSubmitted && isSurveyor);
+
+      setIsReadOnlySurvey(effectiveReadOnly);
       updateSelectedParcel(parcel);
       updateSelectedUnit(null);
       setActiveTab('condo-master');
@@ -727,7 +736,7 @@ export const App: React.FC = () => {
         tab: 'condo-master',
         parcelId: parcel.id,
         unitId: undefined,
-        readOnly: false,
+        readOnly: effectiveReadOnly,
       }, { replace: false });
     });
   };
@@ -972,6 +981,7 @@ export const App: React.FC = () => {
           selectedParcelForSurvey ? (
             <SurveyCondoMasterPage
               parcel={selectedParcelForSurvey}
+              readOnly={isReadOnlySurvey}
               onBackToHome={() => {
                 navigateBackFromSurvey();
                 setHubParcel(selectedParcelForSurvey);

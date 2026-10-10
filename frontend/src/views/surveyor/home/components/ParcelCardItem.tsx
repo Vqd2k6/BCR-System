@@ -1,6 +1,7 @@
 import React from 'react';
 import type { GisParcel } from '../../../../components/gis/LeafletSweepMap';
 import { getStatus, getBuildingType, getStatusBadge } from '../utils/surveyorHomeHelpers';
+import { formatShortParcelDisplay } from '../../../../core/utils/codeFormattingUtils';
 import {
   CheckCircle2,
   Clock,
@@ -78,9 +79,28 @@ export const ParcelCardItem: React.FC<ParcelCardItemProps> = ({
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem' }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0284c7' }}>
-              {p.projectParcelCode || p.project_parcel_code}
-            </span>
+            {(() => {
+              const rawCode = p.projectParcelCode || p.project_parcel_code || '---';
+              const shortCode = formatShortParcelDisplay(rawCode);
+              return (
+                <span
+                  title={`Mã thửa chuẩn: ${rawCode}`}
+                  style={{
+                    fontSize: '1.05rem',
+                    fontWeight: 800,
+                    color: '#0284c7',
+                    maxWidth: '180px',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    display: 'inline-block',
+                    verticalAlign: 'middle',
+                  }}
+                >
+                  {shortCode}
+                </span>
+              );
+            })()}
             {getStatusBadge(status, p)}
             {buildingType === 'CONDOMINIUM' && (
               <button

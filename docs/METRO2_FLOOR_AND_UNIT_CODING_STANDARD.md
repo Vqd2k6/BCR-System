@@ -62,6 +62,16 @@ Cú pháp: `T[MÃ_TẦNG].[SỐ_THỨ_TỰ]`
 * Tầng lánh nạn: `TLN.01` (Gian lánh nạn thoát hiểm)
 * Tầng mái: `TROOF.01` (Sàn mái bê tông), `TROOF.02` (Khu bồn nước mái)
 
+### 3.3. Nguyên Tắc Phân Tách: Lưu Trữ Ngầm (Storage) vs. Hiển Thị Giao Diện (Display):
+Nhằm giải quyết triệt để vấn đề nhãn tên căn/thửa quá dài gây tràn ô hoặc lấn sang căn/thửa liền kề trên màn hình Surveyor:
+1. **Tầng Lưu Trữ Ngầm (CSDL & Báo Cáo BCS Pháp Lý):**
+   - Lưu trữ 100% cấu trúc mã chuẩn: `floor_code = 'F08'`, `unit_code = '08.01'`, `photo_code = 'HCM_M2.B0039_08.01_Z01_D01_CU_01'`.
+   - Toàn bộ việc sinh mã diễn ra tự động ngầm dưới hệ thống khi tạo tầng / vẽ ô.
+2. **Tầng Hiển Thị Trực Quan (Giao Diện Surveyor & CAD Canvas):**
+   - Chỉ hiển thị nhãn số ngắn gọn lọt lòng trong ô: **`01`**, **`02`**, **`03`** (đối với căn hộ) hoặc **`M01`**, **`M02`** (đối với khu master).
+   - Áp dụng bất biến CSS rào chắn chống tràn: `overflow: hidden`, `text-overflow: ellipsis`, `max-width: 100%`, `white-space: nowrap`. Tuyệt đối không cho phép chữ tràn ra ngoài viền ô hoặc che khuất ô bên cạnh.
+   - Mã chuẩn đầy đủ luôn sẵn sàng ở tooltip (`title`) khi di chuột hoặc xem chi tiết.
+
 ---
 
 ## 4. QUY CHUẨN ĐỊNH DANH ẢNH HIỆN TRƯỜNG (PHOTO CODING MATRIX)

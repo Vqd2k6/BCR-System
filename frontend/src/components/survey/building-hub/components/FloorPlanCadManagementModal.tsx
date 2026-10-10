@@ -50,6 +50,7 @@ export const detectDefaultFloorScope = (
 };
 
 export const STANDARD_FLOOR_CODE_OPTIONS = [
+  { code: 'TYPICAL', label: 'Tầng nổi tiêu chuẩn (F01..F99)', defaultScope: 'BOTH' as FloorScope, defaultArea: 'TYPICAL_UNIT' },
   { code: 'G', label: 'Trệt / Sảnh (G)', defaultScope: 'BOTH' as FloorScope, defaultArea: 'GROUND_LOBBY' },
   { code: 'MEZZ', label: 'Tầng Lửng Trệt (MEZZ)', defaultScope: 'BOTH' as FloorScope, defaultArea: 'MEZZANINE' },
   { code: 'B01', label: 'Tầng Hầm 1 (B01)', defaultScope: 'MASTER' as FloorScope, defaultArea: 'BASEMENT' },
@@ -827,10 +828,22 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
                 </div>
                 <div className="flex items-center justify-between gap-1">
                   <select
-                    value={STANDARD_FLOOR_CODE_OPTIONS.some((o) => o.code === newFloorCodeInput) ? newFloorCodeInput : ''}
+                    value={
+                      STANDARD_FLOOR_CODE_OPTIONS.some((o) => o.code === newFloorCodeInput)
+                        ? newFloorCodeInput
+                        : /^F\d+$/i.test(newFloorCodeInput)
+                        ? 'TYPICAL'
+                        : ''
+                    }
                     onChange={(e) => {
                       if (e.target.value) {
-                        setNewFloorCodeInput(e.target.value);
+                        if (e.target.value === 'TYPICAL') {
+                          const parsed = parseFloat(newFloorInput);
+                          const fl = !isNaN(parsed) && parsed > 0 ? parsed : 1;
+                          setNewFloorCodeInput(`F${String(fl).padStart(2, '0')}`);
+                        } else {
+                          setNewFloorCodeInput(e.target.value);
+                        }
                       }
                     }}
                     className="text-[11px] bg-white border border-slate-300 rounded px-1.5 py-0.5 text-slate-600 cursor-pointer max-w-[125px]"
@@ -999,13 +1012,25 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
                       title="Mã tầng quy ước chuẩn (VD: MEZZ, B01, G, F08, TECH, ROOF)"
                     />
                     <select
-                      value={STANDARD_FLOOR_CODE_OPTIONS.some((o) => o.code === floorCode) ? floorCode : ''}
+                      value={
+                        STANDARD_FLOOR_CODE_OPTIONS.some((o) => o.code === floorCode)
+                          ? floorCode
+                          : /^F\d+$/i.test(floorCode)
+                          ? 'TYPICAL'
+                          : ''
+                      }
                       onChange={(e) => {
                         if (e.target.value) {
-                          setFloorCode(e.target.value);
-                          const opt = STANDARD_FLOOR_CODE_OPTIONS.find((o) => o.code === e.target.value);
-                          if (opt) {
-                            setFloorScope(opt.defaultScope);
+                          if (e.target.value === 'TYPICAL') {
+                            const fl = activeFloor > 0 ? activeFloor : 1;
+                            setFloorCode(`F${String(fl).padStart(2, '0')}`);
+                            setFloorScope('BOTH');
+                          } else {
+                            setFloorCode(e.target.value);
+                            const opt = STANDARD_FLOOR_CODE_OPTIONS.find((o) => o.code === e.target.value);
+                            if (opt) {
+                              setFloorScope(opt.defaultScope);
+                            }
                           }
                           setIsFloorDirty(true);
                         }
@@ -1146,6 +1171,8 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
               <CadBlueprintUploader
                 floorNumber={activeFloor}
                 floorName={floorName}
+                floorCode={floorCode}
+                buildingCode={projectCode}
                 onUploadSuccess={(url) => {
                   setCadUrl(url);
                   setIsFloorDirty(true);

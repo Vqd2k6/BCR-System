@@ -30,6 +30,9 @@ interface FloorOption {
 interface CadBlueprintUploaderProps {
   floorNumber: number;
   floorName?: string;
+  floorCode?: string;
+  buildingCode?: string;
+  parcelCode?: string;
   onUploadSuccess: (url: string) => void;
   onCopyFromOtherFloor?: (sourceFloor: FloorOption) => void;
   otherFloorsWithCad?: FloorOption[];
@@ -39,6 +42,9 @@ interface CadBlueprintUploaderProps {
 export const CadBlueprintUploader: React.FC<CadBlueprintUploaderProps> = ({
   floorNumber,
   floorName,
+  floorCode,
+  buildingCode,
+  parcelCode,
   onUploadSuccess,
   onCopyFromOtherFloor,
   otherFloorsWithCad = [],
@@ -59,10 +65,34 @@ export const CadBlueprintUploader: React.FC<CadBlueprintUploaderProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Xử lý upload Blob hoặc File ảnh lên Storage
-  const uploadImageBlob = async (blob: Blob, filename: string): Promise<string> => {
+  const uploadImageBlob = async (blob: Blob, _originalFilename: string): Promise<string> => {
+    const bCode = (buildingCode || parcelCode || 'GENERAL').replace(/[^a-zA-Z0-9_-]/g, '').toUpperCase();
+    const fCode = (
+      floorCode ||
+      (floorNumber < 0
+        ? `B${String(Math.abs(floorNumber)).padStart(2, '0')}`
+        : floorNumber === 0
+        ? 'G'
+        : `F${String(floorNumber).padStart(2, '0')}`)
+    ).replace(/[^a-zA-Z0-9_-]/g, '').toUpperCase();
+
+    const targetFolder = `projects/METRO2_HCM/buildings/${bCode}/cad-blueprints/floors/${fCode}/original`;
+    const targetFilename = `M2__${bCode}__${fCode}__CAD_BLUEPRINT__${Date.now()}.jpg`;
+
     const formData = new FormData();
-    formData.append('file', blob, filename);
-    formData.append('folder', 'cad_blueprints');
+    formData.append('file', blob, targetFilename);
+    formData.append('folder', targetFolder);
+    formData.append(
+      'metadata',
+      JSON.stringify({
+        'building-code': bCode,
+        'floor-code': fCode,
+        'area-type': 'CAD_BLUEPRINT',
+        'photo-type': 'CAD_FLOOR',
+        project: 'METRO2_HCM',
+        'uploaded-at': new Date().toISOString(),
+      })
+    );
 
     try {
       const res = await api.post('/storage/upload', formData, {

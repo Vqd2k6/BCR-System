@@ -73,7 +73,18 @@ export class Database {
    * Từng khối lệnh được cô lập trong try/catch độc lập để lỗi ở một bảng không làm gián đoạn bảng khác.
    */
   static async runStartupMigrations(): Promise<void> {
-    // 0. PostgreSQL unaccent extension (Hỗ trợ tìm kiếm tiếng Việt không dấu)
+    // Sử dụng PostgreSQL Advisory Lock để loại trừ hoàn toàn Deadlock (40P01) khi khởi động đa tiến trình hoặc nodemon reload
+    const advisoryLockId = 987654321;
+    let lockAcquired = false;
+    try {
+      const lockRes = await this.query<{ locked: boolean }>(`SELECT pg_try_advisory_lock($1) AS locked;`, [advisoryLockId]);
+      lockAcquired = Boolean(lockRes.rows[0]?.locked);
+      if (!lockAcquired) {
+        console.log('ℹ️ [STARTUP MIGRATION] Tiến trình khác đang thực hiện migration, bỏ qua để tránh deadlock.');
+        return;
+      }
+
+      // 0. PostgreSQL unaccent extension (Hỗ trợ tìm kiếm tiếng Việt không dấu)
     try {
       await this.query(`CREATE EXTENSION IF NOT EXISTS unaccent;`);
       console.log('✅ [STARTUP MIGRATION] PostgreSQL unaccent extension ready.');
@@ -293,6 +304,15 @@ export class Database {
       console.log('✅ [STARTUP MIGRATION] role_enum GUEST ready.');
     } catch (e) {
       console.warn('⚠️ [STARTUP MIGRATION] role_enum GUEST warning:', e);
+    }
+    } finally {
+      if (lockAcquired) {
+        try {
+          await this.query(`SELECT pg_advisory_unlock($1);`, [advisoryLockId]);
+        } catch (unlockErr) {
+          console.warn('⚠️ [STARTUP MIGRATION] Không thể giải phóng advisory lock:', unlockErr);
+        }
+      }
     }
   }
 }

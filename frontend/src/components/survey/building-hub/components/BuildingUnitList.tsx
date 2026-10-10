@@ -1,14 +1,21 @@
+import React from 'react';
 import {
-  Home,
-  Plus,
   Search,
   X,
   RefreshCw,
   Building2,
   Layers,
+  Filter,
+  CheckCircle2,
+  Clock,
+  Sparkles,
+  MapPin,
 } from 'lucide-react';
 import type { GisParcel } from '../../../gis/LeafletSweepMap';
 import type { BuildingUnit } from '../types';
+import type { FloorGroupData } from '../hooks/useBuildingHubState';
+import { FloorCadSurveySection } from './FloorCadSurveySection';
+import { UnitInspectionDrawer } from './UnitInspectionDrawer';
 import { BuildingUnitCard } from './BuildingUnitCard';
 
 interface BuildingUnitListProps {
@@ -24,6 +31,17 @@ interface BuildingUnitListProps {
   availableFloors: number[];
   selectedStatus: string;
   onSelectedStatusChange: (status: string) => void;
+  floorsData?: FloorGroupData[];
+  allFloorsData?: FloorGroupData[];
+  inspectedUnit?: BuildingUnit | null;
+  onSelectInspectedUnit?: (unit: BuildingUnit | null) => void;
+  isAdmin?: boolean;
+  isMasterSurveyDone: boolean;
+  onClose: () => void;
+  onStartUnitSurvey: (parcel: GisParcel, unit: BuildingUnit, phase?: 1 | 2) => void;
+  onStartMasterAreaSurvey?: (parcel: GisParcel, unit: BuildingUnit) => void;
+  onOpenCadManagement?: () => void;
+  // Legacy props kept for backward compatibility
   showAddModal?: boolean;
   onToggleAddModal?: (show: boolean) => void;
   newUnitCode?: string;
@@ -32,19 +50,14 @@ interface BuildingUnitListProps {
   setNewFloorNumber?: (floor: number | '') => void;
   isSubmittingUnit?: boolean;
   onAddUnitSubmit?: (e: React.FormEvent) => void;
-  displayedUnits: BuildingUnit[];
-  filteredUnits: BuildingUnit[];
-  visibleCount: number;
-  onLoadMore: () => void;
-  isMasterSurveyDone: boolean;
-  onClose: () => void;
-  onStartUnitSurvey: (parcel: GisParcel, unit: BuildingUnit, phase?: 1 | 2) => void;
-  onStartMasterAreaSurvey?: (parcel: GisParcel, unit: BuildingUnit) => void;
-  onOpenCadManagement?: () => void;
-  activeHubTab: 'UNIT' | 'MASTER';
-  onTabChange: (tab: 'UNIT' | 'MASTER') => void;
-  unitItemsCount: number;
-  masterItemsCount: number;
+  displayedUnits?: BuildingUnit[];
+  filteredUnits?: BuildingUnit[];
+  visibleCount?: number;
+  onLoadMore?: () => void;
+  activeHubTab?: 'UNIT' | 'MASTER';
+  onTabChange?: (tab: 'UNIT' | 'MASTER') => void;
+  unitItemsCount?: number;
+  masterItemsCount?: number;
 }
 
 export const BuildingUnitList: React.FC<BuildingUnitListProps> = ({
@@ -60,191 +73,161 @@ export const BuildingUnitList: React.FC<BuildingUnitListProps> = ({
   availableFloors,
   selectedStatus,
   onSelectedStatusChange,
-  showAddModal,
-  onToggleAddModal,
-  newUnitCode,
-  setNewUnitCode,
-  newFloorNumber,
-  setNewFloorNumber,
-  isSubmittingUnit,
-  onAddUnitSubmit,
-  displayedUnits,
-  filteredUnits,
-  visibleCount,
-  onLoadMore,
+  floorsData = [],
+  allFloorsData = [],
+  inspectedUnit = null,
+  onSelectInspectedUnit,
+  isAdmin = false,
   isMasterSurveyDone,
   onClose,
   onStartUnitSurvey,
   onStartMasterAreaSurvey,
   onOpenCadManagement,
-  activeHubTab,
-  onTabChange,
-  unitItemsCount,
-  masterItemsCount,
 }) => {
-  const isMasterTab = activeHubTab === 'MASTER';
+  const [internalSelectedUnit, setInternalSelectedUnit] = React.useState<BuildingUnit | null>(null);
+
+  const activeUnit = inspectedUnit !== undefined ? inspectedUnit : internalSelectedUnit;
+  const handleSelectUnit = (unit: BuildingUnit | null) => {
+    if (onSelectInspectedUnit) {
+      onSelectInspectedUnit(unit);
+    } else {
+      setInternalSelectedUnit(unit);
+    }
+  };
+
+  const totalPositions = units.length;
+  const totalFloorsCount = allFloorsData.length > 0 ? allFloorsData.length : availableFloors.length;
 
   return (
-    <section className="flex flex-col gap-3">
-      {/* 2 Main Icon Tabs (Căn Hộ Con vs Khu Vực Dùng Chung) */}
-      <div className="flex items-center gap-2 border-b border-slate-200 pb-2">
-        <button
-          type="button"
-          onClick={() => onTabChange('UNIT')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-xs sm:text-sm transition-all cursor-pointer ${
-            !isMasterTab
-              ? 'bg-teal-600 text-white shadow-xs'
-              : 'bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 border border-slate-200'
-          }`}
-        >
-          <Home className="w-4 h-4" />
-          <span>Căn Hộ Con ({unitItemsCount})</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => onTabChange('MASTER')}
-          className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-xs sm:text-sm transition-all cursor-pointer ${
-            isMasterTab
-              ? 'bg-indigo-600 text-white shadow-xs'
-              : 'bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 border border-slate-200'
-          }`}
-        >
-          <Building2 className="w-4 h-4" />
-          <span>Khu Vực Dùng Chung Master ({masterItemsCount})</span>
-        </button>
-      </div>
-
-      {/* Header Info */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <h3 className="text-sm sm:text-base font-extrabold text-slate-900 flex items-center gap-2">
-            {isMasterTab ? (
-              <>
-                <Building2 size={18} className="text-indigo-600" />
-                <span>Danh Sách Khu Vực Dùng Chung ({masterItemsCount} vị trí)</span>
-              </>
-            ) : (
-              <>
-                <Home size={18} className="text-teal-600" />
-                <span>Danh Sách Căn Hộ Con ({unitItemsCount} căn)</span>
-              </>
-            )}
-          </h3>
-          <p className="text-xs text-slate-500 mt-0.5">
-            {isMasterTab
-              ? 'Các khu vực dùng chung (Hầm, Sảnh, Mái, Kỹ thuật) được phân chia trên bản vẽ CAD và khảo sát độc lập.'
-              : 'Căn hộ con được phân chia theo bản vẽ CAD mặt bằng tầng và khảo sát độc lập.'}
-          </p>
-        </div>
-      </div>
-
-      {/* Search & Dynamic Filter Bar (Only show when building has units) */}
-      {units.length > 0 && (
-        <div className="bg-white p-2.5 sm:p-3 rounded-xl border border-slate-200 flex items-center gap-2.5 shadow-sm">
-          {/* Search Input */}
-          <div
-            className={`relative transition-all duration-300 ease-in-out ${
-              isSearchFocused || searchTerm ? 'flex-1' : 'w-48 sm:w-64'
-            }`}
-          >
-            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+    <section className="flex flex-col gap-4 relative pb-16">
+      {/* 1. Thanh Công Cụ Lọc Nhanh & Nhảy Tầng (Sticky Filter & Floor Jump Bar) */}
+      <div className="bg-white rounded-2xl border border-slate-200/90 p-3 sm:p-4 shadow-xs flex flex-col gap-3">
+        {/* Hàng 1: Tìm kiếm & Lọc trạng thái & Nút Mở CAD */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
+          {/* Ô Tìm Kiếm */}
+          <div className="relative flex-1">
+            <Search
+              size={16}
+              className={`absolute left-3 top-1/2 -translate-y-1/2 transition-colors ${
+                isSearchFocused ? 'text-teal-600' : 'text-slate-400'
+              }`}
+            />
             <input
               type="text"
-              placeholder="Tìm phòng (P.101) hoặc chủ hộ..."
               value={searchTerm}
-              onFocus={() => setIsSearchFocused(true)}
-              onBlur={() => {
-                if (!searchTerm) setIsSearchFocused(false);
-              }}
               onChange={(e) => onSearchChange(e.target.value)}
-              className="w-full pl-9 pr-8 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 transition-all"
+              onFocus={() => setIsSearchFocused(true)}
+              onBlur={() => setIsSearchFocused(false)}
+              placeholder="Tìm mã căn (VD: 01, 801) hoặc tên chủ hộ..."
+              className="w-full pl-9 pr-8 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-all"
             />
             {searchTerm && (
               <button
                 type="button"
-                onClick={() => {
-                  onSearchChange('');
-                  setIsSearchFocused(false);
-                }}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
+                onClick={() => onSearchChange('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 rounded-md"
               >
-                <X size={13} />
+                <X size={14} />
               </button>
             )}
           </div>
 
-          {/* Filters (Hidden when search is focused) */}
-          {!(isSearchFocused || searchTerm) && (
-            <div className="flex items-center gap-2 animate-in fade-in duration-200">
-              {/* Floor Filter */}
-              <div className="flex items-center gap-1.5">
-                <select
-                  value={selectedFloor}
-                  onChange={(e) => onSelectedFloorChange(e.target.value === 'ALL' ? 'ALL' : parseInt(e.target.value, 10))}
-                  className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500"
-                >
-                  <option value="ALL">Tất cả tầng ({units.length})</option>
-                  {availableFloors.map((fl) => (
-                    <option key={fl} value={fl}>
-                      Lầu {fl}
-                    </option>
-                  ))}
-                </select>
-              </div>
+          {/* Lọc Trạng Thái */}
+          <div className="flex items-center gap-2">
+            <select
+              value={selectedStatus}
+              onChange={(e) => onSelectedStatusChange(e.target.value)}
+              className="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 cursor-pointer"
+            >
+              <option value="ALL">Tất cả trạng thái</option>
+              <option value="APPROVED">Đã duyệt Phase 1</option>
+              <option value="SUBMITTED">Đã nộp (Chờ duyệt)</option>
+              <option value="IN_PROGRESS">Đang làm dở</option>
+              <option value="ABSENT">Vắng mặt (Hoãn)</option>
+              <option value="NOT_SURVEYED">Chưa khảo sát</option>
+            </select>
 
-              {/* Status Filter */}
-              <div className="flex items-center gap-1.5">
-                <select
-                  value={selectedStatus}
-                  onChange={(e) => onSelectedStatusChange(e.target.value)}
-                  className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500"
-                >
-                  <option value="ALL">Tất cả trạng thái</option>
-                  <option value="APPROVED">Đã duyệt P1</option>
-                  <option value="SUBMITTED">Chờ duyệt P1</option>
-                  <option value="IN_PROGRESS">Đang làm P1</option>
-                  <option value="ABSENT">Chủ hộ vắng mặt</option>
-                  <option value="NOT_SURVEYED">Chưa khảo sát</option>
-                </select>
-              </div>
-            </div>
-          )}
+            {onOpenCadManagement && (
+              <button
+                type="button"
+                onClick={onOpenCadManagement}
+                className="px-3.5 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs shrink-0"
+                title="Mở Quản lý / Nạp bản vẽ CAD các tầng"
+              >
+                <Layers size={14} />
+                <span className="hidden sm:inline">Quản Lý CAD</span>
+              </button>
+            )}
+          </div>
         </div>
-      )}
 
-      {/* Units Grid with Phase 1 vs Phase 2 Logic & 10-item pagination */}
+        {/* Hàng 2: Dải Nút Nhảy Tầng Nhanh (Floor Jump Pills) */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 pt-1 no-scrollbar text-xs">
+          <span className="text-slate-400 font-bold text-[11px] shrink-0 mr-1 flex items-center gap-1">
+            <MapPin size={12} />
+            <span>Chọn tầng:</span>
+          </span>
+
+          <button
+            type="button"
+            onClick={() => onSelectedFloorChange('ALL')}
+            className={`px-3 py-1.5 rounded-xl font-bold text-xs shrink-0 transition-all cursor-pointer ${
+              selectedFloor === 'ALL'
+                ? 'bg-slate-900 text-white shadow-xs'
+                : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
+            }`}
+          >
+            Tất Cả ({totalFloorsCount} tầng)
+          </button>
+
+          {(allFloorsData.length > 0 ? allFloorsData : availableFloors.map((f) => ({ floorNumber: f, floorLabel: `Tầng ${f}`, totalUnits: 0 }))).map((fl) => {
+            const isSelected = selectedFloor === fl.floorNumber;
+            return (
+              <button
+                key={fl.floorNumber}
+                type="button"
+                onClick={() => onSelectedFloorChange(fl.floorNumber)}
+                className={`px-3 py-1.5 rounded-xl font-bold text-xs shrink-0 flex items-center gap-1.5 transition-all cursor-pointer ${
+                  isSelected
+                    ? 'bg-teal-600 text-white shadow-xs ring-2 ring-teal-300'
+                    : 'bg-slate-100 hover:bg-teal-50 text-slate-700 hover:text-teal-700 border border-slate-200'
+                }`}
+              >
+                <span>{fl.floorLabel}</span>
+                {fl.totalUnits > 0 && (
+                  <span
+                    className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
+                      isSelected ? 'bg-teal-800 text-white' : 'bg-slate-200 text-slate-600'
+                    }`}
+                  >
+                    {fl.totalUnits}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 2. Danh Sách Tầng Cuộn Lần Lượt (Floor-by-Floor Feed) */}
       {loading ? (
-        <div className="py-16 text-center text-xs text-slate-500 flex flex-col items-center justify-center gap-2 bg-white rounded-xl border border-slate-200">
-          <RefreshCw size={20} className="text-sky-600 animate-spin" />
-          <span>Đang tải danh sách căn hộ...</span>
+        <div className="py-20 text-center text-xs text-slate-500 flex flex-col items-center justify-center gap-2.5 bg-white rounded-2xl border border-slate-200 shadow-2xs">
+          <RefreshCw size={24} className="text-teal-600 animate-spin" />
+          <span className="font-semibold">Đang nạp sơ đồ CAD và dữ liệu các tầng...</span>
         </div>
-      ) : units.length === 0 ? (
-        <div className="py-14 sm:py-16 px-4 text-center bg-white rounded-2xl border-2 border-dashed border-teal-200/80 flex flex-col items-center justify-center gap-3.5 shadow-2xs">
-          <div className="w-16 h-16 rounded-2xl bg-teal-50 border border-teal-200 flex items-center justify-center text-teal-600 shadow-inner">
-            <Building2 size={32} />
+      ) : floorsData.length === 0 ? (
+        <div className="py-14 sm:py-16 px-4 text-center bg-white rounded-2xl border-2 border-dashed border-slate-300 flex flex-col items-center justify-center gap-3">
+          <div className="w-14 h-14 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-center text-slate-400">
+            <Building2 size={28} />
           </div>
           <div className="max-w-md">
-            <h4 className="text-sm sm:text-base font-extrabold text-slate-800">
-              Tòa nhà chưa có căn hộ con nào
+            <h4 className="text-sm font-extrabold text-slate-800">
+              Không tìm thấy vị trí nào phù hợp
             </h4>
-            <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-              Các căn hộ con cần được phân chia trực tiếp từ bản vẽ mặt bằng CAD tầng. Quản trị viên vui lòng mở Studio Quản Lý CAD để nạp bản vẽ và chia cắt các ô căn hộ con.
+            <p className="text-xs text-slate-500 mt-1">
+              Thử tìm kiếm với từ khóa khác hoặc đặt lại bộ lọc tầng/trạng thái.
             </p>
           </div>
-          {onOpenCadManagement && (
-            <button
-              type="button"
-              onClick={onOpenCadManagement}
-              className="mt-1.5 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold shadow-md shadow-teal-600/25 transition-all cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
-            >
-              <Layers size={16} />
-              <span>📐 Mở Quản Lý Bản Vẽ CAD Tầng</span>
-            </button>
-          )}
-        </div>
-      ) : filteredUnits.length === 0 ? (
-        <div className="py-12 px-4 text-center bg-white rounded-xl border border-dashed border-slate-300 flex flex-col items-center justify-center gap-2 text-xs text-slate-500">
-          <span>Không tìm thấy căn hộ nào phù hợp với bộ lọc tìm kiếm.</span>
           <button
             type="button"
             onClick={() => {
@@ -252,43 +235,41 @@ export const BuildingUnitList: React.FC<BuildingUnitListProps> = ({
               onSelectedFloorChange('ALL');
               onSelectedStatusChange('ALL');
             }}
-            className="text-sky-600 font-bold hover:underline cursor-pointer"
+            className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs cursor-pointer"
           >
-            Đặt lại bộ lọc tìm kiếm
+            Đặt lại bộ lọc
           </button>
         </div>
       ) : (
-        <div className="flex flex-col gap-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3.5">
-            {displayedUnits.map((unit) => (
-              <BuildingUnitCard
-                key={unit.id}
-                unit={unit}
-                parcel={parcel}
-                isMasterSurveyDone={isMasterSurveyDone}
-                onClose={onClose}
-                onStartUnitSurvey={onStartUnitSurvey}
-                onStartMasterAreaSurvey={onStartMasterAreaSurvey}
-              />
-            ))}
-          </div>
+        <div className="flex flex-col gap-5">
+          {floorsData.map((floor) => (
+            <FloorCadSurveySection
+              key={floor.floorNumber}
+              floor={floor}
+              parcel={parcel}
+              selectedUnitId={activeUnit?.id}
+              onSelectUnit={(unit) => handleSelectUnit(unit)}
+              isAdmin={isAdmin}
+              onOpenCadManagement={onOpenCadManagement}
+              onStartUnitSurvey={onStartUnitSurvey}
+              onStartMasterAreaSurvey={onStartMasterAreaSurvey}
+            />
+          ))}
+        </div>
+      )}
 
-          {/* Load More Pagination (10 per batch) */}
-          {filteredUnits.length > visibleCount && (
-            <div className="pt-2 flex flex-col items-center justify-center gap-1.5">
-              <button
-                type="button"
-                onClick={onLoadMore}
-                className="inline-flex items-center gap-2 px-5 py-2 rounded-xl bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs font-bold shadow-2xs transition-all hover:border-sky-400 hover:text-sky-700 cursor-pointer"
-              >
-                <RefreshCw size={14} className="text-sky-600" />
-                <span>Xem thêm (+{Math.min(10, filteredUnits.length - visibleCount)} căn hộ)</span>
-              </button>
-              <span className="text-[11px] text-slate-400">
-                Đang hiển thị {Math.min(visibleCount, filteredUnits.length)} / {filteredUnits.length} căn hộ
-              </span>
-            </div>
-          )}
+      {/* 3. Ngăn Kéo / Thẻ Nổi Xem Thông Tin Ô & Bắt Đầu Khảo Sát (Sticky Inspection Drawer) */}
+      {activeUnit && (
+        <div className="sticky bottom-3 z-50 w-full max-w-3xl mx-auto">
+          <UnitInspectionDrawer
+            unit={activeUnit}
+            parcel={parcel}
+            floorLabel={`Tầng ${activeUnit.floor_number ?? 1}`}
+            isMasterSurveyDone={isMasterSurveyDone}
+            onClose={() => handleSelectUnit(null)}
+            onStartUnitSurvey={onStartUnitSurvey}
+            onStartMasterAreaSurvey={onStartMasterAreaSurvey}
+          />
         </div>
       )}
     </section>

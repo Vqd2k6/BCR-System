@@ -14,6 +14,7 @@ import {
 import { useInteractiveCanvasZoom } from './useInteractiveCanvasZoom';
 import { CanvasZoomToolbar } from './CanvasZoomToolbar';
 import { getSafeDisplayUrl, resolveOfflinePhotoUrl } from '../../core/storage/offlinePhotoStorage';
+import { formatShortUnitDisplay } from '../../core/utils/codeFormattingUtils';
 
 export interface UnitPartitionBox {
   id: string;
@@ -521,7 +522,7 @@ export const FloorPlanCadPartitionCanvas: React.FC<Props> = ({
                       width: `${box.width}%`,
                       height: `${box.height}%`,
                     }}
-                    className={`absolute rounded-md border-2 cursor-pointer flex flex-col justify-between p-1 select-none ${
+                    className={`absolute rounded-md border-2 cursor-pointer flex flex-col justify-between p-1 select-none overflow-hidden ${
                       isDuplicate
                         ? 'border-rose-500 bg-rose-500/25 ring-2 ring-rose-400/60 z-25'
                         : isSelected
@@ -532,10 +533,11 @@ export const FloorPlanCadPartitionCanvas: React.FC<Props> = ({
                     }`}
                   >
                     {/* Badge số căn mm.nn hoặc vị trí master */}
-                    <div className="flex items-center justify-between gap-1">
+                    <div className="flex items-center justify-between gap-1 max-w-full overflow-hidden">
                       <span
                         style={{ transform: `scale(${pinCounterScale})`, transformOrigin: 'top left' }}
-                        className={`px-1.5 py-0.5 rounded font-mono font-bold text-[10px] sm:text-xs shadow-sm flex items-center gap-1 ${
+                        title={box.unitCode ? `Mã vị trí ngầm: ${box.unitCode}` : 'Chưa đặt mã'}
+                        className={`px-1.5 py-0.5 rounded font-mono font-bold text-[10px] sm:text-xs shadow-sm flex items-center gap-1 max-w-full truncate ${
                           isDuplicate
                             ? 'bg-rose-600 text-white border border-rose-700'
                             : isMaster
@@ -543,14 +545,14 @@ export const FloorPlanCadPartitionCanvas: React.FC<Props> = ({
                             : 'bg-white/95 text-slate-900 border border-teal-600 backdrop-blur-xs'
                         }`}
                       >
-                        {isMaster ? <Building2 className="w-2.5 h-2.5 inline" /> : <Home className="w-2.5 h-2.5 inline" />}
-                        {box.unitCode || 'Chưa đặt mã'}
+                        {isMaster ? <Building2 className="w-2.5 h-2.5 inline shrink-0" /> : <Home className="w-2.5 h-2.5 inline shrink-0" />}
+                        <span className="truncate">{formatShortUnitDisplay(box.unitCode) || 'Chưa đặt mã'}</span>
                       </span>
                       {!readOnly && isSelected && (
                         <button
                           type="button"
                           onClick={(e) => handleDeleteBox(box.id, e)}
-                          className="p-1 rounded bg-rose-600 hover:bg-rose-500 text-white shadow-xs transition-transform hover:scale-110 cursor-pointer"
+                          className="p-1 rounded bg-rose-600 hover:bg-rose-500 text-white shadow-xs transition-transform hover:scale-110 cursor-pointer shrink-0"
                           title="Xóa ô này"
                         >
                           <Trash2 className="w-3 h-3" />
@@ -584,18 +586,18 @@ export const FloorPlanCadPartitionCanvas: React.FC<Props> = ({
                   width: `${Math.abs(currentDrag.x - dragStart.x)}%`,
                   height: `${Math.abs(currentDrag.y - dragStart.y)}%`,
                 }}
-                className={`absolute border-2 border-dashed rounded-md pointer-events-none z-30 ${
+                className={`absolute border-2 border-dashed rounded-md pointer-events-none z-30 overflow-hidden ${
                   activeTool === 'DRAW_MASTER'
                     ? 'border-indigo-600 bg-indigo-500/20'
                     : 'border-teal-500 bg-teal-500/20'
                 }`}
               >
-                <div className="p-1">
-                  <span className={`px-1.5 py-0.5 rounded font-mono text-[10px] font-bold text-white shadow-xs flex items-center gap-1 w-fit ${
+                <div className="p-1 max-w-full overflow-hidden">
+                  <span className={`px-1.5 py-0.5 rounded font-mono text-[10px] font-bold text-white shadow-xs flex items-center gap-1 w-fit max-w-full truncate ${
                     activeTool === 'DRAW_MASTER' ? 'bg-indigo-600' : 'bg-teal-600'
                   }`}>
-                    {activeTool === 'DRAW_MASTER' ? <Building2 className="w-2.5 h-2.5 inline" /> : <Home className="w-2.5 h-2.5 inline" />}
-                    {activeTool === 'DRAW_MASTER' ? getNextMasterCode() : getNextUnitCode()}
+                    {activeTool === 'DRAW_MASTER' ? <Building2 className="w-2.5 h-2.5 inline shrink-0" /> : <Home className="w-2.5 h-2.5 inline shrink-0" />}
+                    <span className="truncate">{formatShortUnitDisplay(activeTool === 'DRAW_MASTER' ? getNextMasterCode() : getNextUnitCode())}</span>
                   </span>
                 </div>
               </div>

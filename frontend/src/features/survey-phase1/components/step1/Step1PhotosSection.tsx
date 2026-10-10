@@ -12,6 +12,7 @@ interface Step1PhotosSectionProps {
   formData: Phase1SurveyFormData;
   updateFormData: (updates: Partial<Phase1SurveyFormData>) => void;
   onOpenPolygonModal: () => void;
+  isCondoMaster?: boolean;
   readOnly?: boolean;
 }
 
@@ -19,10 +20,14 @@ export const Step1PhotosSection: React.FC<Step1PhotosSectionProps> = ({
   formData,
   updateFormData,
   onOpenPolygonModal,
+  isCondoMaster,
   readOnly: propReadOnly,
 }) => {
   const storeReadOnly = usePhase1SurveyStore((s) => s.isReadOnly);
   const isReadOnly = propReadOnly ?? storeReadOnly;
+  const areaType = isCondoMaster ? 'GENERAL_TOWER' : 'PRIVATE_HOUSE';
+  const category = 'exterior';
+  const buildingCode = isCondoMaster ? formData.projectParcelCode : undefined;
   return (
     <Card className="border-slate-200 bg-white shadow-xs">
       <div className="flex items-center justify-between gap-2 mb-4 pb-2 border-b border-slate-100">
@@ -68,6 +73,9 @@ export const Step1PhotosSection: React.FC<Step1PhotosSectionProps> = ({
               orientationHint="Khuyến nghị: Chụp ảnh NGANG (4:3) để lấy trọn vẹn biển số"
               watermarkOptions={{
                 parcelCode: formData.projectParcelCode,
+                buildingCode,
+                areaType,
+                category,
                 floor: 'EXT',
                 photoType: 'P01',
                 photoIndex: 1,
@@ -113,6 +121,9 @@ export const Step1PhotosSection: React.FC<Step1PhotosSectionProps> = ({
                 orientationHint="Khuyến nghị: Chụp ảnh DỌC (3:4 / 9:16) để bao quát toàn bộ chiều cao công trình từ vỉa hè lên mái"
                 watermarkOptions={{
                   parcelCode: formData.projectParcelCode,
+                  buildingCode,
+                  areaType,
+                  category,
                   floor: 'EXT',
                   photoType: 'P02',
                   photoIndex: 1,
@@ -212,6 +223,9 @@ export const Step1PhotosSection: React.FC<Step1PhotosSectionProps> = ({
                   orientationHint="Khuyến nghị: Chụp ảnh DỌC (3:4) để lấy chiều cao khối hông"
                   watermarkOptions={{
                     parcelCode: formData.projectParcelCode,
+                    buildingCode,
+                    areaType,
+                    category,
                     floor: 'EXT',
                     photoType: 'P03',
                     zoneOrRoom: formData.photoP03.tag || 'MAT-BEN',
@@ -274,6 +288,9 @@ export const Step1PhotosSection: React.FC<Step1PhotosSectionProps> = ({
                     orientationHint="Khuyến nghị: Chụp ảnh DỌC (3:4) để lấy chiều cao khối hông"
                     watermarkOptions={{
                       parcelCode: formData.projectParcelCode,
+                      buildingCode,
+                      areaType,
+                      category,
                       floor: 'EXT',
                       photoType: 'P03',
                       zoneOrRoom: extraPhoto.tag || 'MAT-BEN',
@@ -345,6 +362,9 @@ export const Step1PhotosSection: React.FC<Step1PhotosSectionProps> = ({
                 initialAnnotationTool="ARROW"
                 watermarkOptions={{
                   parcelCode: formData.projectParcelCode,
+                  buildingCode,
+                  areaType,
+                  category,
                   floor: 'EXT',
                   photoType: 'P04',
                   photoIndex: 1,
