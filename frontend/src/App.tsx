@@ -914,6 +914,7 @@ export const App: React.FC = () => {
             }}
             onNavigateToCheckIn={() => handleChangeTab('attendance')}
             onStartPhase1={handleStartPhase1}
+            onStartCondoMaster={handleStartCondoMaster}
             onStartUnitSurvey={handleStartUnitSurvey}
             onStartPhase2={handleStartPhase2}
             onRecordAbsence={handleRecordAbsence}
@@ -989,6 +990,7 @@ export const App: React.FC = () => {
               onFinished={() => {
                 navigateBackFromSurvey();
                 loadParcels();
+                setHubParcel(selectedParcelForSurvey);
               }}
             />
           ) : (
@@ -1030,9 +1032,9 @@ export const App: React.FC = () => {
         <BuildingHubModal
           parcel={hubParcel}
           onClose={() => setHubParcel(null)}
-          onStartMasterSurvey={(p) => {
+          onStartMasterSurvey={(p, readOnly) => {
             setHubParcel(null);
-            handleStartCondoMaster(p);
+            handleStartCondoMaster(p, readOnly);
           }}
           onStartUnitSurvey={(p, unit, phase) => {
             setHubParcel(null);

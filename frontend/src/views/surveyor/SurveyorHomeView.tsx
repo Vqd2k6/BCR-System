@@ -18,6 +18,7 @@ export interface SurveyorHomeViewProps {
   onNavigateToMap: (parcelToFocus?: GisParcel) => void;
   onNavigateToCheckIn: () => void;
   onStartPhase1: (parcel: GisParcel, readOnly?: boolean) => void;
+  onStartCondoMaster?: (parcel: GisParcel, readOnly?: boolean) => void;
   onStartUnitSurvey?: (parcel: GisParcel, unit: BuildingUnit, phase?: 1 | 2) => void;
   onStartPhase2: (parcel: GisParcel) => void;
   onRecordAbsence: (parcel: GisParcel) => void;
@@ -33,6 +34,7 @@ export const SurveyorHomeView: React.FC<SurveyorHomeViewProps> = ({
   onNavigateToMap: _onNavigateToMap,
   onNavigateToCheckIn,
   onStartPhase1,
+  onStartCondoMaster,
   onStartUnitSurvey,
   onStartPhase2,
   onRecordAbsence,
@@ -129,9 +131,13 @@ export const SurveyorHomeView: React.FC<SurveyorHomeViewProps> = ({
         <BuildingHubModal
           parcel={hubParcel}
           onClose={() => setHubParcel(null)}
-          onStartMasterSurvey={(p) => {
+          onStartMasterSurvey={(p, readOnly) => {
             setHubParcel(null);
-            onStartPhase1(p);
+            if (onStartCondoMaster) {
+              onStartCondoMaster(p, readOnly);
+            } else {
+              onStartPhase1(p, readOnly);
+            }
           }}
           onStartUnitSurvey={(p, unit, phase) => {
             setHubParcel(null);

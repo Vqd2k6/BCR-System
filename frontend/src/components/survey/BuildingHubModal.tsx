@@ -87,6 +87,7 @@ export const BuildingHubModal: React.FC<BuildingHubModalProps> = ({
       <BuildingHubHeader
         parcel={parcel}
         isHeaderVisible={isHeaderVisible}
+        isMasterSurveyDone={isMasterSurveyDone}
         onClose={onClose}
         onOpenMasterView={() => setShowMasterViewModal(true)}
         onOpenCadManagement={() => handleOpenCad()}

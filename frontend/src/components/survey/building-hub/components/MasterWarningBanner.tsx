@@ -1,12 +1,12 @@
 import React from 'react';
-import { AlertTriangle, Building2 } from 'lucide-react';
+import { AlertTriangle, Building2, Eye, ShieldCheck } from 'lucide-react';
 import type { GisParcel } from '../../../gis/LeafletSweepMap';
 
 interface MasterWarningBannerProps {
   parcel: GisParcel;
   isMasterSurveyDone: boolean;
   onClose: () => void;
-  onStartMasterSurvey: (parcel: GisParcel) => void;
+  onStartMasterSurvey: (parcel: GisParcel, readOnly?: boolean) => void;
 }
 
 export const MasterWarningBanner: React.FC<MasterWarningBannerProps> = ({
@@ -15,7 +15,41 @@ export const MasterWarningBanner: React.FC<MasterWarningBannerProps> = ({
   onClose,
   onStartMasterSurvey,
 }) => {
-  if (isMasterSurveyDone) return null;
+  if (isMasterSurveyDone) {
+    return (
+      <div className="bg-emerald-50/90 border-2 border-emerald-300 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm animate-in fade-in">
+        <div className="flex items-start gap-3.5">
+          <div className="w-11 h-11 rounded-xl bg-emerald-100 border border-emerald-300 text-emerald-800 flex items-center justify-center flex-shrink-0 mt-0.5 shadow-2xs">
+            <ShieldCheck size={22} className="text-emerald-600" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h4 className="text-sm sm:text-base font-extrabold text-emerald-950">
+                Đã Hoàn Thành Khảo Sát Khối Tháp Dùng Chung (Tòa Nhà Mẹ)
+              </h4>
+              <span className="bg-emerald-200/80 text-emerald-900 font-bold px-2 py-0.5 rounded text-[10px] border border-emerald-300 uppercase">
+                Đã Khảo Sát
+              </span>
+            </div>
+            <p className="text-xs text-emerald-800 mt-1 leading-relaxed max-w-2xl hidden sm:block">
+              Khối tháp dùng chung đã được ghi nhận đầy đủ hồ sơ kết cấu, cấp móng và bộ 4 ảnh mặt đứng P01–P04. Các căn hộ con sẽ tự động kế thừa thông số kỹ thuật nền tảng này khi xuất báo cáo.
+            </p>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            onClose();
+            onStartMasterSurvey(parcel, true);
+          }}
+          className="inline-flex items-center justify-center gap-2 min-h-[44px] px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs font-bold shadow-md shadow-emerald-600/20 transition-all shrink-0 cursor-pointer w-full sm:w-auto"
+        >
+          <Eye size={16} />
+          <span>Xem Lại Khảo Sát Toà Mẹ</span>
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-amber-50/90 border-2 border-amber-300 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm animate-in fade-in">
@@ -41,9 +75,9 @@ export const MasterWarningBanner: React.FC<MasterWarningBannerProps> = ({
         type="button"
         onClick={() => {
           onClose();
-          onStartMasterSurvey(parcel);
+          onStartMasterSurvey(parcel, false);
         }}
-        className="inline-flex items-center justify-center gap-2 min-h-[40px] px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 active:scale-95 text-white text-xs font-bold shadow-md shadow-amber-600/20 transition-all shrink-0 cursor-pointer w-full sm:w-auto"
+        className="inline-flex items-center justify-center gap-2 min-h-[44px] px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 active:scale-95 text-white text-xs font-bold shadow-md shadow-amber-600/20 transition-all shrink-0 cursor-pointer w-full sm:w-auto"
       >
         <Building2 size={16} />
         <span>Mở Khảo Sát Toà Mẹ</span>

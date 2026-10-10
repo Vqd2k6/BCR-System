@@ -436,13 +436,16 @@ export class SurveyBaseRepository {
     }
 
     let reportQuery = `SELECT id FROM base_survey_reports WHERE parcel_id = $1 AND phase = 'PHASE_1'`;
-    const reportParams: any[] = [resolvedParcelId];
+    const reportParams: unknown[] = [resolvedParcelId];
 
     if (options?.unitId) {
       reportParams.push(options.unitId);
       reportQuery += ` AND unit_id = $${reportParams.length}`;
-    } else if (options?.reportType === 'BUILDING_MASTER' || options?.unitId === null) {
-      reportQuery += ` AND (report_type = 'BUILDING_MASTER' OR unit_id IS NULL)`;
+    } else if (options?.reportType) {
+      reportParams.push(options.reportType);
+      reportQuery += ` AND report_type = $${reportParams.length}`;
+    } else if (options?.unitId === null) {
+      reportQuery += ` AND unit_id IS NULL`;
     }
 
     reportQuery += ` ORDER BY created_at DESC LIMIT 1;`;

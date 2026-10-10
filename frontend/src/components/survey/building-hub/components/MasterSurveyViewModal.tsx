@@ -22,7 +22,7 @@ interface MasterSurveyViewModalProps {
   updateNotes: string;
   setUpdateNotes: (notes: string) => void;
   onSendMasterUpdate: (e: React.FormEvent) => void;
-  onStartMasterSurvey: (parcel: GisParcel) => void;
+  onStartMasterSurvey: (parcel: GisParcel, readOnly?: boolean) => void;
   onParentClose: () => void;
   availableFloorsCount: number;
 }
@@ -99,9 +99,9 @@ export const MasterSurveyViewModal: React.FC<MasterSurveyViewModalProps> = ({
                 onClick={() => {
                   onClose();
                   onParentClose();
-                  onStartMasterSurvey(parcel);
+                  onStartMasterSurvey(parcel, false);
                 }}
-                className="mt-3 inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 active:scale-95 text-white text-xs font-bold shadow-md shadow-sky-600/20 transition-all cursor-pointer"
+                className="mt-3 inline-flex items-center gap-2 px-5 py-2.5 min-h-[44px] rounded-xl bg-sky-600 hover:bg-sky-700 active:scale-95 text-white text-xs font-bold shadow-md shadow-sky-600/20 transition-all cursor-pointer"
               >
                 <FileText size={16} />
                 <span>Mở Wizard Khảo Sát Chi Tiết Tòa Nhà</span>
@@ -162,9 +162,9 @@ export const MasterSurveyViewModal: React.FC<MasterSurveyViewModalProps> = ({
                     onClick={() => {
                       onClose();
                       onParentClose();
-                      onStartMasterSurvey(parcel);
+                      onStartMasterSurvey(parcel, !isZoneAdmin);
                     }}
-                    className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border text-xs font-bold transition-all cursor-pointer ${
+                    className={`inline-flex items-center gap-1.5 px-3.5 py-2.5 min-h-[44px] rounded-lg border text-xs font-bold transition-all cursor-pointer ${
                       isZoneAdmin
                         ? 'border-indigo-300 bg-indigo-50 hover:bg-indigo-100 text-indigo-800'
                         : 'border-slate-300 bg-white hover:bg-slate-50 text-slate-700'
@@ -185,7 +185,7 @@ export const MasterSurveyViewModal: React.FC<MasterSurveyViewModalProps> = ({
 
                   <button
                     type="submit"
-                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold shadow-sm shadow-sky-600/20 transition-all cursor-pointer"
+                    className="inline-flex items-center gap-1.5 px-4 py-2.5 min-h-[44px] rounded-lg bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold shadow-sm shadow-sky-600/20 transition-all cursor-pointer"
                   >
                     <Send size={14} />
                     <span>Gửi Bản Cập Nhật Mới Về Cho Zone Admin</span>

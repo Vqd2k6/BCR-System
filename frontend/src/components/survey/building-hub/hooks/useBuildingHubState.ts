@@ -170,20 +170,26 @@ export const useBuildingHubState = ({ parcel, onUnitsUpdated }: UseBuildingHubSt
     }
   };
 
+  // Kiểm tra hồ sơ khảo sát toà mẹ thực tế từ backend (Khép kín DB -> BE -> FE, chống Query Drift)
+  const fetchMasterReport = async () => {
+    try {
+      const res = await api.get<{ data?: { report?: MasterReportData }; report?: MasterReportData }>(
+        `/parcels/${parcel.id}/phase1-report?reportType=BUILDING_MASTER`
+      );
+      const data = res?.data?.data || res?.data;
+      if (data?.report && (data.report.status === 'SUBMITTED' || data.report.status === 'APPROVED')) {
+        setIsMasterSurveyDone(true);
+        setMasterReportData(data.report);
+      }
+    } catch (err) {
+      console.warn('[BuildingHub] Không thể nạp hồ sơ khảo sát toà mẹ:', err);
+    }
+  };
+
   useEffect(() => {
     fetchUnits();
     fetchFloorPlans();
-
-    // Kiểm tra hồ sơ khảo sát toà mẹ thực tế từ backend
-    api.get<{ data?: { report?: MasterReportData }; report?: MasterReportData }>(`/parcels/${parcel.id}/phase1-report`)
-      .then((res) => {
-        const data = res?.data?.data || res?.data;
-        if (data?.report && (data.report.status === 'SUBMITTED' || data.report.status === 'APPROVED')) {
-          setIsMasterSurveyDone(true);
-          setMasterReportData(data.report);
-        }
-      })
-      .catch(() => {});
+    fetchMasterReport();
   }, [parcel.id]);
 
   const handleScroll = (e: React.UIEvent<HTMLElement>) => {
@@ -439,6 +445,7 @@ export const useBuildingHubState = ({ parcel, onUnitsUpdated }: UseBuildingHubSt
     displayedUnits,
     refetchUnits: fetchUnits,
     refetchFloorPlans: fetchFloorPlans,
+    refetchMasterReport: fetchMasterReport,
     kpi: {
       completedCount,
       pendingApprovalCount,
