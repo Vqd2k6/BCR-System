@@ -604,7 +604,12 @@ export class CadastralRepository {
       } else {
         const lower = data.floorName.toLowerCase();
         if (lower.includes('lửng') || lower.includes('mezzanine')) floorCode = 'MEZZ';
-        else if (lower.includes('bán hầm')) floorCode = 'SB';
+        else if (lower.includes('bán hầm') || lower.includes('semi-basement')) floorCode = 'SB';
+        else if (data.floorNumber < 0 || lower.includes('hầm') || lower.includes('basement')) {
+          const match = lower.match(/(?:hầm|basement|b)\s*(\d+)/i);
+          const bNum = match ? parseInt(match[1], 10) : (data.floorNumber < 0 ? Math.abs(data.floorNumber) : 1);
+          floorCode = `B${String(bNum).padStart(2, '0')}`;
+        }
         else if (lower.includes('kỹ thuật')) floorCode = 'TECH';
         else if (lower.includes('lánh nạn')) floorCode = 'REF';
         else if (lower.includes('tum')) floorCode = 'TUM';
@@ -619,7 +624,7 @@ export class CadastralRepository {
     let areaType = data.areaType;
     if (!scope) {
       const lowerName = data.floorName.toLowerCase();
-      if (data.floorNumber < 0) {
+      if (data.floorNumber < 0 || lowerName.includes('hầm') || lowerName.includes('basement')) {
         scope = 'MASTER';
         areaType = areaType || 'BASEMENT';
       } else if (lowerName.includes('mái') || lowerName.includes('thượng') || lowerName.includes('rooftop')) {

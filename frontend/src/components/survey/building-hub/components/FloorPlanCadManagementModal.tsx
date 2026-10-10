@@ -66,14 +66,18 @@ export const STANDARD_FLOOR_CODE_OPTIONS = [
 export const getDefaultFloorCode = (floorNum: number, floorName?: string): string => {
   const lower = (floorName || '').toLowerCase();
   if (lower.includes('lửng') || lower.includes('mezzanine')) return 'MEZZ';
-  if (lower.includes('bán hầm')) return 'SB';
+  if (lower.includes('bán hầm') || lower.includes('semi-basement')) return 'SB';
+  if (floorNum < 0 || lower.includes('hầm') || lower.includes('basement')) {
+    const match = lower.match(/(?:hầm|basement|b)\s*(\d+)/i);
+    const bNum = match ? parseInt(match[1], 10) : (floorNum < 0 ? Math.abs(floorNum) : 1);
+    return `B${String(bNum).padStart(2, '0')}`;
+  }
   if (lower.includes('kỹ thuật')) return 'TECH';
   if (lower.includes('lánh nạn')) return 'REF';
   if (lower.includes('tum')) return 'TUM';
   if (lower.includes('sân thượng')) return 'TERRACE';
   if (lower.includes('mái') || lower.includes('roof')) return 'ROOF';
   if (floorNum === 0 || lower.includes('trệt')) return 'G';
-  if (floorNum < 0) return `B${String(Math.abs(floorNum)).padStart(2, '0')}`;
   return `F${String(floorNum).padStart(2, '0')}`;
 };
 
@@ -120,6 +124,7 @@ interface Props {
   onClose: () => void;
   onUnitsUpdated?: () => void;
   readOnly?: boolean;
+  initialFloor?: number;
 }
 
 export const FloorPlanCadManagementModal: React.FC<Props> = ({
@@ -127,6 +132,7 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
   onClose,
   onUnitsUpdated,
   readOnly = false,
+  initialFloor,
 }) => {
   const parcelId = parcel.id;
   const projectCode = parcel.projectParcelCode || parcel.project_parcel_code || 'B-XXXXX';
@@ -149,7 +155,7 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
   const [saveSuccessMsg, setSaveSuccessMsg] = useState<string>('');
 
   // Tầng đang được chọn thao tác
-  const [activeFloor, setActiveFloor] = useState<number>(1);
+  const [activeFloor, setActiveFloor] = useState<number>(initialFloor !== undefined ? initialFloor : 1);
   const [floorName, setFloorName] = useState<string>('Tầng 1');
   const [floorCode, setFloorCode] = useState<string>('F01');
   const [cadUrl, setCadUrl] = useState<string>('');
@@ -196,22 +202,57 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
       setExistingFloorPlans(plans);
       setAllUnits(units);
 
-      // Nếu đã có plans, tự động chọn tầng đầu tiên có CAD hoặc Tầng 1
-      if (plans.length > 0) {
-        const first = plans[0];
-        setActiveFloor(first.floor_number);
-        setCadUrl(first.cad_photo_url);
-        setFloorName(first.floor_name);
-        setApplicableFloors(first.applicable_floors || [first.floor_number]);
-        const detected = detectDefaultFloorScope(first.floor_number, first.floor_name);
-        setFloorScope(first.scope || detected.scope);
+      // Ưu tiên tầng initialFloor (nếu được truyền từ Hub), nếu không thì chọn tầng có plan đầu tiên hoặc Tầng 1
+      let targetFloorNum = initialFloor !== undefined ? initialFloor : (plans.length > 0 ? plans[0].floor_number : 1);
+
+      const targetPlan = plans.find((p) => p.floor_number === targetFloorNum) || (plans.length > 0 ? plans[0] : null);
+      if (targetPlan) {
+        targetFloorNum = targetPlan.floor_number;
+        setActiveFloor(targetPlan.floor_number);
+        setCadUrl(targetPlan.cad_photo_url || '');
+        setFloorName(targetPlan.floor_name || `Tầng ${targetPlan.floor_number}`);
+        const assignedCode = targetPlan.floor_code || getDefaultFloorCode(targetPlan.floor_number, targetPlan.floor_name);
+        setFloorCode(assignedCode);
+        setApplicableFloors(targetPlan.applicable_floors || [targetPlan.floor_number]);
+        const detected = detectDefaultFloorScope(targetPlan.floor_number, targetPlan.floor_name);
+        setFloorScope(targetPlan.scope || detected.scope);
+      } else {
+        setActiveFloor(targetFloorNum);
+        const defName = targetFloorNum === 0 ? 'Tầng Trệt / G' : targetFloorNum < 0 ? `Hầm B${Math.abs(targetFloorNum)}` : `Tầng ${targetFloorNum}`;
+        setCadUrl('');
+        setFloorName(defName);
+        setFloorCode(getDefaultFloorCode(targetFloorNum, defName));
+        setApplicableFloors([targetFloorNum]);
+        const detected = detectDefaultFloorScope(targetFloorNum, defName);
+        setFloorScope(detected.scope);
+      }
+
+      // Khởi tạo ngay danh sách partitions cho tầng đang active từ allUnits
+      const floorUnits = units.filter((u) => (u.floor_number ?? 1) === targetFloorNum);
+      if (floorUnits.length > 0) {
+        const boxes: UnitPartitionBox[] = floorUnits
+          .filter((u) => Boolean(u.cad_bbox))
+          .map((u) => ({
+            id: u.id,
+            unitCode: u.unit_code,
+            partitionType: u.unit_type || 'UNIT',
+            x: u.cad_bbox?.x ?? 0,
+            y: u.cad_bbox?.y ?? 0,
+            width: u.cad_bbox?.width ?? 0,
+            height: u.cad_bbox?.height ?? 0,
+            polygon: u.cad_polygon || undefined,
+            unitCadUrl: u.unit_cad_url || undefined,
+          }));
+        setPartitions(boxes);
+      } else {
+        setPartitions([]);
       }
     } catch (err) {
       console.warn('[FloorPlanCad] Lỗi nạp dữ liệu tòa nhà:', err);
     } finally {
       setIsLoading(false);
     }
-  }, [parcelId]);
+  }, [parcelId, initialFloor]);
 
   useEffect(() => {
     fetchAllFloorData();
@@ -374,7 +415,12 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
   };
 
   const handleSelectFloor = (floorNum: number) => {
-    if (floorNum === activeFloor) return;
+    if (floorNum === activeFloor) {
+      if (partitions.length === 0) {
+        loadActiveFloorDetails(floorNum);
+      }
+      return;
+    }
     if (isFloorDirty) {
       setPendingFloorSwitch(floorNum);
       setShowUnsavedConfirmModal(true);
@@ -504,8 +550,11 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
 
         for (const p of targetPartitions) {
           const parts = p.unitCode.split('.');
-          const nn = parts.length > 1 ? parts[1] : p.unitCode;
+          let nn = parts.length > 1 ? parts[1] : p.unitCode;
           const isMaster = (p.partitionType || 'UNIT') === 'MASTER';
+          if (isMaster && /^M\d+$/i.test(nn)) {
+            nn = nn.replace(/^M/i, '');
+          }
           const prefix = isMaster ? (mm.startsWith('T') ? mm : `T${mm.replace(/^F/i, '')}`) : mm.replace(/^F/i, '');
           const uCode = `${prefix}.${nn}`;
 
@@ -753,7 +802,7 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
               ) : (
                 <>
                   <Save className="w-3.5 h-3.5" />
-                  <span>Lưu Tầng {activeFloor}</span>
+                  <span>Lưu {floorName || (floorCode ? `Tầng ${floorCode}` : `Tầng ${activeFloor}`)}</span>
                 </>
               )}
             </button>
