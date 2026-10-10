@@ -25,6 +25,7 @@ import {
   type UnitPartitionBox,
 } from '../../../canvas/FloorPlanCadPartitionCanvas';
 import { generateNextPartitionCode } from '../../../../core/utils/codeFormattingUtils';
+import { deriveBuildingFloorNumbers } from '../../../../core/utils/floorUtils';
 import { api } from '../../../../services/api';
 import { getErrorMessage } from '@/utils/errorUtils';
 import confetti from 'canvas-confetti';
@@ -289,30 +290,14 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
     fetchAllFloorData();
   }, [fetchAllFloorData]);
 
-  // 2. Tính toán danh sách đầy đủ các tầng của tòa nhà (Fix bug: Tên tầng không bị gán đè chuỗi parent)
+  // 2. Tính toán danh sách đầy đủ các tầng của tòa nhà (Đồng bộ Single Source of Truth với Hub)
   const buildingFloors = useMemo<BuildingFloorItem[]>(() => {
-    const floorSet = new Set<number>();
-
-    // Sinh các tầng từ 1 đến initialFloorCount
-    for (let i = 1; i <= Math.max(1, initialFloorCount); i++) {
-      floorSet.add(i);
-    }
-
-    // Bổ sung các tầng từ existingFloorPlans
-    for (const p of existingFloorPlans) {
-      floorSet.add(p.floor_number);
-      if (p.applicable_floors) {
-        p.applicable_floors.forEach((f) => floorSet.add(f));
-      }
-    }
-
-    // Bổ sung các tầng tùy chỉnh
-    customFloors.forEach((f) => floorSet.add(f));
-
-    // Sắp xếp tầng từ cao xuống thấp (Top to Bottom) và loại trừ các tầng đã bị xóa
-    const sortedFloors = Array.from(floorSet)
-      .filter((f) => !deletedFloorNumbers.includes(f))
-      .sort((a, b) => b - a);
+    const sortedFloors = deriveBuildingFloorNumbers({
+      floorPlans: existingFloorPlans,
+      units: allUnits, // Đã bổ sung allUnits: Khắc phục triệt để lỗi thiếu tầng so với Hub!
+      customFloors,
+      deletedFloors: deletedFloorNumbers,
+    });
 
     return sortedFloors.map((flNum) => {
       // Tìm plan riêng của tầng
@@ -364,7 +349,7 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
         scope: effectiveScope,
       };
     });
-  }, [initialFloorCount, existingFloorPlans, customFloors, allUnits, activeFloor, partitions, floorScope, deletedFloorNumbers]);
+  }, [existingFloorPlans, customFloors, allUnits, activeFloor, partitions, floorScope, deletedFloorNumbers]);
 
   // 3. Tải chi tiết tầng đang chọn (partitions & CAD)
   const loadActiveFloorDetails = useCallback(
@@ -1393,6 +1378,7 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
                 cadPhotoUrl={cadUrl}
                 floorNumber={activeFloor}
                 floorCode={floorCode}
+                projectParcelCode={projectCode}
                 initialPartitions={partitions}
                 onChangePartitions={(newParts) => {
                   setPartitions(newParts);

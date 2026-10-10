@@ -286,12 +286,14 @@ export class Database {
           ADD COLUMN IF NOT EXISTS cad_polygon JSONB,
           ADD COLUMN IF NOT EXISTS unit_cad_url TEXT,
           ADD COLUMN IF NOT EXISTS resident_status VARCHAR(32) DEFAULT 'CHỦ_HỘ_Ở',
-          ADD COLUMN IF NOT EXISTS unit_type VARCHAR(32) DEFAULT 'UNIT';
+          ADD COLUMN IF NOT EXISTS unit_type VARCHAR(32) DEFAULT 'UNIT',
+          ADD COLUMN IF NOT EXISTS display_code VARCHAR(32);
 
         CREATE INDEX IF NOT EXISTS idx_building_units_floor_plan ON building_units(floor_plan_id);
         CREATE INDEX IF NOT EXISTS idx_building_units_unit_type ON building_units(unit_type);
+        CREATE INDEX IF NOT EXISTS idx_building_units_display_code ON building_units(display_code);
       `);
-      console.log('✅ [STARTUP MIGRATION] building_units (unit_type), floor_plans (scope/area_type) & report hierarchy ready.');
+      console.log('✅ [STARTUP MIGRATION] building_units (unit_type, display_code), floor_plans (scope/area_type) & report hierarchy ready.');
     } catch (e) {
       console.warn('⚠️ [STARTUP MIGRATION] building_units warning:', e);
     }

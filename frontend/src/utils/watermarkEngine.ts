@@ -203,12 +203,23 @@ export function generateMetroPhotoCode(opts: MetroWatermarkOptions): string {
     }
   }
 
-  // 2. Vị trí tầng (F00, F01, MEZZ, FOUND, EXT, DOC...)
-  if (opts.floor !== undefined && opts.floor !== null && opts.floor !== '') {
-    const normFloor = normalizeMetroFloorCode(opts.floor);
-    if (normFloor) {
-      parts.push(normFloor);
+  // 2. Vị trí tầng hoặc mã căn hộ con (F00, MEZZ, MEZZ.01, U-001, TB01.01...)
+  const normFloor = (opts.floor !== undefined && opts.floor !== null && opts.floor !== '')
+    ? normalizeMetroFloorCode(opts.floor)
+    : '';
+
+  if (opts.unitCode) {
+    const cleanUnit = opts.unitCode.trim().replace(/[^a-zA-Z0-9&_.-]/g, '').toUpperCase();
+    if (cleanUnit) {
+      // Nếu unitCode dạng U-XXX / M-XXX và có floorCode hợp lệ, kết hợp: MEZZ_U-001
+      if (/^[UM][-_]\d+$/i.test(cleanUnit) && normFloor && !cleanUnit.startsWith(normFloor)) {
+        parts.push(`${normFloor}_${cleanUnit}`);
+      } else {
+        parts.push(cleanUnit);
+      }
     }
+  } else if (normFloor) {
+    parts.push(normFloor);
   }
 
   // 3. Vùng hư hỏng / Cấu kiện / Nhóm hồ sơ (Z-01, E-01, HOANCONG, ABSENTEE...)
