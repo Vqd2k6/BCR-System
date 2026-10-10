@@ -33,7 +33,7 @@ export const BuildingExecutiveDashboard: React.FC<BuildingExecutiveDashboardProp
     totalUnits > 0 ? Math.round((completedCount / totalUnits) * 100) : 0;
 
   return (
-    <section className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden transition-all">
+    <section className="bg-white rounded-2xl border border-slate-200 shadow-sm shrink-0 min-h-fit transition-all">
       {/* 1. Mobile Compact KPI Micro-Bar (Dành riêng cho màn hình điện thoại < 640px) */}
       <div className="sm:hidden px-3.5 py-2.5 flex items-center justify-between gap-2 bg-slate-50/90 border-b border-slate-100">
         <div className="flex items-center gap-1.5 flex-wrap min-w-0">
