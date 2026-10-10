@@ -43,6 +43,7 @@ export interface BuildingUnitEntity {
   id: string;
   parcel_id: string;
   unit_code: string;
+  display_code?: string | null;
   floor_number: number;
   owner_name: string | null;
   owner_phone: string | null;
@@ -680,18 +681,20 @@ export class CadastralRepository {
     parcelId: string,
     floorNumber: number,
     floorPlanId: string | null,
-    partitions: { unitCode: string; floorNumber?: number; bbox?: any; polygon?: any; unitCadUrl?: string; unitType?: 'UNIT' | 'MASTER' }[]
+    partitions: { unitCode: string; displayCode?: string; floorNumber?: number; bbox?: any; polygon?: any; unitCadUrl?: string; unitType?: 'UNIT' | 'MASTER' }[]
   ): Promise<BuildingUnitEntity[]> {
     const savedUnits: BuildingUnitEntity[] = [];
 
     for (const part of partitions) {
       const uFloor = part.floorNumber !== undefined ? part.floorNumber : floorNumber;
       const uType = part.unitType || 'UNIT';
+      const dispCode = part.displayCode || null;
       const res = await Database.query<BuildingUnitEntity>(
         `INSERT INTO building_units (
-          parcel_id, unit_code, floor_number, floor_plan_id, cad_bbox, cad_polygon, unit_cad_url, unit_type, updated_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+          parcel_id, unit_code, display_code, floor_number, floor_plan_id, cad_bbox, cad_polygon, unit_cad_url, unit_type, updated_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
         ON CONFLICT (parcel_id, unit_code) DO UPDATE SET
+          display_code = COALESCE(EXCLUDED.display_code, building_units.display_code),
           floor_number = EXCLUDED.floor_number,
           floor_plan_id = COALESCE(EXCLUDED.floor_plan_id, building_units.floor_plan_id),
           cad_bbox = COALESCE(EXCLUDED.cad_bbox, building_units.cad_bbox),
@@ -703,6 +706,7 @@ export class CadastralRepository {
         [
           parcelId,
           part.unitCode,
+          dispCode,
           uFloor,
           floorPlanId,
           part.bbox ? JSON.stringify(part.bbox) : null,

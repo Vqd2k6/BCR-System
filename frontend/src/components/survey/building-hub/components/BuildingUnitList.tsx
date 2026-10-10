@@ -219,30 +219,57 @@ export const BuildingUnitList: React.FC<BuildingUnitListProps> = ({
           <span className="font-semibold">Đang nạp sơ đồ CAD và dữ liệu các tầng...</span>
         </div>
       ) : floorsData.length === 0 ? (
-        <div className="py-14 sm:py-16 px-4 text-center bg-white rounded-2xl border-2 border-dashed border-slate-300 flex flex-col items-center justify-center gap-3">
-          <div className="w-14 h-14 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-center text-slate-400">
-            <Building2 size={28} />
+        totalFloorsCount === 0 ? (
+          <div className="py-16 sm:py-20 px-4 text-center bg-white rounded-3xl border-2 border-dashed border-teal-200/80 shadow-xs flex flex-col items-center justify-center gap-3.5">
+            <div className="w-16 h-16 rounded-2xl bg-teal-50 border border-teal-200 flex items-center justify-center text-teal-600 shadow-xs">
+              <Layers size={32} />
+            </div>
+            <div className="max-w-md">
+              <h4 className="text-base font-extrabold text-slate-900">
+                Chưa có tầng nào được cấu hình
+              </h4>
+              <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">
+                Tòa nhà này hiện chưa có danh mục tầng hoặc bản vẽ CAD nào.
+                {isAdmin ? ' Vui lòng mở CAD Studio để thiết lập danh sách tầng thực tế và tải lên bản vẽ.' : ' Vui lòng liên hệ Quản trị viên (Zone Admin) để cấu hình danh mục tầng.'}
+              </p>
+            </div>
+            {isAdmin && onOpenCadManagement && (
+              <button
+                type="button"
+                onClick={() => onOpenCadManagement()}
+                className="mt-2 px-5 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs flex items-center gap-2 shadow-sm transition-transform active:scale-95 cursor-pointer"
+              >
+                <Layers size={16} />
+                <span>Thiết Lập Tầng & Tải Bản Vẽ CAD</span>
+              </button>
+            )}
           </div>
-          <div className="max-w-md">
-            <h4 className="text-sm font-extrabold text-slate-800">
-              Không tìm thấy vị trí nào phù hợp
-            </h4>
-            <p className="text-xs text-slate-500 mt-1">
-              Thử tìm kiếm với từ khóa khác hoặc đặt lại bộ lọc tầng/trạng thái.
-            </p>
+        ) : (
+          <div className="py-14 sm:py-16 px-4 text-center bg-white rounded-2xl border-2 border-dashed border-slate-300 flex flex-col items-center justify-center gap-3">
+            <div className="w-14 h-14 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-center text-slate-400">
+              <Building2 size={28} />
+            </div>
+            <div className="max-w-md">
+              <h4 className="text-sm font-extrabold text-slate-800">
+                Không tìm thấy vị trí nào phù hợp
+              </h4>
+              <p className="text-xs text-slate-500 mt-1">
+                Thử tìm kiếm với từ khóa khác hoặc đặt lại bộ lọc tầng/trạng thái.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                onSearchChange('');
+                onSelectedFloorChange('ALL');
+                onSelectedStatusChange('ALL');
+              }}
+              className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs cursor-pointer"
+            >
+              Đặt lại bộ lọc
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={() => {
-              onSearchChange('');
-              onSelectedFloorChange('ALL');
-              onSelectedStatusChange('ALL');
-            }}
-            className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs cursor-pointer"
-          >
-            Đặt lại bộ lọc
-          </button>
-        </div>
+        )
       ) : (
         <div className="flex flex-col gap-5">
           {floorsData.map((floor) => (

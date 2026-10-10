@@ -4,6 +4,7 @@ import { api } from '../../../../services/api';
 import type { GisParcel } from '../../../gis/LeafletSweepMap';
 import type { BuildingUnit, MasterReportData } from '../types';
 import { getDefaultFloorCode } from '../components/FloorPlanCadManagementModal';
+import { deriveBuildingFloorNumbers } from '../../../../core/utils/floorUtils';
 
 export interface FloorPlanData {
   id: string;
@@ -204,29 +205,12 @@ export const useBuildingHubState = ({ parcel, onUnitsUpdated }: UseBuildingHubSt
   };
 
   const availableFloors = useMemo(() => {
-    const floorSet = new Set<number>();
-    const rawFloorCount = Number(parcel.floorCount ?? 1);
-    if (!isNaN(rawFloorCount) && rawFloorCount > 0) {
-      for (let f = 1; f <= rawFloorCount; f++) floorSet.add(f);
-    }
-    floorPlans.forEach((p) => {
-      floorSet.add(p.floor_number);
-      if (Array.isArray(p.applicable_floors)) {
-        p.applicable_floors.forEach((af) => floorSet.add(af));
-      }
+    return deriveBuildingFloorNumbers({
+      floorPlans,
+      units,
+      deletedFloors,
     });
-    units.forEach((u) => {
-      const fn = u.floor_number ?? u.floorNumber;
-      if (typeof fn === 'number' && !isNaN(fn)) floorSet.add(fn);
-    });
-
-    // Loại trừ các tầng đã bị xóa trong CAD Studio
-    const activeFloors = Array.from(floorSet).filter((f) => !deletedFloors.includes(f));
-    if (activeFloors.length === 0) activeFloors.push(1);
-
-    // Sắp xếp từ tầng cao xuống tầng thấp (Top to Bottom) đồng bộ 100% với CAD Studio
-    return activeFloors.sort((a, b) => b - a);
-  }, [parcel.floorCount, floorPlans, units, deletedFloors]);
+  }, [floorPlans, units, deletedFloors]);
 
   // Cấu trúc gom nhóm theo từng tầng (Floor-by-Floor Grouping)
   const allFloorsData = useMemo<FloorGroupData[]>(() => {

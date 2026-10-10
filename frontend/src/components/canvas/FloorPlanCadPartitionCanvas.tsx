@@ -31,6 +31,7 @@ export interface BuildingUnitReference {
 export interface UnitPartitionBox {
   id: string;
   unitCode: string; // VD: "U-001" hoặc "M-001"
+  displayCode?: string; // Mã hiển thị nhanh: "U-001" hoặc "M-001"
   partitionType?: 'UNIT' | 'MASTER';
   x: number; // 0..100% (tỷ lệ chuẩn hóa)
   y: number; // 0..100%
@@ -44,6 +45,7 @@ interface Props {
   cadPhotoUrl: string;
   floorNumber: number;
   floorCode?: string;
+  projectParcelCode?: string;
   initialPartitions?: UnitPartitionBox[];
   onChangePartitions?: (partitions: UnitPartitionBox[]) => void;
   onSave?: (partitions: UnitPartitionBox[]) => void;
@@ -106,7 +108,8 @@ export async function cropImageBoundingBox(
 export const FloorPlanCadPartitionCanvas: React.FC<Props> = ({
   cadPhotoUrl,
   floorNumber,
-  floorCode: _floorCode,
+  floorCode,
+  projectParcelCode,
   initialPartitions = [],
   onChangePartitions,
   onSave: _onSave,
@@ -329,6 +332,7 @@ export const FloorPlanCadPartitionCanvas: React.FC<Props> = ({
         const newBox: UnitPartitionBox = {
           id: `unit_box_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
           unitCode: nextCode,
+          displayCode: nextCode,
           partitionType: isMaster ? 'MASTER' : 'UNIT',
           x: Math.round(minX * 10) / 10,
           y: Math.round(minY * 10) / 10,
@@ -380,7 +384,7 @@ export const FloorPlanCadPartitionCanvas: React.FC<Props> = ({
         } else if (nextType === 'UNIT' && /^M[-_]\d+$/i.test(p.unitCode.trim())) {
           newCode = generateNextPartitionCode(combinedBuildingUnits, 'UNIT');
         }
-        return { ...p, partitionType: nextType, unitCode: newCode };
+        return { ...p, partitionType: nextType, unitCode: newCode, displayCode: newCode };
       }
       return p;
     });
@@ -398,7 +402,15 @@ export const FloorPlanCadPartitionCanvas: React.FC<Props> = ({
           </div>
           <div>
             <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2 flex-wrap">
-              Chia Cắt Mặt Bằng CAD • Tầng {floorNumber}
+              Chia Cắt Mặt Bằng CAD
+              {projectParcelCode && (
+                <span className="font-mono text-xs px-2 py-0.5 rounded-full bg-teal-100 text-teal-900 border border-teal-300 font-bold shadow-2xs" title="Mã định danh thửa đất / tòa nhà">
+                  {projectParcelCode}
+                </span>
+              )}
+              <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-800 border border-slate-200 font-mono font-bold">
+                Tầng {floorNumber} {floorCode ? `(${floorCode})` : ''}
+              </span>
               {floorScopeSummary.unitCount > 0 && (
                 <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-teal-100 text-teal-800 border border-teal-200 flex items-center gap-1">
                   <Home className="w-3 h-3" />
@@ -697,23 +709,22 @@ export const FloorPlanCadPartitionCanvas: React.FC<Props> = ({
                             {idx + 1}
                           </span>
 
-                          {/* Nhãn mã rút gọn trực quan giống Hub & Canvas */}
+                          {/* Nhãn mã hiển thị thân thiện trên Hub & Canvas (U-001 / M-001) */}
                           <span
                             className={`px-2 py-0.5 rounded-lg text-xs font-mono font-black flex items-center gap-1 shadow-2xs shrink-0 ${
                               isMaster ? 'bg-indigo-700 text-white' : 'bg-teal-700 text-white'
                             }`}
-                            title={`Mã hiển thị trên sơ đồ Hub & CAD: ${formatShortUnitDisplay(box.unitCode, box.partitionType)}`}
+                            title={`Mã hiển thị giao diện: ${formatShortUnitDisplay(box.unitCode, box.partitionType)}`}
                           >
                             {isMaster ? <Building2 className="w-3 h-3" /> : <Home className="w-3 h-3" />}
                             <span>{formatShortUnitDisplay(box.unitCode, box.partitionType) || '---'}</span>
                           </span>
 
                           {readOnly || surveyedUnitIds.has(box.id) || surveyedUnitIds.has(box.unitCode.trim().toLowerCase()) ? (
-                            <span className="font-mono text-[11px] text-slate-500 font-semibold truncate flex items-center gap-1" title={`Mã CSDL: ${box.unitCode}`}>
-                              <span>({box.unitCode})</span>
+                            <span className="font-mono text-[11px] text-slate-500 font-semibold truncate flex items-center gap-1">
                               {(surveyedUnitIds.has(box.id) || surveyedUnitIds.has(box.unitCode.trim().toLowerCase())) && (
                                 <span className="text-[9px] px-1 py-0.2 rounded bg-amber-100 text-amber-800 border border-amber-300 font-sans font-bold">
-                                  Khóa
+                                  Đã khảo sát
                                 </span>
                               )}
                             </span>
@@ -724,8 +735,8 @@ export const FloorPlanCadPartitionCanvas: React.FC<Props> = ({
                               onClick={(e) => e.stopPropagation()}
                               onChange={(e) => handleRenameBox(box.id, e.target.value)}
                               placeholder={isMaster ? 'M-001' : 'U-001'}
-                              title={`Mã hệ thống / CSDL: ${box.unitCode}`}
-                              className={`w-24 px-1.5 py-0.5 rounded font-mono font-bold text-xs focus:outline-none transition-colors ${
+                              title={`Mã định danh CSDL: ${box.unitCode}`}
+                              className={`w-20 px-1.5 py-0.5 rounded font-mono font-bold text-xs focus:outline-none transition-colors ${
                                 isDuplicate
                                   ? 'bg-rose-100 border border-rose-300 text-rose-800 focus:border-rose-500'
                                   : isMaster
@@ -745,6 +756,18 @@ export const FloorPlanCadPartitionCanvas: React.FC<Props> = ({
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
+                        )}
+                      </div>
+
+                      {/* Dòng định danh kỹ thuật & metadata phục vụ xuất báo cáo tự động Metro 2 */}
+                      <div className="flex items-center justify-between text-[10px] text-slate-500 font-mono px-0.5 pt-1 border-t border-slate-200/60">
+                        <span className="truncate" title={`Metadata xuất báo cáo tự động: [${projectParcelCode || 'PARCEL'}]_${floorCode || `F${floorNumber}`}_${box.unitCode}`}>
+                          ID: <strong className="text-slate-700 font-bold">[{projectParcelCode || 'LÔ'}]_{floorCode || `F${floorNumber}`}_{box.unitCode}</strong>
+                        </span>
+                        {box.unitCadUrl && (
+                          <span className={`text-[9px] font-bold px-1 rounded text-white shrink-0 ml-1 ${isMaster ? 'bg-indigo-700' : 'bg-teal-700'}`}>
+                            CAD ✓
+                          </span>
                         )}
                       </div>
 

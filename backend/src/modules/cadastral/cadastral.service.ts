@@ -502,7 +502,7 @@ export class CadastralService {
   static async saveFloorPartitions(parcelId: string, data: {
     floorNumber: number;
     floorPlanId?: string | null;
-    partitions: { unitCode: string; floorNumber?: number; bbox?: any; polygon?: any; unitCadUrl?: string; unitType?: 'UNIT' | 'MASTER' }[];
+    partitions: { unitCode: string; displayCode?: string; floorNumber?: number; bbox?: any; polygon?: any; unitCadUrl?: string; unitType?: 'UNIT' | 'MASTER' }[];
   }) {
     const parcel = await CadastralRepository.findById(parcelId);
     if (!parcel) {
