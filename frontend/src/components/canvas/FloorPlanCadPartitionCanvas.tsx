@@ -131,9 +131,7 @@ export const FloorPlanCadPartitionCanvas: React.FC<Props> = ({
   }, [cadPhotoUrl]);
 
   useEffect(() => {
-    if (initialPartitions && initialPartitions.length > 0) {
-      setPartitions(initialPartitions);
-    }
+    setPartitions(initialPartitions || []);
   }, [initialPartitions]);
 
   // Hook tương tác Zoom & Pan

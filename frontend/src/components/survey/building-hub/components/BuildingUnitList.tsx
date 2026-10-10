@@ -40,7 +40,7 @@ interface BuildingUnitListProps {
   onClose: () => void;
   onStartUnitSurvey: (parcel: GisParcel, unit: BuildingUnit, phase?: 1 | 2) => void;
   onStartMasterAreaSurvey?: (parcel: GisParcel, unit: BuildingUnit) => void;
-  onOpenCadManagement?: () => void;
+  onOpenCadManagement?: (floorNumber?: number) => void;
   // Legacy props kept for backward compatibility
   showAddModal?: boolean;
   onToggleAddModal?: (show: boolean) => void;
@@ -150,7 +150,7 @@ export const BuildingUnitList: React.FC<BuildingUnitListProps> = ({
             {onOpenCadManagement && (
               <button
                 type="button"
-                onClick={onOpenCadManagement}
+                onClick={() => onOpenCadManagement?.()}
                 className="px-3.5 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs shrink-0"
                 title="Mở Quản lý / Nạp bản vẽ CAD các tầng"
               >

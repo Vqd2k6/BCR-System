@@ -21,7 +21,7 @@ interface FloorCadSurveySectionProps {
   selectedUnitId?: string | null;
   onSelectUnit: (unit: BuildingUnit) => void;
   isAdmin: boolean;
-  onOpenCadManagement?: () => void;
+  onOpenCadManagement?: (floorNumber?: number) => void;
   onStartUnitSurvey: (parcel: GisParcel, unit: BuildingUnit, phase?: 1 | 2) => void;
   onStartMasterAreaSurvey?: (parcel: GisParcel, unit: BuildingUnit) => void;
 }
@@ -163,7 +163,7 @@ export const FloorCadSurveySection: React.FC<FloorCadSurveySectionProps> = ({
           {isAdmin && onOpenCadManagement && (
             <button
               type="button"
-              onClick={onOpenCadManagement}
+              onClick={() => onOpenCadManagement(floor.floorNumber)}
               className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-slate-600 text-xs font-semibold flex items-center gap-1 transition-colors cursor-pointer"
               title="Mở Quản lý CAD Mặt Bằng"
             >
@@ -263,7 +263,7 @@ export const FloorCadSurveySection: React.FC<FloorCadSurveySectionProps> = ({
           {isAdmin && onOpenCadManagement && (
             <button
               type="button"
-              onClick={onOpenCadManagement}
+              onClick={() => onOpenCadManagement(floor.floorNumber)}
               className="px-3 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
             >
               <Upload size={14} />

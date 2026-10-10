@@ -70,7 +70,13 @@ export const BuildingHubModal: React.FC<BuildingHubModalProps> = ({
     kpi,
   } = useBuildingHubState({ parcel, onUnitsUpdated });
   const [showCadModal, setShowCadModal] = React.useState(false);
+  const [cadModalInitialFloor, setCadModalInitialFloor] = React.useState<number | undefined>(undefined);
   const [selectedMasterAreaUnit, setSelectedMasterAreaUnit] = React.useState<BuildingUnit | null>(null);
+
+  const handleOpenCad = (floorNum?: number) => {
+    setCadModalInitialFloor(floorNum);
+    setShowCadModal(true);
+  };
 
   return (
     <div className="fixed inset-0 z-[99999] bg-slate-100 flex flex-col w-full h-full overflow-hidden animate-in fade-in duration-150">
@@ -80,7 +86,7 @@ export const BuildingHubModal: React.FC<BuildingHubModalProps> = ({
         isHeaderVisible={isHeaderVisible}
         onClose={onClose}
         onOpenMasterView={() => setShowMasterViewModal(true)}
-        onOpenCadManagement={() => setShowCadModal(true)}
+        onOpenCadManagement={() => handleOpenCad()}
       />
 
       {/* 2. Main Scrollable Container */}
@@ -137,7 +143,7 @@ export const BuildingHubModal: React.FC<BuildingHubModalProps> = ({
           onClose={onClose}
           onStartUnitSurvey={onStartUnitSurvey}
           onStartMasterAreaSurvey={(_p, u) => setSelectedMasterAreaUnit(u)}
-          onOpenCadManagement={() => setShowCadModal(true)}
+          onOpenCadManagement={handleOpenCad}
           activeHubTab={activeHubTab}
           onTabChange={setActiveHubTab}
           unitItemsCount={unitItemsCount}
@@ -175,6 +181,7 @@ export const BuildingHubModal: React.FC<BuildingHubModalProps> = ({
         isAdmin ? (
           <FloorPlanCadManagementModal
             parcel={parcel}
+            initialFloor={cadModalInitialFloor}
             onClose={() => {
               setShowCadModal(false);
               refetchFloorPlans();
