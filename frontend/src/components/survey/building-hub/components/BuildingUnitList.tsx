@@ -5,10 +5,6 @@ import {
   RefreshCw,
   Building2,
   Layers,
-  Filter,
-  CheckCircle2,
-  Clock,
-  Sparkles,
   MapPin,
 } from 'lucide-react';
 import type { GisParcel } from '../../../gis/LeafletSweepMap';
@@ -16,7 +12,6 @@ import type { BuildingUnit } from '../types';
 import type { FloorGroupData } from '../hooks/useBuildingHubState';
 import { FloorCadSurveySection } from './FloorCadSurveySection';
 import { UnitInspectionDrawer } from './UnitInspectionDrawer';
-import { BuildingUnitCard } from './BuildingUnitCard';
 
 interface BuildingUnitListProps {
   parcel: GisParcel;
@@ -161,20 +156,20 @@ export const BuildingUnitList: React.FC<BuildingUnitListProps> = ({
           </div>
         </div>
 
-        {/* Hàng 2: Dải Nút Nhảy Tầng Nhanh (Floor Jump Pills) */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 pt-1 no-scrollbar text-xs">
-          <span className="text-slate-400 font-bold text-[11px] shrink-0 mr-1 flex items-center gap-1">
+        {/* Hàng 2: Dải Nút Nhảy Tầng Nhanh (Floor Jump Pills - Tối ưu Touch 40px) */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 pt-1 no-scrollbar text-xs">
+          <span className="text-slate-400 font-bold text-[11px] shrink-0 mr-0.5 flex items-center gap-1">
             <MapPin size={12} />
-            <span>Chọn tầng:</span>
+            <span className="hidden sm:inline">Chọn tầng:</span>
           </span>
 
           <button
             type="button"
             onClick={() => onSelectedFloorChange('ALL')}
-            className={`px-3 py-1.5 rounded-xl font-bold text-xs shrink-0 transition-all cursor-pointer ${
+            className={`min-h-[38px] px-3.5 py-1.5 rounded-xl font-bold text-xs shrink-0 transition-all cursor-pointer active:scale-95 flex items-center ${
               selectedFloor === 'ALL'
                 ? 'bg-slate-900 text-white shadow-xs'
-                : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
+                : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
             }`}
           >
             Tất Cả ({totalFloorsCount} tầng)
@@ -190,7 +185,7 @@ export const BuildingUnitList: React.FC<BuildingUnitListProps> = ({
                 key={fl.floorNumber}
                 type="button"
                 onClick={() => onSelectedFloorChange(fl.floorNumber)}
-                className={`px-3 py-1.5 rounded-xl font-bold text-xs shrink-0 flex items-center gap-1.5 transition-all cursor-pointer ${
+                className={`min-h-[38px] px-3.5 py-1.5 rounded-xl font-bold text-xs shrink-0 flex items-center gap-1.5 transition-all cursor-pointer active:scale-95 ${
                   isSelected
                     ? 'bg-teal-600 text-white shadow-xs ring-2 ring-teal-300'
                     : 'bg-slate-100 hover:bg-teal-50 text-slate-700 hover:text-teal-700 border border-slate-200'
@@ -283,14 +278,16 @@ export const BuildingUnitList: React.FC<BuildingUnitListProps> = ({
               onOpenCadManagement={onOpenCadManagement}
               onStartUnitSurvey={onStartUnitSurvey}
               onStartMasterAreaSurvey={onStartMasterAreaSurvey}
+              isMasterSurveyDone={isMasterSurveyDone}
+              onClose={onClose}
             />
           ))}
         </div>
       )}
 
-      {/* 3. Ngăn Kéo / Thẻ Nổi Xem Thông Tin Ô & Bắt Đầu Khảo Sát (Sticky Inspection Drawer) */}
+      {/* 3. Ngăn Kéo / Thẻ Nổi Xem Thông Tin Ô & Bắt Đầu Khảo Sát (Mobile Bottom Sheet / Desktop Drawer) */}
       {activeUnit && (
-        <div className="sticky bottom-3 z-50 w-full max-w-3xl mx-auto">
+        <div className="sm:sticky sm:bottom-3 z-50 w-full sm:max-w-3xl sm:mx-auto">
           <UnitInspectionDrawer
             unit={activeUnit}
             parcel={parcel}
