@@ -150,4 +150,191 @@ export class SurveyPackageMapper {
       surveyDataJson: surveyData || null,
     };
   }
+
+  /**
+   * Bóc tách và chuyển đổi dữ liệu khuyết tật căn hộ con (localDefects + upperFloorWaterLeakage)
+   * thành cấu trúc Floor Survey chuẩn lưu vào damage_zones và defect_items.
+   */
+  static mapCondoUnitFloorSurveys(surveyData: any): any[] {
+    const floorNum = surveyData?.floorNumber ?? 1;
+    const unitCode = surveyData?.unitCode || 'CAN_HO';
+    const floorName = `Tầng ${floorNum} - Căn ${unitCode}`;
+    const unitCadUrl = surveyData?.unitCadUrl || null;
+
+    const zones: any[] = [];
+
+    // Helper tính Burland grade từ crack width
+    const getBurlandGrade = (widthMm: number): number => {
+      if (widthMm < 0.1) return 0;
+      if (widthMm <= 1.0) return 1;
+      if (widthMm <= 5.0) return 2;
+      if (widthMm <= 15.0) return 3;
+      if (widthMm <= 25.0) return 4;
+      return 5;
+    };
+
+    // 1. Chuyển đổi các vết nứt nội thất localDefects
+    const defectsList = Array.isArray(surveyData?.localDefects) ? surveyData.localDefects : [];
+    defectsList.forEach((d: any, idx: number) => {
+      const zCode = `Z-${String(idx + 1).padStart(2, '0')}`;
+      const dCode = d.defectCode || `D-${String(idx + 1).padStart(2, '0')}`;
+      const widthMm = Number(d.crackWidthMm) || 0;
+      const lengthM = Number(d.crackLengthM) || 0;
+      const primaryCu = d.cuPhotoUrl || d.photoUrl || '';
+      const ctxUrl = d.ctxPhotoUrl || d.photoUrl || '';
+
+      zones.push({
+        zoneCode: zCode,
+        floorName,
+        roomName: d.location || 'Không gian căn hộ',
+        componentType: d.type === 'WATER_LEAKAGE' ? 'WALL' : (d.location?.toLowerCase().includes('dầm') ? 'BEAM' : (d.location?.toLowerCase().includes('sàn') ? 'SLAB' : 'WALL')),
+        wallMaterial: 'Gạch trát vữa / Bê tông',
+        functionalImpactRepairNeeded: widthMm >= 1.0,
+        burlandGrade: getBurlandGrade(widthMm),
+        ctxPhotoUrl: ctxUrl,
+        notes: d.description || null,
+        defects: [
+          {
+            defectCode: dCode,
+            pinX: d.pinX != null ? Number(d.pinX) : 0,
+            pinY: d.pinY != null ? Number(d.pinY) : 0,
+            screeningCategory: d.type === 'WATER_LEAKAGE' ? 'WATER_LEAK' : 'CRACK',
+            defectType: d.type === 'WATER_LEAKAGE' ? 'WATER_STAIN' : (widthMm < 0.2 ? 'HAIRLINE' : 'STRUCTURAL'),
+            crackDirection: 'DIAGONAL',
+            widthMaxMm: widthMm,
+            lengthMm: Math.round(lengthM * 1000),
+            activityState: 'U',
+            materialDegradationE4: 0,
+            structuralSignificanceE2: widthMm >= 2.0 ? 3 : 1,
+            hasScaleCard: d.hasScaleCard ?? true,
+            isStructuralCritical: widthMm >= 5.0,
+            cuPhotoUrl: primaryCu,
+            cuPhotos: primaryCu ? [primaryCu] : [],
+            cuPhotoCodes: [dCode],
+            pinColor: '#ef4444',
+          },
+        ],
+      });
+    });
+
+    // 2. Chuyển đổi thấm dột trần lầu trên upperFloorWaterLeakage
+    const waterLeakage = surveyData?.upperFloorWaterLeakage;
+    if (waterLeakage && waterLeakage.has) {
+      const leakItems = Array.isArray(waterLeakage.leakageItems) && waterLeakage.leakageItems.length > 0
+        ? waterLeakage.leakageItems
+        : [{
+            leakageCode: 'WL-01',
+            location: waterLeakage.location || 'Trần phòng căn hộ',
+            description: waterLeakage.description || 'Thấm dột từ căn hộ lầu trên dội xuống',
+            photoUrl: waterLeakage.photoUrl || '',
+            ctxPhotoUrl: waterLeakage.photoUrl || '',
+            cuPhotoUrl: waterLeakage.photoUrl || '',
+          }];
+
+      leakItems.forEach((leak: any, lIdx: number) => {
+        const zCode = `Z-WL-${String(lIdx + 1).padStart(2, '0')}`;
+        const wlCode = leak.leakageCode || `WL-${String(lIdx + 1).padStart(2, '0')}`;
+        const primaryCu = leak.cuPhotoUrl || leak.photoUrl || '';
+        const ctxUrl = leak.ctxPhotoUrl || leak.photoUrl || '';
+
+        zones.push({
+          zoneCode: zCode,
+          floorName,
+          roomName: leak.location || 'Trần căn hộ',
+          componentType: 'CEILING',
+          wallMaterial: 'Thạch cao / Sàn bê tông cốt thép lầu trên',
+          functionalImpactRepairNeeded: true,
+          burlandGrade: 1,
+          ctxPhotoUrl: ctxUrl,
+          notes: leak.description || 'Thấm dột trần từ tầng trên',
+          defects: [
+            {
+              defectCode: wlCode,
+              pinX: 0,
+              pinY: 0,
+              screeningCategory: 'WATER_LEAK',
+              defectType: 'WATER_STAIN',
+              crackDirection: 'CEILING_SEEPAGE',
+              widthMaxMm: 0,
+              lengthMm: 0,
+              activityState: 'A',
+              materialDegradationE4: 2,
+              structuralSignificanceE2: 1,
+              hasScaleCard: false,
+              isStructuralCritical: false,
+              cuPhotoUrl: primaryCu,
+              cuPhotos: primaryCu ? [primaryCu] : [],
+              cuPhotoCodes: [wlCode],
+              pinColor: '#0284c7',
+            },
+          ],
+        });
+      });
+    }
+
+    return [
+      {
+        floorName,
+        floorOrder: Number(floorNum) || 1,
+        overviewPhotos: [],
+        cadDrawingUrl: unitCadUrl,
+        cadZonePins: [],
+        cadStructuralDrawingUrl: null,
+        cadElementPins: [],
+        notes: `Khảo sát căn hộ ${unitCode} (Tầng ${floorNum})`,
+        zones,
+      },
+    ];
+  }
+
+  /**
+   * Bóc tách và chuẩn hóa dữ liệu biến dạng & võng dầm của căn hộ con
+   */
+  static mapCondoUnitDeformation(surveyData: any): any | null {
+    const beamSagging = surveyData?.beamSagging;
+    const doorJamming = surveyData?.doorJammingStatus;
+    const settlementObserved = surveyData?.settlementObserved;
+    const settlementNotes = surveyData?.settlementNotes;
+
+    const hasSag = beamSagging && beamSagging.hasSagging;
+    const hasDoorJam = doorJamming && doorJamming !== 'NORMAL';
+    const hasSettle = settlementObserved && settlementObserved !== 'NONE';
+
+    if (!hasSag && !hasDoorJam && !hasSettle && !beamSagging?.photoUrl) {
+      return null;
+    }
+
+    const sagMm = hasSag ? Number(beamSagging.sagMm) || 0 : 0;
+    const spanM = hasSag ? Number(beamSagging.spanM) || 0 : 0;
+    const floorSlopeRatio = (sagMm > 0 && spanM > 0) ? (sagMm / (spanM * 1000)) : 0;
+
+    const abnormalPhotos: any[] = [];
+    if (beamSagging?.photoUrl) {
+      abnormalPhotos.push({
+        url: beamSagging.photoUrl,
+        caption: `Đo võng dầm/sàn: ${beamSagging.location || ''} (f=${sagMm}mm, nhịp=${spanM}m, tỉ số=${beamSagging.ratioText || 'N/A'})`,
+      });
+    }
+
+    return {
+      tiltAngleX: 0,
+      tiltAngleY: 0,
+      tiltDirection: null,
+      floorSlopeRatio,
+      beamDeflectionMm: sagMm,
+      measurementMethod: 'LASER_LEVEL_AND_CRACK_CARD',
+      measurementReliability: 'HIGH',
+      diffSettlementPhotoCode: null,
+      tiltPhotoCode: null,
+      abnormalPhotoCode: abnormalPhotos.length > 0 ? 'SAG-01' : null,
+      diffSettlementPhotos: [],
+      tiltPhotos: [],
+      abnormalPhotos,
+      notes: [
+        hasDoorJam ? `Cửa: ${doorJamming}` : null,
+        hasSettle ? `Lún: ${settlementObserved} (${settlementNotes || ''})` : null,
+        hasSag ? `Võng dầm: ${beamSagging.location} (f/L=${beamSagging.ratioText || 'N/A'})` : null,
+      ].filter(Boolean).join('; '),
+    };
+  }
 }

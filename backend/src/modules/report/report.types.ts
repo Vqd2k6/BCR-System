@@ -397,3 +397,97 @@ export interface ResidentialReportViewModel {
   workingMinutesPhotos: string[];
   generatedAt: string;
 }
+
+export interface CondoUnitWaterLeakReportItem {
+  leakageCode: string;
+  location: string;
+  description: string;
+  ctxPhotoUrl?: string;
+  cuPhotoUrl?: string;
+}
+
+export interface CondoUnitReportViewModel {
+  // Document Metadata & Header
+  reportCode: string;
+  reportRevision: number;
+  reportDate: string;
+  surveyDate: string;
+  buildingId: string;
+  buildingName: string;
+  address: string;
+  projectParcelCode: string;
+  officialCadastralCode: string;
+
+  // Căn hộ con (Child Unit specific)
+  unitCode: string;
+  floorNumber: number | string;
+  floorDisplay: string;
+  unitAreaM2?: number | string;
+  residentStatus: string;
+  residentStatusLabel: string;
+  ownerName: string;
+  ownerPhone?: string;
+  ownerIdCard?: string;
+  ownerFeedback?: string;
+
+  // Parent Building Inheritance (Thông tin kế thừa từ Tòa Mẹ)
+  parentMasterReportCode?: string;
+  parentMasterReportId?: string;
+  chainage: string;
+  metroOffsetDistance: string;
+  structuralSystem: string;
+  foundationCategory: string;
+  foundationSource: string;
+  buildingTiltDescription: string;
+  inheritanceLegalNotice: string;
+
+  // Căn hộ nội thất & Thiết bị nhạy cảm
+  hasSensitiveEquipment: boolean;
+  sensitiveEquipmentDesc?: string;
+  hasRenovated: boolean;
+  renovationHistoryDesc?: string;
+
+  // Ảnh định danh căn hộ
+  p01: ReportPhotoItem; // Cửa chính & biển số căn
+  p04: ReportPhotoItem; // Không gian tổng quan nội thất phòng khách
+
+  // Thấm dột trần từ lầu trên (Upper Floor Leakage)
+  hasUpperFloorWaterLeakage: boolean;
+  waterLeakageItems: CondoUnitWaterLeakReportItem[];
+
+  // Độ võng dầm / sàn căn hộ
+  hasBeamSagging: boolean;
+  beamSagLocation?: string;
+  beamSagMm?: number;
+  beamSpanM?: number;
+  beamSagRatioText?: string;
+  beamSagPhotoUrl?: string;
+  isBeamSagCritical?: boolean;
+
+  // Biến dạng cửa
+  doorJammingStatus: string;
+  doorJammingLabel: string;
+
+  // Sổ khuyết tật nội thất & Sơ đồ Damage Map
+  localDefects: DefectItemReport[];
+  totalDefectsCount: number;
+  burlandMaxGrade: number;
+  burlandMaxLabel: string;
+  unitCadUrl?: string;
+
+  // Kết luận & Chữ ký
+  summaryConclusions: string;
+  engineeringRecommendations: string;
+  surveyorSignatureUrl?: string;
+  surveyorSignatureImg?: string;
+  surveyorName?: string;
+  ownerSignatureUrl?: string;
+  ownerSignatureImg?: string;
+  zoneAdminSignatureUrl?: string;
+  zoneAdminSignatureImg?: string;
+  superAdminSignatureImg?: string;
+  workingMinutesPhotos: string[];
+  generatedAt: string;
+  isPiiMasked?: boolean;
+}
+

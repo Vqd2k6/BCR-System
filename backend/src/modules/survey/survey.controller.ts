@@ -287,9 +287,14 @@ export class SurveyController {
         console.warn('[submitPhase1FullPackage] Cảnh báo lưu building_specifications:', specsErr);
       }
 
-      const resolvedFloors = (surveyData?.floors && Array.isArray(surveyData.floors))
+      let resolvedFloors = (surveyData?.floors && Array.isArray(surveyData.floors))
         ? surveyData.floors
         : (surveyData?.floorSurvey ? [surveyData.floorSurvey] : null);
+
+      // Nếu là hồ sơ CĂN HỘ CON hoặc có localDefects/upperFloorWaterLeakage
+      if (!resolvedFloors && (surveyData?.localDefects || surveyData?.upperFloorWaterLeakage || surveyData?.unitCode)) {
+        resolvedFloors = SurveyPackageMapper.mapCondoUnitFloorSurveys(surveyData);
+      }
 
       if (resolvedFloors && Array.isArray(resolvedFloors)) {
         try {
@@ -300,7 +305,10 @@ export class SurveyController {
       }
 
       // 4. Map and Save Biến dạng & Lún nghiêng
-      const def = SurveyPackageMapper.mapDeformation(surveyData);
+      let def = SurveyPackageMapper.mapDeformation(surveyData);
+      if (!def && (surveyData?.beamSagging || surveyData?.doorJammingStatus || surveyData?.settlementObserved)) {
+        def = SurveyPackageMapper.mapCondoUnitDeformation(surveyData);
+      }
       if (def) {
         try {
           await SurveyService.saveDeformation(reportId, def);

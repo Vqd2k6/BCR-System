@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>Báo Cáo Khảo Sát Hiện Trạng Căn Hộ {{unitCode}} - {{reportCode}}</title>
+  <style>
+    {{{styles}}}
+  </style>
+</head>
+<body>
+  <div class="report-container">
+    <!-- Header chuẩn Liên danh CRLG-CRSRI-TT -->
+    <table class="header-table">
+      <tr>
+        <td style="width: 65%;">
+          <div class="joint-venture-title">LIÊN DANH CRLG – CRSRI – TT</div>
+          <div class="project-title">DỰ ÁN XÂY DỰNG TUYẾN TÀU ĐIỆN NGẦM SỐ 2 TP.HCM (BẾN THÀNH – THAM LƯƠNG)</div>
+          <div class="project-title">GÓI THẦU KHẢO SÁT & ĐÁNH GIÁ TÒA NHÀ TRƯỚC THI CÔNG (PHASE 1 BCS)</div>
+        </td>
+        <td style="width: 35%;" class="doc-code-box">
+          <div>MÃ HỒ SƠ: <strong>{{reportCode}}</strong></div>
+          <div>PHIÊN BẢN: REV {{reportRevision}}</div>
+          <div>NGÀY KHẢO SÁT: {{surveyDate}}</div>
+        </td>
+      </tr>
+    </table>
+
+    <!-- Tiêu đề chính Báo cáo Template 2 -->
+    <div class="report-main-title">BÁO CÁO KHẢO SÁT HIỆN TRẠNG CĂN HỘ</div>
+    <div class="report-sub-title">CĂN HỘ SỐ: {{unitCode}} • {{floorDisplay}} • KHỐI THÁP: {{buildingName}}</div>
+
+    <!-- KHUNG DẪN CHIẾU KẾ THỪA PHÁP LÝ TÒA MẸ -->
+    <div class="inheritance-box">
+      <strong>QUY CHUẨN KẾ THỪA CĂN HỘ CON (OOP CHILD-UNIT STANDARD):</strong><br>
+      {{inheritanceLegalNotice}}<br>
+      • Cự ly tim hầm Metro 2: <strong>{{metroOffsetDistance}}</strong> | Lý trình: <strong>{{chainage}}</strong> | Kết cấu khối tháp: <strong>{{structuralSystem}}</strong><br>
+      • Nền móng tổng thể: <strong>{{foundationCategory}}</strong> (Nguồn: {{foundationSource}})<br>
+      • Hiện trạng lún nghiêng khối tháp: <strong>{{buildingTiltDescription}}</strong>
+    </div>
+
+    <!-- PHẦN I: THÔNG TIN ĐỊNH DANH CĂN HỘ & CHỦ SỞ HỮU -->
+    <div class="section-title">I. THÔNG TIN CĂN HỘ & CHỦ SỞ HỮU / CƯ NGỤ</div>
+    <table class="data-table">
+      <tr>
+        <td style="width: 25%; font-weight: bold; background-color: #f8fafc;">Mã căn hộ</td>
+        <td style="width: 25%; font-weight: bold; color: #0d9488;">{{unitCode}}</td>
+        <td style="width: 25%; font-weight: bold; background-color: #f8fafc;">Vị trí tầng / lầu</td>
+        <td style="width: 25%;">{{floorDisplay}}</td>
+      </tr>
+      <tr>
+        <td style="font-weight: bold; background-color: #f8fafc;">Chủ sở hữu / Người đại diện</td>
+        <td><strong>{{ownerName}}</strong></td>
+        <td style="font-weight: bold; background-color: #f8fafc;">Số điện thoại liên hệ</td>
+        <td>{{#if ownerPhone}}{{ownerPhone}}{{else}}Đang cập nhật{{/if}}</td>
+      </tr>
+      <tr>
+        <td style="font-weight: bold; background-color: #f8fafc;">Số CCCD / Hộ chiếu</td>
+        <td>{{#if ownerIdCard}}{{ownerIdCard}}{{else}}Đang cập nhật{{/if}}</td>
+        <td style="font-weight: bold; background-color: #f8fafc;">Tình trạng cư ngụ thực tế</td>
+        <td><span class="badge badge-blue">{{residentStatusLabel}}</span></td>
+      </tr>
+      <tr>
+        <td style="font-weight: bold; background-color: #f8fafc;">Diện tích sử dụng riêng</td>
+        <td>{{#if unitAreaM2}}{{unitAreaM2}} m²{{else}}Chưa ghi nhận{{/if}}</td>
+        <td style="font-weight: bold; background-color: #f8fafc;">Địa chỉ tòa nhà trực thuộc</td>
+        <td>{{address}} (Thửa {{projectParcelCode}} / DC {{officialCadastralCode}})</td>
+      </tr>
+      <tr>
+        <td style="font-weight: bold; background-color: #f8fafc;">Lịch sử cải tạo nội thất</td>
+        <td colspan="3">
+          {{#if hasRenovated}}
+            <span class="badge badge-amber">ĐÃ TỪNG CẢI TẠO</span>: {{renovationHistoryDesc}}
+          {{else}}
+            <span class="badge badge-green">NGUYÊN BẢN</span> (Chưa cải tạo đập thông tường phòng)
+          {{/if}}
+        </td>
+      </tr>
+      {{#if hasSensitiveEquipment}}
+      <tr>
+        <td style="font-weight: bold; background-color: #f8fafc; color: #b91c1c;">Thiết bị nhạy cảm rung chấn</td>
+        <td colspan="3" style="color: #b91c1c; font-weight: bold;">
+          {{sensitiveEquipmentDesc}}
+        </td>
+      </tr>
+      {{/if}}
+    </table>
+
+    <!-- PHẦN II: ẢNH ĐỊNH DANH CỬA PHÒNG & NỘI THẤT -->
+    <div class="section-title">II. BỘ ẢNH ĐỊNH DANH CĂN HỘ (P01 & P04)</div>
+    <div class="photo-pair-container">
+      <div class="photo-card">
+        {{#if p01.url}}
+          <img src="{{p01.url}}" alt="P01">
+        {{else}}
+          <div style="height: 170px; display: flex; align-items: center; justify-content: center; background-color: #e2e8f0; color: #64748b;">
+            Chưa có ảnh P01
+          </div>
+        {{/if}}
+        <div class="photo-meta">
+          <strong>P-01: CỬA CHÍNH & BIỂN SỐ PHÒNG {{unitCode}}</strong><br>
+          Ghi nhận hiện trạng cửa ra vào và số phòng căn hộ tại hành lang.
+        </div>
+      </div>
+
+      <div class="photo-card">
+        {{#if p04.url}}
+          <img src="{{p04.url}}" alt="P04">
+        {{else}}
+          <div style="height: 170px; display: flex; align-items: center; justify-content: center; background-color: #e2e8f0; color: #64748b;">
+            Chưa có ảnh P04
+          </div>
+        {{/if}}
+        <div class="photo-meta">
+          <strong>P-04: TỔNG QUAN NỘI THẤT CĂN HỘ</strong><br>
+          Góc nhìn bao quát không gian sinh hoạt chính bên trong căn hộ.
+        </div>
+      </div>
+    </div>
+
+    <!-- PHẦN III: HIỆN TRẠNG ĐẶC THÙ: THẤM DỘT TRẦN, VÕNG DẦM SÀN & KẸT CỬA -->
+    <div class="section-title">III. HIỆN TRẠNG ĐẶC THÙ: THẤM TRẦN, VÕNG KẾT CẤU & KẸT CỬA</div>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th style="width: 30%;">Hạng mục kiểm tra</th>
+          <th style="width: 25%;">Trạng thái ghi nhận</th>
+          <th style="width: 45%;">Mô tả chi tiết kỹ thuật</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td style="font-weight: bold;">Thấm dột trần từ lầu trên (Upper Floor Leakage)</td>
+          <td>
+            {{#if hasUpperFloorWaterLeakage}}
+              <span class="badge badge-red">CÓ THẤM DỘT TRẦN</span>
+            {{else}}
+              <span class="badge badge-green">KHÔNG THẤM DỘT</span>
+            {{/if}}
+          </td>
+          <td>
+            {{#if hasUpperFloorWaterLeakage}}
+              Ghi nhận {{waterLeakageItems.length}} vị trí thấm trần thạch cao/bê tông từ tầng trên dội xuống (Chi tiết xem mục IV).
+            {{else}}
+              Bề mặt trần thạch cao và bê tông khô ráo, không có dấu hiệu loang ố ẩm mốc.
+            {{/if}}
+          </td>
+        </tr>
+        <tr>
+          <td style="font-weight: bold;">Độ võng dầm / sàn (Beam/Slab Sagging $f/L$)</td>
+          <td>
+            {{#if hasBeamSagging}}
+              {{#if isBeamSagCritical}}
+                <span class="badge badge-red">VÕNG VƯỢT CHUẨN</span>
+              {{else}}
+                <span class="badge badge-amber">CÓ VÕNG CỤC BỘ</span>
+              {{/if}}
+            {{else}}
+              <span class="badge badge-green">BÌNH THƯỜNG</span>
+            {{/if}}
+          </td>
+          <td>
+            {{#if hasBeamSagging}}
+              Vị trí: <strong>{{beamSagLocation}}</strong> • Độ võng: <strong>{{beamSagMm}} mm</strong> / Nhịp <strong>{{beamSpanM}} m</strong> (Tỉ số f/L = <strong>{{beamSagRatioText}}</strong>).
+              {{#if isBeamSagCritical}}
+                <br><span style="color: #b91c1c; font-weight: bold;">⚠️ Tỉ số f/L > 1/500: Cần quan trắc kết cấu thường xuyên.</span>
+              {{/if}}
+            {{else}}
+              Kết cấu dầm bê tông cốt thép và sàn phẳng, không quan sát thấy độ võng mắt thường.
+            {{/if}}
+          </td>
+        </tr>
+        <tr>
+          <td style="font-weight: bold;">Đóng mở cửa & biến dạng khung (Door Jamming)</td>
+          <td>
+            {{#if (eq doorJammingStatus 'NORMAL')}}
+              <span class="badge badge-green">BÌNH THƯỜNG</span>
+            {{else}}
+              <span class="badge badge-amber">CÓ BIẾN DẠNG</span>
+            {{/if}}
+          </td>
+          <td>{{doorJammingLabel}}</td>
+        </tr>
+      </tbody>
+    </table>
+
+    {{#if hasUpperFloorWaterLeakage}}
+      <!-- Bảng kê các điểm thấm dột trần -->
+      <div style="font-size: 10pt; font-weight: bold; margin: 6px 0 4px 0; color: #0284c7;">
+        DANH MỤC VỊ TRÍ THẤM DỘT TRẦN LẦU TRÊN DỘI XUỐNG:
+      </div>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th style="width: 12%;">Mã</th>
+            <th style="width: 30%;">Vị trí trần thấm dột</th>
+            <th style="width: 38%;">Mô tả đặc điểm loang ố / rỉ nước</th>
+            <th style="width: 20%;">Ảnh hiện trường</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{#each waterLeakageItems}}
+          <tr>
+            <td class="center font-mono" style="font-weight: bold; color: #0284c7;">{{this.leakageCode}}</td>
+            <td><strong>{{this.location}}</strong></td>
+            <td>{{this.description}}</td>
+            <td class="center">
+              {{#if this.cuPhotoUrl}}
+                <img src="{{this.cuPhotoUrl}}" alt="Leak CU" style="max-height: 48px; border-radius: 4px; border: 1px solid #cbd5e1;">
+              {{else if this.ctxPhotoUrl}}
+                <img src="{{this.ctxPhotoUrl}}" alt="Leak CTX" style="max-height: 48px; border-radius: 4px; border: 1px solid #cbd5e1;">
+              {{else}}
+                <span style="font-size: 8pt; color: #94a3b8;">Không có ảnh</span>
+              {{/if}}
+            </td>
+          </tr>
+          {{/each}}
+        </tbody>
+      </table>
+    {{/if}}
+
+    <!-- SANG TRANG CHO BẢN ĐỒ CAD VÀ SỔ KHUYẾT TẬT -->
+    <div class="page-break"></div>
+
+    <!-- PHẦN IV: BẢN ĐỒ KHUYẾT TẬT (DAMAGE MAP) & SỔ VẾT NỨT (DEFECT REGISTER) -->
+    <div class="section-title">IV. SƠ ĐỒ MẶT BẰNG & SỔ KHUYẾT TẬT NỘI THẤT CĂN HỘ</div>
+
+    {{#if unitCadUrl}}
+      <div class="damage-map-container">
+        <div style="font-size: 9pt; font-weight: bold; margin-bottom: 4px; color: #0f172a;">
+          SƠ ĐỒ ĐỊNH VỊ VẾT NỨT TRÊN BẢN VẼ MẶT BẰNG CĂN HỘ {{unitCode}} (DAMAGE MAP)
+        </div>
+        <img src="{{unitCadUrl}}" alt="CAD Căn hộ {{unitCode}}">
+        <div style="font-size: 8pt; color: #64748b; margin-top: 3px;">
+          Tọa độ các ghim D-01, D-02... được đánh dấu trực tiếp trên bản vẽ kiến trúc căn hộ.
+        </div>
+      </div>
+    {{/if}}
+
+    <div style="font-size: 10pt; font-weight: bold; margin: 8px 0 4px 0; color: #0f172a;">
+      SỔ KHUYẾT TẬT CHI TIẾT (DEFECT REGISTER - TỔNG CỘNG: {{totalDefectsCount}} VẾT NỨT):
+    </div>
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th style="width: 10%;">Mã</th>
+          <th style="width: 25%;">Vị trí vết nứt</th>
+          <th style="width: 14%;">Bề rộng $w$ (mm)</th>
+          <th style="width: 14%;">Chiều dài $L$ (m)</th>
+          <th style="width: 17%;">Cấp Burland</th>
+          <th style="width: 20%;">Mô tả đặc điểm</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#if (isNotEmpty localDefects)}}
+          {{#each localDefects}}
+          <tr>
+            <td class="center font-mono" style="font-weight: bold; color: #b91c1c;">{{this.defectCode}}</td>
+            <td>
+              <strong>{{this.roomName}}</strong>
+              {{#if this.pinX}}
+                <br><span style="font-size: 7.5pt; color: #0d9488; font-family: monospace;">Ghim CAD: ({{this.pinX}}%, {{this.pinY}}%)</span>
+              {{/if}}
+            </td>
+            <td class="center"><strong>{{this.widthMaxMm}} mm</strong></td>
+            <td class="center">{{this.lengthMm}} mm</td>
+            <td class="center">
+              {{#if (gte this.widthMaxMm 2.0)}}
+                <span class="badge badge-red">Cấp 2</span>
+              {{else if (gte this.widthMaxMm 0.2)}}
+                <span class="badge badge-amber">Cấp 1</span>
+              {{else}}
+                <span class="badge badge-green">Cấp 0</span>
+              {{/if}}
+            </td>
+            <td>{{this.notes}}</td>
+          </tr>
+          {{/each}}
+        {{else}}
+          <tr>
+            <td colspan="6" class="center" style="color: #64748b; font-style: italic; padding: 12px;">
+              Căn hộ nguyên vẹn, không ghi nhận vết nứt tường/dầm/sàn nào tại thời điểm khảo sát.
+            </td>
+          </tr>
+        {{/if}}
+      </tbody>
+    </table>
+
+    <div style="font-size: 9.5pt; margin: 4px 0 10px 0;">
+      • Cấp độ rủi ro Burland lớn nhất ghi nhận tại căn hộ: <strong>{{burlandMaxLabel}}</strong>
+    </div>
+
+    <!-- HỒ SƠ ẢNH ĐỐI CHIẾU CÓ THƯỚC ĐO CRACK CARD -->
+    {{#if (isNotEmpty localDefects)}}
+      <div style="font-size: 10pt; font-weight: bold; margin: 10px 0 6px 0; color: #0f172a;">
+        HỒ SƠ ẢNH KHUYẾT TẬT ĐỐI CHIẾU CÓ THƯỚC ĐO (CRACK SCALE CARD):
+      </div>
+      {{#each localDefects}}
+        {{#if (or this.ctxPhotoUrl this.cuPhotoUrl)}}
+          <div class="photo-pair-container">
+            <div class="photo-card">
+              {{#if this.ctxPhotoUrl}}
+                <img src="{{this.ctxPhotoUrl}}" alt="CTX">
+              {{else}}
+                <div style="height: 150px; display: flex; align-items: center; justify-content: center; background-color: #f1f5f9; color: #94a3b8;">
+                  Không có ảnh bối cảnh
+                </div>
+              {{/if}}
+              <div class="photo-meta">
+                <strong>{{this.defectCode}} - ẢNH BỐI CẢNH (CTX)</strong><br>
+                Vị trí: {{this.roomName}}
+              </div>
+            </div>
+
+            <div class="photo-card">
+              {{#if this.cuPhotoUrl}}
+                <img src="{{this.cuPhotoUrl}}" alt="CU">
+              {{else}}
+                <div style="height: 150px; display: flex; align-items: center; justify-content: center; background-color: #f1f5f9; color: #94a3b8;">
+                  Không có ảnh cận cảnh
+                </div>
+              {{/if}}
+              <div class="photo-meta">
+                <strong>{{this.defectCode}} - ẢNH CẬN CẢNH CÓ THƯỚC ĐO (CU)</strong><br>
+                Bề rộng vết nứt: {{this.widthMaxMm}} mm (Thước đo Crack Gauge)
+              </div>
+            </div>
+          </div>
+        {{/if}}
+      {{/each}}
+    {{/if}}
+
+    <!-- PHẦN V: KẾT LUẬN & KIẾN NGHỊ -->
+    <div class="section-title">V. KẾT LUẬN HIỆN TRẠNG & KIẾN NGHỊ KỸ THUẬT</div>
+    <div style="font-size: 10pt; line-height: 1.5; margin-bottom: 8px;">
+      <strong>1. Đánh giá hiện trạng kỹ thuật:</strong><br>
+      {{summaryConclusions}}
+    </div>
+    <div style="font-size: 10pt; line-height: 1.5; margin-bottom: 8px;">
+      <strong>2. Kiến nghị kỹ thuật trong quá trình đào ngầm Metro 2:</strong><br>
+      {{engineeringRecommendations}}
+    </div>
+    <div style="font-size: 10pt; line-height: 1.5; margin-bottom: 12px; background-color: #f8fafc; border-left: 3px solid #0d9488; padding: 6px 10px;">
+      <strong>3. Ý kiến của Chủ sở hữu / Người đại diện căn hộ:</strong><br>
+      <em>"{{ownerFeedback}}"</em>
+    </div>
+
+    <!-- CHỮ KÝ HIỆN TRƯỜNG 2 BÊN -->
+    <table class="signatures-table">
+      <tr>
+        <td>
+          <div class="sig-title">ĐẠI DIỆN CHỦ CĂN HỘ / CƯ NGỤ</div>
+          <div class="sig-sub">(Ký, ghi rõ họ tên và xác nhận hiện trạng)</div>
+          {{#if ownerSignatureUrl}}
+            <div style="height: 60px; margin-bottom: 10px;">
+              <img src="{{ownerSignatureUrl}}" alt="Chữ ký chủ hộ" style="max-height: 60px;">
+            </div>
+          {{else}}
+            <div style="height: 60px; margin-bottom: 10px;"></div>
+          {{/if}}
+          <div class="sig-name">{{ownerName}}</div>
+        </td>
+        <td>
+          <div class="sig-title">ĐẠI DIỆN KHẢO SÁT HIỆN TRƯỜNG</div>
+          <div class="sig-sub">(Ký, ghi rõ họ tên và chứng thực hồ sơ)</div>
+          {{#if surveyorSignatureUrl}}
+            <div style="height: 60px; margin-bottom: 10px;">
+              <img src="{{surveyorSignatureUrl}}" alt="Chữ ký KSV" style="max-height: 60px;">
+            </div>
+          {{else}}
+            <div style="height: 60px; margin-bottom: 10px;"></div>
+          {{/if}}
+          <div class="sig-name">{{surveyorName}}</div>
+        </td>
+      </tr>
+    </table>
+
+    <div style="text-align: center; font-size: 8pt; color: #94a3b8; margin-top: 30px; border-top: 1px dashed #cbd5e1; padding-top: 6px;">
+      Hồ sơ khảo sát hiện trạng công trình tuyến Metro số 2 • Thời điểm xuất: {{generatedAt}} • Trang 1/1
+    </div>
+  </div>
+</body>
+</html>

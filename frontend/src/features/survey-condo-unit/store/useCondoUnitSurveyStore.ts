@@ -53,8 +53,17 @@ const getDefaultCondoUnitFormData = (parcelId: string, unitId: string): CondoUni
   localDefects: [],
   upperFloorWaterLeakage: {
     has: false,
+    leakageItems: [],
     location: '',
     description: '',
+    photoUrl: '',
+  },
+  beamSagging: {
+    hasSagging: false,
+    location: '',
+    sagMm: 0,
+    spanM: 0,
+    ratioText: '',
     photoUrl: '',
   },
   doorJammingStatus: 'NORMAL',
@@ -113,6 +122,23 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
       if (saved) {
         const parsed = JSON.parse(saved);
         if (parsed.parcelId === pId && parsed.unitId === uId) {
+          if (parsed.upperFloorWaterLeakage) {
+            if (!Array.isArray(parsed.upperFloorWaterLeakage.leakageItems)) {
+              parsed.upperFloorWaterLeakage.leakageItems = parsed.upperFloorWaterLeakage.has && (parsed.upperFloorWaterLeakage.location || parsed.upperFloorWaterLeakage.photoUrl)
+                ? [{
+                    id: `wl-legacy-${Date.now()}`,
+                    leakageCode: 'WL-01',
+                    location: parsed.upperFloorWaterLeakage.location || 'Trần phòng',
+                    description: parsed.upperFloorWaterLeakage.description || '',
+                    photoUrl: parsed.upperFloorWaterLeakage.photoUrl || '',
+                    cuPhotoUrl: parsed.upperFloorWaterLeakage.photoUrl || '',
+                  }]
+                : [];
+            }
+          }
+          if (!parsed.beamSagging) {
+            parsed.beamSagging = { hasSagging: false, location: '', sagMm: 0, spanM: 0, ratioText: '', photoUrl: '' };
+          }
           data = { ...data, ...parsed };
         }
       }
