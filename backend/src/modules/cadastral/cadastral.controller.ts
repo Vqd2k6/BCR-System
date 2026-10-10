@@ -288,15 +288,16 @@ export class CadastralController {
     try {
       const { id } = req.params;
       const { floorNumber, floorName, floorCode, applicableFloors, cadPhotoUrl, cadPhotoCode, imageWidth, imageHeight, scope, areaType } = req.body;
-      if (floorNumber === undefined || floorNumber === null || !cadPhotoUrl) {
-        throw new BadRequestError('floorNumber và cadPhotoUrl là bắt buộc');
+      if (floorNumber === undefined || floorNumber === null || isNaN(parseInt(String(floorNumber), 10))) {
+        throw new BadRequestError('floorNumber là bắt buộc');
       }
+      const parsedFloorNumber = parseInt(String(floorNumber), 10);
       const result = await CadastralService.upsertFloorPlan(id, {
-        floorNumber: parseInt(floorNumber, 10),
-        floorName: floorName || `Tầng ${floorNumber}`,
+        floorNumber: parsedFloorNumber,
+        floorName: floorName || (parsedFloorNumber === 0 ? 'Tầng Trệt / G' : parsedFloorNumber < 0 ? `Hầm B${Math.abs(parsedFloorNumber)}` : `Tầng ${parsedFloorNumber}`),
         floorCode: floorCode ? String(floorCode).trim() : undefined,
         applicableFloors,
-        cadPhotoUrl,
+        cadPhotoUrl: cadPhotoUrl || '',
         cadPhotoCode,
         imageWidth,
         imageHeight,
@@ -316,12 +317,18 @@ export class CadastralController {
     try {
       const { id } = req.params;
       const { floorNumber, floorPlanId, partitions } = req.body;
-      if (!floorNumber || !Array.isArray(partitions)) {
+      if (
+        floorNumber === undefined ||
+        floorNumber === null ||
+        isNaN(parseInt(String(floorNumber), 10)) ||
+        !Array.isArray(partitions)
+      ) {
         throw new BadRequestError('floorNumber và danh sách partitions (mảng) là bắt buộc');
       }
+      const parsedFloorNumber = parseInt(String(floorNumber), 10);
       const result = await CadastralService.saveFloorPartitions(id, {
-        floorNumber: parseInt(floorNumber, 10),
-        floorPlanId,
+        floorNumber: parsedFloorNumber,
+        floorPlanId: floorPlanId || null,
         partitions,
       });
       res.status(200).json({
