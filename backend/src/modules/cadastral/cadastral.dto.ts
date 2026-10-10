@@ -84,7 +84,7 @@ export const UpsertFloorPlanDto = z.object({
   floorName: z.string().trim().min(1, 'Tên tầng bắt buộc').max(64, 'Tên tầng tối đa 64 ký tự'),
   floorCode: z.string().trim().max(32).optional(),
   applicableFloors: z.array(z.number().int().min(-5).max(100)).optional(),
-  cadPhotoUrl: z.string().trim().max(2048).default(''),
+  cadPhotoUrl: z.string().max(10_000_000, 'Bản vẽ CAD không được vượt quá 10MB').default(''),
   cadPhotoCode: z.string().trim().max(32).optional().nullable(),
   imageWidth: z.number().int().positive().optional().nullable(),
   imageHeight: z.number().int().positive().optional().nullable(),
@@ -98,7 +98,7 @@ export const PartitionItemDto = z.object({
   floorNumber: z.number().int().min(-5).max(100).optional(),
   bbox: CadBBoxDto.optional().nullable(),
   polygon: z.array(CadPolygonPointDto).optional().nullable(),
-  unitCadUrl: z.string().trim().max(2048).optional().nullable(),
+  unitCadUrl: z.string().max(10_000_000, 'Ảnh CAD trích xuất không được vượt quá 10MB').optional().nullable(),
   unitType: z.enum(['UNIT', 'MASTER']).default('UNIT'),
 });
 
