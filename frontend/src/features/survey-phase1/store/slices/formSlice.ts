@@ -35,21 +35,32 @@ export const createFormSlice: StateCreator<
     let initialData = getDefaultInitialFormData(parcel.id);
     let initialStep = 1;
 
-    // 1. Thử khôi phục nhanh đồng bộ từ localStorage (fallback)
-    try {
-      const saved = localStorage.getItem(draftKey);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed.parcelId === parcel.id) {
-          initialData = { ...initialData, ...parsed };
-          if (parsed._savedStep && parsed._savedStep >= 1 && parsed._savedStep <= 8) {
-            initialStep = parsed._savedStep;
+    const isSubmittedOrApproved =
+      parcel.surveyStatus === 'SUBMITTED' ||
+      parcel.surveyStatus === 'APPROVED' ||
+      parcel.surveyStatus === 'PHASE2_COMPLETED' ||
+      parcel.surveyStatus === 'APPROVED_PHASE2' ||
+      (parcel as any).survey_status === 'SUBMITTED' ||
+      (parcel as any).survey_status === 'APPROVED' ||
+      Boolean(unit && (unit.status === 'SUBMITTED' || unit.status === 'APPROVED' || unit.status === 'COMPLETED'));
+
+    // 1. Thử khôi phục nhanh đồng bộ từ localStorage (chỉ khi chưa nộp hồ sơ)
+    if (!isSubmittedOrApproved) {
+      try {
+        const saved = localStorage.getItem(draftKey);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed.parcelId === parcel.id) {
+            initialData = { ...initialData, ...parsed };
+            if (parsed._savedStep && parsed._savedStep >= 1 && parsed._savedStep <= 8) {
+              initialStep = parsed._savedStep;
+            }
+            console.log('[SurveyPhase1Store] Restored fast draft from LocalStorage:', draftKey);
           }
-          console.log('[SurveyPhase1Store] Restored fast draft from LocalStorage:', draftKey);
         }
+      } catch (e) {
+        console.warn('[SurveyPhase1Store] Failed to restore localStorage draft:', e);
       }
-    } catch (e) {
-      console.warn('[SurveyPhase1Store] Failed to restore localStorage draft:', e);
     }
 
     // 2. Map các thông tin định danh thửa đất (nếu draft chưa có hoặc là default thì lấy từ parcel)
@@ -142,94 +153,96 @@ export const createFormSlice: StateCreator<
       lastSavedAt: new Date().toLocaleTimeString('vi-VN'),
     });
 
-    // 3. Tải bất đồng bộ draft đầy đủ từ IndexedDB
-    loadSurveyDraft<Phase1SurveyFormData & { _savedStep?: number }>(draftKey)
-      .then((fullDraft) => {
-        if (fullDraft && fullDraft.parcelId === parcel.id) {
-          const targetStep = fullDraft._savedStep !== undefined && fullDraft._savedStep >= 1 && fullDraft._savedStep <= 8 ? fullDraft._savedStep : undefined;
-          set((state) => {
-            const merged = { ...state.formData, ...fullDraft };
-            const recalculatedEcs = calculateEcsScore(merged);
-            const recalculatedVi = calculateViScore(merged, recalculatedEcs);
-            merged.ecs = recalculatedEcs;
-            merged.vi = recalculatedVi;
-            return {
-              formData: merged,
-              currentStep: targetStep !== undefined ? targetStep : state.currentStep,
-              lastSavedAt: new Date().toLocaleTimeString('vi-VN'),
-            };
-          });
-          console.log('[SurveyPhase1Store] Full rich draft restored from IndexedDB:', draftKey, 'savedStep:', targetStep);
-        }
-      })
-      .catch((err) => {
-        console.warn('[SurveyPhase1Store] IDB load draft error:', err);
-      });
+    // 3. Tải bất đồng bộ draft đầy đủ từ IndexedDB (chỉ khi hồ sơ chưa nộp)
+    if (!isSubmittedOrApproved) {
+      loadSurveyDraft<Phase1SurveyFormData & { _savedStep?: number }>(draftKey)
+        .then((fullDraft) => {
+          if (fullDraft && fullDraft.parcelId === parcel.id) {
+            const targetStep = fullDraft._savedStep !== undefined && fullDraft._savedStep >= 1 && fullDraft._savedStep <= 8 ? fullDraft._savedStep : undefined;
+            set((state) => {
+              const merged = { ...state.formData, ...fullDraft };
+              const recalculatedEcs = calculateEcsScore(merged);
+              const recalculatedVi = calculateViScore(merged, recalculatedEcs);
+              merged.ecs = recalculatedEcs;
+              merged.vi = recalculatedVi;
+              return {
+                formData: merged,
+                currentStep: targetStep !== undefined ? targetStep : state.currentStep,
+                lastSavedAt: new Date().toLocaleTimeString('vi-VN'),
+              };
+            });
+            console.log('[SurveyPhase1Store] Full rich draft restored from IndexedDB:', draftKey, 'savedStep:', targetStep);
+          }
+        })
+        .catch((err) => {
+          console.warn('[SurveyPhase1Store] IDB load draft error:', err);
+        });
 
-    // 4. Đồng bộ bản nháp từ máy chủ (Server Draft Sync)
-    surveyDraftService
-      .fetchDraft(parcel.id, unitId)
-      .then((serverRes) => {
-        if (serverRes.isLocked) {
-          set({
-            isLockedByOther: true,
-            lockedInfo: {
-              surveyorName: serverRes.activeSurveyorName || 'Kỹ sư khác',
-              phone: serverRes.activeSurveyorPhone,
-              minutesAgo: serverRes.minutesAgo || 1,
-              message: serverRes.message,
-            },
-          });
-          return;
-        }
+      // 4. Đồng bộ bản nháp từ máy chủ (Server Draft Sync)
+      surveyDraftService
+        .fetchDraft(parcel.id, unitId)
+        .then((serverRes) => {
+          if (serverRes.isLocked) {
+            set({
+              isLockedByOther: true,
+              lockedInfo: {
+                surveyorName: serverRes.activeSurveyorName || 'Kỹ sư khác',
+                phone: serverRes.activeSurveyorPhone,
+                minutesAgo: serverRes.minutesAgo || 1,
+                message: serverRes.message,
+              },
+            });
+            return;
+          }
 
-        if (serverRes.requiresHandover) {
-          set({
-            isHandoverModalOpen: true,
-            handoverInfo: {
-              fromSurveyorName: serverRes.fromSurveyorName || 'Kỹ sư ca trước',
-              fromSurveyorPhone: serverRes.fromSurveyorPhone,
-              currentStep: serverRes.currentStep || 1,
-              securityCode: serverRes.securityCode || '',
-              updatedAt: serverRes.updatedAt || '',
-            },
-          });
-          return;
-        }
+          if (serverRes.requiresHandover) {
+            set({
+              isHandoverModalOpen: true,
+              handoverInfo: {
+                fromSurveyorName: serverRes.fromSurveyorName || 'Kỹ sư ca trước',
+                fromSurveyorPhone: serverRes.fromSurveyorPhone,
+                currentStep: serverRes.currentStep || 1,
+                securityCode: serverRes.securityCode || '',
+                updatedAt: serverRes.updatedAt || '',
+              },
+            });
+            return;
+          }
 
-        if (serverRes.draft && serverRes.draft.surveyData) {
-          const serverData = serverRes.draft.surveyData;
-          const targetStep =
-            serverRes.draft.currentStep >= 1 && serverRes.draft.currentStep <= 8
-              ? serverRes.draft.currentStep
-              : undefined;
+          if (serverRes.draft && serverRes.draft.surveyData) {
+            const serverData = serverRes.draft.surveyData;
+            const targetStep =
+              serverRes.draft.currentStep >= 1 && serverRes.draft.currentStep <= 8
+                ? serverRes.draft.currentStep
+                : undefined;
 
-          set((state) => {
-            const merged = { ...state.formData, ...serverData };
-            const recalculatedEcs = calculateEcsScore(merged);
-            const recalculatedVi = calculateViScore(merged, recalculatedEcs);
-            merged.ecs = recalculatedEcs;
-            merged.vi = recalculatedVi;
+            set((state) => {
+              const merged = { ...state.formData, ...serverData };
+              const recalculatedEcs = calculateEcsScore(merged);
+              const recalculatedVi = calculateViScore(merged, recalculatedEcs);
+              merged.ecs = recalculatedEcs;
+              merged.vi = recalculatedVi;
 
-            return {
-              formData: merged,
-              currentStep: targetStep !== undefined ? targetStep : state.currentStep,
-              syncVersion: serverRes.draft!.syncVersion || state.syncVersion,
-              syncStatus: 'SAVED',
-              lastSyncedAt: serverRes.draft!.updatedAt
-                ? new Date(serverRes.draft!.updatedAt).toLocaleTimeString('vi-VN')
-                : new Date().toLocaleTimeString('vi-VN'),
-              lastSavedAt: new Date().toLocaleTimeString('vi-VN'),
-              isDirty: false,
-            };
-          });
-          console.log('[SurveyPhase1Store] Server draft restored successfully:', serverRes.draft.reportId);
-        }
-      })
-      .catch((err) => {
-        console.warn('[SurveyPhase1Store] Failed to fetch server draft:', err);
-        set({ syncStatus: 'OFFLINE' });
-      });
+              return {
+                formData: merged,
+                currentStep: targetStep !== undefined ? targetStep : state.currentStep,
+                syncVersion: serverRes.draft!.syncVersion || state.syncVersion,
+                syncStatus: 'SAVED',
+                lastSyncedAt: serverRes.draft!.updatedAt
+                  ? new Date(serverRes.draft!.updatedAt).toLocaleTimeString('vi-VN')
+                  : new Date().toLocaleTimeString('vi-VN'),
+                lastSavedAt: new Date().toLocaleTimeString('vi-VN'),
+                isDirty: false,
+              };
+            });
+            console.log('[SurveyPhase1Store] Server draft restored successfully:', serverRes.draft.reportId);
+          }
+        })
+        .catch((err) => {
+          console.warn('[SurveyPhase1Store] Failed to fetch server draft:', err);
+          set({ syncStatus: 'OFFLINE' });
+        });
+    }
   },
 
   updateFormData: (updater) => {

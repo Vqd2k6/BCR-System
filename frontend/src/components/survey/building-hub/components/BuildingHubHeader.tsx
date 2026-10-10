@@ -5,7 +5,7 @@ import { useAuth } from '../../../../context/AuthContext';
 
 interface BuildingHubHeaderProps {
   parcel: GisParcel;
-  isHeaderVisible: boolean;
+  isHeaderVisible?: boolean;
   isMasterSurveyDone?: boolean;
   onClose: () => void;
   onOpenMasterView: () => void;
@@ -14,7 +14,7 @@ interface BuildingHubHeaderProps {
 
 export const BuildingHubHeader: React.FC<BuildingHubHeaderProps> = ({
   parcel,
-  isHeaderVisible,
+  isHeaderVisible: _isHeaderVisible,
   isMasterSurveyDone,
   onClose,
   onOpenMasterView,
@@ -24,13 +24,7 @@ export const BuildingHubHeader: React.FC<BuildingHubHeaderProps> = ({
   const isAdmin = user?.role === 'ZONE_ADMIN' || user?.role === 'SUPER_ADMIN';
 
   return (
-    <header
-      className={`bg-white border-b border-slate-200 px-3.5 sm:px-6 py-2.5 flex items-center justify-between shadow-xs flex-shrink-0 transition-all duration-300 ease-in-out z-50 sticky top-0 ${
-        isHeaderVisible
-          ? 'translate-y-0 opacity-100'
-          : 'sm:-translate-y-full sm:opacity-0 sm:pointer-events-none sm:h-0 sm:py-0 sm:overflow-hidden sm:border-b-0'
-      }`}
-    >
+    <header className="bg-white border-b border-slate-200 px-3.5 sm:px-6 py-2.5 flex items-center justify-between shadow-xs flex-shrink-0 z-50 sticky top-0">
       {/* Left: Single Back Arrow Button with 40px Touch Target */}
       <div className="flex items-center gap-2.5 min-w-0">
         <button

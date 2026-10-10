@@ -448,7 +448,14 @@ export class SurveyBaseRepository {
       reportQuery += ` AND unit_id IS NULL`;
     }
 
-    reportQuery += ` ORDER BY created_at DESC LIMIT 1;`;
+    reportQuery += ` ORDER BY 
+      CASE 
+        WHEN status = 'APPROVED' THEN 1 
+        WHEN status = 'SUBMITTED' THEN 2 
+        WHEN status = 'DRAFT' THEN 3 
+        ELSE 4 
+      END ASC, 
+      created_at DESC LIMIT 1;`;
 
     const reportRes = await Database.query<{ id: string }>(reportQuery, reportParams);
 

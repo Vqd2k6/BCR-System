@@ -31,8 +31,15 @@ export class SurveyDraftRepository {
     if (unitId) {
       params.push(unitId);
       query += ` AND r.unit_id = $${params.length}`;
+      query += ` AND NOT EXISTS (
+        SELECT 1 FROM building_units bu 
+        WHERE bu.id = r.unit_id AND bu.status IN ('SUBMITTED', 'APPROVED', 'COMPLETED')
+      )`;
     } else {
       query += ` AND r.unit_id IS NULL`;
+      if (phase === 'PHASE_1') {
+        query += ` AND p.survey_status NOT IN ('SUBMITTED', 'APPROVED', 'PHASE2_COMPLETED', 'APPROVED_PHASE2')`;
+      }
     }
 
     query += ` ORDER BY r.updated_at DESC LIMIT 1;`;
@@ -151,7 +158,10 @@ export class SurveyDraftRepository {
                WHEN survey_status IN ('SUBMITTED', 'APPROVED', 'PHASE2_COMPLETED', 'APPROVED_PHASE2') THEN survey_status 
                ELSE 'IN_PROGRESS' 
              END, 
-             active_phase1_report_id = $2, 
+             active_phase1_report_id = CASE 
+               WHEN survey_status IN ('SUBMITTED', 'APPROVED', 'PHASE2_COMPLETED', 'APPROVED_PHASE2') THEN active_phase1_report_id 
+               ELSE $2 
+             END, 
              updated_at = NOW() 
          WHERE id = $1;`,
         [resolvedParcelId, newDraft.id]
@@ -160,7 +170,15 @@ export class SurveyDraftRepository {
       if (data.unitId) {
         await Database.query(
           `UPDATE building_units 
-           SET status = 'IN_PROGRESS', phase1_report_id = $2, updated_at = NOW() 
+           SET status = CASE 
+                 WHEN status IN ('SUBMITTED', 'APPROVED', 'COMPLETED') THEN status 
+                 ELSE 'IN_PROGRESS' 
+               END, 
+               phase1_report_id = CASE 
+                 WHEN status IN ('SUBMITTED', 'APPROVED', 'COMPLETED') THEN phase1_report_id 
+                 ELSE $2 
+               END, 
+               updated_at = NOW() 
            WHERE id = $1;`,
           [data.unitId, newDraft.id]
         );

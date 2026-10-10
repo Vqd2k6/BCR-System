@@ -79,9 +79,8 @@ export const useBuildingHubState = ({ parcel, onUnitsUpdated }: UseBuildingHubSt
   const [visibleCount, setVisibleCount] = useState<number>(10);
   const [inspectedUnit, setInspectedUnit] = useState<BuildingUnit | null>(null);
 
-  // Scroll listener state to auto-hide top navbar on scroll down
-  const [isHeaderVisible, setIsHeaderVisible] = useState<boolean>(true);
-  const lastScrollTopRef = useRef<number>(0);
+  // Header luôn hiển thị cố định để đảm bảo thao tác ổn định và chống nháy giao diện khi cuộn
+  const isHeaderVisible = true;
 
   const [showAddModal, setShowAddModal] = useState<boolean>(false);
   const [showFloorProgressPopover, setShowFloorProgressPopover] = useState<boolean>(false);
@@ -192,14 +191,8 @@ export const useBuildingHubState = ({ parcel, onUnitsUpdated }: UseBuildingHubSt
     fetchMasterReport();
   }, [parcel.id]);
 
-  const handleScroll = (e: React.UIEvent<HTMLElement>) => {
-    const currentScrollTop = e.currentTarget.scrollTop;
-    if (currentScrollTop > lastScrollTopRef.current && currentScrollTop > 45) {
-      setIsHeaderVisible(false); // Scrolling down -> hide navbar
-    } else if (currentScrollTop < lastScrollTopRef.current - 5 || currentScrollTop <= 15) {
-      setIsHeaderVisible(true); // Scrolling up -> show navbar
-    }
-    lastScrollTopRef.current = currentScrollTop;
+  const handleScroll = (_e: React.UIEvent<HTMLElement>) => {
+    // Không thao tác state ẩn/hiện header khi cuộn để loại bỏ hoàn toàn hiện tượng layout thrashing & nháy giao diện
   };
 
   const handleAddUnit = async (e: React.FormEvent) => {
