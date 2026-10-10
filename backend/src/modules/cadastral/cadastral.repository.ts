@@ -571,6 +571,7 @@ export class CadastralRepository {
     const res = await Database.query<BuildingFloorPlanEntity>(
       `SELECT * FROM building_floor_plans 
        WHERE parcel_id = $1 AND (floor_number = $2 OR $2 = ANY(applicable_floors))
+       ORDER BY (floor_number = $2) DESC, floor_number ASC
        LIMIT 1;`,
       [parcelId, floorNumber]
     );

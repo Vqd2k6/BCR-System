@@ -15,6 +15,8 @@ interface UnitItem {
   floor_number: number;
   cad_bbox?: { x: number; y: number; width: number; height: number } | null;
   cadBbox?: { x: number; y: number; width: number; height: number } | null;
+  unit_type?: 'UNIT' | 'MASTER';
+  unitType?: 'UNIT' | 'MASTER';
   status?: string;
 }
 
@@ -279,7 +281,7 @@ export const SurveyorCadReadOnlyModal: React.FC<SurveyorCadReadOnlyModalProps> =
                               title={`Mã căn ngầm: ${unit.unit_code}`}
                               className="px-1 py-0.5 rounded bg-teal-900/90 text-white font-mono font-black text-[9px] sm:text-xs shadow-xs tracking-wider max-w-[92%] truncate text-center"
                             >
-                              {formatShortUnitDisplay(unit.unit_code)}
+                              {formatShortUnitDisplay(unit.unit_code, (unit.unit_type || unit.unitType) === 'MASTER' ? 'MASTER' : 'UNIT')}
                             </span>
                           </div>
                         );
@@ -304,7 +306,7 @@ export const SurveyorCadReadOnlyModal: React.FC<SurveyorCadReadOnlyModalProps> =
                       title={`Mã căn ngầm: ${u.unit_code}`}
                       className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 font-mono font-bold text-[11px] border border-slate-200"
                     >
-                      {formatShortUnitDisplay(u.unit_code)}
+                      {formatShortUnitDisplay(u.unit_code, (u.unit_type || u.unitType) === 'MASTER' ? 'MASTER' : 'UNIT')}
                     </span>
                   ))}
                 </div>

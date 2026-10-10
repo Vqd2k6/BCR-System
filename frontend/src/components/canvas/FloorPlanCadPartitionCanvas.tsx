@@ -544,7 +544,7 @@ export const FloorPlanCadPartitionCanvas: React.FC<Props> = ({
                         }`}
                       >
                         {isMaster ? <Building2 className="w-2.5 h-2.5 inline shrink-0" /> : <Home className="w-2.5 h-2.5 inline shrink-0" />}
-                        <span className="truncate">{formatShortUnitDisplay(box.unitCode) || 'Chưa đặt mã'}</span>
+                        <span className="truncate">{formatShortUnitDisplay(box.unitCode, box.partitionType) || 'Chưa đặt mã'}</span>
                       </span>
                       {!readOnly && isSelected && (
                         <button
@@ -595,7 +595,7 @@ export const FloorPlanCadPartitionCanvas: React.FC<Props> = ({
                     activeTool === 'DRAW_MASTER' ? 'bg-indigo-600' : 'bg-teal-600'
                   }`}>
                     {activeTool === 'DRAW_MASTER' ? <Building2 className="w-2.5 h-2.5 inline shrink-0" /> : <Home className="w-2.5 h-2.5 inline shrink-0" />}
-                    <span className="truncate">{formatShortUnitDisplay(activeTool === 'DRAW_MASTER' ? getNextMasterCode() : getNextUnitCode())}</span>
+                    <span className="truncate">{formatShortUnitDisplay(activeTool === 'DRAW_MASTER' ? getNextMasterCode() : getNextUnitCode(), activeTool === 'DRAW_MASTER' ? 'MASTER' : 'UNIT')}</span>
                   </span>
                 </div>
               </div>
@@ -659,15 +659,27 @@ export const FloorPlanCadPartitionCanvas: React.FC<Props> = ({
                       }`}
                     >
                       <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <span className={`w-5 h-5 rounded-md border text-[10px] font-mono font-bold flex items-center justify-center shadow-2xs ${
+                        <div className="flex items-center gap-1.5 flex-wrap flex-1 min-w-0 pr-1">
+                          <span className={`w-5 h-5 rounded-md border text-[10px] font-mono font-bold flex items-center justify-center shadow-2xs shrink-0 ${
                             isMaster ? 'bg-indigo-100 border-indigo-200 text-indigo-800' : 'bg-white border-slate-200 text-slate-600'
                           }`}>
                             {idx + 1}
                           </span>
+
+                          {/* Nhãn mã rút gọn trực quan giống Hub & Canvas */}
+                          <span
+                            className={`px-2 py-0.5 rounded-lg text-xs font-mono font-black flex items-center gap-1 shadow-2xs shrink-0 ${
+                              isMaster ? 'bg-indigo-700 text-white' : 'bg-teal-700 text-white'
+                            }`}
+                            title={`Mã hiển thị trên sơ đồ Hub & CAD: ${formatShortUnitDisplay(box.unitCode, box.partitionType)}`}
+                          >
+                            {isMaster ? <Building2 className="w-3 h-3" /> : <Home className="w-3 h-3" />}
+                            <span>{formatShortUnitDisplay(box.unitCode, box.partitionType) || '---'}</span>
+                          </span>
+
                           {readOnly ? (
-                            <span className={`font-mono font-bold text-xs ${isMaster ? 'text-indigo-700' : 'text-teal-700'}`}>
-                              {box.unitCode}
+                            <span className="font-mono text-[11px] text-slate-500 font-semibold truncate" title={`Mã CSDL: ${box.unitCode}`}>
+                              ({box.unitCode})
                             </span>
                           ) : (
                             <input
@@ -675,8 +687,9 @@ export const FloorPlanCadPartitionCanvas: React.FC<Props> = ({
                               value={box.unitCode}
                               onClick={(e) => e.stopPropagation()}
                               onChange={(e) => handleRenameBox(box.id, e.target.value)}
-                              placeholder="Mã..."
-                              className={`w-28 px-1.5 py-0.5 rounded font-mono font-bold text-xs focus:outline-none transition-colors ${
+                              placeholder={isMaster ? 'Mã (VD: M01)' : 'Mã (VD: 01)'}
+                              title={`Mã hệ thống / CSDL: ${box.unitCode}`}
+                              className={`w-24 px-1.5 py-0.5 rounded font-mono font-bold text-xs focus:outline-none transition-colors ${
                                 isDuplicate
                                   ? 'bg-rose-100 border border-rose-300 text-rose-800 focus:border-rose-500'
                                   : isMaster
@@ -691,7 +704,7 @@ export const FloorPlanCadPartitionCanvas: React.FC<Props> = ({
                           <button
                             type="button"
                             onClick={(e) => handleDeleteBox(box.id, e)}
-                            className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-100/50 transition-colors cursor-pointer"
+                            className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-100/50 transition-colors cursor-pointer shrink-0"
                             title="Xóa ô này"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -706,7 +719,7 @@ export const FloorPlanCadPartitionCanvas: React.FC<Props> = ({
                         </div>
                       )}
 
-                      {/* Phân loại & Trạng thái CAD (Đã bỏ KT & Toạ độ theo yêu cầu) */}
+                      {/* Phân loại & Trạng thái CAD */}
                       <div className="flex items-center justify-between text-[11px] pt-1 border-t border-slate-200/60">
                         {!readOnly ? (
                           <button
@@ -722,7 +735,7 @@ export const FloorPlanCadPartitionCanvas: React.FC<Props> = ({
                             {isMaster ? (
                               <>
                                 <Building2 className="w-3 h-3 text-indigo-600" />
-                                <span>Khu Master</span>
+                                <span>Khu Master (M)</span>
                               </>
                             ) : (
                               <>
@@ -736,17 +749,22 @@ export const FloorPlanCadPartitionCanvas: React.FC<Props> = ({
                             isMaster ? 'text-indigo-700' : 'text-teal-700'
                           }`}>
                             {isMaster ? <Building2 className="w-3 h-3" /> : <Home className="w-3 h-3" />}
-                            {isMaster ? 'Khu Master' : 'Căn Hộ'}
+                            {isMaster ? 'Khu Master (M)' : 'Căn Hộ'}
                           </span>
                         )}
 
-                        {box.unitCadUrl ? (
-                          <span className={`font-bold text-[10px] ${isMaster ? 'text-indigo-700' : 'text-teal-700'}`}>
-                            CAD ✓
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[10px] font-mono text-slate-400" title={`Mã lưu CSDL chuẩn: ${box.unitCode}`}>
+                            CSDL: {box.unitCode}
                           </span>
-                        ) : (
-                          <span className="text-slate-400 text-[10px]">Chờ crop</span>
-                        )}
+                          {box.unitCadUrl ? (
+                            <span className={`font-bold text-[10px] ${isMaster ? 'text-indigo-700' : 'text-teal-700'}`}>
+                              CAD ✓
+                            </span>
+                          ) : (
+                            <span className="text-slate-400 text-[10px]">Chờ crop</span>
+                          )}
+                        </div>
                       </div>
                     </div>
                   );

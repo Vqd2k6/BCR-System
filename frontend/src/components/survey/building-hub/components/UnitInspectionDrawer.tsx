@@ -40,7 +40,7 @@ export const UnitInspectionDrawer: React.FC<UnitInspectionDrawerProps> = ({
   if (!unit) return null;
 
   const isMaster = (unit.unit_type || unit.unitType) === 'MASTER';
-  const shortCode = formatShortUnitDisplay(unit.unit_code);
+  const shortCode = formatShortUnitDisplay(unit.unit_code, isMaster ? 'MASTER' : 'UNIT');
   const isApproved = unit.status === 'APPROVED' || Boolean(unit.phase2_report_id);
   const isSubmitted = unit.status === 'SUBMITTED';
   const isInProgress = unit.status === 'IN_PROGRESS';
