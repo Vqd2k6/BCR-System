@@ -716,11 +716,49 @@ export class CadastralRepository {
       }
     }
 
+    // SAFE PRUNING: Tự động dọn dẹp các phân vùng đã bị người dùng gỡ bỏ khỏi bản vẽ CAD
+    // RÀO CHẮN BẢO VỆ PHÁP LÝ (Legal Immutability Guard):
+    // TUYỆT ĐỐI CHỈ XÓA các unit CHƯA KHẢO SÁT (phase1_report_id IS NULL AND (status = 'NOT_SURVEYED' OR status IS NULL))
+    const targetFloors = Array.from(
+      new Set(partitions.map((p) => (p.floorNumber !== undefined ? p.floorNumber : floorNumber)))
+    );
+    if (targetFloors.length === 0) {
+      targetFloors.push(floorNumber);
+    }
+
+    for (const fl of targetFloors) {
+      const activeCodesOnFloor = partitions
+        .filter((p) => (p.floorNumber !== undefined ? p.floorNumber : floorNumber) === fl)
+        .map((p) => p.unitCode.trim())
+        .filter(Boolean);
+
+      if (activeCodesOnFloor.length > 0) {
+        await Database.query(
+          `DELETE FROM building_units 
+           WHERE parcel_id = $1 
+             AND floor_number = $2 
+             AND NOT (unit_code = ANY($3::varchar[]))
+             AND phase1_report_id IS NULL 
+             AND (status = 'NOT_SURVEYED' OR status IS NULL);`,
+          [parcelId, fl, activeCodesOnFloor]
+        );
+      } else {
+        await Database.query(
+          `DELETE FROM building_units 
+           WHERE parcel_id = $1 
+             AND floor_number = $2 
+             AND phase1_report_id IS NULL 
+             AND (status = 'NOT_SURVEYED' OR status IS NULL);`,
+          [parcelId, fl]
+        );
+      }
+    }
+
     // Tự động tính toán và cập nhật scope của floor plan nếu có floorPlanId
     if (floorPlanId && partitions.length > 0) {
-      const hasUnit = partitions.some(p => (p.unitType || 'UNIT') === 'UNIT');
-      const hasMaster = partitions.some(p => p.unitType === 'MASTER');
-      const scope: 'UNIT' | 'MASTER' | 'BOTH' = (hasUnit && hasMaster) ? 'BOTH' : (hasMaster ? 'MASTER' : 'UNIT');
+      const hasUnit = partitions.some((p) => (p.unitType || 'UNIT') === 'UNIT');
+      const hasMaster = partitions.some((p) => p.unitType === 'MASTER');
+      const scope: 'UNIT' | 'MASTER' | 'BOTH' = hasUnit && hasMaster ? 'BOTH' : hasMaster ? 'MASTER' : 'UNIT';
       await Database.query(
         `UPDATE building_floor_plans SET scope = $2, updated_at = NOW() WHERE id = $1;`,
         [floorPlanId, scope]
@@ -739,6 +777,18 @@ export class CadastralRepository {
     );
 
     return savedUnits;
+  }
+
+  static async deleteUnit(parcelId: string, unitId: string): Promise<boolean> {
+    await Database.query(`DELETE FROM building_units WHERE id = $1 AND parcel_id = $2;`, [unitId, parcelId]);
+    await Database.query(
+      `UPDATE parcels 
+       SET total_units = (SELECT COUNT(*) FROM building_units WHERE parcel_id = $1),
+           updated_at = NOW()
+       WHERE id = $1;`,
+      [parcelId]
+    );
+    return true;
   }
 
   static async getSurveyedUnitsOnFloor(
