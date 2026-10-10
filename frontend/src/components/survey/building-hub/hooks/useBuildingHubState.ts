@@ -3,8 +3,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { api } from '../../../../services/api';
 import type { GisParcel } from '../../../gis/LeafletSweepMap';
 import type { BuildingUnit, MasterReportData } from '../types';
-import { getDefaultFloorCode } from '../components/FloorPlanCadManagementModal';
-import { deriveBuildingFloorNumbers } from '../../../../core/utils/floorUtils';
+import { deriveBuildingFloorNumbers, getDefaultFloorCode } from '../../../../core/utils/floorUtils';
 
 export interface FloorPlanData {
   id: string;

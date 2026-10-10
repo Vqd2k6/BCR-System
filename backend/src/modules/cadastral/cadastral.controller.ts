@@ -6,6 +6,15 @@ import {
   UpdateFootprintDto,
   ProposeMutationDto,
   ApproveMutationDto,
+  CreateBuildingUnitDto,
+  UpsertFloorPlanDto,
+  SaveFloorPartitionsDto,
+  AtomicSyncFloorPlanAndPartitionsDto,
+  UpdateBuildingTypeDto,
+  DeleteFloorPlanQueryDto,
+  ParcelParamDto,
+  ParcelFloorParamDto,
+  ParcelUnitParamDto,
 } from './cadastral.dto';
 import { BadRequestError } from '../../common/errors/problem-details';
 import { maskParcelPii } from '../../common/utils/pii.utils';
@@ -209,7 +218,7 @@ export class CadastralController {
 
   static async getUnits(req: Request, res: Response, next: NextFunction) {
     try {
-      const { id } = req.params;
+      const { id } = ParcelParamDto.parse(req.params);
       const result = await CadastralService.listUnitsForParcel(id);
       res.status(200).json({
         success: true,
@@ -222,19 +231,9 @@ export class CadastralController {
 
   static async createUnit(req: Request, res: Response, next: NextFunction) {
     try {
-      const { id } = req.params;
-      const { unitCode, floorNumber, ownerName, ownerPhone, ownerIdCard, unitType } = req.body;
-      if (!unitCode) {
-        throw new BadRequestError('Mã số căn hộ (unitCode) là bắt buộc');
-      }
-      const result = await CadastralService.createUnitForParcel(id, {
-        unitCode,
-        floorNumber: floorNumber !== undefined ? parseInt(floorNumber, 10) : 1,
-        ownerName,
-        ownerPhone,
-        ownerIdCard,
-        unitType,
-      });
+      const { id } = ParcelParamDto.parse(req.params);
+      const payload = CreateBuildingUnitDto.parse(req.body);
+      const result = await CadastralService.createUnitForParcel(id, payload, req.user, req.ip);
       res.status(201).json({
         success: true,
         data: result,
@@ -246,8 +245,8 @@ export class CadastralController {
 
   static async deleteUnit(req: Request, res: Response, next: NextFunction) {
     try {
-      const { id, unitId } = req.params;
-      const result = await CadastralService.deleteUnit(id, unitId);
+      const { id, unitId } = ParcelUnitParamDto.parse(req.params);
+      const result = await CadastralService.deleteUnit(id, unitId, req.user, req.ip);
       res.status(200).json({
         success: true,
         data: result,
@@ -259,7 +258,7 @@ export class CadastralController {
 
   static async getFloorPlans(req: Request, res: Response, next: NextFunction) {
     try {
-      const { id } = req.params;
+      const { id } = ParcelParamDto.parse(req.params);
       const result = await CadastralService.listFloorPlansForParcel(id);
       res.status(200).json({
         success: true,
@@ -272,7 +271,7 @@ export class CadastralController {
 
   static async getFloorPlanByFloor(req: Request, res: Response, next: NextFunction) {
     try {
-      const { id, floor } = req.params;
+      const { id, floor } = ParcelFloorParamDto.parse(req.params);
       const floorNum = parseInt(floor, 10);
       const result = await CadastralService.getFloorPlanByFloor(id, floorNum);
       res.status(200).json({
@@ -286,24 +285,9 @@ export class CadastralController {
 
   static async upsertFloorPlan(req: Request, res: Response, next: NextFunction) {
     try {
-      const { id } = req.params;
-      const { floorNumber, floorName, floorCode, applicableFloors, cadPhotoUrl, cadPhotoCode, imageWidth, imageHeight, scope, areaType } = req.body;
-      if (floorNumber === undefined || floorNumber === null || isNaN(parseInt(String(floorNumber), 10))) {
-        throw new BadRequestError('floorNumber là bắt buộc');
-      }
-      const parsedFloorNumber = parseInt(String(floorNumber), 10);
-      const result = await CadastralService.upsertFloorPlan(id, {
-        floorNumber: parsedFloorNumber,
-        floorName: floorName || (parsedFloorNumber === 0 ? 'Tầng Trệt / G' : parsedFloorNumber < 0 ? `Hầm B${Math.abs(parsedFloorNumber)}` : `Tầng ${parsedFloorNumber}`),
-        floorCode: floorCode ? String(floorCode).trim() : undefined,
-        applicableFloors,
-        cadPhotoUrl: cadPhotoUrl || '',
-        cadPhotoCode,
-        imageWidth,
-        imageHeight,
-        scope,
-        areaType,
-      });
+      const { id } = ParcelParamDto.parse(req.params);
+      const payload = UpsertFloorPlanDto.parse(req.body);
+      const result = await CadastralService.upsertFloorPlan(id, payload, req.user, req.ip);
       res.status(200).json({
         success: true,
         data: result,
@@ -315,22 +299,23 @@ export class CadastralController {
 
   static async saveFloorPartitions(req: Request, res: Response, next: NextFunction) {
     try {
-      const { id } = req.params;
-      const { floorNumber, floorPlanId, partitions } = req.body;
-      if (
-        floorNumber === undefined ||
-        floorNumber === null ||
-        isNaN(parseInt(String(floorNumber), 10)) ||
-        !Array.isArray(partitions)
-      ) {
-        throw new BadRequestError('floorNumber và danh sách partitions (mảng) là bắt buộc');
-      }
-      const parsedFloorNumber = parseInt(String(floorNumber), 10);
-      const result = await CadastralService.saveFloorPartitions(id, {
-        floorNumber: parsedFloorNumber,
-        floorPlanId: floorPlanId || null,
-        partitions,
+      const { id } = ParcelParamDto.parse(req.params);
+      const payload = SaveFloorPartitionsDto.parse(req.body);
+      const result = await CadastralService.saveFloorPartitions(id, payload, req.user, req.ip);
+      res.status(200).json({
+        success: true,
+        data: result,
       });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async atomicSyncFloorPlanAndPartitions(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = ParcelParamDto.parse(req.params);
+      const payload = AtomicSyncFloorPlanAndPartitionsDto.parse(req.body);
+      const result = await CadastralService.atomicSyncFloorPlanAndPartitions(id, payload, req.user, req.ip);
       res.status(200).json({
         success: true,
         data: result,
@@ -342,13 +327,10 @@ export class CadastralController {
 
   static async deleteFloorPlan(req: Request, res: Response, next: NextFunction) {
     try {
-      const { id, floor } = req.params;
-      const mode = (req.query.mode as string)?.toUpperCase() === 'CLEAR_CAD' ? 'CLEAR_CAD' : 'DELETE_FLOOR';
+      const { id, floor } = ParcelFloorParamDto.parse(req.params);
+      const { mode } = DeleteFloorPlanQueryDto.parse(req.query);
       const floorNum = parseInt(floor, 10);
-      if (isNaN(floorNum)) {
-        throw new BadRequestError('floor phải là số');
-      }
-      const result = await CadastralService.deleteFloorPlan(id, floorNum, mode);
+      const result = await CadastralService.deleteFloorPlan(id, floorNum, mode, req.user, req.ip);
       res.status(200).json({
         success: true,
         data: result,
@@ -375,15 +357,14 @@ export class CadastralController {
 
   static async updateBuildingType(req: Request, res: Response, next: NextFunction) {
     try {
-      const { id } = req.params;
-      const { buildingType, totalUnits } = req.body;
-      if (!buildingType) {
-        throw new BadRequestError('Loại hình công trình (buildingType) là bắt buộc');
-      }
+      const { id } = ParcelParamDto.parse(req.params);
+      const { buildingType, totalUnits } = UpdateBuildingTypeDto.parse(req.body);
       const result = await CadastralService.updateBuildingType(
         id,
         buildingType,
-        totalUnits !== undefined ? parseInt(totalUnits, 10) : undefined
+        totalUnits,
+        req.user,
+        req.ip
       );
       res.status(200).json({
         success: true,

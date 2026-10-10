@@ -32,11 +32,23 @@ export interface ParcelEntity {
   assigned_surveyor_name?: string | null;
   assigned_surveyor_code?: string | null;
   assigned_surveyor_phone?: string | null;
-  location_geojson?: any;
-  cadastral_geojson?: any;
-  footprint_geojson?: any;
+  location_geojson?: Record<string, unknown> | null;
+  cadastral_geojson?: Record<string, unknown> | null;
+  footprint_geojson?: Record<string, unknown> | null;
   created_at: Date;
   updated_at: Date;
+}
+
+export interface CadBBox {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface CadPolygonPoint {
+  x: number;
+  y: number;
 }
 
 export interface BuildingUnitEntity {
@@ -52,13 +64,14 @@ export interface BuildingUnitEntity {
   phase1_report_id: string | null;
   phase2_report_id: string | null;
   floor_plan_id?: string | null;
-  cad_bbox?: { x: number; y: number; width: number; height: number } | null;
-  cad_polygon?: { x: number; y: number }[] | null;
+  cad_bbox?: CadBBox | null;
+  cad_polygon?: CadPolygonPoint[] | null;
   unit_cad_url?: string | null;
   resident_status?: string | null;
   unit_type?: 'UNIT' | 'MASTER' | null;
   created_at: Date;
   updated_at: Date;
+  deleted_at?: Date | null;
 }
 
 export interface BuildingFloorPlanEntity {
@@ -76,6 +89,7 @@ export interface BuildingFloorPlanEntity {
   area_type?: string | null;
   created_at: Date;
   updated_at: Date;
+  deleted_at?: Date | null;
 }
 
 
@@ -148,8 +162,8 @@ export class CadastralRepository {
 
     const res = await Database.query<ParcelEntity>(
       `SELECT p.*,
-              GREATEST(p.total_units, (SELECT COUNT(*)::int FROM building_units u WHERE u.parcel_id = p.id)) AS total_units,
-              (SELECT COUNT(*)::int FROM building_units u WHERE u.parcel_id = p.id AND u.status IN ('APPROVED', 'SUBMITTED')) AS completed_units_count,
+              GREATEST(p.total_units, (SELECT COUNT(*)::int FROM building_units u WHERE u.parcel_id = p.id AND u.deleted_at IS NULL)) AS total_units,
+              (SELECT COUNT(*)::int FROM building_units u WHERE u.parcel_id = p.id AND u.status IN ('APPROVED', 'SUBMITTED') AND u.deleted_at IS NULL) AS completed_units_count,
               COALESCE(
                 (
                   SELECT r.surveyor_id
@@ -474,7 +488,7 @@ export class CadastralRepository {
   static async findUnitsByParcelId(parcelId: string): Promise<BuildingUnitEntity[]> {
     const res = await Database.query<BuildingUnitEntity>(
       `SELECT u.* FROM building_units u
-       WHERE u.parcel_id = $1
+       WHERE u.parcel_id = $1 AND u.deleted_at IS NULL
        ORDER BY u.floor_number ASC, u.unit_code ASC;`,
       [parcelId]
     );
@@ -483,7 +497,7 @@ export class CadastralRepository {
 
   static async findUnitById(unitId: string): Promise<BuildingUnitEntity | null> {
     const res = await Database.query<BuildingUnitEntity>(
-      `SELECT u.* FROM building_units u WHERE u.id = $1 LIMIT 1;`,
+      `SELECT u.* FROM building_units u WHERE u.id = $1 AND u.deleted_at IS NULL LIMIT 1;`,
       [unitId]
     );
     return res.rows[0] || null;
@@ -493,35 +507,46 @@ export class CadastralRepository {
     parcelId: string;
     unitCode: string;
     floorNumber: number;
-    ownerName?: string;
-    ownerPhone?: string;
-    ownerIdCard?: string;
+    ownerName?: string | null;
+    ownerPhone?: string | null;
+    ownerIdCard?: string | null;
     unitType?: 'UNIT' | 'MASTER';
   }): Promise<BuildingUnitEntity> {
-    const res = await Database.query<BuildingUnitEntity>(
-      `INSERT INTO building_units (parcel_id, unit_code, floor_number, owner_name, owner_phone, owner_id_card, unit_type)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
-       RETURNING *;`,
-      [
-        data.parcelId,
-        data.unitCode,
-        data.floorNumber,
-        data.ownerName || null,
-        data.ownerPhone || null,
-        data.ownerIdCard || null,
-        data.unitType || 'UNIT',
-      ]
-    );
-    // Cập nhật total_units và building_type trong parcels
-    await Database.query(
-      `UPDATE parcels 
-       SET total_units = (SELECT COUNT(*) FROM building_units WHERE parcel_id = $1),
-           building_type = 'CONDOMINIUM',
-           updated_at = NOW()
-       WHERE id = $1;`,
-      [data.parcelId]
-    );
-    return res.rows[0];
+    return Database.transaction(async (client) => {
+      const res = await client.query<BuildingUnitEntity>(
+        `INSERT INTO building_units (
+          parcel_id, unit_code, floor_number, owner_name, owner_phone, owner_id_card, unit_type, deleted_at, updated_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, NULL, NOW())
+        ON CONFLICT (parcel_id, unit_code) WHERE deleted_at IS NULL DO UPDATE SET
+          floor_number = EXCLUDED.floor_number,
+          owner_name = COALESCE(EXCLUDED.owner_name, building_units.owner_name),
+          owner_phone = COALESCE(EXCLUDED.owner_phone, building_units.owner_phone),
+          owner_id_card = COALESCE(EXCLUDED.owner_id_card, building_units.owner_id_card),
+          unit_type = COALESCE(EXCLUDED.unit_type, building_units.unit_type, 'UNIT'),
+          deleted_at = NULL,
+          updated_at = NOW()
+        RETURNING *;`,
+        [
+          data.parcelId,
+          data.unitCode,
+          data.floorNumber,
+          data.ownerName || null,
+          data.ownerPhone || null,
+          data.ownerIdCard || null,
+          data.unitType || 'UNIT',
+        ]
+      );
+      // Cập nhật total_units và building_type trong parcels
+      await client.query(
+        `UPDATE parcels 
+         SET total_units = (SELECT COUNT(*) FROM building_units WHERE parcel_id = $1 AND deleted_at IS NULL),
+             building_type = 'CONDOMINIUM',
+             updated_at = NOW()
+         WHERE id = $1;`,
+        [data.parcelId]
+      );
+      return res.rows[0];
+    });
   }
 
   static async updateBuildingType(
@@ -554,7 +579,7 @@ export class CadastralRepository {
       `SELECT COUNT(*) as count 
        FROM base_survey_reports r
        JOIN building_units u ON r.unit_id = u.id
-       WHERE u.parcel_id = $1;`,
+       WHERE u.parcel_id = $1 AND u.deleted_at IS NULL;`,
       [parcelId]
     );
     return parseInt(res.rows[0]?.count || '0', 10);
@@ -562,7 +587,7 @@ export class CadastralRepository {
 
   static async findFloorPlansByParcelId(parcelId: string): Promise<BuildingFloorPlanEntity[]> {
     const res = await Database.query<BuildingFloorPlanEntity>(
-      `SELECT * FROM building_floor_plans WHERE parcel_id = $1 ORDER BY floor_number ASC;`,
+      `SELECT * FROM building_floor_plans WHERE parcel_id = $1 AND deleted_at IS NULL ORDER BY floor_number ASC;`,
       [parcelId]
     );
     return res.rows;
@@ -571,7 +596,7 @@ export class CadastralRepository {
   static async findFloorPlanByFloor(parcelId: string, floorNumber: number): Promise<BuildingFloorPlanEntity | null> {
     const res = await Database.query<BuildingFloorPlanEntity>(
       `SELECT * FROM building_floor_plans 
-       WHERE parcel_id = $1 AND (floor_number = $2 OR $2 = ANY(applicable_floors))
+       WHERE parcel_id = $1 AND (floor_number = $2 OR $2 = ANY(applicable_floors)) AND deleted_at IS NULL
        ORDER BY (floor_number = $2) DESC, floor_number ASC
        LIMIT 1;`,
       [parcelId, floorNumber]
@@ -579,19 +604,22 @@ export class CadastralRepository {
     return res.rows[0] || null;
   }
 
-  static async upsertFloorPlan(data: {
-    parcelId: string;
-    floorNumber: number;
-    floorName: string;
-    floorCode?: string;
-    applicableFloors?: number[];
-    cadPhotoUrl: string;
-    cadPhotoCode?: string;
-    imageWidth?: number;
-    imageHeight?: number;
-    scope?: 'MASTER' | 'UNIT' | 'BOTH';
-    areaType?: string;
-  }): Promise<BuildingFloorPlanEntity> {
+  static async upsertFloorPlan(
+    data: {
+      parcelId: string;
+      floorNumber: number;
+      floorName: string;
+      floorCode?: string;
+      applicableFloors?: number[];
+      cadPhotoUrl: string;
+      cadPhotoCode?: string | null;
+      imageWidth?: number | null;
+      imageHeight?: number | null;
+      scope?: 'MASTER' | 'UNIT' | 'BOTH';
+      areaType?: string | null;
+    },
+    client?: PoolClient
+  ): Promise<BuildingFloorPlanEntity> {
     const applicable = data.applicableFloors && data.applicableFloors.length > 0 
       ? data.applicableFloors 
       : [data.floorNumber];
@@ -644,11 +672,10 @@ export class CadastralRepository {
       }
     }
 
-    const res = await Database.query<BuildingFloorPlanEntity>(
-      `INSERT INTO building_floor_plans (
-        parcel_id, floor_number, floor_name, floor_code, applicable_floors, cad_photo_url, cad_photo_code, image_width, image_height, scope, area_type, updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())
-      ON CONFLICT (parcel_id, floor_number) DO UPDATE SET
+    const insertSql = `INSERT INTO building_floor_plans (
+        parcel_id, floor_number, floor_name, floor_code, applicable_floors, cad_photo_url, cad_photo_code, image_width, image_height, scope, area_type, deleted_at, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NULL, NOW())
+      ON CONFLICT (parcel_id, floor_number) WHERE deleted_at IS NULL DO UPDATE SET
         floor_name = EXCLUDED.floor_name,
         floor_code = COALESCE(EXCLUDED.floor_code, building_floor_plans.floor_code),
         applicable_floors = EXCLUDED.applicable_floors,
@@ -658,22 +685,38 @@ export class CadastralRepository {
         image_height = EXCLUDED.image_height,
         scope = COALESCE(EXCLUDED.scope, building_floor_plans.scope),
         area_type = COALESCE(EXCLUDED.area_type, building_floor_plans.area_type),
+        deleted_at = NULL,
         updated_at = NOW()
-      RETURNING *;`,
-      [
-        data.parcelId,
-        data.floorNumber,
-        data.floorName,
-        floorCode,
-        applicable,
-        data.cadPhotoUrl,
-        data.cadPhotoCode || null,
-        data.imageWidth || null,
-        data.imageHeight || null,
-        scope,
-        areaType || null,
-      ]
-    );
+      RETURNING *;`;
+    const insertParams = [
+      data.parcelId,
+      data.floorNumber,
+      data.floorName,
+      floorCode,
+      applicable,
+      data.cadPhotoUrl,
+      data.cadPhotoCode || null,
+      data.imageWidth || null,
+      data.imageHeight || null,
+      scope,
+      areaType || null,
+    ];
+
+    const res = client
+      ? await client.query<BuildingFloorPlanEntity>(insertSql, insertParams)
+      : await Database.query<BuildingFloorPlanEntity>(insertSql, insertParams);
+
+    // Tự động gỡ bỏ tầng khỏi deleted_floors của parcel khi đã có bản vẽ hợp lệ
+    const updateParcelSql = `UPDATE parcels 
+       SET deleted_floors = array_remove(COALESCE(deleted_floors, '{}'), $2::int),
+           updated_at = NOW()
+       WHERE id = $1;`;
+    if (client) {
+      await client.query(updateParcelSql, [data.parcelId, data.floorNumber]);
+    } else {
+      await Database.query(updateParcelSql, [data.parcelId, data.floorNumber]);
+    }
+
     return res.rows[0];
   }
 
@@ -681,118 +724,191 @@ export class CadastralRepository {
     parcelId: string,
     floorNumber: number,
     floorPlanId: string | null,
-    partitions: { unitCode: string; displayCode?: string; floorNumber?: number; bbox?: any; polygon?: any; unitCadUrl?: string; unitType?: 'UNIT' | 'MASTER' }[]
+    partitions: { 
+      unitCode: string; 
+      displayCode?: string | null; 
+      floorNumber?: number; 
+      bbox?: CadBBox | null; 
+      polygon?: CadPolygonPoint[] | null; 
+      unitCadUrl?: string | null; 
+      unitType?: 'UNIT' | 'MASTER';
+    }[],
+    client?: PoolClient
   ): Promise<BuildingUnitEntity[]> {
-    const savedUnits: BuildingUnitEntity[] = [];
+    const executeLogic = async (txClient: PoolClient): Promise<BuildingUnitEntity[]> => {
+      const savedUnits: BuildingUnitEntity[] = [];
 
-    for (const part of partitions) {
-      const uFloor = part.floorNumber !== undefined ? part.floorNumber : floorNumber;
-      const uType = part.unitType || 'UNIT';
-      const dispCode = part.displayCode || null;
-      const res = await Database.query<BuildingUnitEntity>(
-        `INSERT INTO building_units (
-          parcel_id, unit_code, display_code, floor_number, floor_plan_id, cad_bbox, cad_polygon, unit_cad_url, unit_type, updated_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
-        ON CONFLICT (parcel_id, unit_code) DO UPDATE SET
-          display_code = COALESCE(EXCLUDED.display_code, building_units.display_code),
-          floor_number = EXCLUDED.floor_number,
-          floor_plan_id = COALESCE(EXCLUDED.floor_plan_id, building_units.floor_plan_id),
-          cad_bbox = COALESCE(EXCLUDED.cad_bbox, building_units.cad_bbox),
-          cad_polygon = COALESCE(EXCLUDED.cad_polygon, building_units.cad_polygon),
-          unit_cad_url = COALESCE(EXCLUDED.unit_cad_url, building_units.unit_cad_url),
-          unit_type = COALESCE(EXCLUDED.unit_type, building_units.unit_type, 'UNIT'),
-          updated_at = NOW()
-        RETURNING *;`,
-        [
+      for (const part of partitions) {
+        const uFloor = part.floorNumber !== undefined ? part.floorNumber : floorNumber;
+        const uType = part.unitType || 'UNIT';
+        const dispCode = part.displayCode || null;
+        const res = await txClient.query<BuildingUnitEntity>(
+          `INSERT INTO building_units (
+            parcel_id, unit_code, display_code, floor_number, floor_plan_id, cad_bbox, cad_polygon, unit_cad_url, unit_type, deleted_at, updated_at
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NULL, NOW())
+          ON CONFLICT (parcel_id, unit_code) WHERE deleted_at IS NULL DO UPDATE SET
+            display_code = COALESCE(EXCLUDED.display_code, building_units.display_code),
+            floor_number = EXCLUDED.floor_number,
+            floor_plan_id = COALESCE(EXCLUDED.floor_plan_id, building_units.floor_plan_id),
+            cad_bbox = COALESCE(EXCLUDED.cad_bbox, building_units.cad_bbox),
+            cad_polygon = COALESCE(EXCLUDED.cad_polygon, building_units.cad_polygon),
+            unit_cad_url = COALESCE(EXCLUDED.unit_cad_url, building_units.unit_cad_url),
+            unit_type = COALESCE(EXCLUDED.unit_type, building_units.unit_type, 'UNIT'),
+            deleted_at = NULL,
+            updated_at = NOW()
+          RETURNING *;`,
+          [
+            parcelId,
+            part.unitCode,
+            dispCode,
+            uFloor,
+            floorPlanId,
+            part.bbox ? JSON.stringify(part.bbox) : null,
+            part.polygon ? JSON.stringify(part.polygon) : null,
+            part.unitCadUrl || null,
+            uType,
+          ]
+        );
+        if (res.rows[0]) {
+          savedUnits.push(res.rows[0]);
+        }
+      }
+
+      // SAFE PRUNING (SOFT DELETE MANDATE):
+      // TUYỆT ĐỐI CHỈ SOFT DELETE (deleted_at = NOW()) các unit CHƯA KHẢO SÁT
+      const targetFloors = Array.from(
+        new Set(partitions.map((p) => (p.floorNumber !== undefined ? p.floorNumber : floorNumber)))
+      );
+      if (targetFloors.length === 0) {
+        targetFloors.push(floorNumber);
+      }
+
+      for (const fl of targetFloors) {
+        const activeCodesOnFloor = partitions
+          .filter((p) => (p.floorNumber !== undefined ? p.floorNumber : floorNumber) === fl)
+          .map((p) => p.unitCode.trim())
+          .filter(Boolean);
+
+        if (activeCodesOnFloor.length > 0) {
+          await txClient.query(
+            `UPDATE building_units 
+             SET deleted_at = NOW(), updated_at = NOW()
+             WHERE parcel_id = $1 
+               AND floor_number = $2 
+               AND NOT (unit_code = ANY($3::varchar[]))
+               AND phase1_report_id IS NULL 
+               AND (status = 'NOT_SURVEYED' OR status IS NULL)
+               AND deleted_at IS NULL;`,
+            [parcelId, fl, activeCodesOnFloor]
+          );
+        } else {
+          await txClient.query(
+            `UPDATE building_units 
+             SET deleted_at = NOW(), updated_at = NOW()
+             WHERE parcel_id = $1 
+               AND floor_number = $2 
+               AND phase1_report_id IS NULL 
+               AND (status = 'NOT_SURVEYED' OR status IS NULL)
+               AND deleted_at IS NULL;`,
+            [parcelId, fl]
+          );
+        }
+      }
+
+      // Cập nhật scope của floor plan nếu có floorPlanId
+      if (floorPlanId && partitions.length > 0) {
+        const hasUnit = partitions.some((p) => (p.unitType || 'UNIT') === 'UNIT');
+        const hasMaster = partitions.some((p) => p.unitType === 'MASTER');
+        const scope: 'UNIT' | 'MASTER' | 'BOTH' = hasUnit && hasMaster ? 'BOTH' : hasMaster ? 'MASTER' : 'UNIT';
+        await txClient.query(
+          `UPDATE building_floor_plans SET scope = $2, updated_at = NOW() WHERE id = $1 AND deleted_at IS NULL;`,
+          [floorPlanId, scope]
+        );
+      }
+
+      // Cập nhật total_units và building_type = 'CONDOMINIUM'
+      await txClient.query(
+        `UPDATE parcels 
+         SET total_units = (SELECT COUNT(*) FROM building_units WHERE parcel_id = $1 AND deleted_at IS NULL),
+             building_type = 'CONDOMINIUM',
+             deleted_floors = array_remove(COALESCE(deleted_floors, '{}'), $2::int),
+             updated_at = NOW()
+         WHERE id = $1;`,
+        [parcelId, floorNumber]
+      );
+
+      return savedUnits;
+    };
+
+    if (client) {
+      return executeLogic(client);
+    }
+    return Database.transaction(async (txClient) => executeLogic(txClient));
+  }
+
+  static async atomicSyncFloorPlanAndPartitions(
+    parcelId: string,
+    floorNumber: number,
+    floorPlanData: {
+      floorName: string;
+      floorCode?: string;
+      applicableFloors?: number[];
+      cadPhotoUrl: string;
+      cadPhotoCode?: string | null;
+      imageWidth?: number | null;
+      imageHeight?: number | null;
+      scope?: 'MASTER' | 'UNIT' | 'BOTH';
+      areaType?: string | null;
+    },
+    partitions: {
+      unitCode: string;
+      displayCode?: string | null;
+      floorNumber?: number;
+      bbox?: CadBBox | null;
+      polygon?: CadPolygonPoint[] | null;
+      unitCadUrl?: string | null;
+      unitType?: 'UNIT' | 'MASTER';
+    }[]
+  ): Promise<{ plan: BuildingFloorPlanEntity; units: BuildingUnitEntity[] }> {
+    return Database.transaction(async (client) => {
+      const plan = await CadastralRepository.upsertFloorPlan(
+        {
           parcelId,
-          part.unitCode,
-          dispCode,
-          uFloor,
-          floorPlanId,
-          part.bbox ? JSON.stringify(part.bbox) : null,
-          part.polygon ? JSON.stringify(part.polygon) : null,
-          part.unitCadUrl || null,
-          uType,
-        ]
+          floorNumber,
+          ...floorPlanData,
+        },
+        client
       );
-      if (res.rows[0]) {
-        savedUnits.push(res.rows[0]);
-      }
-    }
 
-    // SAFE PRUNING: Tự động dọn dẹp các phân vùng đã bị người dùng gỡ bỏ khỏi bản vẽ CAD
-    // RÀO CHẮN BẢO VỆ PHÁP LÝ (Legal Immutability Guard):
-    // TUYỆT ĐỐI CHỈ XÓA các unit CHƯA KHẢO SÁT (phase1_report_id IS NULL AND (status = 'NOT_SURVEYED' OR status IS NULL))
-    const targetFloors = Array.from(
-      new Set(partitions.map((p) => (p.floorNumber !== undefined ? p.floorNumber : floorNumber)))
-    );
-    if (targetFloors.length === 0) {
-      targetFloors.push(floorNumber);
-    }
-
-    for (const fl of targetFloors) {
-      const activeCodesOnFloor = partitions
-        .filter((p) => (p.floorNumber !== undefined ? p.floorNumber : floorNumber) === fl)
-        .map((p) => p.unitCode.trim())
-        .filter(Boolean);
-
-      if (activeCodesOnFloor.length > 0) {
-        await Database.query(
-          `DELETE FROM building_units 
-           WHERE parcel_id = $1 
-             AND floor_number = $2 
-             AND NOT (unit_code = ANY($3::varchar[]))
-             AND phase1_report_id IS NULL 
-             AND (status = 'NOT_SURVEYED' OR status IS NULL);`,
-          [parcelId, fl, activeCodesOnFloor]
-        );
-      } else {
-        await Database.query(
-          `DELETE FROM building_units 
-           WHERE parcel_id = $1 
-             AND floor_number = $2 
-             AND phase1_report_id IS NULL 
-             AND (status = 'NOT_SURVEYED' OR status IS NULL);`,
-          [parcelId, fl]
-        );
-      }
-    }
-
-    // Tự động tính toán và cập nhật scope của floor plan nếu có floorPlanId
-    if (floorPlanId && partitions.length > 0) {
-      const hasUnit = partitions.some((p) => (p.unitType || 'UNIT') === 'UNIT');
-      const hasMaster = partitions.some((p) => p.unitType === 'MASTER');
-      const scope: 'UNIT' | 'MASTER' | 'BOTH' = hasUnit && hasMaster ? 'BOTH' : hasMaster ? 'MASTER' : 'UNIT';
-      await Database.query(
-        `UPDATE building_floor_plans SET scope = $2, updated_at = NOW() WHERE id = $1;`,
-        [floorPlanId, scope]
+      const units = await CadastralRepository.saveUnitPartitions(
+        parcelId,
+        floorNumber,
+        plan.id,
+        partitions,
+        client
       );
-    }
 
-    // Cập nhật total_units và building_type = 'CONDOMINIUM'
-    await Database.query(
-      `UPDATE parcels 
-       SET total_units = (SELECT COUNT(*) FROM building_units WHERE parcel_id = $1),
-           building_type = 'CONDOMINIUM',
-           deleted_floors = array_remove(COALESCE(deleted_floors, '{}'), $2::int),
-           updated_at = NOW()
-       WHERE id = $1;`,
-      [parcelId, floorNumber]
-    );
-
-    return savedUnits;
+      return { plan, units };
+    });
   }
 
   static async deleteUnit(parcelId: string, unitId: string): Promise<boolean> {
-    await Database.query(`DELETE FROM building_units WHERE id = $1 AND parcel_id = $2;`, [unitId, parcelId]);
-    await Database.query(
-      `UPDATE parcels 
-       SET total_units = (SELECT COUNT(*) FROM building_units WHERE parcel_id = $1),
-           updated_at = NOW()
-       WHERE id = $1;`,
-      [parcelId]
-    );
-    return true;
+    return Database.transaction(async (client) => {
+      await client.query(
+        `UPDATE building_units 
+         SET deleted_at = NOW(), updated_at = NOW() 
+         WHERE id = $1 AND parcel_id = $2 AND deleted_at IS NULL;`,
+        [unitId, parcelId]
+      );
+      await client.query(
+        `UPDATE parcels 
+         SET total_units = (SELECT COUNT(*) FROM building_units WHERE parcel_id = $1 AND deleted_at IS NULL),
+             updated_at = NOW()
+         WHERE id = $1;`,
+        [parcelId]
+      );
+      return true;
+    });
   }
 
   static async getSurveyedUnitsOnFloor(
@@ -802,7 +918,7 @@ export class CadastralRepository {
     const res = await Database.query<{ unit_code: string; status: string }>(
       `SELECT unit_code, status 
        FROM building_units 
-       WHERE parcel_id = $1 AND floor_number = $2 
+       WHERE parcel_id = $1 AND floor_number = $2 AND deleted_at IS NULL
          AND (phase1_report_id IS NOT NULL OR status NOT IN ('NOT_SURVEYED'));`,
       [parcelId, floorNumber]
     );
@@ -822,72 +938,77 @@ export class CadastralRepository {
 
   static async deleteFloorPlan(
     parcelId: string, 
-    floorNumber: number,
+    floorNumber: number, 
     mode: 'CLEAR_CAD' | 'DELETE_FLOOR' = 'DELETE_FLOOR',
     surveyedCount = 0
   ): Promise<{ message: string; floorNumber: number; mode: string; surveyedCount: number }> {
-    // 1. Xóa các unit nháp của tầng này chưa khảo sát
-    await Database.query(
-      `DELETE FROM building_units 
-       WHERE parcel_id = $1 AND floor_number = $2 AND phase1_report_id IS NULL AND (status = 'NOT_SURVEYED' OR status IS NULL);`,
-      [parcelId, floorNumber]
-    );
-
-    // 2. Gỡ liên kết CAD đối với các unit đã có báo cáo khảo sát
-    await Database.query(
-      `UPDATE building_units 
-       SET floor_plan_id = NULL, cad_bbox = NULL, cad_polygon = NULL, unit_cad_url = NULL 
-       WHERE parcel_id = $1 AND floor_number = $2;`,
-      [parcelId, floorNumber]
-    );
-
-    // 3. Xóa bản ghi bản vẽ tầng trong building_floor_plans nếu có
-    await Database.query(
-      `DELETE FROM building_floor_plans WHERE parcel_id = $1 AND floor_number = $2;`,
-      [parcelId, floorNumber]
-    );
-
-    // 4. Gỡ số tầng khỏi danh sách áp dụng (applicable_floors) của bất kỳ bản vẽ tầng nào khác
-    await Database.query(
-      `UPDATE building_floor_plans 
-       SET applicable_floors = array_remove(applicable_floors, $2::int),
-           updated_at = NOW()
-       WHERE parcel_id = $1 AND $2::int = ANY(applicable_floors);`,
-      [parcelId, floorNumber]
-    );
-
-    // 5. Nếu là DELETE_FLOOR (và đã qua bước chặn surveyedCount === 0), đưa tầng vào parcels.deleted_floors
-    if (mode === 'DELETE_FLOOR') {
-      await Database.query(
-        `UPDATE parcels 
-         SET deleted_floors = array_append(COALESCE(deleted_floors, '{}'), $2::int),
-             total_units = (SELECT COUNT(*) FROM building_units WHERE parcel_id = $1),
-             updated_at = NOW()
-         WHERE id = $1 AND NOT ($2::int = ANY(COALESCE(deleted_floors, '{}')));`,
+    return Database.transaction(async (client) => {
+      // 1. Soft-delete các unit nháp của tầng này chưa khảo sát
+      await client.query(
+        `UPDATE building_units 
+         SET deleted_at = NOW(), updated_at = NOW()
+         WHERE parcel_id = $1 AND floor_number = $2 AND phase1_report_id IS NULL AND (status = 'NOT_SURVEYED' OR status IS NULL) AND deleted_at IS NULL;`,
         [parcelId, floorNumber]
       );
-    } else {
-      await Database.query(
-        `UPDATE parcels 
-         SET total_units = (SELECT COUNT(*) FROM building_units WHERE parcel_id = $1),
-             updated_at = NOW()
-         WHERE id = $1;`,
-        [parcelId]
+
+      // 2. Gỡ liên kết CAD đối với các unit đã có báo cáo khảo sát
+      await client.query(
+        `UPDATE building_units 
+         SET floor_plan_id = NULL, cad_bbox = NULL, cad_polygon = NULL, unit_cad_url = NULL, updated_at = NOW()
+         WHERE parcel_id = $1 AND floor_number = $2 AND deleted_at IS NULL;`,
+        [parcelId, floorNumber]
       );
-    }
 
-    const message = mode === 'DELETE_FLOOR'
-      ? `Đã xóa thành công Tầng ${floorNumber} khỏi tòa nhà.`
-      : surveyedCount > 0
-      ? `Đã xóa bản vẽ CAD và giải phóng phân chia của Tầng ${floorNumber}. Dữ liệu ${surveyedCount} căn hộ khảo sát vẫn được bảo toàn nguyên vẹn.`
-      : `Đã xóa bản vẽ CAD và giải phóng phân chia của Tầng ${floorNumber}.`;
+      // 3. Soft-delete bản ghi bản vẽ tầng trong building_floor_plans nếu có
+      await client.query(
+        `UPDATE building_floor_plans 
+         SET deleted_at = NOW(), updated_at = NOW() 
+         WHERE parcel_id = $1 AND floor_number = $2 AND deleted_at IS NULL;`,
+        [parcelId, floorNumber]
+      );
 
-    return {
-      message,
-      floorNumber,
-      mode,
-      surveyedCount,
-    };
+      // 4. Gỡ số tầng khỏi danh sách áp dụng (applicable_floors) của bất kỳ bản vẽ tầng nào khác
+      await client.query(
+        `UPDATE building_floor_plans 
+         SET applicable_floors = array_remove(applicable_floors, $2::int),
+             updated_at = NOW()
+         WHERE parcel_id = $1 AND $2::int = ANY(applicable_floors) AND deleted_at IS NULL;`,
+        [parcelId, floorNumber]
+      );
+
+      // 5. Nếu là DELETE_FLOOR, đưa tầng vào parcels.deleted_floors
+      if (mode === 'DELETE_FLOOR') {
+        await client.query(
+          `UPDATE parcels 
+           SET deleted_floors = array_append(COALESCE(deleted_floors, '{}'), $2::int),
+               total_units = (SELECT COUNT(*) FROM building_units WHERE parcel_id = $1 AND deleted_at IS NULL),
+               updated_at = NOW()
+           WHERE id = $1 AND NOT ($2::int = ANY(COALESCE(deleted_floors, '{}')));`,
+          [parcelId, floorNumber]
+        );
+      } else {
+        await client.query(
+          `UPDATE parcels 
+           SET total_units = (SELECT COUNT(*) FROM building_units WHERE parcel_id = $1 AND deleted_at IS NULL),
+               updated_at = NOW()
+           WHERE id = $1;`,
+          [parcelId]
+        );
+      }
+
+      const message = mode === 'DELETE_FLOOR'
+        ? `Đã xóa thành công Tầng ${floorNumber} khỏi tòa nhà.`
+        : surveyedCount > 0
+        ? `Đã xóa bản vẽ CAD và giải phóng phân chia của Tầng ${floorNumber}. Dữ liệu ${surveyedCount} căn hộ khảo sát vẫn được bảo toàn nguyên vẹn.`
+        : `Đã xóa bản vẽ CAD và giải phóng phân chia của Tầng ${floorNumber}.`;
+
+      return {
+        message,
+        floorNumber,
+        mode,
+        surveyedCount,
+      };
+    });
   }
 
   static async getAbsenceLogsForParcel(parcelId: string): Promise<any[]> {

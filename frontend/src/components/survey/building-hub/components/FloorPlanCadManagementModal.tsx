@@ -25,64 +25,19 @@ import {
   type UnitPartitionBox,
 } from '../../../canvas/FloorPlanCadPartitionCanvas';
 import { generateNextPartitionCode } from '../../../../core/utils/codeFormattingUtils';
-import { deriveBuildingFloorNumbers } from '../../../../core/utils/floorUtils';
+import {
+  deriveBuildingFloorNumbers,
+  detectDefaultFloorScope,
+  getDefaultFloorCode,
+  STANDARD_FLOOR_CODE_OPTIONS,
+  type FloorScope,
+} from '../../../../core/utils/floorUtils';
 import { api } from '../../../../services/api';
 import { getErrorMessage } from '@/utils/errorUtils';
 import confetti from 'canvas-confetti';
 
-export type FloorScope = 'MASTER' | 'UNIT' | 'BOTH';
-
-export const detectDefaultFloorScope = (
-  floorNum: number,
-  name: string
-): { scope: FloorScope; areaType: string } => {
-  const lower = name.toLowerCase();
-  if (floorNum < 0 || lower.includes('hầm') || lower.includes('basement')) {
-    return { scope: 'MASTER', areaType: 'BASEMENT' };
-  }
-  if (lower.includes('mái') || lower.includes('thượng') || lower.includes('rooftop')) {
-    return { scope: 'MASTER', areaType: 'ROOFTOP' };
-  }
-  if (lower.includes('kỹ thuật') || lower.includes('lánh nạn') || lower.includes('refuge')) {
-    return { scope: 'MASTER', areaType: 'TECHNICAL_REFUGE' };
-  }
-  if (floorNum === 0 || lower.includes('trệt') || lower.includes('sảnh') || lower.includes('lobby')) {
-    return { scope: 'BOTH', areaType: 'GROUND_LOBBY' };
-  }
-  return { scope: 'UNIT', areaType: 'TYPICAL_UNIT' };
-};
-
-export const STANDARD_FLOOR_CODE_OPTIONS = [
-  { code: 'TYPICAL', label: 'Tầng nổi tiêu chuẩn (F01..F99)', defaultScope: 'BOTH' as FloorScope, defaultArea: 'TYPICAL_UNIT' },
-  { code: 'G', label: 'Trệt / Sảnh (G)', defaultScope: 'BOTH' as FloorScope, defaultArea: 'GROUND_LOBBY' },
-  { code: 'MEZZ', label: 'Tầng Lửng Trệt (MEZZ)', defaultScope: 'BOTH' as FloorScope, defaultArea: 'MEZZANINE' },
-  { code: 'B01', label: 'Tầng Hầm 1 (B01)', defaultScope: 'MASTER' as FloorScope, defaultArea: 'BASEMENT' },
-  { code: 'B02', label: 'Tầng Hầm 2 (B02)', defaultScope: 'MASTER' as FloorScope, defaultArea: 'BASEMENT' },
-  { code: 'SB', label: 'Tầng Bán Hầm (SB)', defaultScope: 'MASTER' as FloorScope, defaultArea: 'SEMI_BASEMENT' },
-  { code: 'TECH', label: 'Tầng Kỹ Thuật (TECH)', defaultScope: 'MASTER' as FloorScope, defaultArea: 'TECHNICAL' },
-  { code: 'REF', label: 'Tầng Lánh Nạn (REF)', defaultScope: 'MASTER' as FloorScope, defaultArea: 'REFUGE' },
-  { code: 'TUM', label: 'Tầng Tum (TUM)', defaultScope: 'BOTH' as FloorScope, defaultArea: 'TUM' },
-  { code: 'TERRACE', label: 'Sân Thượng (TERRACE)', defaultScope: 'MASTER' as FloorScope, defaultArea: 'ROOFTOP' },
-  { code: 'ROOF', label: 'Tầng Mái (ROOF)', defaultScope: 'MASTER' as FloorScope, defaultArea: 'ROOFTOP' },
-];
-
-export const getDefaultFloorCode = (floorNum: number, floorName?: string): string => {
-  const lower = (floorName || '').toLowerCase();
-  if (lower.includes('lửng') || lower.includes('mezzanine')) return 'MEZZ';
-  if (lower.includes('bán hầm') || lower.includes('semi-basement')) return 'SB';
-  if (floorNum < 0 || lower.includes('hầm') || lower.includes('basement')) {
-    const match = lower.match(/(?:hầm|basement|b)\s*(\d+)/i);
-    const bNum = match ? parseInt(match[1], 10) : (floorNum < 0 ? Math.abs(floorNum) : 1);
-    return `B${String(bNum).padStart(2, '0')}`;
-  }
-  if (lower.includes('kỹ thuật')) return 'TECH';
-  if (lower.includes('lánh nạn')) return 'REF';
-  if (lower.includes('tum')) return 'TUM';
-  if (lower.includes('sân thượng')) return 'TERRACE';
-  if (lower.includes('mái') || lower.includes('roof')) return 'ROOF';
-  if (floorNum === 0 || lower.includes('trệt')) return 'G';
-  return `F${String(floorNum).padStart(2, '0')}`;
-};
+export type { FloorScope };
+export { detectDefaultFloorScope, getDefaultFloorCode, STANDARD_FLOOR_CODE_OPTIONS };
 
 interface FloorPlanItem {
   id: string;
@@ -108,19 +63,12 @@ interface CadUnitItem {
   phase2_report_id?: string | null;
 }
 
-interface BuildingFloorItem {
-  floorNumber: number;
-  floorName: string;
-  floorCode: string;
-  hasCad: boolean;
-  cadPhotoUrl?: string;
-  applicableFloors?: number[];
-  unitCount: number;
-  isInherited: boolean;
-  inheritedFromFloor?: number;
-  scope: FloorScope;
-  areaType?: string;
-}
+import {
+  FloorPlanCadSidebar,
+  type BuildingFloorItem,
+} from './FloorPlanCadSidebar';
+
+export type { BuildingFloorItem };
 
 interface Props {
   parcel: GisParcel;
@@ -600,19 +548,7 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
       const hasMaster = targetPartitions.some((p) => p.partitionType === 'MASTER');
       const calculatedScope: FloorScope = (hasUnit && hasMaster) ? 'BOTH' : hasMaster ? 'MASTER' : hasUnit ? 'UNIT' : floorScope;
 
-      // 1. Lưu bản vẽ Floor Plan
-      const planRes = await api.post(`/parcels/${parcelId}/floor-plans`, {
-        floorNumber: activeFloor,
-        floorName: floorName || `Tầng ${activeFloor}`,
-        floorCode: floorCode.trim() || getDefaultFloorCode(activeFloor, floorName),
-        applicableFloors: targetApplicableFloors,
-        cadPhotoUrl: cadUrl,
-        scope: calculatedScope,
-      });
-
-      const floorPlanId = planRes.data?.data?.plan?.id;
-
-      // 2. Chuẩn bị partitions cho tầng gốc và tất cả các tầng điển hình
+      // 1. Chuẩn bị partitions cho tầng gốc và tất cả các tầng điển hình
       const allFloorPartitions: {
         unitCode: string;
         floorNumber: number;
@@ -703,10 +639,17 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
         }
       }
 
-      // 3. Lưu partitions vào CSDL
-      await api.post(`/parcels/${parcelId}/floor-plans/partitions`, {
+      // 2. Lưu đồng bộ nguyên tử (Atomic Sync) bản vẽ Floor Plan và tất cả partitions trong 1 Transaction duy nhất
+      await api.post(`/parcels/${parcelId}/floor-plans/atomic-sync`, {
         floorNumber: activeFloor,
-        floorPlanId,
+        floorPlan: {
+          floorNumber: activeFloor,
+          floorName: floorName || `Tầng ${activeFloor}`,
+          floorCode: floorCode.trim() || getDefaultFloorCode(activeFloor, floorName),
+          applicableFloors: targetApplicableFloors,
+          cadPhotoUrl: cadUrl,
+          scope: calculatedScope,
+        },
         partitions: allFloorPartitions,
       });
 
@@ -959,211 +902,20 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
         {/* CỘT TRÁI: Floor Navigation Sidebar (Thu gọn được) */}
         {/* ------------------------------------------------------- */}
         {isSidebarOpen && (
-          <aside className="w-64 sm:w-72 bg-white border-r border-slate-200 flex flex-col shrink-0 overflow-hidden z-20">
-            {/* Sidebar Header */}
-            <div className="p-2.5 border-b border-slate-200 flex items-center justify-between text-xs font-bold text-slate-700 bg-slate-50/70">
-              <span className="flex items-center gap-1.5">
-                <Layers className="w-4 h-4 text-teal-600" />
-                Danh Sách Tầng ({buildingFloors.length})
-              </span>
-              {!readOnly && (
-                <button
-                  type="button"
-                  onClick={() => setShowAddFloorInput(!showAddFloorInput)}
-                  className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-teal-50 hover:bg-teal-100 text-teal-700 border border-teal-200 text-[11px] font-bold transition-colors cursor-pointer"
-                  title="Thêm tầng mới"
-                >
-                  <Plus className="w-3 h-3" />
-                  <span>Thêm</span>
-                </button>
-              )}
-            </div>
-
-            {/* Ô thêm tầng nhanh kèm Mã Tầng */}
-            {showAddFloorInput && (
-              <div className="p-2.5 bg-slate-50 border-b border-slate-200 flex flex-col gap-2">
-                <div className="flex items-center gap-1.5">
-                  <input
-                    type="number"
-                    placeholder="Số tầng (VD: 9, 0, -1)"
-                    value={newFloorInput}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setNewFloorInput(val);
-                      if (val.trim() !== '') {
-                        const parsed = parseFloat(val);
-                        if (!isNaN(parsed)) {
-                          setNewFloorCodeInput(getDefaultFloorCode(parsed));
-                        }
-                      }
-                    }}
-                    className="w-24 px-2 py-1 rounded-lg bg-white border border-slate-300 text-xs font-bold text-slate-900 focus:outline-none focus:border-teal-500"
-                  />
-                  <input
-                    type="text"
-                    placeholder="Mã tầng (VD: MEZZ)"
-                    value={newFloorCodeInput}
-                    onChange={(e) => setNewFloorCodeInput(e.target.value.toUpperCase())}
-                    className="flex-1 px-2 py-1 rounded-lg bg-white border border-slate-300 text-xs font-mono font-bold text-teal-800 focus:outline-none focus:border-teal-500"
-                  />
-                </div>
-                <div className="flex items-center justify-between gap-1">
-                  <select
-                    value={
-                      STANDARD_FLOOR_CODE_OPTIONS.some((o) => o.code === newFloorCodeInput)
-                        ? newFloorCodeInput
-                        : /^F\d+$/i.test(newFloorCodeInput)
-                        ? 'TYPICAL'
-                        : ''
-                    }
-                    onChange={(e) => {
-                      const sel = e.target.value;
-                      if (!sel) return;
-                      if (sel === 'TYPICAL') {
-                        const nextFl = buildingFloors.length > 0 ? Math.max(...buildingFloors.map((b) => b.floorNumber)) + 1 : 1;
-                        const parsed = parseFloat(newFloorInput);
-                        const fl = !isNaN(parsed) && parsed > 0 ? parsed : Math.max(1, nextFl);
-                        setNewFloorInput(String(fl));
-                        setNewFloorCodeInput(`F${String(fl).padStart(2, '0')}`);
-                      } else if (sel === 'G') {
-                        setNewFloorInput('0');
-                        setNewFloorCodeInput('G');
-                      } else if (sel === 'MEZZ') {
-                        if (!newFloorInput) setNewFloorInput('0');
-                        setNewFloorCodeInput('MEZZ');
-                      } else if (sel === 'B01') {
-                        setNewFloorInput('-1');
-                        setNewFloorCodeInput('B01');
-                      } else if (sel === 'B02') {
-                        setNewFloorInput('-2');
-                        setNewFloorCodeInput('B02');
-                      } else if (sel === 'SB') {
-                        setNewFloorInput('-1');
-                        setNewFloorCodeInput('SB');
-                      } else if (sel === 'ROOF' || sel === 'TERRACE' || sel === 'TUM') {
-                        const maxFl = buildingFloors.length > 0 ? Math.max(...buildingFloors.map((b) => b.floorNumber)) : 1;
-                        if (!newFloorInput) setNewFloorInput(String(maxFl + 1));
-                        setNewFloorCodeInput(sel);
-                      } else {
-                        setNewFloorCodeInput(sel);
-                      }
-                    }}
-                    className="text-[11px] bg-white border border-slate-300 rounded px-1.5 py-0.5 text-slate-600 cursor-pointer max-w-[125px]"
-                  >
-                    <option value="">Gợi ý mẫu...</option>
-                    {STANDARD_FLOOR_CODE_OPTIONS.map((o) => (
-                      <option key={o.code} value={o.code}>
-                        {o.label}
-                      </option>
-                    ))}
-                  </select>
-                  <div className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() => setShowAddFloorInput(false)}
-                      className="px-2 py-1 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold cursor-pointer"
-                    >
-                      Hủy
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleAddCustomFloor}
-                      className="px-2.5 py-1 rounded-lg bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold cursor-pointer"
-                    >
-                      Thêm
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Danh sách các tầng */}
-            <div className="flex-1 overflow-y-auto p-2 space-y-1">
-              {isLoading ? (
-                <div className="p-6 text-center text-xs text-slate-500 flex flex-col items-center gap-2">
-                  <Loader2 className="w-5 h-5 animate-spin text-teal-600" />
-                  <span>Đang nạp cấu trúc tòa nhà...</span>
-                </div>
-              ) : (
-                buildingFloors.map((fl) => {
-                  const isActive = fl.floorNumber === activeFloor;
-                  return (
-                    <div
-                      key={fl.floorNumber}
-                      onClick={() => handleSelectFloor(fl.floorNumber)}
-                      className={`p-2 rounded-xl border transition-all cursor-pointer flex items-center justify-between group ${
-                        isActive
-                          ? 'border-teal-500 bg-teal-50/80 text-teal-950 shadow-xs ring-1 ring-teal-400/40'
-                          : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-700'
-                      }`}
-                    >
-                      <div className="flex flex-col min-w-0 pr-1">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className={`text-xs font-bold truncate ${isActive ? 'text-teal-950' : 'text-slate-800'}`}>
-                            {fl.floorName}
-                          </span>
-                          {/* Mã tầng quy chuẩn */}
-                          <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded bg-slate-100 text-teal-900 border border-slate-200">
-                            {fl.floorCode}
-                          </span>
-                          {/* Scope badge tự động cập nhật theo bản vẽ */}
-                          {fl.scope === 'MASTER' && (
-                            <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">
-                              Master
-                            </span>
-                          )}
-                          {fl.scope === 'UNIT' && (
-                            <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-teal-50 text-teal-700 border border-teal-200">
-                              Unit
-                            </span>
-                          )}
-                          {fl.scope === 'BOTH' && (
-                            <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-amber-50 text-amber-700 border border-amber-200">
-                              Hỗn hợp
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-1 mt-0.5">
-                          {fl.isInherited ? (
-                            <span className="text-[10px] text-teal-700 flex items-center gap-0.5 font-medium truncate">
-                              <LinkIcon className="w-2.5 h-2.5" /> Dùng chung T{fl.inheritedFromFloor}
-                            </span>
-                          ) : fl.hasCad ? (
-                            <span className="text-[10px] text-emerald-700 font-medium">
-                              ✓ Có CAD riêng
-                            </span>
-                          ) : (
-                            <span className="text-[10px] text-slate-400">
-                              Chưa có CAD
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-1 shrink-0">
-                        {fl.unitCount > 0 && (
-                          <span
-                            className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-md ${
-                              isActive
-                                ? 'bg-teal-700 text-white'
-                                : 'bg-slate-100 text-slate-600 border border-slate-200'
-                            }`}
-                          >
-                            {fl.unitCount}
-                          </span>
-                        )}
-                        <ChevronRight
-                          className={`w-3.5 h-3.5 transition-transform ${
-                            isActive ? 'text-teal-700 translate-x-0.5' : 'text-slate-400 group-hover:text-slate-600'
-                          }`}
-                        />
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </aside>
+          <FloorPlanCadSidebar
+            buildingFloors={buildingFloors}
+            activeFloor={activeFloor}
+            isLoading={isLoading}
+            readOnly={readOnly}
+            showAddFloorInput={showAddFloorInput}
+            setShowAddFloorInput={setShowAddFloorInput}
+            newFloorInput={newFloorInput}
+            setNewFloorInput={setNewFloorInput}
+            newFloorCodeInput={newFloorCodeInput}
+            setNewFloorCodeInput={setNewFloorCodeInput}
+            onSelectFloor={handleSelectFloor}
+            onAddCustomFloor={handleAddCustomFloor}
+          />
         )}
 
         {/* ------------------------------------------------------- */}

@@ -120,6 +120,7 @@ export function createApp(): express.Application {
   api.post('/parcels/:id/floor-plans', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.upsertFloorPlan);
   api.delete('/parcels/:id/floor-plans/:floor', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.deleteFloorPlan);
   api.post('/parcels/:id/floor-plans/partitions', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.saveFloorPartitions);
+  api.post('/parcels/:id/floor-plans/atomic-sync', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.atomicSyncFloorPlanAndPartitions);
   api.patch('/parcels/:id/building-type', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.updateBuildingType);
   api.post('/parcels/:id/start-survey', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.startSurvey);
   api.post('/parcels/:id/resume-survey', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.resumeSurvey);
