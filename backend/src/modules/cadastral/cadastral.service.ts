@@ -1,6 +1,6 @@
-import { CadastralRepository } from './cadastral.repository';
+import { CadastralRepository, ParcelEntity, CadBBox, CadPolygonPoint } from './cadastral.repository';
 import { Database } from '../../database/db';
-import { NotFoundError, BadRequestError } from '../../common/errors/problem-details';
+import { NotFoundError, BadRequestError, ForbiddenError, UnauthorizedError } from '../../common/errors/problem-details';
 import { CadastralMutationService } from './services/cadastral-mutation.service';
 import { CadastralGeometryService } from './services/cadastral-geometry.service';
 
@@ -328,18 +328,73 @@ export class CadastralService {
     };
   }
 
-  static async createUnitForParcel(parcelId: string, data: {
-    unitCode: string;
-    floorNumber: number;
-    ownerName?: string;
-    ownerPhone?: string;
-    ownerIdCard?: string;
-    unitType?: 'UNIT' | 'MASTER';
-  }) {
+  // --- BẢO VỆ PHÂN QUYỀN & CHỐNG IDOR ---
+  static async assertUserCanModifyParcel(
+    user: { userId: string; role: string; assignedZoneId?: string | null } | undefined,
+    parcelId: string
+  ): Promise<ParcelEntity> {
     const parcel = await CadastralRepository.findById(parcelId);
     if (!parcel) {
       throw new NotFoundError(`Không tìm thấy thửa đất với ID: ${parcelId}`);
     }
+    if (!user) {
+      throw new UnauthorizedError('Yêu cầu xác thực tài khoản để thực hiện thao tác quản trị');
+    }
+    if (user.role === 'SUPER_ADMIN') {
+      return parcel;
+    }
+    if (user.role === 'ZONE_ADMIN') {
+      if (user.assignedZoneId && parcel.zone_id !== user.assignedZoneId) {
+        throw new ForbiddenError(
+          `Từ chối quyền truy cập (IDOR Guard): Bạn chỉ có quyền quản trị phân khu [${user.assignedZoneId}], không thể thao tác trên thửa đất [${parcel.project_parcel_code}] thuộc phân khu [${parcel.zone_id}].`
+        );
+      }
+      return parcel;
+    }
+    throw new ForbiddenError('Chỉ Zone Admin hoặc Super Admin mới có quyền thực hiện thao tác quản trị này.');
+  }
+
+  static async logCadastralAudit(
+    action: string,
+    entityType: 'PARCEL' | 'BUILDING_UNIT' | 'BUILDING_FLOOR_PLAN',
+    entityId: string,
+    userId: string,
+    diffPayload?: Record<string, unknown>,
+    clientIp?: string
+  ): Promise<void> {
+    try {
+      await Database.query(
+        `INSERT INTO system_audit_logs (
+          entity_type, entity_id, action, performed_by_user_id, client_ip, diff_payload, created_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, NOW());`,
+        [
+          entityType,
+          entityId,
+          action,
+          userId,
+          clientIp || null,
+          diffPayload ? JSON.stringify(diffPayload) : null,
+        ]
+      );
+    } catch (err: unknown) {
+      console.warn('[CadastralService:logCadastralAudit] Lỗi ghi nhật ký kiểm toán (không chặn luồng chính):', err);
+    }
+  }
+
+  static async createUnitForParcel(
+    parcelId: string, 
+    data: {
+      unitCode: string;
+      floorNumber: number;
+      ownerName?: string | null;
+      ownerPhone?: string | null;
+      ownerIdCard?: string | null;
+      unitType?: 'UNIT' | 'MASTER';
+    },
+    user?: { userId: string; role: string; assignedZoneId?: string | null },
+    clientIp?: string
+  ) {
+    const parcel = await this.assertUserCanModifyParcel(user, parcelId);
     const unit = await CadastralRepository.createBuildingUnit({
       parcelId,
       unitCode: data.unitCode,
@@ -349,17 +404,29 @@ export class CadastralService {
       ownerIdCard: data.ownerIdCard,
       unitType: data.unitType,
     });
+
+    if (user) {
+      await this.logCadastralAudit('CREATE_BUILDING_UNIT', 'BUILDING_UNIT', unit.id, user.userId, {
+        parcelId,
+        unitCode: data.unitCode,
+        floorNumber: data.floorNumber,
+        unitType: data.unitType,
+      }, clientIp);
+    }
+
     return {
       message: `Đã tạo thành công căn hộ/khu vực ${data.unitCode} cho tòa nhà ${parcel.project_parcel_code}`,
       unit,
     };
   }
 
-  static async deleteUnit(parcelId: string, unitId: string) {
-    const parcel = await CadastralRepository.findById(parcelId);
-    if (!parcel) {
-      throw new NotFoundError(`Không tìm thấy thửa đất với ID: ${parcelId}`);
-    }
+  static async deleteUnit(
+    parcelId: string, 
+    unitId: string,
+    user?: { userId: string; role: string; assignedZoneId?: string | null },
+    clientIp?: string
+  ) {
+    await this.assertUserCanModifyParcel(user, parcelId);
     const unit = await CadastralRepository.findUnitById(unitId);
     if (!unit) {
       throw new NotFoundError(`Không tìm thấy căn hộ / vị trí với ID: ${unitId}`);
@@ -373,6 +440,15 @@ export class CadastralService {
       );
     }
     await CadastralRepository.deleteUnit(parcelId, unitId);
+
+    if (user) {
+      await this.logCadastralAudit('DELETE_BUILDING_UNIT', 'BUILDING_UNIT', unitId, user.userId, {
+        parcelId,
+        unitCode: unit.unit_code,
+        floorNumber: unit.floor_number,
+      }, clientIp);
+    }
+
     return {
       message: `Đã xóa căn hộ / vị trí ${unit.unit_code}`,
       deletedUnitId: unitId,
@@ -382,12 +458,11 @@ export class CadastralService {
   static async updateBuildingType(
     parcelId: string,
     buildingType: string,
-    totalUnits?: number
+    totalUnits?: number,
+    user?: { userId: string; role: string; assignedZoneId?: string | null },
+    clientIp?: string
   ) {
-    const parcel = await CadastralRepository.findById(parcelId);
-    if (!parcel) {
-      throw new NotFoundError(`Không tìm thấy thửa đất với ID: ${parcelId}`);
-    }
+    const parcel = await this.assertUserCanModifyParcel(user, parcelId);
 
     // 1. Kiểm tra Precondition: Trạng thái khảo sát cấm chuyển đổi
     const blockedStatuses = [
@@ -442,6 +517,15 @@ export class CadastralService {
       buildingType,
       totalUnits
     );
+
+    if (user) {
+      await this.logCadastralAudit('UPDATE_BUILDING_TYPE', 'PARCEL', parcelId, user.userId, {
+        oldBuildingType: parcel.building_type,
+        newBuildingType: buildingType,
+        totalUnits,
+      }, clientIp);
+    }
+
     return {
       message: `Đã cập nhật loại hình công trình thành ${buildingType}`,
       parcel: updated,
@@ -473,47 +557,78 @@ export class CadastralService {
     };
   }
 
-  static async upsertFloorPlan(parcelId: string, data: {
-    floorNumber: number;
-    floorName: string;
-    floorCode?: string;
-    applicableFloors?: number[];
-    cadPhotoUrl: string;
-    cadPhotoCode?: string;
-    imageWidth?: number;
-    imageHeight?: number;
-    scope?: 'MASTER' | 'UNIT' | 'BOTH';
-    areaType?: string;
-  }) {
-    const parcel = await CadastralRepository.findById(parcelId);
-    if (!parcel) {
-      throw new NotFoundError(`Không tìm thấy thửa đất với ID: ${parcelId}`);
-    }
+  static async upsertFloorPlan(
+    parcelId: string, 
+    data: {
+      floorNumber: number;
+      floorName: string;
+      floorCode?: string;
+      applicableFloors?: number[];
+      cadPhotoUrl: string;
+      cadPhotoCode?: string | null;
+      imageWidth?: number | null;
+      imageHeight?: number | null;
+      scope?: 'MASTER' | 'UNIT' | 'BOTH';
+      areaType?: string | null;
+    },
+    user?: { userId: string; role: string; assignedZoneId?: string | null },
+    clientIp?: string
+  ) {
+    await this.assertUserCanModifyParcel(user, parcelId);
     const plan = await CadastralRepository.upsertFloorPlan({
       parcelId,
       ...data,
     });
+
+    if (user) {
+      await this.logCadastralAudit('UPSERT_FLOOR_PLAN', 'BUILDING_FLOOR_PLAN', plan.id, user.userId, {
+        parcelId,
+        floorNumber: data.floorNumber,
+        floorName: data.floorName,
+        applicableFloors: data.applicableFloors,
+      }, clientIp);
+    }
+
     return {
       message: `Đã lưu bản vẽ CAD mặt bằng ${data.floorName}`,
       plan,
     };
   }
 
-  static async saveFloorPartitions(parcelId: string, data: {
-    floorNumber: number;
-    floorPlanId?: string | null;
-    partitions: { unitCode: string; displayCode?: string; floorNumber?: number; bbox?: any; polygon?: any; unitCadUrl?: string; unitType?: 'UNIT' | 'MASTER' }[];
-  }) {
-    const parcel = await CadastralRepository.findById(parcelId);
-    if (!parcel) {
-      throw new NotFoundError(`Không tìm thấy thửa đất với ID: ${parcelId}`);
-    }
+  static async saveFloorPartitions(
+    parcelId: string, 
+    data: {
+      floorNumber: number;
+      floorPlanId?: string | null;
+      partitions: { 
+        unitCode: string; 
+        displayCode?: string | null; 
+        floorNumber?: number; 
+        bbox?: CadBBox | null; 
+        polygon?: CadPolygonPoint[] | null; 
+        unitCadUrl?: string | null; 
+        unitType?: 'UNIT' | 'MASTER';
+      }[];
+    },
+    user?: { userId: string; role: string; assignedZoneId?: string | null },
+    clientIp?: string
+  ) {
+    await this.assertUserCanModifyParcel(user, parcelId);
     const units = await CadastralRepository.saveUnitPartitions(
       parcelId,
       data.floorNumber,
       data.floorPlanId || null,
       data.partitions
     );
+
+    if (user) {
+      await this.logCadastralAudit('SAVE_FLOOR_PARTITIONS', 'BUILDING_FLOOR_PLAN', data.floorPlanId || parcelId, user.userId, {
+        parcelId,
+        floorNumber: data.floorNumber,
+        partitionCount: data.partitions.length,
+      }, clientIp);
+    }
+
     return {
       message: units.length > 0
         ? `Đã lưu phân chia CAD cho ${units.length} vị trí Tầng ${data.floorNumber}`
@@ -522,15 +637,65 @@ export class CadastralService {
     };
   }
 
+  static async atomicSyncFloorPlanAndPartitions(
+    parcelId: string,
+    data: {
+      floorNumber: number;
+      floorPlan: {
+        floorName: string;
+        floorCode?: string;
+        applicableFloors?: number[];
+        cadPhotoUrl: string;
+        cadPhotoCode?: string | null;
+        imageWidth?: number | null;
+        imageHeight?: number | null;
+        scope?: 'MASTER' | 'UNIT' | 'BOTH';
+        areaType?: string | null;
+      };
+      partitions: {
+        unitCode: string;
+        displayCode?: string | null;
+        floorNumber?: number;
+        bbox?: CadBBox | null;
+        polygon?: CadPolygonPoint[] | null;
+        unitCadUrl?: string | null;
+        unitType?: 'UNIT' | 'MASTER';
+      }[];
+    },
+    user?: { userId: string; role: string; assignedZoneId?: string | null },
+    clientIp?: string
+  ) {
+    await this.assertUserCanModifyParcel(user, parcelId);
+    const result = await CadastralRepository.atomicSyncFloorPlanAndPartitions(
+      parcelId,
+      data.floorNumber,
+      data.floorPlan,
+      data.partitions
+    );
+
+    if (user) {
+      await this.logCadastralAudit('ATOMIC_SYNC_FLOOR_PLAN_AND_PARTITIONS', 'BUILDING_FLOOR_PLAN', result.plan.id, user.userId, {
+        parcelId,
+        floorNumber: data.floorNumber,
+        partitionCount: data.partitions.length,
+      }, clientIp);
+    }
+
+    return {
+      message: `Đã đồng bộ nguyên tử bản vẽ CAD và ${result.units.length} phân vùng cho Tầng ${data.floorNumber}`,
+      plan: result.plan,
+      units: result.units,
+    };
+  }
+
   static async deleteFloorPlan(
     parcelId: string, 
     floorNumber: number, 
-    mode: 'CLEAR_CAD' | 'DELETE_FLOOR' = 'DELETE_FLOOR'
+    mode: 'CLEAR_CAD' | 'DELETE_FLOOR' = 'DELETE_FLOOR',
+    user?: { userId: string; role: string; assignedZoneId?: string | null },
+    clientIp?: string
   ) {
-    const parcel = await CadastralRepository.findById(parcelId);
-    if (!parcel) {
-      throw new NotFoundError(`Không tìm thấy thửa đất với ID: ${parcelId}`);
-    }
+    await this.assertUserCanModifyParcel(user, parcelId);
 
     // 1. Kiểm tra các căn hộ đã hoặc đang khảo sát trên tầng này
     const surveyedUnits = await CadastralRepository.getSurveyedUnitsOnFloor(parcelId, floorNumber);
@@ -546,7 +711,17 @@ export class CadastralService {
       );
     }
 
-    return CadastralRepository.deleteFloorPlan(parcelId, floorNumber, mode, surveyedCount);
+    const result = await CadastralRepository.deleteFloorPlan(parcelId, floorNumber, mode, surveyedCount);
+
+    if (user) {
+      await this.logCadastralAudit('DELETE_FLOOR_PLAN', 'BUILDING_FLOOR_PLAN', parcelId, user.userId, {
+        floorNumber,
+        mode,
+        surveyedCount,
+      }, clientIp);
+    }
+
+    return result;
   }
 
   // --- LỊCH SỬ BIẾN ĐỘNG (SUPER_ADMIN ONLY) ---

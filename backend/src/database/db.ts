@@ -323,6 +323,65 @@ export class Database {
     } catch (e) {
       console.warn('⚠️ [STARTUP MIGRATION] survey_absence_logs.unit_id warning:', e);
     }
+
+    // 13. building_units & building_floor_plans soft-delete, partial unique index & check constraints
+    try {
+      await this.query(`
+        ALTER TABLE building_units ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ DEFAULT NULL;
+        ALTER TABLE building_floor_plans ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ DEFAULT NULL;
+
+        CREATE INDEX IF NOT EXISTS idx_building_units_deleted_at ON building_units(deleted_at);
+        CREATE INDEX IF NOT EXISTS idx_building_floor_plans_deleted_at ON building_floor_plans(deleted_at);
+
+        ALTER TABLE building_units DROP CONSTRAINT IF EXISTS uq_parcel_unit;
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_building_units_parcel_code_active 
+          ON building_units(parcel_id, unit_code) 
+          WHERE deleted_at IS NULL;
+
+        ALTER TABLE building_floor_plans DROP CONSTRAINT IF EXISTS uq_parcel_floor_number;
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_building_floor_plans_parcel_floor_active 
+          ON building_floor_plans(parcel_id, floor_number) 
+          WHERE deleted_at IS NULL;
+
+        DO $$
+        BEGIN
+          IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_building_units_unit_type') THEN
+            ALTER TABLE building_units ADD CONSTRAINT chk_building_units_unit_type CHECK (unit_type IN ('UNIT', 'MASTER'));
+          END IF;
+        END $$;
+
+        DO $$
+        BEGIN
+          IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_building_floor_plans_scope') THEN
+            ALTER TABLE building_floor_plans ADD CONSTRAINT chk_building_floor_plans_scope CHECK (scope IN ('UNIT', 'MASTER', 'BOTH'));
+          END IF;
+        END $$;
+
+        DO $$
+        BEGIN
+          IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'chk_building_units_resident_status') THEN
+            ALTER TABLE building_units ADD CONSTRAINT chk_building_units_resident_status CHECK (resident_status IN ('CHỦ_HỘ_Ở', 'CHO_THUÊ', 'ĐỂ_TRỐNG', 'TRANH_CHẤP'));
+          END IF;
+        END $$;
+
+        DO $$
+        BEGIN
+          IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_building_units_phase1_report') THEN
+            ALTER TABLE building_units ADD CONSTRAINT fk_building_units_phase1_report FOREIGN KEY (phase1_report_id) REFERENCES base_survey_reports(id) ON DELETE SET NULL;
+          END IF;
+        END $$;
+
+        DO $$
+        BEGIN
+          IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_building_units_phase2_report') THEN
+            ALTER TABLE building_units ADD CONSTRAINT fk_building_units_phase2_report FOREIGN KEY (phase2_report_id) REFERENCES base_survey_reports(id) ON DELETE SET NULL;
+          END IF;
+        END $$;
+      `);
+      console.log('✅ [STARTUP MIGRATION] building_units & floor_plans soft-delete & constraints ready.');
+    } catch (e) {
+      console.warn('⚠️ [STARTUP MIGRATION] building_units soft-delete warning:', e);
+    }
     } finally {
       if (lockAcquired) {
         try {

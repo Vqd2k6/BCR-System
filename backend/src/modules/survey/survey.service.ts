@@ -31,7 +31,7 @@ export class SurveyService {
     if (unitId) {
       actualReportType = reportType || 'CONDO_UNIT';
       const unitRes = await Database.query<{ unit_code: string }>(
-        `SELECT unit_code FROM building_units WHERE id = $1;`,
+        `SELECT unit_code FROM building_units WHERE id = $1 AND deleted_at IS NULL;`,
         [unitId]
       );
       const unitCode = unitRes.rows[0]?.unit_code || 'UNIT';
