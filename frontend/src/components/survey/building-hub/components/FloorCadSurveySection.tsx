@@ -123,17 +123,28 @@ export const FloorCadSurveySection: React.FC<FloorCadSurveySectionProps> = ({
       {/* 1. Header Tầng: Tên Tầng, Mã Tầng & Tiến Độ */}
       <div className="bg-slate-50/90 border-b border-slate-200 px-4 py-3 flex items-center justify-between flex-wrap gap-2.5">
         <div className="flex items-center gap-2.5 min-w-0">
-          <div className="w-8 h-8 rounded-xl bg-teal-50 border border-teal-200 text-teal-700 flex items-center justify-center font-bold text-xs shrink-0 shadow-2xs">
-            {floor.floorNumber}
+          <div className="w-8 h-8 rounded-xl bg-teal-50 border border-teal-200 text-teal-700 flex items-center justify-center font-bold text-xs shrink-0 shadow-2xs font-mono">
+            {floor.floorCode || floor.floorNumber}
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <h3 className="text-sm sm:text-base font-extrabold text-slate-900 truncate">
-                {floor.floorLabel}
+                {floor.floorName || floor.floorLabel}
               </h3>
               <span className="text-xs font-mono font-bold px-2 py-0.5 rounded bg-teal-50 text-teal-800 border border-teal-200">
                 {floor.floorCode}
               </span>
+              {floor.scope && (
+                <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold border ${
+                  floor.scope === 'MASTER'
+                    ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                    : floor.scope === 'BOTH'
+                    ? 'bg-amber-50 text-amber-700 border-amber-200'
+                    : 'bg-slate-100 text-slate-600 border-slate-200'
+                }`}>
+                  {floor.scope === 'MASTER' ? 'Khu dùng chung (Toà mẹ)' : floor.scope === 'BOTH' ? 'Hỗn hợp' : 'Căn hộ con'}
+                </span>
+              )}
               {floor.isInherited && (
                 <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-500 font-medium">
                   CAD kế thừa Tầng {floor.inheritedFromFloor}
@@ -181,7 +192,7 @@ export const FloorCadSurveySection: React.FC<FloorCadSurveySectionProps> = ({
           <div className="relative inline-block max-w-full max-h-[60vh]">
             <img
               src={floor.cadUrl}
-              alt={`Mặt bằng ${floor.floorLabel}`}
+              alt={`Mặt bằng ${floor.floorName || floor.floorLabel}`}
               className="block max-w-full max-h-[60vh] object-contain rounded-xl bg-white shadow-md border border-slate-200 pointer-events-none select-none"
             />
 

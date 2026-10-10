@@ -180,7 +180,10 @@ export const BuildingUnitList: React.FC<BuildingUnitListProps> = ({
             Tất Cả ({totalFloorsCount} tầng)
           </button>
 
-          {(allFloorsData.length > 0 ? allFloorsData : availableFloors.map((f) => ({ floorNumber: f, floorLabel: `Tầng ${f}`, totalUnits: 0 }))).map((fl) => {
+          {(allFloorsData.length > 0 ? allFloorsData : availableFloors.map((f) => {
+            const def = f === 0 ? 'Tầng Trệt / Sảnh G' : f < 0 ? `Hầm B${Math.abs(f)}` : `Tầng ${f}`;
+            return { floorNumber: f, floorLabel: def, floorName: def, totalUnits: 0 };
+          })).map((fl) => {
             const isSelected = selectedFloor === fl.floorNumber;
             return (
               <button
@@ -193,7 +196,7 @@ export const BuildingUnitList: React.FC<BuildingUnitListProps> = ({
                     : 'bg-slate-100 hover:bg-teal-50 text-slate-700 hover:text-teal-700 border border-slate-200'
                 }`}
               >
-                <span>{fl.floorLabel}</span>
+                <span>{fl.floorName || fl.floorLabel}</span>
                 {fl.totalUnits > 0 && (
                   <span
                     className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
@@ -264,7 +267,10 @@ export const BuildingUnitList: React.FC<BuildingUnitListProps> = ({
           <UnitInspectionDrawer
             unit={activeUnit}
             parcel={parcel}
-            floorLabel={`Tầng ${activeUnit.floor_number ?? 1}`}
+            floorLabel={
+              allFloorsData.find((f) => f.floorNumber === (activeUnit.floor_number ?? 1))?.floorName ||
+              `Tầng ${activeUnit.floor_number ?? 1}`
+            }
             isMasterSurveyDone={isMasterSurveyDone}
             onClose={() => handleSelectUnit(null)}
             onStartUnitSurvey={onStartUnitSurvey}

@@ -457,6 +457,7 @@ export class CadastralService {
     return {
       parcelId,
       projectParcelCode: parcel.project_parcel_code,
+      deletedFloors: parcel.deleted_floors || [],
       plans,
     };
   }

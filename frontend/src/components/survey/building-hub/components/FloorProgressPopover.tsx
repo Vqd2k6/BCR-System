@@ -3,12 +3,15 @@ import { Layers, X } from 'lucide-react';
 import type { GisParcel } from '../../../gis/LeafletSweepMap';
 import type { BuildingUnit } from '../types';
 
+import type { FloorGroupData } from '../hooks/useBuildingHubState';
+
 interface FloorProgressPopoverProps {
   isOpen: boolean;
   onClose: () => void;
   parcel: GisParcel;
   availableFloors: number[];
   units: BuildingUnit[];
+  allFloorsData?: FloorGroupData[];
 }
 
 export const FloorProgressPopover: React.FC<FloorProgressPopoverProps> = ({
@@ -17,6 +20,7 @@ export const FloorProgressPopover: React.FC<FloorProgressPopoverProps> = ({
   parcel,
   availableFloors,
   units,
+  allFloorsData = [],
 }) => {
   if (!isOpen) return null;
 
@@ -85,7 +89,8 @@ export const FloorProgressPopover: React.FC<FloorProgressPopoverProps> = ({
                     {/* Floor Name & Counter */}
                     <div className="flex items-center gap-2">
                       <span className="text-xs font-black text-slate-900 bg-white px-2.5 py-1 rounded-md border border-slate-200 shadow-2xs">
-                        Lầu {floorNum}
+                        {allFloorsData.find((f) => f.floorNumber === floorNum)?.floorName ||
+                          (floorNum === 0 ? 'Tầng Trệt / Sảnh G' : floorNum < 0 ? `Hầm B${Math.abs(floorNum)}` : `Tầng ${floorNum}`)}
                       </span>
                       <span className="sm:hidden text-xs text-slate-500 font-semibold">
                         ({floorUnits.length} căn)
