@@ -515,7 +515,9 @@ export class CadastralService {
       data.partitions
     );
     return {
-      message: `Đã lưu phân chia CAD cho ${units.length} vị trí Tầng ${data.floorNumber}`,
+      message: units.length > 0
+        ? `Đã lưu phân chia CAD cho ${units.length} vị trí Tầng ${data.floorNumber}`
+        : `Đã lưu cấu hình Tầng ${data.floorNumber}`,
       units,
     };
   }

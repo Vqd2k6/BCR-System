@@ -710,11 +710,13 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
         partitions: allFloorPartitions,
       });
 
-      triggerSuccessFeedback(
-        `Đã lưu thành công bản vẽ CAD và phân chia ${allFloorPartitions.length} vị trí cho dải tầng [${targetApplicableFloors.join(
-          ', '
-        )}]!`
-      );
+      const successMessage = allFloorPartitions.length > 0
+        ? `Đã lưu thành công bản vẽ CAD và phân chia ${allFloorPartitions.length} vị trí cho dải tầng [${targetApplicableFloors.join(
+            ', '
+          )}]!`
+        : `Đã lưu thành công bản vẽ CAD ${floorName || `Tầng ${activeFloor}`}! Bạn có thể sử dụng công cụ để kéo vẽ ô phân chia căn hộ hoặc khu vực bất kỳ lúc nào.`;
+
+      triggerSuccessFeedback(successMessage);
       setIsFloorDirty(false);
 
       if (onUnitsUpdated) {
@@ -1015,14 +1017,35 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
                         : ''
                     }
                     onChange={(e) => {
-                      if (e.target.value) {
-                        if (e.target.value === 'TYPICAL') {
-                          const parsed = parseFloat(newFloorInput);
-                          const fl = !isNaN(parsed) && parsed > 0 ? parsed : 1;
-                          setNewFloorCodeInput(`F${String(fl).padStart(2, '0')}`);
-                        } else {
-                          setNewFloorCodeInput(e.target.value);
-                        }
+                      const sel = e.target.value;
+                      if (!sel) return;
+                      if (sel === 'TYPICAL') {
+                        const nextFl = buildingFloors.length > 0 ? Math.max(...buildingFloors.map((b) => b.floorNumber)) + 1 : 1;
+                        const parsed = parseFloat(newFloorInput);
+                        const fl = !isNaN(parsed) && parsed > 0 ? parsed : Math.max(1, nextFl);
+                        setNewFloorInput(String(fl));
+                        setNewFloorCodeInput(`F${String(fl).padStart(2, '0')}`);
+                      } else if (sel === 'G') {
+                        setNewFloorInput('0');
+                        setNewFloorCodeInput('G');
+                      } else if (sel === 'MEZZ') {
+                        if (!newFloorInput) setNewFloorInput('0');
+                        setNewFloorCodeInput('MEZZ');
+                      } else if (sel === 'B01') {
+                        setNewFloorInput('-1');
+                        setNewFloorCodeInput('B01');
+                      } else if (sel === 'B02') {
+                        setNewFloorInput('-2');
+                        setNewFloorCodeInput('B02');
+                      } else if (sel === 'SB') {
+                        setNewFloorInput('-1');
+                        setNewFloorCodeInput('SB');
+                      } else if (sel === 'ROOF' || sel === 'TERRACE' || sel === 'TUM') {
+                        const maxFl = buildingFloors.length > 0 ? Math.max(...buildingFloors.map((b) => b.floorNumber)) : 1;
+                        if (!newFloorInput) setNewFloorInput(String(maxFl + 1));
+                        setNewFloorCodeInput(sel);
+                      } else {
+                        setNewFloorCodeInput(sel);
                       }
                     }}
                     className="text-[11px] bg-white border border-slate-300 rounded px-1.5 py-0.5 text-slate-600 cursor-pointer max-w-[125px]"

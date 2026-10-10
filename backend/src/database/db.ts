@@ -277,6 +277,10 @@ export class Database {
           ADD COLUMN IF NOT EXISTS area_type VARCHAR(64) DEFAULT 'TYPICAL_UNIT',
           ADD COLUMN IF NOT EXISTS floor_code VARCHAR(32);
 
+        ALTER TABLE building_floor_plans
+          ALTER COLUMN cad_photo_url DROP NOT NULL,
+          ALTER COLUMN cad_photo_url SET DEFAULT '';
+
         CREATE INDEX IF NOT EXISTS idx_floor_plans_scope ON building_floor_plans(parcel_id, scope);
         CREATE INDEX IF NOT EXISTS idx_floor_plans_floor_code ON building_floor_plans(parcel_id, floor_code);
 
