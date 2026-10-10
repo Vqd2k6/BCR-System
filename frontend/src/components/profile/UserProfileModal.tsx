@@ -1,3 +1,4 @@
+import { getErrorMessage, getErrorStatus, isNotFoundError } from '@/utils/errorUtils';
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import {
@@ -53,8 +54,8 @@ export const UserProfileModal: React.FC<Props> = ({ isOpen, onClose }) => {
         setSaveSuccess(false);
         onClose();
       }, 1000);
-    } catch (err: any) {
-      setErrorMessage(err?.response?.data?.detail || err?.response?.data?.message || err?.message || 'Không thể lưu hồ sơ');
+    } catch (err: unknown) {
+      setErrorMessage(getErrorMessage(err, 'Không thể lưu hồ sơ'));
     } finally {
       setIsSaving(false);
     }

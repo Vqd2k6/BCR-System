@@ -4,9 +4,9 @@ import { ImageAnnotationModal } from './ImageAnnotationModal';
 import { PdfFloorPlanPickerModal } from './PdfFloorPlanPickerModal';
 import {
   generateMetroPhotoCode,
-  MetroWatermarkOptions,
+  type MetroWatermarkOptions,
 } from '../../utils/watermarkEngine';
-import { PhotoCaptureProps, AspectRatioType } from './photo-capture/types';
+import type { PhotoCaptureProps, AspectRatioType } from './photo-capture/types';
 import { usePhotoUpload } from './photo-capture/hooks/usePhotoUpload';
 import { useLiveCamera } from './photo-capture/hooks/useLiveCamera';
 import { useLightbox } from './photo-capture/hooks/useLightbox';

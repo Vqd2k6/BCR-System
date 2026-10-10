@@ -2,7 +2,7 @@ import React, { useRef, useState, useEffect } from 'react';
 import { Eraser, PenTool, Camera, Upload, CheckCircle2 } from 'lucide-react';
 import { PhotoCaptureInput } from '../common/PhotoCaptureInput';
 
-import { MetroWatermarkOptions } from '../../utils/watermarkEngine';
+import type { MetroWatermarkOptions } from '../../utils/watermarkEngine';
 
 interface Props {
   label: string;

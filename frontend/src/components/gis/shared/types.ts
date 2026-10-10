@@ -1,55 +1,16 @@
-export interface GisParcel {
-  id: string;
-  projectParcelCode: string;
-  officialCadastralCode: string;
-  houseNumber: string;
-  street: string;
-  ownerName?: string;
-  ownerPhone?: string;
-  surveyStatus:
-    | 'NOT_SURVEYED'
-    | 'IN_PROGRESS'
-    | 'SUBMITTED'
-    | 'APPROVED'
-    | 'REJECTED'
-    | 'POSTPONED_ABSENT'
-    | 'UNDER_CONSTRUCTION'
-    | 'PHASE2_COMPLETED'
-    | 'APPROVED_PHASE2'
-    | 'SPLIT_DEPRECATED'
-    | 'MERGED_DEPRECATED';
-  lifecycleStatus?: 'ACTIVE' | 'PENDING_MUTATION_APPROVAL' | 'SPLIT_DEPRECATED' | 'MERGED_DEPRECATED';
-  mutationType?: 'SPLIT' | 'MERGE' | null;
-  parentParcelIds?: string[];
-  childParcelIds?: string[];
-  absenceAttemptCount?: number;
-  coordinates: [number, number][]; // LatLng polygon
-  distanceMeters?: number;
-  adjacentType?: string;
-  constructionArea?: number;
-  floorCount?: number;
-  landArea?: number;
-  landCategory?: string;
-  landUseName?: string;
-  buildingType?: 'STANDALONE' | 'CONDOMINIUM' | 'ROW_HOUSE';
-  totalUnits?: number;
-  completedUnits?: number;
-  updatedAt?: string;
-  zoneId?: string;
-  assignedSurveyorId?: string;
-  assignedSurveyorName?: string;
-  assignedSurveyorCode?: string;
-  assignedSurveyorPhone?: string;
-  activePhase1ReportId?: string;
-  activePhase2ReportId?: string;
-}
+import type { GisParcel as DomainGisParcel } from '../../../core/types/domain.types';
+
+export type GisParcel = DomainGisParcel;
 
 export interface SplitChildData {
   label: string;
   houseNumber: string;
   ownerName: string;
   suggestedCode: string;
+  parcelCode?: string;
+  code?: string;
   areaM2?: number;
+  landAreaM2?: number;
   polygonRatio?: number;
   functionalType?: string;
   isResidualSurplus?: boolean;
@@ -139,7 +100,7 @@ export interface CadastralParcelData {
 export interface CadastralBoundaryEditorProps {
   activeParcelId: string;
   parcelData: CadastralParcelData;
-  parcel?: GisParcel | any;
+  parcel?: GisParcel | null;
   boundaryStatus: 'MATCH' | 'SPLIT' | 'MERGE';
   onStatusChange: (status: 'MATCH' | 'SPLIT' | 'MERGE') => void;
   mutationData: MutationPayloadData;

@@ -9,7 +9,7 @@ import {
   Download,
   FileType,
 } from 'lucide-react';
-import { ExportParcelItem } from '../types';
+import type { ExportParcelItem } from '../types';
 
 interface Phase1ParcelsTableProps {
   filteredParcels: ExportParcelItem[];

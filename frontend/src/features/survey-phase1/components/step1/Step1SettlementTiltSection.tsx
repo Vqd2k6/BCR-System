@@ -4,7 +4,7 @@ import { Input } from '../../../../core/components/ui/FormControls';
 import { PhotoCaptureInput } from '../../../../components/common/PhotoCaptureInput';
 import { LevelSelectorWithGuide } from '../LevelSelectorWithGuide';
 import { Building, Plus, Trash2 } from 'lucide-react';
-import { Phase1SurveyFormData, EvidencePhotoItem } from '../../types/phase1.types';
+import type { Phase1SurveyFormData, EvidencePhotoItem } from '../../types/phase1.types';
 import { SETTLEMENT_LEVEL_OPTIONS, TILT_LEVEL_OPTIONS, DATA_SOURCES } from './step1.constants';
 
 interface MultiEvidencePhotoInputProps {
@@ -13,6 +13,9 @@ interface MultiEvidencePhotoInputProps {
   onChange: (photos: EvidencePhotoItem[]) => void;
   photoType: string;
   parcelCode: string;
+  buildingCode?: string;
+  areaType?: 'MASTER_AREA' | 'CONDO_UNIT' | 'PRIVATE_HOUSE' | 'GENERAL_TOWER' | 'CAD_BLUEPRINT';
+  category?: string;
   recommendedOrientation?: 'portrait' | 'landscape';
   orientationHint?: string;
   addLabel: string;
@@ -24,6 +27,9 @@ const MultiEvidencePhotoInput: React.FC<MultiEvidencePhotoInputProps> = ({
   onChange,
   photoType,
   parcelCode,
+  buildingCode,
+  areaType,
+  category,
   recommendedOrientation = 'landscape',
   orientationHint,
   addLabel,
@@ -72,9 +78,12 @@ const MultiEvidencePhotoInput: React.FC<MultiEvidencePhotoInputProps> = ({
             orientationHint={orientationHint}
             watermarkOptions={{
               parcelCode,
+              buildingCode: areaType === 'GENERAL_TOWER' ? (buildingCode || parcelCode) : undefined,
               floor: photoType === 'SETTLE' ? 'FOUND' : 'EXT',
               photoType,
               photoIndex: idx + 1,
+              areaType,
+              category,
             }}
             height="120px"
           />
@@ -95,11 +104,13 @@ const MultiEvidencePhotoInput: React.FC<MultiEvidencePhotoInputProps> = ({
 interface Step1SettlementTiltSectionProps {
   formData: Phase1SurveyFormData;
   updateFormData: (updates: Partial<Phase1SurveyFormData>) => void;
+  isCondoMaster?: boolean;
 }
 
 export const Step1SettlementTiltSection: React.FC<Step1SettlementTiltSectionProps> = ({
   formData,
   updateFormData,
+  isCondoMaster,
 }) => {
   return (
     <Card className="border-slate-200 bg-white shadow-xs">
@@ -169,6 +180,9 @@ export const Step1SettlementTiltSection: React.FC<Step1SettlementTiltSectionProp
                 }
                 photoType="SETTLE"
                 parcelCode={formData.projectParcelCode}
+                buildingCode={formData.projectParcelCode}
+                areaType={isCondoMaster ? 'GENERAL_TOWER' : 'PRIVATE_HOUSE'}
+                category="settlement"
                 recommendedOrientation="landscape"
                 addLabel="Chụp thêm ảnh lún / chân tường"
               />
@@ -277,6 +291,9 @@ export const Step1SettlementTiltSection: React.FC<Step1SettlementTiltSectionProp
                 }
                 photoType="TILT"
                 parcelCode={formData.projectParcelCode}
+                buildingCode={formData.projectParcelCode}
+                areaType={isCondoMaster ? 'GENERAL_TOWER' : 'PRIVATE_HOUSE'}
+                category="tilt"
                 recommendedOrientation="portrait"
                 addLabel="Chụp thêm ảnh mặt đứng / độ nghiêng"
               />
@@ -330,6 +347,9 @@ export const Step1SettlementTiltSection: React.FC<Step1SettlementTiltSectionProp
               }
               photoType="ANOMALY"
               parcelCode={formData.projectParcelCode}
+              buildingCode={formData.projectParcelCode}
+              areaType={isCondoMaster ? 'GENERAL_TOWER' : 'PRIVATE_HOUSE'}
+              category="anomalies"
               recommendedOrientation="landscape"
               addLabel="Chụp thêm ảnh hiện trạng bất thường"
             />

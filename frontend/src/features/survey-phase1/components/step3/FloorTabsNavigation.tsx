@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Button } from '../../../../core/components/ui/Button';
 import { Layers, Plus, Edit2, Trash2, Check, X } from 'lucide-react';
-import { FloorSurveyData } from '../../types/phase1.types';
+import type { FloorSurveyData } from '../../types/phase1.types';
 import { usePhase1SurveyStore } from '../../store/usePhase1SurveyStore';
 
 interface FloorTabsNavigationProps {

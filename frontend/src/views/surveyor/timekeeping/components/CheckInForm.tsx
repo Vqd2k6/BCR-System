@@ -7,7 +7,7 @@ import {
   User,
   Clock,
 } from 'lucide-react';
-import { MetroZoneCentroid } from '../../../../core/utils/metroZoneUtils';
+import type { MetroZoneCentroid } from '../../../../core/utils/metroZoneUtils';
 
 interface CheckInFormProps {
   isOutOfBounds: boolean;
@@ -16,7 +16,7 @@ interface CheckInFormProps {
   gpsCoordinates: { lat: number; lng: number; accuracy: number } | null;
   isSimulatedGps: boolean;
   cameraActive: boolean;
-  videoRef: React.RefObject<HTMLVideoElement | null>;
+  videoRef: React.RefObject<HTMLVideoElement>;
   handleCapturePhoto: () => void;
   handleStopCamera: () => void;
   handleStartCamera: () => void;
@@ -163,7 +163,7 @@ export const CheckInForm: React.FC<CheckInFormProps> = ({
               }}
             >
               <video
-                ref={videoRef as any}
+                ref={videoRef}
                 autoPlay
                 playsInline
                 style={{ width: '100%', maxHeight: '280px', borderRadius: '0.5rem', objectFit: 'cover' }}

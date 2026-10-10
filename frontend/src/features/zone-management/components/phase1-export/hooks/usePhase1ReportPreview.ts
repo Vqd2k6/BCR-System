@@ -1,13 +1,8 @@
+import { getErrorMessage, getErrorStatus, isNotFoundError } from '@/utils/errorUtils';
 import { useState, useEffect } from 'react';
 import { api } from '../../../../../services/api';
-import {
-  ExportParcelItem,
-  EditFormData,
-  EditFormDefectItem,
-  ModalFeedbackMessage,
-  ActionFeedbackMessage,
-} from '../types';
-import { initializeEditFormData, buildReportPayload } from '../utils/reportDataTransformers';
+import type { ExportParcelItem, EditFormData, EditFormDefectItem, ModalFeedbackMessage, ActionFeedbackMessage } from '../types';
+import { initializeEditFormData, buildReportPayload, type ServerReportData } from '../utils/reportDataTransformers';
 
 interface UsePhase1ReportPreviewProps {
   setActionMessage: (msg: ActionFeedbackMessage | null) => void;
@@ -19,7 +14,7 @@ export const usePhase1ReportPreview = ({
   const [previewParcel, setPreviewParcel] = useState<ExportParcelItem | null>(null);
   const [previewHtmlContent, setPreviewHtmlContent] = useState<string | null>(null);
   const [previewBlobUrl, setPreviewBlobUrl] = useState<string | null>(null);
-  const [previewReportData, setPreviewReportData] = useState<any | null>(null);
+  const [previewReportData, setPreviewReportData] = useState<ServerReportData | Record<string, unknown> | null>(null);
   const [previewTab, setPreviewTab] = useState<'html' | 'edit' | 'json'>('html');
   const [isPreviewLoading, setIsPreviewLoading] = useState<boolean>(false);
   const [previewZoom, setPreviewZoom] = useState<'fit' | '100' | '75' | '125'>('100');
@@ -97,12 +92,12 @@ export const usePhase1ReportPreview = ({
           text: `Không thể kết nối và nạp báo cáo cho lô ${parcel.projectParcelCode}. Vui lòng thử lại.`,
         });
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.warn('Lỗi khi nạp HTML preview hoặc report data:', err);
       setEditFormData(initializeEditFormData(null, parcel));
       setActionMessage({
         type: 'error',
-        text: `Không thể nạp HTML xem trước cho lô ${parcel.projectParcelCode}: ${err?.message || 'Lỗi kết nối'}`,
+        text: `Không thể nạp HTML xem trước cho lô ${parcel.projectParcelCode}: ${getErrorMessage(err, 'Lỗi kết nối')}`,
       });
     } finally {
       setIsPreviewLoading(false);
@@ -135,11 +130,11 @@ export const usePhase1ReportPreview = ({
         text: `Đã chuyển sang mẫu báo cáo: ${targetVersion === 'v2' ? 'Mẫu Mới 0410 Song Ngữ (V2)' : 'Mẫu Cũ (V1)'}`,
         timestamp: new Date().toLocaleTimeString('vi-VN'),
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.warn(`[Preview] Lỗi khi đổi phiên bản ${targetVersion}:`, err);
       setModalFeedback({
         type: 'error',
-        text: `Không thể tải phiên bản ${targetVersion}: ${err?.message || 'Lỗi server'}`,
+        text: `Không thể tải phiên bản ${targetVersion}: ${getErrorMessage(err, 'Lỗi server')}`,
         timestamp: new Date().toLocaleTimeString('vi-VN'),
       });
     } finally {
@@ -152,7 +147,7 @@ export const usePhase1ReportPreview = ({
     setHasUnsavedChanges(true);
   };
 
-  const handleUpdateDefectField = (defectId: string, field: keyof EditFormDefectItem, value: any) => {
+  const handleUpdateDefectField = <K extends keyof EditFormDefectItem>(defectId: string, field: K, value: EditFormDefectItem[K]) => {
     setEditFormData((prev) => {
       if (!prev) return prev;
       return {
@@ -230,11 +225,11 @@ export const usePhase1ReportPreview = ({
         type: 'success',
         text: `Đã lưu thành công dữ liệu vào Database cho lô ${previewParcel.projectParcelCode}!`,
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Lỗi khi lưu dữ liệu vào DB:', err);
       setActionMessage({
         type: 'error',
-        text: `Không thể lưu vào Database: ${err?.response?.data?.detail || err?.message || 'Lỗi server'}`,
+        text: `Không thể lưu vào Database: ${getErrorMessage(err, 'Lỗi server')}`,
       });
     } finally {
       setIsSavingEdits(false);
@@ -272,9 +267,9 @@ export const usePhase1ReportPreview = ({
         type: 'success',
         text: successText,
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Lỗi khi xem trước tạm thời:', err);
-      const errText = `Không thể tạo bản xem trước tạm thời: ${err?.response?.data?.detail || err?.message || 'Lỗi server'}`;
+      const errText = `Không thể tạo bản xem trước tạm thời: ${getErrorMessage(err, 'Lỗi server')}`;
       setModalFeedback({
         type: 'error',
         text: errText,
@@ -369,14 +364,14 @@ export const usePhase1ReportPreview = ({
           : 'Đã TẮT tính năng nhúng watermark (giữ ảnh nguyên bản, chống trùng lặp con dấu).',
         timestamp: new Date().toLocaleTimeString('vi-VN'),
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.warn('Lỗi khi đổi trạng thái watermark:', err);
     } finally {
       setIsPreviewLoading(false);
     }
   };
 
-  const handleExportSingleDocx = async (parcel: ExportParcelItem, overrides?: any) => {
+  const handleExportSingleDocx = async (parcel: ExportParcelItem, overrides?: Record<string, unknown>) => {
     const rawId = parcel.activePhase1ReportId || parcel.id || parcel.projectParcelCode;
     const reportId = encodeURIComponent(rawId);
     setActionMessage({ type: 'info', text: `Đang tạo tập tin Word (DOCX) cho lô ${parcel.projectParcelCode}...` });
@@ -402,15 +397,15 @@ export const usePhase1ReportPreview = ({
         type: 'success',
         text: `Tải xuống thành công Báo cáo DOCX cho lô ${parcel.projectParcelCode}!`,
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
       setActionMessage({
         type: 'error',
-        text: `Không thể xuất DOCX cho lô ${parcel.projectParcelCode}: ${err?.message || 'Lỗi không xác định'}`,
+        text: `Không thể xuất DOCX cho lô ${parcel.projectParcelCode}: ${getErrorMessage(err, 'Lỗi không xác định')}`,
       });
     }
   };
 
-  const handleExportSinglePdf = async (parcel: ExportParcelItem, overrides?: any, versionOverride?: 'v2' | 'v1') => {
+  const handleExportSinglePdf = async (parcel: ExportParcelItem, overrides?: Record<string, unknown>, versionOverride?: 'v2' | 'v1') => {
     const ver = versionOverride || reportVersion;
     const rawId = parcel.activePhase1ReportId || parcel.id || parcel.projectParcelCode;
     const reportId = encodeURIComponent(rawId);
@@ -448,10 +443,10 @@ export const usePhase1ReportPreview = ({
         type: 'success',
         text: `Tải xuống thành công Báo cáo PDF ${isV2 ? 'Song Ngữ (Mẫu 0410 V2)' : 'A4 (Mẫu V1)'} cho lô ${parcel.projectParcelCode}!`,
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
       setActionMessage({
         type: 'error',
-        text: `Không thể xuất PDF cho lô ${parcel.projectParcelCode}: ${err?.message || 'Lỗi không xác định'}`,
+        text: `Không thể xuất PDF cho lô ${parcel.projectParcelCode}: ${getErrorMessage(err, 'Lỗi không xác định')}`,
       });
     }
   };

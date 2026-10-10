@@ -31,10 +31,17 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+interface ApiErrorData {
+  detail?: string | Record<string, unknown>;
+  message?: string;
+  title?: string;
+  [key: string]: unknown;
+}
+
 // Response Interceptor: Ghi log lỗi có cấu trúc (RFC 7807) & Giữ nguyên Promise.reject để UI xử lý
 api.interceptors.response.use(
   (response) => response,
-  (error: AxiosError<any>) => {
+  (error: AxiosError<ApiErrorData>) => {
     const status = error.response?.status;
     const url = error.config?.url;
     const method = error.config?.method?.toUpperCase();

@@ -1,12 +1,14 @@
+import type { FloorSurveyData, DamageZoneData, DefectItem } from '../../../../../survey-phase1/types/phase1.types';
+import type { AuditStepwiseFormState, AuditStepwiseData, StepwiseBurlandSummary } from '../types';
 import React from 'react';
 import { Award, AlertTriangle, ShieldAlert, Sparkles, FileText, CheckCircle2, Maximize2, BarChart2, Eye, Compass } from 'lucide-react';
 
 interface Props {
   isEditMode: boolean;
-  formState: Record<string, any>;
-  data: any;
-  handleFieldChange: (key: string, label: string, val: any) => void;
-  handleNestedFieldChange: (parentKey: string, childKey: string, label: string, val: any) => void;
+  formState: AuditStepwiseFormState;
+  data?: AuditStepwiseData;
+  handleFieldChange?: (key: string, label: string, val: unknown) => void;
+  handleNestedFieldChange: (parentKey: string, childKey: string, label: string, val: unknown) => void;
   onOpenPhotoZoom?: (url: string, title?: string, photoCode?: string) => void;
 }
 
@@ -34,20 +36,20 @@ export const AuditStep4BurlandSummary: React.FC<Props> = ({
   handleNestedFieldChange,
   onOpenPhotoZoom,
 }) => {
-  const burland = formState.burlandSummary || {};
+  const burland: StepwiseBurlandSummary = formState.burlandSummary || {};
   const riskCard = data?.leftPane?.riskScoreCard || {};
 
-  const maxGrade = burland.localMaxGrade ?? riskCard.e1_burland_score ?? 0;
-  const predGrade = burland.predominantGrade ?? (maxGrade > 1 ? maxGrade - 1 : maxGrade);
+  const maxGrade = Number(burland.localMaxGrade ?? riskCard.e1_burland_score ?? 0);
+  const predGrade = Number(burland.predominantGrade ?? (maxGrade > 1 ? maxGrade - 1 : maxGrade));
   const flagLevel = burland.structuralFlagLevel || 'NONE';
   const flagItem = STRUCTURAL_FLAG_LEVELS.find((f) => f.value === flagLevel) || STRUCTURAL_FLAG_LEVELS[0];
 
   // Thu thập toàn bộ vết nứt để tính Histogram và tìm Vết nứt khống chế (Spotlight)
-  const allDefects: any[] = [];
+  const allDefects: DefectItem[] = [];
   if (Array.isArray(formState.floors)) {
-    formState.floors.forEach((fl: any) => {
-      (fl.zones || []).forEach((z: any) => {
-        (z.defects || []).forEach((d: any) => {
+    (formState.floors as FloorSurveyData[]).forEach((fl: FloorSurveyData) => {
+      (fl.zones || []).forEach((z: DamageZoneData) => {
+        (z.defects || []).forEach((d: DefectItem) => {
           allDefects.push({
             ...d,
             floorName: fl.floorName,
@@ -57,8 +59,8 @@ export const AuditStep4BurlandSummary: React.FC<Props> = ({
       });
     });
   } else if (Array.isArray(formState.damageZones)) {
-    formState.damageZones.forEach((z: any) => {
-      (z.defects || []).forEach((d: any) => {
+    (formState.damageZones as DamageZoneData[]).forEach((z: DamageZoneData) => {
+      (z.defects || []).forEach((d: DefectItem) => {
         allDefects.push({
           ...d,
           floorName: 'Tầng khảo sát',
@@ -80,7 +82,7 @@ export const AuditStep4BurlandSummary: React.FC<Props> = ({
     const currGrade = Number(curr.burlandGrade ?? curr.burland_grade ?? 0);
     const maxGradeVal = maxD ? Number(maxD.burlandGrade ?? maxD.burland_grade ?? 0) : -1;
     return currGrade > maxGradeVal ? curr : maxD;
-  }, null as any);
+  }, null as DefectItem | null);
 
   const govPhotoUrl =
     governingDefect?.cuPhotoUrl ||

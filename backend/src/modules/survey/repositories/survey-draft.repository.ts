@@ -77,10 +77,13 @@ export class SurveyDraftRepository {
         ]
       );
 
-      // Đảm bảo status của parcel là IN_PROGRESS
+      // Đảm bảo status của parcel là IN_PROGRESS nếu chưa nộp
       await Database.query(
         `UPDATE parcels 
-         SET survey_status = 'IN_PROGRESS', 
+         SET survey_status = CASE 
+               WHEN survey_status IN ('SUBMITTED', 'APPROVED', 'PHASE2_COMPLETED', 'APPROVED_PHASE2') THEN survey_status 
+               ELSE 'IN_PROGRESS' 
+             END, 
              active_phase1_report_id = COALESCE(active_phase1_report_id, $2),
              updated_at = NOW() 
          WHERE id = $1;`,
@@ -90,7 +93,10 @@ export class SurveyDraftRepository {
       if (data.unitId) {
         await Database.query(
           `UPDATE building_units 
-           SET status = 'IN_PROGRESS', 
+           SET status = CASE 
+                 WHEN status IN ('SUBMITTED', 'APPROVED', 'COMPLETED') THEN status 
+                 ELSE 'IN_PROGRESS' 
+               END, 
                phase1_report_id = COALESCE(phase1_report_id, $2),
                updated_at = NOW() 
            WHERE id = $1;`,
@@ -141,7 +147,12 @@ export class SurveyDraftRepository {
 
       await Database.query(
         `UPDATE parcels 
-         SET survey_status = 'IN_PROGRESS', active_phase1_report_id = $2, updated_at = NOW() 
+         SET survey_status = CASE 
+               WHEN survey_status IN ('SUBMITTED', 'APPROVED', 'PHASE2_COMPLETED', 'APPROVED_PHASE2') THEN survey_status 
+               ELSE 'IN_PROGRESS' 
+             END, 
+             active_phase1_report_id = $2, 
+             updated_at = NOW() 
          WHERE id = $1;`,
         [resolvedParcelId, newDraft.id]
       );

@@ -236,6 +236,11 @@ export const Step9_FieldSignatures: React.FC<Step9Props> = ({ onSubmitFinal, isS
   } = useLightbox();
   const [annotatingIndex, setAnnotatingIndex] = useState<number | null>(null);
 
+  const isCondoMaster =
+    (formData.surveyCaseType === 'APARTMENT' ||
+      (formData as unknown as { survey_case_type?: string }).survey_case_type === 'APARTMENT') &&
+    !formData.unitId;
+
   // Thống kê nhanh toàn bộ hồ sơ
   const totalFloors = formData.floors.length;
   const totalZoneZ = formData.floors.reduce((acc, f) => acc + (f.zones?.length || 0), 0);
@@ -261,7 +266,10 @@ export const Step9_FieldSignatures: React.FC<Step9Props> = ({ onSubmitFinal, isS
 
     const parcelCode = formData.projectParcelCode || formData.officialCadastralCode || 'PARCEL';
     const cleanParcel = parcelCode.replace(/&/g, '_').replace(/[^a-zA-Z0-9_-]/g, '').toUpperCase();
-    const folder = `surveys/${cleanParcel}/DOC`;
+    const isCondo = isCondoMaster;
+    const folder = isCondo
+      ? `projects/METRO2_HCM/buildings/${cleanParcel}/general/signatures`
+      : `surveys/${cleanParcel}/DOC`;
 
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
@@ -296,12 +304,16 @@ export const Step9_FieldSignatures: React.FC<Step9Props> = ({ onSubmitFinal, isS
         setUploadStatusMap((prev) => ({ ...prev, [localDataUrl]: 'UPLOADING' }));
 
         // 4. Chuẩn bị Metadata R2
-        const filename = `${photoCode.replace(/[^a-zA-Z0-9_-]/g, '_')}_${Date.now()}.jpg`;
+        const filename = isCondo
+          ? `M2__${cleanParcel}__GENERAL__MINUTES__${String(photoIndex).padStart(2, '0')}__${Date.now()}.jpg`
+          : `${photoCode.replace(/[^a-zA-Z0-9_-]/g, '_')}_${Date.now()}.jpg`;
         const metadata: Record<string, string> = {
           'photo-code': photoCode,
           'building-code': cleanParcel,
           'photo-type': 'MINUTES',
           'floor': 'DOC',
+          'category': isCondo ? 'signatures' : 'DOC',
+          'area-type': isCondo ? 'GENERAL_TOWER' : 'PRIVATE_HOUSE',
           'survey-phase': 'PHASE_1',
           'project': 'METRO2_HCM',
           'captured-at': new Date().toISOString(),
@@ -576,6 +588,7 @@ export const Step9_FieldSignatures: React.FC<Step9Props> = ({ onSubmitFinal, isS
           placeholder="Ví dụ: Chủ nhà nhất trí với biên bản khảo sát hiện trạng; xác nhận các vết nứt đã có từ trước khi làm đường..."
           rows={2}
           required
+          disabled={readOnly}
           value={sigs.ownerFeedback || formData.ownerRemarks || ''}
           onChange={(e) => {
             const val = e.target.value;
@@ -780,7 +793,11 @@ export const Step9_FieldSignatures: React.FC<Step9Props> = ({ onSubmitFinal, isS
       {/* Final Submit Buttons */}
       <div className="flex justify-between items-center pt-4">
         <Button variant="outline" onClick={prevStep}>
-          {formData.unitId ? '⬅️ Quay lại Bước 6 (Dashboard)' : '⬅️ Quay lại Bước 7'}
+          {isCondoMaster
+            ? '⬅️ Quay lại Bước 4 (Ranh GIS toà mẹ)'
+            : formData.unitId
+            ? '⬅️ Quay lại Bước 6 (Dashboard)'
+            : '⬅️ Quay lại Bước 7'}
         </Button>
         {readOnly ? (
           <div className="flex items-center gap-2">

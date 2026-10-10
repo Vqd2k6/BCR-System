@@ -1,6 +1,6 @@
-import { Phase1SurveyFormData } from '../types/phase1.types';
-import { GisParcel, BuildingUnit } from '../../../core/types/domain.types';
-import { MissingFieldItem } from '../utils/stepValidator';
+import type { Phase1SurveyFormData } from '../types/phase1.types';
+import type { GisParcel, BuildingUnit } from '../../../core/types/domain.types';
+import type { MissingFieldItem } from '../utils/stepValidator';
 
 export interface NavigationSliceState {
   currentStep: number;

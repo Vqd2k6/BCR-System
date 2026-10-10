@@ -1,12 +1,12 @@
 import { useState, useEffect, useMemo } from 'react';
 import { api } from '../../../../services/api';
-import { GisParcel, CadastralParcelData } from '../../shared/types';
+import type { GisParcel, CadastralParcelData } from '../../shared/types';
 import { computeCentroid, parseCoordinatesFromGeoJson } from '../../shared/geoMath';
 
 interface UseCadastralGeometryProps {
   activeParcelId: string;
   parcelData: CadastralParcelData;
-  parcel?: GisParcel | any;
+  parcel?: GisParcel | null;
 }
 
 export const useCadastralGeometry = ({
@@ -109,7 +109,7 @@ export const useCadastralGeometry = ({
   };
 
   const resolvedZoneId = resolveZoneId(
-    parcel?.zoneId || (parcel as any)?.zone_id,
+    parcel?.zoneId || parcel?.zone_id,
     parcelData.zoneId,
     parcelData.projectParcelCode || parcel?.projectParcelCode
   );
@@ -135,8 +135,8 @@ export const useCadastralGeometry = ({
         }
         const res = await api.get('/parcels/zone-map', { params: { zoneId } });
         if (isMounted && res.data?.success && Array.isArray(res.data.data)) {
-          const mapped: GisParcel[] = res.data.data
-            .map((p: any) => {
+          const mapped: GisParcel[] = (res.data.data as GisParcel[])
+            .map((p: GisParcel) => {
               const coords = parseCoordinatesFromGeoJson(p);
               return {
                 id: p.id,
@@ -215,8 +215,8 @@ export const useCadastralGeometry = ({
           params: { lat: cLat, lng: cLng, radius: 120 },
         });
         if (isMounted && res.data?.success && Array.isArray(res.data.data)) {
-          const mapped: GisParcel[] = res.data.data
-            .map((p: any) => {
+          const mapped: GisParcel[] = (res.data.data as GisParcel[])
+            .map((p: GisParcel) => {
               const coords = parseCoordinatesFromGeoJson(p);
               const dist =
                 typeof p.distance_meters === 'number'

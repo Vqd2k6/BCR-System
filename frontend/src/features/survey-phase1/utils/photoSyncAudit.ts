@@ -1,4 +1,4 @@
-import { Phase1SurveyFormData } from '../types/phase1.types';
+import type { Phase1SurveyFormData } from '../types/phase1.types';
 import { uploadQueue } from '../../../core/services/uploadQueueService';
 import { getOfflinePhoto, extractLocalIdFromUri } from '../../../core/storage/offlinePhotoStorage';
 

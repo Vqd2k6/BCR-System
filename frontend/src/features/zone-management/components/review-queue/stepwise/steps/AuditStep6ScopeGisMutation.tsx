@@ -1,3 +1,5 @@
+import type { FloorSurveyData } from '../../../../../survey-phase1/types/phase1.types';
+import type { GisParcel, SplitChildData } from '../../../../../../components/gis/shared/types';
 import React, { useState, useMemo } from 'react';
 import {
   MapPin,
@@ -20,16 +22,17 @@ import {
 import { UnifiedGisMutationModal } from '../../../../../../components/gis/cadastral-editor/UnifiedGisMutationModal';
 import { AdminReassignParcelModal } from '../../AdminReassignParcelModal';
 import { CadastralBoundaryReshapeModal } from '../../../../../../components/gis/cadastral-editor/components/CadastralBoundaryReshapeModal';
-import { GisParcel } from '../../../../../../components/gis/shared/types';
 import { AuditCadastralMutationVisualMap } from '../components/AuditCadastralMutationVisualMap';
+
+import type { AuditStepwiseFormState, AuditStepwiseData, StepwiseAccessLimitation, StepwiseGisMutationConfirmed } from '../types';
 
 interface Props {
   isEditMode: boolean;
-  formState: Record<string, any>;
-  data?: any;
+  formState: AuditStepwiseFormState;
+  data?: AuditStepwiseData;
   reportId?: string;
-  handleNestedFieldChange: (parentKey: string, childKey: string, label: string, val: any) => void;
-  handleFieldChange?: (fieldKey: string, label: string, val: any) => void;
+  handleNestedFieldChange: (parentKey: string, childKey: string, label: string, val: unknown) => void;
+  handleFieldChange?: (fieldKey: string, label: string, val: unknown) => void;
   onOpenPhotoZoom?: (url: string, title?: string, photoCode?: string) => void;
   onRefresh?: () => void;
 }
@@ -69,15 +72,21 @@ export const AuditStep6ScopeGisMutation: React.FC<Props> = ({
   const [isReshapeModalOpen, setIsReshapeModalOpen] = useState(false);
   const [successToast, setSuccessToast] = useState('');
 
-  const access = formState.accessLimitation || {};
-  const mutation = formState.gisMutationConfirmed || {};
+  const access: StepwiseAccessLimitation = formState.accessLimitation || {};
+  const mutation: StepwiseGisMutationConfirmed = formState.gisMutationConfirmed || {};
   const floors = formState.floors || [];
-  const coords = formState.gpsLocation || formState.coordinates || {};
+  const coords = (formState.gpsLocation || (typeof formState.coordinates === 'object' ? formState.coordinates : {}) || {}) as {
+    lat?: number;
+    lng?: number;
+    latitude?: number;
+    longitude?: number;
+    accuracy?: number;
+  };
 
   // Kích thước hình học thửa đất
-  const frontageWidth = formState.frontageWidth ?? data?.buildingSpecs?.frontageWidth ?? (data?.activeParcel as any)?.frontage_width;
-  const lotDepth = formState.lotDepth ?? data?.buildingSpecs?.lotDepth ?? (data?.activeParcel as any)?.lot_depth;
-  const landAreaM2 = formState.landAreaM2 ?? formState.landArea ?? data?.buildingSpecs?.landAreaM2 ?? (data?.activeParcel as any)?.land_area_m2;
+  const frontageWidth = formState.frontageWidth ?? data?.buildingSpecs?.frontageWidth ?? (data?.activeParcel as GisParcel | undefined)?.frontage_width;
+  const lotDepth = formState.lotDepth ?? data?.buildingSpecs?.lotDepth ?? (data?.activeParcel as GisParcel | undefined)?.lot_depth;
+  const landAreaM2 = formState.landAreaM2 ?? formState.landArea ?? data?.buildingSpecs?.landAreaM2 ?? (data?.activeParcel as GisParcel | undefined)?.land_area_m2;
   const mutationDetails = mutation.details || {};
   const splitChildren = Array.isArray(mutationDetails.splitChildren) ? mutationDetails.splitChildren : [];
   const selectedMergeCodes = Array.isArray(mutationDetails.selectedMergeCodes) ? mutationDetails.selectedMergeCodes : [];
@@ -87,8 +96,9 @@ export const AuditStep6ScopeGisMutation: React.FC<Props> = ({
     if (Array.isArray(formState.parcelCoordinates) && formState.parcelCoordinates.length >= 3) {
       return formState.parcelCoordinates;
     }
-    if (Array.isArray(data?.coordinates) && data.coordinates.length >= 3) {
-      return data.coordinates;
+    const rawCoords = data?.coordinates as [number, number][] | undefined;
+    if (Array.isArray(rawCoords) && rawCoords.length >= 3) {
+      return rawCoords;
     }
     if (Array.isArray(data?.parcelCoordinates) && data.parcelCoordinates.length >= 3) {
       return data.parcelCoordinates;
@@ -108,7 +118,7 @@ export const AuditStep6ScopeGisMutation: React.FC<Props> = ({
   }, [formState.parcelCoordinates, data?.coordinates, data?.parcelCoordinates, data?.cadastralGeojson, data?.cadastral_geojson]);
 
   const reshapeParcel = useMemo<GisParcel | null>(() => {
-    const pId = data?.parcelId || formState.parcelId || (data?.activeParcel as any)?.id;
+    const pId = data?.parcelId || formState.parcelId || (data?.activeParcel as GisParcel | undefined)?.id;
     if (!pId) return null;
     return {
       id: pId,
@@ -117,12 +127,12 @@ export const AuditStep6ScopeGisMutation: React.FC<Props> = ({
       houseNumber: data?.houseNumber || formState.houseNumber || '',
       street: data?.street || formState.street || '',
       ownerName: data?.ownerName || formState.ownerName || '',
-      surveyStatus: data?.surveyStatus || formState.surveyStatus || 'SUBMITTED',
+      surveyStatus: (data?.surveyStatus || formState.surveyStatus || 'SUBMITTED') as GisParcel['surveyStatus'],
       coordinates: parcelCoords,
       landArea: Number(landAreaM2 || 0),
       constructionArea: Number(data?.buildingSpecs?.constructionAreaM2 || landAreaM2 || 0),
       floorCount: Number(data?.buildingSpecs?.floorCount || 1),
-      buildingType: data?.buildingSpecs?.buildingType || 'STANDALONE',
+      buildingType: (data?.buildingSpecs?.buildingType || 'STANDALONE') as GisParcel['buildingType'],
       zoneId: data?.zoneId || formState.zoneId || 'ZONE_01',
     };
   }, [data, formState, parcelCoords, landAreaM2]);
@@ -236,7 +246,7 @@ export const AuditStep6ScopeGisMutation: React.FC<Props> = ({
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-            {floors.map((fl: any, idx: number) => (
+            {floors.map((fl: FloorSurveyData, idx: number) => (
               <div
                 key={fl.id || idx}
                 className="p-2.5 rounded-lg bg-white border border-slate-200 flex items-center justify-between text-xs"
@@ -312,7 +322,7 @@ export const AuditStep6ScopeGisMutation: React.FC<Props> = ({
               {isEditMode ? (
                 <div className="space-y-1">
                   <select
-                    value={ACCESS_LIMIT_PRESETS.includes(access.mainReason) ? access.mainReason : 'Khác (Nhập chi tiết...)'}
+                    value={access.mainReason && ACCESS_LIMIT_PRESETS.includes(access.mainReason) ? access.mainReason : 'Khác (Nhập chi tiết...)'}
                     onChange={(e) => {
                       if (e.target.value !== 'Khác (Nhập chi tiết...)') {
                         handleNestedFieldChange('accessLimitation', 'mainReason', 'Nguyên nhân hạn chế', e.target.value);
@@ -631,7 +641,7 @@ export const AuditStep6ScopeGisMutation: React.FC<Props> = ({
                   Danh Sách Các Thửa Con Tách Đề Xuất ({splitChildren.length} căn):
                 </span>
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
-                  {splitChildren.map((child: any, cIdx: number) => (
+                  {splitChildren.map((child: { parcelCode?: string; code?: string; landAreaM2?: string | number; areaM2?: string | number; ownerName?: string; [key: string]: unknown }, cIdx: number) => (
                     <div key={cIdx} className="p-2 bg-blue-50/60 rounded-lg border border-blue-200 text-xs space-y-0.5">
                       <div className="font-mono font-black text-blue-950">
                         {child.parcelCode || child.code || `Căn ${cIdx === 0 ? 'A' : 'B'}`}
@@ -655,7 +665,7 @@ export const AuditStep6ScopeGisMutation: React.FC<Props> = ({
                   Chi Tiết Hồ Sơ Gộp Thửa:
                 </span>
                 <div className="text-xs text-slate-700 space-y-1">
-                  <div>Mã thửa đích gộp: <strong className="font-mono text-blue-800">{mutationDetails.mergeTargetCode || 'Chưa chọn'}</strong></div>
+                  <div>Mã thửa đích gộp: <strong className="font-mono text-blue-800">{String(mutationDetails.mergeTargetCode || 'Chưa chọn')}</strong></div>
                   {selectedMergeCodes.length > 0 && (
                     <div>Các thửa cùng khuôn viên: <strong className="font-mono text-slate-800">{selectedMergeCodes.join(', ')}</strong></div>
                   )}
@@ -671,13 +681,13 @@ export const AuditStep6ScopeGisMutation: React.FC<Props> = ({
         <UnifiedGisMutationModal
           isOpen={isMutationModalOpen}
           role="ZONE_ADMIN"
-          parcelId={data?.parcelId || formState.parcelId}
+          parcelId={data?.parcelId || formState.parcelId || ''}
           parcelCode={data?.projectParcelCode || formState.projectParcelCode}
           houseNumber={data?.houseNumber || formState.houseNumber}
           street={data?.street || formState.street}
-          currentAreaM2={data?.buildingSpecs?.landAreaM2 || formState.landAreaM2}
+          currentAreaM2={Number(data?.buildingSpecs?.landAreaM2 || formState.landAreaM2 || 0)}
           initialZoneId={data?.zoneId || formState.zoneId}
-          reportId={reportId || data?.reportId}
+          reportId={reportId || (data?.reportId as string | undefined)}
           onClose={() => setIsMutationModalOpen(false)}
           onSuccess={(msg: string) => {
             showToast(msg);
@@ -690,13 +700,13 @@ export const AuditStep6ScopeGisMutation: React.FC<Props> = ({
       {isReassignModalOpen && (
         <AdminReassignParcelModal
           isOpen={isReassignModalOpen}
-          reportId={reportId || data?.reportId}
-          currentParcelCode={data?.projectParcelCode || formState.projectParcelCode}
-          currentParcelId={data?.parcelId || formState.parcelId}
+          reportId={reportId || (data?.reportId as string | undefined) || ''}
+          currentParcelCode={data?.projectParcelCode || formState.projectParcelCode || ''}
+          currentParcelId={data?.parcelId || formState.parcelId || ''}
           currentHouseNumber={data?.houseNumber || formState.houseNumber}
           currentStreet={data?.street || formState.street}
           surveyorName={data?.surveyorName || formState.surveyorName}
-          zoneId={data?.zoneId || formState?.zoneId || data?.zone_id || 'ZONE_01'}
+          zoneId={String(data?.zoneId || formState?.zoneId || data?.zone_id || 'ZONE_01')}
           onClose={() => setIsReassignModalOpen(false)}
           onSuccess={(msg: string) => {
             showToast(msg);

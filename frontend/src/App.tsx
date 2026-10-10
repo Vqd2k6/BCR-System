@@ -1,10 +1,17 @@
+import { getErrorMessage, getErrorStatus, isNotFoundError } from '@/utils/errorUtils';
 import React, { useState, useEffect } from 'react';
 import { useAuth } from './context/AuthContext';
 import { api } from './services/api';
 import { LoginView } from './views/auth/LoginView';
 import { SurveyorNavbar } from './components/layout/SurveyorNavbar';
-import { SurveyorBottomNav, NavTab } from './components/layout/SurveyorBottomNav';
-import { LeafletSweepMap, GisParcel } from './components/gis/LeafletSweepMap';
+import {
+  SurveyorBottomNav,
+  type NavTab,
+} from './components/layout/SurveyorBottomNav';
+import {
+  LeafletSweepMap,
+  type GisParcel,
+} from './components/gis/LeafletSweepMap';
 import { getEffectiveParcelStatus } from './components/gis/sweep-map/utils/sweepMapHelpers';
 import { SurveyorHomeView } from './views/surveyor/SurveyorHomeView';
 import { TimekeepingCheckInView } from './views/surveyor/TimekeepingCheckInView';
@@ -12,7 +19,7 @@ import { SurveyPhase1Page } from './features/survey-phase1/views/SurveyPhase1Pag
 import { SurveyCondoMasterPage } from './features/survey-condo-master/views/SurveyCondoMasterPage';
 import { SurveyCondoUnitPage } from './features/survey-condo-unit/views/SurveyCondoUnitPage';
 import { SurveyPhase2View } from './views/surveyor/SurveyPhase2View';
-import { BuildingHubModal } from './components/survey/BuildingHubModal';
+import { BuildingHubModal, type BuildingUnit } from './components/survey/BuildingHubModal';
 import { CompanionCheckInModal } from './components/attendance/CompanionCheckInModal';
 import { UnifiedGisMutationModal } from './components/gis/cadastral-editor/UnifiedGisMutationModal';
 import { Phase1ExportModuleBox } from './features/zone-management/components/Phase1ExportModuleBox';
@@ -23,57 +30,167 @@ import { GuestDashboardPage } from './features/guest-portal/views/GuestDashboard
 import { GuestReportPreviewPage } from './features/guest-portal/views/GuestReportPreviewPage';
 import { AdminTopNav } from './components/layout/AdminTopNav';
 import { MapPin, Camera } from 'lucide-react';
+import {
+  getNavigationFromUrl,
+  updateNavigationUrl,
+  clearSurveyParamsFromUrl,
+} from './utils/navigationSync';
+import {
+  isTabAllowedForRole,
+  getDefaultTabForRole,
+  sanitizeNavigationForRole,
+} from './utils/rbacNavigationGuard';
 
 export const App: React.FC = () => {
   const { user, isAuthenticated, isLoading } = useAuth();
-  const [activeTab, setActiveTab] = useState<NavTab>('home');
+  const [activeTab, setActiveTab] = useState<NavTab>(() => {
+    const nav = getNavigationFromUrl();
+    if (nav.tab) return nav.tab;
+    return 'home';
+  });
   const [showPublicPortal, setShowPublicPortal] = useState<boolean>(false);
 
-  // Automatically switch activeTab based on logged-in user role
+  // Khôi phục và chuẩn hóa tab từ URL theo Ma trận Phân quyền RBAC (Role-based Navigation Guard)
   useEffect(() => {
     if (!isAuthenticated || !user) return;
-    if (user.role === 'ZONE_ADMIN' || user.role === 'SUPER_ADMIN') {
-      setActiveTab('admin-export');
-    } else {
-      setActiveTab('home');
+    const currentNav = getNavigationFromUrl();
+
+    // Kiểm tra tính hợp lệ của tham số điều hướng với vai trò hiện tại
+    const { safeTab, wasSanitized } = sanitizeNavigationForRole(currentNav, user.role);
+
+    if (wasSanitized) {
+      console.warn(
+        `[App:RBACGuard] Phát hiện tham số điều hướng không hợp lệ với vai trò [${user.role}]. Đã chuẩn hóa về tab an toàn: [${safeTab}]`
+      );
+      setActiveTab(safeTab);
+      updateNavigationUrl(
+        { tab: safeTab, adminTab: undefined, nav: undefined },
+        { replace: true }
+      );
+      return;
     }
+
+    if (currentNav.tab) {
+      if (activeTab !== currentNav.tab) {
+        setActiveTab(currentNav.tab);
+      }
+      return;
+    }
+
+    // Nếu URL chưa có tab hợp lệ, tự động gán tab mặc định theo vai trò
+    const defaultTab = getDefaultTabForRole(user.role);
+    setActiveTab(defaultTab);
+    updateNavigationUrl({ tab: defaultTab }, { replace: true });
   }, [user?.id, user?.role, isAuthenticated]);
 
   const [selectedZone, setSelectedZone] = useState<string>(() => {
+    const nav = getNavigationFromUrl();
+    if (nav.zone) return nav.zone.toUpperCase();
     try {
       const savedZone = localStorage.getItem('metro2_selected_zone');
       if (savedZone) return savedZone.toUpperCase();
-    } catch (_e) {}
+    } catch (_e: unknown) {
+      console.warn('[App:selectedZone] Lỗi đọc zone đã lưu:', _e);
+    }
     return 'ZONE_09';
   });
 
-  // Tự động đồng bộ zone theo khu vực phân công của surveyor (user.assignedZoneId)
+  // Tự động đồng bộ zone theo khu vực phân công của surveyor (user.assignedZoneId) nếu URL chưa có zone
   useEffect(() => {
-    if (user?.assignedZoneId) {
+    const nav = getNavigationFromUrl();
+    if (user?.assignedZoneId && !nav.zone) {
       const normalized = user.assignedZoneId.toUpperCase();
       setSelectedZone(normalized);
       try {
         localStorage.setItem('metro2_selected_zone', normalized);
-      } catch (_e) {}
+      } catch (_e: unknown) {
+        console.warn('[App:assignedZone] Lỗi lưu zone:', _e);
+      }
     }
   }, [user?.assignedZoneId]);
 
   const handleSelectZone = (newZone: string) => {
     setSelectedZone(newZone);
+    updateNavigationUrl({ zone: newZone });
     try {
       localStorage.setItem('metro2_selected_zone', newZone);
-    } catch (_e) {}
+    } catch (_e: unknown) {
+      console.warn('[App:handleSelectZone] Lỗi lưu zone:', _e);
+    }
   };
 
   const [parcels, setParcels] = useState<GisParcel[]>([]);
-  const [selectedParcelForSurvey, setSelectedParcelForSurvey] = useState<GisParcel | null>(null);
-  const [selectedUnitForSurvey, setSelectedUnitForSurvey] = useState<any | null>(null);
+
+  // Khôi phục đồng bộ parcel khảo sát từ sessionStorage nếu vừa reload
+  const [selectedParcelForSurvey, setSelectedParcelForSurvey] = useState<GisParcel | null>(() => {
+    try {
+      const nav = getNavigationFromUrl();
+      const targetId = nav.parcelId;
+      const savedData = sessionStorage.getItem('metro2_last_active_parcel');
+      if (savedData) {
+        const parsed = JSON.parse(savedData) as GisParcel;
+        if (!targetId || parsed.id === targetId || parsed.projectParcelCode === targetId) {
+          return parsed;
+        }
+      }
+    } catch (_e: unknown) {
+      console.warn('[App:selectedParcel] Lỗi đọc parcel đã lưu:', _e);
+    }
+    return null;
+  });
+
+  const [selectedUnitForSurvey, setSelectedUnitForSurvey] = useState<BuildingUnit | null>(() => {
+    try {
+      const nav = getNavigationFromUrl();
+      const targetUnitId = nav.unitId;
+      const savedUnit = sessionStorage.getItem('metro2_last_active_unit');
+      if (savedUnit) {
+        const parsed = JSON.parse(savedUnit) as BuildingUnit;
+        if (!targetUnitId || parsed.id === targetUnitId) {
+          return parsed;
+        }
+      }
+    } catch (_e: unknown) {
+      console.warn('[App:selectedUnit] Lỗi đọc unit đã lưu:', _e);
+    }
+    return null;
+  });
+
+  const updateSelectedParcel = (p: GisParcel | null) => {
+    setSelectedParcelForSurvey(p);
+    try {
+      if (p) {
+        sessionStorage.setItem('metro2_last_active_parcel', JSON.stringify(p));
+      } else {
+        sessionStorage.removeItem('metro2_last_active_parcel');
+      }
+    } catch (_e: unknown) {
+      console.warn('[App:updateSelectedParcel] Lỗi cập nhật sessionStorage:', _e);
+    }
+  };
+
+  const updateSelectedUnit = (u: BuildingUnit | null) => {
+    setSelectedUnitForSurvey(u);
+    try {
+      if (u) {
+        sessionStorage.setItem('metro2_last_active_unit', JSON.stringify(u));
+      } else {
+        sessionStorage.removeItem('metro2_last_active_unit');
+      }
+    } catch (_e: unknown) {
+      console.warn('[App:updateSelectedUnit] Lỗi cập nhật sessionStorage:', _e);
+    }
+  };
+
   const [hubParcel, setHubParcel] = useState<GisParcel | null>(null);
   const [mutationStudioParcel, setMutationStudioParcel] = useState<GisParcel | null>(null);
   const [showAttendanceWarningModal, setShowAttendanceWarningModal] = useState<boolean>(false);
   const [showCompanionCheckInModal, setShowCompanionCheckInModal] = useState<boolean>(false);
   const [pendingSurveyFn, setPendingSurveyFn] = useState<(() => void) | null>(null);
-  const [isReadOnlySurvey, setIsReadOnlySurvey] = useState<boolean>(false);
+  const [isReadOnlySurvey, setIsReadOnlySurvey] = useState<boolean>(() => {
+    const nav = getNavigationFromUrl();
+    return Boolean(nav.readOnly);
+  });
   const [guestViewingReportParcel, setGuestViewingReportParcel] = useState<GisParcel | null>(() => {
     try {
       const params = new URLSearchParams(window.location.search);
@@ -154,7 +271,12 @@ export const App: React.FC = () => {
   }, []);
 
   // ─── Chuẩn hóa dữ liệu thửa đất từ API ────────────────────────────────────
-  const normalizeParcel = (p: any): GisParcel => {
+  interface RawParcelData extends Partial<GisParcel> {
+    cadastral_geojson?: { coordinates?: [number, number][][] };
+    completed_units_count?: number;
+  }
+
+  const normalizeParcel = (p: RawParcelData): GisParcel => {
     let coords: [number, number][] = [];
 
     // Ưu tiên cadastral_geojson (GeoJSON Polygon) từ PostGIS
@@ -191,7 +313,9 @@ export const App: React.FC = () => {
               localStorage.setItem('metro2_parcel_status_overrides', JSON.stringify(overrides));
             }
           }
-        } catch (_e) {}
+        } catch (_e: unknown) {
+          console.warn('[App:normalizeParcel] Lỗi dọn dẹp nháp cũ đã nộp:', _e);
+        }
       } else {
         // 2. Chỉ đọc override & nháp khi server CHƯA ghi nhận SUBMITTED/APPROVED
         try {
@@ -208,7 +332,9 @@ export const App: React.FC = () => {
               parcelUpdatedAt = overrides[p.id].updatedAt;
             }
           }
-        } catch (_e) {}
+        } catch (_e: unknown) {
+          console.warn('[App:normalizeParcel] Lỗi đọc overrides trạng thái:', _e);
+        }
 
         if (effectiveStatus !== 'APPROVED' && effectiveStatus !== 'PHASE2_COMPLETED' && effectiveStatus !== 'APPROVED_PHASE2' && effectiveStatus !== 'SUBMITTED') {
           try {
@@ -228,13 +354,15 @@ export const App: React.FC = () => {
                 parcelUpdatedAt = parsed.lastSavedAt || parsed.updatedAt || parcelUpdatedAt;
               }
             }
-          } catch (_e) {}
+          } catch (_e: unknown) {
+            console.warn('[App:normalizeParcel] Lỗi đọc bản nháp phase1:', _e);
+          }
         }
       }
     }
 
     return {
-      id: p.id,
+      id: p.id || '',
       projectParcelCode: p.project_parcel_code || p.projectParcelCode || '',
       officialCadastralCode: p.official_cadastral_code || p.officialCadastralCode || '',
       houseNumber: p.house_number || p.houseNumber || '',
@@ -252,7 +380,7 @@ export const App: React.FC = () => {
       buildingType: effectiveBuildingType,
       totalUnits: Number(p.total_units ?? p.totalUnits ?? 1),
       completedUnits: Number(p.completed_units_count ?? p.completedUnits ?? 0),
-      updatedAt: parcelUpdatedAt,
+      updatedAt: parcelUpdatedAt || undefined,
       assignedSurveyorId: p.assigned_surveyor_id || p.assignedSurveyorId || undefined,
       assignedSurveyorName: p.assigned_surveyor_name || p.assignedSurveyorName || undefined,
       assignedSurveyorCode: p.assigned_surveyor_code || p.assignedSurveyorCode || undefined,
@@ -276,8 +404,8 @@ export const App: React.FC = () => {
         console.warn('[Metro2] API returned empty parcel list for zone:', selectedZone);
         setParcels([]);
       }
-    } catch (err: any) {
-      console.error('[Metro2] Failed to load parcels:', err?.response?.data || err?.message);
+    } catch (err: unknown) {
+      console.error('[Metro2] Failed to load parcels:', getErrorMessage(err));
       setParcels([]);
     }
   };
@@ -291,7 +419,7 @@ export const App: React.FC = () => {
         const todayStr = new Date().toISOString().split('T')[0];
         const res = await api.get('/attendance/my-history');
         if (res.data && res.data.data && Array.isArray(res.data.data)) {
-          const todayRecord = res.data.data.find((item: any) => {
+          const todayRecord = res.data.data.find((item: { checkin_time: string; distance_to_zone_center_meters?: number; distance_meters?: number; verification_status?: string }) => {
             const itemDate = new Date(item.checkin_time).toISOString().split('T')[0];
             return itemDate === todayStr;
           });
@@ -306,11 +434,13 @@ export const App: React.FC = () => {
             setCheckInDetails(details);
             try {
               localStorage.setItem(`metro2_today_checkin_${todayStr}`, JSON.stringify(details));
-            } catch (_e) {}
+            } catch (_e: unknown) {
+              console.warn('[App:syncTodayAttendance] Lỗi lưu checkin details vào localStorage:', _e);
+            }
           }
         }
-      } catch (err) {
-        console.warn('Sync attendance error:', err);
+      } catch (err: unknown) {
+        console.warn('[App:syncTodayAttendance] Sync attendance error:', err);
       }
     };
 
@@ -327,7 +457,9 @@ export const App: React.FC = () => {
       window.history.pushState({ reportParcelId: parcel.id }, '', url.toString());
       sessionStorage.setItem('metro2_guest_viewing_parcel_id', parcel.id);
       sessionStorage.setItem('metro2_guest_viewing_parcel_data', JSON.stringify(parcel));
-    } catch (_e) {}
+    } catch (_e: unknown) {
+      console.warn('[App:handleOpenGuestReport] Lỗi lưu session guest viewing:', _e);
+    }
   };
 
   const handleBackFromGuestReport = () => {
@@ -339,7 +471,9 @@ export const App: React.FC = () => {
       window.history.pushState(null, '', url.toString());
       sessionStorage.removeItem('metro2_guest_viewing_parcel_id');
       sessionStorage.removeItem('metro2_guest_viewing_parcel_data');
-    } catch (_e) {}
+    } catch (_e: unknown) {
+      console.warn('[App:handleBackFromGuestReport] Lỗi dọn dẹp URL/session guest viewing:', _e);
+    }
   };
 
   // Khôi phục báo cáo khi reload hoặc mở link trực tiếp có query ?reportParcelId=...
@@ -375,12 +509,100 @@ export const App: React.FC = () => {
       return () => {
         isCancelled = true;
       };
-    } catch (_e) {}
+    } catch (_e: unknown) {
+      console.warn('[App:guestReportSync] Lỗi khôi phục báo cáo khách:', _e);
+    }
   }, [parcels, guestViewingReportParcel]);
 
-  // Lắng nghe sự kiện Back / Forward của trình duyệt
+  // ─── Khôi phục Thửa đất & Căn hộ cho các tab Khảo sát khi reload trực tiếp từ URL ───
+  useEffect(() => {
+    const nav = getNavigationFromUrl();
+    const targetParcelId = nav.parcelId;
+    if (!targetParcelId) return;
+
+    if (
+      activeTab === 'phase1' ||
+      activeTab === 'condo-master' ||
+      activeTab === 'condo-unit' ||
+      activeTab === 'phase2'
+    ) {
+      if (selectedParcelForSurvey && (selectedParcelForSurvey.id === targetParcelId || selectedParcelForSurvey.projectParcelCode === targetParcelId)) {
+        return;
+      }
+
+      // 1. Thử tìm trong parcels hiện có
+      if (parcels.length > 0) {
+        const found = parcels.find(
+          (p) => p.id === targetParcelId || p.projectParcelCode === targetParcelId
+        );
+        if (found) {
+          updateSelectedParcel(found);
+          if (nav.unitId && !selectedUnitForSurvey) {
+            api.get(`/parcels/${found.id}/units`).then((res) => {
+              const units = res.data?.data || res.data || [];
+              if (Array.isArray(units)) {
+                const u = units.find((item: BuildingUnit) => item.id === nav.unitId);
+                if (u) updateSelectedUnit(u);
+              }
+            }).catch((err: unknown) => {
+              console.warn('[App] Lỗi tải unit từ URL:', err);
+            });
+          }
+          return;
+        }
+      }
+
+      // 2. Fetch trực tiếp từ API nếu chưa có trong parcels
+      let isCancelled = false;
+      api
+        .get(`/parcels/${encodeURIComponent(targetParcelId)}`)
+        .then((res) => {
+          if (isCancelled) return;
+          const raw = res.data?.data || res.data;
+          if (raw) {
+            const normalized = normalizeParcel(raw);
+            updateSelectedParcel(normalized);
+
+            if (nav.unitId) {
+              api.get(`/parcels/${normalized.id}/units`).then((uRes) => {
+                if (isCancelled) return;
+                const units = uRes.data?.data || uRes.data || [];
+                if (Array.isArray(units)) {
+                  const u = units.find((item: BuildingUnit) => item.id === nav.unitId);
+                  if (u) updateSelectedUnit(u);
+                }
+              }).catch((err: unknown) => {
+                console.warn('[App] Lỗi tải unit từ API:', err);
+              });
+            }
+          }
+        })
+        .catch((err: unknown) => {
+          console.warn('[App] Không thể tải thông tin thửa đất từ URL sau reload:', err);
+        });
+
+      return () => {
+        isCancelled = true;
+      };
+    }
+  }, [activeTab, parcels, selectedParcelForSurvey]);
+
+  // Lắng nghe sự kiện Back / Forward toàn cục của trình duyệt
   useEffect(() => {
     const handlePopState = () => {
+      const nav = getNavigationFromUrl();
+      if (nav.tab && nav.tab !== activeTab) {
+        setActiveTab(nav.tab);
+      }
+      if (nav.zone && nav.zone !== selectedZone) {
+        setSelectedZone(nav.zone);
+      }
+      if (!nav.parcelId) {
+        updateSelectedParcel(null);
+        updateSelectedUnit(null);
+      }
+
+      // Guest report
       const params = new URLSearchParams(window.location.search);
       const urlId = params.get('reportParcelId') || params.get('parcelId');
       if (!urlId) {
@@ -396,7 +618,21 @@ export const App: React.FC = () => {
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, [parcels]);
+  }, [activeTab, selectedZone, parcels]);
+
+  const handleChangeTab = (newTab: NavTab) => {
+    if (user && !isTabAllowedForRole(newTab, user.role)) {
+      console.warn(`[App:handleChangeTab] Chặn chuyển tab trái phép [${newTab}] cho vai trò [${user.role}]`);
+      return;
+    }
+    setActiveTab(newTab);
+    if (newTab === 'home' || newTab === 'map' || newTab === 'attendance' || newTab === 'admin-export') {
+      clearSurveyParamsFromUrl();
+      updateSelectedParcel(null);
+      updateSelectedUnit(null);
+    }
+    updateNavigationUrl({ tab: newTab });
+  };
 
   // If loading session
   if (isLoading) {
@@ -450,6 +686,12 @@ export const App: React.FC = () => {
   };
 
   const handleStartPhase1 = (parcel: GisParcel, readOnly: boolean = false) => {
+    // Thửa đất Chung cư bắt buộc quản lý trong Hub, không mở khảo sát lẻ ở ngoài
+    if (parcel.buildingType === 'CONDOMINIUM') {
+      setHubParcel(parcel);
+      return;
+    }
+
     const effectiveStatus = getEffectiveParcelStatus(parcel);
     const isSubmittedOrApproved =
       effectiveStatus === 'SUBMITTED' ||
@@ -464,40 +706,80 @@ export const App: React.FC = () => {
     const effectiveReadOnly = Boolean(readOnly || isSubmittedOrApproved);
     setIsReadOnlySurvey(effectiveReadOnly);
     triggerSurveyWithCheckInGuard(() => {
-      setSelectedParcelForSurvey(parcel);
-      setSelectedUnitForSurvey(null);
+      updateSelectedParcel(parcel);
+      updateSelectedUnit(null);
       setActiveTab('phase1');
+      updateNavigationUrl({
+        tab: 'phase1',
+        parcelId: parcel.id,
+        unitId: undefined,
+        readOnly: effectiveReadOnly,
+      }, { replace: false });
     });
   };
 
-  const handleStartCondoMaster = (parcel: GisParcel) => {
+  const handleStartCondoMaster = (parcel: GisParcel, readOnly?: boolean) => {
     triggerSurveyWithCheckInGuard(() => {
-      setSelectedParcelForSurvey(parcel);
-      setSelectedUnitForSurvey(null);
+      const isSubmitted =
+        parcel.surveyStatus === 'SUBMITTED' ||
+        parcel.surveyStatus === 'APPROVED' ||
+        (parcel as unknown as { survey_status?: string }).survey_status === 'SUBMITTED' ||
+        (parcel as unknown as { survey_status?: string }).survey_status === 'APPROVED';
+      const isSurveyor = user?.role === 'SURVEYOR';
+      const effectiveReadOnly = readOnly !== undefined ? readOnly : Boolean(isSubmitted && isSurveyor);
+
+      setIsReadOnlySurvey(effectiveReadOnly);
+      updateSelectedParcel(parcel);
+      updateSelectedUnit(null);
       setActiveTab('condo-master');
+      updateNavigationUrl({
+        tab: 'condo-master',
+        parcelId: parcel.id,
+        unitId: undefined,
+        readOnly: effectiveReadOnly,
+      }, { replace: false });
     });
   };
 
-  const handleStartCondoUnit = (parcel: GisParcel, unit: any) => {
+  const handleStartCondoUnit = (parcel: GisParcel, unit: BuildingUnit) => {
     triggerSurveyWithCheckInGuard(() => {
-      setSelectedParcelForSurvey(parcel);
-      setSelectedUnitForSurvey(unit);
+      updateSelectedParcel(parcel);
+      updateSelectedUnit(unit);
       setActiveTab('condo-unit');
+      updateNavigationUrl({
+        tab: 'condo-unit',
+        parcelId: parcel.id,
+        unitId: unit.id,
+        readOnly: false,
+      }, { replace: false });
     });
   };
 
-  const handleStartUnitSurvey = (parcel: GisParcel, unit: any, phase: 1 | 2 = 1) => {
+  const handleStartUnitSurvey = (parcel: GisParcel, unit: BuildingUnit, phase: 1 | 2 = 1) => {
+    const targetTab: NavTab = phase === 2 ? 'phase2' : 'condo-unit';
     triggerSurveyWithCheckInGuard(() => {
-      setSelectedParcelForSurvey(parcel);
-      setSelectedUnitForSurvey(unit);
-      setActiveTab(phase === 2 ? 'phase2' : 'condo-unit');
+      updateSelectedParcel(parcel);
+      updateSelectedUnit(unit);
+      setActiveTab(targetTab);
+      updateNavigationUrl({
+        tab: targetTab,
+        parcelId: parcel.id,
+        unitId: unit.id,
+        readOnly: false,
+      }, { replace: false });
     });
   };
 
   const handleStartPhase2 = (parcel: GisParcel) => {
     triggerSurveyWithCheckInGuard(() => {
-      setSelectedParcelForSurvey(parcel);
+      updateSelectedParcel(parcel);
       setActiveTab('phase2');
+      updateNavigationUrl({
+        tab: 'phase2',
+        parcelId: parcel.id,
+        unitId: undefined,
+        readOnly: false,
+      }, { replace: false });
     });
   };
 
@@ -534,7 +816,9 @@ export const App: React.FC = () => {
             localStorage.setItem('metro2_parcel_status_overrides', JSON.stringify(overrides));
           }
         }
-      } catch (_e) {}
+      } catch (_e: unknown) {
+        console.warn('[App:handleResumeSurveyPresent] Lỗi xóa overrides trạng thái:', _e);
+      }
 
       // 3. Cập nhật state thửa đất trong parcels list sang IN_PROGRESS
       setParcels((prev) =>
@@ -547,7 +831,7 @@ export const App: React.FC = () => {
 
       // 4. Kích hoạt wizard khảo sát Phase 1 ở chế độ chỉnh sửa
       handleStartPhase1({ ...parcel, surveyStatus: 'IN_PROGRESS' }, false);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('[App] Failed to resume survey:', err);
       handleStartPhase1(parcel, false);
     }
@@ -559,11 +843,13 @@ export const App: React.FC = () => {
   };
 
   const navigateBackFromSurvey = () => {
-    if (user?.role === 'ZONE_ADMIN' || user?.role === 'SUPER_ADMIN') {
-      setActiveTab('admin-export');
-    } else {
-      setActiveTab('home');
-    }
+    setIsReadOnlySurvey(false);
+    updateSelectedParcel(null);
+    updateSelectedUnit(null);
+    clearSurveyParamsFromUrl();
+    const fallbackTab = getDefaultTabForRole(user?.role);
+    setActiveTab(fallbackTab);
+    updateNavigationUrl({ tab: fallbackTab });
   };
 
   return (
@@ -571,7 +857,7 @@ export const App: React.FC = () => {
       {/* Top Header: AdminTopNav cho Super Admin (Desktop/Tablet) hoặc SurveyorNavbar cho Khảo sát viên (Mobile PWA) */}
       {activeTab !== 'phase1' && activeTab !== 'condo-master' && activeTab !== 'condo-unit' && (
         user?.role === 'SUPER_ADMIN' ? (
-          <AdminTopNav activeTab={activeTab} onChangeTab={setActiveTab} />
+          <AdminTopNav activeTab={activeTab} onChangeTab={(tab) => handleChangeTab(tab as NavTab)} />
         ) : user?.role === 'ZONE_ADMIN' ? (
           /* Zone Admin luôn ở trong ZoneAdminAppShell chuyên nghiệp, KHÔNG render AdminTopNav hay SurveyorNavbar! */
           null
@@ -586,9 +872,9 @@ export const App: React.FC = () => {
                 ? 'Điểm Danh GPS Hiện Trường'
                 : 'Đối Soát Phase 2 (Pre-Construction)'
             }
-            onNavigateToCheckIn={() => setActiveTab('attendance')}
+            onNavigateToCheckIn={() => handleChangeTab('attendance')}
             onOpenCompanionCheckIn={() => setShowCompanionCheckInModal(true)}
-            onNavigateHome={() => setActiveTab('home')}
+            onNavigateHome={() => handleChangeTab('home')}
             isCheckedInToday={isCheckedInToday}
           />
         )
@@ -599,7 +885,7 @@ export const App: React.FC = () => {
         {user?.role === 'ZONE_ADMIN' && activeTab !== 'phase1' && activeTab !== 'condo-master' && activeTab !== 'condo-unit' && (
           <ZoneManagerDashboardPage
             parcels={parcels}
-            onSelectParcelForSurvey={(p) => setSelectedParcelForSurvey(p)}
+            onSelectParcelForSurvey={(p) => updateSelectedParcel(p)}
             onStartPhase1={handleStartPhase1}
             onStartPhase2={handleStartPhase2}
             onOpenBuildingHub={(p) => setHubParcel(p)}
@@ -610,7 +896,7 @@ export const App: React.FC = () => {
           />
         )}
 
-        {user?.role !== 'ZONE_ADMIN' && activeTab === 'admin-export' && (
+        {user?.role === 'SUPER_ADMIN' && activeTab === 'admin-export' && (
           <AdminDashboardPage />
         )}
 
@@ -622,11 +908,11 @@ export const App: React.FC = () => {
             userGps={liveUserGps}
             onNavigateToMap={(parcelToFocus) => {
               if (parcelToFocus) {
-                setSelectedParcelForSurvey(parcelToFocus);
+                updateSelectedParcel(parcelToFocus);
               }
-              setActiveTab('map');
+              handleChangeTab('map');
             }}
-            onNavigateToCheckIn={() => setActiveTab('attendance')}
+            onNavigateToCheckIn={() => handleChangeTab('attendance')}
             onStartPhase1={handleStartPhase1}
             onStartUnitSurvey={handleStartUnitSurvey}
             onStartPhase2={handleStartPhase2}
@@ -642,7 +928,7 @@ export const App: React.FC = () => {
               parcels={parcels}
               selectedZone={selectedZone}
               onSelectZone={handleSelectZone}
-              onSelectParcel={(p) => setSelectedParcelForSurvey(p)}
+              onSelectParcel={(p) => updateSelectedParcel(p)}
               onStartSurvey={handleStartPhase1}
               onStartPhase2={handleStartPhase2}
               onOpenBuildingHub={(p) => setHubParcel(p)}
@@ -666,52 +952,74 @@ export const App: React.FC = () => {
         )}
 
         {activeTab === 'phase1' && (
-          <SurveyPhase1Page
-            parcel={selectedParcelForSurvey}
-            unit={selectedUnitForSurvey}
-            readOnly={isReadOnlySurvey}
-            onBackToHome={() => {
-              setIsReadOnlySurvey(false);
-              navigateBackFromSurvey();
-              loadParcels();
-            }}
-            onFinished={() => {
-              setIsReadOnlySurvey(false);
-              setSelectedUnitForSurvey(null);
-              navigateBackFromSurvey();
-              loadParcels();
-            }}
-          />
+          selectedParcelForSurvey ? (
+            <SurveyPhase1Page
+              parcel={selectedParcelForSurvey}
+              unit={selectedUnitForSurvey}
+              readOnly={isReadOnlySurvey}
+              onBackToHome={() => {
+                setIsReadOnlySurvey(false);
+                navigateBackFromSurvey();
+                loadParcels();
+              }}
+              onFinished={() => {
+                setIsReadOnlySurvey(false);
+                setSelectedUnitForSurvey(null);
+                navigateBackFromSurvey();
+                loadParcels();
+              }}
+            />
+          ) : (
+            <div className="min-h-[60vh] flex flex-col items-center justify-center gap-3">
+              <div className="w-8 h-8 border-3 border-sky-600 border-t-transparent rounded-full animate-spin" />
+              <div className="text-sm font-bold text-slate-700">Đang khôi phục phiên khảo sát hiện trạng...</div>
+            </div>
+          )
         )}
 
         {activeTab === 'condo-master' && (
-          <SurveyCondoMasterPage
-            parcel={selectedParcelForSurvey}
-            onBackToHome={() => {
-              navigateBackFromSurvey();
-              setHubParcel(selectedParcelForSurvey);
-            }}
-            onFinished={() => {
-              navigateBackFromSurvey();
-              loadParcels();
-            }}
-          />
+          selectedParcelForSurvey ? (
+            <SurveyCondoMasterPage
+              parcel={selectedParcelForSurvey}
+              readOnly={isReadOnlySurvey}
+              onBackToHome={() => {
+                navigateBackFromSurvey();
+                setHubParcel(selectedParcelForSurvey);
+              }}
+              onFinished={() => {
+                navigateBackFromSurvey();
+                loadParcels();
+              }}
+            />
+          ) : (
+            <div className="min-h-[60vh] flex flex-col items-center justify-center gap-3">
+              <div className="w-8 h-8 border-3 border-sky-600 border-t-transparent rounded-full animate-spin" />
+              <div className="text-sm font-bold text-slate-700">Đang khôi phục phiên khảo sát chung cư...</div>
+            </div>
+          )
         )}
 
         {activeTab === 'condo-unit' && (
-          <SurveyCondoUnitPage
-            parcel={selectedParcelForSurvey}
-            unit={selectedUnitForSurvey}
-            onBackToHome={() => {
-              navigateBackFromSurvey();
-              setHubParcel(selectedParcelForSurvey);
-            }}
-            onFinished={() => {
-              setSelectedUnitForSurvey(null);
-              navigateBackFromSurvey();
-              loadParcels();
-            }}
-          />
+          selectedParcelForSurvey ? (
+            <SurveyCondoUnitPage
+              parcel={selectedParcelForSurvey}
+              unit={selectedUnitForSurvey}
+              onBackToHome={() => {
+                navigateBackFromSurvey();
+                setHubParcel(selectedParcelForSurvey);
+              }}
+              onFinished={() => {
+                setSelectedUnitForSurvey(null);
+                navigateBackFromSurvey();
+                loadParcels();
+              }}
+            />
+          ) : (
+            <div className="min-h-[60vh] flex flex-col items-center justify-center gap-3">
+              <div className="w-8 h-8 border-3 border-sky-600 border-t-transparent rounded-full animate-spin" />
+              <div className="text-sm font-bold text-slate-700">Đang khôi phục phiên khảo sát căn hộ...</div>
+            </div>
+          )
         )}
 
         {activeTab === 'phase2' && <SurveyPhase2View />}
@@ -763,11 +1071,11 @@ export const App: React.FC = () => {
       {/* Attendance Check-in Reminder Modal */}
       {showAttendanceWarningModal && (
         <div
-          className="fixed inset-0 z-[999999] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto"
+          className="fixed inset-0 z-[999999] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto cursor-pointer"
           onClick={() => setShowAttendanceWarningModal(false)}
         >
           <div
-            className="bg-white rounded-2xl w-full max-w-md shadow-2xl border border-amber-200 overflow-hidden my-auto p-5 animate-in fade-in zoom-in-95"
+            className="bg-white rounded-2xl w-full max-w-md shadow-2xl border border-amber-200 overflow-hidden my-auto p-5 animate-in fade-in zoom-in-95 cursor-default"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-start gap-3.5">
@@ -791,7 +1099,7 @@ export const App: React.FC = () => {
                   setShowAttendanceWarningModal(false);
                   if (pendingSurveyFn) pendingSurveyFn();
                 }}
-                className="flex-1 py-2.5 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-colors"
+                className="flex-1 py-2.5 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-colors cursor-pointer"
               >
                 Khảo sát trước (Chấm công sau)
               </button>
@@ -799,9 +1107,9 @@ export const App: React.FC = () => {
                 type="button"
                 onClick={() => {
                   setShowAttendanceWarningModal(false);
-                  setActiveTab('attendance');
+                  handleChangeTab('attendance');
                 }}
-                className="flex-1 py-2.5 px-4 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold rounded-xl transition-colors shadow-md shadow-sky-200 flex items-center justify-center gap-1.5"
+                className="flex-1 py-2.5 px-4 bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold rounded-xl transition-colors shadow-md shadow-sky-200 flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <Camera size={15} />
                 <span>Điểm danh ngay</span>
@@ -821,7 +1129,7 @@ export const App: React.FC = () => {
 
       {/* Bottom Navigation for Mobile PWA (CHỈ hiển thị cho Khảo sát viên, ẩn hoàn toàn với Admin) */}
       {user?.role !== 'SUPER_ADMIN' && user?.role !== 'ZONE_ADMIN' && activeTab !== 'phase1' && activeTab !== 'phase2' && activeTab !== 'condo-master' && activeTab !== 'condo-unit' && (
-        <SurveyorBottomNav activeTab={activeTab} onChangeTab={setActiveTab} />
+        <SurveyorBottomNav activeTab={activeTab} onChangeTab={handleChangeTab} />
       )}
     </div>
   );

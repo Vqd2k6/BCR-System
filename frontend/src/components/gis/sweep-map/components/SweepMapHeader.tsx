@@ -1,6 +1,6 @@
 import React from 'react';
 import { Layers, Search, Menu, Map, Compass, X, MapPin } from 'lucide-react';
-import { GisParcel } from '../../shared/types';
+import type { GisParcel } from '../../shared/types';
 import { METRO_22_ZONES, getZoneByCode } from '../../../../features/survey-phase1/constants/metroGisConstants';
 import { getStatusBadge } from '../utils/sweepMapHelpers';
 
@@ -24,7 +24,7 @@ interface SweepMapHeaderProps {
   setIsSearchOpen: (open: boolean | ((prev: boolean) => boolean)) => void;
   searchQuery: string;
   setSearchQuery: (query: string) => void;
-  searchInputRef: React.RefObject<HTMLInputElement | null>;
+  searchInputRef: React.RefObject<HTMLInputElement>;
   searchSuggestions: GisParcel[];
   handleSearchKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void;
   handleSelectSearchResult: (parcel: GisParcel) => void;
@@ -111,14 +111,14 @@ export const SweepMapHeader: React.FC<SweepMapHeaderProps> = ({
             <option value="ALL">
               ⭐ Toàn Tuyến Metro 2 (Hiện tất cả 1.227 thửa đất)
             </option>
-            {METRO_22_ZONES.filter((z: any) => z.isDataReady).map((z: any) => (
+            {METRO_22_ZONES.filter((z) => z.isDataReady).map((z) => (
               <option key={z.code} value={z.code}>
                 {z.name} ({z.rawParcelCount} thửa)
               </option>
             ))}
           </optgroup>
           <optgroup label="Toàn Tuyến Metro 2 (22 Zone)">
-            {METRO_22_ZONES.map((z: any) => (
+            {METRO_22_ZONES.map((z) => (
               <option key={z.code} value={z.code}>
                 {z.name} [{z.startKm} &rarr; {z.endKm}]
               </option>
@@ -443,7 +443,7 @@ export const SweepMapHeader: React.FC<SweepMapHeaderProps> = ({
           >
             <Search size={16} color="#0284c7" style={{ marginLeft: '12px', flexShrink: 0 }} />
             <input
-              ref={searchInputRef as any}
+              ref={searchInputRef}
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}

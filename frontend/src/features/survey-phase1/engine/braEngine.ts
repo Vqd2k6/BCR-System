@@ -1,4 +1,4 @@
-import { ObjectGroupType } from '../types/phase1.types';
+import type { ObjectGroupType } from '../types/phase1.types';
 
 export type ImpactCode = 'I1' | 'I2' | 'I3' | 'I4';
 export type BraRiskLevel = 'Low' | 'Medium' | 'High' | 'Very High';

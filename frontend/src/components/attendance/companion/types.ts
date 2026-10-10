@@ -17,5 +17,5 @@ export interface CompanionRecord {
 export interface CompanionCheckInModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSuccess?: (data: any) => void;
+  onSuccess?: (data: CompanionRecord) => void;
 }

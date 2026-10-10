@@ -1,5 +1,5 @@
 import React from 'react';
-import { GisParcel } from '../../../../components/gis/LeafletSweepMap';
+import type { GisParcel } from '../../../../components/gis/LeafletSweepMap';
 import {
   CheckCircle2,
   Clock,
@@ -14,7 +14,7 @@ import {
  * 3. Local Phase 1 drafts
  */
 export const getStatus = (p: GisParcel): string => {
-  const baseStatus = p?.surveyStatus || (p as any)?.survey_status || 'NOT_SURVEYED';
+  const baseStatus = p?.surveyStatus || p?.survey_status || 'NOT_SURVEYED';
 
   // 1. Chân lý từ Server: Nếu backend đã là SUBMITTED hoặc APPROVED -> Server Truth luôn có độ ưu tiên cao nhất
   if (baseStatus === 'SUBMITTED' || baseStatus === 'APPROVED' || baseStatus === 'PHASE2_COMPLETED' || baseStatus === 'APPROVED_PHASE2') {
@@ -94,7 +94,7 @@ export const getBuildingType = (p: GisParcel): string => {
       }
     } catch (_e) {}
   }
-  return p?.buildingType || (p as any)?.building_type || 'STANDALONE';
+  return p?.buildingType || p?.building_type || 'STANDALONE';
 };
 
 /**
@@ -172,7 +172,7 @@ export const getStatusBadge = (status: GisParcel['surveyStatus'] | string, parce
         </span>
       );
     case 'POSTPONED_ABSENT': {
-      const dateVal = parcel?.updatedAt || (parcel as any)?.updated_at || (parcel as any)?.postponed_at;
+      const dateVal = parcel?.updatedAt || parcel?.updated_at || parcel?.postponed_at;
       let daysText = '0 ngày trước';
       if (dateVal) {
         const d = new Date(dateVal);

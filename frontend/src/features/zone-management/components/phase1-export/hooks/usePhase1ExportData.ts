@@ -1,7 +1,12 @@
+import { getErrorMessage, getErrorStatus, isNotFoundError } from '@/utils/errorUtils';
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { api } from '../../../../../services/api';
-import { METRO_22_ZONES, getZoneByCode, MetroZoneConfig } from '../../../../survey-phase1/constants/metroGisConstants';
-import { ExportParcelItem, BatchResultData, ActionFeedbackMessage } from '../types';
+import {
+  METRO_22_ZONES,
+  getZoneByCode,
+  type MetroZoneConfig,
+} from '../../../../survey-phase1/constants/metroGisConstants';
+import type { ExportParcelItem, BatchResultData, ActionFeedbackMessage } from '../types';
 
 export interface UsePhase1ExportDataProps {
   initialZoneId?: string;
@@ -59,39 +64,39 @@ export const usePhase1ExportData = ({
         params: { zoneId: selectedZone },
       });
 
-      let rawList: any[] = [];
+      let rawList: Record<string, unknown>[] = [];
       if (res.data?.success && Array.isArray(res.data.data)) {
-        rawList = res.data.data;
+        rawList = res.data.data as Record<string, unknown>[];
       } else if (Array.isArray(res.data)) {
-        rawList = res.data;
+        rawList = res.data as Record<string, unknown>[];
       } else if (res.data?.data?.items && Array.isArray(res.data.data.items)) {
-        rawList = res.data.data.items;
+        rawList = res.data.data.items as Record<string, unknown>[];
       }
 
-      const mapped: ExportParcelItem[] = rawList.map((item: any) => ({
-        id: item.id,
-        projectParcelCode: item.project_parcel_code || item.projectParcelCode || 'CHƯA_CÓ_MÃ',
-        officialCadastralCode: item.official_cadastral_code || item.officialCadastralCode || '',
-        houseNumber: item.house_number || item.houseNumber || '',
-        street: item.street || '',
-        ownerName: item.owner_name || item.ownerName || 'Chưa cập nhật',
-        surveyStatus: item.survey_status || item.surveyStatus || 'NOT_SURVEYED',
-        buildingType: item.building_type || item.buildingType || 'STANDALONE',
+      const mapped: ExportParcelItem[] = rawList.map((item) => ({
+        id: String(item.id || ''),
+        projectParcelCode: String(item.project_parcel_code || item.projectParcelCode || 'CHƯA_CÓ_MÃ'),
+        officialCadastralCode: String(item.official_cadastral_code || item.officialCadastralCode || ''),
+        houseNumber: String(item.house_number || item.houseNumber || ''),
+        street: String(item.street || ''),
+        ownerName: String(item.owner_name || item.ownerName || 'Chưa cập nhật'),
+        surveyStatus: (item.survey_status || item.surveyStatus || 'NOT_SURVEYED') as ExportParcelItem['surveyStatus'],
+        buildingType: (item.building_type || item.buildingType || 'STANDALONE') as ExportParcelItem['buildingType'],
         floorCount: Number(item.floor_count ?? item.floorCount ?? 1),
-        activePhase1ReportId: item.active_phase1_report_id || item.activePhase1ReportId || item.id,
-        ecsClass: item.ecs_class || 'GOOD',
-        viClass: item.vi_class || 'LOW',
-        braClass: item.bra_class || 'LOW',
-        updatedAt: item.updated_at || item.updatedAt,
+        activePhase1ReportId: String(item.active_phase1_report_id || item.activePhase1ReportId || item.id || ''),
+        ecsClass: String(item.ecs_class || 'GOOD'),
+        viClass: String(item.vi_class || 'LOW'),
+        braClass: String(item.bra_class || 'LOW'),
+        updatedAt: item.updated_at ? String(item.updated_at) : (item.updatedAt ? String(item.updatedAt) : undefined),
       }));
 
       setParcels(mapped);
-    } catch (err: any) {
-      console.error('[Phase1ExportModule] API call failed:', err?.message);
+    } catch (err: unknown) {
+      console.error('[Phase1ExportModule] API call failed:', getErrorMessage(err));
       setParcels([]);
       setActionMessage({
         type: 'error',
-        text: err.response?.data?.message || 'Không thể tải danh sách thửa đất thực tế từ máy chủ CSDL.',
+        text: getErrorMessage(err, 'Không thể tải danh sách thửa đất thực tế từ máy chủ CSDL.'),
       });
     } finally {
       setIsLoading(false);
@@ -168,12 +173,12 @@ export const usePhase1ExportData = ({
       } else {
         throw new Error(res.data?.message || 'Máy chủ không phản hồi kết quả mẻ xuất.');
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('[BatchExport] Error executing batch export:', err);
       setBatchResult(null);
       setActionMessage({
         type: 'error',
-        text: err.response?.data?.message || err.message || 'Không thể tạo mẻ xuất hồ sơ. Vui lòng kiểm tra quyền Zone Admin hoặc thử lại.',
+        text: getErrorMessage(err, 'Không thể tạo mẻ xuất hồ sơ. Vui lòng kiểm tra quyền Zone Admin hoặc thử lại.'),
       });
     } finally {
       setIsBatchExporting(false);

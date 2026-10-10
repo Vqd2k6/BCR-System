@@ -4,12 +4,14 @@ import {
   CheckCircle2,
   ArrowRight,
 } from 'lucide-react';
-import { GisParcel } from '../../../../components/gis/LeafletSweepMap';
+import type { GisParcel } from '../../../../components/gis/LeafletSweepMap';
 import { METRO_ZONE_CENTROIDS } from '../../../../core/utils/metroZoneUtils';
 import { SurveyorWorkProgressCards } from './SurveyorWorkProgressCards';
 
+import type { User } from '@/core/types/domain.types';
+
 interface SurveyorBannerProps {
-  user: any;
+  user: User | null | undefined;
   isCheckedInToday: boolean;
   checkInDetails?: { time: string; distance: number; status: string } | null;
   onNavigateToCheckIn: () => void;

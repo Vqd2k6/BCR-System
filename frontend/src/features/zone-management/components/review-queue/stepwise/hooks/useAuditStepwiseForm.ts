@@ -1,16 +1,19 @@
 import { useState, useEffect } from 'react';
 import { calculateComprehensiveMetroSpatialMetrics } from '../../../../../survey-phase1/utils/metroSpatialCalculator';
+import type {
+  DiffItem,
+  AuditStepwiseData,
+  StepwiseSurveyJson,
+  StepwiseBuildingSpecs,
+  StepwiseDeformation,
+  StepwiseSignatures,
+} from '../types';
 
-export interface DiffItem {
-  field: string;
-  label: string;
-  oldValue: any;
-  newValue: any;
-}
+export type { DiffItem };
 
 export interface UseAuditStepwiseFormParams {
-  data: any;
-  onOpenDiffModal: (diffItems: DiffItem[], updates: Record<string, any>) => void;
+  data: AuditStepwiseData | null | undefined;
+  onOpenDiffModal: (diffItems: DiffItem[], updates: Record<string, unknown>) => void;
 }
 
 export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwiseFormParams) => {
@@ -18,18 +21,18 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
   const [activeNavStep, setActiveNavStep] = useState<string>('step-1');
 
   // Form state & Dirty fields tracker
-  const [formState, setFormState] = useState<Record<string, any>>({});
-  const [originalState, setOriginalState] = useState<Record<string, any>>({});
-  const [dirtyFields, setDirtyFields] = useState<Record<string, { label: string; oldValue: any; newValue: any }>>({});
+  const [formState, setFormState] = useState<Record<string, unknown>>({});
+  const [originalState, setOriginalState] = useState<Record<string, unknown>>({});
+  const [dirtyFields, setDirtyFields] = useState<Record<string, { label: string; oldValue: unknown; newValue: unknown }>>({});
 
   // Sync initial data from incoming props
   useEffect(() => {
     if (!data) return;
-    const sJson = data.surveyJson || data.survey_data_json || {};
-    const bSpecs = data.leftPane?.buildingSpecs || data.buildingSpecs || {};
-    const defState = data.leftPane?.deformation || data.deformation || {};
-    const hiState = sJson.historyInterview || data.leftPane?.interview || data.historyInterview || {};
-    const sigState = data.leftPane?.signatures || sJson.signatures || {};
+    const sJson: StepwiseSurveyJson = (data.surveyJson || data.survey_data_json || data.leftPane?.surveyJson || {}) as StepwiseSurveyJson;
+    const bSpecs: StepwiseBuildingSpecs = (data.leftPane?.buildingSpecs || data.buildingSpecs || {}) as StepwiseBuildingSpecs;
+    const defState: StepwiseDeformation = (data.leftPane?.deformation || data.deformation || {}) as StepwiseDeformation;
+    const hiState = (sJson.historyInterview || data.leftPane?.interview || data.historyInterview || {}) as Record<string, unknown>;
+    const sigState: StepwiseSignatures = (data.leftPane?.signatures || sJson.signatures || {}) as StepwiseSignatures;
 
     // Tự động tính toán trắc địa không gian chuẩn nếu hồ sơ thiếu số liệu cự ly
     let defaultMetroDist = sJson.metroOffsetDistance !== undefined && sJson.metroOffsetDistance !== ''
@@ -44,12 +47,12 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
         let pCoords: [number, number][] = [];
         const rawGeo = data.cadastralGeojson || data.cadastral_geojson;
         if (rawGeo) {
-          const parsed = typeof rawGeo === 'string' ? JSON.parse(rawGeo) : rawGeo;
-          if (parsed.type === 'Polygon' && Array.isArray(parsed.coordinates?.[0])) {
+          const parsed = typeof rawGeo === 'string' ? JSON.parse(rawGeo) : (rawGeo as { type?: string; coordinates?: [number, number][][] });
+          if (parsed && parsed.type === 'Polygon' && Array.isArray(parsed.coordinates?.[0])) {
             pCoords = parsed.coordinates[0].map(([lng, lat]: [number, number]) => [lat, lng]);
           }
-        } else if (Array.isArray(data.coordinates) && data.coordinates.length >= 3) {
-          pCoords = data.coordinates;
+        } else if (Array.isArray(data.coordinates) && data.coordinates.length >= 3 && typeof data.coordinates[0] !== 'number') {
+          pCoords = data.coordinates as [number, number][];
         } else if (Array.isArray(data.parcelCoordinates) && data.parcelCoordinates.length >= 3) {
           pCoords = data.parcelCoordinates;
         }
@@ -67,12 +70,13 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
       }
     }
 
-    const rawGps = sJson.gpsCoords || data.coordinates || {};
-    const latInit = rawGps.latitude ?? rawGps.lat ?? (Array.isArray(data.coordinates) ? data.coordinates[0] : 10.79241);
-    const lngInit = rawGps.longitude ?? rawGps.lng ?? (Array.isArray(data.coordinates) ? data.coordinates[1] : 106.71152);
+    const rawGps = sJson.gpsCoords || (typeof data.coordinates === 'object' && data.coordinates !== null && !Array.isArray(data.coordinates) ? (data.coordinates as { latitude?: number; lat?: number; longitude?: number; lng?: number; accuracy?: number }) : {});
+    const coordArray = Array.isArray(data.coordinates) ? data.coordinates : null;
+    const latInit = rawGps.latitude ?? rawGps.lat ?? (coordArray && typeof coordArray[0] === 'number' ? coordArray[0] : 10.79241);
+    const lngInit = rawGps.longitude ?? rawGps.lng ?? (coordArray && typeof coordArray[1] === 'number' ? coordArray[1] : 106.71152);
     const accInit = rawGps.accuracy ?? 3.5;
 
-    const initial: Record<string, any> = {
+    const initial: Record<string, unknown> = {
       // Step 1: Identification & General Specs
       projectParcelCode: data.projectParcelCode || sJson.projectParcelCode || '',
       houseNumber: data.houseNumber || sJson.houseNumber || '',
@@ -247,7 +251,7 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
   }, [data]);
 
   // Handle direct field change
-  const handleFieldChange = (fieldKey: string, label: string, val: any) => {
+  const handleFieldChange = (fieldKey: string, label: string, val: unknown) => {
     setFormState((prev) => ({ ...prev, [fieldKey]: val }));
 
     const originalVal = originalState[fieldKey];
@@ -270,8 +274,8 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
   };
 
   // Handle nested object field change (e.g. historyInterview.renovationLoad)
-  const handleNestedFieldChange = (parentKey: string, childKey: string, label: string, val: any) => {
-    const parentObj = formState[parentKey] || {};
+  const handleNestedFieldChange = (parentKey: string, childKey: string, label: string, val: unknown) => {
+    const parentObj = (formState[parentKey] as Record<string, unknown>) || {};
     const updatedParent = { ...parentObj, [childKey]: val };
     handleFieldChange(parentKey, label, updatedParent);
   };
@@ -294,7 +298,7 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
       newValue: v.newValue,
     }));
 
-    const updatesPayload: Record<string, any> = {};
+    const updatesPayload: Record<string, unknown> = {};
     Object.keys(dirtyFields).forEach((k) => {
       updatesPayload[k] = formState[k];
     });

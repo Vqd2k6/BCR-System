@@ -40,7 +40,7 @@ graph TD
   * Nhằm tối ưu diện tích hiển thị trên màn hình điện thoại hiện trường (PWA Mobile), Header tự động trượt lên ẩn đi khi người dùng cuộn xuống (`scrollTop > 45px` và `scrollTop > lastScrollTop`) và hiện lại ngay lập tức khi cuộn ngược lên.
 * **Các thành phần hiển thị:**
   * Biểu tượng tòa tháp `🏢` kèm tên chung cư hoặc địa chỉ tòa nhà.
-  * Huy hiệu định danh: Mã dự án `B-XXXXX` và Số tầng (ví dụ: `B-00120 • 12 Tầng`).
+  * Huy hiệu định danh: Mã dự án `B-XXXXX-YYY` và Số tầng (ví dụ: `B-00120-POR • 12 Tầng`).
   * Nút **"Hồ Sơ Tòa Mẹ"**: Mở modal xem nhanh các thông số kết cấu móng và ảnh mặt đứng khối tháp.
   * Nút **"Đóng (X)"**: Đóng Hub, lưu giữ trạng thái cuộn và quay về bản đồ GIS / Trang chủ.
 
@@ -48,9 +48,10 @@ graph TD
 * **Logic kích hoạt:**
   * Nếu tòa nhà mẹ chưa hoàn tất khảo sát (`isMasterSurveyDone === false`), banner màu vàng hổ phách (Amber Warning) sẽ hiển thị ở vị trí ưu tiên cao nhất.
 * **Nội dung cảnh báo nghiệp vụ:**
-  * *"Chưa khảo sát khối tháp dùng chung (Master Tower). Nên thực hiện khảo sát khối chung trước để các căn hộ con tự động kế thừa thông số móng cọc, cự ly hầm và ảnh mặt đứng P01-P04."*
+  * *"Chưa hoàn tất khảo sát khối tháp dùng chung (Master Tower). Nên thực hiện khảo sát khối chung trước để các căn hộ con tự động kế thừa thông số móng cọc, cự ly hầm và độ nghiêng tòa nhà."*
 * **Nút hành động:**
-  * **"Khảo sát Khối chung (Master) ngay"**: Chuyển ngay sang luồng `SurveyCondoMasterPage` để đo nghiêng, chụp ảnh mặt đứng và lấy chữ ký Ban Quản Lý tòa nhà.
+  * **"Khảo sát Khối chung (Master) ngay"**: Chuyển sang luồng `SurveyCondoMasterPage` (khảo sát đầy đủ 8 bước Phase 1 cho phần dùng chung).
+  * *Cơ chế nạp sẵn ảnh ngoại thất:* Nếu KSV vừa chuyển đổi từ Bước 1 form Phase 1, toàn bộ 4 ảnh `P-01` $\rightarrow$ `P-04` đã chụp ngoại thất được hệ thống chuyển giao nguyên vẹn vào bản nháp Master, KSV không phải chụp lại.
   * *Lưu ý nghiệp vụ:* Hệ thống **không cấm** Surveyor khảo sát căn hộ con trước nếu Ban Quản Lý vắng mặt, nhưng sẽ gắn cờ cảnh báo chờ hoàn tất hồ sơ mẹ trước khi Zone Admin phê duyệt toàn tòa.
 
 ### 2.3. Bảng Điều Khiển Lãnh Đạo (BuildingExecutiveDashboard)
@@ -76,12 +77,21 @@ Gồm 4 thẻ chỉ số KPI phản ánh tiến độ thời gian thực:
      * Chọn tầng: `floorNumber` (VD: `4`).
    * Bấm Lưu $\rightarrow$ Gọi API `POST /api/v1/parcels/:id/units` $\rightarrow$ Thẻ căn hộ xuất hiện ngay trên lưới.
 3. **Thẻ Căn Hộ Thành Viên (Unit Card):**
-   * *Góc trái:* Huy hiệu số phòng nổi bật (`P.402`) kèm biểu tượng tầng lầu.
+   * *Góc trái:* Huy hiệu số phòng nổi bật (`03.03`) kèm biểu tượng tầng lầu.
    * *Thông tin thân thẻ:* Tên chủ hộ, Số điện thoại (nếu có), trạng thái khảo sát.
    * *Nút hành động theo ngữ cảnh:*
      * Chưa khảo sát / Đang làm: Nút **"Khảo Sát Căn Này"** (màu xanh thương hiệu).
      * Đã nộp / Đã duyệt: Nút **"Xem Hồ Sơ"** hoặc **"Xuất Báo Cáo Căn"**.
      * Vắng mặt: Nút **"Ghi nhận vắng mặt"** hoặc **"Khảo sát lại"**.
+
+### 2.5. Công Cụ Quản Lý Mặt Bằng Tầng & Chia Cắt Căn Hộ (Floor Plan CAD Slicer)
+* **Vị trí kích hoạt:** Nút biểu tượng **"📐 Bản Vẽ Tầng & CAD"** đặt cạnh bộ lọc tầng trên Building Hub.
+* **Mục đích nghiệp vụ:** 
+  * Cho phép Kỹ sư Master / Quản trị viên tải lên 1 bản vẽ CAD mặt bằng chung cho toàn bộ một tầng (hoặc một dải tầng điển hình, ví dụ Tầng 3 đến Tầng 8).
+  * Công cụ **CAD Slicer (Floor Partition Canvas)** cho phép kéo thả các ô bao chữ nhật hoặc vẽ đa giác bao quanh từng căn hộ (`03.01`, `03.02`, `03.03`...).
+  * **Tự động sinh căn hộ con:** Khi lưu các ô phân chia, hệ thống tự động tạo các bản ghi `building_units` tương ứng với mã chuẩn `mm.nn`.
+  * **Tự động Crop CAD Căn Hộ:** Trình duyệt sử dụng Canvas ngầm crop vùng mặt bằng của riêng từng căn $\rightarrow$ lưu thành `unit_cad_url`.
+  * Khi KSV bước vào khảo sát căn `03.03`, bản vẽ CAD riêng của căn đã sẵn sàng, KSV chỉ việc chấm điểm nứt/thấm ngay mà **không cần vẽ lại hay tìm file upload**.
 
 ---
 

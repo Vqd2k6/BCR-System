@@ -15,7 +15,7 @@ import {
   Plus,
   Trash2,
 } from 'lucide-react';
-import { EvidencePhotoItem } from '../types/phase1.types';
+import type { EvidencePhotoItem } from '../types/phase1.types';
 
 import {
   USAGE_OPTIONS,

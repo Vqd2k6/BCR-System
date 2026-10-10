@@ -1,12 +1,12 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useAuth } from '../../../context/AuthContext';
-import { GisParcel } from '../../../components/gis/shared/types';
+import type { GisParcel } from '../../../components/gis/shared/types';
 import { LeafletSweepMap } from '../../../components/gis/LeafletSweepMap';
 import {
   computeGuestKpis,
   computeGuestBraStats,
   maskParcelClientPii,
-  BraRiskLevel,
+  type BraRiskLevel,
 } from '../utils/guestPortalHelpers';
 import { GuestKpiSummaryCard } from '../components/GuestKpiSummaryCard';
 import { GuestBraDonutChart } from '../components/GuestBraDonutChart';

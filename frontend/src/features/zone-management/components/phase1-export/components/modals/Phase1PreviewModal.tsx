@@ -14,13 +14,8 @@ import {
   FileType,
   Sparkles,
 } from 'lucide-react';
-import {
-  ExportParcelItem,
-  EditFormData,
-  EditFormDefectItem,
-  ModalFeedbackMessage,
-} from '../../types';
-import { buildReportPayload } from '../../utils/reportDataTransformers';
+import type { ExportParcelItem, EditFormData, EditFormDefectItem, ModalFeedbackMessage } from '../../types';
+import { buildReportPayload, type ServerReportData } from '../../utils/reportDataTransformers';
 import { Phase1HtmlTab } from './Phase1HtmlTab';
 import { Phase1EditFormTab } from './Phase1EditFormTab';
 import { Phase1JsonTab } from './Phase1JsonTab';
@@ -30,7 +25,7 @@ interface Phase1PreviewModalProps {
   setPreviewParcel: (parcel: ExportParcelItem | null) => void;
   previewHtmlContent: string | null;
   previewBlobUrl: string | null;
-  previewReportData: any;
+  previewReportData: ServerReportData | Record<string, unknown> | null;
   previewTab: 'html' | 'edit' | 'json';
   setPreviewTab: (tab: 'html' | 'edit' | 'json') => void;
   isPreviewLoading: boolean;
@@ -48,15 +43,15 @@ interface Phase1PreviewModalProps {
   handleSwitchVersion?: (ver: 'v2' | 'v1') => Promise<void>;
   handleOpenPreview: (parcel: ExportParcelItem) => void;
   handleUpdateFormField: <K extends keyof EditFormData>(field: K, value: EditFormData[K]) => void;
-  handleUpdateDefectField: (defectId: string, field: keyof EditFormDefectItem, value: any) => void;
+  handleUpdateDefectField: <K extends keyof EditFormDefectItem>(defectId: string, field: K, value: EditFormDefectItem[K]) => void;
   handleAddDefect: () => void;
   handleDeleteDefect: (defectId: string) => void;
   handleApplyPreviewWithoutSaving: () => void;
   handleSwitchTab: (targetTab: 'html' | 'edit' | 'json') => Promise<void>;
   handleOpenPreviewInNewTab: () => void;
   handleDirectPrint: () => void;
-  handleExportSingleDocx: (parcel: ExportParcelItem, overrides?: any) => void;
-  handleExportSinglePdf: (parcel: ExportParcelItem, overrides?: any) => void;
+  handleExportSingleDocx: (parcel: ExportParcelItem, overrides?: Record<string, unknown>) => void;
+  handleExportSinglePdf: (parcel: ExportParcelItem, overrides?: Record<string, unknown>) => void;
   enableWatermark?: boolean;
   handleToggleWatermark?: (enabled: boolean) => void;
 }

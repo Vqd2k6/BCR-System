@@ -265,7 +265,7 @@ CREATE TYPE export_status_enum AS ENUM (
 
 CREATE TABLE users (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    username VARCHAR(64) UNIQUE NOT NULL,
+    username VARCHAR(64) NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
     full_name VARCHAR(128) NOT NULL,
     email VARCHAR(128),
@@ -275,15 +275,20 @@ CREATE TABLE users (
     status user_status_enum NOT NULL DEFAULT 'ACTIVE',
     status_reason TEXT,
     avatar_url TEXT,
+    signature_image_url TEXT,
+    created_by_user_id UUID REFERENCES users(id),
+    surveyor_code VARCHAR(16),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     deleted_at TIMESTAMPTZ
 );
 
-CREATE INDEX idx_users_username ON users(username);
+CREATE UNIQUE INDEX idx_users_username_active_unique ON users(LOWER(username)) WHERE deleted_at IS NULL;
 CREATE INDEX idx_users_role ON users(role);
 CREATE INDEX idx_users_status ON users(status);
 CREATE INDEX idx_users_zone ON users(assigned_zone_id);
+CREATE INDEX idx_users_surveyor_code ON users(surveyor_code);
+CREATE INDEX idx_users_phone ON users(phone);
 
 CREATE TABLE user_sessions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -389,7 +394,7 @@ CREATE TABLE parcels (
     active_phase1_report_id UUID,
     active_phase2_report_id UUID,
     absence_attempt_count INT NOT NULL DEFAULT 0,
-    assigned_surveyor_id UUID REFERENCES users(id),
+    assigned_surveyor_id UUID REFERENCES users(id) ON DELETE SET NULL,
     assigned_at TIMESTAMPTZ,
     assignment_notes TEXT,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -424,16 +429,41 @@ CREATE INDEX idx_absence_logs_parcel ON parcel_absence_logs(parcel_id);
 CREATE INDEX idx_absence_logs_surveyor ON parcel_absence_logs(surveyor_id);
 
 -- ============================================================================
+-- BẢN VẼ CAD MẶT BẰNG TẦNG CHUNG CƯ (BUILDING FLOOR PLANS)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS building_floor_plans (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    parcel_id UUID NOT NULL REFERENCES parcels(id) ON DELETE CASCADE,
+    floor_number INT NOT NULL,
+    floor_name VARCHAR(64) NOT NULL,
+    applicable_floors INT[] DEFAULT '{}',
+    cad_photo_url TEXT NOT NULL,
+    cad_photo_code VARCHAR(32),
+    image_width INT,
+    image_height INT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT uq_parcel_floor_number UNIQUE (parcel_id, floor_number)
+);
+
+CREATE INDEX IF NOT EXISTS idx_floor_plans_parcel ON building_floor_plans(parcel_id);
+
+-- ============================================================================
 -- CĂN HỘ THÀNH VIÊN TRONG CHUNG CƯ / TÒA NHÀ NHIỀU HỘ (BUILDING UNITS)
 -- ============================================================================
 CREATE TABLE building_units (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     parcel_id UUID NOT NULL REFERENCES parcels(id) ON DELETE CASCADE,
-    unit_code VARCHAR(32) NOT NULL,                  -- VD: 'P.402', 'A-12.05'
-    floor_number INT NOT NULL DEFAULT 1,              -- Lầu 4
+    unit_code VARCHAR(32) NOT NULL,                  -- VD: 'P.402', 'A-12.05', '03.01'
+    floor_number INT NOT NULL DEFAULT 1,              -- Lầu 3
+    floor_plan_id UUID REFERENCES building_floor_plans(id) ON DELETE SET NULL,
     owner_name VARCHAR(128),
     owner_phone VARCHAR(32),
     owner_id_card VARCHAR(32),
+    resident_status VARCHAR(32) DEFAULT 'CHỦ_HỘ_Ở',
+    cad_bbox JSONB,
+    cad_polygon JSONB,
+    unit_cad_url TEXT,
     status parcel_survey_status_enum NOT NULL DEFAULT 'NOT_SURVEYED',
     phase1_report_id UUID,
     phase2_report_id UUID,
@@ -444,6 +474,7 @@ CREATE TABLE building_units (
 
 CREATE INDEX idx_building_units_parcel ON building_units(parcel_id);
 CREATE INDEX idx_building_units_status ON building_units(status);
+CREATE INDEX idx_building_units_floor_plan ON building_units(floor_plan_id);
 
 CREATE TABLE survey_absence_logs (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),

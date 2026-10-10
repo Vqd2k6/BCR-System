@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Card } from '../../../../core/components/ui/Card';
 import { Input } from '../../../../core/components/ui/FormControls';
 import { Building } from 'lucide-react';
-import { Phase1SurveyFormData } from '../../types/phase1.types';
+import type { Phase1SurveyFormData } from '../../types/phase1.types';
 
 interface Step1IdentificationSectionProps {
   formData: Phase1SurveyFormData;
@@ -83,10 +83,10 @@ export const Step1IdentificationSection: React.FC<Step1IdentificationSectionProp
         />
         <Input
           id="input-officialCadastralCode"
-          label="Mã Địa Chính Gốc (Cadastral Code) *"
-          value={formData.officialCadastralCode}
+          label="Mã Địa Chính Gốc (Cadastral Code) * (Cố định từ GIS)"
+          value={formData.officialCadastralCode || 'Đang đồng bộ từ bản đồ GIS...'}
           disabled
-          hint="Số tờ - Số thửa bản đồ địa chính nhà nước"
+          hint="Số tờ - Số thửa bản đồ địa chính nhà nước (Cố định, không cho phép thay đổi)"
         />
 
         <Input

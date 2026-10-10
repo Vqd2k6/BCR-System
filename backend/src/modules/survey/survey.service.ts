@@ -29,7 +29,7 @@ export class SurveyService {
     let reportCode = `REPORT-${projectCode}-PHASE1-${Date.now()}`;
 
     if (unitId) {
-      actualReportType = 'UNIT_CHILD';
+      actualReportType = reportType || 'CONDO_UNIT';
       const unitRes = await Database.query<{ unit_code: string }>(
         `SELECT unit_code FROM building_units WHERE id = $1;`,
         [unitId]
@@ -447,8 +447,11 @@ export class SurveyService {
     };
   }
 
-  static async getPhase1ReportByParcelId(parcelId: string) {
-    return await SurveyRepository.findLatestPhase1ReportByParcelId(parcelId);
+  static async getPhase1ReportByParcelId(
+    parcelId: string,
+    options?: { reportType?: string; unitId?: string | null }
+  ) {
+    return await SurveyRepository.findLatestPhase1ReportByParcelId(parcelId, options);
   }
 
   static async getSurveyDraft(

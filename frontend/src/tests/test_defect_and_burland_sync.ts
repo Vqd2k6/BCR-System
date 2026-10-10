@@ -1,20 +1,53 @@
 import { isCrackRelated } from '../components/canvas/defectHelpers';
 import { validateStep } from '../features/survey-phase1/utils/stepValidator';
-import { Phase1SurveyFormData } from '../features/survey-phase1/types/phase1.types';
+import type { Phase1SurveyFormData, FloorSurveyData, DamageZoneData, DefectItem } from '../features/survey-phase1/types/phase1.types';
 import { getDefaultInitialFormData } from '../features/survey-phase1/store/initialFormData';
 
 console.log('====================================================================');
 console.log('KIỂM THỬ ĐỒNG BỘ FE-BE & BẢO VỆ ĐÁNH GIÁ VẾT NỨT / BURLAND (STEP 4)');
 console.log('====================================================================\n');
 
+interface BeDefect {
+  id: string;
+  defect_code: string;
+  pin_x: number;
+  pin_y: number;
+  screening_category: string;
+  defect_type: string;
+  width_max_mm: string;
+  length_mm: string;
+  cu_photos_json?: string[];
+  cu_photo_url?: string;
+  notes: string;
+}
+
+interface BeDamageZone {
+  id: string;
+  report_id: string;
+  zone_code: string;
+  floor_name: string;
+  room_name: string;
+  component_type: string;
+  wall_material: string;
+  burland_grade: number;
+  ctx_photo_url: string;
+  defects: BeDefect[];
+}
+
+interface BeFloorSurvey {
+  id: string;
+  floor_name: string;
+  floor_order: number;
+}
+
 // 1. TEST KHÔI PHỤC DỮ LIỆU TỪ BACKEND
 console.log('--- TEST 1: KHÔI PHỤC DỮ LIỆU TỪ BACKEND (FLOOR_NAME & DAMAGE_ZONES) ---');
-const beFloorSurveys = [
+const beFloorSurveys: BeFloorSurvey[] = [
   { id: 'uuid-fl-1', floor_name: 'Tầng trệt', floor_order: 1 },
   { id: 'uuid-fl-2', floor_name: 'Tầng 1', floor_order: 2 }
 ];
 
-const beDamageZones = [
+const beDamageZones: BeDamageZone[] = [
   {
     id: 'uuid-zone-1',
     report_id: 'rep-1',
@@ -68,8 +101,8 @@ const beDamageZones = [
 ];
 
 // Mô phỏng hàm mapper trong SurveyPhase1Page
-const zonesByFloor = beDamageZones.reduce((acc: any, z: any) => {
-  const fid = z.floor_name || z.floor_id || z.floorName || 'default';
+const zonesByFloor = beDamageZones.reduce<Record<string, DamageZoneData[]>>((acc, z) => {
+  const fid = z.floor_name || 'default';
   if (!acc[fid]) acc[fid] = [];
   acc[fid].push({
     id: z.id,
@@ -80,24 +113,39 @@ const zonesByFloor = beDamageZones.reduce((acc: any, z: any) => {
     wallMaterial: z.wall_material,
     ctxPhotoUrl: z.ctx_photo_url,
     burlandGrade: Number(z.burland_grade) || 0,
-    defects: z.defects.map((d: any) => ({
+    overviewPhotos: [],
+    notes: '',
+    defects: z.defects.map((d): DefectItem => ({
       id: d.id,
       defectCode: d.defect_code,
+      pinX: d.pin_x,
+      pinY: d.pin_y,
       screeningCategory: d.screening_category,
       defectType: d.defect_type,
       widthMaxMm: Number(d.width_max_mm) || 0,
       lengthMm: Number(d.length_mm) || 0,
       cuPhotoUrl: d.cu_photos_json?.[0] || d.cu_photo_url || '',
-      notes: d.notes
+      cuPhotos: d.cu_photos_json || [d.cu_photo_url || ''],
+      hasScaleCard: true,
+      isStructuralCritical: false,
+      activityState: 'S',
+      materialDegradationE4: 0,
+      structuralSignificanceE2: 0,
+      notes: d.notes,
     }))
   });
   return acc;
 }, {});
 
-const restoredFloors = beFloorSurveys.map((f: any) => ({
+const restoredFloors: FloorSurveyData[] = beFloorSurveys.map((f: BeFloorSurvey) => ({
   id: f.id,
   floorName: f.floor_name,
-  zones: zonesByFloor[f.floor_name] || []
+  overviewPhotos: [],
+  cadSketchPhotoUrl: '',
+  cadZonePins: [],
+  cadElementPins: [],
+  zones: zonesByFloor[f.floor_name] || [],
+  structuralElements: [],
 }));
 
 console.assert(restoredFloors[0].zones.length === 1, 'FAIL: Tầng trệt phải khôi phục được 1 Vùng Z!');
@@ -109,8 +157,16 @@ console.log('✅ [TEST 1 ĐẠT]: Dữ liệu floor_name và damage_zones từ B
 console.log('--- TEST 2: PHÒNG THỦ NULL/UNDEFINED TẠI BƯỚC 4 (BURLAND SUMMARY) ---');
 const formData: Phase1SurveyFormData = {
   ...getDefaultInitialFormData('test-parcel'),
-  floors: restoredFloors as any,
-  burlandSummary: undefined as any // Giả lập trường hợp server hoặc snapshot trả về undefined
+  floors: restoredFloors,
+  burlandSummary: {
+    predominantGrade: 0,
+    localMaxGrade: 0,
+    governingZoneCode: '',
+    governingZoneDescription: '',
+    representativeness: 'GLOBAL',
+    structuralFlagLevel: 'NONE',
+    needStructuralEngineerReview: false,
+  },
 };
 
 // Hàm tính cấp Burland
@@ -167,16 +223,16 @@ console.log('✅ [TEST 2 ĐẠT]: Bước 4 chạy mượt mà, phòng thủ th�
 
 // 3. TEST KIỂM TRA ĐIỀU KIỆN CHUYỂN BƯỚC 3 -> BƯỚC 4
 console.log('--- TEST 3: THẨM ĐỊNH CHUYỂN BƯỚC 3 -> 4 VỚI DỮ LIỆU ĐÃ ĐIỀN ĐỦ ---');
-const fullyFilledFloors = restoredFloors.map((fl) => ({
+const fullyFilledFloors: FloorSurveyData[] = restoredFloors.map((fl) => ({
   ...fl,
   overviewPhotos: [{ id: 'p1', url: 'https://r2.metro2.vn/fl1.jpg' }],
-  cadZonePins: [{ zoneCode: 'Z-01', x: 20, y: 30 }],
+  cadZonePins: [{ id: 'pin-1', zoneCode: 'Z-01', pinX: 20, pinY: 30 }],
   hasStructuralElements: false, // Miễn khảo sát E
 }));
 
 const validFormData: Phase1SurveyFormData = {
   ...formData,
-  floors: fullyFilledFloors as any,
+  floors: fullyFilledFloors,
 };
 
 const validationResult = validateStep(3, validFormData);

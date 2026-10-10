@@ -46,7 +46,7 @@ const openDB = (): Promise<IDBDatabase> => {
 /**
  * Lưu dữ liệu nháp vào IndexedDB
  */
-export const saveSurveyDraft = async (key: string, data: any): Promise<boolean> => {
+export const saveSurveyDraft = async <T = unknown>(key: string, data: T): Promise<boolean> => {
   try {
     const db = await openDB();
     return new Promise((resolve, reject) => {
@@ -77,7 +77,7 @@ export const saveSurveyDraft = async (key: string, data: any): Promise<boolean> 
 /**
  * Tải dữ liệu nháp từ IndexedDB
  */
-export const loadSurveyDraft = async <T = any>(key: string): Promise<T | null> => {
+export const loadSurveyDraft = async <T = unknown>(key: string): Promise<T | null> => {
   try {
     const db = await openDB();
     return new Promise((resolve, reject) => {

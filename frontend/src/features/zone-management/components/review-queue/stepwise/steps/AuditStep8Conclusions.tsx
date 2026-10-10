@@ -1,12 +1,13 @@
 import React from 'react';
 import { FileCheck2, Compass, TrendingUp, AlertTriangle, ShieldCheck, CheckCircle2 } from 'lucide-react';
 import { BRA_MATRIX_LOOKUP } from '../../../../../survey-phase1/engine/braEngine';
+import type { AuditStepwiseFormState, StepwiseExecutiveSummary } from '../types';
 
 interface Props {
   isEditMode: boolean;
-  formState: Record<string, any>;
-  handleNestedFieldChange: (parentKey: string, childKey: string, label: string, val: any) => void;
-  handleFieldChange?: (fieldKey: string, label: string, val: any) => void;
+  formState: AuditStepwiseFormState;
+  handleNestedFieldChange: (parentKey: string, childKey: string, label: string, val: unknown) => void;
+  handleFieldChange?: (fieldKey: string, label: string, val: unknown) => void;
 }
 
 export const AuditStep8Conclusions: React.FC<Props> = ({
@@ -15,7 +16,7 @@ export const AuditStep8Conclusions: React.FC<Props> = ({
   handleNestedFieldChange,
   handleFieldChange,
 }) => {
-  const exec = formState.executiveSummary || {};
+  const exec: StepwiseExecutiveSummary = formState.executiveSummary || {};
   const currentBra = (exec.braStatus || 'LOW').toUpperCase();
   const currentImpactStr = exec.constructionImpactStatus || 'I1 (Tác động rất nhẹ)';
   const impactCode = (currentImpactStr.startsWith('I4') ? 'I4' : currentImpactStr.startsWith('I3') ? 'I3' : currentImpactStr.startsWith('I2') ? 'I2' : 'I1') as 'I1' | 'I2' | 'I3' | 'I4';

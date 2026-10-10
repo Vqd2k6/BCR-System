@@ -1,7 +1,7 @@
 import React from 'react';
 import { MapContainer, TileLayer, ZoomControl } from 'react-leaflet';
 import { Filter, X, Sparkles } from 'lucide-react';
-import { GisParcel, LeafletSweepMapProps } from './shared/types';
+import type { GisParcel, LeafletSweepMapProps } from './shared/types';
 import { ChangeView, FlyToController } from './shared/MapControllers';
 import { useSweepMapState } from './sweep-map/hooks/useSweepMapState';
 import { isNonBuildingParcel } from './sweep-map/utils/sweepMapHelpers';

@@ -1,5 +1,5 @@
 import React from 'react';
-import { CompanionRecord, CompanionCheckInModalProps } from './companion/types';
+import type { CompanionRecord, CompanionCheckInModalProps } from './companion/types';
 import { useCompanionCheckInState } from './companion/hooks/useCompanionCheckInState';
 import { CompanionModalHeader } from './companion/components/CompanionModalHeader';
 import { CompanionVerifiedSummary } from './companion/components/CompanionVerifiedSummary';

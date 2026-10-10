@@ -1,3 +1,4 @@
+import { getErrorMessage, getErrorStatus, isNotFoundError } from '@/utils/errorUtils';
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   X,
@@ -15,9 +16,28 @@ import {
   Sparkles,
   Layers,
 } from 'lucide-react';
-import { GisParcel } from '../../shared/types';
+import type { GisParcel } from '../../shared/types';
 import { useAuth } from '../../../../context/AuthContext';
 import { AdminSecurityChallengeConfirm } from '../../../../features/zone-management/components/review-queue/AdminSecurityChallengeConfirm';
+
+interface CandidateParcel {
+  id: string;
+  project_parcel_code?: string;
+  projectParcelCode?: string;
+  house_number?: string;
+  houseNumber?: string;
+  street?: string;
+  owner_name?: string;
+  ownerName?: string;
+  land_area_m2?: number;
+  landAreaM2?: number;
+  landArea?: number;
+  is_touching?: boolean;
+  isTouching?: boolean;
+  distance_meters?: number;
+  distanceMeters?: number;
+  is_adjacent?: boolean;
+}
 
 interface CadastralSpatialSwapModalProps {
   activeParcel: GisParcel | null;
@@ -39,16 +59,16 @@ export const CadastralSpatialSwapModal: React.FC<CadastralSpatialSwapModalProps>
   
   // Tab 1 (REASSIGN) state
   const [targetParcelCodeOrId, setTargetParcelCodeOrId] = useState('');
-  const [selectedTargetA, setSelectedTargetA] = useState<any | null>(null);
+  const [selectedTargetA, setSelectedTargetA] = useState<CandidateParcel | null>(null);
   const [isInputFocused, setIsInputFocused] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Tab 2 (SWAP) state
-  const [selectedParcelB, setSelectedParcelB] = useState<any | null>(null);
+  const [selectedParcelB, setSelectedParcelB] = useState<CandidateParcel | null>(null);
   const [swapSearchFilter, setSwapSearchFilter] = useState('');
 
   // Candidates & Data
-  const [adjacentCandidates, setAdjacentCandidates] = useState<any[]>([]);
+  const [adjacentCandidates, setAdjacentCandidates] = useState<CandidateParcel[]>([]);
   const [isLoadingCandidates, setIsLoadingCandidates] = useState(false);
 
   // Common Form State
@@ -100,7 +120,7 @@ export const CadastralSpatialSwapModal: React.FC<CadastralSpatialSwapModalProps>
   // Pool of all candidate parcels in the same zone
   const candidatePool = useMemo(() => {
     if (!activeParcel) return [];
-    const map = new Map<string, any>();
+    const map = new Map<string, CandidateParcel>();
 
     // 1. Add adjacent candidates first (with touching and distance flags)
     adjacentCandidates.forEach((c) => {
@@ -242,9 +262,9 @@ const stripVietnameseTones = (str: string): string => {
         onSuccess?.();
         onClose();
       }, 1000);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('[CadastralSpatialSwapModal] Swap error:', err);
-      setErrorMsg(err.message || 'Lỗi hoán đổi ranh đất GIS. Vui lòng kiểm tra lại 2 thửa đất.');
+      setErrorMsg(getErrorMessage(err, 'Lỗi hoán đổi ranh đất GIS. Vui lòng kiểm tra lại 2 thửa đất.'));
     } finally {
       setIsSubmitting(false);
     }
@@ -430,7 +450,7 @@ const stripVietnameseTones = (str: string): string => {
                         key={item.id}
                         type="button"
                         onClick={() => {
-                          setTargetParcelCodeOrId(item.project_parcel_code);
+                          setTargetParcelCodeOrId(item.project_parcel_code || '');
                           setSelectedTargetA(item);
                           setIsInputFocused(false);
                         }}
@@ -505,7 +525,9 @@ const stripVietnameseTones = (str: string): string => {
                     const targetId = selectedTargetA?.id || candidatePool.find(
                       (c) => c.project_parcel_code?.toLowerCase() === targetParcelCodeOrId.trim().toLowerCase() || c.id === targetParcelCodeOrId.trim()
                     )?.id;
-                    handleExecuteSwap(targetId);
+                    if (targetId) {
+                      handleExecuteSwap(targetId);
+                    }
                   }}
                   disabled={isSubmitting || !isChallengeValid || (!selectedTargetA && !targetParcelCodeOrId.trim())}
                   className="px-4 py-2 rounded-xl text-xs font-black bg-sky-600 hover:bg-sky-700 text-white shadow-md shadow-sky-600/20 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
@@ -661,7 +683,11 @@ const stripVietnameseTones = (str: string): string => {
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleExecuteSwap(selectedParcelB?.id)}
+                  onClick={() => {
+                    if (selectedParcelB?.id) {
+                      handleExecuteSwap(selectedParcelB.id);
+                    }
+                  }}
                   disabled={isSubmitting || !isChallengeValid || !selectedParcelB}
                   className="px-4 py-2 rounded-xl text-xs font-black bg-amber-600 hover:bg-amber-700 text-white shadow-md shadow-amber-600/20 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >

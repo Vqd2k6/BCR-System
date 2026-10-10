@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Cloud, HardDrive, RefreshCw, AlertTriangle } from 'lucide-react';
 import { usePhase1SurveyStore } from '../store/usePhase1SurveyStore';
-import { auditSurveyPhotos, SurveyPhotoAuditItem } from '../utils/photoSyncAudit';
+import {
+  auditSurveyPhotos,
+  type SurveyPhotoAuditItem,
+} from '../utils/photoSyncAudit';
 import { uploadQueue } from '../../../core/services/uploadQueueService';
 import { useStorageInfo } from '../../../core/services/storageInfoService';
 

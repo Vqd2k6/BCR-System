@@ -13,7 +13,7 @@ const STRUCTURAL_FLAG_LEVELS = [
   { value: 'MODERATE', label: 'Moderate - Cờ kết cấu trung bình', color: 'bg-amber-50 text-amber-800 border-amber-200' },
   { value: 'HIGH', label: 'High - Cờ kết cấu cao / Nguy cơ chịu lực', color: 'bg-orange-50 text-orange-800 border-orange-200' },
   { value: 'CRITICAL', label: 'Critical - Cờ kết cấu nguy cấp / Cảnh báo sập', color: 'bg-red-50 text-red-800 border-red-200' },
-];
+] as const;
 
 export const Step4_BurlandSummary: React.FC = () => {
   const { formData, updateFormData, nextStep, prevStep } = usePhase1SurveyStore();
@@ -412,7 +412,7 @@ export const Step4_BurlandSummary: React.FC = () => {
                     updateFormData({
                       burlandSummary: {
                         ...bs,
-                        structuralFlagLevel: flag.value as any,
+                        structuralFlagLevel: flag.value,
                       },
                     })
                   }

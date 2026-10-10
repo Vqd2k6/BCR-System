@@ -77,6 +77,20 @@ Hệ thống quản lý công trình theo cấu trúc cha - con chặt chẽ:
   * Áp dụng State Machine nghiêm ngặt: Khi hồ sơ chuyển sang trạng thái `SUBMITTED` hoặc `APPROVED`, mọi API `PUT / PATCH` vào nội dung khảo sát phải bị chặn lại ở tầng Middleware.
   * Sau khi Zone Admin ký duyệt, hệ thống phải tự động tính toán mã băm SHA-256 trên toàn bộ payload hồ sơ và lưu vào bảng Audit Log.
 
+### 7. Lỗi Vi Phạm Phân Quyền Giao Diện & Mù Chế Độ Chỉ Đọc (UI RBAC Breach & Missing ReadOnly Guard)
+* **Bản chất lỗi:** 
+  * Các component/modal nghiệp vụ cấu hình kỹ thuật (quản lý CAD mặt bằng tầng, chia cắt căn hộ, gộp thửa, thiết lập mốc toạ độ) được sử dụng chung giữa **Zone Admin** và **Surveyor**. Khi Agent không khai báo prop `readOnly?: boolean;`, Surveyor ở hiện trường có thể thao tác vào các chức năng quản trị cấp phân khu (Upload CAD, sửa dải tầng, xóa phân vùng, bấm nút Lưu đồng bộ), đe dọa trực tiếp đến tính toàn vẹn cấu hình.
+  * Khi ở chế độ xem, Agent giữ nguyên `<input disabled>` gây cảm giác form bị đơ, không chuyển sang thẻ hiển thị tĩnh (read-only view card).
+  * Empty State không phân hóa vai trò: Đưa ra thông báo kêu gọi Surveyor tải file CAD lên, trong khi trách nhiệm đó thuộc về Zone Admin trên Cổng Quản Trị.
+* **Quy tắc phòng ngừa:**
+  * Mọi component nghiệp vụ dùng chung giữa Admin và Surveyor **BẮT BUỘC** có prop `readOnly?: boolean` (mặc định `false` hoặc `readOnly={!isAdmin}`).
+  * Khi `readOnly = true`:
+    1. Tiêu đề hiển thị kèm hậu tố `(Chỉ Đọc)` và gắn badge vai trò rõ ràng: `Khảo Sát Viên` (`bg-sky-950 text-sky-300 border-sky-700`).
+    2. Input/Select biến thành thẻ hiển thị tĩnh (`<div className="px-3 py-1.5 rounded-xl bg-slate-800/80 border border-slate-750 text-slate-200 ...">`).
+    3. Ẩn toàn bộ nút thao tác ghi (Upload ảnh, Đổi file CAD, Xóa phần tử, Nút Lưu). Thay thế nút Lưu bằng badge thông tin chỉ đọc (VD: `<div className="... bg-slate-800 text-teal-300 border border-teal-500/30"><Layers ... /><span>Sơ Đồ Tham Khảo</span></div>`).
+    4. Thông báo Empty State phải chỉ dẫn Surveyor liên hệ Zone Admin, không kêu gọi Surveyor thực hiện hành vi quản trị: *"Tầng này hiện chưa được cấu hình bản vẽ CAD mặt bằng kiến trúc. Vui lòng liên hệ Zone Admin cập nhật trên Cổng Quản Trị."*
+    5. Truyền `readOnly={true}` và `onSave={undefined}` xuống các canvas/slicer bên dưới.
+
 ---
 
 ## 📌 PHẦN 3: NGUYÊN TẮC NGHIỆP VỤ BẤT BIẾN (DOMAIN CONSTRAINTS)
@@ -119,3 +133,69 @@ Hệ thống quản lý công trình theo cấu trúc cha - con chặt chẽ:
 ### 7. Ngôn Ngữ Thiết Kế (Unified Clean Light Theme)
 * Toàn bộ Wizard (Nhà dân, Chung cư tổng thể, Căn hộ con) dùng chung phong cách Clean Light: Nền sáng cao cấp, header trắng mờ (`bg-white/95 backdrop-blur-md border-b border-slate-200/80`), tab chỉ dẫn bước rõ ràng, nút lưu nháp phản hồi trực quan.
 * Cấm đưa giao diện sang nền đen / dark mode cục bộ gây lệch tone và khó đọc ngoài trời nắng.
+
+### 8. Quy Chuẩn Component Dùng Chung & Chế Độ Chỉ Đọc (Shared Component ReadOnly Standard)
+* Khi một component được mở từ cả Admin Portal và Surveyor App (ví dụ: `BuildingHubModal`, `FloorPlanCadManagementModal`, `ParcelDetailBottomSheet`):
+  * **Admin Mode (`readOnly=false`)**: Cho phép Upload, Chỉnh sửa thông số, Vẽ phân vùng, Thay đổi liên kết, Lưu CSDL.
+  * **Surveyor Mode (`readOnly=true`)**: Chỉ xem sơ đồ, xem vị trí căn hộ, zoom/pan bản vẽ, không có bất kỳ nút chỉnh sửa cấu hình nào.
+
+### 9. Quy Chuẩn UX/UI Tương Tác & Con Trỏ Chuột (`cursor-pointer` Mandate)
+* Mọi phần tử có sự kiện nhấp chuột (`<button>`, `onClick`, nút đóng `X`, tab chuyển đổi, badge tương tác) **BẮT BUỘC phải có class `cursor-pointer`**.
+* Nếu phần tử ở trạng thái disabled: Bắt buộc dùng `disabled:opacity-50 cursor-not-allowed`.
+* Phải có phản hồi thị giác: `hover:opacity-80` hoặc `hover:bg-...`, `active:scale-95`, `transition-all`.
+
+### 10. Bảng Màu Quy Ước Cho Badge & Tác Vụ (Standardized Semantic Color Palette)
+* Toàn bộ hệ thống giao diện tuân thủ bảng màu quy ước chuẩn mực:
+  * **Super Admin**: `bg-purple-950 text-purple-300 border-purple-700`
+  * **Zone Admin**: `bg-amber-950 text-amber-300 border-amber-700`
+  * **Khảo Sát Viên (Surveyor)**: `bg-sky-950 text-sky-300 border-sky-700`
+  * **Người Dân (Citizen / Guest)**: `bg-slate-800 text-slate-300 border-slate-600`
+  * **Mã Công Trình / Thửa Đất (`B-XXXXX`, `P-XXXXX`)**: `bg-teal-950 text-teal-300 border-teal-700 font-mono font-bold`
+  * **Mã Căn Hộ Con (`P.nnn`)**: `bg-indigo-950 text-indigo-300 border-indigo-700 font-mono font-bold`
+  * **Mã Phân Khu / Ga (`Z-01`, `ZONE-05`)**: `bg-cyan-950 text-cyan-300 border-cyan-700 font-mono font-bold`
+  * **Trạng Thái Đạt / An Toàn / ALLOW / BRA Low**: `bg-emerald-950 text-emerald-300 border-emerald-700`
+  * **Trạng Thái Cảnh Báo / CONDITIONAL / BRA Medium**: `bg-amber-950 text-amber-300 border-amber-700`
+  * **Trạng Thái Nguy Hiểm / REJECTED / BRA High / Very High**: `bg-rose-950 text-rose-300 border-rose-700`
+  * **Sơ Đồ Tham Khảo (Chế độ Read-only)**: `bg-slate-800 text-teal-300 border-teal-500/30 font-bold`
+
+### 11. Kỷ Luật TypeScript & Môi Trường Vite Không Khoan Nhượng (Strict Zero-Any Mandate)
+* **Zero Any**: Cấm tuyệt đối từ khóa `any` và ép kiểu `as any` trên toàn bộ codebase. Bắt buộc định nghĩa interface/type rõ ràng hoặc dùng `unknown` kèm Type Guard.
+* **Error Catching**: Mọi khối `catch (err: unknown)` phải dùng `getErrorMessage(err)` từ `@/utils/errorUtils`.
+* **Vite Env**: Cấm sử dụng `process.env`. Toàn bộ biến môi trường phải dùng `import.meta.env.*` đã được type trong `src/vite-env.d.ts`.
+* **Module Syntax**: Bắt buộc dùng `import type` cho tất cả các import chỉ chứa kiểu dữ liệu (`verbatimModuleSyntax: true`).
+* **Zero Mock Data**: Tuyệt đối không hardcode dữ liệu giả định vào component nghiệp vụ thật. Luôn xử lý Zero State từ API thật.
+
+### 12. Kỷ Luật Bắt Lỗi & Minh Bạch Observability (Try-Catch & Error Transparency)
+* `try ... catch` là để ném ra lỗi có ngữ cảnh hoặc phục hồi có kiểm soát, **TUYỆT ĐỐI CẤM DÙNG ĐỂ GIẤU LỖI**.
+* **Cấm Empty Catch**: Nghiêm cấm khối `catch {}` rỗng hoặc catch nuốt lỗi âm thầm (`return null/[]/false` mà không log).
+* **Bắt buộc Log có Context Tag**: Mọi khối `catch` bắt buộc phải có ít nhất một lệnh `console.error('[ContextTag] ...', err)` hoặc `throw err`.
+* **Không Alert-Only**: Bắt buộc log đối tượng lỗi ra Console trước khi hiển thị Toast/Alert cho người dùng để Dev có thể F12 debug tức thì.
+
+---
+
+## 🛡️ PHẦN 4: NGUYÊN TẮC BẢO VỆ CƠ SỞ DỮ LIỆU TUYỆT ĐỐI (DATABASE INTEGRITY & SAFETY)
+*(Dữ liệu BCS Metro 2 là căn cứ pháp lý duy nhất trước Tòa án. Mọi tổn thất dữ liệu đều là lỗi nghiêm trọng bậc 1)*
+
+### 4.1. Cấm Tuyệt Đối Xóa Cứng (Zero Hard-Delete Mandate)
+* **NGHIÊM CẤM** các câu lệnh: `DROP TABLE`, `DROP DATABASE`, `TRUNCATE`, hoặc `DELETE FROM` trên toàn bộ bảng nghiệp vụ: `parcels`, `building_units`, `surveys`, `survey_photos`, `defect_pins`, `cadastral_mutations`, `attendance_records`, `audit_logs`.
+* Bắt buộc sử dụng cơ chế **Soft Delete**: `deleted_at TIMESTAMP WITH TIME ZONE DEFAULT NULL`. Các truy vấn nghiệp vụ phải luôn có điều kiện phòng vệ: `WHERE deleted_at IS NULL`.
+
+### 4.2. Tính Lũy Kế An Toàn Của Migration (Idempotent Migration Standard)
+* Mọi file migration mới trong `backend/database/migrations/YYYYMMDD_*.sql` phải tuân thủ tính an toàn lũy kế:
+  * Thêm cột: `ALTER TABLE ... ADD COLUMN IF NOT EXISTS ...;`
+  * Tạo bảng: `CREATE TABLE IF NOT EXISTS ...;`
+  * Tạo chỉ mục: `CREATE INDEX IF NOT EXISTS ...;`
+* **CẤM** chỉnh sửa file migration cũ đã từng được chạy trên staging/production. Mọi sửa đổi phải được viết vào file migration mới tiếp theo.
+* **CẤM** chạy `ALTER TABLE ... DROP COLUMN` mà chưa qua quy trình deprecation 2 pha.
+
+### 4.3. Bắt Buộc Giao Dịch ACID Đầy Đủ (Mandatory Transaction Boundary)
+* Mọi luồng xử lý ghi dữ liệu liên quan từ 2 bảng trở lên hoặc liên quan đến cập nhật cấu trúc (VD: Chia cắt căn hộ con từ CAD, biến động gộp thửa đất dư, duyệt hồ sơ băm SHA-256):
+  * **BẮT BUỘC** thực thi trong một Database Transaction (`BEGIN ... COMMIT ... ROLLBACK`).
+  * Nếu có bất kỳ lỗi nào ở bước trung gian, toàn bộ thao tác phải được Rollback 100%, tuyệt đối không để lại bản ghi rác mồ côi (orphan records).
+
+### 4.4. Phòng Chống SQL Injection Tuyệt Đối (Parameterized Queries Only)
+* Cấm hoàn toàn việc cộng chuỗi trong câu truy vấn SQL (`string concatenation` hoặc `template literals`).
+* 100% câu truy vấn phải sử dụng biến tham số hóa (`$1, $2, ...` trong `pg`).
+
+### 4.5. Khóa Bất Biến Dữ Liệu Hồ Sơ Đã Duyệt (Approved Record Immutability)
+* Khi hồ sơ chuyển sang trạng thái `APPROVED` hoặc `LOCKED_IMMUTABLE`, middleware backend và trigger CSDL phải từ chối mọi thao tác `UPDATE/DELETE` trên hồ sơ đó.

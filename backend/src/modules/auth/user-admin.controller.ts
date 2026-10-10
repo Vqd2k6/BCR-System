@@ -7,14 +7,19 @@ import {
   ResetPasswordDto,
 } from './auth.dto';
 import { BadRequestError } from '../../common/errors/problem-details';
-import { executeCleanReset } from '../../scripts/clean_reset_production_preserving_parcels';
 
 export class UserAdminController {
   static async listUsers(req: Request, res: Response, next: NextFunction) {
     try {
+      let zoneId = req.query.zoneId as string;
+      // Nếu là ZONE_ADMIN, bắt buộc chỉ được xem nhân sự thuộc Ga/Zone của mình
+      if ((req as any).user?.role === 'ZONE_ADMIN') {
+        zoneId = (req as any).user.assignedZoneId || 'NONE';
+      }
+
       const filters = {
         role: req.query.role as string,
-        zoneId: req.query.zoneId as string,
+        zoneId,
         status: req.query.status as string,
         search: req.query.search as string,
         limit: req.query.limit ? parseInt(req.query.limit as string, 10) : 20,
@@ -85,7 +90,13 @@ export class UserAdminController {
         );
       }
 
-      const user = await AuthService.updateUser(id, parsed.data);
+      const currentUserId = (req as any).user?.userId || (req as any).user?.id;
+      // Chốt chặn tự hạ quyền: SuperAdmin không thể tự đổi vai trò của mình thành role khác
+      if (id === currentUserId && parsed.data.role && parsed.data.role !== 'SUPER_ADMIN') {
+        throw new BadRequestError('Không thể tự hạ quyền quản trị tối cao của chính mình');
+      }
+
+      const user = await AuthService.updateUser(id, parsed.data, currentUserId);
       res.status(200).json({
         success: true,
         message: 'Cập nhật thông tin tài khoản thành công',
@@ -107,7 +118,13 @@ export class UserAdminController {
         );
       }
 
-      const user = await AuthService.updateStatus(id, parsed.data.status, parsed.data.reason);
+      const currentUserId = (req as any).user?.userId || (req as any).user?.id;
+      // Chốt chặn tự khóa: SuperAdmin không thể tự khóa/tạm ngưng tài khoản của chính mình
+      if (id === currentUserId) {
+        throw new BadRequestError('Không thể tự khóa hoặc tạm ngưng tài khoản của chính mình');
+      }
+
+      const user = await AuthService.updateStatus(id, parsed.data.status, parsed.data.reason, currentUserId);
       res.status(200).json({
         success: true,
         message: `Đã cập nhật trạng thái tài khoản thành [${parsed.data.status}]`,
@@ -129,7 +146,8 @@ export class UserAdminController {
         );
       }
 
-      const result = await AuthService.resetPassword(id, parsed.data.newPassword);
+      const currentUserId = (req as any).user?.userId || (req as any).user?.id;
+      const result = await AuthService.resetPassword(id, parsed.data.newPassword, currentUserId);
       res.status(200).json({
         success: true,
         message: result.message,
@@ -142,7 +160,13 @@ export class UserAdminController {
   static async deleteUser(req: Request, res: Response, next: NextFunction) {
     try {
       const { id } = req.params;
-      const result = await AuthService.deleteUser(id);
+      const currentUserId = (req as any).user?.userId || (req as any).user?.id;
+      // Chốt chặn tự xóa: SuperAdmin không thể tự vô hiệu hóa tài khoản của chính mình
+      if (id === currentUserId) {
+        throw new BadRequestError('Không thể tự vô hiệu hóa tài khoản của chính mình');
+      }
+
+      const result = await AuthService.deleteUser(id, currentUserId);
       res.status(200).json({
         success: true,
         message: result.message,
@@ -151,13 +175,5 @@ export class UserAdminController {
       next(error);
     }
   }
-
-  static async cleanResetDatabase(req: Request, res: Response, next: NextFunction) {
-    try {
-      const result = await executeCleanReset();
-      res.status(200).json(result);
-    } catch (error) {
-      next(error);
-    }
-  }
 }
+

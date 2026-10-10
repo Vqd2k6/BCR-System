@@ -1,5 +1,6 @@
-import { StateCreator } from 'zustand';
-import { Phase1SurveyStore, SyncSlice } from '../types';
+import { getErrorMessage, getErrorStatus, isNotFoundError } from '@/utils/errorUtils';
+import type { StateCreator } from 'zustand';
+import type { Phase1SurveyStore, SyncSlice } from '../types';
 import { surveyDraftService } from '../../services/surveyDraftService';
 import { sanitizeSurveyDataForSync } from '../../../../core/services/uploadQueueService';
 import { calculateEcsScore } from '../../engine/ecsCalculator';
@@ -49,8 +50,8 @@ export const createSyncSlice: StateCreator<
         lastSyncedAt: new Date().toLocaleTimeString('vi-VN'),
         isDirty: false,
       });
-    } catch (err: any) {
-      const is404 = err?.response?.status === 404;
+    } catch (err: unknown) {
+      const is404 = isNotFoundError(err);
       if (is404) {
         // Server chưa có route nháp hoặc đang bảo trì: Giữ trạng thái OFFLINE an toàn (dữ liệu đã lưu trọn vẹn trong IndexedDB)
         set({ syncStatus: 'OFFLINE', isDirty: false });
@@ -112,7 +113,7 @@ export const createSyncSlice: StateCreator<
         return true;
       }
       return false;
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('[SurveyPhase1Store] Takeover failed:', err);
       throw err;
     }

@@ -1,3 +1,4 @@
+import { getErrorMessage, getErrorStatus, isNotFoundError } from '@/utils/errorUtils';
 import React, { useState, useEffect } from 'react';
 import {
   X,
@@ -12,9 +13,7 @@ import {
 } from 'lucide-react';
 import { api } from '../../../../services/api';
 
-interface Props {
-  isOpen: boolean;
-  reportId: string;
+export interface PhotoReplaceParams {
   targetPhotoType: string; // 'DEFECT_CU' | 'ZONE_CTX' | 'IDENTIFICATION_P' | 'OTHER'
   targetPhotoId?: string;  // e.g. 'D-01' or 'photoP01'
   defectId?: string;
@@ -22,11 +21,16 @@ interface Props {
   photoIndex?: number;
   currentPhotoUrl: string;
   photoTitle?: string;
+}
+
+export interface AuditPhotoReplaceModalProps extends PhotoReplaceParams {
+  isOpen: boolean;
+  reportId: string;
   onClose: () => void;
   onSuccess: () => void;
 }
 
-export const AuditPhotoReplaceModal: React.FC<Props> = ({
+export const AuditPhotoReplaceModal: React.FC<AuditPhotoReplaceModalProps> = ({
   isOpen,
   reportId,
   targetPhotoType,
@@ -101,7 +105,7 @@ export const AuditPhotoReplaceModal: React.FC<Props> = ({
         };
         reader.readAsDataURL(file);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.warn('[AuditPhotoReplaceModal] Error uploading file, using direct preview:', err);
       const reader = new FileReader();
       reader.onload = () => {
@@ -155,9 +159,9 @@ export const AuditPhotoReplaceModal: React.FC<Props> = ({
       } else {
         setErrorMsg(res.data?.message || 'Không thể thay thế ảnh.');
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('[AuditPhotoReplaceModal] Error replacing photo:', err);
-      setErrorMsg(err.response?.data?.message || err.message || 'Lỗi xác thực khi thay thế ảnh.');
+      setErrorMsg(getErrorMessage(err, 'Lỗi xác thực khi thay thế ảnh.'));
     } finally {
       setIsSubmitting(false);
     }

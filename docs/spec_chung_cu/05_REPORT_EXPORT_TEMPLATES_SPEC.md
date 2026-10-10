@@ -71,7 +71,7 @@ BÁO CÁO KHẢO SÁT HIỆN TRẠNG CĂN HỘ CON (TEMPLATE 2) - DỰ ÁN METRO
 2. Tiêu đề: BÁO CÁO KHẢO SÁT HIỆN TRẠNG CĂN HỘ THÀNH VIÊN.
 3. Hộp định danh nổi bật:
    - MÃ CĂN HỘ: P.402  |  TẦNG: Tầng 4
-   - TRỰC THUỘC TÒA NHÀ: Chung cư Miếu Nổi (Mã dự án: B-00120)
+   - TRỰC THUỘC TÒA NHÀ: Chung cư Miếu Nổi (Mã dự án: B-00120-POR)
    - ĐỊA CHỈ TÒA NHÀ: 123 Đường Cách Mạng Tháng Tám, Phường 7, Quận Tân Bình
    - CỰ LY TIM HẦM: 12.5m  |  LÝ TRÌNH: Km 3+450
 4. Thông tin chủ sở hữu căn hộ:
@@ -80,7 +80,7 @@ BÁO CÁO KHẢO SÁT HIỆN TRẠNG CĂN HỘ CON (TEMPLATE 2) - DỰ ÁN METRO
 5. Bảng ghi chú kế thừa từ Tòa nhà mẹ (Read-only Summary):
    - Hệ móng: Cọc khoan nhồi D1200 (CAT 2)  |  Tầng hầm: 02 tầng hầm
    - Độ nghiêng toàn khối tháp: Phương X = +0.8‰, Phương Y = -0.4‰
-   - Bản vẽ hoàn công toàn tòa: Lưu trữ tại hồ sơ Master B-00120.
+   - Bản vẽ hoàn công toàn tòa: Lưu trữ tại hồ sơ Master B-00120-POR.
 
 [TRANG 2: BỘ ẢNH NHẬN DIỆN & HIỆN TRẠNG ĐẶC THÙ CHUNG CƯ]
 1. Bộ ảnh nhận diện căn hộ con:
@@ -183,7 +183,7 @@ Bảng ma trận được sắp xếp theo cao trình từng tầng lầu từ t
 ```typescript
 // 1. Xuất Báo cáo Căn hộ con tinh gọn (Template 2)
 GET /api/v1/reports/condo-units/:unitId/export/pdf
-Response: application/pdf (File name: BCS_Metro2_B-00120_Unit_P402.pdf)
+Response: application/pdf (File name: BCS_Metro2_B-00120-POR_Unit_P402.pdf)
 
 // 2. Xuất Báo cáo Căn hộ con định dạng Word DOCX (khi cần chỉnh sửa kỹ thuật)
 GET /api/v1/reports/condo-units/:unitId/export/docx
@@ -191,7 +191,7 @@ Response: application/vnd.openxmlformats-officedocument.wordprocessingml.documen
 
 // 3. Xuất Báo cáo Tổng thể Chung cư & Bundle Đa tầng (Template 3)
 GET /api/v1/reports/condo-masters/:parcelId/export/pdf?includeChildUnits=true
-Response: application/pdf (File name: BCS_Metro2_Master_B-00120_Full_Dossier.pdf)
+Response: application/pdf (File name: BCS_Metro2_Master_B-00120-POR_Full_Dossier.pdf)
 
 // 4. Xuất Bảng Ma trận Đa tầng dạng Excel phục vụ điều phối và quan trắc
 GET /api/v1/reports/condo-masters/:parcelId/export/matrix-excel

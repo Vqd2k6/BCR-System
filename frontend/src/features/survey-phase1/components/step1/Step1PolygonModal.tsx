@@ -1,6 +1,11 @@
 import { X } from 'lucide-react';
-import { FacadePolygonCanvas, PolygonPoint, FloorSplitLine, FreehandStroke } from '../../../../components/canvas/FacadePolygonCanvas';
-import { Phase1SurveyFormData } from '../../types/phase1.types';
+import {
+  FacadePolygonCanvas,
+  type PolygonPoint,
+  type FloorSplitLine,
+  type FreehandStroke,
+} from '../../../../components/canvas/FacadePolygonCanvas';
+import type { Phase1SurveyFormData } from '../../types/phase1.types';
 import { usePhase1SurveyStore } from '../../store/usePhase1SurveyStore';
 
 interface Step1PolygonModalProps {

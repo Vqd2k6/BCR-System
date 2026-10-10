@@ -1,9 +1,14 @@
 import { create } from 'zustand';
-import { GisParcel } from '../../../core/types/domain.types';
+import type { GisParcel } from '../../../core/types/domain.types';
 import { getDefaultInitialFormData } from '../../survey-phase1/store/usePhase1SurveyStore';
 import { calculateEcsScore } from '../../survey-phase1/engine/ecsCalculator';
 import { calculateViScore } from '../../survey-phase1/engine/viCalculator';
-import { CondoMasterFormData, CONDO_USAGE_FUNCTIONS, CONDO_FOUNDATION_TYPES, CONDO_STRUCTURAL_SYSTEMS } from '../types/condo-master.types';
+import {
+  type CondoMasterFormData,
+  CONDO_USAGE_FUNCTIONS,
+  CONDO_FOUNDATION_TYPES,
+  CONDO_STRUCTURAL_SYSTEMS,
+} from '../types/condo-master.types';
 import { surveyDraftService } from '../../survey-phase1/services/surveyDraftService';
 import { sanitizeSurveyDataForSync } from '../../../core/services/uploadQueueService';
 
@@ -260,7 +265,7 @@ export const useCondoMasterSurveyStore = create<CondoMasterSurveyStore>((set, ge
         lastSyncedAt: new Date().toLocaleTimeString('vi-VN'),
         isDirty: false,
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.warn('[CondoMasterStore] Sync draft failed:', err);
       set({ syncStatus: 'ERROR' });
     }
@@ -315,7 +320,7 @@ export const useCondoMasterSurveyStore = create<CondoMasterSurveyStore>((set, ge
         return true;
       }
       return false;
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('[CondoMasterStore] Takeover failed:', err);
       throw err;
     }

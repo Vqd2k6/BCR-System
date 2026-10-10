@@ -1,5 +1,5 @@
 import React from 'react';
-import { GisParcel } from '../../../components/gis/shared/types';
+import type { GisParcel } from '../../../components/gis/shared/types';
 import {
   getEffectiveParcelStatus,
   getStatusColor,

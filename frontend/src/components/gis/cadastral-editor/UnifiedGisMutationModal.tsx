@@ -1,3 +1,4 @@
+import { getErrorMessage, getErrorStatus, isNotFoundError } from '@/utils/errorUtils';
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   X,
@@ -13,7 +14,7 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 import { api } from '../../../services/api';
-import { GisParcel, MutationPayloadData, CadastralParcelData } from '../shared/types';
+import type { GisParcel, MutationPayloadData, CadastralParcelData } from '../shared/types';
 import { CadastralGISBoundaryEditor } from '../CadastralGISBoundaryEditor';
 import { AdminSecurityChallengeConfirm } from '../../../features/zone-management/components/review-queue/AdminSecurityChallengeConfirm';
 import { METRO_22_ZONES, getZoneByCode } from '../../../features/survey-phase1/constants/metroGisConstants';
@@ -114,10 +115,10 @@ export const UnifiedGisMutationModal: React.FC<Props> = ({
           setActiveParcel(parsedParcel);
           if (raw.zone_id) setActiveZoneId(raw.zone_id);
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error('[UnifiedGisMutationModal] Fetch parcel error:', err);
         if (isMounted) {
-          setFetchError(err.response?.data?.message || 'Không thể tải thông tin chi tiết thửa đất từ CSDL.');
+          setFetchError(getErrorMessage(err, 'Không thể tải thông tin chi tiết thửa đất từ CSDL.'));
         }
       } finally {
         if (isMounted) setIsLoadingParcel(false);
@@ -145,9 +146,9 @@ export const UnifiedGisMutationModal: React.FC<Props> = ({
       zoneId: activeZoneId,
       surveyStatus:
         activeParcel?.surveyStatus ||
-        (activeParcel as any)?.survey_status ||
+        activeParcel?.survey_status ||
         initialParcel?.surveyStatus ||
-        (initialParcel as any)?.survey_status ||
+        initialParcel?.survey_status ||
         'NOT_SURVEYED',
       coordinates: activeParcel?.coordinates || [],
     };
@@ -176,7 +177,7 @@ export const UnifiedGisMutationModal: React.FC<Props> = ({
     setSubmitError('');
 
     try {
-      let payload: any;
+      let payload: Record<string, unknown>;
 
       if (boundaryStatus === 'SPLIT') {
         const splitChildren = mutationData.splitChildren || [];
@@ -234,9 +235,9 @@ export const UnifiedGisMutationModal: React.FC<Props> = ({
 
         // Lấy danh sách ID từ các mã thửa được chọn
         const allZoneParcelsRes = await api.get('/parcels/zone-map', { params: { zoneId: activeZoneId } });
-        const allParcelsInZone: any[] = allZoneParcelsRes.data?.data || [];
+        const allParcelsInZone: GisParcel[] = allZoneParcelsRes.data?.data || [];
         const candidateIds = selectedCodes
-          .map((code) => allParcelsInZone.find((p: any) => (p.project_parcel_code || p.projectParcelCode) === code)?.id)
+          .map((code) => allParcelsInZone.find((p: GisParcel) => (p.project_parcel_code || p.projectParcelCode) === code)?.id)
           .filter((id): id is string => !!id);
 
         if (candidateIds.length === 0) {
@@ -255,7 +256,7 @@ export const UnifiedGisMutationModal: React.FC<Props> = ({
         const primaryCode = mutationData.primaryMergeCode || cadastralParcelData.projectParcelCode || '';
         let primaryParcelId = parcelId;
         if (primaryCode && primaryCode !== cadastralParcelData.projectParcelCode) {
-          const matched = allParcelsInZone.find((p: any) => (p.project_parcel_code || p.projectParcelCode) === primaryCode);
+          const matched = allParcelsInZone.find((p: GisParcel) => (p.project_parcel_code || p.projectParcelCode) === primaryCode);
           if (matched?.id) {
             primaryParcelId = matched.id;
           }
@@ -293,13 +294,9 @@ export const UnifiedGisMutationModal: React.FC<Props> = ({
       } else {
         setSubmitError(res.data?.message || 'Không thể thực thi biến động trên CSDL PostGIS.');
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('[UnifiedGisMutationModal] Submit error:', err);
-      const serverMsg =
-        err.response?.data?.message ||
-        err.response?.data?.detail ||
-        err.message ||
-        'Lỗi thực thi biến động thửa đất trên hệ thống CSDL PostGIS.';
+      const serverMsg = getErrorMessage(err, 'Lỗi thực thi biến động thửa đất trên hệ thống CSDL PostGIS.');
       setSubmitError(serverMsg);
     } finally {
       setIsSubmitting(false);

@@ -53,6 +53,17 @@
   padding: 0;
 }
 
+@layer base {
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]) {
+    cursor: pointer;
+  }
+  button:disabled,
+  [role="button"][aria-disabled="true"] {
+    cursor: not-allowed;
+  }
+}
+
 body {
   font-family: var(--font-family);
   background-color: var(--bg-main);

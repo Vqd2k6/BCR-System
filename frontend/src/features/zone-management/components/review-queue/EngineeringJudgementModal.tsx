@@ -1,14 +1,35 @@
+import { getErrorMessage, getErrorStatus, isNotFoundError } from '@/utils/errorUtils';
 import React, { useState, useEffect } from 'react';
 import { X, ShieldAlert, CheckCircle2, TrendingUp, TrendingDown, Minus, Sliders, AlertTriangle } from 'lucide-react';
 import { api } from '../../../../services/api';
+
+export interface RiskCardData {
+  e1_burland_score?: number | string;
+  total_ecs_score?: number | string;
+  ecs_class?: string;
+  v1_importance_score?: number | string;
+  avg_vi_score?: number | string;
+  vi_class?: string;
+  is_engineering_judgement_applied?: boolean;
+  engineering_judgement_action?: 'UPGRADE' | 'DOWNGRADE' | 'CUSTOM_OVERRIDE' | 'KEEP';
+  engineering_judgement_reason?: string;
+  judgement_engineer_name?: string;
+  overridden_burland_grade?: number | string | null;
+  overridden_total_ecs?: number | string | null;
+  overridden_ecs_class?: string;
+  overridden_importance_score?: number | string | null;
+  overridden_avg_vi?: number | string | null;
+  overridden_vi_class?: string;
+  [key: string]: unknown;
+}
 
 interface Props {
   isOpen: boolean;
   reportId: string;
   parcelCode: string;
   currentBurlandGrade?: string | number;
-  riskCard?: any;
-  data?: any;
+  riskCard?: RiskCardData | null;
+  data?: Record<string, unknown> | null;
   onClose: () => void;
   onSuccess: () => void;
 }
@@ -30,11 +51,12 @@ export const EngineeringJudgementModal: React.FC<Props> = ({
   const [errorMsg, setErrorMsg] = useState('');
 
   // 4 Trục thông số can thiệp
-  const baselineBurland = Number(riskCard?.e1_burland_score ?? data?.surveyJson?.ecs?.e1 ?? 0);
-  const baselineTotalEcs = Number(riskCard?.total_ecs_score ?? data?.surveyJson?.ecs?.totalEcs ?? 0);
+  const rawSurveyJson = data?.surveyJson as Record<string, Record<string, unknown>> | undefined;
+  const baselineBurland = Number(riskCard?.e1_burland_score ?? rawSurveyJson?.ecs?.e1 ?? 0);
+  const baselineTotalEcs = Number(riskCard?.total_ecs_score ?? rawSurveyJson?.ecs?.totalEcs ?? 0);
   const baselineEcsClass = riskCard?.ecs_class || 'GOOD';
-  const baselineImportance = Number(riskCard?.v1_importance_score ?? data?.surveyJson?.vi?.v1 ?? 2.0);
-  const baselineAvgVi = Number(riskCard?.avg_vi_score ?? data?.surveyJson?.vi?.avgVi ?? 1.0);
+  const baselineImportance = Number(riskCard?.v1_importance_score ?? rawSurveyJson?.vi?.v1 ?? 2.0);
+  const baselineAvgVi = Number(riskCard?.avg_vi_score ?? rawSurveyJson?.vi?.avgVi ?? 1.0);
   const baselineViClass = riskCard?.vi_class || 'LOW';
 
   const [burlandGrade, setBurlandGrade] = useState<number>(baselineBurland);
@@ -98,7 +120,21 @@ export const EngineeringJudgementModal: React.FC<Props> = ({
     setIsSubmitting(true);
     setErrorMsg('');
     try {
-      const payload: any = {
+      interface JudgementPayload {
+        action: 'UPGRADE' | 'DOWNGRADE' | 'CUSTOM_OVERRIDE' | 'KEEP';
+        reason: string;
+        engineerName: string;
+        overrides?: {
+          burlandGrade: number;
+          totalEcs: number;
+          ecsClass: string;
+          importanceScore: number;
+          avgVi: number;
+          viClass: string;
+        };
+      }
+
+      const payload: JudgementPayload = {
         action,
         reason: reason.trim(),
         engineerName: engineerName.trim(),
@@ -108,10 +144,10 @@ export const EngineeringJudgementModal: React.FC<Props> = ({
         payload.overrides = {
           burlandGrade: Number(burlandGrade),
           totalEcs: Number(totalEcs),
-          ecsClass: ecsClass as any,
+          ecsClass,
           importanceScore: Number(importanceScore),
           avgVi: Number(avgVi),
-          viClass: viClass as any,
+          viClass,
         };
       }
 
@@ -123,10 +159,10 @@ export const EngineeringJudgementModal: React.FC<Props> = ({
       } else {
         setErrorMsg(res.data?.message || 'Không thể lưu can thiệp chuyên gia.');
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('[EngineeringJudgementModal] Error:', err);
       setErrorMsg(
-        err.response?.data?.message || err.message || 'Lỗi kết nối khi lưu can thiệp kỹ sư.'
+        getErrorMessage(err, 'Lỗi kết nối khi lưu can thiệp kỹ sư.')
       );
     } finally {
       setIsSubmitting(false);

@@ -1,3 +1,4 @@
+import { getErrorMessage, getErrorStatus, isNotFoundError } from '@/utils/errorUtils';
 import React, { useState } from 'react';
 import {
   X,
@@ -15,8 +16,8 @@ import { api } from '../../../../services/api';
 export interface DiffItem {
   field: string;
   label: string;
-  oldValue: any;
-  newValue: any;
+  oldValue: unknown;
+  newValue: unknown;
 }
 
 interface Props {
@@ -24,7 +25,7 @@ interface Props {
   reportId: string;
   parcelCode?: string;
   diffItems: DiffItem[];
-  updatesPayload: Record<string, any>;
+  updatesPayload: Record<string, unknown>;
   onClose: () => void;
   onSuccess: () => void;
 }
@@ -75,16 +76,16 @@ export const AuditDiffConfirmModal: React.FC<Props> = ({
       } else {
         setErrorMsg(res.data?.message || 'Không thể lưu thay đổi.');
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('[AuditDiffConfirmModal] Error saving audit edits:', err);
-      const msg = err.response?.data?.detail || err.response?.data?.message || err.message || 'Lỗi xác thực khi lưu chỉnh sửa.';
+      const msg = getErrorMessage(err, 'Lỗi xác thực khi lưu chỉnh sửa.');
       setErrorMsg(msg);
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const formatDisplayValue = (val: any) => {
+  const formatDisplayValue = (val: unknown) => {
     if (val === null || val === undefined || val === '') {
       return <span className="text-slate-400 italic font-mono">(Trống / Không có)</span>;
     }

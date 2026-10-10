@@ -1,3 +1,4 @@
+import { getErrorMessage, getErrorStatus, isNotFoundError } from '@/utils/errorUtils';
 import React, { useState, useEffect } from 'react';
 import { Button } from '../../../core/components/ui/Button';
 import { Input } from '../../../core/components/ui/FormControls';
@@ -12,8 +13,14 @@ import {
   Trash2,
   FileSignature,
 } from 'lucide-react';
-import { AdminUser, userService, CreateUserPayload, UpdateUserPayload } from '../../../services/userService';
-import { UserRole } from '../../../core/types/domain.types';
+import api from '../../../services/api';
+import {
+  type AdminUser,
+  userService,
+  type CreateUserPayload,
+  type UpdateUserPayload,
+} from '../../../services/userService';
+import type { UserRole } from '../../../core/types/domain.types';
 import { METRO_22_ZONES } from '../../survey-phase1/constants/metroGisConstants';
 
 interface Props {
@@ -44,13 +51,14 @@ export const UserEditModal: React.FC<Props> = ({
 
   useEffect(() => {
     if (user) {
-      setUsername(user.username);
-      setFullName(user.fullName || '');
+      setUsername(user.username || '');
+      setFullName(user.fullName || user.full_name || '');
       setEmail(user.email || '');
       setPhone(user.phone || '');
       setRole(user.role);
-      setAssignedZoneId(user.assignedZoneId || 'ZONE_01');
-      setSignatureImageUrl(user.signatureImageUrl || null);
+      const userZone = user.assignedZoneId || user.assigned_zone_id;
+      setAssignedZoneId(userZone || (user.role === 'ZONE_ADMIN' || user.role === 'GUEST' ? 'ALL_ZONES' : 'ZONE_01'));
+      setSignatureImageUrl(user.signatureImageUrl || user.signature_image_url || null);
       setPassword('');
     } else {
       setUsername('');
@@ -66,10 +74,6 @@ export const UserEditModal: React.FC<Props> = ({
   }, [user, isOpen]);
 
   if (!isOpen) return null;
-
-  // Tính toán trước mã định danh Surveyor ID (P-XXXX) từ 4 số cuối của SĐT
-  const digits = phone.replace(/\D/g, '');
-  const previewSurveyorCode = digits.length >= 4 ? `P-${digits.slice(-4)}` : null;
 
   // Xử lý upload ảnh chữ ký số mẫu bởi Admin
   const handleSignatureUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -101,24 +105,19 @@ export const UserEditModal: React.FC<Props> = ({
     setError(null);
 
     if (!fullName.trim()) {
-      setError('Họ và tên không được để trống');
+      setError('Họ và tên cán bộ không được để trống');
       return;
     }
 
     if (isCreate) {
       if (!username.trim() || username.length < 3) {
-        setError('Tên đăng nhập phải từ 3 ký tự');
+        setError('Tên đăng nhập phải từ 3 ký tự trở lên');
         return;
       }
       if (!password || password.length < 6) {
         setError('Mật khẩu khởi tạo phải từ 6 ký tự trở lên');
         return;
       }
-    }
-
-    if (role === 'SURVEYOR' && (!phone || phone.replace(/\D/g, '').length < 8)) {
-      setError('Đối với Khảo sát viên hiện trường, Số điện thoại bắt buộc phải có ít nhất 8 số để tự động sinh mã pháp lý P-XXXX.');
-      return;
     }
 
     const effectiveZoneId =
@@ -130,16 +129,34 @@ export const UserEditModal: React.FC<Props> = ({
 
     setIsLoading(true);
     try {
+      // Nếu có ảnh chữ ký mới dạng Base64 dataUrl, upload trước lên storage endpoint
+      let finalSignatureUrl = signatureImageUrl;
+      if (signatureImageUrl && signatureImageUrl.startsWith('data:image/')) {
+        try {
+          const uploadRes = await api.post('/storage/upload-base64', {
+            base64: signatureImageUrl,
+            filenamePrefix: `signature_${username.trim().replace(/[^a-zA-Z0-9_-]/g, '_') || 'user'}`,
+            folder: 'signatures',
+          });
+          const uploadedUrl = uploadRes.data?.data?.url || uploadRes.data?.url;
+          if (uploadedUrl) {
+            finalSignatureUrl = uploadedUrl;
+          }
+        } catch (uploadErr) {
+          console.warn('[UserEditModal] Upload signature to storage failed, falling back to dataUrl:', uploadErr);
+        }
+      }
+
       if (isCreate) {
         const payload: CreateUserPayload = {
-          username: username.trim().toLowerCase(),
+          username: username.trim(),
           password,
           fullName: fullName.trim(),
           email: email.trim() || null,
           phone: phone.trim() || null,
           role,
           assignedZoneId: effectiveZoneId,
-          signatureImageUrl: signatureImageUrl || null,
+          signatureImageUrl: finalSignatureUrl || null,
         };
         await userService.createUser(payload);
       } else {
@@ -149,14 +166,16 @@ export const UserEditModal: React.FC<Props> = ({
           phone: phone.trim() || null,
           role,
           assignedZoneId: effectiveZoneId,
-          signatureImageUrl: signatureImageUrl || null,
+          signatureImageUrl: finalSignatureUrl || null,
         };
         await userService.updateUser(user!.id, payload);
       }
       onSuccess();
       onClose();
-    } catch (err: any) {
-      setError(err?.response?.data?.message || err?.message || 'Có lỗi xảy ra khi lưu thông tin người dùng');
+    } catch (err: unknown) {
+      const errorMsg =
+        getErrorMessage(err, 'Có lỗi xảy ra khi lưu thông tin người dùng');
+      setError(errorMsg);
     } finally {
       setIsLoading(false);
     }
@@ -167,7 +186,7 @@ export const UserEditModal: React.FC<Props> = ({
       case 'SUPER_ADMIN':
         return 'Toàn quyền cấu hình hệ thống, quản lý tài khoản, xem và xuất báo cáo toàn tuyến (22 Phân đoạn).';
       case 'ZONE_ADMIN':
-        return 'Quản trị nhân sự và kiểm duyệt hồ sơ khảo sát của Phân khu/Ga được phân công.';
+        return 'Quản trị nhân sự và kiểm duyệt hồ sơ khảo sát của Phân khu/Ga được phân công hoặc Toàn tuyến.';
       case 'SURVEYOR':
         return 'Cán bộ hiện trường: Điểm danh GPS, nhập số liệu khảo sát 8 bước, chụp ảnh và lấy chữ ký.';
       case 'GUEST':
@@ -178,6 +197,8 @@ export const UserEditModal: React.FC<Props> = ({
         return '';
     }
   };
+
+  const existingSurveyorCode = user?.surveyorCode || user?.surveyor_code;
 
   return (
     <div className="fixed inset-0 z-[99999] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
@@ -211,6 +232,7 @@ export const UserEditModal: React.FC<Props> = ({
             </div>
           )}
 
+          {/* Row 1: Tên & Email */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Input
               label="Họ và tên cán bộ *"
@@ -221,13 +243,49 @@ export const UserEditModal: React.FC<Props> = ({
             />
 
             <Input
-              label="Số điện thoại liên hệ *"
+              label="Email liên hệ / thông báo"
+              type="email"
+              placeholder="VD: canbo@maur.gov.vn"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+          </div>
+
+          {/* Row 2: SĐT & Username */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Input
+              label="Số điện thoại liên hệ"
               placeholder="VD: 0901234567"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
-              required={role === 'SURVEYOR'}
+            />
+
+            <Input
+              label="Tên đăng nhập (Username) *"
+              placeholder="VD: surveyor_s1_01"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              disabled={!isCreate}
+              required
             />
           </div>
+
+          {/* Row 3: Mật khẩu khởi tạo khi tạo mới */}
+          {isCreate && (
+            <div>
+              <Input
+                label="Mật khẩu khởi tạo ban đầu *"
+                type="password"
+                placeholder="Tối thiểu 6 ký tự..."
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+              <p className="text-[11px] text-slate-500 mt-1">
+                Ghi chú: Cán bộ có thể đổi lại mật khẩu sau khi đăng nhập thành công.
+              </p>
+            </div>
+          )}
 
           {/* Surveyor ID Preview Badge */}
           {role === 'SURVEYOR' && (
@@ -237,44 +295,16 @@ export const UserEditModal: React.FC<Props> = ({
                   MÃ ĐỊNH DANH PHÁP LÝ (SURVEYOR ID):
                 </span>
                 <span className="text-[10px] text-sky-600">
-                  Tự động sinh theo quy chuẩn Metro 2: <code>P-XXXX</code> (4 số cuối SĐT)
+                  {existingSurveyorCode
+                    ? 'Mã pháp lý đã cấp cho cán bộ (Bảo toàn định danh):'
+                    : 'Hệ thống tự động sinh ngẫu nhiên mã độc bản: P-XXXX'}
                 </span>
               </div>
               <span className="px-2.5 py-1 bg-white border border-sky-300 rounded-lg font-mono font-black text-sm text-sky-700 shadow-xs">
-                {previewSurveyorCode || 'P-____'}
+                {existingSurveyorCode || 'P-XXXX (Auto)'}
               </span>
             </div>
           )}
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Input
-              label="Tên đăng nhập (Username) *"
-              placeholder="VD: surveyor_s1_01"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              disabled={!isCreate}
-              required
-            />
-
-            {isCreate ? (
-              <Input
-                label="Mật khẩu ban đầu *"
-                type="password"
-                placeholder="Tối thiểu 6 ký tự..."
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
-            ) : (
-              <Input
-                label="Email thông báo"
-                type="email"
-                placeholder="VD: canbo@maur.gov.vn"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
-            )}
-          </div>
 
           {/* Vai trò (Role) */}
           <div>
@@ -284,7 +314,7 @@ export const UserEditModal: React.FC<Props> = ({
             </label>
             <select
               value={role}
-              onChange={(e) => setRole(e.target.value as any)}
+              onChange={(e) => setRole(e.target.value as UserRole)}
               className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 shadow-sm"
             >
               <option value="SURVEYOR">Điều Tra Viên Hiện Trường (SURVEYOR)</option>
@@ -303,14 +333,14 @@ export const UserEditModal: React.FC<Props> = ({
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1.5 flex items-center gap-1.5">
                 <MapPin size={14} className="text-sky-600" />
-                <span>Ga / Phân khu Zone phụ trách {role === 'GUEST' ? '(hoặc Toàn tuyến)' : '*'}</span>
+                <span>Ga / Phân khu Zone phụ trách {(role === 'GUEST' || role === 'ZONE_ADMIN') ? '(hoặc Toàn tuyến)' : '*'}</span>
               </label>
               <select
-                value={assignedZoneId || (role === 'GUEST' ? 'ALL_ZONES' : 'ZONE_01')}
+                value={assignedZoneId || ((role === 'GUEST' || role === 'ZONE_ADMIN') ? 'ALL_ZONES' : 'ZONE_01')}
                 onChange={(e) => setAssignedZoneId(e.target.value)}
                 className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 shadow-sm"
               >
-                {role === 'GUEST' && (
+                {(role === 'GUEST' || role === 'ZONE_ADMIN') && (
                   <option value="ALL_ZONES">-- Toàn tuyến (Tất cả 22 Ga/Zone) --</option>
                 )}
                 <optgroup label="⭐ 5 Phân đoạn dữ liệu chuẩn">

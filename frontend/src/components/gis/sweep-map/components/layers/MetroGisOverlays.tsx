@@ -31,7 +31,7 @@ export const MetroGisOverlays: React.FC<MetroGisOverlaysProps> = ({
     <>
       {/* 1. MÉP HỐ ĐÀO TẢ TUYẾN & HỮU TUYẾN (File gốc CAD / KML) */}
       {showZonesZoi &&
-        METRO_CORRIDOR_BOUNDARIES.map((boundary: any, idx: number) => (
+        METRO_CORRIDOR_BOUNDARIES.map((boundary, idx) => (
           <Polyline
             key={`cad-boundary-${idx}`}
             positions={boundary.coords}
@@ -50,7 +50,7 @@ export const MetroGisOverlays: React.FC<MetroGisOverlaysProps> = ({
 
       {/* 2. CÁC HỘP GA METRO THỰC TẾ (11 Hộp ga CAD MAUR) */}
       {showZonesZoi &&
-        METRO_STATION_POLYGONS.map((poly: any, idx: number) => (
+        METRO_STATION_POLYGONS.map((poly, idx) => (
           <Polygon
             key={`station-box-${idx}`}
             positions={poly.coords}
@@ -73,7 +73,7 @@ export const MetroGisOverlays: React.FC<MetroGisOverlaysProps> = ({
 
       {/* 2b. CÁC ĐOẠN HẦM TBM NỐI LIỀN GA (ĐÃ HÀN GẮN & KHÉP KÍN 100% THÀNH TUYẾN LIỀN MẠCH) */}
       {showZonesZoi &&
-        METRO_TBM_POLYGONS.map((poly: any, idx: number) => {
+        METRO_TBM_POLYGONS.map((poly, idx) => {
           const tbmNames = [
             'Hầm TBM Bến Thành (ST01) ➔ Tao Đàn (ST02)',
             'Hầm TBM Tao Đàn (ST02) ➔ Dân Chủ (ST03)',
@@ -156,7 +156,7 @@ export const MetroGisOverlays: React.FC<MetroGisOverlaysProps> = ({
 
       {/* 4. CÁC TRẠM GA METRO (Markers) */}
       {showStationMarkers &&
-        METRO_STATIONS.map((st: any) => (
+        METRO_STATIONS.map((st) => (
           <CircleMarker
             key={`st-${st.code}`}
             center={st.pos}

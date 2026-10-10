@@ -1,3 +1,5 @@
+import type { PhotoReplaceParams } from '../../AuditPhotoReplaceModal';
+import type { PolygonPoint } from '../../../../../survey-phase1/types/phase1.types';
 import React, { useMemo } from 'react';
 import { Camera, Maximize2, MapPin, AlertCircle, Compass, ShieldAlert, Building, Navigation, ShieldCheck } from 'lucide-react';
 import { Badge } from '../../../../../../core/components/ui/Badge';
@@ -5,17 +7,48 @@ import { OBJECT_GROUPS, ADJACENT_LEFT_RIGHT, ADJACENT_REAR } from '../../../../.
 import { USAGE_OPTIONS } from '../../../../../survey-phase1/constants/surveyOptionsConstants';
 import { AuditMetroSpatialVisualMap } from '../components/AuditMetroSpatialVisualMap';
 
-interface Props {
-  isEditMode: boolean;
-  formState: Record<string, any>;
-  data: any;
-  handleFieldChange: (key: string, label: string, val: any) => void;
-  handleNestedFieldChange?: (parentKey: string, childKey: string, label: string, val: any) => void;
-  onOpenPhotoZoom: (url: string, title?: string, photoCode?: string) => void;
-  onOpenPhotoReplace: (params: any) => void;
+import type { AuditStepBaseProps, StepwiseIdentificationPhotoItem } from '../types';
+
+interface Props extends AuditStepBaseProps {}
+
+interface AdjacentSide {
+  details?: string;
+  note?: string;
 }
 
-const formatDistanceDisplay = (val: any): string => {
+interface AdjacentBuildings {
+  left?: AdjacentSide;
+  right?: AdjacentSide;
+  back?: AdjacentSide;
+  [key: string]: unknown;
+}
+
+interface IdentificationPhotoItemExtended extends StepwiseIdentificationPhotoItem {
+  notApplicable?: boolean;
+  naReason?: string;
+  tag?: string;
+}
+
+interface DynamicPhotoItem {
+  key: string;
+  code: string;
+  label: string;
+  url: string;
+  notApplicable?: boolean;
+  naReason?: string;
+  polygonPoints?: PolygonPoint[] | null;
+  floorSplits?: unknown;
+  tag?: string;
+  isExtra?: boolean;
+}
+
+const toPhotoObj = (raw: unknown): IdentificationPhotoItemExtended => {
+  if (typeof raw === 'string') return { url: raw };
+  if (raw && typeof raw === 'object') return raw as IdentificationPhotoItemExtended;
+  return {};
+};
+
+const formatDistanceDisplay = (val: unknown): string => {
   if (val === undefined || val === null || val === '') return '---';
   const str = String(val).trim();
   const num = parseFloat(str.replace(/[^\d.-]/g, ''));
@@ -23,7 +56,7 @@ const formatDistanceDisplay = (val: any): string => {
   return `${num.toFixed(1)} m`;
 };
 
-const getNumericValue = (val: any): string => {
+const getNumericValue = (val: unknown): string => {
   if (val === undefined || val === null || val === '') return '';
   const num = parseFloat(String(val).replace(/[^\d.-]/g, ''));
   return isNaN(num) ? '' : String(num);
@@ -43,29 +76,29 @@ export const AuditStep1Identification: React.FC<Props> = ({
   const identificationPhotos = rightPane.identificationPhotos || sJson.identificationPhotos || {};
 
   // Case Type
-  const caseType = formState.surveyCaseType || sJson.surveyCaseType || (data.isRefusedOrAbsent ? 'ABSENTEE' : 'NORMAL');
+  const caseType = formState.surveyCaseType || sJson.surveyCaseType || (data?.isRefusedOrAbsent ? 'ABSENTEE' : 'NORMAL');
 
   // P01: Biển số nhà
-  const p01Raw = identificationPhotos.photoP01 || sJson.photoP01 || {};
-  const p01Url = typeof p01Raw === 'string' ? p01Raw : (p01Raw.url || p01Raw.photoUrl || p01Raw.raw_photo_url || p01Raw.annotated_photo_url || '');
+  const p01Raw = toPhotoObj(identificationPhotos.photoP01 || sJson.photoP01);
+  const p01Url = p01Raw.url || p01Raw.photoUrl || p01Raw.raw_photo_url || p01Raw.annotated_photo_url || '';
 
   // P02: Mặt đứng chính diện
-  const p02Raw = identificationPhotos.photoP02 || sJson.photoP02 || {};
-  const p02Url = typeof p02Raw === 'string' ? p02Raw : (p02Raw.url || p02Raw.photoUrl || p02Raw.raw_photo_url || p02Raw.annotated_photo_url || '');
-  const p02PolygonPoints = p02Raw.polygonPoints || sJson.facadeBoundaryGeojson || rightPane.facadeBoundaryGeojson || null;
+  const p02Raw = toPhotoObj(identificationPhotos.photoP02 || sJson.photoP02);
+  const p02Url = p02Raw.url || p02Raw.photoUrl || p02Raw.raw_photo_url || p02Raw.annotated_photo_url || '';
+  const p02PolygonPoints = p02Raw.polygonPoints || (sJson.facadeBoundaryGeojson as PolygonPoint[] | null) || (rightPane.facadeBoundaryGeojson as PolygonPoint[] | null) || null;
   const p02FloorSplits = p02Raw.floorSplits || null;
 
   // P03: Mặt bên / Mặt sau (Ảnh chính + tối đa 2 ảnh bổ sung -> max 3 ảnh P-03)
-  const p03Raw = identificationPhotos.photoP03 || sJson.photoP03 || {};
-  const p03Url = typeof p03Raw === 'string' ? p03Raw : (p03Raw.url || p03Raw.photoUrl || p03Raw.raw_photo_url || p03Raw.annotated_photo_url || '');
+  const p03Raw = toPhotoObj(identificationPhotos.photoP03 || sJson.photoP03);
+  const p03Url = p03Raw.url || p03Raw.photoUrl || p03Raw.raw_photo_url || p03Raw.annotated_photo_url || '';
   const p03AdditionalPhotos = Array.isArray(p03Raw.additionalPhotos) ? p03Raw.additionalPhotos : [];
 
   // P04: Toàn cảnh tuyến phố
-  const p04Raw = identificationPhotos.photoP04 || sJson.photoP04 || {};
-  const p04Url = typeof p04Raw === 'string' ? p04Raw : (p04Raw.url || p04Raw.photoUrl || p04Raw.raw_photo_url || p04Raw.annotated_photo_url || '');
+  const p04Raw = toPhotoObj(identificationPhotos.photoP04 || sJson.photoP04);
+  const p04Url = p04Raw.url || p04Raw.photoUrl || p04Raw.raw_photo_url || p04Raw.annotated_photo_url || '';
 
   // Danh sách ảnh định danh ngoại quan linh hoạt (tối thiểu 4 ảnh, tối đa 6 ảnh)
-  const dynamicPhotoList = [
+  const dynamicPhotoList: DynamicPhotoItem[] = [
     {
       key: 'photoP01',
       code: 'P-01',
@@ -93,7 +126,7 @@ export const AuditStep1Identification: React.FC<Props> = ({
       notApplicable: Boolean(p03Raw.notApplicable),
       naReason: p03Raw.naReason,
     },
-    ...p03AdditionalPhotos.map((extra: any, idx: number) => {
+    ...p03AdditionalPhotos.map((extra: { url?: string; photoUrl?: string; raw_photo_url?: string; photoCode?: string; tag?: string; notApplicable?: boolean; naReason?: string }, idx: number): DynamicPhotoItem => {
       const extraUrl = typeof extra === 'string' ? extra : (extra.url || extra.photoUrl || extra.raw_photo_url || '');
       return {
         key: `photoP03_extra_${idx}`,
@@ -116,11 +149,17 @@ export const AuditStep1Identification: React.FC<Props> = ({
   ];
 
   // Các ảnh đặc thù theo loại hình khảo sát
-  const vacantLandPhotos = sJson.vacantLandPhotos || [];
-  const underConstructionPhotos = sJson.underConstructionPhotos || [];
+  const vacantLandPhotos = (sJson.vacantLandPhotos || []) as Array<string | { url?: string; photoUrl?: string; photoCode?: string; notes?: string }>;
+  const underConstructionPhotos = (sJson.underConstructionPhotos || []) as Array<string | { url?: string; photoUrl?: string; photoCode?: string; notes?: string }>;
 
   // Tọa độ GPS & Sai số
-  const gpsCoords = formState.gpsCoords || sJson.gpsCoords || formState.coordinates || data.coordinates || {};
+  const gpsCoords = (formState.gpsCoords || sJson.gpsCoords || formState.gpsLocation || {}) as {
+    latitude?: number;
+    lat?: number;
+    longitude?: number;
+    lng?: number;
+    accuracy?: number;
+  };
   const latDisplay = gpsCoords.latitude ?? gpsCoords.lat;
   const lngDisplay = gpsCoords.longitude ?? gpsCoords.lng;
   const accuracyDisplay = gpsCoords.accuracy;
@@ -130,11 +169,13 @@ export const AuditStep1Identification: React.FC<Props> = ({
     if (Array.isArray(formState.parcelCoordinates) && formState.parcelCoordinates.length >= 3) {
       return formState.parcelCoordinates;
     }
-    if (Array.isArray(sJson.parcelCoordinates) && sJson.parcelCoordinates.length >= 3) {
-      return sJson.parcelCoordinates;
+    const rawSJsonCoords = sJson.parcelCoordinates as [number, number][] | undefined;
+    if (Array.isArray(rawSJsonCoords) && rawSJsonCoords.length >= 3) {
+      return rawSJsonCoords;
     }
-    if (Array.isArray(data?.coordinates) && data.coordinates.length >= 3) {
-      return data.coordinates;
+    const rawCoords = data?.coordinates as [number, number][] | undefined;
+    if (Array.isArray(rawCoords) && rawCoords.length >= 3) {
+      return rawCoords;
     }
     if (Array.isArray(data?.parcelCoordinates) && data.parcelCoordinates.length >= 3) {
       return data.parcelCoordinates;
@@ -155,14 +196,14 @@ export const AuditStep1Identification: React.FC<Props> = ({
   }, [formState.parcelCoordinates, sJson.parcelCoordinates, data?.coordinates, data?.parcelCoordinates, data?.cadastralGeojson, data?.cadastral_geojson]);
 
   // Adjacent Buildings Data
-  const adjacent = formState.adjacentBuildings || sJson.adjacentBuildings || {
+  const adjacent: AdjacentBuildings = (formState.adjacentBuildings || sJson.adjacentBuildings || {
     left: { details: '', note: '' },
     right: { details: '', note: '' },
     back: { details: '', note: '' },
-  };
+  }) as AdjacentBuildings;
 
   const handleAdjacentChange = (side: 'left' | 'right' | 'back', field: 'details' | 'note', value: string) => {
-    const updated = {
+    const updated: AdjacentBuildings = {
       ...adjacent,
       [side]: {
         ...(adjacent[side] || {}),
@@ -232,7 +273,7 @@ export const AuditStep1Identification: React.FC<Props> = ({
             )
           )}
           <Badge variant="default" size="sm">
-            Mã Thửa: {formState.projectParcelCode || data.projectParcelCode}
+            Mã Thửa: {formState.projectParcelCode || data?.projectParcelCode}
           </Badge>
         </div>
       </div>
@@ -279,7 +320,7 @@ export const AuditStep1Identification: React.FC<Props> = ({
                             preserveAspectRatio="none"
                           >
                             <polygon
-                              points={item.polygonPoints.map((p: any) => `${(p.x ?? 0) * 100},${(p.y ?? 0) * 100}`).join(' ')}
+                              points={item.polygonPoints?.map((p: PolygonPoint) => `${(p.x ?? 0) * 100},${(p.y ?? 0) * 100}`).join(' ')}
                               fill="rgba(16, 185, 129, 0.25)"
                               stroke="#10b981"
                               strokeWidth="2"
@@ -359,15 +400,18 @@ export const AuditStep1Identification: React.FC<Props> = ({
             )}
             {vacantLandPhotos.length > 0 && (
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                {vacantLandPhotos.map((vUrl: string, idx: number) => (
-                  <div
-                    key={idx}
-                    onClick={() => onOpenPhotoZoom(vUrl, `Ảnh đất trống ${idx + 1}`)}
-                    className="rounded-lg overflow-hidden border border-amber-200 aspect-4/3 cursor-pointer hover:shadow-md transition-shadow"
-                  >
-                    <img src={vUrl} alt={`Đất trống ${idx + 1}`} className="w-full h-full object-cover" />
-                  </div>
-                ))}
+                {vacantLandPhotos.map((vItem, idx: number) => {
+                  const vUrl = typeof vItem === 'string' ? vItem : (vItem?.url || vItem?.photoUrl || '');
+                  return (
+                    <div
+                      key={idx}
+                      onClick={() => onOpenPhotoZoom(vUrl, `Ảnh đất trống ${idx + 1}`)}
+                      className="rounded-lg overflow-hidden border border-amber-200 aspect-4/3 cursor-pointer hover:shadow-md transition-shadow"
+                    >
+                      <img src={vUrl} alt={`Đất trống ${idx + 1}`} className="w-full h-full object-cover" />
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -396,15 +440,18 @@ export const AuditStep1Identification: React.FC<Props> = ({
             )}
             {underConstructionPhotos.length > 0 && (
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                {underConstructionPhotos.map((uUrl: string, idx: number) => (
-                  <div
-                    key={idx}
-                    onClick={() => onOpenPhotoZoom(uUrl, `Ảnh xây dựng dở dang ${idx + 1}`)}
-                    className="rounded-lg overflow-hidden border border-blue-200 aspect-4/3 cursor-pointer hover:shadow-md transition-shadow"
-                  >
-                    <img src={uUrl} alt={`Xây dựng dở dang ${idx + 1}`} className="w-full h-full object-cover" />
-                  </div>
-                ))}
+                {underConstructionPhotos.map((uItem, idx: number) => {
+                  const uUrl = typeof uItem === 'string' ? uItem : (uItem?.url || uItem?.photoUrl || '');
+                  return (
+                    <div
+                      key={idx}
+                      onClick={() => onOpenPhotoZoom(uUrl, `Ảnh xây dựng dở dang ${idx + 1}`)}
+                      className="rounded-lg overflow-hidden border border-blue-200 aspect-4/3 cursor-pointer hover:shadow-md transition-shadow"
+                    >
+                      <img src={uUrl} alt={`Xây dựng dở dang ${idx + 1}`} className="w-full h-full object-cover" />
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -559,7 +606,7 @@ export const AuditStep1Identification: React.FC<Props> = ({
                 />
               ) : (
                 <div className="p-1.5 bg-white rounded-lg border border-slate-200 font-semibold text-slate-800">
-                  {formState.ward || sJson.ward || data.ward || 'Phường 5'}
+                  {formState.ward || sJson.ward || data?.ward || 'Phường 5'}
                 </div>
               )}
             </div>
@@ -579,7 +626,7 @@ export const AuditStep1Identification: React.FC<Props> = ({
                 />
               ) : (
                 <div className="p-1.5 bg-white rounded-lg border border-slate-200 font-semibold text-slate-800">
-                  {formState.district || sJson.district || data.district || 'Quận Tân Bình'}
+                  {formState.district || sJson.district || data?.district || 'Quận Tân Bình'}
                 </div>
               )}
             </div>
@@ -652,7 +699,7 @@ export const AuditStep1Identification: React.FC<Props> = ({
                   onChange={(e) => handleFieldChange('objectGroup', 'Nhóm công trình', e.target.value)}
                   className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg font-bold"
                 >
-                  {OBJECT_GROUPS.map((og: any) => (
+                  {OBJECT_GROUPS.map((og: { value: string; label: string; desc?: string }) => (
                     <option key={og.value} value={og.value}>
                       {og.label}
                     </option>
@@ -661,7 +708,7 @@ export const AuditStep1Identification: React.FC<Props> = ({
               ) : (
                 <div className="p-1.5 bg-white rounded-lg border border-slate-200">
                   <Badge variant={formState.objectGroup === 'CRITICAL' ? 'danger' : formState.objectGroup === 'IMPORTANT' ? 'warning' : 'success'}>
-                    {OBJECT_GROUPS.find((g: any) => g.value === formState.objectGroup)?.label || 'Nhà dân thông thường'}
+                    {OBJECT_GROUPS.find((g: { value: string; label: string; desc?: string }) => g.value === formState.objectGroup)?.label || 'Nhà dân thông thường'}
                   </Badge>
                 </div>
               )}
@@ -678,7 +725,7 @@ export const AuditStep1Identification: React.FC<Props> = ({
                   onChange={(e) => handleFieldChange('usageFunction', 'Công năng sử dụng', e.target.value)}
                   className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg font-bold"
                 >
-                  {USAGE_OPTIONS.map((u: any) => (
+                  {USAGE_OPTIONS.map((u: string) => (
                     <option key={u} value={u}>
                       {u}
                     </option>
@@ -982,7 +1029,7 @@ export const AuditStep1Identification: React.FC<Props> = ({
               <div className="p-3 bg-sky-100 rounded-lg border-2 border-sky-400 flex flex-col items-center justify-center shadow-xs">
                 <span className="text-[10px] font-black text-sky-800 uppercase">Thửa Đang Khảo Sát</span>
                 <span className="font-black text-sky-950 font-mono">
-                  [{formState.projectParcelCode || data.projectParcelCode || 'THỬA HIỆN TẠI'}]
+                  [{formState.projectParcelCode || data?.projectParcelCode || 'THỬA HIỆN TẠI'}]
                 </span>
                 <span className="text-[11px] font-bold text-sky-900 mt-0.5">
                   {formState.houseNumber} {formState.street}

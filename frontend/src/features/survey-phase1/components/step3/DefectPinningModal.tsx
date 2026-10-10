@@ -1,7 +1,12 @@
 import React from 'react';
 import { Button } from '../../../../core/components/ui/Button';
-import { DefectPinningCanvas, DefectItem } from '../../../../components/canvas/DefectPinningCanvas';
+import {
+  DefectPinningCanvas,
+  type DefectItem,
+} from '../../../../components/canvas/DefectPinningCanvas';
 import { X } from 'lucide-react';
+
+import type { MetroWatermarkOptions } from '../../../../utils/watermarkEngine';
 
 interface DefectPinningModalProps {
   isOpen: boolean;
@@ -15,6 +20,7 @@ interface DefectPinningModalProps {
   onChange: (defects: DefectItem[]) => void;
   onClose: () => void;
   readOnly?: boolean;
+  watermarkOptions?: Partial<MetroWatermarkOptions>;
 }
 
 import { usePhase1SurveyStore } from '../../store/usePhase1SurveyStore';
@@ -31,6 +37,7 @@ export const DefectPinningModal: React.FC<DefectPinningModalProps> = ({
   onChange,
   onClose,
   readOnly,
+  watermarkOptions,
 }) => {
   const isStoreReadOnly = usePhase1SurveyStore((s) => s.isReadOnly);
   const effectiveReadOnly = readOnly !== undefined ? readOnly : isStoreReadOnly;
@@ -76,6 +83,7 @@ export const DefectPinningModal: React.FC<DefectPinningModalProps> = ({
             zoneOrElementCode={code}
             onChange={onChange}
             readOnly={effectiveReadOnly}
+            watermarkOptions={watermarkOptions}
           />
         </div>
 

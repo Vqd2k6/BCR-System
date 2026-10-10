@@ -8,18 +8,21 @@ import {
   Users,
   UserCheck,
 } from 'lucide-react';
-import { MetroZoneCentroid } from '../../../../core/utils/metroZoneUtils';
+import type { MetroZoneCentroid } from '../../../../core/utils/metroZoneUtils';
+
+import type { User as DomainUser } from '../../../../core/types/domain.types';
+import type { CheckInDetails, CompanionRecord } from '../types';
 
 interface TodayCheckInSummaryProps {
-  checkInDetails: any;
+  checkInDetails: CheckInDetails | null;
   distanceMeters: number;
   targetZone: MetroZoneCentroid;
   gpsCoordinates: { lat: number; lng: number; accuracy: number } | null;
   selfieUrl: string;
-  user: any;
+  user: DomainUser | null;
   outOfBoundsReason: string;
   isCompanionCheckedIn: boolean;
-  companionData: any;
+  companionData: CompanionRecord | null;
   setShowCompanionModal: (show: boolean) => void;
 }
 

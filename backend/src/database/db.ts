@@ -73,7 +73,18 @@ export class Database {
    * Từng khối lệnh được cô lập trong try/catch độc lập để lỗi ở một bảng không làm gián đoạn bảng khác.
    */
   static async runStartupMigrations(): Promise<void> {
-    // 0. PostgreSQL unaccent extension (Hỗ trợ tìm kiếm tiếng Việt không dấu)
+    // Sử dụng PostgreSQL Advisory Lock để loại trừ hoàn toàn Deadlock (40P01) khi khởi động đa tiến trình hoặc nodemon reload
+    const advisoryLockId = 987654321;
+    let lockAcquired = false;
+    try {
+      const lockRes = await this.query<{ locked: boolean }>(`SELECT pg_try_advisory_lock($1) AS locked;`, [advisoryLockId]);
+      lockAcquired = Boolean(lockRes.rows[0]?.locked);
+      if (!lockAcquired) {
+        console.log('ℹ️ [STARTUP MIGRATION] Tiến trình khác đang thực hiện migration, bỏ qua để tránh deadlock.');
+        return;
+      }
+
+      // 0. PostgreSQL unaccent extension (Hỗ trợ tìm kiếm tiếng Việt không dấu)
     try {
       await this.query(`CREATE EXTENSION IF NOT EXISTS unaccent;`);
       console.log('✅ [STARTUP MIGRATION] PostgreSQL unaccent extension ready.');
@@ -201,7 +212,8 @@ export class Database {
           ADD COLUMN IF NOT EXISTS building_type VARCHAR(32) NOT NULL DEFAULT 'STANDALONE',
           ADD COLUMN IF NOT EXISTS total_units INT NOT NULL DEFAULT 1,
           ADD COLUMN IF NOT EXISTS code_slug VARCHAR(32),
-          ADD COLUMN IF NOT EXISTS absence_attempt_count INT NOT NULL DEFAULT 0;
+          ADD COLUMN IF NOT EXISTS absence_attempt_count INT NOT NULL DEFAULT 0,
+          ADD COLUMN IF NOT EXISTS deleted_floors INT[] DEFAULT '{}';
 
         CREATE INDEX IF NOT EXISTS idx_parcels_assigned_surveyor ON parcels(assigned_surveyor_id);
         CREATE INDEX IF NOT EXISTS idx_parcels_building_type ON parcels(building_type);
@@ -241,8 +253,45 @@ export class Database {
         CREATE INDEX IF NOT EXISTS idx_reports_unit ON base_survey_reports(unit_id);
         CREATE INDEX IF NOT EXISTS idx_reports_parent ON base_survey_reports(parent_report_id);
         CREATE INDEX IF NOT EXISTS idx_reports_type ON base_survey_reports(report_type);
+
+        -- 10.1 building_floor_plans & unit cad partition
+        CREATE TABLE IF NOT EXISTS building_floor_plans (
+            id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+            parcel_id UUID NOT NULL REFERENCES parcels(id) ON DELETE CASCADE,
+            floor_number INT NOT NULL,
+            floor_name VARCHAR(64) NOT NULL,
+            applicable_floors INT[] DEFAULT '{}',
+            cad_photo_url TEXT NOT NULL,
+            cad_photo_code VARCHAR(32),
+            image_width INT,
+            image_height INT,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            CONSTRAINT uq_parcel_floor_number UNIQUE (parcel_id, floor_number)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_floor_plans_parcel ON building_floor_plans(parcel_id);
+
+        ALTER TABLE building_floor_plans
+          ADD COLUMN IF NOT EXISTS scope VARCHAR(32) DEFAULT 'UNIT',
+          ADD COLUMN IF NOT EXISTS area_type VARCHAR(64) DEFAULT 'TYPICAL_UNIT',
+          ADD COLUMN IF NOT EXISTS floor_code VARCHAR(32);
+
+        CREATE INDEX IF NOT EXISTS idx_floor_plans_scope ON building_floor_plans(parcel_id, scope);
+        CREATE INDEX IF NOT EXISTS idx_floor_plans_floor_code ON building_floor_plans(parcel_id, floor_code);
+
+        ALTER TABLE building_units
+          ADD COLUMN IF NOT EXISTS floor_plan_id UUID REFERENCES building_floor_plans(id) ON DELETE SET NULL,
+          ADD COLUMN IF NOT EXISTS cad_bbox JSONB,
+          ADD COLUMN IF NOT EXISTS cad_polygon JSONB,
+          ADD COLUMN IF NOT EXISTS unit_cad_url TEXT,
+          ADD COLUMN IF NOT EXISTS resident_status VARCHAR(32) DEFAULT 'CHỦ_HỘ_Ở',
+          ADD COLUMN IF NOT EXISTS unit_type VARCHAR(32) DEFAULT 'UNIT';
+
+        CREATE INDEX IF NOT EXISTS idx_building_units_floor_plan ON building_units(floor_plan_id);
+        CREATE INDEX IF NOT EXISTS idx_building_units_unit_type ON building_units(unit_type);
       `);
-      console.log('✅ [STARTUP MIGRATION] building_units & report hierarchy ready.');
+      console.log('✅ [STARTUP MIGRATION] building_units (unit_type), floor_plans (scope/area_type) & report hierarchy ready.');
     } catch (e) {
       console.warn('⚠️ [STARTUP MIGRATION] building_units warning:', e);
     }
@@ -255,6 +304,15 @@ export class Database {
       console.log('✅ [STARTUP MIGRATION] role_enum GUEST ready.');
     } catch (e) {
       console.warn('⚠️ [STARTUP MIGRATION] role_enum GUEST warning:', e);
+    }
+    } finally {
+      if (lockAcquired) {
+        try {
+          await this.query(`SELECT pg_advisory_unlock($1);`, [advisoryLockId]);
+        } catch (unlockErr) {
+          console.warn('⚠️ [STARTUP MIGRATION] Không thể giải phóng advisory lock:', unlockErr);
+        }
+      }
     }
   }
 }

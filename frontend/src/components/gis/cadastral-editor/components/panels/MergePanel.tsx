@@ -12,7 +12,7 @@ import {
   Home,
   Trees,
 } from 'lucide-react';
-import { GisParcel, CadastralParcelData, MutationPayloadData } from '../../../shared/types';
+import type { GisParcel, CadastralParcelData, MutationPayloadData, MaxZoneCodeInfo } from '../../../shared/types';
 import { MapBoundsController, MapClickListener, HelpBadge } from '../../../shared/MapControllers';
 import { createHandleIcon } from '../../../shared/geoMath';
 import { COMMON_MERGE_REASONS } from '../../../shared/constants';
@@ -56,11 +56,11 @@ interface MergePanelProps {
   handleSaveMutationProposal: () => void;
   isSubmittingMutation: boolean;
   dynamicCodes?: string[];
-  maxZoneInfo?: any;
+  maxZoneInfo?: MaxZoneCodeInfo | null;
   mergePartitionKind?: 'NON_BUILDING' | 'NEW_BUILDING';
   mergeSecondaryOfficialCode?: string;
   handleSetMergePartitionKind?: (kind: 'NON_BUILDING' | 'NEW_BUILDING') => void;
-  handleUpdateMergeSecondaryField?: (field: string, value: any) => void;
+  handleUpdateMergeSecondaryField?: <K extends keyof MutationPayloadData>(field: K, value: MutationPayloadData[K]) => void;
 }
 
 export const MergePanel: React.FC<MergePanelProps> = ({
@@ -361,14 +361,14 @@ export const MergePanel: React.FC<MergePanelProps> = ({
                   <div style={{ textAlign: 'center', fontSize: '0.7rem', fontWeight: 800 }}>
                     {isSelectedMerge ? (
                       <span style={{ color: '#047857' }}>
-                        ✓ ĐÃ GỘP: <strong>{neighbor.projectParcelCode}</strong> ({neighbor.landArea || (neighbor as any).land_area_m2 || 75} m²)<br />
+                        ✓ ĐÃ GỘP: <strong>{neighbor.projectParcelCode}</strong> ({neighbor.landArea || neighbor.land_area_m2 || 75} m²)<br />
                         <span style={{ fontSize: '0.625rem', fontWeight: 600, color: '#065f46' }}>(Bấm để hủy gộp)</span>
                       </span>
                     ) : (
                       <span style={{ color: '#0369a1' }}>
                         {neighbor.projectParcelCode}<br />
                         <span style={{ fontSize: '0.625rem', fontWeight: 500, color: '#475569' }}>
-                          Số {neighbor.houseNumber} {neighbor.street} {typeof (neighbor as any).distanceMeters === 'number' ? `• ${(neighbor as any).distanceMeters}m` : ''}
+                          Số {neighbor.houseNumber} {neighbor.street} {typeof (neighbor.distanceMeters ?? neighbor.distance_meters) === 'number' ? `• ${neighbor.distanceMeters ?? neighbor.distance_meters}m` : ''}
                         </span>
                         <br />
                         <span style={{ fontSize: '0.625rem', color: '#2563eb', fontWeight: 700 }}>(👉 Bấm để gộp)</span>
@@ -514,7 +514,7 @@ export const MergePanel: React.FC<MergePanelProps> = ({
           {/* 2. Các thửa được chọn gộp thêm */}
           {selectedMergeCodes.map((code) => {
             const p = currentZoneMergeParcels.find((x) => x.projectParcelCode === code);
-            const area = Number(p?.landArea || (p as any)?.land_area_m2) || 75;
+            const area = Number(p?.landArea || p?.land_area_m2) || 75;
             const isPrimary = mergeSummary.keptCode === code;
             const isSurveyed = isSurveyedParcel ? isSurveyedParcel(code) : false;
 

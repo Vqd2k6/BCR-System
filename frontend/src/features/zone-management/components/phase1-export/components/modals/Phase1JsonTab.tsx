@@ -1,8 +1,8 @@
 import React from 'react';
-import { ExportParcelItem } from '../../types';
+import type { ExportParcelItem } from '../../types';
 
 interface Phase1JsonTabProps {
-  previewReportData: any;
+  previewReportData: unknown;
   previewParcel: ExportParcelItem;
 }
 

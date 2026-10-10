@@ -1,7 +1,7 @@
 import React from 'react';
 import { MapContainer, TileLayer, Polygon, Tooltip, ZoomControl } from 'react-leaflet';
 import { CheckCircle, ShieldCheck, CheckCircle2, Check } from 'lucide-react';
-import { CadastralParcelData, MutationPayloadData } from '../../../shared/types';
+import type { CadastralParcelData, MutationPayloadData } from '../../../shared/types';
 import { MapBoundsController, HelpBadge } from '../../../shared/MapControllers';
 
 interface MatchPanelProps {

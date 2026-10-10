@@ -22,6 +22,8 @@ export interface ParcelEntity {
   lifecycle_status: 'ACTIVE' | 'PENDING_MUTATION_APPROVAL' | 'SPLIT_DEPRECATED' | 'MERGED_DEPRECATED' | 'MUTATION_VOID';
   building_type?: string;
   total_units?: number;
+  deleted_floors?: number[];
+  active_phase1_report_id?: string | null;
   mutation_type: string;
   parent_parcel_ids: string[];
   child_parcel_ids: string[];
@@ -48,6 +50,29 @@ export interface BuildingUnitEntity {
   status: string;
   phase1_report_id: string | null;
   phase2_report_id: string | null;
+  floor_plan_id?: string | null;
+  cad_bbox?: { x: number; y: number; width: number; height: number } | null;
+  cad_polygon?: { x: number; y: number }[] | null;
+  unit_cad_url?: string | null;
+  resident_status?: string | null;
+  unit_type?: 'UNIT' | 'MASTER' | null;
+  created_at: Date;
+  updated_at: Date;
+}
+
+export interface BuildingFloorPlanEntity {
+  id: string;
+  parcel_id: string;
+  floor_number: number;
+  floor_name: string;
+  floor_code?: string | null;
+  applicable_floors: number[];
+  cad_photo_url: string;
+  cad_photo_code: string | null;
+  image_width: number | null;
+  image_height: number | null;
+  scope?: 'MASTER' | 'UNIT' | 'BOTH';
+  area_type?: string | null;
   created_at: Date;
   updated_at: Date;
 }
@@ -455,10 +480,11 @@ export class CadastralRepository {
     ownerName?: string;
     ownerPhone?: string;
     ownerIdCard?: string;
+    unitType?: 'UNIT' | 'MASTER';
   }): Promise<BuildingUnitEntity> {
     const res = await Database.query<BuildingUnitEntity>(
-      `INSERT INTO building_units (parcel_id, unit_code, floor_number, owner_name, owner_phone, owner_id_card)
-       VALUES ($1, $2, $3, $4, $5, $6)
+      `INSERT INTO building_units (parcel_id, unit_code, floor_number, owner_name, owner_phone, owner_id_card, unit_type)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING *;`,
       [
         data.parcelId,
@@ -467,6 +493,7 @@ export class CadastralRepository {
         data.ownerName || null,
         data.ownerPhone || null,
         data.ownerIdCard || null,
+        data.unitType || 'UNIT',
       ]
     );
     // Cập nhật total_units và building_type trong parcels
@@ -496,6 +523,296 @@ export class CadastralRepository {
       [parcelId, buildingType, totalUnits !== undefined ? totalUnits : null]
     );
     return res.rows[0] || null;
+  }
+
+  static async countReportsByParcelId(parcelId: string): Promise<number> {
+    const res = await Database.query<{ count: string }>(
+      `SELECT COUNT(*) as count FROM base_survey_reports WHERE parcel_id = $1;`,
+      [parcelId]
+    );
+    return parseInt(res.rows[0]?.count || '0', 10);
+  }
+
+  static async countUnitReportsByParcelId(parcelId: string): Promise<number> {
+    const res = await Database.query<{ count: string }>(
+      `SELECT COUNT(*) as count 
+       FROM base_survey_reports r
+       JOIN building_units u ON r.unit_id = u.id
+       WHERE u.parcel_id = $1;`,
+      [parcelId]
+    );
+    return parseInt(res.rows[0]?.count || '0', 10);
+  }
+
+  static async findFloorPlansByParcelId(parcelId: string): Promise<BuildingFloorPlanEntity[]> {
+    const res = await Database.query<BuildingFloorPlanEntity>(
+      `SELECT * FROM building_floor_plans WHERE parcel_id = $1 ORDER BY floor_number ASC;`,
+      [parcelId]
+    );
+    return res.rows;
+  }
+
+  static async findFloorPlanByFloor(parcelId: string, floorNumber: number): Promise<BuildingFloorPlanEntity | null> {
+    const res = await Database.query<BuildingFloorPlanEntity>(
+      `SELECT * FROM building_floor_plans 
+       WHERE parcel_id = $1 AND (floor_number = $2 OR $2 = ANY(applicable_floors))
+       LIMIT 1;`,
+      [parcelId, floorNumber]
+    );
+    return res.rows[0] || null;
+  }
+
+  static async upsertFloorPlan(data: {
+    parcelId: string;
+    floorNumber: number;
+    floorName: string;
+    floorCode?: string;
+    applicableFloors?: number[];
+    cadPhotoUrl: string;
+    cadPhotoCode?: string;
+    imageWidth?: number;
+    imageHeight?: number;
+    scope?: 'MASTER' | 'UNIT' | 'BOTH';
+    areaType?: string;
+  }): Promise<BuildingFloorPlanEntity> {
+    const applicable = data.applicableFloors && data.applicableFloors.length > 0 
+      ? data.applicableFloors 
+      : [data.floorNumber];
+
+    // Xác định floorCode chuẩn nếu client chưa truyền
+    let floorCode = (data.floorCode || '').trim();
+    if (!floorCode) {
+      if (data.floorNumber < 0) {
+        floorCode = `B${String(Math.abs(data.floorNumber)).padStart(2, '0')}`;
+      } else if (data.floorNumber === 0) {
+        floorCode = 'G';
+      } else {
+        const lower = data.floorName.toLowerCase();
+        if (lower.includes('lửng') || lower.includes('mezzanine')) floorCode = 'MEZZ';
+        else if (lower.includes('bán hầm')) floorCode = 'SB';
+        else if (lower.includes('kỹ thuật')) floorCode = 'TECH';
+        else if (lower.includes('lánh nạn')) floorCode = 'REF';
+        else if (lower.includes('tum')) floorCode = 'TUM';
+        else if (lower.includes('mái') || lower.includes('roof')) floorCode = 'ROOF';
+        else if (lower.includes('sân thượng')) floorCode = 'TERRACE';
+        else floorCode = `F${String(data.floorNumber).padStart(2, '0')}`;
+      }
+    }
+
+    // Tự động nhận diện thông minh scope & areaType nếu chưa truyền
+    let scope = data.scope;
+    let areaType = data.areaType;
+    if (!scope) {
+      const lowerName = data.floorName.toLowerCase();
+      if (data.floorNumber < 0) {
+        scope = 'MASTER';
+        areaType = areaType || 'BASEMENT';
+      } else if (lowerName.includes('mái') || lowerName.includes('thượng') || lowerName.includes('rooftop')) {
+        scope = 'MASTER';
+        areaType = areaType || 'ROOFTOP';
+      } else if (lowerName.includes('kỹ thuật') || lowerName.includes('lánh nạn')) {
+        scope = 'MASTER';
+        areaType = areaType || 'TECHNICAL_REFUGE';
+      } else if (lowerName.includes('trệt') || lowerName.includes('sảnh') || lowerName.includes('lobby')) {
+        scope = 'BOTH';
+        areaType = areaType || 'GROUND_LOBBY';
+      } else {
+        scope = 'UNIT';
+        areaType = areaType || 'TYPICAL_UNIT';
+      }
+    }
+
+    const res = await Database.query<BuildingFloorPlanEntity>(
+      `INSERT INTO building_floor_plans (
+        parcel_id, floor_number, floor_name, floor_code, applicable_floors, cad_photo_url, cad_photo_code, image_width, image_height, scope, area_type, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())
+      ON CONFLICT (parcel_id, floor_number) DO UPDATE SET
+        floor_name = EXCLUDED.floor_name,
+        floor_code = COALESCE(EXCLUDED.floor_code, building_floor_plans.floor_code),
+        applicable_floors = EXCLUDED.applicable_floors,
+        cad_photo_url = EXCLUDED.cad_photo_url,
+        cad_photo_code = EXCLUDED.cad_photo_code,
+        image_width = EXCLUDED.image_width,
+        image_height = EXCLUDED.image_height,
+        scope = COALESCE(EXCLUDED.scope, building_floor_plans.scope),
+        area_type = COALESCE(EXCLUDED.area_type, building_floor_plans.area_type),
+        updated_at = NOW()
+      RETURNING *;`,
+      [
+        data.parcelId,
+        data.floorNumber,
+        data.floorName,
+        floorCode,
+        applicable,
+        data.cadPhotoUrl,
+        data.cadPhotoCode || null,
+        data.imageWidth || null,
+        data.imageHeight || null,
+        scope,
+        areaType || null,
+      ]
+    );
+    return res.rows[0];
+  }
+
+  static async saveUnitPartitions(
+    parcelId: string,
+    floorNumber: number,
+    floorPlanId: string | null,
+    partitions: { unitCode: string; floorNumber?: number; bbox?: any; polygon?: any; unitCadUrl?: string; unitType?: 'UNIT' | 'MASTER' }[]
+  ): Promise<BuildingUnitEntity[]> {
+    const savedUnits: BuildingUnitEntity[] = [];
+
+    for (const part of partitions) {
+      const uFloor = part.floorNumber !== undefined ? part.floorNumber : floorNumber;
+      const uType = part.unitType || 'UNIT';
+      const res = await Database.query<BuildingUnitEntity>(
+        `INSERT INTO building_units (
+          parcel_id, unit_code, floor_number, floor_plan_id, cad_bbox, cad_polygon, unit_cad_url, unit_type, updated_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())
+        ON CONFLICT (parcel_id, unit_code) DO UPDATE SET
+          floor_number = EXCLUDED.floor_number,
+          floor_plan_id = COALESCE(EXCLUDED.floor_plan_id, building_units.floor_plan_id),
+          cad_bbox = COALESCE(EXCLUDED.cad_bbox, building_units.cad_bbox),
+          cad_polygon = COALESCE(EXCLUDED.cad_polygon, building_units.cad_polygon),
+          unit_cad_url = COALESCE(EXCLUDED.unit_cad_url, building_units.unit_cad_url),
+          unit_type = COALESCE(EXCLUDED.unit_type, building_units.unit_type, 'UNIT'),
+          updated_at = NOW()
+        RETURNING *;`,
+        [
+          parcelId,
+          part.unitCode,
+          uFloor,
+          floorPlanId,
+          part.bbox ? JSON.stringify(part.bbox) : null,
+          part.polygon ? JSON.stringify(part.polygon) : null,
+          part.unitCadUrl || null,
+          uType,
+        ]
+      );
+      if (res.rows[0]) {
+        savedUnits.push(res.rows[0]);
+      }
+    }
+
+    // Tự động tính toán và cập nhật scope của floor plan nếu có floorPlanId
+    if (floorPlanId && partitions.length > 0) {
+      const hasUnit = partitions.some(p => (p.unitType || 'UNIT') === 'UNIT');
+      const hasMaster = partitions.some(p => p.unitType === 'MASTER');
+      const scope: 'UNIT' | 'MASTER' | 'BOTH' = (hasUnit && hasMaster) ? 'BOTH' : (hasMaster ? 'MASTER' : 'UNIT');
+      await Database.query(
+        `UPDATE building_floor_plans SET scope = $2, updated_at = NOW() WHERE id = $1;`,
+        [floorPlanId, scope]
+      );
+    }
+
+    // Cập nhật total_units và building_type = 'CONDOMINIUM'
+    await Database.query(
+      `UPDATE parcels 
+       SET total_units = (SELECT COUNT(*) FROM building_units WHERE parcel_id = $1),
+           building_type = 'CONDOMINIUM',
+           deleted_floors = array_remove(COALESCE(deleted_floors, '{}'), $2::int),
+           updated_at = NOW()
+       WHERE id = $1;`,
+      [parcelId, floorNumber]
+    );
+
+    return savedUnits;
+  }
+
+  static async getSurveyedUnitsOnFloor(
+    parcelId: string, 
+    floorNumber: number
+  ): Promise<{ unit_code: string; status: string }[]> {
+    const res = await Database.query<{ unit_code: string; status: string }>(
+      `SELECT unit_code, status 
+       FROM building_units 
+       WHERE parcel_id = $1 AND floor_number = $2 
+         AND (phase1_report_id IS NOT NULL OR status NOT IN ('NOT_SURVEYED'));`,
+      [parcelId, floorNumber]
+    );
+    return res.rows;
+  }
+
+  static async restoreFloor(parcelId: string, floorNumber: number): Promise<boolean> {
+    await Database.query(
+      `UPDATE parcels 
+       SET deleted_floors = array_remove(COALESCE(deleted_floors, '{}'), $2::int),
+           updated_at = NOW()
+       WHERE id = $1;`,
+      [parcelId, floorNumber]
+    );
+    return true;
+  }
+
+  static async deleteFloorPlan(
+    parcelId: string, 
+    floorNumber: number,
+    mode: 'CLEAR_CAD' | 'DELETE_FLOOR' = 'DELETE_FLOOR',
+    surveyedCount = 0
+  ): Promise<{ message: string; floorNumber: number; mode: string; surveyedCount: number }> {
+    // 1. Xóa các unit nháp của tầng này chưa khảo sát
+    await Database.query(
+      `DELETE FROM building_units 
+       WHERE parcel_id = $1 AND floor_number = $2 AND phase1_report_id IS NULL AND (status = 'NOT_SURVEYED' OR status IS NULL);`,
+      [parcelId, floorNumber]
+    );
+
+    // 2. Gỡ liên kết CAD đối với các unit đã có báo cáo khảo sát
+    await Database.query(
+      `UPDATE building_units 
+       SET floor_plan_id = NULL, cad_bbox = NULL, cad_polygon = NULL, unit_cad_url = NULL 
+       WHERE parcel_id = $1 AND floor_number = $2;`,
+      [parcelId, floorNumber]
+    );
+
+    // 3. Xóa bản ghi bản vẽ tầng trong building_floor_plans nếu có
+    await Database.query(
+      `DELETE FROM building_floor_plans WHERE parcel_id = $1 AND floor_number = $2;`,
+      [parcelId, floorNumber]
+    );
+
+    // 4. Gỡ số tầng khỏi danh sách áp dụng (applicable_floors) của bất kỳ bản vẽ tầng nào khác
+    await Database.query(
+      `UPDATE building_floor_plans 
+       SET applicable_floors = array_remove(applicable_floors, $2::int),
+           updated_at = NOW()
+       WHERE parcel_id = $1 AND $2::int = ANY(applicable_floors);`,
+      [parcelId, floorNumber]
+    );
+
+    // 5. Nếu là DELETE_FLOOR (và đã qua bước chặn surveyedCount === 0), đưa tầng vào parcels.deleted_floors
+    if (mode === 'DELETE_FLOOR') {
+      await Database.query(
+        `UPDATE parcels 
+         SET deleted_floors = array_append(COALESCE(deleted_floors, '{}'), $2::int),
+             total_units = (SELECT COUNT(*) FROM building_units WHERE parcel_id = $1),
+             updated_at = NOW()
+         WHERE id = $1 AND NOT ($2::int = ANY(COALESCE(deleted_floors, '{}')));`,
+        [parcelId, floorNumber]
+      );
+    } else {
+      await Database.query(
+        `UPDATE parcels 
+         SET total_units = (SELECT COUNT(*) FROM building_units WHERE parcel_id = $1),
+             updated_at = NOW()
+         WHERE id = $1;`,
+        [parcelId]
+      );
+    }
+
+    const message = mode === 'DELETE_FLOOR'
+      ? `Đã xóa thành công Tầng ${floorNumber} khỏi tòa nhà.`
+      : surveyedCount > 0
+      ? `Đã xóa bản vẽ CAD và giải phóng phân chia của Tầng ${floorNumber}. Dữ liệu ${surveyedCount} căn hộ khảo sát vẫn được bảo toàn nguyên vẹn.`
+      : `Đã xóa bản vẽ CAD và giải phóng phân chia của Tầng ${floorNumber}.`;
+
+    return {
+      message,
+      floorNumber,
+      mode,
+      surveyedCount,
+    };
   }
 
   static async getAbsenceLogsForParcel(parcelId: string): Promise<any[]> {

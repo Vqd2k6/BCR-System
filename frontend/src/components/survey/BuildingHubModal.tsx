@@ -1,5 +1,5 @@
 import React from 'react';
-import { BuildingUnit, BuildingHubModalProps } from './building-hub/types';
+import type { BuildingUnit, BuildingHubModalProps } from './building-hub/types';
 import { useBuildingHubState } from './building-hub/hooks/useBuildingHubState';
 import { BuildingHubHeader } from './building-hub/components/BuildingHubHeader';
 import { MasterWarningBanner } from './building-hub/components/MasterWarningBanner';
@@ -7,6 +7,10 @@ import { BuildingExecutiveDashboard } from './building-hub/components/BuildingEx
 import { BuildingUnitList } from './building-hub/components/BuildingUnitList';
 import { MasterSurveyViewModal } from './building-hub/components/MasterSurveyViewModal';
 import { FloorProgressPopover } from './building-hub/components/FloorProgressPopover';
+import { FloorPlanCadManagementModal } from './building-hub/components/FloorPlanCadManagementModal';
+import { SurveyorCadReadOnlyModal } from './building-hub/components/SurveyorCadReadOnlyModal';
+import { SurveyCondoMasterAreaModal } from '../../features/survey-condo-master/components/SurveyCondoMasterAreaModal';
+import { useAuth } from '../../context/AuthContext';
 
 export type { BuildingUnit, BuildingHubModalProps };
 
@@ -17,6 +21,8 @@ export const BuildingHubModal: React.FC<BuildingHubModalProps> = ({
   onStartUnitSurvey,
   onUnitsUpdated,
 }) => {
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'ZONE_ADMIN' || user?.role === 'SUPER_ADMIN';
   const {
     isMasterSurveyDone,
     masterReportData,
@@ -51,10 +57,20 @@ export const BuildingHubModal: React.FC<BuildingHubModalProps> = ({
     handleAddUnit,
     handleSendMasterUpdate,
     availableFloors,
-    filteredUnits,
-    displayedUnits,
+    activeHubTab,
+    setActiveHubTab,
+    unitItemsCount,
+    masterItemsCount,
+    floorsData,
+    allFloorsData,
+    inspectedUnit,
+    setInspectedUnit,
+    refetchUnits,
+    refetchFloorPlans,
     kpi,
   } = useBuildingHubState({ parcel, onUnitsUpdated });
+  const [showCadModal, setShowCadModal] = React.useState(false);
+  const [selectedMasterAreaUnit, setSelectedMasterAreaUnit] = React.useState<BuildingUnit | null>(null);
 
   return (
     <div className="fixed inset-0 z-[99999] bg-slate-100 flex flex-col w-full h-full overflow-hidden animate-in fade-in duration-150">
@@ -64,6 +80,7 @@ export const BuildingHubModal: React.FC<BuildingHubModalProps> = ({
         isHeaderVisible={isHeaderVisible}
         onClose={onClose}
         onOpenMasterView={() => setShowMasterViewModal(true)}
+        onOpenCadManagement={() => setShowCadModal(true)}
       />
 
       {/* 2. Main Scrollable Container */}
@@ -89,7 +106,7 @@ export const BuildingHubModal: React.FC<BuildingHubModalProps> = ({
           onOpenFloorProgress={() => setShowFloorProgressPopover(true)}
         />
 
-        {/* Quản lý & Danh sách căn hộ con */}
+        {/* Quản lý & Danh sách căn hộ con / khu vực dùng chung theo tầng (Spatial CAD Hub) */}
         <BuildingUnitList
           parcel={parcel}
           units={units}
@@ -103,6 +120,11 @@ export const BuildingHubModal: React.FC<BuildingHubModalProps> = ({
           availableFloors={availableFloors}
           selectedStatus={selectedStatus}
           onSelectedStatusChange={setSelectedStatus}
+          floorsData={floorsData}
+          allFloorsData={allFloorsData}
+          inspectedUnit={inspectedUnit}
+          onSelectInspectedUnit={setInspectedUnit}
+          isAdmin={isAdmin}
           showAddModal={showAddModal}
           onToggleAddModal={setShowAddModal}
           newUnitCode={newUnitCode}
@@ -111,13 +133,15 @@ export const BuildingHubModal: React.FC<BuildingHubModalProps> = ({
           setNewFloorNumber={setNewFloorNumber}
           isSubmittingUnit={isSubmittingUnit}
           onAddUnitSubmit={handleAddUnit}
-          displayedUnits={displayedUnits}
-          filteredUnits={filteredUnits}
-          visibleCount={visibleCount}
-          onLoadMore={() => setVisibleCount((prev) => prev + 10)}
           isMasterSurveyDone={isMasterSurveyDone}
           onClose={onClose}
           onStartUnitSurvey={onStartUnitSurvey}
+          onStartMasterAreaSurvey={(_p, u) => setSelectedMasterAreaUnit(u)}
+          onOpenCadManagement={() => setShowCadModal(true)}
+          activeHubTab={activeHubTab}
+          onTabChange={setActiveHubTab}
+          unitItemsCount={unitItemsCount}
+          masterItemsCount={masterItemsCount}
         />
       </main>
 
@@ -145,6 +169,52 @@ export const BuildingHubModal: React.FC<BuildingHubModalProps> = ({
         availableFloors={availableFloors}
         units={units}
       />
+
+      {/* Modal: Quản lý bản vẽ CAD tầng & chia cắt căn hộ */}
+      {showCadModal && (
+        isAdmin ? (
+          <FloorPlanCadManagementModal
+            parcel={parcel}
+            onClose={() => {
+              setShowCadModal(false);
+              refetchFloorPlans();
+            }}
+            onUnitsUpdated={() => {
+              refetchUnits();
+              refetchFloorPlans();
+              if (onUnitsUpdated) onUnitsUpdated();
+            }}
+            readOnly={false}
+          />
+        ) : (
+          <SurveyorCadReadOnlyModal
+            parcel={parcel}
+            onClose={() => {
+              setShowCadModal(false);
+              refetchFloorPlans();
+            }}
+          />
+        )
+      )}
+
+      {/* Modal: Khảo sát chi tiết phân vùng dùng chung (Master Area) với CAD Highlight */}
+      {selectedMasterAreaUnit && (
+        <SurveyCondoMasterAreaModal
+          parcel={parcel}
+          unit={selectedMasterAreaUnit}
+          floorCadUrl={
+            allFloorsData.find(
+              (f) => f.floorNumber === (selectedMasterAreaUnit.floor_number ?? selectedMasterAreaUnit.floorNumber)
+            )?.cadUrl
+          }
+          onClose={() => setSelectedMasterAreaUnit(null)}
+          onSurveyCompleted={() => {
+            setSelectedMasterAreaUnit(null);
+            refetchUnits();
+            if (onUnitsUpdated) onUnitsUpdated();
+          }}
+        />
+      )}
     </div>
   );
 };

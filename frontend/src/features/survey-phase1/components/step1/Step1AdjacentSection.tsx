@@ -2,7 +2,7 @@ import React from 'react';
 import { Card } from '../../../../core/components/ui/Card';
 import { Input, Select } from '../../../../core/components/ui/FormControls';
 import { Compass } from 'lucide-react';
-import { Phase1SurveyFormData } from '../../types/phase1.types';
+import type { Phase1SurveyFormData } from '../../types/phase1.types';
 import { ADJACENT_LEFT_RIGHT, ADJACENT_REAR } from './step1.constants';
 
 interface Step1AdjacentSectionProps {

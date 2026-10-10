@@ -1,4 +1,4 @@
-import { MetroWatermarkOptions } from '../../../utils/watermarkEngine';
+import type { MetroWatermarkOptions } from '../../../utils/watermarkEngine';
 
 export interface PhotoCaptureProps {
   value: string; // Base64 or image URL

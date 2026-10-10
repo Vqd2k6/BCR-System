@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { usePhase1SurveyStore } from '../store/usePhase1SurveyStore';
-import { DefectItem } from '../../../components/canvas/DefectPinningCanvas';
-import { CadZonePin } from '../../../components/canvas/FloorCadPinningCanvas';
-import { FloorSurveyData, DamageZoneData, StructuralElementData } from '../types/phase1.types';
+import type { DefectItem } from '../../../components/canvas/DefectPinningCanvas';
+import type { CadZonePin } from '../../../components/canvas/FloorCadPinningCanvas';
+import type { FloorSurveyData, DamageZoneData, StructuralElementData } from '../types/phase1.types';
 
 import { FloorTabsNavigation } from './step3/FloorTabsNavigation';
 import { Step3FloorOverviewSection } from './step3/Step3FloorOverviewSection';
@@ -40,8 +40,17 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
 
   // Lắng nghe sự kiện chuyển tầng & phân cấp chi tiết từ modal cảnh báo thiếu thông tin
   useEffect(() => {
-    const handleFocusHierarchy = (e: any) => {
-      const { floorIndex, zoneIndex, elementIndex, subSection, fieldId } = e.detail || {};
+    interface Step3HierarchyEventDetail {
+      floorIndex?: number;
+      zoneIndex?: number;
+      elementIndex?: number;
+      subSection?: string;
+      fieldId?: string;
+    }
+
+    const handleFocusHierarchy = (e: Event) => {
+      const customEv = e as CustomEvent<Step3HierarchyEventDetail>;
+      const { floorIndex, zoneIndex, elementIndex, subSection, fieldId } = customEv.detail || {};
       if (typeof floorIndex === 'number' && floorIndex >= 0 && floorIndex < formData.floors.length) {
         setActiveFloorIndex(floorIndex);
       }
@@ -81,8 +90,9 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
       }, 200);
     };
 
-    const handleFocusFloor = (e: any) => {
-      const fIdx = e.detail?.floorIndex;
+    const handleFocusFloor = (e: Event) => {
+      const customEv = e as CustomEvent<{ floorIndex?: number }>;
+      const fIdx = customEv.detail?.floorIndex;
       if (typeof fIdx === 'number' && fIdx >= 0 && fIdx < formData.floors.length) {
         setActiveFloorIndex(fIdx);
       }

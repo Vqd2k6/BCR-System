@@ -1,4 +1,6 @@
+import { getErrorMessage, getErrorStatus, isNotFoundError } from '@/utils/errorUtils';
 import { api } from '../../../services/api';
+import type { Phase1SurveyFormData } from '../types/phase1.types';
 
 export interface DraftResponseData {
   hasDraft: boolean;
@@ -17,7 +19,7 @@ export interface DraftResponseData {
   draft?: {
     reportId: string;
     currentStep: number;
-    surveyData: any;
+    surveyData: Partial<Phase1SurveyFormData> | Record<string, unknown>;
     syncVersion: number;
     updatedAt: string;
   };
@@ -28,7 +30,7 @@ export interface SaveDraftPayload {
   unitId?: string | null;
   reportType?: string;
   currentStep: number;
-  surveyData: any;
+  surveyData: Partial<Phase1SurveyFormData> | Record<string, unknown>;
   syncVersion?: number;
 }
 
@@ -49,8 +51,8 @@ export const surveyDraftService = {
         params: unitId ? { unitId } : {},
       });
       return res.data?.data || res.data;
-    } catch (err: any) {
-      if (err?.response?.status === 404) {
+    } catch (err: unknown) {
+      if (isNotFoundError(err)) {
         // Coi như công trình chưa có bản nháp trên server để tiến trình khảo sát diễn ra mượt mà
         return { hasDraft: false };
       }

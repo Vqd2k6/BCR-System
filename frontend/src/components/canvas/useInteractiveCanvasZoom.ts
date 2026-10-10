@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 
 export interface UseInteractiveCanvasZoomOptions {
   minZoom?: number;
@@ -7,7 +7,7 @@ export interface UseInteractiveCanvasZoomOptions {
 }
 
 export function useInteractiveCanvasZoom(options: UseInteractiveCanvasZoomOptions = {}) {
-  const { minZoom = 1.0, maxZoom = 4.0, initialZoom = 1.0 } = options;
+  const { minZoom = 1.0, maxZoom = 5.0, initialZoom = 1.0 } = options;
 
   const [zoomScale, setZoomScale] = useState<number>(initialZoom);
   const [panOffset, setPanOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
@@ -15,6 +15,18 @@ export function useInteractiveCanvasZoom(options: UseInteractiveCanvasZoomOption
 
   const containerRef = useRef<HTMLDivElement>(null);
   const tightBoxRef = useRef<HTMLDivElement>(null);
+
+  // Synchronized refs để các event listener ngoài React cycle luôn đọc được state mới nhất
+  const zoomScaleRef = useRef<number>(initialZoom);
+  const panOffsetRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+
+  useEffect(() => {
+    zoomScaleRef.current = zoomScale;
+  }, [zoomScale]);
+
+  useEffect(() => {
+    panOffsetRef.current = panOffset;
+  }, [panOffset]);
 
   // Lưu trữ trạng thái gesture
   const panStartRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
@@ -26,14 +38,14 @@ export function useInteractiveCanvasZoom(options: UseInteractiveCanvasZoomOption
   // Zoom In / Out / Reset
   const handleZoomIn = useCallback(() => {
     setZoomScale((prev) => {
-      const next = Math.min(maxZoom, Math.round((prev + 0.5) * 10) / 10);
+      const next = Math.min(maxZoom, Math.round((prev + 0.25) * 100) / 100);
       return next;
     });
   }, [maxZoom]);
 
   const handleZoomOut = useCallback(() => {
     setZoomScale((prev) => {
-      const next = Math.max(minZoom, Math.round((prev - 0.5) * 10) / 10);
+      const next = Math.max(minZoom, Math.round((prev - 0.25) * 100) / 100);
       if (next <= 1.0) {
         setPanOffset({ x: 0, y: 0 });
       }
@@ -54,19 +66,59 @@ export function useInteractiveCanvasZoom(options: UseInteractiveCanvasZoomOption
     }
   }, [minZoom, maxZoom]);
 
-  // Wheel zoom (cho Desktop / Touchpad)
-  const handleWheel = useCallback((e: React.WheelEvent<HTMLDivElement>) => {
-    // Nếu giữ phím Ctrl/Cmd hoặc cuộn trực tiếp trên canvas
-    if (e.ctrlKey || e.metaKey || e.altKey) {
+  // Native Wheel Zoom { passive: false } gắn trực tiếp vào DOM container
+  // Giúp preventDefault() hoạt động tin cậy và hỗ trợ focal zoom hướng tâm con trỏ chuột
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const onNativeWheel = (e: WheelEvent) => {
       e.preventDefault();
-      const delta = e.deltaY < 0 ? 0.25 : -0.25;
-      setZoomScale((prev) => {
-        const next = Math.max(minZoom, Math.min(maxZoom, Math.round((prev + delta) * 100) / 100));
-        if (next <= 1.0) setPanOffset({ x: 0, y: 0 });
-        return next;
-      });
-    }
+      const step = 0.15;
+      const delta = e.deltaY < 0 ? step : -step;
+
+      const prevScale = zoomScaleRef.current;
+      const nextScale = Math.max(minZoom, Math.min(maxZoom, Math.round((prevScale + delta) * 100) / 100));
+      if (nextScale === prevScale) return;
+
+      zoomScaleRef.current = nextScale;
+      setZoomScale(nextScale);
+
+      if (nextScale <= 1.0) {
+        panOffsetRef.current = { x: 0, y: 0 };
+        setPanOffset({ x: 0, y: 0 });
+      } else {
+        // Focal point math: Phóng to / thu nhỏ hướng về con trỏ chuột
+        const rect = container.getBoundingClientRect();
+        const cx = rect.left + rect.width / 2;
+        const cy = rect.top + rect.height / 2;
+        const cursorRelX = e.clientX - cx;
+        const cursorRelY = e.clientY - cy;
+
+        const prevPan = panOffsetRef.current;
+        const ratio = nextScale / prevScale;
+        const nextPanX = prevPan.x - (cursorRelX - prevPan.x) * (ratio - 1);
+        const nextPanY = prevPan.y - (cursorRelY - prevPan.y) * (ratio - 1);
+        const nextPan = {
+          x: Math.round(nextPanX * 10) / 10,
+          y: Math.round(nextPanY * 10) / 10,
+        };
+        panOffsetRef.current = nextPan;
+        setPanOffset(nextPan);
+      }
+    };
+
+    container.addEventListener('wheel', onNativeWheel, { passive: false });
+    return () => {
+      container.removeEventListener('wheel', onNativeWheel);
+    };
   }, [minZoom, maxZoom]);
+
+  // Fallback Wheel zoom cho trường hợp gọi qua React synthetic event
+  const handleWheel = useCallback((e: React.WheelEvent<HTMLDivElement>) => {
+    // Nếu native listener đã xử lý thì chặn synthetic event tiếp tục nổi bọt
+    e.stopPropagation();
+  }, []);
 
   // Touch handlers cho cử chỉ 2 ngón tay Pinch-to-zoom & Pan
   const handleTouchStart = useCallback((e: React.TouchEvent<HTMLDivElement>) => {

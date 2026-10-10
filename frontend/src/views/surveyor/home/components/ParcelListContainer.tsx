@@ -1,5 +1,5 @@
 import React from 'react';
-import { GisParcel } from '../../../../components/gis/LeafletSweepMap';
+import type { GisParcel } from '../../../../components/gis/LeafletSweepMap';
 import { ParcelCardItem } from './ParcelCardItem';
 
 interface ParcelListContainerProps {

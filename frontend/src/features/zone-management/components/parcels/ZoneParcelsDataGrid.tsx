@@ -23,10 +23,13 @@ import {
   Phone,
   User,
   Move,
+  Building2,
 } from 'lucide-react';
 import { api } from '../../../../services/api';
-import { GisParcel } from '../../../../components/gis/shared/types';
+import type { GisParcel } from '../../../../components/gis/shared/types';
 import { CadastralBoundaryReshapeModal } from '../../../../components/gis/cadastral-editor/components/CadastralBoundaryReshapeModal';
+import { FloorPlanCadManagementModal } from '../../../../components/survey/building-hub/components/FloorPlanCadManagementModal';
+import { getErrorMessage } from '@/utils/errorUtils';
 
 interface ZoneParcelsDataGridProps {
   selectedZone: string;
@@ -112,6 +115,68 @@ export const ZoneParcelsDataGrid: React.FC<ZoneParcelsDataGridProps> = ({
   // Reshape Modal state
   const [reshapeModalParcel, setReshapeModalParcel] = useState<GisParcel | null>(null);
 
+  // Condo CAD & Unit Partition Modal state
+  const [cadModalParcel, setCadModalParcel] = useState<GisParcel | null>(null);
+  const [condoConversionTarget, setCondoConversionTarget] = useState<GisParcel | null>(null);
+  const [condoConfirmCode, setCondoConfirmCode] = useState<string>('');
+  const [condoInputCode, setCondoInputCode] = useState<string>('');
+  const [isConvertingCondo, setIsConvertingCondo] = useState<boolean>(false);
+
+  const handleOpenCondoModal = (parcel: GisParcel) => {
+    setCondoConversionTarget(parcel);
+    setCondoConfirmCode(Math.floor(100000 + Math.random() * 900000).toString());
+    setCondoInputCode('');
+  };
+
+  // Tiền điều kiện chuyển đổi sang Chung cư (Precondition Guards)
+  const isEligibleForCondo = (parcel: GisParcel): boolean => {
+    const isEligibleStatus = parcel.surveyStatus === 'NOT_SURVEYED' || !parcel.surveyStatus;
+    return (
+      isEligibleStatus &&
+      !parcel.activePhase1ReportId &&
+      (!parcel.lifecycleStatus || parcel.lifecycleStatus === 'ACTIVE')
+    );
+  };
+
+  const getCondoIneligibilityReason = (parcel: GisParcel): string => {
+    if (parcel.surveyStatus && parcel.surveyStatus !== 'NOT_SURVEYED') {
+      return `Không thể chuyển đổi: Thửa đất đang hoặc đã khảo sát (${parcel.surveyStatus})`;
+    }
+    if (parcel.activePhase1ReportId) {
+      return 'Không thể chuyển đổi: Thửa đất đã có hồ sơ khảo sát liên kết';
+    }
+    if (parcel.lifecycleStatus && parcel.lifecycleStatus !== 'ACTIVE') {
+      return `Không thể chuyển đổi: Thửa đất đang có biến động (${parcel.lifecycleStatus})`;
+    }
+    return '';
+  };
+
+  // Chuyển đổi thửa đất sang Chung cư
+  const handleConvertToCondo = async (parcel: GisParcel) => {
+    if (!isEligibleForCondo(parcel)) {
+      alert(getCondoIneligibilityReason(parcel));
+      return;
+    }
+    setIsConvertingCondo(true);
+    try {
+      await api.patch(`/parcels/${parcel.id}/building-type`, {
+        buildingType: 'CONDOMINIUM',
+      });
+      // Cập nhật state thửa đất
+      setParcels((prev) =>
+        prev.map((p) => (p.id === parcel.id ? { ...p, buildingType: 'CONDOMINIUM' } : p))
+      );
+      if (onRefreshStats) onRefreshStats();
+      setCondoConversionTarget(null);
+      // Mở ngay modal upload CAD để Zone Admin cấu hình
+      setCadModalParcel({ ...parcel, buildingType: 'CONDOMINIUM' });
+    } catch (err: unknown) {
+      alert(`Lỗi khi chuyển đổi sang chung cư: ${getErrorMessage(err, 'Lỗi mạng')}`);
+    } finally {
+      setIsConvertingCondo(false);
+    }
+  };
+
   // Debounce search input (300ms)
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -134,27 +199,27 @@ export const ZoneParcelsDataGrid: React.FC<ZoneParcelsDataGridProps> = ({
         ? res.data
         : [];
 
-      const mapped: GisParcel[] = rawList.map((raw: any) => ({
-        id: raw.id,
-        projectParcelCode: raw.project_parcel_code || raw.projectParcelCode || 'CHƯA_GÁN',
-        officialCadastralCode: raw.official_cadastral_code || raw.officialCadastralCode || '',
-        houseNumber: raw.house_number || raw.houseNumber || '',
-        street: raw.street || '',
-        ownerName: raw.owner_name || raw.ownerName || '',
-        ownerPhone: raw.owner_phone || raw.ownerPhone || '',
-        surveyStatus: raw.survey_status || raw.surveyStatus || 'NOT_SURVEYED',
-        buildingType: raw.building_type || raw.buildingType || 'STANDALONE',
+      const mapped: GisParcel[] = (rawList as Record<string, unknown>[]).map((raw) => ({
+        ...raw,
+        id: String(raw.id || ''),
+        projectParcelCode: String(raw.project_parcel_code || raw.projectParcelCode || 'CHƯA_GÁN'),
+        officialCadastralCode: String(raw.official_cadastral_code || raw.officialCadastralCode || ''),
+        houseNumber: String(raw.house_number || raw.houseNumber || ''),
+        street: String(raw.street || ''),
+        ownerName: String(raw.owner_name || raw.ownerName || ''),
+        ownerPhone: String(raw.owner_phone || raw.ownerPhone || ''),
+        surveyStatus: (raw.survey_status || raw.surveyStatus || 'NOT_SURVEYED') as GisParcel['surveyStatus'],
+        buildingType: (raw.building_type || raw.buildingType || 'STANDALONE') as GisParcel['buildingType'],
         floorCount: Number(raw.floor_count ?? raw.floorCount ?? 1),
         constructionArea: Number(raw.construction_area_m2 ?? raw.constructionArea ?? 0),
         landArea: Number(raw.land_area_m2 ?? raw.landArea ?? 0),
-        zoneId: raw.zone_id || raw.zoneId || selectedZone,
-        assignedSurveyorName: raw.assigned_surveyor_name || raw.assignedSurveyorName || '',
-        assignedSurveyorCode: raw.assigned_surveyor_code || raw.assignedSurveyorCode || '',
-        assignedSurveyorPhone: raw.assigned_surveyor_phone || raw.assignedSurveyorPhone || '',
+        zoneId: String(raw.zone_id || raw.zoneId || selectedZone),
+        assignedSurveyorName: String(raw.assigned_surveyor_name || raw.assignedSurveyorName || ''),
+        assignedSurveyorCode: String(raw.assigned_surveyor_code || raw.assignedSurveyorCode || ''),
+        assignedSurveyorPhone: String(raw.assigned_surveyor_phone || raw.assignedSurveyorPhone || ''),
         absenceAttemptCount: Number(raw.absence_attempt_count ?? raw.absenceAttemptCount ?? 0),
-        activePhase1ReportId: raw.active_phase1_report_id || raw.activePhase1ReportId,
-        coordinates: raw.coordinates || [],
-        ...raw,
+        activePhase1ReportId: (raw.active_phase1_report_id || raw.activePhase1ReportId) as string | undefined,
+        coordinates: (Array.isArray(raw.coordinates) ? raw.coordinates : []) as [number, number][],
       }));
 
       setParcels(mapped);
@@ -598,8 +663,8 @@ export const ZoneParcelsDataGrid: React.FC<ZoneParcelsDataGridProps> = ({
                           </span>
                         </div>
                         <div className="text-[11px] text-slate-400 mt-0.5 whitespace-nowrap">
-                          {(parcel as any).ward ? `P. ${(parcel as any).ward}, ` : ''}
-                          {(parcel as any).district ? `Q. ${(parcel as any).district} • ` : ''}
+                          {parcel.ward ? `P. ${parcel.ward}, ` : ''}
+                          {parcel.district ? `Q. ${parcel.district} • ` : ''}
                           Phân khu: <strong className="text-indigo-600">{parcel.zoneId || selectedZone}</strong>
                         </div>
                       </td>
@@ -649,6 +714,37 @@ export const ZoneParcelsDataGrid: React.FC<ZoneParcelsDataGridProps> = ({
                       {/* Cột 7: Thao Tác Quản Trị */}
                       <td className="py-3.5 px-4 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-1.5">
+                          {/* Nút CAD nếu là chung cư, hoặc chuyển đổi nếu là nhà riêng lẻ */}
+                          {parcel.buildingType === 'CONDOMINIUM' ? (
+                            <button
+                              type="button"
+                              onClick={() => setCadModalParcel(parcel)}
+                              className="px-2 py-1.5 rounded-lg bg-teal-50 hover:bg-teal-100 text-teal-700 border border-teal-200 transition-colors cursor-pointer flex items-center gap-1 text-xs font-bold shadow-2xs"
+                              title="Quản lý mặt bằng CAD & chia cắt căn hộ (Zone Admin)"
+                            >
+                              <Layers size={13} className="text-teal-600" />
+                              <span className="hidden xl:inline">CAD Tầng</span>
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              disabled={!isEligibleForCondo(parcel)}
+                              onClick={() => handleOpenCondoModal(parcel)}
+                              className={`p-1.5 rounded-lg border transition-colors ${
+                                isEligibleForCondo(parcel)
+                                  ? 'bg-slate-50 hover:bg-purple-50 text-slate-500 hover:text-purple-700 border-slate-200 hover:border-purple-200 cursor-pointer'
+                                  : 'bg-slate-100 text-slate-300 border-slate-200 cursor-not-allowed'
+                              }`}
+                              title={
+                                isEligibleForCondo(parcel)
+                                  ? 'Chuyển đổi thành Chung cư (CONDOMINIUM)'
+                                  : getCondoIneligibilityReason(parcel)
+                              }
+                            >
+                              <Building2 size={14} />
+                            </button>
+                          )}
+
                           {onNavigateToMap && (
                             <button
                               type="button"
@@ -792,9 +888,9 @@ export const ZoneParcelsDataGrid: React.FC<ZoneParcelsDataGridProps> = ({
                   {inspectParcel.houseNumber ? `${inspectParcel.houseNumber}, ` : ''}
                   {inspectParcel.street || 'Đoạn tuyến chính'}
                 </h3>
-                {((inspectParcel as any).ward || (inspectParcel as any).district) && (
+                {(inspectParcel.ward || inspectParcel.district) && (
                   <p className="text-xs text-slate-500 mt-0.5">
-                    {[(inspectParcel as any).ward ? `Phường ${(inspectParcel as any).ward}` : '', (inspectParcel as any).district ? `Quận ${(inspectParcel as any).district}` : ''].filter(Boolean).join(', ')}
+                    {[inspectParcel.ward ? `Phường ${inspectParcel.ward}` : '', inspectParcel.district ? `Quận ${inspectParcel.district}` : ''].filter(Boolean).join(', ')}
                   </p>
                 )}
               </div>
@@ -852,6 +948,43 @@ export const ZoneParcelsDataGrid: React.FC<ZoneParcelsDataGridProps> = ({
             </div>
 
             <div className="pt-2 flex items-center justify-end gap-2 flex-wrap">
+              {inspectParcel.buildingType === 'CONDOMINIUM' ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCadModalParcel(inspectParcel);
+                    setInspectParcel(null);
+                  }}
+                  className="px-3 py-2 rounded-xl bg-teal-50 hover:bg-teal-100 text-teal-700 text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border border-teal-200"
+                  title="Quản lý bản vẽ CAD và phân chia căn hộ"
+                >
+                  <Layers size={14} className="text-teal-600" />
+                  <span>Quản Lý CAD & Phân Căn</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  disabled={!isEligibleForCondo(inspectParcel)}
+                  onClick={() => {
+                    handleOpenCondoModal(inspectParcel);
+                    setInspectParcel(null);
+                  }}
+                  className={`px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border ${
+                    isEligibleForCondo(inspectParcel)
+                      ? 'bg-purple-50 hover:bg-purple-100 text-purple-700 border-purple-200 cursor-pointer'
+                      : 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed opacity-60'
+                  }`}
+                  title={
+                    isEligibleForCondo(inspectParcel)
+                      ? 'Chuyển đổi thửa đất sang Chung cư'
+                      : getCondoIneligibilityReason(inspectParcel)
+                  }
+                >
+                  <Building2 size={14} className={isEligibleForCondo(inspectParcel) ? 'text-purple-600' : 'text-slate-400'} />
+                  <span>Chuyển Sang Chung Cư</span>
+                </button>
+              )}
+
               <button
                 type="button"
                 onClick={() => {
@@ -906,6 +1039,106 @@ export const ZoneParcelsDataGrid: React.FC<ZoneParcelsDataGridProps> = ({
             if (onRefreshStats) onRefreshStats();
           }}
         />
+      )}
+
+      {/* Floor Plan CAD Management Modal (Zone Admin Desktop) */}
+      {cadModalParcel && (
+        <FloorPlanCadManagementModal
+          parcel={cadModalParcel}
+          onClose={() => setCadModalParcel(null)}
+          onUnitsUpdated={() => {
+            fetchZoneParcels();
+            if (onRefreshStats) onRefreshStats();
+          }}
+          readOnly={false}
+        />
+      )}
+
+      {/* Confirmation Modal: Convert Parcel to Condominium */}
+      {condoConversionTarget && (
+        <div className="fixed inset-0 z-[100000] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
+          <div className="bg-white border border-slate-200 rounded-2xl shadow-2xl max-w-md w-full p-6 text-slate-800 space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="p-3 rounded-xl bg-purple-100 text-purple-700">
+                <Building2 className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-900">
+                  Chuyển Đổi Sang Chung Cư
+                </h3>
+                <p className="text-xs text-slate-500 font-mono">
+                  Mã thửa: {condoConversionTarget.projectParcelCode || condoConversionTarget.id}
+                </p>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Bạn có chắc chắn muốn chuyển đổi thửa đất này thành <strong>Chung cư / Tòa nhà nhiều căn hộ (CONDOMINIUM)</strong>?
+            </p>
+            <div className="p-3 bg-purple-50/70 border border-purple-200 rounded-xl text-xs text-purple-900 space-y-1">
+              <p className="font-bold">• Sau khi chuyển đổi:</p>
+              <p>1. Loại hình công trình được cập nhật thành CONDOMINIUM.</p>
+              <p>2. Màn hình quản lý CAD mặt bằng tầng sẽ mở ra để bạn tải bản vẽ kiến trúc và chia cắt các ô căn hộ con.</p>
+              <p>3. Khảo sát viên sẽ được phân bổ khảo sát khối tháp dùng chung và các căn hộ con độc lập.</p>
+            </div>
+
+            {/* Random 6-digit confirmation code block */}
+            <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-slate-600">MÃ XÁC NHẬN BẢO MẬT:</span>
+                <span className="font-mono text-base font-black tracking-widest text-purple-700 bg-purple-100 px-2 py-0.5 rounded border border-purple-200">
+                  {condoConfirmCode}
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500">
+                Nhập đúng dãy 6 số trên để mở khóa nút xác nhận:
+              </p>
+              <input
+                type="text"
+                maxLength={6}
+                value={condoInputCode}
+                onChange={(e) => setCondoInputCode(e.target.value.replace(/\D/g, ''))}
+                placeholder="Nhập 6 số xác nhận..."
+                autoFocus
+                className={`w-full px-3 py-2 text-sm font-mono tracking-widest font-bold rounded-lg border outline-none transition-all ${
+                  condoInputCode === condoConfirmCode
+                    ? 'border-emerald-500 bg-emerald-50 text-emerald-800 ring-1 ring-emerald-500'
+                    : 'border-slate-300 bg-white text-slate-800 focus:border-purple-500'
+                }`}
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                disabled={isConvertingCondo}
+                onClick={() => setCondoConversionTarget(null)}
+                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-colors cursor-pointer"
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                disabled={isConvertingCondo || condoInputCode.trim() !== condoConfirmCode}
+                onClick={() => handleConvertToCondo(condoConversionTarget)}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 ${
+                  condoInputCode.trim() === condoConfirmCode
+                    ? 'bg-purple-600 hover:bg-purple-700 text-white cursor-pointer'
+                    : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                }`}
+              >
+                {isConvertingCondo ? (
+                  <span>Đang xử lý...</span>
+                ) : (
+                  <>
+                    <Building2 className="w-4 h-4" />
+                    <span>Xác Nhận Chuyển Đổi</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

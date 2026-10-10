@@ -1,7 +1,8 @@
+import { getErrorMessage, getErrorStatus, isNotFoundError } from '@/utils/errorUtils';
 import { useState, useEffect } from 'react';
 import api from '../../../../services/api';
 import { useAuth } from '../../../../context/AuthContext';
-import { GisParcel } from '../../../../components/gis/LeafletSweepMap';
+import type { GisParcel } from '../../../../components/gis/LeafletSweepMap';
 import { getStatus } from '../utils/surveyorHomeHelpers';
 
 interface UseSurveyorHomeStateProps {
@@ -44,14 +45,14 @@ export const useSurveyorHomeState = ({
   });
 
   // Danh sách thửa đất được Zone Admin phân công riêng cho Surveyor này
-  const [assignedParcels, setAssignedParcels] = useState<any[]>([]);
+  const [assignedParcels, setAssignedParcels] = useState<GisParcel[]>([]);
 
   useEffect(() => {
     if (user?.id) {
-      api.get('/surveys/my-assigned-parcels', {
+      api.get<{ data: GisParcel[] }>('/surveys/my-assigned-parcels', {
         params: userGps ? { lat: userGps.lat, lng: userGps.lng } : undefined,
       })
-        .then((res: any) => {
+        .then((res) => {
           const list = res?.data?.data || [];
           setAssignedParcels(list);
         })
@@ -97,10 +98,10 @@ export const useSurveyorHomeState = ({
   const filteredParcels = (parcels || []).filter((p) => {
     if (!p) return false;
     const sTerm = String(searchTerm || '').toLowerCase().trim();
-    const code = String(p.projectParcelCode || (p as any).project_parcel_code || '').toLowerCase();
-    const house = String(p.houseNumber || (p as any).house_number || '').toLowerCase();
+    const code = String(p.projectParcelCode || p.project_parcel_code || '').toLowerCase();
+    const house = String(p.houseNumber || p.house_number || '').toLowerCase();
     const street = String(p.street || '').toLowerCase();
-    const owner = String(p.ownerName || (p as any).owner_name || '').toLowerCase();
+    const owner = String(p.ownerName || p.owner_name || '').toLowerCase();
     const status = getStatus(p);
 
     const matchesSearch =
@@ -113,7 +114,7 @@ export const useSurveyorHomeState = ({
     let matchesStatus = false;
     if (statusFilter === 'ASSIGNED_TO_ME') {
       const assignedIds = new Set(assignedParcels.map((ap) => ap.id));
-      matchesStatus = assignedIds.has(p.id) || p.assignedSurveyorId === user?.id || (p as any).assigned_surveyor_id === user?.id;
+      matchesStatus = assignedIds.has(p.id) || p.assignedSurveyorId === user?.id || p.assigned_surveyor_id === user?.id;
     } else if (statusFilter === 'PENDING_ONLY') {
       matchesStatus = status !== 'APPROVED' && status !== 'SUBMITTED' && status !== 'PHASE2_COMPLETED' && status !== 'APPROVED_PHASE2';
     } else if (statusFilter === 'NOT_SURVEYED') {
@@ -197,8 +198,8 @@ export const useSurveyorHomeState = ({
       // 2. Đồng bộ API nếu có
       try {
         await api.post(`/admin/reports/${parcel.id}/approve`, {});
-      } catch (e: any) {
-        console.warn('Backend approve API notice:', e?.response?.data || e?.message);
+      } catch (e: unknown) {
+        console.warn('Backend approve API notice:', getErrorMessage(e));
       }
 
       if (onRefresh) {
@@ -242,8 +243,8 @@ export const useSurveyorHomeState = ({
         await api.post(`/admin/reports/${parcel.id}/reject`, {
           rejectionReason: reason.trim(),
         });
-      } catch (e: any) {
-        console.warn('Backend reject API notice:', e?.response?.data || e?.message);
+      } catch (e: unknown) {
+        console.warn('Backend reject API notice:', getErrorMessage(e));
       }
 
       if (onRefresh) {

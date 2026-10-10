@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { api } from '../../../services/api';
 import { useAuth } from '../../../context/AuthContext';
+import type { GisParcel } from '../../../core/types/domain.types';
 
 interface Props {
   onBackToLogin?: () => void;
@@ -29,8 +30,8 @@ export const PublicCitizenPortalPage: React.FC<Props> = ({ onBackToLogin }) => {
   const [hasSearched, setHasSearched] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
-  const [foundParcels, setFoundParcels] = useState<any[]>([]);
-  const [selectedParcel, setSelectedParcel] = useState<any | null>(null);
+  const [foundParcels, setFoundParcels] = useState<GisParcel[]>([]);
+  const [selectedParcel, setSelectedParcel] = useState<GisParcel | null>(null);
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,7 +48,7 @@ export const PublicCitizenPortalPage: React.FC<Props> = ({ onBackToLogin }) => {
       const q = searchQuery.toLowerCase().trim();
 
       if (res.data?.data && Array.isArray(res.data.data)) {
-        const matches = res.data.data.filter((p: any) => {
+        const matches = res.data.data.filter((p: GisParcel) => {
           const code = (p.project_parcel_code || p.projectParcelCode || '').toLowerCase();
           const cadastral = (p.official_cadastral_code || p.officialCadastralCode || '').toLowerCase();
           const addr = `${p.house_number || ''} ${p.street || ''}`.toLowerCase();
@@ -67,32 +68,28 @@ export const PublicCitizenPortalPage: React.FC<Props> = ({ onBackToLogin }) => {
       }
     } catch (_err) {
       // Fallback demo result if offline
-      setFoundParcels([
-        {
-          id: 'b-00102',
-          project_parcel_code: 'B-00102',
-          official_cadastral_code: 'KS003-8472',
-          house_number: '124',
-          street: 'Cách Mạng Tháng Tám, Phường 7, Quận Tân Bình, TP.HCM',
-          owner_name: 'Nguyễn Văn A',
-          survey_status: 'APPROVED',
-          distance_to_centerline_m: 14.5,
-          floor_count: 3,
-          construction_area_m2: 85.5,
-        },
-      ]);
-      setSelectedParcel({
+      const demoParcel: GisParcel = {
         id: 'b-00102',
+        projectParcelCode: 'B-00102',
         project_parcel_code: 'B-00102',
+        officialCadastralCode: 'KS003-8472',
         official_cadastral_code: 'KS003-8472',
+        houseNumber: '124',
         house_number: '124',
         street: 'Cách Mạng Tháng Tám, Phường 7, Quận Tân Bình, TP.HCM',
+        ownerName: 'Nguyễn Văn A',
         owner_name: 'Nguyễn Văn A',
+        surveyStatus: 'APPROVED',
         survey_status: 'APPROVED',
+        coordinates: [],
         distance_to_centerline_m: 14.5,
+        floorCount: 3,
         floor_count: 3,
+        constructionAreaM2: 85.5,
         construction_area_m2: 85.5,
-      });
+      };
+      setFoundParcels([demoParcel]);
+      setSelectedParcel(demoParcel);
     } finally {
       setIsLoading(false);
     }
@@ -244,7 +241,7 @@ export const PublicCitizenPortalPage: React.FC<Props> = ({ onBackToLogin }) => {
                     </h2>
                   </div>
                 </div>
-                <div>{getStatusBadge(selectedParcel.survey_status || selectedParcel.surveyStatus)}</div>
+                <div>{getStatusBadge(selectedParcel.survey_status || selectedParcel.surveyStatus || 'NOT_SURVEYED')}</div>
               </div>
 
               {/* Grid 4 chỉ số */}

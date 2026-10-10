@@ -18,7 +18,7 @@ import {
 } from './survey.dto';
 import { SurveyPackageMapper } from './survey-package.mapper';
 import { Database } from '../../database/db';
-import { BadRequestError } from '../../common/errors/problem-details';
+import { BadRequestError, ForbiddenError } from '../../common/errors/problem-details';
 import { maskReportPii } from '../../common/utils/pii.utils';
 
 export class SurveyController {
@@ -196,7 +196,7 @@ export class SurveyController {
 
   static async submitPhase1FullPackage(req: Request, res: Response, next: NextFunction) {
     try {
-      const { parcelId, unitId, surveyData } = req.body;
+      const { parcelId, unitId, surveyData, reportType: rawReportType } = req.body;
       if (!parcelId) {
         throw new BadRequestError('parcelId là bắt buộc');
       }
@@ -222,14 +222,54 @@ export class SurveyController {
         }
       }
 
-      // Khởi tạo report nếu chưa có
-      const initResult = await SurveyService.createPhase1Report(
-        parcelId,
-        surveyorId,
-        cleanUnitId || undefined,
-        cleanUnitId ? 'UNIT_CHILD' : 'STANDALONE'
-      );
-      const reportId = initResult.reportId;
+      // Chuẩn hóa loại hình báo cáo: BUILDING_MASTER, CONDO_UNIT, hoặc STANDALONE
+      const resolvedReportType =
+        rawReportType === 'BUILDING_MASTER'
+          ? 'BUILDING_MASTER'
+          : (rawReportType === 'CONDO_UNIT' || rawReportType === 'UNIT_CHILD' || cleanUnitId)
+            ? 'CONDO_UNIT'
+            : 'STANDALONE';
+
+      // Khởi tạo hoặc tái sử dụng report nếu đã tồn tại
+      const existingReport = await SurveyService.getPhase1ReportByParcelId(parcelId, {
+        reportType: resolvedReportType,
+        unitId: cleanUnitId || null,
+      });
+
+      let reportId: string;
+      const userRole = req.user?.role || 'SURVEYOR';
+
+      if (
+        existingReport?.report &&
+        (existingReport.report.status === 'SUBMITTED' || existingReport.report.status === 'APPROVED')
+      ) {
+        // Hồ sơ đã nộp: Kiểm tra phân quyền
+        if (userRole === 'SURVEYOR') {
+          throw new ForbiddenError(
+            'Hồ sơ khảo sát đã được nộp. Kỹ sư khảo sát chỉ có quyền xem lại, chỉ có Zone Admin mới được điều chỉnh.'
+          );
+        }
+
+        // Zone Admin hoặc Super Admin: Cho phép điều chỉnh tại chỗ (In-Place Update)
+        reportId = existingReport.report.id;
+        await Database.query(
+          `UPDATE base_survey_reports
+           SET export_revision = export_revision + 1,
+               last_edited_by_id = $2,
+               updated_at = NOW()
+           WHERE id = $1;`,
+          [reportId, surveyorId]
+        );
+      } else {
+        // Khởi tạo report nếu chưa có hoặc tái sử dụng nháp
+        const initResult = await SurveyService.createPhase1Report(
+          parcelId,
+          surveyorId,
+          cleanUnitId || undefined,
+          resolvedReportType
+        );
+        reportId = initResult.reportId;
+      }
 
       // 2. Map and Save Ảnh nhận diện và mặt đứng P-01 -> P-04 (Có phòng vệ schema)
       try {
@@ -247,9 +287,13 @@ export class SurveyController {
         console.warn('[submitPhase1FullPackage] Cảnh báo lưu building_specifications:', specsErr);
       }
 
-      if (surveyData?.floors && Array.isArray(surveyData.floors)) {
+      const resolvedFloors = (surveyData?.floors && Array.isArray(surveyData.floors))
+        ? surveyData.floors
+        : (surveyData?.floorSurvey ? [surveyData.floorSurvey] : null);
+
+      if (resolvedFloors && Array.isArray(resolvedFloors)) {
         try {
-          await SurveyService.saveFloorSurveys(reportId, surveyData.floors);
+          await SurveyService.saveFloorSurveys(reportId, resolvedFloors);
         } catch (floorsErr) {
           console.warn('[submitPhase1FullPackage] Cảnh báo lưu floor surveys:', floorsErr);
         }
@@ -377,7 +421,9 @@ export class SurveyController {
   static async getPhase1ReportByParcelId(req: Request, res: Response, next: NextFunction) {
     try {
       const { id } = req.params;
-      const report = await SurveyService.getPhase1ReportByParcelId(id);
+      const reportType = req.query.reportType as string | undefined;
+      const unitId = req.query.unitId as string | undefined;
+      const report = await SurveyService.getPhase1ReportByParcelId(id, { reportType, unitId });
       const isGuest = req.user?.role === 'GUEST';
       res.status(200).json({
         success: true,
@@ -415,6 +461,23 @@ export class SurveyController {
       }
 
       const surveyorId = req.user!.userId;
+      const userRole = req.user?.role || 'SURVEYOR';
+
+      // Nếu người gửi là SURVEYOR, kiểm tra xem hồ sơ đã nộp chưa
+      if (userRole === 'SURVEYOR') {
+        const existing = await SurveyService.getPhase1ReportByParcelId(parsed.data.parcelId, {
+          unitId: parsed.data.unitId || null,
+        });
+        if (
+          existing?.report &&
+          (existing.report.status === 'SUBMITTED' || existing.report.status === 'APPROVED')
+        ) {
+          throw new ForbiddenError(
+            'Hồ sơ khảo sát đã được nộp. Kỹ sư khảo sát chỉ có quyền xem lại, không được phép lưu đè bản nháp.'
+          );
+        }
+      }
+
       const result = await SurveyService.saveSurveyDraft({
         ...parsed.data,
         surveyorId,

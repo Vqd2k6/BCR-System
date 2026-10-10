@@ -4,7 +4,7 @@ import { SurveyReviewBanner } from '../components/SurveyReviewBanner';
 import { Card } from '../../../core/components/ui/Card';
 import { Button } from '../../../core/components/ui/Button';
 import { Badge } from '../../../core/components/ui/Badge';
-import { GisParcel, BuildingUnit } from '../../../core/types/domain.types';
+import type { GisParcel, BuildingUnit } from '../../../core/types/domain.types';
 import { TapToZoomThumbnail } from '../../../components/common/TapToZoomThumbnail';
 import {
   Building,

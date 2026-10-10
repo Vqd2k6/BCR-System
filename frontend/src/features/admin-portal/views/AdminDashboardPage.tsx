@@ -1,15 +1,54 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card } from '../../../core/components/ui/Card';
 import { Badge } from '../../../core/components/ui/Badge';
 import { Button } from '../../../core/components/ui/Button';
 import { Input, Select } from '../../../core/components/ui/FormControls';
-import { ShieldCheck, Users, Settings, FileSpreadsheet, Database, Lock, Search, Split } from 'lucide-react';
+import { ShieldCheck, ShieldAlert, Users, Settings, FileSpreadsheet, Database, Lock, Search, Split } from 'lucide-react';
 import { Phase1ExportModuleBox } from '../../zone-management/components/Phase1ExportModuleBox';
 import { UserManagementTab } from '../components/UserManagementTab';
 import { AdminGisMutationTab } from '../components/AdminGisMutationTab';
+import { getNavigationFromUrl, updateNavigationUrl, type AdminTab } from '../../../utils/navigationSync';
+import { useAuth } from '../../../context/AuthContext';
 
 export const AdminDashboardPage: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'export' | 'gis-mutation' | 'users' | 'audit' | 'config'>('export');
+  const { user } = useAuth();
+  const [activeTab, setActiveTab] = useState<AdminTab>(() => {
+    const nav = getNavigationFromUrl();
+    if (nav.adminTab) return nav.adminTab;
+    return 'export';
+  });
+
+  const handleTabChange = (newTab: AdminTab) => {
+    setActiveTab(newTab);
+    updateNavigationUrl({ adminTab: newTab });
+  };
+
+  useEffect(() => {
+    const handlePopState = () => {
+      const nav = getNavigationFromUrl();
+      if (nav.adminTab && nav.adminTab !== activeTab) {
+        setActiveTab(nav.adminTab);
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [activeTab]);
+
+  // Chốt chặn an ninh nội bộ: Chỉ SUPER_ADMIN mới có quyền xem màn hình này
+  if (user?.role !== 'SUPER_ADMIN') {
+    return (
+      <div className="max-w-2xl mx-auto my-12 p-8 bg-rose-50 border border-rose-200 rounded-2xl text-center space-y-4 shadow-sm">
+        <div className="w-14 h-14 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mx-auto border border-rose-200 shadow-inner">
+          <ShieldAlert size={32} />
+        </div>
+        <h2 className="text-lg font-bold text-rose-900">Quyền Truy Cập Bị Từ Chối (403 Forbidden)</h2>
+        <p className="text-xs text-rose-700 leading-relaxed max-w-md mx-auto">
+          Phân hệ Quản trị Tối cao này thuộc thẩm quyền của <strong>Lãnh đạo Ban Quản Lý ĐSĐT (Super Admin)</strong>. 
+          Tài khoản hiện tại của bạn không có đặc quyền truy cập trang này.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto p-4 sm:p-6 pb-20">
@@ -32,17 +71,18 @@ export const AdminDashboardPage: React.FC = () => {
 
       {/* Admin Navigation Tabs */}
       <div className="flex items-center gap-2 border-b border-slate-200 pb-2 overflow-x-auto no-scrollbar">
-        {[
+        {([
           { key: 'export', label: 'Xuất Báo Cáo Phase 1 (BCS Export Module Box)', icon: <FileSpreadsheet className="w-4 h-4" /> },
           { key: 'gis-mutation', label: 'Biên Tập Ranh & Tách/Gộp Thửa GIS', icon: <Split className="w-4 h-4" /> },
           { key: 'users', label: 'Quản lý Người dùng & Phân quyền', icon: <Users className="w-4 h-4" /> },
           { key: 'audit', label: 'Nhật Ký Hệ Thống (Audit Logs)', icon: <Database className="w-4 h-4" /> },
           { key: 'config', label: 'Cấu Hình Tham Số BRA & Metro', icon: <Settings className="w-4 h-4" /> },
-        ].map((tab) => (
+        ] as const).map((tab) => (
           <button
             key={tab.key}
-            onClick={() => setActiveTab(tab.key as any)}
-            className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all border ${
+            type="button"
+            onClick={() => handleTabChange(tab.key)}
+            className={`px-4 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all border cursor-pointer ${
               activeTab === tab.key
                 ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
                 : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'

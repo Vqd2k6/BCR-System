@@ -223,7 +223,7 @@ export class CadastralController {
   static async createUnit(req: Request, res: Response, next: NextFunction) {
     try {
       const { id } = req.params;
-      const { unitCode, floorNumber, ownerName, ownerPhone, ownerIdCard } = req.body;
+      const { unitCode, floorNumber, ownerName, ownerPhone, ownerIdCard, unitType } = req.body;
       if (!unitCode) {
         throw new BadRequestError('Mã số căn hộ (unitCode) là bắt buộc');
       }
@@ -233,8 +233,103 @@ export class CadastralController {
         ownerName,
         ownerPhone,
         ownerIdCard,
+        unitType,
       });
       res.status(201).json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async getFloorPlans(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      const result = await CadastralService.listFloorPlansForParcel(id);
+      res.status(200).json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async getFloorPlanByFloor(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id, floor } = req.params;
+      const floorNum = parseInt(floor, 10);
+      const result = await CadastralService.getFloorPlanByFloor(id, floorNum);
+      res.status(200).json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async upsertFloorPlan(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      const { floorNumber, floorName, floorCode, applicableFloors, cadPhotoUrl, cadPhotoCode, imageWidth, imageHeight, scope, areaType } = req.body;
+      if (floorNumber === undefined || floorNumber === null || !cadPhotoUrl) {
+        throw new BadRequestError('floorNumber và cadPhotoUrl là bắt buộc');
+      }
+      const result = await CadastralService.upsertFloorPlan(id, {
+        floorNumber: parseInt(floorNumber, 10),
+        floorName: floorName || `Tầng ${floorNumber}`,
+        floorCode: floorCode ? String(floorCode).trim() : undefined,
+        applicableFloors,
+        cadPhotoUrl,
+        cadPhotoCode,
+        imageWidth,
+        imageHeight,
+        scope,
+        areaType,
+      });
+      res.status(200).json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async saveFloorPartitions(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      const { floorNumber, floorPlanId, partitions } = req.body;
+      if (!floorNumber || !Array.isArray(partitions)) {
+        throw new BadRequestError('floorNumber và danh sách partitions (mảng) là bắt buộc');
+      }
+      const result = await CadastralService.saveFloorPartitions(id, {
+        floorNumber: parseInt(floorNumber, 10),
+        floorPlanId,
+        partitions,
+      });
+      res.status(200).json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async deleteFloorPlan(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id, floor } = req.params;
+      const mode = (req.query.mode as string)?.toUpperCase() === 'CLEAR_CAD' ? 'CLEAR_CAD' : 'DELETE_FLOOR';
+      const floorNum = parseInt(floor, 10);
+      if (isNaN(floorNum)) {
+        throw new BadRequestError('floor phải là số');
+      }
+      const result = await CadastralService.deleteFloorPlan(id, floorNum, mode);
+      res.status(200).json({
         success: true,
         data: result,
       });

@@ -273,7 +273,7 @@ export const ImageAnnotationModal: React.FC<ImageAnnotationModalProps> = ({
     };
   };
 
-  const handlePointerDown = (e: any) => {
+  const handlePointerDown = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
     const coords = getCanvasCoords(e);
 
     if (activeTool === 'TEXT') {
@@ -303,7 +303,7 @@ export const ImageAnnotationModal: React.FC<ImageAnnotationModalProps> = ({
     }
   };
 
-  const handlePointerMove = (e: any) => {
+  const handlePointerMove = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
     if (!isDrawing) return;
     const coords = getCanvasCoords(e);
 

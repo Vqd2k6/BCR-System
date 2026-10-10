@@ -5,13 +5,10 @@ import { Building2 } from 'lucide-react';
 
 const CONDO_STEPS = [
   '1. Ngoại quan toà',
-  '2. Quy mô & Móng',
-  '3. Không gian chung',
-  '4. Burland toà',
-  '5. Ranh GIS',
-  '6. Điểm ECS/VI',
-  '7. Dashboard',
-  '8. Ký số BQL',
+  '2. Quy mô & CAT',
+  '3. Lịch sử & BQL',
+  '4. Ranh GIS',
+  '5. Ký số BQL',
 ];
 
 interface Props {

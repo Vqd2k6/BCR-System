@@ -1,3 +1,7 @@
+import type { FloorSurveyData, DamageZoneData, StructuralElementData } from '../../../../../survey-phase1/types/phase1.types';
+import type { DefectItem } from '../../../../../../components/canvas/DefectPinningCanvas';
+import type { CadZonePin } from '../../../../../../components/canvas/FloorCadPinningCanvas';
+import type { PhotoReplaceParams } from '../../AuditPhotoReplaceModal';
 import React, { useState } from 'react';
 import { Layers, Maximize2, AlertTriangle, CheckCircle2, MapPin, Eye, EyeOff, Camera, ShieldAlert, Compass, Activity, FileText, Ruler, Sparkles } from 'lucide-react';
 import { Badge } from '../../../../../../core/components/ui/Badge';
@@ -5,10 +9,10 @@ import { SAG_LEVEL_OPTIONS } from '../../../../../survey-phase1/constants/levelG
 
 interface Props {
   isEditMode: boolean;
-  formState: Record<string, any>;
-  handleFieldChange: (key: string, label: string, val: any) => void;
+  formState: Record<string, unknown>;
+  handleFieldChange: (key: string, label: string, val: unknown) => void;
   onOpenPhotoZoom: (url: string, title?: string, photoCode?: string) => void;
-  onOpenPhotoReplace: (params: any) => void;
+  onOpenPhotoReplace: (params: PhotoReplaceParams) => void;
 }
 
 export const AuditStep3FloorDefects: React.FC<Props> = ({
@@ -18,8 +22,8 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
   onOpenPhotoZoom,
   onOpenPhotoReplace,
 }) => {
-  const rawFloors: any[] = Array.isArray(formState.floors) ? formState.floors : [];
-  const rawDamageZones: any[] = Array.isArray(formState.damageZones) ? formState.damageZones : [];
+  const rawFloors: FloorSurveyData[] = Array.isArray(formState.floors) ? (formState.floors as FloorSurveyData[]) : [];
+  const rawDamageZones: DamageZoneData[] = Array.isArray(formState.damageZones) ? (formState.damageZones as DamageZoneData[]) : [];
 
   // Determine active floor
   const [activeFloorIndex, setActiveFloorIndex] = useState(0);
@@ -42,10 +46,10 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
         },
       ];
 
-  const currentFloor = floorsList[activeFloorIndex] || floorsList[0] || {};
-  const currentZones: any[] = Array.isArray(currentFloor.zones) ? currentFloor.zones : [];
-  const currentElements: any[] = Array.isArray(currentFloor.structuralElements) ? currentFloor.structuralElements : [];
-  const currentCadPins: any[] = cadViewMode === 'ARCH'
+  const currentFloor: FloorSurveyData = (floorsList[activeFloorIndex] || floorsList[0] || {}) as FloorSurveyData;
+  const currentZones: DamageZoneData[] = Array.isArray(currentFloor.zones) ? currentFloor.zones : [];
+  const currentElements: StructuralElementData[] = Array.isArray(currentFloor.structuralElements) ? currentFloor.structuralElements : [];
+  const currentCadPins: CadZonePin[] = cadViewMode === 'ARCH'
     ? (Array.isArray(currentFloor.cadZonePins) ? currentFloor.cadZonePins : [])
     : (Array.isArray(currentFloor.cadElementPins) ? currentFloor.cadElementPins : []);
 
@@ -54,13 +58,13 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
     : (currentFloor.cadStructuralSketchPhotoUrl || currentFloor.cad_structural_drawing_url || '');
 
   // Handle changing defect properties in floors or damageZones
-  const handleDefectChange = (zoneId: string, defectId: string, field: string, val: any, fieldLabel: string) => {
+  const handleDefectChange = (zoneId: string, defectId: string, field: string, val: unknown, fieldLabel: string) => {
     if (hasFloors) {
-      const updatedFloors = rawFloors.map((fl: any, fi: number) => {
+      const updatedFloors = rawFloors.map((fl: FloorSurveyData, fi: number) => {
         if (fi !== activeFloorIndex && fl.id !== currentFloor.id) return fl;
-        const zones = (fl.zones || []).map((z: any) => {
+        const zones = (fl.zones || []).map((z: DamageZoneData) => {
           if (z.id !== zoneId) return z;
-          const defects = (z.defects || []).map((d: any) => {
+          const defects = (z.defects || []).map((d: DefectItem) => {
             if (d.id !== defectId && d.defectCode !== defectId) return d;
             return { ...d, [field]: val };
           });
@@ -70,9 +74,9 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
       });
       handleFieldChange('floors', `Khuyết tật ${fieldLabel}`, updatedFloors);
     } else {
-      const updatedZones = rawDamageZones.map((z: any) => {
+      const updatedZones = rawDamageZones.map((z: DamageZoneData) => {
         if (z.id !== zoneId) return z;
-        const defects = (z.defects || []).map((d: any) => {
+        const defects = (z.defects || []).map((d: DefectItem) => {
           if (d.id !== defectId && d.defectCode !== defectId) return d;
           return { ...d, [field]: val };
         });
@@ -83,11 +87,11 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
   };
 
   // Handle changing zone fields
-  const handleZoneFieldChange = (zoneId: string, field: string, val: any, fieldLabel: string) => {
+  const handleZoneFieldChange = (zoneId: string, field: string, val: unknown, fieldLabel: string) => {
     if (hasFloors) {
-      const updatedFloors = rawFloors.map((fl: any, fi: number) => {
+      const updatedFloors = rawFloors.map((fl: FloorSurveyData, fi: number) => {
         if (fi !== activeFloorIndex && fl.id !== currentFloor.id) return fl;
-        const zones = (fl.zones || []).map((z: any) => {
+        const zones = (fl.zones || []).map((z: DamageZoneData) => {
           if (z.id !== zoneId) return z;
           return { ...z, [field]: val };
         });
@@ -95,7 +99,7 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
       });
       handleFieldChange('floors', `Vùng Z (${fieldLabel})`, updatedFloors);
     } else {
-      const updatedZones = rawDamageZones.map((z: any) => {
+      const updatedZones = rawDamageZones.map((z: DamageZoneData) => {
         if (z.id !== zoneId) return z;
         return { ...z, [field]: val };
       });
@@ -123,9 +127,9 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
     };
 
     if (hasFloors) {
-      const updatedFloors = rawFloors.map((fl: any, fi: number) => {
+      const updatedFloors = rawFloors.map((fl: FloorSurveyData, fi: number) => {
         if (fi !== activeFloorIndex && fl.id !== currentFloor.id) return fl;
-        const zones = (fl.zones || []).map((z: any) => {
+        const zones = (fl.zones || []).map((z: DamageZoneData) => {
           if (z.id !== zoneId) return z;
           const currentDefects = Array.isArray(z.defects) ? z.defects : [];
           return { ...z, defects: [...currentDefects, newDefect] };
@@ -134,7 +138,7 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
       });
       handleFieldChange('floors', `Thêm khuyết tật ${newDefectId}`, updatedFloors);
     } else {
-      const updatedZones = rawDamageZones.map((z: any) => {
+      const updatedZones = rawDamageZones.map((z: DamageZoneData) => {
         if (z.id !== zoneId) return z;
         const currentDefects = Array.isArray(z.defects) ? z.defects : [];
         return { ...z, defects: [...currentDefects, newDefect] };
@@ -148,20 +152,20 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
     if (!window.confirm('Bạn có chắc chắn muốn xóa khuyết tật này khỏi hồ sơ?')) return;
 
     if (hasFloors) {
-      const updatedFloors = rawFloors.map((fl: any, fi: number) => {
+      const updatedFloors = rawFloors.map((fl: FloorSurveyData, fi: number) => {
         if (fi !== activeFloorIndex && fl.id !== currentFloor.id) return fl;
-        const zones = (fl.zones || []).map((z: any) => {
+        const zones = (fl.zones || []).map((z: DamageZoneData) => {
           if (z.id !== zoneId) return z;
-          const defects = (z.defects || []).filter((d: any) => d.id !== defectId && d.defectCode !== defectId);
+          const defects = (z.defects || []).filter((d: DefectItem) => d.id !== defectId && d.defectCode !== defectId);
           return { ...z, defects };
         });
         return { ...fl, zones };
       });
       handleFieldChange('floors', `Xóa khuyết tật`, updatedFloors);
     } else {
-      const updatedZones = rawDamageZones.map((z: any) => {
+      const updatedZones = rawDamageZones.map((z: DamageZoneData) => {
         if (z.id !== zoneId) return z;
-        const defects = (z.defects || []).filter((d: any) => d.id !== defectId && d.defectCode !== defectId);
+        const defects = (z.defects || []).filter((d: DefectItem) => d.id !== defectId && d.defectCode !== defectId);
         return { ...z, defects };
       });
       handleFieldChange('damageZones', `Xóa khuyết tật`, updatedZones);
@@ -169,11 +173,11 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
   };
 
   // Handle changing element fields
-  const handleElementFieldChange = (elemId: string, field: string, val: any, fieldLabel: string) => {
+  const handleElementFieldChange = (elemId: string, field: string, val: unknown, fieldLabel: string) => {
     if (hasFloors) {
-      const updatedFloors = rawFloors.map((fl: any, fi: number) => {
+      const updatedFloors = rawFloors.map((fl: FloorSurveyData, fi: number) => {
         if (fi !== activeFloorIndex && fl.id !== currentFloor.id) return fl;
-        const structuralElements = (fl.structuralElements || []).map((e: any) => {
+        const structuralElements = (fl.structuralElements || []).map((e: StructuralElementData) => {
           if (e.id !== elemId && e.elementCode !== elemId) return e;
           return { ...e, [field]: val };
         });
@@ -184,11 +188,24 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
   };
 
   // 3.4. Dữ liệu võng dầm sàn & Đề xuất quan trắc
-  const st = formState.settlementTilt || {};
+  interface SettlementTiltData {
+    beamSagging?: {
+      level?: number;
+      location?: string;
+      position?: string;
+      sagMm?: number;
+      sag_mm?: number;
+      description?: string;
+      photoUrl?: string;
+    };
+    needAdditionalMonitoring?: { required?: boolean; notes?: string };
+    [key: string]: unknown;
+  }
+  const st: SettlementTiltData = (formState.settlementTilt as SettlementTiltData) || {};
   const beamSagging = currentFloor.beamSagging || st.beamSagging || {};
   const needMonitoring = st.needAdditionalMonitoring || { required: false, notes: '' };
 
-  const handleBeamSaggingChange = (field: string, val: any) => {
+  const handleBeamSaggingChange = (field: string, val: unknown) => {
     const updatedST = {
       ...st,
       beamSagging: {
@@ -199,7 +216,7 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
     handleFieldChange('settlementTilt', `Võng dầm (${field})`, updatedST);
   };
 
-  const handleMonitoringChange = (field: string, val: any) => {
+  const handleMonitoringChange = (field: string, val: unknown) => {
     const updatedST = {
       ...st,
       needAdditionalMonitoring: {
@@ -219,8 +236,8 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
     ? rawFloors.reduce(
         (sum, f) =>
           sum +
-          (f.zones || []).reduce((zSum: number, z: any) => zSum + (z.defects?.length || 0), 0) +
-          (f.structuralElements || []).reduce((eSum: number, e: any) => eSum + (e.defects?.length || 0), 0),
+          (f.zones || []).reduce((zSum: number, z: DamageZoneData) => zSum + (z.defects?.length || 0), 0) +
+          (f.structuralElements || []).reduce((eSum: number, e: StructuralElementData) => eSum + (e.defects?.length || 0), 0),
         0
       )
     : rawDamageZones.reduce((sum, z) => sum + (z.defects?.length || 0), 0);
@@ -256,7 +273,7 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
             {floorsList.map((fl, idx) => {
               const isActive = idx === activeFloorIndex;
               const fZones = fl.zones?.length || 0;
-              const fDefects = (fl.zones || []).reduce((sum: number, z: any) => sum + (z.defects?.length || 0), 0);
+              const fDefects = (fl.zones || []).reduce((sum: number, z: DamageZoneData) => sum + (z.defects?.length || 0), 0);
               return (
                 <button
                   key={fl.id || idx}
@@ -360,7 +377,7 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
 
               {/* Lớp phủ các điểm ghim Z hoặc E */}
               {showCadPins &&
-                currentCadPins.map((pin: any, pIdx: number) => {
+                currentCadPins.map((pin: CadZonePin, pIdx: number) => {
                   const pX = Number(pin.pinX ?? pin.pin_x ?? 50);
                   const pY = Number(pin.pinY ?? pin.pin_y ?? 50);
                   const pCode = pin.zoneCode || pin.zone_code || `${cadViewMode === 'ARCH' ? 'Z' : 'E'}-${pIdx + 1}`;
@@ -438,9 +455,9 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
               <span className="font-semibold text-xs">Tầng này không có Vùng Kiến Trúc Z nào</span>
             </div>
           ) : (
-            currentZones.map((z: any) => {
+            currentZones.map((z: DamageZoneData) => {
               const zCode = z.zoneCode || z.zone_code || 'Z-??';
-              const defectsList: any[] = Array.isArray(z.defects)
+              const defectsList: DefectItem[] = Array.isArray(z.defects)
                 ? z.defects
                 : typeof z.defects === 'string'
                 ? JSON.parse(z.defects)
@@ -623,7 +640,7 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                             />
                             {/* Overlay điểm ghim khuyết tật D trên ảnh CTX */}
                             {showCtxPins &&
-                              defectsList.map((d: any, dIdx: number) => {
+                              defectsList.map((d: DefectItem, dIdx: number) => {
                                 const pX = Number(d.pinX ?? d.pin_x ?? 50);
                                 const pY = Number(d.pinY ?? d.pin_y ?? 50);
                                 const dCode = d.defectCode || d.defect_code || `D-${dIdx + 1}`;
@@ -699,7 +716,7 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                           Không có khuyết tật nứt nào trong vùng kiến trúc này
                         </div>
                       ) : (
-                        defectsList.map((d: any) => {
+                        defectsList.map((d: DefectItem) => {
                           const dCode = d.defectCode || d.defect_code || 'D-??';
                           const cuPhotos: string[] =
                             Array.isArray(d.cuPhotos) && d.cuPhotos.length > 0
@@ -726,7 +743,7 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                                       <select
                                         value={d.screeningCategory || d.defectType || 'Vết nứt tường'}
                                         onChange={(e) =>
-                                          handleDefectChange(z.id, d.id, 'screeningCategory', e.target.value, `${dCode} Phân loại`)
+                                          handleDefectChange(z.id, d.id || d.defectCode, 'screeningCategory', e.target.value, `${dCode} Phân loại`)
                                         }
                                         className="p-1 border border-slate-300 rounded text-xs font-bold bg-white"
                                       >
@@ -742,7 +759,7 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                                           type="checkbox"
                                           checked={Boolean(d.isStructuralCritical)}
                                           onChange={(e) =>
-                                            handleDefectChange(z.id, d.id, 'isStructuralCritical', e.target.checked, `${dCode} Cờ kết cấu`)
+                                            handleDefectChange(z.id, d.id || d.defectCode, 'isStructuralCritical', e.target.checked, `${dCode} Cờ kết cấu`)
                                           }
                                           className="rounded text-red-600"
                                         />
@@ -774,7 +791,7 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                                         step="0.05"
                                         value={d.widthMaxMm ?? d.width_max_mm ?? 0}
                                         onChange={(e) =>
-                                          handleDefectChange(z.id, d.id, 'widthMaxMm', Number(e.target.value), `${dCode} Bề rộng`)
+                                          handleDefectChange(z.id, d.id || d.defectCode, 'widthMaxMm', Number(e.target.value), `${dCode} Bề rộng`)
                                         }
                                         className="w-16 px-1.5 py-0.5 border border-amber-300 rounded bg-amber-50/50 font-black text-red-600 text-xs"
                                       />
@@ -783,13 +800,13 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                                         type="number"
                                         value={d.lengthMm ?? 0}
                                         onChange={(e) =>
-                                          handleDefectChange(z.id, d.id, 'lengthMm', Number(e.target.value), `${dCode} Chiều dài`)
+                                          handleDefectChange(z.id, d.id || d.defectCode, 'lengthMm', Number(e.target.value), `${dCode} Chiều dài`)
                                         }
                                         className="w-16 px-1.5 py-0.5 border border-amber-300 rounded bg-amber-50/50 text-xs font-bold"
                                       />
                                       <button
                                         type="button"
-                                        onClick={() => handleRemoveDefect(z.id, d.id)}
+                                        onClick={() => handleRemoveDefect(z.id, d.id || d.defectCode)}
                                         className="px-2 py-0.5 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded text-[11px] font-bold transition-colors cursor-pointer"
                                         title="Xóa khuyết tật này"
                                       >
@@ -814,7 +831,7 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                                     <select
                                       value={d.crackDirection || 'Ngang'}
                                       onChange={(e) =>
-                                        handleDefectChange(z.id, d.id, 'crackDirection', e.target.value, `${dCode} Hướng nứt`)
+                                        handleDefectChange(z.id, d.id || d.defectCode, 'crackDirection', e.target.value, `${dCode} Hướng nứt`)
                                       }
                                       className="w-full p-1 bg-white border border-slate-300 rounded text-[11px] font-bold"
                                     >
@@ -837,7 +854,7 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                                     <select
                                       value={d.activityState || 'S'}
                                       onChange={(e) =>
-                                        handleDefectChange(z.id, d.id, 'activityState', e.target.value, `${dCode} Trạng thái`)
+                                        handleDefectChange(z.id, d.id || d.defectCode, 'activityState', e.target.value, `${dCode} Trạng thái`)
                                       }
                                       className="w-full p-1 bg-white border border-slate-300 rounded text-[11px] font-bold"
                                     >
@@ -863,7 +880,7 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                                       type="number"
                                       value={d.depthMm ?? ''}
                                       onChange={(e) =>
-                                        handleDefectChange(z.id, d.id, 'depthMm', e.target.value ? Number(e.target.value) : '', `${dCode} Độ sâu`)
+                                        handleDefectChange(z.id, d.id || d.defectCode, 'depthMm', e.target.value ? Number(e.target.value) : '', `${dCode} Độ sâu`)
                                       }
                                       placeholder="VD: 5"
                                       className="w-full p-1 bg-white border border-slate-300 rounded text-[11px] font-bold"
@@ -883,7 +900,7 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                                         type="checkbox"
                                         checked={Boolean(d.hasScaleCard ?? d.has_scale_card)}
                                         onChange={(e) =>
-                                          handleDefectChange(z.id, d.id, 'hasScaleCard', e.target.checked, `${dCode} Thước đo`)
+                                          handleDefectChange(z.id, d.id || d.defectCode, 'hasScaleCard', e.target.checked, `${dCode} Thước đo`)
                                         }
                                       />
                                       <span>Có thẻ chuẩn</span>
@@ -910,7 +927,7 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                                     type="text"
                                     value={d.notes || ''}
                                     onChange={(e) =>
-                                      handleDefectChange(z.id, d.id, 'notes', e.target.value, `${dCode} Ghi chú`)
+                                      handleDefectChange(z.id, d.id || d.defectCode, 'notes', e.target.value, `${dCode} Ghi chú`)
                                     }
                                     className="w-full p-1 bg-white border border-slate-300 rounded text-xs"
                                     placeholder="Ghi chú chi tiết vết nứt..."
@@ -980,9 +997,9 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
             </div>
 
             <div className="space-y-3">
-              {currentElements.map((elem: any) => {
+              {currentElements.map((elem: StructuralElementData) => {
                 const eCode = elem.elementCode || 'E-??';
-                const eDefects: any[] = Array.isArray(elem.defects) ? elem.defects : [];
+                const eDefects: DefectItem[] = Array.isArray(elem.defects) ? elem.defects : [];
 
                 return (
                   <div key={elem.id || eCode} className="p-3 bg-amber-50/40 rounded-xl border border-amber-200 space-y-2">
@@ -1065,7 +1082,7 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                   onChange={(e) => handleBeamSaggingChange('level', Number(e.target.value))}
                   className="w-full p-1.5 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-800"
                 >
-                  {SAG_LEVEL_OPTIONS.map((opt: any) => (
+                  {SAG_LEVEL_OPTIONS.map((opt: (typeof SAG_LEVEL_OPTIONS)[number]) => (
                     <option key={opt.level} value={opt.level}>
                       Cấp {opt.level} - {opt.title}
                     </option>
@@ -1073,7 +1090,7 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                 </select>
               ) : (
                 <div className="font-bold text-slate-800">
-                  {beamSagging.level !== undefined ? `Cấp ${beamSagging.level} (${SAG_LEVEL_OPTIONS.find((o: any) => o.level === beamSagging.level)?.title || 'Bình thường'})` : 'Không phát hiện võng'}
+                  {beamSagging.level !== undefined ? `Cấp ${beamSagging.level} (${SAG_LEVEL_OPTIONS.find((o: (typeof SAG_LEVEL_OPTIONS)[number]) => o.level === beamSagging.level)?.title || 'Bình thường'})` : 'Không phát hiện võng'}
                 </div>
               )}
             </div>
@@ -1154,7 +1171,7 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                   Ảnh chụp cấu kiện dầm sàn bị võng:
                 </span>
                 <div
-                  onClick={() => onOpenPhotoZoom(beamSagging.photoUrl, 'Ảnh dầm sàn bị võng')}
+                  onClick={() => onOpenPhotoZoom(beamSagging.photoUrl!, 'Ảnh dầm sàn bị võng')}
                   className="w-32 h-24 rounded-lg overflow-hidden border border-violet-200 cursor-pointer hover:shadow-md relative group"
                 >
                   <img src={beamSagging.photoUrl} alt="Võng dầm" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />

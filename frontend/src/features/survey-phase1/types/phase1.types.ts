@@ -1,6 +1,9 @@
-import { DefectItem } from '../../../components/canvas/DefectPinningCanvas';
-import { CadZonePin } from '../../../components/canvas/FloorCadPinningCanvas';
-import { PolygonPoint, FloorSplitLine } from '../../../components/canvas/FacadePolygonCanvas';
+import type { DefectItem } from '../../../components/canvas/DefectPinningCanvas';
+import type { CadZonePin } from '../../../components/canvas/FloorCadPinningCanvas';
+import type { PolygonPoint, FloorSplitLine } from '../../../components/canvas/FacadePolygonCanvas';
+import type { SplitChildData } from '../../../components/gis/shared/types';
+
+export type { DefectItem, CadZonePin, PolygonPoint, FloorSplitLine, SplitChildData };
 
 export type ObjectGroupType = 'GENERAL' | 'IMPORTANT' | 'CRITICAL';
 
@@ -13,18 +16,25 @@ export interface AdjacentBuildingState {
 export interface DamageZoneData {
   id: string;
   zoneCode: string;
+  zone_code?: string;
   floorName: string;
+  floor_name?: string;
   roomName: string;
+  room_name?: string;
   customRoomName?: string;
   componentType: string;
+  component_type?: string;
   customComponentType?: string;
   wallMaterial: string;
+  wall_material?: string;
   customWallMaterial?: string;
   functionalImpactRepairNeeded?: boolean;
   burlandGrade?: number;
   overviewPhotos: string[]; // Hỗ trợ nhiều ảnh tổng quan cho 1 Vùng Z
   ctxPhotoUrl?: string; // Ảnh bối cảnh chính để thả ghim nứt
+  ctx_photo_url?: string;
   ctxPhotoCode?: string; // Mã ID ảnh bối cảnh (photoCode)
+  ctx_photo_code?: string;
   hasDamage?: boolean; // false nếu không có hư hại, true nếu có điểm khuyết tật D
   notes: string;
   defects: DefectItem[];
@@ -59,13 +69,24 @@ export interface FloorSurveyData {
   floorName: string;
   overviewPhotos: { id: string; url: string; caption?: string; photoCode?: string }[];
   cadSketchPhotoUrl: string; // Sơ đồ CAD_01 (Mặt bằng kiến trúc & Mảng tường Vùng Z)
+  cad_drawing_url?: string;
   cadStructuralSketchPhotoUrl?: string; // Sơ đồ CAD_02 (Mặt bằng kết cấu chịu lực Vùng E)
+  cad_structural_drawing_url?: string;
   cadZonePins: CadZonePin[]; // Ghim Vùng Z (Kiến trúc / Mảng tường trên CAD_01)
   cadElementPins?: CadZonePin[]; // Ghim Vùng E (Kết cấu chịu lực trên CAD_02)
   zones: DamageZoneData[];
   structuralElements?: StructuralElementData[];
   hasStructuralElements?: boolean; // Tùy chọn: Tầng có cấu kiện chịu lực riêng hay không (mặc định true, false cho tầng mái/sân thượng/tum)
   noStructuralElementsReason?: string; // Lý do miễn khảo sát cấu kiện chịu lực riêng (VD: Tầng mái không có cấu kiện riêng, Khung nhẹ/Mái tôn, v.v.)
+  beamSagging?: {
+    level?: number;
+    location?: string;
+    position?: string;
+    sagMm?: number;
+    sag_mm?: number;
+    description?: string;
+    photoUrl?: string;
+  };
 }
 
 export interface HistoryInterviewState {
@@ -170,6 +191,19 @@ export interface ViScoreState {
   };
 }
 
+export interface AbsenceLogEntry {
+  id?: string;
+  attemptDate?: string;
+  attempt_date?: string;
+  absenceReason?: string;
+  absence_reason?: string;
+  notes?: string;
+  photoProofUrl?: string;
+  photo_proof_url?: string;
+  surveyorName?: string;
+  surveyor_name?: string;
+}
+
 export interface Phase1SurveyFormData {
   parcelId: string;
   projectParcelCode: string;
@@ -180,6 +214,7 @@ export interface Phase1SurveyFormData {
   ownerName: string;
   ownerPhone: string;
   objectGroup: ObjectGroupType;
+  targetGroup?: ObjectGroupType;
   chainage: string;
   metroOffsetDistance: string;
   clearanceOffsetDistance: string;
@@ -202,7 +237,7 @@ export interface Phase1SurveyFormData {
   // Khảo sát lại sau khi chủ nhà từng vắng mặt
   resumedFromAbsentee?: boolean;
   resumedAt?: string;
-  previousAbsenceLogs?: any[];
+  previousAbsenceLogs?: AbsenceLogEntry[];
 
   // Thông tin mở rộng cho Tòa nhà Chung cư / Cao tầng
   unitsPerFloor?: number | ''; // Số căn mỗi tầng
@@ -301,6 +336,7 @@ export interface Phase1SurveyFormData {
     restrictedFloorLevels: string[];
     mainReason: string;
     notes: string;
+    customRestrictedArea?: string;
   };
   gisMutationConfirmed: {
     type: 'MATCH' | 'SPLIT' | 'MERGE';
@@ -310,7 +346,7 @@ export interface Phase1SurveyFormData {
       splitReason?: string;
       splitCustomReason?: string;
       splitCount?: number;
-      splitChildren?: any[];
+      splitChildren?: SplitChildData[];
       splitShapeOption?: 'DRAG_HANDLES' | 'CLICK_TO_DRAW';
       splitCustomPointsA?: [number, number][];
       splitCustomPointsB?: [number, number][];
@@ -338,6 +374,19 @@ export interface Phase1SurveyFormData {
       mergeResidualPolygon?: [number, number][];
       isSubmitted?: boolean;
       submittedAt?: string;
+    };
+  };
+  gisMutation?: {
+    type?: 'MATCH' | 'SPLIT' | 'MERGE';
+    notes?: string;
+    splitReason?: string;
+    mergeReason?: string;
+    selectedMergeCodes?: string[];
+    details?: {
+      splitReason?: string;
+      mergeReason?: string;
+      selectedMergeCodes?: string[];
+      [key: string]: unknown;
     };
   };
 

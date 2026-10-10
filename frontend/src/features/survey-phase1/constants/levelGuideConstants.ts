@@ -1,4 +1,4 @@
-import { LevelOptionGuide } from '../components/LevelSelectorWithGuide';
+import type { LevelOptionGuide } from '../components/LevelSelectorWithGuide';
 
 export const SETTLEMENT_LEVEL_OPTIONS: LevelOptionGuide[] = [
   {

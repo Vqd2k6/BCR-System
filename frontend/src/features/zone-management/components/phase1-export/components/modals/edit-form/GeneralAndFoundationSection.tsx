@@ -1,6 +1,6 @@
 import React from 'react';
 import { FileText, Building, Compass, Layers } from 'lucide-react';
-import { EditFormData } from '../../../types';
+import type { EditFormData } from '../../../types';
 
 interface GeneralAndFoundationSectionProps {
   editFormData: EditFormData;

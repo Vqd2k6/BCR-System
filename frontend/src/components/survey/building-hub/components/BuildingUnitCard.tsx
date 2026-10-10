@@ -1,17 +1,17 @@
-import React from 'react';
 import {
   CheckCircle2,
   Clock,
   AlertCircle,
   User,
   Phone,
-  Lock,
   Check,
   ArrowRight,
   Sparkles,
+  Building2,
+  MapPin,
 } from 'lucide-react';
-import { GisParcel } from '../../../gis/LeafletSweepMap';
-import { BuildingUnit } from '../types';
+import type { GisParcel } from '../../../gis/LeafletSweepMap';
+import type { BuildingUnit } from '../types';
 
 interface BuildingUnitCardProps {
   unit: BuildingUnit;
@@ -19,6 +19,7 @@ interface BuildingUnitCardProps {
   isMasterSurveyDone: boolean;
   onClose: () => void;
   onStartUnitSurvey: (parcel: GisParcel, unit: BuildingUnit, phase?: 1 | 2) => void;
+  onStartMasterAreaSurvey?: (parcel: GisParcel, unit: BuildingUnit) => void;
 }
 
 export const BuildingUnitCard: React.FC<BuildingUnitCardProps> = ({
@@ -27,8 +28,8 @@ export const BuildingUnitCard: React.FC<BuildingUnitCardProps> = ({
   isMasterSurveyDone,
   onClose,
   onStartUnitSurvey,
+  onStartMasterAreaSurvey,
 }) => {
-  const isUnitLocked = !isMasterSurveyDone;
   const isPhase1Done = unit.status === 'APPROVED' || unit.status === 'SUBMITTED' || !!unit.phase1_report_id;
   const isPhase2Done = !!unit.phase2_report_id || unit.status === 'PHASE2_COMPLETED';
 
@@ -86,55 +87,114 @@ export const BuildingUnitCard: React.FC<BuildingUnitCardProps> = ({
     );
   };
 
+  const isMaster = (unit.unit_type || unit.unitType) === 'MASTER';
+  const floorNum = unit.floor_number ?? unit.floorNumber ?? 1;
+  const floorLabel = floorNum < 0 ? `Hầm B${Math.abs(floorNum)}` : floorNum === 0 ? 'Trệt / Sảnh G' : `Lầu ${floorNum}`;
+
   return (
     <div
       className={`bg-white rounded-xl border p-4 flex flex-col justify-between gap-3 shadow-sm hover:shadow-md transition-all ${
         isPhase2Done
           ? 'border-emerald-200 bg-emerald-50/10'
           : isPhase1Done
-          ? 'border-sky-200 bg-sky-50/10'
+          ? isMaster ? 'border-indigo-300 bg-indigo-50/20' : 'border-sky-200 bg-sky-50/10'
+          : isMaster
+          ? 'border-indigo-200 bg-indigo-50/5'
           : 'border-slate-200'
       }`}
     >
       <div>
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <span className="text-sm font-black text-slate-900">
+            <span className={`text-sm font-black flex items-center gap-1.5 ${isMaster ? 'text-indigo-900' : 'text-slate-900'}`}>
+              {isMaster ? <Building2 size={15} className="text-indigo-600" /> : null}
               {unit.unit_code}
             </span>
-            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">
-              Lầu {unit.floor_number}
+            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${
+              isMaster ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-slate-100 text-slate-600 border border-slate-200'
+            }`}>
+              {floorLabel}
             </span>
           </div>
           {renderUnitStatusBadge()}
         </div>
 
         <div className="mt-2.5 flex flex-col gap-1 text-[11px] text-slate-600">
-          <div className="flex items-center gap-1.5 truncate">
-            <User size={13} className="text-slate-400 flex-shrink-0" />
-            <span className="truncate">
-              Chủ hộ: <strong>{unit.owner_name || 'Chưa cập nhật'}</strong>
-            </span>
-          </div>
-          {unit.owner_phone && (
-            <div className="flex items-center gap-1.5">
-              <Phone size={13} className="text-slate-400 flex-shrink-0" />
-              <span>{unit.owner_phone}</span>
-            </div>
+          {isMaster ? (
+            <>
+              <div className="flex items-center gap-1.5 truncate">
+                <MapPin size={13} className="text-indigo-500 flex-shrink-0" />
+                <span className="truncate">
+                  Khu vực: <strong>{unit.unit_name || 'Dùng chung'}</strong>
+                </span>
+              </div>
+              <div className="flex items-center gap-1.5 text-slate-500">
+                <span className="text-[10px]">Định vị CAD:</span>
+                {unit.cad_bbox || unit.cadBbox ? (
+                  <span className="text-indigo-600 font-bold text-[10px]">✓ Đã phân chia zone</span>
+                ) : (
+                  <span className="text-slate-400 text-[10px]">Chưa vẽ zone</span>
+                )}
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="flex items-center gap-1.5 truncate">
+                <User size={13} className="text-slate-400 flex-shrink-0" />
+                <span className="truncate">
+                  Chủ hộ: <strong>{unit.owner_name || 'Chưa cập nhật'}</strong>
+                </span>
+              </div>
+              {unit.owner_phone && (
+                <div className="flex items-center gap-1.5">
+                  <Phone size={13} className="text-slate-400 flex-shrink-0" />
+                  <span>{unit.owner_phone}</span>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>
 
       {/* Dynamic Survey Phase Action Button */}
-      {isUnitLocked ? (
-        <button
-          type="button"
-          disabled
-          className="w-full py-2 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed"
-        >
-          <Lock size={13} />
-          <span>Chưa mở (Cần khảo sát chung)</span>
-        </button>
+      {isMaster ? (
+        isPhase1Done ? (
+          <button
+            type="button"
+            onClick={() => {
+              if (onStartMasterAreaSurvey) onStartMasterAreaSurvey(parcel, unit);
+              else onStartUnitSurvey(parcel, unit, 1);
+            }}
+            className="w-full py-2 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 transition-all cursor-pointer"
+          >
+            <Check size={14} className="text-emerald-600" />
+            <span>Xem Khảo Sát Master</span>
+          </button>
+        ) : unit.status === 'IN_PROGRESS' ? (
+          <button
+            type="button"
+            onClick={() => {
+              if (onStartMasterAreaSurvey) onStartMasterAreaSurvey(parcel, unit);
+              else onStartUnitSurvey(parcel, unit, 1);
+            }}
+            className="w-full py-2 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-white shadow-sm transition-all cursor-pointer"
+          >
+            <Clock size={14} />
+            <span>Tiếp Tục Khảo Sát Master</span>
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => {
+              if (onStartMasterAreaSurvey) onStartMasterAreaSurvey(parcel, unit);
+              else onStartUnitSurvey(parcel, unit, 1);
+            }}
+            className="w-full py-2 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm transition-all cursor-pointer"
+          >
+            <Building2 size={14} />
+            <span>Khảo Sát Khu Vực Master</span>
+          </button>
+        )
       ) : isPhase2Done ? (
         <button
           type="button"

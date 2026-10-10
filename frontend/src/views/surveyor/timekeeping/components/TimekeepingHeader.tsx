@@ -2,7 +2,7 @@ import React from 'react';
 import { RefreshCw } from 'lucide-react';
 import {
   getZoneCentroid,
-  MetroZoneCentroid,
+  type MetroZoneCentroid,
   METRO_ZONE_CENTROIDS,
 } from '../../../../core/utils/metroZoneUtils';
 

@@ -1,19 +1,6 @@
-import { GisParcel } from '../../gis/LeafletSweepMap';
+import type { GisParcel, BuildingUnit } from '../../../core/types/domain.types';
 
-export interface BuildingUnit {
-  id: string;
-  parcel_id: string;
-  unit_code: string;
-  floor_number: number;
-  owner_name?: string | null;
-  owner_phone?: string | null;
-  owner_id_card?: string | null;
-  status: string;
-  phase1_report_id?: string | null;
-  phase2_report_id?: string | null;
-  created_at?: string;
-  updated_at?: string;
-}
+export type { BuildingUnit };
 
 export interface BuildingHubModalProps {
   parcel: GisParcel;
@@ -21,4 +8,17 @@ export interface BuildingHubModalProps {
   onStartMasterSurvey: (parcel: GisParcel) => void;
   onStartUnitSurvey: (parcel: GisParcel, unit: BuildingUnit, phase?: 1 | 2) => void;
   onUnitsUpdated?: () => void;
+}
+
+export interface MasterReportData {
+  status?: string;
+  building_type?: string;
+  buildingSpecs?: {
+    floor_count?: number;
+    basement_count?: number;
+    foundation_category?: string;
+    structural_system?: string;
+  };
+  identificationPhotos?: unknown[];
+  summary_conclusions?: string;
 }

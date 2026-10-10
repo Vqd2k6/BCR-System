@@ -4,7 +4,7 @@ import {
   loadPdfDocument,
   renderPdfPageThumbnail,
   renderPdfPageToBlob,
-  PdfDocumentInfo,
+  type PdfDocumentInfo,
 } from '../../utils/pdfToImageConverter';
 
 interface PdfFloorPlanPickerModalProps {
@@ -59,7 +59,7 @@ export const PdfFloorPlanPickerModal: React.FC<PdfFloorPlanPickerModalProps> = (
             setThumbnails([...thumbs]);
           }
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error('[PdfPicker] Lỗi đọc file PDF:', err);
         if (isMounted) {
           setError('Không thể đọc file PDF bản vẽ. Vui lòng kiểm tra lại file hoặc chuyển sang dạng ảnh JPG/PNG.');
@@ -87,7 +87,7 @@ export const PdfFloorPlanPickerModal: React.FC<PdfFloorPlanPickerModalProps> = (
       const blob = await renderPdfPageToBlob(pdfInfo.pdfDoc, selectedPage, 2048, 0.92);
       onConfirmPage(blob, selectedPage);
       onClose();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('[PdfPicker] Lỗi render trang PDF:', err);
       setError('Lỗi khi chuyển đổi trang PDF sang ảnh. Vui lòng thử lại.');
     } finally {

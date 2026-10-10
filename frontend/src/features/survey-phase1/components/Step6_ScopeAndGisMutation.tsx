@@ -27,14 +27,19 @@ const RESTRICTED_AREAS_PRESETS = [
 ];
 
 export const Step6_ScopeAndGisMutation: React.FC = () => {
-  const { formData, updateFormData, nextStep, prevStep, activeParcel } = usePhase1SurveyStore();
+  const { formData, updateFormData, nextStep, prevStep, activeParcel, isReadOnly } = usePhase1SurveyStore();
   const [extraFloorsCount, setExtraFloorsCount] = useState(0);
+
+  const isCondoMaster =
+    (formData.surveyCaseType === 'APARTMENT' ||
+      (formData as unknown as { survey_case_type?: string }).survey_case_type === 'APARTMENT') &&
+    !formData.unitId;
 
   const scope = formData.surveyScope;
   const access = formData.accessLimitation;
 
   const [customRestrictedArea, setCustomRestrictedArea] = useState(() => {
-    if ((access as any)?.customRestrictedArea) return (access as any).customRestrictedArea;
+    if (access?.customRestrictedArea) return access.customRestrictedArea;
     const match = (access?.notes || '').match(/\[Khu vực khác:\s*(.+?)\]/);
     return match ? match[1] : '';
   });
@@ -129,13 +134,15 @@ export const Step6_ScopeAndGisMutation: React.FC = () => {
                 <input
                   type="radio"
                   name="accessType"
+                  disabled={isReadOnly}
                   checked={access.type === opt.value}
-                  onChange={() =>
+                  onChange={() => {
+                    if (isReadOnly) return;
                     updateFormData({
-                      accessLimitation: { ...access, type: opt.value as any },
-                    })
-                  }
-                  className="text-amber-600 focus:ring-amber-500"
+                      accessLimitation: { ...access, type: opt.value as "FULL_100" | "LIMITED" | "ABSENT_REFUSED" },
+                    });
+                  }}
+                  className="text-amber-600 focus:ring-amber-500 disabled:opacity-50"
                 />
                 <span>{opt.label}</span>
               </label>
@@ -163,8 +170,10 @@ export const Step6_ScopeAndGisMutation: React.FC = () => {
                       >
                         <input
                           type="checkbox"
+                          disabled={isReadOnly}
                           checked={isChecked}
                           onChange={(e) => {
+                            if (isReadOnly) return;
                             const cur = access.restrictedAreas || [];
                             const next = e.target.checked
                               ? [...cur, area]
@@ -173,7 +182,7 @@ export const Step6_ScopeAndGisMutation: React.FC = () => {
                               accessLimitation: { ...access, restrictedAreas: next },
                             });
                           }}
-                          className="rounded text-amber-600 focus:ring-amber-500"
+                          className="rounded text-amber-600 focus:ring-amber-500 disabled:opacity-50"
                         />
                         <span>{area}</span>
                       </label>
@@ -350,7 +359,7 @@ export const Step6_ScopeAndGisMutation: React.FC = () => {
         </div>
 
         {/* Trình biên tập GIS hiển thị trực tiếp inline */}
-        <div className="rounded-xl overflow-hidden border border-slate-200 min-h-[520px]">
+        <div className={`rounded-xl overflow-hidden border border-slate-200 min-h-[520px] ${isReadOnly ? 'pointer-events-none opacity-90' : ''}`}>
           <CadastralGISBoundaryEditor
             activeParcelId={formData.parcelId}
             parcel={
@@ -361,16 +370,16 @@ export const Step6_ScopeAndGisMutation: React.FC = () => {
                     houseNumber: formData.houseNumber || activeParcel.houseNumber,
                     street: formData.street || activeParcel.street,
                     ownerName: formData.ownerName || activeParcel.ownerName,
-                    ownerPhone: formData.ownerPhone || (activeParcel as any).ownerPhone,
+                    ownerPhone: formData.ownerPhone || activeParcel.ownerPhone,
                     landAreaM2: (formData.constructionAreaM2 !== '' && formData.constructionAreaM2 !== undefined)
                       ? Number(formData.constructionAreaM2)
-                      : ((activeParcel as any)?.land_area_m2 || (activeParcel as any)?.landAreaM2),
+                      : (activeParcel?.land_area_m2 || activeParcel?.landAreaM2),
                     constructionAreaM2: (formData.constructionAreaM2 !== '' && formData.constructionAreaM2 !== undefined)
                       ? Number(formData.constructionAreaM2)
-                      : ((activeParcel as any)?.construction_area_m2 || (activeParcel as any)?.constructionAreaM2),
+                      : (activeParcel?.construction_area_m2 || activeParcel?.constructionAreaM2),
                     buildingHeightM: (formData.buildingHeightM !== '' && formData.buildingHeightM !== undefined)
                       ? Number(formData.buildingHeightM)
-                      : ((activeParcel as any)?.building_height_m || (activeParcel as any)?.buildingHeightM),
+                      : (activeParcel?.building_height_m || activeParcel?.buildingHeightM),
                   }
                 : (formData.parcelCoordinates && formData.parcelCoordinates.length >= 3
                 ? ({
@@ -394,7 +403,7 @@ export const Step6_ScopeAndGisMutation: React.FC = () => {
                     buildingHeightM: (formData.buildingHeightM !== '' && formData.buildingHeightM !== undefined)
                       ? Number(formData.buildingHeightM)
                       : undefined,
-                  } as any)
+                  })
                 : undefined)
             }
             parcelData={{
@@ -402,23 +411,23 @@ export const Step6_ScopeAndGisMutation: React.FC = () => {
               officialCadastralCode: formData.officialCadastralCode,
               houseNumber: formData.houseNumber,
               street: formData.street,
-              ward: (activeParcel as any)?.ward || (activeParcel as any)?.ward_name || 'Phường 15',
-              district: (activeParcel as any)?.district || (activeParcel as any)?.district_name || 'Quận Tân Bình',
+              ward: activeParcel?.ward || activeParcel?.ward_name || 'Phường 15',
+              district: activeParcel?.district || activeParcel?.district_name || 'Quận Tân Bình',
               ownerName: formData.ownerName,
               floorCount: typeof formData.aboveFloors === 'number' ? formData.aboveFloors : undefined,
               zoneId: activeParcel?.zoneId || formData.zoneId,
               coordinates: activeParcel?.coordinates || formData.parcelCoordinates,
               landArea: (formData.constructionAreaM2 !== '' && formData.constructionAreaM2 !== undefined)
                 ? Number(formData.constructionAreaM2)
-                : ((activeParcel as any)?.land_area_m2 || (activeParcel as any)?.landAreaM2 || (activeParcel as any)?.landArea),
+                : (activeParcel?.land_area_m2 || activeParcel?.landAreaM2 || activeParcel?.landArea),
               constructionArea: (formData.constructionAreaM2 !== '' && formData.constructionAreaM2 !== undefined)
                 ? Number(formData.constructionAreaM2)
                 : undefined,
               buildingHeight: (formData.buildingHeightM !== '' && formData.buildingHeightM !== undefined)
                 ? Number(formData.buildingHeightM)
-                : ((activeParcel as any)?.building_height_m || (activeParcel as any)?.buildingHeightM),
-              frontageWidth: (activeParcel as any)?.frontage_width || (activeParcel as any)?.frontageWidth,
-              lotDepth: (activeParcel as any)?.lot_depth || (activeParcel as any)?.lotDepth,
+                : (activeParcel?.building_height_m || activeParcel?.buildingHeightM),
+              frontageWidth: activeParcel?.frontage_width || activeParcel?.frontageWidth,
+              lotDepth: activeParcel?.lot_depth || activeParcel?.lotDepth,
               surveyStatus: 'IN_PROGRESS',
             }}
             boundaryStatus={formData.gisMutationConfirmed.type}
@@ -480,10 +489,12 @@ export const Step6_ScopeAndGisMutation: React.FC = () => {
       {/* Navigation */}
       <div className="flex justify-between pt-4">
         <Button variant="outline" onClick={prevStep}>
-          ⬅️ Quay lại Bước 4
+          {isCondoMaster ? '⬅️ Quay lại Bước 3 (Lịch sử & BQL)' : '⬅️ Quay lại Bước 4'}
         </Button>
         <Button onClick={nextStep}>
-          Tiếp tục: Bước 6 (Bảng Điểm ECS & VI) ➔
+          {isCondoMaster
+            ? 'Tiếp tục: Bước 5 (Ký biên bản BQL) ➔'
+            : 'Tiếp tục: Bước 6 (Bảng Điểm ECS & VI) ➔'}
         </Button>
       </div>
     </div>

@@ -26,10 +26,14 @@ export interface AuditHistoryLogItem {
   diff?: Array<{
     field: string;
     label: string;
-    oldValue: any;
-    newValue: any;
+    oldValue: unknown;
+    newValue: unknown;
   }>;
-  rawPayload?: any;
+  rawPayload?: {
+    oldPhotoUrl?: string;
+    newPhotoUrl?: string;
+    [key: string]: unknown;
+  };
 }
 
 interface Props {
@@ -90,7 +94,7 @@ export const AuditHistoryModal: React.FC<Props> = ({
     }
   };
 
-  const formatDisplayValue = (val: any) => {
+  const formatDisplayValue = (val: unknown) => {
     if (val === null || val === undefined || val === '') {
       return <span className="text-slate-400 italic font-mono">(Trống / Không có)</span>;
     }

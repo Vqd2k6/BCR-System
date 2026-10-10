@@ -1,6 +1,303 @@
-import { EditFormData, EditFormDefectItem, ExportParcelItem } from '../types';
+import type { EditFormData, EditFormDefectItem, ExportParcelItem } from '../types';
 
-export const initializeEditFormData = (reportData: any, parcel: ExportParcelItem): EditFormData => {
+interface FloorDefectRaw {
+  defectCode?: string;
+  defectType?: string;
+  crackDirection?: string;
+  widthMaxMm?: number;
+  lengthMm?: number;
+  activityState?: string;
+  notes?: string;
+  [key: string]: unknown;
+}
+
+interface FloorZoneRaw {
+  zoneCode?: string;
+  notes?: string;
+  burlandGrade?: number | string;
+  defects?: FloorDefectRaw[];
+  [key: string]: unknown;
+}
+
+interface FloorRaw {
+  floorName?: string;
+  zones?: FloorZoneRaw[];
+  [key: string]: unknown;
+}
+
+interface DamageZoneDefectRaw {
+  id?: string | number;
+  defect_code?: string;
+  defect_type?: string;
+  crack_direction?: string;
+  width_max_mm?: number;
+  length_mm?: number;
+  activity_state?: string;
+  notes?: string;
+  [key: string]: unknown;
+}
+
+interface DamageZoneRaw {
+  zone_code?: string;
+  floor_name?: string;
+  notes?: string;
+  burland_grade?: number | string;
+  defects?: DamageZoneDefectRaw[];
+  [key: string]: unknown;
+}
+
+export interface ServerReportData {
+  id?: string;
+  report_code?: string;
+  official_cadastral_code?: string;
+  survey_date?: string;
+  surveyor_name?: string;
+  surveyor_code?: string;
+  zone_admin_name?: string;
+  owner_name?: string;
+  owner_phone?: string;
+  house_number?: string;
+  street?: string;
+  summary_conclusions?: string;
+  engineering_recommendations?: string;
+  owner_remarks?: string;
+  riskScores?: {
+    totalEcsScore?: number;
+    ecsClass?: string;
+    totalViScore?: number;
+    viClass?: string;
+    finalBraRiskLevel?: string;
+    burlandPredominantGrade?: number;
+    burlandLocalMaxGrade?: number;
+    structuralDefectFlag?: string;
+    requiresPhase2?: boolean;
+    requiresMonitoring?: boolean;
+    requiresStructuralReview?: boolean;
+    ecsE1?: number;
+    ecsE2?: number;
+    ecsE3?: number;
+    ecsE4?: number;
+    ecsE5?: number;
+    ecsE6?: number;
+    viV1?: number;
+    viV2?: number;
+    viV3?: number;
+    viV4?: number;
+    viV5?: number;
+    viV6?: number;
+    avgViScore?: number;
+    constructionImpactLevelI?: number;
+    buildingRiskAssessmentBra?: string;
+    predictedSettlementSmax?: number;
+    angularDistortion?: string;
+    vibrationPpv?: number;
+    braMandatoryAction?: string;
+    [key: string]: unknown;
+  };
+  survey_data_json?: {
+    reportCode?: string;
+    officialCadastralCode?: string;
+    surveyDate?: string;
+    surveyorName?: string;
+    surveyorCode?: string;
+    zoneAdminName?: string;
+    buildingName?: string;
+    ownerName?: string;
+    ownerPhone?: string;
+    houseNumber?: string;
+    street?: string;
+    usageFunction?: string;
+    aboveFloors?: number;
+    undergroundFloors?: number;
+    constructionYear?: number | string;
+    isEstimatedYear?: boolean;
+    constructionAreaM2?: number | string;
+    buildingHeightM?: number | string;
+    structureSystem?: string;
+    chainage?: string;
+    metroOffsetDistance?: string | number;
+    surveyCaseType?: string;
+    objectGroup?: string;
+    foundationType?: string;
+    foundationSource?: string;
+    foundationDepthM?: number | string;
+    pileDimensionMm?: string;
+    pileLengthMm?: string;
+    foundationCatScore?: number;
+    foundationNotes?: string;
+    adjacentBuildings?: {
+      left?: { details?: string; note?: string };
+      right?: { details?: string; note?: string };
+      back?: { details?: string; note?: string };
+    };
+    accessLimitation?: {
+      level?: string;
+      restrictedAreas?: string;
+      mainReason?: string;
+      mitigationAction?: string;
+    };
+    historyInterview?: {
+      renovationNotes?: string;
+      renovationLoad?: boolean;
+      majorRepairNotes?: string;
+      majorRepair?: boolean;
+      pastSettlementNotes?: string;
+      pastSettlement?: boolean;
+    };
+    settlementTilt?: {
+      buildingTilt?: { xPermille?: number | string; yPermille?: number | string; direction?: string; level?: number };
+      diffSettlement?: { level?: number; position?: string };
+      beamSagging?: { sagMm?: number | string; level?: number; position?: string };
+      needAdditionalMonitoring?: { notes?: string };
+    };
+    burlandSummary?: {
+      predominantGrade?: number;
+      localMaxGrade?: number;
+      governingZoneCode?: string;
+      governingZoneDescription?: string;
+      structuralFlagLevel?: string;
+      representativeness?: string;
+      needStructuralEngineerReview?: boolean;
+    };
+    burlandPredominantGrade?: number;
+    burlandLocalMaxGrade?: number;
+    structuralDefectFlag?: string;
+    requiresStructuralReview?: boolean;
+    riskScores?: {
+      totalEcsScore?: number;
+      ecsClass?: string;
+      totalViScore?: number;
+      viClass?: string;
+      finalBraRiskLevel?: string;
+      burlandPredominantGrade?: number;
+      burlandLocalMaxGrade?: number;
+      structuralDefectFlag?: string;
+      requiresPhase2?: boolean;
+      requiresMonitoring?: boolean;
+      requiresStructuralReview?: boolean;
+      ecsE1?: number;
+      ecsE2?: number;
+      ecsE3?: number;
+      ecsE4?: number;
+      ecsE5?: number;
+      ecsE6?: number;
+      viV1?: number;
+      viV2?: number;
+      viV3?: number;
+      viV4?: number;
+      viV5?: number;
+      viV6?: number;
+      avgViScore?: number;
+      constructionImpactLevelI?: number;
+      buildingRiskAssessmentBra?: string;
+      predictedSettlementSmax?: number;
+      angularDistortion?: string;
+      vibrationPpv?: number;
+      braMandatoryAction?: string;
+      [key: string]: unknown;
+    };
+    ecs?: {
+      e1?: number;
+      e2?: number;
+      e3?: number;
+      e4?: number;
+      e5?: number;
+      e6?: number;
+      totalEcs?: number;
+      ecsClass?: string;
+      engineeringJudgement?: { action?: string; reason?: string; [key: string]: unknown };
+    };
+    ecsE1?: number;
+    ecsE2?: number;
+    ecsE3?: number;
+    ecsE4?: number;
+    ecsE5?: number;
+    ecsE6?: number;
+    ecsTotalScore?: number;
+    ecsClass?: string;
+    vi?: {
+      v1?: number;
+      v2?: number;
+      v3?: number;
+      v4?: number;
+      v5?: number;
+      v6?: number;
+      avgVi?: number;
+      viAvg?: number;
+      viClass?: string;
+      engineeringJudgement?: { action?: string; reason?: string; [key: string]: unknown };
+    };
+    viV1?: number;
+    viV2?: number;
+    viV3?: number;
+    viV4?: number;
+    viV5?: number;
+    viV6?: number;
+    viAvgScore?: number;
+    viClass?: string;
+    bra?: {
+      constructionImpactLevel?: number;
+      buildingRiskBra?: string;
+      predictedSettlementSmax?: number;
+      angularDistortion?: string;
+      vibrationPpv?: number;
+      braMandatoryAction?: string;
+    };
+    constructionImpactLevel?: number;
+    buildingRiskBra?: string;
+    predictedSettlementSmax?: number;
+    angularDistortion?: string;
+    vibrationPpv?: number;
+    braMandatoryAction?: string;
+    gateDecision?: {
+      decision?: string;
+      reason?: string;
+    };
+    braStatus?: string;
+    finalBraRiskLevel?: string;
+    executiveSummary?: {
+      keyRisksDefectsText?: string;
+      specificRecommendationsText?: string;
+      requiresPhase2?: boolean;
+      requiresAdditionalMonitoring?: boolean;
+    };
+    signatures?: {
+      ownerFeedback?: string;
+    };
+    ownerRemarks?: string;
+    floors?: FloorRaw[];
+    [key: string]: unknown;
+  };
+  buildingSpecs?: {
+    building_name?: string;
+    land_use_function?: string;
+    floor_count?: number;
+    basement_count?: number;
+    year_of_construction?: number | string;
+    is_year_estimated?: boolean;
+    construction_area_m2?: number | string;
+    building_height_m?: number | string;
+    structural_system?: string;
+    foundation_category?: string;
+    foundation_source?: string;
+    foundation_depth_m?: number | string;
+    foundation_notes?: string;
+    [key: string]: unknown;
+  };
+  deformation?: {
+    tilt_angle_x?: number | string;
+    tilt_angle_y?: number | string;
+    tilt_direction?: string;
+    beam_deflection_mm?: number | string;
+    engineer_comments?: string;
+    tilt_evolution_verdict?: string;
+    [key: string]: unknown;
+  };
+  damageZones?: DamageZoneRaw[];
+  [key: string]: unknown;
+}
+
+export const initializeEditFormData = (reportData: ServerReportData | null | undefined, parcel: ExportParcelItem): EditFormData => {
   const json = reportData?.survey_data_json || {};
   const specs = reportData?.buildingSpecs || {};
   const deform = reportData?.deformation || {};
@@ -12,11 +309,11 @@ export const initializeEditFormData = (reportData: any, parcel: ExportParcelItem
   const defectsList: EditFormDefectItem[] = [];
 
   if (Array.isArray(json.floors) && json.floors.length > 0) {
-    json.floors.forEach((f: any, fIdx: number) => {
+    (json.floors as FloorRaw[]).forEach((f: FloorRaw, fIdx: number) => {
       const floorName = f.floorName || `Tầng ${fIdx + 1}`;
-      (f.zones || []).forEach((z: any, zIdx: number) => {
+      (f.zones || []).forEach((z: FloorZoneRaw, zIdx: number) => {
         const zoneCode = z.zoneCode || `Z-${String(zIdx + 1).padStart(2, '0')}`;
-        (z.defects || []).forEach((d: any, dIdx: number) => {
+        (z.defects || []).forEach((d: FloorDefectRaw, dIdx: number) => {
           defectsList.push({
             id: `${fIdx}-${zIdx}-${dIdx}-${d.defectCode || dIdx}`,
             floorIndex: fIdx,
@@ -38,10 +335,10 @@ export const initializeEditFormData = (reportData: any, parcel: ExportParcelItem
       });
     });
   } else if (Array.isArray(reportData?.damageZones) && reportData.damageZones.length > 0) {
-    reportData.damageZones.forEach((z: any, zIdx: number) => {
+    (reportData.damageZones as DamageZoneRaw[]).forEach((z: DamageZoneRaw, zIdx: number) => {
       const zoneCode = z.zone_code || `Z-${String(zIdx + 1).padStart(2, '0')}`;
       const defects = Array.isArray(z.defects) ? z.defects : [];
-      defects.forEach((d: any, dIdx: number) => {
+      defects.forEach((d: DamageZoneDefectRaw, dIdx: number) => {
         defectsList.push({
           id: `rel-${zIdx}-${dIdx}-${d.id || dIdx}`,
           floorIndex: 0,
@@ -213,14 +510,16 @@ export const initializeEditFormData = (reportData: any, parcel: ExportParcelItem
   };
 };
 
-export const buildReportPayload = (formData: EditFormData, baseReportData: any) => {
+export const buildReportPayload = (formData: EditFormData, baseReportData: ServerReportData | null | undefined) => {
   // Rebuild floors structure if existing
   let updatedFloors = undefined;
-  if (baseReportData?.survey_data_json?.floors && Array.isArray(baseReportData.survey_data_json.floors)) {
-    const clonedFloors = JSON.parse(JSON.stringify(baseReportData.survey_data_json.floors));
+  const surveyJson = baseReportData?.survey_data_json || {};
+  if (surveyJson.floors && Array.isArray(surveyJson.floors)) {
+    const clonedFloors = JSON.parse(JSON.stringify(surveyJson.floors)) as FloorRaw[];
     formData.defects.forEach((d) => {
-      if (clonedFloors[d.floorIndex]?.zones?.[d.zoneIndex]?.defects?.[d.defectIndex]) {
-        const targetDefect = clonedFloors[d.floorIndex].zones[d.zoneIndex].defects[d.defectIndex];
+      const targetZone = clonedFloors[d.floorIndex]?.zones?.[d.zoneIndex];
+      const targetDefect = targetZone?.defects?.[d.defectIndex];
+      if (targetDefect && targetZone) {
         targetDefect.notes = d.notes;
         targetDefect.widthMaxMm = Number(d.widthMaxMm);
         targetDefect.lengthMm = Number(d.lengthMm);
@@ -229,10 +528,10 @@ export const buildReportPayload = (formData: EditFormData, baseReportData: any) 
         targetDefect.activityState = d.activityState;
 
         if (d.zoneNotes !== undefined) {
-          clonedFloors[d.floorIndex].zones[d.zoneIndex].notes = d.zoneNotes;
+          targetZone.notes = d.zoneNotes;
         }
         if (d.burlandGrade !== undefined) {
-          clonedFloors[d.floorIndex].zones[d.zoneIndex].burlandGrade = Number(d.burlandGrade);
+          targetZone.burlandGrade = Number(d.burlandGrade);
         }
       }
     });

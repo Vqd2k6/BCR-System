@@ -1,4 +1,4 @@
-import { Phase1SurveyFormData } from '../types/phase1.types';
+import type { Phase1SurveyFormData } from '../types/phase1.types';
 
 export const getDefaultInitialFormData = (parcelId: string = ''): Phase1SurveyFormData => ({
   parcelId,

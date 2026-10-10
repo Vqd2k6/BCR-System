@@ -1,4 +1,4 @@
-import { Phase1SurveyFormData, ViScoreState, EcsScoreState } from '../types/phase1.types';
+import type { Phase1SurveyFormData, ViScoreState, EcsScoreState } from '../types/phase1.types';
 
 /**
  * Thuật toán tính toán chỉ số VI (Vulnerability Index - 13. Docx)

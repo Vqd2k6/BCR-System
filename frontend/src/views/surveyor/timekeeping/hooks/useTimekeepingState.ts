@@ -4,8 +4,9 @@ import { useAuth } from '../../../../context/AuthContext';
 import {
   getZoneCentroid,
   calculateDistanceMeters,
-  MetroZoneCentroid,
+  type MetroZoneCentroid,
 } from '../../../../core/utils/metroZoneUtils';
+import type { AttendanceRecord, CheckInDetails, CompanionRecord } from '../types';
 
 interface UseTimekeepingStateProps {
   isCheckedInToday?: boolean;
@@ -29,17 +30,17 @@ export const useTimekeepingState = ({
   const [selfieUrl, setSelfieUrl] = useState<string>('');
   const [outOfBoundsReason, setOutOfBoundsReason] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
-  const [submitResult, setSubmitResult] = useState<{ success: boolean; message: string; data?: any } | null>(null);
-  const [history, setHistory] = useState<any[]>([]);
-  const [companionHistory, setCompanionHistory] = useState<any[]>([]);
+  const [submitResult, setSubmitResult] = useState<{ success: boolean; message: string; data?: unknown } | null>(null);
+  const [history, setHistory] = useState<AttendanceRecord[]>([]);
+  const [companionHistory, setCompanionHistory] = useState<CompanionRecord[]>([]);
   const [historyTab, setHistoryTab] = useState<'surveyor' | 'companion'>('surveyor');
   const [cameraActive, setCameraActive] = useState<boolean>(false);
   const [hasCheckedIn, setHasCheckedIn] = useState<boolean>(isCheckedInToday);
-  const [checkInDetails, setCheckInDetails] = useState<any>(null);
+  const [checkInDetails, setCheckInDetails] = useState<CheckInDetails | null>(null);
 
   // Companion check-in state
   const [showCompanionModal, setShowCompanionModal] = useState<boolean>(false);
-  const [companionData, setCompanionData] = useState<any>(null);
+  const [companionData, setCompanionData] = useState<CompanionRecord | null>(null);
   const [isSimulatedGps, setIsSimulatedGps] = useState<boolean>(false);
 
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -181,12 +182,13 @@ export const useTimekeepingState = ({
 
   const loadSurveyorHistory = async () => {
     try {
-      const res = await api.get('/attendance/my-history');
-      if (res.data && res.data.data && Array.isArray(res.data.data) && res.data.data.length > 0) {
-        const surveyorOnlyRecords = res.data.data.filter((item: any) => !item.is_companion);
-        setHistory(surveyorOnlyRecords.length > 0 ? surveyorOnlyRecords : res.data.data);
+      const res = await api.get<{ data: AttendanceRecord[] }>('/attendance/my-history');
+      const records = res.data?.data;
+      if (records && Array.isArray(records) && records.length > 0) {
+        const surveyorOnlyRecords = records.filter((item: AttendanceRecord) => !item.is_companion);
+        setHistory(surveyorOnlyRecords.length > 0 ? surveyorOnlyRecords : records);
 
-        const todayRecord = surveyorOnlyRecords.find((item: any) => {
+        const todayRecord = surveyorOnlyRecords.find((item: AttendanceRecord) => {
           const d = new Date(item.checkin_time).toISOString().split('T')[0];
           return d === todayStr;
         });
@@ -364,7 +366,7 @@ export const useTimekeepingState = ({
         onCheckInSuccess(details);
       }
       loadSurveyorHistory();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.warn('API check-in error, saving locally:', err);
       const fallbackDetails = {
         time: checkInTime,

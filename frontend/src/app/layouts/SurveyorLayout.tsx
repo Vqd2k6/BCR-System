@@ -1,7 +1,10 @@
 import React from 'react';
 import { Outlet } from 'react-router-dom';
 import { SurveyorNavbar } from '../../components/layout/SurveyorNavbar';
-import { SurveyorBottomNav, NavTab } from '../../components/layout/SurveyorBottomNav';
+import {
+  SurveyorBottomNav,
+  type NavTab,
+} from '../../components/layout/SurveyorBottomNav';
 
 interface SurveyorLayoutProps {
   activeTab?: NavTab;

@@ -12,8 +12,8 @@ import {
   Sliders,
   Stamp,
 } from 'lucide-react';
-import { ExportParcelItem, EditFormData } from '../../types';
-import { buildReportPayload } from '../../utils/reportDataTransformers';
+import type { ExportParcelItem, EditFormData } from '../../types';
+import { buildReportPayload, type ServerReportData } from '../../utils/reportDataTransformers';
 
 interface Phase1HtmlTabProps {
   previewParcel: ExportParcelItem;
@@ -25,10 +25,10 @@ interface Phase1HtmlTabProps {
   setPreviewTab: (tab: 'html' | 'edit' | 'json') => void;
   handleOpenPreviewInNewTab: () => void;
   handleOpenPreview: (parcel: ExportParcelItem) => void;
-  handleExportSinglePdf: (parcel: ExportParcelItem, overrides?: any) => void;
-  handleExportSingleDocx: (parcel: ExportParcelItem, overrides?: any) => void;
+  handleExportSinglePdf: (parcel: ExportParcelItem, overrides?: Record<string, unknown>) => void;
+  handleExportSingleDocx: (parcel: ExportParcelItem, overrides?: Record<string, unknown>) => void;
   editFormData: EditFormData | null;
-  previewReportData: any;
+  previewReportData: ServerReportData | Record<string, unknown> | null;
   reportVersion?: 'v2' | 'v1';
   handleDirectPrint?: () => void;
   enableWatermark?: boolean;

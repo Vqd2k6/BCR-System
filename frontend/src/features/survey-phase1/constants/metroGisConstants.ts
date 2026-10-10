@@ -41,18 +41,6 @@ export interface MetroZoneConfig {
   rawParcelCount?: number;
 }
 
-// 1. Mép Hố Đào Tả Tuyến & Hữu Tuyến (File gốc CAD/KML)
-export const METRO_CORRIDOR_BOUNDARIES: MetroCorridorBoundary[] = (
-  (rawBoundaryData.corridorBoundaries as any[]) || []
-).map((b) => ({
-  ...b,
-  name: (b.name || '').replace(/Ranh Giải Phóng Mặt Bằng/gi, 'Mép Hố Đào'),
-}));
-
-// 2. Các Hộp Ga Metro (11 Hộp Ga vẽ theo CAD chuẩn của Ban QLDA ĐSĐT MAUR)
-export const METRO_STATION_POLYGONS: MetroStationPolygon[] =
-  (rawBoundaryData.stationPolygons as any[]) || [];
-
 export interface DetailedStationFootprint {
   code: string;
   name: string;
@@ -64,24 +52,78 @@ export interface DetailedStationFootprint {
   type: 'STATION_OUTLINE' | 'DEPOT_OUTLINE';
 }
 
+export interface MetroCorridorSegment {
+  rawName: string;
+  coords: [number, number][];
+  center?: [number, number];
+}
+
+interface RawBoundaryFile {
+  corridorBoundaries?: MetroCorridorBoundary[];
+  stationPolygons?: MetroStationPolygon[];
+  tbmPolygons?: { rawName: string; coords: [number, number][]; center: [number, number] }[];
+  stationDetailedFootprints?: DetailedStationFootprint[];
+  allCorridorSegments?: MetroCorridorSegment[];
+  stations?: {
+    code: string;
+    name: string;
+    km?: string;
+    pos: [number, number];
+    type?: string;
+    desc?: string;
+  }[];
+  centerline?: [number, number][];
+}
+
+interface RawGisSegment {
+  index: number;
+  code: string;
+  name: string;
+  type: 'C&C' | 'POR' | 'ELV' | 'DEP';
+  startKm: string;
+  endKm: string;
+  zoi: number;
+  center: [number, number];
+  polygonCoords: [number, number][];
+}
+
+interface RawGisFile {
+  segments?: RawGisSegment[];
+}
+
+const boundaryData = rawBoundaryData as unknown as RawBoundaryFile;
+const typedGisData = gisData as unknown as RawGisFile;
+
+// 1. Mép Hố Đào Tả Tuyến & Hữu Tuyến (File gốc CAD/KML)
+export const METRO_CORRIDOR_BOUNDARIES: MetroCorridorBoundary[] = (
+  boundaryData.corridorBoundaries || []
+).map((b) => ({
+  ...b,
+  name: (b.name || '').replace(/Ranh Giải Phóng Mặt Bằng/gi, 'Mép Hố Đào'),
+}));
+
+// 2. Các Hộp Ga Metro (11 Hộp Ga vẽ theo CAD chuẩn của Ban QLDA ĐSĐT MAUR)
+export const METRO_STATION_POLYGONS: MetroStationPolygon[] =
+  boundaryData.stationPolygons || [];
+
 // 2b. Các Phân đoạn Hầm TBM nối liền các ga (CAD chuẩn MAUR, khép kín hành lang)
 export const METRO_TBM_POLYGONS: { rawName: string; coords: [number, number][]; center: [number, number] }[] =
-  ((rawBoundaryData as any).tbmPolygons as any[]) || [];
+  boundaryData.tbmPolygons || [];
 
 // 2c. Phác hoạ chi tiết công trình nhà ga màu trắng (11 Ga ngầm + Depot Tham Lương)
 export const METRO_STATION_DETAILED_OUTLINES: DetailedStationFootprint[] =
-  ((rawBoundaryData as any).stationDetailedFootprints as DetailedStationFootprint[]) || [];
+  boundaryData.stationDetailedFootprints || [];
 
-export const METRO_ALL_CORRIDOR_SEGMENTS: any[] =
-  ((rawBoundaryData as any).allCorridorSegments as any[]) || [];
+export const METRO_ALL_CORRIDOR_SEGMENTS: MetroCorridorSegment[] =
+  boundaryData.allCorridorSegments || [];
 
 // 3. Danh sách các Trạm Ga (11 Ga + Depot Tham Lương)
 export const METRO_STATIONS: MetroStationMarker[] = [
-  ...((rawBoundaryData.stations as any[]) || []).map((s: any) => ({
+  ...(boundaryData.stations || []).map((s) => ({
     code: s.code,
     name: s.name,
     km: s.km || '',
-    pos: s.pos as [number, number],
+    pos: s.pos,
     type: s.type || 'Ga ngầm',
     desc: s.desc,
   })),
@@ -97,9 +139,8 @@ export const METRO_STATIONS: MetroStationMarker[] = [
 
 // 4. Tim tuyến Metro 2 (Đường nét đỏ chuẩn chạy chính giữa cặp line màu xanh Tả Tuyến & Hữu Tuyến)
 export const METRO_LINE2_CENTERLINE: [number, number][] =
-  ((rawBoundaryData as any).centerline as [number, number][]) &&
-  (rawBoundaryData as any).centerline.length > 0
-    ? (rawBoundaryData as any).centerline
+  boundaryData.centerline && boundaryData.centerline.length > 0
+    ? boundaryData.centerline
     : METRO_STATIONS.map((s) => s.pos);
 
 // Phân bổ 22 Zone theo chuẩn DB_GIS
@@ -126,7 +167,7 @@ const READY_ZONES: Record<string, number> = {
   ZONE_09: 192,
 };
 
-export const METRO_22_ZONES: MetroZoneConfig[] = (gisData.segments as any[]).map((seg) => {
+export const METRO_22_ZONES: MetroZoneConfig[] = (typedGisData.segments || []).map((seg) => {
   const isReady = seg.code in READY_ZONES;
   const rawCount = READY_ZONES[seg.code];
   return {
@@ -139,8 +180,8 @@ export const METRO_22_ZONES: MetroZoneConfig[] = (gisData.segments as any[]).map
     startKm: seg.startKm,
     endKm: seg.endKm,
     zoi: seg.zoi,
-    center: seg.center as [number, number],
-    polygon: seg.polygonCoords as [number, number][],
+    center: seg.center,
+    polygon: seg.polygonCoords,
     isDataReady: isReady,
     rawParcelCount: rawCount,
   };

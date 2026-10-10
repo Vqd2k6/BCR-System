@@ -13,11 +13,28 @@ import {
 } from 'lucide-react';
 import { interpolatePoint, computePolygonAreaM2 } from '../../../../../../components/gis/shared/geoMath';
 
+export interface SplitChildParcel {
+  landAreaM2?: number | string;
+  parcelCode?: string;
+  code?: string;
+  ownerName?: string;
+  [key: string]: unknown;
+}
+
+export interface MutationDetails {
+  splitChildren?: SplitChildParcel[];
+  splitCustomPointsA?: [number, number][];
+  splitCustomPointsB?: [number, number][];
+  selectedMergeCodes?: string[];
+  mergeTargetCode?: string;
+  [key: string]: unknown;
+}
+
 interface Props {
   parcelCoordinates?: [number, number][];
   projectParcelCode?: string;
   mutationType?: 'MATCH' | 'SPLIT' | 'MERGE' | 'ORIGINAL' | string;
-  mutationDetails?: any;
+  mutationDetails?: MutationDetails;
   landAreaM2?: number | string;
   frontageWidth?: number | string;
   lotDepth?: number | string;

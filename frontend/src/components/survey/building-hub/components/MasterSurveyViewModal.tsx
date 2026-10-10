@@ -1,4 +1,3 @@
-import React from 'react';
 import {
   Building2,
   X,
@@ -6,15 +5,19 @@ import {
   Clock,
   ShieldCheck,
   Send,
+  Eye,
+  Edit3,
 } from 'lucide-react';
-import { GisParcel } from '../../../gis/LeafletSweepMap';
+import type { GisParcel } from '../../../gis/LeafletSweepMap';
+import type { MasterReportData } from '../types';
+import { useAuth } from '../../../../context/AuthContext';
 
 interface MasterSurveyViewModalProps {
   isOpen: boolean;
   onClose: () => void;
   parcel: GisParcel;
   isMasterSurveyDone: boolean;
-  masterReportData: any;
+  masterReportData: MasterReportData | null;
   isUpdatePending: boolean;
   updateNotes: string;
   setUpdateNotes: (notes: string) => void;
@@ -38,6 +41,9 @@ export const MasterSurveyViewModal: React.FC<MasterSurveyViewModalProps> = ({
   onParentClose,
   availableFloorsCount,
 }) => {
+  const { user } = useAuth();
+  const isZoneAdmin = user?.role === 'ZONE_ADMIN' || user?.role === 'SUPER_ADMIN';
+
   if (!isOpen) return null;
 
   return (
@@ -158,10 +164,23 @@ export const MasterSurveyViewModal: React.FC<MasterSurveyViewModalProps> = ({
                       onParentClose();
                       onStartMasterSurvey(parcel);
                     }}
-                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold transition-all cursor-pointer"
+                    className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border text-xs font-bold transition-all cursor-pointer ${
+                      isZoneAdmin
+                        ? 'border-indigo-300 bg-indigo-50 hover:bg-indigo-100 text-indigo-800'
+                        : 'border-slate-300 bg-white hover:bg-slate-50 text-slate-700'
+                    }`}
                   >
-                    <FileText size={14} className="text-sky-600" />
-                    <span>Mở Wizard Khảo Sát Chi Tiết</span>
+                    {isZoneAdmin ? (
+                      <>
+                        <Edit3 size={14} className="text-indigo-600" />
+                        <span>Điều Chỉnh Biểu Mẫu Khảo Sát Tòa Nhà (Zone Admin)</span>
+                      </>
+                    ) : (
+                      <>
+                        <Eye size={14} className="text-sky-600" />
+                        <span>Xem Lại Biểu Mẫu Khảo Sát Tòa Nhà (Chỉ Đọc)</span>
+                      </>
+                    )}
                   </button>
 
                   <button

@@ -1,3 +1,4 @@
+import { getErrorMessage, getErrorStatus, isNotFoundError } from '@/utils/errorUtils';
 /**
  * Dev Error Reporter Service
  * 
@@ -167,9 +168,9 @@ export async function sendDevError(payload: DevErrorPayload): Promise<void> {
         'color: #d97706; font-weight: bold;'
       );
     }
-  } catch (err: any) {
+  } catch (err: unknown) {
     originalConsoleWarn(
-      `%c[DevErrorReporter] ⚠️ Lỗi kết nối tới endpoint /api/dev/report-error: ${err?.message}`,
+      `%c[DevErrorReporter] ⚠️ Lỗi kết nối tới endpoint /api/dev/report-error: ${getErrorMessage(err)}`,
       'color: #d97706; font-weight: bold;'
     );
   } finally {
@@ -191,15 +192,19 @@ export function initDevErrorReporter(): void {
   }
 
   // Tránh gắn lặp nhiều lần nếu HMR reload
-  if ((window as any).__metro2_dev_reporter_initialized) {
+  if (window.__metro2_dev_reporter_initialized) {
     return;
   }
-  (window as any).__metro2_dev_reporter_initialized = true;
+  window.__metro2_dev_reporter_initialized = true;
 
   // 1. Gắn window.onerror trực tiếp (Native Hook cấp cao nhất)
   const prevOnError = window.onerror;
   window.onerror = function (message, source, lineno, colno, error) {
-    const msgStr = typeof message === 'string' ? message : (message as any)?.message || 'Uncaught Error';
+    const msgStr = typeof message === 'string'
+      ? message
+      : (typeof message === 'object' && message && 'message' in message
+        ? String((message as { message?: unknown }).message)
+        : 'Uncaught Error');
     if (isIgnoredError(msgStr, error?.stack, source)) {
       return true; // Ngăn chặn trình duyệt in lỗi extension ra console
     }
@@ -312,17 +317,17 @@ export function initDevErrorReporter(): void {
     const suppressed = handleRejection(event);
     if (suppressed) return;
     if (typeof prevOnRejection === 'function') {
-      return (prevOnRejection as any).call(window, event);
+      return Reflect.apply(prevOnRejection, window, [event]);
     }
   };
   window.addEventListener('unhandledrejection', handleRejection);
 
   // 4. Hook console.error TOÀN DIỆN (bắt mọi lỗi được log ra console mà không lọc case-sensitive)
-  console.error = function (...args: any[]) {
+  console.error = function (...args: unknown[]) {
     originalConsoleError.apply(console, args);
 
     try {
-      const errorObj = args.find((a) => a instanceof Error);
+      const errorObj = args.find((a): a is Error => a instanceof Error);
       const combinedMsg = args
         .map((a) => {
           if (typeof a === 'string') return a;
@@ -348,14 +353,14 @@ export function initDevErrorReporter(): void {
   };
 
   // 5. Cung cấp hàm test nhanh trên DevTools Console: window.__triggerTestError()
-  (window as any).__triggerTestError = (msg?: string) => {
+  window.__triggerTestError = (msg?: string) => {
     const errMsg = msg || 'Manual test runtime error from DevTools Console';
     originalConsoleLog('[DevErrorReporter] 🚀 Triggering test error:', errMsg);
     setTimeout(() => {
       throw new Error(errMsg);
     }, 0);
   };
-  (window as any).__reportDevError = sendDevError;
+  window.__reportDevError = sendDevError;
 
   originalConsoleLog(
     '%c[DevErrorReporter]%c ✅ Hệ thống bắt lỗi tự động đang hoạt động! (Logs -> app_errors.log). Test gõ: window.__triggerTestError()',

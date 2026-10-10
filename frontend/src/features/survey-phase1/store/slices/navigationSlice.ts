@@ -1,6 +1,10 @@
-import { StateCreator } from 'zustand';
-import { Phase1SurveyStore, NavigationSlice } from '../types';
-import { validateStep, validateAllSteps, MissingFieldItem } from '../../utils/stepValidator';
+import type { StateCreator } from 'zustand';
+import type { Phase1SurveyStore, NavigationSlice } from '../types';
+import {
+  validateStep,
+  validateAllSteps,
+  type MissingFieldItem,
+} from '../../utils/stepValidator';
 
 export const createNavigationSlice: StateCreator<
   Phase1SurveyStore,
@@ -12,7 +16,14 @@ export const createNavigationSlice: StateCreator<
   missingModal: null,
 
   setCurrentStep: (step: number) => {
-    if (step >= 1 && step <= 8) {
+    const { formData } = get();
+    const isCondoMaster =
+      (formData.surveyCaseType === 'APARTMENT' ||
+        (formData as unknown as { survey_case_type?: string }).survey_case_type === 'APARTMENT') &&
+      !formData.unitId;
+    const maxSteps = isCondoMaster ? 5 : formData.unitId ? 7 : 8;
+
+    if (step >= 1 && step <= maxSteps) {
       if (!get().isReadOnly) {
         get().recalculateScores();
         get().saveDraftToStorage();
@@ -49,8 +60,14 @@ export const createNavigationSlice: StateCreator<
   },
 
   nextStep: () => {
-    const { currentStep, isReadOnly } = get();
-    if (currentStep < 8) {
+    const { currentStep, isReadOnly, formData } = get();
+    const isCondoMaster =
+      (formData.surveyCaseType === 'APARTMENT' ||
+        (formData as unknown as { survey_case_type?: string }).survey_case_type === 'APARTMENT') &&
+      !formData.unitId;
+    const maxSteps = isCondoMaster ? 5 : formData.unitId ? 7 : 8;
+
+    if (currentStep < maxSteps) {
       if (isReadOnly) {
         get().setCurrentStep(currentStep + 1);
       } else {
@@ -71,7 +88,7 @@ export const createNavigationSlice: StateCreator<
   },
 
   proceedAnyway: () => {
-    const { missingModal } = get();
+    const { missingModal, formData } = get();
     if (missingModal) {
       const hasBlocking = missingModal.missingFields.some((f) => f.isBlocking);
       if (hasBlocking) {
@@ -80,7 +97,14 @@ export const createNavigationSlice: StateCreator<
       const target = missingModal.targetStep;
       get().saveDraftToStorage();
       set({ missingModal: null });
-      if (target >= 1 && target <= 8) {
+
+      const isCondoMaster =
+        (formData.surveyCaseType === 'APARTMENT' ||
+          (formData as unknown as { survey_case_type?: string }).survey_case_type === 'APARTMENT') &&
+        !formData.unitId;
+      const maxSteps = isCondoMaster ? 5 : formData.unitId ? 7 : 8;
+
+      if (target >= 1 && target <= maxSteps) {
         get().setCurrentStep(target);
       }
     }

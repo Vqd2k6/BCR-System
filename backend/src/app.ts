@@ -113,8 +113,13 @@ export function createApp(): express.Application {
   api.get('/parcels/next-high-range-codes', authenticateJwt, CadastralController.getNextHighRangeProjectCodes);
   api.get('/parcels/:id', authenticateJwt, CadastralController.getParcelById);
   api.get('/parcels/:id/units', authenticateJwt, CadastralController.getUnits);
-  api.post('/parcels/:id/units', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.createUnit);
-  api.patch('/parcels/:id/building-type', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.updateBuildingType);
+  api.post('/parcels/:id/units', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.createUnit);
+  api.get('/parcels/:id/floor-plans', authenticateJwt, CadastralController.getFloorPlans);
+  api.get('/parcels/:id/floor-plans/:floor', authenticateJwt, CadastralController.getFloorPlanByFloor);
+  api.post('/parcels/:id/floor-plans', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.upsertFloorPlan);
+  api.delete('/parcels/:id/floor-plans/:floor', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.deleteFloorPlan);
+  api.post('/parcels/:id/floor-plans/partitions', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.saveFloorPartitions);
+  api.patch('/parcels/:id/building-type', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.updateBuildingType);
   api.post('/parcels/:id/start-survey', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.startSurvey);
   api.post('/parcels/:id/resume-survey', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.resumeSurvey);
   api.post('/parcels/:id/record-absence', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.recordAbsence);
@@ -204,7 +209,6 @@ export function createApp(): express.Application {
   api.put('/admin/users/:id/status', authenticateJwt, requireRoles('SUPER_ADMIN'), UserAdminController.updateStatus);
   api.post('/admin/users/:id/reset-password', authenticateJwt, requireRoles('SUPER_ADMIN'), UserAdminController.resetPassword);
   api.delete('/admin/users/:id', authenticateJwt, requireRoles('SUPER_ADMIN'), UserAdminController.deleteUser);
-  api.post('/admin/maintenance/clean-reset', authenticateJwt, requireRoles('SUPER_ADMIN'), UserAdminController.cleanResetDatabase);
 
   api.post('/admin/reports/batch-export', authenticateJwt, requireRoles('SUPER_ADMIN'), ExportController.createBatchExport);
   api.get('/admin/reports/exports', authenticateJwt, requireRoles('SUPER_ADMIN'), ExportController.listAllExportBatches);

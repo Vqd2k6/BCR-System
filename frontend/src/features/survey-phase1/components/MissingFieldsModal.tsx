@@ -1,6 +1,6 @@
 import React from 'react';
 import { AlertTriangle, ArrowRight, CheckCircle2, Edit3, X, Save } from 'lucide-react';
-import { MissingFieldItem } from '../utils/stepValidator';
+import type { MissingFieldItem } from '../utils/stepValidator';
 
 interface Props {
   isOpen: boolean;

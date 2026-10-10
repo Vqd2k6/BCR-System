@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { GisParcel } from '../../../../components/gis/LeafletSweepMap';
+import type { GisParcel } from '../../../../components/gis/LeafletSweepMap';
 import {
   Clock,
   PlayCircle,
@@ -10,13 +10,15 @@ import {
 } from 'lucide-react';
 import {
   filterParcelsByWorkProgress,
-  WorkProgressItem,
+  type WorkProgressItem,
 } from '../utils/surveyorWorkProgressHelpers';
+
+import type { User as DomainUser } from '../../../../core/types/domain.types';
 
 interface SurveyorWorkProgressCardsProps {
   parcels: GisParcel[];
   onStartPhase1: (parcel: GisParcel, readOnly?: boolean) => void;
-  currentUser?: any;
+  currentUser?: DomainUser | null;
 }
 
 export const SurveyorWorkProgressCards: React.FC<SurveyorWorkProgressCardsProps> = ({
@@ -119,7 +121,7 @@ export const SurveyorWorkProgressCards: React.FC<SurveyorWorkProgressCardsProps>
                 <div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span style={{ fontSize: '0.875rem', fontWeight: 800, color: '#c2410c', fontFamily: 'monospace' }}>
-                      {item.parcel.projectParcelCode || (item.parcel as any).project_parcel_code || 'Lô chưa có mã'}
+                      {item.parcel.projectParcelCode || item.parcel.project_parcel_code || 'Lô chưa có mã'}
                     </span>
                     <span
                       style={{
@@ -136,10 +138,10 @@ export const SurveyorWorkProgressCards: React.FC<SurveyorWorkProgressCardsProps>
                     </span>
                   </div>
                   <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#1e293b', marginTop: '2px' }}>
-                    Số {item.parcel.houseNumber || (item.parcel as any).house_number || '---'} {item.parcel.street}
+                    Số {item.parcel.houseNumber || item.parcel.house_number || '---'} {item.parcel.street}
                   </div>
                   <div style={{ fontSize: '0.7rem', color: '#64748b' }}>
-                    Chủ hộ: <strong>{item.parcel.ownerName || (item.parcel as any).owner_name || 'Chưa cập nhật'}</strong>
+                    Chủ hộ: <strong>{item.parcel.ownerName || item.parcel.owner_name || 'Chưa cập nhật'}</strong>
                   </div>
                   <div style={{ fontSize: '0.7rem', color: '#475569', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '3px' }}>
                     <User size={11} color={item.isCurrentUser ? '#0284c7' : '#d97706'} />
@@ -290,14 +292,14 @@ export const SurveyorWorkProgressCards: React.FC<SurveyorWorkProgressCardsProps>
                 <div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span style={{ fontSize: '0.875rem', fontWeight: 800, color: '#b45309', fontFamily: 'monospace' }}>
-                      {item.parcel.projectParcelCode || (item.parcel as any).project_parcel_code || 'Lô chưa có mã'}
+                      {item.parcel.projectParcelCode || item.parcel.project_parcel_code || 'Lô chưa có mã'}
                     </span>
                   </div>
                   <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#1e293b', marginTop: '2px' }}>
-                    Số {item.parcel.houseNumber || (item.parcel as any).house_number || '---'} {item.parcel.street}
+                    Số {item.parcel.houseNumber || item.parcel.house_number || '---'} {item.parcel.street}
                   </div>
                   <div style={{ fontSize: '0.7rem', color: '#64748b' }}>
-                    Chủ hộ: <strong>{item.parcel.ownerName || (item.parcel as any).owner_name || 'Chưa cập nhật'}</strong>
+                    Chủ hộ: <strong>{item.parcel.ownerName || item.parcel.owner_name || 'Chưa cập nhật'}</strong>
                   </div>
                   <div style={{ fontSize: '0.7rem', color: '#475569', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '3px' }}>
                     <User size={11} color={item.isCurrentUser ? '#0284c7' : '#d97706'} />
@@ -488,7 +490,7 @@ export const SurveyorWorkProgressCards: React.FC<SurveyorWorkProgressCardsProps>
                   <div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <span style={{ fontSize: '0.875rem', fontWeight: 800, color: '#047857', fontFamily: 'monospace' }}>
-                        {item.parcel.projectParcelCode || (item.parcel as any).project_parcel_code || 'Lô chưa có mã'}
+                        {item.parcel.projectParcelCode || item.parcel.project_parcel_code || 'Lô chưa có mã'}
                       </span>
                       <span
                         style={{
@@ -505,10 +507,10 @@ export const SurveyorWorkProgressCards: React.FC<SurveyorWorkProgressCardsProps>
                       </span>
                     </div>
                     <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#1e293b', marginTop: '2px' }}>
-                      Số {item.parcel.houseNumber || (item.parcel as any).house_number || '---'} {item.parcel.street}
+                      Số {item.parcel.houseNumber || item.parcel.house_number || '---'} {item.parcel.street}
                     </div>
                     <div style={{ fontSize: '0.7rem', color: '#64748b' }}>
-                      Chủ hộ: <strong>{item.parcel.ownerName || (item.parcel as any).owner_name || 'Chưa cập nhật'}</strong>
+                      Chủ hộ: <strong>{item.parcel.ownerName || item.parcel.owner_name || 'Chưa cập nhật'}</strong>
                     </div>
                     <div style={{ fontSize: '0.7rem', color: '#475569', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '3px' }}>
                       <User size={11} color="#059669" />

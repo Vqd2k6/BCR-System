@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { config } from '../../config';
 import { UnauthorizedError, ForbiddenError } from '../errors/problem-details';
+import { Database } from '../../database/db';
 
 export interface JwtPayload {
   userId: string;
@@ -20,9 +21,9 @@ declare global {
 }
 
 /**
- * Middleware xác thực JWT Access Token
+ * Middleware xác thực JWT Access Token & Kiểm tra Trạng thái Tài khoản Thời gian thực
  */
-export function authenticateJwt(req: Request, _res: Response, next: NextFunction): void {
+export async function authenticateJwt(req: Request, _res: Response, next: NextFunction): Promise<void> {
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return next(new UnauthorizedError('Thiếu hoặc sai định dạng Authorization Bearer token'));
@@ -31,11 +32,29 @@ export function authenticateJwt(req: Request, _res: Response, next: NextFunction
   const token = authHeader.split(' ')[1];
   try {
     const decoded = jwt.verify(token, config.jwt.secret) as JwtPayload;
+
+    // Kiểm tra trạng thái tài khoản thời gian thực trong CSDL để triệt tiêu Zombie Token 7 ngày
+    const userRes = await Database.query<{ status: string; deleted_at: Date | null }>(
+      `SELECT status, deleted_at FROM users WHERE id = $1 LIMIT 1;`,
+      [decoded.userId]
+    );
+
+    if (!userRes.rows[0] || userRes.rows[0].deleted_at !== null) {
+      return next(new UnauthorizedError('Tài khoản đã bị vô hiệu hóa hoặc không tồn tại trong hệ thống'));
+    }
+
+    if (userRes.rows[0].status === 'LOCKED' || userRes.rows[0].status === 'SUSPENDED') {
+      return next(new UnauthorizedError(`Tài khoản đang ở trạng thái [${userRes.rows[0].status}], quyền truy cập đã bị thu hồi`));
+    }
+
     req.user = decoded;
     next();
   } catch (error: any) {
     if (error.name === 'TokenExpiredError') {
       return next(new UnauthorizedError('Token đã hết hạn, vui lòng refresh token hoặc đăng nhập lại'));
+    }
+    if (error instanceof UnauthorizedError) {
+      return next(error);
     }
     return next(new UnauthorizedError('Token không hợp lệ hoặc đã bị chỉnh sửa'));
   }

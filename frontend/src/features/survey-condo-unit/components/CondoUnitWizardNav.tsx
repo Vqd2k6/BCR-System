@@ -4,13 +4,10 @@ import { StepWizardNav } from '../../survey-phase1/components/StepWizardNav';
 import { Home } from 'lucide-react';
 
 export const CONDO_UNIT_STEPS = [
-  '1. Đối soát toà cha',
+  '1. Đối soát toà mẹ & 2 ảnh',
   '2. Thông tin căn hộ',
-  '3. Khảo sát các tầng',
-  '4. Chốt Burland & Cờ KC',
-  '5. Bảng điểm ECS & VI',
-  '6. Tổng hợp Dashboard',
-  '7. Ký biên bản 3 bên',
+  '3. Import CAD & Khuyết tật',
+  '4. Ký biên bản hiện trường',
 ];
 
 interface Props {
