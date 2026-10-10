@@ -27,6 +27,7 @@ import {
 import { generateNextPartitionCode } from '../../../../core/utils/codeFormattingUtils';
 import { api } from '../../../../services/api';
 import { getErrorMessage } from '@/utils/errorUtils';
+import confetti from 'canvas-confetti';
 
 export type FloorScope = 'MASTER' | 'UNIT' | 'BOTH';
 
@@ -154,6 +155,28 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [saveSuccessMsg, setSaveSuccessMsg] = useState<string>('');
+
+  // Tự động ẩn thông báo thành công sau 4 giây (Auto-dismiss timer)
+  useEffect(() => {
+    if (!saveSuccessMsg) return;
+    const timer = setTimeout(() => {
+      setSaveSuccessMsg('');
+    }, 4000);
+    return () => clearTimeout(timer);
+  }, [saveSuccessMsg]);
+
+  // Kích hoạt pháo hoa chúc mừng và hiển thị thông báo thành công
+  const triggerSuccessFeedback = useCallback((msg: string) => {
+    setSaveSuccessMsg(msg);
+    try {
+      confetti({
+        particleCount: 70,
+        spread: 60,
+        origin: { y: 0.15 },
+        zIndex: 100005,
+      });
+    } catch (_err) {}
+  }, []);
 
   // Tầng đang được chọn thao tác
   const [activeFloor, setActiveFloor] = useState<number>(initialFloor !== undefined ? initialFloor : 1);
@@ -702,7 +725,7 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
         partitions: allFloorPartitions,
       });
 
-      setSaveSuccessMsg(
+      triggerSuccessFeedback(
         `Đã lưu thành công bản vẽ CAD và phân chia ${allFloorPartitions.length} vị trí cho dải tầng [${targetApplicableFloors.join(
           ', '
         )}]!`
@@ -752,7 +775,7 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
       setCadUrl('');
       setPartitions([]);
       setIsFloorDirty(false);
-      setSaveSuccessMsg(res.data?.data?.message || `Đã xóa bản vẽ CAD của Tầng ${floorTarget}!`);
+      triggerSuccessFeedback(res.data?.data?.message || `Đã xóa bản vẽ CAD của Tầng ${floorTarget}!`);
 
       if (onUnitsUpdated) {
         onUnitsUpdated();
@@ -796,7 +819,7 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
       setIsFloorDirty(false);
       setCustomFloors((prev) => prev.filter((f) => f !== floorToDelete));
       setDeletedFloorNumbers((prev) => [...prev, floorToDelete]);
-      setSaveSuccessMsg(res.data?.data?.message || `Đã xóa thành công Tầng ${floorToDelete} khỏi tòa nhà!`);
+      triggerSuccessFeedback(res.data?.data?.message || `Đã xóa thành công Tầng ${floorToDelete} khỏi tòa nhà!`);
 
       if (onUnitsUpdated) {
         onUnitsUpdated();
@@ -1327,11 +1350,21 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
             </div>
           )}
 
-          {/* Banner Lưu thành công */}
+          {/* Banner Lưu thành công với pháo hoa & tự động ẩn */}
           {saveSuccessMsg && (
-            <div className="mx-4 mt-2 p-2.5 bg-emerald-50 border border-emerald-300 rounded-xl text-emerald-800 text-xs font-medium flex items-center gap-2 shrink-0 animate-in fade-in">
-              <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
-              <span>{saveSuccessMsg}</span>
+            <div className="mx-4 mt-2 p-2.5 bg-emerald-50 border border-emerald-300 rounded-xl text-emerald-800 text-xs font-medium flex items-center justify-between gap-2 shrink-0 animate-in fade-in slide-in-from-top-1 duration-200 shadow-xs">
+              <div className="flex items-center gap-2 min-w-0">
+                <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
+                <span className="truncate">{saveSuccessMsg}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSaveSuccessMsg('')}
+                className="text-emerald-600 hover:text-emerald-900 p-1 rounded-md hover:bg-emerald-100 transition-colors shrink-0 cursor-pointer"
+                title="Đóng thông báo"
+              >
+                <X size={14} />
+              </button>
             </div>
           )}
 
@@ -1347,6 +1380,7 @@ export const FloorPlanCadManagementModal: React.FC<Props> = ({
                 onUploadSuccess={(url) => {
                   setCadUrl(url);
                   setIsFloorDirty(true);
+                  triggerSuccessFeedback(`Đã tải lên bản vẽ CAD cho ${floorName}! Hãy vẽ phân chia các vị trí.`);
                 }}
                 onCopyFromOtherFloor={handleCopyCadFromFloor}
                 otherFloorsWithCad={otherFloorsWithCad}
