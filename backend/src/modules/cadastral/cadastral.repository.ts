@@ -298,26 +298,40 @@ export class CadastralRepository {
   static async recordAbsence(data: {
     parcelId: string;
     surveyorId: string;
+    unitId?: string | null;
     absenceReason: string;
     notes?: string | null;
     photoProofUrl?: string | null;
     rescheduleDate?: string | null;
     ownerName?: string | null;
     ownerPhone?: string | null;
-    surveyData?: any;
+    surveyData?: unknown;
   }): Promise<void> {
     await Database.transaction(async (client) => {
-      // 1. Tăng số lần vắng mặt, chuyển trạng thái sang POSTPONED_ABSENT và lưu thông tin chủ hộ/SĐT nếu có
-      await client.query(
-        `UPDATE parcels
-         SET survey_status = 'POSTPONED_ABSENT',
-             absence_attempt_count = absence_attempt_count + 1,
-             owner_name = COALESCE($2, owner_name),
-             owner_phone = COALESCE($3, owner_phone),
-             updated_at = NOW()
-         WHERE id = $1;`,
-        [data.parcelId, data.ownerName || null, data.ownerPhone || null]
-      );
+      if (data.unitId) {
+        // Cập nhật trạng thái cho căn hộ con / ô khu vực master
+        await client.query(
+          `UPDATE building_units
+           SET status = 'POSTPONED_ABSENT',
+               owner_name = COALESCE($2, owner_name),
+               owner_phone = COALESCE($3, owner_phone),
+               updated_at = NOW()
+           WHERE id = $1;`,
+          [data.unitId, data.ownerName || null, data.ownerPhone || null]
+        );
+      } else {
+        // 1. Tăng số lần vắng mặt của thửa đất/tòa nhà, chuyển trạng thái sang POSTPONED_ABSENT
+        await client.query(
+          `UPDATE parcels
+           SET survey_status = 'POSTPONED_ABSENT',
+               absence_attempt_count = absence_attempt_count + 1,
+               owner_name = COALESCE($2, owner_name),
+               owner_phone = COALESCE($3, owner_phone),
+               updated_at = NOW()
+           WHERE id = $1;`,
+          [data.parcelId, data.ownerName || null, data.ownerPhone || null]
+        );
+      }
 
       // 2. Lấy bộ đếm hiện tại
       const countRes = await client.query<{ absence_attempt_count: number }>(
@@ -326,12 +340,12 @@ export class CadastralRepository {
       );
       const attemptCount = countRes.rows[0]?.absence_attempt_count || 1;
 
-      // 3. Ghi log vắng nhà (Bảo lưu lịch sử vĩnh viễn, không bao giờ bị xóa)
+      // 3. Ghi log vắng nhà (kèm unit_id nếu có)
       await client.query(
         `INSERT INTO survey_absence_logs (
            parcel_id, surveyor_id, absence_reason, notes, photo_proof_url,
-           reschedule_date, attempt_count
-         ) VALUES ($1, $2, $3, $4, $5, $6, $7);`,
+           reschedule_date, attempt_count, unit_id
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8);`,
         [
           data.parcelId,
           data.surveyorId,
@@ -340,6 +354,7 @@ export class CadastralRepository {
           data.photoProofUrl || null,
           data.rescheduleDate || null,
           attemptCount,
+          data.unitId || null,
         ]
       );
 

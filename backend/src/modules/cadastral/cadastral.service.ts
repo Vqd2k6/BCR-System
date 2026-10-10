@@ -91,6 +91,7 @@ export class CadastralService {
     await CadastralRepository.recordAbsence({
       parcelId,
       surveyorId,
+      unitId: data.unitId,
       absenceReason: data.absenceReason,
       notes: data.notes,
       photoProofUrl: data.photoProofUrl,

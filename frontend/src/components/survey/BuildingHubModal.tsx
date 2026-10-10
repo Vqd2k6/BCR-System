@@ -207,7 +207,11 @@ export const BuildingHubModal: React.FC<BuildingHubModalProps> = ({
               (f) => f.floorNumber === (selectedMasterAreaUnit.floor_number ?? selectedMasterAreaUnit.floorNumber)
             )?.cadUrl
           }
-          onClose={() => setSelectedMasterAreaUnit(null)}
+          onClose={() => {
+            setSelectedMasterAreaUnit(null);
+            refetchUnits();
+            if (onUnitsUpdated) onUnitsUpdated();
+          }}
           onSurveyCompleted={() => {
             setSelectedMasterAreaUnit(null);
             refetchUnits();
