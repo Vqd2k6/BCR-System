@@ -99,7 +99,37 @@ export const useBuildingHubState = ({ parcel, onUnitsUpdated }: UseBuildingHubSt
       setLoading(true);
       const res = await api.get(`/parcels/${parcel.id}/units`);
       if (res.data?.data?.units && Array.isArray(res.data.data.units)) {
-        setUnits(res.data.data.units);
+        // Optimistic Status Inference từ localStorage để Hub phản hồi tức thì
+        let inProgressUnits: string[] = [];
+        let completedUnits: string[] = [];
+        try {
+          inProgressUnits = JSON.parse(
+            localStorage.getItem(`metro2_condo_in_progress_units_${parcel.id}`) || '[]'
+          );
+          completedUnits = JSON.parse(
+            localStorage.getItem(`metro2_condo_completed_units_${parcel.id}`) || '[]'
+          );
+        } catch (_e) {}
+
+        const mappedUnits: BuildingUnit[] = res.data.data.units.map((u: BuildingUnit) => {
+          let effStatus = u.status;
+          if (!effStatus || effStatus === 'NOT_SURVEYED') {
+            if (completedUnits.includes(u.id)) {
+              effStatus = 'SUBMITTED';
+            } else if (
+              inProgressUnits.includes(u.id) ||
+              Boolean(localStorage.getItem(`metro2_condo_unit_draft_${parcel.id}_${u.id}`))
+            ) {
+              effStatus = 'IN_PROGRESS';
+            }
+          }
+          return {
+            ...u,
+            status: effStatus,
+          };
+        });
+
+        setUnits(mappedUnits);
       } else {
         setUnits([]);
       }

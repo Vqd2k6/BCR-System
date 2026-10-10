@@ -220,6 +220,8 @@ export const UnitInspectionDrawer: React.FC<UnitInspectionDrawerProps> = ({
                   ? 'bg-indigo-600 hover:bg-indigo-700'
                   : isApproved
                   ? 'bg-blue-600 hover:bg-blue-700'
+                  : isInProgress
+                  ? 'bg-amber-600 hover:bg-amber-700'
                   : 'bg-teal-600 hover:bg-teal-700'
               }`}
             >
@@ -237,6 +239,11 @@ export const UnitInspectionDrawer: React.FC<UnitInspectionDrawerProps> = ({
                 <>
                   <ExternalLink size={16} />
                   <span>Xem Hồ Sơ Đã Nộp</span>
+                </>
+              ) : isInProgress ? (
+                <>
+                  <Play size={16} className="fill-current" />
+                  <span>Tiếp Tục Khảo Sát</span>
                 </>
               ) : (
                 <>

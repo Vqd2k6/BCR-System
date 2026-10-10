@@ -539,8 +539,10 @@ export class AuditReviewService {
         is_refused_or_absent: boolean;
         summary_conclusions: string;
         current_step: number;
+        unit_id: string | null;
+        report_type: string | null;
       }>(
-        `SELECT r.id, r.parcel_id, p.project_parcel_code, r.is_refused_or_absent, r.summary_conclusions, r.current_step
+        `SELECT r.id, r.parcel_id, p.project_parcel_code, r.is_refused_or_absent, r.summary_conclusions, r.current_step, r.unit_id, r.report_type
          FROM base_survey_reports r
          JOIN parcels p ON r.parcel_id = p.id
          WHERE (r.id = $1 OR r.parcel_id = $1)
@@ -578,10 +580,23 @@ export class AuditReviewService {
         parcelApprovedStatus = 'UNDER_CONSTRUCTION';
       }
 
-      await client.query(
-        `UPDATE parcels SET survey_status = $2, updated_at = NOW() WHERE id = $1;`,
-        [actualParcelId, parcelApprovedStatus]
-      );
+      const isChildUnit = Boolean(repRes.rows[0].unit_id) || repRes.rows[0].report_type === 'CONDO_UNIT' || repRes.rows[0].report_type === 'UNIT_CHILD';
+
+      if (isChildUnit && repRes.rows[0].unit_id) {
+        // Cập nhật trạng thái căn hộ con thành APPROVED (không ghi đè parcels của cả tòa nhà)
+        await client.query(
+          `UPDATE building_units
+           SET status = 'APPROVED', updated_at = NOW()
+           WHERE id = $1;`,
+          [repRes.rows[0].unit_id]
+        );
+      } else {
+        // Standalone hoặc Building Master: Cập nhật trạng thái thửa đất
+        await client.query(
+          `UPDATE parcels SET survey_status = $2, updated_at = NOW() WHERE id = $1;`,
+          [actualParcelId, parcelApprovedStatus]
+        );
+      }
 
       await client.query(
         `UPDATE audit_alert_items
@@ -602,8 +617,13 @@ export class AuditReviewService {
 
   static async rejectReport(reportId: string, adminId: string, rejectionReason: string) {
     return Database.transaction(async (client) => {
-      const repRes = await client.query<{ id: string; parcel_id: string }>(
-        `SELECT id, parcel_id FROM base_survey_reports 
+      const repRes = await client.query<{
+        id: string;
+        parcel_id: string;
+        unit_id: string | null;
+        report_type: string | null;
+      }>(
+        `SELECT id, parcel_id, unit_id, report_type FROM base_survey_reports 
          WHERE (id = $1 OR parcel_id = $1)
          ORDER BY (CASE WHEN id = $1 THEN 0 ELSE 1 END), created_at DESC
          LIMIT 1 FOR UPDATE;`,
@@ -626,10 +646,21 @@ export class AuditReviewService {
         [actualReportId, adminId, `LÝ DO TRẢ VỀ: ${rejectionReason}`]
       );
 
-      await client.query(
-        `UPDATE parcels SET survey_status = 'REJECTED', updated_at = NOW() WHERE id = $1;`,
-        [actualParcelId]
-      );
+      const isChildUnit = Boolean(repRes.rows[0].unit_id) || repRes.rows[0].report_type === 'CONDO_UNIT' || repRes.rows[0].report_type === 'UNIT_CHILD';
+
+      if (isChildUnit && repRes.rows[0].unit_id) {
+        await client.query(
+          `UPDATE building_units
+           SET status = 'REJECTED', updated_at = NOW()
+           WHERE id = $1;`,
+          [repRes.rows[0].unit_id]
+        );
+      } else {
+        await client.query(
+          `UPDATE parcels SET survey_status = 'REJECTED', updated_at = NOW() WHERE id = $1;`,
+          [actualParcelId]
+        );
+      }
 
       return {
         reportId: actualReportId,

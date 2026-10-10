@@ -27,12 +27,19 @@ export const SurveyCondoUnitPage: React.FC<SurveyCondoUnitPageProps> = ({
     formData,
     initializeForm,
     clearDraft,
+    syncDraftToServer,
   } = useCondoUnitSurveyStore();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     if (parcel) {
       initializeForm(parcel, unit);
+      const unitStatus = unit?.status;
+      if (unitStatus !== 'SUBMITTED' && unitStatus !== 'APPROVED') {
+        setTimeout(() => {
+          void syncDraftToServer();
+        }, 100);
+      }
     }
   }, [parcel?.id, unit?.id]);
 
@@ -52,6 +59,7 @@ export const SurveyCondoUnitPage: React.FC<SurveyCondoUnitPageProps> = ({
         'Bạn có chắc chắn muốn quay lại và tạm rời phiên khảo sát căn hộ? Dữ liệu đang nhập đã được lưu nháp an toàn.'
       );
       if (confirmLeave) {
+        void syncDraftToServer();
         onBackToHome();
       } else {
         window.history.pushState({ condoUnitSessionActive: true }, '');
@@ -67,6 +75,7 @@ export const SurveyCondoUnitPage: React.FC<SurveyCondoUnitPageProps> = ({
       'Bạn có chắc chắn muốn quay về danh sách căn hộ? Toàn bộ dữ liệu khảo sát đã được tự động lưu nháp an toàn.'
     );
     if (confirmLeave) {
+      void syncDraftToServer();
       onBackToHome();
     }
   };

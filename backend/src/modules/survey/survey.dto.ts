@@ -347,7 +347,7 @@ export const SubmitPhase2ReportDto = z.object({
 export const SaveSurveyDraftDto = z.object({
   parcelId: z.string().min(1),
   unitId: z.string().nullable().optional(),
-  reportType: z.enum(['STANDALONE', 'BUILDING_MASTER', 'UNIT_CHILD']).optional(),
+  reportType: z.enum(['STANDALONE', 'BUILDING_MASTER', 'UNIT_CHILD', 'CONDO_UNIT']).optional(),
   currentStep: z.number().int().min(1).max(9),
   surveyData: z.record(z.any()),
   syncVersion: z.number().int().optional(),

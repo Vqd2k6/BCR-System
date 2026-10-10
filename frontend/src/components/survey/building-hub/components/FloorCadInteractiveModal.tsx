@@ -16,6 +16,10 @@ import type { FloorGroupData } from '../hooks/useBuildingHubState';
 import { formatShortUnitDisplay } from '../../../../core/utils/codeFormattingUtils';
 import { useInteractiveCanvasZoom } from '../../../canvas/useInteractiveCanvasZoom';
 import { CanvasZoomToolbar } from '../../../canvas/CanvasZoomToolbar';
+import {
+  getUnitCadBoxClass,
+  getUnitShortCodeBadgeClass,
+} from '../utils/unitVisualTheme';
 
 interface FloorCadInteractiveModalProps {
   floor: FloorGroupData;
@@ -223,24 +227,20 @@ export const FloorCadInteractiveModal: React.FC<FloorCadInteractiveModalProps> =
                   width: `${bbox.width}%`,
                   height: `${bbox.height}%`,
                 }}
-                className={`rounded border-2 cursor-pointer flex flex-col justify-between p-1 transition-all overflow-hidden ${
+                className={`rounded border-2 cursor-pointer flex flex-col justify-between p-1 transition-all overflow-hidden ${getUnitCadBoxClass(
+                  unit.status,
+                  unitIsMaster,
                   isSelected
-                    ? 'ring-4 ring-amber-400 border-amber-500 bg-amber-400/40 z-30 shadow-2xl scale-[1.02]'
-                    : unitIsMaster
-                    ? 'border-indigo-500 bg-indigo-500/25 hover:bg-indigo-500/40 text-indigo-100 z-10'
-                    : 'border-teal-400 bg-teal-500/20 hover:bg-teal-500/35 text-white z-10'
-                }`}
+                )}`}
                 title={`Chạm để chọn: ${unitIsMaster ? 'Khu' : 'Căn'} ${shortCode}`}
               >
                 <div className="flex items-center justify-between gap-1 max-w-full overflow-hidden">
                   <span
-                    className={`px-1.5 py-0.5 rounded font-mono font-black text-[10px] sm:text-xs shadow-sm flex items-center gap-1 max-w-full truncate ${
+                    className={`px-1.5 py-0.5 rounded font-mono font-black text-[10px] sm:text-xs shadow-sm flex items-center gap-1 max-w-full truncate ${getUnitShortCodeBadgeClass(
+                      unit.status,
+                      unitIsMaster,
                       isSelected
-                        ? 'bg-amber-500 text-white'
-                        : unitIsMaster
-                        ? 'bg-indigo-900 text-white'
-                        : 'bg-white text-slate-900 border border-teal-600'
-                    }`}
+                    )}`}
                   >
                     {unitIsMaster ? <Building2 size={11} className="shrink-0" /> : <Home size={11} className="shrink-0" />}
                     <span className="truncate">{shortCode}</span>

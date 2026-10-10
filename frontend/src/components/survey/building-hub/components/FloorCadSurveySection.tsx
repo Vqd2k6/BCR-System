@@ -17,6 +17,11 @@ import type { FloorGroupData } from '../hooks/useBuildingHubState';
 import { formatShortUnitDisplay } from '../../../../core/utils/codeFormattingUtils';
 import { BuildingUnitCard } from './BuildingUnitCard';
 import { FloorCadInteractiveModal } from './FloorCadInteractiveModal';
+import {
+  getUnitCadBoxClass,
+  getUnitChipClass,
+  getUnitShortCodeBadgeClass,
+} from '../utils/unitVisualTheme';
 
 interface FloorCadSurveySectionProps {
   floor: FloorGroupData;
@@ -273,25 +278,21 @@ export const FloorCadSurveySection: React.FC<FloorCadSurveySectionProps> = ({
                         width: `${bbox.width}%`,
                         height: `${bbox.height}%`,
                       }}
-                      className={`rounded-md border-2 cursor-pointer flex flex-col justify-between p-1 transition-all overflow-hidden ${
+                      className={`rounded-md border-2 cursor-pointer flex flex-col justify-between p-1 transition-all overflow-hidden ${getUnitCadBoxClass(
+                        unit.status,
+                        isMaster,
                         isSelected
-                          ? 'ring-4 ring-amber-400 border-amber-500 bg-amber-400/40 z-30 shadow-xl scale-[1.02]'
-                          : isMaster
-                          ? 'border-indigo-600 bg-indigo-500/25 hover:bg-indigo-500/40 text-indigo-950 z-10'
-                          : 'border-teal-500 bg-teal-500/20 hover:bg-teal-500/35 text-slate-900 z-10'
-                      }`}
+                      )}`}
                       title={`Chạm để khảo sát: ${isMaster ? 'Khu' : 'Căn'} ${shortCode} (Mã chuẩn: ${unit.unit_code})`}
                     >
                       {/* Thanh nhãn: Icon + Mã ngắn gọn + Nhãn trạng thái */}
                       <div className="flex items-center justify-between gap-1 max-w-full overflow-hidden">
                         <span
-                          className={`px-1.5 py-0.5 rounded font-mono font-black text-[10px] sm:text-xs shadow-2xs flex items-center gap-1 max-w-full truncate ${
+                          className={`px-1.5 py-0.5 rounded font-mono font-black text-[10px] sm:text-xs shadow-2xs flex items-center gap-1 max-w-full truncate ${getUnitShortCodeBadgeClass(
+                            unit.status,
+                            isMaster,
                             isSelected
-                              ? 'bg-amber-500 text-white'
-                              : isMaster
-                              ? 'bg-indigo-900 text-white'
-                              : 'bg-white/95 text-slate-900 border border-teal-600'
-                          }`}
+                          )}`}
                         >
                           {isMaster ? (
                             <Building2 size={11} className="shrink-0" />
@@ -353,13 +354,11 @@ export const FloorCadSurveySection: React.FC<FloorCadSurveySectionProps> = ({
                     key={u.id}
                     type="button"
                     onClick={() => onSelectUnit(u)}
-                    className={`min-h-[36px] px-3 py-1.5 rounded-xl text-xs font-mono font-bold flex items-center gap-1.5 border transition-all cursor-pointer active:scale-95 ${
+                    className={`min-h-[36px] px-3 py-1.5 rounded-xl text-xs font-mono font-bold flex items-center gap-1.5 border transition-all cursor-pointer active:scale-95 ${getUnitChipClass(
+                      u.status,
+                      isMaster,
                       isSelected
-                        ? 'bg-amber-400 text-slate-900 border-amber-500 ring-2 ring-amber-300 shadow-sm'
-                        : isMaster
-                        ? 'bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border-indigo-200'
-                        : 'bg-slate-50 hover:bg-teal-50 text-slate-800 border-slate-200 hover:border-teal-300'
-                    }`}
+                    )}`}
                     title={`Mã chuẩn: ${u.unit_code} • Chạm để khảo sát`}
                   >
                     {isMaster ? <Building2 size={12} /> : <Home size={12} />}
