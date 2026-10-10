@@ -96,8 +96,7 @@ export class MigrationRunner {
 
       // 6. CHIẾN LƯỢC TỰ ĐỘNG ĐÓNG DẤU AN TOÀN CHO PRODUCTION HIỆN HỮU (BASELINE BACKFILL)
       // Nếu schema_migrations rỗng NHƯNG CSDL đã có sẵn bảng nghiệp vụ (ví dụ: parcels):
-      // Điều này chứng minh CSDL Production đã chạy đầy đủ cấu trúc hiện có qua code cũ.
-      // Chúng ta đánh dấu an toàn toàn bộ 18 file hiện hữu là BASELINE_APPLIED mà KHÔNG chạy lại DDL!
+      // Đóng dấu an toàn các file migration cũ (trước ngày 20261011) mà KHÔNG chạy lại DDL.
       if (appliedSet.size === 0) {
         const checkExistingDb = await Database.query<{ exists: boolean }>(`
           SELECT EXISTS (
@@ -107,12 +106,28 @@ export class MigrationRunner {
         `);
 
         if (checkExistingDb.rows[0]?.exists) {
+          // Kiểm tra xem cột deleted_at trong building_units đã tồn tại thực tế chưa
+          const hasDeletedAt = await Database.query<{ exists: boolean }>(`
+            SELECT EXISTS (
+              SELECT 1 FROM information_schema.columns 
+              WHERE table_name = 'building_units' AND column_name = 'deleted_at'
+            ) AS exists;
+          `);
+          const canBaselineCondo = Boolean(hasDeletedAt.rows[0]?.exists);
+
+          const baselineFiles = allFiles.filter((file) => {
+            if (file.startsWith('20261011_')) {
+              return canBaselineCondo;
+            }
+            return true;
+          });
+
           console.log(
-            `🛡️ [MIGRATION RUNNER] Phát hiện CSDL Production hiện hữu có sẵn dữ liệu. Đang đóng dấu baseline ${allFiles.length} file migration an toàn...`
+            `🛡️ [MIGRATION RUNNER] Phát hiện CSDL Production hiện hữu có sẵn dữ liệu. Đang đóng dấu baseline ${baselineFiles.length} file migration an toàn...`
           );
 
           await Database.transaction(async (client) => {
-            for (const file of allFiles) {
+            for (const file of baselineFiles) {
               await client.query(
                 `INSERT INTO schema_migrations (id, applied_at, execution_time_ms) 
                  VALUES ($1, NOW(), 0) 
@@ -124,9 +139,28 @@ export class MigrationRunner {
           });
 
           console.log(
-            `✅ [MIGRATION RUNNER] Đã đóng dấu hoàn tất baseline cho ${allFiles.length} file migration. 0 câu lệnh DDL thừa nào bị chạy lại.`
+            `✅ [MIGRATION RUNNER] Đã đóng dấu hoàn tất baseline cho ${baselineFiles.length} file migration.`
           );
-          return;
+        }
+      }
+
+      // 6.1 CƠ CHẾ SELF-HEALING: Kiểm tra và phục hồi nếu 20261011 bị đánh dấu sớm nhưng cột deleted_at chưa tồn tại thực tế
+      if (appliedSet.has('20261011_cad_condo_integrity_and_soft_delete.sql')) {
+        const checkDeletedAt = await Database.query<{ exists: boolean }>(`
+          SELECT EXISTS (
+            SELECT 1 FROM information_schema.columns 
+            WHERE table_name = 'building_units' AND column_name = 'deleted_at'
+          ) AS exists;
+        `);
+
+        if (!checkDeletedAt.rows[0]?.exists) {
+          console.warn(
+            '⚠️ [MIGRATION RUNNER] Phát hiện 20261011_cad_condo_integrity_and_soft_delete.sql được đánh dấu nhưng schema thực tế chưa có deleted_at. Đang xếp lại vào hàng đợi thực thi...'
+          );
+          await Database.query(
+            `DELETE FROM schema_migrations WHERE id = '20261011_cad_condo_integrity_and_soft_delete.sql';`
+          );
+          appliedSet.delete('20261011_cad_condo_integrity_and_soft_delete.sql');
         }
       }
 
