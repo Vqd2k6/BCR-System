@@ -34,6 +34,9 @@ export const SurveyorCadReadOnlyModal: React.FC<SurveyorCadReadOnlyModalProps> =
 }) => {
   const [plans, setPlans] = useState<FloorPlanItem[]>([]);
   const [units, setUnits] = useState<UnitItem[]>([]);
+  const [deletedFloors, setDeletedFloors] = useState<number[]>(
+    parcel.deletedFloors || parcel.deleted_floors || []
+  );
   const [loading, setLoading] = useState<boolean>(true);
   const [filterFloor, setFilterFloor] = useState<number | 'ALL'>('ALL');
 
@@ -55,6 +58,9 @@ export const SurveyorCadReadOnlyModal: React.FC<SurveyorCadReadOnlyModalProps> =
 
       setPlans(plansRes.data?.data?.plans || []);
       setUnits(unitsRes.data?.data?.units || []);
+      if (Array.isArray(plansRes.data?.data?.deletedFloors)) {
+        setDeletedFloors(plansRes.data.data.deletedFloors);
+      }
     } catch (err) {
       console.warn('[SurveyorCadModal] Lỗi nạp dữ liệu CAD:', err);
     } finally {
@@ -66,7 +72,7 @@ export const SurveyorCadReadOnlyModal: React.FC<SurveyorCadReadOnlyModalProps> =
     loadData();
   }, [loadData]);
 
-  // Sắp xếp danh sách tầng theo thứ tự TĂNG DẦN (Ascending: -2, -1, 1, 2, 3...)
+  // Sắp xếp danh sách tầng theo thứ tự TỪ CAO XUỐNG THẤP (Top to Bottom)
   const floorList = useMemo(() => {
     const floorSet = new Set<number>();
 
@@ -91,8 +97,11 @@ export const SurveyorCadReadOnlyModal: React.FC<SurveyorCadReadOnlyModalProps> =
       }
     });
 
-    // Sắp xếp TĂNG DẦN (từ tầng hầm lên các tầng cao)
-    const sorted = Array.from(floorSet).sort((a, b) => a - b);
+    // Loại trừ các tầng đã bị xóa và sắp xếp Top to Bottom
+    const activeFloors = Array.from(floorSet).filter((f) => !deletedFloors.includes(f));
+    if (activeFloors.length === 0) activeFloors.push(1);
+
+    const sorted = activeFloors.sort((a, b) => b - a);
 
     return sorted.map((floorNum) => {
       // Tìm plan tương ứng (ưu tiên plan trực tiếp, sau đó plan dùng chung)
@@ -109,17 +118,19 @@ export const SurveyorCadReadOnlyModal: React.FC<SurveyorCadReadOnlyModalProps> =
       if (floorNum === 0) defaultLabel = 'Tầng Trệt / G';
       if (floorNum < 0) defaultLabel = `Tầng Hầm B${Math.abs(floorNum)}`;
 
+      const floorDisplayName = directPlan?.floor_name || defaultLabel;
+
       return {
         floorNumber: floorNum,
-        floorLabel: defaultLabel,
-        floorName: effectivePlan?.floor_name || defaultLabel,
+        floorLabel: floorDisplayName,
+        floorName: floorDisplayName,
         cadUrl: effectivePlan?.cad_photo_url || '',
         isInherited,
         inheritedFromFloor: sharedPlan?.floor_number,
         units: floorUnits,
       };
     });
-  }, [parcel.floorCount, plans, units]);
+  }, [parcel.floorCount, plans, units, deletedFloors]);
 
   // Các tầng được hiển thị theo bộ lọc
   const displayedFloors = useMemo(() => {

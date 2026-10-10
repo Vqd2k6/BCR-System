@@ -3,6 +3,7 @@ import { useState, useEffect, useRef, useMemo } from 'react';
 import { api } from '../../../../services/api';
 import type { GisParcel } from '../../../gis/LeafletSweepMap';
 import type { BuildingUnit, MasterReportData } from '../types';
+import { getDefaultFloorCode } from '../components/FloorPlanCadManagementModal';
 
 export interface FloorPlanData {
   id: string;
@@ -28,6 +29,8 @@ export interface FloorGroupData {
   completedCount: number;
   unitCount: number;
   masterCount: number;
+  scope?: string;
+  areaType?: string;
 }
 
 interface UseBuildingHubStateProps {
@@ -108,6 +111,17 @@ export const useBuildingHubState = ({ parcel, onUnitsUpdated }: UseBuildingHubSt
     }
   };
 
+  const [deletedFloors, setDeletedFloors] = useState<number[]>(
+    parcel.deletedFloors || parcel.deleted_floors || []
+  );
+
+  useEffect(() => {
+    const rawDeleted = parcel.deletedFloors || parcel.deleted_floors;
+    if (Array.isArray(rawDeleted)) {
+      setDeletedFloors(rawDeleted);
+    }
+  }, [parcel.deletedFloors, parcel.deleted_floors]);
+
   // Load floor plans from API
   const fetchFloorPlans = async () => {
     try {
@@ -116,6 +130,9 @@ export const useBuildingHubState = ({ parcel, onUnitsUpdated }: UseBuildingHubSt
         setFloorPlans(res.data.data.plans);
       } else {
         setFloorPlans([]);
+      }
+      if (Array.isArray(res.data?.data?.deletedFloors)) {
+        setDeletedFloors(res.data.data.deletedFloors);
       }
     } catch (err) {
       console.warn('[BuildingHub] Không thể nạp sơ đồ CAD các tầng:', err);
@@ -202,16 +219,21 @@ export const useBuildingHubState = ({ parcel, onUnitsUpdated }: UseBuildingHubSt
       const fn = u.floor_number ?? u.floorNumber;
       if (typeof fn === 'number' && !isNaN(fn)) floorSet.add(fn);
     });
-    if (floorSet.size === 0) floorSet.add(1);
-    return Array.from(floorSet).sort((a, b) => a - b);
-  }, [parcel.floorCount, floorPlans, units]);
+
+    // Loại trừ các tầng đã bị xóa trong CAD Studio
+    const activeFloors = Array.from(floorSet).filter((f) => !deletedFloors.includes(f));
+    if (activeFloors.length === 0) activeFloors.push(1);
+
+    // Sắp xếp từ tầng cao xuống tầng thấp (Top to Bottom) đồng bộ 100% với CAD Studio
+    return activeFloors.sort((a, b) => b - a);
+  }, [parcel.floorCount, floorPlans, units, deletedFloors]);
 
   // Cấu trúc gom nhóm theo từng tầng (Floor-by-Floor Grouping)
   const allFloorsData = useMemo<FloorGroupData[]>(() => {
     return availableFloors.map((flNum) => {
       const directPlan = floorPlans.find((p) => p.floor_number === flNum);
       const sharedPlan = floorPlans.find(
-        (p) => Array.isArray(p.applicable_floors) && p.applicable_floors.includes(flNum)
+        (p) => p.floor_number !== flNum && Array.isArray(p.applicable_floors) && p.applicable_floors.includes(flNum)
       );
       const effectivePlan = directPlan || sharedPlan;
       const isInherited = !directPlan && Boolean(sharedPlan);
@@ -225,13 +247,13 @@ export const useBuildingHubState = ({ parcel, onUnitsUpdated }: UseBuildingHubSt
       if (flNum === 0) defaultLabel = 'Tầng Trệt / Sảnh';
       else if (flNum < 0) defaultLabel = `Tầng Hầm B${Math.abs(flNum)}`;
 
+      // QUAN TRỌNG: Tên mặt bằng ưu tiên tên riêng đặt trong CAD (directPlan?.floor_name).
+      // Nếu là tầng kế thừa bản vẽ, giữ nguyên defaultLabel của chính tầng này.
+      const floorDisplayName = directPlan?.floor_name || defaultLabel;
+
       const effectiveCode =
-        effectivePlan?.floor_code ||
-        (flNum === 0
-          ? 'G'
-          : flNum < 0
-          ? `B${String(Math.abs(flNum)).padStart(2, '0')}`
-          : `F${String(flNum).padStart(2, '0')}`);
+        directPlan?.floor_code ||
+        getDefaultFloorCode(flNum, floorDisplayName);
 
       const unitCount = floorUnits.filter(
         (u) => (u.unit_type || u.unitType || 'UNIT') === 'UNIT'
@@ -245,8 +267,8 @@ export const useBuildingHubState = ({ parcel, onUnitsUpdated }: UseBuildingHubSt
 
       return {
         floorNumber: flNum,
-        floorLabel: defaultLabel,
-        floorName: effectivePlan?.floor_name || defaultLabel,
+        floorLabel: floorDisplayName,
+        floorName: floorDisplayName,
         floorCode: effectiveCode,
         cadUrl: effectivePlan?.cad_photo_url || '',
         isInherited,
@@ -256,6 +278,8 @@ export const useBuildingHubState = ({ parcel, onUnitsUpdated }: UseBuildingHubSt
         completedCount,
         unitCount,
         masterCount,
+        scope: directPlan?.scope || effectivePlan?.scope,
+        areaType: directPlan?.area_type || effectivePlan?.area_type,
       };
     });
   }, [availableFloors, floorPlans, units]);

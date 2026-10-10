@@ -177,6 +177,7 @@ export const BuildingHubModal: React.FC<BuildingHubModalProps> = ({
         parcel={parcel}
         availableFloors={availableFloors}
         units={units}
+        allFloorsData={allFloorsData}
       />
 
       {/* Modal: Quản lý bản vẽ CAD tầng & chia cắt căn hộ */}
