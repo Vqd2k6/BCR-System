@@ -50,11 +50,17 @@ const PhotoThumbnailCell: React.FC<{ url: string; title: string; onClick: () => 
   return (
     <div
       onClick={onClick}
-      className="w-13 h-13 rounded-xl overflow-hidden bg-slate-100 border border-slate-200 shrink-0 cursor-pointer relative group flex items-center justify-center shadow-2xs"
+      style={{ width: '56px', height: '56px', minWidth: '56px', minHeight: '56px', maxWidth: '56px', maxHeight: '56px' }}
+      className="w-14 h-14 min-w-[56px] min-h-[56px] max-w-[56px] max-h-[56px] rounded-xl overflow-hidden bg-slate-100 border border-slate-200 shrink-0 cursor-pointer relative group flex items-center justify-center shadow-xs"
       title="Bấm để xem ảnh phóng to"
     >
       {displayUrl ? (
-        <img src={displayUrl} alt={title} className="w-full h-full object-cover" />
+        <img
+          src={displayUrl}
+          alt={title}
+          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+          className="w-full h-full object-cover block"
+        />
       ) : (
         <ImageIcon className="w-5 h-5 text-slate-400" />
       )}
@@ -93,8 +99,13 @@ export const CondoUnitPhotoAuditModal: React.FC<Props> = ({
   const handleRetrySingle = async (item: CondoUnitPhotoAuditItem) => {
     try {
       setRetryingId(item.id);
-      await retryUploadCondoUnitPhoto(item, parcelCode, unitCode, (_newUrl) => {
-        // Zustand store sẽ tự động thăng cấp qua promoteUrlInStores
+      await retryUploadCondoUnitPhoto(item, parcelCode, unitCode, (newUrl) => {
+        const store = useCondoUnitSurveyStore.getState();
+        if (item.fieldKey === 'unitCadUrl') {
+          store.updateFormData({ unitCadUrl: newUrl });
+        } else if (item.fieldKey === 'unitStructuralCadUrl') {
+          store.updateFormData({ unitStructuralCadUrl: newUrl });
+        }
       });
     } catch (err: unknown) {
       alert(`Không thể tải lại ảnh: ${err instanceof Error ? err.message : String(err)}`);
@@ -109,7 +120,14 @@ export const CondoUnitPhotoAuditModal: React.FC<Props> = ({
       setIsBatchRetrying(true);
       for (const item of audit.unsyncedPhotos) {
         try {
-          await retryUploadCondoUnitPhoto(item, parcelCode, unitCode, () => {});
+          await retryUploadCondoUnitPhoto(item, parcelCode, unitCode, (newUrl) => {
+            const store = useCondoUnitSurveyStore.getState();
+            if (item.fieldKey === 'unitCadUrl') {
+              store.updateFormData({ unitCadUrl: newUrl });
+            } else if (item.fieldKey === 'unitStructuralCadUrl') {
+              store.updateFormData({ unitStructuralCadUrl: newUrl });
+            }
+          });
         } catch (_e) {}
       }
     } finally {
@@ -228,16 +246,16 @@ export const CondoUnitPhotoAuditModal: React.FC<Props> = ({
             displayList.map((item) => (
               <div
                 key={item.id}
-                className="p-3 bg-white rounded-xl border border-slate-200 hover:border-slate-300 transition-all shadow-2xs flex items-center justify-between gap-3 flex-wrap sm:flex-nowrap"
+                className="p-3 bg-white rounded-xl border border-slate-200 hover:border-slate-300 transition-all shadow-xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
               >
-                <div className="flex items-center gap-3 min-w-0">
+                <div className="flex items-center gap-3 min-w-0 flex-1">
                   <PhotoThumbnailCell
                     url={item.url}
                     title={item.fieldTitle}
                     onClick={() => setPreviewImageUrl(item.url)}
                   />
 
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200">
                         {item.stepTitle.split(':')[0]}
@@ -251,13 +269,13 @@ export const CondoUnitPhotoAuditModal: React.FC<Props> = ({
                     <h4 className="text-xs sm:text-sm font-bold text-slate-900 mt-1 truncate">
                       {item.fieldTitle}
                     </h4>
-                    <p className="text-[11px] text-slate-400 font-mono truncate max-w-[280px] sm:max-w-md mt-0.5">
+                    <p className="text-[11px] text-slate-400 font-mono truncate max-w-full mt-0.5">
                       {item.url}
                     </p>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 shrink-0 ml-auto sm:ml-0">
+                <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
                   {item.isCloudUrl ? (
                     <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
                       <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
