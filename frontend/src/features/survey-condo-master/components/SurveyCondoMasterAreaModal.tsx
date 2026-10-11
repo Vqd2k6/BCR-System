@@ -10,6 +10,7 @@ import {
   Layers,
   ShieldAlert,
   Lock,
+  Unlock,
 } from 'lucide-react';
 import { ImageZoomModal } from '../../../components/common/ImageZoomModal';
 import { DefectPinningModal } from '../../survey-phase1/components/step3/DefectPinningModal';
@@ -169,14 +170,31 @@ export const SurveyCondoMasterAreaModal: React.FC<Props> = ({
 
               {state.isReadOnly && (
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
-                  Chỉ xem
+                  Chỉ xem · Không đồng bộ
                 </span>
               )}
 
-              {state.isZoneAdminAdjusting && (
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
-                  Điều chỉnh (Zone Admin)
-                </span>
+              {state.isAdmin && state.isSubmittedOrApproved && (
+                <button
+                  type="button"
+                  onClick={state.handleRevertToDraft}
+                  disabled={state.isReverting}
+                  className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300 hover:bg-amber-200 transition-all cursor-pointer disabled:opacity-60"
+                >
+                  <RefreshCw className={`w-3 h-3 ${state.isReverting ? 'animate-spin' : ''}`} />
+                  <span>{state.isReverting ? 'Đang chuyển...' : 'Chuyển về Đang làm dở'}</span>
+                </button>
+              )}
+
+              {state.isAdmin && !state.isSubmittedOrApproved && state.isViewOnlyForAdmin && (
+                <button
+                  type="button"
+                  onClick={state.unlockEdit}
+                  className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-800 border border-indigo-300 hover:bg-indigo-200 transition-all cursor-pointer"
+                >
+                  <Unlock className="w-3 h-3" />
+                  <span>Mở khóa chỉnh sửa</span>
+                </button>
               )}
             </div>
           </div>
@@ -512,7 +530,7 @@ export const SurveyCondoMasterAreaModal: React.FC<Props> = ({
       <ActiveSurveyorLockedModal
         isOpen={state.isLockedByOther}
         lockedInfo={state.lockedInfo}
-        onClose={state.handleClose}
+        onClose={state.isAdmin ? state.lockEdit : state.handleClose}
       />
 
       {/* =============================================================== */}
@@ -522,7 +540,7 @@ export const SurveyCondoMasterAreaModal: React.FC<Props> = ({
         isOpen={state.isHandoverModalOpen}
         handoverInfo={state.handoverInfo}
         onTakeover={state.handleTakeoverDraft}
-        onCancel={state.handleClose}
+        onCancel={state.isAdmin ? state.lockEdit : state.handleClose}
       />
 
       {/* =============================================================== */}

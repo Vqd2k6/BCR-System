@@ -28,7 +28,7 @@ export const createFormSlice: StateCreator<
 
   setIsSubmitted: (isSubmitted: boolean) => set({ isSubmitted }),
 
-  initializeForm: (parcel: GisParcel, unit?: BuildingUnit | null) => {
+  initializeForm: (parcel: GisParcel, unit?: BuildingUnit | null, options?: { readOnly?: boolean }) => {
     const isSubmittedOrApproved =
       parcel.surveyStatus === 'SUBMITTED' ||
       parcel.surveyStatus === 'APPROVED' ||
@@ -39,11 +39,13 @@ export const createFormSlice: StateCreator<
       Boolean(unit && (unit.status === 'SUBMITTED' || unit.status === 'APPROVED' || unit.status === 'COMPLETED'));
 
     set({
-      isReadOnly: Boolean(get().isReadOnly || isSubmittedOrApproved),
+      isReadOnly: Boolean(options?.readOnly || get().isReadOnly || isSubmittedOrApproved),
       isSubmitted: isSubmittedOrApproved,
       isLockedByOther: false,
       lockedInfo: null,
       isHandoverModalOpen: false,
+      // Chưa nạp xong dữ liệu thật từ server -> chưa được phép đồng bộ nháp
+      hasServerHydrated: false,
     });
     const unitId = unit ? unit.id : null;
     const draftKey = `metro2_phase1_draft_${parcel.id}${unitId ? `_${unitId}` : ''}`;
@@ -253,10 +255,12 @@ export const createFormSlice: StateCreator<
             });
             console.log('[SurveyPhase1Store] Server draft restored successfully:', serverRes.draft.reportId);
           }
+          // Đã nạp xong (có hoặc không có bản nháp) -> cho phép đồng bộ từ giờ
+          set({ hasServerHydrated: true });
         })
         .catch((err: unknown) => {
           console.warn('[SurveyPhase1Store] Failed to fetch server draft:', err);
-          set({ syncStatus: 'OFFLINE' });
+          set({ syncStatus: 'OFFLINE', hasServerHydrated: true });
         });
     }
   },

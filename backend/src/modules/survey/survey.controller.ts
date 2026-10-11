@@ -454,7 +454,9 @@ export class SurveyController {
       const { parcelId } = req.params;
       const unitId = req.query.unitId as string | undefined;
       const surveyorId = req.user!.userId;
-      const result = await SurveyService.getSurveyDraft(parcelId, surveyorId, unitId);
+      const isAdminRole = req.user?.role === 'ZONE_ADMIN' || req.user?.role === 'SUPER_ADMIN';
+      const viewOnly = isAdminRole && String(req.query.viewOnly || '') === 'true';
+      const result = await SurveyService.getSurveyDraft(parcelId, surveyorId, unitId, { viewOnly });
       res.status(200).json({
         success: true,
         data: result,

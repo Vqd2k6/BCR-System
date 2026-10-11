@@ -13,8 +13,8 @@ import { api } from '../../../services/api';
 import { sanitizeSurveyDataForSync } from '../../../core/services/uploadQueueService';
 import { ActiveSurveyorLockedModal } from '../../survey-phase1/components/ActiveSurveyorLockedModal';
 import { HandoverTakeoverModal } from '../../survey-phase1/components/HandoverTakeoverModal';
-import { useAuth } from '../../../context/AuthContext';
-import { RotateCcw, ShieldAlert } from 'lucide-react';
+import { useAdminViewLock } from '../../../core/hooks/useAdminViewLock';
+import { RotateCcw, ShieldAlert, Unlock } from 'lucide-react';
 
 export interface SurveyCondoUnitPageProps {
   parcel?: GisParcel | null;
@@ -48,6 +48,8 @@ export const SurveyCondoUnitPage: React.FC<SurveyCondoUnitPageProps> = ({
     checkDraftLock,
     setIsReadOnly,
     updateFormData,
+    requestEditUnlock,
+    markDraftHydrated,
   } = useCondoUnitSurveyStore();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [missingModalState, setMissingModalState] = useState<{
@@ -61,21 +63,22 @@ export const SurveyCondoUnitPage: React.FC<SurveyCondoUnitPageProps> = ({
   });
   const lastInitializedKeyRef = React.useRef<string>('');
 
-  const { user } = useAuth();
-  const isAdmin = user?.role === 'ZONE_ADMIN' || user?.role === 'SUPER_ADMIN';
+  const { isAdmin, isViewOnlyForAdmin, unlockEdit } = useAdminViewLock();
   const [localUnitStatus, setLocalUnitStatus] = useState<string | null>(null);
   const [isReverting, setIsReverting] = useState(false);
+  const [isUnlocking, setIsUnlocking] = useState(false);
 
   const unitStatus = localUnitStatus || unit?.status || formData?.status;
   const isSubmittedOrApproved = unitStatus === 'SUBMITTED' || unitStatus === 'APPROVED';
-  const effectiveReadOnly = Boolean(readOnly || isSubmittedOrApproved);
+  // Admin luôn mở ở chế độ CHỈ XEM (không sửa, không đồng bộ) cho tới khi chủ động mở khóa chỉnh sửa
+  const effectiveReadOnly = Boolean(readOnly || isSubmittedOrApproved || isViewOnlyForAdmin);
 
   useEffect(() => {
     if (parcel) {
       const currentKey = `${parcel.id}_${unit?.id || 'none'}`;
       if (lastInitializedKeyRef.current !== currentKey) {
         lastInitializedKeyRef.current = currentKey;
-        initializeForm(parcel, unit);
+        initializeForm(parcel, unit, { readOnly: effectiveReadOnly });
       }
     }
   }, [parcel?.id, unit?.id, initializeForm]);
@@ -231,6 +234,9 @@ export const SurveyCondoUnitPage: React.FC<SurveyCondoUnitPageProps> = ({
 
       setLocalUnitStatus('IN_PROGRESS');
       updateFormData({ status: 'IN_PROGRESS' });
+      // Dữ liệu đang hiển thị chính là báo cáo thật vừa mở lại -> cho phép đồng bộ trở lại
+      markDraftHydrated();
+      unlockEdit();
       setIsReadOnly(false);
 
       if (unit) {
@@ -244,6 +250,27 @@ export const SurveyCondoUnitPage: React.FC<SurveyCondoUnitPageProps> = ({
     } finally {
       setIsReverting(false);
     }
+  };
+
+  // Admin mở khóa chỉnh sửa biểu mẫu đang làm dở: kiểm tra khóa ca / bàn giao trước khi cho sửa
+  const handleUnlockEdit = async () => {
+    try {
+      setIsUnlocking(true);
+      const canEdit = await requestEditUnlock();
+      if (canEdit) {
+        unlockEdit();
+      }
+    } finally {
+      setIsUnlocking(false);
+    }
+  };
+
+  const handleTakeoverAndUnlock = async (handoverCode: string, note?: string) => {
+    const ok = await takeoverDraft(handoverCode, note);
+    if (ok) {
+      unlockEdit();
+    }
+    return ok;
   };
 
   return (
@@ -264,16 +291,29 @@ export const SurveyCondoUnitPage: React.FC<SurveyCondoUnitPageProps> = ({
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              disabled={isReverting}
-              onClick={handleRevertToDraft}
-              className="inline-flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs px-3 py-1.5 rounded-lg shadow-xs transition-all cursor-pointer disabled:opacity-50"
-              title="Chuyển trạng thái về 'Đang làm dở' để chỉnh sửa thông tin"
-            >
-              <RotateCcw className={`w-3.5 h-3.5 ${isReverting ? 'animate-spin' : ''}`} />
-              <span>{isReverting ? 'Đang chuyển...' : 'Chuyển về "Đang làm dở" để sửa'}</span>
-            </button>
+            {isSubmittedOrApproved ? (
+              <button
+                type="button"
+                disabled={isReverting}
+                onClick={handleRevertToDraft}
+                className="inline-flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs px-3 py-1.5 rounded-lg shadow-xs transition-all cursor-pointer disabled:opacity-50"
+                title="Chuyển trạng thái về 'Đang làm dở' để chỉnh sửa thông tin"
+              >
+                <RotateCcw className={`w-3.5 h-3.5 ${isReverting ? 'animate-spin' : ''}`} />
+                <span>{isReverting ? 'Đang chuyển...' : 'Chuyển về "Đang làm dở" để sửa'}</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                disabled={isUnlocking}
+                onClick={handleUnlockEdit}
+                className="inline-flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs px-3 py-1.5 rounded-lg shadow-xs transition-all cursor-pointer disabled:opacity-50"
+                title="Mở khóa chỉnh sửa biểu mẫu (kiểm tra khóa ca / tiếp quản)"
+              >
+                <Unlock className="w-3.5 h-3.5" />
+                <span>{isUnlocking ? 'Đang kiểm tra...' : 'Mở khóa chỉnh sửa'}</span>
+              </button>
+            )}
             <button
               type="button"
               onClick={handleSafeBackToHome}
@@ -315,10 +355,10 @@ export const SurveyCondoUnitPage: React.FC<SurveyCondoUnitPageProps> = ({
       <HandoverTakeoverModal
         isOpen={isHandoverModalOpen}
         handoverInfo={handoverInfo}
-        onTakeover={takeoverDraft}
+        onTakeover={handleTakeoverAndUnlock}
         onCancel={() => {
           closeHandoverModal();
-          onBackToHome();
+          if (!isAdmin) onBackToHome();
         }}
       />
 
@@ -328,7 +368,7 @@ export const SurveyCondoUnitPage: React.FC<SurveyCondoUnitPageProps> = ({
         lockedInfo={lockedInfo}
         onClose={() => {
           closeLockedModal();
-          onBackToHome();
+          if (!isAdmin) onBackToHome();
         }}
         onRecheck={checkDraftLock}
       />

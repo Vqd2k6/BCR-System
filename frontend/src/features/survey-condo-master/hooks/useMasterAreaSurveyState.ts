@@ -6,7 +6,7 @@ import type { DefectItem } from '../../../components/canvas/DefectPinningCanvas'
 import { api } from '../../../services/api';
 import { getErrorMessage } from '@/utils/errorUtils';
 import { cropImageBoundingBox } from '../../../components/canvas/FloorPlanCadPartitionCanvas';
-import { useAuth } from '../../../context/AuthContext';
+import { useAdminViewLock } from '../../../core/hooks/useAdminViewLock';
 import type { MetroWatermarkOptions } from '../../../utils/watermarkEngine';
 import { isLocalBlobUri } from '../../../core/storage/offlinePhotoStorage';
 import {
@@ -46,26 +46,33 @@ export function useMasterAreaSurveyState({
   floorCadUrl,
   floorPlans,
 }: UseMasterAreaSurveyStateProps) {
-  const { user: _user } = useAuth();
+  const { isAdmin, isViewOnlyForAdmin, unlockEdit, lockEdit } = useAdminViewLock();
   const parcelId = parcel.id;
   const unitId = unit.id;
   const unitCode = unit.unit_code || unit.unitCode || 'MASTER-AREA';
   const floorNumber = unit.floor_number ?? unit.floorNumber ?? 1;
 
   const existingReportId = unit.phase1_report_id || unit.phase1ReportId;
-  const isSurveyor = _user?.role === 'SURVEYOR';
-  const isZoneAdmin = _user?.role === 'ZONE_ADMIN' || _user?.role === 'SUPER_ADMIN';
   const [serverReport, setServerReport] = useState<{ id: string; status: string; export_revision?: number } | null>(null);
+  const [localStatusOverride, setLocalStatusOverride] = useState<string | null>(null);
+  const [isReverting, setIsReverting] = useState<boolean>(false);
+  // Cổng hydrate: chỉ được autosave khi đã nạp xong CẢ báo cáo lẫn bản nháp thật từ server
+  const [reportLoaded, setReportLoaded] = useState<boolean>(false);
+  const [draftLoaded, setDraftLoaded] = useState<boolean>(false);
+  const hasHydrated = reportLoaded && draftLoaded;
 
-  const isSubmittedOrApproved =
-    unit.status === 'SUBMITTED' ||
-    unit.status === 'APPROVED' ||
-    serverReport?.status === 'SUBMITTED' ||
-    serverReport?.status === 'APPROVED';
+  const isSubmittedOrApproved = localStatusOverride
+    ? localStatusOverride === 'SUBMITTED' || localStatusOverride === 'APPROVED'
+    : unit.status === 'SUBMITTED' ||
+      unit.status === 'APPROVED' ||
+      serverReport?.status === 'SUBMITTED' ||
+      serverReport?.status === 'APPROVED';
 
-  // Triple-lock readOnly: Nếu đã nộp, Surveyor bắt buộc CHỈ ĐƯỢC XEM LẠI. Chỉ Zone Admin mới được điều chỉnh.
-  const isReadOnly = Boolean(readOnly || (isSubmittedOrApproved && isSurveyor));
-  const isZoneAdminAdjusting = Boolean(isSubmittedOrApproved && isZoneAdmin);
+  // Triple-lock readOnly: Đã nộp/duyệt -> MỌI VAI TRÒ (kể cả Admin) đều CHỈ ĐỌC, không đồng bộ.
+  // Admin mở biểu mẫu đang làm dở cũng mặc định CHỈ XEM cho tới khi chủ động "Mở khóa chỉnh sửa".
+  // Muốn sửa bản đã nộp: Admin phải bấm "Chuyển về Đang làm dở" (không còn sửa trực tiếp trên bản đã nộp).
+  const isReadOnly = Boolean(readOnly || isSubmittedOrApproved || isViewOnlyForAdmin);
+  const isZoneAdminAdjusting = false;
 
   // 5 BƯỚC KHẢO SÁT CHUẨN MỰC
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3 | 4 | 5>(1);
@@ -425,7 +432,10 @@ export function useMasterAreaSurveyState({
       } catch (err: unknown) {
         console.warn('[useMasterAreaSurveyState] Lỗi nạp báo cáo cũ:', err);
       } finally {
-        if (isSubscribed) setIsLoadingReport(false);
+        if (isSubscribed) {
+          setIsLoadingReport(false);
+          setReportLoaded(true);
+        }
       }
     };
     fetchExistingReport();
@@ -560,16 +570,24 @@ export function useMasterAreaSurveyState({
 
   // Khởi tạo: Truy vấn Cloud Draft trên máy chủ kèm kiểm tra khóa chống xung đột 2 người
   useEffect(() => {
-    if (existingReportId || serverReport) return;
+    // Báo cáo đã có sẵn / đã nộp: dữ liệu lấy từ báo cáo, không cần (và không được) nạp bản nháp cũ/bật modal khóa
+    if (existingReportId || serverReport || isSubmittedOrApproved) {
+      setDraftLoaded(true);
+      return;
+    }
     let isMounted = true;
+    setDraftLoaded(false);
+    setIsLockedByOther(false);
+    setIsHandoverModalOpen(false);
 
     surveyDraftService
-      .fetchDraft(parcelId, unitId)
+      // Chế độ chỉ xem (admin): đọc nháp để hiển thị, KHÔNG khóa ca / KHÔNG bắt tiếp quản
+      .fetchDraft(parcelId, unitId, { viewOnly: isReadOnly })
       .then((serverRes: DraftResponseData) => {
         if (!isMounted) return;
 
         // 1. Trường hợp có KSV khác đang mở khảo sát (< 15 phút) -> Kích hoạt khóa an toàn
-        if (serverRes.isLocked) {
+        if (!isReadOnly && serverRes.isLocked) {
           setIsLockedByOther(true);
           setLockedInfo({
             surveyorName: serverRes.activeSurveyorName || 'Kỹ sư khác',
@@ -581,7 +599,7 @@ export function useMasterAreaSurveyState({
         }
 
         // 2. Trường hợp KSV ca trước đã rời đi hoặc quá 15 phút -> Yêu cầu tiếp quản ca
-        if (serverRes.requiresHandover) {
+        if (!isReadOnly && serverRes.requiresHandover) {
           setIsHandoverModalOpen(true);
           setHandoverInfo({
             fromSurveyorName: serverRes.fromSurveyorName || 'Kỹ sư ca trước',
@@ -610,26 +628,40 @@ export function useMasterAreaSurveyState({
           setSyncStatus('SAVED_CLOUD');
           setLastSyncedAt(new Date(serverRes.draft.updatedAt || Date.now()).toLocaleTimeString('vi-VN'));
           setIsDirty(false);
-        } else {
-          // Fallback sang local draft nếu server chưa có
+        } else if (!isReadOnly) {
+          // Fallback sang local draft nếu server chưa có (không dùng khi đang chỉ xem)
           restoreLocalDraft();
         }
+        setDraftLoaded(true);
       })
       .catch((err: unknown) => {
         if (!isMounted) return;
         console.warn('[useMasterAreaSurveyState] Không thể nạp server draft, dùng local:', err);
-        restoreLocalDraft();
+        if (!isReadOnly) {
+          restoreLocalDraft();
+        }
+        setDraftLoaded(true);
       });
 
     return () => {
       isMounted = false;
     };
-  }, [parcelId, unitId, existingReportId, serverReport, applyDraftDataToState, restoreLocalDraft]);
+  }, [
+    parcelId,
+    unitId,
+    existingReportId,
+    serverReport,
+    isSubmittedOrApproved,
+    isReadOnly,
+    applyDraftDataToState,
+    restoreLocalDraft,
+  ]);
 
   // Tự động lưu nháp cục bộ và Cloud Draft lên server (debounced 1500ms)
   // Khi saveDraft được gọi, server tự động cập nhật building_units.status = 'IN_PROGRESS'
   useEffect(() => {
-    if (isReadOnly || isSubmittedOrApproved || isLockedByOther) return;
+    // Chặn tuyệt đối: chỉ đọc / đã nộp / bị khóa / chưa nạp xong dữ liệu thật từ server (tránh ghi đè dữ liệu rỗng)
+    if (isReadOnly || isSubmittedOrApproved || isLockedByOther || !hasHydrated) return;
 
     const timeout = setTimeout(async () => {
       try {
@@ -667,6 +699,7 @@ export function useMasterAreaSurveyState({
     isReadOnly,
     isSubmittedOrApproved,
     isLockedByOther,
+    hasHydrated,
     parcelId,
     unitId,
     currentStep,
@@ -719,6 +752,7 @@ export function useMasterAreaSurveyState({
         }
         setIsHandoverModalOpen(false);
         setIsLockedByOther(false);
+        setDraftLoaded(true);
         return true;
       } catch (err: unknown) {
         console.error('[useMasterAreaSurveyState] Tiếp quản ca thất bại:', err);
@@ -1673,6 +1707,9 @@ export function useMasterAreaSurveyState({
 
   // Nộp hồ sơ khảo sát khu vực dùng chung (có Tiền kiểm Pre-flight)
   const handleSubmitMasterAreaSurvey = async () => {
+    // Chế độ chỉ xem / đã nộp: tuyệt đối không nộp hay ghi đè
+    if (isReadOnly) return;
+
     // 1. Kiểm tra Tiền kiểm Pre-flight
     if (!preFlightValidation.isValid) {
       const firstError = preFlightValidation.blockingErrors[0];
@@ -1757,6 +1794,37 @@ export function useMasterAreaSurveyState({
     }
   };
 
+  // Admin chuyển báo cáo đã nộp về "Đang làm dở" để được chỉnh sửa (không còn sửa trực tiếp trên bản đã nộp)
+  const handleRevertToDraft = async () => {
+    const confirmRevert = window.confirm(
+      `Xác nhận chuyển trạng thái hồ sơ khu vực ${unitCode} về "Đang làm dở"?\n\nSau khi chuyển, khảo sát viên hoặc admin có thể chỉnh sửa thông tin, chụp thêm ảnh và nộp lại hồ sơ.`
+    );
+    if (!confirmRevert) return;
+
+    try {
+      setIsReverting(true);
+      const targetId = serverReport?.id || existingReportId || unitId;
+      const res = await api.post(`/admin/reports/${targetId}/revert-to-draft`, { unitId });
+
+      if (!res.data?.success) {
+        throw new Error(res.data?.message || 'Server không phản hồi');
+      }
+
+      setLocalStatusOverride('IN_PROGRESS');
+      setServerReport((prev) => (prev ? { ...prev, status: 'DRAFT' } : prev));
+      // Dữ liệu đang hiển thị chính là báo cáo thật vừa mở lại -> cho phép đồng bộ trở lại
+      setDraftLoaded(true);
+      unlockEdit();
+
+      alert(`✅ Đã chuyển khu vực ${unitCode} về trạng thái "Đang làm dở" thành công! Biểu mẫu đã được mở để chỉnh sửa.`);
+    } catch (err: unknown) {
+      console.error('[useMasterAreaSurveyState] Revert error:', err);
+      alert(`❌ Lỗi khi chuyển trạng thái: ${getErrorMessage(err)}`);
+    } finally {
+      setIsReverting(false);
+    }
+  };
+
   const goToStep = useCallback((step: 1 | 2 | 3 | 4 | 5) => {
     setCurrentStep(step);
   }, []);
@@ -1770,6 +1838,13 @@ export function useMasterAreaSurveyState({
     floorNumber,
     floorName,
     isReadOnly,
+    isAdmin,
+    isViewOnlyForAdmin,
+    isSubmittedOrApproved,
+    isReverting,
+    handleRevertToDraft,
+    unlockEdit,
+    lockEdit,
     isZoneAdminAdjusting,
     serverReport,
     activeBbox,

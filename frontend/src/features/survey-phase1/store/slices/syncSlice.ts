@@ -17,18 +17,21 @@ export const createSyncSlice: StateCreator<
   lastSyncedAt: null,
   syncVersion: 1,
   isDirty: false,
+  hasServerHydrated: false,
   isLockedByOther: false,
   lockedInfo: null,
   isHandoverModalOpen: false,
   handoverInfo: null,
 
   setIsDirty: (isDirty: boolean) => set({ isDirty }),
+  markServerHydrated: () => set({ hasServerHydrated: true }),
   closeHandoverModal: () => set({ isHandoverModalOpen: false }),
   closeLockedModal: () => set({ isLockedByOther: false, lockedInfo: null }),
 
   syncDraftToServer: async () => {
-    const { formData, currentUnitId, currentStep, syncVersion, isReadOnly, isSubmitted } = get();
-    if (isReadOnly || isSubmitted || !formData.parcelId) return;
+    const { formData, currentUnitId, currentStep, syncVersion, isReadOnly, isSubmitted, hasServerHydrated } = get();
+    // Chặn tuyệt đối: chỉ đọc / đã nộp / chưa nạp xong dữ liệu thật từ server (tránh ghi đè dữ liệu rỗng lên báo cáo trước)
+    if (isReadOnly || isSubmitted || !hasServerHydrated || !formData.parcelId) return;
 
     set({ syncStatus: 'SYNCING' });
     try {
@@ -63,7 +66,9 @@ export const createSyncSlice: StateCreator<
   },
 
   releaseDraftLock: async () => {
-    const { formData, currentUnitId } = get();
+    const { formData, currentUnitId, isReadOnly, isSubmitted } = get();
+    // Chế độ chỉ xem / đã nộp: không phải chủ phiên, không được nhả khóa
+    if (isReadOnly || isSubmitted) return;
     if (!formData.parcelId) return;
     try {
       await surveyDraftService.releaseLock(formData.parcelId, currentUnitId);
@@ -105,6 +110,7 @@ export const createSyncSlice: StateCreator<
             isHandoverModalOpen: false,
             handoverInfo: null,
             isDirty: false,
+            hasServerHydrated: true,
           };
         });
 

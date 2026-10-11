@@ -12,8 +12,8 @@ import { HandoverTakeoverModal } from '../../survey-phase1/components/HandoverTa
 import { ActiveSurveyorLockedModal } from '../../survey-phase1/components/ActiveSurveyorLockedModal';
 import type { GisParcel } from '../../../core/types/domain.types';
 import { api } from '../../../services/api';
-import { useAuth } from '../../../context/AuthContext';
-import { ShieldAlert, ShieldCheck, RotateCcw } from 'lucide-react';
+import { useAdminViewLock } from '../../../core/hooks/useAdminViewLock';
+import { ShieldAlert, RotateCcw, Unlock } from 'lucide-react';
 
 export interface SurveyCondoMasterPageProps {
   parcel?: GisParcel | null;
@@ -59,8 +59,9 @@ export const SurveyCondoMasterPage: React.FC<SurveyCondoMasterPageProps> = ({
     handoverInfo,
     closeHandoverModal,
     takeoverDraft,
+    markServerHydrated,
   } = usePhase1SurveyStore();
-  const { user } = useAuth();
+  const { isAdmin: isZoneAdmin, isViewOnlyForAdmin, unlockEdit, lockEdit } = useAdminViewLock();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [serverReport, setServerReport] = useState<ServerPhase1ReportResponse['report'] | null>(null);
   const [isReverting, setIsReverting] = useState(false);
@@ -80,16 +81,20 @@ export const SurveyCondoMasterPage: React.FC<SurveyCondoMasterPageProps> = ({
         (parcel as unknown as { survey_status?: string })?.survey_status === 'APPROVED'
       );
 
-  const isZoneAdmin = user?.role === 'ZONE_ADMIN' || user?.role === 'SUPER_ADMIN';
-
-  // Triple-lock readOnly: Nếu đã nộp hoặc phê duyệt, BẤT KỲ VAI TRÒ NÀO (kể cả Zone Admin / Super Admin) vào xem đều là CHỈ ĐỌC (Read-Only)
-  const effectiveReadOnly = Boolean(readOnly || isSubmittedOrApproved);
-  const isZoneAdminAdjusting = Boolean(isSubmittedOrApproved && isZoneAdmin && !effectiveReadOnly);
+  // Triple-lock readOnly: Đã nộp/phê duyệt -> MỌI VAI TRÒ (kể cả Admin) đều CHỈ ĐỌC, không đồng bộ.
+  // Admin mở biểu mẫu đang làm dở cũng mặc định CHỈ XEM cho tới khi chủ động "Mở khóa chỉnh sửa".
+  const effectiveReadOnly = Boolean(readOnly || isSubmittedOrApproved || isViewOnlyForAdmin);
+  const parcelStatusSubmitted = Boolean(
+    parcel?.surveyStatus === 'SUBMITTED' ||
+    parcel?.surveyStatus === 'APPROVED' ||
+    (parcel as unknown as { survey_status?: string })?.survey_status === 'SUBMITTED' ||
+    (parcel as unknown as { survey_status?: string })?.survey_status === 'APPROVED'
+  );
 
   // Khởi tạo form và Hydrate 100% dữ liệu đã nộp từ DB qua API
   useEffect(() => {
     if (parcel) {
-      initializeForm(parcel, null);
+      initializeForm(parcel, null, { readOnly: effectiveReadOnly });
       const cadastralCode =
         parcel.officialCadastralCode ||
         parcel.official_cadastral_code ||
@@ -114,7 +119,8 @@ export const SurveyCondoMasterPage: React.FC<SurveyCondoMasterPageProps> = ({
       setCurrentStep(1);
 
       // Nạp hồ sơ Tòa Mẹ thực tế từ Backend (Khép kín DB -> BE -> FE, ưu tiên draft nếu không ở chế độ chỉ đọc)
-      const fetchUrl = `/parcels/${parcel.id}/phase1-report?reportType=BUILDING_MASTER${!effectiveReadOnly ? '&preferDraft=true' : ''}`;
+      // Chỉ ưu tiên nạp bản nháp khi hồ sơ CHƯA nộp (kể cả admin đang xem chế độ chỉ đọc) để hiển thị đúng dữ liệu nháp mới nhất
+      const fetchUrl = `/parcels/${parcel.id}/phase1-report?reportType=BUILDING_MASTER${!readOnly && !parcelStatusSubmitted ? '&preferDraft=true' : ''}`;
       api.get<{ data?: ServerPhase1ReportResponse; report?: ServerPhase1ReportResponse['report'] }>(fetchUrl)
         .then((res) => {
           const resData = res?.data?.data || res?.data;
@@ -252,16 +258,15 @@ export const SurveyCondoMasterPage: React.FC<SurveyCondoMasterPageProps> = ({
   // Nộp hoặc cập nhật điều chỉnh hồ sơ toàn diện Toà nhà Chung cư mẹ
   const handleSubmitFinal = async () => {
     if (effectiveReadOnly) {
-      alert('Hồ sơ đã nộp và ở chế độ chỉ xem. Kỹ sư khảo sát không có quyền chỉnh sửa hoặc nộp lại.');
+      alert('Biểu mẫu đang ở chế độ chỉ xem (đã nộp hoặc chưa mở khóa chỉnh sửa). Không thể sửa hoặc nộp lại.');
       return;
     }
 
     const isValid = validateForFinalSubmit();
     if (!isValid) return;
 
-    const confirmMessage = isZoneAdminAdjusting
-      ? 'Xác nhận cập nhật điều chỉnh hồ sơ khảo sát Tòa nhà Chung cư tổng thể (Quyền Zone Admin)?\n\nCác sửa đổi sẽ được cập nhật trực tiếp vào hồ sơ hiện hành và tăng số hiệu phiên bản (Revision).'
-      : 'Xác nhận nộp hồ sơ khảo sát Tòa nhà Chung cư tổng thể?\n\nSau khi nộp, hồ sơ sẽ chuyển sang trạng thái "Chờ duyệt" và không thể chỉnh sửa.';
+    const confirmMessage =
+      'Xác nhận nộp hồ sơ khảo sát Tòa nhà Chung cư tổng thể?\n\nSau khi nộp, hồ sơ sẽ chuyển sang trạng thái "Chờ duyệt" và không thể chỉnh sửa.';
 
     const confirmed = window.confirm(confirmMessage);
     if (!confirmed) return;
@@ -283,11 +288,7 @@ export const SurveyCondoMasterPage: React.FC<SurveyCondoMasterPageProps> = ({
       if (response.data?.success) {
         localStorage.setItem(`metro2_condo_master_submitted_${formData.parcelId}`, 'true');
         clearDraft();
-        if (isZoneAdminAdjusting) {
-          alert('Zone Admin đã cập nhật điều chỉnh hồ sơ Tòa nhà thành công!');
-        } else {
-          alert('Đã nộp thành công hồ sơ khảo sát Tòa nhà Chung cư tổng thể!\n\nHồ sơ đang chờ duyệt từ Zone Admin.');
-        }
+        alert('Đã nộp thành công hồ sơ khảo sát Tòa nhà Chung cư tổng thể!\n\nHồ sơ đang chờ duyệt từ Zone Admin.');
         if (onFinished) {
           onFinished();
         } else {
@@ -339,10 +340,13 @@ export const SurveyCondoMasterPage: React.FC<SurveyCondoMasterPageProps> = ({
       if (serverReport) {
         setServerReport({ ...serverReport, status: 'DRAFT' });
       }
-      setIsReadOnly(false);
       if (parcel) {
         parcel.surveyStatus = 'IN_PROGRESS';
       }
+      // Báo cáo thật vừa được mở lại -> admin trở thành chủ phiên, cho phép sửa và đồng bộ trở lại
+      unlockEdit();
+      setIsReadOnly(false);
+      markServerHydrated();
 
       alert(`✅ Đã chuyển hồ sơ Tòa nhà về trạng thái "Đang làm dở" thành công! Biểu mẫu đã được mở để chỉnh sửa.`);
     } catch (err: unknown) {
@@ -358,18 +362,21 @@ export const SurveyCondoMasterPage: React.FC<SurveyCondoMasterPageProps> = ({
       {/* Condo Master Header */}
       <CondoMasterWizardNav onBackToHub={handleSafeBackToHome} />
 
-      {/* Banner 1: Chế độ Xem Lại (Read-Only) của Kỹ sư khảo sát & Nút chuyển Đang làm dở của Admin */}
+      {/* Banner 1: Chế độ Xem Lại (Read-Only) - đã nộp hoặc admin chưa mở khóa chỉnh sửa */}
       {effectiveReadOnly && (
         <div className="bg-amber-50 border-b border-amber-200 px-4 py-2.5 text-xs text-amber-900 shadow-xs">
           <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
             <span className="flex items-center gap-2">
               <ShieldAlert size={16} className="text-amber-600 shrink-0" />
               <span>
-                <strong>Chế độ Xem Lại (Chỉ Đọc):</strong> Hồ sơ khảo sát Tòa nhà tổng thể đã được nộp. {isZoneAdmin ? 'Admin có thể mở lại để chỉnh sửa thông tin.' : 'Chỉ có Zone Admin mới được điều chỉnh.'}
+                <strong>Chế độ Xem Lại (Chỉ Đọc · Không đồng bộ):</strong>{' '}
+                {isSubmittedOrApproved
+                  ? `Hồ sơ khảo sát Tòa nhà tổng thể đã được nộp. ${isZoneAdmin ? 'Admin có thể mở lại để chỉnh sửa thông tin.' : 'Chỉ có Zone Admin mới được điều chỉnh.'}`
+                  : 'Biểu mẫu đang ở chế độ chỉ xem, dữ liệu sẽ không bị thay đổi hay đồng bộ. Bấm "Mở khóa chỉnh sửa" nếu muốn sửa.'}
               </span>
             </span>
             <div className="flex items-center gap-2">
-              {isZoneAdmin && (
+              {isZoneAdmin && isSubmittedOrApproved && (
                 <button
                   type="button"
                   disabled={isReverting}
@@ -381,6 +388,17 @@ export const SurveyCondoMasterPage: React.FC<SurveyCondoMasterPageProps> = ({
                   <span>{isReverting ? 'Đang chuyển...' : 'Chuyển về "Đang làm dở" để sửa'}</span>
                 </button>
               )}
+              {isZoneAdmin && !isSubmittedOrApproved && isViewOnlyForAdmin && (
+                <button
+                  type="button"
+                  onClick={unlockEdit}
+                  className="bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+                  title="Mở khóa chỉnh sửa biểu mẫu (kiểm tra khóa ca / tiếp quản)"
+                >
+                  <Unlock size={14} />
+                  <span>Mở khóa chỉnh sửa</span>
+                </button>
+              )}
               <span className="font-bold text-amber-800 bg-amber-100 border border-amber-300 px-2.5 py-0.5 rounded-full text-[11px] shrink-0">
                 READ-ONLY
               </span>
@@ -389,25 +407,8 @@ export const SurveyCondoMasterPage: React.FC<SurveyCondoMasterPageProps> = ({
         </div>
       )}
 
-      {/* Banner 2: Chế độ Quản trị viên (Zone Admin) Điều chỉnh hồ sơ đã nộp */}
-      {isZoneAdminAdjusting && (
-        <div className="bg-indigo-50 border-b border-indigo-200 px-4 py-2.5 text-xs text-indigo-900 shadow-xs">
-          <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
-            <span className="flex items-center gap-2">
-              <ShieldCheck size={16} className="text-indigo-600 shrink-0" />
-              <span>
-                <strong>Chế độ Quản trị viên (Zone Admin):</strong> Bạn đang điều chỉnh hồ sơ Tòa nhà đã nộp. Các cập nhật sẽ được ghi đè trực tiếp và tăng số hiệu phiên bản xuất báo cáo (Revision).
-              </span>
-            </span>
-            <span className="font-bold text-indigo-800 bg-indigo-100 border border-indigo-300 px-2.5 py-0.5 rounded-full text-[11px] shrink-0">
-              ADMIN EDIT MODE
-            </span>
-          </div>
-        </div>
-      )}
-
       {/* Thông báo phân biệt khảo sát tòa nhà mẹ - CHỈ HIỂN THỊ DUY NHẤT Ở BƯỚC 1 KHI CHƯA CÓ BANNER READ-ONLY */}
-      {currentStep === 1 && !effectiveReadOnly && !isZoneAdminAdjusting && (
+      {currentStep === 1 && !effectiveReadOnly && (
         <div className="bg-sky-50/90 text-sky-900 px-4 py-2 text-xs border-b border-sky-200/80 shadow-xs flex items-center justify-between">
           <div className="max-w-7xl mx-auto w-full flex items-center justify-between gap-3">
             <span className="leading-relaxed">
@@ -455,7 +456,11 @@ export const SurveyCondoMasterPage: React.FC<SurveyCondoMasterPageProps> = ({
         onTakeover={takeoverDraft}
         onCancel={() => {
           closeHandoverModal();
-          onBackToHome();
+          if (isZoneAdmin) {
+            lockEdit();
+          } else {
+            onBackToHome();
+          }
         }}
       />
 
@@ -465,7 +470,11 @@ export const SurveyCondoMasterPage: React.FC<SurveyCondoMasterPageProps> = ({
         lockedInfo={lockedInfo}
         onClose={() => {
           closeLockedModal();
-          onBackToHome();
+          if (isZoneAdmin) {
+            lockEdit();
+          } else {
+            onBackToHome();
+          }
         }}
       />
     </div>

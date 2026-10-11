@@ -25,6 +25,8 @@ export interface SyncSliceState {
   lastSyncedAt: string | null;
   syncVersion: number;
   isDirty: boolean;
+  /** Chỉ cho phép đồng bộ nháp lên server sau khi đã nạp xong dữ liệu thật (tránh ghi đè dữ liệu mặc định/rỗng) */
+  hasServerHydrated: boolean;
   isLockedByOther: boolean;
   lockedInfo: { surveyorName: string; phone?: string; minutesAgo: number; message?: string } | null;
   isHandoverModalOpen: boolean;
@@ -44,6 +46,7 @@ export interface SyncSliceActions {
   closeHandoverModal: () => void;
   closeLockedModal: () => void;
   setIsDirty: (isDirty: boolean) => void;
+  markServerHydrated: () => void;
 }
 
 export type SyncSlice = SyncSliceState & SyncSliceActions;
@@ -61,7 +64,7 @@ export interface FormSliceState {
 export interface FormSliceActions {
   setIsReadOnly: (isReadOnly: boolean) => void;
   setIsSubmitted: (isSubmitted: boolean) => void;
-  initializeForm: (parcel: GisParcel, unit?: BuildingUnit | null) => void;
+  initializeForm: (parcel: GisParcel, unit?: BuildingUnit | null, options?: { readOnly?: boolean }) => void;
   updateFormData: (updater: Partial<Phase1SurveyFormData> | ((prev: Phase1SurveyFormData) => Phase1SurveyFormData)) => void;
   loadReportData: (serverFormData: Partial<Phase1SurveyFormData>) => void;
   saveDraftToStorage: () => void;
