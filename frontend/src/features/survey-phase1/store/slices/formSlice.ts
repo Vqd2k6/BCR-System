@@ -7,7 +7,7 @@ import { calculateEcsScore } from '../../engine/ecsCalculator';
 import { calculateViScore } from '../../engine/viCalculator';
 import { calculateParcelMetroSpatialMetrics } from '../../utils/metroSpatialCalculator';
 import { saveSurveyDraft, loadSurveyDraft, deleteSurveyDraft } from '../../../../core/utils/idbDraftStorage';
-import { healLocalPhotoUris } from '../../../../core/storage/offlinePhotoStorage';
+import { healLocalPhotoUris, saveUploadedPhotoMapping } from '../../../../core/storage/offlinePhotoStorage';
 import { surveyDraftService } from '../../services/surveyDraftService';
 
 export const createFormSlice: StateCreator<
@@ -221,6 +221,20 @@ export const createFormSlice: StateCreator<
               },
             });
             return;
+          }
+
+          if (serverRes.photoMappings) {
+            for (const [localId, cloudUrl] of Object.entries(serverRes.photoMappings)) {
+              if (localId && cloudUrl) {
+                saveUploadedPhotoMapping(localId, cloudUrl);
+              }
+            }
+          }
+
+          if (serverRes.unsyncedPhotosInfo && serverRes.unsyncedPhotosInfo.pendingCount > 0) {
+            set({ unsyncedRemotePhotos: serverRes.unsyncedPhotosInfo });
+          } else {
+            set({ unsyncedRemotePhotos: null });
           }
 
           if (serverRes.draft && serverRes.draft.surveyData) {

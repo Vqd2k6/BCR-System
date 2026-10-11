@@ -276,4 +276,67 @@ export class SurveyDraftRepository {
 
     return res.rows[0];
   }
+
+  static async savePhotoMappings(
+    parcelId: string,
+    unitId: string | null | undefined,
+    mappings: Record<string, string>,
+    deviceId?: string
+  ): Promise<{ success: boolean; count: number }> {
+    const resolvedParcelId = await SurveyBaseRepository.resolveParcelId(parcelId);
+    if (!resolvedParcelId) return { success: false, count: 0 };
+
+    const existing = await this.findActiveDraft(resolvedParcelId, unitId);
+    if (!existing) return { success: false, count: 0 };
+
+    let surveyData: any = typeof existing.survey_data_json === 'string'
+      ? JSON.parse(existing.survey_data_json)
+      : (existing.survey_data_json || {});
+
+    // 1. Cập nhật danh mục ánh xạ _photoMappings
+    surveyData._photoMappings = {
+      ...(surveyData._photoMappings || {}),
+      ...mappings,
+    };
+
+    if (deviceId) {
+      surveyData._lastPromotedDeviceId = deviceId;
+    }
+
+    // 2. Tự động thay thế mọi chuỗi blob:local://${localId} bằng cloudUrl trong toàn bộ surveyData
+    const replaceLocalUris = (target: unknown): unknown => {
+      if (target === null || target === undefined) return target;
+      if (typeof target === 'string') {
+        if (target.startsWith('blob:local://')) {
+          const rawId = target.replace('blob:local://', '').split('?')[0];
+          if (mappings[rawId]) return mappings[rawId];
+        }
+        return target;
+      }
+      if (Array.isArray(target)) {
+        return target.map(replaceLocalUris);
+      }
+      if (typeof target === 'object') {
+        const obj = target as Record<string, unknown>;
+        const updated: Record<string, unknown> = {};
+        for (const k of Object.keys(obj)) {
+          updated[k] = replaceLocalUris(obj[k]);
+        }
+        return updated;
+      }
+      return target;
+    };
+
+    surveyData = replaceLocalUris(surveyData);
+
+    await Database.query(
+      `UPDATE base_survey_reports
+       SET survey_data_json = $2,
+           updated_at = NOW()
+       WHERE id = $1;`,
+      [existing.id, JSON.stringify(surveyData)]
+    );
+
+    return { success: true, count: Object.keys(mappings).length };
+  }
 }

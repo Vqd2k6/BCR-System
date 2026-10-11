@@ -16,6 +16,10 @@ export interface OfflinePhotoRecord {
   photoCode: string;
   metadata: Record<string, string>;
   createdAt: number;
+  uploadStatus?: 'PENDING' | 'UPLOADED' | 'ERROR';
+  cloudUrl?: string;
+  uploadedAt?: number;
+  deviceId?: string;
 }
 
 const DB_NAME = 'Metro2_Offline_Photos';
@@ -24,6 +28,23 @@ const STORE_NAME = 'photo_blobs';
 
 let dbInstance: IDBDatabase | null = null;
 let dbOpenPromise: Promise<IDBDatabase> | null = null;
+
+/**
+ * Lấy hoặc khởi tạo Device ID duy nhất bền vững cho thiết bị vật lý này
+ */
+export function getDeviceId(): string {
+  if (typeof window === 'undefined' || !window.localStorage) return 'dev_unknown';
+  try {
+    let id = localStorage.getItem('metro2_device_id');
+    if (!id) {
+      id = `dev_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+      localStorage.setItem('metro2_device_id', id);
+    }
+    return id;
+  } catch (_e) {
+    return 'dev_ephemeral';
+  }
+}
 
 function getDb(): Promise<IDBDatabase> {
   if (dbInstance) {
@@ -93,6 +114,8 @@ export async function saveOfflinePhoto(
       photoCode,
       metadata: metadata || {},
       createdAt: Date.now(),
+      uploadStatus: 'PENDING',
+      deviceId: getDeviceId(),
     };
 
     const req = store.put(record);
@@ -122,7 +145,37 @@ export async function getOfflinePhoto(id: string): Promise<OfflinePhotoRecord | 
 }
 
 /**
- * Xóa một ảnh khỏi IndexedDB sau khi đã tải lên Cloudflare R2 thành công
+ * Đánh dấu ảnh đã tải lên Cloudflare R2 thành công (Safe Retention Policy)
+ * KHÔNG xóa nhị phân Blob khỏi IndexedDB ngay để bảo toàn an toàn dữ liệu,
+ * phòng trường hợp phiên khảo sát bị ngắt hoặc chưa kịp lưu bản nháp lên server.
+ */
+export async function markOfflinePhotoUploaded(id: string, cloudUrl: string): Promise<void> {
+  try {
+    const db = await getDb();
+    return new Promise((resolve) => {
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      const store = tx.objectStore(STORE_NAME);
+      const req = store.get(id);
+
+      req.onsuccess = () => {
+        const record = req.result as OfflinePhotoRecord | undefined;
+        if (record) {
+          record.uploadStatus = 'UPLOADED';
+          record.cloudUrl = cloudUrl;
+          record.uploadedAt = Date.now();
+          store.put(record);
+        }
+        resolve();
+      };
+      req.onerror = () => resolve();
+    });
+  } catch (err) {
+    console.warn(`[OfflinePhotoStorage] Lỗi đánh dấu ảnh đã upload ${id}:`, err);
+  }
+}
+
+/**
+ * Xóa một ảnh khỏi IndexedDB khi người dùng chủ động xóa ảnh khỏi biểu mẫu
  */
 export async function deleteOfflinePhoto(id: string): Promise<void> {
   try {
@@ -141,7 +194,37 @@ export async function deleteOfflinePhoto(id: string): Promise<void> {
 }
 
 /**
- * Lấy toàn bộ danh sách ảnh offline đang chờ tải lên Cloud
+ * Dọn dẹp các ảnh nhị phân đã tải lên Cloud thành công từ hơn maxAgeDays ngày trước
+ */
+export async function purgeUploadedPhotos(maxAgeDays: number = 7): Promise<number> {
+  try {
+    const db = await getDb();
+    return new Promise((resolve) => {
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      const store = tx.objectStore(STORE_NAME);
+      const req = store.getAll();
+
+      req.onsuccess = () => {
+        const records = (req.result || []) as OfflinePhotoRecord[];
+        const threshold = Date.now() - maxAgeDays * 24 * 60 * 60 * 1000;
+        let deleted = 0;
+        for (const r of records) {
+          if (r.uploadStatus === 'UPLOADED' && r.uploadedAt && r.uploadedAt < threshold) {
+            store.delete(r.id);
+            deleted++;
+          }
+        }
+        resolve(deleted);
+      };
+      req.onerror = () => resolve(0);
+    });
+  } catch (_e) {
+    return 0;
+  }
+}
+
+/**
+ * Lấy toàn bộ danh sách ảnh offline đang chờ tải lên Cloud (chưa có cờ UPLOADED)
  */
 export async function getAllPendingPhotos(): Promise<OfflinePhotoRecord[]> {
   try {
@@ -151,7 +234,12 @@ export async function getAllPendingPhotos(): Promise<OfflinePhotoRecord[]> {
       const store = tx.objectStore(STORE_NAME);
       const req = store.getAll();
 
-      req.onsuccess = () => resolve(req.result || []);
+      req.onsuccess = () => {
+        const all = (req.result || []) as OfflinePhotoRecord[];
+        // Chỉ lấy những ảnh chưa được tải lên Cloud thành công
+        const pending = all.filter((r) => r.uploadStatus !== 'UPLOADED');
+        resolve(pending);
+      };
       req.onerror = () => reject(req.error);
     });
   } catch (err) {

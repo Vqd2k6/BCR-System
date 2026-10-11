@@ -22,6 +22,7 @@ export const createSyncSlice: StateCreator<
   lockedInfo: null,
   isHandoverModalOpen: false,
   handoverInfo: null,
+  unsyncedRemotePhotos: null,
 
   setIsDirty: (isDirty: boolean) => set({ isDirty }),
   markServerHydrated: () => set({ hasServerHydrated: true }),

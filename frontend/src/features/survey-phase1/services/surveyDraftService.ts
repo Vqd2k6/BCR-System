@@ -17,6 +17,12 @@ export interface DraftResponseData {
   syncVersion?: number;
   message?: string;
   isViewOnly?: boolean;
+  photoMappings?: Record<string, string>;
+  unsyncedPhotosInfo?: {
+    pendingCount: number;
+    ownerSurveyorName: string;
+    ownerSurveyorPhone: string;
+  };
   draft?: {
     reportId: string;
     currentStep: number;
@@ -93,5 +99,27 @@ export const surveyDraftService = {
   async takeoverDraft(payload: TakeoverDraftPayload) {
     const res = await api.post('/surveys/draft/takeover', payload);
     return res.data?.data || res.data;
+  },
+
+  /**
+   * Lưu ánh xạ ảnh (localId -> Cloudflare R2 URL) lên Server Draft để bảo vệ liên thiết bị
+   */
+  async savePhotoMappings(
+    parcelId: string,
+    unitId: string | null | undefined,
+    mappings: Record<string, string>,
+    deviceId?: string
+  ) {
+    if (!parcelId || !mappings || Object.keys(mappings).length === 0) return;
+    try {
+      const res = await api.post(`/surveys/draft/${parcelId}/photo-mappings`, {
+        unitId: unitId || undefined,
+        mappings,
+        deviceId,
+      });
+      return res.data?.data || res.data;
+    } catch (err) {
+      console.warn('[surveyDraftService] Lỗi lưu photo mappings lên server:', err);
+    }
   },
 };

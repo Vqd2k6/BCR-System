@@ -37,6 +37,11 @@ export interface SyncSliceState {
     securityCode: string;
     updatedAt: string;
   } | null;
+  unsyncedRemotePhotos: {
+    pendingCount: number;
+    ownerSurveyorName: string;
+    ownerSurveyorPhone?: string;
+  } | null;
 }
 
 export interface SyncSliceActions {

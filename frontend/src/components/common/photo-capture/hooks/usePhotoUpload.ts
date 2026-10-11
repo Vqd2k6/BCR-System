@@ -10,6 +10,7 @@ import {
 } from '../../../../utils/cleanImageCompressor';
 import {
   saveOfflinePhoto,
+  markOfflinePhotoUploaded,
   deleteOfflinePhoto,
   getOfflinePhoto,
   createManagedBlobUrl,
@@ -442,10 +443,10 @@ export function usePhotoUpload({
             localId ? { replacesUri: `blob:local://${localId}` } : undefined
           );
         }
-        // Khi tải lên Cloudflare R2 thành công, dọn dẹp IndexedDB và revoke blob URL
-        // (mapping localId -> URL Cloud đã được ghi bền trước đó trong promoteUrlInStores)
+        // Khi tải lên Cloudflare R2 thành công, đánh dấu UPLOADED trong IndexedDB (Safe Retention Policy)
+        // và giải phóng ObjectURL trong RAM. File nhị phân vẫn được lưu an toàn trong IndexedDB.
         if (localId) {
-          await deleteOfflinePhoto(localId);
+          await markOfflinePhotoUploaded(localId, publicUrl);
           revokeManagedBlobUrl(localId);
         }
       },
