@@ -25,9 +25,12 @@ import {
   CreditCard,
   Building,
 } from 'lucide-react';
+import { useSurveyReadOnly } from '../../../core/context/SurveyReadOnlyContext';
 
 export const Step2_UnitSpecificInformation: React.FC = () => {
-  const { formData, updateFormData, nextStep, prevStep } = useCondoUnitSurveyStore();
+  const { formData, updateFormData, nextStep, prevStep, isReadOnly: storeReadOnly } = useCondoUnitSurveyStore();
+  const contextReadOnly = useSurveyReadOnly();
+  const isReadOnly = contextReadOnly ?? storeReadOnly;
   const hi = formData.historyInterview;
 
   // Real-time E5 calculation
@@ -404,7 +407,7 @@ export const Step2_UnitSpecificInformation: React.FC = () => {
         <Button
           size="lg"
           className="bg-teal-600 hover:bg-teal-700 text-white"
-          disabled={!isFormValid}
+          disabled={!isReadOnly && !isFormValid}
           onClick={nextStep}
           icon={<ArrowRight className="w-4 h-4" />}
         >

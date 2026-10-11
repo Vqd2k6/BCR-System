@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { ImageZoomModal } from '../../../components/common/ImageZoomModal';
 import { DefectPinningModal } from '../../survey-phase1/components/step3/DefectPinningModal';
+import { SurveyReadOnlyLock } from '../../../core/components/SurveyReadOnlyLock';
 import type { GisParcel, BuildingUnit } from '../../../core/types/domain.types';
 
 // Types & Hook
@@ -264,7 +265,7 @@ export const SurveyCondoMasterAreaModal: React.FC<Props> = ({
       {/* =============================================================== */}
       {/* MODAL BODY (CUỘN NỘI DUNG 5 BƯỚC, LIGHT THEME) */}
       {/* =============================================================== */}
-      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-3 sm:p-5 bg-slate-100">
+      <SurveyReadOnlyLock readOnly={state.isReadOnly} className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-3 sm:p-5 bg-slate-100">
         <div className="max-w-5xl mx-auto">
           {state.currentStep === 1 && (
             <Step1_ConfirmLocation
@@ -392,7 +393,7 @@ export const SurveyCondoMasterAreaModal: React.FC<Props> = ({
             />
           )}
         </div>
-      </div>
+      </SurveyReadOnlyLock>
 
       {/* =============================================================== */}
       {/* MODAL KÉO THẢ Ô CHỮ NHẬT CẮT BẢN VẼ TẦNG MẸ THEO Ý KSV */}

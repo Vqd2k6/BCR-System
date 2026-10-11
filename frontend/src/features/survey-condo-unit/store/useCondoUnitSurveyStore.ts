@@ -48,6 +48,8 @@ interface CondoUnitSurveyStore {
   requestEditUnlock: () => Promise<boolean>;
   /** Đánh dấu dữ liệu hiện tại đã là dữ liệu thật (vd. sau khi admin mở lại hồ sơ đã nộp) để cho phép đồng bộ */
   markDraftHydrated: () => void;
+  /** Áp dụng dữ liệu vào form bất kể trạng thái chỉ đọc (dùng nội bộ khi nạp draft/báo cáo từ server) */
+  applyFormData: (updates: Partial<CondoUnitFormData>) => void;
   updateFormData: (updates: Partial<CondoUnitFormData>) => void;
   setStep: (step: number) => void;
   nextStep: () => void;
@@ -785,7 +787,7 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
           if (cur.parcelId === pId && cur.unitId === uId) {
             const safelyMerged = mergeCondoUnitDataSafely(cur, sData);
             isHydratingDraft = true;
-            get().updateFormData(safelyMerged);
+            get().applyFormData(safelyMerged);
             isHydratingDraft = false;
 
             // Chỉ nâng bước nếu người dùng vẫn đang ở bước 1 và cloud draft lưu bước cao hơn
@@ -842,7 +844,7 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
 
                   isHydratingDraft = true;
                   const finalStatus = rObj.status || cur.status || 'SUBMITTED';
-                  get().updateFormData({
+                  get().applyFormData({
                     ...sData,
                     status: finalStatus,
                     parentInfo: {
@@ -942,7 +944,7 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
     }
   },
 
-  updateFormData: (updates: Partial<CondoUnitFormData>) => {
+  applyFormData: (updates: Partial<CondoUnitFormData>) => {
     const prev = get().formData;
     const next = { ...prev, ...updates };
 
@@ -1093,6 +1095,12 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
         void get().syncDraftToServer();
       }, 1500);
     }
+  },
+
+  updateFormData: (updates: Partial<CondoUnitFormData>) => {
+    // Chặn cứng khi ở chế độ Read-Only: tuyệt đối không cho phép thay đổi dữ liệu trong RAM
+    if (get().isReadOnly) return;
+    get().applyFormData(updates);
   },
 
   setStep: (step: number) => {
@@ -1373,7 +1381,7 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
         if (cur.parcelId === pId && cur.unitId === uId) {
           const safelyMerged = mergeCondoUnitDataSafely(cur, draftRes.draft.surveyData as Partial<CondoUnitFormData>);
           isHydratingDraft = true;
-          get().updateFormData(safelyMerged);
+          get().applyFormData(safelyMerged);
           isHydratingDraft = false;
           set({ syncVersion: draftRes.draft.syncVersion || get().syncVersion });
         }

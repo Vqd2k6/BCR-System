@@ -33,6 +33,8 @@ import { CloudPhotoSyncModal } from '../components/CloudPhotoSyncModal';
 import { auditSurveyPhotos } from '../utils/photoSyncAudit';
 import { AlertOctagon } from 'lucide-react';
 import { getEffectiveParcelStatus } from '../../../components/gis/sweep-map/utils/sweepMapHelpers';
+import { useAdminViewLock } from '../../../core/hooks/useAdminViewLock';
+import { SurveyReadOnlyLock } from '../../../core/components/SurveyReadOnlyLock';
 
 interface IdentificationPhotoBackend {
   photo_type: string;
@@ -232,6 +234,7 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
     setCurrentStep,
   } = usePhase1SurveyStore();
   const { user } = useAuth();
+  const { isAdmin, isViewOnlyForAdmin, unlockEdit } = useAdminViewLock();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [reportData, setReportData] = useState<Phase1ServerReportResponse | null>(null);
   const [isPhotoSyncModalOpen, setIsPhotoSyncModalOpen] = useState(false);
@@ -254,7 +257,7 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
     serverStatus === 'PHASE2_COMPLETED' ||
     serverStatus === 'APPROVED_PHASE2';
 
-  const effectiveReadOnly = Boolean(readOnly || isSubmittedOrApproved);
+  const effectiveReadOnly = Boolean(readOnly || isSubmittedOrApproved || isViewOnlyForAdmin);
 
   // Khởi tạo form khi parcel thay đổi
   useEffect(() => {
@@ -855,6 +858,8 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
         onApprove={handleApproveFromPage}
         onReject={handleRejectFromPage}
         onRevertToDraft={canApproveOrReject ? handleRevertToDraftFromPage : undefined}
+        canUnlockEdit={isAdmin && !isSubmittedOrApproved && isViewOnlyForAdmin}
+        onUnlockEdit={unlockEdit}
         onBack={onBackToHome}
       />
 
@@ -898,29 +903,7 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
       />
 
       {/* Main Step Content Container */}
-      <main
-        className="flex-1 px-3 sm:px-6 py-6"
-        data-survey-readonly={effectiveReadOnly ? 'true' : undefined}
-      >
-        {effectiveReadOnly && (
-          <style>{`
-            [data-survey-readonly="true"] input:not([type="button"]):not([type="submit"]):not([type="checkbox"]):not([type="radio"]),
-            [data-survey-readonly="true"] textarea,
-            [data-survey-readonly="true"] select {
-              pointer-events: none !important;
-              background-color: #f8fafc !important;
-              border-color: #cbd5e1 !important;
-              color: #334155 !important;
-              cursor: default !important;
-              user-select: text !important;
-            }
-            [data-survey-readonly="true"] input[type="checkbox"],
-            [data-survey-readonly="true"] input[type="radio"] {
-              pointer-events: none !important;
-              cursor: default !important;
-            }
-          `}</style>
-        )}
+      <SurveyReadOnlyLock readOnly={effectiveReadOnly} className="flex-1 flex flex-col px-3 sm:px-6 py-6">
         {currentStep === 1 && (
           <Step1_BuildingIdentification
             onFinished={onFinished}
@@ -940,7 +923,7 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
             readOnly={effectiveReadOnly}
           />
         )}
-      </main>
+      </SurveyReadOnlyLock>
 
       {/* Missing Required Fields Validation Popup */}
       {missingModal && (
