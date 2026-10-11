@@ -87,8 +87,17 @@ export const BuildingUnitCard: React.FC<BuildingUnitCardProps> = ({
   };
 
   const isMaster = (unit.unit_type || unit.unitType) === 'MASTER';
-  const floorNum = unit.floor_number ?? unit.floorNumber ?? 1;
-  const floorLabel = floorNum < 0 ? `Hầm B${Math.abs(floorNum)}` : floorNum === 0 ? 'Trệt / Sảnh G' : `Tầng ${floorNum}`;
+  const floorNum = Number(unit.floor_number ?? unit.floorNumber ?? 1);
+  const floorLabel =
+    floorNum === 0.5
+      ? 'Tầng Lửng Trệt (MEZZ)'
+      : floorNum === -0.5
+      ? 'Bán Hầm (SB)'
+      : floorNum < 0
+      ? `Hầm B${Math.abs(Math.round(floorNum))}`
+      : floorNum === 0
+      ? 'Trệt / Sảnh G'
+      : `Tầng ${floorNum}`;
 
   return (
     <div

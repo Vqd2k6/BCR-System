@@ -132,6 +132,8 @@ export interface BuildingUnit {
   parcel_id?: string;
   unitCode?: string;
   unit_code?: string;
+  displayCode?: string | null;
+  display_code?: string | null;
   unitName?: string;
   unit_name?: string;
   unitType?: 'APARTMENT' | 'SHOPTOP' | 'OFFICE' | 'COMMERCIAL' | 'OTHER';

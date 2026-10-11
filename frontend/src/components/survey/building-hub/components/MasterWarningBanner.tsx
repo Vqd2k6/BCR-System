@@ -1,4 +1,3 @@
-import React from 'react';
 import { AlertTriangle, Building2 } from 'lucide-react';
 import type { GisParcel } from '../../../gis/LeafletSweepMap';
 
@@ -6,7 +5,7 @@ interface MasterWarningBannerProps {
   parcel: GisParcel;
   isMasterSurveyDone: boolean;
   onClose: () => void;
-  onStartMasterSurvey: (parcel: GisParcel) => void;
+  onStartMasterSurvey: (parcel: GisParcel, readOnly?: boolean) => void;
 }
 
 export const MasterWarningBanner: React.FC<MasterWarningBannerProps> = ({
@@ -15,7 +14,10 @@ export const MasterWarningBanner: React.FC<MasterWarningBannerProps> = ({
   onClose,
   onStartMasterSurvey,
 }) => {
-  if (isMasterSurveyDone) return null;
+  // Khi toà mẹ đã được khảo sát, không hiển thị card chiếm dụng không gian
+  if (isMasterSurveyDone) {
+    return null;
+  }
 
   return (
     <div className="bg-amber-50/90 border-2 border-amber-300 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm animate-in fade-in">
@@ -32,7 +34,7 @@ export const MasterWarningBanner: React.FC<MasterWarningBannerProps> = ({
               Chưa Khảo Sát
             </span>
           </div>
-          <p className="text-xs text-amber-800 mt-1 leading-relaxed max-w-2xl">
+          <p className="text-xs text-amber-800 mt-1 leading-relaxed max-w-2xl hidden sm:block">
             Khối tháp dùng chung có thể được khảo sát song song độc lập với các căn hộ con. Khảo sát viên có thể thực hiện <strong>Khảo sát tổng quan tòa nhà</strong> (kết cấu chịu lực, móng, bộ 4 ảnh mặt đứng P01–P04, không gian dùng chung) để hệ thống tự động liên kết khi xuất báo cáo.
           </p>
         </div>
@@ -41,12 +43,12 @@ export const MasterWarningBanner: React.FC<MasterWarningBannerProps> = ({
         type="button"
         onClick={() => {
           onClose();
-          onStartMasterSurvey(parcel);
+          onStartMasterSurvey(parcel, false);
         }}
-        className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 active:scale-95 text-white text-xs font-bold shadow-md shadow-amber-600/20 transition-all shrink-0 cursor-pointer self-start sm:self-auto"
+        className="inline-flex items-center justify-center gap-2 min-h-[44px] px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 active:scale-95 text-white text-xs font-bold shadow-md shadow-amber-600/20 transition-all shrink-0 cursor-pointer w-full sm:w-auto"
       >
         <Building2 size={16} />
-        <span>Mở Wizard Khảo Sát Tổng Quan</span>
+        <span>Mở Khảo Sát Toà Mẹ</span>
       </button>
     </div>
   );

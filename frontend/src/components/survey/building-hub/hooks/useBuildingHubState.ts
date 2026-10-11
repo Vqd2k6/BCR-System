@@ -79,9 +79,8 @@ export const useBuildingHubState = ({ parcel, onUnitsUpdated }: UseBuildingHubSt
   const [visibleCount, setVisibleCount] = useState<number>(10);
   const [inspectedUnit, setInspectedUnit] = useState<BuildingUnit | null>(null);
 
-  // Scroll listener state to auto-hide top navbar on scroll down
-  const [isHeaderVisible, setIsHeaderVisible] = useState<boolean>(true);
-  const lastScrollTopRef = useRef<number>(0);
+  // Header luôn hiển thị cố định để đảm bảo thao tác ổn định và chống nháy giao diện khi cuộn
+  const isHeaderVisible = true;
 
   const [showAddModal, setShowAddModal] = useState<boolean>(false);
   const [showFloorProgressPopover, setShowFloorProgressPopover] = useState<boolean>(false);
@@ -99,7 +98,40 @@ export const useBuildingHubState = ({ parcel, onUnitsUpdated }: UseBuildingHubSt
       setLoading(true);
       const res = await api.get(`/parcels/${parcel.id}/units`);
       if (res.data?.data?.units && Array.isArray(res.data.data.units)) {
-        setUnits(res.data.data.units);
+        // Optimistic Status Inference từ localStorage để Hub phản hồi tức thì
+        let inProgressUnits: string[] = [];
+        let completedUnits: string[] = [];
+        try {
+          inProgressUnits = JSON.parse(
+            localStorage.getItem(`metro2_condo_in_progress_units_${parcel.id}`) || '[]'
+          );
+          completedUnits = JSON.parse(
+            localStorage.getItem(`metro2_condo_completed_units_${parcel.id}`) || '[]'
+          );
+        } catch (_e) {}
+
+        const mappedUnits: BuildingUnit[] = res.data.data.units.map((u: BuildingUnit) => {
+          let effStatus = u.status;
+          if (!effStatus || effStatus === 'NOT_SURVEYED') {
+            if (completedUnits.includes(u.id)) {
+              effStatus = 'SUBMITTED';
+            } else if (
+              inProgressUnits.includes(u.id) ||
+              Boolean(localStorage.getItem(`metro2_condo_unit_draft_${parcel.id}_${u.id}`))
+            ) {
+              effStatus = 'IN_PROGRESS';
+            }
+          }
+          const numFloor = Number(u.floor_number ?? u.floorNumber ?? 1);
+          return {
+            ...u,
+            floor_number: numFloor,
+            floorNumber: numFloor,
+            status: effStatus,
+          };
+        });
+
+        setUnits(mappedUnits);
       } else {
         setUnits([]);
       }
@@ -118,7 +150,7 @@ export const useBuildingHubState = ({ parcel, onUnitsUpdated }: UseBuildingHubSt
   useEffect(() => {
     const rawDeleted = parcel.deletedFloors || parcel.deleted_floors;
     if (Array.isArray(rawDeleted)) {
-      setDeletedFloors(rawDeleted);
+      setDeletedFloors(rawDeleted.map(Number));
     }
   }, [parcel.deletedFloors, parcel.deleted_floors]);
 
@@ -127,7 +159,14 @@ export const useBuildingHubState = ({ parcel, onUnitsUpdated }: UseBuildingHubSt
     try {
       const res = await api.get(`/parcels/${parcel.id}/floor-plans`);
       if (res.data?.data?.plans && Array.isArray(res.data.data.plans)) {
-        setFloorPlans(res.data.data.plans);
+        const mappedPlans: FloorPlanData[] = res.data.data.plans.map((p: FloorPlanData) => ({
+          ...p,
+          floor_number: Number(p.floor_number),
+          applicable_floors: Array.isArray(p.applicable_floors)
+            ? p.applicable_floors.map(Number)
+            : [Number(p.floor_number)],
+        }));
+        setFloorPlans(mappedPlans);
       } else {
         setFloorPlans([]);
       }
@@ -140,30 +179,30 @@ export const useBuildingHubState = ({ parcel, onUnitsUpdated }: UseBuildingHubSt
     }
   };
 
+  // Kiểm tra hồ sơ khảo sát toà mẹ thực tế từ backend (Khép kín DB -> BE -> FE, chống Query Drift)
+  const fetchMasterReport = async () => {
+    try {
+      const res = await api.get<{ data?: { report?: MasterReportData }; report?: MasterReportData }>(
+        `/parcels/${parcel.id}/phase1-report?reportType=BUILDING_MASTER`
+      );
+      const data = res?.data?.data || res?.data;
+      if (data?.report && (data.report.status === 'SUBMITTED' || data.report.status === 'APPROVED')) {
+        setIsMasterSurveyDone(true);
+        setMasterReportData(data.report);
+      }
+    } catch (err) {
+      console.warn('[BuildingHub] Không thể nạp hồ sơ khảo sát toà mẹ:', err);
+    }
+  };
+
   useEffect(() => {
     fetchUnits();
     fetchFloorPlans();
-
-    // Kiểm tra hồ sơ khảo sát toà mẹ thực tế từ backend
-    api.get<{ data?: { report?: MasterReportData }; report?: MasterReportData }>(`/parcels/${parcel.id}/phase1-report`)
-      .then((res) => {
-        const data = res?.data?.data || res?.data;
-        if (data?.report && (data.report.status === 'SUBMITTED' || data.report.status === 'APPROVED')) {
-          setIsMasterSurveyDone(true);
-          setMasterReportData(data.report);
-        }
-      })
-      .catch(() => {});
+    fetchMasterReport();
   }, [parcel.id]);
 
-  const handleScroll = (e: React.UIEvent<HTMLElement>) => {
-    const currentScrollTop = e.currentTarget.scrollTop;
-    if (currentScrollTop > lastScrollTopRef.current && currentScrollTop > 45) {
-      setIsHeaderVisible(false); // Scrolling down -> hide navbar
-    } else if (currentScrollTop < lastScrollTopRef.current - 5 || currentScrollTop <= 15) {
-      setIsHeaderVisible(true); // Scrolling up -> show navbar
-    }
-    lastScrollTopRef.current = currentScrollTop;
+  const handleScroll = (_e: React.UIEvent<HTMLElement>) => {
+    // Không thao tác state ẩn/hiện header khi cuộn để loại bỏ hoàn toàn hiện tượng layout thrashing & nháy giao diện
   };
 
   const handleAddUnit = async (e: React.FormEvent) => {
@@ -214,16 +253,17 @@ export const useBuildingHubState = ({ parcel, onUnitsUpdated }: UseBuildingHubSt
   // Cấu trúc gom nhóm theo từng tầng (Floor-by-Floor Grouping)
   const allFloorsData = useMemo<FloorGroupData[]>(() => {
     return availableFloors.map((flNum) => {
-      const directPlan = floorPlans.find((p) => p.floor_number === flNum);
+      const flNumber = Number(flNum);
+      const directPlan = floorPlans.find((p) => Number(p.floor_number) === flNumber);
       const sharedPlan = floorPlans.find(
-        (p) => p.floor_number !== flNum && Array.isArray(p.applicable_floors) && p.applicable_floors.includes(flNum)
+        (p) => Number(p.floor_number) !== flNumber && Array.isArray(p.applicable_floors) && p.applicable_floors.map(Number).includes(flNumber)
       );
       const effectivePlan = directPlan || sharedPlan;
       const isInherited = !directPlan && Boolean(sharedPlan);
 
       const floorUnits = units.filter((u) => {
-        const fn = u.floor_number ?? u.floorNumber ?? 1;
-        return fn === flNum;
+        const fn = Number(u.floor_number ?? u.floorNumber ?? 1);
+        return fn === flNumber;
       });
 
       let defaultLabel = `Tầng ${flNum}`;
@@ -283,8 +323,9 @@ export const useBuildingHubState = ({ parcel, onUnitsUpdated }: UseBuildingHubSt
         .map((fl) => {
           const matchedUnits = fl.units.filter((u) => {
             const code = (u.unit_code || u.unitCode || '').toLowerCase();
+            const display = (u.display_code || u.displayCode || '').toLowerCase();
             const owner = (u.owner_name || u.ownerName || '').toLowerCase();
-            return code.includes(q) || owner.includes(q);
+            return code.includes(q) || display.includes(q) || owner.includes(q);
           });
           return {
             ...fl,
@@ -326,14 +367,16 @@ export const useBuildingHubState = ({ parcel, onUnitsUpdated }: UseBuildingHubSt
       if (activeHubTab === 'UNIT' && isMaster) return false;
 
       const code = u.unit_code || u.unitCode || '';
+      const display = u.display_code || u.displayCode || '';
       const owner = u.owner_name || u.ownerName || '';
       const matchesSearch =
         !searchTerm.trim() ||
         code.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        display.toLowerCase().includes(searchTerm.toLowerCase()) ||
         owner.toLowerCase().includes(searchTerm.toLowerCase());
 
-      const floor = u.floor_number ?? u.floorNumber ?? 1;
-      const matchesFloor = selectedFloor === 'ALL' || floor === selectedFloor;
+      const floor = Number(u.floor_number ?? u.floorNumber ?? 1);
+      const matchesFloor = selectedFloor === 'ALL' || floor === Number(selectedFloor);
       const matchesStatus =
         selectedStatus === 'ALL' ||
         (selectedStatus === 'APPROVED' && u.status === 'APPROVED') ||
@@ -345,8 +388,8 @@ export const useBuildingHubState = ({ parcel, onUnitsUpdated }: UseBuildingHubSt
       return matchesSearch && matchesFloor && matchesStatus;
     })
     .sort((a, b) => {
-      const floorA = a.floor_number ?? a.floorNumber ?? 1;
-      const floorB = b.floor_number ?? b.floorNumber ?? 1;
+      const floorA = Number(a.floor_number ?? a.floorNumber ?? 1);
+      const floorB = Number(b.floor_number ?? b.floorNumber ?? 1);
       if (floorA !== floorB) return floorA - floorB;
       const codeA = a.unit_code || a.unitCode || '';
       const codeB = b.unit_code || b.unitCode || '';
@@ -409,6 +452,7 @@ export const useBuildingHubState = ({ parcel, onUnitsUpdated }: UseBuildingHubSt
     displayedUnits,
     refetchUnits: fetchUnits,
     refetchFloorPlans: fetchFloorPlans,
+    refetchMasterReport: fetchMasterReport,
     kpi: {
       completedCount,
       pendingApprovalCount,

@@ -128,3 +128,105 @@ export function formatShortParcelDisplay(parcelCode?: string | null): string {
 
   return trimmed;
 }
+
+/**
+ * Định dạng số phòng mặc định (display_code) từ mã tầng và STT theo Phương án B
+ * @example
+ * formatDefaultDisplayCode('MEZZ', 1) => 'L.01'
+ * formatDefaultDisplayCode('G', 2)    => 'G.02'
+ * formatDefaultDisplayCode('B01', 1)  => 'B1-01'
+ * formatDefaultDisplayCode('F02', 3)  => '203'
+ * formatDefaultDisplayCode('02', 3)   => '203'
+ * formatDefaultDisplayCode('12', 4)   => '1204'
+ */
+export function formatDefaultDisplayCode(
+  floorCode: string | number,
+  stt: number | string,
+  type: 'UNIT' | 'MASTER' = 'UNIT'
+): string {
+  const sttNum = typeof stt === 'number' ? stt : parseInt(stt.replace(/\D/g, '') || '1', 10);
+  const sttPadded = String(sttNum).padStart(2, '0');
+
+  if (type === 'MASTER') {
+    return `Khu vực chung M${sttPadded}`;
+  }
+
+  const str = String(floorCode).trim().toUpperCase();
+  if (str === '0.5' || str === 'MEZZ' || str.includes('LỬNG')) {
+    return `L.${sttPadded}`;
+  }
+  if (str === '0' || str === 'G' || str === 'F00' || str.includes('TRỆT')) {
+    return `G.${sttPadded}`;
+  }
+  if (str === '-0.5' || str === 'SB' || str.includes('BÁN HẦM')) {
+    return `SB-${sttPadded}`;
+  }
+  const bMatch = str.match(/B(\d+)/i) || (typeof floorCode === 'number' && floorCode < 0 ? [null, Math.abs(Math.round(floorCode)).toString()] : null);
+  if (bMatch) {
+    return `B${bMatch[1]}-${sttPadded}`;
+  }
+
+  // Tầng nổi
+  const fMatch = str.match(/F?(\d+)/i);
+  if (fMatch) {
+    const fNum = parseInt(fMatch[1], 10);
+    return `${fNum * 100 + sttNum}`;
+  }
+
+  return sttPadded;
+}
+
+/**
+ * Sinh mã phân vùng chuẩn Phương án B: [MÃ_TẦNG].[STT] cho unitCode và gợi ý displayCode
+ */
+export function generateOptionBPartitionCode(
+  floorCode: string | number,
+  existingUnits: Array<{ unitCode?: string; unit_code?: string; partitionType?: string; unit_type?: string }>,
+  type: 'UNIT' | 'MASTER' = 'UNIT'
+): { unitCode: string; displayCode: string } {
+  // Xác định tiền tố tầng cho unit_code
+  let floorPrefix = '01';
+  const str = String(floorCode).trim().toUpperCase();
+  if (str === '0.5' || str === 'MEZZ' || str.includes('LỬNG')) {
+    floorPrefix = 'MEZZ';
+  } else if (str === '0' || str === 'G' || str === 'F00' || str.includes('TRỆT')) {
+    floorPrefix = 'G';
+  } else if (str === '-0.5' || str === 'SB') {
+    floorPrefix = 'SB';
+  } else if (/^B\d+$/i.test(str)) {
+    floorPrefix = str;
+  } else if (typeof floorCode === 'number' && floorCode < 0) {
+    floorPrefix = `B${String(Math.abs(Math.round(floorCode))).padStart(2, '0')}`;
+  } else {
+    const numMatch = str.match(/\d+/);
+    if (numMatch) {
+      floorPrefix = numMatch[0].padStart(2, '0');
+    }
+  }
+
+  // Tìm STT cao nhất hiện tại trên tầng này
+  let maxStt = 0;
+  for (const item of existingUnits) {
+    const raw = (item.unitCode || item.unit_code || '').trim();
+    if (!raw) continue;
+    const parts = raw.split('.');
+    if (parts.length > 1) {
+      const pPrefix = parts[0].toUpperCase();
+      if (pPrefix === floorPrefix) {
+        const rawSuffix = parts.slice(1).join('.');
+        const numPart = parseInt(rawSuffix.replace(/\D/g, ''), 10);
+        if (!isNaN(numPart) && numPart > maxStt) {
+          maxStt = numPart;
+        }
+      }
+    }
+  }
+
+  const nextStt = maxStt + 1;
+  const sttStr = String(nextStt).padStart(2, '0');
+  const unitCode = type === 'MASTER' ? `${floorPrefix}.M${sttStr}` : `${floorPrefix}.${sttStr}`;
+  const displayCode = formatDefaultDisplayCode(floorPrefix, nextStt, type);
+
+  return { unitCode, displayCode };
+}
+

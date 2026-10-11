@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
+import { ZodError } from 'zod';
 
 export interface ProblemDetails {
   type: string;
@@ -75,6 +76,28 @@ export function problemDetailsErrorHandler(
   res: Response,
   _next: NextFunction
 ): void {
+  if (err instanceof ZodError) {
+    const invalidParams = err.issues.map((issue) => ({
+      field: issue.path.join('.'),
+      message: issue.message,
+    }));
+
+    const problem: ProblemDetails = {
+      type: 'https://metro2.vn/errors/validation_error',
+      title: 'Yêu cầu không hợp lệ (Validation Error)',
+      status: 400,
+      detail: 'Một hoặc nhiều trường dữ liệu không đáp ứng quy chuẩn validation.',
+      instance: req.originalUrl,
+      code: 'VALIDATION_ERROR',
+      invalidParams,
+      timestamp: new Date().toISOString(),
+    };
+
+    console.warn(`[VALIDATION 400 ERROR] ${req.method} ${req.originalUrl}:`, JSON.stringify(invalidParams));
+    res.status(400).header('Content-Type', 'application/problem+json').json(problem);
+    return;
+  }
+
   const isAppError = err instanceof AppError;
   const isPayloadTooLarge =
     (err as any).type === 'entity.too.large' ||

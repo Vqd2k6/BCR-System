@@ -43,6 +43,7 @@ export const SurveyCondoMasterPage: React.FC<SurveyCondoMasterPageProps> = ({
     formData,
     initializeForm,
     updateFormData,
+    loadReportData,
     setCurrentStep,
     clearDraft,
     missingModal,
@@ -89,12 +90,20 @@ export const SurveyCondoMasterPage: React.FC<SurveyCondoMasterPageProps> = ({
         (parcel as unknown as { cadastralCode?: string; cadastral_code?: string }).cadastralCode ||
         (parcel as unknown as { cadastralCode?: string; cadastral_code?: string }).cadastral_code ||
         '';
-      updateFormData({
-        surveyCaseType: 'APARTMENT',
-        objectGroup: 'IMPORTANT',
+      
+      const initialMasterDefaults = {
+        surveyCaseType: 'APARTMENT' as const,
+        objectGroup: 'IMPORTANT' as const,
         usageFunction: 'Chung cư / Toà nhiều căn hộ',
         officialCadastralCode: cadastralCode,
-      });
+      };
+
+      if (!effectiveReadOnly) {
+        updateFormData(initialMasterDefaults);
+      } else {
+        loadReportData(initialMasterDefaults);
+      }
+
       // Bắt đầu từ Bước 1 để người dùng confirm thông tin định danh
       setCurrentStep(1);
 
@@ -107,6 +116,8 @@ export const SurveyCondoMasterPage: React.FC<SurveyCondoMasterPageProps> = ({
           const rep = resData?.report;
           if (rep) {
             setServerReport(rep);
+            const updates: Record<string, unknown> = {};
+
             if (rep.survey_data_json) {
               try {
                 const rawJson =
@@ -114,12 +125,49 @@ export const SurveyCondoMasterPage: React.FC<SurveyCondoMasterPageProps> = ({
                     ? JSON.parse(rep.survey_data_json)
                     : rep.survey_data_json;
                 if (rawJson && typeof rawJson === 'object') {
-                  updateFormData(rawJson);
-                  console.log('[SurveyCondoMasterPage] Khôi phục 100% dữ liệu khảo sát Tòa Mẹ từ DB');
+                  Object.assign(updates, rawJson);
                 }
               } catch (jsonErr) {
                 console.warn('[SurveyCondoMasterPage] Lỗi parse survey_data_json:', jsonErr);
               }
+            }
+
+            // Fallback trích xuất bổ sung nếu thiếu trong JSON
+            if (rep.buildingSpecs && typeof rep.buildingSpecs === 'object') {
+              const s = rep.buildingSpecs as Record<string, any>;
+              if (s.building_name && !updates.buildingName) updates.buildingName = s.building_name;
+              if (s.floor_count !== undefined && updates.aboveFloors === undefined) updates.aboveFloors = s.floor_count;
+              if (s.basement_count !== undefined && updates.undergroundFloors === undefined) updates.undergroundFloors = s.basement_count;
+              if (s.foundation_category && !updates.foundationType) updates.foundationType = s.foundation_category;
+              if (s.structural_system && !updates.structureSystem) updates.structureSystem = s.structural_system;
+              if (s.construction_area_m2 && !updates.constructionAreaM2) updates.constructionAreaM2 = s.construction_area_m2;
+              if (s.building_height_m && !updates.buildingHeightM) updates.buildingHeightM = s.building_height_m;
+            }
+
+            if (rep.identificationPhotos && Array.isArray(rep.identificationPhotos) && rep.identificationPhotos.length > 0) {
+              (rep.identificationPhotos as Array<Record<string, any>>).forEach((p) => {
+                if (p.photo_type === 'P01_HOUSE_NUMBER' && !updates.photoP01) {
+                  updates.photoP01 = { url: p.raw_photo_url || '', notApplicable: Boolean(p.is_not_applicable) };
+                } else if (p.photo_type === 'P02_MAIN_FACADE' && !updates.photoP02) {
+                  updates.photoP02 = {
+                    url: p.raw_photo_url || '',
+                    notApplicable: Boolean(p.is_not_applicable),
+                    polygonPoints: p.facade_polygon_points_json || [],
+                    floorSplits: p.floor_split_lines_json || [],
+                    widthM: '',
+                    heightM: '',
+                  };
+                } else if (p.photo_type === 'P03_SIDE_OR_REAR' && !updates.photoP03) {
+                  updates.photoP03 = { url: p.raw_photo_url || '', notApplicable: Boolean(p.is_not_applicable), tag: p.dimensions_json?.tag || 'Bên hông trái' };
+                } else if (p.photo_type === 'P04_CONTEXT_STREET' && !updates.photoP04) {
+                  updates.photoP04 = { url: p.raw_photo_url || '', notApplicable: Boolean(p.is_not_applicable) };
+                }
+              });
+            }
+
+            if (Object.keys(updates).length > 0) {
+              loadReportData(updates);
+              console.log('[SurveyCondoMasterPage] Khôi phục 100% dữ liệu khảo sát Tòa Mẹ từ DB via loadReportData');
             }
           }
         })
@@ -127,7 +175,7 @@ export const SurveyCondoMasterPage: React.FC<SurveyCondoMasterPageProps> = ({
           console.warn('[SurveyCondoMasterPage] Không thể nạp hồ sơ khảo sát toà mẹ từ máy chủ:', err);
         });
     }
-  }, [parcel?.id]);
+  }, [parcel?.id, effectiveReadOnly]);
 
   // Đồng bộ effectiveReadOnly vào Zustand store
   useEffect(() => {

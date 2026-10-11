@@ -136,6 +136,17 @@ export class ReportV2Service {
       activeReport = maskReportPii(activeReport);
     }
 
+    const isCondoUnit = activeReport.report_type === 'CONDO_UNIT' || Boolean(activeReport.unit_id) || Boolean(activeReport.survey_data_json?.unitCode);
+    if (isCondoUnit) {
+      const { CondoUnitReportGenerator } = await import('../report/generators/condo-unit.generator');
+      const viewModel = CondoUnitReportGenerator.buildViewModel(activeReport);
+      if (maskPii) {
+        (viewModel as any).isPiiMasked = true;
+      }
+      const html = CondoUnitReportGenerator.generateHtml(viewModel);
+      return { html, viewModel: viewModel as any };
+    }
+
     // 1. Phân tích trước tỷ lệ khung ảnh và nhúng Base64 100% ảnh khảo sát (bao gồm cả Cloud R2)
     const allPhotoUrls = extractAllImageUrls(activeReport);
     await preloadImageOrientations(allPhotoUrls);
@@ -181,16 +192,19 @@ export class ReportV2Service {
   }> {
     const { html, viewModel } = await this.generateResidentialHtml(identifier, overrides, false, enableWatermark);
 
+    const bId = (viewModel as any).metadata?.buildingId || (viewModel as any).buildingId || 'BCS';
+    const rNo = (viewModel as any).metadata?.reportNo || (viewModel as any).reportCode || 'REPORT';
+
     const pdfBuffer = await PdfRenderV2Engine.renderHtmlToPdf(html, {
-      buildingId: viewModel.metadata.buildingId,
-      reportNo: viewModel.metadata.reportNo,
+      buildingId: bId,
+      reportNo: rNo,
       headerTitle: 'LIÊN DANH CRLG–CRSRI–TT | DỰ ÁN METRO 2 BẾN THÀNH - THAM LƯƠNG',
     });
 
     return {
       pdfBuffer,
-      reportNo: viewModel.metadata.reportNo,
-      buildingId: viewModel.metadata.buildingId,
+      reportNo: rNo,
+      buildingId: bId,
       viewModel,
     };
   }

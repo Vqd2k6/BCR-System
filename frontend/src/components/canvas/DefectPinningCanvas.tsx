@@ -586,9 +586,15 @@ export const DefectPinningCanvas: React.FC<Props> = ({
     const downstreamCount = safeDefects.length - 1 - selectedDefectIndex;
     if (downstreamCount <= 0 && !isRoot) return;
 
+    const downstreamDefects = safeDefects.slice(selectedDefectIndex + 1);
+    const downstreamCodes = downstreamDefects.map((d) => d.defectCode).join(', ');
+    const upstreamDefects = safeDefects.slice(0, selectedDefectIndex);
+    const upstreamCodes = upstreamDefects.map((d) => d.defectCode).join(', ');
+    const upstreamNote = upstreamCodes ? `\n\n(Các điểm phía trước: ${upstreamCodes} sẽ được giữ nguyên 100%)` : '';
+
     const confirmMsg = isRoot
-      ? `Bạn có chắc muốn áp dụng phân loại và chỉ số kỹ thuật của ${cur.defectCode} cho toàn bộ các điểm D còn lại trên mảng này? (Kích thước w, L và ảnh cận cảnh sẽ được giữ nguyên)`
-      : `Bạn có chắc muốn áp dụng phân loại của ${cur.defectCode} cho ${downstreamCount} điểm D phía sau? (Các điểm D phía trước sẽ được giữ nguyên 100%)`;
+      ? `Bạn có chắc muốn áp dụng phân loại và chỉ số kỹ thuật của ${cur.defectCode} cho toàn bộ ${downstreamCount} điểm D phía sau (${downstreamCodes}) trên mảng này? (Kích thước w, L và ảnh cận cảnh sẽ được giữ nguyên)`
+      : `Bạn có chắc muốn áp dụng phân loại của ${cur.defectCode} cho ${downstreamCount} điểm D phía sau (${downstreamCodes})?${upstreamNote}`;
 
     if (!confirm(confirmMsg)) return;
 
@@ -1099,10 +1105,10 @@ export const DefectPinningCanvas: React.FC<Props> = ({
                         ? 'bg-amber-600 hover:bg-amber-700 text-white'
                         : 'bg-emerald-600 hover:bg-emerald-700 text-white'
                     } rounded-lg text-xs font-bold flex items-center gap-1 transition-all shadow-xs cursor-pointer`}
-                    title="Đồng bộ phân loại và chỉ số kỹ thuật của D-01 cho tất cả các điểm D còn lại trên mảng này"
+                    title={`Đồng bộ phân loại và chỉ số kỹ thuật của ${selectedDefect.defectCode} cho tất cả ${safeDefects.length - 1} điểm D phía sau`}
                   >
                     <Sparkles className="w-3.5 h-3.5" />
-                    <span>Đồng bộ cho mảng này</span>
+                    <span>Áp dụng cho toàn bộ các D phía sau ({safeDefects.length - 1})</span>
                   </button>
                 )}
                 {!isDefectRoot && downstreamDefectCount > 0 && (
@@ -1114,10 +1120,10 @@ export const DefectPinningCanvas: React.FC<Props> = ({
                         ? 'bg-amber-600 hover:bg-amber-700 text-white'
                         : 'bg-emerald-600 hover:bg-emerald-700 text-white'
                     } rounded-lg text-xs font-bold flex items-center gap-1 transition-all shadow-xs cursor-pointer`}
-                    title={`Đồng bộ phân loại cho ${downstreamDefectCount} điểm D phía sau (không ảnh hưởng các điểm D phía trước)`}
+                    title={`Đồng bộ phân loại của ${selectedDefect.defectCode} cho ${downstreamDefectCount} điểm D phía sau (bảo toàn 100% các điểm D phía trước)`}
                   >
                     <Sparkles className="w-3.5 h-3.5" />
-                    <span>Đồng bộ cho các D còn lại ({downstreamDefectCount})</span>
+                    <span>Áp dụng cho các D phía sau ({downstreamDefectCount})</span>
                   </button>
                 )}
                 <button

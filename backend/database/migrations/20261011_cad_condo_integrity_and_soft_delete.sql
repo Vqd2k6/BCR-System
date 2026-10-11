@@ -70,6 +70,18 @@ BEGIN
 END $$;
 
 -- 4. Foreign Key Constraints từ building_units sang base_survey_reports
+-- 4.1 Làm sạch dữ liệu mồ côi (nếu có do mock/seed cũ) trước khi tạo ràng buộc
+UPDATE building_units 
+SET phase1_report_id = NULL 
+WHERE phase1_report_id IS NOT NULL 
+  AND phase1_report_id NOT IN (SELECT id FROM base_survey_reports);
+
+UPDATE building_units 
+SET phase2_report_id = NULL 
+WHERE phase2_report_id IS NOT NULL 
+  AND phase2_report_id NOT IN (SELECT id FROM base_survey_reports);
+
+-- 4.2 Áp dụng ràng buộc khóa ngoại có ON DELETE SET NULL
 DO $$
 BEGIN
   IF NOT EXISTS (

@@ -23,6 +23,7 @@ interface CadPartitionListSidebarProps {
   onRenameBox: (id: string, newCode: string) => void;
   onDeleteBox: (id: string, e: React.MouseEvent) => void;
   onTogglePartitionType: (id: string, e: React.MouseEvent) => void;
+  onUpdateDisplayCode?: (id: string, newDisplay: string) => void;
 }
 
 export const CadPartitionListSidebar: React.FC<CadPartitionListSidebarProps> = ({
@@ -39,6 +40,7 @@ export const CadPartitionListSidebar: React.FC<CadPartitionListSidebarProps> = (
   onRenameBox,
   onDeleteBox,
   onTogglePartitionType,
+  onUpdateDisplayCode,
 }) => {
   return (
     <div className="w-72 sm:w-80 bg-white border-l border-slate-200 flex flex-col h-full z-30 animate-in slide-in-from-right-4 duration-150">
@@ -143,11 +145,40 @@ export const CadPartitionListSidebar: React.FC<CadPartitionListSidebarProps> = (
                   )}
                 </div>
 
-                {/* Dòng định danh kỹ thuật & metadata phục vụ xuất báo cáo tự động Metro 2 */}
-                <div className="flex items-center justify-between text-[10px] text-slate-500 font-mono px-0.5 pt-1 border-t border-slate-200/60">
-                  <span className="truncate" title={`Metadata xuất báo cáo tự động: [${projectParcelCode || 'PARCEL'}]_${floorCode || `F${floorNumber}`}_${box.unitCode}`}>
-                    ID: <strong className="text-slate-700 font-bold">[{projectParcelCode || 'LÔ'}]_{floorCode || `F${floorNumber}`}_{box.unitCode}</strong>
+                {/* Dòng Biển số phòng thực tế / Tên khu vực (Phương án B) */}
+                <div className="flex items-center gap-1.5 px-0.5 pt-0.5 text-[11px]">
+                  <span className="text-slate-500 font-medium shrink-0">
+                    {isMaster ? 'Tên:' : 'Biển:'}
                   </span>
+                  {readOnly || isSurveyed ? (
+                    <span className="font-semibold text-slate-800 truncate">
+                      {box.displayCode || '---'}
+                    </span>
+                  ) : (
+                    <input
+                      type="text"
+                      value={box.displayCode || ''}
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={(e) => onUpdateDisplayCode && onUpdateDisplayCode(box.id, e.target.value)}
+                      placeholder={isMaster ? 'Sảnh thang máy T1' : '203, L.01...'}
+                      title="Biển số thực tế cư dân ký trên Báo cáo BCS Phase 1"
+                      className="flex-1 px-1.5 py-0.5 rounded text-xs border border-slate-300 bg-white text-slate-900 focus:outline-none focus:border-teal-600 transition-colors"
+                    />
+                  )}
+                </div>
+
+                {/* Dòng định danh kỹ thuật & metadata xuất ảnh không lặp mã (Phương án B) */}
+                <div className="flex items-center justify-between text-[10px] text-slate-500 font-mono px-0.5 pt-1 border-t border-slate-200/60">
+                  {(() => {
+                    const shortStt = formatShortUnitDisplay(box.unitCode, box.partitionType);
+                    const resolvedFloor = floorCode || (floorNumber === 0.5 ? 'MEZZ' : floorNumber < 0 ? `B${Math.abs(Math.round(floorNumber))}` : `F${String(floorNumber).padStart(2, '0')}`);
+                    const cleanPhotoId = `[${projectParcelCode || 'LÔ'}]_${resolvedFloor}_${shortStt}`;
+                    return (
+                      <span className="truncate" title={`Mã ảnh Phương án B không lặp: ${cleanPhotoId}`}>
+                        Ảnh: <strong className="text-slate-700 font-bold">{cleanPhotoId}</strong>
+                      </span>
+                    );
+                  })()}
                   {box.unitCadUrl && (
                     <span className={`text-[9px] font-bold px-1 rounded text-white shrink-0 ml-1 ${isMaster ? 'bg-indigo-700' : 'bg-teal-700'}`}>
                       CAD ✓

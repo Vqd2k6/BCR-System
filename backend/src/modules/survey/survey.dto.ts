@@ -312,6 +312,10 @@ export const SubmitPhase1ReportDto = z.object({
   street: z.string().optional().nullable(),
   ownerName: z.string().optional().nullable(),
   ownerPhone: z.string().optional().nullable(),
+  ownerIdCard: z.string().optional().nullable(),
+  residentStatus: z.string().optional().nullable(),
+  displayCode: z.string().optional().nullable(),
+  display_code: z.string().optional().nullable(),
   constructionAreaM2: z.number().optional().nullable(),
   surveyDataJson: z.any().optional(),
 });
@@ -347,7 +351,7 @@ export const SubmitPhase2ReportDto = z.object({
 export const SaveSurveyDraftDto = z.object({
   parcelId: z.string().min(1),
   unitId: z.string().nullable().optional(),
-  reportType: z.enum(['STANDALONE', 'BUILDING_MASTER', 'UNIT_CHILD']).optional(),
+  reportType: z.enum(['STANDALONE', 'BUILDING_MASTER', 'UNIT_CHILD', 'CONDO_UNIT']).optional(),
   currentStep: z.number().int().min(1).max(9),
   surveyData: z.record(z.any()),
   syncVersion: z.number().int().optional(),

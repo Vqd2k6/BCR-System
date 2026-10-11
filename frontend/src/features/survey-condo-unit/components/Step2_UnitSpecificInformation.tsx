@@ -46,14 +46,24 @@ export const Step2_UnitSpecificInformation: React.FC = () => {
           </span>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div>
             <Input
-              label="Mã Căn Hộ (mm.nn) *"
+              label="Biển Số Thực Tế (Ảnh P01) *"
+              placeholder="VD: 303, P.303, L.01"
+              value={formData.displayCode || ''}
+              onChange={(e) => updateFormData({ displayCode: e.target.value })}
+              hint="Số phòng thực tế cư dân ký BCS"
+            />
+          </div>
+
+          <div>
+            <Input
+              label="Mã Vị Trí CAD (mm.nn) *"
               placeholder="VD: 03.03, 12.04"
               value={formData.unitCode || ''}
               onChange={(e) => updateFormData({ unitCode: e.target.value })}
-              hint="mm: số tầng, nn: số phòng"
+              hint="Mã quy hoạch tọa độ bản vẽ"
             />
           </div>
 
@@ -61,11 +71,12 @@ export const Step2_UnitSpecificInformation: React.FC = () => {
             <Input
               label="Tầng Lầu (Floor) *"
               type="number"
-              min={1}
+              step="any"
+              min={-4}
               max={99}
               value={formData.floorNumber}
-              onChange={(e) => updateFormData({ floorNumber: parseInt(e.target.value, 10) || 1 })}
-              hint="Tầng trệt tính là 1"
+              onChange={(e) => updateFormData({ floorNumber: parseFloat(e.target.value) || 1 })}
+              hint="Trệt: 0, Lửng: 0.5, Lầu: 1, 2..."
             />
           </div>
 

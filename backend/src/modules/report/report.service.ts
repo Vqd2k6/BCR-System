@@ -1,6 +1,7 @@
 import { SurveyRepository } from '../survey/survey.repository';
 import { NotFoundError, ForbiddenError } from '../../common/errors/problem-details';
 import { ResidentialReportGenerator } from './generators/residential.generator';
+import { CondoUnitReportGenerator } from './generators/condo-unit.generator';
 import { PdfRenderEngine } from './engine/pdf-render.engine';
 import { DocxRenderEngine } from './engine/docx-render.engine';
 import { applyOverridesToReport } from './utils/report-override.utils';
@@ -47,7 +48,30 @@ export class ReportService {
     // Áp dụng overrides nếu có (in-memory, không lưu DB)
     const activeReport = ReportService.applyOverridesToReport(rawReport, overrides);
 
-    // 1. Chuyển đổi dữ liệu và chuẩn bị toàn bộ note, chỉ số, hình ảnh
+    const isCondoUnit = activeReport.report_type === 'CONDO_UNIT' || Boolean(activeReport.unit_id) || Boolean(activeReport.survey_data_json?.unitCode);
+
+    if (isCondoUnit) {
+      // 1. Chuyển đổi dữ liệu sang ViewModel Căn hộ con (Template 2)
+      const viewModel = CondoUnitReportGenerator.buildViewModel(activeReport);
+
+      // 2. Biên dịch template Handlebars thành chuỗi HTML
+      const html = CondoUnitReportGenerator.generateHtml(viewModel);
+
+      // 3. Render Chromium Headless thành PDF A4
+      const pdfBuffer = await PdfRenderEngine.renderHtmlToPdf(html, {
+        buildingId: viewModel.buildingId,
+        reportCode: viewModel.reportCode,
+        headerTitle: 'LIÊN DANH CRLG–CRSRI–TT | DỰ ÁN METRO 2 BẾN THÀNH - THAM LƯƠNG',
+      });
+
+      return {
+        pdfBuffer,
+        reportCode: viewModel.reportCode,
+        viewModel,
+      };
+    }
+
+    // 1. Chuyển đổi dữ liệu và chuẩn bị toàn bộ note, chỉ số, hình ảnh Nhà dân cư độc lập (Template 1)
     const viewModel = ResidentialReportGenerator.buildViewModel(activeReport);
 
     // 2. Biên dịch template Handlebars thành chuỗi HTML
@@ -92,7 +116,7 @@ export class ReportService {
   }
 
   /**
-   * Xem trước mã HTML của Báo cáo Nhà Dân cư độc lập (Hỗ trợ overrides in-memory)
+   * Xem trước mã HTML của Báo cáo Nhà Dân cư độc lập hoặc Căn hộ con (Hỗ trợ overrides in-memory)
    */
   static async previewResidentialHtml(reportId: string, overrides?: any, maskPii: boolean = false): Promise<string> {
     const rawReport = await ReportService.resolveReport(reportId);
@@ -101,6 +125,15 @@ export class ReportService {
     let activeReport = ReportService.applyOverridesToReport(rawReport, overrides);
     if (maskPii) {
       activeReport = maskReportPii(activeReport);
+    }
+
+    const isCondoUnit = activeReport.report_type === 'CONDO_UNIT' || Boolean(activeReport.unit_id) || Boolean(activeReport.survey_data_json?.unitCode);
+    if (isCondoUnit) {
+      const viewModel = CondoUnitReportGenerator.buildViewModel(activeReport);
+      if (maskPii) {
+        (viewModel as any).isPiiMasked = true;
+      }
+      return CondoUnitReportGenerator.generateHtml(viewModel);
     }
 
     const viewModel = ResidentialReportGenerator.buildViewModel(activeReport);

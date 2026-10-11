@@ -1,6 +1,7 @@
 import { createApp } from './app';
 import { config } from './config';
 import { Database } from './database/db';
+import { MigrationRunner } from './database/migration-runner';
 import { StorageService } from './common/services/storage.service';
 
 async function bootstrap() {
@@ -10,8 +11,8 @@ async function bootstrap() {
   const health = await Database.healthCheck();
   console.log(`[DATABASE CONNECTED] Status: ${health.status}, PostGIS: ${health.postgisVersion || 'N/A'}`);
 
-  // Tự động kiểm tra và chạy các migration phòng vệ nếu thiếu cột
-  await Database.runStartupMigrations();
+  // Tự động kiểm tra và áp dụng migrations với bảng tracking schema_migrations
+  await MigrationRunner.run();
 
   // Tự động kiểm tra và cấu hình CORS cho Cloudflare R2 bucket nếu đang chạy R2 storage
   await StorageService.autoConfigureR2Cors();

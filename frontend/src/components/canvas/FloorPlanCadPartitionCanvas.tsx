@@ -14,7 +14,7 @@ import {
 import { useInteractiveCanvasZoom } from './useInteractiveCanvasZoom';
 import { CanvasZoomToolbar } from './CanvasZoomToolbar';
 import { getSafeDisplayUrl, resolveOfflinePhotoUrl } from '../../core/storage/offlinePhotoStorage';
-import { formatShortUnitDisplay, generateNextPartitionCode } from '../../core/utils/codeFormattingUtils';
+import { formatShortUnitDisplay, generateNextPartitionCode, generateOptionBPartitionCode } from '../../core/utils/codeFormattingUtils';
 import { CadPartitionListSidebar } from './CadPartitionListSidebar';
 
 export interface BuildingUnitReference {
@@ -268,15 +268,15 @@ export const FloorPlanCadPartitionCanvas: React.FC<Props> = ({
     ];
   }, [allBuildingUnits, floorNumber, partitions]);
 
-  // Sinh mã tiếp theo cho Căn hộ con (U-XXX tăng dần toàn tòa)
+  // Sinh mã tiếp theo theo Phương án B cho Căn hộ con và Khu vực Dùng chung
   const getNextUnitCode = useCallback((): string => {
-    return generateNextPartitionCode(combinedBuildingUnits, 'UNIT');
-  }, [combinedBuildingUnits]);
+    return generateOptionBPartitionCode(floorCode || floorNumber, partitions, 'UNIT').unitCode;
+  }, [floorCode, floorNumber, partitions]);
 
-  // Sinh mã tiếp theo cho Khu vực Dùng chung (M-XXX tăng dần toàn tòa)
+  // Sinh mã tiếp theo cho Khu vực Dùng chung
   const getNextMasterCode = useCallback((): string => {
-    return generateNextPartitionCode(combinedBuildingUnits, 'MASTER');
-  }, [combinedBuildingUnits]);
+    return generateOptionBPartitionCode(floorCode || floorNumber, partitions, 'MASTER').unitCode;
+  }, [floorCode, floorNumber, partitions]);
 
   // Bắt đầu kéo vẽ ô hoặc di chuyển
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
@@ -329,11 +329,11 @@ export const FloorPlanCadPartitionCanvas: React.FC<Props> = ({
       // Chỉ chấp nhận nếu kích thước ô kéo vẽ lớn hơn 1.5% chiều rộng/chiều cao
       if (width >= 1.5 && height >= 1.5) {
         const isMaster = activeTool === 'DRAW_MASTER';
-        const nextCode = isMaster ? getNextMasterCode() : getNextUnitCode();
+        const generated = generateOptionBPartitionCode(floorCode || floorNumber, partitions, isMaster ? 'MASTER' : 'UNIT');
         const newBox: UnitPartitionBox = {
           id: `unit_box_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
-          unitCode: nextCode,
-          displayCode: nextCode,
+          unitCode: generated.unitCode,
+          displayCode: generated.displayCode,
           partitionType: isMaster ? 'MASTER' : 'UNIT',
           x: Math.round(minX * 10) / 10,
           y: Math.round(minY * 10) / 10,
@@ -379,16 +379,17 @@ export const FloorPlanCadPartitionCanvas: React.FC<Props> = ({
     const updated = partitions.map((p) => {
       if (p.id === id) {
         const nextType: 'UNIT' | 'MASTER' = (p.partitionType || 'UNIT') === 'UNIT' ? 'MASTER' : 'UNIT';
-        let newCode = p.unitCode;
-        if (nextType === 'MASTER' && /^U[-_]\d+$/i.test(p.unitCode.trim())) {
-          newCode = generateNextPartitionCode(combinedBuildingUnits, 'MASTER');
-        } else if (nextType === 'UNIT' && /^M[-_]\d+$/i.test(p.unitCode.trim())) {
-          newCode = generateNextPartitionCode(combinedBuildingUnits, 'UNIT');
-        }
-        return { ...p, partitionType: nextType, unitCode: newCode, displayCode: newCode };
+        const generated = generateOptionBPartitionCode(floorCode || floorNumber, partitions.filter((x) => x.id !== id), nextType);
+        return { ...p, partitionType: nextType, unitCode: generated.unitCode, displayCode: generated.displayCode };
       }
       return p;
     });
+    setPartitions(updated);
+    if (onChangePartitions) onChangePartitions(updated);
+  };
+
+  const handleUpdateDisplayCode = (id: string, newDisplay: string) => {
+    const updated = partitions.map((p) => (p.id === id ? { ...p, displayCode: newDisplay } : p));
     setPartitions(updated);
     if (onChangePartitions) onChangePartitions(updated);
   };
@@ -674,6 +675,7 @@ export const FloorPlanCadPartitionCanvas: React.FC<Props> = ({
             onRenameBox={handleRenameBox}
             onDeleteBox={handleDeleteBox}
             onTogglePartitionType={handleTogglePartitionType}
+            onUpdateDisplayCode={handleUpdateDisplayCode}
           />
         )}
       </div>

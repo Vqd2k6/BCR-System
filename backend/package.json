@@ -7,6 +7,7 @@
     "build": "tsc && mkdir -p dist/modules/report dist/modules/report_v2 && cp -r src/modules/report/templates dist/modules/report/ && cp -r src/modules/report_v2/templates dist/modules/report_v2/",
     "start": "node dist/server.js",
     "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
+    "db:migrate": "ts-node src/database/migration-runner.ts",
     "test": "ts-node scripts/test-apis.ts",
     "test:api": "ts-node scripts/test-apis.ts",
     "seed:ks003": "ts-node src/scripts/import_ks003.ts",

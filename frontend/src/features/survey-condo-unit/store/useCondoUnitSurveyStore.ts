@@ -1,11 +1,14 @@
 import { create } from 'zustand';
 import type { GisParcel, BuildingUnit } from '../../../core/types/domain.types';
 import { isResidentStatus, type CondoUnitFormData, type UnitDefectItem } from '../types/condo-unit.types';
+import { surveyDraftService } from '../../survey-phase1/services/surveyDraftService';
 
 interface CondoUnitSurveyStore {
   currentStep: number;
   formData: CondoUnitFormData;
   lastSavedAt: string | null;
+  syncStatus: 'IDLE' | 'SAVING' | 'SAVED' | 'ERROR';
+  syncVersion: number;
 
   initializeForm: (parcel: GisParcel, unit?: BuildingUnit | null) => void;
   updateFormData: (updates: Partial<CondoUnitFormData>) => void;
@@ -15,7 +18,10 @@ interface CondoUnitSurveyStore {
   addDefect: (defect: Omit<UnitDefectItem, 'id'>) => void;
   removeDefect: (defectId: string) => void;
   clearDraft: () => void;
+  syncDraftToServer: () => Promise<void>;
 }
+
+let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
 const getDefaultCondoUnitFormData = (parcelId: string, unitId: string): CondoUnitFormData => ({
   parcelId,
@@ -30,6 +36,7 @@ const getDefaultCondoUnitFormData = (parcelId: string, unitId: string): CondoUni
     isConfirmed: false,
   },
   unitCode: '01.01',
+  displayCode: '',
   floorNumber: 1,
   ownerName: '',
   ownerPhone: '',
@@ -47,8 +54,17 @@ const getDefaultCondoUnitFormData = (parcelId: string, unitId: string): CondoUni
   localDefects: [],
   upperFloorWaterLeakage: {
     has: false,
+    leakageItems: [],
     location: '',
     description: '',
+    photoUrl: '',
+  },
+  beamSagging: {
+    hasSagging: false,
+    location: '',
+    sagMm: 0,
+    spanM: 0,
+    ratioText: '',
     photoUrl: '',
   },
   doorJammingStatus: 'NORMAL',
@@ -65,6 +81,8 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
   currentStep: 1,
   formData: getDefaultCondoUnitFormData('default_parcel', 'default_unit'),
   lastSavedAt: null,
+  syncStatus: 'IDLE',
+  syncVersion: 1,
 
   initializeForm: (parcel: GisParcel, unit?: BuildingUnit | null) => {
     const pId = parcel.id;
@@ -87,7 +105,9 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
     // Gán thông tin căn hộ
     if (unit) {
       data.unitCode = unit.unit_code || unit.unitCode || data.unitCode;
-      const parsedFloor = parseInt(String(unit.floor_number ?? unit.floorNumber ?? unit.floorLevel ?? unit.floor_level ?? '1').replace(/\D/g, ''), 10);
+      data.displayCode = unit.display_code || unit.displayCode || '';
+      const rawFloor = unit.floor_number ?? unit.floorNumber ?? unit.floorLevel ?? unit.floor_level ?? 1;
+      const parsedFloor = typeof rawFloor === 'number' ? rawFloor : parseFloat(String(rawFloor));
       data.floorNumber = isNaN(parsedFloor) ? 1 : parsedFloor;
       data.ownerName = unit.owner_name || unit.ownerName || '';
       data.ownerPhone = unit.owner_phone || unit.ownerPhone || '';
@@ -105,8 +125,35 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
       if (saved) {
         const parsed = JSON.parse(saved);
         if (parsed.parcelId === pId && parsed.unitId === uId) {
+          if (parsed.upperFloorWaterLeakage) {
+            if (!Array.isArray(parsed.upperFloorWaterLeakage.leakageItems)) {
+              parsed.upperFloorWaterLeakage.leakageItems = parsed.upperFloorWaterLeakage.has && (parsed.upperFloorWaterLeakage.location || parsed.upperFloorWaterLeakage.photoUrl)
+                ? [{
+                    id: `wl-legacy-${Date.now()}`,
+                    leakageCode: 'WL-01',
+                    location: parsed.upperFloorWaterLeakage.location || 'Trần phòng',
+                    description: parsed.upperFloorWaterLeakage.description || '',
+                    photoUrl: parsed.upperFloorWaterLeakage.photoUrl || '',
+                    cuPhotoUrl: parsed.upperFloorWaterLeakage.photoUrl || '',
+                  }]
+                : [];
+            }
+          }
+          if (!parsed.beamSagging) {
+            parsed.beamSagging = { hasSagging: false, location: '', sagMm: 0, spanM: 0, ratioText: '', photoUrl: '' };
+          }
           data = { ...data, ...parsed };
         }
+      }
+    } catch (_e) {}
+
+    // Lưu ngay vào danh sách đang làm dở trên local
+    try {
+      const inProgressKey = `metro2_condo_in_progress_units_${pId}`;
+      const list: string[] = JSON.parse(localStorage.getItem(inProgressKey) || '[]');
+      if (unit?.id && !list.includes(unit.id)) {
+        list.push(unit.id);
+        localStorage.setItem(inProgressKey, JSON.stringify(list));
       }
     } catch (_e) {}
 
@@ -114,7 +161,50 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
       currentStep: 1,
       formData: data,
       lastSavedAt: new Date().toLocaleTimeString('vi-VN'),
+      syncStatus: 'IDLE',
     });
+  },
+
+  syncDraftToServer: async () => {
+    if (debounceTimer) {
+      clearTimeout(debounceTimer);
+      debounceTimer = null;
+    }
+
+    const { formData, currentStep, syncVersion } = get();
+    if (!formData.parcelId || !formData.unitId) return;
+
+    set({ syncStatus: 'SAVING' });
+
+    // Đánh dấu in-progress trên localStorage để Hub nhận diện lập tức
+    try {
+      const inProgressKey = `metro2_condo_in_progress_units_${formData.parcelId}`;
+      const list: string[] = JSON.parse(localStorage.getItem(inProgressKey) || '[]');
+      if (!list.includes(formData.unitId)) {
+        list.push(formData.unitId);
+        localStorage.setItem(inProgressKey, JSON.stringify(list));
+      }
+    } catch (_e) {}
+
+    try {
+      const res = await surveyDraftService.saveDraft({
+        parcelId: formData.parcelId,
+        unitId: formData.unitId,
+        reportType: 'CONDO_UNIT',
+        currentStep,
+        surveyData: formData as unknown as Record<string, unknown>,
+        syncVersion,
+      });
+
+      set({
+        syncStatus: 'SAVED',
+        syncVersion: res.syncVersion || syncVersion + 1,
+        lastSavedAt: new Date().toLocaleTimeString('vi-VN'),
+      });
+    } catch (err) {
+      console.warn('[CondoUnitStore] Lỗi lưu bản nháp cloud:', err);
+      set({ syncStatus: 'ERROR' });
+    }
   },
 
   updateFormData: (updates: Partial<CondoUnitFormData>) => {
@@ -126,22 +216,39 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
     try {
       const draftKey = `metro2_condo_unit_draft_${next.parcelId}_${next.unitId}`;
       localStorage.setItem(draftKey, JSON.stringify(next));
+
+      const inProgressKey = `metro2_condo_in_progress_units_${next.parcelId}`;
+      const list: string[] = JSON.parse(localStorage.getItem(inProgressKey) || '[]');
+      if (!list.includes(next.unitId)) {
+        list.push(next.unitId);
+        localStorage.setItem(inProgressKey, JSON.stringify(list));
+      }
     } catch (_e) {}
 
     set({
       formData: next,
       lastSavedAt: time,
     });
+
+    // Debounce auto-save lên máy chủ (1500ms)
+    if (debounceTimer) {
+      clearTimeout(debounceTimer);
+    }
+    debounceTimer = setTimeout(() => {
+      void get().syncDraftToServer();
+    }, 1500);
   },
 
   setStep: (step: number) => {
     set({ currentStep: step });
+    void get().syncDraftToServer();
   },
 
   nextStep: () => {
     const cur = get().currentStep;
     if (cur < 4) {
       set({ currentStep: cur + 1 });
+      void get().syncDraftToServer();
     }
   },
 
@@ -149,6 +256,7 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
     const cur = get().currentStep;
     if (cur > 1) {
       set({ currentStep: cur - 1 });
+      void get().syncDraftToServer();
     }
   },
 
@@ -171,9 +279,17 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
   },
 
   clearDraft: () => {
+    if (debounceTimer) {
+      clearTimeout(debounceTimer);
+      debounceTimer = null;
+    }
     const { parcelId, unitId } = get().formData;
     try {
       localStorage.removeItem(`metro2_condo_unit_draft_${parcelId}_${unitId}`);
+      const inProgressKey = `metro2_condo_in_progress_units_${parcelId}`;
+      const list: string[] = JSON.parse(localStorage.getItem(inProgressKey) || '[]');
+      const filtered = list.filter((id) => id !== unitId);
+      localStorage.setItem(inProgressKey, JSON.stringify(filtered));
     } catch (_e) {}
   },
 }));

@@ -272,7 +272,7 @@ export class CadastralController {
   static async getFloorPlanByFloor(req: Request, res: Response, next: NextFunction) {
     try {
       const { id, floor } = ParcelFloorParamDto.parse(req.params);
-      const floorNum = parseInt(floor, 10);
+      const floorNum = parseFloat(floor);
       const result = await CadastralService.getFloorPlanByFloor(id, floorNum);
       res.status(200).json({
         success: true,
@@ -329,7 +329,7 @@ export class CadastralController {
     try {
       const { id, floor } = ParcelFloorParamDto.parse(req.params);
       const { mode } = DeleteFloorPlanQueryDto.parse(req.query);
-      const floorNum = parseInt(floor, 10);
+      const floorNum = parseFloat(floor);
       const result = await CadastralService.deleteFloorPlan(id, floorNum, mode, req.user, req.ip);
       res.status(200).json({
         success: true,

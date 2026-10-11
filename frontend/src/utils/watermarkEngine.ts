@@ -124,14 +124,25 @@ export function resolveGoldenRatioConfig(photoType?: MetroPhotoType): GoldenRati
 export function normalizeMetroFloorCode(floor?: MetroFloorType): string {
   if (floor === undefined || floor === null || floor === '') return '';
   if (typeof floor === 'number') {
+    if (floor === 0.5) return 'MEZZ';
+    if (floor === -0.5) return 'SB';
+    if (floor < 0) return `B${String(Math.abs(Math.round(floor))).padStart(2, '0')}`;
     const fNum = Math.floor(floor);
     return fNum === 0 ? 'F00' : `F${String(fNum).padStart(2, '0')}`;
   }
   const str = String(floor).trim();
   const upper = str.toUpperCase();
 
+  // Số thực dạng chuỗi (0.5 -> MEZZ, -0.5 -> SB)
+  if (upper === '0.5' || upper === 'MEZZ' || upper.includes('LỬNG') || upper.includes('MEZZANINE')) {
+    return 'MEZZ';
+  }
+  if (upper === '-0.5' || upper === 'SB' || upper.includes('BÁN HẦM')) {
+    return 'SB';
+  }
+
   // Các token đặc biệt
-  if (['DOC', 'EXT', 'FOUND', 'ROOF', 'TERRACE', 'TUM', 'MEZZ', 'SB'].includes(upper)) {
+  if (['DOC', 'EXT', 'FOUND', 'ROOF', 'TERRACE', 'TUM'].includes(upper)) {
     return upper;
   }
   if (/^B\d+$/i.test(upper)) return upper;
@@ -211,9 +222,18 @@ export function generateMetroPhotoCode(opts: MetroWatermarkOptions): string {
   if (opts.unitCode) {
     const cleanUnit = opts.unitCode.trim().replace(/[^a-zA-Z0-9&_.-]/g, '').toUpperCase();
     if (cleanUnit) {
-      // Nếu unitCode dạng U-XXX / M-XXX và có floorCode hợp lệ, kết hợp: MEZZ_U-001
-      if (/^[UM][-_]\d+$/i.test(cleanUnit) && normFloor && !cleanUnit.startsWith(normFloor)) {
-        parts.push(`${normFloor}_${cleanUnit}`);
+      // Phương án B: Chuẩn hóa không lặp mã [MÃ_THỬA]_[MÃ_TẦNG]_[STT]
+      // Nếu unitCode dạng [MÃ_TẦNG].[STT] (ví dụ: '02.03', 'MEZZ.01', 'B01.01', 'G.02')
+      const dotParts = cleanUnit.split('.');
+      if (dotParts.length > 1) {
+        const floorPart = dotParts[0];
+        const sttPart = dotParts.slice(1).join('.');
+        const resolvedFloor = normFloor || normalizeMetroFloorCode(floorPart);
+        // Khúc giữa là mã tầng, khúc đuôi chỉ là STT (ví dụ: F02_03, MEZZ_01, B01_M01)
+        parts.push(`${resolvedFloor}_${sttPart}`);
+      } else if (/^[UM][-_]\d+$/i.test(cleanUnit) && normFloor && !cleanUnit.startsWith(normFloor)) {
+        // Hỗ trợ dạng cũ U-001 / M-001: kết hợp F02_U001
+        parts.push(`${normFloor}_${cleanUnit.replace('-', '')}`);
       } else {
         parts.push(cleanUnit);
       }

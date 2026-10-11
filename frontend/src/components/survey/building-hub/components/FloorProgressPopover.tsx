@@ -75,7 +75,7 @@ export const FloorProgressPopover: React.FC<FloorProgressPopoverProps> = ({
               </div>
 
               {availableFloors.map((floorNum) => {
-                const floorUnits = units.filter((u) => u.floor_number === floorNum);
+                const floorUnits = units.filter((u) => Number(u.floor_number ?? u.floorNumber) === Number(floorNum));
                 const floorDone = floorUnits.filter((u) => u.status === 'APPROVED' || !!u.phase2_report_id).length;
                 const floorPending = floorUnits.filter((u) => u.status === 'SUBMITTED').length;
                 const floorInProgress = floorUnits.filter((u) => u.status === 'IN_PROGRESS').length;

@@ -1,15 +1,45 @@
 export interface UnitDefectItem {
   id: string;
   defectCode?: string; // D-01, D-02...
-  pinX?: number; // 0..100% on CAD
-  pinY?: number; // 0..100% on CAD
+  pinX?: number | null; // 0..100% on CAD
+  pinY?: number | null; // 0..100% on CAD
   location: string; // VD: Tường phòng khách, Góc cửa sổ phòng ngủ, Dầm trần bếp
   type: 'CRACK' | 'WATER_LEAKAGE' | 'PEELING' | 'OTHER';
   crackWidthMm: number;
   crackLengthM: number;
   description: string;
-  photoUrl: string;
+  photoUrl: string; // For backward compatibility / primary photo
+  ctxPhotoUrl?: string; // Bối cảnh toàn diện vị trí khuyết tật
+  cuPhotoUrl?: string; // Cận cảnh thước đo vết nứt
   hasScaleCard?: boolean;
+}
+
+export interface CondoWaterLeakageItem {
+  id: string;
+  leakageCode?: string; // WL-01, WL-02...
+  location: string; // VD: Trần thạch cao phòng tắm, Hộp gen kỹ thuật bếp...
+  description: string; // VD: Ố vàng loang lổ diện tích 0.8m2, sơn bong tróc rỉ nước
+  photoUrl?: string; // Tương thích ngược
+  ctxPhotoUrl?: string; // Ảnh bối cảnh toàn trần phòng
+  cuPhotoUrl?: string; // Cận cảnh vết ố ẩm mốc có thước đo
+}
+
+export interface CondoUpperFloorLeakageState {
+  has: boolean;
+  leakageItems: CondoWaterLeakageItem[];
+  // Tương thích ngược dạng điểm đơn lẻ
+  location?: string;
+  description?: string;
+  photoUrl?: string;
+}
+
+export interface BeamSaggingData {
+  hasSagging: boolean;
+  location?: string;
+  sagMm?: number;
+  spanM?: number;
+  ratioText?: string; // VD: 1/550
+  photoUrl?: string;
 }
 
 export type CadBbox = { x: number; y: number; width: number; height: number } | [number, number, number, number];
@@ -58,6 +88,7 @@ export interface CondoUnitFormData {
 
   // 2. Thông tin riêng của căn hộ con (OOP Child attributes)
   unitCode: string; // VD: '03.03'
+  displayCode?: string; // Biển số căn hộ thực tế đối soát với ảnh P01 (VD: '303', 'P.303')
   floorNumber: number; // Lầu 3
   ownerName: string;
   ownerPhone: string;
@@ -74,17 +105,13 @@ export interface CondoUnitFormData {
   sensitiveEquipmentDesc: string;
   interiorRenovationHistory?: { hasRenovated: boolean; description?: string };
 
-  // 3. Bản vẽ CAD riêng của căn & Khuyết tật nứt, thấm trần, kẹt cửa
+  // 3. Bản vẽ CAD riêng của căn & Khuyết tật nứt, thấm trần, võng dầm, kẹt cửa
   unitCadUrl?: string;
   cadBbox?: CadBbox | null;
   cadPolygon?: CadPolygon | null;
   localDefects: UnitDefectItem[];
-  upperFloorWaterLeakage: {
-    has: boolean;
-    location?: string;
-    description?: string;
-    photoUrl?: string;
-  };
+  upperFloorWaterLeakage: CondoUpperFloorLeakageState;
+  beamSagging?: BeamSaggingData;
   doorJammingStatus: DoorJammingStatus;
   settlementObserved: 'NONE' | 'SLIGHT' | 'NOTICEABLE' | 'SEVERE';
   settlementNotes: string;
