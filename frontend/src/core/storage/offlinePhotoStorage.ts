@@ -194,11 +194,47 @@ export function extractLocalIdFromUri(uri: string): string {
   return uri;
 }
 
+const UPLOADED_PHOTO_MAP_KEY = 'metro2_uploaded_photo_map';
+
+/**
+ * Ghi nhớ mapping giữa localId và Cloudflare R2 Public URL vào bộ nhớ bền vững (localStorage)
+ * Đảm bảo 100% không mất ảnh kể cả khi KSV chuyển tab/căn hộ trước khi upload xong
+ */
+export function saveUploadedPhotoMapping(localId: string, publicUrl: string): void {
+  if (!localId || !publicUrl || typeof window === 'undefined' || !window.localStorage) return;
+  try {
+    const raw = localStorage.getItem(UPLOADED_PHOTO_MAP_KEY);
+    const map: Record<string, string> = raw ? JSON.parse(raw) : {};
+    map[localId] = publicUrl;
+    // Giới hạn tối đa 2000 mapping gần nhất để tránh tràn localStorage
+    const keys = Object.keys(map);
+    if (keys.length > 2000) {
+      delete map[keys[0]];
+    }
+    localStorage.setItem(UPLOADED_PHOTO_MAP_KEY, JSON.stringify(map));
+  } catch (_e) {}
+}
+
+/**
+ * Tra cứu Cloud URL đã biết theo localId từ persistent mapping
+ */
+export function getKnownCloudUrl(localId: string): string | null {
+  if (!localId || typeof window === 'undefined' || !window.localStorage) return null;
+  try {
+    const raw = localStorage.getItem(UPLOADED_PHOTO_MAP_KEY);
+    if (!raw) return null;
+    const map: Record<string, string> = JSON.parse(raw);
+    return map[localId] || null;
+  } catch (_e) {
+    return null;
+  }
+}
+
 /**
  * Trả về URL an toàn để render tức thì lên DOM (đồng bộ)
  * - Nếu là ảnh Cloud (http...) hoặc DataURL hoặc Blob URL hợp lệ: trả về nguyên bản.
- * - Nếu là "blob:local://{id}": tra cứu RAM ObjectURL registry. Nếu có, trả về ngay;
- *   nếu chưa có trong RAM, trả về chuỗi rỗng '' để ngăn trình duyệt nạp scheme lạ gây lỗi ERR_UNKNOWN_URL_SCHEME.
+ * - Nếu là "blob:local://{id}": tra cứu Cloud mapping đã biết -> RAM ObjectURL registry.
+ *   Nếu chưa có, trả về chuỗi rỗng '' để ngăn trình duyệt nạp scheme lạ gây lỗi ERR_UNKNOWN_URL_SCHEME.
  */
 export function getSafeDisplayUrl(uri?: string | null): string {
   if (!uri || typeof uri !== 'string' || uri.trim() === '') {
@@ -215,6 +251,10 @@ export function getSafeDisplayUrl(uri?: string | null): string {
   }
   if (uri.startsWith('blob:local://')) {
     const localId = extractLocalIdFromUri(uri);
+    const knownCloud = getKnownCloudUrl(localId);
+    if (knownCloud) {
+      return knownCloud;
+    }
     if (activeObjectUrls.has(localId)) {
       return activeObjectUrls.get(localId)!;
     }
@@ -225,7 +265,7 @@ export function getSafeDisplayUrl(uri?: string | null): string {
 
 /**
  * Phân giải chuỗi định danh ảnh (URI) thành URL có thể hiển thị được trên DOM
- * - Nếu là "blob:local://{id}", tra cứu trong RAM Map hoặc nạp từ IndexedDB.
+ * - Nếu là "blob:local://{id}", tra cứu Persistent Cloud Mapping -> RAM Map -> IndexedDB.
  * - Nếu là URL Cloud (http...) hoặc DataURL, trả về nguyên bản.
  */
 export async function resolveOfflinePhotoUrl(uri?: string | null): Promise<string> {
@@ -246,12 +286,19 @@ export async function resolveOfflinePhotoUrl(uri?: string | null): Promise<strin
   // 3. Nếu là mã định danh bền vững blob:local://{id}
   if (uri.startsWith('blob:local://')) {
     const localId = extractLocalIdFromUri(uri);
-    // Kiểm tra trong RAM registry trước
+
+    // 3.1. Kiểm tra ngay trong Persistent Cloud Mapping (Đã tải lên R2 thành công trước đó)
+    const knownCloud = getKnownCloudUrl(localId);
+    if (knownCloud) {
+      return knownCloud;
+    }
+
+    // 3.2. Kiểm tra trong RAM registry
     if (activeObjectUrls.has(localId)) {
       return activeObjectUrls.get(localId)!;
     }
 
-    // Nếu chưa có trong RAM (ví dụ sau khi F5), khôi phục từ IndexedDB
+    // 3.3. Nếu chưa có trong RAM (ví dụ sau khi F5), khôi phục từ IndexedDB
     try {
       const record = await getOfflinePhoto(localId);
       if (record && record.blob) {

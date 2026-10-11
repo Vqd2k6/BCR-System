@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { Button } from '../../../core/components/ui/Button';
 import type { CondoUnitValidationIssue } from '../utils/condoUnitValidator';
+import { useCondoUnitSurveyStore } from '../store/useCondoUnitSurveyStore';
 
 interface Props {
   isOpen: boolean;
@@ -28,6 +29,7 @@ export const CondoUnitMissingFieldsModal: React.FC<Props> = ({
   onProceedAnyway,
   onGoToStep,
 }) => {
+  const { setIsPhotoAuditOpen } = useCondoUnitSurveyStore();
   if (!isOpen) return null;
 
   const hasBlocking = blockingIssues.length > 0;
@@ -154,21 +156,35 @@ export const CondoUnitMissingFieldsModal: React.FC<Props> = ({
                 </div>
               </div>
 
-              <button
-                type="button"
-                onClick={() => {
-                  onClose();
-                  onGoToStep(issue.step, issue.fieldId);
-                }}
-                className={`px-2.5 py-1.5 rounded-lg text-xs font-bold shrink-0 flex items-center gap-1 transition-all cursor-pointer shadow-2xs ${
-                  issue.isBlocking
-                    ? 'bg-rose-600 hover:bg-rose-700 text-white'
-                    : 'bg-amber-600 hover:bg-amber-700 text-white'
-                }`}
-              >
-                <span>Điền ngay</span>
-                <ArrowRight size={12} />
-              </button>
+              {issue.target === 'CLOUD_SYNC' ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    setIsPhotoAuditOpen(true);
+                  }}
+                  className="px-2.5 py-1.5 rounded-lg text-xs font-bold shrink-0 flex items-center gap-1 transition-all cursor-pointer shadow-2xs bg-amber-600 hover:bg-amber-700 text-white"
+                >
+                  <span>⚡ Đồng bộ ảnh ngay</span>
+                  <ArrowRight size={12} />
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    onGoToStep(issue.step, issue.fieldId);
+                  }}
+                  className={`px-2.5 py-1.5 rounded-lg text-xs font-bold shrink-0 flex items-center gap-1 transition-all cursor-pointer shadow-2xs ${
+                    issue.isBlocking
+                      ? 'bg-rose-600 hover:bg-rose-700 text-white'
+                      : 'bg-amber-600 hover:bg-amber-700 text-white'
+                  }`}
+                >
+                  <span>Điền ngay</span>
+                  <ArrowRight size={12} />
+                </button>
+              )}
             </div>
           ))}
         </div>
@@ -192,8 +208,22 @@ export const CondoUnitMissingFieldsModal: React.FC<Props> = ({
               Tôi đã kiểm tra, Xác nhận nộp hồ sơ ➔
             </Button>
           ) : (
-            <div className="text-[11px] font-semibold text-rose-700 italic">
-              Vui lòng bổ sung đầy đủ {blockingIssues.length} mục bắt buộc trước khi nộp
+            <div className="flex items-center gap-2 flex-wrap justify-end">
+              <span className="text-[11px] font-semibold text-rose-700 italic">
+                Vui lòng bổ sung đầy đủ {blockingIssues.length} mục bắt buộc trước khi nộp
+              </span>
+              {blockingIssues.some((i) => i.target === 'CLOUD_SYNC') && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    setIsPhotoAuditOpen(true);
+                  }}
+                  className="text-xs font-bold text-amber-700 hover:text-amber-800 underline flex items-center gap-1 cursor-pointer"
+                >
+                  ⚡ Đồng bộ ảnh
+                </button>
+              )}
             </div>
           )}
         </div>

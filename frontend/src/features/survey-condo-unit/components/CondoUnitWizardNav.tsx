@@ -26,9 +26,10 @@ export const CondoUnitWizardNav: React.FC<Props> = ({ onBackToHub }) => {
     lastSavedAt,
     syncDraftToServer,
     releaseDraftLock,
+    isPhotoAuditOpen,
+    setIsPhotoAuditOpen,
   } = useCondoUnitSurveyStore();
 
-  const [isPhotoAuditOpen, setIsPhotoAuditOpen] = React.useState(false);
   const audit = React.useMemo(() => auditCondoUnitPhotos(formData), [formData]);
 
   const activeUnitLabel = formData.displayCode || formData.unitCode || '---';

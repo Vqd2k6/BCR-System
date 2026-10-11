@@ -523,6 +523,19 @@ export class SurveyService {
     surveyData: any;
     syncVersion?: number;
   }) {
+    if (data.unitId) {
+      const unitCheck = await Database.query<{ status: string }>(
+        `SELECT status FROM building_units WHERE id = $1;`,
+        [data.unitId]
+      );
+      const unitStatus = unitCheck.rows[0]?.status;
+      if (unitStatus === 'SUBMITTED' || unitStatus === 'APPROVED') {
+        throw new BadRequestError(
+          `Căn hộ này đã ở trạng thái ${unitStatus === 'SUBMITTED' ? 'ĐÃ NỘP (SUBMITTED)' : 'ĐÃ DUYỆT (APPROVED)'}. Không thể lưu thêm bản nháp.`
+        );
+      }
+    }
+
     const existing = await SurveyRepository.findActiveDraft(data.parcelId, data.unitId);
     if (existing && existing.surveyor_id !== data.surveyorId) {
       const diffMs = Date.now() - new Date(existing.updated_at).getTime();

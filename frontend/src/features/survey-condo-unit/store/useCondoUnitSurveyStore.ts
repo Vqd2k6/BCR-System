@@ -57,6 +57,11 @@ interface CondoUnitSurveyStore {
   clearDraft: () => void;
   syncDraftToServer: () => Promise<void>;
   releaseDraftLock: () => Promise<void>;
+
+  isReadOnly: boolean;
+  setIsReadOnly: (readOnly: boolean) => void;
+  isPhotoAuditOpen: boolean;
+  setIsPhotoAuditOpen: (open: boolean) => void;
 }
 
 /**
@@ -167,7 +172,219 @@ export function deduplicateElements(elements: StructuralElementData[], pins: Cad
   return result;
 }
 
+/**
+ * Trộn dữ liệu bản nháp từ Server vào Local mà TUYỆT ĐỐI KHÔNG làm mất ảnh hay ghi đè lùi dữ liệu
+ */
+export function mergeCondoUnitDataSafely(
+  localData: CondoUnitFormData,
+  serverData: Partial<CondoUnitFormData>
+): CondoUnitFormData {
+  const merged: CondoUnitFormData = {
+    ...localData,
+    ...serverData,
+    parentInfo: {
+      ...localData.parentInfo,
+      ...(serverData.parentInfo || {}),
+    },
+  };
+
+  // 1. Bảo vệ ảnh P01 (Biển số phòng)
+  if (!serverData.photoP01?.url && localData.photoP01?.url) {
+    merged.photoP01 = localData.photoP01;
+  }
+
+  // 2. Bảo vệ ảnh P04 (Toàn cảnh lối đi)
+  if (!serverData.photoP04?.url && localData.photoP04?.url) {
+    merged.photoP04 = localData.photoP04;
+  }
+
+  // 3. Bảo vệ ảnh Biên bản khảo sát giấy (workingMinutesPhotos)
+  const localMinutes = localData.workingMinutesPhotos || [];
+  const serverMinutes = serverData.workingMinutesPhotos || [];
+  const minutesSet = new Set<string>();
+  const mergedMinutes: string[] = [];
+  [...serverMinutes, ...localMinutes].forEach((u) => {
+    if (u && !minutesSet.has(u)) {
+      minutesSet.add(u);
+      mergedMinutes.push(u);
+    }
+  });
+  merged.workingMinutesPhotos = mergedMinutes;
+
+  // 4. Bảo vệ chữ ký khảo sát viên và chủ hộ
+  if (!serverData.surveyorSignature && localData.surveyorSignature) {
+    merged.surveyorSignature = localData.surveyorSignature;
+  }
+  if (!serverData.ownerSignature && localData.ownerSignature) {
+    merged.ownerSignature = localData.ownerSignature;
+  }
+  if (!serverData.ownerFeedback && localData.ownerFeedback) {
+    merged.ownerFeedback = localData.ownerFeedback;
+  }
+
+  // 5. Bảo vệ ảnh võng dầm/sàn
+  if (localData.beamSagging?.photoUrl && !serverData.beamSagging?.photoUrl) {
+    merged.beamSagging = {
+      ...(merged.beamSagging || localData.beamSagging),
+      photoUrl: localData.beamSagging.photoUrl,
+    };
+  }
+
+  // 6. Trộn Vùng Z và bảo toàn 100% ảnh overviewPhotos, ctxPhotoUrl, cuPhotoUrl
+  const localZones = localData.zones || [];
+  const serverZones = serverData.zones || [];
+  const mergedPins = Array.isArray(serverData.cadZonePins) && serverData.cadZonePins.length > 0
+    ? serverData.cadZonePins
+    : localData.cadZonePins || [];
+
+  const localZoneMap = new Map<string, DamageZoneData>();
+  localZones.forEach((z) => {
+    if (z.zoneCode) localZoneMap.set(z.zoneCode, z);
+    if (z.id) localZoneMap.set(z.id, z);
+  });
+
+  const processedZones: DamageZoneData[] = (serverZones.length > 0 ? serverZones : localZones).map((sz) => {
+    const lz = localZoneMap.get(sz.zoneCode) || localZoneMap.get(sz.id);
+    if (!lz) return sz;
+
+    // Trộn mảng ảnh overviewPhotos
+    const ovSet = new Set<string>();
+    const mergedOv: string[] = [];
+    [...(sz.overviewPhotos || []), ...(lz.overviewPhotos || [])].forEach((u) => {
+      if (u && !ovSet.has(u)) {
+        ovSet.add(u);
+        mergedOv.push(u);
+      }
+    });
+
+    // Trộn khuyết tật
+    const localDefectMap = new Map<string, DefectItem>();
+    (lz.defects || []).forEach((d) => {
+      if (d.defectCode) localDefectMap.set(d.defectCode, d);
+      if (d.id) localDefectMap.set(d.id, d);
+    });
+
+    const mergedDefects = (sz.defects || []).map((sd) => {
+      const ld = localDefectMap.get(sd.defectCode) || (sd.id ? localDefectMap.get(sd.id) : undefined);
+      if (!ld) return sd;
+      return {
+        ...ld,
+        ...sd,
+        cuPhotoUrl: sd.cuPhotoUrl || ld.cuPhotoUrl || '',
+        cuPhotos: (Array.isArray(sd.cuPhotos) && sd.cuPhotos.length > 0)
+          ? sd.cuPhotos
+          : (ld.cuPhotos || (sd.cuPhotoUrl || ld.cuPhotoUrl ? [sd.cuPhotoUrl || ld.cuPhotoUrl] : [])),
+        notes: sd.notes || ld.notes || '',
+      };
+    });
+
+    // Bổ sung các defect chỉ có ở local
+    (lz.defects || []).forEach((ld) => {
+      const exists = mergedDefects.some((d) => d.defectCode === ld.defectCode || d.id === ld.id);
+      if (!exists) {
+        mergedDefects.push(ld);
+      }
+    });
+
+    return {
+      ...lz,
+      ...sz,
+      ctxPhotoUrl: sz.ctxPhotoUrl || lz.ctxPhotoUrl || '',
+      overviewPhotos: mergedOv,
+      defects: mergedDefects,
+      hasDamage: mergedDefects.length > 0,
+    };
+  });
+
+  // Bổ sung các zone chỉ có ở local
+  localZones.forEach((lz) => {
+    const exists = processedZones.some((z) => z.zoneCode === lz.zoneCode || z.id === lz.id);
+    if (!exists) {
+      processedZones.push(lz);
+    }
+  });
+
+  merged.zones = deduplicateZones(processedZones, mergedPins);
+  merged.cadZonePins = mergedPins;
+
+  // 7. Tương tự cho Cấu kiện kết cấu E
+  const localElements = localData.structuralElements || [];
+  const serverElements = serverData.structuralElements || [];
+  const mergedElementPins = Array.isArray(serverData.cadElementPins) && serverData.cadElementPins.length > 0
+    ? serverData.cadElementPins
+    : localData.cadElementPins || [];
+
+  const localElementMap = new Map<string, StructuralElementData>();
+  localElements.forEach((e) => {
+    if (e.elementCode) localElementMap.set(e.elementCode, e);
+    if (e.id) localElementMap.set(e.id, e);
+  });
+
+  const processedElements: StructuralElementData[] = (serverElements.length > 0 ? serverElements : localElements).map((se) => {
+    const le = localElementMap.get(se.elementCode) || localElementMap.get(se.id);
+    if (!le) return se;
+
+    const ovSet = new Set<string>();
+    const mergedOv: string[] = [];
+    [...(se.overviewPhotos || []), ...(le.overviewPhotos || [])].forEach((u) => {
+      if (u && !ovSet.has(u)) {
+        ovSet.add(u);
+        mergedOv.push(u);
+      }
+    });
+
+    // Trộn khuyết tật cấu kiện E
+    const localElemDefectMap = new Map<string, DefectItem>();
+    (le.defects || []).forEach((d) => {
+      if (d.defectCode) localElemDefectMap.set(d.defectCode, d);
+      if (d.id) localElemDefectMap.set(d.id, d);
+    });
+
+    const mergedElemDefects = (se.defects || []).map((sd) => {
+      const ld = localElemDefectMap.get(sd.defectCode) || (sd.id ? localElemDefectMap.get(sd.id) : undefined);
+      if (!ld) return sd;
+      return {
+        ...ld,
+        ...sd,
+        cuPhotoUrl: sd.cuPhotoUrl || ld.cuPhotoUrl || '',
+        cuPhotos: (Array.isArray(sd.cuPhotos) && sd.cuPhotos.length > 0)
+          ? sd.cuPhotos
+          : (ld.cuPhotos || (sd.cuPhotoUrl || ld.cuPhotoUrl ? [sd.cuPhotoUrl || ld.cuPhotoUrl] : [])),
+        notes: sd.notes || ld.notes || '',
+      };
+    });
+
+    (le.defects || []).forEach((ld) => {
+      const exists = mergedElemDefects.some((d) => d.defectCode === ld.defectCode || d.id === ld.id);
+      if (!exists) {
+        mergedElemDefects.push(ld);
+      }
+    });
+
+    return {
+      ...le,
+      ...se,
+      ctxPhotoUrl: se.ctxPhotoUrl || le.ctxPhotoUrl || '',
+      overviewPhotos: mergedOv,
+      defects: mergedElemDefects,
+    };
+  });
+
+  localElements.forEach((le) => {
+    const exists = processedElements.some((e) => e.elementCode === le.elementCode || e.id === le.id);
+    if (!exists) {
+      processedElements.push(le);
+    }
+  });
+
+  merged.structuralElements = deduplicateElements(processedElements, mergedElementPins);
+  merged.cadElementPins = mergedElementPins;
+
+  return merged;
+}
+
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+let isHydratingDraft = false;
 
 const getDefaultCondoUnitFormData = (parcelId: string, unitId: string): CondoUnitFormData => ({
   parcelId,
@@ -257,6 +474,10 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
   lockedInfo: null,
   isHandoverModalOpen: false,
   handoverInfo: null,
+  isReadOnly: false,
+  setIsReadOnly: (isReadOnly) => set({ isReadOnly }),
+  isPhotoAuditOpen: false,
+  setIsPhotoAuditOpen: (isPhotoAuditOpen) => set({ isPhotoAuditOpen }),
   closeLockedModal: () => set({ isLockedByOther: false, lockedInfo: null }),
   closeHandoverModal: () => set({ isHandoverModalOpen: false, handoverInfo: null }),
 
@@ -293,6 +514,7 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
       if (unit.cad_polygon || unit.cadPolygon) data.cadPolygon = unit.cad_polygon ?? unit.cadPolygon ?? null;
       const resStatus = unit.resident_status || unit.residentStatus;
       if (resStatus && isResidentStatus(resStatus)) data.residentStatus = resStatus;
+      if (unit.status) data.status = unit.status;
     }
 
     // Khôi phục bản nháp nếu có
@@ -447,11 +669,14 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
       targetStep = curStore.currentStep;
     }
 
+    const isUnitReadOnly = unit?.status === 'SUBMITTED' || unit?.status === 'APPROVED';
+
     set({
       currentStep: targetStep,
       formData: data,
       lastSavedAt: new Date().toLocaleTimeString('vi-VN'),
       syncStatus: 'IDLE',
+      isReadOnly: isUnitReadOnly,
     });
 
     // Hydrate từ cloud draft nếu có trên server
@@ -489,23 +714,11 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
           const sData = draftRes.draft.surveyData as Partial<CondoUnitFormData>;
           const cur = get().formData;
           if (cur.parcelId === pId && cur.unitId === uId) {
-            const mergedZones = deduplicateZones(
-              sData.zones || cur.zones || [],
-              sData.cadZonePins || cur.cadZonePins || []
-            );
-            const mergedElements = deduplicateElements(
-              sData.structuralElements || cur.structuralElements || [],
-              sData.cadElementPins || cur.cadElementPins || []
-            );
-            get().updateFormData({
-              ...sData,
-              zones: mergedZones,
-              structuralElements: mergedElements,
-              parentInfo: {
-                ...cur.parentInfo,
-                ...(sData.parentInfo || {}),
-              },
-            });
+            const safelyMerged = mergeCondoUnitDataSafely(cur, sData);
+            isHydratingDraft = true;
+            get().updateFormData(safelyMerged);
+            isHydratingDraft = false;
+
             // Chỉ nâng bước nếu người dùng vẫn đang ở bước 1 và cloud draft lưu bước cao hơn
             if (
               get().currentStep === 1 &&
@@ -590,8 +803,15 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
       debounceTimer = null;
     }
 
-    const { formData, currentStep, syncVersion } = get();
+    const { formData, currentStep, syncVersion, isReadOnly } = get();
     if (!formData.parcelId || !formData.unitId) return;
+
+    // Chặn tuyệt đối không sync nháp nếu hồ sơ là chỉ đọc hoặc đã nộp/phê duyệt
+    if (isReadOnly || formData.status === 'SUBMITTED' || formData.status === 'APPROVED') {
+      return;
+    }
+
+    if (isHydratingDraft) return;
 
     set({ syncStatus: 'SAVING' });
 
@@ -760,13 +980,20 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
       lastSavedAt: time,
     });
 
-    // Debounce auto-save lên máy chủ (1500ms)
-    if (debounceTimer) {
-      clearTimeout(debounceTimer);
+    // Debounce auto-save lên máy chủ (1500ms) - Bỏ qua nếu đang nạp draft
+    if (isHydratingDraft) {
+      if (debounceTimer) {
+        clearTimeout(debounceTimer);
+        debounceTimer = null;
+      }
+    } else {
+      if (debounceTimer) {
+        clearTimeout(debounceTimer);
+      }
+      debounceTimer = setTimeout(() => {
+        void get().syncDraftToServer();
+      }, 1500);
     }
-    debounceTimer = setTimeout(() => {
-      void get().syncDraftToServer();
-    }, 1500);
   },
 
   setStep: (step: number) => {
@@ -1029,16 +1256,10 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
             ? res.draft.currentStep
             : 1;
 
-        const mergedZones = deduplicateZones(serverData.zones || [], serverData.cadZonePins || []);
-        const mergedElements = deduplicateElements(serverData.structuralElements || [], serverData.cadElementPins || []);
+        const safelyMerged = mergeCondoUnitDataSafely(get().formData, serverData);
 
         set((state) => ({
-          formData: {
-            ...state.formData,
-            ...serverData,
-            zones: mergedZones,
-            structuralElements: mergedElements,
-          },
+          formData: safelyMerged,
           currentStep: targetStep,
           syncVersion: res.draft.syncVersion || state.syncVersion,
           syncStatus: 'SAVED',

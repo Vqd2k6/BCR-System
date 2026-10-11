@@ -42,6 +42,7 @@ export const SurveyCondoUnitPage: React.FC<SurveyCondoUnitPageProps> = ({
     closeHandoverModal,
     takeoverDraft,
     checkDraftLock,
+    setIsReadOnly,
   } = useCondoUnitSurveyStore();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [missingModalState, setMissingModalState] = useState<{
@@ -62,14 +63,11 @@ export const SurveyCondoUnitPage: React.FC<SurveyCondoUnitPageProps> = ({
         lastInitializedKeyRef.current = currentKey;
         initializeForm(parcel, unit);
         const unitStatus = unit?.status;
-        if (unitStatus !== 'SUBMITTED' && unitStatus !== 'APPROVED') {
-          setTimeout(() => {
-            void syncDraftToServer();
-          }, 100);
-        }
+        const isLocked = unitStatus === 'SUBMITTED' || unitStatus === 'APPROVED';
+        setIsReadOnly(isLocked);
       }
     }
-  }, [parcel?.id, unit?.id]);
+  }, [parcel?.id, unit?.id, unit?.status, initializeForm, setIsReadOnly]);
 
   // Cuộn mượt lên đầu trang khi chuyển bước
   useEffect(() => {

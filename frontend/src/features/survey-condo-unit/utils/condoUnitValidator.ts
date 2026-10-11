@@ -14,6 +14,7 @@ import type {
   CadZonePin,
 } from '../types/condo-unit.types';
 import { isLocalBlobUri } from '../../../core/storage/offlinePhotoStorage';
+import { auditCondoUnitPhotos } from './condoUnitPhotoAudit';
 
 export interface CondoUnitValidationIssue {
   fieldId: string;
@@ -311,41 +312,19 @@ export function validateCondoUnitStep3(formData: CondoUnitFormData): CondoUnitVa
 export function validateCondoUnitStep4AndCloud(formData: CondoUnitFormData): CondoUnitValidationIssue[] {
   const issues: CondoUnitValidationIssue[] = [];
 
-  // Kiểm tra ảnh chưa đồng bộ xong (vẫn là blob: local)
-  const unsyncedPhotos: string[] = [];
+  const audit = auditCondoUnitPhotos(formData);
 
-  const checkBlob = (url?: string, label?: string) => {
-    if (url && (url.startsWith('blob:') || isLocalBlobUri(url))) {
-      unsyncedPhotos.push(label || 'Ảnh khảo sát');
-    }
-  };
-
-  checkBlob(formData.photoP01?.url, 'Ảnh P01 (Cửa chính & Biển số)');
-  checkBlob(formData.photoP04?.url, 'Ảnh P04 (Toàn cảnh lối đi)');
-  (formData.workingMinutesPhotos || []).forEach((u: string, i: number) => {
-    checkBlob(u, `Biên bản làm việc trang ${i + 1}`);
-  });
-  (formData.zones || []).forEach((z: DamageZoneData) => {
-    checkBlob(z.ctxPhotoUrl, `Ảnh bối cảnh Vùng ${z.zoneCode}`);
-    (z.defects || []).forEach((d: DefectItem) => {
-      checkBlob(d.cuPhotoUrl, `Ảnh cận cảnh khuyết tật ${d.defectCode}`);
-    });
-  });
-  (formData.structuralElements || []).forEach((e: StructuralElementData) => {
-    checkBlob(e.ctxPhotoUrl, `Ảnh bối cảnh Cấu kiện ${e.elementCode}`);
-    (e.defects || []).forEach((d: DefectItem) => {
-      checkBlob(d.cuPhotoUrl, `Ảnh cận cảnh khuyết tật ${d.defectCode}`);
-    });
-  });
-  checkBlob(formData.beamSagging?.photoUrl, 'Ảnh độ võng dầm/sàn');
-
-  if (unsyncedPhotos.length > 0) {
+  if (audit.unsynced > 0) {
+    const previewLabels = audit.unsyncedPhotos
+      .slice(0, 3)
+      .map((p) => p.fieldTitle)
+      .join(', ');
     issues.push({
       fieldId: 'step4-unsynced-photos',
       step: 4,
       target: 'CLOUD_SYNC',
-      title: `${unsyncedPhotos.length} ảnh chưa đồng bộ lên Cloud R2`,
-      message: `Hệ thống ghi nhận còn ${unsyncedPhotos.length} ảnh đang lưu tạm trong máy (${unsyncedPhotos.slice(0, 3).join(', ')}${unsyncedPhotos.length > 3 ? '...' : ''}). Vui lòng chờ vài giây để hệ thống tải lên Cloudflare R2 trước khi nộp.`,
+      title: `${audit.unsynced} ảnh chưa đồng bộ lên Cloud R2`,
+      message: `Hệ thống ghi nhận còn ${audit.unsynced} ảnh đang lưu tạm trong máy (${previewLabels}${audit.unsynced > 3 ? '...' : ''}). Vui lòng bấm "Đồng bộ ảnh ngay" hoặc kiểm tra kết nối mạng trước khi nộp.`,
       isBlocking: true,
     });
   }
