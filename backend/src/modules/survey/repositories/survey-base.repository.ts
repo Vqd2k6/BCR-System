@@ -267,26 +267,63 @@ export class SurveyBaseRepository {
           : submitData.surveyDataJson;
         const displayCodeVal = submitData.displayCode || submitData.display_code || rawJson?.displayCode || rawJson?.display_code || null;
 
-        await client.query(
-          `UPDATE building_units
-           SET owner_name = COALESCE($1, owner_name),
-               owner_phone = COALESCE($2, owner_phone),
-               owner_id_card = COALESCE($3, owner_id_card),
-               resident_status = COALESCE($4, resident_status),
-               display_code = COALESCE($5, display_code),
-               status = 'SUBMITTED',
-               phase1_report_id = $6,
-               updated_at = NOW()
-           WHERE id = (SELECT unit_id FROM base_survey_reports WHERE id = $6 AND unit_id IS NOT NULL);`,
-          [
-            submitData.ownerName || null,
-            submitData.ownerPhone || null,
-            submitData.ownerIdCard || null,
-            submitData.residentStatus || null,
-            displayCodeVal,
-            reportId,
-          ]
-        );
+        await client.query('SAVEPOINT unit_update_savepoint;');
+        try {
+          await client.query(
+            `UPDATE building_units
+             SET owner_name = COALESCE($1, owner_name),
+                 owner_phone = COALESCE($2, owner_phone),
+                 owner_id_card = COALESCE($3, owner_id_card),
+                 resident_status = COALESCE($4, resident_status),
+                 display_code = COALESCE($5, display_code),
+                 status = 'SUBMITTED',
+                 phase1_report_id = $6,
+                 updated_at = NOW()
+             WHERE id = (SELECT unit_id FROM base_survey_reports WHERE id = $6 AND unit_id IS NOT NULL);`,
+            [
+              submitData.ownerName || null,
+              submitData.ownerPhone || null,
+              submitData.ownerIdCard || null,
+              submitData.residentStatus || null,
+              displayCodeVal,
+              reportId,
+            ]
+          );
+          await client.query('RELEASE SAVEPOINT unit_update_savepoint;');
+        } catch (unitUpdateErr: unknown) {
+          await client.query('ROLLBACK TO SAVEPOINT unit_update_savepoint;');
+          const errMsg = unitUpdateErr instanceof Error ? unitUpdateErr.message : String(unitUpdateErr);
+          if (errMsg.includes('chk_building_units_resident_status')) {
+            console.warn('[submitPhase1Report] DB constraint chk_building_units_resident_status chặn enum mới, tự động fallback về ĐỂ_TRỐNG / CHỦ_HỘ_Ở an toàn:', errMsg);
+            const legacyStatus = submitData.residentStatus === 'CHO_THUÊ'
+              ? 'CHO_THUÊ'
+              : (submitData.residentStatus === 'BỎ_TRỐNG_CHƯA_VỀ_Ở' || submitData.residentStatus === 'VẮNG_MẶT_KHÓA_CỬA')
+              ? 'ĐỂ_TRỐNG'
+              : 'CHỦ_HỘ_Ở';
+            await client.query(
+              `UPDATE building_units
+               SET owner_name = COALESCE($1, owner_name),
+                   owner_phone = COALESCE($2, owner_phone),
+                   owner_id_card = COALESCE($3, owner_id_card),
+                   resident_status = $4,
+                   display_code = COALESCE($5, display_code),
+                   status = 'SUBMITTED',
+                   phase1_report_id = $6,
+                   updated_at = NOW()
+               WHERE id = (SELECT unit_id FROM base_survey_reports WHERE id = $6 AND unit_id IS NOT NULL);`,
+              [
+                submitData.ownerName || null,
+                submitData.ownerPhone || null,
+                submitData.ownerIdCard || null,
+                legacyStatus,
+                displayCodeVal,
+                reportId,
+              ]
+            );
+          } else {
+            throw unitUpdateErr;
+          }
+        }
       }
 
       // XỬ LÝ BIẾN ĐỘNG TÁCH/GỘP THỬA THỰC ĐỊA (SPLIT/MERGE FIELD MUTATION)
