@@ -174,6 +174,7 @@ export const BuildingHubModal: React.FC<BuildingHubModalProps> = ({
           onTabChange={setActiveHubTab}
           unitItemsCount={unitItemsCount}
           masterItemsCount={masterItemsCount}
+          onUnitStatusUpdated={refetchUnits}
         />
       </main>
 

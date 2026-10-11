@@ -1,5 +1,5 @@
 import React from 'react';
-import { Eye, CheckCircle2, XCircle } from 'lucide-react';
+import { Eye, CheckCircle2, XCircle, RotateCcw } from 'lucide-react';
 
 interface SurveyReviewBannerProps {
   readOnly: boolean;
@@ -7,6 +7,7 @@ interface SurveyReviewBannerProps {
   targetCode: string;
   onApprove: () => void;
   onReject: () => void;
+  onRevertToDraft?: () => void;
   onBack: () => void;
 }
 
@@ -16,6 +17,7 @@ export const SurveyReviewBanner: React.FC<SurveyReviewBannerProps> = ({
   targetCode,
   onApprove,
   onReject,
+  onRevertToDraft,
   onBack,
 }) => {
   if (!readOnly) return null;
@@ -59,6 +61,17 @@ export const SurveyReviewBanner: React.FC<SurveyReviewBannerProps> = ({
               <XCircle className="w-4 h-4" />
               Từ chối
             </button>
+            {onRevertToDraft && (
+              <button
+                type="button"
+                onClick={onRevertToDraft}
+                className="bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+                title="Chuyển trạng thái về 'Đang làm dở' để sửa đổi thông tin"
+              >
+                <RotateCcw className="w-4 h-4" />
+                Đang làm dở
+              </button>
+            )}
           </>
         )}
         <button

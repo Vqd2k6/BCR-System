@@ -7,3 +7,8 @@ export const ApproveReportDto = z.object({
 export const RejectReportDto = z.object({
   rejectionReason: z.string().min(5, 'Lý do trả về báo cáo phải từ 5 ký tự trở lên'),
 });
+
+export const RevertReportToDraftDto = z.object({
+  unitId: z.string().optional().nullable(),
+  reason: z.string().optional(),
+});

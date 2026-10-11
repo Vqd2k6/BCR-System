@@ -13,7 +13,7 @@ import { ActiveSurveyorLockedModal } from '../../survey-phase1/components/Active
 import type { GisParcel } from '../../../core/types/domain.types';
 import { api } from '../../../services/api';
 import { useAuth } from '../../../context/AuthContext';
-import { ShieldAlert, ShieldCheck } from 'lucide-react';
+import { ShieldAlert, ShieldCheck, RotateCcw } from 'lucide-react';
 
 export interface SurveyCondoMasterPageProps {
   parcel?: GisParcel | null;
@@ -63,12 +63,16 @@ export const SurveyCondoMasterPage: React.FC<SurveyCondoMasterPageProps> = ({
   const { user } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [serverReport, setServerReport] = useState<ServerPhase1ReportResponse['report'] | null>(null);
+  const [isReverting, setIsReverting] = useState(false);
+  const [localStatusOverride, setLocalStatusOverride] = useState<string | null>(null);
 
   // Xác định trạng thái đã nộp:
+  // Nếu có localStatusOverride -> Ưu tiên localStatusOverride
   // Nếu đã nạp serverReport -> Ưu tiên trạng thái của serverReport (DRAFT thì cho phép sửa tiếp)
   // Nếu chưa nạp serverReport -> Fallback trạng thái từ parcel
-  const isSubmittedOrApproved = serverReport
-    ? (serverReport.status === 'SUBMITTED' || serverReport.status === 'APPROVED')
+  const currentStatus = localStatusOverride || (serverReport ? serverReport.status : null);
+  const isSubmittedOrApproved = currentStatus
+    ? (currentStatus === 'SUBMITTED' || currentStatus === 'APPROVED')
     : Boolean(
         parcel?.surveyStatus === 'SUBMITTED' ||
         parcel?.surveyStatus === 'APPROVED' ||
@@ -317,24 +321,70 @@ export const SurveyCondoMasterPage: React.FC<SurveyCondoMasterPageProps> = ({
     }
   };
 
+  const handleRevertToDraft = async () => {
+    if (!parcel?.id) return;
+    const confirmRevert = window.confirm(
+      `Xác nhận chuyển trạng thái hồ sơ Tòa nhà [${parcel.projectParcelCode || parcel.officialCadastralCode || parcel.id}] về "Đang làm dở"?\n\nSau khi chuyển, khảo sát viên hoặc admin có thể chỉnh sửa thông tin và nộp lại.`
+    );
+    if (!confirmRevert) return;
+
+    try {
+      setIsReverting(true);
+      const res = await api.post(`/admin/reports/${parcel.id}/revert-to-draft`, {});
+      if (!res.data?.success) {
+        throw new Error(res.data?.message || 'Server không phản hồi');
+      }
+
+      setLocalStatusOverride('IN_PROGRESS');
+      if (serverReport) {
+        setServerReport({ ...serverReport, status: 'DRAFT' });
+      }
+      setIsReadOnly(false);
+      if (parcel) {
+        parcel.surveyStatus = 'IN_PROGRESS';
+      }
+
+      alert(`✅ Đã chuyển hồ sơ Tòa nhà về trạng thái "Đang làm dở" thành công! Biểu mẫu đã được mở để chỉnh sửa.`);
+    } catch (err: unknown) {
+      console.error('[SurveyCondoMasterPage] Revert error:', err);
+      alert(`❌ Lỗi khi chuyển trạng thái: ${getErrorMessage(err)}`);
+    } finally {
+      setIsReverting(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-100/90 flex flex-col font-sans">
       {/* Condo Master Header */}
       <CondoMasterWizardNav onBackToHub={handleSafeBackToHome} />
 
-      {/* Banner 1: Chế độ Xem Lại (Read-Only) của Kỹ sư khảo sát */}
+      {/* Banner 1: Chế độ Xem Lại (Read-Only) của Kỹ sư khảo sát & Nút chuyển Đang làm dở của Admin */}
       {effectiveReadOnly && (
         <div className="bg-amber-50 border-b border-amber-200 px-4 py-2.5 text-xs text-amber-900 shadow-xs">
-          <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
+          <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
             <span className="flex items-center gap-2">
               <ShieldAlert size={16} className="text-amber-600 shrink-0" />
               <span>
-                <strong>Chế độ Xem Lại (Chỉ Đọc):</strong> Hồ sơ khảo sát Tòa nhà tổng thể đã được nộp. Kỹ sư khảo sát chỉ có quyền xem lại, chỉ có Zone Admin mới được điều chỉnh.
+                <strong>Chế độ Xem Lại (Chỉ Đọc):</strong> Hồ sơ khảo sát Tòa nhà tổng thể đã được nộp. {isZoneAdmin ? 'Admin có thể mở lại để chỉnh sửa thông tin.' : 'Chỉ có Zone Admin mới được điều chỉnh.'}
               </span>
             </span>
-            <span className="font-bold text-amber-800 bg-amber-100 border border-amber-300 px-2.5 py-0.5 rounded-full text-[11px] shrink-0">
-              READ-ONLY
-            </span>
+            <div className="flex items-center gap-2">
+              {isZoneAdmin && (
+                <button
+                  type="button"
+                  disabled={isReverting}
+                  onClick={handleRevertToDraft}
+                  className="bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer disabled:opacity-50"
+                  title="Chuyển trạng thái về 'Đang làm dở' để chỉnh sửa thông tin"
+                >
+                  <RotateCcw size={14} className={isReverting ? 'animate-spin' : ''} />
+                  <span>{isReverting ? 'Đang chuyển...' : 'Chuyển về "Đang làm dở" để sửa'}</span>
+                </button>
+              )}
+              <span className="font-bold text-amber-800 bg-amber-100 border border-amber-300 px-2.5 py-0.5 rounded-full text-[11px] shrink-0">
+                READ-ONLY
+              </span>
+            </div>
           </div>
         </div>
       )}

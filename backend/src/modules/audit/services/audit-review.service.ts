@@ -731,6 +731,123 @@ export class AuditReviewService {
     });
   }
 
+  /**
+   * Chuyển trạng thái hồ sơ / căn hộ / thửa đất đã nộp về "Đang làm dở" (DRAFT / IN_PROGRESS)
+   * Phục vụ Zone Admin / Super Admin mở lại biểu mẫu để khảo sát viên hoặc admin chỉnh sửa bổ sung thông tin.
+   */
+  static async revertReportToDraft(
+    identifier: string,
+    adminId: string,
+    reason?: string,
+    unitId?: string | null
+  ) {
+    return Database.transaction(async (client) => {
+      let targetUnitId = unitId || null;
+      let targetParcelId: string | null = null;
+      let targetReportId: string | null = null;
+
+      // 1. Kiểm tra xem identifier hoặc targetUnitId có khớp building_units
+      const unitCheck = await client.query<{
+        id: string;
+        parcel_id: string;
+        phase1_report_id: string | null;
+      }>(
+        `SELECT id, parcel_id, phase1_report_id FROM building_units 
+         WHERE id = $1 OR id = $2 
+         LIMIT 1;`,
+        [identifier, targetUnitId || identifier]
+      );
+
+      if (unitCheck.rows[0]) {
+        targetUnitId = unitCheck.rows[0].id;
+        targetParcelId = unitCheck.rows[0].parcel_id;
+        targetReportId = unitCheck.rows[0].phase1_report_id;
+      }
+
+      // 2. Tìm trong base_survey_reports nếu chưa có targetReportId
+      if (!targetReportId) {
+        const repRes = await client.query<{
+          id: string;
+          parcel_id: string;
+          unit_id: string | null;
+          report_type: string | null;
+        }>(
+          `SELECT id, parcel_id, unit_id, report_type FROM base_survey_reports 
+           WHERE (id = $1 OR parcel_id = $1 OR unit_id = $1 ${targetUnitId ? 'OR unit_id = $2' : ''})
+           ORDER BY (CASE WHEN id = $1 THEN 0 ELSE 1 END), created_at DESC
+           LIMIT 1 FOR UPDATE;`,
+          targetUnitId ? [identifier, targetUnitId] : [identifier]
+        );
+
+        if (repRes.rows[0]) {
+          targetReportId = repRes.rows[0].id;
+          targetParcelId = targetParcelId || repRes.rows[0].parcel_id;
+          if (!targetUnitId && repRes.rows[0].unit_id) {
+            targetUnitId = repRes.rows[0].unit_id;
+          }
+        }
+      }
+
+      // 3. Nếu vẫn chưa có targetParcelId, kiểm tra bảng parcels
+      if (!targetParcelId && !targetUnitId) {
+        const parcelCheck = await client.query<{ id: string }>(
+          `SELECT id FROM parcels WHERE id = $1 LIMIT 1;`,
+          [identifier]
+        );
+        if (parcelCheck.rows[0]) {
+          targetParcelId = parcelCheck.rows[0].id;
+        }
+      }
+
+      if (!targetReportId && !targetUnitId && !targetParcelId) {
+        throw new NotFoundError(`Không tìm thấy hồ sơ, căn hộ hoặc thửa đất với ID: ${identifier}`);
+      }
+
+      const noteText = reason ? `ADMIN MỞ LẠI HỒ SƠ: ${reason}` : 'ADMIN CHUYỂN VỀ ĐANG LÀM DỞ';
+
+      // 4. Cập nhật base_survey_reports về 'DRAFT', reset submitted_at
+      if (targetReportId) {
+        await client.query(
+          `UPDATE base_survey_reports
+           SET status = 'DRAFT',
+               submitted_at = NULL,
+               zone_admin_id = $2,
+               engineering_recommendations = COALESCE($3, engineering_recommendations),
+               updated_at = NOW()
+           WHERE id = $1;`,
+          [targetReportId, adminId, noteText]
+        );
+      }
+
+      // 5. Cập nhật building_units hoặc parcels về 'IN_PROGRESS'
+      if (targetUnitId) {
+        await client.query(
+          `UPDATE building_units
+           SET status = 'IN_PROGRESS',
+               updated_at = NOW()
+           WHERE id = $1;`,
+          [targetUnitId]
+        );
+      } else if (targetParcelId) {
+        await client.query(
+          `UPDATE parcels
+           SET survey_status = 'IN_PROGRESS',
+               updated_at = NOW()
+           WHERE id = $1;`,
+          [targetParcelId]
+        );
+      }
+
+      return {
+        reportId: targetReportId,
+        parcelId: targetParcelId,
+        unitId: targetUnitId,
+        status: 'IN_PROGRESS',
+        message: 'Đã chuyển trạng thái hồ sơ về "Đang làm dở" thành công. Khảo sát viên có thể chỉnh sửa thông tin.',
+      };
+    });
+  }
+
   static async getProgressAnalytics(zoneId?: string) {
     const zoneMapping: Record<string, string> = {
       'ZONE_S1': 'ZONE_01', 'ZONE_S2': 'ZONE_03', 'ZONE_S3': 'ZONE_05',

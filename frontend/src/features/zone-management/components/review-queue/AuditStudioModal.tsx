@@ -9,6 +9,7 @@ import {
   ShieldCheck,
   RefreshCw,
   History,
+  RotateCcw,
 } from 'lucide-react';
 import { api } from '../../../../services/api';
 import { RejectReportModal } from './RejectReportModal';
@@ -44,6 +45,7 @@ export const AuditStudioModal: React.FC<Props> = ({
   const [showJudgementModal, setShowJudgementModal] = useState(false);
   const [showImageZoom, setShowImageZoom] = useState(false);
   const [isApproving, setIsApproving] = useState(false);
+  const [isReverting, setIsReverting] = useState(false);
 
   // Diff Confirmation Modal State
   const [diffModalData, setDiffModalData] = useState<{
@@ -114,6 +116,29 @@ export const AuditStudioModal: React.FC<Props> = ({
       alert(getErrorMessage(err, 'Lỗi kết nối khi phê duyệt.'));
     } finally {
       setIsApproving(false);
+    }
+  };
+
+  const handleRevertToDraft = async () => {
+    if (!data) return;
+    const confirmMsg = `Bạn có chắc chắn muốn CHUYỂN VỀ "ĐANG LÀM DỞ" hồ sơ thửa ${data.projectParcelCode || reportId}?\n\nSau khi chuyển, khảo sát viên có thể tiếp tục chỉnh sửa trên hiện trường và nộp lại.`;
+    if (!window.confirm(confirmMsg)) return;
+
+    setIsReverting(true);
+    try {
+      const res = await api.post(`/admin/reports/${reportId}/revert-to-draft`, {});
+      if (res.data?.success || res.status === 200) {
+        alert('Đã chuyển trạng thái hồ sơ về "Đang làm dở" thành công!');
+        onRefreshList();
+        onClose();
+      } else {
+        alert(res.data?.message || 'Không thể chuyển trạng thái hồ sơ.');
+      }
+    } catch (err: unknown) {
+      console.error('[AuditStudioModal] Error reverting:', err);
+      alert(getErrorMessage(err, 'Lỗi kết nối khi chuyển trạng thái.'));
+    } finally {
+      setIsReverting(false);
     }
   };
 
@@ -293,14 +318,26 @@ export const AuditStudioModal: React.FC<Props> = ({
 
           <div className="flex items-center gap-2">
             {data?.status !== 'APPROVED' && (
-              <button
-                type="button"
-                onClick={() => setShowRejectModal(true)}
-                className="px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
-              >
-                <X className="w-4 h-4 text-rose-600" />
-                <span>Yêu Cầu Khảo Sát Lại (Reject)</span>
-              </button>
+              <>
+                <button
+                  type="button"
+                  disabled={isReverting}
+                  onClick={handleRevertToDraft}
+                  className="px-3.5 py-2 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
+                  title="Chuyển hồ sơ về trạng thái Đang làm dở để khảo sát viên sửa thông tin"
+                >
+                  <RotateCcw className={`w-3.5 h-3.5 ${isReverting ? 'animate-spin' : ''}`} />
+                  <span>{isReverting ? 'Đang chuyển...' : 'Mở Lại (Đang làm dở)'}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowRejectModal(true)}
+                  className="px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
+                >
+                  <X className="w-4 h-4 text-rose-600" />
+                  <span>Yêu Cầu Khảo Sát Lại (Reject)</span>
+                </button>
+              </>
             )}
 
             <button
