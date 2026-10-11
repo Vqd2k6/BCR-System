@@ -15,6 +15,8 @@ import { PhotoLightboxModal } from './photo-capture/components/PhotoLightboxModa
 import { PhotoPreviewCard } from './photo-capture/components/PhotoPreviewCard';
 import { PhotoEmptyState } from './photo-capture/components/PhotoEmptyState';
 import { usePhase1SurveyStore } from '../../features/survey-phase1/store/usePhase1SurveyStore';
+import { useCondoUnitSurveyStore } from '../../features/survey-condo-unit/store/useCondoUnitSurveyStore';
+import { useCondoMasterSurveyStore } from '../../features/survey-condo-master/store/useCondoMasterSurveyStore';
 import { getSafeDisplayUrl, resolveOfflinePhotoUrl } from '../../core/storage/offlinePhotoStorage';
 import { useSurveyReadOnly } from '../../core/context/SurveyReadOnlyContext';
 
@@ -43,9 +45,16 @@ export const PhotoCaptureInput: React.FC<PhotoCaptureProps> = ({
   allowPdf = false,
   pdfFloorName,
 }) => {
-  const storeReadOnly = usePhase1SurveyStore ? usePhase1SurveyStore((s) => s.isReadOnly) : false;
+  const phase1ReadOnly = usePhase1SurveyStore ? usePhase1SurveyStore((s) => s.isReadOnly) : false;
+  const condoUnitReadOnly = useCondoUnitSurveyStore ? useCondoUnitSurveyStore((s) => s.isReadOnly) : false;
+  const condoMasterReadOnly = useCondoMasterSurveyStore ? useCondoMasterSurveyStore((s) => s.isReadOnly) : false;
   const contextReadOnly = useSurveyReadOnly();
-  const effectiveReadOnly = readOnly !== undefined ? readOnly : (contextReadOnly !== undefined ? contextReadOnly : storeReadOnly);
+  const effectiveReadOnly =
+    readOnly !== undefined
+      ? readOnly
+      : (contextReadOnly !== undefined
+          ? contextReadOnly
+          : (phase1ReadOnly || condoUnitReadOnly || condoMasterReadOnly));
   const uniqueId = useId().replace(/:/g, '_');
   const cameraInputId = `cam_${uniqueId}`;
   const galleryInputId = `gal_${uniqueId}`;
@@ -132,6 +141,7 @@ export const PhotoCaptureInput: React.FC<PhotoCaptureProps> = ({
     isNotApplicable,
     onToggleNotApplicable,
     onClearAspectRatio: () => setDetectedAspectRatio(null),
+    readOnly: effectiveReadOnly,
   });
 
   // Quản lý Live Camera
@@ -167,6 +177,10 @@ export const PhotoCaptureInput: React.FC<PhotoCaptureProps> = ({
     effectiveWatermarkOptions,
     cameraInputId,
     onSuccessCapture: async ({ blob, photoCode }) => {
+      if (effectiveReadOnly) {
+        console.warn('[PhotoCaptureInput] Biểu mẫu đang ở chế độ Chỉ Xem, không lưu ảnh chụp camera.');
+        return;
+      }
       try {
         // Lưu trực tiếp blob đã nén chất lượng cao từ LiveCamera, không nén kép 2 lần
         const { blobUrl, localId } = await storePrecompressedPhoto(blob, photoCode);
@@ -213,12 +227,20 @@ export const PhotoCaptureInput: React.FC<PhotoCaptureProps> = ({
       : detectedAspectRatio !== 'square' && detectedAspectRatio !== recommendedOrientation);
 
   const handleSafeFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (effectiveReadOnly) {
+      console.warn('[PhotoCaptureInput] Biểu mẫu đang ở chế độ Chỉ Xem, chặn chọn tệp camera.');
+      return;
+    }
     e.target.blur();
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
     handleFileChange(e);
   };
 
   const handleCustomFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (effectiveReadOnly) {
+      console.warn('[PhotoCaptureInput] Biểu mẫu đang ở chế độ Chỉ Xem, chặn chọn tệp thư viện.');
+      return;
+    }
     e.target.blur();
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
     const file = e.target.files?.[0];
@@ -235,6 +257,10 @@ export const PhotoCaptureInput: React.FC<PhotoCaptureProps> = ({
   };
 
   const handleConfirmPdfPage = async (imageBlob: Blob) => {
+    if (effectiveReadOnly) {
+      console.warn('[PhotoCaptureInput] Biểu mẫu đang ở chế độ Chỉ Xem, chặn xác nhận trang PDF.');
+      return;
+    }
     try {
       const { blobUrl, localId, blob, photoCode: pCode } = await processAndStoreCleanPhoto(imageBlob);
       setLocalPreview(blobUrl);
@@ -257,6 +283,7 @@ export const PhotoCaptureInput: React.FC<PhotoCaptureProps> = ({
         type="file"
         accept="image/*"
         capture="environment"
+        disabled={effectiveReadOnly}
         onChange={handleSafeFileChange}
         style={{
           position: 'absolute',
@@ -280,6 +307,7 @@ export const PhotoCaptureInput: React.FC<PhotoCaptureProps> = ({
         id={galleryInputId}
         type="file"
         accept={allowPdf ? 'image/*,application/pdf' : 'image/*'}
+        disabled={effectiveReadOnly}
         onChange={handleCustomFileChange}
         style={{
           position: 'absolute',

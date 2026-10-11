@@ -5,6 +5,7 @@ import { Button } from '../../../core/components/ui/Button';
 import { Input, Select } from '../../../core/components/ui/FormControls';
 import { InfoPopover } from '../../../core/components/ui/InfoPopover';
 import { PhotoCaptureInput } from '../../../components/common/PhotoCaptureInput';
+import { useSurveyReadOnly } from '../../../core/context/SurveyReadOnlyContext';
 import type { EvidencePhotoItem } from '../../survey-phase1/types/phase1.types';
 import {
   USAGE_OPTIONS,
@@ -34,7 +35,9 @@ import {
 } from 'lucide-react';
 
 export const Step2_CondoMasterInterview: React.FC = () => {
-  const { formData, updateFormData, nextStep, prevStep } = usePhase1SurveyStore();
+  const { formData, updateFormData, nextStep, prevStep, isReadOnly: storeReadOnly } = usePhase1SurveyStore();
+  const contextReadOnly = useSurveyReadOnly();
+  const isReadOnly = contextReadOnly ?? storeReadOnly;
   const hi = formData.historyInterview;
 
   React.useEffect(() => {
@@ -569,7 +572,7 @@ export const Step2_CondoMasterInterview: React.FC = () => {
                         <span className="text-xs font-bold text-indigo-900">
                           {idx === 0 ? 'Bản vẽ 1 (Trang chính):' : `Bản vẽ ${idx + 1} (Bổ sung):`}
                         </span>
-                        {idx > 0 && (
+                        {idx > 0 && !isReadOnly && (
                           <button
                             type="button"
                             onClick={() => handleRemoveDrawing(idx)}
@@ -583,6 +586,7 @@ export const Step2_CondoMasterInterview: React.FC = () => {
                       <PhotoCaptureInput
                         value={item.url}
                         photoCode={item.photoCode}
+                        readOnly={isReadOnly}
                         onChange={(url, code) => handleUpdateDrawing(idx, url, code)}
                         watermarkOptions={{
                           parcelCode: formData.projectParcelCode,
@@ -599,18 +603,21 @@ export const Step2_CondoMasterInterview: React.FC = () => {
                       <Input
                         placeholder="Ghi chú nội dung trang (VD: Mặt bằng cọc khoan nhồi / Chi tiết đài móng / Tường vây)..."
                         value={item.notes || ''}
+                        disabled={isReadOnly}
                         onChange={(e) => handleUpdateDrawing(idx, item.url, item.photoCode, e.target.value)}
                       />
                     </div>
                   ))}
-                  <button
-                    type="button"
-                    onClick={handleAddDrawing}
-                    className="w-full py-2 px-3 border border-dashed border-indigo-400 bg-indigo-50/50 hover:bg-indigo-50 text-indigo-700 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer"
-                  >
-                    <Plus className="w-3.5 h-3.5 text-indigo-600" />
-                    <span>Thêm trang / ảnh bản vẽ khác</span>
-                  </button>
+                  {!isReadOnly && (
+                    <button
+                      type="button"
+                      onClick={handleAddDrawing}
+                      className="w-full py-2 px-3 border border-dashed border-indigo-400 bg-indigo-50/50 hover:bg-indigo-50 text-indigo-700 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5 text-indigo-600" />
+                      <span>Thêm trang / ảnh bản vẽ khác</span>
+                    </button>
+                  )}
                 </div>
               );
             })()}

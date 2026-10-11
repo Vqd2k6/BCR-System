@@ -155,6 +155,7 @@ export const Step1_ParentInheritanceConfirmation: React.FC = () => {
               <label className="flex items-center gap-1 text-[11px] text-slate-500 cursor-pointer">
                 <input
                   type="checkbox"
+                  disabled={isReadOnly}
                   checked={Boolean(formData.photoP01?.notApplicable)}
                   onChange={(e) =>
                     updateFormData({
@@ -173,6 +174,7 @@ export const Step1_ParentInheritanceConfirmation: React.FC = () => {
               label="Chụp / Tải ảnh P01"
               value={formData.photoP01?.url || ''}
               photoCode={formData.photoP01?.photoCode}
+              readOnly={isReadOnly}
               onChange={(url, code) => updateFormData({ photoP01: { ...formData.photoP01, url, photoCode: code } })}
               watermarkOptions={{
                 parcelCode: bCode,
@@ -199,6 +201,7 @@ export const Step1_ParentInheritanceConfirmation: React.FC = () => {
               <label className="flex items-center gap-1 text-[11px] text-slate-500 cursor-pointer">
                 <input
                   type="checkbox"
+                  disabled={isReadOnly}
                   checked={Boolean(formData.photoP04?.notApplicable)}
                   onChange={(e) =>
                     updateFormData({
@@ -217,6 +220,7 @@ export const Step1_ParentInheritanceConfirmation: React.FC = () => {
               label="Chụp / Tải ảnh P04"
               value={formData.photoP04?.url || ''}
               photoCode={formData.photoP04?.photoCode}
+              readOnly={isReadOnly}
               onChange={(url, code) => updateFormData({ photoP04: { ...formData.photoP04, url, photoCode: code } })}
               watermarkOptions={{
                 parcelCode: bCode,

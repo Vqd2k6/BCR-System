@@ -31,6 +31,7 @@ interface UsePhotoUploadProps {
   isNotApplicable?: boolean;
   onToggleNotApplicable?: (na: boolean) => void;
   onClearAspectRatio?: () => void;
+  readOnly?: boolean;
 }
 
 export function usePhotoUpload({
@@ -42,6 +43,7 @@ export function usePhotoUpload({
   isNotApplicable,
   onToggleNotApplicable,
   onClearAspectRatio,
+  readOnly = false,
 }: UsePhotoUploadProps) {
   const [uploadStatus, setUploadStatus] = useState<UploadStatus>('IDLE');
   const [localPreview, setLocalPreview] = useState<string | null>(null);
@@ -182,7 +184,9 @@ export function usePhotoUpload({
         if (storeParcel && !isInvalidBuildingCode(storeParcel)) {
           buildingCode = storeParcel;
         }
-      } catch (_e) {}
+      } catch (err) {
+        console.warn('[usePhotoUpload] Không thể lấy parcel code từ Phase 1 store:', err);
+      }
     }
 
     // 3. Nếu hoàn toàn không xác định được mã công trình, gom vào 'general' thay vì tạo folder rác
@@ -422,6 +426,10 @@ export function usePhotoUpload({
    * Bắt đầu tải ảnh sạch trực tiếp lên Cloudflare R2
    */
   const startDirectUpload = (blob: Blob, code?: string, localId?: string) => {
+    if (readOnly) {
+      console.warn('[usePhotoUpload] Biểu mẫu đang ở chế độ Chỉ Xem (Read-Only), từ chối tải ảnh lên R2.');
+      return;
+    }
     lastBlobRef.current = blob;
     setUploadStatus('UPLOADING');
 
@@ -467,6 +475,9 @@ export function usePhotoUpload({
   const processAndStoreCleanPhoto = async (
     fileOrBlob: File | Blob
   ): Promise<{ blobUrl: string; localId: string; blob: Blob; photoCode: string }> => {
+    if (readOnly) {
+      throw new Error('Biểu mẫu đang ở chế độ Chỉ Xem (Read-Only), không thể chụp hoặc lưu ảnh mới.');
+    }
     const photoCode = displayPhotoCode || generateMetroPhotoCode(effectiveWatermarkOptions || {});
     
     // 1. Nén ảnh sạch 2048px @ 0.95 (Chất lượng cực cao Near-Lossless, bảo toàn 100% độ nét vết nứt & vạch thước đo)
@@ -507,6 +518,9 @@ export function usePhotoUpload({
     blob: Blob,
     overrideCode?: string
   ): Promise<{ blobUrl: string; localId: string; blob: Blob; photoCode: string }> => {
+    if (readOnly) {
+      throw new Error('Biểu mẫu đang ở chế độ Chỉ Xem (Read-Only), không thể chụp hoặc lưu ảnh mới.');
+    }
     const photoCode = overrideCode || displayPhotoCode || generateMetroPhotoCode(effectiveWatermarkOptions || {});
     const localId = `photo_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
     currentLocalIdRef.current = localId;
@@ -524,6 +538,10 @@ export function usePhotoUpload({
   };
 
   const uploadToServer = async (base64Str: string, code?: string) => {
+    if (readOnly) {
+      console.warn('[usePhotoUpload] Biểu mẫu đang ở chế độ Chỉ Xem (Read-Only), từ chối tải ảnh lên server.');
+      return;
+    }
     if (!base64Str || !base64Str.startsWith('data:image/')) return;
     try {
       const { targetFolder, metadata } = extractPhotoDetails(code);
@@ -545,6 +563,10 @@ export function usePhotoUpload({
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (readOnly) {
+      console.warn('[usePhotoUpload] Biểu mẫu đang ở chế độ Chỉ Xem (Read-Only), không thể chọn tệp.');
+      return;
+    }
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -567,6 +589,10 @@ export function usePhotoUpload({
   };
 
   const handleClear = () => {
+    if (readOnly) {
+      console.warn('[usePhotoUpload] Biểu mẫu đang ở chế độ Chỉ Xem (Read-Only), không thể xóa ảnh.');
+      return;
+    }
     if (currentLocalIdRef.current) {
       deleteOfflinePhoto(currentLocalIdRef.current);
       revokeManagedBlobUrl(currentLocalIdRef.current);
@@ -581,6 +607,10 @@ export function usePhotoUpload({
   };
 
   const handleRotate90 = async () => {
+    if (readOnly) {
+      console.warn('[usePhotoUpload] Biểu mẫu đang ở chế độ Chỉ Xem (Read-Only), không thể xoay ảnh.');
+      return;
+    }
     const currentImgUrl = localPreview || value;
     if (!currentImgUrl) return;
     try {
@@ -619,11 +649,15 @@ export function usePhotoUpload({
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         canvas.width = 0;
         canvas.height = 0;
-      } catch (_e) {}
+      } catch (clearErr) {
+        console.warn('[PhotoCaptureInput] Lỗi dọn dẹp canvas:', clearErr);
+      }
 
       // Xóa bản ghi và Object URL cũ trước khi gán ảnh xoay mới
       if (currentLocalIdRef.current) {
-        deleteOfflinePhoto(currentLocalIdRef.current).catch(() => {});
+        deleteOfflinePhoto(currentLocalIdRef.current).catch((delErr) => {
+          console.warn('[PhotoCaptureInput] Lỗi xóa ảnh offline cũ khi xoay:', delErr);
+        });
         revokeManagedBlobUrl(currentLocalIdRef.current);
       }
 
@@ -643,6 +677,10 @@ export function usePhotoUpload({
   };
 
   const handleRetryUpload = async () => {
+    if (readOnly) {
+      console.warn('[usePhotoUpload] Biểu mẫu đang ở chế độ Chỉ Xem (Read-Only), không thể tải lại ảnh.');
+      return;
+    }
     setUploadStatus('UPLOADING');
     if (lastBlobRef.current) {
       startDirectUpload(lastBlobRef.current, displayPhotoCode, currentLocalIdRef.current || undefined);
@@ -656,7 +694,9 @@ export function usePhotoUpload({
           startDirectUpload(item.blob, item.photoCode || displayPhotoCode, localId);
           return;
         }
-      } catch (_e) {}
+      } catch (readErr) {
+        console.warn('[PhotoCaptureInput] Lỗi đọc ảnh offline để tải lại:', readErr);
+      }
     }
     if (localPreview && localPreview.startsWith('blob:')) {
       try {
@@ -664,7 +704,9 @@ export function usePhotoUpload({
         const b = await res.blob();
         startDirectUpload(b, displayPhotoCode, currentLocalIdRef.current || undefined);
         return;
-      } catch (_e) {}
+      } catch (fetchErr) {
+        console.warn('[PhotoCaptureInput] Lỗi nạp blob preview để tải lại:', fetchErr);
+      }
     }
     uploadQueue.resumePendingOfflineUploads();
   };

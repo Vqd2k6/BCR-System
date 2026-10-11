@@ -957,45 +957,49 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
                         photoCode={`${activeZone.zoneCode}_OVERVIEW_${i + 1}`}
                         aspectClass="h-24 aspect-auto"
                         actions={
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              const updated = (activeZone.overviewPhotos || []).filter((_, idx) => idx !== i);
-                              updateZone(activeZoneIndex, { overviewPhotos: updated });
-                            }}
-                            className="p-1 bg-rose-600 text-white rounded text-xs cursor-pointer shadow hover:bg-rose-700"
-                            title="Xóa ảnh"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                          !isReadOnly ? (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const updated = (activeZone.overviewPhotos || []).filter((_, idx) => idx !== i);
+                                updateZone(activeZoneIndex, { overviewPhotos: updated });
+                              }}
+                              className="p-1 bg-rose-600 text-white rounded text-xs cursor-pointer shadow hover:bg-rose-700"
+                              title="Xóa ảnh"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          ) : undefined
                         }
                       />
                     </div>
                   ))}
-                  <PhotoCaptureInput
-                    label="+ Thêm ảnh tổng quan"
-                    value=""
-                    onChange={(url, _code, meta) => {
-                      if (url) {
-                        const curZone = useCondoUnitSurveyStore.getState().formData.zones?.[activeZoneIndex];
-                        const curPhotos: string[] = curZone?.overviewPhotos || [];
-                        const base = meta?.replacesUri
-                          ? curPhotos.map((p) => (p === meta.replacesUri ? url : p))
-                          : curPhotos;
-                        const updated = base.includes(url) ? base : [...base, url];
-                        updateZone(activeZoneIndex, { overviewPhotos: updated });
-                      }
-                    }}
-                    watermarkOptions={{
-                      parcelCode: bCode,
-                      floor: `Tầng ${formData.floorNumber}`,
-                      zoneOrRoom: activeZone.zoneCode,
-                      photoType: 'OVERVIEW',
-                      photoIndex: (activeZone.overviewPhotos?.length || 0) + 1,
-                    }}
-                    height="96px"
-                  />
+                  {!isReadOnly && (
+                    <PhotoCaptureInput
+                      label="+ Thêm ảnh tổng quan"
+                      value=""
+                      onChange={(url, _code, meta) => {
+                        if (url) {
+                          const curZone = useCondoUnitSurveyStore.getState().formData.zones?.[activeZoneIndex];
+                          const curPhotos: string[] = curZone?.overviewPhotos || [];
+                          const base = meta?.replacesUri
+                            ? curPhotos.map((p) => (p === meta.replacesUri ? url : p))
+                            : curPhotos;
+                          const updated = base.includes(url) ? base : [...base, url];
+                          updateZone(activeZoneIndex, { overviewPhotos: updated });
+                        }
+                      }}
+                      watermarkOptions={{
+                        parcelCode: bCode,
+                        floor: `Tầng ${formData.floorNumber}`,
+                        zoneOrRoom: activeZone.zoneCode,
+                        photoType: 'OVERVIEW',
+                        photoIndex: (activeZone.overviewPhotos?.length || 0) + 1,
+                      }}
+                      height="96px"
+                    />
+                  )}
                 </div>
               </div>
 
@@ -1004,6 +1008,7 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
                 <label className="flex items-center gap-2 cursor-pointer select-none">
                   <input
                     type="checkbox"
+                    disabled={isReadOnly}
                     checked={activeZone.hasDamage || (activeZone.defects && activeZone.defects.length > 0)}
                     onChange={(e) => {
                       const checked = e.target.checked;
@@ -1052,8 +1057,12 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
                         }}
                       >
                         {activeZone.defects && activeZone.defects.length > 0
-                          ? `Xem & Sửa ${activeZone.defects.length} ghim D-xx ➔`
-                          : 'Chấm điểm & Ghi sổ khuyết tật D-xx ➔'}
+                          ? isReadOnly
+                            ? `Xem ${activeZone.defects.length} ghim D-xx ➔`
+                            : `Xem & Sửa ${activeZone.defects.length} ghim D-xx ➔`
+                          : isReadOnly
+                            ? 'Xem ghim khuyết tật D-xx ➔'
+                            : 'Chấm điểm & Ghi sổ khuyết tật D-xx ➔'}
                       </Button>
                     </div>
 
@@ -1061,6 +1070,7 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
                       label={`Ảnh bối cảnh chính để thả ghim nứt/thấm cho ${activeZone.zoneCode}:`}
                       value={activeZone.ctxPhotoUrl || ''}
                       photoCode={activeZone.ctxPhotoCode}
+                      readOnly={isReadOnly}
                       onChange={(url, code) =>
                         updateZone(activeZoneIndex, {
                           ctxPhotoUrl: url,
@@ -1364,55 +1374,59 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
                             photoCode={`${activeElement.elementCode}_OVERVIEW_${i + 1}`}
                             aspectClass="h-24 aspect-auto"
                             actions={
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  const updated = (activeElement.overviewPhotos || []).filter((_, idx) => idx !== i);
-                                  const newCtx =
-                                    activeElement.ctxPhotoUrl === url ? updated[0] || '' : activeElement.ctxPhotoUrl;
-                                  updateElement(activeElementIndex, {
-                                    overviewPhotos: updated,
-                                    ctxPhotoUrl: newCtx,
-                                  });
-                                }}
-                                className="p-1 bg-rose-600 text-white rounded text-xs cursor-pointer shadow hover:bg-rose-700"
-                                title="Xóa ảnh"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
+                              !isReadOnly ? (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    const updated = (activeElement.overviewPhotos || []).filter((_, idx) => idx !== i);
+                                    const newCtx =
+                                      activeElement.ctxPhotoUrl === url ? updated[0] || '' : activeElement.ctxPhotoUrl;
+                                    updateElement(activeElementIndex, {
+                                      overviewPhotos: updated,
+                                      ctxPhotoUrl: newCtx,
+                                    });
+                                  }}
+                                  className="p-1 bg-rose-600 text-white rounded text-xs cursor-pointer shadow hover:bg-rose-700"
+                                  title="Xóa ảnh"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              ) : undefined
                             }
                           />
                         </div>
                       ))}
-                      <PhotoCaptureInput
-                        label="+ Thêm ảnh tổng quan E"
-                        value=""
-                        onChange={(url, _code, meta) => {
-                          if (url) {
-                            const curElem = useCondoUnitSurveyStore.getState().formData.structuralElements?.[activeElementIndex];
-                            const curPhotos: string[] = curElem?.overviewPhotos || [];
-                            const base = meta?.replacesUri
-                              ? curPhotos.map((p) => (p === meta.replacesUri ? url : p))
-                              : curPhotos;
-                            const updated = base.includes(url) ? base : [...base, url];
-                            const curCtx = curElem?.ctxPhotoUrl;
-                            const newCtx = !curCtx ? url : meta?.replacesUri && curCtx === meta.replacesUri ? url : curCtx;
-                            updateElement(activeElementIndex, {
-                              overviewPhotos: updated,
-                              ctxPhotoUrl: newCtx,
-                            });
-                          }
-                        }}
-                        watermarkOptions={{
-                          parcelCode: bCode,
-                          floor: `Tầng ${formData.floorNumber}`,
-                          zoneOrRoom: activeElement.elementCode,
-                          photoType: 'OVERVIEW',
-                          photoIndex: (activeElement.overviewPhotos?.length || 0) + 1,
-                        }}
-                        height="96px"
-                      />
+                      {!isReadOnly && (
+                        <PhotoCaptureInput
+                          label="+ Thêm ảnh tổng quan E"
+                          value=""
+                          onChange={(url, _code, meta) => {
+                            if (url) {
+                              const curElem = useCondoUnitSurveyStore.getState().formData.structuralElements?.[activeElementIndex];
+                              const curPhotos: string[] = curElem?.overviewPhotos || [];
+                              const base = meta?.replacesUri
+                                ? curPhotos.map((p) => (p === meta.replacesUri ? url : p))
+                                : curPhotos;
+                              const updated = base.includes(url) ? base : [...base, url];
+                              const curCtx = curElem?.ctxPhotoUrl;
+                              const newCtx = !curCtx ? url : meta?.replacesUri && curCtx === meta.replacesUri ? url : curCtx;
+                              updateElement(activeElementIndex, {
+                                overviewPhotos: updated,
+                                ctxPhotoUrl: newCtx,
+                              });
+                            }
+                          }}
+                          watermarkOptions={{
+                            parcelCode: bCode,
+                            floor: `Tầng ${formData.floorNumber}`,
+                            zoneOrRoom: activeElement.elementCode,
+                            photoType: 'OVERVIEW',
+                            photoIndex: (activeElement.overviewPhotos?.length || 0) + 1,
+                          }}
+                          height="96px"
+                        />
+                      )}
                     </div>
                   </div>
 
@@ -1421,6 +1435,7 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
                     <label className="flex items-center gap-2 cursor-pointer select-none">
                       <input
                         type="checkbox"
+                        disabled={isReadOnly}
                         checked={activeElement.hasDamage || (activeElement.defects && activeElement.defects.length > 0)}
                         onChange={(e) => {
                           const checked = e.target.checked;
@@ -1469,8 +1484,12 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
                             }}
                           >
                             {activeElement.defects && activeElement.defects.length > 0
-                              ? `Xem & Sửa ${activeElement.defects.length} ghim D-xx ➔`
-                              : 'Chấm điểm khuyết tật kết cấu D-xx ➔'}
+                              ? isReadOnly
+                                ? `Xem ${activeElement.defects.length} ghim D-xx ➔`
+                                : `Xem & Sửa ${activeElement.defects.length} ghim D-xx ➔`
+                              : isReadOnly
+                                ? 'Xem ghim khuyết tật kết cấu D-xx ➔'
+                                : 'Chấm điểm khuyết tật kết cấu D-xx ➔'}
                           </Button>
                         </div>
 
@@ -1478,6 +1497,7 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
                           label={`Ảnh bối cảnh cấu kiện chịu lực ${activeElement.elementCode}:`}
                           value={activeElement.ctxPhotoUrl || ''}
                           photoCode={activeElement.ctxPhotoCode}
+                          readOnly={isReadOnly}
                           onChange={(url, code) =>
                             updateElement(activeElementIndex, {
                               ctxPhotoUrl: url,
@@ -1659,6 +1679,7 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
               <PhotoCaptureInput
                 label="Ảnh chụp thước đo võng / tia laser cân bằng:"
                 value={beamSagging.photoUrl || ''}
+                readOnly={isReadOnly}
                 onChange={(url) => handleUpdateBeamSagging(undefined, undefined, undefined, url)}
                 watermarkOptions={{
                   parcelCode: bCode,

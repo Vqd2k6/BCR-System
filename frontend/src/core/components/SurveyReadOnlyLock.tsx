@@ -44,6 +44,13 @@ export const SurveyReadOnlyLock: React.FC<SurveyReadOnlyLockProps> = ({
               pointer-events: none !important;
               cursor: default !important;
             }
+            [data-survey-readonly="true"] label[for*="cam_"],
+            [data-survey-readonly="true"] label[for*="gal_"],
+            [data-survey-readonly="true"] input[type="file"] {
+              pointer-events: none !important;
+              cursor: not-allowed !important;
+              opacity: 0.5 !important;
+            }
           `}</style>
         )}
         {children}
