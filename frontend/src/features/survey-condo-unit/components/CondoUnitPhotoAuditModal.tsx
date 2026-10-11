@@ -12,7 +12,7 @@ import {
   ArrowRight,
 } from 'lucide-react';
 import { ImageZoomModal } from '../../../components/common/ImageZoomModal';
-import { resolveOfflinePhotoUrl, getSafeDisplayUrl } from '../../../core/storage/offlinePhotoStorage';
+import { resolveOfflinePhotoUrl, getSafeDisplayUrl, replaceLocalUriInObject } from '../../../core/storage/offlinePhotoStorage';
 import {
   auditCondoUnitPhotos,
   retryUploadCondoUnitPhoto,
@@ -96,16 +96,30 @@ export const CondoUnitPhotoAuditModal: React.FC<Props> = ({
       ? audit.syncedPhotos
       : audit.allPhotos;
 
+  const applyPromotedUrlToStore = (item: CondoUnitPhotoAuditItem, newUrl: string) => {
+    const store = useCondoUnitSurveyStore.getState();
+    if (item.updateInStore) {
+      item.updateInStore(newUrl);
+    }
+    if (item.fieldKey === 'unitCadUrl') {
+      store.updateFormData({ unitCadUrl: newUrl });
+    } else if (item.fieldKey === 'unitStructuralCadUrl') {
+      store.updateFormData({ unitStructuralCadUrl: newUrl });
+    } else if (item.fieldKey.startsWith('absenteeMinutes_')) {
+      const idx = parseInt(item.fieldKey.replace('absenteeMinutes_', ''), 10);
+      if (!isNaN(idx)) {
+        store.updateAbsenteeMinutesPhoto(idx, newUrl);
+      }
+    }
+    const updated = replaceLocalUriInObject(store.formData, item.url, newUrl);
+    store.updateFormData(updated);
+  };
+
   const handleRetrySingle = async (item: CondoUnitPhotoAuditItem) => {
     try {
       setRetryingId(item.id);
       await retryUploadCondoUnitPhoto(item, parcelCode, unitCode, (newUrl) => {
-        const store = useCondoUnitSurveyStore.getState();
-        if (item.fieldKey === 'unitCadUrl') {
-          store.updateFormData({ unitCadUrl: newUrl });
-        } else if (item.fieldKey === 'unitStructuralCadUrl') {
-          store.updateFormData({ unitStructuralCadUrl: newUrl });
-        }
+        applyPromotedUrlToStore(item, newUrl);
       });
     } catch (err: unknown) {
       alert(`Không thể tải lại ảnh: ${err instanceof Error ? err.message : String(err)}`);
@@ -121,12 +135,7 @@ export const CondoUnitPhotoAuditModal: React.FC<Props> = ({
       for (const item of audit.unsyncedPhotos) {
         try {
           await retryUploadCondoUnitPhoto(item, parcelCode, unitCode, (newUrl) => {
-            const store = useCondoUnitSurveyStore.getState();
-            if (item.fieldKey === 'unitCadUrl') {
-              store.updateFormData({ unitCadUrl: newUrl });
-            } else if (item.fieldKey === 'unitStructuralCadUrl') {
-              store.updateFormData({ unitStructuralCadUrl: newUrl });
-            }
+            applyPromotedUrlToStore(item, newUrl);
           });
         } catch (_e) {}
       }

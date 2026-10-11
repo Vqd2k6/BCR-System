@@ -18,7 +18,7 @@ import {
   UserX,
 } from 'lucide-react';
 import { validateCondoUnitFull } from '../utils/condoUnitValidator';
-import { auditCondoUnitPhotos } from '../utils/condoUnitPhotoAudit';
+import { auditCondoUnitPhotos, retryUploadCondoUnitPhoto } from '../utils/condoUnitPhotoAudit';
 import { useSurveyReadOnly } from '../../../core/context/SurveyReadOnlyContext';
 
 interface Props {
@@ -139,6 +139,24 @@ export const Step3_CondoUnitAbsenteeSubmit: React.FC<Props> = ({ onSubmitFinal, 
                   label={`Biên bản #${idx + 1}`}
                   photoCode={`ABSENT_MINUTES_${idx + 1}`}
                   aspectClass="h-32"
+                  onRetryUpload={() => {
+                    const item = audit.allPhotos.find((p) => p.url === url) || {
+                      id: `absentee_minutes_${idx}`,
+                      fieldKey: `absenteeMinutes_${idx}`,
+                      step: 3 as const,
+                      stepTitle: 'Bước 3: Biên bản vắng nhà & Nộp hồ sơ',
+                      fieldTitle: `Ảnh biên bản xác nhận vắng chủ #${idx + 1}`,
+                      photoCode: `ABSENT_MINUTES_${idx + 1}`,
+                      url,
+                      isCloudUrl: false,
+                      isLocalBlob: true,
+                      isUploading: false,
+                      isError: false,
+                    };
+                    void retryUploadCondoUnitPhoto(item, bCode, formData.unitCode || 'UNIT', (newUrl) => {
+                      addAbsenteeMinutesPhoto(newUrl, url);
+                    });
+                  }}
                 />
 
                 {!isReadOnly && (

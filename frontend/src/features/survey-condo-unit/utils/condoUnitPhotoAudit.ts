@@ -21,6 +21,7 @@ export interface CondoUnitPhotoAuditItem {
   isLocalBlob: boolean;
   isUploading: boolean;
   isError: boolean;
+  updateInStore?: (newUrl: string) => void;
 }
 
 export interface CondoUnitPhotoAuditSummary {
@@ -44,11 +45,15 @@ export function auditCondoUnitPhotos(rawFormData: CondoUnitFormData): CondoUnitP
     stepTitle: string,
     fieldTitle: string,
     url: string | undefined | null,
-    photoCode?: string
+    photoCode?: string,
+    updateInStore?: (newUrl: string) => void
   ) => {
     if (!url || typeof url !== 'string' || !url.trim()) return;
 
-    const isCloud = url.startsWith('http') && !url.includes('blob:') && !isLocalBlobUri(url);
+    const isCloud =
+      (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('/uploads')) &&
+      !url.includes('blob:') &&
+      !isLocalBlobUri(url);
     const isBlob = isLocalBlobUri(url) || url.startsWith('blob:');
 
     allPhotos.push({
@@ -63,6 +68,7 @@ export function auditCondoUnitPhotos(rawFormData: CondoUnitFormData): CondoUnitP
       isLocalBlob: isBlob,
       isUploading: false,
       isError: false,
+      updateInStore,
     });
   };
 
@@ -316,13 +322,22 @@ export async function retryUploadCondoUnitPhoto(
   unitCode: string,
   onSuccess: (newCloudUrl: string) => void
 ): Promise<void> {
-  if (photoItem.isCloudUrl) return;
+  const isAlreadySynced =
+    photoItem.isCloudUrl ||
+    photoItem.url.startsWith('http://') ||
+    photoItem.url.startsWith('https://') ||
+    photoItem.url.startsWith('/uploads');
+
+  if (isAlreadySynced) {
+    onSuccess(photoItem.url);
+    return;
+  }
 
   let blob: Blob | null = null;
   let localId = extractLocalIdFromUri(photoItem.url);
 
   // Ảnh đã lên Cloud từ trước (mapping bền) nhưng dữ liệu còn giữ URL tạm -> gán lại ngay, không cần blob
-  if (photoItem.url.startsWith('blob:local://')) {
+  if (localId) {
     const knownCloud = getKnownCloudUrl(localId);
     if (knownCloud) {
       onSuccess(knownCloud);
@@ -365,17 +380,13 @@ export async function retryUploadCondoUnitPhoto(
     }
   }
   // 3. Nếu là định danh offline có quản lý: blob:local://{id}
-  else if (photoItem.url.startsWith('blob:local://') || localId) {
-    // 3.1. Kiểm tra ngay trong Persistent Cloud Mapping (Đã tải lên R2 thành công trước đó)
-    const knownCloud = localId ? getKnownCloudUrl(localId) : null;
-    if (knownCloud) {
-      onSuccess(knownCloud);
-      return;
-    }
-
-    const offlinePhoto = await getOfflinePhoto(localId);
-    if (offlinePhoto && offlinePhoto.blob) {
-      blob = offlinePhoto.blob;
+  else if (localId || photoItem.url.startsWith('blob:local://')) {
+    const effectiveId = localId || extractLocalIdFromUri(photoItem.url);
+    if (effectiveId) {
+      const offlinePhoto = await getOfflinePhoto(effectiveId);
+      if (offlinePhoto && offlinePhoto.blob) {
+        blob = offlinePhoto.blob;
+      }
     }
   }
 

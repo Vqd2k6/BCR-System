@@ -88,6 +88,7 @@ interface CondoUnitSurveyStore {
   setAbsenteeMode: (isAbsent: boolean) => void;
   updateAbsenteeInfo: (updates: Partial<CondoUnitAbsenteeInfo>) => void;
   addAbsenteeMinutesPhoto: (url: string, replacesUri?: string) => void;
+  updateAbsenteeMinutesPhoto: (index: number, newUrl: string) => void;
   removeAbsenteeMinutesPhoto: (index: number) => void;
 }
 
@@ -1042,6 +1043,18 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
       };
     }
 
+    // Đồng bộ 2 chiều cho absenteeMinutesPhotos và absenteeInfo.absenteeMinutesPhotos
+    if (updates.absenteeMinutesPhotos !== undefined) {
+      if (next.absenteeInfo) {
+        next.absenteeInfo = {
+          ...next.absenteeInfo,
+          absenteeMinutesPhotos: updates.absenteeMinutesPhotos,
+        };
+      }
+    } else if (updates.absenteeInfo?.absenteeMinutesPhotos !== undefined) {
+      next.absenteeMinutesPhotos = updates.absenteeInfo.absenteeMinutesPhotos;
+    }
+
     // Tự động khử trùng lặp nếu có zones hoặc structuralElements cập nhật
     if (updates.zones) {
       next.zones = deduplicateZones(updates.zones, next.cadZonePins || []);
@@ -1594,6 +1607,29 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
     get().applyFormData({
       absenteeInfo: nextInfo,
       absenteeMinutesPhotos: dedupeNext,
+    });
+  },
+
+  updateAbsenteeMinutesPhoto: (index: number, newUrl: string) => {
+    if (get().isReadOnly) return;
+    const existing = get().formData.absenteeInfo || {
+      absenceReason: 'HOMEOWNER_ABSENT',
+      customReason: '',
+      notes: '',
+      witnessName: '',
+      witnessRole: 'BUILDING_MANAGEMENT',
+      witnessPhone: '',
+      noticeDelivered: false,
+      rescheduleDate: '',
+      attemptCount: 1,
+      absenteeMinutesPhotos: [],
+    };
+    const cur = existing.absenteeMinutesPhotos || get().formData.absenteeMinutesPhotos || [];
+    const nextPhotos = cur.map((u, i) => (i === index ? newUrl : u));
+    const nextInfo: CondoUnitAbsenteeInfo = { ...existing, absenteeMinutesPhotos: nextPhotos };
+    get().applyFormData({
+      absenteeInfo: nextInfo,
+      absenteeMinutesPhotos: nextPhotos,
     });
   },
 

@@ -10,7 +10,7 @@ async function runTest() {
 
   // 1. Tìm 1 building_unit trong DB
   const unitRes = await Database.query<{ id: string; parcel_id: string; unit_code: string; status: string }>(
-    `SELECT id, parcel_id, unit_code, status FROM building_units LIMIT 1;`
+    `SELECT id, parcel_id, unit_code, status FROM building_units WHERE status NOT IN ('SUBMITTED', 'APPROVED') LIMIT 1;`
   );
 
   if (unitRes.rows.length === 0) {
