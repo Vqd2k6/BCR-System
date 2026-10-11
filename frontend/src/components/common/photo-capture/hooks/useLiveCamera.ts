@@ -25,6 +25,7 @@ type ExtendedTrack = MediaStreamTrack & {
 
 interface UseLiveCameraProps {
   effectiveWatermarkOptions?: MetroWatermarkOptions;
+  displayPhotoCode?: string;
   cameraInputId: string;
   onSuccessCapture: (result: { blob: Blob; photoCode: string }) => void;
 }
@@ -37,6 +38,7 @@ export interface CameraLensOption {
 
 export function useLiveCamera({
   effectiveWatermarkOptions,
+  displayPhotoCode,
   cameraInputId,
   onSuccessCapture,
 }: UseLiveCameraProps) {
@@ -595,7 +597,7 @@ export function useLiveCamera({
     setIsLiveCameraOpen(false);
 
     try {
-      const photoCode = generateMetroPhotoCode(effectiveWatermarkOptions || {});
+      const photoCode = displayPhotoCode || generateMetroPhotoCode(effectiveWatermarkOptions || {});
       canvas.toBlob(
         (blob) => {
           try {

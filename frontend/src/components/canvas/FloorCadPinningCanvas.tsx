@@ -29,7 +29,7 @@ export interface CadZonePin {
 export function getNextAvailablePinCode(pins: { zoneCode?: string }[] | undefined | null, prefix: string): string {
   const safePins = Array.isArray(pins) ? pins : [];
   const usedNumbers = new Set<number>();
-  const regex = new RegExp(`^${prefix}-(\\d+)`, 'i');
+  const regex = new RegExp(`^${prefix}-?(\\d+)`, 'i');
   for (const p of safePins) {
     if (p && typeof p.zoneCode === 'string') {
       const match = p.zoneCode.match(regex);

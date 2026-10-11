@@ -87,7 +87,7 @@ interface CondoUnitSurveyStore {
   // Kịch bản Chủ nhà Vắng mặt
   setAbsenteeMode: (isAbsent: boolean) => void;
   updateAbsenteeInfo: (updates: Partial<CondoUnitAbsenteeInfo>) => void;
-  addAbsenteeMinutesPhoto: (url: string) => void;
+  addAbsenteeMinutesPhoto: (url: string, replacesUri?: string) => void;
   removeAbsenteeMinutesPhoto: (index: number) => void;
 }
 
@@ -237,6 +237,25 @@ export function mergeCondoUnitDataSafely(
     }
   });
   merged.workingMinutesPhotos = mergedMinutes;
+
+  // 3.5. Bảo vệ ảnh Biên bản vắng chủ (absenteeMinutesPhotos)
+  const localAbsMinutes = localData.absenteeInfo?.absenteeMinutesPhotos || localData.absenteeMinutesPhotos || [];
+  const serverAbsMinutes = serverData.absenteeInfo?.absenteeMinutesPhotos || serverData.absenteeMinutesPhotos || [];
+  const absMinutesSet = new Set<string>();
+  const mergedAbsMinutes: string[] = [];
+  [...serverAbsMinutes, ...localAbsMinutes].forEach((u) => {
+    if (u && !absMinutesSet.has(u)) {
+      absMinutesSet.add(u);
+      mergedAbsMinutes.push(u);
+    }
+  });
+  merged.absenteeMinutesPhotos = mergedAbsMinutes;
+  if (merged.absenteeInfo) {
+    merged.absenteeInfo = {
+      ...merged.absenteeInfo,
+      absenteeMinutesPhotos: mergedAbsMinutes,
+    };
+  }
 
   // 4. Bảo vệ chữ ký khảo sát viên và chủ hộ
   if (!serverData.surveyorSignature && localData.surveyorSignature) {
@@ -428,6 +447,7 @@ function dedupePhotoArrays(data: CondoUnitFormData): CondoUnitFormData {
   return {
     ...data,
     workingMinutesPhotos: dedupeStrings(data.workingMinutesPhotos),
+    absenteeMinutesPhotos: dedupeStrings(data.absenteeMinutesPhotos),
     zones: (data.zones || []).map((z) => ({
       ...z,
       overviewPhotos: dedupeStrings(z.overviewPhotos) || [],
@@ -1546,7 +1566,7 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
     });
   },
 
-  addAbsenteeMinutesPhoto: (url: string) => {
+  addAbsenteeMinutesPhoto: (url: string, replacesUri?: string) => {
     if (get().isReadOnly) return;
     const existing = get().formData.absenteeInfo || {
       absenceReason: 'HOMEOWNER_ABSENT',
@@ -1560,11 +1580,20 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
       attemptCount: 1,
       absenteeMinutesPhotos: [],
     };
-    const nextPhotos = [...(existing.absenteeMinutesPhotos || []), url];
-    const nextInfo: CondoUnitAbsenteeInfo = { ...existing, absenteeMinutesPhotos: nextPhotos };
+    const cur = existing.absenteeMinutesPhotos || get().formData.absenteeMinutesPhotos || [];
+    let next: string[];
+    if (replacesUri && cur.includes(replacesUri)) {
+      next = cur.map((u) => (u === replacesUri ? url : u));
+    } else if (cur.includes(url)) {
+      next = cur;
+    } else {
+      next = [...cur, url];
+    }
+    const dedupeNext = Array.from(new Set(next.filter((u) => typeof u === 'string' && u.trim() !== '')));
+    const nextInfo: CondoUnitAbsenteeInfo = { ...existing, absenteeMinutesPhotos: dedupeNext };
     get().applyFormData({
       absenteeInfo: nextInfo,
-      absenteeMinutesPhotos: nextPhotos,
+      absenteeMinutesPhotos: dedupeNext,
     });
   },
 

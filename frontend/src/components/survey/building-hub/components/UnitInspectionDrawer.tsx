@@ -269,24 +269,23 @@ export const UnitInspectionDrawer: React.FC<UnitInspectionDrawerProps> = ({
               type="button"
               onClick={handleStartSurvey}
               className={`flex-1 sm:flex-initial min-h-[48px] px-5 py-2.5 rounded-xl font-bold text-xs sm:text-sm text-white shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer hover:shadow-lg active:scale-98 ${
-                isMaster
-                  ? 'bg-indigo-600 hover:bg-indigo-700'
-                  : isApproved
-                  ? 'bg-blue-600 hover:bg-blue-700'
+                isApproved
+                  ? 'bg-emerald-600 hover:bg-emerald-700'
+                  : isSubmitted
+                  ? 'bg-sky-600 hover:bg-sky-700'
                   : isInProgress
                   ? 'bg-amber-600 hover:bg-amber-700'
+                  : isAbsent
+                  ? 'bg-purple-600 hover:bg-purple-700'
+                  : isMaster
+                  ? 'bg-indigo-600 hover:bg-indigo-700'
                   : 'bg-teal-600 hover:bg-teal-700'
               }`}
             >
-              {isMaster ? (
+              {isApproved ? (
                 <>
-                  <Building2 size={16} />
-                  <span>Khảo Sát Khu Vực Này</span>
-                </>
-              ) : isApproved ? (
-                <>
-                  <ShieldCheck size={16} />
-                  <span>Khảo Sát Phase 2</span>
+                  <CheckCircle2 size={16} />
+                  <span>{isMaster ? 'Xem Hồ Sơ Đã Duyệt' : 'Khảo Sát Phase 2'}</span>
                 </>
               ) : isSubmitted ? (
                 <>
@@ -296,7 +295,17 @@ export const UnitInspectionDrawer: React.FC<UnitInspectionDrawerProps> = ({
               ) : isInProgress ? (
                 <>
                   <Play size={16} className="fill-current" />
-                  <span>Tiếp Tục Khảo Sát</span>
+                  <span>{isMaster ? 'Tiếp Tục Khảo Sát Master' : 'Tiếp Tục Khảo Sát'}</span>
+                </>
+              ) : isAbsent ? (
+                <>
+                  <AlertTriangle size={16} />
+                  <span>Tiếp Tục / Khảo Sát Lại</span>
+                </>
+              ) : isMaster ? (
+                <>
+                  <Building2 size={16} />
+                  <span>Khảo Sát Khu Vực Này</span>
                 </>
               ) : (
                 <>

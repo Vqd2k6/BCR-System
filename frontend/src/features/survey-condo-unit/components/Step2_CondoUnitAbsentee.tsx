@@ -3,9 +3,7 @@ import { useCondoUnitSurveyStore } from '../store/useCondoUnitSurveyStore';
 import {
   isResidentStatus,
   isCondoUnitAbsenceReason,
-  isCondoUnitWitnessRole,
   CONDO_UNIT_ABSENCE_REASONS,
-  CONDO_UNIT_WITNESS_ROLES,
 } from '../types/condo-unit.types';
 import { Card } from '../../../core/components/ui/Card';
 import { Button } from '../../../core/components/ui/Button';
@@ -13,12 +11,12 @@ import { Input, Select } from '../../../core/components/ui/FormControls';
 import {
   Home,
   UserX,
+  UserCheck,
   ShieldAlert,
   ArrowRight,
   ArrowLeft,
   Calendar,
   Phone,
-  UserCheck,
   FileCheck2,
   Undo2,
 } from 'lucide-react';
@@ -232,7 +230,7 @@ export const Step2_CondoUnitAbsentee: React.FC = () => {
             <ShieldAlert className="w-5 h-5 text-purple-600" />
             <div>
               <h2 className="text-base font-bold text-slate-800">
-                2.2. Ghi Nhận Lý Do Vắng Mặt & Bên Thứ 3 Xác Nhận
+                2.2. Ghi Nhận Lý Do Vắng Mặt & Thông Báo Khảo Sát
               </h2>
               <p className="text-xs text-slate-500">
                 Thu thập căn cứ chứng minh KSV đã tiếp cận thực tế nhưng không thể vào căn hộ
@@ -296,53 +294,11 @@ export const Step2_CondoUnitAbsentee: React.FC = () => {
           <textarea
             rows={3}
             disabled={isReadOnly}
-            placeholder="VD: Tổ khảo sát đã bấm chuông 3 lần và gõ cửa nhưng không có người trả lời. Đại diện bảo vệ tầng xác nhận căn hộ này chủ nhà hiện đang đi công tác dài ngày..."
+            placeholder="VD: Tổ khảo sát đã bấm chuông 3 lần và gõ cửa nhưng không có người trả lời. Căn hộ này chủ nhà hiện đang đi vắng hoặc công tác dài ngày..."
             value={absInfo.notes || ''}
             onChange={(e) => updateAbsenteeInfo({ notes: e.target.value })}
             className="w-full text-xs p-3 rounded-xl border border-slate-300 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-slate-50/50"
           />
-        </div>
-
-        {/* Người chứng kiến / Bên thứ 3 */}
-        <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
-          <h4 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-            <UserCheck className="w-4 h-4 text-purple-600" />
-            <span>Người Làm Chứng / Đại Diện Bên Thứ 3 Xác Nhận Căn Hộ Khóa Cửa</span>
-          </h4>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <Select
-              label="Vai Trò Người Làm Chứng"
-              value={absInfo.witnessRole || 'BUILDING_MANAGEMENT'}
-              disabled={isReadOnly}
-              onChange={(e) => {
-                const val = e.target.value;
-                if (isCondoUnitWitnessRole(val)) {
-                  updateAbsenteeInfo({ witnessRole: val });
-                }
-              }}
-              options={CONDO_UNIT_WITNESS_ROLES.map((w) => ({
-                value: w.value,
-                label: w.label,
-              }))}
-            />
-
-            <Input
-              label="Họ và Tên Người Làm Chứng"
-              placeholder="VD: Trần Văn B (Bảo vệ ca sáng)"
-              value={absInfo.witnessName || ''}
-              disabled={isReadOnly}
-              onChange={(e) => updateAbsenteeInfo({ witnessName: e.target.value })}
-            />
-
-            <Input
-              label="Số Điện Thoại Người Làm Chứng"
-              placeholder="VD: 0918123456"
-              value={absInfo.witnessPhone || ''}
-              disabled={isReadOnly}
-              onChange={(e) => updateAbsenteeInfo({ witnessPhone: e.target.value })}
-            />
-          </div>
         </div>
 
         {/* Giấy hẹn & Lịch hẹn lại */}

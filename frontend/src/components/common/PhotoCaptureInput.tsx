@@ -175,6 +175,7 @@ export const PhotoCaptureInput: React.FC<PhotoCaptureProps> = ({
     setFacingMode,
   } = useLiveCamera({
     effectiveWatermarkOptions,
+    displayPhotoCode,
     cameraInputId,
     onSuccessCapture: async ({ blob, photoCode }) => {
       if (effectiveReadOnly) {
@@ -232,7 +233,6 @@ export const PhotoCaptureInput: React.FC<PhotoCaptureProps> = ({
       return;
     }
     e.target.blur();
-    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
     handleFileChange(e);
   };
 
@@ -242,7 +242,6 @@ export const PhotoCaptureInput: React.FC<PhotoCaptureProps> = ({
       return;
     }
     e.target.blur();
-    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
     const file = e.target.files?.[0];
     if (!file) return;
 

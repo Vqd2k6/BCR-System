@@ -1,4 +1,3 @@
-import React from 'react';
 import {
   Crop,
   ArrowRight,
@@ -8,10 +7,11 @@ import {
   ZoomIn,
   CheckCircle2,
   AlertCircle,
-  Upload,
-  Camera,
+  RefreshCw,
+  RotateCcw,
 } from 'lucide-react';
 import { PhotoCaptureInput } from '../../../../components/common/PhotoCaptureInput';
+import type { PhotoChangeMeta } from '../../../../components/common/photo-capture/types';
 import type { EvidencePhotoItem } from '../../../survey-phase1/types/phase1.types';
 import type { NormalizedBbox } from '../../types/masterAreaSurvey.types';
 import type { MetroWatermarkOptions } from '../../../../utils/watermarkEngine';
@@ -20,7 +20,7 @@ interface Step2OverviewAndCadSetupProps {
   unitCode: string;
   floorName: string;
   overviewPhotos: EvidencePhotoItem[];
-  onAddOverviewPhoto: (url: string, photoCode?: string) => void;
+  onAddOverviewPhoto: (url: string, photoCode?: string, meta?: PhotoChangeMeta) => void;
   onRemoveOverviewPhoto: (index: number) => void;
   cadSketchPhotoUrl: string;
   onCadSketchPhotoUrlChange: (url: string) => void;
@@ -30,6 +30,8 @@ interface Step2OverviewAndCadSetupProps {
   onToggleSeparateStructuralCad: (enabled: boolean) => void;
   isCroppingCad: boolean;
   onOpenCadCropModal: () => void;
+  onAutoCropFromFloorCad?: () => void;
+  onClearCadSketch?: () => void;
   activeBbox: NormalizedBbox | null;
   hasParentCad: boolean;
   watermarkOptions?: MetroWatermarkOptions;
@@ -53,6 +55,8 @@ export const Step2_OverviewAndCadSetup: React.FC<Step2OverviewAndCadSetupProps> 
   onToggleSeparateStructuralCad: _onToggleSeparateStructuralCad,
   isCroppingCad,
   onOpenCadCropModal,
+  onAutoCropFromFloorCad,
+  onClearCadSketch,
   activeBbox: _activeBbox,
   hasParentCad,
   watermarkOptions,
@@ -139,7 +143,7 @@ export const Step2_OverviewAndCadSetup: React.FC<Step2OverviewAndCadSetupProps> 
             <PhotoCaptureInput
               label="Chụp / Tải thêm ảnh toàn cảnh khu vực"
               value=""
-              onChange={(newUrl, photoCode) => onAddOverviewPhoto(newUrl, photoCode)}
+              onChange={(newUrl, photoCode, meta) => onAddOverviewPhoto(newUrl, photoCode, meta)}
               watermarkOptions={watermarkOptions}
               photoCode={`P01_${unitCode}_${overviewPhotos.length + 1}`}
               height="150px"
@@ -149,7 +153,7 @@ export const Step2_OverviewAndCadSetup: React.FC<Step2OverviewAndCadSetupProps> 
       </div>
 
       {/* =============================================================== */}
-      {/* 2.2: THIẾT LẬP BẢN VẼ SƠ ĐỒ KHU VỰC (2 BUTTONS + CAD BÊN DƯỚI) */}
+      {/* 2.2: THIẾT LẬP BẢN VẼ SƠ ĐỒ KHU VỰC (CÁC NÚT THAO TÁC + CAD) */}
       {/* =============================================================== */}
       <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs flex flex-col gap-3.5">
         <div className="flex items-center justify-between">
@@ -172,26 +176,41 @@ export const Step2_OverviewAndCadSetup: React.FC<Step2OverviewAndCadSetupProps> 
           )}
         </div>
 
-        {/* 2 Nút chức năng: [ Trích xuất từ CAD tầng ] & [ Tải ảnh / CAD riêng ] */}
-        {!isReadOnly && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+        {/* Các nút thiết lập bản vẽ khi chưa có CAD */}
+        {!isReadOnly && !cadSketchPhotoUrl && (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+            {onAutoCropFromFloorCad && hasParentCad && (
+              <button
+                type="button"
+                onClick={onAutoCropFromFloorCad}
+                disabled={isCroppingCad}
+                className="w-full py-2.5 px-3 rounded-xl border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-2xs"
+                title="Tự động lấy lại sơ đồ từ CAD tầng mẹ (theo phân vùng hoặc toàn tầng)"
+              >
+                {isCroppingCad ? (
+                  <>
+                    <Loader2 size={15} className="animate-spin" />
+                    <span>Đang trích xuất...</span>
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw size={15} />
+                    <span>Lấy lại từ CAD tầng</span>
+                  </>
+                )}
+              </button>
+            )}
+
             <button
               type="button"
               onClick={onOpenCadCropModal}
               disabled={isCroppingCad || !hasParentCad}
-              className="w-full py-2.5 px-3 rounded-xl border border-indigo-200 bg-indigo-50/70 hover:bg-indigo-100 text-indigo-700 text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-2xs"
+              className={`w-full py-2.5 px-3 rounded-xl border border-indigo-200 bg-indigo-50/70 hover:bg-indigo-100 text-indigo-700 text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-2xs ${
+                !hasParentCad ? 'sm:col-span-2' : ''
+              }`}
             >
-              {isCroppingCad ? (
-                <>
-                  <Loader2 size={15} className="animate-spin" />
-                  <span>Đang xử lý cắt CAD...</span>
-                </>
-              ) : (
-                <>
-                  <Crop size={15} />
-                  <span>Trích xuất từ CAD tầng (Kéo thả ô cắt)</span>
-                </>
-              )}
+              <Crop size={15} />
+              <span>Cắt CAD tầng (Kéo ô)</span>
             </button>
 
             <div className="w-full">
@@ -218,23 +237,54 @@ export const Step2_OverviewAndCadSetup: React.FC<Step2OverviewAndCadSetupProps> 
               className="max-h-[50vh] w-auto object-contain rounded-lg shadow-xs cursor-pointer hover:opacity-95 transition-opacity"
               onClick={() => onPreviewImage(cadSketchPhotoUrl)}
             />
-            <div className="w-full flex items-center justify-between pt-2 px-1 text-xs text-slate-500">
-              <span className="font-mono">Sơ đồ đã sẵn sàng cho Bước 3 & Bước 4</span>
-              <button
-                type="button"
-                onClick={() => onPreviewImage(cadSketchPhotoUrl)}
-                className="text-indigo-600 hover:text-indigo-800 font-bold flex items-center gap-1 cursor-pointer"
-              >
-                <ZoomIn size={13} />
-                <span>Xem phóng to</span>
-              </button>
+            <div className="w-full flex items-center justify-between pt-2 px-1 text-xs text-slate-500 gap-2 flex-wrap">
+              <span className="font-mono text-emerald-700 font-semibold">Sơ đồ đã sẵn sàng cho Bước 3 & Bước 4</span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => onPreviewImage(cadSketchPhotoUrl)}
+                  className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold flex items-center gap-1 cursor-pointer transition-colors"
+                  title="Xem phóng to"
+                >
+                  <ZoomIn size={13} />
+                  <span>Phóng to</span>
+                </button>
+                {!isReadOnly && hasParentCad && (
+                  <button
+                    type="button"
+                    onClick={onOpenCadCropModal}
+                    className="px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold flex items-center gap-1 cursor-pointer transition-colors"
+                    title="Cắt lại ô bản vẽ từ CAD tầng"
+                  >
+                    <Crop size={13} />
+                    <span>Cắt lại</span>
+                  </button>
+                )}
+                {!isReadOnly && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (onClearCadSketch) {
+                        onClearCadSketch();
+                      } else {
+                        onCadSketchPhotoUrlChange('');
+                      }
+                    }}
+                    className="px-2.5 py-1 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 font-bold flex items-center gap-1 cursor-pointer transition-colors"
+                    title="Xóa bản vẽ này để lấy lại từ CAD tầng hoặc tải ảnh khác"
+                  >
+                    <Trash2 size={13} />
+                    <span>Xóa / Đổi bản vẽ</span>
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         ) : (
           <div className="p-8 rounded-xl border border-dashed border-slate-300 bg-slate-50 text-center flex flex-col items-center justify-center gap-2">
             <Crop className="w-8 h-8 text-slate-400" />
             <p className="text-xs text-slate-500">
-              Bấm nút <span className="font-bold text-indigo-600">"Trích xuất từ CAD tầng"</span> để kéo thả ô chữ nhật cắt bản vẽ, hoặc tải lên ảnh CAD riêng của khu vực.
+              Bấm nút <span className="font-bold text-emerald-700">"Lấy lại từ CAD tầng"</span> để tự động trích xuất theo phân vùng, hoặc kéo thả ô cắt / tải lên bản vẽ riêng.
             </p>
           </div>
         )}
