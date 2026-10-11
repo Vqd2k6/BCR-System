@@ -210,8 +210,12 @@ export const Step4_UnitSignatures: React.FC<Props> = ({ onSubmitFinal, isSubmitt
                     }`}>
                       {e.defects && e.defects.length > 0 ? `${e.defects.length} khuyết tật` : 'Ổn định'}
                     </span>
-                    <div className="text-[10px] text-slate-400 mt-0.5">
-                      {e.ctxPhotoUrl ? '✓ Có ảnh CTX' : 'Chưa có ảnh'}
+                    <div className="text-[10px] text-slate-500 mt-0.5">
+                      {e.overviewPhotos && e.overviewPhotos.length > 0
+                        ? `✓ ${e.overviewPhotos.length} ảnh toàn cảnh`
+                        : e.ctxPhotoUrl
+                        ? '✓ Có ảnh CTX'
+                        : 'Chưa có ảnh'}
                     </div>
                   </div>
                 </div>

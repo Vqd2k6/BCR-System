@@ -1209,6 +1209,74 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
                     </div>
                   )}
 
+                  {/* Ảnh tổng quan cấu kiện kết cấu E */}
+                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                        <Camera className="w-4 h-4 text-amber-600" />
+                        Ảnh Chụp Tổng Quan Cấu Kiện ({activeElement.elementCode} - {activeElement.elementType})
+                      </span>
+                      <span className="text-[11px] text-slate-500">
+                        Đã chụp: {activeElement.overviewPhotos?.length || 0} ảnh
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      {(activeElement.overviewPhotos || []).map((url, i) => (
+                        <div key={i} className="relative rounded-lg overflow-hidden border border-slate-300">
+                          <TapToZoomThumbnail
+                            src={url}
+                            alt={`Overview ${activeElement.elementCode} #${i + 1}`}
+                            label={`Ảnh ${i + 1}`}
+                            photoCode={`${activeElement.elementCode}_OVERVIEW_${i + 1}`}
+                            aspectClass="h-24 aspect-auto"
+                            actions={
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const updated = (activeElement.overviewPhotos || []).filter((_, idx) => idx !== i);
+                                  const newCtx =
+                                    activeElement.ctxPhotoUrl === url ? updated[0] || '' : activeElement.ctxPhotoUrl;
+                                  updateElement(activeElementIndex, {
+                                    overviewPhotos: updated,
+                                    ctxPhotoUrl: newCtx,
+                                  });
+                                }}
+                                className="p-1 bg-rose-600 text-white rounded text-xs cursor-pointer shadow hover:bg-rose-700"
+                                title="Xóa ảnh"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            }
+                          />
+                        </div>
+                      ))}
+                      <PhotoCaptureInput
+                        label="+ Thêm ảnh tổng quan E"
+                        value=""
+                        onChange={(url) => {
+                          if (url) {
+                            const updated = [...(activeElement.overviewPhotos || []), url];
+                            const newCtx = activeElement.ctxPhotoUrl || url;
+                            updateElement(activeElementIndex, {
+                              overviewPhotos: updated,
+                              ctxPhotoUrl: newCtx,
+                            });
+                          }
+                        }}
+                        watermarkOptions={{
+                          parcelCode: bCode,
+                          floor: `Tầng ${formData.floorNumber}`,
+                          zoneOrRoom: activeElement.elementCode,
+                          photoType: 'OVERVIEW',
+                          photoIndex: (activeElement.overviewPhotos?.length || 0) + 1,
+                        }}
+                        height="96px"
+                      />
+                    </div>
+                  </div>
+
                   {/* Khảo sát khuyết tật trên cấu kiện chịu lực */}
                   <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
                     <label className="flex items-center gap-2 cursor-pointer select-none">
