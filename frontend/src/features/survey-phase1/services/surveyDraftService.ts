@@ -16,6 +16,7 @@ export interface DraftResponseData {
   updatedAt?: string;
   syncVersion?: number;
   message?: string;
+  isViewOnly?: boolean;
   draft?: {
     reportId: string;
     currentStep: number;
@@ -45,10 +46,17 @@ export const surveyDraftService = {
   /**
    * Truy vấn bản nháp hiện tại của công trình từ server
    */
-  async fetchDraft(parcelId: string, unitId?: string | null): Promise<DraftResponseData> {
+  async fetchDraft(
+    parcelId: string,
+    unitId?: string | null,
+    options?: { viewOnly?: boolean }
+  ): Promise<DraftResponseData> {
     try {
       const res = await api.get(`/surveys/draft/${parcelId}`, {
-        params: unitId ? { unitId } : {},
+        params: {
+          ...(unitId ? { unitId } : {}),
+          ...(options?.viewOnly ? { viewOnly: 'true' } : {}),
+        },
       });
       return res.data?.data || res.data;
     } catch (err: unknown) {

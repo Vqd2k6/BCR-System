@@ -9,7 +9,7 @@ import {
   type DefectItem,
   type CadZonePin,
 } from '../types/condo-unit.types';
-import { surveyDraftService } from '../../survey-phase1/services/surveyDraftService';
+import { surveyDraftService, type DraftResponseData } from '../../survey-phase1/services/surveyDraftService';
 import api from '../../../services/api';
 import { getNextAvailablePinCode } from '../../../components/canvas/FloorCadPinningCanvas';
 import { sanitizeSurveyDataForSync } from '../../../core/services/uploadQueueService';
@@ -35,7 +35,18 @@ interface CondoUnitSurveyStore {
   takeoverDraft: (handoverCode: string, note?: string) => Promise<boolean>;
   checkDraftLock: () => Promise<void>;
 
-  initializeForm: (parcel: GisParcel, unit?: BuildingUnit | null) => void;
+  initializeForm: (
+    parcel: GisParcel,
+    unit?: BuildingUnit | null,
+    options?: { readOnly?: boolean }
+  ) => void;
+  /**
+   * Admin yêu cầu mở khóa chỉnh sửa từ chế độ chỉ xem: kiểm tra khóa ca / bàn giao.
+   * Trả true nếu được phép sửa ngay (đã nạp bản nháp chủ phiên), false nếu cần tiếp quản / đang bị khóa.
+   */
+  requestEditUnlock: () => Promise<boolean>;
+  /** Đánh dấu dữ liệu hiện tại đã là dữ liệu thật (vd. sau khi admin mở lại hồ sơ đã nộp) để cho phép đồng bộ */
+  markDraftHydrated: () => void;
   updateFormData: (updates: Partial<CondoUnitFormData>) => void;
   setStep: (step: number) => void;
   nextStep: () => void;
@@ -385,6 +396,8 @@ export function mergeCondoUnitDataSafely(
 
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 let isHydratingDraft = false;
+// Chỉ cho phép đồng bộ nháp lên server SAU KHI đã nạp xong dữ liệu thật từ server (tránh ghi đè dữ liệu mặc định/rỗng)
+let hasHydratedDraft = false;
 
 const getDefaultCondoUnitFormData = (parcelId: string, unitId: string): CondoUnitFormData => ({
   parcelId,
@@ -482,7 +495,12 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
   closeLockedModal: () => set({ isLockedByOther: false, lockedInfo: null }),
   closeHandoverModal: () => set({ isHandoverModalOpen: false, handoverInfo: null }),
 
-  initializeForm: (parcel: GisParcel, unit?: BuildingUnit | null) => {
+  initializeForm: (parcel: GisParcel, unit?: BuildingUnit | null, options?: { readOnly?: boolean }) => {
+    hasHydratedDraft = false;
+    if (debounceTimer) {
+      clearTimeout(debounceTimer);
+      debounceTimer = null;
+    }
     const pId = parcel.id;
     const uId = unit?.id || 'unit-default';
     const draftKey = `metro2_condo_unit_draft_${pId}_${uId}`;
@@ -519,9 +537,11 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
     }
 
     const isSubmittedOrApprovedUnit = unit?.status === 'SUBMITTED' || unit?.status === 'APPROVED';
+    // Chế độ chỉ xem: đã nộp/duyệt, hoặc người gọi yêu cầu read-only (vd. admin xem biểu mẫu)
+    const isViewingOnly = Boolean(isSubmittedOrApprovedUnit || options?.readOnly);
 
-    // Khôi phục bản nháp nếu có (chỉ khi căn hộ chưa nộp hoặc chưa duyệt)
-    if (!isSubmittedOrApprovedUnit) {
+    // Khôi phục bản nháp nếu có (chỉ khi căn hộ chưa nộp/duyệt và KHÔNG ở chế độ chỉ xem)
+    if (!isViewingOnly) {
       try {
         const saved = localStorage.getItem(draftKey);
         if (saved) {
@@ -630,7 +650,7 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
     }
 
     // Lưu ngay vào danh sách đang làm dở trên local (chỉ khi căn hộ đang khảo sát)
-    if (!isSubmittedOrApprovedUnit) {
+    if (!isViewingOnly) {
       try {
         const inProgressKey = `metro2_condo_in_progress_units_${pId}`;
         const list: string[] = JSON.parse(localStorage.getItem(inProgressKey) || '[]');
@@ -676,7 +696,7 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
       targetStep = curStore.currentStep;
     }
 
-    const isUnitReadOnly = unit?.status === 'SUBMITTED' || unit?.status === 'APPROVED';
+    const isUnitReadOnly = isViewingOnly;
 
     set({
       currentStep: targetStep,
@@ -684,13 +704,21 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
       lastSavedAt: new Date().toLocaleTimeString('vi-VN'),
       syncStatus: 'IDLE',
       isReadOnly: isUnitReadOnly,
+      isLockedByOther: false,
+      lockedInfo: null,
+      isHandoverModalOpen: false,
+      handoverInfo: null,
     });
 
-    // Hydrate từ cloud draft nếu có trên server
-    surveyDraftService
-      .fetchDraft(pId, uId)
+    // Hydrate từ cloud: đã nộp/duyệt -> KHÔNG gọi fetchDraft (tránh nạp nháp cũ/bật modal khóa), nạp thẳng báo cáo đã nộp.
+    // Chế độ chỉ xem (admin) -> đọc nháp ở viewOnly, không khóa ca / không bắt tiếp quản.
+    const draftPromise: Promise<DraftResponseData> = isSubmittedOrApprovedUnit
+      ? Promise.resolve({ hasDraft: false })
+      : surveyDraftService.fetchDraft(pId, uId, { viewOnly: isViewingOnly });
+
+    draftPromise
       .then(async (draftRes) => {
-        if (draftRes?.isLocked) {
+        if (!isViewingOnly && draftRes?.isLocked) {
           set({
             isLockedByOther: true,
             lockedInfo: {
@@ -703,7 +731,7 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
           return;
         }
 
-        if (draftRes?.requiresHandover) {
+        if (!isViewingOnly && draftRes?.requiresHandover) {
           set({
             isHandoverModalOpen: true,
             handoverInfo: {
@@ -795,7 +823,7 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
                   }
                   set({
                     syncStatus: 'SAVED',
-                    isReadOnly: finalStatus === 'SUBMITTED' || finalStatus === 'APPROVED',
+                    isReadOnly: get().isReadOnly || finalStatus === 'SUBMITTED' || finalStatus === 'APPROVED',
                     lastSavedAt: rObj.updated_at
                       ? new Date(rObj.updated_at).toLocaleTimeString('vi-VN')
                       : new Date().toLocaleTimeString('vi-VN'),
@@ -807,9 +835,17 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
             }
           }
         }
+
+        // Đã nạp xong dữ liệu thật từ server -> từ giờ mới cho phép đồng bộ nháp (chỉ khi KHÔNG ở chế độ chỉ xem)
+        if (!isViewingOnly && get().formData.parcelId === pId && get().formData.unitId === uId) {
+          hasHydratedDraft = true;
+        }
       })
       .catch((err) => {
         console.warn('[CondoUnitStore] Không thể tải bản nháp cloud:', err);
+        if (!isViewingOnly && get().formData.parcelId === pId && get().formData.unitId === uId) {
+          hasHydratedDraft = true;
+        }
       });
   },
 
@@ -827,7 +863,7 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
       return;
     }
 
-    if (isHydratingDraft) return;
+    if (isHydratingDraft || !hasHydratedDraft) return;
 
     set({ syncStatus: 'SAVING' });
 
@@ -1266,6 +1302,60 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
     } catch (_e) {}
   },
 
+  requestEditUnlock: async () => {
+    const { formData } = get();
+    if (!formData.parcelId || !formData.unitId) return false;
+    const pId = formData.parcelId;
+    const uId = formData.unitId;
+    try {
+      const draftRes = await surveyDraftService.fetchDraft(pId, uId);
+      if (draftRes?.isLocked) {
+        set({
+          isLockedByOther: true,
+          lockedInfo: {
+            surveyorName: draftRes.activeSurveyorName || 'Kỹ sư khác',
+            phone: draftRes.activeSurveyorPhone,
+            minutesAgo: draftRes.minutesAgo || 1,
+            message: draftRes.message,
+          },
+        });
+        return false;
+      }
+      if (draftRes?.requiresHandover) {
+        set({
+          isHandoverModalOpen: true,
+          handoverInfo: {
+            fromSurveyorName: draftRes.fromSurveyorName || 'Kỹ sư ca trước',
+            fromSurveyorPhone: draftRes.fromSurveyorPhone,
+            currentStep: draftRes.currentStep || 1,
+            securityCode: draftRes.securityCode || '',
+            updatedAt: draftRes.updatedAt || '',
+          },
+        });
+        return false;
+      }
+      if (draftRes?.hasDraft && draftRes.draft?.surveyData) {
+        const cur = get().formData;
+        if (cur.parcelId === pId && cur.unitId === uId) {
+          const safelyMerged = mergeCondoUnitDataSafely(cur, draftRes.draft.surveyData as Partial<CondoUnitFormData>);
+          isHydratingDraft = true;
+          get().updateFormData(safelyMerged);
+          isHydratingDraft = false;
+          set({ syncVersion: draftRes.draft.syncVersion || get().syncVersion });
+        }
+      }
+      hasHydratedDraft = true;
+      return true;
+    } catch (err) {
+      console.warn('[CondoUnitStore] Không thể mở khóa chỉnh sửa:', err);
+      return false;
+    }
+  },
+
+  markDraftHydrated: () => {
+    hasHydratedDraft = true;
+  },
+
   takeoverDraft: async (handoverCode: string, note?: string) => {
     const { formData } = get();
     if (!formData.parcelId || !formData.unitId) return false;
@@ -1299,6 +1389,7 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
           lockedInfo: null,
         }));
 
+        hasHydratedDraft = true;
         try {
           const draftKey = `metro2_condo_unit_draft_${formData.parcelId}_${formData.unitId}`;
           localStorage.setItem(draftKey, JSON.stringify(get().formData));
@@ -1314,6 +1405,8 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
   },
 
   releaseDraftLock: async () => {
+    // Chế độ chỉ xem / đã nộp: không phải chủ phiên nên tuyệt đối không gọi API nhả khóa
+    if (get().isReadOnly) return;
     const { parcelId, unitId } = get().formData;
     if (!parcelId) return;
     try {

@@ -33,6 +33,10 @@ interface CondoMasterSurveyStore {
     updatedAt: string;
   } | null;
 
+  /** Chế độ chỉ đọc: tuyệt đối không đồng bộ / nhả khóa lên máy chủ */
+  isReadOnly: boolean;
+  setIsReadOnly: (readOnly: boolean) => void;
+
   initializeForm: (parcel: GisParcel) => void;
   updateFormData: (updates: Partial<CondoMasterFormData>) => void;
   setStep: (step: number) => void;
@@ -75,6 +79,8 @@ export const useCondoMasterSurveyStore = create<CondoMasterSurveyStore>((set, ge
   lockedInfo: null,
   isHandoverModalOpen: false,
   handoverInfo: null,
+  isReadOnly: false,
+  setIsReadOnly: (isReadOnly: boolean) => set({ isReadOnly }),
 
   closeHandoverModal: () => set({ isHandoverModalOpen: false }),
   closeLockedModal: () => set({ isLockedByOther: false, lockedInfo: null }),
@@ -244,8 +250,9 @@ export const useCondoMasterSurveyStore = create<CondoMasterSurveyStore>((set, ge
   },
 
   syncDraftToServer: async () => {
-    const { formData, currentStep, syncVersion } = get();
-    if (!formData.parcelId) return;
+    const { formData, currentStep, syncVersion, isReadOnly } = get();
+    // Chặn tuyệt đối khi chỉ đọc hoặc khi chưa gắn thửa đất thật (placeholder 'default')
+    if (isReadOnly || !formData.parcelId || formData.parcelId === 'default') return;
 
     set({ syncStatus: 'SYNCING' });
     try {
@@ -272,8 +279,8 @@ export const useCondoMasterSurveyStore = create<CondoMasterSurveyStore>((set, ge
   },
 
   releaseDraftLock: async () => {
-    const { formData } = get();
-    if (!formData.parcelId) return;
+    const { formData, isReadOnly } = get();
+    if (isReadOnly || !formData.parcelId) return;
     try {
       await surveyDraftService.releaseLock(formData.parcelId);
       set({ syncStatus: 'SAVED', lastSyncedAt: new Date().toLocaleTimeString('vi-VN') });

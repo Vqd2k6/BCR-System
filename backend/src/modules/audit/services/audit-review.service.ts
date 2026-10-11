@@ -812,6 +812,8 @@ export class AuditReviewService {
            SET status = 'DRAFT',
                submitted_at = NULL,
                zone_admin_id = $2,
+               is_ready_for_handover = TRUE,
+               last_edited_by_id = $2,
                engineering_recommendations = COALESCE($3, engineering_recommendations),
                updated_at = NOW()
            WHERE id = $1;`,

@@ -28,6 +28,7 @@ export const CondoUnitWizardNav: React.FC<Props> = ({ onBackToHub }) => {
     releaseDraftLock,
     isPhotoAuditOpen,
     setIsPhotoAuditOpen,
+    isReadOnly,
   } = useCondoUnitSurveyStore();
 
   const audit = React.useMemo(() => auditCondoUnitPhotos(formData), [formData]);
@@ -131,17 +132,26 @@ export const CondoUnitWizardNav: React.FC<Props> = ({ onBackToHub }) => {
             </button>
           )}
 
-          <SyncStatusBadge
-            syncStatus={badgeSyncStatus}
-            lastSyncedAt={lastSavedAt}
-            isDirty={false}
-            onManualSync={() => {
-              void syncDraftToServer();
-            }}
-            onReleaseLock={() => {
-              void releaseDraftLock();
-            }}
-          />
+          {isReadOnly ? (
+            <span
+              className="inline-flex items-center gap-1 px-2 sm:px-2.5 py-1 rounded-lg text-[11px] sm:text-xs font-bold bg-slate-100 text-slate-600 border border-slate-300"
+              title="Biểu mẫu ở chế độ chỉ xem: không sửa, không đồng bộ"
+            >
+              Chỉ xem · Không đồng bộ
+            </span>
+          ) : (
+            <SyncStatusBadge
+              syncStatus={badgeSyncStatus}
+              lastSyncedAt={lastSavedAt}
+              isDirty={false}
+              onManualSync={() => {
+                void syncDraftToServer();
+              }}
+              onReleaseLock={() => {
+                void releaseDraftLock();
+              }}
+            />
+          )}
         </div>
       </div>
 

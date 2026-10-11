@@ -458,17 +458,84 @@ export class SurveyService {
     return await SurveyRepository.findActiveDraft(parcelId, unitId);
   }
 
+  /**
+   * Đếm "bằng chứng dữ liệu thật" trong payload khảo sát: số URL ảnh + số phần tử Z/E/ghim CAD.
+   * Dùng để phát hiện payload rỗng/mặc định ghi đè lên bản nháp đã có dữ liệu.
+   */
+  static countSurveyEvidence(input: unknown): number {
+    let parsed: unknown = input;
+    if (typeof input === 'string') {
+      try {
+        parsed = JSON.parse(input);
+      } catch {
+        return 0;
+      }
+    }
+    const ARRAY_KEYS = new Set(['zones', 'structuralElements', 'cadZonePins', 'cadElementPins', 'defects']);
+    const URL_RE = /^(https?:\/\/|\/uploads\/|data:image\/)/i;
+    let count = 0;
+    const walk = (node: unknown, depth: number): void => {
+      if (depth > 12 || node === null || node === undefined) return;
+      if (typeof node === 'string') {
+        if (URL_RE.test(node)) count += 1;
+        return;
+      }
+      if (Array.isArray(node)) {
+        node.forEach((item) => walk(item, depth + 1));
+        return;
+      }
+      if (typeof node === 'object') {
+        for (const [key, value] of Object.entries(node as Record<string, unknown>)) {
+          if (ARRAY_KEYS.has(key) && Array.isArray(value)) count += value.length;
+          walk(value, depth + 1);
+        }
+      }
+    };
+    walk(parsed, 0);
+    return count;
+  }
+
+  /**
+   * Người đang là "chủ phiên" của bản nháp: KSV sở hữu hoặc người chỉnh sửa cuối cùng (vd. admin sau khi mở lại hồ sơ).
+   */
+  private static isActiveEditor(
+    draft: { surveyor_id?: string | null; last_edited_by_id?: string | null },
+    userId: string
+  ): boolean {
+    return draft.surveyor_id === userId || draft.last_edited_by_id === userId;
+  }
+
   static async getSurveyDraft(
     parcelId: string,
     currentUserId: string,
-    unitId?: string | null
+    unitId?: string | null,
+    options?: { viewOnly?: boolean }
   ) {
     const draft = await SurveyRepository.findActiveDraft(parcelId, unitId);
     if (!draft) {
       return { hasDraft: false };
     }
 
-    const isOwner = draft.surveyor_id === currentUserId;
+    const isOwner = SurveyService.isActiveEditor(draft, currentUserId);
+
+    // Chế độ chỉ xem (admin): trả dữ liệu nháp để hiển thị, KHÔNG khóa ca, KHÔNG yêu cầu tiếp quản
+    if (options?.viewOnly && !isOwner) {
+      return {
+        hasDraft: true,
+        isLocked: false,
+        requiresHandover: false,
+        isViewOnly: true,
+        draft: {
+          reportId: draft.id,
+          currentStep: draft.current_step,
+          surveyData: typeof draft.survey_data_json === 'string'
+            ? JSON.parse(draft.survey_data_json)
+            : draft.survey_data_json,
+          syncVersion: draft.sync_version,
+          updatedAt: draft.updated_at,
+        },
+      };
+    }
 
     if (!isOwner) {
       const diffMs = Date.now() - new Date(draft.updated_at).getTime();
@@ -553,12 +620,23 @@ export class SurveyService {
     }
 
     const existing = await SurveyRepository.findActiveDraft(data.parcelId, data.unitId);
-    if (existing && existing.surveyor_id !== data.surveyorId) {
-      const diffMs = Date.now() - new Date(existing.updated_at).getTime();
-      const diffMinutes = Math.floor(diffMs / (60 * 1000));
-      if (diffMinutes < 15 && !existing.is_ready_for_handover) {
+    if (existing && !SurveyService.isActiveEditor(existing, data.surveyorId)) {
+      // Người không phải chủ nháp (kể cả admin) luôn phải tiếp quản chính thức trước khi ghi đè nháp,
+      // trừ khi chủ nháp đã chủ động mở khóa ca (is_ready_for_handover).
+      if (!existing.is_ready_for_handover) {
         throw new BadRequestError(
-          `Bản nháp đang bị khóa bởi Kỹ sư ${existing.surveyor_name}. Bạn cần tiếp quản ca trước khi lưu.`
+          `Bản nháp thuộc về Kỹ sư ${existing.surveyor_name || 'khác'}. Bạn cần tiếp quản ca trước khi lưu.`
+        );
+      }
+    }
+
+    // Chống ghi đè payload rỗng/mặc định lên bản nháp đã có dữ liệu thật (ảnh, vùng Z/E, ghim CAD)
+    if (existing) {
+      const existingEvidence = SurveyService.countSurveyEvidence(existing.survey_data_json);
+      const incomingEvidence = SurveyService.countSurveyEvidence(data.surveyData);
+      if (existingEvidence >= 3 && incomingEvidence === 0) {
+        throw new BadRequestError(
+          'Từ chối đồng bộ: dữ liệu gửi lên đang rỗng trong khi bản nháp trên máy chủ đã có dữ liệu (ảnh/vùng khảo sát). Vui lòng tải lại trang để nạp đúng bản nháp.'
         );
       }
     }
