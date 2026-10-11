@@ -3,6 +3,7 @@ import type { GisParcel, BuildingUnit } from '../../../core/types/domain.types';
 import {
   isResidentStatus,
   type CondoUnitFormData,
+  type CondoUnitAbsenteeInfo,
   type UnitDefectItem,
   type DamageZoneData,
   type StructuralElementData,
@@ -82,6 +83,12 @@ interface CondoUnitSurveyStore {
   setIsReadOnly: (readOnly: boolean) => void;
   isPhotoAuditOpen: boolean;
   setIsPhotoAuditOpen: (open: boolean) => void;
+
+  // Kịch bản Chủ nhà Vắng mặt
+  setAbsenteeMode: (isAbsent: boolean) => void;
+  updateAbsenteeInfo: (updates: Partial<CondoUnitAbsenteeInfo>) => void;
+  addAbsenteeMinutesPhoto: (url: string) => void;
+  removeAbsenteeMinutesPhoto: (index: number) => void;
 }
 
 /**
@@ -515,6 +522,23 @@ const getDefaultCondoUnitFormData = (parcelId: string, unitId: string): CondoUni
   ownerFeedback: 'Đồng ý với hiện trạng ghi nhận tại căn hộ',
   surveyDate: new Date().toLocaleDateString('vi-VN'),
   workingMinutesPhotos: [],
+
+  // Kịch bản Chủ nhà Vắng mặt
+  isAbsentee: false,
+  absenteeInfo: {
+    absenceReason: 'HOMEOWNER_ABSENT',
+    customReason: '',
+    notes: '',
+    witnessName: '',
+    witnessRole: 'BUILDING_MANAGEMENT',
+    witnessPhone: '',
+    noticeDelivered: false,
+    rescheduleDate: '',
+    attemptCount: 1,
+    absenteeMinutesPhotos: [],
+  },
+  absenteeReason: '',
+  absenteeMinutesPhotos: [],
 });
 
 export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) => ({
@@ -575,6 +599,10 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
       const resStatus = unit.resident_status || unit.residentStatus;
       if (resStatus && isResidentStatus(resStatus)) data.residentStatus = resStatus;
       if (unit.status) data.status = unit.status;
+      if (unit.status === 'POSTPONED_ABSENT') {
+        data.isAbsentee = true;
+        data.residentStatus = 'VẮNG_MẶT_KHÓA_CỬA';
+      }
     }
 
     const isSubmittedOrApprovedUnit = unit?.status === 'SUBMITTED' || unit?.status === 'APPROVED';
@@ -1480,5 +1508,75 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
     } catch (err) {
       console.warn('[CondoUnitStore] Lỗi mở khóa bản nháp:', err);
     }
+  },
+
+  setAbsenteeMode: (isAbsent: boolean) => {
+    if (get().isReadOnly) return;
+    const current = get().formData;
+    const newResidentStatus = isAbsent
+      ? (current.residentStatus === 'CHỦ_HỘ_Ở' || current.residentStatus === 'CHO_THUÊ' ? 'VẮNG_MẶT_KHÓA_CỬA' : current.residentStatus)
+      : (current.residentStatus === 'VẮNG_MẶT_KHÓA_CỬA' ? 'CHỦ_HỘ_Ở' : current.residentStatus);
+
+    get().applyFormData({
+      isAbsentee: isAbsent,
+      residentStatus: newResidentStatus,
+    });
+    set({ currentStep: 1 });
+  },
+
+  updateAbsenteeInfo: (updates: Partial<CondoUnitAbsenteeInfo>) => {
+    if (get().isReadOnly) return;
+    const existing = get().formData.absenteeInfo || {
+      absenceReason: 'HOMEOWNER_ABSENT',
+      customReason: '',
+      notes: '',
+      witnessName: '',
+      witnessRole: 'BUILDING_MANAGEMENT',
+      witnessPhone: '',
+      noticeDelivered: false,
+      rescheduleDate: '',
+      attemptCount: 1,
+      absenteeMinutesPhotos: [],
+    };
+    const nextInfo: CondoUnitAbsenteeInfo = { ...existing, ...updates };
+    get().applyFormData({
+      absenteeInfo: nextInfo,
+      absenteeReason: nextInfo.absenceReason,
+      absenteeMinutesPhotos: nextInfo.absenteeMinutesPhotos,
+    });
+  },
+
+  addAbsenteeMinutesPhoto: (url: string) => {
+    if (get().isReadOnly) return;
+    const existing = get().formData.absenteeInfo || {
+      absenceReason: 'HOMEOWNER_ABSENT',
+      customReason: '',
+      notes: '',
+      witnessName: '',
+      witnessRole: 'BUILDING_MANAGEMENT',
+      witnessPhone: '',
+      noticeDelivered: false,
+      rescheduleDate: '',
+      attemptCount: 1,
+      absenteeMinutesPhotos: [],
+    };
+    const nextPhotos = [...(existing.absenteeMinutesPhotos || []), url];
+    const nextInfo: CondoUnitAbsenteeInfo = { ...existing, absenteeMinutesPhotos: nextPhotos };
+    get().applyFormData({
+      absenteeInfo: nextInfo,
+      absenteeMinutesPhotos: nextPhotos,
+    });
+  },
+
+  removeAbsenteeMinutesPhoto: (index: number) => {
+    if (get().isReadOnly) return;
+    const existing = get().formData.absenteeInfo;
+    if (!existing) return;
+    const nextPhotos = (existing.absenteeMinutesPhotos || []).filter((_, i) => i !== index);
+    const nextInfo: CondoUnitAbsenteeInfo = { ...existing, absenteeMinutesPhotos: nextPhotos };
+    get().applyFormData({
+      absenteeInfo: nextInfo,
+      absenteeMinutesPhotos: nextPhotos,
+    });
   },
 }));

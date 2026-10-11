@@ -14,6 +14,7 @@ import {
 import {
   Home,
   User,
+  UserX,
   History,
   Zap,
   AlertTriangle,
@@ -28,7 +29,7 @@ import {
 import { useSurveyReadOnly } from '../../../core/context/SurveyReadOnlyContext';
 
 export const Step2_UnitSpecificInformation: React.FC = () => {
-  const { formData, updateFormData, nextStep, prevStep, isReadOnly: storeReadOnly } = useCondoUnitSurveyStore();
+  const { formData, updateFormData, setAbsenteeMode, nextStep, prevStep, isReadOnly: storeReadOnly } = useCondoUnitSurveyStore();
   const contextReadOnly = useSurveyReadOnly();
   const isReadOnly = contextReadOnly ?? storeReadOnly;
   const hi = formData.historyInterview;
@@ -142,6 +143,28 @@ export const Step2_UnitSpecificInformation: React.FC = () => {
             ]}
           />
         </div>
+
+        {/* Smart Banner: Gợi ý chuyển sang Luồng Vắng Mặt nếu phát hiện khóa cửa */}
+        {(formData.residentStatus === 'VẮNG_MẶT_KHÓA_CỬA' || formData.residentStatus === 'BỎ_TRỐNG_CHƯA_VỀ_Ở') && !isReadOnly && (
+          <div className="p-3.5 bg-purple-50 border border-purple-200 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 animate-in fade-in">
+            <div className="flex items-start gap-2.5">
+              <UserX className="w-5 h-5 text-purple-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-bold text-xs text-purple-950">Phát hiện căn hộ vắng chủ / khóa cửa ngoài</p>
+                <p className="text-[11px] text-purple-800 mt-0.5 leading-relaxed">
+                  Bạn có muốn chuyển sang quy trình <strong>Lập Hồ Sơ Vắng Mặt</strong> (bỏ qua khảo sát nội thất Z-E-D và chữ ký chủ nhà)?
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setAbsenteeMode(true)}
+              className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 active:scale-95 text-white font-bold text-xs rounded-lg transition-all shadow-xs cursor-pointer shrink-0"
+            >
+              Chuyển Sang Luồng Vắng Nhà ➔
+            </button>
+          </div>
+        )}
       </Card>
 
       {/* 2.2. Thông tin chủ sở hữu / Người đại diện ký biên bản */}

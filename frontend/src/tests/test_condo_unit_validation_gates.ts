@@ -51,8 +51,12 @@ const createBaseFormData = (): CondoUnitFormData => ({
     {
       id: 'z-01',
       zoneCode: 'Z-01',
+      floorName: 'Tầng 1',
       roomName: 'Phòng khách',
       componentType: 'Tường gạch',
+      wallMaterial: 'Sơn nước',
+      overviewPhotos: [],
+      notes: '',
       hasDamage: true,
       ctxPhotoUrl: 'https://r2.metro2.vn/ctx-z01.jpg',
       defects: [
@@ -195,6 +199,152 @@ console.log('\n--- TEST 6: THẨM ĐỊNH TOÀN BỘ HỒ SƠ HOÀN THIỆN Đ�
   console.log('✅ Hồ sơ đạt chuẩn 100%, sẵn sàng nộp lên hệ thống Metro 2!');
 }
 
+// TEST 7: Bước 3 - Vùng Z ghim trên CAD nhưng không có ảnh nào (overviewPhotos rỗng & không có ctxPhotoUrl)
+console.log('\n--- TEST 7: KIỂM SOÁT BƯỚC 3 (VÙNG Z GHIM TRÊN CAD BẮT BUỘC >= 1 ẢNH THỰC TẾ) ---');
+{
+  const data = createBaseFormData();
+  // Vùng Z không có khuyết tật (defects rỗng, hasDamage: false), không có ảnh nào
+  data.zones[0].hasDamage = false;
+  data.zones[0].defects = [];
+  data.zones[0].ctxPhotoUrl = '';
+  data.zones[0].overviewPhotos = [];
+
+  const issues = validateCondoUnitStep3(data);
+  const hasPhotoBlocking = issues.some(
+    (i) => i.target === 'ZONE' && i.fieldId.includes('zone-photo') && i.isBlocking
+  );
+  if (!hasPhotoBlocking) {
+    throw new Error('Test 7 thất bại: Vùng Z không có ảnh nào nhưng KHÔNG BỊ CHẶN CỨNG');
+  }
+  console.log('✅ Bước 3 CHẶN CỨNG thành công khi Vùng Z không có bất kỳ ảnh thực tế nào (overviewPhotos hoặc CTX)');
+
+  // Bổ sung 1 ảnh tổng quan không gian
+  data.zones[0].overviewPhotos = ['https://r2.metro2.vn/zone-overview-01.jpg'];
+  const issuesAfterPhoto = validateCondoUnitStep3(data);
+  const stillBlocked = issuesAfterPhoto.some(
+    (i) => i.target === 'ZONE' && i.fieldId.includes('zone-photo') && i.isBlocking
+  );
+  if (stillBlocked) {
+    throw new Error('Test 7 thất bại: Đã thêm ảnh overview nhưng vẫn bị chặn');
+  }
+  console.log('✅ Bước 3 thông qua Vùng Z khi đã có 1 ảnh tổng quan không gian thực tế');
+}
+
+// TEST 8: Bước 3 - Cấu kiện E ghim trên CAD nhưng không có ảnh nào
+console.log('\n--- TEST 8: KIỂM SOÁT BƯỚC 3 (CẤU KIỆN E KẾT CẤU BẮT BUỘC >= 1 ẢNH THỰC TẾ) ---');
+{
+  const data = createBaseFormData();
+  data.hasStructuralElements = true;
+  data.structuralElements = [
+    {
+      id: 'e-01',
+      elementCode: 'E-01',
+      floorName: 'Tầng 1',
+      elementType: 'Cột bê tông cốt thép',
+      materialType: 'BTCT',
+      roomName: 'Phòng khách',
+      notes: '',
+      hasDamage: false,
+      ctxPhotoUrl: '',
+      overviewPhotos: [],
+      defects: [],
+    },
+  ];
+
+  const issues = validateCondoUnitStep3(data);
+  const hasElemPhotoBlocking = issues.some(
+    (i) => i.target === 'ELEMENT' && i.fieldId.includes('element-photo') && i.isBlocking
+  );
+  if (!hasElemPhotoBlocking) {
+    throw new Error('Test 8 thất bại: Cấu kiện E không có ảnh nào nhưng KHÔNG BỊ CHẶN CỨNG');
+  }
+  console.log('✅ Bước 3 CHẶN CỨNG thành công khi Cấu kiện E không có bất kỳ ảnh chụp thực tế nào');
+
+  // Bổ sung 1 ảnh cấu kiện
+  data.structuralElements[0].overviewPhotos = ['https://r2.metro2.vn/elem-overview-01.jpg'];
+  const issuesAfterElemPhoto = validateCondoUnitStep3(data);
+  const elemStillBlocked = issuesAfterElemPhoto.some(
+    (i) => i.target === 'ELEMENT' && i.fieldId.includes('element-photo') && i.isBlocking
+  );
+  if (elemStillBlocked) {
+    throw new Error('Test 8 thất bại: Đã thêm ảnh cấu kiện E nhưng vẫn bị chặn');
+  }
+  console.log('✅ Bước 3 thông qua Cấu kiện E khi đã có ảnh chụp cấu kiện thực tế');
+}
+
+// TEST 9: Bước 4 - Hồ sơ thiếu cả ảnh biên bản làm việc giấy lẫn chữ ký điện tử
+console.log('\n--- TEST 9: KIỂM SOÁT BƯỚC 4 (BẮT BUỘC ẢNH BIÊN BẢN LÀM VIỆC HOẶC CHỮ KÝ PHÁP LÝ) ---');
+{
+  const data = createBaseFormData();
+  data.workingMinutesPhotos = [];
+  data.ownerSignature = '';
+  data.surveyorSignature = '';
+  data.signatures = undefined;
+
+  const issues = validateCondoUnitStep4AndCloud(data);
+  const hasMinutesBlocking = issues.some(
+    (i) => i.fieldId === 'step4-working-minutes' && i.isBlocking
+  );
+  if (!hasMinutesBlocking) {
+    throw new Error('Test 9 thất bại: Bước 4 thiếu biên bản và chữ ký nhưng KHÔNG BỊ CHẶN CỨNG');
+  }
+  console.log('✅ Bước 4 CHẶN CỨNG thành công khi thiếu cả ảnh biên bản giấy lẫn chữ ký điện tử');
+
+  // Khi có ảnh biên bản giấy
+  data.workingMinutesPhotos = ['https://r2.metro2.vn/bb-01.jpg'];
+  const issuesWithMinutes = validateCondoUnitStep4AndCloud(data);
+  const minutesStillBlocked = issuesWithMinutes.some(
+    (i) => i.fieldId === 'step4-working-minutes' && i.isBlocking
+  );
+  if (minutesStillBlocked) {
+    throw new Error('Test 9 thất bại: Đã có ảnh biên bản giấy nhưng vẫn bị chặn');
+  }
+  console.log('✅ Bước 4 thông qua thành công khi có ảnh chụp Biên bản làm việc giấy tại hiện trường');
+}
+
+// TEST 10: Chế độ Vắng Mặt (Absentee Mode) - Kiểm soát chặt chẽ
+console.log('\n--- TEST 10: KIỂM SOÁT CHẾ ĐỘ VẮNG MẶT (ABSENTEE WORKFLOW) ---');
+{
+  const data = createBaseFormData();
+  data.isAbsentee = true;
+  data.residentStatus = 'VẮNG_MẶT_KHÓA_CỬA';
+  data.absenteeInfo = {
+    absenceReason: 'HOMEOWNER_ABSENT',
+    absenteeMinutesPhotos: [],
+    attemptCount: 1,
+    noticeDelivered: true,
+  };
+  data.surveyorSignature = '';
+
+  const issuesStep3 = validateCondoUnitSingleStep(3, data);
+  const missingAbsMinutes = issuesStep3.some(
+    (i) => i.fieldId === 'step3-absentee-minutes-photos' && i.isBlocking
+  );
+  const missingSurveyorSig = issuesStep3.some(
+    (i) => i.fieldId === 'step3-surveyor-signature' && i.isBlocking
+  );
+
+  if (!missingAbsMinutes || !missingSurveyorSig) {
+    throw new Error('Test 10 thất bại: Chế độ vắng mặt không chặn khi thiếu biên bản vắng hoặc chữ ký KSV');
+  }
+  console.log('✅ Chế độ vắng mặt CHẶN CỨNG thành công khi thiếu ảnh biên bản vắng/giấy hẹn hoặc chữ ký KSV');
+
+  // Điền đủ thông tin vắng mặt
+  data.absenteeInfo = {
+    absenceReason: 'HOMEOWNER_ABSENT',
+    absenteeMinutesPhotos: ['https://r2.metro2.vn/abs-minutes.jpg'],
+    attemptCount: 1,
+    noticeDelivered: true,
+  };
+  data.surveyorSignature = 'data:image/svg+xml;base64,surveyorSig';
+  const fullAbsenteeResult = validateCondoUnitFull(data);
+  if (!fullAbsenteeResult.isValid) {
+    console.error('Absentee blocking issues:', fullAbsenteeResult.blockingIssues);
+    throw new Error('Test 10 thất bại: Đã điền đủ thông tin vắng mặt nhưng vẫn bị chặn');
+  }
+  console.log('✅ Chế độ vắng mặt thông qua 100% khi có ảnh giấy hẹn/biên bản vắng và chữ ký KSV');
+}
+
 console.log('\n====================================================================');
-console.log('🎉 TẤT CẢ 6 BỘ TEST CỔNG KIỂM SOÁT DỮ LIỆU ĐỀU PASS 100%!');
+console.log('🎉 TẤT CẢ 10 BỘ TEST CỔNG KIỂM SOÁT DỮ LIỆU ĐỀU PASS 100%!');
 console.log('====================================================================\n');

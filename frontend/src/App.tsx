@@ -788,7 +788,7 @@ export const App: React.FC = () => {
   const handleStartUnitSurvey = (parcel: GisParcel, unit: BuildingUnit, phase: 1 | 2 = 1) => {
     const targetTab: NavTab = phase === 2 ? 'phase2' : 'condo-unit';
     triggerSurveyWithCheckInGuard(() => {
-      const isUnitSubmitted = unit.status === 'SUBMITTED' || unit.status === 'APPROVED';
+      const isUnitSubmitted = unit.status === 'SUBMITTED' || unit.status === 'APPROVED' || unit.status === 'POSTPONED_ABSENT';
       setIsReadOnlySurvey(isUnitSubmitted);
       updateSelectedParcel(parcel);
       updateSelectedUnit(unit);

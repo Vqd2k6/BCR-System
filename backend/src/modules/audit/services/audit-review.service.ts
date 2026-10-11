@@ -813,6 +813,7 @@ export class AuditReviewService {
                submitted_at = NULL,
                zone_admin_id = $2,
                is_ready_for_handover = TRUE,
+               is_refused_or_absent = FALSE,
                last_edited_by_id = $2,
                engineering_recommendations = COALESCE($3, engineering_recommendations),
                updated_at = NOW()

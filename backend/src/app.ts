@@ -180,8 +180,8 @@ export function createApp(): express.Application {
   api.get('/admin/reports/:id/audit-view', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.getSplitPaneAuditView);
   api.post('/admin/reports/:id/approve', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.approveReport);
   api.post('/admin/reports/:id/reject', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.rejectReport);
-  api.post('/admin/reports/:id/revert-to-draft', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.revertReportToDraft);
-  api.post('/admin/reports/:id/revert-to-in-progress', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.revertReportToDraft);
+  api.post('/admin/reports/:id/revert-to-draft', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN', 'SURVEYOR'), AuditController.revertReportToDraft);
+  api.post('/admin/reports/:id/revert-to-in-progress', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN', 'SURVEYOR'), AuditController.revertReportToDraft);
   api.post('/admin/mutations/:id/approve', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.approveMutation);
   api.post('/admin/reports/:id/engineering-judgement', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ScoringController.applyJudgement);
   api.put('/admin/reports/:id/audit-edit', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.applyAdminSurveyEdit);

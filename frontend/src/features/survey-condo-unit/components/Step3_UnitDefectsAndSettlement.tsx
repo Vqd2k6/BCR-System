@@ -683,6 +683,7 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
               <div className="flex items-center gap-1.5 flex-wrap">
                 {zones.map((z, idx) => {
                   const defectCount = z.defects?.length || 0;
+                  const hasPhoto = Boolean((z.overviewPhotos && z.overviewPhotos.length > 0) || z.ctxPhotoUrl);
                   return (
                     <button
                       key={z.id || idx}
@@ -696,6 +697,14 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
                     >
                       <span>{z.zoneCode}</span>
                       <span className="text-[10px] opacity-80">({z.roomName})</span>
+                      {!hasPhoto && (
+                        <span
+                          className="px-1.5 py-0.5 rounded-md text-[9px] font-bold bg-rose-500 text-white animate-pulse"
+                          title="Vùng này chưa có ảnh chụp thực tế (Bắt buộc theo chuẩn Phase 1)"
+                        >
+                          Thiếu ảnh
+                        </span>
+                      )}
                       {defectCount > 0 && (
                         <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${activeZoneIndex === idx ? 'bg-white text-teal-800' : 'bg-rose-100 text-rose-800'}`}>
                           {defectCount}
@@ -1101,6 +1110,7 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
                   <div className="flex items-center gap-1.5 flex-wrap">
                     {structuralElements.map((elem, idx) => {
                       const defectCount = elem.defects?.length || 0;
+                      const hasPhoto = Boolean((elem.overviewPhotos && elem.overviewPhotos.length > 0) || elem.ctxPhotoUrl);
                       return (
                         <button
                           key={elem.id || idx}
@@ -1114,6 +1124,14 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
                         >
                           <span>{elem.elementCode}</span>
                           <span className="text-[10px] opacity-80">({elem.roomName})</span>
+                          {!hasPhoto && (
+                            <span
+                              className="px-1.5 py-0.5 rounded-md text-[9px] font-bold bg-rose-500 text-white animate-pulse"
+                              title="Cấu kiện này chưa có ảnh chụp thực tế (Bắt buộc theo chuẩn Phase 1)"
+                            >
+                              Thiếu ảnh
+                            </span>
+                          )}
                           {defectCount > 0 && (
                             <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${activeElementIndex === idx ? 'bg-white text-amber-900' : 'bg-rose-100 text-rose-800'}`}>
                               {defectCount}

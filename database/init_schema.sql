@@ -73,7 +73,10 @@ CREATE TYPE mutation_status_enum AS ENUM (
 CREATE TYPE absence_reason_enum AS ENUM (
     'HOMEOWNER_ABSENT', 
     'LOCKED_GATE', 
-    'REFUSED_ACCESS'
+    'REFUSED_ACCESS',
+    'UNOCCUPIED_EMPTY',
+    'LOCKED_SECURITY',
+    'OTHER'
 );
 
 CREATE TYPE task_status_enum AS ENUM (
@@ -485,11 +488,20 @@ CREATE TABLE survey_absence_logs (
     photo_proof_url TEXT,
     reschedule_date TIMESTAMPTZ,
     attempt_count INT NOT NULL DEFAULT 1,
-    recorded_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    recorded_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    unit_id UUID REFERENCES building_units(id) ON DELETE SET NULL,
+    custom_reason TEXT,
+    witness_name VARCHAR(255),
+    witness_role VARCHAR(100),
+    witness_phone VARCHAR(50),
+    notice_delivered BOOLEAN DEFAULT FALSE,
+    minutes_photos_json JSONB DEFAULT '[]'::jsonb
 );
 
 CREATE INDEX idx_absence_parcel ON survey_absence_logs(parcel_id);
 CREATE INDEX idx_absence_surveyor ON survey_absence_logs(surveyor_id);
+CREATE INDEX idx_absence_unit ON survey_absence_logs(unit_id);
+CREATE INDEX idx_survey_absence_logs_unit_id ON survey_absence_logs(unit_id) WHERE unit_id IS NOT NULL;
 
 CREATE TABLE parcel_mutation_events (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
