@@ -8,16 +8,11 @@ import {
   Building2,
   UserX,
   Camera,
-  CheckCircle2,
   Calendar,
-  Phone,
-  ShieldCheck,
   Undo2,
   ArrowLeft,
   FileText,
-  Clock,
   Home,
-  UserCheck,
 } from 'lucide-react';
 import api from '../../../services/api';
 import { getErrorMessage } from '@/utils/errorUtils';
@@ -86,10 +81,11 @@ export const CondoUnitAbsenteeReviewView: React.FC<Props> = ({
         unit.status = 'IN_PROGRESS';
       }
 
-      alert(`✅ Đã mở lại khảo sát cho căn hộ ${unitLabel}! Mời bạn tiếp tục khảo sát nội thất.`);
+      alert(`✅ Đã mở lại khảo sát cho căn hộ ${unitLabel}! Trạng thái căn hộ đã chuyển về "Đang làm dở" (IN_PROGRESS).`);
       if (onReopened) {
         onReopened();
       }
+      onBackToHome();
     } catch (err: unknown) {
       console.error('[CondoUnitAbsenteeReviewView] Reopen error:', err);
       alert(`❌ Lỗi mở lại khảo sát: ${getErrorMessage(err)}`);
@@ -271,16 +267,16 @@ export const CondoUnitAbsenteeReviewView: React.FC<Props> = ({
           )}
         </Card>
 
-        {/* Card 4: 2.2 Ghi nhận lý do vắng & Bên thứ 3 */}
+        {/* Card 4: 2.2 Ghi nhận lý do vắng & Thông báo */}
         <Card className="border-purple-200 bg-white shadow-xs space-y-4">
           <div className="flex items-center gap-2 pb-2.5 border-b border-purple-100">
             <UserX className="w-5 h-5 text-purple-600" />
             <h3 className="text-sm font-bold text-slate-800">
-              2.2. Chi Tiết Ghi Nhận Vắng Mặt & Người Làm Chứng
+              2.2. Chi Tiết Ghi Nhận Vắng Mặt & Thông Báo Khảo Sát
             </h3>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
             <div className="p-3 bg-purple-50 rounded-xl border border-purple-200">
               <span className="text-purple-700 block font-medium">Lý do vắng mặt:</span>
               <span className="font-bold text-purple-950 text-sm mt-0.5 block">
@@ -293,21 +289,6 @@ export const CondoUnitAbsenteeReviewView: React.FC<Props> = ({
                   : absInfo?.absenceReason === 'LOCKED_SECURITY'
                   ? 'Niêm phong BQL / Không có chìa khóa'
                   : absInfo?.customReason || 'Lý do khác'}
-              </span>
-            </div>
-
-            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-              <span className="text-slate-500 block">Người làm chứng:</span>
-              <span className="font-bold text-slate-800 text-sm mt-0.5 block">
-                {absInfo?.witnessName || 'Ban Quản Lý Tòa Nhà'}
-              </span>
-              <span className="text-[11px] text-slate-500 mt-0.5 block">
-                {absInfo?.witnessRole === 'SECURITY'
-                  ? 'Đội Bảo Vệ'
-                  : absInfo?.witnessRole === 'FLOOR_LEADER'
-                  ? 'Trưởng Tầng'
-                  : 'BQL Tòa Nhà'}
-                {absInfo?.witnessPhone ? ` • ${absInfo.witnessPhone}` : ''}
               </span>
             </div>
 
@@ -361,40 +342,6 @@ export const CondoUnitAbsenteeReviewView: React.FC<Props> = ({
               Chưa có ảnh biên bản giấy hoặc giấy hẹn dán cửa được tải lên.
             </p>
           )}
-        </Card>
-
-        {/* Card 6: 3.3 Chữ ký số KSV */}
-        <Card className="border-slate-200 bg-white shadow-xs space-y-3">
-          <div className="flex items-center justify-between pb-2.5 border-b border-slate-100">
-            <div className="flex items-center gap-2">
-              <CheckCircle2 className="w-5 h-5 text-teal-600" />
-              <h3 className="text-sm font-bold text-slate-800">
-                3.3. Chữ Ký Xác Nhận Của Khảo Sát Viên Hiện Trường
-              </h3>
-            </div>
-            <span className="text-xs text-slate-500">
-              Ngày lập: {formData.surveyDate || new Date().toLocaleDateString('vi-VN')}
-            </span>
-          </div>
-
-          <div className="flex flex-col sm:flex-row items-center gap-4 p-3 bg-slate-50 rounded-xl border border-slate-200">
-            <div className="w-48 h-24 bg-white rounded-lg border border-slate-300 flex items-center justify-center overflow-hidden shrink-0">
-              {formData.surveyorSignature ? (
-                <img
-                  src={formData.surveyorSignature}
-                  alt="Chữ ký KSV"
-                  className="max-h-full max-w-full object-contain"
-                />
-              ) : (
-                <span className="text-xs text-slate-400 italic">Chưa có chữ ký</span>
-              )}
-            </div>
-            <div className="text-xs text-slate-600 space-y-1">
-              <p className="font-bold text-slate-800">Khảo sát viên hiện trường</p>
-              <p>Hồ sơ đã được ký số cam kết đến hiện trường tiếp cận căn hộ nhưng chủ nhà vắng mặt.</p>
-              <p className="text-amber-700 font-semibold">Chủ nhà vắng mặt: Miễn chữ ký chủ hộ.</p>
-            </div>
-          </div>
         </Card>
       </main>
     </div>

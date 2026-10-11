@@ -294,6 +294,8 @@ export const SurveyCondoMasterAreaModal: React.FC<Props> = ({
               onToggleSeparateStructuralCad={state.setUseSeparateStructuralCad}
               isCroppingCad={state.isCroppingCad}
               onOpenCadCropModal={() => state.setIsCadCropModalOpen(true)}
+              onAutoCropFromFloorCad={state.handleAutoCropFromFloorCad}
+              onClearCadSketch={state.handleClearCadSketch}
               activeBbox={state.activeBbox}
               hasParentCad={Boolean(state.floorPlanData?.plan?.cad_photo_url || floorCadUrl)}
               watermarkOptions={state.watermarkOptions}

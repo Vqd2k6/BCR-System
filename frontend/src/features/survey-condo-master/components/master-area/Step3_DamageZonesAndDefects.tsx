@@ -144,6 +144,7 @@ export const Step3_DamageZonesAndDefects: React.FC<Step3DamageZonesAndDefectsPro
                     defects: [],
                   },
                 ]);
+                setActiveZoneIndex(zones.length);
               }
             }}
             mode="ZONE"
@@ -191,8 +192,24 @@ export const Step3_DamageZonesAndDefects: React.FC<Step3DamageZonesAndDefectsPro
           )}
         </div>
 
-        {/* Chi tiết Vùng Z đang chọn */}
-        {activeZone && (
+        {/* Chi tiết Vùng Z đang chọn hoặc Trạng thái trống */}
+        {zones.length === 0 ? (
+          <div className="p-8 text-center border border-dashed border-slate-300 rounded-xl bg-slate-50 flex flex-col items-center justify-center gap-2">
+            <PenTool className="w-8 h-8 text-emerald-600/70" />
+            <p className="text-xs sm:text-sm font-bold text-slate-700">Chưa có Vùng kiến trúc (Z) nào được ghim</p>
+            <p className="text-xs text-slate-500">Chạm vào bản vẽ CAD ở trên để ghim vị trí hoặc bấm "Thêm Vùng Z" để bắt đầu ghi nhận.</p>
+            {!isReadOnly && (
+              <button
+                type="button"
+                onClick={onAddZone}
+                className="mt-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-xs cursor-pointer transition-colors"
+              >
+                <Plus size={14} />
+                <span>Thêm Vùng Z đầu tiên</span>
+              </button>
+            )}
+          </div>
+        ) : activeZone ? (
           <div className="flex flex-col gap-4 pt-1">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -204,11 +221,11 @@ export const Step3_DamageZonesAndDefects: React.FC<Step3DamageZonesAndDefectsPro
                 </h4>
               </div>
 
-              {!isReadOnly && zones.length > 1 && (
+              {!isReadOnly && zones.length > 0 && (
                 <button
                   type="button"
                   onClick={() => onDeleteZone(activeZoneIndex)}
-                  className="text-red-500 hover:text-red-700 text-xs flex items-center gap-1 cursor-pointer"
+                  className="text-red-500 hover:text-red-700 text-xs font-bold flex items-center gap-1 cursor-pointer"
                 >
                   <Trash2 size={13} />
                   <span>Xóa</span>
@@ -436,7 +453,7 @@ export const Step3_DamageZonesAndDefects: React.FC<Step3DamageZonesAndDefectsPro
               )}
             </div>
           </div>
-        )}
+        ) : null}
       </div>
 
       {/* Điều hướng Bước 3 */}

@@ -43,7 +43,8 @@ export interface CondoUnitValidationIssue {
     | 'SAGGING'
     | 'SENSITIVE'
     | 'MINUTES'
-    | 'CLOUD_SYNC';
+    | 'CLOUD_SYNC'
+    | 'SIGNATURE';
   code?: string; // Mã Z-01, E-01, D-01...
 }
 
@@ -697,18 +698,14 @@ export function validateCondoUnitAbsenteeStep3(formData: CondoUnitFormData): Con
     });
   }
 
-  // 2. Chữ ký Khảo sát viên (KSV)
-  const hasSurveyorSignature = Boolean(
-    formData.surveyorSignature?.trim() ||
-    formData.signatures?.surveyorSignature?.trim()
-  );
-  if (!hasSurveyorSignature) {
+  // 2. Chữ ký KSV khi lập biên bản vắng mặt
+  if (!formData.surveyorSignature) {
     issues.push({
       fieldId: 'step3-surveyor-signature',
       step: 3,
-      target: 'MINUTES',
-      title: 'Thiếu Chữ Ký Khảo Sát Viên (KSV)',
-      message: 'Khảo sát viên bắt buộc phải ký số xác nhận hồ sơ vắng mặt tại hiện trường trước khi nộp.',
+      target: 'SIGNATURE',
+      title: 'Thiếu chữ ký của Khảo sát viên',
+      message: 'Khảo sát viên bắt buộc phải ký xác nhận biên bản lập hồ sơ vắng mặt.',
       isBlocking: true,
     });
   }

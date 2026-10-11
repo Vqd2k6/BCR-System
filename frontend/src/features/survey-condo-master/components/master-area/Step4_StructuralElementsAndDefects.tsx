@@ -194,6 +194,7 @@ export const Step4_StructuralElementsAndDefects: React.FC<Step4StructuralElement
                         defects: [],
                       },
                     ]);
+                    setActiveElementIndex(structuralElements.length);
                   }
                 }}
                 mode="STRUCTURAL"
@@ -241,8 +242,24 @@ export const Step4_StructuralElementsAndDefects: React.FC<Step4StructuralElement
               )}
             </div>
 
-            {/* Chi tiết Cấu kiện E đang chọn */}
-            {activeElement && (
+            {/* Chi tiết Cấu kiện E đang chọn hoặc Trạng thái trống */}
+            {structuralElements.length === 0 ? (
+              <div className="p-8 text-center border border-dashed border-slate-300 rounded-xl bg-slate-50 flex flex-col items-center justify-center gap-2">
+                <PenTool className="w-8 h-8 text-amber-600/70" />
+                <p className="text-xs sm:text-sm font-bold text-slate-700">Chưa có Cấu kiện kết cấu (E) nào được ghim</p>
+                <p className="text-xs text-slate-500">Chạm vào sơ đồ CAD ở trên để ghim vị trí cột / dầm hoặc bấm "Thêm Cấu Kiện E" để bắt đầu ghi nhận.</p>
+                {!isReadOnly && (
+                  <button
+                    type="button"
+                    onClick={onAddElement}
+                    className="mt-2 px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs flex items-center gap-1.5 shadow-xs cursor-pointer transition-colors"
+                  >
+                    <Plus size={14} />
+                    <span>Thêm Cấu Kiện E đầu tiên</span>
+                  </button>
+                )}
+              </div>
+            ) : activeElement ? (
               <div className="flex flex-col gap-4 pt-1">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -254,11 +271,11 @@ export const Step4_StructuralElementsAndDefects: React.FC<Step4StructuralElement
                     </h4>
                   </div>
 
-                  {!isReadOnly && structuralElements.length > 1 && (
+                  {!isReadOnly && structuralElements.length > 0 && (
                     <button
                       type="button"
                       onClick={() => onDeleteElement(activeElementIndex)}
-                      className="text-red-500 hover:text-red-700 text-xs flex items-center gap-1 cursor-pointer"
+                      className="text-red-500 hover:text-red-700 text-xs font-bold flex items-center gap-1 cursor-pointer"
                     >
                       <Trash2 size={13} />
                       <span>Xóa</span>
@@ -470,7 +487,7 @@ export const Step4_StructuralElementsAndDefects: React.FC<Step4StructuralElement
                   )}
                 </div>
               </div>
-            )}
+            ) : null}
           </div>
         </>
       )}

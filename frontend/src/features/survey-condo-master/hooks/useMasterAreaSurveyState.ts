@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import type { GisParcel, BuildingUnit } from '../../../core/types/domain.types';
 import type { EvidencePhotoItem, DamageZoneData, StructuralElementData } from '../../survey-phase1/types/phase1.types';
-import type { CadZonePin } from '../../../components/canvas/FloorCadPinningCanvas';
+import { type CadZonePin, getNextAvailablePinCode } from '../../../components/canvas/FloorCadPinningCanvas';
 import type { DefectItem } from '../../../components/canvas/DefectPinningCanvas';
 import { api } from '../../../services/api';
 import { getErrorMessage } from '@/utils/errorUtils';
@@ -105,38 +105,14 @@ export function useMasterAreaSurveyState({
 
   // Step 3 State: Damage Zones (Z) & Defects (D of Z)
   const [cadZonePins, setCadZonePins] = useState<CadZonePin[]>([]);
-  const [zones, setZones] = useState<DamageZoneData[]>([
-    {
-      id: `zone_${Date.now()}_1`,
-      zoneCode: 'Z-01',
-      floorName: `Tầng ${floorNumber}`,
-      roomName: 'Khu vực chính',
-      componentType: ARCH_COMPONENT_TYPES[0] || 'Tường',
-      wallMaterial: WALL_MATERIALS[0] || 'Sơn nước',
-      overviewPhotos: [],
-      notes: '',
-      defects: [],
-    },
-  ]);
+  const [zones, setZones] = useState<DamageZoneData[]>([]);
   const [activeZoneIndex, setActiveZoneIndex] = useState<number>(0);
 
   // Step 4 State: Structural Elements (E) & Defects (D of E)
   const [hasStructuralElements, setHasStructuralElements] = useState<boolean>(true);
   const [noStructuralElementsReason, setNoStructuralElementsReason] = useState<string>('');
   const [cadElementPins, setCadElementPins] = useState<CadZonePin[]>([]);
-  const [structuralElements, setStructuralElements] = useState<StructuralElementData[]>([
-    {
-      id: `elem_${Date.now()}_1`,
-      elementCode: 'E1',
-      floorName: `Tầng ${floorNumber}`,
-      roomName: 'Khu vực chính',
-      elementType: STRUCTURAL_ELEMENT_TYPES[0] || 'Cột BTCT',
-      materialType: STRUCTURAL_MATERIALS[0] || 'BTCT',
-      overviewPhotos: [],
-      notes: '',
-      defects: [],
-    },
-  ]);
+  const [structuralElements, setStructuralElements] = useState<StructuralElementData[]>([]);
   const [activeElementIndex, setActiveElementIndex] = useState<number>(0);
 
   // Step 5 State: Summary, Burland calculation, Remarks
@@ -896,32 +872,60 @@ export function useMasterAreaSurveyState({
     setCustomBbox(newBbox);
   };
 
+  const handleClearCadSketch = () => {
+    setCadSketchPhotoUrl('');
+    if (!useSeparateStructuralCad) {
+      setCadStructuralSketchPhotoUrl('');
+    }
+    hasAutoCroppedRef.current = false;
+  };
+
   // Quản lý ảnh toàn cảnh khu vực (Bước 2): Tránh duplicate khi nhận Cloud URL
-  const handleUpdateOrAddOverviewPhoto = useCallback((url: string, photoCode?: string) => {
-    if (!url) return;
-    setOverviewPhotos((prev) => {
-      // 1. Nếu có photoCode truyền vào, kiểm tra xem đã có photo nào mang photoCode này chưa
-      if (photoCode) {
-        const foundIdx = prev.findIndex((p) => p.photoCode === photoCode);
-        if (foundIdx >= 0) {
-          const next = [...prev];
-          next[foundIdx] = { ...next[foundIdx], url };
-          return next;
+  const handleUpdateOrAddOverviewPhoto = useCallback(
+    (url: string, photoCode?: string, meta?: { replacesUri?: string }) => {
+      if (!url) return;
+      setOverviewPhotos((prev) => {
+        // 1. Chặn tuyệt đối nếu URL này đã tồn tại trong mảng (kể cả đã qua metro2:photo-promoted)
+        if (prev.some((p) => p.url === url)) {
+          return prev;
         }
-      }
-      // 2. Thêm mới nếu chưa có
-      const nextIdx = prev.length + 1;
-      const code = photoCode || `P01_${unitCode}_${nextIdx}`;
-      return [
-        ...prev,
-        {
-          url,
-          photoCode: code,
-          notes: `Ảnh toàn cảnh ${unitCode} #${nextIdx}`,
-        },
-      ];
-    });
-  }, [unitCode]);
+
+        // 2. Nếu có replacesUri (thăng cấp từ blob:local:// sang Cloudflare R2)
+        if (meta?.replacesUri) {
+          const replaces = meta.replacesUri;
+          const foundIdx = prev.findIndex((p) => p.url === replaces);
+          if (foundIdx >= 0) {
+            const next = [...prev];
+            next[foundIdx] = { ...next[foundIdx], url };
+            return next;
+          }
+        }
+
+        // 3. Nếu có photoCode truyền vào, kiểm tra xem đã có photo nào mang photoCode này chưa
+        if (photoCode) {
+          const foundIdx = prev.findIndex((p) => p.photoCode === photoCode);
+          if (foundIdx >= 0) {
+            const next = [...prev];
+            next[foundIdx] = { ...next[foundIdx], url };
+            return next;
+          }
+        }
+
+        // 4. Thêm mới nếu thực sự chưa tồn tại
+        const nextIdx = prev.length + 1;
+        const code = photoCode || `P01_${unitCode}_${nextIdx}`;
+        return [
+          ...prev,
+          {
+            url,
+            photoCode: code,
+            notes: `Ảnh toàn cảnh ${unitCode} #${nextIdx}`,
+          },
+        ];
+      });
+    },
+    [unitCode]
+  );
 
   const handleRemoveOverviewPhoto = (index: number) => {
     setOverviewPhotos((prev) => prev.filter((_, i) => i !== index));
@@ -943,10 +947,14 @@ export function useMasterAreaSurveyState({
   };
 
   const handleAddZone = () => {
+    const nextCode = getNextAvailablePinCode(
+      [...cadZonePins, ...zones.map((z) => ({ zoneCode: z.zoneCode }))],
+      'Z'
+    );
     const newIdx = zones.length + 1;
     const newZ: DamageZoneData = {
-      id: `zone_${Date.now()}_${newIdx}`,
-      zoneCode: `Z-${String(newIdx).padStart(2, '0')}`,
+      id: `zone_${Date.now()}_${nextCode}`,
+      zoneCode: nextCode,
       floorName: `Tầng ${floorNumber}`,
       roomName: COMMON_ROOM_NAMES[Math.min(newIdx - 1, COMMON_ROOM_NAMES.length - 1)] || 'Vùng kiến trúc',
       componentType: activeZone?.componentType || ARCH_COMPONENT_TYPES[0] || 'Tường',
@@ -961,17 +969,16 @@ export function useMasterAreaSurveyState({
 
   // Xóa tab ở thanh công cụ dưới -> Tự động xóa pin tương ứng trên CAD
   const handleDeleteZone = (index: number) => {
-    if (zones.length <= 1) {
-      alert('Phải giữ lại ít nhất 1 Vùng Z!');
-      return;
-    }
     const zoneToDelete = zones[index];
+    if (!zoneToDelete) return;
     if (!confirm(`Bạn có chắc muốn xóa Vùng ${zoneToDelete?.zoneCode}? Điểm ghim trên CAD cũng sẽ được gỡ bỏ.`)) return;
 
     // 1. Xóa khỏi mảng zones
     setZones((prev) => prev.filter((_, i) => i !== index));
     if (activeZoneIndex >= index && activeZoneIndex > 0) {
       setActiveZoneIndex(activeZoneIndex - 1);
+    } else {
+      setActiveZoneIndex(0);
     }
 
     // 2. Xóa ghim tương ứng trên CAD
@@ -983,10 +990,6 @@ export function useMasterAreaSurveyState({
   // Xóa pin trên CAD -> Tự động xóa tab tương ứng trong zones
   const handleDeleteZoneByCode = useCallback((zoneCode: string) => {
     setZones((prev) => {
-      if (prev.length <= 1) {
-        alert('Phải giữ lại ít nhất 1 Vùng Z trong danh sách!');
-        return prev;
-      }
       const targetIdx = prev.findIndex((z) => z.zoneCode === zoneCode);
       if (targetIdx < 0) return prev;
 
@@ -1124,10 +1127,14 @@ export function useMasterAreaSurveyState({
   };
 
   const handleAddElement = () => {
+    const nextCode = getNextAvailablePinCode(
+      [...cadElementPins, ...structuralElements.map((e) => ({ zoneCode: e.elementCode }))],
+      'E'
+    );
     const newIdx = structuralElements.length + 1;
     const newElem: StructuralElementData = {
-      id: `elem_${Date.now()}_${newIdx}`,
-      elementCode: `E${newIdx}`,
+      id: `elem_${Date.now()}_${nextCode}`,
+      elementCode: nextCode,
       floorName: `Tầng ${floorNumber}`,
       roomName: 'Khu vực chính',
       elementType: activeElement?.elementType || STRUCTURAL_ELEMENT_TYPES[0] || 'Cột BTCT',
@@ -1142,16 +1149,15 @@ export function useMasterAreaSurveyState({
 
   // Xóa tab ở thanh công cụ dưới -> Tự động xóa pin tương ứng trên CAD
   const handleDeleteElement = (index: number) => {
-    if (structuralElements.length <= 1) {
-      alert('Phải giữ lại ít nhất 1 Cấu kiện E!');
-      return;
-    }
     const elemToDelete = structuralElements[index];
+    if (!elemToDelete) return;
     if (!confirm(`Bạn có chắc muốn xóa Cấu kiện ${elemToDelete?.elementCode}? Điểm ghim trên CAD cũng sẽ được gỡ bỏ.`)) return;
 
     setStructuralElements((prev) => prev.filter((_, i) => i !== index));
     if (activeElementIndex >= index && activeElementIndex > 0) {
       setActiveElementIndex(activeElementIndex - 1);
+    } else {
+      setActiveElementIndex(0);
     }
 
     if (elemToDelete?.elementCode) {
@@ -1162,10 +1168,6 @@ export function useMasterAreaSurveyState({
   // Xóa pin trên CAD -> Tự động xóa tab tương ứng trong structuralElements
   const handleDeleteElementByCode = useCallback((elementCode: string) => {
     setStructuralElements((prev) => {
-      if (prev.length <= 1) {
-        alert('Phải giữ lại ít nhất 1 Cấu kiện E trong danh sách!');
-        return prev;
-      }
       const targetIdx = prev.findIndex((e) => e.elementCode === elementCode);
       if (targetIdx < 0) return prev;
 
@@ -1516,67 +1518,92 @@ export function useMasterAreaSurveyState({
     }
 
     // 3. Kiểm tra từng Vùng Z (Bước 3)
-    zones.forEach((z, zIdx) => {
-      const zPhotos = z.overviewPhotos || [];
-      if (zPhotos.length === 0 && !z.ctxPhotoUrl) {
-        blockingErrors.push({
-          id: `val_z_photo_${z.id}`,
-          step: 3,
-          stepTitle: 'Bước 3: Vùng Z',
-          category: 'ZONE',
-          title: `Vùng ${z.zoneCode}: Chưa chụp ảnh hiện trạng thực tế`,
-          description: `Vùng ${z.zoneCode} (${z.roomName}) bắt buộc phải chụp ít nhất 1 ảnh mảng tường thực tế.`,
-          status: 'ERROR',
-          tabIndex: zIdx,
-          actionLabel: `Đến ${z.zoneCode}`,
-        });
-      } else {
-        allItems.push({
-          id: `val_z_photo_${z.id}`,
-          step: 3,
-          stepTitle: 'Bước 3: Vùng Z',
-          category: 'ZONE',
-          title: `Vùng ${z.zoneCode}: Ảnh hiện trạng (${zPhotos.length} ảnh)`,
-          description: 'Đã có ảnh mảng tường thực tế làm mốc khảo sát.',
-          status: 'VALID',
-        });
-      }
-
-      if (!z.componentType || !z.wallMaterial) {
-        blockingErrors.push({
-          id: `val_z_mat_${z.id}`,
-          step: 3,
-          stepTitle: 'Bước 3: Vùng Z',
-          category: 'ZONE',
-          title: `Vùng ${z.zoneCode}: Chưa chọn Cấu kiện hoặc Vật liệu`,
-          description: `Vui lòng chỉ định loại cấu kiện và vật liệu hoàn thiện của ${z.zoneCode}.`,
-          status: 'ERROR',
-          tabIndex: zIdx,
-          actionLabel: `Đến ${z.zoneCode}`,
-        });
-      }
-
-      // Kiểm tra khuyết tật D của Z
-      (z.defects || []).forEach((def, dIdx) => {
-        if (!def.cuPhotoUrl) {
+    if (zones.length === 0) {
+      blockingErrors.push({
+        id: 'val_min_zones',
+        step: 3,
+        stepTitle: 'Bước 3: Vùng Z',
+        category: 'ZONE',
+        title: 'Chưa có Vùng kiến trúc (Z) nào được ghi nhận',
+        description: 'Khu vực dùng chung bắt buộc phải ghim hoặc thêm ít nhất 1 Vùng Z trên sơ đồ CAD.',
+        status: 'ERROR',
+        actionLabel: 'Đến Bước 3',
+      });
+    } else {
+      zones.forEach((z, zIdx) => {
+        const zPhotos = z.overviewPhotos || [];
+        if (zPhotos.length === 0 && !z.ctxPhotoUrl) {
           blockingErrors.push({
-            id: `val_z_d_cu_${z.id}_${dIdx}`,
+            id: `val_z_photo_${z.id}`,
             step: 3,
             stepTitle: 'Bước 3: Vùng Z',
-            category: 'DEFECT',
-            title: `Khuyết tật D${dIdx + 1} (${z.zoneCode}): Thiếu ảnh cận cảnh có thước đo`,
-            description: 'Quy chuẩn BCS yêu cầu mỗi điểm nứt bắt buộc phải có ảnh chụp cận cảnh có thước đo.',
+            category: 'ZONE',
+            title: `Vùng ${z.zoneCode}: Chưa chụp ảnh hiện trạng thực tế`,
+            description: `Vùng ${z.zoneCode} (${z.roomName}) bắt buộc phải chụp ít nhất 1 ảnh mảng tường thực tế.`,
+            status: 'ERROR',
+            tabIndex: zIdx,
+            actionLabel: `Đến ${z.zoneCode}`,
+          });
+        } else {
+          allItems.push({
+            id: `val_z_photo_${z.id}`,
+            step: 3,
+            stepTitle: 'Bước 3: Vùng Z',
+            category: 'ZONE',
+            title: `Vùng ${z.zoneCode}: Ảnh hiện trạng (${zPhotos.length} ảnh)`,
+            description: 'Đã có ảnh mảng tường thực tế làm mốc khảo sát.',
+            status: 'VALID',
+          });
+        }
+
+        if (!z.componentType || !z.wallMaterial) {
+          blockingErrors.push({
+            id: `val_z_mat_${z.id}`,
+            step: 3,
+            stepTitle: 'Bước 3: Vùng Z',
+            category: 'ZONE',
+            title: `Vùng ${z.zoneCode}: Chưa chọn Cấu kiện hoặc Vật liệu`,
+            description: `Vui lòng chỉ định loại cấu kiện và vật liệu hoàn thiện của ${z.zoneCode}.`,
             status: 'ERROR',
             tabIndex: zIdx,
             actionLabel: `Đến ${z.zoneCode}`,
           });
         }
+
+        // Kiểm tra khuyết tật D của Z
+        (z.defects || []).forEach((def, dIdx) => {
+          if (!def.cuPhotoUrl) {
+            blockingErrors.push({
+              id: `val_z_d_cu_${z.id}_${dIdx}`,
+              step: 3,
+              stepTitle: 'Bước 3: Vùng Z',
+              category: 'DEFECT',
+              title: `Khuyết tật D${dIdx + 1} (${z.zoneCode}): Thiếu ảnh cận cảnh có thước đo`,
+              description: 'Quy chuẩn BCS yêu cầu mỗi điểm nứt bắt buộc phải có ảnh chụp cận cảnh có thước đo.',
+              status: 'ERROR',
+              tabIndex: zIdx,
+              actionLabel: `Đến ${z.zoneCode}`,
+            });
+          }
+        });
       });
-    });
+    }
 
     // 4. Kiểm tra Cấu kiện E (Bước 4)
     if (hasStructuralElements) {
-      structuralElements.forEach((e, eIdx) => {
+      if (structuralElements.length === 0) {
+        blockingErrors.push({
+          id: 'val_min_elements',
+          step: 4,
+          stepTitle: 'Bước 4: Cấu kiện E',
+          category: 'STRUCTURAL',
+          title: 'Chưa có Cấu kiện kết cấu (E) nào được ghi nhận',
+          description: 'Nếu chọn "Có cấu kiện kết cấu", bắt buộc phải ghim ít nhất 1 Cấu kiện E hoặc chuyển sang "Không có" kèm lý do.',
+          status: 'ERROR',
+          actionLabel: 'Đến Bước 4',
+        });
+      } else {
+        structuralElements.forEach((e, eIdx) => {
         const ePhotos = e.overviewPhotos || [];
         if (ePhotos.length === 0 && !e.ctxPhotoUrl) {
           blockingErrors.push({
@@ -1633,7 +1660,8 @@ export function useMasterAreaSurveyState({
           }
         });
       });
-    } else {
+    }
+  } else {
       if (!noStructuralElementsReason || noStructuralElementsReason.trim().length < 10) {
         blockingErrors.push({
           id: 'val_no_struct_reason',
@@ -1935,6 +1963,7 @@ export function useMasterAreaSurveyState({
     handleUpdateOrAddOverviewPhoto,
     handleRemoveOverviewPhoto,
     handleAutoCropFromFloorCad,
+    handleClearCadSketch,
     handleConfirmCadCrop,
     // Step 3 (2-way sync với CAD)
     cadZonePins,

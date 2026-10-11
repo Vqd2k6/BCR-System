@@ -320,6 +320,7 @@ export const SurveyCondoUnitPage: React.FC<SurveyCondoUnitPageProps> = ({
           setLocalUnitStatus('IN_PROGRESS');
           setIsReadOnly(false);
           unlockEdit();
+          onBackToHome();
         }}
       />
     );
