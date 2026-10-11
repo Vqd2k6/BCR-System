@@ -8,7 +8,13 @@ import { getErrorMessage } from '@/utils/errorUtils';
 import { cropImageBoundingBox } from '../../../components/canvas/FloorPlanCadPartitionCanvas';
 import { useAdminViewLock } from '../../../core/hooks/useAdminViewLock';
 import type { MetroWatermarkOptions } from '../../../utils/watermarkEngine';
-import { isLocalBlobUri } from '../../../core/storage/offlinePhotoStorage';
+import {
+  isLocalBlobUri,
+  healLocalPhotoUris,
+  findUnsyncedPhotoPaths,
+  replaceLocalUriInObject,
+} from '../../../core/storage/offlinePhotoStorage';
+import { uploadQueue } from '../../../core/services/uploadQueueService';
 import {
   type NormalizedBbox,
   type FloorPlanResponse,
@@ -445,7 +451,9 @@ export function useMasterAreaSurveyState({
   }, [existingReportId, parcelId, unitId, readOnly, draftKey]);
 
   // Khôi phục dữ liệu nháp vào State
-  const applyDraftDataToState = useCallback((draft: Record<string, unknown>) => {
+  const applyDraftDataToState = useCallback((rawDraft: Record<string, unknown>) => {
+    // Thay mọi blob:local:// đã được upload xong bằng URL Cloud (tránh kẹt ảnh khi mở lại)
+    const draft = healLocalPhotoUris(rawDraft);
     if (Array.isArray(draft.overviewPhotos) && draft.overviewPhotos.length > 0) {
       setOverviewPhotos(draft.overviewPhotos as EvidencePhotoItem[]);
     }
@@ -484,6 +492,22 @@ export function useMasterAreaSurveyState({
     }
   }, []);
 
+  // Khi một ảnh upload xong (ở bất kỳ đâu), thăng cấp blob:local:// -> URL Cloud trong state của khu vực dùng chung
+  useEffect(() => {
+    const handlePromoted = (evt: Event) => {
+      const detail = (evt as CustomEvent<{ localId?: string; publicUrl?: string }>).detail;
+      if (!detail || !detail.localId || !detail.publicUrl) return;
+      const { localId, publicUrl } = detail;
+      setOverviewPhotos((prev) => replaceLocalUriInObject(prev, localId, publicUrl));
+      setCadSketchPhotoUrl((prev) => replaceLocalUriInObject(prev, localId, publicUrl));
+      setCadStructuralSketchPhotoUrl((prev) => replaceLocalUriInObject(prev, localId, publicUrl));
+      setZones((prev) => replaceLocalUriInObject(prev, localId, publicUrl));
+      setStructuralElements((prev) => replaceLocalUriInObject(prev, localId, publicUrl));
+    };
+    window.addEventListener('metro2:photo-promoted', handlePromoted);
+    return () => window.removeEventListener('metro2:photo-promoted', handlePromoted);
+  }, []);
+
   // Tổng hợp khuyết tật và tính toán phân cấp Burland chủ đạo
   const allDefects = useMemo(() => {
     const zDefects = zones.flatMap((z) => z.defects || []);
@@ -512,7 +536,7 @@ export function useMasterAreaSurveyState({
 
   // Đóng gói payload nháp
   const buildDraftPayload = useCallback(() => {
-    return {
+    return healLocalPhotoUris({
       overviewPhotos,
       cadSketchPhotoUrl,
       cadStructuralSketchPhotoUrl,
@@ -531,7 +555,7 @@ export function useMasterAreaSurveyState({
       unitName: unit.unit_name || unit.unitName || 'Khu vực dùng chung',
       unitType: 'MASTER',
       updatedAt: new Date().toISOString(),
-    };
+    });
   }, [
     overviewPhotos,
     cadSketchPhotoUrl,
@@ -1379,9 +1403,12 @@ export function useMasterAreaSurveyState({
   const photoAuditStats = useMemo(() => {
     let total = 0;
     let synced = 0;
+    const seen = new Set<string>();
 
     const check = (url?: string | null) => {
       if (!url || typeof url !== 'string' || !url.trim()) return;
+      if (seen.has(url)) return;
+      seen.add(url);
       total++;
       if (
         (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('/uploads')) &&
@@ -1396,19 +1423,23 @@ export function useMasterAreaSurveyState({
     if (useSeparateStructuralCad) check(cadStructuralSketchPhotoUrl);
 
     zones.forEach((z) => {
+      check(z.ctxPhotoUrl);
       (z.overviewPhotos || []).forEach((photoUrl) => check(photoUrl));
       (z.defects || []).forEach((d) => {
         check(d.cuPhotoUrl);
         check(d.macroPhotoUrl);
+        (d.cuPhotos || []).forEach((photoUrl) => check(photoUrl));
       });
     });
 
     if (hasStructuralElements) {
       structuralElements.forEach((e) => {
+        check(e.ctxPhotoUrl);
         (e.overviewPhotos || []).forEach((photoUrl) => check(photoUrl));
         (e.defects || []).forEach((d) => {
           check(d.cuPhotoUrl);
           check(d.macroPhotoUrl);
+          (d.cuPhotos || []).forEach((photoUrl) => check(photoUrl));
         });
       });
     }
@@ -1653,14 +1684,14 @@ export function useMasterAreaSurveyState({
 
     // 6. Trạng thái đồng bộ Cloud R2
     if (photoAuditStats.unsynced > 0) {
-      warnings.push({
+      blockingErrors.push({
         id: 'val_cloud_sync',
         step: 2,
         stepTitle: 'Đồng bộ Cloud R2',
         category: 'SYNC',
         title: `Còn ${photoAuditStats.unsynced} ảnh chưa lên Cloudflare R2`,
-        description: 'Dữ liệu ảnh đang lưu tạm trong máy. Hãy bấm nút Đồng bộ Cloud để lưu an toàn.',
-        status: 'WARNING',
+        description: 'Dữ liệu ảnh đang lưu tạm trong máy. Hãy bấm nút Đồng bộ Cloud để lưu an toàn trước khi nộp.',
+        status: 'ERROR',
         actionLabel: 'Kiểm toán ảnh',
       });
     }
@@ -1724,6 +1755,14 @@ export function useMasterAreaSurveyState({
       return;
     }
 
+    // 1b. Chặn nộp khi còn ảnh đang chờ/đang upload trong hàng đợi
+    const pendingUploads = uploadQueue.getPendingAndActiveCount();
+    if (pendingUploads > 0) {
+      alert(`Còn ${pendingUploads} ảnh đang tải lên Cloud. Vui lòng chờ hoàn tất rồi nộp lại!`);
+      setIsPhotoAuditModalOpen(true);
+      return;
+    }
+
     const confirmed = window.confirm(
       `Xác nhận nộp hồ sơ khảo sát hiện trạng khu vực ${unitCode} (${floorName})?\n\n` +
         `• Số Vùng Z: ${zones.length}\n` +
@@ -1739,7 +1778,7 @@ export function useMasterAreaSurveyState({
       setIsSubmitting(true);
       setSyncStatus('SYNCING');
 
-      const floorSurveyPayload = {
+      const floorSurveyPayload = healLocalPhotoUris({
         overviewPhotos,
         cadSketchPhotoUrl,
         cadStructuralSketchPhotoUrl: useSeparateStructuralCad ? cadStructuralSketchPhotoUrl : cadSketchPhotoUrl,
@@ -1749,7 +1788,19 @@ export function useMasterAreaSurveyState({
         structuralElements: hasStructuralElements ? structuralElements : [],
         hasStructuralElements,
         noStructuralElementsReason,
-      };
+      });
+
+      // Lưới an toàn cuối: không gửi đi bất kỳ blob:/base64 nào (sẽ thành ảnh mất vĩnh viễn trên báo cáo)
+      const unsyncedPaths = findUnsyncedPhotoPaths(floorSurveyPayload);
+      if (unsyncedPaths.length > 0) {
+        setIsSubmitting(false);
+        setSyncStatus('ERROR');
+        setIsPhotoAuditModalOpen(true);
+        alert(
+          `Còn ${unsyncedPaths.length} ảnh chưa lên Cloud nên chưa thể nộp. Vui lòng mở "Kiểm toán ảnh" để đồng bộ lại!`
+        );
+        return;
+      }
 
       const payload = {
         parcelId,

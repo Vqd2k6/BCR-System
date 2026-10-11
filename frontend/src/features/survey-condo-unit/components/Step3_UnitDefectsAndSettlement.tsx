@@ -959,9 +959,14 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
                   <PhotoCaptureInput
                     label="+ Thêm ảnh tổng quan"
                     value=""
-                    onChange={(url) => {
+                    onChange={(url, _code, meta) => {
                       if (url) {
-                        const updated = [...(activeZone.overviewPhotos || []), url];
+                        const curZone = useCondoUnitSurveyStore.getState().formData.zones?.[activeZoneIndex];
+                        const curPhotos: string[] = curZone?.overviewPhotos || [];
+                        const base = meta?.replacesUri
+                          ? curPhotos.map((p) => (p === meta.replacesUri ? url : p))
+                          : curPhotos;
+                        const updated = base.includes(url) ? base : [...base, url];
                         updateZone(activeZoneIndex, { overviewPhotos: updated });
                       }
                     }}
@@ -1361,10 +1366,16 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
                       <PhotoCaptureInput
                         label="+ Thêm ảnh tổng quan E"
                         value=""
-                        onChange={(url) => {
+                        onChange={(url, _code, meta) => {
                           if (url) {
-                            const updated = [...(activeElement.overviewPhotos || []), url];
-                            const newCtx = activeElement.ctxPhotoUrl || url;
+                            const curElem = useCondoUnitSurveyStore.getState().formData.structuralElements?.[activeElementIndex];
+                            const curPhotos: string[] = curElem?.overviewPhotos || [];
+                            const base = meta?.replacesUri
+                              ? curPhotos.map((p) => (p === meta.replacesUri ? url : p))
+                              : curPhotos;
+                            const updated = base.includes(url) ? base : [...base, url];
+                            const curCtx = curElem?.ctxPhotoUrl;
+                            const newCtx = !curCtx ? url : meta?.replacesUri && curCtx === meta.replacesUri ? url : curCtx;
                             updateElement(activeElementIndex, {
                               overviewPhotos: updated,
                               ctxPhotoUrl: newCtx,

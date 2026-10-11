@@ -304,10 +304,20 @@ export const Step4_UnitSignatures: React.FC<Props> = ({ onSubmitFinal, isSubmitt
           <PhotoCaptureInput
             label="+ Chụp / Tải thêm ảnh biên bản giấy"
             value=""
-            onChange={(url) => {
-              if (url) {
-                const next = [...(formData.workingMinutesPhotos || []), url];
-                updateFormData({ workingMinutesPhotos: next });
+            onChange={(url, _code, meta) => {
+              if (!url) return;
+              // Đọc danh sách MỚI NHẤT từ store (tránh closure cũ) và THAY bản tạm bằng URL Cloud thay vì thêm trùng
+              const cur = useCondoUnitSurveyStore.getState().formData.workingMinutesPhotos || [];
+              let next: string[];
+              if (meta?.replacesUri && cur.includes(meta.replacesUri)) {
+                next = cur.map((u) => (u === meta.replacesUri ? url : u));
+              } else if (cur.includes(url)) {
+                next = cur;
+              } else {
+                next = [...cur, url];
+              }
+              if (next !== cur) {
+                updateFormData({ workingMinutesPhotos: Array.from(new Set(next)) });
               }
             }}
             watermarkOptions={{

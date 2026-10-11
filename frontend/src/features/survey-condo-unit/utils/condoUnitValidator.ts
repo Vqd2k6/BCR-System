@@ -13,7 +13,8 @@ import type {
   DefectItem,
   CadZonePin,
 } from '../types/condo-unit.types';
-import { isLocalBlobUri } from '../../../core/storage/offlinePhotoStorage';
+import { isLocalBlobUri, healLocalPhotoUris, findUnsyncedPhotoPaths } from '../../../core/storage/offlinePhotoStorage';
+import { uploadQueue } from '../../../core/services/uploadQueueService';
 import { auditCondoUnitPhotos } from './condoUnitPhotoAudit';
 
 export interface CondoUnitValidationIssue {
@@ -325,6 +326,34 @@ export function validateCondoUnitStep4AndCloud(formData: CondoUnitFormData): Con
       target: 'CLOUD_SYNC',
       title: `${audit.unsynced} ảnh chưa đồng bộ lên Cloud R2`,
       message: `Hệ thống ghi nhận còn ${audit.unsynced} ảnh đang lưu tạm trong máy (${previewLabels}${audit.unsynced > 3 ? '...' : ''}). Vui lòng bấm "Đồng bộ ảnh ngay" hoặc kiểm tra kết nối mạng trước khi nộp.`,
+      isBlocking: true,
+    });
+  }
+
+  // Lưới an toàn: quét MỌI chuỗi blob:/base64 còn sót (kể cả trường audit chưa liệt kê) để không nộp nhầm ảnh tạm
+  if (audit.unsynced === 0) {
+    const leftoverPaths = findUnsyncedPhotoPaths(healLocalPhotoUris(formData));
+    if (leftoverPaths.length > 0) {
+      issues.push({
+        fieldId: 'step4-unsynced-photos',
+        step: 4,
+        target: 'CLOUD_SYNC',
+        title: `${leftoverPaths.length} ảnh chưa đồng bộ lên Cloud R2`,
+        message: `Phát hiện ${leftoverPaths.length} ảnh đang ở dạng tạm trong máy (${leftoverPaths.slice(0, 3).join(', ')}${leftoverPaths.length > 3 ? '...' : ''}). Vui lòng kiểm tra kết nối mạng và đồng bộ ảnh trước khi nộp.`,
+        isBlocking: true,
+      });
+    }
+  }
+
+  // Còn ảnh đang trong hàng đợi upload -> chờ upload xong mới được nộp
+  const pendingUploads = uploadQueue.getPendingAndActiveCount();
+  if (pendingUploads > 0 && audit.unsynced === 0) {
+    issues.push({
+      fieldId: 'step4-pending-uploads',
+      step: 4,
+      target: 'CLOUD_SYNC',
+      title: `${pendingUploads} ảnh đang trong hàng đợi tải lên Cloud`,
+      message: 'Vui lòng đợi các ảnh tải lên Cloud hoàn tất rồi mới nộp hồ sơ.',
       isBlocking: true,
     });
   }

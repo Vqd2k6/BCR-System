@@ -6,6 +6,40 @@ import {
 
 export class SurveyPackageMapper {
   /**
+   * Lưới an toàn phía máy chủ: quét đệ quy surveyData và trả về đường dẫn JSON của mọi chuỗi
+   * "blob:..." (ảnh còn nằm trong máy/IndexedDB) hoặc "data:image/..." dài (ảnh Base64 chưa upload).
+   * Những giá trị này sẽ thành ảnh hỏng/mất vĩnh viễn trên báo cáo nếu được lưu như đã nộp.
+   */
+  static findUnsyncedPhotoPaths(
+    target: unknown,
+    basePath: string = '$',
+    out: string[] = [],
+    limit: number = 200
+  ): string[] {
+    if (out.length >= limit || target === null || target === undefined) return out;
+
+    if (typeof target === 'string') {
+      if (target.startsWith('blob:') || (target.startsWith('data:image/') && target.length > 500)) {
+        out.push(basePath);
+      }
+      return out;
+    }
+
+    if (Array.isArray(target)) {
+      target.forEach((item, idx) => SurveyPackageMapper.findUnsyncedPhotoPaths(item, `${basePath}[${idx}]`, out, limit));
+      return out;
+    }
+
+    if (typeof target === 'object') {
+      const obj = target as Record<string, unknown>;
+      for (const key of Object.keys(obj)) {
+        SurveyPackageMapper.findUnsyncedPhotoPaths(obj[key], `${basePath}.${key}`, out, limit);
+      }
+    }
+    return out;
+  }
+
+  /**
    * Bóc tách và chuẩn hóa bộ 4 ảnh định danh P01 - P04 từ surveyData của PWA
    */
   static mapStep1Photos(surveyData: any) {

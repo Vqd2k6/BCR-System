@@ -1,8 +1,16 @@
 import type { MetroWatermarkOptions } from '../../../utils/watermarkEngine';
 
+/**
+ * Thông tin kèm theo khi URL ảnh đổi từ bản tạm (blob:local://...) sang URL Cloud.
+ * Các danh sách ảnh (append) dùng replacesUri để THAY bản tạm thay vì thêm trùng.
+ */
+export interface PhotoChangeMeta {
+  replacesUri?: string;
+}
+
 export interface PhotoCaptureProps {
   value: string; // Base64 or image URL
-  onChange: (photoUrl: string, photoCode?: string) => void;
+  onChange: (photoUrl: string, photoCode?: string, meta?: PhotoChangeMeta) => void;
   label?: string;
   watermarkText?: string;
   watermarkOptions?: MetroWatermarkOptions;

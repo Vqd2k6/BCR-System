@@ -7,6 +7,7 @@ import { calculateEcsScore } from '../../engine/ecsCalculator';
 import { calculateViScore } from '../../engine/viCalculator';
 import { calculateParcelMetroSpatialMetrics } from '../../utils/metroSpatialCalculator';
 import { saveSurveyDraft, loadSurveyDraft, deleteSurveyDraft } from '../../../../core/utils/idbDraftStorage';
+import { healLocalPhotoUris } from '../../../../core/storage/offlinePhotoStorage';
 import { surveyDraftService } from '../../services/surveyDraftService';
 
 export const createFormSlice: StateCreator<
@@ -59,7 +60,7 @@ export const createFormSlice: StateCreator<
         if (saved) {
           const parsed = JSON.parse(saved);
           if (parsed.parcelId === parcel.id) {
-            initialData = { ...initialData, ...parsed };
+            initialData = healLocalPhotoUris({ ...initialData, ...parsed });
             if (parsed._savedStep && parsed._savedStep >= 1 && parsed._savedStep <= 8) {
               initialStep = parsed._savedStep;
             }
@@ -168,7 +169,7 @@ export const createFormSlice: StateCreator<
           if (fullDraft && fullDraft.parcelId === parcel.id) {
             const targetStep = fullDraft._savedStep !== undefined && fullDraft._savedStep >= 1 && fullDraft._savedStep <= 8 ? fullDraft._savedStep : undefined;
             set((state) => {
-              const merged = { ...state.formData, ...fullDraft };
+              const merged = healLocalPhotoUris({ ...state.formData, ...fullDraft });
               if (!merged.photoP01?.url && state.formData.photoP01?.url) merged.photoP01 = state.formData.photoP01;
               if (!merged.photoP02?.url && state.formData.photoP02?.url) merged.photoP02 = state.formData.photoP02;
               if (!merged.photoP03?.url && state.formData.photoP03?.url) merged.photoP03 = state.formData.photoP03;
@@ -230,7 +231,7 @@ export const createFormSlice: StateCreator<
                 : undefined;
 
             set((state) => {
-              const merged = { ...state.formData, ...serverData };
+              const merged = healLocalPhotoUris({ ...state.formData, ...serverData });
               if (!merged.photoP01?.url && state.formData.photoP01?.url) merged.photoP01 = state.formData.photoP01;
               if (!merged.photoP02?.url && state.formData.photoP02?.url) merged.photoP02 = state.formData.photoP02;
               if (!merged.photoP03?.url && state.formData.photoP03?.url) merged.photoP03 = state.formData.photoP03;

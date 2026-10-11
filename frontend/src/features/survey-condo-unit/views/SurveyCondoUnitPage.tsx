@@ -10,7 +10,8 @@ import { CondoUnitMissingFieldsModal } from '../components/CondoUnitMissingField
 import { validateCondoUnitFull, type CondoUnitValidationIssue } from '../utils/condoUnitValidator';
 import type { GisParcel, BuildingUnit } from '../../../core/types/domain.types';
 import { api } from '../../../services/api';
-import { sanitizeSurveyDataForSync } from '../../../core/services/uploadQueueService';
+import { sanitizeSurveyDataForSync, uploadQueue } from '../../../core/services/uploadQueueService';
+import { findUnsyncedPhotoPaths, healLocalPhotoUris } from '../../../core/storage/offlinePhotoStorage';
 import { ActiveSurveyorLockedModal } from '../../survey-phase1/components/ActiveSurveyorLockedModal';
 import { HandoverTakeoverModal } from '../../survey-phase1/components/HandoverTakeoverModal';
 import { useAdminViewLock } from '../../../core/hooks/useAdminViewLock';
@@ -95,6 +96,18 @@ export const SurveyCondoUnitPage: React.FC<SurveyCondoUnitPageProps> = ({
     document.body.scrollTo({ top: 0, left: 0, behavior: 'instant' });
   }, [currentStep]);
 
+  // Thông báo rời form trung thực: nếu còn ảnh chưa lên Cloud thì nói rõ (ảnh chỉ nằm trên thiết bị này)
+  const buildLeaveMessage = (baseMessage: string): string => {
+    const unsyncedCount = findUnsyncedPhotoPaths(healLocalPhotoUris(useCondoUnitSurveyStore.getState().formData)).length;
+    const pendingUploads = uploadQueue.getPendingAndActiveCount();
+    if (unsyncedCount === 0 && pendingUploads === 0) return baseMessage;
+    return (
+      `⚠️ Còn ${Math.max(unsyncedCount, pendingUploads)} ảnh CHƯA lên Cloud (đang tải hoặc chờ có mạng). ` +
+      `Ảnh này hiện chỉ nằm trên thiết bị này, hãy giữ ứng dụng mở/có mạng và quay lại để đồng bộ trước khi bàn giao hoặc nộp.\n\n` +
+      baseMessage
+    );
+  };
+
   // Chặn thao tác back trình duyệt ngoài ý muốn
   useEffect(() => {
     window.history.pushState({ condoUnitSessionActive: true }, '');
@@ -105,7 +118,9 @@ export const SurveyCondoUnitPage: React.FC<SurveyCondoUnitPageProps> = ({
         return;
       }
       const confirmLeave = window.confirm(
-        'Bạn có chắc chắn muốn quay lại và tạm rời phiên khảo sát căn hộ? Dữ liệu đang nhập đã được lưu nháp an toàn.'
+        buildLeaveMessage(
+          'Bạn có chắc chắn muốn quay lại và tạm rời phiên khảo sát căn hộ? Dữ liệu đang nhập đã được lưu nháp an toàn.'
+        )
       );
       if (confirmLeave) {
         void syncDraftToServer();
@@ -125,7 +140,9 @@ export const SurveyCondoUnitPage: React.FC<SurveyCondoUnitPageProps> = ({
       return;
     }
     const confirmLeave = window.confirm(
-      'Bạn có chắc chắn muốn quay về danh sách căn hộ? Toàn bộ dữ liệu khảo sát đã được tự động lưu nháp an toàn.'
+      buildLeaveMessage(
+        'Bạn có chắc chắn muốn quay về danh sách căn hộ? Toàn bộ dữ liệu khảo sát đã được tự động lưu nháp an toàn.'
+      )
     );
     if (confirmLeave) {
       void syncDraftToServer();
