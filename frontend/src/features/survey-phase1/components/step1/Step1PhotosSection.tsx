@@ -49,6 +49,7 @@ export const Step1PhotosSection: React.FC<Step1PhotosSectionProps> = ({
             <label className="flex items-center gap-1.5 text-xs font-medium text-slate-600 cursor-pointer">
               <input
                 type="checkbox"
+                disabled={isReadOnly}
                 checked={formData.photoP01.notApplicable}
                 onChange={(e) =>
                   updateFormData({
@@ -66,6 +67,7 @@ export const Step1PhotosSection: React.FC<Step1PhotosSectionProps> = ({
               label="Chụp ảnh biển số nhà rõ nét:"
               value={formData.photoP01.url}
               photoCode={formData.photoP01.photoCode}
+              readOnly={isReadOnly}
               onChange={(url, code) =>
                 updateFormData({ photoP01: { ...formData.photoP01, url, photoCode: code } })
               }
@@ -94,6 +96,7 @@ export const Step1PhotosSection: React.FC<Step1PhotosSectionProps> = ({
             <label className="flex items-center gap-1.5 text-xs font-medium text-slate-600 cursor-pointer">
               <input
                 type="checkbox"
+                disabled={isReadOnly}
                 checked={formData.photoP02.notApplicable}
                 onChange={(e) =>
                   updateFormData({
@@ -112,6 +115,7 @@ export const Step1PhotosSection: React.FC<Step1PhotosSectionProps> = ({
                 label="Chụp trực diện toàn bộ mặt tiền công trình:"
                 value={formData.photoP02.url}
                 photoCode={formData.photoP02.photoCode}
+                readOnly={isReadOnly}
                 onChange={(url, code) =>
                   updateFormData({
                     photoP02: { ...formData.photoP02, url, photoCode: code },
@@ -178,6 +182,7 @@ export const Step1PhotosSection: React.FC<Step1PhotosSectionProps> = ({
             <label className="flex items-center gap-1.5 text-xs font-medium text-slate-600 cursor-pointer">
               <input
                 type="checkbox"
+                disabled={isReadOnly}
                 checked={formData.photoP03.notApplicable}
                 onChange={(e) =>
                   updateFormData({
@@ -201,6 +206,7 @@ export const Step1PhotosSection: React.FC<Step1PhotosSectionProps> = ({
                   <div className="w-48">
                     <Select
                       value={formData.photoP03.tag || P03_TAGS[0]}
+                      disabled={isReadOnly}
                       onChange={(e) =>
                         updateFormData({
                           photoP03: { ...formData.photoP03, tag: e.target.value },
@@ -214,6 +220,7 @@ export const Step1PhotosSection: React.FC<Step1PhotosSectionProps> = ({
                   label={`Chụp ảnh mặt bên/sau (${formData.photoP03.tag || 'Bên hông trái'}):`}
                   value={formData.photoP03.url}
                   photoCode={formData.photoP03.photoCode}
+                  readOnly={isReadOnly}
                   onChange={(url, code) =>
                     updateFormData({
                       photoP03: { ...formData.photoP03, url, photoCode: code },
@@ -246,6 +253,7 @@ export const Step1PhotosSection: React.FC<Step1PhotosSectionProps> = ({
                       <div className="w-44">
                         <Select
                           value={extraPhoto.tag || P03_TAGS[Math.min(idx + 1, P03_TAGS.length - 1)]}
+                          disabled={isReadOnly}
                           onChange={(e) => {
                             const next = [...(formData.photoP03.additionalPhotos || [])];
                             next[idx] = { ...next[idx], tag: e.target.value };
@@ -277,6 +285,7 @@ export const Step1PhotosSection: React.FC<Step1PhotosSectionProps> = ({
                     label={`Chụp ảnh mặt bên/sau (${extraPhoto.tag || 'Bổ sung'}):`}
                     value={extraPhoto.url}
                     photoCode={extraPhoto.photoCode}
+                    readOnly={isReadOnly}
                     onChange={(url, code) => {
                       const next = [...(formData.photoP03.additionalPhotos || [])];
                       next[idx] = { ...next[idx], url, photoCode: code };
@@ -335,6 +344,7 @@ export const Step1PhotosSection: React.FC<Step1PhotosSectionProps> = ({
             <label className="flex items-center gap-1.5 text-xs font-medium text-slate-600 cursor-pointer">
               <input
                 type="checkbox"
+                disabled={isReadOnly}
                 checked={formData.photoP04.notApplicable}
                 onChange={(e) =>
                   updateFormData({
@@ -353,6 +363,7 @@ export const Step1PhotosSection: React.FC<Step1PhotosSectionProps> = ({
                 label="Chụp bối cảnh tiếp cận tuyến đường/ngõ:"
                 value={formData.photoP04.url}
                 photoCode={formData.photoP04.photoCode}
+                readOnly={isReadOnly}
                 onChange={(url, code) =>
                   updateFormData({ photoP04: { ...formData.photoP04, url, photoCode: code } })
                 }

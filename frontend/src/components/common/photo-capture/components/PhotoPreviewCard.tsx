@@ -256,7 +256,7 @@ export const PhotoPreviewCard: React.FC<PhotoPreviewCardProps> = ({
           </span>
         )}
 
-        {uploadStatus === 'ERROR' && (
+        {uploadStatus === 'ERROR' && !readOnly && (
           <button
             type="button"
             onClick={(e) => {

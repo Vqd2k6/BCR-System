@@ -184,7 +184,9 @@ export function usePhotoUpload({
         if (storeParcel && !isInvalidBuildingCode(storeParcel)) {
           buildingCode = storeParcel;
         }
-      } catch (_e) {}
+      } catch (err) {
+        console.warn('[usePhotoUpload] Không thể lấy parcel code từ Phase 1 store:', err);
+      }
     }
 
     // 3. Nếu hoàn toàn không xác định được mã công trình, gom vào 'general' thay vì tạo folder rác

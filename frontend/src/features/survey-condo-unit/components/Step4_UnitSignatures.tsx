@@ -280,18 +280,20 @@ export const Step4_UnitSignatures: React.FC<Props> = ({ onSubmitFinal, isSubmitt
                   photoCode={`MINUTES_PAGE_${idx + 1}`}
                   aspectClass="w-full h-32 aspect-auto"
                   actions={
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        const next = (formData.workingMinutesPhotos || []).filter((_, i) => i !== idx);
-                        updateFormData({ workingMinutesPhotos: next });
-                      }}
-                      className="p-1 rounded-md bg-rose-600 text-white text-xs cursor-pointer shadow-md hover:bg-rose-700"
-                      title="Xóa ảnh này"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                    !isReadOnly ? (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const next = (formData.workingMinutesPhotos || []).filter((_, i) => i !== idx);
+                          updateFormData({ workingMinutesPhotos: next });
+                        }}
+                        className="p-1 rounded-md bg-rose-600 text-white text-xs cursor-pointer shadow-md hover:bg-rose-700"
+                        title="Xóa ảnh này"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    ) : undefined
                   }
                 />
               </div>
@@ -300,40 +302,42 @@ export const Step4_UnitSignatures: React.FC<Props> = ({ onSubmitFinal, isSubmitt
         )}
 
         {/* Upload new minutes photo */}
-        <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
-          <PhotoCaptureInput
-            label="+ Chụp / Tải thêm ảnh biên bản giấy"
-            value=""
-            onChange={(url, _code, meta) => {
-              if (!url) return;
-              // Đọc danh sách MỚI NHẤT từ store (tránh closure cũ) và THAY bản tạm bằng URL Cloud thay vì thêm trùng
-              const cur = useCondoUnitSurveyStore.getState().formData.workingMinutesPhotos || [];
-              let next: string[];
-              if (meta?.replacesUri && cur.includes(meta.replacesUri)) {
-                next = cur.map((u) => (u === meta.replacesUri ? url : u));
-              } else if (cur.includes(url)) {
-                next = cur;
-              } else {
-                next = [...cur, url];
-              }
-              if (next !== cur) {
-                updateFormData({ workingMinutesPhotos: Array.from(new Set(next)) });
-              }
-            }}
-            watermarkOptions={{
-              parcelCode: bCode,
-              buildingCode: bCode,
-              floorCode,
-              floor: floorCode,
-              unitCode: formData.unitCode,
-              areaType: 'CONDO_UNIT',
-              category: 'legal',
-              photoType: 'MINUTES',
-              photoIndex: (formData.workingMinutesPhotos?.length || 0) + 1,
-            }}
-            height="110px"
-          />
-        </div>
+        {!isReadOnly && (
+          <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+            <PhotoCaptureInput
+              label="+ Chụp / Tải thêm ảnh biên bản giấy"
+              value=""
+              onChange={(url, _code, meta) => {
+                if (!url) return;
+                // Đọc danh sách MỚI NHẤT từ store (tránh closure cũ) và THAY bản tạm bằng URL Cloud thay vì thêm trùng
+                const cur = useCondoUnitSurveyStore.getState().formData.workingMinutesPhotos || [];
+                let next: string[];
+                if (meta?.replacesUri && cur.includes(meta.replacesUri)) {
+                  next = cur.map((u) => (u === meta.replacesUri ? url : u));
+                } else if (cur.includes(url)) {
+                  next = cur;
+                } else {
+                  next = [...cur, url];
+                }
+                if (next !== cur) {
+                  updateFormData({ workingMinutesPhotos: Array.from(new Set(next)) });
+                }
+              }}
+              watermarkOptions={{
+                parcelCode: bCode,
+                buildingCode: bCode,
+                floorCode,
+                floor: floorCode,
+                unitCode: formData.unitCode,
+                areaType: 'CONDO_UNIT',
+                category: 'legal',
+                photoType: 'MINUTES',
+                photoIndex: (formData.workingMinutesPhotos?.length || 0) + 1,
+              }}
+              height="110px"
+            />
+          </div>
+        )}
       </Card>
 
       {/* 4.4. Trạng Thái Cổng Kiểm Soát Nghiệp Vụ (Validation Gate Status) */}
