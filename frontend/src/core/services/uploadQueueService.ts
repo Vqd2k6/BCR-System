@@ -10,6 +10,8 @@ import {
   revokeManagedBlobUrl,
   replaceLocalUriInObject,
   saveUploadedPhotoMapping,
+  healLocalPhotoUris,
+  requestPersistentStorage,
 } from '../storage/offlinePhotoStorage';
 
 export type UploadStatus = 'QUEUED' | 'UPLOADING' | 'SUCCESS' | 'ERROR';
@@ -53,6 +55,7 @@ class UploadQueueService {
         this.resumePendingOfflineUploads();
       });
       // Tự động quét khi khởi động ứng dụng
+      void requestPersistentStorage();
       setTimeout(() => {
         this.resumePendingOfflineUploads();
       }, 1500);
@@ -68,6 +71,11 @@ class UploadQueueService {
       if (!pending || pending.length === 0) return 0;
       let count = 0;
       for (const item of pending) {
+        // Tránh upload trùng: ảnh này đang nằm trong hàng đợi và chưa xong
+        const inFlight = this.queue.find(
+          (t) => t.id === item.id && (t.status === 'QUEUED' || t.status === 'UPLOADING')
+        );
+        if (inFlight) continue;
         const targetFolder = item.metadata?.['building-code']
           ? (item.metadata?.['photo-type'] ? `surveys/${item.metadata['building-code']}/${item.metadata['photo-type']}` : `surveys/${item.metadata['building-code']}`)
           : 'surveys';
@@ -462,6 +470,10 @@ export function countBase64Images(obj: unknown): number {
  * Đảm bảo kích thước payload draft luôn < 100KB, tuyệt đối không làm tràn RAM Render hay Supabase!
  */
 export function sanitizeSurveyDataForSync<T>(obj: T): T {
+  return stripHeavyBase64(healLocalPhotoUris(obj));
+}
+
+function stripHeavyBase64<T>(obj: T): T {
   if (obj === null || obj === undefined) return obj;
   if (typeof obj === 'string') {
     if (obj.startsWith('data:image/') && obj.length > 500) {
@@ -470,13 +482,13 @@ export function sanitizeSurveyDataForSync<T>(obj: T): T {
     return obj;
   }
   if (Array.isArray(obj)) {
-    return obj.map((item) => sanitizeSurveyDataForSync(item)) as unknown as T;
+    return obj.map((item) => stripHeavyBase64(item)) as unknown as T;
   }
   if (typeof obj === 'object') {
     const clean: Record<string, unknown> = {};
     const record = obj as Record<string, unknown>;
     for (const key of Object.keys(record)) {
-      clean[key] = sanitizeSurveyDataForSync(record[key]);
+      clean[key] = stripHeavyBase64(record[key]);
     }
     return clean as T;
   }

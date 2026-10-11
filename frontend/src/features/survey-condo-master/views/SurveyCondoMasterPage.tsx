@@ -14,6 +14,10 @@ import type { GisParcel } from '../../../core/types/domain.types';
 import { api } from '../../../services/api';
 import { useAdminViewLock } from '../../../core/hooks/useAdminViewLock';
 import { ShieldAlert, RotateCcw, Unlock } from 'lucide-react';
+import { CloudPhotoSyncModal } from '../../survey-phase1/components/CloudPhotoSyncModal';
+import { auditSurveyPhotos } from '../../survey-phase1/utils/photoSyncAudit';
+import { uploadQueue, sanitizeSurveyDataForSync } from '../../../core/services/uploadQueueService';
+import { findUnsyncedPhotoPaths, healLocalPhotoUris } from '../../../core/storage/offlinePhotoStorage';
 
 export interface SurveyCondoMasterPageProps {
   parcel?: GisParcel | null;
@@ -63,6 +67,7 @@ export const SurveyCondoMasterPage: React.FC<SurveyCondoMasterPageProps> = ({
   } = usePhase1SurveyStore();
   const { isAdmin: isZoneAdmin, isViewOnlyForAdmin, unlockEdit, lockEdit } = useAdminViewLock();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isPhotoSyncModalOpen, setIsPhotoSyncModalOpen] = useState(false);
   const [serverReport, setServerReport] = useState<ServerPhase1ReportResponse['report'] | null>(null);
   const [isReverting, setIsReverting] = useState(false);
   const [localStatusOverride, setLocalStatusOverride] = useState<string | null>(null);
@@ -271,13 +276,32 @@ export const SurveyCondoMasterPage: React.FC<SurveyCondoMasterPageProps> = ({
     const confirmed = window.confirm(confirmMessage);
     if (!confirmed) return;
 
+    // Chặn nộp khi còn ảnh chưa lên Cloud hoặc đang nằm trong hàng đợi upload
+    const photoGate = auditSurveyPhotos(formData, updateFormData);
+    const pendingUploads = uploadQueue.getPendingAndActiveCount();
+    if (photoGate.unsyncedPhotosCount > 0 || pendingUploads > 0) {
+      alert(
+        `Còn ${photoGate.unsyncedPhotosCount + pendingUploads} ảnh chưa lên Cloud nên chưa thể nộp hồ sơ. Hệ thống sẽ mở bảng Kiểm toán ảnh để bạn đồng bộ lại.`
+      );
+      setIsPhotoSyncModalOpen(true);
+      return;
+    }
+
+    const safeSurveyData = sanitizeSurveyDataForSync(formData);
+    const leftoverPaths = findUnsyncedPhotoPaths(healLocalPhotoUris(safeSurveyData));
+    if (leftoverPaths.length > 0) {
+      alert(`Phát hiện ${leftoverPaths.length} ảnh chưa lên Cloud trong hồ sơ. Vui lòng đồng bộ ảnh rồi nộp lại.`);
+      setIsPhotoSyncModalOpen(true);
+      return;
+    }
+
     try {
       setIsSubmitting(true);
       console.log('[CondoMaster] Submitting master condo survey payload:', formData);
 
       const payload = {
         parcelId: formData.parcelId,
-        surveyData: formData,
+        surveyData: safeSurveyData,
         reportType: 'BUILDING_MASTER',
         status: 'COMPLETED',
         completedAt: new Date().toISOString(),
@@ -477,6 +501,26 @@ export const SurveyCondoMasterPage: React.FC<SurveyCondoMasterPageProps> = ({
           }
         }}
       />
+
+      {/* Modal Kiểm Tra Chi Tiết Trạng Thái Ảnh Cloudflare R2 (chặn nộp khi còn ảnh chưa lên Cloud) */}
+      {isPhotoSyncModalOpen && (() => {
+        const modalAudit = auditSurveyPhotos(formData, updateFormData);
+        return (
+          <CloudPhotoSyncModal
+            isOpen={isPhotoSyncModalOpen}
+            onClose={() => setIsPhotoSyncModalOpen(false)}
+            allPhotos={modalAudit.allPhotos}
+            unsyncedPhotos={modalAudit.unsyncedPhotos}
+            syncedPhotos={modalAudit.syncedPhotos}
+            parcelCode={parcel?.projectParcelCode || parcel?.officialCadastralCode || formData.projectParcelCode || 'CHƯA_RÕ'}
+            onNavigateToStep={(step) => {
+              setCurrentStep(step);
+              setIsPhotoSyncModalOpen(false);
+            }}
+            isFromSubmitAttempt
+          />
+        );
+      })()}
     </div>
   );
 };

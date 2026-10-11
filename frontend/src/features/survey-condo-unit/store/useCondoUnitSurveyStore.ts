@@ -13,6 +13,7 @@ import { surveyDraftService, type DraftResponseData } from '../../survey-phase1/
 import api from '../../../services/api';
 import { getNextAvailablePinCode } from '../../../components/canvas/FloorCadPinningCanvas';
 import { sanitizeSurveyDataForSync } from '../../../core/services/uploadQueueService';
+import { healLocalPhotoUris } from '../../../core/storage/offlinePhotoStorage';
 
 import { getErrorMessage } from '@/utils/errorUtils';
 import type { LockedInfo } from '../../survey-phase1/components/ActiveSurveyorLockedModal';
@@ -391,7 +392,38 @@ export function mergeCondoUnitDataSafely(
   merged.structuralElements = deduplicateElements(processedElements, mergedElementPins);
   merged.cadElementPins = mergedElementPins;
 
-  return merged;
+  // 8. Vá URL ảnh tạm (blob:local://) đã biết Cloud URL rồi khử trùng các danh sách ảnh
+  return dedupePhotoArrays(healLocalPhotoUris(merged));
+}
+
+function dedupeStrings(list: string[] | undefined): string[] | undefined {
+  if (!Array.isArray(list)) return list;
+  return Array.from(new Set(list.filter((u) => typeof u === 'string' && u.trim() !== '')));
+}
+
+/**
+ * Sau khi vá blob:local:// -> Cloud URL, cùng một ảnh có thể xuất hiện 2 lần (bản server + bản local) -> khử trùng
+ */
+function dedupePhotoArrays(data: CondoUnitFormData): CondoUnitFormData {
+  const dedupeDefects = (defects: DefectItem[] | undefined): DefectItem[] | undefined =>
+    Array.isArray(defects)
+      ? defects.map((d) => (Array.isArray(d.cuPhotos) ? { ...d, cuPhotos: dedupeStrings(d.cuPhotos) } : d))
+      : defects;
+
+  return {
+    ...data,
+    workingMinutesPhotos: dedupeStrings(data.workingMinutesPhotos),
+    zones: (data.zones || []).map((z) => ({
+      ...z,
+      overviewPhotos: dedupeStrings(z.overviewPhotos) || [],
+      defects: dedupeDefects(z.defects) || [],
+    })),
+    structuralElements: (data.structuralElements || []).map((e) => ({
+      ...e,
+      overviewPhotos: dedupeStrings(e.overviewPhotos) || [],
+      defects: dedupeDefects(e.defects) || [],
+    })),
+  };
 }
 
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -644,6 +676,8 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
           data = { ...data, ...parsed };
           data.zones = deduplicateZones(data.zones || [], data.cadZonePins || []);
           data.structuralElements = deduplicateElements(data.structuralElements || [], data.cadElementPins || []);
+          // Ảnh đã lên Cloud trong lần làm việc trước -> thay URL tạm bằng URL Cloud ngay khi mở lại
+          data = healLocalPhotoUris(data);
         }
       }
     } catch (_e) {}

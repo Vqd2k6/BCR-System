@@ -727,21 +727,13 @@ export const DefectPinningCanvas: React.FC<Props> = ({
       }
 
       uploadQueue.enqueue(blob, targetFilename, {
+        // id = localId: hàng đợi ghi mapping bền và thay blob:local://{localId} -> URL Cloud
+        // trong các store đang mở (luôn dùng state MỚI NHẤT, không dùng closure cũ gây mất chỉnh sửa)
+        id: localId,
         folder: targetFolder,
         mimeType: 'image/jpeg',
         metadata: targetMetadata,
-        onSuccess: async (publicUrl) => {
-          const currentFresh = [...safeDefects];
-          if (currentFresh[selectedDefectIndex]) {
-            const photos = [...(currentFresh[selectedDefectIndex].cuPhotos || [])];
-            photos[targetPIdx] = publicUrl;
-            currentFresh[selectedDefectIndex] = {
-              ...currentFresh[selectedDefectIndex],
-              cuPhotos: photos,
-              cuPhotoUrl: photos[0] || '',
-            };
-            onChange(currentFresh);
-          }
+        onSuccess: async () => {
           await deleteOfflinePhoto(localId);
           revokeManagedBlobUrl(localId);
         },
@@ -1434,8 +1426,12 @@ export const DefectPinningCanvas: React.FC<Props> = ({
               ? selectedDefect.cuPhotoCodes
               : (selectedDefect.cuPhotoCode ? [selectedDefect.cuPhotoCode] : []);
 
-            const handleAddCuPhoto = (url: string, code?: string) => {
+            const handleAddCuPhoto = (url: string, code?: string, meta?: { replacesUri?: string }) => {
               if (selectedDefectIndex === null) return;
+              // Callback hoàn tất upload (blob:local -> URL Cloud) đã được thăng cấp qua store/sự kiện toàn cục;
+              // bỏ qua để không ghi đè các chỉnh sửa mới hơn bằng closure cũ.
+              if (meta?.replacesUri) return;
+              if (!url || currentCuPhotos.includes(url)) return;
               const nextPhotos = [...currentCuPhotos, url];
               const nextCodes = [...currentCuCodes, code || ''];
               const next = [...safeDefects];
@@ -1524,7 +1520,7 @@ export const DefectPinningCanvas: React.FC<Props> = ({
                         : `+ Chụp thêm ảnh cận cảnh vị trí khác (Ảnh #${currentCuPhotos.length + 1}):`
                     }
                     value=""
-                    onChange={(url, code) => handleAddCuPhoto(url, code)}
+                    onChange={(url, code, meta) => handleAddCuPhoto(url, code, meta)}
                     recommendedOrientation="landscape"
                     orientationHint="Khuyến nghị: Xoay ngang điện thoại (4:3) để chụp rõ toàn bộ vết nứt cùng thước đo tỷ lệ"
                     watermarkOptions={{

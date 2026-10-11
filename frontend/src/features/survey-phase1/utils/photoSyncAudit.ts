@@ -1,6 +1,6 @@
 import type { Phase1SurveyFormData } from '../types/phase1.types';
 import { uploadQueue } from '../../../core/services/uploadQueueService';
-import { getOfflinePhoto, extractLocalIdFromUri } from '../../../core/storage/offlinePhotoStorage';
+import { getOfflinePhoto, extractLocalIdFromUri, getKnownCloudUrl, healLocalPhotoUris } from '../../../core/storage/offlinePhotoStorage';
 
 export interface SurveyPhotoAuditItem {
   id: string;
@@ -37,7 +37,7 @@ export function base64ToBlob(dataUrl: string, fallbackMime = 'image/jpeg'): Blob
  * Quét toàn bộ dữ liệu khảo sát và trả về danh sách kiểm toán ảnh chi tiết
  */
 export function auditSurveyPhotos(
-  formData: Phase1SurveyFormData,
+  rawFormData: Phase1SurveyFormData,
   updateFormData: (updater: Partial<Phase1SurveyFormData> | ((prev: Phase1SurveyFormData) => Phase1SurveyFormData)) => void
 ): {
   allPhotos: SurveyPhotoAuditItem[];
@@ -48,6 +48,8 @@ export function auditSurveyPhotos(
   unsyncedPhotosCount: number;
   uploadingCount: number;
 } {
+  // Ảnh đã lên Cloud (có mapping bền) nhưng dữ liệu còn giữ blob:local:// -> tính là đã đồng bộ
+  const formData = healLocalPhotoUris(rawFormData);
   const allPhotos: SurveyPhotoAuditItem[] = [];
 
   const checkAndAdd = (
@@ -717,9 +719,19 @@ export async function retryUploadSinglePhoto(
   if (item.isCloudUrl) return item.url;
 
   let blob: Blob | null = null;
+  let retryLocalId: string | undefined;
 
   if (item.isLocalBlob) {
     const localId = extractLocalIdFromUri(item.url);
+    retryLocalId = item.url.startsWith('blob:local://') ? localId : undefined;
+
+    // Ảnh này thực ra ĐÃ lên Cloud (mapping bền) nhưng dữ liệu còn giữ URL tạm -> gán lại ngay, không cần blob
+    const knownCloud = retryLocalId ? getKnownCloudUrl(retryLocalId) : null;
+    if (knownCloud) {
+      item.updateInStore(knownCloud);
+      return knownCloud;
+    }
+
     const record = await getOfflinePhoto(localId);
     if (record && record.blob) {
       blob = record.blob;
@@ -748,6 +760,7 @@ export async function retryUploadSinglePhoto(
 
   return new Promise((resolve, reject) => {
     uploadQueue.enqueue(blob!, filename, {
+      id: retryLocalId,
       folder: `surveys/${parcelCode || 'general'}`,
       mimeType: 'image/jpeg',
       onSuccess: (publicUrl) => {

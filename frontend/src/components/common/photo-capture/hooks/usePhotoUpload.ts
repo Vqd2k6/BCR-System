@@ -18,12 +18,12 @@ import {
   extractLocalIdFromUri,
   resolveOfflinePhotoUrl,
 } from '../../../../core/storage/offlinePhotoStorage';
-import type { UploadStatus } from '../types';
+import type { UploadStatus, PhotoChangeMeta } from '../types';
 import { usePhase1SurveyStore } from '../../../../features/survey-phase1/store/usePhase1SurveyStore';
 
 interface UsePhotoUploadProps {
   value: string;
-  onChange: (photoUrl: string, photoCode?: string) => void;
+  onChange: (photoUrl: string, photoCode?: string, meta?: PhotoChangeMeta) => void;
   effectiveWatermarkOptions?: MetroWatermarkOptions;
   displayPhotoCode: string;
   label?: string;
@@ -47,6 +47,20 @@ export function usePhotoUpload({
   const [hasLoadError, setHasLoadError] = useState(false);
   const lastBlobRef = useRef<Blob | null>(null);
   const currentLocalIdRef = useRef<string | null>(null);
+  // Luôn gọi onChange của lần render MỚI NHẤT (tránh ghi đè bằng state cũ khi upload xong muộn)
+  const onChangeRef = useRef(onChange);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    onChangeRef.current = onChange;
+  }, [onChange]);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   // Tự động reset trạng thái lỗi khi value thay đổi
   useEffect(() => {
@@ -60,14 +74,16 @@ export function usePhotoUpload({
       if (detail && detail.localId === currentLocalIdRef.current) {
         setUploadStatus('SUCCESS');
         if (detail.publicUrl) {
-          onChange(detail.publicUrl, displayPhotoCode);
+          onChangeRef.current(detail.publicUrl, displayPhotoCode, {
+            replacesUri: `blob:local://${detail.localId}`,
+          });
         }
       }
     };
 
     window.addEventListener('metro2:photo-promoted', handlePhotoPromoted);
     return () => window.removeEventListener('metro2:photo-promoted', handlePhotoPromoted);
-  }, [displayPhotoCode, onChange]);
+  }, [displayPhotoCode]);
 
   // Kiểm tra trạng thái value và khôi phục preview từ IndexedDB nếu cần
   useEffect(() => {
@@ -412,13 +428,22 @@ export function usePhotoUpload({
     const filename = selfDescribingFilename || `${(code ? code.replace(/[^a-zA-Z0-9_-]/g, '_') : 'photo')}_${Date.now()}.jpg`;
 
     uploadQueue.enqueue(blob, filename, {
+      // Truyền đúng localId để hàng đợi ghi mapping bền + thăng cấp URL trong các store đang mở
+      id: localId,
       folder: targetFolder,
       mimeType: 'image/jpeg',
       metadata,
       onSuccess: async (publicUrl) => {
-        setUploadStatus('SUCCESS');
-        onChange(publicUrl, code);
+        if (mountedRef.current) {
+          setUploadStatus('SUCCESS');
+          onChangeRef.current(
+            publicUrl,
+            code,
+            localId ? { replacesUri: `blob:local://${localId}` } : undefined
+          );
+        }
         // Khi tải lên Cloudflare R2 thành công, dọn dẹp IndexedDB và revoke blob URL
+        // (mapping localId -> URL Cloud đã được ghi bền trước đó trong promoteUrlInStores)
         if (localId) {
           await deleteOfflinePhoto(localId);
           revokeManagedBlobUrl(localId);
@@ -426,7 +451,9 @@ export function usePhotoUpload({
       },
       onError: (err) => {
         console.warn('[PhotoCaptureInput] Direct upload failed, keeping in offline storage:', err);
-        setUploadStatus('ERROR');
+        if (mountedRef.current) {
+          setUploadStatus('ERROR');
+        }
       },
     });
   };

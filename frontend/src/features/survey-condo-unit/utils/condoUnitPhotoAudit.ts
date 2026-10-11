@@ -5,7 +5,7 @@
  */
 
 import type { CondoUnitFormData } from '../types/condo-unit.types';
-import { isLocalBlobUri, extractLocalIdFromUri, getOfflinePhoto, saveOfflinePhoto } from '../../../core/storage/offlinePhotoStorage';
+import { isLocalBlobUri, extractLocalIdFromUri, getOfflinePhoto, saveOfflinePhoto, getKnownCloudUrl, healLocalPhotoUris } from '../../../core/storage/offlinePhotoStorage';
 import { uploadQueue } from '../../../core/services/uploadQueueService';
 import { base64ToBlob } from '../../survey-phase1/utils/photoSyncAudit';
 
@@ -32,7 +32,9 @@ export interface CondoUnitPhotoAuditSummary {
   unsynced: number;
 }
 
-export function auditCondoUnitPhotos(formData: CondoUnitFormData): CondoUnitPhotoAuditSummary {
+export function auditCondoUnitPhotos(rawFormData: CondoUnitFormData): CondoUnitPhotoAuditSummary {
+  // Ảnh đã lên Cloud (có mapping bền) nhưng dữ liệu còn giữ blob:local:// -> tính là đã đồng bộ
+  const formData = healLocalPhotoUris(rawFormData);
   const allPhotos: CondoUnitPhotoAuditItem[] = [];
 
   const addPhoto = (
@@ -235,6 +237,35 @@ export function auditCondoUnitPhotos(formData: CondoUnitFormData): CondoUnitPhot
     );
   }
 
+  // Thấm dột từ tầng trên
+  const leakage = formData.upperFloorWaterLeakage;
+  if (leakage) {
+    (leakage.leakageItems || []).forEach((item, lIdx) => {
+      if (item.photoUrl) {
+        addPhoto(
+          `leak_${lIdx}_photo`,
+          `leak_${lIdx}_photo`,
+          3,
+          'Bước 3: CAD & Khuyết tật',
+          `Ảnh thấm dột từ tầng trên #${lIdx + 1}`,
+          item.photoUrl,
+          `WL_${lIdx + 1}`
+        );
+      }
+      if (item.cuPhotoUrl && item.cuPhotoUrl !== item.photoUrl) {
+        addPhoto(
+          `leak_${lIdx}_cu`,
+          `leak_${lIdx}_cu`,
+          3,
+          'Bước 3: CAD & Khuyết tật',
+          `Ảnh cận cảnh thấm dột #${lIdx + 1}`,
+          item.cuPhotoUrl,
+          `WL_${lIdx + 1}_CU`
+        );
+      }
+    });
+  }
+
   // Bước 4: Biên bản làm việc hiện trường & chữ ký tươi
   (formData.workingMinutesPhotos || []).forEach((mUrl, mIdx) => {
     addPhoto(
@@ -275,6 +306,15 @@ export async function retryUploadCondoUnitPhoto(
 
   let blob: Blob | null = null;
   let localId = extractLocalIdFromUri(photoItem.url);
+
+  // Ảnh đã lên Cloud từ trước (mapping bền) nhưng dữ liệu còn giữ URL tạm -> gán lại ngay, không cần blob
+  if (photoItem.url.startsWith('blob:local://')) {
+    const knownCloud = getKnownCloudUrl(localId);
+    if (knownCloud) {
+      onSuccess(knownCloud);
+      return;
+    }
+  }
 
   // 1. Nếu là chuỗi Base64 Data URL (VD: CAD trích xuất hoặc ảnh lưu tạm)
   if (photoItem.url.startsWith('data:image/')) {

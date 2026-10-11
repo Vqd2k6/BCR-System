@@ -205,13 +205,31 @@ export function saveUploadedPhotoMapping(localId: string, publicUrl: string): vo
   try {
     const raw = localStorage.getItem(UPLOADED_PHOTO_MAP_KEY);
     const map: Record<string, string> = raw ? JSON.parse(raw) : {};
+    // Xóa rồi ghi lại để mục mới nhất luôn nằm cuối (thứ tự chèn của object)
+    delete map[localId];
     map[localId] = publicUrl;
-    // Giới hạn tối đa 2000 mapping gần nhất để tránh tràn localStorage
+    // Giới hạn tối đa 5000 mapping gần nhất để tránh tràn localStorage
     const keys = Object.keys(map);
-    if (keys.length > 2000) {
-      delete map[keys[0]];
+    if (keys.length > 5000) {
+      for (const k of keys.slice(0, keys.length - 5000)) {
+        delete map[k];
+      }
     }
     localStorage.setItem(UPLOADED_PHOTO_MAP_KEY, JSON.stringify(map));
+  } catch (_e) {}
+}
+
+/**
+ * Xin trình duyệt giữ bền kho lưu trữ (IndexedDB) để không bị dọn khi thiếu dung lượng (đặc biệt iOS Safari)
+ */
+export async function requestPersistentStorage(): Promise<void> {
+  try {
+    if (typeof navigator !== 'undefined' && navigator.storage && typeof navigator.storage.persist === 'function') {
+      const already = typeof navigator.storage.persisted === 'function' ? await navigator.storage.persisted() : false;
+      if (!already) {
+        await navigator.storage.persist();
+      }
+    }
   } catch (_e) {}
 }
 
@@ -343,5 +361,75 @@ export function replaceLocalUriInObject<T>(target: T, localId: string, cloudUrl:
   }
 
   return target;
+}
+
+/**
+ * "Vá" dữ liệu: mọi chuỗi blob:local://{id} đã có Cloud URL trong persistent mapping
+ * sẽ được thay bằng Cloud URL (bất biến, không mutate đầu vào).
+ * Dùng khi nạp bản nháp, trước khi đồng bộ nháp và trước khi nộp.
+ */
+export function healLocalPhotoUris<T>(target: T): T {
+  if (target === null || target === undefined) return target;
+
+  if (typeof target === 'string') {
+    if (target.startsWith('blob:local://')) {
+      const localId = extractLocalIdFromUri(target.split('?')[0]);
+      const cloud = getKnownCloudUrl(localId);
+      if (cloud) return cloud as unknown as T;
+    }
+    return target;
+  }
+
+  if (Array.isArray(target)) {
+    let changed = false;
+    const mapped = target.map((item) => {
+      const next = healLocalPhotoUris(item);
+      if (next !== item) changed = true;
+      return next;
+    });
+    return (changed ? mapped : target) as unknown as T;
+  }
+
+  if (typeof target === 'object') {
+    const obj = target as Record<string, unknown>;
+    let changed = false;
+    const updated: Record<string, unknown> = {};
+    for (const key of Object.keys(obj)) {
+      const next = healLocalPhotoUris(obj[key]);
+      if (next !== obj[key]) changed = true;
+      updated[key] = next;
+    }
+    return (changed ? updated : target) as T;
+  }
+
+  return target;
+}
+
+/**
+ * Lưới an toàn độc lập với danh sách trường của từng biểu mẫu:
+ * quét mọi chuỗi blob:... hoặc ảnh base64 lớn (chưa lên Cloud) và trả về đường dẫn JSON của chúng.
+ */
+export function findUnsyncedPhotoPaths(target: unknown, basePath: string = '$', out: string[] = []): string[] {
+  if (target === null || target === undefined) return out;
+
+  if (typeof target === 'string') {
+    if (target.startsWith('blob:') || (target.startsWith('data:image/') && target.length > 200)) {
+      out.push(basePath);
+    }
+    return out;
+  }
+
+  if (Array.isArray(target)) {
+    target.forEach((item, idx) => findUnsyncedPhotoPaths(item, `${basePath}[${idx}]`, out));
+    return out;
+  }
+
+  if (typeof target === 'object') {
+    const obj = target as Record<string, unknown>;
+    for (const key of Object.keys(obj)) {
+      findUnsyncedPhotoPaths(obj[key], `${basePath}.${key}`, out);
+    }
+  }
+  return out;
 }
 

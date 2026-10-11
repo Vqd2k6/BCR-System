@@ -18,7 +18,7 @@ import {
 } from './survey.dto';
 import { SurveyPackageMapper } from './survey-package.mapper';
 import { Database } from '../../database/db';
-import { BadRequestError, ForbiddenError } from '../../common/errors/problem-details';
+import { AppError, BadRequestError, ForbiddenError } from '../../common/errors/problem-details';
 import { maskReportPii } from '../../common/utils/pii.utils';
 
 export class SurveyController {
@@ -201,7 +201,42 @@ export class SurveyController {
         throw new BadRequestError('parcelId là bắt buộc');
       }
       const surveyorId = req.user!.userId;
-      
+
+      // 0. Lưới an toàn: TỪ CHỐI nộp nếu còn ảnh chưa lên Cloud (blob:local / base64).
+      // Nếu cho qua, ảnh sẽ hỏng vĩnh viễn trên báo cáo vì file gốc chỉ nằm trong IndexedDB của thiết bị.
+      const unsyncedPhotoPaths = SurveyPackageMapper.findUnsyncedPhotoPaths(surveyData);
+      if (unsyncedPhotoPaths.length > 0) {
+        throw new AppError(
+          `Hồ sơ còn ${unsyncedPhotoPaths.length} ảnh chưa được tải lên Cloud nên chưa thể nộp. Vui lòng đồng bộ ảnh rồi nộp lại.`,
+          400,
+          'PHOTOS_NOT_SYNCED',
+          unsyncedPhotoPaths.slice(0, 20).map((p) => ({ field: p, message: 'Ảnh chưa lên Cloud (blob/base64)' }))
+        );
+      }
+
+      // Bước lưu bảng chuẩn hóa "critical" (khảo sát tầng/vùng/khuyết tật) sẽ HỦY việc nộp khi lỗi thay vì nuốt lỗi âm thầm.
+      // Các bước còn lại trả về data.warnings (dữ liệu gốc vẫn toàn vẹn trong survey_data_json).
+      // Đặt SURVEY_STRICT_NORMALIZED_SAVE=true để bắt buộc toàn bộ các bước.
+      const strictAllSteps = process.env.SURVEY_STRICT_NORMALIZED_SAVE === 'true';
+      // Khẩn cấp: SURVEY_STRICT_NORMALIZED_SAVE=false hạ cả bước critical xuống cảnh báo
+      const relaxAllSteps = process.env.SURVEY_STRICT_NORMALIZED_SAVE === 'false';
+      const submitWarnings: string[] = [];
+      const runPersistStep = async (label: string, step: () => Promise<unknown>, critical: boolean = false) => {
+        try {
+          await step();
+        } catch (stepErr) {
+          console.error(`[submitPhase1FullPackage] Lỗi lưu ${label}:`, stepErr);
+          if ((critical && !relaxAllSteps) || strictAllSteps) {
+            const detail = stepErr instanceof Error ? stepErr.message : String(stepErr);
+            throw new AppError(
+              `Không thể lưu ${label} nên hồ sơ CHƯA được nộp. Vui lòng thử lại. (${detail})`,
+              500,
+              'SUBMIT_PERSIST_FAILED'
+            );
+          }
+          submitWarnings.push(`Không lưu được ${label}`);
+        }
+      };
       // 1. Chuẩn hóa unitId để tránh lỗi UUID invalid (ví dụ: 'u-204')
       let cleanUnitId: string | null = null;
       if (unitId && typeof unitId === 'string' && unitId.trim()) {
@@ -275,21 +310,17 @@ export class SurveyController {
         reportId = initResult.reportId;
       }
 
-      // 2. Map and Save Ảnh nhận diện và mặt đứng P-01 -> P-04 (Có phòng vệ schema)
-      try {
+      // 2. Map and Save Ảnh nhận diện và mặt đứng P-01 -> P-04
+      await runPersistStep('ảnh định danh P01-P04', async () => {
         const step1Photos = SurveyPackageMapper.mapStep1Photos(surveyData);
         await SurveyService.saveIdentificationPhotos(reportId, step1Photos);
-      } catch (photoErr) {
-        console.warn('[submitPhase1FullPackage] Cảnh báo lưu survey_identification_photos (Dữ liệu vẫn được bảo toàn 100% trong survey_data_json):', photoErr);
-      }
+      });
 
       // 3. Map and Save Thông số kết cấu công trình
-      try {
+      await runPersistStep('thông số kết cấu công trình', async () => {
         const specs = SurveyPackageMapper.mapBuildingSpecs(surveyData);
         await SurveyService.saveBuildingSpecs(reportId, specs);
-      } catch (specsErr) {
-        console.warn('[submitPhase1FullPackage] Cảnh báo lưu building_specifications:', specsErr);
-      }
+      });
 
       let resolvedFloors = (surveyData?.floors && Array.isArray(surveyData.floors))
         ? surveyData.floors
@@ -301,11 +332,8 @@ export class SurveyController {
       }
 
       if (resolvedFloors && Array.isArray(resolvedFloors)) {
-        try {
-          await SurveyService.saveFloorSurveys(reportId, resolvedFloors);
-        } catch (floorsErr) {
-          console.warn('[submitPhase1FullPackage] Cảnh báo lưu floor surveys:', floorsErr);
-        }
+        const floorsToSave = resolvedFloors;
+        await runPersistStep('khảo sát tầng/vùng/khuyết tật', () => SurveyService.saveFloorSurveys(reportId, floorsToSave), true);
       }
 
       // 4. Map and Save Biến dạng & Lún nghiêng
@@ -314,27 +342,21 @@ export class SurveyController {
         def = SurveyPackageMapper.mapCondoUnitDeformation(surveyData);
       }
       if (def) {
-        try {
-          await SurveyService.saveDeformation(reportId, def);
-        } catch (defErr) {
-          console.warn('[submitPhase1FullPackage] Cảnh báo lưu deformation:', defErr);
-        }
+        const defToSave = def;
+        await runPersistStep('biến dạng & lún nghiêng', () => SurveyService.saveDeformation(reportId, defToSave));
       }
 
       // 4.5. Map and Save Phạm vi và Hạn chế tiếp cận khảo sát (Bảng survey_scopes)
       if (surveyData?.surveyScope || surveyData?.accessLimitation || surveyData?.isAbsenteeSurvey) {
-        try {
-          await SurveyService.saveSurveyScope(reportId, surveyData);
-        } catch (scopeErr) {
-          console.warn('[submitPhase1FullPackage] Cảnh báo lưu survey scope:', scopeErr);
-        }
+        await runPersistStep('phạm vi khảo sát', () => SurveyService.saveSurveyScope(reportId, surveyData));
       }
 
-      // 5. Tính điểm Rủi ro (Scoring) tự động trên Backend
+      // 5. Tính điểm Rủi ro (Scoring) tự động trên Backend — không chặn việc nộp, chỉ báo cảnh báo
       try {
         await ScoringService.calculatePhase1Scores(reportId);
       } catch (scoreErr) {
         console.warn('[submitPhase1FullPackage] Cảnh báo tính điểm scoring:', scoreErr);
+        submitWarnings.push('Chưa tính được điểm rủi ro tự động (sẽ tính lại khi duyệt hồ sơ)');
       }
 
       // 6. Nộp hồ sơ (Chuyển status thành SUBMITTED & lưu survey_data_json toàn vẹn)
@@ -345,6 +367,7 @@ export class SurveyController {
         success: true,
         data: {
           ...result,
+          warnings: submitWarnings,
           message: 'Đã nộp thành công trọn gói hồ sơ khảo sát hiện trạng Phase 1!',
         },
       });
