@@ -27,9 +27,9 @@ export const Step1_ParentInheritanceConfirmation: React.FC = () => {
     nextStep();
   };
 
-  const isStep1Valid = Boolean(
-    formData.photoP01?.url || formData.photoP01?.notApplicable
-  );
+  const isStep1Valid =
+    Boolean(formData.photoP01?.url || formData.photoP01?.notApplicable) &&
+    Boolean(formData.photoP04?.url || formData.photoP04?.notApplicable);
 
   const bCode = parent.projectParcelCode || 'GENERAL';
   const fNum = Number(formData.floorNumber);
@@ -139,7 +139,7 @@ export const Step1_ParentInheritanceConfirmation: React.FC = () => {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {/* Ảnh P01: Biển số phòng trên cửa căn hộ */}
-          <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+          <div id="step1-photo-p01" className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                 <Camera className="w-4 h-4 text-teal-600" />
@@ -183,7 +183,7 @@ export const Step1_ParentInheritanceConfirmation: React.FC = () => {
           </div>
 
           {/* Ảnh P04: Tổng quan cửa căn hộ thấy rõ số nhà và lối đi hành lang */}
-          <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+          <div id="step1-photo-p04" className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                 <Camera className="w-4 h-4 text-teal-600" />

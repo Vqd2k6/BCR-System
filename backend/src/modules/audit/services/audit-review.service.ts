@@ -336,44 +336,101 @@ export class AuditReviewService {
     };
 
     let allDamageZones = zonesRes.rows;
-    if (allDamageZones.length === 0 && Array.isArray(surveyJson.floors)) {
+    if (allDamageZones.length === 0) {
       const extracted: any[] = [];
-      surveyJson.floors.forEach((fl: any) => {
-        if (Array.isArray(fl.zones)) {
-          fl.zones.forEach((z: any) => {
+      const mapDefects = (defects: any[], parentId: string) => {
+        return (Array.isArray(defects) ? defects : []).map((d: any) => ({
+          id: d.id || `${parentId}_${d.defectCode || d.defect_code}`,
+          defectCode: d.defectCode || d.defect_code,
+          widthMaxMm: d.widthMaxMm ?? d.width_max_mm ?? 0,
+          lengthMm: d.lengthMm ?? d.length_mm ?? 0,
+          hasScaleCard: Boolean(d.hasScaleCard ?? d.has_scale_card),
+          cuPhotoUrl: d.cuPhotoUrl || (Array.isArray(d.cuPhotos) ? d.cuPhotos[0] : null),
+          cuPhotos: Array.isArray(d.cuPhotos) && d.cuPhotos.length > 0 ? d.cuPhotos : (d.cuPhotoUrl ? [d.cuPhotoUrl] : []),
+          screeningCategory: d.screeningCategory || d.defectType,
+          defectType: d.defectType,
+          crackDirection: d.crackDirection,
+          activityState: d.activityState,
+          isStructuralCritical: Boolean(d.isStructuralCritical),
+          pinX: d.pinX,
+          pinY: d.pinY,
+        }));
+      };
+
+      if (Array.isArray(surveyJson.floors)) {
+        surveyJson.floors.forEach((fl: any) => {
+          if (Array.isArray(fl.zones)) {
+            fl.zones.forEach((z: any) => {
+              extracted.push({
+                id: z.id,
+                zone_code: z.zoneCode || z.zone_code,
+                floor_name: z.floorName || fl.floorName || 'Tầng trệt',
+                room_name: z.roomName || z.customRoomName || 'Không gian chính',
+                component_type: z.componentType || z.customComponentType || 'Tường',
+                wall_material: z.wallMaterial || z.customWallMaterial || 'Vữa trát',
+                ctx_photo_url: z.ctxPhotoUrl || (Array.isArray(z.overviewPhotos) ? z.overviewPhotos[0] : null),
+                ctx_photo_code: z.ctxPhotoCode,
+                burland_grade: z.burlandGrade,
+                functional_impact_repair_needed: z.functionalImpactRepairNeeded,
+                defects: mapDefects(z.defects, z.id),
+              });
+            });
+          }
+          if (Array.isArray(fl.structuralElements)) {
+            fl.structuralElements.forEach((e: any) => {
+              extracted.push({
+                id: e.id,
+                zone_code: e.elementCode || e.zone_code || 'E-01',
+                floor_name: e.floorName || fl.floorName || 'Tầng trệt',
+                room_name: e.roomName || 'Cấu kiện kết cấu',
+                component_type: e.elementType || 'Cột BTCT',
+                wall_material: e.materialType || 'BTCT',
+                ctx_photo_url: e.ctxPhotoUrl || (Array.isArray(e.overviewPhotos) ? e.overviewPhotos[0] : null),
+                ctx_photo_code: e.ctxPhotoCode,
+                burland_grade: 0,
+                functional_impact_repair_needed: Boolean(e.hasDamage || (e.defects && e.defects.length > 0)),
+                defects: mapDefects(e.defects, e.id),
+              });
+            });
+          }
+        });
+      } else {
+        // Hỗ trợ cấu trúc phẳng condo-unit (surveyJson.zones & surveyJson.structuralElements)
+        if (Array.isArray(surveyJson.zones)) {
+          surveyJson.zones.forEach((z: any) => {
             extracted.push({
               id: z.id,
               zone_code: z.zoneCode || z.zone_code,
-              floor_name: z.floorName || fl.floorName || 'Tầng trệt',
-              room_name: z.roomName || z.customRoomName || 'Không gian chính',
-              component_type: z.componentType || z.customComponentType || 'Tường',
-              wall_material: z.wallMaterial || z.customWallMaterial || 'Vữa trát',
+              floor_name: z.floorName || `Tầng ${surveyJson.floorNumber || 1}`,
+              room_name: z.roomName || 'Không gian căn hộ',
+              component_type: z.componentType || 'Tường',
+              wall_material: z.wallMaterial || 'Vữa trát',
               ctx_photo_url: z.ctxPhotoUrl || (Array.isArray(z.overviewPhotos) ? z.overviewPhotos[0] : null),
               ctx_photo_code: z.ctxPhotoCode,
               burland_grade: z.burlandGrade,
               functional_impact_repair_needed: z.functionalImpactRepairNeeded,
-              defects: Array.isArray(z.defects)
-                ? z.defects.map((d: any) => ({
-                    id: d.id || `${z.id}_${d.defectCode || d.defect_code}`,
-                    defectCode: d.defectCode || d.defect_code,
-                    widthMaxMm: d.widthMaxMm ?? d.width_max_mm ?? 0,
-                    lengthMm: d.lengthMm ?? d.length_mm ?? 0,
-                    hasScaleCard: Boolean(d.hasScaleCard ?? d.has_scale_card),
-                    cuPhotoUrl: d.cuPhotoUrl || (Array.isArray(d.cuPhotos) ? d.cuPhotos[0] : null),
-                    cuPhotos: Array.isArray(d.cuPhotos) && d.cuPhotos.length > 0 ? d.cuPhotos : (d.cuPhotoUrl ? [d.cuPhotoUrl] : []),
-                    screeningCategory: d.screeningCategory || d.defectType,
-                    defectType: d.defectType,
-                    crackDirection: d.crackDirection,
-                    activityState: d.activityState,
-                    isStructuralCritical: Boolean(d.isStructuralCritical),
-                    pinX: d.pinX,
-                    pinY: d.pinY,
-                  }))
-                : [],
+              defects: mapDefects(z.defects, z.id),
             });
           });
         }
-      });
+        if (Array.isArray(surveyJson.structuralElements)) {
+          surveyJson.structuralElements.forEach((e: any) => {
+            extracted.push({
+              id: e.id,
+              zone_code: e.elementCode || 'E-01',
+              floor_name: e.floorName || `Tầng ${surveyJson.floorNumber || 1}`,
+              room_name: e.roomName || 'Cấu kiện kết cấu',
+              component_type: e.elementType || 'Cột BTCT',
+              wall_material: e.materialType || 'BTCT',
+              ctx_photo_url: e.ctxPhotoUrl || (Array.isArray(e.overviewPhotos) ? e.overviewPhotos[0] : null),
+              ctx_photo_code: e.ctxPhotoCode,
+              burland_grade: 0,
+              functional_impact_repair_needed: Boolean(e.hasDamage || (e.defects && e.defects.length > 0)),
+              defects: mapDefects(e.defects, e.id),
+            });
+          });
+        }
+      }
       allDamageZones = extracted;
     }
 
@@ -384,7 +441,9 @@ export class AuditReviewService {
       ownerSignature: report.owner_signature_url || sigJson.ownerRepresentative?.photoUrl || sigJson.ownerSignatureUrl || null,
       ownerName: report.owner_name || surveyJson.ownerName || sigJson.ownerRepresentative?.fullName || null,
       ownerFeedback: report.owner_remarks || sigJson.ownerFeedback || sigJson.ownerRemarks || null,
-      workingMinutesPhotos: Array.isArray(sigJson.workingMinutesPhotos) ? sigJson.workingMinutesPhotos : [],
+      workingMinutesPhotos: Array.isArray(sigJson.workingMinutesPhotos) && sigJson.workingMinutesPhotos.length > 0
+        ? sigJson.workingMinutesPhotos
+        : (Array.isArray(surveyJson.workingMinutesPhotos) ? surveyJson.workingMinutesPhotos : []),
     };
 
     return {

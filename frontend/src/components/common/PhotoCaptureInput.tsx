@@ -189,7 +189,15 @@ export const PhotoCaptureInput: React.FC<PhotoCaptureProps> = ({
       ? detectedAspectRatio !== 'square'
       : detectedAspectRatio !== 'square' && detectedAspectRatio !== recommendedOrientation);
 
+  const handleSafeFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    e.target.blur();
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    handleFileChange(e);
+  };
+
   const handleCustomFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    e.target.blur();
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -219,20 +227,22 @@ export const PhotoCaptureInput: React.FC<PhotoCaptureProps> = ({
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', width: '100%' }}>
+    <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', gap: '0.4rem', width: '100%' }}>
       {/* 1. Hardware Camera Input (capture="environment") */}
       <input
         id={cameraInputId}
         type="file"
         accept="image/*"
         capture="environment"
-        onChange={handleFileChange}
+        onChange={handleSafeFileChange}
         style={{
           position: 'absolute',
+          top: 0,
+          left: 0,
           width: '1px',
           height: '1px',
           padding: 0,
-          margin: '-1px',
+          margin: 0,
           overflow: 'hidden',
           clip: 'rect(0, 0, 0, 0)',
           whiteSpace: 'nowrap',
@@ -250,10 +260,12 @@ export const PhotoCaptureInput: React.FC<PhotoCaptureProps> = ({
         onChange={handleCustomFileChange}
         style={{
           position: 'absolute',
+          top: 0,
+          left: 0,
           width: '1px',
           height: '1px',
           padding: 0,
-          margin: '-1px',
+          margin: 0,
           overflow: 'hidden',
           clip: 'rect(0, 0, 0, 0)',
           whiteSpace: 'nowrap',

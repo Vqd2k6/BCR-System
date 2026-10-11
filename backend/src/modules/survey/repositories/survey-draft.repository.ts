@@ -33,7 +33,7 @@ export class SurveyDraftRepository {
       query += ` AND r.unit_id = $${params.length}`;
       query += ` AND NOT EXISTS (
         SELECT 1 FROM building_units bu 
-        WHERE bu.id = r.unit_id AND bu.status IN ('SUBMITTED', 'APPROVED', 'COMPLETED')
+        WHERE bu.id = r.unit_id AND bu.status IN ('SUBMITTED', 'APPROVED', 'PHASE2_COMPLETED', 'APPROVED_PHASE2', 'COMPLETED')
       )`;
     } else {
       query += ` AND r.unit_id IS NULL`;
@@ -102,7 +102,7 @@ export class SurveyDraftRepository {
         await Database.query(
           `UPDATE building_units 
            SET status = CASE 
-                 WHEN status IN ('SUBMITTED', 'APPROVED', 'COMPLETED') THEN status 
+                 WHEN status IN ('SUBMITTED', 'APPROVED', 'PHASE2_COMPLETED', 'APPROVED_PHASE2', 'COMPLETED') THEN status 
                  ELSE 'IN_PROGRESS' 
                END, 
                phase1_report_id = COALESCE(phase1_report_id, $2),
@@ -174,11 +174,11 @@ export class SurveyDraftRepository {
         await Database.query(
           `UPDATE building_units 
            SET status = CASE 
-                 WHEN status IN ('SUBMITTED', 'APPROVED', 'COMPLETED') THEN status 
+                 WHEN status IN ('SUBMITTED', 'APPROVED', 'PHASE2_COMPLETED', 'APPROVED_PHASE2', 'COMPLETED') THEN status 
                  ELSE 'IN_PROGRESS' 
                END, 
                phase1_report_id = CASE 
-                 WHEN status IN ('SUBMITTED', 'APPROVED', 'COMPLETED') THEN phase1_report_id 
+                 WHEN status IN ('SUBMITTED', 'APPROVED', 'PHASE2_COMPLETED', 'APPROVED_PHASE2', 'COMPLETED') THEN phase1_report_id 
                  ELSE $2 
                END, 
                updated_at = NOW() 

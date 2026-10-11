@@ -64,7 +64,7 @@ export const LiveCameraModal: React.FC<LiveCameraModalProps> = ({
       style={{
         position: 'fixed',
         inset: 0,
-        zIndex: 9999,
+        zIndex: 120000,
         backgroundColor: '#000000',
         display: 'flex',
         flexDirection: 'column',

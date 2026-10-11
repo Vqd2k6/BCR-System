@@ -81,8 +81,30 @@ export const BuildingHubModal: React.FC<BuildingHubModalProps> = ({
     setShowCadModal(true);
   };
 
+  // Khóa cuộn document.body khi mở Building Hub Modal
+  React.useEffect(() => {
+    const originalOverflow = document.body.style.overflow;
+    const originalPosition = document.body.style.position;
+    const originalTop = document.body.style.top;
+    const originalWidth = document.body.style.width;
+    const scrollY = window.scrollY;
+
+    document.body.style.overflow = 'hidden';
+    document.body.style.position = 'fixed';
+    document.body.style.top = `-${scrollY}px`;
+    document.body.style.width = '100%';
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      document.body.style.position = originalPosition;
+      document.body.style.top = originalTop;
+      document.body.style.width = originalWidth;
+      window.scrollTo(0, scrollY);
+    };
+  }, []);
+
   return (
-    <div className="fixed inset-0 z-[99999] bg-slate-100 flex flex-col w-full h-full overflow-hidden animate-in fade-in duration-150">
+    <div className="fixed top-0 left-0 right-0 bottom-0 z-[99999] bg-slate-100 flex flex-col w-full h-full max-h-[100dvh] overflow-hidden overscroll-none touch-pan-y animate-in fade-in duration-150">
       {/* 1. Top Navbar (Auto-hide on scroll) */}
       <BuildingHubHeader
         parcel={parcel}
@@ -96,7 +118,7 @@ export const BuildingHubModal: React.FC<BuildingHubModalProps> = ({
       {/* 2. Main Scrollable Container */}
       <main
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto p-3.5 sm:p-6 flex flex-col gap-4 max-w-7xl w-full mx-auto"
+        className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-3.5 sm:p-6 flex flex-col gap-4 max-w-7xl w-full mx-auto"
       >
         {/* Banner cảnh báo chưa khảo sát tổng quan */}
         <MasterWarningBanner

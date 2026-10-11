@@ -538,6 +538,24 @@ export class SurveyDefectsRepository {
             allZones.push({ ...z, floorName: z.floorName || f.floorName });
           }
         }
+        if (f.structuralElements && Array.isArray(f.structuralElements)) {
+          for (const e of f.structuralElements) {
+            const hasDefects = e.defects && Array.isArray(e.defects) && e.defects.length > 0;
+            allZones.push({
+              zoneCode: e.elementCode || 'E-01',
+              floorName: f.floorName,
+              roomName: e.roomName || 'Cấu kiện kết cấu',
+              componentType: normalizeComponentType(e.elementType),
+              wallMaterial: e.materialType || 'BTCT',
+              functionalImpactRepairNeeded: hasDefects,
+              burlandGrade: 0,
+              ctxPhotoUrl: e.ctxPhotoUrl || '',
+              ctxPhotoCode: e.ctxPhotoCode || null,
+              notes: e.notes || null,
+              defects: Array.isArray(e.defects) ? e.defects : [],
+            });
+          }
+        }
       }
 
       if (allZones.length > 0) {

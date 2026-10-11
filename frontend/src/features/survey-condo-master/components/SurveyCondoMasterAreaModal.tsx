@@ -73,8 +73,43 @@ export const SurveyCondoMasterAreaModal: React.FC<Props> = ({
     floorPlans,
   });
 
+  // Khóa cuộn document.body và ngăn chặn Mobile Chrome Visual Viewport Shift khi chụp ảnh / nạp file
+  React.useEffect(() => {
+    const originalOverflow = document.body.style.overflow;
+    const originalPosition = document.body.style.position;
+    const originalTop = document.body.style.top;
+    const originalWidth = document.body.style.width;
+    const scrollY = window.scrollY;
+
+    document.body.style.overflow = 'hidden';
+    document.body.style.position = 'fixed';
+    document.body.style.top = `-${scrollY}px`;
+    document.body.style.width = '100%';
+
+    window.scrollTo(0, 0);
+
+    const handlePreventViewportShift = () => {
+      if (window.scrollY !== 0) {
+        window.scrollTo(0, 0);
+      }
+    };
+
+    window.addEventListener('scroll', handlePreventViewportShift, { passive: true });
+    window.addEventListener('resize', handlePreventViewportShift, { passive: true });
+
+    return () => {
+      window.removeEventListener('scroll', handlePreventViewportShift);
+      window.removeEventListener('resize', handlePreventViewportShift);
+      document.body.style.overflow = originalOverflow;
+      document.body.style.position = originalPosition;
+      document.body.style.top = originalTop;
+      document.body.style.width = originalWidth;
+      window.scrollTo(0, scrollY);
+    };
+  }, []);
+
   return (
-    <div className="fixed inset-0 z-[100000] bg-slate-100 flex flex-col w-full h-[100dvh] overflow-hidden select-none animate-in fade-in duration-150">
+    <div className="fixed top-0 left-0 right-0 bottom-0 z-[100000] bg-slate-100 flex flex-col w-full h-full max-h-[100dvh] overflow-hidden overscroll-none touch-pan-y select-none animate-in fade-in duration-150">
       {/* =============================================================== */}
       {/* TOP MODAL HEADER: Title + Trạng thái đồng bộ Cloud R2 + Đóng */}
       {/* =============================================================== */}
@@ -211,7 +246,7 @@ export const SurveyCondoMasterAreaModal: React.FC<Props> = ({
       {/* =============================================================== */}
       {/* MODAL BODY (CUỘN NỘI DUNG 5 BƯỚC, LIGHT THEME) */}
       {/* =============================================================== */}
-      <div className="flex-1 overflow-y-auto p-3 sm:p-5 bg-slate-100">
+      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-3 sm:p-5 bg-slate-100">
         <div className="max-w-5xl mx-auto">
           {state.currentStep === 1 && (
             <Step1_ConfirmLocation

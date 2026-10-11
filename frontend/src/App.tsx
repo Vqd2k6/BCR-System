@@ -539,9 +539,21 @@ export const App: React.FC = () => {
           updateSelectedParcel(found);
           if (nav.unitId && !selectedUnitForSurvey) {
             api.get(`/parcels/${found.id}/units`).then((res) => {
-              const units = res.data?.data || res.data || [];
-              if (Array.isArray(units)) {
-                const u = units.find((item: BuildingUnit) => item.id === nav.unitId);
+              const rawData = res.data?.data;
+              const units: BuildingUnit[] = Array.isArray(rawData?.units)
+                ? rawData.units
+                : Array.isArray(rawData)
+                ? rawData
+                : Array.isArray(res.data)
+                ? res.data
+                : [];
+              if (units.length > 0) {
+                const u = units.find(
+                  (item: BuildingUnit) =>
+                    item.id === nav.unitId ||
+                    item.unit_code === nav.unitId ||
+                    item.unitCode === nav.unitId
+                );
                 if (u) updateSelectedUnit(u);
               }
             }).catch((err: unknown) => {
@@ -566,9 +578,21 @@ export const App: React.FC = () => {
             if (nav.unitId) {
               api.get(`/parcels/${normalized.id}/units`).then((uRes) => {
                 if (isCancelled) return;
-                const units = uRes.data?.data || uRes.data || [];
-                if (Array.isArray(units)) {
-                  const u = units.find((item: BuildingUnit) => item.id === nav.unitId);
+                const rawData = uRes.data?.data;
+                const units: BuildingUnit[] = Array.isArray(rawData?.units)
+                  ? rawData.units
+                  : Array.isArray(rawData)
+                  ? rawData
+                  : Array.isArray(uRes.data)
+                  ? uRes.data
+                  : [];
+                if (units.length > 0) {
+                  const u = units.find(
+                    (item: BuildingUnit) =>
+                      item.id === nav.unitId ||
+                      item.unit_code === nav.unitId ||
+                      item.unitCode === nav.unitId
+                  );
                   if (u) updateSelectedUnit(u);
                 }
               }).catch((err: unknown) => {

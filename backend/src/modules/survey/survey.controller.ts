@@ -295,8 +295,8 @@ export class SurveyController {
         ? surveyData.floors
         : (surveyData?.floorSurvey ? [surveyData.floorSurvey] : null);
 
-      // Nếu là hồ sơ CĂN HỘ CON hoặc có localDefects/upperFloorWaterLeakage
-      if (!resolvedFloors && (surveyData?.localDefects || surveyData?.upperFloorWaterLeakage || surveyData?.unitCode)) {
+      // Nếu là hồ sơ CĂN HỘ CON hoặc có zones/structuralElements/localDefects/upperFloorWaterLeakage
+      if (!resolvedFloors && (surveyData?.zones || surveyData?.structuralElements || surveyData?.localDefects || surveyData?.upperFloorWaterLeakage || surveyData?.unitCode)) {
         resolvedFloors = SurveyPackageMapper.mapCondoUnitFloorSurveys(surveyData);
       }
 

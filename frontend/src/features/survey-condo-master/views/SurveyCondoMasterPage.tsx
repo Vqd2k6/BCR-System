@@ -134,33 +134,34 @@ export const SurveyCondoMasterPage: React.FC<SurveyCondoMasterPageProps> = ({
 
             // Fallback trích xuất bổ sung nếu thiếu trong JSON
             if (rep.buildingSpecs && typeof rep.buildingSpecs === 'object') {
-              const s = rep.buildingSpecs as Record<string, any>;
-              if (s.building_name && !updates.buildingName) updates.buildingName = s.building_name;
-              if (s.floor_count !== undefined && updates.aboveFloors === undefined) updates.aboveFloors = s.floor_count;
-              if (s.basement_count !== undefined && updates.undergroundFloors === undefined) updates.undergroundFloors = s.basement_count;
-              if (s.foundation_category && !updates.foundationType) updates.foundationType = s.foundation_category;
-              if (s.structural_system && !updates.structureSystem) updates.structureSystem = s.structural_system;
-              if (s.construction_area_m2 && !updates.constructionAreaM2) updates.constructionAreaM2 = s.construction_area_m2;
-              if (s.building_height_m && !updates.buildingHeightM) updates.buildingHeightM = s.building_height_m;
+              const s = rep.buildingSpecs as Record<string, unknown>;
+              if (s.building_name && !updates.buildingName) updates.buildingName = String(s.building_name);
+              if (s.floor_count !== undefined && updates.aboveFloors === undefined) updates.aboveFloors = Number(s.floor_count);
+              if (s.basement_count !== undefined && updates.undergroundFloors === undefined) updates.undergroundFloors = Number(s.basement_count);
+              if (s.foundation_category && !updates.foundationType) updates.foundationType = String(s.foundation_category);
+              if (s.structural_system && !updates.structureSystem) updates.structureSystem = String(s.structural_system);
+              if (s.construction_area_m2 && !updates.constructionAreaM2) updates.constructionAreaM2 = Number(s.construction_area_m2);
+              if (s.building_height_m && !updates.buildingHeightM) updates.buildingHeightM = Number(s.building_height_m);
             }
 
             if (rep.identificationPhotos && Array.isArray(rep.identificationPhotos) && rep.identificationPhotos.length > 0) {
-              (rep.identificationPhotos as Array<Record<string, any>>).forEach((p) => {
+              (rep.identificationPhotos as Array<Record<string, unknown>>).forEach((p) => {
                 if (p.photo_type === 'P01_HOUSE_NUMBER' && !updates.photoP01) {
-                  updates.photoP01 = { url: p.raw_photo_url || '', notApplicable: Boolean(p.is_not_applicable) };
+                  updates.photoP01 = { url: String(p.raw_photo_url || ''), notApplicable: Boolean(p.is_not_applicable) };
                 } else if (p.photo_type === 'P02_MAIN_FACADE' && !updates.photoP02) {
                   updates.photoP02 = {
-                    url: p.raw_photo_url || '',
+                    url: String(p.raw_photo_url || ''),
                     notApplicable: Boolean(p.is_not_applicable),
-                    polygonPoints: p.facade_polygon_points_json || [],
+                    polygonPoints: (p.facade_polygon_points_json as { x: number; y: number }[]) || [],
                     floorSplits: p.floor_split_lines_json || [],
                     widthM: '',
                     heightM: '',
                   };
                 } else if (p.photo_type === 'P03_SIDE_OR_REAR' && !updates.photoP03) {
-                  updates.photoP03 = { url: p.raw_photo_url || '', notApplicable: Boolean(p.is_not_applicable), tag: p.dimensions_json?.tag || 'Bên hông trái' };
+                  const dim = p.dimensions_json as { tag?: string } | undefined;
+                  updates.photoP03 = { url: String(p.raw_photo_url || ''), notApplicable: Boolean(p.is_not_applicable), tag: dim?.tag || 'Bên hông trái' };
                 } else if (p.photo_type === 'P04_CONTEXT_STREET' && !updates.photoP04) {
-                  updates.photoP04 = { url: p.raw_photo_url || '', notApplicable: Boolean(p.is_not_applicable) };
+                  updates.photoP04 = { url: String(p.raw_photo_url || ''), notApplicable: Boolean(p.is_not_applicable) };
                 }
               });
             }

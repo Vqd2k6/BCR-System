@@ -1,3 +1,12 @@
+import type {
+  DamageZoneData,
+  StructuralElementData,
+  DefectItem,
+  CadZonePin,
+} from '../../survey-phase1/types/phase1.types';
+
+export type { DamageZoneData, StructuralElementData, DefectItem, CadZonePin };
+
 export interface UnitDefectItem {
   id: string;
   defectCode?: string; // D-01, D-02...
@@ -71,6 +80,21 @@ export function isDoorJammingStatus(val: unknown): val is DoorJammingStatus {
   return typeof val === 'string' && VALID_DOOR_JAMMING_STATUSES.includes(val as DoorJammingStatus);
 }
 
+export interface HistoryInterviewState {
+  renovationLoad: number; // 0..3
+  majorRepair: number; // 0..3
+  pastSettlement: number; // 0..3
+  neighborDamage: number; // 0..3
+  fireFloodIncident: number; // 0..3
+  usageStatus: string;
+  continuousOperation247: boolean;
+  sensitiveEquipment: {
+    has: boolean;
+    description: string;
+  };
+  renovationDescription?: string;
+}
+
 export interface CondoUnitFormData {
   parcelId: string;
   unitId: string;
@@ -100,15 +124,24 @@ export interface CondoUnitFormData {
   photoP01: { url: string; photoCode?: string; notApplicable: boolean };
   photoP04: { url: string; photoCode?: string; notApplicable: boolean };
 
-  // Thiết bị & Hoạt động nhạy cảm riêng tại căn hộ
+  // Thiết bị & Hoạt động nhạy cảm riêng tại căn hộ (Chuẩn hóa Phase 1)
+  historyInterview: HistoryInterviewState;
   hasSensitiveEquipment: boolean;
   sensitiveEquipmentDesc: string;
   interiorRenovationHistory?: { hasRenovated: boolean; description?: string };
 
-  // 3. Bản vẽ CAD riêng của căn & Khuyết tật nứt, thấm trần, võng dầm, kẹt cửa
+  // 3. Bản vẽ CAD riêng của căn & Khảo sát theo chuẩn phân cấp Z - E - D (Phase 1 Standard)
   unitCadUrl?: string;
+  unitStructuralCadUrl?: string;
   cadBbox?: CadBbox | null;
   cadPolygon?: CadPolygon | null;
+  zones: DamageZoneData[];
+  structuralElements: StructuralElementData[];
+  hasStructuralElements: boolean;
+  cadZonePins?: CadZonePin[];
+  cadElementPins?: CadZonePin[];
+
+  // Giữ lại các trường đặc thù chung cư & tương thích ngược
   localDefects: UnitDefectItem[];
   upperFloorWaterLeakage: CondoUpperFloorLeakageState;
   beamSagging?: BeamSaggingData;
@@ -122,4 +155,13 @@ export interface CondoUnitFormData {
   ownerFeedback: string;
   surveyDate: string;
   workingMinutesPhotos?: string[];
+
+  // Cấu trúc lồng ghép tương thích ngược signatures
+  signatures?: {
+    surveyorSignature?: string;
+    ownerSignature?: string;
+    ownerFeedback?: string;
+    surveyDate?: string;
+    workingMinutesPhotos?: string[];
+  };
 }
