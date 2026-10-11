@@ -239,6 +239,22 @@ export function validateCondoUnitStep3(formData: CondoUnitFormData): CondoUnitVa
         });
       }
 
+      // 1. Kiểm tra ảnh thực tế của Vùng Z (bắt buộc 100% cho mọi Vùng Z đã ghim/tạo)
+      const hasZonePhoto = Boolean(
+        (z.overviewPhotos && z.overviewPhotos.length > 0) || Boolean(z.ctxPhotoUrl)
+      );
+      if (!hasZonePhoto) {
+        issues.push({
+          fieldId: `step3-zone-photo-${z.zoneCode}`,
+          step: 3,
+          target: 'ZONE',
+          code: z.zoneCode,
+          title: `${z.zoneCode}: Chưa có ảnh chụp thực tế không gian/phòng`,
+          message: `Vùng ${z.zoneCode} (${z.roomName || 'chưa đặt tên'}) đã được ghim trên CAD nhưng chưa có ảnh chụp tổng quan không gian thực tế. Vui lòng chụp ít nhất 1 ảnh tổng quan hoặc ảnh bối cảnh.`,
+          isBlocking: true,
+        });
+      }
+
       // Nếu vùng Z có khuyết tật nhưng không có ảnh bối cảnh (CTX)
       if (defectsCount > 0 && !z.ctxPhotoUrl) {
         issues.push({
@@ -365,6 +381,22 @@ export function validateCondoUnitStep3(formData: CondoUnitFormData): CondoUnitVa
     } else {
       structuralElements.forEach((e: StructuralElementData) => {
         const eDefectsCount = e.defects?.length || 0;
+        // Kiểm tra ảnh thực tế của Cấu kiện E (bắt buộc 100% cho mọi Cấu kiện E đã ghim/tạo)
+        const hasElementPhoto = Boolean(
+          (e.overviewPhotos && e.overviewPhotos.length > 0) || Boolean(e.ctxPhotoUrl)
+        );
+        if (!hasElementPhoto) {
+          issues.push({
+            fieldId: `step3-element-photo-${e.elementCode}`,
+            step: 3,
+            target: 'ELEMENT',
+            code: e.elementCode,
+            title: `${e.elementCode}: Chưa có ảnh chụp cấu kiện kết cấu`,
+            message: `Cấu kiện ${e.elementCode} (${e.elementType || 'cấu kiện'}) đã được ghim trên CAD nhưng chưa có ảnh chụp thực tế. Vui lòng chụp ít nhất 1 ảnh cấu kiện.`,
+            isBlocking: true,
+          });
+        }
+
         if (e.hasDamage && eDefectsCount === 0) {
           issues.push({
             fieldId: `step3-element-defects-${e.elementCode}`,
@@ -539,18 +571,158 @@ export function validateCondoUnitStep4AndCloud(formData: CondoUnitFormData): Con
     (formData.workingMinutesPhotos && formData.workingMinutesPhotos.length > 0) ||
     (formData.signatures?.workingMinutesPhotos && formData.signatures.workingMinutesPhotos.length > 0)
   );
-  const hasOwnerSignature = Boolean(formData.ownerSignature || formData.signatures?.ownerSignature);
-  const hasOwnerFeedback = Boolean(formData.ownerFeedback?.trim() || formData.signatures?.ownerFeedback?.trim());
-  const isAbsent = formData.residentStatus === 'VẮNG_MẶT_KHÓA_CỬA';
+  const hasSignatures = Boolean(
+    (formData.ownerSignature || formData.signatures?.ownerSignature) &&
+    (formData.surveyorSignature || formData.signatures?.surveyorSignature)
+  );
+  const isAbsent = Boolean(formData.isAbsentee || formData.residentStatus === 'VẮNG_MẶT_KHÓA_CỬA');
 
-  if (!isAbsent && !hasMinutesPhoto && !hasOwnerSignature && !hasOwnerFeedback) {
+  if (!isAbsent && !hasMinutesPhoto && !hasSignatures) {
     issues.push({
       fieldId: 'step4-working-minutes',
       step: 4,
       target: 'MINUTES',
-      title: 'Chưa có ảnh biên bản giấy hoặc chữ ký chủ hộ',
-      message: 'Khuyến nghị chụp ít nhất 1 ảnh biên bản làm việc có chữ ký xác nhận của chủ hộ hoặc ghi chú lý do trong phần ý kiến chủ hộ.',
-      isBlocking: false,
+      title: 'Thiếu Biên Bản Làm Việc Hiện Trường Hoặc Chữ Ký',
+      message: 'Hồ sơ khảo sát căn hộ bắt buộc phải có ít nhất 1 ảnh chụp Biên bản làm việc giấy có chữ ký hoặc chữ ký điện tử xác nhận của cả Chủ hộ & KSV trước khi nộp.',
+      isBlocking: true,
+    });
+  }
+
+  return issues;
+}
+
+/**
+ * Kiểm tra tính đầy đủ của Bước 2 (Chế độ Vắng mặt): Định danh căn hộ & Ghi nhận vắng nhà
+ */
+export function validateCondoUnitAbsenteeStep2(formData: CondoUnitFormData): CondoUnitValidationIssue[] {
+  const issues: CondoUnitValidationIssue[] = [];
+
+  // 1. Biển số phòng thực tế (displayCode)
+  if (!formData.displayCode?.trim()) {
+    issues.push({
+      fieldId: 'input-displayCode',
+      step: 2,
+      target: 'DISPLAY_CODE',
+      title: 'Thiếu Biển Số Thực Tế (Ảnh P01)',
+      message: 'Vui lòng nhập biển số phòng thực tế trên cửa căn hộ (VD: 303, P.303, L.01).',
+      isBlocking: true,
+    });
+  }
+
+  // 2. Mã vị trí CAD (unitCode)
+  if (!formData.unitCode?.trim()) {
+    issues.push({
+      fieldId: 'input-unitCode',
+      step: 2,
+      target: 'UNIT_CODE',
+      title: 'Thiếu Mã Vị Trí CAD (mm.nn)',
+      message: 'Vui lòng nhập mã vị trí quy hoạch căn hộ (VD: 03.03, 12.04).',
+      isBlocking: true,
+    });
+  }
+
+  // 3. Trạng thái cư trú
+  if (!formData.residentStatus || !isResidentStatus(formData.residentStatus)) {
+    issues.push({
+      fieldId: 'select-residentStatus',
+      step: 2,
+      target: 'RESIDENT_STATUS',
+      title: 'Chưa chọn Trạng Thái Cư Trú Hợp Lệ',
+      message: 'Vui lòng chọn trạng thái cư trú của căn hộ (Vắng mặt khóa cửa hoặc Bỏ trống chưa về ở).',
+      isBlocking: true,
+    });
+  }
+
+  // 4. Lý do vắng mặt
+  const absInfo = formData.absenteeInfo;
+  const reason = absInfo?.absenceReason || formData.absenteeReason;
+  if (!reason) {
+    issues.push({
+      fieldId: 'select-absenceReason',
+      step: 2,
+      target: 'MINUTES',
+      title: 'Chưa chọn Lý do vắng mặt',
+      message: 'Vui lòng chọn lý do vắng mặt / không thể tiếp cận căn hộ.',
+      isBlocking: true,
+    });
+  } else if (reason === 'OTHER') {
+    const customReason = absInfo?.customReason || absInfo?.notes;
+    if (!customReason?.trim()) {
+      issues.push({
+        fieldId: 'input-customReason',
+        step: 2,
+        target: 'MINUTES',
+        title: 'Chưa nhập chi tiết lý do khác',
+        message: 'Khi chọn "Lý do khác", vui lòng ghi rõ lý do cụ thể trong phần mô tả chi tiết.',
+        isBlocking: true,
+      });
+    }
+  }
+
+  // 5. Kiểm tra định dạng SĐT nếu có nhập
+  if (formData.ownerPhone?.trim()) {
+    const vnPhoneRegex = /^(0|\+84)(3|5|7|8|9)[0-9]{8}$/;
+    const cleanPhone = formData.ownerPhone.replace(/\s+/g, '');
+    if (!vnPhoneRegex.test(cleanPhone)) {
+      issues.push({
+        fieldId: 'input-ownerPhone',
+        step: 2,
+        target: 'OWNER_PHONE',
+        title: 'Số điện thoại chủ hộ chưa đúng chuẩn',
+        message: `Số điện thoại "${formData.ownerPhone}" chưa đúng định dạng số di động Việt Nam.`,
+        isBlocking: false,
+      });
+    }
+  }
+
+  return issues;
+}
+
+/**
+ * Kiểm tra tính đầy đủ của Bước 3 (Chế độ Vắng mặt): Biên bản vắng nhà, Ký KSV & Cloud R2
+ */
+export function validateCondoUnitAbsenteeStep3(formData: CondoUnitFormData): CondoUnitValidationIssue[] {
+  const issues: CondoUnitValidationIssue[] = [];
+
+  // 1. Ảnh biên bản xác nhận vắng chủ / Giấy hẹn dán cửa
+  const minutesPhotos = formData.absenteeInfo?.absenteeMinutesPhotos || formData.absenteeMinutesPhotos || [];
+  if (minutesPhotos.length === 0) {
+    issues.push({
+      fieldId: 'step3-absentee-minutes-photos',
+      step: 3,
+      target: 'MINUTES',
+      title: 'Thiếu ảnh biên bản vắng nhà / giấy hẹn dán cửa',
+      message: 'Bắt buộc phải chụp ít nhất 1 ảnh: giấy hẹn dán tại cửa phòng hoặc biên bản xác nhận vắng chủ có chữ ký của BQL/Bảo vệ.',
+      isBlocking: true,
+    });
+  }
+
+  // 2. Chữ ký Khảo sát viên (KSV)
+  const hasSurveyorSignature = Boolean(
+    formData.surveyorSignature?.trim() ||
+    formData.signatures?.surveyorSignature?.trim()
+  );
+  if (!hasSurveyorSignature) {
+    issues.push({
+      fieldId: 'step3-surveyor-signature',
+      step: 3,
+      target: 'MINUTES',
+      title: 'Thiếu Chữ Ký Khảo Sát Viên (KSV)',
+      message: 'Khảo sát viên bắt buộc phải ký số xác nhận hồ sơ vắng mặt tại hiện trường trước khi nộp.',
+      isBlocking: true,
+    });
+  }
+
+  // 3. Kiểm tra ảnh Cloud R2 sync
+  const audit = auditCondoUnitPhotos(formData);
+  if (audit.unsynced > 0) {
+    issues.push({
+      fieldId: 'step3-unsynced-photos',
+      step: 3,
+      target: 'CLOUD_SYNC',
+      title: `${audit.unsynced} ảnh chưa đồng bộ lên Cloud R2`,
+      message: `Còn ${audit.unsynced} ảnh lưu tạm trong thiết bị. Vui lòng bấm "Đồng bộ ảnh ngay" trước khi nộp.`,
+      isBlocking: true,
     });
   }
 
@@ -564,6 +736,19 @@ export function validateCondoUnitSingleStep(
   stepNum: number,
   formData: CondoUnitFormData
 ): CondoUnitValidationIssue[] {
+  if (formData.isAbsentee) {
+    switch (stepNum) {
+      case 1:
+        return validateCondoUnitStep1(formData);
+      case 2:
+        return validateCondoUnitAbsenteeStep2(formData);
+      case 3:
+        return validateCondoUnitAbsenteeStep3(formData);
+      default:
+        return [];
+    }
+  }
+
   switch (stepNum) {
     case 1:
       return validateCondoUnitStep1(formData);
@@ -583,6 +768,23 @@ export function validateCondoUnitSingleStep(
  * Chạy trước khi nộp hồ sơ hoặc để hiển thị trên Step 4 Dashboard
  */
 export function validateCondoUnitFull(formData: CondoUnitFormData): FullValidationResult {
+  if (formData.isAbsentee) {
+    const issuesStep1 = validateCondoUnitStep1(formData);
+    const issuesStep2 = validateCondoUnitAbsenteeStep2(formData);
+    const issuesStep3 = validateCondoUnitAbsenteeStep3(formData);
+
+    const allIssues = [...issuesStep1, ...issuesStep2, ...issuesStep3];
+    const blockingIssues = allIssues.filter((i) => i.isBlocking);
+    const warnings = allIssues.filter((i) => !i.isBlocking);
+
+    return {
+      isValid: blockingIssues.length === 0,
+      blockingIssues,
+      warnings,
+      allIssues,
+    };
+  }
+
   const issuesStep1 = validateCondoUnitStep1(formData);
   const issuesStep2 = validateCondoUnitStep2(formData);
   const issuesStep3 = validateCondoUnitStep3(formData);

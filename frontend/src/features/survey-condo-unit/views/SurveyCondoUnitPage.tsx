@@ -6,6 +6,9 @@ import { Step1_ParentInheritanceConfirmation } from '../components/Step1_ParentI
 import { Step2_UnitSpecificInformation } from '../components/Step2_UnitSpecificInformation';
 import { Step3_UnitDefectsAndSettlement } from '../components/Step3_UnitDefectsAndSettlement';
 import { Step4_UnitSignatures } from '../components/Step4_UnitSignatures';
+import { Step2_CondoUnitAbsentee } from '../components/Step2_CondoUnitAbsentee';
+import { Step3_CondoUnitAbsenteeSubmit } from '../components/Step3_CondoUnitAbsenteeSubmit';
+import { CondoUnitAbsenteeReviewView } from '../components/CondoUnitAbsenteeReviewView';
 import { CondoUnitMissingFieldsModal } from '../components/CondoUnitMissingFieldsModal';
 import { validateCondoUnitFull, type CondoUnitValidationIssue } from '../utils/condoUnitValidator';
 import type { GisParcel, BuildingUnit } from '../../../core/types/domain.types';
@@ -74,9 +77,10 @@ export const SurveyCondoUnitPage: React.FC<SurveyCondoUnitPageProps> = ({
   const [isUnlocking, setIsUnlocking] = useState(false);
 
   const unitStatus = localUnitStatus || unit?.status || formData?.status;
-  const isSubmittedOrApproved = unitStatus === 'SUBMITTED' || unitStatus === 'APPROVED';
+  const isSubmittedOrApproved = unitStatus === 'SUBMITTED' || unitStatus === 'APPROVED' || unitStatus === 'POSTPONED_ABSENT';
   // Admin luôn mở ở chế độ CHỈ XEM (không sửa, không đồng bộ) cho tới khi chủ động mở khóa chỉnh sửa
   const effectiveReadOnly = Boolean(readOnly || isSubmittedOrApproved || isViewOnlyForAdmin);
+  const isAbsenteeReport = unitStatus === 'POSTPONED_ABSENT' || formData.status === 'POSTPONED_ABSENT' || Boolean(formData.isAbsentee && isSubmittedOrApproved);
 
   useEffect(() => {
     if (parcel) {
@@ -167,20 +171,23 @@ export const SurveyCondoUnitPage: React.FC<SurveyCondoUnitPageProps> = ({
   };
 
   const executeSubmit = async () => {
-    const confirmed = window.confirm(
-      `Xác nhận nộp hồ sơ khảo sát căn hộ ${formData.unitCode || ''} (Tầng ${formData.floorNumber})?\n\nSau khi nộp, hồ sơ sẽ chuyển sang trạng thái "Chờ duyệt" từ Zone Admin.`
-    );
+    const isAbsentee = Boolean(formData.isAbsentee || formData.residentStatus === 'VẮNG_MẶT_KHÓA_CỬA');
+    const confirmMessage = isAbsentee
+      ? `Xác nhận nộp hồ sơ vắng mặt căn hộ ${formData.unitCode || ''} (Tầng ${formData.floorNumber})?\n\nSau khi nộp, căn hộ sẽ chuyển sang trạng thái "Tạm hoãn / Vắng mặt" (POSTPONED_ABSENT).`
+      : `Xác nhận nộp hồ sơ khảo sát căn hộ ${formData.unitCode || ''} (Tầng ${formData.floorNumber})?\n\nSau khi nộp, hồ sơ sẽ chuyển sang trạng thái "Chờ duyệt" từ Zone Admin.`;
+
+    const confirmed = window.confirm(confirmMessage);
     if (!confirmed) return;
 
     try {
       setIsSubmitting(true);
-      console.log('[CondoUnit] Submitting child unit survey payload:', formData);
+      console.log('[CondoUnit] Submitting child unit survey payload (isAbsentee:', isAbsentee, '):', formData);
 
       const payload = {
         parcelId: formData.parcelId,
         unitId: formData.unitId,
         reportType: 'CONDO_UNIT',
-        status: 'SUBMITTED',
+        status: isAbsentee ? 'POSTPONED_ABSENT' : 'SUBMITTED',
         surveyData: sanitizeSurveyDataForSync(formData),
         submittedAt: new Date().toISOString(),
       };
@@ -201,8 +208,16 @@ export const SurveyCondoUnitPage: React.FC<SurveyCondoUnitPageProps> = ({
         }
       } catch (_e) {}
 
+      if (unit) {
+        unit.status = isAbsentee ? 'POSTPONED_ABSENT' : 'SUBMITTED';
+      }
+
       clearDraft();
-      alert(`Đã nộp thành công hồ sơ khảo sát căn hộ ${formData.unitCode}!\n\nHồ sơ đang chờ duyệt từ Zone Admin.`);
+      alert(
+        isAbsentee
+          ? `Đã nộp thành công hồ sơ vắng mặt căn hộ ${formData.unitCode}!\n\nCăn hộ đã chuyển sang trạng thái Tạm hoãn / Vắng mặt (POSTPONED_ABSENT).`
+          : `Đã nộp thành công hồ sơ khảo sát căn hộ ${formData.unitCode}!\n\nHồ sơ đang chờ duyệt từ Zone Admin.`
+      );
 
       if (onFinished) {
         onFinished();
@@ -294,9 +309,25 @@ export const SurveyCondoUnitPage: React.FC<SurveyCondoUnitPageProps> = ({
     return ok;
   };
 
+  // Nếu là hồ sơ đã ghi nhận vắng mặt và đang ở chế độ xem: hiển thị view thẩm định hồ sơ vắng mặt chuyên biệt
+  if (effectiveReadOnly && isAbsenteeReport) {
+    return (
+      <CondoUnitAbsenteeReviewView
+        parcel={parcel}
+        unit={unit}
+        onBackToHome={onBackToHome}
+        onReopened={() => {
+          setLocalUnitStatus('IN_PROGRESS');
+          setIsReadOnly(false);
+          unlockEdit();
+        }}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-100/90 flex flex-col font-sans">
-      {/* Navbar chuẩn 4 bước */}
+      {/* Navbar chuẩn 4 bước / 3 bước vắng mặt */}
       <CondoUnitWizardNav onBackToHub={handleSafeBackToHome} />
 
       {/* Banner Thẩm định & Mở lại biểu mẫu cho Zone Admin / Super Admin */}
@@ -370,14 +401,29 @@ export const SurveyCondoUnitPage: React.FC<SurveyCondoUnitPageProps> = ({
 
       {/* Main Step Content Container */}
       <SurveyReadOnlyLock readOnly={effectiveReadOnly} className="flex-1 flex flex-col px-3 sm:px-6 py-6">
-        {currentStep === 1 && <Step1_ParentInheritanceConfirmation />}
-        {currentStep === 2 && <Step2_UnitSpecificInformation />}
-        {currentStep === 3 && <Step3_UnitDefectsAndSettlement />}
-        {currentStep === 4 && (
-          <Step4_UnitSignatures
-            onSubmitFinal={handleSubmitFinal}
-            isSubmitting={isSubmitting}
-          />
+        {formData.isAbsentee ? (
+          <>
+            {currentStep === 1 && <Step1_ParentInheritanceConfirmation />}
+            {currentStep === 2 && <Step2_CondoUnitAbsentee />}
+            {currentStep === 3 && (
+              <Step3_CondoUnitAbsenteeSubmit
+                onSubmitFinal={handleSubmitFinal}
+                isSubmitting={isSubmitting}
+              />
+            )}
+          </>
+        ) : (
+          <>
+            {currentStep === 1 && <Step1_ParentInheritanceConfirmation />}
+            {currentStep === 2 && <Step2_UnitSpecificInformation />}
+            {currentStep === 3 && <Step3_UnitDefectsAndSettlement />}
+            {currentStep === 4 && (
+              <Step4_UnitSignatures
+                onSubmitFinal={handleSubmitFinal}
+                isSubmitting={isSubmitting}
+              />
+            )}
+          </>
         )}
       </SurveyReadOnlyLock>
 

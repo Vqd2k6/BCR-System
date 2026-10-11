@@ -18,6 +18,7 @@ import {
 } from './survey.dto';
 import { SurveyPackageMapper } from './survey-package.mapper';
 import { Database } from '../../database/db';
+import { CadastralRepository } from '../cadastral/cadastral.repository';
 import { AppError, BadRequestError, ForbiddenError } from '../../common/errors/problem-details';
 import { maskReportPii } from '../../common/utils/pii.utils';
 
@@ -363,12 +364,65 @@ export class SurveyController {
       const submitData = SurveyPackageMapper.mapSubmitData(surveyData);
       const result = await SurveyService.submitPhase1Report(reportId, submitData);
 
+      const isAbsentee = Boolean(
+        surveyData?.isAbsentee ||
+        surveyData?.isAbsenteeSurvey ||
+        req.body?.status === 'POSTPONED_ABSENT' ||
+        surveyData?.residentStatus === 'VẮNG_MẶT_KHÓA_CỬA'
+      );
+
+      if (isAbsentee) {
+        const absInfo = (surveyData?.absenteeInfo || {}) as Record<string, unknown>;
+        const minutesPhotos = (Array.isArray(absInfo.absenteeMinutesPhotos)
+          ? absInfo.absenteeMinutesPhotos
+          : Array.isArray(surveyData?.absenteeMinutesPhotos)
+            ? surveyData.absenteeMinutesPhotos
+            : []) as string[];
+
+        await runPersistStep('nhật ký vắng mặt', async () => {
+          await CadastralRepository.recordAbsence({
+            parcelId,
+            surveyorId,
+            unitId: cleanUnitId,
+            absenceReason: (typeof absInfo.absenceReason === 'string' && absInfo.absenceReason) || (typeof surveyData?.absenteeReason === 'string' && surveyData.absenteeReason) || 'HOMEOWNER_ABSENT',
+            customReason: (typeof absInfo.customReason === 'string' && absInfo.customReason) || (typeof surveyData?.customAbsenteeReason === 'string' && surveyData.customAbsenteeReason) || null,
+            notes: (typeof absInfo.notes === 'string' && absInfo.notes) || (typeof surveyData?.absenceNotes === 'string' && surveyData.absenceNotes) || (typeof surveyData?.notes === 'string' && surveyData.notes) || null,
+            witnessName: typeof absInfo.witnessName === 'string' ? absInfo.witnessName : null,
+            witnessRole: typeof absInfo.witnessRole === 'string' ? absInfo.witnessRole : null,
+            witnessPhone: typeof absInfo.witnessPhone === 'string' ? absInfo.witnessPhone : null,
+            noticeDelivered: Boolean(absInfo.noticeDelivered),
+            photoProofUrl: minutesPhotos[0] || null,
+            minutesPhotos,
+            rescheduleDate: typeof absInfo.rescheduleDate === 'string' ? absInfo.rescheduleDate : null,
+            attemptCount: typeof absInfo.attemptCount === 'number' ? absInfo.attemptCount : 1,
+            ownerName: typeof surveyData?.ownerName === 'string' ? surveyData.ownerName : null,
+            ownerPhone: typeof surveyData?.ownerPhone === 'string' ? surveyData.ownerPhone : null,
+            surveyData,
+          });
+        });
+
+        // Cập nhật trạng thái căn hộ con sang POSTPONED_ABSENT và báo cáo is_refused_or_absent
+        if (cleanUnitId) {
+          await Database.query(
+            `UPDATE building_units SET status = 'POSTPONED_ABSENT', updated_at = NOW() WHERE id = $1;`,
+            [cleanUnitId]
+          );
+        }
+        await Database.query(
+          `UPDATE base_survey_reports SET is_refused_or_absent = TRUE, updated_at = NOW() WHERE id = $1;`,
+          [reportId]
+        );
+      }
+
       res.status(200).json({
         success: true,
         data: {
           ...result,
+          status: isAbsentee ? 'POSTPONED_ABSENT' : 'SUBMITTED',
           warnings: submitWarnings,
-          message: 'Đã nộp thành công trọn gói hồ sơ khảo sát hiện trạng Phase 1!',
+          message: isAbsentee
+            ? 'Đã nộp thành công hồ sơ vắng mặt căn hộ con (POSTPONED_ABSENT)!'
+            : 'Đã nộp thành công trọn gói hồ sơ khảo sát hiện trạng Phase 1!',
         },
       });
     } catch (error) {

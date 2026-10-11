@@ -315,16 +315,25 @@ export class CadastralRepository {
     surveyorId: string;
     unitId?: string | null;
     absenceReason: string;
+    customReason?: string | null;
     notes?: string | null;
+    witnessName?: string | null;
+    witnessRole?: string | null;
+    witnessPhone?: string | null;
+    noticeDelivered?: boolean;
     photoProofUrl?: string | null;
+    minutesPhotos?: string[];
     rescheduleDate?: string | null;
+    attemptCount?: number;
     ownerName?: string | null;
     ownerPhone?: string | null;
     surveyData?: unknown;
   }): Promise<void> {
     await Database.transaction(async (client) => {
+      let attemptCount = 1;
+
       if (data.unitId) {
-        // Cập nhật trạng thái cho căn hộ con / ô khu vực master
+        // Cập nhật trạng thái cho căn hộ con
         await client.query(
           `UPDATE building_units
            SET status = 'POSTPONED_ABSENT',
@@ -334,6 +343,16 @@ export class CadastralRepository {
            WHERE id = $1;`,
           [data.unitId, data.ownerName || null, data.ownerPhone || null]
         );
+
+        if (data.attemptCount && data.attemptCount > 0) {
+          attemptCount = data.attemptCount;
+        } else {
+          const unitCountRes = await client.query<{ count: string }>(
+            `SELECT COUNT(*) FROM survey_absence_logs WHERE unit_id = $1;`,
+            [data.unitId]
+          );
+          attemptCount = parseInt(unitCountRes.rows[0]?.count || '0', 10) + 1;
+        }
       } else {
         // 1. Tăng số lần vắng mặt của thửa đất/tòa nhà, chuyển trạng thái sang POSTPONED_ABSENT
         await client.query(
@@ -346,39 +365,65 @@ export class CadastralRepository {
            WHERE id = $1;`,
           [data.parcelId, data.ownerName || null, data.ownerPhone || null]
         );
+
+        if (data.attemptCount && data.attemptCount > 0) {
+          attemptCount = data.attemptCount;
+        } else {
+          const countRes = await client.query<{ absence_attempt_count: number }>(
+            `SELECT absence_attempt_count FROM parcels WHERE id = $1;`,
+            [data.parcelId]
+          );
+          attemptCount = countRes.rows[0]?.absence_attempt_count || 1;
+        }
       }
 
-      // 2. Lấy bộ đếm hiện tại
-      const countRes = await client.query<{ absence_attempt_count: number }>(
-        `SELECT absence_attempt_count FROM parcels WHERE id = $1;`,
-        [data.parcelId]
-      );
-      const attemptCount = countRes.rows[0]?.absence_attempt_count || 1;
+      // Chuẩn hóa absence_reason
+      const validReasons = ['HOMEOWNER_ABSENT', 'LOCKED_GATE', 'REFUSED_ACCESS', 'UNOCCUPIED_EMPTY', 'LOCKED_SECURITY', 'OTHER'];
+      const normalizedReason = validReasons.includes(data.absenceReason) ? data.absenceReason : 'OTHER';
+      const customReason = data.customReason || (normalizedReason === 'OTHER' ? data.absenceReason : null);
+      const minutesPhotosList = Array.isArray(data.minutesPhotos) ? data.minutesPhotos : [];
+      const primaryPhoto = data.photoProofUrl || (minutesPhotosList.length > 0 ? minutesPhotosList[0] : null);
 
-      // 3. Ghi log vắng nhà (kèm unit_id nếu có)
+      // 3. Ghi log vắng nhà (kèm unit_id và các trường chi tiết nếu có)
       await client.query(
         `INSERT INTO survey_absence_logs (
            parcel_id, surveyor_id, absence_reason, notes, photo_proof_url,
-           reschedule_date, attempt_count, unit_id
-         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8);`,
+           reschedule_date, attempt_count, unit_id, custom_reason,
+           witness_name, witness_role, witness_phone, notice_delivered, minutes_photos_json
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14);`,
         [
           data.parcelId,
           data.surveyorId,
-          data.absenceReason,
+          normalizedReason,
           data.notes || null,
-          data.photoProofUrl || null,
+          primaryPhoto,
           data.rescheduleDate || null,
           attemptCount,
           data.unitId || null,
+          customReason,
+          data.witnessName || null,
+          data.witnessRole || null,
+          data.witnessPhone || null,
+          Boolean(data.noticeDelivered),
+          JSON.stringify(minutesPhotosList),
         ]
       );
 
       // 4. Nếu có dữ liệu ngoại thất Bước 1, lưu bảo toàn vào base_survey_reports
       if (data.surveyData) {
-        const repRes = await client.query<{ id: string }>(
-          `SELECT id FROM base_survey_reports WHERE parcel_id = $1 ORDER BY created_at DESC LIMIT 1;`,
-          [data.parcelId]
-        );
+        let repRes;
+        if (data.unitId) {
+          repRes = await client.query<{ id: string }>(
+            `SELECT id FROM base_survey_reports WHERE parcel_id = $1 AND unit_id = $2 ORDER BY created_at DESC LIMIT 1;`,
+            [data.parcelId, data.unitId]
+          );
+        } else {
+          repRes = await client.query<{ id: string }>(
+            `SELECT id FROM base_survey_reports WHERE parcel_id = $1 AND unit_id IS NULL ORDER BY created_at DESC LIMIT 1;`,
+            [data.parcelId]
+          );
+        }
+
         let repId: string;
         if (repRes.rows[0]) {
           repId = repRes.rows[0].id;
@@ -394,12 +439,13 @@ export class CadastralRepository {
           );
         } else {
           const reportCode = `REPORT-ABSENT-${Date.now()}`;
+          const reportType = data.unitId ? 'CONDO_UNIT' : 'STANDALONE';
           const newRep = await client.query<{ id: string }>(
             `INSERT INTO base_survey_reports (
-               parcel_id, surveyor_id, report_code, phase, status, is_refused_or_absent, survey_data_json
-             ) VALUES ($1, $2, $3, 'PHASE_1', 'DRAFT', TRUE, $4)
+               parcel_id, unit_id, surveyor_id, report_code, report_type, phase, status, is_refused_or_absent, survey_data_json
+             ) VALUES ($1, $2, $3, $4, $5, 'PHASE_1', 'DRAFT', TRUE, $6)
              RETURNING id;`,
-            [data.parcelId, data.surveyorId, reportCode, JSON.stringify(data.surveyData)]
+            [data.parcelId, data.unitId || null, data.surveyorId, reportCode, reportType, JSON.stringify(data.surveyData)]
           );
           repId = newRep.rows[0].id;
           await client.query(
@@ -407,10 +453,18 @@ export class CadastralRepository {
             [repId]
           );
         }
-        await client.query(
-          `UPDATE parcels SET active_phase1_report_id = $2 WHERE id = $1;`,
-          [data.parcelId, repId]
-        );
+
+        if (data.unitId) {
+          await client.query(
+            `UPDATE building_units SET phase1_report_id = $2 WHERE id = $1;`,
+            [data.unitId, repId]
+          );
+        } else {
+          await client.query(
+            `UPDATE parcels SET active_phase1_report_id = $2 WHERE id = $1;`,
+            [data.parcelId, repId]
+          );
+        }
       }
     });
   }

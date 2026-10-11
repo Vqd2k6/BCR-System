@@ -57,6 +57,17 @@ export const Step4_UnitSignatures: React.FC<Props> = ({ onSubmitFinal, isSubmitt
   const maxBurlandGrade = burlandGrades.length > 0 ? Math.max(...burlandGrades) : 0;
   const criticalDefectCount = allDefects.filter((d) => (Number(d.widthMaxMm) || 0) >= 2.0).length;
 
+  const hasMinutesPhoto = Boolean(
+    (formData.workingMinutesPhotos && formData.workingMinutesPhotos.length > 0) ||
+    (formData.signatures?.workingMinutesPhotos && formData.signatures.workingMinutesPhotos.length > 0)
+  );
+  const hasSignatures = Boolean(
+    (formData.ownerSignature || formData.signatures?.ownerSignature) &&
+    (formData.surveyorSignature || formData.signatures?.surveyorSignature)
+  );
+  const isAbsent = Boolean(formData.isAbsentee || formData.residentStatus === 'VẮNG_MẶT_KHÓA_CỬA');
+  const isMinutesMissing = !isAbsent && !hasMinutesPhoto && !hasSignatures;
+
   return (
     <div className="space-y-6 max-w-4xl mx-auto pb-12 animate-in fade-in">
       {/* 4.1. Bảng Đối Soát Tổng Thể Dữ Liệu Khảo Sát Z - E - D */}
@@ -250,23 +261,55 @@ export const Step4_UnitSignatures: React.FC<Props> = ({ onSubmitFinal, isSubmitt
       </Card>
 
       {/* 4.3. Ảnh chụp biên bản khảo sát hiện trường & Chữ ký giấy (Working Minutes Photos) */}
-      <Card className="border-slate-200 bg-white shadow-xs space-y-4">
+      <Card
+        className={`shadow-xs space-y-4 border transition-all ${
+          isMinutesMissing
+            ? 'border-rose-400 bg-rose-50/20 ring-1 ring-rose-300'
+            : 'border-slate-200 bg-white'
+        }`}
+      >
         <div className="flex items-center justify-between pb-3 border-b border-slate-100">
           <div className="flex items-center gap-2">
-            <Camera className="w-5 h-5 text-teal-600" />
+            <Camera className={`w-5 h-5 ${isMinutesMissing ? 'text-rose-600' : 'text-teal-600'}`} />
             <div>
-              <h2 className="text-base font-bold text-slate-800">
-                4.3. Ảnh Chụp Biên Bản Khảo Sát Giấy & Chữ Ký Tươi (Tùy chọn)
-              </h2>
-              <p className="text-xs text-slate-500">
-                Đính kèm ảnh chụp biên bản giấy có chữ ký tươi của chủ hộ và khảo sát viên (nếu ký trên bản cứng hiện trường)
+              <div className="flex items-center gap-2">
+                <h2 className="text-base font-bold text-slate-800">
+                  4.3. Ảnh Chụp Biên Bản Khảo Sát Giấy Hoặc Chữ Ký Pháp Lý
+                </h2>
+                <span
+                  className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                    isMinutesMissing ? 'bg-rose-600 text-white' : 'bg-emerald-600 text-white'
+                  }`}
+                >
+                  {isMinutesMissing ? 'Bắt buộc' : 'Đã đủ'}
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Bắt buộc có ít nhất 1 ảnh biên bản làm việc giấy có chữ ký hoặc chữ ký điện tử của cả Chủ hộ & KSV trước khi nộp hồ sơ
               </p>
             </div>
           </div>
-          <span className="text-xs bg-slate-100 text-slate-700 font-bold px-2 py-0.5 rounded">
+          <span
+            className={`text-xs font-bold px-2 py-0.5 rounded ${
+              isMinutesMissing ? 'bg-rose-100 text-rose-800' : 'bg-slate-100 text-slate-700'
+            }`}
+          >
             {formData.workingMinutesPhotos?.length || 0} ảnh
           </span>
         </div>
+
+        {/* Cảnh báo nổi bật khi thiếu biên bản hoặc chữ ký */}
+        {isMinutesMissing && (
+          <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 flex items-start gap-2.5 text-xs text-rose-900">
+            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+            <div>
+              <strong className="font-bold">Mục bắt buộc chưa hoàn thành:</strong>
+              <p className="text-[11px] text-rose-700 mt-0.5 leading-relaxed">
+                Hồ sơ khảo sát căn hộ bắt buộc phải có ít nhất 1 ảnh chụp Biên bản làm việc giấy có chữ ký hoặc chữ ký điện tử xác nhận của cả Chủ hộ & KSV trước khi nộp.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Existing photos preview */}
         {formData.workingMinutesPhotos && formData.workingMinutesPhotos.length > 0 && (

@@ -279,6 +279,20 @@ export function auditCondoUnitPhotos(rawFormData: CondoUnitFormData): CondoUnitP
     );
   });
 
+  // Biên bản vắng mặt / Giấy hẹn dán cửa (Chế độ Khảo sát Vắng mặt)
+  const absenteeMinutes = formData.absenteeInfo?.absenteeMinutesPhotos || formData.absenteeMinutesPhotos || [];
+  absenteeMinutes.forEach((mUrl, mIdx) => {
+    addPhoto(
+      `absentee_minutes_${mIdx}`,
+      `absenteeMinutes_${mIdx}`,
+      formData.isAbsentee ? 3 : 4,
+      formData.isAbsentee ? 'Bước 3: Biên bản vắng nhà & Nộp hồ sơ' : 'Bước 4: Tóm tắt & Nộp hồ sơ',
+      `Ảnh biên bản xác nhận vắng chủ / giấy hẹn #${mIdx + 1}`,
+      mUrl,
+      `ABSENT_MINUTES_${mIdx + 1}`
+    );
+  });
+
   const syncedPhotos = allPhotos.filter((p) => p.isCloudUrl);
   const unsyncedPhotos = allPhotos.filter((p) => !p.isCloudUrl);
 

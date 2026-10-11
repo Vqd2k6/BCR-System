@@ -165,4 +165,66 @@ export interface CondoUnitFormData {
     surveyDate?: string;
     workingMinutesPhotos?: string[];
   };
+
+  // 5. Kịch bản Chủ nhà Vắng Mặt / Khóa Cửa (Absentee Survey Workflow)
+  isAbsentee?: boolean;
+  absenteeInfo?: CondoUnitAbsenteeInfo;
+  // Tương thích phẳng thuận tiện cho audit / view
+  absenteeReason?: string;
+  absenteeMinutesPhotos?: string[];
+  resumedFromAbsentee?: boolean;
 }
+
+export type CondoUnitAbsenceReason =
+  | 'HOMEOWNER_ABSENT'
+  | 'UNOCCUPIED_EMPTY'
+  | 'REFUSED_ACCESS'
+  | 'LOCKED_SECURITY'
+  | 'OTHER';
+
+export const CONDO_UNIT_ABSENCE_REASONS: readonly { value: CondoUnitAbsenceReason; label: string }[] = [
+  { value: 'HOMEOWNER_ABSENT', label: 'Chủ nhà đi vắng / Khóa cửa ngoài' },
+  { value: 'UNOCCUPIED_EMPTY', label: 'Căn hộ bỏ trống / Chưa về ở' },
+  { value: 'REFUSED_ACCESS', label: 'Chủ nhà hoặc khách thuê từ chối tiếp cận' },
+  { value: 'LOCKED_SECURITY', label: 'Căn hộ niêm phong / BQL không có chìa khóa' },
+  { value: 'OTHER', label: 'Lý do khác (Nhập chi tiết vào ghi chú)' },
+];
+
+export function isCondoUnitAbsenceReason(val: unknown): val is CondoUnitAbsenceReason {
+  return typeof val === 'string' && ['HOMEOWNER_ABSENT', 'UNOCCUPIED_EMPTY', 'REFUSED_ACCESS', 'LOCKED_SECURITY', 'OTHER'].includes(val);
+}
+
+export type CondoUnitWitnessRole =
+  | 'BUILDING_MANAGEMENT'
+  | 'SECURITY'
+  | 'FLOOR_LEADER'
+  | 'NEIGHBOR'
+  | 'POLICE'
+  | 'OTHER';
+
+export const CONDO_UNIT_WITNESS_ROLES: readonly { value: CondoUnitWitnessRole; label: string }[] = [
+  { value: 'BUILDING_MANAGEMENT', label: 'Ban Quản Lý (BQL) Tòa Nhà' },
+  { value: 'SECURITY', label: 'Đội Bảo Vệ Tòa Nhà' },
+  { value: 'FLOOR_LEADER', label: 'Trưởng Tầng / Đại Diện Cư Dân / Tổ Dân Phố' },
+  { value: 'NEIGHBOR', label: 'Hàng Xóm Căn Hộ Liền Kề' },
+  { value: 'POLICE', label: 'Công An / Cảnh Sát Khu Vực' },
+  { value: 'OTHER', label: 'Người Chứng Kiến Khác' },
+];
+
+export function isCondoUnitWitnessRole(val: unknown): val is CondoUnitWitnessRole {
+  return typeof val === 'string' && ['BUILDING_MANAGEMENT', 'SECURITY', 'FLOOR_LEADER', 'NEIGHBOR', 'POLICE', 'OTHER'].includes(val);
+}
+
+export interface CondoUnitAbsenteeInfo {
+  absenceReason: CondoUnitAbsenceReason;
+  customReason?: string;
+  notes?: string;
+  witnessName?: string;
+  witnessRole?: CondoUnitWitnessRole;
+  witnessPhone?: string;
+  noticeDelivered: boolean;
+  rescheduleDate?: string;
+  attemptCount: number;
+  absenteeMinutesPhotos: string[];
+}
+
