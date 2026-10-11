@@ -30,13 +30,18 @@ export const CondoUnitMissingFieldsModal: React.FC<Props> = ({
   onGoToStep,
 }) => {
   const { setIsPhotoAuditOpen } = useCondoUnitSurveyStore();
-  if (!isOpen) return null;
-
   const hasBlocking = blockingIssues.length > 0;
   const hasWarnings = warnings.length > 0;
-  const [activeTab, setActiveTab] = useState<'BLOCKING' | 'WARNING'>(
-    hasBlocking ? 'BLOCKING' : 'WARNING'
-  );
+  const [activeTab, setActiveTab] = useState<'BLOCKING' | 'WARNING'>('BLOCKING');
+
+  // Luôn cập nhật tab mặc định khi modal được mở ra
+  React.useEffect(() => {
+    if (isOpen) {
+      setActiveTab(hasBlocking ? 'BLOCKING' : 'WARNING');
+    }
+  }, [isOpen, hasBlocking]);
+
+  if (!isOpen) return null;
 
   return (
     <div
