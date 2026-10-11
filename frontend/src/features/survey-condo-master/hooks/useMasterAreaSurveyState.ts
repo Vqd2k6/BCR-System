@@ -35,6 +35,28 @@ import type { LockedInfo } from '../../survey-phase1/components/ActiveSurveyorLo
 import type { HandoverInfo } from '../../survey-phase1/components/HandoverTakeoverModal';
 import type { MasterAreaAbsentPayload } from '../components/master-area/MasterAreaAbsentModal';
 
+/**
+ * Đếm số lượng bằng chứng thực tế (ảnh, ghim CAD, vùng Z, cấu kiện E)
+ * Dùng để chống ghi đè dữ liệu rỗng lên bản nháp đã có dữ liệu.
+ */
+function countDraftEvidence(data: Record<string, unknown> | null | undefined): number {
+  if (!data) return 0;
+  let count = 0;
+  const rawFloorSurvey = data.floorSurvey || (Array.isArray(data.floors) ? data.floors[0] : null);
+  const fSurvey: Record<string, unknown> = (rawFloorSurvey && typeof rawFloorSurvey === 'object')
+    ? (rawFloorSurvey as Record<string, unknown>)
+    : {};
+  const src: Record<string, unknown> = { ...fSurvey, ...data };
+
+  if (Array.isArray(src.overviewPhotos)) count += src.overviewPhotos.length;
+  if (typeof src.cadSketchPhotoUrl === 'string' && src.cadSketchPhotoUrl) count += 1;
+  if (Array.isArray(src.cadZonePins)) count += src.cadZonePins.length;
+  if (Array.isArray(src.zones)) count += src.zones.length;
+  if (Array.isArray(src.cadElementPins)) count += src.cadElementPins.length;
+  if (Array.isArray(src.structuralElements)) count += src.structuralElements.length;
+  return count;
+}
+
 interface UseMasterAreaSurveyStateProps {
   parcel: GisParcel;
   unit: BuildingUnit;
@@ -135,7 +157,9 @@ export function useMasterAreaSurveyState({
   const [isAbsentModalOpen, setIsAbsentModalOpen] = useState<boolean>(false);
   const [serverSyncVersion, setServerSyncVersion] = useState<number>(1);
 
-  const draftKey = `master_area_draft_${parcelId}_${floorNumber}_${unitCode}`;
+  const draftKey = `master_area_draft_${parcelId}_${unitId}`;
+  const legacyDraftKey = `master_area_draft_${parcelId}_${floorNumber}_${unitCode}`;
+  const lastLoadedEvidenceCountRef = useRef<number>(0);
   const hasAutoCroppedRef = useRef<boolean>(false);
 
   // Refs theo dõi ảnh tạm blob:local:// để thay thế bằng Cloud URL chính thức khi upload xong
@@ -309,180 +333,92 @@ export function useMasterAreaSurveyState({
     };
   }, [parcelId, floorNumber, floorCadUrl, floorPlans, unitCode, unitId]);
 
-  // Nạp báo cáo khảo sát đã có nếu có phase1_report_id hoặc fallback sang API parcel-unit
-  useEffect(() => {
-    let isSubscribed = true;
-    const fetchExistingReport = async () => {
-      try {
-        setIsLoadingReport(true);
-        const endpoint = existingReportId
-          ? `/reports/phase1/${existingReportId}`
-          : `/parcels/${parcelId}/phase1-report?unitId=${unitId}${!readOnly ? '&preferDraft=true' : ''}`;
-        const res = await api.get(endpoint);
-        if (isSubscribed && res.data?.success && res.data.data) {
-          const rData = res.data.data?.report || res.data.data;
-          if (rData && rData.id) {
-            setServerReport({
-              id: rData.id,
-              status: rData.status,
-              export_revision: rData.export_revision,
-            });
+  // Khôi phục dữ liệu nháp vào State (hỗ trợ cả cấu trúc phẳng root và cấu trúc lồng floorSurvey / floors)
+  const applyDraftDataToState = useCallback((rawDraft: Record<string, unknown>): number => {
+    const draft = healLocalPhotoUris(rawDraft);
+    const rawFloorSurvey = draft.floorSurvey || (Array.isArray(draft.floors) ? draft.floors[0] : null);
+    const fSurvey: Record<string, unknown> = (rawFloorSurvey && typeof rawFloorSurvey === 'object')
+      ? (rawFloorSurvey as Record<string, unknown>)
+      : {};
 
-            let sData: Record<string, unknown> = {};
-            if (typeof rData.survey_data_json === 'string') {
-              try {
-                sData = JSON.parse(rData.survey_data_json);
-              } catch (parseErr: unknown) {
-                console.error('[useMasterAreaSurveyState:parseJson] Lỗi parse survey_data_json:', parseErr);
-                sData = (rData.surveyData as Record<string, unknown>) || {};
-              }
-            } else if (rData.survey_data_json && typeof rData.survey_data_json === 'object') {
-              sData = rData.survey_data_json as Record<string, unknown>;
-            } else if (rData.surveyData && typeof rData.surveyData === 'object') {
-              sData = rData.surveyData as Record<string, unknown>;
-            }
+    const source: Record<string, unknown> = { ...fSurvey, ...draft };
+    let evidenceCount = 0;
 
-            const rawFloorSurvey = sData.floorSurvey || (Array.isArray(sData.floors) ? sData.floors[0] : null);
-            const fSurvey: Record<string, unknown> = (rawFloorSurvey && typeof rawFloorSurvey === 'object')
-              ? (rawFloorSurvey as Record<string, unknown>)
-              : {};
+    if (Array.isArray(source.overviewPhotos) && source.overviewPhotos.length > 0) {
+      setOverviewPhotos(source.overviewPhotos as EvidencePhotoItem[]);
+      evidenceCount += source.overviewPhotos.length;
+    }
+    if (typeof source.cadSketchPhotoUrl === 'string' && source.cadSketchPhotoUrl) {
+      setCadSketchPhotoUrl(source.cadSketchPhotoUrl);
+      evidenceCount += 1;
+    }
+    if (typeof source.cadStructuralSketchPhotoUrl === 'string' && source.cadStructuralSketchPhotoUrl) {
+      setCadStructuralSketchPhotoUrl(source.cadStructuralSketchPhotoUrl);
+    }
+    if (typeof source.useSeparateStructuralCad === 'boolean') {
+      setUseSeparateStructuralCad(source.useSeparateStructuralCad);
+    }
+    if (Array.isArray(source.cadZonePins) && source.cadZonePins.length > 0) {
+      setCadZonePins(source.cadZonePins as CadZonePin[]);
+      evidenceCount += source.cadZonePins.length;
+    }
+    if (Array.isArray(source.zones) && source.zones.length > 0) {
+      setZones(source.zones as DamageZoneData[]);
+      evidenceCount += source.zones.length;
+    }
+    if (typeof source.hasStructuralElements === 'boolean') {
+      setHasStructuralElements(source.hasStructuralElements);
+    }
+    if (typeof source.noStructuralElementsReason === 'string') {
+      setNoStructuralElementsReason(source.noStructuralElementsReason);
+    }
+    if (Array.isArray(source.cadElementPins) && source.cadElementPins.length > 0) {
+      setCadElementPins(source.cadElementPins as CadZonePin[]);
+      evidenceCount += source.cadElementPins.length;
+    }
+    if (Array.isArray(source.structuralElements) && source.structuralElements.length > 0) {
+      setStructuralElements(source.structuralElements as StructuralElementData[]);
+      evidenceCount += source.structuralElements.length;
+    }
+    if (typeof source.surveyorRemarks === 'string' && source.surveyorRemarks) {
+      setSurveyorRemarks(source.surveyorRemarks);
+    }
+    if (typeof source.surveyorSignatureUrl === 'string' && source.surveyorSignatureUrl) {
+      setSurveyorSignatureUrl(source.surveyorSignatureUrl);
+    }
+    if (source.customBbox && typeof source.customBbox === 'object') {
+      setCustomBbox(source.customBbox as NormalizedBbox);
+    }
+    if (
+      typeof source.currentStep === 'number' &&
+      source.currentStep >= 1 &&
+      source.currentStep <= 5
+    ) {
+      setCurrentStep(source.currentStep as 1 | 2 | 3 | 4 | 5);
+    }
 
-            if (Array.isArray(fSurvey.overviewPhotos) && fSurvey.overviewPhotos.length > 0) {
-              setOverviewPhotos(fSurvey.overviewPhotos as EvidencePhotoItem[]);
-            } else if (Array.isArray(rData.identificationPhotos) && rData.identificationPhotos.length > 0) {
-              const mappedPhotos: EvidencePhotoItem[] = (rData.identificationPhotos as Array<Record<string, unknown>>)
-                .map((p) => ({
-                  url: String(p.raw_photo_url || ''),
-                  photoCode: p.photo_code ? String(p.photo_code) : undefined,
-                  notes: p.notes ? String(p.notes) : undefined,
-                }))
-                .filter((p) => Boolean(p.url));
-              if (mappedPhotos.length > 0) {
-                setOverviewPhotos(mappedPhotos);
-              }
-            }
+    return evidenceCount;
+  }, []);
 
-            // Kiểm tra bảo toàn từ LocalStorage nếu server chưa có ảnh tổng quan
-            if (!fSurvey.overviewPhotos || (Array.isArray(fSurvey.overviewPhotos) && fSurvey.overviewPhotos.length === 0)) {
-              try {
-                const localDraftRaw = localStorage.getItem(draftKey);
-                if (localDraftRaw) {
-                  const localDraft = JSON.parse(localDraftRaw);
-                  if (Array.isArray(localDraft?.overviewPhotos) && localDraft.overviewPhotos.length > 0) {
-                    console.log('[useMasterAreaSurveyState] Bảo toàn ảnh tổng quan từ LocalStorage draft');
-                    setOverviewPhotos(localDraft.overviewPhotos as EvidencePhotoItem[]);
-                  }
-                }
-              } catch (localErr: unknown) {
-                console.warn('[useMasterAreaSurveyState] Lỗi kiểm tra ảnh local draft:', localErr);
-              }
-            }
-
-            if (typeof fSurvey.cadSketchPhotoUrl === 'string' && fSurvey.cadSketchPhotoUrl) {
-              setCadSketchPhotoUrl(fSurvey.cadSketchPhotoUrl);
-            }
-            if (typeof fSurvey.cadStructuralSketchPhotoUrl === 'string' && fSurvey.cadStructuralSketchPhotoUrl) {
-              setCadStructuralSketchPhotoUrl(fSurvey.cadStructuralSketchPhotoUrl);
-            }
-            if (typeof fSurvey.useSeparateStructuralCad === 'boolean') {
-              setUseSeparateStructuralCad(fSurvey.useSeparateStructuralCad);
-            }
-            if (Array.isArray(fSurvey.cadZonePins)) {
-              setCadZonePins(fSurvey.cadZonePins as CadZonePin[]);
-            }
-            if (Array.isArray(fSurvey.zones) && fSurvey.zones.length > 0) {
-              setZones(fSurvey.zones as DamageZoneData[]);
-            }
-            if (typeof fSurvey.hasStructuralElements === 'boolean') {
-              setHasStructuralElements(fSurvey.hasStructuralElements);
-            }
-            if (typeof fSurvey.noStructuralElementsReason === 'string') {
-              setNoStructuralElementsReason(fSurvey.noStructuralElementsReason);
-            }
-            if (Array.isArray(fSurvey.cadElementPins)) {
-              setCadElementPins(fSurvey.cadElementPins as CadZonePin[]);
-            }
-            if (Array.isArray(fSurvey.structuralElements) && fSurvey.structuralElements.length > 0) {
-              setStructuralElements(fSurvey.structuralElements as StructuralElementData[]);
-            }
-            if (typeof sData.surveyorRemarks === 'string') setSurveyorRemarks(sData.surveyorRemarks);
-            if (typeof sData.surveyorSignatureUrl === 'string') setSurveyorSignatureUrl(sData.surveyorSignatureUrl);
-            setSyncStatus('SAVED_CLOUD');
-            return;
+  // Phục hồi bản nháp cục bộ từ LocalStorage (kiểm tra key theo unitId và key legacy)
+  const restoreLocalDraft = useCallback((): number => {
+    try {
+      const savedRaw = localStorage.getItem(draftKey) || localStorage.getItem(legacyDraftKey);
+      if (savedRaw) {
+        const draft = JSON.parse(savedRaw);
+        if (draft && typeof draft === 'object') {
+          const count = applyDraftDataToState(draft);
+          if (count > 0) {
+            setSyncStatus('SAVED_LOCAL');
           }
-        }
-      } catch (err: unknown) {
-        console.warn('[useMasterAreaSurveyState] Lỗi nạp báo cáo cũ:', err);
-      } finally {
-        if (isSubscribed) {
-          setIsLoadingReport(false);
-          setReportLoaded(true);
+          return count;
         }
       }
-    };
-    fetchExistingReport();
-    return () => {
-      isSubscribed = false;
-    };
-  }, [existingReportId, parcelId, unitId, readOnly, draftKey]);
-
-  // Khôi phục dữ liệu nháp vào State
-  const applyDraftDataToState = useCallback((rawDraft: Record<string, unknown>) => {
-    // Thay mọi blob:local:// đã được upload xong bằng URL Cloud (tránh kẹt ảnh khi mở lại)
-    const draft = healLocalPhotoUris(rawDraft);
-    if (Array.isArray(draft.overviewPhotos) && draft.overviewPhotos.length > 0) {
-      setOverviewPhotos(draft.overviewPhotos as EvidencePhotoItem[]);
+    } catch (err: unknown) {
+      console.warn('[useMasterAreaSurveyState] Lỗi phục hồi bản nháp cục bộ:', err);
     }
-    if (typeof draft.cadSketchPhotoUrl === 'string') {
-      setCadSketchPhotoUrl(draft.cadSketchPhotoUrl);
-    }
-    if (typeof draft.cadStructuralSketchPhotoUrl === 'string') {
-      setCadStructuralSketchPhotoUrl(draft.cadStructuralSketchPhotoUrl);
-    }
-    if (typeof draft.useSeparateStructuralCad === 'boolean') {
-      setUseSeparateStructuralCad(draft.useSeparateStructuralCad);
-    }
-    if (Array.isArray(draft.cadZonePins)) {
-      setCadZonePins(draft.cadZonePins as CadZonePin[]);
-    }
-    if (Array.isArray(draft.zones) && draft.zones.length > 0) {
-      setZones(draft.zones as DamageZoneData[]);
-    }
-    if (typeof draft.hasStructuralElements === 'boolean') {
-      setHasStructuralElements(draft.hasStructuralElements);
-    }
-    if (typeof draft.noStructuralElementsReason === 'string') {
-      setNoStructuralElementsReason(draft.noStructuralElementsReason);
-    }
-    if (Array.isArray(draft.cadElementPins)) {
-      setCadElementPins(draft.cadElementPins as CadZonePin[]);
-    }
-    if (Array.isArray(draft.structuralElements) && draft.structuralElements.length > 0) {
-      setStructuralElements(draft.structuralElements as StructuralElementData[]);
-    }
-    if (typeof draft.surveyorRemarks === 'string') {
-      setSurveyorRemarks(draft.surveyorRemarks);
-    }
-    if (draft.customBbox && typeof draft.customBbox === 'object') {
-      setCustomBbox(draft.customBbox as NormalizedBbox);
-    }
-  }, []);
-
-  // Khi một ảnh upload xong (ở bất kỳ đâu), thăng cấp blob:local:// -> URL Cloud trong state của khu vực dùng chung
-  useEffect(() => {
-    const handlePromoted = (evt: Event) => {
-      const detail = (evt as CustomEvent<{ localId?: string; publicUrl?: string }>).detail;
-      if (!detail || !detail.localId || !detail.publicUrl) return;
-      const { localId, publicUrl } = detail;
-      setOverviewPhotos((prev) => replaceLocalUriInObject(prev, localId, publicUrl));
-      setCadSketchPhotoUrl((prev) => replaceLocalUriInObject(prev, localId, publicUrl));
-      setCadStructuralSketchPhotoUrl((prev) => replaceLocalUriInObject(prev, localId, publicUrl));
-      setZones((prev) => replaceLocalUriInObject(prev, localId, publicUrl));
-      setStructuralElements((prev) => replaceLocalUriInObject(prev, localId, publicUrl));
-    };
-    window.addEventListener('metro2:photo-promoted', handlePromoted);
-    return () => window.removeEventListener('metro2:photo-promoted', handlePromoted);
-  }, []);
+    return 0;
+  }, [draftKey, legacyDraftKey, applyDraftDataToState]);
 
   // Tổng hợp khuyết tật và tính toán phân cấp Burland chủ đạo
   const allDefects = useMemo(() => {
@@ -510,24 +446,34 @@ export function useMasterAreaSurveyState({
     return counts;
   }, [allDefects]);
 
-  // Đóng gói payload nháp
+  // Đóng gói payload nháp (kết hợp cả trường phẳng và lồng floorSurvey để tương thích 100%)
   const buildDraftPayload = useCallback(() => {
-    return healLocalPhotoUris({
+    const floorSurveyPayload = {
       overviewPhotos,
       cadSketchPhotoUrl,
-      cadStructuralSketchPhotoUrl,
+      cadStructuralSketchPhotoUrl: useSeparateStructuralCad ? cadStructuralSketchPhotoUrl : cadSketchPhotoUrl,
       useSeparateStructuralCad,
       cadZonePins,
+      cadElementPins,
       zones,
+      structuralElements: hasStructuralElements ? structuralElements : [],
       hasStructuralElements,
       noStructuralElementsReason,
-      cadElementPins,
-      structuralElements,
-      surveyorRemarks,
       customBbox,
+    };
+
+    return healLocalPhotoUris({
+      ...floorSurveyPayload,
+      floorSurvey: floorSurveyPayload,
+      floors: [floorSurveyPayload],
+      surveyorRemarks,
+      surveyorSignatureUrl,
       dominantBurlandGrade,
+      currentStep,
       floorNumber,
       unitCode,
+      unitId,
+      parcelId,
       unitName: unit.unit_name || unit.unitName || 'Khu vực dùng chung',
       unitType: 'MASTER',
       updatedAt: new Date().toISOString(),
@@ -544,105 +490,188 @@ export function useMasterAreaSurveyState({
     cadElementPins,
     structuralElements,
     surveyorRemarks,
+    surveyorSignatureUrl,
     customBbox,
     dominantBurlandGrade,
+    currentStep,
     floorNumber,
     unitCode,
+    unitId,
+    parcelId,
     unit.unit_name,
     unit.unitName,
   ]);
 
-  // Phục hồi bản nháp cục bộ nếu chưa có bản nháp máy chủ
-  const restoreLocalDraft = useCallback(() => {
-    try {
-      const savedRaw = localStorage.getItem(draftKey);
-      if (savedRaw) {
-        const draft = JSON.parse(savedRaw);
-        if (draft && typeof draft === 'object') {
-          applyDraftDataToState(draft);
-          setSyncStatus('SAVED_LOCAL');
-        }
-      }
-    } catch (err: unknown) {
-      console.warn('[useMasterAreaSurveyState] Lỗi phục hồi bản nháp cục bộ:', err);
-    }
-  }, [draftKey, applyDraftDataToState]);
-
-  // Khởi tạo: Truy vấn Cloud Draft trên máy chủ kèm kiểm tra khóa chống xung đột 2 người
+  // Khởi tạo: Nạp hồ sơ (Ưu tiên nạp báo cáo đã nộp nếu SUBMITTED/APPROVED, hoặc Cloud Draft nếu đang làm dở)
   useEffect(() => {
-    // Báo cáo đã có sẵn / đã nộp: dữ liệu lấy từ báo cáo, không cần (và không được) nạp bản nháp cũ/bật modal khóa
-    if (existingReportId || serverReport || isSubmittedOrApproved) {
-      setDraftLoaded(true);
-      return;
-    }
     let isMounted = true;
+    setReportLoaded(false);
     setDraftLoaded(false);
     setIsLockedByOther(false);
     setIsHandoverModalOpen(false);
 
-    surveyDraftService
-      // Chế độ chỉ xem (admin): đọc nháp để hiển thị, KHÔNG khóa ca / KHÔNG bắt tiếp quản
-      .fetchDraft(parcelId, unitId, { viewOnly: isReadOnly })
-      .then((serverRes: DraftResponseData) => {
-        if (!isMounted) return;
+    const hydrateSurvey = async () => {
+      try {
+        setIsLoadingReport(true);
 
-        // 1. Trường hợp có KSV khác đang mở khảo sát (< 15 phút) -> Kích hoạt khóa an toàn
-        if (!isReadOnly && serverRes.isLocked) {
-          setIsLockedByOther(true);
-          setLockedInfo({
-            surveyorName: serverRes.activeSurveyorName || 'Kỹ sư khác',
-            phone: serverRes.activeSurveyorPhone,
-            minutesAgo: serverRes.minutesAgo || 1,
-            message: serverRes.message,
-          });
+        // TRƯỜNG HỢP 1: Hồ sơ đã nộp (SUBMITTED) hoặc đã duyệt (APPROVED)
+        // Nạp báo cáo bất biến chính thức từ server, không nạp nháp và không bật modal khóa
+        if (isSubmittedOrApproved) {
+          try {
+            const endpoint = existingReportId
+              ? `/reports/phase1/${existingReportId}`
+              : `/parcels/${parcelId}/phase1-report?unitId=${unitId}&reportType=CONDO_UNIT`;
+            const res = await api.get(endpoint);
+            if (!isMounted) return;
+            if (res.data?.success && res.data.data) {
+              const rData = res.data.data?.report || res.data.data;
+              if (rData && rData.id) {
+                setServerReport({
+                  id: rData.id,
+                  status: rData.status,
+                  export_revision: rData.export_revision,
+                });
+
+                let sData: Record<string, unknown> = {};
+                if (typeof rData.survey_data_json === 'string') {
+                  try {
+                    sData = JSON.parse(rData.survey_data_json);
+                  } catch (parseErr: unknown) {
+                    sData = (rData.surveyData as Record<string, unknown>) || {};
+                  }
+                } else if (rData.survey_data_json && typeof rData.survey_data_json === 'object') {
+                  sData = rData.survey_data_json as Record<string, unknown>;
+                } else if (rData.surveyData && typeof rData.surveyData === 'object') {
+                  sData = rData.surveyData as Record<string, unknown>;
+                }
+
+                if (Array.isArray(rData.identificationPhotos) && rData.identificationPhotos.length > 0 && !sData.overviewPhotos) {
+                  const mapped = (rData.identificationPhotos as Array<Record<string, unknown>>)
+                    .map((p) => ({
+                      url: String(p.raw_photo_url || ''),
+                      photoCode: p.photo_code ? String(p.photo_code) : undefined,
+                      notes: p.notes ? String(p.notes) : undefined,
+                    }))
+                    .filter((p) => Boolean(p.url));
+                  if (mapped.length > 0) {
+                    sData.overviewPhotos = mapped;
+                  }
+                }
+
+                const ev = applyDraftDataToState(sData);
+                lastLoadedEvidenceCountRef.current = ev;
+                setSyncStatus('SAVED_CLOUD');
+              }
+            }
+          } catch (err: unknown) {
+            console.warn('[useMasterAreaSurveyState] Lỗi nạp báo cáo đã nộp:', err);
+          } finally {
+            if (isMounted) {
+              setIsLoadingReport(false);
+              setReportLoaded(true);
+              setDraftLoaded(true);
+            }
+          }
           return;
         }
 
-        // 2. Trường hợp KSV ca trước đã rời đi hoặc quá 15 phút -> Yêu cầu tiếp quản ca
-        if (!isReadOnly && serverRes.requiresHandover) {
-          setIsHandoverModalOpen(true);
-          setHandoverInfo({
-            fromSurveyorName: serverRes.fromSurveyorName || 'Kỹ sư ca trước',
-            fromSurveyorPhone: serverRes.fromSurveyorPhone,
-            currentStep: serverRes.currentStep || 1,
-            securityCode: serverRes.securityCode || '',
-            updatedAt: serverRes.updatedAt || '',
-          });
-          return;
-        }
+        // TRƯỜNG HỢP 2: Khảo sát đang thực hiện (DRAFT / IN_PROGRESS / NOT_STARTED)
+        // 2.1. Thử nạp bản nháp Cloud Draft từ server
+        try {
+          const serverRes = await surveyDraftService.fetchDraft(parcelId, unitId, { viewOnly: isReadOnly });
+          if (!isMounted) return;
 
-        // 3. Trường hợp có bản nháp hợp lệ trên server
-        if (serverRes.draft && serverRes.draft.surveyData) {
-          const draftData = serverRes.draft.surveyData as Record<string, unknown>;
-          applyDraftDataToState(draftData);
-          if (
-            typeof serverRes.draft.currentStep === 'number' &&
-            serverRes.draft.currentStep >= 1 &&
-            serverRes.draft.currentStep <= 5
-          ) {
-            setCurrentStep(serverRes.draft.currentStep as 1 | 2 | 3 | 4 | 5);
+          // Kiểm tra khóa phiên 2 người cùng vào
+          if (!isReadOnly && serverRes.isLocked) {
+            setIsLockedByOther(true);
+            setLockedInfo({
+              surveyorName: serverRes.activeSurveyorName || 'Kỹ sư khác',
+              phone: serverRes.activeSurveyorPhone,
+              minutesAgo: serverRes.minutesAgo || 1,
+              message: serverRes.message,
+            });
+            setIsLoadingReport(false);
+            setReportLoaded(true);
+            setDraftLoaded(true);
+            return;
           }
-          if (serverRes.draft.syncVersion) {
-            setServerSyncVersion(serverRes.draft.syncVersion);
-          }
-          setSyncStatus('SAVED_CLOUD');
-          setLastSyncedAt(new Date(serverRes.draft.updatedAt || Date.now()).toLocaleTimeString('vi-VN'));
-          setIsDirty(false);
-        } else if (!isReadOnly) {
-          // Fallback sang local draft nếu server chưa có (không dùng khi đang chỉ xem)
-          restoreLocalDraft();
-        }
-        setDraftLoaded(true);
-      })
-      .catch((err: unknown) => {
-        if (!isMounted) return;
-        console.warn('[useMasterAreaSurveyState] Không thể nạp server draft, dùng local:', err);
-        if (!isReadOnly) {
-          restoreLocalDraft();
-        }
-        setDraftLoaded(true);
-      });
 
+          // Kiểm tra bàn giao ca
+          if (!isReadOnly && serverRes.requiresHandover) {
+            setIsHandoverModalOpen(true);
+            setHandoverInfo({
+              fromSurveyorName: serverRes.fromSurveyorName || 'Kỹ sư ca trước',
+              fromSurveyorPhone: serverRes.fromSurveyorPhone,
+              currentStep: serverRes.currentStep || 1,
+              securityCode: serverRes.securityCode || '',
+              updatedAt: serverRes.updatedAt || '',
+            });
+            setIsLoadingReport(false);
+            setReportLoaded(true);
+            setDraftLoaded(true);
+            return;
+          }
+
+          let cloudEvidence = 0;
+          if (serverRes.draft && serverRes.draft.surveyData) {
+            const draftData = serverRes.draft.surveyData as Record<string, unknown>;
+            cloudEvidence = applyDraftDataToState(draftData);
+            if (
+              typeof serverRes.draft.currentStep === 'number' &&
+              serverRes.draft.currentStep >= 1 &&
+              serverRes.draft.currentStep <= 5
+            ) {
+              setCurrentStep(serverRes.draft.currentStep as 1 | 2 | 3 | 4 | 5);
+            }
+            if (serverRes.draft.syncVersion) {
+              setServerSyncVersion(serverRes.draft.syncVersion);
+            }
+            setSyncStatus('SAVED_CLOUD');
+            setLastSyncedAt(new Date(serverRes.draft.updatedAt || Date.now()).toLocaleTimeString('vi-VN'));
+            setIsDirty(false);
+            lastLoadedEvidenceCountRef.current = cloudEvidence;
+
+            // Kiểm tra so sánh với LocalStorage: nếu local draft có updatedAt mới hơn server draft thì ưu tiên local
+            try {
+              const localRaw = localStorage.getItem(draftKey) || localStorage.getItem(legacyDraftKey);
+              if (localRaw) {
+                const localDraft = JSON.parse(localRaw);
+                const localUpdated = localDraft?.updatedAt ? new Date(localDraft.updatedAt).getTime() : 0;
+                const serverUpdated = serverRes.draft.updatedAt ? new Date(serverRes.draft.updatedAt).getTime() : 0;
+                if (localUpdated > serverUpdated) {
+                  const localEv = applyDraftDataToState(localDraft);
+                  if (localEv > 0) {
+                    console.log('[useMasterAreaSurveyState] Phục hồi bản nháp cục bộ mới hơn máy chủ');
+                    setSyncStatus('SAVED_LOCAL');
+                    lastLoadedEvidenceCountRef.current = Math.max(cloudEvidence, localEv);
+                  }
+                }
+              }
+            } catch {
+              // ignore
+            }
+          } else {
+            // Server chưa có bản nháp -> khôi phục từ local draft
+            const localEv = restoreLocalDraft();
+            lastLoadedEvidenceCountRef.current = localEv;
+          }
+        } catch (serverErr: unknown) {
+          console.warn('[useMasterAreaSurveyState] Không thể nạp draft server, fallback local:', serverErr);
+          if (isMounted) {
+            const localEv = restoreLocalDraft();
+            lastLoadedEvidenceCountRef.current = localEv;
+          }
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoadingReport(false);
+          setReportLoaded(true);
+          setDraftLoaded(true);
+        }
+      }
+    };
+
+    hydrateSurvey();
     return () => {
       isMounted = false;
     };
@@ -650,27 +679,66 @@ export function useMasterAreaSurveyState({
     parcelId,
     unitId,
     existingReportId,
-    serverReport,
     isSubmittedOrApproved,
     isReadOnly,
+    draftKey,
+    legacyDraftKey,
     applyDraftDataToState,
     restoreLocalDraft,
   ]);
 
-  // Tự động lưu nháp cục bộ và Cloud Draft lên server (debounced 1500ms)
-  // Khi saveDraft được gọi, server tự động cập nhật building_units.status = 'IN_PROGRESS'
+  // Khi một ảnh upload xong (ở bất kỳ đâu), thăng cấp blob:local:// -> URL Cloud trong state của khu vực dùng chung
   useEffect(() => {
-    // Chặn tuyệt đối: chỉ đọc / đã nộp / bị khóa / chưa nạp xong dữ liệu thật từ server (tránh ghi đè dữ liệu rỗng)
+    const handlePromoted = (evt: Event) => {
+      const detail = (evt as CustomEvent<{ localId?: string; publicUrl?: string }>).detail;
+      if (!detail || !detail.localId || !detail.publicUrl) return;
+      const { localId, publicUrl } = detail;
+      setOverviewPhotos((prev) => replaceLocalUriInObject(prev, localId, publicUrl));
+      setCadSketchPhotoUrl((prev) => replaceLocalUriInObject(prev, localId, publicUrl));
+      setCadStructuralSketchPhotoUrl((prev) => replaceLocalUriInObject(prev, localId, publicUrl));
+      setZones((prev) => replaceLocalUriInObject(prev, localId, publicUrl));
+      setStructuralElements((prev) => replaceLocalUriInObject(prev, localId, publicUrl));
+    };
+    window.addEventListener('metro2:photo-promoted', handlePromoted);
+    return () => window.removeEventListener('metro2:photo-promoted', handlePromoted);
+  }, []);
+
+  // 1. Lưu tức thì vào LocalStorage (thời gian thực thi < 1ms)
+  useEffect(() => {
+    if (isReadOnly || isSubmittedOrApproved || !hasHydrated) return;
+    try {
+      const draft = buildDraftPayload();
+      const evidence = countDraftEvidence(draft);
+      if (evidence === 0 && lastLoadedEvidenceCountRef.current >= 2) {
+        console.warn('[useMasterAreaSurveyState] Chặn ghi đè rỗng vào LocalStorage');
+        return;
+      }
+      localStorage.setItem(draftKey, JSON.stringify(draft));
+    } catch (err: unknown) {
+      console.warn('[useMasterAreaSurveyState] Lỗi lưu nhanh LocalStorage:', err);
+    }
+  }, [
+    isReadOnly,
+    isSubmittedOrApproved,
+    hasHydrated,
+    buildDraftPayload,
+    draftKey,
+  ]);
+
+  // 2. Tự động lưu Cloud Draft lên server (debounced 1500ms)
+  useEffect(() => {
     if (isReadOnly || isSubmittedOrApproved || isLockedByOther || !hasHydrated) return;
 
     const timeout = setTimeout(async () => {
       try {
         const draft = buildDraftPayload();
-        // 1. Lưu cục bộ
-        localStorage.setItem(draftKey, JSON.stringify(draft));
-        setIsDirty(true);
+        const evidence = countDraftEvidence(draft);
+        if (evidence === 0 && lastLoadedEvidenceCountRef.current >= 2) {
+          console.warn('[useMasterAreaSurveyState] Chặn gửi draft rỗng lên server');
+          return;
+        }
 
-        // 2. Đồng bộ Cloud Draft lên máy chủ để kích hoạt IN_PROGRESS và giữ khóa 15 phút
+        setIsDirty(true);
         const res = await surveyDraftService.saveDraft({
           parcelId,
           unitId,
@@ -695,11 +763,65 @@ export function useMasterAreaSurveyState({
     return () => clearTimeout(timeout);
   }, [
     buildDraftPayload,
-    draftKey,
     isReadOnly,
     isSubmittedOrApproved,
     isLockedByOther,
     hasHydrated,
+    parcelId,
+    unitId,
+    currentStep,
+    serverSyncVersion,
+  ]);
+
+  // 3. Tự động lưu LocalStorage trước khi đóng tab hoặc tải lại trang
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (!isReadOnly && !isSubmittedOrApproved && hasHydrated) {
+        try {
+          const draft = buildDraftPayload();
+          const evidence = countDraftEvidence(draft);
+          if (evidence > 0 || lastLoadedEvidenceCountRef.current === 0) {
+            localStorage.setItem(draftKey, JSON.stringify(draft));
+          }
+        } catch {
+          // ignore
+        }
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [isReadOnly, isSubmittedOrApproved, hasHydrated, buildDraftPayload, draftKey]);
+
+  // Flush bản nháp ngay lập tức trước khi đóng modal
+  const handleFlushSaveDraft = useCallback(async () => {
+    if (isReadOnly || isSubmittedOrApproved || isLockedByOther || !hasHydrated) return;
+    try {
+      const draft = buildDraftPayload();
+      localStorage.setItem(draftKey, JSON.stringify(draft));
+      const res = await surveyDraftService.saveDraft({
+        parcelId,
+        unitId,
+        reportType: 'CONDO_UNIT',
+        currentStep,
+        surveyData: draft,
+        syncVersion: serverSyncVersion,
+      });
+      if (res?.syncVersion) {
+        setServerSyncVersion(res.syncVersion);
+      }
+      setSyncStatus('SAVED_CLOUD');
+      setLastSyncedAt(new Date().toLocaleTimeString('vi-VN'));
+      setIsDirty(false);
+    } catch (err: unknown) {
+      console.warn('[useMasterAreaSurveyState] Lỗi flush draft khi đóng:', err);
+    }
+  }, [
+    isReadOnly,
+    isSubmittedOrApproved,
+    isLockedByOther,
+    hasHydrated,
+    buildDraftPayload,
+    draftKey,
     parcelId,
     unitId,
     currentStep,
@@ -716,11 +838,12 @@ export function useMasterAreaSurveyState({
     }
   }, [parcelId, unitId, isReadOnly, isSubmittedOrApproved, isLockedByOther]);
 
-  // Chủ động đóng modal: Giải phóng khóa và kích hoạt cập nhật lại Hub
+  // Chủ động đóng modal: Lưu tức thì, Giải phóng khóa và kích hoạt cập nhật lại Hub
   const handleClose = useCallback(async () => {
+    await handleFlushSaveDraft();
     await handleReleaseLock();
     onSurveyCompleted();
-  }, [handleReleaseLock, onSurveyCompleted]);
+  }, [handleFlushSaveDraft, handleReleaseLock, onSurveyCompleted]);
 
   // KSV ca sau nhập mã 6 số để tiếp quản ca khảo sát
   const handleTakeoverDraft = useCallback(
@@ -1856,6 +1979,7 @@ export function useMasterAreaSurveyState({
       if (res.data?.success) {
         await handleReleaseLock();
         localStorage.removeItem(draftKey);
+        localStorage.removeItem(legacyDraftKey);
         setSyncStatus('SAVED_CLOUD');
         setIsDirty(false);
         setLastSyncedAt(new Date().toLocaleTimeString('vi-VN'));
@@ -1906,7 +2030,20 @@ export function useMasterAreaSurveyState({
 
   const goToStep = useCallback((step: 1 | 2 | 3 | 4 | 5) => {
     setCurrentStep(step);
-  }, []);
+    try {
+      const raw = localStorage.getItem(draftKey) || localStorage.getItem(legacyDraftKey);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object') {
+          parsed.currentStep = step;
+          parsed.updatedAt = new Date().toISOString();
+          localStorage.setItem(draftKey, JSON.stringify(parsed));
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }, [draftKey, legacyDraftKey]);
 
   return {
     currentStep,

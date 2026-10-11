@@ -276,10 +276,14 @@ export function isLocalBlobUri(uri?: string | null): boolean {
 }
 
 export function extractLocalIdFromUri(uri: string): string {
+  if (!uri || typeof uri !== 'string') return '';
   if (uri.startsWith('blob:local://')) {
-    return uri.replace('blob:local://', '');
+    return uri.replace('blob:local://', '').split('?')[0];
   }
-  return uri;
+  if (uri.startsWith('photo_') || uri.startsWith('cad_')) {
+    return uri.split('?')[0];
+  }
+  return '';
 }
 
 const UPLOADED_PHOTO_MAP_KEY = 'metro2_uploaded_photo_map';
@@ -423,27 +427,35 @@ export async function resolveOfflinePhotoUrl(uri?: string | null): Promise<strin
  * Quét đệ quy đối tượng dữ liệu (Form Data / Object / Array) và thay thế
  * mã tạm "blob:local://${localId}" thành URL Cloud chính thức sau khi tải lên Cloudflare R2
  */
-export function replaceLocalUriInObject<T>(target: T, localId: string, cloudUrl: string): T {
-  if (target === null || target === undefined) return target;
+export function replaceLocalUriInObject<T>(target: T, localIdOrUri: string, cloudUrl: string): T {
+  if (target === null || target === undefined || !localIdOrUri) return target;
 
-  const targetUri = `blob:local://${localId}`;
+  const cleanId = localIdOrUri.startsWith('blob:local://')
+    ? localIdOrUri.replace('blob:local://', '').split('?')[0]
+    : localIdOrUri.split('?')[0];
+  const targetUri = `blob:local://${cleanId}`;
 
   if (typeof target === 'string') {
-    if (target === targetUri || target.startsWith(`${targetUri}?`)) {
+    if (
+      target === targetUri ||
+      target.startsWith(`${targetUri}?`) ||
+      target === localIdOrUri ||
+      target.startsWith(`${localIdOrUri}?`)
+    ) {
       return cloudUrl as unknown as T;
     }
     return target;
   }
 
   if (Array.isArray(target)) {
-    return target.map((item) => replaceLocalUriInObject(item, localId, cloudUrl)) as unknown as T;
+    return target.map((item) => replaceLocalUriInObject(item, localIdOrUri, cloudUrl)) as unknown as T;
   }
 
   if (typeof target === 'object') {
     const updated: Record<string, unknown> = {};
     const obj = target as Record<string, unknown>;
     for (const key of Object.keys(obj)) {
-      updated[key] = replaceLocalUriInObject(obj[key], localId, cloudUrl);
+      updated[key] = replaceLocalUriInObject(obj[key], localIdOrUri, cloudUrl);
     }
     return updated as T;
   }
