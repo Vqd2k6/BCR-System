@@ -426,6 +426,7 @@ const getDefaultCondoUnitFormData = (parcelId: string, unitId: string): CondoUni
   sensitiveEquipmentDesc: '',
   interiorRenovationHistory: { hasRenovated: false, description: '' },
   unitCadUrl: '',
+  unitStructuralCadUrl: '',
   cadBbox: null,
   cadPolygon: null,
 

@@ -5,8 +5,9 @@
  */
 
 import type { CondoUnitFormData } from '../types/condo-unit.types';
-import { isLocalBlobUri, extractLocalIdFromUri, getOfflinePhoto } from '../../../core/storage/offlinePhotoStorage';
+import { isLocalBlobUri, extractLocalIdFromUri, getOfflinePhoto, saveOfflinePhoto } from '../../../core/storage/offlinePhotoStorage';
 import { uploadQueue } from '../../../core/services/uploadQueueService';
+import { base64ToBlob } from '../../survey-phase1/utils/photoSyncAudit';
 
 export interface CondoUnitPhotoAuditItem {
   id: string;
@@ -262,6 +263,7 @@ export function auditCondoUnitPhotos(formData: CondoUnitFormData): CondoUnitPhot
 
 /**
  * Thử upload lại một ảnh chưa đồng bộ lên Cloudflare R2
+ * Hỗ trợ đa nguồn dữ liệu: Base64 data URL, blob:http URL, và IndexedDB blob:local://
  */
 export async function retryUploadCondoUnitPhoto(
   photoItem: CondoUnitPhotoAuditItem,
@@ -271,14 +273,53 @@ export async function retryUploadCondoUnitPhoto(
 ): Promise<void> {
   if (photoItem.isCloudUrl) return;
 
-  const localId = extractLocalIdFromUri(photoItem.url);
-  if (!localId) {
-    throw new Error('Không trích xuất được localId của ảnh');
+  let blob: Blob | null = null;
+  let localId = extractLocalIdFromUri(photoItem.url);
+
+  // 1. Nếu là chuỗi Base64 Data URL (VD: CAD trích xuất hoặc ảnh lưu tạm)
+  if (photoItem.url.startsWith('data:image/')) {
+    blob = base64ToBlob(photoItem.url);
+    if (!localId || localId === photoItem.url) {
+      localId = `cad_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    }
+    // Cất ngay vào IndexedDB để bảo toàn nhị phân
+    try {
+      await saveOfflinePhoto(localId, blob, photoItem.photoCode || 'photo', {
+        'parcel-code': parcelCode || 'PARCEL',
+        'unit-code': unitCode || 'UNIT',
+      });
+    } catch (_storageErr) {}
+  }
+  // 2. Nếu là URL Object Blob tạm thời từ trình duyệt (blob:http...)
+  else if (photoItem.url.startsWith('blob:http')) {
+    try {
+      const resp = await fetch(photoItem.url);
+      if (resp.ok) {
+        blob = await resp.blob();
+      }
+    } catch (_fetchErr) {}
+    if (!localId || localId === photoItem.url) {
+      localId = `photo_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    }
+    if (blob) {
+      try {
+        await saveOfflinePhoto(localId, blob, photoItem.photoCode || 'photo', {
+          'parcel-code': parcelCode || 'PARCEL',
+          'unit-code': unitCode || 'UNIT',
+        });
+      } catch (_storageErr) {}
+    }
+  }
+  // 3. Nếu là định danh offline có quản lý: blob:local://{id}
+  else if (photoItem.url.startsWith('blob:local://') || localId) {
+    const offlinePhoto = await getOfflinePhoto(localId);
+    if (offlinePhoto && offlinePhoto.blob) {
+      blob = offlinePhoto.blob;
+    }
   }
 
-  const offlinePhoto = await getOfflinePhoto(localId);
-  if (!offlinePhoto || !offlinePhoto.blob) {
-    throw new Error('Ảnh không còn tồn tại trong bộ nhớ IndexedDB của thiết bị này');
+  if (!blob) {
+    throw new Error('Dữ liệu ảnh không còn tồn tại trên thiết bị này. Vui lòng chụp hoặc import lại ảnh.');
   }
 
   const safeParcel = parcelCode || 'PARCEL';
@@ -286,10 +327,10 @@ export async function retryUploadCondoUnitPhoto(
   const targetFolder = `surveys/${safeParcel}/${safeUnit}`;
   const filename = `${photoItem.photoCode || 'photo'}_${Date.now()}.jpg`;
 
-  uploadQueue.enqueue(offlinePhoto.blob, filename, {
+  uploadQueue.enqueue(blob, filename, {
     id: localId,
     folder: targetFolder,
-    mimeType: offlinePhoto.mimeType || 'image/jpeg',
+    mimeType: blob.type || 'image/jpeg',
     metadata: {
       'parcel-code': safeParcel,
       'unit-code': safeUnit,

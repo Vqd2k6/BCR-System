@@ -23,6 +23,10 @@ import {
   type CadZonePin,
 } from '../types/condo-unit.types';
 import { api } from '../../../services/api';
+import { saveOfflinePhoto, createManagedBlobUrl } from '../../../core/storage/offlinePhotoStorage';
+import { uploadQueue } from '../../../core/services/uploadQueueService';
+import { base64ToBlob } from '../../survey-phase1/utils/photoSyncAudit';
+import { cropImageBoundingBox } from '../../../components/canvas/FloorPlanCadPartitionCanvas';
 import {
   AlertTriangle,
   AlertCircle,
@@ -138,6 +142,122 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
   const maxBurlandGrade = burlandGrades.length > 0 ? Math.max(...burlandGrades) : 0;
   const criticalDefectCount = allDefects.filter((d) => (Number(d.widthMaxMm) || 0) >= 2.0).length;
 
+  // Chuẩn hóa Bounding Box dạng mảng hoặc object về object chuẩn { x, y, width, height }
+  const normalizeBbox = (
+    bbox?: CadBbox | null
+  ): { x: number; y: number; width: number; height: number } | null => {
+    if (!bbox) return null;
+    if (Array.isArray(bbox)) {
+      return {
+        x: bbox[0],
+        y: bbox[1],
+        width: bbox[2] - bbox[0],
+        height: bbox[3] - bbox[1],
+      };
+    }
+    return bbox;
+  };
+
+  // Nạp và xử lý an toàn bản vẽ CAD (lưu IndexedDB nhị phân và đẩy lên Upload Queue R2 nếu là Base64/Blob)
+  const importCadWithStorageAndQueue = async (
+    rawCadUrl: string,
+    bbox?: CadBbox | null,
+    targetMode?: 'ZONE' | 'STRUCTURAL'
+  ) => {
+    const isTargetStructural = targetMode ? targetMode === 'STRUCTURAL' : activeTab === 'STRUCTURAL';
+    const parcelCode = formData.parentInfo?.projectParcelCode || 'GENERAL';
+    const unitCode = formData.displayCode || formData.unitCode || 'UNIT';
+    const photoType = isTargetStructural ? 'CAD_STRUCT' : 'CAD_ARCH';
+    const photoCode = `${unitCode}_${photoType}`;
+
+    // 1. Nếu rawCadUrl đã là Cloud URL hợp lệ (bắt đầu bằng http và không chứa blob:)
+    if (rawCadUrl.startsWith('http') && !rawCadUrl.includes('blob:')) {
+      if (isTargetStructural) {
+        updateFormData({ unitStructuralCadUrl: rawCadUrl });
+      } else {
+        updateFormData({ unitCadUrl: rawCadUrl, cadBbox: bbox || null });
+      }
+      setShowFloorPickerModal(false);
+      return;
+    }
+
+    // 2. Nếu rawCadUrl là Base64 hoặc blob tạm
+    try {
+      let blob: Blob | null = null;
+      if (rawCadUrl.startsWith('data:image/')) {
+        blob = base64ToBlob(rawCadUrl);
+      } else if (rawCadUrl.startsWith('blob:')) {
+        const resp = await fetch(rawCadUrl);
+        if (resp.ok) {
+          blob = await resp.blob();
+        }
+      }
+
+      if (!blob) {
+        if (isTargetStructural) {
+          updateFormData({ unitStructuralCadUrl: rawCadUrl });
+        } else {
+          updateFormData({ unitCadUrl: rawCadUrl, cadBbox: bbox || null });
+        }
+        setShowFloorPickerModal(false);
+        return;
+      }
+
+      const localId = `cad_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+      const targetFolder = `projects/METRO2_HCM/buildings/${parcelCode}/units/${unitCode}/cad`;
+      const filename = `${photoCode}_${Date.now()}.jpg`;
+
+      // Cất vào IndexedDB bền vững (không làm tràn RAM, không bị sanitizeSurveyDataForSync xóa mất!)
+      await saveOfflinePhoto(
+        localId,
+        blob,
+        photoCode,
+        {
+          'parcel-code': parcelCode,
+          'unit-code': unitCode,
+          'photo-code': photoCode,
+        },
+        filename
+      );
+
+      const localManagedUri = createManagedBlobUrl(localId, blob);
+
+      if (isTargetStructural) {
+        updateFormData({ unitStructuralCadUrl: localManagedUri });
+      } else {
+        updateFormData({ unitCadUrl: localManagedUri, cadBbox: bbox || null });
+      }
+
+      // Đẩy ngầm vào Upload Queue để sync lên Cloudflare R2
+      uploadQueue.enqueue(blob, filename, {
+        id: localId,
+        folder: targetFolder,
+        mimeType: blob.type || 'image/jpeg',
+        metadata: {
+          'parcel-code': parcelCode,
+          'unit-code': unitCode,
+          'photo-code': photoCode,
+        },
+        onSuccess: (publicUrl) => {
+          if (isTargetStructural) {
+            updateFormData({ unitStructuralCadUrl: publicUrl });
+          } else {
+            updateFormData({ unitCadUrl: publicUrl });
+          }
+        },
+      });
+    } catch (importErr) {
+      console.warn('[CondoUnit:importCadWithStorageAndQueue] Lỗi lưu nhị phân CAD:', importErr);
+      if (isTargetStructural) {
+        updateFormData({ unitStructuralCadUrl: rawCadUrl });
+      } else {
+        updateFormData({ unitCadUrl: rawCadUrl, cadBbox: bbox || null });
+      }
+    } finally {
+      setShowFloorPickerModal(false);
+    }
+  };
+
   // Tự động kiểm tra và import CAD từ Tầng nếu căn con chưa có CAD URL
   useEffect(() => {
     if (!formData.unitCadUrl && formData.parcelId && formData.floorNumber) {
@@ -158,11 +278,7 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
               u.unit_code === formData.unitCode || u.unit_code?.endsWith(formData.unitCode)
           );
           if (matched && matched.unit_cad_url) {
-            updateFormData({
-              unitCadUrl: matched.unit_cad_url,
-              cadBbox: matched.cad_bbox,
-              cadPolygon: matched.cad_polygon,
-            });
+            void importCadWithStorageAndQueue(matched.unit_cad_url, matched.cad_bbox, 'ZONE');
           }
         }
       }
@@ -174,17 +290,7 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
   };
 
   const handleManualImportCad = (importedCadUrl: string, bbox?: CadBbox | null) => {
-    if (activeTab === 'STRUCTURAL') {
-      updateFormData({
-        unitStructuralCadUrl: importedCadUrl,
-      });
-    } else {
-      updateFormData({
-        unitCadUrl: importedCadUrl,
-        cadBbox: bbox || null,
-      });
-    }
-    setShowFloorPickerModal(false);
+    void importCadWithStorageAndQueue(importedCadUrl, bbox);
   };
 
   // Xử lý tự động ghim & sinh Vùng Z trên sơ đồ CAD kiến trúc (FloorCadPinningCanvas)
@@ -1606,6 +1712,24 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
             <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4">
               {floorPlanData?.plan?.cad_photo_url ? (
                 <div className="space-y-4">
+                  {/* Thanh chọn nhanh toàn bộ bản vẽ tầng */}
+                  <div className="flex items-center justify-between gap-3 p-3 rounded-2xl bg-slate-800/80 border border-slate-700">
+                    <div className="text-xs text-slate-300">
+                      💡 Dùng toàn bộ sơ đồ CAD Tầng {formData.floorNumber} làm bản vẽ tham chiếu cho căn hộ:
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (floorPlanData?.plan?.cad_photo_url) {
+                          void importCadWithStorageAndQueue(floorPlanData.plan.cad_photo_url, null);
+                        }
+                      }}
+                      className="px-3 py-2 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-bold text-xs shrink-0 cursor-pointer transition-colors shadow-xs"
+                    >
+                      Dùng toàn bộ CAD Tầng {formData.floorNumber}
+                    </button>
+                  </div>
+
                   <div className="relative rounded-2xl overflow-hidden border border-slate-700 bg-slate-950 flex items-center justify-center p-2">
                     <img
                       src={floorPlanData.plan.cad_photo_url}
@@ -1634,9 +1758,23 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
                         <div
                           key={u.id}
                           style={style}
-                          onClick={() => {
+                          onClick={async () => {
                             if (u.unit_cad_url) {
-                              handleManualImportCad(u.unit_cad_url, u.cad_bbox);
+                              await importCadWithStorageAndQueue(u.unit_cad_url, u.cad_bbox);
+                            } else if (floorPlanData?.plan?.cad_photo_url && u.cad_bbox) {
+                              const norm = normalizeBbox(u.cad_bbox);
+                              if (norm) {
+                                try {
+                                  const cropped = await cropImageBoundingBox(floorPlanData.plan.cad_photo_url, norm);
+                                  await importCadWithStorageAndQueue(cropped, u.cad_bbox);
+                                } catch (_cropErr) {
+                                  await importCadWithStorageAndQueue(floorPlanData.plan.cad_photo_url, u.cad_bbox);
+                                }
+                              } else {
+                                await importCadWithStorageAndQueue(floorPlanData.plan.cad_photo_url, u.cad_bbox);
+                              }
+                            } else if (floorPlanData?.plan?.cad_photo_url) {
+                              await importCadWithStorageAndQueue(floorPlanData.plan.cad_photo_url, null);
                             }
                           }}
                           className={`absolute border-2 transition-all cursor-pointer flex items-center justify-center ${
@@ -1658,9 +1796,23 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
                       <button
                         key={u.id}
                         type="button"
-                        onClick={() => {
+                        onClick={async () => {
                           if (u.unit_cad_url) {
-                            handleManualImportCad(u.unit_cad_url, u.cad_bbox);
+                            await importCadWithStorageAndQueue(u.unit_cad_url, u.cad_bbox);
+                          } else if (floorPlanData?.plan?.cad_photo_url && u.cad_bbox) {
+                            const norm = normalizeBbox(u.cad_bbox);
+                            if (norm) {
+                              try {
+                                const cropped = await cropImageBoundingBox(floorPlanData.plan.cad_photo_url, norm);
+                                await importCadWithStorageAndQueue(cropped, u.cad_bbox);
+                              } catch (_cropErr) {
+                                await importCadWithStorageAndQueue(floorPlanData.plan.cad_photo_url, u.cad_bbox);
+                              }
+                            } else {
+                              await importCadWithStorageAndQueue(floorPlanData.plan.cad_photo_url, u.cad_bbox);
+                            }
+                          } else if (floorPlanData?.plan?.cad_photo_url) {
+                            await importCadWithStorageAndQueue(floorPlanData.plan.cad_photo_url, null);
                           }
                         }}
                         className={`p-3 rounded-xl border text-left transition-all ${
@@ -1671,7 +1823,7 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
                       >
                         <div className="font-mono font-bold text-xs">{u.unit_code}</div>
                         <div className="text-[11px] text-slate-400 mt-1">
-                          {u.unit_cad_url ? '✓ Có CAD riêng' : 'Chưa có CAD'}
+                          {u.unit_cad_url ? '✓ Có CAD riêng' : u.cad_bbox ? '⚡ Cắt từ CAD tầng' : 'Dùng CAD tầng'}
                         </div>
                       </button>
                     ))}
