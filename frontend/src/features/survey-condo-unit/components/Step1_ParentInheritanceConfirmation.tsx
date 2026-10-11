@@ -3,6 +3,7 @@ import { useCondoUnitSurveyStore } from '../store/useCondoUnitSurveyStore';
 import { Card } from '../../../core/components/ui/Card';
 import { Button } from '../../../core/components/ui/Button';
 import { PhotoCaptureInput } from '../../../components/common/PhotoCaptureInput';
+import { useSurveyReadOnly } from '../../../core/context/SurveyReadOnlyContext';
 import {
   Building2,
   CheckCircle2,
@@ -14,10 +15,16 @@ import {
 } from 'lucide-react';
 
 export const Step1_ParentInheritanceConfirmation: React.FC = () => {
-  const { formData, updateFormData, nextStep } = useCondoUnitSurveyStore();
+  const { formData, updateFormData, nextStep, isReadOnly: storeReadOnly } = useCondoUnitSurveyStore();
+  const contextReadOnly = useSurveyReadOnly();
+  const isReadOnly = contextReadOnly ?? storeReadOnly;
   const parent = formData.parentInfo;
 
   const handleConfirm = () => {
+    if (isReadOnly) {
+      nextStep();
+      return;
+    }
     updateFormData({
       parentInfo: {
         ...parent,
@@ -234,10 +241,12 @@ export const Step1_ParentInheritanceConfirmation: React.FC = () => {
           size="lg"
           className="bg-teal-600 hover:bg-teal-700 text-white w-full sm:w-auto shadow-xs"
           onClick={handleConfirm}
-          disabled={!isStep1Valid}
+          disabled={!isReadOnly && !isStep1Valid}
           icon={<ArrowRight className="w-4 h-4" />}
         >
-          Xác Nhận Đúng Tòa Nhà & Điền Thông Tin Căn Hộ Con ➔
+          {isReadOnly
+            ? 'Xem Thông Tin Căn Hộ Con ➔'
+            : 'Xác Nhận Đúng Tòa Nhà & Điền Thông Tin Căn Hộ Con ➔'}
         </Button>
       </div>
     </div>

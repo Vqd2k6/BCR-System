@@ -16,6 +16,7 @@ import { PhotoPreviewCard } from './photo-capture/components/PhotoPreviewCard';
 import { PhotoEmptyState } from './photo-capture/components/PhotoEmptyState';
 import { usePhase1SurveyStore } from '../../features/survey-phase1/store/usePhase1SurveyStore';
 import { getSafeDisplayUrl, resolveOfflinePhotoUrl } from '../../core/storage/offlinePhotoStorage';
+import { useSurveyReadOnly } from '../../core/context/SurveyReadOnlyContext';
 
 export type { PhotoCaptureProps };
 
@@ -43,7 +44,8 @@ export const PhotoCaptureInput: React.FC<PhotoCaptureProps> = ({
   pdfFloorName,
 }) => {
   const storeReadOnly = usePhase1SurveyStore ? usePhase1SurveyStore((s) => s.isReadOnly) : false;
-  const effectiveReadOnly = readOnly !== undefined ? readOnly : storeReadOnly;
+  const contextReadOnly = useSurveyReadOnly();
+  const effectiveReadOnly = readOnly !== undefined ? readOnly : (contextReadOnly !== undefined ? contextReadOnly : storeReadOnly);
   const uniqueId = useId().replace(/:/g, '_');
   const cameraInputId = `cam_${uniqueId}`;
   const galleryInputId = `gal_${uniqueId}`;

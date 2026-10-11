@@ -5,6 +5,7 @@ import { Button } from '../../../core/components/ui/Button';
 import { Input, Select } from '../../../core/components/ui/FormControls';
 import { PhotoCaptureInput } from '../../../components/common/PhotoCaptureInput';
 import { TapToZoomThumbnail } from '../../../components/common/TapToZoomThumbnail';
+import { useSurveyReadOnly } from '../../../core/context/SurveyReadOnlyContext';
 import { DefectPinningModal } from '../../survey-phase1/components/step3/DefectPinningModal';
 import { FloorCadPinningCanvas, getNextAvailablePinCode } from '../../../components/canvas/FloorCadPinningCanvas';
 import {
@@ -99,7 +100,11 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
     updateDefectsInElement,
     nextStep,
     prevStep,
+    isReadOnly: storeReadOnly,
   } = useCondoUnitSurveyStore();
+
+  const contextReadOnly = useSurveyReadOnly();
+  const isReadOnly = contextReadOnly ?? storeReadOnly;
 
   const [activeTab, setActiveTab] = useState<'ZONES' | 'STRUCTURAL'>('ZONES');
   const [activeZoneIndex, setActiveZoneIndex] = useState<number>(0);
@@ -665,6 +670,10 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
   };
 
   const handleContinueToStep4 = () => {
+    if (isReadOnly) {
+      nextStep();
+      return;
+    }
     const issues = validateZedCompleteness();
     if (issues.length > 0) {
       setValidationIssues(issues);
@@ -771,19 +780,21 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowFloorPickerModal(true);
-                    void loadFloorPlanAuto();
-                  }}
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-teal-50 hover:bg-teal-100 text-teal-700 border border-teal-200 text-xs font-bold transition-all shadow-2xs cursor-pointer min-h-[44px]"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  Chọn / Cắt từ Tầng {formData.floorNumber}
-                </button>
-              </div>
+              {!isReadOnly && (
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowFloorPickerModal(true);
+                      void loadFloorPlanAuto();
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-teal-50 hover:bg-teal-100 text-teal-700 border border-teal-200 text-xs font-bold transition-all shadow-2xs cursor-pointer min-h-[44px]"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    Chọn / Cắt từ Tầng {formData.floorNumber}
+                  </button>
+                </div>
+              )}
             </div>
 
             <FloorCadPinningCanvas
@@ -802,6 +813,7 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
               floorName={`Căn hộ ${formData.unitCode}`}
               parcelCode={formData.unitCode}
               cadTitle={`Sơ đồ mặt bằng kiến trúc CAD_01 (Căn ${formData.unitCode}):`}
+              readOnly={isReadOnly}
             />
           </Card>
 
@@ -835,21 +847,23 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
                 })}
               </div>
 
-              <Button
-                size="sm"
-                variant="outline"
-                icon={<Plus className="w-3.5 h-3.5" />}
-                onClick={() => {
-                  if (formData.unitCadUrl) {
-                    handleRequestAddNextZone();
-                  } else {
-                    addZone();
-                    setActiveZoneIndex(zones.length);
-                  }
-                }}
-              >
-                + Thêm Vùng Z
-              </Button>
+              {!isReadOnly && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  icon={<Plus className="w-3.5 h-3.5" />}
+                  onClick={() => {
+                    if (formData.unitCadUrl) {
+                      handleRequestAddNextZone();
+                    } else {
+                      addZone();
+                      setActiveZoneIndex(zones.length);
+                    }
+                  }}
+                >
+                  + Thêm Vùng Z
+                </Button>
+              )}
             </div>
 
           {activeZone ? (
@@ -864,7 +878,7 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
                   </h4>
                 </div>
 
-                {zones.length > 1 && (
+                {!isReadOnly && zones.length > 1 && (
                   <button
                     type="button"
                     onClick={() => {
@@ -1175,19 +1189,21 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowFloorPickerModal(true);
-                        void loadFloorPlanAuto();
-                      }}
-                      className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-xs font-bold transition-all shadow-2xs cursor-pointer min-h-[44px]"
-                    >
-                      <Download className="w-3.5 h-3.5" />
-                      Chọn / Cắt từ Tầng {formData.floorNumber}
-                    </button>
-                  </div>
+                  {!isReadOnly && (
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowFloorPickerModal(true);
+                          void loadFloorPlanAuto();
+                        }}
+                        className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-xs font-bold transition-all shadow-2xs cursor-pointer min-h-[44px]"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        Chọn / Cắt từ Tầng {formData.floorNumber}
+                      </button>
+                    </div>
+                  )}
                 </div>
 
                 <FloorCadPinningCanvas
@@ -1206,6 +1222,7 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
                   floorName={`Căn hộ ${formData.unitCode}`}
                   parcelCode={formData.unitCode}
                   cadTitle={`Sơ đồ mặt bằng kết cấu CAD_02 (Căn ${formData.unitCode}):`}
+                  readOnly={isReadOnly}
                 />
               </Card>
 
@@ -1238,21 +1255,23 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
                     })}
                   </div>
 
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    icon={<Plus className="w-3.5 h-3.5" />}
-                    onClick={() => {
-                      if (formData.unitStructuralCadUrl || formData.unitCadUrl) {
-                        handleRequestAddNextElement();
-                      } else {
-                        addElement();
-                        setActiveElementIndex(structuralElements.length);
-                      }
-                    }}
-                  >
-                    + Thêm Cấu Kiện E
-                  </Button>
+                  {!isReadOnly && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      icon={<Plus className="w-3.5 h-3.5" />}
+                      onClick={() => {
+                        if (formData.unitStructuralCadUrl || formData.unitCadUrl) {
+                          handleRequestAddNextElement();
+                        } else {
+                          addElement();
+                          setActiveElementIndex(structuralElements.length);
+                        }
+                      }}
+                    >
+                      + Thêm Cấu Kiện E
+                    </Button>
+                  )}
                 </div>
 
                 {activeElement ? (
@@ -1267,7 +1286,7 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
                       </h4>
                     </div>
 
-                    {structuralElements.length > 0 && (
+                    {!isReadOnly && structuralElements.length > 0 && (
                       <button
                         type="button"
                         onClick={() => {
@@ -1691,7 +1710,7 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
             setPinningModalState((prev) => (prev ? { ...prev, defects: newDefects } : null));
           }}
           onClose={() => setPinningModalState(null)}
-          readOnly={false}
+          readOnly={isReadOnly}
           watermarkOptions={{
             parcelCode: bCode,
             floor: `Tầng ${formData.floorNumber}`,

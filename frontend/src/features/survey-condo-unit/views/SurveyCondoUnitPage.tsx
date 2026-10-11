@@ -15,6 +15,7 @@ import { findUnsyncedPhotoPaths, healLocalPhotoUris } from '../../../core/storag
 import { ActiveSurveyorLockedModal } from '../../survey-phase1/components/ActiveSurveyorLockedModal';
 import { HandoverTakeoverModal } from '../../survey-phase1/components/HandoverTakeoverModal';
 import { useAdminViewLock } from '../../../core/hooks/useAdminViewLock';
+import { SurveyReadOnlyLock } from '../../../core/components/SurveyReadOnlyLock';
 import { RotateCcw, ShieldAlert, Unlock } from 'lucide-react';
 
 export interface SurveyCondoUnitPageProps {
@@ -49,6 +50,7 @@ export const SurveyCondoUnitPage: React.FC<SurveyCondoUnitPageProps> = ({
     checkDraftLock,
     setIsReadOnly,
     updateFormData,
+    applyFormData,
     requestEditUnlock,
     markDraftHydrated,
   } = useCondoUnitSurveyStore();
@@ -250,11 +252,11 @@ export const SurveyCondoUnitPage: React.FC<SurveyCondoUnitPageProps> = ({
       }
 
       setLocalUnitStatus('IN_PROGRESS');
-      updateFormData({ status: 'IN_PROGRESS' });
+      setIsReadOnly(false);
+      unlockEdit();
+      applyFormData({ status: 'IN_PROGRESS' });
       // Dữ liệu đang hiển thị chính là báo cáo thật vừa mở lại -> cho phép đồng bộ trở lại
       markDraftHydrated();
-      unlockEdit();
-      setIsReadOnly(false);
 
       if (unit) {
         unit.status = 'IN_PROGRESS';
@@ -343,7 +345,7 @@ export const SurveyCondoUnitPage: React.FC<SurveyCondoUnitPageProps> = ({
       )}
 
       {/* Main Step Content Container */}
-      <main className="flex-1 px-3 sm:px-6 py-6">
+      <SurveyReadOnlyLock readOnly={effectiveReadOnly} className="flex-1 flex flex-col px-3 sm:px-6 py-6">
         {currentStep === 1 && <Step1_ParentInheritanceConfirmation />}
         {currentStep === 2 && <Step2_UnitSpecificInformation />}
         {currentStep === 3 && <Step3_UnitDefectsAndSettlement />}
@@ -353,7 +355,7 @@ export const SurveyCondoUnitPage: React.FC<SurveyCondoUnitPageProps> = ({
             isSubmitting={isSubmitting}
           />
         )}
-      </main>
+      </SurveyReadOnlyLock>
 
       {/* Modal Cảnh báo & Chỉ dẫn Bổ sung Dữ liệu Căn Hộ Con */}
       <CondoUnitMissingFieldsModal

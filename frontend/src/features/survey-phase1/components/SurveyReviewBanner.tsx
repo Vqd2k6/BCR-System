@@ -1,5 +1,5 @@
 import React from 'react';
-import { Eye, CheckCircle2, XCircle, RotateCcw } from 'lucide-react';
+import { Eye, CheckCircle2, XCircle, RotateCcw, Unlock } from 'lucide-react';
 
 interface SurveyReviewBannerProps {
   readOnly: boolean;
@@ -8,6 +8,8 @@ interface SurveyReviewBannerProps {
   onApprove: () => void;
   onReject: () => void;
   onRevertToDraft?: () => void;
+  canUnlockEdit?: boolean;
+  onUnlockEdit?: () => void;
   onBack: () => void;
 }
 
@@ -18,6 +20,8 @@ export const SurveyReviewBanner: React.FC<SurveyReviewBannerProps> = ({
   onApprove,
   onReject,
   onRevertToDraft,
+  canUnlockEdit,
+  onUnlockEdit,
   onBack,
 }) => {
   if (!readOnly) return null;
@@ -73,6 +77,17 @@ export const SurveyReviewBanner: React.FC<SurveyReviewBannerProps> = ({
               </button>
             )}
           </>
+        )}
+        {canUnlockEdit && onUnlockEdit && (
+          <button
+            type="button"
+            onClick={onUnlockEdit}
+            className="bg-amber-500 hover:bg-amber-600 text-slate-950 text-xs font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+            title="Mở khóa chỉnh sửa biểu mẫu"
+          >
+            <Unlock className="w-4 h-4" />
+            Mở khóa chỉnh sửa
+          </button>
         )}
         <button
           type="button"

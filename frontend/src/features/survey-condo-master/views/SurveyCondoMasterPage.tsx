@@ -13,6 +13,7 @@ import { ActiveSurveyorLockedModal } from '../../survey-phase1/components/Active
 import type { GisParcel } from '../../../core/types/domain.types';
 import { api } from '../../../services/api';
 import { useAdminViewLock } from '../../../core/hooks/useAdminViewLock';
+import { SurveyReadOnlyLock } from '../../../core/components/SurveyReadOnlyLock';
 import { ShieldAlert, RotateCcw, Unlock } from 'lucide-react';
 import { CloudPhotoSyncModal } from '../../survey-phase1/components/CloudPhotoSyncModal';
 import { auditSurveyPhotos } from '../../survey-phase1/utils/photoSyncAudit';
@@ -446,7 +447,7 @@ export const SurveyCondoMasterPage: React.FC<SurveyCondoMasterPageProps> = ({
       )}
 
       {/* Main Step Content Container */}
-      <main className="flex-1 px-3 sm:px-6 py-6">
+      <SurveyReadOnlyLock readOnly={effectiveReadOnly} className="flex-1 flex flex-col px-3 sm:px-6 py-6">
         {currentStep === 1 && <Step1_BuildingIdentification isCondoMaster={true} />}
         {currentStep === 2 && <Step2_CondoMasterScaleAndCat />}
         {currentStep === 3 && <Step3_CondoMasterHistoryAndManagement />}
@@ -458,7 +459,7 @@ export const SurveyCondoMasterPage: React.FC<SurveyCondoMasterPageProps> = ({
             readOnly={effectiveReadOnly}
           />
         )}
-      </main>
+      </SurveyReadOnlyLock>
 
       {/* Modal Cảnh báo Thiếu Trường */}
       {missingModal && (
