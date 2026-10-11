@@ -91,7 +91,7 @@ export const PhotoLightboxModal: React.FC<PhotoLightboxModalProps> = ({
       style={{
         position: 'fixed',
         inset: 0,
-        zIndex: 9999,
+        zIndex: 120000,
         backgroundColor: 'rgba(0, 0, 0, 0.94)',
         display: 'flex',
         flexDirection: 'column',

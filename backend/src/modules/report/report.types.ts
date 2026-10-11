@@ -448,6 +448,16 @@ export interface CondoUnitReportViewModel {
   sensitiveEquipmentDesc?: string;
   hasRenovated: boolean;
   renovationHistoryDesc?: string;
+  historyInterviewSummary?: {
+    renovationText: string;
+    majorRepairText: string;
+    pastSettlementText: string;
+    neighborDamageText: string;
+    fireFloodText: string;
+    usageStatus: string;
+    continuousOperation247: boolean;
+    renovationDescription: string;
+  };
 
   // Ảnh định danh căn hộ
   p01: ReportPhotoItem; // Cửa chính & biển số căn
@@ -488,7 +498,7 @@ export interface CondoUnitReportViewModel {
   zoneAdminSignatureUrl?: string;
   zoneAdminSignatureImg?: string;
   superAdminSignatureImg?: string;
-  workingMinutesPhotos: string[];
+  workingMinutesPhotos: any[];
   generatedAt: string;
   isPiiMasked?: boolean;
 }

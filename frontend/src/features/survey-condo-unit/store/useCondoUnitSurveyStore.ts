@@ -1,7 +1,18 @@
 import { create } from 'zustand';
 import type { GisParcel, BuildingUnit } from '../../../core/types/domain.types';
-import { isResidentStatus, type CondoUnitFormData, type UnitDefectItem } from '../types/condo-unit.types';
+import {
+  isResidentStatus,
+  type CondoUnitFormData,
+  type UnitDefectItem,
+  type DamageZoneData,
+  type StructuralElementData,
+  type DefectItem,
+  type CadZonePin,
+} from '../types/condo-unit.types';
 import { surveyDraftService } from '../../survey-phase1/services/surveyDraftService';
+import api from '../../../services/api';
+import { getNextAvailablePinCode } from '../../../components/canvas/FloorCadPinningCanvas';
+import { sanitizeSurveyDataForSync } from '../../../core/services/uploadQueueService';
 
 interface CondoUnitSurveyStore {
   currentStep: number;
@@ -15,10 +26,23 @@ interface CondoUnitSurveyStore {
   setStep: (step: number) => void;
   nextStep: () => void;
   prevStep: () => void;
+
+  // Z - E - D actions
+  addZone: (zone?: Partial<DamageZoneData>) => void;
+  updateZone: (index: number, updater: Partial<DamageZoneData>) => void;
+  removeZone: (index: number) => void;
+  addElement: (element?: Partial<StructuralElementData>) => void;
+  updateElement: (index: number, updater: Partial<StructuralElementData>) => void;
+  removeElement: (index: number) => void;
+  updateDefectsInZone: (zoneId: string, defects: DefectItem[]) => void;
+  updateDefectsInElement: (elementId: string, defects: DefectItem[]) => void;
+
+  // Legacy defect actions preserved for backward compatibility
   addDefect: (defect: Omit<UnitDefectItem, 'id'>) => void;
   removeDefect: (defectId: string) => void;
   clearDraft: () => void;
   syncDraftToServer: () => Promise<void>;
+  releaseDraftLock: () => Promise<void>;
 }
 
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
@@ -45,12 +69,49 @@ const getDefaultCondoUnitFormData = (parcelId: string, unitId: string): CondoUni
   unitAreaM2: 65,
   photoP01: { url: '', notApplicable: false },
   photoP04: { url: '', notApplicable: false },
+  historyInterview: {
+    renovationLoad: 0,
+    majorRepair: 0,
+    pastSettlement: 0,
+    neighborDamage: 0,
+    fireFloodIncident: 0,
+    usageStatus: 'Đầy đủ',
+    continuousOperation247: false,
+    sensitiveEquipment: {
+      has: false,
+      description: '',
+    },
+    renovationDescription: '',
+  },
   hasSensitiveEquipment: false,
   sensitiveEquipmentDesc: '',
   interiorRenovationHistory: { hasRenovated: false, description: '' },
   unitCadUrl: '',
   cadBbox: null,
   cadPolygon: null,
+
+  // 3. Phân cấp Vùng Z & Cấu kiện E (Phase 1 Standard)
+  zones: [
+    {
+      id: `zone_living_${Date.now()}`,
+      zoneCode: 'Z-01',
+      floorName: 'Tầng 1',
+      roomName: 'Phòng khách',
+      componentType: 'Tường gạch vữa xi măng (Tường bao / ngăn)',
+      wallMaterial: 'Sơn nước nội thất / ngoại thất',
+      overviewPhotos: [],
+      ctxPhotoUrl: '',
+      notes: '',
+      defects: [],
+      hasDamage: false,
+    },
+  ],
+  structuralElements: [],
+  hasStructuralElements: true,
+  cadZonePins: [],
+  cadElementPins: [],
+
+  // Tương thích ngược
   localDefects: [],
   upperFloorWaterLeakage: {
     has: false,
@@ -142,6 +203,83 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
           if (!parsed.beamSagging) {
             parsed.beamSagging = { hasSagging: false, location: '', sagMm: 0, spanM: 0, ratioText: '', photoUrl: '' };
           }
+
+          // Khôi phục hoặc tổng hợp historyInterview tương thích ngược
+          if (parsed.historyInterview) {
+            data.historyInterview = { ...data.historyInterview, ...parsed.historyInterview };
+          } else {
+            const hasSens = Boolean(parsed.hasSensitiveEquipment);
+            const sensDesc = parsed.sensitiveEquipmentDesc || '';
+            const hasReno = Boolean(parsed.interiorRenovationHistory?.hasRenovated);
+            const renoDesc = parsed.interiorRenovationHistory?.description || '';
+            data.historyInterview = {
+              ...data.historyInterview,
+              renovationLoad: hasReno ? 1 : 0,
+              renovationDescription: renoDesc,
+              sensitiveEquipment: {
+                has: hasSens,
+                description: sensDesc,
+              },
+            };
+          }
+
+          // Khôi phục hoặc chuyển đổi Vùng Z & Cấu kiện E tương thích ngược
+          if (Array.isArray(parsed.zones) && parsed.zones.length > 0) {
+            data.zones = parsed.zones;
+          } else if (Array.isArray(parsed.localDefects) && parsed.localDefects.length > 0) {
+            // Chuyển đổi các khuyết tật localDefects cũ thành các Vùng Z
+            const migratedZones: DamageZoneData[] = [];
+            parsed.localDefects.forEach((d: UnitDefectItem, idx: number) => {
+              const zCode = `Z-${String(idx + 1).padStart(2, '0')}`;
+              const defectItem: DefectItem = {
+                id: d.id,
+                defectCode: d.defectCode || `D-${String(idx + 1).padStart(2, '0')}`,
+                pinX: d.pinX ?? 50,
+                pinY: d.pinY ?? 50,
+                screeningCategory: d.type === 'WATER_LEAKAGE' ? 'WATER_LEAK' : (d.type === 'PEELING' ? 'SPALLING' : 'CRACK'),
+                defectType: d.type === 'WATER_LEAKAGE' ? 'Thấm dột trần từ căn hộ tầng trên' : (d.type === 'PEELING' ? 'Bong tróc vữa trát / Sơn' : 'Vết nứt'),
+                crackDirection: 'Ngang / Dọc',
+                widthMaxMm: d.crackWidthMm || 0.2,
+                lengthMm: Math.round((d.crackLengthM || 1) * 1000),
+                activityState: 'U',
+                materialDegradationE4: 0,
+                structuralSignificanceE2: 1,
+                hasScaleCard: d.hasScaleCard ?? true,
+                isStructuralCritical: (d.crackWidthMm || 0) >= 5,
+                cuPhotoUrl: d.cuPhotoUrl || d.photoUrl || '',
+                cuPhotos: d.cuPhotoUrl || d.photoUrl ? [d.cuPhotoUrl || d.photoUrl] : [],
+                notes: d.description || '',
+              };
+              migratedZones.push({
+                id: `migrated_z_${idx}_${Date.now()}`,
+                zoneCode: zCode,
+                floorName: `Tầng ${parsed.floorNumber || 1}`,
+                roomName: d.location || 'Không gian căn hộ',
+                componentType: 'Tường gạch vữa xi măng (Tường bao / ngăn)',
+                wallMaterial: 'Sơn nước nội thất / ngoại thất',
+                overviewPhotos: [],
+                ctxPhotoUrl: d.ctxPhotoUrl || d.photoUrl || '',
+                hasDamage: true,
+                notes: d.description || '',
+                defects: [defectItem],
+              });
+            });
+            data.zones = migratedZones;
+          }
+
+          if (Array.isArray(parsed.structuralElements)) {
+            data.structuralElements = parsed.structuralElements;
+          }
+          if (parsed.hasStructuralElements !== undefined) {
+            data.hasStructuralElements = Boolean(parsed.hasStructuralElements);
+          }
+          if (Array.isArray(parsed.cadZonePins)) {
+            data.cadZonePins = parsed.cadZonePins;
+          }
+          if (Array.isArray(parsed.cadElementPins)) {
+            data.cadElementPins = parsed.cadElementPins;
+          }
+
           data = { ...data, ...parsed };
         }
       }
@@ -157,12 +295,139 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
       }
     } catch (_e) {}
 
+    // Xác định targetStep an toàn tránh bị reset về bước 1
+    const savedStepKey = `metro2_condo_unit_step_${pId}_${uId}`;
+    let targetStep = 1;
+
+    // 1. Kiểm tra URL query param (?step=2...)
+    if (typeof window !== 'undefined') {
+      try {
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlStep = parseInt(urlParams.get('step') || '', 10);
+        if (!isNaN(urlStep) && urlStep >= 1 && urlStep <= 4) {
+          targetStep = urlStep;
+        }
+      } catch (_e) {}
+    }
+
+    // 2. Kiểm tra localStorage nếu chưa có từ URL
+    if (targetStep === 1) {
+      try {
+        const localStep = parseInt(localStorage.getItem(savedStepKey) || '', 10);
+        if (!isNaN(localStep) && localStep >= 1 && localStep <= 4) {
+          targetStep = localStep;
+        }
+      } catch (_e) {}
+    }
+
+    // 3. Nếu store hiện tại đang mở cùng căn hộ và đã ở bước > 1, giữ nguyên không reset
+    const curStore = get();
+    if (
+      curStore.formData.parcelId === pId &&
+      curStore.formData.unitId === uId &&
+      curStore.currentStep > 1
+    ) {
+      targetStep = curStore.currentStep;
+    }
+
     set({
-      currentStep: 1,
+      currentStep: targetStep,
       formData: data,
       lastSavedAt: new Date().toLocaleTimeString('vi-VN'),
       syncStatus: 'IDLE',
     });
+
+    // Hydrate từ cloud draft nếu có trên server
+    surveyDraftService
+      .fetchDraft(pId, uId)
+      .then(async (draftRes) => {
+        if (draftRes?.hasDraft && draftRes.draft?.surveyData) {
+          const sData = draftRes.draft.surveyData as Partial<CondoUnitFormData>;
+          const cur = get().formData;
+          if (cur.parcelId === pId && cur.unitId === uId) {
+            get().updateFormData({
+              ...sData,
+              parentInfo: {
+                ...cur.parentInfo,
+                ...(sData.parentInfo || {}),
+              },
+            });
+            // Chỉ nâng bước nếu người dùng vẫn đang ở bước 1 và cloud draft lưu bước cao hơn
+            if (
+              get().currentStep === 1 &&
+              draftRes.draft.currentStep &&
+              draftRes.draft.currentStep > 1 &&
+              draftRes.draft.currentStep <= 4
+            ) {
+              get().setStep(draftRes.draft.currentStep);
+            }
+            if (draftRes.draft.updatedAt) {
+              set({
+                lastSavedAt: new Date(draftRes.draft.updatedAt).toLocaleTimeString('vi-VN'),
+                syncStatus: 'SAVED',
+                syncVersion: draftRes.draft.syncVersion || 1,
+              });
+            }
+          }
+        } else {
+          // Fallback khi không có draft (đã nộp SUBMITTED / APPROVED hoặc đổi máy/xóa cache)
+          const unitRecord = unit as { phase1_report_id?: string | null; phase1ReportId?: string | null; status?: string };
+          const repId = unitRecord?.phase1_report_id || unitRecord?.phase1ReportId;
+          const isSubmittedOrApproved =
+            unitRecord?.status === 'SUBMITTED' ||
+            unitRecord?.status === 'APPROVED' ||
+            Boolean(repId);
+
+          if (isSubmittedOrApproved) {
+            try {
+              const endpoint = repId
+                ? `/reports/phase1/${repId}`
+                : `/parcels/${pId}/phase1-report?unitId=${uId}&reportType=CONDO_UNIT`;
+              const res = await api.get(endpoint);
+              if (res.data?.success && res.data.data) {
+                const rObj = res.data.data?.report || res.data.data;
+                const sData = (rObj.survey_data_json || rObj.surveyData || {}) as Partial<CondoUnitFormData>;
+                const cur = get().formData;
+                if (cur.parcelId === pId && cur.unitId === uId && Object.keys(sData).length > 0) {
+                  // Khôi phục chữ ký & biên bản nếu nằm trong signatures
+                  const sigs = sData.signatures || {};
+                  if (!sData.workingMinutesPhotos && Array.isArray(sigs.workingMinutesPhotos)) {
+                    sData.workingMinutesPhotos = sigs.workingMinutesPhotos;
+                  }
+                  if (!sData.surveyorSignature && (sigs.surveyorSignature || rObj.surveyor_signature_url)) {
+                    sData.surveyorSignature = sigs.surveyorSignature || rObj.surveyor_signature_url;
+                  }
+                  if (!sData.ownerSignature && (sigs.ownerSignature || rObj.owner_signature_url)) {
+                    sData.ownerSignature = sigs.ownerSignature || rObj.owner_signature_url;
+                  }
+                  if (!sData.surveyDate && (sigs.surveyDate || rObj.survey_date)) {
+                    sData.surveyDate = sigs.surveyDate || rObj.survey_date;
+                  }
+
+                  get().updateFormData({
+                    ...sData,
+                    parentInfo: {
+                      ...cur.parentInfo,
+                      ...(sData.parentInfo || {}),
+                    },
+                  });
+                  set({
+                    syncStatus: 'SAVED',
+                    lastSavedAt: rObj.updated_at
+                      ? new Date(rObj.updated_at).toLocaleTimeString('vi-VN')
+                      : new Date().toLocaleTimeString('vi-VN'),
+                  });
+                }
+              }
+            } catch (repErr) {
+              console.warn('[CondoUnitStore] Không thể tải dữ liệu báo cáo đã nộp:', repErr);
+            }
+          }
+        }
+      })
+      .catch((err) => {
+        console.warn('[CondoUnitStore] Không thể tải bản nháp cloud:', err);
+      });
   },
 
   syncDraftToServer: async () => {
@@ -192,7 +457,7 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
         unitId: formData.unitId,
         reportType: 'CONDO_UNIT',
         currentStep,
-        surveyData: formData as unknown as Record<string, unknown>,
+        surveyData: sanitizeSurveyDataForSync(formData) as unknown as Record<string, unknown>,
         syncVersion,
       });
 
@@ -210,6 +475,99 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
   updateFormData: (updates: Partial<CondoUnitFormData>) => {
     const prev = get().formData;
     const next = { ...prev, ...updates };
+
+    // Đồng bộ 2 chiều giữa historyInterview và các cờ phẳng tương thích ngược
+    if (updates.historyInterview) {
+      const hi = updates.historyInterview;
+      next.hasSensitiveEquipment = Boolean(hi.sensitiveEquipment?.has);
+      next.sensitiveEquipmentDesc = hi.sensitiveEquipment?.description || '';
+      next.interiorRenovationHistory = {
+        hasRenovated: (hi.renovationLoad ?? 0) > 0 || (hi.majorRepair ?? 0) > 0,
+        description: hi.renovationDescription || '',
+      };
+    } else if (
+      updates.hasSensitiveEquipment !== undefined ||
+      updates.sensitiveEquipmentDesc !== undefined ||
+      updates.interiorRenovationHistory !== undefined
+    ) {
+      next.historyInterview = {
+        ...next.historyInterview,
+        renovationLoad: next.interiorRenovationHistory?.hasRenovated ? 1 : next.historyInterview.renovationLoad,
+        renovationDescription: next.interiorRenovationHistory?.description || next.historyInterview.renovationDescription,
+        sensitiveEquipment: {
+          has: next.hasSensitiveEquipment,
+          description: next.sensitiveEquipmentDesc,
+        },
+      };
+    }
+
+    // Đồng bộ 2 chiều giữa zones / structuralElements và localDefects phẳng
+    if (updates.zones || updates.structuralElements) {
+      const allDefects: UnitDefectItem[] = [];
+      const currentZones = updates.zones || next.zones || [];
+      const currentElements = updates.structuralElements || next.structuralElements || [];
+
+      currentZones.forEach((z) => {
+        (z.defects || []).forEach((d) => {
+          allDefects.push({
+            id: d.id || `d-${d.defectCode}`,
+            defectCode: d.defectCode,
+            pinX: d.pinX,
+            pinY: d.pinY,
+            location: `${z.roomName} - ${z.componentType}`,
+            type: d.screeningCategory === 'WATER_LEAK' ? 'WATER_LEAKAGE' : (d.screeningCategory === 'SPALLING' ? 'PEELING' : 'CRACK'),
+            crackWidthMm: Number(d.widthMaxMm) || 0,
+            crackLengthM: (Number(d.lengthMm) || 0) / 1000,
+            description: d.notes || '',
+            photoUrl: d.cuPhotoUrl || d.photoUrl || z.ctxPhotoUrl || '',
+            ctxPhotoUrl: z.ctxPhotoUrl || undefined,
+            cuPhotoUrl: d.cuPhotoUrl || undefined,
+            hasScaleCard: d.hasScaleCard,
+          });
+        });
+      });
+
+      currentElements.forEach((e) => {
+        (e.defects || []).forEach((d) => {
+          allDefects.push({
+            id: d.id || `d-${d.defectCode}`,
+            defectCode: d.defectCode,
+            pinX: d.pinX,
+            pinY: d.pinY,
+            location: `${e.roomName} - ${e.elementType}`,
+            type: d.screeningCategory === 'WATER_LEAK' ? 'WATER_LEAKAGE' : (d.screeningCategory === 'SPALLING' ? 'PEELING' : 'CRACK'),
+            crackWidthMm: Number(d.widthMaxMm) || 0,
+            crackLengthM: (Number(d.lengthMm) || 0) / 1000,
+            description: d.notes || '',
+            photoUrl: d.cuPhotoUrl || d.photoUrl || e.ctxPhotoUrl || '',
+            ctxPhotoUrl: e.ctxPhotoUrl || undefined,
+            cuPhotoUrl: d.cuPhotoUrl || undefined,
+            hasScaleCard: d.hasScaleCard,
+          });
+        });
+      });
+
+      next.localDefects = allDefects;
+    }
+
+    // Đồng bộ đối tượng signatures tương thích ngược
+    if (
+      updates.surveyorSignature !== undefined ||
+      updates.ownerSignature !== undefined ||
+      updates.ownerFeedback !== undefined ||
+      updates.surveyDate !== undefined ||
+      updates.workingMinutesPhotos !== undefined
+    ) {
+      next.signatures = {
+        ...(next.signatures || {}),
+        surveyorSignature: next.surveyorSignature,
+        ownerSignature: next.ownerSignature,
+        ownerFeedback: next.ownerFeedback,
+        surveyDate: next.surveyDate,
+        workingMinutesPhotos: next.workingMinutesPhotos,
+      };
+    }
+
     const time = new Date().toLocaleTimeString('vi-VN');
 
     // Lưu bản nháp cục bộ
@@ -240,6 +598,29 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
   },
 
   setStep: (step: number) => {
+    if (step < 1 || step > 4) return;
+    const { formData } = get();
+    const pId = formData.parcelId;
+    const uId = formData.unitId;
+
+    // Lưu bước hiện tại vào localStorage
+    try {
+      const savedStepKey = `metro2_condo_unit_step_${pId}_${uId}`;
+      localStorage.setItem(savedStepKey, String(step));
+    } catch (_e) {}
+
+    // Cập nhật URL query param và cuộn mượt
+    if (typeof window !== 'undefined') {
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.set('step', String(step));
+        window.history.replaceState(window.history.state, '', url.toString());
+      } catch (_e) {}
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+      document.documentElement.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+      document.body.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    }
+
     set({ currentStep: step });
     void get().syncDraftToServer();
   },
@@ -247,17 +628,151 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
   nextStep: () => {
     const cur = get().currentStep;
     if (cur < 4) {
-      set({ currentStep: cur + 1 });
-      void get().syncDraftToServer();
+      get().setStep(cur + 1);
     }
   },
 
   prevStep: () => {
     const cur = get().currentStep;
     if (cur > 1) {
-      set({ currentStep: cur - 1 });
-      void get().syncDraftToServer();
+      get().setStep(cur - 1);
     }
+  },
+
+  // Z - E - D Actions
+  addZone: (zone) => {
+    const prev = get().formData;
+    const existingPins = [
+      ...(prev.cadZonePins || []),
+      ...(prev.zones || []).map((z) => ({ zoneCode: z.zoneCode })),
+    ];
+    const generatedCode = getNextAvailablePinCode(existingPins, 'Z');
+    const newZone: DamageZoneData = {
+      id: `zone_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      zoneCode: zone?.zoneCode || generatedCode,
+      floorName: `Tầng ${prev.floorNumber || 1}`,
+      roomName: zone?.roomName || 'Phòng khách',
+      componentType: zone?.componentType || 'Tường gạch vữa xi măng (Tường bao / ngăn)',
+      wallMaterial: zone?.wallMaterial || 'Sơn nước nội thất / ngoại thất',
+      overviewPhotos: [],
+      ctxPhotoUrl: '',
+      notes: '',
+      defects: [],
+      hasDamage: false,
+      ...zone,
+    };
+    get().updateFormData({
+      zones: [...prev.zones, newZone],
+    });
+  },
+
+  updateZone: (index, updater) => {
+    const prev = get().formData;
+    const updated = [...prev.zones];
+    if (index >= 0 && index < updated.length) {
+      const oldCode = updated[index].zoneCode;
+      updated[index] = { ...updated[index], ...updater };
+      const newCode = updated[index].zoneCode;
+      let pins = prev.cadZonePins;
+      if (newCode && oldCode && newCode !== oldCode && Array.isArray(pins)) {
+        pins = pins.map((p) => (p.zoneCode === oldCode ? { ...p, zoneCode: newCode, label: newCode } : p));
+      }
+      get().updateFormData({ zones: updated, cadZonePins: pins });
+    }
+  },
+
+  removeZone: (index) => {
+    const prev = get().formData;
+    const targetZone = prev.zones[index];
+    const updatedZones = prev.zones.filter((_, i) => i !== index);
+    const updatedPins = targetZone
+      ? (prev.cadZonePins || []).filter((p) => p.zoneCode !== targetZone.zoneCode)
+      : prev.cadZonePins;
+    get().updateFormData({ zones: updatedZones, cadZonePins: updatedPins });
+  },
+
+  addElement: (element) => {
+    const prev = get().formData;
+    const existingPins = [
+      ...(prev.cadElementPins || []),
+      ...(prev.structuralElements || []).map((e) => ({ zoneCode: e.elementCode })),
+    ];
+    const generatedCode = getNextAvailablePinCode(existingPins, 'E');
+    const newElement: StructuralElementData = {
+      id: `element_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      elementCode: element?.elementCode || generatedCode,
+      floorName: `Tầng ${prev.floorNumber || 1}`,
+      roomName: element?.roomName || 'Phòng khách',
+      elementType: element?.elementType || 'Cột BTCT (Cột chịu lực chính)',
+      materialType: element?.materialType || 'Bê tông cốt thép (BTCT) đổ toàn khối',
+      overviewPhotos: [],
+      ctxPhotoUrl: '',
+      notes: '',
+      defects: [],
+      hasDamage: false,
+      ...element,
+    };
+    get().updateFormData({
+      structuralElements: [...prev.structuralElements, newElement],
+    });
+  },
+
+  updateElement: (index, updater) => {
+    const prev = get().formData;
+    const updated = [...prev.structuralElements];
+    if (index >= 0 && index < updated.length) {
+      const oldCode = updated[index].elementCode;
+      updated[index] = { ...updated[index], ...updater };
+      const newCode = updated[index].elementCode;
+      let pins = prev.cadElementPins;
+      if (newCode && oldCode && newCode !== oldCode && Array.isArray(pins)) {
+        pins = pins.map((p) => (p.zoneCode === oldCode ? { ...p, zoneCode: newCode, label: newCode } : p));
+      }
+      get().updateFormData({ structuralElements: updated, cadElementPins: pins });
+    }
+  },
+
+  removeElement: (index) => {
+    const prev = get().formData;
+    const targetEl = prev.structuralElements[index];
+    const updatedEls = prev.structuralElements.filter((_, i) => i !== index);
+    const updatedPins = targetEl
+      ? (prev.cadElementPins || []).filter((p) => p.zoneCode !== targetEl.elementCode)
+      : prev.cadElementPins;
+    get().updateFormData({ structuralElements: updatedEls, cadElementPins: updatedPins });
+  },
+
+  updateDefectsInZone: (zoneId, defects) => {
+    const prev = get().formData;
+    const updated = prev.zones.map((z) => {
+      if (z.id === zoneId) {
+        const burlandGrades = defects.map((d) => Number(d.burlandGrade) || 0);
+        const maxBurland = burlandGrades.length > 0 ? Math.max(...burlandGrades) : 0;
+        return {
+          ...z,
+          defects,
+          hasDamage: defects.length > 0,
+          burlandGrade: maxBurland,
+        };
+      }
+      return z;
+    });
+    get().updateFormData({ zones: updated });
+  },
+
+  updateDefectsInElement: (elementId, defects) => {
+    const prev = get().formData;
+    const updated = prev.structuralElements.map((e) => {
+      if (e.id === elementId) {
+        return {
+          ...e,
+          defects,
+          hasDamage: defects.length > 0,
+        };
+      }
+      return e;
+    });
+    get().updateFormData({ structuralElements: updated });
   },
 
   addDefect: (defect) => {
@@ -291,5 +806,15 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
       const filtered = list.filter((id) => id !== unitId);
       localStorage.setItem(inProgressKey, JSON.stringify(filtered));
     } catch (_e) {}
+  },
+
+  releaseDraftLock: async () => {
+    const { parcelId, unitId } = get().formData;
+    if (!parcelId) return;
+    try {
+      await surveyDraftService.releaseLock(parcelId, unitId || null);
+    } catch (err) {
+      console.warn('[CondoUnitStore] Lỗi mở khóa bản nháp:', err);
+    }
   },
 }));

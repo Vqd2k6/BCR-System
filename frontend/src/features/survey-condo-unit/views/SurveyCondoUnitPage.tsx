@@ -6,8 +6,11 @@ import { Step1_ParentInheritanceConfirmation } from '../components/Step1_ParentI
 import { Step2_UnitSpecificInformation } from '../components/Step2_UnitSpecificInformation';
 import { Step3_UnitDefectsAndSettlement } from '../components/Step3_UnitDefectsAndSettlement';
 import { Step4_UnitSignatures } from '../components/Step4_UnitSignatures';
+import { CondoUnitMissingFieldsModal } from '../components/CondoUnitMissingFieldsModal';
+import { validateCondoUnitFull, type CondoUnitValidationIssue } from '../utils/condoUnitValidator';
 import type { GisParcel, BuildingUnit } from '../../../core/types/domain.types';
 import { api } from '../../../services/api';
+import { sanitizeSurveyDataForSync } from '../../../core/services/uploadQueueService';
 
 export interface SurveyCondoUnitPageProps {
   parcel?: GisParcel | null;
@@ -24,21 +27,36 @@ export const SurveyCondoUnitPage: React.FC<SurveyCondoUnitPageProps> = ({
 }) => {
   const {
     currentStep,
+    setStep,
     formData,
     initializeForm,
     clearDraft,
     syncDraftToServer,
   } = useCondoUnitSurveyStore();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [missingModalState, setMissingModalState] = useState<{
+    isOpen: boolean;
+    blockingIssues: CondoUnitValidationIssue[];
+    warnings: CondoUnitValidationIssue[];
+  }>({
+    isOpen: false,
+    blockingIssues: [],
+    warnings: [],
+  });
+  const lastInitializedKeyRef = React.useRef<string>('');
 
   useEffect(() => {
     if (parcel) {
-      initializeForm(parcel, unit);
-      const unitStatus = unit?.status;
-      if (unitStatus !== 'SUBMITTED' && unitStatus !== 'APPROVED') {
-        setTimeout(() => {
-          void syncDraftToServer();
-        }, 100);
+      const currentKey = `${parcel.id}_${unit?.id || 'none'}`;
+      if (lastInitializedKeyRef.current !== currentKey) {
+        lastInitializedKeyRef.current = currentKey;
+        initializeForm(parcel, unit);
+        const unitStatus = unit?.status;
+        if (unitStatus !== 'SUBMITTED' && unitStatus !== 'APPROVED') {
+          setTimeout(() => {
+            void syncDraftToServer();
+          }, 100);
+        }
       }
     }
   }, [parcel?.id, unit?.id]);
@@ -80,7 +98,19 @@ export const SurveyCondoUnitPage: React.FC<SurveyCondoUnitPageProps> = ({
     }
   };
 
-  const handleSubmitFinal = async () => {
+  const handleGoToStep = (step: 1 | 2 | 3 | 4, fieldId?: string) => {
+    setStep(step);
+    if (fieldId) {
+      setTimeout(() => {
+        const el = document.getElementById(fieldId);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 150);
+    }
+  };
+
+  const executeSubmit = async () => {
     const confirmed = window.confirm(
       `Xác nhận nộp hồ sơ khảo sát căn hộ ${formData.unitCode || ''} (Tầng ${formData.floorNumber})?\n\nSau khi nộp, hồ sơ sẽ chuyển sang trạng thái "Chờ duyệt" từ Zone Admin.`
     );
@@ -95,7 +125,7 @@ export const SurveyCondoUnitPage: React.FC<SurveyCondoUnitPageProps> = ({
         unitId: formData.unitId,
         reportType: 'CONDO_UNIT',
         status: 'SUBMITTED',
-        surveyData: formData,
+        surveyData: sanitizeSurveyDataForSync(formData),
         submittedAt: new Date().toISOString(),
       };
 
@@ -133,6 +163,22 @@ export const SurveyCondoUnitPage: React.FC<SurveyCondoUnitPageProps> = ({
     }
   };
 
+  const handleSubmitFinal = () => {
+    // Chạy kiểm tra qua Cổng Thẩm Định Toàn Diện của Căn Hộ Con
+    const { isValid, blockingIssues, warnings } = validateCondoUnitFull(formData);
+
+    if (!isValid || warnings.length > 0) {
+      setMissingModalState({
+        isOpen: true,
+        blockingIssues,
+        warnings,
+      });
+      return;
+    }
+
+    void executeSubmit();
+  };
+
   return (
     <div className="min-h-screen bg-slate-100/90 flex flex-col font-sans">
       {/* Navbar chuẩn 4 bước */}
@@ -150,6 +196,19 @@ export const SurveyCondoUnitPage: React.FC<SurveyCondoUnitPageProps> = ({
           />
         )}
       </main>
+
+      {/* Modal Cảnh báo & Chỉ dẫn Bổ sung Dữ liệu Căn Hộ Con */}
+      <CondoUnitMissingFieldsModal
+        isOpen={missingModalState.isOpen}
+        blockingIssues={missingModalState.blockingIssues}
+        warnings={missingModalState.warnings}
+        onClose={() => setMissingModalState((prev) => ({ ...prev, isOpen: false }))}
+        onProceedAnyway={() => {
+          setMissingModalState((prev) => ({ ...prev, isOpen: false }));
+          void executeSubmit();
+        }}
+        onGoToStep={handleGoToStep}
+      />
     </div>
   );
 };

@@ -78,27 +78,7 @@ class UploadQueueService {
           onSuccess: async (publicUrl) => {
             await deleteOfflinePhoto(item.id);
             revokeManagedBlobUrl(item.id);
-
-            // Tự động thăng cấp URL trong Zustand Store nếu đang mở form khảo sát
-            try {
-              const { usePhase1SurveyStore } = await import('../../features/survey-phase1/store/usePhase1SurveyStore');
-              const storeState = usePhase1SurveyStore.getState();
-              if (storeState && storeState.formData) {
-                const updated = replaceLocalUriInObject(storeState.formData, item.id, publicUrl);
-                storeState.updateFormData(updated);
-              }
-            } catch (_err) {
-              console.warn('[UploadQueue] Không thể thăng cấp URL trong Store:', _err);
-            }
-
-            // Phát sự kiện ra toàn bộ UI
-            if (typeof window !== 'undefined') {
-              window.dispatchEvent(
-                new CustomEvent('metro2:photo-promoted', {
-                  detail: { localId: item.id, publicUrl },
-                })
-              );
-            }
+            void this.promoteUrlInStores(item.id, publicUrl);
           },
         });
         count++;
@@ -107,6 +87,51 @@ class UploadQueueService {
     } catch (err) {
       console.warn('[UploadQueue] Lỗi quét ảnh offline pending:', err);
       return 0;
+    }
+  }
+
+  /**
+   * Tự động thay thế URL blob:local:// bằng URL Cloudflare R2 trong các Zustand Store đang mở
+   * Hỗ trợ đồng bộ tự động 100% cho Phase 1, Condo Unit và Condo Master
+   */
+  public async promoteUrlInStores(localId: string, publicUrl: string): Promise<void> {
+    // 1. Thăng cấp trong Phase 1 Store
+    try {
+      const { usePhase1SurveyStore } = await import('../../features/survey-phase1/store/usePhase1SurveyStore');
+      const p1Store = usePhase1SurveyStore.getState();
+      if (p1Store && p1Store.formData) {
+        const updated = replaceLocalUriInObject(p1Store.formData, localId, publicUrl);
+        p1Store.updateFormData(updated);
+      }
+    } catch (_err) {}
+
+    // 2. Thăng cấp trong Condo Unit Store
+    try {
+      const { useCondoUnitSurveyStore } = await import('../../features/survey-condo-unit/store/useCondoUnitSurveyStore');
+      const unitStore = useCondoUnitSurveyStore.getState();
+      if (unitStore && unitStore.formData) {
+        const updated = replaceLocalUriInObject(unitStore.formData, localId, publicUrl);
+        unitStore.updateFormData(updated);
+      }
+    } catch (_err) {}
+
+    // 3. Thăng cấp trong Condo Master Store
+    try {
+      const { useCondoMasterSurveyStore } = await import('../../features/survey-condo-master/store/useCondoMasterSurveyStore');
+      const masterStore = useCondoMasterSurveyStore.getState();
+      if (masterStore && masterStore.formData) {
+        const updated = replaceLocalUriInObject(masterStore.formData, localId, publicUrl);
+        masterStore.updateFormData(updated);
+      }
+    } catch (_err) {}
+
+    // 4. Phát sự kiện toàn cục ra Window
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('metro2:photo-promoted', {
+          detail: { localId, publicUrl },
+        })
+      );
     }
   }
 
@@ -225,6 +250,11 @@ class UploadQueueService {
         nextTask.progress = 100;
         nextTask.publicUrl = publicUrl;
         nextTask.key = key;
+
+        if (nextTask.id) {
+          void this.promoteUrlInStores(nextTask.id, publicUrl);
+        }
+
         if (nextTask.onSuccess) {
           nextTask.onSuccess(publicUrl, key);
         }

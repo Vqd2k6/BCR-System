@@ -40,8 +40,8 @@ export const createFormSlice: StateCreator<
       parcel.surveyStatus === 'APPROVED' ||
       parcel.surveyStatus === 'PHASE2_COMPLETED' ||
       parcel.surveyStatus === 'APPROVED_PHASE2' ||
-      (parcel as any).survey_status === 'SUBMITTED' ||
-      (parcel as any).survey_status === 'APPROVED' ||
+      parcel.survey_status === 'SUBMITTED' ||
+      parcel.survey_status === 'APPROVED' ||
       Boolean(unit && (unit.status === 'SUBMITTED' || unit.status === 'APPROVED' || unit.status === 'COMPLETED'));
 
     // 1. Thử khôi phục nhanh đồng bộ từ localStorage (chỉ khi chưa nộp hồ sơ)

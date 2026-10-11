@@ -99,11 +99,54 @@ export class CondoUnitReportGenerator {
 
     const inheritanceLegalNotice = `Các thông số kỹ thuật móng cọc, tầng hầm, độ nghiêng khối tháp và cự ly tim hầm Metro được kế thừa nguyên trạng từ Báo cáo Hiện trạng Khối tháp Tòa nhà số: ${parentMasterReportCode}.`;
 
-    // Thiết bị nhạy cảm & Cải tạo
+    // Thiết bị nhạy cảm, Cải tạo & 5 câu hỏi phỏng vấn TCVN
     const hasSensitiveEquipment = Boolean(json.hasSensitiveEquipment);
     const sensitiveEquipmentDesc = json.sensitiveEquipmentDesc || '';
     const hasRenovated = Boolean(json.interiorRenovationHistory?.hasRenovated);
     const renovationHistoryDesc = json.interiorRenovationHistory?.description || '';
+
+    const hi = json.historyInterview || {};
+    const renovationOptionsMap: Record<number, string> = {
+      0: 'Không có (Nguyên bản)',
+      1: 'Có cơi nới nhẹ / lắp vách ngăn',
+      2: 'Đập tường / thay đổi công năng',
+      3: 'Cơi nới nặng / tăng tải trọng đáng kể',
+    };
+    const majorRepairOptionsMap: Record<number, string> = {
+      0: 'Không có',
+      1: 'Sửa chữa hoàn thiện bề mặt',
+      2: 'Gia cố cục bộ dầm/sàn',
+      3: 'Can thiệp kết cấu chịu lực chính',
+    };
+    const pastSettlementOptionsMap: Record<number, string> = {
+      0: 'Không phát hiện lún nghiêng',
+      1: 'Nghi ngờ có chuyển vị nhẹ',
+      2: 'Có hiện tượng nứt lún trước đây',
+      3: 'Lún lệch rõ rệt / từng xử lý',
+    };
+    const neighborDamageOptionsMap: Record<number, string> = {
+      0: 'Không ảnh hưởng',
+      1: 'Bị nứt dăm do nhà bên sửa chữa',
+      2: 'Nứt tường / thấm do căn hộ lân cận',
+      3: 'Hư hỏng nặng do công trình liền kề',
+    };
+    const fireFloodOptionsMap: Record<number, string> = {
+      0: 'Không có sự cố',
+      1: 'Từng bị ngấm nước cục bộ',
+      2: 'Từng bị ngập nước sàn',
+      3: 'Từng xảy ra hỏa hoạn / nổ',
+    };
+
+    const historyInterviewSummary = {
+      renovationText: renovationOptionsMap[hi.renovationLoad ?? 0] || (hasRenovated ? 'Đã từng sửa chữa' : 'Không có'),
+      majorRepairText: majorRepairOptionsMap[hi.majorRepair ?? 0] || 'Không có',
+      pastSettlementText: pastSettlementOptionsMap[hi.pastSettlement ?? 0] || 'Không phát hiện',
+      neighborDamageText: neighborDamageOptionsMap[hi.neighborDamage ?? 0] || 'Không ảnh hưởng',
+      fireFloodText: fireFloodOptionsMap[hi.fireFloodIncident ?? 0] || 'Không có',
+      usageStatus: hi.usageStatus || 'Đầy đủ',
+      continuousOperation247: Boolean(hi.continuousOperation247),
+      renovationDescription: hi.renovationDescription || renovationHistoryDesc || '',
+    };
 
     // Ảnh định danh căn hộ: P01 & P04
     const makePhoto = (obj: any, type: any, label: string): ReportPhotoItem => {
@@ -222,7 +265,7 @@ export class CondoUnitReportGenerator {
           });
         }
       });
-    } else if (Array.isArray(json.localDefects)) {
+    } else if (Array.isArray(json.localDefects) && json.localDefects.length > 0) {
       // Fallback từ json.localDefects
       json.localDefects.forEach((d: any, idx: number) => {
         const w = Number(d.crackWidthMm) || 0;
@@ -252,6 +295,42 @@ export class CondoUnitReportGenerator {
           notes: d.description,
         });
       });
+    } else if (Array.isArray(json.zones) || Array.isArray(json.structuralElements)) {
+      // Fallback từ cấu trúc Z - E - D chuẩn mới trong json
+      const combined = [
+        ...(Array.isArray(json.zones) ? json.zones : []),
+        ...(Array.isArray(json.structuralElements) ? json.structuralElements : []),
+      ];
+      combined.forEach((z: any) => {
+        (z.defects || []).forEach((d: any, dIdx: number) => {
+          const w = Number(d.widthMaxMm ?? d.crackWidthMm) || 0;
+          const bGrade = getBurlandGrade(w);
+          if (bGrade > maxBurland) maxBurland = bGrade;
+
+          localDefects.push({
+            defectCode: d.defectCode || `D-${String(dIdx + 1).padStart(2, '0')}`,
+            zoneCode: z.zoneCode || z.elementCode || 'Z-01',
+            roomName: z.roomName || 'Không gian căn hộ',
+            componentType: z.componentType || z.elementType || 'WALL',
+            defectType: d.defectType || (d.screeningCategory === 'WATER_LEAK' ? 'WATER_STAIN' : 'CRACK'),
+            widthMaxMm: w,
+            lengthMm: Number(d.lengthMm) || Math.round((Number(d.crackLengthM) || 1) * 1000),
+            activityState: d.activityState || 'U',
+            activityStateLabel: 'Chưa xác định',
+            structuralSignificanceE2: w >= 2.0 ? 3 : 1,
+            structuralSignificanceLabel: w >= 2.0 ? 'Có ý nghĩa chịu lực' : 'Khuyết tật cục bộ',
+            materialDegradationE4: 0,
+            materialDegradationLabel: 'Bình thường',
+            hasScaleCard: d.hasScaleCard ?? true,
+            isStructuralCritical: w >= 5.0,
+            pinX: d.pinX != null ? Number(d.pinX) : undefined,
+            pinY: d.pinY != null ? Number(d.pinY) : undefined,
+            ctxPhotoUrl: z.ctxPhotoUrl || d.ctxPhotoUrl || d.photoUrl,
+            cuPhotoUrl: d.cuPhotoUrl || (Array.isArray(d.cuPhotos) ? d.cuPhotos[0] : null) || d.photoUrl,
+            notes: d.notes || d.description,
+          });
+        });
+      });
     }
 
     const burlandMaxLabel = burlandGradeLabels[maxBurland] || 'Cấp 0';
@@ -261,7 +340,13 @@ export class CondoUnitReportGenerator {
       `Hiện trạng Căn hộ ${displayCode} (Vị trí quy hoạch ${unitCode}, ${floorDisplay}) trước khi thi công tuyến Metro số 2 được ghi nhận với ${localDefects.length} điểm khuyết tật nứt, cấp độ hư hỏng Burland lớn nhất: ${burlandMaxLabel}. ${hasUpperFloorWaterLeakage ? 'Có hiện tượng thấm dột trần lầu trên dội xuống.' : 'Không phát hiện thấm dột trần.'}`;
 
     const engineeringRecommendations = json.engineeringRecommendations || reportData.engineering_recommendations ||
-      'Đề nghị Chủ hộ và Đơn vị thi công Metro số 2 phối hợp giám sát định kỳ đối với các vết nứt đã ghi nhận, đồng thời tiến hành quan trắc bổ sung nếu phát hiện có hiện tượng nứt phát triển hoặc kẹt cửa mới trong quá trình đào ngầm TBM.';
+      'Đề nghị Chủ hộ và Đơn vị thi công Metro số 2 phối hợp giám sát định kỳ đối với các vết nứt đã ghi nhận, đồng thời tiến hành quan trắc bổ sung nếu phát hiện có hiện tượng nứt phát triển mới trong quá trình đào ngầm TBM.';
+
+    // Ảnh biên bản hiện trường & chữ ký tươi (Working Minutes Photos)
+    const rawMinutes = json.workingMinutesPhotos || json.signatures?.workingMinutesPhotos || reportData.working_minutes_photos || [];
+    const workingMinutesPhotos = (Array.isArray(rawMinutes) ? rawMinutes : [])
+      .map((p: any) => (typeof p === 'string' ? p : p?.url))
+      .filter((u: any) => u && typeof u === 'string' && !u.startsWith('blob:'));
 
     return {
       reportCode,
@@ -301,6 +386,7 @@ export class CondoUnitReportGenerator {
       sensitiveEquipmentDesc,
       hasRenovated,
       renovationHistoryDesc,
+      historyInterviewSummary,
 
       p01,
       p04,
@@ -331,7 +417,7 @@ export class CondoUnitReportGenerator {
       surveyorName: reportData.surveyor_name || 'Khảo sát viên Hiện trường',
       ownerSignatureUrl: json.ownerSignature || reportData.owner_signature_url,
       zoneAdminSignatureUrl: reportData.zone_admin_signature_url,
-      workingMinutesPhotos: Array.isArray(json.workingMinutesPhotos) ? json.workingMinutesPhotos : [],
+      workingMinutesPhotos,
       generatedAt,
     };
   }

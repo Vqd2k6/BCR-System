@@ -73,6 +73,23 @@
           {{else}}
             <span class="badge badge-green">NGUYÊN BẢN</span> (Chưa cải tạo đập thông tường phòng)
           {{/if}}
+          {{#if historyInterviewSummary.renovationText}}
+            <div style="font-size: 8.5pt; color: #475569; margin-top: 3px;">
+              • Mức độ tải trọng/cải tạo: {{historyInterviewSummary.renovationText}}
+            </div>
+          {{/if}}
+        </td>
+      </tr>
+      <tr>
+        <td style="font-weight: bold; background-color: #f8fafc;">Phỏng vấn lịch sử công trình (TCVN)</td>
+        <td colspan="3" style="font-size: 8.5pt; line-height: 1.5;">
+          <div>• <strong>Sửa chữa kết cấu:</strong> {{historyInterviewSummary.majorRepairText}}</div>
+          <div>• <strong>Hiện tượng lún nghiêng:</strong> {{historyInterviewSummary.pastSettlementText}}</div>
+          <div>• <strong>Ảnh hưởng từ công trình lân cận:</strong> {{historyInterviewSummary.neighborDamageText}}</div>
+          <div>• <strong>Sự cố hỏa hoạn / ngập lụt:</strong> {{historyInterviewSummary.fireFloodText}}</div>
+          {{#if historyInterviewSummary.continuousOperation247}}
+            <div style="color: #b91c1c; font-weight: bold;">• Căn hộ hoạt động / vận hành liên tục 24/7</div>
+          {{/if}}
         </td>
       </tr>
       {{#if hasSensitiveEquipment}}
@@ -117,8 +134,8 @@
       </div>
     </div>
 
-    <!-- PHẦN III: HIỆN TRẠNG ĐẶC THÙ: THẤM DỘT TRẦN, VÕNG DẦM SÀN & KẸT CỬA -->
-    <div class="section-title">III. HIỆN TRẠNG ĐẶC THÙ: THẤM TRẦN, VÕNG KẾT CẤU & KẸT CỬA</div>
+    <!-- PHẦN III: HIỆN TRẠNG ĐẶC THÙ: THẤM DỘT TRẦN & VÕNG DẦM SÀN -->
+    <div class="section-title">III. HIỆN TRẠNG ĐẶC THÙ: THẤM TRẦN & VÕNG KẾT CẤU</div>
     <table class="data-table">
       <thead>
         <tr>
@@ -168,17 +185,6 @@
               Kết cấu dầm bê tông cốt thép và sàn phẳng, không quan sát thấy độ võng mắt thường.
             {{/if}}
           </td>
-        </tr>
-        <tr>
-          <td style="font-weight: bold;">Đóng mở cửa & biến dạng khung (Door Jamming)</td>
-          <td>
-            {{#if (eq doorJammingStatus 'NORMAL')}}
-              <span class="badge badge-green">BÌNH THƯỜNG</span>
-            {{else}}
-              <span class="badge badge-amber">CÓ BIẾN DẠNG</span>
-            {{/if}}
-          </td>
-          <td>{{doorJammingLabel}}</td>
         </tr>
       </tbody>
     </table>
@@ -374,8 +380,26 @@
       </tr>
     </table>
 
+    {{#if (isNotEmpty workingMinutesPhotos)}}
+      <div class="page-break"></div>
+      <div class="section-title">VI. PHỤ LỤC: BIÊN BẢN LÀM VIỆC HIỆN TRƯỜNG (BẢN GIẤY)</div>
+      <div style="font-size: 9.5pt; color: #475569; margin-bottom: 12px;">
+        Ghi nhận hình ảnh biên bản khảo sát hiện trạng bằng giấy có xác nhận và chữ ký của các bên liên quan:
+      </div>
+      <div class="minutes-photo-grid">
+        {{#each workingMinutesPhotos}}
+          <div class="minutes-photo-item">
+            <img src="{{this.url}}" alt="Biên bản trang {{this.pageIndex}}">
+            <div class="minutes-photo-caption">
+              <strong>Trang {{this.pageIndex}}</strong>{{#if this.label}} - {{this.label}}{{/if}}
+            </div>
+          </div>
+        {{/each}}
+      </div>
+    {{/if}}
+
     <div style="text-align: center; font-size: 8pt; color: #94a3b8; margin-top: 30px; border-top: 1px dashed #cbd5e1; padding-top: 6px;">
-      Hồ sơ khảo sát hiện trạng công trình tuyến Metro số 2 • Thời điểm xuất: {{generatedAt}} • Trang 1/1
+      Hồ sơ khảo sát hiện trạng công trình tuyến Metro số 2 • Thời điểm xuất: {{generatedAt}}
     </div>
   </div>
 </body>
