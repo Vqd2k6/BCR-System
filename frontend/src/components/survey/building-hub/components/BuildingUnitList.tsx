@@ -36,6 +36,7 @@ interface BuildingUnitListProps {
   onStartUnitSurvey: (parcel: GisParcel, unit: BuildingUnit, phase?: 1 | 2) => void;
   onStartMasterAreaSurvey?: (parcel: GisParcel, unit: BuildingUnit) => void;
   onOpenCadManagement?: (floorNumber?: number) => void;
+  onUnitStatusUpdated?: () => void;
   // Legacy props kept for backward compatibility
   showAddModal?: boolean;
   onToggleAddModal?: (show: boolean) => void;
@@ -78,6 +79,7 @@ export const BuildingUnitList: React.FC<BuildingUnitListProps> = ({
   onStartUnitSurvey,
   onStartMasterAreaSurvey,
   onOpenCadManagement,
+  onUnitStatusUpdated,
 }) => {
   const [internalSelectedUnit, setInternalSelectedUnit] = React.useState<BuildingUnit | null>(null);
 
@@ -299,6 +301,7 @@ export const BuildingUnitList: React.FC<BuildingUnitListProps> = ({
             onClose={() => handleSelectUnit(null)}
             onStartUnitSurvey={onStartUnitSurvey}
             onStartMasterAreaSurvey={onStartMasterAreaSurvey}
+            onUnitStatusUpdated={onUnitStatusUpdated}
           />
         </div>
       )}

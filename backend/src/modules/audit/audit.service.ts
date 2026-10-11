@@ -48,6 +48,10 @@ export class AuditService {
     return AuditReviewService.rejectReport(reportId, adminId, rejectionReason);
   }
 
+  static revertReportToDraft(identifier: string, adminId: string, reason?: string, unitId?: string | null) {
+    return AuditReviewService.revertReportToDraft(identifier, adminId, reason, unitId);
+  }
+
   static getProgressAnalytics(zoneId?: string) {
     return AuditReviewService.getProgressAnalytics(zoneId);
   }

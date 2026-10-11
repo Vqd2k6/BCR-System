@@ -789,6 +789,40 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
     }
   };
 
+  const handleRevertToDraftFromPage = async () => {
+    if (!parcel?.id) return;
+    if (user?.role !== 'ZONE_ADMIN' && user?.role !== 'SUPER_ADMIN') {
+      alert('Chỉ có Zone Admin hoặc Super Admin mới có quyền chuyển trạng thái hồ sơ.');
+      return;
+    }
+    const confirmRevert = window.confirm(
+      `Bạn có chắc chắn muốn chuyển hồ sơ thửa [${parcel.projectParcelCode || parcel.officialCadastralCode || parcel.id}] về trạng thái "Đang làm dở" để chỉnh sửa thông tin?`
+    );
+    if (!confirmRevert) return;
+
+    try {
+      const overridesStr = localStorage.getItem('metro2_parcel_status_overrides');
+      if (overridesStr) {
+        const overrides = JSON.parse(overridesStr);
+        delete overrides[parcel.id];
+        localStorage.setItem('metro2_parcel_status_overrides', JSON.stringify(overrides));
+      }
+
+      await api.post(`/admin/reports/${parcel.id}/revert-to-draft`, {});
+
+      setIsReadOnly(false);
+      if (reportData?.report) {
+        reportData.report.status = 'DRAFT';
+      }
+      parcel.surveyStatus = 'IN_PROGRESS';
+
+      alert(`✅ Đã chuyển hồ sơ thửa [${parcel.projectParcelCode || parcel.officialCadastralCode || parcel.id}] về trạng thái "Đang làm dở" thành công! Biểu mẫu đã được mở để chỉnh sửa.`);
+    } catch (e: unknown) {
+      console.error('Revert error:', e);
+      alert(`❌ Có lỗi xảy ra khi chuyển trạng thái: ${getErrorMessage(e)}`);
+    }
+  };
+
   const isAbsenteeReport =
     formData.surveyCaseType === 'ABSENTEE' ||
     formData.isAbsenteeSurvey === true ||
@@ -805,6 +839,7 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
         canApproveOrReject={Boolean(canApproveOrReject)}
         onApprove={handleApproveFromPage}
         onReject={handleRejectFromPage}
+        onRevertToDraft={canApproveOrReject ? handleRevertToDraftFromPage : undefined}
         onBackToHome={onBackToHome}
       />
     );
@@ -819,6 +854,7 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
         targetCode={parcel?.projectParcelCode || parcel?.officialCadastralCode || parcel?.id || ''}
         onApprove={handleApproveFromPage}
         onReject={handleRejectFromPage}
+        onRevertToDraft={canApproveOrReject ? handleRevertToDraftFromPage : undefined}
         onBack={onBackToHome}
       />
 

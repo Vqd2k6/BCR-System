@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { AuditService } from './audit.service';
-import { ApproveReportDto, RejectReportDto } from './audit.dto';
+import { ApproveReportDto, RejectReportDto, RevertReportToDraftDto } from './audit.dto';
 import { BadRequestError } from '../../common/errors/problem-details';
 
 export class AuditController {
@@ -122,6 +122,24 @@ export class AuditController {
 
       const adminId = req.user!.userId;
       const result = await AuditService.rejectReport(id, adminId, parsed.data.rejectionReason);
+      res.status(200).json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async revertReportToDraft(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      const parsed = RevertReportToDraftDto.safeParse(req.body);
+      const unitId = parsed.success ? parsed.data.unitId || undefined : undefined;
+      const reason = parsed.success ? parsed.data.reason : undefined;
+      const adminId = req.user!.userId;
+
+      const result = await AuditService.revertReportToDraft(id, adminId, reason, unitId);
       res.status(200).json({
         success: true,
         data: result,

@@ -13,6 +13,8 @@ import { api } from '../../../services/api';
 import { sanitizeSurveyDataForSync } from '../../../core/services/uploadQueueService';
 import { ActiveSurveyorLockedModal } from '../../survey-phase1/components/ActiveSurveyorLockedModal';
 import { HandoverTakeoverModal } from '../../survey-phase1/components/HandoverTakeoverModal';
+import { useAuth } from '../../../context/AuthContext';
+import { RotateCcw, ShieldAlert } from 'lucide-react';
 
 export interface SurveyCondoUnitPageProps {
   parcel?: GisParcel | null;
@@ -45,6 +47,7 @@ export const SurveyCondoUnitPage: React.FC<SurveyCondoUnitPageProps> = ({
     takeoverDraft,
     checkDraftLock,
     setIsReadOnly,
+    updateFormData,
   } = useCondoUnitSurveyStore();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [missingModalState, setMissingModalState] = useState<{
@@ -58,7 +61,12 @@ export const SurveyCondoUnitPage: React.FC<SurveyCondoUnitPageProps> = ({
   });
   const lastInitializedKeyRef = React.useRef<string>('');
 
-  const unitStatus = unit?.status || formData?.status;
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'ZONE_ADMIN' || user?.role === 'SUPER_ADMIN';
+  const [localUnitStatus, setLocalUnitStatus] = useState<string | null>(null);
+  const [isReverting, setIsReverting] = useState(false);
+
+  const unitStatus = localUnitStatus || unit?.status || formData?.status;
   const isSubmittedOrApproved = unitStatus === 'SUBMITTED' || unitStatus === 'APPROVED';
   const effectiveReadOnly = Boolean(readOnly || isSubmittedOrApproved);
 
@@ -203,10 +211,79 @@ export const SurveyCondoUnitPage: React.FC<SurveyCondoUnitPageProps> = ({
     void executeSubmit();
   };
 
+  const handleRevertToDraft = async () => {
+    const unitLabel = formData.unitCode || formData.displayCode || unit?.unit_code || 'này';
+    const confirmRevert = window.confirm(
+      `Xác nhận chuyển trạng thái hồ sơ căn ${unitLabel} về "Đang làm dở"?\n\nSau khi chuyển, khảo sát viên hoặc admin có thể chỉnh sửa thông tin, chụp thêm ảnh và nộp lại hồ sơ.`
+    );
+    if (!confirmRevert) return;
+
+    try {
+      setIsReverting(true);
+      const targetId = unit?.id || formData.unitId || formData.parcelId;
+      const res = await api.post(`/admin/reports/${targetId}/revert-to-draft`, {
+        unitId: unit?.id || formData.unitId,
+      });
+
+      if (!res.data?.success) {
+        throw new Error(res.data?.message || 'Server không phản hồi');
+      }
+
+      setLocalUnitStatus('IN_PROGRESS');
+      updateFormData({ status: 'IN_PROGRESS' });
+      setIsReadOnly(false);
+
+      if (unit) {
+        unit.status = 'IN_PROGRESS';
+      }
+
+      alert(`✅ Đã chuyển căn ${unitLabel} về trạng thái "Đang làm dở" thành công! Biểu mẫu đã được mở để chỉnh sửa.`);
+    } catch (err: unknown) {
+      console.error('[SurveyCondoUnitPage] Revert error:', err);
+      alert(`❌ Lỗi khi chuyển trạng thái: ${getErrorMessage(err)}`);
+    } finally {
+      setIsReverting(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-100/90 flex flex-col font-sans">
       {/* Navbar chuẩn 4 bước */}
       <CondoUnitWizardNav onBackToHub={handleSafeBackToHome} />
+
+      {/* Banner Thẩm định & Mở lại biểu mẫu cho Zone Admin / Super Admin */}
+      {effectiveReadOnly && isAdmin && (
+        <div className="bg-violet-900 text-white px-3 sm:px-6 py-2.5 shadow-md border-b border-violet-700 flex flex-wrap items-center justify-between gap-2.5 animate-in fade-in sticky top-12 z-39">
+          <div className="flex items-center gap-2 text-xs sm:text-sm font-semibold">
+            <ShieldAlert className="w-4 h-4 text-amber-300 shrink-0" />
+            <span>
+              Thẩm định Căn hộ <strong className="text-violet-200">Căn {formData.displayCode || formData.unitCode || unit?.unit_code}</strong> (Zone Admin / Super Admin)
+            </span>
+            <span className="bg-violet-800 text-violet-200 text-[10px] font-bold px-2 py-0.5 rounded border border-violet-600">
+              TRẠNG THÁI: {unitStatus || 'SUBMITTED'}
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              disabled={isReverting}
+              onClick={handleRevertToDraft}
+              className="inline-flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs px-3 py-1.5 rounded-lg shadow-xs transition-all cursor-pointer disabled:opacity-50"
+              title="Chuyển trạng thái về 'Đang làm dở' để chỉnh sửa thông tin"
+            >
+              <RotateCcw className={`w-3.5 h-3.5 ${isReverting ? 'animate-spin' : ''}`} />
+              <span>{isReverting ? 'Đang chuyển...' : 'Chuyển về "Đang làm dở" để sửa'}</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleSafeBackToHome}
+              className="bg-violet-800 hover:bg-violet-700 text-white font-semibold text-xs px-3 py-1.5 rounded-lg border border-violet-600 transition-colors cursor-pointer"
+            >
+              Quay lại Hub
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Main Step Content Container */}
       <main className="flex-1 px-3 sm:px-6 py-6">

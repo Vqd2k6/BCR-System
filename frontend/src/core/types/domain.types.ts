@@ -16,6 +16,7 @@ export interface UserProfile {
 export type User = UserProfile;
 
 export type SurveyStatus =
+  | 'DRAFT'
   | 'NOT_SURVEYED'
   | 'SCHEDULED'
   | 'IN_PROGRESS'

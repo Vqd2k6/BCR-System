@@ -26,6 +26,7 @@ interface AbsenteeReviewViewProps {
   canApproveOrReject: boolean;
   onApprove: () => void;
   onReject: () => void;
+  onRevertToDraft?: () => void;
   onBackToHome: () => void;
 }
 
@@ -36,6 +37,7 @@ export const AbsenteeReviewView: React.FC<AbsenteeReviewViewProps> = ({
   canApproveOrReject,
   onApprove,
   onReject,
+  onRevertToDraft,
   onBackToHome,
 }) => {
   const { formData } = usePhase1SurveyStore();
@@ -67,6 +69,7 @@ export const AbsenteeReviewView: React.FC<AbsenteeReviewViewProps> = ({
         targetCode={`${parcelCode} (VẮNG CHỦ)`}
         onApprove={onApprove}
         onReject={onReject}
+        onRevertToDraft={onRevertToDraft}
         onBack={onBackToHome}
       />
 

@@ -9,10 +9,14 @@ import {
   AlertTriangle,
   ExternalLink,
   ShieldCheck,
+  RotateCcw,
 } from 'lucide-react';
 import type { GisParcel } from '../../../gis/LeafletSweepMap';
 import type { BuildingUnit } from '../types';
 import { formatShortUnitDisplay } from '../../../../core/utils/codeFormattingUtils';
+import { useAuth } from '../../../../context/AuthContext';
+import { api } from '../../../../services/api';
+import { getErrorMessage } from '@/utils/errorUtils';
 
 interface UnitInspectionDrawerProps {
   unit: BuildingUnit | null;
@@ -22,6 +26,7 @@ interface UnitInspectionDrawerProps {
   onClose: () => void;
   onStartUnitSurvey: (parcel: GisParcel, unit: BuildingUnit, phase?: 1 | 2) => void;
   onStartMasterAreaSurvey?: (parcel: GisParcel, unit: BuildingUnit) => void;
+  onUnitStatusUpdated?: () => void;
 }
 
 export const UnitInspectionDrawer: React.FC<UnitInspectionDrawerProps> = ({
@@ -32,7 +37,12 @@ export const UnitInspectionDrawer: React.FC<UnitInspectionDrawerProps> = ({
   onClose,
   onStartUnitSurvey,
   onStartMasterAreaSurvey,
+  onUnitStatusUpdated,
 }) => {
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'ZONE_ADMIN' || user?.role === 'SUPER_ADMIN';
+  const [isReverting, setIsReverting] = React.useState(false);
+
   if (!unit) return null;
 
   const isMaster = (unit.unit_type || unit.unitType) === 'MASTER';
@@ -41,6 +51,35 @@ export const UnitInspectionDrawer: React.FC<UnitInspectionDrawerProps> = ({
   const isSubmitted = unit.status === 'SUBMITTED';
   const isInProgress = unit.status === 'IN_PROGRESS';
   const isAbsent = unit.status === 'POSTPONED_ABSENT';
+
+  const handleRevertToDraft = async () => {
+    const confirmRevert = window.confirm(
+      `Xác nhận chuyển trạng thái căn ${unit.unit_code} về "Đang làm dở"?\n\nSau khi chuyển, khảo sát viên hoặc admin có thể tiếp tục chỉnh sửa thông tin và nộp lại.`
+    );
+    if (!confirmRevert) return;
+
+    try {
+      setIsReverting(true);
+      const res = await api.post(`/admin/reports/${unit.id}/revert-to-draft`, {
+        unitId: unit.id,
+      });
+
+      if (!res.data?.success) {
+        throw new Error(res.data?.message || 'Server không phản hồi');
+      }
+
+      unit.status = 'IN_PROGRESS';
+      if (onUnitStatusUpdated) {
+        onUnitStatusUpdated();
+      }
+      alert(`✅ Đã chuyển căn ${unit.unit_code} về trạng thái "Đang làm dở" thành công!`);
+    } catch (err: unknown) {
+      console.error('[UnitInspectionDrawer] Revert error:', err);
+      alert(`❌ Lỗi khi chuyển trạng thái: ${getErrorMessage(err)}`);
+    } finally {
+      setIsReverting(false);
+    }
+  };
 
   const renderStatusBadge = () => {
     if (isApproved) {
@@ -204,6 +243,20 @@ export const UnitInspectionDrawer: React.FC<UnitInspectionDrawerProps> = ({
           </span>
 
           <div className="flex items-center gap-2.5 w-full sm:w-auto justify-end">
+            {isSubmitted && isAdmin && (
+              <button
+                type="button"
+                disabled={isReverting}
+                onClick={handleRevertToDraft}
+                className="min-h-[44px] px-3.5 py-2.5 rounded-xl text-xs font-bold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-300 transition-colors cursor-pointer flex items-center gap-1.5 shadow-2xs shrink-0 disabled:opacity-50"
+                title="Chuyển trạng thái về 'Đang làm dở' để sửa đổi thông tin"
+              >
+                <RotateCcw size={14} className={isReverting ? 'animate-spin' : ''} />
+                <span className="hidden sm:inline">{isReverting ? 'Đang chuyển...' : 'Mở lại (Đang làm dở)'}</span>
+                <span className="sm:hidden">{isReverting ? 'Chuyển...' : 'Đang làm dở'}</span>
+              </button>
+            )}
+
             <button
               type="button"
               onClick={onClose}
