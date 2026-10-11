@@ -6,13 +6,17 @@ import { getErrorMessage, getErrorStatus, isNotFoundError } from '@/utils/errorU
 import { api } from '../../services/api';
 import {
   getAllPendingPhotos,
+  markOfflinePhotoUploaded,
   deleteOfflinePhoto,
   revokeManagedBlobUrl,
   replaceLocalUriInObject,
   saveUploadedPhotoMapping,
   healLocalPhotoUris,
   requestPersistentStorage,
+  getDeviceId,
 } from '../storage/offlinePhotoStorage';
+import { replaceLocalUriInIdbDrafts } from '../utils/idbDraftStorage';
+import { surveyDraftService } from '../../features/survey-phase1/services/surveyDraftService';
 
 export type UploadStatus = 'QUEUED' | 'UPLOADING' | 'SUCCESS' | 'ERROR';
 
@@ -85,7 +89,7 @@ class UploadQueueService {
           mimeType: item.mimeType || 'image/jpeg',
           metadata: item.metadata,
           onSuccess: async (publicUrl) => {
-            await deleteOfflinePhoto(item.id);
+            await markOfflinePhotoUploaded(item.id, publicUrl);
             revokeManagedBlobUrl(item.id);
             void this.promoteUrlInStores(item.id, publicUrl);
           },
@@ -99,20 +103,33 @@ class UploadQueueService {
     }
   }
 
+  private pendingServerMappings: Record<string, string> = {};
+  private serverMappingDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+
   /**
    * Tự động thay thế URL blob:local:// bằng URL Cloudflare R2 trong các Zustand Store đang mở
-   * và trong TOÀN BỘ các bản nháp đang lưu trong localStorage
+   * và trong TOÀN BỘ các bản nháp đang lưu trong localStorage & IndexedDB
    * Hỗ trợ đồng bộ tự động 100% cho Phase 1, Condo Unit và Condo Master
    */
   public async promoteUrlInStores(localId: string, publicUrl: string): Promise<void> {
     // 0. Lưu persistent mapping vào localStorage (Đảm bảo 100% không mất ảnh kể cả sau F5 hoặc đóng app)
     saveUploadedPhotoMapping(localId, publicUrl);
 
+    // 0.1. Cập nhật bền vững vào IndexedDB Drafts (không phụ thuộc vào hạn mức localStorage)
+    void replaceLocalUriInIdbDrafts(localId, publicUrl);
+
+    let activeParcelId: string | null = null;
+    let activeUnitId: string | null = null;
+
     // 1. Thăng cấp trong Phase 1 Store
     try {
       const { usePhase1SurveyStore } = await import('../../features/survey-phase1/store/usePhase1SurveyStore');
       const p1Store = usePhase1SurveyStore.getState();
       if (p1Store && p1Store.formData) {
+        if (p1Store.formData.parcelId) {
+          activeParcelId = p1Store.formData.parcelId;
+          activeUnitId = p1Store.currentUnitId || null;
+        }
         const updated = replaceLocalUriInObject(p1Store.formData, localId, publicUrl);
         p1Store.updateFormData(updated);
       }
@@ -123,6 +140,10 @@ class UploadQueueService {
       const { useCondoUnitSurveyStore } = await import('../../features/survey-condo-unit/store/useCondoUnitSurveyStore');
       const unitStore = useCondoUnitSurveyStore.getState();
       if (unitStore && unitStore.formData) {
+        if (unitStore.formData.parcelId) {
+          activeParcelId = unitStore.formData.parcelId;
+          activeUnitId = unitStore.formData.unitId || null;
+        }
         const updated = replaceLocalUriInObject(unitStore.formData, localId, publicUrl);
         unitStore.updateFormData(updated);
       }
@@ -133,6 +154,9 @@ class UploadQueueService {
       const { useCondoMasterSurveyStore } = await import('../../features/survey-condo-master/store/useCondoMasterSurveyStore');
       const masterStore = useCondoMasterSurveyStore.getState();
       if (masterStore && masterStore.formData) {
+        if (masterStore.formData.parcelId) {
+          activeParcelId = masterStore.formData.parcelId;
+        }
         const updated = replaceLocalUriInObject(masterStore.formData, localId, publicUrl);
         masterStore.updateFormData(updated);
       }
@@ -167,6 +191,24 @@ class UploadQueueService {
         })
       );
     }
+
+    // 6. Gom nhóm và đẩy ánh xạ Cloud lên máy chủ (để mọi thiết bị khác đều tự động nhận diện Cloud URL)
+    this.pendingServerMappings[localId] = publicUrl;
+    if (this.serverMappingDebounceTimer) {
+      clearTimeout(this.serverMappingDebounceTimer);
+    }
+    this.serverMappingDebounceTimer = setTimeout(() => {
+      const mappingsToSend = { ...this.pendingServerMappings };
+      this.pendingServerMappings = {};
+      if (activeParcelId && Object.keys(mappingsToSend).length > 0) {
+        void surveyDraftService.savePhotoMappings(
+          activeParcelId,
+          activeUnitId,
+          mappingsToSend,
+          getDeviceId()
+        );
+      }
+    }, 1500);
   }
 
   /**

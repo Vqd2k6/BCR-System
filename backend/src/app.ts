@@ -150,6 +150,7 @@ export function createApp(): express.Application {
   // Đồng bộ Bản nháp & Tiếp quản Ca Khảo sát (Draft Sync & Handover)
   api.get('/surveys/draft/:parcelId', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), SurveyController.getSurveyDraft);
   api.post('/surveys/draft/save', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), SurveyController.saveSurveyDraft);
+  api.post('/surveys/draft/:parcelId/photo-mappings', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), SurveyController.savePhotoMappings);
   api.post('/surveys/draft/release-lock', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), SurveyController.releaseDraftLock);
   api.post('/surveys/draft/takeover', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), SurveyController.takeoverSurveyDraft);
 

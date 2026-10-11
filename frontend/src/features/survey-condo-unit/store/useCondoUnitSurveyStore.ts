@@ -13,7 +13,8 @@ import { surveyDraftService, type DraftResponseData } from '../../survey-phase1/
 import api from '../../../services/api';
 import { getNextAvailablePinCode } from '../../../components/canvas/FloorCadPinningCanvas';
 import { sanitizeSurveyDataForSync } from '../../../core/services/uploadQueueService';
-import { healLocalPhotoUris } from '../../../core/storage/offlinePhotoStorage';
+import { healLocalPhotoUris, saveUploadedPhotoMapping } from '../../../core/storage/offlinePhotoStorage';
+import { saveSurveyDraft, loadSurveyDraft, deleteSurveyDraft } from '../../../core/utils/idbDraftStorage';
 
 import { getErrorMessage } from '@/utils/errorUtils';
 import type { LockedInfo } from '../../survey-phase1/components/ActiveSurveyorLockedModal';
@@ -31,6 +32,11 @@ interface CondoUnitSurveyStore {
   lockedInfo: LockedInfo | null;
   isHandoverModalOpen: boolean;
   handoverInfo: HandoverInfo | null;
+  unsyncedRemotePhotos: {
+    pendingCount: number;
+    ownerSurveyorName: string;
+    ownerSurveyorPhone?: string;
+  } | null;
   closeLockedModal: () => void;
   closeHandoverModal: () => void;
   takeoverDraft: (handoverCode: string, note?: string) => Promise<boolean>;
@@ -522,6 +528,7 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
   lockedInfo: null,
   isHandoverModalOpen: false,
   handoverInfo: null,
+  unsyncedRemotePhotos: null,
   isReadOnly: false,
   setIsReadOnly: (isReadOnly) => set({ isReadOnly }),
   isPhotoAuditOpen: false,
@@ -779,6 +786,20 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
             },
           });
           return;
+        }
+
+        if (draftRes?.photoMappings) {
+          for (const [localId, cloudUrl] of Object.entries(draftRes.photoMappings)) {
+            if (localId && cloudUrl) {
+              saveUploadedPhotoMapping(localId, cloudUrl);
+            }
+          }
+        }
+
+        if (draftRes?.unsyncedPhotosInfo && draftRes.unsyncedPhotosInfo.pendingCount > 0) {
+          set({ unsyncedRemotePhotos: draftRes.unsyncedPhotosInfo });
+        } else {
+          set({ unsyncedRemotePhotos: null });
         }
 
         if (draftRes?.hasDraft && draftRes.draft?.surveyData) {
@@ -1055,6 +1076,7 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
     if (!isSubmittedOrReadOnly) {
       try {
         const draftKey = `metro2_condo_unit_draft_${next.parcelId}_${next.unitId}`;
+        void saveSurveyDraft(draftKey, next);
         localStorage.setItem(draftKey, JSON.stringify(next));
 
         const inProgressKey = `metro2_condo_in_progress_units_${next.parcelId}`;
@@ -1306,6 +1328,7 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
     }
     const { parcelId, unitId } = get().formData;
     try {
+      void deleteSurveyDraft(`metro2_condo_unit_draft_${parcelId}_${unitId}`);
       localStorage.removeItem(`metro2_condo_unit_draft_${parcelId}_${unitId}`);
       const inProgressKey = `metro2_condo_in_progress_units_${parcelId}`;
       const list: string[] = JSON.parse(localStorage.getItem(inProgressKey) || '[]');

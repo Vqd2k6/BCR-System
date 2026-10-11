@@ -583,5 +583,32 @@ export class SurveyController {
       next(error);
     }
   }
+
+  static async savePhotoMappings(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { parcelId } = req.params;
+      const { unitId, mappings, deviceId } = req.body;
+      const surveyorId = req.user!.userId;
+
+      if (!parcelId || !mappings || typeof mappings !== 'object') {
+        throw new BadRequestError('Dữ liệu ánh xạ ảnh không hợp lệ (cần parcelId và mappings object)');
+      }
+
+      const result = await SurveyService.savePhotoMappings({
+        parcelId,
+        unitId: unitId || null,
+        surveyorId,
+        mappings,
+        deviceId,
+      });
+
+      res.status(200).json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 

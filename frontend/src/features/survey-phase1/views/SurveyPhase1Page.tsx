@@ -31,7 +31,7 @@ import { uploadQueue, countBase64Images, sanitizeSurveyDataForSync } from '../..
 import { AbsenteeReviewView } from './AbsenteeReviewView';
 import { CloudPhotoSyncModal } from '../components/CloudPhotoSyncModal';
 import { auditSurveyPhotos } from '../utils/photoSyncAudit';
-import { AlertOctagon } from 'lucide-react';
+import { AlertOctagon, AlertTriangle } from 'lucide-react';
 import { getEffectiveParcelStatus } from '../../../components/gis/sweep-map/utils/sweepMapHelpers';
 import { useAdminViewLock } from '../../../core/hooks/useAdminViewLock';
 import { SurveyReadOnlyLock } from '../../../core/components/SurveyReadOnlyLock';
@@ -232,6 +232,7 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
     syncDraftToServer,
     isDirty,
     setCurrentStep,
+    unsyncedRemotePhotos,
   } = usePhase1SurveyStore();
   const { user } = useAuth();
   const { isAdmin, isViewOnlyForAdmin, unlockEdit } = useAdminViewLock();
@@ -862,6 +863,28 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
         onUnlockEdit={unlockEdit}
         onBack={onBackToHome}
       />
+
+      {/* Cảnh Báo Bàn Giao Ca: Còn ảnh chưa được tải lên từ thiết bị trước */}
+      {unsyncedRemotePhotos && unsyncedRemotePhotos.pendingCount > 0 && !effectiveReadOnly && (
+        <div className="bg-amber-500/10 border-b border-amber-500/30 text-amber-900 px-4 py-3 sticky top-0 z-30 shadow-xs animate-in fade-in">
+          <div className="max-w-7xl mx-auto flex items-center justify-between gap-3 text-xs sm:text-sm">
+            <div className="flex items-center gap-2.5">
+              <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
+              <div>
+                <span className="font-bold">⚠️ CẢNH BÁO BÀN GIAO CA LIÊN THIẾT BỊ: </span>
+                Hồ sơ có <strong className="text-amber-700 underline font-black">{unsyncedRemotePhotos.pendingCount} ảnh</strong> được chụp từ thiết bị của <strong>{unsyncedRemotePhotos.ownerSurveyorName}</strong> chưa được tải lên Cloud. Vui lòng nhắc KSV mở thiết bị đó kết nối mạng để tải ảnh lên trước khi nộp hồ sơ.
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsPhotoSyncModalOpen(true)}
+              className="px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold shrink-0 transition-colors cursor-pointer"
+            >
+              Kiểm tra ảnh
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Cảnh Báo Hồ Sơ Bị Trả Về (Dành cho Surveyor khi vào sửa bổ sung) */}
       {(parcel?.surveyStatus === 'REJECTED' || reportData?.report?.status === 'REJECTED') && (

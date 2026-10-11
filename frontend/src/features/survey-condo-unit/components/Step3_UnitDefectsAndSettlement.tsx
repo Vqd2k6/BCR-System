@@ -24,7 +24,7 @@ import {
   type CadZonePin,
 } from '../types/condo-unit.types';
 import { api } from '../../../services/api';
-import { saveOfflinePhoto, createManagedBlobUrl } from '../../../core/storage/offlinePhotoStorage';
+import { saveOfflinePhoto, createManagedBlobUrl, markOfflinePhotoUploaded, revokeManagedBlobUrl } from '../../../core/storage/offlinePhotoStorage';
 import { uploadQueue } from '../../../core/services/uploadQueueService';
 import { base64ToBlob } from '../../survey-phase1/utils/photoSyncAudit';
 import { cropImageBoundingBox } from '../../../components/canvas/FloorPlanCadPartitionCanvas';
@@ -225,12 +225,13 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
         filename
       );
 
-      const localManagedUri = createManagedBlobUrl(localId, blob);
+      createManagedBlobUrl(localId, blob);
+      const persistentLocalUri = `blob:local://${localId}`;
 
       if (isTargetStructural) {
-        updateFormData({ unitStructuralCadUrl: localManagedUri });
+        updateFormData({ unitStructuralCadUrl: persistentLocalUri });
       } else {
-        updateFormData({ unitCadUrl: localManagedUri, cadBbox: bbox || null });
+        updateFormData({ unitCadUrl: persistentLocalUri, cadBbox: bbox || null });
       }
 
       // Đẩy ngầm vào Upload Queue để sync lên Cloudflare R2
@@ -243,7 +244,9 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
           'unit-code': unitCode,
           'photo-code': photoCode,
         },
-        onSuccess: (publicUrl) => {
+        onSuccess: async (publicUrl) => {
+          await markOfflinePhotoUploaded(localId, publicUrl);
+          revokeManagedBlobUrl(localId);
           if (isTargetStructural) {
             updateFormData({ unitStructuralCadUrl: publicUrl });
           } else {

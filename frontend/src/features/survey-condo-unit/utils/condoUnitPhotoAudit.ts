@@ -5,7 +5,7 @@
  */
 
 import type { CondoUnitFormData } from '../types/condo-unit.types';
-import { isLocalBlobUri, extractLocalIdFromUri, getOfflinePhoto, saveOfflinePhoto, getKnownCloudUrl, healLocalPhotoUris } from '../../../core/storage/offlinePhotoStorage';
+import { isLocalBlobUri, extractLocalIdFromUri, getOfflinePhoto, saveOfflinePhoto, getKnownCloudUrl, healLocalPhotoUris, markOfflinePhotoUploaded } from '../../../core/storage/offlinePhotoStorage';
 import { uploadQueue } from '../../../core/services/uploadQueueService';
 import { base64ToBlob } from '../../survey-phase1/utils/photoSyncAudit';
 
@@ -352,6 +352,13 @@ export async function retryUploadCondoUnitPhoto(
   }
   // 3. Nếu là định danh offline có quản lý: blob:local://{id}
   else if (photoItem.url.startsWith('blob:local://') || localId) {
+    // 3.1. Kiểm tra ngay trong Persistent Cloud Mapping (Đã tải lên R2 thành công trước đó)
+    const knownCloud = localId ? getKnownCloudUrl(localId) : null;
+    if (knownCloud) {
+      onSuccess(knownCloud);
+      return;
+    }
+
     const offlinePhoto = await getOfflinePhoto(localId);
     if (offlinePhoto && offlinePhoto.blob) {
       blob = offlinePhoto.blob;
@@ -359,7 +366,9 @@ export async function retryUploadCondoUnitPhoto(
   }
 
   if (!blob) {
-    throw new Error('Dữ liệu ảnh không còn tồn tại trên thiết bị này. Vui lòng chụp hoặc import lại ảnh.');
+    throw new Error(
+      'Dữ liệu ảnh gốc không có trên thiết bị này. Ảnh đang lưu tạm trong bộ nhớ của thiết bị (điện thoại/máy tính bảng) đã chụp khảo sát trước đó. Vui lòng mở lại hồ sơ trên thiết bị đó có kết nối mạng để hoàn tất tải lên Cloud.'
+    );
   }
 
   const safeParcel = parcelCode || 'PARCEL';
@@ -376,7 +385,10 @@ export async function retryUploadCondoUnitPhoto(
       'unit-code': safeUnit,
       'photo-code': photoItem.photoCode || '',
     },
-    onSuccess: (publicUrl) => {
+    onSuccess: async (publicUrl) => {
+      if (localId) {
+        await markOfflinePhotoUploaded(localId, publicUrl);
+      }
       onSuccess(publicUrl);
     },
   });

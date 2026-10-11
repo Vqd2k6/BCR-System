@@ -518,6 +518,32 @@ export class SurveyService {
 
     const isOwner = SurveyService.isActiveEditor(draft, currentUserId);
 
+    const rawData: any = typeof draft.survey_data_json === 'string'
+      ? JSON.parse(draft.survey_data_json)
+      : (draft.survey_data_json || {});
+
+    // Đếm số ảnh còn dạng blob:local:// chưa đồng bộ lên Cloud
+    let pendingCount = 0;
+    const countLocalBlobs = (val: unknown) => {
+      if (!val) return;
+      if (typeof val === 'string' && val.startsWith('blob:local://')) {
+        pendingCount++;
+      } else if (Array.isArray(val)) {
+        val.forEach(countLocalBlobs);
+      } else if (typeof val === 'object') {
+        Object.values(val as Record<string, unknown>).forEach(countLocalBlobs);
+      }
+    };
+    countLocalBlobs(rawData);
+
+    const unsyncedPhotosInfo = pendingCount > 0 ? {
+      pendingCount,
+      ownerSurveyorName: draft.surveyor_name || 'Kỹ sư ca trước',
+      ownerSurveyorPhone: draft.surveyor_phone || '',
+    } : undefined;
+
+    const photoMappings = rawData._photoMappings || {};
+
     // Chế độ chỉ xem (admin): trả dữ liệu nháp để hiển thị, KHÔNG khóa ca, KHÔNG yêu cầu tiếp quản
     if (options?.viewOnly && !isOwner) {
       return {
@@ -525,12 +551,12 @@ export class SurveyService {
         isLocked: false,
         requiresHandover: false,
         isViewOnly: true,
+        photoMappings,
+        unsyncedPhotosInfo,
         draft: {
           reportId: draft.id,
           currentStep: draft.current_step,
-          surveyData: typeof draft.survey_data_json === 'string'
-            ? JSON.parse(draft.survey_data_json)
-            : draft.survey_data_json,
+          surveyData: rawData,
           syncVersion: draft.sync_version,
           updatedAt: draft.updated_at,
         },
@@ -549,6 +575,8 @@ export class SurveyService {
           activeSurveyorPhone: draft.surveyor_phone || '',
           minutesAgo: Math.max(1, diffMinutes),
           message: `Công trình đang được Kỹ sư ${draft.surveyor_name || 'khác'} khảo sát (vừa cập nhật ${Math.max(1, diffMinutes)} phút trước). Vui lòng chờ 15 phút hoặc liên hệ KSV để bàn giao ca.`,
+          unsyncedPhotosInfo,
+          photoMappings,
         };
       }
 
@@ -562,6 +590,8 @@ export class SurveyService {
         securityCode: draft.handover_security_code || '123456',
         updatedAt: draft.updated_at,
         syncVersion: draft.sync_version,
+        unsyncedPhotosInfo,
+        photoMappings,
       };
     }
 
@@ -569,16 +599,32 @@ export class SurveyService {
       hasDraft: true,
       isLocked: false,
       requiresHandover: false,
+      photoMappings,
+      unsyncedPhotosInfo,
       draft: {
         reportId: draft.id,
         currentStep: draft.current_step,
-        surveyData: typeof draft.survey_data_json === 'string'
-          ? JSON.parse(draft.survey_data_json)
-          : draft.survey_data_json,
+        surveyData: rawData,
         syncVersion: draft.sync_version,
         updatedAt: draft.updated_at,
       },
     };
+  }
+
+  static async savePhotoMappings(data: {
+    parcelId: string;
+    unitId?: string | null;
+    surveyorId: string;
+    mappings: Record<string, string>;
+    deviceId?: string;
+  }) {
+    const { SurveyDraftRepository } = await import('./repositories/survey-draft.repository');
+    return await SurveyDraftRepository.savePhotoMappings(
+      data.parcelId,
+      data.unitId,
+      data.mappings,
+      data.deviceId
+    );
   }
 
   static async saveSurveyDraft(data: {

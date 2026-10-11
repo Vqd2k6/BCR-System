@@ -128,3 +128,44 @@ export const deleteSurveyDraft = async (key: string): Promise<boolean> => {
     return false;
   }
 };
+
+/**
+ * Quét toàn bộ bản nháp trong IndexedDB và thay thế blob:local://${localId} bằng cloudUrl
+ */
+export const replaceLocalUriInIdbDrafts = async (localId: string, cloudUrl: string): Promise<void> => {
+  try {
+    const db = await openDB();
+    const { replaceLocalUriInObject } = await import('../storage/offlinePhotoStorage');
+    return new Promise((resolve) => {
+      const transaction = db.transaction([STORE_NAME], 'readwrite');
+      const store = transaction.objectStore(STORE_NAME);
+      const request = store.openCursor();
+
+      request.onsuccess = (event) => {
+        const cursor = (event.target as IDBRequest<IDBCursorWithValue>).result;
+        if (cursor) {
+          const record = cursor.value as { key: string; data: unknown; updatedAt: string };
+          if (record && record.data) {
+            const rawStr = JSON.stringify(record.data);
+            if (rawStr.includes(`blob:local://${localId}`)) {
+              const updatedData = replaceLocalUriInObject(record.data, localId, cloudUrl);
+              cursor.update({
+                ...record,
+                data: updatedData,
+                updatedAt: new Date().toISOString(),
+              });
+            }
+          }
+          cursor.continue();
+        } else {
+          resolve();
+        }
+      };
+
+      request.onerror = () => resolve();
+    });
+  } catch (err) {
+    console.warn('[idbDraftStorage] Lỗi thăng cấp URL trong IDB Drafts:', err);
+  }
+};
+

@@ -16,7 +16,7 @@ import { ActiveSurveyorLockedModal } from '../../survey-phase1/components/Active
 import { HandoverTakeoverModal } from '../../survey-phase1/components/HandoverTakeoverModal';
 import { useAdminViewLock } from '../../../core/hooks/useAdminViewLock';
 import { SurveyReadOnlyLock } from '../../../core/components/SurveyReadOnlyLock';
-import { RotateCcw, ShieldAlert, Unlock } from 'lucide-react';
+import { RotateCcw, ShieldAlert, Unlock, AlertTriangle } from 'lucide-react';
 
 export interface SurveyCondoUnitPageProps {
   parcel?: GisParcel | null;
@@ -53,6 +53,8 @@ export const SurveyCondoUnitPage: React.FC<SurveyCondoUnitPageProps> = ({
     applyFormData,
     requestEditUnlock,
     markDraftHydrated,
+    unsyncedRemotePhotos,
+    setIsPhotoAuditOpen,
   } = useCondoUnitSurveyStore();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [missingModalState, setMissingModalState] = useState<{
@@ -339,6 +341,28 @@ export const SurveyCondoUnitPage: React.FC<SurveyCondoUnitPageProps> = ({
               className="bg-violet-800 hover:bg-violet-700 text-white font-semibold text-xs px-3 py-1.5 rounded-lg border border-violet-600 transition-colors cursor-pointer"
             >
               Quay lại Hub
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Cảnh Báo Bàn Giao Ca: Còn ảnh chưa được tải lên từ thiết bị trước */}
+      {unsyncedRemotePhotos && unsyncedRemotePhotos.pendingCount > 0 && !effectiveReadOnly && (
+        <div className="bg-amber-500/10 border-b border-amber-500/30 text-amber-900 px-4 py-3 sticky top-12 z-35 shadow-xs animate-in fade-in">
+          <div className="max-w-7xl mx-auto flex items-center justify-between gap-3 text-xs sm:text-sm">
+            <div className="flex items-center gap-2.5">
+              <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
+              <div>
+                <span className="font-bold">⚠️ CẢNH BÁO BÀN GIAO CA LIÊN THIẾT BỊ: </span>
+                Hồ sơ căn hộ này có <strong className="text-amber-700 underline font-black">{unsyncedRemotePhotos.pendingCount} ảnh</strong> được chụp từ thiết bị của <strong>{unsyncedRemotePhotos.ownerSurveyorName}</strong> chưa được tải lên Cloud. Vui lòng nhắc KSV mở thiết bị đó kết nối mạng để tải ảnh lên trước khi nộp hồ sơ.
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsPhotoAuditOpen(true)}
+              className="px-3 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold shrink-0 transition-colors cursor-pointer"
+            >
+              Kiểm tra ảnh
             </button>
           </div>
         </div>
