@@ -76,6 +76,8 @@ export class CondoUnitReportGenerator {
       'CHO_THUÊ': 'Đang cho thuê cư ngụ',
       'BỎ_TRỐNG_CHƯA_VỀ_Ở': 'Căn hộ bỏ trống / Chưa về ở',
       'VẮNG_MẶT_KHÓA_CỬA': 'Vắng mặt khóa cửa hiện trường',
+      'ĐỂ_TRỐNG': 'Căn hộ bỏ trống / Chưa về ở',
+      'TRANH_CHẤP': 'Đang tranh chấp / Khóa cửa',
     };
     const residentStatusLabel = statusLabels[resStatus] || resStatus;
 
