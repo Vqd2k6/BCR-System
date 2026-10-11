@@ -189,6 +189,21 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
   // Xử lý tự động ghim & sinh Vùng Z trên sơ đồ CAD kiến trúc (FloorCadPinningCanvas)
   const handleAutoCreateZonePin = (pin: CadZonePin) => {
     const prevZones = formData.zones || [];
+    const currentPins = formData.cadZonePins || [];
+    const hasPin = currentPins.some((p) => p.id === pin.id || p.zoneCode === pin.zoneCode);
+    const updatedPins = hasPin ? currentPins : [...currentPins, pin];
+
+    // 1. Kiểm tra xem Vùng Z với mã này đã tồn tại trong danh sách chưa
+    const existingZoneIdx = prevZones.findIndex((z) => z.zoneCode === pin.zoneCode);
+    if (existingZoneIdx !== -1) {
+      // Đã có vùng với mã này -> chỉ cập nhật danh sách pin và focus vào vùng đó, KHÔNG sinh trùng
+      updateFormData({
+        cadZonePins: updatedPins,
+      });
+      setActiveZoneIndex(existingZoneIdx);
+      return;
+    }
+
     const prevZone = prevZones[prevZones.length - 1];
     const newZone: DamageZoneData = {
       id: `zone_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
@@ -206,9 +221,6 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
       defects: [],
       hasDamage: false,
     };
-    const currentPins = formData.cadZonePins || [];
-    const hasPin = currentPins.some((p) => p.id === pin.id || p.zoneCode === pin.zoneCode);
-    const updatedPins = hasPin ? currentPins : [...currentPins, pin];
 
     updateFormData({
       cadZonePins: updatedPins,
@@ -248,6 +260,20 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
   // Xử lý tự động ghim & sinh Cấu kiện E trên sơ đồ CAD kết cấu (FloorCadPinningCanvas)
   const handleAutoCreateElementPin = (pin: CadZonePin) => {
     const prevElements = formData.structuralElements || [];
+    const currentPins = formData.cadElementPins || [];
+    const hasPin = currentPins.some((p) => p.id === pin.id || p.zoneCode === pin.zoneCode);
+    const updatedPins = hasPin ? currentPins : [...currentPins, pin];
+
+    // 1. Kiểm tra xem Cấu kiện E với mã này đã tồn tại trong danh sách chưa
+    const existingElIdx = prevElements.findIndex((e) => e.elementCode === pin.zoneCode);
+    if (existingElIdx !== -1) {
+      updateFormData({
+        cadElementPins: updatedPins,
+      });
+      setActiveElementIndex(existingElIdx);
+      return;
+    }
+
     const prevEl = prevElements[prevElements.length - 1];
     const newElement: StructuralElementData = {
       id: `element_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
@@ -265,9 +291,6 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
       defects: [],
       hasDamage: false,
     };
-    const currentPins = formData.cadElementPins || [];
-    const hasPin = currentPins.some((p) => p.id === pin.id || p.zoneCode === pin.zoneCode);
-    const updatedPins = hasPin ? currentPins : [...currentPins, pin];
 
     updateFormData({
       cadElementPins: updatedPins,
@@ -974,8 +997,13 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
               </div>
             </div>
           ) : (
-            <div className="text-center py-6 text-xs text-slate-500">
-              Chưa có Vùng kiến trúc nào. Bấm "+ Thêm Vùng Z" để bắt đầu.
+            <div className="text-center py-8 text-xs text-slate-500 space-y-2">
+              <p className="font-medium text-slate-700">Chưa có Vùng kiến trúc (Z) nào được ghi nhận.</p>
+              <p className="text-[11px] text-slate-400">
+                {formData.unitCadUrl
+                  ? '👉 Chạm vào sơ đồ CAD ở trên để ghim vị trí và tự động khởi tạo Vùng Z-01 đầu tiên.'
+                  : 'Bấm nút "+ Thêm Vùng Z" ở trên để khởi tạo vùng khảo sát đầu tiên.'}
+              </p>
             </div>
           )}
         </Card>

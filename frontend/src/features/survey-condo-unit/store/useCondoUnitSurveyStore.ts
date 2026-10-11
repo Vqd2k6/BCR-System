@@ -45,6 +45,67 @@ interface CondoUnitSurveyStore {
   releaseDraftLock: () => Promise<void>;
 }
 
+export function deduplicateZones(zones: DamageZoneData[], pins: CadZonePin[] = []): DamageZoneData[] {
+  if (!Array.isArray(zones) || zones.length <= 1) return zones || [];
+  const seenCodes = new Set<string>();
+  const result: DamageZoneData[] = [];
+
+  for (const z of zones) {
+    if (!seenCodes.has(z.zoneCode)) {
+      seenCodes.add(z.zoneCode);
+      result.push(z);
+    } else {
+      // Phát hiện mã Z bị trùng lặp
+      const hasDefects = Array.isArray(z.defects) && z.defects.length > 0;
+      const hasPhotos = Boolean(z.ctxPhotoUrl || (Array.isArray(z.overviewPhotos) && z.overviewPhotos.length > 0));
+      const hasMatchingPin = pins.some((p) => p.zoneCode === z.zoneCode);
+
+      // Nếu là vùng sinh trùng rác không có dữ liệu thật -> loại bỏ
+      if (!hasDefects && !hasPhotos && !hasMatchingPin) {
+        continue;
+      }
+
+      // Nếu có dữ liệu thật -> cấp mã Z mới không trùng
+      const newCode = getNextAvailablePinCode(
+        [...pins, ...result.map((r) => ({ zoneCode: r.zoneCode }))],
+        'Z'
+      );
+      seenCodes.add(newCode);
+      result.push({ ...z, zoneCode: newCode });
+    }
+  }
+  return result;
+}
+
+export function deduplicateElements(elements: StructuralElementData[], pins: CadZonePin[] = []): StructuralElementData[] {
+  if (!Array.isArray(elements) || elements.length <= 1) return elements || [];
+  const seenCodes = new Set<string>();
+  const result: StructuralElementData[] = [];
+
+  for (const e of elements) {
+    if (!seenCodes.has(e.elementCode)) {
+      seenCodes.add(e.elementCode);
+      result.push(e);
+    } else {
+      const hasDefects = Array.isArray(e.defects) && e.defects.length > 0;
+      const hasPhotos = Boolean(e.ctxPhotoUrl || (Array.isArray(e.overviewPhotos) && e.overviewPhotos.length > 0));
+      const hasMatchingPin = pins.some((p) => p.zoneCode === e.elementCode);
+
+      if (!hasDefects && !hasPhotos && !hasMatchingPin) {
+        continue;
+      }
+
+      const newCode = getNextAvailablePinCode(
+        [...pins, ...result.map((r) => ({ zoneCode: r.elementCode }))],
+        'E'
+      );
+      seenCodes.add(newCode);
+      result.push({ ...e, elementCode: newCode });
+    }
+  }
+  return result;
+}
+
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
 const getDefaultCondoUnitFormData = (parcelId: string, unitId: string): CondoUnitFormData => ({
@@ -91,21 +152,7 @@ const getDefaultCondoUnitFormData = (parcelId: string, unitId: string): CondoUni
   cadPolygon: null,
 
   // 3. Phân cấp Vùng Z & Cấu kiện E (Phase 1 Standard)
-  zones: [
-    {
-      id: `zone_living_${Date.now()}`,
-      zoneCode: 'Z-01',
-      floorName: 'Tầng 1',
-      roomName: 'Phòng khách',
-      componentType: 'Tường gạch vữa xi măng (Tường bao / ngăn)',
-      wallMaterial: 'Sơn nước nội thất / ngoại thất',
-      overviewPhotos: [],
-      ctxPhotoUrl: '',
-      notes: '',
-      defects: [],
-      hasDamage: false,
-    },
-  ],
+  zones: [],
   structuralElements: [],
   hasStructuralElements: true,
   cadZonePins: [],
@@ -281,6 +328,8 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
           }
 
           data = { ...data, ...parsed };
+          data.zones = deduplicateZones(data.zones || [], data.cadZonePins || []);
+          data.structuralElements = deduplicateElements(data.structuralElements || [], data.cadElementPins || []);
         }
       }
     } catch (_e) {}
@@ -345,8 +394,18 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
           const sData = draftRes.draft.surveyData as Partial<CondoUnitFormData>;
           const cur = get().formData;
           if (cur.parcelId === pId && cur.unitId === uId) {
+            const mergedZones = deduplicateZones(
+              sData.zones || cur.zones || [],
+              sData.cadZonePins || cur.cadZonePins || []
+            );
+            const mergedElements = deduplicateElements(
+              sData.structuralElements || cur.structuralElements || [],
+              sData.cadElementPins || cur.cadElementPins || []
+            );
             get().updateFormData({
               ...sData,
+              zones: mergedZones,
+              structuralElements: mergedElements,
               parentInfo: {
                 ...cur.parentInfo,
                 ...(sData.parentInfo || {}),
@@ -501,11 +560,19 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
       };
     }
 
+    // Tự động khử trùng lặp nếu có zones hoặc structuralElements cập nhật
+    if (updates.zones) {
+      next.zones = deduplicateZones(updates.zones, next.cadZonePins || []);
+    }
+    if (updates.structuralElements) {
+      next.structuralElements = deduplicateElements(updates.structuralElements, next.cadElementPins || []);
+    }
+
     // Đồng bộ 2 chiều giữa zones / structuralElements và localDefects phẳng
     if (updates.zones || updates.structuralElements) {
       const allDefects: UnitDefectItem[] = [];
-      const currentZones = updates.zones || next.zones || [];
-      const currentElements = updates.structuralElements || next.structuralElements || [];
+      const currentZones = next.zones || [];
+      const currentElements = next.structuralElements || [];
 
       currentZones.forEach((z) => {
         (z.defects || []).forEach((d) => {
