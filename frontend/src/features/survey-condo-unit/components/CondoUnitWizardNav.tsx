@@ -5,6 +5,7 @@ import { ArrowLeft, Home, Check, Cloud } from 'lucide-react';
 import clsx from 'clsx';
 import { auditCondoUnitPhotos } from '../utils/condoUnitPhotoAudit';
 import { CondoUnitPhotoAuditModal } from './CondoUnitPhotoAuditModal';
+import { validateCondoUnitSingleStep } from '../utils/condoUnitValidator';
 
 export const CONDO_UNIT_STEPS = [
   '1. Đối soát toà mẹ & 2 ảnh',
@@ -38,30 +39,10 @@ export const CondoUnitWizardNav: React.FC<Props> = ({ onBackToHub }) => {
   // Map store sync status to SyncStatusBadge props
   const badgeSyncStatus = syncStatus === 'SAVING' ? 'SYNCING' : syncStatus;
 
-  // Xác định trạng thái hoàn thành của từng bước để hiển thị checkmark trực quan
+  // Xác định trạng thái hoàn thành của từng bước: đạt chuẩn khi KHÔNG còn lỗi chặn cứng (Blocking Issues)
   const isStepDone = (stepNum: number) => {
-    switch (stepNum) {
-      case 1:
-        return Boolean(
-          (formData.photoP01?.url || formData.photoP01?.notApplicable) &&
-          (formData.photoP04?.url || formData.photoP04?.notApplicable)
-        );
-      case 2:
-        return Boolean(
-          formData.unitCode?.trim() &&
-          formData.displayCode?.trim() &&
-          formData.ownerName?.trim()
-        );
-      case 3:
-        return Boolean(formData.zones && formData.zones.length > 0);
-      case 4:
-        return Boolean(
-          (formData.workingMinutesPhotos && formData.workingMinutesPhotos.length > 0) ||
-          formData.ownerFeedback?.trim()
-        );
-      default:
-        return false;
-    }
+    const issues = validateCondoUnitSingleStep(stepNum, formData);
+    return issues.filter((i) => i.isBlocking).length === 0;
   };
 
   return (

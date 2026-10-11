@@ -2,7 +2,7 @@ import axios, { AxiosError } from 'axios';
 import { sendDevError } from './devErrorReporter';
 
 const resolveBaseUrl = (): string => {
-  let envUrl = (import.meta.env.VITE_API_BASE_URL || '').trim();
+  let envUrl = (import.meta.env?.VITE_API_BASE_URL || '').trim();
   if (!envUrl) return '/api/v1';
   // Tự động xử lý nếu người dùng vô tình dán cả "VITE_API_BASE_URL=https://..." vào ô Value
   if (envUrl.includes('=')) {

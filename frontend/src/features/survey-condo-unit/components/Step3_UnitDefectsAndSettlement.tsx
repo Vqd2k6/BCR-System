@@ -53,13 +53,9 @@ import {
   FileText,
 } from 'lucide-react';
 
-export interface ZedValidationIssue {
-  type: 'ERROR' | 'WARNING';
-  target: 'ZONE' | 'ELEMENT' | 'DEFECT' | 'CAD' | 'SAGGING';
-  code?: string;
-  title: string;
-  message: string;
-}
+import { validateCondoUnitStep3, type CondoUnitValidationIssue } from '../utils/condoUnitValidator';
+
+export type ZedValidationIssue = CondoUnitValidationIssue;
 
 interface FloorPlanUnitItem {
   id: string;
@@ -532,152 +528,12 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
     return ratio > 1 / 500; // TCVN 5574:2018
   };
 
-  // Hàm kiểm tra đối soát tính đầy đủ của bộ ba Z - E - D
-  const validateZedCompleteness = (): ZedValidationIssue[] => {
-    const issues: ZedValidationIssue[] = [];
-
-    // 1. Kiểm tra Vùng Z
-    if (!zones || zones.length === 0) {
-      issues.push({
-        type: 'ERROR',
-        target: 'ZONE',
-        title: 'Chưa có Vùng Kiến Trúc (Z)',
-        message: 'Hồ sơ khảo sát căn hộ cần có ít nhất 1 Vùng kiến trúc (Z).',
-      });
-    } else {
-      zones.forEach((z) => {
-        if (!z.roomName || z.roomName === 'Chưa chọn phòng' || !z.roomName.trim()) {
-          issues.push({
-            type: 'WARNING',
-            target: 'ZONE',
-            code: z.zoneCode,
-            title: `${z.zoneCode}: Chưa chọn không gian/phòng`,
-            message: 'Vui lòng chọn tên không gian/phòng (phòng khách, phòng ngủ, bếp...) cho vùng này.',
-          });
-        }
-        const defectsCount = z.defects?.length || 0;
-        if (defectsCount > 0 && !z.ctxPhotoUrl) {
-          issues.push({
-            type: 'ERROR',
-            target: 'ZONE',
-            code: z.zoneCode,
-            title: `${z.zoneCode}: Thiếu ảnh bối cảnh (CTX)`,
-            message: `Vùng ${z.zoneCode} có ${defectsCount} khuyết tật nhưng chưa có ảnh bối cảnh để định vị tọa độ.`,
-          });
-        }
-        if (formData.unitCadUrl && !(formData.cadZonePins || []).some((p) => p.zoneCode === z.zoneCode)) {
-          issues.push({
-            type: 'WARNING',
-            target: 'CAD',
-            code: z.zoneCode,
-            title: `${z.zoneCode}: Chưa chấm ghim trên CAD`,
-            message: `Vùng ${z.zoneCode} chưa được chấm ghim định vị trên sơ đồ CAD căn hộ.`,
-          });
-        }
-
-        // Kiểm tra chi tiết từng khuyết tật D trong vùng Z
-        z.defects?.forEach((d) => {
-          const hasCu = Boolean(d.cuPhotoUrl || (Array.isArray(d.cuPhotos) && d.cuPhotos.length > 0));
-          if (!hasCu) {
-            issues.push({
-              type: 'ERROR',
-              target: 'DEFECT',
-              code: d.defectCode,
-              title: `${d.defectCode} (${z.zoneCode}): Thiếu ảnh cận cảnh (CU)`,
-              message: `Khuyết tật ${d.defectCode} chưa có ảnh chụp cận cảnh có thước đo nứt.`,
-            });
-          }
-          const isCrack = (d.screeningCategory === 'CRACK' || !d.screeningCategory) && d.screeningCategory !== 'WATER_LEAK';
-          if (isCrack && (!d.widthMaxMm || Number(d.widthMaxMm) <= 0)) {
-            issues.push({
-              type: 'WARNING',
-              target: 'DEFECT',
-              code: d.defectCode,
-              title: `${d.defectCode} (${z.zoneCode}): Chưa có bề rộng vết nứt`,
-              message: `Vết nứt ${d.defectCode} chưa nhập kích thước bề rộng lớn nhất (wmax mm).`,
-            });
-          }
-        });
-      });
-    }
-
-    // 2. Kiểm tra Cấu kiện E (nếu có khảo sát kết cấu)
-    if (hasStructuralElements) {
-      if (!structuralElements || structuralElements.length === 0) {
-        issues.push({
-          type: 'WARNING',
-          target: 'ELEMENT',
-          title: 'Chưa có Cấu kiện kết cấu chịu lực (E)',
-          message: 'Đang bật khảo sát cấu kiện chịu lực riêng nhưng chưa thêm cấu kiện cột/dầm/bản sàn nào.',
-        });
-      } else {
-        structuralElements.forEach((e) => {
-          const eDefectsCount = e.defects?.length || 0;
-          if (eDefectsCount > 0 && !e.ctxPhotoUrl) {
-            issues.push({
-              type: 'ERROR',
-              target: 'ELEMENT',
-              code: e.elementCode,
-              title: `${e.elementCode}: Thiếu ảnh bối cảnh cấu kiện`,
-              message: `Cấu kiện ${e.elementCode} có ${eDefectsCount} khuyết tật nhưng chưa có ảnh bối cảnh để định vị.`,
-            });
-          }
-          if (formData.unitCadUrl && !(formData.cadElementPins || []).some((p) => p.zoneCode === e.elementCode)) {
-            issues.push({
-              type: 'WARNING',
-              target: 'CAD',
-              code: e.elementCode,
-              title: `${e.elementCode}: Chưa chấm ghim trên CAD`,
-              message: `Cấu kiện ${e.elementCode} chưa được chấm ghim trên sơ đồ CAD căn hộ.`,
-            });
-          }
-
-          // Kiểm tra khuyết tật trên cấu kiện E
-          e.defects?.forEach((d) => {
-            const hasCu = Boolean(d.cuPhotoUrl || (Array.isArray(d.cuPhotos) && d.cuPhotos.length > 0));
-            if (!hasCu) {
-              issues.push({
-                type: 'ERROR',
-                target: 'DEFECT',
-                code: d.defectCode,
-                title: `${d.defectCode} (${e.elementCode}): Thiếu ảnh cận cảnh (CU)`,
-                message: `Khuyết tật ${d.defectCode} trên cấu kiện chưa có ảnh chụp cận cảnh.`,
-              });
-            }
-          });
-        });
-      }
-    }
-
-    // 3. Kiểm tra mục 3.3 võng dầm/sàn
-    if (formData.beamSagging?.hasSagging) {
-      if (!formData.beamSagging.sagMm || Number(formData.beamSagging.sagMm) <= 0) {
-        issues.push({
-          type: 'WARNING',
-          target: 'SAGGING',
-          title: 'Thiếu độ võng dầm/sàn f (mm)',
-          message: 'Đã tích chọn có võng dầm/sàn nhưng chưa nhập độ võng đo đạc f.',
-        });
-      }
-      if (!formData.beamSagging.spanM || Number(formData.beamSagging.spanM) <= 0) {
-        issues.push({
-          type: 'WARNING',
-          target: 'SAGGING',
-          title: 'Thiếu chiều dài nhịp L (m)',
-          message: 'Cần nhập chiều dài nhịp dầm/sàn L để tính tỉ số f/L theo TCVN 5574:2018.',
-        });
-      }
-    }
-
-    return issues;
-  };
-
   const handleContinueToStep4 = () => {
     if (isReadOnly) {
       nextStep();
       return;
     }
-    const issues = validateZedCompleteness();
+    const issues = validateCondoUnitStep3(formData);
     if (issues.length > 0) {
       setValidationIssues(issues);
       setShowValidationModal(true);
@@ -1937,9 +1793,13 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
                 <Check className="w-3.5 h-3.5" />
                 {allDefects.length} Khuyết tật D
               </span>
-              {validationIssues.filter((i) => i.type === 'ERROR').length > 0 && (
+              {validationIssues.filter((i) => i.isBlocking).length > 0 ? (
                 <span className="px-2.5 py-1 rounded-full bg-rose-100 text-rose-800 border border-rose-200 font-bold shrink-0">
-                  ⚠️ {validationIssues.filter((i) => i.type === 'ERROR').length} Lưu ý bắt buộc
+                  🚫 {validationIssues.filter((i) => i.isBlocking).length} Mục bắt buộc cần sửa
+                </span>
+              ) : (
+                <span className="px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 border border-amber-200 font-bold shrink-0">
+                  ⚠️ {validationIssues.filter((i) => !i.isBlocking).length} Khuyến nghị
                 </span>
               )}
             </div>
@@ -1947,20 +1807,20 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
             {/* Issues list body */}
             <div className="p-5 overflow-y-auto space-y-3 flex-1 text-xs">
               <div className="text-slate-600 mb-2">
-                Hệ thống phát hiện một số thông tin cần hoàn thiện hoặc khuyến nghị bổ sung để đảm bảo hồ sơ khảo sát đạt chuẩn:
+                Hệ thống phát hiện một số thông tin cần hoàn thiện hoặc khuyến nghị bổ sung để đảm bảo hồ sơ khảo sát đạt chuẩn Phase 1 Metro 2:
               </div>
 
               {validationIssues.map((issue, idx) => (
                 <div
                   key={`issue-${idx}`}
                   className={`p-3 rounded-xl border flex items-start gap-2.5 ${
-                    issue.type === 'ERROR'
+                    issue.isBlocking
                       ? 'bg-rose-50/70 border-rose-200 text-rose-950'
                       : 'bg-amber-50/70 border-amber-200 text-amber-950'
                   }`}
                 >
                   <div className="mt-0.5 shrink-0">
-                    {issue.type === 'ERROR' ? (
+                    {issue.isBlocking ? (
                       <AlertCircle className="w-4 h-4 text-rose-600" />
                     ) : (
                       <AlertTriangle className="w-4 h-4 text-amber-600" />
@@ -1970,12 +1830,12 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
                     <div className="flex items-center gap-2 mb-0.5">
                       <span
                         className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-bold uppercase ${
-                          issue.type === 'ERROR'
+                          issue.isBlocking
                             ? 'bg-rose-600 text-white'
                             : 'bg-amber-600 text-white'
                         }`}
                       >
-                        {issue.type === 'ERROR' ? 'Cần bổ sung' : 'Khuyến nghị'}
+                        {issue.isBlocking ? 'Bắt buộc' : 'Khuyến nghị'}
                       </span>
                       {issue.code && (
                         <span className="font-mono font-bold text-slate-800">
@@ -2000,17 +1860,28 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
                 Quay lại bổ sung thông tin
               </Button>
 
-              <Button
-                size="md"
-                className="bg-teal-600 hover:bg-teal-700 text-white cursor-pointer shadow-md"
-                onClick={() => {
-                  setShowValidationModal(false);
-                  nextStep();
-                }}
-                icon={<ArrowRight className="w-4 h-4" />}
-              >
-                Tôi hiểu, vẫn tiếp tục sang Bước 4 ➔
-              </Button>
+              {validationIssues.some((i) => i.isBlocking) ? (
+                <div className="text-right">
+                  <span className="text-xs text-rose-700 font-bold block">
+                    Vui lòng bổ sung đầy đủ các mục bắt buộc trước khi sang Bước 4
+                  </span>
+                  <span className="text-[10px] text-slate-500">
+                    (Yêu cầu chuẩn kỹ thuật Phase 1 Metro 2: CU có thước đo, wmax vết nứt, CTX)
+                  </span>
+                </div>
+              ) : (
+                <Button
+                  size="md"
+                  className="bg-teal-600 hover:bg-teal-700 text-white cursor-pointer shadow-md"
+                  onClick={() => {
+                    setShowValidationModal(false);
+                    nextStep();
+                  }}
+                  icon={<ArrowRight className="w-4 h-4" />}
+                >
+                  Tôi hiểu, vẫn tiếp tục sang Bước 4 ➔
+                </Button>
+              )}
             </div>
           </div>
         </div>

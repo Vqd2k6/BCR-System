@@ -124,7 +124,7 @@ export const Step2_UnitSpecificInformation: React.FC = () => {
           </div>
         </div>
 
-        <div className="pt-2">
+        <div id="select-residentStatus" className="pt-2">
           <Select
             label="Tình Trạng Cư Trú / Sử Dụng Hiện Tại *"
             value={formData.residentStatus}
@@ -168,12 +168,14 @@ export const Step2_UnitSpecificInformation: React.FC = () => {
             />
           </div>
 
-          <Input
-            label="Số Điện Thoại Liên Hệ"
-            placeholder="VD: 0901234567"
-            value={formData.ownerPhone || ''}
-            onChange={(e) => updateFormData({ ownerPhone: e.target.value })}
-          />
+          <div id="input-ownerPhone">
+            <Input
+              label="Số Điện Thoại Liên Hệ"
+              placeholder="VD: 0901234567"
+              value={formData.ownerPhone || ''}
+              onChange={(e) => updateFormData({ ownerPhone: e.target.value })}
+            />
+          </div>
 
           <Input
             label="Số CCCD / Hộ Chiếu"
