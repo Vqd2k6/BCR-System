@@ -297,11 +297,7 @@ class UploadQueueService {
       formData.append('metadata', JSON.stringify(task.metadata));
     }
 
-    const res = await api.post('/storage/upload', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
+    const res = await api.post('/storage/upload', formData);
 
     const data = res.data?.data;
     if (!data || !data.url) {

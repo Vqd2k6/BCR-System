@@ -15,6 +15,7 @@ import { PhotoLightboxModal } from './photo-capture/components/PhotoLightboxModa
 import { PhotoPreviewCard } from './photo-capture/components/PhotoPreviewCard';
 import { PhotoEmptyState } from './photo-capture/components/PhotoEmptyState';
 import { usePhase1SurveyStore } from '../../features/survey-phase1/store/usePhase1SurveyStore';
+import { getSafeDisplayUrl, resolveOfflinePhotoUrl } from '../../core/storage/offlinePhotoStorage';
 
 export type { PhotoCaptureProps };
 
@@ -66,23 +67,43 @@ export const PhotoCaptureInput: React.FC<PhotoCaptureProps> = ({
     return watermarkText || '';
   }, [photoCode, effectiveWatermarkOptions, watermarkText]);
 
-  // Detect image aspect ratio when value changes
+  // Detect image aspect ratio when value changes (an toàn tuyệt đối với offline blob:local://)
   useEffect(() => {
     if (!value) {
       setDetectedAspectRatio(null);
       return;
     }
-    const img = new Image();
-    img.onload = () => {
-      if (img.naturalWidth > img.naturalHeight * 1.08) {
-        setDetectedAspectRatio('landscape');
-      } else if (img.naturalHeight > img.naturalWidth * 1.08) {
-        setDetectedAspectRatio('portrait');
-      } else {
-        setDetectedAspectRatio('square');
-      }
+    let isSubscribed = true;
+
+    const measureImage = (srcUrl: string) => {
+      const img = new Image();
+      img.onload = () => {
+        if (!isSubscribed) return;
+        if (img.naturalWidth > img.naturalHeight * 1.08) {
+          setDetectedAspectRatio('landscape');
+        } else if (img.naturalHeight > img.naturalWidth * 1.08) {
+          setDetectedAspectRatio('portrait');
+        } else {
+          setDetectedAspectRatio('square');
+        }
+      };
+      img.src = srcUrl;
     };
-    img.src = value;
+
+    const immediate = getSafeDisplayUrl(value);
+    if (immediate) {
+      measureImage(immediate);
+    } else {
+      resolveOfflinePhotoUrl(value).then((resolved) => {
+        if (isSubscribed && resolved) {
+          measureImage(resolved);
+        }
+      });
+    }
+
+    return () => {
+      isSubscribed = false;
+    };
   }, [value]);
 
   // Quản lý upload & xử lý ảnh

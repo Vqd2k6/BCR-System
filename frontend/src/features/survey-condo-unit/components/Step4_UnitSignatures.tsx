@@ -4,6 +4,7 @@ import { Card } from '../../../core/components/ui/Card';
 import { Button } from '../../../core/components/ui/Button';
 import { Input } from '../../../core/components/ui/FormControls';
 import { PhotoCaptureInput } from '../../../components/common/PhotoCaptureInput';
+import { TapToZoomThumbnail } from '../../../components/common/TapToZoomThumbnail';
 import {
   FileCheck,
   Send,
@@ -267,22 +268,28 @@ export const Step4_UnitSignatures: React.FC<Props> = ({ onSubmitFinal, isSubmitt
         {formData.workingMinutesPhotos && formData.workingMinutesPhotos.length > 0 && (
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             {formData.workingMinutesPhotos.map((url, idx) => (
-              <div key={idx} className="relative rounded-xl overflow-hidden border border-slate-200 group bg-slate-100">
-                <img src={url} alt={`Biên bản ${idx + 1}`} className="w-full h-32 object-cover" />
-                <button
-                  type="button"
-                  onClick={() => {
-                    const next = (formData.workingMinutesPhotos || []).filter((_, i) => i !== idx);
-                    updateFormData({ workingMinutesPhotos: next });
-                  }}
-                  className="absolute top-1.5 right-1.5 p-1 rounded-md bg-rose-600 text-white text-xs opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer shadow-md"
-                  title="Xóa ảnh này"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
-                <div className="absolute bottom-1 left-1.5 bg-slate-900/80 text-white text-[10px] font-mono px-1.5 py-0.5 rounded">
-                  Trang {idx + 1}
-                </div>
+              <div key={idx} className="relative rounded-xl overflow-hidden border border-slate-200 bg-slate-100">
+                <TapToZoomThumbnail
+                  src={url}
+                  alt={`Biên bản ${idx + 1}`}
+                  label={`Trang ${idx + 1}`}
+                  photoCode={`MINUTES_PAGE_${idx + 1}`}
+                  aspectClass="w-full h-32 aspect-auto"
+                  actions={
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const next = (formData.workingMinutesPhotos || []).filter((_, i) => i !== idx);
+                        updateFormData({ workingMinutesPhotos: next });
+                      }}
+                      className="p-1 rounded-md bg-rose-600 text-white text-xs cursor-pointer shadow-md hover:bg-rose-700"
+                      title="Xóa ảnh này"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  }
+                />
               </div>
             ))}
           </div>

@@ -428,7 +428,7 @@ export class SurveyBaseRepository {
 
   static async findLatestPhase1ReportByParcelId(
     parcelId: string,
-    options?: { reportType?: string; unitId?: string | null }
+    options?: { reportType?: string; unitId?: string | null; preferDraft?: boolean; status?: string }
   ): Promise<any | null> {
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(parcelId);
     let resolvedParcelId = parcelId;
@@ -442,33 +442,94 @@ export class SurveyBaseRepository {
       resolvedParcelId = pRes.rows[0].id;
     }
 
-    let reportQuery = `SELECT id FROM base_survey_reports WHERE parcel_id = $1 AND phase = 'PHASE_1'`;
-    const reportParams: unknown[] = [resolvedParcelId];
+    let targetReportId: string | null = null;
 
-    if (options?.unitId) {
-      reportParams.push(options.unitId);
-      reportQuery += ` AND unit_id = $${reportParams.length}`;
-    } else if (options?.reportType) {
-      reportParams.push(options.reportType);
-      reportQuery += ` AND report_type = $${reportParams.length}`;
-    } else if (options?.unitId === null) {
-      reportQuery += ` AND unit_id IS NULL`;
+    // 1. Kiểm tra liên kết active_phase1_report_id hoặc phase1_report_id nếu không chỉ định status cụ thể và không preferDraft
+    if (!options?.status && !options?.preferDraft) {
+      if (options?.unitId) {
+        const uRes = await Database.query<{ phase1_report_id: string | null }>(
+          `SELECT phase1_report_id FROM building_units WHERE id = $1 LIMIT 1;`,
+          [options.unitId]
+        );
+        if (uRes.rows[0]?.phase1_report_id) {
+          targetReportId = uRes.rows[0].phase1_report_id;
+        }
+      } else if (!options?.unitId) {
+        const pRes = await Database.query<{ active_phase1_report_id: string | null }>(
+          `SELECT active_phase1_report_id FROM parcels WHERE id = $1 LIMIT 1;`,
+          [resolvedParcelId]
+        );
+        if (pRes.rows[0]?.active_phase1_report_id) {
+          targetReportId = pRes.rows[0].active_phase1_report_id;
+        }
+      }
+
+      // Kiểm tra tính hợp lệ của targetReportId nếu tìm thấy
+      if (targetReportId) {
+        let verifyQuery = `SELECT id FROM base_survey_reports WHERE id = $1 AND phase = 'PHASE_1'`;
+        const verifyParams: unknown[] = [targetReportId];
+        if (options?.reportType) {
+          verifyParams.push(options.reportType);
+          verifyQuery += ` AND report_type = $${verifyParams.length}`;
+        }
+        const verifyRes = await Database.query<{ id: string }>(verifyQuery, verifyParams);
+        if (!verifyRes.rows[0]) {
+          targetReportId = null; // ID không tồn tại hoặc sai report_type -> fallback
+        }
+      }
     }
 
-    reportQuery += ` ORDER BY 
-      CASE 
-        WHEN status = 'APPROVED' THEN 1 
-        WHEN status = 'SUBMITTED' THEN 2 
-        WHEN status = 'DRAFT' THEN 3 
-        ELSE 4 
-      END ASC, 
-      created_at DESC LIMIT 1;`;
+    // 2. Nếu chưa tìm được ID mục tiêu, thực hiện tìm kiếm linh hoạt theo thứ tự ưu tiên an toàn
+    if (!targetReportId) {
+      let reportQuery = `SELECT id FROM base_survey_reports WHERE parcel_id = $1 AND phase = 'PHASE_1'`;
+      const reportParams: unknown[] = [resolvedParcelId];
 
-    const reportRes = await Database.query<{ id: string }>(reportQuery, reportParams);
+      if (options?.unitId) {
+        reportParams.push(options.unitId);
+        reportQuery += ` AND unit_id = $${reportParams.length}`;
+      } else if (options?.reportType) {
+        reportParams.push(options.reportType);
+        reportQuery += ` AND report_type = $${reportParams.length}`;
+      } else if (options?.unitId === null) {
+        reportQuery += ` AND unit_id IS NULL`;
+      }
+
+      if (options?.status) {
+        reportParams.push(options.status);
+        reportQuery += ` AND status = $${reportParams.length}`;
+      }
+
+      if (options?.preferDraft) {
+        // Ưu tiên bản nháp đang chỉnh sửa
+        reportQuery += ` ORDER BY 
+          CASE 
+            WHEN status = 'DRAFT' THEN 1 
+            WHEN status = 'SUBMITTED' THEN 2 
+            WHEN status = 'APPROVED' THEN 3 
+            ELSE 4 
+          END ASC, 
+          updated_at DESC, created_at DESC LIMIT 1;`;
+      } else {
+        // Chế độ mặc định: ưu tiên APPROVED -> SUBMITTED -> DRAFT, luôn lấy bản ghi cập nhật mới nhất
+        reportQuery += ` ORDER BY 
+          CASE 
+            WHEN status = 'APPROVED' THEN 1 
+            WHEN status = 'SUBMITTED' THEN 2 
+            WHEN status = 'DRAFT' THEN 3 
+            ELSE 4 
+          END ASC, 
+          updated_at DESC, created_at DESC LIMIT 1;`;
+      }
+
+      const reportRes = await Database.query<{ id: string }>(reportQuery, reportParams);
+      if (reportRes.rows[0]) {
+        targetReportId = reportRes.rows[0].id;
+      }
+    }
 
     let report = null;
-    if (reportRes.rows[0]) {
-      report = await SurveyBaseRepository.findReportById(reportRes.rows[0].id);
+    if (targetReportId) {
+      report = await SurveyBaseRepository.findReportById(targetReportId);
     }
 
     const absenceRes = await Database.query(

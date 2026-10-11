@@ -14,12 +14,26 @@ import api from '../../../services/api';
 import { getNextAvailablePinCode } from '../../../components/canvas/FloorCadPinningCanvas';
 import { sanitizeSurveyDataForSync } from '../../../core/services/uploadQueueService';
 
+import { getErrorMessage } from '@/utils/errorUtils';
+import type { LockedInfo } from '../../survey-phase1/components/ActiveSurveyorLockedModal';
+import type { HandoverInfo } from '../../survey-phase1/components/HandoverTakeoverModal';
+
 interface CondoUnitSurveyStore {
   currentStep: number;
   formData: CondoUnitFormData;
   lastSavedAt: string | null;
   syncStatus: 'IDLE' | 'SAVING' | 'SAVED' | 'ERROR';
   syncVersion: number;
+
+  // Trạng thái khóa ca và tiếp quản ca khảo sát
+  isLockedByOther: boolean;
+  lockedInfo: LockedInfo | null;
+  isHandoverModalOpen: boolean;
+  handoverInfo: HandoverInfo | null;
+  closeLockedModal: () => void;
+  closeHandoverModal: () => void;
+  takeoverDraft: (handoverCode: string, note?: string) => Promise<boolean>;
+  checkDraftLock: () => Promise<void>;
 
   initializeForm: (parcel: GisParcel, unit?: BuildingUnit | null) => void;
   updateFormData: (updates: Partial<CondoUnitFormData>) => void;
@@ -45,12 +59,56 @@ interface CondoUnitSurveyStore {
   releaseDraftLock: () => Promise<void>;
 }
 
+/**
+ * Loại bỏ triệt để các Vùng Z ma (chưa có ghim pin trên CAD và không có dữ liệu khuyết tật/ảnh)
+ * Đảm bảo nếu chưa chấm CAD thì zones phải là mảng rỗng []
+ */
+export function cleanupGhostZones(zones: DamageZoneData[], pins: CadZonePin[] = []): DamageZoneData[] {
+  if (!Array.isArray(zones) || zones.length === 0) return [];
+  return zones.filter((z) => {
+    const hasPin = pins.some((p) => p.zoneCode === z.zoneCode);
+    if (hasPin) return true;
+
+    const hasDefects = Array.isArray(z.defects) && z.defects.length > 0;
+    const hasPhotos = Boolean(
+      (z.ctxPhotoUrl && !z.ctxPhotoUrl.startsWith('blob:local://')) ||
+      (Array.isArray(z.overviewPhotos) && z.overviewPhotos.length > 0)
+    );
+    const hasNotes = Boolean(z.notes && z.notes.trim() !== '');
+
+    return hasDefects || hasPhotos || hasNotes;
+  });
+}
+
+/**
+ * Loại bỏ triệt để các Cấu kiện E ma (chưa có ghim pin trên CAD và không có dữ liệu khuyết tật/ảnh)
+ */
+export function cleanupGhostElements(elements: StructuralElementData[], pins: CadZonePin[] = []): StructuralElementData[] {
+  if (!Array.isArray(elements) || elements.length === 0) return [];
+  return elements.filter((e) => {
+    const hasPin = pins.some((p) => p.zoneCode === e.elementCode);
+    if (hasPin) return true;
+
+    const hasDefects = Array.isArray(e.defects) && e.defects.length > 0;
+    const hasPhotos = Boolean(
+      (e.ctxPhotoUrl && !e.ctxPhotoUrl.startsWith('blob:local://')) ||
+      (Array.isArray(e.overviewPhotos) && e.overviewPhotos.length > 0)
+    );
+    const hasNotes = Boolean(e.notes && e.notes.trim() !== '');
+
+    return hasDefects || hasPhotos || hasNotes;
+  });
+}
+
 export function deduplicateZones(zones: DamageZoneData[], pins: CadZonePin[] = []): DamageZoneData[] {
-  if (!Array.isArray(zones) || zones.length <= 1) return zones || [];
+  if (!Array.isArray(zones) || zones.length === 0) return [];
+  const cleaned = cleanupGhostZones(zones, pins);
+  if (cleaned.length <= 1) return cleaned;
+
   const seenCodes = new Set<string>();
   const result: DamageZoneData[] = [];
 
-  for (const z of zones) {
+  for (const z of cleaned) {
     if (!seenCodes.has(z.zoneCode)) {
       seenCodes.add(z.zoneCode);
       result.push(z);
@@ -78,11 +136,14 @@ export function deduplicateZones(zones: DamageZoneData[], pins: CadZonePin[] = [
 }
 
 export function deduplicateElements(elements: StructuralElementData[], pins: CadZonePin[] = []): StructuralElementData[] {
-  if (!Array.isArray(elements) || elements.length <= 1) return elements || [];
+  if (!Array.isArray(elements) || elements.length === 0) return [];
+  const cleaned = cleanupGhostElements(elements, pins);
+  if (cleaned.length <= 1) return cleaned;
+
   const seenCodes = new Set<string>();
   const result: StructuralElementData[] = [];
 
-  for (const e of elements) {
+  for (const e of cleaned) {
     if (!seenCodes.has(e.elementCode)) {
       seenCodes.add(e.elementCode);
       result.push(e);
@@ -191,6 +252,13 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
   lastSavedAt: null,
   syncStatus: 'IDLE',
   syncVersion: 1,
+
+  isLockedByOther: false,
+  lockedInfo: null,
+  isHandoverModalOpen: false,
+  handoverInfo: null,
+  closeLockedModal: () => set({ isLockedByOther: false, lockedInfo: null }),
+  closeHandoverModal: () => set({ isHandoverModalOpen: false, handoverInfo: null }),
 
   initializeForm: (parcel: GisParcel, unit?: BuildingUnit | null) => {
     const pId = parcel.id;
@@ -390,6 +458,33 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
     surveyDraftService
       .fetchDraft(pId, uId)
       .then(async (draftRes) => {
+        if (draftRes?.isLocked) {
+          set({
+            isLockedByOther: true,
+            lockedInfo: {
+              surveyorName: draftRes.activeSurveyorName || 'Kỹ sư khác',
+              phone: draftRes.activeSurveyorPhone,
+              minutesAgo: draftRes.minutesAgo || 1,
+              message: draftRes.message,
+            },
+          });
+          return;
+        }
+
+        if (draftRes?.requiresHandover) {
+          set({
+            isHandoverModalOpen: true,
+            handoverInfo: {
+              fromSurveyorName: draftRes.fromSurveyorName || 'Kỹ sư ca trước',
+              fromSurveyorPhone: draftRes.fromSurveyorPhone,
+              currentStep: draftRes.currentStep || 1,
+              securityCode: draftRes.securityCode || '',
+              updatedAt: draftRes.updatedAt || '',
+            },
+          });
+          return;
+        }
+
         if (draftRes?.hasDraft && draftRes.draft?.surveyData) {
           const sData = draftRes.draft.surveyData as Partial<CondoUnitFormData>;
           const cur = get().formData;
@@ -525,9 +620,19 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
         syncVersion: res.syncVersion || syncVersion + 1,
         lastSavedAt: new Date().toLocaleTimeString('vi-VN'),
       });
-    } catch (err) {
+    } catch (err: unknown) {
       console.warn('[CondoUnitStore] Lỗi lưu bản nháp cloud:', err);
       set({ syncStatus: 'ERROR' });
+
+      // Nếu lỗi do bị khóa ca bởi KSV khác (HTTP 400)
+      const errorMsg = getErrorMessage(err);
+      if (
+        errorMsg.includes('khóa') ||
+        errorMsg.includes('tiếp quản') ||
+        errorMsg.includes('Kỹ sư')
+      ) {
+        void get().checkDraftLock();
+      }
     }
   },
 
@@ -875,11 +980,95 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
     } catch (_e) {}
   },
 
+  checkDraftLock: async () => {
+    const { formData } = get();
+    if (!formData.parcelId || !formData.unitId) return;
+    try {
+      const draftRes = await surveyDraftService.fetchDraft(formData.parcelId, formData.unitId);
+      if (draftRes?.isLocked) {
+        set({
+          isLockedByOther: true,
+          lockedInfo: {
+            surveyorName: draftRes.activeSurveyorName || 'Kỹ sư khác',
+            phone: draftRes.activeSurveyorPhone,
+            minutesAgo: draftRes.minutesAgo || 1,
+            message: draftRes.message,
+          },
+        });
+      } else if (draftRes?.requiresHandover) {
+        set({
+          isHandoverModalOpen: true,
+          handoverInfo: {
+            fromSurveyorName: draftRes.fromSurveyorName || 'Kỹ sư ca trước',
+            fromSurveyorPhone: draftRes.fromSurveyorPhone,
+            currentStep: draftRes.currentStep || 1,
+            securityCode: draftRes.securityCode || '',
+            updatedAt: draftRes.updatedAt || '',
+          },
+        });
+      }
+    } catch (_e) {}
+  },
+
+  takeoverDraft: async (handoverCode: string, note?: string) => {
+    const { formData } = get();
+    if (!formData.parcelId || !formData.unitId) return false;
+
+    try {
+      const res = await surveyDraftService.takeoverDraft({
+        parcelId: formData.parcelId,
+        unitId: formData.unitId,
+        handoverCode,
+        note,
+      });
+
+      if (res && res.draft) {
+        const serverData = res.draft.surveyData as Partial<CondoUnitFormData>;
+        const targetStep =
+          res.draft.currentStep >= 1 && res.draft.currentStep <= 4
+            ? res.draft.currentStep
+            : 1;
+
+        const mergedZones = deduplicateZones(serverData.zones || [], serverData.cadZonePins || []);
+        const mergedElements = deduplicateElements(serverData.structuralElements || [], serverData.cadElementPins || []);
+
+        set((state) => ({
+          formData: {
+            ...state.formData,
+            ...serverData,
+            zones: mergedZones,
+            structuralElements: mergedElements,
+          },
+          currentStep: targetStep,
+          syncVersion: res.draft.syncVersion || state.syncVersion,
+          syncStatus: 'SAVED',
+          lastSavedAt: new Date().toLocaleTimeString('vi-VN'),
+          isHandoverModalOpen: false,
+          handoverInfo: null,
+          isLockedByOther: false,
+          lockedInfo: null,
+        }));
+
+        try {
+          const draftKey = `metro2_condo_unit_draft_${formData.parcelId}_${formData.unitId}`;
+          localStorage.setItem(draftKey, JSON.stringify(get().formData));
+        } catch (_e) {}
+
+        return true;
+      }
+      return false;
+    } catch (err: unknown) {
+      console.error('[CondoUnitStore] Tiếp quản ca thất bại:', err);
+      throw err;
+    }
+  },
+
   releaseDraftLock: async () => {
     const { parcelId, unitId } = get().formData;
     if (!parcelId) return;
     try {
       await surveyDraftService.releaseLock(parcelId, unitId || null);
+      set({ syncStatus: 'SAVED', lastSavedAt: new Date().toLocaleTimeString('vi-VN') });
     } catch (err) {
       console.warn('[CondoUnitStore] Lỗi mở khóa bản nháp:', err);
     }

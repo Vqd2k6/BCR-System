@@ -449,9 +449,13 @@ export class SurveyService {
 
   static async getPhase1ReportByParcelId(
     parcelId: string,
-    options?: { reportType?: string; unitId?: string | null }
+    options?: { reportType?: string; unitId?: string | null; preferDraft?: boolean; status?: string }
   ) {
     return await SurveyRepository.findLatestPhase1ReportByParcelId(parcelId, options);
+  }
+
+  static async findActiveDraft(parcelId: string, unitId?: string | null) {
+    return await SurveyRepository.findActiveDraft(parcelId, unitId);
   }
 
   static async getSurveyDraft(

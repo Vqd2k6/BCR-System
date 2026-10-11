@@ -435,7 +435,9 @@ export class SurveyController {
       const { id } = req.params;
       const reportType = req.query.reportType as string | undefined;
       const unitId = req.query.unitId as string | undefined;
-      const report = await SurveyService.getPhase1ReportByParcelId(id, { reportType, unitId });
+      const preferDraft = req.query.preferDraft === 'true';
+      const status = req.query.status as string | undefined;
+      const report = await SurveyService.getPhase1ReportByParcelId(id, { reportType, unitId, preferDraft, status });
       const isGuest = req.user?.role === 'GUEST';
       res.status(200).json({
         success: true,
@@ -475,18 +477,25 @@ export class SurveyController {
       const surveyorId = req.user!.userId;
       const userRole = req.user?.role || 'SURVEYOR';
 
-      // Nếu người gửi là SURVEYOR, kiểm tra xem hồ sơ đã nộp chưa
+      // Nếu người gửi là SURVEYOR, kiểm tra trạng thái hồ sơ:
+      // - Nếu đã APPROVED: Khóa bất biến toàn bộ
+      // - Nếu đã SUBMITTED: KSV chỉ được lưu nếu đang có bản nháp hiệu chỉnh (active draft)
       if (userRole === 'SURVEYOR') {
         const existing = await SurveyService.getPhase1ReportByParcelId(parsed.data.parcelId, {
           unitId: parsed.data.unitId || null,
         });
-        if (
-          existing?.report &&
-          (existing.report.status === 'SUBMITTED' || existing.report.status === 'APPROVED')
-        ) {
+        if (existing?.report?.status === 'APPROVED') {
           throw new ForbiddenError(
-            'Hồ sơ khảo sát đã được nộp. Kỹ sư khảo sát chỉ có quyền xem lại, không được phép lưu đè bản nháp.'
+            'Hồ sơ khảo sát đã được phê duyệt bất biến. Không được phép chỉnh sửa hoặc lưu nháp.'
           );
+        }
+        if (existing?.report?.status === 'SUBMITTED') {
+          const activeDraft = await SurveyService.findActiveDraft(parsed.data.parcelId, parsed.data.unitId || null);
+          if (!activeDraft) {
+            throw new ForbiddenError(
+              'Hồ sơ khảo sát đã được nộp. Kỹ sư khảo sát chỉ có quyền xem lại, không được phép lưu đè bản nháp.'
+            );
+          }
         }
       }
 

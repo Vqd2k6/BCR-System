@@ -53,7 +53,7 @@ export class SurveyRepository {
 
   public static async findLatestPhase1ReportByParcelId(
     parcelId: string,
-    options?: { reportType?: string; unitId?: string | null }
+    options?: { reportType?: string; unitId?: string | null; preferDraft?: boolean; status?: string }
   ): Promise<any | null> {
     return SurveyBaseRepository.findLatestPhase1ReportByParcelId(parcelId, options);
   }

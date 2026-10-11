@@ -22,11 +22,15 @@ export const api = axios.create({
   },
 });
 
-// Request Interceptor: Tự động đính kèm JWT Bearer Token
+// Request Interceptor: Tự động đính kèm JWT Bearer Token & Xóa Content-Type cho FormData
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('metro2_access_token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
+  }
+  // Nếu body là FormData, bắt buộc xóa Content-Type để Fetch / Trình duyệt tự sinh multipart boundary chuẩn
+  if (typeof FormData !== 'undefined' && config.data instanceof FormData) {
+    delete config.headers['Content-Type'];
   }
   return config;
 });

@@ -328,7 +328,7 @@ export function useMasterAreaSurveyState({
         setIsLoadingReport(true);
         const endpoint = existingReportId
           ? `/reports/phase1/${existingReportId}`
-          : `/parcels/${parcelId}/phase1-report?unitId=${unitId}`;
+          : `/parcels/${parcelId}/phase1-report?unitId=${unitId}${!readOnly ? '&preferDraft=true' : ''}`;
         const res = await api.get(endpoint);
         if (isSubscribed && res.data?.success && res.data.data) {
           const rData = res.data.data?.report || res.data.data;
@@ -338,46 +338,91 @@ export function useMasterAreaSurveyState({
               status: rData.status,
               export_revision: rData.export_revision,
             });
-            const sData = rData.survey_data_json || rData.surveyData || {};
-            const fSurvey = sData.floorSurvey || (Array.isArray(sData.floors) ? sData.floors[0] : null) || {};
+
+            let sData: Record<string, unknown> = {};
+            if (typeof rData.survey_data_json === 'string') {
+              try {
+                sData = JSON.parse(rData.survey_data_json);
+              } catch (parseErr: unknown) {
+                console.error('[useMasterAreaSurveyState:parseJson] Lỗi parse survey_data_json:', parseErr);
+                sData = (rData.surveyData as Record<string, unknown>) || {};
+              }
+            } else if (rData.survey_data_json && typeof rData.survey_data_json === 'object') {
+              sData = rData.survey_data_json as Record<string, unknown>;
+            } else if (rData.surveyData && typeof rData.surveyData === 'object') {
+              sData = rData.surveyData as Record<string, unknown>;
+            }
+
+            const rawFloorSurvey = sData.floorSurvey || (Array.isArray(sData.floors) ? sData.floors[0] : null);
+            const fSurvey: Record<string, unknown> = (rawFloorSurvey && typeof rawFloorSurvey === 'object')
+              ? (rawFloorSurvey as Record<string, unknown>)
+              : {};
 
             if (Array.isArray(fSurvey.overviewPhotos) && fSurvey.overviewPhotos.length > 0) {
-              setOverviewPhotos(fSurvey.overviewPhotos);
+              setOverviewPhotos(fSurvey.overviewPhotos as EvidencePhotoItem[]);
+            } else if (Array.isArray(rData.identificationPhotos) && rData.identificationPhotos.length > 0) {
+              const mappedPhotos: EvidencePhotoItem[] = (rData.identificationPhotos as Array<Record<string, unknown>>)
+                .map((p) => ({
+                  url: String(p.raw_photo_url || ''),
+                  photoCode: p.photo_code ? String(p.photo_code) : undefined,
+                  notes: p.notes ? String(p.notes) : undefined,
+                }))
+                .filter((p) => Boolean(p.url));
+              if (mappedPhotos.length > 0) {
+                setOverviewPhotos(mappedPhotos);
+              }
             }
-            if (fSurvey.cadSketchPhotoUrl) {
+
+            // Kiểm tra bảo toàn từ LocalStorage nếu server chưa có ảnh tổng quan
+            if (!fSurvey.overviewPhotos || (Array.isArray(fSurvey.overviewPhotos) && fSurvey.overviewPhotos.length === 0)) {
+              try {
+                const localDraftRaw = localStorage.getItem(draftKey);
+                if (localDraftRaw) {
+                  const localDraft = JSON.parse(localDraftRaw);
+                  if (Array.isArray(localDraft?.overviewPhotos) && localDraft.overviewPhotos.length > 0) {
+                    console.log('[useMasterAreaSurveyState] Bảo toàn ảnh tổng quan từ LocalStorage draft');
+                    setOverviewPhotos(localDraft.overviewPhotos as EvidencePhotoItem[]);
+                  }
+                }
+              } catch (localErr: unknown) {
+                console.warn('[useMasterAreaSurveyState] Lỗi kiểm tra ảnh local draft:', localErr);
+              }
+            }
+
+            if (typeof fSurvey.cadSketchPhotoUrl === 'string' && fSurvey.cadSketchPhotoUrl) {
               setCadSketchPhotoUrl(fSurvey.cadSketchPhotoUrl);
             }
-            if (fSurvey.cadStructuralSketchPhotoUrl) {
+            if (typeof fSurvey.cadStructuralSketchPhotoUrl === 'string' && fSurvey.cadStructuralSketchPhotoUrl) {
               setCadStructuralSketchPhotoUrl(fSurvey.cadStructuralSketchPhotoUrl);
             }
             if (typeof fSurvey.useSeparateStructuralCad === 'boolean') {
               setUseSeparateStructuralCad(fSurvey.useSeparateStructuralCad);
             }
             if (Array.isArray(fSurvey.cadZonePins)) {
-              setCadZonePins(fSurvey.cadZonePins);
+              setCadZonePins(fSurvey.cadZonePins as CadZonePin[]);
             }
             if (Array.isArray(fSurvey.zones) && fSurvey.zones.length > 0) {
-              setZones(fSurvey.zones);
+              setZones(fSurvey.zones as DamageZoneData[]);
             }
             if (typeof fSurvey.hasStructuralElements === 'boolean') {
               setHasStructuralElements(fSurvey.hasStructuralElements);
             }
-            if (fSurvey.noStructuralElementsReason) {
+            if (typeof fSurvey.noStructuralElementsReason === 'string') {
               setNoStructuralElementsReason(fSurvey.noStructuralElementsReason);
             }
             if (Array.isArray(fSurvey.cadElementPins)) {
-              setCadElementPins(fSurvey.cadElementPins);
+              setCadElementPins(fSurvey.cadElementPins as CadZonePin[]);
             }
             if (Array.isArray(fSurvey.structuralElements) && fSurvey.structuralElements.length > 0) {
-              setStructuralElements(fSurvey.structuralElements);
+              setStructuralElements(fSurvey.structuralElements as StructuralElementData[]);
             }
-            if (sData.surveyorRemarks) setSurveyorRemarks(sData.surveyorRemarks);
-            if (sData.surveyorSignatureUrl) setSurveyorSignatureUrl(sData.surveyorSignatureUrl);
+            if (typeof sData.surveyorRemarks === 'string') setSurveyorRemarks(sData.surveyorRemarks);
+            if (typeof sData.surveyorSignatureUrl === 'string') setSurveyorSignatureUrl(sData.surveyorSignatureUrl);
             setSyncStatus('SAVED_CLOUD');
             return;
           }
         }
-      } catch (err) {
+      } catch (err: unknown) {
         console.warn('[useMasterAreaSurveyState] Lỗi nạp báo cáo cũ:', err);
       } finally {
         if (isSubscribed) setIsLoadingReport(false);
@@ -387,7 +432,7 @@ export function useMasterAreaSurveyState({
     return () => {
       isSubscribed = false;
     };
-  }, [existingReportId, parcelId, unitId]);
+  }, [existingReportId, parcelId, unitId, readOnly, draftKey]);
 
   // Khôi phục dữ liệu nháp vào State
   const applyDraftDataToState = useCallback((draft: Record<string, unknown>) => {
