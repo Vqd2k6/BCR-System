@@ -312,6 +312,10 @@ export const SubmitPhase1ReportDto = z.object({
   street: z.string().optional().nullable(),
   ownerName: z.string().optional().nullable(),
   ownerPhone: z.string().optional().nullable(),
+  ownerIdCard: z.string().optional().nullable(),
+  residentStatus: z.string().optional().nullable(),
+  displayCode: z.string().optional().nullable(),
+  display_code: z.string().optional().nullable(),
   constructionAreaM2: z.number().optional().nullable(),
   surveyDataJson: z.any().optional(),
 });

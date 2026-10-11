@@ -88,6 +88,7 @@ export interface CondoUnitFormData {
 
   // 2. Thông tin riêng của căn hộ con (OOP Child attributes)
   unitCode: string; // VD: '03.03'
+  displayCode?: string; // Biển số căn hộ thực tế đối soát với ảnh P01 (VD: '303', 'P.303')
   floorNumber: number; // Lầu 3
   ownerName: string;
   ownerPhone: string;

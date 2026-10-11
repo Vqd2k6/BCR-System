@@ -916,26 +916,36 @@ export function useMasterAreaSurveyState({
       alert('Vui lòng chọn Cấu kiện hoặc Vật liệu trước khi đồng bộ!');
       return;
     }
-    const remainingCount = zones.length - 1;
+    const downstreamZones = zones.slice(activeZoneIndex + 1);
+    const downstreamCount = downstreamZones.length;
+    if (downstreamCount <= 0) {
+      alert('Đây là vùng Z cuối cùng trong danh sách, không có vùng phía sau để đồng bộ!');
+      return;
+    }
+
+    const downstreamCodes = downstreamZones.map((z) => z.zoneCode).join(', ');
+    const upstreamCodes = zones.slice(0, activeZoneIndex).map((z) => z.zoneCode).join(', ');
+    const upstreamNote = upstreamCodes ? `\n\n(Các vùng phía trước: ${upstreamCodes} sẽ được giữ nguyên 100%)` : '';
+
     if (
       !confirm(
-        `Áp dụng cấu kiện "${activeZone.componentType}" và vật liệu "${activeZone.wallMaterial}" của ${activeZone.zoneCode} cho tất cả ${remainingCount} vùng còn lại trong khu vực?`
+        `Áp dụng cấu kiện "${activeZone.componentType || 'hiện tại'}" và vật liệu "${activeZone.wallMaterial || 'hiện tại'}" của ${activeZone.zoneCode} cho ${downstreamCount} vùng Z phía sau (${downstreamCodes})?${upstreamNote}`
       )
     ) {
       return;
     }
     setZones((prev) =>
       prev.map((z, idx) =>
-        idx === activeZoneIndex
-          ? z
-          : {
+        idx > activeZoneIndex
+          ? {
               ...z,
               componentType: activeZone.componentType,
               wallMaterial: activeZone.wallMaterial,
             }
+          : z
       )
     );
-    alert('Đã đồng bộ vật liệu cho toàn bộ các Vùng Z trong khu vực!');
+    alert(`Đã đồng bộ vật liệu cho ${downstreamCount} vùng Z phía sau (${downstreamCodes})!`);
   };
 
   // Quản lý ảnh tổng quan Vùng Z: Cơ chế thay thế ảnh tạm blob:local:// khi Cloud R2 upload hoàn tất
@@ -1084,26 +1094,36 @@ export function useMasterAreaSurveyState({
       alert('Vui lòng chọn Loại cấu kiện hoặc Vật liệu trước khi đồng bộ!');
       return;
     }
-    const remainingCount = structuralElements.length - 1;
+    const downstreamElements = structuralElements.slice(activeElementIndex + 1);
+    const downstreamCount = downstreamElements.length;
+    if (downstreamCount <= 0) {
+      alert('Đây là cấu kiện E cuối cùng trong danh sách, không có cấu kiện phía sau để đồng bộ!');
+      return;
+    }
+
+    const downstreamCodes = downstreamElements.map((e) => e.elementCode).join(', ');
+    const upstreamCodes = structuralElements.slice(0, activeElementIndex).map((e) => e.elementCode).join(', ');
+    const upstreamNote = upstreamCodes ? `\n\n(Các cấu kiện phía trước: ${upstreamCodes} sẽ được giữ nguyên 100%)` : '';
+
     if (
       !confirm(
-        `Áp dụng loại "${activeElement.elementType}" và vật liệu "${activeElement.materialType}" của ${activeElement.elementCode} cho tất cả ${remainingCount} cấu kiện còn lại?`
+        `Áp dụng loại "${activeElement.elementType || 'hiện tại'}" và vật liệu "${activeElement.materialType || 'hiện tại'}" của ${activeElement.elementCode} cho ${downstreamCount} cấu kiện E phía sau (${downstreamCodes})?${upstreamNote}`
       )
     ) {
       return;
     }
     setStructuralElements((prev) =>
       prev.map((e, idx) =>
-        idx === activeElementIndex
-          ? e
-          : {
+        idx > activeElementIndex
+          ? {
               ...e,
               elementType: activeElement.elementType,
               materialType: activeElement.materialType,
             }
+          : e
       )
     );
-    alert('Đã đồng bộ thông số cho toàn bộ các Cấu kiện E trong khu vực!');
+    alert(`Đã đồng bộ thông số cho ${downstreamCount} cấu kiện E phía sau (${downstreamCodes})!`);
   };
 
   // Quản lý ảnh tổng quan Cấu kiện E: Cơ chế thay thế ảnh tạm blob:local:// khi Cloud R2 upload hoàn tất

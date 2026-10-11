@@ -492,7 +492,10 @@ export class CadastralRepository {
        ORDER BY u.floor_number ASC, u.unit_code ASC;`,
       [parcelId]
     );
-    return res.rows;
+    return res.rows.map((r) => ({
+      ...r,
+      floor_number: Number(r.floor_number),
+    }));
   }
 
   static async findUnitById(unitId: string): Promise<BuildingUnitEntity | null> {
@@ -590,7 +593,13 @@ export class CadastralRepository {
       `SELECT * FROM building_floor_plans WHERE parcel_id = $1 AND deleted_at IS NULL ORDER BY floor_number ASC;`,
       [parcelId]
     );
-    return res.rows;
+    return res.rows.map((r) => ({
+      ...r,
+      floor_number: Number(r.floor_number),
+      applicable_floors: Array.isArray(r.applicable_floors)
+        ? r.applicable_floors.map(Number)
+        : [Number(r.floor_number)],
+    }));
   }
 
   static async findFloorPlanByFloor(parcelId: string, floorNumber: number): Promise<BuildingFloorPlanEntity | null> {

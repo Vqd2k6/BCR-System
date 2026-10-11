@@ -84,20 +84,21 @@ export class SurveyDraftRepository {
         ]
       );
 
-      // Đảm bảo status của parcel là IN_PROGRESS nếu chưa nộp
-      await Database.query(
-        `UPDATE parcels 
-         SET survey_status = CASE 
-               WHEN survey_status IN ('SUBMITTED', 'APPROVED', 'PHASE2_COMPLETED', 'APPROVED_PHASE2') THEN survey_status 
-               ELSE 'IN_PROGRESS' 
-             END, 
-             active_phase1_report_id = COALESCE(active_phase1_report_id, $2),
-             updated_at = NOW() 
-         WHERE id = $1;`,
-        [resolvedParcelId, existing.id]
-      );
-
-      if (data.unitId) {
+      // Chỉ cập nhật trạng thái tòa mẹ và active_phase1_report_id khi đây là báo cáo tòa mẹ / độc lập (!data.unitId)
+      if (!data.unitId) {
+        await Database.query(
+          `UPDATE parcels 
+           SET survey_status = CASE 
+                 WHEN survey_status IN ('SUBMITTED', 'APPROVED', 'PHASE2_COMPLETED', 'APPROVED_PHASE2') THEN survey_status 
+                 ELSE 'IN_PROGRESS' 
+               END, 
+               active_phase1_report_id = COALESCE(active_phase1_report_id, $2),
+               updated_at = NOW() 
+           WHERE id = $1;`,
+          [resolvedParcelId, existing.id]
+        );
+      } else {
+        // Căn hộ con: chỉ cập nhật trạng thái căn hộ trong building_units, tuyệt đối không chạm vào active_phase1_report_id của tòa mẹ
         await Database.query(
           `UPDATE building_units 
            SET status = CASE 
@@ -152,22 +153,24 @@ export class SurveyDraftRepository {
         [newDraft.id]
       );
 
-      await Database.query(
-        `UPDATE parcels 
-         SET survey_status = CASE 
-               WHEN survey_status IN ('SUBMITTED', 'APPROVED', 'PHASE2_COMPLETED', 'APPROVED_PHASE2') THEN survey_status 
-               ELSE 'IN_PROGRESS' 
-             END, 
-             active_phase1_report_id = CASE 
-               WHEN survey_status IN ('SUBMITTED', 'APPROVED', 'PHASE2_COMPLETED', 'APPROVED_PHASE2') THEN active_phase1_report_id 
-               ELSE $2 
-             END, 
-             updated_at = NOW() 
-         WHERE id = $1;`,
-        [resolvedParcelId, newDraft.id]
-      );
-
-      if (data.unitId) {
+      // Chỉ cập nhật trạng thái tòa mẹ và active_phase1_report_id khi đây là báo cáo tòa mẹ / độc lập (!data.unitId)
+      if (!data.unitId) {
+        await Database.query(
+          `UPDATE parcels 
+           SET survey_status = CASE 
+                 WHEN survey_status IN ('SUBMITTED', 'APPROVED', 'PHASE2_COMPLETED', 'APPROVED_PHASE2') THEN survey_status 
+                 ELSE 'IN_PROGRESS' 
+               END, 
+               active_phase1_report_id = CASE 
+                 WHEN survey_status IN ('SUBMITTED', 'APPROVED', 'PHASE2_COMPLETED', 'APPROVED_PHASE2') THEN active_phase1_report_id 
+                 ELSE $2 
+               END, 
+               updated_at = NOW() 
+           WHERE id = $1;`,
+          [resolvedParcelId, newDraft.id]
+        );
+      } else {
+        // Căn hộ con: chỉ cập nhật trạng thái căn hộ trong building_units, tuyệt đối không chạm vào active_phase1_report_id của tòa mẹ
         await Database.query(
           `UPDATE building_units 
            SET status = CASE 

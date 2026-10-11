@@ -68,7 +68,7 @@ export const DamageZonesSection: React.FC<DamageZonesSectionProps> = ({
     const remainingCount = zones.length - 1;
     if (
       !confirm(
-        `Bạn có chắc muốn áp dụng cấu kiện "${activeZone.componentType || 'hiện tại'}" và vật liệu "${activeZone.wallMaterial || 'hiện tại'}" của ${activeZone.zoneCode} cho tất cả ${remainingCount} Vùng Z còn lại trên ${currentFloor.floorName}?`
+        `Bạn có chắc muốn áp dụng cấu kiện "${activeZone.componentType || 'hiện tại'}" và vật liệu "${activeZone.wallMaterial || 'hiện tại'}" của ${activeZone.zoneCode} cho ${remainingCount} Vùng Z phía sau trên ${currentFloor.floorName}?`
       )
     ) {
       return;
@@ -411,10 +411,10 @@ export const DamageZonesSection: React.FC<DamageZonesSectionProps> = ({
                     type="button"
                     onClick={handleSyncToEntireFloor}
                     className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
-                    title="Đồng bộ cấu kiện và vật liệu của Z-01 cho toàn bộ các Vùng Z còn lại trên tầng"
+                    title={`Đồng bộ cấu kiện và vật liệu của ${activeZone.zoneCode} cho tất cả các Vùng Z phía sau trên tầng`}
                   >
                     <Sparkles className="w-3.5 h-3.5" />
-                    <span>Đồng bộ cho toàn tầng</span>
+                    <span>Áp dụng cho toàn bộ các Z phía sau ({zones.length - 1})</span>
                   </button>
                 </div>
               )}
@@ -425,10 +425,10 @@ export const DamageZonesSection: React.FC<DamageZonesSectionProps> = ({
                     type="button"
                     onClick={handleSyncToDownstreamZones}
                     className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
-                    title={`Đồng bộ cấu kiện và vật liệu cho ${downstreamCount} Vùng Z phía sau (không ảnh hưởng các Vùng Z phía trước)`}
+                    title={`Đồng bộ cấu kiện và vật liệu cho ${downstreamCount} Vùng Z phía sau (bảo toàn 100% các Vùng Z phía trước)`}
                   >
                     <Sparkles className="w-3.5 h-3.5" />
-                    <span>Đồng bộ cho các Z còn lại ({downstreamCount})</span>
+                    <span>Áp dụng cho các Z phía sau ({downstreamCount})</span>
                   </button>
                 </div>
               )}

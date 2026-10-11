@@ -45,17 +45,23 @@ export class CondoUnitReportGenerator {
     const surveyDate = json.surveyDate || reportData.survey_date || new Date().toLocaleDateString('vi-VN');
     const generatedAt = new Date().toLocaleString('vi-VN');
 
-    // Thông tin nhận diện căn hộ con
+    // Thông tin nhận diện căn hộ con (Phương án B: tách bạch Biển số thực tế và Mã vị trí CAD)
     const unitCode = json.unitCode || reportData.unit_code || '01.01';
+    const displayCode = json.displayCode || reportData.display_code || unitCode;
+    const isDifferentCode = displayCode !== unitCode;
     const floorNumber = json.floorNumber ?? reportData.floor_number ?? 1;
     const fNum = Number(floorNumber);
     const floorDisplay = isNaN(fNum)
       ? String(floorNumber)
-      : fNum < 0
-        ? `Tầng hầm B${Math.abs(fNum)}`
-        : fNum === 0
-          ? 'Tầng trệt (G)'
-          : `Lầu ${fNum} (Tầng ${fNum})`;
+      : fNum === 0.5
+        ? 'Tầng Lửng Trệt (Mezzanine)'
+        : fNum === -0.5
+          ? 'Tầng Bán Hầm (Semi-Basement)'
+          : fNum < 0
+            ? `Tầng hầm B${Math.abs(Math.round(fNum))}`
+            : fNum === 0
+              ? 'Tầng trệt (G)'
+              : `Lầu ${Math.floor(fNum)} (Tầng ${Math.floor(fNum)})`;
 
     const unitAreaM2 = json.unitAreaM2 || reportData.unit_area_m2 || '';
     const ownerName = json.ownerName || reportData.owner_name || 'Chủ sở hữu căn hộ';
@@ -252,7 +258,7 @@ export class CondoUnitReportGenerator {
 
     // Kết luận & Kiến nghị
     const summaryConclusions = json.summaryConclusions || reportData.summary_conclusions ||
-      `Hiện trạng Căn hộ ${unitCode} (Tầng ${floorNumber}) trước khi thi công tuyến Metro số 2 được ghi nhận với ${localDefects.length} điểm khuyết tật nứt, cấp độ hư hỏng Burland lớn nhất: ${burlandMaxLabel}. ${hasUpperFloorWaterLeakage ? 'Có hiện tượng thấm dột trần lầu trên dội xuống.' : 'Không phát hiện thấm dột trần.'}`;
+      `Hiện trạng Căn hộ ${displayCode} (Vị trí quy hoạch ${unitCode}, ${floorDisplay}) trước khi thi công tuyến Metro số 2 được ghi nhận với ${localDefects.length} điểm khuyết tật nứt, cấp độ hư hỏng Burland lớn nhất: ${burlandMaxLabel}. ${hasUpperFloorWaterLeakage ? 'Có hiện tượng thấm dột trần lầu trên dội xuống.' : 'Không phát hiện thấm dột trần.'}`;
 
     const engineeringRecommendations = json.engineeringRecommendations || reportData.engineering_recommendations ||
       'Đề nghị Chủ hộ và Đơn vị thi công Metro số 2 phối hợp giám sát định kỳ đối với các vết nứt đã ghi nhận, đồng thời tiến hành quan trắc bổ sung nếu phát hiện có hiện tượng nứt phát triển hoặc kẹt cửa mới trong quá trình đào ngầm TBM.';
@@ -269,6 +275,8 @@ export class CondoUnitReportGenerator {
       officialCadastralCode,
 
       unitCode,
+      displayCode,
+      isDifferentCode,
       floorNumber,
       floorDisplay,
       unitAreaM2,

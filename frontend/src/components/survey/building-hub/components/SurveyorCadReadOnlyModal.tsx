@@ -92,8 +92,9 @@ export const SurveyorCadReadOnlyModal: React.FC<SurveyorCadReadOnlyModalProps> =
 
     // 3. Từ danh sách căn hộ
     units.forEach((u) => {
-      if (typeof u.floor_number === 'number') {
-        floorSet.add(u.floor_number);
+      const fn = Number(u.floor_number);
+      if (!isNaN(fn)) {
+        floorSet.add(fn);
       }
     });
 
@@ -105,14 +106,14 @@ export const SurveyorCadReadOnlyModal: React.FC<SurveyorCadReadOnlyModalProps> =
 
     return sorted.map((floorNum) => {
       // Tìm plan tương ứng (ưu tiên plan trực tiếp, sau đó plan dùng chung)
-      const directPlan = plans.find((p) => p.floor_number === floorNum);
+      const directPlan = plans.find((p) => Number(p.floor_number) === Number(floorNum));
       const sharedPlan = plans.find(
-        (p) => p.floor_number !== floorNum && p.applicable_floors && p.applicable_floors.includes(floorNum)
+        (p) => Number(p.floor_number) !== Number(floorNum) && p.applicable_floors && p.applicable_floors.map(Number).includes(Number(floorNum))
       );
 
       const effectivePlan = directPlan || sharedPlan;
       const isInherited = !directPlan && Boolean(sharedPlan);
-      const floorUnits = units.filter((u) => (u.floor_number ?? 1) === floorNum);
+      const floorUnits = units.filter((u) => Number(u.floor_number ?? 1) === Number(floorNum));
 
       let defaultLabel = `Tầng ${floorNum}`;
       if (floorNum === 0) defaultLabel = 'Tầng Trệt / G';

@@ -26,13 +26,15 @@ export function deriveBuildingFloorNumbers(opts: FloorDerivationOptions): number
 
   // 1. Tầng từ các bản vẽ CAD đã cấu hình
   (opts.floorPlans || []).forEach((p) => {
-    if (typeof p.floor_number === 'number' && !isNaN(p.floor_number)) {
-      floorSet.add(p.floor_number);
+    const fn = Number(p.floor_number);
+    if (!isNaN(fn)) {
+      floorSet.add(fn);
     }
     if (Array.isArray(p.applicable_floors)) {
       p.applicable_floors.forEach((af) => {
-        if (typeof af === 'number' && !isNaN(af)) {
-          floorSet.add(af);
+        const afNum = Number(af);
+        if (!isNaN(afNum)) {
+          floorSet.add(afNum);
         }
       });
     }
@@ -40,16 +42,20 @@ export function deriveBuildingFloorNumbers(opts: FloorDerivationOptions): number
 
   // 2. Tầng từ danh sách các căn hộ / khu vực đã tạo (Đảm bảo CAD không bao giờ sót tầng so với Hub)
   (opts.units || []).forEach((u) => {
-    const fn = u.floor_number ?? u.floorNumber;
-    if (typeof fn === 'number' && !isNaN(fn)) {
-      floorSet.add(fn);
+    const raw = u.floor_number ?? u.floorNumber;
+    if (raw !== undefined && raw !== null) {
+      const fn = Number(raw);
+      if (!isNaN(fn)) {
+        floorSet.add(fn);
+      }
     }
   });
 
   // 3. Tầng tùy chỉnh đang thao tác trong phiên CAD
   (opts.customFloors || []).forEach((f) => {
-    if (typeof f === 'number' && !isNaN(f)) {
-      floorSet.add(f);
+    const fn = Number(f);
+    if (!isNaN(fn)) {
+      floorSet.add(fn);
     }
   });
 
@@ -106,11 +112,11 @@ export const detectDefaultFloorScope = (
 
 export const getDefaultFloorCode = (floorNum: number, floorName?: string): string => {
   const lower = (floorName || '').toLowerCase();
-  if (lower.includes('lửng') || lower.includes('mezzanine')) return 'MEZZ';
-  if (lower.includes('bán hầm') || lower.includes('semi-basement')) return 'SB';
+  if (floorNum === 0.5 || lower.includes('lửng') || lower.includes('mezzanine')) return 'MEZZ';
+  if (floorNum === -0.5 || lower.includes('bán hầm') || lower.includes('semi-basement')) return 'SB';
   if (floorNum < 0 || lower.includes('hầm') || lower.includes('basement')) {
     const match = lower.match(/(?:hầm|basement|b)\s*(\d+)/i);
-    const bNum = match ? parseInt(match[1], 10) : (floorNum < 0 ? Math.abs(floorNum) : 1);
+    const bNum = match ? parseInt(match[1], 10) : (floorNum < 0 ? Math.abs(Math.round(floorNum)) : 1);
     return `B${String(bNum).padStart(2, '0')}`;
   }
   if (lower.includes('kỹ thuật')) return 'TECH';
@@ -119,6 +125,6 @@ export const getDefaultFloorCode = (floorNum: number, floorName?: string): strin
   if (lower.includes('sân thượng')) return 'TERRACE';
   if (lower.includes('mái') || lower.includes('roof')) return 'ROOF';
   if (floorNum === 0 || lower.includes('trệt')) return 'G';
-  return `F${String(floorNum).padStart(2, '0')}`;
+  return `F${String(Math.floor(floorNum)).padStart(2, '0')}`;
 };
 

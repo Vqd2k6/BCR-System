@@ -301,18 +301,24 @@ export const Step4_StructuralElementsAndDefects: React.FC<Step4StructuralElement
                   </div>
                 </div>
 
-                {/* Nút đồng bộ cấu kiện */}
+                {/* Nút đồng bộ cấu kiện xuôi chiều */}
                 {!isReadOnly && structuralElements.length > 1 && (
                   <div className="flex justify-end">
-                    <button
-                      type="button"
-                      onClick={onSyncElementsToEntireArea}
-                      className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
-                      title="Áp dụng loại và vật liệu của cấu kiện này cho tất cả các cấu kiện E còn lại"
-                    >
-                      <RefreshCw className="w-3.5 h-3.5" />
-                      <span>Áp dụng thông số cho các cấu kiện E còn lại</span>
-                    </button>
+                    {activeElementIndex < structuralElements.length - 1 ? (
+                      <button
+                        type="button"
+                        onClick={onSyncElementsToEntireArea}
+                        className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
+                        title={`Áp dụng loại và vật liệu của ${activeElement.elementCode} cho ${structuralElements.length - 1 - activeElementIndex} cấu kiện E phía sau (bảo toàn 100% các cấu kiện phía trước)`}
+                      >
+                        <RefreshCw className="w-3.5 h-3.5" />
+                        <span>Áp dụng thông số cho các cấu kiện E phía sau ({structuralElements.length - 1 - activeElementIndex})</span>
+                      </button>
+                    ) : (
+                      <span className="text-[11px] text-slate-400 italic">
+                        (Cấu kiện cuối cùng, không có cấu kiện phía sau)
+                      </span>
+                    )}
                   </div>
                 )}
 

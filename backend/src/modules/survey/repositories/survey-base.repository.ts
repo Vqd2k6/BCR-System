@@ -261,22 +261,29 @@ export class SurveyBaseRepository {
           ]
         );
       } else {
-        // Căn hộ con: Cập nhật thông tin chủ hộ, CCCD, trạng thái cư trú và chuyển status sang 'SUBMITTED'
+        // Căn hộ con: Cập nhật thông tin chủ hộ, CCCD, trạng thái cư trú, biển số phòng thực tế và chuyển status sang 'SUBMITTED'
+        const rawJson = typeof submitData.surveyDataJson === 'string'
+          ? (() => { try { return JSON.parse(submitData.surveyDataJson); } catch { return null; } })()
+          : submitData.surveyDataJson;
+        const displayCodeVal = submitData.displayCode || submitData.display_code || rawJson?.displayCode || rawJson?.display_code || null;
+
         await client.query(
           `UPDATE building_units
            SET owner_name = COALESCE($1, owner_name),
                owner_phone = COALESCE($2, owner_phone),
                owner_id_card = COALESCE($3, owner_id_card),
                resident_status = COALESCE($4, resident_status),
+               display_code = COALESCE($5, display_code),
                status = 'SUBMITTED',
-               phase1_report_id = $5,
+               phase1_report_id = $6,
                updated_at = NOW()
-           WHERE id = (SELECT unit_id FROM base_survey_reports WHERE id = $5 AND unit_id IS NOT NULL);`,
+           WHERE id = (SELECT unit_id FROM base_survey_reports WHERE id = $6 AND unit_id IS NOT NULL);`,
           [
             submitData.ownerName || null,
             submitData.ownerPhone || null,
             submitData.ownerIdCard || null,
             submitData.residentStatus || null,
+            displayCodeVal,
             reportId,
           ]
         );

@@ -216,7 +216,7 @@ export const BuildingHubModal: React.FC<BuildingHubModalProps> = ({
           unit={selectedMasterAreaUnit}
           floorCadUrl={
             allFloorsData.find(
-              (f) => f.floorNumber === (selectedMasterAreaUnit.floor_number ?? selectedMasterAreaUnit.floorNumber)
+              (f) => Number(f.floorNumber) === Number(selectedMasterAreaUnit.floor_number ?? selectedMasterAreaUnit.floorNumber)
             )?.cadUrl
           }
           onClose={() => {

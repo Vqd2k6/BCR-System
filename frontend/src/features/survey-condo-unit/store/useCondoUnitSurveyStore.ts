@@ -36,6 +36,7 @@ const getDefaultCondoUnitFormData = (parcelId: string, unitId: string): CondoUni
     isConfirmed: false,
   },
   unitCode: '01.01',
+  displayCode: '',
   floorNumber: 1,
   ownerName: '',
   ownerPhone: '',
@@ -104,7 +105,9 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
     // Gán thông tin căn hộ
     if (unit) {
       data.unitCode = unit.unit_code || unit.unitCode || data.unitCode;
-      const parsedFloor = parseInt(String(unit.floor_number ?? unit.floorNumber ?? unit.floorLevel ?? unit.floor_level ?? '1').replace(/\D/g, ''), 10);
+      data.displayCode = unit.display_code || unit.displayCode || '';
+      const rawFloor = unit.floor_number ?? unit.floorNumber ?? unit.floorLevel ?? unit.floor_level ?? 1;
+      const parsedFloor = typeof rawFloor === 'number' ? rawFloor : parseFloat(String(rawFloor));
       data.floorNumber = isNaN(parsedFloor) ? 1 : parsedFloor;
       data.ownerName = unit.owner_name || unit.ownerName || '';
       data.ownerPhone = unit.owner_phone || unit.ownerPhone || '';

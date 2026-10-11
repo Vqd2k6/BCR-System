@@ -267,18 +267,24 @@ export const Step3_DamageZonesAndDefects: React.FC<Step3DamageZonesAndDefectsPro
               </div>
             </div>
 
-            {/* Nút đồng bộ vật liệu */}
+            {/* Nút đồng bộ vật liệu xuôi chiều */}
             {!isReadOnly && zones.length > 1 && (
               <div className="flex justify-end">
-                <button
-                  type="button"
-                  onClick={onSyncMaterialsToEntireArea}
-                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
-                  title="Áp dụng cấu kiện và vật liệu hiện tại cho tất cả các vùng Z còn lại"
-                >
-                  <RefreshCw className="w-3.5 h-3.5" />
-                  <span>Áp dụng vật liệu cho các vùng Z còn lại</span>
-                </button>
+                {activeZoneIndex < zones.length - 1 ? (
+                  <button
+                    type="button"
+                    onClick={onSyncMaterialsToEntireArea}
+                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
+                    title={`Áp dụng cấu kiện và vật liệu của ${activeZone.zoneCode} cho ${zones.length - 1 - activeZoneIndex} vùng Z phía sau (bảo toàn 100% các vùng phía trước)`}
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>Áp dụng vật liệu cho các vùng Z phía sau ({zones.length - 1 - activeZoneIndex})</span>
+                  </button>
+                ) : (
+                  <span className="text-[11px] text-slate-400 italic">
+                    (Vùng cuối cùng, không có vùng phía sau)
+                  </span>
+                )}
               </div>
             )}
 

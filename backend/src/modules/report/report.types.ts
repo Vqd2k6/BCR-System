@@ -420,6 +420,8 @@ export interface CondoUnitReportViewModel {
 
   // Căn hộ con (Child Unit specific)
   unitCode: string;
+  displayCode?: string;
+  isDifferentCode?: boolean;
   floorNumber: number | string;
   floorDisplay: string;
   unitAreaM2?: number | string;

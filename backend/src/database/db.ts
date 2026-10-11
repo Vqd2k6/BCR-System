@@ -1,5 +1,8 @@
-import { Pool, PoolClient, QueryResult, QueryResultRow } from 'pg';
+import { Pool, PoolClient, QueryResult, QueryResultRow, types } from 'pg';
 import { config } from '../config';
+
+// Tự động parse NUMERIC (OID 1700) sang JavaScript Float để tránh lỗi lệch kiểu string/number
+types.setTypeParser(1700, (val: string) => (val === null ? null : parseFloat(val)));
 
 // Khởi tạo PostgreSQL connection pool
 export const pool = new Pool(config.db);

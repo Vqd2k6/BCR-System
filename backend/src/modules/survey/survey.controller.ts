@@ -209,11 +209,15 @@ export class SurveyController {
         if (uuidRegex.test(unitId)) {
           cleanUnitId = unitId;
         } else {
-          // Tra cứu trong database theo mã căn hộ (unit_code)
+          // Tra cứu trong database theo mã căn hộ (unit_code) hoặc biển số (display_code) chính xác, loại bỏ ILIKE mờ
           const candidateCode = unitId.replace(/^u-/, 'P.');
           const rawCode = unitId.replace(/^u-/, '');
           const unitRow = await Database.query<{ id: string }>(
-            `SELECT id FROM building_units WHERE parcel_id = $1 AND (unit_code = $2 OR unit_code = $3 OR unit_code ILIKE '%' || $3 || '%') AND deleted_at IS NULL LIMIT 1;`,
+            `SELECT id FROM building_units 
+             WHERE parcel_id = $1 
+               AND (unit_code = $2 OR unit_code = $3 OR display_code = $2 OR display_code = $3) 
+               AND deleted_at IS NULL 
+             LIMIT 1;`,
             [parcelId, candidateCode, rawCode]
           );
           if (unitRow.rows[0]) {

@@ -80,10 +80,10 @@ export const CreateBuildingUnitDto = z.object({
 });
 
 export const UpsertFloorPlanDto = z.object({
-  floorNumber: z.number().int().min(-5, 'Tầng tối thiểu -5').max(100, 'Tầng tối đa 100'),
+  floorNumber: z.number().min(-5, 'Tầng tối thiểu -5').max(100, 'Tầng tối đa 100'),
   floorName: z.string().trim().min(1, 'Tên tầng bắt buộc').max(64, 'Tên tầng tối đa 64 ký tự'),
   floorCode: z.string().trim().max(32).optional(),
-  applicableFloors: z.array(z.number().int().min(-5).max(100)).optional(),
+  applicableFloors: z.array(z.number().min(-5).max(100)).optional(),
   cadPhotoUrl: z.string().max(10_000_000, 'Bản vẽ CAD không được vượt quá 10MB').default(''),
   cadPhotoCode: z.string().trim().max(32).optional().nullable(),
   imageWidth: z.number().int().positive().optional().nullable(),
@@ -95,7 +95,7 @@ export const UpsertFloorPlanDto = z.object({
 export const PartitionItemDto = z.object({
   unitCode: z.string().trim().min(1, 'Mã vị trí bắt buộc').max(32, 'Mã vị trí tối đa 32 ký tự'),
   displayCode: z.string().trim().max(32).optional().nullable(),
-  floorNumber: z.number().int().min(-5).max(100).optional(),
+  floorNumber: z.number().min(-5).max(100).optional(),
   bbox: CadBBoxDto.optional().nullable(),
   polygon: z.array(CadPolygonPointDto).optional().nullable(),
   unitCadUrl: z.string().max(10_000_000, 'Ảnh CAD trích xuất không được vượt quá 10MB').optional().nullable(),
@@ -103,13 +103,13 @@ export const PartitionItemDto = z.object({
 });
 
 export const SaveFloorPartitionsDto = z.object({
-  floorNumber: z.number().int().min(-5).max(100),
+  floorNumber: z.number().min(-5).max(100),
   floorPlanId: z.string().uuid().optional().nullable(),
   partitions: z.array(PartitionItemDto).max(500, 'Tối đa 500 phân vùng mỗi lần lưu'),
 });
 
 export const AtomicSyncFloorPlanAndPartitionsDto = z.object({
-  floorNumber: z.number().int().min(-5).max(100),
+  floorNumber: z.number().min(-5).max(100),
   floorPlan: UpsertFloorPlanDto,
   partitions: z.array(PartitionItemDto).max(500, 'Tối đa 500 phân vùng mỗi lần lưu'),
 });
@@ -129,8 +129,8 @@ export const ParcelParamDto = z.object({
 
 export const ParcelFloorParamDto = z.object({
   id: z.string().uuid('ID thửa đất không hợp lệ (phải là UUID)'),
-  floor: z.string().refine((val) => !isNaN(parseInt(val, 10)), {
-    message: 'Số tầng (floor) phải là số nguyên hợp lệ',
+  floor: z.string().refine((val) => !isNaN(parseFloat(val)), {
+    message: 'Số tầng (floor) phải là số hợp lệ',
   }),
 });
 

@@ -72,7 +72,7 @@ export const StructuralElementsSection: React.FC<StructuralElementsSectionProps>
     const remainingCount = structuralElements.length - 1;
     if (
       !confirm(
-        `Bạn có chắc muốn áp dụng loại "${activeElement.elementType || 'hiện tại'}" và vật liệu "${activeElement.materialType || 'hiện tại'}" của ${activeElement.elementCode} cho tất cả ${remainingCount} Cấu kiện E còn lại trên ${currentFloor.floorName}?`
+        `Bạn có chắc muốn áp dụng loại "${activeElement.elementType || 'hiện tại'}" và vật liệu "${activeElement.materialType || 'hiện tại'}" của ${activeElement.elementCode} cho ${remainingCount} Cấu kiện E phía sau trên ${currentFloor.floorName}?`
       )
     ) {
       return;
@@ -536,10 +536,10 @@ export const StructuralElementsSection: React.FC<StructuralElementsSectionProps>
                     type="button"
                     onClick={handleSyncToEntireFloor}
                     className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
-                    title="Đồng bộ cấu kiện và vật liệu của E-01 cho toàn bộ các Cấu kiện E còn lại trên tầng"
+                    title={`Đồng bộ loại và vật liệu của ${activeElement.elementCode} cho tất cả các Cấu kiện E phía sau trên tầng`}
                   >
                     <Sparkles className="w-3.5 h-3.5" />
-                    <span>Đồng bộ cho toàn tầng</span>
+                    <span>Áp dụng cho toàn bộ các E phía sau ({structuralElements.length - 1})</span>
                   </button>
                 </div>
               )}
@@ -550,10 +550,10 @@ export const StructuralElementsSection: React.FC<StructuralElementsSectionProps>
                     type="button"
                     onClick={handleSyncToDownstreamElements}
                     className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
-                    title={`Đồng bộ cấu kiện và vật liệu cho ${downstreamCount} Cấu kiện E phía sau (không ảnh hưởng các Cấu kiện E phía trước)`}
+                    title={`Đồng bộ loại và vật liệu cho ${downstreamCount} Cấu kiện E phía sau (bảo toàn 100% các Cấu kiện E phía trước)`}
                   >
                     <Sparkles className="w-3.5 h-3.5" />
-                    <span>Đồng bộ cho các E còn lại ({downstreamCount})</span>
+                    <span>Áp dụng cho các E phía sau ({downstreamCount})</span>
                   </button>
                 </div>
               )}

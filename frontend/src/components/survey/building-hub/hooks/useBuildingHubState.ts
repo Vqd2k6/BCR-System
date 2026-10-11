@@ -122,8 +122,11 @@ export const useBuildingHubState = ({ parcel, onUnitsUpdated }: UseBuildingHubSt
               effStatus = 'IN_PROGRESS';
             }
           }
+          const numFloor = Number(u.floor_number ?? u.floorNumber ?? 1);
           return {
             ...u,
+            floor_number: numFloor,
+            floorNumber: numFloor,
             status: effStatus,
           };
         });
@@ -147,7 +150,7 @@ export const useBuildingHubState = ({ parcel, onUnitsUpdated }: UseBuildingHubSt
   useEffect(() => {
     const rawDeleted = parcel.deletedFloors || parcel.deleted_floors;
     if (Array.isArray(rawDeleted)) {
-      setDeletedFloors(rawDeleted);
+      setDeletedFloors(rawDeleted.map(Number));
     }
   }, [parcel.deletedFloors, parcel.deleted_floors]);
 
@@ -156,7 +159,14 @@ export const useBuildingHubState = ({ parcel, onUnitsUpdated }: UseBuildingHubSt
     try {
       const res = await api.get(`/parcels/${parcel.id}/floor-plans`);
       if (res.data?.data?.plans && Array.isArray(res.data.data.plans)) {
-        setFloorPlans(res.data.data.plans);
+        const mappedPlans: FloorPlanData[] = res.data.data.plans.map((p: FloorPlanData) => ({
+          ...p,
+          floor_number: Number(p.floor_number),
+          applicable_floors: Array.isArray(p.applicable_floors)
+            ? p.applicable_floors.map(Number)
+            : [Number(p.floor_number)],
+        }));
+        setFloorPlans(mappedPlans);
       } else {
         setFloorPlans([]);
       }
@@ -243,16 +253,17 @@ export const useBuildingHubState = ({ parcel, onUnitsUpdated }: UseBuildingHubSt
   // Cấu trúc gom nhóm theo từng tầng (Floor-by-Floor Grouping)
   const allFloorsData = useMemo<FloorGroupData[]>(() => {
     return availableFloors.map((flNum) => {
-      const directPlan = floorPlans.find((p) => p.floor_number === flNum);
+      const flNumber = Number(flNum);
+      const directPlan = floorPlans.find((p) => Number(p.floor_number) === flNumber);
       const sharedPlan = floorPlans.find(
-        (p) => p.floor_number !== flNum && Array.isArray(p.applicable_floors) && p.applicable_floors.includes(flNum)
+        (p) => Number(p.floor_number) !== flNumber && Array.isArray(p.applicable_floors) && p.applicable_floors.map(Number).includes(flNumber)
       );
       const effectivePlan = directPlan || sharedPlan;
       const isInherited = !directPlan && Boolean(sharedPlan);
 
       const floorUnits = units.filter((u) => {
-        const fn = u.floor_number ?? u.floorNumber ?? 1;
-        return fn === flNum;
+        const fn = Number(u.floor_number ?? u.floorNumber ?? 1);
+        return fn === flNumber;
       });
 
       let defaultLabel = `Tầng ${flNum}`;
@@ -312,8 +323,9 @@ export const useBuildingHubState = ({ parcel, onUnitsUpdated }: UseBuildingHubSt
         .map((fl) => {
           const matchedUnits = fl.units.filter((u) => {
             const code = (u.unit_code || u.unitCode || '').toLowerCase();
+            const display = (u.display_code || u.displayCode || '').toLowerCase();
             const owner = (u.owner_name || u.ownerName || '').toLowerCase();
-            return code.includes(q) || owner.includes(q);
+            return code.includes(q) || display.includes(q) || owner.includes(q);
           });
           return {
             ...fl,
@@ -355,14 +367,16 @@ export const useBuildingHubState = ({ parcel, onUnitsUpdated }: UseBuildingHubSt
       if (activeHubTab === 'UNIT' && isMaster) return false;
 
       const code = u.unit_code || u.unitCode || '';
+      const display = u.display_code || u.displayCode || '';
       const owner = u.owner_name || u.ownerName || '';
       const matchesSearch =
         !searchTerm.trim() ||
         code.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        display.toLowerCase().includes(searchTerm.toLowerCase()) ||
         owner.toLowerCase().includes(searchTerm.toLowerCase());
 
-      const floor = u.floor_number ?? u.floorNumber ?? 1;
-      const matchesFloor = selectedFloor === 'ALL' || floor === selectedFloor;
+      const floor = Number(u.floor_number ?? u.floorNumber ?? 1);
+      const matchesFloor = selectedFloor === 'ALL' || floor === Number(selectedFloor);
       const matchesStatus =
         selectedStatus === 'ALL' ||
         (selectedStatus === 'APPROVED' && u.status === 'APPROVED') ||
@@ -374,8 +388,8 @@ export const useBuildingHubState = ({ parcel, onUnitsUpdated }: UseBuildingHubSt
       return matchesSearch && matchesFloor && matchesStatus;
     })
     .sort((a, b) => {
-      const floorA = a.floor_number ?? a.floorNumber ?? 1;
-      const floorB = b.floor_number ?? b.floorNumber ?? 1;
+      const floorA = Number(a.floor_number ?? a.floorNumber ?? 1);
+      const floorB = Number(b.floor_number ?? b.floorNumber ?? 1);
       if (floorA !== floorB) return floorA - floorB;
       const codeA = a.unit_code || a.unitCode || '';
       const codeB = b.unit_code || b.unitCode || '';

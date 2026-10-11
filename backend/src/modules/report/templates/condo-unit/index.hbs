@@ -27,7 +27,7 @@
 
     <!-- Tiêu đề chính Báo cáo Template 2 -->
     <div class="report-main-title">BÁO CÁO KHẢO SÁT HIỆN TRẠNG CĂN HỘ</div>
-    <div class="report-sub-title">CĂN HỘ SỐ: {{unitCode}} • {{floorDisplay}} • KHỐI THÁP: {{buildingName}}</div>
+    <div class="report-sub-title">CĂN HỘ SỐ: {{displayCode}}{{#if isDifferentCode}} <span style="font-size: 11px; font-weight: normal; color: #64748b;">(Vị trí quy hoạch CAD: {{unitCode}})</span>{{/if}} • {{floorDisplay}} • KHỐI THÁP: {{buildingName}}</div>
 
     <!-- KHUNG DẪN CHIẾU KẾ THỪA PHÁP LÝ TÒA MẸ -->
     <div class="inheritance-box">
@@ -42,10 +42,10 @@
     <div class="section-title">I. THÔNG TIN CĂN HỘ & CHỦ SỞ HỮU / CƯ NGỤ</div>
     <table class="data-table">
       <tr>
-        <td style="width: 25%; font-weight: bold; background-color: #f8fafc;">Mã căn hộ</td>
-        <td style="width: 25%; font-weight: bold; color: #0d9488;">{{unitCode}}</td>
-        <td style="width: 25%; font-weight: bold; background-color: #f8fafc;">Vị trí tầng / lầu</td>
-        <td style="width: 25%;">{{floorDisplay}}</td>
+        <td style="width: 25%; font-weight: bold; background-color: #f8fafc;">Biển số căn hộ (Thực tế)</td>
+        <td style="width: 25%; font-weight: bold; color: #0d9488; font-size: 14px;">{{displayCode}}</td>
+        <td style="width: 25%; font-weight: bold; background-color: #f8fafc;">Vị trí quy hoạch CAD / Tầng</td>
+        <td style="width: 25%;">{{unitCode}} ({{floorDisplay}})</td>
       </tr>
       <tr>
         <td style="font-weight: bold; background-color: #f8fafc;">Chủ sở hữu / Người đại diện</td>

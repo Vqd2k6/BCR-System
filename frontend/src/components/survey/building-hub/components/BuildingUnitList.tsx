@@ -292,7 +292,7 @@ export const BuildingUnitList: React.FC<BuildingUnitListProps> = ({
             unit={activeUnit}
             parcel={parcel}
             floorLabel={
-              allFloorsData.find((f) => f.floorNumber === (activeUnit.floor_number ?? 1))?.floorName ||
+              allFloorsData.find((f) => Number(f.floorNumber) === Number(activeUnit.floor_number ?? 1))?.floorName ||
               `Tầng ${activeUnit.floor_number ?? 1}`
             }
             isMasterSurveyDone={isMasterSurveyDone}
