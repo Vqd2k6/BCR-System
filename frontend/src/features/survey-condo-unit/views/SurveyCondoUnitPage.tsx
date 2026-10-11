@@ -17,6 +17,7 @@ import { HandoverTakeoverModal } from '../../survey-phase1/components/HandoverTa
 export interface SurveyCondoUnitPageProps {
   parcel?: GisParcel | null;
   unit?: BuildingUnit | null;
+  readOnly?: boolean;
   onBackToHome: () => void;
   onFinished?: () => void;
 }
@@ -24,6 +25,7 @@ export interface SurveyCondoUnitPageProps {
 export const SurveyCondoUnitPage: React.FC<SurveyCondoUnitPageProps> = ({
   parcel,
   unit,
+  readOnly = false,
   onBackToHome,
   onFinished,
 }) => {
@@ -56,18 +58,24 @@ export const SurveyCondoUnitPage: React.FC<SurveyCondoUnitPageProps> = ({
   });
   const lastInitializedKeyRef = React.useRef<string>('');
 
+  const unitStatus = unit?.status || formData?.status;
+  const isSubmittedOrApproved = unitStatus === 'SUBMITTED' || unitStatus === 'APPROVED';
+  const effectiveReadOnly = Boolean(readOnly || isSubmittedOrApproved);
+
   useEffect(() => {
     if (parcel) {
       const currentKey = `${parcel.id}_${unit?.id || 'none'}`;
       if (lastInitializedKeyRef.current !== currentKey) {
         lastInitializedKeyRef.current = currentKey;
         initializeForm(parcel, unit);
-        const unitStatus = unit?.status;
-        const isLocked = unitStatus === 'SUBMITTED' || unitStatus === 'APPROVED';
-        setIsReadOnly(isLocked);
       }
     }
-  }, [parcel?.id, unit?.id, unit?.status, initializeForm, setIsReadOnly]);
+  }, [parcel?.id, unit?.id, initializeForm]);
+
+  useEffect(() => {
+    setIsReadOnly(effectiveReadOnly);
+    return () => setIsReadOnly(false);
+  }, [effectiveReadOnly, setIsReadOnly]);
 
   // Cuộn mượt lên đầu trang khi chuyển bước
   useEffect(() => {
@@ -81,6 +89,10 @@ export const SurveyCondoUnitPage: React.FC<SurveyCondoUnitPageProps> = ({
     window.history.pushState({ condoUnitSessionActive: true }, '');
 
     const handlePopState = () => {
+      if (effectiveReadOnly) {
+        onBackToHome();
+        return;
+      }
       const confirmLeave = window.confirm(
         'Bạn có chắc chắn muốn quay lại và tạm rời phiên khảo sát căn hộ? Dữ liệu đang nhập đã được lưu nháp an toàn.'
       );
@@ -94,9 +106,13 @@ export const SurveyCondoUnitPage: React.FC<SurveyCondoUnitPageProps> = ({
 
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, [onBackToHome]);
+  }, [effectiveReadOnly, onBackToHome, syncDraftToServer]);
 
   const handleSafeBackToHome = () => {
+    if (effectiveReadOnly) {
+      onBackToHome();
+      return;
+    }
     const confirmLeave = window.confirm(
       'Bạn có chắc chắn muốn quay về danh sách căn hộ? Toàn bộ dữ liệu khảo sát đã được tự động lưu nháp an toàn.'
     );

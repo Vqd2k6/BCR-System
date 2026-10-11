@@ -29,12 +29,6 @@ export const createFormSlice: StateCreator<
   setIsSubmitted: (isSubmitted: boolean) => set({ isSubmitted }),
 
   initializeForm: (parcel: GisParcel, unit?: BuildingUnit | null) => {
-    set({ isSubmitted: false, isLockedByOther: false, lockedInfo: null, isHandoverModalOpen: false });
-    const unitId = unit ? unit.id : null;
-    const draftKey = `metro2_phase1_draft_${parcel.id}${unitId ? `_${unitId}` : ''}`;
-    let initialData = getDefaultInitialFormData(parcel.id);
-    let initialStep = 1;
-
     const isSubmittedOrApproved =
       parcel.surveyStatus === 'SUBMITTED' ||
       parcel.surveyStatus === 'APPROVED' ||
@@ -44,8 +38,20 @@ export const createFormSlice: StateCreator<
       parcel.survey_status === 'APPROVED' ||
       Boolean(unit && (unit.status === 'SUBMITTED' || unit.status === 'APPROVED' || unit.status === 'COMPLETED'));
 
-    // 1. Thử khôi phục nhanh đồng bộ từ localStorage (chỉ khi không ở chế độ Read-Only)
-    if (!get().isReadOnly) {
+    set({
+      isReadOnly: Boolean(get().isReadOnly || isSubmittedOrApproved),
+      isSubmitted: isSubmittedOrApproved,
+      isLockedByOther: false,
+      lockedInfo: null,
+      isHandoverModalOpen: false,
+    });
+    const unitId = unit ? unit.id : null;
+    const draftKey = `metro2_phase1_draft_${parcel.id}${unitId ? `_${unitId}` : ''}`;
+    let initialData = getDefaultInitialFormData(parcel.id);
+    let initialStep = 1;
+
+    // 1. Thử khôi phục nhanh đồng bộ từ localStorage (chỉ khi không ở chế độ Read-Only và chưa nộp)
+    if (!get().isReadOnly && !isSubmittedOrApproved) {
       try {
         const saved = localStorage.getItem(draftKey);
         if (saved) {
@@ -153,8 +159,8 @@ export const createFormSlice: StateCreator<
       lastSavedAt: new Date().toLocaleTimeString('vi-VN'),
     });
 
-    // 3. Tải bất đồng bộ draft đầy đủ từ IndexedDB (chỉ khi không ở chế độ Read-Only)
-    if (!get().isReadOnly) {
+    // 3. Tải bất đồng bộ draft đầy đủ từ IndexedDB (chỉ khi không ở chế độ Read-Only và chưa nộp)
+    if (!get().isReadOnly && !isSubmittedOrApproved) {
       loadSurveyDraft<Phase1SurveyFormData & { _savedStep?: number }>(draftKey)
         .then((fullDraft) => {
           if (fullDraft && fullDraft.parcelId === parcel.id) {

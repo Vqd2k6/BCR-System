@@ -76,12 +76,11 @@ export const SurveyCondoMasterPage: React.FC<SurveyCondoMasterPageProps> = ({
         (parcel as unknown as { survey_status?: string })?.survey_status === 'APPROVED'
       );
 
-  const isSurveyor = user?.role === 'SURVEYOR';
   const isZoneAdmin = user?.role === 'ZONE_ADMIN' || user?.role === 'SUPER_ADMIN';
 
-  // Triple-lock readOnly: Nếu đã nộp, Surveyor bắt buộc CHỈ ĐƯỢC XEM LẠI. Chỉ Zone Admin mới được điều chỉnh.
-  const effectiveReadOnly = Boolean(readOnly || (isSubmittedOrApproved && isSurveyor));
-  const isZoneAdminAdjusting = Boolean(isSubmittedOrApproved && isZoneAdmin);
+  // Triple-lock readOnly: Nếu đã nộp hoặc phê duyệt, BẤT KỲ VAI TRÒ NÀO (kể cả Zone Admin / Super Admin) vào xem đều là CHỈ ĐỌC (Read-Only)
+  const effectiveReadOnly = Boolean(readOnly || isSubmittedOrApproved);
+  const isZoneAdminAdjusting = Boolean(isSubmittedOrApproved && isZoneAdmin && !effectiveReadOnly);
 
   // Khởi tạo form và Hydrate 100% dữ liệu đã nộp từ DB qua API
   useEffect(() => {
@@ -111,7 +110,7 @@ export const SurveyCondoMasterPage: React.FC<SurveyCondoMasterPageProps> = ({
       setCurrentStep(1);
 
       // Nạp hồ sơ Tòa Mẹ thực tế từ Backend (Khép kín DB -> BE -> FE, ưu tiên draft nếu không ở chế độ chỉ đọc)
-      const fetchUrl = `/parcels/${parcel.id}/phase1-report?reportType=BUILDING_MASTER${!readOnly ? '&preferDraft=true' : ''}`;
+      const fetchUrl = `/parcels/${parcel.id}/phase1-report?reportType=BUILDING_MASTER${!effectiveReadOnly ? '&preferDraft=true' : ''}`;
       api.get<{ data?: ServerPhase1ReportResponse; report?: ServerPhase1ReportResponse['report'] }>(fetchUrl)
         .then((res) => {
           const resData = res?.data?.data || res?.data;

@@ -554,7 +554,12 @@ export const App: React.FC = () => {
                     item.unit_code === nav.unitId ||
                     item.unitCode === nav.unitId
                 );
-                if (u) updateSelectedUnit(u);
+                if (u) {
+                  updateSelectedUnit(u);
+                  if (u.status === 'SUBMITTED' || u.status === 'APPROVED') {
+                    setIsReadOnlySurvey(true);
+                  }
+                }
               }
             }).catch((err: unknown) => {
               console.warn('[App] Lỗi tải unit từ URL:', err);
@@ -749,8 +754,7 @@ export const App: React.FC = () => {
         parcel.surveyStatus === 'APPROVED' ||
         (parcel as unknown as { survey_status?: string }).survey_status === 'SUBMITTED' ||
         (parcel as unknown as { survey_status?: string }).survey_status === 'APPROVED';
-      const isSurveyor = user?.role === 'SURVEYOR';
-      const effectiveReadOnly = readOnly !== undefined ? readOnly : Boolean(isSubmitted && isSurveyor);
+      const effectiveReadOnly = readOnly !== undefined ? readOnly : isSubmitted;
 
       setIsReadOnlySurvey(effectiveReadOnly);
       updateSelectedParcel(parcel);
@@ -767,6 +771,8 @@ export const App: React.FC = () => {
 
   const handleStartCondoUnit = (parcel: GisParcel, unit: BuildingUnit) => {
     triggerSurveyWithCheckInGuard(() => {
+      const isUnitSubmitted = unit.status === 'SUBMITTED' || unit.status === 'APPROVED';
+      setIsReadOnlySurvey(isUnitSubmitted);
       updateSelectedParcel(parcel);
       updateSelectedUnit(unit);
       setActiveTab('condo-unit');
@@ -774,7 +780,7 @@ export const App: React.FC = () => {
         tab: 'condo-unit',
         parcelId: parcel.id,
         unitId: unit.id,
-        readOnly: false,
+        readOnly: isUnitSubmitted,
       }, { replace: false });
     });
   };
@@ -782,6 +788,8 @@ export const App: React.FC = () => {
   const handleStartUnitSurvey = (parcel: GisParcel, unit: BuildingUnit, phase: 1 | 2 = 1) => {
     const targetTab: NavTab = phase === 2 ? 'phase2' : 'condo-unit';
     triggerSurveyWithCheckInGuard(() => {
+      const isUnitSubmitted = unit.status === 'SUBMITTED' || unit.status === 'APPROVED';
+      setIsReadOnlySurvey(isUnitSubmitted);
       updateSelectedParcel(parcel);
       updateSelectedUnit(unit);
       setActiveTab(targetTab);
@@ -789,7 +797,7 @@ export const App: React.FC = () => {
         tab: targetTab,
         parcelId: parcel.id,
         unitId: unit.id,
-        readOnly: false,
+        readOnly: isUnitSubmitted,
       }, { replace: false });
     });
   };
@@ -1030,6 +1038,7 @@ export const App: React.FC = () => {
             <SurveyCondoUnitPage
               parcel={selectedParcelForSurvey}
               unit={selectedUnitForSurvey}
+              readOnly={isReadOnlySurvey}
               onBackToHome={() => {
                 navigateBackFromSurvey();
                 setHubParcel(selectedParcelForSurvey);

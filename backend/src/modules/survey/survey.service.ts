@@ -534,6 +534,22 @@ export class SurveyService {
           `Căn hộ này đã ở trạng thái ${unitStatus === 'SUBMITTED' ? 'ĐÃ NỘP (SUBMITTED)' : 'ĐÃ DUYỆT (APPROVED)'}. Không thể lưu thêm bản nháp.`
         );
       }
+    } else {
+      const parcelCheck = await Database.query<{ survey_status: string }>(
+        `SELECT survey_status FROM parcels WHERE id = $1;`,
+        [data.parcelId]
+      );
+      const parcelStatus = parcelCheck.rows[0]?.survey_status;
+      if (
+        parcelStatus === 'SUBMITTED' ||
+        parcelStatus === 'APPROVED' ||
+        parcelStatus === 'PHASE2_COMPLETED' ||
+        parcelStatus === 'APPROVED_PHASE2'
+      ) {
+        throw new BadRequestError(
+          `Hồ sơ khối tháp/thửa đất này đã ở trạng thái ${parcelStatus}. Không thể lưu thêm bản nháp tự động.`
+        );
+      }
     }
 
     const existing = await SurveyRepository.findActiveDraft(data.parcelId, data.unitId);

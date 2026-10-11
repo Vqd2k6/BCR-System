@@ -518,10 +518,13 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
       if (unit.status) data.status = unit.status;
     }
 
-    // Khôi phục bản nháp nếu có
-    try {
-      const saved = localStorage.getItem(draftKey);
-      if (saved) {
+    const isSubmittedOrApprovedUnit = unit?.status === 'SUBMITTED' || unit?.status === 'APPROVED';
+
+    // Khôi phục bản nháp nếu có (chỉ khi căn hộ chưa nộp hoặc chưa duyệt)
+    if (!isSubmittedOrApprovedUnit) {
+      try {
+        const saved = localStorage.getItem(draftKey);
+        if (saved) {
         const parsed = JSON.parse(saved);
         if (parsed.parcelId === pId && parsed.unitId === uId) {
           if (parsed.upperFloorWaterLeakage) {
@@ -624,16 +627,19 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
         }
       }
     } catch (_e) {}
+    }
 
-    // Lưu ngay vào danh sách đang làm dở trên local
-    try {
-      const inProgressKey = `metro2_condo_in_progress_units_${pId}`;
-      const list: string[] = JSON.parse(localStorage.getItem(inProgressKey) || '[]');
-      if (unit?.id && !list.includes(unit.id)) {
-        list.push(unit.id);
-        localStorage.setItem(inProgressKey, JSON.stringify(list));
-      }
-    } catch (_e) {}
+    // Lưu ngay vào danh sách đang làm dở trên local (chỉ khi căn hộ đang khảo sát)
+    if (!isSubmittedOrApprovedUnit) {
+      try {
+        const inProgressKey = `metro2_condo_in_progress_units_${pId}`;
+        const list: string[] = JSON.parse(localStorage.getItem(inProgressKey) || '[]');
+        if (unit?.id && !list.includes(unit.id)) {
+          list.push(unit.id);
+          localStorage.setItem(inProgressKey, JSON.stringify(list));
+        }
+      } catch (_e) {}
+    }
 
     // Xác định targetStep an toàn tránh bị reset về bước 1
     const savedStepKey = `metro2_condo_unit_step_${pId}_${uId}`;
@@ -772,15 +778,24 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
                     sData.surveyDate = sigs.surveyDate || rObj.survey_date;
                   }
 
+                  isHydratingDraft = true;
+                  const finalStatus = rObj.status || cur.status || 'SUBMITTED';
                   get().updateFormData({
                     ...sData,
+                    status: finalStatus,
                     parentInfo: {
                       ...cur.parentInfo,
                       ...(sData.parentInfo || {}),
                     },
                   });
+                  isHydratingDraft = false;
+                  if (debounceTimer) {
+                    clearTimeout(debounceTimer);
+                    debounceTimer = null;
+                  }
                   set({
                     syncStatus: 'SAVED',
+                    isReadOnly: finalStatus === 'SUBMITTED' || finalStatus === 'APPROVED',
                     lastSavedAt: rObj.updated_at
                       ? new Date(rObj.updated_at).toLocaleTimeString('vi-VN')
                       : new Date().toLocaleTimeString('vi-VN'),
@@ -962,27 +977,40 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
     }
 
     const time = new Date().toLocaleTimeString('vi-VN');
+    const isSubmittedOrReadOnly = get().isReadOnly || next.status === 'SUBMITTED' || next.status === 'APPROVED';
 
-    // Lưu bản nháp cục bộ
-    try {
-      const draftKey = `metro2_condo_unit_draft_${next.parcelId}_${next.unitId}`;
-      localStorage.setItem(draftKey, JSON.stringify(next));
+    // Lưu bản nháp cục bộ (chỉ khi không phải hồ sơ đã nộp / chỉ xem)
+    if (!isSubmittedOrReadOnly) {
+      try {
+        const draftKey = `metro2_condo_unit_draft_${next.parcelId}_${next.unitId}`;
+        localStorage.setItem(draftKey, JSON.stringify(next));
 
-      const inProgressKey = `metro2_condo_in_progress_units_${next.parcelId}`;
-      const list: string[] = JSON.parse(localStorage.getItem(inProgressKey) || '[]');
-      if (!list.includes(next.unitId)) {
-        list.push(next.unitId);
-        localStorage.setItem(inProgressKey, JSON.stringify(list));
-      }
-    } catch (_e) {}
+        const inProgressKey = `metro2_condo_in_progress_units_${next.parcelId}`;
+        const list: string[] = JSON.parse(localStorage.getItem(inProgressKey) || '[]');
+        if (!list.includes(next.unitId)) {
+          list.push(next.unitId);
+          localStorage.setItem(inProgressKey, JSON.stringify(list));
+        }
+      } catch (_e) {}
+    } else {
+      // Nếu đã nộp hoặc chỉ xem, dọn sạch khỏi danh sách inProgress để Hub không bị hiển thị sai
+      try {
+        const inProgressKey = `metro2_condo_in_progress_units_${next.parcelId}`;
+        const list: string[] = JSON.parse(localStorage.getItem(inProgressKey) || '[]');
+        if (list.includes(next.unitId)) {
+          const filtered = list.filter((id) => id !== next.unitId);
+          localStorage.setItem(inProgressKey, JSON.stringify(filtered));
+        }
+      } catch (_e) {}
+    }
 
     set({
       formData: next,
       lastSavedAt: time,
     });
 
-    // Debounce auto-save lên máy chủ (1500ms) - Bỏ qua nếu đang nạp draft
-    if (isHydratingDraft) {
+    // Debounce auto-save lên máy chủ (1500ms) - Bỏ qua nếu đang nạp draft hoặc là Read-Only / đã nộp
+    if (isHydratingDraft || isSubmittedOrReadOnly) {
       if (debounceTimer) {
         clearTimeout(debounceTimer);
         debounceTimer = null;

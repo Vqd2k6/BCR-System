@@ -29,7 +29,7 @@ interface Props {
 }
 
 export const Step4_UnitSignatures: React.FC<Props> = ({ onSubmitFinal, isSubmitting }) => {
-  const { formData, updateFormData, prevStep } = useCondoUnitSurveyStore();
+  const { formData, updateFormData, prevStep, isReadOnly } = useCondoUnitSurveyStore();
   const validation = validateCondoUnitFull(formData);
 
   const bCode = formData.parentInfo?.projectParcelCode || 'GENERAL';
@@ -383,15 +383,22 @@ export const Step4_UnitSignatures: React.FC<Props> = ({ onSubmitFinal, isSubmitt
           Bước 3 (Khuyết tật & Kết cấu)
         </Button>
 
-        <Button
-          size="lg"
-          className="bg-teal-600 hover:bg-teal-700 text-white shadow-md cursor-pointer min-h-[44px]"
-          disabled={isSubmitting}
-          onClick={onSubmitFinal}
-          icon={<Send className="w-4 h-4" />}
-        >
-          {isSubmitting ? 'Đang nộp hồ sơ...' : 'Hoàn Tất & Nộp Hồ Sơ Căn Hộ'}
-        </Button>
+        {isReadOnly ? (
+          <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-100 text-slate-700 font-bold text-sm border border-slate-300">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+            <span>Hồ sơ đã nộp thành công (Chế độ xem lại)</span>
+          </div>
+        ) : (
+          <Button
+            size="lg"
+            className="bg-teal-600 hover:bg-teal-700 text-white shadow-md cursor-pointer min-h-[44px]"
+            disabled={isSubmitting}
+            onClick={onSubmitFinal}
+            icon={<Send className="w-4 h-4" />}
+          >
+            {isSubmitting ? 'Đang nộp hồ sơ...' : 'Hoàn Tất & Nộp Hồ Sơ Căn Hộ'}
+          </Button>
+        )}
       </div>
     </div>
   );
