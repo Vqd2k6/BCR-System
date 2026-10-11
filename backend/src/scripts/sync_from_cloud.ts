@@ -239,6 +239,22 @@ async function syncFromCloud() {
     await localClient.query('BEGIN;');
     await localClient.query("SET session_replication_role = 'replica';");
 
+    // 1. Làm sạch toàn bộ các bảng đồng thời trước khi nạp (Tránh TRUNCATE CASCADE làm mất bảng chèn trước)
+    const tablesToTruncate: string[] = [];
+    for (const table of TABLES_TO_SYNC) {
+      const tableExistsCheck = await localClient.query(`
+        SELECT 1 FROM information_schema.tables 
+        WHERE table_schema = 'public' AND table_name = $1;
+      `, [table]);
+      if (tableExistsCheck.rows.length > 0) {
+        tablesToTruncate.push(`public."${table}"`);
+      }
+    }
+    if (tablesToTruncate.length > 0) {
+      await localClient.query(`TRUNCATE TABLE ${tablesToTruncate.join(', ')} CASCADE;`);
+    }
+
+    // 2. Nạp dữ liệu vào từng bảng
     for (const table of TABLES_TO_SYNC) {
       const rows = snapshotArchive[table] || [];
 
@@ -251,8 +267,6 @@ async function syncFromCloud() {
       if (tableExistsCheck.rows.length === 0) {
         continue;
       }
-
-      await localClient.query(`TRUNCATE TABLE public."${table}" CASCADE;`);
 
       if (rows.length === 0) {
         console.log(`   ├─ [${table}]: 0 bản ghi (bỏ qua insert)`);
