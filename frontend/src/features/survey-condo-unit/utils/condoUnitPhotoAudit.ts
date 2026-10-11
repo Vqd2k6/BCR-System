@@ -168,6 +168,18 @@ export function auditCondoUnitPhotos(formData: CondoUnitFormData): CondoUnitPhot
   // Cấu kiện E
   if (formData.hasStructuralElements !== false) {
     (formData.structuralElements || []).forEach((e, eIdx) => {
+      (e.overviewPhotos || []).forEach((pUrl, pIdx) => {
+        addPhoto(
+          `elem_${e.elementCode}_ov_${pIdx}`,
+          `elem_${eIdx}_ov_${pIdx}`,
+          3,
+          'Bước 3: CAD & Khuyết tật',
+          `Ảnh toàn cảnh ${e.elementCode} (${e.elementType || 'Cấu kiện'}) #${pIdx + 1}`,
+          pUrl,
+          `${e.elementCode}_OV_${pIdx + 1}`
+        );
+      });
+
       if (e.ctxPhotoUrl) {
         addPhoto(
           `elem_${e.elementCode}_ctx`,
@@ -192,6 +204,19 @@ export function auditCondoUnitPhotos(formData: CondoUnitFormData): CondoUnitPhot
             `${d.defectCode}_CU`
           );
         }
+        (d.cuPhotos || []).forEach((extraUrl, eIdx) => {
+          if (extraUrl && extraUrl !== d.cuPhotoUrl) {
+            addPhoto(
+              `elem_${e.elementCode}_defect_${d.defectCode}_extra_${eIdx}`,
+              `elem_${eIdx}_defect_${dIdx}_extra_${eIdx}`,
+              3,
+              'Bước 3: CAD & Khuyết tật',
+              `Ảnh chi tiết phụ ${d.defectCode} #${eIdx + 1}`,
+              extraUrl,
+              `${d.defectCode}_EXTRA_${eIdx + 1}`
+            );
+          }
+        });
       });
     });
   }

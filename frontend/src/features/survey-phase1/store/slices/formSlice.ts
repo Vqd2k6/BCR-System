@@ -44,8 +44,8 @@ export const createFormSlice: StateCreator<
       parcel.survey_status === 'APPROVED' ||
       Boolean(unit && (unit.status === 'SUBMITTED' || unit.status === 'APPROVED' || unit.status === 'COMPLETED'));
 
-    // 1. Thử khôi phục nhanh đồng bộ từ localStorage (chỉ khi chưa nộp hồ sơ)
-    if (!isSubmittedOrApproved) {
+    // 1. Thử khôi phục nhanh đồng bộ từ localStorage (chỉ khi không ở chế độ Read-Only)
+    if (!get().isReadOnly) {
       try {
         const saved = localStorage.getItem(draftKey);
         if (saved) {
@@ -58,7 +58,7 @@ export const createFormSlice: StateCreator<
             console.log('[SurveyPhase1Store] Restored fast draft from LocalStorage:', draftKey);
           }
         }
-      } catch (e) {
+      } catch (e: unknown) {
         console.warn('[SurveyPhase1Store] Failed to restore localStorage draft:', e);
       }
     }
@@ -153,14 +153,19 @@ export const createFormSlice: StateCreator<
       lastSavedAt: new Date().toLocaleTimeString('vi-VN'),
     });
 
-    // 3. Tải bất đồng bộ draft đầy đủ từ IndexedDB (chỉ khi hồ sơ chưa nộp)
-    if (!isSubmittedOrApproved) {
+    // 3. Tải bất đồng bộ draft đầy đủ từ IndexedDB (chỉ khi không ở chế độ Read-Only)
+    if (!get().isReadOnly) {
       loadSurveyDraft<Phase1SurveyFormData & { _savedStep?: number }>(draftKey)
         .then((fullDraft) => {
           if (fullDraft && fullDraft.parcelId === parcel.id) {
             const targetStep = fullDraft._savedStep !== undefined && fullDraft._savedStep >= 1 && fullDraft._savedStep <= 8 ? fullDraft._savedStep : undefined;
             set((state) => {
               const merged = { ...state.formData, ...fullDraft };
+              if (!merged.photoP01?.url && state.formData.photoP01?.url) merged.photoP01 = state.formData.photoP01;
+              if (!merged.photoP02?.url && state.formData.photoP02?.url) merged.photoP02 = state.formData.photoP02;
+              if (!merged.photoP03?.url && state.formData.photoP03?.url) merged.photoP03 = state.formData.photoP03;
+              if (!merged.photoP04?.url && state.formData.photoP04?.url) merged.photoP04 = state.formData.photoP04;
+
               const recalculatedEcs = calculateEcsScore(merged);
               const recalculatedVi = calculateViScore(merged, recalculatedEcs);
               merged.ecs = recalculatedEcs;
@@ -174,7 +179,7 @@ export const createFormSlice: StateCreator<
             console.log('[SurveyPhase1Store] Full rich draft restored from IndexedDB:', draftKey, 'savedStep:', targetStep);
           }
         })
-        .catch((err) => {
+        .catch((err: unknown) => {
           console.warn('[SurveyPhase1Store] IDB load draft error:', err);
         });
 
@@ -218,6 +223,11 @@ export const createFormSlice: StateCreator<
 
             set((state) => {
               const merged = { ...state.formData, ...serverData };
+              if (!merged.photoP01?.url && state.formData.photoP01?.url) merged.photoP01 = state.formData.photoP01;
+              if (!merged.photoP02?.url && state.formData.photoP02?.url) merged.photoP02 = state.formData.photoP02;
+              if (!merged.photoP03?.url && state.formData.photoP03?.url) merged.photoP03 = state.formData.photoP03;
+              if (!merged.photoP04?.url && state.formData.photoP04?.url) merged.photoP04 = state.formData.photoP04;
+
               const recalculatedEcs = calculateEcsScore(merged);
               const recalculatedVi = calculateViScore(merged, recalculatedEcs);
               merged.ecs = recalculatedEcs;
@@ -238,7 +248,7 @@ export const createFormSlice: StateCreator<
             console.log('[SurveyPhase1Store] Server draft restored successfully:', serverRes.draft.reportId);
           }
         })
-        .catch((err) => {
+        .catch((err: unknown) => {
           console.warn('[SurveyPhase1Store] Failed to fetch server draft:', err);
           set({ syncStatus: 'OFFLINE' });
         });
@@ -274,7 +284,22 @@ export const createFormSlice: StateCreator<
 
   loadReportData: (serverFormData) => {
     set((state) => {
-      const newFormData = { ...state.formData, ...serverFormData };
+      // SAFE MERGE: Nếu state.formData đã có ảnh mà serverFormData bị rỗng, bảo toàn ảnh hiện có
+      const mergedPayload = { ...serverFormData };
+      if (!mergedPayload.photoP01?.url && state.formData.photoP01?.url) {
+        mergedPayload.photoP01 = state.formData.photoP01;
+      }
+      if (!mergedPayload.photoP02?.url && state.formData.photoP02?.url) {
+        mergedPayload.photoP02 = state.formData.photoP02;
+      }
+      if (!mergedPayload.photoP03?.url && state.formData.photoP03?.url) {
+        mergedPayload.photoP03 = state.formData.photoP03;
+      }
+      if (!mergedPayload.photoP04?.url && state.formData.photoP04?.url) {
+        mergedPayload.photoP04 = state.formData.photoP04;
+      }
+
+      const newFormData = { ...state.formData, ...mergedPayload };
       const ecs = calculateEcsScore(newFormData);
       const vi = calculateViScore(newFormData, ecs);
       newFormData.ecs = ecs;

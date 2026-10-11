@@ -64,14 +64,17 @@ export const SurveyCondoMasterPage: React.FC<SurveyCondoMasterPageProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [serverReport, setServerReport] = useState<ServerPhase1ReportResponse['report'] | null>(null);
 
-  // Xác định trạng thái đã nộp
-  const isSubmittedOrApproved =
-    parcel?.surveyStatus === 'SUBMITTED' ||
-    parcel?.surveyStatus === 'APPROVED' ||
-    (parcel as unknown as { survey_status?: string })?.survey_status === 'SUBMITTED' ||
-    (parcel as unknown as { survey_status?: string })?.survey_status === 'APPROVED' ||
-    serverReport?.status === 'SUBMITTED' ||
-    serverReport?.status === 'APPROVED';
+  // Xác định trạng thái đã nộp:
+  // Nếu đã nạp serverReport -> Ưu tiên trạng thái của serverReport (DRAFT thì cho phép sửa tiếp)
+  // Nếu chưa nạp serverReport -> Fallback trạng thái từ parcel
+  const isSubmittedOrApproved = serverReport
+    ? (serverReport.status === 'SUBMITTED' || serverReport.status === 'APPROVED')
+    : Boolean(
+        parcel?.surveyStatus === 'SUBMITTED' ||
+        parcel?.surveyStatus === 'APPROVED' ||
+        (parcel as unknown as { survey_status?: string })?.survey_status === 'SUBMITTED' ||
+        (parcel as unknown as { survey_status?: string })?.survey_status === 'APPROVED'
+      );
 
   const isSurveyor = user?.role === 'SURVEYOR';
   const isZoneAdmin = user?.role === 'ZONE_ADMIN' || user?.role === 'SUPER_ADMIN';
@@ -107,10 +110,9 @@ export const SurveyCondoMasterPage: React.FC<SurveyCondoMasterPageProps> = ({
       // Bắt đầu từ Bước 1 để người dùng confirm thông tin định danh
       setCurrentStep(1);
 
-      // Nạp hồ sơ Tòa Mẹ thực tế từ Backend (Khép kín DB -> BE -> FE)
-      api.get<{ data?: ServerPhase1ReportResponse; report?: ServerPhase1ReportResponse['report'] }>(
-        `/parcels/${parcel.id}/phase1-report?reportType=BUILDING_MASTER`
-      )
+      // Nạp hồ sơ Tòa Mẹ thực tế từ Backend (Khép kín DB -> BE -> FE, ưu tiên draft nếu không ở chế độ chỉ đọc)
+      const fetchUrl = `/parcels/${parcel.id}/phase1-report?reportType=BUILDING_MASTER${!readOnly ? '&preferDraft=true' : ''}`;
+      api.get<{ data?: ServerPhase1ReportResponse; report?: ServerPhase1ReportResponse['report'] }>(fetchUrl)
         .then((res) => {
           const resData = res?.data?.data || res?.data;
           const rep = resData?.report;
@@ -127,7 +129,7 @@ export const SurveyCondoMasterPage: React.FC<SurveyCondoMasterPageProps> = ({
                 if (rawJson && typeof rawJson === 'object') {
                   Object.assign(updates, rawJson);
                 }
-              } catch (jsonErr) {
+              } catch (jsonErr: unknown) {
                 console.warn('[SurveyCondoMasterPage] Lỗi parse survey_data_json:', jsonErr);
               }
             }
@@ -144,24 +146,44 @@ export const SurveyCondoMasterPage: React.FC<SurveyCondoMasterPageProps> = ({
               if (s.building_height_m && !updates.buildingHeightM) updates.buildingHeightM = Number(s.building_height_m);
             }
 
+            // Bảo toàn ảnh định danh P01 - P04 từ bảng survey_identification_photos
             if (rep.identificationPhotos && Array.isArray(rep.identificationPhotos) && rep.identificationPhotos.length > 0) {
               (rep.identificationPhotos as Array<Record<string, unknown>>).forEach((p) => {
-                if (p.photo_type === 'P01_HOUSE_NUMBER' && !updates.photoP01) {
-                  updates.photoP01 = { url: String(p.raw_photo_url || ''), notApplicable: Boolean(p.is_not_applicable) };
-                } else if (p.photo_type === 'P02_MAIN_FACADE' && !updates.photoP02) {
-                  updates.photoP02 = {
-                    url: String(p.raw_photo_url || ''),
-                    notApplicable: Boolean(p.is_not_applicable),
-                    polygonPoints: (p.facade_polygon_points_json as { x: number; y: number }[]) || [],
-                    floorSplits: p.floor_split_lines_json || [],
-                    widthM: '',
-                    heightM: '',
-                  };
-                } else if (p.photo_type === 'P03_SIDE_OR_REAR' && !updates.photoP03) {
-                  const dim = p.dimensions_json as { tag?: string } | undefined;
-                  updates.photoP03 = { url: String(p.raw_photo_url || ''), notApplicable: Boolean(p.is_not_applicable), tag: dim?.tag || 'Bên hông trái' };
-                } else if (p.photo_type === 'P04_CONTEXT_STREET' && !updates.photoP04) {
-                  updates.photoP04 = { url: String(p.raw_photo_url || ''), notApplicable: Boolean(p.is_not_applicable) };
+                const rawUrl = String(p.raw_photo_url || '');
+                const isNotApp = Boolean(p.is_not_applicable);
+
+                if (p.photo_type === 'P01_HOUSE_NUMBER') {
+                  const cur = updates.photoP01 as { url?: string } | undefined;
+                  if (!cur?.url && rawUrl) {
+                    updates.photoP01 = { url: rawUrl, notApplicable: isNotApp };
+                  }
+                } else if (p.photo_type === 'P02_MAIN_FACADE') {
+                  const cur = updates.photoP02 as { url?: string; polygonPoints?: unknown[]; floorSplits?: unknown[]; widthM?: string; heightM?: string } | undefined;
+                  if (!cur?.url && rawUrl) {
+                    updates.photoP02 = {
+                      url: rawUrl,
+                      notApplicable: isNotApp,
+                      polygonPoints: (p.facade_polygon_points_json as { x: number; y: number }[]) || cur?.polygonPoints || [],
+                      floorSplits: p.floor_split_lines_json || cur?.floorSplits || [],
+                      widthM: cur?.widthM || '',
+                      heightM: cur?.heightM || '',
+                    };
+                  }
+                } else if (p.photo_type === 'P03_SIDE_OR_REAR') {
+                  const cur = updates.photoP03 as { url?: string; tag?: string } | undefined;
+                  if (!cur?.url && rawUrl) {
+                    const dim = p.dimensions_json as { tag?: string } | undefined;
+                    updates.photoP03 = {
+                      url: rawUrl,
+                      notApplicable: isNotApp,
+                      tag: dim?.tag || cur?.tag || 'Bên hông trái',
+                    };
+                  }
+                } else if (p.photo_type === 'P04_CONTEXT_STREET') {
+                  const cur = updates.photoP04 as { url?: string } | undefined;
+                  if (!cur?.url && rawUrl) {
+                    updates.photoP04 = { url: rawUrl, notApplicable: isNotApp };
+                  }
                 }
               });
             }
@@ -172,11 +194,11 @@ export const SurveyCondoMasterPage: React.FC<SurveyCondoMasterPageProps> = ({
             }
           }
         })
-        .catch((err) => {
+        .catch((err: unknown) => {
           console.warn('[SurveyCondoMasterPage] Không thể nạp hồ sơ khảo sát toà mẹ từ máy chủ:', err);
         });
     }
-  }, [parcel?.id, effectiveReadOnly]);
+  }, [parcel?.id, effectiveReadOnly, readOnly]);
 
   // Đồng bộ effectiveReadOnly vào Zustand store
   useEffect(() => {

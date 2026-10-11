@@ -11,6 +11,8 @@ import { validateCondoUnitFull, type CondoUnitValidationIssue } from '../utils/c
 import type { GisParcel, BuildingUnit } from '../../../core/types/domain.types';
 import { api } from '../../../services/api';
 import { sanitizeSurveyDataForSync } from '../../../core/services/uploadQueueService';
+import { ActiveSurveyorLockedModal } from '../../survey-phase1/components/ActiveSurveyorLockedModal';
+import { HandoverTakeoverModal } from '../../survey-phase1/components/HandoverTakeoverModal';
 
 export interface SurveyCondoUnitPageProps {
   parcel?: GisParcel | null;
@@ -32,6 +34,15 @@ export const SurveyCondoUnitPage: React.FC<SurveyCondoUnitPageProps> = ({
     initializeForm,
     clearDraft,
     syncDraftToServer,
+    isLockedByOther,
+    lockedInfo,
+    closeLockedModal,
+    isHandoverModalOpen,
+    handoverInfo,
+    closeHandoverModal,
+    takeoverDraft,
+    checkDraftLock,
+    setIsReadOnly,
   } = useCondoUnitSurveyStore();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [missingModalState, setMissingModalState] = useState<{
@@ -52,14 +63,11 @@ export const SurveyCondoUnitPage: React.FC<SurveyCondoUnitPageProps> = ({
         lastInitializedKeyRef.current = currentKey;
         initializeForm(parcel, unit);
         const unitStatus = unit?.status;
-        if (unitStatus !== 'SUBMITTED' && unitStatus !== 'APPROVED') {
-          setTimeout(() => {
-            void syncDraftToServer();
-          }, 100);
-        }
+        const isLocked = unitStatus === 'SUBMITTED' || unitStatus === 'APPROVED';
+        setIsReadOnly(isLocked);
       }
     }
-  }, [parcel?.id, unit?.id]);
+  }, [parcel?.id, unit?.id, unit?.status, initializeForm, setIsReadOnly]);
 
   // Cuộn mượt lên đầu trang khi chuyển bước
   useEffect(() => {
@@ -208,6 +216,28 @@ export const SurveyCondoUnitPage: React.FC<SurveyCondoUnitPageProps> = ({
           void executeSubmit();
         }}
         onGoToStep={handleGoToStep}
+      />
+
+      {/* Modal Bàn Giao Ca / Tiếp Quản Hồ Sơ Nháp Căn Hộ Con */}
+      <HandoverTakeoverModal
+        isOpen={isHandoverModalOpen}
+        handoverInfo={handoverInfo}
+        onTakeover={takeoverDraft}
+        onCancel={() => {
+          closeHandoverModal();
+          onBackToHome();
+        }}
+      />
+
+      {/* Modal Cảnh Báo Khóa Phiên Khảo Sát Căn Hộ Con */}
+      <ActiveSurveyorLockedModal
+        isOpen={isLockedByOther}
+        lockedInfo={lockedInfo}
+        onClose={() => {
+          closeLockedModal();
+          onBackToHome();
+        }}
+        onRecheck={checkDraftLock}
       />
     </div>
   );

@@ -4,6 +4,7 @@ import { Card } from '../../../core/components/ui/Card';
 import { Button } from '../../../core/components/ui/Button';
 import { Input, Select } from '../../../core/components/ui/FormControls';
 import { PhotoCaptureInput } from '../../../components/common/PhotoCaptureInput';
+import { TapToZoomThumbnail } from '../../../components/common/TapToZoomThumbnail';
 import { DefectPinningModal } from '../../survey-phase1/components/step3/DefectPinningModal';
 import { FloorCadPinningCanvas, getNextAvailablePinCode } from '../../../components/canvas/FloorCadPinningCanvas';
 import {
@@ -188,8 +189,10 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
 
   // Xử lý tự động ghim & sinh Vùng Z trên sơ đồ CAD kiến trúc (FloorCadPinningCanvas)
   const handleAutoCreateZonePin = (pin: CadZonePin) => {
-    const prevZones = formData.zones || [];
-    const currentPins = formData.cadZonePins || [];
+    // Luôn lấy state mới nhất từ Store để tránh closure cũ / bất đồng bộ với FloorCadPinningCanvas
+    const latestState = useCondoUnitSurveyStore.getState().formData;
+    const prevZones = latestState.zones || [];
+    const currentPins = latestState.cadZonePins || [];
     const hasPin = currentPins.some((p) => p.id === pin.id || p.zoneCode === pin.zoneCode);
     const updatedPins = hasPin ? currentPins : [...currentPins, pin];
 
@@ -208,7 +211,7 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
     const newZone: DamageZoneData = {
       id: `zone_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
       zoneCode: pin.zoneCode,
-      floorName: `Tầng ${formData.floorNumber || 1}`,
+      floorName: `Tầng ${latestState.floorNumber || 1}`,
       roomName: prevZone?.roomName || 'Phòng khách',
       customRoomName: prevZone?.customRoomName || '',
       componentType: prevZone?.componentType || 'Tường gạch vữa xi măng (Tường bao / ngăn)',
@@ -230,7 +233,8 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
   };
 
   const handleDeleteZonePin = (pin: CadZonePin) => {
-    const prevZones = formData.zones || [];
+    const latestState = useCondoUnitSurveyStore.getState().formData;
+    const prevZones = latestState.zones || [];
     const targetIdx = prevZones.findIndex((z) => z.zoneCode === pin.zoneCode);
     if (targetIdx !== -1) {
       removeZone(targetIdx);
@@ -241,7 +245,8 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
   };
 
   const handleRenameZonePin = (oldCode: string, newCode: string) => {
-    const prevZones = formData.zones || [];
+    const latestState = useCondoUnitSurveyStore.getState().formData;
+    const prevZones = latestState.zones || [];
     const targetIdx = prevZones.findIndex((z) => z.zoneCode === oldCode);
     if (targetIdx !== -1) {
       updateZone(targetIdx, { zoneCode: newCode });
@@ -259,8 +264,9 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
 
   // Xử lý tự động ghim & sinh Cấu kiện E trên sơ đồ CAD kết cấu (FloorCadPinningCanvas)
   const handleAutoCreateElementPin = (pin: CadZonePin) => {
-    const prevElements = formData.structuralElements || [];
-    const currentPins = formData.cadElementPins || [];
+    const latestState = useCondoUnitSurveyStore.getState().formData;
+    const prevElements = latestState.structuralElements || [];
+    const currentPins = latestState.cadElementPins || [];
     const hasPin = currentPins.some((p) => p.id === pin.id || p.zoneCode === pin.zoneCode);
     const updatedPins = hasPin ? currentPins : [...currentPins, pin];
 
@@ -278,7 +284,7 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
     const newElement: StructuralElementData = {
       id: `element_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
       elementCode: pin.zoneCode,
-      floorName: `Tầng ${formData.floorNumber || 1}`,
+      floorName: `Tầng ${latestState.floorNumber || 1}`,
       roomName: prevEl?.roomName || 'Phòng khách',
       customRoomName: prevEl?.customRoomName || '',
       elementType: prevEl?.elementType || 'Cột BTCT (Cột chịu lực chính)',
@@ -300,7 +306,8 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
   };
 
   const handleDeleteElementPin = (pin: CadZonePin) => {
-    const prevElements = formData.structuralElements || [];
+    const latestState = useCondoUnitSurveyStore.getState().formData;
+    const prevElements = latestState.structuralElements || [];
     const targetIdx = prevElements.findIndex((e) => e.elementCode === pin.zoneCode);
     if (targetIdx !== -1) {
       removeElement(targetIdx);
@@ -311,7 +318,8 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
   };
 
   const handleRenameElementPin = (oldCode: string, newCode: string) => {
-    const prevElements = formData.structuralElements || [];
+    const latestState = useCondoUnitSurveyStore.getState().formData;
+    const prevElements = latestState.structuralElements || [];
     const targetIdx = prevElements.findIndex((e) => e.elementCode === oldCode);
     if (targetIdx !== -1) {
       updateElement(targetIdx, { elementCode: newCode });
@@ -818,18 +826,28 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
 
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   {(activeZone.overviewPhotos || []).map((url, i) => (
-                    <div key={i} className="relative rounded-lg overflow-hidden border border-slate-300 h-24">
-                      <img src={url} alt={`Overview ${i + 1}`} className="w-full h-full object-cover" />
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const updated = (activeZone.overviewPhotos || []).filter((_, idx) => idx !== i);
-                          updateZone(activeZoneIndex, { overviewPhotos: updated });
-                        }}
-                        className="absolute top-1 right-1 p-1 bg-rose-600 text-white rounded text-xs cursor-pointer shadow"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                    <div key={i} className="relative rounded-lg overflow-hidden border border-slate-300">
+                      <TapToZoomThumbnail
+                        src={url}
+                        alt={`Overview ${i + 1}`}
+                        label={`Ảnh ${i + 1}`}
+                        photoCode={`${activeZone.zoneCode}_OVERVIEW_${i + 1}`}
+                        aspectClass="h-24 aspect-auto"
+                        actions={
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const updated = (activeZone.overviewPhotos || []).filter((_, idx) => idx !== i);
+                              updateZone(activeZoneIndex, { overviewPhotos: updated });
+                            }}
+                            className="p-1 bg-rose-600 text-white rounded text-xs cursor-pointer shadow hover:bg-rose-700"
+                            title="Xóa ảnh"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        }
+                      />
                     </div>
                   ))}
                   <PhotoCaptureInput
@@ -969,12 +987,14 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
 
                             <div className="flex items-center gap-1.5 shrink-0">
                               {d.cuPhotoUrl && (
-                                <img
-                                  src={d.cuPhotoUrl}
-                                  alt="CU"
-                                  title="Ảnh cận cảnh có thước đo"
-                                  className="w-10 h-10 rounded object-cover border border-rose-300"
-                                />
+                                <div className="w-10 h-10 rounded border border-rose-300 overflow-hidden shrink-0">
+                                  <TapToZoomThumbnail
+                                    src={d.cuPhotoUrl}
+                                    alt="CU"
+                                    title="Ảnh cận cảnh có thước đo"
+                                    aspectClass="w-full h-full"
+                                  />
+                                </div>
                               )}
                               <button
                                 type="button"
@@ -1295,12 +1315,14 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
 
                                 <div className="flex items-center gap-1.5 shrink-0">
                                   {d.cuPhotoUrl && (
-                                    <img
-                                      src={d.cuPhotoUrl}
-                                      alt="CU"
-                                      title="Ảnh cận cảnh thước đo"
-                                      className="w-10 h-10 rounded object-cover border border-amber-300"
-                                    />
+                                    <div className="w-10 h-10 rounded border border-amber-300 overflow-hidden shrink-0">
+                                      <TapToZoomThumbnail
+                                        src={d.cuPhotoUrl}
+                                        alt="CU"
+                                        title="Ảnh cận cảnh thước đo"
+                                        aspectClass="w-full h-full"
+                                      />
+                                    </div>
                                   )}
                                   <button
                                     type="button"

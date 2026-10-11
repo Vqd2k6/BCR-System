@@ -98,6 +98,7 @@ export interface HistoryInterviewState {
 export interface CondoUnitFormData {
   parcelId: string;
   unitId: string;
+  status?: 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED' | string;
 
   // 1. Thông tin thừa kế từ tòa cha (Read-only for confirmation)
   parentInfo: {

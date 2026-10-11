@@ -31,14 +31,26 @@ export class SurveyDraftRepository {
     if (unitId) {
       params.push(unitId);
       query += ` AND r.unit_id = $${params.length}`;
-      query += ` AND NOT EXISTS (
-        SELECT 1 FROM building_units bu 
-        WHERE bu.id = r.unit_id AND bu.status::text IN ('SUBMITTED', 'APPROVED', 'PHASE2_COMPLETED', 'APPROVED_PHASE2')
+      query += ` AND (
+        NOT EXISTS (
+          SELECT 1 FROM building_units bu 
+          WHERE bu.id = r.unit_id AND bu.status::text IN ('SUBMITTED', 'APPROVED', 'PHASE2_COMPLETED', 'APPROVED_PHASE2')
+        )
+        OR r.updated_at > COALESCE(
+          (SELECT MAX(submitted_at) FROM base_survey_reports b WHERE b.unit_id = r.unit_id AND b.status IN ('SUBMITTED', 'APPROVED')),
+          '1970-01-01'::timestamptz
+        )
       )`;
     } else {
       query += ` AND r.unit_id IS NULL`;
       if (phase === 'PHASE_1') {
-        query += ` AND p.survey_status::text NOT IN ('SUBMITTED', 'APPROVED', 'PHASE2_COMPLETED', 'APPROVED_PHASE2')`;
+        query += ` AND (
+          p.survey_status::text NOT IN ('SUBMITTED', 'APPROVED', 'PHASE2_COMPLETED', 'APPROVED_PHASE2')
+          OR r.updated_at > COALESCE(
+            (SELECT MAX(submitted_at) FROM base_survey_reports b WHERE b.parcel_id = r.parcel_id AND b.unit_id IS NULL AND b.status IN ('SUBMITTED', 'APPROVED')),
+            '1970-01-01'::timestamptz
+          )
+        )`;
       }
     }
 
@@ -92,7 +104,12 @@ export class SurveyDraftRepository {
                  WHEN survey_status::text IN ('SUBMITTED', 'APPROVED', 'PHASE2_COMPLETED', 'APPROVED_PHASE2') THEN survey_status 
                  ELSE 'IN_PROGRESS' 
                END, 
-               active_phase1_report_id = COALESCE(active_phase1_report_id, $2),
+               active_phase1_report_id = CASE 
+                 WHEN active_phase1_report_id IS NOT NULL 
+                   AND EXISTS (SELECT 1 FROM base_survey_reports WHERE id = parcels.active_phase1_report_id) 
+                 THEN active_phase1_report_id 
+                 ELSE $2 
+               END, 
                updated_at = NOW() 
            WHERE id = $1;`,
           [resolvedParcelId, existing.id]
@@ -105,7 +122,12 @@ export class SurveyDraftRepository {
                  WHEN status::text IN ('SUBMITTED', 'APPROVED', 'PHASE2_COMPLETED', 'APPROVED_PHASE2') THEN status 
                  ELSE 'IN_PROGRESS' 
                END, 
-               phase1_report_id = COALESCE(phase1_report_id, $2),
+               phase1_report_id = CASE 
+                 WHEN phase1_report_id IS NOT NULL 
+                   AND EXISTS (SELECT 1 FROM base_survey_reports WHERE id = building_units.phase1_report_id) 
+                 THEN phase1_report_id 
+                 ELSE $2 
+               END, 
                updated_at = NOW() 
            WHERE id = $1;`,
           [data.unitId, existing.id]
@@ -162,7 +184,10 @@ export class SurveyDraftRepository {
                  ELSE 'IN_PROGRESS' 
                END, 
                active_phase1_report_id = CASE 
-                 WHEN survey_status::text IN ('SUBMITTED', 'APPROVED', 'PHASE2_COMPLETED', 'APPROVED_PHASE2') THEN active_phase1_report_id 
+                 WHEN survey_status::text IN ('SUBMITTED', 'APPROVED', 'PHASE2_COMPLETED', 'APPROVED_PHASE2') 
+                   AND active_phase1_report_id IS NOT NULL 
+                   AND EXISTS (SELECT 1 FROM base_survey_reports WHERE id = parcels.active_phase1_report_id) 
+                 THEN active_phase1_report_id 
                  ELSE $2 
                END, 
                updated_at = NOW() 
@@ -178,7 +203,10 @@ export class SurveyDraftRepository {
                  ELSE 'IN_PROGRESS' 
                END, 
                phase1_report_id = CASE 
-                 WHEN status::text IN ('SUBMITTED', 'APPROVED', 'PHASE2_COMPLETED', 'APPROVED_PHASE2') THEN phase1_report_id 
+                 WHEN status::text IN ('SUBMITTED', 'APPROVED', 'PHASE2_COMPLETED', 'APPROVED_PHASE2') 
+                   AND phase1_report_id IS NOT NULL 
+                   AND EXISTS (SELECT 1 FROM base_survey_reports WHERE id = building_units.phase1_report_id) 
+                 THEN phase1_report_id 
                  ELSE $2 
                END, 
                updated_at = NOW() 

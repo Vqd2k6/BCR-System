@@ -9,6 +9,7 @@ import {
   deleteOfflinePhoto,
   revokeManagedBlobUrl,
   replaceLocalUriInObject,
+  saveUploadedPhotoMapping,
 } from '../storage/offlinePhotoStorage';
 
 export type UploadStatus = 'QUEUED' | 'UPLOADING' | 'SUCCESS' | 'ERROR';
@@ -92,9 +93,13 @@ class UploadQueueService {
 
   /**
    * Tự động thay thế URL blob:local:// bằng URL Cloudflare R2 trong các Zustand Store đang mở
+   * và trong TOÀN BỘ các bản nháp đang lưu trong localStorage
    * Hỗ trợ đồng bộ tự động 100% cho Phase 1, Condo Unit và Condo Master
    */
   public async promoteUrlInStores(localId: string, publicUrl: string): Promise<void> {
+    // 0. Lưu persistent mapping vào localStorage (Đảm bảo 100% không mất ảnh kể cả sau F5 hoặc đóng app)
+    saveUploadedPhotoMapping(localId, publicUrl);
+
     // 1. Thăng cấp trong Phase 1 Store
     try {
       const { usePhase1SurveyStore } = await import('../../features/survey-phase1/store/usePhase1SurveyStore');
@@ -125,7 +130,28 @@ class UploadQueueService {
       }
     } catch (_err) {}
 
-    // 4. Phát sự kiện toàn cục ra Window
+    // 4. Quét và cập nhật bền vững vào TOÀN BỘ các bản nháp trong localStorage
+    // (Bảo vệ trường hợp KSV vừa chụp ảnh ở Căn hộ A xong chuyển sang Căn hộ B hoặc về Hub)
+    if (typeof window !== 'undefined' && window.localStorage) {
+      try {
+        const targetUri = `blob:local://${localId}`;
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && k.startsWith('metro2_') && k.includes('_draft_')) {
+            const raw = localStorage.getItem(k);
+            if (raw && raw.includes(targetUri)) {
+              try {
+                const parsed = JSON.parse(raw);
+                const updated = replaceLocalUriInObject(parsed, localId, publicUrl);
+                localStorage.setItem(k, JSON.stringify(updated));
+              } catch (_e) {}
+            }
+          }
+        }
+      } catch (_storageErr) {}
+    }
+
+    // 5. Phát sự kiện toàn cục ra Window
     if (typeof window !== 'undefined') {
       window.dispatchEvent(
         new CustomEvent('metro2:photo-promoted', {
@@ -297,11 +323,7 @@ class UploadQueueService {
       formData.append('metadata', JSON.stringify(task.metadata));
     }
 
-    const res = await api.post('/storage/upload', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
+    const res = await api.post('/storage/upload', formData);
 
     const data = res.data?.data;
     if (!data || !data.url) {
