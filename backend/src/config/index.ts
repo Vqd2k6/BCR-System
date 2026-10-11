@@ -50,7 +50,7 @@ function resolveDatabaseConfig() {
   let user = process.env.DB_USER || 'metro2_user';
 
   if (host.includes('.supabase.co')) {
-    const match = host.match(/^db\.([a-zA-Z0-9_-]+)\.supabase\.co$/);
+    const match = host.match(/db\.([a-zA-Z0-9_-]+)\.supabase\.co/);
     if (match) {
       const ref = match[1];
       host = 'aws-0-ap-southeast-1.pooler.supabase.com';
