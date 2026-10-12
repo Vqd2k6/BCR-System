@@ -299,10 +299,53 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
     if (formData.isCadOverriddenByUser) return;
     try {
       setIsLoadingFloorPlan(true);
-      const res = await api.get(`/parcels/${formData.parcelId}/floor-plans/${formData.floorNumber}`);
-      if (res.data?.success && res.data.data) {
-        setFloorPlanData(res.data.data);
-        const { plan, units } = res.data.data;
+      let data = null;
+
+      // 1. Thử lấy trực tiếp theo formData.floorNumber
+      if (formData.floorNumber !== undefined && formData.floorNumber !== null) {
+        try {
+          const res = await api.get(`/parcels/${formData.parcelId}/floor-plans/${formData.floorNumber}`);
+          if (res.data?.success && res.data.data?.plan) {
+            data = res.data.data;
+          }
+        } catch (_err) {
+          // Bỏ qua để fallback
+        }
+      }
+
+      // 2. Fallback nếu không tìm thấy theo floorNumber: dò trong danh sách các tầng của thửa đất
+      if (!data?.plan?.cad_photo_url) {
+        const plansRes = await api.get(`/parcels/${formData.parcelId}/floor-plans`);
+        const rawPlans: Array<{ floor_number: number }> = Array.isArray(plansRes.data?.data?.plans)
+          ? plansRes.data.data.plans
+          : Array.isArray(plansRes.data?.data)
+          ? plansRes.data.data
+          : [];
+
+        for (const fp of rawPlans) {
+          try {
+            const pRes = await api.get(`/parcels/${formData.parcelId}/floor-plans/${fp.floor_number}`);
+            const pUnits = pRes.data?.data?.units;
+            if (Array.isArray(pUnits) && pUnits.length > 0) {
+              const matched = pUnits.find(
+                (u: FloorPlanUnitItem) =>
+                  u.unit_code === formData.unitCode ||
+                  u.unit_code?.endsWith(formData.unitCode) ||
+                  (Boolean(formData.displayCode?.trim()) &&
+                    (u.display_code === formData.displayCode || u.unit_code === formData.displayCode))
+              );
+              if (matched) {
+                data = pRes.data.data;
+                break;
+              }
+            }
+          } catch (_) {}
+        }
+      }
+
+      if (data) {
+        setFloorPlanData(data);
+        const { plan, units } = data;
         if (units && units.length > 0) {
           const matched = units.find(
             (u: FloorPlanUnitItem) =>
@@ -330,7 +373,7 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
         }
       }
     } catch (_err) {
-      console.warn('[CondoUnit] Chưa có floor plan hoặc lỗi nạp mặt bằng tầng');
+      console.warn('[CondoUnit] Chưa có floor plan hoặc lỗi nạp mặt bằng tầng:', _err);
     } finally {
       setIsLoadingFloorPlan(false);
     }
@@ -362,8 +405,13 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
     if (!formData.parcelId) return;
     try {
       const res = await api.get(`/parcels/${formData.parcelId}/floor-plans`);
-      if (res.data?.success && Array.isArray(res.data.data)) {
-        const plans: CadCropFloorPlanItem[] = res.data.data
+      const rawPlans = Array.isArray(res.data?.data?.plans)
+        ? res.data.data.plans
+        : Array.isArray(res.data?.data)
+        ? res.data.data
+        : [];
+      if (rawPlans.length > 0) {
+        const plans: CadCropFloorPlanItem[] = rawPlans
           .filter((fp: { cad_photo_url?: string }) => Boolean(fp.cad_photo_url))
           .map((fp: { id?: string; floor_number: number; floor_name?: string; cad_photo_url: string; floor_code?: string }) => ({
             id: fp.id || `fp_${fp.floor_number}`,
@@ -423,16 +471,56 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
     setIsCroppingCad(true);
     try {
       let data = floorPlanData;
-      if (!data) {
-        const res = await api.get(`/parcels/${formData.parcelId}/floor-plans/${formData.floorNumber}`);
-        if (res.data?.success && res.data.data) {
-          data = res.data.data;
-          setFloorPlanData(data);
+      if (!data || !data.plan?.cad_photo_url) {
+        // 1. Thử lấy theo formData.floorNumber
+        if (formData.floorNumber !== undefined && formData.floorNumber !== null) {
+          try {
+            const res = await api.get(`/parcels/${formData.parcelId}/floor-plans/${formData.floorNumber}`);
+            if (res.data?.success && res.data.data?.plan?.cad_photo_url) {
+              data = res.data.data;
+              setFloorPlanData(data);
+            }
+          } catch (_err) {
+            // Tiếp tục fallback bên dưới
+          }
+        }
+
+        // 2. Nếu vẫn chưa có plan, tìm trong các tầng của tòa nhà tầng nào chứa unitCode này
+        if (!data?.plan?.cad_photo_url) {
+          const plansRes = await api.get(`/parcels/${formData.parcelId}/floor-plans`);
+          const rawPlans: Array<{ floor_number: number }> = Array.isArray(plansRes.data?.data?.plans)
+            ? plansRes.data.data.plans
+            : Array.isArray(plansRes.data?.data)
+            ? plansRes.data.data
+            : [];
+
+          for (const fp of rawPlans) {
+            try {
+              const pRes = await api.get(`/parcels/${formData.parcelId}/floor-plans/${fp.floor_number}`);
+              if (pRes.data?.success && pRes.data.data?.plan?.cad_photo_url) {
+                const pUnits: FloorPlanUnitItem[] = pRes.data.data.units || [];
+                const matched = pUnits.find(
+                  (u: FloorPlanUnitItem) =>
+                    u.unit_code === formData.unitCode ||
+                    u.unit_code?.endsWith(formData.unitCode) ||
+                    (Boolean(formData.displayCode?.trim()) &&
+                      (u.display_code === formData.displayCode || u.unit_code === formData.displayCode))
+                );
+                if (matched) {
+                  data = pRes.data.data;
+                  setFloorPlanData(data);
+                  break;
+                }
+              }
+            } catch (_) {}
+          }
         }
       }
 
       if (!data?.plan?.cad_photo_url) {
-        alert(`Tầng ${formData.floorNumber} chưa có bản vẽ CAD mặt bằng.`);
+        alert(
+          `Không tìm thấy bản vẽ CAD mặt bằng cho tầng ${formData.floorNumber || 'chưa xác định'}. Vui lòng mở nút "Chọn / Cắt từ CAD tầng" để chọn tầng thích hợp!`
+        );
         return;
       }
 
