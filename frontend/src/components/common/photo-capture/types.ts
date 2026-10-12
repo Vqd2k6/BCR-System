@@ -6,6 +6,7 @@ import type { MetroWatermarkOptions } from '../../../utils/watermarkEngine';
  */
 export interface PhotoChangeMeta {
   replacesUri?: string;
+  capturedAt?: string;
 }
 
 export interface PhotoCaptureProps {
@@ -15,6 +16,8 @@ export interface PhotoCaptureProps {
   watermarkText?: string;
   watermarkOptions?: MetroWatermarkOptions;
   photoCode?: string; // Mã ID ảnh định danh duy nhất (photoCode)
+  timestamp?: Date | string | number; // Thời điểm chụp ảnh pháp lý bất biến
+  fallbackDate?: Date | string | number; // Ngày khảo sát dự phòng
   allowNotApplicable?: boolean;
   isNotApplicable?: boolean;
   onToggleNotApplicable?: (na: boolean) => void;

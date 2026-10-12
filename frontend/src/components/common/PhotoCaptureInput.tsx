@@ -19,6 +19,7 @@ import { useCondoUnitSurveyStore } from '../../features/survey-condo-unit/store/
 import { useCondoMasterSurveyStore } from '../../features/survey-condo-master/store/useCondoMasterSurveyStore';
 import { getSafeDisplayUrl, resolveOfflinePhotoUrl } from '../../core/storage/offlinePhotoStorage';
 import { useSurveyReadOnly } from '../../core/context/SurveyReadOnlyContext';
+import { extractTimestampFromPhotoUrl } from '../../utils/photoTimestampHelper';
 
 export type { PhotoCaptureProps };
 
@@ -29,6 +30,8 @@ export const PhotoCaptureInput: React.FC<PhotoCaptureProps> = ({
   watermarkText,
   watermarkOptions,
   photoCode,
+  timestamp,
+  fallbackDate,
   allowNotApplicable = false,
   isNotApplicable = false,
   onToggleNotApplicable,
@@ -77,6 +80,13 @@ export const PhotoCaptureInput: React.FC<PhotoCaptureProps> = ({
     if (effectiveWatermarkOptions) return generateMetroPhotoCode(effectiveWatermarkOptions);
     return watermarkText || '';
   }, [photoCode, effectiveWatermarkOptions, watermarkText]);
+
+  // Thời gian chụp ảnh thực tế (ưu tiên prop timestamp, fallback trích xuất epoch từ URL)
+  const effectiveTimestamp = useMemo(() => {
+    if (timestamp) return timestamp;
+    if (value) return extractTimestampFromPhotoUrl(value);
+    return undefined;
+  }, [timestamp, value]);
 
   // Detect image aspect ratio when value changes (an toàn tuyệt đối với offline blob:local://)
   useEffect(() => {
@@ -184,14 +194,15 @@ export const PhotoCaptureInput: React.FC<PhotoCaptureProps> = ({
       }
       try {
         // Lưu trực tiếp blob đã nén chất lượng cao từ LiveCamera, không nén kép 2 lần
-        const { blobUrl, localId } = await storePrecompressedPhoto(blob, photoCode);
+        const { blobUrl, localId, metadata } = await storePrecompressedPhoto(blob, photoCode);
         setLocalPreview(blobUrl);
         const localUri = `blob:local://${localId}`;
-        onChange(localUri, photoCode);
+        const captureTime = metadata?.['captured-at'] || new Date().toISOString();
+        onChange(localUri, photoCode, { capturedAt: captureTime });
         if (isNotApplicable && onToggleNotApplicable) {
           onToggleNotApplicable(false);
         }
-        startDirectUpload(blob, photoCode, localId);
+        startDirectUpload(blob, photoCode, localId, captureTime);
       } catch (err) {
         console.warn('[PhotoCaptureInput] Lỗi lưu ảnh camera:', err);
       }
@@ -461,6 +472,8 @@ export const PhotoCaptureInput: React.FC<PhotoCaptureProps> = ({
           height={height}
           photoCode={photoCode}
           displayPhotoCode={displayPhotoCode}
+          timestamp={effectiveTimestamp}
+          fallbackDate={fallbackDate}
           label={label}
           uploadStatus={uploadStatus}
           allowAnnotation={allowAnnotation && !effectiveReadOnly}
@@ -497,8 +510,13 @@ export const PhotoCaptureInput: React.FC<PhotoCaptureProps> = ({
           initialTool={initialAnnotationTool || (label?.includes('P-04') ? 'ARROW' : 'PEN')}
           onSave={(annotated) => {
             setLocalPreview(annotated);
-            onChange(annotated);
-            uploadToServer(annotated, displayPhotoCode);
+            const originalCapturedAt = effectiveTimestamp
+              ? (typeof effectiveTimestamp === 'string' ? effectiveTimestamp : new Date(effectiveTimestamp).toISOString())
+              : (value ? extractTimestampFromPhotoUrl(value) : undefined);
+            onChange(annotated, displayPhotoCode, {
+              ...(originalCapturedAt ? { capturedAt: originalCapturedAt } : {}),
+            });
+            uploadToServer(annotated, displayPhotoCode, originalCapturedAt);
             setIsAnnotating(false);
           }}
           onClose={() => setIsAnnotating(false)}
@@ -547,6 +565,8 @@ export const PhotoCaptureInput: React.FC<PhotoCaptureProps> = ({
         }}
         imageUrl={localPreview || value}
         photoCode={displayPhotoCode}
+        timestamp={effectiveTimestamp}
+        fallbackDate={fallbackDate}
         lightboxZoom={lightboxZoom}
         lightboxPan={lightboxPan}
         isLightboxPinching={isLightboxPinching}

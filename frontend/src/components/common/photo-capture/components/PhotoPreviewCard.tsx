@@ -23,6 +23,8 @@ interface PhotoPreviewCardProps {
   height: number | string;
   photoCode?: string;
   displayPhotoCode: string;
+  timestamp?: Date | string | number;
+  fallbackDate?: Date | string | number;
   label?: string;
   uploadStatus: UploadStatus;
   allowAnnotation?: boolean;
@@ -45,6 +47,8 @@ export const PhotoPreviewCard: React.FC<PhotoPreviewCardProps> = ({
   height,
   photoCode,
   displayPhotoCode,
+  timestamp,
+  fallbackDate,
   label,
   uploadStatus,
   allowAnnotation = true,
@@ -123,6 +127,9 @@ export const PhotoPreviewCard: React.FC<PhotoPreviewCardProps> = ({
         {/* Lớp phủ Watermark động bằng CSS thuần không tốn RAM Canvas */}
         <PhotoWatermarkOverlay
           photoCode={photoCode || displayPhotoCode}
+          photoUrl={value || localPreview || ''}
+          timestamp={timestamp}
+          fallbackDate={fallbackDate}
           variant="compact"
         />
       </div>

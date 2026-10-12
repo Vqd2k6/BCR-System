@@ -119,10 +119,20 @@ export function usePhotoUpload({
   }, [value]);
 
   // Trích xuất thông tin định danh công trình và phân loại ảnh phục vụ cây thư mục R2 & Custom Metadata
-  const extractPhotoDetails = (code?: string) => {
+  const extractPhotoDetails = (code?: string, customCapturedAt?: string) => {
     let buildingCode = effectiveWatermarkOptions?.parcelCode || '';
     let pType = effectiveWatermarkOptions?.photoType || '';
     const fullCode = code || displayPhotoCode || '';
+
+    let filenameEpoch = Date.now();
+    let effectiveCapturedAt = new Date().toISOString();
+    if (customCapturedAt) {
+      const parsedEpoch = new Date(customCapturedAt).getTime();
+      if (!isNaN(parsedEpoch) && parsedEpoch > 1500000000000 && parsedEpoch < 2500000000000) {
+        filenameEpoch = parsedEpoch;
+        effectiveCapturedAt = new Date(parsedEpoch).toISOString();
+      }
+    }
 
     // Hàm kiểm tra mã công trình hợp lệ: Tuyệt đối không nhận các tiền tố kỹ thuật cấu kiện / CAD làm mã công trình
     const isInvalidBuildingCode = (c?: string): boolean => {
@@ -270,14 +280,14 @@ export function usePhotoUpload({
       if (effectiveWatermarkOptions?.photoIndex) {
         nameParts.push(String(effectiveWatermarkOptions.photoIndex).padStart(2, '0'));
       }
-      nameParts.push(String(Date.now()));
+      nameParts.push(String(filenameEpoch));
       selfDescribingFilename = `${nameParts.join('__')}.jpg`;
 
     } else if (areaType === 'CAD_BLUEPRINT') {
       // 📐 2. BẢN VẼ CAD MẶT BẰNG TẦNG GỐC CỦA TÒA NHÀ (CAD STUDIO)
       const floor = cleanFloorCode || 'G';
       targetFolder = `projects/METRO2_HCM/buildings/${buildingCode || 'GENERAL'}/cad-blueprints/floors/${floor}/original`;
-      selfDescribingFilename = `M2__${buildingCode || 'GENERAL'}__${floor}__CAD_BLUEPRINT__${Date.now()}.jpg`;
+      selfDescribingFilename = `M2__${buildingCode || 'GENERAL'}__${floor}__CAD_BLUEPRINT__${filenameEpoch}.jpg`;
 
     } else if (areaType === 'MASTER_AREA') {
       // 🚪 3. KHU VỰC DÙNG CHUNG CỦA CHUNG CƯ
@@ -314,7 +324,7 @@ export function usePhotoUpload({
       if (effectiveWatermarkOptions?.photoIndex) {
         nameParts.push(String(effectiveWatermarkOptions.photoIndex).padStart(2, '0'));
       }
-      nameParts.push(String(Date.now()));
+      nameParts.push(String(filenameEpoch));
       selfDescribingFilename = `${nameParts.join('__')}.jpg`;
 
     } else if (areaType === 'CONDO_UNIT') {
@@ -351,7 +361,7 @@ export function usePhotoUpload({
       if (effectiveWatermarkOptions?.photoIndex) {
         nameParts.push(String(effectiveWatermarkOptions.photoIndex).padStart(2, '0'));
       }
-      nameParts.push(String(Date.now()));
+      nameParts.push(String(filenameEpoch));
       selfDescribingFilename = `${nameParts.join('__')}.jpg`;
 
     } else {
@@ -360,7 +370,7 @@ export function usePhotoUpload({
         targetFolder = pType ? `surveys/${buildingCode}/${pType}` : `surveys/${buildingCode}`;
       }
       const prefix = code ? code.replace(/[^a-zA-Z0-9_-]/g, '_') : 'photo';
-      selfDescribingFilename = `${prefix}_${Date.now()}.jpg`;
+      selfDescribingFilename = `${prefix}_${filenameEpoch}.jpg`;
     }
 
     const metadata: Record<string, string> = {
@@ -369,7 +379,8 @@ export function usePhotoUpload({
       'photo-type': pType,
       'survey-phase': 'PHASE_1',
       'project': 'METRO2_HCM',
-      'captured-at': new Date().toISOString(),
+      'captured-at': effectiveCapturedAt,
+      ...(customCapturedAt ? { 'annotated-at': new Date().toISOString() } : {}),
     };
 
     if (cleanFloorCode) {
@@ -425,7 +436,7 @@ export function usePhotoUpload({
   /**
    * Bắt đầu tải ảnh sạch trực tiếp lên Cloudflare R2
    */
-  const startDirectUpload = (blob: Blob, code?: string, localId?: string) => {
+  const startDirectUpload = (blob: Blob, code?: string, localId?: string, customCapturedAt?: string) => {
     if (readOnly) {
       console.warn('[usePhotoUpload] Biểu mẫu đang ở chế độ Chỉ Xem (Read-Only), từ chối tải ảnh lên R2.');
       return;
@@ -433,7 +444,7 @@ export function usePhotoUpload({
     lastBlobRef.current = blob;
     setUploadStatus('UPLOADING');
 
-    const { targetFolder, selfDescribingFilename, metadata } = extractPhotoDetails(code);
+    const { targetFolder, selfDescribingFilename, metadata } = extractPhotoDetails(code, customCapturedAt);
     const filename = selfDescribingFilename || `${(code ? code.replace(/[^a-zA-Z0-9_-]/g, '_') : 'photo')}_${Date.now()}.jpg`;
 
     uploadQueue.enqueue(blob, filename, {
@@ -448,7 +459,10 @@ export function usePhotoUpload({
           onChangeRef.current(
             publicUrl,
             code,
-            localId ? { replacesUri: `blob:local://${localId}` } : undefined
+            {
+              ...(localId ? { replacesUri: `blob:local://${localId}` } : {}),
+              capturedAt: metadata['captured-at'],
+            }
           );
         }
         // Khi tải lên Cloudflare R2 thành công, đánh dấu UPLOADED trong IndexedDB (Safe Retention Policy)
@@ -474,7 +488,7 @@ export function usePhotoUpload({
    */
   const processAndStoreCleanPhoto = async (
     fileOrBlob: File | Blob
-  ): Promise<{ blobUrl: string; localId: string; blob: Blob; photoCode: string }> => {
+  ): Promise<{ blobUrl: string; localId: string; blob: Blob; photoCode: string; metadata: Record<string, string> }> => {
     if (readOnly) {
       throw new Error('Biểu mẫu đang ở chế độ Chỉ Xem (Read-Only), không thể chụp hoặc lưu ảnh mới.');
     }
@@ -508,6 +522,7 @@ export function usePhotoUpload({
       localId,
       blob: cleanResult.blob,
       photoCode,
+      metadata,
     };
   };
 
@@ -517,7 +532,7 @@ export function usePhotoUpload({
   const storePrecompressedPhoto = async (
     blob: Blob,
     overrideCode?: string
-  ): Promise<{ blobUrl: string; localId: string; blob: Blob; photoCode: string }> => {
+  ): Promise<{ blobUrl: string; localId: string; blob: Blob; photoCode: string; metadata: Record<string, string> }> => {
     if (readOnly) {
       throw new Error('Biểu mẫu đang ở chế độ Chỉ Xem (Read-Only), không thể chụp hoặc lưu ảnh mới.');
     }
@@ -534,17 +549,18 @@ export function usePhotoUpload({
       localId,
       blob,
       photoCode,
+      metadata,
     };
   };
 
-  const uploadToServer = async (base64Str: string, code?: string) => {
+  const uploadToServer = async (base64Str: string, code?: string, customCapturedAt?: string) => {
     if (readOnly) {
       console.warn('[usePhotoUpload] Biểu mẫu đang ở chế độ Chỉ Xem (Read-Only), từ chối tải ảnh lên server.');
       return;
     }
     if (!base64Str || !base64Str.startsWith('data:image/')) return;
     try {
-      const { targetFolder, metadata } = extractPhotoDetails(code);
+      const { targetFolder, metadata } = extractPhotoDetails(code, customCapturedAt);
       const res = await api.post('/storage/upload-base64', {
         base64: base64Str,
         filenamePrefix: code ? code.replace(/[^a-zA-Z0-9_-]/g, '_') : 'photo',
@@ -554,7 +570,7 @@ export function usePhotoUpload({
       const uploadedUrl = res.data?.data?.url;
       if (uploadedUrl) {
         setUploadStatus('SUCCESS');
-        onChange(uploadedUrl, code);
+        onChangeRef.current(uploadedUrl, code, { capturedAt: metadata['captured-at'] });
       }
     } catch (err) {
       console.warn('[PhotoCaptureInput] Background upload to server failed:', err);
@@ -571,16 +587,16 @@ export function usePhotoUpload({
     if (!file) return;
 
     try {
-      const { blobUrl, localId, blob, photoCode } = await processAndStoreCleanPhoto(file);
+      const { blobUrl, localId, blob, photoCode, metadata } = await processAndStoreCleanPhoto(file);
       setLocalPreview(blobUrl);
       const localUri = `blob:local://${localId}`;
-      onChange(localUri, photoCode);
+      onChange(localUri, photoCode, { capturedAt: metadata['captured-at'] });
 
       if (isNotApplicable && onToggleNotApplicable) {
         onToggleNotApplicable(false);
       }
 
-      startDirectUpload(blob, photoCode, localId);
+      startDirectUpload(blob, photoCode, localId, metadata['captured-at']);
     } catch (err) {
       console.warn('[PhotoCaptureInput] Lỗi xử lý nén ảnh sạch:', err);
       setUploadStatus('ERROR');

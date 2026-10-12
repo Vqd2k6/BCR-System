@@ -75,8 +75,8 @@ export function extractPhotoDateTime(photoUrl?: string, itemShotAt?: any, fallba
     if (formatted) return formatted;
   }
   if (photoUrl && typeof photoUrl === 'string') {
-    const match = photoUrl.match(/_(\d{13})_/);
-    if (match) {
+    const match = photoUrl.match(/(?:_|__|^photo_)(\d{13})(?:_|\.|$)/);
+    if (match && match[1]) {
       const epoch = parseInt(match[1], 10);
       if (!isNaN(epoch) && epoch > 1500000000000 && epoch < 2500000000000) {
         return formatWatermarkDateTime(new Date(epoch));

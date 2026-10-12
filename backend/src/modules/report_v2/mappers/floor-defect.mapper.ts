@@ -142,7 +142,8 @@ export class FloorDefectMapper {
         captionEn?: string,
         photoCode?: string,
         isStructural: boolean = false,
-        statusBadgeText?: { vi: string; en: string }
+        statusBadgeText?: { vi: string; en: string },
+        capturedAt?: string | null
       ) => {
         if (!rawUrl || typeof rawUrl !== 'string') return;
         const cleanUrl = rawUrl.trim();
@@ -152,7 +153,7 @@ export class FloorDefectMapper {
         const base64 = ReportImageResolver.resolveToBase64(cleanUrl);
         photoCounter.current++;
         const photoId = photoCode || `P-${photoCounter.current.toString().padStart(2, '0')}`;
-        const itemDt = extractPhotoDateTime(cleanUrl, null, rawSurveyDate);
+        const itemDt = extractPhotoDateTime(cleanUrl, capturedAt || null, rawSurveyDate);
         const mCode = photoCode || (buildingId ? `HCM_M2.[${buildingId}]_${zoneCode}_${photoId}` : photoId);
 
         const defaultBadgeVi = isNormal
@@ -202,7 +203,9 @@ export class FloorDefectMapper {
             `Ảnh toàn cảnh tầng ${flNameVi} (góc ${idx + 1})`,
             `Floor ${flNameEn} overall view (angle ${idx + 1})`,
             item?.photoCode,
-            false
+            false,
+            undefined,
+            item?.capturedAt || item?.shot_at
           );
         });
       }
@@ -431,7 +434,8 @@ export class FloorDefectMapper {
               false,
               isDefectPhoto
                 ? { vi: `⚠️ Bối cảnh khuyết tật [${matchingDefectCode}]`, en: `⚠️ Defect context [${matchingDefectCode}]` }
-                : { vi: '✓ Toàn cảnh không gian', en: '✓ Space overview' }
+                : { vi: '✓ Toàn cảnh không gian', en: '✓ Space overview' },
+              item?.capturedAt || item?.shot_at
             );
           });
         }
@@ -456,7 +460,8 @@ export class FloorDefectMapper {
             false,
             isDefectPhoto
               ? { vi: `⚠️ Bối cảnh khuyết tật [${matchingDefectCode}]`, en: `⚠️ Defect context [${matchingDefectCode}]` }
-              : { vi: '✓ Bề mặt ổn định', en: '✓ Intact surface' }
+              : { vi: '✓ Bề mặt ổn định', en: '✓ Intact surface' },
+            (z as any).ctxCapturedAt || (z as any).capturedAt
           );
         }
       }
@@ -567,9 +572,9 @@ export class FloorDefectMapper {
               },
               contextAlreadyWatermarked: isPhotoAlreadyWatermarked(ctxUrl),
               contextPhotoCode: e.ctxPhotoCode || `${eCode}_CTX`,
-              contextDateTime: extractPhotoDateTime(ctxUrl, null, rawSurveyDate),
-              closeUpDateTime: extractPhotoDateTime(cuUrl, null, rawSurveyDate),
-              extraCloseUpDateTime: extractPhotoDateTime(extraCuUrl, null, rawSurveyDate),
+              contextDateTime: extractPhotoDateTime(ctxUrl, (e as any).ctxCapturedAt || (e as any).ctx_captured_at || (e as any).capturedAt, rawSurveyDate),
+              closeUpDateTime: extractPhotoDateTime(cuUrl, d.capturedAt || d.cuPhotoTimestamps?.[0] || (d as any).shot_at, rawSurveyDate),
+              extraCloseUpDateTime: extractPhotoDateTime(extraCuUrl, d.cuPhotoTimestamps?.[1], rawSurveyDate),
 
               closeUpPhotoUrl: (cuUrl && !cuUrl.startsWith('blob:')) ? cuUrl : undefined,
               closeUpPhotoBase64: rawCuBase64 && !rawCuBase64.startsWith('blob:') ? rawCuBase64 : undefined,
@@ -659,7 +664,8 @@ export class FloorDefectMapper {
               true,
               isDefectPhoto
                 ? { vi: `⚠️ Bối cảnh khuyết tật [${matchingDefectCode}]`, en: `⚠️ Defect context [${matchingDefectCode}]` }
-                : { vi: '✓ Tổng thể cấu kiện', en: '✓ Member overview' }
+                : { vi: '✓ Tổng thể cấu kiện', en: '✓ Member overview' },
+              item?.capturedAt || item?.shot_at
             );
           });
         }
@@ -684,7 +690,8 @@ export class FloorDefectMapper {
             true,
             isDefectPhoto
               ? { vi: `⚠️ Bối cảnh khuyết tật [${matchingDefectCode}]`, en: `⚠️ Defect context [${matchingDefectCode}]` }
-              : { vi: '✓ Cấu kiện ổn định', en: '✓ Stable member' }
+              : { vi: '✓ Cấu kiện ổn định', en: '✓ Stable member' },
+            (e as any).ctxCapturedAt || (e as any).capturedAt
           );
         }
       }
