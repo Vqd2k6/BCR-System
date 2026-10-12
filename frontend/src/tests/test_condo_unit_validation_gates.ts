@@ -302,7 +302,7 @@ console.log('\n--- TEST 9: KIỂM SOÁT BƯỚC 4 (BẮT BUỘC ẢNH BIÊN BẢ
   console.log('✅ Bước 4 thông qua thành công khi có ảnh chụp Biên bản làm việc giấy tại hiện trường');
 }
 
-// TEST 10: Chế độ Vắng Mặt (Absentee Mode) - Kiểm soát chặt chẽ
+// TEST 10: Chế độ Vắng Mặt (Absentee Mode) - Kiểm soát chặt chẽ (Miễn 100% chữ ký)
 console.log('\n--- TEST 10: KIỂM SOÁT CHẾ ĐỘ VẮNG MẶT (ABSENTEE WORKFLOW) ---');
 {
   const data = createBaseFormData();
@@ -320,29 +320,26 @@ console.log('\n--- TEST 10: KIỂM SOÁT CHẾ ĐỘ VẮNG MẶT (ABSENTEE WORK
   const missingAbsMinutes = issuesStep3.some(
     (i) => i.fieldId === 'step3-absentee-minutes-photos' && i.isBlocking
   );
-  const missingSurveyorSig = issuesStep3.some(
-    (i) => i.fieldId === 'step3-surveyor-signature' && i.isBlocking
-  );
 
-  if (!missingAbsMinutes || !missingSurveyorSig) {
-    throw new Error('Test 10 thất bại: Chế độ vắng mặt không chặn khi thiếu biên bản vắng hoặc chữ ký KSV');
+  if (!missingAbsMinutes) {
+    throw new Error('Test 10 thất bại: Chế độ vắng mặt không chặn khi thiếu biên bản vắng');
   }
-  console.log('✅ Chế độ vắng mặt CHẶN CỨNG thành công khi thiếu ảnh biên bản vắng/giấy hẹn hoặc chữ ký KSV');
+  console.log('✅ Chế độ vắng mặt CHẶN CỨNG thành công khi thiếu ảnh biên bản vắng/giấy hẹn');
 
-  // Điền đủ thông tin vắng mặt
+  // Điền đủ thông tin vắng mặt (Khẳng định: Miễn 100% chữ ký KSV và Chủ hộ)
   data.absenteeInfo = {
     absenceReason: 'HOMEOWNER_ABSENT',
     absenteeMinutesPhotos: ['https://r2.metro2.vn/abs-minutes.jpg'],
     attemptCount: 1,
     noticeDelivered: true,
   };
-  data.surveyorSignature = 'data:image/svg+xml;base64,surveyorSig';
+  data.surveyorSignature = ''; // Hoàn toàn không có chữ ký KSV
   const fullAbsenteeResult = validateCondoUnitFull(data);
   if (!fullAbsenteeResult.isValid) {
     console.error('Absentee blocking issues:', fullAbsenteeResult.blockingIssues);
     throw new Error('Test 10 thất bại: Đã điền đủ thông tin vắng mặt nhưng vẫn bị chặn');
   }
-  console.log('✅ Chế độ vắng mặt thông qua 100% khi có ảnh giấy hẹn/biên bản vắng và chữ ký KSV');
+  console.log('✅ Chế độ vắng mặt thông qua 100% khi có ảnh giấy hẹn/biên bản vắng (Miễn 100% chữ ký)');
 }
 
 console.log('\n====================================================================');

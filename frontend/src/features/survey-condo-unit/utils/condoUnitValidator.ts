@@ -680,7 +680,7 @@ export function validateCondoUnitAbsenteeStep2(formData: CondoUnitFormData): Con
 }
 
 /**
- * Kiểm tra tính đầy đủ của Bước 3 (Chế độ Vắng mặt): Biên bản vắng nhà, Ký KSV & Cloud R2
+ * Kiểm tra tính đầy đủ của Bước 3 (Chế độ Vắng mặt): Biên bản vắng nhà & Cloud R2 (Miễn 100% chữ ký)
  */
 export function validateCondoUnitAbsenteeStep3(formData: CondoUnitFormData): CondoUnitValidationIssue[] {
   const issues: CondoUnitValidationIssue[] = [];
@@ -698,19 +698,7 @@ export function validateCondoUnitAbsenteeStep3(formData: CondoUnitFormData): Con
     });
   }
 
-  // 2. Chữ ký KSV khi lập biên bản vắng mặt
-  if (!formData.surveyorSignature) {
-    issues.push({
-      fieldId: 'step3-surveyor-signature',
-      step: 3,
-      target: 'SIGNATURE',
-      title: 'Thiếu chữ ký của Khảo sát viên',
-      message: 'Khảo sát viên bắt buộc phải ký xác nhận biên bản lập hồ sơ vắng mặt.',
-      isBlocking: true,
-    });
-  }
-
-  // 3. Kiểm tra ảnh Cloud R2 sync
+  // 2. Kiểm tra ảnh Cloud R2 sync
   const audit = auditCondoUnitPhotos(formData);
   if (audit.unsynced > 0) {
     issues.push({
