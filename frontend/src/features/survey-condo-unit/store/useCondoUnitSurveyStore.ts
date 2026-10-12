@@ -427,6 +427,13 @@ export function mergeCondoUnitDataSafely(
   merged.structuralElements = deduplicateElements(processedElements, mergedElementPins);
   merged.cadElementPins = mergedElementPins;
 
+  // 7.5. Bảo toàn cờ ghi đè/xóa CAD của người dùng
+  if (serverData.isCadOverriddenByUser !== undefined) {
+    merged.isCadOverriddenByUser = Boolean(serverData.isCadOverriddenByUser);
+  } else if (localData.isCadOverriddenByUser !== undefined) {
+    merged.isCadOverriddenByUser = Boolean(localData.isCadOverriddenByUser);
+  }
+
   // 8. Vá URL ảnh tạm (blob:local://) đã biết Cloud URL rồi khử trùng các danh sách ảnh
   return dedupePhotoArrays(healLocalPhotoUris(merged));
 }
@@ -510,6 +517,7 @@ const getDefaultCondoUnitFormData = (parcelId: string, unitId: string): CondoUni
   unitStructuralCadUrl: '',
   cadBbox: null,
   cadPolygon: null,
+  isCadOverriddenByUser: false,
 
   // 3. Phân cấp Vùng Z & Cấu kiện E (Phase 1 Standard)
   zones: [],
@@ -730,8 +738,29 @@ export const useCondoUnitSurveyStore = create<CondoUnitSurveyStore>((set, get) =
           if (Array.isArray(parsed.cadElementPins)) {
             data.cadElementPins = parsed.cadElementPins;
           }
+          const dbCadUrl = unit?.unit_cad_url || unit?.unitCadUrl || '';
+          const dbCadBbox = unit?.cad_bbox ?? unit?.cadBbox ?? null;
+          const dbCadPolygon = unit?.cad_polygon ?? unit?.cadPolygon ?? null;
+          const rawFloor = unit?.floor_number ?? unit?.floorNumber ?? unit?.floorLevel ?? unit?.floor_level;
+          const dbFloorNumber = typeof rawFloor === 'number' ? rawFloor : parseFloat(String(rawFloor));
 
           data = { ...data, ...parsed };
+
+          // Khôi phục dữ liệu CAD và Bounding Box từ CSDL nếu bản nháp cũ bị rỗng/thiếu
+          if (!data.unitCadUrl && dbCadUrl) {
+            data.unitCadUrl = dbCadUrl;
+          }
+          if (!data.cadBbox && dbCadBbox) {
+            data.cadBbox = dbCadBbox;
+          }
+          if (!data.cadPolygon && dbCadPolygon) {
+            data.cadPolygon = dbCadPolygon;
+          }
+          // Luôn giữ số tầng chuẩn từ CSDL nếu unit có số tầng hợp lệ
+          if (unit && !isNaN(dbFloorNumber)) {
+            data.floorNumber = dbFloorNumber;
+          }
+
           data.zones = deduplicateZones(data.zones || [], data.cadZonePins || []);
           data.structuralElements = deduplicateElements(data.structuralElements || [], data.cadElementPins || []);
           // Ảnh đã lên Cloud trong lần làm việc trước -> thay URL tạm bằng URL Cloud ngay khi mở lại

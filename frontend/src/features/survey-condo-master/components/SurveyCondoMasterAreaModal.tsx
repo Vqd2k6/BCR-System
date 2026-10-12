@@ -287,7 +287,7 @@ export const SurveyCondoMasterAreaModal: React.FC<Props> = ({
               onAddOverviewPhoto={state.handleUpdateOrAddOverviewPhoto}
               onRemoveOverviewPhoto={state.handleRemoveOverviewPhoto}
               cadSketchPhotoUrl={state.cadSketchPhotoUrl}
-              onCadSketchPhotoUrlChange={state.setCadSketchPhotoUrl}
+              onCadSketchPhotoUrlChange={state.handleSetCadSketchPhotoUrl}
               cadStructuralSketchPhotoUrl={state.cadStructuralSketchPhotoUrl}
               onCadStructuralSketchPhotoUrlChange={state.setCadStructuralSketchPhotoUrl}
               useSeparateStructuralCad={state.useSeparateStructuralCad}
@@ -312,7 +312,7 @@ export const SurveyCondoMasterAreaModal: React.FC<Props> = ({
               floorName={state.floorName}
               floorNumber={state.floorNumber}
               cadSketchPhotoUrl={state.cadSketchPhotoUrl}
-              onCadSketchPhotoUrlChange={state.setCadSketchPhotoUrl}
+              onCadSketchPhotoUrlChange={state.handleSetCadSketchPhotoUrl}
               cadZonePins={state.cadZonePins}
               setCadZonePins={state.setCadZonePins}
               zones={state.zones}
@@ -410,6 +410,9 @@ export const SurveyCondoMasterAreaModal: React.FC<Props> = ({
           initialBbox={state.activeBbox}
           otherPartitions={state.floorPlanData?.units}
           onConfirmCrop={state.handleConfirmCadCrop}
+          onUseFullFloorCad={state.handleUseFullFloorCad}
+          floorPlans={state.availableFloorPlans}
+          onSelectFloorPlan={state.handleSelectFloorPlanForCrop}
         />
       )}
 

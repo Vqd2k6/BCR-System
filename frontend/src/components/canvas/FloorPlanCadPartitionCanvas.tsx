@@ -63,47 +63,84 @@ export async function cropImageBoundingBox(
   box: { x: number; y: number; width: number; height: number },
   paddingPercent: number = 0.05
 ): Promise<string> {
-  return new Promise((resolve) => {
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => {
-      const origW = img.naturalWidth || img.width;
-      const origH = img.naturalHeight || img.height;
-
-      // Tính padding (mở rộng 5% mỗi chiều để thấy viền tường xung quanh)
-      const padW = box.width * paddingPercent;
-      const padH = box.height * paddingPercent;
-
-      const normX = Math.max(0, box.x - padW);
-      const normY = Math.max(0, box.y - padH);
-      const normW = Math.min(100 - normX, box.width + padW * 2);
-      const normH = Math.min(100 - normY, box.height + padH * 2);
-
-      const srcX = (normX / 100) * origW;
-      const srcY = (normY / 100) * origH;
-      const srcW = (normW / 100) * origW;
-      const srcH = (normH / 100) * origH;
-
-      const canvas = document.createElement('canvas');
-      canvas.width = Math.max(100, Math.round(srcW));
-      canvas.height = Math.max(100, Math.round(srcH));
-      const ctx = canvas.getContext('2d');
-      if (!ctx) {
-        resolve(imageSrc);
-        return;
+  let objectUrlToRevoke: string | null = null;
+  try {
+    let loadableSrc = imageSrc;
+    // Nếu là HTTP URL, tải trực tiếp qua fetch CORS và chuyển sang Blob URL nội bộ
+    // để ngăn ngừa triệt để lỗi tainted canvas do browser HTTP cache không có CORS header
+    if (imageSrc.startsWith('http')) {
+      const cacheBustedUrl = imageSrc.includes('?') 
+        ? `${imageSrc}&_t=${Date.now()}` 
+        : `${imageSrc}?_t=${Date.now()}`;
+      try {
+        const response = await fetch(cacheBustedUrl, { mode: 'cors' });
+        if (response.ok) {
+          const blob = await response.blob();
+          loadableSrc = URL.createObjectURL(blob);
+          objectUrlToRevoke = loadableSrc;
+        }
+      } catch (fetchErr) {
+        console.warn('[cropImageBoundingBox] Không thể fetch blob trực tiếp, thử load URL gốc:', fetchErr);
       }
+    }
 
-      // Nền trắng rõ nét
-      ctx.fillStyle = '#FFFFFF';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    return await new Promise<string>((resolve) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        try {
+          const origW = img.naturalWidth || img.width;
+          const origH = img.naturalHeight || img.height;
 
-      ctx.drawImage(img, srcX, srcY, srcW, srcH, 0, 0, canvas.width, canvas.height);
-      const croppedDataUrl = canvas.toDataURL('image/jpeg', 0.92);
-      resolve(croppedDataUrl);
-    };
-    img.onerror = () => resolve(imageSrc);
-    img.src = imageSrc;
-  });
+          // Tính padding (mở rộng 5% mỗi chiều để thấy viền tường xung quanh)
+          const padW = box.width * paddingPercent;
+          const padH = box.height * paddingPercent;
+
+          const normX = Math.max(0, box.x - padW);
+          const normY = Math.max(0, box.y - padH);
+          const normW = Math.min(100 - normX, box.width + padW * 2);
+          const normH = Math.min(100 - normY, box.height + padH * 2);
+
+          const srcX = (normX / 100) * origW;
+          const srcY = (normY / 100) * origH;
+          const srcW = (normW / 100) * origW;
+          const srcH = (normH / 100) * origH;
+
+          const canvas = document.createElement('canvas');
+          canvas.width = Math.max(100, Math.round(srcW));
+          canvas.height = Math.max(100, Math.round(srcH));
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            resolve(imageSrc);
+            return;
+          }
+
+          // Nền trắng rõ nét
+          ctx.fillStyle = '#FFFFFF';
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+          ctx.drawImage(img, srcX, srcY, srcW, srcH, 0, 0, canvas.width, canvas.height);
+          const croppedDataUrl = canvas.toDataURL('image/jpeg', 0.92);
+          resolve(croppedDataUrl);
+        } catch (cropErr) {
+          console.warn('[cropImageBoundingBox] Lỗi vẽ hoặc trích xuất canvas:', cropErr);
+          resolve(imageSrc);
+        }
+      };
+      img.onerror = (err) => {
+        console.warn('[cropImageBoundingBox] Lỗi tải ảnh img.onerror:', err);
+        resolve(imageSrc);
+      };
+      img.src = loadableSrc;
+    });
+  } catch (err) {
+    console.warn('[cropImageBoundingBox] Lỗi ngoại lệ khi crop ảnh CAD:', err);
+    return imageSrc;
+  } finally {
+    if (objectUrlToRevoke) {
+      URL.revokeObjectURL(objectUrlToRevoke);
+    }
+  }
 }
 
 export const FloorPlanCadPartitionCanvas: React.FC<Props> = ({

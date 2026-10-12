@@ -242,6 +242,15 @@ export const BuildingHubModal: React.FC<BuildingHubModalProps> = ({
               (f) => Number(f.floorNumber) === Number(selectedMasterAreaUnit.floor_number ?? selectedMasterAreaUnit.floorNumber)
             )?.cadUrl
           }
+          floorPlans={allFloorsData
+            .filter((f) => Boolean(f.cadUrl))
+            .map((f) => ({
+              id: `floor-${f.floorNumber}`,
+              floor_number: Number(f.floorNumber),
+              floor_name: f.floorName || `Tầng ${f.floorNumber}`,
+              floor_code: f.floorCode,
+              cad_photo_url: f.cadUrl,
+            }))}
           onClose={() => {
             setSelectedMasterAreaUnit(null);
             refetchUnits();

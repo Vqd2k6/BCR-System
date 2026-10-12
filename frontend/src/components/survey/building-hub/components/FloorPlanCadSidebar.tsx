@@ -117,7 +117,21 @@ export const FloorPlanCadSidebar: React.FC<FloorPlanCadSidebarProps> = ({
                 const sel = e.target.value;
                 if (!sel) return;
                 if (sel === 'TYPICAL') {
-                  const nextFl = buildingFloors.length > 0 ? Math.max(...buildingFloors.map((b) => b.floorNumber)) + 1 : 1;
+                  const existingPosFloors = buildingFloors
+                    .map((b) => b.floorNumber)
+                    .filter((fn) => typeof fn === 'number' && !isNaN(fn) && fn > 0);
+                  let nextFl = 1;
+                  if (existingPosFloors.length > 0) {
+                    const maxPos = Math.floor(Math.max(...existingPosFloors));
+                    let missing = -1;
+                    for (let i = 1; i <= maxPos; i++) {
+                      if (!existingPosFloors.includes(i)) {
+                        missing = i;
+                        break;
+                      }
+                    }
+                    nextFl = missing !== -1 ? missing : maxPos + 1;
+                  }
                   const parsed = parseFloat(newFloorInput);
                   const fl = !isNaN(parsed) && parsed > 0 ? parsed : Math.max(1, nextFl);
                   setNewFloorInput(String(fl));
@@ -126,7 +140,7 @@ export const FloorPlanCadSidebar: React.FC<FloorPlanCadSidebarProps> = ({
                   setNewFloorInput('0');
                   setNewFloorCodeInput('G');
                 } else if (sel === 'MEZZ') {
-                  if (!newFloorInput) setNewFloorInput('0');
+                  if (!newFloorInput || newFloorInput === '0') setNewFloorInput('0.5');
                   setNewFloorCodeInput('MEZZ');
                 } else if (sel === 'B01') {
                   setNewFloorInput('-1');
@@ -139,7 +153,7 @@ export const FloorPlanCadSidebar: React.FC<FloorPlanCadSidebarProps> = ({
                   setNewFloorCodeInput('SB');
                 } else if (sel === 'ROOF' || sel === 'TERRACE' || sel === 'TUM') {
                   const maxFl = buildingFloors.length > 0 ? Math.max(...buildingFloors.map((b) => b.floorNumber)) : 1;
-                  if (!newFloorInput) setNewFloorInput(String(maxFl + 1));
+                  if (!newFloorInput) setNewFloorInput(String(Math.max(1, maxFl + 1)));
                   setNewFloorCodeInput(sel);
                 } else {
                   setNewFloorCodeInput(sel);

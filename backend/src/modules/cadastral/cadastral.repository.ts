@@ -802,10 +802,36 @@ export class CadastralRepository {
     const executeLogic = async (txClient: PoolClient): Promise<BuildingUnitEntity[]> => {
       const savedUnits: BuildingUnitEntity[] = [];
 
+      // Tải cache danh sách floor plans của toà nhà để gán floor_plan_id chính xác theo từng tầng
+      const floorPlansRes = await txClient.query<BuildingFloorPlanEntity>(
+        `SELECT id, floor_number, applicable_floors 
+         FROM building_floor_plans 
+         WHERE parcel_id = $1 AND deleted_at IS NULL
+         ORDER BY floor_number ASC;`,
+        [parcelId]
+      );
+      const allFloorPlans = floorPlansRes.rows;
+
       for (const part of partitions) {
         const uFloor = part.floorNumber !== undefined ? part.floorNumber : floorNumber;
         const uType = part.unitType || 'UNIT';
         const dispCode = part.displayCode || null;
+
+        // Phân giải floor_plan_id chính xác cho tầng của căn hộ:
+        // Ưu tiên bản vẽ riêng của tầng uFloor, nếu không có mới lấy bản vẽ kế thừa từ applicable_floors
+        let effectiveFloorPlanId = floorPlanId;
+        const directPlan = allFloorPlans.find((fp) => Number(fp.floor_number) === Number(uFloor));
+        if (directPlan) {
+          effectiveFloorPlanId = directPlan.id;
+        } else {
+          const sharedPlan = allFloorPlans.find(
+            (fp) => Array.isArray(fp.applicable_floors) && fp.applicable_floors.map(Number).includes(Number(uFloor))
+          );
+          if (sharedPlan) {
+            effectiveFloorPlanId = sharedPlan.id;
+          }
+        }
+
         const res = await txClient.query<BuildingUnitEntity>(
           `INSERT INTO building_units (
             parcel_id, unit_code, display_code, floor_number, floor_plan_id, cad_bbox, cad_polygon, unit_cad_url, unit_type, deleted_at, updated_at
@@ -826,7 +852,7 @@ export class CadastralRepository {
             part.unitCode,
             dispCode,
             uFloor,
-            floorPlanId,
+            effectiveFloorPlanId,
             part.bbox ? JSON.stringify(part.bbox) : null,
             part.polygon ? JSON.stringify(part.polygon) : null,
             part.unitCadUrl || null,
