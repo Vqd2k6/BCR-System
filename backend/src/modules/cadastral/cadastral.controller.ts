@@ -15,6 +15,7 @@ import {
   ParcelParamDto,
   ParcelFloorParamDto,
   ParcelUnitParamDto,
+  SwapUnitCadGeometryDto,
 } from './cadastral.dto';
 import { BadRequestError } from '../../common/errors/problem-details';
 import { maskParcelPii } from '../../common/utils/pii.utils';
@@ -316,6 +317,27 @@ export class CadastralController {
       const { id } = ParcelParamDto.parse(req.params);
       const payload = AtomicSyncFloorPlanAndPartitionsDto.parse(req.body);
       const result = await CadastralService.atomicSyncFloorPlanAndPartitions(id, payload, req.user, req.ip);
+      res.status(200).json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async swapUnitCadGeometries(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = ParcelParamDto.parse(req.params);
+      const { unitAId, unitBId, reason } = SwapUnitCadGeometryDto.parse(req.body);
+      const result = await CadastralService.swapUnitCadGeometries(
+        id,
+        unitAId,
+        unitBId,
+        req.user,
+        reason,
+        req.ip
+      );
       res.status(200).json({
         success: true,
         data: result,

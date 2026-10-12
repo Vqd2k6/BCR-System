@@ -145,3 +145,10 @@ export const ParcelUnitParamDto = z.object({
   id: z.string().uuid('ID thửa đất không hợp lệ (phải là UUID)'),
   unitId: z.string().uuid('ID căn hộ không hợp lệ (phải là UUID)'),
 });
+
+export const SwapUnitCadGeometryDto = z.object({
+  unitAId: z.string().uuid('ID vị trí A không hợp lệ (phải là UUID)'),
+  unitBId: z.string().uuid('ID vị trí B không hợp lệ (phải là UUID)'),
+  reason: z.string().trim().min(5, 'Lý do hoán đổi phải có ít nhất 5 ký tự'),
+});
+export type SwapUnitCadGeometryInput = z.infer<typeof SwapUnitCadGeometryDto>;

@@ -731,6 +731,29 @@ export class CadastralService {
     return result;
   }
 
+  static async swapUnitCadGeometries(
+    parcelId: string,
+    unitAId: string,
+    unitBId: string,
+    user?: { userId: string; role: string; assignedZoneId?: string | null },
+    reason?: string,
+    clientIp?: string
+  ) {
+    await this.assertUserCanModifyParcel(user, parcelId);
+    if (!reason || reason.trim().length < 5) {
+      throw new BadRequestError('Vui lòng nhập lý do hoán đổi (tối thiểu 5 ký tự)');
+    }
+    const adminId = user?.userId || 'system';
+    return CadastralRepository.swapUnitCadGeometries(
+      parcelId,
+      unitAId,
+      unitBId,
+      adminId,
+      reason.trim(),
+      clientIp
+    );
+  }
+
   // --- LỊCH SỬ BIẾN ĐỘNG (SUPER_ADMIN ONLY) ---
   static async getParcelMutationHistory(parcelId: string) {
     const { CadastralHistoryService } = await import('./services/cadastral-history.service');
