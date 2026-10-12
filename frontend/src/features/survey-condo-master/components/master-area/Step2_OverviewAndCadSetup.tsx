@@ -9,6 +9,7 @@ import {
   AlertCircle,
   RefreshCw,
   RotateCcw,
+  Layers,
 } from 'lucide-react';
 import { PhotoCaptureInput } from '../../../../components/common/PhotoCaptureInput';
 import type { PhotoChangeMeta } from '../../../../components/common/photo-capture/types';
@@ -209,15 +210,17 @@ export const Step2_OverviewAndCadSetup: React.FC<Step2OverviewAndCadSetupProps> 
                 !hasParentCad ? 'sm:col-span-2' : ''
               }`}
             >
-              <Crop size={15} />
-              <span>Cắt CAD tầng (Kéo ô)</span>
+              <Layers size={15} />
+              <span>Chọn / Cắt từ CAD tầng</span>
             </button>
 
             <div className="w-full">
               <PhotoCaptureInput
                 label="Tải ảnh / CAD riêng"
                 value={cadSketchPhotoUrl}
-                onChange={(url) => onCadSketchPhotoUrlChange(url)}
+                onChange={(url) => {
+                  if (url) onCadSketchPhotoUrlChange(url);
+                }}
                 watermarkOptions={watermarkOptions}
                 photoCode={`CAD_${unitCode}`}
                 allowPdf={true}
@@ -249,6 +252,17 @@ export const Step2_OverviewAndCadSetup: React.FC<Step2OverviewAndCadSetupProps> 
                   <ZoomIn size={13} />
                   <span>Phóng to</span>
                 </button>
+                {!isReadOnly && hasParentCad && (
+                  <button
+                    type="button"
+                    onClick={onOpenCadCropModal}
+                    className="px-2.5 py-1 rounded-lg bg-teal-50 hover:bg-teal-100 text-teal-700 font-bold flex items-center gap-1 cursor-pointer transition-colors"
+                    title="Chọn ô khác hoặc chọn bản vẽ từ tầng khác trong tòa"
+                  >
+                    <Layers size={13} />
+                    <span>Chọn CAD tầng</span>
+                  </button>
+                )}
                 {!isReadOnly && hasParentCad && (
                   <button
                     type="button"

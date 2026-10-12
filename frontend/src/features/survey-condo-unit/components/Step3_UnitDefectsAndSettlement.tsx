@@ -265,12 +265,17 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
     }
   };
 
-  // Tự động kiểm tra và import CAD từ Tầng nếu căn con chưa có CAD URL
+  // Tự động kiểm tra và import CAD từ Tầng nếu căn con chưa có CAD URL (chỉ thử 1 lần duy nhất khi nạp ban đầu)
+  const hasAttemptedAutoImportCadRef = useRef<boolean>(false);
   useEffect(() => {
+    if (hasAttemptedAutoImportCadRef.current) return;
     if (!formData.unitCadUrl && formData.parcelId && formData.floorNumber) {
+      hasAttemptedAutoImportCadRef.current = true;
       void loadFloorPlanAuto();
+    } else if (formData.unitCadUrl) {
+      hasAttemptedAutoImportCadRef.current = true;
     }
-  }, [formData.parcelId, formData.floorNumber]);
+  }, [formData.parcelId, formData.floorNumber, formData.unitCadUrl]);
 
   const loadFloorPlanAuto = async () => {
     try {

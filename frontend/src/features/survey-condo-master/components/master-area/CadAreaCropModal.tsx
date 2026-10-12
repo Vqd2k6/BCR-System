@@ -8,6 +8,8 @@ import {
   Square,
   Hand,
   Loader2,
+  Layers,
+  Sparkles,
 } from 'lucide-react';
 import { useInteractiveCanvasZoom } from '../../../../components/canvas/useInteractiveCanvasZoom';
 import { CanvasZoomToolbar } from '../../../../components/canvas/CanvasZoomToolbar';
@@ -15,6 +17,7 @@ import { cropImageBoundingBox } from '../../../../components/canvas/FloorPlanCad
 import {
   type NormalizedBbox,
   type FloorPartition,
+  type FloorPlanItem,
   normalizeBbox,
 } from '../../types/masterAreaSurvey.types';
 
@@ -27,6 +30,9 @@ interface CadAreaCropModalProps {
   initialBbox: NormalizedBbox | null;
   otherPartitions?: FloorPartition[];
   onConfirmCrop: (croppedDataUrl: string, newBbox: NormalizedBbox) => void;
+  onUseFullFloorCad?: (fullFloorCadUrl: string) => void;
+  floorPlans?: FloorPlanItem[];
+  onSelectFloorPlan?: (plan: FloorPlanItem) => void;
 }
 
 export const CadAreaCropModal: React.FC<CadAreaCropModalProps> = ({
@@ -38,10 +44,21 @@ export const CadAreaCropModal: React.FC<CadAreaCropModalProps> = ({
   initialBbox,
   otherPartitions = [],
   onConfirmCrop,
+  onUseFullFloorCad,
+  floorPlans = [],
+  onSelectFloorPlan,
 }) => {
   const [activeTool, setActiveTool] = useState<'PAN' | 'CROP'>('CROP');
   const [currentBox, setCurrentBox] = useState<NormalizedBbox | null>(initialBbox);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
+  const [activeCadUrl, setActiveCadUrl] = useState<string>(cadPhotoUrl);
+
+  // Cập nhật activeCadUrl khi prop cadPhotoUrl thay đổi
+  useEffect(() => {
+    if (cadPhotoUrl) {
+      setActiveCadUrl(cadPhotoUrl);
+    }
+  }, [cadPhotoUrl]);
 
   // Kéo thả tạo box mới
   const isDraggingRef = useRef<boolean>(false);
@@ -155,13 +172,13 @@ export const CadAreaCropModal: React.FC<CadAreaCropModalProps> = ({
 
   const handleConfirm = async () => {
     if (!currentBox) {
-      alert('Vui lòng kéo chuột hoặc ngón tay để vẽ khung chữ nhật bao quanh khu vực cần cắt!');
+      alert('Vui lòng kéo chuột hoặc ngón tay để vẽ khung chữ nhật bao quanh khu vực cần cắt, hoặc chọn một ô phân vùng có sẵn!');
       return;
     }
 
     try {
       setIsProcessing(true);
-      const croppedUrl = await cropImageBoundingBox(cadPhotoUrl, currentBox, 0.05);
+      const croppedUrl = await cropImageBoundingBox(activeCadUrl || cadPhotoUrl, currentBox, 0.05);
       onConfirmCrop(croppedUrl, currentBox);
       onClose();
     } catch (err) {
@@ -172,6 +189,17 @@ export const CadAreaCropModal: React.FC<CadAreaCropModalProps> = ({
     }
   };
 
+  const handleApplyFullFloorCad = () => {
+    const targetUrl = activeCadUrl || cadPhotoUrl;
+    if (!targetUrl) return;
+    if (onUseFullFloorCad) {
+      onUseFullFloorCad(targetUrl);
+    } else {
+      onConfirmCrop(targetUrl, { x: 0, y: 0, width: 100, height: 100 });
+    }
+    onClose();
+  };
+
   const handleResetToInitial = () => {
     setCurrentBox(initialBbox);
   };
@@ -180,24 +208,24 @@ export const CadAreaCropModal: React.FC<CadAreaCropModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-[120000] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 select-none animate-in fade-in duration-150">
-      <div className="bg-white border border-slate-200 rounded-2xl shadow-2xl w-full max-w-5xl h-[92dvh] flex flex-col overflow-hidden text-slate-800">
+      <div className="bg-white border border-slate-200 rounded-2xl shadow-2xl w-full max-w-5xl h-[94dvh] flex flex-col overflow-hidden text-slate-800">
         {/* Header Modal */}
         <div className="bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2.5">
             <div className="p-2 rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-100">
-              <Crop className="w-5 h-5" />
+              <Layers className="w-5 h-5" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <h3 className="text-sm sm:text-base font-bold text-slate-900">
-                  Cắt Bản Vẽ Khu Vực {unitCode}
+                  Chọn & Cắt Bản Vẽ Cho Khu Vực {unitCode}
                 </h3>
-                <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-700">
+                <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">
                   {floorName}
                 </span>
               </div>
               <p className="text-xs text-slate-500">
-                Kéo thả chuột hoặc ngón tay để vẽ ô chữ nhật mới bao quanh khu vực cần khảo sát.
+                Bấm vào ô phân vùng trên bản vẽ, chọn nhanh trong danh sách hoặc kéo vẽ ô tự do để làm sơ đồ khu vực.
               </p>
             </div>
           </div>
@@ -211,8 +239,84 @@ export const CadAreaCropModal: React.FC<CadAreaCropModalProps> = ({
           </button>
         </div>
 
-        {/* Toolbar công cụ */}
-        <div className="bg-slate-50 border-b border-slate-200 px-4 py-2 flex items-center justify-between gap-3 shrink-0 flex-wrap">
+        {/* Bộ chuyển đổi Tầng (nếu tòa nhà có nhiều tầng có CAD) */}
+        {floorPlans && floorPlans.length > 1 && (
+          <div className="bg-slate-100/90 border-b border-slate-200 px-3 py-1.5 flex items-center gap-2 overflow-x-auto shrink-0 scrollbar-none">
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider shrink-0 flex items-center gap-1">
+              <Layers size={13} className="text-indigo-600" /> Bản vẽ tòa:
+            </span>
+            <div className="flex items-center gap-1.5 shrink-0">
+              {floorPlans.map((fp) => {
+                const isSelected = (activeCadUrl || cadPhotoUrl) === fp.cad_photo_url;
+                return (
+                  <button
+                    key={fp.id || fp.floor_number}
+                    type="button"
+                    onClick={() => {
+                      setActiveCadUrl(fp.cad_photo_url);
+                      if (onSelectFloorPlan) onSelectFloorPlan(fp);
+                    }}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer shrink-0 border ${
+                      isSelected
+                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-2xs'
+                        : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200'
+                    }`}
+                  >
+                    {fp.floor_name || `Tầng ${fp.floor_number}`}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Thanh chọn nhanh phân vùng & Dùng toàn bộ CAD */}
+        <div className="bg-slate-50 border-b border-slate-200 px-3 py-1.5 flex items-center gap-2 overflow-x-auto shrink-0 scrollbar-none">
+          <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider shrink-0">
+            Chọn nhanh:
+          </span>
+
+          <button
+            type="button"
+            onClick={handleApplyFullFloorCad}
+            className="px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1 shrink-0 cursor-pointer shadow-2xs transition-colors"
+            title="Sử dụng toàn bộ bản vẽ tầng này làm sơ đồ khu vực mà không cần cắt"
+          >
+            <Sparkles size={13} />
+            <span>Dùng toàn bộ CAD tầng</span>
+          </button>
+
+          {otherPartitions.map((part) => {
+            const pBox = normalizeBbox(part.cad_bbox);
+            if (!pBox) return null;
+            const isTarget = part.unit_code === unitCode;
+            const isSelected =
+              currentBox &&
+              Math.abs(currentBox.x - pBox.x) < 0.5 &&
+              Math.abs(currentBox.y - pBox.y) < 0.5;
+
+            return (
+              <button
+                key={part.id}
+                type="button"
+                onClick={() => setCurrentBox(pBox)}
+                className={`px-2.5 py-1 rounded-lg text-xs transition-all cursor-pointer shrink-0 border flex items-center gap-1 ${
+                  isSelected
+                    ? 'bg-indigo-600 text-white border-indigo-600 font-bold shadow-2xs'
+                    : isTarget
+                    ? 'bg-emerald-50 text-emerald-800 border-emerald-300 font-bold'
+                    : 'bg-white hover:bg-slate-100 text-slate-700 border-slate-200'
+                }`}
+              >
+                <span>Ô {part.unit_code}</span>
+                {isTarget && <span className="text-[10px] text-emerald-600 font-normal">(Hiện tại)</span>}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Toolbar công cụ vẽ & Zoom */}
+        <div className="bg-white border-b border-slate-200 px-4 py-2 flex items-center justify-between gap-3 shrink-0 flex-wrap">
           <div className="flex items-center gap-2">
             <button
               type="button"
@@ -254,7 +358,7 @@ export const CadAreaCropModal: React.FC<CadAreaCropModalProps> = ({
           </div>
 
           {/* Toạ độ ô hiện tại */}
-          <div className="text-[11px] font-mono text-slate-600 bg-white px-2.5 py-1 rounded-lg border border-slate-200 flex items-center gap-2">
+          <div className="text-[11px] font-mono text-slate-600 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200 flex items-center gap-2">
             {currentBox ? (
               <>
                 <span className="text-emerald-700 font-bold">Ô cắt:</span>
@@ -264,7 +368,7 @@ export const CadAreaCropModal: React.FC<CadAreaCropModalProps> = ({
               </>
             ) : (
               <span className="text-amber-700 flex items-center gap-1">
-                <AlertCircle size={12} /> Chưa chọn ô cắt
+                <AlertCircle size={12} /> Chưa chọn ô cắt (hãy bấm vào ô hoặc kéo vẽ)
               </span>
             )}
           </div>
@@ -291,16 +395,22 @@ export const CadAreaCropModal: React.FC<CadAreaCropModalProps> = ({
               className="relative inline-block select-none shadow-xl rounded-xl bg-white border border-slate-300"
             >
               <img
-                src={cadPhotoUrl}
+                src={activeCadUrl || cadPhotoUrl}
                 alt="CAD Tầng"
-                className="block max-w-full max-h-[70vh] object-contain pointer-events-none rounded-xl"
+                className="block max-w-full max-h-[68vh] object-contain pointer-events-none rounded-xl"
                 draggable={false}
               />
 
-              {/* Các căn hộ/vùng khác trên tầng (mờ 30% để tham chiếu) */}
+              {/* Các phân vùng trên tầng (BẤM ĐƯỢC để chọn trực quan) */}
               {otherPartitions.map((part) => {
                 const pBox = normalizeBbox(part.cad_bbox);
-                if (!pBox || part.unit_code === unitCode) return null;
+                if (!pBox) return null;
+                const isTarget = part.unit_code === unitCode;
+                const isSelected =
+                  currentBox &&
+                  Math.abs(currentBox.x - pBox.x) < 0.5 &&
+                  Math.abs(currentBox.y - pBox.y) < 0.5;
+
                 return (
                   <div
                     key={part.id}
@@ -310,10 +420,30 @@ export const CadAreaCropModal: React.FC<CadAreaCropModalProps> = ({
                       width: `${pBox.width}%`,
                       height: `${pBox.height}%`,
                     }}
-                    className="absolute border border-dashed border-slate-400 bg-slate-500/10 pointer-events-none rounded"
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setCurrentBox(pBox);
+                    }}
+                    className={`absolute border-2 transition-all cursor-pointer rounded-md flex items-center justify-center ${
+                      isSelected
+                        ? 'border-indigo-600 bg-indigo-500/30 ring-2 ring-indigo-400 z-10'
+                        : isTarget
+                        ? 'border-emerald-500 bg-emerald-500/25 hover:bg-emerald-500/40 z-5'
+                        : 'border-slate-400/80 bg-slate-500/15 hover:bg-slate-500/30'
+                    }`}
+                    title={`Bấm để chọn ô phân vùng ${part.unit_code}`}
                   >
-                    <span className="absolute top-0.5 left-0.5 text-[8px] font-mono text-slate-500 px-1 bg-white/70 rounded">
-                      {part.unit_code}
+                    <span
+                      className={`absolute top-0.5 left-0.5 text-[9px] font-bold px-1 rounded shadow-xs select-none ${
+                        isSelected
+                          ? 'bg-indigo-600 text-white'
+                          : isTarget
+                          ? 'bg-emerald-600 text-white'
+                          : 'bg-white/90 text-slate-700'
+                      }`}
+                    >
+                      {part.unit_code} {isTarget ? '(Khu này)' : ''}
                     </span>
                   </div>
                 );
@@ -369,7 +499,7 @@ export const CadAreaCropModal: React.FC<CadAreaCropModalProps> = ({
         </div>
 
         {/* Footer hành động */}
-        <div className="bg-white border-t border-slate-200 px-4 py-3 flex items-center justify-between shrink-0">
+        <div className="bg-white border-t border-slate-200 px-4 py-3 flex items-center justify-between shrink-0 gap-3 flex-wrap">
           <button
             type="button"
             onClick={onClose}
@@ -379,24 +509,36 @@ export const CadAreaCropModal: React.FC<CadAreaCropModalProps> = ({
             Hủy bỏ
           </button>
 
-          <button
-            type="button"
-            onClick={handleConfirm}
-            disabled={!currentBox || isProcessing}
-            className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs sm:text-sm font-bold flex items-center gap-2 shadow-md disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-all"
-          >
-            {isProcessing ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                <span>Đang trích xuất ảnh...</span>
-              </>
-            ) : (
-              <>
-                <Check className="w-4 h-4" />
-                <span>Xác Nhận Cắt Vùng Này</span>
-              </>
-            )}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleApplyFullFloorCad}
+              disabled={isProcessing}
+              className="px-4 py-2 rounded-xl border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs sm:text-sm font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
+            >
+              <Sparkles size={14} />
+              <span>Dùng toàn bộ CAD</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleConfirm}
+              disabled={!currentBox || isProcessing}
+              className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs sm:text-sm font-bold flex items-center gap-2 shadow-md disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition-all"
+            >
+              {isProcessing ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Đang trích xuất ảnh...</span>
+                </>
+              ) : (
+                <>
+                  <Check className="w-4 h-4" />
+                  <span>Xác Nhận Cắt Vùng Này</span>
+                </>
+              )}
+            </button>
+          </div>
         </div>
       </div>
     </div>

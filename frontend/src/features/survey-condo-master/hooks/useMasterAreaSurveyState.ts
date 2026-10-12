@@ -125,6 +125,21 @@ export function useMasterAreaSurveyState({
   const [isCroppingCad, setIsCroppingCad] = useState<boolean>(false);
   const [customBbox, setCustomBbox] = useState<NormalizedBbox | null>(null);
 
+  // Cờ đánh dấu người dùng đã chủ động thao tác (xoá, chọn ô, upload riêng) -> Chặn triệt để auto-crop ngầm
+  const [isCadOverriddenByUser, setIsCadOverriddenByUser] = useState<boolean>(false);
+  const isCadOverriddenByUserRef = useRef<boolean>(false);
+  useEffect(() => {
+    isCadOverriddenByUserRef.current = isCadOverriddenByUser;
+  }, [isCadOverriddenByUser]);
+
+  // Danh sách các bản vẽ CAD tầng có sẵn trong tòa nhà
+  const [availableFloorPlans, setAvailableFloorPlans] = useState<FloorPlanItem[]>(floorPlans || []);
+  useEffect(() => {
+    if (floorPlans && floorPlans.length > 0) {
+      setAvailableFloorPlans(floorPlans);
+    }
+  }, [floorPlans]);
+
   // Step 3 State: Damage Zones (Z) & Defects (D of Z)
   const [cadZonePins, setCadZonePins] = useState<CadZonePin[]>([]);
   const [zones, setZones] = useState<DamageZoneData[]>([]);
@@ -287,7 +302,10 @@ export function useMasterAreaSurveyState({
                 (u: FloorPartition) => u.unit_code === unitCode || u.id === unitId
               );
               if (matchedUnit?.unit_cad_url) {
-                setCadSketchPhotoUrl((prev) => prev || matchedUnit.unit_cad_url || '');
+                setCadSketchPhotoUrl((prev) => {
+                  if (prev || isCadOverriddenByUserRef.current) return prev;
+                  return matchedUnit.unit_cad_url || '';
+                });
               }
               setIsLoadingCad(false);
               return;
@@ -307,6 +325,7 @@ export function useMasterAreaSurveyState({
           : [];
 
         if (plansList.length > 0) {
+          setAvailableFloorPlans((prev) => (prev.length > 0 ? prev : plansList));
           const matchedPlan = plansList.find((p) => p.floor_number === floorNumber);
           if (matchedPlan?.cad_photo_url) {
             setFloorPlanData((prev) => ({
@@ -348,11 +367,21 @@ export function useMasterAreaSurveyState({
       setOverviewPhotos(source.overviewPhotos as EvidencePhotoItem[]);
       evidenceCount += source.overviewPhotos.length;
     }
-    if (typeof source.cadSketchPhotoUrl === 'string' && source.cadSketchPhotoUrl) {
-      setCadSketchPhotoUrl(source.cadSketchPhotoUrl);
-      evidenceCount += 1;
+    if (typeof source.isCadOverriddenByUser === 'boolean') {
+      setIsCadOverriddenByUser(source.isCadOverriddenByUser);
+      isCadOverriddenByUserRef.current = source.isCadOverriddenByUser;
+      if (source.isCadOverriddenByUser) {
+        hasAutoCroppedRef.current = true;
+      }
     }
-    if (typeof source.cadStructuralSketchPhotoUrl === 'string' && source.cadStructuralSketchPhotoUrl) {
+    if (typeof source.cadSketchPhotoUrl === 'string') {
+      setCadSketchPhotoUrl(source.cadSketchPhotoUrl);
+      if (source.cadSketchPhotoUrl) {
+        evidenceCount += 1;
+        hasAutoCroppedRef.current = true;
+      }
+    }
+    if (typeof source.cadStructuralSketchPhotoUrl === 'string') {
       setCadStructuralSketchPhotoUrl(source.cadStructuralSketchPhotoUrl);
     }
     if (typeof source.useSeparateStructuralCad === 'boolean') {
@@ -460,6 +489,7 @@ export function useMasterAreaSurveyState({
       hasStructuralElements,
       noStructuralElementsReason,
       customBbox,
+      isCadOverriddenByUser,
     };
 
     return healLocalPhotoUris({
@@ -934,28 +964,51 @@ export function useMasterAreaSurveyState({
   const floorName = floorPlanData?.plan?.floor_name || `Tầng ${floorNumber}`;
 
   // =========================================================================
-  // TỰ ĐỘNG CROP CAD NGẦM NẾU CHƯA CÓ VÀ ĐÃ CÓ BBOX
+  // TỰ ĐỘNG CROP CAD NGẦM NẾU CHƯA CÓ VÀ ĐÃ CÓ BBOX (CHỈ CHẠY 1 LẦN KHI KHỞI TẠO MỚI)
   // =========================================================================
   useEffect(() => {
-    if (hasAutoCroppedRef.current) return;
+    // 1. Chặn tuyệt đối nếu chưa hoàn thành hydrate dữ liệu nháp/báo cáo từ server/local
+    if (!hasHydrated) return;
+    // 2. Chặn nếu người dùng đã từng thao tác (xoá, chọn ô, upload) hoặc đã auto crop trước đó
+    if (hasAutoCroppedRef.current || isCadOverriddenByUserRef.current) return;
+    // 3. Chặn nếu state đã có CAD (từ draft hoặc prop)
+    if (cadSketchPhotoUrl) {
+      hasAutoCroppedRef.current = true;
+      return;
+    }
+
     const parentCad = floorPlanData?.plan?.cad_photo_url || floorCadUrl;
-    if (parentCad && activeBbox && !cadSketchPhotoUrl) {
+    if (parentCad && activeBbox) {
       hasAutoCroppedRef.current = true;
       cropImageBoundingBox(parentCad, activeBbox, 0.05)
         .then((cropped) => {
-          setCadSketchPhotoUrl((prev) => prev || cropped);
+          setCadSketchPhotoUrl((prev) => {
+            // Không ghi đè nếu người dùng đã can thiệp trong lúc crop chạy
+            if (prev || isCadOverriddenByUserRef.current) return prev;
+            return cropped;
+          });
           if (!cadStructuralSketchPhotoUrl) {
-            setCadStructuralSketchPhotoUrl((prev) => prev || cropped);
+            setCadStructuralSketchPhotoUrl((prev) => {
+              if (prev || isCadOverriddenByUserRef.current) return prev;
+              return cropped;
+            });
           }
         })
         .catch((err) => {
           console.warn('[useMasterAreaSurveyState] Auto crop ngầm không thành công:', err);
         });
     }
-  }, [floorPlanData, floorCadUrl, activeBbox, cadSketchPhotoUrl, cadStructuralSketchPhotoUrl]);
+  }, [
+    hasHydrated,
+    floorPlanData,
+    floorCadUrl,
+    activeBbox,
+    cadSketchPhotoUrl,
+    cadStructuralSketchPhotoUrl,
+  ]);
 
   // =========================================================================
-  // BƯỚC 2: SETUP BẢN VẼ CAD (TRÍCH XUẤT TỪ CAD TẦNG & TẢI MỚI)
+  // BƯỚC 2: SETUP BẢN VẼ CAD (TRÍCH XUẤT TỪ CAD TẦNG, CHỌN TẦNG KHÁC & TẢI MỚI)
   // =========================================================================
   const handleAutoCropFromFloorCad = async () => {
     const parentCadUrl = floorPlanData?.plan?.cad_photo_url || floorCadUrl;
@@ -978,6 +1031,9 @@ export function useMasterAreaSurveyState({
           setCadStructuralSketchPhotoUrl(parentCadUrl);
         }
       }
+      setIsCadOverriddenByUser(true);
+      isCadOverriddenByUserRef.current = true;
+      hasAutoCroppedRef.current = true;
       alert('Đã thiết lập bản vẽ khu vực thành công!');
     } catch (err) {
       console.error('[useMasterAreaSurveyState] Lỗi trích xuất CAD:', err);
@@ -993,6 +1049,20 @@ export function useMasterAreaSurveyState({
       setCadStructuralSketchPhotoUrl(croppedDataUrl);
     }
     setCustomBbox(newBbox);
+    setIsCadOverriddenByUser(true);
+    isCadOverriddenByUserRef.current = true;
+    hasAutoCroppedRef.current = true;
+  };
+
+  const handleUseFullFloorCad = (fullFloorCadUrl: string) => {
+    setCadSketchPhotoUrl(fullFloorCadUrl);
+    if (!useSeparateStructuralCad) {
+      setCadStructuralSketchPhotoUrl(fullFloorCadUrl);
+    }
+    setCustomBbox({ x: 0, y: 0, width: 100, height: 100 });
+    setIsCadOverriddenByUser(true);
+    isCadOverriddenByUserRef.current = true;
+    hasAutoCroppedRef.current = true;
   };
 
   const handleClearCadSketch = () => {
@@ -1000,7 +1070,46 @@ export function useMasterAreaSurveyState({
     if (!useSeparateStructuralCad) {
       setCadStructuralSketchPhotoUrl('');
     }
-    hasAutoCroppedRef.current = false;
+    setCustomBbox(null);
+    setIsCadOverriddenByUser(true);
+    isCadOverriddenByUserRef.current = true;
+    hasAutoCroppedRef.current = true; // KHÔNG reset về false để triệt tiêu vĩnh viễn vòng lặp 0.5s tự lôi lại
+  };
+
+  const handleSetCadSketchPhotoUrl = (url: string) => {
+    setCadSketchPhotoUrl(url);
+    if (!useSeparateStructuralCad && !cadStructuralSketchPhotoUrl) {
+      setCadStructuralSketchPhotoUrl(url);
+    }
+    setIsCadOverriddenByUser(true);
+    isCadOverriddenByUserRef.current = true;
+    hasAutoCroppedRef.current = true;
+  };
+
+  const handleSelectFloorPlanForCrop = async (selectedPlan: FloorPlanItem) => {
+    try {
+      setIsLoadingCad(true);
+      const res = await api.get(`/parcels/${parcelId}/floor-plans/${selectedPlan.floor_number}`);
+      if (res.data?.success && res.data.data) {
+        setFloorPlanData({
+          plan: res.data.data.plan || selectedPlan,
+          units: res.data.data.units || [],
+        });
+      } else {
+        setFloorPlanData((prev) => ({
+          plan: selectedPlan,
+          units: prev?.units || [],
+        }));
+      }
+    } catch (err) {
+      console.warn('[useMasterAreaSurveyState] Lỗi đổi tầng CAD:', err);
+      setFloorPlanData((prev) => ({
+        plan: selectedPlan,
+        units: prev?.units || [],
+      }));
+    } finally {
+      setIsLoadingCad(false);
+    }
   };
 
   // Quản lý ảnh toàn cảnh khu vực (Bước 2): Tránh duplicate khi nhận Cloud URL
@@ -2102,6 +2211,11 @@ export function useMasterAreaSurveyState({
     handleAutoCropFromFloorCad,
     handleClearCadSketch,
     handleConfirmCadCrop,
+    handleUseFullFloorCad,
+    handleSetCadSketchPhotoUrl,
+    isCadOverriddenByUser,
+    availableFloorPlans,
+    handleSelectFloorPlanForCrop,
     // Step 3 (2-way sync với CAD)
     cadZonePins,
     setCadZonePins,
