@@ -10,6 +10,7 @@ import {
   ExternalLink,
   ShieldCheck,
   RotateCcw,
+  ArrowRightLeft,
 } from 'lucide-react';
 import type { GisParcel } from '../../../gis/LeafletSweepMap';
 import type { BuildingUnit } from '../types';
@@ -17,6 +18,7 @@ import { formatShortUnitDisplay } from '../../../../core/utils/codeFormattingUti
 import { useAuth } from '../../../../context/AuthContext';
 import { api } from '../../../../services/api';
 import { getErrorMessage } from '@/utils/errorUtils';
+import { UnitCadSpatialSwapModal } from './UnitCadSpatialSwapModal';
 
 interface UnitInspectionDrawerProps {
   unit: BuildingUnit | null;
@@ -42,6 +44,7 @@ export const UnitInspectionDrawer: React.FC<UnitInspectionDrawerProps> = ({
   const { user } = useAuth();
   const isAdmin = user?.role === 'ZONE_ADMIN' || user?.role === 'SUPER_ADMIN';
   const [isReverting, setIsReverting] = React.useState(false);
+  const [showSwapModal, setShowSwapModal] = React.useState(false);
 
   if (!unit) return null;
 
@@ -257,6 +260,19 @@ export const UnitInspectionDrawer: React.FC<UnitInspectionDrawerProps> = ({
               </button>
             )}
 
+            {isAdmin && (
+              <button
+                type="button"
+                onClick={() => setShowSwapModal(true)}
+                className="min-h-[44px] px-3.5 py-2.5 rounded-xl text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 transition-colors cursor-pointer flex items-center gap-1.5 shadow-2xs shrink-0"
+                title="Hoán đổi tọa độ CAD với căn hộ hoặc khu vực khác (Admin)"
+              >
+                <ArrowRightLeft size={14} className="text-indigo-600" />
+                <span className="hidden sm:inline">Hoán Đổi Vị Trí CAD</span>
+                <span className="sm:hidden">Đổi CAD</span>
+              </button>
+            )}
+
             <button
               type="button"
               onClick={onClose}
@@ -317,6 +333,23 @@ export const UnitInspectionDrawer: React.FC<UnitInspectionDrawerProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Modal Hoán Đổi Tọa Độ CAD cho Admin */}
+      {isAdmin && showSwapModal && (
+        <UnitCadSpatialSwapModal
+          isOpen={showSwapModal}
+          parcelId={parcel.id}
+          projectParcelCode={parcel.projectParcelCode || parcel.officialCadastralCode}
+          sourceUnit={unit}
+          onClose={() => setShowSwapModal(false)}
+          onSuccess={() => {
+            setShowSwapModal(false);
+            if (onUnitStatusUpdated) {
+              onUnitStatusUpdated();
+            }
+          }}
+        />
+      )}
     </>
   );
 };

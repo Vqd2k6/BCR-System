@@ -34,7 +34,7 @@ export const LoginView: React.FC<Props> = ({ onNavigatePublicPortal }) => {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: '#f8fafc',
+        backgroundColor: 'rgb(var(--bg-slate-50))',
         padding: '1.25rem',
       }}
     >
@@ -46,7 +46,7 @@ export const LoginView: React.FC<Props> = ({ onNavigatePublicPortal }) => {
           padding: '2rem',
           boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.01)',
           borderRadius: '1rem',
-          border: '1px solid #e2e8f0',
+          border: '1px solid rgb(var(--border-slate-200))',
         }}
       >
         {/* Header Logo & Title */}
@@ -69,10 +69,10 @@ export const LoginView: React.FC<Props> = ({ onNavigatePublicPortal }) => {
               }}
             />
           </div>
-          <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#0f172a', margin: '0 0 0.35rem 0' }}>
+          <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: 'rgb(var(--text-slate-900))', margin: '0 0 0.35rem 0' }}>
             BUILDING CONDITION SURVEY MRT LINE-2 SYSTEM
           </h2>
-          <p style={{ fontSize: '0.8rem', color: '#64748b', margin: 0 }}>
+          <p style={{ fontSize: '0.8rem', color: 'rgb(var(--text-slate-500))', margin: 0 }}>
             Dự án Tuyến Tàu Điện Ngầm Tuyến Số 2 TP.HCM (Metro Tuyến 2)
           </p>
         </div>
@@ -82,10 +82,10 @@ export const LoginView: React.FC<Props> = ({ onNavigatePublicPortal }) => {
           <div
             style={{
               padding: '0.75rem 1rem',
-              backgroundColor: '#fee2e2',
-              border: '1px solid #fca5a5',
+              backgroundColor: 'rgb(var(--bg-red-100))',
+              border: '1px solid rgb(var(--border-red-300))',
               borderRadius: '0.5rem',
-              color: '#b91c1c',
+              color: 'rgb(var(--text-red-700))',
               fontSize: '0.8rem',
               marginBottom: '1.25rem',
               display: 'flex',
@@ -163,17 +163,17 @@ export const LoginView: React.FC<Props> = ({ onNavigatePublicPortal }) => {
 
         {/* Public Citizen Portal Access */}
         {onNavigatePublicPortal && (
-          <div style={{ marginTop: '1.25rem', paddingTop: '1rem', borderTop: '1px solid #f1f5f9' }}>
+          <div style={{ marginTop: '1.25rem', paddingTop: '1rem', borderTop: '1px solid rgb(var(--border-slate-100))' }}>
             <button
               type="button"
               onClick={onNavigatePublicPortal}
               style={{
                 width: '100%',
                 padding: '0.6rem 0.8rem',
-                backgroundColor: '#f0fdf4',
-                border: '1px solid #bbf7d0',
+                backgroundColor: 'rgb(var(--bg-green-50))',
+                border: '1px solid rgb(var(--border-green-200))',
                 borderRadius: '0.75rem',
-                color: '#15803d',
+                color: 'rgb(var(--text-green-700))',
                 fontSize: '0.75rem',
                 fontWeight: 700,
                 display: 'flex',

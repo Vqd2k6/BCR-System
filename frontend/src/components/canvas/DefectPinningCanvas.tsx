@@ -11,6 +11,7 @@ import { CanvasZoomToolbar } from './CanvasZoomToolbar';
 import { base64ToBlob } from '../../features/survey-phase1/utils/photoSyncAudit';
 import { uploadQueue } from '../../core/services/uploadQueueService';
 import type { MetroWatermarkOptions } from '../../utils/watermarkEngine';
+import { extractTimestampFromPhotoUrl } from '../../utils/photoTimestampHelper';
 
 export interface DefectItem {
   id?: string;
@@ -51,6 +52,9 @@ export interface DefectItem {
   photo_url?: string;
   cuPhotos?: string[];
   cuPhotoCodes?: string[];
+  cuPhotoTimestamps?: string[];
+  capturedAt?: string;
+  shot_at?: string;
   notes?: string;
   floorName?: string;
   floor_name?: string;
@@ -81,12 +85,13 @@ const CuPhotoThumbnailItem: React.FC<{
   pIdx: number;
   isPrimary: boolean;
   pCode?: string;
+  timestamp?: string;
   defectCode: string;
   readOnly?: boolean;
-  onZoom: (url: string, title: string, code?: string) => void;
+  onZoom: (url: string, title: string, code?: string, timestamp?: string) => void;
   onAnnotate?: (pIdx: number, url: string, code?: string) => void;
   onRemove: (idx: number) => void;
-}> = ({ photoUrl, pIdx, isPrimary, pCode, defectCode, readOnly, onZoom, onAnnotate, onRemove }) => {
+}> = ({ photoUrl, pIdx, isPrimary, pCode, timestamp, defectCode, readOnly, onZoom, onAnnotate, onRemove }) => {
   const [displayUrl, setDisplayUrl] = React.useState<string>(() => getSafeDisplayUrl(photoUrl));
 
   React.useEffect(() => {
@@ -115,7 +120,8 @@ const CuPhotoThumbnailItem: React.FC<{
         onZoom(
           currentSrc || photoUrl,
           `Khuyết tật ${defectCode} - Ảnh #${pIdx + 1}${isPrimary ? ' (Ảnh chính)' : ''}`,
-          pCode
+          pCode,
+          timestamp
         )
       }
       title="Nhấn vào để phóng to"
@@ -167,7 +173,8 @@ const CuPhotoThumbnailItem: React.FC<{
             onZoom(
               currentSrc || photoUrl,
               `Khuyết tật ${defectCode} - Ảnh #${pIdx + 1}${isPrimary ? ' (Ảnh chính)' : ''}`,
-              pCode
+              pCode,
+              timestamp
             );
           }}
           className="p-1 rounded bg-slate-900/80 hover:bg-slate-900 text-slate-200 hover:text-white transition-colors cursor-pointer"
@@ -282,7 +289,7 @@ export const DefectPinningCanvas: React.FC<Props> = ({
   const [isAddingPin, setIsAddingPin] = useState<boolean>(true);
   const [showPins, setShowPins] = useState<boolean>(true);
   const [draggingDefectIndex, setDraggingDefectIndex] = useState<number | null>(null);
-  const [zoomModalImage, setZoomModalImage] = useState<{ url: string; title: string; code?: string; pIdx?: number } | null>(null);
+  const [zoomModalImage, setZoomModalImage] = useState<{ url: string; title: string; code?: string; pIdx?: number; timestamp?: string } | null>(null);
   const [annotatingCuPhoto, setAnnotatingCuPhoto] = useState<{ pIdx: number; url: string; code?: string } | null>(null);
   const [safeCtxUrl, setSafeCtxUrl] = useState<string>(() => getSafeDisplayUrl(ctxPhotoUrl));
   const [isImageLoaded, setIsImageLoaded] = useState<boolean>(false);
@@ -638,8 +645,21 @@ export const DefectPinningCanvas: React.FC<Props> = ({
       // 1. Chuyển chuỗi Base64 sang nhị phân Blob
       const blob = base64ToBlob(annotatedBase64);
 
+      // Trích xuất và bảo toàn thời gian chụp gốc
+      const curPhotos = Array.isArray(cur.cuPhotos) && cur.cuPhotos.length > 0
+        ? [...cur.cuPhotos]
+        : (cur.cuPhotoUrl ? [cur.cuPhotoUrl] : []);
+      const originalUrl = curPhotos[targetPIdx] || '';
+      const currentTimestamps = Array.isArray(cur.cuPhotoTimestamps) ? [...cur.cuPhotoTimestamps] : [];
+      const originalTimestamp = currentTimestamps[targetPIdx] || (originalUrl ? extractTimestampFromPhotoUrl(originalUrl) : undefined) || cur.capturedAt || new Date().toISOString();
+      let originalEpoch = Date.now();
+      const parsedEpoch = new Date(originalTimestamp).getTime();
+      if (!isNaN(parsedEpoch) && parsedEpoch > 1500000000000 && parsedEpoch < 2500000000000) {
+        originalEpoch = parsedEpoch;
+      }
+
       // 2. Lưu IndexedDB offline an toàn với định danh cục bộ (ngăn lỗi OOM trên iOS Safari)
-      const localId = `cu_ann_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+      const localId = `cu_ann_${originalEpoch}_${Math.random().toString(36).substring(2, 6)}`;
       const localUri = `blob:local://${localId}`;
       const effectiveCode = photoCode || `${cur.defectCode}_CU_${targetPIdx + 1}`;
 
@@ -653,6 +673,8 @@ export const DefectPinningCanvas: React.FC<Props> = ({
           floor: floorName || '',
           zoneOrRoom: zoneOrElementCode || '',
           annotated: 'true',
+          capturedAt: originalTimestamp,
+          annotatedAt: new Date().toISOString(),
           ...(watermarkOptions?.buildingCode ? { buildingCode: watermarkOptions.buildingCode } : {}),
           ...(watermarkOptions?.floorCode ? { floorCode: watermarkOptions.floorCode } : {}),
           ...(watermarkOptions?.unitCode ? { unitCode: watermarkOptions.unitCode } : {}),
@@ -662,29 +684,30 @@ export const DefectPinningCanvas: React.FC<Props> = ({
       );
 
       // 3. Cập nhật mảng ảnh trong defects ngay lập tức với localUri để giao diện cập nhật 0ms
-      const curPhotos = Array.isArray(cur.cuPhotos) && cur.cuPhotos.length > 0
-        ? [...cur.cuPhotos]
-        : (cur.cuPhotoUrl ? [cur.cuPhotoUrl] : []);
-
       curPhotos[targetPIdx] = localUri;
+      currentTimestamps[targetPIdx] = originalTimestamp;
 
       const next = [...safeDefects];
       next[selectedDefectIndex] = {
         ...next[selectedDefectIndex],
         cuPhotos: curPhotos,
         cuPhotoUrl: curPhotos[0] || '',
+        cuPhotoTimestamps: currentTimestamps,
+        capturedAt: currentTimestamps[0] || originalTimestamp,
       };
       onChange(next);
 
       // 4. Đẩy vào hàng đợi upload ngầm lên Cloudflare R2 / S3
       let targetFolder = `projects/${parcelCode || 'metro2'}/defects/${cur.defectCode}`;
-      let targetFilename = `${effectiveCode.replace(/[^a-zA-Z0-9_-]/g, '_')}_${Date.now()}.jpg`;
+      let targetFilename = `${effectiveCode.replace(/[^a-zA-Z0-9_-]/g, '_')}_${originalEpoch}.jpg`;
       let targetMetadata: Record<string, string> = {
         defectCode: cur.defectCode,
         photoCode: effectiveCode,
         floor: floorName || '',
         zoneOrRoom: zoneOrElementCode || '',
         annotated: 'true',
+        'captured-at': originalTimestamp,
+        'annotated-at': new Date().toISOString(),
       };
 
       if (watermarkOptions?.areaType === 'MASTER_AREA' || watermarkOptions?.areaType === 'CONDO_UNIT') {
@@ -702,7 +725,7 @@ export const DefectPinningCanvas: React.FC<Props> = ({
         if (subEntity) nameParts.push(subEntity);
         nameParts.push(cur.defectCode.replace(/[^a-zA-Z0-9_-]/g, ''));
         nameParts.push('CU_ANN');
-        nameParts.push(String(Date.now()));
+        nameParts.push(String(originalEpoch));
         targetFilename = `${nameParts.join('__')}.jpg`;
 
         targetMetadata = {
@@ -716,7 +739,8 @@ export const DefectPinningCanvas: React.FC<Props> = ({
           'area-type': watermarkOptions.areaType,
           'survey-phase': 'PHASE_1',
           'project': 'METRO2_HCM',
-          'captured-at': new Date().toISOString(),
+          'captured-at': originalTimestamp,
+          'annotated-at': new Date().toISOString(),
           ...(watermarkOptions.gpsLat !== undefined ? { 'gps-lat': String(watermarkOptions.gpsLat) } : {}),
           ...(watermarkOptions.gpsLng !== undefined ? { 'gps-lng': String(watermarkOptions.gpsLng) } : {}),
           ...(watermarkOptions.gpsAccuracy !== undefined ? { 'gps-accuracy': String(watermarkOptions.gpsAccuracy) } : {}),
@@ -916,7 +940,7 @@ export const DefectPinningCanvas: React.FC<Props> = ({
             onPointerMove={handleTightBoxPointerMove}
             onPointerUp={handleTightBoxPointerUp}
             style={transformStyle}
-            className={`relative inline-block max-w-full leading-none mx-auto select-none touch-none ${
+            className={`relative inline-block max-w-full leading-none mx-auto select-none touch-none force-light ${
               isAddingPin ? 'cursor-crosshair' : 'cursor-grab'
             }`}
           >
@@ -1014,7 +1038,7 @@ export const DefectPinningCanvas: React.FC<Props> = ({
                       width: '6px',
                       height: '6px',
                       borderRadius: '50%',
-                      backgroundColor: '#ffffff',
+                      backgroundColor: 'rgb(var(--bg-white))',
                       border: `2px solid ${isSelected || isDragging ? '#dc2626' : squareBg}`,
                       boxShadow: '0 0 4px rgba(0,0,0,0.5)',
                       marginTop: '-2px',
@@ -1426,7 +1450,7 @@ export const DefectPinningCanvas: React.FC<Props> = ({
               ? selectedDefect.cuPhotoCodes
               : (selectedDefect.cuPhotoCode ? [selectedDefect.cuPhotoCode] : []);
 
-            const handleAddCuPhoto = (url: string, code?: string, meta?: { replacesUri?: string }) => {
+            const handleAddCuPhoto = (url: string, code?: string, meta?: { replacesUri?: string; capturedAt?: string }) => {
               if (selectedDefectIndex === null) return;
               // Callback hoàn tất upload (blob:local -> URL Cloud) đã được thăng cấp qua store/sự kiện toàn cục;
               // bỏ qua để không ghi đè các chỉnh sửa mới hơn bằng closure cũ.
@@ -1434,13 +1458,18 @@ export const DefectPinningCanvas: React.FC<Props> = ({
               if (!url || currentCuPhotos.includes(url)) return;
               const nextPhotos = [...currentCuPhotos, url];
               const nextCodes = [...currentCuCodes, code || ''];
+              const currentTimestamps = Array.isArray(selectedDefect.cuPhotoTimestamps) ? [...selectedDefect.cuPhotoTimestamps] : [];
+              const captureTime = meta?.capturedAt || extractTimestampFromPhotoUrl(url) || new Date().toISOString();
+              const nextTimestamps = [...currentTimestamps, captureTime];
               const next = [...safeDefects];
               next[selectedDefectIndex] = {
                 ...next[selectedDefectIndex],
                 cuPhotos: nextPhotos,
                 cuPhotoCodes: nextCodes,
+                cuPhotoTimestamps: nextTimestamps,
                 cuPhotoUrl: nextPhotos[0] || '',
                 cuPhotoCode: nextCodes[0] || '',
+                capturedAt: nextTimestamps[0] || captureTime,
               };
               onChange(next);
             };
@@ -1449,13 +1478,17 @@ export const DefectPinningCanvas: React.FC<Props> = ({
               if (selectedDefectIndex === null || readOnly) return;
               const nextPhotos = currentCuPhotos.filter((_, i) => i !== indexToRemove);
               const nextCodes = currentCuCodes.filter((_, i) => i !== indexToRemove);
+              const currentTimestamps = Array.isArray(selectedDefect.cuPhotoTimestamps) ? [...selectedDefect.cuPhotoTimestamps] : [];
+              const nextTimestamps = currentTimestamps.filter((_, i) => i !== indexToRemove);
               const next = [...safeDefects];
               next[selectedDefectIndex] = {
                 ...next[selectedDefectIndex],
                 cuPhotos: nextPhotos,
                 cuPhotoCodes: nextCodes,
+                cuPhotoTimestamps: nextTimestamps,
                 cuPhotoUrl: nextPhotos[0] || '',
                 cuPhotoCode: nextCodes[0] || '',
+                capturedAt: nextTimestamps[0] || '',
               };
               onChange(next);
             };
@@ -1489,6 +1522,7 @@ export const DefectPinningCanvas: React.FC<Props> = ({
                           currentCuCodes[pIdx] ||
                           (pIdx === 0 ? selectedDefect.cuPhotoCode : undefined);
                         const isPrimary = pIdx === 0;
+                        const pTimestamp = selectedDefect.cuPhotoTimestamps?.[pIdx] || extractTimestampFromPhotoUrl(photoUrl);
                         return (
                           <CuPhotoThumbnailItem
                             key={`cu_thumb_${pIdx}`}
@@ -1496,10 +1530,11 @@ export const DefectPinningCanvas: React.FC<Props> = ({
                             pIdx={pIdx}
                             isPrimary={isPrimary}
                             pCode={pCode}
+                            timestamp={pTimestamp}
                             defectCode={selectedDefect.defectCode}
                             readOnly={readOnly}
-                            onZoom={(url, title, code) =>
-                              setZoomModalImage({ url, title, code, pIdx })
+                            onZoom={(url, title, code, ts) =>
+                              setZoomModalImage({ url, title, code, pIdx, timestamp: ts || pTimestamp })
                             }
                             onAnnotate={(idx, url, code) =>
                               setAnnotatingCuPhoto({ pIdx: idx, url, code })
@@ -1589,6 +1624,7 @@ export const DefectPinningCanvas: React.FC<Props> = ({
           imageUrl={zoomModalImage.url}
           title={zoomModalImage.title}
           photoCode={zoomModalImage.code}
+          timestamp={zoomModalImage.timestamp}
           onClose={() => setZoomModalImage(null)}
           onAnnotate={
             !readOnly && zoomModalImage.pIdx !== undefined

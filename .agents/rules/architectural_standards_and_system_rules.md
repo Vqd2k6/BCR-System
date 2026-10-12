@@ -130,9 +130,12 @@ Hệ thống quản lý công trình theo cấu trúc cha - con chặt chẽ:
   * `P-04`: Toàn cảnh nội thất phòng khách (*Bắt buộc*).
 * **Đo nghiêng & Đo võng**: Độ nghiêng hiển thị dạng Read-only badge kế thừa từ tòa mẹ; Độ võng dầm/sàn được đo và ghi nhận cục bộ bên trong căn hộ.
 
-### 7. Ngôn Ngữ Thiết Kế (Unified Clean Light Theme)
-* Toàn bộ Wizard (Nhà dân, Chung cư tổng thể, Căn hộ con) dùng chung phong cách Clean Light: Nền sáng cao cấp, header trắng mờ (`bg-white/95 backdrop-blur-md border-b border-slate-200/80`), tab chỉ dẫn bước rõ ràng, nút lưu nháp phản hồi trực quan.
-* Cấm đưa giao diện sang nền đen / dark mode cục bộ gây lệch tone và khó đọc ngoài trời nắng.
+### 7. Ngôn Ngữ Thiết Kế (Clean Light mặc định + Dark Mode toàn cục)
+* **Mặc định Clean Light** (tối ưu đọc ngoài trời nắng): Toàn bộ Wizard (Nhà dân, Chung cư tổng thể, Căn hộ con) dùng chung phong cách nền sáng cao cấp, header trắng mờ (`bg-white/95 backdrop-blur-md border-b border-slate-200/80`), tab chỉ dẫn bước rõ ràng, nút lưu nháp phản hồi trực quan.
+* **Dark Mode toàn cục do người dùng chọn**: Sáng / Tối / Theo hệ thống tại menu cá nhân (avatar) của mỗi role. Lựa chọn lưu theo thiết bị (`localStorage['metro2_theme_preference']`).
+* Dark Mode **CHỈ** được thực hiện qua hệ token toàn cục (`html.dark` + CSS variables sinh từ `frontend/theme/themeTokens.js`). **CẤM** hardcode khu vực tối cục bộ lệch tone.
+* Code mới **KHÔNG** dùng mã hex neutral (`#fff`, `#f8fafc`, `#f1f5f9`, `#e2e8f0`, `#0f172a`, `#334155`, `#64748b`...) trong `style={{}}`; dùng class Tailwind hoặc `rgb(var(--bg-*))` / `rgb(var(--text-*))` / `rgb(var(--border-*))`. Kiểm tra bằng `npm run check:theme`.
+* **Vùng "giấy kỹ thuật" luôn sáng** (class `.force-light`): Khung ký tên, canvas CAD / ghim khuyết tật / chú thích ảnh, xem trước báo cáo PDF.
 
 ### 8. Quy Chuẩn Component Dùng Chung & Chế Độ Chỉ Đọc (Shared Component ReadOnly Standard)
 * Khi một component được mở từ cả Admin Portal và Surveyor App (ví dụ: `BuildingHubModal`, `FloorPlanCadManagementModal`, `ParcelDetailBottomSheet`):

@@ -1,38 +1,29 @@
 import React from 'react';
 import { LOGO_THACO_CREC_BASE64 } from '../../../../assets/logoThacoCrecBase64';
+import { resolvePhotoTimestamp } from '../../../../utils/photoTimestampHelper';
 
 export interface PhotoWatermarkOverlayProps {
   photoCode?: string;
+  photoUrl?: string;
   timestamp?: Date | string | number;
+  fallbackDate?: Date | string | number;
   gps?: { lat: number; lng: number };
   variant?: 'compact' | 'full';
   showLogo?: boolean;
 }
 
-/**
- * ĐỊNH DẠNG THỜI GIAN CHUẨN PHÁP LÝ METRO 2: DD/MM/YYYY HH:mm:ss
- */
-function formatTimestamp(ts?: Date | string | number): string {
-  const d = ts ? new Date(ts) : new Date();
-  const day = String(d.getDate()).padStart(2, '0');
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const year = d.getFullYear();
-  const hours = String(d.getHours()).padStart(2, '0');
-  const minutes = String(d.getMinutes()).padStart(2, '0');
-  const seconds = String(d.getSeconds()).padStart(2, '0');
-  return `${day}/${month}/${year} ${hours}:${minutes}:${seconds}`;
-}
-
 export const PhotoWatermarkOverlay: React.FC<PhotoWatermarkOverlayProps> = ({
   photoCode,
+  photoUrl,
   timestamp,
+  fallbackDate,
   gps,
   variant = 'compact',
   showLogo = true,
 }) => {
   if (!photoCode) return null;
 
-  const timeStr = formatTimestamp(timestamp);
+  const timeStr = resolvePhotoTimestamp(timestamp, photoUrl, fallbackDate);
   const isFull = variant === 'full';
 
   return (
@@ -54,7 +45,7 @@ export const PhotoWatermarkOverlay: React.FC<PhotoWatermarkOverlayProps> = ({
           <div
             style={{
               padding: isFull ? '4px 8px' : '2px 6px',
-              backgroundColor: 'rgba(255, 255, 255, 0.85)',
+              backgroundColor: 'rgb(var(--bg-white) / 0.85)',
               borderRadius: isFull ? '6px' : '4px',
               boxShadow: '0 2px 6px rgba(0, 0, 0, 0.35)',
               backdropFilter: 'blur(3px)',
@@ -87,15 +78,17 @@ export const PhotoWatermarkOverlay: React.FC<PhotoWatermarkOverlayProps> = ({
           textShadow: '0 1px 3px rgba(0, 0, 0, 0.95), 0 2px 6px rgba(0, 0, 0, 0.85), 0 0 2px #000',
         }}
       >
-        <span
-          style={{
-            fontSize: isFull ? '14px' : '10px',
-            fontWeight: 700,
-            letterSpacing: '0.02em',
-          }}
-        >
-          {timeStr}
-        </span>
+        {timeStr && (
+          <span
+            style={{
+              fontSize: isFull ? '14px' : '10px',
+              fontWeight: 700,
+              letterSpacing: '0.02em',
+            }}
+          >
+            {timeStr}
+          </span>
+        )}
         <span
           style={{
             fontSize: isFull ? '13px' : '9.5px',

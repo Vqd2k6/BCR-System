@@ -19,6 +19,7 @@ import { useCondoUnitSurveyStore } from '../../features/survey-condo-unit/store/
 import { useCondoMasterSurveyStore } from '../../features/survey-condo-master/store/useCondoMasterSurveyStore';
 import { getSafeDisplayUrl, resolveOfflinePhotoUrl } from '../../core/storage/offlinePhotoStorage';
 import { useSurveyReadOnly } from '../../core/context/SurveyReadOnlyContext';
+import { extractTimestampFromPhotoUrl } from '../../utils/photoTimestampHelper';
 
 export type { PhotoCaptureProps };
 
@@ -29,6 +30,8 @@ export const PhotoCaptureInput: React.FC<PhotoCaptureProps> = ({
   watermarkText,
   watermarkOptions,
   photoCode,
+  timestamp,
+  fallbackDate,
   allowNotApplicable = false,
   isNotApplicable = false,
   onToggleNotApplicable,
@@ -77,6 +80,13 @@ export const PhotoCaptureInput: React.FC<PhotoCaptureProps> = ({
     if (effectiveWatermarkOptions) return generateMetroPhotoCode(effectiveWatermarkOptions);
     return watermarkText || '';
   }, [photoCode, effectiveWatermarkOptions, watermarkText]);
+
+  // Thời gian chụp ảnh thực tế (ưu tiên prop timestamp, fallback trích xuất epoch từ URL)
+  const effectiveTimestamp = useMemo(() => {
+    if (timestamp) return timestamp;
+    if (value) return extractTimestampFromPhotoUrl(value);
+    return undefined;
+  }, [timestamp, value]);
 
   // Detect image aspect ratio when value changes (an toàn tuyệt đối với offline blob:local://)
   useEffect(() => {
@@ -184,14 +194,15 @@ export const PhotoCaptureInput: React.FC<PhotoCaptureProps> = ({
       }
       try {
         // Lưu trực tiếp blob đã nén chất lượng cao từ LiveCamera, không nén kép 2 lần
-        const { blobUrl, localId } = await storePrecompressedPhoto(blob, photoCode);
+        const { blobUrl, localId, metadata } = await storePrecompressedPhoto(blob, photoCode);
         setLocalPreview(blobUrl);
         const localUri = `blob:local://${localId}`;
-        onChange(localUri, photoCode);
+        const captureTime = metadata?.['captured-at'] || new Date().toISOString();
+        onChange(localUri, photoCode, { capturedAt: captureTime });
         if (isNotApplicable && onToggleNotApplicable) {
           onToggleNotApplicable(false);
         }
-        startDirectUpload(blob, photoCode, localId);
+        startDirectUpload(blob, photoCode, localId, captureTime);
       } catch (err) {
         console.warn('[PhotoCaptureInput] Lỗi lưu ảnh camera:', err);
       }
@@ -329,7 +340,7 @@ export const PhotoCaptureInput: React.FC<PhotoCaptureProps> = ({
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.35rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
           {label && (
-            <label style={{ fontSize: '0.8rem', fontWeight: 700, color: '#1e293b' }}>
+            <label style={{ fontSize: '0.8rem', fontWeight: 700, color: 'rgb(var(--text-slate-800))' }}>
               {label} {required && <span style={{ color: '#ef4444' }}>*</span>}
             </label>
           )}
@@ -341,9 +352,9 @@ export const PhotoCaptureInput: React.FC<PhotoCaptureProps> = ({
                 fontWeight: 700,
                 padding: '0.15rem 0.5rem',
                 borderRadius: '9999px',
-                backgroundColor: '#f0f9ff',
-                color: '#0369a1',
-                border: '1px solid #bae6fd',
+                backgroundColor: 'rgb(var(--bg-sky-50))',
+                color: 'rgb(var(--text-sky-700))',
+                border: '1px solid rgb(var(--border-sky-200))',
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '0.25rem',
@@ -361,9 +372,9 @@ export const PhotoCaptureInput: React.FC<PhotoCaptureProps> = ({
                 fontWeight: 700,
                 padding: '0.15rem 0.5rem',
                 borderRadius: '9999px',
-                backgroundColor: '#faf5ff',
-                color: '#7e22ce',
-                border: '1px solid #e9d5ff',
+                backgroundColor: 'rgb(var(--bg-purple-50))',
+                color: 'rgb(var(--text-purple-700))',
+                border: '1px solid rgb(var(--border-purple-200))',
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '0.25rem',
@@ -379,7 +390,7 @@ export const PhotoCaptureInput: React.FC<PhotoCaptureProps> = ({
           <label
             style={{
               fontSize: '0.75rem',
-              color: '#64748b',
+              color: 'rgb(var(--text-slate-500))',
               display: 'flex',
               alignItems: 'center',
               gap: '0.35rem',
@@ -407,9 +418,9 @@ export const PhotoCaptureInput: React.FC<PhotoCaptureProps> = ({
           style={{
             fontSize: '0.72rem',
             padding: '0.35rem 0.65rem',
-            backgroundColor: '#fffbeb',
-            border: '1px solid #fde68a',
-            color: '#b45309',
+            backgroundColor: 'rgb(var(--bg-amber-50))',
+            border: '1px solid rgb(var(--border-amber-200))',
+            color: 'rgb(var(--text-amber-700))',
             borderRadius: '0.5rem',
             display: 'flex',
             alignItems: 'center',
@@ -430,15 +441,15 @@ export const PhotoCaptureInput: React.FC<PhotoCaptureProps> = ({
         <div
           style={{
             padding: '0.75rem',
-            backgroundColor: '#f8fafc',
-            border: '1px dashed #cbd5e1',
+            backgroundColor: 'rgb(var(--bg-slate-50))',
+            border: '1px dashed rgb(var(--border-slate-300))',
             borderRadius: '0.65rem',
             display: 'flex',
             flexDirection: 'column',
             gap: '0.35rem',
           }}
         >
-          <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>
+          <span style={{ fontSize: '0.75rem', color: 'rgb(var(--text-slate-500))', fontWeight: 600 }}>
             Lý do không có ảnh / N/A:
           </span>
           <input
@@ -461,6 +472,8 @@ export const PhotoCaptureInput: React.FC<PhotoCaptureProps> = ({
           height={height}
           photoCode={photoCode}
           displayPhotoCode={displayPhotoCode}
+          timestamp={effectiveTimestamp}
+          fallbackDate={fallbackDate}
           label={label}
           uploadStatus={uploadStatus}
           allowAnnotation={allowAnnotation && !effectiveReadOnly}
@@ -497,8 +510,13 @@ export const PhotoCaptureInput: React.FC<PhotoCaptureProps> = ({
           initialTool={initialAnnotationTool || (label?.includes('P-04') ? 'ARROW' : 'PEN')}
           onSave={(annotated) => {
             setLocalPreview(annotated);
-            onChange(annotated);
-            uploadToServer(annotated, displayPhotoCode);
+            const originalCapturedAt = effectiveTimestamp
+              ? (typeof effectiveTimestamp === 'string' ? effectiveTimestamp : new Date(effectiveTimestamp).toISOString())
+              : (value ? extractTimestampFromPhotoUrl(value) : undefined);
+            onChange(annotated, displayPhotoCode, {
+              ...(originalCapturedAt ? { capturedAt: originalCapturedAt } : {}),
+            });
+            uploadToServer(annotated, displayPhotoCode, originalCapturedAt);
             setIsAnnotating(false);
           }}
           onClose={() => setIsAnnotating(false)}
@@ -547,6 +565,8 @@ export const PhotoCaptureInput: React.FC<PhotoCaptureProps> = ({
         }}
         imageUrl={localPreview || value}
         photoCode={displayPhotoCode}
+        timestamp={effectiveTimestamp}
+        fallbackDate={fallbackDate}
         lightboxZoom={lightboxZoom}
         lightboxPan={lightboxPan}
         isLightboxPinching={isLightboxPinching}

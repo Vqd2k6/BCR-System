@@ -52,8 +52,8 @@ export const CheckInForm: React.FC<CheckInFormProps> = ({
       <div
         className="card"
         style={{
-          background: isOutOfBounds ? '#fef2f2' : '#f0fdf4',
-          border: isOutOfBounds ? '1px solid #fecaca' : '1px solid #bbf7d0',
+          background: isOutOfBounds ? 'rgb(var(--bg-red-50))' : 'rgb(var(--bg-green-50))',
+          border: isOutOfBounds ? '1px solid rgb(var(--border-red-200))' : '1px solid rgb(var(--border-green-200))',
           padding: '1.15rem',
           display: 'flex',
           flexDirection: 'column',
@@ -68,7 +68,7 @@ export const CheckInForm: React.FC<CheckInFormProps> = ({
             <span
               style={{
                 fontWeight: 700,
-                color: isOutOfBounds ? '#991b1b' : '#166534',
+                color: isOutOfBounds ? 'rgb(var(--text-red-800))' : 'rgb(var(--text-green-800))',
                 fontSize: '0.925rem',
                 lineHeight: 1.3,
               }}
@@ -93,7 +93,7 @@ export const CheckInForm: React.FC<CheckInFormProps> = ({
             alignItems: 'center',
             gap: '0.5rem',
             fontSize: '0.8rem',
-            color: '#475569',
+            color: 'rgb(var(--text-slate-600))',
             backgroundColor: isOutOfBounds ? 'rgba(254, 226, 226, 0.4)' : 'rgba(220, 252, 231, 0.5)',
             padding: '0.45rem 0.75rem',
             borderRadius: '0.5rem',
@@ -111,18 +111,18 @@ export const CheckInForm: React.FC<CheckInFormProps> = ({
         {isOutOfBounds && (
           <div
             style={{
-              backgroundColor: '#fee2e2',
+              backgroundColor: 'rgb(var(--bg-red-100))',
               padding: '0.6rem 0.8rem',
               borderRadius: '0.5rem',
               fontSize: '0.775rem',
-              color: '#991b1b',
+              color: 'rgb(var(--text-red-800))',
               display: 'flex',
               alignItems: 'flex-start',
               gap: '0.5rem',
               lineHeight: 1.45,
             }}
           >
-            <AlertTriangle size={15} style={{ flexShrink: 0, marginTop: '2px', color: '#dc2626' }} />
+            <AlertTriangle size={15} style={{ flexShrink: 0, marginTop: '2px', color: 'rgb(var(--text-red-600))' }} />
             <span>
               Bạn đang cách trọng tâm {targetZone.zoneName} <strong>{distanceMeters}m</strong> (&gt;500m). Vui lòng nhập lý do thực địa bên dưới để báo cáo Zone Admin.
             </span>
@@ -135,7 +135,7 @@ export const CheckInForm: React.FC<CheckInFormProps> = ({
         <div
           className="card"
           style={{
-            backgroundColor: '#ffffff',
+            backgroundColor: 'rgb(var(--bg-white))',
             padding: '1.25rem',
             display: 'flex',
             flexDirection: 'column',
@@ -145,7 +145,7 @@ export const CheckInForm: React.FC<CheckInFormProps> = ({
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
             <Camera size={17} color="#0284c7" />
-            <span style={{ fontWeight: 700, fontSize: '0.925rem', color: '#0f172a' }}>
+            <span style={{ fontWeight: 700, fontSize: '0.925rem', color: 'rgb(var(--text-slate-900))' }}>
               Ảnh chụp Selfie xác thực (*)
             </span>
           </div>
@@ -201,7 +201,7 @@ export const CheckInForm: React.FC<CheckInFormProps> = ({
                       height: '210px',
                       borderRadius: '0.85rem',
                       objectFit: 'cover',
-                      border: '2px solid #bae6fd',
+                      border: '2px solid rgb(var(--border-sky-200))',
                       boxShadow: '0 4px 14px rgba(2, 132, 199, 0.14)',
                     }}
                   />
@@ -211,8 +211,8 @@ export const CheckInForm: React.FC<CheckInFormProps> = ({
                       width: '100%',
                       height: '200px',
                       borderRadius: '0.85rem',
-                      backgroundColor: '#f8fafc',
-                      border: '2px dashed #cbd5e1',
+                      backgroundColor: 'rgb(var(--bg-slate-50))',
+                      border: '2px dashed rgb(var(--border-slate-300))',
                       display: 'flex',
                       flexDirection: 'column',
                       alignItems: 'center',
@@ -226,23 +226,23 @@ export const CheckInForm: React.FC<CheckInFormProps> = ({
                         width: '72px',
                         height: '72px',
                         borderRadius: '50%',
-                        backgroundColor: '#e2e8f0',
+                        backgroundColor: 'rgb(var(--bg-slate-200))',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        color: '#64748b',
+                        color: 'rgb(var(--text-slate-500))',
                       }}
                     >
                       <User size={40} />
                     </div>
-                    <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#64748b' }}>
+                    <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'rgb(var(--text-slate-500))' }}>
                       Khung chân dung người điểm danh
                     </span>
                   </div>
                 )}
               </div>
 
-              <div style={{ fontSize: '0.8rem', color: '#64748b', textAlign: 'center' }}>
+              <div style={{ fontSize: '0.8rem', color: 'rgb(var(--text-slate-500))', textAlign: 'center' }}>
                 {selfieUrl
                   ? 'Đã chụp ảnh xác thực danh tính thực địa.'
                   : 'Vui lòng bật camera để chụp ảnh khuôn mặt trước khi điểm danh.'}
@@ -252,9 +252,9 @@ export const CheckInForm: React.FC<CheckInFormProps> = ({
                 type="button"
                 onClick={handleStartCamera}
                 style={{
-                  background: '#e0f2fe',
-                  color: '#0369a1',
-                  border: '1px solid #7dd3fc',
+                  background: 'rgb(var(--bg-sky-100))',
+                  color: 'rgb(var(--text-sky-700))',
+                  border: '1px solid rgb(var(--border-sky-300))',
                   borderRadius: '9999px',
                   padding: '0.5rem 1.25rem',
                   fontSize: '0.85rem',
@@ -281,7 +281,7 @@ export const CheckInForm: React.FC<CheckInFormProps> = ({
               style={{
                 fontSize: '0.85rem',
                 fontWeight: 700,
-                color: '#9a3412',
+                color: 'rgb(var(--text-orange-800))',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '0.35rem',
@@ -301,10 +301,10 @@ export const CheckInForm: React.FC<CheckInFormProps> = ({
                 fontSize: '0.875rem',
                 padding: '0.65rem 0.85rem',
                 borderRadius: '0.65rem',
-                border: '1.5px solid #fed7aa',
+                border: '1.5px solid rgb(var(--border-orange-200))',
                 backgroundColor: '#fffaf5',
                 lineHeight: '1.45',
-                color: '#1e293b',
+                color: 'rgb(var(--text-slate-800))',
                 boxShadow: 'none',
               }}
             />
@@ -316,7 +316,7 @@ export const CheckInForm: React.FC<CheckInFormProps> = ({
           type="submit"
           disabled={isSubmitting || gpsLoading}
           style={{
-            background: isSubmitting || gpsLoading ? '#f1f5f9' : 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
+            background: isSubmitting || gpsLoading ? 'rgb(var(--bg-slate-100))' : 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)',
             color: isSubmitting || gpsLoading ? '#94a3b8' : '#ffffff',
             border: 'none',
             borderRadius: '9999px',

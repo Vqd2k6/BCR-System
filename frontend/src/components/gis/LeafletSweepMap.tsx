@@ -153,6 +153,7 @@ export const LeafletSweepMap: React.FC<LeafletSweepMapProps> = ({
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
               maxNativeZoom={19}
               maxZoom={23}
+              className="tile-street"
             />
           ) : (
             <TileLayer
@@ -160,6 +161,7 @@ export const LeafletSweepMap: React.FC<LeafletSweepMapProps> = ({
               url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}"
               maxNativeZoom={19}
               maxZoom={23}
+              className="tile-street"
             />
           )}
 
@@ -224,7 +226,7 @@ export const LeafletSweepMap: React.FC<LeafletSweepMapProps> = ({
             top: '56px',
             right: '8px',
             zIndex: 900,
-            backgroundColor: '#0f172a',
+            backgroundColor: 'rgb(var(--bg-slate-900))',
             color: '#ffffff',
             fontSize: '0.725rem',
             padding: '0.3rem 0.6rem',

@@ -113,8 +113,8 @@ export const SplitPanel: React.FC<SplitPanelProps> = ({
   return (
     <div
       style={{
-        backgroundColor: '#ffffff',
-        border: '1.5px solid #fdba74',
+        backgroundColor: 'rgb(var(--bg-white))',
+        border: '1.5px solid rgb(var(--border-orange-300))',
         borderRadius: '0.75rem',
         padding: '0.85rem',
         display: 'flex',
@@ -123,7 +123,7 @@ export const SplitPanel: React.FC<SplitPanelProps> = ({
       }}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.4rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', color: '#c2410c', fontWeight: 800, fontSize: '0.85rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', color: 'rgb(var(--text-orange-700))', fontWeight: 800, fontSize: '0.85rem' }}>
           <Layers size={18} style={{ marginRight: '0.35rem' }} />
           <span>Biên Tập Phân Tách Thửa Đất Trực Quan (Khung Cha & 2 Lô Độc Lập)</span>
           <HelpBadge
@@ -132,10 +132,10 @@ export const SplitPanel: React.FC<SplitPanelProps> = ({
           />
         </div>
         <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center' }}>
-          <span className="badge" style={{ backgroundColor: '#fef3c7', color: '#92400e', border: '1px solid #fde68a', fontSize: '0.7rem', padding: '0.25rem 0.55rem' }}>
+          <span className="badge" style={{ backgroundColor: 'rgb(var(--bg-amber-100))', color: 'rgb(var(--text-amber-800))', border: '1px solid rgb(var(--border-amber-200))', fontSize: '0.7rem', padding: '0.25rem 0.55rem' }}>
             Lô A: <strong>{codeA}</strong>
           </span>
-          <span className="badge" style={{ backgroundColor: '#ffedd5', color: '#c2410c', border: '1px solid #fed7aa', fontSize: '0.7rem', padding: '0.25rem 0.55rem' }}>
+          <span className="badge" style={{ backgroundColor: 'rgb(var(--bg-orange-100))', color: 'rgb(var(--text-orange-700))', border: '1px solid rgb(var(--border-orange-200))', fontSize: '0.7rem', padding: '0.25rem 0.55rem' }}>
             Lô B: <strong>{codeB}</strong>
           </span>
           <button
@@ -146,9 +146,9 @@ export const SplitPanel: React.FC<SplitPanelProps> = ({
               borderRadius: '0.3rem',
               fontSize: '0.675rem',
               fontWeight: 700,
-              backgroundColor: '#f1f5f9',
-              color: '#475569',
-              border: '1px solid #cbd5e1',
+              backgroundColor: 'rgb(var(--bg-slate-100))',
+              color: 'rgb(var(--text-slate-600))',
+              border: '1px solid rgb(var(--border-slate-300))',
               cursor: 'pointer',
             }}
           >
@@ -164,13 +164,13 @@ export const SplitPanel: React.FC<SplitPanelProps> = ({
           gap: '0.35rem',
           flexWrap: 'wrap',
           alignItems: 'center',
-          backgroundColor: '#fffbeb',
+          backgroundColor: 'rgb(var(--bg-amber-50))',
           padding: '0.45rem 0.65rem',
           borderRadius: '0.5rem',
-          border: '1px solid #fef08a',
+          border: '1px solid rgb(var(--border-yellow-200))',
         }}
       >
-        <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#92400e', display: 'flex', alignItems: 'center', gap: '0.25rem', marginRight: '0.25rem' }}>
+        <span style={{ fontSize: '0.72rem', fontWeight: 800, color: 'rgb(var(--text-amber-800))', display: 'flex', alignItems: 'center', gap: '0.25rem', marginRight: '0.25rem' }}>
           <Scissors size={14} color="#b45309" />
           Phân chia ranh nhanh:
         </span>
@@ -178,7 +178,7 @@ export const SplitPanel: React.FC<SplitPanelProps> = ({
           type="button"
           onClick={() => handleSplitHorizontal && handleSplitHorizontal(0.6)}
           className="btn btn-secondary btn-sm"
-          style={{ fontSize: '0.675rem', padding: '0.22rem 0.5rem', backgroundColor: '#ffffff', color: '#b45309', fontWeight: 700, border: '1px solid #f59e0b' }}
+          style={{ fontSize: '0.675rem', padding: '0.22rem 0.5rem', backgroundColor: 'rgb(var(--bg-white))', color: 'rgb(var(--text-amber-700))', fontWeight: 700, border: '1px solid #f59e0b' }}
           title="Chia mặt tiền chiếm 60% diện tích, phía sau chiếm 40%"
         >
           ✂️ Cắt ngang 60/40 (Trước/Sau)
@@ -187,7 +187,7 @@ export const SplitPanel: React.FC<SplitPanelProps> = ({
           type="button"
           onClick={() => handleSplitHorizontal && handleSplitHorizontal(0.5)}
           className="btn btn-secondary btn-sm"
-          style={{ fontSize: '0.675rem', padding: '0.22rem 0.5rem', backgroundColor: '#ffffff', color: '#b45309', fontWeight: 700, border: '1px solid #f59e0b' }}
+          style={{ fontSize: '0.675rem', padding: '0.22rem 0.5rem', backgroundColor: 'rgb(var(--bg-white))', color: 'rgb(var(--text-amber-700))', fontWeight: 700, border: '1px solid #f59e0b' }}
           title="Chia đôi ngang đều 50/50"
         >
           ✂️ Cắt ngang 50/50
@@ -196,7 +196,7 @@ export const SplitPanel: React.FC<SplitPanelProps> = ({
           type="button"
           onClick={() => handleSplitVertical && handleSplitVertical(0.5)}
           className="btn btn-secondary btn-sm"
-          style={{ fontSize: '0.675rem', padding: '0.22rem 0.5rem', backgroundColor: '#ffffff', color: '#b45309', fontWeight: 700, border: '1px solid #f59e0b' }}
+          style={{ fontSize: '0.675rem', padding: '0.22rem 0.5rem', backgroundColor: 'rgb(var(--bg-white))', color: 'rgb(var(--text-amber-700))', fontWeight: 700, border: '1px solid #f59e0b' }}
           title="Chia dọc 50/50 theo chiều sâu (Trái / Phải)"
         >
           ✂️ Cắt dọc 50/50 (Trái/Phải)
@@ -205,7 +205,7 @@ export const SplitPanel: React.FC<SplitPanelProps> = ({
           type="button"
           onClick={handleResetDefault}
           className="btn btn-secondary btn-sm"
-          style={{ fontSize: '0.675rem', padding: '0.22rem 0.5rem', backgroundColor: '#ffffff', color: '#475569', fontWeight: 600, border: '1px solid #cbd5e1' }}
+          style={{ fontSize: '0.675rem', padding: '0.22rem 0.5rem', backgroundColor: 'rgb(var(--bg-white))', color: 'rgb(var(--text-slate-600))', fontWeight: 600, border: '1px solid rgb(var(--border-slate-300))' }}
         >
           <RefreshCw size={11} style={{ marginRight: '0.2rem' }} /> Đặt lại mặc định
         </button>
@@ -216,10 +216,10 @@ export const SplitPanel: React.FC<SplitPanelProps> = ({
         style={{
           display: 'flex',
           gap: '0.5rem',
-          backgroundColor: '#f8fafc',
+          backgroundColor: 'rgb(var(--bg-slate-50))',
           padding: '0.45rem',
           borderRadius: '0.55rem',
-          border: '1.5px solid #e2e8f0',
+          border: '1.5px solid rgb(var(--border-slate-200))',
         }}
       >
         <button
@@ -231,9 +231,9 @@ export const SplitPanel: React.FC<SplitPanelProps> = ({
             borderRadius: '0.45rem',
             fontSize: '0.75rem',
             fontWeight: activeTarget === 'A' ? 800 : 600,
-            backgroundColor: activeTarget === 'A' ? '#fef3c7' : '#ffffff',
-            color: activeTarget === 'A' ? '#92400e' : '#475569',
-            border: activeTarget === 'A' ? '2px solid #f59e0b' : '1px solid #cbd5e1',
+            backgroundColor: activeTarget === 'A' ? 'rgb(var(--bg-amber-100))' : 'rgb(var(--bg-white))',
+            color: activeTarget === 'A' ? 'rgb(var(--text-amber-800))' : 'rgb(var(--text-slate-600))',
+            border: activeTarget === 'A' ? '2px solid #f59e0b' : '1px solid rgb(var(--border-slate-300))',
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
@@ -255,9 +255,9 @@ export const SplitPanel: React.FC<SplitPanelProps> = ({
             borderRadius: '0.45rem',
             fontSize: '0.75rem',
             fontWeight: activeTarget === 'B' ? 800 : 600,
-            backgroundColor: activeTarget === 'B' ? '#ffedd5' : '#ffffff',
-            color: activeTarget === 'B' ? '#c2410c' : '#475569',
-            border: activeTarget === 'B' ? '2px solid #ea580c' : '1px solid #cbd5e1',
+            backgroundColor: activeTarget === 'B' ? 'rgb(var(--bg-orange-100))' : 'rgb(var(--bg-white))',
+            color: activeTarget === 'B' ? 'rgb(var(--text-orange-700))' : 'rgb(var(--text-slate-600))',
+            border: activeTarget === 'B' ? '2px solid #ea580c' : '1px solid rgb(var(--border-slate-300))',
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
@@ -285,9 +285,9 @@ export const SplitPanel: React.FC<SplitPanelProps> = ({
             borderRadius: '0.45rem',
             fontSize: '0.725rem',
             fontWeight: splitShapeOption === 'DRAG_HANDLES' ? 800 : 600,
-            backgroundColor: splitShapeOption === 'DRAG_HANDLES' ? '#ea580c' : '#f8fafc',
-            color: splitShapeOption === 'DRAG_HANDLES' ? '#ffffff' : '#475569',
-            border: splitShapeOption === 'DRAG_HANDLES' ? 'none' : '1px solid #cbd5e1',
+            backgroundColor: splitShapeOption === 'DRAG_HANDLES' ? '#ea580c' : 'rgb(var(--bg-slate-50))',
+            color: splitShapeOption === 'DRAG_HANDLES' ? '#ffffff' : 'rgb(var(--text-slate-600))',
+            border: splitShapeOption === 'DRAG_HANDLES' ? 'none' : '1px solid rgb(var(--border-slate-300))',
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
@@ -311,9 +311,9 @@ export const SplitPanel: React.FC<SplitPanelProps> = ({
             borderRadius: '0.45rem',
             fontSize: '0.725rem',
             fontWeight: splitShapeOption === 'CLICK_TO_DRAW' ? 800 : 600,
-            backgroundColor: splitShapeOption === 'CLICK_TO_DRAW' ? '#ea580c' : '#f8fafc',
-            color: splitShapeOption === 'CLICK_TO_DRAW' ? '#ffffff' : '#475569',
-            border: splitShapeOption === 'CLICK_TO_DRAW' ? 'none' : '1px solid #cbd5e1',
+            backgroundColor: splitShapeOption === 'CLICK_TO_DRAW' ? '#ea580c' : 'rgb(var(--bg-slate-50))',
+            color: splitShapeOption === 'CLICK_TO_DRAW' ? '#ffffff' : 'rgb(var(--text-slate-600))',
+            border: splitShapeOption === 'CLICK_TO_DRAW' ? 'none' : '1px solid rgb(var(--border-slate-300))',
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
@@ -334,13 +334,13 @@ export const SplitPanel: React.FC<SplitPanelProps> = ({
           alignItems: 'center',
           flexWrap: 'wrap',
           gap: '0.35rem',
-          backgroundColor: activeTarget === 'A' ? '#fffbeb' : '#fff7ed',
+          backgroundColor: activeTarget === 'A' ? 'rgb(var(--bg-amber-50))' : 'rgb(var(--bg-orange-50))',
           padding: '0.4rem 0.65rem',
           borderRadius: '0.5rem',
           border: `1px dashed ${activeTarget === 'A' ? '#f59e0b' : '#ea580c'}`,
         }}
       >
-        <div style={{ fontSize: '0.725rem', color: activeTarget === 'A' ? '#92400e' : '#9a3412', fontWeight: 700 }}>
+        <div style={{ fontSize: '0.725rem', color: activeTarget === 'A' ? 'rgb(var(--text-amber-800))' : 'rgb(var(--text-orange-800))', fontWeight: 700 }}>
           {splitShapeOption === 'DRAG_HANDLES'
             ? `Kéo trực tiếp các mốc ${activeTarget === 'A' ? 'vàng (Lô A)' : 'cam (Lô B)'} để vi chỉnh:`
             : `Nhấp chuột trên bản đồ để chấm đỉnh cho ${activeTarget === 'A' ? 'Lô A' : 'Lô B'} (${currentVertices.length} điểm):`}
@@ -382,7 +382,7 @@ export const SplitPanel: React.FC<SplitPanelProps> = ({
                 type="button"
                 onClick={() => handleResetTarget && handleResetTarget(activeTarget)}
                 className="btn btn-secondary btn-sm"
-                style={{ fontSize: '0.675rem', padding: '0.2rem 0.45rem', display: 'flex', alignItems: 'center', gap: '0.2rem', color: '#dc2626' }}
+                style={{ fontSize: '0.675rem', padding: '0.2rem 0.45rem', display: 'flex', alignItems: 'center', gap: '0.2rem', color: 'rgb(var(--text-red-600))' }}
               >
                 <Trash2 size={11} /> Xóa vẽ lại
               </button>
@@ -398,7 +398,7 @@ export const SplitPanel: React.FC<SplitPanelProps> = ({
           height: '370px',
           borderRadius: '0.65rem',
           overflow: 'hidden',
-          border: '2px solid #fdba74',
+          border: '2px solid rgb(var(--border-orange-300))',
           position: 'relative',
         }}
       >
@@ -447,7 +447,7 @@ export const SplitPanel: React.FC<SplitPanelProps> = ({
             }}
           >
             <Tooltip direction="top">
-              <div style={{ fontSize: '0.725rem', color: '#1e293b', fontWeight: 600 }}>
+              <div style={{ fontSize: '0.725rem', color: 'rgb(var(--text-slate-800))', fontWeight: 600 }}>
                 Khung cha pháp lý: <strong>{parcelData.projectParcelCode}</strong> ({totalParentArea} m²)
               </div>
             </Tooltip>
@@ -465,7 +465,7 @@ export const SplitPanel: React.FC<SplitPanelProps> = ({
               }}
             >
               <Tooltip direction="top" opacity={0.9}>
-                <div style={{ textAlign: 'center', fontWeight: 800, color: '#7c2d12', fontSize: '0.725rem' }}>
+                <div style={{ textAlign: 'center', fontWeight: 800, color: 'rgb(var(--text-orange-900))', fontSize: '0.725rem' }}>
                   🟠 LÔ B ({mutationData.residualKind === 'NEW_BUILDING' ? 'TÁCH MỚI' : 'ĐẤT DƯ'}): {codeB} ({calculatedAreaB} m²)
                 </div>
               </Tooltip>
@@ -484,7 +484,7 @@ export const SplitPanel: React.FC<SplitPanelProps> = ({
               }}
             >
               <Tooltip direction="top" opacity={0.9}>
-                <div style={{ textAlign: 'center', fontWeight: 800, color: '#78350f', fontSize: '0.725rem' }}>
+                <div style={{ textAlign: 'center', fontWeight: 800, color: 'rgb(var(--text-amber-900))', fontSize: '0.725rem' }}>
                   🟡 LÔ A (ĐANG KS): {codeA} ({calculatedAreaA} m²)
                 </div>
               </Tooltip>
@@ -554,8 +554,8 @@ export const SplitPanel: React.FC<SplitPanelProps> = ({
             bottom: '8px',
             left: '8px',
             zIndex: 800,
-            backgroundColor: 'rgba(255, 255, 255, 0.96)',
-            color: '#0f172a',
+            backgroundColor: 'rgb(var(--bg-white) / 0.96)',
+            color: 'rgb(var(--text-slate-900))',
             padding: '0.35rem 0.75rem',
             borderRadius: '0.5rem',
             fontSize: '0.7rem',
@@ -575,15 +575,15 @@ export const SplitPanel: React.FC<SplitPanelProps> = ({
             <span style={{ width: '12px', height: '12px', backgroundColor: '#ea580c', border: '1.5px solid #c2410c', borderRadius: '2px', display: 'inline-block' }}></span>
             <span>Lô B: <strong>{calculatedAreaB} m²</strong></span>
           </div>
-          <div style={{ color: '#475569', fontSize: '0.675rem' }}>
+          <div style={{ color: 'rgb(var(--text-slate-600))', fontSize: '0.675rem' }}>
             Tổng: <strong>{currentTotal} m²</strong> / Khung cha: <strong>{totalParentArea} m²</strong>
           </div>
           {isAreaGap ? (
-            <div style={{ color: '#dc2626', fontWeight: 700, fontSize: '0.675rem' }}>
+            <div style={{ color: 'rgb(var(--text-red-600))', fontWeight: 700, fontSize: '0.675rem' }}>
               ⚠️ Chênh lệch diện tích: {Math.abs(areaDiff)} m² so với sổ đỏ
             </div>
           ) : (
-            <div style={{ color: '#16a34a', fontWeight: 700, fontSize: '0.675rem' }}>
+            <div style={{ color: 'rgb(var(--text-green-600))', fontWeight: 700, fontSize: '0.675rem' }}>
               ✓ Khớp ranh 100%
             </div>
           )}
@@ -593,7 +593,7 @@ export const SplitPanel: React.FC<SplitPanelProps> = ({
       {/* BANNER TƯỜNG MINH CƠ CHẾ MAX ZONE + 1 */}
       <div
         style={{
-          backgroundColor: '#fff7ed',
+          backgroundColor: 'rgb(var(--bg-orange-50))',
           border: '2px solid #ea580c',
           borderRadius: '0.65rem',
           padding: '0.75rem',
@@ -604,7 +604,7 @@ export const SplitPanel: React.FC<SplitPanelProps> = ({
         }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.4rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#9a3412', fontWeight: 900, fontSize: '0.85rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: 'rgb(var(--text-orange-800))', fontWeight: 900, fontSize: '0.85rem' }}>
             <Tag size={17} color="#ea580c" />
             <span>MÃ SỐ HIỆU CẤP MỚI CHO THỬA CON (LÔ B):</span>
           </div>
@@ -625,13 +625,13 @@ export const SplitPanel: React.FC<SplitPanelProps> = ({
             </span>
             <span
               style={{
-                backgroundColor: '#ffedd5',
-                color: '#c2410c',
+                backgroundColor: 'rgb(var(--bg-orange-100))',
+                color: 'rgb(var(--text-orange-700))',
                 fontWeight: 800,
                 fontSize: '0.7rem',
                 padding: '0.25rem 0.5rem',
                 borderRadius: '0.35rem',
-                border: '1px solid #fed7aa',
+                border: '1px solid rgb(var(--border-orange-200))',
               }}
             >
               {mutationData.residualKind === 'NEW_BUILDING' ? 'CƠ CHẾ: MAX ZONE + 1' : 'ĐẤT DÔI DƯ / SÂN VƯỜN'}
@@ -639,7 +639,7 @@ export const SplitPanel: React.FC<SplitPanelProps> = ({
           </div>
         </div>
 
-        <div style={{ fontSize: '0.74rem', color: '#7c2d12', lineHeight: 1.45, backgroundColor: 'rgba(255,255,255,0.85)', padding: '0.45rem 0.65rem', borderRadius: '0.4rem', border: '1px dashed #fdba74' }}>
+        <div style={{ fontSize: '0.74rem', color: 'rgb(var(--text-orange-900))', lineHeight: 1.45, backgroundColor: 'rgb(var(--bg-white) / 0.85)', padding: '0.45rem 0.65rem', borderRadius: '0.4rem', border: '1px dashed rgb(var(--border-orange-300))' }}>
           {mutationData.residualKind === 'NEW_BUILDING' ? (
             <>
               📌 <strong>Quy tắc cấp mã tường minh</strong>: Hệ thống quét toàn bộ phân khu <strong>{maxZoneInfo?.zoneId || parcelData.zoneId || 'ZONE_01'}</strong> trong cơ sở dữ liệu. Mã hiện có lớn nhất là <strong>[{maxZoneInfo?.currentMaxCode || 'Đang quét...'}]</strong>. Thửa mới sinh ra (Lô B) được cấp số hiệu tiếp nối là <strong>[{maxZoneInfo?.nextCode || dynamicCodes[0] || '...'}]</strong>. Khi cấp thẩm quyền phê duyệt hồ sơ, Lô B sẽ chính thức trở thành thửa đất mới trên bản đồ để KSV tiếp tục khảo sát tại chỗ.
@@ -655,8 +655,8 @@ export const SplitPanel: React.FC<SplitPanelProps> = ({
       {/* PHÂN LOẠI CÔNG NĂNG CHO THỬA CON (LÔ B) - 2 NHÁNH LỰA CHỌN */}
       <div
         style={{
-          backgroundColor: '#ffffff',
-          border: '1.5px solid #fed7aa',
+          backgroundColor: 'rgb(var(--bg-white))',
+          border: '1.5px solid rgb(var(--border-orange-200))',
           borderRadius: '0.65rem',
           padding: '0.75rem',
           display: 'flex',
@@ -665,7 +665,7 @@ export const SplitPanel: React.FC<SplitPanelProps> = ({
         }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.35rem' }}>
-          <label style={{ fontSize: '0.775rem', fontWeight: 800, color: '#9a3412', margin: 0, display: 'flex', alignItems: 'center' }}>
+          <label style={{ fontSize: '0.775rem', fontWeight: 800, color: 'rgb(var(--text-orange-800))', margin: 0, display: 'flex', alignItems: 'center' }}>
             <Tag size={15} color="#ea580c" style={{ marginRight: '0.35rem' }} />
             Bản chất Ô còn dư (Màu 2 - {calculatedAreaB} m²):
             <HelpBadge
@@ -721,9 +721,9 @@ export const SplitPanel: React.FC<SplitPanelProps> = ({
               borderRadius: '0.5rem',
               fontSize: '0.725rem',
               fontWeight: (mutationData.residualKind !== 'NEW_BUILDING') ? 800 : 600,
-              backgroundColor: (mutationData.residualKind !== 'NEW_BUILDING') ? '#059669' : '#f8fafc',
-              color: (mutationData.residualKind !== 'NEW_BUILDING') ? '#ffffff' : '#475569',
-              border: (mutationData.residualKind !== 'NEW_BUILDING') ? 'none' : '1px solid #cbd5e1',
+              backgroundColor: (mutationData.residualKind !== 'NEW_BUILDING') ? '#059669' : 'rgb(var(--bg-slate-50))',
+              color: (mutationData.residualKind !== 'NEW_BUILDING') ? '#ffffff' : 'rgb(var(--text-slate-600))',
+              border: (mutationData.residualKind !== 'NEW_BUILDING') ? 'none' : '1px solid rgb(var(--border-slate-300))',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
@@ -779,9 +779,9 @@ export const SplitPanel: React.FC<SplitPanelProps> = ({
               borderRadius: '0.5rem',
               fontSize: '0.725rem',
               fontWeight: (mutationData.residualKind === 'NEW_BUILDING') ? 800 : 600,
-              backgroundColor: (mutationData.residualKind === 'NEW_BUILDING') ? '#ea580c' : '#f8fafc',
-              color: (mutationData.residualKind === 'NEW_BUILDING') ? '#ffffff' : '#475569',
-              border: (mutationData.residualKind === 'NEW_BUILDING') ? 'none' : '1px solid #cbd5e1',
+              backgroundColor: (mutationData.residualKind === 'NEW_BUILDING') ? '#ea580c' : 'rgb(var(--bg-slate-50))',
+              color: (mutationData.residualKind === 'NEW_BUILDING') ? '#ffffff' : 'rgb(var(--text-slate-600))',
+              border: (mutationData.residualKind === 'NEW_BUILDING') ? 'none' : '1px solid rgb(var(--border-slate-300))',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
@@ -796,23 +796,23 @@ export const SplitPanel: React.FC<SplitPanelProps> = ({
 
         {/* THÔNG ĐIỆP HƯỚNG DẪN TƯƠNG ỨNG TỪNG NHÁNH */}
         {mutationData.residualKind !== 'NEW_BUILDING' ? (
-          <div style={{ backgroundColor: '#ecfdf5', border: '1px solid #6ee7b7', borderRadius: '0.45rem', padding: '0.45rem 0.65rem', fontSize: '0.7rem', color: '#065f46', lineHeight: 1.4 }}>
+          <div style={{ backgroundColor: 'rgb(var(--bg-emerald-50))', border: '1px solid rgb(var(--border-emerald-300))', borderRadius: '0.45rem', padding: '0.45rem 0.65rem', fontSize: '0.7rem', color: 'rgb(var(--text-emerald-800))', lineHeight: 1.4 }}>
             ✓ <strong>Nhánh Khoanh Ranh Nhà (Không tách thửa)</strong>: Ranh đất địa chính pháp lý trong sổ đỏ ({calculatedAreaA + calculatedAreaB} m²) được <strong>giữ nguyên vẹn 100%</strong>. Hệ thống chỉ cập nhật ranh chân đế ngôi nhà ({calculatedAreaA} m²), phần đất dư sân vườn ({calculatedAreaB} m²) được ghi nhận làm căn cứ bồi thường đất trống. Hệ thống <strong>KHÔNG tạo thêm lô khảo sát mới</strong>, KSV hoàn tất Lô A ({parcelData.projectParcelCode}) là xong toàn bộ thửa đất.
           </div>
         ) : (
-          <div style={{ backgroundColor: '#fff7ed', border: '1px solid #fdba74', borderRadius: '0.45rem', padding: '0.45rem 0.65rem', fontSize: '0.7rem', color: '#9a3412', lineHeight: 1.4 }}>
+          <div style={{ backgroundColor: 'rgb(var(--bg-orange-50))', border: '1px solid rgb(var(--border-orange-300))', borderRadius: '0.45rem', padding: '0.45rem 0.65rem', fontSize: '0.7rem', color: 'rgb(var(--text-orange-800))', lineHeight: 1.4 }}>
             ⚡ <strong>Nhánh Tách Thửa Nhà Mới</strong>: Lô A giữ nguyên mã gốc [{parcelData.projectParcelCode}]. Hệ thống tự động <strong>cấp mã mới [{maxZoneInfo?.nextCode || dynamicCodes[0] || 'Max Zone + 1'}]</strong> cho Lô B theo cơ chế Max Zone + 1 và tạo 1 lô mới trên bản đồ để KSV tiếp tục khảo sát tại chỗ!
           </div>
         )}
 
         {/* CHI TIẾT CÔNG NĂNG & THÔNG TIN LÔ B */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', marginTop: '0.1rem' }}>
-          <label style={{ fontSize: '0.72rem', fontWeight: 700, color: '#475569', margin: 0 }}>
+          <label style={{ fontSize: '0.72rem', fontWeight: 700, color: 'rgb(var(--text-slate-600))', margin: 0 }}>
             {mutationData.residualKind === 'NEW_BUILDING' ? 'Loại hình công trình Lô B:' : 'Chi tiết hiện trạng phần đất dôi dư:'}
           </label>
           <select
             className="form-control"
-            style={{ fontSize: '0.75rem', fontWeight: 600, backgroundColor: '#f8fafc', border: '1px solid #cbd5e1', color: '#1e293b' }}
+            style={{ fontSize: '0.75rem', fontWeight: 600, backgroundColor: 'rgb(var(--bg-slate-50))', border: '1px solid rgb(var(--border-slate-300))', color: 'rgb(var(--text-slate-800))' }}
             value={
               (mutationData.residualKind === 'NEW_BUILDING' ? BUILDING_RESIDUAL_OPTIONS : NON_BUILDING_RESIDUAL_OPTIONS).some(
                 (opt) => opt.value === (mutationData.splitChildren?.[1]?.functionalType)
@@ -854,7 +854,7 @@ export const SplitPanel: React.FC<SplitPanelProps> = ({
               <input
                 type="text"
                 className="form-control"
-                style={{ fontSize: '0.75rem', backgroundColor: '#ffffff', border: '1px solid #fdba74' }}
+                style={{ fontSize: '0.75rem', backgroundColor: 'rgb(var(--bg-white))', border: '1px solid rgb(var(--border-orange-300))' }}
                 placeholder="Nhập cụ thể công năng sử dụng thực tế..."
                 value={customResidualType || mutationData.splitChildren?.[1]?.functionalType || ''}
                 onChange={(e) => {
@@ -880,9 +880,9 @@ export const SplitPanel: React.FC<SplitPanelProps> = ({
 
           {/* Nếu là NHÀ MỚI ĐỘC LẬP: Hiển thị thêm ô nhập số nhà và chủ hộ Lô B */}
           {mutationData.residualKind === 'NEW_BUILDING' && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginTop: '0.2rem', backgroundColor: '#f8fafc', padding: '0.45rem', borderRadius: '0.4rem', border: '1px dashed #cbd5e1' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginTop: '0.2rem', backgroundColor: 'rgb(var(--bg-slate-50))', padding: '0.45rem', borderRadius: '0.4rem', border: '1px dashed rgb(var(--border-slate-300))' }}>
               <div>
-                <label style={{ fontSize: '0.675rem', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '0.15rem' }}>
+                <label style={{ fontSize: '0.675rem', fontWeight: 700, color: 'rgb(var(--text-slate-600))', display: 'block', marginBottom: '0.15rem' }}>
                   Số nhà Lô B:
                 </label>
                 <input
@@ -902,7 +902,7 @@ export const SplitPanel: React.FC<SplitPanelProps> = ({
                 />
               </div>
               <div>
-                <label style={{ fontSize: '0.675rem', fontWeight: 700, color: '#475569', display: 'block', marginBottom: '0.15rem' }}>
+                <label style={{ fontSize: '0.675rem', fontWeight: 700, color: 'rgb(var(--text-slate-600))', display: 'block', marginBottom: '0.15rem' }}>
                   Chủ hộ Lô B:
                 </label>
                 <input
@@ -928,9 +928,9 @@ export const SplitPanel: React.FC<SplitPanelProps> = ({
 
       {/* LÝ DO CHIA TÁCH THỬA ĐẤT THỰC TẾ: LIST SỔ CHỌN + MỤC KHÁC CHO NHẬP */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-        <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#334155', margin: 0, display: 'flex', alignItems: 'center' }}>
+        <label style={{ fontSize: '0.75rem', fontWeight: 700, color: 'rgb(var(--text-slate-700))', margin: 0, display: 'flex', alignItems: 'center' }}>
           Lý do chia tách thửa đất thực tế:
-          <span style={{ color: '#dc2626', marginLeft: '4px', fontWeight: 800 }}>* (Bắt buộc)</span>
+          <span style={{ color: 'rgb(var(--text-red-600))', marginLeft: '4px', fontWeight: 800 }}>* (Bắt buộc)</span>
           <HelpBadge
             title="Lý do tách thửa"
             content="Bắt buộc chọn lý do phổ biến trong danh sách sổ chọn hoặc chọn 'Khác' để nhập chi tiết lý do phân chia thực tế."
@@ -940,7 +940,7 @@ export const SplitPanel: React.FC<SplitPanelProps> = ({
         <select
           id="input-splitReason"
           className="form-control"
-          style={{ fontSize: '0.75rem', fontWeight: 600, backgroundColor: '#ffffff', border: '1.5px solid #cbd5e1' }}
+          style={{ fontSize: '0.75rem', fontWeight: 600, backgroundColor: 'rgb(var(--bg-white))', border: '1.5px solid rgb(var(--border-slate-300))' }}
           value={
             COMMON_SPLIT_REASONS.includes(mutationData.splitReason || '')
               ? (mutationData.splitReason || '')
@@ -979,7 +979,7 @@ export const SplitPanel: React.FC<SplitPanelProps> = ({
             <input
               type="text"
               className="form-control"
-              style={{ fontSize: '0.75rem', border: '1px solid #fdba74' }}
+              style={{ fontSize: '0.75rem', border: '1px solid rgb(var(--border-orange-300))' }}
               placeholder="Nhập lý do chia tách thực tế tại hiện trường..."
               value={
                 customSplitReason ||
@@ -1005,14 +1005,14 @@ export const SplitPanel: React.FC<SplitPanelProps> = ({
       {mutationData.activeProposalType === 'SPLIT' && mutationData.isSubmitted && (
         <div
           style={{
-            backgroundColor: '#ecfdf5',
+            backgroundColor: 'rgb(var(--bg-emerald-50))',
             border: '1.5px solid #10b981',
             borderRadius: '0.5rem',
             padding: '0.55rem 0.75rem',
             display: 'flex',
             alignItems: 'center',
             gap: '0.4rem',
-            color: '#065f46',
+            color: 'rgb(var(--text-emerald-800))',
             fontSize: '0.725rem',
             fontWeight: 700,
           }}

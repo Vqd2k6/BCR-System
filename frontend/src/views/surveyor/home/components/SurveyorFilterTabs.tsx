@@ -84,11 +84,11 @@ export const SurveyorFilterTabs: React.FC<SurveyorFilterTabsProps> = ({
                 borderRadius: '999px',
                 cursor: 'pointer',
                 transition: 'all 0.15s ease',
-                border: isActive ? '1px solid #7dd3fc' : '1px solid #e2e8f0',
+                border: isActive ? '1px solid rgb(var(--border-sky-300))' : '1px solid rgb(var(--border-slate-200))',
                 background: isActive
-                  ? 'linear-gradient(135deg, #e0f2fe 0%, #f0fdf4 100%)'
-                  : '#ffffff',
-                color: isActive ? '#0369a1' : '#475569',
+                  ? 'linear-gradient(135deg, rgb(var(--bg-sky-100)) 0%, rgb(var(--bg-green-50)) 100%)'
+                  : 'rgb(var(--bg-white))',
+                color: isActive ? 'rgb(var(--text-sky-700))' : 'rgb(var(--text-slate-600))',
                 boxShadow: isActive ? '0 2px 4px rgba(2, 132, 199, 0.12)' : 'none',
               }}
             >
@@ -100,7 +100,7 @@ export const SurveyorFilterTabs: React.FC<SurveyorFilterTabsProps> = ({
 
       {/* Task List Header with (?) CIRCLE BUTTON */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.15rem' }}>
-        <span style={{ fontSize: '0.9rem', fontWeight: 800, color: '#0f172a' }}>
+        <span style={{ fontSize: '0.9rem', fontWeight: 800, color: 'rgb(var(--text-slate-900))' }}>
           {statusFilter === 'ASSIGNED_TO_ME'
             ? `Danh sách ${filteredCount} thửa đất được giao cho bạn:`
             : statusFilter === 'PENDING_ONLY'
@@ -126,9 +126,9 @@ export const SurveyorFilterTabs: React.FC<SurveyorFilterTabsProps> = ({
             width: '28px',
             height: '28px',
             borderRadius: '50%',
-            backgroundColor: showStatusHelp ? '#e0f2fe' : '#f1f5f9',
-            border: '1px solid #cbd5e1',
-            color: '#0284c7',
+            backgroundColor: showStatusHelp ? 'rgb(var(--bg-sky-100))' : 'rgb(var(--bg-slate-100))',
+            border: '1px solid rgb(var(--border-slate-300))',
+            color: 'rgb(var(--text-sky-600))',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',

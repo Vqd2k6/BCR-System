@@ -2,11 +2,14 @@ import React, { useState, useRef, useEffect } from 'react';
 import { X, ZoomIn, ZoomOut, RotateCw, Maximize2, Loader2, PenTool } from 'lucide-react';
 import { resolveOfflinePhotoUrl, getSafeDisplayUrl } from '../../core/storage/offlinePhotoStorage';
 
+import { resolvePhotoTimestamp } from '../../utils/photoTimestampHelper';
+
 interface Props {
   isOpen: boolean;
   imageUrl: string;
   title?: string;
   photoCode?: string;
+  timestamp?: Date | string | number;
   onClose: () => void;
   onAnnotate?: () => void;
 }
@@ -16,6 +19,7 @@ export const ImageZoomModal: React.FC<Props> = ({
   imageUrl,
   title = 'Soi nét chi tiết ảnh hiện trường',
   photoCode,
+  timestamp,
   onClose,
   onAnnotate,
 }) => {
@@ -161,11 +165,23 @@ export const ImageZoomModal: React.FC<Props> = ({
               {Math.round(scale * 100)}%
             </span>
           </div>
-          {photoCode && (
-            <span className="text-[11px] font-mono text-slate-400 truncate mt-0.5">
-              Mã ảnh: {photoCode}
-            </span>
-          )}
+          {(() => {
+            const timeStr = resolvePhotoTimestamp(timestamp, imageUrl);
+            return (
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] font-mono mt-0.5">
+                {photoCode && (
+                  <span className="text-slate-400 truncate">
+                    Mã ảnh: {photoCode}
+                  </span>
+                )}
+                {timeStr && (
+                  <span className="text-emerald-400 font-semibold truncate">
+                    Thời gian: {timeStr}
+                  </span>
+                )}
+              </div>
+            );
+          })()}
         </div>
 
         {/* Zoom & Transform Controls */}

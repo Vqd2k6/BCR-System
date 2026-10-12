@@ -41,8 +41,8 @@ export const SurveyorBanner: React.FC<SurveyorBannerProps> = ({
       <div
         className="card"
         style={{
-          background: '#ffffff',
-          border: '1px solid #e2e8f0',
+          background: 'rgb(var(--bg-white))',
+          border: '1px solid rgb(var(--border-slate-200))',
           padding: '0.85rem 1.15rem',
           display: 'flex',
           justifyContent: 'space-between',
@@ -52,10 +52,10 @@ export const SurveyorBanner: React.FC<SurveyorBannerProps> = ({
         }}
       >
         <div>
-          <div style={{ fontSize: '0.725rem', color: '#64748b', fontWeight: 600 }}>
+          <div style={{ fontSize: '0.725rem', color: 'rgb(var(--text-slate-500))', fontWeight: 600 }}>
             Tuyến Metro 2 Bến Thành – Tham Lương
           </div>
-          <h2 style={{ margin: '2px 0 0 0', fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>
+          <h2 style={{ margin: '2px 0 0 0', fontSize: '1.05rem', fontWeight: 800, color: 'rgb(var(--text-slate-900))' }}>
             Khu vực phụ trách:{' '}
             {(() => {
               const zoneId = (user?.assignedZoneId || 'ZONE_09').toUpperCase();
@@ -65,19 +65,19 @@ export const SurveyorBanner: React.FC<SurveyorBannerProps> = ({
             })()}
           </h2>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '3px', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: '0.775rem', fontWeight: 700, color: '#334155' }}>
+            <span style={{ fontSize: '0.775rem', fontWeight: 700, color: 'rgb(var(--text-slate-700))' }}>
               {user?.fullName}
             </span>
             {user?.role === 'SURVEYOR' && (
               <span
                 style={{
-                  backgroundColor: '#e0f2fe',
-                  color: '#0369a1',
+                  backgroundColor: 'rgb(var(--bg-sky-100))',
+                  color: 'rgb(var(--text-sky-700))',
                   fontSize: '0.675rem',
                   fontWeight: 800,
                   padding: '1px 6px',
                   borderRadius: '4px',
-                  border: '1px solid #bae6fd',
+                  border: '1px solid rgb(var(--border-sky-200))',
                   fontFamily: 'monospace',
                 }}
               >
@@ -85,7 +85,7 @@ export const SurveyorBanner: React.FC<SurveyorBannerProps> = ({
               </span>
             )}
             {user?.phone && (
-              <span style={{ fontSize: '0.725rem', color: '#64748b' }}>
+              <span style={{ fontSize: '0.725rem', color: 'rgb(var(--text-slate-500))' }}>
                 • SĐT: {user.phone}
               </span>
             )}
@@ -97,9 +97,9 @@ export const SurveyorBanner: React.FC<SurveyorBannerProps> = ({
             <div
               style={{
                 fontSize: '0.75rem',
-                color: '#166534',
-                backgroundColor: '#f0fdf4',
-                border: '1px solid #bbf7d0',
+                color: 'rgb(var(--text-green-800))',
+                backgroundColor: 'rgb(var(--bg-green-50))',
+                border: '1px solid rgb(var(--border-green-200))',
                 padding: '0.3rem 0.65rem',
                 borderRadius: '999px',
                 display: 'flex',
@@ -117,9 +117,9 @@ export const SurveyorBanner: React.FC<SurveyorBannerProps> = ({
               onClick={onNavigateToCheckIn}
               style={{
                 fontSize: '0.75rem',
-                color: '#92400e',
-                backgroundColor: '#fef3c7',
-                border: '1px solid #fde68a',
+                color: 'rgb(var(--text-amber-800))',
+                backgroundColor: 'rgb(var(--bg-amber-100))',
+                border: '1px solid rgb(var(--border-amber-200))',
                 padding: '0.3rem 0.65rem',
                 borderRadius: '999px',
                 display: 'flex',

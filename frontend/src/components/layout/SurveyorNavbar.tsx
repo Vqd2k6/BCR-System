@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { Train, LogOut, ShieldCheck, Clock, CheckCircle2, AlertCircle, Users, UserCheck, Phone, PenTool, FileSignature } from 'lucide-react';
 import { UserProfileModal } from '../profile/UserProfileModal';
+import { ThemeSwitcher } from '../common/ThemeSwitcher';
 import { METRO_ZONE_CENTROIDS } from '../../core/utils/metroZoneUtils';
 
 interface Props {
@@ -89,10 +90,10 @@ export const SurveyorNavbar: React.FC<Props> = ({
         position: 'sticky',
         top: 0,
         zIndex: 50,
-        backgroundColor: 'rgba(255, 255, 255, 0.95)',
+        backgroundColor: 'rgb(var(--bg-white) / 0.95)',
         backdropFilter: 'blur(10px)',
         WebkitBackdropFilter: 'blur(10px)',
-        borderBottom: '1px solid #e2e8f0',
+        borderBottom: '1px solid rgb(var(--border-slate-200))',
         boxSizing: 'border-box',
         paddingTop: 'calc(0.4rem + env(safe-area-inset-top, 0px))',
         paddingBottom: '0.4rem',
@@ -144,7 +145,7 @@ export const SurveyorNavbar: React.FC<Props> = ({
             style={{
               fontSize: '0.875rem',
               fontWeight: 800,
-              color: '#0f172a',
+              color: 'rgb(var(--text-slate-900))',
               margin: 0,
               lineHeight: 1.15,
               whiteSpace: 'nowrap',
@@ -157,7 +158,7 @@ export const SurveyorNavbar: React.FC<Props> = ({
           <p
             style={{
               fontSize: '0.7rem',
-              color: '#64748b',
+              color: 'rgb(var(--text-slate-500))',
               margin: 0,
               whiteSpace: 'nowrap',
               overflow: 'hidden',
@@ -166,7 +167,7 @@ export const SurveyorNavbar: React.FC<Props> = ({
           >
             {subtitle || (
               <>
-                Khu vực phụ trách: <strong style={{ color: '#0284c7' }}>
+                Khu vực phụ trách: <strong style={{ color: 'rgb(var(--text-sky-600))' }}>
                   {user?.role === 'SUPER_ADMIN'
                     ? 'Toàn tuyến Metro 2 (22 Phân đoạn)'
                     : getZoneDisplayName(user?.assignedZoneId)}
@@ -193,7 +194,7 @@ export const SurveyorNavbar: React.FC<Props> = ({
             justifyContent: 'center',
             fontWeight: 800,
             fontSize: '0.8rem',
-            border: '2px solid #ffffff',
+            border: '2px solid rgb(var(--border-white))',
             boxShadow: '0 2px 5px rgba(2, 132, 199, 0.3)',
             cursor: 'pointer',
             transition: 'transform 0.15s ease',
@@ -211,9 +212,9 @@ export const SurveyorNavbar: React.FC<Props> = ({
               top: 'calc(100% + 8px)',
               right: 0,
               width: '240px',
-              backgroundColor: '#ffffff',
+              backgroundColor: 'rgb(var(--bg-white))',
               borderRadius: '0.75rem',
-              border: '1px solid #e2e8f0',
+              border: '1px solid rgb(var(--border-slate-200))',
               boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.12), 0 8px 10px -6px rgba(0, 0, 0, 0.04)',
               padding: '0.85rem',
               zIndex: 100,
@@ -222,14 +223,14 @@ export const SurveyorNavbar: React.FC<Props> = ({
               gap: '0.65rem',
             }}
           >
-            <div style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: '0.5rem' }}>
-              <div style={{ fontSize: '0.875rem', fontWeight: 800, color: '#0f172a' }}>
+            <div style={{ borderBottom: '1px solid rgb(var(--border-slate-100))', paddingBottom: '0.5rem' }}>
+              <div style={{ fontSize: '0.875rem', fontWeight: 800, color: 'rgb(var(--text-slate-900))' }}>
                 {user?.fullName}
               </div>
-              <div style={{ fontSize: '0.725rem', color: '#0284c7', fontWeight: 600, marginTop: '2px' }}>
+              <div style={{ fontSize: '0.725rem', color: 'rgb(var(--text-sky-600))', fontWeight: 600, marginTop: '2px' }}>
                 {getRoleLabel(user?.role)}
               </div>
-              <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '2px' }}>
+              <div style={{ fontSize: '0.7rem', color: 'rgb(var(--text-slate-500))', marginTop: '2px' }}>
                 Khu vực: <strong>
                   {user?.role === 'SUPER_ADMIN'
                     ? 'Toàn tuyến Metro 2'
@@ -239,24 +240,24 @@ export const SurveyorNavbar: React.FC<Props> = ({
 
               {/* Surveyor ID Badge (CRLG Standard) */}
               {user?.role === 'SURVEYOR' && (
-                <div style={{ marginTop: '0.4rem', backgroundColor: '#e0f2fe', border: '1px solid #bae6fd', borderRadius: '4px', padding: '3px 6px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span style={{ fontSize: '0.675rem', color: '#0369a1', fontWeight: 700 }}>Surveyor ID:</span>
-                  <span style={{ fontFamily: 'monospace', fontWeight: 800, fontSize: '0.75rem', color: '#0284c7' }}>
+                <div style={{ marginTop: '0.4rem', backgroundColor: 'rgb(var(--bg-sky-100))', border: '1px solid rgb(var(--border-sky-200))', borderRadius: '4px', padding: '3px 6px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: '0.675rem', color: 'rgb(var(--text-sky-700))', fontWeight: 700 }}>Surveyor ID:</span>
+                  <span style={{ fontFamily: 'monospace', fontWeight: 800, fontSize: '0.75rem', color: 'rgb(var(--text-sky-600))' }}>
                     {user?.surveyorCode || 'P-____'}
                   </span>
                 </div>
               )}
 
               {/* SĐT liên hệ */}
-              <div style={{ marginTop: '0.35rem', fontSize: '0.7rem', color: '#475569', display: 'flex', alignItems: 'center', gap: '5px' }}>
+              <div style={{ marginTop: '0.35rem', fontSize: '0.7rem', color: 'rgb(var(--text-slate-600))', display: 'flex', alignItems: 'center', gap: '5px' }}>
                 <Phone size={12} color="#64748b" />
                 <span>SĐT: <strong>{user?.phone || 'Chưa cập nhật'}</strong></span>
               </div>
 
               {/* Trạng thái chữ ký */}
-              <div style={{ marginTop: '0.25rem', fontSize: '0.7rem', color: '#475569', display: 'flex', alignItems: 'center', gap: '5px' }}>
+              <div style={{ marginTop: '0.25rem', fontSize: '0.7rem', color: 'rgb(var(--text-slate-600))', display: 'flex', alignItems: 'center', gap: '5px' }}>
                 <PenTool size={12} color={user?.signatureImageUrl ? '#10b981' : '#f59e0b'} />
-                <span>Chữ ký: <strong style={{ color: user?.signatureImageUrl ? '#16a34a' : '#d97706' }}>{user?.signatureImageUrl ? 'Đã có' : 'Chưa cài'}</strong></span>
+                <span>Chữ ký: <strong style={{ color: user?.signatureImageUrl ? 'rgb(var(--text-green-600))' : 'rgb(var(--text-amber-600))' }}>{user?.signatureImageUrl ? 'Đã có' : 'Chưa cài'}</strong></span>
               </div>
 
               {/* Nút mở Modal Xem Thẻ Cán Bộ (Read-only) */}
@@ -272,9 +273,9 @@ export const SurveyorNavbar: React.FC<Props> = ({
                   padding: '0.35rem 0.5rem',
                   fontSize: '0.725rem',
                   fontWeight: 700,
-                  color: '#0369a1',
-                  backgroundColor: '#f0f9ff',
-                  border: '1px solid #7dd3fc',
+                  color: 'rgb(var(--text-sky-700))',
+                  backgroundColor: 'rgb(var(--bg-sky-50))',
+                  border: '1px solid rgb(var(--border-sky-300))',
                   borderRadius: '6px',
                   cursor: 'pointer',
                   display: 'flex',
@@ -321,7 +322,7 @@ export const SurveyorNavbar: React.FC<Props> = ({
               )}
             </div>
 
-            <div style={{ fontSize: '0.725rem', color: '#475569', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+            <div style={{ fontSize: '0.725rem', color: 'rgb(var(--text-slate-600))', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
               <ShieldCheck size={14} color="#10b981" />
               <span>Phiên làm việc bảo mật JWT</span>
             </div>
@@ -329,8 +330,8 @@ export const SurveyorNavbar: React.FC<Props> = ({
             {/* Chấm công GPS trực tiếp trong Thông tin cá nhân */}
             <div
               style={{
-                backgroundColor: isCheckedInToday ? '#f0fdf4' : '#fffbeb',
-                border: isCheckedInToday ? '1px solid #bbf7d0' : '1px solid #fde68a',
+                backgroundColor: isCheckedInToday ? 'rgb(var(--bg-green-50))' : 'rgb(var(--bg-amber-50))',
+                border: isCheckedInToday ? '1px solid rgb(var(--border-green-200))' : '1px solid rgb(var(--border-amber-200))',
                 borderRadius: '0.5rem',
                 padding: '0.55rem 0.65rem',
                 display: 'flex',
@@ -339,15 +340,15 @@ export const SurveyorNavbar: React.FC<Props> = ({
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.75rem', fontWeight: 700, color: isCheckedInToday ? '#166534' : '#92400e' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.75rem', fontWeight: 700, color: isCheckedInToday ? 'rgb(var(--text-green-800))' : 'rgb(var(--text-amber-800))' }}>
                   <Clock size={14} color={isCheckedInToday ? '#16a34a' : '#d97706'} />
                   <span>Điểm danh GPS</span>
                 </div>
                 <span
                   className="badge"
                   style={{
-                    backgroundColor: isCheckedInToday ? '#dcfce7' : '#fef3c7',
-                    color: isCheckedInToday ? '#15803d' : '#b45309',
+                    backgroundColor: isCheckedInToday ? 'rgb(var(--bg-green-100))' : 'rgb(var(--bg-amber-100))',
+                    color: isCheckedInToday ? 'rgb(var(--text-green-700))' : 'rgb(var(--text-amber-700))',
                     fontSize: '0.65rem',
                     fontWeight: 700,
                     padding: '0.1rem 0.35rem',
@@ -389,8 +390,8 @@ export const SurveyorNavbar: React.FC<Props> = ({
             {/* Điểm danh Cán bộ đi kèm trong Profile */}
             <div
               style={{
-                backgroundColor: '#f8fafc',
-                border: '1px solid #e2e8f0',
+                backgroundColor: 'rgb(var(--bg-slate-50))',
+                border: '1px solid rgb(var(--border-slate-200))',
                 borderRadius: '0.5rem',
                 padding: '0.55rem 0.65rem',
                 display: 'flex',
@@ -399,15 +400,15 @@ export const SurveyorNavbar: React.FC<Props> = ({
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.75rem', fontWeight: 700, color: '#0f172a' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.75rem', fontWeight: 700, color: 'rgb(var(--text-slate-900))' }}>
                   <Users size={14} color="#0284c7" />
                   <span>Cán bộ đi kèm</span>
                 </div>
                 <span
                   className="badge"
                   style={{
-                    backgroundColor: isCompanionCheckedIn ? '#dcfce7' : '#fef3c7',
-                    color: isCompanionCheckedIn ? '#15803d' : '#b45309',
+                    backgroundColor: isCompanionCheckedIn ? 'rgb(var(--bg-green-100))' : 'rgb(var(--bg-amber-100))',
+                    color: isCompanionCheckedIn ? 'rgb(var(--text-green-700))' : 'rgb(var(--text-amber-700))',
                     fontSize: '0.65rem',
                     fontWeight: 700,
                     padding: '0.1rem 0.35rem',
@@ -446,6 +447,8 @@ export const SurveyorNavbar: React.FC<Props> = ({
               )}
             </div>
 
+            <ThemeSwitcher className="pt-1 pb-0.5 border-t border-slate-200" />
+
             <button
               type="button"
               onClick={() => {
@@ -455,9 +458,9 @@ export const SurveyorNavbar: React.FC<Props> = ({
               className="btn btn-sm"
               style={{
                 width: '100%',
-                backgroundColor: '#fee2e2',
-                color: '#b91c1c',
-                border: '1px solid #fecaca',
+                backgroundColor: 'rgb(var(--bg-red-100))',
+                color: 'rgb(var(--text-red-700))',
+                border: '1px solid rgb(var(--border-red-200))',
                 padding: '0.5rem',
                 fontSize: '0.8rem',
                 fontWeight: 700,

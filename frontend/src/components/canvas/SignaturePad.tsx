@@ -126,8 +126,8 @@ export const SignaturePad: React.FC<Props> = ({
     <div
       className="card"
       style={{
-        backgroundColor: '#ffffff',
-        border: '1px solid #e2e8f0',
+        backgroundColor: 'rgb(var(--bg-white))',
+        border: '1px solid rgb(var(--border-slate-200))',
         padding: '1rem',
         display: 'flex',
         flexDirection: 'column',
@@ -136,23 +136,23 @@ export const SignaturePad: React.FC<Props> = ({
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.4rem' }}>
         <div>
-          <span style={{ fontWeight: 700, color: '#0f172a', fontSize: '0.9rem' }}>{label}</span>
-          <div style={{ fontSize: '0.75rem', color: '#64748b' }}>
-            Họ tên: <strong style={{ color: '#0f172a' }}>{signerName || 'Chưa nhập'}</strong> ({role})
+          <span style={{ fontWeight: 700, color: 'rgb(var(--text-slate-900))', fontSize: '0.9rem' }}>{label}</span>
+          <div style={{ fontSize: '0.75rem', color: 'rgb(var(--text-slate-500))' }}>
+            Họ tên: <strong style={{ color: 'rgb(var(--text-slate-900))' }}>{signerName || 'Chưa nhập'}</strong> ({role})
           </div>
         </div>
 
         {!readOnly && (
           <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center' }}>
             {/* Mode switch */}
-            <div style={{ display: 'flex', backgroundColor: '#f1f5f9', borderRadius: '0.4rem', padding: '2px' }}>
+            <div style={{ display: 'flex', backgroundColor: 'rgb(var(--bg-slate-100))', borderRadius: '0.4rem', padding: '2px' }}>
               <button
                 type="button"
                 onClick={() => setMode('DRAW')}
                 style={{
                   border: 'none',
-                  backgroundColor: mode === 'DRAW' ? '#ffffff' : 'transparent',
-                  color: mode === 'DRAW' ? '#0284c7' : '#64748b',
+                  backgroundColor: mode === 'DRAW' ? 'rgb(var(--bg-white))' : 'transparent',
+                  color: mode === 'DRAW' ? 'rgb(var(--text-sky-600))' : 'rgb(var(--text-slate-500))',
                   fontSize: '0.725rem',
                   fontWeight: mode === 'DRAW' ? 700 : 500,
                   padding: '0.25rem 0.5rem',
@@ -169,8 +169,8 @@ export const SignaturePad: React.FC<Props> = ({
                 onClick={() => setMode('PHOTO')}
                 style={{
                   border: 'none',
-                  backgroundColor: mode === 'PHOTO' ? '#ffffff' : 'transparent',
-                  color: mode === 'PHOTO' ? '#0284c7' : '#64748b',
+                  backgroundColor: mode === 'PHOTO' ? 'rgb(var(--bg-white))' : 'transparent',
+                  color: mode === 'PHOTO' ? 'rgb(var(--text-sky-600))' : 'rgb(var(--text-slate-500))',
                   fontSize: '0.725rem',
                   fontWeight: mode === 'PHOTO' ? 700 : 500,
                   padding: '0.25rem 0.5rem',
@@ -209,11 +209,12 @@ export const SignaturePad: React.FC<Props> = ({
 
       {mode === 'DRAW' ? (
         <div
+          className="force-light"
           style={{
             position: 'relative',
             width: '100%',
             height: '140px',
-            backgroundColor: '#f8fafc',
+            backgroundColor: '#ffffff',
             borderRadius: '0.5rem',
             border: '1px dashed #cbd5e1',
             overflow: 'hidden',
@@ -270,10 +271,10 @@ export const SignaturePad: React.FC<Props> = ({
         />
       )}
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem', color: '#64748b' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem', color: 'rgb(var(--text-slate-500))' }}>
         <span>Cam kết nội dung phản ánh trung thực hiện trạng công trình</span>
         {hasDrawn && (
-          <span style={{ color: '#15803d', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+          <span style={{ color: 'rgb(var(--text-green-700))', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
             <CheckCircle2 size={13} />
             Đã có chữ ký
           </span>

@@ -236,3 +236,7 @@ Trước khi nghiệm thu bất kỳ tính năng hoặc bugfix nào, Agent và K
 
 8. **Chuẩn hóa Commit**:
    * Tuân thủ chuẩn Conventional Commits (ví dụ: `feat(survey): sync foundation depth field e2e`, `fix(ui): enforce cursor pointer and readOnly mode`).
+
+9. **Kỷ Luật Nhánh Git & Đồng Bộ Remote (Git Branch & Remote Sync Mandate)**:
+   * **Mặc định:** Toàn bộ công việc commit và push lên remote **CHỈ ĐƯỢC PHÉP thực hiện trên nhánh `dev`** (`git push origin dev`).
+   * **Nghiêm cấm tuyệt đối:** KHÔNG ĐƯỢC tự ý checkout sang `main`, merge `dev` vào `main`, hoặc push lên `origin main` khi chưa có yêu cầu trực tiếp, rõ ràng bằng văn bản từ Người dùng (User).

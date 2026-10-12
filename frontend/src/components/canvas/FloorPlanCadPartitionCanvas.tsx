@@ -573,7 +573,7 @@ export const FloorPlanCadPartitionCanvas: React.FC<Props> = ({
           <div
             ref={tightBoxRef}
             style={transformStyle}
-            className="relative inline-block max-w-full max-h-full transition-transform duration-75 origin-center"
+            className="relative inline-block max-w-full max-h-full transition-transform duration-75 origin-center force-light"
           >
             {/* Ảnh CAD Mặt Bằng Toàn Tầng */}
             <img

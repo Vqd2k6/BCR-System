@@ -34,7 +34,8 @@ export const ZoneAdminAppShell: React.FC<Props> = ({
   const [isCollapsed, setIsCollapsed] = useState<boolean>(() => {
     try {
       return localStorage.getItem('metro2_zone_admin_sidebar_collapsed') === 'true';
-    } catch {
+    } catch (err: unknown) {
+      console.error('[ZoneAdminAppShell] Không đọc được trạng thái sidebar:', err);
       return false;
     }
   });
@@ -44,7 +45,9 @@ export const ZoneAdminAppShell: React.FC<Props> = ({
       const next = !prev;
       try {
         localStorage.setItem('metro2_zone_admin_sidebar_collapsed', String(next));
-      } catch {}
+      } catch (err: unknown) {
+        console.error('[ZoneAdminAppShell] Không lưu được trạng thái sidebar:', err);
+      }
       return next;
     });
   };

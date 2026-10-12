@@ -62,10 +62,10 @@ export const MetroGisOverlays: React.FC<MetroGisOverlaysProps> = ({
             }}
           >
             <Tooltip sticky>
-              <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#b91c1c' }}>
+              <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'rgb(var(--text-red-700))' }}>
                 🏢 {poly.name}
-                {poly.km && <div style={{ fontSize: '0.7rem', color: '#475569' }}>Lý trình: {poly.km}</div>}
-                {poly.desc && <div style={{ fontSize: '0.7rem', color: '#64748b' }}>{poly.desc}</div>}
+                {poly.km && <div style={{ fontSize: '0.7rem', color: 'rgb(var(--text-slate-600))' }}>Lý trình: {poly.km}</div>}
+                {poly.desc && <div style={{ fontSize: '0.7rem', color: 'rgb(var(--text-slate-500))' }}>{poly.desc}</div>}
               </div>
             </Tooltip>
           </Polygon>
@@ -100,9 +100,9 @@ export const MetroGisOverlays: React.FC<MetroGisOverlaysProps> = ({
               }}
             >
               <Tooltip sticky>
-                <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#0369a1' }}>
+                <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'rgb(var(--text-sky-700))' }}>
                   🚇 {segName}
-                  <div style={{ fontSize: '0.7rem', color: '#475569', fontWeight: 500 }}>
+                  <div style={{ fontSize: '0.7rem', color: 'rgb(var(--text-slate-600))', fontWeight: 500 }}>
                     Hành lang hầm ngầm khép kín liên tục (Ban QLDA MAUR)
                   </div>
                 </div>
@@ -127,14 +127,14 @@ export const MetroGisOverlays: React.FC<MetroGisOverlaysProps> = ({
             }}
           >
             <Tooltip sticky>
-              <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#0f172a' }}>
+              <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'rgb(var(--text-slate-900))' }}>
                 🏛️ {station.name}
                 {station.desc && (
-                  <div style={{ fontSize: '0.7rem', color: '#475569', fontWeight: 500, marginTop: '2px', maxWidth: '300px' }}>
+                  <div style={{ fontSize: '0.7rem', color: 'rgb(var(--text-slate-600))', fontWeight: 500, marginTop: '2px', maxWidth: '300px' }}>
                     {station.desc}
                   </div>
                 )}
-                <div style={{ fontSize: '0.675rem', color: '#0284c7', marginTop: '3px' }}>
+                <div style={{ fontSize: '0.675rem', color: 'rgb(var(--text-sky-600))', marginTop: '3px' }}>
                   📐 Phác họa công trình: {station.coords.length} đỉnh tọa độ chi tiết
                 </div>
               </div>
@@ -169,9 +169,9 @@ export const MetroGisOverlays: React.FC<MetroGisOverlaysProps> = ({
             }}
           >
             <Tooltip permanent={false} direction="top" offset={[0, -6]}>
-              <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#0f172a' }}>
+              <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'rgb(var(--text-slate-900))' }}>
                 {st.name}
-                {st.km && <div style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 500 }}>{st.km}</div>}
+                {st.km && <div style={{ fontSize: '0.7rem', color: 'rgb(var(--text-slate-500))', fontWeight: 500 }}>{st.km}</div>}
               </div>
             </Tooltip>
           </CircleMarker>

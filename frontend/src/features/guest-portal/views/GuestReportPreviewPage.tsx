@@ -392,7 +392,7 @@ export const GuestReportPreviewPage: React.FC<GuestReportPreviewPageProps> = ({
         {/* Case 4: Report Rendered Successfully in Responsive A4 Container */}
         {!isLoading && !isNotSurveyedYet && htmlContent && (
           <div
-            className={`transition-all duration-200 flex justify-center w-full min-h-full ${
+            className={`transition-all duration-200 flex justify-center w-full min-h-full force-light ${
               previewZoom === '75'
                 ? 'scale-75 origin-top -mb-48'
                 : previewZoom === '125'
@@ -408,7 +408,7 @@ export const GuestReportPreviewPage: React.FC<GuestReportPreviewPageProps> = ({
                 previewZoom === 'fit'
                   ? 'w-full max-w-[920px]'
                   : 'w-[840px] max-w-full'
-              } min-h-[calc(100vh-100px)] border border-slate-300 rounded-xl shadow-2xl bg-white block`}
+              } min-h-[calc(100vh-100px)] border border-slate-300 rounded-xl shadow-2xl bg-white block force-light`}
             />
           </div>
         )}

@@ -72,10 +72,10 @@ export const SweepMapHeader: React.FC<SweepMapHeaderProps> = ({
           display: 'flex',
           gap: '0.45rem',
           alignItems: 'center',
-          backgroundColor: '#ffffff',
+          backgroundColor: 'rgb(var(--bg-white))',
           padding: '0.4rem 0.65rem',
           borderRadius: '0.75rem',
-          border: '1px solid #cbd5e1',
+          border: '1px solid rgb(var(--border-slate-300))',
           boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08)',
         }}
       >
@@ -100,9 +100,9 @@ export const SweepMapHeader: React.FC<SweepMapHeaderProps> = ({
             minWidth: 0,
             fontSize: '0.825rem',
             padding: '0.35rem 0.5rem',
-            backgroundColor: '#f8fafc',
-            color: '#0f172a',
-            border: '1px solid #cbd5e1',
+            backgroundColor: 'rgb(var(--bg-slate-50))',
+            color: 'rgb(var(--text-slate-900))',
+            border: '1px solid rgb(var(--border-slate-300))',
             borderRadius: '0.5rem',
             fontWeight: 600,
           }}
@@ -133,9 +133,9 @@ export const SweepMapHeader: React.FC<SweepMapHeaderProps> = ({
             onClick={() => setShowLayerMenu((prev) => !prev)}
             title="Lớp bản đồ & Tùy chọn GIS Metro 2"
             style={{
-              background: mapMode === 'satellite' ? '#0f172a' : '#f1f5f9',
-              color: mapMode === 'satellite' ? '#ffffff' : '#0284c7',
-              border: '1px solid #cbd5e1',
+              background: mapMode === 'satellite' ? 'rgb(var(--bg-slate-900))' : 'rgb(var(--bg-slate-100))',
+              color: mapMode === 'satellite' ? '#ffffff' : 'rgb(var(--text-sky-600))',
+              border: '1px solid rgb(var(--border-slate-300))',
               borderRadius: '0.5rem',
               padding: '0.35rem 0.55rem',
               fontSize: '0.75rem',
@@ -157,8 +157,8 @@ export const SweepMapHeader: React.FC<SweepMapHeaderProps> = ({
                 position: 'absolute',
                 top: 'calc(100% + 6px)',
                 right: 0,
-                backgroundColor: '#ffffff',
-                border: '1px solid #cbd5e1',
+                backgroundColor: 'rgb(var(--bg-white))',
+                border: '1px solid rgb(var(--border-slate-300))',
                 borderRadius: '0.65rem',
                 boxShadow: '0 8px 24px rgba(0,0,0,0.18)',
                 padding: '0.5rem',
@@ -169,7 +169,7 @@ export const SweepMapHeader: React.FC<SweepMapHeaderProps> = ({
                 minWidth: '190px',
               }}
             >
-              <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', padding: '0.2rem 0.4rem' }}>
+              <div style={{ fontSize: '0.7rem', fontWeight: 800, color: 'rgb(var(--text-slate-500))', textTransform: 'uppercase', padding: '0.2rem 0.4rem' }}>
                 Nền bản đồ
               </div>
               <button
@@ -179,8 +179,8 @@ export const SweepMapHeader: React.FC<SweepMapHeaderProps> = ({
                   setShowLayerMenu(false);
                 }}
                 style={{
-                  background: mapMode === 'standard' ? '#e0f2fe' : 'transparent',
-                  color: mapMode === 'standard' ? '#0284c7' : '#0f172a',
+                  background: mapMode === 'standard' ? 'rgb(var(--bg-sky-100))' : 'transparent',
+                  color: mapMode === 'standard' ? 'rgb(var(--text-sky-600))' : 'rgb(var(--text-slate-900))',
                   border: 'none',
                   borderRadius: '0.4rem',
                   padding: '0.35rem 0.5rem',
@@ -204,8 +204,8 @@ export const SweepMapHeader: React.FC<SweepMapHeaderProps> = ({
                   setShowLayerMenu(false);
                 }}
                 style={{
-                  background: mapMode === 'satellite' ? '#e0f2fe' : 'transparent',
-                  color: mapMode === 'satellite' ? '#0284c7' : '#0f172a',
+                  background: mapMode === 'satellite' ? 'rgb(var(--bg-sky-100))' : 'transparent',
+                  color: mapMode === 'satellite' ? 'rgb(var(--text-sky-600))' : 'rgb(var(--text-slate-900))',
                   border: 'none',
                   borderRadius: '0.4rem',
                   padding: '0.35rem 0.5rem',
@@ -229,8 +229,8 @@ export const SweepMapHeader: React.FC<SweepMapHeaderProps> = ({
                   setShowLayerMenu(false);
                 }}
                 style={{
-                  background: mapMode === 'osm' ? '#e0f2fe' : 'transparent',
-                  color: mapMode === 'osm' ? '#0284c7' : '#0f172a',
+                  background: mapMode === 'osm' ? 'rgb(var(--bg-sky-100))' : 'transparent',
+                  color: mapMode === 'osm' ? 'rgb(var(--text-sky-600))' : 'rgb(var(--text-slate-900))',
                   border: 'none',
                   borderRadius: '0.4rem',
                   padding: '0.35rem 0.5rem',
@@ -247,9 +247,9 @@ export const SweepMapHeader: React.FC<SweepMapHeaderProps> = ({
                 <span>Bản đồ OSM</span>
               </button>
 
-              <div style={{ height: '1px', backgroundColor: '#e2e8f0', margin: '0.3rem 0' }} />
+              <div style={{ height: '1px', backgroundColor: 'rgb(var(--bg-slate-200))', margin: '0.3rem 0' }} />
 
-              <div style={{ fontSize: '0.7rem', fontWeight: 800, color: '#64748b', textTransform: 'uppercase', padding: '0.2rem 0.4rem' }}>
+              <div style={{ fontSize: '0.7rem', fontWeight: 800, color: 'rgb(var(--text-slate-500))', textTransform: 'uppercase', padding: '0.2rem 0.4rem' }}>
                 Lớp chuyên đề Metro 2
               </div>
 
@@ -261,11 +261,11 @@ export const SweepMapHeader: React.FC<SweepMapHeaderProps> = ({
                   gap: '0.5rem',
                   fontSize: '0.75rem',
                   fontWeight: 600,
-                  color: '#0f172a',
+                  color: 'rgb(var(--text-slate-900))',
                   padding: '0.3rem 0.5rem',
                   borderRadius: '0.4rem',
                   cursor: 'pointer',
-                  backgroundColor: showCenterline ? '#f8fafc' : 'transparent',
+                  backgroundColor: showCenterline ? 'rgb(var(--bg-slate-50))' : 'transparent',
                 }}
               >
                 <input
@@ -285,11 +285,11 @@ export const SweepMapHeader: React.FC<SweepMapHeaderProps> = ({
                   gap: '0.5rem',
                   fontSize: '0.75rem',
                   fontWeight: 600,
-                  color: '#0f172a',
+                  color: 'rgb(var(--text-slate-900))',
                   padding: '0.3rem 0.5rem',
                   borderRadius: '0.4rem',
                   cursor: 'pointer',
-                  backgroundColor: showZonesZoi ? '#f8fafc' : 'transparent',
+                  backgroundColor: showZonesZoi ? 'rgb(var(--bg-slate-50))' : 'transparent',
                 }}
               >
                 <input
@@ -309,11 +309,11 @@ export const SweepMapHeader: React.FC<SweepMapHeaderProps> = ({
                   gap: '0.5rem',
                   fontSize: '0.75rem',
                   fontWeight: 600,
-                  color: '#0f172a',
+                  color: 'rgb(var(--text-slate-900))',
                   padding: '0.3rem 0.5rem',
                   borderRadius: '0.4rem',
                   cursor: 'pointer',
-                  backgroundColor: showStationMarkers ? '#f8fafc' : 'transparent',
+                  backgroundColor: showStationMarkers ? 'rgb(var(--bg-slate-50))' : 'transparent',
                 }}
               >
                 <input
@@ -333,11 +333,11 @@ export const SweepMapHeader: React.FC<SweepMapHeaderProps> = ({
                   gap: '0.5rem',
                   fontSize: '0.75rem',
                   fontWeight: 600,
-                  color: '#0f172a',
+                  color: 'rgb(var(--text-slate-900))',
                   padding: '0.3rem 0.5rem',
                   borderRadius: '0.4rem',
                   cursor: 'pointer',
-                  backgroundColor: showStationOutlines ? '#f8fafc' : 'transparent',
+                  backgroundColor: showStationOutlines ? 'rgb(var(--bg-slate-50))' : 'transparent',
                 }}
               >
                 <input
@@ -361,9 +361,9 @@ export const SweepMapHeader: React.FC<SweepMapHeaderProps> = ({
             width: '32px',
             height: '32px',
             borderRadius: '0.5rem',
-            backgroundColor: isSearchOpen ? '#0284c7' : '#f1f5f9',
-            border: isSearchOpen ? '1px solid #0284c7' : '1px solid #cbd5e1',
-            color: isSearchOpen ? '#ffffff' : '#0284c7',
+            backgroundColor: isSearchOpen ? '#0284c7' : 'rgb(var(--bg-slate-100))',
+            border: isSearchOpen ? '1px solid #0284c7' : '1px solid rgb(var(--border-slate-300))',
+            color: isSearchOpen ? '#ffffff' : 'rgb(var(--text-sky-600))',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -385,9 +385,9 @@ export const SweepMapHeader: React.FC<SweepMapHeaderProps> = ({
             width: '32px',
             height: '32px',
             borderRadius: '0.5rem',
-            backgroundColor: isCustomFilterActive ? '#e0f2fe' : '#f8fafc',
-            border: isCustomFilterActive ? '1.5px solid #0284c7' : '1px solid #cbd5e1',
-            color: isCustomFilterActive ? '#0284c7' : '#334155',
+            backgroundColor: isCustomFilterActive ? 'rgb(var(--bg-sky-100))' : 'rgb(var(--bg-slate-50))',
+            border: isCustomFilterActive ? '1.5px solid #0284c7' : '1px solid rgb(var(--border-slate-300))',
+            color: isCustomFilterActive ? 'rgb(var(--text-sky-600))' : 'rgb(var(--text-slate-700))',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -407,7 +407,7 @@ export const SweepMapHeader: React.FC<SweepMapHeaderProps> = ({
                 height: '8px',
                 borderRadius: '50%',
                 backgroundColor: '#0284c7',
-                border: '1.5px solid #ffffff',
+                border: '1.5px solid rgb(var(--border-white))',
               }}
             />
           )}
@@ -434,7 +434,7 @@ export const SweepMapHeader: React.FC<SweepMapHeaderProps> = ({
               position: 'relative',
               display: 'flex',
               alignItems: 'center',
-              backgroundColor: '#ffffff',
+              backgroundColor: 'rgb(var(--bg-white))',
               borderRadius: '0.75rem',
               border: '2px solid #0284c7',
               boxShadow: '0 8px 24px rgba(0, 0, 0, 0.16)',
@@ -455,7 +455,7 @@ export const SweepMapHeader: React.FC<SweepMapHeaderProps> = ({
                 fontSize: '0.85rem',
                 border: 'none',
                 outline: 'none',
-                color: '#0f172a',
+                color: 'rgb(var(--text-slate-900))',
                 backgroundColor: 'transparent',
               }}
             />
@@ -480,12 +480,12 @@ export const SweepMapHeader: React.FC<SweepMapHeaderProps> = ({
               type="button"
               onClick={() => setIsSearchOpen(false)}
               style={{
-                backgroundColor: '#f1f5f9',
+                backgroundColor: 'rgb(var(--bg-slate-100))',
                 border: 'none',
-                borderLeft: '1px solid #e2e8f0',
+                borderLeft: '1px solid rgb(var(--border-slate-200))',
                 padding: '0.65rem 0.85rem',
                 fontSize: '0.775rem',
-                color: '#475569',
+                color: 'rgb(var(--text-slate-600))',
                 cursor: 'pointer',
                 fontWeight: 600,
               }}
@@ -497,9 +497,9 @@ export const SweepMapHeader: React.FC<SweepMapHeaderProps> = ({
           {searchQuery.trim() && (
             <div
               style={{
-                backgroundColor: '#ffffff',
+                backgroundColor: 'rgb(var(--bg-white))',
                 borderRadius: '0.75rem',
-                border: '1px solid #cbd5e1',
+                border: '1px solid rgb(var(--border-slate-300))',
                 boxShadow: '0 12px 28px rgba(0, 0, 0, 0.18)',
                 maxHeight: '260px',
                 overflowY: 'auto',
@@ -508,7 +508,7 @@ export const SweepMapHeader: React.FC<SweepMapHeaderProps> = ({
               }}
             >
               {searchSuggestions.length === 0 ? (
-                <div style={{ padding: '0.85rem 1rem', fontSize: '0.8rem', color: '#64748b', textAlign: 'center' }}>
+                <div style={{ padding: '0.85rem 1rem', fontSize: '0.8rem', color: 'rgb(var(--text-slate-500))', textAlign: 'center' }}>
                   Không tìm thấy thửa đất nào phù hợp với &quot;<strong>{searchQuery}</strong>&quot;
                 </div>
               ) : (
@@ -518,7 +518,7 @@ export const SweepMapHeader: React.FC<SweepMapHeaderProps> = ({
                     onClick={() => handleSelectSearchResult(parcel)}
                     style={{
                       padding: '0.65rem 0.85rem',
-                      borderBottom: '1px solid #f1f5f9',
+                      borderBottom: '1px solid rgb(var(--border-slate-100))',
                       cursor: 'pointer',
                       display: 'flex',
                       justifyContent: 'space-between',
@@ -530,15 +530,15 @@ export const SweepMapHeader: React.FC<SweepMapHeaderProps> = ({
                   >
                     <div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                        <span style={{ fontSize: '0.9rem', fontWeight: 800, color: '#0284c7' }}>
+                        <span style={{ fontSize: '0.9rem', fontWeight: 800, color: 'rgb(var(--text-sky-600))' }}>
                           {parcel.projectParcelCode}
                         </span>
                         {getStatusBadge(parcel.surveyStatus, parcel)}
                       </div>
-                      <div style={{ fontSize: '0.8rem', color: '#0f172a', fontWeight: 600, marginTop: '2px' }}>
+                      <div style={{ fontSize: '0.8rem', color: 'rgb(var(--text-slate-900))', fontWeight: 600, marginTop: '2px' }}>
                         Số {parcel.houseNumber} {parcel.street}
                       </div>
-                      <div style={{ fontSize: '0.725rem', color: '#64748b' }}>
+                      <div style={{ fontSize: '0.725rem', color: 'rgb(var(--text-slate-500))' }}>
                         Mã ĐC: {parcel.officialCadastralCode} • Chủ hộ: {parcel.ownerName || 'Chưa cập nhật'}
                       </div>
                     </div>

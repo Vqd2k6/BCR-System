@@ -31,8 +31,8 @@ export const SurveyorBottomNav: React.FC<Props> = ({ activeTab, onChangeTab }) =
         left: 0,
         right: 0,
         zIndex: 50,
-        backgroundColor: 'rgba(255, 255, 255, 0.95)',
-        borderTop: '1px solid #e2e8f0',
+        backgroundColor: 'rgb(var(--bg-white) / 0.95)',
+        borderTop: '1px solid rgb(var(--border-slate-200))',
         display: 'flex',
         justifyContent: 'space-around',
         alignItems: 'center',
@@ -61,13 +61,13 @@ export const SurveyorBottomNav: React.FC<Props> = ({ activeTab, onChangeTab }) =
             onClick={() => onChangeTab(tab.id)}
             style={{
               background: isActive
-                ? 'linear-gradient(135deg, #e0f2fe 0%, #dbeafe 100%)'
+                ? 'linear-gradient(135deg, rgb(var(--bg-sky-100)) 0%, rgb(var(--bg-blue-100)) 100%)'
                 : 'transparent',
-              border: isActive ? '1px solid #7dd3fc' : 'none',
+              border: isActive ? '1px solid rgb(var(--border-sky-300))' : 'none',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              color: isActive ? '#0284c7' : '#64748b',
+              color: isActive ? 'rgb(var(--text-sky-600))' : 'rgb(var(--text-slate-500))',
               cursor: 'pointer',
               padding: '0.35rem 1.35rem',
               borderRadius: '9999px',

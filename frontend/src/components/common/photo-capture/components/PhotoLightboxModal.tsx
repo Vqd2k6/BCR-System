@@ -3,12 +3,15 @@ import { X, Download, Loader2, ZoomIn, ZoomOut } from 'lucide-react';
 import { PhotoWatermarkOverlay } from './PhotoWatermarkOverlay';
 import { downloadWatermarkedImage } from '../../../../utils/cleanImageCompressor';
 import { resolveOfflinePhotoUrl, getSafeDisplayUrl } from '../../../../core/storage/offlinePhotoStorage';
+import { resolvePhotoTimestamp } from '../../../../utils/photoTimestampHelper';
 
 interface PhotoLightboxModalProps {
   isOpen: boolean;
   onClose: () => void;
   imageUrl: string;
   photoCode?: string;
+  timestamp?: Date | string | number;
+  fallbackDate?: Date | string | number;
   lightboxZoom: number;
   lightboxPan: { x: number; y: number };
   isLightboxPinching: boolean;
@@ -29,6 +32,8 @@ export const PhotoLightboxModal: React.FC<PhotoLightboxModalProps> = ({
   onClose,
   imageUrl,
   photoCode,
+  timestamp,
+  fallbackDate,
   lightboxZoom,
   lightboxPan,
   isLightboxPinching,
@@ -75,9 +80,10 @@ export const PhotoLightboxModal: React.FC<PhotoLightboxModalProps> = ({
     try {
       setIsExporting(true);
       const filename = `${photoCode || 'photo'}_${Date.now()}.jpg`;
+      const resolvedTime = resolvePhotoTimestamp(timestamp, imageUrl, fallbackDate);
       await downloadWatermarkedImage(currentDisplaySrc, filename, {
         photoCode,
-        timestamp: new Date().toLocaleString('vi-VN'),
+        timestamp: resolvedTime || undefined,
       });
     } catch (err) {
       console.error('Không thể xuất ảnh có watermark:', err);
@@ -267,6 +273,9 @@ export const PhotoLightboxModal: React.FC<PhotoLightboxModalProps> = ({
         {photoCode && (
           <PhotoWatermarkOverlay
             photoCode={photoCode}
+            photoUrl={imageUrl}
+            timestamp={timestamp}
+            fallbackDate={fallbackDate}
             variant="full"
           />
         )}

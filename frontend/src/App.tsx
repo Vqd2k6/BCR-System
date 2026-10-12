@@ -666,8 +666,8 @@ export const App: React.FC = () => {
   // If loading session
   if (isLoading) {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8fafc' }}>
-        <div style={{ color: '#0284c7', fontWeight: 700 }}>Đang tải hệ thống khảo sát Metro 2...</div>
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgb(var(--bg-slate-50))' }}>
+        <div style={{ color: 'rgb(var(--text-sky-600))', fontWeight: 700 }}>Đang tải hệ thống khảo sát Metro 2...</div>
       </div>
     );
   }
@@ -885,7 +885,7 @@ export const App: React.FC = () => {
   };
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: '#f8fafc', color: '#0f172a' }}>
+    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: 'rgb(var(--bg-slate-50))', color: 'rgb(var(--text-slate-900))' }}>
       {/* Top Header: AdminTopNav cho Super Admin (Desktop/Tablet) hoặc SurveyorNavbar cho Khảo sát viên (Mobile PWA) */}
       {activeTab !== 'phase1' && activeTab !== 'condo-master' && activeTab !== 'condo-unit' && (
         user?.role === 'SUPER_ADMIN' ? (

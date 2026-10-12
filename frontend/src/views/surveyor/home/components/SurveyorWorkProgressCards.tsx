@@ -43,8 +43,8 @@ export const SurveyorWorkProgressCards: React.FC<SurveyorWorkProgressCardsProps>
       <div
         className="card"
         style={{
-          background: '#ffffff',
-          border: '1px solid #fed7aa',
+          background: 'rgb(var(--bg-white))',
+          border: '1px solid rgb(var(--border-orange-200))',
           borderLeft: '4px solid #f97316',
           borderRadius: '12px',
           padding: '0.9rem 1rem',
@@ -69,7 +69,7 @@ export const SurveyorWorkProgressCards: React.FC<SurveyorWorkProgressCardsProps>
                 display: 'inline-block',
               }}
             />
-            <h3 style={{ margin: 0, fontSize: '0.9rem', fontWeight: 800, color: '#9a3412' }}>
+            <h3 style={{ margin: 0, fontSize: '0.9rem', fontWeight: 800, color: 'rgb(var(--text-orange-800))' }}>
               Đang làm dở hôm nay
             </h3>
           </div>
@@ -79,9 +79,9 @@ export const SurveyorWorkProgressCards: React.FC<SurveyorWorkProgressCardsProps>
               fontWeight: 800,
               padding: '2px 8px',
               borderRadius: '999px',
-              backgroundColor: inProgressToday.length > 0 ? '#ffedd5' : '#f1f5f9',
-              color: inProgressToday.length > 0 ? '#c2410c' : '#64748b',
-              border: `1px solid ${inProgressToday.length > 0 ? '#fed7aa' : '#e2e8f0'}`,
+              backgroundColor: inProgressToday.length > 0 ? 'rgb(var(--bg-orange-100))' : 'rgb(var(--bg-slate-100))',
+              color: inProgressToday.length > 0 ? 'rgb(var(--text-orange-700))' : 'rgb(var(--text-slate-500))',
+              border: `1px solid ${inProgressToday.length > 0 ? 'rgb(var(--border-orange-200))' : 'rgb(var(--border-slate-200))'}`,
             }}
           >
             {inProgressToday.length} lô
@@ -92,12 +92,12 @@ export const SurveyorWorkProgressCards: React.FC<SurveyorWorkProgressCardsProps>
           <div
             style={{
               padding: '0.75rem',
-              backgroundColor: '#fffaf5',
+              backgroundColor: 'rgb(var(--bg-orange-50))',
               borderRadius: '8px',
-              border: '1px dashed #fdba74',
+              border: '1px dashed rgb(var(--border-orange-300))',
               textAlign: 'center',
               fontSize: '0.75rem',
-              color: '#9a3412',
+              color: 'rgb(var(--text-orange-800))',
             }}
           >
             ✓ Chưa có lô nào đang làm dở hôm nay
@@ -108,8 +108,8 @@ export const SurveyorWorkProgressCards: React.FC<SurveyorWorkProgressCardsProps>
               <div
                 key={item.parcel.id}
                 style={{
-                  backgroundColor: '#fffaf5',
-                  border: '1px solid #ffedd5',
+                  backgroundColor: 'rgb(var(--bg-orange-50))',
+                  border: '1px solid rgb(var(--border-orange-100))',
                   borderRadius: '8px',
                   padding: '0.65rem 0.75rem',
                   display: 'flex',
@@ -120,42 +120,42 @@ export const SurveyorWorkProgressCards: React.FC<SurveyorWorkProgressCardsProps>
               >
                 <div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: '0.875rem', fontWeight: 800, color: '#c2410c', fontFamily: 'monospace' }}>
+                    <span style={{ fontSize: '0.875rem', fontWeight: 800, color: 'rgb(var(--text-orange-700))', fontFamily: 'monospace' }}>
                       {item.parcel.projectParcelCode || item.parcel.project_parcel_code || 'Lô chưa có mã'}
                     </span>
                     <span
                       style={{
                         fontSize: '0.65rem',
                         fontWeight: 700,
-                        color: '#b45309',
-                        backgroundColor: '#fef3c7',
+                        color: 'rgb(var(--text-amber-700))',
+                        backgroundColor: 'rgb(var(--bg-amber-100))',
                         padding: '1px 5px',
                         borderRadius: '4px',
-                        border: '1px solid #fde68a',
+                        border: '1px solid rgb(var(--border-amber-200))',
                       }}
                     >
                       Đang dở
                     </span>
                   </div>
-                  <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#1e293b', marginTop: '2px' }}>
+                  <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'rgb(var(--text-slate-800))', marginTop: '2px' }}>
                     Số {item.parcel.houseNumber || item.parcel.house_number || '---'} {item.parcel.street}
                   </div>
-                  <div style={{ fontSize: '0.7rem', color: '#64748b' }}>
+                  <div style={{ fontSize: '0.7rem', color: 'rgb(var(--text-slate-500))' }}>
                     Chủ hộ: <strong>{item.parcel.ownerName || item.parcel.owner_name || 'Chưa cập nhật'}</strong>
                   </div>
-                  <div style={{ fontSize: '0.7rem', color: '#475569', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '3px' }}>
+                  <div style={{ fontSize: '0.7rem', color: 'rgb(var(--text-slate-600))', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '3px' }}>
                     <User size={11} color={item.isCurrentUser ? '#0284c7' : '#d97706'} />
                     <span>Phụ trách: </span>
-                    <strong style={{ color: item.isCurrentUser ? '#0284c7' : '#1e293b' }}>
+                    <strong style={{ color: item.isCurrentUser ? 'rgb(var(--text-sky-600))' : 'rgb(var(--text-slate-800))' }}>
                       {item.isCurrentUser ? `Bạn (${item.surveyorName})` : item.surveyorName}
                     </strong>
                     {item.surveyorCode && (
                       <span
                         style={{
                           fontSize: '0.625rem',
-                          color: item.isCurrentUser ? '#0369a1' : '#b45309',
-                          backgroundColor: item.isCurrentUser ? '#e0f2fe' : '#fef3c7',
-                          border: `1px solid ${item.isCurrentUser ? '#bae6fd' : '#fde68a'}`,
+                          color: item.isCurrentUser ? 'rgb(var(--text-sky-700))' : 'rgb(var(--text-amber-700))',
+                          backgroundColor: item.isCurrentUser ? 'rgb(var(--bg-sky-100))' : 'rgb(var(--bg-amber-100))',
+                          border: `1px solid ${item.isCurrentUser ? 'rgb(var(--border-sky-200))' : 'rgb(var(--border-amber-200))'}`,
                           padding: '0px 4px',
                           borderRadius: '3px',
                           fontWeight: 700,
@@ -174,13 +174,13 @@ export const SurveyorWorkProgressCards: React.FC<SurveyorWorkProgressCardsProps>
                     alignItems: 'center',
                     justifyContent: 'space-between',
                     paddingTop: '0.4rem',
-                    borderTop: '1px dashed #fed7aa',
+                    borderTop: '1px dashed rgb(var(--border-orange-200))',
                   }}
                 >
                   <span
                     style={{
                       fontSize: '0.675rem',
-                      color: '#9a3412',
+                      color: 'rgb(var(--text-orange-800))',
                       display: 'inline-flex',
                       alignItems: 'center',
                       gap: '3px',
@@ -222,8 +222,8 @@ export const SurveyorWorkProgressCards: React.FC<SurveyorWorkProgressCardsProps>
       <div
         className="card"
         style={{
-          background: '#ffffff',
-          border: '1px solid #fed7aa',
+          background: 'rgb(var(--bg-white))',
+          border: '1px solid rgb(var(--border-orange-200))',
           borderLeft: '4px solid #f59e0b',
           borderRadius: '12px',
           padding: '0.9rem 1rem',
@@ -240,7 +240,7 @@ export const SurveyorWorkProgressCards: React.FC<SurveyorWorkProgressCardsProps>
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
             <Calendar size={15} color="#d97706" />
-            <h3 style={{ margin: 0, fontSize: '0.9rem', fontWeight: 800, color: '#92400e' }}>
+            <h3 style={{ margin: 0, fontSize: '0.9rem', fontWeight: 800, color: 'rgb(var(--text-amber-800))' }}>
               Đang làm dở tuần này
             </h3>
           </div>
@@ -250,9 +250,9 @@ export const SurveyorWorkProgressCards: React.FC<SurveyorWorkProgressCardsProps>
               fontWeight: 800,
               padding: '2px 8px',
               borderRadius: '999px',
-              backgroundColor: inProgressThisWeek.length > 0 ? '#fef3c7' : '#f1f5f9',
-              color: inProgressThisWeek.length > 0 ? '#b45309' : '#64748b',
-              border: `1px solid ${inProgressThisWeek.length > 0 ? '#fde68a' : '#e2e8f0'}`,
+              backgroundColor: inProgressThisWeek.length > 0 ? 'rgb(var(--bg-amber-100))' : 'rgb(var(--bg-slate-100))',
+              color: inProgressThisWeek.length > 0 ? 'rgb(var(--text-amber-700))' : 'rgb(var(--text-slate-500))',
+              border: `1px solid ${inProgressThisWeek.length > 0 ? 'rgb(var(--border-amber-200))' : 'rgb(var(--border-slate-200))'}`,
             }}
           >
             {inProgressThisWeek.length} lô
@@ -263,12 +263,12 @@ export const SurveyorWorkProgressCards: React.FC<SurveyorWorkProgressCardsProps>
           <div
             style={{
               padding: '0.75rem',
-              backgroundColor: '#fffbeb',
+              backgroundColor: 'rgb(var(--bg-amber-50))',
               borderRadius: '8px',
-              border: '1px dashed #fde68a',
+              border: '1px dashed rgb(var(--border-amber-200))',
               textAlign: 'center',
               fontSize: '0.75rem',
-              color: '#92400e',
+              color: 'rgb(var(--text-amber-800))',
             }}
           >
             ✓ Không có lô nào đang làm dở từ các ngày trước trong tuần
@@ -279,8 +279,8 @@ export const SurveyorWorkProgressCards: React.FC<SurveyorWorkProgressCardsProps>
               <div
                 key={item.parcel.id}
                 style={{
-                  backgroundColor: '#fffbeb',
-                  border: '1px solid #fef3c7',
+                  backgroundColor: 'rgb(var(--bg-amber-50))',
+                  border: '1px solid rgb(var(--border-amber-100))',
                   borderRadius: '8px',
                   padding: '0.65rem 0.75rem',
                   display: 'flex',
@@ -291,29 +291,29 @@ export const SurveyorWorkProgressCards: React.FC<SurveyorWorkProgressCardsProps>
               >
                 <div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: '0.875rem', fontWeight: 800, color: '#b45309', fontFamily: 'monospace' }}>
+                    <span style={{ fontSize: '0.875rem', fontWeight: 800, color: 'rgb(var(--text-amber-700))', fontFamily: 'monospace' }}>
                       {item.parcel.projectParcelCode || item.parcel.project_parcel_code || 'Lô chưa có mã'}
                     </span>
                   </div>
-                  <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#1e293b', marginTop: '2px' }}>
+                  <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'rgb(var(--text-slate-800))', marginTop: '2px' }}>
                     Số {item.parcel.houseNumber || item.parcel.house_number || '---'} {item.parcel.street}
                   </div>
-                  <div style={{ fontSize: '0.7rem', color: '#64748b' }}>
+                  <div style={{ fontSize: '0.7rem', color: 'rgb(var(--text-slate-500))' }}>
                     Chủ hộ: <strong>{item.parcel.ownerName || item.parcel.owner_name || 'Chưa cập nhật'}</strong>
                   </div>
-                  <div style={{ fontSize: '0.7rem', color: '#475569', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '3px' }}>
+                  <div style={{ fontSize: '0.7rem', color: 'rgb(var(--text-slate-600))', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '3px' }}>
                     <User size={11} color={item.isCurrentUser ? '#0284c7' : '#d97706'} />
                     <span>Phụ trách: </span>
-                    <strong style={{ color: item.isCurrentUser ? '#0284c7' : '#1e293b' }}>
+                    <strong style={{ color: item.isCurrentUser ? 'rgb(var(--text-sky-600))' : 'rgb(var(--text-slate-800))' }}>
                       {item.isCurrentUser ? `Bạn (${item.surveyorName})` : item.surveyorName}
                     </strong>
                     {item.surveyorCode && (
                       <span
                         style={{
                           fontSize: '0.625rem',
-                          color: item.isCurrentUser ? '#0369a1' : '#b45309',
-                          backgroundColor: item.isCurrentUser ? '#e0f2fe' : '#fef3c7',
-                          border: `1px solid ${item.isCurrentUser ? '#bae6fd' : '#fde68a'}`,
+                          color: item.isCurrentUser ? 'rgb(var(--text-sky-700))' : 'rgb(var(--text-amber-700))',
+                          backgroundColor: item.isCurrentUser ? 'rgb(var(--bg-sky-100))' : 'rgb(var(--bg-amber-100))',
+                          border: `1px solid ${item.isCurrentUser ? 'rgb(var(--border-sky-200))' : 'rgb(var(--border-amber-200))'}`,
                           padding: '0px 4px',
                           borderRadius: '3px',
                           fontWeight: 700,
@@ -332,13 +332,13 @@ export const SurveyorWorkProgressCards: React.FC<SurveyorWorkProgressCardsProps>
                     alignItems: 'center',
                     justifyContent: 'space-between',
                     paddingTop: '0.4rem',
-                    borderTop: '1px dashed #fde68a',
+                    borderTop: '1px dashed rgb(var(--border-amber-200))',
                   }}
                 >
                   <span
                     style={{
                       fontSize: '0.675rem',
-                      color: '#92400e',
+                      color: 'rgb(var(--text-amber-800))',
                       display: 'inline-flex',
                       alignItems: 'center',
                       gap: '3px',
@@ -380,8 +380,8 @@ export const SurveyorWorkProgressCards: React.FC<SurveyorWorkProgressCardsProps>
       <div
         className="card"
         style={{
-          background: '#ffffff',
-          border: '1px solid #bbf7d0',
+          background: 'rgb(var(--bg-white))',
+          border: '1px solid rgb(var(--border-green-200))',
           borderLeft: '4px solid #10b981',
           borderRadius: '12px',
           padding: '0.9rem 1rem',
@@ -400,7 +400,7 @@ export const SurveyorWorkProgressCards: React.FC<SurveyorWorkProgressCardsProps>
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
             <CheckCircle2 size={16} color="#10b981" />
-            <h3 style={{ margin: 0, fontSize: '0.9rem', fontWeight: 800, color: '#065f46' }}>
+            <h3 style={{ margin: 0, fontSize: '0.9rem', fontWeight: 800, color: 'rgb(var(--text-emerald-800))' }}>
               Đã xong hôm nay / Đã xong trong tuần
             </h3>
           </div>
@@ -409,7 +409,7 @@ export const SurveyorWorkProgressCards: React.FC<SurveyorWorkProgressCardsProps>
           <div
             style={{
               display: 'flex',
-              backgroundColor: '#f1f5f9',
+              backgroundColor: 'rgb(var(--bg-slate-100))',
               padding: '2px',
               borderRadius: '8px',
               gap: '2px',
@@ -424,8 +424,8 @@ export const SurveyorWorkProgressCards: React.FC<SurveyorWorkProgressCardsProps>
                 borderRadius: '6px',
                 fontSize: '0.7rem',
                 fontWeight: completedTab === 'TODAY' ? 800 : 600,
-                backgroundColor: completedTab === 'TODAY' ? '#ffffff' : 'transparent',
-                color: completedTab === 'TODAY' ? '#047857' : '#64748b',
+                backgroundColor: completedTab === 'TODAY' ? 'rgb(var(--bg-white))' : 'transparent',
+                color: completedTab === 'TODAY' ? 'rgb(var(--text-emerald-700))' : 'rgb(var(--text-slate-500))',
                 boxShadow: completedTab === 'TODAY' ? '0 1px 2px rgba(0,0,0,0.05)' : 'none',
                 cursor: 'pointer',
               }}
@@ -442,8 +442,8 @@ export const SurveyorWorkProgressCards: React.FC<SurveyorWorkProgressCardsProps>
                 borderRadius: '6px',
                 fontSize: '0.7rem',
                 fontWeight: completedTab === 'WEEK' ? 800 : 600,
-                backgroundColor: completedTab === 'WEEK' ? '#ffffff' : 'transparent',
-                color: completedTab === 'WEEK' ? '#047857' : '#64748b',
+                backgroundColor: completedTab === 'WEEK' ? 'rgb(var(--bg-white))' : 'transparent',
+                color: completedTab === 'WEEK' ? 'rgb(var(--text-emerald-700))' : 'rgb(var(--text-slate-500))',
                 boxShadow: completedTab === 'WEEK' ? '0 1px 2px rgba(0,0,0,0.05)' : 'none',
                 cursor: 'pointer',
               }}
@@ -457,12 +457,12 @@ export const SurveyorWorkProgressCards: React.FC<SurveyorWorkProgressCardsProps>
           <div
             style={{
               padding: '0.75rem',
-              backgroundColor: '#f0fdf4',
+              backgroundColor: 'rgb(var(--bg-green-50))',
               borderRadius: '8px',
-              border: '1px dashed #bbf7d0',
+              border: '1px dashed rgb(var(--border-green-200))',
               textAlign: 'center',
               fontSize: '0.75rem',
-              color: '#065f46',
+              color: 'rgb(var(--text-emerald-800))',
             }}
           >
             {completedTab === 'TODAY'
@@ -477,8 +477,8 @@ export const SurveyorWorkProgressCards: React.FC<SurveyorWorkProgressCardsProps>
                 <div
                   key={item.parcel.id}
                   style={{
-                    backgroundColor: '#f0fdf4',
-                    border: '1px solid #dcfce7',
+                    backgroundColor: 'rgb(var(--bg-green-50))',
+                    border: '1px solid rgb(var(--border-green-100))',
                     borderRadius: '8px',
                     padding: '0.65rem 0.75rem',
                     display: 'flex',
@@ -489,16 +489,16 @@ export const SurveyorWorkProgressCards: React.FC<SurveyorWorkProgressCardsProps>
                 >
                   <div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span style={{ fontSize: '0.875rem', fontWeight: 800, color: '#047857', fontFamily: 'monospace' }}>
+                      <span style={{ fontSize: '0.875rem', fontWeight: 800, color: 'rgb(var(--text-emerald-700))', fontFamily: 'monospace' }}>
                         {item.parcel.projectParcelCode || item.parcel.project_parcel_code || 'Lô chưa có mã'}
                       </span>
                       <span
                         style={{
                           fontSize: '0.65rem',
                           fontWeight: 800,
-                          color: isApproved ? '#047857' : '#0369a1',
-                          backgroundColor: isApproved ? '#d1fae5' : '#e0f2fe',
-                          border: `1px solid ${isApproved ? '#a7f3d0' : '#bae6fd'}`,
+                          color: isApproved ? 'rgb(var(--text-emerald-700))' : 'rgb(var(--text-sky-700))',
+                          backgroundColor: isApproved ? 'rgb(var(--bg-emerald-100))' : 'rgb(var(--bg-sky-100))',
+                          border: `1px solid ${isApproved ? 'rgb(var(--border-emerald-200))' : 'rgb(var(--border-sky-200))'}`,
                           padding: '1px 5px',
                           borderRadius: '4px',
                         }}
@@ -506,25 +506,25 @@ export const SurveyorWorkProgressCards: React.FC<SurveyorWorkProgressCardsProps>
                         {isApproved ? 'Đã duyệt [✓]' : 'Đã nộp [✓]'}
                       </span>
                     </div>
-                    <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#1e293b', marginTop: '2px' }}>
+                    <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'rgb(var(--text-slate-800))', marginTop: '2px' }}>
                       Số {item.parcel.houseNumber || item.parcel.house_number || '---'} {item.parcel.street}
                     </div>
-                    <div style={{ fontSize: '0.7rem', color: '#64748b' }}>
+                    <div style={{ fontSize: '0.7rem', color: 'rgb(var(--text-slate-500))' }}>
                       Chủ hộ: <strong>{item.parcel.ownerName || item.parcel.owner_name || 'Chưa cập nhật'}</strong>
                     </div>
-                    <div style={{ fontSize: '0.7rem', color: '#475569', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '3px' }}>
+                    <div style={{ fontSize: '0.7rem', color: 'rgb(var(--text-slate-600))', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '3px' }}>
                       <User size={11} color="#059669" />
                       <span>Phụ trách: </span>
-                      <strong style={{ color: item.isCurrentUser ? '#047857' : '#1e293b' }}>
+                      <strong style={{ color: item.isCurrentUser ? 'rgb(var(--text-emerald-700))' : 'rgb(var(--text-slate-800))' }}>
                         {item.isCurrentUser ? `Bạn (${item.surveyorName})` : item.surveyorName}
                       </strong>
                       {item.surveyorCode && (
                         <span
                           style={{
                             fontSize: '0.625rem',
-                            color: '#047857',
-                            backgroundColor: '#d1fae5',
-                            border: '1px solid #a7f3d0',
+                            color: 'rgb(var(--text-emerald-700))',
+                            backgroundColor: 'rgb(var(--bg-emerald-100))',
+                            border: '1px solid rgb(var(--border-emerald-200))',
                             padding: '0px 4px',
                             borderRadius: '3px',
                             fontWeight: 700,
@@ -543,13 +543,13 @@ export const SurveyorWorkProgressCards: React.FC<SurveyorWorkProgressCardsProps>
                       alignItems: 'center',
                       justifyContent: 'space-between',
                       paddingTop: '0.4rem',
-                      borderTop: '1px dashed #bbf7d0',
+                      borderTop: '1px dashed rgb(var(--border-green-200))',
                     }}
                   >
                     <span
                       style={{
                         fontSize: '0.675rem',
-                        color: '#065f46',
+                        color: 'rgb(var(--text-emerald-800))',
                         display: 'inline-flex',
                         alignItems: 'center',
                         gap: '3px',
@@ -564,9 +564,9 @@ export const SurveyorWorkProgressCards: React.FC<SurveyorWorkProgressCardsProps>
                       type="button"
                       onClick={() => onStartPhase1(item.parcel, true)}
                       style={{
-                        backgroundColor: '#ecfdf5',
-                        color: '#047857',
-                        border: '1px solid #a7f3d0',
+                        backgroundColor: 'rgb(var(--bg-emerald-50))',
+                        color: 'rgb(var(--text-emerald-700))',
+                        border: '1px solid rgb(var(--border-emerald-200))',
                         borderRadius: '6px',
                         padding: '3px 8px',
                         fontSize: '0.7rem',

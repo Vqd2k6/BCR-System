@@ -130,9 +130,9 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
         left: '12px',
         right: '12px',
         zIndex: 1000,
-        backgroundColor: '#ffffff',
+        backgroundColor: 'rgb(var(--bg-white))',
         borderRadius: '1rem',
-        border: '1px solid #cbd5e1',
+        border: '1px solid rgb(var(--border-slate-300))',
         boxShadow: '0 12px 28px -5px rgba(0, 0, 0, 0.2)',
         padding: '1rem',
         display: 'flex',
@@ -144,7 +144,7 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
       {/* Header Row */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-          <span style={{ fontSize: '1.15rem', fontWeight: 800, color: '#0284c7' }}>
+          <span style={{ fontSize: '1.15rem', fontWeight: 800, color: 'rgb(var(--text-sky-600))' }}>
             {activeParcel.projectParcelCode}
           </span>
           {getStatusBadge(activeEffectiveStatus, activeParcel)}
@@ -153,9 +153,9 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
               type="button"
               onClick={() => onOpenBuildingHub && onOpenBuildingHub(activeParcel)}
               style={{
-                backgroundColor: '#ede9fe',
-                color: '#5b21b6',
-                border: '1px solid #c4b5fd',
+                backgroundColor: 'rgb(var(--bg-violet-100))',
+                color: 'rgb(var(--text-violet-800))',
+                border: '1px solid rgb(var(--border-violet-300))',
                 padding: '2px 8px',
                 borderRadius: '4px',
                 fontSize: '0.75rem',
@@ -194,11 +194,11 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
 
       {/* Address & Cadastral info */}
       <div>
-        <div style={{ fontSize: '0.95rem', color: '#0f172a', fontWeight: 700 }}>
+        <div style={{ fontSize: '0.95rem', color: 'rgb(var(--text-slate-900))', fontWeight: 700 }}>
           Số {activeParcel.houseNumber} {activeParcel.street}
         </div>
-        <div style={{ fontSize: '0.775rem', color: '#64748b', marginTop: '2px' }}>
-          Mã ĐC: <strong style={{ color: '#334155' }}>{activeParcel.officialCadastralCode}</strong> • Chủ hộ:{' '}
+        <div style={{ fontSize: '0.775rem', color: 'rgb(var(--text-slate-500))', marginTop: '2px' }}>
+          Mã ĐC: <strong style={{ color: 'rgb(var(--text-slate-700))' }}>{activeParcel.officialCadastralCode}</strong> • Chủ hộ:{' '}
           {activeParcel.ownerName || 'Chưa cập nhật'}
         </div>
       </div>
@@ -207,8 +207,8 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
       {activeParcel.buildingType === 'CONDOMINIUM' && (
         <div
           style={{
-            backgroundColor: '#f5f3ff',
-            border: '1px solid #ddd6fe',
+            backgroundColor: 'rgb(var(--bg-violet-50))',
+            border: '1px solid rgb(var(--border-violet-200))',
             borderRadius: '0.5rem',
             padding: '0.45rem 0.65rem',
             display: 'flex',
@@ -217,15 +217,15 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
           }}
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', fontWeight: 700 }}>
-            <span style={{ color: '#5b21b6', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+            <span style={{ color: 'rgb(var(--text-violet-800))', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
               <Building2 size={13} />
               Tiến độ căn hộ:
             </span>
-            <span style={{ color: '#4338ca' }}>
+            <span style={{ color: 'rgb(var(--text-indigo-700))' }}>
               {activeParcel.completedUnits || 0}/{activeParcel.totalUnits || 1} căn ({Math.min(100, Math.round(((activeParcel.completedUnits || 0) / Math.max(1, activeParcel.totalUnits || 1)) * 100))}%)
             </span>
           </div>
-          <div style={{ height: '6px', backgroundColor: '#e2e8f0', borderRadius: '999px', overflow: 'hidden' }}>
+          <div style={{ height: '6px', backgroundColor: 'rgb(var(--bg-slate-200))', borderRadius: '999px', overflow: 'hidden' }}>
             <div
               style={{
                 height: '100%',
@@ -242,12 +242,12 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
       {absenceRecordedToday[activeParcel.id] && (
         <div
           style={{
-            backgroundColor: '#faf5ff',
-            border: '1px solid #e9d5ff',
+            backgroundColor: 'rgb(var(--bg-purple-50))',
+            border: '1px solid rgb(var(--border-purple-200))',
             borderRadius: '0.5rem',
             padding: '0.45rem 0.65rem',
             fontSize: '0.775rem',
-            color: '#7e22ce',
+            color: 'rgb(var(--text-purple-700))',
             display: 'flex',
             alignItems: 'center',
             gap: '0.4rem',
@@ -293,9 +293,9 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
                   onClick={() => onStartSurvey && onStartSurvey(activeParcel, true)}
                   style={{
                     minWidth: '95px',
-                    backgroundColor: '#f3e8ff',
-                    color: '#6b21a8',
-                    border: '1px solid #d8b4fe',
+                    backgroundColor: 'rgb(var(--bg-purple-100))',
+                    color: 'rgb(var(--text-purple-800))',
+                    border: '1px solid rgb(var(--border-purple-300))',
                     fontWeight: 600,
                     display: 'flex',
                     alignItems: 'center',
@@ -319,8 +319,8 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
                   style={{
                     flex: 1,
                     minWidth: '140px',
-                    backgroundColor: '#dbeafe',
-                    color: '#1d4ed8',
+                    backgroundColor: 'rgb(var(--bg-blue-100))',
+                    color: 'rgb(var(--text-blue-700))',
                     padding: '0.45rem 0.65rem',
                     borderRadius: '0.5rem',
                     fontSize: '0.775rem',
@@ -329,7 +329,7 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
                     alignItems: 'center',
                     justifyContent: 'center',
                     gap: '0.35rem',
-                    border: '1px solid #93c5fd',
+                    border: '1px solid rgb(var(--border-blue-300))',
                   }}
                 >
                   <CheckCircle2 size={14} color="#2563eb" />
@@ -341,9 +341,9 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
                   onClick={() => onStartSurvey && onStartSurvey(activeParcel, true)}
                   style={{
                     minWidth: '95px',
-                    backgroundColor: '#e0f2fe',
-                    color: '#0369a1',
-                    border: '1px solid #7dd3fc',
+                    backgroundColor: 'rgb(var(--bg-sky-100))',
+                    color: 'rgb(var(--text-sky-700))',
+                    border: '1px solid rgb(var(--border-sky-300))',
                     fontWeight: 600,
                     display: 'flex',
                     alignItems: 'center',
@@ -369,9 +369,9 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
                 style={{
                   flex: 1.5,
                   minWidth: '150px',
-                  backgroundColor: '#e0f2fe',
-                  color: '#0369a1',
-                  border: '1px solid #7dd3fc',
+                  backgroundColor: 'rgb(var(--bg-sky-100))',
+                  color: 'rgb(var(--text-sky-700))',
+                  border: '1px solid rgb(var(--border-sky-300))',
                   fontWeight: 700,
                   display: 'flex',
                   alignItems: 'center',
@@ -402,9 +402,9 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
                   gap: '0.35rem',
                   padding: '0.5rem',
                   fontWeight: 700,
-                  backgroundColor: '#fee2e2',
-                  color: '#b91c1c',
-                  border: '1px solid #fca5a5',
+                  backgroundColor: 'rgb(var(--bg-red-100))',
+                  color: 'rgb(var(--text-red-700))',
+                  border: '1px solid rgb(var(--border-red-300))',
                   cursor: 'pointer',
                 }}
               >
@@ -455,9 +455,9 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
                   gap: '0.35rem',
                   padding: '0.5rem',
                   fontWeight: 700,
-                  backgroundColor: '#fff7ed',
-                  color: '#c2410c',
-                  border: '1px solid #fdba74',
+                  backgroundColor: 'rgb(var(--bg-orange-50))',
+                  color: 'rgb(var(--text-orange-700))',
+                  border: '1px solid rgb(var(--border-orange-300))',
                 }}
               >
                 <Eye size={14} color="#c2410c" />
@@ -502,9 +502,9 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
                   padding: '0.45rem 0.65rem',
                   fontSize: '0.725rem',
                   fontWeight: 700,
-                  backgroundColor: '#f8fafc',
-                  color: '#475569',
-                  border: '1px dashed #cbd5e1',
+                  backgroundColor: 'rgb(var(--bg-slate-50))',
+                  color: 'rgb(var(--text-slate-600))',
+                  border: '1px dashed rgb(var(--border-slate-300))',
                   borderRadius: '0.375rem',
                   textAlign: 'center',
                 }}
@@ -550,9 +550,9 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
               alignItems: 'center',
               justifyContent: 'center',
               gap: '0.35rem',
-              color: '#c2410c',
-              borderColor: '#fed7aa',
-              backgroundColor: '#fff7ed',
+              color: 'rgb(var(--text-orange-700))',
+              borderColor: 'rgb(var(--border-orange-200))',
+              backgroundColor: 'rgb(var(--bg-orange-50))',
               padding: '0.5rem 0.75rem',
               fontWeight: 700,
               cursor: 'pointer',
@@ -578,9 +578,9 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: '0.35rem',
-                color: isEligibleForCondoConversion ? '#6d28d9' : '#94a3b8',
-                borderColor: isEligibleForCondoConversion ? '#ddd6fe' : '#e2e8f0',
-                backgroundColor: isEligibleForCondoConversion ? '#f5f3ff' : '#f8fafc',
+                color: isEligibleForCondoConversion ? 'rgb(var(--text-violet-700))' : '#94a3b8',
+                borderColor: isEligibleForCondoConversion ? 'rgb(var(--border-violet-200))' : 'rgb(var(--border-slate-200))',
+                backgroundColor: isEligibleForCondoConversion ? 'rgb(var(--bg-violet-50))' : 'rgb(var(--bg-slate-50))',
                 padding: '0.5rem 0.75rem',
                 fontWeight: 700,
                 cursor: isEligibleForCondoConversion ? 'pointer' : 'not-allowed',
@@ -609,9 +609,9 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
               alignItems: 'center',
               justifyContent: 'center',
               gap: '0.35rem',
-              color: '#0284c7',
-              borderColor: '#bae6fd',
-              backgroundColor: '#f0f9ff',
+              color: 'rgb(var(--text-sky-600))',
+              borderColor: 'rgb(var(--border-sky-200))',
+              backgroundColor: 'rgb(var(--bg-sky-50))',
               padding: '0.5rem 0.75rem',
               fontWeight: 700,
               cursor: 'pointer',
@@ -635,9 +635,9 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
               alignItems: 'center',
               justifyContent: 'center',
               gap: '0.35rem',
-              color: '#4f46e5',
-              borderColor: '#c7d2fe',
-              backgroundColor: '#eef2ff',
+              color: 'rgb(var(--text-indigo-600))',
+              borderColor: 'rgb(var(--border-indigo-200))',
+              backgroundColor: 'rgb(var(--bg-indigo-50))',
               padding: '0.5rem 0.75rem',
               fontWeight: 700,
               cursor: 'pointer',
@@ -661,9 +661,9 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
               alignItems: 'center',
               justifyContent: 'center',
               gap: '0.35rem',
-              color: '#0f172a',
-              borderColor: '#cbd5e1',
-              backgroundColor: '#f8fafc',
+              color: 'rgb(var(--text-slate-900))',
+              borderColor: 'rgb(var(--border-slate-300))',
+              backgroundColor: 'rgb(var(--bg-slate-50))',
               padding: '0.5rem 0.75rem',
               fontWeight: 700,
               cursor: 'pointer',
@@ -686,9 +686,9 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
             alignItems: 'center',
             justifyContent: 'center',
             gap: '0.3rem',
-            color: '#0284c7',
-            borderColor: '#bae6fd',
-            backgroundColor: '#f0f9ff',
+            color: 'rgb(var(--text-sky-600))',
+            borderColor: 'rgb(var(--border-sky-200))',
+            backgroundColor: 'rgb(var(--bg-sky-50))',
             padding: '0.5rem 0.75rem',
             fontWeight: 600,
           }}
@@ -757,13 +757,13 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
         >
           <div
             style={{
-              backgroundColor: '#ffffff',
+              backgroundColor: 'rgb(var(--bg-white))',
               borderRadius: '1rem',
               maxWidth: '480px',
               width: '100%',
               padding: '1.5rem',
               boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.2)',
-              border: '1px solid #e2e8f0',
+              border: '1px solid rgb(var(--border-slate-200))',
             }}
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
@@ -772,8 +772,8 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
                   width: '42px',
                   height: '42px',
                   borderRadius: '0.75rem',
-                  backgroundColor: '#f5f3ff',
-                  color: '#7c3aed',
+                  backgroundColor: 'rgb(var(--bg-violet-50))',
+                  color: 'rgb(var(--text-violet-600))',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -783,23 +783,23 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
                 <Building2 size={24} />
               </div>
               <div>
-                <h4 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, color: '#0f172a' }}>
+                <h4 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 800, color: 'rgb(var(--text-slate-900))' }}>
                   Xác Nhận Chuyển Đổi Sang Chung Cư
                 </h4>
-                <p style={{ margin: 0, fontSize: '0.8rem', color: '#64748b' }}>
-                  Mã thửa đất: <strong style={{ color: '#0284c7' }}>{activeParcel.projectParcelCode}</strong>
+                <p style={{ margin: 0, fontSize: '0.8rem', color: 'rgb(var(--text-slate-500))' }}>
+                  Mã thửa đất: <strong style={{ color: 'rgb(var(--text-sky-600))' }}>{activeParcel.projectParcelCode}</strong>
                 </p>
               </div>
             </div>
 
             <div
               style={{
-                backgroundColor: '#eff6ff',
-                border: '1px solid #bfdbfe',
+                backgroundColor: 'rgb(var(--bg-blue-50))',
+                border: '1px solid rgb(var(--border-blue-200))',
                 borderRadius: '0.625rem',
                 padding: '0.875rem',
                 fontSize: '0.8rem',
-                color: '#1e40af',
+                color: 'rgb(var(--text-blue-800))',
                 marginBottom: '1rem',
                 lineHeight: 1.5,
               }}
@@ -817,15 +817,15 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
             {/* Random 6-digit confirmation code block */}
             <div
               style={{
-                backgroundColor: '#f8fafc',
-                border: '1px solid #e2e8f0',
+                backgroundColor: 'rgb(var(--bg-slate-50))',
+                border: '1px solid rgb(var(--border-slate-200))',
                 borderRadius: '0.625rem',
                 padding: '0.875rem',
                 marginBottom: '1.25rem',
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
-                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#475569' }}>
+                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'rgb(var(--text-slate-600))' }}>
                   MÃ XÁC NHẬN BẢO MẬT:
                 </span>
                 <span
@@ -834,17 +834,17 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
                     fontSize: '1.2rem',
                     fontWeight: 900,
                     letterSpacing: '0.25rem',
-                    color: '#6d28d9',
-                    backgroundColor: '#ede9fe',
+                    color: 'rgb(var(--text-violet-700))',
+                    backgroundColor: 'rgb(var(--bg-violet-100))',
                     padding: '0.2rem 0.6rem',
                     borderRadius: '0.375rem',
-                    border: '1px solid #ddd6fe',
+                    border: '1px solid rgb(var(--border-violet-200))',
                   }}
                 >
                   {condoConfirmCode}
                 </span>
               </div>
-              <p style={{ margin: '0 0 0.5rem 0', fontSize: '0.75rem', color: '#64748b' }}>
+              <p style={{ margin: '0 0 0.5rem 0', fontSize: '0.75rem', color: 'rgb(var(--text-slate-500))' }}>
                 Vui lòng nhập đúng dãy 6 số trên để mở khóa nút xác nhận:
               </p>
               <input
@@ -862,9 +862,9 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
                   letterSpacing: '0.2rem',
                   fontWeight: 700,
                   borderRadius: '0.5rem',
-                  border: condoInputCode === condoConfirmCode ? '2px solid #10b981' : '1px solid #cbd5e1',
-                  backgroundColor: condoInputCode === condoConfirmCode ? '#f0fdf4' : '#ffffff',
-                  color: condoInputCode === condoConfirmCode ? '#166534' : '#0f172a',
+                  border: condoInputCode === condoConfirmCode ? '2px solid #10b981' : '1px solid rgb(var(--border-slate-300))',
+                  backgroundColor: condoInputCode === condoConfirmCode ? 'rgb(var(--bg-green-50))' : 'rgb(var(--bg-white))',
+                  color: condoInputCode === condoConfirmCode ? 'rgb(var(--text-green-800))' : 'rgb(var(--text-slate-900))',
                   outline: 'none',
                   boxSizing: 'border-box',
                 }}
@@ -897,8 +897,8 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
                   fontSize: '0.85rem',
                   borderRadius: '0.5rem',
                   fontWeight: 700,
-                  backgroundColor: condoInputCode.trim() === condoConfirmCode ? '#7c3aed' : '#cbd5e1',
-                  borderColor: condoInputCode.trim() === condoConfirmCode ? '#6d28d9' : '#cbd5e1',
+                  backgroundColor: condoInputCode.trim() === condoConfirmCode ? '#7c3aed' : 'rgb(var(--bg-slate-300))',
+                  borderColor: condoInputCode.trim() === condoConfirmCode ? '#6d28d9' : 'rgb(var(--border-slate-300))',
                   color: condoInputCode.trim() === condoConfirmCode ? '#ffffff' : '#94a3b8',
                   display: 'inline-flex',
                   alignItems: 'center',

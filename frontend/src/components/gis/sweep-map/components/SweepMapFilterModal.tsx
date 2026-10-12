@@ -48,7 +48,7 @@ export const SweepMapFilterModal: React.FC<SweepMapFilterModalProps> = ({
       <div
         className="card"
         style={{
-          backgroundColor: '#ffffff',
+          backgroundColor: 'rgb(var(--bg-white))',
           borderRadius: '1rem',
           padding: '1.25rem',
           maxWidth: '360px',
@@ -56,7 +56,7 @@ export const SweepMapFilterModal: React.FC<SweepMapFilterModalProps> = ({
           maxHeight: '88vh',
           overflowY: 'auto',
           boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.2)',
-          border: '1px solid #e2e8f0',
+          border: '1px solid rgb(var(--border-slate-200))',
           display: 'flex',
           flexDirection: 'column',
           gap: '0.85rem',
@@ -67,7 +67,7 @@ export const SweepMapFilterModal: React.FC<SweepMapFilterModalProps> = ({
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
             <Filter size={18} color="#0284c7" />
-            <h4 style={{ margin: 0, fontSize: '0.975rem', fontWeight: 800, color: '#0f172a' }}>
+            <h4 style={{ margin: 0, fontSize: '0.975rem', fontWeight: 800, color: 'rgb(var(--text-slate-900))' }}>
               Bộ Lọc Hiển Thị Thửa Đất
             </h4>
           </div>
@@ -90,11 +90,11 @@ export const SweepMapFilterModal: React.FC<SweepMapFilterModalProps> = ({
               fontSize: '0.725rem',
               padding: '0.35rem 0.45rem',
               borderRadius: '0.45rem',
-              border: '1px solid #cbd5e1',
-              background: '#f8fafc',
+              border: '1px solid rgb(var(--border-slate-300))',
+              background: 'rgb(var(--bg-slate-50))',
               fontWeight: 600,
               cursor: 'pointer',
-              color: '#334155',
+              color: 'rgb(var(--text-slate-700))',
             }}
           >
             Tất cả ({parcels.length})
@@ -107,11 +107,11 @@ export const SweepMapFilterModal: React.FC<SweepMapFilterModalProps> = ({
               fontSize: '0.725rem',
               padding: '0.35rem 0.45rem',
               borderRadius: '0.45rem',
-              border: '1px solid #cbd5e1',
-              background: '#fffbeb',
+              border: '1px solid rgb(var(--border-slate-300))',
+              background: 'rgb(var(--bg-amber-50))',
               fontWeight: 600,
               cursor: 'pointer',
-              color: '#b45309',
+              color: 'rgb(var(--text-amber-700))',
             }}
           >
             Chỉ Phase 1
@@ -124,11 +124,11 @@ export const SweepMapFilterModal: React.FC<SweepMapFilterModalProps> = ({
               fontSize: '0.725rem',
               padding: '0.35rem 0.45rem',
               borderRadius: '0.45rem',
-              border: '1px solid #cbd5e1',
-              background: '#f0fdf4',
+              border: '1px solid rgb(var(--border-slate-300))',
+              background: 'rgb(var(--bg-green-50))',
               fontWeight: 600,
               cursor: 'pointer',
-              color: '#15803d',
+              color: 'rgb(var(--text-green-700))',
             }}
           >
             Chỉ Phase 2
@@ -146,7 +146,7 @@ export const SweepMapFilterModal: React.FC<SweepMapFilterModalProps> = ({
               cursor: 'pointer',
               padding: '0.35rem 0.45rem',
               borderRadius: '0.45rem',
-              backgroundColor: draftFilters.APPROVED ? '#f0fdf4' : '#ffffff',
+              backgroundColor: draftFilters.APPROVED ? 'rgb(var(--bg-green-50))' : 'rgb(var(--bg-white))',
             }}
           >
             <input
@@ -156,7 +156,7 @@ export const SweepMapFilterModal: React.FC<SweepMapFilterModalProps> = ({
               style={{ width: '16px', height: '16px', accentColor: '#10b981', cursor: 'pointer' }}
             />
             <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#10b981', flexShrink: 0 }} />
-            <span style={{ fontWeight: 600, color: '#15803d' }}>Đã duyệt Phase 1 (Chờ làm Phase 2)</span>
+            <span style={{ fontWeight: 600, color: 'rgb(var(--text-green-700))' }}>Đã duyệt Phase 1 (Chờ làm Phase 2)</span>
           </label>
 
           <label
@@ -168,7 +168,7 @@ export const SweepMapFilterModal: React.FC<SweepMapFilterModalProps> = ({
               cursor: 'pointer',
               padding: '0.35rem 0.45rem',
               borderRadius: '0.45rem',
-              backgroundColor: draftFilters.PHASE2_COMPLETED ? '#eff6ff' : '#ffffff',
+              backgroundColor: draftFilters.PHASE2_COMPLETED ? 'rgb(var(--bg-blue-50))' : 'rgb(var(--bg-white))',
             }}
           >
             <input
@@ -178,7 +178,7 @@ export const SweepMapFilterModal: React.FC<SweepMapFilterModalProps> = ({
               style={{ width: '16px', height: '16px', accentColor: '#2563eb', cursor: 'pointer' }}
             />
             <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#2563eb', flexShrink: 0 }} />
-            <span style={{ fontWeight: 600, color: '#1d4ed8' }}>Đã hoàn tất Phase 2 (Trước thi công)</span>
+            <span style={{ fontWeight: 600, color: 'rgb(var(--text-blue-700))' }}>Đã hoàn tất Phase 2 (Trước thi công)</span>
           </label>
 
           <label
@@ -190,7 +190,7 @@ export const SweepMapFilterModal: React.FC<SweepMapFilterModalProps> = ({
               cursor: 'pointer',
               padding: '0.35rem 0.45rem',
               borderRadius: '0.45rem',
-              backgroundColor: draftFilters.SUBMITTED ? '#f0f9ff' : '#ffffff',
+              backgroundColor: draftFilters.SUBMITTED ? 'rgb(var(--bg-sky-50))' : 'rgb(var(--bg-white))',
             }}
           >
             <input
@@ -200,7 +200,7 @@ export const SweepMapFilterModal: React.FC<SweepMapFilterModalProps> = ({
               style={{ width: '16px', height: '16px', accentColor: '#0284c7', cursor: 'pointer' }}
             />
             <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#0284c7', flexShrink: 0 }} />
-            <span style={{ fontWeight: 600, color: '#0369a1' }}>Đã nộp hồ sơ (Chờ duyệt)</span>
+            <span style={{ fontWeight: 600, color: 'rgb(var(--text-sky-700))' }}>Đã nộp hồ sơ (Chờ duyệt)</span>
           </label>
 
           <label
@@ -212,7 +212,7 @@ export const SweepMapFilterModal: React.FC<SweepMapFilterModalProps> = ({
               cursor: 'pointer',
               padding: '0.35rem 0.45rem',
               borderRadius: '0.45rem',
-              backgroundColor: draftFilters.IN_PROGRESS ? '#fffbeb' : '#ffffff',
+              backgroundColor: draftFilters.IN_PROGRESS ? 'rgb(var(--bg-amber-50))' : 'rgb(var(--bg-white))',
             }}
           >
             <input
@@ -222,7 +222,7 @@ export const SweepMapFilterModal: React.FC<SweepMapFilterModalProps> = ({
               style={{ width: '16px', height: '16px', accentColor: '#f59e0b', cursor: 'pointer' }}
             />
             <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#f59e0b', flexShrink: 0 }} />
-            <span style={{ fontWeight: 600, color: '#b45309' }}>Đang làm dở (Chưa nộp / Lưu nháp)</span>
+            <span style={{ fontWeight: 600, color: 'rgb(var(--text-amber-700))' }}>Đang làm dở (Chưa nộp / Lưu nháp)</span>
           </label>
 
           <label
@@ -234,7 +234,7 @@ export const SweepMapFilterModal: React.FC<SweepMapFilterModalProps> = ({
               cursor: 'pointer',
               padding: '0.35rem 0.45rem',
               borderRadius: '0.45rem',
-              backgroundColor: draftFilters.POSTPONED_ABSENT ? '#faf5ff' : '#ffffff',
+              backgroundColor: draftFilters.POSTPONED_ABSENT ? 'rgb(var(--bg-purple-50))' : 'rgb(var(--bg-white))',
             }}
           >
             <input
@@ -244,7 +244,7 @@ export const SweepMapFilterModal: React.FC<SweepMapFilterModalProps> = ({
               style={{ width: '16px', height: '16px', accentColor: '#8b5cf6', cursor: 'pointer' }}
             />
             <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#8b5cf6', flexShrink: 0 }} />
-            <span style={{ fontWeight: 600, color: '#7e22ce' }}>Chủ nhà vắng mặt (Đã dán giấy hẹn)</span>
+            <span style={{ fontWeight: 600, color: 'rgb(var(--text-purple-700))' }}>Chủ nhà vắng mặt (Đã dán giấy hẹn)</span>
           </label>
 
           <label
@@ -256,7 +256,7 @@ export const SweepMapFilterModal: React.FC<SweepMapFilterModalProps> = ({
               cursor: 'pointer',
               padding: '0.35rem 0.45rem',
               borderRadius: '0.45rem',
-              backgroundColor: draftFilters.NOT_SURVEYED ? '#f8fafc' : '#ffffff',
+              backgroundColor: draftFilters.NOT_SURVEYED ? 'rgb(var(--bg-slate-50))' : 'rgb(var(--bg-white))',
             }}
           >
             <input
@@ -265,12 +265,12 @@ export const SweepMapFilterModal: React.FC<SweepMapFilterModalProps> = ({
               onChange={(e) => setDraftFilters((prev) => ({ ...prev, NOT_SURVEYED: e.target.checked }))}
               style={{ width: '16px', height: '16px', accentColor: '#64748b', cursor: 'pointer' }}
             />
-            <span style={{ width: 10, height: 10, borderRadius: '50%', background: '#64748b', flexShrink: 0 }} />
-            <span style={{ fontWeight: 600, color: '#475569' }}>Chưa khảo sát Phase 1</span>
+            <span className="w-2.5 h-2.5 rounded-full bg-slate-500 shrink-0 inline-block" />
+            <span style={{ fontWeight: 600, color: 'rgb(var(--text-slate-600))' }}>Chưa khảo sát Phase 1</span>
           </label>
 
           {/* Toggle to Hide Non-Building Parcels */}
-          <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: '0.65rem' }}>
+          <div style={{ borderTop: '1px solid rgb(var(--border-slate-200))', paddingTop: '0.65rem' }}>
             <label
               style={{
                 display: 'flex',
@@ -280,8 +280,8 @@ export const SweepMapFilterModal: React.FC<SweepMapFilterModalProps> = ({
                 cursor: 'pointer',
                 padding: '0.5rem 0.6rem',
                 borderRadius: '0.5rem',
-                backgroundColor: draftFilters.hideNonBuildings ? '#fef2f2' : '#f8fafc',
-                border: draftFilters.hideNonBuildings ? '1.5px solid #f87171' : '1px solid #e2e8f0',
+                backgroundColor: draftFilters.hideNonBuildings ? 'rgb(var(--bg-red-50))' : 'rgb(var(--bg-slate-50))',
+                border: draftFilters.hideNonBuildings ? '1.5px solid #f87171' : '1px solid rgb(var(--border-slate-200))',
                 transition: 'all 0.15s ease',
               }}
             >
@@ -292,11 +292,11 @@ export const SweepMapFilterModal: React.FC<SweepMapFilterModalProps> = ({
                 style={{ width: '17px', height: '17px', accentColor: '#dc2626', cursor: 'pointer', flexShrink: 0 }}
               />
               <div>
-                <div style={{ fontWeight: 700, color: draftFilters.hideNonBuildings ? '#b91c1c' : '#1e293b', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                <div style={{ fontWeight: 700, color: draftFilters.hideNonBuildings ? 'rgb(var(--text-red-700))' : 'rgb(var(--text-slate-800))', display: 'flex', alignItems: 'center', gap: '5px' }}>
                   <EyeOff size={14} />
                   <span>Ẩn ô không có công trình ({(parcels || []).filter(isNonBuildingParcel).length} thửa)</span>
                 </div>
-                <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '1px' }}>
+                <div style={{ fontSize: '0.7rem', color: 'rgb(var(--text-slate-500))', marginTop: '1px' }}>
                   Bỏ qua đường đi, sông nước, kênh rạch, công viên, đất trống
                 </div>
               </div>
@@ -331,55 +331,55 @@ export const SweepMapFilterModal: React.FC<SweepMapFilterModalProps> = ({
         {/* Bottom Color Legend Description */}
         <div
           style={{
-            borderTop: '1px solid #e2e8f0',
+            borderTop: '1px solid rgb(var(--border-slate-200))',
             paddingTop: '0.65rem',
             display: 'flex',
             flexDirection: 'column',
             gap: '0.4rem',
             fontSize: '0.75rem',
-            backgroundColor: '#f8fafc',
+            backgroundColor: 'rgb(var(--bg-slate-50))',
             padding: '0.6rem 0.75rem',
             borderRadius: '0.5rem',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontWeight: 700, color: '#334155', marginBottom: '2px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontWeight: 700, color: 'rgb(var(--text-slate-700))', marginBottom: '2px' }}>
             <Layers size={14} color="#0284c7" />
             <span>Chú thích màu sắc hiển thị trên bản đồ:</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
             <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#10b981', flexShrink: 0 }} />
             <span>
-              <strong style={{ color: '#15803d' }}>Xanh lá:</strong> Đã duyệt Phase 1 (Chờ Phase 2)
+              <strong style={{ color: 'rgb(var(--text-green-700))' }}>Xanh lá:</strong> Đã duyệt Phase 1 (Chờ Phase 2)
             </span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
             <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#2563eb', flexShrink: 0 }} />
             <span>
-              <strong style={{ color: '#1d4ed8' }}>Xanh dương:</strong> Đã hoàn tất Phase 2
+              <strong style={{ color: 'rgb(var(--text-blue-700))' }}>Xanh dương:</strong> Đã hoàn tất Phase 2
             </span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
             <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#0284c7', flexShrink: 0 }} />
             <span>
-              <strong style={{ color: '#0369a1' }}>Xanh lam:</strong> Đã nộp hồ sơ (Chờ duyệt)
+              <strong style={{ color: 'rgb(var(--text-sky-700))' }}>Xanh lam:</strong> Đã nộp hồ sơ (Chờ duyệt)
             </span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
             <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#f59e0b', flexShrink: 0 }} />
             <span>
-              <strong style={{ color: '#b45309' }}>Vàng cam:</strong> Đang làm dở (Chưa nộp)
+              <strong style={{ color: 'rgb(var(--text-amber-700))' }}>Vàng cam:</strong> Đang làm dở (Chưa nộp)
             </span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
             <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#8b5cf6', flexShrink: 0 }} />
             <span>
-              <strong style={{ color: '#7e22ce' }}>Tím:</strong> Vắng mặt (Đã dán giấy hẹn)
+              <strong style={{ color: 'rgb(var(--text-purple-700))' }}>Tím:</strong> Vắng mặt (Đã dán giấy hẹn)
             </span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-            <span style={{ width: 9, height: 9, borderRadius: '50%', background: '#64748b', flexShrink: 0 }} />
+            <span className="w-2.5 h-2.5 rounded-full bg-slate-500 shrink-0 inline-block" />
             <span>
-              <strong style={{ color: '#475569' }}>Xám tro:</strong> Chưa khảo sát Phase 1
+              <strong style={{ color: 'rgb(var(--text-slate-600))' }}>Xám tro:</strong> Chưa khảo sát Phase 1
             </span>
           </div>
         </div>

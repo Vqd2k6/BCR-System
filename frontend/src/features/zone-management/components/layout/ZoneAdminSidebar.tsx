@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   BarChart3,
   CheckCircle2,
@@ -15,6 +15,7 @@ import {
   User,
   ExternalLink,
 } from 'lucide-react';
+import { ThemeSwitcher } from '../../../../components/common/ThemeSwitcher';
 import { METRO_22_ZONES } from '../../../survey-phase1/constants/metroGisConstants';
 
 export type ZoneNavView = 'dashboard' | 'review' | 'map' | 'parcels' | 'export';
@@ -46,6 +47,23 @@ export const ZoneAdminSidebar: React.FC<Props> = ({
   userRole = 'ZONE_ADMIN',
   onLogout,
 }) => {
+  const [showUserPopover, setShowUserPopover] = useState(false);
+  const popoverRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
+        setShowUserPopover(false);
+      }
+    };
+    if (showUserPopover) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showUserPopover]);
+
   const readyZones = METRO_22_ZONES.filter((z) => z.isDataReady);
 
   const navItems = [
@@ -203,13 +221,18 @@ export const ZoneAdminSidebar: React.FC<Props> = ({
         })}
       </nav>
 
-      {/* 4. Footer User Info & Logout */}
-      <div className="p-3 border-t border-slate-100 bg-slate-50/70">
+      {/* 4. Footer User Info & Theme */}
+      <div className="p-3 border-t border-slate-100 bg-slate-50/70 relative">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2.5 overflow-hidden">
-            <div className="w-8 h-8 rounded-full bg-indigo-100 border border-indigo-200 text-indigo-700 flex items-center justify-center font-bold text-xs shrink-0">
+            <button
+              type="button"
+              onClick={() => isCollapsed && setShowUserPopover(!showUserPopover)}
+              className={`w-8 h-8 rounded-full bg-indigo-100 border border-indigo-200 text-indigo-700 flex items-center justify-center font-bold text-xs shrink-0 ${isCollapsed ? 'cursor-pointer hover:ring-2 hover:ring-indigo-400' : ''}`}
+              title={userName}
+            >
               {userName.charAt(0)}
-            </div>
+            </button>
             {!isCollapsed && (
               <div className="truncate">
                 <div className="text-xs font-bold text-slate-800 truncate">{userName}</div>
@@ -229,6 +252,39 @@ export const ZoneAdminSidebar: React.FC<Props> = ({
             </button>
           )}
         </div>
+
+        {!isCollapsed && (
+          <div className="mt-2.5 pt-2 border-t border-slate-200/60">
+            <ThemeSwitcher showLabel={false} />
+          </div>
+        )}
+
+        {/* Popover khi sidebar đang thu gọn */}
+        {isCollapsed && showUserPopover && (
+          <div
+            ref={popoverRef}
+            className="absolute left-full bottom-2 ml-3 w-56 bg-white rounded-2xl shadow-2xl border border-slate-200 p-3 z-50 animate-in fade-in zoom-in-95 space-y-2.5"
+          >
+            <div className="border-b border-slate-100 pb-2">
+              <div className="text-xs font-bold text-slate-900 truncate">{userName}</div>
+              <div className="text-[10px] text-slate-500 font-mono truncate">{userRole}</div>
+            </div>
+            <ThemeSwitcher showLabel={true} />
+            {onLogout && (
+              <button
+                type="button"
+                onClick={() => {
+                  setShowUserPopover(false);
+                  onLogout();
+                }}
+                className="w-full py-1.5 px-2.5 bg-red-50 hover:bg-red-100 text-red-700 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-colors border border-red-200 cursor-pointer"
+              >
+                <LogOut size={13} />
+                <span>Đăng xuất</span>
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </aside>
   );

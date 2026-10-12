@@ -1,5 +1,6 @@
 import { Database } from '../../database/db';
 import { PoolClient } from 'pg';
+import { NotFoundError, BadRequestError } from '../../common/errors/problem-details';
 
 export interface ParcelEntity {
   id: string;
@@ -1222,6 +1223,219 @@ export class CadastralRepository {
       [surveyorId, notes || null, parcelIds]
     );
     return res.rowCount || 0;
+  }
+
+  /**
+   * Hoán đổi vị trí ranh ô CAD (CAD Spatial Geometry Swap) giữa 2 căn hộ hoặc khu vực master:
+   * - Bảo toàn 100% hồ sơ, mã căn (unit_code), biển số (display_code), loại (unit_type),
+   *   chủ hộ, báo cáo khảo sát (phase1_report_id, phase2_report_id), ảnh hiện trạng, watermark.
+   * - Tráo đổi hình học CAD: cad_bbox, cad_polygon, unit_cad_url (và floor_plan_id, floor_number nếu cross-floor).
+   * - Đồng bộ lại trường tọa độ trong survey_data_json của base_survey_reports nếu có báo cáo.
+   * - Ghi vết kiểm toán hệ thống vào system_audit_logs.
+   */
+  static async swapUnitCadGeometries(
+    parcelId: string,
+    unitAId: string,
+    unitBId: string,
+    adminId: string,
+    reason: string,
+    clientIp?: string
+  ): Promise<{
+    message: string;
+    unitA: BuildingUnitEntity;
+    unitB: BuildingUnitEntity;
+    swapEventCode: string;
+  }> {
+    return Database.transaction(async (client) => {
+      // 1. Khóa và lấy thông tin 2 đơn vị
+      const uRes = await client.query<BuildingUnitEntity>(
+        `SELECT * FROM building_units
+         WHERE id IN ($1::uuid, $2::uuid) AND parcel_id = $3::uuid AND deleted_at IS NULL
+         FOR UPDATE;`,
+        [unitAId, unitBId, parcelId]
+      );
+
+      if (uRes.rows.length < 2) {
+        throw new NotFoundError(
+          `Không tìm thấy đủ 2 vị trí hợp lệ trong tòa nhà để hoán đổi (Tìm thấy ${uRes.rows.length}/2).`
+        );
+      }
+
+      const unitA = uRes.rows.find((u) => u.id === unitAId);
+      const unitB = uRes.rows.find((u) => u.id === unitBId);
+
+      if (!unitA || !unitB) {
+        throw new BadRequestError('Không thể phân định 2 vị trí riêng biệt để hoán đổi');
+      }
+
+      if (unitA.id === unitB.id) {
+        throw new BadRequestError('Không thể hoán đổi vị trí với chính nó');
+      }
+
+      // Lưu trữ snapshot cũ để ghi audit log và cập nhật
+      const oldGeomA = {
+        cad_bbox: unitA.cad_bbox,
+        cad_polygon: unitA.cad_polygon,
+        unit_cad_url: unitA.unit_cad_url,
+        floor_plan_id: unitA.floor_plan_id,
+        floor_number: unitA.floor_number,
+      };
+
+      const oldGeomB = {
+        cad_bbox: unitB.cad_bbox,
+        cad_polygon: unitB.cad_polygon,
+        unit_cad_url: unitB.unit_cad_url,
+        floor_plan_id: unitB.floor_plan_id,
+        floor_number: unitB.floor_number,
+      };
+
+      // 2. Cập nhật hoán đổi tọa độ cho Unit A (nhận tọa độ của B)
+      const updateARes = await client.query<BuildingUnitEntity>(
+        `UPDATE building_units
+         SET cad_bbox = $1,
+             cad_polygon = $2,
+             unit_cad_url = $3,
+             floor_plan_id = $4,
+             floor_number = $5,
+             updated_at = NOW()
+         WHERE id = $6
+         RETURNING *;`,
+        [
+          oldGeomB.cad_bbox ? JSON.stringify(oldGeomB.cad_bbox) : null,
+          oldGeomB.cad_polygon ? JSON.stringify(oldGeomB.cad_polygon) : null,
+          oldGeomB.unit_cad_url,
+          oldGeomB.floor_plan_id,
+          oldGeomB.floor_number,
+          unitA.id,
+        ]
+      );
+
+      // 3. Cập nhật hoán đổi tọa độ cho Unit B (nhận tọa độ của A)
+      const updateBRes = await client.query<BuildingUnitEntity>(
+        `UPDATE building_units
+         SET cad_bbox = $1,
+             cad_polygon = $2,
+             unit_cad_url = $3,
+             floor_plan_id = $4,
+             floor_number = $5,
+             updated_at = NOW()
+         WHERE id = $6
+         RETURNING *;`,
+        [
+          oldGeomA.cad_bbox ? JSON.stringify(oldGeomA.cad_bbox) : null,
+          oldGeomA.cad_polygon ? JSON.stringify(oldGeomA.cad_polygon) : null,
+          oldGeomA.unit_cad_url,
+          oldGeomA.floor_plan_id,
+          oldGeomA.floor_number,
+          unitB.id,
+        ]
+      );
+
+      // 4. Đồng bộ lại dữ liệu tọa độ CAD trong base_survey_reports (nếu các unit đã có báo cáo)
+      if (unitA.phase1_report_id) {
+        await client.query(
+          `UPDATE base_survey_reports
+           SET survey_data_json = jsonb_set(
+             jsonb_set(
+               jsonb_set(
+                 COALESCE(survey_data_json, '{}'::jsonb),
+                 '{cadPolygon}',
+                 $1::jsonb
+               ),
+               '{cadBbox}',
+               $2::jsonb
+             ),
+             '{unitCadUrl}',
+             to_jsonb($3::text)
+           ),
+           updated_at = NOW()
+           WHERE id = $4;`,
+          [
+            JSON.stringify(oldGeomB.cad_polygon || null),
+            JSON.stringify(oldGeomB.cad_bbox || null),
+            oldGeomB.unit_cad_url || '',
+            unitA.phase1_report_id,
+          ]
+        );
+      }
+
+      if (unitB.phase1_report_id) {
+        await client.query(
+          `UPDATE base_survey_reports
+           SET survey_data_json = jsonb_set(
+             jsonb_set(
+               jsonb_set(
+                 COALESCE(survey_data_json, '{}'::jsonb),
+                 '{cadPolygon}',
+                 $1::jsonb
+               ),
+               '{cadBbox}',
+               $2::jsonb
+             ),
+             '{unitCadUrl}',
+             to_jsonb($3::text)
+           ),
+           updated_at = NOW()
+           WHERE id = $4;`,
+          [
+            JSON.stringify(oldGeomA.cad_polygon || null),
+            JSON.stringify(oldGeomA.cad_bbox || null),
+            oldGeomA.unit_cad_url || '',
+            unitB.phase1_report_id,
+          ]
+        );
+      }
+
+      // 5. Ghi log kiểm toán pháp lý hệ thống
+      const swapEventCode = `SWAP-UNIT-CAD-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+      await client.query(
+        `INSERT INTO system_audit_logs (
+           entity_type, entity_id, action, performed_by_user_id, diff_payload, client_ip
+         ) VALUES ($1, $2, $3, $4, $5, $6);`,
+        [
+          'BUILDING_UNIT',
+          unitA.id,
+          'UNIT_CAD_SPATIAL_SWAP',
+          adminId,
+          JSON.stringify({
+            swapEventCode,
+            parcelId,
+            unitA: {
+              id: unitA.id,
+              unitCode: unitA.unit_code,
+              displayCode: unitA.display_code,
+              unitType: unitA.unit_type,
+              status: unitA.status,
+              oldFloor: oldGeomA.floor_number,
+              newFloor: oldGeomB.floor_number,
+              oldBbox: oldGeomA.cad_bbox,
+              newBbox: oldGeomB.cad_bbox,
+            },
+            unitB: {
+              id: unitB.id,
+              unitCode: unitB.unit_code,
+              displayCode: unitB.display_code,
+              unitType: unitB.unit_type,
+              status: unitB.status,
+              oldFloor: oldGeomB.floor_number,
+              newFloor: oldGeomA.floor_number,
+              oldBbox: oldGeomB.cad_bbox,
+              newBbox: oldGeomA.cad_bbox,
+            },
+            reason,
+            timestamp: new Date().toISOString(),
+          }),
+          clientIp || null,
+        ]
+      );
+
+      return {
+        message: `Đã hoán đổi thành công tọa độ CAD giữa ${unitA.unit_code} và ${unitB.unit_code}. Toàn bộ mã định danh, hồ sơ và watermark ảnh được bảo toàn nguyên vẹn.`,
+        unitA: updateARes.rows[0],
+        unitB: updateBRes.rows[0],
+        swapEventCode,
+      };
+    });
   }
 }
 
