@@ -69,6 +69,7 @@ interface FloorPlanUnitItem {
 interface FloorPlanData {
   plan?: {
     cad_photo_url?: string;
+    floor_name?: string;
   };
   units?: FloorPlanUnitItem[];
 }
@@ -309,6 +310,26 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
     } finally {
       setIsLoadingFloorPlan(false);
     }
+  };
+
+  const fetchFloorPlanData = async () => {
+    if (!formData.parcelId || !formData.floorNumber) return;
+    try {
+      setIsLoadingFloorPlan(true);
+      const res = await api.get(`/parcels/${formData.parcelId}/floor-plans/${formData.floorNumber}`);
+      if (res.data?.success && res.data.data) {
+        setFloorPlanData(res.data.data);
+      }
+    } catch (_err) {
+      console.warn('[CondoUnit] Lỗi tải dữ liệu mặt bằng tầng:', _err);
+    } finally {
+      setIsLoadingFloorPlan(false);
+    }
+  };
+
+  const handleOpenFloorPicker = () => {
+    setShowFloorPickerModal(true);
+    void fetchFloorPlanData();
   };
 
   const handleSelectPartitionCad = async (u: FloorPlanUnitItem) => {
@@ -699,10 +720,7 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => {
-                      setShowFloorPickerModal(true);
-                      void loadFloorPlanAuto();
-                    }}
+                    onClick={handleOpenFloorPicker}
                     className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-teal-50 hover:bg-teal-100 text-teal-700 border border-teal-200 text-xs font-bold transition-all shadow-2xs cursor-pointer min-h-[44px]"
                   >
                     <Download className="w-3.5 h-3.5" />
@@ -1128,10 +1146,7 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
                     <div className="flex items-center gap-2">
                       <button
                         type="button"
-                        onClick={() => {
-                          setShowFloorPickerModal(true);
-                          void loadFloorPlanAuto();
-                        }}
+                        onClick={handleOpenFloorPicker}
                         className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-xs font-bold transition-all shadow-2xs cursor-pointer min-h-[44px]"
                       >
                         <Download className="w-3.5 h-3.5" />
@@ -1683,7 +1698,7 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
               <div className="flex items-center gap-2">
                 <Layers className="w-5 h-5 text-teal-400" />
                 <h3 className="text-sm font-bold text-white">
-                  Sơ Đồ Mặt Bằng Tầng {formData.floorNumber} • Chọn Căn {formData.unitCode} Để Import CAD
+                  Sơ Đồ Mặt Bằng {floorPlanData?.plan?.floor_name || `Tầng ${formData.floorNumber}`} • Chọn Căn {formData.displayCode || formData.unitCode} Để Import CAD
                 </h3>
               </div>
               <button
