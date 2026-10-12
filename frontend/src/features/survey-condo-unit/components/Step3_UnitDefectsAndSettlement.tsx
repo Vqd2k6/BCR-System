@@ -29,6 +29,11 @@ import { uploadQueue } from '../../../core/services/uploadQueueService';
 import { base64ToBlob } from '../../survey-phase1/utils/photoSyncAudit';
 import { cropImageBoundingBox } from '../../../components/canvas/FloorPlanCadPartitionCanvas';
 import {
+  CadAreaCropModal,
+  type CadCropFloorPlanItem,
+  type NormalizedBbox,
+} from '../../../components/canvas/CadAreaCropModal';
+import {
   AlertTriangle,
   AlertCircle,
   Plus,
@@ -51,6 +56,10 @@ import {
   Zap,
   X,
   FileText,
+  ZoomIn,
+  Crop,
+  RefreshCw,
+  Loader2,
 } from 'lucide-react';
 
 import { validateCondoUnitStep3, type CondoUnitValidationIssue } from '../utils/condoUnitValidator';
@@ -68,8 +77,11 @@ interface FloorPlanUnitItem {
 
 interface FloorPlanData {
   plan?: {
+    id?: string;
     cad_photo_url?: string;
     floor_name?: string;
+    floor_number?: number;
+    floor_code?: string;
   };
   units?: FloorPlanUnitItem[];
 }
@@ -111,7 +123,9 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
 
   const [isLoadingFloorPlan, setIsLoadingFloorPlan] = useState<boolean>(false);
   const [floorPlanData, setFloorPlanData] = useState<FloorPlanData | null>(null);
-  const [showFloorPickerModal, setShowFloorPickerModal] = useState<boolean>(false);
+  const [cadCropModalMode, setCadCropModalMode] = useState<'ARCHITECTURAL' | 'STRUCTURAL' | null>(null);
+  const [previewCadUrl, setPreviewCadUrl] = useState<string | null>(null);
+  const [availableFloorPlans, setAvailableFloorPlans] = useState<CadCropFloorPlanItem[]>([]);
   const [isCroppingCad, setIsCroppingCad] = useState<boolean>(false);
 
   // Trạng thái kiểm tra đối soát Z-E-D trước khi chuyển sang Bước 4
@@ -177,11 +191,11 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
     // 1. Nếu rawCadUrl đã là Cloud URL hợp lệ (bắt đầu bằng http và không chứa blob:)
     if (rawCadUrl.startsWith('http') && !rawCadUrl.includes('blob:')) {
       if (isTargetStructural) {
-        updateFormData({ unitStructuralCadUrl: rawCadUrl });
+        updateFormData({ unitStructuralCadUrl: rawCadUrl, isCadOverriddenByUser: true });
       } else {
-        updateFormData({ unitCadUrl: rawCadUrl, cadBbox: bbox || null });
+        updateFormData({ unitCadUrl: rawCadUrl, cadBbox: bbox || null, isCadOverriddenByUser: true });
       }
-      setShowFloorPickerModal(false);
+      setCadCropModalMode(null);
       return;
     }
 
@@ -199,11 +213,11 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
 
       if (!blob) {
         if (isTargetStructural) {
-          updateFormData({ unitStructuralCadUrl: rawCadUrl });
+          updateFormData({ unitStructuralCadUrl: rawCadUrl, isCadOverriddenByUser: true });
         } else {
-          updateFormData({ unitCadUrl: rawCadUrl, cadBbox: bbox || null });
+          updateFormData({ unitCadUrl: rawCadUrl, cadBbox: bbox || null, isCadOverriddenByUser: true });
         }
-        setShowFloorPickerModal(false);
+        setCadCropModalMode(null);
         return;
       }
 
@@ -228,9 +242,9 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
       const persistentLocalUri = `blob:local://${localId}`;
 
       if (isTargetStructural) {
-        updateFormData({ unitStructuralCadUrl: persistentLocalUri });
+        updateFormData({ unitStructuralCadUrl: persistentLocalUri, isCadOverriddenByUser: true });
       } else {
-        updateFormData({ unitCadUrl: persistentLocalUri, cadBbox: bbox || null });
+        updateFormData({ unitCadUrl: persistentLocalUri, cadBbox: bbox || null, isCadOverriddenByUser: true });
       }
 
       // Đẩy ngầm vào Upload Queue để sync lên Cloudflare R2
@@ -247,21 +261,21 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
           await markOfflinePhotoUploaded(localId, publicUrl);
           revokeManagedBlobUrl(localId);
           if (isTargetStructural) {
-            updateFormData({ unitStructuralCadUrl: publicUrl });
+            updateFormData({ unitStructuralCadUrl: publicUrl, isCadOverriddenByUser: true });
           } else {
-            updateFormData({ unitCadUrl: publicUrl });
+            updateFormData({ unitCadUrl: publicUrl, isCadOverriddenByUser: true });
           }
         },
       });
     } catch (importErr) {
       console.warn('[CondoUnit:importCadWithStorageAndQueue] Lỗi lưu nhị phân CAD:', importErr);
       if (isTargetStructural) {
-        updateFormData({ unitStructuralCadUrl: rawCadUrl });
+        updateFormData({ unitStructuralCadUrl: rawCadUrl, isCadOverriddenByUser: true });
       } else {
-        updateFormData({ unitCadUrl: rawCadUrl, cadBbox: bbox || null });
+        updateFormData({ unitCadUrl: rawCadUrl, cadBbox: bbox || null, isCadOverriddenByUser: true });
       }
     } finally {
-      setShowFloorPickerModal(false);
+      setCadCropModalMode(null);
     }
   };
 
@@ -269,15 +283,20 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
   const hasAttemptedAutoImportCadRef = useRef<boolean>(false);
   useEffect(() => {
     if (hasAttemptedAutoImportCadRef.current) return;
+    if (formData.isCadOverriddenByUser) {
+      hasAttemptedAutoImportCadRef.current = true;
+      return;
+    }
     if (!formData.unitCadUrl && formData.parcelId && formData.floorNumber) {
       hasAttemptedAutoImportCadRef.current = true;
       void loadFloorPlanAuto();
     } else if (formData.unitCadUrl) {
       hasAttemptedAutoImportCadRef.current = true;
     }
-  }, [formData.parcelId, formData.floorNumber, formData.unitCadUrl]);
+  }, [formData.parcelId, formData.floorNumber, formData.unitCadUrl, formData.isCadOverriddenByUser]);
 
   const loadFloorPlanAuto = async () => {
+    if (formData.isCadOverriddenByUser) return;
     try {
       setIsLoadingFloorPlan(true);
       const res = await api.get(`/parcels/${formData.parcelId}/floor-plans/${formData.floorNumber}`);
@@ -317,11 +336,12 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
     }
   };
 
-  const fetchFloorPlanData = async () => {
-    if (!formData.parcelId || !formData.floorNumber) return;
+  const fetchFloorPlanData = async (floorNum?: number) => {
+    const targetFloor = floorNum !== undefined ? floorNum : formData.floorNumber;
+    if (!formData.parcelId || targetFloor === undefined) return;
     try {
       setIsLoadingFloorPlan(true);
-      const res = await api.get(`/parcels/${formData.parcelId}/floor-plans/${formData.floorNumber}`);
+      const res = await api.get(`/parcels/${formData.parcelId}/floor-plans/${targetFloor}`);
       if (res.data?.success && res.data.data) {
         setFloorPlanData(res.data.data);
       }
@@ -332,51 +352,131 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
     }
   };
 
-  const handleOpenFloorPicker = () => {
-    setShowFloorPickerModal(true);
-    void fetchFloorPlanData();
+  useEffect(() => {
+    if (formData.parcelId) {
+      void fetchAvailableFloorPlans();
+    }
+  }, [formData.parcelId]);
+
+  const fetchAvailableFloorPlans = async () => {
+    if (!formData.parcelId) return;
+    try {
+      const res = await api.get(`/parcels/${formData.parcelId}/floor-plans`);
+      if (res.data?.success && Array.isArray(res.data.data)) {
+        const plans: CadCropFloorPlanItem[] = res.data.data
+          .filter((fp: { cad_photo_url?: string }) => Boolean(fp.cad_photo_url))
+          .map((fp: { id?: string; floor_number: number; floor_name?: string; cad_photo_url: string; floor_code?: string }) => ({
+            id: fp.id || `fp_${fp.floor_number}`,
+            floor_number: fp.floor_number,
+            floor_name: fp.floor_name || `Tầng ${fp.floor_number}`,
+            cad_photo_url: fp.cad_photo_url,
+            floor_code: fp.floor_code,
+          }));
+        setAvailableFloorPlans(plans);
+      }
+    } catch (_err) {
+      console.warn('[CondoUnit] Không thể lấy danh sách floor plans:', _err);
+    }
   };
 
-  const handleSelectPartitionCad = async (u: FloorPlanUnitItem) => {
-    if (u.unit_cad_url) {
-      await importCadWithStorageAndQueue(u.unit_cad_url, u.cad_bbox);
-      setShowFloorPickerModal(false);
-      return;
+  const handleSelectFloorPlanForCrop = async (plan: CadCropFloorPlanItem) => {
+    try {
+      setIsLoadingFloorPlan(true);
+      const res = await api.get(`/parcels/${formData.parcelId}/floor-plans/${plan.floor_number}`);
+      if (res.data?.success && res.data.data) {
+        setFloorPlanData(res.data.data);
+      }
+    } catch (err) {
+      console.error('Lỗi khi tải CAD tầng được chọn:', err);
+    } finally {
+      setIsLoadingFloorPlan(false);
     }
+  };
 
-    if (floorPlanData?.plan?.cad_photo_url && u.cad_bbox) {
-      const norm = normalizeBbox(u.cad_bbox);
-      if (norm) {
-        try {
-          setIsCroppingCad(true);
-          const cropped = await cropImageBoundingBox(floorPlanData.plan.cad_photo_url, norm);
-          if (cropped && cropped !== floorPlanData.plan.cad_photo_url) {
-            await importCadWithStorageAndQueue(cropped, u.cad_bbox);
-            setShowFloorPickerModal(false);
-            return;
-          }
-        } catch (_cropErr) {
-          console.error('[Step3] Lỗi crop ảnh CAD ô căn hộ:', _cropErr);
-        } finally {
-          setIsCroppingCad(false);
+  const handleOpenCadCropModal = (mode: 'ARCHITECTURAL' | 'STRUCTURAL') => {
+    setCadCropModalMode(mode);
+    if (!floorPlanData) {
+      void fetchFloorPlanData();
+    }
+  };
+
+  const handleClearCad = (mode: 'ARCHITECTURAL' | 'STRUCTURAL') => {
+    const isArch = mode === 'ARCHITECTURAL';
+    const title = isArch ? 'CAD Kiến trúc CAD_01' : 'CAD Kết cấu CAD_02';
+    if (!window.confirm(`Bạn có chắc chắn muốn xóa bản vẽ ${title} hiện tại không?`)) return;
+
+    if (isArch) {
+      updateFormData({
+        unitCadUrl: '',
+        cadBbox: null,
+        isCadOverriddenByUser: true,
+      });
+    } else {
+      updateFormData({
+        unitStructuralCadUrl: '',
+        isCadOverriddenByUser: true,
+      });
+    }
+  };
+
+  const handleAutoExtractFromFloorPlan = async (mode: 'ARCHITECTURAL' | 'STRUCTURAL') => {
+    setIsCroppingCad(true);
+    try {
+      let data = floorPlanData;
+      if (!data) {
+        const res = await api.get(`/parcels/${formData.parcelId}/floor-plans/${formData.floorNumber}`);
+        if (res.data?.success && res.data.data) {
+          data = res.data.data;
+          setFloorPlanData(data);
         }
       }
-    }
 
-    // Nếu không có CAD riêng và không có bbox hoặc crop không thành công, hỏi người dùng trước khi dùng toàn bộ mặt bằng tầng
-    if (floorPlanData?.plan?.cad_photo_url) {
-      const confirmWholeFloor = window.confirm(
-        `Căn hộ ${u.unit_code} chưa có ảnh cắt riêng. Bạn có muốn sử dụng toàn bộ sơ đồ CAD Tầng ${formData.floorNumber} không?`
-      );
-      if (confirmWholeFloor) {
-        await importCadWithStorageAndQueue(floorPlanData.plan.cad_photo_url, null);
-        setShowFloorPickerModal(false);
+      if (!data?.plan?.cad_photo_url) {
+        alert(`Tầng ${formData.floorNumber} chưa có bản vẽ CAD mặt bằng.`);
+        return;
       }
-    }
-  };
 
-  const handleManualImportCad = (importedCadUrl: string, bbox?: CadBbox | null) => {
-    void importCadWithStorageAndQueue(importedCadUrl, bbox);
+      const { plan, units } = data;
+      const matched = units?.find(
+        (u: FloorPlanUnitItem) =>
+          u.unit_code === formData.unitCode ||
+          u.unit_code?.endsWith(formData.unitCode) ||
+          (Boolean(formData.displayCode?.trim()) &&
+            (u.display_code === formData.displayCode || u.unit_code === formData.displayCode))
+      );
+
+      if (matched?.unit_cad_url) {
+        await importCadWithStorageAndQueue(
+          matched.unit_cad_url,
+          matched.cad_bbox,
+          mode === 'STRUCTURAL' ? 'STRUCTURAL' : 'ZONE'
+        );
+      } else if (matched?.cad_bbox && plan?.cad_photo_url) {
+        const norm = normalizeBbox(matched.cad_bbox);
+        if (norm) {
+          const cropped = await cropImageBoundingBox(plan.cad_photo_url, norm);
+          if (cropped) {
+            await importCadWithStorageAndQueue(
+              cropped,
+              matched.cad_bbox,
+              mode === 'STRUCTURAL' ? 'STRUCTURAL' : 'ZONE'
+            );
+          }
+        }
+      } else if (plan?.cad_photo_url) {
+        // Dùng toàn bộ CAD tầng
+        await importCadWithStorageAndQueue(
+          plan.cad_photo_url,
+          null,
+          mode === 'STRUCTURAL' ? 'STRUCTURAL' : 'ZONE'
+        );
+      }
+    } catch (err) {
+      console.error('[Step3] Lỗi lấy lại từ CAD tầng:', err);
+      alert('Không thể trích xuất tự động từ CAD tầng. Vui lòng mở modal "Chọn / Cắt từ CAD tầng"!');
+    } finally {
+      setIsCroppingCad(false);
+    }
   };
 
   // Xử lý tự động ghim & sinh Vùng Z trên sơ đồ CAD kiến trúc (FloorCadPinningCanvas)
@@ -712,32 +812,129 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
               <div className="flex items-center gap-2">
                 <Layers className="w-5 h-5 text-teal-600 shrink-0" />
                 <div>
-                  <h3 className="text-base font-bold text-slate-800">
-                    Sơ Đồ Mặt Bằng Kiến Trúc Căn Hộ {formData.unitCode} (CAD_01)
-                  </h3>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="text-base font-bold text-slate-800">
+                      Sơ Đồ Mặt Bằng Kiến Trúc Căn Hộ {formData.displayCode || formData.unitCode} (CAD_01)
+                    </h3>
+                    {formData.unitCadUrl ? (
+                      <span className="text-emerald-700 bg-emerald-50 border border-emerald-200 text-xs font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                        <CheckCircle2 size={13} /> Đã có CAD
+                      </span>
+                    ) : (
+                      <span className="text-amber-700 bg-amber-50 border border-amber-200 text-xs font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                        <AlertCircle size={13} /> Chưa có CAD
+                      </span>
+                    )}
+                  </div>
                   <p className="text-xs text-slate-500">
                     Chạm trực tiếp vào sơ đồ để gán tọa độ và tự động sinh Vùng kiến trúc Z mới
                   </p>
                 </div>
               </div>
 
-              {!isReadOnly && (
-                <div className="flex items-center gap-2">
+              {/* Action buttons when CAD exists */}
+              {!isReadOnly && formData.unitCadUrl && (
+                <div className="flex items-center gap-1.5 flex-wrap">
                   <button
                     type="button"
-                    onClick={handleOpenFloorPicker}
-                    className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-teal-50 hover:bg-teal-100 text-teal-700 border border-teal-200 text-xs font-bold transition-all shadow-2xs cursor-pointer min-h-[44px]"
+                    onClick={() => setPreviewCadUrl(formData.unitCadUrl || null)}
+                    className="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer min-h-[36px]"
+                    title="Xem phóng to bản vẽ"
                   >
-                    <Download className="w-3.5 h-3.5" />
-                    Chọn / Cắt từ Tầng {formData.floorNumber}
+                    <ZoomIn size={13} />
+                    <span>Phóng to</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleOpenCadCropModal('ARCHITECTURAL')}
+                    className="px-2.5 py-1.5 rounded-xl bg-teal-50 hover:bg-teal-100 text-teal-700 border border-teal-200 text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer min-h-[36px]"
+                    title="Chọn ô khác hoặc chọn bản vẽ từ tầng khác trong tòa"
+                  >
+                    <Layers size={13} />
+                    <span>Chọn CAD tầng</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleOpenCadCropModal('ARCHITECTURAL')}
+                    className="px-2.5 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer min-h-[36px]"
+                    title="Cắt lại ô bản vẽ từ CAD tầng"
+                  >
+                    <Crop size={13} />
+                    <span>Cắt lại</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleClearCad('ARCHITECTURAL')}
+                    className="px-2.5 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer min-h-[36px]"
+                    title="Xóa bản vẽ hiện tại để tải ảnh mới hoặc chọn lại"
+                  >
+                    <Trash2 size={13} />
+                    <span>Xóa / Đổi bản vẽ</span>
                   </button>
                 </div>
               )}
             </div>
 
+            {/* When CAD does NOT exist: 3 visual choice buttons */}
+            {!isReadOnly && !formData.unitCadUrl && (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 p-3 rounded-2xl bg-amber-50/50 border border-amber-200/60 animate-in fade-in">
+                <button
+                  type="button"
+                  onClick={() => void handleAutoExtractFromFloorPlan('ARCHITECTURAL')}
+                  disabled={isCroppingCad}
+                  className="w-full py-2.5 px-3 rounded-xl border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-2xs min-h-[44px]"
+                  title="Tự động lấy lại sơ đồ từ CAD tầng mẹ (theo phân vùng hoặc toàn tầng)"
+                >
+                  {isCroppingCad ? (
+                    <>
+                      <Loader2 size={15} className="animate-spin" />
+                      <span>Đang trích xuất...</span>
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw size={15} />
+                      <span>Lấy lại từ CAD tầng</span>
+                    </>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleOpenCadCropModal('ARCHITECTURAL')}
+                  disabled={isCroppingCad}
+                  className="w-full py-2.5 px-3 rounded-xl border border-teal-200 bg-teal-50/80 hover:bg-teal-100 text-teal-800 text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-2xs min-h-[44px]"
+                >
+                  <Layers size={15} />
+                  <span>Chọn / Cắt từ CAD tầng</span>
+                </button>
+
+                <div className="w-full">
+                  <PhotoCaptureInput
+                    label="Tải ảnh / CAD riêng"
+                    value=""
+                    onChange={(url) => {
+                      if (url) void importCadWithStorageAndQueue(url, null, 'ZONE');
+                    }}
+                    watermarkOptions={{
+                      parcelCode: bCode,
+                      floor: `Tầng ${formData.floorNumber}`,
+                      zoneOrRoom: formData.displayCode || formData.unitCode,
+                    }}
+                    photoCode={`CAD_ARCH_${formData.unitCode}`}
+                    allowPdf={true}
+                    pdfFloorName={`Tầng ${formData.floorNumber}`}
+                    height="44px"
+                  />
+                </div>
+              </div>
+            )}
+
             <FloorCadPinningCanvas
               cadPhotoUrl={formData.unitCadUrl || ''}
-              onCadPhotoChange={(url) => updateFormData({ unitCadUrl: url })}
+              onCadPhotoChange={(url) => updateFormData({ unitCadUrl: url, isCadOverriddenByUser: true })}
               pins={formData.cadZonePins || []}
               onChangePins={(pins) => updateFormData({ cadZonePins: pins })}
               onAutoCreatePin={handleAutoCreateZonePin}
@@ -1138,32 +1335,133 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
                   <div className="flex items-center gap-2">
                     <Activity className="w-5 h-5 text-amber-600 shrink-0" />
                     <div>
-                      <h3 className="text-base font-bold text-slate-800">
-                        Sơ Đồ Mặt Bằng Kết Cấu Căn Hộ {formData.unitCode} (CAD_02)
-                      </h3>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="text-base font-bold text-slate-800">
+                          Sơ Đồ Mặt Bằng Kết Cấu Căn Hộ {formData.displayCode || formData.unitCode} (CAD_02)
+                        </h3>
+                        {formData.unitStructuralCadUrl ? (
+                          <span className="text-emerald-700 bg-emerald-50 border border-emerald-200 text-xs font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                            <CheckCircle2 size={13} /> Đã có CAD kết cấu
+                          </span>
+                        ) : formData.unitCadUrl ? (
+                          <span className="text-teal-700 bg-teal-50 border border-teal-200 text-xs font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                            <Info size={13} /> Dùng chung CAD kiến trúc
+                          </span>
+                        ) : (
+                          <span className="text-amber-700 bg-amber-50 border border-amber-200 text-xs font-bold px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                            <AlertCircle size={13} /> Chưa có CAD
+                          </span>
+                        )}
+                      </div>
                       <p className="text-xs text-slate-500">
                         Chạm trực tiếp vào sơ đồ để gán tọa độ và tự động sinh Cấu kiện kết cấu E mới
                       </p>
                     </div>
                   </div>
 
-                  {!isReadOnly && (
-                    <div className="flex items-center gap-2">
+                  {/* Action buttons when structural CAD exists */}
+                  {!isReadOnly && formData.unitStructuralCadUrl && (
+                    <div className="flex items-center gap-1.5 flex-wrap">
                       <button
                         type="button"
-                        onClick={handleOpenFloorPicker}
-                        className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-xs font-bold transition-all shadow-2xs cursor-pointer min-h-[44px]"
+                        onClick={() => setPreviewCadUrl(formData.unitStructuralCadUrl || null)}
+                        className="px-2.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer min-h-[36px]"
+                        title="Xem phóng to bản vẽ kết cấu"
                       >
-                        <Download className="w-3.5 h-3.5" />
-                        Chọn / Cắt từ Tầng {formData.floorNumber}
+                        <ZoomIn size={13} />
+                        <span>Phóng to</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleOpenCadCropModal('STRUCTURAL')}
+                        className="px-2.5 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer min-h-[36px]"
+                        title="Chọn CAD tầng khác trong tòa nhà"
+                      >
+                        <Layers size={13} />
+                        <span>Chọn CAD tầng</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleOpenCadCropModal('STRUCTURAL')}
+                        className="px-2.5 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer min-h-[36px]"
+                        title="Cắt lại ô bản vẽ kết cấu từ CAD tầng"
+                      >
+                        <Crop size={13} />
+                        <span>Cắt lại</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleClearCad('STRUCTURAL')}
+                        className="px-2.5 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer min-h-[36px]"
+                        title="Xóa bản vẽ kết cấu riêng (sẽ quay lại dùng CAD kiến trúc)"
+                      >
+                        <Trash2 size={13} />
+                        <span>Xóa / Đổi bản vẽ</span>
                       </button>
                     </div>
                   )}
                 </div>
 
+                {/* When structural CAD does NOT exist: choice buttons to set separate structural CAD */}
+                {!isReadOnly && !formData.unitStructuralCadUrl && (
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 p-3 rounded-2xl bg-amber-50/50 border border-amber-200/60 animate-in fade-in">
+                    <button
+                      type="button"
+                      onClick={() => void handleAutoExtractFromFloorPlan('STRUCTURAL')}
+                      disabled={isCroppingCad}
+                      className="w-full py-2.5 px-3 rounded-xl border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-2xs min-h-[44px]"
+                      title="Lấy lại sơ đồ từ CAD tầng"
+                    >
+                      {isCroppingCad ? (
+                        <>
+                          <Loader2 size={15} className="animate-spin" />
+                          <span>Đang trích xuất...</span>
+                        </>
+                      ) : (
+                        <>
+                          <RefreshCw size={15} />
+                          <span>Lấy từ CAD tầng</span>
+                        </>
+                      )}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleOpenCadCropModal('STRUCTURAL')}
+                      disabled={isCroppingCad}
+                      className="w-full py-2.5 px-3 rounded-xl border border-amber-200 bg-amber-50/80 hover:bg-amber-100 text-amber-800 text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-2xs min-h-[44px]"
+                    >
+                      <Layers size={15} />
+                      <span>Chọn / Cắt CAD kết cấu</span>
+                    </button>
+
+                    <div className="w-full">
+                      <PhotoCaptureInput
+                        label="Tải CAD kết cấu riêng"
+                        value=""
+                        onChange={(url) => {
+                          if (url) void importCadWithStorageAndQueue(url, null, 'STRUCTURAL');
+                        }}
+                        watermarkOptions={{
+                          parcelCode: bCode,
+                          floor: `Tầng ${formData.floorNumber}`,
+                          zoneOrRoom: formData.displayCode || formData.unitCode,
+                        }}
+                        photoCode={`CAD_STRUCT_${formData.unitCode}`}
+                        allowPdf={true}
+                        pdfFloorName={`Tầng ${formData.floorNumber}`}
+                        height="44px"
+                      />
+                    </div>
+                  </div>
+                )}
+
                 <FloorCadPinningCanvas
                   cadPhotoUrl={formData.unitStructuralCadUrl || formData.unitCadUrl || ''}
-                  onCadPhotoChange={(url) => updateFormData({ unitStructuralCadUrl: url })}
+                  onCadPhotoChange={(url) => updateFormData({ unitStructuralCadUrl: url, isCadOverriddenByUser: true })}
                   pins={formData.cadElementPins || []}
                   onChangePins={(pins) => updateFormData({ cadElementPins: pins })}
                   onAutoCreatePin={handleAutoCreateElementPin}
@@ -1174,9 +1472,9 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
                     if (idx !== -1) setActiveElementIndex(idx);
                   }}
                   mode="STRUCTURAL"
-                  floorName={`Căn hộ ${formData.unitCode}`}
+                  floorName={`Căn hộ ${formData.displayCode || formData.unitCode}`}
                   parcelCode={formData.unitCode}
-                  cadTitle={`Sơ đồ mặt bằng kết cấu CAD_02 (Căn ${formData.unitCode}):`}
+                  cadTitle={`Sơ đồ mặt bằng kết cấu CAD_02 (Căn ${formData.displayCode || formData.unitCode}):`}
                   readOnly={isReadOnly}
                 />
               </Card>
@@ -1695,133 +1993,61 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
         />
       )}
 
-      {/* Modal Chọn Ô Căn Hộ Từ Bản Đồ Tầng */}
-      {showFloorPickerModal && (
-        <div className="fixed inset-0 z-[100002] bg-slate-900/80 backdrop-blur-xs flex items-center justify-center p-3 animate-in fade-in">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden text-white">
-            <div className="flex items-center justify-between px-5 py-3.5 bg-slate-850 border-b border-slate-800">
-              <div className="flex items-center gap-2">
-                <Layers className="w-5 h-5 text-teal-400" />
-                <h3 className="text-sm font-bold text-white">
-                  Sơ Đồ Mặt Bằng {floorPlanData?.plan?.floor_name || `Tầng ${formData.floorNumber}`} • Chọn Căn {formData.displayCode || formData.unitCode} Để Import CAD
-                </h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowFloorPickerModal(false)}
-                className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white min-h-[44px] min-w-[44px] flex items-center justify-center"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4">
-              {floorPlanData?.plan?.cad_photo_url ? (
-                <div className="space-y-4">
-                  {/* Thanh chọn nhanh toàn bộ bản vẽ tầng */}
-                  <div className="flex items-center justify-between gap-3 p-3 rounded-2xl bg-slate-800/80 border border-slate-700">
-                    <div className="text-xs text-slate-300">
-                      💡 Dùng toàn bộ sơ đồ CAD Tầng {formData.floorNumber} làm bản vẽ tham chiếu cho căn hộ:
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (floorPlanData?.plan?.cad_photo_url) {
-                          void importCadWithStorageAndQueue(floorPlanData.plan.cad_photo_url, null);
-                        }
-                      }}
-                      className="px-3 py-2 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-bold text-xs shrink-0 cursor-pointer transition-colors shadow-xs"
-                    >
-                      Dùng toàn bộ CAD Tầng {formData.floorNumber}
-                    </button>
-                  </div>
-
-                  <div className="relative rounded-2xl overflow-hidden border border-slate-700 bg-slate-950 flex items-center justify-center p-2">
-                    {isCroppingCad && (
-                      <div className="absolute inset-0 bg-slate-950/80 z-20 flex flex-col items-center justify-center gap-2 backdrop-blur-xs">
-                        <div className="w-7 h-7 border-2 border-teal-400 border-t-transparent rounded-full animate-spin" />
-                        <span className="text-xs text-teal-200 font-bold">Đang cắt sơ đồ căn hộ từ CAD tầng...</span>
-                      </div>
-                    )}
-
-                    <img
-                      src={floorPlanData.plan.cad_photo_url}
-                      alt="Floor plan"
-                      crossOrigin="anonymous"
-                      className="max-h-[50vh] object-contain select-none"
-                    />
-
-                    {floorPlanData.units?.map((u: FloorPlanUnitItem) => {
-                      if (!u.cad_bbox) return null;
-                      const isTarget = u.unit_code === formData.unitCode;
-                      const style = Array.isArray(u.cad_bbox)
-                        ? {
-                            left: `${u.cad_bbox[0]}%`,
-                            top: `${u.cad_bbox[1]}%`,
-                            width: `${u.cad_bbox[2] - u.cad_bbox[0]}%`,
-                            height: `${u.cad_bbox[3] - u.cad_bbox[1]}%`,
-                          }
-                        : {
-                            left: `${u.cad_bbox.x}%`,
-                            top: `${u.cad_bbox.y}%`,
-                            width: `${u.cad_bbox.width}%`,
-                            height: `${u.cad_bbox.height}%`,
-                          };
-
-                      return (
-                        <div
-                          key={u.id}
-                          style={style}
-                          onClick={() => {
-                            if (!isCroppingCad) {
-                              void handleSelectPartitionCad(u);
-                            }
-                          }}
-                          className={`absolute border-2 transition-all cursor-pointer flex items-center justify-center ${
-                            isTarget
-                              ? 'border-teal-400 bg-teal-500/30 animate-pulse'
-                              : 'border-slate-500/50 bg-slate-700/20 hover:bg-slate-600/40'
-                          }`}
-                        >
-                          <span className="text-[10px] font-mono font-bold bg-slate-900/90 text-white px-1.5 py-0.5 rounded shadow">
-                            {u.unit_code}
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    {floorPlanData.units?.map((u: FloorPlanUnitItem) => (
-                      <button
-                        key={u.id}
-                        type="button"
-                        disabled={isCroppingCad}
-                        onClick={() => void handleSelectPartitionCad(u)}
-                        className={`p-3 rounded-xl border text-left transition-all ${
-                          u.unit_code === formData.unitCode
-                            ? 'bg-teal-950 border-teal-500 text-teal-200'
-                            : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-750'
-                        } ${isCroppingCad ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-                      >
-                        <div className="font-mono font-bold text-xs">{u.unit_code}</div>
-                        <div className="text-[11px] text-slate-400 mt-1">
-                          {u.unit_cad_url ? '✓ Có CAD riêng' : u.cad_bbox ? '⚡ Cắt từ CAD tầng' : 'Dùng CAD tầng'}
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ) : (
-                <div className="text-center py-12 text-slate-400 text-xs">
-                  {isLoadingFloorPlan
-                    ? 'Đang tải sơ đồ mặt bằng tầng...'
-                    : 'Tầng này chưa được cấu hình bản vẽ CAD mặt bằng kiến trúc.'}
-                </div>
-              )}
-            </div>
+      {/* Lightbox xem phóng to toàn màn hình */}
+      {previewCadUrl && (
+        <div
+          className="fixed inset-0 z-[120005] bg-black/85 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in"
+          onClick={() => setPreviewCadUrl(null)}
+        >
+          <div className="relative max-w-5xl max-h-[90vh] flex flex-col items-center">
+            <button
+              type="button"
+              onClick={() => setPreviewCadUrl(null)}
+              className="absolute -top-10 right-0 p-2 text-white hover:text-slate-300 cursor-pointer"
+            >
+              <X size={24} />
+            </button>
+            <img
+              src={previewCadUrl}
+              alt="CAD Preview"
+              className="max-w-full max-h-[85vh] object-contain rounded-xl shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            />
           </div>
         </div>
+      )}
+
+      {/* Modal Cắt & Chọn CAD Tầng tương tác cao (Parity 100% với Master Area) */}
+      {cadCropModalMode !== null && (
+        <CadAreaCropModal
+          isOpen={cadCropModalMode !== null}
+          onClose={() => setCadCropModalMode(null)}
+          cadPhotoUrl={floorPlanData?.plan?.cad_photo_url || ''}
+          floorName={floorPlanData?.plan?.floor_name || `Tầng ${formData.floorNumber}`}
+          unitCode={formData.displayCode || formData.unitCode}
+          initialBbox={
+            cadCropModalMode === 'ARCHITECTURAL'
+              ? normalizeBbox(formData.cadBbox)
+              : null
+          }
+          otherPartitions={floorPlanData?.units}
+          onConfirmCrop={(croppedUrl, bbox) => {
+            void importCadWithStorageAndQueue(
+              croppedUrl,
+              bbox,
+              cadCropModalMode === 'STRUCTURAL' ? 'STRUCTURAL' : 'ZONE'
+            );
+          }}
+          onUseFullFloorCad={(fullFloorCadUrl) => {
+            void importCadWithStorageAndQueue(
+              fullFloorCadUrl,
+              null,
+              cadCropModalMode === 'STRUCTURAL' ? 'STRUCTURAL' : 'ZONE'
+            );
+          }}
+          floorPlans={availableFloorPlans}
+          onSelectFloorPlan={(plan) => void handleSelectFloorPlanForCrop(plan)}
+        />
       )}
 
       {/* Modal Kiểm Tra Đối Soát Tính Đầy Đủ Z-E-D Trước Khi Sang Bước 4 */}

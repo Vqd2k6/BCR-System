@@ -136,6 +136,7 @@ export interface CondoUnitFormData {
   unitStructuralCadUrl?: string;
   cadBbox?: CadBbox | null;
   cadPolygon?: CadPolygon | null;
+  isCadOverriddenByUser?: boolean;
   zones: DamageZoneData[];
   structuralElements: StructuralElementData[];
   hasStructuralElements: boolean;

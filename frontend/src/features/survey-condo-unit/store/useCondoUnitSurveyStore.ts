@@ -427,6 +427,13 @@ export function mergeCondoUnitDataSafely(
   merged.structuralElements = deduplicateElements(processedElements, mergedElementPins);
   merged.cadElementPins = mergedElementPins;
 
+  // 7.5. Bảo toàn cờ ghi đè/xóa CAD của người dùng
+  if (serverData.isCadOverriddenByUser !== undefined) {
+    merged.isCadOverriddenByUser = Boolean(serverData.isCadOverriddenByUser);
+  } else if (localData.isCadOverriddenByUser !== undefined) {
+    merged.isCadOverriddenByUser = Boolean(localData.isCadOverriddenByUser);
+  }
+
   // 8. Vá URL ảnh tạm (blob:local://) đã biết Cloud URL rồi khử trùng các danh sách ảnh
   return dedupePhotoArrays(healLocalPhotoUris(merged));
 }
@@ -510,6 +517,7 @@ const getDefaultCondoUnitFormData = (parcelId: string, unitId: string): CondoUni
   unitStructuralCadUrl: '',
   cadBbox: null,
   cadPolygon: null,
+  isCadOverriddenByUser: false,
 
   // 3. Phân cấp Vùng Z & Cấu kiện E (Phase 1 Standard)
   zones: [],
