@@ -119,8 +119,12 @@ export const Step3FloorOverviewSection: React.FC<Step3FloorOverviewSectionProps>
               actions={
                 <button
                   type="button"
-                  onClick={() => handleRemovePhoto(photo.id)}
-                  className="absolute top-1.5 right-1.5 p-1 bg-red-600/90 hover:bg-red-700 text-white rounded-md text-xs opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer shadow-sm pointer-events-auto"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    e.preventDefault();
+                    handleRemovePhoto(photo.id);
+                  }}
+                  className="absolute top-1.5 right-1.5 p-1 bg-red-600/90 hover:bg-red-700 text-white rounded-md text-xs opacity-90 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity cursor-pointer shadow-sm pointer-events-auto z-30 flex items-center justify-center active:scale-95"
                   title="Xóa ảnh"
                 >
                   <Trash2 className="w-3.5 h-3.5" />

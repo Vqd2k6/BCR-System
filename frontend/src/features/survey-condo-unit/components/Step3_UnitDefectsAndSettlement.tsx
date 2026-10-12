@@ -827,11 +827,12 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
+                                e.preventDefault();
                                 const updated = (activeZone.overviewPhotos || []).filter((_, idx) => idx !== i);
                                 updateZone(activeZoneIndex, { overviewPhotos: updated });
                               }}
-                              className="p-1 bg-rose-600 text-white rounded text-xs cursor-pointer shadow hover:bg-rose-700"
-                              title="Xóa ảnh"
+                              className="absolute top-1.5 right-1.5 p-1 bg-rose-600 text-white rounded-md text-xs cursor-pointer shadow-md hover:bg-rose-700 pointer-events-auto z-30 transition-transform active:scale-95 flex items-center justify-center"
+                              title="Xóa ảnh này"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
@@ -1253,6 +1254,7 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
                                   type="button"
                                   onClick={(e) => {
                                     e.stopPropagation();
+                                    e.preventDefault();
                                     const updated = (activeElement.overviewPhotos || []).filter((_, idx) => idx !== i);
                                     const newCtx =
                                       activeElement.ctxPhotoUrl === url ? updated[0] || '' : activeElement.ctxPhotoUrl;
@@ -1261,8 +1263,8 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
                                       ctxPhotoUrl: newCtx,
                                     });
                                   }}
-                                  className="p-1 bg-rose-600 text-white rounded text-xs cursor-pointer shadow hover:bg-rose-700"
-                                  title="Xóa ảnh"
+                                  className="absolute top-1.5 right-1.5 p-1 bg-rose-600 text-white rounded-md text-xs cursor-pointer shadow-md hover:bg-rose-700 pointer-events-auto z-30 transition-transform active:scale-95 flex items-center justify-center"
+                                  title="Xóa ảnh này"
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
                                 </button>

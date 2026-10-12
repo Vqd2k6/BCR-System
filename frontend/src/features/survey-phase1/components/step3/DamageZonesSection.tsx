@@ -459,17 +459,19 @@ export const DamageZonesSection: React.FC<DamageZonesSectionProps> = ({
                     actions={
                       <button
                         type="button"
-                        onClick={() => {
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          e.preventDefault();
                           const deletedUrl = activeZone.overviewPhotos[pIdx];
                           const updated = activeZone.overviewPhotos.filter((_, i) => i !== pIdx);
                           const newCtx =
                             activeZone.ctxPhotoUrl === deletedUrl ? updated[0] || '' : activeZone.ctxPhotoUrl;
                           onUpdateZone(activeZoneIndex, { overviewPhotos: updated, ctxPhotoUrl: newCtx });
                         }}
-                        className="absolute top-1 right-1 p-1 bg-red-600 text-white rounded-md text-xs opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer pointer-events-auto"
+                        className="absolute top-1.5 right-1.5 p-1 bg-red-600 hover:bg-red-700 text-white rounded-md text-xs opacity-90 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity cursor-pointer pointer-events-auto z-30 flex items-center justify-center active:scale-95 shadow-xs"
                         title="Xóa ảnh"
                       >
-                        <Trash2 className="w-3 h-3" />
+                        <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     }
                   />
