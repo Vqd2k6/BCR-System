@@ -1,5 +1,6 @@
 import { getErrorMessage, getErrorStatus, isNotFoundError } from '@/utils/errorUtils';
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Cloud,
   HardDrive,
@@ -205,11 +206,16 @@ export const CloudPhotoSyncModal: React.FC<CloudPhotoSyncModalProps> = ({
 
   const StorageHeaderIcon = storageInfo.isLocal ? HardDrive : Cloud;
 
-  return (
-    <div className="fixed inset-0 z-[99999] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
-      <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] shadow-2xl border border-slate-200 flex flex-col overflow-hidden animate-in fade-in zoom-in-95">
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[99999] bg-slate-900/80 backdrop-blur-sm flex items-center justify-center pt-10 sm:pt-14 pb-6 px-3 sm:px-6"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-2xl max-h-[86vh] shadow-2xl border border-slate-200 dark:border-slate-800 flex flex-col overflow-hidden animate-in fade-in zoom-in-95 text-slate-800 dark:text-slate-100">
         {/* Header */}
-        <div className="p-4 sm:p-5 border-b border-slate-100 bg-slate-50/80 flex items-start justify-between gap-3">
+        <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-850 flex items-start justify-between gap-3 shrink-0">
           <div className="flex items-center gap-3">
             <div
               className={`p-2.5 rounded-xl ${
@@ -469,6 +475,7 @@ export const CloudPhotoSyncModal: React.FC<CloudPhotoSyncModalProps> = ({
           onClose={() => setPreviewImage(null)}
         />
       )}
-    </div>
+    </div>,
+    document.body
   );
 };

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Cloud,
   HardDrive,
@@ -346,11 +347,16 @@ export const MasterAreaPhotoAuditModal: React.FC<MasterAreaPhotoAuditModalProps>
 
   if (!isOpen) return null;
 
-  return (
-    <div className="fixed inset-0 z-[125000] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 select-none animate-in fade-in duration-150">
-      <div className="bg-white border border-slate-200 rounded-2xl shadow-2xl w-full max-w-4xl h-[90dvh] flex flex-col overflow-hidden text-slate-800">
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[125000] bg-slate-900/80 backdrop-blur-xs flex items-center justify-center pt-10 sm:pt-14 pb-6 px-3 sm:px-6 select-none animate-in fade-in duration-150"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[86vh] flex flex-col overflow-hidden text-slate-800 dark:text-slate-100">
         {/* Header Modal */}
-        <div className="bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between shrink-0">
+        <div className="bg-white dark:bg-slate-850 border-b border-slate-200 dark:border-slate-800 px-4 py-3 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2.5">
             <div className="p-2 rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-100">
               <Cloud className="w-5 h-5" />
@@ -586,6 +592,7 @@ export const MasterAreaPhotoAuditModal: React.FC<MasterAreaPhotoAuditModalProps>
           title="Xem Phóng To Ảnh Kiểm Toán"
         />
       )}
-    </div>
+    </div>,
+    document.body
   );
 };

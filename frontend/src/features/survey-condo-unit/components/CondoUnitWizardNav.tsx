@@ -85,12 +85,13 @@ export const CondoUnitWizardNav: React.FC<Props> = ({ onBackToHub }) => {
   };
 
   return (
-    <header
-      className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200/80 shadow-xs"
-      style={{
-        paddingTop: 'env(safe-area-inset-top, 0px)',
-      }}
-    >
+    <>
+      <header
+        className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200/80 shadow-xs"
+        style={{
+          paddingTop: 'env(safe-area-inset-top, 0px)',
+        }}
+      >
       {/* Top action header */}
       <div className="px-2.5 sm:px-4 py-2 flex items-center justify-between gap-1.5 sm:gap-3 max-w-7xl mx-auto">
         {/* Left Info & Back */}
@@ -279,13 +280,14 @@ export const CondoUnitWizardNav: React.FC<Props> = ({ onBackToHub }) => {
           })}
         </div>
       </div>
-
-      {/* Modal Kiểm Toán Chi Tiết Toàn Bộ Ảnh Khảo Sát */}
-      <CondoUnitPhotoAuditModal
-        isOpen={isPhotoAuditOpen}
-        onClose={() => setIsPhotoAuditOpen(false)}
-        onNavigateToStep={(s) => setStep(s)}
-      />
     </header>
-  );
+
+    {/* Modal Kiểm Toán Chi Tiết Toàn Bộ Ảnh Khảo Sát */}
+    <CondoUnitPhotoAuditModal
+      isOpen={isPhotoAuditOpen}
+      onClose={() => setIsPhotoAuditOpen(false)}
+      onNavigateToStep={(s) => setStep(s)}
+    />
+  </>
+);
 };

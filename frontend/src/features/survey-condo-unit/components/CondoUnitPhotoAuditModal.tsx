@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Cloud,
   HardDrive,
@@ -51,7 +52,7 @@ const PhotoThumbnailCell: React.FC<{ url: string; title: string; onClick: () => 
     <div
       onClick={onClick}
       style={{ width: '56px', height: '56px', minWidth: '56px', minHeight: '56px', maxWidth: '56px', maxHeight: '56px' }}
-      className="w-14 h-14 min-w-[56px] min-h-[56px] max-w-[56px] max-h-[56px] rounded-xl overflow-hidden bg-slate-100 border border-slate-200 shrink-0 cursor-pointer relative group flex items-center justify-center shadow-xs"
+      className="w-14 h-14 min-w-[56px] min-h-[56px] max-w-[56px] max-h-[56px] rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shrink-0 cursor-pointer relative group flex items-center justify-center shadow-xs"
       title="Bấm để xem ảnh phóng to"
     >
       {displayUrl ? (
@@ -62,7 +63,7 @@ const PhotoThumbnailCell: React.FC<{ url: string; title: string; onClick: () => 
           className="w-full h-full object-cover block"
         />
       ) : (
-        <ImageIcon className="w-5 h-5 text-slate-400" />
+        <ImageIcon className="w-5 h-5 text-slate-400 dark:text-slate-500" />
       )}
       <div className="absolute inset-0 bg-black/35 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
         <Eye className="w-4 h-4 text-white" />
@@ -144,25 +145,30 @@ export const CondoUnitPhotoAuditModal: React.FC<Props> = ({
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-[120000] bg-slate-900/80 backdrop-blur-xs flex items-center justify-center p-2.5 sm:p-4 animate-in fade-in">
-      <div className="bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-200 w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden text-slate-800">
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[120000] bg-slate-900/80 backdrop-blur-xs flex items-center justify-center pt-10 sm:pt-14 pb-6 px-3 sm:px-6 animate-in fade-in"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div className="bg-white dark:bg-slate-900 rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 w-full max-w-4xl max-h-[86vh] flex flex-col overflow-hidden text-slate-800 dark:text-slate-100">
         {/* Top Header */}
-        <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 bg-slate-50 border-b border-slate-200 shrink-0">
+        <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-800 shrink-0">
           <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl bg-teal-50 text-teal-600 border border-teal-200">
+            <div className="p-2 rounded-xl bg-teal-50 dark:bg-teal-950/60 text-teal-600 dark:text-teal-400 border border-teal-200 dark:border-teal-800">
               <Cloud className="w-5 h-5" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h3 className="text-sm sm:text-base font-bold text-slate-900">
+                <h3 className="text-sm sm:text-base font-bold text-slate-900 dark:text-slate-100">
                   Kiểm Toán Ảnh Khảo Sát Căn Hộ {unitCode}
                 </h3>
-                <span className="text-[10px] font-mono bg-teal-100 text-teal-900 border border-teal-200 px-2 py-0.5 rounded-full font-bold">
+                <span className="text-[10px] font-mono bg-teal-100 dark:bg-teal-900/60 text-teal-900 dark:text-teal-300 border border-teal-200 dark:border-teal-700 px-2 py-0.5 rounded-full font-bold">
                   {parcelCode}
                 </span>
               </div>
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-slate-500 dark:text-slate-400">
                 Đối soát trạng thái lưu trữ giữa bộ nhớ máy (IndexedDB) và máy chủ Cloudflare R2
               </p>
             </div>
@@ -171,63 +177,63 @@ export const CondoUnitPhotoAuditModal: React.FC<Props> = ({
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition-colors cursor-pointer"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* 3 Summary KPI Cards */}
-        <div className="p-3 sm:p-5 grid grid-cols-3 gap-2.5 sm:gap-4 shrink-0 bg-white border-b border-slate-100">
+        <div className="p-3 sm:p-5 grid grid-cols-3 gap-2.5 sm:gap-4 shrink-0 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800">
           <div
             onClick={() => setActiveTab('ALL')}
             className={`p-3 rounded-xl border text-center cursor-pointer transition-all ${
               activeTab === 'ALL'
-                ? 'bg-slate-100 border-slate-400 ring-2 ring-slate-400/20 shadow-xs'
-                : 'bg-slate-50 border-slate-200 hover:bg-slate-100/60'
+                ? 'bg-slate-100 dark:bg-slate-800 border-slate-400 dark:border-slate-600 ring-2 ring-slate-400/20 shadow-xs'
+                : 'bg-slate-50 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800 hover:bg-slate-100/60 dark:hover:bg-slate-800'
             }`}
           >
-            <div className="text-lg sm:text-2xl font-black text-slate-900 font-mono">
+            <div className="text-lg sm:text-2xl font-black text-slate-900 dark:text-slate-100 font-mono">
               {audit.total}
             </div>
-            <div className="text-[11px] sm:text-xs font-semibold text-slate-600">Tổng ảnh khảo sát</div>
+            <div className="text-[11px] sm:text-xs font-semibold text-slate-600 dark:text-slate-400">Tổng ảnh khảo sát</div>
           </div>
 
           <div
             onClick={() => setActiveTab('SYNCED')}
             className={`p-3 rounded-xl border text-center cursor-pointer transition-all ${
               activeTab === 'SYNCED'
-                ? 'bg-emerald-50 border-emerald-400 ring-2 ring-emerald-400/20 shadow-xs'
-                : 'bg-emerald-50/50 border-emerald-200 hover:bg-emerald-50'
+                ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-400 dark:border-emerald-700 ring-2 ring-emerald-400/20 shadow-xs'
+                : 'bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800 hover:bg-emerald-50 dark:hover:bg-emerald-950/40'
             }`}
           >
-            <div className="text-lg sm:text-2xl font-black text-emerald-700 font-mono flex items-center justify-center gap-1">
-              <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-600 inline" />
+            <div className="text-lg sm:text-2xl font-black text-emerald-700 dark:text-emerald-400 font-mono flex items-center justify-center gap-1">
+              <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-600 dark:text-emerald-400 inline" />
               {audit.synced}
             </div>
-            <div className="text-[11px] sm:text-xs font-semibold text-emerald-800">Đã lên Cloud R2</div>
+            <div className="text-[11px] sm:text-xs font-semibold text-emerald-800 dark:text-emerald-300">Đã lên Cloud R2</div>
           </div>
 
           <div
             onClick={() => setActiveTab('UNSYNCED')}
             className={`p-3 rounded-xl border text-center cursor-pointer transition-all ${
               activeTab === 'UNSYNCED'
-                ? 'bg-amber-50 border-amber-400 ring-2 ring-amber-400/20 shadow-xs'
-                : 'bg-amber-50/50 border-amber-200 hover:bg-amber-50'
+                ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-400 dark:border-amber-700 ring-2 ring-amber-400/20 shadow-xs'
+                : 'bg-amber-50/50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800 hover:bg-amber-50 dark:hover:bg-amber-950/40'
             }`}
           >
-            <div className="text-lg sm:text-2xl font-black text-amber-700 font-mono flex items-center justify-center gap-1">
-              <HardDrive className="w-4 h-4 sm:w-5 sm:h-5 text-amber-600 inline" />
+            <div className="text-lg sm:text-2xl font-black text-amber-700 dark:text-amber-400 font-mono flex items-center justify-center gap-1">
+              <HardDrive className="w-4 h-4 sm:w-5 sm:h-5 text-amber-600 dark:text-amber-400 inline" />
               {audit.unsynced}
             </div>
-            <div className="text-[11px] sm:text-xs font-semibold text-amber-800">Lưu tạm trong máy</div>
+            <div className="text-[11px] sm:text-xs font-semibold text-amber-800 dark:text-amber-300">Lưu tạm trong máy</div>
           </div>
         </div>
 
         {/* Action Bar */}
-        <div className="px-4 sm:px-6 py-2 bg-slate-50/80 border-b border-slate-200 flex items-center justify-between gap-2 shrink-0">
-          <div className="text-xs text-slate-600 font-medium">
-            Hiển thị: <span className="font-bold text-slate-900">{displayList.length}</span> ảnh
+        <div className="px-4 sm:px-6 py-2 bg-slate-50/80 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2 shrink-0">
+          <div className="text-xs text-slate-600 dark:text-slate-400 font-medium">
+            Hiển thị: <span className="font-bold text-slate-900 dark:text-slate-100">{displayList.length}</span> ảnh
           </div>
 
           {audit.unsynced > 0 && (
@@ -246,16 +252,16 @@ export const CondoUnitPhotoAuditModal: React.FC<Props> = ({
         {/* Photos Table / List */}
         <div className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-6 space-y-2.5">
           {displayList.length === 0 ? (
-            <div className="py-12 text-center text-slate-400">
+            <div className="py-12 text-center text-slate-400 dark:text-slate-500">
               <CheckCircle2 className="w-10 h-10 mx-auto text-emerald-500 mb-2 opacity-80" />
-              <p className="text-sm font-semibold text-slate-700">Không có ảnh nào trong danh mục này</p>
-              <p className="text-xs text-slate-500 mt-0.5">Toàn bộ ảnh khảo sát đều đã được kiểm toán an toàn</p>
+              <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">Không có ảnh nào trong danh mục này</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Toàn bộ ảnh khảo sát đều đã được kiểm toán an toàn</p>
             </div>
           ) : (
             displayList.map((item) => (
               <div
                 key={item.id}
-                className="p-3 bg-white rounded-xl border border-slate-200 hover:border-slate-300 transition-all shadow-xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
+                className="p-3 bg-white dark:bg-slate-850 rounded-xl border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 transition-all shadow-xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
               >
                 <div className="flex items-center gap-3 min-w-0 flex-1">
                   <PhotoThumbnailCell
@@ -266,19 +272,19 @@ export const CondoUnitPhotoAuditModal: React.FC<Props> = ({
 
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200">
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
                         {item.stepTitle.split(':')[0]}
                       </span>
                       {item.photoCode && (
-                        <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-teal-50 text-teal-800 border border-teal-200">
+                        <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-teal-50 dark:bg-teal-950/60 text-teal-800 dark:text-teal-300 border border-teal-200 dark:border-teal-700">
                           {item.photoCode}
                         </span>
                       )}
                     </div>
-                    <h4 className="text-xs sm:text-sm font-bold text-slate-900 mt-1 truncate">
+                    <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-slate-100 mt-1 truncate">
                       {item.fieldTitle}
                     </h4>
-                    <p className="text-[11px] text-slate-400 font-mono truncate max-w-full mt-0.5">
+                    <p className="text-[11px] text-slate-400 dark:text-slate-500 font-mono truncate max-w-full mt-0.5">
                       {item.url}
                     </p>
                   </div>
@@ -286,21 +292,21 @@ export const CondoUnitPhotoAuditModal: React.FC<Props> = ({
 
                 <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
                   {item.isCloudUrl ? (
-                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
                       Cloud R2
                     </span>
                   ) : (
                     <div className="flex items-center gap-1.5">
-                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-300">
-                        <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700">
+                        <AlertTriangle className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
                         Chờ tải lên
                       </span>
                       <button
                         type="button"
                         disabled={retryingId === item.id}
                         onClick={() => handleRetrySingle(item)}
-                        className="p-1.5 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-900 text-xs font-bold transition-colors cursor-pointer"
+                        className="p-1.5 rounded-lg bg-amber-100 dark:bg-amber-900/60 hover:bg-amber-200 dark:hover:bg-amber-800 text-amber-900 dark:text-amber-200 text-xs font-bold transition-colors cursor-pointer"
                         title="Tải lại ảnh này lên Cloud R2"
                       >
                         {retryingId === item.id ? (
@@ -319,7 +325,7 @@ export const CondoUnitPhotoAuditModal: React.FC<Props> = ({
                         onClose();
                         onNavigateToStep(item.step);
                       }}
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
                       title={`Chuyển tới ${item.stepTitle}`}
                     >
                       <ArrowRight className="w-4 h-4" />
@@ -332,8 +338,8 @@ export const CondoUnitPhotoAuditModal: React.FC<Props> = ({
         </div>
 
         {/* Footer */}
-        <div className="px-4 sm:px-6 py-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between shrink-0">
-          <span className="text-xs text-slate-500">
+        <div className="px-4 sm:px-6 py-3 bg-slate-50 dark:bg-slate-800/80 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between shrink-0">
+          <span className="text-xs text-slate-500 dark:text-slate-400">
             {audit.unsynced === 0
               ? '✓ 100% tài nguyên ảnh đã được tải lên Cloud R2 an toàn'
               : `⚠️ Còn ${audit.unsynced} ảnh chưa đồng bộ lên mây`}
@@ -342,7 +348,7 @@ export const CondoUnitPhotoAuditModal: React.FC<Props> = ({
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold transition-all shadow-xs cursor-pointer"
+            className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-900 dark:bg-teal-600 dark:hover:bg-teal-700 text-white text-xs font-bold transition-all shadow-xs cursor-pointer"
           >
             Đóng
           </button>
@@ -358,6 +364,7 @@ export const CondoUnitPhotoAuditModal: React.FC<Props> = ({
           title="Xem ảnh chi tiết"
         />
       )}
-    </div>
+    </div>,
+    document.body
   );
 };
