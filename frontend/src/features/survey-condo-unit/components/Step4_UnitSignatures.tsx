@@ -328,10 +328,11 @@ export const Step4_UnitSignatures: React.FC<Props> = ({ onSubmitFinal, isSubmitt
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
+                          e.preventDefault();
                           const next = (formData.workingMinutesPhotos || []).filter((_, i) => i !== idx);
                           updateFormData({ workingMinutesPhotos: next });
                         }}
-                        className="p-1 rounded-md bg-rose-600 text-white text-xs cursor-pointer shadow-md hover:bg-rose-700"
+                        className="absolute top-1.5 right-1.5 p-1 rounded-md bg-rose-600 text-white text-xs cursor-pointer shadow-md hover:bg-rose-700 pointer-events-auto z-30 transition-transform active:scale-95 flex items-center justify-center"
                         title="Xóa ảnh này"
                       >
                         <Trash2 className="w-3.5 h-3.5" />

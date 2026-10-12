@@ -205,9 +205,9 @@ export const TapToZoomThumbnail: React.FC<TapToZoomThumbnailProps> = ({
           <span>Nhấn vào để phóng to</span>
         </button>
 
-        {/* Overlay các action bổ sung: luôn giữ pointer-events-none ở wrapper để không chặn click zoom của thẻ, từng nút con tự bật pointer-events-auto */}
+        {/* Overlay các action bổ sung: luôn giữ pointer-events-none ở wrapper để không chặn click zoom của thẻ, tự kích hoạt pointer-events-auto cho button/action con */}
         {actions && (
-          <div className="absolute inset-0 pointer-events-none z-20">
+          <div className="absolute inset-0 pointer-events-none z-20 [&_button]:pointer-events-auto [&_a]:pointer-events-auto [&_[role='button']]:pointer-events-auto">
             {actions}
           </div>
         )}

@@ -338,9 +338,10 @@ export const Step3_DamageZonesAndDefects: React.FC<Step3DamageZonesAndDefectsPro
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
+                                e.preventDefault();
                                 onRemoveZoneOverviewPhoto(activeZoneIndex, zpIdx);
                               }}
-                              className="p-1.5 bg-red-600/90 hover:bg-red-700 text-white rounded-lg shadow-xs cursor-pointer transition-colors"
+                              className="absolute top-1.5 right-1.5 p-1.5 bg-red-600/90 hover:bg-red-700 text-white rounded-lg shadow-xs cursor-pointer transition-colors pointer-events-auto z-30 flex items-center justify-center active:scale-95"
                               title="Xóa ảnh này"
                             >
                               <Trash2 size={13} />
