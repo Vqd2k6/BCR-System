@@ -60,6 +60,7 @@ export type ZedValidationIssue = CondoUnitValidationIssue;
 interface FloorPlanUnitItem {
   id: string;
   unit_code: string;
+  display_code?: string | null;
   unit_cad_url?: string;
   cad_bbox?: CadBbox | null;
   cad_polygon?: CadPolygon | null;
@@ -110,6 +111,7 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
   const [isLoadingFloorPlan, setIsLoadingFloorPlan] = useState<boolean>(false);
   const [floorPlanData, setFloorPlanData] = useState<FloorPlanData | null>(null);
   const [showFloorPickerModal, setShowFloorPickerModal] = useState<boolean>(false);
+  const [isCroppingCad, setIsCroppingCad] = useState<boolean>(false);
 
   // Trạng thái kiểm tra đối soát Z-E-D trước khi chuyển sang Bước 4
   const [validationIssues, setValidationIssues] = useState<ZedValidationIssue[]>([]);
@@ -275,14 +277,30 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
       const res = await api.get(`/parcels/${formData.parcelId}/floor-plans/${formData.floorNumber}`);
       if (res.data?.success && res.data.data) {
         setFloorPlanData(res.data.data);
-        const { units } = res.data.data;
+        const { plan, units } = res.data.data;
         if (units && units.length > 0) {
           const matched = units.find(
             (u: FloorPlanUnitItem) =>
-              u.unit_code === formData.unitCode || u.unit_code?.endsWith(formData.unitCode)
+              u.unit_code === formData.unitCode ||
+              u.unit_code?.endsWith(formData.unitCode) ||
+              (Boolean(formData.displayCode?.trim()) && (u.display_code === formData.displayCode || u.unit_code === formData.displayCode))
           );
-          if (matched && matched.unit_cad_url) {
-            void importCadWithStorageAndQueue(matched.unit_cad_url, matched.cad_bbox, 'ZONE');
+          if (matched) {
+            if (matched.unit_cad_url) {
+              void importCadWithStorageAndQueue(matched.unit_cad_url, matched.cad_bbox, 'ZONE');
+            } else if (plan?.cad_photo_url && matched.cad_bbox) {
+              const norm = normalizeBbox(matched.cad_bbox);
+              if (norm) {
+                try {
+                  const cropped = await cropImageBoundingBox(plan.cad_photo_url, norm);
+                  if (cropped && cropped !== plan.cad_photo_url) {
+                    void importCadWithStorageAndQueue(cropped, matched.cad_bbox, 'ZONE');
+                  }
+                } catch (_cropErr) {
+                  console.warn('[CondoUnit] Không thể auto-crop CAD từ tầng:', _cropErr);
+                }
+              }
+            }
           }
         }
       }
@@ -290,6 +308,44 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
       console.warn('[CondoUnit] Chưa có floor plan hoặc lỗi nạp mặt bằng tầng');
     } finally {
       setIsLoadingFloorPlan(false);
+    }
+  };
+
+  const handleSelectPartitionCad = async (u: FloorPlanUnitItem) => {
+    if (u.unit_cad_url) {
+      await importCadWithStorageAndQueue(u.unit_cad_url, u.cad_bbox);
+      setShowFloorPickerModal(false);
+      return;
+    }
+
+    if (floorPlanData?.plan?.cad_photo_url && u.cad_bbox) {
+      const norm = normalizeBbox(u.cad_bbox);
+      if (norm) {
+        try {
+          setIsCroppingCad(true);
+          const cropped = await cropImageBoundingBox(floorPlanData.plan.cad_photo_url, norm);
+          if (cropped && cropped !== floorPlanData.plan.cad_photo_url) {
+            await importCadWithStorageAndQueue(cropped, u.cad_bbox);
+            setShowFloorPickerModal(false);
+            return;
+          }
+        } catch (_cropErr) {
+          console.error('[Step3] Lỗi crop ảnh CAD ô căn hộ:', _cropErr);
+        } finally {
+          setIsCroppingCad(false);
+        }
+      }
+    }
+
+    // Nếu không có CAD riêng và không có bbox hoặc crop không thành công, hỏi người dùng trước khi dùng toàn bộ mặt bằng tầng
+    if (floorPlanData?.plan?.cad_photo_url) {
+      const confirmWholeFloor = window.confirm(
+        `Căn hộ ${u.unit_code} chưa có ảnh cắt riêng. Bạn có muốn sử dụng toàn bộ sơ đồ CAD Tầng ${formData.floorNumber} không?`
+      );
+      if (confirmWholeFloor) {
+        await importCadWithStorageAndQueue(floorPlanData.plan.cad_photo_url, null);
+        setShowFloorPickerModal(false);
+      }
     }
   };
 
@@ -1661,9 +1717,17 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
                   </div>
 
                   <div className="relative rounded-2xl overflow-hidden border border-slate-700 bg-slate-950 flex items-center justify-center p-2">
+                    {isCroppingCad && (
+                      <div className="absolute inset-0 bg-slate-950/80 z-20 flex flex-col items-center justify-center gap-2 backdrop-blur-xs">
+                        <div className="w-7 h-7 border-2 border-teal-400 border-t-transparent rounded-full animate-spin" />
+                        <span className="text-xs text-teal-200 font-bold">Đang cắt sơ đồ căn hộ từ CAD tầng...</span>
+                      </div>
+                    )}
+
                     <img
                       src={floorPlanData.plan.cad_photo_url}
                       alt="Floor plan"
+                      crossOrigin="anonymous"
                       className="max-h-[50vh] object-contain select-none"
                     />
 
@@ -1688,23 +1752,9 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
                         <div
                           key={u.id}
                           style={style}
-                          onClick={async () => {
-                            if (u.unit_cad_url) {
-                              await importCadWithStorageAndQueue(u.unit_cad_url, u.cad_bbox);
-                            } else if (floorPlanData?.plan?.cad_photo_url && u.cad_bbox) {
-                              const norm = normalizeBbox(u.cad_bbox);
-                              if (norm) {
-                                try {
-                                  const cropped = await cropImageBoundingBox(floorPlanData.plan.cad_photo_url, norm);
-                                  await importCadWithStorageAndQueue(cropped, u.cad_bbox);
-                                } catch (_cropErr) {
-                                  await importCadWithStorageAndQueue(floorPlanData.plan.cad_photo_url, u.cad_bbox);
-                                }
-                              } else {
-                                await importCadWithStorageAndQueue(floorPlanData.plan.cad_photo_url, u.cad_bbox);
-                              }
-                            } else if (floorPlanData?.plan?.cad_photo_url) {
-                              await importCadWithStorageAndQueue(floorPlanData.plan.cad_photo_url, null);
+                          onClick={() => {
+                            if (!isCroppingCad) {
+                              void handleSelectPartitionCad(u);
                             }
                           }}
                           className={`absolute border-2 transition-all cursor-pointer flex items-center justify-center ${
@@ -1726,30 +1776,13 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
                       <button
                         key={u.id}
                         type="button"
-                        onClick={async () => {
-                          if (u.unit_cad_url) {
-                            await importCadWithStorageAndQueue(u.unit_cad_url, u.cad_bbox);
-                          } else if (floorPlanData?.plan?.cad_photo_url && u.cad_bbox) {
-                            const norm = normalizeBbox(u.cad_bbox);
-                            if (norm) {
-                              try {
-                                const cropped = await cropImageBoundingBox(floorPlanData.plan.cad_photo_url, norm);
-                                await importCadWithStorageAndQueue(cropped, u.cad_bbox);
-                              } catch (_cropErr) {
-                                await importCadWithStorageAndQueue(floorPlanData.plan.cad_photo_url, u.cad_bbox);
-                              }
-                            } else {
-                              await importCadWithStorageAndQueue(floorPlanData.plan.cad_photo_url, u.cad_bbox);
-                            }
-                          } else if (floorPlanData?.plan?.cad_photo_url) {
-                            await importCadWithStorageAndQueue(floorPlanData.plan.cad_photo_url, null);
-                          }
-                        }}
+                        disabled={isCroppingCad}
+                        onClick={() => void handleSelectPartitionCad(u)}
                         className={`p-3 rounded-xl border text-left transition-all ${
                           u.unit_code === formData.unitCode
                             ? 'bg-teal-950 border-teal-500 text-teal-200'
                             : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-750'
-                        }`}
+                        } ${isCroppingCad ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
                       >
                         <div className="font-mono font-bold text-xs">{u.unit_code}</div>
                         <div className="text-[11px] text-slate-400 mt-1">
