@@ -916,7 +916,7 @@ export const DefectPinningCanvas: React.FC<Props> = ({
             onPointerMove={handleTightBoxPointerMove}
             onPointerUp={handleTightBoxPointerUp}
             style={transformStyle}
-            className={`relative inline-block max-w-full leading-none mx-auto select-none touch-none ${
+            className={`relative inline-block max-w-full leading-none mx-auto select-none touch-none force-light ${
               isAddingPin ? 'cursor-crosshair' : 'cursor-grab'
             }`}
           >
@@ -1014,7 +1014,7 @@ export const DefectPinningCanvas: React.FC<Props> = ({
                       width: '6px',
                       height: '6px',
                       borderRadius: '50%',
-                      backgroundColor: '#ffffff',
+                      backgroundColor: 'rgb(var(--bg-white))',
                       border: `2px solid ${isSelected || isDragging ? '#dc2626' : squareBg}`,
                       boxShadow: '0 0 4px rgba(0,0,0,0.5)',
                       marginTop: '-2px',

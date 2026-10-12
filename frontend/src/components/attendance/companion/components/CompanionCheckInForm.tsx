@@ -65,12 +65,12 @@ export const CompanionCheckInForm: React.FC<CompanionCheckInFormProps> = ({
       <div
         style={{
           fontSize: '0.75rem',
-          color: '#475569',
+          color: 'rgb(var(--text-slate-600))',
           lineHeight: 1.45,
-          backgroundColor: '#f8fafc',
+          backgroundColor: 'rgb(var(--bg-slate-50))',
           padding: '0.65rem 0.85rem',
           borderRadius: '0.65rem',
-          border: '1px solid #e2e8f0',
+          border: '1px solid rgb(var(--border-slate-200))',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
@@ -82,9 +82,9 @@ export const CompanionCheckInForm: React.FC<CompanionCheckInFormProps> = ({
         </div>
         <span
           style={{
-            backgroundColor: '#e0f2fe',
-            color: '#0369a1',
-            border: '1px solid #bae6fd',
+            backgroundColor: 'rgb(var(--bg-sky-100))',
+            color: 'rgb(var(--text-sky-700))',
+            border: '1px solid rgb(var(--border-sky-200))',
             padding: '2px 8px',
             borderRadius: '999px',
             fontSize: '0.7rem',
@@ -102,8 +102,8 @@ export const CompanionCheckInForm: React.FC<CompanionCheckInFormProps> = ({
         style={{
           padding: '0.65rem 0.85rem',
           borderRadius: '0.65rem',
-          border: `1px solid ${isOutOfBounds ? '#fecaca' : '#bbf7d0'}`,
-          backgroundColor: isOutOfBounds ? '#fef2f2' : '#f0fdf4',
+          border: `1px solid ${isOutOfBounds ? 'rgb(var(--border-red-200))' : 'rgb(var(--border-green-200))'}`,
+          backgroundColor: isOutOfBounds ? 'rgb(var(--bg-red-50))' : 'rgb(var(--bg-green-50))',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
@@ -112,7 +112,7 @@ export const CompanionCheckInForm: React.FC<CompanionCheckInFormProps> = ({
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
           <MapPin size={15} color={isOutOfBounds ? '#dc2626' : '#16a34a'} />
-          <span style={{ fontWeight: 700, color: isOutOfBounds ? '#991b1b' : '#166534' }}>
+          <span style={{ fontWeight: 700, color: isOutOfBounds ? 'rgb(var(--text-red-800))' : 'rgb(var(--text-green-800))' }}>
             {isOutOfBounds ? `Ngoài bán kính 500m (${targetZone.zoneName})` : `Vị trí hợp lệ`} ({distanceMeters}m)
           </span>
         </div>
@@ -122,7 +122,7 @@ export const CompanionCheckInForm: React.FC<CompanionCheckInFormProps> = ({
           style={{
             background: 'none',
             border: 'none',
-            color: '#0284c7',
+            color: 'rgb(var(--text-sky-600))',
             fontSize: '0.725rem',
             fontWeight: 700,
             cursor: 'pointer',
@@ -138,7 +138,7 @@ export const CompanionCheckInForm: React.FC<CompanionCheckInFormProps> = ({
 
       {/* Companion Name */}
       <div>
-        <label style={{ display: 'block', fontSize: '0.775rem', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+        <label style={{ display: 'block', fontSize: '0.775rem', fontWeight: 700, color: 'rgb(var(--text-slate-700))', marginBottom: '4px' }}>
           Họ tên cán bộ đi kèm <span style={{ color: '#ef4444' }}>*</span>
         </label>
         <input
@@ -150,11 +150,11 @@ export const CompanionCheckInForm: React.FC<CompanionCheckInFormProps> = ({
           style={{
             width: '100%',
             padding: '0.55rem 0.75rem',
-            backgroundColor: '#ffffff',
-            border: '1px solid #cbd5e1',
+            backgroundColor: 'rgb(var(--bg-white))',
+            border: '1px solid rgb(var(--border-slate-300))',
             borderRadius: '0.5rem',
             fontSize: '0.8rem',
-            color: '#0f172a',
+            color: 'rgb(var(--text-slate-900))',
             outline: 'none',
           }}
         />
@@ -163,7 +163,7 @@ export const CompanionCheckInForm: React.FC<CompanionCheckInFormProps> = ({
       {/* Role & Phone */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.65rem' }}>
         <div>
-          <label style={{ display: 'block', fontSize: '0.775rem', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+          <label style={{ display: 'block', fontSize: '0.775rem', fontWeight: 700, color: 'rgb(var(--text-slate-700))', marginBottom: '4px' }}>
             Vai trò / Chức danh:
           </label>
           <select
@@ -172,11 +172,11 @@ export const CompanionCheckInForm: React.FC<CompanionCheckInFormProps> = ({
             style={{
               width: '100%',
               padding: '0.55rem 0.75rem',
-              backgroundColor: '#ffffff',
-              border: '1px solid #cbd5e1',
+              backgroundColor: 'rgb(var(--bg-white))',
+              border: '1px solid rgb(var(--border-slate-300))',
               borderRadius: '0.5rem',
               fontSize: '0.8rem',
-              color: '#0f172a',
+              color: 'rgb(var(--text-slate-900))',
               outline: 'none',
             }}
           >
@@ -188,7 +188,7 @@ export const CompanionCheckInForm: React.FC<CompanionCheckInFormProps> = ({
         </div>
 
         <div>
-          <label style={{ display: 'block', fontSize: '0.775rem', fontWeight: 700, color: '#334155', marginBottom: '4px' }}>
+          <label style={{ display: 'block', fontSize: '0.775rem', fontWeight: 700, color: 'rgb(var(--text-slate-700))', marginBottom: '4px' }}>
             Số điện thoại liên hệ:
           </label>
           <input
@@ -199,11 +199,11 @@ export const CompanionCheckInForm: React.FC<CompanionCheckInFormProps> = ({
             style={{
               width: '100%',
               padding: '0.55rem 0.75rem',
-              backgroundColor: '#ffffff',
-              border: '1px solid #cbd5e1',
+              backgroundColor: 'rgb(var(--bg-white))',
+              border: '1px solid rgb(var(--border-slate-300))',
               borderRadius: '0.5rem',
               fontSize: '0.8rem',
-              color: '#0f172a',
+              color: 'rgb(var(--text-slate-900))',
               outline: 'none',
             }}
           />
@@ -213,8 +213,8 @@ export const CompanionCheckInForm: React.FC<CompanionCheckInFormProps> = ({
       {/* Camera & Selfie Capture */}
       <div
         style={{
-          backgroundColor: '#f8fafc',
-          border: '1px solid #e2e8f0',
+          backgroundColor: 'rgb(var(--bg-slate-50))',
+          border: '1px solid rgb(var(--border-slate-200))',
           borderRadius: '0.75rem',
           padding: '0.85rem',
           display: 'flex',
@@ -223,7 +223,7 @@ export const CompanionCheckInForm: React.FC<CompanionCheckInFormProps> = ({
           gap: '0.65rem',
         }}
       >
-        <div style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.775rem', fontWeight: 700, color: '#0f172a' }}>
+        <div style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.775rem', fontWeight: 700, color: 'rgb(var(--text-slate-900))' }}>
           <Camera size={14} color="#0284c7" />
           <span>Ảnh Selfie Cán Bộ Đi Kèm (*)</span>
         </div>
@@ -296,7 +296,7 @@ export const CompanionCheckInForm: React.FC<CompanionCheckInFormProps> = ({
                   height: '150px',
                   borderRadius: '0.65rem',
                   objectFit: 'cover',
-                  border: '2px solid #7dd3fc',
+                  border: '2px solid rgb(var(--border-sky-300))',
                   boxShadow: '0 2px 6px rgba(2, 132, 199, 0.15)',
                 }}
               />
@@ -306,8 +306,8 @@ export const CompanionCheckInForm: React.FC<CompanionCheckInFormProps> = ({
                   width: '120px',
                   height: '140px',
                   borderRadius: '0.65rem',
-                  backgroundColor: '#ffffff',
-                  border: '2px dashed #cbd5e1',
+                  backgroundColor: 'rgb(var(--bg-white))',
+                  border: '2px dashed rgb(var(--border-slate-300))',
                   display: 'flex',
                   flexDirection: 'column',
                   alignItems: 'center',
@@ -325,9 +325,9 @@ export const CompanionCheckInForm: React.FC<CompanionCheckInFormProps> = ({
               type="button"
               onClick={handleStartCamera}
               style={{
-                background: '#e0f2fe',
-                color: '#0284c7',
-                border: '1px solid #bae6fd',
+                background: 'rgb(var(--bg-sky-100))',
+                color: 'rgb(var(--text-sky-600))',
+                border: '1px solid rgb(var(--border-sky-200))',
                 borderRadius: '999px',
                 padding: '0.4rem 1rem',
                 fontSize: '0.75rem',
@@ -355,7 +355,7 @@ export const CompanionCheckInForm: React.FC<CompanionCheckInFormProps> = ({
               gap: '4px',
               fontSize: '0.75rem',
               fontWeight: 700,
-              color: '#9a3412',
+              color: 'rgb(var(--text-orange-800))',
               marginBottom: '4px',
             }}
           >
@@ -372,10 +372,10 @@ export const CompanionCheckInForm: React.FC<CompanionCheckInFormProps> = ({
               width: '100%',
               padding: '0.55rem 0.75rem',
               backgroundColor: '#fffaf5',
-              border: '1px solid #fed7aa',
+              border: '1px solid rgb(var(--border-orange-200))',
               borderRadius: '0.5rem',
               fontSize: '0.8rem',
-              color: '#1e293b',
+              color: 'rgb(var(--text-slate-800))',
               outline: 'none',
             }}
           />
@@ -390,9 +390,9 @@ export const CompanionCheckInForm: React.FC<CompanionCheckInFormProps> = ({
           style={{
             padding: '0.55rem 1rem',
             borderRadius: '0.5rem',
-            border: '1px solid #cbd5e1',
-            backgroundColor: '#f8fafc',
-            color: '#475569',
+            border: '1px solid rgb(var(--border-slate-300))',
+            backgroundColor: 'rgb(var(--bg-slate-50))',
+            color: 'rgb(var(--text-slate-600))',
             fontSize: '0.775rem',
             fontWeight: 600,
             cursor: 'pointer',

@@ -329,7 +329,7 @@ export const PhotoCaptureInput: React.FC<PhotoCaptureProps> = ({
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.35rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
           {label && (
-            <label style={{ fontSize: '0.8rem', fontWeight: 700, color: '#1e293b' }}>
+            <label style={{ fontSize: '0.8rem', fontWeight: 700, color: 'rgb(var(--text-slate-800))' }}>
               {label} {required && <span style={{ color: '#ef4444' }}>*</span>}
             </label>
           )}
@@ -341,9 +341,9 @@ export const PhotoCaptureInput: React.FC<PhotoCaptureProps> = ({
                 fontWeight: 700,
                 padding: '0.15rem 0.5rem',
                 borderRadius: '9999px',
-                backgroundColor: '#f0f9ff',
-                color: '#0369a1',
-                border: '1px solid #bae6fd',
+                backgroundColor: 'rgb(var(--bg-sky-50))',
+                color: 'rgb(var(--text-sky-700))',
+                border: '1px solid rgb(var(--border-sky-200))',
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '0.25rem',
@@ -361,9 +361,9 @@ export const PhotoCaptureInput: React.FC<PhotoCaptureProps> = ({
                 fontWeight: 700,
                 padding: '0.15rem 0.5rem',
                 borderRadius: '9999px',
-                backgroundColor: '#faf5ff',
-                color: '#7e22ce',
-                border: '1px solid #e9d5ff',
+                backgroundColor: 'rgb(var(--bg-purple-50))',
+                color: 'rgb(var(--text-purple-700))',
+                border: '1px solid rgb(var(--border-purple-200))',
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '0.25rem',
@@ -379,7 +379,7 @@ export const PhotoCaptureInput: React.FC<PhotoCaptureProps> = ({
           <label
             style={{
               fontSize: '0.75rem',
-              color: '#64748b',
+              color: 'rgb(var(--text-slate-500))',
               display: 'flex',
               alignItems: 'center',
               gap: '0.35rem',
@@ -407,9 +407,9 @@ export const PhotoCaptureInput: React.FC<PhotoCaptureProps> = ({
           style={{
             fontSize: '0.72rem',
             padding: '0.35rem 0.65rem',
-            backgroundColor: '#fffbeb',
-            border: '1px solid #fde68a',
-            color: '#b45309',
+            backgroundColor: 'rgb(var(--bg-amber-50))',
+            border: '1px solid rgb(var(--border-amber-200))',
+            color: 'rgb(var(--text-amber-700))',
             borderRadius: '0.5rem',
             display: 'flex',
             alignItems: 'center',
@@ -430,15 +430,15 @@ export const PhotoCaptureInput: React.FC<PhotoCaptureProps> = ({
         <div
           style={{
             padding: '0.75rem',
-            backgroundColor: '#f8fafc',
-            border: '1px dashed #cbd5e1',
+            backgroundColor: 'rgb(var(--bg-slate-50))',
+            border: '1px dashed rgb(var(--border-slate-300))',
             borderRadius: '0.65rem',
             display: 'flex',
             flexDirection: 'column',
             gap: '0.35rem',
           }}
         >
-          <span style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>
+          <span style={{ fontSize: '0.75rem', color: 'rgb(var(--text-slate-500))', fontWeight: 600 }}>
             Lý do không có ảnh / N/A:
           </span>
           <input

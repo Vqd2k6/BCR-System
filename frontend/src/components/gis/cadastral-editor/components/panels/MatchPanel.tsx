@@ -30,8 +30,8 @@ export const MatchPanel: React.FC<MatchPanelProps> = ({
   return (
     <div
       style={{
-        backgroundColor: '#ffffff',
-        border: '1px solid #86efac',
+        backgroundColor: 'rgb(var(--bg-white))',
+        border: '1px solid rgb(var(--border-green-300))',
         borderRadius: '0.75rem',
         padding: '0.85rem',
         display: 'flex',
@@ -40,7 +40,7 @@ export const MatchPanel: React.FC<MatchPanelProps> = ({
       }}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.4rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', color: '#15803d', fontWeight: 800, fontSize: '0.825rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', color: 'rgb(var(--text-green-700))', fontWeight: 800, fontSize: '0.825rem' }}>
           <CheckCircle size={17} style={{ marginRight: '0.35rem' }} />
           <span>Bản Đồ Đối Soát Ranh GIS (Thửa hiện tại)</span>
           <HelpBadge
@@ -57,8 +57,8 @@ export const MatchPanel: React.FC<MatchPanelProps> = ({
               borderRadius: '0.3rem',
               fontSize: '0.675rem',
               fontWeight: 700,
-              backgroundColor: tileMode === 'osm' ? '#0284c7' : '#f1f5f9',
-              color: tileMode === 'osm' ? '#ffffff' : '#475569',
+              backgroundColor: tileMode === 'osm' ? '#0284c7' : 'rgb(var(--bg-slate-100))',
+              color: tileMode === 'osm' ? '#ffffff' : 'rgb(var(--text-slate-600))',
               border: 'none',
               cursor: 'pointer',
             }}
@@ -73,8 +73,8 @@ export const MatchPanel: React.FC<MatchPanelProps> = ({
               borderRadius: '0.3rem',
               fontSize: '0.675rem',
               fontWeight: 700,
-              backgroundColor: tileMode === 'satellite' ? '#0284c7' : '#f1f5f9',
-              color: tileMode === 'satellite' ? '#ffffff' : '#475569',
+              backgroundColor: tileMode === 'satellite' ? '#0284c7' : 'rgb(var(--bg-slate-100))',
+              color: tileMode === 'satellite' ? '#ffffff' : 'rgb(var(--text-slate-600))',
               border: 'none',
               cursor: 'pointer',
             }}
@@ -90,7 +90,7 @@ export const MatchPanel: React.FC<MatchPanelProps> = ({
           height: '260px',
           borderRadius: '0.65rem',
           overflow: 'hidden',
-          border: '1.5px solid #cbd5e1',
+          border: '1.5px solid rgb(var(--border-slate-300))',
           position: 'relative',
         }}
       >
@@ -131,7 +131,7 @@ export const MatchPanel: React.FC<MatchPanelProps> = ({
             }}
           >
             <Tooltip direction="top">
-              <div style={{ fontSize: '0.725rem', fontWeight: 800, color: '#15803d' }}>
+              <div style={{ fontSize: '0.725rem', fontWeight: 800, color: 'rgb(var(--text-green-700))' }}>
                 {parcelData.projectParcelCode} ({totalLandArea} m²)
               </div>
             </Tooltip>
@@ -144,13 +144,13 @@ export const MatchPanel: React.FC<MatchPanelProps> = ({
             top: '8px',
             right: '8px',
             zIndex: 800,
-            backgroundColor: 'rgba(255, 255, 255, 0.95)',
-            color: '#15803d',
+            backgroundColor: 'rgb(var(--bg-white) / 0.95)',
+            color: 'rgb(var(--text-green-700))',
             fontSize: '0.7rem',
             fontWeight: 700,
             padding: '0.2rem 0.5rem',
             borderRadius: '0.4rem',
-            border: '1px solid #86efac',
+            border: '1px solid rgb(var(--border-green-300))',
             boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
             display: 'flex',
             alignItems: 'center',
@@ -165,8 +165,8 @@ export const MatchPanel: React.FC<MatchPanelProps> = ({
       {/* XÁC NHẬN KHỚP RANH 100% */}
       <div
         style={{
-          backgroundColor: '#f0fdf4',
-          border: '1px solid #bbf7d0',
+          backgroundColor: 'rgb(var(--bg-green-50))',
+          border: '1px solid rgb(var(--border-green-200))',
           borderRadius: '0.65rem',
           padding: '0.75rem',
           display: 'flex',
@@ -174,20 +174,20 @@ export const MatchPanel: React.FC<MatchPanelProps> = ({
           gap: '0.55rem',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: '#166534', fontSize: '0.8rem', fontWeight: 800 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: 'rgb(var(--text-green-800))', fontSize: '0.8rem', fontWeight: 800 }}>
           <ShieldCheck size={17} color="#16a34a" />
           <span>Xác Nhận Hiện Trạng: Ranh Xây Dựng Khớp 100% Thửa Đất</span>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '0.4rem', fontSize: '0.725rem', color: '#334155' }}>
-          <div style={{ backgroundColor: '#ffffff', padding: '0.35rem 0.55rem', borderRadius: '0.35rem', border: '1px solid #dcfce7' }}>
-            Mã DA: <strong style={{ color: '#15803d' }}>{parcelData.projectParcelCode}</strong>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '0.4rem', fontSize: '0.725rem', color: 'rgb(var(--text-slate-700))' }}>
+          <div style={{ backgroundColor: 'rgb(var(--bg-white))', padding: '0.35rem 0.55rem', borderRadius: '0.35rem', border: '1px solid rgb(var(--border-green-100))' }}>
+            Mã DA: <strong style={{ color: 'rgb(var(--text-green-700))' }}>{parcelData.projectParcelCode}</strong>
           </div>
-          <div style={{ backgroundColor: '#ffffff', padding: '0.35rem 0.55rem', borderRadius: '0.35rem', border: '1px solid #dcfce7' }}>
-            Mã gốc: <strong style={{ color: '#15803d' }}>{parcelData.officialCadastralCode}</strong>
+          <div style={{ backgroundColor: 'rgb(var(--bg-white))', padding: '0.35rem 0.55rem', borderRadius: '0.35rem', border: '1px solid rgb(var(--border-green-100))' }}>
+            Mã gốc: <strong style={{ color: 'rgb(var(--text-green-700))' }}>{parcelData.officialCadastralCode}</strong>
           </div>
-          <div style={{ backgroundColor: '#ffffff', padding: '0.35rem 0.55rem', borderRadius: '0.35rem', border: '1px solid #dcfce7' }}>
-            Diện tích: <strong style={{ color: '#15803d' }}>{totalLandArea} m²</strong> (100%)
+          <div style={{ backgroundColor: 'rgb(var(--bg-white))', padding: '0.35rem 0.55rem', borderRadius: '0.35rem', border: '1px solid rgb(var(--border-green-100))' }}>
+            Diện tích: <strong style={{ color: 'rgb(var(--text-green-700))' }}>{totalLandArea} m²</strong> (100%)
           </div>
         </div>
 
@@ -195,7 +195,7 @@ export const MatchPanel: React.FC<MatchPanelProps> = ({
         {mutationData.activeProposalType === 'MATCH' && mutationData.matchConfirmed && (
           <div
             style={{
-              backgroundColor: '#ecfdf5',
+              backgroundColor: 'rgb(var(--bg-emerald-50))',
               border: '1.5px solid #10b981',
               borderRadius: '0.5rem',
               padding: '0.55rem 0.75rem',
@@ -203,7 +203,7 @@ export const MatchPanel: React.FC<MatchPanelProps> = ({
               alignItems: 'center',
               justifyContent: 'space-between',
               gap: '0.5rem',
-              color: '#065f46',
+              color: 'rgb(var(--text-emerald-800))',
               fontSize: '0.725rem',
               fontWeight: 700,
               marginTop: '0.2rem',

@@ -139,7 +139,7 @@ export const MergePanel: React.FC<MergePanelProps> = ({
   return (
     <div
       style={{
-        backgroundColor: '#ffffff',
+        backgroundColor: 'rgb(var(--bg-white))',
         border: '1.5px solid #0284c7',
         borderRadius: '0.75rem',
         padding: '0.85rem',
@@ -149,7 +149,7 @@ export const MergePanel: React.FC<MergePanelProps> = ({
       }}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.4rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', color: '#0369a1', fontWeight: 800, fontSize: '0.85rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', color: 'rgb(var(--text-sky-700))', fontWeight: 800, fontSize: '0.85rem' }}>
           <GitCompare size={18} style={{ marginRight: '0.35rem' }} />
           <span>Bản Đồ Gộp Thửa Tương Tác Phân Khu (Click Thửa Đất Để Gộp)</span>
           <HelpBadge
@@ -158,7 +158,7 @@ export const MergePanel: React.FC<MergePanelProps> = ({
           />
         </div>
         <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center' }}>
-          <span className="badge" style={{ backgroundColor: '#e0f2fe', color: '#0369a1', border: '1px solid #93c5fd', fontSize: '0.7rem', padding: '0.25rem 0.55rem' }}>
+          <span className="badge" style={{ backgroundColor: 'rgb(var(--bg-sky-100))', color: 'rgb(var(--text-sky-700))', border: '1px solid rgb(var(--border-blue-300))', fontSize: '0.7rem', padding: '0.25rem 0.55rem' }}>
             Mã giữ lại: <strong>{mergeSummary.keptCode}</strong>
           </span>
           <button
@@ -169,9 +169,9 @@ export const MergePanel: React.FC<MergePanelProps> = ({
               borderRadius: '0.3rem',
               fontSize: '0.675rem',
               fontWeight: 700,
-              backgroundColor: tileMode === 'satellite' ? '#0284c7' : '#f1f5f9',
-              color: tileMode === 'satellite' ? '#ffffff' : '#475569',
-              border: '1px solid #cbd5e1',
+              backgroundColor: tileMode === 'satellite' ? '#0284c7' : 'rgb(var(--bg-slate-100))',
+              color: tileMode === 'satellite' ? '#ffffff' : 'rgb(var(--text-slate-600))',
+              border: '1px solid rgb(var(--border-slate-300))',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
@@ -191,14 +191,14 @@ export const MergePanel: React.FC<MergePanelProps> = ({
           alignItems: 'center',
           flexWrap: 'wrap',
           gap: '0.45rem',
-          backgroundColor: '#f0f9ff',
+          backgroundColor: 'rgb(var(--bg-sky-50))',
           padding: '0.45rem 0.65rem',
           borderRadius: '0.5rem',
-          border: '1px solid #bae6fd',
+          border: '1px solid rgb(var(--border-sky-200))',
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-          <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#0369a1' }}>
+          <span style={{ fontSize: '0.72rem', fontWeight: 800, color: 'rgb(var(--text-sky-700))' }}>
             Chế độ quan sát:
           </span>
           <button
@@ -209,9 +209,9 @@ export const MergePanel: React.FC<MergePanelProps> = ({
               padding: '0.22rem 0.55rem',
               borderRadius: '0.35rem',
               fontWeight: mapViewMode === 'CLUSTER' ? 800 : 600,
-              backgroundColor: mapViewMode === 'CLUSTER' ? '#0284c7' : '#ffffff',
-              color: mapViewMode === 'CLUSTER' ? '#ffffff' : '#334155',
-              border: mapViewMode === 'CLUSTER' ? 'none' : '1px solid #cbd5e1',
+              backgroundColor: mapViewMode === 'CLUSTER' ? '#0284c7' : 'rgb(var(--bg-white))',
+              color: mapViewMode === 'CLUSTER' ? '#ffffff' : 'rgb(var(--text-slate-700))',
+              border: mapViewMode === 'CLUSTER' ? 'none' : '1px solid rgb(var(--border-slate-300))',
               cursor: 'pointer',
             }}
           >
@@ -225,9 +225,9 @@ export const MergePanel: React.FC<MergePanelProps> = ({
               padding: '0.22rem 0.55rem',
               borderRadius: '0.35rem',
               fontWeight: mapViewMode === 'ALL_ZONE' ? 800 : 600,
-              backgroundColor: mapViewMode === 'ALL_ZONE' ? '#0284c7' : '#ffffff',
-              color: mapViewMode === 'ALL_ZONE' ? '#ffffff' : '#334155',
-              border: mapViewMode === 'ALL_ZONE' ? 'none' : '1px solid #cbd5e1',
+              backgroundColor: mapViewMode === 'ALL_ZONE' ? '#0284c7' : 'rgb(var(--bg-white))',
+              color: mapViewMode === 'ALL_ZONE' ? '#ffffff' : 'rgb(var(--text-slate-700))',
+              border: mapViewMode === 'ALL_ZONE' ? 'none' : '1px solid rgb(var(--border-slate-300))',
               cursor: 'pointer',
             }}
           >
@@ -244,11 +244,11 @@ export const MergePanel: React.FC<MergePanelProps> = ({
             style={{
               fontSize: '0.72rem',
               padding: '0.22rem 0.55rem',
-              border: '1px solid #93c5fd',
+              border: '1px solid rgb(var(--border-blue-300))',
               borderRadius: '0.35rem',
               width: '210px',
               outline: 'none',
-              backgroundColor: '#ffffff',
+              backgroundColor: 'rgb(var(--bg-white))',
             }}
           />
           {selectedMergeCodes.length > 0 && (
@@ -257,8 +257,8 @@ export const MergePanel: React.FC<MergePanelProps> = ({
               onClick={() => onMutationDataChange({ ...mutationData, selectedMergeCodes: [], mergeTargetCode: '' })}
               style={{
                 border: 'none',
-                background: '#fee2e2',
-                color: '#dc2626',
+                background: 'rgb(var(--bg-red-100))',
+                color: 'rgb(var(--text-red-600))',
                 fontSize: '0.675rem',
                 fontWeight: 800,
                 cursor: 'pointer',
@@ -323,9 +323,9 @@ export const MergePanel: React.FC<MergePanelProps> = ({
             }}
           >
             <Tooltip permanent direction="center">
-              <div style={{ textAlign: 'center', fontWeight: 900, color: '#7c2d12', fontSize: '0.75rem', textShadow: '0 1px 2px #fff' }}>
+              <div style={{ textAlign: 'center', fontWeight: 900, color: 'rgb(var(--text-orange-900))', fontSize: '0.75rem', textShadow: '0 1px 2px #fff' }}>
                 ⭐ THỬA GỐC ĐANG KS<br />
-                <span style={{ fontSize: '0.825rem', color: '#b45309' }}>{parcelData.projectParcelCode}</span><br />
+                <span style={{ fontSize: '0.825rem', color: 'rgb(var(--text-amber-700))' }}>{parcelData.projectParcelCode}</span><br />
                 ({totalLandArea} m²)
               </div>
             </Tooltip>
@@ -360,18 +360,18 @@ export const MergePanel: React.FC<MergePanelProps> = ({
                 <Tooltip permanent={isSelectedMerge || isMatchSearch} direction="center" opacity={0.95}>
                   <div style={{ textAlign: 'center', fontSize: '0.7rem', fontWeight: 800 }}>
                     {isSelectedMerge ? (
-                      <span style={{ color: '#047857' }}>
+                      <span style={{ color: 'rgb(var(--text-emerald-700))' }}>
                         ✓ ĐÃ GỘP: <strong>{neighbor.projectParcelCode}</strong> ({neighbor.landArea || neighbor.land_area_m2 || 75} m²)<br />
-                        <span style={{ fontSize: '0.625rem', fontWeight: 600, color: '#065f46' }}>(Bấm để hủy gộp)</span>
+                        <span style={{ fontSize: '0.625rem', fontWeight: 600, color: 'rgb(var(--text-emerald-800))' }}>(Bấm để hủy gộp)</span>
                       </span>
                     ) : (
-                      <span style={{ color: '#0369a1' }}>
+                      <span style={{ color: 'rgb(var(--text-sky-700))' }}>
                         {neighbor.projectParcelCode}<br />
-                        <span style={{ fontSize: '0.625rem', fontWeight: 500, color: '#475569' }}>
+                        <span style={{ fontSize: '0.625rem', fontWeight: 500, color: 'rgb(var(--text-slate-600))' }}>
                           Số {neighbor.houseNumber} {neighbor.street} {typeof (neighbor.distanceMeters ?? neighbor.distance_meters) === 'number' ? `• ${neighbor.distanceMeters ?? neighbor.distance_meters}m` : ''}
                         </span>
                         <br />
-                        <span style={{ fontSize: '0.625rem', color: '#2563eb', fontWeight: 700 }}>(👉 Bấm để gộp)</span>
+                        <span style={{ fontSize: '0.625rem', color: 'rgb(var(--text-blue-600))', fontWeight: 700 }}>(👉 Bấm để gộp)</span>
                       </span>
                     )}
                   </div>
@@ -388,11 +388,11 @@ export const MergePanel: React.FC<MergePanelProps> = ({
             top: '8px',
             left: '8px',
             zIndex: 800,
-            backgroundColor: 'rgba(255, 255, 255, 0.96)',
+            backgroundColor: 'rgb(var(--bg-white) / 0.96)',
             padding: '0.35rem 0.75rem',
             borderRadius: '0.5rem',
             fontSize: '0.675rem',
-            border: '1px solid #cbd5e1',
+            border: '1px solid rgb(var(--border-slate-300))',
             boxShadow: '0 2px 6px rgba(0,0,0,0.12)',
             display: 'flex',
             alignItems: 'center',
@@ -400,16 +400,16 @@ export const MergePanel: React.FC<MergePanelProps> = ({
             flexWrap: 'wrap',
           }}
         >
-          <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', color: '#b45309', fontWeight: 800 }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', color: 'rgb(var(--text-amber-700))', fontWeight: 800 }}>
             <span style={{ display: 'inline-block', width: '12px', height: '12px', backgroundColor: '#f59e0b', border: '2px solid #b45309', borderRadius: '2px' }} />
             Thửa gốc đang KS ({parcelData.projectParcelCode})
           </span>
-          <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', color: '#047857', fontWeight: 800 }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', color: 'rgb(var(--text-emerald-700))', fontWeight: 800 }}>
             <span style={{ display: 'inline-block', width: '12px', height: '12px', backgroundColor: '#10b981', border: '2px solid #047857', borderRadius: '2px' }} />
             Đã chọn gộp ({selectedMergeCodes.length})
           </span>
-          <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', color: '#0284c7', fontWeight: 600 }}>
-            <span style={{ display: 'inline-block', width: '12px', height: '12px', backgroundColor: '#e0f2fe', border: '1.5px dashed #0284c7', borderRadius: '2px' }} />
+          <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', color: 'rgb(var(--text-sky-600))', fontWeight: 600 }}>
+            <span style={{ display: 'inline-block', width: '12px', height: '12px', backgroundColor: 'rgb(var(--bg-sky-100))', border: '1.5px dashed #0284c7', borderRadius: '2px' }} />
             Thửa trong Zone (👉 Click để gộp)
           </span>
         </div>
@@ -418,8 +418,8 @@ export const MergePanel: React.FC<MergePanelProps> = ({
       {/* BẢNG TÓM TẮT KHỐI GỘP TƯƠNG TÁC (THAY THẾ DANH SÁCH BỪA BÃI CŨ) */}
       <div
         style={{
-          backgroundColor: '#f8fafc',
-          border: '1.5px solid #cbd5e1',
+          backgroundColor: 'rgb(var(--bg-slate-50))',
+          border: '1.5px solid rgb(var(--border-slate-300))',
           borderRadius: '0.65rem',
           padding: '0.75rem',
           display: 'flex',
@@ -428,12 +428,12 @@ export const MergePanel: React.FC<MergePanelProps> = ({
         }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.4rem' }}>
-          <div style={{ fontSize: '0.775rem', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+          <div style={{ fontSize: '0.775rem', fontWeight: 800, color: 'rgb(var(--text-slate-900))', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
             <GitCompare size={15} color="#0284c7" />
             <span>Khối Thửa Đất Hợp Nhất ({selectedMergeCodes.length + 1} thửa tham gia gộp):</span>
           </div>
-          <div style={{ fontSize: '0.725rem', color: '#0369a1', fontWeight: 700 }}>
-            Tổng diện tích sau gộp: <span style={{ fontSize: '0.85rem', color: '#0284c7', fontWeight: 900 }}>{mergeSummary.totalMergedArea} m²</span>
+          <div style={{ fontSize: '0.725rem', color: 'rgb(var(--text-sky-700))', fontWeight: 700 }}>
+            Tổng diện tích sau gộp: <span style={{ fontSize: '0.85rem', color: 'rgb(var(--text-sky-600))', fontWeight: 900 }}>{mergeSummary.totalMergedArea} m²</span>
           </div>
         </div>
 
@@ -446,9 +446,9 @@ export const MergePanel: React.FC<MergePanelProps> = ({
             return (
               <div
                 style={{
-                  backgroundColor: isBasePrimary ? '#fef3c7' : '#f8fafc',
-                  border: isBasePrimary ? '2px solid #f59e0b' : '1px solid #cbd5e1',
-                  color: isBasePrimary ? '#92400e' : '#334155',
+                  backgroundColor: isBasePrimary ? 'rgb(var(--bg-amber-100))' : 'rgb(var(--bg-slate-50))',
+                  border: isBasePrimary ? '2px solid #f59e0b' : '1px solid rgb(var(--border-slate-300))',
+                  color: isBasePrimary ? 'rgb(var(--text-amber-800))' : 'rgb(var(--text-slate-700))',
                   padding: '0.25rem 0.65rem',
                   borderRadius: '0.4rem',
                   fontSize: '0.725rem',
@@ -494,8 +494,8 @@ export const MergePanel: React.FC<MergePanelProps> = ({
                     onClick={() => handleSetPrimaryMergeCode(parcelData.projectParcelCode)}
                     style={{
                       border: '1px solid #f59e0b',
-                      backgroundColor: '#fffbeb',
-                      color: '#b45309',
+                      backgroundColor: 'rgb(var(--bg-amber-50))',
+                      color: 'rgb(var(--text-amber-700))',
                       borderRadius: '4px',
                       padding: '1px 6px',
                       fontSize: '0.65rem',
@@ -522,9 +522,9 @@ export const MergePanel: React.FC<MergePanelProps> = ({
               <div
                 key={code}
                 style={{
-                  backgroundColor: isPrimary ? '#fef3c7' : '#dcfce7',
+                  backgroundColor: isPrimary ? 'rgb(var(--bg-amber-100))' : 'rgb(var(--bg-green-100))',
                   border: isPrimary ? '2px solid #f59e0b' : '1.5px solid #22c55e',
-                  color: isPrimary ? '#92400e' : '#15803d',
+                  color: isPrimary ? 'rgb(var(--text-amber-800))' : 'rgb(var(--text-green-700))',
                   padding: '0.25rem 0.65rem',
                   borderRadius: '0.4rem',
                   fontSize: '0.725rem',
@@ -571,8 +571,8 @@ export const MergePanel: React.FC<MergePanelProps> = ({
                     onClick={() => handleSetPrimaryMergeCode(code)}
                     style={{
                       border: '1px solid #f59e0b',
-                      backgroundColor: '#fffbeb',
-                      color: '#b45309',
+                      backgroundColor: 'rgb(var(--bg-amber-50))',
+                      color: 'rgb(var(--text-amber-700))',
                       borderRadius: '4px',
                       padding: '1px 6px',
                       fontSize: '0.65rem',
@@ -591,7 +591,7 @@ export const MergePanel: React.FC<MergePanelProps> = ({
                   style={{
                     border: 'none',
                     background: 'none',
-                    color: '#dc2626',
+                    color: 'rgb(var(--text-red-600))',
                     cursor: 'pointer',
                     padding: '0 2px',
                     fontWeight: 900,
@@ -607,7 +607,7 @@ export const MergePanel: React.FC<MergePanelProps> = ({
           })}
 
           {selectedMergeCodes.length === 0 && (
-            <span style={{ fontSize: '0.725rem', color: '#64748b', fontStyle: 'italic' }}>
+            <span style={{ fontSize: '0.725rem', color: 'rgb(var(--text-slate-500))', fontStyle: 'italic' }}>
               👉 Hãy nhấp chuột trực tiếp vào một hoặc nhiều thửa đất tiếp giáp trên bản đồ phân khu ở trên để chọn gộp!
             </span>
           )}
@@ -617,12 +617,12 @@ export const MergePanel: React.FC<MergePanelProps> = ({
         {mergeSummary.hasSurveyConflict && (
           <div
             style={{
-              backgroundColor: '#fffbeb',
+              backgroundColor: 'rgb(var(--bg-amber-50))',
               border: '1.5px solid #f59e0b',
               borderRadius: '0.45rem',
               padding: '0.5rem 0.75rem',
               fontSize: '0.725rem',
-              color: '#92400e',
+              color: 'rgb(var(--text-amber-800))',
               lineHeight: 1.45,
             }}
           >
@@ -634,17 +634,17 @@ export const MergePanel: React.FC<MergePanelProps> = ({
         {selectedMergeCodes.length > 0 && (
           <div
             style={{
-              backgroundColor: '#f0f9ff',
-              border: '1px solid #bae6fd',
+              backgroundColor: 'rgb(var(--bg-sky-50))',
+              border: '1px solid rgb(var(--border-sky-200))',
               borderRadius: '0.45rem',
               padding: '0.45rem 0.65rem',
               fontSize: '0.72rem',
-              color: '#0369a1',
+              color: 'rgb(var(--text-sky-700))',
               lineHeight: 1.45,
             }}
           >
             ✓ <strong>Mã đại diện chính thức (giữ lại):</strong>{' '}
-            <strong style={{ color: '#0284c7', fontSize: '0.775rem' }}>[{mergeSummary.keptCode}]</strong>{' '}
+            <strong style={{ color: 'rgb(var(--text-sky-600))', fontSize: '0.775rem' }}>[{mergeSummary.keptCode}]</strong>{' '}
             (Thửa đại diện bảo toàn thông tin pháp lý & hồ sơ khảo sát).
             <br />
             ✓ <strong>Mã bị sát nhập / thu hồi:</strong> [{mergeSummary.deprecatedCodes?.join(', ') || 'Không có'}]. Khi phê duyệt, các mã này sẽ chuyển sang trạng thái <code>MERGED_DEPRECATED</code> và trỏ dữ liệu về mã đại diện.
@@ -653,7 +653,7 @@ export const MergePanel: React.FC<MergePanelProps> = ({
       </div>
 
       <div>
-        <label style={{ fontSize: '0.725rem', fontWeight: 700, color: '#334155', display: 'flex', alignItems: 'center' }}>
+        <label style={{ fontSize: '0.725rem', fontWeight: 700, color: 'rgb(var(--text-slate-700))', display: 'flex', alignItems: 'center' }}>
           Lý do gộp thửa:
           <HelpBadge
             title="Lý do gộp thửa"
@@ -662,7 +662,7 @@ export const MergePanel: React.FC<MergePanelProps> = ({
         </label>
         <select
           className="form-control"
-          style={{ fontSize: '0.75rem', fontWeight: 600, backgroundColor: '#ffffff', border: '1.5px solid #cbd5e1', marginTop: '0.2rem' }}
+          style={{ fontSize: '0.75rem', fontWeight: 600, backgroundColor: 'rgb(var(--bg-white))', border: '1.5px solid rgb(var(--border-slate-300))', marginTop: '0.2rem' }}
           value={
             COMMON_MERGE_REASONS.includes(mutationData.mergeReason || '')
               ? (mutationData.mergeReason || '')
@@ -701,7 +701,7 @@ export const MergePanel: React.FC<MergePanelProps> = ({
             <input
               type="text"
               className="form-control"
-              style={{ fontSize: '0.75rem', border: '1px solid #93c5fd' }}
+              style={{ fontSize: '0.75rem', border: '1px solid rgb(var(--border-blue-300))' }}
               placeholder="Nhập lý do gộp thửa thực tế tại hiện trường..."
               value={
                 customMergeReason ||
@@ -726,8 +726,8 @@ export const MergePanel: React.FC<MergePanelProps> = ({
       {/* KHOANH VÙNG DIỆN TÍCH XÂY DỰNG & TÁCH MẢNH ĐẤT DƯ KHI GỘP */}
       <div
         style={{
-          backgroundColor: '#f8fafc',
-          border: '1.5px solid #cbd5e1',
+          backgroundColor: 'rgb(var(--bg-slate-50))',
+          border: '1.5px solid rgb(var(--border-slate-300))',
           borderRadius: '0.65rem',
           padding: '0.75rem',
           display: 'flex',
@@ -736,7 +736,7 @@ export const MergePanel: React.FC<MergePanelProps> = ({
         }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <label style={{ fontSize: '0.75rem', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+          <label style={{ fontSize: '0.75rem', fontWeight: 800, color: 'rgb(var(--text-slate-900))', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
             <Layers size={14} color="#0284c7" />
             Hiện trạng xây dựng của toà nhà trên đất sau gộp:
           </label>
@@ -759,9 +759,9 @@ export const MergePanel: React.FC<MergePanelProps> = ({
             style={{
               padding: '0.55rem 0.75rem',
               borderRadius: '0.5rem',
-              border: !mutationData.mergeHasPartialBuilding ? '2px solid #0284c7' : '1px solid #cbd5e1',
-              backgroundColor: !mutationData.mergeHasPartialBuilding ? '#e0f2fe' : '#ffffff',
-              color: !mutationData.mergeHasPartialBuilding ? '#0369a1' : '#475569',
+              border: !mutationData.mergeHasPartialBuilding ? '2px solid #0284c7' : '1px solid rgb(var(--border-slate-300))',
+              backgroundColor: !mutationData.mergeHasPartialBuilding ? 'rgb(var(--bg-sky-100))' : 'rgb(var(--bg-white))',
+              color: !mutationData.mergeHasPartialBuilding ? 'rgb(var(--text-sky-700))' : 'rgb(var(--text-slate-600))',
               textAlign: 'left',
               fontSize: '0.725rem',
               fontWeight: 700,
@@ -774,7 +774,7 @@ export const MergePanel: React.FC<MergePanelProps> = ({
             <span style={{ fontSize: '1rem' }}>🏢</span>
             <div>
               <div>Nhà xây kín toàn bộ đất gộp</div>
-              <div style={{ fontSize: '0.65rem', fontWeight: 500, color: '#64748b' }}>
+              <div style={{ fontSize: '0.65rem', fontWeight: 500, color: 'rgb(var(--text-slate-500))' }}>
                 Công trình chiếm 100% diện tích gộp ({mergeSummary.totalMergedArea} m²)
               </div>
             </div>
@@ -796,9 +796,9 @@ export const MergePanel: React.FC<MergePanelProps> = ({
             style={{
               padding: '0.55rem 0.75rem',
               borderRadius: '0.5rem',
-              border: mutationData.mergeHasPartialBuilding ? '2px solid #ea580c' : '1px solid #cbd5e1',
-              backgroundColor: mutationData.mergeHasPartialBuilding ? '#ffedd5' : '#ffffff',
-              color: mutationData.mergeHasPartialBuilding ? '#c2410c' : '#475569',
+              border: mutationData.mergeHasPartialBuilding ? '2px solid #ea580c' : '1px solid rgb(var(--border-slate-300))',
+              backgroundColor: mutationData.mergeHasPartialBuilding ? 'rgb(var(--bg-orange-100))' : 'rgb(var(--bg-white))',
+              color: mutationData.mergeHasPartialBuilding ? 'rgb(var(--text-orange-700))' : 'rgb(var(--text-slate-600))',
               textAlign: 'left',
               fontSize: '0.725rem',
               fontWeight: 700,
@@ -811,7 +811,7 @@ export const MergePanel: React.FC<MergePanelProps> = ({
             <span style={{ fontSize: '1rem' }}>🏠</span>
             <div>
               <div>Nhà chỉ xây một phần (Có đất dư)</div>
-              <div style={{ fontSize: '0.65rem', fontWeight: 500, color: '#9a3412' }}>
+              <div style={{ fontSize: '0.65rem', fontWeight: 500, color: 'rgb(var(--text-orange-800))' }}>
                 Chủ nhà mua thêm đất cạnh nhưng chưa xây kín
               </div>
             </div>
@@ -822,8 +822,8 @@ export const MergePanel: React.FC<MergePanelProps> = ({
         {mutationData.mergeHasPartialBuilding && (
           <div
             style={{
-              backgroundColor: '#ffffff',
-              border: '1px solid #fed7aa',
+              backgroundColor: 'rgb(var(--bg-white))',
+              border: '1px solid rgb(var(--border-orange-200))',
               borderRadius: '0.5rem',
               padding: '0.65rem 0.75rem',
               display: 'flex',
@@ -834,8 +834,8 @@ export const MergePanel: React.FC<MergePanelProps> = ({
             {/* Nhập số đo diện tích xây dựng thực tế (S_xd) */}
             <div
               style={{
-                backgroundColor: '#fff7ed',
-                border: '1.5px solid #fdba74',
+                backgroundColor: 'rgb(var(--bg-orange-50))',
+                border: '1.5px solid rgb(var(--border-orange-300))',
                 borderRadius: '0.5rem',
                 padding: '0.65rem 0.75rem',
                 display: 'flex',
@@ -844,11 +844,11 @@ export const MergePanel: React.FC<MergePanelProps> = ({
               }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.3rem' }}>
-                <label style={{ fontSize: '0.75rem', fontWeight: 800, color: '#9a3412', margin: 0 }}>
+                <label style={{ fontSize: '0.75rem', fontWeight: 800, color: 'rgb(var(--text-orange-800))', margin: 0 }}>
                   📐 Diện tích xây dựng thực tế của ngôi nhà (S_xd):
-                  <span style={{ color: '#ea580c', marginLeft: '4px' }}>* (m²)</span>
+                  <span style={{ color: 'rgb(var(--text-orange-600))', marginLeft: '4px' }}>* (m²)</span>
                 </label>
-                <span style={{ fontSize: '0.7rem', color: '#c2410c', fontWeight: 700 }}>
+                <span style={{ fontSize: '0.7rem', color: 'rgb(var(--text-orange-700))', fontWeight: 700 }}>
                   Tổng khuôn viên gộp: <strong>{mergeSummary.totalMergedArea} m²</strong>
                 </span>
               </div>
@@ -862,7 +862,7 @@ export const MergePanel: React.FC<MergePanelProps> = ({
                   style={{
                     fontSize: '0.85rem',
                     fontWeight: 700,
-                    color: '#0f172a',
+                    color: 'rgb(var(--text-slate-900))',
                     maxWidth: '180px',
                     borderColor: '#ea580c',
                   }}
@@ -884,16 +884,16 @@ export const MergePanel: React.FC<MergePanelProps> = ({
                     });
                   }}
                 />
-                <span style={{ fontSize: '0.75rem', color: '#64748b' }}>m²</span>
-                <div style={{ fontSize: '0.7rem', color: '#166534', backgroundColor: '#f0fdf4', padding: '0.3rem 0.6rem', borderRadius: '0.35rem', border: '1px solid #bbf7d0', marginLeft: 'auto' }}>
+                <span style={{ fontSize: '0.75rem', color: 'rgb(var(--text-slate-500))' }}>m²</span>
+                <div style={{ fontSize: '0.7rem', color: 'rgb(var(--text-green-800))', backgroundColor: 'rgb(var(--bg-green-50))', padding: '0.3rem 0.6rem', borderRadius: '0.35rem', border: '1px solid rgb(var(--border-green-200))', marginLeft: 'auto' }}>
                   🌳 Đất dôi dư tự tính (S_du): <strong>{calculatedMergeRArea} m²</strong>
                 </div>
               </div>
-              <div style={{ fontSize: '0.65rem', color: '#9a3412', fontStyle: 'italic' }}>
+              <div style={{ fontSize: '0.65rem', color: 'rgb(var(--text-orange-800))', fontStyle: 'italic' }}>
                 💡 Nhập diện tích xây dựng thực tế theo đo đạc laser / sổ đỏ. Bạn cũng có thể nhấp trên bản đồ bên dưới để khoanh vùng toạ độ công trình toà nhà.
               </div>
             </div>
-            <div style={{ fontSize: '0.7rem', color: '#9a3412', fontWeight: 700, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ fontSize: '0.7rem', color: 'rgb(var(--text-orange-800))', fontWeight: 700, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span>⚡ Nhấp trên bản đồ để khoanh vùng công trình toà nhà ({mergeBuildingVertices.length} điểm đã chấm):</span>
               <div style={{ display: 'flex', gap: '0.35rem' }}>
                 <button
@@ -926,7 +926,7 @@ export const MergePanel: React.FC<MergePanelProps> = ({
                 width: '100%',
                 borderRadius: '0.5rem',
                 overflow: 'hidden',
-                border: '1.5px solid #fdba74',
+                border: '1.5px solid rgb(var(--border-orange-300))',
                 position: 'relative',
               }}
             >
@@ -1003,7 +1003,7 @@ export const MergePanel: React.FC<MergePanelProps> = ({
                     }}
                   >
                     <Tooltip direction="top">
-                      <div style={{ fontSize: '0.725rem', fontWeight: 800, color: '#9a3412' }}>
+                      <div style={{ fontSize: '0.725rem', fontWeight: 800, color: 'rgb(var(--text-orange-800))' }}>
                         Công trình nhà: {mergeSummary.keptCode} ({calculatedMergeBArea} m²)
                       </div>
                     </Tooltip>
@@ -1034,13 +1034,13 @@ export const MergePanel: React.FC<MergePanelProps> = ({
                     left: '50%',
                     transform: 'translateX(-50%)',
                     zIndex: 800,
-                    backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                    color: '#c2410c',
+                    backgroundColor: 'rgb(var(--bg-white) / 0.95)',
+                    color: 'rgb(var(--text-orange-700))',
                     padding: '0.35rem 0.85rem',
                     borderRadius: '0.5rem',
                     fontSize: '0.725rem',
                     fontWeight: 700,
-                    border: '1.5px solid #fdba74',
+                    border: '1.5px solid rgb(var(--border-orange-300))',
                     boxShadow: '0 2px 6px rgba(0,0,0,0.1)',
                     display: 'flex',
                     alignItems: 'center',
@@ -1057,10 +1057,10 @@ export const MergePanel: React.FC<MergePanelProps> = ({
             {/* BỘ CHỌN 2 NHÁNH NGHIỆP VỤ CHO THỬA THỨ HAI (TƯƠNG ĐƯƠNG SPLIT PANEL) */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <label style={{ display: 'block', fontSize: '0.725rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>
+                <label style={{ display: 'block', fontSize: '0.725rem', fontWeight: 800, color: 'rgb(var(--text-slate-900))', margin: 0 }}>
                   Quy chuẩn định danh thửa đất thứ hai (Phát sinh sau gộp):
                 </label>
-                <span className="badge" style={{ backgroundColor: mergePartitionKind === 'NEW_BUILDING' ? '#ffedd5' : '#dcfce7', color: mergePartitionKind === 'NEW_BUILDING' ? '#c2410c' : '#15803d', fontSize: '0.675rem' }}>
+                <span className="badge" style={{ backgroundColor: mergePartitionKind === 'NEW_BUILDING' ? 'rgb(var(--bg-orange-100))' : 'rgb(var(--bg-green-100))', color: mergePartitionKind === 'NEW_BUILDING' ? 'rgb(var(--text-orange-700))' : 'rgb(var(--text-green-700))', fontSize: '0.675rem' }}>
                   {mergePartitionKind === 'NEW_BUILDING' ? 'CƠ CHẾ: MAX ZONE + 1' : 'ĐẤT DÔI DƯ / SÂN VƯỜN (-DU)'}
                 </span>
               </div>
@@ -1078,9 +1078,9 @@ export const MergePanel: React.FC<MergePanelProps> = ({
                     borderRadius: '0.5rem',
                     fontSize: '0.725rem',
                     fontWeight: mergePartitionKind !== 'NEW_BUILDING' ? 800 : 600,
-                    backgroundColor: mergePartitionKind !== 'NEW_BUILDING' ? '#059669' : '#f8fafc',
-                    color: mergePartitionKind !== 'NEW_BUILDING' ? '#ffffff' : '#475569',
-                    border: mergePartitionKind !== 'NEW_BUILDING' ? 'none' : '1px solid #cbd5e1',
+                    backgroundColor: mergePartitionKind !== 'NEW_BUILDING' ? '#059669' : 'rgb(var(--bg-slate-50))',
+                    color: mergePartitionKind !== 'NEW_BUILDING' ? '#ffffff' : 'rgb(var(--text-slate-600))',
+                    border: mergePartitionKind !== 'NEW_BUILDING' ? 'none' : '1px solid rgb(var(--border-slate-300))',
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
@@ -1103,9 +1103,9 @@ export const MergePanel: React.FC<MergePanelProps> = ({
                     borderRadius: '0.5rem',
                     fontSize: '0.725rem',
                     fontWeight: mergePartitionKind === 'NEW_BUILDING' ? 800 : 600,
-                    backgroundColor: mergePartitionKind === 'NEW_BUILDING' ? '#ea580c' : '#f8fafc',
-                    color: mergePartitionKind === 'NEW_BUILDING' ? '#ffffff' : '#475569',
-                    border: mergePartitionKind === 'NEW_BUILDING' ? 'none' : '1px solid #cbd5e1',
+                    backgroundColor: mergePartitionKind === 'NEW_BUILDING' ? '#ea580c' : 'rgb(var(--bg-slate-50))',
+                    color: mergePartitionKind === 'NEW_BUILDING' ? '#ffffff' : 'rgb(var(--text-slate-600))',
+                    border: mergePartitionKind === 'NEW_BUILDING' ? 'none' : '1px solid rgb(var(--border-slate-300))',
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
@@ -1123,12 +1123,12 @@ export const MergePanel: React.FC<MergePanelProps> = ({
             {mergePartitionKind !== 'NEW_BUILDING' ? (
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '3px' }}>
-                  <label style={{ display: 'block', fontSize: '0.725rem', fontWeight: 800, color: '#334155', margin: 0 }}>
+                  <label style={{ display: 'block', fontSize: '0.725rem', fontWeight: 800, color: 'rgb(var(--text-slate-700))', margin: 0 }}>
                     Chức năng / mục đích sử dụng phần đất dư ({mergeSummary.keptCode}-DU):
-                    <span style={{ color: '#ea580c', marginLeft: '4px' }}>* (Chọn thực tế)</span>
+                    <span style={{ color: 'rgb(var(--text-orange-600))', marginLeft: '4px' }}>* (Chọn thực tế)</span>
                   </label>
                   {!mutationData.mergeResidualType && mergeBuildingVertices.length >= 3 && (
-                    <span style={{ fontSize: '0.65rem', color: '#c2410c', fontWeight: 700, backgroundColor: '#ffedd5', padding: '0.1rem 0.4rem', borderRadius: '0.25rem' }}>
+                    <span style={{ fontSize: '0.65rem', color: 'rgb(var(--text-orange-700))', fontWeight: 700, backgroundColor: 'rgb(var(--bg-orange-100))', padding: '0.1rem 0.4rem', borderRadius: '0.25rem' }}>
                       Cần chọn chức năng
                     </span>
                   )}
@@ -1137,9 +1137,9 @@ export const MergePanel: React.FC<MergePanelProps> = ({
                   className="form-control"
                   style={{
                     fontSize: '0.725rem',
-                    backgroundColor: mutationData.mergeResidualType ? '#ffffff' : '#fff7ed',
-                    border: mutationData.mergeResidualType ? '1px solid #cbd5e1' : '1.5px solid #ea580c',
-                    color: mutationData.mergeResidualType ? '#1e293b' : '#9a3412',
+                    backgroundColor: mutationData.mergeResidualType ? 'rgb(var(--bg-white))' : 'rgb(var(--bg-orange-50))',
+                    border: mutationData.mergeResidualType ? '1px solid rgb(var(--border-slate-300))' : '1.5px solid #ea580c',
+                    color: mutationData.mergeResidualType ? 'rgb(var(--text-slate-800))' : 'rgb(var(--text-orange-800))',
                     fontWeight: 600,
                   }}
                   value={
@@ -1205,7 +1205,7 @@ export const MergePanel: React.FC<MergePanelProps> = ({
                     <input
                       type="text"
                       className="form-control"
-                      style={{ fontSize: '0.725rem', border: '1px solid #fdba74' }}
+                      style={{ fontSize: '0.725rem', border: '1px solid rgb(var(--border-orange-300))' }}
                       placeholder="Nhập mục đích sử dụng phần đất dư thực tế..."
                       value={
                         customMergeResidualType ||
@@ -1231,8 +1231,8 @@ export const MergePanel: React.FC<MergePanelProps> = ({
               /* Chi tiết cho Nhánh 2: NEW_BUILDING (Căn nhà mới độc lập) */
               <div
                 style={{
-                  backgroundColor: '#fff7ed',
-                  border: '1.5px solid #fed7aa',
+                  backgroundColor: 'rgb(var(--bg-orange-50))',
+                  border: '1.5px solid rgb(var(--border-orange-200))',
                   borderRadius: '0.5rem',
                   padding: '0.65rem',
                   display: 'flex',
@@ -1241,7 +1241,7 @@ export const MergePanel: React.FC<MergePanelProps> = ({
                 }}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: '0.75rem', fontWeight: 800, color: '#c2410c' }}>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'rgb(var(--text-orange-700))' }}>
                     🏠 Thông tin Căn nhà mới ({mergeSecondaryOfficialCode})
                   </span>
                   <span className="badge" style={{ backgroundColor: '#ea580c', color: '#fff', fontSize: '0.675rem' }}>
@@ -1251,13 +1251,13 @@ export const MergePanel: React.FC<MergePanelProps> = ({
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.45rem' }}>
                   <div>
-                    <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 700, color: '#475569', marginBottom: '2px' }}>
+                    <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 700, color: 'rgb(var(--text-slate-600))', marginBottom: '2px' }}>
                       Số nhà mới:
                     </label>
                     <input
                       type="text"
                       className="form-control"
-                      style={{ fontSize: '0.725rem', border: '1px solid #cbd5e1' }}
+                      style={{ fontSize: '0.725rem', border: '1px solid rgb(var(--border-slate-300))' }}
                       placeholder="Ví dụ: 205B"
                       value={mutationData.mergeSecondaryHouseNumber ?? `${parcelData.houseNumber}B`}
                       onChange={(e) => {
@@ -1269,13 +1269,13 @@ export const MergePanel: React.FC<MergePanelProps> = ({
                   </div>
 
                   <div>
-                    <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 700, color: '#475569', marginBottom: '2px' }}>
+                    <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 700, color: 'rgb(var(--text-slate-600))', marginBottom: '2px' }}>
                       Tên chủ hộ mới:
                     </label>
                     <input
                       type="text"
                       className="form-control"
-                      style={{ fontSize: '0.725rem', border: '1px solid #cbd5e1' }}
+                      style={{ fontSize: '0.725rem', border: '1px solid rgb(var(--border-slate-300))' }}
                       placeholder="Ví dụ: Nguyễn Văn B"
                       value={mutationData.mergeSecondaryOwnerName ?? 'Chủ hộ mới'}
                       onChange={(e) => {
@@ -1287,13 +1287,13 @@ export const MergePanel: React.FC<MergePanelProps> = ({
                   </div>
 
                   <div>
-                    <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 700, color: '#475569', marginBottom: '2px' }}>
+                    <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 700, color: 'rgb(var(--text-slate-600))', marginBottom: '2px' }}>
                       Số điện thoại:
                     </label>
                     <input
                       type="text"
                       className="form-control"
-                      style={{ fontSize: '0.725rem', border: '1px solid #cbd5e1' }}
+                      style={{ fontSize: '0.725rem', border: '1px solid rgb(var(--border-slate-300))' }}
                       placeholder="Số điện thoại liên hệ"
                       value={mutationData.mergeSecondaryPhone ?? ''}
                       onChange={(e) => {
@@ -1305,7 +1305,7 @@ export const MergePanel: React.FC<MergePanelProps> = ({
                   </div>
 
                   <div>
-                    <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 700, color: '#475569', marginBottom: '2px' }}>
+                    <label style={{ display: 'block', fontSize: '0.7rem', fontWeight: 700, color: 'rgb(var(--text-slate-600))', marginBottom: '2px' }}>
                       Số tầng công trình:
                     </label>
                     <input
@@ -1313,7 +1313,7 @@ export const MergePanel: React.FC<MergePanelProps> = ({
                       min={1}
                       max={20}
                       className="form-control"
-                      style={{ fontSize: '0.725rem', border: '1px solid #cbd5e1' }}
+                      style={{ fontSize: '0.725rem', border: '1px solid rgb(var(--border-slate-300))' }}
                       value={mutationData.mergeSecondaryFloorCount ?? 1}
                       onChange={(e) => {
                         if (handleUpdateMergeSecondaryField) {
@@ -1331,44 +1331,44 @@ export const MergePanel: React.FC<MergePanelProps> = ({
               {/* Mảnh 1: Toà nhà */}
               <div
                 style={{
-                  backgroundColor: '#fff7ed',
-                  border: '1.5px solid #fdba74',
+                  backgroundColor: 'rgb(var(--bg-orange-50))',
+                  border: '1.5px solid rgb(var(--border-orange-300))',
                   borderRadius: '0.5rem',
                   padding: '0.5rem 0.65rem',
                   fontSize: '0.7rem',
                 }}
               >
-                <div style={{ fontWeight: 800, color: '#c2410c', display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
+                <div style={{ fontWeight: 800, color: 'rgb(var(--text-orange-700))', display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
                   <span>🏠 1. Thửa Đại Diện Chính (Khảo sát)</span>
                   <span className="badge" style={{ backgroundColor: '#ea580c', color: '#fff' }}>{mergeSummary.keptCode}</span>
                 </div>
-                <div style={{ color: '#475569', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
+                <div style={{ color: 'rgb(var(--text-slate-600))', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
                   <span>Diện tích xây dựng thực tế:</span>
-                  <strong style={{ color: '#0f172a', fontSize: '0.75rem' }}>{calculatedMergeBArea} m²</strong>
+                  <strong style={{ color: 'rgb(var(--text-slate-900))', fontSize: '0.75rem' }}>{calculatedMergeBArea} m²</strong>
                 </div>
               </div>
 
               {/* Mảnh 2: Thửa thứ hai */}
               <div
                 style={{
-                  backgroundColor: mergePartitionKind === 'NEW_BUILDING' ? '#fff7ed' : '#f0fdf4',
-                  border: mergePartitionKind === 'NEW_BUILDING' ? '1.5px solid #fed7aa' : '1.5px solid #86efac',
+                  backgroundColor: mergePartitionKind === 'NEW_BUILDING' ? 'rgb(var(--bg-orange-50))' : 'rgb(var(--bg-green-50))',
+                  border: mergePartitionKind === 'NEW_BUILDING' ? '1.5px solid rgb(var(--border-orange-200))' : '1.5px solid rgb(var(--border-green-300))',
                   borderRadius: '0.5rem',
                   padding: '0.5rem 0.65rem',
                   fontSize: '0.7rem',
                 }}
               >
-                <div style={{ fontWeight: 800, color: mergePartitionKind === 'NEW_BUILDING' ? '#c2410c' : '#166534', display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
+                <div style={{ fontWeight: 800, color: mergePartitionKind === 'NEW_BUILDING' ? 'rgb(var(--text-orange-700))' : 'rgb(var(--text-green-800))', display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
                   <span>{mergePartitionKind === 'NEW_BUILDING' ? '🏠 2. Căn nhà mới độc lập' : '🌳 2. Phần đất dôi dư / Sân vườn'}</span>
                   <span className="badge" style={{ backgroundColor: mergePartitionKind === 'NEW_BUILDING' ? '#ea580c' : '#16a34a', color: '#fff' }}>
                     {mergeSecondaryOfficialCode || `${mergeSummary.keptCode}-DU`}
                   </span>
                 </div>
-                <div style={{ color: '#475569', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
+                <div style={{ color: 'rgb(var(--text-slate-600))', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
                   <span>{mergePartitionKind === 'NEW_BUILDING' ? 'Diện tích đất nhà mới:' : 'Diện tích đất dôi dư:'}</span>
-                  <strong style={{ color: mergePartitionKind === 'NEW_BUILDING' ? '#c2410c' : '#166534', fontSize: '0.75rem' }}>{calculatedMergeRArea} m²</strong>
+                  <strong style={{ color: mergePartitionKind === 'NEW_BUILDING' ? 'rgb(var(--text-orange-700))' : 'rgb(var(--text-green-800))', fontSize: '0.75rem' }}>{calculatedMergeRArea} m²</strong>
                 </div>
-                <div style={{ fontSize: '0.65rem', color: '#64748b', marginTop: '2px' }}>
+                <div style={{ fontSize: '0.65rem', color: 'rgb(var(--text-slate-500))', marginTop: '2px' }}>
                   {mergePartitionKind === 'NEW_BUILDING' ? (
                     <span>Số nhà: <strong>{mutationData.mergeSecondaryHouseNumber ?? `${parcelData.houseNumber}B`}</strong> • Khảo sát độc lập</span>
                   ) : (
@@ -1385,14 +1385,14 @@ export const MergePanel: React.FC<MergePanelProps> = ({
       {mutationData.activeProposalType === 'MERGE' && mutationData.isSubmitted && (
         <div
           style={{
-            backgroundColor: '#ecfdf5',
+            backgroundColor: 'rgb(var(--bg-emerald-50))',
             border: '1.5px solid #10b981',
             borderRadius: '0.5rem',
             padding: '0.55rem 0.75rem',
             display: 'flex',
             alignItems: 'center',
             gap: '0.4rem',
-            color: '#065f46',
+            color: 'rgb(var(--text-emerald-800))',
             fontSize: '0.725rem',
             fontWeight: 700,
           }}

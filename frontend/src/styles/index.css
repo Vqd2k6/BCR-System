@@ -1,4 +1,5 @@
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+@import './theme-vars.css';
 
 @tailwind base;
 @tailwind components;
@@ -13,38 +14,61 @@
   --sal: env(safe-area-inset-left, 0px);
   --sar: env(safe-area-inset-right, 0px);
   
-  /* Modern Clean Light Theme Color Palette */
-  --bg-main: #f8fafc;
-  --bg-card: #ffffff;
-  --bg-card-muted: #f1f5f9;
-  --bg-input: #ffffff;
-  
-  --border-color: #e2e8f0;
   --border-focus: #0284c7;
-  
-  --text-main: #0f172a;
-  --text-muted: #64748b;
-  --text-sub: #475569;
-  
   --primary: #0284c7;
   --primary-hover: #0369a1;
-  --primary-light: #e0f2fe;
-  
   --success: #10b981;
-  --success-light: #dcfce7;
-  --success-text: #15803d;
-  
   --warning: #f59e0b;
-  --warning-light: #fef3c7;
-  --warning-text: #b45309;
-  
   --danger: #ef4444;
-  --danger-light: #fee2e2;
-  --danger-text: #b91c1c;
-  
   --purple: #8b5cf6;
-  --purple-light: #f3e8ff;
-  --purple-text: #6d28d9;
+}
+
+/*
+ * Biến ngữ nghĩa (Semantic Theme Vars) — tham chiếu biến palette sinh từ theme/themeTokens.js.
+ * Khai báo lại trên `.force-light` để vùng "giấy kỹ thuật" tự tính lại giá trị sáng.
+ * Chế độ Sáng: giá trị giữ nguyên như Clean Light Theme cũ (#f8fafc, #ffffff, #0f172a...).
+ */
+:root,
+.force-light {
+  --bg-main: rgb(var(--bg-slate-50));
+  --bg-card: rgb(var(--bg-white));
+  --bg-card-muted: rgb(var(--bg-slate-100));
+  --bg-input: rgb(var(--bg-white));
+
+  --border-color: rgb(var(--border-slate-200));
+
+  --text-main: rgb(var(--text-slate-900));
+  --text-muted: rgb(var(--text-slate-500));
+  --text-sub: rgb(var(--text-slate-600));
+
+  --primary-light: rgb(var(--bg-sky-100));
+  --success-light: rgb(var(--bg-green-100));
+  --success-text: rgb(var(--text-green-700));
+  --warning-light: rgb(var(--bg-amber-100));
+  --warning-text: rgb(var(--text-amber-700));
+  --danger-light: rgb(var(--bg-red-100));
+  --danger-text: rgb(var(--text-red-700));
+  --purple-light: rgb(var(--bg-purple-100));
+  --purple-text: rgb(var(--text-violet-700));
+}
+
+html.dark {
+  color-scheme: dark;
+}
+
+/* Chuyển theme mượt — class chỉ được gắn tạm thời trong lúc đổi theme (applyTheme.ts) */
+html.theme-transition,
+html.theme-transition *,
+html.theme-transition *::before,
+html.theme-transition *::after {
+  transition: background-color 0.25s ease, border-color 0.25s ease, color 0.25s ease, fill 0.25s ease !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html.theme-transition,
+  html.theme-transition * {
+    transition: none !important;
+  }
 }
 
 * {
@@ -102,7 +126,7 @@ body {
   font-family: var(--font-family);
   color: var(--text-main);
   background-color: var(--bg-input);
-  border: 1px solid #cbd5e1;
+  border: 1px solid rgb(var(--border-slate-300));
   border-radius: 0.5rem;
   outline: none;
   transition: all 0.15s ease;
@@ -114,7 +138,7 @@ body {
 }
 
 .form-control:disabled {
-  background-color: #f1f5f9;
+  background-color: rgb(var(--bg-slate-100));
   color: #94a3b8;
   cursor: not-allowed;
 }
@@ -143,13 +167,13 @@ body {
 }
 
 .btn-secondary {
-  background: #f1f5f9;
-  color: #334155;
-  border: 1px solid #cbd5e1;
+  background: rgb(var(--bg-slate-100));
+  color: rgb(var(--text-slate-700));
+  border: 1px solid rgb(var(--border-slate-300));
 }
 
 .btn-secondary:hover {
-  background: #e2e8f0;
+  background: rgb(var(--bg-slate-200));
 }
 
 .btn-success {
@@ -208,32 +232,32 @@ body {
 
 .badge-primary {
   background-color: var(--primary-light);
-  color: #0369a1;
-  border: 1px solid #bae6fd;
+  color: rgb(var(--text-sky-700));
+  border: 1px solid rgb(var(--border-sky-200));
 }
 
 .badge-success {
   background-color: var(--success-light);
   color: var(--success-text);
-  border: 1px solid #bbf7d0;
+  border: 1px solid rgb(var(--border-green-200));
 }
 
 .badge-warning {
   background-color: var(--warning-light);
   color: var(--warning-text);
-  border: 1px solid #fde68a;
+  border: 1px solid rgb(var(--border-amber-200));
 }
 
 .badge-danger {
   background-color: var(--danger-light);
   color: var(--danger-text);
-  border: 1px solid #fecaca;
+  border: 1px solid rgb(var(--border-red-200));
 }
 
 .badge-info {
-  background-color: #f1f5f9;
-  color: #475569;
-  border: 1px solid #e2e8f0;
+  background-color: rgb(var(--bg-slate-100));
+  color: rgb(var(--text-slate-600));
+  border: 1px solid rgb(var(--border-slate-200));
 }
 
 /* Animations */
@@ -250,6 +274,51 @@ body {
 .leaflet-container {
   font-family: var(--font-family) !important;
   z-index: 1;
+}
+
+/* Leaflet — Dark Mode (popup, tooltip, nút zoom, attribution) */
+.dark .leaflet-container {
+  background: #0b1222;
+}
+.dark .leaflet-popup-content-wrapper,
+.dark .leaflet-popup-tip {
+  background: #0f172a;
+  color: #e2e8f0;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+}
+.dark .leaflet-tooltip {
+  background: #0f172a;
+  color: #e2e8f0;
+  border-color: #334155;
+}
+.dark .leaflet-tooltip-top::before { border-top-color: #0f172a; }
+.dark .leaflet-tooltip-bottom::before { border-bottom-color: #0f172a; }
+.dark .leaflet-tooltip-left::before { border-left-color: #0f172a; }
+.dark .leaflet-tooltip-right::before { border-right-color: #0f172a; }
+.dark .leaflet-bar a,
+.dark .leaflet-bar a:hover {
+  background-color: #1e293b;
+  color: #e2e8f0;
+  border-bottom-color: #334155;
+}
+.dark .leaflet-bar {
+  border-color: #334155 !important;
+}
+.dark .leaflet-control-attribution {
+  background: rgba(15, 23, 42, 0.75) !important;
+  color: #94a3b8;
+}
+.dark .leaflet-control-attribution a {
+  color: #7dd3fc;
+}
+.dark .leaflet-control-layers {
+  background: #0f172a;
+  color: #e2e8f0;
+}
+
+/* Bản đồ nền ĐƯỜNG PHỐ (OSM / ArcGIS Street) — lọc tối. Ảnh vệ tinh KHÔNG áp bộ lọc. */
+.dark .tile-street {
+  filter: invert(1) hue-rotate(180deg) brightness(0.9) contrast(0.9);
 }
 
 /* White Station Outline on Leaflet Map */

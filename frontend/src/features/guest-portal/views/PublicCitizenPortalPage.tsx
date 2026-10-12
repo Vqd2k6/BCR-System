@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { api } from '../../../services/api';
 import { useAuth } from '../../../context/AuthContext';
+import { ThemeSwitcher } from '../../../components/common/ThemeSwitcher';
 import type { GisParcel } from '../../../core/types/domain.types';
 
 interface Props {
@@ -126,6 +127,7 @@ export const PublicCitizenPortalPage: React.FC<Props> = ({ onBackToLogin }) => {
           </div>
 
           <div className="flex items-center gap-2">
+            <ThemeSwitcher showLabel={false} className="w-36" />
             {isAuthenticated ? (
               <Button
                 size="sm"

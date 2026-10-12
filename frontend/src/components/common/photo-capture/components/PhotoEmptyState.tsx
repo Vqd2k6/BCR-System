@@ -30,9 +30,9 @@ export const PhotoEmptyState: React.FC<PhotoEmptyStateProps> = ({
         width: '100%',
         minHeight: height,
         height: 'auto',
-        border: '1.5px dashed #cbd5e1',
+        border: '1.5px dashed rgb(var(--border-slate-300))',
         borderRadius: '0.65rem',
-        backgroundColor: '#f8fafc',
+        backgroundColor: 'rgb(var(--bg-slate-50))',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
@@ -47,7 +47,7 @@ export const PhotoEmptyState: React.FC<PhotoEmptyStateProps> = ({
         <div
           style={{
             fontSize: isCompact ? '0.7rem' : '0.75rem',
-            color: '#64748b',
+            color: 'rgb(var(--text-slate-500))',
             fontWeight: 600,
             textAlign: 'center',
             lineHeight: 1.2,
@@ -58,7 +58,7 @@ export const PhotoEmptyState: React.FC<PhotoEmptyStateProps> = ({
       )}
 
       {orientationHint && !isCompact && (
-        <div style={{ fontSize: '0.7rem', color: '#0369a1', fontStyle: 'italic', textAlign: 'center' }}>
+        <div style={{ fontSize: '0.7rem', color: 'rgb(var(--text-sky-700))', fontStyle: 'italic', textAlign: 'center' }}>
           {orientationHint}
         </div>
       )}
@@ -105,9 +105,9 @@ export const PhotoEmptyState: React.FC<PhotoEmptyStateProps> = ({
             gap: isCompact ? '0.25rem' : '0.4rem',
             padding: isCompact ? '0.4rem 0.65rem' : '0.5rem 0.85rem',
             fontWeight: 600,
-            backgroundColor: '#f0fdf4',
-            color: '#166534',
-            border: '1px solid #bbf7d0',
+            backgroundColor: 'rgb(var(--bg-green-50))',
+            color: 'rgb(var(--text-green-800))',
+            border: '1px solid rgb(var(--border-green-200))',
             borderRadius: '0.5rem',
             cursor: 'pointer',
             fontSize: isCompact ? '0.72rem' : '0.775rem',
@@ -131,9 +131,9 @@ export const PhotoEmptyState: React.FC<PhotoEmptyStateProps> = ({
             gap: isCompact ? '0.25rem' : '0.45rem',
             padding: isCompact ? '0.4rem 0.65rem' : '0.5rem 0.85rem',
             fontWeight: 600,
-            backgroundColor: '#ffffff',
-            color: '#334155',
-            border: '1px solid #cbd5e1',
+            backgroundColor: 'rgb(var(--bg-white))',
+            color: 'rgb(var(--text-slate-700))',
+            border: '1px solid rgb(var(--border-slate-300))',
             borderRadius: '0.5rem',
             cursor: 'pointer',
             fontSize: isCompact ? '0.72rem' : '0.775rem',

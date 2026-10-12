@@ -20,6 +20,7 @@ import {
   MapPin,
   ChevronDown,
 } from 'lucide-react';
+import { ThemeSwitcher } from '../../../components/common/ThemeSwitcher';
 
 interface GuestDashboardPageProps {
   parcels: GisParcel[];
@@ -198,6 +199,8 @@ export const GuestDashboardPage: React.FC<GuestDashboardPageProps> = ({
               </div>
             </div>
           </div>
+
+          <ThemeSwitcher showLabel={false} className="w-36" />
 
           <button
             type="button"

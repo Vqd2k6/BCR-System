@@ -357,6 +357,7 @@ export const CadastralBoundaryReshapeModal: React.FC<CadastralBoundaryReshapeMod
                   url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                   maxNativeZoom={19}
                   maxZoom={22}
+                  className="tile-street"
                 />
               )}
 

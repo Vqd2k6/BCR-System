@@ -9,6 +9,30 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <title>Metro 2 Survey - Khảo Sát Hiện Trạng Công Trình</title>
+
+    <!-- 🌗 THEME BOOT: áp Dark Mode đã lưu TRƯỚC khi vẽ trang để không nháy trắng (Rule §7) -->
+    <script>
+      (function () {
+        try {
+          var raw = localStorage.getItem('metro2_theme_preference');
+          var pref = 'light';
+          if (raw) {
+            var parsed = JSON.parse(raw);
+            var p = parsed && parsed.state && parsed.state.preference;
+            if (p === 'light' || p === 'dark' || p === 'system') pref = p;
+          }
+          var dark = pref === 'dark' || (pref === 'system' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          if (dark) {
+            document.documentElement.classList.add('dark');
+            document.documentElement.style.colorScheme = 'dark';
+            var meta = document.querySelector('meta[name="theme-color"]');
+            if (meta) meta.setAttribute('content', '#0b1222');
+          }
+        } catch (e) {
+          console.error('[ThemeBoot] Không đọc được theme đã lưu, dùng chế độ Sáng:', e);
+        }
+      })();
+    </script>
     
     <!-- 🛡️ BỘ LỌC TOÀN CỤC CHỐNG LỖI NGOẠI LAI TỪ EXTENSION TRÌNH DUYỆT (200.js, requests.js, M_ID) -->
     <script>

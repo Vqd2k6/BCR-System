@@ -115,9 +115,9 @@ export const TimekeepingCheckInView: React.FC<Props> = ({ isCheckedInToday = fal
           style={{
             padding: '0.75rem 1rem',
             borderRadius: '0.65rem',
-            backgroundColor: submitResult.success ? '#f0fdf4' : '#fef2f2',
-            border: `1px solid ${submitResult.success ? '#bbf7d0' : '#fecaca'}`,
-            color: submitResult.success ? '#15803d' : '#991b1b',
+            backgroundColor: submitResult.success ? 'rgb(var(--bg-green-50))' : 'rgb(var(--bg-red-50))',
+            border: `1px solid ${submitResult.success ? 'rgb(var(--border-green-200))' : 'rgb(var(--border-red-200))'}`,
+            color: submitResult.success ? 'rgb(var(--text-green-700))' : 'rgb(var(--text-red-800))',
             fontSize: '0.875rem',
             fontWeight: 600,
             display: 'flex',

@@ -10,8 +10,8 @@ export const CompanionModalHeader: React.FC<CompanionModalHeaderProps> = ({ zone
   return (
     <div
       style={{
-        backgroundColor: '#ffffff',
-        borderBottom: '1px solid #e2e8f0',
+        backgroundColor: 'rgb(var(--bg-white))',
+        borderBottom: '1px solid rgb(var(--border-slate-200))',
         padding: '0.85rem 1.15rem',
         display: 'flex',
         alignItems: 'center',
@@ -43,18 +43,18 @@ export const CompanionModalHeader: React.FC<CompanionModalHeaderProps> = ({ zone
                 fontSize: '0.65rem',
                 fontWeight: 800,
                 textTransform: 'uppercase',
-                backgroundColor: '#e0f2fe',
-                color: '#0369a1',
+                backgroundColor: 'rgb(var(--bg-sky-100))',
+                color: 'rgb(var(--text-sky-700))',
                 padding: '1px 6px',
                 borderRadius: '999px',
-                border: '1px solid #bae6fd',
+                border: '1px solid rgb(var(--border-sky-200))',
               }}
             >
               Tổ 02 Cán Bộ
             </span>
-            <span style={{ fontSize: '0.7rem', color: '#64748b' }}>{zoneName}</span>
+            <span style={{ fontSize: '0.7rem', color: 'rgb(var(--text-slate-500))' }}>{zoneName}</span>
           </div>
-          <h2 style={{ margin: '2px 0 0 0', fontSize: '0.95rem', fontWeight: 800, color: '#0f172a' }}>
+          <h2 style={{ margin: '2px 0 0 0', fontSize: '0.95rem', fontWeight: 800, color: 'rgb(var(--text-slate-900))' }}>
             Điểm Danh Cán Bộ Đi Kèm (Co-Surveyor)
           </h2>
         </div>
@@ -64,9 +64,9 @@ export const CompanionModalHeader: React.FC<CompanionModalHeaderProps> = ({ zone
         type="button"
         onClick={onClose}
         style={{
-          background: '#f8fafc',
-          border: '1px solid #e2e8f0',
-          color: '#64748b',
+          background: 'rgb(var(--bg-slate-50))',
+          border: '1px solid rgb(var(--border-slate-200))',
+          color: 'rgb(var(--text-slate-500))',
           borderRadius: '0.5rem',
           padding: '0.35rem',
           cursor: 'pointer',

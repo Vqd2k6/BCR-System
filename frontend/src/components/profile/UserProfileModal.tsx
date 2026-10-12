@@ -78,12 +78,12 @@ export const UserProfileModal: React.FC<Props> = ({ isOpen, onClose }) => {
     >
       <div
         style={{
-          backgroundColor: '#ffffff',
+          backgroundColor: 'rgb(var(--bg-white))',
           borderRadius: '1.25rem',
           width: '100%',
           maxWidth: '480px',
           boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
-          border: '1px solid #e2e8f0',
+          border: '1px solid rgb(var(--border-slate-200))',
           overflow: 'hidden',
           display: 'flex',
           flexDirection: 'column',
@@ -95,11 +95,11 @@ export const UserProfileModal: React.FC<Props> = ({ isOpen, onClose }) => {
         <div
           style={{
             padding: '1rem 1.25rem',
-            borderBottom: '1px solid #e2e8f0',
+            borderBottom: '1px solid rgb(var(--border-slate-200))',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
-            backgroundColor: '#f8fafc',
+            backgroundColor: 'rgb(var(--bg-slate-50))',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
@@ -108,8 +108,8 @@ export const UserProfileModal: React.FC<Props> = ({ isOpen, onClose }) => {
                 width: '36px',
                 height: '36px',
                 borderRadius: '10px',
-                backgroundColor: isSurveyor ? '#e0f2fe' : '#ecfdf5',
-                color: isSurveyor ? '#0284c7' : '#059669',
+                backgroundColor: isSurveyor ? 'rgb(var(--bg-sky-100))' : 'rgb(var(--bg-emerald-50))',
+                color: isSurveyor ? 'rgb(var(--text-sky-600))' : 'rgb(var(--text-emerald-600))',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -118,10 +118,10 @@ export const UserProfileModal: React.FC<Props> = ({ isOpen, onClose }) => {
               {isSurveyor ? <ShieldCheck size={20} /> : <FileSignature size={20} />}
             </div>
             <div>
-              <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: '#0f172a' }}>
+              <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: 'rgb(var(--text-slate-900))' }}>
                 {isSurveyor ? 'Thẻ Định Danh Cán Bộ Khảo Sát' : 'Thông Tin Cá Nhân'}
               </h3>
-              <p style={{ margin: '2px 0 0 0', fontSize: '0.7rem', color: '#64748b' }}>
+              <p style={{ margin: '2px 0 0 0', fontSize: '0.7rem', color: 'rgb(var(--text-slate-500))' }}>
                 Hệ thống Khảo sát Hiện trạng Tuyến Metro Số 2 (CRLG-CRSRI-TT)
               </p>
             </div>
@@ -133,7 +133,7 @@ export const UserProfileModal: React.FC<Props> = ({ isOpen, onClose }) => {
             style={{
               background: 'transparent',
               border: 'none',
-              color: '#64748b',
+              color: 'rgb(var(--text-slate-500))',
               cursor: 'pointer',
               padding: '4px',
               borderRadius: '6px',
@@ -153,8 +153,8 @@ export const UserProfileModal: React.FC<Props> = ({ isOpen, onClose }) => {
             {/* Cảnh báo bảo mật pháp lý */}
             <div
               style={{
-                backgroundColor: '#f0fdf4',
-                border: '1px solid #bbf7d0',
+                backgroundColor: 'rgb(var(--bg-green-50))',
+                border: '1px solid rgb(var(--border-green-200))',
                 borderRadius: '0.75rem',
                 padding: '0.75rem 0.85rem',
                 display: 'flex',
@@ -163,7 +163,7 @@ export const UserProfileModal: React.FC<Props> = ({ isOpen, onClose }) => {
               }}
             >
               <Lock size={16} color="#15803d" style={{ flexShrink: 0, marginTop: '2px' }} />
-              <div style={{ fontSize: '0.725rem', color: '#166534', lineHeight: 1.45 }}>
+              <div style={{ fontSize: '0.725rem', color: 'rgb(var(--text-green-800))', lineHeight: 1.45 }}>
                 <strong>Bảo toàn pháp lý hồ sơ:</strong> Số điện thoại, mã định danh Surveyor ID và Chữ ký số mẫu được quản trị tập trung bởi <strong>Ban QLDA MAUR & Đơn vị Tư vấn Giám sát</strong>. Cán bộ không được tự ý thay đổi nhằm bảo toàn tính xác thực khi đối chiếu bồi thường.
               </div>
             </div>
@@ -171,10 +171,10 @@ export const UserProfileModal: React.FC<Props> = ({ isOpen, onClose }) => {
             {/* Thông tin cá nhân thẻ cán bộ */}
             <div
               style={{
-                border: '1px solid #e2e8f0',
+                border: '1px solid rgb(var(--border-slate-200))',
                 borderRadius: '0.85rem',
                 padding: '1rem',
-                backgroundColor: '#f8fafc',
+                backgroundColor: 'rgb(var(--bg-slate-50))',
                 display: 'flex',
                 flexDirection: 'column',
                 gap: '0.75rem',
@@ -182,13 +182,13 @@ export const UserProfileModal: React.FC<Props> = ({ isOpen, onClose }) => {
             >
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div>
-                  <span style={{ fontSize: '0.675rem', color: '#64748b', display: 'block' }}>Họ và tên cán bộ:</span>
-                  <span style={{ fontSize: '0.95rem', fontWeight: 800, color: '#0f172a' }}>{user?.fullName}</span>
+                  <span style={{ fontSize: '0.675rem', color: 'rgb(var(--text-slate-500))', display: 'block' }}>Họ và tên cán bộ:</span>
+                  <span style={{ fontSize: '0.95rem', fontWeight: 800, color: 'rgb(var(--text-slate-900))' }}>{user?.fullName}</span>
                 </div>
                 <span
                   style={{
-                    backgroundColor: '#dbeafe',
-                    color: '#1d4ed8',
+                    backgroundColor: 'rgb(var(--bg-blue-100))',
+                    color: 'rgb(var(--text-blue-700))',
                     padding: '0.2rem 0.5rem',
                     borderRadius: '6px',
                     fontSize: '0.675rem',
@@ -199,31 +199,31 @@ export const UserProfileModal: React.FC<Props> = ({ isOpen, onClose }) => {
                 </span>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.75rem', borderTop: '1px solid #e2e8f0', paddingTop: '0.75rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.75rem', borderTop: '1px solid rgb(var(--border-slate-200))', paddingTop: '0.75rem' }}>
                 <div>
-                  <span style={{ fontSize: '0.675rem', color: '#64748b', display: 'block' }}>Tên tài khoản:</span>
-                  <span style={{ fontSize: '0.75rem', fontWeight: 700, fontFamily: 'monospace', color: '#334155' }}>
+                  <span style={{ fontSize: '0.675rem', color: 'rgb(var(--text-slate-500))', display: 'block' }}>Tên tài khoản:</span>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 700, fontFamily: 'monospace', color: 'rgb(var(--text-slate-700))' }}>
                     {user?.username}
                   </span>
                 </div>
                 <div>
-                  <span style={{ fontSize: '0.675rem', color: '#64748b', display: 'block' }}>Ga / Zone phụ trách:</span>
-                  <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#0284c7' }}>
+                  <span style={{ fontSize: '0.675rem', color: 'rgb(var(--text-slate-500))', display: 'block' }}>Ga / Zone phụ trách:</span>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'rgb(var(--text-sky-600))' }}>
                     {user?.assignedZoneId || 'Zone_01 (Ga S1)'}
                   </span>
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.75rem', borderTop: '1px solid #e2e8f0', paddingTop: '0.75rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.75rem', borderTop: '1px solid rgb(var(--border-slate-200))', paddingTop: '0.75rem' }}>
                 <div>
-                  <span style={{ fontSize: '0.675rem', color: '#64748b', display: 'block' }}>Số điện thoại liên hệ:</span>
-                  <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#0f172a' }}>
+                  <span style={{ fontSize: '0.675rem', color: 'rgb(var(--text-slate-500))', display: 'block' }}>Số điện thoại liên hệ:</span>
+                  <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'rgb(var(--text-slate-900))' }}>
                     {user?.phone || 'Chưa cập nhật'}
                   </span>
                 </div>
                 <div>
-                  <span style={{ fontSize: '0.675rem', color: '#64748b', display: 'block' }}>Mã Surveyor ID (Pháp lý):</span>
-                  <span style={{ fontSize: '0.85rem', fontWeight: 800, fontFamily: 'monospace', color: '#0284c7' }}>
+                  <span style={{ fontSize: '0.675rem', color: 'rgb(var(--text-slate-500))', display: 'block' }}>Mã Surveyor ID (Pháp lý):</span>
+                  <span style={{ fontSize: '0.85rem', fontWeight: 800, fontFamily: 'monospace', color: 'rgb(var(--text-sky-600))' }}>
                     {user?.surveyorCode || 'P-____'}
                   </span>
                 </div>
@@ -233,22 +233,22 @@ export const UserProfileModal: React.FC<Props> = ({ isOpen, onClose }) => {
             {/* Khối hiển thị Chữ Ký Số Pháp Lý */}
             <div
               style={{
-                border: '1px solid #e2e8f0',
+                border: '1px solid rgb(var(--border-slate-200))',
                 borderRadius: '0.85rem',
                 padding: '0.85rem 1rem',
-                backgroundColor: '#ffffff',
+                backgroundColor: 'rgb(var(--bg-white))',
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                <span style={{ fontSize: '0.725rem', fontWeight: 700, color: '#334155' }}>
+                <span style={{ fontSize: '0.725rem', fontWeight: 700, color: 'rgb(var(--text-slate-700))' }}>
                   Chữ ký số mẫu (In trên Báo cáo & Biên bản):
                 </span>
                 <span
                   style={{
                     fontSize: '0.65rem',
                     fontWeight: 700,
-                    color: user?.signatureImageUrl ? '#15803d' : '#b45309',
-                    backgroundColor: user?.signatureImageUrl ? '#dcfce7' : '#fef3c7',
+                    color: user?.signatureImageUrl ? 'rgb(var(--text-green-700))' : 'rgb(var(--text-amber-700))',
+                    backgroundColor: user?.signatureImageUrl ? 'rgb(var(--bg-green-100))' : 'rgb(var(--bg-amber-100))',
                     padding: '2px 6px',
                     borderRadius: '4px',
                   }}
@@ -261,9 +261,9 @@ export const UserProfileModal: React.FC<Props> = ({ isOpen, onClose }) => {
                 <div
                   style={{
                     height: '90px',
-                    border: '1px solid #e2e8f0',
+                    border: '1px solid rgb(var(--border-slate-200))',
                     borderRadius: '0.5rem',
-                    backgroundColor: '#f8fafc',
+                    backgroundColor: 'rgb(var(--bg-slate-50))',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -281,11 +281,11 @@ export const UserProfileModal: React.FC<Props> = ({ isOpen, onClose }) => {
                   style={{
                     padding: '1.25rem',
                     textAlign: 'center',
-                    border: '1px dashed #cbd5e1',
+                    border: '1px dashed rgb(var(--border-slate-300))',
                     borderRadius: '0.5rem',
-                    backgroundColor: '#f8fafc',
+                    backgroundColor: 'rgb(var(--bg-slate-50))',
                     fontSize: '0.725rem',
-                    color: '#64748b',
+                    color: 'rgb(var(--text-slate-500))',
                   }}
                 >
                   Cán bộ chưa được cài đặt chữ ký số mẫu. Vui lòng liên hệ Quản trị viên để tải lên chữ ký.
@@ -323,9 +323,9 @@ export const UserProfileModal: React.FC<Props> = ({ isOpen, onClose }) => {
             {errorMessage && (
               <div
                 style={{
-                  backgroundColor: '#fef2f2',
-                  border: '1px solid #fecaca',
-                  color: '#b91c1c',
+                  backgroundColor: 'rgb(var(--bg-red-50))',
+                  border: '1px solid rgb(var(--border-red-200))',
+                  color: 'rgb(var(--text-red-700))',
                   padding: '0.65rem 0.85rem',
                   borderRadius: '0.5rem',
                   fontSize: '0.75rem',
@@ -342,9 +342,9 @@ export const UserProfileModal: React.FC<Props> = ({ isOpen, onClose }) => {
             {saveSuccess && (
               <div
                 style={{
-                  backgroundColor: '#f0fdf4',
-                  border: '1px solid #bbf7d0',
-                  color: '#15803d',
+                  backgroundColor: 'rgb(var(--bg-green-50))',
+                  border: '1px solid rgb(var(--border-green-200))',
+                  color: 'rgb(var(--text-green-700))',
                   padding: '0.65rem 0.85rem',
                   borderRadius: '0.5rem',
                   fontSize: '0.75rem',
@@ -359,7 +359,7 @@ export const UserProfileModal: React.FC<Props> = ({ isOpen, onClose }) => {
             )}
 
             <div>
-              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#334155', marginBottom: '0.35rem' }}>
+              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: 'rgb(var(--text-slate-700))', marginBottom: '0.35rem' }}>
                 Họ và tên cán bộ:
               </label>
               <div style={{ position: 'relative' }}>
@@ -372,9 +372,9 @@ export const UserProfileModal: React.FC<Props> = ({ isOpen, onClose }) => {
                     width: '100%',
                     padding: '0.55rem 0.75rem 0.55rem 2.2rem',
                     fontSize: '0.85rem',
-                    border: '1px solid #cbd5e1',
+                    border: '1px solid rgb(var(--border-slate-300))',
                     borderRadius: '0.5rem',
-                    color: '#0f172a',
+                    color: 'rgb(var(--text-slate-900))',
                     outline: 'none',
                   }}
                 />
@@ -383,7 +383,7 @@ export const UserProfileModal: React.FC<Props> = ({ isOpen, onClose }) => {
             </div>
 
             <div>
-              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: '#334155', marginBottom: '0.35rem' }}>
+              <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 700, color: 'rgb(var(--text-slate-700))', marginBottom: '0.35rem' }}>
                 Số điện thoại liên hệ:
               </label>
               <div style={{ position: 'relative' }}>
@@ -395,9 +395,9 @@ export const UserProfileModal: React.FC<Props> = ({ isOpen, onClose }) => {
                     width: '100%',
                     padding: '0.55rem 0.75rem 0.55rem 2.2rem',
                     fontSize: '0.85rem',
-                    border: '1px solid #cbd5e1',
+                    border: '1px solid rgb(var(--border-slate-300))',
                     borderRadius: '0.5rem',
-                    color: '#0f172a',
+                    color: 'rgb(var(--text-slate-900))',
                     outline: 'none',
                   }}
                 />
@@ -414,8 +414,8 @@ export const UserProfileModal: React.FC<Props> = ({ isOpen, onClose }) => {
                   padding: '0.65rem',
                   fontSize: '0.8rem',
                   fontWeight: 700,
-                  color: '#475569',
-                  backgroundColor: '#f1f5f9',
+                  color: 'rgb(var(--text-slate-600))',
+                  backgroundColor: 'rgb(var(--bg-slate-100))',
                   border: 'none',
                   borderRadius: '0.5rem',
                   cursor: 'pointer',
@@ -432,7 +432,7 @@ export const UserProfileModal: React.FC<Props> = ({ isOpen, onClose }) => {
                   fontSize: '0.8rem',
                   fontWeight: 800,
                   color: '#ffffff',
-                  backgroundColor: isSaving ? '#94a3b8' : '#059669',
+                  backgroundColor: isSaving ? 'rgb(var(--bg-slate-400))' : '#059669',
                   border: 'none',
                   borderRadius: '0.5rem',
                   cursor: isSaving ? 'not-allowed' : 'pointer',

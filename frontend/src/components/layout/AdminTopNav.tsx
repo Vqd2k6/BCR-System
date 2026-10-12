@@ -12,6 +12,7 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 import { UserProfileModal } from '../profile/UserProfileModal';
+import { ThemeSwitcher } from '../common/ThemeSwitcher';
 
 interface Props {
   activeTab: string;
@@ -157,6 +158,8 @@ export const AdminTopNav: React.FC<Props> = ({ activeTab, onChangeTab }) => {
                 <User size={14} className="text-slate-500" />
                 <span>Cập nhật Thông tin cá nhân</span>
               </button>
+
+              <ThemeSwitcher className="pt-2 border-t border-slate-100" />
 
               <button
                 type="button"

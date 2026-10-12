@@ -435,7 +435,7 @@ export const CadAreaCropModal: React.FC<CadAreaCropModalProps> = ({
             <div
               ref={tightBoxRef}
               style={transformStyle}
-              className="relative inline-block select-none shadow-xl rounded-xl bg-white border border-slate-300"
+              className="relative inline-block select-none shadow-xl rounded-xl bg-white border border-slate-300 force-light"
             >
               <img
                 src={activeCadUrl || cadPhotoUrl}

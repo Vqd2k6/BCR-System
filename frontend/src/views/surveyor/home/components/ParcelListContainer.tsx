@@ -34,7 +34,7 @@ export const ParcelListContainer: React.FC<ParcelListContainerProps> = ({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', paddingBottom: '4.5rem' }}>
       {filteredParcels.length === 0 ? (
-        <div className="card" style={{ padding: '2rem', textAlign: 'center', color: '#64748b', fontSize: '0.875rem' }}>
+        <div className="card" style={{ padding: '2rem', textAlign: 'center', color: 'rgb(var(--text-slate-500))', fontSize: '0.875rem' }}>
           Không có thửa đất nào phù hợp với bộ lọc hiện tại.
         </div>
       ) : (
@@ -85,7 +85,7 @@ export const ParcelListContainer: React.FC<ParcelListContainerProps> = ({
                   style={{
                     background: 'none',
                     border: 'none',
-                    color: '#0284c7',
+                    color: 'rgb(var(--text-sky-600))',
                     fontSize: '0.75rem',
                     fontWeight: 600,
                     cursor: 'pointer',

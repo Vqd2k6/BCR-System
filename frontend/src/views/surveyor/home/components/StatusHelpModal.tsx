@@ -17,12 +17,12 @@ export const StatusHelpModal: React.FC<StatusHelpModalProps> = ({ show }) => {
   return (
     <div
       style={{
-        backgroundColor: '#ffffff',
-        border: '1px solid #e2e8f0',
+        backgroundColor: 'rgb(var(--bg-white))',
+        border: '1px solid rgb(var(--border-slate-200))',
         borderRadius: '0.65rem',
         padding: '0.75rem 1rem',
         fontSize: '0.775rem',
-        color: '#475569',
+        color: 'rgb(var(--text-slate-600))',
         display: 'flex',
         flexDirection: 'column',
         gap: '0.35rem',

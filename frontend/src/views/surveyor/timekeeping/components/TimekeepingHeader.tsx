@@ -26,11 +26,11 @@ export const TimekeepingHeader: React.FC<TimekeepingHeaderProps> = ({
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
       <div>
-        <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: '#0f172a' }}>
+        <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: 'rgb(var(--text-slate-900))' }}>
           Điểm Danh GPS Hiện Trường
         </h2>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.35rem', flexWrap: 'wrap' }}>
-          <span style={{ fontSize: '0.8rem', color: '#64748b' }}>Phân khu khảo sát:</span>
+          <span style={{ fontSize: '0.8rem', color: 'rgb(var(--text-slate-500))' }}>Phân khu khảo sát:</span>
           <select
             value={selectedZoneId}
             onChange={(e) => {
@@ -44,9 +44,9 @@ export const TimekeepingHeader: React.FC<TimekeepingHeaderProps> = ({
             style={{
               fontSize: '0.825rem',
               fontWeight: 700,
-              color: '#0369a1',
-              backgroundColor: '#f0f9ff',
-              borderColor: '#bae6fd',
+              color: 'rgb(var(--text-sky-700))',
+              backgroundColor: 'rgb(var(--bg-sky-50))',
+              borderColor: 'rgb(var(--border-sky-200))',
               borderRadius: '0.5rem',
               padding: '0.25rem 0.6rem',
               width: 'auto',
@@ -67,9 +67,9 @@ export const TimekeepingHeader: React.FC<TimekeepingHeaderProps> = ({
           type="button"
           onClick={() => getLiveGps()}
           style={{
-            background: '#f8fafc',
-            color: '#0284c7',
-            border: '1px solid #cbd5e1',
+            background: 'rgb(var(--bg-slate-50))',
+            color: 'rgb(var(--text-sky-600))',
+            border: '1px solid rgb(var(--border-slate-300))',
             borderRadius: '9999px',
             padding: '0.45rem 0.85rem',
             fontSize: '0.8rem',

@@ -83,7 +83,7 @@ export const PhotoPreviewCard: React.FC<PhotoPreviewCardProps> = ({
         width: '100%',
         height,
         borderRadius: '0.65rem',
-        border: '1px solid #cbd5e1',
+        border: '1px solid rgb(var(--border-slate-300))',
         backgroundColor: '#0f172a',
         cursor: 'pointer',
         userSelect: 'none',
@@ -116,7 +116,7 @@ export const PhotoPreviewCard: React.FC<PhotoPreviewCardProps> = ({
         ) : (
           <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: '0.75rem', gap: '0.25rem', padding: '0.5rem', textAlign: 'center' }}>
             <span>{uploadStatus === 'UPLOADING' ? 'Đang nạp ảnh từ bộ nhớ thiết bị...' : 'Ảnh chưa được đồng bộ từ thiết bị KSV'}</span>
-            <span style={{ fontSize: '0.65rem', color: '#64748b' }}>(Cần mở trên điện thoại KSV đã chụp để đẩy lên Cloud)</span>
+            <span style={{ fontSize: '0.65rem', color: 'rgb(var(--text-slate-500))' }}>(Cần mở trên điện thoại KSV đã chụp để đẩy lên Cloud)</span>
           </div>
         )}
 

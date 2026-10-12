@@ -594,7 +594,7 @@ export const ImageAnnotationModal: React.FC<ImageAnnotationModalProps> = ({
         )}
 
         {/* Canvas Workspace */}
-        <div className="flex-1 bg-slate-100 flex items-center justify-center p-3 overflow-auto select-none min-h-[300px]">
+        <div className="flex-1 bg-slate-100 flex items-center justify-center p-3 overflow-auto select-none min-h-[300px] force-light">
           {imageObjRef.current && (
             <canvas
               ref={canvasRef}

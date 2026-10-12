@@ -29,7 +29,7 @@ export const HelpBadge: React.FC<{
           cursor: 'pointer',
           display: 'inline-flex',
           alignItems: 'center',
-          color: type === 'alert' ? '#ea580c' : '#0284c7',
+          color: type === 'alert' ? 'rgb(var(--text-orange-600))' : 'rgb(var(--text-sky-600))',
           lineHeight: 1,
         }}
       >
@@ -56,13 +56,13 @@ export const HelpBadge: React.FC<{
               left: '-10px',
               zIndex: 9999,
               width: '290px',
-              backgroundColor: '#ffffff',
-              border: '1px solid #cbd5e1',
+              backgroundColor: 'rgb(var(--bg-white))',
+              border: '1px solid rgb(var(--border-slate-300))',
               borderRadius: '0.5rem',
               padding: '0.65rem 0.85rem',
               boxShadow: '0 10px 20px rgba(0, 0, 0, 0.12), 0 4px 6px rgba(0, 0, 0, 0.05)',
               fontSize: '0.725rem',
-              color: '#334155',
+              color: 'rgb(var(--text-slate-700))',
               lineHeight: 1.5,
               textAlign: 'left',
             }}
@@ -74,11 +74,11 @@ export const HelpBadge: React.FC<{
                 justifyContent: 'space-between',
                 alignItems: 'center',
                 marginBottom: '0.35rem',
-                borderBottom: '1px solid #f1f5f9',
+                borderBottom: '1px solid rgb(var(--border-slate-100))',
                 paddingBottom: '0.25rem',
               }}
             >
-              <strong style={{ color: '#0f172a', fontSize: '0.75rem' }}>{title}</strong>
+              <strong style={{ color: 'rgb(var(--text-slate-900))', fontSize: '0.75rem' }}>{title}</strong>
               <button
                 type="button"
                 onClick={() => setIsOpen(false)}

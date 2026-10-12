@@ -4,6 +4,7 @@ import { AuthProvider } from './context/AuthContext';
 import { App } from './App';
 import './styles/index.css';
 import { initDevErrorReporter, sendDevError } from './services/devErrorReporter';
+import { initThemeSystemListener } from './core/theme/useThemeStore';
 
 // Bộ lọc toàn cục chủ động chặn các lỗi ngoại lai từ Browser Extension (như 200.js, requests.js, M_ID...)
 if (typeof window !== 'undefined') {
@@ -36,6 +37,9 @@ if (typeof window !== 'undefined') {
 // Khởi chạy listener bắt lỗi runtime toàn cục trong môi trường DEV
 initDevErrorReporter();
 
+// Áp theme đã lưu (Sáng / Tối / Theo hệ thống) và lắng nghe thay đổi theme của hệ điều hành
+initThemeSystemListener();
+
 interface ErrorBoundaryState {
   hasError: boolean;
   error: Error | null;
@@ -64,20 +68,20 @@ class DevErrorBoundary extends React.Component<{ children: React.ReactNode }, Er
   render() {
     if (this.state.hasError) {
       return (
-        <div style={{ padding: '28px', fontFamily: 'system-ui, sans-serif', maxWidth: '800px', margin: '40px auto', background: '#fff1f2', border: '1px solid #fecdd3', borderRadius: '16px', boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)' }}>
+        <div style={{ padding: '28px', fontFamily: 'system-ui, sans-serif', maxWidth: '800px', margin: '40px auto', background: 'rgb(var(--bg-rose-50))', border: '1px solid rgb(var(--border-rose-200))', borderRadius: '16px', boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <span style={{ fontSize: '24px' }}>🚨</span>
-            <h2 style={{ color: '#be123c', margin: 0, fontSize: '18px', fontWeight: 700 }}>Phát hiện lỗi giao diện (React Render Error)</h2>
+            <h2 style={{ color: 'rgb(var(--text-rose-700))', margin: 0, fontSize: '18px', fontWeight: 700 }}>Phát hiện lỗi giao diện (React Render Error)</h2>
           </div>
-          <p style={{ color: '#881337', fontSize: '14px', marginTop: '12px', lineHeight: 1.5 }}>
+          <p style={{ color: 'rgb(var(--text-rose-900))', fontSize: '14px', marginTop: '12px', lineHeight: 1.5 }}>
             Lỗi này đã được <strong>tự động bắt và ghi vào <code>app_errors.log</code></strong> tại thư mục gốc dự án để hỗ trợ agent phân tích và sửa mã nguồn.
           </p>
-          <div style={{ background: '#ffffff', padding: '14px', borderRadius: '8px', border: '1px solid #fda4af' }}>
-            <div style={{ color: '#be123c', fontWeight: 700, fontSize: '13px', marginBottom: '8px' }}>
+          <div style={{ background: 'rgb(var(--bg-white))', padding: '14px', borderRadius: '8px', border: '1px solid rgb(var(--border-rose-300))' }}>
+            <div style={{ color: 'rgb(var(--text-rose-700))', fontWeight: 700, fontSize: '13px', marginBottom: '8px' }}>
               {this.state.error?.name || 'Lỗi Ứng Dụng'}: {this.state.error?.message || 'Không có mô tả lỗi cụ thể'}
             </div>
             {this.state.error?.stack && (
-              <pre style={{ margin: 0, color: '#9f1239', fontSize: '11px', lineHeight: 1.4, overflowX: 'auto' }}>
+              <pre style={{ margin: 0, color: 'rgb(var(--text-rose-800))', fontSize: '11px', lineHeight: 1.4, overflowX: 'auto' }}>
                 {this.state.error.stack}
               </pre>
             )}

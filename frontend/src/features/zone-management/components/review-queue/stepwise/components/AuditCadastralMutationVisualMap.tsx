@@ -275,6 +275,7 @@ export const AuditCadastralMutationVisualMap: React.FC<Props> = ({
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
               maxZoom={21}
               maxNativeZoom={19}
+              className="tile-street"
             />
           )}
 

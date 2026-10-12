@@ -307,28 +307,28 @@ export const SurveyPhase2View: React.FC<Props> = ({ initialParcelId, onFinished 
             width: '76px',
             height: '76px',
             borderRadius: '50%',
-            backgroundColor: '#dbeafe',
+            backgroundColor: 'rgb(var(--bg-blue-100))',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             margin: '0 auto 1.25rem auto',
-            border: '2px solid #93c5fd',
+            border: '2px solid rgb(var(--border-blue-300))',
           }}
         >
           <ShieldCheck size={44} color="#1d4ed8" />
         </div>
-        <h2 style={{ fontSize: '1.4rem', fontWeight: 800, color: '#0f172a' }}>
+        <h2 style={{ fontSize: '1.4rem', fontWeight: 800, color: 'rgb(var(--text-slate-900))' }}>
           ĐÃ HOÀN TẤT HỒ SƠ KHẢO SÁT HIỆN TRẠNG PHASE 2!
         </h2>
-        <p style={{ fontSize: '0.875rem', color: '#475569', marginTop: '0.5rem', lineHeight: 1.5 }}>
+        <p style={{ fontSize: '0.875rem', color: 'rgb(var(--text-slate-600))', marginTop: '0.5rem', lineHeight: 1.5 }}>
           Biên bản khảo sát trước thi công (Phiếu 02) cho công trình <strong>{ident.projectParcelCode}</strong> ({ident.address}) đã được chốt và đồng bộ vào hệ thống cơ sở pháp lý Metro 2.
         </p>
 
         <div
           className="card"
           style={{
-            backgroundColor: '#f8fafc',
-            border: '1px solid #e2e8f0',
+            backgroundColor: 'rgb(var(--bg-slate-50))',
+            border: '1px solid rgb(var(--border-slate-200))',
             padding: '1.25rem',
             margin: '1.5rem 0',
             textAlign: 'left',
@@ -373,14 +373,14 @@ export const SurveyPhase2View: React.FC<Props> = ({ initialParcelId, onFinished 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-            <span className="badge" style={{ backgroundColor: '#dbeafe', color: '#1d4ed8', border: '1px solid #93c5fd', fontWeight: 800 }}>
+            <span className="badge" style={{ backgroundColor: 'rgb(var(--bg-blue-100))', color: 'rgb(var(--text-blue-700))', border: '1px solid rgb(var(--border-blue-300))', fontWeight: 800 }}>
               PHASE 2 (PRE-CONSTRUCTION)
             </span>
-            <span style={{ fontSize: '1.2rem', fontWeight: 800, color: '#0f172a' }}>
+            <span style={{ fontSize: '1.2rem', fontWeight: 800, color: 'rgb(var(--text-slate-900))' }}>
               {ident.projectParcelCode}
             </span>
           </div>
-          <div style={{ fontSize: '0.8rem', color: '#64748b' }}>
+          <div style={{ fontSize: '0.8rem', color: 'rgb(var(--text-slate-500))' }}>
             {ident.address} • Kế thừa hồ sơ GĐ1 ({ident.phase1ApprovalDate})
           </div>
         </div>
@@ -431,9 +431,9 @@ export const SurveyPhase2View: React.FC<Props> = ({ initialParcelId, onFinished 
                 fontSize: '0.75rem',
                 fontWeight: isActive ? 800 : 500,
                 whiteSpace: 'nowrap',
-                border: isActive ? '1.5px solid #2563eb' : isPassed ? '1px solid #bfdbfe' : '1px solid #cbd5e1',
-                backgroundColor: isActive ? '#eff6ff' : isPassed ? '#f0f9ff' : '#ffffff',
-                color: isActive ? '#1d4ed8' : isPassed ? '#0369a1' : '#475569',
+                border: isActive ? '1.5px solid #2563eb' : isPassed ? '1px solid rgb(var(--border-blue-200))' : '1px solid rgb(var(--border-slate-300))',
+                backgroundColor: isActive ? 'rgb(var(--bg-blue-50))' : isPassed ? 'rgb(var(--bg-sky-50))' : 'rgb(var(--bg-white))',
+                color: isActive ? 'rgb(var(--text-blue-700))' : isPassed ? 'rgb(var(--text-sky-700))' : 'rgb(var(--text-slate-600))',
                 cursor: 'pointer',
               }}
             >
@@ -452,11 +452,11 @@ export const SurveyPhase2View: React.FC<Props> = ({ initialParcelId, onFinished 
         {/* ===================== STEP 1: NHẬN DIỆN & ẢNH P01-P02 ===================== */}
         {currentStep === 1 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <div style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: '0.65rem' }}>
-              <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>
+            <div style={{ borderBottom: '1px solid rgb(var(--border-slate-100))', paddingBottom: '0.65rem' }}>
+              <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: 'rgb(var(--text-slate-900))' }}>
                 BƯỚC 1: Tiếp Cận Ngoài Nhà, Nhận Diện Công Trình & Chụp Ảnh Phase 2
               </h3>
-              <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.775rem', color: '#64748b' }}>
+              <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.775rem', color: 'rgb(var(--text-slate-500))' }}>
                 Hệ thống tự động hiển thị dữ liệu gốc từ Phase 1 và thông tin khảo sát đợt 2.
               </p>
             </div>
@@ -501,7 +501,7 @@ export const SurveyPhase2View: React.FC<Props> = ({ initialParcelId, onFinished 
             </div>
 
             {/* 2 Photos P01 & P02 */}
-            <h4 style={{ margin: '0.5rem 0 0 0', fontSize: '0.9rem', fontWeight: 800, color: '#0f172a' }}>
+            <h4 style={{ margin: '0.5rem 0 0 0', fontSize: '0.9rem', fontWeight: 800, color: 'rgb(var(--text-slate-900))' }}>
               Chụp 2 Ảnh Nhận Dạng / Tổng Thể Phase 2:
             </h4>
 
@@ -538,13 +538,13 @@ export const SurveyPhase2View: React.FC<Props> = ({ initialParcelId, onFinished 
         {/* ===================== STEP 2: BIẾN ĐỘNG SAU GĐ1 ===================== */}
         {currentStep === 2 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <div style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: '0.65rem' }}>
-              <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>
+            <div style={{ borderBottom: '1px solid rgb(var(--border-slate-100))', paddingBottom: '0.65rem' }}>
+              <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: 'rgb(var(--text-slate-900))' }}>
                 BƯỚC 2: Phỏng Vấn Chủ Hộ & Xác Nhận Biến Động Sau Giai Đoạn 1
               </h3>
             </div>
 
-            <div style={{ backgroundColor: '#f8fafc', padding: '0.75rem 1rem', borderRadius: '0.65rem', border: '1px solid #e2e8f0', fontSize: '0.8rem' }}>
+            <div style={{ backgroundColor: 'rgb(var(--bg-slate-50))', padding: '0.75rem 1rem', borderRadius: '0.65rem', border: '1px solid rgb(var(--border-slate-200))', fontSize: '0.8rem' }}>
               <strong>Kế thừa từ Phase 1:</strong> {variations.useCategory} • {variations.floorCount} tầng • {variations.structuralSystem} • {variations.foundationType}
             </div>
 
@@ -635,12 +635,12 @@ export const SurveyPhase2View: React.FC<Props> = ({ initialParcelId, onFinished 
         {/* ===================== STEP 3: ĐỐI SOÁT SỔ KHUYẾT TẬT ===================== */}
         {currentStep === 3 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f1f5f9', paddingBottom: '0.65rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgb(var(--border-slate-100))', paddingBottom: '0.65rem', flexWrap: 'wrap', gap: '0.5rem' }}>
               <div>
-                <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>
+                <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: 'rgb(var(--text-slate-900))' }}>
                   BƯỚC 3: Đối Soát Sổ Khuyết Tật $D-xx$ & Ghi Nhận Mới Phase 2
                 </h3>
-                <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.775rem', color: '#64748b' }}>
+                <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.775rem', color: 'rgb(var(--text-slate-500))' }}>
                   Đo lại kích thước thực tế, tính toán độ biến thiên $\Delta w, \Delta L$ và chụp ảnh Photo CU có thước.
                 </p>
               </div>
@@ -673,8 +673,8 @@ export const SurveyPhase2View: React.FC<Props> = ({ initialParcelId, onFinished 
                   className="card"
                   style={{
                     padding: '1rem',
-                    backgroundColor: '#ffffff',
-                    border: d.verificationStatus === 'NEW' ? '1.5px solid #f59e0b' : d.verificationStatus === 'DEVELOPED' ? '1.5px solid #ef4444' : '1px solid #cbd5e1',
+                    backgroundColor: 'rgb(var(--bg-white))',
+                    border: d.verificationStatus === 'NEW' ? '1.5px solid #f59e0b' : d.verificationStatus === 'DEVELOPED' ? '1.5px solid #ef4444' : '1px solid rgb(var(--border-slate-300))',
                     display: 'flex',
                     flexDirection: 'column',
                     gap: '0.65rem',
@@ -682,14 +682,14 @@ export const SurveyPhase2View: React.FC<Props> = ({ initialParcelId, onFinished 
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                      <span style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0284c7' }}>
+                      <span style={{ fontSize: '1.05rem', fontWeight: 800, color: 'rgb(var(--text-sky-600))' }}>
                         {d.defectCode}
                       </span>
                       <span
                         className="badge"
                         style={{
-                          backgroundColor: d.verificationStatus === 'UNCHANGED' ? '#dcfce7' : d.verificationStatus === 'DEVELOPED' ? '#fee2e2' : '#fef3c7',
-                          color: d.verificationStatus === 'UNCHANGED' ? '#15803d' : d.verificationStatus === 'DEVELOPED' ? '#b91c1c' : '#b45309',
+                          backgroundColor: d.verificationStatus === 'UNCHANGED' ? 'rgb(var(--bg-green-100))' : d.verificationStatus === 'DEVELOPED' ? 'rgb(var(--bg-red-100))' : 'rgb(var(--bg-amber-100))',
+                          color: d.verificationStatus === 'UNCHANGED' ? 'rgb(var(--text-green-700))' : d.verificationStatus === 'DEVELOPED' ? 'rgb(var(--text-red-700))' : 'rgb(var(--text-amber-700))',
                           fontWeight: 700,
                         }}
                       >
@@ -708,11 +708,11 @@ export const SurveyPhase2View: React.FC<Props> = ({ initialParcelId, onFinished 
                     )}
                   </div>
 
-                  <div style={{ fontSize: '0.8rem', color: '#475569' }}>
+                  <div style={{ fontSize: '0.8rem', color: 'rgb(var(--text-slate-600))' }}>
                     Vị trí: <strong>{d.floorAndRoom}</strong> • Loại: {d.defectType}
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.5rem', backgroundColor: '#f8fafc', padding: '0.65rem', borderRadius: '0.5rem', fontSize: '0.775rem' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.5rem', backgroundColor: 'rgb(var(--bg-slate-50))', padding: '0.65rem', borderRadius: '0.5rem', fontSize: '0.775rem' }}>
                     <div>
                       Kích thước GĐ1: <strong>{d.phase1WidthMm}mm x {d.phase1LengthMm}mm</strong>
                     </div>
@@ -735,7 +735,7 @@ export const SurveyPhase2View: React.FC<Props> = ({ initialParcelId, onFinished 
                       />
                     </div>
                     <div>
-                      Độ biến thiên: <strong style={{ color: d.deltaW > 0 ? '#dc2626' : '#15803d' }}>&Delta;w = {d.deltaW > 0 ? `+${d.deltaW}` : d.deltaW} mm</strong> | &Delta;L = {d.deltaL > 0 ? `+${d.deltaL}` : d.deltaL} mm
+                      Độ biến thiên: <strong style={{ color: d.deltaW > 0 ? 'rgb(var(--text-red-600))' : 'rgb(var(--text-green-700))' }}>&Delta;w = {d.deltaW > 0 ? `+${d.deltaW}` : d.deltaW} mm</strong> | &Delta;L = {d.deltaL > 0 ? `+${d.deltaL}` : d.deltaL} mm
                     </div>
                   </div>
 
@@ -761,8 +761,8 @@ export const SurveyPhase2View: React.FC<Props> = ({ initialParcelId, onFinished 
         {/* ===================== STEP 4: ĐO ĐẠC LÚN NGHIÊNG GĐ2 ===================== */}
         {currentStep === 4 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <div style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: '0.65rem' }}>
-              <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>
+            <div style={{ borderBottom: '1px solid rgb(var(--border-slate-100))', paddingBottom: '0.65rem' }}>
+              <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: 'rgb(var(--text-slate-900))' }}>
                 BƯỚC 4: Đánh Giá & Đo Đạc Lún – Nghiêng – Biến Dạng Phase 2
               </h3>
             </div>
@@ -828,8 +828,8 @@ export const SurveyPhase2View: React.FC<Props> = ({ initialParcelId, onFinished 
         {/* ===================== STEP 5: PHẠM VI & RANH GIS ===================== */}
         {currentStep === 5 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <div style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: '0.65rem' }}>
-              <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>
+            <div style={{ borderBottom: '1px solid rgb(var(--border-slate-100))', paddingBottom: '0.65rem' }}>
+              <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: 'rgb(var(--text-slate-900))' }}>
                 BƯỚC 5: Xác Nhận Phạm Vi & Đối Soát Ranh Thửa Đất GIS
               </h3>
             </div>
@@ -876,8 +876,8 @@ export const SurveyPhase2View: React.FC<Props> = ({ initialParcelId, onFinished 
         {/* ===================== STEP 6: SƠ ĐỒ & QUALITY GATE CHECKLIST ===================== */}
         {currentStep === 6 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <div style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: '0.65rem' }}>
-              <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>
+            <div style={{ borderBottom: '1px solid rgb(var(--border-slate-100))', paddingBottom: '0.65rem' }}>
+              <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: 'rgb(var(--text-slate-900))' }}>
                 BƯỚC 6: Sơ Đồ Vị Trí Khuyết Tật & Cổng Kiểm Soát Chất Lượng (Phụ Lục A)
               </h3>
             </div>
@@ -903,8 +903,8 @@ export const SurveyPhase2View: React.FC<Props> = ({ initialParcelId, onFinished 
                       fontSize: '0.775rem',
                       padding: '0.45rem 0.65rem',
                       borderRadius: '0.45rem',
-                      backgroundColor: q.passed ? '#f0fdf4' : '#fffbeb',
-                      border: q.passed ? '1px solid #86efac' : '1px solid #fde68a',
+                      backgroundColor: q.passed ? 'rgb(var(--bg-green-50))' : 'rgb(var(--bg-amber-50))',
+                      border: q.passed ? '1px solid rgb(var(--border-green-300))' : '1px solid rgb(var(--border-amber-200))',
                       cursor: 'pointer',
                     }}
                   >
@@ -914,7 +914,7 @@ export const SurveyPhase2View: React.FC<Props> = ({ initialParcelId, onFinished 
                       onChange={() => handleToggleQuality(q.id)}
                       style={{ accentColor: '#16a34a' }}
                     />
-                    <span style={{ fontWeight: 600, color: q.passed ? '#15803d' : '#b45309' }}>
+                    <span style={{ fontWeight: 600, color: q.passed ? 'rgb(var(--text-green-700))' : 'rgb(var(--text-amber-700))' }}>
                       {q.id}. {q.title}
                     </span>
                   </label>
@@ -927,8 +927,8 @@ export const SurveyPhase2View: React.FC<Props> = ({ initialParcelId, onFinished 
         {/* ===================== STEP 7: TỔNG HỢP SO SÁNH GĐ1 ===================== */}
         {currentStep === 7 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <div style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: '0.65rem' }}>
-              <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>
+            <div style={{ borderBottom: '1px solid rgb(var(--border-slate-100))', paddingBottom: '0.65rem' }}>
+              <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: 'rgb(var(--text-slate-900))' }}>
                 BƯỚC 7: Tổng Hợp So Sánh Giai Đoạn 1 & Đề Xuất Quan Trắc
               </h3>
             </div>
@@ -967,21 +967,21 @@ export const SurveyPhase2View: React.FC<Props> = ({ initialParcelId, onFinished 
         {/* ===================== STEP 8: CAM KẾT PHÁP LÝ PHIẾU 02 ===================== */}
         {currentStep === 8 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <div style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: '0.65rem' }}>
-              <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>
+            <div style={{ borderBottom: '1px solid rgb(var(--border-slate-100))', paddingBottom: '0.65rem' }}>
+              <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: 'rgb(var(--text-slate-900))' }}>
                 BƯỚC 8: Cam Kết Pháp Lý Mẫu Chuẩn Phiếu 02 & Ý Kiến Chủ Hộ
               </h3>
             </div>
 
             <div
               style={{
-                backgroundColor: '#f8fafc',
-                border: '1px solid #cbd5e1',
+                backgroundColor: 'rgb(var(--bg-slate-50))',
+                border: '1px solid rgb(var(--border-slate-300))',
                 padding: '1rem',
                 borderRadius: '0.65rem',
                 fontSize: '0.8rem',
                 lineHeight: 1.6,
-                color: '#334155',
+                color: 'rgb(var(--text-slate-700))',
                 fontStyle: 'italic',
               }}
             >
@@ -1005,8 +1005,8 @@ export const SurveyPhase2View: React.FC<Props> = ({ initialParcelId, onFinished 
         {/* ===================== STEP 9: KÝ BIÊN BẢN 4 BÊN ===================== */}
         {currentStep === 9 && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <div style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: '0.65rem' }}>
-              <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>
+            <div style={{ borderBottom: '1px solid rgb(var(--border-slate-100))', paddingBottom: '0.65rem' }}>
+              <h3 style={{ margin: 0, fontSize: '1.05rem', fontWeight: 800, color: 'rgb(var(--text-slate-900))' }}>
                 BƯỚC 9: Chốt Biên Bản & Ký Xác Nhận Hiện Trường 4 Bên
               </h3>
             </div>
@@ -1072,7 +1072,7 @@ export const SurveyPhase2View: React.FC<Props> = ({ initialParcelId, onFinished 
         )}
 
         {/* STEP FOOTER NAVIGATION (PREV / NEXT) */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #f1f5f9', paddingTop: '0.85rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid rgb(var(--border-slate-100))', paddingTop: '0.85rem' }}>
           {currentStep > 1 ? (
             <button
               type="button"

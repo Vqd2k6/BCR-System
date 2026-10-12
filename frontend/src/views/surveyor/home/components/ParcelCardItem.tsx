@@ -88,7 +88,7 @@ export const ParcelCardItem: React.FC<ParcelCardItemProps> = ({
                   style={{
                     fontSize: '1.05rem',
                     fontWeight: 800,
-                    color: '#0284c7',
+                    color: 'rgb(var(--text-sky-600))',
                     maxWidth: '180px',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
@@ -107,9 +107,9 @@ export const ParcelCardItem: React.FC<ParcelCardItemProps> = ({
                 type="button"
                 onClick={() => onOpenHub(p)}
                 style={{
-                  backgroundColor: '#ede9fe',
-                  color: '#5b21b6',
-                  border: '1px solid #c4b5fd',
+                  backgroundColor: 'rgb(var(--bg-violet-100))',
+                  color: 'rgb(var(--text-violet-800))',
+                  border: '1px solid rgb(var(--border-violet-300))',
                   padding: '2px 8px',
                   borderRadius: '6px',
                   fontSize: '0.725rem',
@@ -126,13 +126,13 @@ export const ParcelCardItem: React.FC<ParcelCardItemProps> = ({
             )}
           </div>
 
-          <div style={{ fontSize: '0.875rem', fontWeight: 700, color: '#0f172a', marginTop: '0.2rem' }}>
+          <div style={{ fontSize: '0.875rem', fontWeight: 700, color: 'rgb(var(--text-slate-900))', marginTop: '0.2rem' }}>
             Số {p.houseNumber || p.house_number} {p.street}
           </div>
 
           {buildingType === 'CONDOMINIUM' && (
             <div style={{ marginTop: '0.35rem', display: 'flex', alignItems: 'center', gap: '0.5rem', maxWidth: '360px' }}>
-              <div style={{ flex: 1, height: '6px', backgroundColor: '#e2e8f0', borderRadius: '999px', overflow: 'hidden' }}>
+              <div style={{ flex: 1, height: '6px', backgroundColor: 'rgb(var(--bg-slate-200))', borderRadius: '999px', overflow: 'hidden' }}>
                 <div
                   style={{
                     height: '100%',
@@ -142,7 +142,7 @@ export const ParcelCardItem: React.FC<ParcelCardItemProps> = ({
                   }}
                 />
               </div>
-              <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#4f46e5' }}>
+              <span style={{ fontSize: '0.7rem', fontWeight: 700, color: 'rgb(var(--text-indigo-600))' }}>
                 {p.completedUnits || 0}/{p.totalUnits || 1} căn ({Math.min(100, Math.round(((p.completedUnits || 0) / Math.max(1, p.totalUnits || 1)) * 100))}%)
               </span>
             </div>
@@ -150,7 +150,7 @@ export const ParcelCardItem: React.FC<ParcelCardItemProps> = ({
         </div>
       </div>
 
-      <div style={{ fontSize: '0.775rem', color: '#64748b', display: 'flex', flexWrap: 'wrap', gap: '0.75rem' }}>
+      <div style={{ fontSize: '0.775rem', color: 'rgb(var(--text-slate-500))', display: 'flex', flexWrap: 'wrap', gap: '0.75rem' }}>
         <span>
           Chủ sở hữu: <strong>{p.ownerName || p.owner_name || 'Chưa cập nhật'}</strong>
         </span>
@@ -160,7 +160,7 @@ export const ParcelCardItem: React.FC<ParcelCardItemProps> = ({
       </div>
 
       {/* Actions Bar */}
-      <div style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap', paddingTop: '0.45rem', borderTop: '1px solid #f1f5f9' }}>
+      <div style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap', paddingTop: '0.45rem', borderTop: '1px solid rgb(var(--border-slate-100))' }}>
         {/* Primary Button */}
         {isApproved ? (
           <button
@@ -186,9 +186,9 @@ export const ParcelCardItem: React.FC<ParcelCardItemProps> = ({
             className="btn btn-sm"
             style={{
               fontSize: '0.775rem',
-              backgroundColor: '#dbeafe',
-              color: '#1d4ed8',
-              border: '1px solid #93c5fd',
+              backgroundColor: 'rgb(var(--bg-blue-100))',
+              color: 'rgb(var(--text-blue-700))',
+              border: '1px solid rgb(var(--border-blue-300))',
               fontWeight: 700,
               cursor: 'default',
               display: 'inline-flex',
@@ -210,9 +210,9 @@ export const ParcelCardItem: React.FC<ParcelCardItemProps> = ({
                 display: 'flex',
                 alignItems: 'center',
                 gap: '0.35rem',
-                backgroundColor: '#e0f2fe',
-                color: '#0369a1',
-                border: '1px solid #7dd3fc',
+                backgroundColor: 'rgb(var(--bg-sky-100))',
+                color: 'rgb(var(--text-sky-700))',
+                border: '1px solid rgb(var(--border-sky-300))',
                 fontWeight: 700,
                 cursor: 'pointer',
               }}
@@ -253,9 +253,9 @@ export const ParcelCardItem: React.FC<ParcelCardItemProps> = ({
                     display: 'flex',
                     alignItems: 'center',
                     gap: '0.35rem',
-                    backgroundColor: '#fff1f2',
-                    color: '#e11d48',
-                    border: '1px solid #fecdd3',
+                    backgroundColor: 'rgb(var(--bg-rose-50))',
+                    color: 'rgb(var(--text-rose-600))',
+                    border: '1px solid rgb(var(--border-rose-200))',
                     fontWeight: 700,
                     cursor: 'pointer',
                   }}
@@ -269,15 +269,15 @@ export const ParcelCardItem: React.FC<ParcelCardItemProps> = ({
               <span
                 style={{
                   fontSize: '0.725rem',
-                  color: '#0369a1',
+                  color: 'rgb(var(--text-sky-700))',
                   fontWeight: 600,
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: '4px',
                   padding: '0.25rem 0.5rem',
-                  backgroundColor: '#f0f9ff',
+                  backgroundColor: 'rgb(var(--bg-sky-50))',
                   borderRadius: '6px',
-                  border: '1px solid #bae6fd',
+                  border: '1px solid rgb(var(--border-sky-200))',
                 }}
                 title="Hồ sơ đang chờ Zone Admin hoặc Super Admin phê duyệt"
               >
@@ -318,9 +318,9 @@ export const ParcelCardItem: React.FC<ParcelCardItemProps> = ({
                 display: 'flex',
                 alignItems: 'center',
                 gap: '0.35rem',
-                backgroundColor: '#f3e8ff',
-                color: '#7e22ce',
-                border: '1px solid #d8b4fe',
+                backgroundColor: 'rgb(var(--bg-purple-100))',
+                color: 'rgb(var(--text-purple-700))',
+                border: '1px solid rgb(var(--border-purple-300))',
                 fontWeight: 600,
                 cursor: 'pointer',
               }}
@@ -340,9 +340,9 @@ export const ParcelCardItem: React.FC<ParcelCardItemProps> = ({
               display: 'flex',
               alignItems: 'center',
               gap: '0.35rem',
-              backgroundColor: '#fff7ed',
-              color: '#c2410c',
-              border: '1px solid #fdba74',
+              backgroundColor: 'rgb(var(--bg-orange-50))',
+              color: 'rgb(var(--text-orange-700))',
+              border: '1px solid rgb(var(--border-orange-300))',
               fontWeight: 700,
               cursor: 'pointer',
             }}
@@ -361,9 +361,9 @@ export const ParcelCardItem: React.FC<ParcelCardItemProps> = ({
               display: 'flex',
               alignItems: 'center',
               gap: '0.35rem',
-              backgroundColor: '#fee2e2',
-              color: '#b91c1c',
-              border: '1px solid #fca5a5',
+              backgroundColor: 'rgb(var(--bg-red-100))',
+              color: 'rgb(var(--text-red-700))',
+              border: '1px solid rgb(var(--border-red-300))',
               fontWeight: 700,
               cursor: 'pointer',
             }}
@@ -431,9 +431,9 @@ export const ParcelCardItem: React.FC<ParcelCardItemProps> = ({
             display: 'flex',
             alignItems: 'center',
             gap: '0.3rem',
-            color: '#0284c7',
-            borderColor: '#bae6fd',
-            backgroundColor: '#f0f9ff',
+            color: 'rgb(var(--text-sky-600))',
+            borderColor: 'rgb(var(--border-sky-200))',
+            backgroundColor: 'rgb(var(--bg-sky-50))',
           }}
           title="Mở chỉ đường Google Maps từ vị trí của bạn tới nhà này"
         >

@@ -54,7 +54,7 @@ export const PhotoWatermarkOverlay: React.FC<PhotoWatermarkOverlayProps> = ({
           <div
             style={{
               padding: isFull ? '4px 8px' : '2px 6px',
-              backgroundColor: 'rgba(255, 255, 255, 0.85)',
+              backgroundColor: 'rgb(var(--bg-white) / 0.85)',
               borderRadius: isFull ? '6px' : '4px',
               boxShadow: '0 2px 6px rgba(0, 0, 0, 0.35)',
               backdropFilter: 'blur(3px)',

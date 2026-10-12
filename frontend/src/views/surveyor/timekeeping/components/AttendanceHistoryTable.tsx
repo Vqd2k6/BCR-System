@@ -29,19 +29,19 @@ export const AttendanceHistoryTable: React.FC<AttendanceHistoryTableProps> = ({
   return (
     <div style={{ marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
-        <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: '#0f172a' }}>
+        <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 800, color: 'rgb(var(--text-slate-900))' }}>
           Lịch sử điểm danh thực địa
         </h3>
 
         {/* Toggle Tab between Surveyor and Companion */}
-        <div style={{ display: 'flex', backgroundColor: '#f1f5f9', padding: '2px', borderRadius: '0.5rem', border: '1px solid #e2e8f0' }}>
+        <div style={{ display: 'flex', backgroundColor: 'rgb(var(--bg-slate-100))', padding: '2px', borderRadius: '0.5rem', border: '1px solid rgb(var(--border-slate-200))' }}>
           <button
             type="button"
             onClick={() => setHistoryTab('surveyor')}
             style={{
               border: 'none',
-              backgroundColor: historyTab === 'surveyor' ? '#ffffff' : 'transparent',
-              color: historyTab === 'surveyor' ? '#0284c7' : '#64748b',
+              backgroundColor: historyTab === 'surveyor' ? 'rgb(var(--bg-white))' : 'transparent',
+              color: historyTab === 'surveyor' ? 'rgb(var(--text-sky-600))' : 'rgb(var(--text-slate-500))',
               fontWeight: 700,
               fontSize: '0.725rem',
               padding: '0.3rem 0.65rem',
@@ -57,8 +57,8 @@ export const AttendanceHistoryTable: React.FC<AttendanceHistoryTableProps> = ({
             onClick={() => setHistoryTab('companion')}
             style={{
               border: 'none',
-              backgroundColor: historyTab === 'companion' ? '#ffffff' : 'transparent',
-              color: historyTab === 'companion' ? '#0284c7' : '#64748b',
+              backgroundColor: historyTab === 'companion' ? 'rgb(var(--bg-white))' : 'transparent',
+              color: historyTab === 'companion' ? 'rgb(var(--text-sky-600))' : 'rgb(var(--text-slate-500))',
               fontWeight: 700,
               fontSize: '0.725rem',
               padding: '0.3rem 0.65rem',
@@ -86,7 +86,7 @@ export const AttendanceHistoryTable: React.FC<AttendanceHistoryTableProps> = ({
                 key={h.id || i}
                 className="card"
                 style={{
-                  backgroundColor: '#ffffff',
+                  backgroundColor: 'rgb(var(--bg-white))',
                   padding: '0.75rem 1rem',
                   display: 'flex',
                   justifyContent: 'space-between',
@@ -94,7 +94,7 @@ export const AttendanceHistoryTable: React.FC<AttendanceHistoryTableProps> = ({
                   borderRadius: '0.75rem',
                   boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
                   gap: '0.75rem',
-                  border: '1px solid #e2e8f0',
+                  border: '1px solid rgb(var(--border-slate-200))',
                 }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0, flex: 1 }}>
@@ -106,20 +106,20 @@ export const AttendanceHistoryTable: React.FC<AttendanceHistoryTableProps> = ({
                       height: '44px',
                       borderRadius: '50%',
                       objectFit: 'cover',
-                      border: '1.5px solid #bae6fd',
+                      border: '1.5px solid rgb(var(--border-sky-200))',
                       flexShrink: 0,
                     }}
                   />
                   <div style={{ minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                      <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      <span style={{ fontSize: '0.85rem', fontWeight: 800, color: 'rgb(var(--text-slate-900))', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         {user?.fullName || 'Nguyễn Văn Khảo Sát'}
                       </span>
-                      <span style={{ fontSize: '0.65rem', fontWeight: 700, backgroundColor: '#e0f2fe', color: '#0369a1', padding: '1px 5px', borderRadius: '4px' }}>
+                      <span style={{ fontSize: '0.65rem', fontWeight: 700, backgroundColor: 'rgb(var(--bg-sky-100))', color: 'rgb(var(--text-sky-700))', padding: '1px 5px', borderRadius: '4px' }}>
                         Chính
                       </span>
                     </div>
-                    <div style={{ fontSize: '0.725rem', color: '#64748b', marginTop: '2px' }}>
+                    <div style={{ fontSize: '0.725rem', color: 'rgb(var(--text-slate-500))', marginTop: '2px' }}>
                       {new Date(h.checkin_time).toLocaleString('vi-VN')} • Cách Ga: <strong>{distance}m</strong>
                       {isOutOfBoundItem && <span style={{ color: '#ef4444', fontWeight: 600 }}> (Ngoài vùng)</span>}
                     </div>
@@ -169,7 +169,7 @@ export const AttendanceHistoryTable: React.FC<AttendanceHistoryTableProps> = ({
                   key={comp.id || idx}
                   className="card"
                   style={{
-                    backgroundColor: '#ffffff',
+                    backgroundColor: 'rgb(var(--bg-white))',
                     padding: '0.75rem 1rem',
                     display: 'flex',
                     justifyContent: 'space-between',
@@ -177,7 +177,7 @@ export const AttendanceHistoryTable: React.FC<AttendanceHistoryTableProps> = ({
                     borderRadius: '0.75rem',
                     boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
                     gap: '0.75rem',
-                    border: '1px solid #bae6fd',
+                    border: '1px solid rgb(var(--border-sky-200))',
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0, flex: 1 }}>
@@ -190,7 +190,7 @@ export const AttendanceHistoryTable: React.FC<AttendanceHistoryTableProps> = ({
                           height: '44px',
                           borderRadius: '50%',
                           objectFit: 'cover',
-                          border: '1.5px solid #7dd3fc',
+                          border: '1.5px solid rgb(var(--border-sky-300))',
                           flexShrink: 0,
                         }}
                       />
@@ -200,11 +200,11 @@ export const AttendanceHistoryTable: React.FC<AttendanceHistoryTableProps> = ({
                           width: '44px',
                           height: '44px',
                           borderRadius: '50%',
-                          backgroundColor: '#e0f2fe',
+                          backgroundColor: 'rgb(var(--bg-sky-100))',
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
-                          color: '#0284c7',
+                          color: 'rgb(var(--text-sky-600))',
                           flexShrink: 0,
                         }}
                       >
@@ -214,17 +214,17 @@ export const AttendanceHistoryTable: React.FC<AttendanceHistoryTableProps> = ({
 
                     <div style={{ minWidth: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                        <span style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        <span style={{ fontSize: '0.85rem', fontWeight: 800, color: 'rgb(var(--text-slate-900))', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                           {comp.name}
                         </span>
-                        <span style={{ fontSize: '0.65rem', fontWeight: 700, backgroundColor: '#f0f9ff', color: '#0284c7', padding: '1px 5px', borderRadius: '4px', border: '1px solid #bae6fd' }}>
+                        <span style={{ fontSize: '0.65rem', fontWeight: 700, backgroundColor: 'rgb(var(--bg-sky-50))', color: 'rgb(var(--text-sky-600))', padding: '1px 5px', borderRadius: '4px', border: '1px solid rgb(var(--border-sky-200))' }}>
                           Đi kèm
                         </span>
                       </div>
-                      <div style={{ fontSize: '0.725rem', color: '#0284c7', fontWeight: 600 }}>
+                      <div style={{ fontSize: '0.725rem', color: 'rgb(var(--text-sky-600))', fontWeight: 600 }}>
                         {comp.role || 'Cán bộ đo đạc & Ghi chép'}
                       </div>
-                      <div style={{ fontSize: '0.7rem', color: '#64748b' }}>
+                      <div style={{ fontSize: '0.7rem', color: 'rgb(var(--text-slate-500))' }}>
                         {timeStr} • Cách Ga: <strong>{dist}m</strong>
                         {isItemOutOfBound && <span style={{ color: '#ef4444', fontWeight: 600 }}> (Ngoài vùng)</span>}
                       </div>
@@ -244,7 +244,7 @@ export const AttendanceHistoryTable: React.FC<AttendanceHistoryTableProps> = ({
               );
             })
           ) : (
-            <div style={{ fontSize: '0.8rem', color: '#94a3b8', textAlign: 'center', padding: '1.5rem', backgroundColor: '#ffffff', borderRadius: '0.75rem', border: '1px dashed #cbd5e1' }}>
+            <div style={{ fontSize: '0.8rem', color: '#94a3b8', textAlign: 'center', padding: '1.5rem', backgroundColor: 'rgb(var(--bg-white))', borderRadius: '0.75rem', border: '1px dashed rgb(var(--border-slate-300))' }}>
               Chưa có lịch sử điểm danh cán bộ đi kèm nào.
             </div>
           )}

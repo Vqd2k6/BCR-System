@@ -33,9 +33,9 @@ export const CadastralHeaderBar: React.FC<CadastralHeaderBarProps> = ({
       {/* 1. THÔNG TIN KÍCH THƯỚC THỬA ĐẤT BAN ĐẦU */}
       <div
         style={{
-          backgroundColor: '#ffffff',
+          backgroundColor: 'rgb(var(--bg-white))',
           borderRadius: '0.75rem',
-          border: '1px solid #e2e8f0',
+          border: '1px solid rgb(var(--border-slate-200))',
           padding: '0.75rem 0.95rem',
           display: 'flex',
           flexDirection: 'column',
@@ -50,7 +50,7 @@ export const CadastralHeaderBar: React.FC<CadastralHeaderBarProps> = ({
                 width: '32px',
                 height: '32px',
                 borderRadius: '8px',
-                backgroundColor: '#e0f2fe',
+                backgroundColor: 'rgb(var(--bg-sky-100))',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -60,15 +60,15 @@ export const CadastralHeaderBar: React.FC<CadastralHeaderBarProps> = ({
               <Ruler size={17} color="#0284c7" />
             </div>
             <div>
-              <div style={{ fontSize: '0.85rem', fontWeight: 800, color: '#0f172a', display: 'flex', alignItems: 'center' }}>
+              <div style={{ fontSize: '0.85rem', fontWeight: 800, color: 'rgb(var(--text-slate-900))', display: 'flex', alignItems: 'center' }}>
                 Kích Thước Thửa Ban Đầu
                 <HelpBadge
                   title="Thông tin ranh thửa ban đầu"
                   content="Dữ liệu kích thước và ranh thửa được trích xuất từ cơ sở dữ liệu địa chính PostGIS Ga S9 Metro 2."
                 />
               </div>
-              <div style={{ fontSize: '0.725rem', color: '#64748b' }}>
-                Mã DA: <strong style={{ color: '#0284c7' }}>{parcelData.projectParcelCode}</strong> | Mã địa chính: <strong style={{ color: '#d97706' }}>{parcelData.officialCadastralCode}</strong>
+              <div style={{ fontSize: '0.725rem', color: 'rgb(var(--text-slate-500))' }}>
+                Mã DA: <strong style={{ color: 'rgb(var(--text-sky-600))' }}>{parcelData.projectParcelCode}</strong> | Mã địa chính: <strong style={{ color: 'rgb(var(--text-amber-600))' }}>{parcelData.officialCadastralCode}</strong>
               </div>
             </div>
           </div>
@@ -79,12 +79,12 @@ export const CadastralHeaderBar: React.FC<CadastralHeaderBarProps> = ({
                 type="button"
                 onClick={() => setShowHistoryModal(true)}
                 style={{
-                  backgroundColor: '#f1f5f9',
-                  border: '1px solid #cbd5e1',
+                  backgroundColor: 'rgb(var(--bg-slate-100))',
+                  border: '1px solid rgb(var(--border-slate-300))',
                   padding: '0.2rem 0.55rem',
                   borderRadius: '0.4rem',
                   fontSize: '0.725rem',
-                  color: '#0f172a',
+                  color: 'rgb(var(--text-slate-900))',
                   fontWeight: 700,
                   display: 'flex',
                   alignItems: 'center',
@@ -99,24 +99,24 @@ export const CadastralHeaderBar: React.FC<CadastralHeaderBarProps> = ({
             )}
             <span
               style={{
-                backgroundColor: '#f8fafc',
-                border: '1px solid #e2e8f0',
+                backgroundColor: 'rgb(var(--bg-slate-50))',
+                border: '1px solid rgb(var(--border-slate-200))',
                 padding: '0.2rem 0.55rem',
                 borderRadius: '0.4rem',
                 fontSize: '0.725rem',
-                color: '#334155',
+                color: 'rgb(var(--text-slate-700))',
               }}
             >
-              Chiều cao: <strong style={{ color: '#0284c7' }}>{buildingHeight !== undefined && buildingHeight !== null && String(buildingHeight).trim() !== '' ? `${buildingHeight}m` : '—'}</strong>
+              Chiều cao: <strong style={{ color: 'rgb(var(--text-sky-600))' }}>{buildingHeight !== undefined && buildingHeight !== null && String(buildingHeight).trim() !== '' ? `${buildingHeight}m` : '—'}</strong>
             </span>
             <span
               style={{
-                backgroundColor: '#e0f2fe',
-                border: '1px solid #bae6fd',
+                backgroundColor: 'rgb(var(--bg-sky-100))',
+                border: '1px solid rgb(var(--border-sky-200))',
                 padding: '0.2rem 0.55rem',
                 borderRadius: '0.4rem',
                 fontSize: '0.725rem',
-                color: '#0369a1',
+                color: 'rgb(var(--text-sky-700))',
                 fontWeight: 700,
               }}
             >
@@ -125,7 +125,7 @@ export const CadastralHeaderBar: React.FC<CadastralHeaderBarProps> = ({
           </div>
         </div>
 
-        <div style={{ fontSize: '0.725rem', color: '#475569', borderTop: '1px solid #f1f5f9', paddingTop: '0.35rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.35rem' }}>
+        <div style={{ fontSize: '0.725rem', color: 'rgb(var(--text-slate-600))', borderTop: '1px solid rgb(var(--border-slate-100))', paddingTop: '0.35rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.35rem' }}>
           <span>
             Địa chỉ: <strong>{(() => {
               const hn = parcelData.houseNumber?.trim();
@@ -155,9 +155,9 @@ export const CadastralHeaderBar: React.FC<CadastralHeaderBarProps> = ({
           style={{
             padding: '0.6rem 0.8rem',
             borderRadius: '0.65rem',
-            border: boundaryStatus === 'MATCH' ? '2px solid #16a34a' : '1px solid #cbd5e1',
-            backgroundColor: boundaryStatus === 'MATCH' ? '#dcfce7' : '#ffffff',
-            color: boundaryStatus === 'MATCH' ? '#15803d' : '#475569',
+            border: boundaryStatus === 'MATCH' ? '2px solid #16a34a' : '1px solid rgb(var(--border-slate-300))',
+            backgroundColor: boundaryStatus === 'MATCH' ? 'rgb(var(--bg-green-100))' : 'rgb(var(--bg-white))',
+            color: boundaryStatus === 'MATCH' ? 'rgb(var(--text-green-700))' : 'rgb(var(--text-slate-600))',
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
@@ -179,9 +179,9 @@ export const CadastralHeaderBar: React.FC<CadastralHeaderBarProps> = ({
           style={{
             padding: '0.6rem 0.8rem',
             borderRadius: '0.65rem',
-            border: boundaryStatus === 'SPLIT' ? '2px solid #ea580c' : '1px solid #cbd5e1',
-            backgroundColor: boundaryStatus === 'SPLIT' ? '#ffedd5' : '#ffffff',
-            color: boundaryStatus === 'SPLIT' ? '#c2410c' : '#475569',
+            border: boundaryStatus === 'SPLIT' ? '2px solid #ea580c' : '1px solid rgb(var(--border-slate-300))',
+            backgroundColor: boundaryStatus === 'SPLIT' ? 'rgb(var(--bg-orange-100))' : 'rgb(var(--bg-white))',
+            color: boundaryStatus === 'SPLIT' ? 'rgb(var(--text-orange-700))' : 'rgb(var(--text-slate-600))',
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
@@ -203,9 +203,9 @@ export const CadastralHeaderBar: React.FC<CadastralHeaderBarProps> = ({
           style={{
             padding: '0.6rem 0.8rem',
             borderRadius: '0.65rem',
-            border: boundaryStatus === 'MERGE' ? '2px solid #0284c7' : '1px solid #cbd5e1',
-            backgroundColor: boundaryStatus === 'MERGE' ? '#e0f2fe' : '#ffffff',
-            color: boundaryStatus === 'MERGE' ? '#0369a1' : '#475569',
+            border: boundaryStatus === 'MERGE' ? '2px solid #0284c7' : '1px solid rgb(var(--border-slate-300))',
+            backgroundColor: boundaryStatus === 'MERGE' ? 'rgb(var(--bg-sky-100))' : 'rgb(var(--bg-white))',
+            color: boundaryStatus === 'MERGE' ? 'rgb(var(--text-sky-700))' : 'rgb(var(--text-slate-600))',
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
