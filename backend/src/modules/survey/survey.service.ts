@@ -522,16 +522,25 @@ export class SurveyService {
       ? JSON.parse(draft.survey_data_json)
       : (draft.survey_data_json || {});
 
-    // Đếm số ảnh còn dạng blob:local:// chưa đồng bộ lên Cloud
+    const photoMappings = rawData._photoMappings || {};
+
+    // Đếm số ảnh còn dạng blob:local:// chưa đồng bộ lên Cloud (loại trừ ảnh đã có ánh xạ trong _photoMappings)
     let pendingCount = 0;
     const countLocalBlobs = (val: unknown) => {
       if (!val) return;
       if (typeof val === 'string' && val.startsWith('blob:local://')) {
-        pendingCount++;
+        const rawId = val.replace('blob:local://', '').split('?')[0];
+        if (!photoMappings[rawId] && !photoMappings[val]) {
+          pendingCount++;
+        }
       } else if (Array.isArray(val)) {
         val.forEach(countLocalBlobs);
       } else if (typeof val === 'object') {
-        Object.values(val as Record<string, unknown>).forEach(countLocalBlobs);
+        const obj = val as Record<string, unknown>;
+        for (const [k, v] of Object.entries(obj)) {
+          if (k === '_photoMappings') continue;
+          countLocalBlobs(v);
+        }
       }
     };
     countLocalBlobs(rawData);
@@ -541,8 +550,6 @@ export class SurveyService {
       ownerSurveyorName: draft.surveyor_name || 'Kỹ sư ca trước',
       ownerSurveyorPhone: draft.surveyor_phone || '',
     } : undefined;
-
-    const photoMappings = rawData._photoMappings || {};
 
     // Chế độ chỉ xem (admin): trả dữ liệu nháp để hiển thị, KHÔNG khóa ca, KHÔNG yêu cầu tiếp quản
     if (options?.viewOnly && !isOwner) {
@@ -688,11 +695,37 @@ export class SurveyService {
     }
 
     const saved = await SurveyRepository.upsertDraft(data);
+
+    // Tính toán lại pendingCount của bản nháp mới lưu
+    let newPendingCount = 0;
+    const countSavedBlobs = (val: unknown) => {
+      if (!val) return;
+      if (typeof val === 'string' && val.startsWith('blob:local://')) {
+        newPendingCount++;
+      } else if (Array.isArray(val)) {
+        val.forEach(countSavedBlobs);
+      } else if (typeof val === 'object') {
+        const obj = val as Record<string, unknown>;
+        for (const [k, v] of Object.entries(obj)) {
+          if (k === '_photoMappings') continue;
+          countSavedBlobs(v);
+        }
+      }
+    };
+    countSavedBlobs(data.surveyData);
+
+    const unsyncedPhotosInfo = newPendingCount > 0 ? {
+      pendingCount: newPendingCount,
+      ownerSurveyorName: saved.surveyor_name || 'Kỹ sư ca trước',
+      ownerSurveyorPhone: saved.surveyor_phone || '',
+    } : null;
+
     return {
       success: true,
       reportId: saved.id,
       syncVersion: saved.sync_version,
       lastSavedAt: saved.updated_at,
+      unsyncedPhotosInfo,
       message: 'Đã đồng bộ bản nháp lên máy chủ thành công',
     };
   }

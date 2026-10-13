@@ -96,7 +96,7 @@ export const StepWizardNav: React.FC<StepWizardNavProps> = ({
 
   return (
     <header
-      className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200/80 shadow-xs"
+      className="sticky top-0 z-40 w-full max-w-full overflow-hidden bg-white/95 backdrop-blur-md border-b border-slate-200/80 shadow-xs"
       style={{
         paddingTop: 'env(safe-area-inset-top, 0px)',
       }}
@@ -139,8 +139,8 @@ export const StepWizardNav: React.FC<StepWizardNavProps> = ({
       </div>
 
       {/* Desktop Step Tabs */}
-      <div className="px-4 pb-2 max-w-7xl mx-auto overflow-x-auto no-scrollbar">
-        <div className="flex items-center gap-1 min-w-[750px]">
+      <div className="px-2.5 sm:px-4 pb-2 w-full max-w-7xl mx-auto overflow-x-auto no-scrollbar" style={{ WebkitOverflowScrolling: 'touch' }}>
+        <div className="flex items-center gap-1 min-w-[750px] shrink-0">
           {stepLabels.map((label, idx) => {
             const stepNum = idx + 1;
             const isPassed = stepNum < currentStep;

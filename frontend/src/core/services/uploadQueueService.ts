@@ -91,7 +91,7 @@ class UploadQueueService {
           onSuccess: async (publicUrl) => {
             await markOfflinePhotoUploaded(item.id, publicUrl);
             revokeManagedBlobUrl(item.id);
-            void this.promoteUrlInStores(item.id, publicUrl);
+            void this.promoteUrlInStores(item.id, publicUrl, item.metadata);
           },
         });
         count++;
@@ -111,7 +111,7 @@ class UploadQueueService {
    * và trong TOÀN BỘ các bản nháp đang lưu trong localStorage & IndexedDB
    * Hỗ trợ đồng bộ tự động 100% cho Phase 1, Condo Unit và Condo Master
    */
-  public async promoteUrlInStores(localId: string, publicUrl: string): Promise<void> {
+  public async promoteUrlInStores(localId: string, publicUrl: string, metadata?: Record<string, string>): Promise<void> {
     // 0. Lưu persistent mapping vào localStorage (Đảm bảo 100% không mất ảnh kể cả sau F5 hoặc đóng app)
     saveUploadedPhotoMapping(localId, publicUrl);
 
@@ -161,6 +161,12 @@ class UploadQueueService {
         masterStore.updateFormData(updated);
       }
     } catch (_err) {}
+
+    // Nếu KSV đang ở ngoài trang chủ / danh sách (chưa mở store), trích xuất parcelId từ metadata ảnh
+    if (!activeParcelId && metadata) {
+      activeParcelId = metadata['survey-parcel-id'] || metadata['building-code'] || null;
+      activeUnitId = metadata['unit-id'] || null;
+    }
 
     // 4. Quét và cập nhật bền vững vào TOÀN BỘ các bản nháp trong localStorage
     // (Bảo vệ trường hợp KSV vừa chụp ảnh ở Căn hộ A xong chuyển sang Căn hộ B hoặc về Hub)
@@ -328,7 +334,7 @@ class UploadQueueService {
         nextTask.key = key;
 
         if (nextTask.id) {
-          void this.promoteUrlInStores(nextTask.id, publicUrl);
+          void this.promoteUrlInStores(nextTask.id, publicUrl, nextTask.metadata);
         }
 
         if (nextTask.onSuccess) {
