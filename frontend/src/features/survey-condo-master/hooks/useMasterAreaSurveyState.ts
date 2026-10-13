@@ -30,6 +30,7 @@ import {
   STRUCTURAL_ELEMENT_TYPES,
   STRUCTURAL_MATERIALS,
 } from '../types/masterAreaSurvey.types';
+import { auditMasterAreaPhotos } from '../utils/masterAreaPhotoAudit';
 import { surveyDraftService, type DraftResponseData } from '../../survey-phase1/services/surveyDraftService';
 import type { LockedInfo } from '../../survey-phase1/components/ActiveSurveyorLockedModal';
 import type { HandoverInfo } from '../../survey-phase1/components/HandoverTakeoverModal';
@@ -1633,56 +1634,18 @@ export function useMasterAreaSurveyState({
     []
   );
 
-  // Thống kê tài nguyên ảnh (Số lượng đã lên Cloud R2 vs Chưa lên)
+  // Thống kê tài nguyên ảnh (Single Source of Truth đồng bộ 100% với Header, Bước 5 & Audit Modal)
   const photoAuditStats = useMemo(() => {
-    let total = 0;
-    let synced = 0;
-    const seen = new Set<string>();
-
-    const check = (url?: string | null) => {
-      if (!url || typeof url !== 'string' || !url.trim()) return;
-      if (seen.has(url)) return;
-      seen.add(url);
-      total++;
-      if (
-        (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('/uploads')) &&
-        !url.startsWith('blob:')
-      ) {
-        synced++;
-      }
-    };
-
-    overviewPhotos.forEach((p) => check(p.url));
-    check(cadSketchPhotoUrl);
-    if (useSeparateStructuralCad) check(cadStructuralSketchPhotoUrl);
-
-    zones.forEach((z) => {
-      check(z.ctxPhotoUrl);
-      (z.overviewPhotos || []).forEach((photoUrl) => check(photoUrl));
-      (z.defects || []).forEach((d) => {
-        check(d.cuPhotoUrl);
-        check(d.macroPhotoUrl);
-        (d.cuPhotos || []).forEach((photoUrl) => check(photoUrl));
-      });
+    return auditMasterAreaPhotos({
+      overviewPhotos,
+      cadSketchPhotoUrl,
+      cadStructuralSketchPhotoUrl,
+      useSeparateStructuralCad,
+      zones,
+      structuralElements,
+      hasStructuralElements,
+      unitCode,
     });
-
-    if (hasStructuralElements) {
-      structuralElements.forEach((e) => {
-        check(e.ctxPhotoUrl);
-        (e.overviewPhotos || []).forEach((photoUrl) => check(photoUrl));
-        (e.defects || []).forEach((d) => {
-          check(d.cuPhotoUrl);
-          check(d.macroPhotoUrl);
-          (d.cuPhotos || []).forEach((photoUrl) => check(photoUrl));
-        });
-      });
-    }
-
-    return {
-      total,
-      synced,
-      unsynced: total - synced,
-    };
   }, [
     overviewPhotos,
     cadSketchPhotoUrl,
@@ -1691,6 +1654,7 @@ export function useMasterAreaSurveyState({
     zones,
     structuralElements,
     hasStructuralElements,
+    unitCode,
   ]);
 
   // =========================================================================
@@ -1944,13 +1908,16 @@ export function useMasterAreaSurveyState({
 
     // 6. Trạng thái đồng bộ Cloud R2
     if (photoAuditStats.unsynced > 0) {
+      const stepNum = photoAuditStats.primaryUnsyncedStep;
+      const stepName =
+        stepNum === 3 ? 'Bước 3: Vùng Z' : stepNum === 4 ? 'Bước 4: Kết cấu E' : 'Bước 2: Ảnh & CAD';
       blockingErrors.push({
         id: 'val_cloud_sync',
-        step: 2,
-        stepTitle: 'Đồng bộ Cloud R2',
+        step: stepNum as 1 | 2 | 3 | 4 | 5,
+        stepTitle: `Đồng bộ Cloud (${stepName})`,
         category: 'SYNC',
         title: `Còn ${photoAuditStats.unsynced} ảnh chưa lên Cloudflare R2`,
-        description: 'Dữ liệu ảnh đang lưu tạm trong máy. Hãy bấm nút Đồng bộ Cloud để lưu an toàn trước khi nộp.',
+        description: `Dữ liệu ảnh đang lưu tạm trong máy (${stepName}). Hãy bấm nút Đồng bộ Cloud để lưu an toàn trước khi nộp.`,
         status: 'ERROR',
         actionLabel: 'Kiểm toán ảnh',
       });

@@ -16,9 +16,10 @@ import {
 import { ImageZoomModal } from '../../../../components/common/ImageZoomModal';
 import { resolveOfflinePhotoUrl, getSafeDisplayUrl } from '../../../../core/storage/offlinePhotoStorage';
 import {
-  type SurveyPhotoAuditItem,
-  retryUploadSinglePhoto,
-} from '../../../survey-phase1/utils/photoSyncAudit';
+  auditMasterAreaPhotos,
+  retryUploadMasterAreaPhoto,
+  type MasterAreaPhotoAuditItem,
+} from '../../utils/masterAreaPhotoAudit';
 import type { EvidencePhotoItem, DamageZoneData, StructuralElementData } from '../../../survey-phase1/types/phase1.types';
 
 interface MasterAreaPhotoAuditModalProps {
@@ -108,174 +109,18 @@ export const MasterAreaPhotoAuditModal: React.FC<MasterAreaPhotoAuditModalProps>
   const [isRetryingAll, setIsRetryingAll] = useState<boolean>(false);
   const [zoomUrl, setZoomUrl] = useState<string | null>(null);
 
-  // Quét toàn bộ ảnh trong hồ sơ khảo sát khu vực
-  const auditItems = useMemo<SurveyPhotoAuditItem[]>(() => {
-    const list: SurveyPhotoAuditItem[] = [];
-
-    const checkAndAdd = (
-      id: string,
-      step: number,
-      stepTitle: string,
-      fieldTitle: string,
-      url: string | undefined | null,
-      photoCode: string | undefined,
-      updateInStore: (newUrl: string) => void
-    ) => {
-      if (!url || typeof url !== 'string' || url.trim() === '') return;
-      const isCloudUrl =
-        (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('/uploads')) &&
-        !url.startsWith('blob:');
-      const isBase64 = url.startsWith('data:image/') && url.length > 200;
-      const isLocalBlob = url.startsWith('blob:local://') || url.startsWith('blob:');
-
-      list.push({
-        id,
-        step,
-        stepTitle,
-        fieldTitle,
-        photoCode,
-        url,
-        isCloudUrl,
-        isBase64,
-        isLocalBlob,
-        isUploading: false,
-        isError: false,
-        updateInStore,
-      });
-    };
-
-    // 1. Ảnh toàn cảnh khu vực (Bước 2)
-    overviewPhotos.forEach((photo, idx) => {
-      checkAndAdd(
-        `overview_${idx}`,
-        2,
-        'Bước 2: Ảnh & CAD',
-        `Ảnh toàn cảnh #${idx + 1}`,
-        photo.url,
-        photo.photoCode,
-        (newUrl) => onUpdateOverviewPhotoUrl(idx, newUrl)
-      );
+  // Quét toàn bộ ảnh trong hồ sơ khảo sát khu vực (Single Source of Truth)
+  const audit = useMemo(() => {
+    return auditMasterAreaPhotos({
+      overviewPhotos,
+      cadSketchPhotoUrl,
+      cadStructuralSketchPhotoUrl,
+      useSeparateStructuralCad,
+      zones,
+      structuralElements,
+      hasStructuralElements,
+      unitCode,
     });
-
-    // 2. CAD khu vực (Bước 2)
-    if (cadSketchPhotoUrl) {
-      checkAndAdd(
-        'cad_sketch',
-        2,
-        'Bước 2: Ảnh & CAD',
-        'Bản vẽ sơ đồ khu vực',
-        cadSketchPhotoUrl,
-        `CAD_${unitCode}`,
-        onUpdateCadSketchUrl
-      );
-    }
-
-    // 3. CAD kết cấu riêng (Bước 2)
-    if (useSeparateStructuralCad && cadStructuralSketchPhotoUrl) {
-      checkAndAdd(
-        'cad_structural',
-        2,
-        'Bước 2: Ảnh & CAD',
-        'Bản vẽ kết cấu riêng',
-        cadStructuralSketchPhotoUrl,
-        `CAD_STR_${unitCode}`,
-        onUpdateCadStructuralSketchUrl
-      );
-    }
-
-    // 4. Vùng Z (Bước 3)
-    zones.forEach((z, zIdx) => {
-      if (Array.isArray(z.overviewPhotos)) {
-        z.overviewPhotos.forEach((zPhoto, zpIdx) => {
-          checkAndAdd(
-            `z_${zIdx}_overview_${zpIdx}`,
-            3,
-            `Bước 3: ${z.zoneCode}`,
-            `Ảnh tổng quan ${z.zoneCode} #${zpIdx + 1}`,
-            zPhoto,
-            `${z.zoneCode}_OVERVIEW_${zpIdx + 1}`,
-            (newUrl) => onUpdateZoneOverviewPhotoUrl(zIdx, zpIdx, newUrl)
-          );
-        });
-      }
-
-      if (Array.isArray(z.defects)) {
-        z.defects.forEach((def, dIdx) => {
-          const dLabel = `D${dIdx + 1} (${z.zoneCode})`;
-          if (def.cuPhotoUrl) {
-            checkAndAdd(
-              `z_${zIdx}_d_${dIdx}_cu`,
-              3,
-              `Bước 3: ${z.zoneCode}`,
-              `Ảnh cận cảnh ${dLabel}`,
-              def.cuPhotoUrl,
-              def.cuPhotoCode || `${z.zoneCode}_D${dIdx + 1}_CU`,
-              (newUrl) => onUpdateZoneDefectPhotoUrl(zIdx, dIdx, 'cuPhotoUrl', newUrl)
-            );
-          }
-          if (def.macroPhotoUrl) {
-            checkAndAdd(
-              `z_${zIdx}_d_${dIdx}_macro`,
-              3,
-              `Bước 3: ${z.zoneCode}`,
-              `Ảnh toàn cảnh ${dLabel}`,
-              def.macroPhotoUrl,
-              `${z.zoneCode}_D${dIdx + 1}_MACRO`,
-              (newUrl) => onUpdateZoneDefectPhotoUrl(zIdx, dIdx, 'macroPhotoUrl', newUrl)
-            );
-          }
-        });
-      }
-    });
-
-    // 5. Cấu kiện E (Bước 4)
-    if (hasStructuralElements) {
-      structuralElements.forEach((e, eIdx) => {
-        if (Array.isArray(e.overviewPhotos)) {
-          e.overviewPhotos.forEach((ePhoto, epIdx) => {
-            checkAndAdd(
-              `e_${eIdx}_overview_${epIdx}`,
-              4,
-              `Bước 4: ${e.elementCode}`,
-              `Ảnh tổng quan ${e.elementCode} #${epIdx + 1}`,
-              ePhoto,
-              `${e.elementCode}_OVERVIEW_${epIdx + 1}`,
-              (newUrl) => onUpdateElementOverviewPhotoUrl(eIdx, epIdx, newUrl)
-            );
-          });
-        }
-
-        if (Array.isArray(e.defects)) {
-          e.defects.forEach((def, dIdx) => {
-            const dLabel = `D${dIdx + 1} (${e.elementCode})`;
-            if (def.cuPhotoUrl) {
-              checkAndAdd(
-                `e_${eIdx}_d_${dIdx}_cu`,
-                4,
-                `Bước 4: ${e.elementCode}`,
-                `Ảnh cận cảnh ${dLabel}`,
-                def.cuPhotoUrl,
-                def.cuPhotoCode || `${e.elementCode}_D${dIdx + 1}_CU`,
-                (newUrl) => onUpdateElementDefectPhotoUrl(eIdx, dIdx, 'cuPhotoUrl', newUrl)
-              );
-            }
-            if (def.macroPhotoUrl) {
-              checkAndAdd(
-                `e_${eIdx}_d_${dIdx}_macro`,
-                4,
-                `Bước 4: ${e.elementCode}`,
-                `Ảnh toàn cảnh ${dLabel}`,
-                def.macroPhotoUrl,
-                `${e.elementCode}_D${dIdx + 1}_MACRO`,
-                (newUrl) => onUpdateElementDefectPhotoUrl(eIdx, dIdx, 'macroPhotoUrl', newUrl)
-              );
-            }
-          });
-        }
-      });
-    }
-
-    return list;
   }, [
     overviewPhotos,
     cadSketchPhotoUrl,
@@ -285,20 +130,14 @@ export const MasterAreaPhotoAuditModal: React.FC<MasterAreaPhotoAuditModalProps>
     structuralElements,
     hasStructuralElements,
     unitCode,
-    onUpdateOverviewPhotoUrl,
-    onUpdateCadSketchUrl,
-    onUpdateCadStructuralSketchUrl,
-    onUpdateZoneOverviewPhotoUrl,
-    onUpdateZoneDefectPhotoUrl,
-    onUpdateElementOverviewPhotoUrl,
-    onUpdateElementDefectPhotoUrl,
   ]);
 
-  const totalCount = auditItems.length;
-  const syncedPhotos = useMemo(() => auditItems.filter((i) => i.isCloudUrl), [auditItems]);
-  const unsyncedPhotos = useMemo(() => auditItems.filter((i) => !i.isCloudUrl), [auditItems]);
-  const syncedCount = syncedPhotos.length;
-  const unsyncedCount = unsyncedPhotos.length;
+  const auditItems = audit.allPhotos;
+  const totalCount = audit.total;
+  const syncedPhotos = audit.syncedPhotos;
+  const unsyncedPhotos = audit.unsyncedPhotos;
+  const syncedCount = audit.synced;
+  const unsyncedCount = audit.unsynced;
 
   const displayedList = useMemo(() => {
     if (activeTab === 'UNSYNCED') return unsyncedPhotos;
@@ -306,23 +145,40 @@ export const MasterAreaPhotoAuditModal: React.FC<MasterAreaPhotoAuditModalProps>
     return auditItems;
   }, [activeTab, unsyncedPhotos, syncedPhotos, auditItems]);
 
+  const applyPromotedUrlToState = (item: MasterAreaPhotoAuditItem, newUrl: string) => {
+    if (item.updateInStore) {
+      item.updateInStore(newUrl);
+    }
+    if (item.fieldKey.startsWith('overviewPhotos[')) {
+      const idx = parseInt(item.fieldKey.replace('overviewPhotos[', '').replace('].url', ''), 10);
+      if (!isNaN(idx)) onUpdateOverviewPhotoUrl(idx, newUrl);
+    } else if (item.fieldKey === 'cadSketchPhotoUrl') {
+      onUpdateCadSketchUrl(newUrl);
+    } else if (item.fieldKey === 'cadStructuralSketchPhotoUrl') {
+      onUpdateCadStructuralSketchUrl(newUrl);
+    }
+  };
+
   // Thử lại tải lên 1 ảnh
   const handleRetrySingle = useCallback(
-    async (item: SurveyPhotoAuditItem) => {
+    async (item: MasterAreaPhotoAuditItem) => {
       try {
         setRetryingId(item.id);
-        const newUrl = await retryUploadSinglePhoto(item, parcelCode);
-        if (newUrl) {
-          item.updateInStore(newUrl);
-        }
+        await retryUploadMasterAreaPhoto(item, parcelCode, unitCode, (newUrl) => {
+          applyPromotedUrlToState(item, newUrl);
+        });
       } catch (err) {
         console.error('[MasterAreaPhotoAuditModal] Lỗi tải lại ảnh:', err);
-        alert('Không thể tải ảnh lên Cloud R2. Vui lòng kiểm tra kết nối mạng!');
+        alert(
+          err instanceof Error
+            ? err.message
+            : 'Không thể tải ảnh lên Cloud R2. Vui lòng kiểm tra kết nối mạng!'
+        );
       } finally {
         setRetryingId(null);
       }
     },
-    [parcelCode]
+    [parcelCode, unitCode]
   );
 
   // Thử lại tải lên toàn bộ ảnh chưa đồng bộ
@@ -332,10 +188,9 @@ export const MasterAreaPhotoAuditModal: React.FC<MasterAreaPhotoAuditModalProps>
       setIsRetryingAll(true);
       for (const item of unsyncedPhotos) {
         try {
-          const newUrl = await retryUploadSinglePhoto(item, parcelCode);
-          if (newUrl) {
-            item.updateInStore(newUrl);
-          }
+          await retryUploadMasterAreaPhoto(item, parcelCode, unitCode, (newUrl) => {
+            applyPromotedUrlToState(item, newUrl);
+          });
         } catch (subErr) {
           console.warn(`[MasterAreaPhotoAuditModal] Thất bại tải ảnh ${item.id}:`, subErr);
         }
