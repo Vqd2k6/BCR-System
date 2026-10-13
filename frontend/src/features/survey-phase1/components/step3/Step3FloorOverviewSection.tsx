@@ -5,6 +5,7 @@ import { TapToZoomThumbnail } from '../../../../components/common/TapToZoomThumb
 import { Camera, Trash2, AlertCircle, CheckCircle2, FileText } from 'lucide-react';
 import type { FloorSurveyData } from '../../types/phase1.types';
 import { isLocalBlobUri } from '../../../../core/storage/offlinePhotoStorage';
+import type { PhotoChangeMeta } from '../../../../components/common/photo-capture/types';
 
 interface Step3FloorOverviewSectionProps {
   currentFloor: FloorSurveyData;
@@ -21,7 +22,7 @@ export const Step3FloorOverviewSection: React.FC<Step3FloorOverviewSectionProps>
 }) => {
   const lastTempPhotoIdRef = useRef<string | null>(null);
   const rawPhotos = currentFloor.overviewPhotos || [];
-  const photos = rawPhotos.map((p: string | { id?: string; url?: string; caption?: string; photoCode?: string }, idx: number) => {
+  const normalizedPhotos = rawPhotos.map((p: string | { id?: string; url?: string; caption?: string; photoCode?: string }, idx: number) => {
     if (typeof p === 'string') {
       return { id: `fl_ov_${idx}`, url: p, caption: '', photoCode: '' };
     }
@@ -33,31 +34,76 @@ export const Step3FloorOverviewSection: React.FC<Step3FloorOverviewSectionProps>
     };
   });
 
-  const handleAddPhoto = (url: string, code?: string) => {
+  // Tự động lọc trùng (self-heal) theo URL hoặc photoCode để xử lý triệt để bản nháp cũ
+  const seenUrls = new Set<string>();
+  const seenCodes = new Set<string>();
+  const photos = normalizedPhotos.filter((p) => {
+    if (p.url && seenUrls.has(p.url)) return false;
+    if (p.url) seenUrls.add(p.url);
+    if (p.photoCode && seenCodes.has(p.photoCode)) return false;
+    if (p.photoCode) seenCodes.add(p.photoCode);
+    return true;
+  });
+
+  const handleAddPhoto = (url: string, code?: string, meta?: PhotoChangeMeta) => {
     if (!url) return;
+
+    // 1. Chặn tuyệt đối nếu URL này đã tồn tại trong mảng (kể cả đã qua metro2:photo-promoted)
+    if (photos.some((p) => p.url === url)) {
+      return;
+    }
+
+    // 2. Thăng cấp từ ảnh tạm offline blob:local:// sang Cloudflare R2 qua replacesUri
+    const replacesUri = meta?.replacesUri;
+    if (replacesUri) {
+      const foundIdx = photos.findIndex((p) => p.url === replacesUri);
+      if (foundIdx >= 0) {
+        const updated = [...photos];
+        updated[foundIdx] = {
+          ...updated[foundIdx],
+          url,
+          photoCode: code || updated[foundIdx].photoCode,
+        };
+        lastTempPhotoIdRef.current = null;
+        onUpdateOverviewPhotos(updated);
+        return;
+      }
+    }
+
+    // 3. Fallback theo ID tạm thời (nếu có)
     const prevTempId = lastTempPhotoIdRef.current;
     if (prevTempId && photos.some((p) => p.id === prevTempId)) {
-      // Thay thế ảnh tạm blob:local:// bằng URL Cloudflare R2 chính thức
       const updated = photos.map((p) =>
         p.id === prevTempId ? { ...p, url, photoCode: code || p.photoCode } : p
       );
-      if (!isLocalBlobUri(url)) {
-        lastTempPhotoIdRef.current = null;
-      }
+      lastTempPhotoIdRef.current = null;
       onUpdateOverviewPhotos(updated);
-    } else {
-      const newId = `fl_ov_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
-      if (isLocalBlobUri(url)) {
-        lastTempPhotoIdRef.current = newId;
-      }
-      const newPhoto = {
-        id: newId,
-        url,
-        caption: '',
-        photoCode: code || '',
-      };
-      onUpdateOverviewPhotos([...photos, newPhoto]);
+      return;
     }
+
+    // 4. Kiểm tra photoCode: nếu trùng photoCode thì cập nhật URL thay vì tạo card mới
+    if (code) {
+      const codeIdx = photos.findIndex((p) => p.photoCode === code);
+      if (codeIdx >= 0) {
+        const updated = [...photos];
+        updated[codeIdx] = { ...updated[codeIdx], url };
+        onUpdateOverviewPhotos(updated);
+        return;
+      }
+    }
+
+    // 5. Thêm mới ảnh hợp lệ
+    const newId = `fl_ov_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
+    if (isLocalBlobUri(url)) {
+      lastTempPhotoIdRef.current = newId;
+    }
+    const newPhoto = {
+      id: newId,
+      url,
+      caption: '',
+      photoCode: code || '',
+    };
+    onUpdateOverviewPhotos([...photos, newPhoto]);
   };
 
   const handleRemovePhoto = (photoId: string) => {
@@ -153,7 +199,7 @@ export const Step3FloorOverviewSection: React.FC<Step3FloorOverviewSectionProps>
           <PhotoCaptureInput
             label={photos.length === 0 ? 'Chụp ảnh tổng quan tầng *' : 'Chụp thêm ảnh tổng quan'}
             value=""
-            onChange={handleAddPhoto}
+            onChange={(newUrl, pCode, meta) => handleAddPhoto(newUrl, pCode, meta)}
             watermarkOptions={{
               parcelCode: projectParcelCode,
               floor: currentFloor.floorName,

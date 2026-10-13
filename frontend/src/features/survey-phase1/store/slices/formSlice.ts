@@ -9,6 +9,7 @@ import { calculateParcelMetroSpatialMetrics } from '../../utils/metroSpatialCalc
 import { saveSurveyDraft, loadSurveyDraft, deleteSurveyDraft } from '../../../../core/utils/idbDraftStorage';
 import { healLocalPhotoUris, saveUploadedPhotoMapping } from '../../../../core/storage/offlinePhotoStorage';
 import { surveyDraftService } from '../../services/surveyDraftService';
+import { dedupePhase1FormData } from '../../utils/dedupePhase1Photos';
 
 export const createFormSlice: StateCreator<
   Phase1SurveyStore,
@@ -169,7 +170,7 @@ export const createFormSlice: StateCreator<
           if (fullDraft && fullDraft.parcelId === parcel.id) {
             const targetStep = fullDraft._savedStep !== undefined && fullDraft._savedStep >= 1 && fullDraft._savedStep <= 8 ? fullDraft._savedStep : undefined;
             set((state) => {
-              const merged = healLocalPhotoUris({ ...state.formData, ...fullDraft });
+              const merged = dedupePhase1FormData(healLocalPhotoUris({ ...state.formData, ...fullDraft }));
               if (!merged.photoP01?.url && state.formData.photoP01?.url) merged.photoP01 = state.formData.photoP01;
               if (!merged.photoP02?.url && state.formData.photoP02?.url) merged.photoP02 = state.formData.photoP02;
               if (!merged.photoP03?.url && state.formData.photoP03?.url) merged.photoP03 = state.formData.photoP03;
@@ -245,7 +246,7 @@ export const createFormSlice: StateCreator<
                 : undefined;
 
             set((state) => {
-              const merged = healLocalPhotoUris({ ...state.formData, ...serverData });
+              const merged = dedupePhase1FormData(healLocalPhotoUris({ ...state.formData, ...serverData }));
               if (!merged.photoP01?.url && state.formData.photoP01?.url) merged.photoP01 = state.formData.photoP01;
               if (!merged.photoP02?.url && state.formData.photoP02?.url) merged.photoP02 = state.formData.photoP02;
               if (!merged.photoP03?.url && state.formData.photoP03?.url) merged.photoP03 = state.formData.photoP03;
@@ -324,7 +325,7 @@ export const createFormSlice: StateCreator<
         mergedPayload.photoP04 = state.formData.photoP04;
       }
 
-      const newFormData = { ...state.formData, ...mergedPayload };
+      const newFormData = dedupePhase1FormData({ ...state.formData, ...mergedPayload });
       const ecs = calculateEcsScore(newFormData);
       const vi = calculateViScore(newFormData, ecs);
       newFormData.ecs = ecs;

@@ -577,16 +577,48 @@ export function auditSurveyPhotos(
   }
 
   // ==========================================
-  // BƯỚC 5: BIẾN DẠNG, LÚN LỆCH, NGHIÊNG
   // ==========================================
-  const s5Title = 'Bước 5: Biến dạng nứt lún';
+  // BƯỚC 1 (MỤC KHẢO SÁT LÚN LỆCH & NGHIÊNG CÔNG TRÌNH)
+  // ==========================================
+  const s1SettleTitle = 'Bước 1: Tiếp cận & Nhận diện (Lún lệch / Nghiêng)';
 
-  // Lún lệch
-  if (formData.settlementTilt?.diffSettlement?.photoUrl) {
+  // Lún lệch - Quét toàn bộ mảng ảnh minh chứng
+  if (Array.isArray(formData.settlementTilt?.diffSettlement?.photos) && formData.settlementTilt.diffSettlement.photos.length > 0) {
+    formData.settlementTilt.diffSettlement.photos.forEach((item, idx) => {
+      if (item && item.url) {
+        checkAndAdd(
+          `settlement_diff_${idx}`,
+          1,
+          s1SettleTitle,
+          `Ảnh bằng chứng lún lệch #${idx + 1}`,
+          item.url,
+          item.photoCode,
+          (newUrl) =>
+            updateFormData((prev) => {
+              const currentPhotos = [...(prev.settlementTilt?.diffSettlement?.photos || [])];
+              if (currentPhotos[idx]) {
+                currentPhotos[idx] = { ...currentPhotos[idx], url: newUrl };
+              }
+              return {
+                ...prev,
+                settlementTilt: {
+                  ...prev.settlementTilt,
+                  diffSettlement: {
+                    ...prev.settlementTilt?.diffSettlement,
+                    photos: currentPhotos,
+                    photoUrl: idx === 0 ? newUrl : (prev.settlementTilt?.diffSettlement?.photoUrl || newUrl),
+                  },
+                },
+              };
+            })
+        );
+      }
+    });
+  } else if (formData.settlementTilt?.diffSettlement?.photoUrl) {
     checkAndAdd(
       'settlement_diff',
-      5,
-      s5Title,
+      1,
+      s1SettleTitle,
       'Ảnh bằng chứng lún lệch',
       formData.settlementTilt.diffSettlement.photoUrl,
       formData.settlementTilt.diffSettlement.photoCode,
@@ -596,7 +628,7 @@ export function auditSurveyPhotos(
           settlementTilt: {
             ...prev.settlementTilt,
             diffSettlement: {
-              ...prev.settlementTilt.diffSettlement,
+              ...prev.settlementTilt?.diffSettlement,
               photoUrl: newUrl,
             },
           },
@@ -604,12 +636,43 @@ export function auditSurveyPhotos(
     );
   }
 
-  // Nghiêng công trình
-  if (formData.settlementTilt?.buildingTilt?.photoUrl) {
+  // Nghiêng công trình - Quét toàn bộ mảng ảnh minh chứng
+  if (Array.isArray(formData.settlementTilt?.buildingTilt?.photos) && formData.settlementTilt.buildingTilt.photos.length > 0) {
+    formData.settlementTilt.buildingTilt.photos.forEach((item, idx) => {
+      if (item && item.url) {
+        checkAndAdd(
+          `settlement_tilt_${idx}`,
+          1,
+          s1SettleTitle,
+          `Ảnh bằng chứng độ nghiêng #${idx + 1}`,
+          item.url,
+          item.photoCode,
+          (newUrl) =>
+            updateFormData((prev) => {
+              const currentPhotos = [...(prev.settlementTilt?.buildingTilt?.photos || [])];
+              if (currentPhotos[idx]) {
+                currentPhotos[idx] = { ...currentPhotos[idx], url: newUrl };
+              }
+              return {
+                ...prev,
+                settlementTilt: {
+                  ...prev.settlementTilt,
+                  buildingTilt: {
+                    ...prev.settlementTilt?.buildingTilt,
+                    photos: currentPhotos,
+                    photoUrl: idx === 0 ? newUrl : (prev.settlementTilt?.buildingTilt?.photoUrl || newUrl),
+                  },
+                },
+              };
+            })
+        );
+      }
+    });
+  } else if (formData.settlementTilt?.buildingTilt?.photoUrl) {
     checkAndAdd(
       'settlement_tilt',
-      5,
-      s5Title,
+      1,
+      s1SettleTitle,
       'Ảnh bằng chứng độ nghiêng công trình',
       formData.settlementTilt.buildingTilt.photoUrl,
       formData.settlementTilt.buildingTilt.photoCode,
@@ -619,7 +682,84 @@ export function auditSurveyPhotos(
           settlementTilt: {
             ...prev.settlementTilt,
             buildingTilt: {
-              ...prev.settlementTilt.buildingTilt,
+              ...prev.settlementTilt?.buildingTilt,
+              photoUrl: newUrl,
+            },
+          },
+        }))
+    );
+  }
+
+  // Độ võng kết cấu dầm / sàn (beamSagging)
+  if (formData.settlementTilt?.beamSagging?.photoUrl) {
+    checkAndAdd(
+      'settlement_beam_sagging',
+      1,
+      s1SettleTitle,
+      'Ảnh bằng chứng độ võng dầm / sàn',
+      formData.settlementTilt.beamSagging.photoUrl,
+      formData.settlementTilt.beamSagging.photoCode,
+      (newUrl) =>
+        updateFormData((prev) => ({
+          ...prev,
+          settlementTilt: {
+            ...prev.settlementTilt,
+            beamSagging: {
+              ...prev.settlementTilt?.beamSagging,
+              photoUrl: newUrl,
+            },
+          },
+        }))
+    );
+  }
+
+  // Hiện tượng bất thường khác (abnormalCase)
+  if (Array.isArray(formData.settlementTilt?.abnormalCase?.photos) && formData.settlementTilt.abnormalCase.photos.length > 0) {
+    formData.settlementTilt.abnormalCase.photos.forEach((item, idx) => {
+      if (item && item.url) {
+        checkAndAdd(
+          `settlement_abnormal_${idx}`,
+          1,
+          s1SettleTitle,
+          `Ảnh hiện tượng bất thường #${idx + 1}`,
+          item.url,
+          item.photoCode,
+          (newUrl) =>
+            updateFormData((prev) => {
+              const currentPhotos = [...(prev.settlementTilt?.abnormalCase?.photos || [])];
+              if (currentPhotos[idx]) {
+                currentPhotos[idx] = { ...currentPhotos[idx], url: newUrl };
+              }
+              return {
+                ...prev,
+                settlementTilt: {
+                  ...prev.settlementTilt,
+                  abnormalCase: {
+                    ...prev.settlementTilt?.abnormalCase,
+                    photos: currentPhotos,
+                    photoUrl: idx === 0 ? newUrl : (prev.settlementTilt?.abnormalCase?.photoUrl || newUrl),
+                  },
+                },
+              };
+            })
+        );
+      }
+    });
+  } else if (formData.settlementTilt?.abnormalCase?.photoUrl) {
+    checkAndAdd(
+      'settlement_abnormal',
+      1,
+      s1SettleTitle,
+      'Ảnh hiện tượng bất thường',
+      formData.settlementTilt.abnormalCase.photoUrl,
+      formData.settlementTilt.abnormalCase.photoCode,
+      (newUrl) =>
+        updateFormData((prev) => ({
+          ...prev,
+          settlementTilt: {
+            ...prev.settlementTilt,
+            abnormalCase: {
+              ...prev.settlementTilt?.abnormalCase,
               photoUrl: newUrl,
             },
           },
@@ -694,6 +834,45 @@ export function auditSurveyPhotos(
         }))
     );
   }
+
+  // ==========================================
+  // LƯỚI AN TOÀN TỰ ĐỘNG (DEEP SAFETY NET SCANNER)
+  // Quét đệ quy toàn bộ formData tìm bất kỳ ảnh blob:local:// hoặc Base64 nào
+  // còn sót chưa được đưa vào danh sách kiểm toán, bảo đảm 100% không ảnh nào bị bỏ quên.
+  // ==========================================
+  const addedUrls = new Set(allPhotos.map((p) => p.url));
+
+  const scanUnsyncedFallback = (target: unknown, path: string = ''): void => {
+    if (!target) return;
+    if (typeof target === 'string') {
+      const isLocalBlob = target.startsWith('blob:local://') || (target.startsWith('blob:') && !target.startsWith('blob:http'));
+      const isBase64 = target.startsWith('data:image/') && target.length > 200;
+      if ((isLocalBlob || isBase64) && !addedUrls.has(target)) {
+        addedUrls.add(target);
+        checkAndAdd(
+          `fallback_unsynced_${path || 'photo'}`,
+          1,
+          'Khảo sát hiện trường (Mục mở rộng)',
+          `Ảnh chưa đồng bộ [${path || 'Mục mở rộng'}]`,
+          target,
+          undefined,
+          (_newUrl) => {
+            updateFormData((prev) => healLocalPhotoUris(prev));
+          }
+        );
+      }
+    } else if (Array.isArray(target)) {
+      target.forEach((item, idx) => scanUnsyncedFallback(item, `${path}[${idx}]`));
+    } else if (typeof target === 'object') {
+      const obj = target as Record<string, unknown>;
+      for (const key of Object.keys(obj)) {
+        if (key === '_photoMappings' || key === 'polygonPoints' || key === 'floorSplits') continue;
+        scanUnsyncedFallback(obj[key], path ? `${path}.${key}` : key);
+      }
+    }
+  };
+
+  scanUnsyncedFallback(formData);
 
   const unsyncedPhotos = allPhotos.filter((p) => !p.isCloudUrl);
   const syncedPhotos = allPhotos.filter((p) => p.isCloudUrl);

@@ -850,7 +850,7 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
   }
 
   return (
-    <div className="min-h-screen bg-slate-50/50 flex flex-col">
+    <div className="min-h-screen w-full max-w-full overflow-x-hidden bg-slate-50/50 flex flex-col">
       {/* Read-Only Mode Banner */}
       <SurveyReviewBanner
         readOnly={effectiveReadOnly}
@@ -865,14 +865,14 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
       />
 
       {/* Cảnh Báo Bàn Giao Ca: Còn ảnh chưa được tải lên từ thiết bị trước */}
-      {unsyncedRemotePhotos && unsyncedRemotePhotos.pendingCount > 0 && !effectiveReadOnly && (
+      {unsyncedRemotePhotos && unsyncedRemotePhotos.pendingCount > 0 && photoAudit.unsyncedPhotosCount > 0 && !effectiveReadOnly && (
         <div className="bg-amber-500/10 border-b border-amber-500/30 text-amber-900 px-4 py-3 sticky top-0 z-30 shadow-xs animate-in fade-in">
           <div className="max-w-7xl mx-auto flex items-center justify-between gap-3 text-xs sm:text-sm">
             <div className="flex items-center gap-2.5">
               <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
               <div>
                 <span className="font-bold">⚠️ CẢNH BÁO BÀN GIAO CA LIÊN THIẾT BỊ: </span>
-                Hồ sơ có <strong className="text-amber-700 underline font-black">{unsyncedRemotePhotos.pendingCount} ảnh</strong> được chụp từ thiết bị của <strong>{unsyncedRemotePhotos.ownerSurveyorName}</strong> chưa được tải lên Cloud. Vui lòng nhắc KSV mở thiết bị đó kết nối mạng để tải ảnh lên trước khi nộp hồ sơ.
+                Hồ sơ có <strong className="text-amber-700 underline font-black">{Math.min(unsyncedRemotePhotos.pendingCount, photoAudit.unsyncedPhotosCount)} ảnh</strong> được chụp từ thiết bị của <strong>{unsyncedRemotePhotos.ownerSurveyorName}</strong> chưa được tải lên Cloud. Vui lòng nhắc KSV mở thiết bị đó kết nối mạng để tải ảnh lên trước khi nộp hồ sơ.
               </div>
             </div>
             <button

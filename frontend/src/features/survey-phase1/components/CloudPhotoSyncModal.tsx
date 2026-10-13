@@ -111,6 +111,7 @@ export const CloudPhotoSyncModal: React.FC<CloudPhotoSyncModalProps> = ({
   onProceedSubmitAnyway,
 }) => {
   const storageInfo = useStorageInfo();
+  const unsyncedRemotePhotos = usePhase1SurveyStore((state) => state.unsyncedRemotePhotos);
   const [activeTab, setActiveTab] = useState<'UNSYNCED' | 'SYNCED' | 'ALL'>('UNSYNCED');
   const [retryingId, setRetryingId] = useState<string | null>(null);
   const [isRetryingAll, setIsRetryingAll] = useState(false);
@@ -275,6 +276,19 @@ export const CloudPhotoSyncModal: React.FC<CloudPhotoSyncModalProps> = ({
             />
           </div>
 
+          {/* Cảnh báo ảnh của KSV trước chưa lên Cloud */}
+          {unsyncedRemotePhotos && unsyncedRemotePhotos.pendingCount > 0 && unsyncedCount > 0 && (
+            <div className="p-3 bg-amber-500/10 border border-amber-300 rounded-xl flex items-start gap-2.5 text-amber-900 text-xs mt-2">
+              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <div className="leading-relaxed">
+                <p className="font-bold text-amber-950">ẢNH CHỤP TỪ THIẾT BỊ CỦA {unsyncedRemotePhotos.ownerSurveyorName?.toUpperCase() || 'KSV TRƯỚC'} CHƯA LÊN CLOUD</p>
+                <p className="mt-0.5 text-amber-900">
+                  Hồ sơ có <strong>{unsyncedRemotePhotos.pendingCount} ảnh</strong> được chụp từ thiết bị trước và đang lưu tạm trong bộ nhớ máy đó. Để tránh mất dữ liệu, vui lòng nhắc KSV mở ứng dụng trên thiết bị đó khi có mạng (WiFi/4G) để ảnh tự động đồng bộ lên Cloud. Nếu cần xem xét hoặc chụp lại, bấm <strong>"Tới Bước X"</strong> của từng ảnh bên dưới.
+                </p>
+              </div>
+            </div>
+          )}
+
           {isFromSubmitAttempt && unsyncedCount > 0 && (
             <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2.5 text-amber-800 text-xs mt-2">
               <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
@@ -398,14 +412,16 @@ export const CloudPhotoSyncModal: React.FC<CloudPhotoSyncModalProps> = ({
                       <div className="flex items-center gap-1.5 mt-1">
                         {isMissingCloud ? (
                           <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-700">
-                            <AlertCircle size={12} className="text-amber-600" />
+                            <AlertCircle size={12} className="text-amber-600 shrink-0" />
                             {item.isBase64
                               ? `Chưa đồng bộ (Lưu tạm Base64 trên máy)`
+                              : unsyncedRemotePhotos && unsyncedRemotePhotos.pendingCount > 0
+                              ? `Chưa lên Cloud (Lưu trên máy của ${unsyncedRemotePhotos.ownerSurveyorName})`
                               : `Chưa đồng bộ (Lưu tạm Offline trên thiết bị)`}
                           </span>
                         ) : (
                           <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700">
-                            <ShieldCheck size={12} className="text-emerald-600" />
+                            <ShieldCheck size={12} className="text-emerald-600 shrink-0" />
                             {storageInfo.syncedText}
                           </span>
                         )}
@@ -419,11 +435,11 @@ export const CloudPhotoSyncModal: React.FC<CloudPhotoSyncModalProps> = ({
                     <button
                       type="button"
                       onClick={() => handleGoToStep(item.step)}
-                      className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors"
-                      title={`Chuyển tới ${item.stepTitle}`}
+                      className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors cursor-pointer"
+                      title={`Chuyển tới ${item.stepTitle} để xem xét và xử lý trực tiếp`}
                     >
                       <span>Tới Bước {item.step}</span>
-                      <ArrowRight size={12} />
+                      <ArrowRight size={13} />
                     </button>
 
                     {/* Nút Thử tải lại ảnh */}

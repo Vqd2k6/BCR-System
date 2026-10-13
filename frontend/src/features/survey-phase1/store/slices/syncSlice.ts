@@ -6,6 +6,7 @@ import { sanitizeSurveyDataForSync } from '../../../../core/services/uploadQueue
 import { calculateEcsScore } from '../../engine/ecsCalculator';
 import { calculateViScore } from '../../engine/viCalculator';
 import { saveSurveyDraft } from '../../../../core/utils/idbDraftStorage';
+import { dedupePhase1FormData } from '../../utils/dedupePhase1Photos';
 
 export const createSyncSlice: StateCreator<
   Phase1SurveyStore,
@@ -53,6 +54,7 @@ export const createSyncSlice: StateCreator<
         syncVersion: res.syncVersion || syncVersion + 1,
         lastSyncedAt: new Date().toLocaleTimeString('vi-VN'),
         isDirty: false,
+        unsyncedRemotePhotos: res.unsyncedPhotosInfo ?? null,
       });
     } catch (err: unknown) {
       const is404 = isNotFoundError(err);
@@ -96,7 +98,7 @@ export const createSyncSlice: StateCreator<
         const targetStep = res.draft.currentStep >= 1 && res.draft.currentStep <= 8 ? res.draft.currentStep : 1;
 
         set((state) => {
-          const merged = { ...state.formData, ...serverData };
+          const merged = dedupePhase1FormData({ ...state.formData, ...serverData });
           const recalculatedEcs = calculateEcsScore(merged);
           const recalculatedVi = calculateViScore(merged, recalculatedEcs);
           merged.ecs = recalculatedEcs;
