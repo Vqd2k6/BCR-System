@@ -1,7 +1,6 @@
-import type { PhotoReplaceParams } from '../../AuditPhotoReplaceModal';
-import type { PolygonPoint } from '../../../../../survey-phase1/types/phase1.types';
 import React, { useMemo } from 'react';
-import { Camera, Maximize2, MapPin, AlertCircle, Compass, ShieldAlert, Building, Navigation, ShieldCheck } from 'lucide-react';
+import type { PolygonPoint } from '../../../../../survey-phase1/types/phase1.types';
+import { Camera, Maximize2, MapPin, AlertCircle, Compass, ShieldAlert, Building, Navigation, ShieldCheck, RefreshCw, Plus, Trash2 } from 'lucide-react';
 import { Badge } from '../../../../../../core/components/ui/Badge';
 import { OBJECT_GROUPS, ADJACENT_LEFT_RIGHT, ADJACENT_REAR } from '../../../../../survey-phase1/components/step1/step1.constants';
 import { USAGE_OPTIONS } from '../../../../../survey-phase1/constants/surveyOptionsConstants';
@@ -40,6 +39,7 @@ interface DynamicPhotoItem {
   floorSplits?: unknown;
   tag?: string;
   isExtra?: boolean;
+  extraIndex?: number;
 }
 
 const toPhotoObj = (raw: unknown): IdentificationPhotoItemExtended => {
@@ -68,9 +68,32 @@ export const AuditStep1Identification: React.FC<Props> = ({
   data,
   handleFieldChange,
   handleNestedFieldChange,
+  isFieldDirty,
   onOpenPhotoZoom,
   onOpenPhotoReplace,
+  onOpenPhotoAction,
 }) => {
+  const checkDirty = (fieldKey: string, subKey?: string) => {
+    return isFieldDirty ? isFieldDirty(fieldKey, subKey) : false;
+  };
+
+  const getDirtyClass = (fieldKey: string, subKey?: string) => {
+    return checkDirty(fieldKey, subKey)
+      ? 'ring-2 ring-amber-400 border-amber-500 bg-amber-50/20'
+      : '';
+  };
+
+  const renderDirtyBadge = (fieldKey: string, subKey?: string) => {
+    if (checkDirty(fieldKey, subKey)) {
+      return (
+        <span className="ml-1.5 px-1 py-0.2 rounded text-[9px] font-bold text-amber-700 bg-amber-100 border border-amber-300 inline-block">
+          Đã sửa
+        </span>
+      );
+    }
+    return null;
+  };
+
   const sJson = data?.surveyJson || data?.survey_data_json || {};
   const rightPane = data?.rightPane || {};
   const identificationPhotos = rightPane.identificationPhotos || sJson.identificationPhotos || {};
@@ -136,6 +159,7 @@ export const AuditStep1Identification: React.FC<Props> = ({
         tag: extra.tag || `Bổ sung ${idx + 1}`,
         notApplicable: false,
         isExtra: true,
+        extraIndex: idx,
       };
     }),
     {
@@ -352,22 +376,57 @@ export const AuditStep1Identification: React.FC<Props> = ({
                     <span className="text-[11px] font-semibold text-slate-700 truncate" title={item.label}>
                       {item.label}
                     </span>
-                    {isEditMode && !item.isExtra && (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          onOpenPhotoReplace({
-                            targetPhotoType: 'IDENTIFICATION_P',
-                            targetPhotoId: item.key,
-                            currentPhotoUrl: url,
-                            photoTitle: `Ảnh định danh ${item.code} - ${item.label}`,
-                          })
-                        }
-                        className="text-[10px] font-bold text-sky-600 hover:text-sky-800 bg-sky-50 px-1.5 py-0.5 rounded transition-colors cursor-pointer"
-                        title="Thay thế ảnh này"
-                      >
-                        Đổi ảnh
-                      </button>
+                    {isEditMode && (
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (onOpenPhotoAction) {
+                              onOpenPhotoAction({
+                                initialMode: 'REPLACE',
+                                category: 'IDENTIFICATION',
+                                targetPhotoType: item.code.replace('-', ''),
+                                targetPhotoId: item.isExtra ? 'identificationPhotos.photoP03.additionalPhotos' : item.key,
+                                photoIndex: item.isExtra ? item.extraIndex : undefined,
+                                currentPhotoUrl: url,
+                                photoTitle: `Ảnh định danh ${item.code} - ${item.label}`,
+                              });
+                            } else if (onOpenPhotoReplace) {
+                              onOpenPhotoReplace({
+                                targetPhotoType: 'IDENTIFICATION_P',
+                                targetPhotoId: item.isExtra ? 'identificationPhotos.photoP03.additionalPhotos' : item.key,
+                                photoIndex: item.isExtra ? item.extraIndex : undefined,
+                                currentPhotoUrl: url,
+                                photoTitle: `Ảnh định danh ${item.code} - ${item.label}`,
+                              });
+                            }
+                          }}
+                          className="text-[10px] font-bold text-sky-600 hover:text-sky-800 bg-sky-50 px-1.5 py-0.5 rounded transition-colors cursor-pointer"
+                          title="Thay thế ảnh này chuẩn M2"
+                        >
+                          Đổi ảnh
+                        </button>
+                        {onOpenPhotoAction && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              onOpenPhotoAction({
+                                initialMode: 'DELETE',
+                                category: 'IDENTIFICATION',
+                                targetPhotoType: item.code.replace('-', ''),
+                                targetPhotoId: item.isExtra ? 'identificationPhotos.photoP03.additionalPhotos' : item.key,
+                                photoIndex: item.isExtra ? item.extraIndex : undefined,
+                                currentPhotoUrl: url,
+                                photoTitle: `Ảnh định danh ${item.code} - ${item.label}`,
+                              })
+                            }
+                            className="text-[10px] font-bold text-rose-600 hover:text-rose-800 bg-rose-50 px-1.5 py-0.5 rounded transition-colors cursor-pointer"
+                            title="Xóa ảnh hoặc đánh dấu Không Áp Dụng (N/A)"
+                          >
+                            Xóa / N/A
+                          </button>
+                        )}
+                      </div>
                     )}
                   </div>
                 </div>
@@ -379,9 +438,29 @@ export const AuditStep1Identification: React.FC<Props> = ({
         {/* Khối Ảnh & Thông Tin Đặc Thù: Đất Trống / Công Trình Đang Xây Dựng / Căn Hộ */}
         {caseType === 'VACANT_LAND' && (
           <div className="p-4 rounded-xl bg-amber-50/70 border border-amber-200 space-y-2.5">
-            <span className="text-xs font-black uppercase text-amber-900 block">
-              Hiện Trạng Đất Trống ({vacantLandPhotos.length} ảnh hiện trường)
-            </span>
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-black uppercase text-amber-900 block">
+                Hiện Trạng Đất Trống ({vacantLandPhotos.length} ảnh hiện trường)
+              </span>
+              {isEditMode && onOpenPhotoAction && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    onOpenPhotoAction({
+                      initialMode: 'ADD',
+                      category: 'OVERVIEW',
+                      targetPhotoType: 'VACANT_LAND',
+                      targetPhotoId: 'vacantLandPhotos',
+                      photoTitle: 'Bổ sung ảnh đất trống',
+                    })
+                  }
+                  className="px-2 py-0.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-[10px] flex items-center gap-1 transition-colors cursor-pointer shadow-xs"
+                >
+                  <Plus className="w-3 h-3" />
+                  <span>+ Thêm Ảnh Đất Trống</span>
+                </button>
+              )}
+            </div>
             {isEditMode ? (
               <div>
                 <label className="text-[11px] font-bold text-amber-800 block mb-1">Ghi chú hiện trạng đất trống:</label>
@@ -405,10 +484,65 @@ export const AuditStep1Identification: React.FC<Props> = ({
                   return (
                     <div
                       key={idx}
+                      className="group relative rounded-lg overflow-hidden border border-amber-200 aspect-4/3 cursor-pointer hover:shadow-md transition-shadow"
                       onClick={() => onOpenPhotoZoom(vUrl, `Ảnh đất trống ${idx + 1}`)}
-                      className="rounded-lg overflow-hidden border border-amber-200 aspect-4/3 cursor-pointer hover:shadow-md transition-shadow"
                     >
                       <img src={vUrl} alt={`Đất trống ${idx + 1}`} className="w-full h-full object-cover" />
+                      {isEditMode && (
+                        <div className="absolute top-1 right-1 z-10 flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (onOpenPhotoAction) {
+                                onOpenPhotoAction({
+                                  initialMode: 'REPLACE',
+                                  category: 'OVERVIEW',
+                                  targetPhotoType: 'VACANT_LAND',
+                                  targetPhotoId: 'vacantLandPhotos',
+                                  photoIndex: idx,
+                                  currentPhotoUrl: vUrl,
+                                  photoTitle: `Ảnh đất trống #${idx + 1}`,
+                                });
+                              } else if (onOpenPhotoReplace) {
+                                onOpenPhotoReplace({
+                                  targetPhotoType: 'VACANT_LAND',
+                                  targetPhotoId: 'vacantLandPhotos',
+                                  photoIndex: idx,
+                                  currentPhotoUrl: vUrl,
+                                  photoTitle: `Ảnh đất trống #${idx + 1}`,
+                                });
+                              }
+                            }}
+                            className="px-1.5 py-0.5 rounded bg-amber-600/90 hover:bg-amber-700 text-white font-bold text-[9px] flex items-center gap-0.5 shadow-sm"
+                            title="Thay thế ảnh này"
+                          >
+                            <RefreshCw className="w-2.5 h-2.5" />
+                            <span>Đổi ảnh</span>
+                          </button>
+                          {onOpenPhotoAction && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onOpenPhotoAction({
+                                  initialMode: 'DELETE',
+                                  category: 'OVERVIEW',
+                                  targetPhotoType: 'VACANT_LAND',
+                                  targetPhotoId: 'vacantLandPhotos',
+                                  photoIndex: idx,
+                                  currentPhotoUrl: vUrl,
+                                  photoTitle: `Ảnh đất trống #${idx + 1}`,
+                                });
+                              }}
+                              className="p-1 rounded bg-rose-600/90 hover:bg-rose-700 text-white text-[9px] shadow-sm"
+                              title="Xóa ảnh này"
+                            >
+                              <Trash2 className="w-2.5 h-2.5" />
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -419,9 +553,29 @@ export const AuditStep1Identification: React.FC<Props> = ({
 
         {caseType === 'UNDER_CONSTRUCTION' && (
           <div className="p-4 rounded-xl bg-blue-50/70 border border-blue-200 space-y-2.5">
-            <span className="text-xs font-black uppercase text-blue-900 block">
-              Hiện Trạng Công Trình Đang Xây Dựng ({underConstructionPhotos.length} ảnh hiện trường)
-            </span>
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-black uppercase text-blue-900 block">
+                Hiện Trạng Công Trình Đang Xây Dựng ({underConstructionPhotos.length} ảnh hiện trường)
+              </span>
+              {isEditMode && onOpenPhotoAction && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    onOpenPhotoAction({
+                      initialMode: 'ADD',
+                      category: 'OVERVIEW',
+                      targetPhotoType: 'UNDER_CONSTRUCTION',
+                      targetPhotoId: 'underConstructionPhotos',
+                      photoTitle: 'Bổ sung ảnh công trình đang thi công',
+                    })
+                  }
+                  className="px-2 py-0.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-[10px] flex items-center gap-1 transition-colors cursor-pointer shadow-xs"
+                >
+                  <Plus className="w-3 h-3" />
+                  <span>+ Thêm Ảnh Thi Công</span>
+                </button>
+              )}
+            </div>
             {isEditMode ? (
               <div>
                 <label className="text-[11px] font-bold text-blue-800 block mb-1">Giai đoạn thi công hiện tại:</label>
@@ -445,10 +599,65 @@ export const AuditStep1Identification: React.FC<Props> = ({
                   return (
                     <div
                       key={idx}
+                      className="group relative rounded-lg overflow-hidden border border-blue-200 aspect-4/3 cursor-pointer hover:shadow-md transition-shadow"
                       onClick={() => onOpenPhotoZoom(uUrl, `Ảnh xây dựng dở dang ${idx + 1}`)}
-                      className="rounded-lg overflow-hidden border border-blue-200 aspect-4/3 cursor-pointer hover:shadow-md transition-shadow"
                     >
                       <img src={uUrl} alt={`Xây dựng dở dang ${idx + 1}`} className="w-full h-full object-cover" />
+                      {isEditMode && (
+                        <div className="absolute top-1 right-1 z-10 flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (onOpenPhotoAction) {
+                                onOpenPhotoAction({
+                                  initialMode: 'REPLACE',
+                                  category: 'OVERVIEW',
+                                  targetPhotoType: 'UNDER_CONSTRUCTION',
+                                  targetPhotoId: 'underConstructionPhotos',
+                                  photoIndex: idx,
+                                  currentPhotoUrl: uUrl,
+                                  photoTitle: `Ảnh xây dựng dở dang #${idx + 1}`,
+                                });
+                              } else if (onOpenPhotoReplace) {
+                                onOpenPhotoReplace({
+                                  targetPhotoType: 'UNDER_CONSTRUCTION',
+                                  targetPhotoId: 'underConstructionPhotos',
+                                  photoIndex: idx,
+                                  currentPhotoUrl: uUrl,
+                                  photoTitle: `Ảnh xây dựng dở dang #${idx + 1}`,
+                                });
+                              }
+                            }}
+                            className="px-1.5 py-0.5 rounded bg-blue-600/90 hover:bg-blue-700 text-white font-bold text-[9px] flex items-center gap-0.5 shadow-sm"
+                            title="Thay thế ảnh này"
+                          >
+                            <RefreshCw className="w-2.5 h-2.5" />
+                            <span>Đổi ảnh</span>
+                          </button>
+                          {onOpenPhotoAction && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onOpenPhotoAction({
+                                  initialMode: 'DELETE',
+                                  category: 'OVERVIEW',
+                                  targetPhotoType: 'UNDER_CONSTRUCTION',
+                                  targetPhotoId: 'underConstructionPhotos',
+                                  photoIndex: idx,
+                                  currentPhotoUrl: uUrl,
+                                  photoTitle: `Ảnh xây dựng dở dang #${idx + 1}`,
+                                });
+                              }}
+                              className="p-1 rounded bg-rose-600/90 hover:bg-rose-700 text-white text-[9px] shadow-sm"
+                              title="Xóa ảnh này"
+                            >
+                              <Trash2 className="w-2.5 h-2.5" />
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -536,7 +745,7 @@ export const AuditStep1Identification: React.FC<Props> = ({
             {/* Tên công trình */}
             <div>
               <label className="text-[11px] font-bold text-slate-500 uppercase block mb-1">
-                Tên công trình / Tòa nhà
+                Tên công trình / Tòa nhà {renderDirtyBadge('buildingName')}
               </label>
               {isEditMode ? (
                 <input
@@ -544,10 +753,10 @@ export const AuditStep1Identification: React.FC<Props> = ({
                   value={formState.buildingName || ''}
                   onChange={(e) => handleFieldChange('buildingName', 'Tên công trình', e.target.value)}
                   placeholder="VD: Nhà ở gia đình / Tòa nhà ABC"
-                  className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg font-bold"
+                  className={`w-full px-2.5 py-1.5 rounded-lg font-bold ${getDirtyClass('buildingName') || 'bg-white border border-slate-300'}`}
                 />
               ) : (
-                <div className="p-1.5 bg-white rounded-lg border border-slate-200 font-bold text-slate-800">
+                <div className={`p-1.5 rounded-lg font-bold text-slate-800 ${getDirtyClass('buildingName') || 'bg-white border border-slate-200'}`}>
                   {formState.buildingName || sJson.buildingName || 'Nhà ở dân dụng'}
                 </div>
               )}
@@ -556,17 +765,17 @@ export const AuditStep1Identification: React.FC<Props> = ({
             {/* Số nhà */}
             <div>
               <label className="text-[11px] font-bold text-slate-500 uppercase block mb-1">
-                Số nhà / Địa chỉ số *
+                Số nhà / Địa chỉ số * {renderDirtyBadge('houseNumber')}
               </label>
               {isEditMode ? (
                 <input
                   type="text"
                   value={formState.houseNumber || ''}
                   onChange={(e) => handleFieldChange('houseNumber', 'Số nhà', e.target.value)}
-                  className="w-full px-2.5 py-1.5 bg-white border border-amber-300 rounded-lg font-black text-slate-900"
+                  className={`w-full px-2.5 py-1.5 rounded-lg font-black text-slate-900 ${getDirtyClass('houseNumber') || 'bg-white border border-amber-300'}`}
                 />
               ) : (
-                <div className="p-1.5 bg-white rounded-lg border border-slate-200 font-black text-slate-900">
+                <div className={`p-1.5 rounded-lg font-black text-slate-900 ${getDirtyClass('houseNumber') || 'bg-white border border-slate-200'}`}>
                   {formState.houseNumber || '---'}
                 </div>
               )}
@@ -575,17 +784,17 @@ export const AuditStep1Identification: React.FC<Props> = ({
             {/* Tuyến đường */}
             <div>
               <label className="text-[11px] font-bold text-slate-500 uppercase block mb-1">
-                Tuyến đường *
+                Tuyến đường * {renderDirtyBadge('street')}
               </label>
               {isEditMode ? (
                 <input
                   type="text"
                   value={formState.street || ''}
                   onChange={(e) => handleFieldChange('street', 'Tuyến đường', e.target.value)}
-                  className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg font-semibold"
+                  className={`w-full px-2.5 py-1.5 rounded-lg font-semibold ${getDirtyClass('street') || 'bg-white border border-slate-300'}`}
                 />
               ) : (
-                <div className="p-1.5 bg-white rounded-lg border border-slate-200 font-semibold text-slate-800">
+                <div className={`p-1.5 rounded-lg font-semibold text-slate-800 ${getDirtyClass('street') || 'bg-white border border-slate-200'}`}>
                   {formState.street || '---'}
                 </div>
               )}
@@ -594,7 +803,7 @@ export const AuditStep1Identification: React.FC<Props> = ({
             {/* Phường */}
             <div>
               <label className="text-[11px] font-bold text-slate-500 uppercase block mb-1">
-                Phường / Xã
+                Phường / Xã {renderDirtyBadge('ward')}
               </label>
               {isEditMode ? (
                 <input
@@ -602,10 +811,10 @@ export const AuditStep1Identification: React.FC<Props> = ({
                   value={formState.ward || ''}
                   onChange={(e) => handleFieldChange('ward', 'Phường/Xã', e.target.value)}
                   placeholder="VD: Phường 5"
-                  className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg font-semibold"
+                  className={`w-full px-2.5 py-1.5 rounded-lg font-semibold ${getDirtyClass('ward') || 'bg-white border border-slate-300'}`}
                 />
               ) : (
-                <div className="p-1.5 bg-white rounded-lg border border-slate-200 font-semibold text-slate-800">
+                <div className={`p-1.5 rounded-lg font-semibold text-slate-800 ${getDirtyClass('ward') || 'bg-white border border-slate-200'}`}>
                   {formState.ward || sJson.ward || data?.ward || 'Phường 5'}
                 </div>
               )}
@@ -614,7 +823,7 @@ export const AuditStep1Identification: React.FC<Props> = ({
             {/* Quận */}
             <div>
               <label className="text-[11px] font-bold text-slate-500 uppercase block mb-1">
-                Quận / Huyện
+                Quận / Huyện {renderDirtyBadge('district')}
               </label>
               {isEditMode ? (
                 <input
@@ -622,10 +831,10 @@ export const AuditStep1Identification: React.FC<Props> = ({
                   value={formState.district || ''}
                   onChange={(e) => handleFieldChange('district', 'Quận/Huyện', e.target.value)}
                   placeholder="VD: Quận Tân Bình"
-                  className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg font-semibold"
+                  className={`w-full px-2.5 py-1.5 rounded-lg font-semibold ${getDirtyClass('district') || 'bg-white border border-slate-300'}`}
                 />
               ) : (
-                <div className="p-1.5 bg-white rounded-lg border border-slate-200 font-semibold text-slate-800">
+                <div className={`p-1.5 rounded-lg font-semibold text-slate-800 ${getDirtyClass('district') || 'bg-white border border-slate-200'}`}>
                   {formState.district || sJson.district || data?.district || 'Quận Tân Bình'}
                 </div>
               )}
@@ -634,17 +843,17 @@ export const AuditStep1Identification: React.FC<Props> = ({
             {/* Chủ sở hữu */}
             <div>
               <label className="text-[11px] font-bold text-slate-500 uppercase block mb-1">
-                Chủ sở hữu / Đại diện *
+                Chủ sở hữu / Đại diện * {renderDirtyBadge('ownerName')}
               </label>
               {isEditMode ? (
                 <input
                   type="text"
                   value={formState.ownerName || ''}
                   onChange={(e) => handleFieldChange('ownerName', 'Chủ sở hữu', e.target.value)}
-                  className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg font-bold"
+                  className={`w-full px-2.5 py-1.5 rounded-lg font-bold ${getDirtyClass('ownerName') || 'bg-white border border-slate-300'}`}
                 />
               ) : (
-                <div className="p-1.5 bg-white rounded-lg border border-slate-200 font-bold text-slate-800">
+                <div className={`p-1.5 rounded-lg font-bold text-slate-800 ${getDirtyClass('ownerName') || 'bg-white border border-slate-200'}`}>
                   {formState.ownerName || '---'}
                 </div>
               )}
@@ -653,17 +862,17 @@ export const AuditStep1Identification: React.FC<Props> = ({
             {/* Số điện thoại */}
             <div>
               <label className="text-[11px] font-bold text-slate-500 uppercase block mb-1">
-                Số điện thoại liên hệ
+                Số điện thoại liên hệ {renderDirtyBadge('ownerPhone')}
               </label>
               {isEditMode ? (
                 <input
                   type="text"
                   value={formState.ownerPhone || ''}
                   onChange={(e) => handleFieldChange('ownerPhone', 'SĐT chủ hộ', e.target.value)}
-                  className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg font-mono"
+                  className={`w-full px-2.5 py-1.5 rounded-lg font-mono ${getDirtyClass('ownerPhone') || 'bg-white border border-slate-300'}`}
                 />
               ) : (
-                <div className="p-1.5 bg-white rounded-lg border border-slate-200 font-mono text-slate-700">
+                <div className={`p-1.5 rounded-lg font-mono text-slate-700 ${getDirtyClass('ownerPhone') || 'bg-white border border-slate-200'}`}>
                   {formState.ownerPhone || '---'}
                 </div>
               )}
@@ -672,17 +881,17 @@ export const AuditStep1Identification: React.FC<Props> = ({
             {/* Mã địa chính */}
             <div>
               <label className="text-[11px] font-bold text-slate-500 uppercase block mb-1">
-                Mã thửa địa chính / Tờ bản đồ
+                Mã thửa địa chính / Tờ bản đồ {renderDirtyBadge('officialCadastralCode')}
               </label>
               {isEditMode ? (
                 <input
                   type="text"
                   value={formState.officialCadastralCode || ''}
                   onChange={(e) => handleFieldChange('officialCadastralCode', 'Mã địa chính', e.target.value)}
-                  className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg font-mono"
+                  className={`w-full px-2.5 py-1.5 rounded-lg font-mono ${getDirtyClass('officialCadastralCode') || 'bg-white border border-slate-300'}`}
                 />
               ) : (
-                <div className="p-1.5 bg-white rounded-lg border border-slate-200 font-mono text-slate-700">
+                <div className={`p-1.5 rounded-lg font-mono text-slate-700 ${getDirtyClass('officialCadastralCode') || 'bg-white border border-slate-200'}`}>
                   {formState.officialCadastralCode || '---'}
                 </div>
               )}
@@ -691,13 +900,13 @@ export const AuditStep1Identification: React.FC<Props> = ({
             {/* Nhóm công trình */}
             <div className="sm:col-span-2">
               <label className="text-[11px] font-bold text-slate-500 uppercase block mb-1">
-                Nhóm công trình chịu tác động *
+                Nhóm công trình chịu tác động * {renderDirtyBadge('objectGroup')}
               </label>
               {isEditMode ? (
                 <select
                   value={formState.objectGroup || 'GENERAL'}
                   onChange={(e) => handleFieldChange('objectGroup', 'Nhóm công trình', e.target.value)}
-                  className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg font-bold"
+                  className={`w-full px-2.5 py-1.5 rounded-lg font-bold ${getDirtyClass('objectGroup') || 'bg-white border border-slate-300'}`}
                 >
                   {OBJECT_GROUPS.map((og: { value: string; label: string; desc?: string }) => (
                     <option key={og.value} value={og.value}>
@@ -706,7 +915,7 @@ export const AuditStep1Identification: React.FC<Props> = ({
                   ))}
                 </select>
               ) : (
-                <div className="p-1.5 bg-white rounded-lg border border-slate-200">
+                <div className={`p-1.5 rounded-lg ${getDirtyClass('objectGroup') || 'bg-white border border-slate-200'}`}>
                   <Badge variant={formState.objectGroup === 'CRITICAL' ? 'danger' : formState.objectGroup === 'IMPORTANT' ? 'warning' : 'success'}>
                     {OBJECT_GROUPS.find((g: { value: string; label: string; desc?: string }) => g.value === formState.objectGroup)?.label || 'Nhà dân thông thường'}
                   </Badge>
@@ -717,13 +926,13 @@ export const AuditStep1Identification: React.FC<Props> = ({
             {/* Công năng sử dụng */}
             <div className="sm:col-span-2">
               <label className="text-[11px] font-bold text-slate-500 uppercase block mb-1">
-                Công năng sử dụng thực tế *
+                Công năng sử dụng thực tế * {renderDirtyBadge('usageFunction')}
               </label>
               {isEditMode ? (
                 <select
                   value={formState.usageFunction || 'Nhà ở gia đình'}
                   onChange={(e) => handleFieldChange('usageFunction', 'Công năng sử dụng', e.target.value)}
-                  className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg font-bold"
+                  className={`w-full px-2.5 py-1.5 rounded-lg font-bold ${getDirtyClass('usageFunction') || 'bg-white border border-slate-300'}`}
                 >
                   {USAGE_OPTIONS.map((u: string) => (
                     <option key={u} value={u}>
@@ -732,7 +941,7 @@ export const AuditStep1Identification: React.FC<Props> = ({
                   ))}
                 </select>
               ) : (
-                <div className="p-1.5 bg-white rounded-lg border border-slate-200 font-bold text-slate-800">
+                <div className={`p-1.5 rounded-lg font-bold text-slate-800 ${getDirtyClass('usageFunction') || 'bg-white border border-slate-200'}`}>
                   {formState.usageFunction || 'Nhà ở gia đình'}
                 </div>
               )}
@@ -741,7 +950,7 @@ export const AuditStep1Identification: React.FC<Props> = ({
             {/* Bề rộng mặt tiền */}
             <div>
               <label className="text-[11px] font-bold text-slate-500 uppercase block mb-1">
-                Bề rộng mặt tiền (m)
+                Bề rộng mặt tiền (m) {renderDirtyBadge('frontageWidth')}
               </label>
               {isEditMode ? (
                 <input
@@ -750,10 +959,10 @@ export const AuditStep1Identification: React.FC<Props> = ({
                   value={formState.frontageWidth ?? ''}
                   onChange={(e) => handleFieldChange('frontageWidth', 'Bề rộng mặt tiền', e.target.value ? Number(e.target.value) : '')}
                   placeholder="VD: 4.5"
-                  className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg font-mono font-bold"
+                  className={`w-full px-2.5 py-1.5 rounded-lg font-mono font-bold ${getDirtyClass('frontageWidth') || 'bg-white border border-slate-300'}`}
                 />
               ) : (
-                <div className="p-1.5 bg-white rounded-lg border border-slate-200 font-mono font-bold text-slate-800">
+                <div className={`p-1.5 rounded-lg font-mono font-bold text-slate-800 ${getDirtyClass('frontageWidth') || 'bg-white border border-slate-200'}`}>
                   {formState.frontageWidth ? `${formState.frontageWidth} m` : '---'}
                 </div>
               )}
@@ -762,7 +971,7 @@ export const AuditStep1Identification: React.FC<Props> = ({
             {/* Chiều sâu thửa */}
             <div>
               <label className="text-[11px] font-bold text-slate-500 uppercase block mb-1">
-                Chiều sâu thửa đất (m)
+                Chiều sâu thửa đất (m) {renderDirtyBadge('lotDepth')}
               </label>
               {isEditMode ? (
                 <input
@@ -771,10 +980,10 @@ export const AuditStep1Identification: React.FC<Props> = ({
                   value={formState.lotDepth ?? ''}
                   onChange={(e) => handleFieldChange('lotDepth', 'Chiều sâu thửa', e.target.value ? Number(e.target.value) : '')}
                   placeholder="VD: 18.2"
-                  className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg font-mono font-bold"
+                  className={`w-full px-2.5 py-1.5 rounded-lg font-mono font-bold ${getDirtyClass('lotDepth') || 'bg-white border border-slate-300'}`}
                 />
               ) : (
-                <div className="p-1.5 bg-white rounded-lg border border-slate-200 font-mono font-bold text-slate-800">
+                <div className={`p-1.5 rounded-lg font-mono font-bold text-slate-800 ${getDirtyClass('lotDepth') || 'bg-white border border-slate-200'}`}>
                   {formState.lotDepth ? `${formState.lotDepth} m` : '---'}
                 </div>
               )}
@@ -783,7 +992,7 @@ export const AuditStep1Identification: React.FC<Props> = ({
             {/* Diện tích khuôn viên */}
             <div className="sm:col-span-2">
               <label className="text-[11px] font-bold text-slate-500 uppercase block mb-1">
-                Diện tích khuôn viên đất (m²)
+                Diện tích khuôn viên đất (m²) {renderDirtyBadge('landAreaM2')}
               </label>
               {isEditMode ? (
                 <input
@@ -792,10 +1001,10 @@ export const AuditStep1Identification: React.FC<Props> = ({
                   value={formState.landAreaM2 ?? ''}
                   onChange={(e) => handleFieldChange('landAreaM2', 'Diện tích đất', e.target.value ? Number(e.target.value) : '')}
                   placeholder="VD: 81.9"
-                  className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg font-mono font-bold text-emerald-800"
+                  className={`w-full px-2.5 py-1.5 rounded-lg font-mono font-bold text-emerald-800 ${getDirtyClass('landAreaM2') || 'bg-white border border-slate-300'}`}
                 />
               ) : (
-                <div className="p-1.5 bg-white rounded-lg border border-slate-200 font-mono font-bold text-emerald-700">
+                <div className={`p-1.5 rounded-lg font-mono font-bold text-emerald-700 ${getDirtyClass('landAreaM2') || 'bg-white border border-slate-200'}`}>
                   {formState.landAreaM2 ? `${formState.landAreaM2} m²` : '---'}
                 </div>
               )}
@@ -817,9 +1026,9 @@ export const AuditStep1Identification: React.FC<Props> = ({
 
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
             {/* Khoảng cách đến tim tuyến */}
-            <div className="p-3 bg-white rounded-xl border border-sky-200">
+            <div className={`p-3 rounded-xl border ${getDirtyClass('metroOffsetDistance') || 'bg-white border-sky-200'}`}>
               <label className="text-[11px] font-bold text-slate-600 block mb-1">
-                Khoảng cách đến tim hầm Metro (m) *
+                Khoảng cách đến tim hầm Metro (m) * {renderDirtyBadge('metroOffsetDistance')}
               </label>
               {isEditMode ? (
                 <input
@@ -827,7 +1036,7 @@ export const AuditStep1Identification: React.FC<Props> = ({
                   step="0.1"
                   value={getNumericValue(formState.metroOffsetDistance)}
                   onChange={(e) => handleFieldChange('metroOffsetDistance', 'Cự ly tim hầm Metro', e.target.value)}
-                  className="w-full px-2.5 py-1.5 bg-amber-50/40 border border-sky-300 rounded-lg text-xs font-black text-sky-900"
+                  className={`w-full px-2.5 py-1.5 rounded-lg text-xs font-black text-sky-900 ${getDirtyClass('metroOffsetDistance') || 'bg-amber-50/40 border border-sky-300'}`}
                   placeholder="VD: 14.5"
                 />
               ) : (
@@ -839,9 +1048,9 @@ export const AuditStep1Identification: React.FC<Props> = ({
             </div>
 
             {/* Khoảng cách đến đường bao ngoài (Mép ga trắng / Mép hố đào) */}
-            <div className="p-3 bg-white rounded-xl border border-sky-200">
+            <div className={`p-3 rounded-xl border ${getDirtyClass('clearanceOffsetDistance') || 'bg-white border-sky-200'}`}>
               <label className="text-[11px] font-bold text-slate-600 block mb-1">
-                Khoảng cách đến đường bao ngoài (m) *
+                Khoảng cách đến đường bao ngoài (m) * {renderDirtyBadge('clearanceOffsetDistance')}
               </label>
               {isEditMode ? (
                 <input
@@ -849,7 +1058,7 @@ export const AuditStep1Identification: React.FC<Props> = ({
                   step="0.1"
                   value={getNumericValue(formState.clearanceOffsetDistance)}
                   onChange={(e) => handleFieldChange('clearanceOffsetDistance', 'Cự ly đường bao ngoài', e.target.value)}
-                  className="w-full px-2.5 py-1.5 bg-amber-50/40 border border-sky-300 rounded-lg text-xs font-black text-sky-900"
+                  className={`w-full px-2.5 py-1.5 rounded-lg text-xs font-black text-sky-900 ${getDirtyClass('clearanceOffsetDistance') || 'bg-amber-50/40 border border-sky-300'}`}
                   placeholder="VD: 5.2"
                 />
               ) : (
@@ -874,16 +1083,16 @@ export const AuditStep1Identification: React.FC<Props> = ({
             </div>
 
             {/* Lý trình thi công */}
-            <div className="p-3 bg-white rounded-xl border border-sky-200">
+            <div className={`p-3 rounded-xl border ${getDirtyClass('chainage') || 'bg-white border-sky-200'}`}>
               <label className="text-[11px] font-bold text-slate-600 block mb-1">
-                Lý trình thi công (Chainage)
+                Lý trình thi công (Chainage) {renderDirtyBadge('chainage')}
               </label>
               {isEditMode ? (
                 <input
                   type="text"
                   value={formState.chainage || ''}
                   onChange={(e) => handleFieldChange('chainage', 'Lý trình', e.target.value)}
-                  className="w-full px-2.5 py-1.5 bg-amber-50/40 border border-sky-300 rounded-lg text-xs font-bold text-slate-800"
+                  className={`w-full px-2.5 py-1.5 rounded-lg text-xs font-bold text-slate-800 ${getDirtyClass('chainage') || 'bg-amber-50/40 border border-sky-300'}`}
                   placeholder="VD: Km 0+450"
                 />
               ) : (
@@ -895,10 +1104,10 @@ export const AuditStep1Identification: React.FC<Props> = ({
             </div>
 
             {/* Tọa độ GPS */}
-            <div className="p-3 bg-white rounded-xl border border-sky-200">
+            <div className={`p-3 rounded-xl border ${getDirtyClass('gpsCoords') || 'bg-white border-sky-200'}`}>
               <label className="text-[11px] font-bold text-slate-600 block mb-1 flex items-center gap-1">
                 <Navigation className="w-3.5 h-3.5 text-sky-600" />
-                <span>Tọa độ GPS thực địa</span>
+                <span>Tọa độ GPS thực địa</span> {renderDirtyBadge('gpsCoords')}
               </label>
               {isEditMode ? (
                 <div className="space-y-1">
@@ -1057,9 +1266,9 @@ export const AuditStep1Identification: React.FC<Props> = ({
           {/* Form nhập/sửa hiện trạng tiếp giáp 3 phía */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             {/* Bên Trái */}
-            <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-2">
+            <div className={`p-3 rounded-xl border space-y-2 ${getDirtyClass('adjacentBuildings', 'left') || 'bg-white border-slate-200'}`}>
               <label className="text-[11px] font-bold text-slate-700 block uppercase">
-                Bên Trái (Theo hướng toà nhà) *
+                Bên Trái (Theo hướng toà nhà) * {renderDirtyBadge('adjacentBuildings', 'left')}
               </label>
               {isEditMode ? (
                 <>
@@ -1096,9 +1305,9 @@ export const AuditStep1Identification: React.FC<Props> = ({
             </div>
 
             {/* Bên Phải */}
-            <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-2">
+            <div className={`p-3 rounded-xl border space-y-2 ${getDirtyClass('adjacentBuildings', 'right') || 'bg-white border-slate-200'}`}>
               <label className="text-[11px] font-bold text-slate-700 block uppercase">
-                Bên Phải (Theo hướng toà nhà) *
+                Bên Phải (Theo hướng toà nhà) * {renderDirtyBadge('adjacentBuildings', 'right')}
               </label>
               {isEditMode ? (
                 <>
@@ -1135,9 +1344,9 @@ export const AuditStep1Identification: React.FC<Props> = ({
             </div>
 
             {/* Phía Sau */}
-            <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-2">
+            <div className={`p-3 rounded-xl border space-y-2 ${getDirtyClass('adjacentBuildings', 'back') || 'bg-white border-slate-200'}`}>
               <label className="text-[11px] font-bold text-slate-700 block uppercase">
-                Phía Sau Tiếp Giáp *
+                Phía Sau Tiếp Giáp * {renderDirtyBadge('adjacentBuildings', 'back')}
               </label>
               {isEditMode ? (
                 <>

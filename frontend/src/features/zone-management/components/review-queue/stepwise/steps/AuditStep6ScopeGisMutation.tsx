@@ -35,6 +35,7 @@ interface Props {
   handleFieldChange?: (fieldKey: string, label: string, val: unknown) => void;
   onOpenPhotoZoom?: (url: string, title?: string, photoCode?: string) => void;
   onRefresh?: () => void;
+  isFieldDirty?: (fieldKey: string, subKey?: string) => boolean;
 }
 
 const ACCESS_LIMIT_PRESETS = [
@@ -66,6 +67,7 @@ export const AuditStep6ScopeGisMutation: React.FC<Props> = ({
   handleFieldChange,
   onOpenPhotoZoom,
   onRefresh,
+  isFieldDirty,
 }) => {
   const [isMutationModalOpen, setIsMutationModalOpen] = useState(false);
   const [isReassignModalOpen, setIsReassignModalOpen] = useState(false);
@@ -194,39 +196,6 @@ export const AuditStep6ScopeGisMutation: React.FC<Props> = ({
               Đối soát không gian khảo sát, toạ độ thực địa và công cụ biến động ranh thửa cho Zone Admin
             </p>
           </div>
-        </div>
-
-        {/* Nút thao tác của Zone Admin */}
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setIsReassignModalOpen(true)}
-            className="px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
-            title="Điều chuyển hồ sơ sang thửa khác hoặc hoán đổi 2 nhà kề nhau bị tích chéo"
-          >
-            <ArrowRightLeft className="w-3.5 h-3.5 text-amber-600" />
-            <span>Hoán Đổi Ranh GIS</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setIsMutationModalOpen(true)}
-            className="px-3 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
-            title="Thực thi tách thửa hoặc gộp thửa trực tiếp trên GIS"
-          >
-            <Split className="w-3.5 h-3.5" />
-            <span>Tách / Gộp Thửa GIS</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setIsReshapeModalOpen(true)}
-            className="px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-300 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
-            title="Kéo thả mốc đỉnh để nắn chỉnh đa giác ranh thửa đất khớp ảnh vệ tinh"
-          >
-            <Move className="w-3.5 h-3.5 text-indigo-600" />
-            <span>Nắn Chỉnh Ranh Đất</span>
-          </button>
         </div>
       </div>
 
@@ -586,13 +555,46 @@ export const AuditStep6ScopeGisMutation: React.FC<Props> = ({
                 6.5. Tình Trạng Biến Động Ranh Thửa Thực Địa & Bản Đồ Đa Giác GIS
               </span>
             </div>
-            <span className="text-xs font-bold px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-200">
-              {mutation.type === 'SPLIT'
-                ? 'Đã Tách Thửa (Căn A/B)'
-                : mutation.type === 'MERGE'
-                ? 'Đã Gộp Thửa (Khuôn viên chung)'
-                : 'Nguyên Trạng (Khớp ranh)'}
-            </span>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs font-bold px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-200">
+                {mutation.type === 'SPLIT'
+                  ? 'Đã Tách Thửa (Căn A/B)'
+                  : mutation.type === 'MERGE'
+                  ? 'Đã Gộp Thửa (Khuôn viên chung)'
+                  : 'Nguyên Trạng (Khớp ranh)'}
+              </span>
+
+              <button
+                type="button"
+                onClick={() => setIsReassignModalOpen(true)}
+                className="px-2.5 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+                title="Điều chuyển hồ sơ sang thửa khác hoặc hoán đổi 2 nhà kề nhau bị tích chéo"
+              >
+                <ArrowRightLeft className="w-3.5 h-3.5 text-amber-600" />
+                <span>Hoán Đổi Ranh</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsMutationModalOpen(true)}
+                className="px-2.5 py-1 rounded-lg bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+                title="Thực thi tách thửa hoặc gộp thửa trực tiếp trên GIS"
+              >
+                <Split className="w-3.5 h-3.5" />
+                <span>Tách / Gộp Thửa</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsReshapeModalOpen(true)}
+                className="px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-300 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-xs"
+                title="Kéo thả mốc đỉnh để nắn chỉnh đa giác ranh thửa đất khớp ảnh vệ tinh"
+              >
+                <Move className="w-3.5 h-3.5 text-indigo-600" />
+                <span>Nắn Chỉnh Ranh</span>
+              </button>
+            </div>
           </div>
 
           {/* Bản đồ trực quan đa giác ranh thửa đất (Khớp ranh, Tách căn A/B, Gộp khuôn viên) */}
@@ -630,7 +632,7 @@ export const AuditStep6ScopeGisMutation: React.FC<Props> = ({
                 Ghi Chú Biến Động Thực Địa
               </span>
               <p className="text-slate-600 text-[11px]">
-                {mutation.surveyorNotes || mutation.adminNotes || 'Không có ghi nhận biến động đặc biệt từ khảo sát viên.'}
+                {mutation.surveyorNotes || mutation.adminNotes || 'Không'}
               </p>
             </div>
 

@@ -198,7 +198,6 @@ export const ZoneManagerDashboardPage: React.FC<Props> = ({
         handleClearFilter();
       }}
       pendingCount={stats.submitted}
-      criticalAlertCount={stats.totalCriticalBurland + stats.slaOverdue48h}
       isLoading={isLoading}
       onRefresh={() => fetchLiveIntelligence(selectedZone)}
     >

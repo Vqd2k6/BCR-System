@@ -320,6 +320,7 @@ export const DefectPinningCanvas: React.FC<Props> = ({
     calculateNormalizedCoords,
     transformStyle,
     pinCounterScale,
+    containerTouchAction,
   } = useInteractiveCanvasZoom();
 
   React.useEffect(() => {
@@ -924,11 +925,13 @@ export const DefectPinningCanvas: React.FC<Props> = ({
       {/* Pinning Canvas - Clean Light Theme */}
       <div
         ref={containerRef}
+        data-zoomable-canvas="true"
         onWheel={handleWheel}
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
-        className={`relative w-full min-h-[300px] max-h-[500px] rounded-xl overflow-hidden bg-slate-100 border border-slate-300 select-none shadow-inner flex items-center justify-center p-1 sm:p-2 ${
+        style={{ touchAction: containerTouchAction }}
+        className={`relative w-full max-w-full min-h-[300px] max-h-[500px] rounded-xl overflow-hidden bg-slate-100 border border-slate-300 select-none shadow-inner flex items-center justify-center p-1 sm:p-2 ${
           isAddingPin ? 'ring-2 ring-emerald-500/30' : ''
         }`}
       >
@@ -939,8 +942,11 @@ export const DefectPinningCanvas: React.FC<Props> = ({
             onPointerDown={handleTightBoxPointerDown}
             onPointerMove={handleTightBoxPointerMove}
             onPointerUp={handleTightBoxPointerUp}
-            style={transformStyle}
-            className={`relative inline-block max-w-full leading-none mx-auto select-none touch-none force-light ${
+            style={{
+              ...transformStyle,
+              touchAction: zoomScale > 1.05 ? 'none' : 'pan-y'
+            }}
+            className={`relative inline-block max-w-full leading-none mx-auto select-none force-light ${
               isAddingPin ? 'cursor-crosshair' : 'cursor-grab'
             }`}
           >

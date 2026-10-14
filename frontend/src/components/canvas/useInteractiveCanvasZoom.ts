@@ -120,14 +120,100 @@ export function useInteractiveCanvasZoom(options: UseInteractiveCanvasZoomOption
     };
 
     container.addEventListener('wheel', onNativeWheel, { passive: false });
+    // Native Touch Zoom & Pan { passive: false } gắn trực tiếp vào DOM container
+    // BẮT BUỘC: e.preventDefault() trên touchmove (2 ngón) để chặn trình duyệt mobile phóng to cả trang web
+    const onNativeTouchStart = (e: TouchEvent) => {
+      if (e.touches.length === 2) {
+        e.preventDefault();
+        hasMovedRef.current = true;
+        const dist = Math.hypot(
+          e.touches[0].clientX - e.touches[1].clientX,
+          e.touches[0].clientY - e.touches[1].clientY
+        );
+        initialPinchDistRef.current = dist;
+        initialScaleRef.current = zoomScaleRef.current;
+
+        const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+        const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+        panStartRef.current = { x: midX, y: midY };
+        initialPanOffsetRef.current = { ...panOffsetRef.current };
+        setIsPanning(true);
+      } else if (e.touches.length === 1 && zoomScaleRef.current > 1.05) {
+        panStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+        initialPanOffsetRef.current = { ...panOffsetRef.current };
+        hasMovedRef.current = false;
+      }
+    };
+
+    const onNativeTouchMove = (e: TouchEvent) => {
+      if (e.touches.length === 2 && initialPinchDistRef.current > 0) {
+        e.preventDefault(); // CHẶN TOÀN BỘ AUTO-ZOOM TRÌNH DUYỆT TRÊN MOBILE
+        hasMovedRef.current = true;
+        const dist = Math.hypot(
+          e.touches[0].clientX - e.touches[1].clientX,
+          e.touches[0].clientY - e.touches[1].clientY
+        );
+        const ratio = dist / initialPinchDistRef.current;
+        const nextScale = Math.max(minZoom, Math.min(maxZoom, Math.round(initialScaleRef.current * ratio * 100) / 100));
+        zoomScaleRef.current = nextScale;
+        setZoomScale(nextScale);
+
+        if (nextScale <= 1.0) {
+          panOffsetRef.current = { x: 0, y: 0 };
+          setPanOffset({ x: 0, y: 0 });
+        } else {
+          const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+          const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+          const dx = midX - panStartRef.current.x;
+          const dy = midY - panStartRef.current.y;
+
+          const nextPan = {
+            x: Math.round((initialPanOffsetRef.current.x + dx) * 10) / 10,
+            y: Math.round((initialPanOffsetRef.current.y + dy) * 10) / 10,
+          };
+          panOffsetRef.current = nextPan;
+          setPanOffset(nextPan);
+        }
+      } else if (e.touches.length === 1 && zoomScaleRef.current > 1.05) {
+        const dx = e.touches[0].clientX - panStartRef.current.x;
+        const dy = e.touches[0].clientY - panStartRef.current.y;
+        if (Math.hypot(dx, dy) > 6) {
+          e.preventDefault(); // Chặn cuộn trang khi đang kéo ảnh CAD phóng to
+          hasMovedRef.current = true;
+          setIsPanning(true);
+          const nextPan = {
+            x: Math.round((initialPanOffsetRef.current.x + dx) * 10) / 10,
+            y: Math.round((initialPanOffsetRef.current.y + dy) * 10) / 10,
+          };
+          panOffsetRef.current = nextPan;
+          setPanOffset(nextPan);
+        }
+      }
+    };
+
+    const onNativeTouchEnd = (e: TouchEvent) => {
+      if (e.touches.length < 2) {
+        initialPinchDistRef.current = 0;
+        if (e.touches.length === 0) {
+          setIsPanning(false);
+        }
+      }
+    };
+
+    container.addEventListener('touchstart', onNativeTouchStart, { passive: false });
     container.addEventListener('touchmove', onNativeTouchMove, { passive: false });
+    container.addEventListener('touchend', onNativeTouchEnd, { passive: true });
+    container.addEventListener('touchcancel', onNativeTouchEnd, { passive: true });
     container.addEventListener('gesturestart', onNativeGesture, { passive: false });
     container.addEventListener('gesturechange', onNativeGesture, { passive: false });
     container.addEventListener('gestureend', onNativeGesture, { passive: false });
 
     return () => {
       container.removeEventListener('wheel', onNativeWheel);
+      container.removeEventListener('touchstart', onNativeTouchStart);
       container.removeEventListener('touchmove', onNativeTouchMove);
+      container.removeEventListener('touchend', onNativeTouchEnd);
+      container.removeEventListener('touchcancel', onNativeTouchEnd);
       container.removeEventListener('gesturestart', onNativeGesture);
       container.removeEventListener('gesturechange', onNativeGesture);
       container.removeEventListener('gestureend', onNativeGesture);
@@ -136,59 +222,13 @@ export function useInteractiveCanvasZoom(options: UseInteractiveCanvasZoomOption
 
   // Fallback Wheel zoom cho trường hợp gọi qua React synthetic event
   const handleWheel = useCallback((e: React.WheelEvent<HTMLDivElement>) => {
-    // Nếu native listener đã xử lý thì chặn synthetic event tiếp tục nổi bọt
     e.stopPropagation();
   }, []);
 
-  // Touch handlers cho cử chỉ 2 ngón tay Pinch-to-zoom & Pan
-  const handleTouchStart = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
-    if (e.touches.length === 2) {
-      hasMovedRef.current = true;
-      const dist = Math.hypot(
-        e.touches[0].clientX - e.touches[1].clientX,
-        e.touches[0].clientY - e.touches[1].clientY
-      );
-      initialPinchDistRef.current = dist;
-      initialScaleRef.current = zoomScale;
-
-      const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
-      const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-      panStartRef.current = { x: midX, y: midY };
-      initialPanOffsetRef.current = { ...panOffset };
-      setIsPanning(true);
-    }
-  }, [zoomScale, panOffset]);
-
-  const handleTouchMove = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
-    if (e.touches.length === 2 && initialPinchDistRef.current > 0) {
-      hasMovedRef.current = true;
-      const dist = Math.hypot(
-        e.touches[0].clientX - e.touches[1].clientX,
-        e.touches[0].clientY - e.touches[1].clientY
-      );
-      const ratio = dist / initialPinchDistRef.current;
-      const nextScale = Math.max(minZoom, Math.min(maxZoom, Math.round(initialScaleRef.current * ratio * 100) / 100));
-      setZoomScale(nextScale);
-
-      // Pan theo trọng tâm 2 ngón tay
-      const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
-      const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-      const dx = midX - panStartRef.current.x;
-      const dy = midY - panStartRef.current.y;
-
-      setPanOffset({
-        x: initialPanOffsetRef.current.x + dx,
-        y: initialPanOffsetRef.current.y + dy,
-      });
-    }
-  }, [minZoom, maxZoom]);
-
-  const handleTouchEnd = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
-    if (e.touches.length < 2) {
-      initialPinchDistRef.current = 0;
-      setIsPanning(false);
-    }
-  }, []);
+  // Fallback Touch handlers (giữ nguyên chữ ký để component cũ không bị lỗi)
+  const handleTouchStart = useCallback((_e: React.TouchEvent<HTMLDivElement>) => {}, []);
+  const handleTouchMove = useCallback((_e: React.TouchEvent<HTMLDivElement>) => {}, []);
+  const handleTouchEnd = useCallback((_e: React.TouchEvent<HTMLDivElement>) => {}, []);
 
   // Bắt đầu pan với chuột / 1 ngón tay khi đang zoom và không kéo pin
   const startPan = useCallback((clientX: number, clientY: number) => {
@@ -261,5 +301,6 @@ export function useInteractiveCanvasZoom(options: UseInteractiveCanvasZoomOption
     } as React.CSSProperties,
     // Hệ số co ngược ghim pin để không bị che khuất ảnh khi zoom to
     pinCounterScale: zoomScale > 1.05 ? Math.max(0.45, 1 / zoomScale) : 1.0,
+    containerTouchAction: zoomScale > 1.05 ? 'none' : 'pan-y',
   };
 }

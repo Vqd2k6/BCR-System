@@ -10,16 +10,27 @@ import {
   RefreshCw,
   History,
   RotateCcw,
+  Maximize2,
+  Minimize2,
+  Save,
+  Undo2,
+  GitBranch,
+  ChevronDown,
 } from 'lucide-react';
 import { api } from '../../../../services/api';
+import { VersionComparisonModal, type SurveyReportVersionItem } from './versioning/VersionComparisonModal';
 import { RejectReportModal } from './RejectReportModal';
 import { EngineeringJudgementModal } from './EngineeringJudgementModal';
 import { ImageZoomModal } from '../../../../components/common/ImageZoomModal';
 import { AuditStepwiseDocumentView } from './stepwise/AuditStepwiseDocumentView';
+import { CondoUnitAuditStudioView } from './condo/CondoUnitAuditStudioView';
+import { CondoMasterAreaAuditStudioView } from './condo/CondoMasterAreaAuditStudioView';
+import { CondoMasterAuditStudioView } from './condo/CondoMasterAuditStudioView';
 import { AuditDiffConfirmModal } from './AuditDiffConfirmModal';
 import { AuditPhotoReplaceModal } from './AuditPhotoReplaceModal';
+import { AuditPhotoActionModal, type PhotoActionPayload } from './AuditPhotoActionModal';
 import { AuditHistoryModal } from './AuditHistoryModal';
-import type { AuditStepwiseData, DiffItem } from './stepwise/types';
+import type { AuditStepwiseData, DiffItem, AuditPhotoActionParams } from './stepwise/types';
 
 interface Props {
   isOpen: boolean;
@@ -66,8 +77,42 @@ export const AuditStudioModal: React.FC<Props> = ({
     photoTitle?: string;
   }>({ isOpen: false, targetPhotoType: 'OTHER', currentPhotoUrl: '' });
 
+  // Photo Action Modal State (Replace / Add / Delete with M2 naming, metadata & lifecycle)
+  const [photoActionData, setPhotoActionData] = useState<AuditPhotoActionParams & { isOpen: boolean }>({
+    isOpen: false,
+    category: 'IDENTIFICATION',
+    targetPhotoType: 'OTHER',
+  });
+
+  // Staged Photo Actions to commit alongside text diffs
+  const [stagedPhotoActions, setStagedPhotoActions] = useState<PhotoActionPayload[]>([]);
+
   // Audit History Modal State
   const [showAuditHistory, setShowAuditHistory] = useState(false);
+  // Versioning & Time Travel Modal State
+  const [showVersionComparison, setShowVersionComparison] = useState(false);
+  const [versions, setVersions] = useState<SurveyReportVersionItem[]>([]);
+  const [showVersionDropdown, setShowVersionDropdown] = useState(false);
+  // Fullscreen studio workspace mode (Default true)
+  const [isFullscreen, setIsFullscreen] = useState(true);
+  // Warning Flags Popover State
+  const [showFlagsPopover, setShowFlagsPopover] = useState(false);
+
+  // Pending Dirty Data Tracker from Document Views
+  const [pendingDirtyData, setPendingDirtyData] = useState<{
+    dirtyCount: number;
+    diffItems: DiffItem[];
+    updates: Record<string, unknown>;
+    discardAll: (silent?: boolean) => void;
+  }>({
+    dirtyCount: 0,
+    diffItems: [],
+    updates: {},
+    discardAll: () => {},
+  });
+
+  // Modal cảnh báo khi bấm Phê duyệt mà còn thay đổi chưa lưu
+  const [showUnsavedChangesWarning, setShowUnsavedChangesWarning] = useState(false);
 
   const fetchAuditData = async () => {
     setLoading(true);
@@ -87,20 +132,29 @@ export const AuditStudioModal: React.FC<Props> = ({
     }
   };
 
+  const fetchVersions = async () => {
+    try {
+      const res = await api.get(`/admin/reports/${reportId}/versions`);
+      if (res.data?.success && Array.isArray(res.data?.data)) {
+        setVersions(res.data.data);
+      }
+    } catch (err) {
+      console.error('[AuditStudioModal] Failed to fetch versions:', err);
+    }
+  };
+
   useEffect(() => {
     if (isOpen && reportId) {
       fetchAuditData();
+      fetchVersions();
     }
   }, [isOpen, reportId]);
 
   if (!isOpen) return null;
 
-  // Handle Approve
-  const handleApprove = async () => {
+  // Thực thi phê duyệt hồ sơ trực tiếp
+  const executeApprove = async () => {
     if (!data) return;
-    const confirmMsg = `Bạn có chắc chắn muốn PHÊ DUYỆT hồ sơ thửa ${data.projectParcelCode}?\nHồ sơ sẽ được khóa bất biến và tự động ký số Zone Admin.`;
-    if (!window.confirm(confirmMsg)) return;
-
     setIsApproving(true);
     try {
       const res = await api.post(`/admin/reports/${reportId}/approve`);
@@ -117,6 +171,74 @@ export const AuditStudioModal: React.FC<Props> = ({
     } finally {
       setIsApproving(false);
     }
+  };
+
+  // Handle Confirm Photo Action from AuditPhotoActionModal
+  const handleConfirmPhotoAction = (action: PhotoActionPayload) => {
+    // 1. Thêm vào danh sách stagedPhotoActions
+    setStagedPhotoActions((prev) => [...prev, action]);
+
+    // 2. Tạo một DiffItem trực quan đưa vào pendingDirtyData
+    const diffLabel =
+      action.action === 'REPLACE'
+        ? `[Ảnh Thay Thế] ${action.photoCode || action.targetPhotoType || 'Ảnh'}`
+        : action.action === 'ADD'
+        ? `[Ảnh Bổ Sung] ${action.photoCode || action.targetPhotoType || 'Ảnh'} (${action.newPhotoUrls?.length || 1} ảnh)`
+        : `[Xóa Ảnh] ${action.photoCode || action.targetPhotoType || 'Ảnh'}`;
+
+    const newDiff: DiffItem = {
+      field: action.targetPhotoId || action.targetPhotoType || 'photo',
+      label: diffLabel,
+      oldValue: action.oldPhotoUrl || '—',
+      newValue:
+        action.action === 'DELETE'
+          ? action.isNotApplicable
+            ? 'Không áp dụng (N/A)'
+            : 'Đã xóa'
+          : action.newPhotoUrl || (action.newPhotoUrls && action.newPhotoUrls.length > 0 ? action.newPhotoUrls[0] : 'Đã tải ảnh'),
+      isPhoto: true,
+    };
+
+    setPendingDirtyData((prev) => ({
+      ...prev,
+      dirtyCount: prev.dirtyCount + 1,
+      diffItems: [...prev.diffItems, newDiff],
+    }));
+
+    // 3. Đóng modal action
+    setPhotoActionData((prev) => ({ ...prev, isOpen: false }));
+  };
+
+  // Handle Approve button click
+  const handleApprove = async () => {
+    if (!data) return;
+
+    // Ràng buộc kiểm toán: Nếu có diff chưa lưu -> Hiển thị popup cảnh báo 3 lựa chọn
+    if (pendingDirtyData.dirtyCount > 0 || stagedPhotoActions.length > 0) {
+      setShowUnsavedChangesWarning(true);
+      return;
+    }
+
+    const confirmMsg = `Bạn có chắc chắn muốn PHÊ DUYỆT hồ sơ thửa ${data.projectParcelCode}?\nHồ sơ sẽ được khóa bất biến và tự động ký số Zone Admin.`;
+    if (!window.confirm(confirmMsg)) return;
+
+    await executeApprove();
+  };
+
+  const handleDiscardAndApprove = async () => {
+    setShowUnsavedChangesWarning(false);
+    setStagedPhotoActions([]);
+    pendingDirtyData.discardAll(true);
+    await executeApprove();
+  };
+
+  const handleSaveDiffFirst = () => {
+    setShowUnsavedChangesWarning(false);
+    setDiffModalData({
+      isOpen: true,
+      diffItems: pendingDirtyData.diffItems,
+      updates: pendingDirtyData.updates,
+    });
   };
 
   const handleRevertToDraft = async () => {
@@ -142,14 +264,14 @@ export const AuditStudioModal: React.FC<Props> = ({
     }
   };
 
-  const auditFlags = data?.auditFlags || [];
+  const auditFlags = data?.auditWarningFlags || data?.auditFlags || [];
   const riskCard = data?.leftPane?.riskScoreCard;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-xs p-2 sm:p-4 overflow-y-auto animate-in fade-in duration-200">
-      <div className="relative w-full max-w-7xl h-[92vh] bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col">
+    <div className={`fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-xs animate-in fade-in duration-200 ${isFullscreen ? 'p-0' : 'p-2 sm:p-4 overflow-y-auto'}`}>
+      <div className={`relative w-full bg-white shadow-2xl border border-slate-200 overflow-hidden flex flex-col transition-all duration-200 ${isFullscreen ? 'h-screen w-screen rounded-none' : 'max-w-7xl h-[92vh] rounded-2xl'}`}>
         {/* Top Header Bar */}
-        <div className="flex items-center justify-between px-5 py-3.5 bg-slate-900 text-white border-b border-slate-800 shrink-0">
+        <div className="flex items-center justify-between px-5 py-3 bg-slate-900 text-white border-b border-slate-800 shrink-0 select-none">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-emerald-500/20 text-emerald-400 rounded-xl border border-emerald-500/30">
               <ShieldCheck className="w-5 h-5" />
@@ -195,6 +317,95 @@ export const AuditStudioModal: React.FC<Props> = ({
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Version History & Rollback Dropdown */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setShowVersionDropdown(!showVersionDropdown)}
+                className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border ${
+                  showVersionDropdown
+                    ? 'bg-indigo-600 text-white border-indigo-400 shadow-md'
+                    : 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40 hover:bg-indigo-500/30'
+                }`}
+                title="Lịch sử các phiên bản và so sánh đối chiếu"
+              >
+                <GitBranch className="w-3.5 h-3.5 text-indigo-400" />
+                <span>
+                  v{versions.length > 0 ? versions[0].versionNumber : 0} ({versions.length} phiên bản)
+                </span>
+                <ChevronDown className="w-3 h-3 text-indigo-300 ml-0.5" />
+              </button>
+
+              {showVersionDropdown && (
+                <div className="absolute right-0 top-full mt-2 w-80 sm:w-96 bg-slate-900 rounded-xl shadow-2xl border border-slate-700 text-slate-100 z-50 p-3 space-y-2.5 animate-in fade-in slide-in-from-top-1">
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+                    <div className="flex items-center gap-1.5 font-bold text-xs text-indigo-300">
+                      <GitBranch className="w-4 h-4 text-indigo-400" />
+                      <span>Lịch Sử Phiên Bản ({versions.length})</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowVersionDropdown(false)}
+                      className="text-slate-400 hover:text-slate-200 p-1 cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+
+                  <div className="max-h-72 overflow-y-auto space-y-1.5 text-xs pr-1">
+                    {versions.map((ver, vIdx) => {
+                      const isLatest = vIdx === 0;
+                      return (
+                        <div
+                          key={ver.id || ver.versionNumber}
+                          onClick={() => {
+                            setShowVersionDropdown(false);
+                            setShowVersionComparison(true);
+                          }}
+                          className="p-2.5 rounded-lg border border-slate-800 bg-slate-950/60 hover:bg-slate-800/80 hover:border-slate-700 transition-all cursor-pointer flex flex-col gap-1"
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono font-bold text-indigo-400">v{ver.versionNumber}</span>
+                              <span className="font-semibold text-[11px] text-slate-200 truncate max-w-[150px]">
+                                {ver.title}
+                              </span>
+                            </div>
+                            {isLatest && (
+                              <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-emerald-500 text-slate-950">
+                                Hiện tại
+                              </span>
+                            )}
+                          </div>
+                          {ver.editReason && (
+                            <p className="text-[11px] text-slate-400 italic line-clamp-1">
+                              &ldquo;{ver.editReason}&rdquo;
+                            </p>
+                          )}
+                          <div className="flex items-center justify-between text-[10px] text-slate-500 pt-1 border-t border-slate-800/50 mt-0.5">
+                            <span>{ver.createdByName || 'Admin'}</span>
+                            <span>{new Date(ver.createdAt).toLocaleString('vi-VN')}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowVersionDropdown(false);
+                      setShowVersionComparison(true);
+                    }}
+                    className="w-full py-2 px-3 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer shadow-md shadow-indigo-600/30"
+                  >
+                    <History className="w-3.5 h-3.5" />
+                    <span>Mở Studio So Sánh & Hoàn Nguyên</span>
+                  </button>
+                </div>
+              )}
+            </div>
+
             {data?.auditHistory && (
               <button
                 type="button"
@@ -211,12 +422,63 @@ export const AuditStudioModal: React.FC<Props> = ({
               </button>
             )}
 
+            {/* Interactive Warning Flags Button & Popover */}
             {auditFlags.length > 0 && (
-              <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 flex items-center gap-1.5">
-                <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
-                <span>{auditFlags.length} Cờ cảnh báo</span>
-              </span>
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setShowFlagsPopover(!showFlagsPopover)}
+                  className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border ${
+                    showFlagsPopover
+                      ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-md'
+                      : 'bg-amber-500/20 text-amber-300 border-amber-500/40 hover:bg-amber-500/30'
+                  }`}
+                  title="Bấm để xem danh sách chi tiết các cờ cảnh báo rủi ro"
+                >
+                  <AlertTriangle className={`w-3.5 h-3.5 ${showFlagsPopover ? 'text-slate-950' : 'text-amber-400'}`} />
+                  <span>{auditFlags.length} Cờ cảnh báo</span>
+                </button>
+
+                {showFlagsPopover && (
+                  <div className="absolute right-0 top-full mt-2 w-80 sm:w-96 bg-white rounded-xl shadow-2xl border border-slate-200 text-slate-800 z-50 p-3 space-y-2 animate-in fade-in slide-in-from-top-1">
+                    <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                      <div className="flex items-center gap-1.5 font-bold text-xs text-amber-900">
+                        <AlertTriangle className="w-4 h-4 text-amber-500" />
+                        <span>Danh Sách Cảnh Báo Hồ Sơ ({auditFlags.length})</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setShowFlagsPopover(false)}
+                        className="text-slate-400 hover:text-slate-600 p-1"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+
+                    <div className="max-h-72 overflow-y-auto space-y-1.5 text-xs pr-1">
+                      {auditFlags.map((flag: { code: string; level: 'WARNING' | 'INFO'; message: string }, fIdx: number) => {
+                        const isWarn = flag.level === 'WARNING';
+                        return (
+                          <div
+                            key={flag.code || fIdx}
+                            className={`p-2.5 rounded-lg border flex items-start gap-2 ${
+                              isWarn ? 'bg-amber-50/70 border-amber-200 text-amber-950' : 'bg-sky-50/70 border-sky-200 text-sky-950'
+                            }`}
+                          >
+                            <span className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${isWarn ? 'bg-amber-500' : 'bg-sky-500'}`} />
+                            <div className="flex-1">
+                              <p className="font-semibold text-[11px] leading-snug">{flag.message}</p>
+                              <span className="text-[9px] font-mono text-slate-400 uppercase mt-0.5 block">{flag.code}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
             )}
+
             <button
               type="button"
               onClick={fetchAuditData}
@@ -227,9 +489,17 @@ export const AuditStudioModal: React.FC<Props> = ({
             </button>
             <button
               type="button"
+              onClick={() => setIsFullscreen(!isFullscreen)}
+              className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors cursor-pointer"
+              title={isFullscreen ? 'Thu nhỏ về dạng cửa sổ nổi' : 'Mở rộng toàn màn hình Workspace'}
+            >
+              {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+            </button>
+            <button
+              type="button"
               onClick={onClose}
               className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors cursor-pointer"
-              title="Đóng modal"
+              title="Đóng studio thẩm định"
             >
               <X className="w-5 h-5" />
             </button>
@@ -255,64 +525,202 @@ export const AuditStudioModal: React.FC<Props> = ({
             </button>
           </div>
         ) : (
-          <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-100/70">
-            <AuditStepwiseDocumentView
-              data={data || {}}
-              reportId={reportId}
-              onRefresh={fetchAuditData}
-              onOpenPhotoZoom={(url, title) => {
-                setSelectedPhotoUrl(url);
-                setSelectedPhotoTitle(title || 'Ảnh Hiện Trường');
-                setShowImageZoom(true);
-              }}
-              onOpenPhotoReplace={(params) => {
-                setPhotoReplaceData({
-                  isOpen: true,
-                  targetPhotoType: params.targetPhotoType,
-                  targetPhotoId: params.targetPhotoId,
-                  defectId: params.defectId,
-                  zoneId: params.zoneId,
-                  photoIndex: params.photoIndex,
-                  currentPhotoUrl: params.currentPhotoUrl,
-                  photoTitle: params.photoTitle,
-                });
-              }}
-              onOpenDiffModal={(diffItems, updates) => {
-                setDiffModalData({
-                  isOpen: true,
-                  diffItems,
-                  updates,
-                });
-              }}
-              onOpenEngineeringJudgement={() => setShowJudgementModal(true)}
-            />
+          <div id="audit-studio-scroll-container" className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-100/70">
+            {(() => {
+              const isCondoUnit = Boolean(
+                data?.unitInfo?.unit_type === 'UNIT' ||
+                data?.reportType === 'CONDO_UNIT' ||
+                data?.reportType === 'UNIT_CHILD' ||
+                data?.unitInfo?.unit_code?.startsWith('U-')
+              );
+
+              const isMasterArea = Boolean(
+                data?.unitInfo?.unit_type === 'MASTER' ||
+                data?.reportType === 'MASTER_AREA' ||
+                data?.unitInfo?.unit_code?.startsWith('M-')
+              );
+
+              const isCondoMaster = Boolean(
+                (data?.buildingType?.includes('CONDO') || data?.parentBuildingInfo?.buildingType?.includes('CONDO')) &&
+                !data?.unitId &&
+                (data?.reportType === 'CONDO_MASTER' || data?.reportType === 'BUILDING_MASTER' || !data?.reportType)
+              );
+
+              if (isCondoUnit) {
+                return (
+                  <CondoUnitAuditStudioView
+                    data={data || {}}
+                    reportId={reportId}
+                    onRefresh={fetchAuditData}
+                    onOpenPhotoZoom={(url, title) => {
+                      setSelectedPhotoUrl(url);
+                      setSelectedPhotoTitle(title || 'Ảnh Căn Hộ');
+                      setShowImageZoom(true);
+                    }}
+                    onOpenPhotoReplace={(params) => {
+                      setPhotoReplaceData({
+                        isOpen: true,
+                        targetPhotoType: params.targetPhotoType,
+                        targetPhotoId: params.targetPhotoId,
+                        defectId: params.defectId,
+                        zoneId: params.zoneId,
+                        photoIndex: params.photoIndex,
+                        currentPhotoUrl: params.currentPhotoUrl,
+                        photoTitle: params.photoTitle,
+                      });
+                    }}
+                    onOpenDiffModal={(diffItems, updates) => {
+                      setDiffModalData({
+                        isOpen: true,
+                        diffItems,
+                        updates,
+                      });
+                    }}
+                    onOpenEngineeringJudgement={() => setShowJudgementModal(true)}
+                    onOpenRejectModal={() => setShowRejectModal(true)}
+                    onClose={onClose}
+                  />
+                );
+              }
+
+              if (isMasterArea) {
+                return (
+                  <CondoMasterAreaAuditStudioView
+                    data={data || {}}
+                    reportId={reportId}
+                    onRefresh={fetchAuditData}
+                    onOpenPhotoZoom={(url, title) => {
+                      setSelectedPhotoUrl(url);
+                      setSelectedPhotoTitle(title || 'Ảnh Khu Vực Dùng Chung');
+                      setShowImageZoom(true);
+                    }}
+                    onOpenPhotoReplace={(params) => {
+                      setPhotoReplaceData({
+                        isOpen: true,
+                        targetPhotoType: params.targetPhotoType,
+                        targetPhotoId: params.targetPhotoId,
+                        defectId: params.defectId,
+                        zoneId: params.zoneId,
+                        photoIndex: params.photoIndex,
+                        currentPhotoUrl: params.currentPhotoUrl,
+                        photoTitle: params.photoTitle,
+                      });
+                    }}
+                    onOpenDiffModal={(diffItems, updates) => {
+                      setDiffModalData({
+                        isOpen: true,
+                        diffItems,
+                        updates,
+                      });
+                    }}
+                    onOpenEngineeringJudgement={() => setShowJudgementModal(true)}
+                    onOpenRejectModal={() => setShowRejectModal(true)}
+                    onClose={onClose}
+                  />
+                );
+              }
+
+              if (isCondoMaster) {
+                return (
+                  <CondoMasterAuditStudioView
+                    data={data || {}}
+                    reportId={reportId}
+                    onRefresh={fetchAuditData}
+                    onOpenPhotoZoom={(url, title) => {
+                      setSelectedPhotoUrl(url);
+                      setSelectedPhotoTitle(title || 'Ảnh Tòa Mẹ');
+                      setShowImageZoom(true);
+                    }}
+                    onOpenPhotoReplace={(params) => {
+                      setPhotoReplaceData({
+                        isOpen: true,
+                        targetPhotoType: params.targetPhotoType,
+                        targetPhotoId: params.targetPhotoId,
+                        defectId: params.defectId,
+                        zoneId: params.zoneId,
+                        photoIndex: params.photoIndex,
+                        currentPhotoUrl: params.currentPhotoUrl,
+                        photoTitle: params.photoTitle,
+                      });
+                    }}
+                    onOpenDiffModal={(diffItems, updates) => {
+                      setDiffModalData({
+                        isOpen: true,
+                        diffItems,
+                        updates,
+                      });
+                    }}
+                    onOpenEngineeringJudgement={() => setShowJudgementModal(true)}
+                    onOpenRejectModal={() => setShowRejectModal(true)}
+                    onClose={onClose}
+                  />
+                );
+              }
+
+              return (
+                <AuditStepwiseDocumentView
+                  data={data || {}}
+                  reportId={reportId}
+                  onRefresh={fetchAuditData}
+                  onOpenPhotoZoom={(url, title) => {
+                    setSelectedPhotoUrl(url);
+                    setSelectedPhotoTitle(title || 'Ảnh Hiện Trường');
+                    setShowImageZoom(true);
+                  }}
+                  onOpenPhotoReplace={(params) => {
+                    setPhotoActionData({
+                      isOpen: true,
+                      initialMode: 'REPLACE',
+                      category: params.targetPhotoType.includes('DEFECT')
+                        ? 'DEFECT_CU'
+                        : params.targetPhotoType.includes('ZONE')
+                        ? 'ZONE_CTX'
+                        : params.targetPhotoType.includes('FLOOR')
+                        ? 'CAD_FLOOR'
+                        : 'IDENTIFICATION',
+                      targetPhotoType: params.targetPhotoType,
+                      targetPhotoId: params.targetPhotoId,
+                      defectId: params.defectId,
+                      zoneCode: params.zoneId,
+                      photoIndex: params.photoIndex,
+                      currentPhotoUrl: params.currentPhotoUrl,
+                      photoTitle: params.photoTitle,
+                    });
+                  }}
+                  onOpenPhotoAction={(params) => {
+                    setPhotoActionData({
+                      isOpen: true,
+                      ...params,
+                    });
+                  }}
+                  onOpenDiffModal={(diffItems, updates) => {
+                    setDiffModalData({
+                      isOpen: true,
+                      diffItems,
+                      updates,
+                    });
+                  }}
+                  onOpenEngineeringJudgement={() => setShowJudgementModal(true)}
+                  onDirtyChange={setPendingDirtyData}
+                />
+              );
+            })()}
           </div>
         )}
 
         {/* Bottom Footer: Decision Action Bar */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-white border-t border-slate-200 shrink-0">
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => {
-                const previewUrl = `/api/v1/v2/reports/${reportId}/preview/html`;
-                window.open(previewUrl, '_blank', 'noopener,noreferrer');
-              }}
-              className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
-            >
-              <FileText className="w-3.5 h-3.5" />
-              <span>Xem Bản In Preview</span>
-            </button>
-
-            {data?.status !== 'APPROVED' && (
-              <button
-                type="button"
-                onClick={() => setShowJudgementModal(true)}
-                className="px-3.5 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
-              >
-                <ShieldAlert className="w-3.5 h-3.5" />
-                <span>Can Thiệp Kỹ Thuật (Override)</span>
-              </button>
+          <div className="flex items-center gap-2.5">
+            <span className="text-xs text-slate-500 font-medium">
+              Thẩm định hồ sơ: <strong className="text-slate-800 font-mono">{data?.projectParcelCode || reportId}</strong>
+            </span>
+            {(pendingDirtyData.dirtyCount > 0 || stagedPhotoActions.length > 0) && (
+              <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-900 border border-amber-300 flex items-center gap-1.5 animate-pulse">
+                <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+                <span>
+                  {pendingDirtyData.dirtyCount + stagedPhotoActions.length} thay đổi chưa lưu (Cần Lưu Diff trước)
+                </span>
+              </span>
             )}
           </div>
 
@@ -342,12 +750,19 @@ export const AuditStudioModal: React.FC<Props> = ({
 
             <button
               type="button"
-              disabled={isApproving || data?.status === 'APPROVED'}
+              disabled={isApproving || data?.status === 'APPROVED' || pendingDirtyData.dirtyCount > 0 || stagedPhotoActions.length > 0}
               onClick={handleApprove}
-              className={`px-5 py-2 text-xs font-bold text-white rounded-xl flex items-center gap-1.5 transition-all shadow-md shadow-emerald-600/20 ${
+              title={
+                pendingDirtyData.dirtyCount > 0 || stagedPhotoActions.length > 0
+                  ? 'Vui lòng bấm Lưu Diff để lưu các thay đổi trước khi phê duyệt'
+                  : 'Phê duyệt hồ sơ'
+              }
+              className={`px-5 py-2 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all shadow-md ${
                 data?.status === 'APPROVED'
-                  ? 'bg-emerald-700/90 cursor-default'
-                  : 'bg-emerald-600 hover:bg-emerald-700 cursor-pointer'
+                  ? 'bg-emerald-700/90 text-white cursor-default'
+                  : pendingDirtyData.dirtyCount > 0 || stagedPhotoActions.length > 0
+                  ? 'bg-slate-200 text-slate-400 border border-slate-300 cursor-not-allowed shadow-none'
+                  : 'bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer shadow-emerald-600/20'
               }`}
             >
               <CheckCircle2 className="w-4 h-4" />
@@ -356,6 +771,8 @@ export const AuditStudioModal: React.FC<Props> = ({
                   ? 'Đang ký duyệt...'
                   : data?.status === 'APPROVED'
                   ? '✓ Đã Khóa Duyệt'
+                  : pendingDirtyData.dirtyCount > 0 || stagedPhotoActions.length > 0
+                  ? '🔒 Khóa Duyệt (Còn Diff Chưa Lưu)'
                   : 'Phê Duyệt Hồ Sơ (Approve)'}
               </span>
             </button>
@@ -412,36 +829,37 @@ export const AuditStudioModal: React.FC<Props> = ({
           parcelCode={data?.projectParcelCode}
           diffItems={diffModalData.diffItems}
           updatesPayload={diffModalData.updates}
+          photoActions={stagedPhotoActions}
           onClose={() => setDiffModalData({ isOpen: false, diffItems: [], updates: {} })}
           onSuccess={() => {
+            setStagedPhotoActions([]);
             fetchAuditData();
             onRefreshList();
+            alert('Đã lưu thay đổi vào cơ sở dữ liệu thành công! Vui lòng kiểm tra lại hồ sơ trước khi bấm Phê duyệt.');
           }}
         />
       )}
 
-      {photoReplaceData.isOpen && (
-        <AuditPhotoReplaceModal
-          isOpen={photoReplaceData.isOpen}
+      {photoActionData.isOpen && (
+        <AuditPhotoActionModal
+          isOpen={photoActionData.isOpen}
+          onClose={() => setPhotoActionData((prev) => ({ ...prev, isOpen: false }))}
           reportId={reportId}
-          targetPhotoType={photoReplaceData.targetPhotoType}
-          targetPhotoId={photoReplaceData.targetPhotoId}
-          defectId={photoReplaceData.defectId}
-          zoneId={photoReplaceData.zoneId}
-          photoIndex={photoReplaceData.photoIndex}
-          currentPhotoUrl={photoReplaceData.currentPhotoUrl}
-          photoTitle={photoReplaceData.photoTitle}
-          onClose={() =>
-            setPhotoReplaceData({
-              isOpen: false,
-              targetPhotoType: 'OTHER',
-              currentPhotoUrl: '',
-            })
-          }
-          onSuccess={() => {
-            fetchAuditData();
-            onRefreshList();
-          }}
+          parcelCode={data?.projectParcelCode || 'HCM_M2'}
+          initialMode={photoActionData.initialMode || 'REPLACE'}
+          category={photoActionData.category}
+          targetPhotoType={photoActionData.targetPhotoType}
+          targetPhotoId={photoActionData.targetPhotoId}
+          defectId={photoActionData.defectId}
+          defectCode={photoActionData.defectCode}
+          hasMultiplePhotos={photoActionData.hasMultiplePhotos}
+          currentPhotoUrl={photoActionData.currentPhotoUrl}
+          currentPhotoCode={photoActionData.currentPhotoCode}
+          photoTitle={photoActionData.photoTitle}
+          floorCode={photoActionData.floorCode}
+          zoneCode={photoActionData.zoneCode}
+          photoIndex={photoActionData.photoIndex}
+          onConfirmAction={handleConfirmPhotoAction}
         />
       )}
 
@@ -453,6 +871,82 @@ export const AuditStudioModal: React.FC<Props> = ({
           parcelCode={data?.projectParcelCode || undefined}
           logs={data?.auditHistory || []}
         />
+      )}
+
+      {showVersionComparison && (
+        <VersionComparisonModal
+          isOpen={showVersionComparison}
+          reportId={reportId}
+          parcelCode={data?.projectParcelCode || ''}
+          reportCode={data?.reportCode || ''}
+          currentData={data}
+          onClose={() => setShowVersionComparison(false)}
+          onRollbackSuccess={() => {
+            fetchAuditData();
+            fetchVersions();
+            onRefreshList();
+          }}
+        />
+      )}
+
+      {/* Modal Cảnh Báo 3 Lựa Chọn Khi Có Diff Chưa Lưu & Bấm Phê Duyệt */}
+      {showUnsavedChangesWarning && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-150">
+          <div className="relative w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-amber-300 overflow-hidden">
+            <div className="p-4 sm:p-5 bg-gradient-to-r from-amber-500 to-amber-600 text-white flex items-center gap-3">
+              <div className="p-2.5 bg-white/20 rounded-xl backdrop-blur-xs">
+                <AlertTriangle className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h3 className="text-base font-black tracking-tight">Cảnh Báo: Có Dữ Liệu Chưa Lưu!</h3>
+                <p className="text-xs text-amber-100 mt-0.5">
+                  Hồ sơ đang có <strong>{pendingDirtyData.dirtyCount}</strong> mục đã chỉnh sửa nhưng chưa xác nhận lưu vào CSDL.
+                </p>
+              </div>
+            </div>
+
+            <div className="p-5 space-y-4 text-xs text-slate-700">
+              <p className="leading-relaxed">
+                Bạn vừa bấm <strong>Phê Duyệt Hồ Sơ</strong> trong khi còn các thay đổi chưa được lưu. Vui lòng chọn cách xử lý bên dưới:
+              </p>
+
+              <div className="p-3 bg-amber-50/60 rounded-xl border border-amber-200/80 space-y-1.5 font-mono text-[11px] max-h-36 overflow-y-auto">
+                <div className="font-bold text-amber-900 text-xs mb-1 font-sans">Các trường đã chỉnh sửa:</div>
+                {pendingDirtyData.diffItems.map((d, i) => (
+                  <div key={i} className="truncate text-slate-700">
+                    • <strong>{d.label}:</strong> {String(d.oldValue ?? '—')} → <span className="text-amber-800 font-bold">{String(d.newValue ?? '—')}</span>
+                  </div>
+                ))}
+              </div>
+
+              <div className="space-y-2 pt-2">
+                <button
+                  type="button"
+                  onClick={handleSaveDiffFirst}
+                  className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-xs transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>1. Lưu Thay Đổi Trước (Mở Modal Diff)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDiscardAndApprove}
+                  className="w-full py-2.5 px-4 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 font-bold rounded-xl transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <Undo2 className="w-4 h-4 text-amber-700" />
+                  <span>2. Hủy Thay Đổi & Duyệt Bản Gốc</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowUnsavedChangesWarning(false)}
+                  className="w-full py-2 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl transition-colors cursor-pointer"
+                >
+                  3. Quay Lại Kiểm Tra Tiếp
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

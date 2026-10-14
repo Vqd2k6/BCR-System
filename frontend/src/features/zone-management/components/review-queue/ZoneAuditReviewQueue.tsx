@@ -1,47 +1,46 @@
-import { getErrorMessage, getErrorStatus, isNotFoundError } from '@/utils/errorUtils';
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
+  Home,
+  Building2,
+  ShieldAlert,
   Search,
   Filter,
-  CheckCircle2,
-  AlertTriangle,
-  Clock,
-  Eye,
-  FileCheck2,
-  XCircle,
-  ShieldAlert,
-  Building,
-  Home,
-  UserX,
   RefreshCw,
-  ChevronLeft,
-  ChevronRight,
-  ChevronsLeft,
-  ChevronsRight,
+  Clock,
   Layers,
-  FileText,
-  User,
   MapPin,
-  ExternalLink,
-  ArrowRightLeft,
-  Split,
-  SlidersHorizontal,
+  CheckCircle2,
 } from 'lucide-react';
-import { Card } from '../../../../core/components/ui/Card';
-import { Badge } from '../../../../core/components/ui/Badge';
-import { Button } from '../../../../core/components/ui/Button';
 import { api } from '../../../../services/api';
+import { getErrorMessage } from '@/utils/errorUtils';
 import { AuditStudioModal } from './AuditStudioModal';
 import { RejectReportModal } from './RejectReportModal';
 import { AdminReassignParcelModal } from './AdminReassignParcelModal';
 import { UnifiedGisMutationModal } from '../../../../components/gis/cadastral-editor/UnifiedGisMutationModal';
 import { CadastralBoundaryReshapeModal } from '../../../../components/gis/cadastral-editor/components/CadastralBoundaryReshapeModal';
+import { AuditHistoryModal } from './AuditHistoryModal';
+import type { AuditHistoryLogItem } from './AuditHistoryModal';
 import type { GisParcel } from '../../../../components/gis/shared/types';
-import { ReviewQueueTableRow } from './ReviewQueueTableRow';
+
+import { ResidentialReviewQueue } from './residential/ResidentialReviewQueue';
+import { CondoProjectsReviewQueue } from './condo/CondoProjectsReviewQueue';
+import { UrgentReviewQueue } from './urgent/UrgentReviewQueue';
 
 export interface PendingSubmissionItem {
   report_id: string | null;
+  report_type?: string | null;
   parcel_id: string;
+  unit_id?: string | null;
+  unit_code?: string | null;
+  display_code?: string | null;
+  unit_type?: string | null;
+  unit_floor_number?: number | null;
+  unit_owner_name?: string | null;
+  unit_owner_phone?: string | null;
+  unit_status?: string | null;
+  unit_resident_status?: string | null;
+  parent_parcel_code?: string | null;
+  parent_parcel_is_locked?: boolean | null;
   project_parcel_code: string;
   house_number: string;
   street: string;
@@ -59,6 +58,7 @@ export interface PendingSubmissionItem {
   surveyor_code: string | null;
   surveyor_phone: string | null;
   burland_damage_category: string | null;
+  burland_score?: number | null;
   burland_max_crack_width_mm: number | null;
   ecs_score: number | null;
   vi_score: number | null;
@@ -66,9 +66,28 @@ export interface PendingSubmissionItem {
   alert_count: number;
   owner_name?: string | null;
   land_area_m2?: number | null;
+  approved_at?: string | null;
+  judgement_notes?: string | null;
+  rejection_reason?: string | null;
+  approver_name?: string | null;
+  approver_role?: string | null;
+  parent_parcel_seal_hash?: string | null;
+  parent_parcel_locked_at?: string | null;
+  parent_parcel_locked_by_name?: string | null;
 }
 
-export type TabType = 'ALL' | 'RESIDENTIAL' | 'CONDO' | 'ABSENT' | 'CRITICAL' | 'REJECTED' | 'APPROVED';
+export type TabType =
+  | 'ALL'
+  | 'RESIDENTIAL'
+  | 'CONDO_MASTER'
+  | 'MASTER_AREA'
+  | 'CONDO_UNIT'
+  | 'ABSENT'
+  | 'CRITICAL'
+  | 'REJECTED'
+  | 'APPROVED';
+
+export type ReviewScope = 'RESIDENTIAL' | 'CONDO' | 'URGENT';
 
 interface Props {
   selectedZone: string;
@@ -86,25 +105,78 @@ export const ZoneAuditReviewQueue: React.FC<Props> = ({
   externalFilterCategory,
   externalFilterValue,
   onClearExternalFilter,
-  defaultTab = 'ALL',
   title,
 }) => {
-  const [items, setItems] = useState<PendingSubmissionItem[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [errorMsg, setErrorMsg] = useState('');
-  const [toastMessage, setToastMessage] = useState('');
+  // Determine initial scope from URL query parameter or externalFilterCategory
+  const getInitialScope = (): ReviewScope => {
+    const params = new URLSearchParams(window.location.search);
+    const scopeParam = params.get('scope')?.toUpperCase();
+    if (scopeParam === 'CONDO') return 'CONDO';
+    if (scopeParam === 'URGENT') return 'URGENT';
+    if (scopeParam === 'RESIDENTIAL') return 'RESIDENTIAL';
 
-  // Filtering states
-  const [activeTab, setActiveTab] = useState<TabType>(defaultTab);
-  const [searchInput, setSearchInput] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('ALL');
+    if (externalFilterCategory === 'CRITICAL' || externalFilterCategory === 'SLA' || externalFilterCategory === 'ALERTS') {
+      return 'URGENT';
+    }
+    if (externalFilterCategory === 'CONDO') {
+      return 'CONDO';
+    }
+    return 'RESIDENTIAL';
+  };
 
-  // Pagination states (25, 50, 100 rows)
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(25);
+  const [activeScope, setActiveScope] = useState<ReviewScope>(getInitialScope);
 
-  // Modal states
+  // Sync active scope when externalFilterCategory changes
+  useEffect(() => {
+    if (externalFilterCategory === 'CRITICAL' || externalFilterCategory === 'SLA' || externalFilterCategory === 'ALERTS') {
+      setActiveScope('URGENT');
+    } else if (externalFilterCategory === 'CONDO') {
+      setActiveScope('CONDO');
+    }
+  }, [externalFilterCategory]);
+
+  // Update URL search param on scope change
+  const handleScopeChange = (newScope: ReviewScope) => {
+    setActiveScope(newScope);
+    const url = new URL(window.location.href);
+    url.searchParams.set('nav', 'review');
+    url.searchParams.set('scope', newScope.toLowerCase());
+    window.history.replaceState({}, '', url.toString());
+  };
+
+  // Scope counts
+  const [scopeCounts, setScopeCounts] = useState({
+    residential: 0,
+    condoTowers: 0,
+    urgent: 0,
+  });
+
+  const fetchScopeCounts = useCallback(async () => {
+    if (!selectedZone) return;
+    try {
+      const res = await api.get('/admin/reports/scope-counts', {
+        params: {
+          zoneId: selectedZone,
+        },
+      });
+
+      if (res.data?.success && res.data.data) {
+        setScopeCounts({
+          residential: Number(res.data.data.residential || 0),
+          condoTowers: Number(res.data.data.condoTowers || 0),
+          urgent: Number(res.data.data.urgent || 0),
+        });
+      }
+    } catch (err: unknown) {
+      console.warn('[ZoneAuditReviewQueue] Không thể tải tổng số lượng scope:', err);
+    }
+  }, [selectedZone]);
+
+  useEffect(() => {
+    fetchScopeCounts();
+  }, [selectedZone, fetchScopeCounts]);
+
+  // Modal Management
   const [selectedAuditReportId, setSelectedAuditReportId] = useState<string | null>(null);
   const [auditStudioOpen, setAuditStudioOpen] = useState(false);
 
@@ -135,10 +207,43 @@ export const ZoneAuditReviewQueue: React.FC<Props> = ({
   } | null>(null);
 
   const [reshapeModalParcel, setReshapeModalParcel] = useState<GisParcel | null>(null);
-  const [isLoadingReshapeParcel, setIsLoadingReshapeParcel] = useState(false);
+
+  // Quick Audit History Modal
+  const [auditHistoryModalOpen, setAuditHistoryModalOpen] = useState(false);
+  const [auditHistoryLogs, setAuditHistoryLogs] = useState<AuditHistoryLogItem[]>([]);
+  const [auditHistoryReportCode, setAuditHistoryReportCode] = useState<string>('');
+
+  const handleOpenStudio = (reportId: string | null) => {
+    setSelectedAuditReportId(reportId);
+    setAuditStudioOpen(true);
+  };
+
+  const handlePreviewReport = (reportId: string | null) => {
+    if (!reportId) return;
+    const token = localStorage.getItem('token');
+    const apiBase = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/+$/, '');
+    const previewUrl = `${apiBase}/reports/${reportId}/preview-html?token=${encodeURIComponent(token || '')}`;
+    window.open(previewUrl, '_blank', 'noopener,noreferrer');
+  };
+
+  const handleOpenAuditHistory = async (reportId: string, itemCode?: string) => {
+    try {
+      if (itemCode) {
+        setAuditHistoryReportCode(itemCode);
+      }
+      const res = await api.get(`/admin/reports/${reportId}/audit-view`);
+      if (res.data?.success && res.data.data) {
+        setAuditHistoryLogs(res.data.data.auditHistory || []);
+        setAuditHistoryReportCode(res.data.data.projectParcelCode || itemCode || reportId);
+        setAuditHistoryModalOpen(true);
+      }
+    } catch (err: unknown) {
+      console.error('[ZoneAuditReviewQueue] Lỗi tải nhật ký kiểm toán:', err);
+      alert('Không thể tải nhật ký kiểm toán của hồ sơ.');
+    }
+  };
 
   const handleOpenReshape = async (item: PendingSubmissionItem) => {
-    setIsLoadingReshapeParcel(true);
     try {
       const res = await api.get(`/parcels/${item.parcel_id}`);
       if (res.data?.success && res.data.data) {
@@ -166,523 +271,232 @@ export const ZoneAuditReviewQueue: React.FC<Props> = ({
           zoneId: raw.zone_id || selectedZone,
         });
       }
-    } catch (err) {
-      console.error('[ZoneAuditReviewQueue] Lỗi tải chi tiết thửa để nắn chỉnh:', err);
-      showToast('Không thể tải dữ liệu thửa đất để nắn chỉnh.');
-    } finally {
-      setIsLoadingReshapeParcel(false);
-    }
-  };
-
-  // Debounce search input (300ms)
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedSearch(searchInput);
-      setCurrentPage(1);
-    }, 300);
-    return () => clearTimeout(handler);
-  }, [searchInput]);
-
-  // Reset page when zone or filters change
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [selectedZone, activeTab, externalFilterCategory, externalFilterValue]);
-
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => setToastMessage(''), 4500);
-    fetchSubmissions();
-    if (onStatsNeedRefresh) onStatsNeedRefresh();
-  };
-
-  // Fetch pending submissions from API
-  const fetchSubmissions = async () => {
-    setLoading(true);
-    setErrorMsg('');
-    try {
-      const res = await api.get('/admin/reports/pending-reviews', {
-        params: {
-          zoneId: selectedZone,
-          status: statusFilter !== 'ALL' ? statusFilter : undefined,
-          limit: 200,
-        },
-      });
-
-      if (res.data?.success && Array.isArray(res.data.data)) {
-        setItems(res.data.data);
-      } else if (res.data?.success && Array.isArray(res.data.data?.items)) {
-        setItems(res.data.data.items);
-      } else {
-        setItems([]);
-      }
     } catch (err: unknown) {
-      console.error('[ZoneAuditReviewQueue] Error loading submissions:', err);
-      setErrorMsg(getErrorMessage(err, 'Không thể tải danh sách hồ sơ chờ duyệt.'));
-    } finally {
-      setLoading(false);
+      console.error('[ZoneAuditReviewQueue] Lỗi tải chi tiết thửa đất để nắn ranh:', err);
+      alert('Không thể tải dữ liệu thửa đất.');
     }
-  };
-
-  useEffect(() => {
-    fetchSubmissions();
-  }, [selectedZone, statusFilter]);
-
-  // Tab counts
-  const tabCounts = useMemo(() => {
-    return {
-      all: items.filter((i) => i.status !== 'APPROVED').length,
-      residential: items.filter(
-        (i) =>
-          i.status !== 'APPROVED' &&
-          (i.building_type === 'RESIDENTIAL' || (!i.building_type?.includes('CONDO') && !i.is_refused_or_absent))
-      ).length,
-      condo: items.filter((i) => i.status !== 'APPROVED' && i.building_type?.includes('CONDO')).length,
-      absent: items.filter((i) => i.status === 'POSTPONED_ABSENT' || i.is_refused_or_absent).length,
-      critical: items.filter(
-        (i) =>
-          i.status !== 'APPROVED' &&
-          (['GRADE_3', 'GRADE_4', 'GRADE_5'].includes(i.burland_damage_category || '') ||
-            Number(i.alert_count) > 0 ||
-            Number(i.ecs_score) >= 70)
-      ).length,
-      rejected: items.filter((i) => i.status === 'REJECTED').length,
-      approved: items.filter((i) => i.status === 'APPROVED').length,
-    };
-  }, [items]);
-
-  // Filtered Items (Client-side memory cache with instant feedback)
-  const filteredItems = useMemo(() => {
-    return items.filter((item) => {
-      // 1. External filter từ Dashboard click-to-filter
-      if (externalFilterCategory === 'CRITICAL') {
-        if (item.status === 'APPROVED') return false;
-        const isHighBurland = ['GRADE_3', 'GRADE_4', 'GRADE_5'].includes(item.burland_damage_category || '');
-        const hasAlerts = Number(item.alert_count) > 0;
-        const isEcsHigh = Number(item.ecs_score) >= 70;
-        if (!isHighBurland && !hasAlerts && !isEcsHigh) return false;
-      } else if (externalFilterCategory === 'BURLAND') {
-        if (externalFilterValue === 'GRADE_4_5') {
-          if (item.burland_damage_category !== 'GRADE_4' && item.burland_damage_category !== 'GRADE_5') return false;
-        } else if (externalFilterValue === 'GRADE_3') {
-          if (item.burland_damage_category !== 'GRADE_3') return false;
-        } else if (externalFilterValue === 'GRADE_1_2') {
-          if (item.burland_damage_category !== 'GRADE_1' && item.burland_damage_category !== 'GRADE_2') return false;
-        }
-      } else if (externalFilterCategory === 'SLA') {
-        const itemTime = new Date(item.updated_at || item.created_at).getTime();
-        const diffHours = (Date.now() - itemTime) / (3600 * 1000);
-        if (externalFilterValue === 'OVERDUE_48H') {
-          if (item.status !== 'SUBMITTED' || diffHours < 48) return false;
-        } else if (externalFilterValue === 'WARNING_24H') {
-          if (item.status !== 'SUBMITTED' || diffHours < 24 || diffHours >= 48) return false;
-        }
-      } else if (externalFilterCategory === 'STATUS') {
-        if (externalFilterValue && item.status !== externalFilterValue) return false;
-      }
-
-      // 2. Tab filter
-      if (!externalFilterCategory) {
-        if (activeTab === 'ALL') {
-          if (item.status === 'APPROVED') return false;
-        } else if (activeTab === 'RESIDENTIAL') {
-          if (item.status === 'APPROVED') return false;
-          const isCondo = item.building_type?.includes('CONDO');
-          if (isCondo) return false;
-        } else if (activeTab === 'CONDO') {
-          if (item.status === 'APPROVED') return false;
-          const isCondo = item.building_type?.includes('CONDO');
-          if (!isCondo) return false;
-        } else if (activeTab === 'ABSENT') {
-          const isAbsent = item.status === 'POSTPONED_ABSENT' || item.is_refused_or_absent;
-          if (!isAbsent) return false;
-        } else if (activeTab === 'CRITICAL') {
-          if (item.status === 'APPROVED') return false;
-          const isHighBurland = ['GRADE_3', 'GRADE_4', 'GRADE_5'].includes(item.burland_damage_category || '');
-          const hasAlerts = Number(item.alert_count) > 0;
-          const isHighEcs = Number(item.ecs_score) >= 70;
-          if (!isHighBurland && !hasAlerts && !isHighEcs) return false;
-        } else if (activeTab === 'REJECTED') {
-          if (item.status !== 'REJECTED') return false;
-        } else if (activeTab === 'APPROVED') {
-          if (item.status !== 'APPROVED') return false;
-        }
-      }
-
-      // 3. Search query
-      if (debouncedSearch.trim()) {
-        const q = debouncedSearch.toLowerCase().trim();
-        const codeMatch = item.project_parcel_code?.toLowerCase().includes(q);
-        const streetMatch = `${item.house_number || ''} ${item.street || ''}`.toLowerCase().includes(q);
-        const surveyorMatch = item.surveyor_name?.toLowerCase().includes(q);
-        const zoneMatch = item.zone_id?.toLowerCase().includes(q);
-        if (!codeMatch && !streetMatch && !surveyorMatch && !zoneMatch) return false;
-      }
-
-      return true;
-    });
-  }, [items, activeTab, debouncedSearch, externalFilterCategory, externalFilterValue]);
-
-  // Pagination calculation
-  const totalFilteredCount = filteredItems.length;
-  const totalPages = Math.max(1, Math.ceil(totalFilteredCount / pageSize));
-  const startIndex = (currentPage - 1) * pageSize;
-  const endIndex = Math.min(startIndex + pageSize, totalFilteredCount);
-  const paginatedItems = useMemo(() => {
-    return filteredItems.slice(startIndex, endIndex);
-  }, [filteredItems, startIndex, endIndex]);
-
-  // Xem trước báo cáo kỹ thuật (HTML/PDF preview)
-  const handlePreviewReport = (reportId: string | null) => {
-    if (!reportId) {
-      alert('Hồ sơ này chưa có báo cáo kỹ thuật hoàn chỉnh để xem trước.');
-      return;
-    }
-    const previewUrl = `/api/v1/v2/reports/${reportId}/preview/html`;
-    window.open(previewUrl, '_blank', 'noopener,noreferrer');
-  };
-
-  // Open Audit Studio
-  const handleOpenStudio = (reportId: string | null) => {
-    if (!reportId) {
-      alert('Không tìm thấy ID báo cáo kỹ thuật.');
-      return;
-    }
-    setSelectedAuditReportId(reportId);
-    setAuditStudioOpen(true);
   };
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-      {/* Toast Notification */}
-      {toastMessage && (
-        <div className="bg-emerald-600 text-white px-4 py-2.5 text-xs font-bold flex items-center justify-between animate-in fade-in">
-          <div className="flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4" />
-            <span>{toastMessage}</span>
-          </div>
-        </div>
-      )}
-
-      {/* Header Bar */}
-      <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-slate-50/50">
+    <div className="space-y-4">
+      {/* Top Header & Segmented Scope Control */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
         <div>
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 bg-indigo-50 text-indigo-700 rounded-xl border border-indigo-200">
-              <FileText className="w-5 h-5 text-indigo-600" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h3 className="text-base font-black text-slate-800">
-                  {title || 'Hàng Đợi Thẩm Định & Phê Duyệt Hồ Sơ'}
-                </h3>
-                <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-100 text-indigo-800 border border-indigo-200">
-                  {totalFilteredCount} hồ sơ
-                </span>
-              </div>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Quy trình kiểm soát chất lượng 2 lớp cho Trưởng Zone: Kiểm tra ảnh có thước đo tỷ lệ, đối soát hiện trạng nứt và cấp duyệt báo cáo BCS.
-              </p>
-            </div>
-          </div>
+          <h2 className="text-base font-black text-slate-800 dark:text-slate-100 flex items-center gap-2">
+            <span>{title || 'Hàng Đợi Thẩm Định Kỹ Thuật & Pháp Lý'}</span>
+            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+              Metro 2 BCS
+            </span>
+          </h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+            Phân định 3 không gian thẩm định chuyên biệt: Nhà Dân Độc Lập, Khối Tháp Chung Cư và Ca Khẩn Cấp.
+          </p>
         </div>
 
-        {/* Search Box & Controls */}
-        <div className="flex items-center gap-2.5 flex-wrap">
-          <div className="relative min-w-[240px]">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
-            <input
-              type="text"
-              placeholder="Tìm mã thửa, địa chỉ, KSV..."
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              className="w-full pl-9 pr-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-2xs"
-            />
-          </div>
-
+        {/* Segmented Scope Switcher */}
+        <div className="flex items-center gap-1.5 p-1.5 bg-slate-100 dark:bg-slate-800/80 rounded-2xl border border-slate-200 dark:border-slate-700 w-fit shrink-0">
+          {/* Space 1: Residential */}
           <button
             type="button"
-            onClick={fetchSubmissions}
-            disabled={loading}
-            className="p-2 bg-white hover:bg-slate-100 text-slate-600 rounded-xl border border-slate-200 transition-colors shadow-2xs cursor-pointer"
-            title="Làm mới hàng đợi"
+            onClick={() => handleScopeChange('RESIDENTIAL')}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              activeScope === 'RESIDENTIAL'
+                ? 'bg-white dark:bg-slate-900 text-emerald-700 dark:text-emerald-400 shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+            }`}
           >
-            <RefreshCw size={14} className={loading ? 'animate-spin text-indigo-600' : ''} />
+            <Home className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>Nhà Dân Độc Lập</span>
+            <span
+              className={`px-2 py-0.5 rounded-full text-[10px] font-mono ${
+                activeScope === 'RESIDENTIAL'
+                  ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300'
+                  : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
+              }`}
+            >
+              {scopeCounts.residential}
+            </span>
+          </button>
+
+          {/* Space 2: Condo */}
+          <button
+            type="button"
+            onClick={() => handleScopeChange('CONDO')}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              activeScope === 'CONDO'
+                ? 'bg-white dark:bg-slate-900 text-indigo-700 dark:text-indigo-400 shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+            }`}
+          >
+            <Building2 className="w-4 h-4 text-indigo-600 shrink-0" />
+            <span>Dự Án Chung Cư</span>
+            <span
+              className={`px-2 py-0.5 rounded-full text-[10px] font-mono ${
+                activeScope === 'CONDO'
+                  ? 'bg-indigo-100 dark:bg-indigo-950 text-indigo-800 dark:text-indigo-300'
+                  : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
+              }`}
+            >
+              {scopeCounts.condoTowers} Tòa
+            </span>
+          </button>
+
+          {/* Space 3: Urgent */}
+          <button
+            type="button"
+            onClick={() => handleScopeChange('URGENT')}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              activeScope === 'URGENT'
+                ? 'bg-white dark:bg-slate-900 text-red-700 dark:text-red-400 shadow-xs'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+            }`}
+          >
+            <ShieldAlert className="w-4 h-4 text-red-600 shrink-0" />
+            <span>Cần Xử Lý Khẩn</span>
+            <span
+              className={`px-2 py-0.5 rounded-full text-[10px] font-mono ${
+                scopeCounts.urgent > 0 ? 'bg-red-100 text-red-800 animate-pulse' : 'bg-slate-200 dark:bg-slate-700 text-slate-600'
+              }`}
+            >
+              {scopeCounts.urgent}
+            </span>
           </button>
         </div>
       </div>
 
-      {/* Filter Tabs */}
-      <div className="px-4 border-b border-slate-100 flex items-center gap-2 overflow-x-auto bg-white py-2 scrollbar-none">
-        <button
-          type="button"
-          onClick={() => setActiveTab('ALL')}
-          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5 cursor-pointer ${
-            activeTab === 'ALL'
-              ? 'bg-indigo-600 text-white shadow-xs'
-              : 'text-slate-600 hover:bg-slate-100'
-          }`}
-        >
-          <span>Tất cả chờ xử lý</span>
-          <span className={`px-1.5 py-0.2 text-[10px] rounded-full ${activeTab === 'ALL' ? 'bg-indigo-700 text-white' : 'bg-slate-200 text-slate-700'}`}>
-            {tabCounts.all}
-          </span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab('RESIDENTIAL')}
-          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5 cursor-pointer ${
-            activeTab === 'RESIDENTIAL'
-              ? 'bg-indigo-600 text-white shadow-xs'
-              : 'text-slate-600 hover:bg-slate-100'
-          }`}
-        >
-          <Home className="w-3.5 h-3.5" />
-          <span>Nhà dân Phase 1</span>
-          <span className={`px-1.5 py-0.2 text-[10px] rounded-full ${activeTab === 'RESIDENTIAL' ? 'bg-indigo-700 text-white' : 'bg-slate-200 text-slate-700'}`}>
-            {tabCounts.residential}
-          </span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab('CONDO')}
-          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5 cursor-pointer ${
-            activeTab === 'CONDO'
-              ? 'bg-indigo-600 text-white shadow-xs'
-              : 'text-slate-600 hover:bg-slate-100'
-          }`}
-        >
-          <Building className="w-3.5 h-3.5" />
-          <span>Chung cư con</span>
-          <span className={`px-1.5 py-0.2 text-[10px] rounded-full ${activeTab === 'CONDO' ? 'bg-indigo-700 text-white' : 'bg-slate-200 text-slate-700'}`}>
-            {tabCounts.condo}
-          </span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab('ABSENT')}
-          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5 cursor-pointer ${
-            activeTab === 'ABSENT'
-              ? 'bg-amber-600 text-white shadow-xs'
-              : 'text-amber-800 hover:bg-amber-50'
-          }`}
-        >
-          <UserX className="w-3.5 h-3.5" />
-          <span>Vắng chủ hộ</span>
-          <span className={`px-1.5 py-0.2 text-[10px] rounded-full ${activeTab === 'ABSENT' ? 'bg-amber-700 text-white' : 'bg-amber-100 text-amber-800'}`}>
-            {tabCounts.absent}
-          </span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab('CRITICAL')}
-          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5 cursor-pointer ${
-            activeTab === 'CRITICAL'
-              ? 'bg-red-600 text-white shadow-xs'
-              : 'text-red-700 hover:bg-red-50'
-          }`}
-        >
-          <ShieldAlert className="w-3.5 h-3.5" />
-          <span>Nguy cơ cao (Cấp ≥ 3 / Cờ lỗi)</span>
-          <span className={`px-1.5 py-0.2 text-[10px] rounded-full ${activeTab === 'CRITICAL' ? 'bg-red-700 text-white' : 'bg-red-100 text-red-800'}`}>
-            {tabCounts.critical}
-          </span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab('REJECTED')}
-          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5 cursor-pointer ${
-            activeTab === 'REJECTED'
-              ? 'bg-slate-700 text-white shadow-xs'
-              : 'text-slate-600 hover:bg-slate-100'
-          }`}
-        >
-          <XCircle className="w-3.5 h-3.5" />
-          <span>Đã trả về</span>
-          <span className={`px-1.5 py-0.2 text-[10px] rounded-full ${activeTab === 'REJECTED' ? 'bg-slate-800 text-white' : 'bg-slate-200 text-slate-700'}`}>
-            {tabCounts.rejected}
-          </span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab('APPROVED')}
-          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5 cursor-pointer ${
-            activeTab === 'APPROVED'
-              ? 'bg-emerald-600 text-white shadow-xs'
-              : 'text-emerald-700 hover:bg-emerald-50'
-          }`}
-        >
-          <CheckCircle2 className="w-3.5 h-3.5" />
-          <span>Đã phê duyệt</span>
-          <span className={`px-1.5 py-0.2 text-[10px] rounded-full ${activeTab === 'APPROVED' ? 'bg-emerald-700 text-white' : 'bg-emerald-100 text-emerald-800'}`}>
-            {tabCounts.approved}
-          </span>
-        </button>
-      </div>
-
-      {/* Error state */}
-      {errorMsg && (
-        <div className="p-4 bg-red-50 border-b border-red-200 text-xs text-red-700 flex items-center gap-2">
-          <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
-          <span>{errorMsg}</span>
-        </div>
+      {/* Render Space Components */}
+      {activeScope === 'RESIDENTIAL' && (
+        <ResidentialReviewQueue
+          selectedZone={selectedZone}
+          onOpenStudio={handleOpenStudio}
+          onPreviewReport={handlePreviewReport}
+          onOpenRejectModal={(item) =>
+            setRejectModalData({
+              reportId: item.report_id || '',
+              parcelCode: item.project_parcel_code,
+              surveyorName: item.surveyor_name || undefined,
+            })
+          }
+          onOpenReassignModal={(item) =>
+            setReassignModalData({
+              reportId: item.report_id || '',
+              parcelCode: item.project_parcel_code,
+              parcelId: item.parcel_id,
+              houseNumber: item.house_number,
+              street: item.street,
+              surveyorName: item.surveyor_name || undefined,
+              zoneId: item.zone_id,
+            })
+          }
+          onOpenMutationModal={(item) =>
+            setMutationModalData({
+              parcelId: item.parcel_id,
+              parcelCode: item.project_parcel_code,
+              houseNumber: item.house_number,
+              street: item.street,
+              currentAreaM2: item.land_area_m2 || 0,
+              zoneId: item.zone_id,
+              reportId: item.report_id || undefined,
+            })
+          }
+          onOpenReshapeModal={handleOpenReshape}
+          onOpenAuditHistory={handleOpenAuditHistory}
+          onStatsNeedRefresh={() => {
+            fetchScopeCounts();
+            if (onStatsNeedRefresh) onStatsNeedRefresh();
+          }}
+        />
       )}
 
-      {/* High-Performance Paginated Table */}
-      <div className="overflow-x-auto">
-        <table className="w-full text-xs text-left">
-          <thead className="bg-slate-50 text-slate-700 font-bold uppercase border-b border-slate-200 select-none text-[11px] tracking-wide">
-            <tr>
-              <th className="p-3.5 whitespace-nowrap">Mã Thửa / Phân Khu</th>
-              <th className="p-3.5 min-w-[200px]">Địa Chỉ & Loại CT</th>
-              <th className="p-3.5 whitespace-nowrap">Khảo Sát Viên</th>
-              <th className="p-3.5 text-center whitespace-nowrap">Trạng Thái Hồ Sơ</th>
-              <th className="p-3.5 text-center whitespace-nowrap">Cấp Nguy Cơ (Burland)</th>
-              <th className="p-3.5 text-center whitespace-nowrap">Khuyết Tật</th>
-              <th className="p-3.5 text-center whitespace-nowrap">Cảnh Báo Kỹ Thuật</th>
-              <th className="p-3.5 text-right whitespace-nowrap">Thao Tác Thẩm Định</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {loading ? (
-              <tr>
-                <td colSpan={8} className="p-10 text-center text-slate-400">
-                  <RefreshCw className="w-6 h-6 mx-auto animate-spin mb-2 text-sky-600" />
-                  <span className="font-semibold">Đang tải danh sách hồ sơ cần thẩm định...</span>
-                </td>
-              </tr>
-            ) : paginatedItems.length === 0 ? (
-              <tr>
-                <td colSpan={8} className="p-10 text-center text-slate-400">
-                  <FileCheck2 className="w-8 h-8 mx-auto text-slate-300 mb-2" />
-                  <div className="text-sm font-bold text-slate-600">Không có hồ sơ nào thỏa mãn điều kiện lọc</div>
-                  <p className="text-xs text-slate-400 mt-1">
-                    Thử thay đổi từ khóa tìm kiếm hoặc chọn bộ lọc trạng thái khác.
-                  </p>
-                </td>
-              </tr>
-            ) : (
-              paginatedItems.map((item) => (
-                <ReviewQueueTableRow
-                  key={item.parcel_id}
-                  item={item}
-                  onOpenStudio={handleOpenStudio}
-                  onPreviewReport={handlePreviewReport}
-                  onOpenRejectModal={(it) =>
-                    setRejectModalData({
-                      reportId: it.report_id!,
-                      parcelCode: it.project_parcel_code,
-                      surveyorName: it.surveyor_name || undefined,
-                    })
-                  }
-                  onOpenReassignModal={(it) =>
-                    setReassignModalData({
-                      reportId: it.report_id!,
-                      parcelCode: it.project_parcel_code,
-                      parcelId: it.parcel_id,
-                      houseNumber: it.house_number,
-                      street: it.street,
-                      surveyorName: it.surveyor_name || undefined,
-                      zoneId: it.zone_id,
-                    })
-                  }
-                  onOpenMutationModal={(it) =>
-                    setMutationModalData({
-                      parcelId: it.parcel_id,
-                      parcelCode: it.project_parcel_code,
-                      houseNumber: it.house_number,
-                      street: it.street,
-                      currentAreaM2: it.land_area_m2 || 0,
-                      zoneId: it.zone_id,
-                      reportId: it.report_id || undefined,
-                    })
-                  }
-                  onOpenReshapeModal={handleOpenReshape}
-                />
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+      {activeScope === 'CONDO' && (
+        <CondoProjectsReviewQueue
+          selectedZone={selectedZone}
+          onOpenStudio={handleOpenStudio}
+          onPreviewReport={handlePreviewReport}
+          onOpenRejectModal={(item) =>
+            setRejectModalData({
+              reportId: item.report_id || '',
+              parcelCode: item.project_parcel_code,
+              surveyorName: item.surveyor_name || undefined,
+            })
+          }
+          onOpenReassignModal={(item) =>
+            setReassignModalData({
+              reportId: item.report_id || '',
+              parcelCode: item.project_parcel_code,
+              parcelId: item.parcel_id,
+              houseNumber: item.house_number,
+              street: item.street,
+              surveyorName: item.surveyor_name || undefined,
+              zoneId: item.zone_id,
+            })
+          }
+          onOpenMutationModal={(item) =>
+            setMutationModalData({
+              parcelId: item.parcel_id,
+              parcelCode: item.project_parcel_code,
+              houseNumber: item.house_number,
+              street: item.street,
+              currentAreaM2: item.land_area_m2 || 0,
+              zoneId: item.zone_id,
+              reportId: item.report_id || undefined,
+            })
+          }
+          onOpenReshapeModal={handleOpenReshape}
+          onOpenAuditHistory={handleOpenAuditHistory}
+          onStatsNeedRefresh={() => {
+            fetchScopeCounts();
+            if (onStatsNeedRefresh) onStatsNeedRefresh();
+          }}
+        />
+      )}
 
-      {/* Pagination Footer Controls */}
-      <div className="p-3 sm:p-4 bg-slate-50 border-t border-slate-200 text-xs text-slate-600 flex flex-col sm:flex-row items-center justify-between gap-3">
-        {/* Left summary & Page Size selector */}
-        <div className="flex items-center gap-3 flex-wrap">
-          <span className="font-medium text-slate-500">
-            Hiển thị <strong>{totalFilteredCount > 0 ? startIndex + 1 : 0}</strong> - <strong>{endIndex}</strong> / <strong>{totalFilteredCount}</strong> hồ sơ
-          </span>
-
-          <div className="flex items-center gap-1.5 pl-3 border-l border-slate-200">
-            <span className="text-slate-400 text-[11px]">Số dòng:</span>
-            <select
-              value={pageSize}
-              onChange={(e) => {
-                setPageSize(Number(e.target.value));
-                setCurrentPage(1);
-              }}
-              className="bg-white border border-slate-300 rounded-lg px-2 py-1 text-xs font-bold text-slate-700 focus:outline-none focus:ring-1 focus:ring-sky-500 cursor-pointer"
-            >
-              <option value={25}>25 / trang</option>
-              <option value={50}>50 / trang</option>
-              <option value={100}>100 / trang</option>
-            </select>
-          </div>
-        </div>
-
-        {/* Right Pagination Buttons */}
-        <div className="flex items-center gap-1">
-          <button
-            type="button"
-            disabled={currentPage <= 1}
-            onClick={() => setCurrentPage(1)}
-            className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed text-slate-600 transition-colors"
-            title="Về trang đầu"
-          >
-            <ChevronsLeft size={14} />
-          </button>
-          <button
-            type="button"
-            disabled={currentPage <= 1}
-            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-            className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed text-slate-600 transition-colors"
-            title="Trang trước"
-          >
-            <ChevronLeft size={14} />
-          </button>
-
-          <span className="px-3 py-1 font-bold font-mono text-xs text-slate-800 bg-white border border-slate-200 rounded-lg">
-            Trang {currentPage} / {totalPages}
-          </span>
-
-          <button
-            type="button"
-            disabled={currentPage >= totalPages}
-            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-            className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed text-slate-600 transition-colors"
-            title="Trang sau"
-          >
-            <ChevronRight size={14} />
-          </button>
-          <button
-            type="button"
-            disabled={currentPage >= totalPages}
-            onClick={() => setCurrentPage(totalPages)}
-            className="p-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed text-slate-600 transition-colors"
-            title="Đến trang cuối"
-          >
-            <ChevronsRight size={14} />
-          </button>
-        </div>
-      </div>
+      {activeScope === 'URGENT' && (
+        <UrgentReviewQueue
+          selectedZone={selectedZone}
+          onOpenStudio={handleOpenStudio}
+          onPreviewReport={handlePreviewReport}
+          onOpenRejectModal={(item) =>
+            setRejectModalData({
+              reportId: item.report_id || '',
+              parcelCode: item.project_parcel_code,
+              surveyorName: item.surveyor_name || undefined,
+            })
+          }
+          onOpenReassignModal={(item) =>
+            setReassignModalData({
+              reportId: item.report_id || '',
+              parcelCode: item.project_parcel_code,
+              parcelId: item.parcel_id,
+              houseNumber: item.house_number,
+              street: item.street,
+              surveyorName: item.surveyor_name || undefined,
+              zoneId: item.zone_id,
+            })
+          }
+          onOpenMutationModal={(item) =>
+            setMutationModalData({
+              parcelId: item.parcel_id,
+              parcelCode: item.project_parcel_code,
+              houseNumber: item.house_number,
+              street: item.street,
+              currentAreaM2: item.land_area_m2 || 0,
+              zoneId: item.zone_id,
+              reportId: item.report_id || undefined,
+            })
+          }
+          onOpenReshapeModal={handleOpenReshape}
+          onOpenAuditHistory={handleOpenAuditHistory}
+          onStatsNeedRefresh={() => {
+            fetchScopeCounts();
+            if (onStatsNeedRefresh) onStatsNeedRefresh();
+          }}
+          initialSubTab={externalFilterCategory === 'SLA' ? 'SLA' : externalFilterCategory === 'CRITICAL' ? 'BURLAND' : 'ALL'}
+        />
+      )}
 
       {/* Audit Studio Modal */}
-      {selectedAuditReportId && (
+      {auditStudioOpen && selectedAuditReportId && (
         <AuditStudioModal
           isOpen={auditStudioOpen}
           reportId={selectedAuditReportId}
@@ -691,62 +505,64 @@ export const ZoneAuditReviewQueue: React.FC<Props> = ({
             setSelectedAuditReportId(null);
           }}
           onRefreshList={() => {
-            fetchSubmissions();
+            fetchScopeCounts();
             if (onStatsNeedRefresh) onStatsNeedRefresh();
           }}
         />
       )}
 
-      {/* Reject Report Modal */}
+      {/* Reject Modal */}
       {rejectModalData && (
         <RejectReportModal
-          isOpen={!!rejectModalData}
+          isOpen={Boolean(rejectModalData)}
           reportId={rejectModalData.reportId}
           parcelCode={rejectModalData.parcelCode}
           surveyorName={rejectModalData.surveyorName}
           onClose={() => setRejectModalData(null)}
-          onSuccess={(msg) => {
-            showToast(msg || 'Đã trả về báo cáo khảo sát yêu cầu đo lại.');
+          onSuccess={() => {
             setRejectModalData(null);
+            fetchScopeCounts();
+            if (onStatsNeedRefresh) onStatsNeedRefresh();
           }}
         />
       )}
 
-      {/* Reassign / Spatial Swap Modal */}
+      {/* Reassign Parcel Modal */}
       {reassignModalData && (
         <AdminReassignParcelModal
-          isOpen={!!reassignModalData}
+          isOpen={Boolean(reassignModalData)}
           reportId={reassignModalData.reportId}
           currentParcelId={reassignModalData.parcelId}
           currentParcelCode={reassignModalData.parcelCode}
           currentHouseNumber={reassignModalData.houseNumber}
           currentStreet={reassignModalData.street}
-          surveyorName={reassignModalData.surveyorName}
-          zoneId={reassignModalData.zoneId || selectedZone || 'ZONE_01'}
+          surveyorName={reassignModalData.surveyorName || 'KSV'}
+          zoneId={reassignModalData.zoneId || selectedZone}
           onClose={() => setReassignModalData(null)}
-          onSuccess={(msg) => {
-            showToast(msg || 'Đã hoán đổi vị trí ranh đất GIS thành công.');
+          onSuccess={() => {
             setReassignModalData(null);
-            fetchSubmissions();
+            fetchScopeCounts();
+            if (onStatsNeedRefresh) onStatsNeedRefresh();
           }}
         />
       )}
 
-      {/* Unified GIS Mutation Modal */}
+      {/* Mutation Modal */}
       {mutationModalData && (
         <UnifiedGisMutationModal
-          isOpen={!!mutationModalData}
+          isOpen={Boolean(mutationModalData)}
+          onClose={() => setMutationModalData(null)}
           parcelId={mutationModalData.parcelId}
           parcelCode={mutationModalData.parcelCode}
           houseNumber={mutationModalData.houseNumber}
           street={mutationModalData.street}
-          currentAreaM2={mutationModalData.currentAreaM2}
-          initialZoneId={mutationModalData.zoneId}
+          currentAreaM2={mutationModalData.currentAreaM2 || 0}
+          initialZoneId={mutationModalData.zoneId || selectedZone}
           reportId={mutationModalData.reportId}
-          onClose={() => setMutationModalData(null)}
-          onSuccess={(msg?: string) => {
-            showToast(msg || 'Đã thực hiện biến động ranh đất GIS thành công.');
+          onSuccess={() => {
             setMutationModalData(null);
+            fetchScopeCounts();
+            if (onStatsNeedRefresh) onStatsNeedRefresh();
           }}
         />
       )}
@@ -754,14 +570,27 @@ export const ZoneAuditReviewQueue: React.FC<Props> = ({
       {/* Cadastral Boundary Reshape Modal */}
       {reshapeModalParcel && (
         <CadastralBoundaryReshapeModal
-          isOpen={!!reshapeModalParcel}
+          isOpen={Boolean(reshapeModalParcel)}
           parcel={reshapeModalParcel}
           onClose={() => setReshapeModalParcel(null)}
-          onSuccess={(res) => {
-            showToast(res?.message || 'Đã nắn chỉnh ranh giới thửa đất thành công.');
+          onSuccess={() => {
             setReshapeModalParcel(null);
-            fetchSubmissions();
+            fetchScopeCounts();
+            if (onStatsNeedRefresh) onStatsNeedRefresh();
           }}
+        />
+      )}
+
+      {/* Audit History Modal */}
+      {auditHistoryModalOpen && (
+        <AuditHistoryModal
+          isOpen={auditHistoryModalOpen}
+          onClose={() => {
+            setAuditHistoryModalOpen(false);
+            setAuditHistoryLogs([]);
+          }}
+          reportCode={auditHistoryReportCode}
+          logs={auditHistoryLogs}
         />
       )}
     </div>

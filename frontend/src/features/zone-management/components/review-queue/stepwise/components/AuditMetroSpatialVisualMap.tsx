@@ -168,53 +168,43 @@ export const AuditMetroSpatialVisualMap: React.FC<Props> = ({
     };
   }, [distCenterNumber]);
 
-  // Custom DivIcon cho nhãn cự ly tim hầm (Vàng)
+  // Custom DivIcon cho nhãn cự ly tim hầm (Vàng nhỏ gọn)
   const centerDistanceLabelIcon = useMemo(() => {
     return L.divIcon({
       className: 'custom-dist-center-label',
       html: `
         <div style="
-          background-color: #1e293b;
+          background-color: rgba(30, 41, 59, 0.95);
           color: #fef08a;
-          border: 1.5px solid #facc15;
+          border: 1px solid #facc15;
           border-radius: 9999px;
-          padding: 2px 7px;
+          padding: 1px 6px;
           font-family: monospace;
-          font-size: 11px;
-          font-weight: 900;
+          font-size: 10px;
+          font-weight: 800;
           white-space: nowrap;
-          box-shadow: 0 4px 6px -1px rgba(0,0,0,0.3);
+          box-shadow: 0 2px 4px rgba(0,0,0,0.3);
           transform: translate(-50%, -50%);
           display: inline-flex;
           align-items: center;
-          gap: 4px;
+          gap: 3px;
         ">
-          <span style="display:inline-block; width:6px; height:6px; border-radius:9999px; background-color:#facc15;"></span>
-          d_tim = ${distCenterNumber.toFixed(1)}m
+          <span style="display:inline-block; width:5px; height:5px; border-radius:9999px; background-color:#facc15;"></span>
+          ${distCenterNumber.toFixed(1)} m
         </div>
       `,
       iconSize: [0, 0],
     });
   }, [distCenterNumber]);
 
-  // Custom DivIcon cho nhãn cự ly đường bao ngoài / công trình ga (Xanh ngọc / Cyan hoặc Đỏ Cam khi cán qua)
+  // Custom DivIcon cho nhãn cự ly đường bao ngoài / công trình ga (Xanh ngọc nhỏ gọn hoặc Đỏ Cam khi cán qua)
   const outerDistanceLabelIcon = useMemo(() => {
-    const isStation = outerBoundaryType === 'STATION_OUTLINE';
     const isZeroOrIntersects = distOuterNumber === 0 || spatialMetrics.isStationIntersectsParcel;
-
-    let badgeText = `${isStation ? 'd_mép ga' : 'd_mép hố đào'} = ${distOuterNumber.toFixed(1)}m`;
-    let bgColor = '#0c4a6e';
-    let textColor = '#bae6fd';
-    let borderColor = '#38bdf8';
-    let dotColor = '#38bdf8';
-
-    if (isZeroOrIntersects) {
-      badgeText = isStation ? 'd_ga = 0m (Ga cán qua thửa đất)' : 'd_hố đào = 0m (Trong mép hố đào)';
-      bgColor = '#7f1d1d';
-      textColor = '#fecaca';
-      borderColor = '#ef4444';
-      dotColor = '#ef4444';
-    }
+    const badgeText = isZeroOrIntersects ? '0.0 m (Ga)' : `${distOuterNumber.toFixed(1)} m`;
+    const bgColor = isZeroOrIntersects ? '#7f1d1d' : 'rgba(12, 74, 110, 0.95)';
+    const textColor = isZeroOrIntersects ? '#fecaca' : '#bae6fd';
+    const borderColor = isZeroOrIntersects ? '#ef4444' : '#38bdf8';
+    const dotColor = isZeroOrIntersects ? '#ef4444' : '#38bdf8';
 
     return L.divIcon({
       className: 'custom-dist-outer-label',
@@ -222,26 +212,26 @@ export const AuditMetroSpatialVisualMap: React.FC<Props> = ({
         <div style="
           background-color: ${bgColor};
           color: ${textColor};
-          border: 1.5px solid ${borderColor};
+          border: 1px solid ${borderColor};
           border-radius: 9999px;
-          padding: 2px 7px;
+          padding: 1px 6px;
           font-family: monospace;
-          font-size: 11px;
-          font-weight: 900;
+          font-size: 10px;
+          font-weight: 800;
           white-space: nowrap;
-          box-shadow: 0 4px 6px -1px rgba(0,0,0,0.3);
+          box-shadow: 0 2px 4px rgba(0,0,0,0.3);
           transform: translate(-50%, -50%);
           display: inline-flex;
           align-items: center;
-          gap: 4px;
+          gap: 3px;
         ">
-          <span style="display:inline-block; width:6px; height:6px; border-radius:9999px; background-color:${dotColor};"></span>
+          <span style="display:inline-block; width:5px; height:5px; border-radius:9999px; background-color:${dotColor};"></span>
           ${badgeText}
         </div>
       `,
       iconSize: [0, 0],
     });
-  }, [distOuterNumber, outerBoundaryType, spatialMetrics.isStationIntersectsParcel]);
+  }, [distOuterNumber, spatialMetrics.isStationIntersectsParcel]);
 
   // Custom DivIcon cho điểm đo GPS
   const gpsMarkerIcon = useMemo(() => {

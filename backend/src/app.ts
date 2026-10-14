@@ -176,20 +176,31 @@ export function createApp(): express.Application {
 
   // Thẩm định Split-Pane & Động cơ Cảnh báo Gian lận
   api.get('/admin/reports/pending-reviews', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.listPendingSubmissions);
+  api.get('/admin/reports/scope-counts', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.getScopeCounts);
+  api.get('/admin/condo/towers', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.listCondoTowers);
   api.get('/admin/reports/audit-alerts', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.listAuditAlerts);
+  api.post('/admin/reports/batch-approve', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.batchApproveReports);
   api.get('/admin/reports/:id/audit-flags', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.getReportAuditFlags);
   api.get('/admin/reports/:id/audit-view', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.getSplitPaneAuditView);
   api.post('/admin/reports/:id/approve', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.approveReport);
+  api.post('/admin/reports/:id/approve-absentee', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.approveAbsenteeReport);
   api.post('/admin/reports/:id/reject', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.rejectReport);
   api.post('/admin/reports/:id/revert-to-draft', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN', 'SURVEYOR'), AuditController.revertReportToDraft);
   api.post('/admin/reports/:id/revert-to-in-progress', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN', 'SURVEYOR'), AuditController.revertReportToDraft);
+  api.get('/admin/condo/:parcelId/progress-summary', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.getCondoProgressSummary);
+  api.post('/admin/condo/:parcelId/final-seal', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.executeFinalSeal);
   api.post('/admin/mutations/:id/approve', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.approveMutation);
   api.post('/admin/reports/:id/engineering-judgement', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ScoringController.applyJudgement);
   api.put('/admin/reports/:id/audit-edit', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.applyAdminSurveyEdit);
   api.post('/admin/reports/:id/audit-replace-photo', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.replaceReportPhoto);
+  api.post('/admin/reports/:id/audit-photo-action', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.executePhotoAction);
+  api.get('/admin/reports/:id/photo-registry', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.getPhotoAuditRegistry);
   api.post('/admin/reports/:id/reassign-parcel', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.reassignReportParcel);
   api.post('/admin/reports/swap-parcels', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.swapReportParcels);
   api.get('/admin/reports/swap-candidates', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.searchSwapCandidates);
+  api.get('/admin/reports/:id/versions', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.listReportVersions);
+  api.get('/admin/reports/:id/versions/:versionNumber', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.getReportVersionSnapshot);
+  api.post('/admin/reports/:id/versions/:versionNumber/rollback', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.rollbackReportVersion);
   api.get('/admin/parcels/:id/adjacent-candidates', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.getAdjacentCandidates);
   api.get('/parcels/:id/adjacent-candidates', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.getAdjacentCandidates);
   api.post('/admin/parcels/execute-mutation', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.executeAdminMutation);

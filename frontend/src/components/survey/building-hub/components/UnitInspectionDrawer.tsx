@@ -19,6 +19,7 @@ import { useAuth } from '../../../../context/AuthContext';
 import { api } from '../../../../services/api';
 import { getErrorMessage } from '@/utils/errorUtils';
 import { UnitCadSpatialSwapModal } from './UnitCadSpatialSwapModal';
+import { AuditStudioModal } from '../../../../features/zone-management/components/review-queue/AuditStudioModal';
 
 interface UnitInspectionDrawerProps {
   unit: BuildingUnit | null;
@@ -45,8 +46,75 @@ export const UnitInspectionDrawer: React.FC<UnitInspectionDrawerProps> = ({
   const isAdmin = user?.role === 'ZONE_ADMIN' || user?.role === 'SUPER_ADMIN';
   const [isReverting, setIsReverting] = React.useState(false);
   const [showSwapModal, setShowSwapModal] = React.useState(false);
+  const [auditStudioOpen, setAuditStudioOpen] = React.useState(false);
+  const [isApprovingAbsentee, setIsApprovingAbsentee] = React.useState(false);
+  const [activeReportId, setActiveReportId] = React.useState<string | null>(
+    unit?.phase1_report_id || unit?.phase1ReportId || null
+  );
+
+  React.useEffect(() => {
+    setActiveReportId(unit?.phase1_report_id || unit?.phase1ReportId || null);
+  }, [unit]);
 
   if (!unit) return null;
+
+  const resolveReportId = async (): Promise<string | null> => {
+    if (activeReportId) return activeReportId;
+    try {
+      const res = await api.get('/admin/reports/pending-reviews', {
+        params: { unitId: unit.id, limit: 1 },
+      });
+      const items = res.data?.data?.items || res.data?.data;
+      if (Array.isArray(items) && items.length > 0 && items[0].report_id) {
+        setActiveReportId(items[0].report_id);
+        return items[0].report_id;
+      }
+    } catch (e) {
+      console.error('[UnitInspectionDrawer] Could not resolve reportId:', e);
+    }
+    return null;
+  };
+
+  const handleOpenStudio = async () => {
+    const repId = await resolveReportId();
+    if (repId) {
+      setAuditStudioOpen(true);
+    } else {
+      alert('Không tìm thấy mã hồ sơ khảo sát của căn này.');
+    }
+  };
+
+  const handleApproveAbsentee = async () => {
+    const repId = await resolveReportId();
+    if (!repId) {
+      alert('Không tìm thấy mã hồ sơ vắng mặt.');
+      return;
+    }
+
+    const notes = window.prompt(
+      'Xác nhận phê duyệt vắng mặt căn hộ.\nNhập ghi chú thẩm định (đã đối soát ảnh dán giấy báo/biên bản...):',
+      'Đã đối soát ảnh dán giấy hẹn khảo sát tại cửa căn hộ.'
+    );
+    if (notes === null) return;
+
+    try {
+      setIsApprovingAbsentee(true);
+      const res = await api.post(`/admin/reports/${repId}/approve-absentee`, {
+        absenceVerificationNotes: notes || 'Đã kiểm tra chứng cứ vắng mặt.',
+      });
+      if (res.data?.success) {
+        alert('✅ Đã phê duyệt hồ sơ vắng mặt thành công!');
+        unit.status = 'POSTPONED_ABSENT_VERIFIED';
+        if (onUnitStatusUpdated) {
+          onUnitStatusUpdated();
+        }
+      }
+    } catch (err: unknown) {
+      alert(`❌ Lỗi khi duyệt vắng mặt: ${getErrorMessage(err)}`);
+    } finally {
+      setIsApprovingAbsentee(false);
+    }
+  };
 
   const isMaster = (unit.unit_type || unit.unitType) === 'MASTER';
   const shortCode = formatShortUnitDisplay(unit.unit_code, isMaster ? 'MASTER' : 'UNIT');
@@ -246,6 +314,33 @@ export const UnitInspectionDrawer: React.FC<UnitInspectionDrawerProps> = ({
           </span>
 
           <div className="flex items-center gap-2.5 w-full sm:w-auto justify-end">
+            {isAdmin && (isSubmitted || isApproved || isAbsent) && (
+              <button
+                type="button"
+                onClick={handleOpenStudio}
+                className="min-h-[44px] px-3.5 py-2.5 rounded-xl text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 transition-colors cursor-pointer flex items-center gap-1.5 shadow-2xs shrink-0"
+                title="Mở Studio Thẩm Định & Phê Duyệt"
+              >
+                <ShieldCheck size={14} className="text-indigo-600" />
+                <span className="hidden sm:inline">Studio Thẩm Định</span>
+                <span className="sm:hidden">Studio</span>
+              </button>
+            )}
+
+            {isAdmin && isAbsent && (
+              <button
+                type="button"
+                disabled={isApprovingAbsentee}
+                onClick={handleApproveAbsentee}
+                className="min-h-[44px] px-3.5 py-2.5 rounded-xl text-xs font-bold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 transition-colors cursor-pointer flex items-center gap-1.5 shadow-2xs shrink-0 disabled:opacity-50"
+                title="Duyệt hồ sơ vắng mặt"
+              >
+                <CheckCircle2 size={14} className={isApprovingAbsentee ? 'animate-spin' : 'text-purple-600'} />
+                <span className="hidden sm:inline">{isApprovingAbsentee ? 'Đang duyệt...' : 'Duyệt Vắng Mặt'}</span>
+                <span className="sm:hidden">{isApprovingAbsentee ? 'Duyệt...' : 'Duyệt Vắng'}</span>
+              </button>
+            )}
+
             {isSubmitted && isAdmin && (
               <button
                 type="button"
@@ -344,6 +439,20 @@ export const UnitInspectionDrawer: React.FC<UnitInspectionDrawerProps> = ({
           onClose={() => setShowSwapModal(false)}
           onSuccess={() => {
             setShowSwapModal(false);
+            if (onUnitStatusUpdated) {
+              onUnitStatusUpdated();
+            }
+          }}
+        />
+      )}
+
+      {/* Studio Thẩm Định Modal cho Admin */}
+      {auditStudioOpen && (activeReportId || unit.phase1_report_id || unit.phase1ReportId) && (
+        <AuditStudioModal
+          isOpen={auditStudioOpen}
+          reportId={(activeReportId || unit.phase1_report_id || unit.phase1ReportId)!}
+          onClose={() => setAuditStudioOpen(false)}
+          onRefreshList={() => {
             if (onUnitStatusUpdated) {
               onUnitStatusUpdated();
             }

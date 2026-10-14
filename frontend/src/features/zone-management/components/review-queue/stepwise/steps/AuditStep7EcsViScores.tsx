@@ -1,9 +1,10 @@
 import type { FloorSurveyData, DamageZoneData, DefectItem } from '../../../../../survey-phase1/types/phase1.types';
 import type { AuditStepwiseFormState, AuditStepwiseData, StepwiseEcs, StepwiseVi, RiskCardData } from '../types';
-import { getErrorMessage, getErrorStatus, isNotFoundError } from '@/utils/errorUtils';
+import { getErrorMessage } from '@/utils/errorUtils';
 import React, { useState } from 'react';
-import { Award, ShieldCheck, CheckCircle2, AlertTriangle, Sparkles, Scale, RefreshCw, Undo2 } from 'lucide-react';
+import { Award, ShieldCheck, CheckCircle2, AlertTriangle, Scale, Undo2 } from 'lucide-react';
 import { api } from '../../../../../../services/api';
+import { ScoreExplanationPopover } from '../components/ScoreExplanationPopover';
 
 interface Props {
   isEditMode?: boolean;
@@ -14,6 +15,7 @@ interface Props {
   handleNestedFieldChange?: (parentKey: string, childKey: string, label: string, val: unknown) => void;
   onRefresh?: () => void;
   onOpenEngineeringJudgement: () => void;
+  isFieldDirty?: (fieldKey: string, subKey?: string) => boolean;
 }
 
 export const AuditStep7EcsViScores: React.FC<Props> = ({
@@ -25,6 +27,7 @@ export const AuditStep7EcsViScores: React.FC<Props> = ({
   handleNestedFieldChange,
   onRefresh,
   onOpenEngineeringJudgement,
+  isFieldDirty,
 }) => {
   const sJson = data?.surveyJson || data?.survey_data_json || {};
   const riskCard: RiskCardData = data?.leftPane?.riskScoreCard || {};
@@ -33,53 +36,173 @@ export const AuditStep7EcsViScores: React.FC<Props> = ({
 
   const [isReverting, setIsReverting] = useState(false);
 
+  // Helper map risk classes to pure Vietnamese technical terms
+  const toVietnameseRiskClass = (cls?: string): string => {
+    if (!cls) return 'Chưa phân hạng';
+    const c = cls.toUpperCase();
+    if (c === 'VERY_LOW' || c === 'GOOD' || c === 'RẤT THẤP') return 'Tốt / Rất Thấp';
+    if (c === 'LOW' || c === 'THẤP') return 'Thấp';
+    if (c === 'MEDIUM' || c === 'MODERATE' || c === 'TRUNG BÌNH') return 'Trung Bình';
+    if (c === 'HIGH' || c === 'DEFICIENT' || c === 'CAO') return 'Xuống Cấp / Cao';
+    if (c === 'VERY_HIGH' || c === 'CRITICAL' || c === 'RẤT CAO') return 'Nguy Cấp / Rất Cao';
+    return cls;
+  };
+
   // Baseline values (Tính tự động từ KSV hiện trường)
   const baselineBurland = Number(riskCard?.e1_burland_score ?? ecs.e1 ?? 0);
   const baselineTotalEcs = Number(riskCard?.total_ecs_score ?? ecs.totalEcs ?? 0);
-  const baselineEcsClass = riskCard?.ecs_class || (baselineTotalEcs < 4 ? 'Rất Thấp' : baselineTotalEcs < 9 ? 'Thấp' : baselineTotalEcs < 15 ? 'Trung Bình' : baselineTotalEcs < 20 ? 'Cao' : 'Rất Cao');
+  const baselineEcsClass = toVietnameseRiskClass(
+    riskCard?.ecs_class ||
+      (baselineTotalEcs <= 5 ? 'GOOD' : baselineTotalEcs <= 10 ? 'MEDIUM' : baselineTotalEcs <= 16 ? 'DEFICIENT' : 'CRITICAL')
+  );
   const baselineImportance = Number(riskCard?.v1_importance_score ?? vi.v1 ?? 2.0);
   const baselineAvgVi = Number(riskCard?.avg_vi_score ?? vi.avgVi ?? vi.totalVi ?? 1.0);
-  const baselineViClass = riskCard?.vi_class || (baselineAvgVi < 1.75 ? 'Rất Thấp' : baselineAvgVi < 2.5 ? 'Thấp' : baselineAvgVi < 3.25 ? 'Trung Bình' : 'Cao');
+  const baselineViClass = toVietnameseRiskClass(
+    riskCard?.vi_class ||
+      (baselineAvgVi < 1.5 ? 'LOW' : baselineAvgVi < 2.5 ? 'MEDIUM' : baselineAvgVi < 3.5 ? 'HIGH' : 'VERY_HIGH')
+  );
 
   // Lớp Can thiệp chuyên gia (Overrides)
   const isOverridden = Boolean(riskCard?.is_engineering_judgement_applied);
-  const effectiveBurland = (isOverridden && riskCard?.overridden_burland_grade !== null && riskCard?.overridden_burland_grade !== undefined)
-    ? Number(riskCard.overridden_burland_grade)
-    : baselineBurland;
-  const effectiveTotalEcs = (isOverridden && riskCard?.overridden_total_ecs !== null && riskCard?.overridden_total_ecs !== undefined)
-    ? Number(riskCard.overridden_total_ecs)
-    : baselineTotalEcs;
-  const effectiveEcsClass = (isOverridden && riskCard?.overridden_ecs_class)
-    ? riskCard.overridden_ecs_class
-    : baselineEcsClass;
-  const effectiveImportance = (isOverridden && riskCard?.overridden_importance_score !== null && riskCard?.overridden_importance_score !== undefined)
-    ? Number(riskCard.overridden_importance_score)
-    : baselineImportance;
-  const effectiveAvgVi = (isOverridden && riskCard?.overridden_avg_vi !== null && riskCard?.overridden_avg_vi !== undefined)
-    ? Number(riskCard.overridden_avg_vi)
-    : baselineAvgVi;
-  const effectiveViClass = (isOverridden && riskCard?.overridden_vi_class)
-    ? riskCard.overridden_vi_class
-    : baselineViClass;
+  const effectiveBurland =
+    isOverridden && riskCard?.overridden_burland_grade !== null && riskCard?.overridden_burland_grade !== undefined
+      ? Number(riskCard.overridden_burland_grade)
+      : baselineBurland;
+  const effectiveTotalEcs =
+    isOverridden && riskCard?.overridden_total_ecs !== null && riskCard?.overridden_total_ecs !== undefined
+      ? Number(riskCard.overridden_total_ecs)
+      : baselineTotalEcs;
+  const effectiveEcsClass =
+    isOverridden && riskCard?.overridden_ecs_class
+      ? toVietnameseRiskClass(riskCard.overridden_ecs_class)
+      : baselineEcsClass;
+  const effectiveImportance =
+    isOverridden && riskCard?.overridden_importance_score !== null && riskCard?.overridden_importance_score !== undefined
+      ? Number(riskCard.overridden_importance_score)
+      : baselineImportance;
+  const effectiveAvgVi =
+    isOverridden && riskCard?.overridden_avg_vi !== null && riskCard?.overridden_avg_vi !== undefined
+      ? Number(riskCard.overridden_avg_vi)
+      : baselineAvgVi;
+  const effectiveViClass =
+    isOverridden && riskCard?.overridden_vi_class
+      ? toVietnameseRiskClass(riskCard.overridden_vi_class)
+      : baselineViClass;
 
-  // Breakdown E1..E6
+  // Breakdown E1..E6 (ECS) with complete technical standards
   const ecsItems = [
-    { code: 'E1', name: 'Cấp Nứt Burland Cực Đại', score: effectiveBurland, max: 4, desc: 'Bề rộng nứt lớn nhất', isOverridden: isOverridden && riskCard?.overridden_burland_grade !== null },
-    { code: 'E2', name: 'Nguy Cơ Kết Cấu Chịu Lực', score: ecs.e2 ?? riskCard?.e2_structure_score ?? 0, max: 4, desc: 'Khuyết tật trên cột, dầm' },
-    { code: 'E3', name: 'Đo Biến Dạng, Lún & Võng', score: ecs.e3 ?? 0, max: 4, desc: 'Độ nghiêng X/Y, lún lệch, võng dầm' },
-    { code: 'E4', name: 'Thoái Hóa Vật Liệu & Ẩm', score: ecs.e4 ?? 0, max: 4, desc: 'Bong tróc, ẩm mốc, rỉ sét' },
-    { code: 'E5', name: 'Lịch Sử Cải Tạo & Quá Khứ', score: ecs.e5 ?? 0, max: 4, desc: 'Cộng hưởng hư hại quá khứ' },
-    { code: 'E6', name: 'Suy Giảm Công Năng Tổng Thể', score: ecs.e6 ?? 0, max: 4, desc: 'Ảnh hưởng vận hành sử dụng' },
+    {
+      code: 'E1',
+      key: 'e1',
+      name: 'Cấp Nứt Burland Cực Đại',
+      score: effectiveBurland,
+      max: 4,
+      standard: 'Phân loại bề rộng vết nứt lớn nhất theo thang chuẩn Burland 1977 & CIRIA SP32',
+      isOverridden: isOverridden && riskCard?.overridden_burland_grade !== null,
+    },
+    {
+      code: 'E2',
+      key: 'e2',
+      name: 'Nguy Cơ Kết Cấu Chịu Lực',
+      score: Number(ecs.e2 ?? riskCard?.e2_structure_score ?? 0),
+      max: 4,
+      standard: 'Mức độ hư hại và nứt vỡ trên các cấu kiện chịu lực chính (cột, dầm, sàn BTCT)',
+      isOverridden: false,
+    },
+    {
+      code: 'E3',
+      key: 'e3',
+      name: 'Đo Biến Dạng, Lún & Võng Dầm',
+      score: Number(ecs.e3 ?? 0),
+      max: 4,
+      standard: 'Độ nghiêng tổng thể 2 phương X/Y, đo độ chênh lún móng và độ võng dầm kết cấu',
+      isOverridden: false,
+    },
+    {
+      code: 'E4',
+      key: 'e4',
+      name: 'Thoái Hóa Vật Liệu & Độ Ẩm',
+      score: Number(ecs.e4 ?? 0),
+      max: 4,
+      standard: 'Mức độ rỉ sét cốt thép, cacbonat hóa bê tông, ẩm mốc, bong tróc vữa trát',
+      isOverridden: false,
+    },
+    {
+      code: 'E5',
+      key: 'e5',
+      name: 'Lịch Sử Cải Tạo & Quá Khứ',
+      score: Number(ecs.e5 ?? 0),
+      max: 4,
+      standard: 'Dấu vết cơi nới, nâng tầng, sửa chữa kết cấu không đồng bộ hoặc lún tích lũy',
+      isOverridden: false,
+    },
+    {
+      code: 'E6',
+      key: 'e6',
+      name: 'Suy Giảm Công Năng Khai Thác',
+      score: Number(ecs.e6 ?? 0),
+      max: 4,
+      standard: 'Mức độ ảnh hưởng đến khả năng đóng mở cửa sổ/cửa đi, an toàn sử dụng của hộ dân',
+      isOverridden: false,
+    },
   ];
 
-  // Breakdown V1..V6
+  // Breakdown V1..V6 (VI) with complete technical definitions
   const viItems = [
-    { code: 'V1', name: 'Tầm Quan Trọng & Khoảng Cách', score: effectiveImportance, desc: 'Công năng & cự ly tới hầm', isOverridden: isOverridden && riskCard?.overridden_importance_score !== null },
-    { code: 'V2', name: 'Hệ Kết Cấu Chịu Lực', score: vi.v2 ?? 1, desc: 'Độ dẻo & ổn định của khung' },
-    { code: 'V3', name: 'Giải Pháp & Độ Tin Cậy Móng', score: vi.v3 ?? 1, desc: 'Phân loại CAT móng 1..5' },
-    { code: 'V4', name: 'Niên Đại & Tuổi Thọ', score: vi.v4 ?? 1, desc: 'Năm xây dựng công trình' },
-    { code: 'V5', name: 'Số Tầng Nổi & Tải Trọng', score: vi.v5 ?? 1, desc: 'Tầng cao và áp lực truyền móng' },
-    { code: 'V6', name: 'Địa Chất & Lân Cận', score: vi.v6 ?? 1, desc: 'Ranh giáp và mức độ chèn ép' },
+    {
+      code: 'V1',
+      key: 'v1',
+      name: 'Tầm Quan Trọng & Cự Ly Tim Hầm',
+      score: effectiveImportance,
+      max: 4,
+      definition: 'Mức độ quan trọng công năng công trình và cự ly không gian tới tim hầm Metro',
+      isOverridden: isOverridden && riskCard?.overridden_importance_score !== null,
+    },
+    {
+      code: 'V2',
+      key: 'v2',
+      name: 'Hệ Kết Cấu Chịu Lực Chính',
+      score: Number(vi.v2 ?? 1),
+      max: 4,
+      definition: 'Độ dẻo dai và tính ổn định tổng thể của hệ khung (BTCT toàn khối, tường gạch...)',
+      isOverridden: false,
+    },
+    {
+      code: 'V3',
+      key: 'v3',
+      name: 'Giải Pháp & Độ Tin Cậy Móng',
+      score: Number(vi.v3 ?? 1),
+      max: 5,
+      definition: 'Phân loại nhóm giải pháp móng (CAT 1 cọc khoan nhồi đến CAT 5 móng nông bùn)',
+      isOverridden: false,
+    },
+    {
+      code: 'V4',
+      key: 'v4',
+      name: 'Niên Đại & Tuổi Thọ Công Trình',
+      score: Number(vi.v4 ?? 1),
+      max: 4,
+      definition: 'Thời gian đã đưa vào khai thác sử dụng và mức độ hao mòn kết cấu theo năm',
+      isOverridden: false,
+    },
+    {
+      code: 'V5',
+      key: 'v5',
+      name: 'Số Tầng Nổi & Phân Bố Tải Trọng',
+      score: Number(vi.v5 ?? 1),
+      max: 4,
+      definition: 'Số tầng cao, tải trọng bản thân truyền xuống móng và độ cứng uốn không gian',
+      isOverridden: false,
+    },
+    {
+      code: 'V6',
+      key: 'v6',
+      name: 'Điều Kiện Địa Chất & Lân Cận',
+      score: Number(vi.v6 ?? 1),
+      max: 4,
+      definition: 'Lớp đất nền chịu lực, mực nước ngầm và mức độ chèn ép ranh giới công trình liền kề',
+      isOverridden: false,
+    },
   ];
 
   // Thu thập và kiểm tra thực tế dữ liệu vết nứt có thước đo mm
@@ -114,7 +237,7 @@ export const AuditStep7EcsViScores: React.FC<Props> = ({
         ? `100% đạt chuẩn (${defectsWithScale}/${totalDefectsCount} vết)`
         : `⚠️ ${totalDefectsCount - defectsWithScale}/${totalDefectsCount} vết thiếu thước đo`,
     },
-    { title: '6. Biến Dạng, Lún Nghiêng & Võng', valid: Boolean(sJson.settlementTilt), note: 'Ghi nhận lún & nghiêng' },
+    { title: '6. Biến Dạng, Lún Nghiêng & Quan Trắc', valid: Boolean(sJson.settlementTilt), note: 'Đo lường độ nghiêng & lún' },
   ];
 
   const isAllGateValid = gateCriteria.every((c) => c.valid);
@@ -140,6 +263,10 @@ export const AuditStep7EcsViScores: React.FC<Props> = ({
     }
   };
 
+  const checkDirty = (fieldKey: string, subKey?: string) => {
+    return isFieldDirty ? isFieldDirty(fieldKey, subKey) : false;
+  };
+
   return (
     <section id="step-7" className="scroll-mt-6 bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
       {/* Header */}
@@ -153,7 +280,7 @@ export const AuditStep7EcsViScores: React.FC<Props> = ({
               Bảng Điểm Kỹ Thuật ECS, Độ Nhạy Cảm VI & Phán Quyết Chuyên Môn
             </h3>
             <p className="text-[11px] text-slate-500">
-              Tổng hợp điểm số kỹ thuật công trình, phân hạng nguy cơ và can thiệp chuyên gia kết cấu
+              Trình bày chi tiết 2 bảng dọc chuẩn mực cho 6 tiêu chí ECS và 6 tiêu chí VI kèm thẩm quyền can thiệp của Kỹ sư trưởng
             </p>
           </div>
         </div>
@@ -181,7 +308,7 @@ export const AuditStep7EcsViScores: React.FC<Props> = ({
       </div>
 
       <div className="p-5 space-y-6">
-        {/* Khối Cổng Kiểm Tra Đủ Dữ Liệu Hiện Trường (Data Completeness Gate) */}
+        {/* 1. CỔNG KIỂM TRA ĐỦ DỮ LIỆU HIỆN TRƯỜNG (Data Completeness Gate) */}
         <div className="p-4 rounded-xl border border-sky-200 bg-sky-50/40 space-y-3">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div className="flex items-center gap-2">
@@ -254,85 +381,381 @@ export const AuditStep7EcsViScores: React.FC<Props> = ({
           )}
         </div>
 
-        {/* 2 Khối Điểm Tổng ECS & VI (Hiển thị Effective Score + Baseline đối chứng) */}
+        {/* 2. KHỐI TỔNG ĐIỂM TỔNG HỢP ECS & VI (HIỂN THỊ ĐỐI CHIẾU 2 CỘT SONG SONG GỐC VS CAN THIỆP) */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="p-4 bg-sky-50/70 rounded-2xl border border-sky-200 flex items-center justify-between">
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-sky-800 uppercase tracking-wider block">
-                  Tổng Điểm Hư Hỏng Hiện Trạng (ECS)
+          {/* Card ECS */}
+          <div className="p-4 bg-sky-50/70 rounded-2xl border border-sky-200 flex flex-col justify-between space-y-3">
+            <div className="flex items-center justify-between border-b border-sky-200/80 pb-2">
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs font-black text-sky-950 uppercase tracking-wider">
+                  Điểm Hư Hỏng Kết Cấu (ECS)
                 </span>
-                {isOverridden && (
-                  <span className="px-1.5 py-0.5 rounded bg-purple-200 text-purple-900 text-[10px] font-black font-mono">
-                    OVERRIDDEN
-                  </span>
-                )}
+                <ScoreExplanationPopover metric="ECS" />
               </div>
-              <div className="flex items-baseline gap-2 mt-1">
-                <span className="text-3xl font-black text-sky-950">{effectiveTotalEcs}</span>
-                <span className="text-xs font-bold text-sky-600">/ 24 Điểm</span>
-                {isOverridden && effectiveTotalEcs !== baselineTotalEcs && (
-                  <span className="text-xs font-bold text-slate-400 line-through">
-                    (Gốc: {baselineTotalEcs})
-                  </span>
-                )}
+              <div className="w-8 h-8 rounded-xl bg-sky-600 text-white flex items-center justify-center font-black text-xs shadow-xs">
+                ECS
               </div>
-              <span className="text-xs font-bold text-sky-700 block mt-1">
-                Phân hạng: <strong className="text-sky-950">{effectiveEcsClass}</strong>
-                {isOverridden && effectiveEcsClass !== baselineEcsClass && (
-                  <span className="text-slate-500 font-normal"> (Gốc: {baselineEcsClass})</span>
-                )}
-              </span>
             </div>
-            <div className="w-14 h-14 rounded-2xl bg-sky-600 text-white flex items-center justify-center font-black text-xl shadow-md">
-              ECS
-            </div>
+
+            {isOverridden ? (
+              <div className="grid grid-cols-2 gap-2 bg-white/80 p-3 rounded-xl border border-sky-200 text-xs">
+                {/* Cột trái: Gốc Hiện Trường */}
+                <div className="space-y-1 border-r border-slate-200 pr-2">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                    Gốc Hiện Trường
+                  </span>
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-2xl font-black text-slate-700">{baselineTotalEcs}</span>
+                    <span className="text-[11px] font-bold text-slate-400">/ 24</span>
+                  </div>
+                  <span className="text-[11px] font-bold text-slate-600 block truncate">
+                    {baselineEcsClass}
+                  </span>
+                </div>
+
+                {/* Cột phải: Sau Can Thiệp Kỹ Sư Trưởng */}
+                <div className="space-y-1 pl-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-black text-purple-700 uppercase tracking-wider block">
+                      Sau Can Thiệp
+                    </span>
+                    {effectiveTotalEcs !== baselineTotalEcs && (
+                      <span className={`px-1.5 py-0.2 rounded font-mono font-bold text-[10px] ${
+                        effectiveTotalEcs > baselineTotalEcs
+                          ? 'bg-rose-100 text-rose-800'
+                          : 'bg-emerald-100 text-emerald-800'
+                      }`}>
+                        {effectiveTotalEcs > baselineTotalEcs ? `+${effectiveTotalEcs - baselineTotalEcs}` : effectiveTotalEcs - baselineTotalEcs}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-2xl font-black text-purple-950">{effectiveTotalEcs}</span>
+                    <span className="text-[11px] font-bold text-purple-600">/ 24</span>
+                  </div>
+                  <span className="text-[11px] font-black text-purple-900 block truncate">
+                    {effectiveEcsClass}
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-baseline justify-between pt-1">
+                <div>
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="text-3xl font-black text-sky-950">{baselineTotalEcs}</span>
+                    <span className="text-xs font-bold text-sky-600">/ 24 Điểm</span>
+                  </div>
+                  <span className="text-xs font-bold text-sky-800 block mt-1">
+                    Phân hạng: <strong className="text-sky-950">{baselineEcsClass}</strong>
+                  </span>
+                </div>
+                <span className="px-2 py-1 rounded-lg bg-emerald-100 text-emerald-800 text-[10px] font-bold border border-emerald-200">
+                  ✓ Gốc Hiện Trường
+                </span>
+              </div>
+            )}
+
+            {isOverridden && riskCard?.judgement_engineer_name && (
+              <div className="text-[10px] text-slate-500 italic pt-1 border-t border-sky-100 flex items-center justify-between">
+                <span>Phê chuẩn: <strong>{riskCard.judgement_engineer_name}</strong></span>
+                <span className="font-semibold text-purple-700">({riskCard.engineering_judgement_action || 'OVERRIDE'})</span>
+              </div>
+            )}
           </div>
 
-          <div className="p-4 bg-purple-50/70 rounded-2xl border border-purple-200 flex items-center justify-between">
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-bold text-purple-800 uppercase tracking-wider block">
-                  Chỉ Số Nhạy Cảm Công Trình (VI)
+          {/* Card VI */}
+          <div className="p-4 bg-purple-50/70 rounded-2xl border border-purple-200 flex flex-col justify-between space-y-3">
+            <div className="flex items-center justify-between border-b border-purple-200/80 pb-2">
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs font-black text-purple-950 uppercase tracking-wider">
+                  Chỉ Số Dễ Tổn Thương (VI)
                 </span>
-                {isOverridden && (
-                  <span className="px-1.5 py-0.5 rounded bg-purple-200 text-purple-900 text-[10px] font-black font-mono">
-                    OVERRIDDEN
-                  </span>
-                )}
+                <ScoreExplanationPopover metric="VI" />
               </div>
-              <div className="flex items-baseline gap-2 mt-1">
-                <span className="text-3xl font-black text-purple-950">
-                  {typeof effectiveAvgVi === 'number' ? effectiveAvgVi.toFixed(2) : effectiveAvgVi}
+              <div className="w-8 h-8 rounded-xl bg-purple-600 text-white flex items-center justify-center font-black text-xs shadow-xs">
+                VI
+              </div>
+            </div>
+
+            {isOverridden ? (
+              <div className="grid grid-cols-2 gap-2 bg-white/80 p-3 rounded-xl border border-purple-200 text-xs">
+                {/* Cột trái: Gốc Hiện Trường */}
+                <div className="space-y-1 border-r border-slate-200 pr-2">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                    Gốc Hiện Trường
+                  </span>
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-2xl font-black text-slate-700">{baselineAvgVi.toFixed(2)}</span>
+                    <span className="text-[11px] font-bold text-slate-400">/ 4.0</span>
+                  </div>
+                  <span className="text-[11px] font-bold text-slate-600 block truncate">
+                    {baselineViClass}
+                  </span>
+                </div>
+
+                {/* Cột phải: Sau Can Thiệp Kỹ Sư Trưởng */}
+                <div className="space-y-1 pl-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-black text-purple-700 uppercase tracking-wider block">
+                      Sau Can Thiệp
+                    </span>
+                    {effectiveAvgVi !== baselineAvgVi && (
+                      <span className={`px-1.5 py-0.2 rounded font-mono font-bold text-[10px] ${
+                        effectiveAvgVi > baselineAvgVi
+                          ? 'bg-rose-100 text-rose-800'
+                          : 'bg-emerald-100 text-emerald-800'
+                      }`}>
+                        {effectiveAvgVi > baselineAvgVi
+                          ? `+${(effectiveAvgVi - baselineAvgVi).toFixed(2)}`
+                          : (effectiveAvgVi - baselineAvgVi).toFixed(2)}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-2xl font-black text-purple-950">
+                      {typeof effectiveAvgVi === 'number' ? effectiveAvgVi.toFixed(2) : effectiveAvgVi}
+                    </span>
+                    <span className="text-[11px] font-bold text-purple-600">/ 4.0</span>
+                  </div>
+                  <span className="text-[11px] font-black text-purple-900 block truncate">
+                    {effectiveViClass}
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-baseline justify-between pt-1">
+                <div>
+                  <div className="flex items-baseline gap-1.5">
+                    <span className="text-3xl font-black text-purple-950">{baselineAvgVi.toFixed(2)}</span>
+                    <span className="text-xs font-bold text-purple-600">/ 4.00</span>
+                  </div>
+                  <span className="text-xs font-bold text-purple-800 block mt-1">
+                    Phân loại: <strong className="text-purple-950">{baselineViClass}</strong>
+                  </span>
+                </div>
+                <span className="px-2 py-1 rounded-lg bg-emerald-100 text-emerald-800 text-[10px] font-bold border border-emerald-200">
+                  ✓ Gốc Hiện Trường
                 </span>
-                <span className="text-xs font-bold text-purple-600">/ 4.00</span>
-                {isOverridden && effectiveAvgVi !== baselineAvgVi && (
-                  <span className="text-xs font-bold text-slate-400 line-through">
-                    (Gốc: {baselineAvgVi.toFixed(2)})
-                  </span>
-                )}
               </div>
-              <span className="text-xs font-bold text-purple-700 block mt-1">
-                Phân loại: <strong className="text-purple-950">{effectiveViClass}</strong>
-                {isOverridden && effectiveViClass !== baselineViClass && (
-                  <span className="text-slate-500 font-normal"> (Gốc: {baselineViClass})</span>
-                )}
-              </span>
-            </div>
-            <div className="w-14 h-14 rounded-2xl bg-purple-600 text-white flex items-center justify-center font-black text-xl shadow-md">
-              VI
-            </div>
+            )}
+
+            {isOverridden && riskCard?.judgement_engineer_name && (
+              <div className="text-[10px] text-slate-500 italic pt-1 border-t border-purple-100 flex items-center justify-between">
+                <span>Phê chuẩn: <strong>{riskCard.judgement_engineer_name}</strong></span>
+                <span className="font-semibold text-purple-700">({riskCard.engineering_judgement_action || 'OVERRIDE'})</span>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* HẠNG MỤC PHÁP LÝ IN-PLACE: PHÁN QUYẾT KỸ SƯ TRƯỞNG & CAN THIỆP CHUYÊN GIA */}
-        <div className="p-4 rounded-2xl border border-purple-200 bg-purple-50/40 space-y-3">
+        {/* 3. BẢNG DỌC CHI TIẾT 6 TIÊU CHÍ ECS (E1 -> E6) */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs sm:text-sm font-black text-slate-800 uppercase tracking-wide flex items-center gap-2">
+              <span className="px-2 py-0.5 rounded bg-sky-100 text-sky-800 font-mono text-xs">Bảng 1</span>
+              Chi Tiết 6 Tiêu Chí Điểm Hư Hỏng Hiện Trạng (ECS)
+            </span>
+            <span className="text-[11px] text-slate-500">Thang điểm từng tiêu chí: 0 &rarr; 4 điểm</span>
+          </div>
+
+          <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+            <table className="w-full text-xs text-left">
+              <thead>
+                <tr className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
+                  <th className="p-3 w-16 text-center font-mono">Mã</th>
+                  <th className="p-3 w-48">Tên Tiêu Chí</th>
+                  <th className="p-3">Quy Chuẩn & Định Nghĩa Kỹ Thuật</th>
+                  <th className="p-3 w-28 text-center">Thang Chuẩn</th>
+                  <th className="p-3 w-32 text-center">Điểm Đánh Giá</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {ecsItems.map((item) => {
+                  const eKey = item.key;
+                  const isDirty = checkDirty('ecs', eKey);
+                  return (
+                    <tr
+                      key={item.code}
+                      className={`hover:bg-slate-50/80 transition-colors ${
+                        isDirty ? 'bg-amber-50/40' : item.isOverridden ? 'bg-purple-50/30' : ''
+                      }`}
+                    >
+                      <td className="p-3 text-center">
+                        <span className="px-2 py-0.5 rounded font-mono font-black text-xs bg-sky-100 text-sky-800">
+                          {item.code}
+                        </span>
+                      </td>
+                      <td className="p-3 font-bold text-slate-800">
+                        {item.name}
+                        {item.isOverridden && (
+                          <span className="block text-[10px] font-mono text-purple-700 font-bold">
+                            (Chuyên gia can thiệp)
+                          </span>
+                        )}
+                      </td>
+                      <td className="p-3 text-slate-600 text-[11px] leading-relaxed">
+                        {item.standard}
+                      </td>
+                      <td className="p-3 text-center font-mono text-slate-500">
+                        0 &rarr; {item.max}
+                      </td>
+                      <td className="p-3 text-center">
+                        {isEditMode && handleNestedFieldChange ? (
+                          <div className="flex items-center justify-center gap-1">
+                            <input
+                              type="number"
+                              min={0}
+                              max={item.max}
+                              value={Number(ecs[eKey] ?? item.score)}
+                              onChange={(e) =>
+                                handleNestedFieldChange('ecs', eKey, `Điểm ${item.code}`, Number(e.target.value))
+                              }
+                              className={`w-16 p-1 text-center font-mono font-bold text-xs bg-white rounded border focus:outline-sky-500 ${
+                                isDirty ? 'border-amber-400 ring-1 ring-amber-300 bg-amber-50' : 'border-slate-300'
+                              }`}
+                            />
+                            {isDirty && (
+                              <span className="text-[10px] font-bold text-amber-700">Đã sửa</span>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-center gap-1.5">
+                            <span
+                              className={`px-2.5 py-1 rounded-lg font-mono font-black text-xs ${
+                                item.isOverridden
+                                  ? 'bg-purple-100 text-purple-900 border border-purple-200'
+                                  : isDirty
+                                  ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                                  : 'bg-slate-100 text-slate-800'
+                              }`}
+                            >
+                              {Number(item.score)} / {item.max}
+                            </span>
+                            {isDirty && (
+                              <span className="text-[10px] font-bold text-amber-700">Đã sửa</span>
+                            )}
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* 4. BẢNG DỌC CHI TIẾT 6 TIÊU CHÍ VI (V1 -> V6) */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs sm:text-sm font-black text-slate-800 uppercase tracking-wide flex items-center gap-2">
+              <span className="px-2 py-0.5 rounded bg-purple-100 text-purple-800 font-mono text-xs">Bảng 2</span>
+              Chi Tiết 6 Tiêu Chí Chỉ Số Nhạy Cảm Công Trình (VI)
+            </span>
+            <span className="text-[11px] text-slate-500">Đánh giá hệ kết cấu, giải pháp móng & địa bàn</span>
+          </div>
+
+          <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+            <table className="w-full text-xs text-left">
+              <thead>
+                <tr className="bg-slate-50 text-slate-700 font-bold border-b border-slate-200">
+                  <th className="p-3 w-16 text-center font-mono">Mã</th>
+                  <th className="p-3 w-48">Tên Tiêu Chí</th>
+                  <th className="p-3">Quy Chuẩn & Định Nghĩa Kỹ Thuật</th>
+                  <th className="p-3 w-28 text-center">Thang Chuẩn</th>
+                  <th className="p-3 w-32 text-center">Điểm Đánh Giá</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {viItems.map((item) => {
+                  const vKey = item.key;
+                  const isDirty = checkDirty('vi', vKey);
+                  return (
+                    <tr
+                      key={item.code}
+                      className={`hover:bg-slate-50/80 transition-colors ${
+                        isDirty ? 'bg-amber-50/40' : item.isOverridden ? 'bg-purple-50/30' : ''
+                      }`}
+                    >
+                      <td className="p-3 text-center">
+                        <span className="px-2 py-0.5 rounded font-mono font-black text-xs bg-purple-100 text-purple-800">
+                          {item.code}
+                        </span>
+                      </td>
+                      <td className="p-3 font-bold text-slate-800">
+                        {item.name}
+                        {item.isOverridden && (
+                          <span className="block text-[10px] font-mono text-purple-700 font-bold">
+                            (Chuyên gia can thiệp)
+                          </span>
+                        )}
+                      </td>
+                      <td className="p-3 text-slate-600 text-[11px] leading-relaxed">
+                        {item.definition}
+                      </td>
+                      <td className="p-3 text-center font-mono text-slate-500">
+                        0 &rarr; {item.max}.0
+                      </td>
+                      <td className="p-3 text-center">
+                        {isEditMode && handleNestedFieldChange ? (
+                          <div className="flex items-center justify-center gap-1">
+                            <input
+                              type="number"
+                              step="0.5"
+                              min={0}
+                              max={item.max}
+                              value={Number(vi[vKey] ?? item.score)}
+                              onChange={(e) =>
+                                handleNestedFieldChange('vi', vKey, `Điểm ${item.code}`, Number(e.target.value))
+                              }
+                              className={`w-16 p-1 text-center font-mono font-bold text-xs bg-white rounded border focus:outline-purple-500 ${
+                                isDirty ? 'border-amber-400 ring-1 ring-amber-300 bg-amber-50' : 'border-slate-300'
+                              }`}
+                            />
+                            {isDirty && (
+                              <span className="text-[10px] font-bold text-amber-700">Đã sửa</span>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-center gap-1.5">
+                            <span
+                              className={`px-2.5 py-1 rounded-lg font-mono font-black text-xs ${
+                                item.isOverridden
+                                  ? 'bg-purple-100 text-purple-900 border border-purple-200'
+                                  : isDirty
+                                  ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                                  : 'bg-slate-100 text-slate-800'
+                              }`}
+                            >
+                              {Number(item.score).toFixed(1)} đ
+                            </span>
+                            {isDirty && (
+                              <span className="text-[10px] font-bold text-amber-700">Đã sửa</span>
+                            )}
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* 5. KHỐI PHÁN QUYẾT CHUYÊN GIA KẾT CẤU (ĐẶT Ở CUỐI BƯỚC 07) */}
+        <div className="p-4 rounded-2xl border border-purple-200 bg-purple-50/40 space-y-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Scale className="w-4 h-4 text-purple-700" />
-              <span className="text-xs font-black text-purple-950 uppercase tracking-wide">
-                Hạng Mục Pháp Lý: Phán Quyết Chuyên Gia Kết Cấu (Engineering Judgement)
-              </span>
+              <Scale className="w-5 h-5 text-purple-700" />
+              <div>
+                <span className="text-xs sm:text-sm font-black text-purple-950 uppercase tracking-wide block">
+                  Phán Quyết Chuyên Gia Kết Cấu & Thẩm Quyền Can Thiệp (Engineering Judgement)
+                </span>
+                <span className="text-[11px] text-slate-500">
+                  Cơ sở pháp lý cho phép Kỹ sư trưởng bảo lưu hoặc điều chỉnh phân hạng nguy cơ trước khi lập kết luận
+                </span>
+              </div>
             </div>
             {isOverridden && (
               <button
@@ -354,24 +777,24 @@ export const AuditStep7EcsViScores: React.FC<Props> = ({
                 <table className="w-full text-xs">
                   <thead>
                     <tr className="bg-purple-100/70 text-purple-950 font-bold border-b border-purple-200">
-                      <th className="p-2 text-left">Chỉ số kỹ thuật</th>
-                      <th className="p-2 text-center">Gốc hiện trường (KSV đo)</th>
-                      <th className="p-2 text-center">Sau can thiệp chuyên môn</th>
-                      <th className="p-2 text-center">Biến động</th>
+                      <th className="p-2.5 text-left">Chỉ Số Kỹ Thuật</th>
+                      <th className="p-2.5 text-center">Gốc Hiện Trường (KSV Đo)</th>
+                      <th className="p-2.5 text-center">Sau Can Thiệp Chuyên Môn</th>
+                      <th className="p-2.5 text-center">Biến Động</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     <tr>
-                      <td className="p-2 font-medium text-slate-800">Cấp nứt Burland (E1 / BRA)</td>
-                      <td className="p-2 text-center font-mono text-slate-600">Cấp {baselineBurland}</td>
-                      <td className="p-2 text-center font-mono font-bold text-purple-700">Cấp {effectiveBurland}</td>
-                      <td className="p-2 text-center">
+                      <td className="p-2.5 font-medium text-slate-800">Cấp nứt Burland (E1 / BRA)</td>
+                      <td className="p-2.5 text-center font-mono text-slate-600">Cấp {baselineBurland}</td>
+                      <td className="p-2.5 text-center font-mono font-bold text-purple-700">Cấp {effectiveBurland}</td>
+                      <td className="p-2.5 text-center">
                         {effectiveBurland > baselineBurland ? (
-                          <span className="px-1.5 py-0.5 rounded bg-red-100 text-red-800 font-bold text-[10px]">
+                          <span className="px-2 py-0.5 rounded bg-red-100 text-red-800 font-bold text-[10px]">
                             +{effectiveBurland - baselineBurland} Cấp (Nâng rủi ro)
                           </span>
                         ) : effectiveBurland < baselineBurland ? (
-                          <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 font-bold text-[10px]">
+                          <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 font-bold text-[10px]">
                             -{baselineBurland - effectiveBurland} Cấp (Hạ mức)
                           </span>
                         ) : (
@@ -380,12 +803,12 @@ export const AuditStep7EcsViScores: React.FC<Props> = ({
                       </td>
                     </tr>
                     <tr>
-                      <td className="p-2 font-medium text-slate-800">Tổng điểm hư hỏng (ECS)</td>
-                      <td className="p-2 text-center font-mono text-slate-600">{baselineTotalEcs}/24 ({baselineEcsClass})</td>
-                      <td className="p-2 text-center font-mono font-bold text-purple-700">{effectiveTotalEcs}/24 ({effectiveEcsClass})</td>
-                      <td className="p-2 text-center">
+                      <td className="p-2.5 font-medium text-slate-800">Tổng điểm hư hỏng (ECS)</td>
+                      <td className="p-2.5 text-center font-mono text-slate-600">{baselineTotalEcs}/24 ({baselineEcsClass})</td>
+                      <td className="p-2.5 text-center font-mono font-bold text-purple-700">{effectiveTotalEcs}/24 ({effectiveEcsClass})</td>
+                      <td className="p-2.5 text-center">
                         {effectiveTotalEcs !== baselineTotalEcs ? (
-                          <span className="px-1.5 py-0.5 rounded bg-purple-100 text-purple-800 font-bold text-[10px]">
+                          <span className="px-2 py-0.5 rounded bg-purple-100 text-purple-800 font-bold text-[10px]">
                             {effectiveTotalEcs > baselineTotalEcs ? `+${effectiveTotalEcs - baselineTotalEcs}đ` : `${effectiveTotalEcs - baselineTotalEcs}đ`}
                           </span>
                         ) : (
@@ -394,12 +817,12 @@ export const AuditStep7EcsViScores: React.FC<Props> = ({
                       </td>
                     </tr>
                     <tr>
-                      <td className="p-2 font-medium text-slate-800">Tầm quan trọng công năng (I / V1)</td>
-                      <td className="p-2 text-center font-mono text-slate-600">{baselineImportance}đ</td>
-                      <td className="p-2 text-center font-mono font-bold text-purple-700">{effectiveImportance}đ</td>
-                      <td className="p-2 text-center">
+                      <td className="p-2.5 font-medium text-slate-800">Tầm quan trọng công năng (I / V1)</td>
+                      <td className="p-2.5 text-center font-mono text-slate-600">{baselineImportance.toFixed(1)}đ</td>
+                      <td className="p-2.5 text-center font-mono font-bold text-purple-700">{effectiveImportance.toFixed(1)}đ</td>
+                      <td className="p-2.5 text-center">
                         {effectiveImportance !== baselineImportance ? (
-                          <span className="px-1.5 py-0.5 rounded bg-purple-100 text-purple-800 font-bold text-[10px]">
+                          <span className="px-2 py-0.5 rounded bg-purple-100 text-purple-800 font-bold text-[10px]">
                             {effectiveImportance > baselineImportance ? `+${(effectiveImportance - baselineImportance).toFixed(1)}đ` : `${(effectiveImportance - baselineImportance).toFixed(1)}đ`}
                           </span>
                         ) : (
@@ -408,12 +831,12 @@ export const AuditStep7EcsViScores: React.FC<Props> = ({
                       </td>
                     </tr>
                     <tr>
-                      <td className="p-2 font-medium text-slate-800">Chỉ số dễ tổn thương (VI)</td>
-                      <td className="p-2 text-center font-mono text-slate-600">{baselineAvgVi.toFixed(2)} ({baselineViClass})</td>
-                      <td className="p-2 text-center font-mono font-bold text-purple-700">{effectiveAvgVi.toFixed(2)} ({effectiveViClass})</td>
-                      <td className="p-2 text-center">
+                      <td className="p-2.5 font-medium text-slate-800">Chỉ số dễ tổn thương (VI)</td>
+                      <td className="p-2.5 text-center font-mono text-slate-600">{baselineAvgVi.toFixed(2)} ({baselineViClass})</td>
+                      <td className="p-2.5 text-center font-mono font-bold text-purple-700">{effectiveAvgVi.toFixed(2)} ({effectiveViClass})</td>
+                      <td className="p-2.5 text-center">
                         {effectiveAvgVi !== baselineAvgVi ? (
-                          <span className="px-1.5 py-0.5 rounded bg-purple-100 text-purple-800 font-bold text-[10px]">
+                          <span className="px-2 py-0.5 rounded bg-purple-100 text-purple-800 font-bold text-[10px]">
                             {effectiveAvgVi > baselineAvgVi ? `+${(effectiveAvgVi - baselineAvgVi).toFixed(2)}` : `${(effectiveAvgVi - baselineAvgVi).toFixed(2)}`}
                           </span>
                         ) : (
@@ -426,7 +849,7 @@ export const AuditStep7EcsViScores: React.FC<Props> = ({
               </div>
 
               {/* Thông tin chứng thực và giải trình kỹ thuật */}
-              <div className="p-3 bg-white rounded-xl border border-purple-200 text-xs space-y-1.5">
+              <div className="p-3.5 bg-white rounded-xl border border-purple-200 text-xs space-y-2">
                 <div className="flex flex-wrap items-center justify-between text-slate-600 text-[11px] gap-2">
                   <span>
                     Kỹ sư trưởng thực hiện: <strong className="text-purple-900">{riskCard.judgement_engineer_name || 'Kỹ Sư Trưởng Zone Admin'}</strong>
@@ -447,7 +870,7 @@ export const AuditStep7EcsViScores: React.FC<Props> = ({
               </div>
             </div>
           ) : (
-            <div className="p-3 bg-white rounded-xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="p-3.5 bg-white rounded-xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="text-xs text-slate-600">
                 <span className="font-bold text-slate-800 block">Dữ liệu hoàn toàn tuân theo thuật toán tính tự động từ hiện trường.</span>
                 <span className="text-[11px] text-slate-500">Chưa có can thiệp nâng/hạ cấp rủi ro từ Kỹ sư trưởng. Báo cáo xuất ra sẽ bám sát 100% số liệu đo đạc của KSV.</span>
@@ -455,92 +878,13 @@ export const AuditStep7EcsViScores: React.FC<Props> = ({
               <button
                 type="button"
                 onClick={onOpenEngineeringJudgement}
-                className="px-3 py-1.5 bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-300 rounded-xl text-xs font-bold transition-colors shrink-0 flex items-center gap-1.5 cursor-pointer"
+                className="px-3.5 py-2 bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-300 rounded-xl text-xs font-bold transition-colors shrink-0 flex items-center gap-1.5 cursor-pointer shadow-2xs"
               >
-                <Award className="w-3.5 h-3.5" />
+                <Award className="w-4 h-4" />
                 <span>Can Thiệp Chuyên Gia (Override)</span>
               </button>
             </div>
           )}
-        </div>
-
-        {/* Chi tiết Điểm Thành Phần ECS (E1..E6) */}
-        <div className="space-y-3">
-          <span className="text-xs font-black text-slate-800 uppercase tracking-wide block">
-            Chi Tiết 6 Tiêu Chí Điểm Hư Hỏng ECS (E1 &rarr; E6):
-          </span>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-            {ecsItems.map((item) => {
-              const eKey = item.code.toLowerCase();
-              return (
-                <div key={item.code} className={`p-3 rounded-xl border space-y-1 ${item.isOverridden ? 'bg-purple-50/70 border-purple-300' : 'bg-slate-50 border-slate-200'}`}>
-                  <div className="flex items-center justify-between">
-                    <span className={`px-1.5 py-0.5 rounded font-mono font-black text-[10px] ${item.isOverridden ? 'bg-purple-200 text-purple-900' : 'bg-sky-100 text-sky-800'}`}>
-                      {item.code}
-                    </span>
-                    {isEditMode && handleNestedFieldChange ? (
-                      <input
-                        type="number"
-                        min={0}
-                        max={4}
-                        value={Number(ecs[eKey] ?? item.score)}
-                        onChange={(e) =>
-                          handleNestedFieldChange('ecs', eKey, `Điểm ${item.code}`, Number(e.target.value))
-                        }
-                        className="w-12 p-0.5 text-center font-mono font-bold text-xs bg-white border border-amber-300 rounded"
-                      />
-                    ) : (
-                      <span className={`text-base font-black ${item.isOverridden ? 'text-purple-950 font-mono' : 'text-slate-900'}`}>
-                        {Number(item.score)}/4
-                      </span>
-                    )}
-                  </div>
-                  <div className="text-[11px] font-bold text-slate-700 truncate">{item.name}</div>
-                  <div className="text-[10px] text-slate-500 line-clamp-1">{item.desc}</div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Chi tiết Điểm Thành Phần VI (V1..V6) */}
-        <div className="space-y-3 pt-2 border-t border-slate-100">
-          <span className="text-xs font-black text-slate-800 uppercase tracking-wide block">
-            Chi Tiết 6 Tiêu Chí Độ Nhạy Cảm VI (V1 &rarr; V6):
-          </span>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-            {viItems.map((item) => {
-              const vKey = item.code.toLowerCase();
-              return (
-                <div key={item.code} className={`p-3 rounded-xl border space-y-1 ${item.isOverridden ? 'bg-purple-50/70 border-purple-300' : 'bg-slate-50 border-slate-200'}`}>
-                  <div className="flex items-center justify-between">
-                    <span className={`px-1.5 py-0.5 rounded font-mono font-black text-[10px] ${item.isOverridden ? 'bg-purple-200 text-purple-900' : 'bg-purple-100 text-purple-800'}`}>
-                      {item.code}
-                    </span>
-                    {isEditMode && handleNestedFieldChange ? (
-                      <input
-                        type="number"
-                        step="0.5"
-                        min={0}
-                        max={5}
-                        value={Number(vi[vKey] ?? item.score)}
-                        onChange={(e) =>
-                          handleNestedFieldChange('vi', vKey, `Điểm ${item.code}`, Number(e.target.value))
-                        }
-                        className="w-12 p-0.5 text-center font-mono font-bold text-xs bg-white border border-amber-300 rounded"
-                      />
-                    ) : (
-                      <span className={`text-base font-black ${item.isOverridden ? 'text-purple-950 font-mono' : 'text-purple-900'}`}>
-                        {Number(item.score)}đ
-                      </span>
-                    )}
-                  </div>
-                  <div className="text-[11px] font-bold text-slate-700 truncate">{item.name}</div>
-                  <div className="text-[10px] text-slate-500 line-clamp-1">{item.desc}</div>
-                </div>
-              );
-            })}
-          </div>
         </div>
       </div>
     </section>

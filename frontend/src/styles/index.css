@@ -103,12 +103,21 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Ngăn ngừa iOS Safari tự động phóng to (auto-zoom) khi chạm vào ô input */
-@media screen and (max-width: 767px) {
-  input[type="text"],
-  input[type="number"],
-  input[type="tel"],
-  input[type="email"],
+/* Ngăn ngừa iOS Safari & Android Chrome/Xiaomi tự động phóng to (auto-zoom) khi chạm vào bất kỳ ô input nào và khóa double-tap zoom ngoài ý muốn */
+html,
+body,
+#root,
+button,
+input,
+select,
+textarea,
+a,
+[role="button"] {
+  touch-action: manipulation;
+}
+
+@media screen and (max-width: 768px) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="button"]):not([type="submit"]),
   select,
   textarea {
     font-size: 16px !important;

@@ -7,7 +7,7 @@ import { calculateEcsScore } from '../../engine/ecsCalculator';
 import { calculateViScore } from '../../engine/viCalculator';
 import { calculateParcelMetroSpatialMetrics } from '../../utils/metroSpatialCalculator';
 import { saveSurveyDraft, loadSurveyDraft, deleteSurveyDraft } from '../../../../core/utils/idbDraftStorage';
-import { healLocalPhotoUris, saveUploadedPhotoMapping } from '../../../../core/storage/offlinePhotoStorage';
+import { healLocalPhotoUris, saveUploadedPhotoMapping, findUnsyncedPhotoPaths } from '../../../../core/storage/offlinePhotoStorage';
 import { surveyDraftService } from '../../services/surveyDraftService';
 import { dedupePhase1FormData } from '../../utils/dedupePhase1Photos';
 
@@ -197,6 +197,17 @@ export const createFormSlice: StateCreator<
       surveyDraftService
         .fetchDraft(parcel.id, unitId)
         .then((serverRes) => {
+          // Lưu ánh xạ ảnh từ máy chủ vào bộ nhớ bền vững của thiết bị ngay lập tức
+          const allServerMappings: Record<string, string> = {
+            ...(serverRes.photoMappings || {}),
+            ...(((serverRes.draft?.surveyData as Record<string, unknown>)?._photoMappings as Record<string, string>) || {}),
+          };
+          for (const [localId, cloudUrl] of Object.entries(allServerMappings)) {
+            if (localId && cloudUrl) {
+              saveUploadedPhotoMapping(localId, cloudUrl);
+            }
+          }
+
           if (serverRes.isLocked) {
             set({
               isLockedByOther: true,
@@ -224,20 +235,6 @@ export const createFormSlice: StateCreator<
             return;
           }
 
-          if (serverRes.photoMappings) {
-            for (const [localId, cloudUrl] of Object.entries(serverRes.photoMappings)) {
-              if (localId && cloudUrl) {
-                saveUploadedPhotoMapping(localId, cloudUrl);
-              }
-            }
-          }
-
-          if (serverRes.unsyncedPhotosInfo && serverRes.unsyncedPhotosInfo.pendingCount > 0) {
-            set({ unsyncedRemotePhotos: serverRes.unsyncedPhotosInfo });
-          } else {
-            set({ unsyncedRemotePhotos: null });
-          }
-
           if (serverRes.draft && serverRes.draft.surveyData) {
             const serverData = serverRes.draft.surveyData;
             const targetStep =
@@ -245,6 +242,7 @@ export const createFormSlice: StateCreator<
                 ? serverRes.draft.currentStep
                 : undefined;
 
+            let finalMerged: Phase1SurveyFormData | null = null;
             set((state) => {
               const merged = dedupePhase1FormData(healLocalPhotoUris({ ...state.formData, ...serverData }));
               if (!merged.photoP01?.url && state.formData.photoP01?.url) merged.photoP01 = state.formData.photoP01;
@@ -256,6 +254,7 @@ export const createFormSlice: StateCreator<
               const recalculatedVi = calculateViScore(merged, recalculatedEcs);
               merged.ecs = recalculatedEcs;
               merged.vi = recalculatedVi;
+              finalMerged = merged;
 
               return {
                 formData: merged,
@@ -270,6 +269,27 @@ export const createFormSlice: StateCreator<
               };
             });
             console.log('[SurveyPhase1Store] Server draft restored successfully:', serverRes.draft.reportId);
+
+            // Kiểm tra xem dữ liệu sau khi heal có còn ảnh unmapped nào không
+            if (finalMerged) {
+              const unmapped = findUnsyncedPhotoPaths(finalMerged);
+              if (unmapped.length === 0) {
+                set({ unsyncedRemotePhotos: null });
+              } else if (serverRes.unsyncedPhotosInfo && serverRes.unsyncedPhotosInfo.pendingCount > 0) {
+                set({
+                  unsyncedRemotePhotos: {
+                    ...serverRes.unsyncedPhotosInfo,
+                    pendingCount: unmapped.length,
+                  },
+                });
+              }
+            }
+          } else {
+            if (serverRes.unsyncedPhotosInfo && serverRes.unsyncedPhotosInfo.pendingCount > 0) {
+              set({ unsyncedRemotePhotos: serverRes.unsyncedPhotosInfo });
+            } else {
+              set({ unsyncedRemotePhotos: null });
+            }
           }
           // Đã nạp xong (có hoặc không có bản nháp) -> cho phép đồng bộ từ giờ
           set({ hasServerHydrated: true });

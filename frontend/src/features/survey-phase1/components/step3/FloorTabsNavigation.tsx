@@ -83,7 +83,7 @@ export const FloorTabsNavigation: React.FC<FloorTabsNavigationProps> = ({
       </div>
 
       {/* Tabs chọn Tầng */}
-      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 border-b border-slate-200 no-scrollbar">
+      <div className="flex items-center gap-1.5 overflow-x-auto max-w-full min-w-0 pb-1 border-b border-slate-200 no-scrollbar touch-pan-x">
         {floors.map((fl, idx) => {
           const isActive = activeFloorIndex === idx;
           const isEditing = editingIndex === idx;

@@ -8,11 +8,11 @@ interface Step3BottomNavProps {
 
 export const Step3BottomNav: React.FC<Step3BottomNavProps> = ({ onPrev, onNext }) => {
   return (
-    <div className="flex justify-between pt-4">
-      <Button variant="outline" onClick={onPrev}>
+    <div className="flex flex-col-reverse sm:flex-row gap-2.5 justify-between pt-4 w-full">
+      <Button variant="outline" onClick={onPrev} className="w-full sm:w-auto">
         ⬅️ Quay lại Bước 2
       </Button>
-      <Button onClick={onNext}>
+      <Button onClick={onNext} className="w-full sm:w-auto">
         Tiếp tục: Bước 4 (Chốt Burland & Cờ KC) ➔
       </Button>
     </div>

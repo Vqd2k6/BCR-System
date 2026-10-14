@@ -10,6 +10,8 @@ import {
   ExternalLink,
   ShieldCheck,
   Building,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import { interpolatePoint, computePolygonAreaM2 } from '../../../../../../components/gis/shared/geoMath';
 
@@ -77,6 +79,7 @@ export const AuditCadastralMutationVisualMap: React.FC<Props> = ({
   onOpenEditorModal,
 }) => {
   const [tileMode, setTileMode] = useState<'satellite' | 'street'>('satellite');
+  const [showParcelLabel, setShowParcelLabel] = useState(false);
 
   // Chuẩn hóa tọa độ đa giác thửa đất gốc
   const basePolygon = useMemo<[number, number][]>(() => {
@@ -236,6 +239,19 @@ export const AuditCadastralMutationVisualMap: React.FC<Props> = ({
             >
               Bản đồ giao thông
             </button>
+            <button
+              type="button"
+              onClick={() => setShowParcelLabel(!showParcelLabel)}
+              className={`px-2.5 py-1 rounded-md text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer border ${
+                showParcelLabel
+                  ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-xs'
+                  : 'bg-slate-800 text-slate-300 border-slate-700 hover:text-white'
+              }`}
+              title={showParcelLabel ? 'Ẩn nhãn ranh thửa' : 'Hiện nhãn ranh thửa'}
+            >
+              {showParcelLabel ? <Eye className="w-3.5 h-3.5 text-emerald-400" /> : <EyeOff className="w-3.5 h-3.5" />}
+              <span>{showParcelLabel ? 'Ẩn Nhãn' : 'Hiện Nhãn'}</span>
+            </button>
           </div>
 
           {onOpenEditorModal && (
@@ -258,7 +274,7 @@ export const AuditCadastralMutationVisualMap: React.FC<Props> = ({
           center={baseCentroid}
           zoom={18}
           maxZoom={21}
-          scrollWheelZoom={false}
+          scrollWheelZoom={true}
           attributionControl={false}
           zoomControl={false}
           className="w-full h-full"
@@ -314,7 +330,7 @@ export const AuditCadastralMutationVisualMap: React.FC<Props> = ({
                     fillOpacity: 0.45,
                   }}
                 >
-                  <Tooltip permanent direction="center" opacity={0.95} className="cadastral-split-tooltip">
+                  <Tooltip permanent={showParcelLabel} direction="top" offset={[0, -10]} opacity={0.95} className="cadastral-split-tooltip">
                     <div className="text-center font-sans">
                       <div className="font-black text-xs text-amber-900 font-mono">
                         {splitPolygons.childA.code}
@@ -338,7 +354,7 @@ export const AuditCadastralMutationVisualMap: React.FC<Props> = ({
                     fillOpacity: 0.45,
                   }}
                 >
-                  <Tooltip permanent direction="center" opacity={0.95} className="cadastral-split-tooltip">
+                  <Tooltip permanent={showParcelLabel} direction="top" offset={[0, -10]} opacity={0.95} className="cadastral-split-tooltip">
                     <div className="text-center font-sans">
                       <div className="font-black text-xs text-orange-950 font-mono">
                         {splitPolygons.childB.code}
@@ -364,7 +380,7 @@ export const AuditCadastralMutationVisualMap: React.FC<Props> = ({
                 fillOpacity: 0.4,
               }}
             >
-              <Tooltip permanent direction="center" opacity={0.95}>
+              <Tooltip permanent={showParcelLabel} direction="top" offset={[0, -10]} opacity={0.95}>
                 <div className="text-center font-sans p-1">
                   <div className="font-black text-xs text-sky-950 font-mono">
                     THỬA GỘP: {mergeTargetCode}
@@ -393,7 +409,7 @@ export const AuditCadastralMutationVisualMap: React.FC<Props> = ({
                 fillOpacity: 0.35,
               }}
             >
-              <Tooltip permanent direction="center" opacity={0.95}>
+              <Tooltip permanent={showParcelLabel} direction="top" offset={[0, -10]} opacity={0.95}>
                 <div className="text-center font-sans p-1">
                   <div className="font-black text-xs text-emerald-950 font-mono">
                     {projectParcelCode}

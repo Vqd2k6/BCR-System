@@ -63,9 +63,28 @@ export function auditSurveyPhotos(
   ) => {
     if (!url || typeof url !== 'string' || url.trim() === '') return;
 
-    const isCloudUrl = url.startsWith('http://') || url.startsWith('https://') || url.startsWith('/uploads');
-    const isBase64 = url.startsWith('data:image/') && url.length > 200;
-    const isLocalBlob = url.startsWith('blob:local://') || url.startsWith('blob:');
+    let effectiveUrl = url;
+    let isCloudUrl = effectiveUrl.startsWith('http://') || effectiveUrl.startsWith('https://') || effectiveUrl.startsWith('/uploads');
+    const isBase64 = effectiveUrl.startsWith('data:image/') && effectiveUrl.length > 200;
+    let isLocalBlob = effectiveUrl.startsWith('blob:local://') || effectiveUrl.startsWith('blob:');
+
+    // Nếu là local blob, kiểm tra xem đã có mapping R2 (từ thiết bị hoặc server) chưa
+    if (isLocalBlob) {
+      const localId = extractLocalIdFromUri(effectiveUrl);
+      const knownCloud = getKnownCloudUrl(localId);
+      if (knownCloud) {
+        effectiveUrl = knownCloud;
+        isCloudUrl = true;
+        isLocalBlob = false;
+        if (effectiveUrl !== url) {
+          try {
+            updateInStore(knownCloud);
+          } catch (e) {
+            console.warn('[photoSyncAudit] Failed to heal mapped photo in store:', e);
+          }
+        }
+      }
+    }
 
     // Ảnh được tính nếu là URL Cloud, ảnh Base64, hoặc ảnh lưu offline local
     if (!isCloudUrl && !isBase64 && !isLocalBlob) return;
@@ -76,7 +95,7 @@ export function auditSurveyPhotos(
       stepTitle,
       fieldTitle,
       photoCode,
-      url,
+      url: effectiveUrl,
       isCloudUrl,
       isBase64,
       isLocalBlob,
@@ -847,6 +866,14 @@ export function auditSurveyPhotos(
     if (typeof target === 'string') {
       const isLocalBlob = target.startsWith('blob:local://') || (target.startsWith('blob:') && !target.startsWith('blob:http'));
       const isBase64 = target.startsWith('data:image/') && target.length > 200;
+
+      if (isLocalBlob) {
+        const localId = extractLocalIdFromUri(target);
+        if (getKnownCloudUrl(localId)) {
+          return; // Đã có ánh xạ Cloud bền vững
+        }
+      }
+
       if ((isLocalBlob || isBase64) && !addedUrls.has(target)) {
         addedUrls.add(target);
         checkAndAdd(
