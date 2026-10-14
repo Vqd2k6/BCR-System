@@ -524,11 +524,12 @@ export const DamageZonesSection: React.FC<DamageZonesSectionProps> = ({
                         newCtx = url;
                       }
 
-                    onUpdateZone(activeZoneIndex, {
-                      overviewPhotos: updated,
-                      ctxPhotoUrl: newCtx,
-                      ctxPhotoCode: activeZone.ctxPhotoCode || code,
-                    });
+                      onUpdateZone(activeZoneIndex, {
+                        overviewPhotos: updated,
+                        ctxPhotoUrl: newCtx,
+                        ctxPhotoCode: activeZone.ctxPhotoCode || code,
+                      });
+                    }
                   }}
                   watermarkOptions={{
                     parcelCode: projectParcelCode,

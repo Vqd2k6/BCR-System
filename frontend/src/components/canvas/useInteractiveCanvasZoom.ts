@@ -108,13 +108,6 @@ export function useInteractiveCanvasZoom(options: UseInteractiveCanvasZoomOption
       }
     };
 
-    // Native non-passive touchmove listener: Chặn Safari iOS phóng to toàn trang khi pinch 2 ngón tay trên canvas
-    const onNativeTouchMove = (e: TouchEvent) => {
-      if (e.touches.length >= 2) {
-        e.preventDefault();
-      }
-    };
-
     const onNativeGesture = (e: Event) => {
       e.preventDefault();
     };
