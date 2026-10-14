@@ -12,7 +12,7 @@ console.log('===================================================================
 
 // Mock localStorage cho Node.js môi trường test
 const mockLocalStorage: Record<string, string> = {};
-(globalThis as any).localStorage = {
+const mockStorageObj = {
   getItem: (key: string) => mockLocalStorage[key] || null,
   setItem: (key: string, val: string) => {
     mockLocalStorage[key] = val;
@@ -21,8 +21,10 @@ const mockLocalStorage: Record<string, string> = {};
     delete mockLocalStorage[key];
   },
 };
-(globalThis as any).window = {
-  localStorage: (globalThis as any).localStorage,
+const globalObj = globalThis as unknown as { localStorage: typeof mockStorageObj; window: unknown };
+globalObj.localStorage = mockStorageObj;
+globalObj.window = {
+  localStorage: mockStorageObj,
   dispatchEvent: () => true,
 };
 

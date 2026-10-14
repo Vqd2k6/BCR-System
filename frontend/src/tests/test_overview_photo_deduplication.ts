@@ -1,5 +1,5 @@
 import { dedupeFloorOverviewPhotos, dedupePhase1FormData } from '../features/survey-phase1/utils/dedupePhase1Photos';
-import type { Phase1SurveyFormData } from '../features/survey-phase1/types/phase1.types';
+import type { Phase1SurveyFormData, FloorSurveyData } from '../features/survey-phase1/types/phase1.types';
 
 console.log('🧪 BẮT ĐẦU KIỂM THỬ: Chống nhân bản ảnh tổng quan tầng (Overview Photos Deduplication)');
 
@@ -75,7 +75,7 @@ const mockFormData: Partial<Phase1SurveyFormData> = {
           overviewPhotos: ['https://r2.metro2.vn/e1.jpg', 'https://r2.metro2.vn/e1.jpg'],
         },
       ],
-    } as any,
+    } as unknown as FloorSurveyData,
   ],
 };
 

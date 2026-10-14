@@ -529,7 +529,54 @@ export interface AuditStepwiseData {
   reportCode?: string;
   absenceLogs?: StepwiseAbsenceLogItem[];
   auditHistory?: AuditHistoryLogItem[];
-  auditFlags?: unknown[];
+  unitId?: string | null;
+  reportType?: string | null;
+  unitInfo?: {
+    id: string;
+    parcel_id: string;
+    floor_number?: number;
+    unit_code: string;
+    display_code?: string;
+    unit_type: string;
+    status: string;
+    owner_name?: string;
+    owner_phone?: string;
+    resident_status?: string;
+    floor_cad_url?: string;
+    floor_name?: string;
+    [key: string]: unknown;
+  } | null;
+  floorPlanInfo?: {
+    id: string;
+    floor_number: number;
+    cad_photo_url?: string;
+    floor_name?: string;
+    [key: string]: unknown;
+  } | null;
+  parentBuildingInfo?: {
+    id: string;
+    projectParcelCode?: string;
+    houseNumber?: string;
+    street?: string;
+    buildingType?: string;
+    floorCount?: number;
+    totalUnits?: number;
+    isLocked?: boolean;
+    sealHash?: string | null;
+    lockedAt?: string | null;
+    [key: string]: unknown;
+  } | null;
+  auditWarningFlags?: Array<{
+    code: string;
+    level: 'WARNING' | 'INFO';
+    message: string;
+  }>;
+  auditFlags?: Array<{
+    code: string;
+    level: 'WARNING' | 'INFO';
+    message: string;
+  }>;
+  identificationPhotos?: StepwiseIdentificationPhotos;
   leftPane?: {
     buildingSpecs?: StepwiseBuildingSpecs;
     deformation?: StepwiseDeformation;

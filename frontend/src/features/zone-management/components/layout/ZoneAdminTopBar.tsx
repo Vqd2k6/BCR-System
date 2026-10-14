@@ -1,19 +1,13 @@
 import React from 'react';
 import {
-  Bell,
   RefreshCw,
-  Search,
-  ShieldAlert,
   ChevronRight,
-  ExternalLink,
-  Layers,
 } from 'lucide-react';
 
 interface Props {
   title: string;
   subtitle?: string;
   selectedZone: string;
-  criticalAlertCount?: number;
   isLoading?: boolean;
   onRefresh?: () => void;
   onAlertClick?: () => void;
@@ -23,7 +17,6 @@ export const ZoneAdminTopBar: React.FC<Props> = ({
   title,
   subtitle,
   selectedZone,
-  criticalAlertCount = 0,
   isLoading = false,
   onRefresh,
   onAlertClick,
@@ -46,19 +39,6 @@ export const ZoneAdminTopBar: React.FC<Props> = ({
 
       {/* Right Action Icons */}
       <div className="flex items-center gap-2 shrink-0">
-        {/* Cờ cảnh báo khẩn nếu có */}
-        {criticalAlertCount > 0 && (
-          <button
-            type="button"
-            onClick={onAlertClick}
-            className="px-2.5 py-1.5 rounded-xl bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer animate-in fade-in"
-            title="Xem danh sách hồ sơ có cờ cảnh báo rủi ro"
-          >
-            <ShieldAlert className="w-3.5 h-3.5 text-red-600 animate-pulse" />
-            <span className="hidden md:inline">{criticalAlertCount} Hồ sơ rủi ro cao</span>
-            <span className="md:hidden">{criticalAlertCount}</span>
-          </button>
-        )}
 
         {/* Nút Làm mới */}
         {onRefresh && (

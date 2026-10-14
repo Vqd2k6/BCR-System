@@ -30,6 +30,7 @@ export class AuditService {
     search?: string;
     burlandFilter?: string;
     slaFilter?: string;
+    filterLevel?: string;
     limit?: number;
     offset?: number;
   }) {
@@ -54,6 +55,30 @@ export class AuditService {
 
   static getProgressAnalytics(zoneId?: string) {
     return AuditReviewService.getProgressAnalytics(zoneId);
+  }
+
+  static batchApproveReports(reportIds: string[], adminId: string, judgementNotes?: string) {
+    return AuditReviewService.batchApproveReports(reportIds, adminId, judgementNotes);
+  }
+
+  static approveAbsenteeReport(reportId: string, adminId: string, judgementNotes?: string) {
+    return AuditReviewService.approveAbsenteeReport(reportId, adminId, judgementNotes);
+  }
+
+  static getCondoProgressSummary(parcelId: string) {
+    return AuditReviewService.getCondoProgressSummary(parcelId);
+  }
+
+  static executeFinalSeal(parcelId: string, adminId: string, sealNotes?: string) {
+    return AuditReviewService.executeFinalSeal(parcelId, adminId, sealNotes);
+  }
+
+  static listCondoTowers(zoneId?: string) {
+    return AuditReviewService.listCondoTowers(zoneId);
+  }
+
+  static getScopeCounts(zoneId?: string) {
+    return AuditReviewService.getScopeCounts(zoneId);
   }
 
   // --- NHÓM 3: ĐIỀU CHỈNH HỒ SƠ, THAY ẢNH BẢO MẬT & HOÁN ĐỔI RANH ĐẤT ---

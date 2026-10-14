@@ -12,3 +12,17 @@ export const RevertReportToDraftDto = z.object({
   unitId: z.string().optional().nullable(),
   reason: z.string().optional(),
 });
+
+export const BatchApproveUnitsDto = z.object({
+  reportIds: z.array(z.string().uuid()).min(1, 'Cần chọn ít nhất 1 hồ sơ để duyệt').max(100, 'Tối đa 100 hồ sơ mỗi lần duyệt'),
+  judgementNotes: z.string().optional(),
+});
+
+export const ApproveAbsenteeReportDto = z.object({
+  judgementNotes: z.string().optional(),
+});
+
+export const ExecuteFinalSealDto = z.object({
+  sealNotes: z.string().optional(),
+});
+

@@ -16,6 +16,9 @@ import { RejectReportModal } from './RejectReportModal';
 import { EngineeringJudgementModal } from './EngineeringJudgementModal';
 import { ImageZoomModal } from '../../../../components/common/ImageZoomModal';
 import { AuditStepwiseDocumentView } from './stepwise/AuditStepwiseDocumentView';
+import { CondoUnitAuditStudioView } from './condo/CondoUnitAuditStudioView';
+import { CondoMasterAreaAuditStudioView } from './condo/CondoMasterAreaAuditStudioView';
+import { CondoMasterAuditStudioView } from './condo/CondoMasterAuditStudioView';
 import { AuditDiffConfirmModal } from './AuditDiffConfirmModal';
 import { AuditPhotoReplaceModal } from './AuditPhotoReplaceModal';
 import { AuditHistoryModal } from './AuditHistoryModal';
@@ -142,7 +145,7 @@ export const AuditStudioModal: React.FC<Props> = ({
     }
   };
 
-  const auditFlags = data?.auditFlags || [];
+  const auditFlags = data?.auditWarningFlags || data?.auditFlags || [];
   const riskCard = data?.leftPane?.riskScoreCard;
 
   return (
@@ -256,36 +259,170 @@ export const AuditStudioModal: React.FC<Props> = ({
           </div>
         ) : (
           <div className="flex-1 overflow-y-auto p-4 sm:p-6 bg-slate-100/70">
-            <AuditStepwiseDocumentView
-              data={data || {}}
-              reportId={reportId}
-              onRefresh={fetchAuditData}
-              onOpenPhotoZoom={(url, title) => {
-                setSelectedPhotoUrl(url);
-                setSelectedPhotoTitle(title || 'Ảnh Hiện Trường');
-                setShowImageZoom(true);
-              }}
-              onOpenPhotoReplace={(params) => {
-                setPhotoReplaceData({
-                  isOpen: true,
-                  targetPhotoType: params.targetPhotoType,
-                  targetPhotoId: params.targetPhotoId,
-                  defectId: params.defectId,
-                  zoneId: params.zoneId,
-                  photoIndex: params.photoIndex,
-                  currentPhotoUrl: params.currentPhotoUrl,
-                  photoTitle: params.photoTitle,
-                });
-              }}
-              onOpenDiffModal={(diffItems, updates) => {
-                setDiffModalData({
-                  isOpen: true,
-                  diffItems,
-                  updates,
-                });
-              }}
-              onOpenEngineeringJudgement={() => setShowJudgementModal(true)}
-            />
+            {(() => {
+              const isCondoUnit = Boolean(
+                data?.unitInfo?.unit_type === 'UNIT' ||
+                data?.reportType === 'CONDO_UNIT' ||
+                data?.reportType === 'UNIT_CHILD' ||
+                data?.unitInfo?.unit_code?.startsWith('U-')
+              );
+
+              const isMasterArea = Boolean(
+                data?.unitInfo?.unit_type === 'MASTER' ||
+                data?.reportType === 'MASTER_AREA' ||
+                data?.unitInfo?.unit_code?.startsWith('M-')
+              );
+
+              const isCondoMaster = Boolean(
+                (data?.buildingType?.includes('CONDO') || data?.parentBuildingInfo?.buildingType?.includes('CONDO')) &&
+                !data?.unitId &&
+                (data?.reportType === 'CONDO_MASTER' || data?.reportType === 'BUILDING_MASTER' || !data?.reportType)
+              );
+
+              if (isCondoUnit) {
+                return (
+                  <CondoUnitAuditStudioView
+                    data={data || {}}
+                    reportId={reportId}
+                    onRefresh={fetchAuditData}
+                    onOpenPhotoZoom={(url, title) => {
+                      setSelectedPhotoUrl(url);
+                      setSelectedPhotoTitle(title || 'Ảnh Căn Hộ');
+                      setShowImageZoom(true);
+                    }}
+                    onOpenPhotoReplace={(params) => {
+                      setPhotoReplaceData({
+                        isOpen: true,
+                        targetPhotoType: params.targetPhotoType,
+                        targetPhotoId: params.targetPhotoId,
+                        defectId: params.defectId,
+                        zoneId: params.zoneId,
+                        photoIndex: params.photoIndex,
+                        currentPhotoUrl: params.currentPhotoUrl,
+                        photoTitle: params.photoTitle,
+                      });
+                    }}
+                    onOpenDiffModal={(diffItems, updates) => {
+                      setDiffModalData({
+                        isOpen: true,
+                        diffItems,
+                        updates,
+                      });
+                    }}
+                    onOpenEngineeringJudgement={() => setShowJudgementModal(true)}
+                    onOpenRejectModal={() => setShowRejectModal(true)}
+                    onClose={onClose}
+                  />
+                );
+              }
+
+              if (isMasterArea) {
+                return (
+                  <CondoMasterAreaAuditStudioView
+                    data={data || {}}
+                    reportId={reportId}
+                    onRefresh={fetchAuditData}
+                    onOpenPhotoZoom={(url, title) => {
+                      setSelectedPhotoUrl(url);
+                      setSelectedPhotoTitle(title || 'Ảnh Khu Vực Dùng Chung');
+                      setShowImageZoom(true);
+                    }}
+                    onOpenPhotoReplace={(params) => {
+                      setPhotoReplaceData({
+                        isOpen: true,
+                        targetPhotoType: params.targetPhotoType,
+                        targetPhotoId: params.targetPhotoId,
+                        defectId: params.defectId,
+                        zoneId: params.zoneId,
+                        photoIndex: params.photoIndex,
+                        currentPhotoUrl: params.currentPhotoUrl,
+                        photoTitle: params.photoTitle,
+                      });
+                    }}
+                    onOpenDiffModal={(diffItems, updates) => {
+                      setDiffModalData({
+                        isOpen: true,
+                        diffItems,
+                        updates,
+                      });
+                    }}
+                    onOpenEngineeringJudgement={() => setShowJudgementModal(true)}
+                    onOpenRejectModal={() => setShowRejectModal(true)}
+                    onClose={onClose}
+                  />
+                );
+              }
+
+              if (isCondoMaster) {
+                return (
+                  <CondoMasterAuditStudioView
+                    data={data || {}}
+                    reportId={reportId}
+                    onRefresh={fetchAuditData}
+                    onOpenPhotoZoom={(url, title) => {
+                      setSelectedPhotoUrl(url);
+                      setSelectedPhotoTitle(title || 'Ảnh Tòa Mẹ');
+                      setShowImageZoom(true);
+                    }}
+                    onOpenPhotoReplace={(params) => {
+                      setPhotoReplaceData({
+                        isOpen: true,
+                        targetPhotoType: params.targetPhotoType,
+                        targetPhotoId: params.targetPhotoId,
+                        defectId: params.defectId,
+                        zoneId: params.zoneId,
+                        photoIndex: params.photoIndex,
+                        currentPhotoUrl: params.currentPhotoUrl,
+                        photoTitle: params.photoTitle,
+                      });
+                    }}
+                    onOpenDiffModal={(diffItems, updates) => {
+                      setDiffModalData({
+                        isOpen: true,
+                        diffItems,
+                        updates,
+                      });
+                    }}
+                    onOpenEngineeringJudgement={() => setShowJudgementModal(true)}
+                    onOpenRejectModal={() => setShowRejectModal(true)}
+                    onClose={onClose}
+                  />
+                );
+              }
+
+              return (
+                <AuditStepwiseDocumentView
+                  data={data || {}}
+                  reportId={reportId}
+                  onRefresh={fetchAuditData}
+                  onOpenPhotoZoom={(url, title) => {
+                    setSelectedPhotoUrl(url);
+                    setSelectedPhotoTitle(title || 'Ảnh Hiện Trường');
+                    setShowImageZoom(true);
+                  }}
+                  onOpenPhotoReplace={(params) => {
+                    setPhotoReplaceData({
+                      isOpen: true,
+                      targetPhotoType: params.targetPhotoType,
+                      targetPhotoId: params.targetPhotoId,
+                      defectId: params.defectId,
+                      zoneId: params.zoneId,
+                      photoIndex: params.photoIndex,
+                      currentPhotoUrl: params.currentPhotoUrl,
+                      photoTitle: params.photoTitle,
+                    });
+                  }}
+                  onOpenDiffModal={(diffItems, updates) => {
+                    setDiffModalData({
+                      isOpen: true,
+                      diffItems,
+                      updates,
+                    });
+                  }}
+                  onOpenEngineeringJudgement={() => setShowJudgementModal(true)}
+                />
+              );
+            })()}
           </div>
         )}
 

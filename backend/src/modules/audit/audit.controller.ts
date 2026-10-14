@@ -1,6 +1,13 @@
 import { Request, Response, NextFunction } from 'express';
 import { AuditService } from './audit.service';
-import { ApproveReportDto, RejectReportDto, RevertReportToDraftDto } from './audit.dto';
+import {
+  ApproveReportDto,
+  RejectReportDto,
+  RevertReportToDraftDto,
+  BatchApproveUnitsDto,
+  ApproveAbsenteeReportDto,
+  ExecuteFinalSealDto,
+} from './audit.dto';
 import { BadRequestError } from '../../common/errors/problem-details';
 
 export class AuditController {
@@ -21,11 +28,13 @@ export class AuditController {
     try {
       const filters = {
         zoneId: (req.query.zoneId as string) || (req.user?.role === 'SUPER_ADMIN' ? 'ALL' : req.user?.assignedZoneId) || 'ALL',
+        parcelId: req.query.parcelId as string | undefined,
         status: req.query.status as string,
         buildingType: req.query.buildingType as string,
         search: req.query.search as string,
         burlandFilter: req.query.burlandFilter as string,
         slaFilter: req.query.slaFilter as string,
+        filterLevel: req.query.filterLevel as string,
         limit: req.query.limit ? Number(req.query.limit) : undefined,
         offset: req.query.offset ? Number(req.query.offset) : undefined,
       };
@@ -223,6 +232,101 @@ export class AuditController {
       res.status(200).json({
         success: true,
         data: results,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async batchApproveReports(req: Request, res: Response, next: NextFunction) {
+    try {
+      const parsed = BatchApproveUnitsDto.safeParse(req.body);
+      if (!parsed.success) {
+        throw new BadRequestError(
+          'Dữ liệu phê duyệt hàng loạt không hợp lệ',
+          parsed.error.errors.map((e) => ({ field: e.path.join('.'), message: e.message }))
+        );
+      }
+      const adminId = req.user!.userId;
+      const result = await AuditService.batchApproveReports(
+        parsed.data.reportIds,
+        adminId,
+        parsed.data.judgementNotes
+      );
+      res.status(200).json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async approveAbsenteeReport(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      const parsed = ApproveAbsenteeReportDto.safeParse(req.body);
+      const adminId = req.user!.userId;
+      const judgementNotes = parsed.success ? parsed.data.judgementNotes : undefined;
+      const result = await AuditService.approveAbsenteeReport(id, adminId, judgementNotes);
+      res.status(200).json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async getCondoProgressSummary(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { parcelId } = req.params;
+      const result = await AuditService.getCondoProgressSummary(parcelId);
+      res.status(200).json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async executeFinalSeal(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { parcelId } = req.params;
+      const parsed = ExecuteFinalSealDto.safeParse(req.body);
+      const sealNotes = parsed.success ? parsed.data.sealNotes : undefined;
+      const adminId = req.user!.userId;
+      const result = await AuditService.executeFinalSeal(parcelId, adminId, sealNotes);
+      res.status(200).json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async listCondoTowers(req: Request, res: Response, next: NextFunction) {
+    try {
+      const zoneId = (req.query.zoneId as string) || (req.user?.role === 'SUPER_ADMIN' ? 'ALL' : req.user?.assignedZoneId) || 'ALL';
+      const towers = await AuditService.listCondoTowers(zoneId);
+      res.status(200).json({
+        success: true,
+        data: towers,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async getScopeCounts(req: Request, res: Response, next: NextFunction) {
+    try {
+      const zoneId = (req.query.zoneId as string) || (req.user?.role === 'SUPER_ADMIN' ? 'ALL' : req.user?.assignedZoneId) || 'ALL';
+      const counts = await AuditService.getScopeCounts(zoneId);
+      res.status(200).json({
+        success: true,
+        data: counts,
       });
     } catch (error) {
       next(error);

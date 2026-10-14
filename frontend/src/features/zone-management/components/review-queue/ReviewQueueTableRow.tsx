@@ -13,27 +13,37 @@ import {
   Clock,
   MoreHorizontal,
   Move,
+  History,
+  ShieldCheck,
 } from 'lucide-react';
 import type { PendingSubmissionItem } from './ZoneAuditReviewQueue';
 
 interface Props {
   item: PendingSubmissionItem;
+  selectable?: boolean;
+  selected?: boolean;
+  onSelect?: (reportId: string, checked: boolean) => void;
   onOpenStudio: (reportId: string | null) => void;
   onPreviewReport: (reportId: string | null) => void;
   onOpenRejectModal: (item: PendingSubmissionItem) => void;
   onOpenReassignModal: (item: PendingSubmissionItem) => void;
   onOpenMutationModal: (item: PendingSubmissionItem) => void;
   onOpenReshapeModal?: (item: PendingSubmissionItem) => void;
+  onOpenAuditHistory?: (reportId: string) => void;
 }
 
 export const ReviewQueueTableRow: React.FC<Props> = React.memo(({
   item,
+  selectable = false,
+  selected = false,
+  onSelect,
   onOpenStudio,
   onPreviewReport,
   onOpenRejectModal,
   onOpenReassignModal,
   onOpenMutationModal,
   onOpenReshapeModal,
+  onOpenAuditHistory,
 }) => {
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuPos, setMenuPos] = useState<'down' | 'up'>('down');
@@ -65,38 +75,92 @@ export const ReviewQueueTableRow: React.FC<Props> = React.memo(({
     item.burland_damage_category || ''
   );
   const hasAlerts = Number(item.alert_count) > 0;
+  const canBatchApprove = item.status === 'SUBMITTED' && (item.defect_count === 0 && (item.burland_damage_category === 'GRADE_0' || !item.burland_damage_category));
 
   // Render Status Badge
   const renderStatusBadge = () => {
+    if (item.unit_status === 'POSTPONED_ABSENT_VERIFIED' || item.parcel_status === 'POSTPONED_ABSENT_VERIFIED') {
+      return (
+        <div className="flex flex-col gap-0.5">
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-purple-100 text-purple-800 border border-purple-300 w-fit whitespace-nowrap">
+            <ShieldCheck className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+            <span>Vắng Mặt (Đã duyệt)</span>
+          </span>
+          {item.approver_name && (
+            <div className="text-[11px] text-purple-700 flex items-center gap-1 mt-0.5 font-medium whitespace-nowrap">
+              <User className="w-3 h-3 text-purple-500 shrink-0" />
+              <span>Xác minh: <strong>{item.approver_name}</strong></span>
+            </div>
+          )}
+          {item.approved_at && (
+            <div className="text-[10px] text-slate-400 font-mono whitespace-nowrap flex items-center gap-1">
+              <Clock className="w-3 h-3 shrink-0" />
+              <span>{new Date(item.approved_at).toLocaleDateString('vi-VN')} {new Date(item.approved_at).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</span>
+            </div>
+          )}
+        </div>
+      );
+    }
     if (item.status === 'APPROVED') {
       return (
-        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 whitespace-nowrap">
-          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-          <span>Đã Duyệt</span>
-        </span>
+        <div className="flex flex-col gap-0.5">
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 w-fit whitespace-nowrap">
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+            <span>Đã Phê Duyệt</span>
+          </span>
+          {item.approver_name && (
+            <div className="text-[11px] text-slate-600 flex items-center gap-1 mt-0.5 whitespace-nowrap" title={item.judgement_notes || undefined}>
+              <User className="w-3 h-3 text-slate-400 shrink-0" />
+              <span>Duyệt bởi: <strong className="text-slate-800">{item.approver_name}</strong></span>
+            </div>
+          )}
+          {item.approved_at && (
+            <div className="text-[10px] text-slate-400 font-mono flex items-center gap-1 whitespace-nowrap">
+              <Clock className="w-3 h-3 shrink-0" />
+              <span>{new Date(item.approved_at).toLocaleDateString('vi-VN')} {new Date(item.approved_at).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</span>
+            </div>
+          )}
+        </div>
       );
     }
     if (item.status === 'POSTPONED_ABSENT' || item.is_refused_or_absent) {
       return (
-        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-purple-100 text-purple-800 border border-purple-300 whitespace-nowrap">
-          <Clock className="w-3.5 h-3.5 text-purple-600 shrink-0" />
-          <span>Vắng Chủ ({item.absence_attempt_count || 1})</span>
-        </span>
+        <div className="flex flex-col gap-0.5">
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-purple-100 text-purple-800 border border-purple-300 w-fit whitespace-nowrap">
+            <Clock className="w-3.5 h-3.5 text-purple-600 shrink-0" />
+            <span>Vắng Chủ ({item.absence_attempt_count || 1})</span>
+          </span>
+          <div className="text-[10px] text-slate-400 font-mono mt-0.5">
+            Chờ thẩm định giấy mời
+          </div>
+        </div>
       );
     }
     if (item.status === 'REJECTED') {
       return (
-        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-red-100 text-red-800 border border-red-300 whitespace-nowrap">
-          <XCircle className="w-3.5 h-3.5 text-red-600 shrink-0" />
-          <span>Đã Trả Về</span>
-        </span>
+        <div className="flex flex-col gap-0.5">
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-red-100 text-red-800 border border-red-300 w-fit whitespace-nowrap">
+            <XCircle className="w-3.5 h-3.5 text-red-600 shrink-0" />
+            <span>Đã Trả Về Đo Lại</span>
+          </span>
+          {item.rejection_reason && (
+            <div className="text-[11px] text-red-700 mt-0.5 truncate max-w-[170px]" title={item.rejection_reason}>
+              <span>Lý do: {item.rejection_reason}</span>
+            </div>
+          )}
+        </div>
       );
     }
     return (
-      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 whitespace-nowrap">
-        <span className="w-2 h-2 rounded-full bg-indigo-600 animate-pulse shrink-0" />
-        <span>Chờ thẩm định</span>
-      </span>
+      <div className="flex flex-col gap-0.5">
+        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 w-fit whitespace-nowrap">
+          <span className="w-2 h-2 rounded-full bg-indigo-600 animate-pulse shrink-0" />
+          <span>Chờ thẩm định</span>
+        </span>
+        <div className="text-[10px] text-slate-400 font-mono mt-0.5 whitespace-nowrap">
+          Nộp: {new Date(item.created_at).toLocaleDateString('vi-VN')} {new Date(item.created_at).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
+        </div>
+      </div>
     );
   };
 
@@ -148,17 +212,70 @@ export const ReviewQueueTableRow: React.FC<Props> = React.memo(({
         isCriticalBurland ? 'bg-orange-50/30' : hasAlerts ? 'bg-amber-50/20' : ''
       }`}
     >
-      {/* 1. Mã Thửa */}
+      {/* 0. Optional Checkbox */}
+      {selectable && (
+        <td className="p-3.5 text-center">
+          <input
+            type="checkbox"
+            checked={Boolean(selected)}
+            disabled={!canBatchApprove}
+            onChange={(e) => onSelect && item.report_id && onSelect(item.report_id, e.target.checked)}
+            className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
+            title={canBatchApprove ? 'Chọn để duyệt hàng loạt' : 'Chỉ có thể chọn căn hộ Grade 0 không có khuyết tật'}
+          />
+        </td>
+      )}
+
+      {/* 1. Mã Thửa / Căn Hộ */}
       <td className="p-3.5 whitespace-nowrap">
-        <div className="font-mono font-black text-slate-900 text-sm flex items-center gap-1.5">
-          <span>{item.project_parcel_code}</span>
-        </div>
-        <div className="text-[11px] text-slate-500 font-mono mt-0.5">
-          Phân khu: <strong className="text-indigo-600">{item.zone_id}</strong>
-        </div>
+        {item.unit_type === 'MASTER' || item.unit_code?.startsWith('M-') ? (
+          <div>
+            <div className="font-mono font-black text-teal-800 text-sm flex items-center gap-1.5">
+              <span>🏛️ {item.display_code || item.unit_code}</span>
+            </div>
+            <div className="text-[11px] text-teal-600 font-mono mt-0.5">
+              Khu dùng chung • Tòa {item.parent_parcel_code || item.project_parcel_code}
+            </div>
+          </div>
+        ) : item.unit_type === 'UNIT' || item.unit_code?.startsWith('U-') ? (
+          <div>
+            <div className="font-mono font-black text-purple-800 text-sm flex items-center gap-1.5">
+              <span>🚪 {item.display_code || item.unit_code}</span>
+              {item.unit_floor_number && (
+                <span className="text-[10px] px-1.5 py-0.2 rounded bg-purple-100 text-purple-700">
+                  T{item.unit_floor_number}
+                </span>
+              )}
+            </div>
+            <div className="text-[11px] text-slate-500 font-mono mt-0.5">
+              Tòa {item.parent_parcel_code || item.project_parcel_code}
+            </div>
+          </div>
+        ) : item.building_type?.includes('CONDO') ? (
+          <div>
+            <div className="font-mono font-black text-indigo-900 text-sm flex items-center gap-1.5">
+              <span>🏢 {item.project_parcel_code}</span>
+              <span className="text-[10px] px-1.5 py-0.2 rounded bg-indigo-100 text-indigo-700 font-sans font-bold">
+                Tòa Mẹ
+              </span>
+            </div>
+            <div className="text-[11px] text-slate-500 font-mono mt-0.5">
+              Phân khu: <strong className="text-indigo-600">{item.zone_id}</strong>
+            </div>
+          </div>
+        ) : (
+          <div>
+            <div className="font-mono font-black text-slate-900 text-sm flex items-center gap-1.5">
+              <span>🏠 {item.project_parcel_code}</span>
+            </div>
+            <div className="text-[11px] text-slate-500 font-mono mt-0.5">
+              Phân khu: <strong className="text-indigo-600">{item.zone_id}</strong>
+            </div>
+          </div>
+        )}
       </td>
 
-      {/* 2. Địa chỉ & Loại CT */}
+      {/* 2. Địa chỉ & Chủ sở hữu */}
       <td className="p-3.5 min-w-[220px]">
         <div
           className="font-semibold text-slate-800 max-w-xs xl:max-w-md 2xl:max-w-lg truncate"
@@ -168,14 +285,16 @@ export const ReviewQueueTableRow: React.FC<Props> = React.memo(({
           {item.street || 'Chưa cập nhật địa chỉ'}
         </div>
         <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1.5 whitespace-nowrap">
-          {item.building_type?.includes('CONDO') ? (
+          {item.unit_owner_name ? (
             <span className="text-purple-700 font-medium flex items-center gap-0.5">
-              <Building className="w-3 h-3 shrink-0" /> Chung cư
+              <User className="w-3 h-3 shrink-0" /> Chủ hộ: {item.unit_owner_name}
+            </span>
+          ) : item.owner_name ? (
+            <span className="text-slate-600 flex items-center gap-0.5">
+              <User className="w-3 h-3 shrink-0" /> {item.owner_name}
             </span>
           ) : (
-            <span className="text-slate-600 flex items-center gap-0.5">
-              <Home className="w-3 h-3 shrink-0" /> Nhà liền thổ
-            </span>
+            <span className="text-slate-400">Không có thông tin chủ</span>
           )}
         </div>
       </td>
@@ -269,6 +388,18 @@ export const ReviewQueueTableRow: React.FC<Props> = React.memo(({
               title="Xem trước bản in Báo cáo A4 (Preview HTML)"
             >
               <FileText className="w-4 h-4" />
+            </button>
+          )}
+
+          {/* Nút Xem Lịch Sử Kiểm Toán / Truy Vết Nhanh */}
+          {item.report_id && onOpenAuditHistory && (
+            <button
+              type="button"
+              onClick={() => onOpenAuditHistory(item.report_id!)}
+              className="p-1.5 rounded-lg bg-slate-100 hover:bg-sky-50 text-slate-600 hover:text-sky-600 border border-slate-200 hover:border-sky-300 transition-colors cursor-pointer"
+              title="Xem toàn bộ nhật ký kiểm toán và lịch sử sửa đổi"
+            >
+              <History className="w-4 h-4" />
             </button>
           )}
 
