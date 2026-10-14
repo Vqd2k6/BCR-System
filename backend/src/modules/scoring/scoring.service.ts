@@ -253,6 +253,17 @@ export class ScoringService {
         [reportId, reason, engineerName || 'Kỹ Sư Trưởng Zone Admin']
       );
 
+      try {
+        const { AuditVersionService } = await import('../audit/services/audit-version.service');
+        await AuditVersionService.createSnapshot(reportId, {
+          versionTag: 'CHIEF_ENGINEER_OVERRIDE',
+          title: 'Phán quyết KST: Hoàn nguyên tính toán tự động',
+          editReason: reason,
+        });
+      } catch (snapErr) {
+        console.error('[applyEngineeringJudgement:KEEP] Không thể tạo snapshot:', snapErr);
+      }
+
       return {
         reportId,
         action: 'KEEP',
@@ -324,6 +335,21 @@ export class ScoringService {
       `SELECT * FROM risk_score_cards WHERE report_id = $1;`,
       [reportId]
     );
+
+    try {
+      const { AuditVersionService } = await import('../audit/services/audit-version.service');
+      await AuditVersionService.createSnapshot(reportId, {
+        versionTag: 'CHIEF_ENGINEER_OVERRIDE',
+        title: `Phán quyết KST (${action}): ${reason.substring(0, 50)}`,
+        editReason: reason,
+        diffSummary: [
+          { field: 'ecs', label: 'Điểm ECS', newValue: overrides?.totalEcs, class: ecsClass },
+          { field: 'vi', label: 'Điểm VI', newValue: overrides?.avgVi, class: viClass },
+        ],
+      });
+    } catch (snapErr) {
+      console.error('[applyEngineeringJudgement:OVERRIDE] Không thể tạo snapshot:', snapErr);
+    }
 
     return {
       reportId,

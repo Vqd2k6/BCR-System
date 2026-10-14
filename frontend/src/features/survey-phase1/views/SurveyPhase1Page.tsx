@@ -298,6 +298,40 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
     };
   }, [effectiveReadOnly]);
 
+  // Ngăn chặn Safari iOS và Android pinch-zoom/gesture làm vỡ tỷ lệ trang,
+  // ngoại trừ khi người dùng chủ động tương tác trong vùng CAD/Defect Canvas hoặc Photo Lightbox.
+  useEffect(() => {
+    const handleGesture = (e: Event) => {
+      const target = e.target as HTMLElement | null;
+      if (target?.closest?.('[data-zoomable-canvas="true"], [data-lightbox="true"]')) {
+        return;
+      }
+      e.preventDefault();
+    };
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (e.touches.length > 1) {
+        const target = e.target as HTMLElement | null;
+        if (target?.closest?.('[data-zoomable-canvas="true"], [data-lightbox="true"]')) {
+          return;
+        }
+        e.preventDefault();
+      }
+    };
+
+    document.addEventListener('gesturestart', handleGesture, { passive: false });
+    document.addEventListener('gesturechange', handleGesture, { passive: false });
+    document.addEventListener('gestureend', handleGesture, { passive: false });
+    document.addEventListener('touchmove', handleTouchMove, { passive: false });
+
+    return () => {
+      document.removeEventListener('gesturestart', handleGesture);
+      document.removeEventListener('gesturechange', handleGesture);
+      document.removeEventListener('gestureend', handleGesture);
+      document.removeEventListener('touchmove', handleTouchMove);
+    };
+  }, []);
+
   // Tải dữ liệu hồ sơ nếu ở chế độ xem lại (Read-Only) hoặc nạp dữ liệu đã lưu từ máy chủ
   useEffect(() => {
     if (parcel?.id) {
@@ -926,7 +960,7 @@ export const SurveyPhase1Page: React.FC<SurveyPhase1PageProps> = ({
       />
 
       {/* Main Step Content Container */}
-      <SurveyReadOnlyLock readOnly={effectiveReadOnly} className="flex-1 flex flex-col px-3 sm:px-6 py-6">
+      <SurveyReadOnlyLock readOnly={effectiveReadOnly} className="flex-1 flex flex-col px-3 sm:px-6 py-6 w-full min-w-0 max-w-full">
         {currentStep === 1 && (
           <Step1_BuildingIdentification
             onFinished={onFinished}

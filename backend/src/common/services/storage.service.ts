@@ -219,6 +219,57 @@ export class StorageService {
   }
 
   /**
+   * Sinh mã định danh ảnh pháp lý chuẩn METRO2-BCS-PHOTO-STD-2026:
+   * HCM_M2.[MÃ_CÔNG_TRÌNH]_[VỊ_TRÍ_TẦNG/MÃ_CĂN]_[MÃ_VÙNG]_[MÃ_NỨT]_[LOẠI_ẢNH]_[STT]
+   */
+  public static generateStandardPhotoCode(params: {
+    buildingOrParcelCode: string;
+    floorCode?: string;
+    zoneCode?: string;
+    defectCode?: string;
+    photoType: string;
+    index?: number;
+  }): string {
+    const cleanB = (params.buildingOrParcelCode || 'GENERAL').replace(/[^a-zA-Z0-9]/g, '');
+    const parts = [`HCM_M2.${cleanB}`];
+    if (params.floorCode) parts.push(params.floorCode.replace(/[^a-zA-Z0-9.]/g, ''));
+    if (params.zoneCode) parts.push(params.zoneCode.replace(/[^a-zA-Z0-9]/g, ''));
+    if (params.defectCode) parts.push(params.defectCode.replace(/[^a-zA-Z0-9]/g, ''));
+    parts.push(params.photoType.toUpperCase().replace(/[^a-zA-Z0-9]/g, ''));
+    const idx = params.index ? String(params.index).padStart(2, '0') : '01';
+    parts.push(idx);
+    return parts.join('_');
+  }
+
+  /**
+   * Sinh tên file tự mô tả chuẩn M2:
+   * M2__[BUILDING]__[FLOOR]__[ZONE/UNIT]__[DEFECT]__[TYPE]__[INDEX]__[EPOCH].jpg
+   */
+  public static generateSelfDescribingFilename(params: {
+    buildingCode: string;
+    floor?: string;
+    zoneUnit?: string;
+    defectCode?: string;
+    photoType: string;
+    index?: number;
+    epoch?: number;
+  }): string {
+    const cleanB = (params.buildingCode || 'GENERAL').replace(/[^a-zA-Z0-9_-]/g, '') || 'GENERAL';
+    const cleanF = (params.floor || 'G').replace(/[^a-zA-Z0-9_-]/g, '');
+    const cleanZ = (params.zoneUnit || 'GENERAL').replace(/[^a-zA-Z0-9_-]/g, '');
+    const nameParts = ['M2', cleanB, cleanF, cleanZ];
+    if (params.defectCode) {
+      nameParts.push(params.defectCode.replace(/[^a-zA-Z0-9_-]/g, ''));
+    }
+    nameParts.push(params.photoType.toUpperCase().replace(/[^a-zA-Z0-9_-]/g, ''));
+    if (params.index) {
+      nameParts.push(String(params.index).padStart(2, '0'));
+    }
+    nameParts.push(String(params.epoch || Date.now()));
+    return `${nameParts.join('__')}.jpg`;
+  }
+
+  /**
    * Tải Buffer (file nhị phân) lên Cloudflare R2 hoặc Local storage
    */
   public static async uploadBuffer(

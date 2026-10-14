@@ -1,7 +1,7 @@
 import type { FloorSurveyData, DamageZoneData, DefectItem } from '../../../../../survey-phase1/types/phase1.types';
-import type { AuditStepwiseFormState, AuditStepwiseData, StepwiseBurlandSummary } from '../types';
+import type { AuditStepwiseFormState, AuditStepwiseData, StepwiseBurlandSummary, PhotoReplaceParams } from '../types';
 import React from 'react';
-import { Award, AlertTriangle, ShieldAlert, Sparkles, FileText, CheckCircle2, Maximize2, BarChart2, Eye, Compass } from 'lucide-react';
+import { Award, AlertTriangle, ShieldAlert, Sparkles, FileText, CheckCircle2, Maximize2, BarChart2, Eye, Compass, RefreshCw } from 'lucide-react';
 
 interface Props {
   isEditMode: boolean;
@@ -10,6 +10,8 @@ interface Props {
   handleFieldChange?: (key: string, label: string, val: unknown) => void;
   handleNestedFieldChange: (parentKey: string, childKey: string, label: string, val: unknown) => void;
   onOpenPhotoZoom?: (url: string, title?: string, photoCode?: string) => void;
+  onOpenPhotoReplace?: (params: PhotoReplaceParams) => void;
+  isFieldDirty?: (fieldKey: string, subKey?: string) => boolean;
 }
 
 const BURLAND_GRADES = [
@@ -35,6 +37,8 @@ export const AuditStep4BurlandSummary: React.FC<Props> = ({
   data,
   handleNestedFieldChange,
   onOpenPhotoZoom,
+  onOpenPhotoReplace,
+  isFieldDirty,
 }) => {
   const burland: StepwiseBurlandSummary = formState.burlandSummary || {};
   const riskCard = data?.leftPane?.riskScoreCard || {};
@@ -96,19 +100,19 @@ export const AuditStep4BurlandSummary: React.FC<Props> = ({
   const govWidth = governingDefect?.widthMaxMm ?? governingDefect?.width_max_mm ?? 0;
 
   return (
-    <section id="step-4" className="scroll-mt-6 bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+    <section id="step-5" className="scroll-mt-6 bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
       {/* Header */}
       <div className="p-4 sm:p-5 bg-slate-50/80 border-b border-slate-100 flex items-center justify-between">
         <div className="flex items-center gap-2.5">
           <span className="px-2 py-0.5 rounded-lg bg-sky-600 text-white font-mono font-black text-xs">
-            Bước 04
+            Bước 05
           </span>
           <div>
             <h3 className="text-sm sm:text-base font-black text-slate-800">
-              Tổng Hợp & Đánh Giá Nứt Theo Chuẩn Burland 1977
+              Khuyết Tật Bề Mặt & Tổng Hợp Nứt Theo Chuẩn Burland 1977
             </h3>
             <p className="text-[11px] text-slate-500">
-              Phân loại hư hại nứt theo tiêu chuẩn quốc tế Burland (1977) & quy định cấp độ khống chế E1
+              Phân bố phổ nứt, phân loại hư hại nứt theo tiêu chuẩn quốc tế Burland (1977) & quy định cấp độ khống chế E1
             </p>
           </div>
         </div>
@@ -174,16 +178,37 @@ export const AuditStep4BurlandSummary: React.FC<Props> = ({
                   <div className="text-[10px] text-slate-500 italic truncate">
                     {governingDefect.notes || 'Vết nứt có bề rộng lớn nhất khống chế chỉ số E1 của toàn bộ công trình.'}
                   </div>
-                  {onOpenPhotoZoom && govPhotoUrl && (
-                    <button
-                      type="button"
-                      onClick={() => onOpenPhotoZoom(govPhotoUrl, `Vết nứt khống chế ${govCode}`, govCode)}
-                      className="text-[11px] font-bold text-sky-600 hover:text-sky-800 flex items-center gap-1 cursor-pointer pt-0.5"
-                    >
-                      <Eye className="w-3.5 h-3.5" />
-                      <span>Click soi ảnh Macro có thước đo mm</span>
-                    </button>
-                  )}
+                  <div className="flex items-center gap-2 pt-0.5 flex-wrap">
+                    {onOpenPhotoZoom && govPhotoUrl && (
+                      <button
+                        type="button"
+                        onClick={() => onOpenPhotoZoom(govPhotoUrl, `Vết nứt khống chế ${govCode}`, govCode)}
+                        className="text-[11px] font-bold text-sky-600 hover:text-sky-800 flex items-center gap-1 cursor-pointer"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                        <span>Click soi ảnh Macro có thước đo mm</span>
+                      </button>
+                    )}
+                    {isEditMode && onOpenPhotoReplace && govPhotoUrl && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          onOpenPhotoReplace({
+                            targetPhotoType: 'DEFECT_CU',
+                            defectId: governingDefect.id,
+                            targetPhotoId: governingDefect.defectCode || govCode,
+                            currentPhotoUrl: govPhotoUrl,
+                            photoTitle: `Vết nứt khống chế ${govCode}`,
+                          })
+                        }
+                        className="text-[11px] font-bold text-amber-700 hover:text-amber-800 bg-amber-100 hover:bg-amber-200 px-2 py-0.5 rounded flex items-center gap-1 cursor-pointer"
+                        title="Thay thế ảnh khuyết tật khống chế này"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5" />
+                        <span>Thay ảnh khống chế</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             ) : (

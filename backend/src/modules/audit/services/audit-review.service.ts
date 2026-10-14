@@ -1,5 +1,6 @@
+import crypto from 'crypto';
 import { Database } from '../../../database/db';
-import { NotFoundError } from '../../../common/errors/problem-details';
+import { NotFoundError, BadRequestError } from '../../../common/errors/problem-details';
 
 export class AuditReviewService {
   /**
@@ -7,11 +8,13 @@ export class AuditReviewService {
    */
   static async listPendingSubmissions(filters: {
     zoneId?: string;
+    parcelId?: string;
     status?: string;
     buildingType?: string;
     search?: string;
     burlandFilter?: string;
     slaFilter?: string;
+    filterLevel?: string;
     limit?: number;
     offset?: number;
   }) {
@@ -22,7 +25,7 @@ export class AuditReviewService {
       params.push(filters.status.toUpperCase());
       whereClause = `WHERE r.status::text = $${params.length}`;
     } else {
-      whereClause = `WHERE r.status::text IN ('SUBMITTED', 'POSTPONED_ABSENT', 'REJECTED', 'APPROVED')`;
+      whereClause = `WHERE r.status::text IN ('SUBMITTED', 'UNDER_REVIEW', 'REJECTED', 'APPROVED')`;
     }
 
     if (filters.zoneId && filters.zoneId.toUpperCase() !== 'ALL' && filters.zoneId.toUpperCase() !== 'ALL_ZONES') {
@@ -30,9 +33,37 @@ export class AuditReviewService {
       whereClause += ` AND p.zone_id = $${params.length}`;
     }
 
+    if (filters.parcelId) {
+      params.push(filters.parcelId);
+      whereClause += ` AND p.id = $${params.length}`;
+    }
+
     if (filters.buildingType && filters.buildingType.toUpperCase() !== 'ALL') {
       params.push(filters.buildingType);
       whereClause += ` AND p.building_type = $${params.length}`;
+    }
+
+    // Bộ lọc theo cấp độ cấu trúc khảo sát chung cư / nhà dân / vắng mặt
+    if (filters.filterLevel) {
+      const level = filters.filterLevel.toUpperCase();
+      if (level === 'RESIDENTIAL') {
+        whereClause += ` AND (p.building_type NOT IN ('CONDOMINIUM', 'CONDO') OR p.building_type IS NULL) AND r.unit_id IS NULL`;
+      } else if (level === 'CONDO_MASTER') {
+        whereClause += ` AND p.building_type IN ('CONDOMINIUM', 'CONDO') AND (r.report_type IN ('CONDO_MASTER', 'BUILDING_MASTER') OR r.unit_id IS NULL)`;
+      } else if (level === 'MASTER_AREA') {
+        whereClause += ` AND (bu.unit_type = 'MASTER' OR bu.unit_code LIKE 'M-%' OR r.report_type = 'MASTER_AREA')`;
+      } else if (level === 'CONDO_UNIT') {
+        whereClause += ` AND (bu.unit_type = 'UNIT' OR bu.unit_code LIKE 'U-%' OR r.report_type IN ('CONDO_UNIT', 'UNIT_CHILD'))`;
+      } else if (level === 'ABSENT') {
+        whereClause += ` AND (r.is_refused_or_absent = TRUE OR bu.status::text IN ('POSTPONED_ABSENT', 'POSTPONED_ABSENT_VERIFIED') OR p.survey_status::text IN ('POSTPONED_ABSENT', 'POSTPONED_ABSENT_VERIFIED'))`;
+      } else if (level === 'CRITICAL') {
+        whereClause += ` AND (sc.e1_burland_score >= 3 OR EXISTS (
+          SELECT 1 FROM defect_items d JOIN damage_zones z ON d.zone_id = z.id
+          WHERE z.report_id = r.id AND (d.is_structural_critical = TRUE OR d.width_max_mm >= 2.0)
+        ))`;
+      } else if (level === 'APPROVED') {
+        whereClause += ` AND r.status::text = 'APPROVED'`;
+      }
     }
 
     if (filters.search && filters.search.trim()) {
@@ -42,7 +73,10 @@ export class AuditReviewService {
         p.house_number ILIKE $${params.length} OR
         p.street ILIKE $${params.length} OR
         p.owner_name ILIKE $${params.length} OR
-        u.full_name ILIKE $${params.length}
+        u.full_name ILIKE $${params.length} OR
+        bu.unit_code ILIKE $${params.length} OR
+        bu.display_code ILIKE $${params.length} OR
+        bu.owner_name ILIKE $${params.length}
       )`;
     }
 
@@ -73,6 +107,7 @@ export class AuditReviewService {
       SELECT COUNT(*) AS total_count
       FROM base_survey_reports r
       JOIN parcels p ON r.parcel_id = p.id
+      LEFT JOIN building_units bu ON r.unit_id = bu.id
       LEFT JOIN users u ON r.surveyor_id = u.id
       LEFT JOIN risk_score_cards sc ON sc.report_id = r.id
       ${whereClause};
@@ -84,12 +119,24 @@ export class AuditReviewService {
     const query = `
       SELECT 
         r.id AS report_id,
+        r.report_type,
+        r.unit_id,
+        bu.unit_code,
+        bu.display_code,
+        bu.unit_type,
+        bu.floor_number AS unit_floor_number,
+        bu.owner_name AS unit_owner_name,
+        bu.owner_phone AS unit_owner_phone,
+        bu.status::text AS unit_status,
+        bu.resident_status AS unit_resident_status,
         p.id AS parcel_id,
         p.project_parcel_code,
+        p.project_parcel_code AS parent_parcel_code,
         p.house_number,
         p.street,
         p.zone_id,
         p.building_type,
+        p.is_locked AS parent_parcel_is_locked,
         r.status::text AS status,
         p.survey_status::text AS parcel_status,
         r.is_refused_or_absent,
@@ -110,6 +157,7 @@ export class AuditReviewService {
           WHEN sc.e1_burland_score >= 4 THEN 'GRADE_4'
           ELSE NULL
         END AS burland_damage_category,
+        COALESCE(sc.e1_burland_score, 0) AS burland_score,
         (
           SELECT MAX(d.width_max_mm)
           FROM defect_items d
@@ -128,10 +176,21 @@ export class AuditReviewService {
           SELECT COUNT(*) 
           FROM audit_alert_items a 
           WHERE a.report_id = r.id AND a.is_resolved = FALSE
-        ) AS alert_count
+        ) AS alert_count,
+        r.approved_at,
+        r.engineering_recommendations AS judgement_notes,
+        r.engineering_recommendations AS rejection_reason,
+        u_admin.full_name AS approver_name,
+        u_admin.role AS approver_role,
+        p.seal_hash AS parent_parcel_seal_hash,
+        p.locked_at AS parent_parcel_locked_at,
+        u_lock.full_name AS parent_parcel_locked_by_name
       FROM base_survey_reports r
       JOIN parcels p ON r.parcel_id = p.id
+      LEFT JOIN building_units bu ON r.unit_id = bu.id
       LEFT JOIN users u ON r.surveyor_id = u.id
+      LEFT JOIN users u_admin ON r.zone_admin_id = u_admin.id
+      LEFT JOIN users u_lock ON p.locked_by_id = u_lock.id
       LEFT JOIN risk_score_cards sc ON sc.report_id = r.id
       ${whereClause}
       ORDER BY r.updated_at DESC NULLS LAST, p.updated_at DESC
@@ -151,13 +210,14 @@ export class AuditReviewService {
   static async getSplitPaneAuditView(reportId: string) {
     const reportRes = await Database.query(
       `SELECT r.*, p.project_parcel_code, p.house_number, p.street, p.zone_id,
-              p.land_area_m2, p.construction_area_m2,
+              p.land_area_m2, p.construction_area_m2, p.floor_count, p.total_units,
+              p.building_type, p.is_locked, p.seal_hash, p.locked_at,
               ST_AsGeoJSON(p.cadastral_polygon_geom) AS cadastral_geojson,
               ST_AsGeoJSON(p.location_geom) AS location_geojson,
               u.full_name AS surveyor_name, u.phone AS surveyor_phone
        FROM base_survey_reports r
        JOIN parcels p ON r.parcel_id = p.id
-       JOIN users u ON r.surveyor_id = u.id
+       LEFT JOIN users u ON r.surveyor_id = u.id
        WHERE (r.id = $1 OR r.parcel_id = $1)
        ORDER BY (CASE WHEN r.id = $1 THEN 0 ELSE 1 END), r.created_at DESC
        LIMIT 1;`,
@@ -446,9 +506,129 @@ export class AuditReviewService {
         : (Array.isArray(surveyJson.workingMinutesPhotos) ? surveyJson.workingMinutesPhotos : []),
     };
 
+    let unitInfo: any = null;
+    let floorPlanInfo: any = null;
+    if (report.unit_id) {
+      try {
+        const uRes = await Database.query(
+          `SELECT u.*, fp.cad_photo_url AS floor_cad_url, fp.floor_name
+           FROM building_units u
+           LEFT JOIN building_floor_plans fp ON u.floor_plan_id = fp.id
+           WHERE u.id = $1 AND u.deleted_at IS NULL;`,
+          [report.unit_id]
+        );
+        unitInfo = uRes.rows[0] || null;
+        if (unitInfo && !unitInfo.floor_cad_url && unitInfo.floor_number !== undefined) {
+          const fpRes = await Database.query(
+            `SELECT * FROM building_floor_plans WHERE parcel_id = $1 AND floor_number = $2 AND deleted_at IS NULL LIMIT 1;`,
+            [report.parcel_id, unitInfo.floor_number]
+          );
+          floorPlanInfo = fpRes.rows[0] || null;
+        }
+      } catch (e: any) {
+        console.warn('⚠️ [AUDIT SERVICE] building_units query error:', e?.message);
+      }
+    }
+
+    const auditWarningFlags: Array<{ code: string; level: 'WARNING' | 'INFO'; message: string }> = [];
+
+    // 1. Kiểm tra thước đo tỉ lệ ở ảnh cận cảnh (Scale Card)
+    let missingScaleCardCount = 0;
+    allDamageZones.forEach((z: any) => {
+      const defs = Array.isArray(z.defects) ? z.defects : [];
+      defs.forEach((d: any) => {
+        if (!d.hasScaleCard && !d.has_scale_card) {
+          missingScaleCardCount++;
+        }
+      });
+    });
+    if (missingScaleCardCount > 0) {
+      auditWarningFlags.push({
+        code: 'MISSING_SCALE_CARD',
+        level: 'WARNING',
+        message: `Phát hiện ${missingScaleCardCount} vị trí khuyết tật chưa chụp kèm thước đo tỉ lệ chuẩn (Scale Card)`,
+      });
+    }
+
+    // 2. Kiểm tra ảnh định danh
+    if (!identificationPhotos.photoP01?.url && !identificationPhotos.photoP01?.notApplicable) {
+      auditWarningFlags.push({
+        code: 'MISSING_PHOTO_P01',
+        level: 'WARNING',
+        message: 'Thiếu ảnh số nhà / biển hiệu căn hộ (P-01)',
+      });
+    }
+    if (!report.unit_id && !identificationPhotos.photoP04?.url && !identificationPhotos.photoP04?.notApplicable) {
+      auditWarningFlags.push({
+        code: 'MISSING_PHOTO_P04',
+        level: 'WARNING',
+        message: 'Thiếu ảnh ngữ cảnh đường / ngõ tiếp giáp công trình (P-04)',
+      });
+    }
+
+    // 3. Kiểm tra vắng mặt
+    if (report.is_refused_or_absent || report.status === 'POSTPONED_ABSENT') {
+      const hasDoorNotice = normalizedSignatures.workingMinutesPhotos.length > 0 ||
+        (Array.isArray(surveyJson.doorNoticePhotos) && surveyJson.doorNoticePhotos.length > 0) ||
+        Boolean(identificationPhotos.photoP01?.url);
+      if (!hasDoorNotice) {
+        auditWarningFlags.push({
+          code: 'ABSENT_WITHOUT_INVITATION_PHOTO',
+          level: 'WARNING',
+          message: 'Ca vắng mặt chưa có ảnh dán giấy hẹn / giấy mời khảo sát tại cửa',
+        });
+      }
+    }
+
+    // 4. Kiểm tra nứt lớn chưa đánh dấu kết cấu
+    let unmarkedCriticalCracks = 0;
+    allDamageZones.forEach((z: any) => {
+      const defs = Array.isArray(z.defects) ? z.defects : [];
+      defs.forEach((d: any) => {
+        const width = Number(d.widthMaxMm ?? d.width_max_mm ?? 0);
+        const isCritical = Boolean(d.isStructuralCritical ?? d.is_structural_critical);
+        if (width >= 2.0 && !isCritical) {
+          unmarkedCriticalCracks++;
+        }
+      });
+    });
+    if (unmarkedCriticalCracks > 0) {
+      auditWarningFlags.push({
+        code: 'HIGH_CRACK_WIDTH_UNMARKED',
+        level: 'WARNING',
+        message: `Có ${unmarkedCriticalCracks} vết nứt bề rộng >= 2.0mm chưa được đánh dấu nguy hiểm kết cấu`,
+      });
+    }
+
+    // 5. Thấm dột từ tầng trên (căn hộ con)
+    if (surveyJson.waterLeakageFromUpperFloor || surveyJson.upperFloorWaterLeakage) {
+      auditWarningFlags.push({
+        code: 'UPPER_FLOOR_WATER_LEAKAGE',
+        level: 'INFO',
+        message: 'Căn hộ có ghi nhận hiện tượng thấm dột từ trần / căn hộ tầng trên',
+      });
+    }
+
     return {
       reportId: report.id,
       parcelId: report.parcel_id,
+      unitId: report.unit_id || null,
+      reportType: report.report_type || null,
+      unitInfo: unitInfo || null,
+      floorPlanInfo: floorPlanInfo || null,
+      parentBuildingInfo: {
+        id: report.parcel_id,
+        projectParcelCode: report.project_parcel_code,
+        houseNumber: report.house_number,
+        street: report.street,
+        buildingType: report.building_type,
+        floorCount: report.floor_count,
+        totalUnits: report.total_units,
+        isLocked: Boolean(report.is_locked),
+        sealHash: report.seal_hash,
+        lockedAt: report.locked_at,
+      },
+      auditWarningFlags,
       projectParcelCode: report.project_parcel_code,
       houseNumber: report.house_number || surveyJson.houseNumber,
       street: report.street || surveyJson.street,
@@ -554,13 +734,14 @@ export class AuditReviewService {
                     u.role AS performed_by_role
              FROM system_audit_logs l
              LEFT JOIN users u ON l.performed_by_user_id = u.id
-             WHERE (l.entity_type = 'BASE_SURVEY_REPORT' AND l.entity_id = $1)
-                OR (l.entity_type = 'PARCEL' AND l.entity_id = $2)
+             WHERE (l.entity_type IN ('BASE_SURVEY_REPORT', 'PARCEL', 'PARCEL_SPATIAL_GEOMETRY', 'BUILDING_UNIT', 'UNIT')
+                    AND (l.entity_id = $1::uuid OR l.entity_id = $2::uuid OR ($3::uuid IS NOT NULL AND l.entity_id = $3::uuid)))
              ORDER BY l.created_at DESC
-             LIMIT 50;`,
-            [actualReportId, report.parcel_id]
+             LIMIT 100;`,
+            [actualReportId, report.parcel_id, report.unit_id || null]
           );
-          return logsRes.rows.map((row: any) => {
+
+          const historyItems = logsRes.rows.map((row: any) => {
             let parsedDiff = row.diff_payload;
             if (typeof parsedDiff === 'string') {
               try {
@@ -573,14 +754,41 @@ export class AuditReviewService {
               id: row.id,
               action: row.action,
               performedByName: row.performed_by_name || 'Hệ thống / Quản trị viên',
-              performedByRole: row.performed_by_role || 'ADMIN',
+              performedByRole: row.performed_by_role || 'ZONE_ADMIN',
               createdAt: row.created_at,
               clientIp: row.client_ip,
-              editReason: parsedDiff?.editReason || parsedDiff?.reason || null,
+              editReason: parsedDiff?.editReason || parsedDiff?.reason || parsedDiff?.rejectionReason || parsedDiff?.judgementNotes || parsedDiff?.notes || null,
               diff: Array.isArray(parsedDiff?.diff) ? parsedDiff.diff : (Array.isArray(parsedDiff?.diffPayload) ? parsedDiff.diffPayload : []),
               rawPayload: parsedDiff,
             };
           });
+
+          // Luôn bổ sung mốc thời gian nộp bài khảo sát ban đầu từ Kỹ sư hiện trường
+          if (report.created_at || report.survey_date) {
+            const hasSubmitLog = historyItems.some((h: any) => h.action === 'SURVEYOR_SUBMIT_REPORT');
+            if (!hasSubmitLog) {
+              historyItems.push({
+                id: `init_${actualReportId}`,
+                action: 'SURVEYOR_SUBMIT_REPORT',
+                performedByName: report.surveyor_name || 'Kỹ sư khảo sát hiện trường',
+                performedByRole: 'SURVEYOR',
+                createdAt: report.created_at || report.survey_date,
+                clientIp: undefined,
+                editReason: 'Hoàn tất biên bản khảo sát hiện trường và nộp hồ sơ lên hệ thống',
+                diff: [],
+                rawPayload: {
+                  surveyDate: report.survey_date,
+                  status: report.status,
+                  surveyorCode: report.surveyor_code,
+                  defectCount: report.defect_count,
+                  burlandCategory: report.burland_damage_category,
+                },
+              });
+            }
+          }
+
+          // Sắp xếp thời gian giảm dần (mới nhất lên đầu)
+          return historyItems.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
         } catch (e: any) {
           console.warn('⚠️ [AUDIT SERVICE] system_audit_logs query fallback:', e?.message);
           return [];
@@ -664,6 +872,27 @@ export class AuditReviewService {
         [actualReportId, adminId]
       );
 
+      // Ghi nhận nhật ký kiểm toán hệ thống phê duyệt
+      await client.query(
+        `INSERT INTO system_audit_logs (
+           entity_type, entity_id, action, performed_by_user_id, diff_payload
+         ) VALUES ($1, $2, $3, $4, $5);`,
+        [
+          'BASE_SURVEY_REPORT',
+          actualReportId,
+          'ZONE_ADMIN_APPROVE_REPORT',
+          adminId,
+          JSON.stringify({
+            reportId: actualReportId,
+            parcelId: actualParcelId,
+            status: 'APPROVED',
+            judgementNotes: judgementNotes || null,
+            officialPdfUrl,
+            timestamp: new Date().toISOString(),
+          }),
+        ]
+      );
+
       return {
         reportId: actualReportId,
         parcelId: actualParcelId,
@@ -721,6 +950,26 @@ export class AuditReviewService {
         );
       }
 
+      // Ghi nhận nhật ký kiểm toán hệ thống trả về
+      await client.query(
+        `INSERT INTO system_audit_logs (
+           entity_type, entity_id, action, performed_by_user_id, diff_payload
+         ) VALUES ($1, $2, $3, $4, $5);`,
+        [
+          'BASE_SURVEY_REPORT',
+          actualReportId,
+          'ZONE_ADMIN_REJECT_REPORT',
+          adminId,
+          JSON.stringify({
+            reportId: actualReportId,
+            parcelId: actualParcelId,
+            status: 'REJECTED',
+            rejectionReason,
+            timestamp: new Date().toISOString(),
+          }),
+        ]
+      );
+
       return {
         reportId: actualReportId,
         parcelId: actualParcelId,
@@ -741,7 +990,7 @@ export class AuditReviewService {
     reason?: string,
     unitId?: string | null
   ) {
-    return Database.transaction(async (client) => {
+    const result = await Database.transaction(async (client) => {
       let targetUnitId = unitId || null;
       let targetParcelId: string | null = null;
       let targetReportId: string | null = null;
@@ -849,6 +1098,22 @@ export class AuditReviewService {
         message: 'Đã chuyển trạng thái hồ sơ về "Đang làm dở" thành công. Khảo sát viên có thể chỉnh sửa thông tin.',
       };
     });
+
+    if (result.reportId) {
+      try {
+        const { AuditVersionService } = await import('./audit-version.service');
+        await AuditVersionService.createSnapshot(result.reportId, {
+          versionTag: 'REVERT_TO_DRAFT',
+          title: 'Mở lại hồ sơ khảo sát / Chuyển về Làm dở',
+          editReason: reason || 'Admin chuyển trạng thái về Đang làm dở',
+          userId: adminId,
+        });
+      } catch (snapErr) {
+        console.error('[revertReportToDraft] Không thể tạo snapshot phiên bản:', snapErr);
+      }
+    }
+
+    return result;
   }
 
   static async getProgressAnalytics(zoneId?: string) {
@@ -950,4 +1215,645 @@ export class AuditReviewService {
       estimated_completion_days: estCompletionDays,
     };
   }
+
+  /**
+   * Phê duyệt hàng loạt an toàn cho các căn hộ đạt Grade 0 hoặc 0 khuyết tật
+   */
+  static async batchApproveReports(
+    reportIds: string[],
+    adminId: string,
+    judgementNotes?: string
+  ): Promise<{
+    approvedCount: number;
+    failedCount: number;
+    results: Array<{ reportId: string; success: boolean; message: string }>;
+  }> {
+    const results: Array<{ reportId: string; success: boolean; message: string }> = [];
+    let approvedCount = 0;
+    let failedCount = 0;
+
+    for (const reportId of reportIds) {
+      try {
+        // Kiểm tra điều kiện an toàn: Grade 0 hoặc 0 vết nứt
+        const checkRes = await Database.query<{
+          id: string;
+          status: string;
+          burland_score: number | null;
+          defect_count: number;
+        }>(
+          `SELECT r.id, r.status,
+                  COALESCE(sc.e1_burland_score, 0) AS burland_score,
+                  (
+                    SELECT COUNT(*)
+                    FROM defect_items d
+                    JOIN damage_zones z ON d.zone_id = z.id
+                    WHERE z.report_id = r.id
+                  )::int AS defect_count
+           FROM base_survey_reports r
+           LEFT JOIN risk_score_cards sc ON sc.report_id = r.id
+           WHERE r.id = $1;`,
+          [reportId]
+        );
+
+        if (!checkRes.rows[0]) {
+          failedCount++;
+          results.push({ reportId, success: false, message: 'Không tìm thấy hồ sơ' });
+          continue;
+        }
+
+        const rep = checkRes.rows[0];
+        if (rep.status !== 'SUBMITTED') {
+          failedCount++;
+          results.push({
+            reportId,
+            success: false,
+            message: `Hồ sơ ở trạng thái ${rep.status}, chỉ có thể duyệt khi ở trạng thái SUBMITTED`,
+          });
+          continue;
+        }
+
+        if ((rep.burland_score ?? 0) > 0 || rep.defect_count > 0) {
+          failedCount++;
+          results.push({
+            reportId,
+            success: false,
+            message: `Hồ sơ có khuyết tật (Grade ${rep.burland_score ?? 0}, ${rep.defect_count} vết nứt), yêu cầu thẩm định thủ công`,
+          });
+          continue;
+        }
+
+        // Thực thi phê duyệt an toàn
+        await AuditReviewService.approveReport(
+          reportId,
+          adminId,
+          judgementNotes || 'Phê duyệt hàng loạt an toàn (Căn hộ Grade 0)'
+        );
+
+        approvedCount++;
+        results.push({ reportId, success: true, message: 'Phê duyệt thành công' });
+      } catch (err: any) {
+        failedCount++;
+        results.push({
+          reportId,
+          success: false,
+          message: err?.message || 'Lỗi không xác định khi duyệt',
+        });
+      }
+    }
+
+    return {
+      approvedCount,
+      failedCount,
+      results,
+    };
+  }
+
+  /**
+   * Phê duyệt hồ sơ vắng mặt (Xác nhận vắng mặt hợp lệ -> POSTPONED_ABSENT_VERIFIED)
+   */
+  static async approveAbsenteeReport(
+    reportId: string,
+    adminId: string,
+    judgementNotes?: string
+  ) {
+    return Database.transaction(async (client) => {
+      const repRes = await client.query<{
+        id: string;
+        parcel_id: string;
+        unit_id: string | null;
+        report_type: string | null;
+        status: string;
+      }>(
+        `SELECT id, parcel_id, unit_id, report_type, status
+         FROM base_survey_reports
+         WHERE id = $1
+         FOR UPDATE;`,
+        [reportId]
+      );
+
+      if (!repRes.rows[0]) {
+        throw new NotFoundError(`Không tìm thấy hồ sơ với ID: ${reportId}`);
+      }
+
+      const rep = repRes.rows[0];
+      const actualReportId = rep.id;
+      const actualParcelId = rep.parcel_id;
+      const actualUnitId = rep.unit_id;
+
+      // Cập nhật base_survey_reports
+      await client.query(
+        `UPDATE base_survey_reports
+         SET status = 'APPROVED',
+             is_refused_or_absent = TRUE,
+             zone_admin_id = $2,
+             approved_at = NOW(),
+             engineering_recommendations = COALESCE($3, engineering_recommendations),
+             updated_at = NOW()
+         WHERE id = $1;`,
+        [actualReportId, adminId, judgementNotes ? `XÁC NHẬN VẮNG MẶT: ${judgementNotes}` : 'Xác nhận hồ sơ vắng mặt hợp lệ']
+      );
+
+      // Cập nhật building_units hoặc parcels
+      if (actualUnitId) {
+        await client.query(
+          `UPDATE building_units
+           SET status = 'POSTPONED_ABSENT_VERIFIED',
+               updated_at = NOW()
+           WHERE id = $1;`,
+          [actualUnitId]
+        );
+      } else {
+        await client.query(
+          `UPDATE parcels
+           SET survey_status = 'POSTPONED_ABSENT_VERIFIED',
+               updated_at = NOW()
+           WHERE id = $1;`,
+          [actualParcelId]
+        );
+      }
+
+      // Đánh dấu đã xử lý cảnh báo nếu có
+      await client.query(
+        `UPDATE audit_alert_items
+         SET is_resolved = TRUE, resolved_by_user_id = $2, resolved_at = NOW()
+         WHERE report_id = $1;`,
+        [actualReportId, adminId]
+      );
+
+      // Ghi nhật ký hệ thống
+      await client.query(
+        `INSERT INTO system_audit_logs (
+           entity_type, entity_id, action, performed_by_user_id, diff_payload
+         ) VALUES ($1, $2, $3, $4, $5);`,
+        [
+          actualUnitId ? 'BUILDING_UNIT' : 'BASE_SURVEY_REPORT',
+          actualUnitId || actualReportId,
+          'APPROVE_ABSENTEE_VERIFIED',
+          adminId,
+          JSON.stringify({
+            reportId: actualReportId,
+            unitId: actualUnitId,
+            status: 'POSTPONED_ABSENT_VERIFIED',
+            judgementNotes: judgementNotes || null,
+            timestamp: new Date().toISOString(),
+          }),
+        ]
+      );
+
+      return {
+        reportId: actualReportId,
+        parcelId: actualParcelId,
+        unitId: actualUnitId,
+        status: 'APPROVED',
+        unitStatus: 'POSTPONED_ABSENT_VERIFIED',
+        message: 'Đã xác nhận hồ sơ vắng mặt hợp lệ (POSTPONED_ABSENT_VERIFIED)',
+      };
+    });
+  }
+
+  /**
+   * Truy vấn tiến độ tổng thể của Tòa nhà chung cư (Condo Progress Summary)
+   * Phục vụ màn hình Khóa Sổ Pháp Lý Toàn Diện & Giám sát tiến độ
+   */
+  static async getCondoProgressSummary(parcelId: string) {
+    // 1. Thông tin tòa mẹ
+    const parcelRes = await Database.query<{
+      id: string;
+      project_parcel_code: string;
+      house_number: string;
+      street: string;
+      zone_id: string;
+      building_type: string;
+      floor_count: number;
+      total_units: number;
+      survey_status: string;
+      is_locked: boolean;
+      locked_at: string | null;
+      seal_hash: string | null;
+      seal_notes: string | null;
+    }>(
+      `SELECT id, project_parcel_code, house_number, street, zone_id,
+              building_type, floor_count, total_units, survey_status,
+              is_locked, locked_at, seal_hash, seal_notes
+       FROM parcels
+       WHERE id = $1;`,
+      [parcelId]
+    );
+
+    if (!parcelRes.rows[0]) {
+      throw new NotFoundError(`Không tìm thấy tòa nhà với ID: ${parcelId}`);
+    }
+
+    const parcel = parcelRes.rows[0];
+
+    // 2. Danh sách tất cả các căn hộ và khu vực dùng chung
+    const unitsRes = await Database.query<{
+      id: string;
+      unit_code: string;
+      display_code: string;
+      unit_type: string;
+      floor_number: number;
+      status: string;
+      owner_name: string | null;
+      owner_phone: string | null;
+      resident_status: string | null;
+      phase1_report_id: string | null;
+      report_status: string | null;
+      burland_score: number | null;
+    }>(
+      `SELECT u.id, u.unit_code, u.display_code, u.unit_type, u.floor_number,
+              u.status, u.owner_name, u.owner_phone, u.resident_status,
+              u.phase1_report_id,
+              r.status AS report_status,
+              sc.e1_burland_score AS burland_score
+       FROM building_units u
+       LEFT JOIN base_survey_reports r ON u.phase1_report_id = r.id
+       LEFT JOIN risk_score_cards sc ON sc.report_id = r.id
+       WHERE u.parcel_id = $1 AND u.deleted_at IS NULL
+       ORDER BY u.floor_number ASC, u.unit_code ASC;`,
+      [parcelId]
+    );
+
+    const allUnits = unitsRes.rows;
+
+    // 3. Phân tách danh sách Căn hộ con và Khu vực dùng chung
+    const childUnits = allUnits.filter((u) => u.unit_type === 'UNIT');
+    const masterAreas = allUnits.filter((u) => u.unit_type === 'MASTER');
+
+    // Thống kê căn hộ con
+    const totalChildUnits = childUnits.length;
+    const approvedChildUnits = childUnits.filter((u) => u.status === 'APPROVED').length;
+    const absentVerifiedChildUnits = childUnits.filter((u) => u.status === 'POSTPONED_ABSENT_VERIFIED').length;
+    const absentPendingChildUnits = childUnits.filter((u) => u.status === 'POSTPONED_ABSENT').length;
+    const submittedChildUnits = childUnits.filter((u) => u.status === 'SUBMITTED').length;
+    const inProgressChildUnits = childUnits.filter((u) => u.status === 'IN_PROGRESS' || u.status === 'NOT_SURVEYED').length;
+
+    // Thống kê khu vực dùng chung
+    const totalMasterAreas = masterAreas.length;
+    const approvedMasterAreas = masterAreas.filter((u) => u.status === 'APPROVED').length;
+    const submittedMasterAreas = masterAreas.filter((u) => u.status === 'SUBMITTED').length;
+    const pendingMasterAreas = masterAreas.filter((u) => u.status !== 'APPROVED').length;
+
+    // Tổng tiến độ
+    const totalItems = totalChildUnits + totalMasterAreas;
+    const completedItems = approvedChildUnits + absentVerifiedChildUnits + approvedMasterAreas;
+    const completionRatePercent = totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0;
+
+    // Đếm vết nứt kết cấu nghiêm trọng (Burland >= 3 hoặc vết nứt >= 2.0mm)
+    let criticalCracks = 0;
+    try {
+      const crackRes = await Database.query<{ count: string }>(
+        `SELECT COUNT(*) AS count
+         FROM defect_items d
+         JOIN damage_zones z ON d.zone_id = z.id
+         JOIN base_survey_reports r ON z.report_id = r.id
+         WHERE r.parcel_id = $1 AND (d.is_structural_critical = TRUE OR d.width_max_mm >= 2.0);`,
+        [parcelId]
+      );
+      criticalCracks = Number(crackRes.rows[0]?.count || 0);
+    } catch (e: any) {
+      console.warn('⚠️ [AUDIT SERVICE] criticalCracks query fallback:', e?.message);
+    }
+
+    // Danh sách các mục đang cản trở việc Khóa Sổ Pháp Lý (Blocking Items)
+    const blockingItems = allUnits
+      .filter((u) => u.status !== 'APPROVED' && u.status !== 'POSTPONED_ABSENT_VERIFIED')
+      .map((u) => ({
+        id: u.id,
+        unitCode: u.unit_code,
+        displayCode: u.display_code,
+        unitType: u.unit_type,
+        floorNumber: u.floor_number,
+        status: u.status,
+        ownerName: u.owner_name,
+        reportId: u.phase1_report_id,
+        blockingReason:
+          u.status === 'POSTPONED_ABSENT'
+            ? 'Vắng mặt chưa được Zone Admin thẩm định xác nhận'
+            : u.status === 'SUBMITTED'
+            ? 'Đang chờ phê duyệt (SUBMITTED)'
+            : u.status === 'REJECTED'
+            ? 'Hồ sơ bị trả về cần xử lý lại'
+            : 'Chưa hoàn thành khảo sát hiện trường',
+      }));
+
+    // Báo cáo tòa mẹ (Building Master Report)
+    const masterReportRes = await Database.query<{
+      id: string;
+      status: string;
+      updated_at: string;
+    }>(
+      `SELECT id, status, updated_at
+       FROM base_survey_reports
+       WHERE parcel_id = $1 AND (unit_id IS NULL OR report_type IN ('CONDO_MASTER', 'BUILDING_MASTER'))
+       ORDER BY created_at DESC LIMIT 1;`,
+      [parcelId]
+    );
+
+    const masterReport = masterReportRes.rows[0] || null;
+    const isReadyForFinalSeal = blockingItems.length === 0 && !parcel.is_locked;
+
+    return {
+      parcel: {
+        id: parcel.id,
+        projectParcelCode: parcel.project_parcel_code,
+        houseNumber: parcel.house_number,
+        street: parcel.street,
+        zoneId: parcel.zone_id,
+        buildingType: parcel.building_type,
+        floorCount: parcel.floor_count,
+        totalUnits: parcel.total_units,
+        surveyStatus: parcel.survey_status,
+        isLocked: Boolean(parcel.is_locked),
+        lockedAt: parcel.locked_at,
+        sealHash: parcel.seal_hash,
+        sealNotes: parcel.seal_notes,
+      },
+      stats: {
+        totalItems,
+        completedItems,
+        completionRatePercent,
+        criticalCracks,
+        childUnits: {
+          total: totalChildUnits,
+          approved: approvedChildUnits,
+          absentVerified: absentVerifiedChildUnits,
+          absentPending: absentPendingChildUnits,
+          submitted: submittedChildUnits,
+          inProgress: inProgressChildUnits,
+        },
+        masterAreas: {
+          total: totalMasterAreas,
+          approved: approvedMasterAreas,
+          submitted: submittedMasterAreas,
+          pending: pendingMasterAreas,
+        },
+      },
+      blockingItems,
+      isReadyForFinalSeal,
+      masterReport,
+    };
+  }
+
+  /**
+   * Thực thi Khóa Sổ Pháp Lý Toàn Diện Tòa Nhà Mẹ (Condo Master Final Seal)
+   * Sinh mã băm SHA-256 niêm phong pháp lý, cập nhật parcel sang APPROVED & is_locked = true
+   */
+  static async executeFinalSeal(
+    parcelId: string,
+    adminId: string,
+    sealNotes?: string
+  ) {
+    return Database.transaction(async (client) => {
+      // 1. Khóa bản ghi tòa mẹ để kiểm tra điều kiện toàn vẹn
+      const parcelRes = await client.query<{
+        id: string;
+        project_parcel_code: string;
+        is_locked: boolean;
+        survey_status: string;
+      }>(
+        `SELECT id, project_parcel_code, is_locked, survey_status
+         FROM parcels
+         WHERE id = $1
+         FOR UPDATE;`,
+        [parcelId]
+      );
+
+      if (!parcelRes.rows[0]) {
+        throw new NotFoundError(`Không tìm thấy tòa nhà với ID: ${parcelId}`);
+      }
+
+      const parcel = parcelRes.rows[0];
+      if (parcel.is_locked) {
+        throw new BadRequestError('Tòa nhà đã được Khóa Sổ Pháp Lý trước đó');
+      }
+
+      // 2. Kiểm tra xem còn căn hộ hoặc khu vực nào chưa hoàn tất không
+      const incompleteRes = await client.query<{
+        incomplete_count: string;
+      }>(
+        `SELECT COUNT(*) AS incomplete_count
+         FROM building_units
+         WHERE parcel_id = $1
+           AND deleted_at IS NULL
+           AND status NOT IN ('APPROVED', 'POSTPONED_ABSENT_VERIFIED');`,
+        [parcelId]
+      );
+
+      const incompleteCount = Number(incompleteRes.rows[0]?.incomplete_count || 0);
+      if (incompleteCount > 0) {
+        throw new BadRequestError(
+          `Không thể khóa sổ: Tòa nhà còn ${incompleteCount} căn hộ hoặc khu vực dùng chung chưa hoàn tất thẩm định (yêu cầu 100% APPROVED hoặc POSTPONED_ABSENT_VERIFIED)`
+        );
+      }
+
+      // 3. Tính toán mã băm SHA-256 niêm phong pháp lý
+      const timestamp = new Date().toISOString();
+      const hashPayload = `${parcelId}:${parcel.project_parcel_code}:${adminId}:${timestamp}`;
+      const sealHash = crypto.createHash('sha256').update(hashPayload).digest('hex');
+
+      // 4. Cập nhật parcels
+      await client.query(
+        `UPDATE parcels
+         SET survey_status = 'APPROVED',
+             is_locked = TRUE,
+             locked_at = NOW(),
+             locked_by_id = $2,
+             seal_hash = $3,
+             seal_notes = $4,
+             updated_at = NOW()
+         WHERE id = $1;`,
+        [parcelId, adminId, sealHash, sealNotes || null]
+      );
+
+      // 5. Cập nhật báo cáo Master (nếu có)
+      await client.query(
+        `UPDATE base_survey_reports
+         SET status = 'APPROVED',
+             zone_admin_id = $2,
+             approved_at = NOW(),
+             engineering_recommendations = COALESCE($3, engineering_recommendations),
+             updated_at = NOW()
+         WHERE parcel_id = $1
+           AND (unit_id IS NULL OR report_type IN ('CONDO_MASTER', 'BUILDING_MASTER'))
+           AND status != 'APPROVED';`,
+        [parcelId, adminId, sealNotes ? `NIÊM PHONG PHÁP LÝ: ${sealNotes}` : null]
+      );
+
+      // 6. Ghi nhận vào system_audit_logs
+      await client.query(
+        `INSERT INTO system_audit_logs (
+           entity_type, entity_id, action, performed_by_user_id, diff_payload
+         ) VALUES ($1, $2, $3, $4, $5);`,
+        [
+          'PARCEL',
+          parcelId,
+          'CONDO_FINAL_LEGAL_SEAL',
+          adminId,
+          JSON.stringify({
+            parcelId,
+            projectParcelCode: parcel.project_parcel_code,
+            sealHash,
+            lockedAt: timestamp,
+            notes: sealNotes || null,
+          }),
+        ]
+      );
+
+      return {
+        parcelId,
+        projectParcelCode: parcel.project_parcel_code,
+        status: 'APPROVED',
+        isLocked: true,
+        sealHash,
+        lockedAt: timestamp,
+        message: 'Đã hoàn tất Niêm Phong & Khóa Sổ Pháp Lý Toàn Diện Tòa Nhà Mẹ thành công',
+      };
+    });
+  }
+
+  /**
+   * Truy vấn danh sách tất cả các Khối Tháp Chung Cư (Condo Towers) trong phân khu / toàn tuyến
+   * Đảm bảo hiển thị đầy đủ mọi tháp kể cả khi Master Report đang ở trạng thái DRAFT
+   */
+  static async listCondoTowers(zoneId?: string) {
+    const params: any[] = [];
+    let whereClause = `WHERE p.building_type IN ('CONDOMINIUM', 'CONDO')`;
+
+    if (zoneId && zoneId.toUpperCase() !== 'ALL' && zoneId.toUpperCase() !== 'ALL_ZONES') {
+      params.push(zoneId.toUpperCase());
+      whereClause += ` AND p.zone_id = $${params.length}`;
+    }
+
+    const query = `
+      SELECT 
+        p.id AS parcel_id,
+        p.project_parcel_code,
+        p.project_parcel_code AS parent_parcel_code,
+        p.house_number,
+        p.street,
+        p.zone_id,
+        p.building_type,
+        p.floor_count,
+        p.total_units,
+        p.survey_status AS parcel_status,
+        p.is_locked AS parent_parcel_is_locked,
+        p.seal_hash AS parent_parcel_seal_hash,
+        p.locked_at AS parent_parcel_locked_at,
+        u_lock.full_name AS parent_parcel_locked_by_name,
+        r.id AS report_id,
+        COALESCE(r.status::text, p.survey_status::text) AS status,
+        r.report_type,
+        r.created_at,
+        r.updated_at,
+        r.survey_date,
+        (
+          SELECT COUNT(*)
+          FROM building_units bu
+          WHERE bu.parcel_id = p.id AND bu.deleted_at IS NULL
+        ) AS total_unit_count,
+        (
+          SELECT COUNT(*)
+          FROM building_units bu
+          WHERE bu.parcel_id = p.id AND bu.deleted_at IS NULL AND bu.status = 'APPROVED'
+        ) AS approved_unit_count,
+        (
+          SELECT COUNT(*)
+          FROM building_units bu
+          WHERE bu.parcel_id = p.id AND bu.deleted_at IS NULL AND bu.status = 'SUBMITTED'
+        ) AS pending_unit_count
+      FROM parcels p
+      LEFT JOIN users u_lock ON p.locked_by_id = u_lock.id
+      LEFT JOIN LATERAL (
+        SELECT r_sub.id, r_sub.status, r_sub.report_type, r_sub.created_at, r_sub.updated_at, r_sub.survey_date
+        FROM base_survey_reports r_sub
+        WHERE r_sub.parcel_id = p.id AND (r_sub.unit_id IS NULL OR r_sub.report_type IN ('CONDO_MASTER', 'BUILDING_MASTER'))
+        ORDER BY r_sub.created_at DESC
+        LIMIT 1
+      ) r ON true
+      ${whereClause}
+      ORDER BY p.project_parcel_code ASC;
+    `;
+
+    const res = await Database.query(query, params);
+    return res.rows;
+  }
+
+  /**
+   * Truy vấn số lượng chính xác tuyệt đối từ CSDL cho 3 Phân Vùng Thẩm Định:
+   * 1. Nhà dân độc lập (Residential Standalone)
+   * 2. Khối tháp chung cư (Condo Towers)
+   * 3. Hồ sơ cần xử lý khẩn cấp (Real Engineering Urgency: Burland >= 3 hoặc cờ kiểm toán hoặc SLA có khuyết tật)
+   */
+  static async getScopeCounts(zoneId?: string) {
+    const params: any[] = [];
+    let zoneFilterParcels = '';
+    let zoneFilterReports = '';
+
+    if (zoneId && zoneId.toUpperCase() !== 'ALL' && zoneId.toUpperCase() !== 'ALL_ZONES') {
+      params.push(zoneId.toUpperCase());
+      zoneFilterParcels = `AND p.zone_id = $${params.length}`;
+      zoneFilterReports = `AND p.zone_id = $${params.length}`;
+    }
+
+    // 1. Standalone Pending
+    const resSql = `
+      SELECT COUNT(*) AS count
+      FROM base_survey_reports r
+      JOIN parcels p ON r.parcel_id = p.id
+      WHERE (p.building_type NOT IN ('CONDOMINIUM', 'CONDO') OR p.building_type IS NULL)
+        AND r.unit_id IS NULL
+        AND r.status::text IN ('SUBMITTED', 'POSTPONED_ABSENT')
+        ${zoneFilterReports};
+    `;
+    const resCount = await Database.query(resSql, params);
+
+    // 2. Condo Towers
+    const towerSql = `
+      SELECT COUNT(*) AS count
+      FROM parcels p
+      WHERE p.building_type IN ('CONDOMINIUM', 'CONDO')
+        ${zoneFilterParcels};
+    `;
+    const towerCount = await Database.query(towerSql, params);
+
+    // 3. Urgent (Burland >= 3 hoặc có cờ kiểm toán hoặc nộp > 48h CÓ KHUYẾT TẬT)
+    const urgentSql = `
+      SELECT COUNT(DISTINCT r.id) AS count
+      FROM base_survey_reports r
+      JOIN parcels p ON r.parcel_id = p.id
+      LEFT JOIN risk_score_cards sc ON sc.report_id = r.id
+      WHERE (
+        sc.e1_burland_score >= 3
+        OR EXISTS (
+          SELECT 1 FROM defect_items d JOIN damage_zones z ON d.zone_id = z.id
+          WHERE z.report_id = r.id AND (d.is_structural_critical = TRUE OR d.width_max_mm >= 2.0)
+        )
+        OR EXISTS (
+          SELECT 1 FROM audit_alert_items a
+          WHERE a.report_id = r.id AND a.is_resolved = FALSE
+        )
+        OR (
+          r.status::text = 'SUBMITTED'
+          AND r.updated_at < NOW() - INTERVAL '48 HOURS'
+          AND (
+            COALESCE(sc.e1_burland_score, 0) >= 1
+            OR EXISTS (
+              SELECT 1 FROM defect_items d2 JOIN damage_zones z2 ON d2.zone_id = z2.id
+              WHERE z2.report_id = r.id
+            )
+          )
+        )
+      )
+      ${zoneFilterReports};
+    `;
+    const urgentCount = await Database.query(urgentSql, params);
+
+    return {
+      residential: Number(resCount.rows[0]?.count || 0),
+      condoTowers: Number(towerCount.rows[0]?.count || 0),
+      urgent: Number(urgentCount.rows[0]?.count || 0),
+    };
+  }
 }
+

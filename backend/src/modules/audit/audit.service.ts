@@ -1,8 +1,9 @@
 import { AuditAlertsService } from './services/audit-alerts.service';
 import { AuditReviewService } from './services/audit-review.service';
 import { AuditModificationService } from './services/audit-modification.service';
+import { AuditVersionService } from './services/audit-version.service';
 
-export { AuditAlertsService, AuditReviewService, AuditModificationService };
+export { AuditAlertsService, AuditReviewService, AuditModificationService, AuditVersionService };
 
 /**
  * Facade Service cho toàn bộ phân hệ Kiểm Toán & Thẩm Định (Audit & Review)
@@ -30,6 +31,7 @@ export class AuditService {
     search?: string;
     burlandFilter?: string;
     slaFilter?: string;
+    filterLevel?: string;
     limit?: number;
     offset?: number;
   }) {
@@ -54,6 +56,30 @@ export class AuditService {
 
   static getProgressAnalytics(zoneId?: string) {
     return AuditReviewService.getProgressAnalytics(zoneId);
+  }
+
+  static batchApproveReports(reportIds: string[], adminId: string, judgementNotes?: string) {
+    return AuditReviewService.batchApproveReports(reportIds, adminId, judgementNotes);
+  }
+
+  static approveAbsenteeReport(reportId: string, adminId: string, judgementNotes?: string) {
+    return AuditReviewService.approveAbsenteeReport(reportId, adminId, judgementNotes);
+  }
+
+  static getCondoProgressSummary(parcelId: string) {
+    return AuditReviewService.getCondoProgressSummary(parcelId);
+  }
+
+  static executeFinalSeal(parcelId: string, adminId: string, sealNotes?: string) {
+    return AuditReviewService.executeFinalSeal(parcelId, adminId, sealNotes);
+  }
+
+  static listCondoTowers(zoneId?: string) {
+    return AuditReviewService.listCondoTowers(zoneId);
+  }
+
+  static getScopeCounts(zoneId?: string) {
+    return AuditReviewService.getScopeCounts(zoneId);
   }
 
   // --- NHÓM 3: ĐIỀU CHỈNH HỒ SƠ, THAY ẢNH BẢO MẬT & HOÁN ĐỔI RANH ĐẤT ---
@@ -117,4 +143,33 @@ export class AuditService {
   ) {
     return AuditModificationService.searchSwapCandidates(zoneId, excludeReportId, search, excludeParcelId);
   }
+
+  // --- NHÓM 4: QUẢN LÝ PHIÊN BẢN & HOÀN NGUYÊN (VERSIONING & TIME TRAVEL) ---
+  static getReportVersions(reportId: string) {
+    return AuditVersionService.getVersionList(reportId);
+  }
+
+  static getReportVersionSnapshot(reportId: string, versionNumber: number) {
+    return AuditVersionService.getVersionSnapshot(reportId, versionNumber);
+  }
+
+  static rollbackReportVersion(
+    reportId: string,
+    versionNumber: number,
+    adminId: string,
+    payload: { reason: string; password?: string },
+    clientIp?: string
+  ) {
+    return AuditVersionService.rollbackToVersion(reportId, versionNumber, adminId, payload, clientIp);
+  }
+
+  // --- NHÓM 5: QUẢN LÝ VÒNG ĐỜI ẢNH (PHOTO LIFECYCLE & REGISTRY) ---
+  static executePhotoAction(reportId: string, adminId: string, photoAction: any, clientIp?: string) {
+    return AuditModificationService.executePhotoAction(reportId, adminId, photoAction, clientIp);
+  }
+
+  static getPhotoAuditRegistry(reportId: string) {
+    return AuditModificationService.getPhotoAuditRegistry(reportId);
+  }
 }
+

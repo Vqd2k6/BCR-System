@@ -13,6 +13,11 @@ import {
   Camera,
   Layers,
   CheckCircle2,
+  XCircle,
+  ClipboardCheck,
+  Lock,
+  UserX,
+  FileText,
 } from 'lucide-react';
 
 export interface AuditHistoryLogItem {
@@ -29,11 +34,7 @@ export interface AuditHistoryLogItem {
     oldValue: unknown;
     newValue: unknown;
   }>;
-  rawPayload?: {
-    oldPhotoUrl?: string;
-    newPhotoUrl?: string;
-    [key: string]: unknown;
-  };
+  rawPayload?: Record<string, unknown>;
 }
 
 interface Props {
@@ -63,6 +64,27 @@ export const AuditHistoryModal: React.FC<Props> = ({
 
   const getActionBadge = (action: string) => {
     switch (action) {
+      case 'SURVEYOR_SUBMIT_REPORT':
+        return (
+          <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-teal-500/10 text-teal-700 border border-teal-200 flex items-center gap-1">
+            <ClipboardCheck className="w-3.5 h-3.5 text-teal-600" />
+            <span>Nộp biên bản khảo sát hiện trường</span>
+          </span>
+        );
+      case 'ZONE_ADMIN_APPROVE_REPORT':
+        return (
+          <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-700 border border-emerald-200 flex items-center gap-1">
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+            <span>Phê duyệt hồ sơ</span>
+          </span>
+        );
+      case 'ZONE_ADMIN_REJECT_REPORT':
+        return (
+          <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-rose-500/10 text-rose-700 border border-rose-200 flex items-center gap-1">
+            <XCircle className="w-3.5 h-3.5 text-rose-600" />
+            <span>Yêu cầu khảo sát lại (Trả về)</span>
+          </span>
+        );
       case 'ZONE_ADMIN_SURVEY_EDIT':
         return (
           <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-500/10 text-amber-700 border border-amber-200 flex items-center gap-1">
@@ -85,10 +107,71 @@ export const AuditHistoryModal: React.FC<Props> = ({
             <span>Biến động / Hoán đổi thửa đất GIS</span>
           </span>
         );
+      case 'CONDO_FINAL_LEGAL_SEAL':
+        return (
+          <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-indigo-500/10 text-indigo-700 border border-indigo-200 flex items-center gap-1">
+            <Lock className="w-3.5 h-3.5 text-indigo-600" />
+            <span>Niêm phong pháp lý tòa nhà mẹ</span>
+          </span>
+        );
+      case 'APPROVE_ABSENTEE_VERIFIED':
+        return (
+          <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-violet-500/10 text-violet-700 border border-violet-200 flex items-center gap-1">
+            <UserX className="w-3.5 h-3.5 text-violet-600" />
+            <span>Xác nhận hồ sơ vắng mặt hợp lệ</span>
+          </span>
+        );
       default:
         return (
           <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-700 border border-slate-200">
             {action}
+          </span>
+        );
+    }
+  };
+
+  const getAuthBadge = (action: string) => {
+    switch (action) {
+      case 'SURVEYOR_SUBMIT_REPORT':
+        return (
+          <span className="text-teal-700 font-bold flex items-center gap-1">
+            <ClipboardCheck className="w-3.5 h-3.5 text-teal-600" />
+            <span>Kỹ sư khảo sát hiện trường (Chữ ký & GPS)</span>
+          </span>
+        );
+      case 'ZONE_ADMIN_APPROVE_REPORT':
+        return (
+          <span className="text-emerald-700 font-bold flex items-center gap-1">
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+            <span>Chữ ký số Thẩm định viên (Đã duyệt)</span>
+          </span>
+        );
+      case 'ZONE_ADMIN_REJECT_REPORT':
+        return (
+          <span className="text-rose-700 font-bold flex items-center gap-1">
+            <XCircle className="w-3.5 h-3.5 text-rose-600" />
+            <span>Thẩm định viên yêu cầu khảo sát lại</span>
+          </span>
+        );
+      case 'CONDO_FINAL_LEGAL_SEAL':
+        return (
+          <span className="text-indigo-700 font-bold flex items-center gap-1">
+            <Lock className="w-3.5 h-3.5 text-indigo-600" />
+            <span>Mã băm SHA-256 niêm phong pháp lý</span>
+          </span>
+        );
+      case 'APPROVE_ABSENTEE_VERIFIED':
+        return (
+          <span className="text-violet-700 font-bold flex items-center gap-1">
+            <ShieldCheck className="w-3.5 h-3.5 text-violet-600" />
+            <span>Biên bản thẩm định vắng chủ hộ</span>
+          </span>
+        );
+      default:
+        return (
+          <span className="text-emerald-700 font-bold flex items-center gap-1">
+            <KeyRound className="w-3.5 h-3.5 text-emerald-600" />
+            <span>Mật khẩu Zone Admin (Đã xác minh)</span>
           </span>
         );
     }
@@ -224,22 +307,33 @@ export const AuditHistoryModal: React.FC<Props> = ({
                     {/* Detailed Accordion */}
                     {isExpanded && (
                       <div className="px-4 pb-4 pt-2 border-t border-slate-100 bg-slate-50/50 space-y-3">
-                        {/* Meta Info */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs bg-white p-3 rounded-lg border border-slate-200">
-                          <div>
-                            <span className="text-slate-400 block text-[10px] uppercase font-bold">Lý do điều chỉnh:</span>
-                            <span className="text-slate-800 font-medium">
-                              {log.editReason || 'Không có lý do cụ thể'}
+                        {/* Meta Info (Chỉ hiển thị cho các hành động chỉnh sửa hoặc phê duyệt cần lý do / xác thực) */}
+                        {log.action === 'SURVEYOR_SUBMIT_REPORT' ? (
+                          <div className="bg-white p-3 rounded-lg border border-teal-200 text-xs flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                              <ClipboardCheck className="w-4 h-4 text-teal-600 shrink-0" />
+                              <span className="font-semibold text-teal-900">
+                                Khảo sát viên <strong>{log.performedByName}</strong> đã hoàn thành biên bản và nộp hồ sơ lên hệ thống.
+                              </span>
+                            </div>
+                            <span className="text-[10px] font-mono font-bold text-teal-700 bg-teal-50 px-2 py-0.5 rounded border border-teal-200">
+                              Khởi tạo ban đầu
                             </span>
                           </div>
-                          <div>
-                            <span className="text-slate-400 block text-[10px] uppercase font-bold">Hình thức xác thực:</span>
-                            <span className="text-emerald-700 font-bold flex items-center gap-1">
-                              <KeyRound className="w-3.5 h-3.5 text-emerald-600" />
-                              <span>Mật khẩu Zone Admin (Đã xác minh)</span>
-                            </span>
+                        ) : (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs bg-white p-3 rounded-lg border border-slate-200">
+                            <div>
+                              <span className="text-slate-400 block text-[10px] uppercase font-bold">Nội dung / Lý do:</span>
+                              <span className="text-slate-800 font-medium">
+                                {log.editReason || 'Ghi nhận tiến trình theo quy chuẩn nghiệp vụ.'}
+                              </span>
+                            </div>
+                            <div>
+                              <span className="text-slate-400 block text-[10px] uppercase font-bold">Hình thức xác thực:</span>
+                              {getAuthBadge(log.action)}
+                            </div>
                           </div>
-                        </div>
+                        )}
 
                         {/* Diff List */}
                         {diffList.length > 0 ? (
@@ -279,11 +373,11 @@ export const AuditHistoryModal: React.FC<Props> = ({
                           <div className="bg-white p-3 rounded-lg border border-slate-200 text-xs space-y-2">
                             <span className="font-bold text-slate-700 block">Thay thế ảnh hiện trường:</span>
                             <div className="flex items-center gap-4">
-                              {log.rawPayload.oldPhotoUrl && (
+                              {Boolean(log.rawPayload?.oldPhotoUrl) && (
                                 <div className="text-center">
                                   <span className="text-[10px] text-slate-400 block mb-1">Ảnh ban đầu:</span>
                                   <img
-                                    src={log.rawPayload.oldPhotoUrl}
+                                    src={String(log.rawPayload?.oldPhotoUrl)}
                                     alt="Ảnh ban đầu"
                                     className="w-24 h-24 object-cover rounded border border-slate-200"
                                   />
@@ -293,12 +387,100 @@ export const AuditHistoryModal: React.FC<Props> = ({
                               <div className="text-center">
                                 <span className="text-[10px] text-emerald-600 font-bold block mb-1">Ảnh thay thế:</span>
                                 <img
-                                  src={log.rawPayload.newPhotoUrl}
+                                  src={String(log.rawPayload?.newPhotoUrl)}
                                   alt="Ảnh thay thế"
                                   className="w-24 h-24 object-cover rounded border border-emerald-300"
                                 />
                               </div>
                             </div>
+                          </div>
+                        ) : log.action === 'SURVEYOR_SUBMIT_REPORT' ? (
+                          <div className="bg-teal-50/50 p-3 rounded-lg border border-teal-200 text-xs space-y-2">
+                            <span className="font-bold text-teal-800 block">Thông tin biên bản nộp ban đầu:</span>
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
+                              {Boolean(log.rawPayload?.surveyDate) && (
+                                <div className="bg-white p-2 rounded border border-teal-100">
+                                  <span className="text-slate-400 block text-[10px]">Ngày khảo sát</span>
+                                  <span className="font-mono font-bold text-slate-800">
+                                    {new Date(String(log.rawPayload?.surveyDate)).toLocaleDateString('vi-VN')}
+                                  </span>
+                                </div>
+                              )}
+                              {log.rawPayload?.defectCount !== undefined && (
+                                <div className="bg-white p-2 rounded border border-teal-100">
+                                  <span className="text-slate-400 block text-[10px]">Số khuyết tật ghi nhận</span>
+                                  <span className="font-bold text-slate-800">{String(log.rawPayload?.defectCount)} vết nứt/hư hại</span>
+                                </div>
+                              )}
+                              {Boolean(log.rawPayload?.burlandCategory) && (
+                                <div className="bg-white p-2 rounded border border-teal-100">
+                                  <span className="text-slate-400 block text-[10px]">Cấp Burland</span>
+                                  <span className="font-mono font-bold text-slate-800">{String(log.rawPayload?.burlandCategory)}</span>
+                                </div>
+                              )}
+                              {Boolean(log.rawPayload?.status) && (
+                                <div className="bg-white p-2 rounded border border-teal-100">
+                                  <span className="text-slate-400 block text-[10px]">Trạng thái nộp</span>
+                                  <span className="font-mono font-bold text-teal-700">{String(log.rawPayload?.status)}</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ) : log.action === 'ZONE_ADMIN_APPROVE_REPORT' ? (
+                          <div className="bg-emerald-50/50 p-3 rounded-lg border border-emerald-200 text-xs space-y-2">
+                            <div className="flex items-center gap-1.5 font-bold text-emerald-800">
+                              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                              <span>Quyết định phê duyệt chính thức</span>
+                            </div>
+                            {log.rawPayload?.judgementNotes ? (
+                              <div className="text-emerald-950 font-medium bg-white/80 p-2 rounded border border-emerald-100">
+                                <span className="text-[10px] text-emerald-700 block font-bold uppercase mb-0.5">Ý kiến / Ghi chú thẩm định:</span>
+                                &ldquo;{String(log.rawPayload.judgementNotes)}&rdquo;
+                              </div>
+                            ) : null}
+                            {log.rawPayload?.officialPdfUrl ? (
+                              <div className="text-[11px] text-emerald-700 flex items-center gap-1 mt-1">
+                                <FileText className="w-3.5 h-3.5 shrink-0" />
+                                <span>Hồ sơ PDF/A điện tử: </span>
+                                <a
+                                  href={String(log.rawPayload.officialPdfUrl)}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="underline font-mono text-emerald-800 hover:text-emerald-900 break-all"
+                                >
+                                  {String(log.rawPayload.officialPdfUrl)}
+                                </a>
+                              </div>
+                            ) : null}
+                          </div>
+                        ) : log.action === 'ZONE_ADMIN_REJECT_REPORT' ? (
+                          <div className="bg-rose-50/50 p-3 rounded-lg border border-rose-200 text-xs space-y-1.5">
+                            <div className="flex items-center gap-1.5 font-bold text-rose-800">
+                              <XCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                              <span>Yêu cầu khảo sát lại từ Thẩm định viên</span>
+                            </div>
+                            <div className="text-rose-950 font-medium bg-white/80 p-2.5 rounded border border-rose-100">
+                              <span className="text-[10px] text-rose-700 block font-bold uppercase mb-0.5">Lý do trả về:</span>
+                              &ldquo;{String(log.rawPayload?.rejectionReason || log.editReason || 'Yêu cầu kiểm tra đo đạc lại hiện trường.')}&rdquo;
+                            </div>
+                          </div>
+                        ) : log.action === 'CONDO_FINAL_LEGAL_SEAL' ? (
+                          <div className="bg-indigo-50/50 p-3 rounded-lg border border-indigo-200 text-xs space-y-1.5">
+                            <div className="flex items-center gap-1.5 font-bold text-indigo-800">
+                              <Lock className="w-4 h-4 text-indigo-600 shrink-0" />
+                              <span>Niêm phong & Khóa sổ pháp lý toàn diện</span>
+                            </div>
+                            {log.rawPayload?.sealHash ? (
+                              <div className="bg-white/80 p-2 rounded border border-indigo-100">
+                                <span className="text-[10px] text-indigo-600 block font-bold uppercase mb-0.5">Mã băm SHA-256:</span>
+                                <code className="text-[11px] font-mono text-indigo-900 break-all">{String(log.rawPayload.sealHash)}</code>
+                              </div>
+                            ) : null}
+                            {log.rawPayload?.notes ? (
+                              <div className="text-indigo-950 text-[11px]">
+                                Ghi chú: {String(log.rawPayload.notes)}
+                              </div>
+                            ) : null}
                           </div>
                         ) : null}
                       </div>

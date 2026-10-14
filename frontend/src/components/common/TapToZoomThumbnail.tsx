@@ -11,7 +11,7 @@ import React, { useState, useEffect } from 'react';
 import { ZoomIn, RefreshCw } from 'lucide-react';
 import { useLightbox } from './photo-capture/hooks/useLightbox';
 import { PhotoLightboxModal } from './photo-capture/components/PhotoLightboxModal';
-import { resolveOfflinePhotoUrl, getSafeDisplayUrl } from '../../core/storage/offlinePhotoStorage';
+import { resolveOfflinePhotoUrl, getSafeDisplayUrl, getKnownCloudUrl, extractLocalIdFromUri } from '../../core/storage/offlinePhotoStorage';
 import { useStorageInfo } from '../../core/services/storageInfoService';
 
 interface TapToZoomThumbnailProps {
@@ -108,7 +108,14 @@ export const TapToZoomThumbnail: React.FC<TapToZoomThumbnailProps> = ({
   };
 
   const currentDisplaySrc = displayUrl || getSafeDisplayUrl(src);
-  const isR2Synced = uploadStatus === 'SUCCESS' || (src && (src.startsWith('http') || src.startsWith('/uploads')));
+  const isCloudOrServerUrl = (url?: string | null) =>
+    Boolean(url && (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('/uploads')));
+  const mappedCloudUrl = src ? getKnownCloudUrl(extractLocalIdFromUri(src)) : null;
+  const isR2Synced =
+    uploadStatus === 'SUCCESS' ||
+    isCloudOrServerUrl(src) ||
+    isCloudOrServerUrl(currentDisplaySrc) ||
+    Boolean(mappedCloudUrl);
   const isR2Uploading = uploadStatus === 'UPLOADING';
   const isR2Error = uploadStatus === 'ERROR';
 

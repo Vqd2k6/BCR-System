@@ -2,10 +2,10 @@ import type { FloorSurveyData, DamageZoneData, StructuralElementData } from '../
 import type { DefectItem } from '../../../../../../components/canvas/DefectPinningCanvas';
 import type { CadZonePin } from '../../../../../../components/canvas/FloorCadPinningCanvas';
 import type { PhotoReplaceParams } from '../../AuditPhotoReplaceModal';
+import type { AuditPhotoActionParams } from '../types';
 import React, { useState } from 'react';
-import { Layers, Maximize2, AlertTriangle, CheckCircle2, MapPin, Eye, EyeOff, Camera, ShieldAlert, Compass, Activity, FileText, Ruler, Sparkles } from 'lucide-react';
+import { Layers, Maximize2, AlertTriangle, CheckCircle2, MapPin, Eye, EyeOff, Camera, ShieldAlert, Compass, Activity, FileText, Ruler, Sparkles, RefreshCw, Plus, Trash2 } from 'lucide-react';
 import { Badge } from '../../../../../../core/components/ui/Badge';
-import { SAG_LEVEL_OPTIONS } from '../../../../../survey-phase1/constants/levelGuideConstants';
 
 interface Props {
   isEditMode: boolean;
@@ -13,6 +13,8 @@ interface Props {
   handleFieldChange: (key: string, label: string, val: unknown) => void;
   onOpenPhotoZoom: (url: string, title?: string, photoCode?: string) => void;
   onOpenPhotoReplace: (params: PhotoReplaceParams) => void;
+  onOpenPhotoAction?: (params: AuditPhotoActionParams) => void;
+  isFieldDirty?: (fieldKey: string, subKey?: string) => boolean;
 }
 
 export const AuditStep3FloorDefects: React.FC<Props> = ({
@@ -21,6 +23,8 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
   handleFieldChange,
   onOpenPhotoZoom,
   onOpenPhotoReplace,
+  onOpenPhotoAction,
+  isFieldDirty,
 }) => {
   const rawFloors: FloorSurveyData[] = Array.isArray(formState.floors) ? (formState.floors as FloorSurveyData[]) : [];
   const rawDamageZones: DamageZoneData[] = Array.isArray(formState.damageZones) ? (formState.damageZones as DamageZoneData[]) : [];
@@ -30,6 +34,7 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
   const [cadViewMode, setCadViewMode] = useState<'ARCH' | 'STRUCT'>('ARCH');
   const [showCadPins, setShowCadPins] = useState(true);
   const [showCtxPins, setShowCtxPins] = useState(true);
+  const [highlightedDefectId, setHighlightedDefectId] = useState<string | null>(null);
 
   // If floors array exists and is non-empty, use floor hierarchy; otherwise wrap damageZones as virtual floor
   const hasFloors = rawFloors.length > 0;
@@ -187,44 +192,23 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
     }
   };
 
-  // 3.4. Dữ liệu võng dầm sàn & Đề xuất quan trắc
-  interface SettlementTiltData {
-    beamSagging?: {
-      level?: number;
-      location?: string;
-      position?: string;
-      sagMm?: number;
-      sag_mm?: number;
-      description?: string;
-      photoUrl?: string;
-    };
-    needAdditionalMonitoring?: { required?: boolean; notes?: string };
-    [key: string]: unknown;
-  }
-  const st: SettlementTiltData = (formState.settlementTilt as SettlementTiltData) || {};
-  const beamSagging = currentFloor.beamSagging || st.beamSagging || {};
-  const needMonitoring = st.needAdditionalMonitoring || { required: false, notes: '' };
-
-  const handleBeamSaggingChange = (field: string, val: unknown) => {
-    const updatedST = {
-      ...st,
-      beamSagging: {
-        ...(st.beamSagging || {}),
-        [field]: val,
-      },
-    };
-    handleFieldChange('settlementTilt', `Võng dầm (${field})`, updatedST);
-  };
-
-  const handleMonitoringChange = (field: string, val: unknown) => {
-    const updatedST = {
-      ...st,
-      needAdditionalMonitoring: {
-        ...(st.needAdditionalMonitoring || {}),
-        [field]: val,
-      },
-    };
-    handleFieldChange('settlementTilt', `Đề xuất quan trắc (${field})`, updatedST);
+  // Handle changing defect properties in structural elements
+  const handleElementDefectChange = (elemId: string, defectId: string, field: string, val: unknown, fieldLabel: string) => {
+    if (hasFloors) {
+      const updatedFloors = rawFloors.map((fl: FloorSurveyData, fi: number) => {
+        if (fi !== activeFloorIndex && fl.id !== currentFloor.id) return fl;
+        const structuralElements = (fl.structuralElements || []).map((e: StructuralElementData) => {
+          if (e.id !== elemId && e.elementCode !== elemId) return e;
+          const defects = (e.defects || []).map((d: DefectItem) => {
+            if (d.id !== defectId && d.defectCode !== defectId) return d;
+            return { ...d, [field]: val };
+          });
+          return { ...e, defects };
+        });
+        return { ...fl, structuralElements };
+      });
+      handleFieldChange('floors', `Khuyết tật cấu kiện E (${fieldLabel})`, updatedFloors);
+    }
   };
 
   // Total counts for header
@@ -243,19 +227,19 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
     : rawDamageZones.reduce((sum, z) => sum + (z.defects?.length || 0), 0);
 
   return (
-    <section id="step-3" className="scroll-mt-6 bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+    <section id="step-4" className="scroll-mt-6 bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
       {/* Header */}
       <div className="p-4 sm:p-5 bg-slate-50/80 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex items-center gap-2.5">
           <span className="px-2 py-0.5 rounded-lg bg-sky-600 text-white font-mono font-black text-xs">
-            Bước 03
+            Bước 04
           </span>
           <div>
             <h3 className="text-sm sm:text-base font-black text-slate-800">
-              Khảo Sát Tầng, Sơ Đồ Mặt Bằng CAD, Vùng Z & Khuyết Tật Nứt D
+              Hiện Trạng Tầng, Vùng Z & Cấu Kiện Kết Cấu E
             </h3>
             <p className="text-[11px] text-slate-500">
-              Bảo toàn đầy đủ sơ đồ CAD, điểm chấm toạ độ Z-E-D, ghi chú hiện trường và thước đo tỷ lệ mm
+              Sơ đồ bố trí mặt bằng CAD, toạ độ điểm ghim, khuyết tật mảng tường Vùng Z và cấu kiện chịu lực Cột/Dầm/Sàn E
             </p>
           </div>
         </div>
@@ -305,7 +289,7 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
             <div className="flex items-center gap-2">
               <Compass className="w-4 h-4 text-sky-600" />
               <span className="text-xs font-black text-slate-800 uppercase tracking-wide">
-                3.1. Sơ Đồ Mặt Bằng Tầng CAD ({currentFloor.floorName || 'Tầng hiện tại'})
+                4.1. Sơ Đồ Bố Trí Mặt Bằng Tầng CAD ({currentFloor.floorName || 'Tầng hiện tại'})
               </span>
               <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-sky-100 text-sky-800 font-bold">
                 {currentCadPins.length} Điểm Ghim {cadViewMode === 'ARCH' ? 'Vùng Z' : 'Cấu kiện E'}
@@ -363,61 +347,96 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                   <span>Phóng To CAD</span>
                 </button>
               )}
+
+              {isEditMode && cadPhotoUrl && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (onOpenPhotoAction) {
+                      onOpenPhotoAction({
+                        initialMode: 'REPLACE',
+                        category: 'CAD_FLOOR',
+                        targetPhotoType: 'CAD',
+                        targetPhotoId: currentFloor.id || String((currentFloor as any).floorNumber || (activeFloorIndex + 1)),
+                        photoIndex: (currentFloor as any).floorNumber || (activeFloorIndex + 1),
+                        currentPhotoUrl: cadPhotoUrl,
+                        floorCode: currentFloor.floorName,
+                        photoTitle: `Bản vẽ CAD ${currentFloor.floorName || ''}`,
+                      });
+                    } else if (onOpenPhotoReplace) {
+                      onOpenPhotoReplace({
+                        targetPhotoType: 'FLOOR_CAD',
+                        targetPhotoId: currentFloor.id || String((currentFloor as any).floorNumber || (activeFloorIndex + 1)),
+                        photoIndex: (currentFloor as any).floorNumber || (activeFloorIndex + 1),
+                        currentPhotoUrl: cadPhotoUrl,
+                        photoTitle: `Bản vẽ CAD ${currentFloor.floorName || ''}`,
+                      });
+                    }
+                  }}
+                  className="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold flex items-center gap-1 transition-colors shadow-xs cursor-pointer"
+                  title="Thay thế file ảnh bản vẽ CAD của tầng này chuẩn M2"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  <span>Thay CAD</span>
+                </button>
+              )}
             </div>
           </div>
 
-          {/* Vùng hiển thị ảnh CAD kèm các điểm chấm Z / E */}
+          {/* Vùng hiển thị ảnh CAD kèm các điểm chấm Z / E - Ôm khít ảnh để toạ độ khớp 100% */}
           {cadPhotoUrl ? (
-            <div className="relative w-full max-h-[460px] min-h-[220px] bg-slate-900 rounded-xl overflow-hidden border border-slate-300 flex items-center justify-center select-none">
-              <img
-                src={cadPhotoUrl}
-                alt="CAD Floor Plan"
-                className="w-full h-full object-contain max-h-[460px] pointer-events-none"
-              />
+            <div className="relative w-full max-h-[480px] min-h-[220px] bg-slate-900 rounded-xl overflow-hidden border border-slate-300 flex items-center justify-center p-2 select-none">
+              <div className="relative inline-block max-w-full leading-none mx-auto">
+                <img
+                  src={cadPhotoUrl}
+                  alt="CAD Floor Plan"
+                  className="max-w-full max-h-[460px] w-auto h-auto block mx-auto pointer-events-none select-none shadow-sm"
+                />
 
-              {/* Lớp phủ các điểm ghim Z hoặc E */}
-              {showCadPins &&
-                currentCadPins.map((pin: CadZonePin, pIdx: number) => {
-                  const pX = Number(pin.pinX ?? pin.pin_x ?? 50);
-                  const pY = Number(pin.pinY ?? pin.pin_y ?? 50);
-                  const pCode = pin.zoneCode || pin.zone_code || `${cadViewMode === 'ARCH' ? 'Z' : 'E'}-${pIdx + 1}`;
-                  const isStruct = cadViewMode === 'STRUCT' || pin.type === 'STRUCTURAL';
+                {/* Lớp phủ các điểm ghim Z hoặc E */}
+                {showCadPins &&
+                  currentCadPins.map((pin: CadZonePin, pIdx: number) => {
+                    const pX = Number(pin.pinX ?? pin.pin_x ?? 50);
+                    const pY = Number(pin.pinY ?? pin.pin_y ?? 50);
+                    const pCode = pin.zoneCode || pin.zone_code || `${cadViewMode === 'ARCH' ? 'Z' : 'E'}-${pIdx + 1}`;
+                    const isStruct = cadViewMode === 'STRUCT' || pin.type === 'STRUCTURAL';
 
-                  return (
-                    <div
-                      key={pin.id || pIdx}
-                      style={{
-                        position: 'absolute',
-                        top: `${pY}%`,
-                        left: `${pX}%`,
-                        transform: 'translate(-50%, -100%)',
-                        zIndex: 25,
-                      }}
-                      className="flex flex-col items-center pointer-events-auto cursor-pointer group"
-                      onClick={() => {
-                        const targetElem = document.getElementById(`zone-card-${pCode}`);
-                        if (targetElem) {
-                          targetElem.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                          targetElem.classList.add('ring-4', 'ring-sky-400');
-                          setTimeout(() => targetElem.classList.remove('ring-4', 'ring-sky-400'), 2000);
-                        }
-                      }}
-                    >
+                    return (
                       <div
-                        className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-black shadow-lg transition-transform group-hover:scale-110 ${
-                          isStruct ? 'bg-amber-600 text-white' : 'bg-emerald-600 text-white'
-                        }`}
+                        key={pin.id || pIdx}
+                        style={{
+                          position: 'absolute',
+                          top: `${pY}%`,
+                          left: `${pX}%`,
+                          transform: 'translate(-50%, -100%)',
+                          zIndex: 25,
+                        }}
+                        className="flex flex-col items-center pointer-events-auto cursor-pointer group"
+                        onClick={() => {
+                          const targetElem = document.getElementById(isStruct ? `element-card-${pCode}` : `zone-card-${pCode}`);
+                          if (targetElem) {
+                            targetElem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            targetElem.classList.add('ring-4', 'ring-sky-400');
+                            setTimeout(() => targetElem.classList.remove('ring-4', 'ring-sky-400'), 2000);
+                          }
+                        }}
                       >
-                        {pCode}
+                        <div
+                          className={`px-1.5 py-0.5 rounded text-[10px] font-mono font-black shadow-lg transition-transform group-hover:scale-110 ${
+                            isStruct ? 'bg-amber-600 text-white' : 'bg-emerald-600 text-white'
+                          }`}
+                        >
+                          {pCode}
+                        </div>
+                        <div
+                          className={`w-2.5 h-2.5 rounded-full border-2 border-white shadow-md -mt-0.5 ${
+                            isStruct ? 'bg-amber-400' : 'bg-emerald-400'
+                          }`}
+                        />
                       </div>
-                      <div
-                        className={`w-2.5 h-2.5 rounded-full border-2 border-white shadow-md -mt-0.5 ${
-                          isStruct ? 'bg-amber-400' : 'bg-emerald-400'
-                        }`}
-                      />
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+              </div>
             </div>
           ) : (
             <div className="p-8 bg-white rounded-xl border border-dashed border-slate-300 text-center text-xs text-slate-500 space-y-1">
@@ -436,7 +455,7 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
             <div className="flex items-center gap-2">
               <Layers className="w-4 h-4 text-emerald-600" />
               <span className="text-xs font-black text-slate-800 uppercase tracking-wide">
-                3.2. Chi Tiết Các Vùng Kiến Trúc Z ({currentZones.length} Vùng)
+                4.2. Chi Tiết Các Vùng Kiến Trúc Z ({currentZones.length} Vùng)
               </span>
             </div>
             <button
@@ -590,9 +609,31 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                   {/* Ảnh Tổng Quan Vùng Z (nếu có nhiều hơn 1 ảnh ngoài CTX) */}
                   {Array.isArray(z.overviewPhotos) && z.overviewPhotos.length > 0 && (
                     <div className="p-2.5 bg-white rounded-xl border border-slate-200 space-y-1.5">
-                      <span className="text-[10px] font-bold uppercase text-slate-500 block">
-                        Ảnh Tổng Quan Vùng {zCode} ({z.overviewPhotos.length} ảnh):
-                      </span>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-bold uppercase text-slate-500 block">
+                          Ảnh Tổng Quan Vùng {zCode} ({z.overviewPhotos.length} ảnh):
+                        </span>
+                        {isEditMode && onOpenPhotoAction && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              onOpenPhotoAction({
+                                initialMode: 'ADD',
+                                category: 'ZONE_CTX',
+                                targetPhotoType: 'CTX',
+                                targetPhotoId: zCode,
+                                zoneCode: zCode,
+                                floorCode: currentFloor.floorName,
+                                photoTitle: `Bổ sung ảnh tổng quan Vùng ${zCode}`,
+                              })
+                            }
+                            className="px-2 py-0.5 rounded bg-sky-600 hover:bg-sky-700 text-white font-bold text-[9px] flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
+                          >
+                            <Plus className="w-2.5 h-2.5" />
+                            <span>+ Thêm Ảnh</span>
+                          </button>
+                        )}
+                      </div>
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                         {z.overviewPhotos.map((ovUrl: string, ovIdx: number) => (
                           <div
@@ -604,6 +645,52 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                             <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
                               <Maximize2 className="w-4 h-4 drop-shadow-md" />
                             </div>
+                            {isEditMode && onOpenPhotoAction && (
+                              <div className="absolute top-1 right-1 z-10 flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onOpenPhotoAction({
+                                      initialMode: 'REPLACE',
+                                      category: 'ZONE_CTX',
+                                      targetPhotoType: 'CTX',
+                                      targetPhotoId: zCode,
+                                      zoneCode: zCode,
+                                      floorCode: currentFloor.floorName,
+                                      photoIndex: ovIdx,
+                                      currentPhotoUrl: ovUrl,
+                                      photoTitle: `Ảnh tổng quan ${zCode} #${ovIdx + 1}`,
+                                    });
+                                  }}
+                                  className="p-1 rounded bg-black/70 hover:bg-sky-600 text-white text-[9px]"
+                                  title="Đổi ảnh này"
+                                >
+                                  <RefreshCw className="w-2.5 h-2.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onOpenPhotoAction({
+                                      initialMode: 'DELETE',
+                                      category: 'ZONE_CTX',
+                                      targetPhotoType: 'CTX',
+                                      targetPhotoId: zCode,
+                                      zoneCode: zCode,
+                                      floorCode: currentFloor.floorName,
+                                      photoIndex: ovIdx,
+                                      currentPhotoUrl: ovUrl,
+                                      photoTitle: `Ảnh tổng quan ${zCode} #${ovIdx + 1}`,
+                                    });
+                                  }}
+                                  className="p-1 rounded bg-black/70 hover:bg-rose-600 text-white text-[9px]"
+                                  title="Xóa ảnh này"
+                                >
+                                  <Trash2 className="w-2.5 h-2.5" />
+                                </button>
+                              </div>
+                            )}
                           </div>
                         ))}
                       </div>
@@ -638,28 +725,62 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                               alt="CTX"
                               className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                             />
-                            {/* Overlay điểm ghim khuyết tật D trên ảnh CTX */}
+                            {/* Overlay điểm ghim khuyết tật D dạng mũi kim trắc địa trên ảnh CTX */}
                             {showCtxPins &&
                               defectsList.map((d: DefectItem, dIdx: number) => {
                                 const pX = Number(d.pinX ?? d.pin_x ?? 50);
                                 const pY = Number(d.pinY ?? d.pin_y ?? 50);
                                 const dCode = d.defectCode || d.defect_code || `D-${dIdx + 1}`;
+                                const defectKey = d.id || dCode;
+                                const isHighlighted = highlightedDefectId === defectKey;
 
                                 return (
                                   <div
-                                    key={d.id || dIdx}
+                                    key={defectKey}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setHighlightedDefectId(defectKey);
+                                      const container = document.getElementById('audit-studio-scroll-container');
+                                      const targetEl = document.getElementById(`defect-card-${defectKey}`);
+                                      if (container && targetEl) {
+                                        const containerRect = container.getBoundingClientRect();
+                                        const targetRect = targetEl.getBoundingClientRect();
+                                        const offsetTop = targetRect.top - containerRect.top + container.scrollTop - 20;
+                                        container.scrollTo({ top: offsetTop, behavior: 'smooth' });
+                                      } else if (targetEl) {
+                                        targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                      }
+                                      setTimeout(() => {
+                                        setHighlightedDefectId((curr) => (curr === defectKey ? null : curr));
+                                      }, 3500);
+                                    }}
                                     style={{
                                       position: 'absolute',
                                       top: `${pY}%`,
                                       left: `${pX}%`,
-                                      transform: 'translate(-50%, -50%)',
-                                      zIndex: 15,
+                                      transform: 'translate(-50%, -100%)',
+                                      zIndex: isHighlighted ? 40 : 25,
+                                      cursor: 'pointer',
                                     }}
-                                    className="flex items-center justify-center pointer-events-none"
+                                    className="flex flex-col items-center group/pin select-none"
+                                    title={`Bấm để cuộn và xem chi tiết khuyết tật ${dCode}`}
                                   >
-                                    <div className="px-1.5 py-0.5 rounded-full bg-red-600 text-white font-mono font-black text-[9px] shadow-md border border-white">
+                                    {/* Thẻ nhãn mã đỏ viền trắng nổi cao phía trên */}
+                                    <div
+                                      className={`px-1.5 py-0.5 rounded font-mono font-black text-[9px] shadow-md border border-white flex items-center justify-center whitespace-nowrap transition-all ${
+                                        isHighlighted
+                                          ? 'bg-rose-700 text-white ring-2 ring-amber-300 scale-115'
+                                          : 'bg-rose-600 text-white group-hover/pin:scale-110 group-hover/pin:bg-rose-700'
+                                      }`}
+                                    >
                                       {dCode}
                                     </div>
+
+                                    {/* Mũi kim tam giác nhọn chĩa thẳng xuống tọa độ */}
+                                    <div className="w-0 h-0 border-l-[3.5px] border-l-transparent border-r-[3.5px] border-r-transparent border-t-[5px] border-t-rose-600 -mt-[0.5px]" />
+
+                                    {/* Chấm tâm ngắm đỏ rực tại đúng tọa độ (x, y) */}
+                                    <div className="w-1.5 h-1.5 rounded-full bg-rose-600 border border-white -mt-[1px] shadow-xs" />
                                   </div>
                                 );
                               })}
@@ -676,21 +797,57 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                       </div>
 
                       {isEditMode && ctxUrl && (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            onOpenPhotoReplace({
-                              targetPhotoType: 'ZONE_CTX',
-                              targetPhotoId: zCode,
-                              zoneId: z.id,
-                              currentPhotoUrl: ctxUrl,
-                              photoTitle: `Ảnh ngữ cảnh ${zCode}`,
-                            })
-                          }
-                          className="mt-2 text-[10px] font-bold text-sky-600 hover:text-sky-800 bg-sky-50 py-1 rounded text-center transition-colors"
-                        >
-                          Đổi ảnh CTX (OTP 6 số)
-                        </button>
+                        <div className="mt-2 flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (onOpenPhotoAction) {
+                                onOpenPhotoAction({
+                                  initialMode: 'REPLACE',
+                                  category: 'ZONE_CTX',
+                                  targetPhotoType: 'CTX',
+                                  targetPhotoId: zCode,
+                                  zoneCode: zCode,
+                                  floorCode: currentFloor.floorName,
+                                  currentPhotoUrl: ctxUrl,
+                                  photoTitle: `Ảnh ngữ cảnh ${zCode}`,
+                                });
+                              } else if (onOpenPhotoReplace) {
+                                onOpenPhotoReplace({
+                                  targetPhotoType: 'ZONE_CTX',
+                                  targetPhotoId: zCode,
+                                  zoneId: z.id,
+                                  currentPhotoUrl: ctxUrl,
+                                  photoTitle: `Ảnh ngữ cảnh ${zCode}`,
+                                });
+                              }
+                            }}
+                            className="flex-1 text-[10px] font-bold text-sky-600 hover:text-sky-800 bg-sky-50 py-1 rounded text-center transition-colors cursor-pointer"
+                          >
+                            Đổi ảnh CTX
+                          </button>
+                          {onOpenPhotoAction && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                onOpenPhotoAction({
+                                  initialMode: 'DELETE',
+                                  category: 'ZONE_CTX',
+                                  targetPhotoType: 'CTX',
+                                  targetPhotoId: zCode,
+                                  zoneCode: zCode,
+                                  floorCode: currentFloor.floorName,
+                                  currentPhotoUrl: ctxUrl,
+                                  photoTitle: `Ảnh ngữ cảnh ${zCode}`,
+                                })
+                              }
+                              className="px-2 py-1 text-[10px] font-bold text-rose-600 hover:text-rose-800 bg-rose-50 rounded text-center transition-colors cursor-pointer"
+                              title="Xóa ảnh CTX này"
+                            >
+                              Xóa
+                            </button>
+                          )}
+                        </div>
                       )}
                     </div>
 
@@ -730,7 +887,12 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                           return (
                             <div
                               key={d.id || dCode}
-                              className="bg-white rounded-xl border border-slate-200 p-3 shadow-2xs space-y-2.5"
+                              id={`defect-card-${d.id || dCode}`}
+                              className={`rounded-xl border p-3 shadow-2xs space-y-2.5 transition-all duration-300 ${
+                                highlightedDefectId === (d.id || dCode)
+                                  ? 'bg-rose-50/70 border-rose-500 ring-4 ring-rose-300/60 shadow-md'
+                                  : 'bg-white border-slate-200'
+                              }`}
                             >
                               {/* Header Khuyết tật D */}
                               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-100">
@@ -941,9 +1103,33 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
 
                               {/* Dải ảnh cận cảnh CU đa góc chụp */}
                               <div className="space-y-1">
-                                <span className="text-[10px] font-bold text-slate-500 block uppercase">
-                                  Ảnh Cận Cảnh CU ({cuPhotos.length} ảnh):
-                                </span>
+                                <div className="flex items-center justify-between">
+                                  <span className="text-[10px] font-bold text-slate-500 block uppercase">
+                                    Ảnh Cận Cảnh CU ({cuPhotos.length} ảnh):
+                                  </span>
+                                  {isEditMode && onOpenPhotoAction && (
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        onOpenPhotoAction({
+                                          initialMode: 'ADD',
+                                          category: 'DEFECT_CU',
+                                          targetPhotoType: 'CU',
+                                          targetPhotoId: dCode,
+                                          defectId: d.id,
+                                          defectCode: dCode,
+                                          floorCode: currentFloor.floorName,
+                                          zoneCode: zCode,
+                                          photoTitle: `Bổ sung ảnh khuyết tật ${dCode}`,
+                                        })
+                                      }
+                                      className="px-2 py-0.5 rounded bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[9px] flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
+                                    >
+                                      <Plus className="w-2.5 h-2.5" />
+                                      <span>+ Thêm Ảnh CU</span>
+                                    </button>
+                                  )}
+                                </div>
                                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                                   {cuPhotos.map((cuUrl: string, cuIdx: number) => (
                                     <div
@@ -968,6 +1154,71 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                                       <div className="absolute top-1 left-1 px-1.5 py-0.2 rounded bg-black/70 text-white font-mono text-[9px]">
                                         CU #{cuIdx + 1}
                                       </div>
+                                      {isEditMode && (
+                                        <div className="absolute bottom-1 right-1 flex items-center gap-1 z-10">
+                                          <button
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              if (onOpenPhotoAction) {
+                                                onOpenPhotoAction({
+                                                  initialMode: 'REPLACE',
+                                                  category: 'DEFECT_CU',
+                                                  targetPhotoType: 'CU',
+                                                  targetPhotoId: dCode,
+                                                  defectId: d.id,
+                                                  defectCode: dCode,
+                                                  photoIndex: cuIdx,
+                                                  hasMultiplePhotos: cuPhotos.length > 1,
+                                                  currentPhotoUrl: cuUrl,
+                                                  photoTitle: `Thay Ảnh Cận Cảnh ${dCode} (#${cuIdx + 1})`,
+                                                  floorCode: currentFloor.floorName,
+                                                  zoneCode: zCode,
+                                                });
+                                              } else if (onOpenPhotoReplace) {
+                                                onOpenPhotoReplace({
+                                                  targetPhotoType: 'DEFECT_CU',
+                                                  targetPhotoId: dCode,
+                                                  defectId: d.id,
+                                                  photoIndex: cuIdx,
+                                                  currentPhotoUrl: cuUrl,
+                                                  photoTitle: `Thay Ảnh Cận Cảnh ${dCode} (#${cuIdx + 1})`,
+                                                });
+                                              }
+                                            }}
+                                            className="p-1 rounded-md bg-black/75 hover:bg-amber-600 text-white shadow-xs transition-colors cursor-pointer"
+                                            title="Thay thế ảnh này"
+                                          >
+                                            <Camera className="w-3.5 h-3.5 text-amber-300" />
+                                          </button>
+                                          {onOpenPhotoAction && (
+                                            <button
+                                              type="button"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                onOpenPhotoAction({
+                                                  initialMode: 'DELETE',
+                                                  category: 'DEFECT_CU',
+                                                  targetPhotoType: 'CU',
+                                                  targetPhotoId: dCode,
+                                                  defectId: d.id,
+                                                  defectCode: dCode,
+                                                  photoIndex: cuIdx,
+                                                  hasMultiplePhotos: cuPhotos.length > 1,
+                                                  currentPhotoUrl: cuUrl,
+                                                  photoTitle: `Xóa Ảnh Cận Cảnh ${dCode} (#${cuIdx + 1})`,
+                                                  floorCode: currentFloor.floorName,
+                                                  zoneCode: zCode,
+                                                });
+                                              }}
+                                              className="p-1 rounded-md bg-black/75 hover:bg-rose-600 text-white shadow-xs transition-colors cursor-pointer"
+                                              title="Xóa ảnh này"
+                                            >
+                                              <Trash2 className="w-3.5 h-3.5 text-rose-300" />
+                                            </button>
+                                          )}
+                                        </div>
+                                      )}
                                     </div>
                                   ))}
                                 </div>
@@ -984,28 +1235,37 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
           )}
         </div>
 
-        {/* Khối Cấu Kiện Kết Cấu Chịu Lực E (Nếu có) */}
-        {currentElements.length > 0 && (
-          <div className="space-y-4 pt-4 border-t border-slate-200">
-            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-              <div className="flex items-center gap-2">
-                <ShieldAlert className="w-4 h-4 text-amber-600" />
-                <span className="text-xs font-black text-slate-800 uppercase tracking-wide">
-                  3.3. Cấu Kiện Kết Cấu Chịu Lực Vùng E ({currentElements.length} Cấu Kiện)
-                </span>
-              </div>
+        {/* 4.3. Cấu Kiện Kết Cấu Chịu Lực (Cột, Dầm, Sàn E) & Khuyết Tật D của E */}
+        <div className="space-y-4 pt-4 border-t border-slate-200">
+          <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+            <div className="flex items-center gap-2">
+              <ShieldAlert className="w-4 h-4 text-amber-600" />
+              <span className="text-xs font-black text-slate-800 uppercase tracking-wide">
+                4.3. Cấu Kiện Kết Cấu Chịu Lực (Cột, Dầm, Sàn E) & Khuyết Tật D của E ({currentElements.length} Cấu Kiện)
+              </span>
             </div>
+            <span className="text-xs text-slate-500 font-semibold">
+              {currentElements.reduce((acc, el) => acc + (el.defects?.length || 0), 0)} khuyết tật kết cấu
+            </span>
+          </div>
 
-            <div className="space-y-3">
+          {currentElements.length === 0 ? (
+            <div className="p-4 bg-slate-50 rounded-xl border border-dashed border-slate-200 text-xs text-slate-500 flex items-center justify-between">
+              <span>Tầng này không phát hiện cấu kiện chịu lực riêng lẻ bị nứt vỡ hoặc KSV gom khuyết tật theo mảng tường Vùng Z.</span>
+              <span className="font-bold text-emerald-700">✓ Không có khuyết tật cấu kiện riêng lẻ</span>
+            </div>
+          ) : (
+            <div className="space-y-4">
               {currentElements.map((elem: StructuralElementData) => {
                 const eCode = elem.elementCode || 'E-??';
                 const eDefects: DefectItem[] = Array.isArray(elem.defects) ? elem.defects : [];
+                const overviewPhotos = Array.isArray(elem.overviewPhotos) ? elem.overviewPhotos : [];
 
                 return (
-                  <div key={elem.id || eCode} className="p-3 bg-amber-50/40 rounded-xl border border-amber-200 space-y-2">
-                    <div className="flex items-center justify-between">
+                  <div id={`element-card-${eCode}`} key={elem.id || eCode} className="p-4 bg-amber-50/30 rounded-xl border border-amber-200 space-y-3">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
                       <div className="flex items-center gap-2 flex-wrap flex-1">
-                        <span className="px-2 py-0.5 rounded bg-amber-700 text-white font-mono font-black text-xs">
+                        <span className="px-2.5 py-0.5 rounded-lg bg-amber-700 text-white font-mono font-black text-xs">
                           {eCode}
                         </span>
                         {isEditMode ? (
@@ -1025,10 +1285,19 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                               placeholder="BTCT, Thép..."
                               className="p-1 text-xs border border-amber-300 rounded font-bold bg-white"
                             />
+                            <span>&bull;</span>
+                            <input
+                              type="text"
+                              value={elem.roomName || ''}
+                              onChange={(e) => handleElementFieldChange(elem.id, 'roomName', e.target.value, 'Vị trí trục/phòng')}
+                              placeholder="Trục toạ độ / Vị trí..."
+                              className="p-1 text-xs border border-amber-300 rounded bg-white"
+                            />
                           </div>
                         ) : (
                           <span className="text-xs font-bold text-slate-800">
-                            {elem.elementType || 'Cột/Dầm BTCT'} &bull; {elem.materialType || 'BTCT'}
+                            {elem.elementType || 'Cột/Dầm BTCT'} &bull; {elem.materialType || 'BTCT'} &bull;{' '}
+                            <span className="text-slate-500 font-normal">{elem.roomName || elem.customRoomName || 'Trục không xác định'}</span>
                           </span>
                         )}
                       </div>
@@ -1036,6 +1305,139 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                         {eDefects.length} khuyết tật kết cấu
                       </Badge>
                     </div>
+
+                    {/* Ảnh bối cảnh hoặc tổng quan của cấu kiện E */}
+                    {(elem.ctxPhotoUrl || overviewPhotos.length > 0) && (
+                      <div className="flex items-center gap-3 overflow-x-auto pb-1">
+                        {elem.ctxPhotoUrl && (
+                          <div
+                            onClick={() => onOpenPhotoZoom(elem.ctxPhotoUrl!, `Ảnh bối cảnh cấu kiện ${eCode}`)}
+                            className="relative w-28 h-20 rounded-lg overflow-hidden border border-amber-300 cursor-pointer group shrink-0 bg-white"
+                          >
+                            <img src={elem.ctxPhotoUrl} alt={eCode} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                            <span className="absolute bottom-0 inset-x-0 bg-black/60 text-white text-[9px] px-1 py-0.5 truncate font-mono">
+                              Bối cảnh {eCode}
+                            </span>
+                          </div>
+                        )}
+                        {overviewPhotos.map((photoUrl, pIdx) => (
+                          <div
+                            key={pIdx}
+                            onClick={() => onOpenPhotoZoom(photoUrl, `Ảnh tổng quan ${eCode} (#${pIdx + 1})`)}
+                            className="relative w-28 h-20 rounded-lg overflow-hidden border border-slate-200 cursor-pointer group shrink-0 bg-white"
+                          >
+                            <img src={photoUrl} alt={`${eCode}-${pIdx}`} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                            <span className="absolute bottom-0 inset-x-0 bg-black/60 text-white text-[9px] px-1 py-0.5 truncate font-mono">
+                              Ảnh #{pIdx + 1}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Danh sách khuyết tật D của cấu kiện E */}
+                    {eDefects.length > 0 && (
+                      <div className="space-y-2 pt-1">
+                        <span className="text-[11px] font-bold text-slate-700 block">
+                          Khuyết tật chi tiết trên cấu kiện ({eDefects.length} mục):
+                        </span>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                          {eDefects.map((def: DefectItem, dIdx: number) => {
+                            const dCode = def.defectCode || `D-${dIdx + 1}`;
+                            const cuPhotos: any[] = Array.isArray(def.cuPhotos) ? (def.cuPhotos as any[]) : [];
+                            return (
+                              <div key={def.id || dCode} className="p-3 bg-white rounded-xl border border-amber-200 space-y-1.5 shadow-2xs">
+                                <div className="flex items-center justify-between">
+                                  <span className="font-mono font-bold text-amber-900 bg-amber-100 px-1.5 py-0.5 rounded text-[11px]">
+                                    {dCode}
+                                  </span>
+                                  <span className="font-bold text-slate-700">{def.defectType || 'Vết nứt BTCT'}</span>
+                                  <span className="font-mono font-bold text-rose-600">
+                                    {def.widthMaxMm ?? def.width_max_mm ?? 0} mm
+                                  </span>
+                                </div>
+                                <div className="text-[11px] text-slate-500 flex items-center justify-between">
+                                  <span>Dài: {def.lengthMm ?? def.length_mm ?? 0} mm &bull; Hướng: {def.crackDirection || 'Không xác định'}</span>
+                                  <span className={def.hasScaleCard ? 'text-emerald-600 font-bold' : 'text-amber-600'}>
+                                    {def.hasScaleCard ? '✓ Có thước đo' : '✕ Thiếu thước'}
+                                  </span>
+                                </div>
+                                {def.notes && <div className="text-[11px] text-slate-600 italic">{def.notes}</div>}
+
+                                {/* CU photos for this defect */}
+                                {cuPhotos.length > 0 && (
+                                  <div className="flex items-center gap-2 pt-1 overflow-x-auto">
+                                    {cuPhotos.map((cuItem: any, cuIdx: number) => {
+                                      const cuUrl = typeof cuItem === 'string' ? cuItem : cuItem?.url || cuItem?.photoUrl;
+                                      if (!cuUrl) return null;
+                                      return (
+                                        <div
+                                          key={cuIdx}
+                                          onClick={() => onOpenPhotoZoom(cuUrl, `Ảnh cận cảnh ${dCode} (#${cuIdx + 1})`)}
+                                          className="group relative w-16 h-12 rounded border border-slate-200 overflow-hidden cursor-pointer shrink-0"
+                                        >
+                                          <img src={cuUrl} alt={dCode} className="w-full h-full object-cover" />
+                                          {isEditMode && onOpenPhotoAction && (
+                                            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1">
+                                              <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  onOpenPhotoAction({
+                                                    initialMode: 'REPLACE',
+                                                    category: 'DEFECT_CU',
+                                                    targetPhotoType: 'CU',
+                                                    targetPhotoId: dCode,
+                                                    defectId: def.id,
+                                                    defectCode: dCode,
+                                                    photoIndex: cuIdx,
+                                                    hasMultiplePhotos: cuPhotos.length > 1,
+                                                    currentPhotoUrl: cuUrl,
+                                                    photoTitle: `Thay Ảnh Cận Cảnh ${dCode} (#${cuIdx + 1})`,
+                                                    floorCode: currentFloor.floorName,
+                                                  });
+                                                }}
+                                                className="p-0.5 rounded bg-amber-500 hover:bg-amber-600 text-white"
+                                                title="Đổi ảnh này"
+                                              >
+                                                <RefreshCw className="w-2.5 h-2.5" />
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                  e.stopPropagation();
+                                                  onOpenPhotoAction({
+                                                    initialMode: 'DELETE',
+                                                    category: 'DEFECT_CU',
+                                                    targetPhotoType: 'CU',
+                                                    targetPhotoId: dCode,
+                                                    defectId: def.id,
+                                                    defectCode: dCode,
+                                                    photoIndex: cuIdx,
+                                                    hasMultiplePhotos: cuPhotos.length > 1,
+                                                    currentPhotoUrl: cuUrl,
+                                                    photoTitle: `Xóa Ảnh Cận Cảnh ${dCode} (#${cuIdx + 1})`,
+                                                    floorCode: currentFloor.floorName,
+                                                  });
+                                                }}
+                                                className="p-0.5 rounded bg-rose-600 hover:bg-rose-700 text-white"
+                                                title="Xóa ảnh này"
+                                              >
+                                                <Trash2 className="w-2.5 h-2.5" />
+                                              </button>
+                                            </div>
+                                          )}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
 
                     {isEditMode ? (
                       <input
@@ -1046,142 +1448,16 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                         className="w-full p-1.5 text-xs bg-white border border-amber-300 rounded"
                       />
                     ) : (
-                      <div className="text-xs text-slate-700 italic">
-                        {elem.notes || 'Không có ghi chú cấu kiện kết cấu.'}
+                      <div className="text-xs text-slate-700">
+                        <span className="font-semibold text-slate-500">Ghi chú: </span>
+                        {elem.notes || 'Không'}
                       </div>
                     )}
                   </div>
                 );
               })}
             </div>
-          </div>
-        )}
-
-        {/* 3.4. Hiện Trạng Võng Dầm Sàn & Đề Xuất Quan Trắc Mốc Lún Tầng */}
-        <div className="p-4 bg-violet-50/50 rounded-2xl border border-violet-200 space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Ruler className="w-4 h-4 text-violet-700" />
-              <span className="text-xs font-black uppercase text-violet-950 tracking-wide">
-                3.4. Hiện Trạng Võng Dầm Sàn & Đề Xuất Quan Trắc Mốc Lún Tầng
-              </span>
-            </div>
-            <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-violet-100 text-violet-800 border border-violet-200 flex items-center gap-1">
-              <Sparkles className="w-3.5 h-3.5 text-violet-600" />
-              <span>Chỉ số E3 / Tầng: Cấp {beamSagging.level ?? 0}/4</span>
-            </span>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-            {/* Cấp độ võng */}
-            <div className="p-3 bg-white rounded-xl border border-violet-200 space-y-1">
-              <span className="text-[10px] font-bold text-slate-500 uppercase block">Cấp độ uốn võng:</span>
-              {isEditMode ? (
-                <select
-                  value={beamSagging.level ?? 0}
-                  onChange={(e) => handleBeamSaggingChange('level', Number(e.target.value))}
-                  className="w-full p-1.5 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-800"
-                >
-                  {SAG_LEVEL_OPTIONS.map((opt: (typeof SAG_LEVEL_OPTIONS)[number]) => (
-                    <option key={opt.level} value={opt.level}>
-                      Cấp {opt.level} - {opt.title}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <div className="font-bold text-slate-800">
-                  {beamSagging.level !== undefined ? `Cấp ${beamSagging.level} (${SAG_LEVEL_OPTIONS.find((o: (typeof SAG_LEVEL_OPTIONS)[number]) => o.level === beamSagging.level)?.title || 'Bình thường'})` : 'Không phát hiện võng'}
-                </div>
-              )}
-            </div>
-
-            {/* Vị trí & Độ võng mm */}
-            <div className="p-3 bg-white rounded-xl border border-violet-200 space-y-1">
-              <span className="text-[10px] font-bold text-slate-500 uppercase block">Vị trí & Độ võng:</span>
-              {isEditMode ? (
-                <div className="space-y-1">
-                  <input
-                    type="text"
-                    value={beamSagging.position || ''}
-                    onChange={(e) => handleBeamSaggingChange('position', e.target.value)}
-                    placeholder="VD: Dầm D2 trục 2-3..."
-                    className="w-full p-1 border border-slate-300 rounded text-xs"
-                  />
-                  <input
-                    type="number"
-                    step="0.5"
-                    value={beamSagging.sagMm ?? ''}
-                    onChange={(e) => handleBeamSaggingChange('sagMm', e.target.value ? Number(e.target.value) : '')}
-                    placeholder="Độ võng mm..."
-                    className="w-full p-1 border border-slate-300 rounded text-xs font-mono font-bold"
-                  />
-                </div>
-              ) : (
-                <div>
-                  <div className="font-bold text-slate-800">
-                    {beamSagging.position || 'Chưa ghi nhận vị trí'}
-                  </div>
-                  <div className="text-[11px] text-violet-700 font-mono font-bold mt-0.5">
-                    {beamSagging.sagMm ? `Độ võng: ${beamSagging.sagMm} mm` : 'Độ võng: 0 mm'}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Đề xuất quan trắc mốc lún */}
-            <div className="p-3 bg-white rounded-xl border border-violet-200 space-y-1">
-              <span className="text-[10px] font-bold text-slate-500 uppercase block">Quan trắc mốc biến dạng:</span>
-              {isEditMode ? (
-                <div className="space-y-1">
-                  <label className="flex items-center gap-1.5 font-bold text-slate-700 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={Boolean(needMonitoring.required)}
-                      onChange={(e) => handleMonitoringChange('required', e.target.checked)}
-                      className="rounded text-violet-600"
-                    />
-                    <span>Yêu cầu quan trắc mốc</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={needMonitoring.notes || ''}
-                    onChange={(e) => handleMonitoringChange('notes', e.target.value)}
-                    placeholder="Ghi chú vị trí mốc..."
-                    className="w-full p-1 border border-slate-300 rounded text-xs"
-                  />
-                </div>
-              ) : (
-                <div>
-                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold inline-block ${
-                    needMonitoring.required ? 'bg-amber-100 text-amber-900 border border-amber-300' : 'bg-emerald-100 text-emerald-900'
-                  }`}>
-                    {needMonitoring.required ? '⚠️ Cần quan trắc mốc lún' : '✓ Ổn định, không cần mốc'}
-                  </span>
-                  {needMonitoring.notes && (
-                    <div className="text-[11px] text-slate-500 italic mt-0.5">{needMonitoring.notes}</div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Ảnh dầm võng nếu có */}
-            {beamSagging.photoUrl && (
-              <div className="sm:col-span-3 pt-2">
-                <span className="text-[10px] font-bold text-slate-500 uppercase block mb-1">
-                  Ảnh chụp cấu kiện dầm sàn bị võng:
-                </span>
-                <div
-                  onClick={() => onOpenPhotoZoom(beamSagging.photoUrl!, 'Ảnh dầm sàn bị võng')}
-                  className="w-32 h-24 rounded-lg overflow-hidden border border-violet-200 cursor-pointer hover:shadow-md relative group"
-                >
-                  <img src={beamSagging.photoUrl} alt="Võng dầm" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
-                  <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
-                    <Maximize2 className="w-4 h-4 drop-shadow-md" />
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
+          )}
         </div>
       </div>
     </section>

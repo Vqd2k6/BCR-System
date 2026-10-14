@@ -140,7 +140,7 @@ export const ZoneAdminSidebar: React.FC<Props> = ({
       </div>
 
       {/* 2. Zone Selector (Dropdown khi mở rộng, Badge khi thu gọn) */}
-      <div className="p-3 border-b border-slate-100 bg-slate-50/50">
+      <div className="p-3 border-b border-slate-100 bg-white">
         {isCollapsed ? (
           <div
             className="w-full text-center py-2 px-1 rounded-xl bg-white text-[10px] font-mono font-bold text-indigo-700 border border-slate-200 shadow-2xs truncate"
@@ -222,7 +222,7 @@ export const ZoneAdminSidebar: React.FC<Props> = ({
       </nav>
 
       {/* 4. Footer User Info & Theme */}
-      <div className="p-3 border-t border-slate-100 bg-slate-50/70 relative">
+      <div className="p-3 border-t border-slate-100 bg-white relative">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2.5 overflow-hidden">
             <button

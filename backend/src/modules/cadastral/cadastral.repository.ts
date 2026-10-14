@@ -542,7 +542,9 @@ export class CadastralRepository {
 
   static async findUnitsByParcelId(parcelId: string): Promise<BuildingUnitEntity[]> {
     const res = await Database.query<BuildingUnitEntity>(
-      `SELECT u.* FROM building_units u
+      `SELECT u.*,
+        COALESCE(u.phase1_report_id, (SELECT r.id FROM base_survey_reports r WHERE r.unit_id = u.id ORDER BY r.created_at DESC LIMIT 1)) AS phase1_report_id
+       FROM building_units u
        WHERE u.parcel_id = $1 AND u.deleted_at IS NULL
        ORDER BY u.floor_number ASC, u.unit_code ASC;`,
       [parcelId]

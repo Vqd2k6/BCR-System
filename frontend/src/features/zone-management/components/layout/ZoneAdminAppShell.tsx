@@ -12,7 +12,6 @@ interface Props {
   selectedZone: string;
   onSelectZone: (zone: string) => void;
   pendingCount?: number;
-  criticalAlertCount?: number;
   isLoading?: boolean;
   onRefresh?: () => void;
   children: React.ReactNode;
@@ -24,7 +23,6 @@ export const ZoneAdminAppShell: React.FC<Props> = ({
   selectedZone,
   onSelectZone,
   pendingCount = 0,
-  criticalAlertCount = 0,
   isLoading = false,
   onRefresh,
   children,
@@ -80,7 +78,6 @@ export const ZoneAdminAppShell: React.FC<Props> = ({
         isCollapsed={isCollapsed}
         onToggleCollapse={toggleCollapse}
         pendingCount={pendingCount}
-        criticalCount={criticalAlertCount}
         userName={user?.fullName || 'Zone Admin'}
         userRole={user?.role || 'ZONE_ADMIN'}
         onLogout={logout}
@@ -92,7 +89,6 @@ export const ZoneAdminAppShell: React.FC<Props> = ({
         <ZoneAdminTopBar
           title={getPageTitle(activeNav)}
           selectedZone={selectedZone}
-          criticalAlertCount={criticalAlertCount}
           isLoading={isLoading}
           onRefresh={onRefresh}
           onAlertClick={() => onChangeNav('review')}

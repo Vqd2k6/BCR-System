@@ -25,7 +25,7 @@ import { AuditStep6ScopeGisMutation } from './steps/AuditStep6ScopeGisMutation';
 import { AuditStep7EcsViScores } from './steps/AuditStep7EcsViScores';
 import { AuditStep8Conclusions } from './steps/AuditStep8Conclusions';
 import { AuditStep9SignaturesAbsence } from './steps/AuditStep9SignaturesAbsence';
-import type { DiffItem, AuditStepwiseData, PhotoReplaceParams } from './types';
+import type { DiffItem, AuditStepwiseData, PhotoReplaceParams, AuditPhotoActionParams } from './types';
 
 export interface AuditStepwiseDocumentViewProps {
   data: AuditStepwiseData | Record<string, unknown>;
@@ -33,8 +33,15 @@ export interface AuditStepwiseDocumentViewProps {
   onRefresh: () => void;
   onOpenPhotoZoom: (url: string, title?: string, photoCode?: string) => void;
   onOpenPhotoReplace: (params: PhotoReplaceParams) => void;
+  onOpenPhotoAction?: (params: AuditPhotoActionParams) => void;
   onOpenDiffModal: (diffItems: DiffItem[], updates: Record<string, unknown>) => void;
   onOpenEngineeringJudgement: () => void;
+  onDirtyChange?: (info: {
+    dirtyCount: number;
+    diffItems: DiffItem[];
+    updates: Record<string, unknown>;
+    discardAll: (silent?: boolean) => void;
+  }) => void;
 }
 
 export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps> = ({
@@ -43,8 +50,10 @@ export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps>
   onRefresh,
   onOpenPhotoZoom,
   onOpenPhotoReplace,
+  onOpenPhotoAction,
   onOpenDiffModal,
   onOpenEngineeringJudgement,
+  onDirtyChange,
 }) => {
   const {
     isEditMode,
@@ -54,39 +63,54 @@ export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps>
     formState,
     dirtyFields,
     dirtyCount,
+    isFieldDirty,
     handleFieldChange,
     handleNestedFieldChange,
     handleDiscard,
     handleReviewSave,
+    getDiffPayload,
   } = useAuditStepwiseForm({ data, onOpenDiffModal });
 
+  // Đồng bộ dirty state lên AuditStudioModal cấp cha
+  React.useEffect(() => {
+    if (onDirtyChange) {
+      const { diffItems, updatesPayload } = getDiffPayload();
+      onDirtyChange({
+        dirtyCount,
+        diffItems,
+        updates: updatesPayload,
+        discardAll: (silent = false) => handleDiscard(silent),
+      });
+    }
+  }, [dirtyCount, dirtyFields, onDirtyChange]);
+
   const stepsList = [
-    { id: 'step-1', number: '01', title: 'Định Danh & Cự Ly Tim Hầm', icon: Home },
-    { id: 'step-2', number: '02', title: 'Kết Cấu & Phỏng Vấn', icon: User },
-    { id: 'step-3', number: '03', title: 'Tầng, Vùng Z & Khuyết Tật D', icon: Layers },
-    { id: 'step-4', number: '04', title: 'Tổng Hợp Nứt Burland', icon: Award },
-    { id: 'step-5', number: '05', title: 'Đo Biến Dạng & Lún Nghiêng', icon: Activity },
-    { id: 'step-6', number: '06', title: 'Phạm Vi KS & Biến Động GIS', icon: MapPin },
+    { id: 'step-1', number: '01', title: 'Nhận Diện & Hiện Trạng Tổng Quan', icon: Home },
+    { id: 'step-2', number: '02', title: 'Đo Biến Dạng & Lún Nghiêng', icon: Activity },
+    { id: 'step-3', number: '03', title: 'Kết Cấu & Phỏng Vấn', icon: User },
+    { id: 'step-4', number: '04', title: 'Tầng, Vùng Z & Cấu Kiện E', icon: Layers },
+    { id: 'step-5', number: '05', title: 'Khuyết Tật Bề Mặt & Nứt Burland', icon: Award },
+    { id: 'step-6', number: '06', title: 'Tương Quan Metro & Đột Biến GIS', icon: MapPin },
     { id: 'step-7', number: '07', title: 'Bảng Điểm Kỹ Thuật ECS & VI', icon: Hash },
-    { id: 'step-8', number: '08', title: 'Kết Luận & Tác Động TBM', icon: FileCheck2 },
-    { id: 'step-9', number: '09', title: 'Pháp Lý, Chữ Ký & Vắng Mặt', icon: PenTool },
+    { id: 'step-8', number: '08', title: 'Kết Luận & Đề Xuất Thẩm Định', icon: FileCheck2 },
+    { id: 'step-9', number: '09', title: 'Biên Bản Hiện Trường Đã Ký', icon: PenTool },
   ];
 
   return (
     <div className="relative flex flex-col lg:flex-row gap-6 w-full min-h-[600px]">
       {/* 1. Thanh điều hướng Jump-links bên trái (Sticky Sidebar) */}
       <div className="w-full lg:w-72 shrink-0">
-        <div className="sticky top-4 bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-4">
-          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+        <div className="sticky top-4 bg-white/95 backdrop-blur-xs rounded-2xl border border-slate-200/90 shadow-sm p-4 space-y-3.5">
+          <div className="flex items-center justify-between pb-3 border-b border-slate-200/80">
             <div>
-              <span className="text-[10px] font-black uppercase text-sky-600 tracking-wider">
+              <span className="text-[10px] font-black uppercase text-sky-700 tracking-wider">
                 Mục Lục Thẩm Định
               </span>
               <h4 className="text-sm font-black text-slate-800">9 Bước Khảo Sát</h4>
             </div>
             {/* Nút bật/tắt chế độ sửa hoặc badge đã khóa duyệt */}
             {data?.status === 'APPROVED' ? (
-              <span className="px-2.5 py-1.5 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1 shadow-xs">
+              <span className="px-2.5 py-1.5 rounded-xl text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1 shadow-2xs">
                 <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
                 <span>Đã Khóa Duyệt</span>
               </span>
@@ -94,14 +118,14 @@ export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps>
               <button
                 type="button"
                 onClick={() => setIsEditMode(!isEditMode)}
-                className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs cursor-pointer ${
+                className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer ${
                   isEditMode
-                    ? 'bg-amber-500 text-white shadow-amber-500/20'
-                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                    ? 'bg-amber-500 hover:bg-amber-600 text-white shadow-amber-500/20'
+                    : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
                 }`}
               >
                 <Edit3 className="w-3.5 h-3.5" />
-                <span>{isEditMode ? 'Đang Hiệu Chỉnh' : 'Chế Độ Sửa'}</span>
+                <span>{isEditMode ? 'Đang Sửa' : 'Chế Độ Sửa'}</span>
               </button>
             )}
           </div>
@@ -118,15 +142,15 @@ export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps>
                   onClick={() => scrollToStep(st.id)}
                   className={`w-full text-left px-3 py-2 rounded-xl text-xs font-semibold transition-all flex items-center justify-between group cursor-pointer ${
                     isActive
-                      ? 'bg-sky-50 text-sky-700 font-bold border border-sky-200'
-                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                      ? 'bg-sky-50 text-sky-900 font-bold border border-sky-300 shadow-2xs'
+                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900 border border-transparent'
                   }`}
                 >
                   <div className="flex items-center gap-2 truncate">
                     <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-sky-600' : 'text-slate-400'}`} />
                     <span className="truncate">{st.title}</span>
                   </div>
-                  <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${isActive ? 'bg-sky-200/60 text-sky-800' : 'text-slate-400 group-hover:bg-slate-100'}`}>
+                  <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${isActive ? 'bg-sky-200/80 text-sky-900 font-bold' : 'text-slate-400 group-hover:bg-slate-200/60'}`}>
                     {st.number}
                   </span>
                 </button>
@@ -134,18 +158,23 @@ export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps>
             })}
           </nav>
 
-          {/* Thanh công cụ Lưu / Hủy khi có thay đổi */}
-          {isEditMode && dirtyCount > 0 && (
-            <div className="pt-3 border-t border-amber-200 bg-amber-50/60 -mx-4 -mb-4 p-4 rounded-b-2xl space-y-2">
-              <div className="text-[11px] font-bold text-amber-900 flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-                <span>Đã sửa {dirtyCount} thông số</span>
+          {/* Thanh công cụ Lưu / Hủy khi có thay đổi - GIỮ BẢO LƯU KHI TẮT CHẾ ĐỘ SỬA */}
+          {dirtyCount > 0 && (
+            <div className="pt-3 border-t border-amber-200/80 bg-amber-500/10 -mx-4 -mb-4 p-3.5 rounded-b-2xl space-y-2 border-b border-x border-amber-200/80">
+              <div className="text-[11px] font-bold text-amber-950 flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                  <span>{isEditMode ? 'Đang hiệu chỉnh' : 'Chế độ xem'}: {dirtyCount} sửa đổi</span>
+                </div>
+                {!isEditMode && (
+                  <span className="text-[10px] font-bold text-amber-800 bg-amber-200/60 px-1.5 py-0.5 rounded">Chưa lưu</span>
+                )}
               </div>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={handleDiscard}
-                  className="flex-1 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 font-bold text-xs flex items-center justify-center gap-1 transition-colors cursor-pointer"
+                  onClick={() => handleDiscard(false)}
+                  className="flex-1 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs flex items-center justify-center gap-1 transition-colors cursor-pointer"
                 >
                   <Undo2 className="w-3.5 h-3.5" />
                   <span>Hủy</span>
@@ -164,8 +193,9 @@ export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps>
         </div>
       </div>
 
-      {/* 2. Nội dung chi tiết 9 bước khảo sát */}
+      {/* 2. Nội dung chi tiết 9 bước khảo sát theo đúng thứ tự chuẩn hóa */}
       <div className="flex-1 space-y-6">
+        {/* Bước 01: Nhận Diện & Hiện Trạng Tổng Quan */}
         <AuditStep1Identification
           isEditMode={isEditMode}
           formState={formState}
@@ -174,24 +204,45 @@ export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps>
           handleNestedFieldChange={handleNestedFieldChange}
           onOpenPhotoZoom={onOpenPhotoZoom}
           onOpenPhotoReplace={onOpenPhotoReplace}
+          onOpenPhotoAction={onOpenPhotoAction}
+          isFieldDirty={isFieldDirty}
         />
 
+        {/* Bước 02: Đo Đạc Biến Dạng, Lún Nghiêng & Quan Trắc */}
+        <AuditStep5SettlementTilt
+          isEditMode={isEditMode}
+          formState={formState}
+          handleNestedFieldChange={handleNestedFieldChange}
+          onOpenPhotoZoom={onOpenPhotoZoom}
+          onOpenPhotoReplace={onOpenPhotoReplace}
+          onOpenPhotoAction={onOpenPhotoAction}
+          isFieldDirty={isFieldDirty}
+        />
+
+        {/* Bước 03: Kết Cấu Công Trình, Nền Móng & Phỏng Vấn Chủ Hộ */}
         <AuditStep2OwnerInterview
           isEditMode={isEditMode}
           formState={formState}
           handleFieldChange={handleFieldChange}
           handleNestedFieldChange={handleNestedFieldChange}
           onOpenPhotoZoom={onOpenPhotoZoom}
+          onOpenPhotoReplace={onOpenPhotoReplace}
+          onOpenPhotoAction={onOpenPhotoAction}
+          isFieldDirty={isFieldDirty}
         />
 
+        {/* Bước 04: Hiện Trạng Tầng, Vùng Z & Cấu Kiện Kết Cấu E */}
         <AuditStep3FloorDefects
           isEditMode={isEditMode}
           formState={formState}
           handleFieldChange={handleFieldChange}
           onOpenPhotoZoom={onOpenPhotoZoom}
           onOpenPhotoReplace={onOpenPhotoReplace}
+          onOpenPhotoAction={onOpenPhotoAction}
+          isFieldDirty={isFieldDirty}
         />
 
+        {/* Bước 05: Khuyết Tật Bề Mặt & Tổng Hợp Nứt Burland 1977 */}
         <AuditStep4BurlandSummary
           isEditMode={isEditMode}
           formState={formState}
@@ -199,15 +250,11 @@ export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps>
           handleFieldChange={handleFieldChange}
           handleNestedFieldChange={handleNestedFieldChange}
           onOpenPhotoZoom={onOpenPhotoZoom}
+          onOpenPhotoReplace={onOpenPhotoReplace}
+          isFieldDirty={isFieldDirty}
         />
 
-        <AuditStep5SettlementTilt
-          isEditMode={isEditMode}
-          formState={formState}
-          handleNestedFieldChange={handleNestedFieldChange}
-          onOpenPhotoZoom={onOpenPhotoZoom}
-        />
-
+        {/* Bước 06: Tương Quan Vị Trí Metro & Đột Biến GIS */}
         <AuditStep6ScopeGisMutation
           isEditMode={isEditMode}
           formState={formState}
@@ -217,8 +264,10 @@ export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps>
           handleFieldChange={handleFieldChange}
           onOpenPhotoZoom={onOpenPhotoZoom}
           onRefresh={onRefresh}
+          isFieldDirty={isFieldDirty}
         />
 
+        {/* Bước 07: Bảng Điểm Kỹ Thuật ECS & VI */}
         <AuditStep7EcsViScores
           isEditMode={isEditMode}
           formState={formState}
@@ -228,15 +277,19 @@ export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps>
           handleNestedFieldChange={handleNestedFieldChange}
           onRefresh={onRefresh}
           onOpenEngineeringJudgement={onOpenEngineeringJudgement}
+          isFieldDirty={isFieldDirty}
         />
 
+        {/* Bước 08: Kết Luận & Đề Xuất Thẩm Định */}
         <AuditStep8Conclusions
           isEditMode={isEditMode}
           formState={formState}
           handleNestedFieldChange={handleNestedFieldChange}
           handleFieldChange={handleFieldChange}
+          isFieldDirty={isFieldDirty}
         />
 
+        {/* Bước 09: Biên Bản Hiện Trường Đã Ký (Hình Chụp Biên Bản) */}
         <AuditStep9SignaturesAbsence
           isEditMode={isEditMode}
           formState={formState}
@@ -244,7 +297,10 @@ export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps>
           handleFieldChange={handleFieldChange}
           handleNestedFieldChange={handleNestedFieldChange}
           onOpenPhotoZoom={onOpenPhotoZoom}
+          onOpenPhotoReplace={onOpenPhotoReplace}
+          onOpenPhotoAction={onOpenPhotoAction}
           onConfirmAbsenteeSurvey={onRefresh}
+          isFieldDirty={isFieldDirty}
         />
       </div>
     </div>

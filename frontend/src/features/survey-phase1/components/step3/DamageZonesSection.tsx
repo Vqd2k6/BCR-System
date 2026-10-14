@@ -218,7 +218,7 @@ export const DamageZonesSection: React.FC<DamageZonesSectionProps> = ({
         </div>
 
         {zones.length > 0 && (
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
+          <div className="flex items-center gap-2 overflow-x-auto max-w-full min-w-0 pb-1 no-scrollbar touch-pan-x">
             {zones.map((z, idx) => {
               const isSelected = activeZoneIndex === idx;
               const hasDefects = z.defects && z.defects.length > 0;
@@ -266,9 +266,9 @@ export const DamageZonesSection: React.FC<DamageZonesSectionProps> = ({
         ) : activeZone ? (
           <div id="step3-active-zone-card" className="p-3 sm:p-4 bg-slate-50/80 rounded-2xl border border-slate-200/80 space-y-3.5">
             {/* Header card Z */}
-            <div className="flex items-center justify-between pb-2 border-b border-slate-200">
-              <div className="flex items-center gap-2">
-                <div className="flex items-center gap-1">
+            <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-200 min-w-0">
+              <div className="flex flex-wrap items-center gap-2 min-w-0 flex-1">
+                <div className="flex items-center gap-1 shrink-0">
                   <input
                     type="text"
                     value={activeZone.zoneCode}
@@ -283,26 +283,28 @@ export const DamageZonesSection: React.FC<DamageZonesSectionProps> = ({
                         }
                       }
                     }}
-                    className="px-2 py-0.5 rounded-lg bg-emerald-700 text-white font-mono text-xs font-extrabold w-20 border border-emerald-500 uppercase focus:ring-1 focus:ring-emerald-300"
+                    className="px-2 py-0.5 rounded-lg bg-emerald-700 text-white font-mono text-xs font-extrabold w-16 sm:w-20 border border-emerald-500 uppercase focus:ring-1 focus:ring-emerald-300"
                     title="Mã Vùng Z (đồng bộ với ghim trên sơ đồ CAD)"
                   />
                 </div>
-                <span className="text-sm font-bold text-slate-800">
+                <span className="text-xs sm:text-sm font-bold text-slate-800 truncate max-w-[180px] sm:max-w-none">
                   Khảo Sát Mảng Tường ({activeZone.roomName})
                 </span>
-                {activeZone.defects && activeZone.defects.length > 0 ? (
-                  <Badge variant="danger">
-                    {activeZone.defects.length} khuyết tật D • Burland Grade {activeZone.burlandGrade}
-                  </Badge>
-                ) : (
-                  <Badge variant="success">Nguyên vẹn • Không nứt</Badge>
-                )}
+                <div className="shrink-0">
+                  {activeZone.defects && activeZone.defects.length > 0 ? (
+                    <Badge variant="danger">
+                      {activeZone.defects.length} khuyết tật D • Grade {activeZone.burlandGrade}
+                    </Badge>
+                  ) : (
+                    <Badge variant="success">Nguyên vẹn • Không nứt</Badge>
+                  )}
+                </div>
               </div>
 
               <button
                 type="button"
                 onClick={() => onDeleteZone(activeZoneIndex)}
-                className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer shrink-0"
                 title="Xóa Vùng Z"
               >
                 <Trash2 className="w-4 h-4" />
@@ -437,14 +439,14 @@ export const DamageZonesSection: React.FC<DamageZonesSectionProps> = ({
 
             {/* Chụp nhiều ảnh tổng quan Vùng Z */}
             <div className="p-2.5 sm:p-3 bg-white rounded-xl border border-slate-200/70 space-y-2.5 shadow-2xs">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Camera className="w-4 h-4 text-emerald-600" />
-                  <span className="text-xs font-bold text-slate-800">
+              <div className="flex flex-wrap items-center justify-between gap-1.5 min-w-0">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Camera className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span className="text-xs font-bold text-slate-800 truncate">
                     Ảnh Tổng Quan Mảng Tường ({activeZone.zoneCode})
                   </span>
                 </div>
-                <span className="text-[11px] text-slate-500">
+                <span className="text-[11px] text-slate-500 shrink-0">
                   Đã chụp: {activeZone.overviewPhotos?.length || 0} ảnh
                 </span>
               </div>
@@ -522,12 +524,11 @@ export const DamageZonesSection: React.FC<DamageZonesSectionProps> = ({
                         newCtx = url;
                       }
 
-                      onUpdateZone(activeZoneIndex, {
-                        overviewPhotos: updated,
-                        ctxPhotoUrl: newCtx,
-                        ctxPhotoCode: activeZone.ctxPhotoCode || code,
-                      });
-                    }
+                    onUpdateZone(activeZoneIndex, {
+                      overviewPhotos: updated,
+                      ctxPhotoUrl: newCtx,
+                      ctxPhotoCode: activeZone.ctxPhotoCode || code,
+                    });
                   }}
                   watermarkOptions={{
                     parcelCode: projectParcelCode,
@@ -622,7 +623,7 @@ export const DamageZonesSection: React.FC<DamageZonesSectionProps> = ({
             </div>
 
             {/* Navigation giữa các Z */}
-            <div className="flex items-center justify-between pt-2 border-t border-slate-200">
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-200 min-w-0">
               <Button
                 size="sm"
                 variant="outline"
