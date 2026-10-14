@@ -217,7 +217,7 @@ export class AuditReviewService {
               u.full_name AS surveyor_name, u.phone AS surveyor_phone
        FROM base_survey_reports r
        JOIN parcels p ON r.parcel_id = p.id
-       JOIN users u ON r.surveyor_id = u.id
+       LEFT JOIN users u ON r.surveyor_id = u.id
        WHERE (r.id = $1 OR r.parcel_id = $1)
        ORDER BY (CASE WHEN r.id = $1 THEN 0 ELSE 1 END), r.created_at DESC
        LIMIT 1;`,
@@ -734,13 +734,14 @@ export class AuditReviewService {
                     u.role AS performed_by_role
              FROM system_audit_logs l
              LEFT JOIN users u ON l.performed_by_user_id = u.id
-             WHERE (l.entity_type = 'BASE_SURVEY_REPORT' AND l.entity_id = $1)
-                OR (l.entity_type = 'PARCEL' AND l.entity_id = $2)
+             WHERE (l.entity_type IN ('BASE_SURVEY_REPORT', 'PARCEL', 'PARCEL_SPATIAL_GEOMETRY', 'BUILDING_UNIT', 'UNIT')
+                    AND (l.entity_id = $1::uuid OR l.entity_id = $2::uuid OR ($3::uuid IS NOT NULL AND l.entity_id = $3::uuid)))
              ORDER BY l.created_at DESC
-             LIMIT 50;`,
-            [actualReportId, report.parcel_id]
+             LIMIT 100;`,
+            [actualReportId, report.parcel_id, report.unit_id || null]
           );
-          return logsRes.rows.map((row: any) => {
+
+          const historyItems = logsRes.rows.map((row: any) => {
             let parsedDiff = row.diff_payload;
             if (typeof parsedDiff === 'string') {
               try {
@@ -753,14 +754,41 @@ export class AuditReviewService {
               id: row.id,
               action: row.action,
               performedByName: row.performed_by_name || 'Hệ thống / Quản trị viên',
-              performedByRole: row.performed_by_role || 'ADMIN',
+              performedByRole: row.performed_by_role || 'ZONE_ADMIN',
               createdAt: row.created_at,
               clientIp: row.client_ip,
-              editReason: parsedDiff?.editReason || parsedDiff?.reason || null,
+              editReason: parsedDiff?.editReason || parsedDiff?.reason || parsedDiff?.rejectionReason || parsedDiff?.judgementNotes || parsedDiff?.notes || null,
               diff: Array.isArray(parsedDiff?.diff) ? parsedDiff.diff : (Array.isArray(parsedDiff?.diffPayload) ? parsedDiff.diffPayload : []),
               rawPayload: parsedDiff,
             };
           });
+
+          // Luôn bổ sung mốc thời gian nộp bài khảo sát ban đầu từ Kỹ sư hiện trường
+          if (report.created_at || report.survey_date) {
+            const hasSubmitLog = historyItems.some((h: any) => h.action === 'SURVEYOR_SUBMIT_REPORT');
+            if (!hasSubmitLog) {
+              historyItems.push({
+                id: `init_${actualReportId}`,
+                action: 'SURVEYOR_SUBMIT_REPORT',
+                performedByName: report.surveyor_name || 'Kỹ sư khảo sát hiện trường',
+                performedByRole: 'SURVEYOR',
+                createdAt: report.created_at || report.survey_date,
+                clientIp: undefined,
+                editReason: 'Hoàn tất biên bản khảo sát hiện trường và nộp hồ sơ lên hệ thống',
+                diff: [],
+                rawPayload: {
+                  surveyDate: report.survey_date,
+                  status: report.status,
+                  surveyorCode: report.surveyor_code,
+                  defectCount: report.defect_count,
+                  burlandCategory: report.burland_damage_category,
+                },
+              });
+            }
+          }
+
+          // Sắp xếp thời gian giảm dần (mới nhất lên đầu)
+          return historyItems.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
         } catch (e: any) {
           console.warn('⚠️ [AUDIT SERVICE] system_audit_logs query fallback:', e?.message);
           return [];
@@ -844,6 +872,27 @@ export class AuditReviewService {
         [actualReportId, adminId]
       );
 
+      // Ghi nhận nhật ký kiểm toán hệ thống phê duyệt
+      await client.query(
+        `INSERT INTO system_audit_logs (
+           entity_type, entity_id, action, performed_by_user_id, diff_payload
+         ) VALUES ($1, $2, $3, $4, $5);`,
+        [
+          'BASE_SURVEY_REPORT',
+          actualReportId,
+          'ZONE_ADMIN_APPROVE_REPORT',
+          adminId,
+          JSON.stringify({
+            reportId: actualReportId,
+            parcelId: actualParcelId,
+            status: 'APPROVED',
+            judgementNotes: judgementNotes || null,
+            officialPdfUrl,
+            timestamp: new Date().toISOString(),
+          }),
+        ]
+      );
+
       return {
         reportId: actualReportId,
         parcelId: actualParcelId,
@@ -901,6 +950,26 @@ export class AuditReviewService {
         );
       }
 
+      // Ghi nhận nhật ký kiểm toán hệ thống trả về
+      await client.query(
+        `INSERT INTO system_audit_logs (
+           entity_type, entity_id, action, performed_by_user_id, diff_payload
+         ) VALUES ($1, $2, $3, $4, $5);`,
+        [
+          'BASE_SURVEY_REPORT',
+          actualReportId,
+          'ZONE_ADMIN_REJECT_REPORT',
+          adminId,
+          JSON.stringify({
+            reportId: actualReportId,
+            parcelId: actualParcelId,
+            status: 'REJECTED',
+            rejectionReason,
+            timestamp: new Date().toISOString(),
+          }),
+        ]
+      );
+
       return {
         reportId: actualReportId,
         parcelId: actualParcelId,
@@ -921,7 +990,7 @@ export class AuditReviewService {
     reason?: string,
     unitId?: string | null
   ) {
-    return Database.transaction(async (client) => {
+    const result = await Database.transaction(async (client) => {
       let targetUnitId = unitId || null;
       let targetParcelId: string | null = null;
       let targetReportId: string | null = null;
@@ -1029,6 +1098,22 @@ export class AuditReviewService {
         message: 'Đã chuyển trạng thái hồ sơ về "Đang làm dở" thành công. Khảo sát viên có thể chỉnh sửa thông tin.',
       };
     });
+
+    if (result.reportId) {
+      try {
+        const { AuditVersionService } = await import('./audit-version.service');
+        await AuditVersionService.createSnapshot(result.reportId, {
+          versionTag: 'REVERT_TO_DRAFT',
+          title: 'Mở lại hồ sơ khảo sát / Chuyển về Làm dở',
+          editReason: reason || 'Admin chuyển trạng thái về Đang làm dở',
+          userId: adminId,
+        });
+      } catch (snapErr) {
+        console.error('[revertReportToDraft] Không thể tạo snapshot phiên bản:', snapErr);
+      }
+    }
+
+    return result;
   }
 
   static async getProgressAnalytics(zoneId?: string) {

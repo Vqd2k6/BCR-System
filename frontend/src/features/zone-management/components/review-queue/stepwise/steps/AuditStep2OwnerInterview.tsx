@@ -1,5 +1,5 @@
-import React from 'react';
-import { Layers, History, ShieldAlert, FileText, Maximize2, Sparkles, AlertCircle, Building, Ruler, Calendar } from 'lucide-react';
+import React, { useRef } from 'react';
+import { Layers, History, ShieldAlert, FileText, Maximize2, Sparkles, AlertCircle, Building, Ruler, Calendar, Upload, Trash2, RefreshCw } from 'lucide-react';
 import {
   STRUCTURE_SYSTEMS,
   FOUNDATION_TYPES,
@@ -12,7 +12,7 @@ import {
   FIRE_FLOOD_OPTIONS,
 } from '../../../../../survey-phase1/constants/historyInterviewConstants';
 
-import type { AuditStepwiseFormState, StepwiseHistoryInterview } from '../types';
+import type { AuditStepwiseFormState, StepwiseHistoryInterview, PhotoReplaceParams, AuditPhotoActionParams } from '../types';
 
 interface Props {
   isEditMode: boolean;
@@ -20,6 +20,9 @@ interface Props {
   handleFieldChange: (key: string, label: string, val: unknown) => void;
   handleNestedFieldChange: (parentKey: string, childKey: string, label: string, val: unknown) => void;
   onOpenPhotoZoom?: (url: string, title?: string, photoCode?: string) => void;
+  onOpenPhotoReplace?: (params: PhotoReplaceParams) => void;
+  onOpenPhotoAction?: (params: AuditPhotoActionParams) => void;
+  isFieldDirty?: (fieldKey: string, subKey?: string) => boolean;
 }
 
 export const AuditStep2OwnerInterview: React.FC<Props> = ({
@@ -28,6 +31,9 @@ export const AuditStep2OwnerInterview: React.FC<Props> = ({
   handleFieldChange,
   handleNestedFieldChange,
   onOpenPhotoZoom,
+  onOpenPhotoReplace,
+  onOpenPhotoAction,
+  isFieldDirty,
 }) => {
   const hi: StepwiseHistoryInterview = formState.historyInterview || {};
 
@@ -54,20 +60,109 @@ export const AuditStep2OwnerInterview: React.FC<Props> = ({
 
   const catScore = formState.foundationCatScore ?? 3;
 
+  const asBuiltFileInputRef = useRef<HTMLInputElement | null>(null);
+  const replaceDrawingIndexRef = useRef<number | null>(null);
+  const replaceDrawingInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleUploadDrawing = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    Array.from(files).forEach((file) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const resultUrl = reader.result as string;
+        const newDrawing = {
+          url: resultUrl,
+          photoCode: `AS_BUILT_${Date.now().toString().slice(-4)}`,
+          notes: file.name,
+        };
+        const nextList = [...asBuiltPhotos, newDrawing];
+        handleFieldChange('asBuiltDrawingPhotos', 'Bản vẽ hoàn công', nextList);
+        if (!formState.asBuiltDrawingPhotoUrl) {
+          handleFieldChange('asBuiltDrawingPhotoUrl', 'URL bản vẽ hoàn công', resultUrl);
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+
+    if (e.target) e.target.value = '';
+  };
+
+  const handleTriggerReplaceDrawing = (index: number) => {
+    replaceDrawingIndexRef.current = index;
+    replaceDrawingInputRef.current?.click();
+  };
+
+  const handleReplaceDrawing = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    const targetIdx = replaceDrawingIndexRef.current;
+    if (!file || targetIdx === null || targetIdx === undefined) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const resultUrl = reader.result as string;
+      const nextList = [...asBuiltPhotos];
+      nextList[targetIdx] = {
+        ...nextList[targetIdx],
+        url: resultUrl,
+        notes: file.name,
+      };
+      handleFieldChange('asBuiltDrawingPhotos', 'Bản vẽ hoàn công', nextList);
+      if (targetIdx === 0) {
+        handleFieldChange('asBuiltDrawingPhotoUrl', 'URL bản vẽ hoàn công', resultUrl);
+      }
+    };
+    reader.readAsDataURL(file);
+
+    if (e.target) e.target.value = '';
+    replaceDrawingIndexRef.current = null;
+  };
+
+  const handleDeleteDrawing = (index: number) => {
+    if (!window.confirm(`Bạn có chắc muốn xóa bản vẽ hoàn công số ${index + 1}?`)) return;
+    const nextList = asBuiltPhotos.filter((_, idx) => idx !== index);
+    handleFieldChange('asBuiltDrawingPhotos', 'Bản vẽ hoàn công', nextList);
+    if (index === 0) {
+      handleFieldChange('asBuiltDrawingPhotoUrl', 'URL bản vẽ hoàn công', nextList[0]?.url || '');
+    }
+  };
+
+  const checkDirty = (fieldKey: string, subKey?: string) => {
+    return isFieldDirty ? isFieldDirty(fieldKey, subKey) : false;
+  };
+
   return (
-    <section id="step-2" className="scroll-mt-6 bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+    <section id="step-3" className="scroll-mt-6 bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+      {/* Hidden file inputs for as-built drawings */}
+      <input
+        ref={asBuiltFileInputRef}
+        type="file"
+        accept="image/*,application/pdf"
+        multiple
+        className="hidden"
+        onChange={handleUploadDrawing}
+      />
+      <input
+        ref={replaceDrawingInputRef}
+        type="file"
+        accept="image/*,application/pdf"
+        className="hidden"
+        onChange={handleReplaceDrawing}
+      />
+
       {/* Header */}
       <div className="p-4 sm:p-5 bg-slate-50/80 border-b border-slate-100 flex items-center justify-between">
         <div className="flex items-center gap-2.5">
           <span className="px-2 py-0.5 rounded-lg bg-sky-600 text-white font-mono font-black text-xs">
-            Bước 02
+            Bước 03
           </span>
           <div>
             <h3 className="text-sm sm:text-base font-black text-slate-800">
-              Kiến Trúc, Kết Cấu Chịu Lực, Nền Móng & Phỏng Vấn Chủ Hộ
+              Kết Cấu Công Trình, Nền Móng & Phỏng Vấn Chủ Hộ
             </h3>
             <p className="text-[11px] text-slate-500">
-              Đánh giá tải trọng, độ cứng uốn, phân loại CAT móng và tiền sử cộng hưởng hư hại
+              Đánh giá tải trọng, độ cứng uốn, phân loại CAT móng, bản vẽ hoàn công và tiền sử cộng hưởng hư hại
             </p>
           </div>
         </div>
@@ -83,12 +178,12 @@ export const AuditStep2OwnerInterview: React.FC<Props> = ({
       </div>
 
       <div className="p-5 space-y-6">
-        {/* 2.1. HÌNH HỌC QUY MÔ KIẾN TRÚC CÔNG TRÌNH */}
+        {/* 3.1. HÌNH HỌC QUY MÔ KIẾN TRÚC CÔNG TRÌNH */}
         <div className="space-y-3">
           <div className="flex items-center justify-between pb-2 border-b border-slate-100">
             <div className="flex items-center gap-1.5 text-xs font-black uppercase text-slate-800 tracking-wider">
               <Building className="w-4 h-4 text-sky-600" />
-              <span>2.1. Hình Học Quy Mô Kiến Trúc Công Trình</span>
+              <span>3.1. Hình Học Quy Mô Kiến Trúc Công Trình</span>
             </div>
             <span className="text-[11px] font-bold text-sky-700 bg-sky-50 px-2 py-0.5 rounded-md border border-sky-200">
               Cơ sở tính tải trọng và độ cứng uốn
@@ -204,12 +299,12 @@ export const AuditStep2OwnerInterview: React.FC<Props> = ({
           </div>
         </div>
 
-        {/* 2.2. HỆ KẾT CẤU CHỊU LỰC, NỀN MÓNG & BẢN VẼ HOÀN CÔNG */}
+        {/* 3.2. HỆ KẾT CẤU CHỊU LỰC, NỀN MÓNG & BẢN VẼ HOÀN CÔNG */}
         <div className="space-y-4 pt-3 border-t border-slate-100">
           <div className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center justify-between pb-2 border-b border-slate-100">
             <div className="flex items-center gap-1.5">
               <Layers className="w-4 h-4 text-emerald-600" />
-              <span>2.2. Hệ Kết Cấu Chịu Lực, Chi Tiết Nền Móng & Bản Vẽ Hoàn Công</span>
+              <span>3.2. Hệ Kết Cấu Chịu Lực, Chi Tiết Nền Móng & Bản Vẽ Hoàn Công</span>
             </div>
             <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-lg">
               Phân loại CAT {catScore}/5
@@ -391,31 +486,55 @@ export const AuditStep2OwnerInterview: React.FC<Props> = ({
                   placeholder="Ghi chú chi tiết về tình trạng móng, cừ gia cố, lớp đất nền..."
                 />
               ) : (
-                <div className="text-xs text-slate-700 italic">
-                  {formState.foundationNotes || 'Không có ghi chú nền móng đặc biệt.'}
+                <div className="text-xs text-slate-700">
+                  {formState.foundationNotes || 'Không'}
                 </div>
               )}
             </div>
           </div>
 
           {/* Bản vẽ hoàn công / sơ đồ kết cấu */}
-          <div className="p-3.5 bg-emerald-50/40 rounded-xl border border-emerald-200 space-y-2">
-            <div className="flex items-center justify-between">
+          <div className="p-3.5 bg-emerald-50/40 rounded-xl border border-emerald-200 space-y-3">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-1 border-b border-emerald-100">
               <div className="flex items-center gap-1.5">
                 <FileText className="w-4 h-4 text-emerald-700" />
                 <span className="text-xs font-bold text-emerald-950 uppercase">
-                  Bản Vẽ Hoàn Công / Hồ Sơ Thiết Kế ({asBuiltPhotos.length} ảnh)
+                  Bản Vẽ Hoàn Công / Hồ Sơ Thiết Kế ({asBuiltPhotos.length} ảnh/tài liệu)
                 </span>
               </div>
-              <span className="text-[11px] text-emerald-700 font-semibold">
-                {asBuiltPhotos.length > 0 ? '✓ Đã đính kèm hồ sơ' : 'Chưa có bản vẽ hoàn công'}
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] text-emerald-700 font-semibold">
+                  {asBuiltPhotos.length > 0 ? '✓ Đã đính kèm hồ sơ' : 'Chưa có bản vẽ hoàn công'}
+                </span>
+                {isEditMode && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (onOpenPhotoAction) {
+                        onOpenPhotoAction({
+                          category: 'AS_BUILT',
+                          targetPhotoType: 'AS_BUILT',
+                          targetPhotoId: 'asBuiltDrawingPhotos',
+                          photoTitle: 'Bản vẽ hoàn công / Sơ đồ kết cấu',
+                          initialMode: 'ADD',
+                        });
+                      } else {
+                        asBuiltFileInputRef.current?.click();
+                      }
+                    }}
+                    className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold flex items-center gap-1 shadow-2xs cursor-pointer transition-colors"
+                  >
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>Tải Lên Bản Vẽ</span>
+                  </button>
+                )}
+              </div>
             </div>
 
             {isEditMode && (
               <div className="p-2.5 bg-white rounded-lg border border-emerald-300 space-y-1.5">
                 <label className="text-[11px] font-bold text-emerald-900 block">
-                  Đường dẫn (URL) bản vẽ hoàn công / sơ đồ kết cấu:
+                  Đường dẫn (URL) bản vẽ hoàn công / sơ đồ kết cấu (tùy chọn nhập tay):
                 </label>
                 <input
                   type="text"
@@ -428,33 +547,95 @@ export const AuditStep2OwnerInterview: React.FC<Props> = ({
             )}
 
             {asBuiltPhotos.length > 0 ? (
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
                 {asBuiltPhotos.map((photo, idx) => (
                   <div
                     key={idx}
-                    className="group relative rounded-xl border border-emerald-200 bg-white overflow-hidden cursor-pointer shadow-2xs hover:shadow-md transition-all"
-                    onClick={() => {
-                      if (onOpenPhotoZoom && photo.url) {
-                        onOpenPhotoZoom(photo.url, `Bản vẽ hoàn công trang #${idx + 1}`, photo.photoCode || `AS_BUILT_${idx + 1}`);
-                      }
-                    }}
+                    className="group relative rounded-xl border border-emerald-200 bg-white overflow-hidden shadow-2xs hover:shadow-md transition-all flex flex-col"
                   >
-                    <div className="aspect-4/3 w-full bg-slate-100 flex items-center justify-center overflow-hidden">
+                    <div
+                      className="aspect-4/3 w-full bg-slate-100 flex items-center justify-center overflow-hidden cursor-pointer relative"
+                      onClick={() => {
+                        if (onOpenPhotoZoom && photo.url) {
+                          onOpenPhotoZoom(photo.url, `Bản vẽ hoàn công trang #${idx + 1}`, photo.photoCode || `AS_BUILT_${idx + 1}`);
+                        }
+                      }}
+                    >
                       <img
                         src={photo.url}
                         alt={`Bản vẽ ${idx + 1}`}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                       />
-                    </div>
-                    <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
-                      <Maximize2 className="w-5 h-5 drop-shadow-md" />
-                    </div>
-                    <div className="p-2 bg-white border-t border-slate-100">
-                      <div className="text-[11px] font-bold text-slate-800 truncate">
-                        {photo.photoCode || `Bản vẽ #${idx + 1}`}
+                      <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                        <Maximize2 className="w-5 h-5 drop-shadow-md" />
                       </div>
-                      {photo.notes && (
-                        <div className="text-[10px] text-slate-500 truncate">{photo.notes}</div>
+                    </div>
+                    <div className="p-2 bg-white border-t border-slate-100 flex items-center justify-between gap-1">
+                      <div className="min-w-0 flex-1">
+                        <div className="text-[11px] font-bold text-slate-800 truncate">
+                          {photo.photoCode || `Bản vẽ #${idx + 1}`}
+                        </div>
+                        {photo.notes && (
+                          <div className="text-[10px] text-slate-500 truncate">{photo.notes}</div>
+                        )}
+                      </div>
+                      {isEditMode && (
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            type="button"
+                            title="Thay thế bản vẽ này"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (onOpenPhotoAction && photo.url) {
+                                onOpenPhotoAction({
+                                  category: 'AS_BUILT',
+                                  targetPhotoType: 'AS_BUILT',
+                                  targetPhotoId: 'asBuiltDrawingPhotos',
+                                  photoIndex: idx,
+                                  currentPhotoUrl: photo.url,
+                                  photoTitle: photo.photoCode || `Bản vẽ hoàn công trang #${idx + 1}`,
+                                  initialMode: 'REPLACE',
+                                });
+                              } else if (onOpenPhotoReplace && photo.url) {
+                                onOpenPhotoReplace({
+                                  targetPhotoType: 'AS_BUILT',
+                                  targetPhotoId: 'asBuiltDrawingPhotos',
+                                  photoIndex: idx,
+                                  currentPhotoUrl: photo.url,
+                                  photoTitle: photo.photoCode || `Bản vẽ hoàn công trang #${idx + 1}`,
+                                });
+                              } else {
+                                handleTriggerReplaceDrawing(idx);
+                              }
+                            }}
+                            className="p-1 text-slate-400 hover:text-emerald-700 hover:bg-emerald-50 rounded cursor-pointer"
+                          >
+                            <RefreshCw className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            title="Xóa bản vẽ này"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (onOpenPhotoAction && photo.url) {
+                                onOpenPhotoAction({
+                                  category: 'AS_BUILT',
+                                  targetPhotoType: 'AS_BUILT',
+                                  targetPhotoId: 'asBuiltDrawingPhotos',
+                                  photoIndex: idx,
+                                  currentPhotoUrl: photo.url,
+                                  photoTitle: photo.photoCode || `Bản vẽ hoàn công trang #${idx + 1}`,
+                                  initialMode: 'DELETE',
+                                });
+                              } else {
+                                handleDeleteDrawing(idx);
+                              }
+                            }}
+                            className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -463,19 +644,19 @@ export const AuditStep2OwnerInterview: React.FC<Props> = ({
             ) : (
               !isEditMode && (
                 <div className="p-4 bg-white/80 rounded-lg border border-dashed border-emerald-300 text-center text-xs text-slate-500">
-                  Công trình này không có bản vẽ hoàn công hoặc chưa được tải lên từ hiện trường.
+                  Không có bản vẽ hoàn công
                 </div>
               )
             )}
           </div>
         </div>
 
-        {/* 2.3. LỊCH SỬ CẢI TẠO & 5 CÂU HỎI PHỎNG VẤN CHUẨN HÓA (ĐIỂM E5 RESONANCE) */}
+        {/* 3.3. LỊCH SỬ CẢI TẠO & 5 CÂU HỎI PHỎNG VẤN CHUẨN HÓA (ĐIỂM E5 RESONANCE) */}
         <div className="space-y-4 pt-4 border-t border-slate-100">
           <div className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center justify-between pb-2 border-b border-slate-100">
             <div className="flex items-center gap-1.5">
               <History className="w-4 h-4 text-sky-600" />
-              <span>2.3. Lịch Sử Sửa Chữa & Biến Dạng Quá Khứ (Điểm E5 Resonance)</span>
+              <span>3.3. Lịch Sử Sửa Chữa & Biến Dạng Quá Khứ (Điểm E5 Resonance)</span>
             </div>
             {isResonance && (
               <span className="text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-lg flex items-center gap-1">

@@ -329,7 +329,7 @@ export const StructuralElementsSection: React.FC<StructuralElementsSectionProps>
             </div>
 
         {structuralElements.length > 0 && (
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar">
+          <div className="flex items-center gap-2 overflow-x-auto max-w-full min-w-0 pb-1 no-scrollbar touch-pan-x">
             {structuralElements.map((el, idx) => {
               const isSelected = activeElementIndex === idx;
               const hasDefects = el.defects && el.defects.length > 0;
@@ -383,9 +383,9 @@ export const StructuralElementsSection: React.FC<StructuralElementsSectionProps>
         ) : activeElement ? (
           <div id="step3-active-element-card" className="p-3 sm:p-4 bg-amber-50/20 rounded-2xl border border-amber-200/80 space-y-3.5">
             {/* Header card E */}
-            <div className="flex items-center justify-between pb-2 border-b border-amber-200">
-              <div className="flex items-center gap-2">
-                <div className="flex items-center gap-1">
+            <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-amber-200 min-w-0">
+              <div className="flex flex-wrap items-center gap-2 min-w-0 flex-1">
+                <div className="flex items-center gap-1 shrink-0">
                   {isReadOnly ? (
                     <span className="px-2 py-0.5 rounded-lg bg-amber-700 text-white font-mono text-xs font-extrabold">
                       {activeElement.elementCode}
@@ -405,28 +405,30 @@ export const StructuralElementsSection: React.FC<StructuralElementsSectionProps>
                           }
                         }
                       }}
-                      className="px-2 py-0.5 rounded-lg bg-amber-700 text-white font-mono text-xs font-extrabold w-20 border border-amber-500 uppercase focus:ring-1 focus:ring-amber-300"
+                      className="px-2 py-0.5 rounded-lg bg-amber-700 text-white font-mono text-xs font-extrabold w-16 sm:w-20 border border-amber-500 uppercase focus:ring-1 focus:ring-amber-300"
                       title="Mã Vùng E (đồng bộ với ghim trên sơ đồ CAD)"
                     />
                   )}
                 </div>
-                <span className="text-sm font-bold text-slate-800">
+                <span className="text-xs sm:text-sm font-bold text-slate-800 truncate max-w-[180px] sm:max-w-none">
                   Khảo Sát Kết Cấu: {activeElement.elementType} ({activeElement.roomName})
                 </span>
-                {activeElement.defects && activeElement.defects.length > 0 ? (
-                  <Badge variant="danger">
-                    {activeElement.defects.length} khuyết tật kết cấu D
-                  </Badge>
-                ) : (
-                  <Badge variant="success">Kết cấu ổn định • Nguyên vẹn</Badge>
-                )}
+                <div className="shrink-0">
+                  {activeElement.defects && activeElement.defects.length > 0 ? (
+                    <Badge variant="danger">
+                      {activeElement.defects.length} khuyết tật kết cấu D
+                    </Badge>
+                  ) : (
+                    <Badge variant="success">Kết cấu ổn định • Nguyên vẹn</Badge>
+                  )}
+                </div>
               </div>
 
               {!isReadOnly && (
                 <button
                   type="button"
                   onClick={() => onDeleteElement(activeElementIndex)}
-                  className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                  className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer shrink-0"
                   title="Xóa Vùng E"
                 >
                   <Trash2 className="w-4 h-4" />
@@ -439,14 +441,14 @@ export const StructuralElementsSection: React.FC<StructuralElementsSectionProps>
               {/* Line sáng hổ phách trên đỉnh container */}
               <div className="absolute -top-[1px] left-3 right-3 h-[2px] bg-gradient-to-r from-amber-400 via-orange-300 to-amber-500 rounded-full shadow-[0_0_8px_rgba(245,158,11,0.7)]" />
 
-              <div className="flex items-center justify-between">
+              <div className="flex flex-wrap items-center justify-between gap-1.5 min-w-0">
                 <div className="flex items-center gap-1.5 text-xs font-bold text-amber-950">
-                  <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                  <Sparkles className="w-3.5 h-3.5 text-amber-600 shrink-0" />
                   <span>Thông số định danh & kết cấu cấu kiện</span>
                 </div>
                 {activeElementIndex === 0 && structuralElements.length > 1 && (
-                  <span className="text-[10px] font-semibold text-amber-800 bg-amber-100/80 px-2 py-0.5 rounded-full border border-amber-200">
-                    Gốc mẫu ({activeElement.elementCode}) - Tự động kế thừa sang các cấu kiện E sau
+                  <span className="text-[10px] font-semibold text-amber-800 bg-amber-100/80 px-2 py-0.5 rounded-full border border-amber-200 shrink-0">
+                    Gốc mẫu ({activeElement.elementCode}) - Kế thừa sang các E sau
                   </span>
                 )}
               </div>
@@ -561,14 +563,14 @@ export const StructuralElementsSection: React.FC<StructuralElementsSectionProps>
 
             {/* Chụp nhiều ảnh tổng quan cấu kiện E */}
             <div className="p-2.5 sm:p-3 bg-white rounded-xl border border-amber-200/60 space-y-2.5 shadow-2xs">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Camera className="w-4 h-4 text-amber-700" />
-                  <span className="text-xs font-bold text-slate-800">
+              <div className="flex flex-wrap items-center justify-between gap-1.5 min-w-0">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Camera className="w-4 h-4 text-amber-700 shrink-0" />
+                  <span className="text-xs font-bold text-slate-800 truncate">
                     Ảnh Tổng Quan Cấu Kiện ({activeElement.elementCode} - {activeElement.elementType})
                   </span>
                 </div>
-                <span className="text-[11px] text-slate-500">
+                <span className="text-[11px] text-slate-500 shrink-0">
                   Đã chụp: {activeElement.overviewPhotos?.length || 0} ảnh
                 </span>
               </div>
@@ -728,7 +730,7 @@ export const StructuralElementsSection: React.FC<StructuralElementsSectionProps>
             </div>
 
             {/* Navigation giữa các E */}
-            <div className="flex items-center justify-between pt-2 border-t border-amber-200">
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-amber-200 min-w-0">
               <Button
                 size="sm"
                 variant="outline"

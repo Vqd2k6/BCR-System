@@ -654,7 +654,7 @@ export const Step3_FloorHierarchySurvey: React.FC = () => {
   const pinningElementObj = structuralElements.find((e) => e.id === pinningElementId);
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto pb-12">
+    <div className="space-y-6 w-full max-w-4xl mx-auto pb-12 min-w-0">
       {/* Header & Tabs Tầng */}
       <FloorTabsNavigation
         floors={formData.floors}

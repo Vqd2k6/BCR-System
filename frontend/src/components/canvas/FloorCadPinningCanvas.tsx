@@ -104,6 +104,7 @@ export const FloorCadPinningCanvas: React.FC<Props> = ({
     calculateNormalizedCoords,
     transformStyle,
     pinCounterScale,
+    containerTouchAction,
   } = useInteractiveCanvasZoom();
 
   React.useEffect(() => {
@@ -243,7 +244,7 @@ export const FloorCadPinningCanvas: React.FC<Props> = ({
   };
 
   return (
-    <div className="flex flex-col gap-3 w-full bg-white">
+    <div className="flex flex-col gap-3 w-full max-w-full min-w-0 bg-white">
       {/* Upload/Capture CAD Sketch */}
       {!cadPhotoUrl ? (
         <PhotoCaptureInput
@@ -360,47 +361,61 @@ export const FloorCadPinningCanvas: React.FC<Props> = ({
           {/* Interactive CAD Canvas - Clean Light Theme */}
           <div
             ref={containerRef}
+            data-zoomable-canvas="true"
             onWheel={handleWheel}
             onTouchStart={handleTouchStart}
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
-            className={`relative w-full min-h-[320px] max-h-[560px] rounded-xl overflow-hidden bg-slate-100 border border-slate-300 select-none shadow-inner flex items-center justify-center p-1 sm:p-2 ${
+            style={{ touchAction: containerTouchAction }}
+            className={`relative w-full max-w-full min-h-[320px] max-h-[560px] rounded-xl overflow-hidden bg-slate-100 border border-slate-300 select-none shadow-inner flex items-center justify-center p-1 sm:p-2 ${
               isAddingPin ? 'ring-2 ring-emerald-500/30' : ''
             }`}
           >
             {/* Quick floating actions on top-right of canvas */}
             <div
-              className="absolute top-2.5 right-2.5 flex items-center gap-1.5 z-40 bg-slate-900/80 backdrop-blur-xs p-1 rounded-lg border border-white/20 shadow-md"
+              className="absolute top-2 right-2 sm:top-2.5 sm:right-2.5 flex items-center gap-1 sm:gap-1.5 z-40 bg-slate-900/85 backdrop-blur-xs p-1 rounded-lg border border-white/20 shadow-md max-w-[calc(100%-16px)] flex-wrap justify-end"
               onClick={(e) => e.stopPropagation()}
             >
+              {zoomScale > 1.05 && (
+                <button
+                  type="button"
+                  onClick={handleResetZoom}
+                  className="px-1.5 sm:px-2 py-1 bg-emerald-600/90 hover:bg-emerald-600 text-white rounded text-[11px] font-bold flex items-center gap-1 transition-all shadow-xs shrink-0 cursor-pointer"
+                  title="Đưa tỷ lệ thu phóng về 100% ban đầu"
+                >
+                  <RefreshCw className="w-3 h-3" />
+                  <span>100%</span>
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => setIsZoomOpen(true)}
-                className="px-2 py-1 bg-white/10 hover:bg-white/20 text-white rounded text-[11px] font-medium flex items-center gap-1 transition-all"
+                className="px-1.5 sm:px-2 py-1 bg-white/10 hover:bg-white/20 text-white rounded text-[11px] font-medium flex items-center gap-1 transition-all shrink-0 cursor-pointer"
                 title="Phóng to sơ đồ CAD mặt bằng"
               >
                 <ZoomIn className="w-3 h-3 text-emerald-300" />
-                <span>Phóng to CAD</span>
+                <span className="hidden sm:inline">Phóng to CAD</span>
+                <span className="sm:hidden">Phóng to</span>
               </button>
               {!readOnly && (
                 <>
                   <button
                     type="button"
                     onClick={() => handleDeleteOrRetakeCadPhoto(true)}
-                    className="px-2 py-1 bg-white/10 hover:bg-white/20 text-white rounded text-[11px] font-medium flex items-center gap-1 transition-all"
+                    className="px-1.5 sm:px-2 py-1 bg-white/10 hover:bg-white/20 text-white rounded text-[11px] font-medium flex items-center gap-1 transition-all shrink-0 cursor-pointer"
                     title="Đổi hoặc chụp lại sơ đồ CAD"
                   >
                     <Camera className="w-3 h-3 text-blue-300" />
-                    <span>Đổi ảnh</span>
+                    <span className="hidden sm:inline">Đổi ảnh</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => handleDeleteOrRetakeCadPhoto(false)}
-                    className="px-2 py-1 bg-red-600/70 hover:bg-red-600 text-white rounded text-[11px] font-medium flex items-center gap-1 transition-all"
+                    className="px-1.5 sm:px-2 py-1 bg-red-600/70 hover:bg-red-600 text-white rounded text-[11px] font-medium flex items-center gap-1 transition-all shrink-0 cursor-pointer"
                     title="Xóa ảnh sơ đồ CAD này"
                   >
                     <Trash2 className="w-3 h-3 text-red-200" />
-                    <span>Xóa ảnh</span>
+                    <span className="hidden sm:inline">Xóa ảnh</span>
                   </button>
                 </>
               )}
@@ -413,8 +428,11 @@ export const FloorCadPinningCanvas: React.FC<Props> = ({
                 onPointerDown={handleTightBoxPointerDown}
                 onPointerMove={handleTightBoxPointerMove}
                 onPointerUp={handleTightBoxPointerUp}
-                style={transformStyle}
-                className={`relative inline-block max-w-full leading-none mx-auto select-none touch-none ${
+                style={{
+                  ...transformStyle,
+                  touchAction: zoomScale > 1.05 ? 'none' : 'pan-y'
+                }}
+                className={`relative inline-block max-w-full leading-none mx-auto select-none ${
                   isAddingPin ? 'cursor-crosshair' : 'cursor-grab'
                 }`}
               >

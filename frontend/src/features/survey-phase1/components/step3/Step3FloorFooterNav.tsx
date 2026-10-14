@@ -20,28 +20,29 @@ export const Step3FloorFooterNav: React.FC<Step3FloorFooterNavProps> = ({
   onAddFloor,
 }) => {
   return (
-    <div className="p-3.5 rounded-xl border border-slate-200 bg-white shadow-xs flex items-center justify-between text-xs">
+    <div className="p-3 sm:p-3.5 rounded-xl border border-slate-200 bg-white shadow-xs flex flex-wrap items-center justify-between gap-2 text-xs">
       <Button
         size="sm"
         variant="outline"
         disabled={activeFloorIndex === 0}
         onClick={onPrevFloor}
+        className="shrink-0"
       >
         ⬅️ Tầng trước
       </Button>
 
-      <span className="font-bold text-slate-700">
+      <span className="font-bold text-slate-700 text-center min-w-0 truncate max-w-[200px] sm:max-w-none order-first sm:order-none w-full sm:w-auto">
         Đang khảo sát: {floorName} ({activeFloorIndex + 1}/{totalFloors})
       </span>
 
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 shrink-0 ml-auto sm:ml-0">
         {activeFloorIndex < totalFloors - 1 ? (
           <Button size="sm" variant="outline" onClick={onNextFloor}>
             Tầng tiếp theo ➔
           </Button>
         ) : (
           <Button size="sm" icon={<Plus className="w-3.5 h-3.5" />} onClick={onAddFloor}>
-            Thêm Tầng Mới
+            Thêm Tầng
           </Button>
         )}
       </div>

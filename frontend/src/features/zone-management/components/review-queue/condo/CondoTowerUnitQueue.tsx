@@ -30,7 +30,7 @@ interface Props {
   onOpenReassignModal: (item: PendingSubmissionItem) => void;
   onOpenMutationModal: (item: PendingSubmissionItem) => void;
   onOpenReshapeModal?: (item: PendingSubmissionItem) => void;
-  onOpenAuditHistory: (reportId: string) => void;
+  onOpenAuditHistory: (reportId: string, itemCode?: string) => void;
   onStatsNeedRefresh?: () => void;
 }
 
@@ -366,31 +366,36 @@ export const CondoTowerUnitQueue: React.FC<Props> = ({
           <table className="w-full text-left border-collapse text-xs">
             <thead>
               <tr className="bg-slate-50 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 border-b border-slate-200 dark:border-slate-800 font-bold uppercase text-[11px] tracking-wider">
-                <th className="py-3 px-4 w-12 text-center">
-                  <input
-                    type="checkbox"
-                    checked={isAllEligibleSelected}
-                    onChange={(e) => handleSelectAllEligible(e.target.checked)}
-                    disabled={eligibleBatchItems.length === 0}
-                    className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-                    title={
-                      eligibleBatchItems.length > 0
-                        ? `Chọn tất cả ${eligibleBatchItems.length} căn Grade 0 đủ điều kiện duyệt hàng loạt`
-                        : 'Không có căn Grade 0 nào đủ điều kiện duyệt hàng loạt'
-                    }
-                  />
+                <th className="py-3 px-3 w-16 text-center">
+                  <div className="flex items-center justify-center gap-1.5">
+                    <input
+                      type="checkbox"
+                      checked={isAllEligibleSelected}
+                      onChange={(e) => handleSelectAllEligible(e.target.checked)}
+                      disabled={eligibleBatchItems.length === 0}
+                      className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                      title={
+                        eligibleBatchItems.length > 0
+                          ? `Chọn tất cả ${eligibleBatchItems.length} căn Grade 0 đủ điều kiện duyệt hàng loạt`
+                          : 'Không có căn Grade 0 nào đủ điều kiện duyệt hàng loạt'
+                      }
+                    />
+                    <span>STT</span>
+                  </div>
                 </th>
-                <th className="py-3 px-4">Mã Hạng Mục / Căn Hộ</th>
-                <th className="py-3 px-4">Kỹ Sư Khảo Sát</th>
-                <th className="py-3 px-4">Cấp Khuyết Tật (Burland)</th>
-                <th className="py-3 px-4">Trạng Thái & Người Duyệt</th>
-                <th className="py-3 px-4 text-right">Thao Tác Thẩm Định</th>
+                <th className="py-3 px-3">Mã Hạng Mục / Căn Hộ</th>
+                <th className="py-3 px-3">Địa Chỉ & Chủ Hộ</th>
+                <th className="py-3 px-3">Kỹ Sư Khảo Sát</th>
+                <th className="py-3 px-3 text-center">Cấp Khuyết Tật (Burland)</th>
+                <th className="py-3 px-3 text-center">Trạng Thái & Người Duyệt</th>
+                <th className="py-3 px-3 text-center">Khuyết Tật & Quy Cách</th>
+                <th className="py-3 px-3 text-right">Thao Tác Thẩm Định</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="py-16 text-center text-slate-400">
+                  <td colSpan={8} className="py-16 text-center text-slate-400">
                     <div className="flex flex-col items-center justify-center gap-2">
                       <RefreshCw className="w-6 h-6 animate-spin text-indigo-600" />
                       <span className="font-semibold text-xs">Đang tải danh sách căn hộ...</span>
@@ -399,7 +404,7 @@ export const CondoTowerUnitQueue: React.FC<Props> = ({
                 </tr>
               ) : paginatedItems.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-16 text-center text-slate-400">
+                  <td colSpan={8} className="py-16 text-center text-slate-400">
                     <div className="flex flex-col items-center justify-center gap-2">
                       <DoorOpen className="w-10 h-10 text-slate-300 dark:text-slate-700" />
                       <span className="font-bold text-slate-600 dark:text-slate-400">
@@ -419,16 +424,12 @@ export const CondoTowerUnitQueue: React.FC<Props> = ({
                   return (
                     <ReviewQueueTableRow
                       key={item.report_id || item.unit_id || index}
+                      stt={(currentPage - 1) * pageSize + index + 1}
                       item={item}
                       selectable={isSelectable}
                       selected={isChecked}
                       onSelect={handleSelectRow}
                       onOpenStudio={onOpenStudio}
-                      onPreviewReport={onPreviewReport}
-                      onOpenRejectModal={onOpenRejectModal}
-                      onOpenReassignModal={onOpenReassignModal}
-                      onOpenMutationModal={onOpenMutationModal}
-                      onOpenReshapeModal={onOpenReshapeModal}
                       onOpenAuditHistory={onOpenAuditHistory}
                     />
                   );

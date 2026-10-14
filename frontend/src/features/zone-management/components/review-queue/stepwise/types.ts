@@ -1,9 +1,26 @@
 import type { PhotoReplaceParams } from '../AuditPhotoReplaceModal';
+import type { PhotoActionMode, PhotoActionPayload } from '../AuditPhotoActionModal';
 import type { FloorSurveyData, DamageZoneData, DefectItem, CadZonePin, PolygonPoint } from '../../../../survey-phase1/types/phase1.types';
 import type { AuditHistoryLogItem } from '../AuditHistoryModal';
 import type { RiskCardData } from '../EngineeringJudgementModal';
 
-export type { PhotoReplaceParams, RiskCardData };
+export type { PhotoReplaceParams, RiskCardData, PhotoActionMode, PhotoActionPayload };
+
+export interface AuditPhotoActionParams {
+  initialMode?: PhotoActionMode;
+  category: string;
+  targetPhotoType: string;
+  targetPhotoId?: string;
+  defectId?: string;
+  defectCode?: string;
+  hasMultiplePhotos?: boolean;
+  currentPhotoUrl?: string;
+  currentPhotoCode?: string;
+  photoTitle?: string;
+  floorCode?: string;
+  zoneCode?: string;
+  photoIndex?: number;
+}
 
 export interface StepwiseIdentificationPhotoItem {
   url?: string;
@@ -319,7 +336,9 @@ export interface AuditStepBaseProps {
   handleNestedFieldChange?: (parentKey: string, childKey: string, label: string, val: unknown) => void;
   onOpenPhotoZoom: (url: string, title?: string, photoCode?: string) => void;
   onOpenPhotoReplace: (params: PhotoReplaceParams) => void;
+  onOpenPhotoAction?: (params: AuditPhotoActionParams) => void;
   onRefresh?: () => void;
+  isFieldDirty?: (fieldKey: string, subKey?: string) => boolean;
 }
 
 export interface AuditStep3FloorDefectsProps extends AuditStepBaseProps {
@@ -331,6 +350,7 @@ export interface DiffItem {
   label: string;
   oldValue: unknown;
   newValue: unknown;
+  isPhoto?: boolean;
 }
 
 export interface StepwiseBuildingSpecs {

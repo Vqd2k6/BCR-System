@@ -13,11 +13,14 @@ import {
 } from 'lucide-react';
 import { api } from '../../../../services/api';
 
+import type { PhotoActionPayload } from './AuditPhotoActionModal';
+
 export interface DiffItem {
   field: string;
   label: string;
   oldValue: unknown;
   newValue: unknown;
+  isPhoto?: boolean;
 }
 
 interface Props {
@@ -26,6 +29,7 @@ interface Props {
   parcelCode?: string;
   diffItems: DiffItem[];
   updatesPayload: Record<string, unknown>;
+  photoActions?: PhotoActionPayload[];
   onClose: () => void;
   onSuccess: () => void;
 }
@@ -36,6 +40,7 @@ export const AuditDiffConfirmModal: React.FC<Props> = ({
   parcelCode,
   diffItems,
   updatesPayload,
+  photoActions = [],
   onClose,
   onSuccess,
 }) => {
@@ -67,6 +72,7 @@ export const AuditDiffConfirmModal: React.FC<Props> = ({
         editReason: editReason.trim(),
         diffPayload: diffItems,
         updates: updatesPayload,
+        photoActions: photoActions || [],
       });
 
       if (res.data?.success || res.status === 200) {
@@ -88,6 +94,14 @@ export const AuditDiffConfirmModal: React.FC<Props> = ({
   const formatDisplayValue = (val: unknown) => {
     if (val === null || val === undefined || val === '') {
       return <span className="text-slate-400 italic font-mono">(Trống / Không có)</span>;
+    }
+    if (typeof val === 'string' && (val.startsWith('http') || val.startsWith('data:image/') || val.startsWith('/uploads'))) {
+      return (
+        <div className="flex items-center gap-1.5">
+          <img src={val} alt="thumb" className="w-9 h-9 object-contain rounded border border-slate-200 bg-slate-50 shrink-0" />
+          <span className="font-mono text-[10px] text-slate-500 truncate max-w-[120px]">{val}</span>
+        </div>
+      );
     }
     if (typeof val === 'boolean') {
       return val ? 'Có (True)' : 'Không (False)';

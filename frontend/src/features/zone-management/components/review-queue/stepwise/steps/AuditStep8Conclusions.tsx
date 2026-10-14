@@ -2,12 +2,14 @@ import React from 'react';
 import { FileCheck2, Compass, TrendingUp, AlertTriangle, ShieldCheck, CheckCircle2 } from 'lucide-react';
 import { BRA_MATRIX_LOOKUP } from '../../../../../survey-phase1/engine/braEngine';
 import type { AuditStepwiseFormState, StepwiseExecutiveSummary } from '../types';
+import { ScoreExplanationPopover } from '../components/ScoreExplanationPopover';
 
 interface Props {
   isEditMode: boolean;
   formState: AuditStepwiseFormState;
   handleNestedFieldChange: (parentKey: string, childKey: string, label: string, val: unknown) => void;
   handleFieldChange?: (fieldKey: string, label: string, val: unknown) => void;
+  isFieldDirty?: (fieldKey: string, subKey?: string) => boolean;
 }
 
 export const AuditStep8Conclusions: React.FC<Props> = ({
@@ -15,7 +17,28 @@ export const AuditStep8Conclusions: React.FC<Props> = ({
   formState,
   handleNestedFieldChange,
   handleFieldChange,
+  isFieldDirty,
 }) => {
+  const checkDirty = (fieldKey: string, subKey?: string) => {
+    return isFieldDirty ? isFieldDirty(fieldKey, subKey) : false;
+  };
+
+  const getDirtyClass = (fieldKey: string, subKey?: string) => {
+    return checkDirty(fieldKey, subKey)
+      ? 'ring-2 ring-amber-400 border-amber-500 bg-amber-50/20'
+      : '';
+  };
+
+  const renderDirtyBadge = (fieldKey: string, subKey?: string) => {
+    if (checkDirty(fieldKey, subKey)) {
+      return (
+        <span className="ml-1.5 px-1 py-0.2 rounded text-[9px] font-bold text-amber-700 bg-amber-100 border border-amber-300 inline-block">
+          Đã sửa
+        </span>
+      );
+    }
+    return null;
+  };
   const exec: StepwiseExecutiveSummary = formState.executiveSummary || {};
   const currentBra = (exec.braStatus || 'LOW').toUpperCase();
   const currentImpactStr = exec.constructionImpactStatus || 'I1 (Tác động rất nhẹ)';
@@ -55,10 +78,44 @@ export const AuditStep8Conclusions: React.FC<Props> = ({
         {/* Khối 1: Trạng thái BRA & Tác động thi công */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
-            <span className="text-[11px] font-bold text-slate-600 uppercase flex items-center gap-1.5">
-              <TrendingUp className="w-4 h-4 text-emerald-600" />
-              Đánh Giá Rủi Ro Cơ Sở (BRA Level):
-            </span>
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold text-slate-600 uppercase flex items-center gap-1.5">
+                <TrendingUp className="w-4 h-4 text-emerald-600" />
+                Đánh Giá Rủi Ro Cơ Sở (BRA Level):
+              </span>
+              <ScoreExplanationPopover metric="BRA" />
+            </div>
+            {isEditMode ? (
+              <select
+                value={exec.braStatus || 'LOW'}
+                onChange={(e) =>
+                  handleNestedFieldChange('executiveSummary', 'braStatus', 'Trạng thái BRA', e.target.value)
+                }
+                className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-black text-slate-800"
+              >
+                <option value="LOW">LOW - Nguy cơ rủi ro thấp (An toàn)</option>
+                <option value="MEDIUM">MEDIUM - Nguy cơ rủi ro trung bình</option>
+                <option value="HIGH">HIGH - Nguy cơ rủi ro cao (Cần theo dõi)</option>
+                <option value="VERY_HIGH">VERY_HIGH - Nguy cơ rất cao (Cảnh báo đặc biệt)</option>
+              </select>
+            ) : (
+              <div className="text-base font-black text-slate-900">
+                {exec.braStatus || 'LOW'}
+              </div>
+            )}
+            <p className="text-[11px] text-slate-500">
+              Mức rủi ro tổng hợp dựa trên tính tổn thương công trình (VI) và tác động thi công tuyến Metro.
+            </p>
+          </div>
+
+          <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold text-slate-600 uppercase flex items-center gap-1.5">
+                <Compass className="w-4 h-4 text-sky-600" />
+                Phân Cấp Tác Động Thi Công Metro (Impact):
+              </span>
+              <ScoreExplanationPopover metric="I" />
+            </div>
             {isEditMode ? (
               <select
                 value={exec.braStatus || 'LOW'}
@@ -184,7 +241,7 @@ export const AuditStep8Conclusions: React.FC<Props> = ({
         {/* Khối 3: Tổng hợp khuyết tật chính & Rủi ro */}
         <div>
           <label className="text-[11px] font-bold text-slate-500 uppercase block mb-1">
-            Tổng Hợp Khuyết Tật & Nguy Cơ Kết Cấu Chính Ghi Nhận
+            Tổng Hợp Khuyết Tật & Nguy Cơ Kết Cấu Chính Ghi Nhận {renderDirtyBadge('keyRisksDefectsText') || renderDirtyBadge('executiveSummary', 'keyRisksDefectsText')}
           </label>
           {isEditMode ? (
             <textarea
@@ -194,12 +251,12 @@ export const AuditStep8Conclusions: React.FC<Props> = ({
                 if (handleFieldChange) handleFieldChange('keyRisksDefectsText', 'Tổng hợp khuyết tật', e.target.value);
                 handleNestedFieldChange('executiveSummary', 'keyRisksDefectsText', 'Tổng hợp khuyết tật', e.target.value);
               }}
-              className="w-full p-2.5 bg-amber-50/50 border border-amber-300 rounded-xl text-xs text-slate-800"
+              className={`w-full p-2.5 rounded-xl text-xs text-slate-800 ${getDirtyClass('keyRisksDefectsText') || getDirtyClass('executiveSummary', 'keyRisksDefectsText') || 'bg-amber-50/50 border border-amber-300'}`}
               placeholder="Tóm tắt các khuyết tật đáng lưu ý (vết nứt lớn, võng dầm, lún lệch chân tường...)"
             />
           ) : (
-            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs text-slate-800">
-              {keyRisksDefectsText || 'Chưa ghi nhận khuyết tật nguy hiểm đe dọa trực tiếp đến an toàn chịu lực của công trình.'}
+            <div className={`p-3 rounded-xl text-xs text-slate-800 font-medium ${getDirtyClass('keyRisksDefectsText') || getDirtyClass('executiveSummary', 'keyRisksDefectsText') || 'bg-slate-50 border border-slate-200'}`}>
+              {keyRisksDefectsText || 'Không'}
             </div>
           )}
         </div>
@@ -207,7 +264,7 @@ export const AuditStep8Conclusions: React.FC<Props> = ({
         {/* Khối 4: Kết luận tóm tắt tổng thể hiện trạng */}
         <div>
           <label className="text-[11px] font-bold text-slate-500 uppercase block mb-1">
-            Kết Luận Tóm Tắt Hiện Trạng Toàn Diện
+            Kết Luận Tóm Tắt Hiện Trạng Toàn Diện {renderDirtyBadge('summaryConclusions') || renderDirtyBadge('executiveSummary', 'summaryConclusions')}
           </label>
           {isEditMode ? (
             <textarea
@@ -217,12 +274,12 @@ export const AuditStep8Conclusions: React.FC<Props> = ({
                 if (handleFieldChange) handleFieldChange('summaryConclusions', 'Kết luận tổng thể', e.target.value);
                 handleNestedFieldChange('executiveSummary', 'summaryConclusions', 'Kết luận tổng thể', e.target.value);
               }}
-              className="w-full p-2.5 bg-amber-50/50 border border-amber-300 rounded-xl text-xs text-slate-800"
+              className={`w-full p-2.5 rounded-xl text-xs text-slate-800 ${getDirtyClass('summaryConclusions') || getDirtyClass('executiveSummary', 'summaryConclusions') || 'bg-amber-50/50 border border-amber-300'}`}
               placeholder="Kết luận tổng quan về hiện trạng công trình trước khi thi công tuyến Metro..."
             />
           ) : (
-            <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs text-slate-800">
-              {summaryConclusions || 'Công trình đủ điều kiện an toàn, duy trì trạng thái ổn định trước khi triển khai thi công đoạn hầm lân cận.'}
+            <div className={`p-3 rounded-xl text-xs text-slate-800 font-medium ${getDirtyClass('summaryConclusions') || getDirtyClass('executiveSummary', 'summaryConclusions') || 'bg-slate-50 border border-slate-200'}`}>
+              {summaryConclusions || 'Không'}
             </div>
           )}
         </div>
@@ -230,7 +287,7 @@ export const AuditStep8Conclusions: React.FC<Props> = ({
         {/* Khối 5: Khuyến nghị kỹ thuật của Kỹ sư Zone */}
         <div>
           <label className="text-[11px] font-bold text-slate-500 uppercase block mb-1">
-            Khuyến Nghị Kỹ Thuật Của Kỹ Sư Zone Phụ Trách Thẩm Định
+            Khuyến Nghị Kỹ Thuật Của Kỹ Sư Zone Phụ Trách Thẩm Định {renderDirtyBadge('executiveSummary', 'specificRecommendationsText')}
           </label>
           {isEditMode ? (
             <textarea
@@ -244,12 +301,12 @@ export const AuditStep8Conclusions: React.FC<Props> = ({
                   e.target.value
                 )
               }
-              className="w-full p-2.5 bg-amber-50/50 border border-amber-300 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500"
+              className={`w-full p-2.5 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-amber-500 ${getDirtyClass('executiveSummary', 'specificRecommendationsText') || 'bg-amber-50/50 border border-amber-300'}`}
               placeholder="Nhập khuyến nghị kỹ thuật, cảnh báo hoặc lưu ý cho nhà thầu TBM..."
             />
           ) : (
-            <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 text-xs text-slate-800 leading-relaxed">
-              {exec.specificRecommendationsText || 'Công trình duy trì theo dõi định kỳ trong quá trình khiên đào TBM vận hành. Không có yêu cầu xử lý kết cấu khẩn cấp.'}
+            <div className={`p-3.5 rounded-xl text-xs text-slate-800 leading-relaxed font-medium ${getDirtyClass('executiveSummary', 'specificRecommendationsText') || 'bg-slate-50 border border-slate-200'}`}>
+              {exec.specificRecommendationsText || 'Không'}
             </div>
           )}
         </div>

@@ -1,6 +1,5 @@
 import React from 'react';
 import {
-  RefreshCw,
   ChevronRight,
 } from 'lucide-react';
 
@@ -35,26 +34,6 @@ export const ZoneAdminTopBar: React.FC<Props> = ({
             {selectedZone === 'ALL' ? 'Toàn tuyến' : selectedZone}
           </span>
         </div>
-      </div>
-
-      {/* Right Action Icons */}
-      <div className="flex items-center gap-2 shrink-0">
-
-        {/* Nút Làm mới */}
-        {onRefresh && (
-          <button
-            type="button"
-            onClick={onRefresh}
-            disabled={isLoading}
-            className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 transition-colors cursor-pointer"
-            title="Làm mới số liệu"
-          >
-            <RefreshCw
-              size={15}
-              className={isLoading ? 'animate-spin text-emerald-600' : ''}
-            />
-          </button>
-        )}
       </div>
     </header>
   );

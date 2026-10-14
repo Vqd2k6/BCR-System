@@ -78,6 +78,56 @@ export class SurveyDraftRepository {
     const existing = await this.findActiveDraft(resolvedParcelId, data.unitId);
 
     if (existing) {
+      // 1. Phân tích surveyData mới và cũ
+      let incomingData: any = typeof data.surveyData === 'string'
+        ? JSON.parse(data.surveyData)
+        : (data.surveyData || {});
+
+      const existingData: any = typeof existing.survey_data_json === 'string'
+        ? JSON.parse(existing.survey_data_json)
+        : (existing.survey_data_json || {});
+
+      // 2. Bảo toàn và hợp nhất _photoMappings từ bản ghi trước (KHÔNG BAO GIỜ để mất ánh xạ R2 đã lưu)
+      const existingMappings = existingData._photoMappings || {};
+      const incomingMappings = incomingData._photoMappings || {};
+      const mergedMappings: Record<string, string> = {
+        ...existingMappings,
+        ...incomingMappings,
+      };
+
+      // 3. Tự động thay thế toàn bộ blob:local:// bằng Cloud URL đã biết trong mergedMappings
+      if (Object.keys(mergedMappings).length > 0) {
+        const replaceLocalUris = (target: unknown): unknown => {
+          if (target === null || target === undefined) return target;
+          if (typeof target === 'string') {
+            if (target.startsWith('blob:local://')) {
+              const rawId = target.replace('blob:local://', '').split('?')[0];
+              if (mergedMappings[rawId]) return mergedMappings[rawId];
+              if (mergedMappings[target]) return mergedMappings[target];
+            }
+            return target;
+          }
+          if (Array.isArray(target)) {
+            return target.map(replaceLocalUris);
+          }
+          if (typeof target === 'object') {
+            const obj = target as Record<string, unknown>;
+            const updated: Record<string, unknown> = {};
+            for (const k of Object.keys(obj)) {
+              if (k === '_photoMappings') continue;
+              updated[k] = replaceLocalUris(obj[k]);
+            }
+            return updated;
+          }
+          return target;
+        };
+
+        incomingData = replaceLocalUris(incomingData);
+      }
+
+      // Đảm bảo mergedMappings luôn nằm trong surveyData
+      incomingData._photoMappings = mergedMappings;
+
       const updateRes = await Database.query(
         `UPDATE base_survey_reports
          SET survey_data_json = $2,
@@ -90,7 +140,7 @@ export class SurveyDraftRepository {
          RETURNING *;`,
         [
           existing.id,
-          typeof data.surveyData === 'string' ? data.surveyData : JSON.stringify(data.surveyData),
+          JSON.stringify(incomingData),
           data.currentStep,
           data.surveyorId,
         ]

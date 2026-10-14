@@ -18,7 +18,7 @@ interface Props {
   onOpenReassignModal: (item: PendingSubmissionItem) => void;
   onOpenMutationModal: (item: PendingSubmissionItem) => void;
   onOpenReshapeModal?: (item: PendingSubmissionItem) => void;
-  onOpenAuditHistory: (reportId: string) => void;
+  onOpenAuditHistory: (reportId: string, itemCode?: string) => void;
   onStatsNeedRefresh?: () => void;
 }
 

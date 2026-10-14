@@ -7,6 +7,7 @@ import { calculateEcsScore } from '../../engine/ecsCalculator';
 import { calculateViScore } from '../../engine/viCalculator';
 import { saveSurveyDraft } from '../../../../core/utils/idbDraftStorage';
 import { dedupePhase1FormData } from '../../utils/dedupePhase1Photos';
+import { saveUploadedPhotoMapping, healLocalPhotoUris } from '../../../../core/storage/offlinePhotoStorage';
 
 export const createSyncSlice: StateCreator<
   Phase1SurveyStore,
@@ -97,8 +98,19 @@ export const createSyncSlice: StateCreator<
         const serverData = res.draft.surveyData;
         const targetStep = res.draft.currentStep >= 1 && res.draft.currentStep <= 8 ? res.draft.currentStep : 1;
 
+        // Lưu toàn bộ photoMappings từ server vào persistent mapping của thiết bị mới
+        const incomingMappings: Record<string, string> = {
+          ...(res.photoMappings || {}),
+          ...((serverData?._photoMappings as Record<string, string>) || {}),
+        };
+        for (const [localId, publicUrl] of Object.entries(incomingMappings)) {
+          if (localId && publicUrl) {
+            saveUploadedPhotoMapping(localId, publicUrl);
+          }
+        }
+
         set((state) => {
-          const merged = dedupePhase1FormData({ ...state.formData, ...serverData });
+          const merged = dedupePhase1FormData(healLocalPhotoUris({ ...state.formData, ...serverData }));
           const recalculatedEcs = calculateEcsScore(merged);
           const recalculatedVi = calculateViScore(merged, recalculatedEcs);
           merged.ecs = recalculatedEcs;
@@ -112,6 +124,7 @@ export const createSyncSlice: StateCreator<
             lastSyncedAt: new Date().toLocaleTimeString('vi-VN'),
             isHandoverModalOpen: false,
             handoverInfo: null,
+            unsyncedRemotePhotos: null,
             isDirty: false,
             hasServerHydrated: true,
           };

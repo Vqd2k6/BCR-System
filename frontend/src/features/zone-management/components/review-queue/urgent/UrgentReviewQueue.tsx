@@ -27,7 +27,7 @@ interface Props {
   onOpenReassignModal: (item: PendingSubmissionItem) => void;
   onOpenMutationModal: (item: PendingSubmissionItem) => void;
   onOpenReshapeModal?: (item: PendingSubmissionItem) => void;
-  onOpenAuditHistory: (reportId: string) => void;
+  onOpenAuditHistory: (reportId: string, itemCode?: string) => void;
   onStatsNeedRefresh?: () => void;
   initialSubTab?: 'ALL' | 'BURLAND' | 'SLA' | 'FLAGS';
 }
@@ -299,18 +299,20 @@ export const UrgentReviewQueue: React.FC<Props> = ({
           <table className="w-full text-left border-collapse text-xs">
             <thead>
               <tr className="bg-slate-50 dark:bg-slate-800/80 text-slate-600 dark:text-slate-300 border-b border-slate-200 dark:border-slate-800 font-bold uppercase text-[11px] tracking-wider">
-                <th className="py-3 px-4 w-12 text-center">STT</th>
-                <th className="py-3 px-4">Xuất Xứ & Đối Tượng</th>
-                <th className="py-3 px-4">Kỹ Sư Khảo Sát</th>
-                <th className="py-3 px-4">Cấp Khuyết Tật (Burland)</th>
-                <th className="py-3 px-4">Trạng Thái & Người Duyệt</th>
-                <th className="py-3 px-4 text-right">Thao Tác Thẩm Định</th>
+                <th className="py-3 px-3 w-12 text-center">STT</th>
+                <th className="py-3 px-3">Xuất Xứ & Đối Tượng</th>
+                <th className="py-3 px-3">Địa Chỉ & Chủ Hộ</th>
+                <th className="py-3 px-3">Kỹ Sư Khảo Sát</th>
+                <th className="py-3 px-3 text-center">Cấp Khuyết Tật (Burland)</th>
+                <th className="py-3 px-3 text-center">Trạng Thái & Người Duyệt</th>
+                <th className="py-3 px-3 text-center">Khuyết Tật & Quy Cách</th>
+                <th className="py-3 px-3 text-right">Thao Tác Thẩm Định</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="py-16 text-center text-slate-400">
+                  <td colSpan={8} className="py-16 text-center text-slate-400">
                     <div className="flex flex-col items-center justify-center gap-2">
                       <RefreshCw className="w-6 h-6 animate-spin text-red-600" />
                       <span className="font-semibold text-xs">Đang quét các ca khẩn cấp...</span>
@@ -319,7 +321,7 @@ export const UrgentReviewQueue: React.FC<Props> = ({
                 </tr>
               ) : paginatedItems.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="py-16 text-center text-slate-400">
+                  <td colSpan={8} className="py-16 text-center text-slate-400">
                     <div className="flex flex-col items-center justify-center gap-2">
                       <ShieldAlert className="w-10 h-10 text-emerald-500" />
                       <span className="font-bold text-slate-700 dark:text-slate-300">
@@ -335,13 +337,9 @@ export const UrgentReviewQueue: React.FC<Props> = ({
                 paginatedItems.map((item, index) => (
                   <ReviewQueueTableRow
                     key={item.report_id || item.parcel_id || index}
+                    stt={(currentPage - 1) * pageSize + index + 1}
                     item={item}
                     onOpenStudio={onOpenStudio}
-                    onPreviewReport={onPreviewReport}
-                    onOpenRejectModal={onOpenRejectModal}
-                    onOpenReassignModal={onOpenReassignModal}
-                    onOpenMutationModal={onOpenMutationModal}
-                    onOpenReshapeModal={onOpenReshapeModal}
                     onOpenAuditHistory={onOpenAuditHistory}
                   />
                 ))

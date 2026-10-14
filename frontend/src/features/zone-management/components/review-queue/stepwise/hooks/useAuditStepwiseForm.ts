@@ -250,6 +250,11 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
     setDirtyFields({});
   }, [data]);
 
+  // Helper to deep get value
+  const getDeepVal = (obj: any, path: string[]) => {
+    return path.reduce((curr, p) => (curr && typeof curr === 'object' ? curr[p] : undefined), obj);
+  };
+
   // Handle direct field change
   const handleFieldChange = (fieldKey: string, label: string, val: unknown) => {
     setFormState((prev) => ({ ...prev, [fieldKey]: val }));
@@ -273,24 +278,72 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
     }
   };
 
-  // Handle nested object field change (e.g. historyInterview.renovationLoad)
+  // Handle nested object field change (supports dot-paths e.g. 'diffSettlement.level')
   const handleNestedFieldChange = (parentKey: string, childKey: string, label: string, val: unknown) => {
-    const parentObj = (formState[parentKey] as Record<string, unknown>) || {};
-    const updatedParent = { ...parentObj, [childKey]: val };
-    handleFieldChange(parentKey, label, updatedParent);
+    setFormState((prev) => {
+      const parentObj = (prev[parentKey] as Record<string, unknown>) || {};
+      let updatedParent: Record<string, unknown>;
+
+      if (childKey.includes('.')) {
+        const parts = childKey.split('.');
+        const copy = JSON.parse(JSON.stringify(parentObj));
+        let cur = copy;
+        for (let i = 0; i < parts.length - 1; i++) {
+          if (!cur[parts[i]] || typeof cur[parts[i]] !== 'object') {
+            cur[parts[i]] = {};
+          }
+          cur = cur[parts[i]];
+        }
+        cur[parts[parts.length - 1]] = val;
+        updatedParent = copy;
+      } else {
+        updatedParent = { ...parentObj, [childKey]: val };
+      }
+
+      return { ...prev, [parentKey]: updatedParent };
+    });
+
+    const dirtyKey = `${parentKey}.${childKey}`;
+    const origParent = (originalState[parentKey] as Record<string, unknown>) || {};
+    const originalVal = childKey.includes('.') ? getDeepVal(origParent, childKey.split('.')) : origParent[childKey];
+
+    if (JSON.stringify(originalVal) === JSON.stringify(val)) {
+      setDirtyFields((prev) => {
+        const copy = { ...prev };
+        delete copy[dirtyKey];
+        return copy;
+      });
+    } else {
+      setDirtyFields((prev) => ({
+        ...prev,
+        [dirtyKey]: {
+          label,
+          oldValue: originalVal,
+          newValue: val,
+        },
+      }));
+    }
+  };
+
+  // Helper check if field or nested field is dirty
+  const isFieldDirty = (fieldKey: string, subKey?: string): boolean => {
+    if (subKey) {
+      return Boolean(dirtyFields[`${fieldKey}.${subKey}`]);
+    }
+    if (dirtyFields[fieldKey]) return true;
+    return Object.keys(dirtyFields).some((k) => k === fieldKey || k.startsWith(`${fieldKey}.`));
   };
 
   // Discard all changes
-  const handleDiscard = () => {
-    if (window.confirm('Bạn có chắc muốn hủy bỏ mọi thay đổi vừa chỉnh sửa?')) {
+  const handleDiscard = (silent = false) => {
+    if (silent || window.confirm('Bạn có chắc muốn hủy bỏ mọi thay đổi vừa chỉnh sửa?')) {
       setFormState(originalState);
       setDirtyFields({});
       setIsEditMode(false);
     }
   };
 
-  // Open review and diff modal
-  const handleReviewSave = () => {
+  const getDiffPayload = () => {
     const diffItems: DiffItem[] = Object.entries(dirtyFields).map(([k, v]) => ({
       field: k,
       label: v.label,
@@ -300,19 +353,79 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
 
     const updatesPayload: Record<string, unknown> = {};
     Object.keys(dirtyFields).forEach((k) => {
-      updatesPayload[k] = formState[k];
+      const topKey = k.includes('.') ? k.split('.')[0] : k;
+      updatesPayload[topKey] = formState[topKey];
     });
 
+    return { diffItems, updatesPayload };
+  };
+
+  // Open review and diff modal
+  const handleReviewSave = () => {
+    const { diffItems, updatesPayload } = getDiffPayload();
     onOpenDiffModal(diffItems, updatesPayload);
   };
 
   const scrollToStep = (id: string) => {
     setActiveNavStep(id);
+    const container = document.getElementById('audit-studio-scroll-container');
     const element = document.getElementById(id);
-    if (element) {
+    if (container && element) {
+      const containerRect = container.getBoundingClientRect();
+      const elementRect = element.getBoundingClientRect();
+      const offsetTop = elementRect.top - containerRect.top + container.scrollTop - 16;
+      container.scrollTo({ top: offsetTop, behavior: 'smooth' });
+    } else if (element) {
       element.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
   };
+
+  // Scrollspy: Tự động highlight step tương ứng trong Mục Lục khi người dùng cuộn
+  useEffect(() => {
+    const container = document.getElementById('audit-studio-scroll-container');
+    if (!container) return;
+
+    const stepIds = [
+      'step-1',
+      'step-2',
+      'step-3',
+      'step-4',
+      'step-5',
+      'step-6',
+      'step-7',
+      'step-8',
+      'step-9',
+    ];
+
+    let ticking = false;
+    const handleScroll = () => {
+      if (!ticking) {
+        window.requestAnimationFrame(() => {
+          const containerRect = container.getBoundingClientRect();
+          let currentStep = stepIds[0];
+
+          for (const sId of stepIds) {
+            const el = document.getElementById(sId);
+            if (el) {
+              const elRect = el.getBoundingClientRect();
+              // Khi phần đầu của step nằm cách đỉnh container không quá 140px
+              if (elRect.top - containerRect.top <= 140) {
+                currentStep = sId;
+              }
+            }
+          }
+          setActiveNavStep(currentStep);
+          ticking = false;
+        });
+        ticking = true;
+      }
+    };
+
+    container.addEventListener('scroll', handleScroll, { passive: true });
+    return () => {
+      container.removeEventListener('scroll', handleScroll);
+    };
+  }, []);
 
   const dirtyCount = Object.keys(dirtyFields).length;
 
@@ -324,9 +437,11 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
     formState,
     dirtyFields,
     dirtyCount,
+    isFieldDirty,
     handleFieldChange,
     handleNestedFieldChange,
     handleDiscard,
     handleReviewSave,
+    getDiffPayload,
   };
 };

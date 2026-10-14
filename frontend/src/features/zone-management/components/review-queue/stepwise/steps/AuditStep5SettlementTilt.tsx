@@ -10,16 +10,22 @@ import {
   Camera,
   Layers,
   HelpCircle,
+  RefreshCw,
+  Plus,
+  Trash2,
 } from 'lucide-react';
 import { SETTLEMENT_LEVEL_OPTIONS, TILT_LEVEL_OPTIONS } from '../../../../../survey-phase1/components/step1/step1.constants';
 import { SAG_LEVEL_OPTIONS } from '../../../../../survey-phase1/constants/levelGuideConstants';
-import type { AuditStepwiseFormState, StepwiseSettlementTilt } from '../types';
+import type { AuditStepwiseFormState, StepwiseSettlementTilt, PhotoReplaceParams, AuditPhotoActionParams } from '../types';
 
 interface Props {
   isEditMode: boolean;
   formState: AuditStepwiseFormState;
   handleNestedFieldChange: (parentKey: string, childKey: string, label: string, val: unknown) => void;
   onOpenPhotoZoom?: (url: string, title?: string, photoCode?: string) => void;
+  onOpenPhotoReplace?: (params: PhotoReplaceParams) => void;
+  onOpenPhotoAction?: (params: AuditPhotoActionParams) => void;
+  isFieldDirty?: (fieldKey: string, subKey?: string) => boolean;
 }
 
 const DATA_SOURCES_LIST = [
@@ -36,6 +42,9 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
   formState,
   handleNestedFieldChange,
   onOpenPhotoZoom,
+  onOpenPhotoReplace,
+  onOpenPhotoAction,
+  isFieldDirty,
 }) => {
   const st: StepwiseSettlementTilt = formState.settlementTilt || {};
   const tilt = st.buildingTilt || {};
@@ -76,20 +85,24 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
   // Danh sách nguồn xác định dữ liệu
   const dataSources: string[] = Array.isArray(st.dataSource) ? (st.dataSource as string[]) : [];
 
+  const checkDirty = (subKey?: string) => {
+    return isFieldDirty ? isFieldDirty('settlementTilt', subKey) : false;
+  };
+
   return (
-    <section id="step-5" className="scroll-mt-6 bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+    <section id="step-2" className="scroll-mt-6 bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
       {/* Header */}
       <div className="p-4 sm:p-5 bg-slate-50/80 border-b border-slate-100 flex items-center justify-between">
         <div className="flex items-center gap-2.5">
           <span className="px-2 py-0.5 rounded-lg bg-sky-600 text-white font-mono font-black text-xs">
-            Bước 05
+            Bước 02
           </span>
           <div>
             <h3 className="text-sm sm:text-base font-black text-slate-800">
-              Đo Đạc Biến Dạng, Lún Nghiêng & Đề Xuất Quan Trắc Mốc Lún
+              Đo Đạc Biến Dạng, Lún Nghiêng & Quan Trắc Mốc
             </h3>
             <p className="text-[11px] text-slate-500">
-              Thẩm tra toàn diện ảnh lún chênh, ảnh nghiêng, hiện trạng ngoại lệ bất thường và chỉ số E3
+              Đo đạc trắc địa độ nghiêng tổng thể 2 phương X/Y, độ chênh lún móng, độ võng dầm kết cấu và hệ thống mốc quan trắc
             </p>
           </div>
         </div>
@@ -102,7 +115,7 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
       </div>
 
       <div className="p-5 space-y-6">
-        {/* 5.1. Khối 3 thông số biến dạng chính */}
+        {/* 2.1. Khối 3 thông số biến dạng chính */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* 1. Lún chênh lệch */}
           <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2.5 flex flex-col justify-between">
@@ -157,8 +170,8 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                     placeholder="Vị trí ghi nhận lún..."
                   />
                 ) : (
-                  <div className="text-[11px] text-slate-600 italic">
-                    {diff.position || 'Không có ghi nhận vị trí lún lệch cụ thể.'}
+                  <div className="text-[11px] text-slate-600">
+                    {diff.position || 'Không'}
                   </div>
                 )}
               </div>
@@ -171,6 +184,24 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                   <Camera className="w-3 h-3 text-slate-500" />
                   <span>Ảnh Lún Chênh / Chân Tường ({diffPhotos.length})</span>
                 </span>
+                {isEditMode && onOpenPhotoAction && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onOpenPhotoAction({
+                        initialMode: 'ADD',
+                        category: 'SETTLEMENT_TILT',
+                        targetPhotoType: 'SETTLEMENT_DIFF',
+                        targetPhotoId: 'settlementTilt.diffSettlement.photos',
+                        photoTitle: 'Bổ sung ảnh lún chênh',
+                      })
+                    }
+                    className="px-2 py-0.5 rounded bg-sky-600 hover:bg-sky-700 text-white font-bold text-[9px] flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
+                  >
+                    <Plus className="w-2.5 h-2.5" />
+                    <span>+ Thêm Ảnh</span>
+                  </button>
+                )}
               </div>
 
               {diffPhotos.length > 0 ? (
@@ -192,6 +223,61 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                       <span className="absolute bottom-1 left-1 px-1.5 py-0.5 rounded bg-black/70 text-white font-mono text-[9px] font-bold">
                         {p.photoCode || `SETTLE_${pIdx + 1}`}
                       </span>
+                      {isEditMode && (
+                        <div className="absolute top-1 right-1 z-10 flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (onOpenPhotoAction) {
+                                onOpenPhotoAction({
+                                  initialMode: 'REPLACE',
+                                  category: 'SETTLEMENT_TILT',
+                                  targetPhotoType: 'SETTLEMENT_DIFF',
+                                  targetPhotoId: 'settlementTilt.diffSettlement.photos',
+                                  photoIndex: pIdx,
+                                  currentPhotoUrl: p.url,
+                                  photoTitle: `Ảnh lún chênh (${p.photoCode || `SETTLE_${pIdx + 1}`})`,
+                                });
+                              } else if (onOpenPhotoReplace) {
+                                onOpenPhotoReplace({
+                                  targetPhotoType: 'SETTLEMENT_DIFF',
+                                  targetPhotoId: 'settlementTilt.diffSettlement.photos',
+                                  photoIndex: pIdx,
+                                  currentPhotoUrl: p.url,
+                                  photoTitle: `Ảnh lún chênh (${p.photoCode || `SETTLE_${pIdx + 1}`})`,
+                                });
+                              }
+                            }}
+                            className="px-1.5 py-0.5 rounded bg-sky-600/90 hover:bg-sky-700 text-white font-bold text-[9px] flex items-center gap-0.5 shadow-sm"
+                            title="Thay ảnh lún chênh"
+                          >
+                            <RefreshCw className="w-2.5 h-2.5" />
+                            <span>Đổi ảnh</span>
+                          </button>
+                          {onOpenPhotoAction && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onOpenPhotoAction({
+                                  initialMode: 'DELETE',
+                                  category: 'SETTLEMENT_TILT',
+                                  targetPhotoType: 'SETTLEMENT_DIFF',
+                                  targetPhotoId: 'settlementTilt.diffSettlement.photos',
+                                  photoIndex: pIdx,
+                                  currentPhotoUrl: p.url,
+                                  photoTitle: `Ảnh lún chênh (${p.photoCode || `SETTLE_${pIdx + 1}`})`,
+                                });
+                              }}
+                              className="p-1 rounded bg-rose-600/90 hover:bg-rose-700 text-white text-[9px] shadow-sm"
+                              title="Xóa ảnh này"
+                            >
+                              <Trash2 className="w-2.5 h-2.5" />
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -281,8 +367,8 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                 </div>
               )}
 
-              <div className="text-[11px] text-slate-500 italic">
-                {tilt.notes || 'Không có ghi chú độ nghiêng.'}
+              <div className="text-[11px] text-slate-500">
+                {tilt.notes || 'Không'}
               </div>
             </div>
 
@@ -293,6 +379,24 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                   <Camera className="w-3 h-3 text-slate-500" />
                   <span>Ảnh Kiểm Tra Độ Nghiêng ({tiltPhotos.length})</span>
                 </span>
+                {isEditMode && onOpenPhotoAction && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onOpenPhotoAction({
+                        initialMode: 'ADD',
+                        category: 'SETTLEMENT_TILT',
+                        targetPhotoType: 'TILT_ANGLE',
+                        targetPhotoId: 'settlementTilt.buildingTilt.photos',
+                        photoTitle: 'Bổ sung ảnh độ nghiêng',
+                      })
+                    }
+                    className="px-2 py-0.5 rounded bg-sky-600 hover:bg-sky-700 text-white font-bold text-[9px] flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
+                  >
+                    <Plus className="w-2.5 h-2.5" />
+                    <span>+ Thêm Ảnh</span>
+                  </button>
+                )}
               </div>
 
               {tiltPhotos.length > 0 ? (
@@ -314,6 +418,61 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                       <span className="absolute bottom-1 left-1 px-1.5 py-0.5 rounded bg-black/70 text-white font-mono text-[9px] font-bold">
                         {p.photoCode || `TILT_${pIdx + 1}`}
                       </span>
+                      {isEditMode && (
+                        <div className="absolute top-1 right-1 z-10 flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (onOpenPhotoAction) {
+                                onOpenPhotoAction({
+                                  initialMode: 'REPLACE',
+                                  category: 'SETTLEMENT_TILT',
+                                  targetPhotoType: 'TILT_ANGLE',
+                                  targetPhotoId: 'settlementTilt.buildingTilt.photos',
+                                  photoIndex: pIdx,
+                                  currentPhotoUrl: p.url,
+                                  photoTitle: `Ảnh độ nghiêng (${p.photoCode || `TILT_${pIdx + 1}`})`,
+                                });
+                              } else if (onOpenPhotoReplace) {
+                                onOpenPhotoReplace({
+                                  targetPhotoType: 'TILT_ANGLE',
+                                  targetPhotoId: 'settlementTilt.buildingTilt.photos',
+                                  photoIndex: pIdx,
+                                  currentPhotoUrl: p.url,
+                                  photoTitle: `Ảnh độ nghiêng (${p.photoCode || `TILT_${pIdx + 1}`})`,
+                                });
+                              }
+                            }}
+                            className="px-1.5 py-0.5 rounded bg-sky-600/90 hover:bg-sky-700 text-white font-bold text-[9px] flex items-center gap-0.5 shadow-sm"
+                            title="Thay ảnh độ nghiêng"
+                          >
+                            <RefreshCw className="w-2.5 h-2.5" />
+                            <span>Đổi ảnh</span>
+                          </button>
+                          {onOpenPhotoAction && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onOpenPhotoAction({
+                                  initialMode: 'DELETE',
+                                  category: 'SETTLEMENT_TILT',
+                                  targetPhotoType: 'TILT_ANGLE',
+                                  targetPhotoId: 'settlementTilt.buildingTilt.photos',
+                                  photoIndex: pIdx,
+                                  currentPhotoUrl: p.url,
+                                  photoTitle: `Ảnh độ nghiêng (${p.photoCode || `TILT_${pIdx + 1}`})`,
+                                });
+                              }}
+                              className="p-1 rounded bg-rose-600/90 hover:bg-rose-700 text-white text-[9px] shadow-sm"
+                              title="Xóa ảnh này"
+                            >
+                              <Trash2 className="w-2.5 h-2.5" />
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -404,12 +563,12 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
           </div>
         </div>
 
-        {/* 5.2. TRƯỜNG HỢP NGOẠI LỆ / HIỆN TRẠNG BẤT THƯỜNG KHÁC */}
+        {/* 2.2. TRƯỜNG HỢP NGOẠI LỆ / HIỆN TRẠNG BẤT THƯỜNG KHÁC */}
         <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/70 space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5 uppercase">
               <AlertTriangle className="w-4 h-4 text-amber-600" />
-              <span>5.2. Trường Hợp Ngoại Lệ / Hiện Trạng Bất Thường Khác</span>
+              <span>2.2. Trường Hợp Ngoại Lệ / Hiện Trạng Bất Thường Khác</span>
             </span>
             <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-200 text-slate-700">
               {abnormalPhotos.length} ảnh minh chứng
@@ -419,9 +578,29 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {/* Lưới ảnh ngoại lệ */}
             <div>
-              <span className="text-[11px] font-bold text-slate-600 block mb-1.5">
-                Ảnh hiện trường bất thường (Rễ cây nứt hè, hố ga sụt, vách độc lập...):
-              </span>
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-[11px] font-bold text-slate-600 block">
+                  Ảnh hiện trường bất thường (Rễ cây nứt hè, hố ga sụt, vách độc lập...):
+                </span>
+                {isEditMode && onOpenPhotoAction && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onOpenPhotoAction({
+                        initialMode: 'ADD',
+                        category: 'SETTLEMENT_TILT',
+                        targetPhotoType: 'ABNORMAL_PHOTO',
+                        targetPhotoId: 'abnormalPhotos',
+                        photoTitle: 'Bổ sung ảnh hiện trạng bất thường',
+                      })
+                    }
+                    className="px-2 py-0.5 rounded bg-sky-600 hover:bg-sky-700 text-white font-bold text-[9px] flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
+                  >
+                    <Plus className="w-2.5 h-2.5" />
+                    <span>+ Thêm Ảnh</span>
+                  </button>
+                )}
+              </div>
 
               {abnormalPhotos.length > 0 ? (
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
@@ -442,6 +621,61 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                       <span className="absolute bottom-1 left-1 px-1.5 py-0.5 rounded bg-black/70 text-white font-mono text-[9px] font-bold">
                         {p.photoCode || `ANOMALY_${pIdx + 1}`}
                       </span>
+                      {isEditMode && (
+                        <div className="absolute top-1 right-1 z-10 flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (onOpenPhotoAction) {
+                                onOpenPhotoAction({
+                                  initialMode: 'REPLACE',
+                                  category: 'SETTLEMENT_TILT',
+                                  targetPhotoType: 'ABNORMAL_PHOTO',
+                                  targetPhotoId: 'abnormalPhotos',
+                                  photoIndex: pIdx,
+                                  currentPhotoUrl: p.url,
+                                  photoTitle: `Ảnh hiện trạng ngoại lệ (${p.photoCode || `ANOMALY_${pIdx + 1}`})`,
+                                });
+                              } else if (onOpenPhotoReplace) {
+                                onOpenPhotoReplace({
+                                  targetPhotoType: 'ABNORMAL_PHOTO',
+                                  targetPhotoId: 'abnormalPhotos',
+                                  photoIndex: pIdx,
+                                  currentPhotoUrl: p.url,
+                                  photoTitle: `Ảnh hiện trạng ngoại lệ (${p.photoCode || `ANOMALY_${pIdx + 1}`})`,
+                                });
+                              }
+                            }}
+                            className="px-1.5 py-0.5 rounded bg-sky-600/90 hover:bg-sky-700 text-white font-bold text-[9px] flex items-center gap-0.5 shadow-sm"
+                            title="Thay ảnh bất thường"
+                          >
+                            <RefreshCw className="w-2.5 h-2.5" />
+                            <span>Đổi ảnh</span>
+                          </button>
+                          {onOpenPhotoAction && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onOpenPhotoAction({
+                                  initialMode: 'DELETE',
+                                  category: 'SETTLEMENT_TILT',
+                                  targetPhotoType: 'ABNORMAL_PHOTO',
+                                  targetPhotoId: 'abnormalPhotos',
+                                  photoIndex: pIdx,
+                                  currentPhotoUrl: p.url,
+                                  photoTitle: `Ảnh hiện trạng ngoại lệ (${p.photoCode || `ANOMALY_${pIdx + 1}`})`,
+                                });
+                              }}
+                              className="p-1 rounded bg-rose-600/90 hover:bg-rose-700 text-white text-[9px] shadow-sm"
+                              title="Xóa ảnh này"
+                            >
+                              <Trash2 className="w-2.5 h-2.5" />
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -471,21 +705,21 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                   className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs text-slate-800"
                 />
               ) : (
-                <p className="text-xs text-slate-700 p-3 bg-white rounded-xl border border-slate-200 italic min-h-[80px]">
-                  {abnormal.notes || 'Không có ghi nhận ngoại lệ đặc biệt nào từ khảo sát viên.'}
+                <p className="text-xs text-slate-700 p-3 bg-white rounded-xl border border-slate-200 min-h-[80px]">
+                  {abnormal.notes || 'Không'}
                 </p>
               )}
             </div>
           </div>
         </div>
 
-        {/* 5.3. NGUỒN XÁC ĐỊNH DỮ LIỆU NGOẠI QUAN & ĐỘ TIN CẬY */}
+        {/* 2.3. NGUỒN XÁC ĐỊNH DỮ LIỆU NGOẠI QUAN & ĐỘ TIN CẬY */}
         <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50/60 space-y-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-1.5">
               <Layers className="w-3.5 h-3.5 text-slate-600" />
               <span className="text-xs font-bold text-slate-700 uppercase">
-                5.3. Nguồn Xác Định Dữ Liệu Ngoại Quan & Độ Tin Cậy
+                2.3. Nguồn Xác Định Dữ Liệu Ngoại Quan & Độ Tin Cậy
               </span>
             </div>
             {isEditMode ? (
@@ -558,13 +792,13 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
           )}
         </div>
 
-        {/* 5.4. ĐỀ XUẤT QUAN TRẮC MỐC LÚN NGHIÊNG */}
+        {/* 2.4. ĐỀ XUẤT QUAN TRẮC MỐC LÚN NGHIÊNG */}
         <div className="p-4 bg-slate-50/80 rounded-xl border border-slate-200 space-y-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Ruler className="w-4 h-4 text-emerald-600" />
               <span className="text-xs font-bold text-slate-800 uppercase tracking-wide">
-                5.4. Đề Xuất Lắp Đặt Mốc Quan Trắc Lún Nghiêng Chuyên Sâu
+                2.4. Đề Xuất Lắp Đặt Mốc Quan Trắc Lún Nghiêng Chuyên Sâu
               </span>
             </div>
             <span
@@ -609,8 +843,8 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                 />
               </div>
             ) : (
-              <div className="p-2.5 bg-white rounded-lg border border-slate-200 text-slate-700 italic">
-                {monitoring.notes || (monitoring.required ? 'Yêu cầu quan trắc lún nghiêng định kỳ.' : 'Công trình ổn định, không yêu cầu đặt mốc quan trắc.')}
+              <div className="p-2.5 bg-white rounded-lg border border-slate-200 text-slate-700">
+                {monitoring.notes || (monitoring.required ? 'Yêu cầu quan trắc lún nghiêng định kỳ.' : 'Không')}
               </div>
             )}
           </div>

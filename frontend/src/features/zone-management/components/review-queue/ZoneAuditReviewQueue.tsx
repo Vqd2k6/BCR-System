@@ -226,12 +226,15 @@ export const ZoneAuditReviewQueue: React.FC<Props> = ({
     window.open(previewUrl, '_blank', 'noopener,noreferrer');
   };
 
-  const handleOpenAuditHistory = async (reportId: string) => {
+  const handleOpenAuditHistory = async (reportId: string, itemCode?: string) => {
     try {
+      if (itemCode) {
+        setAuditHistoryReportCode(itemCode);
+      }
       const res = await api.get(`/admin/reports/${reportId}/audit-view`);
       if (res.data?.success && res.data.data) {
         setAuditHistoryLogs(res.data.data.auditHistory || []);
-        setAuditHistoryReportCode(res.data.data.projectParcelCode || reportId);
+        setAuditHistoryReportCode(res.data.data.projectParcelCode || itemCode || reportId);
         setAuditHistoryModalOpen(true);
       }
     } catch (err: unknown) {

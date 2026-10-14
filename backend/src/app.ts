@@ -193,9 +193,14 @@ export function createApp(): express.Application {
   api.post('/admin/reports/:id/engineering-judgement', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), ScoringController.applyJudgement);
   api.put('/admin/reports/:id/audit-edit', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.applyAdminSurveyEdit);
   api.post('/admin/reports/:id/audit-replace-photo', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.replaceReportPhoto);
+  api.post('/admin/reports/:id/audit-photo-action', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.executePhotoAction);
+  api.get('/admin/reports/:id/photo-registry', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.getPhotoAuditRegistry);
   api.post('/admin/reports/:id/reassign-parcel', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.reassignReportParcel);
   api.post('/admin/reports/swap-parcels', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.swapReportParcels);
   api.get('/admin/reports/swap-candidates', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.searchSwapCandidates);
+  api.get('/admin/reports/:id/versions', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.listReportVersions);
+  api.get('/admin/reports/:id/versions/:versionNumber', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.getReportVersionSnapshot);
+  api.post('/admin/reports/:id/versions/:versionNumber/rollback', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.rollbackReportVersion);
   api.get('/admin/parcels/:id/adjacent-candidates', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.getAdjacentCandidates);
   api.get('/parcels/:id/adjacent-candidates', authenticateJwt, requireRoles('SURVEYOR', 'ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.getAdjacentCandidates);
   api.post('/admin/parcels/execute-mutation', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), CadastralController.executeAdminMutation);

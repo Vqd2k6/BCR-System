@@ -216,8 +216,21 @@ export class SurveyService {
     };
   }
 
-  static async submitPhase1Report(reportId: string, submitData: any) {
+  static async submitPhase1Report(reportId: string, submitData: any, userId?: string, clientIp?: string) {
     await SurveyRepository.submitReport(reportId, submitData);
+
+    try {
+      const { AuditVersionService } = await import('../audit/services/audit-version.service');
+      await AuditVersionService.createSnapshot(reportId, {
+        versionTag: 'ORIGINAL_SUBMISSION',
+        title: 'Nộp biên bản khảo sát hiện trường ban đầu',
+        userId,
+        clientIp,
+      });
+    } catch (snapErr) {
+      console.error('[submitPhase1Report] Không thể tạo snapshot phiên bản:', snapErr);
+    }
+
     return {
       reportId,
       status: 'SUBMITTED',
@@ -696,12 +709,20 @@ export class SurveyService {
 
     const saved = await SurveyRepository.upsertDraft(data);
 
-    // Tính toán lại pendingCount của bản nháp mới lưu
+    // Tính toán lại pendingCount của bản nháp mới lưu (loại trừ các ảnh đã có mapping trong _photoMappings)
+    const savedData: any = typeof saved.survey_data_json === 'string'
+      ? JSON.parse(saved.survey_data_json)
+      : (saved.survey_data_json || {});
+    const savedMappings: Record<string, string> = savedData?._photoMappings || {};
+
     let newPendingCount = 0;
     const countSavedBlobs = (val: unknown) => {
       if (!val) return;
       if (typeof val === 'string' && val.startsWith('blob:local://')) {
-        newPendingCount++;
+        const rawId = val.replace('blob:local://', '').split('?')[0];
+        if (!savedMappings[rawId] && !savedMappings[val]) {
+          newPendingCount++;
+        }
       } else if (Array.isArray(val)) {
         val.forEach(countSavedBlobs);
       } else if (typeof val === 'object') {
@@ -712,7 +733,7 @@ export class SurveyService {
         }
       }
     };
-    countSavedBlobs(data.surveyData);
+    countSavedBlobs(savedData);
 
     const unsyncedPhotosInfo = newPendingCount > 0 ? {
       pendingCount: newPendingCount,
@@ -764,15 +785,18 @@ export class SurveyService {
       data.note
     );
 
+    const draftData = typeof updated.survey_data_json === 'string'
+      ? JSON.parse(updated.survey_data_json)
+      : updated.survey_data_json;
+
     return {
       success: true,
       message: 'Tiếp quản ca khảo sát thành công',
+      photoMappings: draftData?._photoMappings || {},
       draft: {
         reportId: updated.id,
         currentStep: updated.current_step,
-        surveyData: typeof updated.survey_data_json === 'string'
-          ? JSON.parse(updated.survey_data_json)
-          : updated.survey_data_json,
+        surveyData: draftData,
         syncVersion: updated.sync_version,
         updatedAt: updated.updated_at,
       },

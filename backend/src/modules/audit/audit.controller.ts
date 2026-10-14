@@ -7,6 +7,7 @@ import {
   BatchApproveUnitsDto,
   ApproveAbsenteeReportDto,
   ExecuteFinalSealDto,
+  RollbackVersionDto,
 } from './audit.dto';
 import { BadRequestError } from '../../common/errors/problem-details';
 
@@ -332,5 +333,91 @@ export class AuditController {
       next(error);
     }
   }
+
+  // --- QUẢN LÝ PHIÊN BẢN (VERSIONING & TIME-TRAVEL) ---
+
+  static async listReportVersions(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      const versions = await AuditService.getReportVersions(id);
+      res.status(200).json({
+        success: true,
+        data: versions,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async getReportVersionSnapshot(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id, versionNumber } = req.params;
+      const snapshot = await AuditService.getReportVersionSnapshot(id, Number(versionNumber));
+      res.status(200).json({
+        success: true,
+        data: snapshot,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async rollbackReportVersion(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id, versionNumber } = req.params;
+      const parsed = RollbackVersionDto.safeParse(req.body);
+      if (!parsed.success) {
+        throw new BadRequestError(
+          'Dữ liệu yêu cầu khôi phục không hợp lệ',
+          parsed.error.errors.map((e) => ({ field: e.path.join('.'), message: e.message }))
+        );
+      }
+      const adminId = req.user!.userId;
+      const result = await AuditService.rollbackReportVersion(
+        id,
+        Number(versionNumber),
+        adminId,
+        {
+          reason: parsed.data.rollbackReason,
+          password: parsed.data.adminPassword,
+        },
+        req.ip
+      );
+      res.status(200).json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async executePhotoAction(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      const adminId = req.user!.userId;
+      const result = await AuditService.executePhotoAction(id, adminId, req.body, req.ip);
+      res.status(200).json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async getPhotoAuditRegistry(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      const result = await AuditService.getPhotoAuditRegistry(id);
+      res.status(200).json({
+        success: true,
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
+
 

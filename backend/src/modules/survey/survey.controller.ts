@@ -185,7 +185,12 @@ export class SurveyController {
       const { id } = req.params;
       const parsed = SubmitPhase1ReportDto.safeParse(req.body);
 
-      const result = await SurveyService.submitPhase1Report(id, parsed.success ? parsed.data : {});
+      const result = await SurveyService.submitPhase1Report(
+        id,
+        parsed.success ? parsed.data : {},
+        req.user?.userId,
+        req.ip
+      );
       res.status(200).json({
         success: true,
         data: result,
@@ -362,7 +367,12 @@ export class SurveyController {
 
       // 6. Nộp hồ sơ (Chuyển status thành SUBMITTED & lưu survey_data_json toàn vẹn)
       const submitData = SurveyPackageMapper.mapSubmitData(surveyData);
-      const result = await SurveyService.submitPhase1Report(reportId, submitData);
+      const result = await SurveyService.submitPhase1Report(
+        reportId,
+        submitData,
+        req.user?.userId,
+        req.ip
+      );
 
       const isAbsentee = Boolean(
         surveyData?.isAbsentee ||

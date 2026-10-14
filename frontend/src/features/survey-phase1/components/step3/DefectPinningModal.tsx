@@ -57,17 +57,17 @@ export const DefectPinningModal: React.FC<DefectPinningModalProps> = ({
           isStructural ? 'border-amber-200' : 'border-slate-200'
         } w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden`}
       >
-        <div className={`flex items-center justify-between px-4 py-3 border-b ${headerBg}`}>
-          <div className="flex items-center gap-2">
-            <span className={`px-2 py-0.5 rounded ${badgeColor} text-white text-xs font-mono font-bold`}>
+        <div className={`flex items-center justify-between gap-2 px-4 py-3 border-b ${headerBg}`}>
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            <span className={`px-2 py-0.5 rounded ${badgeColor} text-white text-xs font-mono font-bold shrink-0`}>
               {code}
             </span>
-            <h3 className="font-bold text-sm sm:text-base text-slate-800">{title}</h3>
+            <h3 className="font-bold text-sm sm:text-base text-slate-800 truncate">{title}</h3>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className={`p-1 rounded-lg hover:bg-slate-200 text-slate-500 hover:text-slate-800 transition-colors cursor-pointer`}
+            className={`p-1 rounded-lg hover:bg-slate-200 text-slate-500 hover:text-slate-800 transition-colors cursor-pointer shrink-0`}
           >
             <X className="w-5 h-5" />
           </button>
@@ -87,13 +87,13 @@ export const DefectPinningModal: React.FC<DefectPinningModalProps> = ({
           />
         </div>
 
-        <div className={`flex items-center justify-between px-4 py-3 border-t ${headerBg}`}>
+        <div className={`flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 px-4 py-3 border-t ${headerBg}`}>
           <span className="text-xs text-slate-500">
             Ghim màu xanh: Đã điền xong • Ghim màu cam: Đang chờ cập nhật
           </span>
           <Button
             size="sm"
-            className={isStructural ? 'bg-amber-600 hover:bg-amber-700 text-white' : undefined}
+            className={`w-full sm:w-auto shrink-0 ${isStructural ? 'bg-amber-600 hover:bg-amber-700 text-white' : ''}`}
             onClick={onClose}
           >
             Xong & Đóng lại
