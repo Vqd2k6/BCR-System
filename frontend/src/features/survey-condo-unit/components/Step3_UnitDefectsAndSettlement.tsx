@@ -1213,10 +1213,11 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
                         if (url) {
                           const curZone = useCondoUnitSurveyStore.getState().formData.zones?.[activeZoneIndex];
                           const curPhotos: string[] = curZone?.overviewPhotos || [];
+                          if (curPhotos.includes(url)) return;
                           const base = meta?.replacesUri
                             ? curPhotos.map((p) => (p === meta.replacesUri ? url : p))
                             : curPhotos;
-                          const updated = base.includes(url) ? base : [...base, url];
+                          const updated = Array.from(new Set(base.includes(url) ? base : [...base, url]));
                           updateZone(activeZoneIndex, { overviewPhotos: updated });
                         }
                       }}
@@ -1743,10 +1744,11 @@ export const Step3_UnitDefectsAndSettlement: React.FC = () => {
                             if (url) {
                               const curElem = useCondoUnitSurveyStore.getState().formData.structuralElements?.[activeElementIndex];
                               const curPhotos: string[] = curElem?.overviewPhotos || [];
+                              if (curPhotos.includes(url)) return;
                               const base = meta?.replacesUri
                                 ? curPhotos.map((p) => (p === meta.replacesUri ? url : p))
                                 : curPhotos;
-                              const updated = base.includes(url) ? base : [...base, url];
+                              const updated = Array.from(new Set(base.includes(url) ? base : [...base, url]));
                               const curCtx = curElem?.ctxPhotoUrl;
                               const newCtx = !curCtx ? url : meta?.replacesUri && curCtx === meta.replacesUri ? url : curCtx;
                               updateElement(activeElementIndex, {

@@ -70,6 +70,39 @@
         }, true);
       })();
     </script>
+
+    <!-- 📱 CHỐNG SAFARI IOS TỰ ĐỘNG PHÓNG TO TOÀN TRANG KHI DÙNG 2 NGÓN TAY HOẶC NHẤP ĐÚP -->
+    <script>
+      (function() {
+        if (typeof window === 'undefined') return;
+
+        // Chặn sự kiện cử chỉ WebKit (gesturestart / gesturechange / gestureend) trên toàn trang
+        document.addEventListener('gesturestart', function(e) {
+          e.preventDefault();
+        }, { passive: false });
+
+        document.addEventListener('gesturechange', function(e) {
+          e.preventDefault();
+        }, { passive: false });
+
+        document.addEventListener('gestureend', function(e) {
+          e.preventDefault();
+        }, { passive: false });
+
+        // Chặn nhấp đúp (double-tap) gây phóng to giao diện trên các nút và thẻ tĩnh
+        var lastTouchEnd = 0;
+        document.addEventListener('touchend', function(e) {
+          var now = Date.now();
+          if (now - lastTouchEnd <= 300) {
+            var tag = e.target && e.target.tagName;
+            if (tag !== 'INPUT' && tag !== 'TEXTAREA' && tag !== 'SELECT') {
+              e.preventDefault();
+            }
+          }
+          lastTouchEnd = now;
+        }, { passive: false });
+      })();
+    </script>
     
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">

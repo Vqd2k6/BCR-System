@@ -108,9 +108,29 @@ export function useInteractiveCanvasZoom(options: UseInteractiveCanvasZoomOption
       }
     };
 
+    // Native non-passive touchmove listener: Chặn Safari iOS phóng to toàn trang khi pinch 2 ngón tay trên canvas
+    const onNativeTouchMove = (e: TouchEvent) => {
+      if (e.touches.length >= 2) {
+        e.preventDefault();
+      }
+    };
+
+    const onNativeGesture = (e: Event) => {
+      e.preventDefault();
+    };
+
     container.addEventListener('wheel', onNativeWheel, { passive: false });
+    container.addEventListener('touchmove', onNativeTouchMove, { passive: false });
+    container.addEventListener('gesturestart', onNativeGesture, { passive: false });
+    container.addEventListener('gesturechange', onNativeGesture, { passive: false });
+    container.addEventListener('gestureend', onNativeGesture, { passive: false });
+
     return () => {
       container.removeEventListener('wheel', onNativeWheel);
+      container.removeEventListener('touchmove', onNativeTouchMove);
+      container.removeEventListener('gesturestart', onNativeGesture);
+      container.removeEventListener('gesturechange', onNativeGesture);
+      container.removeEventListener('gestureend', onNativeGesture);
     };
   }, [minZoom, maxZoom]);
 

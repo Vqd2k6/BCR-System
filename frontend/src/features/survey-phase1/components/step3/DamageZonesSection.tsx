@@ -14,6 +14,7 @@ import { COMMON_ROOM_NAMES, ARCH_COMPONENT_TYPES, WALL_MATERIALS } from './step3
 import { Building, Camera, Trash2, MapPin, AlertCircle, Plus, Sparkles, RotateCcw } from 'lucide-react';
 import { usePhase1SurveyStore } from '../../store/usePhase1SurveyStore';
 import { isLocalBlobUri } from '../../../../core/storage/offlinePhotoStorage';
+import type { PhotoChangeMeta } from '../../../../components/common/photo-capture/types';
 
 interface DamageZonesSectionProps {
   currentFloor: FloorSurveyData;
@@ -169,19 +170,19 @@ export const DamageZonesSection: React.FC<DamageZonesSectionProps> = ({
   };
 
   return (
-    <Card id="step3-floor-cad-section" className="border-slate-200 bg-white space-y-4 shadow-xs">
+    <Card id="step3-floor-cad-section" className="border-slate-200 bg-white space-y-4 shadow-xs max-w-full overflow-hidden">
       {/* Header CAD_01 */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100">
-        <div className="flex items-center gap-2">
-          <Building className="w-5 h-5 text-emerald-600" />
-          <div>
-            <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-              <span>3.1. Sơ Đồ CAD_01 & Khảo Sát Mảng Tường Kiến Trúc (Vùng Z)</span>
-              <span className="px-2 py-0.5 rounded-full text-[11px] font-mono bg-emerald-50 text-emerald-700 border border-emerald-200">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-100 max-w-full">
+        <div className="flex items-start sm:items-center gap-2 min-w-0">
+          <Building className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5 sm:mt-0" />
+          <div className="min-w-0">
+            <h3 className="text-sm font-bold text-slate-800 flex flex-wrap items-center gap-2">
+              <span className="break-words">3.1. Sơ Đồ CAD_01 & Khảo Sát Mảng Tường Kiến Trúc (Vùng Z)</span>
+              <span className="px-2 py-0.5 rounded-full text-[11px] font-mono bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
                 {zones.length} Vùng Z đã tạo
               </span>
             </h3>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-slate-500 break-words mt-0.5">
               Đánh dấu vị trí các Vùng Z trực tiếp trên sơ đồ mặt bằng kiến trúc và ghi sổ chi tiết
             </p>
           </div>
@@ -480,27 +481,44 @@ export const DamageZonesSection: React.FC<DamageZonesSectionProps> = ({
                 <PhotoCaptureInput
                   label="Thêm ảnh tổng quan"
                   value=""
-                  onChange={(url, code) => {
+                  onChange={(url, code, meta?: PhotoChangeMeta) => {
                     if (url) {
-                      let updated = [...(activeZone.overviewPhotos || [])];
-                      const prevTemp = lastTempOverviewUriRef.current;
-                      if (prevTemp && updated.includes(prevTemp)) {
-                        // Thay thế ảnh tạm blob:local:// bằng URL Cloudflare R2 chính thức
-                        updated = updated.map((p) => (p === prevTemp ? url : p));
-                        if (!isLocalBlobUri(url)) {
-                          lastTempOverviewUriRef.current = null;
-                        }
-                      } else {
-                        // Thêm ảnh mới vào mảng
-                        updated.push(url);
-                        if (isLocalBlobUri(url)) {
-                          lastTempOverviewUriRef.current = url;
-                        }
+                      const curPhotos = activeZone.overviewPhotos || [];
+
+                      // 1. Chặn tuyệt đối nếu URL này đã tồn tại trong mảng (kể cả đã qua metro2:photo-promoted)
+                      if (curPhotos.includes(url)) {
+                        return;
                       }
 
-                      // Đồng bộ với ctxPhotoUrl nếu chưa có hoặc đang dùng chung ảnh tạm vừa thêm
+                      let updated = [...curPhotos];
+                      const replacesUri = meta?.replacesUri;
+                      const prevTemp = lastTempOverviewUriRef.current;
+
+                      // 2. Thăng cấp qua replacesUri
+                      if (replacesUri && updated.includes(replacesUri)) {
+                        updated = updated.map((p) => (p === replacesUri ? url : p));
+                      }
+                      // 3. Fallback theo ref tạm thời
+                      else if (prevTemp && updated.includes(prevTemp)) {
+                        updated = updated.map((p) => (p === prevTemp ? url : p));
+                      }
+                      // 4. Thêm mới hoàn toàn nếu chưa có
+                      else {
+                        updated.push(url);
+                      }
+
+                      if (isLocalBlobUri(url)) {
+                        lastTempOverviewUriRef.current = url;
+                      } else {
+                        lastTempOverviewUriRef.current = null;
+                      }
+
+                      // 5. Tự làm sạch khử trùng lặp bảo vệ dữ liệu vĩnh viễn
+                      updated = Array.from(new Set(updated.filter(Boolean)));
+
+                      // Đồng bộ với ctxPhotoUrl nếu chưa có hoặc đang trỏ tới ảnh vừa thăng cấp
                       let newCtx = activeZone.ctxPhotoUrl;
-                      if (!newCtx || (prevTemp && newCtx === prevTemp)) {
+                      if (!newCtx || newCtx === replacesUri || (prevTemp && newCtx === prevTemp)) {
                         newCtx = url;
                       }
 

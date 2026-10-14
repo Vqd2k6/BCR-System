@@ -77,7 +77,9 @@ function runTest() {
   } as unknown as Phase1SurveyFormData;
 
   let updatedState = mockFormData;
-  const updateFormData = (updater: any) => {
+  const updateFormData = (
+    updater: Partial<Phase1SurveyFormData> | ((prev: Phase1SurveyFormData) => Phase1SurveyFormData)
+  ) => {
     if (typeof updater === 'function') {
       updatedState = updater(updatedState);
     } else {

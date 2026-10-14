@@ -243,7 +243,7 @@ export const FloorCadPinningCanvas: React.FC<Props> = ({
   };
 
   return (
-    <div className="flex flex-col gap-3 w-full bg-white">
+    <div className="flex flex-col gap-3 w-full max-w-full overflow-hidden bg-white">
       {/* Upload/Capture CAD Sketch */}
       {!cadPhotoUrl ? (
         <PhotoCaptureInput
@@ -282,7 +282,7 @@ export const FloorCadPinningCanvas: React.FC<Props> = ({
                   <button
                     type="button"
                     onClick={() => removePin(selectedPinIndex)}
-                    className="px-2.5 py-1.5 bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 rounded-lg font-bold flex items-center gap-1 transition-all"
+                    className="px-2.5 py-1.5 bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 rounded-lg font-bold flex items-center gap-1 transition-all cursor-pointer"
                     title={`Xóa điểm ${selectedPin.zoneCode}`}
                   >
                     <Trash2 className="w-3.5 h-3.5" />
@@ -294,7 +294,7 @@ export const FloorCadPinningCanvas: React.FC<Props> = ({
                 <button
                   type="button"
                   onClick={() => setShowPins(!showPins)}
-                  className={`px-2.5 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all border ${
+                  className={`px-2.5 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all border cursor-pointer ${
                     showPins
                       ? 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
                       : 'bg-amber-100 text-amber-800 border-amber-300 ring-2 ring-amber-400'
@@ -309,7 +309,7 @@ export const FloorCadPinningCanvas: React.FC<Props> = ({
                 <button
                   type="button"
                   onClick={() => handleDeleteOrRetakeCadPhoto(true)}
-                  className="px-2.5 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all border bg-white text-slate-700 border-slate-300 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300"
+                  className="px-2.5 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all border bg-white text-slate-700 border-slate-300 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 cursor-pointer"
                   title="Chụp lại hoặc chọn ảnh sơ đồ CAD khác (giữ nguyên tọa độ các điểm ghim)"
                 >
                   <Camera className="w-3.5 h-3.5 text-blue-600" />
@@ -320,7 +320,7 @@ export const FloorCadPinningCanvas: React.FC<Props> = ({
                 <button
                   type="button"
                   onClick={() => handleDeleteOrRetakeCadPhoto(false)}
-                  className="px-2.5 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all border bg-white text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300"
+                  className="px-2.5 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all border bg-white text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300 cursor-pointer"
                   title="Xóa ảnh sơ đồ CAD này để tải lại"
                 >
                   <Trash2 className="w-3.5 h-3.5 text-red-500" />
@@ -330,7 +330,7 @@ export const FloorCadPinningCanvas: React.FC<Props> = ({
                 <button
                   type="button"
                   onClick={() => setIsAddingPin(!isAddingPin)}
-                  className={`px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all shadow-xs ${
+                  className={`px-2.5 sm:px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all shadow-xs cursor-pointer ${
                     isAddingPin
                       ? isStructural
                         ? 'bg-amber-600 text-white ring-2 ring-amber-400'
@@ -338,9 +338,12 @@ export const FloorCadPinningCanvas: React.FC<Props> = ({
                       : 'bg-white text-slate-700 border border-slate-300 hover:bg-slate-50'
                   }`}
                 >
-                  <Crosshair className="w-3.5 h-3.5" />
-                  <span>
+                  <Crosshair className="w-3.5 h-3.5 shrink-0" />
+                  <span className="hidden sm:inline">
                     {isAddingPin ? `Đang bật chạm chấm ${nextCode}` : `Bật chạm chấm ${nextCode}`}
+                  </span>
+                  <span className="sm:hidden">
+                    {isAddingPin ? `Chấm ${nextCode}` : `Bật ${nextCode}`}
                   </span>
                 </button>
               </div>
@@ -364,30 +367,31 @@ export const FloorCadPinningCanvas: React.FC<Props> = ({
             onTouchStart={handleTouchStart}
             onTouchMove={handleTouchMove}
             onTouchEnd={handleTouchEnd}
-            className={`relative w-full min-h-[320px] max-h-[560px] rounded-xl overflow-hidden bg-slate-100 border border-slate-300 select-none shadow-inner flex items-center justify-center p-1 sm:p-2 ${
+            className={`relative w-full max-w-full min-h-[320px] max-h-[560px] rounded-xl overflow-hidden bg-slate-100 border border-slate-300 select-none shadow-inner flex items-center justify-center p-1 sm:p-2 touch-none ${
               isAddingPin ? 'ring-2 ring-emerald-500/30' : ''
             }`}
           >
             {/* Quick floating actions on top-right of canvas */}
             <div
-              className="absolute top-2.5 right-2.5 flex items-center gap-1.5 z-40 bg-slate-900/80 backdrop-blur-xs p-1 rounded-lg border border-white/20 shadow-md"
+              className="absolute top-2.5 right-2.5 max-w-[calc(100%-20px)] flex items-center gap-1.5 z-40 bg-slate-900/80 backdrop-blur-xs p-1 rounded-lg border border-white/20 shadow-md flex-wrap justify-end"
               onClick={(e) => e.stopPropagation()}
             >
               <button
                 type="button"
                 onClick={() => setIsZoomOpen(true)}
-                className="px-2 py-1 bg-white/10 hover:bg-white/20 text-white rounded text-[11px] font-medium flex items-center gap-1 transition-all"
+                className="px-2 py-1 bg-white/10 hover:bg-white/20 text-white rounded text-[11px] font-medium flex items-center gap-1 transition-all cursor-pointer"
                 title="Phóng to sơ đồ CAD mặt bằng"
               >
                 <ZoomIn className="w-3 h-3 text-emerald-300" />
-                <span>Phóng to CAD</span>
+                <span className="hidden sm:inline">Phóng to CAD</span>
+                <span className="sm:hidden">Zoom</span>
               </button>
               {!readOnly && (
                 <>
                   <button
                     type="button"
                     onClick={() => handleDeleteOrRetakeCadPhoto(true)}
-                    className="px-2 py-1 bg-white/10 hover:bg-white/20 text-white rounded text-[11px] font-medium flex items-center gap-1 transition-all"
+                    className="px-2 py-1 bg-white/10 hover:bg-white/20 text-white rounded text-[11px] font-medium flex items-center gap-1 transition-all cursor-pointer"
                     title="Đổi hoặc chụp lại sơ đồ CAD"
                   >
                     <Camera className="w-3 h-3 text-blue-300" />
@@ -396,7 +400,7 @@ export const FloorCadPinningCanvas: React.FC<Props> = ({
                   <button
                     type="button"
                     onClick={() => handleDeleteOrRetakeCadPhoto(false)}
-                    className="px-2 py-1 bg-red-600/70 hover:bg-red-600 text-white rounded text-[11px] font-medium flex items-center gap-1 transition-all"
+                    className="px-2 py-1 bg-red-600/70 hover:bg-red-600 text-white rounded text-[11px] font-medium flex items-center gap-1 transition-all cursor-pointer"
                     title="Xóa ảnh sơ đồ CAD này"
                   >
                     <Trash2 className="w-3 h-3 text-red-200" />
@@ -553,7 +557,7 @@ export const FloorCadPinningCanvas: React.FC<Props> = ({
                 <input
                   type="text"
                   placeholder="Ghi chú vị trí (VD: Mảng tường trái, Cột C1)..."
-                  className="px-2.5 py-1 bg-white border border-slate-300 rounded-lg text-xs w-64 focus:ring-1 focus:ring-emerald-500"
+                  className="px-2.5 py-1 bg-white border border-slate-300 rounded-lg text-xs w-full sm:w-64 max-w-full focus:ring-1 focus:ring-emerald-500"
                   value={selectedPin.label || ''}
                   onChange={(e) => updateSelectedPin('label', e.target.value)}
                   disabled={readOnly}
@@ -564,7 +568,7 @@ export const FloorCadPinningCanvas: React.FC<Props> = ({
                 <button
                   type="button"
                   onClick={() => removePin(selectedPinIndex)}
-                  className="px-2.5 py-1 bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 rounded-lg font-medium flex items-center gap-1"
+                  className="px-2.5 py-1 bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 rounded-lg font-medium flex items-center gap-1 cursor-pointer"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                   <span>Xóa ghim này</span>
