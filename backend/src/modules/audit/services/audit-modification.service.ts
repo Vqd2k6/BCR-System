@@ -6,7 +6,7 @@ import { CadastralService } from '../../cadastral/cadastral.service';
 import { normalizeComponentType } from '../../survey/survey.dto';
 
 export interface PhotoActionItem {
-  action: 'ADD' | 'DELETE' | 'REPLACE';
+  action: 'ADD' | 'DELETE' | 'REPLACE' | 'RESTORE';
   category: string; // 'IDENTIFICATION' | 'OVERVIEW' | 'AS_BUILT' | 'SETTLEMENT_TILT' | 'CAD_FLOOR' | 'ZONE_CTX' | 'DEFECT_CU' | 'SCOPE_GIS' | 'MINUTES' | 'ABSENCE_NOTICE' | 'SIGNATURE'
   targetPhotoType?: string;
   targetPhotoId?: string;
@@ -30,6 +30,25 @@ export interface PhotoActionItem {
   deleteDefectItem?: boolean;
   pinX?: number;
   pinY?: number;
+  widthMaxMm?: number;
+  lengthMm?: number;
+}
+
+function getEquivalentIdentPhotoTypes(val?: string): string[] {
+  const s = String(val || '').toUpperCase().trim();
+  if (s.includes('P01') || s.includes('HOUSE_NUMBER')) {
+    return ['P01', 'P01_HOUSE_NUMBER'];
+  }
+  if (s.includes('P02') || s.includes('MAIN_FACADE')) {
+    return ['P02', 'P02_MAIN_FACADE'];
+  }
+  if (s.includes('P03') || s.includes('SIDE') || s.includes('REAR')) {
+    return ['P03', 'P03_SIDE_REAR', 'P03_SIDE_OR_REAR'];
+  }
+  if (s.includes('P04') || s.includes('STREET') || s.includes('CONTEXT')) {
+    return ['P04', 'P04_CONTEXT_STREET'];
+  }
+  return [s || 'P01_HOUSE_NUMBER'];
 }
 
 function getDeepProp(obj: any, path: string): any {
@@ -57,6 +76,68 @@ function setDeepProp(obj: any, path: string, value: any): boolean {
   }
   curr[parts[parts.length - 1]] = value;
   return true;
+}
+
+function mutateSurveyJsonPhoto(
+  surveyJson: any,
+  targetPath: string,
+  photoIndex: number | undefined,
+  action: 'REPLACE' | 'ADD' | 'DELETE' | 'RESTORE',
+  newUrl?: string,
+  oldUrl?: string,
+  extra?: { photoCode?: string; caption?: string; addedAt?: string }
+) {
+  if (!surveyJson || !targetPath) return;
+
+  const currentVal = getDeepProp(surveyJson, targetPath);
+
+  if (action === 'REPLACE' || action === 'RESTORE') {
+    if (Array.isArray(currentVal)) {
+      const idx = Number(photoIndex) >= 0 ? Number(photoIndex) : 0;
+      if (currentVal.length > idx) {
+        if (typeof currentVal[idx] === 'object' && currentVal[idx] !== null) {
+          currentVal[idx].url = newUrl || '';
+          if (extra?.photoCode) currentVal[idx].photoCode = extra.photoCode;
+          if (extra?.caption) currentVal[idx].caption = extra.caption;
+        } else {
+          currentVal[idx] = newUrl || '';
+        }
+      } else {
+        currentVal.push(extra?.caption || extra?.photoCode ? { url: newUrl || '', ...extra } : (newUrl || ''));
+      }
+    } else if (typeof currentVal === 'object' && currentVal !== null) {
+      currentVal.url = newUrl || '';
+      if (extra?.photoCode) currentVal.photoCode = extra.photoCode;
+      if (extra?.caption) currentVal.caption = extra.caption;
+    } else {
+      setDeepProp(surveyJson, targetPath, newUrl || '');
+    }
+  } else if (action === 'ADD') {
+    let arr = currentVal;
+    if (!Array.isArray(arr)) {
+      setDeepProp(surveyJson, targetPath, []);
+      arr = getDeepProp(surveyJson, targetPath);
+    }
+    if (Array.isArray(arr)) {
+      const itemToPush = extra?.caption || extra?.photoCode
+        ? { url: newUrl || '', photoCode: extra?.photoCode, caption: extra?.caption, addedAt: new Date().toISOString() }
+        : (arr.length > 0 && typeof arr[0] === 'string' ? (newUrl || '') : { url: newUrl || '', addedAt: new Date().toISOString() });
+      arr.push(itemToPush);
+    }
+  } else if (action === 'DELETE') {
+    if (Array.isArray(currentVal)) {
+      if (photoIndex !== undefined && Number(photoIndex) >= 0 && Number(photoIndex) < currentVal.length) {
+        currentVal.splice(Number(photoIndex), 1);
+      } else if (oldUrl) {
+        const filtered = currentVal.filter((p: any) => (typeof p === 'string' ? p !== oldUrl : p?.url !== oldUrl));
+        setDeepProp(surveyJson, targetPath, filtered);
+      }
+    } else if (typeof currentVal === 'object' && currentVal !== null) {
+      currentVal.url = null;
+    } else {
+      setDeepProp(surveyJson, targetPath, null);
+    }
+  }
 }
 
 function computeSha256(input: string): string {
@@ -206,8 +287,8 @@ export class AuditModificationService {
          WHERE id = $6;`,
         [
           cleanSurveyDate,
-          sigs.surveyorSignature || null,
-          sigs.ownerSignature || null,
+          sigs.surveyorSignature || sigs.surveyorSignatureUrl || u.surveyorSignatureUrl || null,
+          sigs.ownerSignature || sigs.ownerSignatureUrl || u.ownerSignatureUrl || null,
           sigs.ownerFeedback || u.ownerRemarks || null,
           exec.specificRecommendationsText || u.engineeringRecommendations || null,
           actualReportId,
@@ -369,6 +450,78 @@ export class AuditModificationService {
                      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19);`,
                     [
                       zoneId,
+                      d.defectCode || d.defect_code || 'D-01',
+                      Number(d.pinX ?? d.pin_x) || 0,
+                      Number(d.pinY ?? d.pin_y) || 0,
+                      d.screeningCategory || d.defectType || 'CRACK',
+                      d.defectType || 'HAIRLINE',
+                      d.crackDirection || null,
+                      Number(d.widthMaxMm ?? d.width_max_mm) || 0,
+                      Number(d.lengthMm ?? d.length_mm) || 0,
+                      actState,
+                      Number(d.materialDegradationE4) || 0,
+                      Number(d.structuralSignificanceE2) || 0,
+                      d.hasScaleCard ?? d.has_scale_card ?? true,
+                      d.isStructuralCritical ?? false,
+                      primaryCuUrl,
+                      extraCuUrl,
+                      d.pinColor || '#ef4444',
+                      primaryCuCode,
+                      cuPhotosJson,
+                    ]
+                  );
+                }
+              }
+            }
+
+            // Đồng bộ cả cấu kiện chịu lực kết cấu E vào damage_zones
+            const elements = Array.isArray(f.structuralElements) ? f.structuralElements : [];
+            for (const el of elements) {
+              const compType = normalizeComponentType(el.elementType || el.componentType || 'COLUMN');
+              const elRes = await client.query<{ id: string }>(
+                `INSERT INTO damage_zones (
+                   report_id, zone_code, floor_name, room_name, component_type,
+                   wall_material, functional_impact_repair_needed, burland_grade,
+                   ctx_photo_url, notes
+                 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                 RETURNING id;`,
+                [
+                  actualReportId,
+                  el.elementCode || el.zone_code || el.zoneCode || 'E-01',
+                  el.floorName || f.floorName || 'Tầng trệt',
+                  el.roomName || 'Cấu kiện kết cấu',
+                  compType,
+                  el.materialType || el.wallMaterial || 'BTCT',
+                  Boolean(el.hasDamage || (el.defects && el.defects.length > 0)),
+                  0,
+                  el.ctxPhotoUrl || (Array.isArray(el.overviewPhotos) ? el.overviewPhotos[0] : '') || '',
+                  el.notes || null,
+                ]
+              );
+
+              const elZoneId = elRes.rows[0]?.id;
+              const defects = Array.isArray(el.defects) ? el.defects : [];
+              if (elZoneId && defects.length > 0) {
+                for (const d of defects) {
+                  const actState = ['A', 'S', 'U'].includes(d.activityState) ? d.activityState : 'U';
+                  const primaryCuUrl = d.cuPhotos?.[0] || d.cuPhotoUrl || d.cu_photo_url || '';
+                  const extraCuUrl = d.cuPhotos?.[1] || d.extraPhotoUrl || null;
+                  const cuPhotosList = Array.isArray(d.cuPhotos) && d.cuPhotos.length > 0
+                    ? d.cuPhotos
+                    : (primaryCuUrl ? [primaryCuUrl] : []);
+                  const cuPhotosJson = JSON.stringify(cuPhotosList);
+                  const primaryCuCode = d.cuPhotoCodes?.[0] || d.cuPhotoCode || d.cu_photo_code || null;
+
+                  await client.query(
+                    `INSERT INTO defect_items (
+                       zone_id, defect_code, pin_x, pin_y, screening_category, defect_type,
+                       crack_direction, width_max_mm, length_mm, activity_state,
+                       material_degradation_e4, structural_significance_e2, has_scale_card,
+                       is_structural_critical, cu_photo_url, extra_photo_url, pin_color,
+                       cu_photo_code, cu_photos_json
+                     ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19);`,
+                    [
+                      elZoneId,
                       d.defectCode || d.defect_code || 'D-01',
                       Number(d.pinX ?? d.pin_x) || 0,
                       Number(d.pinY ?? d.pin_y) || 0,
@@ -983,22 +1136,12 @@ export class AuditModificationService {
         }
         surveyJson.settlementTilt.beamSagging.photoUrl = newUrl;
       } else if (cat === 'IDENTIFICATION' || ['P01', 'P02', 'P03', 'P04'].includes(type.toUpperCase())) {
-        const identMap: Record<string, string> = {
-          P01: 'P01_HOUSE_NUMBER',
-          P02: 'P02_MAIN_FACADE',
-          P03: 'P03_SIDE_REAR',
-          P04: 'P04_CONTEXT_STREET',
-          P01_HOUSE_NUMBER: 'P01_HOUSE_NUMBER',
-          P02_MAIN_FACADE: 'P02_MAIN_FACADE',
-          P03_SIDE_REAR: 'P03_SIDE_REAR',
-          P04_CONTEXT_STREET: 'P04_CONTEXT_STREET',
-        };
-        const mappedType = identMap[type.toUpperCase()] || type;
+        const equivTypes = getEquivalentIdentPhotoTypes(type);
         await client.query(
           `UPDATE survey_identification_photos 
            SET raw_photo_url = $1, annotated_photo_url = $1, is_not_applicable = false, na_reason = null 
-           WHERE report_id = $2 AND (photo_type = $3 OR photo_type = $4);`,
-          [newUrl, reportId, type, mappedType]
+           WHERE report_id = $2 AND photo_type::text = ANY($3::text[]);`,
+          [newUrl, reportId, equivTypes]
         );
         const camelKey = `photo${type.toUpperCase().replace(/[^P0-9]/g, '')}`;
         if (!surveyJson[camelKey]) surveyJson[camelKey] = {};
@@ -1006,16 +1149,27 @@ export class AuditModificationService {
         surveyJson[camelKey].notApplicable = false;
         surveyJson[camelKey].naReason = null;
       } else if (cat === 'SIGNATURE') {
-        if (type.includes('SURVEYOR') || pa.targetPhotoId?.includes('surveyor')) {
+        if (type.includes('SURVEYOR') || pa.targetPhotoId?.toLowerCase().includes('surveyor')) {
           await client.query(`UPDATE base_survey_reports SET surveyor_signature_url = $1 WHERE id = $2;`, [newUrl, reportId]);
-        } else if (type.includes('OWNER') || pa.targetPhotoId?.includes('owner')) {
+          if (!surveyJson.signatures) surveyJson.signatures = {};
+          surveyJson.signatures.surveyorSignatureUrl = newUrl;
+          surveyJson.signatures.surveyorSignature = newUrl;
+          surveyJson.surveyorSignatureUrl = newUrl;
+        } else if (type.includes('OWNER') || pa.targetPhotoId?.toLowerCase().includes('owner')) {
           await client.query(`UPDATE base_survey_reports SET owner_signature_url = $1 WHERE id = $2;`, [newUrl, reportId]);
+          if (!surveyJson.signatures) surveyJson.signatures = {};
+          surveyJson.signatures.ownerSignatureUrl = newUrl;
+          surveyJson.signatures.ownerSignature = newUrl;
+          surveyJson.ownerSignatureUrl = newUrl;
         }
       }
 
       // 2. Cập nhật survey_data_json nếu có path targetPhotoId
       if (pa.targetPhotoId) {
-        setDeepProp(surveyJson, pa.targetPhotoId, newUrl);
+        mutateSurveyJsonPhoto(surveyJson, pa.targetPhotoId, pa.photoIndex, 'REPLACE', newUrl, oldUrl, {
+          photoCode,
+          caption: pa.caption,
+        });
       }
 
       // 3. Cập nhật survey_photo_registry
@@ -1088,18 +1242,25 @@ export class AuditModificationService {
             const pX = Number(pa.pinX ?? pa.metadata?.pinX ?? 50);
             const pY = Number(pa.pinY ?? pa.metadata?.pinY ?? 50);
             const dCode = pa.defectCode || pa.targetPhotoId || `D-${String(Date.now()).slice(-3)}`;
+            const wMm = Number(pa.metadata?.widthMaxMm ?? pa.widthMaxMm ?? 0);
+            const lMm = Number(pa.metadata?.lengthMm ?? pa.lengthMm ?? 0);
+            const scrCat = pa.metadata?.screeningCategory || 'CRACK';
+            const defType = pa.metadata?.defectType || 'HAIRLINE';
+            const actState = pa.metadata?.activityState || 'U';
 
             if (targetZoneId) {
               await client.query(
                 `INSERT INTO defect_items (
                    zone_id, defect_code, pin_x, pin_y, cu_photo_url, cu_photos_json,
-                   screening_category, defect_type, activity_state
-                 ) VALUES ($1, $2, $3, $4, $5, $6, 'CRACK', 'HAIRLINE', 'U');`,
-                [targetZoneId, dCode, pX, pY, url, JSON.stringify([url])]
+                   screening_category, defect_type, activity_state,
+                   width_max_mm, length_mm, material_degradation_e4, structural_significance_e2,
+                   has_scale_card, is_structural_critical, pin_color
+                 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 0, 0, true, false, '#ef4444');`,
+                [targetZoneId, dCode, pX, pY, url, JSON.stringify([url]), scrCat, defType, actState, wMm, lMm]
               );
             }
 
-            // Đồng bộ vào survey_data_json
+            // Đồng bộ vào survey_data_json (cả fl.zones và fl.structuralElements)
             if (Array.isArray(surveyJson.floors)) {
               for (const fl of surveyJson.floors) {
                 if (Array.isArray(fl.zones)) {
@@ -1111,11 +1272,34 @@ export class AuditModificationService {
                         defectCode: dCode,
                         pinX: pX,
                         pinY: pY,
+                        widthMaxMm: wMm,
+                        lengthMm: lMm,
                         cuPhotoUrl: url,
                         cuPhotos: [url],
-                        screeningCategory: 'CRACK',
-                        defectType: 'HAIRLINE',
-                        activityState: 'U',
+                        screeningCategory: scrCat,
+                        defectType: defType,
+                        activityState: actState,
+                      });
+                      break;
+                    }
+                  }
+                }
+                if (Array.isArray(fl.structuralElements)) {
+                  for (const el of fl.structuralElements) {
+                    if (el.elementCode === zCode || el.id === zCode) {
+                      if (!Array.isArray(el.defects)) el.defects = [];
+                      el.defects.push({
+                        id: `defect_${Date.now()}`,
+                        defectCode: dCode,
+                        pinX: pX,
+                        pinY: pY,
+                        widthMaxMm: wMm,
+                        lengthMm: lMm,
+                        cuPhotoUrl: url,
+                        cuPhotos: [url],
+                        screeningCategory: scrCat,
+                        defectType: defType,
+                        activityState: actState,
                       });
                       break;
                     }
@@ -1155,21 +1339,21 @@ export class AuditModificationService {
         }
 
         // 2. Cập nhật survey_data_json
-        if (cat === 'OVERVIEW') {
+        if (cat === 'OVERVIEW' && !pa.targetPhotoId) {
           if (!surveyJson.overviewPhotos) surveyJson.overviewPhotos = {};
           if (!Array.isArray(surveyJson.overviewPhotos.otherOverviewPhotos)) surveyJson.overviewPhotos.otherOverviewPhotos = [];
           surveyJson.overviewPhotos.otherOverviewPhotos.push({ url, caption: pa.caption || 'Ảnh toàn cảnh bổ sung', addedAt: new Date().toISOString() });
-        } else if (cat === 'MINUTES') {
+        } else if (cat === 'MINUTES' && !pa.targetPhotoId) {
           if (!Array.isArray(surveyJson.workingMinutesPhotos)) surveyJson.workingMinutesPhotos = [];
           surveyJson.workingMinutesPhotos.push({ url, caption: pa.caption || `Trang biên bản ${surveyJson.workingMinutesPhotos.length + 1}`, addedAt: new Date().toISOString() });
-        } else if (cat === 'ABSENCE_NOTICE') {
+        } else if (cat === 'ABSENCE_NOTICE' && !pa.targetPhotoId) {
           if (!Array.isArray(surveyJson.absenteeNoticePhotos)) surveyJson.absenteeNoticePhotos = [];
           surveyJson.absenteeNoticePhotos.push({ url, caption: pa.caption || 'Ảnh giấy hẹn dán cửa', addedAt: new Date().toISOString() });
         } else if (pa.targetPhotoId) {
-          const arr = getDeepProp(surveyJson, pa.targetPhotoId);
-          if (Array.isArray(arr)) {
-            arr.push(url);
-          }
+          mutateSurveyJsonPhoto(surveyJson, pa.targetPhotoId, pa.photoIndex, 'ADD', url, undefined, {
+            photoCode: itemCode,
+            caption: pa.caption,
+          });
         }
 
         // 3. Ghi vào survey_photo_registry
@@ -1243,22 +1427,12 @@ export class AuditModificationService {
           }
         }
       } else if (cat === 'IDENTIFICATION' || ['P01', 'P02', 'P03', 'P04'].includes(type.toUpperCase())) {
-        const identMap: Record<string, string> = {
-          P01: 'P01_HOUSE_NUMBER',
-          P02: 'P02_MAIN_FACADE',
-          P03: 'P03_SIDE_REAR',
-          P04: 'P04_CONTEXT_STREET',
-          P01_HOUSE_NUMBER: 'P01_HOUSE_NUMBER',
-          P02_MAIN_FACADE: 'P02_MAIN_FACADE',
-          P03_SIDE_REAR: 'P03_SIDE_REAR',
-          P04_CONTEXT_STREET: 'P04_CONTEXT_STREET',
-        };
-        const mappedType = identMap[type.toUpperCase()] || type;
+        const equivTypes = getEquivalentIdentPhotoTypes(type);
         await client.query(
           `UPDATE survey_identification_photos 
            SET is_not_applicable = true, na_reason = $1 
-           WHERE report_id = $2 AND (photo_type = $3 OR photo_type = $4);`,
-          [pa.naReason || pa.reason || 'Không áp dụng theo xác nhận của Quản trị viên', reportId, type, mappedType]
+           WHERE report_id = $2 AND photo_type::text = ANY($3::text[]);`,
+          [pa.naReason || pa.reason || 'Không áp dụng theo xác nhận của Quản trị viên', reportId, equivTypes]
         );
         const pKey = type.toLowerCase();
         if (surveyJson[pKey]) {
@@ -1297,6 +1471,8 @@ export class AuditModificationService {
             (p: any) => (typeof p === 'string' ? p !== targetUrl : p?.url !== targetUrl)
           );
         }
+      } else if (pa.targetPhotoId) {
+        mutateSurveyJsonPhoto(surveyJson, pa.targetPhotoId, pa.photoIndex, 'DELETE', undefined, targetUrl);
       }
 
       // 3. Cập nhật survey_photo_registry: đánh dấu DELETED
@@ -1320,6 +1496,114 @@ export class AuditModificationService {
           ]
         );
       }
+    } else if (action === 'RESTORE') {
+      const restoredUrl = pa.newPhotoUrl || pa.oldPhotoUrl || '';
+      if (!restoredUrl) {
+        throw new BadRequestError('Không tìm thấy URL ảnh để thực hiện khôi phục (RESTORE).');
+      }
+
+      // 1. Cập nhật các bảng quan hệ nghiệp vụ
+      if (cat === 'IDENTIFICATION' || ['P01', 'P02', 'P03', 'P04'].includes(type.toUpperCase())) {
+        const equivTypes = getEquivalentIdentPhotoTypes(type);
+        await client.query(
+          `UPDATE survey_identification_photos 
+           SET raw_photo_url = $1, annotated_photo_url = $1, is_not_applicable = false, na_reason = null 
+           WHERE report_id = $2 AND photo_type::text = ANY($3::text[]);`,
+          [restoredUrl, reportId, equivTypes]
+        );
+        const pKey = type.toLowerCase();
+        if (surveyJson[pKey]) {
+          surveyJson[pKey].url = restoredUrl;
+          surveyJson[pKey].isNotApplicable = false;
+          surveyJson[pKey].naReason = null;
+        }
+        const camelKey = `photo${type.toUpperCase().replace(/[^P0-9]/g, '')}`;
+        if (!surveyJson[camelKey]) surveyJson[camelKey] = {};
+        surveyJson[camelKey].url = restoredUrl;
+        surveyJson[camelKey].notApplicable = false;
+        surveyJson[camelKey].naReason = null;
+      } else if (cat === 'DEFECT_CU' || type === 'CU') {
+        const defectId = pa.defectId || pa.defectCode || pa.targetPhotoId;
+        if (defectId) {
+          await client.query(
+            `UPDATE defect_items 
+             SET cu_photo_url = $1, is_deleted = false 
+             WHERE id::text = $2 OR defect_code = $2;`,
+            [restoredUrl, defectId]
+          );
+        }
+      } else if (cat === 'ZONE_CTX' || type === 'CTX') {
+        const zoneId = pa.metadata?.zone_id || pa.targetPhotoId;
+        if (zoneId) {
+          await client.query(
+            `UPDATE damage_zones 
+             SET ctx_photo_url = $1, is_deleted = false 
+             WHERE id::text = $2 OR zone_code = $2;`,
+            [restoredUrl, zoneId]
+          );
+        }
+      } else if (cat === 'CAD_FLOOR' || type === 'CAD') {
+        const floorPlanId = pa.metadata?.floor_plan_id || pa.targetPhotoId;
+        if (floorPlanId) {
+          await client.query(
+            `UPDATE building_floor_plans 
+             SET cad_photo_url = $1, updated_at = NOW() 
+             WHERE id::text = $2;`,
+            [restoredUrl, floorPlanId]
+          );
+        }
+      } else if (cat === 'SIGNATURE') {
+        if (type.includes('SURVEYOR') || pa.targetPhotoId?.toLowerCase().includes('surveyor')) {
+          await client.query(`UPDATE base_survey_reports SET surveyor_signature_url = $1 WHERE id = $2;`, [restoredUrl, reportId]);
+          if (!surveyJson.signatures) surveyJson.signatures = {};
+          surveyJson.signatures.surveyorSignatureUrl = restoredUrl;
+          surveyJson.surveyorSignatureUrl = restoredUrl;
+        } else if (type.includes('OWNER') || pa.targetPhotoId?.toLowerCase().includes('owner')) {
+          await client.query(`UPDATE base_survey_reports SET owner_signature_url = $1 WHERE id = $2;`, [restoredUrl, reportId]);
+          if (!surveyJson.signatures) surveyJson.signatures = {};
+          surveyJson.signatures.ownerSignatureUrl = restoredUrl;
+          surveyJson.ownerSignatureUrl = restoredUrl;
+        }
+      }
+
+      // 2. Cập nhật survey_data_json nếu có targetPhotoId
+      if (pa.targetPhotoId) {
+        mutateSurveyJsonPhoto(surveyJson, pa.targetPhotoId, pa.photoIndex, 'RESTORE', restoredUrl, undefined, {
+          photoCode,
+          caption: pa.caption,
+        });
+      }
+
+      // 3. Đánh dấu bản ghi ACTIVE hiện tại của photoCode thành SUPERSEDED
+      let prevActiveUrl = '';
+      const curActiveRes = await client.query(
+        `SELECT id, photo_url FROM survey_photo_registry 
+         WHERE report_id = $1 AND photo_code = $2 AND status = 'ACTIVE' LIMIT 1;`,
+        [reportId, photoCode]
+      );
+      if (curActiveRes.rows[0]) {
+        prevActiveUrl = curActiveRes.rows[0].photo_url;
+        await client.query(
+          `UPDATE survey_photo_registry 
+           SET status = 'SUPERSEDED', superseded_by_url = $1, updated_at = NOW() 
+           WHERE id = $2;`,
+          [restoredUrl, curActiveRes.rows[0].id]
+        );
+      }
+
+      // 4. Thêm bản ghi mới trong survey_photo_registry với status = 'ACTIVE' và action_type = 'RESTORE'
+      await client.query(
+        `INSERT INTO survey_photo_registry (
+           report_id, parcel_id, photo_category, photo_type, photo_code, photo_url,
+           standardized_filename, sha256_hash, status, replacement_for_url, is_deleted,
+           action_type, action_reason, actor_id, actor_role, metadata_json
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'ACTIVE', $9, false, 'RESTORE', $10, $11, 'ZONE_ADMIN', $12);`,
+        [
+          reportId, parcelId, cat, type, photoCode, restoredUrl,
+          stdName, hash, prevActiveUrl || null, pa.reason, adminId,
+          JSON.stringify({ restoredAt: new Date().toISOString(), ...pa.metadata })
+        ]
+      );
     }
   }
 
@@ -1591,22 +1875,12 @@ export class AuditModificationService {
       const meta = typeof targetPhoto.metadata_json === 'object' ? targetPhoto.metadata_json : {};
 
       if (cat === 'IDENTIFICATION' || ['P01', 'P02', 'P03', 'P04'].includes(type.toUpperCase())) {
-        const identMap: Record<string, string> = {
-          P01: 'P01_HOUSE_NUMBER',
-          P02: 'P02_MAIN_FACADE',
-          P03: 'P03_SIDE_REAR',
-          P04: 'P04_CONTEXT_STREET',
-          P01_HOUSE_NUMBER: 'P01_HOUSE_NUMBER',
-          P02_MAIN_FACADE: 'P02_MAIN_FACADE',
-          P03_SIDE_REAR: 'P03_SIDE_REAR',
-          P04_CONTEXT_STREET: 'P04_CONTEXT_STREET',
-        };
-        const mappedType = identMap[type.toUpperCase()] || type;
+        const equivTypes = getEquivalentIdentPhotoTypes(type);
         await client.query(
           `UPDATE survey_identification_photos 
            SET raw_photo_url = $1, annotated_photo_url = $1, is_not_applicable = false, na_reason = null 
-           WHERE report_id = $2 AND (photo_type = $3 OR photo_type = $4);`,
-          [restoredUrl, actualReportId, type, mappedType]
+           WHERE report_id = $2 AND photo_type::text = ANY($3::text[]);`,
+          [restoredUrl, actualReportId, equivTypes]
         );
 
         const camelKey = `photo${type.toUpperCase().replace(/[^P0-9]/g, '')}`;
@@ -1647,7 +1921,7 @@ export class AuditModificationService {
       }
 
       if (meta?.targetPhotoId) {
-        setDeepProp(sData, meta.targetPhotoId, restoredUrl);
+        mutateSurveyJsonPhoto(sData, meta.targetPhotoId, meta.photoIndex, 'RESTORE', restoredUrl);
       }
 
       await client.query(

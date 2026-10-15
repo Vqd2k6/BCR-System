@@ -434,7 +434,7 @@ export class AuditReviewService {
     // Chuẩn hóa bộ 4 ảnh định danh P-01 -> P-04
     const p01Row = photosRes.rows.find((p: any) => p.photo_type === 'P01_HOUSE_NUMBER');
     const p02Row = photosRes.rows.find((p: any) => p.photo_type === 'P02_MAIN_FACADE');
-    const p03Row = photosRes.rows.find((p: any) => p.photo_type === 'P03_SIDE_REAR');
+    const p03Row = photosRes.rows.find((p: any) => p.photo_type === 'P03_SIDE_REAR' || p.photo_type === 'P03_SIDE_OR_REAR');
     const p04Row = photosRes.rows.find((p: any) => p.photo_type === 'P04_CONTEXT_STREET');
 
     const p01Data = surveyJson.photoP01 || {};
@@ -629,8 +629,10 @@ export class AuditReviewService {
     const sigJson = surveyJson.signatures || {};
     const normalizedSignatures = {
       surveyorSignature: report.surveyor_signature_url || sigJson.preparedBy?.photoUrl || sigJson.surveyorSignatureUrl || null,
+      surveyorSignatureUrl: report.surveyor_signature_url || sigJson.preparedBy?.photoUrl || sigJson.surveyorSignatureUrl || null,
       surveyorName: report.surveyor_name || sigJson.preparedBy?.fullName || null,
       ownerSignature: report.owner_signature_url || sigJson.ownerRepresentative?.photoUrl || sigJson.ownerSignatureUrl || null,
+      ownerSignatureUrl: report.owner_signature_url || sigJson.ownerRepresentative?.photoUrl || sigJson.ownerSignatureUrl || null,
       ownerName: report.owner_name || surveyJson.ownerName || sigJson.ownerRepresentative?.fullName || null,
       ownerFeedback: report.owner_remarks || sigJson.ownerFeedback || sigJson.ownerRemarks || null,
       workingMinutesPhotos: Array.isArray(sigJson.workingMinutesPhotos) && sigJson.workingMinutesPhotos.length > 0

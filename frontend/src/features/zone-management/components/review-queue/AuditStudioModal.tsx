@@ -215,6 +215,8 @@ export const AuditStudioModal: React.FC<Props> = ({
         ? `[Cập Nhật Ảnh] ${action.photoCode || action.targetPhotoType || 'Ảnh'}`
         : action.action === 'ADD'
         ? `[Ảnh Bổ Sung] ${action.photoCode || action.targetPhotoType || 'Ảnh'} (${action.newPhotoUrls?.length || 1} ảnh)`
+        : action.action === 'RESTORE'
+        ? `[Khôi Phục Ảnh] ${action.photoCode || action.targetPhotoType || 'Ảnh'}`
         : `[Xóa Ảnh] ${action.photoCode || action.targetPhotoType || 'Ảnh'}`;
 
     const newDiff: DiffItem = {
@@ -615,7 +617,7 @@ export const AuditStudioModal: React.FC<Props> = ({
                     onOpenDiffModal={(diffItems, updates) => {
                       setDiffModalData({
                         isOpen: true,
-                        diffItems,
+                        diffItems: [...diffItems, ...stagedPhotoDiffs],
                         updates,
                       });
                     }}
@@ -652,7 +654,7 @@ export const AuditStudioModal: React.FC<Props> = ({
                     onOpenDiffModal={(diffItems, updates) => {
                       setDiffModalData({
                         isOpen: true,
-                        diffItems,
+                        diffItems: [...diffItems, ...stagedPhotoDiffs],
                         updates,
                       });
                     }}
@@ -689,7 +691,7 @@ export const AuditStudioModal: React.FC<Props> = ({
                     onOpenDiffModal={(diffItems, updates) => {
                       setDiffModalData({
                         isOpen: true,
-                        diffItems,
+                        diffItems: [...diffItems, ...stagedPhotoDiffs],
                         updates,
                       });
                     }}
@@ -745,7 +747,7 @@ export const AuditStudioModal: React.FC<Props> = ({
                   onOpenDiffModal={(diffItems, updates) => {
                     setDiffModalData({
                       isOpen: true,
-                      diffItems,
+                      diffItems: [...diffItems, ...stagedPhotoDiffs],
                       updates,
                     });
                   }}
@@ -948,6 +950,21 @@ export const AuditStudioModal: React.FC<Props> = ({
             fetchAuditData();
             fetchVersions();
             onRefreshList();
+          }}
+          onStageRestoreAction={(photo, reason) => {
+            const action: PhotoActionPayload = {
+              action: 'RESTORE',
+              category: photo.photo_category,
+              targetPhotoType: photo.photo_type,
+              targetPhotoId: photo.metadata_json?.targetPhotoId || photo.metadata_json?.defectId || photo.metadata_json?.zoneId,
+              photoIndex: photo.metadata_json?.photoIndex,
+              oldPhotoUrl: photoHistoryData.currentPhotoUrl,
+              newPhotoUrl: photo.photo_url,
+              photoCode: photo.photo_code,
+              reason,
+            };
+            handleConfirmPhotoAction(action);
+            setPhotoHistoryData((prev) => ({ ...prev, isOpen: false }));
           }}
         />
       )}
