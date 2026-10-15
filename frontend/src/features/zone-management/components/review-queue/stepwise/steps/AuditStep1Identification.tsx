@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import type { PolygonPoint } from '../../../../../survey-phase1/types/phase1.types';
-import { Camera, Maximize2, MapPin, AlertCircle, Compass, ShieldAlert, Building, Navigation, ShieldCheck, RefreshCw, Plus, Trash2 } from 'lucide-react';
+import { Camera, Maximize2, MapPin, AlertCircle, Compass, ShieldAlert, Building, Navigation, ShieldCheck, RefreshCw, Plus, Trash2, History } from 'lucide-react';
 import { Badge } from '../../../../../../core/components/ui/Badge';
 import { OBJECT_GROUPS, ADJACENT_LEFT_RIGHT, ADJACENT_REAR } from '../../../../../survey-phase1/components/step1/step1.constants';
 import { USAGE_OPTIONS } from '../../../../../survey-phase1/constants/surveyOptionsConstants';
@@ -33,6 +33,7 @@ interface DynamicPhotoItem {
   code: string;
   label: string;
   url: string;
+  photoCode?: string;
   notApplicable?: boolean;
   naReason?: string;
   polygonPoints?: PolygonPoint[] | null;
@@ -40,6 +41,8 @@ interface DynamicPhotoItem {
   tag?: string;
   isExtra?: boolean;
   extraIndex?: number;
+  historyCount?: number;
+  hasHistory?: boolean;
 }
 
 const toPhotoObj = (raw: unknown): IdentificationPhotoItemExtended => {
@@ -72,6 +75,7 @@ export const AuditStep1Identification: React.FC<Props> = ({
   onOpenPhotoZoom,
   onOpenPhotoReplace,
   onOpenPhotoAction,
+  onOpenPhotoHistory,
 }) => {
   const checkDirty = (fieldKey: string, subKey?: string) => {
     return isFieldDirty ? isFieldDirty(fieldKey, subKey) : false;
@@ -127,39 +131,51 @@ export const AuditStep1Identification: React.FC<Props> = ({
       code: 'P-01',
       label: 'Biển số nhà / Tên cơ quan',
       url: p01Url,
+      photoCode: (p01Raw.photoCode as string) || 'P01',
       notApplicable: Boolean(p01Raw.notApplicable),
       naReason: p01Raw.naReason,
+      historyCount: p01Raw.historyCount,
+      hasHistory: p01Raw.hasHistory,
     },
     {
       key: 'photoP02',
       code: 'P-02',
       label: 'Mặt đứng chính diện (Facade)',
       url: p02Url,
+      photoCode: (p02Raw.photoCode as string) || 'P02',
       polygonPoints: p02PolygonPoints,
       floorSplits: p02FloorSplits,
       notApplicable: Boolean(p02Raw.notApplicable),
       naReason: p02Raw.naReason,
+      historyCount: p02Raw.historyCount,
+      hasHistory: p02Raw.hasHistory,
     },
     {
       key: 'photoP03',
       code: p03Raw.photoCode || 'P-03_1',
       label: `Mặt bên / sau (${p03Raw.tag || 'Ảnh chính'})`,
       url: p03Url,
+      photoCode: (p03Raw.photoCode as string) || 'P03',
       tag: p03Raw.tag || 'Bên hông',
       notApplicable: Boolean(p03Raw.notApplicable),
       naReason: p03Raw.naReason,
+      historyCount: p03Raw.historyCount,
+      hasHistory: p03Raw.hasHistory,
     },
-    ...p03AdditionalPhotos.map((extra: { url?: string; photoUrl?: string; raw_photo_url?: string; photoCode?: string; tag?: string; notApplicable?: boolean; naReason?: string }, idx: number): DynamicPhotoItem => {
+    ...p03AdditionalPhotos.map((extra: any, idx: number): DynamicPhotoItem => {
       const extraUrl = typeof extra === 'string' ? extra : (extra.url || extra.photoUrl || extra.raw_photo_url || '');
       return {
         key: `photoP03_extra_${idx}`,
         code: extra.photoCode || `P-03_${idx + 2}`,
         label: `Mặt bên / sau (${extra.tag || `Ảnh bổ sung ${idx + 1}`})`,
         url: extraUrl,
+        photoCode: extra.photoCode,
         tag: extra.tag || `Bổ sung ${idx + 1}`,
         notApplicable: false,
         isExtra: true,
         extraIndex: idx,
+        historyCount: extra.historyCount,
+        hasHistory: extra.hasHistory,
       };
     }),
     {
@@ -167,8 +183,11 @@ export const AuditStep1Identification: React.FC<Props> = ({
       code: 'P-04',
       label: 'Toàn cảnh tuyến phố & Không gian',
       url: p04Url,
+      photoCode: (p04Raw.photoCode as string) || 'P04',
       notApplicable: Boolean(p04Raw.notApplicable),
       naReason: p04Raw.naReason,
+      historyCount: p04Raw.historyCount,
+      hasHistory: p04Raw.hasHistory,
     },
   ];
 
@@ -376,58 +395,78 @@ export const AuditStep1Identification: React.FC<Props> = ({
                     <span className="text-[11px] font-semibold text-slate-700 truncate" title={item.label}>
                       {item.label}
                     </span>
-                    {isEditMode && (
-                      <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1">
+                      {onOpenPhotoHistory && (
                         <button
                           type="button"
-                          onClick={() => {
-                            if (onOpenPhotoAction) {
-                              onOpenPhotoAction({
-                                initialMode: 'REPLACE',
-                                category: 'IDENTIFICATION',
-                                targetPhotoType: item.code.replace('-', ''),
-                                targetPhotoId: item.isExtra ? 'identificationPhotos.photoP03.additionalPhotos' : item.key,
-                                photoIndex: item.isExtra ? item.extraIndex : undefined,
-                                currentPhotoUrl: url,
-                                photoTitle: `Ảnh định danh ${item.code} - ${item.label}`,
-                              });
-                            } else if (onOpenPhotoReplace) {
-                              onOpenPhotoReplace({
-                                targetPhotoType: 'IDENTIFICATION_P',
-                                targetPhotoId: item.isExtra ? 'identificationPhotos.photoP03.additionalPhotos' : item.key,
-                                photoIndex: item.isExtra ? item.extraIndex : undefined,
-                                currentPhotoUrl: url,
-                                photoTitle: `Ảnh định danh ${item.code} - ${item.label}`,
-                              });
-                            }
-                          }}
-                          className="text-[10px] font-bold text-sky-600 hover:text-sky-800 bg-sky-50 px-1.5 py-0.5 rounded transition-colors cursor-pointer"
-                          title="Thay thế ảnh này chuẩn M2"
+                          onClick={() =>
+                            onOpenPhotoHistory({
+                              photoCode: item.photoCode || `HCM_M2_${item.code.replace('-', '')}`,
+                              photoType: item.code.replace('-', ''),
+                              photoTitle: `Ảnh định danh ${item.code} - ${item.label}`,
+                              currentPhotoUrl: url,
+                            })
+                          }
+                          className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-700 hover:text-sky-700 bg-slate-100 hover:bg-sky-50 border border-slate-200 hover:border-sky-300 px-1.5 py-0.5 rounded transition-colors cursor-pointer"
+                          title="Xem phả hệ & lịch sử thay đổi của ảnh này"
                         >
-                          Đổi ảnh
+                          <History className="w-3 h-3 text-sky-600" />
+                          <span>Lịch sử {item.historyCount ? `(${item.historyCount})` : ''}</span>
                         </button>
-                        {onOpenPhotoAction && (
+                      )}
+                      {isEditMode && (
+                        <>
                           <button
                             type="button"
-                            onClick={() =>
-                              onOpenPhotoAction({
-                                initialMode: 'DELETE',
-                                category: 'IDENTIFICATION',
-                                targetPhotoType: item.code.replace('-', ''),
-                                targetPhotoId: item.isExtra ? 'identificationPhotos.photoP03.additionalPhotos' : item.key,
-                                photoIndex: item.isExtra ? item.extraIndex : undefined,
-                                currentPhotoUrl: url,
-                                photoTitle: `Ảnh định danh ${item.code} - ${item.label}`,
-                              })
-                            }
-                            className="text-[10px] font-bold text-rose-600 hover:text-rose-800 bg-rose-50 px-1.5 py-0.5 rounded transition-colors cursor-pointer"
-                            title="Xóa ảnh hoặc đánh dấu Không Áp Dụng (N/A)"
+                            onClick={() => {
+                              if (onOpenPhotoAction) {
+                                onOpenPhotoAction({
+                                  initialMode: 'REPLACE',
+                                  category: 'IDENTIFICATION',
+                                  targetPhotoType: item.code.replace('-', ''),
+                                  targetPhotoId: item.isExtra ? 'identificationPhotos.photoP03.additionalPhotos' : item.key,
+                                  photoIndex: item.isExtra ? item.extraIndex : undefined,
+                                  currentPhotoUrl: url,
+                                  photoTitle: `Ảnh định danh ${item.code} - ${item.label}`,
+                                });
+                              } else if (onOpenPhotoReplace) {
+                                onOpenPhotoReplace({
+                                  targetPhotoType: 'IDENTIFICATION_P',
+                                  targetPhotoId: item.isExtra ? 'identificationPhotos.photoP03.additionalPhotos' : item.key,
+                                  photoIndex: item.isExtra ? item.extraIndex : undefined,
+                                  currentPhotoUrl: url,
+                                  photoTitle: `Ảnh định danh ${item.code} - ${item.label}`,
+                                });
+                              }
+                            }}
+                            className="text-[10px] font-bold text-sky-600 hover:text-sky-800 bg-sky-50 px-1.5 py-0.5 rounded transition-colors cursor-pointer"
+                            title="Thay thế ảnh này chuẩn M2"
                           >
-                            Xóa / N/A
+                            Đổi ảnh
                           </button>
-                        )}
-                      </div>
-                    )}
+                          {onOpenPhotoAction && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                onOpenPhotoAction({
+                                  initialMode: 'DELETE',
+                                  category: 'IDENTIFICATION',
+                                  targetPhotoType: item.code.replace('-', ''),
+                                  targetPhotoId: item.isExtra ? 'identificationPhotos.photoP03.additionalPhotos' : item.key,
+                                  photoIndex: item.isExtra ? item.extraIndex : undefined,
+                                  currentPhotoUrl: url,
+                                  photoTitle: `Ảnh định danh ${item.code} - ${item.label}`,
+                                })
+                              }
+                              className="text-[10px] font-bold text-rose-600 hover:text-rose-800 bg-rose-50 px-1.5 py-0.5 rounded transition-colors cursor-pointer"
+                              title="Xóa ảnh hoặc đánh dấu Không Áp Dụng (N/A)"
+                            >
+                              Xóa / N/A
+                            </button>
+                          )}
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
               );
@@ -442,24 +481,42 @@ export const AuditStep1Identification: React.FC<Props> = ({
               <span className="text-xs font-black uppercase text-amber-900 block">
                 Hiện Trạng Đất Trống ({vacantLandPhotos.length} ảnh hiện trường)
               </span>
-              {isEditMode && onOpenPhotoAction && (
-                <button
-                  type="button"
-                  onClick={() =>
-                    onOpenPhotoAction({
-                      initialMode: 'ADD',
-                      category: 'OVERVIEW',
-                      targetPhotoType: 'VACANT_LAND',
-                      targetPhotoId: 'vacantLandPhotos',
-                      photoTitle: 'Bổ sung ảnh đất trống',
-                    })
-                  }
-                  className="px-2 py-0.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-[10px] flex items-center gap-1 transition-colors cursor-pointer shadow-xs"
-                >
-                  <Plus className="w-3 h-3" />
-                  <span>+ Thêm Ảnh Đất Trống</span>
-                </button>
-              )}
+              <div className="flex items-center gap-2">
+                {onOpenPhotoHistory && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onOpenPhotoHistory({
+                        photoType: 'VACANT_LAND',
+                        photoTitle: 'Lịch sử ảnh hiện trạng đất trống',
+                      })
+                    }
+                    className="px-2 py-0.5 rounded-lg bg-white border border-amber-300 text-amber-800 hover:bg-amber-50 font-bold text-[10px] flex items-center gap-1 shadow-2xs cursor-pointer"
+                    title="Xem phả hệ & lịch sử khôi phục ảnh đất trống"
+                  >
+                    <History className="w-3 h-3 text-amber-600" />
+                    <span>Lịch sử / Khôi phục</span>
+                  </button>
+                )}
+                {isEditMode && onOpenPhotoAction && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onOpenPhotoAction({
+                        initialMode: 'ADD',
+                        category: 'OVERVIEW',
+                        targetPhotoType: 'VACANT_LAND',
+                        targetPhotoId: 'vacantLandPhotos',
+                        photoTitle: 'Bổ sung ảnh đất trống',
+                      })
+                    }
+                    className="px-2 py-0.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-[10px] flex items-center gap-1 transition-colors cursor-pointer shadow-xs"
+                  >
+                    <Plus className="w-3 h-3" />
+                    <span>+ Thêm Ảnh Đất Trống</span>
+                  </button>
+                )}
+              </div>
             </div>
             {isEditMode ? (
               <div>
@@ -477,7 +534,7 @@ export const AuditStep1Identification: React.FC<Props> = ({
                 <p className="text-xs text-slate-700 italic">{formState.vacantLandNotes || sJson.vacantLandNotes}</p>
               )
             )}
-            {vacantLandPhotos.length > 0 && (
+            {vacantLandPhotos.length > 0 ? (
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                 {vacantLandPhotos.map((vItem, idx: number) => {
                   const vUrl = typeof vItem === 'string' ? vItem : (vItem?.url || vItem?.photoUrl || '');
@@ -488,64 +545,123 @@ export const AuditStep1Identification: React.FC<Props> = ({
                       onClick={() => onOpenPhotoZoom(vUrl, `Ảnh đất trống ${idx + 1}`)}
                     >
                       <img src={vUrl} alt={`Đất trống ${idx + 1}`} className="w-full h-full object-cover" />
-                      {isEditMode && (
-                        <div className="absolute top-1 right-1 z-10 flex items-center gap-1">
+                      <div className="absolute top-1 right-1 z-10 flex items-center gap-1">
+                        {onOpenPhotoHistory && (
                           <button
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              if (onOpenPhotoAction) {
-                                onOpenPhotoAction({
-                                  initialMode: 'REPLACE',
-                                  category: 'OVERVIEW',
-                                  targetPhotoType: 'VACANT_LAND',
-                                  targetPhotoId: 'vacantLandPhotos',
-                                  photoIndex: idx,
-                                  currentPhotoUrl: vUrl,
-                                  photoTitle: `Ảnh đất trống #${idx + 1}`,
-                                });
-                              } else if (onOpenPhotoReplace) {
-                                onOpenPhotoReplace({
-                                  targetPhotoType: 'VACANT_LAND',
-                                  targetPhotoId: 'vacantLandPhotos',
-                                  photoIndex: idx,
-                                  currentPhotoUrl: vUrl,
-                                  photoTitle: `Ảnh đất trống #${idx + 1}`,
-                                });
-                              }
+                              onOpenPhotoHistory({
+                                photoCode: `VACANT_LAND_${idx + 1}`,
+                                photoType: 'VACANT_LAND',
+                                photoTitle: `Ảnh đất trống #${idx + 1}`,
+                                currentPhotoUrl: vUrl,
+                              });
                             }}
-                            className="px-1.5 py-0.5 rounded bg-amber-600/90 hover:bg-amber-700 text-white font-bold text-[9px] flex items-center gap-0.5 shadow-sm"
-                            title="Thay thế ảnh này"
+                            className="p-1 rounded bg-black/60 hover:bg-black/80 text-white text-[9px] shadow-sm cursor-pointer"
+                            title="Lịch sử phiên bản ảnh này"
                           >
-                            <RefreshCw className="w-2.5 h-2.5" />
-                            <span>Đổi ảnh</span>
+                            <History className="w-2.5 h-2.5" />
                           </button>
-                          {onOpenPhotoAction && (
+                        )}
+                        {isEditMode && (
+                          <>
                             <button
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                onOpenPhotoAction({
-                                  initialMode: 'DELETE',
-                                  category: 'OVERVIEW',
-                                  targetPhotoType: 'VACANT_LAND',
-                                  targetPhotoId: 'vacantLandPhotos',
-                                  photoIndex: idx,
-                                  currentPhotoUrl: vUrl,
-                                  photoTitle: `Ảnh đất trống #${idx + 1}`,
-                                });
+                                if (onOpenPhotoAction) {
+                                  onOpenPhotoAction({
+                                    initialMode: 'REPLACE',
+                                    category: 'OVERVIEW',
+                                    targetPhotoType: 'VACANT_LAND',
+                                    targetPhotoId: 'vacantLandPhotos',
+                                    photoIndex: idx,
+                                    currentPhotoUrl: vUrl,
+                                    photoTitle: `Ảnh đất trống #${idx + 1}`,
+                                  });
+                                } else if (onOpenPhotoReplace) {
+                                  onOpenPhotoReplace({
+                                    targetPhotoType: 'VACANT_LAND',
+                                    targetPhotoId: 'vacantLandPhotos',
+                                    photoIndex: idx,
+                                    currentPhotoUrl: vUrl,
+                                    photoTitle: `Ảnh đất trống #${idx + 1}`,
+                                  });
+                                }
                               }}
-                              className="p-1 rounded bg-rose-600/90 hover:bg-rose-700 text-white text-[9px] shadow-sm"
-                              title="Xóa ảnh này"
+                              className="px-1.5 py-0.5 rounded bg-amber-600/90 hover:bg-amber-700 text-white font-bold text-[9px] flex items-center gap-0.5 shadow-sm"
+                              title="Thay thế ảnh này"
                             >
-                              <Trash2 className="w-2.5 h-2.5" />
+                              <RefreshCw className="w-2.5 h-2.5" />
+                              <span>Đổi ảnh</span>
                             </button>
-                          )}
-                        </div>
-                      )}
+                            {onOpenPhotoAction && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onOpenPhotoAction({
+                                    initialMode: 'DELETE',
+                                    category: 'OVERVIEW',
+                                    targetPhotoType: 'VACANT_LAND',
+                                    targetPhotoId: 'vacantLandPhotos',
+                                    photoIndex: idx,
+                                    currentPhotoUrl: vUrl,
+                                    photoTitle: `Ảnh đất trống #${idx + 1}`,
+                                  });
+                                }}
+                                className="p-1 rounded bg-rose-600/90 hover:bg-rose-700 text-white text-[9px] shadow-sm"
+                                title="Xóa ảnh này"
+                              >
+                                <Trash2 className="w-2.5 h-2.5" />
+                              </button>
+                            )}
+                          </>
+                        )}
+                      </div>
                     </div>
                   );
                 })}
+              </div>
+            ) : (
+              <div className="p-3 rounded-lg border border-dashed border-amber-300 bg-amber-50/50 text-center space-y-2">
+                <p className="text-[11px] text-amber-800 font-semibold italic">Chưa có ảnh hiện trạng đất trống nào trong hồ sơ</p>
+                <div className="flex items-center justify-center gap-2">
+                  {isEditMode && onOpenPhotoAction && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        onOpenPhotoAction({
+                          initialMode: 'ADD',
+                          category: 'OVERVIEW',
+                          targetPhotoType: 'VACANT_LAND',
+                          targetPhotoId: 'vacantLandPhotos',
+                          photoTitle: 'Bổ sung ảnh đất trống',
+                        })
+                      }
+                      className="px-2.5 py-1 rounded bg-amber-600 hover:bg-amber-700 text-white font-bold text-[10px] flex items-center gap-1 shadow-xs cursor-pointer"
+                    >
+                      <Plus className="w-3 h-3" />
+                      <span>+ Thêm Ảnh Đất Trống</span>
+                    </button>
+                  )}
+                  {onOpenPhotoHistory && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        onOpenPhotoHistory({
+                          photoType: 'VACANT_LAND',
+                          photoTitle: 'Lịch sử ảnh hiện trạng đất trống',
+                        })
+                      }
+                      className="px-2.5 py-1 rounded bg-white border border-amber-300 text-amber-800 hover:bg-amber-50 font-bold text-[10px] flex items-center gap-1 shadow-2xs cursor-pointer"
+                    >
+                      <History className="w-3 h-3 text-amber-600" />
+                      <span>🕒 Lịch sử / Khôi phục ảnh</span>
+                    </button>
+                  )}
+                </div>
               </div>
             )}
           </div>
@@ -557,24 +673,42 @@ export const AuditStep1Identification: React.FC<Props> = ({
               <span className="text-xs font-black uppercase text-blue-900 block">
                 Hiện Trạng Công Trình Đang Xây Dựng ({underConstructionPhotos.length} ảnh hiện trường)
               </span>
-              {isEditMode && onOpenPhotoAction && (
-                <button
-                  type="button"
-                  onClick={() =>
-                    onOpenPhotoAction({
-                      initialMode: 'ADD',
-                      category: 'OVERVIEW',
-                      targetPhotoType: 'UNDER_CONSTRUCTION',
-                      targetPhotoId: 'underConstructionPhotos',
-                      photoTitle: 'Bổ sung ảnh công trình đang thi công',
-                    })
-                  }
-                  className="px-2 py-0.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-[10px] flex items-center gap-1 transition-colors cursor-pointer shadow-xs"
-                >
-                  <Plus className="w-3 h-3" />
-                  <span>+ Thêm Ảnh Thi Công</span>
-                </button>
-              )}
+              <div className="flex items-center gap-2">
+                {onOpenPhotoHistory && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onOpenPhotoHistory({
+                        photoType: 'UNDER_CONSTRUCTION',
+                        photoTitle: 'Lịch sử ảnh công trình đang thi công',
+                      })
+                    }
+                    className="px-2 py-0.5 rounded-lg bg-white border border-blue-300 text-blue-800 hover:bg-blue-50 font-bold text-[10px] flex items-center gap-1 shadow-2xs cursor-pointer"
+                    title="Xem phả hệ & lịch sử khôi phục ảnh thi công"
+                  >
+                    <History className="w-3 h-3 text-blue-600" />
+                    <span>Lịch sử / Khôi phục</span>
+                  </button>
+                )}
+                {isEditMode && onOpenPhotoAction && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onOpenPhotoAction({
+                        initialMode: 'ADD',
+                        category: 'OVERVIEW',
+                        targetPhotoType: 'UNDER_CONSTRUCTION',
+                        targetPhotoId: 'underConstructionPhotos',
+                        photoTitle: 'Bổ sung ảnh công trình đang thi công',
+                      })
+                    }
+                    className="px-2 py-0.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-[10px] flex items-center gap-1 transition-colors cursor-pointer shadow-xs"
+                  >
+                    <Plus className="w-3 h-3" />
+                    <span>+ Thêm Ảnh Thi Công</span>
+                  </button>
+                )}
+              </div>
             </div>
             {isEditMode ? (
               <div>
@@ -592,7 +726,7 @@ export const AuditStep1Identification: React.FC<Props> = ({
                 <p className="text-xs text-slate-700 italic">{formState.constructionStageNotes || sJson.constructionStageNotes}</p>
               )
             )}
-            {underConstructionPhotos.length > 0 && (
+            {underConstructionPhotos.length > 0 ? (
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                 {underConstructionPhotos.map((uItem, idx: number) => {
                   const uUrl = typeof uItem === 'string' ? uItem : (uItem?.url || uItem?.photoUrl || '');
@@ -603,64 +737,123 @@ export const AuditStep1Identification: React.FC<Props> = ({
                       onClick={() => onOpenPhotoZoom(uUrl, `Ảnh xây dựng dở dang ${idx + 1}`)}
                     >
                       <img src={uUrl} alt={`Xây dựng dở dang ${idx + 1}`} className="w-full h-full object-cover" />
-                      {isEditMode && (
-                        <div className="absolute top-1 right-1 z-10 flex items-center gap-1">
+                      <div className="absolute top-1 right-1 z-10 flex items-center gap-1">
+                        {onOpenPhotoHistory && (
                           <button
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              if (onOpenPhotoAction) {
-                                onOpenPhotoAction({
-                                  initialMode: 'REPLACE',
-                                  category: 'OVERVIEW',
-                                  targetPhotoType: 'UNDER_CONSTRUCTION',
-                                  targetPhotoId: 'underConstructionPhotos',
-                                  photoIndex: idx,
-                                  currentPhotoUrl: uUrl,
-                                  photoTitle: `Ảnh xây dựng dở dang #${idx + 1}`,
-                                });
-                              } else if (onOpenPhotoReplace) {
-                                onOpenPhotoReplace({
-                                  targetPhotoType: 'UNDER_CONSTRUCTION',
-                                  targetPhotoId: 'underConstructionPhotos',
-                                  photoIndex: idx,
-                                  currentPhotoUrl: uUrl,
-                                  photoTitle: `Ảnh xây dựng dở dang #${idx + 1}`,
-                                });
-                              }
+                              onOpenPhotoHistory({
+                                photoCode: `UNDER_CONSTRUCTION_${idx + 1}`,
+                                photoType: 'UNDER_CONSTRUCTION',
+                                photoTitle: `Ảnh xây dựng dở dang #${idx + 1}`,
+                                currentPhotoUrl: uUrl,
+                              });
                             }}
-                            className="px-1.5 py-0.5 rounded bg-blue-600/90 hover:bg-blue-700 text-white font-bold text-[9px] flex items-center gap-0.5 shadow-sm"
-                            title="Thay thế ảnh này"
+                            className="p-1 rounded bg-black/60 hover:bg-black/80 text-white text-[9px] shadow-sm cursor-pointer"
+                            title="Lịch sử phiên bản ảnh này"
                           >
-                            <RefreshCw className="w-2.5 h-2.5" />
-                            <span>Đổi ảnh</span>
+                            <History className="w-2.5 h-2.5" />
                           </button>
-                          {onOpenPhotoAction && (
+                        )}
+                        {isEditMode && (
+                          <>
                             <button
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                onOpenPhotoAction({
-                                  initialMode: 'DELETE',
-                                  category: 'OVERVIEW',
-                                  targetPhotoType: 'UNDER_CONSTRUCTION',
-                                  targetPhotoId: 'underConstructionPhotos',
-                                  photoIndex: idx,
-                                  currentPhotoUrl: uUrl,
-                                  photoTitle: `Ảnh xây dựng dở dang #${idx + 1}`,
-                                });
+                                if (onOpenPhotoAction) {
+                                  onOpenPhotoAction({
+                                    initialMode: 'REPLACE',
+                                    category: 'OVERVIEW',
+                                    targetPhotoType: 'UNDER_CONSTRUCTION',
+                                    targetPhotoId: 'underConstructionPhotos',
+                                    photoIndex: idx,
+                                    currentPhotoUrl: uUrl,
+                                    photoTitle: `Ảnh xây dựng dở dang #${idx + 1}`,
+                                  });
+                                } else if (onOpenPhotoReplace) {
+                                  onOpenPhotoReplace({
+                                    targetPhotoType: 'UNDER_CONSTRUCTION',
+                                    targetPhotoId: 'underConstructionPhotos',
+                                    photoIndex: idx,
+                                    currentPhotoUrl: uUrl,
+                                    photoTitle: `Ảnh xây dựng dở dang #${idx + 1}`,
+                                  });
+                                }
                               }}
-                              className="p-1 rounded bg-rose-600/90 hover:bg-rose-700 text-white text-[9px] shadow-sm"
-                              title="Xóa ảnh này"
+                              className="px-1.5 py-0.5 rounded bg-blue-600/90 hover:bg-blue-700 text-white font-bold text-[9px] flex items-center gap-0.5 shadow-sm"
+                              title="Thay thế ảnh này"
                             >
-                              <Trash2 className="w-2.5 h-2.5" />
+                              <RefreshCw className="w-2.5 h-2.5" />
+                              <span>Đổi ảnh</span>
                             </button>
-                          )}
-                        </div>
-                      )}
+                            {onOpenPhotoAction && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onOpenPhotoAction({
+                                    initialMode: 'DELETE',
+                                    category: 'OVERVIEW',
+                                    targetPhotoType: 'UNDER_CONSTRUCTION',
+                                    targetPhotoId: 'underConstructionPhotos',
+                                    photoIndex: idx,
+                                    currentPhotoUrl: uUrl,
+                                    photoTitle: `Ảnh xây dựng dở dang #${idx + 1}`,
+                                  });
+                                }}
+                                className="p-1 rounded bg-rose-600/90 hover:bg-rose-700 text-white text-[9px] shadow-sm"
+                                title="Xóa ảnh này"
+                              >
+                                <Trash2 className="w-2.5 h-2.5" />
+                              </button>
+                            )}
+                          </>
+                        )}
+                      </div>
                     </div>
                   );
                 })}
+              </div>
+            ) : (
+              <div className="p-3 rounded-lg border border-dashed border-blue-300 bg-blue-50/50 text-center space-y-2">
+                <p className="text-[11px] text-blue-800 font-semibold italic">Chưa có ảnh công trình thi công nào trong hồ sơ</p>
+                <div className="flex items-center justify-center gap-2">
+                  {isEditMode && onOpenPhotoAction && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        onOpenPhotoAction({
+                          initialMode: 'ADD',
+                          category: 'OVERVIEW',
+                          targetPhotoType: 'UNDER_CONSTRUCTION',
+                          targetPhotoId: 'underConstructionPhotos',
+                          photoTitle: 'Bổ sung ảnh công trình đang thi công',
+                        })
+                      }
+                      className="px-2.5 py-1 rounded bg-blue-600 hover:bg-blue-700 text-white font-bold text-[10px] flex items-center gap-1 shadow-xs cursor-pointer"
+                    >
+                      <Plus className="w-3 h-3" />
+                      <span>+ Thêm Ảnh Thi Công</span>
+                    </button>
+                  )}
+                  {onOpenPhotoHistory && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        onOpenPhotoHistory({
+                          photoType: 'UNDER_CONSTRUCTION',
+                          photoTitle: 'Lịch sử ảnh công trình đang thi công',
+                        })
+                      }
+                      className="px-2.5 py-1 rounded bg-white border border-blue-300 text-blue-800 hover:bg-blue-50 font-bold text-[10px] flex items-center gap-1 shadow-2xs cursor-pointer"
+                    >
+                      <History className="w-3 h-3 text-blue-600" />
+                      <span>🕒 Lịch sử / Khôi phục ảnh</span>
+                    </button>
+                  )}
+                </div>
               </div>
             )}
           </div>

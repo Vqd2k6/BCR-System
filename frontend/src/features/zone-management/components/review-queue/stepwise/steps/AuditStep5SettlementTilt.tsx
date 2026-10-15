@@ -13,10 +13,12 @@ import {
   RefreshCw,
   Plus,
   Trash2,
+  History,
 } from 'lucide-react';
 import { SETTLEMENT_LEVEL_OPTIONS, TILT_LEVEL_OPTIONS } from '../../../../../survey-phase1/components/step1/step1.constants';
 import { SAG_LEVEL_OPTIONS } from '../../../../../survey-phase1/constants/levelGuideConstants';
-import type { AuditStepwiseFormState, StepwiseSettlementTilt, PhotoReplaceParams, AuditPhotoActionParams } from '../types';
+import { AuditPhotoCard } from '../components/AuditPhotoCard';
+import type { AuditStepwiseFormState, StepwiseSettlementTilt, PhotoReplaceParams, AuditPhotoActionParams, AuditPhotoHistoryParams, PhotoActionPayload } from '../types';
 
 interface Props {
   isEditMode: boolean;
@@ -25,7 +27,10 @@ interface Props {
   onOpenPhotoZoom?: (url: string, title?: string, photoCode?: string) => void;
   onOpenPhotoReplace?: (params: PhotoReplaceParams) => void;
   onOpenPhotoAction?: (params: AuditPhotoActionParams) => void;
+  onOpenPhotoHistory?: (params: AuditPhotoHistoryParams) => void;
   isFieldDirty?: (fieldKey: string, subKey?: string) => boolean;
+  stagedPhotoActions?: PhotoActionPayload[];
+  onUndoPhotoAction?: (action: PhotoActionPayload) => void;
 }
 
 const DATA_SOURCES_LIST = [
@@ -44,7 +49,10 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
   onOpenPhotoZoom,
   onOpenPhotoReplace,
   onOpenPhotoAction,
+  onOpenPhotoHistory,
   isFieldDirty,
+  stagedPhotoActions = [],
+  onUndoPhotoAction,
 }) => {
   const st: StepwiseSettlementTilt = formState.settlementTilt || {};
   const tilt = st.buildingTilt || {};
@@ -57,6 +65,25 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
   const lTilt = Number(tilt.level) || 0;
   const lSag = Number(beam.level) || 0;
   const calculatedE3 = Math.min(4, Math.max(lDiff, lTilt, lSag));
+
+  // Helper tra cứu trạng thái can thiệp ảnh staged
+  const getStagedAction = (filter: {
+    category?: string;
+    targetPhotoId?: string;
+    targetPhotoType?: string;
+    photoIndex?: number;
+    url?: string;
+  }) => {
+    if (!stagedPhotoActions || stagedPhotoActions.length === 0) return null;
+    return stagedPhotoActions.find((a) => {
+      if (filter.category && a.category !== filter.category) return false;
+      if (filter.targetPhotoType && a.targetPhotoType !== filter.targetPhotoType) return false;
+      if (filter.targetPhotoId && a.targetPhotoId && a.targetPhotoId !== filter.targetPhotoId) return false;
+      if (filter.url && a.oldPhotoUrl && a.oldPhotoUrl === filter.url) return true;
+      if (filter.photoIndex !== undefined && a.photoIndex !== undefined && a.photoIndex === filter.photoIndex) return true;
+      return false;
+    });
+  };
 
   // Danh sách ảnh lún chênh
   const diffPhotos: Array<{ url: string; photoCode?: string; notes?: string }> =
@@ -72,6 +99,14 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
       ? tilt.photos
       : tilt.photoUrl
       ? [{ url: tilt.photoUrl, photoCode: tilt.photoCode || 'TILT_01', notes: tilt.notes }]
+      : [];
+
+  // Danh sách ảnh độ võng dầm
+  const beamPhotos: Array<{ url: string; photoCode?: string; notes?: string }> =
+    Array.isArray(beam.photos) && beam.photos.length > 0
+      ? beam.photos
+      : beam.photoUrl
+      ? [{ url: beam.photoUrl, photoCode: beam.photoCode || 'SAG_01', notes: beam.notes }]
       : [];
 
   // Danh sách ảnh ngoại lệ bất thường
@@ -204,86 +239,80 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                 )}
               </div>
 
-              {diffPhotos.length > 0 ? (
+              {diffPhotos.length > 0 || (stagedPhotoActions?.some((a) => a.action === 'ADD' && a.targetPhotoType === 'SETTLEMENT_DIFF')) ? (
                 <div className="grid grid-cols-2 gap-2">
-                  {diffPhotos.map((p, pIdx) => (
-                    <div
-                      key={pIdx}
-                      className="group relative rounded-lg overflow-hidden border border-slate-200 bg-black aspect-video cursor-pointer"
-                      onClick={() => onOpenPhotoZoom && onOpenPhotoZoom(p.url, `Ảnh lún chênh chân tường (${p.photoCode || 'SETTLE'})`, p.photoCode || 'SETTLE')}
-                    >
-                      <img
-                        src={p.url}
-                        alt="Ảnh lún chênh"
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                  {diffPhotos.map((p, pIdx) => {
+                    const stagedDiff = getStagedAction({
+                      category: 'SETTLEMENT_TILT',
+                      targetPhotoType: 'SETTLEMENT_DIFF',
+                      targetPhotoId: 'settlementTilt.diffSettlement.photos',
+                      photoIndex: pIdx,
+                      url: p.url,
+                    });
+                    return (
+                      <AuditPhotoCard
+                        key={pIdx}
+                        url={stagedDiff?.newPhotoUrl || p.url}
+                        photoCode={p.photoCode || `SETTLE_${pIdx + 1}`}
+                        title={`Ảnh lún chênh (${p.photoCode || `SETTLE_${pIdx + 1}`})`}
+                        category="SETTLEMENT_TILT"
+                        targetPhotoType="SETTLEMENT_DIFF"
+                        targetPhotoId="settlementTilt.diffSettlement.photos"
+                        photoIndex={pIdx}
+                        isEditMode={isEditMode}
+                        aspectRatio="aspect-video"
+                        badgeColor="amber"
+                        optimisticStatus={stagedDiff ? (stagedDiff.action === 'DELETE' ? 'DELETED' : 'REPLACED') : undefined}
+                        onUndoDelete={stagedDiff ? () => onUndoPhotoAction?.(stagedDiff) : undefined}
+                        onOpenPhotoZoom={onOpenPhotoZoom}
+                        onOpenPhotoAction={onOpenPhotoAction}
+                        onOpenPhotoHistory={onOpenPhotoHistory}
                       />
-                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
-                        <Maximize2 className="w-4 h-4" />
-                      </div>
-                      <span className="absolute bottom-1 left-1 px-1.5 py-0.5 rounded bg-black/70 text-white font-mono text-[9px] font-bold">
-                        {p.photoCode || `SETTLE_${pIdx + 1}`}
-                      </span>
-                      {isEditMode && (
-                        <div className="absolute top-1 right-1 z-10 flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (onOpenPhotoAction) {
-                                onOpenPhotoAction({
-                                  initialMode: 'REPLACE',
-                                  category: 'SETTLEMENT_TILT',
-                                  targetPhotoType: 'SETTLEMENT_DIFF',
-                                  targetPhotoId: 'settlementTilt.diffSettlement.photos',
-                                  photoIndex: pIdx,
-                                  currentPhotoUrl: p.url,
-                                  photoTitle: `Ảnh lún chênh (${p.photoCode || `SETTLE_${pIdx + 1}`})`,
-                                });
-                              } else if (onOpenPhotoReplace) {
-                                onOpenPhotoReplace({
-                                  targetPhotoType: 'SETTLEMENT_DIFF',
-                                  targetPhotoId: 'settlementTilt.diffSettlement.photos',
-                                  photoIndex: pIdx,
-                                  currentPhotoUrl: p.url,
-                                  photoTitle: `Ảnh lún chênh (${p.photoCode || `SETTLE_${pIdx + 1}`})`,
-                                });
-                              }
-                            }}
-                            className="px-1.5 py-0.5 rounded bg-sky-600/90 hover:bg-sky-700 text-white font-bold text-[9px] flex items-center gap-0.5 shadow-sm"
-                            title="Thay ảnh lún chênh"
-                          >
-                            <RefreshCw className="w-2.5 h-2.5" />
-                            <span>Đổi ảnh</span>
-                          </button>
-                          {onOpenPhotoAction && (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onOpenPhotoAction({
-                                  initialMode: 'DELETE',
-                                  category: 'SETTLEMENT_TILT',
-                                  targetPhotoType: 'SETTLEMENT_DIFF',
-                                  targetPhotoId: 'settlementTilt.diffSettlement.photos',
-                                  photoIndex: pIdx,
-                                  currentPhotoUrl: p.url,
-                                  photoTitle: `Ảnh lún chênh (${p.photoCode || `SETTLE_${pIdx + 1}`})`,
-                                });
-                              }}
-                              className="p-1 rounded bg-rose-600/90 hover:bg-rose-700 text-white text-[9px] shadow-sm"
-                              title="Xóa ảnh này"
-                            >
-                              <Trash2 className="w-2.5 h-2.5" />
-                            </button>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  ))}
+                    );
+                  })}
+
+                  {/* Ảnh lún chênh mới thêm (Optimistic ADD) */}
+                  {stagedPhotoActions
+                    ?.filter((a) => a.action === 'ADD' && a.targetPhotoType === 'SETTLEMENT_DIFF')
+                    .flatMap((a) => a.newPhotoUrls || (a.newPhotoUrl ? [a.newPhotoUrl] : []))
+                    .map((addedUrl, addIdx) => (
+                      <AuditPhotoCard
+                        key={`added-diff-${addIdx}`}
+                        url={addedUrl}
+                        photoCode={`Mới`}
+                        title={`Ảnh lún chênh mới thêm`}
+                        category="SETTLEMENT_TILT"
+                        targetPhotoType="SETTLEMENT_DIFF"
+                        targetPhotoId="settlementTilt.diffSettlement.photos"
+                        isEditMode={isEditMode}
+                        aspectRatio="aspect-video"
+                        badgeColor="emerald"
+                        optimisticStatus="ADDED"
+                        onOpenPhotoZoom={onOpenPhotoZoom}
+                        onOpenPhotoAction={onOpenPhotoAction}
+                        onOpenPhotoHistory={onOpenPhotoHistory}
+                      />
+                    ))}
                 </div>
               ) : (
-                <div className="p-2 rounded bg-white border border-dashed border-slate-200 text-center text-[10px] text-slate-400 italic">
-                  Chưa có ảnh lún chênh chân tường
+                <div className="p-2.5 rounded-lg bg-white border border-dashed border-slate-200 text-center space-y-1">
+                  <p className="text-[10px] text-slate-400 italic">Chưa có ảnh lún chênh chân tường</p>
+                  {onOpenPhotoHistory && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        onOpenPhotoHistory({
+                          photoType: 'SETTLEMENT_DIFF',
+                          photoTitle: 'Lịch sử ảnh lún chênh chân tường',
+                        })
+                      }
+                      className="px-2 py-0.5 rounded bg-slate-50 hover:bg-sky-50 border border-slate-200 hover:border-sky-300 text-slate-600 hover:text-sky-700 text-[10px] font-bold inline-flex items-center gap-1 transition-colors cursor-pointer"
+                      title="Xem lịch sử và khôi phục ảnh lún chênh đã xóa"
+                    >
+                      <History className="w-3 h-3 text-sky-600" />
+                      <span>🕒 Lịch sử / Khôi phục ảnh</span>
+                    </button>
+                  )}
                 </div>
               )}
 
@@ -399,86 +428,80 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                 )}
               </div>
 
-              {tiltPhotos.length > 0 ? (
+              {tiltPhotos.length > 0 || (stagedPhotoActions?.some((a) => a.action === 'ADD' && a.targetPhotoType === 'TILT_ANGLE')) ? (
                 <div className="grid grid-cols-2 gap-2">
-                  {tiltPhotos.map((p, pIdx) => (
-                    <div
-                      key={pIdx}
-                      className="group relative rounded-lg overflow-hidden border border-slate-200 bg-black aspect-video cursor-pointer"
-                      onClick={() => onOpenPhotoZoom && onOpenPhotoZoom(p.url, `Ảnh độ nghiêng khối nhà (${p.photoCode || 'TILT'})`, p.photoCode || 'TILT')}
-                    >
-                      <img
-                        src={p.url}
-                        alt="Ảnh độ nghiêng"
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                  {tiltPhotos.map((p, pIdx) => {
+                    const stagedTilt = getStagedAction({
+                      category: 'SETTLEMENT_TILT',
+                      targetPhotoType: 'TILT_ANGLE',
+                      targetPhotoId: 'settlementTilt.buildingTilt.photos',
+                      photoIndex: pIdx,
+                      url: p.url,
+                    });
+                    return (
+                      <AuditPhotoCard
+                        key={pIdx}
+                        url={stagedTilt?.newPhotoUrl || p.url}
+                        photoCode={p.photoCode || `TILT_${pIdx + 1}`}
+                        title={`Ảnh độ nghiêng (${p.photoCode || `TILT_${pIdx + 1}`})`}
+                        category="SETTLEMENT_TILT"
+                        targetPhotoType="TILT_ANGLE"
+                        targetPhotoId="settlementTilt.buildingTilt.photos"
+                        photoIndex={pIdx}
+                        isEditMode={isEditMode}
+                        aspectRatio="aspect-video"
+                        badgeColor="amber"
+                        optimisticStatus={stagedTilt ? (stagedTilt.action === 'DELETE' ? 'DELETED' : 'REPLACED') : undefined}
+                        onUndoDelete={stagedTilt ? () => onUndoPhotoAction?.(stagedTilt) : undefined}
+                        onOpenPhotoZoom={onOpenPhotoZoom}
+                        onOpenPhotoAction={onOpenPhotoAction}
+                        onOpenPhotoHistory={onOpenPhotoHistory}
                       />
-                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
-                        <Maximize2 className="w-4 h-4" />
-                      </div>
-                      <span className="absolute bottom-1 left-1 px-1.5 py-0.5 rounded bg-black/70 text-white font-mono text-[9px] font-bold">
-                        {p.photoCode || `TILT_${pIdx + 1}`}
-                      </span>
-                      {isEditMode && (
-                        <div className="absolute top-1 right-1 z-10 flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (onOpenPhotoAction) {
-                                onOpenPhotoAction({
-                                  initialMode: 'REPLACE',
-                                  category: 'SETTLEMENT_TILT',
-                                  targetPhotoType: 'TILT_ANGLE',
-                                  targetPhotoId: 'settlementTilt.buildingTilt.photos',
-                                  photoIndex: pIdx,
-                                  currentPhotoUrl: p.url,
-                                  photoTitle: `Ảnh độ nghiêng (${p.photoCode || `TILT_${pIdx + 1}`})`,
-                                });
-                              } else if (onOpenPhotoReplace) {
-                                onOpenPhotoReplace({
-                                  targetPhotoType: 'TILT_ANGLE',
-                                  targetPhotoId: 'settlementTilt.buildingTilt.photos',
-                                  photoIndex: pIdx,
-                                  currentPhotoUrl: p.url,
-                                  photoTitle: `Ảnh độ nghiêng (${p.photoCode || `TILT_${pIdx + 1}`})`,
-                                });
-                              }
-                            }}
-                            className="px-1.5 py-0.5 rounded bg-sky-600/90 hover:bg-sky-700 text-white font-bold text-[9px] flex items-center gap-0.5 shadow-sm"
-                            title="Thay ảnh độ nghiêng"
-                          >
-                            <RefreshCw className="w-2.5 h-2.5" />
-                            <span>Đổi ảnh</span>
-                          </button>
-                          {onOpenPhotoAction && (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onOpenPhotoAction({
-                                  initialMode: 'DELETE',
-                                  category: 'SETTLEMENT_TILT',
-                                  targetPhotoType: 'TILT_ANGLE',
-                                  targetPhotoId: 'settlementTilt.buildingTilt.photos',
-                                  photoIndex: pIdx,
-                                  currentPhotoUrl: p.url,
-                                  photoTitle: `Ảnh độ nghiêng (${p.photoCode || `TILT_${pIdx + 1}`})`,
-                                });
-                              }}
-                              className="p-1 rounded bg-rose-600/90 hover:bg-rose-700 text-white text-[9px] shadow-sm"
-                              title="Xóa ảnh này"
-                            >
-                              <Trash2 className="w-2.5 h-2.5" />
-                            </button>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  ))}
+                    );
+                  })}
+
+                  {/* Ảnh độ nghiêng mới thêm (Optimistic ADD) */}
+                  {stagedPhotoActions
+                    ?.filter((a) => a.action === 'ADD' && a.targetPhotoType === 'TILT_ANGLE')
+                    .flatMap((a) => a.newPhotoUrls || (a.newPhotoUrl ? [a.newPhotoUrl] : []))
+                    .map((addedUrl, addIdx) => (
+                      <AuditPhotoCard
+                        key={`added-tilt-${addIdx}`}
+                        url={addedUrl}
+                        photoCode={`Mới`}
+                        title={`Ảnh độ nghiêng mới thêm`}
+                        category="SETTLEMENT_TILT"
+                        targetPhotoType="TILT_ANGLE"
+                        targetPhotoId="settlementTilt.buildingTilt.photos"
+                        isEditMode={isEditMode}
+                        aspectRatio="aspect-video"
+                        badgeColor="emerald"
+                        optimisticStatus="ADDED"
+                        onOpenPhotoZoom={onOpenPhotoZoom}
+                        onOpenPhotoAction={onOpenPhotoAction}
+                        onOpenPhotoHistory={onOpenPhotoHistory}
+                      />
+                    ))}
                 </div>
               ) : (
-                <div className="p-2 rounded bg-white border border-dashed border-slate-200 text-center text-[10px] text-slate-400 italic">
-                  Chưa có ảnh nivo / độ nghiêng khối nhà
+                <div className="p-2.5 rounded-lg bg-white border border-dashed border-slate-200 text-center space-y-1">
+                  <p className="text-[10px] text-slate-400 italic">Chưa có ảnh nivo / độ nghiêng khối nhà</p>
+                  {onOpenPhotoHistory && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        onOpenPhotoHistory({
+                          photoType: 'TILT_MEASUREMENT',
+                          photoTitle: 'Lịch sử ảnh nivo / độ nghiêng công trình',
+                        })
+                      }
+                      className="px-2 py-0.5 rounded bg-slate-50 hover:bg-sky-50 border border-slate-200 hover:border-sky-300 text-slate-600 hover:text-sky-700 text-[10px] font-bold inline-flex items-center gap-1 transition-colors cursor-pointer"
+                      title="Xem lịch sử và khôi phục ảnh độ nghiêng đã xóa"
+                    >
+                      <History className="w-3 h-3 text-sky-600" />
+                      <span>🕒 Lịch sử / Khôi phục ảnh</span>
+                    </button>
+                  )}
                 </div>
               )}
             </div>
@@ -557,6 +580,111 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
               )}
             </div>
 
+            {/* Thư viện ảnh độ võng dầm */}
+            <div className="pt-2 border-t border-slate-200/80 space-y-1.5">
+              <div className="flex items-center justify-between text-[10px] font-bold text-slate-600">
+                <span className="flex items-center gap-1">
+                  <Camera className="w-3 h-3 text-slate-500" />
+                  <span>Ảnh Kiểm Tra Độ Võng Dầm ({beamPhotos.length})</span>
+                </span>
+                {isEditMode && onOpenPhotoAction && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onOpenPhotoAction({
+                        initialMode: 'ADD',
+                        category: 'BEAM_SAGGING',
+                        targetPhotoType: 'BEAM_SAGGING',
+                        targetPhotoId: 'settlementTilt.beamSagging.photos',
+                        photoTitle: 'Bổ sung ảnh độ võng dầm',
+                      })
+                    }
+                    className="px-2 py-0.5 rounded bg-sky-600 hover:bg-sky-700 text-white font-bold text-[9px] flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
+                  >
+                    <Plus className="w-2.5 h-2.5" />
+                    <span>+ Thêm Ảnh</span>
+                  </button>
+                )}
+              </div>
+
+              {beamPhotos.length > 0 || (stagedPhotoActions?.some((a) => a.action === 'ADD' && a.category === 'BEAM_SAGGING')) ? (
+                <div className="grid grid-cols-2 gap-2">
+                  {beamPhotos.map((p, pIdx) => {
+                    const stagedBeam = getStagedAction({
+                      category: 'BEAM_SAGGING',
+                      targetPhotoType: 'BEAM_SAGGING',
+                      targetPhotoId: 'settlementTilt.beamSagging.photos',
+                      photoIndex: pIdx,
+                      url: p.url,
+                    });
+                    return (
+                      <AuditPhotoCard
+                        key={pIdx}
+                        url={stagedBeam?.newPhotoUrl || p.url}
+                        photoCode={p.photoCode || `SAG_${pIdx + 1}`}
+                        title={`Ảnh võng dầm (${p.photoCode || `SAG_${pIdx + 1}`})`}
+                        category="BEAM_SAGGING"
+                        targetPhotoType="BEAM_SAGGING"
+                        targetPhotoId="settlementTilt.beamSagging.photos"
+                        photoIndex={pIdx}
+                        isEditMode={isEditMode}
+                        aspectRatio="aspect-video"
+                        badgeColor="amber"
+                        optimisticStatus={stagedBeam ? (stagedBeam.action === 'DELETE' ? 'DELETED' : 'REPLACED') : undefined}
+                        onUndoDelete={stagedBeam ? () => onUndoPhotoAction?.(stagedBeam) : undefined}
+                        onOpenPhotoZoom={onOpenPhotoZoom}
+                        onOpenPhotoAction={onOpenPhotoAction}
+                        onOpenPhotoHistory={onOpenPhotoHistory}
+                      />
+                    );
+                  })}
+
+                  {/* Ảnh võng dầm mới thêm (Optimistic ADD) */}
+                  {stagedPhotoActions
+                    ?.filter((a) => a.action === 'ADD' && a.category === 'BEAM_SAGGING')
+                    .flatMap((a) => a.newPhotoUrls || (a.newPhotoUrl ? [a.newPhotoUrl] : []))
+                    .map((addedUrl, addIdx) => (
+                      <AuditPhotoCard
+                        key={`added-sag-${addIdx}`}
+                        url={addedUrl}
+                        photoCode={`Mới`}
+                        title={`Ảnh võng dầm mới thêm`}
+                        category="BEAM_SAGGING"
+                        targetPhotoType="BEAM_SAGGING"
+                        targetPhotoId="settlementTilt.beamSagging.photos"
+                        isEditMode={isEditMode}
+                        aspectRatio="aspect-video"
+                        badgeColor="emerald"
+                        optimisticStatus="ADDED"
+                        onOpenPhotoZoom={onOpenPhotoZoom}
+                        onOpenPhotoAction={onOpenPhotoAction}
+                        onOpenPhotoHistory={onOpenPhotoHistory}
+                      />
+                    ))}
+                </div>
+              ) : (
+                <div className="p-2.5 rounded-lg bg-white border border-dashed border-slate-200 text-center space-y-1">
+                  <p className="text-[10px] text-slate-400 italic">Chưa có ảnh kiểm tra độ võng dầm</p>
+                  {onOpenPhotoHistory && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        onOpenPhotoHistory({
+                          photoType: 'BEAM_SAGGING',
+                          photoTitle: 'Lịch sử ảnh độ võng dầm / bản sàn',
+                        })
+                      }
+                      className="px-2 py-0.5 rounded bg-slate-50 hover:bg-sky-50 border border-slate-200 hover:border-sky-300 text-slate-600 hover:text-sky-700 text-[10px] font-bold inline-flex items-center gap-1 transition-colors cursor-pointer"
+                      title="Xem lịch sử và khôi phục ảnh võng dầm đã xóa"
+                    >
+                      <History className="w-3 h-3 text-sky-600" />
+                      <span>🕒 Lịch sử / Khôi phục ảnh</span>
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+
             <div className="p-2 bg-white rounded-lg border border-slate-200 text-[10px] text-slate-500">
               Chỉ số E3 lấy mức lớn nhất: <strong>max(Lún {lDiff}, Nghiêng {lTilt}, Võng {lSag}) = {calculatedE3}</strong>
             </div>
@@ -568,7 +696,7 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5 uppercase">
               <AlertTriangle className="w-4 h-4 text-amber-600" />
-              <span>2.2. Trường Hợp Ngoại Lệ / Hiện Trạng Bất Thường Khác</span>
+              <span>2.2. Trường Hợp Ngoại LỆ / Hiện Trạng Bất Thường Khác</span>
             </span>
             <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-200 text-slate-700">
               {abnormalPhotos.length} ảnh minh chứng
@@ -602,86 +730,79 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                 )}
               </div>
 
-              {abnormalPhotos.length > 0 ? (
+              {abnormalPhotos.length > 0 || (stagedPhotoActions?.some((a) => a.action === 'ADD' && (a.targetPhotoType === 'ABNORMAL_PHOTO' || a.targetPhotoType === 'ABNORMAL_CASE'))) ? (
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                  {abnormalPhotos.map((p, pIdx) => (
-                    <div
-                      key={pIdx}
-                      className="group relative rounded-lg overflow-hidden border border-slate-200 bg-black aspect-video cursor-pointer"
-                      onClick={() => onOpenPhotoZoom && onOpenPhotoZoom(p.url, `Ảnh hiện trạng ngoại lệ bất thường (${p.photoCode || 'ANOMALY'})`, p.photoCode || 'ANOMALY')}
-                    >
-                      <img
-                        src={p.url}
-                        alt="Ảnh ngoại lệ"
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                  {abnormalPhotos.map((p, pIdx) => {
+                    const stagedAb = getStagedAction({
+                      category: 'SETTLEMENT_TILT',
+                      targetPhotoId: 'abnormalPhotos',
+                      photoIndex: pIdx,
+                      url: p.url,
+                    });
+                    return (
+                      <AuditPhotoCard
+                        key={pIdx}
+                        url={stagedAb?.newPhotoUrl || p.url}
+                        photoCode={p.photoCode || `ANOMALY_${pIdx + 1}`}
+                        title={`Ảnh ngoại lệ (${p.photoCode || `ANOMALY_${pIdx + 1}`})`}
+                        category="SETTLEMENT_TILT"
+                        targetPhotoType="ABNORMAL_PHOTO"
+                        targetPhotoId="abnormalPhotos"
+                        photoIndex={pIdx}
+                        isEditMode={isEditMode}
+                        aspectRatio="aspect-video"
+                        badgeColor="amber"
+                        optimisticStatus={stagedAb ? (stagedAb.action === 'DELETE' ? 'DELETED' : 'REPLACED') : undefined}
+                        onUndoDelete={stagedAb ? () => onUndoPhotoAction?.(stagedAb) : undefined}
+                        onOpenPhotoZoom={onOpenPhotoZoom}
+                        onOpenPhotoAction={onOpenPhotoAction}
+                        onOpenPhotoHistory={onOpenPhotoHistory}
                       />
-                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
-                        <Maximize2 className="w-4 h-4" />
-                      </div>
-                      <span className="absolute bottom-1 left-1 px-1.5 py-0.5 rounded bg-black/70 text-white font-mono text-[9px] font-bold">
-                        {p.photoCode || `ANOMALY_${pIdx + 1}`}
-                      </span>
-                      {isEditMode && (
-                        <div className="absolute top-1 right-1 z-10 flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (onOpenPhotoAction) {
-                                onOpenPhotoAction({
-                                  initialMode: 'REPLACE',
-                                  category: 'SETTLEMENT_TILT',
-                                  targetPhotoType: 'ABNORMAL_PHOTO',
-                                  targetPhotoId: 'abnormalPhotos',
-                                  photoIndex: pIdx,
-                                  currentPhotoUrl: p.url,
-                                  photoTitle: `Ảnh hiện trạng ngoại lệ (${p.photoCode || `ANOMALY_${pIdx + 1}`})`,
-                                });
-                              } else if (onOpenPhotoReplace) {
-                                onOpenPhotoReplace({
-                                  targetPhotoType: 'ABNORMAL_PHOTO',
-                                  targetPhotoId: 'abnormalPhotos',
-                                  photoIndex: pIdx,
-                                  currentPhotoUrl: p.url,
-                                  photoTitle: `Ảnh hiện trạng ngoại lệ (${p.photoCode || `ANOMALY_${pIdx + 1}`})`,
-                                });
-                              }
-                            }}
-                            className="px-1.5 py-0.5 rounded bg-sky-600/90 hover:bg-sky-700 text-white font-bold text-[9px] flex items-center gap-0.5 shadow-sm"
-                            title="Thay ảnh bất thường"
-                          >
-                            <RefreshCw className="w-2.5 h-2.5" />
-                            <span>Đổi ảnh</span>
-                          </button>
-                          {onOpenPhotoAction && (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onOpenPhotoAction({
-                                  initialMode: 'DELETE',
-                                  category: 'SETTLEMENT_TILT',
-                                  targetPhotoType: 'ABNORMAL_PHOTO',
-                                  targetPhotoId: 'abnormalPhotos',
-                                  photoIndex: pIdx,
-                                  currentPhotoUrl: p.url,
-                                  photoTitle: `Ảnh hiện trạng ngoại lệ (${p.photoCode || `ANOMALY_${pIdx + 1}`})`,
-                                });
-                              }}
-                              className="p-1 rounded bg-rose-600/90 hover:bg-rose-700 text-white text-[9px] shadow-sm"
-                              title="Xóa ảnh này"
-                            >
-                              <Trash2 className="w-2.5 h-2.5" />
-                            </button>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  ))}
+                    );
+                  })}
+
+                  {/* Ảnh ngoại lệ mới thêm (Optimistic ADD) */}
+                  {stagedPhotoActions
+                    ?.filter((a) => a.action === 'ADD' && (a.targetPhotoType === 'ABNORMAL_PHOTO' || a.targetPhotoType === 'ABNORMAL_CASE'))
+                    .flatMap((a) => a.newPhotoUrls || (a.newPhotoUrl ? [a.newPhotoUrl] : []))
+                    .map((addedUrl, addIdx) => (
+                      <AuditPhotoCard
+                        key={`added-ab-${addIdx}`}
+                        url={addedUrl}
+                        photoCode={`Mới`}
+                        title={`Ảnh ngoại lệ mới thêm`}
+                        category="SETTLEMENT_TILT"
+                        targetPhotoType="ABNORMAL_PHOTO"
+                        targetPhotoId="abnormalPhotos"
+                        isEditMode={isEditMode}
+                        aspectRatio="aspect-video"
+                        badgeColor="emerald"
+                        optimisticStatus="ADDED"
+                        onOpenPhotoZoom={onOpenPhotoZoom}
+                        onOpenPhotoAction={onOpenPhotoAction}
+                        onOpenPhotoHistory={onOpenPhotoHistory}
+                      />
+                    ))}
                 </div>
               ) : (
-                <div className="p-4 rounded-xl bg-white border border-dashed border-slate-200 text-center text-xs text-slate-400 italic">
-                  Không ghi nhận trường hợp ngoại lệ bất thường tại hiện trường
+                <div className="p-3 rounded-xl bg-white border border-dashed border-slate-200 text-center space-y-1.5">
+                  <p className="text-xs text-slate-400 italic">Không ghi nhận trường hợp ngoại lệ bất thường tại hiện trường</p>
+                  {onOpenPhotoHistory && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        onOpenPhotoHistory({
+                          photoType: 'ABNORMAL_PHOTO',
+                          photoTitle: 'Lịch sử ảnh trường hợp bất thường / ngoại lệ',
+                        })
+                      }
+                      className="px-2.5 py-1 rounded bg-slate-50 hover:bg-sky-50 border border-slate-200 hover:border-sky-300 text-slate-600 hover:text-sky-700 text-[11px] font-bold inline-flex items-center gap-1 transition-colors cursor-pointer"
+                      title="Xem lịch sử và khôi phục ảnh bất thường đã xóa"
+                    >
+                      <History className="w-3.5 h-3.5 text-sky-600" />
+                      <span>🕒 Lịch sử / Khôi phục ảnh</span>
+                    </button>
+                  )}
                 </div>
               )}
             </div>

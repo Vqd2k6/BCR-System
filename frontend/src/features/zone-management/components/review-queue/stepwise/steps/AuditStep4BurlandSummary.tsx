@@ -1,7 +1,7 @@
 import type { FloorSurveyData, DamageZoneData, DefectItem } from '../../../../../survey-phase1/types/phase1.types';
-import type { AuditStepwiseFormState, AuditStepwiseData, StepwiseBurlandSummary, PhotoReplaceParams } from '../types';
+import type { AuditStepwiseFormState, AuditStepwiseData, StepwiseBurlandSummary, PhotoReplaceParams, AuditPhotoHistoryParams } from '../types';
 import React from 'react';
-import { Award, AlertTriangle, ShieldAlert, Sparkles, FileText, CheckCircle2, Maximize2, BarChart2, Eye, Compass, RefreshCw } from 'lucide-react';
+import { Award, AlertTriangle, ShieldAlert, Sparkles, FileText, CheckCircle2, Maximize2, BarChart2, Eye, Compass, RefreshCw, History, Navigation } from 'lucide-react';
 
 interface Props {
   isEditMode: boolean;
@@ -11,6 +11,7 @@ interface Props {
   handleNestedFieldChange: (parentKey: string, childKey: string, label: string, val: unknown) => void;
   onOpenPhotoZoom?: (url: string, title?: string, photoCode?: string) => void;
   onOpenPhotoReplace?: (params: PhotoReplaceParams) => void;
+  onOpenPhotoHistory?: (params: AuditPhotoHistoryParams) => void;
   isFieldDirty?: (fieldKey: string, subKey?: string) => boolean;
 }
 
@@ -38,6 +39,7 @@ export const AuditStep4BurlandSummary: React.FC<Props> = ({
   handleNestedFieldChange,
   onOpenPhotoZoom,
   onOpenPhotoReplace,
+  onOpenPhotoHistory,
   isFieldDirty,
 }) => {
   const burland: StepwiseBurlandSummary = formState.burlandSummary || {};
@@ -189,6 +191,50 @@ export const AuditStep4BurlandSummary: React.FC<Props> = ({
                         <span>Click soi ảnh Macro có thước đo mm</span>
                       </button>
                     )}
+                    {onOpenPhotoHistory && govPhotoUrl && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          onOpenPhotoHistory({
+                            photoCode: govCode,
+                            photoType: 'CU',
+                            photoTitle: `Vết nứt khống chế ${govCode}`,
+                            currentPhotoUrl: govPhotoUrl,
+                          })
+                        }
+                        className="text-[11px] font-bold text-slate-700 hover:text-sky-700 bg-slate-100 hover:bg-sky-50 px-2 py-0.5 rounded flex items-center gap-1 cursor-pointer border border-slate-200"
+                        title="Xem lịch sử và phả hệ phiên bản của ảnh vết nứt này"
+                      >
+                        <History className="w-3.5 h-3.5 text-sky-600" />
+                        <span>Lịch sử phiên bản</span>
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const defectCodeOrId = governingDefect.defectCode || governingDefect.id || govCode;
+                        const zCode = governingDefect.zoneCode;
+                        const targetDefectEl = document.getElementById(`defect-card-${defectCodeOrId}`);
+                        const targetZoneEl = zCode ? document.getElementById(`zone-card-${zCode}`) : null;
+                        const target = targetDefectEl || targetZoneEl;
+
+                        if (target) {
+                          target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                          target.classList.add('ring-4', 'ring-amber-400', 'animate-pulse');
+                          setTimeout(() => {
+                            target.classList.remove('ring-4', 'ring-amber-400', 'animate-pulse');
+                          }, 3000);
+                        } else {
+                          const step3El = document.getElementById('step-4') || document.getElementById('step-3');
+                          step3El?.scrollIntoView({ behavior: 'smooth' });
+                        }
+                      }}
+                      className="text-[11px] font-bold text-emerald-800 hover:text-emerald-900 bg-emerald-100 hover:bg-emerald-200 px-2 py-0.5 rounded flex items-center gap-1 cursor-pointer shadow-2xs border border-emerald-300"
+                      title="Chuyển tới Vùng khảo sát chứa vết nứt này ở Bước 3 để xem đầy đủ mảng tường và điều chỉnh"
+                    >
+                      <Navigation className="w-3.5 h-3.5 text-emerald-700" />
+                      <span>📍 Chuyển tới Vùng {governingDefect.zoneCode || 'gốc'} ở Bước 3</span>
+                    </button>
                     {isEditMode && onOpenPhotoReplace && govPhotoUrl && (
                       <button
                         type="button"

@@ -207,7 +207,7 @@ export class AuditReviewService {
   /**
    * Trả về Payload Split-Pane (Kính lúp 400% + Cây cấu kiện) cho Zone Admin thẩm định
    */
-  static async getSplitPaneAuditView(reportId: string) {
+  static async getSplitPaneAuditView(reportId: string, options?: { includePhotoHistory?: boolean }) {
     const reportRes = await Database.query(
       `SELECT r.*, p.project_parcel_code, p.house_number, p.street, p.zone_id,
               p.land_area_m2, p.construction_area_m2, p.floor_count, p.total_units,
@@ -229,6 +229,83 @@ export class AuditReviewService {
 
     const report = reportRes.rows[0];
     const actualReportId = report.id;
+
+    // 0. Truy vấn Sổ cái Vòng đời Ảnh (Photo Lifecycle Registry) để lấy vết phả hệ & lịch sử
+    let photoRegistryRows: any[] = [];
+    try {
+      const regRes = await Database.query(
+        `SELECT r.*, u.full_name AS actor_name, d.full_name AS deleted_by_name
+         FROM survey_photo_registry r
+         LEFT JOIN users u ON r.actor_id = u.id
+         LEFT JOIN users d ON r.deleted_by_id = d.id
+         WHERE r.report_id = $1
+         ORDER BY r.created_at DESC;`,
+        [actualReportId]
+      );
+      photoRegistryRows = regRes.rows;
+    } catch (e: any) {
+      console.warn('⚠️ [AUDIT REVIEW] survey_photo_registry query fallback:', e?.message);
+    }
+
+    const includeHistory = Boolean(options?.includePhotoHistory);
+
+    const getPhotoHistoryFor = (
+      codeOrType: string,
+      targetId?: string,
+      specificUrl?: string
+    ) => {
+      const cleanKey = (codeOrType || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+      const matches = photoRegistryRows.filter((r: any) => {
+        const rCode = (r.photo_code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+        const rType = (r.photo_type || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+        const meta = typeof r.metadata_json === 'object' ? r.metadata_json : {};
+
+        if (specificUrl && (r.photo_url === specificUrl || r.replacement_for_url === specificUrl || r.superseded_by_url === specificUrl)) {
+          return true;
+        }
+        if (targetId && (meta?.defect_id === targetId || meta?.targetPhotoId === targetId || r.photo_code?.includes(targetId))) {
+          return true;
+        }
+        if (cleanKey && (rCode.includes(cleanKey) || rType === cleanKey || cleanKey.includes(rType))) {
+          return true;
+        }
+        return false;
+      });
+
+      const historyCount = matches.length;
+      const hasHistory = historyCount > 1 || matches.some((m: any) => m.is_deleted || m.status === 'SUPERSEDED' || m.status === 'DELETED');
+
+      return {
+        historyCount,
+        hasHistory,
+        ...(includeHistory
+          ? {
+              history: matches.map((m: any, idx: number) => ({
+                id: m.id,
+                version: matches.length - idx,
+                url: m.photo_url,
+                photoCode: m.photo_code,
+                photoType: m.photo_type,
+                category: m.photo_category,
+                status: m.status,
+                isDeleted: Boolean(m.is_deleted),
+                actionType: m.action_type,
+                actionReason: m.action_reason,
+                actorName: m.actor_name || 'Hệ thống / KSV',
+                actorRole: m.actor_role,
+                createdAt: m.created_at,
+                deletedAt: m.deleted_at,
+                deletedByName: m.deleted_by_name,
+                sha256Hash: m.sha256_hash,
+                sizeBytes: m.size_bytes,
+                standardizedFilename: m.standardized_filename,
+                replacementForUrl: m.replacement_for_url,
+                supersededByUrl: m.superseded_by_url,
+              })),
+            }
+          : {}),
+      };
+    };
 
     // 1. Cặp ảnh CTX / CU và các điểm nứt D của Vùng Kiến Trúc Z
     const zonesRes = await Database.query(
@@ -365,12 +442,18 @@ export class AuditReviewService {
     const p03Data = surveyJson.photoP03 || {};
     const p04Data = surveyJson.photoP04 || {};
 
+    const p01Hist = getPhotoHistoryFor('P01', undefined, p01Data.url || p01Row?.raw_photo_url);
+    const p02Hist = getPhotoHistoryFor('P02', undefined, p02Data.url || p02Row?.raw_photo_url);
+    const p03Hist = getPhotoHistoryFor('P03', undefined, p03Data.url || p03Row?.raw_photo_url);
+    const p04Hist = getPhotoHistoryFor('P04', undefined, p04Data.url || p04Row?.raw_photo_url);
+
     const identificationPhotos = {
       photoP01: {
         url: p01Data.url || p01Row?.annotated_photo_url || p01Row?.raw_photo_url || null,
         photoCode: p01Data.photoCode || p01Row?.photo_code || 'P-01',
         notApplicable: Boolean(p01Data.notApplicable ?? p01Row?.is_not_applicable),
         naReason: p01Data.naReason || p01Row?.na_reason || null,
+        ...p01Hist,
       },
       photoP02: {
         url: p02Data.url || p02Row?.annotated_photo_url || p02Row?.raw_photo_url || null,
@@ -380,6 +463,7 @@ export class AuditReviewService {
         widthM: p02Data.widthM || null,
         heightM: p02Data.heightM || null,
         notApplicable: Boolean(p02Data.notApplicable ?? p02Row?.is_not_applicable),
+        ...p02Hist,
       },
       photoP03: {
         url: p03Data.url || p03Row?.annotated_photo_url || p03Row?.raw_photo_url || null,
@@ -387,11 +471,13 @@ export class AuditReviewService {
         tag: p03Data.tag || 'Bên hông phải',
         additionalPhotos: Array.isArray(p03Data.additionalPhotos) ? p03Data.additionalPhotos : [],
         notApplicable: Boolean(p03Data.notApplicable ?? p03Row?.is_not_applicable),
+        ...p03Hist,
       },
       photoP04: {
         url: p04Data.url || p04Row?.annotated_photo_url || p04Row?.raw_photo_url || null,
         photoCode: p04Data.photoCode || p04Row?.photo_code || 'P-04',
         notApplicable: Boolean(p04Data.notApplicable ?? p04Row?.is_not_applicable),
+        ...p04Hist,
       },
     };
 
@@ -494,6 +580,52 @@ export class AuditReviewService {
       allDamageZones = extracted;
     }
 
+    const enrichedDamageZones = allDamageZones.map((z: any) => {
+      const zHist = getPhotoHistoryFor(z.zone_code || z.zoneCode, z.id, z.ctx_photo_url);
+      const rawDefects = Array.isArray(z.defects) ? z.defects : [];
+      const enrichedDefects = rawDefects.map((d: any) => {
+        const dHist = getPhotoHistoryFor(d.defectCode || d.defect_code, d.id, d.cuPhotoUrl);
+        return {
+          ...d,
+          photoHistory: dHist,
+          historyCount: dHist.historyCount,
+          hasHistory: dHist.hasHistory,
+          ...(includeHistory ? { history: dHist.history } : {}),
+        };
+      });
+      return {
+        ...z,
+        ctxPhotoHistory: zHist,
+        historyCount: zHist.historyCount,
+        hasHistory: zHist.hasHistory,
+        ...(includeHistory ? { history: zHist.history } : {}),
+        defects: enrichedDefects,
+      };
+    });
+
+    const enrichedElements = elementsRes.rows.map((e: any) => {
+      const eHist = getPhotoHistoryFor(e.zone_code || e.zoneCode, e.id, e.ctx_photo_url);
+      const rawDefects = Array.isArray(e.defects) ? e.defects : [];
+      const enrichedDefects = rawDefects.map((d: any) => {
+        const dHist = getPhotoHistoryFor(d.defectCode || d.defect_code, d.id, d.cuPhotoUrl);
+        return {
+          ...d,
+          photoHistory: dHist,
+          historyCount: dHist.historyCount,
+          hasHistory: dHist.hasHistory,
+          ...(includeHistory ? { history: dHist.history } : {}),
+        };
+      });
+      return {
+        ...e,
+        ctxPhotoHistory: eHist,
+        historyCount: eHist.historyCount,
+        hasHistory: eHist.hasHistory,
+        ...(includeHistory ? { history: eHist.history } : {}),
+        defects: enrichedDefects,
+      };
+    });
+
     const sigJson = surveyJson.signatures || {};
     const normalizedSignatures = {
       surveyorSignature: report.surveyor_signature_url || sigJson.preparedBy?.photoUrl || sigJson.surveyorSignatureUrl || null,
@@ -527,6 +659,25 @@ export class AuditReviewService {
         }
       } catch (e: any) {
         console.warn('⚠️ [AUDIT SERVICE] building_units query error:', e?.message);
+      }
+    }
+
+    if (floorPlanInfo) {
+      const cadHist = getPhotoHistoryFor('CAD', floorPlanInfo.id, floorPlanInfo.cad_photo_url);
+      floorPlanInfo.cadPhotoHistory = cadHist;
+      floorPlanInfo.historyCount = cadHist.historyCount;
+      floorPlanInfo.hasHistory = cadHist.hasHistory;
+      if (includeHistory) {
+        floorPlanInfo.history = cadHist.history;
+      }
+    }
+    if (unitInfo && unitInfo.floor_cad_url) {
+      const cadHist = getPhotoHistoryFor('CAD', unitInfo.floor_plan_id, unitInfo.floor_cad_url);
+      unitInfo.cadPhotoHistory = cadHist;
+      unitInfo.historyCount = cadHist.historyCount;
+      unitInfo.hasHistory = cadHist.hasHistory;
+      if (includeHistory) {
+        unitInfo.history = cadHist.history;
       }
     }
 
@@ -654,8 +805,8 @@ export class AuditReviewService {
       constructionAreaM2: report.construction_area_m2 || null,
 
       leftPane: {
-        damageZones: allDamageZones,
-        structuralElements: elementsRes.rows,
+        damageZones: enrichedDamageZones,
+        structuralElements: enrichedElements,
         riskScoreCard: scoresRes.rows[0] || null,
         buildingSpecs: specsRes.rows[0] || surveyJson.buildingSpecs || surveyJson.specs || null,
         deformation: deformRes.rows[0] || surveyJson.deformation || surveyJson.settlementTilt || null,
@@ -668,7 +819,7 @@ export class AuditReviewService {
         magnifierZoomFactor: '400%',
         identificationPhotos: identificationPhotos,
         facadeBoundaryGeojson: surveyJson.facadeBoundaryGeojson || p02Row?.facade_polygon_points_json || null,
-        photoGalleries: allDamageZones.map((z: any) => {
+        photoGalleries: enrichedDamageZones.map((z: any) => {
           const defectsList = Array.isArray(z.defects)
             ? z.defects
             : typeof z.defects === 'string'

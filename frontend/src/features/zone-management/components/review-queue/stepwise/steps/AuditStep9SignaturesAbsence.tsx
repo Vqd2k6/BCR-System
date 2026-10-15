@@ -11,9 +11,10 @@ import {
   ZoomIn,
   AlertTriangle,
   FileCheck2,
+  History,
 } from 'lucide-react';
 
-import type { AuditStepwiseFormState, AuditStepwiseData, StepwiseSignatures, PhotoReplaceParams, AuditPhotoActionParams } from '../types';
+import type { AuditStepwiseFormState, AuditStepwiseData, StepwiseSignatures, PhotoReplaceParams, AuditPhotoActionParams, AuditPhotoHistoryParams } from '../types';
 
 interface Props {
   isEditMode?: boolean;
@@ -24,6 +25,7 @@ interface Props {
   onOpenPhotoZoom: (url: string, title?: string, photoCode?: string) => void;
   onOpenPhotoReplace?: (params: PhotoReplaceParams) => void;
   onOpenPhotoAction?: (params: AuditPhotoActionParams) => void;
+  onOpenPhotoHistory?: (params: AuditPhotoHistoryParams) => void;
   onConfirmAbsenteeSurvey?: () => void;
   isFieldDirty?: (fieldKey: string, subKey?: string) => boolean;
 }
@@ -37,6 +39,7 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
   onOpenPhotoZoom,
   onOpenPhotoReplace,
   onOpenPhotoAction,
+  onOpenPhotoHistory,
   isFieldDirty,
 }) => {
   const sigs: StepwiseSignatures = formState.signatures || {};
@@ -212,36 +215,24 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
               </div>
             </div>
 
-            {isEditMode && (
-              <button
-                type="button"
-                onClick={() => {
-                  if (onOpenPhotoAction) {
-                    onOpenPhotoAction({
-                      category: 'MINUTES',
-                      targetPhotoType: 'WORKING_MINUTES',
-                      targetPhotoId: 'signatures.workingMinutesPhotos',
-                      photoTitle: 'Trang biên bản khảo sát hiện trường',
-                      initialMode: 'ADD',
-                    });
-                  } else {
-                    addPhotoInputRef.current?.click();
+            <div className="flex items-center gap-2 shrink-0">
+              {onOpenPhotoHistory && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    onOpenPhotoHistory({
+                      photoType: 'WORKING_MINUTES',
+                      photoTitle: 'Biên bản khảo sát hiện trường',
+                    })
                   }
-                }}
-                className="px-3 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs cursor-pointer transition-colors shrink-0"
-              >
-                <Upload className="w-3.5 h-3.5" />
-                <span>Thêm Trang Biên Bản</span>
-              </button>
-            )}
-          </div>
+                  className="px-2.5 py-1.5 rounded-xl bg-sky-50 text-sky-700 hover:bg-sky-100 border border-sky-200 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                  title="Xem toàn bộ lịch sử ảnh biên bản và khôi phục trang đã xóa"
+                >
+                  <History className="w-3.5 h-3.5" />
+                  <span>Lịch sử / Khôi phục</span>
+                </button>
+              )}
 
-          {rawPhotos.length === 0 ? (
-            <div className="p-8 text-center bg-white rounded-xl border border-dashed border-sky-300 space-y-2">
-              <FileCheck2 className="w-8 h-8 text-sky-400 mx-auto" />
-              <p className="text-xs font-semibold text-slate-600">
-                Chưa có ảnh chụp biên bản khảo sát hiện trường trong hồ sơ này
-              </p>
               {isEditMode && (
                 <button
                   type="button"
@@ -258,11 +249,65 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
                       addPhotoInputRef.current?.click();
                     }
                   }}
-                  className="px-3 py-1 rounded-lg bg-sky-50 border border-sky-300 text-sky-700 text-xs font-bold hover:bg-sky-100 cursor-pointer"
+                  className="px-3 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs cursor-pointer transition-colors shrink-0"
                 >
-                  Tải lên trang biên bản đầu tiên
+                  <Upload className="w-3.5 h-3.5" />
+                  <span>Thêm Trang Biên Bản</span>
                 </button>
               )}
+            </div>
+          </div>
+
+          {rawPhotos.length === 0 ? (
+            <div className="p-8 text-center bg-white rounded-xl border border-dashed border-sky-300 space-y-3">
+              <FileCheck2 className="w-10 h-10 text-sky-400 mx-auto" />
+              <div>
+                <p className="text-xs font-bold text-slate-700">
+                  Chưa có ảnh chụp biên bản khảo sát hiện trường trong hồ sơ này
+                </p>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  Tải lên ảnh chụp thực địa hoặc khôi phục các trang biên bản đã xóa từ lịch sử
+                </p>
+              </div>
+              <div className="flex items-center justify-center gap-2 pt-1">
+                {isEditMode && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (onOpenPhotoAction) {
+                        onOpenPhotoAction({
+                          category: 'MINUTES',
+                          targetPhotoType: 'WORKING_MINUTES',
+                          targetPhotoId: 'signatures.workingMinutesPhotos',
+                          photoTitle: 'Trang biên bản khảo sát hiện trường',
+                          initialMode: 'ADD',
+                        });
+                      } else {
+                        addPhotoInputRef.current?.click();
+                      }
+                    }}
+                    className="px-3.5 py-1.5 rounded-lg bg-sky-600 text-white text-xs font-bold hover:bg-sky-700 cursor-pointer shadow-xs flex items-center gap-1.5"
+                  >
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>Tải lên trang biên bản</span>
+                  </button>
+                )}
+                {onOpenPhotoHistory && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onOpenPhotoHistory({
+                        photoType: 'WORKING_MINUTES',
+                        photoTitle: 'Biên bản khảo sát hiện trường',
+                      })
+                    }
+                    className="px-3.5 py-1.5 rounded-lg bg-sky-50 border border-sky-300 text-sky-700 text-xs font-bold hover:bg-sky-100 cursor-pointer flex items-center gap-1.5"
+                  >
+                    <History className="w-3.5 h-3.5" />
+                    <span>Lịch sử / Khôi phục ảnh</span>
+                  </button>
+                )}
+              </div>
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
@@ -308,64 +353,85 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
                         {caption}
                       </span>
 
-                      {isEditMode && (
-                        <div className="flex items-center gap-1 shrink-0">
+                      <div className="flex items-center gap-1 shrink-0">
+                        {onOpenPhotoHistory && (
                           <button
                             type="button"
-                            title="Thay ảnh trang này"
+                            title="Lịch sử phiên bản trang biên bản"
                             onClick={(e) => {
                               e.stopPropagation();
-                              if (onOpenPhotoAction && url) {
-                                onOpenPhotoAction({
-                                  category: 'MINUTES',
-                                  targetPhotoType: 'WORKING_MINUTES',
-                                  targetPhotoId: 'signatures.workingMinutesPhotos',
-                                  photoIndex: idx,
-                                  currentPhotoUrl: url,
-                                  photoTitle: caption,
-                                  initialMode: 'REPLACE',
-                                });
-                              } else if (onOpenPhotoReplace && url) {
-                                onOpenPhotoReplace({
-                                  targetPhotoType: 'WORKING_MINUTES',
-                                  targetPhotoId: 'signatures.workingMinutesPhotos',
-                                  photoIndex: idx,
-                                  currentPhotoUrl: url,
-                                  photoTitle: caption,
-                                });
-                              } else {
-                                handleTriggerReplace(idx);
-                              }
+                              onOpenPhotoHistory({
+                                photoCode: typeof photoItem === 'object' ? photoItem.photoCode : undefined,
+                                photoType: 'WORKING_MINUTES',
+                                photoTitle: caption,
+                                currentPhotoUrl: url,
+                              });
                             }}
-                            className="p-1 rounded text-slate-500 hover:text-sky-600 hover:bg-sky-50 transition-colors cursor-pointer"
+                            className="p-1 rounded text-slate-500 hover:text-violet-600 hover:bg-violet-50 transition-colors cursor-pointer"
                           >
-                            <RefreshCw className="w-3.5 h-3.5" />
+                            <History className="w-3.5 h-3.5" />
                           </button>
-                          <button
-                            type="button"
-                            title="Xóa trang biên bản này"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (onOpenPhotoAction && url) {
-                                onOpenPhotoAction({
-                                  category: 'MINUTES',
-                                  targetPhotoType: 'WORKING_MINUTES',
-                                  targetPhotoId: 'signatures.workingMinutesPhotos',
-                                  photoIndex: idx,
-                                  currentPhotoUrl: url,
-                                  photoTitle: caption,
-                                  initialMode: 'DELETE',
-                                });
-                              } else {
-                                handleDeleteMinutesPhoto(idx);
-                              }
-                            }}
-                            className="p-1 rounded text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      )}
+                        )}
+
+                        {isEditMode && (
+                          <>
+                            <button
+                              type="button"
+                              title="Thay ảnh trang này"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (onOpenPhotoAction && url) {
+                                  onOpenPhotoAction({
+                                    category: 'MINUTES',
+                                    targetPhotoType: 'WORKING_MINUTES',
+                                    targetPhotoId: 'signatures.workingMinutesPhotos',
+                                    photoIndex: idx,
+                                    currentPhotoUrl: url,
+                                    photoTitle: caption,
+                                    initialMode: 'REPLACE',
+                                  });
+                                } else if (onOpenPhotoReplace && url) {
+                                  onOpenPhotoReplace({
+                                    targetPhotoType: 'WORKING_MINUTES',
+                                    targetPhotoId: 'signatures.workingMinutesPhotos',
+                                    photoIndex: idx,
+                                    currentPhotoUrl: url,
+                                    photoTitle: caption,
+                                  });
+                                } else {
+                                  handleTriggerReplace(idx);
+                                }
+                              }}
+                              className="p-1 rounded text-slate-500 hover:text-sky-600 hover:bg-sky-50 transition-colors cursor-pointer"
+                            >
+                              <RefreshCw className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              title="Xóa trang biên bản này"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (onOpenPhotoAction && url) {
+                                  onOpenPhotoAction({
+                                    category: 'MINUTES',
+                                    targetPhotoType: 'WORKING_MINUTES',
+                                    targetPhotoId: 'signatures.workingMinutesPhotos',
+                                    photoIndex: idx,
+                                    currentPhotoUrl: url,
+                                    photoTitle: caption,
+                                    initialMode: 'DELETE',
+                                  });
+                                } else {
+                                  handleDeleteMinutesPhoto(idx);
+                                }
+                              }}
+                              className="p-1 rounded text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </>
+                        )}
+                      </div>
                     </div>
                   </div>
                 );
@@ -441,7 +507,7 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
                 )}
               </div>
 
-              {surveyorSignatureUrl && (
+              {surveyorSignatureUrl ? (
                 <div className="pt-2 border-t border-slate-200 flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className="text-slate-500 font-semibold">Chữ ký KSV:</span>
@@ -452,33 +518,111 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
                       className="h-8 max-w-[120px] object-contain bg-white rounded border border-slate-200 cursor-pointer p-0.5 hover:scale-105 transition-transform"
                     />
                   </div>
-                  {isEditMode && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (onOpenPhotoAction) {
+                  <div className="flex items-center gap-1">
+                    {onOpenPhotoHistory && (
+                      <button
+                        type="button"
+                        title="Lịch sử chữ ký KSV"
+                        onClick={() =>
+                          onOpenPhotoHistory({
+                            photoType: 'SIGNATURE_SURVEYOR',
+                            photoTitle: 'Chữ ký Khảo Sát Viên',
+                            currentPhotoUrl: surveyorSignatureUrl,
+                          })
+                        }
+                        className="p-1 rounded text-slate-500 hover:text-violet-600 hover:bg-violet-50 transition-colors cursor-pointer"
+                      >
+                        <History className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                    {isEditMode && (
+                      <>
+                        <button
+                          type="button"
+                          title="Đổi chữ ký KSV"
+                          onClick={() => {
+                            if (onOpenPhotoAction) {
+                              onOpenPhotoAction({
+                                category: 'SIGNATURE',
+                                targetPhotoType: 'SIGNATURE_SURVEYOR',
+                                targetPhotoId: 'surveyorSignatureUrl',
+                                currentPhotoUrl: surveyorSignatureUrl,
+                                photoTitle: 'Chữ ký Khảo Sát Viên',
+                                initialMode: 'REPLACE',
+                              });
+                            } else if (onOpenPhotoReplace) {
+                              onOpenPhotoReplace({
+                                targetPhotoType: 'SIGNATURE_SURVEYOR',
+                                targetPhotoId: 'surveyor_signature_url',
+                                currentPhotoUrl: surveyorSignatureUrl,
+                                photoTitle: 'Chữ ký Khảo Sát Viên',
+                              });
+                            }
+                          }}
+                          className="text-[10px] font-bold text-sky-600 hover:text-sky-800 bg-sky-50 px-1.5 py-0.5 rounded cursor-pointer"
+                        >
+                          Đổi
+                        </button>
+                        <button
+                          type="button"
+                          title="Xóa chữ ký KSV"
+                          onClick={() => {
+                            if (onOpenPhotoAction) {
+                              onOpenPhotoAction({
+                                category: 'SIGNATURE',
+                                targetPhotoType: 'SIGNATURE_SURVEYOR',
+                                targetPhotoId: 'surveyorSignatureUrl',
+                                currentPhotoUrl: surveyorSignatureUrl,
+                                photoTitle: 'Chữ ký Khảo Sát Viên',
+                                initialMode: 'DELETE',
+                              });
+                            }
+                          }}
+                          className="text-[10px] font-bold text-rose-600 hover:text-rose-800 bg-rose-50 px-1.5 py-0.5 rounded cursor-pointer"
+                        >
+                          Xóa
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="pt-2 border-t border-slate-200 flex items-center justify-between text-xs">
+                  <span className="text-slate-400 italic">Chưa có chữ ký KSV</span>
+                  <div className="flex items-center gap-1">
+                    {onOpenPhotoHistory && (
+                      <button
+                        type="button"
+                        title="Khôi phục chữ ký KSV từ lịch sử"
+                        onClick={() =>
+                          onOpenPhotoHistory({
+                            photoType: 'SIGNATURE_SURVEYOR',
+                            photoTitle: 'Chữ ký Khảo Sát Viên',
+                          })
+                        }
+                        className="p-1 rounded text-slate-500 hover:text-violet-600 hover:bg-violet-50 transition-colors cursor-pointer"
+                      >
+                        <History className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                    {isEditMode && onOpenPhotoAction && (
+                      <button
+                        type="button"
+                        onClick={() =>
                           onOpenPhotoAction({
                             category: 'SIGNATURE',
                             targetPhotoType: 'SIGNATURE_SURVEYOR',
                             targetPhotoId: 'surveyorSignatureUrl',
-                            currentPhotoUrl: surveyorSignatureUrl,
                             photoTitle: 'Chữ ký Khảo Sát Viên',
-                            initialMode: 'REPLACE',
-                          });
-                        } else if (onOpenPhotoReplace) {
-                          onOpenPhotoReplace({
-                            targetPhotoType: 'SIGNATURE_SURVEYOR',
-                            targetPhotoId: 'surveyor_signature_url',
-                            currentPhotoUrl: surveyorSignatureUrl,
-                            photoTitle: 'Chữ ký Khảo Sát Viên',
-                          });
+                            initialMode: 'ADD',
+                          })
                         }
-                      }}
-                      className="text-[10px] font-bold text-sky-600 hover:text-sky-800 bg-sky-50 px-1.5 py-0.5 rounded cursor-pointer"
-                    >
-                      Đổi chữ ký
-                    </button>
-                  )}
+                        className="text-[10px] font-bold text-sky-600 hover:text-sky-800 bg-sky-50 px-2 py-0.5 rounded cursor-pointer"
+                      >
+                        + Tải lên
+                      </button>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
@@ -539,7 +683,7 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
                 </span>
               </div>
 
-              {ownerSignatureUrl && (
+              {ownerSignatureUrl ? (
                 <div className="pt-2 border-t border-slate-200 flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className="text-slate-500 font-semibold">Chữ ký chủ hộ:</span>
@@ -550,35 +694,113 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
                       className="h-8 max-w-[120px] object-contain bg-white rounded border border-slate-200 cursor-pointer p-0.5 hover:scale-105 transition-transform"
                     />
                   </div>
-                  {isEditMode && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (onOpenPhotoAction) {
+                  <div className="flex items-center gap-1">
+                    {onOpenPhotoHistory && (
+                      <button
+                        type="button"
+                        title="Lịch sử chữ ký chủ hộ"
+                        onClick={() =>
+                          onOpenPhotoHistory({
+                            photoType: 'SIGNATURE_OWNER',
+                            photoTitle: 'Chữ ký Chủ Hộ / Đại diện',
+                            currentPhotoUrl: ownerSignatureUrl,
+                          })
+                        }
+                        className="p-1 rounded text-slate-500 hover:text-violet-600 hover:bg-violet-50 transition-colors cursor-pointer"
+                      >
+                        <History className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                    {isEditMode && (
+                      <>
+                        <button
+                          type="button"
+                          title="Đổi chữ ký chủ hộ"
+                          onClick={() => {
+                            if (onOpenPhotoAction) {
+                              onOpenPhotoAction({
+                                category: 'SIGNATURE',
+                                targetPhotoType: 'SIGNATURE_OWNER',
+                                targetPhotoId: 'ownerSignatureUrl',
+                                currentPhotoUrl: ownerSignatureUrl,
+                                photoTitle: 'Chữ ký Chủ Hộ / Đại diện',
+                                initialMode: 'REPLACE',
+                              });
+                            } else if (onOpenPhotoReplace) {
+                              onOpenPhotoReplace({
+                                targetPhotoType: 'SIGNATURE_OWNER',
+                                targetPhotoId: 'owner_signature_url',
+                                currentPhotoUrl: ownerSignatureUrl,
+                                photoTitle: 'Chữ ký Chủ Hộ / Đại diện',
+                              });
+                            }
+                          }}
+                          className="text-[10px] font-bold text-emerald-600 hover:text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded cursor-pointer"
+                        >
+                          Đổi
+                        </button>
+                        <button
+                          type="button"
+                          title="Xóa chữ ký chủ hộ"
+                          onClick={() => {
+                            if (onOpenPhotoAction) {
+                              onOpenPhotoAction({
+                                category: 'SIGNATURE',
+                                targetPhotoType: 'SIGNATURE_OWNER',
+                                targetPhotoId: 'ownerSignatureUrl',
+                                currentPhotoUrl: ownerSignatureUrl,
+                                photoTitle: 'Chữ ký Chủ Hộ / Đại diện',
+                                initialMode: 'DELETE',
+                              });
+                            }
+                          }}
+                          className="text-[10px] font-bold text-rose-600 hover:text-rose-800 bg-rose-50 px-1.5 py-0.5 rounded cursor-pointer"
+                        >
+                          Xóa
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              ) : !isAbsentee ? (
+                <div className="pt-2 border-t border-slate-200 flex items-center justify-between text-xs">
+                  <span className="text-slate-400 italic">Chưa có chữ ký Chủ hộ</span>
+                  <div className="flex items-center gap-1">
+                    {onOpenPhotoHistory && (
+                      <button
+                        type="button"
+                        title="Khôi phục chữ ký Chủ hộ từ lịch sử"
+                        onClick={() =>
+                          onOpenPhotoHistory({
+                            photoType: 'SIGNATURE_OWNER',
+                            photoTitle: 'Chữ ký Chủ Hộ / Đại diện',
+                          })
+                        }
+                        className="p-1 rounded text-slate-500 hover:text-violet-600 hover:bg-violet-50 transition-colors cursor-pointer"
+                      >
+                        <History className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                    {isEditMode && onOpenPhotoAction && (
+                      <button
+                        type="button"
+                        onClick={() =>
                           onOpenPhotoAction({
                             category: 'SIGNATURE',
                             targetPhotoType: 'SIGNATURE_OWNER',
                             targetPhotoId: 'ownerSignatureUrl',
-                            currentPhotoUrl: ownerSignatureUrl,
                             photoTitle: 'Chữ ký Chủ Hộ / Đại diện',
-                            initialMode: 'REPLACE',
-                          });
-                        } else if (onOpenPhotoReplace) {
-                          onOpenPhotoReplace({
-                            targetPhotoType: 'SIGNATURE_OWNER',
-                            targetPhotoId: 'owner_signature_url',
-                            currentPhotoUrl: ownerSignatureUrl,
-                            photoTitle: 'Chữ ký Chủ Hộ / Đại diện',
-                          });
+                            initialMode: 'ADD',
+                          })
                         }
-                      }}
-                      className="text-[10px] font-bold text-emerald-600 hover:text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded cursor-pointer"
-                    >
-                      Đổi chữ ký
-                    </button>
-                  )}
+                        className="text-[10px] font-bold text-emerald-600 hover:text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded cursor-pointer"
+                      >
+                        + Tải lên
+                      </button>
+                    )}
+                  </div>
                 </div>
-              )}
+              ) : null}
             </div>
           </div>
 
@@ -663,26 +885,44 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
                   Ghi Nhận Khảo Sát Ngoại Quan (Chủ Hộ Vắng Mặt)
                 </span>
               </div>
-              {isEditMode && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (onOpenPhotoAction) {
-                      onOpenPhotoAction({
-                        category: 'ABSENCE_NOTICE',
-                        targetPhotoType: 'ABSENCE_NOTICE',
-                        targetPhotoId: 'absentNoticePhotos',
-                        photoTitle: 'Giấy thông báo vắng mặt dán cửa',
-                        initialMode: 'ADD',
-                      });
+              <div className="flex items-center gap-2">
+                {onOpenPhotoHistory && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onOpenPhotoHistory({
+                        photoType: 'ABSENCE_NOTICE',
+                        photoTitle: 'Giấy thông báo vắng mặt',
+                      })
                     }
-                  }}
-                  className="px-2.5 py-1 rounded-lg bg-purple-700 hover:bg-purple-800 text-white text-xs font-bold flex items-center gap-1 shadow-2xs cursor-pointer transition-colors"
-                >
-                  <Upload className="w-3.5 h-3.5" />
-                  <span>+ Thêm Ảnh Giấy Báo</span>
-                </button>
-              )}
+                    className="px-2.5 py-1 rounded-lg bg-purple-100 text-purple-900 hover:bg-purple-200 border border-purple-300 text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                    title="Xem toàn bộ lịch sử ảnh giấy báo vắng mặt"
+                  >
+                    <History className="w-3.5 h-3.5" />
+                    <span>Lịch sử / Khôi phục</span>
+                  </button>
+                )}
+                {isEditMode && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (onOpenPhotoAction) {
+                        onOpenPhotoAction({
+                          category: 'ABSENCE_NOTICE',
+                          targetPhotoType: 'ABSENCE_NOTICE',
+                          targetPhotoId: 'absentNoticePhotos',
+                          photoTitle: 'Giấy thông báo vắng mặt dán cửa',
+                          initialMode: 'ADD',
+                        });
+                      }
+                    }}
+                    className="px-2.5 py-1 rounded-lg bg-purple-700 hover:bg-purple-800 text-white text-xs font-bold flex items-center gap-1 shadow-2xs cursor-pointer transition-colors"
+                  >
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>+ Thêm Ảnh Giấy Báo</span>
+                  </button>
+                )}
+              </div>
             </div>
             <p className="text-xs text-purple-800">
               Công trình được khảo sát ngoại quan do chủ hộ vắng mặt tại thời điểm thực địa.
@@ -690,7 +930,7 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
             </p>
 
             {/* Danh sách lần liên hệ / dán giấy hẹn */}
-            {absenceLogs && absenceLogs.length > 0 && (
+            {absenceLogs && absenceLogs.length > 0 ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 pt-2">
                 {absenceLogs.map((log, lIdx) => (
                   <div
@@ -721,54 +961,116 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
                         >
                           <ZoomIn className="w-5 h-5 drop-shadow" />
                         </div>
-                        {isEditMode && (
-                          <div className="absolute top-1.5 right-1.5 flex items-center gap-1 bg-black/60 backdrop-blur-xs p-1 rounded-md">
+                        <div className="absolute top-1.5 right-1.5 flex items-center gap-1 bg-black/60 backdrop-blur-xs p-1 rounded-md">
+                          {onOpenPhotoHistory && log.photoUrl && (
                             <button
                               type="button"
-                              title="Thay ảnh giấy báo"
-                              onClick={() => {
-                                if (onOpenPhotoAction && log.photoUrl) {
-                                  onOpenPhotoAction({
-                                    category: 'ABSENCE_NOTICE',
-                                    targetPhotoType: 'ABSENCE_NOTICE',
-                                    targetPhotoId: log.id || `absence_log_${lIdx}`,
-                                    photoIndex: lIdx,
-                                    currentPhotoUrl: log.photoUrl,
-                                    photoTitle: `Giấy báo vắng mặt lần #${lIdx + 1}`,
-                                    initialMode: 'REPLACE',
-                                  });
-                                }
-                              }}
+                              title="Lịch sử ảnh giấy báo"
+                              onClick={() =>
+                                onOpenPhotoHistory({
+                                  photoType: 'ABSENCE_NOTICE',
+                                  photoTitle: `Giấy báo vắng mặt lần #${lIdx + 1}`,
+                                  currentPhotoUrl: log.photoUrl,
+                                })
+                              }
                               className="p-1 text-white hover:text-purple-300 rounded cursor-pointer"
                             >
-                              <RefreshCw className="w-3 h-3" />
+                              <History className="w-3 h-3" />
                             </button>
-                            <button
-                              type="button"
-                              title="Xóa ảnh giấy báo"
-                              onClick={() => {
-                                if (onOpenPhotoAction && log.photoUrl) {
-                                  onOpenPhotoAction({
-                                    category: 'ABSENCE_NOTICE',
-                                    targetPhotoType: 'ABSENCE_NOTICE',
-                                    targetPhotoId: log.id || `absence_log_${lIdx}`,
-                                    photoIndex: lIdx,
-                                    currentPhotoUrl: log.photoUrl,
-                                    photoTitle: `Giấy báo vắng mặt lần #${lIdx + 1}`,
-                                    initialMode: 'DELETE',
-                                  });
-                                }
-                              }}
-                              className="p-1 text-white hover:text-rose-400 rounded cursor-pointer"
-                            >
-                              <Trash2 className="w-3 h-3" />
-                            </button>
-                          </div>
-                        )}
+                          )}
+                          {isEditMode && (
+                            <>
+                              <button
+                                type="button"
+                                title="Thay ảnh giấy báo"
+                                onClick={() => {
+                                  if (onOpenPhotoAction && log.photoUrl) {
+                                    onOpenPhotoAction({
+                                      category: 'ABSENCE_NOTICE',
+                                      targetPhotoType: 'ABSENCE_NOTICE',
+                                      targetPhotoId: log.id || `absence_log_${lIdx}`,
+                                      photoIndex: lIdx,
+                                      currentPhotoUrl: log.photoUrl,
+                                      photoTitle: `Giấy báo vắng mặt lần #${lIdx + 1}`,
+                                      initialMode: 'REPLACE',
+                                    });
+                                  }
+                                }}
+                                className="p-1 text-white hover:text-purple-300 rounded cursor-pointer"
+                              >
+                                <RefreshCw className="w-3 h-3" />
+                              </button>
+                              <button
+                                type="button"
+                                title="Xóa ảnh giấy báo"
+                                onClick={() => {
+                                  if (onOpenPhotoAction && log.photoUrl) {
+                                    onOpenPhotoAction({
+                                      category: 'ABSENCE_NOTICE',
+                                      targetPhotoType: 'ABSENCE_NOTICE',
+                                      targetPhotoId: log.id || `absence_log_${lIdx}`,
+                                      photoIndex: lIdx,
+                                      currentPhotoUrl: log.photoUrl,
+                                      photoTitle: `Giấy báo vắng mặt lần #${lIdx + 1}`,
+                                      initialMode: 'DELETE',
+                                    });
+                                  }
+                                }}
+                                className="p-1 text-white hover:text-rose-400 rounded cursor-pointer"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            </>
+                          )}
+                        </div>
                       </div>
                     )}
                   </div>
                 ))}
+              </div>
+            ) : (
+              <div className="p-6 text-center bg-white rounded-xl border border-dashed border-purple-300 space-y-2">
+                <AlertTriangle className="w-6 h-6 text-purple-400 mx-auto" />
+                <p className="text-xs font-semibold text-purple-900">
+                  Chưa có ảnh giấy thông báo hoặc biên bản dán cửa trong hồ sơ vắng mặt
+                </p>
+                <div className="flex items-center justify-center gap-2 pt-1">
+                  {isEditMode && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (onOpenPhotoAction) {
+                          onOpenPhotoAction({
+                            category: 'ABSENCE_NOTICE',
+                            targetPhotoType: 'ABSENCE_NOTICE',
+                            targetPhotoId: 'absentNoticePhotos',
+                            photoTitle: 'Giấy thông báo vắng mặt dán cửa',
+                            initialMode: 'ADD',
+                          });
+                        }
+                      }}
+                      className="px-3 py-1 rounded-lg bg-purple-700 hover:bg-purple-800 text-white text-xs font-bold flex items-center gap-1 shadow-2xs cursor-pointer"
+                    >
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>Tải lên ảnh giấy báo</span>
+                    </button>
+                  )}
+                  {onOpenPhotoHistory && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        onOpenPhotoHistory({
+                          photoType: 'ABSENCE_NOTICE',
+                          photoTitle: 'Giấy thông báo vắng mặt',
+                        })
+                      }
+                      className="px-3 py-1 rounded-lg bg-purple-50 border border-purple-300 text-purple-800 text-xs font-bold hover:bg-purple-100 cursor-pointer flex items-center gap-1"
+                    >
+                      <History className="w-3.5 h-3.5" />
+                      <span>Lịch sử / Khôi phục ảnh</span>
+                    </button>
+                  )}
+                </div>
               </div>
             )}
           </div>

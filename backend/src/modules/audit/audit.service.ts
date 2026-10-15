@@ -38,8 +38,8 @@ export class AuditService {
     return AuditReviewService.listPendingSubmissions(filters);
   }
 
-  static getSplitPaneAuditView(reportId: string) {
-    return AuditReviewService.getSplitPaneAuditView(reportId);
+  static getSplitPaneAuditView(reportId: string, options?: { includePhotoHistory?: boolean }) {
+    return AuditReviewService.getSplitPaneAuditView(reportId, options);
   }
 
   static approveReport(reportId: string, adminId: string, judgementNotes?: string) {
@@ -168,8 +168,29 @@ export class AuditService {
     return AuditModificationService.executePhotoAction(reportId, adminId, photoAction, clientIp);
   }
 
-  static getPhotoAuditRegistry(reportId: string) {
-    return AuditModificationService.getPhotoAuditRegistry(reportId);
+  static getPhotoAuditRegistry(
+    reportId: string,
+    filters?: {
+      photoCode?: string;
+      photoType?: string;
+      category?: string;
+      includeDeleted?: boolean;
+    }
+  ) {
+    return AuditModificationService.getPhotoAuditRegistry(reportId, filters);
+  }
+
+  static restoreReportPhoto(
+    reportId: string,
+    adminId: string,
+    payload: {
+      registryPhotoId: string;
+      restoreReason: string;
+      adminPassword?: string;
+    },
+    clientIp?: string
+  ) {
+    return AuditModificationService.restoreReportPhoto(reportId, adminId, payload, clientIp);
   }
 }
 

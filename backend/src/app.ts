@@ -195,6 +195,7 @@ export function createApp(): express.Application {
   api.post('/admin/reports/:id/audit-replace-photo', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.replaceReportPhoto);
   api.post('/admin/reports/:id/audit-photo-action', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.executePhotoAction);
   api.get('/admin/reports/:id/photo-registry', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.getPhotoAuditRegistry);
+  api.post('/admin/reports/:id/restore-photo', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.restoreReportPhoto);
   api.post('/admin/reports/:id/reassign-parcel', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.reassignReportParcel);
   api.post('/admin/reports/swap-parcels', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.swapReportParcels);
   api.get('/admin/reports/swap-candidates', authenticateJwt, requireRoles('ZONE_ADMIN', 'SUPER_ADMIN'), AuditController.searchSwapCandidates);

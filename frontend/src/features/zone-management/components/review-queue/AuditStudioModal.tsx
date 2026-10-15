@@ -30,7 +30,8 @@ import { AuditDiffConfirmModal } from './AuditDiffConfirmModal';
 import { AuditPhotoReplaceModal } from './AuditPhotoReplaceModal';
 import { AuditPhotoActionModal, type PhotoActionPayload } from './AuditPhotoActionModal';
 import { AuditHistoryModal } from './AuditHistoryModal';
-import type { AuditStepwiseData, DiffItem, AuditPhotoActionParams } from './stepwise/types';
+import { AuditPhotoHistoryModal } from './AuditPhotoHistoryModal';
+import type { AuditStepwiseData, DiffItem, AuditPhotoActionParams, AuditPhotoHistoryParams } from './stepwise/types';
 
 interface Props {
   isOpen: boolean;
@@ -86,6 +87,12 @@ export const AuditStudioModal: React.FC<Props> = ({
 
   // Staged Photo Actions to commit alongside text diffs
   const [stagedPhotoActions, setStagedPhotoActions] = useState<PhotoActionPayload[]>([]);
+  const [stagedPhotoDiffs, setStagedPhotoDiffs] = useState<DiffItem[]>([]);
+
+  // Photo History Lineage Modal State
+  const [photoHistoryData, setPhotoHistoryData] = useState<AuditPhotoHistoryParams & { isOpen: boolean }>({
+    isOpen: false,
+  });
 
   // Audit History Modal State
   const [showAuditHistory, setShowAuditHistory] = useState(false);
@@ -98,7 +105,7 @@ export const AuditStudioModal: React.FC<Props> = ({
   // Warning Flags Popover State
   const [showFlagsPopover, setShowFlagsPopover] = useState(false);
 
-  // Pending Dirty Data Tracker from Document Views
+  // Pending Dirty Data Tracker from Document Views (chỉ các trường input/select form)
   const [pendingDirtyData, setPendingDirtyData] = useState<{
     dirtyCount: number;
     diffItems: DiffItem[];
@@ -110,6 +117,9 @@ export const AuditStudioModal: React.FC<Props> = ({
     updates: {},
     discardAll: () => {},
   });
+
+  // Tổng số thay đổi chuẩn hóa (Diffs Form + Thao tác Ảnh)
+  const totalDiffCount = (pendingDirtyData.dirtyCount || 0) + stagedPhotoActions.length;
 
   // Modal cảnh báo khi bấm Phê duyệt mà còn thay đổi chưa lưu
   const [showUnsavedChangesWarning, setShowUnsavedChangesWarning] = useState(false);
@@ -173,21 +183,42 @@ export const AuditStudioModal: React.FC<Props> = ({
     }
   };
 
-  // Handle Confirm Photo Action from AuditPhotoActionModal
+  // Handle Confirm Photo Action from AuditPhotoActionModal with In-Session Coalescence
   const handleConfirmPhotoAction = (action: PhotoActionPayload) => {
-    // 1. Thêm vào danh sách stagedPhotoActions
-    setStagedPhotoActions((prev) => [...prev, action]);
+    const targetKey = action.targetPhotoId || action.targetPhotoType || action.photoCode || 'photo';
 
-    // 2. Tạo một DiffItem trực quan đưa vào pendingDirtyData
+    // 1. Tự động gộp (Coalesce) thông minh trên stagedPhotoActions
+    setStagedPhotoActions((prev) => {
+      const existingIdx = prev.findIndex(
+        (a) =>
+          (action.targetPhotoId && a.targetPhotoId === action.targetPhotoId) ||
+          (action.targetPhotoType && a.targetPhotoType === action.targetPhotoType && a.photoIndex === action.photoIndex) ||
+          (action.photoCode && a.photoCode === action.photoCode)
+      );
+
+      if (existingIdx >= 0) {
+        const existing = prev[existingIdx];
+        const coalescedAction: PhotoActionPayload = {
+          ...action,
+          oldPhotoUrl: existing.oldPhotoUrl || action.oldPhotoUrl,
+        };
+        const next = [...prev];
+        next[existingIdx] = coalescedAction;
+        return next;
+      }
+      return [...prev, action];
+    });
+
+    // 2. Tạo hoặc thay thế một DiffItem trực quan đưa vào stagedPhotoDiffs
     const diffLabel =
       action.action === 'REPLACE'
-        ? `[Ảnh Thay Thế] ${action.photoCode || action.targetPhotoType || 'Ảnh'}`
+        ? `[Cập Nhật Ảnh] ${action.photoCode || action.targetPhotoType || 'Ảnh'}`
         : action.action === 'ADD'
         ? `[Ảnh Bổ Sung] ${action.photoCode || action.targetPhotoType || 'Ảnh'} (${action.newPhotoUrls?.length || 1} ảnh)`
         : `[Xóa Ảnh] ${action.photoCode || action.targetPhotoType || 'Ảnh'}`;
 
     const newDiff: DiffItem = {
-      field: action.targetPhotoId || action.targetPhotoType || 'photo',
+      field: targetKey,
       label: diffLabel,
       oldValue: action.oldPhotoUrl || '—',
       newValue:
@@ -199,14 +230,25 @@ export const AuditStudioModal: React.FC<Props> = ({
       isPhoto: true,
     };
 
-    setPendingDirtyData((prev) => ({
-      ...prev,
-      dirtyCount: prev.dirtyCount + 1,
-      diffItems: [...prev.diffItems, newDiff],
-    }));
+    setStagedPhotoDiffs((prev) => {
+      const filtered = prev.filter((d) => d.field !== targetKey);
+      return [...filtered, newDiff];
+    });
 
     // 3. Đóng modal action
     setPhotoActionData((prev) => ({ ...prev, isOpen: false }));
+  };
+
+  // Hoàn tác thao tác ảnh staged
+  const handleUndoPhotoAction = (actionToUndo: PhotoActionPayload) => {
+    setStagedPhotoActions((prev) => prev.filter((a) => a !== actionToUndo));
+    setStagedPhotoDiffs((prev) =>
+      prev.filter(
+        (d) =>
+          d.field !== (actionToUndo.targetPhotoId || actionToUndo.targetPhotoType) ||
+          d.oldValue !== (actionToUndo.oldPhotoUrl || '—')
+      )
+    );
   };
 
   // Handle Approve button click
@@ -214,7 +256,7 @@ export const AuditStudioModal: React.FC<Props> = ({
     if (!data) return;
 
     // Ràng buộc kiểm toán: Nếu có diff chưa lưu -> Hiển thị popup cảnh báo 3 lựa chọn
-    if (pendingDirtyData.dirtyCount > 0 || stagedPhotoActions.length > 0) {
+    if (totalDiffCount > 0) {
       setShowUnsavedChangesWarning(true);
       return;
     }
@@ -228,6 +270,7 @@ export const AuditStudioModal: React.FC<Props> = ({
   const handleDiscardAndApprove = async () => {
     setShowUnsavedChangesWarning(false);
     setStagedPhotoActions([]);
+    setStagedPhotoDiffs([]);
     pendingDirtyData.discardAll(true);
     await executeApprove();
   };
@@ -236,7 +279,7 @@ export const AuditStudioModal: React.FC<Props> = ({
     setShowUnsavedChangesWarning(false);
     setDiffModalData({
       isOpen: true,
-      diffItems: pendingDirtyData.diffItems,
+      diffItems: [...pendingDirtyData.diffItems, ...stagedPhotoDiffs],
       updates: pendingDirtyData.updates,
     });
   };
@@ -693,6 +736,12 @@ export const AuditStudioModal: React.FC<Props> = ({
                       ...params,
                     });
                   }}
+                  onOpenPhotoHistory={(params) => {
+                    setPhotoHistoryData({
+                      isOpen: true,
+                      ...params,
+                    });
+                  }}
                   onOpenDiffModal={(diffItems, updates) => {
                     setDiffModalData({
                       isOpen: true,
@@ -702,6 +751,8 @@ export const AuditStudioModal: React.FC<Props> = ({
                   }}
                   onOpenEngineeringJudgement={() => setShowJudgementModal(true)}
                   onDirtyChange={setPendingDirtyData}
+                  stagedPhotoActions={stagedPhotoActions}
+                  onUndoPhotoAction={handleUndoPhotoAction}
                 />
               );
             })()}
@@ -714,17 +765,34 @@ export const AuditStudioModal: React.FC<Props> = ({
             <span className="text-xs text-slate-500 font-medium">
               Thẩm định hồ sơ: <strong className="text-slate-800 font-mono">{data?.projectParcelCode || reportId}</strong>
             </span>
-            {(pendingDirtyData.dirtyCount > 0 || stagedPhotoActions.length > 0) && (
-              <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-900 border border-amber-300 flex items-center gap-1.5 animate-pulse">
+            {totalDiffCount > 0 && (
+              <button
+                type="button"
+                onClick={handleSaveDiffFirst}
+                className="px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 flex items-center gap-1.5 animate-pulse cursor-pointer transition-all"
+                title="Bấm để xem danh sách diff và xác nhận lưu thay đổi"
+              >
                 <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
                 <span>
-                  {pendingDirtyData.dirtyCount + stagedPhotoActions.length} thay đổi chưa lưu (Cần Lưu Diff trước)
+                  {totalDiffCount} thay đổi chưa lưu (Bấm để xem & lưu diff)
                 </span>
-              </span>
+              </button>
             )}
           </div>
 
           <div className="flex items-center gap-2">
+            {totalDiffCount > 0 && (
+              <button
+                type="button"
+                onClick={handleSaveDiffFirst}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-md shadow-blue-500/25 cursor-pointer animate-pulse"
+                title="Xem bảng so sánh và lưu các thay đổi vào cơ sở dữ liệu"
+              >
+                <Save className="w-4 h-4" />
+                <span>Lưu Thay Đổi ({totalDiffCount})</span>
+              </button>
+            )}
+
             {data?.status !== 'APPROVED' && (
               <>
                 <button
@@ -750,17 +818,17 @@ export const AuditStudioModal: React.FC<Props> = ({
 
             <button
               type="button"
-              disabled={isApproving || data?.status === 'APPROVED' || pendingDirtyData.dirtyCount > 0 || stagedPhotoActions.length > 0}
+              disabled={isApproving || data?.status === 'APPROVED' || totalDiffCount > 0}
               onClick={handleApprove}
               title={
-                pendingDirtyData.dirtyCount > 0 || stagedPhotoActions.length > 0
-                  ? 'Vui lòng bấm Lưu Diff để lưu các thay đổi trước khi phê duyệt'
+                totalDiffCount > 0
+                  ? 'Vui lòng bấm Lưu Thay Đổi để lưu các diff trước khi phê duyệt'
                   : 'Phê duyệt hồ sơ'
               }
               className={`px-5 py-2 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all shadow-md ${
                 data?.status === 'APPROVED'
                   ? 'bg-emerald-700/90 text-white cursor-default'
-                  : pendingDirtyData.dirtyCount > 0 || stagedPhotoActions.length > 0
+                  : totalDiffCount > 0
                   ? 'bg-slate-200 text-slate-400 border border-slate-300 cursor-not-allowed shadow-none'
                   : 'bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer shadow-emerald-600/20'
               }`}
@@ -771,7 +839,7 @@ export const AuditStudioModal: React.FC<Props> = ({
                   ? 'Đang ký duyệt...'
                   : data?.status === 'APPROVED'
                   ? '✓ Đã Khóa Duyệt'
-                  : pendingDirtyData.dirtyCount > 0 || stagedPhotoActions.length > 0
+                  : totalDiffCount > 0
                   ? '🔒 Khóa Duyệt (Còn Diff Chưa Lưu)'
                   : 'Phê Duyệt Hồ Sơ (Approve)'}
               </span>
@@ -833,6 +901,8 @@ export const AuditStudioModal: React.FC<Props> = ({
           onClose={() => setDiffModalData({ isOpen: false, diffItems: [], updates: {} })}
           onSuccess={() => {
             setStagedPhotoActions([]);
+            setStagedPhotoDiffs([]);
+            pendingDirtyData.discardAll(true);
             fetchAuditData();
             onRefreshList();
             alert('Đã lưu thay đổi vào cơ sở dữ liệu thành công! Vui lòng kiểm tra lại hồ sơ trước khi bấm Phê duyệt.');
@@ -859,7 +929,26 @@ export const AuditStudioModal: React.FC<Props> = ({
           floorCode={photoActionData.floorCode}
           zoneCode={photoActionData.zoneCode}
           photoIndex={photoActionData.photoIndex}
+          initialPinX={photoActionData.initialPinX}
+          initialPinY={photoActionData.initialPinY}
           onConfirmAction={handleConfirmPhotoAction}
+        />
+      )}
+
+      {photoHistoryData.isOpen && (
+        <AuditPhotoHistoryModal
+          isOpen={photoHistoryData.isOpen}
+          onClose={() => setPhotoHistoryData((prev) => ({ ...prev, isOpen: false }))}
+          reportId={reportId}
+          photoCode={photoHistoryData.photoCode}
+          photoType={photoHistoryData.photoType}
+          photoTitle={photoHistoryData.photoTitle}
+          currentPhotoUrl={photoHistoryData.currentPhotoUrl}
+          onPhotoRestored={() => {
+            fetchAuditData();
+            fetchVersions();
+            onRefreshList();
+          }}
         />
       )}
 
