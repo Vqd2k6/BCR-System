@@ -733,8 +733,8 @@ export const MergePanel: React.FC<MergePanelProps> = ({
                   />
                 ) : (
                   <TileLayer
-                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                    attribution="Tiles &copy; Esri &mdash; Esri World Street Map"
+                    url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}"
                     maxNativeZoom={19}
                     maxZoom={22}
                   />
@@ -1344,9 +1344,9 @@ export const MergePanel: React.FC<MergePanelProps> = ({
             />
           ) : (
             <TileLayer
-              key="osm"
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              key="esri-street"
+              attribution="Tiles &copy; Esri &mdash; Esri World Street Map"
+              url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}"
               maxNativeZoom={19}
               maxZoom={24}
             />

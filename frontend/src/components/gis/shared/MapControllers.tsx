@@ -112,14 +112,34 @@ export const MapBoundsController: React.FC<{
 }> = ({ coords, zoom = 18 }) => {
   const map = useMap();
   useEffect(() => {
-    if (coords && coords.length >= 3) {
-      const bounds = L.latLngBounds(coords.map(([lat, lng]) => [lat, lng]));
-      map.fitBounds(bounds, { padding: [30, 30], maxZoom: 20 });
-    } else if (coords && coords.length > 0) {
-      map.setView(coords[0], zoom);
+    if (!map) return;
+    try {
+      const container = map.getContainer();
+      if (!container) return;
+    } catch {
+      return;
     }
+
+    try {
+      map.stop();
+      if (coords && coords.length >= 3) {
+        const bounds = L.latLngBounds(coords.map(([lat, lng]) => [lat, lng]));
+        map.fitBounds(bounds, { padding: [30, 30], maxZoom: 20 });
+      } else if (coords && coords.length > 0) {
+        map.setView(coords[0], zoom);
+      }
+    } catch (err) {
+      console.debug('[MapBoundsController] Safe fitBounds ignore:', err);
+    }
+
     const timer = setTimeout(() => {
-      map.invalidateSize();
+      try {
+        if (map && map.getContainer()) {
+          map.invalidateSize();
+        }
+      } catch {
+        // Safe ignore
+      }
     }, 200);
     return () => clearTimeout(timer);
   }, [coords, zoom, map]);
@@ -145,11 +165,39 @@ export const MapClickListener: React.FC<{
 
 /**
  * Controller to set view to center coordinates
+ * Phòng vệ race condition: Chỉ gọi setView khi vị trí thực sự dịch chuyển đáng kể (> 0.0001 độ)
  */
 export function ChangeView({ center, zoom }: { center: [number, number]; zoom: number }) {
   const map = useMap();
+  const prevRef = React.useRef<{ lat: number; lng: number; zoom: number } | null>(null);
+
   useEffect(() => {
-    map.setView(center, zoom);
+    if (!map) return;
+    try {
+      if (!map.getContainer()) return;
+    } catch {
+      return;
+    }
+
+    const [lat, lng] = center;
+    const prev = prevRef.current;
+
+    // Ngưỡng sai số 0.0001 độ (~11 mét) hoặc zoom khác biệt
+    const isDifferent =
+      !prev ||
+      Math.abs(prev.lat - lat) > 0.0001 ||
+      Math.abs(prev.lng - lng) > 0.0001 ||
+      prev.zoom !== zoom;
+
+    if (isDifferent) {
+      prevRef.current = { lat, lng, zoom };
+      try {
+        map.stop(); // Hủy transition animation cũ trước khi set view mới
+        map.setView(center, zoom);
+      } catch (err) {
+        console.debug('[ChangeView] Safe setView ignore:', err);
+      }
+    }
   }, [center, zoom, map]);
   return null;
 }
@@ -159,9 +207,27 @@ export function ChangeView({ center, zoom }: { center: [number, number]; zoom: n
  */
 export function FlyToController({ targetCoords }: { targetCoords: [number, number] | null }) {
   const map = useMap();
+  const prevCoordsRef = React.useRef<[number, number] | null>(null);
+
   useEffect(() => {
-    if (targetCoords) {
+    if (!targetCoords || !map) return;
+    try {
+      if (!map.getContainer()) return;
+    } catch {
+      return;
+    }
+
+    const prev = prevCoordsRef.current;
+    if (prev && prev[0] === targetCoords[0] && prev[1] === targetCoords[1]) {
+      return;
+    }
+    prevCoordsRef.current = targetCoords;
+
+    try {
+      map.stop();
       map.flyTo(targetCoords, 21, { animate: true, duration: 0.8 });
+    } catch (err) {
+      console.debug('[FlyToController] Safe flyTo ignore:', err);
     }
   }, [targetCoords, map]);
   return null;
