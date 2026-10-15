@@ -17,7 +17,6 @@ import { PhotoCaptureInput } from '../../../../components/common/PhotoCaptureInp
 import { TapToZoomThumbnail } from '../../../../components/common/TapToZoomThumbnail';
 import type { StructuralElementData } from '../../../survey-phase1/types/phase1.types';
 import type { MetroWatermarkOptions } from '../../../../utils/watermarkEngine';
-import type { PhotoChangeMeta } from '../../../../components/common/photo-capture/types';
 import {
   STRUCTURAL_ELEMENT_TYPES,
   STRUCTURAL_MATERIALS,
@@ -47,7 +46,7 @@ interface Step4StructuralElementsAndDefectsProps {
   onDeleteElementByCode: (elementCode: string) => void;
   onSelectElementByCode: (elementCode: string) => void;
   onSyncElementsToEntireArea: () => void;
-  onUpdateOrAddElementOverviewPhoto: (elemIndex: number, url: string, photoCode?: string, meta?: PhotoChangeMeta) => void;
+  onUpdateOrAddElementOverviewPhoto: (elemIndex: number, url: string, photoCode?: string) => void;
   onRemoveElementOverviewPhoto: (elemIndex: number, photoIndex: number) => void;
   onTriggerPinningElement: (elementId: string) => void;
   watermarkOptions?: MetroWatermarkOptions;
@@ -395,8 +394,8 @@ export const Step4_StructuralElementsAndDefects: React.FC<Step4StructuralElement
                       <PhotoCaptureInput
                         label={`Chụp ảnh thực tế của Cấu kiện ${activeElement.elementCode}`}
                         value=""
-                        onChange={(url, photoCode, meta) =>
-                          onUpdateOrAddElementOverviewPhoto(activeElementIndex, url, photoCode, meta)
+                        onChange={(url, photoCode) =>
+                          onUpdateOrAddElementOverviewPhoto(activeElementIndex, url, photoCode)
                         }
                         watermarkOptions={watermarkOptions}
                         photoCode={`${activeElement.elementCode}_OVERVIEW_${currentElementPhotos.length + 1}`}

@@ -16,7 +16,6 @@ import { PhotoCaptureInput } from '../../../../components/common/PhotoCaptureInp
 import { TapToZoomThumbnail } from '../../../../components/common/TapToZoomThumbnail';
 import type { DamageZoneData } from '../../../survey-phase1/types/phase1.types';
 import type { MetroWatermarkOptions } from '../../../../utils/watermarkEngine';
-import type { PhotoChangeMeta } from '../../../../components/common/photo-capture/types';
 import {
   COMMON_ROOM_NAMES,
   ARCH_COMPONENT_TYPES,
@@ -42,7 +41,7 @@ interface Step3DamageZonesAndDefectsProps {
   onDeleteZoneByCode: (zoneCode: string) => void;
   onSelectZoneByCode: (zoneCode: string) => void;
   onSyncMaterialsToEntireArea: () => void;
-  onUpdateOrAddZoneOverviewPhoto: (zoneIndex: number, url: string, photoCode?: string, meta?: PhotoChangeMeta) => void;
+  onUpdateOrAddZoneOverviewPhoto: (zoneIndex: number, url: string, photoCode?: string) => void;
   onRemoveZoneOverviewPhoto: (zoneIndex: number, photoIndex: number) => void;
   onTriggerPinningZone: (zoneId: string) => void;
   watermarkOptions?: MetroWatermarkOptions;
@@ -361,8 +360,8 @@ export const Step3_DamageZonesAndDefects: React.FC<Step3DamageZonesAndDefectsPro
                   <PhotoCaptureInput
                     label={`Chụp ảnh mảng tường thực tế của Vùng ${activeZone.zoneCode}`}
                     value=""
-                    onChange={(url, photoCode, meta) =>
-                      onUpdateOrAddZoneOverviewPhoto(activeZoneIndex, url, photoCode, meta)
+                    onChange={(url, photoCode) =>
+                      onUpdateOrAddZoneOverviewPhoto(activeZoneIndex, url, photoCode)
                     }
                     watermarkOptions={watermarkOptions}
                     photoCode={`${activeZone.zoneCode}_OVERVIEW_${currentZonePhotos.length + 1}`}

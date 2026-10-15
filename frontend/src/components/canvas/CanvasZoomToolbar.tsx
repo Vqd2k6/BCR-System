@@ -34,7 +34,7 @@ export const CanvasZoomToolbar: React.FC<CanvasZoomToolbarProps> = ({
         <button
           type="button"
           onClick={onTogglePinMode}
-          className={`px-2 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1 transition-all cursor-pointer ${
+          className={`px-2 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1 transition-all ${
             isPinMode
               ? 'bg-emerald-600 text-white shadow-xs'
               : 'bg-white/10 hover:bg-white/20 text-slate-300'

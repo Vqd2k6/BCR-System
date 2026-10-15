@@ -8,7 +8,6 @@ import { getErrorMessage } from '@/utils/errorUtils';
 import { cropImageBoundingBox } from '../../../components/canvas/FloorPlanCadPartitionCanvas';
 import { useAdminViewLock } from '../../../core/hooks/useAdminViewLock';
 import type { MetroWatermarkOptions } from '../../../utils/watermarkEngine';
-import type { PhotoChangeMeta } from '../../../components/common/photo-capture/types';
 import {
   isLocalBlobUri,
   healLocalPhotoUris,
@@ -1290,7 +1289,7 @@ export function useMasterAreaSurveyState({
 
   // Quản lý ảnh tổng quan Vùng Z: Cơ chế thay thế ảnh tạm blob:local:// khi Cloud R2 upload hoàn tất
   const handleUpdateOrAddZoneOverviewPhoto = useCallback(
-    (zoneIndex: number, url: string, _photoCode?: string, meta?: PhotoChangeMeta) => {
+    (zoneIndex: number, url: string, _photoCode?: string) => {
       if (!url) return;
       setZones((prev) => {
         const next = [...prev];
@@ -1298,22 +1297,15 @@ export function useMasterAreaSurveyState({
         if (!targetZone) return prev;
         let existing = [...(targetZone.overviewPhotos || [])];
         const prevTemp = lastTempZoneUriRef.current;
-        const replacesUri = meta?.replacesUri;
 
-        // 1. Thăng cấp qua replacesUri
-        if (replacesUri && existing.includes(replacesUri)) {
-          existing = existing.map((p) => (p === replacesUri ? url : p));
-          lastTempZoneUriRef.current = null;
-        }
-        // 2. Fallback qua prevTemp
-        else if (prevTemp && existing.includes(prevTemp)) {
+        // Nếu vừa chụp ảnh tạm và giờ nhận URL Cloudflare R2 chính thức
+        if (prevTemp && existing.includes(prevTemp)) {
           existing = existing.map((p) => (p === prevTemp ? url : p));
           if (!isLocalBlobUri(url)) {
             lastTempZoneUriRef.current = null;
           }
-        }
-        // 3. Thêm mới nếu chưa có trong mảng
-        else {
+        } else {
+          // Thêm mới nếu chưa có trong mảng
           if (existing.includes(url)) return prev;
           existing.push(url);
           if (isLocalBlobUri(url)) {
@@ -1321,11 +1313,9 @@ export function useMasterAreaSurveyState({
           }
         }
 
-        existing = Array.from(new Set(existing.filter(Boolean)));
-
         // Đồng bộ ảnh bối cảnh chính ctxPhotoUrl
         let newCtx = targetZone.ctxPhotoUrl;
-        if (!newCtx || newCtx === replacesUri || (prevTemp && newCtx === prevTemp)) {
+        if (!newCtx || (prevTemp && newCtx === prevTemp)) {
           newCtx = url;
         }
 
@@ -1476,7 +1466,7 @@ export function useMasterAreaSurveyState({
 
   // Quản lý ảnh tổng quan Cấu kiện E: Cơ chế thay thế ảnh tạm blob:local:// khi Cloud R2 upload hoàn tất
   const handleUpdateOrAddElementOverviewPhoto = useCallback(
-    (elemIndex: number, url: string, _photoCode?: string, meta?: PhotoChangeMeta) => {
+    (elemIndex: number, url: string, _photoCode?: string) => {
       if (!url) return;
       setStructuralElements((prev) => {
         const next = [...prev];
@@ -1484,22 +1474,13 @@ export function useMasterAreaSurveyState({
         if (!targetElem) return prev;
         let existing = [...(targetElem.overviewPhotos || [])];
         const prevTemp = lastTempElementUriRef.current;
-        const replacesUri = meta?.replacesUri;
 
-        // 1. Thăng cấp qua replacesUri
-        if (replacesUri && existing.includes(replacesUri)) {
-          existing = existing.map((p) => (p === replacesUri ? url : p));
-          lastTempElementUriRef.current = null;
-        }
-        // 2. Fallback qua prevTemp
-        else if (prevTemp && existing.includes(prevTemp)) {
+        if (prevTemp && existing.includes(prevTemp)) {
           existing = existing.map((p) => (p === prevTemp ? url : p));
           if (!isLocalBlobUri(url)) {
             lastTempElementUriRef.current = null;
           }
-        }
-        // 3. Thêm mới nếu chưa có trong mảng
-        else {
+        } else {
           if (existing.includes(url)) return prev;
           existing.push(url);
           if (isLocalBlobUri(url)) {
@@ -1507,11 +1488,8 @@ export function useMasterAreaSurveyState({
           }
         }
 
-        existing = Array.from(new Set(existing.filter(Boolean)));
-
-        // Đồng bộ ảnh bối cảnh chính ctxPhotoUrl
         let newCtx = targetElem.ctxPhotoUrl;
-        if (!newCtx || newCtx === replacesUri || (prevTemp && newCtx === prevTemp)) {
+        if (!newCtx || (prevTemp && newCtx === prevTemp)) {
           newCtx = url;
         }
 
