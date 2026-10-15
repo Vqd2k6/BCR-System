@@ -12,6 +12,9 @@ import {
   Loader2,
   Layers,
   ArrowRight,
+  Sparkles,
+  Check,
+  RotateCcw,
 } from 'lucide-react';
 import {
   compressAndStandardizePhoto,
@@ -20,6 +23,34 @@ import {
 } from '@/utils/photoProcessing';
 
 export type PhotoActionMode = 'REPLACE' | 'ADD' | 'DELETE' | 'RESTORE';
+
+export const PRESET_PHOTO_REASONS: Record<PhotoActionMode, Array<{ icon: string; text: string }>> = {
+  REPLACE: [
+    { icon: '📷', text: 'Ảnh chụp bị mờ / thiếu sáng, thay bằng ảnh rõ nét' },
+    { icon: '📏', text: 'Bổ sung vạch thước đo tỷ lệ mm cho vết nứt' },
+    { icon: '📐', text: 'Góc chụp cũ bị khuất / lệch góc, chụp lại trực diện' },
+    { icon: '🔍', text: 'Thay bằng ảnh cận cảnh độ phân giải cao hơn' },
+    { icon: '🏷️', text: 'Cập nhật ảnh biển số nhà / mặt đứng chuẩn xác' },
+    { icon: '📋', text: 'Thay thế ảnh theo yêu cầu biên bản phúc tra' },
+  ],
+  ADD: [
+    { icon: '📏', text: 'Bổ sung ảnh cận cảnh có thước đo tỷ lệ mm' },
+    { icon: '🧱', text: 'Bổ sung ảnh chi tiết vết nứt kéo dài' },
+    { icon: '🌐', text: 'Bổ sung ảnh toàn cảnh đối chiếu vị trí hư hại' },
+    { icon: '🚪', text: 'Bổ sung ảnh hiện trạng khu vực lân cận' },
+    { icon: '📝', text: 'Bổ sung ảnh minh chứng theo yêu cầu thẩm định' },
+  ],
+  DELETE: [
+    { icon: '❌', text: 'Ảnh chụp nhầm công trình / cấu kiện lân cận' },
+    { icon: '🔄', text: 'Ảnh chụp trùng lặp góc máy không cần thiết' },
+    { icon: '⚠️', text: 'Khảo sát viên ghi nhận nhầm mục khuyết tật' },
+    { icon: '🚫', text: 'Ảnh bị lỗi file / không đạt tiêu chuẩn kỹ thuật' },
+  ],
+  RESTORE: [
+    { icon: '↩️', text: 'Khôi phục ảnh khảo sát hợp lệ bị xóa nhầm' },
+    { icon: '📑', text: 'Phục hồi ảnh chứng cứ phục vụ giám định pháp lý' },
+  ],
+};
 
 export interface PhotoActionPayload {
   action: 'ADD' | 'DELETE' | 'REPLACE' | 'RESTORE';
@@ -337,6 +368,25 @@ export const AuditPhotoActionModal: React.FC<AuditPhotoActionModalProps> = ({
 
       onClose();
     }
+  };
+
+  const handleTogglePresetReason = (text: string) => {
+    setReason((prev) => {
+      const trimmed = prev.trim();
+      if (!trimmed) return text;
+      if (trimmed === text) return '';
+      
+      // Nếu đã có sẵn trong ô lý do, bấm lần nữa để gỡ bỏ (toggle off)
+      if (trimmed.includes(text)) {
+        return trimmed
+          .replace(new RegExp(`(?:;\\s*|\\s*,\\s*)?${text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`), '')
+          .replace(/^[;,\s]+|[;,\s]+$/g, '')
+          .trim();
+      }
+      
+      // Nếu chưa có, nối thêm bằng dấu chấm phẩy
+      return `${trimmed}; ${text}`;
+    });
   };
 
   return (
@@ -678,18 +728,69 @@ export const AuditPhotoActionModal: React.FC<AuditPhotoActionModalProps> = ({
           )}
 
           {/* Trường Nhập Lý Do Bắt Buộc */}
-          <div className="space-y-1 pt-2 border-t border-slate-200">
-            <label className="font-bold text-slate-700 text-xs flex items-center justify-between">
-              <span>Lý do điều chỉnh ảnh bắt buộc (Ghi nhật ký kiểm toán) <span className="text-red-500">*</span>:</span>
+          <div className="space-y-2 pt-2 border-t border-slate-200">
+            <div className="flex items-center justify-between">
+              <label className="font-bold text-slate-700 text-xs flex items-center gap-1.5">
+                <span>Lý do điều chỉnh ảnh bắt buộc (Ghi nhật ký kiểm toán)</span>
+                <span className="text-red-500">*</span>
+              </label>
               <span className="text-[10px] text-slate-400 font-normal">Tối thiểu 5 ký tự</span>
-            </label>
+            </div>
+
             <textarea
               rows={2}
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               placeholder="VD: Thay thế ảnh chụp bị mờ bằng ảnh chụp rõ nét vạch thước đo khe nứt..."
-              className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 bg-white"
+              className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 bg-white resize-none"
             />
+
+            {/* Gợi ý lý do nhanh (Bấm để tự động thêm vào lý do) */}
+            <div className="space-y-1.5 pt-0.5">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-semibold text-slate-500 flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                  <span>Gợi ý lý do nhanh (Bấm để tự thêm vào nội dung):</span>
+                </span>
+                {reason.trim() && (
+                  <button
+                    type="button"
+                    onClick={() => setReason('')}
+                    className="text-[10px] font-semibold text-slate-400 hover:text-rose-500 transition-colors flex items-center gap-1 cursor-pointer"
+                    title="Xóa trắng nội dung lý do"
+                  >
+                    <RotateCcw className="w-2.5 h-2.5" />
+                    <span>Xóa trắng</span>
+                  </button>
+                )}
+              </div>
+
+              <div className="flex flex-wrap gap-1.5">
+                {(PRESET_PHOTO_REASONS[activeTab] || PRESET_PHOTO_REASONS.REPLACE).map((preset, idx) => {
+                  const isSelected = reason.includes(preset.text);
+                  return (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => handleTogglePresetReason(preset.text)}
+                      className={`text-[11px] px-2.5 py-1 rounded-lg border transition-all flex items-center gap-1.5 cursor-pointer text-left select-none ${
+                        isSelected
+                          ? 'bg-sky-50 dark:bg-sky-950/60 border-sky-300 dark:border-sky-600 text-sky-800 dark:text-sky-200 font-medium shadow-xs ring-1 ring-sky-300/50'
+                          : 'bg-slate-50 dark:bg-slate-800/60 hover:bg-slate-100 dark:hover:bg-slate-700/60 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100'
+                      }`}
+                    >
+                      <span className="text-xs">{preset.icon}</span>
+                      <span>{preset.text}</span>
+                      {isSelected ? (
+                        <Check className="w-3 h-3 text-sky-600 dark:text-sky-400 shrink-0 ml-0.5" />
+                      ) : (
+                        <Plus className="w-2.5 h-2.5 text-slate-400 dark:text-slate-500 shrink-0 ml-0.5 opacity-60" />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           </div>
         </div>
 

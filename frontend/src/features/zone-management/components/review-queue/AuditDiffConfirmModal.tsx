@@ -14,10 +14,23 @@ import {
   Camera,
   Layers,
   Scale,
+  Sparkles,
+  Check,
+  Plus,
+  RotateCcw,
 } from 'lucide-react';
 import { api } from '../../../../services/api';
 
 import type { PhotoActionPayload } from './AuditPhotoActionModal';
+
+export const PRESET_AUDIT_DIFF_REASONS = [
+  'Chuẩn hóa thông tin số nhà & tên chủ hộ theo hồ sơ pháp lý / CCCD',
+  'Cập nhật phân loại móng sang CAT 1 kèm bản vẽ hoàn công',
+  'Bổ sung vết nứt kết cấu và tọa độ ghim trên mặt bằng CAD',
+  'Hiệu chỉnh số liệu đo lún nghiêng & độ võng dầm theo thực địa',
+  'Chủ nhiệm thẩm định can thiệp đánh giá kỹ thuật (Engineering Judgement)',
+  'Cập nhật ảnh hiện trường rõ nét thay thế ảnh cũ bị mờ',
+];
 
 export interface DiffItem {
   field: string;
@@ -68,6 +81,21 @@ export const AuditDiffConfirmModal: React.FC<Props> = ({
 
   const blockingErrorsCount = hasCatBlocker ? 1 : 0;
   const warningCount = 0;
+
+  const handleTogglePresetReason = (text: string) => {
+    setEditReason((prev) => {
+      const trimmed = prev.trim();
+      if (!trimmed) return text;
+      if (trimmed === text) return '';
+      if (trimmed.includes(text)) {
+        return trimmed
+          .replace(new RegExp(`(?:;\\s*|\\s*,\\s*)?${text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`), '')
+          .replace(/^[;,\s]+|[;,\s]+$/g, '')
+          .trim();
+      }
+      return `${trimmed}; ${text}`;
+    });
+  };
 
   // Phân loại hạng mục diff theo 4 nhóm
   const categorizeDiffItem = (item: DiffItem): 'GENERAL' | 'CAD_PINS' | 'PHOTOS' | 'SCORES' => {
@@ -419,6 +447,52 @@ export const AuditDiffConfirmModal: React.FC<Props> = ({
               placeholder="Ví dụ: Chuẩn hóa lại số nhà theo CCCD chủ hộ; Cập nhật độ sâu móng theo bản vẽ hoàn công..."
               className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 resize-none"
             />
+
+            {/* Gợi ý lý do nhanh (Bấm để thêm vào nội dung) */}
+            <div className="space-y-1.5 pt-0.5">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-semibold text-slate-500 flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                  <span>Gợi ý lý do nhanh (Bấm để tự thêm vào nội dung):</span>
+                </span>
+                {editReason.trim() && (
+                  <button
+                    type="button"
+                    onClick={() => setEditReason('')}
+                    className="text-[10px] font-semibold text-slate-400 hover:text-rose-500 transition-colors flex items-center gap-1 cursor-pointer"
+                    title="Xóa trắng nội dung lý do"
+                  >
+                    <RotateCcw className="w-2.5 h-2.5" />
+                    <span>Xóa trắng</span>
+                  </button>
+                )}
+              </div>
+
+              <div className="flex flex-wrap gap-1.5">
+                {PRESET_AUDIT_DIFF_REASONS.map((preset, idx) => {
+                  const isSelected = editReason.includes(preset);
+                  return (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => handleTogglePresetReason(preset)}
+                      className={`text-[11px] px-2.5 py-1 rounded-lg border transition-all flex items-center gap-1.5 cursor-pointer text-left select-none ${
+                        isSelected
+                          ? 'bg-sky-50 dark:bg-sky-950/60 border-sky-300 dark:border-sky-600 text-sky-800 dark:text-sky-200 font-medium shadow-xs ring-1 ring-sky-300/50'
+                          : 'bg-slate-50 dark:bg-slate-800/60 hover:bg-slate-100 dark:hover:bg-slate-700/60 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100'
+                      }`}
+                    >
+                      <span>{preset}</span>
+                      {isSelected ? (
+                        <Check className="w-3 h-3 text-sky-600 dark:text-sky-400 shrink-0 ml-0.5" />
+                      ) : (
+                        <Plus className="w-2.5 h-2.5 text-slate-400 dark:text-slate-500 shrink-0 ml-0.5 opacity-60" />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           </div>
 
           {/* Admin Password Input */}
