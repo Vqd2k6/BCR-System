@@ -53,6 +53,9 @@ export interface StructuralElementData {
   customElementType?: string;
   materialType: string; // BTCT toàn khối, Khung thép...
   customMaterialType?: string;
+  dimensions?: string; // Kích thước tiết diện b x h (vd 200x300mm)
+  sectionDimensions?: string;
+  structuralIntegrity?: string; // Nguyên vẹn, Rạn nứt, Bong tróc, Lộ cốt thép...
   overviewPhotos: string[]; // Hỗ trợ nhiều ảnh tổng quan cho 1 Vùng E
   ctxPhotoUrl?: string; // Ảnh bối cảnh chính để thả ghim khuyết tật kết cấu
   ctxPhotoCode?: string; // Mã ID ảnh bối cảnh cấu kiện

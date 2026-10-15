@@ -1,6 +1,6 @@
 import React from 'react';
 import { FileCheck2, Compass, TrendingUp, AlertTriangle, ShieldCheck, CheckCircle2 } from 'lucide-react';
-import { BRA_MATRIX_LOOKUP } from '../../../../../survey-phase1/engine/braEngine';
+import { BRA_MATRIX_LOOKUP, calculateConstructionImpact } from '../../../../../survey-phase1/engine/braEngine';
 import type { AuditStepwiseFormState, StepwiseExecutiveSummary } from '../types';
 import { ScoreExplanationPopover } from '../components/ScoreExplanationPopover';
 
@@ -41,8 +41,19 @@ export const AuditStep8Conclusions: React.FC<Props> = ({
   };
   const exec: StepwiseExecutiveSummary = formState.executiveSummary || {};
   const currentBra = (exec.braStatus || 'LOW').toUpperCase();
-  const currentImpactStr = exec.constructionImpactStatus || 'I1 (Tác động rất nhẹ)';
+
+  // Tính toán gợi ý tự động từ khoảng cách mép ga / tim hầm theo chuẩn kỹ thuật braEngine
+  const autoImpact = calculateConstructionImpact(
+    (formState.objectGroup as string) || 'GENERAL',
+    formState.clearanceOffsetDistance as string,
+    formState.metroOffsetDistance as string
+  );
+
+  const currentImpactStr = exec.constructionImpactStatus || autoImpact.label || 'I1 (Tác động rất nhẹ)';
   const impactCode = (currentImpactStr.startsWith('I4') ? 'I4' : currentImpactStr.startsWith('I3') ? 'I3' : currentImpactStr.startsWith('I2') ? 'I2' : 'I1') as 'I1' | 'I2' | 'I3' | 'I4';
+  const isImpactOverridden = impactCode !== autoImpact.code || Boolean(exec.impactOverrideReason);
+  const overrideReason: string = (exec.impactOverrideReason as string) || '';
+  const isReasonValid = !isImpactOverridden || overrideReason.trim().length >= 5;
 
   // Map braStatus to code
   const vCode: 'V1' | 'V2' | 'V3' | 'V4' = currentBra === 'VERY_HIGH' ? 'V4' : currentBra === 'HIGH' ? 'V3' : currentBra === 'MEDIUM' ? 'V2' : 'V1';
@@ -108,45 +119,31 @@ export const AuditStep8Conclusions: React.FC<Props> = ({
             </p>
           </div>
 
-          <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+          <div className={`p-3.5 bg-slate-50 rounded-xl border space-y-2 transition-all ${
+            isImpactOverridden ? 'border-purple-300 bg-purple-50/20' : 'border-slate-200'
+          }`}>
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-bold text-slate-600 uppercase flex items-center gap-1.5">
                 <Compass className="w-4 h-4 text-sky-600" />
                 Phân Cấp Tác Động Thi Công Metro (Impact):
               </span>
-              <ScoreExplanationPopover metric="I" />
-            </div>
-            {isEditMode ? (
-              <select
-                value={exec.braStatus || 'LOW'}
-                onChange={(e) =>
-                  handleNestedFieldChange('executiveSummary', 'braStatus', 'Trạng thái BRA', e.target.value)
-                }
-                className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-black text-slate-800"
-              >
-                <option value="LOW">LOW - Nguy cơ rủi ro thấp (An toàn)</option>
-                <option value="MEDIUM">MEDIUM - Nguy cơ rủi ro trung bình</option>
-                <option value="HIGH">HIGH - Nguy cơ rủi ro cao (Cần theo dõi)</option>
-                <option value="VERY_HIGH">VERY_HIGH - Nguy cơ rất cao (Cảnh báo đặc biệt)</option>
-              </select>
-            ) : (
-              <div className="text-base font-black text-slate-900">
-                {exec.braStatus || 'LOW'}
+              <div className="flex items-center gap-1.5">
+                {isImpactOverridden ? (
+                  <span className="px-2 py-0.5 rounded bg-purple-100 text-purple-800 border border-purple-200 font-bold text-[10px]">
+                    [Đã can thiệp thủ công]
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-200 font-bold text-[10px]">
+                    ✓ Tính tự động
+                  </span>
+                )}
+                <ScoreExplanationPopover metric="I" />
               </div>
-            )}
-            <p className="text-[11px] text-slate-500">
-              Mức rủi ro tổng hợp dựa trên tính tổn thương công trình (VI) và tác động thi công tuyến Metro.
-            </p>
-          </div>
+            </div>
 
-          <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
-            <span className="text-[11px] font-bold text-slate-600 uppercase flex items-center gap-1.5">
-              <Compass className="w-4 h-4 text-sky-600" />
-              Phân Cấp Tác Động Thi Công Metro (Impact):
-            </span>
             {isEditMode ? (
               <select
-                value={exec.constructionImpactStatus || 'I1 (Tác động rất nhẹ)'}
+                value={currentImpactStr}
                 onChange={(e) =>
                   handleNestedFieldChange('executiveSummary', 'constructionImpactStatus', 'Tác động Metro', e.target.value)
                 }
@@ -159,20 +156,70 @@ export const AuditStep8Conclusions: React.FC<Props> = ({
               </select>
             ) : (
               <div className="text-base font-black text-sky-800">
-                {exec.constructionImpactStatus || 'I1 (Tác động rất nhẹ)'}
+                {currentImpactStr}
               </div>
             )}
+
+            {isImpactOverridden && (
+              <div className="p-2.5 bg-purple-50/80 rounded-xl border border-purple-200 text-xs space-y-1.5">
+                <div className="text-[11px] font-bold text-purple-900 flex items-center justify-between">
+                  <span>Giá trị gợi ý ban đầu: <strong className="font-mono text-purple-700">{autoImpact.code} ({autoImpact.levelText})</strong></span>
+                  {isEditMode && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleNestedFieldChange('executiveSummary', 'constructionImpactStatus', 'Tác động Metro', autoImpact.label);
+                        handleNestedFieldChange('executiveSummary', 'impactOverrideReason', 'Lý do can thiệp Impact', '');
+                      }}
+                      className="text-[10px] text-purple-700 hover:text-purple-900 underline font-semibold cursor-pointer"
+                    >
+                      Hoàn nguyên gợi ý
+                    </button>
+                  )}
+                </div>
+                {isEditMode ? (
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-700 block mb-0.5">
+                      Lý do điều chỉnh can thiệp thủ công (Bắt buộc &ge; 5 ký tự):
+                    </label>
+                    <input
+                      type="text"
+                      value={overrideReason}
+                      onChange={(e) =>
+                        handleNestedFieldChange('executiveSummary', 'impactOverrideReason', 'Lý do can thiệp Impact', e.target.value)
+                      }
+                      placeholder="Nhập lý do kỹ thuật can thiệp mức tác động (VD: Hố móng sâu giáp ranh nhà dân)..."
+                      className={`w-full p-1.5 text-xs bg-white rounded-lg border ${
+                        !isReasonValid ? 'border-rose-400 ring-1 ring-rose-300' : 'border-slate-300'
+                      }`}
+                    />
+                    {!isReasonValid && (
+                      <span className="text-[10px] font-bold text-rose-600 block mt-0.5">
+                        ⚠️ Bắt buộc nhập lý do điều chỉnh tác động Metro (tối thiểu 5 ký tự)
+                      </span>
+                    )}
+                  </div>
+                ) : (
+                  overrideReason && (
+                    <div className="text-[11px] text-purple-950 italic">
+                      Lý do can thiệp: &ldquo;{overrideReason}&rdquo;
+                    </div>
+                  )
+                )}
+              </div>
+            )}
+
             <div className="text-[11px] text-slate-500 space-y-0.5">
               <p>
-                Phân cấp theo khoảng cách từ ranh công trình tới <strong>mép ga / biên hố đào Metro</strong>.
+                Phân cấp theo khoảng cách từ ranh công trình tới <strong>mép ga / biên hố đào Metro</strong>:
               </p>
-              {formState.clearanceOffsetDistance ? (
+              {autoImpact.hasStationEdge ? (
                 <p className="font-semibold text-sky-700">
-                  Cự ly mép ga ghi nhận: {formState.clearanceOffsetDistance} (Tim Metro: {formState.metroOffsetDistance || '--'})
+                  Cự ly mép ga: {autoImpact.distance}m &bull; Tự động: {autoImpact.code} ({autoImpact.conditionFormula})
                 </p>
               ) : (
                 <p className="font-semibold text-amber-700">
-                  ⚠️ Không có công trình ga trong zone (Dự phòng theo tim: {formState.metroOffsetDistance || '--'})
+                  ⚠️ {autoImpact.stationNote} (Fallback theo tim: {autoImpact.distance}m &rarr; {autoImpact.code})
                 </p>
               )}
             </div>

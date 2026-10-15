@@ -163,6 +163,7 @@ export interface StepwiseVi {
 export interface StepwiseExecutiveSummary {
   braStatus?: string;
   constructionImpactStatus?: string;
+  impactOverrideReason?: string;
   summaryConclusions?: string;
   keyRisksDefectsText?: string;
   recommendations?: string;

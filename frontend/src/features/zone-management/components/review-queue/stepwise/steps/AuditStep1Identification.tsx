@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import type { PolygonPoint } from '../../../../../survey-phase1/types/phase1.types';
-import { Camera, Maximize2, MapPin, AlertCircle, Compass, ShieldAlert, Building, Navigation, ShieldCheck, RefreshCw, Plus, Trash2, History } from 'lucide-react';
+import { Camera, Maximize2, MapPin, AlertCircle, Compass, ShieldAlert, Building, Navigation, ShieldCheck, RefreshCw, Plus, Trash2, History, Edit3 } from 'lucide-react';
 import { Badge } from '../../../../../../core/components/ui/Badge';
 import { OBJECT_GROUPS, ADJACENT_LEFT_RIGHT, ADJACENT_REAR } from '../../../../../survey-phase1/components/step1/step1.constants';
 import { USAGE_OPTIONS } from '../../../../../survey-phase1/constants/surveyOptionsConstants';
@@ -380,45 +380,56 @@ export const AuditStep1Identification: React.FC<Props> = ({
                       <span className="text-xs text-slate-400 italic">Chưa có ảnh</span>
                     )}
 
-                    {url && (
-                      <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
-                        <Maximize2 className="w-6 h-6 drop-shadow-md" />
-                      </div>
-                    )}
-                    <div className="absolute top-2 left-2 px-2 py-0.5 rounded bg-black/70 backdrop-blur-xs text-white font-mono font-bold text-[10px] flex items-center gap-1">
+                    {/* Badge Mã ảnh góc trên bên trái */}
+                    <div className="absolute top-2 left-2 px-2 py-0.5 rounded bg-black/70 backdrop-blur-xs text-white font-mono font-bold text-[10px] flex items-center gap-1 z-10 pointer-events-none">
                       <span>{item.code}</span>
                       {hasPolygon && <span className="text-emerald-400 text-[9px]">● Polygon</span>}
                     </div>
-                  </div>
 
-                  <div className="p-2 bg-white border-t border-slate-100 flex items-center justify-between">
-                    <span className="text-[11px] font-semibold text-slate-700 truncate" title={item.label}>
-                      {item.label}
-                    </span>
-                    <div className="flex items-center gap-1">
+                    {/* Glassmorphic Micro-toolbar góc trên bên phải */}
+                    <div
+                      onClick={(e) => e.stopPropagation()}
+                      className="absolute top-1.5 right-1.5 flex items-center gap-0.5 bg-black/60 hover:bg-black/80 backdrop-blur-xs rounded-lg p-0.5 shadow-sm z-20 transition-all"
+                    >
+                      {url && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onOpenPhotoZoom(url, `${item.code} - ${item.label}`, item.code);
+                          }}
+                          className="p-1 rounded text-white/80 hover:text-white hover:bg-white/20 transition-colors cursor-pointer"
+                          title="Phóng to soi chi tiết"
+                        >
+                          <Maximize2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+
                       {onOpenPhotoHistory && (
                         <button
                           type="button"
-                          onClick={() =>
+                          onClick={(e) => {
+                            e.stopPropagation();
                             onOpenPhotoHistory({
                               photoCode: item.photoCode || `HCM_M2_${item.code.replace('-', '')}`,
                               photoType: item.code.replace('-', ''),
                               photoTitle: `Ảnh định danh ${item.code} - ${item.label}`,
                               currentPhotoUrl: url,
-                            })
-                          }
-                          className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-700 hover:text-sky-700 bg-slate-100 hover:bg-sky-50 border border-slate-200 hover:border-sky-300 px-1.5 py-0.5 rounded transition-colors cursor-pointer"
-                          title="Xem phả hệ & lịch sử thay đổi của ảnh này"
+                            });
+                          }}
+                          className="p-1 rounded text-violet-300 hover:text-white hover:bg-violet-600 transition-colors cursor-pointer"
+                          title={`Xem lịch sử phiên bản ảnh ${item.code} (${item.historyCount || 1} bản)`}
                         >
-                          <History className="w-3 h-3 text-sky-600" />
-                          <span>Lịch sử {item.historyCount ? `(${item.historyCount})` : ''}</span>
+                          <History className="w-3.5 h-3.5" />
                         </button>
                       )}
+
                       {isEditMode && (
                         <>
                           <button
                             type="button"
-                            onClick={() => {
+                            onClick={(e) => {
+                              e.stopPropagation();
                               if (onOpenPhotoAction) {
                                 onOpenPhotoAction({
                                   initialMode: 'REPLACE',
@@ -439,15 +450,17 @@ export const AuditStep1Identification: React.FC<Props> = ({
                                 });
                               }
                             }}
-                            className="text-[10px] font-bold text-sky-600 hover:text-sky-800 bg-sky-50 px-1.5 py-0.5 rounded transition-colors cursor-pointer"
-                            title="Thay thế ảnh này chuẩn M2"
+                            className="p-1 rounded text-sky-300 hover:text-white hover:bg-sky-600 transition-colors cursor-pointer"
+                            title="Thay thế / cập nhật ảnh chuẩn M2"
                           >
-                            Đổi ảnh
+                            <Edit3 className="w-3.5 h-3.5" />
                           </button>
+
                           {onOpenPhotoAction && (
                             <button
                               type="button"
-                              onClick={() =>
+                              onClick={(e) => {
+                                e.stopPropagation();
                                 onOpenPhotoAction({
                                   initialMode: 'DELETE',
                                   category: 'IDENTIFICATION',
@@ -456,17 +469,29 @@ export const AuditStep1Identification: React.FC<Props> = ({
                                   photoIndex: item.isExtra ? item.extraIndex : undefined,
                                   currentPhotoUrl: url,
                                   photoTitle: `Ảnh định danh ${item.code} - ${item.label}`,
-                                })
-                              }
-                              className="text-[10px] font-bold text-rose-600 hover:text-rose-800 bg-rose-50 px-1.5 py-0.5 rounded transition-colors cursor-pointer"
-                              title="Xóa ảnh hoặc đánh dấu Không Áp Dụng (N/A)"
+                                });
+                              }}
+                              className="p-1 rounded text-rose-300 hover:text-white hover:bg-rose-600 transition-colors cursor-pointer"
+                              title="Xóa / Không áp dụng (N/A)"
                             >
-                              Xóa / N/A
+                              <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           )}
                         </>
                       )}
                     </div>
+                  </div>
+
+                  {/* Card Footer: Nhãn ảnh và Badge phiên bản gọn gàng */}
+                  <div className="p-2 bg-white border-t border-slate-100 flex items-center justify-between">
+                    <span className="text-[11px] font-semibold text-slate-700 truncate" title={item.label}>
+                      {item.label}
+                    </span>
+                    {item.historyCount !== undefined && item.historyCount > 1 && (
+                      <span className="px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-violet-100 text-violet-700">
+                        v{item.historyCount}
+                      </span>
+                    )}
                   </div>
                 </div>
               );
@@ -513,7 +538,7 @@ export const AuditStep1Identification: React.FC<Props> = ({
                     className="px-2 py-0.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-[10px] flex items-center gap-1 transition-colors cursor-pointer shadow-xs"
                   >
                     <Plus className="w-3 h-3" />
-                    <span>+ Thêm Ảnh Đất Trống</span>
+                    <span>Thêm Ảnh Đất Trống</span>
                   </button>
                 )}
               </div>
@@ -643,7 +668,7 @@ export const AuditStep1Identification: React.FC<Props> = ({
                       className="px-2.5 py-1 rounded bg-amber-600 hover:bg-amber-700 text-white font-bold text-[10px] flex items-center gap-1 shadow-xs cursor-pointer"
                     >
                       <Plus className="w-3 h-3" />
-                      <span>+ Thêm Ảnh Đất Trống</span>
+                      <span>Thêm Ảnh Đất Trống</span>
                     </button>
                   )}
                   {onOpenPhotoHistory && (
@@ -705,7 +730,7 @@ export const AuditStep1Identification: React.FC<Props> = ({
                     className="px-2 py-0.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-[10px] flex items-center gap-1 transition-colors cursor-pointer shadow-xs"
                   >
                     <Plus className="w-3 h-3" />
-                    <span>+ Thêm Ảnh Thi Công</span>
+                    <span>Thêm Ảnh Thi Công</span>
                   </button>
                 )}
               </div>
@@ -835,7 +860,7 @@ export const AuditStep1Identification: React.FC<Props> = ({
                       className="px-2.5 py-1 rounded bg-blue-600 hover:bg-blue-700 text-white font-bold text-[10px] flex items-center gap-1 shadow-xs cursor-pointer"
                     >
                       <Plus className="w-3 h-3" />
-                      <span>+ Thêm Ảnh Thi Công</span>
+                      <span>Thêm Ảnh Thi Công</span>
                     </button>
                   )}
                   {onOpenPhotoHistory && (

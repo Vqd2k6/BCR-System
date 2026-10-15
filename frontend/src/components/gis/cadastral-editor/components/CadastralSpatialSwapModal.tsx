@@ -18,6 +18,7 @@ import {
 import type { GisParcel } from '../../shared/types';
 import { useAuth } from '../../../../context/AuthContext';
 import { api } from '../../../../services/api';
+import { getErrorMessage } from '@/utils/errorUtils';
 import { MapBoundsController } from '../../shared/MapControllers';
 import { computeCentroid } from '../../shared/geoMath';
 import { AdminSecurityChallengeConfirm } from '../../../../features/zone-management/components/review-queue/AdminSecurityChallengeConfirm';
@@ -99,19 +100,13 @@ export const CadastralSpatialSwapModal: React.FC<CadastralSpatialSwapModalProps>
 
       // Fetch adjacent candidates
       setIsLoadingCandidates(true);
-      fetch(`/api/v1/parcels/${activeParcel.id}/adjacent-candidates`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      })
-        .then((res) => res.json())
-        .then((json) => {
-          if (json.success && json.data?.candidates) {
-            setAdjacentCandidates(json.data.candidates);
+      api.get(`/parcels/${activeParcel.id}/adjacent-candidates`)
+        .then((res) => {
+          if (res.data?.success && res.data?.data?.candidates) {
+            setAdjacentCandidates(res.data.data.candidates);
           }
         })
-        .catch((err) => {
+        .catch((err: unknown) => {
           console.warn('[CadastralSpatialSwapModal] Lỗi lấy danh sách thửa tiếp giáp:', err);
         })
         .finally(() => {
@@ -357,32 +352,24 @@ export const CadastralSpatialSwapModal: React.FC<CadastralSpatialSwapModalProps>
     setIsSubmitting(true);
     setErrorMsg('');
     try {
-      const res = await fetch('/api/v1/admin/parcels/swap-geometries', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          parcelAId: activeParcel?.id,
-          parcelBId: selectedTargetB.id,
-          reason: reason.trim(),
-        }),
+      const res = await api.post('/admin/parcels/swap-geometries', {
+        parcelAId: activeParcel?.id,
+        parcelBId: selectedTargetB.id,
+        reason: reason.trim(),
       });
 
-      const json = await res.json();
-      if (!res.ok || !json.success) {
-        throw new Error(json.message || 'Lỗi xử lý hoán đổi ranh từ máy chủ.');
+      if (!res.data?.success) {
+        throw new Error(res.data?.message || 'Lỗi xử lý hoán đổi ranh từ máy chủ.');
       }
 
-      setSuccessMsg(json.message || 'Hoán đổi vị trí ranh đất thành công!');
+      setSuccessMsg(res.data.message || 'Hoán đổi vị trí ranh đất thành công!');
       setTimeout(() => {
         onSuccess?.();
         onClose();
       }, 1500);
     } catch (err: unknown) {
       console.error('[CadastralSpatialSwapModal] Swap error:', err);
-      const msg = err instanceof Error ? err.message : 'Có lỗi xảy ra khi thực hiện hoán đổi ranh đất.';
+      const msg = getErrorMessage(err, 'Có lỗi xảy ra khi thực hiện hoán đổi ranh đất.');
       setErrorMsg(msg);
     } finally {
       setIsSubmitting(false);

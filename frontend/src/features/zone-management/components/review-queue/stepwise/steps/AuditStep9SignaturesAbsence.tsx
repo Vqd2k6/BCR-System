@@ -919,7 +919,7 @@ export const AuditStep9SignaturesAbsence: React.FC<Props> = ({
                     className="px-2.5 py-1 rounded-lg bg-purple-700 hover:bg-purple-800 text-white text-xs font-bold flex items-center gap-1 shadow-2xs cursor-pointer transition-colors"
                   >
                     <Upload className="w-3.5 h-3.5" />
-                    <span>+ Thêm Ảnh Giấy Báo</span>
+                    <span>Thêm Ảnh Giấy Báo</span>
                   </button>
                 )}
               </div>

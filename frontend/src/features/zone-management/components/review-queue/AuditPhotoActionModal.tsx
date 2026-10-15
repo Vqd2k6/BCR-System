@@ -203,6 +203,11 @@ export const AuditPhotoActionModal: React.FC<AuditPhotoActionModalProps> = ({
       return;
     }
 
+    if (category === 'MINUTES' && reason.trim().length < 5) {
+      setErrorMessage('Biên bản khảo sát hiện trường là căn cứ pháp lý quan trọng. Vui lòng nhập lý do điều chỉnh chi tiết tối thiểu 5 ký tự.');
+      return;
+    }
+
     if (activeTab === 'REPLACE') {
       if (!replaceProcessed) {
         setErrorMessage('Vui lòng chọn ảnh mới để thay thế.');

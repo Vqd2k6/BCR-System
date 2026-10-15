@@ -321,57 +321,111 @@ export const AuditStep6ScopeGisMutation: React.FC<Props> = ({
             </div>
           </div>
 
-          {/* Chi tiết khu vực hạn chế */}
+          {/* Chi tiết khu vực hạn chế & Tầng hạn chế */}
           {access.type !== 'FULL_100' && (
-            <div className="space-y-2 pt-2 border-t border-amber-200/60">
-              <span className="text-[11px] font-bold text-amber-950 block">
-                Khu vực cụ thể không tiếp cận được:
-              </span>
-              {isEditMode ? (
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                  {RESTRICTED_AREAS_PRESETS.map((area) => {
-                    const currentAreas: string[] = Array.isArray(access.restrictedAreas) ? access.restrictedAreas : [];
-                    const isSelected = currentAreas.includes(area);
-                    return (
-                      <label
-                        key={area}
-                        className={`flex items-center gap-2 p-1.5 rounded-lg border text-xs cursor-pointer select-none ${
-                          isSelected ? 'bg-amber-100 border-amber-400 text-amber-950 font-bold' : 'bg-white border-slate-200 text-slate-700'
-                        }`}
+            <div className="space-y-3 pt-2 border-t border-amber-200/60">
+              <div className="space-y-1.5">
+                <span className="text-[11px] font-bold text-amber-950 block">
+                  Khu vực cụ thể không tiếp cận được:
+                </span>
+                {isEditMode ? (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {RESTRICTED_AREAS_PRESETS.map((area) => {
+                      const currentAreas: string[] = Array.isArray(access.restrictedAreas) ? access.restrictedAreas : [];
+                      const isSelected = currentAreas.includes(area);
+                      return (
+                        <label
+                          key={area}
+                          className={`flex items-center gap-2 p-1.5 rounded-lg border text-xs cursor-pointer select-none ${
+                            isSelected ? 'bg-amber-100 border-amber-400 text-amber-950 font-bold' : 'bg-white border-slate-200 text-slate-700'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={(e) => {
+                              const updated = e.target.checked
+                                ? [...currentAreas, area]
+                                : currentAreas.filter((a) => a !== area);
+                              handleNestedFieldChange('accessLimitation', 'restrictedAreas', 'Khu vực hạn chế', updated);
+                            }}
+                            className="rounded text-amber-600"
+                          />
+                          <span>{area}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {(access.restrictedAreas || []).map((area: string, idx: number) => (
+                      <span
+                        key={idx}
+                        className="px-2.5 py-1 rounded-lg bg-white border border-amber-300 text-xs font-bold text-amber-900 shadow-xs"
                       >
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          onChange={(e) => {
-                            const updated = e.target.checked
-                              ? [...currentAreas, area]
-                              : currentAreas.filter((a) => a !== area);
-                            handleNestedFieldChange('accessLimitation', 'restrictedAreas', 'Khu vực hạn chế', updated);
-                          }}
-                          className="rounded text-amber-600"
-                        />
-                        <span>{area}</span>
-                      </label>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="flex flex-wrap gap-2">
-                  {(access.restrictedAreas || []).map((area: string, idx: number) => (
-                    <span
-                      key={idx}
-                      className="px-2.5 py-1 rounded-lg bg-white border border-amber-300 text-xs font-bold text-amber-900 shadow-xs"
-                    >
-                      • {area}
-                    </span>
-                  ))}
-                  {(!access.restrictedAreas || access.restrictedAreas.length === 0) && (
-                    <span className="text-xs text-amber-700 italic">
-                      Chưa liệt kê cụ thể các phòng bị hạn chế.
-                    </span>
-                  )}
-                </div>
-              )}
+                        • {area}
+                      </span>
+                    ))}
+                    {(!access.restrictedAreas || access.restrictedAreas.length === 0) && (
+                      <span className="text-xs text-amber-700 italic">
+                        Chưa liệt kê cụ thể các phòng bị hạn chế.
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Tầng hạn chế */}
+              <div className="space-y-1.5">
+                <span className="text-[11px] font-bold text-amber-950 block">
+                  Các tầng bị hạn chế / không thể khảo sát:
+                </span>
+                {(() => {
+                  const restrictedFloors: string[] = Array.isArray(access.restrictedFloorLevels)
+                    ? (access.restrictedFloorLevels as string[])
+                    : [];
+                  return isEditMode ? (
+                    <div className="flex flex-wrap gap-2">
+                      {floors.map((fl: FloorSurveyData | { floorId?: string; floorName?: string }, fIdx: number) => {
+                        const floorName = fl.floorName || `Tầng ${fIdx + 1}`;
+                        const isSelected = restrictedFloors.includes(floorName);
+                        return (
+                          <label
+                            key={fIdx}
+                            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs cursor-pointer select-none ${
+                              isSelected ? 'bg-amber-100 border-amber-400 text-amber-950 font-bold' : 'bg-white border-slate-200 text-slate-700'
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={(e) => {
+                                const updated = e.target.checked
+                                  ? [...restrictedFloors, floorName]
+                                  : restrictedFloors.filter((f) => f !== floorName);
+                                handleNestedFieldChange('accessLimitation', 'restrictedFloorLevels', 'Tầng hạn chế', updated);
+                              }}
+                              className="rounded text-amber-600"
+                            />
+                            <span>{floorName}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="flex flex-wrap gap-1.5">
+                      {restrictedFloors.map((fl: string, idx: number) => (
+                        <span key={idx} className="px-2 py-0.5 rounded bg-amber-100 text-amber-900 text-xs font-bold">
+                          {fl}
+                        </span>
+                      ))}
+                      {restrictedFloors.length === 0 && (
+                        <span className="text-xs text-slate-400 italic">Không có tầng nào bị hạn chế hoàn toàn</span>
+                      )}
+                    </div>
+                  );
+                })()}
+              </div>
             </div>
           )}
 
@@ -398,161 +452,13 @@ export const AuditStep6ScopeGisMutation: React.FC<Props> = ({
           </div>
         </div>
 
-        {/* 6.3. Kích thước hình học & diện tích thửa đất */}
-        <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Ruler className="w-4 h-4 text-emerald-600" />
-              <span className="text-xs font-black uppercase tracking-wider text-slate-800">
-                6.3. Kích Thước Hình Học & Diện Tích Thửa Đất Địa Chính
-              </span>
-            </div>
-            <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
-              Đối chiếu hồ sơ trắc địa
-            </span>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-            <div className="p-3 bg-white rounded-xl border border-slate-200">
-              <span className="text-[10px] font-bold text-slate-500 uppercase block mb-1">
-                Chiều Rộng Mặt Tiền (m)
-              </span>
-              {isEditMode ? (
-                <input
-                  type="number"
-                  step="0.01"
-                  value={formState.frontageWidth ?? ''}
-                  onChange={(e) => handleFieldChange && handleFieldChange('frontageWidth', 'Mặt tiền thửa', e.target.value ? Number(e.target.value) : '')}
-                  placeholder="VD: 4.5"
-                  className="w-full p-1.5 bg-amber-50/40 border border-slate-300 rounded font-mono font-bold"
-                />
-              ) : (
-                <div className="font-mono font-black text-sm text-slate-800">
-                  {frontageWidth ? `${frontageWidth} m` : '---'}
-                </div>
-              )}
-            </div>
-
-            <div className="p-3 bg-white rounded-xl border border-slate-200">
-              <span className="text-[10px] font-bold text-slate-500 uppercase block mb-1">
-                Chiều Sâu Thửa Đất (m)
-              </span>
-              {isEditMode ? (
-                <input
-                  type="number"
-                  step="0.01"
-                  value={formState.lotDepth ?? ''}
-                  onChange={(e) => handleFieldChange && handleFieldChange('lotDepth', 'Chiều sâu thửa', e.target.value ? Number(e.target.value) : '')}
-                  placeholder="VD: 18.2"
-                  className="w-full p-1.5 bg-amber-50/40 border border-slate-300 rounded font-mono font-bold"
-                />
-              ) : (
-                <div className="font-mono font-black text-sm text-slate-800">
-                  {lotDepth ? `${lotDepth} m` : '---'}
-                </div>
-              )}
-            </div>
-
-            <div className="p-3 bg-white rounded-xl border border-slate-200">
-              <span className="text-[10px] font-bold text-slate-500 uppercase block mb-1">
-                Diện Tích Khuôn Viên Đất (m²)
-              </span>
-              {isEditMode ? (
-                <input
-                  type="number"
-                  step="0.01"
-                  value={formState.landAreaM2 ?? ''}
-                  onChange={(e) => handleFieldChange && handleFieldChange('landAreaM2', 'Diện tích đất', e.target.value ? Number(e.target.value) : '')}
-                  placeholder="VD: 81.9"
-                  className="w-full p-1.5 bg-amber-50/40 border border-slate-300 rounded font-mono font-bold text-emerald-800"
-                />
-              ) : (
-                <div className="font-mono font-black text-sm text-emerald-700">
-                  {landAreaM2 ? `${landAreaM2} m²` : '---'}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* 6.4. Tọa độ GPS & Cự ly tim hầm Metro */}
-        <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3.5">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Navigation className="w-4 h-4 text-sky-600" />
-              <span className="text-xs font-black uppercase tracking-wider text-slate-800">
-                6.4. Tọa Độ GPS Thực Địa & Cự Ly Tim Hầm Metro 2
-              </span>
-            </div>
-            <span className={`text-[11px] font-bold px-2.5 py-1 rounded-lg border ${riskBadge.color}`}>
-              {riskBadge.label}
-            </span>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            {/* Tọa độ GPS */}
-            <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-1">
-              <span className="text-[10px] font-bold text-slate-400 block uppercase">
-                Tọa Độ GPS (Vĩ Độ / Kinh Độ)
-              </span>
-              <span className="font-mono font-black text-xs text-slate-800 block">
-                {coords.lat ? `${Number(coords.lat).toFixed(6)}, ${Number(coords.lng).toFixed(6)}` : '10.792410, 106.711520'}
-              </span>
-              <span className="text-[10px] text-slate-400 font-semibold block">
-                Độ chính xác: ±{coords.accuracy || 3.5}m
-              </span>
-            </div>
-
-            {/* Khoảng cách tính toán tự động */}
-            <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-1">
-              <span className="text-[10px] font-bold text-slate-400 block uppercase">
-                Khoảng Cách Tim Tuyến Tự Động (GIS)
-              </span>
-              <span className="font-mono font-black text-xs text-sky-700 block">
-                {metroDistance} mét
-              </span>
-              <span className="text-[10px] text-slate-400 font-semibold block">
-                Từ tim hầm Metro Bến Thành - Tham Lương
-              </span>
-            </div>
-
-            {/* Khoảng cách hiệu chỉnh thủ công của Zone Admin */}
-            <div className="p-3 bg-white rounded-xl border border-slate-200 space-y-1">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-bold text-slate-400 block uppercase">
-                  Khoảng Cách Thẩm Định (m)
-                </span>
-                {isEditMode && <span className="text-[9px] font-bold text-amber-600">Sửa thủ công</span>}
-              </div>
-              {isEditMode ? (
-                <input
-                  type="number"
-                  step="0.1"
-                  value={manualDistance !== undefined ? manualDistance : metroDistance}
-                  onChange={(e) =>
-                    handleFieldChange && handleFieldChange('manualMetroDistanceM', 'Cự ly tim hầm Metro', e.target.value)
-                  }
-                  className="w-full p-1 bg-amber-50 border border-amber-300 rounded font-mono font-black text-xs text-slate-900"
-                />
-              ) : (
-                <span className="font-mono font-black text-xs text-slate-900 block">
-                  {manualDistance !== undefined && manualDistance !== '' ? `${manualDistance} mét (Đã hiệu chỉnh)` : `${metroDistance} mét`}
-                </span>
-              )}
-              <span className="text-[10px] text-slate-400 font-semibold block">
-                Dùng khi GPS bị trôi / trạm đo thực địa
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* 6.5. Biến động thửa đất GIS */}
+        {/* 6.3. Biến động thửa đất GIS */}
         <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3.5">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div className="flex items-center gap-2">
               <MapPin className="w-4 h-4 text-blue-600" />
               <span className="text-xs font-black uppercase tracking-wider text-slate-800">
-                6.5. Tình Trạng Biến Động Ranh Thửa Thực Địa & Bản Đồ Đa Giác GIS
+                6.3. Tình Trạng Biến Động Ranh Thửa Thực Địa & Bản Đồ Đa Giác GIS
               </span>
             </div>
 

@@ -7,6 +7,7 @@ import {
   Clock,
   History,
   ShieldCheck,
+  RotateCcw,
 } from 'lucide-react';
 import type { PendingSubmissionItem } from './ZoneAuditReviewQueue';
 
@@ -23,6 +24,7 @@ interface Props {
   onOpenMutationModal?: (item: PendingSubmissionItem) => void;
   onOpenReshapeModal?: (item: PendingSubmissionItem) => void;
   onOpenAuditHistory?: (reportId: string, itemCode?: string) => void;
+  onOpenRevertModal?: (item: PendingSubmissionItem) => void;
 }
 
 export const ReviewQueueTableRow: React.FC<Props> = React.memo(({
@@ -33,6 +35,7 @@ export const ReviewQueueTableRow: React.FC<Props> = React.memo(({
   onSelect,
   onOpenStudio,
   onOpenAuditHistory,
+  onOpenRevertModal,
 }) => {
   const isCriticalBurland = ['GRADE_3', 'GRADE_4', 'GRADE_5'].includes(
     item.burland_damage_category || ''
@@ -357,6 +360,18 @@ export const ReviewQueueTableRow: React.FC<Props> = React.memo(({
               title="Xem toàn bộ nhật ký kiểm toán và lịch sử sửa đổi"
             >
               <History className="w-4 h-4" />
+            </button>
+          )}
+
+          {/* Nút Mở Lại Hồ Sơ (Chuyển về Đang làm dở) cho Zone Admin / Super Admin */}
+          {onOpenRevertModal && item.report_id && item.status !== 'IN_PROGRESS' && (
+            <button
+              type="button"
+              onClick={() => onOpenRevertModal(item)}
+              className="p-1.5 rounded-lg bg-amber-50 dark:bg-amber-950/60 hover:bg-amber-100 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800 transition-colors cursor-pointer"
+              title="Mở lại hồ sơ (Chuyển về Đang làm dở)"
+            >
+              <RotateCcw className="w-4 h-4" />
             </button>
           )}
         </div>

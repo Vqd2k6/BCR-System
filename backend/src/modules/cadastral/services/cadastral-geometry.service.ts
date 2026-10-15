@@ -199,9 +199,9 @@ export class CadastralGeometryService {
       // 2. Thực hiện tráo đổi hình học không gian (Geometry Swap)
       await client.query(
         `UPDATE parcels
-         SET cadastral_polygon_geom = ST_SetSRID(ST_GeomFromGeoJSON($1), 4326),
-             footprint_polygon_geom = ST_SetSRID(ST_GeomFromGeoJSON($2), 4326),
-             location_geom = ST_SetSRID(ST_GeomFromGeoJSON($3), 4326),
+         SET cadastral_polygon_geom = ST_SetSRID(ST_GeomFromGeoJSON($1::text), 4326),
+             footprint_polygon_geom = CASE WHEN $2::text IS NOT NULL AND $2::text != '' THEN ST_SetSRID(ST_GeomFromGeoJSON($2::text), 4326) ELSE NULL END,
+             location_geom = CASE WHEN $3::text IS NOT NULL AND $3::text != '' THEN ST_SetSRID(ST_GeomFromGeoJSON($3::text), 4326) ELSE NULL END,
              land_area_m2 = $4,
              construction_area_m2 = $5,
              updated_at = NOW()
@@ -218,9 +218,9 @@ export class CadastralGeometryService {
 
       await client.query(
         `UPDATE parcels
-         SET cadastral_polygon_geom = ST_SetSRID(ST_GeomFromGeoJSON($1), 4326),
-             footprint_polygon_geom = ST_SetSRID(ST_GeomFromGeoJSON($2), 4326),
-             location_geom = ST_SetSRID(ST_GeomFromGeoJSON($3), 4326),
+         SET cadastral_polygon_geom = ST_SetSRID(ST_GeomFromGeoJSON($1::text), 4326),
+             footprint_polygon_geom = CASE WHEN $2::text IS NOT NULL AND $2::text != '' THEN ST_SetSRID(ST_GeomFromGeoJSON($2::text), 4326) ELSE NULL END,
+             location_geom = CASE WHEN $3::text IS NOT NULL AND $3::text != '' THEN ST_SetSRID(ST_GeomFromGeoJSON($3::text), 4326) ELSE NULL END,
              land_area_m2 = $4,
              construction_area_m2 = $5,
              updated_at = NOW()
@@ -260,7 +260,7 @@ export class CadastralGeometryService {
         [
           'PARCEL',
           parcelA.id,
-          'SPATIAL_GEOMETRY_SWAP',
+          'ZONE_ADMIN_SPATIAL_GEOMETRY_SWAP',
           adminId,
           JSON.stringify({
             swapEventCode,
@@ -282,6 +282,32 @@ export class CadastralGeometryService {
           clientIp || null,
         ]
       );
+
+      // 5. Ghi nhận lịch sử biến động địa chính cadastral_history_logs cho cả 2 thửa
+      try {
+        await client.query(
+          `INSERT INTO cadastral_history_logs (
+             parcel_id, project_parcel_code, action_type, change_reason,
+             previous_geom, new_geom, previous_state, new_state, changed_by_user_id
+           ) VALUES
+           ($1, $2, 'SPATIAL_GEOMETRY_SWAP', $3, ST_SetSRID(ST_GeomFromGeoJSON($4::text), 4326), ST_SetSRID(ST_GeomFromGeoJSON($5::text), 4326), $6, $7, $8),
+           ($9, $10, 'SPATIAL_GEOMETRY_SWAP', $3, ST_SetSRID(ST_GeomFromGeoJSON($5::text), 4326), ST_SetSRID(ST_GeomFromGeoJSON($4::text), 4326), $7, $6, $8);`,
+          [
+            parcelA.id,
+            parcelA.project_parcel_code,
+            reason,
+            parcelA.cadastral_geojson,
+            parcelB.cadastral_geojson,
+            JSON.stringify({ land_area_m2: parcelA.land_area_m2, house_number: parcelA.house_number }),
+            JSON.stringify({ land_area_m2: parcelB.land_area_m2, house_number: parcelA.house_number }),
+            adminId,
+            parcelB.id,
+            parcelB.project_parcel_code,
+          ]
+        );
+      } catch (histErr) {
+        console.warn('[CadastralGeometryService] Cảnh báo ghi cadastral_history_logs:', histErr);
+      }
 
       return {
         success: true,

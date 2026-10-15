@@ -1,4 +1,4 @@
-import { getErrorMessage, getErrorStatus, isNotFoundError } from '@/utils/errorUtils';
+import { getErrorMessage } from '@/utils/errorUtils';
 import React, { useState } from 'react';
 import {
   X,
@@ -10,6 +10,10 @@ import {
   CheckCircle2,
   FileDiff,
   KeyRound,
+  MapPin,
+  Camera,
+  Layers,
+  Scale,
 } from 'lucide-react';
 import { api } from '../../../../services/api';
 
@@ -29,9 +33,11 @@ interface Props {
   parcelCode?: string;
   diffItems: DiffItem[];
   updatesPayload: Record<string, unknown>;
+  formState?: Record<string, unknown>;
   photoActions?: PhotoActionPayload[];
   onClose: () => void;
   onSuccess: () => void;
+  onJumpToStep?: (stepId: number) => void;
 }
 
 export const AuditDiffConfirmModal: React.FC<Props> = ({
@@ -40,20 +46,70 @@ export const AuditDiffConfirmModal: React.FC<Props> = ({
   parcelCode,
   diffItems,
   updatesPayload,
+  formState,
   photoActions = [],
   onClose,
   onSuccess,
+  onJumpToStep,
 }) => {
   const [adminPassword, setAdminPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [editReason, setEditReason] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [activeDiffTab, setActiveDiffTab] = useState<'ALL' | 'GENERAL' | 'CAD_PINS' | 'PHOTOS' | 'SCORES'>('ALL');
 
   if (!isOpen) return null;
 
+  // Lỗi chặn pháp lý: CAT 1/2 thiếu bản vẽ hoàn công
+  const catScore = Number(updatesPayload.foundationCatScore ?? formState?.foundationCatScore ?? 0);
+  const drawings = (updatesPayload.asBuiltDrawingPhotos ?? formState?.asBuiltDrawingPhotos) as string[] | undefined;
+  const hasCatBlocker = (catScore === 1 || catScore === 2) && (!Array.isArray(drawings) || drawings.length === 0);
+
+  const blockingErrorsCount = hasCatBlocker ? 1 : 0;
+  const warningCount = 0;
+
+  // Phân loại hạng mục diff theo 4 nhóm
+  const categorizeDiffItem = (item: DiffItem): 'GENERAL' | 'CAD_PINS' | 'PHOTOS' | 'SCORES' => {
+    const f = item.field.toLowerCase();
+    if (item.isPhoto || f.includes('photo') || f.includes('minutes') || f.includes('signature')) {
+      return 'PHOTOS';
+    }
+    if (f.includes('pin') || f.includes('cad') || f.includes('floor') || f.includes('zone') || f.includes('defect')) {
+      return 'CAD_PINS';
+    }
+    if (
+      f.includes('ecs') ||
+      f.includes('vi') ||
+      f.includes('burland') ||
+      f.includes('impact') ||
+      f.includes('bra') ||
+      f.includes('score') ||
+      f.includes('judgement')
+    ) {
+      return 'SCORES';
+    }
+    return 'GENERAL';
+  };
+
+  const groupCounts = {
+    general: diffItems.filter((i) => categorizeDiffItem(i) === 'GENERAL').length,
+    pins: diffItems.filter((i) => categorizeDiffItem(i) === 'CAD_PINS').length,
+    photos: diffItems.filter((i) => categorizeDiffItem(i) === 'PHOTOS').length + photoActions.length,
+    scores: diffItems.filter((i) => categorizeDiffItem(i) === 'SCORES').length,
+  };
+
+  const filteredDiffItems =
+    activeDiffTab === 'ALL'
+      ? diffItems
+      : diffItems.filter((i) => categorizeDiffItem(i) === activeDiffTab);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (hasCatBlocker) {
+      setErrorMsg('Không thể lưu do hồ sơ còn LỖI CHẶN PHÁP LÝ (Móng CAT 1/2 thiếu bản vẽ hoàn công).');
+      return;
+    }
     if (!adminPassword.trim()) {
       setErrorMsg('Vui lòng nhập mật khẩu tài khoản Zone Admin của bạn.');
       return;
@@ -114,7 +170,7 @@ export const AuditDiffConfirmModal: React.FC<Props> = ({
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 bg-slate-900/80 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="relative w-full max-w-3xl max-h-[92vh] flex flex-col bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden">
+      <div className="relative w-full max-w-4xl max-h-[94vh] flex flex-col bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden">
         {/* Header */}
         <div className="px-5 py-4 bg-slate-900 text-white flex items-center justify-between border-b border-slate-800">
           <div className="flex items-center gap-2.5">
@@ -137,7 +193,7 @@ export const AuditDiffConfirmModal: React.FC<Props> = ({
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -152,20 +208,150 @@ export const AuditDiffConfirmModal: React.FC<Props> = ({
             </div>
           )}
 
-          {/* Diff Summary Count */}
-          <div className="flex items-center justify-between text-xs text-slate-600 pb-1">
-            <span className="font-bold">
-              Phát hiện <strong className="text-amber-600">{diffItems.length}</strong> trường thông tin được điều chỉnh:
-            </span>
-            <span className="text-[11px] text-slate-400">
-              Màu đỏ: Dữ liệu gốc &bull; Màu xanh: Dữ liệu mới
-            </span>
+          {/* Top Metrics Summary Bar */}
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs">
+            <div
+              className={`p-2.5 rounded-xl border flex items-center gap-2 ${
+                blockingErrorsCount > 0 ? 'bg-rose-50 border-rose-300 text-rose-800' : 'bg-slate-50 border-slate-200 text-slate-700'
+              }`}
+            >
+              <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${blockingErrorsCount > 0 ? 'bg-rose-600 animate-pulse' : 'bg-slate-400'}`} />
+              <div className="min-w-0">
+                <span className="text-[10px] text-slate-500 block uppercase font-bold">Lỗi chặn</span>
+                <span className={`font-mono font-black text-sm ${blockingErrorsCount > 0 ? 'text-rose-700' : ''}`}>
+                  {blockingErrorsCount} Lỗi
+                </span>
+              </div>
+            </div>
+
+            <div className="p-2.5 rounded-xl border bg-slate-50 border-slate-200 text-slate-700 flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0" />
+              <div className="min-w-0">
+                <span className="text-[10px] text-slate-500 block uppercase font-bold">Cảnh báo</span>
+                <span className="font-mono font-black text-sm">{warningCount} Cảnh báo</span>
+              </div>
+            </div>
+
+            <div className="p-2.5 rounded-xl border bg-slate-50 border-slate-200 text-slate-700 flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-sky-500 shrink-0" />
+              <div className="min-w-0">
+                <span className="text-[10px] text-slate-500 block uppercase font-bold">Trường đổi</span>
+                <span className="font-mono font-black text-sm">{diffItems.length} Trường</span>
+              </div>
+            </div>
+
+            <div className="p-2.5 rounded-xl border bg-slate-50 border-slate-200 text-slate-700 flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-purple-500 shrink-0" />
+              <div className="min-w-0">
+                <span className="text-[10px] text-slate-500 block uppercase font-bold">Ảnh can thiệp</span>
+                <span className="font-mono font-black text-sm">{groupCounts.photos} Ảnh</span>
+              </div>
+            </div>
+
+            <div className="p-2.5 rounded-xl border bg-slate-50 border-slate-200 text-slate-700 flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-indigo-500 shrink-0" />
+              <div className="min-w-0">
+                <span className="text-[10px] text-slate-500 block uppercase font-bold">Ghim CAD</span>
+                <span className="font-mono font-black text-sm">{groupCounts.pins} Ghim</span>
+              </div>
+            </div>
           </div>
 
-          {/* Diff Table */}
-          <div className="border border-slate-200 rounded-xl overflow-hidden shadow-xs">
+          {/* Red Blocker Banner */}
+          {hasCatBlocker && (
+            <div className="p-3.5 bg-red-600 text-white rounded-xl shadow-md flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-start gap-2.5">
+                <AlertTriangle className="w-5 h-5 text-white shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-black text-xs uppercase tracking-wide block">
+                    🔴 PHÁT HIỆN LỖI CHẶN PHÁP LÝ: THIẾU BẢN VẼ HOÀN CÔNG MÓNG
+                  </span>
+                  <span className="text-[11px] text-red-100 leading-relaxed block mt-0.5">
+                    Công trình được xếp hạng <strong>Móng CAT {catScore}/5</strong> (Cọc khoan nhồi / Cọc ép BTCT) nhưng chưa có bản vẽ hoàn công / thiết kế móng đính kèm theo quy chuẩn Liên danh CRLG. Bạn không thể xác nhận và lưu khi còn lỗi chặn này.
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  if (onJumpToStep) {
+                    onJumpToStep(2);
+                  } else {
+                    const el = document.getElementById('step-2');
+                    if (el) el.scrollIntoView({ behavior: 'smooth' });
+                  }
+                }}
+                className="px-3 py-1.5 bg-white text-red-700 hover:bg-red-50 rounded-lg text-xs font-black shadow-xs shrink-0 cursor-pointer transition-colors"
+              >
+                Chuyển tới Bước 2 để tải bản vẽ &rarr;
+              </button>
+            </div>
+          )}
+
+          {/* Tabs Group Breakdown */}
+          <div className="flex items-center gap-1.5 border-b border-slate-200 pb-1 overflow-x-auto text-xs font-bold">
+            <button
+              type="button"
+              onClick={() => setActiveDiffTab('ALL')}
+              className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer shrink-0 ${
+                activeDiffTab === 'ALL'
+                  ? 'bg-slate-900 text-white shadow-xs'
+                  : 'text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              Tất cả ({diffItems.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveDiffTab('GENERAL')}
+              className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer shrink-0 ${
+                activeDiffTab === 'GENERAL'
+                  ? 'bg-sky-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              1. Thông số & Móng ({groupCounts.general})
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveDiffTab('CAD_PINS')}
+              className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer shrink-0 ${
+                activeDiffTab === 'CAD_PINS'
+                  ? 'bg-indigo-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              2. Ghim CAD ({groupCounts.pins})
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveDiffTab('PHOTOS')}
+              className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer shrink-0 ${
+                activeDiffTab === 'PHOTOS'
+                  ? 'bg-purple-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              3. Ảnh & Biên bản ({groupCounts.photos})
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveDiffTab('SCORES')}
+              className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer shrink-0 ${
+                activeDiffTab === 'SCORES'
+                  ? 'bg-amber-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              4. Điểm ECS/VI & BRA ({groupCounts.scores})
+            </button>
+          </div>
+
+          {/* Diff Table (scrollable max-h-[38vh]) */}
+          <div className="border border-slate-200 rounded-xl overflow-hidden shadow-xs max-h-[38vh] overflow-y-auto">
             <table className="w-full text-xs text-left">
-              <thead className="bg-slate-100 text-slate-700 font-bold uppercase border-b border-slate-200 text-[11px]">
+              <thead className="bg-slate-100 text-slate-700 font-bold uppercase border-b border-slate-200 text-[11px] sticky top-0 z-10 shadow-2xs">
                 <tr>
                   <th className="p-3 w-1/4">Trường Thông Tin</th>
                   <th className="p-3 w-[37.5%]">Giá Trị Ban Đầu (KSV Nộp)</th>
@@ -173,14 +359,14 @@ export const AuditDiffConfirmModal: React.FC<Props> = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {diffItems.length === 0 ? (
+                {filteredDiffItems.length === 0 ? (
                   <tr>
                     <td colSpan={3} className="p-6 text-center text-slate-400">
-                      Không có trường nào bị thay đổi.
+                      Không có trường nào trong tab này bị thay đổi.
                     </td>
                   </tr>
                 ) : (
-                  diffItems.map((item, idx) => (
+                  filteredDiffItems.map((item, idx) => (
                     <tr key={idx} className="hover:bg-slate-50/50">
                       <td className="p-3 font-semibold text-slate-800">
                         <div>{item.label}</div>
@@ -198,6 +384,27 @@ export const AuditDiffConfirmModal: React.FC<Props> = ({
               </tbody>
             </table>
           </div>
+
+          {/* Staged Photo Actions Summary if any */}
+          {photoActions.length > 0 && (activeDiffTab === 'ALL' || activeDiffTab === 'PHOTOS') && (
+            <div className="p-3 bg-purple-50/60 rounded-xl border border-purple-200 space-y-1.5 text-xs">
+              <span className="font-bold text-purple-900 block">
+                Thao tác can thiệp ảnh đã ghi nhận ({photoActions.length} ảnh):
+              </span>
+              <div className="space-y-1 max-h-24 overflow-y-auto">
+                {photoActions.map((pa, paIdx) => (
+                  <div key={paIdx} className="flex items-center justify-between text-[11px] text-purple-800 bg-white/80 p-1.5 rounded border border-purple-100">
+                    <span className="font-mono font-bold">
+                      [{pa.action}] {pa.category} ({pa.targetPhotoId || (pa as any).photoTitle || 'Ảnh'})
+                    </span>
+                    <span className="text-slate-500 italic truncate max-w-[200px]">
+                      {pa.reason || 'Sửa đổi trực tiếp'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Reason Input */}
           <div className="space-y-1.5 pt-1">
@@ -234,7 +441,7 @@ export const AuditDiffConfirmModal: React.FC<Props> = ({
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-700"
+                className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-700 cursor-pointer"
               >
                 {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
@@ -253,15 +460,16 @@ export const AuditDiffConfirmModal: React.FC<Props> = ({
               type="button"
               onClick={onClose}
               disabled={isSubmitting}
-              className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-200 transition-colors"
+              className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-200 transition-colors cursor-pointer"
             >
               Quay lại chỉnh sửa
             </button>
             <button
               type="button"
               onClick={handleSubmit}
-              disabled={isSubmitting || diffItems.length === 0}
-              className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black shadow-md hover:shadow-lg transition-all flex items-center gap-1.5 disabled:opacity-50"
+              disabled={isSubmitting || diffItems.length === 0 || hasCatBlocker}
+              title={hasCatBlocker ? 'Không thể lưu do có lỗi chặn pháp lý móng CAT 1/2' : undefined}
+              className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black shadow-md hover:shadow-lg transition-all flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
             >
               <Lock className="w-3.5 h-3.5" />
               <span>{isSubmitting ? 'Đang xác thực & Lưu...' : 'Xác Nhận & Lưu Chính Thức 🔒'}</span>

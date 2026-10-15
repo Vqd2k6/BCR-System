@@ -1,5 +1,5 @@
-import React, { useState, useRef } from 'react';
-import { MapPin, Plus, Trash2, Crosshair, AlertCircle, Layers, CheckCircle2, Sparkles, Eye, EyeOff, Camera, RefreshCw, ZoomIn } from 'lucide-react';
+import React, { useState, useRef, useMemo } from 'react';
+import { MapPin, Plus, Trash2, Crosshair, AlertCircle, Layers, CheckCircle2, Sparkles, Eye, EyeOff, Camera, RefreshCw, ZoomIn, Move, RotateCcw } from 'lucide-react';
 import { PhotoCaptureInput } from '../common/PhotoCaptureInput';
 import { ImageZoomModal } from '../common/ImageZoomModal';
 import { resolveOfflinePhotoUrl, getSafeDisplayUrl } from '../../core/storage/offlinePhotoStorage';
@@ -83,7 +83,32 @@ export const FloorCadPinningCanvas: React.FC<Props> = ({
   const [safeCadUrl, setSafeCadUrl] = useState<string>(() => getSafeDisplayUrl(cadPhotoUrl));
   const [isZoomOpen, setIsZoomOpen] = useState(false);
   const [isImageLoaded, setIsImageLoaded] = useState(false);
+  const [isPinDragEnabled, setIsPinDragEnabled] = useState<boolean>(false);
   const dragMovedRef = useRef<boolean>(false);
+
+  // Local Floor Undo snapshot
+  const initialFloorPinsRef = useRef<CadZonePin[]>(JSON.parse(JSON.stringify(pins || [])));
+  const lastFloorNameRef = useRef<string>(floorName);
+
+  React.useEffect(() => {
+    if (lastFloorNameRef.current !== floorName) {
+      lastFloorNameRef.current = floorName;
+      initialFloorPinsRef.current = JSON.parse(JSON.stringify(pins || []));
+    }
+  }, [floorName, pins]);
+
+  const hasPinsChangedFromInitial = useMemo(() => {
+    if (!initialFloorPinsRef.current) return false;
+    return JSON.stringify(pins) !== JSON.stringify(initialFloorPinsRef.current);
+  }, [pins]);
+
+  const handleUndoFloorPins = () => {
+    if (!initialFloorPinsRef.current) return;
+    if (window.confirm(`Khôi phục lại toàn bộ vị trí ghim của ${floorName} về lúc vừa mở tầng?`)) {
+      onChangePins(JSON.parse(JSON.stringify(initialFloorPinsRef.current)));
+      setSelectedPinIndex(null);
+    }
+  };
 
   // Hook Zoom & Pan Tương tác Bất biến Tọa độ
   const {
@@ -134,7 +159,7 @@ export const FloorCadPinningCanvas: React.FC<Props> = ({
   const nextCode = getNextAvailablePinCode(pins, prefix);
 
   const handleTightBoxPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (draggingPinIndex !== null && !readOnly) {
+    if (draggingPinIndex !== null && !readOnly && isPinDragEnabled) {
       dragMovedRef.current = true;
       const coords = calculateNormalizedCoords(e.clientX, e.clientY);
       if (!coords) return;
@@ -306,6 +331,34 @@ export const FloorCadPinningCanvas: React.FC<Props> = ({
                   <span>{showPins ? 'Ẩn ghim' : 'Hiện ghim'}</span>
                 </button>
 
+                {/* Pin Drag Toggle button (Locked by default) */}
+                <button
+                  type="button"
+                  onClick={() => setIsPinDragEnabled(!isPinDragEnabled)}
+                  className={`px-2.5 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all border cursor-pointer ${
+                    isPinDragEnabled
+                      ? 'bg-amber-100 text-amber-900 border-amber-400 ring-2 ring-amber-300'
+                      : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                  }`}
+                  title={isPinDragEnabled ? "Đang BẬT kéo di chuyển ghim. Bấm để khóa lại." : "Bấm để cho phép kéo di chuyển vị trí các ghim."}
+                >
+                  <Move className={`w-3.5 h-3.5 ${isPinDragEnabled ? 'text-amber-700' : 'text-slate-500'}`} />
+                  <span>{isPinDragEnabled ? 'Mở kéo ghim' : 'Khóa kéo ghim'}</span>
+                </button>
+
+                {/* Local Floor Undo */}
+                {hasPinsChangedFromInitial && (
+                  <button
+                    type="button"
+                    onClick={handleUndoFloorPins}
+                    className="px-2.5 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all border bg-slate-100 text-slate-700 hover:bg-slate-200 border-slate-300 cursor-pointer"
+                    title={`Hoàn tác toàn bộ vị trí ghim về ban đầu khi mở ${floorName}`}
+                  >
+                    <RotateCcw className="w-3.5 h-3.5 text-slate-600" />
+                    <span>Hoàn tác ghim</span>
+                  </button>
+                )}
+
                 {/* Retake/Change CAD sketch button */}
                 <button
                   type="button"
@@ -464,9 +517,10 @@ export const FloorCadPinningCanvas: React.FC<Props> = ({
                       onPointerDown={(e) => {
                         if (readOnly) return;
                         e.stopPropagation();
+                        setSelectedPinIndex(idx);
+                        if (!isPinDragEnabled) return;
                         dragMovedRef.current = false;
                         setDraggingPinIndex(idx);
-                        setSelectedPinIndex(idx);
                         (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
                       }}
                       onPointerUp={(e) => {
@@ -486,7 +540,7 @@ export const FloorCadPinningCanvas: React.FC<Props> = ({
                           : isSelected
                           ? `translate(-50%, -100%) scale(${(1.05 * pinCounterScale).toFixed(3)})`
                           : `translate(-50%, -100%) scale(${pinCounterScale.toFixed(3)})`,
-                        cursor: readOnly ? 'default' : isDragging ? 'grabbing' : 'grab',
+                        cursor: readOnly ? 'default' : isPinDragEnabled ? (isDragging ? 'grabbing' : 'grab') : 'pointer',
                         zIndex: isDragging ? 50 : isSelected ? 35 : 20,
                         display: 'flex',
                         flexDirection: 'column',

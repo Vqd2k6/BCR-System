@@ -214,6 +214,36 @@ export class AuditModificationService {
       },
     };
 
+    // 3.1. Gatekeeper CAT 1/2: Bắt buộc phải có ít nhất 1 bản vẽ hoàn công
+    const targetCatScore = payload.updates?.foundationCatScore ??
+      payload.updates?.specs?.foundationCatScore ??
+      payload.updates?.['buildingSpecs.foundation_cat_score'] ??
+      mergedJson.buildingSpecs?.foundation_cat_score ??
+      mergedJson.foundationCatScore;
+
+    if (targetCatScore === 1 || targetCatScore === 2 || targetCatScore === '1' || targetCatScore === '2') {
+      const specRes = await Database.query<{ as_built_drawing_photos_json: any }>(
+        `SELECT as_built_drawing_photos_json FROM building_specifications WHERE report_id = $1;`,
+        [actualReportId]
+      );
+      const existingDrawings = Array.isArray(specRes.rows[0]?.as_built_drawing_photos_json)
+        ? specRes.rows[0].as_built_drawing_photos_json.filter((d: any) => !d.isDeleted && !d.is_deleted && (d.url || d.photoUrl))
+        : [];
+
+      const newDrawings = (payload.photoActions || []).filter(
+        (pa: any) => (pa.category === 'AS_BUILT' || pa.photoType === 'AS_BUILT_DRAWING' || pa.targetPhotoType === 'AS_BUILT_DRAWING') && pa.action !== 'DELETE'
+      );
+
+      const deletedDrawings = (payload.photoActions || []).filter(
+        (pa: any) => (pa.category === 'AS_BUILT' || pa.photoType === 'AS_BUILT_DRAWING' || pa.targetPhotoType === 'AS_BUILT_DRAWING') && pa.action === 'DELETE'
+      );
+
+      const totalDrawingsCount = existingDrawings.length + newDrawings.length - deletedDrawings.length;
+      if (totalDrawingsCount <= 0) {
+        throw new BadRequestError('Hồ sơ đang phân loại CAT 1/CAT 2 bắt buộc phải đính kèm ít nhất 1 bản vẽ hoàn công!');
+      }
+    }
+
     // 4. Lưu CSDL trong Transaction
     const txResult = await Database.transaction(async (client) => {
       await client.query(
@@ -611,6 +641,236 @@ export class AuditModificationService {
     }
 
     return txResult;
+  }
+
+  /**
+   * Lưu các thay đổi thẩm định staged (theo UC-03 & UC-08 test suite)
+   * Tự động xác thực Gatekeeper CAT 1/2, lưu các trường thay đổi, thực thi photo actions và tạo Snapshot v(n+1)
+   */
+  static async saveStagedModifications(
+    reportId: string,
+    adminId: string,
+    params: {
+      editReason: string;
+      adminPassword?: string;
+      fieldChanges?: Array<{ fieldKey: string; fieldLabel?: string; oldValue?: any; newValue: any }>;
+      stagedPhotoActions?: Array<{
+        category: string;
+        action: 'ADD' | 'DELETE' | 'REPLACE' | 'RESTORE';
+        photoType?: string;
+        photoUrl?: string;
+        photoTitle?: string;
+        targetPhotoId?: string;
+        editReason?: string;
+        reason?: string;
+        caption?: string;
+      }>;
+      customSnapshotData?: any;
+    },
+    clientIp?: string
+  ): Promise<{ success: boolean; versionNumber: number; snapshotId: string }> {
+    // 1. Kiểm tra hồ sơ tồn tại
+    const repRes = await Database.query<{ id: string; parcel_id: string; status: string; survey_data_json: any }>(
+      `SELECT id, parcel_id, status, survey_data_json FROM base_survey_reports WHERE (id = $1 OR parcel_id = $1) LIMIT 1;`,
+      [reportId]
+    );
+    if (!repRes.rows[0]) {
+      throw new NotFoundError(`Không tìm thấy hồ sơ khảo sát với ID: ${reportId}`);
+    }
+    const report = repRes.rows[0];
+    const actualReportId = report.id;
+    const parcelId = report.parcel_id;
+
+    // 2. Gatekeeper: Kiểm tra ràng buộc bản vẽ hoàn công với CAT 1/CAT 2
+    let targetCatScore: any = undefined;
+    for (const fc of params.fieldChanges || []) {
+      if (
+        fc.fieldKey === 'foundationCatScore' ||
+        fc.fieldKey === 'buildingSpecs.foundation_cat_score' ||
+        fc.fieldKey === 'specs.foundationCatScore'
+      ) {
+        targetCatScore = fc.newValue;
+      }
+    }
+
+    if (targetCatScore === undefined) {
+      // Check existing in DB
+      const curSpec = await Database.query<{ foundation_category: string | null }>(
+        `SELECT foundation_category FROM building_specifications WHERE report_id = $1;`,
+        [actualReportId]
+      );
+      const catEnum = curSpec.rows[0]?.foundation_category;
+      if (catEnum) {
+        targetCatScore = catEnum.startsWith('CAT_1') ? 1 :
+          catEnum.startsWith('CAT_2') ? 2 :
+          catEnum.startsWith('CAT_3') ? 3 :
+          catEnum.startsWith('CAT_4') ? 4 : 5;
+      }
+    }
+
+    if (targetCatScore === 1 || targetCatScore === 2 || targetCatScore === '1' || targetCatScore === '2') {
+      const specRes = await Database.query<{ as_built_drawing_photos_json: any }>(
+        `SELECT as_built_drawing_photos_json FROM building_specifications WHERE report_id = $1;`,
+        [actualReportId]
+      );
+      const existingDrawings = Array.isArray(specRes.rows[0]?.as_built_drawing_photos_json)
+        ? specRes.rows[0].as_built_drawing_photos_json.filter((d: any) => !d.isDeleted && !d.is_deleted && (d.url || d.photoUrl))
+        : [];
+
+      const newDrawings = (params.stagedPhotoActions || []).filter(
+        (pa) => (pa.category === 'AS_BUILT' || pa.photoType === 'AS_BUILT_DRAWING') && pa.action !== 'DELETE'
+      );
+      const deletedDrawings = (params.stagedPhotoActions || []).filter(
+        (pa) => (pa.category === 'AS_BUILT' || pa.photoType === 'AS_BUILT_DRAWING') && pa.action === 'DELETE'
+      );
+
+      const totalDrawings = existingDrawings.length + newDrawings.length - deletedDrawings.length;
+      if (totalDrawings <= 0) {
+        throw new BadRequestError('Hồ sơ đang phân loại CAT 1/CAT 2 bắt buộc phải đính kèm ít nhất 1 bản vẽ hoàn công!');
+      }
+    }
+
+    // 3. Thực thi lưu trữ trong Transaction
+    const existingJson = typeof report.survey_data_json === 'string'
+      ? JSON.parse(report.survey_data_json)
+      : (report.survey_data_json || {});
+
+    const diffPayload: any[] = [];
+    const updates: Record<string, any> = {};
+
+    for (const fc of params.fieldChanges || []) {
+      diffPayload.push({
+        field: fc.fieldKey,
+        label: fc.fieldLabel || fc.fieldKey,
+        oldValue: fc.oldValue ?? null,
+        newValue: fc.newValue,
+      });
+
+      if (fc.fieldKey === 'foundationCatScore') {
+        updates['foundationCatScore'] = fc.newValue;
+        updates['buildingSpecs.foundation_cat_score'] = fc.newValue;
+      } else if (fc.fieldKey.startsWith('buildingSpecs.')) {
+        const sub = fc.fieldKey.replace('buildingSpecs.', '');
+        if (!updates.buildingSpecs) updates.buildingSpecs = {};
+        updates.buildingSpecs[sub] = fc.newValue;
+        updates[fc.fieldKey] = fc.newValue;
+      } else {
+        updates[fc.fieldKey] = fc.newValue;
+      }
+    }
+
+    const mergedJson = {
+      ...existingJson,
+      ...updates,
+      _lastAdminEdit: {
+        adminId,
+        timestamp: new Date().toISOString(),
+        reason: params.editReason,
+        diffCount: diffPayload.length,
+      },
+    };
+
+    await Database.transaction(async (client) => {
+      // 3.1. Cập nhật base_survey_reports
+      await client.query(
+        `UPDATE base_survey_reports SET survey_data_json = $1, updated_at = NOW() WHERE id = $2;`,
+        [JSON.stringify(mergedJson), actualReportId]
+      );
+
+      // 3.2. Cập nhật building_specifications nếu có
+      for (const fc of params.fieldChanges || []) {
+        if (fc.fieldKey === 'foundationCatScore' || fc.fieldKey === 'buildingSpecs.foundation_cat_score') {
+          const catNum = Number(fc.newValue);
+          const catEnum =
+            catNum === 1 ? 'CAT_1_MONG_NONG_GIA_CO' :
+            catNum === 2 ? 'CAT_2_MONG_DON_BTCT' :
+            catNum === 3 ? 'CAT_3_MONG_BANG_BTCT' :
+            catNum === 4 ? 'CAT_4_MONG_COC_BTCT' : 'CAT_5_KHONG_XAC_DINH';
+          await client.query(
+            `UPDATE building_specifications SET foundation_category = $1::foundation_category_enum WHERE report_id = $2;`,
+            [catEnum, actualReportId]
+          );
+        } else if (fc.fieldKey === 'buildingSpecs.floor_count') {
+          await client.query(
+            `UPDATE building_specifications SET floor_count = $1 WHERE report_id = $2;`,
+            [Number(fc.newValue), actualReportId]
+          );
+        }
+      }
+
+      // 3.3. Cập nhật thông tin thửa đất và chủ hộ vào bảng parcels nếu có
+      const parcelUpdates: Record<string, any> = {};
+      for (const fc of params.fieldChanges || []) {
+        if (fc.fieldKey === 'ownerName') parcelUpdates.owner_name = fc.newValue;
+        if (fc.fieldKey === 'houseNumber') parcelUpdates.house_number = fc.newValue;
+        if (fc.fieldKey === 'street') parcelUpdates.street = fc.newValue;
+        if (fc.fieldKey === 'ward') parcelUpdates.ward = fc.newValue;
+        if (fc.fieldKey === 'district') parcelUpdates.district = fc.newValue;
+        if (fc.fieldKey === 'ownerPhone') parcelUpdates.owner_phone = fc.newValue;
+        if (fc.fieldKey === 'officialCadastralCode') parcelUpdates.official_cadastral_code = fc.newValue;
+        if (fc.fieldKey === 'frontageWidth') parcelUpdates.frontage_width = Number(fc.newValue);
+        if (fc.fieldKey === 'lotDepth') parcelUpdates.lot_depth = Number(fc.newValue);
+        if (fc.fieldKey === 'landAreaM2') parcelUpdates.land_area_m2 = Number(fc.newValue);
+        if (fc.fieldKey === 'constructionAreaM2') parcelUpdates.construction_area_m2 = Number(fc.newValue);
+        if (fc.fieldKey === 'floorCount' || fc.fieldKey === 'aboveFloors') parcelUpdates.floor_count = Number(fc.newValue);
+      }
+
+      if (Object.keys(parcelUpdates).length > 0) {
+        const setClauses: string[] = [];
+        const values: any[] = [];
+        let pIdx = 1;
+        for (const [col, val] of Object.entries(parcelUpdates)) {
+          setClauses.push(`${col} = $${pIdx++}`);
+          values.push(val);
+        }
+        setClauses.push('updated_at = NOW()');
+        values.push(parcelId);
+        await client.query(
+          `UPDATE parcels SET ${setClauses.join(', ')} WHERE id = $${pIdx};`,
+          values
+        );
+      }
+
+      // 3.4. Thực thi photo actions
+      for (const pa of params.stagedPhotoActions || []) {
+        const photoItem: PhotoActionItem = {
+          action: pa.action,
+          category: pa.category as any,
+          targetPhotoType: pa.photoType,
+          newPhotoUrl: pa.photoUrl,
+          oldPhotoUrl: undefined,
+          targetPhotoId: pa.targetPhotoId,
+          caption: pa.photoTitle || pa.caption,
+          reason: pa.editReason || pa.reason || params.editReason,
+        };
+        await AuditModificationService.applySinglePhotoActionInTx(
+          client,
+          actualReportId,
+          parcelId,
+          adminId,
+          mergedJson,
+          photoItem
+        );
+      }
+    });
+
+    // 4. Tạo snapshot bất biến v(n+1)
+    const { AuditVersionService } = await import('./audit-version.service');
+    const snapResult = await AuditVersionService.createSnapshot(actualReportId, {
+      versionTag: 'ADMIN_DIFF_SAVE',
+      title: params.editReason,
+      editReason: params.editReason,
+      userId: adminId,
+      clientIp: clientIp || '127.0.0.1',
+      diffSummary: diffPayload,
+      customSnapshotData: params.customSnapshotData,
+    });
+
+    return {
+      success: true,
+      versionNumber: snapResult.versionNumber,
+      snapshotId: snapResult.id,
+    };
   }
 
   /**
@@ -1162,6 +1422,33 @@ export class AuditModificationService {
           surveyJson.signatures.ownerSignature = newUrl;
           surveyJson.ownerSignatureUrl = newUrl;
         }
+      } else if (cat === 'MINUTES' || type === 'WORKING_MINUTES') {
+        const replaceInList = (list: any[]) => {
+          if (!Array.isArray(list)) return;
+          const idx = Number(pa.photoIndex);
+          if (!isNaN(idx) && idx >= 0 && idx < list.length) {
+            if (typeof list[idx] === 'string') {
+              list[idx] = newUrl;
+            } else {
+              list[idx] = { ...list[idx], url: newUrl, photoCode: photoCode || list[idx].photoCode };
+            }
+          } else if (oldUrl) {
+            for (let i = 0; i < list.length; i++) {
+              if ((typeof list[i] === 'string' && list[i] === oldUrl) || list[i]?.url === oldUrl) {
+                if (typeof list[i] === 'string') {
+                  list[i] = newUrl;
+                } else {
+                  list[i] = { ...list[i], url: newUrl };
+                }
+                break;
+              }
+            }
+          }
+        };
+        replaceInList(surveyJson.workingMinutesPhotos);
+        if (surveyJson.signatures?.workingMinutesPhotos) {
+          replaceInList(surveyJson.signatures.workingMinutesPhotos);
+        }
       }
 
       // 2. Cập nhật survey_data_json nếu có path targetPhotoId
@@ -1336,6 +1623,14 @@ export class AuditModificationService {
             surveyJson.settlementTilt.beamSagging.photos = [];
           }
           surveyJson.settlementTilt.beamSagging.photos.push({ url, caption: pa.caption || 'Ảnh võng dầm bổ sung', photoCode: itemCode });
+        } else if (cat === 'MINUTES' || type === 'WORKING_MINUTES') {
+          if (!surveyJson.signatures) surveyJson.signatures = {};
+          if (!Array.isArray(surveyJson.signatures.workingMinutesPhotos)) {
+            surveyJson.signatures.workingMinutesPhotos = Array.isArray(surveyJson.workingMinutesPhotos) ? [...surveyJson.workingMinutesPhotos] : [];
+          }
+          const newMin = { url, photoCode: itemCode, caption: pa.caption || `Trang biên bản ${surveyJson.signatures.workingMinutesPhotos.length + 1}` };
+          surveyJson.signatures.workingMinutesPhotos.push(newMin);
+          surveyJson.workingMinutesPhotos = [...surveyJson.signatures.workingMinutesPhotos];
         }
 
         // 2. Cập nhật survey_data_json
@@ -1451,10 +1746,24 @@ export class AuditModificationService {
         surveyJson.overviewPhotos.otherOverviewPhotos = surveyJson.overviewPhotos.otherOverviewPhotos.filter(
           (p: any) => (typeof p === 'string' ? p !== targetUrl : p?.url !== targetUrl)
         );
-      } else if (cat === 'MINUTES' && surveyJson.workingMinutesPhotos) {
-        surveyJson.workingMinutesPhotos = surveyJson.workingMinutesPhotos.filter(
-          (p: any) => (typeof p === 'string' ? p !== targetUrl : p?.url !== targetUrl)
-        );
+      } else if (cat === 'MINUTES' || type === 'WORKING_MINUTES') {
+        const deleteFromList = (list: any[]) => {
+          if (!Array.isArray(list)) return list;
+          const idx = Number(pa.photoIndex);
+          if (!isNaN(idx) && idx >= 0 && idx < list.length) {
+            list.splice(idx, 1);
+            return list;
+          } else if (targetUrl) {
+            return list.filter((p: any) => (typeof p === 'string' ? p !== targetUrl : p?.url !== targetUrl));
+          }
+          return list;
+        };
+        if (surveyJson.workingMinutesPhotos) {
+          surveyJson.workingMinutesPhotos = deleteFromList(surveyJson.workingMinutesPhotos);
+        }
+        if (surveyJson.signatures?.workingMinutesPhotos) {
+          surveyJson.signatures.workingMinutesPhotos = deleteFromList(surveyJson.signatures.workingMinutesPhotos);
+        }
       } else if (cat === 'SIGNATURE' || type.includes('SIGNATURE')) {
         if (type.includes('SURVEYOR') || pa.targetPhotoId?.toLowerCase().includes('surveyor')) {
           await client.query(`UPDATE base_survey_reports SET surveyor_signature_url = NULL, updated_at = NOW() WHERE id = $1;`, [reportId]);
@@ -1470,6 +1779,17 @@ export class AuditModificationService {
           surveyJson.absenteeNoticePhotos = surveyJson.absenteeNoticePhotos.filter(
             (p: any) => (typeof p === 'string' ? p !== targetUrl : p?.url !== targetUrl)
           );
+        }
+      } else if (cat === 'MINUTES' || type === 'WORKING_MINUTES') {
+        const removeFromList = (list: any[]) => {
+          if (!Array.isArray(list)) return list;
+          return list.filter((p: any) => (typeof p === 'string' ? p !== targetUrl : p?.url !== targetUrl));
+        };
+        if (surveyJson.workingMinutesPhotos) {
+          surveyJson.workingMinutesPhotos = removeFromList(surveyJson.workingMinutesPhotos);
+        }
+        if (surveyJson.signatures?.workingMinutesPhotos) {
+          surveyJson.signatures.workingMinutesPhotos = removeFromList(surveyJson.signatures.workingMinutesPhotos);
         }
       } else if (pa.targetPhotoId) {
         mutateSurveyJsonPhoto(surveyJson, pa.targetPhotoId, pa.photoIndex, 'DELETE', undefined, targetUrl);
@@ -1563,6 +1883,25 @@ export class AuditModificationService {
           if (!surveyJson.signatures) surveyJson.signatures = {};
           surveyJson.signatures.ownerSignatureUrl = restoredUrl;
           surveyJson.ownerSignatureUrl = restoredUrl;
+        }
+      } else if (cat === 'MINUTES' || type === 'WORKING_MINUTES') {
+        const restoreInList = (list: any[]) => {
+          if (!Array.isArray(list)) return;
+          const idx = Number(pa.photoIndex);
+          if (!isNaN(idx) && idx >= 0 && idx < list.length) {
+            if (typeof list[idx] === 'string') {
+              list[idx] = restoredUrl;
+            } else {
+              list[idx] = { ...list[idx], url: restoredUrl };
+            }
+          } else {
+            list.push({ url: restoredUrl, photoCode });
+          }
+        };
+        if (!surveyJson.workingMinutesPhotos) surveyJson.workingMinutesPhotos = [];
+        restoreInList(surveyJson.workingMinutesPhotos);
+        if (surveyJson.signatures?.workingMinutesPhotos) {
+          restoreInList(surveyJson.signatures.workingMinutesPhotos);
         }
       }
 
@@ -1988,6 +2327,128 @@ export class AuditModificationService {
     }
 
     return txResult;
+  }
+
+  /**
+   * Khóa phiên chỉnh sửa độc quyền (Exclusive Audit Lock 15 phút)
+   * Chống xung đột khi 2 người cùng mở và sửa 1 hồ sơ
+   */
+  static async acquireAuditLock(
+    reportId: string,
+    userId: string
+  ): Promise<{ acquired: boolean; lockedByUserId?: string; lockedByName?: string; expiresAt?: string; message?: string }> {
+    const repRes = await Database.query<{ id: string }>(
+      `SELECT id FROM base_survey_reports WHERE id = $1 OR parcel_id = $1 LIMIT 1;`,
+      [reportId]
+    );
+    if (!repRes.rows[0]) throw new NotFoundError(`Không tìm thấy hồ sơ với ID: ${reportId}`);
+    const actualReportId = repRes.rows[0].id;
+
+    // Kiểm tra khóa hiện tại
+    const curRes = await Database.query<{
+      locked_by_user_id: string;
+      full_name: string;
+      expires_at: string;
+      is_active: boolean;
+    }>(
+      `SELECT l.locked_by_user_id, u.full_name, l.expires_at, (l.expires_at > NOW()) AS is_active
+       FROM survey_audit_locks l
+       JOIN users u ON l.locked_by_user_id = u.id
+       WHERE l.report_id = $1;`,
+      [actualReportId]
+    );
+
+    const lock = curRes.rows[0];
+    if (lock && lock.is_active && lock.locked_by_user_id !== userId) {
+      return {
+        acquired: false,
+        lockedByUserId: lock.locked_by_user_id,
+        lockedByName: lock.full_name,
+        expiresAt: lock.expires_at,
+        message: `Hồ sơ đang được hiệu chỉnh bởi ${lock.full_name} (khóa độc quyền còn hiệu lực). Vui lòng thử lại sau.`,
+      };
+    }
+
+    // Cấp hoặc gia hạn khóa 15 phút
+    const upsertRes = await Database.query<{ expires_at: string }>(
+      `INSERT INTO survey_audit_locks (report_id, locked_by_user_id, locked_at, expires_at)
+       VALUES ($1, $2, NOW(), NOW() + INTERVAL '15 minutes')
+       ON CONFLICT (report_id) DO UPDATE SET
+         locked_by_user_id = EXCLUDED.locked_by_user_id,
+         locked_at = NOW(),
+         expires_at = NOW() + INTERVAL '15 minutes'
+       RETURNING expires_at;`,
+      [actualReportId, userId]
+    );
+
+    return {
+      acquired: true,
+      lockedByUserId: userId,
+      expiresAt: upsertRes.rows[0].expires_at,
+    };
+  }
+
+  /**
+   * Giải phóng khóa phiên chỉnh sửa độc quyền
+   */
+  static async releaseAuditLock(reportId: string, userId: string): Promise<boolean> {
+    const repRes = await Database.query<{ id: string }>(
+      `SELECT id FROM base_survey_reports WHERE id = $1 OR parcel_id = $1 LIMIT 1;`,
+      [reportId]
+    );
+    if (!repRes.rows[0]) return false;
+    const actualReportId = repRes.rows[0].id;
+
+    if (userId === 'FORCE') {
+      await Database.query(
+        `DELETE FROM survey_audit_locks WHERE report_id = $1;`,
+        [actualReportId]
+      );
+    } else {
+      await Database.query(
+        `DELETE FROM survey_audit_locks WHERE report_id = $1 AND locked_by_user_id = $2;`,
+        [actualReportId, userId]
+      );
+    }
+    return true;
+  }
+
+  /**
+   * Kiểm tra trạng thái khóa phiên của hồ sơ
+   */
+  static async checkAuditLock(
+    reportId: string,
+    currentUserId?: string
+  ): Promise<{ isLocked: boolean; lockedByOther: boolean; lockedByName?: string; expiresAt?: string }> {
+    const repRes = await Database.query<{ id: string }>(
+      `SELECT id FROM base_survey_reports WHERE id = $1 OR parcel_id = $1 LIMIT 1;`,
+      [reportId]
+    );
+    if (!repRes.rows[0]) return { isLocked: false, lockedByOther: false };
+    const actualReportId = repRes.rows[0].id;
+
+    const res = await Database.query<{
+      locked_by_user_id: string;
+      full_name: string;
+      expires_at: string;
+    }>(
+      `SELECT l.locked_by_user_id, u.full_name, l.expires_at
+       FROM survey_audit_locks l
+       JOIN users u ON l.locked_by_user_id = u.id
+       WHERE l.report_id = $1 AND l.expires_at > NOW();`,
+      [actualReportId]
+    );
+
+    const lock = res.rows[0];
+    if (!lock) return { isLocked: false, lockedByOther: false };
+
+    const lockedByOther = Boolean(currentUserId && lock.locked_by_user_id !== currentUserId);
+    return {
+      isLocked: true,
+      lockedByOther,
+      lockedByName: lock.full_name,
+      expiresAt: lock.expires_at,
+    };
   }
 }
 

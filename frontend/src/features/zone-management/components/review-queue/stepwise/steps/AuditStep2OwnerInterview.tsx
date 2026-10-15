@@ -1,5 +1,5 @@
 import React, { useRef } from 'react';
-import { Layers, History, ShieldAlert, FileText, Maximize2, Sparkles, AlertCircle, Building, Ruler, Calendar, Upload, Trash2, RefreshCw } from 'lucide-react';
+import { Layers, History, ShieldAlert, FileText, Maximize2, Sparkles, AlertCircle, AlertTriangle, Building, Ruler, Calendar, Upload, Trash2, RefreshCw } from 'lucide-react';
 import {
   STRUCTURE_SYSTEMS,
   FOUNDATION_TYPES,
@@ -62,9 +62,26 @@ export const AuditStep2OwnerInterview: React.FC<Props> = ({
 
   const catScore = formState.foundationCatScore ?? 3;
 
+  const asBuiltBackupRef = useRef<Array<{ url: string; photoCode?: string; notes?: string }> | null>(null);
   const asBuiltFileInputRef = useRef<HTMLInputElement | null>(null);
   const replaceDrawingIndexRef = useRef<number | null>(null);
   const replaceDrawingInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleCatScoreChange = (newCat: number) => {
+    handleFieldChange('foundationCatScore', 'Phân loại CAT móng', newCat);
+    if (newCat >= 3) {
+      if (asBuiltPhotos.length > 0) {
+        asBuiltBackupRef.current = [...asBuiltPhotos];
+        handleFieldChange('asBuiltDrawingPhotos', 'Bản vẽ hoàn công', []);
+        handleFieldChange('asBuiltDrawingPhotoUrl', 'URL bản vẽ hoàn công', '');
+      }
+    } else {
+      if (asBuiltPhotos.length === 0 && asBuiltBackupRef.current && asBuiltBackupRef.current.length > 0) {
+        handleFieldChange('asBuiltDrawingPhotos', 'Bản vẽ hoàn công', asBuiltBackupRef.current);
+        handleFieldChange('asBuiltDrawingPhotoUrl', 'URL bản vẽ hoàn công', asBuiltBackupRef.current[0]?.url || '');
+      }
+    }
+  };
 
   const handleUploadDrawing = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -372,7 +389,7 @@ export const AuditStep2OwnerInterview: React.FC<Props> = ({
               {isEditMode ? (
                 <select
                   value={catScore}
-                  onChange={(e) => handleFieldChange('foundationCatScore', 'Phân loại CAT móng', Number(e.target.value))}
+                  onChange={(e) => handleCatScoreChange(Number(e.target.value))}
                   className="w-full px-2.5 py-1.5 bg-amber-50/50 border border-amber-300 rounded-xl text-xs font-bold text-slate-800"
                 >
                   <option value={1}>CAT 1 - Có bản vẽ hoàn công phê duyệt</option>
@@ -496,14 +513,35 @@ export const AuditStep2OwnerInterview: React.FC<Props> = ({
           </div>
 
           {/* Bản vẽ hoàn công / sơ đồ kết cấu */}
-          <div className="p-3.5 bg-emerald-50/40 rounded-xl border border-emerald-200 space-y-3">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-1 border-b border-emerald-100">
-              <div className="flex items-center gap-1.5">
-                <FileText className="w-4 h-4 text-emerald-700" />
-                <span className="text-xs font-bold text-emerald-950 uppercase">
-                  Bản Vẽ Hoàn Công / Hồ Sơ Thiết Kế ({asBuiltPhotos.length} ảnh/tài liệu)
+          {catScore >= 3 ? (
+            <div className="p-3.5 bg-slate-50/80 rounded-xl border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-slate-500">
+              <div className="flex items-center gap-2">
+                <FileText className="w-4 h-4 text-slate-400 shrink-0" />
+                <span>
+                  Phân loại <strong>CAT {catScore}</strong>: Không áp dụng bản vẽ hoàn công/thiết kế (Chủ nhà nhớ khai hoặc suy luận).
                 </span>
               </div>
+              {isEditMode && (
+                <span className="text-[11px] text-slate-400 italic">
+                  Đổi sang CAT 1 hoặc CAT 2 để tải lên bản vẽ
+                </span>
+              )}
+            </div>
+          ) : (
+            <div className="p-3.5 bg-emerald-50/40 rounded-xl border border-emerald-200 space-y-3">
+              {asBuiltPhotos.length === 0 && (
+                <div className="p-2.5 bg-rose-50 border border-rose-300 rounded-lg text-xs text-rose-700 font-bold flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                  <span>⚠️ Bắt buộc: Đang chọn CAT {catScore} ({catScore === 1 ? 'Bản vẽ hoàn công' : 'Bản vẽ thiết kế'}) nhưng chưa có bản vẽ nào được tải lên!</span>
+                </div>
+              )}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-1 border-b border-emerald-100">
+                <div className="flex items-center gap-1.5">
+                  <FileText className="w-4 h-4 text-emerald-700" />
+                  <span className="text-xs font-bold text-emerald-950 uppercase">
+                    Bản Vẽ Hoàn Công / Hồ Sơ Thiết Kế ({asBuiltPhotos.length} ảnh/tài liệu) <span className="text-red-600">*</span>
+                  </span>
+                </div>
               <div className="flex items-center gap-2">
                 <span className="text-[11px] text-emerald-700 font-semibold">
                   {asBuiltPhotos.length > 0 ? '✓ Đã đính kèm hồ sơ' : 'Chưa có bản vẽ hoàn công'}
@@ -672,6 +710,7 @@ export const AuditStep2OwnerInterview: React.FC<Props> = ({
               )
             )}
           </div>
+          )}
         </div>
 
         {/* 3.3. LỊCH SỬ CẢI TẠO & 5 CÂU HỎI PHỎNG VẤN CHUẨN HÓA (ĐIỂM E5 RESONANCE) */}

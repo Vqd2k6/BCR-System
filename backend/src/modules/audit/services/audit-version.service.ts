@@ -229,6 +229,7 @@ export class AuditVersionService {
            owner_signature_url = COALESCE($3, owner_signature_url),
            summary_conclusions = COALESCE($4, summary_conclusions),
            engineering_recommendations = COALESCE($5, engineering_recommendations),
+           status = 'UNDER_REVIEW',
            updated_at = NOW()
          WHERE id = $6;`,
         [
@@ -364,7 +365,21 @@ export class AuditVersionService {
       }
 
       // 4.6. Khôi phục bảng parcels
-      const pInfo = leftPane.parcel || snap.parcel || snap.parcelInfo || {};
+      const pInfo = snap.parcel || leftPane.parcel || snap.parcelInfo || {
+        houseNumber: snap.houseNumber || sJson.houseNumber,
+        street: snap.street || sJson.street,
+        ward: snap.ward || sJson.ward,
+        district: snap.district || sJson.district,
+        ownerName: snap.ownerName || sJson.ownerName,
+        ownerPhone: snap.ownerPhone || sJson.ownerPhone,
+        officialCadastralCode: snap.officialCadastralCode || sJson.officialCadastralCode,
+        frontageWidth: snap.frontageWidth ?? sJson.frontageWidth,
+        lotDepth: snap.lotDepth ?? sJson.lotDepth,
+        landAreaM2: snap.landAreaM2 ?? sJson.landAreaM2,
+        constructionAreaM2: snap.constructionAreaM2 ?? sJson.constructionAreaM2,
+        floorCount: snap.floorCount ?? sJson.floorCount ?? sJson.aboveFloors,
+      };
+
       if (pInfo && (pInfo.houseNumber || pInfo.house_number || pInfo.ownerName || pInfo.owner_name)) {
         await client.query(
           `UPDATE parcels SET
@@ -380,6 +395,7 @@ export class AuditVersionService {
              land_area_m2 = COALESCE($10, land_area_m2),
              construction_area_m2 = COALESCE($11, construction_area_m2),
              floor_count = COALESCE($12, floor_count),
+             survey_status = 'SUBMITTED',
              updated_at = NOW()
            WHERE id = (SELECT parcel_id FROM base_survey_reports WHERE id = $13);`,
           [
@@ -394,7 +410,7 @@ export class AuditVersionService {
             pInfo.lotDepth !== undefined && pInfo.lotDepth !== '' ? Number(pInfo.lotDepth) : null,
             pInfo.landAreaM2 !== undefined && pInfo.landAreaM2 !== '' ? Number(pInfo.landAreaM2) : null,
             pInfo.constructionAreaM2 !== undefined && pInfo.constructionAreaM2 !== '' ? Number(pInfo.constructionAreaM2) : null,
-            pInfo.aboveFloors !== undefined && pInfo.aboveFloors !== '' ? Number(pInfo.aboveFloors) : null,
+            (pInfo.floorCount !== undefined && pInfo.floorCount !== '') ? Number(pInfo.floorCount) : ((pInfo.aboveFloors !== undefined && pInfo.aboveFloors !== '') ? Number(pInfo.aboveFloors) : null),
             actualReportId,
           ]
         );
