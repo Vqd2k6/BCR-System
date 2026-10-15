@@ -306,58 +306,64 @@ export const UnifiedGisMutationModal: React.FC<Props> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-2 sm:p-4 bg-slate-900/75 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-5xl overflow-hidden flex flex-col max-h-[96vh]">
-        {/* Header Bar */}
-        <div className="p-4 sm:p-5 bg-slate-50 border-b border-slate-200 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl bg-sky-100 text-sky-800">
-              <Split className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <h3 className="text-base font-black text-slate-800">
-                  Studio Biên Tập & Biến Động Thửa Đất GIS (Unified Cadastral Studio)
-                </h3>
-                <span className="text-[11px] px-2 py-0.5 rounded-full font-bold bg-sky-100 text-sky-800 border border-sky-200">
-                  {role === 'SUPER_ADMIN' ? '👑 Super Admin Control' : '🛡️ Zone Admin Studio'}
-                </span>
-                <span className="text-[11px] px-2 py-0.5 rounded-full font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                  Zone: {activeZoneId}
-                </span>
-              </div>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Nhân lõi dùng chung chuẩn 100% PostGIS • Hỗ trợ cả 2 nhánh Đất dôi dư ({cadastralParcelData.projectParcelCode}-DU) và Căn nhà mới
-              </p>
-            </div>
+    <div className="fixed inset-0 z-[1200] bg-white flex flex-col w-screen h-screen overflow-hidden animate-in fade-in duration-200">
+      {/* Header Bar: Tone Sáng Thanh Lịch Đồng Bộ Hệ Thống */}
+      <div className="px-5 py-3 bg-white text-slate-800 border-b border-slate-200 flex items-center justify-between shrink-0 shadow-xs">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-sky-50 border border-sky-200 flex items-center justify-center text-sky-600 shadow-xs">
+            <Split className="w-5 h-5" />
           </div>
-
-          <div className="flex items-center gap-2">
-            {/* Dropdown đổi Zone nhanh cho Super Admin */}
-            {role === 'SUPER_ADMIN' && (
-              <select
-                value={activeZoneId}
-                onChange={(e) => setActiveZoneId(e.target.value)}
-                className="text-xs font-bold px-2.5 py-1.5 rounded-xl border border-slate-300 bg-white text-slate-800 outline-none"
-                title="Chuyển phân khu Zone"
-              >
-                {METRO_22_ZONES.map((z) => (
-                  <option key={z.code} value={z.code}>
-                    {z.name}
-                  </option>
-                ))}
-              </select>
-            )}
-
-            <button
-              type="button"
-              onClick={onClose}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-200 transition-colors cursor-pointer"
-            >
-              <X className="w-5 h-5" />
-            </button>
+          <div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h3 className="text-base sm:text-lg font-black text-slate-800">
+                Studio Biên Tập & Biến Động Thửa Đất GIS (Unified Cadastral Studio)
+              </h3>
+              <span className="text-[11px] px-2.5 py-0.5 rounded-full font-bold bg-sky-50 text-sky-700 border border-sky-200">
+                {role === 'SUPER_ADMIN' ? '👑 Super Admin Control' : '🛡️ Zone Admin Studio'}
+              </span>
+              <span className="text-[11px] px-2.5 py-0.5 rounded-full font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                Zone: {activeZoneId}
+              </span>
+              <span className="hidden sm:inline-flex px-2 py-0.5 rounded text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200 font-mono">
+                {cadastralParcelData.projectParcelCode}
+              </span>
+              <span className="hidden sm:inline-flex px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                Toàn Màn Hình
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Nhân lõi dùng chung chuẩn 100% PostGIS • Hỗ trợ cả 2 nhánh Đất dôi dư ({cadastralParcelData.projectParcelCode}-DU) và Căn nhà mới
+            </p>
           </div>
         </div>
+
+        <div className="flex items-center gap-2">
+          {/* Dropdown đổi Zone nhanh cho Super Admin */}
+          {role === 'SUPER_ADMIN' && (
+            <select
+              value={activeZoneId}
+              onChange={(e) => setActiveZoneId(e.target.value)}
+              className="text-xs font-bold px-2.5 py-1.5 rounded-xl border border-slate-300 bg-white text-slate-800 outline-none cursor-pointer shadow-xs"
+              title="Chuyển phân khu Zone"
+            >
+              {METRO_22_ZONES.map((z) => (
+                <option key={z.code} value={z.code}>
+                  {z.name}
+                </option>
+              ))}
+            </select>
+          )}
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+            title="Đóng (ESC)"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+      </div>
 
         {/* Thông báo Toast nếu có */}
         {toastMsg && (
@@ -491,7 +497,6 @@ export const UnifiedGisMutationModal: React.FC<Props> = ({
             </>
           )}
         </div>
-      </div>
     </div>
   );
 };

@@ -163,6 +163,7 @@ export const MergePanel: React.FC<MergePanelProps> = ({
           </span>
           <button
             type="button"
+            className="cursor-pointer"
             onClick={() => setTileMode((prev) => (prev === 'osm' ? 'satellite' : 'osm'))}
             style={{
               padding: '0.2rem 0.5rem',
@@ -183,239 +184,11 @@ export const MergePanel: React.FC<MergePanelProps> = ({
         </div>
       </div>
 
-      {/* THANH ĐIỀU HƯỚNG BẢN ĐỒ & TÌM KIẾM NHANH THỬA ĐẤT */}
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          flexWrap: 'wrap',
-          gap: '0.45rem',
-          backgroundColor: 'rgb(var(--bg-sky-50))',
-          padding: '0.45rem 0.65rem',
-          borderRadius: '0.5rem',
-          border: '1px solid rgb(var(--border-sky-200))',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-          <span style={{ fontSize: '0.72rem', fontWeight: 800, color: 'rgb(var(--text-sky-700))' }}>
-            Chế độ quan sát:
-          </span>
-          <button
-            type="button"
-            onClick={() => setMapViewMode('CLUSTER')}
-            style={{
-              fontSize: '0.675rem',
-              padding: '0.22rem 0.55rem',
-              borderRadius: '0.35rem',
-              fontWeight: mapViewMode === 'CLUSTER' ? 800 : 600,
-              backgroundColor: mapViewMode === 'CLUSTER' ? '#0284c7' : 'rgb(var(--bg-white))',
-              color: mapViewMode === 'CLUSTER' ? '#ffffff' : 'rgb(var(--text-slate-700))',
-              border: mapViewMode === 'CLUSTER' ? 'none' : '1px solid rgb(var(--border-slate-300))',
-              cursor: 'pointer',
-            }}
-          >
-            🎯 Zoom Cụm Tiếp Giáp
-          </button>
-          <button
-            type="button"
-            onClick={() => setMapViewMode('ALL_ZONE')}
-            style={{
-              fontSize: '0.675rem',
-              padding: '0.22rem 0.55rem',
-              borderRadius: '0.35rem',
-              fontWeight: mapViewMode === 'ALL_ZONE' ? 800 : 600,
-              backgroundColor: mapViewMode === 'ALL_ZONE' ? '#0284c7' : 'rgb(var(--bg-white))',
-              color: mapViewMode === 'ALL_ZONE' ? '#ffffff' : 'rgb(var(--text-slate-700))',
-              border: mapViewMode === 'ALL_ZONE' ? 'none' : '1px solid rgb(var(--border-slate-300))',
-              cursor: 'pointer',
-            }}
-          >
-            🗺️ Xem Toàn Bộ Zone ({currentZoneMergeParcels.length + 1} thửa)
-          </button>
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-          <input
-            type="text"
-            placeholder="🔍 Tìm nhanh số nhà, tên đường..."
-            value={mergeSearchTerm}
-            onChange={(e) => setMergeSearchTerm(e.target.value)}
-            style={{
-              fontSize: '0.72rem',
-              padding: '0.22rem 0.55rem',
-              border: '1px solid rgb(var(--border-blue-300))',
-              borderRadius: '0.35rem',
-              width: '210px',
-              outline: 'none',
-              backgroundColor: 'rgb(var(--bg-white))',
-            }}
-          />
-          {selectedMergeCodes.length > 0 && (
-            <button
-              type="button"
-              onClick={() => onMutationDataChange({ ...mutationData, selectedMergeCodes: [], mergeTargetCode: '' })}
-              style={{
-                border: 'none',
-                background: 'rgb(var(--bg-red-100))',
-                color: 'rgb(var(--text-red-600))',
-                fontSize: '0.675rem',
-                fontWeight: 800,
-                cursor: 'pointer',
-                padding: '0.22rem 0.45rem',
-                borderRadius: '0.35rem',
-              }}
-            >
-              Hủy gộp tất cả ({selectedMergeCodes.length})
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* BẢN ĐỒ GIS RỘNG RÃI 440PX VỚI KHẢ NĂNG CLICK-TO-MERGE TRỰC TIẾP */}
-      <div
-        style={{
-          width: '100%',
-          height: '440px',
-          borderRadius: '0.65rem',
-          overflow: 'hidden',
-          border: '2px solid #0284c7',
-          position: 'relative',
-        }}
-      >
-        <MapContainer
-          center={activeCentroid}
-          zoom={18}
-          maxZoom={22}
-          zoomControl={false}
-          style={{ width: '100%', height: '100%' }}
-          scrollWheelZoom={true}
-        >
-          <MapBoundsController coords={mapViewMode === 'ALL_ZONE' ? allZoneCoords : clusterCoords} zoom={18} />
-          <ZoomControl position="bottomright" />
-
-          {tileMode === 'satellite' ? (
-            <TileLayer
-              key="satellite"
-              attribution="Tiles &copy; Esri World Imagery"
-              url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-              maxNativeZoom={19}
-              maxZoom={22}
-            />
-          ) : (
-            <TileLayer
-              key="osm"
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-              maxNativeZoom={19}
-              maxZoom={22}
-            />
-          )}
-
-          {/* 1. THỬA ĐANG KHẢO SÁT (THỬA GỐC) - HIGHLIGHT NỔI BẬT VÀNG HỔ PHÁCH */}
-          <Polygon
-            positions={realActiveCoords}
-            pathOptions={{
-              color: '#b45309',
-              fillColor: '#f59e0b',
-              fillOpacity: 0.78,
-              weight: 4.5,
-            }}
-          >
-            <Tooltip permanent direction="center">
-              <div style={{ textAlign: 'center', fontWeight: 900, color: 'rgb(var(--text-orange-900))', fontSize: '0.75rem', textShadow: '0 1px 2px #fff' }}>
-                ⭐ THỬA GỐC ĐANG KS<br />
-                <span style={{ fontSize: '0.825rem', color: 'rgb(var(--text-amber-700))' }}>{parcelData.projectParcelCode}</span><br />
-                ({totalLandArea} m²)
-              </div>
-            </Tooltip>
-          </Polygon>
-
-          {/* 2. CÁC THỬA TRONG CÙNG ZONE (CLICK TRỰC TIẾP ĐỂ GỘP / HỦY GỘP) */}
-          {displayParcels.map((neighbor) => {
-            const isSelectedMerge = selectedMergeCodes.includes(neighbor.projectParcelCode);
-            const isMatchSearch = mergeSearchTerm
-              ? (neighbor.projectParcelCode.toLowerCase().includes(mergeSearchTerm.toLowerCase()) ||
-                 neighbor.houseNumber?.toLowerCase().includes(mergeSearchTerm.toLowerCase()) ||
-                 neighbor.street?.toLowerCase().includes(mergeSearchTerm.toLowerCase()))
-              : false;
-
-            return (
-              <Polygon
-                key={neighbor.id || neighbor.projectParcelCode}
-                positions={neighbor.coordinates}
-                pathOptions={{
-                  color: isSelectedMerge ? '#047857' : (isMatchSearch ? '#ea580c' : '#0284c7'),
-                  fillColor: isSelectedMerge ? '#10b981' : (isMatchSearch ? '#fed7aa' : '#38bdf8'),
-                  fillOpacity: isSelectedMerge ? 0.8 : (isMatchSearch ? 0.6 : 0.32),
-                  weight: isSelectedMerge ? 4 : (isMatchSearch ? 3.5 : 2),
-                  dashArray: isSelectedMerge ? undefined : '4, 4',
-                }}
-                eventHandlers={{
-                  click: () => {
-                    handleToggleMergeParcel(neighbor.projectParcelCode);
-                  },
-                }}
-              >
-                <Tooltip permanent={isSelectedMerge || isMatchSearch} direction="center" opacity={0.95}>
-                  <div style={{ textAlign: 'center', fontSize: '0.7rem', fontWeight: 800 }}>
-                    {isSelectedMerge ? (
-                      <span style={{ color: 'rgb(var(--text-emerald-700))' }}>
-                        ✓ ĐÃ GỘP: <strong>{neighbor.projectParcelCode}</strong> ({neighbor.landArea || neighbor.land_area_m2 || 75} m²)<br />
-                        <span style={{ fontSize: '0.625rem', fontWeight: 600, color: 'rgb(var(--text-emerald-800))' }}>(Bấm để hủy gộp)</span>
-                      </span>
-                    ) : (
-                      <span style={{ color: 'rgb(var(--text-sky-700))' }}>
-                        {neighbor.projectParcelCode}<br />
-                        <span style={{ fontSize: '0.625rem', fontWeight: 500, color: 'rgb(var(--text-slate-600))' }}>
-                          Số {neighbor.houseNumber} {neighbor.street} {typeof (neighbor.distanceMeters ?? neighbor.distance_meters) === 'number' ? `• ${neighbor.distanceMeters ?? neighbor.distance_meters}m` : ''}
-                        </span>
-                        <br />
-                        <span style={{ fontSize: '0.625rem', color: 'rgb(var(--text-blue-600))', fontWeight: 700 }}>(👉 Bấm để gộp)</span>
-                      </span>
-                    )}
-                  </div>
-                </Tooltip>
-              </Polygon>
-            );
-          })}
-        </MapContainer>
-
-        {/* Chú giải trực quan phân biệt thửa gốc và các thửa trong Zone */}
-        <div
-          style={{
-            position: 'absolute',
-            top: '8px',
-            left: '8px',
-            zIndex: 800,
-            backgroundColor: 'rgb(var(--bg-white) / 0.96)',
-            padding: '0.35rem 0.75rem',
-            borderRadius: '0.5rem',
-            fontSize: '0.675rem',
-            border: '1px solid rgb(var(--border-slate-300))',
-            boxShadow: '0 2px 6px rgba(0,0,0,0.12)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.85rem',
-            flexWrap: 'wrap',
-          }}
-        >
-          <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', color: 'rgb(var(--text-amber-700))', fontWeight: 800 }}>
-            <span style={{ display: 'inline-block', width: '12px', height: '12px', backgroundColor: '#f59e0b', border: '2px solid #b45309', borderRadius: '2px' }} />
-            Thửa gốc đang KS ({parcelData.projectParcelCode})
-          </span>
-          <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', color: 'rgb(var(--text-emerald-700))', fontWeight: 800 }}>
-            <span style={{ display: 'inline-block', width: '12px', height: '12px', backgroundColor: '#10b981', border: '2px solid #047857', borderRadius: '2px' }} />
-            Đã chọn gộp ({selectedMergeCodes.length})
-          </span>
-          <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', color: 'rgb(var(--text-sky-600))', fontWeight: 600 }}>
-            <span style={{ display: 'inline-block', width: '12px', height: '12px', backgroundColor: 'rgb(var(--bg-sky-100))', border: '1.5px dashed #0284c7', borderRadius: '2px' }} />
-            Thửa trong Zone (👉 Click để gộp)
-          </span>
-        </div>
-      </div>
-
-      {/* BẢNG TÓM TẮT KHỐI GỘP TƯƠNG TÁC (THAY THẾ DANH SÁCH BỪA BÃI CŨ) */}
+            {/* 2. BỐ CỤC 2 CỘT STUDIO ĐỒNG BỘ */}
+      <div className="flex flex-col lg:flex-row gap-3 items-stretch flex-1">
+        {/* CỘT TRÁI: BỘ ĐIỀU KHIỂN GỘP, DANH SÁCH THỬA, LÝ DO VÀ LƯU ĐỀ XUẤT (WIDTH ~340PX) */}
+        <div className="w-full lg:w-[340px] shrink-0 flex flex-col gap-2.5 overflow-y-auto max-h-[82vh] lg:max-h-[calc(100vh-220px)] pr-1 custom-scrollbar">
+{/* BẢNG TÓM TẮT KHỐI GỘP TƯƠNG TÁC (THAY THẾ DANH SÁCH BỪA BÃI CŨ) */}
       <div
         style={{
           backgroundColor: 'rgb(var(--bg-slate-50))',
@@ -491,6 +264,7 @@ export const MergePanel: React.FC<MergePanelProps> = ({
                 {!isBasePrimary && handleSetPrimaryMergeCode && (
                   <button
                     type="button"
+                    className="cursor-pointer"
                     onClick={() => handleSetPrimaryMergeCode(parcelData.projectParcelCode)}
                     style={{
                       border: '1px solid #f59e0b',
@@ -568,6 +342,7 @@ export const MergePanel: React.FC<MergePanelProps> = ({
                 {!isPrimary && handleSetPrimaryMergeCode && (
                   <button
                     type="button"
+                    className="cursor-pointer"
                     onClick={() => handleSetPrimaryMergeCode(code)}
                     style={{
                       border: '1px solid #f59e0b',
@@ -587,6 +362,7 @@ export const MergePanel: React.FC<MergePanelProps> = ({
 
                 <button
                   type="button"
+                  className="cursor-pointer"
                   onClick={() => handleToggleMergeParcel(code)}
                   style={{
                     border: 'none',
@@ -749,6 +525,7 @@ export const MergePanel: React.FC<MergePanelProps> = ({
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '0.5rem' }}>
           <button
             type="button"
+            className="cursor-pointer"
             onClick={() => {
               onMutationDataChange({
                 ...mutationData,
@@ -782,6 +559,7 @@ export const MergePanel: React.FC<MergePanelProps> = ({
 
           <button
             type="button"
+            className="cursor-pointer"
             onClick={() => {
               onMutationDataChange({
                 ...mutationData,
@@ -901,7 +679,7 @@ export const MergePanel: React.FC<MergePanelProps> = ({
                   onClick={handleMergeRemoveLastPoint}
                   disabled={mergeBuildingVertices.length === 0}
                   className="btn btn-outline-secondary btn-sm"
-                  style={{ fontSize: '0.65rem', padding: '0.15rem 0.4rem', display: 'flex', alignItems: 'center', gap: '0.2rem' }}
+                  style={{ fontSize: '0.65rem', padding: '0.15rem 0.4rem', display: 'flex', alignItems: 'center', gap: '0.2rem', cursor: 'pointer' }}
                 >
                   <Undo size={12} />
                   Xóa điểm vừa chấm
@@ -911,7 +689,7 @@ export const MergePanel: React.FC<MergePanelProps> = ({
                   onClick={handleMergeClearDraw}
                   disabled={mergeBuildingVertices.length === 0}
                   className="btn btn-outline-danger btn-sm"
-                  style={{ fontSize: '0.65rem', padding: '0.15rem 0.4rem', display: 'flex', alignItems: 'center', gap: '0.2rem' }}
+                  style={{ fontSize: '0.65rem', padding: '0.15rem 0.4rem', display: 'flex', alignItems: 'center', gap: '0.2rem', cursor: 'pointer' }}
                 >
                   <Trash2 size={12} />
                   Xóa làm lại
@@ -1069,6 +847,7 @@ export const MergePanel: React.FC<MergePanelProps> = ({
               <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                 <button
                   type="button"
+                  className="cursor-pointer"
                   onClick={() => {
                     if (handleSetMergePartitionKind) handleSetMergePartitionKind('NON_BUILDING');
                   }}
@@ -1094,6 +873,7 @@ export const MergePanel: React.FC<MergePanelProps> = ({
 
                 <button
                   type="button"
+                  className="cursor-pointer"
                   onClick={() => {
                     if (handleSetMergePartitionKind) handleSetMergePartitionKind('NEW_BUILDING');
                   }}
@@ -1408,7 +1188,7 @@ export const MergePanel: React.FC<MergePanelProps> = ({
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.2rem' }}>
         <button
           type="button"
-          className="btn btn-primary btn-sm"
+          className="btn btn-primary btn-sm cursor-pointer"
           onClick={handleSaveMutationProposal}
           disabled={isSubmittingMutation || selectedMergeCodes.length === 0}
           style={{
@@ -1420,6 +1200,7 @@ export const MergePanel: React.FC<MergePanelProps> = ({
             fontSize: '0.75rem',
             fontWeight: 700,
             padding: '0.4rem 0.95rem',
+            cursor: 'pointer',
             boxShadow: (mutationData.activeProposalType === 'MERGE' && mutationData.isSubmitted) ? '0 0 0 3px rgba(22, 163, 74, 0.25)' : 'none',
           }}
         >
@@ -1432,6 +1213,250 @@ export const MergePanel: React.FC<MergePanelProps> = ({
               : `Lưu đề xuất Gộp ${selectedMergeCodes.length + 1} thửa`}
           </span>
         </button>
+      </div>
+
+        </div>
+
+        {/* CỘT PHẢI: BẢN ĐỒ TOÀN CẢNH SIÊU RỘNG (FLEX-1) */}
+        <div className="flex-1 w-full h-full flex flex-col gap-2" style={{ minHeight: '580px' }}>
+{/* THANH ĐIỀU HƯỚNG BẢN ĐỒ & TÌM KIẾM NHANH THỬA ĐẤT */}
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '0.45rem',
+          backgroundColor: 'rgb(var(--bg-sky-50))',
+          padding: '0.45rem 0.65rem',
+          borderRadius: '0.5rem',
+          border: '1px solid rgb(var(--border-sky-200))',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+          <span style={{ fontSize: '0.72rem', fontWeight: 800, color: 'rgb(var(--text-sky-700))' }}>
+            Chế độ quan sát:
+          </span>
+          <button
+            type="button"
+            className="cursor-pointer"
+            onClick={() => setMapViewMode('CLUSTER')}
+            style={{
+              fontSize: '0.675rem',
+              padding: '0.22rem 0.55rem',
+              borderRadius: '0.35rem',
+              fontWeight: mapViewMode === 'CLUSTER' ? 800 : 600,
+              backgroundColor: mapViewMode === 'CLUSTER' ? '#0284c7' : 'rgb(var(--bg-white))',
+              color: mapViewMode === 'CLUSTER' ? '#ffffff' : 'rgb(var(--text-slate-700))',
+              border: mapViewMode === 'CLUSTER' ? 'none' : '1px solid rgb(var(--border-slate-300))',
+              cursor: 'pointer',
+            }}
+          >
+            🎯 Zoom Cụm Tiếp Giáp
+          </button>
+          <button
+            type="button"
+            className="cursor-pointer"
+            onClick={() => setMapViewMode('ALL_ZONE')}
+            style={{
+              fontSize: '0.675rem',
+              padding: '0.22rem 0.55rem',
+              borderRadius: '0.35rem',
+              fontWeight: mapViewMode === 'ALL_ZONE' ? 800 : 600,
+              backgroundColor: mapViewMode === 'ALL_ZONE' ? '#0284c7' : 'rgb(var(--bg-white))',
+              color: mapViewMode === 'ALL_ZONE' ? '#ffffff' : 'rgb(var(--text-slate-700))',
+              border: mapViewMode === 'ALL_ZONE' ? 'none' : '1px solid rgb(var(--border-slate-300))',
+              cursor: 'pointer',
+            }}
+          >
+            🗺️ Xem Toàn Bộ Zone ({currentZoneMergeParcels.length + 1} thửa)
+          </button>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+          <input
+            type="text"
+            placeholder="🔍 Tìm nhanh số nhà, tên đường..."
+            value={mergeSearchTerm}
+            onChange={(e) => setMergeSearchTerm(e.target.value)}
+            style={{
+              fontSize: '0.72rem',
+              padding: '0.22rem 0.55rem',
+              border: '1px solid rgb(var(--border-blue-300))',
+              borderRadius: '0.35rem',
+              width: '210px',
+              outline: 'none',
+              backgroundColor: 'rgb(var(--bg-white))',
+            }}
+          />
+          {selectedMergeCodes.length > 0 && (
+            <button
+              type="button"
+              className="cursor-pointer"
+              onClick={() => onMutationDataChange({ ...mutationData, selectedMergeCodes: [], mergeTargetCode: '' })}
+              style={{
+                border: 'none',
+                background: 'rgb(var(--bg-red-100))',
+                color: 'rgb(var(--text-red-600))',
+                fontSize: '0.675rem',
+                fontWeight: 800,
+                cursor: 'pointer',
+                padding: '0.22rem 0.45rem',
+                borderRadius: '0.35rem',
+              }}
+            >
+              Hủy gộp tất cả ({selectedMergeCodes.length})
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* BẢN ĐỒ GIS TOÀN CẢNH 620PX VỚI KHẢ NĂNG CLICK-TO-MERGE TRỰC TIẾP */}
+      <div
+        style={{
+          width: '100%',
+          height: '620px',
+          minHeight: '560px',
+          borderRadius: '0.65rem',
+          overflow: 'hidden',
+          border: '2px solid #0284c7',
+          position: 'relative',
+        }}
+      >
+        <MapContainer
+          center={activeCentroid}
+          zoom={18}
+          maxZoom={24}
+          zoomControl={false}
+          style={{ width: '100%', height: '100%' }}
+          scrollWheelZoom={true}
+        >
+          <MapBoundsController coords={mapViewMode === 'ALL_ZONE' ? allZoneCoords : clusterCoords} zoom={18} />
+          <ZoomControl position="bottomright" />
+
+          {tileMode === 'satellite' ? (
+            <TileLayer
+              key="satellite"
+              attribution="Tiles &copy; Esri World Imagery"
+              url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+              maxNativeZoom={19}
+              maxZoom={24}
+            />
+          ) : (
+            <TileLayer
+              key="osm"
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              maxNativeZoom={19}
+              maxZoom={24}
+            />
+          )}
+
+          {/* 1. THỬA ĐANG KHẢO SÁT (THỬA GỐC) - HIGHLIGHT NỔI BẬT VÀNG HỔ PHÁCH */}
+          <Polygon
+            positions={realActiveCoords}
+            pathOptions={{
+              color: '#b45309',
+              fillColor: '#f59e0b',
+              fillOpacity: 0.78,
+              weight: 4.5,
+            }}
+          >
+            <Tooltip permanent direction="center">
+              <div style={{ textAlign: 'center', fontWeight: 900, color: 'rgb(var(--text-orange-900))', fontSize: '0.75rem', textShadow: '0 1px 2px #fff' }}>
+                ⭐ THỬA GỐC ĐANG KS<br />
+                <span style={{ fontSize: '0.825rem', color: 'rgb(var(--text-amber-700))' }}>{parcelData.projectParcelCode}</span><br />
+                ({totalLandArea} m²)
+              </div>
+            </Tooltip>
+          </Polygon>
+
+          {/* 2. CÁC THỬA TRONG CÙNG ZONE (CLICK TRỰC TIẾP ĐỂ GỘP / HỦY GỘP) */}
+          {displayParcels.map((neighbor) => {
+            const isSelectedMerge = selectedMergeCodes.includes(neighbor.projectParcelCode);
+            const isMatchSearch = mergeSearchTerm
+              ? (neighbor.projectParcelCode.toLowerCase().includes(mergeSearchTerm.toLowerCase()) ||
+                 neighbor.houseNumber?.toLowerCase().includes(mergeSearchTerm.toLowerCase()) ||
+                 neighbor.street?.toLowerCase().includes(mergeSearchTerm.toLowerCase()))
+              : false;
+
+            return (
+              <Polygon
+                key={neighbor.id || neighbor.projectParcelCode}
+                positions={neighbor.coordinates}
+                pathOptions={{
+                  color: isSelectedMerge ? '#047857' : (isMatchSearch ? '#ea580c' : '#0284c7'),
+                  fillColor: isSelectedMerge ? '#10b981' : (isMatchSearch ? '#fed7aa' : '#38bdf8'),
+                  fillOpacity: isSelectedMerge ? 0.8 : (isMatchSearch ? 0.6 : 0.32),
+                  weight: isSelectedMerge ? 4 : (isMatchSearch ? 3.5 : 2),
+                  dashArray: isSelectedMerge ? undefined : '4, 4',
+                }}
+                eventHandlers={{
+                  click: () => {
+                    handleToggleMergeParcel(neighbor.projectParcelCode);
+                  },
+                }}
+              >
+                <Tooltip permanent={isSelectedMerge} direction="center" opacity={0.95}>
+                  <div style={{ textAlign: 'center', fontSize: '0.7rem', fontWeight: 800 }}>
+                    {isSelectedMerge ? (
+                      <span style={{ color: 'rgb(var(--text-emerald-700))' }}>
+                        ✓ ĐÃ GỘP: <strong>{neighbor.projectParcelCode}</strong> ({neighbor.landArea || neighbor.land_area_m2 || 75} m²)<br />
+                        <span style={{ fontSize: '0.625rem', fontWeight: 600, color: 'rgb(var(--text-emerald-800))' }}>(Bấm để hủy gộp)</span>
+                      </span>
+                    ) : (
+                      <span style={{ color: 'rgb(var(--text-sky-700))' }}>
+                        {neighbor.projectParcelCode}<br />
+                        <span style={{ fontSize: '0.625rem', fontWeight: 500, color: 'rgb(var(--text-slate-600))' }}>
+                          Số {neighbor.houseNumber} {neighbor.street} {typeof (neighbor.distanceMeters ?? neighbor.distance_meters) === 'number' ? `• ${neighbor.distanceMeters ?? neighbor.distance_meters}m` : ''}
+                        </span>
+                        <br />
+                        <span style={{ fontSize: '0.625rem', color: 'rgb(var(--text-blue-600))', fontWeight: 700 }}>(👉 Bấm để gộp)</span>
+                      </span>
+                    )}
+                  </div>
+                </Tooltip>
+              </Polygon>
+            );
+          })}
+        </MapContainer>
+
+        {/* Chú giải trực quan phân biệt thửa gốc và các thửa trong Zone */}
+        <div
+          style={{
+            position: 'absolute',
+            top: '8px',
+            left: '8px',
+            zIndex: 800,
+            backgroundColor: 'rgb(var(--bg-white) / 0.96)',
+            padding: '0.35rem 0.75rem',
+            borderRadius: '0.5rem',
+            fontSize: '0.675rem',
+            border: '1px solid rgb(var(--border-slate-300))',
+            boxShadow: '0 2px 6px rgba(0,0,0,0.12)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '0.85rem',
+            flexWrap: 'wrap',
+          }}
+        >
+          <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', color: 'rgb(var(--text-amber-700))', fontWeight: 800 }}>
+            <span style={{ display: 'inline-block', width: '12px', height: '12px', backgroundColor: '#f59e0b', border: '2px solid #b45309', borderRadius: '2px' }} />
+            Thửa gốc đang KS ({parcelData.projectParcelCode})
+          </span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', color: 'rgb(var(--text-emerald-700))', fontWeight: 800 }}>
+            <span style={{ display: 'inline-block', width: '12px', height: '12px', backgroundColor: '#10b981', border: '2px solid #047857', borderRadius: '2px' }} />
+            Đã chọn gộp ({selectedMergeCodes.length})
+          </span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', color: 'rgb(var(--text-sky-600))', fontWeight: 600 }}>
+            <span style={{ display: 'inline-block', width: '12px', height: '12px', backgroundColor: 'rgb(var(--bg-sky-100))', border: '1.5px dashed #0284c7', borderRadius: '2px' }} />
+            Thửa trong Zone (👉 Click để gộp)
+          </span>
+        </div>
+      </div>
+
+      
+        </div>
       </div>
     </div>
   );
