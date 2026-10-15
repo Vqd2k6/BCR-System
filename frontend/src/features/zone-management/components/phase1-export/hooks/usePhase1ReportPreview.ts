@@ -301,7 +301,8 @@ export const usePhase1ReportPreview = ({
       window.open(blobUrl, '_blank');
     } else {
       const activeReportId = previewParcel?.activePhase1ReportId || (previewParcel ? parcelIdOrFallback(previewParcel) : '') || (previewParcel?.projectParcelCode || '');
-      const prefix = reportVersion === 'v2' ? '/api/v1/v2/reports' : '/api/v1/reports';
+      const baseApi = (api.defaults.baseURL || '/api/v1').replace(/\/+$/, '');
+      const prefix = reportVersion === 'v2' ? `${baseApi}/v2/reports` : `${baseApi}/reports`;
       window.open(`${prefix}/${encodeURIComponent(activeReportId)}/preview/html`, '_blank');
     }
   };

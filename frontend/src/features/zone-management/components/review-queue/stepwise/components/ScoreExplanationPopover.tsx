@@ -1,7 +1,23 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Info, X, Calculator, ShieldCheck, AlertCircle } from 'lucide-react';
 
-export type MetricType = 'ECS' | 'VI' | 'I' | 'BRA';
+export type MetricType =
+  | 'ECS'
+  | 'VI'
+  | 'I'
+  | 'BRA'
+  | 'E1'
+  | 'E2'
+  | 'E3'
+  | 'E4'
+  | 'E5'
+  | 'E6'
+  | 'V1'
+  | 'V2'
+  | 'V3'
+  | 'V4'
+  | 'V5'
+  | 'V6';
 
 interface Props {
   metric: MetricType;
@@ -80,6 +96,168 @@ export const ScoreExplanationPopover: React.FC<Props> = ({ metric, className = '
             { code: '2.0', name: 'Nhà Ở Dân Sinh Riêng Lẻ', desc: 'Nhà phố thường, biệt thự gia đình cư trú ổn định' },
             { code: '3.0', name: 'Công Trình Tập Trung Đông Người', desc: 'Trường học, bệnh viện, chung cư, khách sạn lớn (Cấp II)' },
             { code: '4.0', name: 'Công Trình Trọng Điểm Quốc Gia', desc: 'Di tích lịch sử, bảo tàng, hạ tầng năng lượng ngầm (Cấp I)' },
+          ],
+          thresholds: [],
+        };
+      case 'E1':
+        return {
+          title: 'Tiêu Chí E1: Cấp Nứt Burland Cực Đại',
+          formula: 'E1 = f(Bề rộng vết nứt lớn nhất w_max) theo Burland 1977',
+          description: 'Phân loại bề rộng vết nứt lớn nhất ghi nhận trên toàn bộ công trình theo thang tiêu chuẩn quốc tế:',
+          variables: [
+            { code: '0 điểm', name: 'Cấp 0 (Tóc)', desc: 'w < 0.1mm - Nứt tóc không đáng kể' },
+            { code: '1 điểm', name: 'Cấp 1 (Chân chim)', desc: '0.1mm ≤ w < 1.0mm - Nứt chân chim vữa trát' },
+            { code: '2 điểm', name: 'Cấp 2 (Nhẹ)', desc: '1.0mm ≤ w < 5.0mm - Cần trám trét lại bề mặt' },
+            { code: '3 điểm', name: 'Cấp 3 (Trung bình)', desc: '5.0mm ≤ w < 15.0mm - Nứt gạch xuyên tường' },
+            { code: '4 điểm', name: 'Cấp 4/5 (Nặng/Nguy cấp)', desc: 'w ≥ 15.0mm - Nứt kết cấu nguy cơ cao' },
+          ],
+          thresholds: [],
+        };
+      case 'E2':
+        return {
+          title: 'Tiêu Chí E2: Khuyết Tật Cấu Kiện Chịu Lực Chính',
+          formula: 'E2 = Max(Điểm nứt cột, dầm, sàn, cầu thang BTCT)',
+          description: 'Mức độ phá hủy và suy giảm khả năng chịu lực của khung xương công trình:',
+          variables: [
+            { code: '0 điểm', name: 'Nguyên vẹn', desc: 'Không phát hiện nứt trên cấu kiện chịu lực' },
+            { code: '1 điểm', name: 'Rạn chân chim', desc: 'Nứt chân chim lớp vữa bảo vệ bê tông' },
+            { code: '2 điểm', name: 'Nứt chịu lực nhẹ', desc: 'Vết nứt bề mặt dầm/cột w < 1mm' },
+            { code: '3 điểm', name: 'Nứt kết cấu đáng kể', desc: 'Vết nứt uốn/cắt 1mm ≤ w < 3mm' },
+            { code: '4 điểm', name: 'Hư hại nghiêm trọng', desc: 'Vết nứt xuyên tiết diện w ≥ 3mm, bong bê tông lộ thép' },
+          ],
+          thresholds: [],
+        };
+      case 'E3':
+        return {
+          title: 'Tiêu Chí E3: Độ Nghiêng & Lún Lệch Hiện Hữu',
+          formula: 'E3 = Max(Đo lún chân tường, lệch tầng, nứt tiếp giáp)',
+          description: 'Dấu hiệu biến dạng lún không đều chân móng tích lũy từ quá khứ:',
+          variables: [
+            { code: '0 điểm', name: 'Không lún lệch', desc: 'Không có vết nứt bậc thang hay tách khe lún' },
+            { code: '1 điểm', name: 'Lún nhẹ', desc: 'Vết nứt chân tường chân chim < 1mm' },
+            { code: '2 điểm', name: 'Lún trung bình', desc: 'Vết nứt góc tường dạng bậc thang 1 - 3mm' },
+            { code: '3 điểm', name: 'Lún rõ rệt', desc: 'Tách khe tiếp giáp nhà liền kề 3 - 10mm' },
+            { code: '4 điểm', name: 'Lún chênh nghiêm trọng', desc: 'Vết nứt bậc thang xuyên tường > 10mm, kẹt cửa' },
+          ],
+          thresholds: [],
+        };
+      case 'E4':
+        return {
+          title: 'Tiêu Chí E4: Độ Nghiêng Tổng Thể Nhà',
+          formula: 'E4 = f(Góc nghiêng θ = Δ/H đo bằng laser/toàn đạc)',
+          description: 'Góc nghiêng lệch phương đứng của khối nhà so với tiêu chuẩn TCXDVN:',
+          variables: [
+            { code: '0 điểm', name: 'θ < 1/500', desc: 'Độ nghiêng trong giới hạn sai số cho phép' },
+            { code: '1 điểm', name: '1/500 ≤ θ < 1/300', desc: 'Nghiêng nhẹ, mắt thường khó nhận thấy' },
+            { code: '2 điểm', name: '1/300 ≤ θ < 1/150', desc: 'Nghiêng nhận biết được, bắt đầu ảnh hưởng thoát nước' },
+            { code: '3 điểm', name: '1/150 ≤ θ < 1/100', desc: 'Nghiêng rõ rệt, vượt ngưỡng an toàn vận hành' },
+            { code: '4 điểm', name: 'θ ≥ 1/100', desc: 'Nghiêng nghiêm trọng, nguy cơ mất ổn định lật' },
+          ],
+          thresholds: [],
+        };
+      case 'E5':
+        return {
+          title: 'Tiêu Chí E5: Lịch Sử Sửa Chữa & Cộng Hưởng Hư Hỏng',
+          formula: 'E5 = Phỏng vấn 5 câu hỏi chuẩn hóa & cộng hưởng biến dạng',
+          description: 'Đánh giá nguy cơ cộng hưởng từ các đợt thi công xung quanh và tiền sử cơi nới nâng tầng:',
+          variables: [
+            { code: '0 điểm', name: 'An toàn tuyệt đối', desc: 'Nhà xây nguyên khối, không sửa chữa lớn, chưa từng nứt' },
+            { code: '1 điểm', name: 'Ít ảnh hưởng', desc: 'Có cải tạo nhỏ nội thất, không can thiệp kết cấu' },
+            { code: '2 điểm', name: 'Trung bình', desc: 'Đã nâng thêm tầng hoặc kề cận công trình đào hóng' },
+            { code: '3 điểm', name: 'Nguy cơ cao', desc: 'Cắt đục cấu kiện chịu lực hoặc từng nứt do chấn động' },
+            { code: '4 điểm', name: 'Cộng hưởng đặc biệt', desc: 'Khẳng định ≥2 yếu tố cộng hưởng biến dạng nguy cấp' },
+          ],
+          thresholds: [],
+        };
+      case 'E6':
+        return {
+          title: 'Tiêu Chí E6: Bất Thường Kết Cấu Khác & Môi Trường',
+          formula: 'E6 = Tổng hợp khuyết tật đặc thù (rỉ cốt thép, thấm dột, tường rỗng)',
+          description: 'Các yếu tố ăn mòn, phong hóa hóa học và môi trường xâm thực cốt thép:',
+          variables: [
+            { code: '0 điểm', name: 'Bình thường', desc: 'Môi trường khô ráo, bê tông đặc chắc' },
+            { code: '1 điểm', name: 'Thấm dột nhẹ', desc: 'Ẩm mốc bề mặt sơn, chưa ăn mòn cốt thép' },
+            { code: '2 điểm', name: 'Thấm ẩm liên tục', desc: 'Rêu mốc, bong tróc lớp trát diện tích lớn' },
+            { code: '3 điểm', name: 'Ăn mòn lộ thép', desc: 'Vết nứt dọc rỉ nở cốt thép, ố vàng bề mặt bê tông' },
+            { code: '4 điểm', name: 'Mất mát tiết diện', desc: 'Bê tông bong lở từng mảng, cốt thép rỉ đứt giảm tiết diện' },
+          ],
+          thresholds: [],
+        };
+      case 'V1':
+        return {
+          title: 'Tiêu Chí V1: Tầm Quan Trọng & Niên Hạn Công Trình',
+          formula: 'V1 = f(Cấp công trình theo Thông tư BXD & Năm xây dựng)',
+          description: 'Hệ số trách nhiệm pháp lý và mức độ suy thoái vật liệu theo thời gian:',
+          variables: [
+            { code: '0 - 1.0 đ', name: 'Đất trống / Nhà kho cấp 4', desc: 'Công trình tạm hoặc niên hạn dưới 5 năm' },
+            { code: '1.0 - 2.0 đ', name: 'Nhà dân sinh 1-2 tầng', desc: 'Niên hạn 5 - 15 năm, bê tông cốt thép kiên cố' },
+            { code: '2.0 - 3.0 đ', name: 'Nhà phố 3-5 tầng / Cấp II', desc: 'Niên hạn 15 - 30 năm, bắt đầu lão hóa kết cấu' },
+            { code: '3.0 - 4.0 đ', name: 'Công trình công cộng / Cấp I', desc: 'Niên hạn >30 năm, trường học, bệnh viện, đông người' },
+          ],
+          thresholds: [],
+        };
+      case 'V2':
+        return {
+          title: 'Tiêu Chí V2: Loại Hình Móng & Kết Cấu Chịu Lực',
+          formula: 'V2 = f(Phân loại móng CAT 1-5 & Hệ kết cấu)',
+          description: 'Độ nhạy cảm của móng công trình trước sự dịch chuyển của khối đất:',
+          variables: [
+            { code: '0 - 1.0 đ', name: 'Móng cọc khoan nhồi sâu', desc: 'CAT 1/2, mũi cọc cắm vào tầng cuội sỏi sét cứng' },
+            { code: '1.0 - 2.0 đ', name: 'Móng cọc ép bê tông', desc: 'CAT 2/3, cọc cắm qua vùng ảnh hưởng hầm' },
+            { code: '2.0 - 3.0 đ', name: 'Móng băng / Móng bè nông', desc: 'CAT 3/4, nằm trong tầng đất bở rời bị ảnh hưởng lún' },
+            { code: '3.0 - 4.0 đ', name: 'Móng đơn gạch / Cừ tràm', desc: 'CAT 5, nhạy cảm cực cao khi mực nước ngầm hạ' },
+          ],
+          thresholds: [],
+        };
+      case 'V3':
+        return {
+          title: 'Tiêu Chí V3: Cự Ly Không Gian Đến Tim Tuyến Metro',
+          formula: 'V3 = f(Khoảng cách 3D từ hố móng đến tim hầm d)',
+          description: 'Cường độ tương tác từ vùng lún bề mặt do đào hầm TBM gây ra:',
+          variables: [
+            { code: '0 - 1.0 đ', name: 'd > 35m', desc: 'Nằm ngoài máng lún chính của tuyến hầm' },
+            { code: '1.0 - 2.0 đ', name: '20m < d ≤ 35m', desc: 'Vùng ảnh hưởng thứ cấp, độ cong máng lún nhỏ' },
+            { code: '2.0 - 3.0 đ', name: '10m < d ≤ 20m', desc: 'Vùng điểm uốn máng lún, chịu biến dạng kéo hông' },
+            { code: '3.0 - 4.0 đ', name: 'd ≤ 10m hoặc giao cắt', desc: 'Trực diện vùng biến dạng cực đại trên nóc hầm' },
+          ],
+          thresholds: [],
+        };
+      case 'V4':
+        return {
+          title: 'Tiêu Chí V4: Ranh Giới & Trạng Thái Liền Kề',
+          formula: 'V4 = f(Mức độ phụ thuộc kết cấu với công trình kề cận)',
+          description: 'Nguy cơ bị lôi kéo chuyển vị không đồng đều từ khối nhà hàng xóm:',
+          variables: [
+            { code: '0 - 1.0 đ', name: 'Độc lập bốn phía', desc: 'Có khoảng lùi sân vườn, không chạm nhà bên cạnh' },
+            { code: '1.0 - 2.0 đ', name: 'Sát vách có khe lún', desc: 'Móng và tường riêng biệt, có khe co giãn kỹ thuật' },
+            { code: '2.0 - 3.0 đ', name: 'Chung tường lửng / móng sát', desc: 'Tường gạch xây chèn hoặc móng bè kẹp chân' },
+            { code: '3.0 - 4.0 đ', name: 'Chung tường chịu lực', desc: 'Dầm gối trực tiếp lên tường chung, nguy cơ nứt dây chuyền' },
+          ],
+          thresholds: [],
+        };
+      case 'V5':
+        return {
+          title: 'Tiêu Chí V5: Quy Mô Tầng & Độ Cứng Uốn (EI)',
+          formula: 'V5 = f(Số tầng nổi, tầng hầm, tỷ lệ chiều cao/bề rộng H/B)',
+          description: 'Độ nhạy cảm của khối nhà trước chuyển vị uốn lượn và xoắn:',
+          variables: [
+            { code: '0 - 1.0 đ', name: 'Nhà 1 tầng thấp', desc: 'Khối tích nhỏ, khả năng chịu lún lệch tự do tốt' },
+            { code: '1.0 - 2.0 đ', name: 'Nhà 2-3 tầng', desc: 'Độ cứng trung bình, tỷ lệ H/B cân đối' },
+            { code: '2.0 - 3.0 đ', name: 'Nhà 4-5 tầng', desc: 'Độ cứng uốn lớn, dễ nứt khi xuất hiện chênh lún' },
+            { code: '3.0 - 4.0 đ', name: 'Nhà >5 tầng / Có hầm', desc: 'Tải trọng chân cột lớn, ứng suất tiếp xúc đáy móng cao' },
+          ],
+          thresholds: [],
+        };
+      case 'V6':
+        return {
+          title: 'Tiêu Chí V6: Độ Tin Cậy Dữ Liệu Khảo Sát',
+          formula: 'V6 = f(Hạn chế tiếp cận, hồ sơ móng & mức độ che khuất)',
+          description: 'Hệ số an toàn dự phòng rủi ro khi số liệu thực địa bị khuyết:',
+          variables: [
+            { code: '0 - 1.0 đ', name: 'Tiếp cận 100% + Có bản vẽ', desc: 'Đầy đủ hồ sơ hoàn công, kiểm tra chi tiết các phòng' },
+            { code: '1.0 - 2.0 đ', name: 'Tiếp cận tốt', desc: 'Kiểm tra hầu hết các tầng, chủ nhà nhớ rõ quy cách móng' },
+            { code: '2.0 - 3.0 đ', name: 'Hạn chế một phần', desc: 'Khóa cửa một số phòng, móng suy luận theo quy chuẩn' },
+            { code: '3.0 - 4.0 đ', name: 'Chỉ quan sát ngoại quan', desc: 'Chủ nhà vắng mặt hoặc không cho vào trong, rủi ro che khuất cao' },
           ],
           thresholds: [],
         };

@@ -210,6 +210,8 @@ export class AuditReviewService {
   static async getSplitPaneAuditView(reportId: string, options?: { includePhotoHistory?: boolean }) {
     const reportRes = await Database.query(
       `SELECT r.*, p.project_parcel_code, p.house_number, p.street, p.zone_id,
+              p.owner_name, p.owner_phone, p.ward, p.district,
+              p.frontage_width, p.lot_depth, p.official_cadastral_code,
               p.land_area_m2, p.construction_area_m2, p.floor_count, p.total_units,
               p.building_type, p.is_locked, p.seal_hash, p.locked_at,
               ST_AsGeoJSON(p.cadastral_polygon_geom) AS cadastral_geojson,
@@ -434,7 +436,7 @@ export class AuditReviewService {
     // Chuẩn hóa bộ 4 ảnh định danh P-01 -> P-04
     const p01Row = photosRes.rows.find((p: any) => p.photo_type === 'P01_HOUSE_NUMBER');
     const p02Row = photosRes.rows.find((p: any) => p.photo_type === 'P02_MAIN_FACADE');
-    const p03Row = photosRes.rows.find((p: any) => p.photo_type === 'P03_SIDE_REAR');
+    const p03Row = photosRes.rows.find((p: any) => p.photo_type === 'P03_SIDE_REAR' || p.photo_type === 'P03_SIDE_OR_REAR');
     const p04Row = photosRes.rows.find((p: any) => p.photo_type === 'P04_CONTEXT_STREET');
 
     const p01Data = surveyJson.photoP01 || {};
@@ -629,8 +631,10 @@ export class AuditReviewService {
     const sigJson = surveyJson.signatures || {};
     const normalizedSignatures = {
       surveyorSignature: report.surveyor_signature_url || sigJson.preparedBy?.photoUrl || sigJson.surveyorSignatureUrl || null,
+      surveyorSignatureUrl: report.surveyor_signature_url || sigJson.preparedBy?.photoUrl || sigJson.surveyorSignatureUrl || null,
       surveyorName: report.surveyor_name || sigJson.preparedBy?.fullName || null,
       ownerSignature: report.owner_signature_url || sigJson.ownerRepresentative?.photoUrl || sigJson.ownerSignatureUrl || null,
+      ownerSignatureUrl: report.owner_signature_url || sigJson.ownerRepresentative?.photoUrl || sigJson.ownerSignatureUrl || null,
       ownerName: report.owner_name || surveyJson.ownerName || sigJson.ownerRepresentative?.fullName || null,
       ownerFeedback: report.owner_remarks || sigJson.ownerFeedback || sigJson.ownerRemarks || null,
       workingMinutesPhotos: Array.isArray(sigJson.workingMinutesPhotos) && sigJson.workingMinutesPhotos.length > 0
@@ -783,6 +787,29 @@ export class AuditReviewService {
       projectParcelCode: report.project_parcel_code,
       houseNumber: report.house_number || surveyJson.houseNumber,
       street: report.street || surveyJson.street,
+      ward: report.ward || surveyJson.ward,
+      district: report.district || surveyJson.district,
+      ownerName: report.owner_name || surveyJson.ownerName,
+      ownerPhone: report.owner_phone || surveyJson.ownerPhone,
+      officialCadastralCode: report.official_cadastral_code || surveyJson.officialCadastralCode,
+      frontageWidth: report.frontage_width !== null && report.frontage_width !== undefined ? Number(report.frontage_width) : (surveyJson.frontageWidth ?? null),
+      lotDepth: report.lot_depth !== null && report.lot_depth !== undefined ? Number(report.lot_depth) : (surveyJson.lotDepth ?? null),
+      parcel: {
+        id: report.parcel_id,
+        projectParcelCode: report.project_parcel_code,
+        houseNumber: report.house_number || surveyJson.houseNumber,
+        street: report.street || surveyJson.street,
+        ward: report.ward || surveyJson.ward,
+        district: report.district || surveyJson.district,
+        ownerName: report.owner_name || surveyJson.ownerName,
+        ownerPhone: report.owner_phone || surveyJson.ownerPhone,
+        officialCadastralCode: report.official_cadastral_code || surveyJson.officialCadastralCode,
+        frontageWidth: report.frontage_width !== null && report.frontage_width !== undefined ? Number(report.frontage_width) : surveyJson.frontageWidth,
+        lotDepth: report.lot_depth !== null && report.lot_depth !== undefined ? Number(report.lot_depth) : surveyJson.lotDepth,
+        landAreaM2: report.land_area_m2 !== null && report.land_area_m2 !== undefined ? Number(report.land_area_m2) : surveyJson.landAreaM2,
+        constructionAreaM2: report.construction_area_m2 !== null && report.construction_area_m2 !== undefined ? Number(report.construction_area_m2) : surveyJson.constructionAreaM2,
+        floorCount: report.floor_count !== null && report.floor_count !== undefined ? Number(report.floor_count) : surveyJson.floorCount,
+      },
       zoneId: report.zone_id,
       surveyorName: report.surveyor_name,
       surveyorPhone: report.surveyor_phone,
@@ -805,6 +832,22 @@ export class AuditReviewService {
       constructionAreaM2: report.construction_area_m2 || null,
 
       leftPane: {
+        parcel: {
+          id: report.parcel_id,
+          projectParcelCode: report.project_parcel_code,
+          houseNumber: report.house_number || surveyJson.houseNumber,
+          street: report.street || surveyJson.street,
+          ward: report.ward || surveyJson.ward,
+          district: report.district || surveyJson.district,
+          ownerName: report.owner_name || surveyJson.ownerName,
+          ownerPhone: report.owner_phone || surveyJson.ownerPhone,
+          officialCadastralCode: report.official_cadastral_code || surveyJson.officialCadastralCode,
+          frontageWidth: report.frontage_width !== null && report.frontage_width !== undefined ? Number(report.frontage_width) : surveyJson.frontageWidth,
+          lotDepth: report.lot_depth !== null && report.lot_depth !== undefined ? Number(report.lot_depth) : surveyJson.lotDepth,
+          landAreaM2: report.land_area_m2 !== null && report.land_area_m2 !== undefined ? Number(report.land_area_m2) : surveyJson.landAreaM2,
+          constructionAreaM2: report.construction_area_m2 !== null && report.construction_area_m2 !== undefined ? Number(report.construction_area_m2) : surveyJson.constructionAreaM2,
+          floorCount: report.floor_count !== null && report.floor_count !== undefined ? Number(report.floor_count) : surveyJson.floorCount,
+        },
         damageZones: enrichedDamageZones,
         structuralElements: enrichedElements,
         riskScoreCard: scoresRes.rows[0] || null,

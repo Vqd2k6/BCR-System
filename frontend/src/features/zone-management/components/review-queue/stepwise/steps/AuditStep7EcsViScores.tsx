@@ -4,7 +4,7 @@ import { getErrorMessage } from '@/utils/errorUtils';
 import React, { useState } from 'react';
 import { Award, ShieldCheck, CheckCircle2, AlertTriangle, Scale, Undo2 } from 'lucide-react';
 import { api } from '../../../../../../services/api';
-import { ScoreExplanationPopover } from '../components/ScoreExplanationPopover';
+import { ScoreExplanationPopover, type MetricType } from '../components/ScoreExplanationPopover';
 
 interface Props {
   isEditMode?: boolean;
@@ -586,7 +586,10 @@ export const AuditStep7EcsViScores: React.FC<Props> = ({
                         </span>
                       </td>
                       <td className="p-3 font-bold text-slate-800">
-                        {item.name}
+                        <div className="flex items-center gap-1.5">
+                          <span>{item.name}</span>
+                          <ScoreExplanationPopover metric={item.code as MetricType} />
+                        </div>
                         {item.isOverridden && (
                           <span className="block text-[10px] font-mono text-purple-700 font-bold">
                             (Chuyên gia can thiệp)
@@ -683,7 +686,10 @@ export const AuditStep7EcsViScores: React.FC<Props> = ({
                         </span>
                       </td>
                       <td className="p-3 font-bold text-slate-800">
-                        {item.name}
+                        <div className="flex items-center gap-1.5">
+                          <span>{item.name}</span>
+                          <ScoreExplanationPopover metric={item.code as MetricType} />
+                        </div>
                         {item.isOverridden && (
                           <span className="block text-[10px] font-mono text-purple-700 font-bold">
                             (Chuyên gia can thiệp)
@@ -785,25 +791,7 @@ export const AuditStep7EcsViScores: React.FC<Props> = ({
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     <tr>
-                      <td className="p-2.5 font-medium text-slate-800">Cấp nứt Burland (E1 / BRA)</td>
-                      <td className="p-2.5 text-center font-mono text-slate-600">Cấp {baselineBurland}</td>
-                      <td className="p-2.5 text-center font-mono font-bold text-purple-700">Cấp {effectiveBurland}</td>
-                      <td className="p-2.5 text-center">
-                        {effectiveBurland > baselineBurland ? (
-                          <span className="px-2 py-0.5 rounded bg-red-100 text-red-800 font-bold text-[10px]">
-                            +{effectiveBurland - baselineBurland} Cấp (Nâng rủi ro)
-                          </span>
-                        ) : effectiveBurland < baselineBurland ? (
-                          <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 font-bold text-[10px]">
-                            -{baselineBurland - effectiveBurland} Cấp (Hạ mức)
-                          </span>
-                        ) : (
-                          <span className="text-slate-400 font-bold text-[10px]">Giữ nguyên</span>
-                        )}
-                      </td>
-                    </tr>
-                    <tr>
-                      <td className="p-2.5 font-medium text-slate-800">Tổng điểm hư hỏng (ECS)</td>
+                      <td className="p-2.5 font-medium text-slate-800">Điểm Hư Hỏng Hiện Trạng (ECS)</td>
                       <td className="p-2.5 text-center font-mono text-slate-600">{baselineTotalEcs}/24 ({baselineEcsClass})</td>
                       <td className="p-2.5 text-center font-mono font-bold text-purple-700">{effectiveTotalEcs}/24 ({effectiveEcsClass})</td>
                       <td className="p-2.5 text-center">
@@ -817,21 +805,7 @@ export const AuditStep7EcsViScores: React.FC<Props> = ({
                       </td>
                     </tr>
                     <tr>
-                      <td className="p-2.5 font-medium text-slate-800">Tầm quan trọng công năng (I / V1)</td>
-                      <td className="p-2.5 text-center font-mono text-slate-600">{baselineImportance.toFixed(1)}đ</td>
-                      <td className="p-2.5 text-center font-mono font-bold text-purple-700">{effectiveImportance.toFixed(1)}đ</td>
-                      <td className="p-2.5 text-center">
-                        {effectiveImportance !== baselineImportance ? (
-                          <span className="px-2 py-0.5 rounded bg-purple-100 text-purple-800 font-bold text-[10px]">
-                            {effectiveImportance > baselineImportance ? `+${(effectiveImportance - baselineImportance).toFixed(1)}đ` : `${(effectiveImportance - baselineImportance).toFixed(1)}đ`}
-                          </span>
-                        ) : (
-                          <span className="text-slate-400 font-bold text-[10px]">Giữ nguyên</span>
-                        )}
-                      </td>
-                    </tr>
-                    <tr>
-                      <td className="p-2.5 font-medium text-slate-800">Chỉ số dễ tổn thương (VI)</td>
+                      <td className="p-2.5 font-medium text-slate-800">Chỉ Số Dễ Bị Tổn Thương (VI)</td>
                       <td className="p-2.5 text-center font-mono text-slate-600">{baselineAvgVi.toFixed(2)} ({baselineViClass})</td>
                       <td className="p-2.5 text-center font-mono font-bold text-purple-700">{effectiveAvgVi.toFixed(2)} ({effectiveViClass})</td>
                       <td className="p-2.5 text-center">

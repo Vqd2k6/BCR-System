@@ -18,6 +18,8 @@ import { RejectReportModal } from './RejectReportModal';
 import { AdminReassignParcelModal } from './AdminReassignParcelModal';
 import { UnifiedGisMutationModal } from '../../../../components/gis/cadastral-editor/UnifiedGisMutationModal';
 import { CadastralBoundaryReshapeModal } from '../../../../components/gis/cadastral-editor/components/CadastralBoundaryReshapeModal';
+import { RevertToDraftModal } from './RevertToDraftModal';
+import { useAuth } from '../../../../context/AuthContext';
 import { AuditHistoryModal } from './AuditHistoryModal';
 import type { AuditHistoryLogItem } from './AuditHistoryModal';
 import type { GisParcel } from '../../../../components/gis/shared/types';
@@ -176,9 +178,16 @@ export const ZoneAuditReviewQueue: React.FC<Props> = ({
     fetchScopeCounts();
   }, [selectedZone, fetchScopeCounts]);
 
+  const { user } = useAuth();
+  const isZoneOrSuperAdmin = user?.role === 'ZONE_ADMIN' || user?.role === 'SUPER_ADMIN';
+
   // Modal Management
   const [selectedAuditReportId, setSelectedAuditReportId] = useState<string | null>(null);
   const [auditStudioOpen, setAuditStudioOpen] = useState(false);
+  const [revertModalData, setRevertModalData] = useState<{
+    reportId: string;
+    parcelCode: string;
+  } | null>(null);
 
   const [rejectModalData, setRejectModalData] = useState<{
     reportId: string;
@@ -401,6 +410,7 @@ export const ZoneAuditReviewQueue: React.FC<Props> = ({
           }
           onOpenReshapeModal={handleOpenReshape}
           onOpenAuditHistory={handleOpenAuditHistory}
+          onOpenRevertModal={isZoneOrSuperAdmin ? (item) => setRevertModalData({ reportId: item.report_id || '', parcelCode: item.project_parcel_code }) : undefined}
           onStatsNeedRefresh={() => {
             fetchScopeCounts();
             if (onStatsNeedRefresh) onStatsNeedRefresh();
@@ -521,6 +531,21 @@ export const ZoneAuditReviewQueue: React.FC<Props> = ({
           onClose={() => setRejectModalData(null)}
           onSuccess={() => {
             setRejectModalData(null);
+            fetchScopeCounts();
+            if (onStatsNeedRefresh) onStatsNeedRefresh();
+          }}
+        />
+      )}
+
+      {/* Revert To Draft Modal */}
+      {revertModalData && (
+        <RevertToDraftModal
+          isOpen={Boolean(revertModalData)}
+          reportId={revertModalData.reportId}
+          parcelCode={revertModalData.parcelCode}
+          onClose={() => setRevertModalData(null)}
+          onSuccess={() => {
+            setRevertModalData(null);
             fetchScopeCounts();
             if (onStatsNeedRefresh) onStatsNeedRefresh();
           }}

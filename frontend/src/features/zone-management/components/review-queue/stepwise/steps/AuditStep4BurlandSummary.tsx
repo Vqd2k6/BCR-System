@@ -50,11 +50,17 @@ export const AuditStep4BurlandSummary: React.FC<Props> = ({
   const flagLevel = burland.structuralFlagLevel || 'NONE';
   const flagItem = STRUCTURAL_FLAG_LEVELS.find((f) => f.value === flagLevel) || STRUCTURAL_FLAG_LEVELS[0];
 
-  // Thu thập toàn bộ vết nứt để tính Histogram và tìm Vết nứt khống chế (Spotlight)
+  // Thu thập toàn bộ vết nứt mảng tường Z để tính Histogram Burland và tìm Vết nứt khống chế (Spotlight)
   const allDefects: DefectItem[] = [];
+  const availableZones: string[] = [];
+  const allStructuralElements: any[] = [];
+  const allStructuralDefects: any[] = [];
+
   if (Array.isArray(formState.floors)) {
     (formState.floors as FloorSurveyData[]).forEach((fl: FloorSurveyData) => {
       (fl.zones || []).forEach((z: DamageZoneData) => {
+        const zCode = z.zoneCode || z.id;
+        if (zCode && !availableZones.includes(zCode)) availableZones.push(zCode);
         (z.defects || []).forEach((d: DefectItem) => {
           allDefects.push({
             ...d,
@@ -63,9 +69,28 @@ export const AuditStep4BurlandSummary: React.FC<Props> = ({
           });
         });
       });
+      (fl.structuralElements || []).forEach((elem: any) => {
+        allStructuralElements.push({
+          ...elem,
+          floorName: fl.floorName,
+        });
+        (elem.defects || []).forEach((d: DefectItem) => {
+          allStructuralDefects.push({
+            ...d,
+            elementCode: elem.elementCode || elem.id,
+            elementType: elem.elementType || 'Cột/Dầm BTCT',
+            materialType: elem.materialType || 'BTCT',
+            dimensions: elem.dimensions || elem.sectionDimensions,
+            structuralIntegrity: elem.structuralIntegrity,
+            floorName: fl.floorName,
+          });
+        });
+      });
     });
   } else if (Array.isArray(formState.damageZones)) {
     (formState.damageZones as DamageZoneData[]).forEach((z: DamageZoneData) => {
+      const zCode = z.zoneCode || z.id;
+      if (zCode && !availableZones.includes(zCode)) availableZones.push(zCode);
       (z.defects || []).forEach((d: DefectItem) => {
         allDefects.push({
           ...d,
@@ -76,7 +101,9 @@ export const AuditStep4BurlandSummary: React.FC<Props> = ({
     });
   }
 
-  // Đếm tần suất theo cấp Burland 0-5
+  if (availableZones.length === 0) availableZones.push('Z-01');
+
+  // Đếm tần suất theo cấp Burland 0-5 (chỉ dành cho vết nứt tường gạch Z)
   const gradeCounts = [0, 0, 0, 0, 0, 0];
   allDefects.forEach((d) => {
     const g = Number(d.burlandGrade ?? d.burland_grade ?? 0);
@@ -128,281 +155,404 @@ export const AuditStep4BurlandSummary: React.FC<Props> = ({
         </div>
       </div>
 
-      <div className="p-5 space-y-5">
-        {/* ĐIỂM MỚI 2: SPOTLIGHT VẾT NỨT NẶNG NHẤT & HISTOGRAM PHÂN BỔ */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {/* 1. Thẻ Spotlight Vết Nứt Khống Chế Nguy Cơ Nhất */}
-          <div className="p-4 rounded-xl bg-red-50/60 border border-red-200 space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-black uppercase text-red-950 flex items-center gap-1.5">
-                <Sparkles className="w-4 h-4 text-red-600" />
-                <span>Vết Nứt Đại Diện Khống Chế Nguy Cơ (Governing Crack)</span>
-              </span>
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-200 text-red-900 font-mono">
-                Cấp {maxGrade}
-              </span>
-            </div>
+      <div className="p-5 space-y-6">
+        {/* PHẦN 4.1: VẾT NỨT TƯỜNG XÂY GẠCH THEO CHUẨN BURLAND 1977 (VÙNG Z) */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+            <span className="text-xs sm:text-sm font-black text-slate-800 uppercase tracking-wide flex items-center gap-2">
+              <span className="px-2 py-0.5 rounded bg-sky-100 text-sky-800 font-mono text-xs">Mục 4.1</span>
+              Phân Bố Vết Nứt Tường Xây Gạch Theo Chuẩn Burland 1977 (Chỉ Áp Dụng Cho Mảng Tường Z)
+            </span>
+            <span className="text-[11px] text-slate-500 font-mono font-bold">
+              {allDefects.length} vết nứt tường gạch
+            </span>
+          </div>
 
-            {governingDefect ? (
-              <div className="flex items-center gap-3 bg-white p-3 rounded-xl border border-red-200">
-                <div
-                  className="w-24 h-20 rounded-lg overflow-hidden bg-slate-100 border border-slate-200 relative group cursor-pointer shrink-0"
-                  onClick={() => {
-                    if (onOpenPhotoZoom && govPhotoUrl) {
-                      onOpenPhotoZoom(govPhotoUrl, `Vết nứt khống chế ${govCode} (Rộng ${govWidth}mm)`, govCode);
-                    }
-                  }}
-                >
-                  {govPhotoUrl ? (
-                    <>
-                      <img src={govPhotoUrl} alt={govCode} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
-                      <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
-                        <Maximize2 className="w-4 h-4 drop-shadow-md" />
+          {/* SPOTLIGHT VẾT NỨT NẶNG NHẤT & HISTOGRAM PHÂN BỔ */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* 1. Thẻ Spotlight Vết Nứt Khống Chế Nguy Cơ Nhất */}
+            <div className="p-4 rounded-xl bg-red-50/60 border border-red-200 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-black uppercase text-red-950 flex items-center gap-1.5">
+                  <Sparkles className="w-4 h-4 text-red-600" />
+                  <span>Vết Nứt Đại Diện Khống Chế Nguy Cơ (Governing Crack)</span>
+                </span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-200 text-red-900 font-mono">
+                  Cấp {maxGrade}
+                </span>
+              </div>
+
+              {governingDefect ? (
+                <div className="flex items-center gap-3 bg-white p-3 rounded-xl border border-red-200">
+                  <div
+                    className="w-24 h-20 rounded-lg overflow-hidden bg-slate-100 border border-slate-200 relative group cursor-pointer shrink-0"
+                    onClick={() => {
+                      if (onOpenPhotoZoom && govPhotoUrl) {
+                        onOpenPhotoZoom(govPhotoUrl, `Vết nứt khống chế ${govCode} (Rộng ${govWidth}mm)`, govCode);
+                      }
+                    }}
+                  >
+                    {govPhotoUrl ? (
+                      <>
+                        <img src={govPhotoUrl} alt={govCode} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                        <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                          <Maximize2 className="w-4 h-4 drop-shadow-md" />
+                        </div>
+                      </>
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-[10px] text-slate-400 italic">
+                        Chưa có ảnh
                       </div>
-                    </>
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-[10px] text-slate-400 italic">
-                      Chưa có ảnh
+                    )}
+                  </div>
+
+                  <div className="min-w-0 flex-1 text-xs space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="font-mono font-black text-sm text-red-700">{govCode}</span>
+                      <span className="text-[11px] font-bold text-slate-700 font-mono">
+                        Bề rộng: <strong className="text-red-600 text-xs">{govWidth} mm</strong>
+                      </span>
                     </div>
-                  )}
-                </div>
+                    <div className="text-[11px] text-slate-600 truncate">
+                      Vị trí: <strong>{governingDefect.floorName} &bull; {governingDefect.zoneCode}</strong>
+                    </div>
+                    <div className="text-[10px] text-slate-500 italic truncate">
+                      {governingDefect.notes || 'Vết nứt có bề rộng lớn nhất khống chế chỉ số E1 của toàn bộ công trình.'}
+                    </div>
+                    <div className="flex items-center gap-2 pt-0.5 flex-wrap">
+                      {onOpenPhotoZoom && govPhotoUrl && (
+                        <button
+                          type="button"
+                          onClick={() => onOpenPhotoZoom(govPhotoUrl, `Vết nứt khống chế ${govCode}`, govCode)}
+                          className="text-[11px] font-bold text-sky-600 hover:text-sky-800 flex items-center gap-1 cursor-pointer"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                          <span>Click soi ảnh Macro có thước đo mm</span>
+                        </button>
+                      )}
+                      {onOpenPhotoHistory && govPhotoUrl && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            onOpenPhotoHistory({
+                              photoCode: govCode,
+                              photoType: 'CU',
+                              photoTitle: `Vết nứt khống chế ${govCode}`,
+                              currentPhotoUrl: govPhotoUrl,
+                            })
+                          }
+                          className="text-[11px] font-bold text-slate-700 hover:text-sky-700 bg-slate-100 hover:bg-sky-50 px-2 py-0.5 rounded flex items-center gap-1 cursor-pointer border border-slate-200"
+                          title="Xem lịch sử và phả hệ phiên bản của ảnh vết nứt này"
+                        >
+                          <History className="w-3.5 h-3.5 text-sky-600" />
+                          <span>Lịch sử phiên bản</span>
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const defectCodeOrId = governingDefect.defectCode || governingDefect.id || govCode;
+                          const zCode = governingDefect.zoneCode;
+                          const targetDefectEl = document.getElementById(`defect-card-${defectCodeOrId}`);
+                          const targetZoneEl = zCode ? document.getElementById(`zone-card-${zCode}`) : null;
+                          const target = targetDefectEl || targetZoneEl;
 
-                <div className="min-w-0 flex-1 text-xs space-y-1">
-                  <div className="flex items-center justify-between">
-                    <span className="font-mono font-black text-sm text-red-700">{govCode}</span>
-                    <span className="text-[11px] font-bold text-slate-700 font-mono">
-                      Bề rộng: <strong className="text-red-600 text-xs">{govWidth} mm</strong>
-                    </span>
-                  </div>
-                  <div className="text-[11px] text-slate-600 truncate">
-                    Vị trí: <strong>{governingDefect.floorName} &bull; {governingDefect.zoneCode}</strong>
-                  </div>
-                  <div className="text-[10px] text-slate-500 italic truncate">
-                    {governingDefect.notes || 'Vết nứt có bề rộng lớn nhất khống chế chỉ số E1 của toàn bộ công trình.'}
-                  </div>
-                  <div className="flex items-center gap-2 pt-0.5 flex-wrap">
-                    {onOpenPhotoZoom && govPhotoUrl && (
-                      <button
-                        type="button"
-                        onClick={() => onOpenPhotoZoom(govPhotoUrl, `Vết nứt khống chế ${govCode}`, govCode)}
-                        className="text-[11px] font-bold text-sky-600 hover:text-sky-800 flex items-center gap-1 cursor-pointer"
+                          if (target) {
+                            target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            target.classList.add('ring-4', 'ring-amber-400', 'animate-pulse');
+                            setTimeout(() => {
+                              target.classList.remove('ring-4', 'ring-amber-400', 'animate-pulse');
+                            }, 3000);
+                          } else {
+                            const step3El = document.getElementById('step-4') || document.getElementById('step-3');
+                            step3El?.scrollIntoView({ behavior: 'smooth' });
+                          }
+                        }}
+                        className="text-[11px] font-bold text-emerald-800 hover:text-emerald-900 bg-emerald-100 hover:bg-emerald-200 px-2 py-0.5 rounded flex items-center gap-1 cursor-pointer shadow-2xs border border-emerald-300"
+                        title="Chuyển tới Vùng khảo sát chứa vết nứt này ở Bước 3 để xem đầy đủ mảng tường và điều chỉnh"
                       >
-                        <Eye className="w-3.5 h-3.5" />
-                        <span>Click soi ảnh Macro có thước đo mm</span>
+                        <Navigation className="w-3.5 h-3.5 text-emerald-700" />
+                        <span>📍 Chuyển tới Vùng {governingDefect.zoneCode || 'gốc'} ở Bước 3</span>
                       </button>
-                    )}
-                    {onOpenPhotoHistory && govPhotoUrl && (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          onOpenPhotoHistory({
-                            photoCode: govCode,
-                            photoType: 'CU',
-                            photoTitle: `Vết nứt khống chế ${govCode}`,
-                            currentPhotoUrl: govPhotoUrl,
-                          })
-                        }
-                        className="text-[11px] font-bold text-slate-700 hover:text-sky-700 bg-slate-100 hover:bg-sky-50 px-2 py-0.5 rounded flex items-center gap-1 cursor-pointer border border-slate-200"
-                        title="Xem lịch sử và phả hệ phiên bản của ảnh vết nứt này"
-                      >
-                        <History className="w-3.5 h-3.5 text-sky-600" />
-                        <span>Lịch sử phiên bản</span>
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const defectCodeOrId = governingDefect.defectCode || governingDefect.id || govCode;
-                        const zCode = governingDefect.zoneCode;
-                        const targetDefectEl = document.getElementById(`defect-card-${defectCodeOrId}`);
-                        const targetZoneEl = zCode ? document.getElementById(`zone-card-${zCode}`) : null;
-                        const target = targetDefectEl || targetZoneEl;
-
-                        if (target) {
-                          target.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                          target.classList.add('ring-4', 'ring-amber-400', 'animate-pulse');
-                          setTimeout(() => {
-                            target.classList.remove('ring-4', 'ring-amber-400', 'animate-pulse');
-                          }, 3000);
-                        } else {
-                          const step3El = document.getElementById('step-4') || document.getElementById('step-3');
-                          step3El?.scrollIntoView({ behavior: 'smooth' });
-                        }
-                      }}
-                      className="text-[11px] font-bold text-emerald-800 hover:text-emerald-900 bg-emerald-100 hover:bg-emerald-200 px-2 py-0.5 rounded flex items-center gap-1 cursor-pointer shadow-2xs border border-emerald-300"
-                      title="Chuyển tới Vùng khảo sát chứa vết nứt này ở Bước 3 để xem đầy đủ mảng tường và điều chỉnh"
-                    >
-                      <Navigation className="w-3.5 h-3.5 text-emerald-700" />
-                      <span>📍 Chuyển tới Vùng {governingDefect.zoneCode || 'gốc'} ở Bước 3</span>
-                    </button>
-                    {isEditMode && onOpenPhotoReplace && govPhotoUrl && (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          onOpenPhotoReplace({
-                            targetPhotoType: 'DEFECT_CU',
-                            defectId: governingDefect.id,
-                            targetPhotoId: governingDefect.defectCode || govCode,
-                            currentPhotoUrl: govPhotoUrl,
-                            photoTitle: `Vết nứt khống chế ${govCode}`,
-                          })
-                        }
-                        className="text-[11px] font-bold text-amber-700 hover:text-amber-800 bg-amber-100 hover:bg-amber-200 px-2 py-0.5 rounded flex items-center gap-1 cursor-pointer"
-                        title="Thay thế ảnh khuyết tật khống chế này"
-                      >
-                        <RefreshCw className="w-3.5 h-3.5" />
-                        <span>Thay ảnh khống chế</span>
-                      </button>
-                    )}
+                      {isEditMode && onOpenPhotoReplace && govPhotoUrl && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            onOpenPhotoReplace({
+                              targetPhotoType: 'DEFECT_CU',
+                              defectId: governingDefect.id,
+                              targetPhotoId: governingDefect.defectCode || govCode,
+                              currentPhotoUrl: govPhotoUrl,
+                              photoTitle: `Vết nứt khống chế ${govCode}`,
+                            })
+                          }
+                          className="text-[11px] font-bold text-amber-700 hover:text-amber-800 bg-amber-100 hover:bg-amber-200 px-2 py-0.5 rounded flex items-center gap-1 cursor-pointer"
+                          title="Thay thế ảnh khuyết tật khống chế này"
+                        >
+                          <RefreshCw className="w-3.5 h-3.5" />
+                          <span>Thay ảnh khống chế</span>
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ) : (
-              <div className="p-3 bg-white rounded-xl border border-red-100 text-xs text-slate-500 italic text-center">
-                Không ghi nhận khuyết tật nứt nào trong hồ sơ.
-              </div>
-            )}
-          </div>
-
-          {/* 2. Biểu Đồ Phân Bổ Vết Nứt Theo Cấp Burland (Histogram) */}
-          <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2.5">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-black uppercase text-slate-800 flex items-center gap-1.5">
-                <BarChart2 className="w-4 h-4 text-sky-600" />
-                <span>Phân Bổ Cấp Nứt Burland ({allDefects.length} vết nứt ghi nhận)</span>
-              </span>
-              <span className="text-[10px] text-slate-500">Tỷ lệ theo cấp 0 &rarr; 5</span>
+              ) : (
+                <div className="p-3 bg-white rounded-xl border border-red-100 text-xs text-slate-500 italic text-center">
+                  Không ghi nhận khuyết tật nứt nào trong hồ sơ.
+                </div>
+              )}
             </div>
 
-            <div className="space-y-1.5 pt-1">
-              {BURLAND_GRADES.map((bg) => {
-                const count = gradeCounts[bg.grade];
-                const pct = allDefects.length > 0 ? Math.round((count / allDefects.length) * 100) : 0;
-                const isMax = bg.grade === maxGrade;
+            {/* 2. Biểu Đồ Phân Bổ Vết Nứt Theo Cấp Burland (Histogram) */}
+            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-black uppercase text-slate-800 flex items-center gap-1.5">
+                  <BarChart2 className="w-4 h-4 text-sky-600" />
+                  <span>Phân Bổ Cấp Nứt Burland ({allDefects.length} vết nứt ghi nhận)</span>
+                </span>
+                <span className="text-[10px] text-slate-500">Tỷ lệ theo cấp 0 &rarr; 5</span>
+              </div>
 
-                return (
-                  <div key={bg.grade} className="flex items-center gap-2 text-xs">
-                    <span className={`w-14 font-mono font-bold text-[11px] ${isMax ? 'text-red-700 font-black' : 'text-slate-600'}`}>
-                      Cấp {bg.grade} {isMax ? '🎯' : ''}
-                    </span>
-                    <div className="flex-1 h-3 rounded-full bg-slate-200 overflow-hidden relative">
-                      <div
-                        className={`h-full rounded-full transition-all ${bg.color}`}
-                        style={{ width: `${pct}%` }}
-                      />
+              <div className="space-y-1.5 pt-1">
+                {BURLAND_GRADES.map((bg) => {
+                  const count = gradeCounts[bg.grade];
+                  const pct = allDefects.length > 0 ? Math.round((count / allDefects.length) * 100) : 0;
+                  const isMax = bg.grade === maxGrade;
+
+                  return (
+                    <div key={bg.grade} className="flex items-center gap-2 text-xs">
+                      <span className={`w-14 font-mono font-bold text-[11px] ${isMax ? 'text-red-700 font-black' : 'text-slate-600'}`}>
+                        Cấp {bg.grade} {isMax ? '🎯' : ''}
+                      </span>
+                      <div className="flex-1 h-3 rounded-full bg-slate-200 overflow-hidden relative">
+                        <div
+                          className={`h-full rounded-full transition-all ${bg.color}`}
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                      <span className="w-16 text-right font-mono text-[11px] font-bold text-slate-700">
+                        {count} ({pct}%)
+                      </span>
                     </div>
-                    <span className="w-16 text-right font-mono text-[11px] font-bold text-slate-700">
-                      {count} ({pct}%)
-                    </span>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          {/* 4 Chỉ số cốt lõi */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            {/* Cấp cực đại */}
+            <div className="p-3.5 bg-red-50/60 rounded-xl border border-red-200 space-y-1">
+              <span className="text-[11px] font-bold text-red-900 block">Cấp Độ Khống Chế Lớn Nhất (E1):</span>
+              {isEditMode ? (
+                <select
+                  value={maxGrade}
+                  onChange={(e) =>
+                    handleNestedFieldChange('burlandSummary', 'localMaxGrade', 'Cấp Burland cực đại', Number(e.target.value))
+                  }
+                  className="w-full p-1.5 bg-white border border-red-300 rounded-lg text-xs font-black text-red-700"
+                >
+                  {BURLAND_GRADES.map((bg) => (
+                    <option key={bg.grade} value={bg.grade}>
+                      {bg.label}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <div>
+                  <span className="text-xl font-black text-red-600">Cấp {maxGrade}</span>
+                  <span className="text-[10px] text-red-700 block">{BURLAND_GRADES[maxGrade]?.desc}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Cấp chủ đạo */}
+            <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
+              <span className="text-[11px] font-bold text-slate-600 block">Cấp Độ Nứt Chủ Đạo:</span>
+              {isEditMode ? (
+                <select
+                  value={predGrade}
+                  onChange={(e) =>
+                    handleNestedFieldChange('burlandSummary', 'predominantGrade', 'Cấp nứt chủ đạo', Number(e.target.value))
+                  }
+                  className="w-full p-1.5 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-800"
+                >
+                  {BURLAND_GRADES.map((bg) => (
+                    <option key={bg.grade} value={bg.grade}>
+                      {bg.label}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <div>
+                  <span className="text-xl font-black text-slate-800">Cấp {predGrade}</span>
+                  <span className="text-[10px] text-slate-500 block">{BURLAND_GRADES[predGrade]?.desc}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Vùng khống chế */}
+            <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
+              <span className="text-[11px] font-bold text-slate-600 block">Vùng Khống Chế Nguy Cơ:</span>
+              {isEditMode ? (
+                <select
+                  value={burland.governingZoneCode || availableZones[0] || 'Z-01'}
+                  onChange={(e) =>
+                    handleNestedFieldChange('burlandSummary', 'governingZoneCode', 'Vùng khống chế', e.target.value)
+                  }
+                  className="w-full p-1.5 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold text-slate-800"
+                >
+                  {availableZones.map((z) => (
+                    <option key={z} value={z}>
+                      {z}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <div>
+                  <span className="text-base font-black font-mono text-sky-700">
+                    {burland.governingZoneCode || 'Z-01'}
+                  </span>
+                  <span className="text-[10px] text-slate-500 block">Vùng chịu hư hại nặng nhất</span>
+                </div>
+              )}
+            </div>
+
+            {/* Tính đại diện */}
+            <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
+              <span className="text-[11px] font-bold text-slate-600 block">Tính Đại Diện Khảo Sát:</span>
+              {isEditMode ? (
+                <select
+                  value={burland.representativeness || 'GLOBAL'}
+                  onChange={(e) =>
+                    handleNestedFieldChange('burlandSummary', 'representativeness', 'Tính đại diện Burland', e.target.value)
+                  }
+                  className="w-full p-1.5 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-800"
+                >
+                  <option value="GLOBAL">GLOBAL - Đại diện toàn bộ</option>
+                  <option value="LOCAL">LOCAL - Cục bộ không gian</option>
+                </select>
+              ) : (
+                <div>
+                  <span className="text-sm font-bold text-slate-800">
+                    {burland.representativeness === 'LOCAL' ? 'LOCAL (Cục bộ)' : 'GLOBAL (Toàn thể)'}
+                  </span>
+                  <span className="text-[10px] text-slate-500 block">Phạm vi ứng xử biến dạng</span>
+                </div>
+              )}
             </div>
           </div>
         </div>
 
-        {/* 4 Chỉ số cốt lõi */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          {/* Cấp cực đại */}
-          <div className="p-3.5 bg-red-50/60 rounded-xl border border-red-200 space-y-1">
-            <span className="text-[11px] font-bold text-red-900 block">Cấp Độ Khống Chế Lớn Nhất (E1):</span>
-            {isEditMode ? (
-              <select
-                value={maxGrade}
-                onChange={(e) =>
-                  handleNestedFieldChange('burlandSummary', 'localMaxGrade', 'Cấp Burland cực đại', Number(e.target.value))
-                }
-                className="w-full p-1.5 bg-white border border-red-300 rounded-lg text-xs font-black text-red-700"
-              >
-                {BURLAND_GRADES.map((bg) => (
-                  <option key={bg.grade} value={bg.grade}>
-                    {bg.label}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <div>
-                <span className="text-xl font-black text-red-600">Cấp {maxGrade}</span>
-                <span className="text-[10px] text-red-700 block">{BURLAND_GRADES[maxGrade]?.desc}</span>
-              </div>
-            )}
+        {/* PHẦN 4.2: BẢNG TỔNG HỢP KHUYẾT TẬT TRÊN CẤU KIỆN KẾT CẤU CHỊU LỰC (CỘT, DẦM, SÀN E) */}
+        <div className="space-y-3 pt-2">
+          <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+            <span className="text-xs sm:text-sm font-black text-amber-950 uppercase tracking-wide flex items-center gap-2">
+              <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-900 font-mono text-xs">Mục 4.2</span>
+              Bảng Tổng Hợp Khuyết Tật Cấu Kiện Kết Cấu Chịu Lực (Cột, Dầm, Sàn BTCT E)
+            </span>
+            <span className="text-[11px] text-amber-800 font-mono font-bold">
+              {allStructuralElements.length} cấu kiện E &bull; {allStructuralDefects.length} khuyết tật kết cấu
+            </span>
           </div>
 
-          {/* Cấp chủ đạo */}
-          <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
-            <span className="text-[11px] font-bold text-slate-600 block">Cấp Độ Nứt Chủ Đạo:</span>
-            {isEditMode ? (
-              <select
-                value={predGrade}
-                onChange={(e) =>
-                  handleNestedFieldChange('burlandSummary', 'predominantGrade', 'Cấp nứt chủ đạo', Number(e.target.value))
-                }
-                className="w-full p-1.5 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-800"
-              >
-                {BURLAND_GRADES.map((bg) => (
-                  <option key={bg.grade} value={bg.grade}>
-                    {bg.label}
-                  </option>
-                ))}
-              </select>
-            ) : (
-              <div>
-                <span className="text-xl font-black text-slate-800">Cấp {predGrade}</span>
-                <span className="text-[10px] text-slate-500 block">{BURLAND_GRADES[predGrade]?.desc}</span>
-              </div>
-            )}
-          </div>
+          {allStructuralElements.length === 0 ? (
+            <div className="p-4 bg-amber-50/40 rounded-xl border border-amber-200 text-center text-xs text-amber-900 italic">
+              Không có cấu kiện chịu lực E riêng biệt hoặc toàn bộ khuyết tật nằm trên tường ngăn Z.
+            </div>
+          ) : (
+            <div className="overflow-x-auto rounded-xl border border-amber-200 bg-white">
+              <table className="w-full text-xs text-left">
+                <thead>
+                  <tr className="bg-amber-100/70 text-amber-950 font-bold border-b border-amber-200">
+                    <th className="p-2.5 w-24 text-center font-mono">Mã Cấu Kiện</th>
+                    <th className="p-2.5 w-32">Vị Trí / Tầng</th>
+                    <th className="p-2.5 w-40">Loại Cấu Kiện</th>
+                    <th className="p-2.5 w-36">Vật Liệu / Tiết Diện</th>
+                    <th className="p-2.5 w-36">Toàn Vẹn Kết Cấu</th>
+                    <th className="p-2.5 text-center w-28">Số Khuyết Tật D</th>
+                    <th className="p-2.5 text-center w-28">Nứt Max (mm)</th>
+                    <th className="p-2.5">Đánh Giá Nguy Cơ Chịu Lực</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-amber-100">
+                  {allStructuralElements.map((elem: any, idx: number) => {
+                    const eCode = elem.elementCode || `E-${idx + 1}`;
+                    const eDefs = Array.isArray(elem.defects) ? elem.defects : [];
+                    const maxDefWidth = eDefs.reduce((max: number, d: any) => {
+                      const w = Number(d.widthMaxMm ?? d.width_max_mm ?? 0);
+                      return w > max ? w : max;
+                    }, 0);
+                    const hasCriticalDefect = eDefs.some((d: any) => d.isStructuralCritical || d.is_structural_critical);
 
-          {/* Vùng khống chế */}
-          <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
-            <span className="text-[11px] font-bold text-slate-600 block">Vùng Khống Chế Nguy Cơ:</span>
-            {isEditMode ? (
-              <input
-                type="text"
-                value={burland.governingZoneCode || 'Z-01'}
-                onChange={(e) =>
-                  handleNestedFieldChange('burlandSummary', 'governingZoneCode', 'Vùng khống chế', e.target.value)
-                }
-                className="w-full p-1.5 bg-white border border-slate-300 rounded-lg text-xs font-mono font-bold text-slate-800"
-                placeholder="VD: Z-01"
-              />
-            ) : (
-              <div>
-                <span className="text-base font-black font-mono text-sky-700">
-                  {burland.governingZoneCode || 'Z-01'}
-                </span>
-                <span className="text-[10px] text-slate-500 block">Vùng chịu hư hại nặng nhất</span>
-              </div>
-            )}
-          </div>
-
-          {/* Tính đại diện */}
-          <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-1">
-            <span className="text-[11px] font-bold text-slate-600 block">Tính Đại Diện Khảo Sát:</span>
-            {isEditMode ? (
-              <select
-                value={burland.representativeness || 'GLOBAL'}
-                onChange={(e) =>
-                  handleNestedFieldChange('burlandSummary', 'representativeness', 'Tính đại diện Burland', e.target.value)
-                }
-                className="w-full p-1.5 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-800"
-              >
-                <option value="GLOBAL">GLOBAL - Đại diện toàn bộ</option>
-                <option value="LOCAL">LOCAL - Cục bộ không gian</option>
-              </select>
-            ) : (
-              <div>
-                <span className="text-sm font-bold text-slate-800">
-                  {burland.representativeness === 'LOCAL' ? 'LOCAL (Cục bộ)' : 'GLOBAL (Toàn thể)'}
-                </span>
-                <span className="text-[10px] text-slate-500 block">Phạm vi ứng xử biến dạng</span>
-              </div>
-            )}
-          </div>
+                    return (
+                      <tr key={elem.id || eCode} className="hover:bg-amber-50/50 transition-colors">
+                        <td className="p-2.5 text-center font-mono font-bold text-amber-900">
+                          <span className="px-2 py-0.5 rounded bg-amber-100 border border-amber-300">
+                            {eCode}
+                          </span>
+                        </td>
+                        <td className="p-2.5 font-bold text-slate-700">
+                          {elem.floorName || 'Tầng khảo sát'} &bull; {elem.roomName || 'Trục kết cấu'}
+                        </td>
+                        <td className="p-2.5 font-semibold text-slate-800">
+                          {elem.elementType || 'Cột/Dầm BTCT'}
+                        </td>
+                        <td className="p-2.5 text-slate-600">
+                          <div>{elem.materialType || 'BTCT'}</div>
+                          {elem.dimensions && <div className="text-[10px] font-mono text-slate-500">{elem.dimensions}</div>}
+                        </td>
+                        <td className="p-2.5 text-slate-700">
+                          {elem.structuralIntegrity || 'Nguyên vẹn'}
+                        </td>
+                        <td className="p-2.5 text-center font-mono font-bold text-slate-800">
+                          {eDefs.length}
+                        </td>
+                        <td className="p-2.5 text-center font-mono font-bold">
+                          {maxDefWidth > 0 ? (
+                            <span className={maxDefWidth >= 2.0 ? 'text-red-600' : 'text-amber-700'}>
+                              {maxDefWidth} mm
+                            </span>
+                          ) : (
+                            <span className="text-slate-400 font-normal">0 mm</span>
+                          )}
+                        </td>
+                        <td className="p-2.5">
+                          {hasCriticalDefect || maxDefWidth >= 2.0 ? (
+                            <span className="px-2 py-0.5 rounded bg-red-100 text-red-800 font-bold text-[10px] inline-flex items-center gap-1">
+                              <AlertTriangle className="w-3 h-3 text-red-600" />
+                              Nguy cơ kết cấu chịu lực
+                            </span>
+                          ) : eDefs.length > 0 ? (
+                            <span className="px-2 py-0.5 rounded bg-amber-100 text-amber-800 font-bold text-[10px]">
+                              Khuyết tật cục bộ nhẹ
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 font-bold text-[10px]">
+                              ✓ Kết cấu an toàn
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
 
-        {/* Cờ cảnh báo kết cấu & Thẩm tra kỹ sư */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+        {/* PHẦN 4.3: CỜ CẢNH BÁO KẾT CẤU & THẨM TRA KỸ SƯ */}
+        <div className="space-y-4 pt-2">
+          <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+            <span className="text-xs sm:text-sm font-black text-slate-800 uppercase tracking-wide flex items-center gap-2">
+              <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-800 font-mono text-xs">Mục 4.3</span>
+              Cờ Cảnh Báo Kết Cấu & Thẩm Tra Chuyên Môn Kỹ Sư Trưởng
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {/* Cờ kết cấu */}
           <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
             <label className="text-[11px] font-bold text-slate-700 block">
@@ -519,6 +669,7 @@ export const AuditStep4BurlandSummary: React.FC<Props> = ({
               )}
             </div>
           )}
+          </div>
         </div>
       </div>
     </section>

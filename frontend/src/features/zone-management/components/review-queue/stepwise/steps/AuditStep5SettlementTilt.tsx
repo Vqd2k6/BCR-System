@@ -15,7 +15,7 @@ import {
   Trash2,
   History,
 } from 'lucide-react';
-import { SETTLEMENT_LEVEL_OPTIONS, TILT_LEVEL_OPTIONS } from '../../../../../survey-phase1/components/step1/step1.constants';
+import { SETTLEMENT_LEVEL_OPTIONS, TILT_LEVEL_OPTIONS, DATA_SOURCES as PHASE1_DATA_SOURCES } from '../../../../../survey-phase1/components/step1/step1.constants';
 import { SAG_LEVEL_OPTIONS } from '../../../../../survey-phase1/constants/levelGuideConstants';
 import { AuditPhotoCard } from '../components/AuditPhotoCard';
 import type { AuditStepwiseFormState, StepwiseSettlementTilt, PhotoReplaceParams, AuditPhotoActionParams, AuditPhotoHistoryParams, PhotoActionPayload } from '../types';
@@ -33,14 +33,21 @@ interface Props {
   onUndoPhotoAction?: (action: PhotoActionPayload) => void;
 }
 
-const DATA_SOURCES_LIST = [
-  'Quan sát trực tiếp tại hiện trường',
+export const isDataSourceMatched = (selectedSources: string[], target: string): boolean => {
+  if (!Array.isArray(selectedSources)) return false;
+  const tNorm = target.toLowerCase().trim();
+  return selectedSources.some((s) => {
+    if (!s) return false;
+    const sNorm = s.toLowerCase().trim();
+    return sNorm === tNorm || sNorm.includes(tNorm) || tNorm.includes(sNorm);
+  });
+};
+
+const DATA_SOURCES_LIST = Array.from(new Set([
+  ...PHASE1_DATA_SOURCES,
   'Thước dây / Thước thép',
-  'Thước đo khoảng cách Laser',
   'Thước nivo / Quả dọi',
-  'Lời khai của chủ sở hữu',
-  'Bản vẽ hoàn công / Hồ sơ thiết kế',
-];
+]));
 
 export const AuditStep5SettlementTilt: React.FC<Props> = ({
   isEditMode,
@@ -234,7 +241,7 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                     className="px-2 py-0.5 rounded bg-sky-600 hover:bg-sky-700 text-white font-bold text-[9px] flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
                   >
                     <Plus className="w-2.5 h-2.5" />
-                    <span>+ Thêm Ảnh</span>
+                    <span>Thêm Ảnh</span>
                   </button>
                 )}
               </div>
@@ -423,7 +430,7 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                     className="px-2 py-0.5 rounded bg-sky-600 hover:bg-sky-700 text-white font-bold text-[9px] flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
                   >
                     <Plus className="w-2.5 h-2.5" />
-                    <span>+ Thêm Ảnh</span>
+                    <span>Thêm Ảnh</span>
                   </button>
                 )}
               </div>
@@ -602,7 +609,7 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                     className="px-2 py-0.5 rounded bg-sky-600 hover:bg-sky-700 text-white font-bold text-[9px] flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
                   >
                     <Plus className="w-2.5 h-2.5" />
-                    <span>+ Thêm Ảnh</span>
+                    <span>Thêm Ảnh</span>
                   </button>
                 )}
               </div>
@@ -725,7 +732,7 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                     className="px-2 py-0.5 rounded bg-sky-600 hover:bg-sky-700 text-white font-bold text-[9px] flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
                   >
                     <Plus className="w-2.5 h-2.5" />
-                    <span>+ Thêm Ảnh</span>
+                    <span>Thêm Ảnh</span>
                   </button>
                 )}
               </div>
@@ -868,7 +875,7 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
           {isEditMode ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 pt-1">
               {DATA_SOURCES_LIST.map((src) => {
-                const isChecked = dataSources.includes(src);
+                const isChecked = isDataSourceMatched(dataSources, src);
                 return (
                   <label
                     key={src}
@@ -882,7 +889,11 @@ export const AuditStep5SettlementTilt: React.FC<Props> = ({
                       onChange={(e) => {
                         const updated = e.target.checked
                           ? [...dataSources, src]
-                          : dataSources.filter((s) => s !== src);
+                          : dataSources.filter((s) => {
+                              const sNorm = s.toLowerCase().trim();
+                              const srcNorm = src.toLowerCase().trim();
+                              return sNorm !== srcNorm && !sNorm.includes(srcNorm) && !srcNorm.includes(sNorm);
+                            });
                         handleNestedFieldChange('settlementTilt', 'dataSource', 'Nguồn dữ liệu', updated);
                       }}
                       className="rounded text-emerald-600"

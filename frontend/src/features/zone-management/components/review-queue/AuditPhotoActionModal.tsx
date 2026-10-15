@@ -19,10 +19,10 @@ import {
   type ProcessedPhotoResult,
 } from '@/utils/photoProcessing';
 
-export type PhotoActionMode = 'REPLACE' | 'ADD' | 'DELETE';
+export type PhotoActionMode = 'REPLACE' | 'ADD' | 'DELETE' | 'RESTORE';
 
 export interface PhotoActionPayload {
-  action: 'ADD' | 'DELETE' | 'REPLACE';
+  action: 'ADD' | 'DELETE' | 'REPLACE' | 'RESTORE';
   category: string;
   targetPhotoType?: string;
   targetPhotoId?: string;
@@ -42,6 +42,9 @@ export interface PhotoActionPayload {
   deleteDefectItem?: boolean;
   pinX?: number;
   pinY?: number;
+  widthMaxMm?: number;
+  lengthMm?: number;
+  metadata?: Record<string, any>;
 }
 
 export interface AuditPhotoActionModalProps {
@@ -95,6 +98,8 @@ export const AuditPhotoActionModal: React.FC<AuditPhotoActionModalProps> = ({
   const [deleteDefectItem, setDeleteDefectItem] = useState<boolean>(false);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string>('');
+  const [defectWidthMaxMm, setDefectWidthMaxMm] = useState<string>('0.2');
+  const [defectLengthMm, setDefectLengthMm] = useState<string>('50');
 
   // State cho Tab Thay Thế
   const [replaceProcessed, setReplaceProcessed] = useState<ProcessedPhotoResult | null>(null);
@@ -109,6 +114,8 @@ export const AuditPhotoActionModal: React.FC<AuditPhotoActionModalProps> = ({
       setNaReason('');
       setDeleteDefectItem(false);
       setErrorMessage('');
+      setDefectWidthMaxMm('0.2');
+      setDefectLengthMm('50');
       setReplaceProcessed(null);
       setBatchProcessed([]);
     }
@@ -196,6 +203,11 @@ export const AuditPhotoActionModal: React.FC<AuditPhotoActionModalProps> = ({
       return;
     }
 
+    if (category === 'MINUTES' && reason.trim().length < 5) {
+      setErrorMessage('Biên bản khảo sát hiện trường là căn cứ pháp lý quan trọng. Vui lòng nhập lý do điều chỉnh chi tiết tối thiểu 5 ký tự.');
+      return;
+    }
+
     if (activeTab === 'REPLACE') {
       if (!replaceProcessed) {
         setErrorMessage('Vui lòng chọn ảnh mới để thay thế.');
@@ -247,6 +259,15 @@ export const AuditPhotoActionModal: React.FC<AuditPhotoActionModalProps> = ({
         return;
       }
 
+      if (isDefectCuPhoto) {
+        const w = Number(defectWidthMaxMm);
+        const l = Number(defectLengthMm);
+        if (isNaN(w) || w <= 0 || isNaN(l) || l <= 0) {
+          setErrorMessage('Vui lòng nhập bề rộng lớn nhất (> 0 mm) và chiều dài (> 0 mm) hợp lệ cho khuyết tật.');
+          return;
+        }
+      }
+
       setIsProcessing(true);
       try {
         const uploadedUrls: string[] = [];
@@ -282,6 +303,8 @@ export const AuditPhotoActionModal: React.FC<AuditPhotoActionModalProps> = ({
           reason,
           pinX: initialPinX,
           pinY: initialPinY,
+          widthMaxMm: isDefectCuPhoto ? Number(defectWidthMaxMm) : undefined,
+          lengthMm: isDefectCuPhoto ? Number(defectLengthMm) : undefined,
         });
 
         onClose();
@@ -533,6 +556,48 @@ export const AuditPhotoActionModal: React.FC<AuditPhotoActionModalProps> = ({
                       </div>
                     ))}
                   </div>
+                </div>
+              )}
+
+              {isDefectCuPhoto && (
+                <div className="p-3.5 rounded-xl bg-blue-50 border border-blue-200 space-y-3">
+                  <div className="flex items-center gap-1.5 font-bold text-blue-900">
+                    <Layers className="w-4 h-4 text-blue-700" />
+                    <span>Thông số kỹ thuật khuyết tật bắt buộc (BCS Standard):</span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="font-semibold text-slate-700 text-[11px] block">
+                        Bề rộng vết nứt lớn nhất (mm) <span className="text-rose-500">*</span>:
+                      </label>
+                      <input
+                        type="number"
+                        step="0.05"
+                        min="0.05"
+                        value={defectWidthMaxMm}
+                        onChange={(e) => setDefectWidthMaxMm(e.target.value)}
+                        placeholder="VD: 0.20"
+                        className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-1 focus:ring-sky-500 bg-white"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="font-semibold text-slate-700 text-[11px] block">
+                        Chiều dài vết nứt (mm) <span className="text-rose-500">*</span>:
+                      </label>
+                      <input
+                        type="number"
+                        step="1"
+                        min="1"
+                        value={defectLengthMm}
+                        onChange={(e) => setDefectLengthMm(e.target.value)}
+                        placeholder="VD: 150"
+                        className="w-full px-3 py-1.5 text-xs border border-slate-300 rounded-lg focus:ring-1 focus:ring-sky-500 bg-white"
+                      />
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-blue-700">
+                    Hệ thống yêu cầu nhập kích thước hình học chính xác để lưu trữ vào bảng CSDL <code>defect_items</code> phục vụ giám định rủi ro công trình.
+                  </p>
                 </div>
               )}
             </div>

@@ -56,6 +56,7 @@ export interface AuditPhotoHistoryModalProps {
   photoTitle?: string;
   currentPhotoUrl?: string;
   onPhotoRestored?: () => void;
+  onStageRestoreAction?: (photo: PhotoHistoryItem, reason: string) => void;
 }
 
 export const AuditPhotoHistoryModal: React.FC<AuditPhotoHistoryModalProps> = ({
@@ -67,6 +68,7 @@ export const AuditPhotoHistoryModal: React.FC<AuditPhotoHistoryModalProps> = ({
   photoTitle = 'Ảnh Hiện Trường',
   currentPhotoUrl,
   onPhotoRestored,
+  onStageRestoreAction,
 }) => {
   const [historyItems, setHistoryItems] = useState<PhotoHistoryItem[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -128,6 +130,14 @@ export const AuditPhotoHistoryModal: React.FC<AuditPhotoHistoryModalProps> = ({
     if (!selectedItemToRestore) return;
     if (!restoreReason.trim()) {
       setRestoreError('Vui lòng nhập lý do khôi phục ảnh bắt buộc.');
+      return;
+    }
+
+    if (onStageRestoreAction) {
+      onStageRestoreAction(selectedItemToRestore, restoreReason.trim());
+      setSelectedItemToRestore(null);
+      setRestoreReason('');
+      onClose();
       return;
     }
 

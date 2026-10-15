@@ -291,24 +291,13 @@ export const AuditPhotoCard: React.FC<AuditPhotoCardProps> = ({
               {photoCode}
             </span>
           )}
-          {onOpenPhotoHistory && ((historyCount !== undefined && historyCount > 0) || hasHistory) && (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onOpenPhotoHistory({
-                  photoCode,
-                  photoType: targetPhotoType,
-                  photoTitle: title,
-                  currentPhotoUrl: url || '',
-                });
-              }}
-              className="px-1.5 py-0.5 rounded font-mono font-bold text-[9px] bg-violet-600/90 hover:bg-violet-600 text-white flex items-center gap-1 shadow-xs cursor-pointer transition-colors"
-              title={`Lịch sử phiên bản (${historyCount || 1} bản)`}
+          {((historyCount !== undefined && historyCount > 0) || hasHistory) && (
+            <span
+              className="px-1.5 py-0.5 rounded font-mono font-bold text-[9px] bg-violet-600/90 text-white shadow-xs"
+              title={`Ảnh có ${historyCount || 1} phiên bản lịch sử`}
             >
-              <History className="w-2.5 h-2.5" />
-              <span>{historyCount ? `${historyCount} v` : 'LS'}</span>
-            </button>
+              v{historyCount || 1}
+            </span>
           )}
           {extraBadges}
         </div>

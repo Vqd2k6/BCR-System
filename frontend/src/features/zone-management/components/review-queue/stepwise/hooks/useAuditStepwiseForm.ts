@@ -188,7 +188,13 @@ export const useAuditStepwiseForm = ({ data, onOpenDiffModal }: UseAuditStepwise
               : []),
           notes: sJson.settlementTilt?.abnormalCase?.notes || defState.abnormal_notes || '',
         },
-        dataSource: Array.isArray(sJson.settlementTilt?.dataSource) ? sJson.settlementTilt.dataSource : [],
+        dataSource: Array.isArray(sJson.settlementTilt?.dataSource)
+          ? sJson.settlementTilt.dataSource
+          : Array.isArray((sJson.settlementTilt as any)?.dataSources)
+          ? (sJson.settlementTilt as any).dataSources
+          : Array.isArray((sJson as any).settlementTiltData?.dataSources)
+          ? (sJson as any).settlementTiltData.dataSources
+          : [],
         reliability: sJson.settlementTilt?.reliability || 'MEDIUM',
         needAdditionalMonitoring: sJson.settlementTilt?.needAdditionalMonitoring || {
           required: Boolean(defState.need_additional_monitoring),

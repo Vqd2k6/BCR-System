@@ -16,6 +16,13 @@ import {
   ArrowRight,
   Lock,
   ChevronDown,
+  Eye,
+  Copy,
+  Check,
+  MapPin,
+  Building,
+  ChevronRight,
+  FileCode,
 } from 'lucide-react';
 import { api } from '../../../../../services/api';
 import { getErrorMessage } from '@/utils/errorUtils';
@@ -64,6 +71,11 @@ export const VersionComparisonModal: React.FC<Props> = ({
   const [loadingSnapshot, setLoadingSnapshot] = useState(false);
   const [selectedSnapshot, setSelectedSnapshot] = useState<any | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
+
+  // Dual-mode state: Diff vs Full Snapshot
+  const [viewMode, setViewMode] = useState<'DIFF' | 'FULL_SNAPSHOT'>('DIFF');
+  const [copiedJson, setCopiedJson] = useState(false);
+  const [showRawJson, setShowRawJson] = useState(false);
 
   // Rollback prompt state
   const [showRollbackPrompt, setShowRollbackPrompt] = useState(false);
@@ -119,6 +131,9 @@ export const VersionComparisonModal: React.FC<Props> = ({
       setSelectedVerNumber(null);
       setSelectedSnapshot(null);
       setErrorMsg('');
+      setViewMode('DIFF');
+      setShowRawJson(false);
+      setCopiedJson(false);
       setShowRollbackPrompt(false);
       setAdminPassword('');
       setRollbackReason('');
@@ -264,6 +279,21 @@ export const VersionComparisonModal: React.FC<Props> = ({
     );
   };
 
+  // Helper row renderer for full snapshot inspection
+  const renderSnapshotField = (label: string, val: any, badge?: string) => (
+    <div className="py-2 px-3 rounded-lg border border-slate-800 bg-slate-900/60 text-xs flex items-start justify-between gap-2">
+      <span className="text-slate-400 font-normal shrink-0">{label}:</span>
+      <div className="flex items-center gap-1.5 text-right font-semibold text-slate-200">
+        <span className="break-words">{String(val ?? '---')}</span>
+        {badge && (
+          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 shrink-0">
+            {badge}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 animate-in fade-in duration-150">
       <div className="bg-slate-900 border border-slate-700/80 rounded-2xl shadow-2xl flex flex-col w-full max-w-7xl h-[92vh] overflow-hidden text-slate-100">
@@ -315,38 +345,68 @@ export const VersionComparisonModal: React.FC<Props> = ({
           </div>
         </div>
 
-        {/* Toolbar: Version Picker Carousel */}
-        <div className="px-6 py-3 bg-slate-900 border-b border-slate-800 flex items-center gap-3 overflow-x-auto shrink-0">
-          <span className="text-xs font-bold text-slate-400 shrink-0 flex items-center gap-1.5">
-            <GitBranch className="w-3.5 h-3.5 text-indigo-400" />
-            Chọn phiên bản so sánh:
-          </span>
+        {/* Toolbar: Version Picker Carousel & Dual-Mode Tabs */}
+        <div className="px-6 py-3 bg-slate-900 border-b border-slate-800 flex items-center justify-between gap-3 shrink-0">
+          <div className="flex items-center gap-2 overflow-x-auto min-w-0">
+            <span className="text-xs font-bold text-slate-400 shrink-0 flex items-center gap-1.5">
+              <GitBranch className="w-3.5 h-3.5 text-indigo-400" />
+              Phiên bản:
+            </span>
 
-          <div className="flex items-center gap-2">
-            {versions.map((v) => {
-              const isSelected = v.versionNumber === selectedVerNumber;
-              const isCurrent = v.versionNumber === latestVersionNumber;
-              return (
-                <button
-                  key={v.id || v.versionNumber}
-                  type="button"
-                  onClick={() => setSelectedVerNumber(v.versionNumber)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-2 cursor-pointer border ${
-                    isSelected
-                      ? 'bg-indigo-600 text-white border-indigo-400 shadow-md shadow-indigo-600/30'
-                      : 'bg-slate-800/80 text-slate-300 border-slate-700 hover:bg-slate-800 hover:text-white'
-                  }`}
-                >
-                  <span className="font-mono font-bold">v{v.versionNumber}</span>
-                  {isCurrent && (
-                    <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-emerald-500 text-slate-950">
-                      Hiện tại
-                    </span>
-                  )}
-                  <span className="text-[11px] opacity-80 truncate max-w-[130px]">{v.title}</span>
-                </button>
-              );
-            })}
+            <div className="flex items-center gap-2">
+              {versions.map((v) => {
+                const isSelected = v.versionNumber === selectedVerNumber;
+                const isCurrent = v.versionNumber === latestVersionNumber;
+                return (
+                  <button
+                    key={v.id || v.versionNumber}
+                    type="button"
+                    onClick={() => setSelectedVerNumber(v.versionNumber)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all flex items-center gap-2 cursor-pointer border ${
+                      isSelected
+                        ? 'bg-indigo-600 text-white border-indigo-400 shadow-md shadow-indigo-600/30'
+                        : 'bg-slate-800/80 text-slate-300 border-slate-700 hover:bg-slate-800 hover:text-white'
+                    }`}
+                  >
+                    <span className="font-mono font-bold">v{v.versionNumber}</span>
+                    {isCurrent && (
+                      <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-emerald-500 text-slate-950">
+                        Hiện tại
+                      </span>
+                    )}
+                    <span className="text-[11px] opacity-80 truncate max-w-[130px]">{v.title}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Dual-Mode Tabs */}
+          <div className="flex items-center bg-slate-950/70 p-1 rounded-xl border border-slate-800 shrink-0">
+            <button
+              type="button"
+              onClick={() => setViewMode('DIFF')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
+                viewMode === 'DIFF'
+                  ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-600/30'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <GitBranch className="w-3.5 h-3.5" />
+              <span>Đối Soát Sai Khác (Diff)</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('FULL_SNAPSHOT')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
+                viewMode === 'FULL_SNAPSHOT'
+                  ? 'bg-indigo-600 text-white shadow-sm shadow-indigo-600/30'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <Eye className="w-3.5 h-3.5" />
+              <span>Bản Xem Đầy Đủ (Full Snapshot)</span>
+            </button>
           </div>
         </div>
 
@@ -376,37 +436,37 @@ export const VersionComparisonModal: React.FC<Props> = ({
           </div>
         )}
 
-        {/* Comparison Workspace (2 Columns) */}
+        {/* Comparison Workspace (Diff or Full Snapshot) */}
         <div className="flex-1 overflow-hidden flex flex-col bg-slate-950/30">
-          {/* Header titles for 2 columns */}
-          <div className="grid grid-cols-2 border-b border-slate-800 bg-slate-900/90 text-xs font-bold text-slate-300 shrink-0">
-            <div className="p-3 border-r border-slate-800 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-indigo-500" />
-                <span>Dữ Liệu Bản Chụp: Phiên Bản v{selectedVerNumber}</span>
-              </div>
-              {selectedVerItem && getTagBadge(selectedVerItem.versionTag)}
+          {loadingSnapshot ? (
+            <div className="flex-1 py-20 flex flex-col items-center justify-center text-slate-400 gap-3">
+              <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+              <span>Đang tải dữ liệu bản chụp phiên bản v{selectedVerNumber}...</span>
             </div>
-            <div className="p-3 flex items-center justify-between bg-slate-900/60">
-              <div className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
-                <span>Dữ Liệu Hiện Tại: Phiên Bản v{latestVersionNumber} (Active)</span>
+          ) : viewMode === 'DIFF' ? (
+            <>
+              {/* Header titles for 2 columns */}
+              <div className="grid grid-cols-2 border-b border-slate-800 bg-slate-900/90 text-xs font-bold text-slate-300 shrink-0">
+                <div className="p-3 border-r border-slate-800 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-indigo-500" />
+                    <span>Dữ Liệu Bản Chụp: Phiên Bản v{selectedVerNumber}</span>
+                  </div>
+                  {selectedVerItem && getTagBadge(selectedVerItem.versionTag)}
+                </div>
+                <div className="p-3 flex items-center justify-between bg-slate-900/60">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                    <span>Dữ Liệu Hiện Tại: Phiên Bản v{latestVersionNumber} (Active)</span>
+                  </div>
+                  <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                    Đang áp dụng
+                  </span>
+                </div>
               </div>
-              <span className="px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
-                Đang áp dụng
-              </span>
-            </div>
-          </div>
 
-          {/* Scrollable comparison lists */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-6">
-            {loadingSnapshot ? (
-              <div className="py-20 flex flex-col items-center justify-center text-slate-400 gap-3">
-                <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
-                <span>Đang tải dữ liệu bản chụp phiên bản v{selectedVerNumber}...</span>
-              </div>
-            ) : (
-              <>
+              {/* Scrollable comparison lists */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-6">
                 {/* Section 1: Thửa đất & Chủ hộ */}
                 <div className="bg-slate-900/80 rounded-xl border border-slate-800 p-4 space-y-2.5">
                   <h3 className="text-xs font-bold text-indigo-300 uppercase tracking-wider flex items-center gap-1.5 pb-2 border-b border-slate-800">
@@ -440,6 +500,7 @@ export const VersionComparisonModal: React.FC<Props> = ({
                     {renderCompareRow('Năm xây dựng', getSpecVal(snapLeft, 'yearOfConstruction'), getSpecVal(curLeft, 'yearOfConstruction'))}
                     {renderCompareRow('Năm XD ước lượng', String(getSpecVal(snapLeft, 'isYearEstimated')), String(getSpecVal(curLeft, 'isYearEstimated')))}
                     {renderCompareRow('Công năng sử dụng', getSpecVal(snapLeft, 'landUseFunction'), getSpecVal(curLeft, 'landUseFunction'))}
+                    {renderCompareRow('Phân loại cấp móng (CAT)', snapLeft?.specs?.foundationCatScore ?? '---', curLeft?.specs?.foundationCatScore ?? '---')}
                     {renderCompareRow('Độ sâu móng (m)', getSpecVal(snapLeft, 'foundationDepthM'), getSpecVal(curLeft, 'foundationDepthM'))}
                     {renderCompareRow('Khoảng cách móng (m)', getSpecVal(snapLeft, 'foundationSpacingM'), getSpecVal(curLeft, 'foundationSpacingM'))}
                     {renderCompareRow('Ghi chú móng', getSpecVal(snapLeft, 'foundationNotes'), getSpecVal(curLeft, 'foundationNotes'))}
@@ -545,9 +606,289 @@ export const VersionComparisonModal: React.FC<Props> = ({
                     )}
                   </div>
                 </div>
-              </>
-            )}
-          </div>
+              </div>
+            </>
+          ) : (
+            /* Full Snapshot View */
+            <div className="flex-1 overflow-y-auto p-5 space-y-6">
+              {/* Full Snapshot Info Callout */}
+              <div className="p-4 rounded-xl bg-indigo-500/10 border border-indigo-500/30 flex flex-wrap items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-indigo-500/20 border border-indigo-500/40 flex items-center justify-center text-indigo-400 shrink-0">
+                    <Eye className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h4 className="text-sm font-bold text-white">
+                        Bản Chụp Toàn Diện Hiện Trạng: Phiên Bản v{selectedVerNumber}
+                      </h4>
+                      {selectedVerItem && getTagBadge(selectedVerItem.versionTag)}
+                    </div>
+                    <p className="text-xs text-slate-300 mt-0.5">
+                      Lưu vết bất biến lúc {selectedVerItem?.createdAt ? new Date(selectedVerItem.createdAt).toLocaleString('vi-VN') : '---'} bởi{' '}
+                      <strong className="text-white">{selectedVerItem?.createdByName || 'Hệ thống'}</strong>
+                      {selectedVerItem?.editReason && (
+                        <span> — Lý do: &ldquo;{selectedVerItem.editReason}&rdquo;</span>
+                      )}
+                    </p>
+                  </div>
+                </div>
+                {!isSelectedCurrent && selectedVerNumber !== null && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRollbackError('');
+                      setShowRollbackPrompt(true);
+                    }}
+                    className="px-3.5 py-2 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-500 text-white shadow-md shadow-rose-600/30 transition-all flex items-center gap-1.5 cursor-pointer shrink-0 active:scale-95"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                    <span>Khôi Phục Theo Bản Chụp v{selectedVerNumber}</span>
+                  </button>
+                )}
+              </div>
+
+              {/* Section 1: Thông tin Thửa đất & Chủ sở hữu */}
+              <div className="bg-slate-900/80 rounded-xl border border-slate-800 p-4 space-y-3">
+                <h3 className="text-xs font-bold text-indigo-300 uppercase tracking-wider flex items-center gap-1.5 pb-2 border-b border-slate-800">
+                  <FileText className="w-4 h-4 text-indigo-400" />
+                  <span>1. Thông Tin Định Danh & Thửa Đất</span>
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                  {renderSnapshotField('Số nhà', getParcelVal(snapLeft, 'houseNumber'))}
+                  {renderSnapshotField('Đường / Phố', getParcelVal(snapLeft, 'street'))}
+                  {renderSnapshotField('Phường / Xã', getParcelVal(snapLeft, 'ward'))}
+                  {renderSnapshotField('Quận / Huyện', getParcelVal(snapLeft, 'district'))}
+                  {renderSnapshotField('Tên chủ hộ', getParcelVal(snapLeft, 'ownerName'))}
+                  {renderSnapshotField('Số điện thoại', getParcelVal(snapLeft, 'ownerPhone'))}
+                  {renderSnapshotField('Số tờ / Số thửa', getParcelVal(snapLeft, 'officialCadastralCode'))}
+                  {renderSnapshotField('Diện tích đất (m²)', getParcelVal(snapLeft, 'landAreaM2'))}
+                  {renderSnapshotField('Diện tích XD (m²)', getParcelVal(snapLeft, 'constructionAreaM2'))}
+                  {renderSnapshotField('Chiều rộng MT (m)', getParcelVal(snapLeft, 'frontageWidth'))}
+                  {renderSnapshotField('Chiều sâu thửa (m)', getParcelVal(snapLeft, 'lotDepth'))}
+                </div>
+              </div>
+
+              {/* Section 2: Thông số kỹ thuật & Móng */}
+              <div className="bg-slate-900/80 rounded-xl border border-slate-800 p-4 space-y-3">
+                <h3 className="text-xs font-bold text-indigo-300 uppercase tracking-wider flex items-center gap-1.5 pb-2 border-b border-slate-800">
+                  <Layers className="w-4 h-4 text-indigo-400" />
+                  <span>2. Thông Số Kỹ Thuật, Móng & Bản Vẽ Hoàn Công</span>
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                  {renderSnapshotField('Số tầng nổi', getSpecVal(snapLeft, 'floorCount'))}
+                  {renderSnapshotField('Số tầng hầm', getSpecVal(snapLeft, 'basementCount'))}
+                  {renderSnapshotField('Năm xây dựng', getSpecVal(snapLeft, 'yearOfConstruction'))}
+                  {renderSnapshotField('Năm XD ước lượng', String(getSpecVal(snapLeft, 'isYearEstimated')))}
+                  {renderSnapshotField('Công năng sử dụng', getSpecVal(snapLeft, 'landUseFunction'))}
+                  {renderSnapshotField(
+                    'Cấp móng (CAT)',
+                    snapLeft?.specs?.foundationCatScore ?? snapData?.foundationCatScore ?? '---',
+                    snapLeft?.specs?.foundationCatScore ? `CAT ${snapLeft.specs.foundationCatScore}` : undefined
+                  )}
+                  {renderSnapshotField('Độ sâu móng (m)', getSpecVal(snapLeft, 'foundationDepthM'))}
+                  {renderSnapshotField('Khoảng cách móng (m)', getSpecVal(snapLeft, 'foundationSpacingM'))}
+                  {renderSnapshotField('Ghi chú móng', getSpecVal(snapLeft, 'foundationNotes'))}
+                </div>
+
+                {/* As-Built Drawings */}
+                {snapData?.asBuiltDrawings && snapData.asBuiltDrawings.length > 0 && (
+                  <div className="mt-3 pt-3 border-t border-slate-800">
+                    <span className="text-xs font-bold text-slate-300 block mb-2">
+                      Bản vẽ hoàn công đính kèm ({snapData.asBuiltDrawings.length}):
+                    </span>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      {snapData.asBuiltDrawings.map((drawing: any, idx: number) => (
+                        <div key={idx} className="bg-slate-950 rounded-lg p-2 border border-slate-800">
+                          {drawing.photoUrl ? (
+                            <img
+                              src={drawing.photoUrl}
+                              alt={drawing.title || `Bản vẽ ${idx + 1}`}
+                              className="w-full h-24 object-cover rounded mb-1"
+                            />
+                          ) : (
+                            <div className="w-full h-24 bg-slate-900 rounded flex items-center justify-center text-slate-600 mb-1">
+                              <FileText className="w-6 h-6" />
+                            </div>
+                          )}
+                          <p className="text-[11px] font-medium text-slate-300 truncate">
+                            {drawing.title || `Bản vẽ ${idx + 1}`}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Section 3: Mặt bằng các tầng & Vùng hư hại / Ghim CAD */}
+              <div className="bg-slate-900/80 rounded-xl border border-slate-800 p-4 space-y-3">
+                <h3 className="text-xs font-bold text-indigo-300 uppercase tracking-wider flex items-center gap-1.5 pb-2 border-b border-slate-800">
+                  <MapPin className="w-4 h-4 text-indigo-400" />
+                  <span>3. Mặt Bằng Các Tầng, Vùng Hư Hại & Ghim CAD</span>
+                </h3>
+                {(() => {
+                  const floors = snapRight?.floors || snapData?.floors || snapJson?.floors || [];
+                  if (!Array.isArray(floors) || floors.length === 0) {
+                    return (
+                      <p className="text-xs text-slate-400 italic py-2">
+                        Không có dữ liệu mặt bằng tầng trong bản chụp này.
+                      </p>
+                    );
+                  }
+                  return (
+                    <div className="space-y-3">
+                      {floors.map((floor: any, fIdx: number) => {
+                        const zones = floor.damageZones || floor.zones || [];
+                        return (
+                          <div key={fIdx} className="bg-slate-950/70 rounded-xl border border-slate-800 p-3.5 space-y-2.5">
+                            <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+                              <span className="text-xs font-bold text-white flex items-center gap-2">
+                                <Building className="w-4 h-4 text-indigo-400" />
+                                <span>{floor.floorName || `Tầng ${floor.floorNumber ?? fIdx + 1}`}</span>
+                              </span>
+                              <span className="text-[11px] text-slate-400">
+                                {zones.length} Vùng hư hại (Z)
+                              </span>
+                            </div>
+
+                            {zones.length === 0 ? (
+                              <p className="text-xs text-slate-500 italic">Không có vùng hư hại trên tầng này.</p>
+                            ) : (
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                                {zones.map((zone: any, zIdx: number) => {
+                                  const defects = zone.defects || zone.defectItems || [];
+                                  return (
+                                    <div key={zIdx} className="bg-slate-900 rounded-lg p-2.5 border border-slate-800/80 space-y-1.5">
+                                      <div className="flex items-center justify-between">
+                                        <span className="text-xs font-bold text-indigo-300">
+                                          {zone.zoneCode || `Z${zIdx + 1}`}: {zone.zoneName || 'Vùng hư hại'}
+                                        </span>
+                                        {zone.cadPins && (
+                                          <span className="text-[10px] text-slate-400 font-mono">
+                                            📍 X: {zone.cadPins.xPercent ?? zone.cadPins.x ?? 0}%, Y: {zone.cadPins.yPercent ?? zone.cadPins.y ?? 0}%
+                                          </span>
+                                        )}
+                                      </div>
+                                      {defects.length > 0 && (
+                                        <div className="text-[11px] text-slate-300 space-y-0.5">
+                                          {defects.map((def: any, dIdx: number) => (
+                                            <div key={dIdx} className="flex items-center gap-1.5 text-slate-300">
+                                              <span className="text-amber-400 font-bold">•</span>
+                                              <span className="font-mono text-indigo-300">{def.defectCode || `D${dIdx + 1}`}:</span>
+                                              <span>{def.defectType || def.description || 'Khuyết tật'}</span>
+                                              {def.severity && (
+                                                <span className="text-[10px] px-1 py-0.2 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20">
+                                                  Cấp {def.severity}
+                                                </span>
+                                              )}
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
+              </div>
+
+              {/* Section 4: Bảng điểm rủi ro (ECS / VI / BRA) */}
+              <div className="bg-slate-900/80 rounded-xl border border-slate-800 p-4 space-y-3">
+                <h3 className="text-xs font-bold text-indigo-300 uppercase tracking-wider flex items-center gap-1.5 pb-2 border-b border-slate-800">
+                  <Shield className="w-4 h-4 text-indigo-400" />
+                  <span>4. Đánh Giá Rủi Ro (ECS / VI / BRA) & Phán Quyết Chuyên Môn</span>
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2.5">
+                  {renderSnapshotField('E1 - Hạng nứt Burland', snapRight?.riskCard?.e1_burland_score ?? '---')}
+                  {renderSnapshotField('E2 - Khuyết tật kết cấu', snapRight?.riskCard?.e2_structure_score ?? '---')}
+                  {renderSnapshotField('E3 - Biến dạng lún nghiêng', snapRight?.riskCard?.e3_deformation_score ?? '---')}
+                  {renderSnapshotField('E4 - Hiện trạng vật liệu', snapRight?.riskCard?.e4_material_score ?? '---')}
+                  {renderSnapshotField('E5 - Lịch sử công trình', snapRight?.riskCard?.e5_history_score ?? '---')}
+                  {renderSnapshotField('E6 - Công năng & Môi trường', snapRight?.riskCard?.e6_overall_function_score ?? '---')}
+                  {renderSnapshotField(
+                    'Tổng điểm ECS',
+                    snapRight?.riskCard?.total_ecs_score ?? '---',
+                    snapRight?.riskCard?.ecs_class ? `Hạng ${snapRight.riskCard.ecs_class}` : undefined
+                  )}
+                  {renderSnapshotField(
+                    'Điểm tổn thương VI trung bình',
+                    snapRight?.riskCard?.avg_vi_score ?? '---',
+                    snapRight?.riskCard?.vi_class ? `Hạng ${snapRight.riskCard.vi_class}` : undefined
+                  )}
+                  {renderSnapshotField('Đánh giá rủi ro chung (BRA)', snapRight?.riskCard?.bra ?? '---', snapRight?.riskCard?.bra)}
+                  {renderSnapshotField('Cấp độ tác động thi công (I)', snapRight?.riskCard?.construction_impact_level_i ?? '---')}
+                  {renderSnapshotField('Phán quyết KST áp dụng', String(snapRight?.riskCard?.is_engineering_judgement_applied ?? false))}
+                  {renderSnapshotField('Hành động phán quyết', snapRight?.riskCard?.engineering_judgement_action ?? '---')}
+                </div>
+                {snapRight?.riskCard?.is_engineering_judgement_applied && (
+                  <div className="p-3 rounded-lg bg-purple-500/10 border border-purple-500/30 text-xs space-y-1">
+                    <span className="font-bold text-purple-300">Lý do can thiệp chuyên gia:</span>
+                    <p className="text-slate-300 italic">{snapRight?.riskCard?.engineering_judgement_reason || 'Không có lý do chi tiết'}</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Section 5: Hồ sơ ảnh & Biên bản */}
+              <div className="bg-slate-900/80 rounded-xl border border-slate-800 p-4 space-y-3">
+                <h3 className="text-xs font-bold text-indigo-300 uppercase tracking-wider flex items-center gap-1.5 pb-2 border-b border-slate-800">
+                  <Camera className="w-4 h-4 text-indigo-400" />
+                  <span>5. Hồ Sơ Ảnh Hiện Trường (P-01..P-04) & Chữ Ký Biên Bản</span>
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                  {renderSnapshotField('Họ tên Khảo sát viên', snapJson?.signatures?.surveyorName || snapData?.surveyorName)}
+                  {renderSnapshotField('Chữ ký KSV', snapData?.surveyorSignatureUrl ? 'Đã ký xác nhận' : 'Chưa có')}
+                  {renderSnapshotField('Chữ ký Chủ nhà / Đại diện', snapData?.ownerSignatureUrl ? 'Đã ký xác nhận' : 'Chưa có')}
+                  {renderSnapshotField('Ý kiến của chủ hộ', snapJson?.signatures?.ownerFeedback || snapData?.ownerRemarks)}
+                  {renderSnapshotField('Khuyến nghị kỹ thuật', snapData?.engineeringRecommendations || snapLeft?.conclusions?.recommendations)}
+                </div>
+              </div>
+
+              {/* Section 6: Bản Chụp Dữ Liệu JSON (Raw Snapshot) */}
+              <div className="bg-slate-900/80 rounded-xl border border-slate-800 p-4 space-y-3">
+                <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+                  <h3 className="text-xs font-bold text-indigo-300 uppercase tracking-wider flex items-center gap-1.5">
+                    <FileCode className="w-4 h-4 text-indigo-400" />
+                    <span>6. Bản Chụp Dữ Liệu Gốc (Raw Snapshot JSON)</span>
+                  </h3>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(JSON.stringify(snapData, null, 2));
+                        setCopiedJson(true);
+                        setTimeout(() => setCopiedJson(false), 2000);
+                      }}
+                      className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-all flex items-center gap-1 cursor-pointer border border-slate-700"
+                    >
+                      {copiedJson ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 text-slate-400" />}
+                      <span>{copiedJson ? 'Đã sao chép!' : 'Sao chép JSON'}</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowRawJson(!showRawJson)}
+                      className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-all flex items-center gap-1 cursor-pointer border border-slate-700"
+                    >
+                      <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showRawJson ? 'rotate-180' : ''}`} />
+                      <span>{showRawJson ? 'Thu gọn' : 'Xem chi tiết JSON'}</span>
+                    </button>
+                  </div>
+                </div>
+
+                {showRawJson && (
+                  <pre className="p-3 rounded-lg bg-slate-950 border border-slate-800 font-mono text-[11px] text-slate-300 max-h-96 overflow-y-auto overflow-x-auto whitespace-pre">
+                    {JSON.stringify(snapData, null, 2)}
+                  </pre>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Footer */}

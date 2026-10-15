@@ -19,9 +19,9 @@
  * ============================================================================
  */
 import { Pool, PoolClient } from 'pg';
-import dotenv from 'dotenv';
-import path from 'path';
-import fs from 'fs';
+import * as dotenv from 'dotenv';
+import * as path from 'path';
+import * as fs from 'fs';
 
 dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 
@@ -76,6 +76,10 @@ const TABLES_TO_SYNC = [
   'parcel_absence_logs',
   'parcel_mutation_events',
   'cadastral_history_logs',
+  'system_audit_logs',
+  'survey_photo_registry',
+  'survey_report_versions',
+  'survey_audit_locks',
   'task_assignments',
   'timekeeping_checkins',
   'audit_alert_items',

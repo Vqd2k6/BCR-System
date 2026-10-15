@@ -215,6 +215,8 @@ export const AuditStudioModal: React.FC<Props> = ({
         ? `[Cập Nhật Ảnh] ${action.photoCode || action.targetPhotoType || 'Ảnh'}`
         : action.action === 'ADD'
         ? `[Ảnh Bổ Sung] ${action.photoCode || action.targetPhotoType || 'Ảnh'} (${action.newPhotoUrls?.length || 1} ảnh)`
+        : action.action === 'RESTORE'
+        ? `[Khôi Phục Ảnh] ${action.photoCode || action.targetPhotoType || 'Ảnh'}`
         : `[Xóa Ảnh] ${action.photoCode || action.targetPhotoType || 'Ảnh'}`;
 
     const newDiff: DiffItem = {
@@ -615,7 +617,7 @@ export const AuditStudioModal: React.FC<Props> = ({
                     onOpenDiffModal={(diffItems, updates) => {
                       setDiffModalData({
                         isOpen: true,
-                        diffItems,
+                        diffItems: [...diffItems, ...stagedPhotoDiffs],
                         updates,
                       });
                     }}
@@ -652,7 +654,7 @@ export const AuditStudioModal: React.FC<Props> = ({
                     onOpenDiffModal={(diffItems, updates) => {
                       setDiffModalData({
                         isOpen: true,
-                        diffItems,
+                        diffItems: [...diffItems, ...stagedPhotoDiffs],
                         updates,
                       });
                     }}
@@ -689,7 +691,7 @@ export const AuditStudioModal: React.FC<Props> = ({
                     onOpenDiffModal={(diffItems, updates) => {
                       setDiffModalData({
                         isOpen: true,
-                        diffItems,
+                        diffItems: [...diffItems, ...stagedPhotoDiffs],
                         updates,
                       });
                     }}
@@ -745,7 +747,7 @@ export const AuditStudioModal: React.FC<Props> = ({
                   onOpenDiffModal={(diffItems, updates) => {
                     setDiffModalData({
                       isOpen: true,
-                      diffItems,
+                      diffItems: [...diffItems, ...stagedPhotoDiffs],
                       updates,
                     });
                   }}
@@ -795,16 +797,6 @@ export const AuditStudioModal: React.FC<Props> = ({
 
             {data?.status !== 'APPROVED' && (
               <>
-                <button
-                  type="button"
-                  disabled={isReverting}
-                  onClick={handleRevertToDraft}
-                  className="px-3.5 py-2 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
-                  title="Chuyển hồ sơ về trạng thái Đang làm dở để khảo sát viên sửa thông tin"
-                >
-                  <RotateCcw className={`w-3.5 h-3.5 ${isReverting ? 'animate-spin' : ''}`} />
-                  <span>{isReverting ? 'Đang chuyển...' : 'Mở Lại (Đang làm dở)'}</span>
-                </button>
                 <button
                   type="button"
                   onClick={() => setShowRejectModal(true)}
@@ -897,7 +889,13 @@ export const AuditStudioModal: React.FC<Props> = ({
           parcelCode={data?.projectParcelCode}
           diffItems={diffModalData.diffItems}
           updatesPayload={diffModalData.updates}
+          formState={data?.surveyJson || data?.survey_data_json || {}}
           photoActions={stagedPhotoActions}
+          onJumpToStep={(stepId: number) => {
+            setDiffModalData({ isOpen: false, diffItems: [], updates: {} });
+            const el = document.getElementById(`step-${stepId}`);
+            if (el) el.scrollIntoView({ behavior: 'smooth' });
+          }}
           onClose={() => setDiffModalData({ isOpen: false, diffItems: [], updates: {} })}
           onSuccess={() => {
             setStagedPhotoActions([]);
@@ -948,6 +946,21 @@ export const AuditStudioModal: React.FC<Props> = ({
             fetchAuditData();
             fetchVersions();
             onRefreshList();
+          }}
+          onStageRestoreAction={(photo, reason) => {
+            const action: PhotoActionPayload = {
+              action: 'RESTORE',
+              category: photo.photo_category,
+              targetPhotoType: photo.photo_type,
+              targetPhotoId: photo.metadata_json?.targetPhotoId || photo.metadata_json?.defectId || photo.metadata_json?.zoneId,
+              photoIndex: photo.metadata_json?.photoIndex,
+              oldPhotoUrl: photoHistoryData.currentPhotoUrl,
+              newPhotoUrl: photo.photo_url,
+              photoCode: photo.photo_code,
+              reason,
+            };
+            handleConfirmPhotoAction(action);
+            setPhotoHistoryData((prev) => ({ ...prev, isOpen: false }));
           }}
         />
       )}

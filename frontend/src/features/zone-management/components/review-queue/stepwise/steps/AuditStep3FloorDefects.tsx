@@ -8,6 +8,90 @@ import { Layers, Maximize2, AlertTriangle, CheckCircle2, MapPin, Eye, EyeOff, Ca
 import { Badge } from '../../../../../../core/components/ui/Badge';
 import { AuditPhotoCard } from '../components/AuditPhotoCard';
 
+const ROOM_PRESETS = [
+  'Phòng khách',
+  'Phòng ngủ 1',
+  'Phòng ngủ 2',
+  'Phòng ngủ 3',
+  'Bếp & Phòng ăn',
+  'Phòng vệ sinh (WC)',
+  'Ban công / Lô gia',
+  'Hành lang / Lối đi',
+  'Cầu thang',
+  'Mặt tiền ngoài nhà',
+  'Sân trước / Sau',
+  'Sân thượng / Mái',
+  'Khu vực kỹ thuật',
+];
+
+const COMPONENT_TYPE_PRESETS = [
+  'Tường ngăn',
+  'Tường chịu lực',
+  'Cột',
+  'Dầm',
+  'Nền / Sàn',
+  'Trần thạch cao',
+  'Lan can / Ban công',
+  'Cầu thang',
+  'Móng / Chân tường',
+  'Khác',
+];
+
+const WALL_MATERIAL_PRESETS = [
+  'Gạch ống (2 lỗ / 4 lỗ)',
+  'Gạch thẻ (đặc)',
+  'Bê tông cốt thép',
+  'Vữa trát xi măng',
+  'Gạch block xi măng',
+  'Gạch men / Ốp đá',
+  'Tấm thạch cao',
+  'Gạch đất nung không trát',
+  'Khác',
+];
+
+const ELEMENT_TYPE_PRESETS = [
+  'Cột BTCT',
+  'Dầm BTCT',
+  'Sàn BTCT',
+  'Tường chịu lực',
+  'Cầu thang BTCT',
+  'Khung cột thép',
+  'Móng / Đà kiềng',
+  'Khác',
+];
+
+const MATERIAL_TYPE_PRESETS = [
+  'Bê tông cốt thép (BTCT)',
+  'Thép hình / Kim loại',
+  'Tường gạch chịu lực',
+  'Gỗ',
+  'Khác',
+];
+
+const STRUCTURAL_INTEGRITY_PRESETS = [
+  'Nguyên vẹn',
+  'Rạn nứt chân chim bề mặt',
+  'Nứt thấu kết cấu',
+  'Rỉ cốt thép / Bong vỡ bê tông',
+  'Nghiêng lệch / Biến dạng',
+];
+
+const DEFECT_TYPE_PRESETS = [
+  'Vết nứt thẳng đứng',
+  'Vết nứt xiên 45 độ',
+  'Vết nứt ngang',
+  'Nứt chân chim',
+  'Bong tróc vữa/sơn',
+  'Bong vỡ bê tông',
+  'Rỉ ố ẩm mốc / Thấm dột',
+  'Lún sụt / Nứt sàn',
+  'Nứt tiếp giáp cấu kiện',
+  'Nghiêng lệch cấu kiện',
+  'Vết nứt tường',
+  'Vết nứt dầm/cột',
+  'Khác',
+];
+
 interface Props {
   isEditMode: boolean;
   formState: Record<string, unknown>;
@@ -81,6 +165,8 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
     currentX: number;
     currentY: number;
   } | null>(null);
+  const hasJustDraggedRef = useRef<boolean>(false);
+  const pointerStartPosRef = useRef<{ x: number; y: number } | null>(null);
 
   // If floors array exists and is non-empty, use floor hierarchy; otherwise wrap damageZones as virtual floor
   const hasFloors = rawFloors.length > 0;
@@ -978,16 +1064,22 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                               value={z.floorName || currentFloor.floorName || ''}
                               onChange={(e) => handleZoneFieldChange(z.id, 'floorName', e.target.value, 'Tên tầng')}
                               placeholder="Tên tầng (VD: Tầng trệt)"
-                              className="p-1 text-xs border border-amber-300 bg-amber-50/50 rounded font-bold"
+                              className="p-1 text-xs border border-amber-300 bg-amber-50/50 rounded font-bold w-28"
                             />
                             <span>&bull;</span>
                             <input
                               type="text"
+                              list={`room-presets-${z.id}`}
                               value={z.roomName || ''}
                               onChange={(e) => handleZoneFieldChange(z.id, 'roomName', e.target.value, 'Tên phòng/không gian')}
                               placeholder="Phòng (VD: Phòng khách)"
-                              className="p-1 text-xs border border-amber-300 bg-amber-50/50 rounded font-bold"
+                              className="p-1 text-xs border border-amber-300 bg-amber-50/50 rounded font-bold w-36"
                             />
+                            <datalist id={`room-presets-${z.id}`}>
+                              {ROOM_PRESETS.map((r) => (
+                                <option key={r} value={r} />
+                              ))}
+                            </datalist>
                           </div>
                         ) : (
                           <span className="text-xs font-bold text-slate-800">
@@ -1001,36 +1093,30 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                           <>
                             <label className="font-semibold text-slate-600">Cấu kiện:</label>
                             <select
-                              value={z.componentType || 'Tường gạch'}
+                              value={z.componentType || 'Tường ngăn'}
                               onChange={(e) => handleZoneFieldChange(z.id, 'componentType', e.target.value, 'Loại cấu kiện')}
-                              className="p-1 text-xs border border-slate-300 rounded bg-white"
+                              className="p-1 text-xs border border-slate-300 rounded bg-white font-bold"
                             >
-                              <option value="Tường gạch">Tường gạch</option>
-                              <option value="Cột BTCT">Cột BTCT</option>
-                              <option value="Dầm BTCT">Dầm BTCT</option>
-                              <option value="Sàn BTCT">Sàn BTCT</option>
-                              <option value="Vách ngăn thạch cao">Vách ngăn thạch cao</option>
-                              <option value="Lan can / Ban công">Lan can / Ban công</option>
-                              <option value="Móng / Chân tường">Móng / Chân tường</option>
+                              {COMPONENT_TYPE_PRESETS.map((ct) => (
+                                <option key={ct} value={ct}>{ct}</option>
+                              ))}
                             </select>
 
                             <label className="font-semibold text-slate-600">Vật liệu:</label>
                             <select
-                              value={z.wallMaterial || 'Vữa trát xi măng'}
+                              value={z.wallMaterial || 'Gạch ống (2 lỗ / 4 lỗ)'}
                               onChange={(e) => handleZoneFieldChange(z.id, 'wallMaterial', e.target.value, 'Vật liệu tường')}
-                              className="p-1 text-xs border border-slate-300 rounded bg-white"
+                              className="p-1 text-xs border border-slate-300 rounded bg-white font-bold"
                             >
-                              <option value="Vữa trát xi măng">Vữa trát xi măng</option>
-                              <option value="Bê tông cốt thép">Bê tông cốt thép</option>
-                              <option value="Gạch men / Ốp đá">Gạch men / Ốp đá</option>
-                              <option value="Tấm thạch cao">Tấm thạch cao</option>
-                              <option value="Gạch đất nung không trát">Gạch đất nung không trát</option>
+                              {WALL_MATERIAL_PRESETS.map((wm) => (
+                                <option key={wm} value={wm}>{wm}</option>
+                              ))}
                             </select>
                           </>
                         ) : (
                           <>
-                            Cấu kiện: <strong>{z.componentType || z.component_type || 'Tường gạch'}</strong> &bull; Vật liệu:{' '}
-                            {z.wallMaterial || z.wall_material || 'Vữa trát xi măng'}
+                            Cấu kiện: <strong>{z.componentType || z.component_type || 'Tường ngăn'}</strong> &bull; Vật liệu:{' '}
+                            {z.wallMaterial || z.wall_material || 'Gạch ống'}
                           </>
                         )}
                       </div>
@@ -1104,7 +1190,7 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                             className="px-2 py-0.5 rounded bg-sky-600 hover:bg-sky-700 text-white font-bold text-[9px] flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
                           >
                             <Plus className="w-2.5 h-2.5" />
-                            <span>+ Thêm Ảnh</span>
+                            <span>Thêm Ảnh</span>
                           </button>
                         )}
                       </div>
@@ -1205,6 +1291,10 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                           pinningCtxZone === zCode ? 'cursor-crosshair ring-2 ring-rose-400' : 'cursor-pointer'
                         }`}
                         onClick={(e) => {
+                          if (hasJustDraggedRef.current) {
+                            hasJustDraggedRef.current = false;
+                            return;
+                          }
                           if (pinningCtxZone === zCode) {
                             handleCtxImageClick(e, z);
                           } else if (ctxUrl) {
@@ -1265,6 +1355,8 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                                     onPointerDown={(e) => {
                                       if (!isEditMode) return;
                                       e.stopPropagation();
+                                      hasJustDraggedRef.current = false;
+                                      pointerStartPosRef.current = { x: e.clientX, y: e.clientY };
                                       (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
                                       setDraggingDefectPin({
                                         zoneId: z.id,
@@ -1277,6 +1369,12 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                                     onPointerMove={(e) => {
                                       if (!draggingDefectPin || draggingDefectPin.defectId !== defectKey) return;
                                       e.stopPropagation();
+                                      if (pointerStartPosRef.current) {
+                                        const dist = Math.hypot(e.clientX - pointerStartPosRef.current.x, e.clientY - pointerStartPosRef.current.y);
+                                        if (dist > 5) {
+                                          hasJustDraggedRef.current = true;
+                                        }
+                                      }
                                       const container = e.currentTarget.parentElement;
                                       if (!container) return;
                                       const rect = container.getBoundingClientRect();
@@ -1295,6 +1393,10 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                                       const finalX = draggingDefectPin.currentX;
                                       const finalY = draggingDefectPin.currentY;
                                       setDraggingDefectPin(null);
+                                      pointerStartPosRef.current = null;
+                                      setTimeout(() => {
+                                        hasJustDraggedRef.current = false;
+                                      }, 300);
                                       if (Math.abs(finalX - pX) > 0.3 || Math.abs(finalY - pY) > 0.3) {
                                         handleCommitDefectPinCoord(z.id, defectKey, dCode, finalX, finalY);
                                       } else {
@@ -1550,12 +1652,9 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                                         }
                                         className="p-1 border border-slate-300 rounded text-xs font-bold bg-white"
                                       >
-                                        <option value="Vết nứt tường">Vết nứt tường</option>
-                                        <option value="Vết nứt dầm/cột">Vết nứt dầm/cột</option>
-                                        <option value="Bong tróc vữa/sơn">Bong tróc vữa/sơn</option>
-                                        <option value="Thấm dột ẩm mốc">Thấm dột ẩm mốc</option>
-                                        <option value="Lún sụt / Nứt sàn">Lún sụt / Nứt sàn</option>
-                                        <option value="Nứt tiếp giáp cấu kiện">Nứt tiếp giáp cấu kiện</option>
+                                        {DEFECT_TYPE_PRESETS.map((dt) => (
+                                          <option key={dt} value={dt}>{dt}</option>
+                                        ))}
                                       </select>
                                       <label className="flex items-center gap-1 text-[11px] font-bold text-red-700 cursor-pointer">
                                         <input
@@ -1767,7 +1866,7 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                                       className="px-2 py-0.5 rounded bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[9px] flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
                                     >
                                       <Plus className="w-2.5 h-2.5" />
-                                      <span>+ Thêm Ảnh CU</span>
+                                      <span>Thêm Ảnh CU</span>
                                     </button>
                                   )}
                                 </div>
@@ -1883,33 +1982,57 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                         </span>
                         {isEditMode ? (
                           <div className="flex items-center gap-2 flex-wrap">
-                            <input
-                              type="text"
-                              value={elem.elementType || ''}
+                            <select
+                              value={elem.elementType || 'Cột BTCT'}
                               onChange={(e) => handleElementFieldChange(elem.id, 'elementType', e.target.value, 'Loại cấu kiện')}
-                              placeholder="Cột/Dầm/Sàn..."
                               className="p-1 text-xs border border-amber-300 rounded font-bold bg-white"
-                            />
+                            >
+                              {ELEMENT_TYPE_PRESETS.map((t) => (
+                                <option key={t} value={t}>{t}</option>
+                              ))}
+                            </select>
+                            <span>&bull;</span>
+                            <select
+                              value={elem.materialType || 'Bê tông cốt thép (BTCT)'}
+                              onChange={(e) => handleElementFieldChange(elem.id, 'materialType', e.target.value, 'Vật liệu')}
+                              className="p-1 text-xs border border-amber-300 rounded font-bold bg-white"
+                            >
+                              {MATERIAL_TYPE_PRESETS.map((m) => (
+                                <option key={m} value={m}>{m}</option>
+                              ))}
+                            </select>
                             <span>&bull;</span>
                             <input
                               type="text"
-                              value={elem.materialType || ''}
-                              onChange={(e) => handleElementFieldChange(elem.id, 'materialType', e.target.value, 'Vật liệu')}
-                              placeholder="BTCT, Thép..."
-                              className="p-1 text-xs border border-amber-300 rounded font-bold bg-white"
+                              value={elem.dimensions || elem.sectionDimensions || ''}
+                              onChange={(e) => handleElementFieldChange(elem.id, 'dimensions', e.target.value, 'Kích thước tiết diện')}
+                              placeholder="Tiết diện b x h (vd 200x300mm)"
+                              className="p-1 text-xs border border-amber-300 rounded bg-white w-44"
                             />
+                            <span>&bull;</span>
+                            <select
+                              value={elem.structuralIntegrity || 'Nguyên vẹn'}
+                              onChange={(e) => handleElementFieldChange(elem.id, 'structuralIntegrity', e.target.value, 'Độ toàn vẹn kết cấu')}
+                              className="p-1 text-xs border border-amber-300 rounded bg-white"
+                            >
+                              {STRUCTURAL_INTEGRITY_PRESETS.map((si) => (
+                                <option key={si} value={si}>{si}</option>
+                              ))}
+                            </select>
                             <span>&bull;</span>
                             <input
                               type="text"
                               value={elem.roomName || ''}
                               onChange={(e) => handleElementFieldChange(elem.id, 'roomName', e.target.value, 'Vị trí trục/phòng')}
                               placeholder="Trục toạ độ / Vị trí..."
-                              className="p-1 text-xs border border-amber-300 rounded bg-white"
+                              className="p-1 text-xs border border-amber-300 rounded bg-white w-32"
                             />
                           </div>
                         ) : (
                           <span className="text-xs font-bold text-slate-800">
-                            {elem.elementType || 'Cột/Dầm BTCT'} &bull; {elem.materialType || 'BTCT'} &bull;{' '}
+                            {elem.elementType || 'Cột BTCT'} &bull; {elem.materialType || 'BTCT'}
+                            {elem.dimensions ? ` &bull; ${elem.dimensions}` : ''}
+                            {elem.structuralIntegrity ? ` &bull; ${elem.structuralIntegrity}` : ''} &bull;{' '}
                             <span className="text-slate-500 font-normal">{elem.roomName || elem.customRoomName || 'Trục không xác định'}</span>
                           </span>
                         )}
@@ -1941,7 +2064,7 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
                             className="px-2 py-0.5 rounded bg-sky-600 hover:bg-sky-700 text-white font-bold text-[9px] flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
                           >
                             <Plus className="w-2.5 h-2.5" />
-                            <span>+ Thêm Ảnh E</span>
+                            <span>Thêm Ảnh E</span>
                           </button>
                         )}
                       </div>
@@ -2040,7 +2163,7 @@ export const AuditStep3FloorDefects: React.FC<Props> = ({
 
                         {!elem.ctxPhotoUrl && overviewPhotos.length === 0 && (
                           <div className="text-xs text-slate-400 italic py-2">
-                            Chưa có ảnh cấu kiện kết cấu. Bấm &quot;+ Thêm Ảnh E&quot; ở trên để bổ sung.
+                            Chưa có ảnh cấu kiện kết cấu. Bấm &quot;Thêm Ảnh E&quot; ở trên để bổ sung.
                           </div>
                         )}
                       </div>

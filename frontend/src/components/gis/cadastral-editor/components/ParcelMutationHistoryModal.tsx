@@ -18,6 +18,7 @@ import {
   MapPin,
 } from 'lucide-react';
 import { useAuth } from '../../../../context/AuthContext';
+import { api } from '../../../../services/api';
 
 interface HistoryParcel {
   id: string;
@@ -92,28 +93,18 @@ export const ParcelMutationHistoryModal: React.FC<ParcelMutationHistoryModalProp
       setLoading(true);
       setError(null);
       try {
-        const response = await fetch(`/api/v1/parcels/${parcelId}/mutation-history`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-        });
-
-        if (!response.ok) {
-          if (response.status === 403) {
-            throw new Error('Chỉ SUPER_ADMIN được phép xem lịch sử biến động kiểm toán (403 Forbidden).');
-          }
-          throw new Error(`Lỗi tải dữ liệu lịch sử (${response.status})`);
-        }
-
-        const json = await response.json();
-        if (json.success && json.data) {
-          setHistoryData(json.data);
+        const res = await api.get(`/parcels/${parcelId}/mutation-history`);
+        if (res.data?.success && res.data?.data) {
+          setHistoryData(res.data.data);
         } else {
-          throw new Error(json.message || 'Không thể lấy dữ liệu lịch sử');
+          throw new Error(res.data?.message || 'Không thể lấy dữ liệu lịch sử');
         }
       } catch (err: unknown) {
-        setError(getErrorMessage(err, 'Đã có lỗi xảy ra khi truy vấn lịch sử biến động'));
+        if (getErrorStatus(err) === 403) {
+          setError('Chỉ SUPER_ADMIN được phép xem lịch sử biến động kiểm toán (403 Forbidden).');
+        } else {
+          setError(getErrorMessage(err, 'Đã có lỗi xảy ra khi truy vấn lịch sử biến động'));
+        }
       } finally {
         setLoading(false);
       }

@@ -28,6 +28,7 @@ interface Props {
   onOpenMutationModal: (item: PendingSubmissionItem) => void;
   onOpenReshapeModal?: (item: PendingSubmissionItem) => void;
   onOpenAuditHistory: (reportId: string, itemCode?: string) => void;
+  onOpenRevertModal?: (item: PendingSubmissionItem) => void;
   onStatsNeedRefresh?: () => void;
 }
 
@@ -42,6 +43,7 @@ export const ResidentialReviewQueue: React.FC<Props> = ({
   onOpenMutationModal,
   onOpenReshapeModal,
   onOpenAuditHistory,
+  onOpenRevertModal,
   onStatsNeedRefresh,
 }) => {
   const [activeTab, setActiveTab] = useState<ResidentialTab>('ALL');
@@ -320,6 +322,7 @@ export const ResidentialReviewQueue: React.FC<Props> = ({
                     item={item}
                     onOpenStudio={onOpenStudio}
                     onOpenAuditHistory={onOpenAuditHistory}
+                    onOpenRevertModal={onOpenRevertModal}
                   />
                 ))
               )}
