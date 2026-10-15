@@ -21,12 +21,13 @@ const mockStorageObj = {
     delete mockLocalStorage[key];
   },
 };
-const globalObj = globalThis as unknown as { localStorage: typeof mockStorageObj; window: unknown };
-globalObj.localStorage = mockStorageObj;
-globalObj.window = {
+Object.assign(globalThis, {
   localStorage: mockStorageObj,
-  dispatchEvent: () => true,
-};
+  window: {
+    localStorage: mockStorageObj,
+    dispatchEvent: () => true,
+  },
+});
 
 // TEST 1: Mô phỏng chính xác trường hợp thực tế của Khu vực M-023
 // Gồm 63 ảnh tổng cộng, trong đó có 60 ảnh đã lên Cloud và 3 ảnh trong cuPhotos chưa lên Cloud

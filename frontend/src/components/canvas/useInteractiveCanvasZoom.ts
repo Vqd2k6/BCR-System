@@ -108,8 +108,11 @@ export function useInteractiveCanvasZoom(options: UseInteractiveCanvasZoomOption
       }
     };
 
-    container.addEventListener('wheel', onNativeWheel, { passive: false });
+    const onNativeGesture = (e: Event) => {
+      e.preventDefault();
+    };
 
+    container.addEventListener('wheel', onNativeWheel, { passive: false });
     // Native Touch Zoom & Pan { passive: false } gắn trực tiếp vào DOM container
     // BẮT BUỘC: e.preventDefault() trên touchmove (2 ngón) để chặn trình duyệt mobile phóng to cả trang web
     const onNativeTouchStart = (e: TouchEvent) => {
@@ -194,6 +197,9 @@ export function useInteractiveCanvasZoom(options: UseInteractiveCanvasZoomOption
     container.addEventListener('touchmove', onNativeTouchMove, { passive: false });
     container.addEventListener('touchend', onNativeTouchEnd, { passive: true });
     container.addEventListener('touchcancel', onNativeTouchEnd, { passive: true });
+    container.addEventListener('gesturestart', onNativeGesture, { passive: false });
+    container.addEventListener('gesturechange', onNativeGesture, { passive: false });
+    container.addEventListener('gestureend', onNativeGesture, { passive: false });
 
     return () => {
       container.removeEventListener('wheel', onNativeWheel);
@@ -201,6 +207,9 @@ export function useInteractiveCanvasZoom(options: UseInteractiveCanvasZoomOption
       container.removeEventListener('touchmove', onNativeTouchMove);
       container.removeEventListener('touchend', onNativeTouchEnd);
       container.removeEventListener('touchcancel', onNativeTouchEnd);
+      container.removeEventListener('gesturestart', onNativeGesture);
+      container.removeEventListener('gesturechange', onNativeGesture);
+      container.removeEventListener('gestureend', onNativeGesture);
     };
   }, [minZoom, maxZoom]);
 

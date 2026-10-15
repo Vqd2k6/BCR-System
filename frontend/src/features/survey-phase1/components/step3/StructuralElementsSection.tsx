@@ -14,6 +14,7 @@ import { COMMON_ROOM_NAMES, STRUCTURAL_ELEMENT_TYPES, STRUCTURAL_MATERIALS } fro
 import { Hammer, Camera, Trash2, MapPin, Plus, ShieldAlert, AlertCircle, Info, Sparkles, RotateCcw } from 'lucide-react';
 import { usePhase1SurveyStore } from '../../store/usePhase1SurveyStore';
 import { isLocalBlobUri } from '../../../../core/storage/offlinePhotoStorage';
+import type { PhotoChangeMeta } from '../../../../components/common/photo-capture/types';
 
 interface StructuralElementsSectionProps {
   currentFloor: FloorSurveyData;
@@ -173,21 +174,21 @@ export const StructuralElementsSection: React.FC<StructuralElementsSectionProps>
   };
 
   return (
-    <Card id="step3-structure-cad-section" className="border-amber-200 bg-white space-y-4 shadow-xs">
+    <Card id="step3-structure-cad-section" className="border-amber-200 bg-white space-y-4 shadow-xs max-w-full overflow-hidden">
       {/* Header CAD_02 */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-amber-100">
-        <div className="flex items-center gap-2">
-          <Hammer className="w-5 h-5 text-amber-700" />
-          <div>
-            <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-              <span>3.2. Sơ Đồ CAD_02 & Khảo Sát Kết Cấu Chịu Lực (Vùng E)</span>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-amber-100 max-w-full">
+        <div className="flex items-start sm:items-center gap-2 min-w-0">
+          <Hammer className="w-5 h-5 text-amber-700 shrink-0 mt-0.5 sm:mt-0" />
+          <div className="min-w-0">
+            <h3 className="text-sm font-bold text-slate-800 flex flex-wrap items-center gap-2">
+              <span className="break-words">3.2. Sơ Đồ CAD_02 & Khảo Sát Kết Cấu Chịu Lực (Vùng E)</span>
               {hasStructuralElements && (
-                <span className="px-2 py-0.5 rounded-full text-[11px] font-mono bg-amber-50 text-amber-800 border border-amber-200">
+                <span className="px-2 py-0.5 rounded-full text-[11px] font-mono bg-amber-50 text-amber-800 border border-amber-200 shrink-0">
                   {structuralElements.length} Vùng E đã tạo
                 </span>
               )}
             </h3>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-slate-500 break-words mt-0.5">
               Đánh dấu vị trí Cột, Dầm, Bản sàn chịu lực trực tiếp trên sơ đồ CAD_02 và ghi sổ khuyết tật kết cấu
             </p>
           </div>
@@ -607,24 +608,44 @@ export const StructuralElementsSection: React.FC<StructuralElementsSectionProps>
                 <PhotoCaptureInput
                   label="Thêm ảnh cấu kiện"
                   value=""
-                  onChange={(url, code) => {
+                  onChange={(url, code, meta?: PhotoChangeMeta) => {
                     if (url) {
-                      let updated = [...(activeElement.overviewPhotos || [])];
-                      const prevTemp = lastTempOverviewUriRef.current;
-                      if (prevTemp && updated.includes(prevTemp)) {
-                        updated = updated.map((p) => (p === prevTemp ? url : p));
-                        if (!isLocalBlobUri(url)) {
-                          lastTempOverviewUriRef.current = null;
-                        }
-                      } else {
-                        updated.push(url);
-                        if (isLocalBlobUri(url)) {
-                          lastTempOverviewUriRef.current = url;
-                        }
+                      const curPhotos = activeElement.overviewPhotos || [];
+
+                      // 1. Chặn tuyệt đối nếu URL này đã tồn tại trong mảng (kể cả đã qua metro2:photo-promoted)
+                      if (curPhotos.includes(url)) {
+                        return;
                       }
 
+                      let updated = [...curPhotos];
+                      const replacesUri = meta?.replacesUri;
+                      const prevTemp = lastTempOverviewUriRef.current;
+
+                      // 2. Thăng cấp qua replacesUri
+                      if (replacesUri && updated.includes(replacesUri)) {
+                        updated = updated.map((p) => (p === replacesUri ? url : p));
+                      }
+                      // 3. Fallback theo ref tạm thời
+                      else if (prevTemp && updated.includes(prevTemp)) {
+                        updated = updated.map((p) => (p === prevTemp ? url : p));
+                      }
+                      // 4. Thêm mới hoàn toàn nếu chưa có
+                      else {
+                        updated.push(url);
+                      }
+
+                      if (isLocalBlobUri(url)) {
+                        lastTempOverviewUriRef.current = url;
+                      } else {
+                        lastTempOverviewUriRef.current = null;
+                      }
+
+                      // 5. Tự làm sạch khử trùng lặp bảo vệ dữ liệu vĩnh viễn
+                      updated = Array.from(new Set(updated.filter(Boolean)));
+
+                      // Đồng bộ với ctxPhotoUrl nếu chưa có hoặc đang trỏ tới ảnh vừa thăng cấp
                       let newCtx = activeElement.ctxPhotoUrl;
-                      if (!newCtx || (prevTemp && newCtx === prevTemp)) {
+                      if (!newCtx || newCtx === replacesUri || (prevTemp && newCtx === prevTemp)) {
                         newCtx = url;
                       }
 
