@@ -5,6 +5,10 @@ import { App } from './App';
 import './styles/index.css';
 import { initDevErrorReporter, sendDevError } from './services/devErrorReporter';
 import { initThemeSystemListener } from './core/theme/useThemeStore';
+import { applyLeafletDefensiveFix } from './components/gis/shared/leafletFix';
+
+// Kích hoạt bản vá phòng vệ cho Leaflet trước khi khởi tạo cây DOM
+applyLeafletDefensiveFix();
 
 // Bộ lọc toàn cục chủ động chặn các lỗi ngoại lai từ Browser Extension (như 200.js, requests.js, M_ID...)
 if (typeof window !== 'undefined') {

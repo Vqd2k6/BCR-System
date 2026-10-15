@@ -73,10 +73,13 @@ export function isIgnoredError(message: string, stack?: string, source?: string)
     }
   }
 
-  // 2. Cảnh báo an toàn không phải lỗi nghiệp vụ từ trình duyệt (ResizeObserver)
+  // 2. Cảnh báo an toàn không phải lỗi nghiệp vụ từ trình duyệt (ResizeObserver, Passive event listener, Leaflet transition)
   if (
     normalizedMsg.includes('resizeobserver loop completed with undelivered notifications') ||
-    normalizedMsg.includes('resizeobserver loop limit exceeded')
+    normalizedMsg.includes('resizeobserver loop limit exceeded') ||
+    normalizedMsg.includes('unable to preventdefault inside passive event listener invocation') ||
+    normalizedMsg.includes("reading '_leaflet_pos'") ||
+    normalizedMsg.includes('reading "_leaflet_pos"')
   ) {
     return true;
   }

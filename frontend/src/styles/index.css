@@ -301,6 +301,8 @@ a,
 .leaflet-container {
   font-family: var(--font-family) !important;
   z-index: 1;
+  touch-action: pan-x pan-y;
+  overscroll-behavior: contain;
 }
 
 /* Leaflet — Dark Mode (popup, tooltip, nút zoom, attribution) */
