@@ -146,14 +146,6 @@ export class AttendanceRepository {
   }
 
   static async getAttendanceSummary(zoneId?: string, month?: string): Promise<any[]> {
-    let whereClause = ``;
-    const params: any[] = [];
-
-    if (zoneId) {
-      params.push(zoneId);
-      whereClause += ` AND t.zone_id = $${params.length}`;
-    }
-
     const res = await Database.query(
       `SELECT 
          t.surveyor_id,
@@ -165,9 +157,10 @@ export class AttendanceRepository {
          COUNT(*) FILTER (WHERE t.verification_status = 'REJECTED') AS rejected_days
        FROM timekeeping_checkins t
        JOIN users u ON t.surveyor_id = u.id
-       WHERE 1=1 ${whereClause}
+       WHERE ($1::text IS NULL OR t.zone_id = $1)
+         AND ($2::text IS NULL OR TO_CHAR(t.checkin_time, 'YYYY-MM') = $2)
        GROUP BY t.surveyor_id, u.full_name, u.assigned_zone_id;`,
-      params
+      [zoneId || null, month || null]
     );
     return res.rows;
   }
