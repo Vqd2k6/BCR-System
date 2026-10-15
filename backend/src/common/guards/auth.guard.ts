@@ -49,8 +49,8 @@ export async function authenticateJwt(req: Request, _res: Response, next: NextFu
 
     req.user = decoded;
     next();
-  } catch (error: any) {
-    if (error.name === 'TokenExpiredError') {
+  } catch (error: unknown) {
+    if (error instanceof Error && error.name === 'TokenExpiredError') {
       return next(new UnauthorizedError('Token đã hết hạn, vui lòng refresh token hoặc đăng nhập lại'));
     }
     if (error instanceof UnauthorizedError) {
