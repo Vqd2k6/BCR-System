@@ -89,7 +89,8 @@ export class AuditController {
   static async getSplitPaneAuditView(req: Request, res: Response, next: NextFunction) {
     try {
       const { id } = req.params;
-      const payload = await AuditService.getSplitPaneAuditView(id);
+      const includePhotoHistory = req.query.includePhotoHistory === 'true' || req.query.includeHistory === 'true';
+      const payload = await AuditService.getSplitPaneAuditView(id, { includePhotoHistory });
       res.status(200).json({
         success: true,
         data: payload,
@@ -409,11 +410,29 @@ export class AuditController {
   static async getPhotoAuditRegistry(req: Request, res: Response, next: NextFunction) {
     try {
       const { id } = req.params;
-      const result = await AuditService.getPhotoAuditRegistry(id);
+      const filters = {
+        photoCode: req.query.photoCode as string | undefined,
+        photoType: req.query.photoType as string | undefined,
+        category: req.query.category as string | undefined,
+        includeDeleted: req.query.includeDeleted !== 'false',
+      };
+      const result = await AuditService.getPhotoAuditRegistry(id, filters);
       res.status(200).json({
         success: true,
         data: result,
       });
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  static async restoreReportPhoto(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { id } = req.params;
+      const adminId = req.user!.userId;
+      const clientIp = req.ip || req.socket.remoteAddress;
+      const result = await AuditService.restoreReportPhoto(id, adminId, req.body, clientIp);
+      res.status(200).json(result);
     } catch (error) {
       next(error);
     }

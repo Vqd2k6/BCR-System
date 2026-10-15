@@ -12,7 +12,7 @@ import {
   FIRE_FLOOD_OPTIONS,
 } from '../../../../../survey-phase1/constants/historyInterviewConstants';
 
-import type { AuditStepwiseFormState, StepwiseHistoryInterview, PhotoReplaceParams, AuditPhotoActionParams } from '../types';
+import type { AuditStepwiseFormState, StepwiseHistoryInterview, PhotoReplaceParams, AuditPhotoActionParams, AuditPhotoHistoryParams } from '../types';
 
 interface Props {
   isEditMode: boolean;
@@ -22,6 +22,7 @@ interface Props {
   onOpenPhotoZoom?: (url: string, title?: string, photoCode?: string) => void;
   onOpenPhotoReplace?: (params: PhotoReplaceParams) => void;
   onOpenPhotoAction?: (params: AuditPhotoActionParams) => void;
+  onOpenPhotoHistory?: (params: AuditPhotoHistoryParams) => void;
   isFieldDirty?: (fieldKey: string, subKey?: string) => boolean;
 }
 
@@ -33,6 +34,7 @@ export const AuditStep2OwnerInterview: React.FC<Props> = ({
   onOpenPhotoZoom,
   onOpenPhotoReplace,
   onOpenPhotoAction,
+  onOpenPhotoHistory,
   isFieldDirty,
 }) => {
   const hi: StepwiseHistoryInterview = formState.historyInterview || {};
@@ -579,64 +581,85 @@ export const AuditStep2OwnerInterview: React.FC<Props> = ({
                           <div className="text-[10px] text-slate-500 truncate">{photo.notes}</div>
                         )}
                       </div>
-                      {isEditMode && (
-                        <div className="flex items-center gap-1 shrink-0">
+                      <div className="flex items-center gap-1 shrink-0">
+                        {onOpenPhotoHistory && (
                           <button
                             type="button"
-                            title="Thay thế bản vẽ này"
+                            title="Lịch sử phiên bản bản vẽ"
                             onClick={(e) => {
                               e.stopPropagation();
-                              if (onOpenPhotoAction && photo.url) {
-                                onOpenPhotoAction({
-                                  category: 'AS_BUILT',
-                                  targetPhotoType: 'AS_BUILT',
-                                  targetPhotoId: 'asBuiltDrawingPhotos',
-                                  photoIndex: idx,
-                                  currentPhotoUrl: photo.url,
-                                  photoTitle: photo.photoCode || `Bản vẽ hoàn công trang #${idx + 1}`,
-                                  initialMode: 'REPLACE',
-                                });
-                              } else if (onOpenPhotoReplace && photo.url) {
-                                onOpenPhotoReplace({
-                                  targetPhotoType: 'AS_BUILT',
-                                  targetPhotoId: 'asBuiltDrawingPhotos',
-                                  photoIndex: idx,
-                                  currentPhotoUrl: photo.url,
-                                  photoTitle: photo.photoCode || `Bản vẽ hoàn công trang #${idx + 1}`,
-                                });
-                              } else {
-                                handleTriggerReplaceDrawing(idx);
-                              }
+                              onOpenPhotoHistory({
+                                photoCode: photo.photoCode || `AS_BUILT_${idx + 1}`,
+                                photoType: 'AS_BUILT',
+                                photoTitle: photo.photoCode || `Bản vẽ hoàn công trang #${idx + 1}`,
+                                currentPhotoUrl: photo.url,
+                              });
                             }}
-                            className="p-1 text-slate-400 hover:text-emerald-700 hover:bg-emerald-50 rounded cursor-pointer"
+                            className="p-1 text-slate-400 hover:text-violet-600 hover:bg-violet-50 rounded cursor-pointer"
                           >
-                            <RefreshCw className="w-3.5 h-3.5" />
+                            <History className="w-3.5 h-3.5" />
                           </button>
-                          <button
-                            type="button"
-                            title="Xóa bản vẽ này"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (onOpenPhotoAction && photo.url) {
-                                onOpenPhotoAction({
-                                  category: 'AS_BUILT',
-                                  targetPhotoType: 'AS_BUILT',
-                                  targetPhotoId: 'asBuiltDrawingPhotos',
-                                  photoIndex: idx,
-                                  currentPhotoUrl: photo.url,
-                                  photoTitle: photo.photoCode || `Bản vẽ hoàn công trang #${idx + 1}`,
-                                  initialMode: 'DELETE',
-                                });
-                              } else {
-                                handleDeleteDrawing(idx);
-                              }
-                            }}
-                            className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded cursor-pointer"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      )}
+                        )}
+
+                        {isEditMode && (
+                          <>
+                            <button
+                              type="button"
+                              title="Thay thế bản vẽ này"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (onOpenPhotoAction && photo.url) {
+                                  onOpenPhotoAction({
+                                    category: 'AS_BUILT',
+                                    targetPhotoType: 'AS_BUILT',
+                                    targetPhotoId: 'asBuiltDrawingPhotos',
+                                    photoIndex: idx,
+                                    currentPhotoUrl: photo.url,
+                                    photoTitle: photo.photoCode || `Bản vẽ hoàn công trang #${idx + 1}`,
+                                    initialMode: 'REPLACE',
+                                  });
+                                } else if (onOpenPhotoReplace && photo.url) {
+                                  onOpenPhotoReplace({
+                                    targetPhotoType: 'AS_BUILT',
+                                    targetPhotoId: 'asBuiltDrawingPhotos',
+                                    photoIndex: idx,
+                                    currentPhotoUrl: photo.url,
+                                    photoTitle: photo.photoCode || `Bản vẽ hoàn công trang #${idx + 1}`,
+                                  });
+                                } else {
+                                  handleTriggerReplaceDrawing(idx);
+                                }
+                              }}
+                              className="p-1 text-slate-400 hover:text-emerald-700 hover:bg-emerald-50 rounded cursor-pointer"
+                            >
+                              <RefreshCw className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              title="Xóa bản vẽ này"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (onOpenPhotoAction && photo.url) {
+                                  onOpenPhotoAction({
+                                    category: 'AS_BUILT',
+                                    targetPhotoType: 'AS_BUILT',
+                                    targetPhotoId: 'asBuiltDrawingPhotos',
+                                    photoIndex: idx,
+                                    currentPhotoUrl: photo.url,
+                                    photoTitle: photo.photoCode || `Bản vẽ hoàn công trang #${idx + 1}`,
+                                    initialMode: 'DELETE',
+                                  });
+                                } else {
+                                  handleDeleteDrawing(idx);
+                                }
+                              }}
+                              className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded cursor-pointer"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </>
+                        )}
+                      </div>
                     </div>
                   </div>
                 ))}

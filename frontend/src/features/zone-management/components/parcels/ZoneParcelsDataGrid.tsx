@@ -1033,6 +1033,7 @@ export const ZoneParcelsDataGrid: React.FC<ZoneParcelsDataGridProps> = ({
         <CadastralBoundaryReshapeModal
           isOpen={!!reshapeModalParcel}
           parcel={reshapeModalParcel}
+          neighboringParcels={parcels}
           onClose={() => setReshapeModalParcel(null)}
           onSuccess={() => {
             fetchZoneParcels();

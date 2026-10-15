@@ -25,7 +25,7 @@ import { AuditStep6ScopeGisMutation } from './steps/AuditStep6ScopeGisMutation';
 import { AuditStep7EcsViScores } from './steps/AuditStep7EcsViScores';
 import { AuditStep8Conclusions } from './steps/AuditStep8Conclusions';
 import { AuditStep9SignaturesAbsence } from './steps/AuditStep9SignaturesAbsence';
-import type { DiffItem, AuditStepwiseData, PhotoReplaceParams, AuditPhotoActionParams } from './types';
+import type { DiffItem, AuditStepwiseData, PhotoReplaceParams, AuditPhotoActionParams, AuditPhotoHistoryParams, PhotoActionPayload } from './types';
 
 export interface AuditStepwiseDocumentViewProps {
   data: AuditStepwiseData | Record<string, unknown>;
@@ -42,6 +42,9 @@ export interface AuditStepwiseDocumentViewProps {
     updates: Record<string, unknown>;
     discardAll: (silent?: boolean) => void;
   }) => void;
+  stagedPhotoActions?: PhotoActionPayload[];
+  onUndoPhotoAction?: (action: PhotoActionPayload) => void;
+  onOpenPhotoHistory?: (params: AuditPhotoHistoryParams) => void;
 }
 
 export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps> = ({
@@ -51,9 +54,12 @@ export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps>
   onOpenPhotoZoom,
   onOpenPhotoReplace,
   onOpenPhotoAction,
+  onOpenPhotoHistory,
   onOpenDiffModal,
   onOpenEngineeringJudgement,
   onDirtyChange,
+  stagedPhotoActions = [],
+  onUndoPhotoAction,
 }) => {
   const {
     isEditMode,
@@ -205,6 +211,7 @@ export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps>
           onOpenPhotoZoom={onOpenPhotoZoom}
           onOpenPhotoReplace={onOpenPhotoReplace}
           onOpenPhotoAction={onOpenPhotoAction}
+          onOpenPhotoHistory={onOpenPhotoHistory}
           isFieldDirty={isFieldDirty}
         />
 
@@ -216,7 +223,10 @@ export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps>
           onOpenPhotoZoom={onOpenPhotoZoom}
           onOpenPhotoReplace={onOpenPhotoReplace}
           onOpenPhotoAction={onOpenPhotoAction}
+          onOpenPhotoHistory={onOpenPhotoHistory}
           isFieldDirty={isFieldDirty}
+          stagedPhotoActions={stagedPhotoActions}
+          onUndoPhotoAction={onUndoPhotoAction}
         />
 
         {/* Bước 03: Kết Cấu Công Trình, Nền Móng & Phỏng Vấn Chủ Hộ */}
@@ -228,6 +238,7 @@ export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps>
           onOpenPhotoZoom={onOpenPhotoZoom}
           onOpenPhotoReplace={onOpenPhotoReplace}
           onOpenPhotoAction={onOpenPhotoAction}
+          onOpenPhotoHistory={onOpenPhotoHistory}
           isFieldDirty={isFieldDirty}
         />
 
@@ -239,7 +250,10 @@ export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps>
           onOpenPhotoZoom={onOpenPhotoZoom}
           onOpenPhotoReplace={onOpenPhotoReplace}
           onOpenPhotoAction={onOpenPhotoAction}
+          onOpenPhotoHistory={onOpenPhotoHistory}
           isFieldDirty={isFieldDirty}
+          stagedPhotoActions={stagedPhotoActions}
+          onUndoPhotoAction={onUndoPhotoAction}
         />
 
         {/* Bước 05: Khuyết Tật Bề Mặt & Tổng Hợp Nứt Burland 1977 */}
@@ -251,6 +265,7 @@ export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps>
           handleNestedFieldChange={handleNestedFieldChange}
           onOpenPhotoZoom={onOpenPhotoZoom}
           onOpenPhotoReplace={onOpenPhotoReplace}
+          onOpenPhotoHistory={onOpenPhotoHistory}
           isFieldDirty={isFieldDirty}
         />
 
@@ -299,6 +314,7 @@ export const AuditStepwiseDocumentView: React.FC<AuditStepwiseDocumentViewProps>
           onOpenPhotoZoom={onOpenPhotoZoom}
           onOpenPhotoReplace={onOpenPhotoReplace}
           onOpenPhotoAction={onOpenPhotoAction}
+          onOpenPhotoHistory={onOpenPhotoHistory}
           onConfirmAbsenteeSurvey={onRefresh}
           isFieldDirty={isFieldDirty}
         />

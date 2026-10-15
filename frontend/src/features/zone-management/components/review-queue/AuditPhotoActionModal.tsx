@@ -40,6 +40,8 @@ export interface PhotoActionPayload {
   isNotApplicable?: boolean;
   naReason?: string;
   deleteDefectItem?: boolean;
+  pinX?: number;
+  pinY?: number;
 }
 
 export interface AuditPhotoActionModalProps {
@@ -60,6 +62,8 @@ export interface AuditPhotoActionModalProps {
   photoTitle?: string;
   floorCode?: string;
   zoneCode?: string;
+  initialPinX?: number;
+  initialPinY?: number;
   onConfirmAction: (action: PhotoActionPayload) => void;
 }
 
@@ -81,6 +85,8 @@ export const AuditPhotoActionModal: React.FC<AuditPhotoActionModalProps> = ({
   photoTitle = 'Ảnh Hiện Trường',
   floorCode,
   zoneCode,
+  initialPinX,
+  initialPinY,
   onConfirmAction,
 }) => {
   const [activeTab, setActiveTab] = useState<PhotoActionMode>(initialMode);
@@ -225,6 +231,8 @@ export const AuditPhotoActionModal: React.FC<AuditPhotoActionModalProps> = ({
           standardizedFilename: replaceProcessed.standardizedFilename,
           sha256Hash: replaceProcessed.sha256Hash,
           reason,
+          pinX: initialPinX,
+          pinY: initialPinY,
         });
 
         onClose();
@@ -272,6 +280,8 @@ export const AuditPhotoActionModal: React.FC<AuditPhotoActionModalProps> = ({
           standardizedFilename: batchProcessed[0].standardizedFilename,
           sha256Hash: batchProcessed[0].sha256Hash,
           reason,
+          pinX: initialPinX,
+          pinY: initialPinY,
         });
 
         onClose();
@@ -319,9 +329,16 @@ export const AuditPhotoActionModal: React.FC<AuditPhotoActionModalProps> = ({
               <h3 className="text-sm font-black text-slate-900 leading-tight">
                 Quản Trị Hình Ảnh Khảo Sát
               </h3>
-              <p className="text-[11px] text-slate-500 font-medium">
-                {photoTitle} {currentPhotoCode ? `• [${currentPhotoCode}]` : ''}
-              </p>
+              <div className="flex items-center gap-2 flex-wrap">
+                <p className="text-[11px] text-slate-500 font-medium">
+                  {photoTitle} {currentPhotoCode ? `• [${currentPhotoCode}]` : ''}
+                </p>
+                {initialPinX !== undefined && initialPinY !== undefined && (
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-mono text-[10px] font-bold border border-emerald-300">
+                    🎯 Tọa độ ghim: ({initialPinX}%, {initialPinY}%)
+                  </span>
+                )}
+              </div>
             </div>
           </div>
           <button

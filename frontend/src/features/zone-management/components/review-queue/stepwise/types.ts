@@ -20,6 +20,17 @@ export interface AuditPhotoActionParams {
   floorCode?: string;
   zoneCode?: string;
   photoIndex?: number;
+  initialPinX?: number;
+  initialPinY?: number;
+  pinX?: number;
+  pinY?: number;
+}
+
+export interface AuditPhotoHistoryParams {
+  photoCode?: string;
+  photoType?: string;
+  photoTitle?: string;
+  currentPhotoUrl?: string;
 }
 
 export interface StepwiseIdentificationPhotoItem {
@@ -32,7 +43,10 @@ export interface StepwiseIdentificationPhotoItem {
   notes?: string;
   polygonPoints?: PolygonPoint[] | null;
   floorSplits?: unknown;
-  additionalPhotos?: Array<{ url: string; caption?: string; photoCode?: string; notes?: string }>;
+  additionalPhotos?: Array<{ url: string; caption?: string; photoCode?: string; notes?: string; historyCount?: number; hasHistory?: boolean }>;
+  historyCount?: number;
+  hasHistory?: boolean;
+  history?: any[];
   [key: string]: unknown;
 }
 
@@ -212,6 +226,10 @@ export interface StepwiseSettlementTilt {
     sagMm?: string | number;
     position?: string;
     description?: string;
+    photoUrl?: string;
+    photoCode?: string;
+    photos?: Array<{ url: string; photoCode?: string; notes?: string }>;
+    notes?: string;
   };
   abnormalCase?: {
     photoUrl?: string;
@@ -337,6 +355,7 @@ export interface AuditStepBaseProps {
   onOpenPhotoZoom: (url: string, title?: string, photoCode?: string) => void;
   onOpenPhotoReplace: (params: PhotoReplaceParams) => void;
   onOpenPhotoAction?: (params: AuditPhotoActionParams) => void;
+  onOpenPhotoHistory?: (params: AuditPhotoHistoryParams) => void;
   onRefresh?: () => void;
   isFieldDirty?: (fieldKey: string, subKey?: string) => boolean;
 }

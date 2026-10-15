@@ -128,7 +128,9 @@ export const useCadastralGeometry = ({
             if (pData?.zone_id || pData?.zoneId) {
               zoneId = pData.zone_id || pData.zoneId;
             }
-          } catch (_) {}
+          } catch (err: unknown) {
+            console.error('[useCadastralGeometry:fetchZoneParcels] Fallback zone fetch error:', err);
+          }
         }
         if (!zoneId || zoneId === 'ALL') {
           zoneId = 'ZONE_01';

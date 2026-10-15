@@ -4,7 +4,7 @@ import { CryptoUtils } from '../../../common/utils/crypto.utils';
 import { AuditReviewService } from './audit-review.service';
 
 export interface CreateSnapshotParams {
-  versionTag: 'ORIGINAL_SUBMISSION' | 'ADMIN_DIFF_SAVE' | 'CHIEF_ENGINEER_OVERRIDE' | 'PHOTO_REPLACEMENT' | 'PHOTO_MODIFICATION' | 'ROLLBACK_RESTORE' | 'REVERT_TO_DRAFT';
+  versionTag: 'ORIGINAL_SUBMISSION' | 'ADMIN_DIFF_SAVE' | 'CHIEF_ENGINEER_OVERRIDE' | 'PHOTO_REPLACEMENT' | 'PHOTO_MODIFICATION' | 'PHOTO_RESTORE' | 'ROLLBACK_RESTORE' | 'REVERT_TO_DRAFT';
   title: string;
   editReason?: string;
   userId?: string;

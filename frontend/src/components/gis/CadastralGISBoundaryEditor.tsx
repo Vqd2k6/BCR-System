@@ -128,6 +128,7 @@ export const CadastralGISBoundaryEditor: React.FC<CadastralBoundaryEditorProps> 
           activeCentroid={activeCentroid}
           tileMode={tileMode}
           setTileMode={setTileMode}
+          zoneParcels={zoneParcels}
           splitShapeOption={splitShapeOption}
           setSplitShapeOption={setSplitShapeOption}
           activeTarget={activeTarget}

@@ -716,6 +716,7 @@ export const ParcelDetailBottomSheet: React.FC<ParcelDetailBottomSheetProps> = (
       {(user?.role === 'ZONE_ADMIN' || user?.role === 'SUPER_ADMIN') && (
         <CadastralBoundaryReshapeModal
           parcel={activeParcel}
+          neighboringParcels={availableParcels}
           isOpen={showReshapeModal}
           onClose={() => setShowReshapeModal(false)}
           onSuccess={() => {

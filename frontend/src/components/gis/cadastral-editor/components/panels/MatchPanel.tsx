@@ -1,6 +1,6 @@
 import React from 'react';
 import { MapContainer, TileLayer, Polygon, Tooltip, ZoomControl } from 'react-leaflet';
-import { CheckCircle, ShieldCheck, CheckCircle2, Check } from 'lucide-react';
+import { CheckCircle, ShieldCheck, CheckCircle2, Check, Layers, Building } from 'lucide-react';
 import type { CadastralParcelData, MutationPayloadData } from '../../../shared/types';
 import { MapBoundsController, HelpBadge } from '../../../shared/MapControllers';
 
@@ -27,244 +27,176 @@ export const MatchPanel: React.FC<MatchPanelProps> = ({
   onMutationDataChange,
   onToastMessage,
 }) => {
+  const isConfirmed = mutationData.activeProposalType === 'MATCH' && mutationData.matchConfirmed;
+
   return (
-    <div
-      style={{
-        backgroundColor: 'rgb(var(--bg-white))',
-        border: '1px solid rgb(var(--border-green-300))',
-        borderRadius: '0.75rem',
-        padding: '0.85rem',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '0.75rem',
-      }}
-    >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.4rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', color: 'rgb(var(--text-green-700))', fontWeight: 800, fontSize: '0.825rem' }}>
-          <CheckCircle size={17} style={{ marginRight: '0.35rem' }} />
-          <span>Bản Đồ Đối Soát Ranh GIS (Thửa hiện tại)</span>
+    <div className="bg-white border border-emerald-300 rounded-xl p-3 flex flex-col gap-3 shadow-xs">
+      {/* 1. THANH TIÊU ĐỀ KHỚP RANH */}
+      <div className="flex justify-between items-center flex-wrap gap-2 pb-2 border-b border-slate-100">
+        <div className="flex items-center text-emerald-700 font-extrabold text-sm">
+          <CheckCircle className="w-4 h-4 mr-1.5 text-emerald-600" />
+          <span>Bản Đồ Đối Soát Ranh GIS (Thửa Hiện Tại)</span>
           <HelpBadge
             title="Khớp Ranh 100%"
             content="Công trình xây dựng trọn vẹn 100% diện tích thửa đất địa chính ban đầu. Không có tranh chấp ranh hay biến động diện tích."
           />
         </div>
-        <div style={{ display: 'flex', gap: '0.35rem' }}>
-          <button
-            type="button"
-            onClick={() => setTileMode('osm')}
-            style={{
-              padding: '0.2rem 0.5rem',
-              borderRadius: '0.3rem',
-              fontSize: '0.675rem',
-              fontWeight: 700,
-              backgroundColor: tileMode === 'osm' ? '#0284c7' : 'rgb(var(--bg-slate-100))',
-              color: tileMode === 'osm' ? '#ffffff' : 'rgb(var(--text-slate-600))',
-              border: 'none',
-              cursor: 'pointer',
-            }}
-          >
-            Bản đồ đường
-          </button>
-          <button
-            type="button"
-            onClick={() => setTileMode('satellite')}
-            style={{
-              padding: '0.2rem 0.5rem',
-              borderRadius: '0.3rem',
-              fontSize: '0.675rem',
-              fontWeight: 700,
-              backgroundColor: tileMode === 'satellite' ? '#0284c7' : 'rgb(var(--bg-slate-100))',
-              color: tileMode === 'satellite' ? '#ffffff' : 'rgb(var(--text-slate-600))',
-              border: 'none',
-              cursor: 'pointer',
-            }}
-          >
-            Vệ tinh
-          </button>
+
+        <div className="flex items-center gap-1.5">
+          <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+            Khớp 100%: <strong>{totalLandArea} m²</strong>
+          </span>
         </div>
       </div>
 
-      <div
-        style={{
-          width: '100%',
-          height: '260px',
-          borderRadius: '0.65rem',
-          overflow: 'hidden',
-          border: '1.5px solid rgb(var(--border-slate-300))',
-          position: 'relative',
-        }}
-      >
-        <MapContainer
-          center={activeCentroid}
-          zoom={18}
-          maxZoom={22}
-          zoomControl={false}
-          style={{ width: '100%', height: '100%' }}
-          scrollWheelZoom={true}
-        >
-          <MapBoundsController coords={realActiveCoords} zoom={18} />
-          <ZoomControl position="bottomright" />
-
-          {tileMode === 'satellite' ? (
-            <TileLayer
-              attribution="Esri World Imagery"
-              url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
-              maxNativeZoom={19}
-              maxZoom={22}
-            />
-          ) : (
-            <TileLayer
-              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-              maxNativeZoom={19}
-              maxZoom={22}
-            />
-          )}
-
-          <Polygon
-            positions={realActiveCoords}
-            pathOptions={{
-              color: '#16a34a',
-              fillColor: '#22c55e',
-              fillOpacity: 0.45,
-              weight: 3.5,
-            }}
-          >
-            <Tooltip direction="top">
-              <div style={{ fontSize: '0.725rem', fontWeight: 800, color: 'rgb(var(--text-green-700))' }}>
-                {parcelData.projectParcelCode} ({totalLandArea} m²)
-              </div>
-            </Tooltip>
-          </Polygon>
-        </MapContainer>
-
-        <div
-          style={{
-            position: 'absolute',
-            top: '8px',
-            right: '8px',
-            zIndex: 800,
-            backgroundColor: 'rgb(var(--bg-white) / 0.95)',
-            color: 'rgb(var(--text-green-700))',
-            fontSize: '0.7rem',
-            fontWeight: 700,
-            padding: '0.2rem 0.5rem',
-            borderRadius: '0.4rem',
-            border: '1px solid rgb(var(--border-green-300))',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.25rem',
-          }}
-        >
-          <CheckCircle size={13} color="#16a34a" />
-          <span>Đơn thửa: {totalLandArea} m²</span>
-        </div>
-      </div>
-
-      {/* XÁC NHẬN KHỚP RANH 100% */}
-      <div
-        style={{
-          backgroundColor: 'rgb(var(--bg-green-50))',
-          border: '1px solid rgb(var(--border-green-200))',
-          borderRadius: '0.65rem',
-          padding: '0.75rem',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '0.55rem',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', color: 'rgb(var(--text-green-800))', fontSize: '0.8rem', fontWeight: 800 }}>
-          <ShieldCheck size={17} color="#16a34a" />
-          <span>Xác Nhận Hiện Trạng: Ranh Xây Dựng Khớp 100% Thửa Đất</span>
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '0.4rem', fontSize: '0.725rem', color: 'rgb(var(--text-slate-700))' }}>
-          <div style={{ backgroundColor: 'rgb(var(--bg-white))', padding: '0.35rem 0.55rem', borderRadius: '0.35rem', border: '1px solid rgb(var(--border-green-100))' }}>
-            Mã DA: <strong style={{ color: 'rgb(var(--text-green-700))' }}>{parcelData.projectParcelCode}</strong>
-          </div>
-          <div style={{ backgroundColor: 'rgb(var(--bg-white))', padding: '0.35rem 0.55rem', borderRadius: '0.35rem', border: '1px solid rgb(var(--border-green-100))' }}>
-            Mã gốc: <strong style={{ color: 'rgb(var(--text-green-700))' }}>{parcelData.officialCadastralCode}</strong>
-          </div>
-          <div style={{ backgroundColor: 'rgb(var(--bg-white))', padding: '0.35rem 0.55rem', borderRadius: '0.35rem', border: '1px solid rgb(var(--border-green-100))' }}>
-            Diện tích: <strong style={{ color: 'rgb(var(--text-green-700))' }}>{totalLandArea} m²</strong> (100%)
-          </div>
-        </div>
-
-        {/* Phản hồi trực quan sau khi xác nhận khớp ranh */}
-        {mutationData.activeProposalType === 'MATCH' && mutationData.matchConfirmed && (
-          <div
-            style={{
-              backgroundColor: 'rgb(var(--bg-emerald-50))',
-              border: '1.5px solid #10b981',
-              borderRadius: '0.5rem',
-              padding: '0.55rem 0.75rem',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: '0.5rem',
-              color: 'rgb(var(--text-emerald-800))',
-              fontSize: '0.725rem',
-              fontWeight: 700,
-              marginTop: '0.2rem',
-            }}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-              <CheckCircle2 size={16} color="#059669" />
-              <span>
-                ✓ Đã xác nhận công trình khớp 100% ranh thửa đất {parcelData.projectParcelCode} ({mutationData.submittedAt || 'Đã ghi nhận'}). Đề xuất được lưu trong hồ sơ thửa ban đầu.
-              </span>
+      {/* 2. BỐ CỤC 2 CỘT STUDIO: CỘT TRÁI THÔNG TIN PHÁP LÝ & CỘT PHẢI BẢN ĐỒ TOÀN CẢNH */}
+      <div className="flex flex-col lg:flex-row gap-3 items-stretch flex-1">
+        {/* CỘT TRÁI: THÔNG SỐ & XÁC NHẬN (WIDTH ~330PX) */}
+        <div className="w-full lg:w-[330px] shrink-0 bg-slate-50/70 border border-slate-200 rounded-xl p-3 flex flex-col justify-between gap-3">
+          <div className="space-y-3">
+            <div className="text-xs font-bold text-slate-800 flex items-center gap-1.5 pb-1 border-b border-slate-200">
+              <ShieldCheck className="w-4 h-4 text-emerald-600" />
+              <span>Hiện trạng hồ sơ địa chính</span>
             </div>
+
+            <div className="space-y-2 text-xs">
+              <div className="bg-white p-2.5 rounded-lg border border-slate-200 shadow-xs">
+                <span className="text-[10px] text-slate-400 font-semibold block uppercase">Mã dự án (Metro 2)</span>
+                <span className="font-extrabold text-slate-800 font-mono">{parcelData.projectParcelCode}</span>
+              </div>
+              <div className="bg-white p-2.5 rounded-lg border border-slate-200 shadow-xs">
+                <span className="text-[10px] text-slate-400 font-semibold block uppercase">Mã địa chính chính thức</span>
+                <span className="font-bold text-amber-700 font-mono">{parcelData.officialCadastralCode || '—'}</span>
+              </div>
+              <div className="bg-white p-2.5 rounded-lg border border-slate-200 shadow-xs">
+                <span className="text-[10px] text-slate-400 font-semibold block uppercase">Diện tích thửa đất (S)</span>
+                <span className="font-extrabold text-emerald-700 font-mono text-sm">{totalLandArea} m² (100%)</span>
+              </div>
+            </div>
+
+            <div className="p-2.5 bg-emerald-50/80 rounded-xl border border-emerald-200 text-[11px] text-emerald-900 leading-relaxed shadow-xs">
+              Thửa đất được đối soát trọn vẹn theo ranh PostGIS WGS84. Không phát sinh phân chia cắt xén hay nhập thửa với các bất động sản kế cận.
+            </div>
+
+            {isConfirmed && (
+              <div className="p-2.5 bg-emerald-100/70 rounded-xl border border-emerald-300 text-xs text-emerald-900 font-bold flex items-start justify-between gap-2 shadow-xs">
+                <div className="flex items-center gap-1.5">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>Đã ghi nhận ranh khớp 100% ({mutationData.submittedAt || 'Hiện tại'})</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onMutationDataChange({ ...mutationData, matchConfirmed: false, activeProposalType: null })}
+                  className="text-[10px] text-slate-500 hover:text-slate-800 underline cursor-pointer"
+                >
+                  Hủy
+                </button>
+              </div>
+            )}
+          </div>
+
+          <div className="pt-2 border-t border-slate-200">
             <button
               type="button"
-              onClick={() => onMutationDataChange({ ...mutationData, matchConfirmed: false, activeProposalType: null })}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: '#6b7280',
-                fontSize: '0.675rem',
-                textDecoration: 'underline',
-                cursor: 'pointer',
-                whiteSpace: 'nowrap',
+              onClick={() => {
+                const nowStr = new Date().toLocaleTimeString('vi-VN');
+                onMutationDataChange({
+                  ...mutationData,
+                  activeProposalType: 'MATCH',
+                  matchConfirmed: true,
+                  isSubmitted: false,
+                  submittedAt: nowStr,
+                });
+                if (onToastMessage) {
+                  onToastMessage(`✓ Đã xác nhận thửa ${parcelData.projectParcelCode} khớp ranh 100%!`);
+                }
               }}
+              className={`w-full py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-xs ${
+                isConfirmed
+                  ? 'bg-emerald-700 text-white shadow-sm'
+                  : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs hover:shadow-md'
+              }`}
             >
-              Xác nhận lại
+              {isConfirmed ? <CheckCircle2 className="w-4 h-4" /> : <Check className="w-4 h-4" />}
+              <span>{isConfirmed ? 'ĐÃ XÁC NHẬN KHỚP RANH 100%' : 'Xác nhận Khớp ranh 100%'}</span>
             </button>
           </div>
-        )}
+        </div>
 
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.2rem' }}>
-          <button
-            type="button"
-            onClick={() => {
-              const nowStr = new Date().toLocaleTimeString('vi-VN');
-              onMutationDataChange({
-                ...mutationData,
-                activeProposalType: 'MATCH',
-                matchConfirmed: true,
-                isSubmitted: false,
-                submittedAt: nowStr,
-              });
-              if (onToastMessage) {
-                onToastMessage(`✓ Đã xác nhận thửa ${parcelData.projectParcelCode} khớp ranh 100%!`);
-              }
-            }}
-            className="btn btn-primary btn-sm"
-            style={{
-              backgroundColor: (mutationData.activeProposalType === 'MATCH' && mutationData.matchConfirmed) ? '#059669' : '#16a34a',
-              borderColor: (mutationData.activeProposalType === 'MATCH' && mutationData.matchConfirmed) ? '#059669' : '#16a34a',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.35rem',
-              fontSize: '0.75rem',
-              fontWeight: 700,
-              padding: '0.4rem 0.85rem',
-              boxShadow: (mutationData.activeProposalType === 'MATCH' && mutationData.matchConfirmed) ? '0 0 0 3px rgba(16, 185, 129, 0.25)' : 'none',
-            }}
+        {/* CỘT PHẢI: BẢN ĐỒ TOÀN CẢNH LEAFLET (FLEX-1, MAXZOOM = 24) */}
+        <div className="flex-1 min-h-[500px] h-[58vh] relative rounded-xl overflow-hidden border border-slate-300 bg-slate-100">
+          {/* TOOLBAR NỔI TRÊN BẢN ĐỒ */}
+          <div className="absolute top-3 left-3 z-[400] flex items-center gap-1.5 bg-white/95 backdrop-blur-md p-1 rounded-xl border border-slate-200 shadow-md">
+            <button
+              type="button"
+              onClick={() => setTileMode('satellite')}
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1 transition-all cursor-pointer ${
+                tileMode === 'satellite'
+                  ? 'bg-emerald-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              <Layers className="w-3 h-3" />
+              Vệ Tinh (Esri)
+            </button>
+            <button
+              type="button"
+              onClick={() => setTileMode('osm')}
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1 transition-all cursor-pointer ${
+                tileMode === 'osm'
+                  ? 'bg-emerald-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              <Building className="w-3 h-3" />
+              Bản Đồ (OSM)
+            </button>
+          </div>
+
+          <MapContainer
+            center={activeCentroid}
+            zoom={19}
+            maxZoom={24}
+            zoomControl={false}
+            style={{ width: '100%', height: '100%' }}
+            scrollWheelZoom={true}
           >
-            {(mutationData.activeProposalType === 'MATCH' && mutationData.matchConfirmed) ? <CheckCircle2 size={15} /> : <Check size={14} />}
-            <span>{(mutationData.activeProposalType === 'MATCH' && mutationData.matchConfirmed) ? 'ĐÃ XÁC NHẬN KHỚP RANH 100%' : 'Xác nhận Khớp ranh 100%'}</span>
-          </button>
+            <MapBoundsController coords={realActiveCoords} zoom={19} />
+            <ZoomControl position="bottomright" />
+
+            {tileMode === 'satellite' ? (
+              <TileLayer
+                attribution="Esri World Imagery"
+                url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+                maxNativeZoom={19}
+                maxZoom={24}
+              />
+            ) : (
+              <TileLayer
+                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                maxNativeZoom={19}
+                maxZoom={24}
+              />
+            )}
+
+            {/* THỬA ĐẤT KHỚP RANH 100% (MÀU XANH LÁ RỰC RỠ) */}
+            <Polygon
+              positions={realActiveCoords}
+              pathOptions={{
+                color: '#16a34a',
+                fillColor: '#22c55e',
+                fillOpacity: 0.5,
+                weight: 3.5,
+              }}
+            >
+              <Tooltip direction="top" opacity={0.95} permanent>
+                <div className="text-xs font-bold text-emerald-900 text-center">
+                  {parcelData.projectParcelCode} ({totalLandArea} m²)
+                </div>
+              </Tooltip>
+            </Polygon>
+          </MapContainer>
         </div>
       </div>
     </div>

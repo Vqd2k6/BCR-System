@@ -1,29 +1,33 @@
-import { getErrorMessage, getErrorStatus, isNotFoundError } from '@/utils/errorUtils';
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
+import { MapContainer, TileLayer, Polygon, Tooltip, ZoomControl } from 'react-leaflet';
 import {
   X,
   ArrowRightLeft,
-  ArrowRight,
   AlertTriangle,
   CheckCircle2,
   Building,
-  Home,
-  ShieldAlert,
   Search,
   Loader2,
   MapPin,
-  User,
   Sparkles,
   Layers,
+  ShieldCheck,
+  Check,
+  RotateCcw,
 } from 'lucide-react';
 import type { GisParcel } from '../../shared/types';
 import { useAuth } from '../../../../context/AuthContext';
+import { api } from '../../../../services/api';
+import { MapBoundsController } from '../../shared/MapControllers';
+import { computeCentroid } from '../../shared/geoMath';
 import { AdminSecurityChallengeConfirm } from '../../../../features/zone-management/components/review-queue/AdminSecurityChallengeConfirm';
 
 interface CandidateParcel {
   id: string;
   project_parcel_code?: string;
   projectParcelCode?: string;
+  official_cadastral_code?: string;
+  officialCadastralCode?: string;
   house_number?: string;
   houseNumber?: string;
   street?: string;
@@ -37,6 +41,7 @@ interface CandidateParcel {
   distance_meters?: number;
   distanceMeters?: number;
   is_adjacent?: boolean;
+  coordinates?: [number, number][];
 }
 
 interface CadastralSpatialSwapModalProps {
@@ -55,176 +60,289 @@ export const CadastralSpatialSwapModal: React.FC<CadastralSpatialSwapModalProps>
   onSuccess,
 }) => {
   const { token } = useAuth();
-  const [activeMode, setActiveMode] = useState<'REASSIGN' | 'SWAP'>('REASSIGN');
-  
-  // Tab 1 (REASSIGN) state
-  const [targetParcelCodeOrId, setTargetParcelCodeOrId] = useState('');
-  const [selectedTargetA, setSelectedTargetA] = useState<CandidateParcel | null>(null);
+
+  // Lớp bản đồ nền
+  const [tileMode, setTileMode] = useState<'satellite' | 'osm'>('satellite');
+
+  // Thửa đất B (Thửa đích sẽ hoán đổi)
+  const [selectedTargetB, setSelectedTargetB] = useState<CandidateParcel | null>(null);
+
+  // Bộ lọc tìm kiếm
+  const [searchTerm, setSearchTerm] = useState('');
   const [isInputFocused, setIsInputFocused] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // Tab 2 (SWAP) state
-  const [selectedParcelB, setSelectedParcelB] = useState<CandidateParcel | null>(null);
-  const [swapSearchFilter, setSwapSearchFilter] = useState('');
-
-  // Candidates & Data
+  // Danh sách ứng viên tiếp giáp từ Backend
   const [adjacentCandidates, setAdjacentCandidates] = useState<CandidateParcel[]>([]);
-  const [isLoadingCandidates, setIsLoadingCandidates] = useState(false);
+  const [, setIsLoadingCandidates] = useState(false);
 
-  // Common Form State
+  // Danh sách toàn bộ thửa đất trong Zone có kèm coordinates
+  const [zoneParcelsWithGeom, setZoneParcelsWithGeom] = useState<GisParcel[]>(availableParcels);
+
+  // Form State
   const [reason, setReason] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   const [isChallengeValid, setIsChallengeValid] = useState(false);
 
-  // Reset when opening
+  // Nạp danh sách ứng viên tiếp giáp & nạp zone map khi modal mở
   useEffect(() => {
     if (isOpen && activeParcel) {
-      setTargetParcelCodeOrId('');
-      setSelectedTargetA(null);
-      setSelectedParcelB(null);
-      setSwapSearchFilter('');
+      setSelectedTargetB(null);
+      setSearchTerm('');
       setReason('');
       setErrorMsg('');
       setSuccessMsg('');
       setIsChallengeValid(false);
       setIsInputFocused(false);
-      fetchAdjacentCandidates(activeParcel.id);
-    }
-  }, [isOpen, activeParcel]);
 
-  // Fetch adjacent candidates from API
-  const fetchAdjacentCandidates = async (parcelId: string) => {
-    setIsLoadingCandidates(true);
-    try {
-      const res = await fetch(`/api/v1/parcels/${parcelId}/adjacent-candidates`, {
+      // Fetch adjacent candidates
+      setIsLoadingCandidates(true);
+      fetch(`/api/v1/parcels/${activeParcel.id}/adjacent-candidates`, {
         headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-      });
-      if (res.ok) {
-        const json = await res.json();
-        if (json.success && json.data?.candidates) {
-          setAdjacentCandidates(json.data.candidates);
-        }
+      })
+        .then((res) => res.json())
+        .then((json) => {
+          if (json.success && json.data?.candidates) {
+            setAdjacentCandidates(json.data.candidates);
+          }
+        })
+        .catch((err) => {
+          console.warn('[CadastralSpatialSwapModal] Lỗi lấy danh sách thửa tiếp giáp:', err);
+        })
+        .finally(() => {
+          setIsLoadingCandidates(false);
+        });
+
+      // Nạp danh sách thửa đất trong Zone kèm tọa độ đầy đủ
+      const targetZone = activeParcel.zoneId || (activeParcel as unknown as { zone_id?: string }).zone_id;
+      if (targetZone) {
+        api.get('/parcels/zone-map', { params: { zoneId: targetZone } })
+          .then((res) => {
+            if (res.data?.success && Array.isArray(res.data.data)) {
+              const parsed: GisParcel[] = res.data.data.map((raw: Record<string, unknown>) => {
+                let coords: [number, number][] = [];
+                const geojson = raw.cadastral_geojson as { coordinates?: [number, number][][] } | undefined;
+                if (geojson?.coordinates?.[0]) {
+                  coords = geojson.coordinates[0].map(([lng, lat]: [number, number]) => [lat, lng]);
+                } else if (raw.coordinates && Array.isArray(raw.coordinates)) {
+                  coords = raw.coordinates as [number, number][];
+                }
+                return {
+                  id: String(raw.id || ''),
+                  projectParcelCode: String(raw.project_parcel_code || raw.projectParcelCode || ''),
+                  officialCadastralCode: String(raw.official_cadastral_code || raw.officialCadastralCode || ''),
+                  houseNumber: String(raw.house_number || raw.houseNumber || ''),
+                  street: String(raw.street || ''),
+                  ownerName: String(raw.owner_name || raw.ownerName || ''),
+                  coordinates: coords,
+                  landArea: Number(raw.land_area_m2 || raw.landArea || 0),
+                  zoneId: String(raw.zone_id || targetZone),
+                };
+              });
+              setZoneParcelsWithGeom(parsed);
+            }
+          })
+          .catch((err) => {
+            console.warn('[CadastralSpatialSwapModal] Lỗi nạp zone map:', err);
+          });
       }
-    } catch (err) {
-      console.warn('[CadastralSpatialSwapModal] Lỗi lấy danh sách thửa tiếp giáp:', err);
-    } finally {
-      setIsLoadingCandidates(false);
     }
+  }, [isOpen, activeParcel, token]);
+
+  // Chuẩn hóa chuỗi tiếng Việt tìm kiếm
+  const stripVietnameseTones = (str: string): string => {
+    return (str || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/đ/g, 'd')
+      .replace(/Đ/g, 'D')
+      .toLowerCase()
+      .trim();
   };
 
-  // Pool of all candidate parcels in the same zone
+  // Tổng hợp pool ứng viên Thửa B
   const candidatePool = useMemo(() => {
     if (!activeParcel) return [];
     const map = new Map<string, CandidateParcel>();
 
-    // 1. Add adjacent candidates first (with touching and distance flags)
+    // 1. Thêm ứng viên tiếp giáp kề bên
     adjacentCandidates.forEach((c) => {
+      const code = c.project_parcel_code || c.projectParcelCode || '';
+      const officialCode = (c as unknown as { official_cadastral_code?: string; officialCadastralCode?: string }).official_cadastral_code ||
+                           (c as unknown as { official_cadastral_code?: string; officialCadastralCode?: string }).officialCadastralCode || '';
+      const house = c.house_number || c.houseNumber || '';
+      const street = c.street || '';
+      const owner = c.owner_name || c.ownerName || '';
+      const area = Number(c.land_area_m2 || c.landAreaM2 || c.landArea || 0);
+      const touching = Boolean(c.is_touching ?? c.isTouching ?? false);
+      const dist = c.distance_meters !== undefined ? Number(c.distance_meters) : (c.distanceMeters !== undefined ? Number(c.distanceMeters) : undefined);
+
       map.set(c.id, {
         id: c.id,
-        project_parcel_code: c.projectParcelCode,
-        house_number: c.houseNumber,
-        street: c.street,
-        owner_name: c.ownerName,
-        land_area_m2: c.landAreaM2,
-        is_touching: c.isTouching,
-        distance_meters: c.distanceMeters,
+        project_parcel_code: code,
+        projectParcelCode: code,
+        official_cadastral_code: officialCode,
+        officialCadastralCode: officialCode,
+        house_number: house,
+        houseNumber: house,
+        street,
+        owner_name: owner,
+        ownerName: owner,
+        land_area_m2: area,
+        landAreaM2: area,
+        landArea: area,
+        is_touching: touching,
+        isTouching: touching,
+        distance_meters: dist,
+        distanceMeters: dist,
         is_adjacent: true,
       });
     });
 
-    // 2. Add other parcels from availableParcels in the same zone
-    availableParcels.forEach((p) => {
-      if (p.id !== activeParcel.id && (!activeParcel.zoneId || p.zoneId === activeParcel.zoneId)) {
-        if (!map.has(p.id)) {
+    // 2. Thêm các thửa khác trong Zone
+    const targetZone = activeParcel.zoneId || (activeParcel as unknown as { zone_id?: string }).zone_id;
+    const sourceParcels = zoneParcelsWithGeom.length > 0 ? zoneParcelsWithGeom : availableParcels;
+
+    sourceParcels.forEach((p) => {
+      const pZone = p.zoneId || (p as unknown as { zone_id?: string }).zone_id;
+      if (p.id !== activeParcel.id && (!targetZone || !pZone || pZone === targetZone)) {
+        const code = p.projectParcelCode || (p as unknown as { project_parcel_code?: string }).project_parcel_code || '';
+        const officialCode = p.officialCadastralCode || (p as unknown as { official_cadastral_code?: string }).official_cadastral_code || '';
+        const house = p.houseNumber || (p as unknown as { house_number?: string }).house_number || '';
+        const street = p.street || '';
+        const owner = p.ownerName || (p as unknown as { owner_name?: string }).owner_name || '';
+        const area = Number(p.landArea || (p as unknown as { land_area_m2?: number }).land_area_m2 || 0);
+
+        if (map.has(p.id)) {
+          const existing = map.get(p.id)!;
+          map.set(p.id, {
+            ...existing,
+            coordinates: p.coordinates || existing.coordinates,
+          });
+        } else {
           map.set(p.id, {
             id: p.id,
-            project_parcel_code: p.projectParcelCode,
-            house_number: p.houseNumber,
-            street: p.street,
-            owner_name: p.ownerName,
-            land_area_m2: p.landArea,
+            project_parcel_code: code,
+            projectParcelCode: code,
+            official_cadastral_code: officialCode,
+            officialCadastralCode: officialCode,
+            house_number: house,
+            houseNumber: house,
+            street,
+            owner_name: owner,
+            ownerName: owner,
+            land_area_m2: area,
+            landAreaM2: area,
+            landArea: area,
             is_touching: false,
+            isTouching: false,
             is_adjacent: false,
+            coordinates: p.coordinates,
           });
         }
       }
     });
 
     return Array.from(map.values());
-  }, [activeParcel, adjacentCandidates, availableParcels]);
+  }, [activeParcel, adjacentCandidates, zoneParcelsWithGeom, availableParcels]);
 
-const stripVietnameseTones = (str: string): string => {
-  return (str || '')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/đ/g, 'd')
-    .replace(/Đ/g, 'D')
-    .toLowerCase()
-    .trim();
-};
-
-  // Tab 1: Autocomplete suggestions when typing in Target Parcel input
-  const targetSuggestions = useMemo(() => {
-    const raw = stripVietnameseTones(targetParcelCodeOrId.replace(/[\[\]"'\\]/g, ''));
+  // Lọc gợi ý tìm kiếm Thửa B
+  const searchSuggestions = useMemo(() => {
+    const raw = stripVietnameseTones(searchTerm.replace(/[\[\]"'\\]/g, ''));
     if (!raw && !isInputFocused) return [];
 
     let list = candidatePool;
     if (raw) {
       list = candidatePool.filter((c) => {
-        const code = stripVietnameseTones(c.project_parcel_code || '');
-        const house = stripVietnameseTones(c.house_number || '');
+        const code = stripVietnameseTones(c.project_parcel_code || c.projectParcelCode || '');
+        const official = stripVietnameseTones(c.official_cadastral_code || c.officialCadastralCode || '');
+        const house = stripVietnameseTones(c.house_number || c.houseNumber || '');
         const street = stripVietnameseTones(c.street || '');
-        const owner = stripVietnameseTones(c.owner_name || '');
-        return code.includes(raw) || house.includes(raw) || street.includes(raw) || owner.includes(raw);
+        const owner = stripVietnameseTones(c.owner_name || c.ownerName || '');
+        return code.includes(raw) || official.includes(raw) || house.includes(raw) || street.includes(raw) || owner.includes(raw);
       });
     }
 
-    // Sort: touching first, adjacent second, then alphabetical
     return list
       .sort((a, b) => {
         if (a.is_touching && !b.is_touching) return -1;
         if (!a.is_touching && b.is_touching) return 1;
+        if (a.distance_meters !== undefined && b.distance_meters !== undefined) {
+          if (a.distance_meters !== b.distance_meters) {
+            return a.distance_meters - b.distance_meters;
+          }
+        }
         if (a.is_adjacent && !b.is_adjacent) return -1;
         if (!a.is_adjacent && b.is_adjacent) return 1;
-        return (a.project_parcel_code || '').localeCompare(b.project_parcel_code || '');
+        return (a.project_parcel_code || a.projectParcelCode || '').localeCompare(b.project_parcel_code || b.projectParcelCode || '');
       })
-      .slice(0, 8);
-  }, [candidatePool, targetParcelCodeOrId, isInputFocused]);
+      .slice(0, 10);
+  }, [candidatePool, searchTerm, isInputFocused]);
 
-  // Tab 2: Filtered candidates for adjacent swap (Smart selector)
-  const swapFilteredCandidates = useMemo(() => {
-    const raw = stripVietnameseTones(swapSearchFilter);
-    let list = candidatePool;
-    if (raw) {
-      list = candidatePool.filter((c) => {
-        const code = stripVietnameseTones(c.project_parcel_code || '');
-        const house = stripVietnameseTones(c.house_number || '');
-        const street = stripVietnameseTones(c.street || '');
-        const owner = stripVietnameseTones(c.owner_name || '');
-        return code.includes(raw) || house.includes(raw) || street.includes(raw) || owner.includes(raw);
-      });
+  // Các thửa tiếp giáp đề xuất nhanh (Touching / Adjacent)
+  const quickAdjacentList = useMemo(() => {
+    return candidatePool.filter((c) => c.is_touching || c.is_adjacent).slice(0, 6);
+  }, [candidatePool]);
+
+  // Tọa độ thửa A
+  const coordsA = useMemo<[number, number][]>(() => {
+    if (!activeParcel?.coordinates || !Array.isArray(activeParcel.coordinates)) return [];
+    let pts = activeParcel.coordinates;
+    if (pts.length > 0 && Array.isArray(pts[0])) {
+      if (pts[0][0] < 8 || pts[0][0] > 24) {
+        pts = pts.map(([lng, lat]) => [lat, lng]);
+      }
     }
+    return pts as [number, number][];
+  }, [activeParcel]);
 
-    return list.sort((a, b) => {
-      if (a.is_touching && !b.is_touching) return -1;
-      if (!a.is_touching && b.is_touching) return 1;
-      if (a.is_adjacent && !b.is_adjacent) return -1;
-      if (!a.is_adjacent && b.is_adjacent) return 1;
-      return (a.project_parcel_code || '').localeCompare(b.project_parcel_code || '');
-    });
-  }, [candidatePool, swapSearchFilter]);
+  // Tọa độ thửa B
+  const coordsB = useMemo<[number, number][]>(() => {
+    if (!selectedTargetB) return [];
+    // Tìm trong zoneParcelsWithGeom
+    const match = zoneParcelsWithGeom.find((p) => p.id === selectedTargetB.id);
+    let pts = match?.coordinates || selectedTargetB.coordinates;
+    if (pts && pts.length > 0 && Array.isArray(pts[0])) {
+      if (pts[0][0] < 8 || pts[0][0] > 24) {
+        pts = pts.map(([lng, lat]) => [lat, lng]);
+      }
+      return pts as [number, number][];
+    }
+    return [];
+  }, [selectedTargetB, zoneParcelsWithGeom]);
 
-  if (!isOpen || !activeParcel) return null;
+  // Tâm bản đồ & Tọa độ bao phủ bounds
+  const mapCenter = useMemo<[number, number]>(() => {
+    if (coordsA.length > 0) return computeCentroid(coordsA);
+    return [10.7769, 106.7009];
+  }, [coordsA]);
 
-  // Execute swap API call
-  const handleExecuteSwap = async (targetParcelId: string) => {
-    if (!targetParcelId) {
-      setErrorMsg('Vui lòng chọn thửa đất đích cần hoán đổi.');
+  const mapBoundsCoords = useMemo<[number, number][]>(() => {
+    const list = [...coordsA];
+    if (coordsB.length > 0) list.push(...coordsB);
+    return list;
+  }, [coordsA, coordsB]);
+
+  // Thao tác click chọn Thửa B từ bản đồ
+  const handleMapParcelClick = useCallback((parcelId: string) => {
+    const candidate = candidatePool.find((c) => c.id === parcelId);
+    if (candidate) {
+      setSelectedTargetB(candidate);
+      setSearchTerm(candidate.project_parcel_code || candidate.projectParcelCode || '');
+      setIsInputFocused(false);
+      setErrorMsg('');
+    }
+  }, [candidatePool]);
+
+  // Thực thi hoán đổi ranh (Execute Swap API)
+  const handleExecuteSwap = async () => {
+    if (!selectedTargetB?.id) {
+      setErrorMsg('Vui lòng chọn Thửa B cần hoán đổi ranh.');
       return;
     }
     if (!reason.trim() || reason.trim().length < 5) {
@@ -246,457 +364,462 @@ const stripVietnameseTones = (str: string): string => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          parcelAId: activeParcel.id,
-          parcelBId: targetParcelId,
+          parcelAId: activeParcel?.id,
+          parcelBId: selectedTargetB.id,
           reason: reason.trim(),
         }),
       });
 
       const json = await res.json();
-      if (!res.ok) {
-        throw new Error(json.message || json.detail || `Lỗi hoán đổi thửa đất (${res.status})`);
+      if (!res.ok || !json.success) {
+        throw new Error(json.message || 'Lỗi xử lý hoán đổi ranh từ máy chủ.');
       }
 
-      setSuccessMsg(json.message || 'Đã hoán đổi vị trí ranh đất GIS thành công!');
+      setSuccessMsg(json.message || 'Hoán đổi vị trí ranh đất thành công!');
       setTimeout(() => {
         onSuccess?.();
         onClose();
-      }, 1000);
+      }, 1500);
     } catch (err: unknown) {
       console.error('[CadastralSpatialSwapModal] Swap error:', err);
-      setErrorMsg(getErrorMessage(err, 'Lỗi hoán đổi ranh đất GIS. Vui lòng kiểm tra lại 2 thửa đất.'));
+      const msg = err instanceof Error ? err.message : 'Có lỗi xảy ra khi thực hiện hoán đổi ranh đất.';
+      setErrorMsg(msg);
     } finally {
       setIsSubmitting(false);
     }
   };
 
+  if (!isOpen || !activeParcel) return null;
+
   return (
-    <div className="fixed inset-0 z-[3000] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
-      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-xl overflow-hidden flex flex-col max-h-[90vh]">
-        {/* HEADER (Chuẩn Zone Dashboard) */}
-        <div className="p-4 sm:p-5 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl bg-amber-100 text-amber-800">
-              <ArrowRightLeft className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="text-base font-black text-slate-800">
+    <div className="fixed inset-0 z-[1200] bg-white flex flex-col w-screen h-screen overflow-hidden animate-in fade-in duration-200">
+      {/* 1. HEADER SÁNG THANH LỊCH (ĐỒNG BỘ) */}
+      <div className="px-5 py-3 bg-white text-slate-800 border-b border-slate-200 flex items-center justify-between shrink-0 shadow-xs">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-600 shadow-xs">
+            <ArrowRightLeft className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h3 className="text-base sm:text-lg font-black text-slate-800">
                 Hoán Đổi Vị Trí Ranh Đất GIS (Zone Admin)
               </h3>
-              <p className="text-xs text-slate-500">
-                Hoán đổi đa giác GIS — Bảo toàn 100% mã thửa, hồ sơ và watermark trên ảnh
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-200 transition-colors cursor-pointer"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        {/* TAB SWITCH (Chuẩn Zone Dashboard) */}
-        <div className="flex border-b border-slate-200 bg-slate-100/60 p-1">
-          <button
-            type="button"
-            onClick={() => {
-              setActiveMode('REASSIGN');
-              setErrorMsg('');
-              setIsChallengeValid(false);
-            }}
-            className={`flex-1 py-2 text-xs font-black rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-              activeMode === 'REASSIGN'
-                ? 'bg-white text-slate-800 shadow-xs'
-                : 'text-slate-500 hover:text-slate-700'
-            }`}
-          >
-            <ArrowRight className="w-3.5 h-3.5" />
-            <span>1. Đổi Vị Trí Ranh Đến Thửa Đích</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setActiveMode('SWAP');
-              setErrorMsg('');
-              setIsChallengeValid(false);
-            }}
-            className={`flex-1 py-2 text-xs font-black rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
-              activeMode === 'SWAP'
-                ? 'bg-white text-slate-800 shadow-xs'
-                : 'text-slate-500 hover:text-slate-700'
-            }`}
-          >
-            <ArrowRightLeft className="w-3.5 h-3.5" />
-            <span>2. Hoán Đổi Ranh 2 Nhà Liền Kề</span>
-          </button>
-        </div>
-
-        {/* FORM BODY */}
-        <div className="p-5 overflow-y-auto space-y-4 custom-scrollbar">
-          {/* CARD HỒ SƠ ĐANG CHỌN (HỒ SƠ A) */}
-          <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-1.5">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
-              Hồ Sơ Đang Chọn (Hồ Sơ A)
-            </span>
-            <div className="flex items-center justify-between">
-              <div>
-                <span className="text-sm font-black text-sky-700 font-mono">
-                  [{activeParcel.projectParcelCode}]
-                </span>
-                <span className="text-xs font-bold text-slate-700 ml-2">
-                  {activeParcel.houseNumber ? `Số ${activeParcel.houseNumber}` : ''} {activeParcel.street || ''}
-                </span>
-              </div>
-              <span className="text-[11px] text-slate-500 font-medium">
-                Chủ hộ: <strong className="text-slate-700">{activeParcel.ownerName || 'Chưa cập nhật'}</strong>
+              <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200 font-mono">
+                {activeParcel.projectParcelCode}
+              </span>
+              <span className="px-2 py-0.5 rounded text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+                {activeParcel.zoneId || 'ZONE'}
+              </span>
+              <span className="hidden sm:inline-flex px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                Toàn Màn Hình
               </span>
             </div>
-            <div className="text-[11px] text-slate-500 pt-1 border-t border-slate-200/60 flex items-center justify-between">
-              <span>Diện tích đất hiện tại: <strong className="text-slate-700 font-mono">{activeParcel.landArea || 0} m²</strong></span>
-              <span className="text-sky-600 font-semibold font-mono">{activeParcel.surveyStatus}</span>
-            </div>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Hoán đổi ranh đa giác PostGIS • Bảo toàn 100% mã thửa, hồ sơ khảo sát, khuyết tật và watermark ảnh
+            </p>
           </div>
+        </div>
 
-          {/* BÁO LỖI */}
-          {errorMsg && (
-            <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-xs font-semibold text-red-700 flex items-start gap-2">
-              <AlertTriangle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
-              <span>{errorMsg}</span>
+        <button
+          type="button"
+          onClick={onClose}
+          className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+          title="Đóng (ESC)"
+        >
+          <X className="w-5 h-5" />
+        </button>
+      </div>
+
+      {/* 2. BODY 2 CỘT: CỘT TRÁI THÔNG TIN / CỘT PHẢI BẢN ĐỒ TOÀN CẢNH */}
+      <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
+        {/* CỘT TRÁI: SIDEBAR ĐIỀU KHIỂN & CHỌN THỬA (WIDTH ~340PX) */}
+        <div className="w-full lg:w-[340px] shrink-0 bg-slate-50/70 border-r border-slate-200 p-3.5 flex flex-col justify-between overflow-y-auto custom-scrollbar gap-3">
+          <div className="space-y-3">
+            {/* THẺ THỬA A (HIỆN TẠI - MÀU VÀNG HỔ PHÁCH) */}
+            <div className="bg-white p-3 rounded-xl border-2 border-amber-400 shadow-xs">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700 flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-amber-500" />
+                  Thửa A (Đang khảo sát)
+                </span>
+                <span className="text-[11px] font-mono font-bold text-slate-600">
+                  {activeParcel.landArea || 0} m²
+                </span>
+              </div>
+              <div className="font-extrabold text-sm text-slate-800 font-mono">
+                {activeParcel.projectParcelCode}
+              </div>
+              <div className="text-xs text-slate-600 mt-0.5">
+                {activeParcel.houseNumber ? `Số ${activeParcel.houseNumber}, ` : ''}{activeParcel.street || 'Đoạn tuyến Metro 2'}
+              </div>
+              {activeParcel.ownerName && (
+                <div className="text-[11px] text-slate-500 mt-0.5">
+                  Chủ hộ: <strong>{activeParcel.ownerName}</strong>
+                </div>
+              )}
             </div>
-          )}
 
-          {/* BÁO THÀNH CÔNG */}
-          {successMsg && (
-            <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-xs font-semibold text-emerald-700 flex items-start gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-              <span>{successMsg}</span>
-            </div>
-          )}
+            {/* BỘ CHỌN THỬA B (THỬA ĐÍCH - MÀU XANH LỤC EMERALD) */}
+            <div className="space-y-2">
+              <label className="text-[11px] font-bold text-slate-700 flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                <span>Thửa B (Thửa đích sẽ hoán đổi): <span className="text-rose-500">*</span></span>
+              </label>
 
-          {/* ========================================================================= */}
-          {/* TAB 1: ĐỔI VỊ TRÍ RANH ĐẾN THỬA ĐÍCH                                    */}
-          {/* ========================================================================= */}
-          {activeMode === 'REASSIGN' && (
-            <div className="space-y-4">
-              <div className="space-y-1.5 relative">
-                <label className="text-xs font-bold text-slate-700 block">
-                  Nhập Mã Dự Án Hoặc UUID Thửa Đích (Target Parcel):
-                </label>
+              {/* Ô TÌM KIẾM THÔNG MINH */}
+              <div className="relative">
                 <div className="relative">
+                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
                   <input
                     ref={searchInputRef}
                     type="text"
-                    required
-                    placeholder="Ví dụ: B-0042 hoặc paste UUID thửa đất..."
-                    value={targetParcelCodeOrId}
-                    onFocus={() => setIsInputFocused(true)}
+                    placeholder="Tìm mã thửa, số nhà, chủ hộ..."
+                    value={searchTerm}
                     onChange={(e) => {
-                      setTargetParcelCodeOrId(e.target.value);
+                      setSearchTerm(e.target.value);
                       setIsInputFocused(true);
-                      // Clear selected target if user modifies input
-                      if (selectedTargetA && selectedTargetA.project_parcel_code !== e.target.value) {
-                        setSelectedTargetA(null);
-                      }
                     }}
-                    className="w-full pl-3 pr-8 py-2 text-xs font-bold text-slate-800 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 focus:outline-hidden uppercase"
+                    onFocus={() => setIsInputFocused(true)}
+                    className="w-full text-xs pl-8 pr-3 py-2 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none text-slate-800 shadow-xs"
                   />
-                  <Search className="w-4 h-4 text-slate-400 absolute right-2.5 top-2.5 pointer-events-none" />
                 </div>
 
-                {/* THẺ XÁC NHẬN THỬA ĐÍCH ĐÃ CHỌN (NẾU CÓ) */}
-                {selectedTargetA && (
-                  <div className="p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 flex items-center justify-between text-xs animate-in fade-in duration-150">
-                    <div className="flex items-center gap-2">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                      <div>
-                        <span className="font-mono font-bold text-emerald-800">[{selectedTargetA.project_parcel_code}]</span>
-                        <span className="text-slate-600 ml-1.5">{selectedTargetA.house_number ? `Số ${selectedTargetA.house_number}` : ''} {selectedTargetA.street}</span>
-                        {selectedTargetA.land_area_m2 && (
-                          <span className="text-emerald-700 font-mono font-semibold ml-2">({selectedTargetA.land_area_m2} m²)</span>
-                        )}
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedTargetA(null);
-                        setTargetParcelCodeOrId('');
-                        searchInputRef.current?.focus();
-                      }}
-                      className="text-[11px] text-slate-500 hover:text-slate-800 font-semibold"
-                    >
-                      Đổi lại
-                    </button>
-                  </div>
-                )}
-
-                {/* DROPDOWN DANH SÁCH GỢI Ý AUTOCOMPLETE (NHẢY RA TỨC THÌ) */}
-                {isInputFocused && !selectedTargetA && targetSuggestions.length > 0 && (
-                  <div className="absolute left-0 right-0 top-full mt-1 z-30 p-1.5 rounded-xl bg-white border border-slate-300 shadow-xl space-y-1 max-h-56 overflow-y-auto custom-scrollbar animate-in fade-in duration-100">
-                    <div className="flex items-center justify-between px-2 py-0.5 text-[10px] font-bold text-slate-400 uppercase">
-                      <span>Gợi ý thửa đất trong phân khu ({targetSuggestions.length}):</span>
-                      <button
-                        type="button"
-                        onClick={() => setIsInputFocused(false)}
-                        className="text-slate-400 hover:text-slate-600 text-[10px]"
-                      >
-                        Đóng ✕
-                      </button>
-                    </div>
-                    {targetSuggestions.map((item) => (
+                {/* DROPDOWN GỢI Ý KHI GÕ */}
+                {isInputFocused && searchSuggestions.length > 0 && (
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-50 max-h-48 overflow-y-auto divide-y divide-slate-100">
+                    {searchSuggestions.map((item) => (
                       <button
                         key={item.id}
                         type="button"
                         onClick={() => {
-                          setTargetParcelCodeOrId(item.project_parcel_code || '');
-                          setSelectedTargetA(item);
+                          setSelectedTargetB(item);
+                          setSearchTerm(item.project_parcel_code || item.projectParcelCode || '');
                           setIsInputFocused(false);
+                          setErrorMsg('');
                         }}
-                        className="w-full text-left px-3 py-2 rounded-lg text-xs hover:bg-sky-50 transition-colors flex items-center justify-between cursor-pointer border border-transparent hover:border-sky-200 group"
+                        className="w-full text-left p-2 hover:bg-emerald-50 flex items-center justify-between text-xs cursor-pointer transition-colors"
                       >
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold font-mono text-sky-800 group-hover:text-sky-900">
-                            [{item.project_parcel_code}]
-                          </span>
-                          <span className="text-[11px] text-slate-600 truncate max-w-[240px]">
-                            {item.house_number ? `Số ${item.house_number}` : ''} {item.street || ''}
-                          </span>
-                          {item.is_touching && (
-                            <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-emerald-100 text-emerald-800">
-                              Tiếp giáp
-                            </span>
-                          )}
+                        <div>
+                          <div className="font-bold text-slate-800 font-mono flex items-center gap-1">
+                            {item.project_parcel_code || item.projectParcelCode}
+                            {item.is_touching && (
+                              <span className="text-[9px] bg-emerald-100 text-emerald-800 px-1 rounded font-sans">Kề bên</span>
+                            )}
+                          </div>
+                          <div className="text-[11px] text-slate-500">
+                            Số {item.house_number || item.houseNumber} {item.street}
+                          </div>
                         </div>
-                        <div className="text-right">
-                          <span className="text-[11px] font-mono text-slate-500">{item.land_area_m2 ? `${item.land_area_m2} m²` : ''}</span>
-                        </div>
+                        <span className="text-[11px] text-slate-500 font-mono">{item.land_area_m2 || item.landArea} m²</span>
                       </button>
                     ))}
                   </div>
                 )}
-
-                {/* HỘP CƠ CHẾ HOÁN ĐỔI TRANH KHÔNG GIAN (Chuẩn Zone Dashboard) */}
-                <div className="p-3 rounded-xl bg-sky-50 border border-sky-100 text-[11px] text-sky-900 space-y-1">
-                  <p className="font-bold flex items-center gap-1.5 text-sky-950">
-                    <Sparkles className="w-3.5 h-3.5 text-sky-600" />
-                    Cơ chế Hoán Đổi Ranh Không Gian (Spatial Geometry Swap):
-                  </p>
-                  <p className="text-slate-600 leading-relaxed">
-                    Đa giác ranh thửa và toạ độ trên GIS sẽ được tráo đổi giữa thửa hiện tại <strong>[{activeParcel.projectParcelCode}]</strong> và thửa đích. Toàn bộ thông tin địa chính, hồ sơ khảo sát và watermark ảnh mang mã [{activeParcel.projectParcelCode}] được <strong>bảo toàn nguyên vẹn 100%</strong>, không bị xáo trộn mã ảnh.
-                  </p>
-                </div>
               </div>
 
-              {/* LÝ DO ĐIỀU CHUYỂN */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-700 block">
-                  Lý Do Điều Chuyển Ranh Đất (Audit Log) <span className="text-red-500">*</span>:
-                </label>
-                <textarea
-                  required
-                  rows={2}
-                  placeholder="Ví dụ: Hiện trường nhà số 125 Trần Não bị KSV tích nhầm vào polygon của thửa 28 bên cạnh. Hoán đổi ranh đất sang đúng thửa 29."
-                  value={reason}
-                  onChange={(e) => setReason(e.target.value)}
-                  className="w-full p-2.5 text-xs text-slate-800 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-sky-500 focus:outline-hidden"
-                />
-              </div>
-
-              {/* MÃ BẢO MẬT 6 SỐ BẮT BUỘC */}
-              <AdminSecurityChallengeConfirm
-                actionDescription={`hoán đổi vị trí ranh đất GIS của thửa [${activeParcel.projectParcelCode}] sang thửa mới`}
-                onValidityChange={(isValid) => setIsChallengeValid(isValid)}
-              />
-
-              {/* NÚT THAO TÁC */}
-              <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
-                >
-                  Đóng
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const targetId = selectedTargetA?.id || candidatePool.find(
-                      (c) => c.project_parcel_code?.toLowerCase() === targetParcelCodeOrId.trim().toLowerCase() || c.id === targetParcelCodeOrId.trim()
-                    )?.id;
-                    if (targetId) {
-                      handleExecuteSwap(targetId);
-                    }
-                  }}
-                  disabled={isSubmitting || !isChallengeValid || (!selectedTargetA && !targetParcelCodeOrId.trim())}
-                  className="px-4 py-2 rounded-xl text-xs font-black bg-sky-600 hover:bg-sky-700 text-white shadow-md shadow-sky-600/20 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {isSubmitting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
-                  <span>{isSubmitting ? 'Đang cập nhật...' : 'Xác Nhận Đổi Vị Trí Ranh Đất'}</span>
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* ========================================================================= */}
-          {/* TAB 2: HOÁN ĐỔI RANH 2 NHÀ LIỀN KỀ (LOẠI BỎ SELECT HOA MẮT)              */}
-          {/* ========================================================================= */}
-          {activeMode === 'SWAP' && (
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold text-slate-700 block">
-                    Chọn Thửa B Để Hoán Đổi Chéo Liền Kề:
-                  </label>
-                  <span className="text-[11px] font-semibold text-slate-500">
-                    {isLoadingCandidates ? 'Đang tải thửa liền kề...' : `${candidatePool.length} thửa khả dụng`}
-                  </span>
-                </div>
-
-                {/* Ô TÌM KIẾM NHANH CHO THỬA B */}
-                <div className="relative">
-                  <input
-                    type="text"
-                    placeholder="Gõ mã thửa (vd: 0053, 0031) hoặc số nhà để lọc danh sách..."
-                    value={swapSearchFilter}
-                    onChange={(e) => setSwapSearchFilter(e.target.value)}
-                    className="w-full pl-3 pr-8 py-2 text-xs font-bold text-slate-800 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:outline-hidden"
-                  />
-                  <Search className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-3 pointer-events-none" />
-                </div>
-
-                {/* DANH SÁCH THẺ GỢI Ý THÔNG MINH (THAY THẾ SELECT HOA MẮT) */}
-                <div className="p-1 rounded-xl bg-slate-50 border border-slate-200 max-h-48 overflow-y-auto space-y-1 custom-scrollbar">
-                  {swapFilteredCandidates.length === 0 ? (
-                    <div className="py-4 text-center text-xs text-slate-500">
-                      Không tìm thấy thửa đất nào phù hợp với bộ lọc tìm kiếm.
-                    </div>
-                  ) : (
-                    swapFilteredCandidates.map((c) => {
-                      const isSelected = selectedParcelB?.id === c.id;
+              {/* GỢI Ý NHANH CÁC THỬA TIẾP GIÁP KỀ BÊN */}
+              {quickAdjacentList.length > 0 && (
+                <div className="space-y-1">
+                  <span className="text-[10px] text-slate-400 font-semibold block uppercase">Thửa tiếp giáp đề xuất nhanh:</span>
+                  <div className="flex flex-wrap gap-1">
+                    {quickAdjacentList.map((cand) => {
+                      const code = cand.project_parcel_code || cand.projectParcelCode || '';
+                      const isSelected = selectedTargetB?.id === cand.id;
                       return (
                         <button
-                          key={c.id}
+                          key={cand.id}
                           type="button"
-                          onClick={() => setSelectedParcelB(c)}
-                          className={`w-full text-left p-2 rounded-lg text-xs transition-all flex items-center justify-between cursor-pointer border ${
+                          onClick={() => {
+                            setSelectedTargetB(cand);
+                            setSearchTerm(code);
+                            setErrorMsg('');
+                          }}
+                          className={`px-2 py-1 rounded-lg text-[11px] font-mono font-bold transition-all cursor-pointer flex items-center gap-1 border ${
                             isSelected
-                              ? 'bg-amber-50 border-amber-300 shadow-xs'
-                              : 'bg-white hover:bg-slate-100 border-slate-200/80 hover:border-slate-300'
+                              ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                              : 'bg-white text-slate-700 border-slate-200 hover:border-emerald-300 hover:bg-emerald-50'
                           }`}
                         >
-                          <div className="flex items-center gap-2">
-                            <span className={`font-mono font-bold ${isSelected ? 'text-amber-900' : 'text-slate-800'}`}>
-                              [{c.project_parcel_code}]
-                            </span>
-                            <span className="text-[11px] text-slate-600 truncate max-w-[220px]">
-                              {c.house_number ? `Số ${c.house_number}` : ''} {c.street || ''}
-                            </span>
-                            {c.is_touching && (
-                              <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                                🌿 Tiếp giáp ranh
-                              </span>
-                            )}
-                            {!c.is_touching && c.is_adjacent && (
-                              <span className="px-1.5 py-0.2 rounded text-[9px] font-semibold bg-sky-100 text-sky-800">
-                                📍 Lân cận ~{c.distance_meters}m
-                              </span>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-[11px] font-mono text-slate-500 font-semibold">
-                              {c.land_area_m2 ? `${c.land_area_m2} m²` : ''}
-                            </span>
-                            {isSelected && <CheckCircle2 className="w-4 h-4 text-amber-600 shrink-0" />}
-                          </div>
+                          {isSelected && <Check className="w-2.5 h-2.5" />}
+                          <span>{code}</span>
                         </button>
                       );
-                    })
-                  )}
-                </div>
-              </div>
-
-              {/* SƠ ĐỒ HOÁN ĐỔI TRỰC QUAN (DIFF DIAGRAM) */}
-              {selectedParcelB && (
-                <div className="p-3.5 rounded-xl bg-amber-50/70 border border-amber-200 space-y-2 animate-in fade-in duration-150">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-bold text-amber-900 block">
-                      Sơ đồ hoán đổi ranh không gian GIS (Spatial Geometry Swap):
-                    </span>
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-200">
-                      Bảo toàn 100% Watermark
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 text-xs">
-                    <div className="p-2.5 bg-white rounded-lg border border-amber-200 space-y-1">
-                      <span className="text-[10px] text-slate-400 block font-bold">THỬA [{activeParcel.projectParcelCode}]:</span>
-                      <span className="text-[11px] text-slate-600 block">
-                        → Nhận vị trí ranh GIS của <strong className="text-amber-800">[{selectedParcelB.project_parcel_code}]</strong>
-                      </span>
-                      <span className="text-[10px] text-emerald-700 block font-medium">
-                        ✓ Giữ nguyên mã [{activeParcel.projectParcelCode}] & watermark ảnh
-                      </span>
-                    </div>
-                    <div className="p-2.5 bg-white rounded-lg border border-amber-200 space-y-1">
-                      <span className="text-[10px] text-slate-400 block font-bold">THỬA [{selectedParcelB.project_parcel_code}]:</span>
-                      <span className="text-[11px] text-slate-600 block">
-                        → Nhận vị trí ranh GIS của <strong className="text-amber-800">[{activeParcel.projectParcelCode}]</strong>
-                      </span>
-                      <span className="text-[10px] text-emerald-700 block font-medium">
-                        ✓ Giữ nguyên mã [{selectedParcelB.project_parcel_code}] & watermark ảnh
-                      </span>
-                    </div>
+                    })}
                   </div>
                 </div>
               )}
 
-              {/* LÝ DO HOÁN ĐỔI */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-700 block">
-                  Lý Do Hoán Đổi Liền Kề (Audit Log) <span className="text-red-500">*</span>:
-                </label>
-                <textarea
-                  required
-                  rows={2}
-                  placeholder="Ví dụ: Hai nhà liền kề 652A và 652C bị vẽ đảo đa giác cho nhau trên bản đồ, cần hoán đổi ranh để phản ánh đúng hiện trạng..."
-                  value={reason}
-                  onChange={(e) => setReason(e.target.value)}
-                  className="w-full p-2.5 text-xs text-slate-800 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:outline-hidden"
-                />
-              </div>
+              {/* THẺ THỬA B ĐÃ CHỌN */}
+              {selectedTargetB && (
+                <div className="bg-emerald-50/70 p-3 rounded-xl border-2 border-emerald-400 shadow-xs relative">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 flex items-center gap-1">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                      Thửa B (Sẽ hoán đổi)
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedTargetB(null);
+                        setSearchTerm('');
+                      }}
+                      className="text-[10px] text-emerald-700 font-bold hover:underline cursor-pointer flex items-center gap-0.5"
+                    >
+                      <RotateCcw className="w-2.5 h-2.5" />
+                      Đổi thửa khác
+                    </button>
+                  </div>
+                  <div className="font-extrabold text-sm text-emerald-900 font-mono">
+                    {selectedTargetB.project_parcel_code || selectedTargetB.projectParcelCode}
+                  </div>
+                  <div className="text-xs text-slate-600 mt-0.5">
+                    Số {selectedTargetB.house_number || selectedTargetB.houseNumber || '—'} {selectedTargetB.street || ''}
+                  </div>
+                  <div className="flex items-center justify-between text-[11px] text-slate-500 mt-1">
+                    <span>Chủ hộ: <strong>{selectedTargetB.owner_name || selectedTargetB.ownerName || '—'}</strong></span>
+                    <span className="font-mono font-bold">{selectedTargetB.land_area_m2 || selectedTargetB.landArea || 0} m²</span>
+                  </div>
+                </div>
+              )}
+            </div>
 
-              {/* MÃ BẢO MẬT 6 SỐ BẮT BUỘC */}
+            {/* GIẢI THÍCH TRỰC QUAN CƠ CHẾ HOÁN ĐỔI */}
+            <div className="p-2.5 bg-sky-50/60 rounded-xl border border-sky-200 text-[11px] text-sky-900 flex items-start gap-2 shadow-xs">
+              <Sparkles className="w-3.5 h-3.5 text-sky-600 shrink-0 mt-0.5" />
+              <span>
+                Ranh và tọa độ GIS giữa <strong>Thửa A</strong> và <strong>Thửa B</strong> sẽ tráo đổi cho nhau. Mã số, dữ liệu khảo sát và ảnh watermark của mỗi nhà được bảo toàn 100%.
+              </span>
+            </div>
+
+            {/* LÝ DO ĐIỀU CHUYỂN RANH ĐẤT */}
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                Lý do điều chuyển ranh đất (Audit Log) <span className="text-rose-500">*</span>
+              </label>
+              <textarea
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                rows={2}
+                placeholder="Ví dụ: KSV tích nhầm polygon của thửa kề bên. Hoán đổi ranh đất sang đúng thửa thực tế..."
+                className="w-full text-xs p-2 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all text-slate-800 placeholder:text-slate-400 shadow-xs"
+              />
+            </div>
+
+            {/* XÁC THỰC BẢO MẬT 6 SỐ */}
+            <div className="bg-white p-3 rounded-xl border border-slate-200 shadow-xs">
+              <div className="text-[11px] font-bold text-slate-800 mb-1.5 flex items-center gap-1.5">
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Xác thực Zone Admin (6 số)</span>
+              </div>
               <AdminSecurityChallengeConfirm
-                actionDescription={`hoán đổi ranh giới không gian giữa 2 thửa [${activeParcel.projectParcelCode}] và [${selectedParcelB?.project_parcel_code || '---'}]`}
+                actionDescription="hoán đổi vị trí ranh đất GIS"
                 onValidityChange={(isValid) => setIsChallengeValid(isValid)}
               />
-
-              {/* NÚT THAO TÁC */}
-              <div className="pt-2 flex items-center justify-end gap-2 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
-                >
-                  Đóng
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (selectedParcelB?.id) {
-                      handleExecuteSwap(selectedParcelB.id);
-                    }
-                  }}
-                  disabled={isSubmitting || !isChallengeValid || !selectedParcelB}
-                  className="px-4 py-2 rounded-xl text-xs font-black bg-amber-600 hover:bg-amber-700 text-white shadow-md shadow-amber-600/20 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {isSubmitting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ArrowRightLeft className="w-3.5 h-3.5" />}
-                  <span>{isSubmitting ? 'Đang xử lý...' : 'Xác Nhận Hoán Đổi 2 Thửa Đất'}</span>
-                </button>
-              </div>
             </div>
-          )}
+
+            {/* THÔNG BÁO LỖI / THÀNH CÔNG */}
+            {errorMsg && (
+              <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-xl flex items-center gap-2 text-xs text-rose-700 font-medium">
+                <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                <span>{errorMsg}</span>
+              </div>
+            )}
+
+            {successMsg && (
+              <div className="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2 text-xs text-emerald-700 font-medium">
+                <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+                <span>{successMsg}</span>
+              </div>
+            )}
+          </div>
+
+          {/* CÁC NÚT HÀNH ĐỘNG Ở CHÂN SIDEBAR */}
+          <div className="pt-3 border-t border-slate-200 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={isSubmitting}
+              className="flex-1 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-200/70 rounded-xl transition-colors disabled:opacity-50 cursor-pointer"
+            >
+              Hủy bỏ
+            </button>
+            <button
+              type="button"
+              onClick={handleExecuteSwap}
+              disabled={isSubmitting || !selectedTargetB || !isChallengeValid || !reason.trim()}
+              className="flex-1 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-sm hover:shadow-md transition-all flex items-center justify-center gap-1.5 disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  Đang hoán đổi...
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  Xác nhận hoán đổi
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* CỘT PHẢI: BẢN ĐỒ KHÔNG GIAN TOÀN CẢNH SIÊU RỘNG (FLEX-1) */}
+        <div className="flex-1 h-full relative overflow-hidden bg-slate-100">
+          {/* TOOLBAR NỔI TRÊN BẢN ĐỒ */}
+          <div className="absolute top-3 left-3 z-[400] flex items-center gap-2">
+            <div className="flex items-center gap-1 bg-white/95 backdrop-blur-md p-1 rounded-xl border border-slate-200 shadow-md">
+              <button
+                type="button"
+                onClick={() => setTileMode('satellite')}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1 transition-all cursor-pointer ${
+                  tileMode === 'satellite'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                <Layers className="w-3 h-3" />
+                Vệ Tinh (Esri)
+              </button>
+              <button
+                type="button"
+                onClick={() => setTileMode('osm')}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1 transition-all cursor-pointer ${
+                  tileMode === 'osm'
+                    ? 'bg-emerald-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                <Building className="w-3 h-3" />
+                Bản Đồ (OSM)
+              </button>
+            </div>
+          </div>
+
+          {/* CHÚ GIẢI MÀU SẮC TRÊN BẢN ĐỒ */}
+          <div className="absolute top-3 right-3 z-[400] bg-white/95 backdrop-blur-md px-3 py-2 rounded-xl shadow-md border border-slate-200 text-xs flex items-center gap-3">
+            <div className="flex items-center gap-1.5">
+              <span className="w-3 h-3 rounded-sm bg-amber-500 border border-amber-600" />
+              <span className="text-[11px] font-bold text-slate-700">Thửa A (Đang chọn)</span>
+            </div>
+            <div className="h-4 w-px bg-slate-200" />
+            <div className="flex items-center gap-1.5">
+              <span className="w-3 h-3 rounded-sm bg-emerald-500 border border-emerald-600" />
+              <span className="text-[11px] font-bold text-slate-700">Thửa B (Sẽ đổi ranh)</span>
+            </div>
+            <div className="h-4 w-px bg-slate-200" />
+            <div className="flex items-center gap-1.5">
+              <span className="w-3 h-3 rounded-sm bg-slate-200 border border-dashed border-slate-500" />
+              <span className="text-[11px] font-medium text-slate-500">Click thửa để chọn</span>
+            </div>
+          </div>
+
+          {/* HƯỚNG DẪN NHANH NỔI GÓC DƯỚI */}
+          <div className="absolute bottom-3 left-3 z-[400] bg-slate-900/85 backdrop-blur-md px-3 py-1.5 rounded-lg text-white text-[11px] font-medium shadow-md flex items-center gap-2 pointer-events-none">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span>Click chuột trực tiếp vào bất kỳ ô thửa nét đứt nào trên bản đồ để chọn làm Thửa B.</span>
+          </div>
+
+          {/* MAP CONTAINER (MAXZOOM = 24) */}
+          <MapContainer
+            center={mapCenter}
+            zoom={19}
+            maxZoom={24}
+            zoomControl={false}
+            style={{ width: '100%', height: '100%' }}
+            scrollWheelZoom={true}
+          >
+            <MapBoundsController coords={mapBoundsCoords.length > 0 ? mapBoundsCoords : coordsA} zoom={19} />
+            <ZoomControl position="bottomright" />
+
+            {/* TileLayer */}
+            {tileMode === 'satellite' ? (
+              <TileLayer
+                attribution="Esri World Imagery"
+                url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+                maxNativeZoom={19}
+                maxZoom={24}
+              />
+            ) : (
+              <TileLayer
+                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                maxNativeZoom={19}
+                maxZoom={24}
+              />
+            )}
+
+            {/* 0. CÁC THỬA TRONG ZONE (NÉT ĐỨT XÁM, KHÔNG NHÃN PERMANENT, CLICK TO SELECT) */}
+            {zoneParcelsWithGeom.map((p) => {
+              if (p.id === activeParcel.id || p.id === selectedTargetB?.id) return null;
+              let pts = p.coordinates;
+              if (!pts || pts.length < 3) return null;
+              if (Array.isArray(pts[0]) && (pts[0][0] < 8 || pts[0][0] > 24)) {
+                pts = pts.map(([lng, lat]) => [lat, lng]);
+              }
+
+              return (
+                <Polygon
+                  key={`zone-parcel-${p.id}`}
+                  positions={pts as [number, number][]}
+                  pathOptions={{
+                    color: '#64748b',
+                    weight: 1.5,
+                    dashArray: '5, 5',
+                    fillColor: '#94a3b8',
+                    fillOpacity: 0.12,
+                  }}
+                  eventHandlers={{
+                    click: () => handleMapParcelClick(p.id),
+                  }}
+                >
+                  <Tooltip direction="center" opacity={0.92}>
+                    <div className="text-[10px] font-mono font-bold text-slate-800 bg-white/95 px-1.5 py-0.5 rounded border border-slate-300 shadow-xs pointer-events-none">
+                      {p.projectParcelCode || p.houseNumber} (Click chọn Thửa B)
+                    </div>
+                  </Tooltip>
+                </Polygon>
+              );
+            })}
+
+            {/* 1. THỬA A (ĐANG CHỌN - MÀU VÀNG HỔ PHÁCH) */}
+            {coordsA.length >= 3 && (
+              <Polygon
+                positions={coordsA}
+                pathOptions={{
+                  color: '#d97706',
+                  fillColor: '#f59e0b',
+                  fillOpacity: 0.65,
+                  weight: 3.5,
+                }}
+              >
+                <Tooltip direction="top" opacity={0.95} permanent>
+                  <div className="text-xs font-bold text-amber-900 text-center">
+                    Thửa A (Đang chọn): <strong>{activeParcel.projectParcelCode}</strong>
+                  </div>
+                </Tooltip>
+              </Polygon>
+            )}
+
+            {/* 2. THỬA B (THỬA ĐÍCH - MÀU XANH LỤC EMERALD) */}
+            {coordsB.length >= 3 && (
+              <Polygon
+                positions={coordsB}
+                pathOptions={{
+                  color: '#059669',
+                  fillColor: '#10b981',
+                  fillOpacity: 0.65,
+                  weight: 3.5,
+                }}
+              >
+                <Tooltip direction="top" opacity={0.95} permanent>
+                  <div className="text-xs font-bold text-emerald-900 text-center">
+                    Thửa B (Sẽ hoán đổi): <strong>{selectedTargetB?.project_parcel_code || selectedTargetB?.projectParcelCode}</strong>
+                  </div>
+                </Tooltip>
+              </Polygon>
+            )}
+          </MapContainer>
         </div>
       </div>
     </div>
