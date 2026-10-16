@@ -115,7 +115,7 @@ export const AuditStudioModal: React.FC<Props> = ({
     dirtyCount: 0,
     diffItems: [],
     updates: {},
-    discardAll: () => {},
+    discardAll: () => { },
   });
 
   // Tổng số thay đổi chuẩn hóa (Diffs Form + Thao tác Ảnh)
@@ -214,10 +214,10 @@ export const AuditStudioModal: React.FC<Props> = ({
       action.action === 'REPLACE'
         ? `[Cập Nhật Ảnh] ${action.photoCode || action.targetPhotoType || 'Ảnh'}`
         : action.action === 'ADD'
-        ? `[Ảnh Bổ Sung] ${action.photoCode || action.targetPhotoType || 'Ảnh'} (${action.newPhotoUrls?.length || 1} ảnh)`
-        : action.action === 'RESTORE'
-        ? `[Khôi Phục Ảnh] ${action.photoCode || action.targetPhotoType || 'Ảnh'}`
-        : `[Xóa Ảnh] ${action.photoCode || action.targetPhotoType || 'Ảnh'}`;
+          ? `[Ảnh Bổ Sung] ${action.photoCode || action.targetPhotoType || 'Ảnh'} (${action.newPhotoUrls?.length || 1} ảnh)`
+          : action.action === 'RESTORE'
+            ? `[Khôi Phục Ảnh] ${action.photoCode || action.targetPhotoType || 'Ảnh'}`
+            : `[Xóa Ảnh] ${action.photoCode || action.targetPhotoType || 'Ảnh'}`;
 
     const newDiff: DiffItem = {
       field: targetKey,
@@ -335,15 +335,14 @@ export const AuditStudioModal: React.FC<Props> = ({
                 </span>
                 {data?.status && (
                   <span
-                    className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                      data.status === 'APPROVED'
+                    className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${data.status === 'APPROVED'
                         ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
                         : data.status === 'POSTPONED_ABSENT'
-                        ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40'
-                        : data.status === 'REJECTED'
-                        ? 'bg-red-500/20 text-red-300 border border-red-500/40'
-                        : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
-                    }`}
+                          ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40'
+                          : data.status === 'REJECTED'
+                            ? 'bg-red-500/20 text-red-300 border border-red-500/40'
+                            : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                      }`}
                   >
                     {data.status}
                   </span>
@@ -367,11 +366,10 @@ export const AuditStudioModal: React.FC<Props> = ({
               <button
                 type="button"
                 onClick={() => setShowVersionDropdown(!showVersionDropdown)}
-                className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border ${
-                  showVersionDropdown
+                className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border ${showVersionDropdown
                     ? 'bg-indigo-600 text-white border-indigo-400 shadow-md'
                     : 'bg-indigo-500/20 text-indigo-300 border-indigo-500/40 hover:bg-indigo-500/30'
-                }`}
+                  }`}
                 title="Lịch sử các phiên bản và so sánh đối chiếu"
               >
                 <GitBranch className="w-3.5 h-3.5 text-indigo-400" />
@@ -455,11 +453,10 @@ export const AuditStudioModal: React.FC<Props> = ({
               <button
                 type="button"
                 onClick={() => setShowAuditHistory(true)}
-                className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border ${
-                  data.auditHistory.length > 0
+                className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border ${data.auditHistory.length > 0
                     ? 'bg-sky-500/20 text-sky-300 border-sky-500/40 hover:bg-sky-500/30'
                     : 'bg-slate-800 text-slate-400 border-slate-700 hover:text-slate-300'
-                }`}
+                  }`}
                 title="Xem nhật ký kiểm toán và lịch sử sửa đổi"
               >
                 <History className="w-3.5 h-3.5 text-sky-400" />
@@ -473,11 +470,10 @@ export const AuditStudioModal: React.FC<Props> = ({
                 <button
                   type="button"
                   onClick={() => setShowFlagsPopover(!showFlagsPopover)}
-                  className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border ${
-                    showFlagsPopover
+                  className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border ${showFlagsPopover
                       ? 'bg-amber-500 text-slate-950 border-amber-400 shadow-md'
                       : 'bg-amber-500/20 text-amber-300 border-amber-500/40 hover:bg-amber-500/30'
-                  }`}
+                    }`}
                   title="Bấm để xem danh sách chi tiết các cờ cảnh báo rủi ro"
                 >
                   <AlertTriangle className={`w-3.5 h-3.5 ${showFlagsPopover ? 'text-slate-950' : 'text-amber-400'}`} />
@@ -506,9 +502,8 @@ export const AuditStudioModal: React.FC<Props> = ({
                         return (
                           <div
                             key={flag.code || fIdx}
-                            className={`p-2.5 rounded-lg border flex items-start gap-2 ${
-                              isWarn ? 'bg-amber-50/70 border-amber-200 text-amber-950' : 'bg-sky-50/70 border-sky-200 text-sky-950'
-                            }`}
+                            className={`p-2.5 rounded-lg border flex items-start gap-2 ${isWarn ? 'bg-amber-50/70 border-amber-200 text-amber-950' : 'bg-sky-50/70 border-sky-200 text-sky-950'
+                              }`}
                           >
                             <span className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${isWarn ? 'bg-amber-500' : 'bg-sky-500'}`} />
                             <div className="flex-1">
@@ -719,10 +714,10 @@ export const AuditStudioModal: React.FC<Props> = ({
                       category: params.targetPhotoType.includes('DEFECT')
                         ? 'DEFECT_CU'
                         : params.targetPhotoType.includes('ZONE')
-                        ? 'ZONE_CTX'
-                        : params.targetPhotoType.includes('FLOOR')
-                        ? 'CAD_FLOOR'
-                        : 'IDENTIFICATION',
+                          ? 'ZONE_CTX'
+                          : params.targetPhotoType.includes('FLOOR')
+                            ? 'CAD_FLOOR'
+                            : 'IDENTIFICATION',
                       targetPhotoType: params.targetPhotoType,
                       targetPhotoId: params.targetPhotoId,
                       defectId: params.defectId,
@@ -817,23 +812,22 @@ export const AuditStudioModal: React.FC<Props> = ({
                   ? 'Vui lòng bấm Lưu Thay Đổi để lưu các diff trước khi phê duyệt'
                   : 'Phê duyệt hồ sơ'
               }
-              className={`px-5 py-2 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all shadow-md ${
-                data?.status === 'APPROVED'
+              className={`px-5 py-2 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all shadow-md ${data?.status === 'APPROVED'
                   ? 'bg-emerald-700/90 text-white cursor-default'
                   : totalDiffCount > 0
-                  ? 'bg-slate-200 text-slate-400 border border-slate-300 cursor-not-allowed shadow-none'
-                  : 'bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer shadow-emerald-600/20'
-              }`}
+                    ? 'bg-slate-200 text-slate-400 border border-slate-300 cursor-not-allowed shadow-none'
+                    : 'bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer shadow-emerald-600/20'
+                }`}
             >
               <CheckCircle2 className="w-4 h-4" />
               <span>
                 {isApproving
                   ? 'Đang ký duyệt...'
                   : data?.status === 'APPROVED'
-                  ? '✓ Đã Khóa Duyệt'
-                  : totalDiffCount > 0
-                  ? '🔒 Khóa Duyệt (Còn Diff Chưa Lưu)'
-                  : 'Phê Duyệt Hồ Sơ (Approve)'}
+                    ? '✓ Đã Khóa Duyệt'
+                    : totalDiffCount > 0
+                      ? ' Khóa Duyệt (Còn Diff Chưa Lưu)'
+                      : 'Phê Duyệt Hồ Sơ (Approve)'}
               </span>
             </button>
           </div>

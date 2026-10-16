@@ -174,6 +174,7 @@ export class AuditService {
       photoCode?: string;
       photoType?: string;
       category?: string;
+      currentPhotoUrl?: string;
       includeDeleted?: boolean;
     }
   ) {

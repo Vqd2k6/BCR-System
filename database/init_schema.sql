@@ -851,7 +851,17 @@ CREATE TABLE risk_score_cards (
     building_risk_assessment_bra VARCHAR(32) NOT NULL DEFAULT 'LOW_RISK',
     is_engineering_judgement_applied BOOLEAN NOT NULL DEFAULT FALSE,
     engineering_judgement_action VARCHAR(32) DEFAULT 'KEEP',
-    engineering_judgement_reason TEXT
+    engineering_judgement_reason TEXT,
+    overridden_burland_grade INT,
+    overridden_total_ecs INT,
+    overridden_ecs_class VARCHAR(32),
+    overridden_importance_score NUMERIC(4,2),
+    overridden_avg_vi NUMERIC(4,2),
+    overridden_vi_class VARCHAR(32),
+    overridden_impact_level_i INT,
+    overridden_bra VARCHAR(32),
+    judgement_engineer_name VARCHAR(255),
+    judgement_applied_at TIMESTAMPTZ
 );
 
 CREATE TABLE quality_gate_logs (

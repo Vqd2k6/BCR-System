@@ -112,7 +112,7 @@ export const UrgentReviewQueue: React.FC<Props> = ({
 
       // Chỉ coi là khẩn cấp do quá hạn nếu hồ sơ thực tế có phát hiện vết nứt / khuyết tật
       const hasDefects = Number(item.defect_count) > 0 || (item.burland_score ?? 0) >= 1;
-      const isOverdueSla = item.status === 'SUBMITTED' && diffHours >= 48 && hasDefects;
+      const isOverdueSla = ['SUBMITTED', 'UNDER_REVIEW'].includes(item.status) && diffHours >= 48 && hasDefects;
 
       const hasFlags = Number(item.alert_count) > 0;
 
@@ -144,7 +144,7 @@ export const UrgentReviewQueue: React.FC<Props> = ({
         const submittedTime = new Date(item.created_at || item.updated_at).getTime();
         const diffHours = (Date.now() - submittedTime) / (1000 * 60 * 60);
         const hasDefects = Number(item.defect_count) > 0 || (item.burland_score ?? 0) >= 1;
-        return item.status === 'SUBMITTED' && diffHours >= 48 && hasDefects;
+        return ['SUBMITTED', 'UNDER_REVIEW'].includes(item.status) && diffHours >= 48 && hasDefects;
       }
       if (activeTab === 'FLAGS') {
         return Number(item.alert_count) > 0;

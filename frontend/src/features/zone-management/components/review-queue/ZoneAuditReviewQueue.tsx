@@ -76,10 +76,16 @@ export interface PendingSubmissionItem {
   parent_parcel_seal_hash?: string | null;
   parent_parcel_locked_at?: string | null;
   parent_parcel_locked_by_name?: string | null;
+  current_version_number?: number;
+  version_count?: number;
+  has_admin_diff?: boolean;
+  latest_version_tag?: string | null;
+  latest_edit_reason?: string | null;
 }
 
 export type TabType =
   | 'ALL'
+  | 'UNDER_REVIEW'
   | 'RESIDENTIAL'
   | 'CONDO_MASTER'
   | 'MASTER_AREA'

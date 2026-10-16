@@ -248,7 +248,9 @@ export class AuditModificationService {
     const txResult = await Database.transaction(async (client) => {
       await client.query(
         `UPDATE base_survey_reports 
-         SET survey_data_json = $1, updated_at = NOW() 
+         SET survey_data_json = $1, 
+             status = CASE WHEN status = 'SUBMITTED' THEN 'UNDER_REVIEW'::report_status_enum ELSE status END,
+             updated_at = NOW() 
          WHERE id = $2;`,
         [JSON.stringify(mergedJson), actualReportId]
       );
@@ -1461,6 +1463,26 @@ export class AuditModificationService {
 
       // 3. Cập nhật survey_photo_registry
       if (oldUrl) {
+        // Cơ chế Tự Lành (Self-Healing Lineage): Kiểm tra nếu oldUrl chưa có trong registry thì chèn trước
+        const oldCheck = await client.query(
+          `SELECT id FROM survey_photo_registry WHERE report_id = $1 AND photo_url = $2 LIMIT 1;`,
+          [reportId, oldUrl]
+        );
+        if (!oldCheck.rows[0]) {
+          await client.query(
+            `INSERT INTO survey_photo_registry (
+               report_id, parcel_id, photo_category, photo_type, photo_code, photo_url,
+               standardized_filename, sha256_hash, size_bytes, mime_type, status,
+               action_type, action_reason, actor_id, actor_role, metadata_json
+             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'ACTIVE', 'INITIAL_SURVEY', 'Khởi tạo ảnh gốc thực địa (Self-Healing Lineage)', $11, 'SURVEYOR', $12);`,
+            [
+              reportId, parcelId, cat, type, photoCode, oldUrl,
+              `M2__initial_${photoCode}.jpg`, computeSha256(oldUrl), null, 'image/jpeg',
+              adminId, JSON.stringify({ isInitialBaseline: true })
+            ]
+          );
+        }
+
         await client.query(
           `UPDATE survey_photo_registry 
            SET status = 'SUPERSEDED', superseded_by_url = $1, updated_at = NOW() 
@@ -1631,6 +1653,27 @@ export class AuditModificationService {
           const newMin = { url, photoCode: itemCode, caption: pa.caption || `Trang biên bản ${surveyJson.signatures.workingMinutesPhotos.length + 1}` };
           surveyJson.signatures.workingMinutesPhotos.push(newMin);
           surveyJson.workingMinutesPhotos = [...surveyJson.signatures.workingMinutesPhotos];
+        } else if (cat === 'IDENTIFICATION' || ['P01', 'P02', 'P03', 'P04'].includes(type.toUpperCase()) || type.startsWith('P0')) {
+          const equivTypes = getEquivalentIdentPhotoTypes(type);
+          await client.query(
+            `UPDATE survey_identification_photos 
+             SET raw_photo_url = $1, annotated_photo_url = $1, is_not_applicable = false, na_reason = null 
+             WHERE report_id = $2 AND (photo_type::text = $3 OR photo_type::text = ANY($4::text[]));`,
+            [url, reportId, type, equivTypes]
+          );
+          const camelKey = `photo${type.toUpperCase().replace(/[^P0-9]/g, '').slice(0, 3)}`;
+          if (!surveyJson[camelKey]) surveyJson[camelKey] = {};
+          surveyJson[camelKey].url = url;
+          surveyJson[camelKey].notApplicable = false;
+          surveyJson[camelKey].naReason = null;
+
+          if (type.includes('SUPPLEMENTARY') || pa.photoIndex !== undefined) {
+            if (!surveyJson.photoP03) surveyJson.photoP03 = {};
+            if (!Array.isArray(surveyJson.photoP03.additionalPhotos)) {
+              surveyJson.photoP03.additionalPhotos = [];
+            }
+            surveyJson.photoP03.additionalPhotos.push(url);
+          }
         }
 
         // 2. Cập nhật survey_data_json
@@ -2039,6 +2082,292 @@ export class AuditModificationService {
   }
 
   /**
+   * Tự động đăng ký tất cả các ảnh thực địa hiện có vào survey_photo_registry
+   * Áp dụng khi nộp hồ sơ, khi tạo baseline v0 hoặc cơ chế Tự Lành (Self-Healing) cho hồ sơ cũ
+   */
+  static async seedInitialReportPhotos(reportId: string, client?: any): Promise<number> {
+    const dbClient = client || Database;
+
+    const repRes = await dbClient.query(
+      `SELECT r.id, r.parcel_id, r.surveyor_id, r.survey_data_json, r.surveyor_signature_url, r.owner_signature_url,
+              r.created_at, p.project_parcel_code
+       FROM base_survey_reports r
+       JOIN parcels p ON r.parcel_id = p.id
+       WHERE (r.id = $1 OR r.parcel_id = $1)
+       LIMIT 1;`,
+      [reportId]
+    );
+    if (!repRes.rows[0]) return 0;
+
+    const rep = repRes.rows[0];
+    const actualReportId = rep.id;
+    const parcelId = rep.parcel_id;
+    const surveyorId = rep.surveyor_id || null;
+    const parcelCode = rep.project_parcel_code || actualReportId.slice(0, 8);
+    const createdAt = rep.created_at || new Date();
+
+    const surveyJson = typeof rep.survey_data_json === 'string'
+      ? JSON.parse(rep.survey_data_json)
+      : (rep.survey_data_json || {});
+
+    const itemsToSeed: Array<{
+      category: string;
+      type: string;
+      code: string;
+      url: string;
+      filename: string;
+      metadata?: any;
+    }> = [];
+
+    // 1. Ảnh định danh P01..P04 từ survey_identification_photos
+    const identRes = await dbClient.query(
+      `SELECT * FROM survey_identification_photos WHERE report_id = $1;`,
+      [actualReportId]
+    );
+    for (const p of identRes.rows) {
+      const url = (p.raw_photo_url || p.annotated_photo_url || '').trim();
+      if (url && !p.is_not_applicable) {
+        let pType = p.photo_type || 'P01';
+        if (pType === 'P01_HOUSE_NUMBER') pType = 'P01';
+        if (pType === 'P02_MAIN_FACADE') pType = 'P02';
+        if (pType.includes('P03')) pType = 'P03';
+        if (pType === 'P04_CONTEXT_STREET') pType = 'P04';
+        const pCode = p.photo_code || `HCM_M2.${parcelCode}_${pType}`;
+        itemsToSeed.push({
+          category: 'IDENTIFICATION',
+          type: pType,
+          code: pCode,
+          url,
+          filename: `M2__initial_${pType}.jpg`,
+          metadata: { isNotApplicable: false },
+        });
+      }
+    }
+
+    // 2. Ảnh định danh từ survey_data_json (nếu bảng quan hệ chưa có)
+    const checkJsonIdent = (key: string, stdType: string) => {
+      const item = surveyJson[key];
+      if (item && !item.notApplicable) {
+        const u = (item.url || item.photoUrl || item.rawPhotoUrl || '').trim();
+        if (u && !itemsToSeed.some((x) => x.url === u)) {
+          itemsToSeed.push({
+            category: 'IDENTIFICATION',
+            type: stdType,
+            code: item.photoCode || `HCM_M2.${parcelCode}_${stdType}`,
+            url: u,
+            filename: `M2__initial_${stdType}.jpg`,
+          });
+        }
+        // Ảnh phụ P03
+        if (stdType === 'P03' && Array.isArray(item.additionalPhotos)) {
+          item.additionalPhotos.forEach((ex: any, idx: number) => {
+            const exUrl = (typeof ex === 'string' ? ex : (ex?.url || ex?.photoUrl || '')).trim();
+            if (exUrl && !itemsToSeed.some((x) => x.url === exUrl)) {
+              itemsToSeed.push({
+                category: 'IDENTIFICATION',
+                type: 'P03',
+                code: ex.photoCode || `HCM_M2.${parcelCode}_P03_ADD_${idx + 1}`,
+                url: exUrl,
+                filename: `M2__initial_P03_extra_${idx + 1}.jpg`,
+                metadata: { isExtra: true, extraIndex: idx },
+              });
+            }
+          });
+        }
+      }
+    };
+    checkJsonIdent('photoP01', 'P01');
+    checkJsonIdent('photoP02', 'P02');
+    checkJsonIdent('photoP03', 'P03');
+    checkJsonIdent('photoP04', 'P04');
+
+    // 3. Ảnh vùng hư hại damage_zones (CTX) & defect_items (CU)
+    const zonesRes = await dbClient.query(
+      `SELECT z.id, z.zone_code, z.ctx_photo_url, z.ctx_photo_code
+       FROM damage_zones z WHERE z.report_id = $1 AND z.is_deleted = false;`,
+      [actualReportId]
+    );
+    for (const z of zonesRes.rows) {
+      const ctxUrl = (z.ctx_photo_url || '').trim();
+      if (ctxUrl) {
+        itemsToSeed.push({
+          category: 'ZONE_CTX',
+          type: 'CTX',
+          code: z.ctx_photo_code || z.zone_code || `Z_CTX`,
+          url: ctxUrl,
+          filename: `M2__initial_CTX_${z.zone_code || z.id}.jpg`,
+          metadata: { zoneId: z.id, zoneCode: z.zone_code },
+        });
+      }
+    }
+
+    const defectsRes = await dbClient.query(
+      `SELECT d.id, d.defect_code, d.cu_photo_url, d.cu_photo_code, d.cu_photos_json, d.zone_id, z.zone_code
+       FROM defect_items d
+       JOIN damage_zones z ON d.zone_id = z.id
+       WHERE z.report_id = $1 AND d.is_deleted = false;`,
+      [actualReportId]
+    );
+    for (const d of defectsRes.rows) {
+      const cuUrl = (d.cu_photo_url || '').trim();
+      if (cuUrl) {
+        itemsToSeed.push({
+          category: 'DEFECT_CU',
+          type: 'CU',
+          code: d.cu_photo_code || d.defect_code || `D_CU`,
+          url: cuUrl,
+          filename: `M2__initial_CU_${d.defect_code || d.id}.jpg`,
+          metadata: { defectId: d.id, defectCode: d.defect_code, zoneId: d.zone_id, zoneCode: d.zone_code },
+        });
+      }
+      const cuList = Array.isArray(d.cu_photos_json) ? d.cu_photos_json : [];
+      cuList.forEach((u: any, idx: number) => {
+        const strUrl = (typeof u === 'string' ? u : (u?.url || '')).trim();
+        if (strUrl && !itemsToSeed.some((x) => x.url === strUrl)) {
+          itemsToSeed.push({
+            category: 'DEFECT_CU',
+            type: 'CU',
+            code: `${d.defect_code || 'D'}_CU_${idx + 1}`,
+            url: strUrl,
+            filename: `M2__initial_CU_${d.defect_code || d.id}_${idx + 1}.jpg`,
+            metadata: { defectId: d.id, defectCode: d.defect_code, photoIndex: idx },
+          });
+        }
+      });
+    }
+
+    // 4. Step 5 Settlement & Tilt photos
+    const st = surveyJson.settlementTilt || {};
+    if (Array.isArray(st.beamSagging?.photos)) {
+      st.beamSagging.photos.forEach((p: any, idx: number) => {
+        const u = (typeof p === 'string' ? p : (p?.url || '')).trim();
+        if (u) {
+          itemsToSeed.push({
+            category: 'SETTLEMENT_TILT',
+            type: 'BEAM_SAGGING',
+            code: p?.photoCode || `BEAM_SAG_${idx + 1}`,
+            url: u,
+            filename: `M2__initial_sag_${idx + 1}.jpg`,
+          });
+        }
+      });
+    }
+    if (Array.isArray(st.diffSettlement?.photos)) {
+      st.diffSettlement.photos.forEach((p: any, idx: number) => {
+        const u = (typeof p === 'string' ? p : (p?.url || '')).trim();
+        if (u) {
+          itemsToSeed.push({
+            category: 'SETTLEMENT_TILT',
+            type: 'SETTLEMENT_DIFF',
+            code: p?.photoCode || `SETTLE_DIFF_${idx + 1}`,
+            url: u,
+            filename: `M2__initial_diff_${idx + 1}.jpg`,
+          });
+        }
+      });
+    }
+    if (Array.isArray(st.buildingTilt?.photos)) {
+      st.buildingTilt.photos.forEach((p: any, idx: number) => {
+        const u = (typeof p === 'string' ? p : (p?.url || '')).trim();
+        if (u) {
+          itemsToSeed.push({
+            category: 'SETTLEMENT_TILT',
+            type: 'BUILDING_TILT',
+            code: p?.photoCode || `TILT_${idx + 1}`,
+            url: u,
+            filename: `M2__initial_tilt_${idx + 1}.jpg`,
+          });
+        }
+      });
+    }
+
+    // 5. Đất trống & Công trình xây dựng
+    if (Array.isArray(surveyJson.vacantLandPhotos)) {
+      surveyJson.vacantLandPhotos.forEach((p: any, idx: number) => {
+        const u = (typeof p === 'string' ? p : (p?.url || '')).trim();
+        if (u) {
+          itemsToSeed.push({
+            category: 'OVERVIEW',
+            type: 'VACANT_LAND',
+            code: p?.photoCode || `VACANT_${idx + 1}`,
+            url: u,
+            filename: `M2__initial_vacant_${idx + 1}.jpg`,
+          });
+        }
+      });
+    }
+    if (Array.isArray(surveyJson.underConstructionPhotos)) {
+      surveyJson.underConstructionPhotos.forEach((p: any, idx: number) => {
+        const u = (typeof p === 'string' ? p : (p?.url || '')).trim();
+        if (u) {
+          itemsToSeed.push({
+            category: 'OVERVIEW',
+            type: 'UNDER_CONSTRUCTION',
+            code: p?.photoCode || `CONST_${idx + 1}`,
+            url: u,
+            filename: `M2__initial_const_${idx + 1}.jpg`,
+          });
+        }
+      });
+    }
+
+    // 6. Chữ ký
+    if (rep.surveyor_signature_url) {
+      itemsToSeed.push({
+        category: 'SIGNATURE',
+        type: 'SURVEYOR_SIGNATURE',
+        code: `SIG_SURVEYOR`,
+        url: rep.surveyor_signature_url.trim(),
+        filename: `M2__initial_sig_surveyor.png`,
+      });
+    }
+    if (rep.owner_signature_url) {
+      itemsToSeed.push({
+        category: 'SIGNATURE',
+        type: 'OWNER_SIGNATURE',
+        code: `SIG_OWNER`,
+        url: rep.owner_signature_url.trim(),
+        filename: `M2__initial_sig_owner.png`,
+      });
+    }
+
+    let insertedCount = 0;
+    for (const item of itemsToSeed) {
+      const exist = await dbClient.query(
+        `SELECT id FROM survey_photo_registry WHERE report_id = $1 AND photo_url = $2 LIMIT 1;`,
+        [actualReportId, item.url]
+      );
+      if (!exist.rows[0]) {
+        await dbClient.query(
+          `INSERT INTO survey_photo_registry (
+             report_id, parcel_id, photo_category, photo_type, photo_code, photo_url,
+             standardized_filename, sha256_hash, size_bytes, mime_type, status,
+             action_type, action_reason, actor_id, actor_role, metadata_json, created_at, updated_at
+           ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'ACTIVE', 'INITIAL_SURVEY', 'Khởi tạo ảnh khảo sát thực địa ban đầu', $11, 'SURVEYOR', $12, $13, $13);`,
+          [
+            actualReportId,
+            parcelId,
+            item.category,
+            item.type,
+            item.code,
+            item.url,
+            item.filename,
+            computeSha256(item.url),
+            null,
+            'image/jpeg',
+            surveyorId,
+            JSON.stringify(item.metadata || {}),
+            createdAt,
+          ]
+        );
+        insertedCount++;
+      }
+    }
+
+    return insertedCount;
+  }
+
+  /**
    * Truy xuất toàn bộ lịch sử vòng đời ảnh của một hồ sơ khảo sát (hỗ trợ bộ lọc)
    */
   static async getPhotoAuditRegistry(
@@ -2047,6 +2376,7 @@ export class AuditModificationService {
       photoCode?: string;
       photoType?: string;
       category?: string;
+      currentPhotoUrl?: string;
       includeDeleted?: boolean;
     }
   ) {
@@ -2059,17 +2389,72 @@ export class AuditModificationService {
     }
     const actualReportId = repRes.rows[0].id;
 
+    // Cơ chế Tự Lành (Self-Healing Lineage): Nếu registry chưa có dòng nào, tự động seed toàn bộ ảnh của hồ sơ
+    const countRes = await Database.query<{ count: string }>(
+      `SELECT count(*) FROM survey_photo_registry WHERE report_id = $1;`,
+      [actualReportId]
+    );
+    if (Number(countRes.rows[0]?.count || 0) === 0) {
+      try {
+        await this.seedInitialReportPhotos(actualReportId);
+      } catch (e: any) {
+        console.warn('⚠️ [GET PHOTO REGISTRY] Auto-seed warning:', e?.message);
+      }
+    }
+
     const params: any[] = [actualReportId];
     let whereClause = `WHERE r.report_id = $1`;
 
-    if (filters?.photoCode) {
-      params.push(`%${filters.photoCode.trim()}%`);
-      whereClause += ` AND r.photo_code ILIKE $${params.length}`;
+    if (filters?.currentPhotoUrl && filters.currentPhotoUrl.trim()) {
+      const u = filters.currentPhotoUrl.trim();
+      params.push(u);
+      const uIdx = params.length;
+
+      if (filters?.photoCode) {
+        const cleanCode = filters.photoCode.trim();
+        params.push(`%${cleanCode}%`);
+        const cIdx = params.length;
+        whereClause += ` AND (
+          r.photo_url = $${uIdx} 
+          OR r.superseded_by_url = $${uIdx} 
+          OR r.replacement_for_url = $${uIdx}
+          OR r.photo_code ILIKE $${cIdx}
+          OR r.photo_type ILIKE $${cIdx}
+        )`;
+      } else {
+        whereClause += ` AND (
+          r.photo_url = $${uIdx} 
+          OR r.superseded_by_url = $${uIdx} 
+          OR r.replacement_for_url = $${uIdx}
+          OR r.photo_url IN (
+            SELECT r2.replacement_for_url FROM survey_photo_registry r2 
+            WHERE r2.report_id = $1 AND (r2.photo_url = $${uIdx} OR r2.superseded_by_url = $${uIdx})
+          )
+          OR r.superseded_by_url IN (
+            SELECT r3.photo_url FROM survey_photo_registry r3 
+            WHERE r3.report_id = $1 AND (r3.photo_url = $${uIdx} OR r3.replacement_for_url = $${uIdx})
+          )
+        )`;
+      }
+    } else {
+      if (filters?.photoCode) {
+        const cleanCode = filters.photoCode.trim();
+        params.push(`%${cleanCode}%`);
+        const pIdx = params.length;
+        whereClause += ` AND (r.photo_code ILIKE $${pIdx} OR r.photo_type ILIKE $${pIdx})`;
+      }
+      if (filters?.photoType) {
+        const cleanType = filters.photoType.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+        params.push(`%${cleanType}%`);
+        const pIdx = params.length;
+        whereClause += ` AND (
+          UPPER(r.photo_type) ILIKE $${pIdx}
+          OR REPLACE(UPPER(r.photo_type), '_', '') ILIKE $${pIdx}
+          OR REPLACE(UPPER(r.photo_code), '_', '') ILIKE $${pIdx}
+        )`;
+      }
     }
-    if (filters?.photoType) {
-      params.push(filters.photoType.trim().toUpperCase());
-      whereClause += ` AND UPPER(r.photo_type) = $${params.length}`;
-    }
+
     if (filters?.category) {
       params.push(filters.category.trim().toUpperCase());
       whereClause += ` AND UPPER(r.photo_category) = $${params.length}`;

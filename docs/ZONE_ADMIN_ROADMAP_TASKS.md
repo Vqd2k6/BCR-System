@@ -71,7 +71,7 @@ Tài liệu này lưu trữ danh mục các tính năng, giải pháp kiến tr�
 
 ---
 
-## 🔒 5. CHÍNH SÁCH BẢO MẬT & PHÂN QUYỀN VÙNG (ZONE DATA SCOPING & RLS)
+##  5. CHÍNH SÁCH BẢO MẬT & PHÂN QUYỀN VÙNG (ZONE DATA SCOPING & RLS)
 - [ ] **Khóa Cứng Phân Quyền Theo Zone (Zone Isolation)**:
   - Rà soát toàn bộ API: đảm bảo tài khoản role `ZONE_ADMIN` chỉ được duyệt, sửa và ký duyệt các hồ sơ thuộc đúng `assignedZoneId` của mình.
   - Ngăn chặn triệt để tình trạng Trưởng Zone S8 duyệt nhầm hồ sơ của Ga S9.

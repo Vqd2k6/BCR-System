@@ -239,9 +239,8 @@ export const AuditDiffConfirmModal: React.FC<Props> = ({
           {/* Top Metrics Summary Bar */}
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs">
             <div
-              className={`p-2.5 rounded-xl border flex items-center gap-2 ${
-                blockingErrorsCount > 0 ? 'bg-rose-50 border-rose-300 text-rose-800' : 'bg-slate-50 border-slate-200 text-slate-700'
-              }`}
+              className={`p-2.5 rounded-xl border flex items-center gap-2 ${blockingErrorsCount > 0 ? 'bg-rose-50 border-rose-300 text-rose-800' : 'bg-slate-50 border-slate-200 text-slate-700'
+                }`}
             >
               <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${blockingErrorsCount > 0 ? 'bg-rose-600 animate-pulse' : 'bg-slate-400'}`} />
               <div className="min-w-0">
@@ -322,55 +321,50 @@ export const AuditDiffConfirmModal: React.FC<Props> = ({
             <button
               type="button"
               onClick={() => setActiveDiffTab('ALL')}
-              className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer shrink-0 ${
-                activeDiffTab === 'ALL'
+              className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer shrink-0 ${activeDiffTab === 'ALL'
                   ? 'bg-slate-900 text-white shadow-xs'
                   : 'text-slate-600 hover:bg-slate-100'
-              }`}
+                }`}
             >
               Tất cả ({diffItems.length})
             </button>
             <button
               type="button"
               onClick={() => setActiveDiffTab('GENERAL')}
-              className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer shrink-0 ${
-                activeDiffTab === 'GENERAL'
+              className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer shrink-0 ${activeDiffTab === 'GENERAL'
                   ? 'bg-sky-600 text-white shadow-xs'
                   : 'text-slate-600 hover:bg-slate-100'
-              }`}
+                }`}
             >
               1. Thông số & Móng ({groupCounts.general})
             </button>
             <button
               type="button"
               onClick={() => setActiveDiffTab('CAD_PINS')}
-              className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer shrink-0 ${
-                activeDiffTab === 'CAD_PINS'
+              className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer shrink-0 ${activeDiffTab === 'CAD_PINS'
                   ? 'bg-indigo-600 text-white shadow-xs'
                   : 'text-slate-600 hover:bg-slate-100'
-              }`}
+                }`}
             >
               2. Ghim CAD ({groupCounts.pins})
             </button>
             <button
               type="button"
               onClick={() => setActiveDiffTab('PHOTOS')}
-              className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer shrink-0 ${
-                activeDiffTab === 'PHOTOS'
+              className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer shrink-0 ${activeDiffTab === 'PHOTOS'
                   ? 'bg-purple-600 text-white shadow-xs'
                   : 'text-slate-600 hover:bg-slate-100'
-              }`}
+                }`}
             >
               3. Ảnh & Biên bản ({groupCounts.photos})
             </button>
             <button
               type="button"
               onClick={() => setActiveDiffTab('SCORES')}
-              className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer shrink-0 ${
-                activeDiffTab === 'SCORES'
+              className={`px-3 py-1.5 rounded-lg transition-colors cursor-pointer shrink-0 ${activeDiffTab === 'SCORES'
                   ? 'bg-amber-600 text-white shadow-xs'
                   : 'text-slate-600 hover:bg-slate-100'
-              }`}
+                }`}
             >
               4. Điểm ECS/VI & BRA ({groupCounts.scores})
             </button>
@@ -476,11 +470,10 @@ export const AuditDiffConfirmModal: React.FC<Props> = ({
                       key={idx}
                       type="button"
                       onClick={() => handleTogglePresetReason(preset)}
-                      className={`text-[11px] px-2.5 py-1 rounded-lg border transition-all flex items-center gap-1.5 cursor-pointer text-left select-none ${
-                        isSelected
+                      className={`text-[11px] px-2.5 py-1 rounded-lg border transition-all flex items-center gap-1.5 cursor-pointer text-left select-none ${isSelected
                           ? 'bg-sky-50 dark:bg-sky-950/60 border-sky-300 dark:border-sky-600 text-sky-800 dark:text-sky-200 font-medium shadow-xs ring-1 ring-sky-300/50'
                           : 'bg-slate-50 dark:bg-slate-800/60 hover:bg-slate-100 dark:hover:bg-slate-700/60 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100'
-                      }`}
+                        }`}
                     >
                       <span>{preset}</span>
                       {isSelected ? (
@@ -546,7 +539,7 @@ export const AuditDiffConfirmModal: React.FC<Props> = ({
               className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black shadow-md hover:shadow-lg transition-all flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
             >
               <Lock className="w-3.5 h-3.5" />
-              <span>{isSubmitting ? 'Đang xác thực & Lưu...' : 'Xác Nhận & Lưu Chính Thức 🔒'}</span>
+              <span>{isSubmitting ? 'Đang xác thực & Lưu...' : 'Xác Nhận & Lưu Chính Thức '}</span>
             </button>
           </div>
         </div>

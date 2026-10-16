@@ -288,7 +288,7 @@ export const SurveyorNavbar: React.FC<Props> = ({
                 <span>Xem Thẻ Cán Bộ Khảo Sát</span>
               </button>
               <div style={{ fontSize: '0.625rem', color: '#94a3b8', textAlign: 'center', marginTop: '3px' }}>
-                🔒 SĐT & chữ ký do Ban QLDA quản lý tập trung
+                SĐT & chữ ký do Ban QLDA quản lý tập trung
               </div>
 
               {onNavigateAdminExport && (user?.role === 'ZONE_ADMIN' || user?.role === 'SUPER_ADMIN') && (

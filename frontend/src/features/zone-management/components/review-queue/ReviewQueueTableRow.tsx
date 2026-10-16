@@ -41,7 +41,12 @@ export const ReviewQueueTableRow: React.FC<Props> = React.memo(({
     item.burland_damage_category || ''
   );
   const hasAlerts = Number(item.alert_count) > 0;
-  const canBatchApprove = item.status === 'SUBMITTED' && (item.defect_count === 0 && (item.burland_damage_category === 'GRADE_0' || !item.burland_damage_category));
+  const canBatchApprove =
+    item.status === 'SUBMITTED' &&
+    !item.has_admin_diff &&
+    (item.version_count ?? 0) <= 1 &&
+    item.defect_count === 0 &&
+    (item.burland_damage_category === 'GRADE_0' || !item.burland_damage_category);
 
   // Render Status Badge
   const renderStatusBadge = () => {
@@ -117,11 +122,30 @@ export const ReviewQueueTableRow: React.FC<Props> = React.memo(({
         </div>
       );
     }
+    if (item.status === 'UNDER_REVIEW' || (item.has_admin_diff && item.status !== 'APPROVED')) {
+      const verNum = item.current_version_number || 1;
+      const isRollback = item.latest_version_tag === 'ROLLBACK_RESTORE';
+      return (
+        <div className="flex flex-col gap-0.5 items-center">
+          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-50 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700 w-fit whitespace-nowrap">
+            <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse shrink-0" />
+            <span>Đang thẩm định (v{verNum})</span>
+          </span>
+          <div
+            className="text-[10px] text-amber-700/80 dark:text-amber-400 font-mono mt-0.5 whitespace-nowrap truncate max-w-[170px]"
+            title={item.latest_edit_reason || (isRollback ? 'Đã rollback phiên bản' : 'Có bản sửa đổi diff')}
+          >
+            {isRollback ? 'Đã rollback' : item.latest_edit_reason ? item.latest_edit_reason : 'Có bản sửa đổi'}
+          </div>
+        </div>
+      );
+    }
+    const isMultiVer = (item.version_count ?? 0) > 1;
     return (
       <div className="flex flex-col gap-0.5 items-center">
         <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 w-fit whitespace-nowrap">
           <span className="w-2 h-2 rounded-full bg-indigo-600 animate-pulse shrink-0" />
-          <span>Chờ thẩm định</span>
+          <span>Chờ thẩm định{isMultiVer ? ` (v${item.current_version_number})` : ''}</span>
         </span>
         <div className="text-[10px] text-slate-400 font-mono mt-0.5 whitespace-nowrap">
           Nộp: {new Date(item.created_at).toLocaleDateString('vi-VN')} {new Date(item.created_at).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
