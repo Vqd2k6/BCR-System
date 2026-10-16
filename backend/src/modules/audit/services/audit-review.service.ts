@@ -479,44 +479,52 @@ export class AuditReviewService {
     const p03Hist = getPhotoHistoryFor('P03', undefined, p03Data.url || p03Row?.raw_photo_url);
     const p04Hist = getPhotoHistoryFor('P04', undefined, p04Data.url || p04Row?.raw_photo_url);
 
+    const isP01Na = Boolean(p01Data.notApplicable ?? p01Data.isNotApplicable ?? p01Row?.is_not_applicable);
+    const isP02Na = Boolean(p02Data.notApplicable ?? p02Data.isNotApplicable ?? p02Row?.is_not_applicable);
+    const isP03Na = Boolean(p03Data.notApplicable ?? p03Data.isNotApplicable ?? p03Row?.is_not_applicable);
+    const isP04Na = Boolean(p04Data.notApplicable ?? p04Data.isNotApplicable ?? p04Row?.is_not_applicable);
+
     const identificationPhotos = {
       photoP01: {
-        url: p01Data.url || p01Row?.annotated_photo_url || p01Row?.raw_photo_url || null,
-        rawUrl: p01Row?.raw_photo_url || p01Data.rawPhotoUrl || p01Data.url || null,
-        annotatedUrl: p01Row?.annotated_photo_url || p01Data.annotatedPhotoUrl || null,
+        url: isP01Na ? null : (p01Data.url !== undefined ? p01Data.url : (p01Row?.annotated_photo_url || p01Row?.raw_photo_url || null)),
+        rawUrl: isP01Na ? null : (p01Data.rawPhotoUrl !== undefined ? p01Data.rawPhotoUrl : (p01Row?.raw_photo_url || p01Data.url || null)),
+        annotatedUrl: isP01Na ? null : (p01Data.annotatedPhotoUrl !== undefined ? p01Data.annotatedPhotoUrl : (p01Row?.annotated_photo_url || null)),
         photoCode: p01Data.photoCode || p01Row?.photo_code || 'P-01',
-        notApplicable: Boolean(p01Data.notApplicable ?? p01Row?.is_not_applicable),
+        notApplicable: isP01Na,
         naReason: p01Data.naReason || p01Row?.na_reason || null,
         ...p01Hist,
       },
       photoP02: {
-        url: p02Data.url || p02Row?.annotated_photo_url || p02Row?.raw_photo_url || null,
-        rawUrl: p02Row?.raw_photo_url || p02Data.rawPhotoUrl || p02Data.url || null,
-        annotatedUrl: p02Row?.annotated_photo_url || p02Data.annotatedPhotoUrl || null,
+        url: isP02Na ? null : (p02Data.url !== undefined ? p02Data.url : (p02Row?.annotated_photo_url || p02Row?.raw_photo_url || null)),
+        rawUrl: isP02Na ? null : (p02Data.rawPhotoUrl !== undefined ? p02Data.rawPhotoUrl : (p02Row?.raw_photo_url || p02Data.url || null)),
+        annotatedUrl: isP02Na ? null : (p02Data.annotatedPhotoUrl !== undefined ? p02Data.annotatedPhotoUrl : (p02Row?.annotated_photo_url || null)),
         photoCode: p02Data.photoCode || p02Row?.photo_code || 'P-02',
         polygonPoints: p02Data.polygonPoints || p02Row?.facade_polygon_points_json || null,
         floorSplits: p02Data.floorSplits || p02Row?.floor_split_lines_json || null,
         widthM: p02Data.widthM || null,
         heightM: p02Data.heightM || null,
-        notApplicable: Boolean(p02Data.notApplicable ?? p02Row?.is_not_applicable),
+        notApplicable: isP02Na,
+        naReason: p02Data.naReason || p02Row?.na_reason || null,
         ...p02Hist,
       },
       photoP03: {
-        url: p03Data.url || p03Row?.annotated_photo_url || p03Row?.raw_photo_url || null,
-        rawUrl: p03Row?.raw_photo_url || p03Data.rawPhotoUrl || p03Data.url || null,
-        annotatedUrl: p03Row?.annotated_photo_url || p03Data.annotatedPhotoUrl || null,
+        url: isP03Na ? null : (p03Data.url !== undefined ? p03Data.url : (p03Row?.annotated_photo_url || p03Row?.raw_photo_url || null)),
+        rawUrl: isP03Na ? null : (p03Data.rawPhotoUrl !== undefined ? p03Data.rawPhotoUrl : (p03Row?.raw_photo_url || p03Data.url || null)),
+        annotatedUrl: isP03Na ? null : (p03Data.annotatedPhotoUrl !== undefined ? p03Data.annotatedPhotoUrl : (p03Row?.annotated_photo_url || null)),
         photoCode: p03Data.photoCode || p03Row?.photo_code || 'P-03',
         tag: p03Data.tag || 'Bên hông phải',
-        additionalPhotos: Array.isArray(p03Data.additionalPhotos) ? p03Data.additionalPhotos : [],
-        notApplicable: Boolean(p03Data.notApplicable ?? p03Row?.is_not_applicable),
+        additionalPhotos: isP03Na ? [] : (Array.isArray(p03Data.additionalPhotos) ? p03Data.additionalPhotos : []),
+        notApplicable: isP03Na,
+        naReason: p03Data.naReason || p03Row?.na_reason || null,
         ...p03Hist,
       },
       photoP04: {
-        url: p04Data.url || p04Row?.annotated_photo_url || p04Row?.raw_photo_url || null,
-        rawUrl: p04Row?.raw_photo_url || p04Data.rawPhotoUrl || p04Data.url || null,
-        annotatedUrl: p04Row?.annotated_photo_url || p04Data.annotatedPhotoUrl || null,
+        url: isP04Na ? null : (p04Data.url !== undefined ? p04Data.url : (p04Row?.annotated_photo_url || p04Row?.raw_photo_url || null)),
+        rawUrl: isP04Na ? null : (p04Data.rawPhotoUrl !== undefined ? p04Data.rawPhotoUrl : (p04Row?.raw_photo_url || p04Data.url || null)),
+        annotatedUrl: isP04Na ? null : (p04Data.annotatedPhotoUrl !== undefined ? p04Data.annotatedPhotoUrl : (p04Row?.annotated_photo_url || null)),
         photoCode: p04Data.photoCode || p04Row?.photo_code || 'P-04',
-        notApplicable: Boolean(p04Data.notApplicable ?? p04Row?.is_not_applicable),
+        notApplicable: isP04Na,
+        naReason: p04Data.naReason || p04Row?.na_reason || null,
         ...p04Hist,
       },
     };

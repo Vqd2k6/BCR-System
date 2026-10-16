@@ -1315,7 +1315,7 @@ export class AuditModificationService {
     const stdName = pa.standardizedFilename || `M2__${Date.now()}.jpg`;
     const hash = pa.sha256Hash || computeSha256(pa.newPhotoUrl || pa.oldPhotoUrl || Date.now().toString());
 
-    if (action === 'REPLACE') {
+    if (action === 'REPLACE' || action === 'RESTORE') {
       const newUrl = pa.newPhotoUrl || '';
       const oldUrl = pa.oldPhotoUrl || '';
 
@@ -1491,16 +1491,17 @@ export class AuditModificationService {
         );
       }
 
+      const regActionType = action === 'RESTORE' ? 'RESTORE' : 'REPLACE';
       await client.query(
         `INSERT INTO survey_photo_registry (
            report_id, parcel_id, photo_category, photo_type, photo_code, photo_url,
            standardized_filename, sha256_hash, size_bytes, mime_type, status,
            replacement_for_url, action_type, action_reason, actor_id, actor_role, metadata_json
-         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'ACTIVE', $11, 'REPLACE', $12, $13, 'ZONE_ADMIN', $14);`,
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'ACTIVE', $11, $12, $13, $14, 'ZONE_ADMIN', $15);`,
         [
           reportId, parcelId, cat, type, photoCode, newUrl,
           stdName, hash, pa.sizeBytes || null, pa.mimeType || 'image/jpeg',
-          oldUrl || null, pa.reason, adminId, JSON.stringify(pa.metadata || {})
+          oldUrl || null, regActionType, pa.reason, adminId, JSON.stringify(pa.metadata || {})
         ]
       );
 
@@ -1728,11 +1729,77 @@ export class AuditModificationService {
             const dItem = dRes.rows[0];
             let photos = Array.isArray(dItem.cu_photos_json) ? dItem.cu_photos_json : [];
             photos = photos.filter((p: any) => (typeof p === 'string' ? p !== targetUrl : p?.url !== targetUrl));
-            const newPrimary = photos.length > 0 ? (typeof photos[0] === 'string' ? photos[0] : photos[0]?.url) : dItem.cu_photo_url;
+            const newPrimary = photos.length > 0 ? (typeof photos[0] === 'string' ? photos[0] : photos[0]?.url) : '';
             await client.query(
               `UPDATE defect_items SET cu_photo_url = $1, cu_photos_json = $2 WHERE id = $3;`,
               [newPrimary, JSON.stringify(photos), dItem.id]
             );
+          }
+        }
+        if (Array.isArray(surveyJson.floors)) {
+          for (const fl of surveyJson.floors) {
+            if (Array.isArray(fl.zones)) {
+              for (const zn of fl.zones) {
+                if (Array.isArray(zn.defects)) {
+                  for (const df of zn.defects) {
+                    if (
+                      df.id === pa.targetPhotoId ||
+                      df.defectCode === pa.targetPhotoId ||
+                      df.defectCode === photoCode ||
+                      df.defectCode === pa.defectCode ||
+                      (targetUrl && (df.cuPhotoUrl === targetUrl || (Array.isArray(df.cuPhotos) && df.cuPhotos.includes(targetUrl))))
+                    ) {
+                      if (pa.deleteDefectItem) {
+                        df.isDeleted = true;
+                      } else if (Array.isArray(df.cuPhotos)) {
+                        df.cuPhotos = df.cuPhotos.filter((p: any) => (typeof p === 'string' ? p !== targetUrl : p?.url !== targetUrl));
+                        df.cuPhotoUrl = df.cuPhotos.length > 0 ? (typeof df.cuPhotos[0] === 'string' ? df.cuPhotos[0] : df.cuPhotos[0]?.url) : null;
+                      } else if (df.cuPhotoUrl === targetUrl) {
+                        df.cuPhotoUrl = null;
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      } else if (cat === 'ZONE_CTX' || type === 'ZONE_CTX' || type === 'CTX') {
+        await client.query(
+          `UPDATE damage_zones SET ctx_photo_url = '' WHERE id::text = $1 OR zone_code = $2;`,
+          [pa.targetPhotoId || null, pa.targetPhotoId || null]
+        );
+        if (Array.isArray(surveyJson.floors)) {
+          for (const fl of surveyJson.floors) {
+            if (Array.isArray(fl.zones)) {
+              for (const zn of fl.zones) {
+                if (
+                  zn.id === pa.targetPhotoId ||
+                  zn.zoneCode === pa.targetPhotoId ||
+                  zn.zoneCode === photoCode ||
+                  (targetUrl && zn.ctxPhotoUrl === targetUrl)
+                ) {
+                  zn.ctxPhotoUrl = null;
+                }
+              }
+            }
+          }
+        }
+      } else if (cat === 'CAD_FLOOR' || type === 'FLOOR_CAD' || type === 'CAD') {
+        const floorNum = Number(pa.photoIndex) || 1;
+        await client.query(
+          `UPDATE building_floor_plans SET cad_photo_url = NULL, updated_at = NOW() WHERE id::text = $1 OR (parcel_id = $2 AND floor_number = $3);`,
+          [pa.targetPhotoId || null, parcelId, floorNum]
+        );
+        if (Array.isArray(surveyJson.floors)) {
+          for (const fl of surveyJson.floors) {
+            if (fl.id === pa.targetPhotoId || fl.floorNumber === floorNum) {
+              if (type.includes('STRUCT')) {
+                fl.cadStructuralSketchPhotoUrl = null;
+              } else {
+                fl.cadArchitecturalSketchPhotoUrl = null;
+              }
+            }
           }
         }
       } else if (cat === 'ELEMENT_CTX' || cat === 'ELEMENT_OVERVIEW') {
@@ -1766,21 +1833,34 @@ export class AuditModificationService {
         }
       } else if (cat === 'IDENTIFICATION' || ['P01', 'P02', 'P03', 'P04'].includes(type.toUpperCase())) {
         const equivTypes = getEquivalentIdentPhotoTypes(type);
+        const naReason = pa.naReason || pa.reason || 'Không áp dụng theo xác nhận của Quản trị viên';
         await client.query(
           `UPDATE survey_identification_photos 
-           SET is_not_applicable = true, na_reason = $1 
+           SET raw_photo_url = NULL, annotated_photo_url = NULL, is_not_applicable = true, na_reason = $1 
            WHERE report_id = $2 AND photo_type::text = ANY($3::text[]);`,
-          [pa.naReason || pa.reason || 'Không áp dụng theo xác nhận của Quản trị viên', reportId, equivTypes]
+          [naReason, reportId, equivTypes]
         );
-        const pKey = type.toLowerCase();
-        if (surveyJson[pKey]) {
-          surveyJson[pKey].isNotApplicable = true;
-          surveyJson[pKey].naReason = pa.naReason || pa.reason;
-        }
-        const camelKey = `photo${type.toUpperCase().replace(/[^P0-9]/g, '')}`;
-        if (surveyJson[camelKey]) {
-          surveyJson[camelKey].notApplicable = true;
-          surveyJson[camelKey].naReason = pa.naReason || pa.reason;
+        const cleanType = type.toUpperCase().replace(/[^P0-9]/g, '');
+        const pKey = cleanType.toLowerCase();
+        const camelKey = `photo${cleanType}`;
+
+        const updateNaObj = (obj: any) => {
+          if (!obj) return;
+          obj.url = null;
+          obj.rawPhotoUrl = null;
+          obj.annotatedPhotoUrl = null;
+          obj.notApplicable = true;
+          obj.isNotApplicable = true;
+          obj.naReason = naReason;
+        };
+
+        if (!surveyJson[camelKey]) surveyJson[camelKey] = {};
+        updateNaObj(surveyJson[camelKey]);
+
+        if (surveyJson[pKey]) updateNaObj(surveyJson[pKey]);
+        if (surveyJson.identificationPhotos) {
+          if (surveyJson.identificationPhotos[camelKey]) updateNaObj(surveyJson.identificationPhotos[camelKey]);
+          if (surveyJson.identificationPhotos[pKey]) updateNaObj(surveyJson.identificationPhotos[pKey]);
         }
       }
 
@@ -2086,7 +2166,7 @@ export class AuditModificationService {
    * Áp dụng khi nộp hồ sơ, khi tạo baseline v0 hoặc cơ chế Tự Lành (Self-Healing) cho hồ sơ cũ
    */
   static async seedInitialReportPhotos(reportId: string, client?: any): Promise<number> {
-    const dbClient = client || Database;
+    const dbClient = (client && typeof client.query === 'function') ? client : Database;
 
     const repRes = await dbClient.query(
       `SELECT r.id, r.parcel_id, r.surveyor_id, r.survey_data_json, r.surveyor_signature_url, r.owner_signature_url,
